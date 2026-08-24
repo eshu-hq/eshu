@@ -65,8 +65,8 @@ check_docs_cli_env_refs_trigger_parity() {
   # came back near-empty (both counts zero) still fails rather than looping over
   # nothing. Lowering it is fine when a trigger is deliberately removed from the
   # spec -- that is a decision, not a parser bug.
-  ((parsed_trigger_count >= 10)) ||
-    fail "docs-cli-env-refs registry triggers parsed as ${parsed_trigger_count} entries (expected at least 10); either the trigger-block parser or the registry indentation changed, or a trigger was deliberately removed from the spec -- in which case lower this floor in the same commit"
+  ((parsed_trigger_count >= 11)) ||
+    fail "docs-cli-env-refs registry triggers parsed as ${parsed_trigger_count} entries (expected at least 11); either the trigger-block parser or the registry indentation changed, or a trigger was deliberately removed from the spec -- in which case lower this floor in the same commit"
 
   for input in "${triggers[@]}"; do
     # Tautological by construction -- every input was just parsed out of
@@ -81,7 +81,7 @@ check_docs_cli_env_refs_trigger_parity() {
 
   require "docs-cli-env-refs workflow matrix entry" 'append_gate "${{ steps.filter.outputs.docsclienvrefs }}" "docsclienvrefs" "Verify docs CLI/env refs gate" "bash scripts/test-verify-docs-cli-env-refs.sh" "bash scripts/verify-docs-cli-env-refs.sh"' "${static_contract_workflow}"
 
-  for input in 'docs/public/reference/cli-reference.md' 'go/cmd/eshu/docs.go' 'go/internal/cli/firstrun/classify.go' 'go/internal/envregistry/entries.go' 'scripts/test-verify-docs-cli-env-refs.sh'; do
+  for input in 'docs/public/reference/cli-reference.md' 'go/cmd/eshu/docs.go' 'go/internal/cli/firstrun/classify.go' 'go/internal/envregistry/entries.go' 'scripts/test-verify-docs-cli-env-refs.sh' 'scripts/lib/test-verify-docs-cli-env-refs-segment-cases.sh'; do
     selection="$(printf '%s\n' "${input}" | (cd "${repo_root}/go" && go run ./cmd/ci-gates select --registry "${registry}" --tier pre-pr --paths-from - --explain))"
     printf '%s\n' "${selection}" |
       rg --quiet '^SELECTED[[:space:]]+docs-cli-env-refs[[:space:]]' ||

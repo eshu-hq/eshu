@@ -2,12 +2,26 @@
 #
 # Verify concrete ESHU_* citations and long flags in fenced Eshu shell commands.
 #
-# Precision-first flag scope: bash/sh/shell/console fences only; logical lines
-# beginning with `eshu` (optionally after `$` or `>`); concrete long flags only.
-# Prose, inline code, non-shell fences, and logical lines containing an
-# unquoted shell-list operator (`|`, `&`, or `;`) are deliberately skipped,
-# as are short flags, shell-expanded flag names, command-local flags after a
-# leading root flag, and wildcard ESHU_* family prefixes.
+# Precision-first flag scope: bash/sh/shell/console fences only; command
+# segments beginning with `eshu` (optionally after `$` or `>`); concrete long
+# flags only. Prose, inline code, non-shell fences, short flags, shell-expanded
+# flag names, command-local flags after a leading root flag, and wildcard ESHU_*
+# family prefixes are deliberately skipped.
+#
+# Since #6108 a logical line may be a simple list: segments separated by an
+# unquoted `|`, `&&`, or `;`, each checked against its own command so one
+# command's flags are never attributed to another. Any other shell form on the
+# line -- `||`, a background `&`, `|&`, `;;`, a subshell, or command
+# substitution -- keeps the whole line outside the gate's scope, and so does an
+# empty segment. A subshell or substitution excludes the line whether or not it
+# carries a list operator. Operators inside quotes, after a backslash, or in a trailing
+# `#` comment are not segment boundaries.
+#
+# Every run prints how many command segments it attributed and how many `eshu`
+# command lines it skipped that way, zero included, and asserts both: the skip
+# count is pinned exactly in each direction, the attributed count has a floor.
+# A scanner that quietly stopped reading shell fences fails here instead of
+# reporting a clean run over a shrunken population.
 set -euo pipefail
 
 repo_root="$(cd "$(dirname "$0")/.." && pwd)"
@@ -17,6 +31,10 @@ ceiling="${ESHU_DOCS_CLI_ENV_BASELINE_CEILING_PATH:-${repo_root}/scripts/docs-cl
 gocache="${ESHU_DOCS_CLI_ENV_GOCACHE:-${repo_root}/.gocache-docs-cli-env-refs}"
 eshu_binary="${ESHU_DOCS_CLI_ENV_ESHU_BINARY:-}"
 checker_binary="${ESHU_DOCS_CLI_ENV_CHECKER_BINARY:-}"
+# Empty means "use the checker's code-owned pin/floor". Only the companion
+# suite sets these, so the real gate always runs against the pinned values.
+pinned_skipped="${ESHU_DOCS_CLI_ENV_PINNED_SKIPPED_LINES:-}"
+min_attributed="${ESHU_DOCS_CLI_ENV_MIN_ATTRIBUTED_SEGMENTS:-}"
 tmp_dir="$(mktemp -d)"
 trap 'rm -rf "${tmp_dir}"' EXIT
 
@@ -48,6 +66,12 @@ args=(
   -baseline-ceiling "${ceiling}"
   -eshu "${eshu_binary}"
 )
+if [[ -n "${pinned_skipped}" ]]; then
+  args+=(-pinned-skipped-lines "${pinned_skipped}")
+fi
+if [[ -n "${min_attributed}" ]]; then
+  args+=(-min-attributed-segments "${min_attributed}")
+fi
 if [[ "${update}" == true ]]; then
   args+=(-update)
 fi

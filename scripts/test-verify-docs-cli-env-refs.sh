@@ -27,6 +27,34 @@ assert_contains() {
   fi
 }
 
+# assert_output_line matches a WHOLE diagnostic line, not a substring anywhere
+# in the file. A per-segment attribution bug still prints the document name and
+# the flag, so a substring assertion on either would pass while the command
+# scope is wrong; only the full line pins which command owns the flag.
+assert_output_line() {
+  local regex="$1"
+  local file="$2"
+  local label="$3"
+  if rg -q --regexp "${regex}" "${file}"; then
+    record_pass "${label}"
+  else
+    record_fail "${label} (no line matching ${regex})"
+    sed -n '1,160p' "${file}" >&2
+  fi
+}
+
+assert_absent() {
+  local needle="$1"
+  local file="$2"
+  local label="$3"
+  if rg -q --fixed-strings -- "${needle}" "${file}"; then
+    record_fail "${label} (unexpected ${needle})"
+    sed -n '1,160p' "${file}" >&2
+  else
+    record_pass "${label}"
+  fi
+}
+
 write_doc() {
   local root="$1"
   local rel="$2"
@@ -41,7 +69,9 @@ run_verifier() {
   local out="$3"
   shift 3
   local ceiling="${ESHU_TEST_BASELINE_CEILING_PATH:-${repo_root}/scripts/docs-cli-env-refs-ceiling.txt}"
-  ESHU_DOCS_CLI_ENV_DOCS_ROOT="${docs_root}" \
+  ESHU_DOCS_CLI_ENV_PINNED_SKIPPED_LINES="${ESHU_TEST_PINNED_SKIPPED-0}" \
+    ESHU_DOCS_CLI_ENV_MIN_ATTRIBUTED_SEGMENTS="${ESHU_TEST_MIN_ATTRIBUTED-0}" \
+    ESHU_DOCS_CLI_ENV_DOCS_ROOT="${docs_root}" \
     ESHU_DOCS_CLI_ENV_BASELINE_PATH="${baseline}" \
     ESHU_DOCS_CLI_ENV_BASELINE_CEILING_PATH="${ceiling}" \
     ESHU_DOCS_CLI_ENV_ESHU_BINARY="${tmp_root}/eshu" \
@@ -180,6 +210,13 @@ test_hostile_command_and_markdown_forms_fail() {
   assert_contains "fence-close-nbsp.md" "${out}" "non-ASCII fence suffix does not hide flags"
   assert_contains "fence-close-over-indented.md" "${out}" "over-indented pseudo-close does not hide flags"
   assert_contains "quoted-operators.md" "${out}" "quoted and escaped operators remain in scanner scope"
+  # Whole-line, not substring: splitting on any of these operators would drop the
+  # flag on the wrong side of an unbalanced quote and print no line at all.
+  for quoted_case in quoted-pipe quoted-semicolon escaped-ampersand; do
+    assert_output_line \
+      "^docs-cli-env-refs: quoted-operators\\.md cites unknown flag --${quoted_case}-invalid on command .eshu docs verify. \\(not in .*\\)$" \
+      "${out}" "${quoted_case} stays inside one command segment"
+  done
   if rg --fixed-strings --quiet -- "literal-block.md" "${out}"; then
     record_fail "top-level indented literal stays outside fenced-command scope"
   else
@@ -203,11 +240,6 @@ test_precision_exclusions_pass() {
     'eshu docs verify --not-a-real-flag' \
     '```' \
     '```bash' \
-    'cat input.json | eshu service-report --not-a-real-flag' \
-    'eshu docs verify --json | eshu definitely-not-a-command --json' \
-    'eshu docs verify --json | eshu definitely-not-a-command --not-a-real-flag' \
-    'eshu docs verify --json && eshu definitely-not-a-command --not-a-real-flag' \
-    'eshu docs verify --json ; eshu definitely-not-a-command --not-a-real-flag' \
     'eshu docs verify \"--not-a-real-flag\"' \
     '```'
   : >"${baseline}"
@@ -369,6 +401,9 @@ test_frozen_ceiling_same_count_replacement_fails() {
 test_real_tree_matches_committed_baseline() {
   local baseline="${repo_root}/scripts/docs-cli-env-refs-baseline.txt"
   local out="${tmp_root}/real-tree.out"
+  # Empty overrides mean the wrapper omits the flags, so this case runs against
+  # the checker's code-owned pin and floor. It is the only case that does.
+  export ESHU_TEST_PINNED_SKIPPED= ESHU_TEST_MIN_ATTRIBUTED=
   if run_verifier "${repo_root}/docs/public" "${baseline}" "${out}"; then
     record_pass "real public docs pass with committed baseline"
   else
@@ -385,13 +420,22 @@ test_real_tree_matches_committed_baseline() {
     record_fail "committed baseline matches fresh regeneration"
     diff "${regenerated}" "${baseline}" >&2 || true
   fi
+  unset ESHU_TEST_PINNED_SKIPPED ESHU_TEST_MIN_ATTRIBUTED
 }
+
+# shellcheck source=lib/test-verify-docs-cli-env-refs-segment-cases.sh
+source "$(dirname "$0")/lib/test-verify-docs-cli-env-refs-segment-cases.sh"
 
 build_real_cli
 test_registered_references_pass
 test_new_unknowns_fail
 test_hostile_command_and_markdown_forms_fail
 test_precision_exclusions_pass
+test_pipeline_and_chain_segments_are_checked_per_command
+test_unsupported_shell_forms_stay_skipped
+test_escaped_quote_does_not_hide_a_later_flag
+test_scan_coverage_pins_are_enforced
+test_root_flag_and_env_diagnostics_name_their_scope
 test_baseline_and_update_are_burn_down_safe
 test_malformed_baseline_fails_closed
 test_atomic_baseline_growth_fails

@@ -28,14 +28,37 @@ const (
 	frozenCeilingReferenceCount   = 772
 	frozenCeilingMembershipSHA256 = "9656cdce1e9588b02a520f847a1ee2eafc7220de7ebba0aa7a266da87d2d82ec"
 	rootCommandBaselineToken      = "<root>"
+
+	// pinnedSkippedEshuLines is the exact number of logical lines under
+	// docs/public that invoke an `eshu` command and fall outside the supported
+	// command-segment grammar. A line that merely carries the word `eshu` as an
+	// argument, such as `docker compose logs eshu`, is not one of them: this
+	// count is asserted in both directions, so over-reporting would fail the
+	// gate on an unrelated docs edit. It is pinned in BOTH directions, the way the
+	// dirgate grandfather rows are: growth means a new unparseable example
+	// slipped in, and a shrink that is not re-pinned lets the population creep
+	// back up under a stale number. Today's one line is a backgrounded
+	// `eshu graph start ... 2>&1 &` in the profiling runbook.
+	pinnedSkippedEshuLines = 1
+
+	// minAttributedEshuSegments is a floor, not a pin: it moves with ordinary
+	// documentation edits, so pinning it would fail every docs PR. The floor
+	// only has to catch the failure it exists for -- a scanner that stops
+	// seeing shell fences and reports a clean run over a shrunken population.
+	// docs/public attributes 190 segments today (VERIFIED by running the gate);
+	// 150 is roughly four fifths of that, so deleting a whole page of examples
+	// still passes while a collapse does not.
+	minAttributedEshuSegments = 150
 )
 
 type options struct {
-	docsRoot string
-	baseline string
-	ceiling  string
-	eshu     string
-	update   bool
+	docsRoot      string
+	baseline      string
+	ceiling       string
+	eshu          string
+	update        bool
+	pinnedSkipped int
+	minAttributed int
 }
 
 func main() {
@@ -54,6 +77,8 @@ func run(ctx context.Context, args []string) error {
 	flags.StringVar(&opts.ceiling, "baseline-ceiling", "../scripts/docs-cli-env-refs-ceiling.txt", "frozen initial-debt ceiling")
 	flags.StringVar(&opts.eshu, "eshu", "", "built Eshu CLI binary")
 	flags.BoolVar(&opts.update, "update", false, "regenerate the baseline")
+	flags.IntVar(&opts.pinnedSkipped, "pinned-skipped-lines", pinnedSkippedEshuLines, "exact pinned count of Eshu command lines skipped as unsupported shell forms")
+	flags.IntVar(&opts.minAttributed, "min-attributed-segments", minAttributedEshuSegments, "floor under the number of Eshu command segments the scanner attributes")
 	if err := flags.Parse(args); err != nil {
 		return err
 	}
@@ -64,8 +89,18 @@ func run(ctx context.Context, args []string) error {
 		return errors.New("-eshu is required")
 	}
 
-	refs, err := scanDocs(opts.docsRoot)
+	refs, counts, err := scanDocs(opts.docsRoot)
 	if err != nil {
+		return err
+	}
+	// Always reported, including when either number is zero: a silent count
+	// cannot be told apart from a scanner that stopped seeing shell fences.
+	fmt.Fprintf(
+		os.Stderr,
+		"docs-cli-env-refs: %d Eshu command segment(s) attributed, %d Eshu command line(s) skipped as unsupported shell forms\n",
+		counts.AttributedSegments, counts.SkippedLines,
+	)
+	if err := validateScanCoverage(counts, opts.pinnedSkipped, opts.minAttributed); err != nil {
 		return err
 	}
 	cliCtx, cancel := context.WithTimeout(ctx, defaultCLITimeout)
@@ -102,11 +137,50 @@ func run(ctx context.Context, args []string) error {
 	newRefs := difference(unresolved, baseline)
 	if len(newRefs) > 0 {
 		for _, ref := range newRefs {
-			fmt.Fprintf(os.Stderr, "docs-cli-env-refs: %s cites unknown %s %s (not in %s)\n", ref.Document, ref.Kind, ref.Value, opts.baseline)
+			fmt.Fprintf(os.Stderr, "docs-cli-env-refs: %s cites unknown %s %s%s (not in %s)\n", ref.Document, ref.Kind, ref.Value, referenceScope(ref), opts.baseline)
 		}
 		return fmt.Errorf("%d documentation reference(s) are not registered or baselined", len(newRefs))
 	}
 	fmt.Fprintf(os.Stderr, "docs-cli-env-refs: OK: %d reference(s) checked, %d unresolved reference(s) baselined\n", len(refs), len(unresolved))
+	return nil
+}
+
+// referenceScope names the command an unresolved flag was attributed to, so a
+// failure on a piped or chained example says which segment owns the flag rather
+// than leaving an operator to guess (#6108). Environment references have no
+// command scope and render as an empty suffix.
+func referenceScope(ref reference) string {
+	if ref.Kind != referenceKindFlag {
+		return ""
+	}
+	if ref.Command == "" {
+		return " on command `eshu`"
+	}
+	return " on command `eshu " + strings.ReplaceAll(ref.Command, "/", " ") + "`"
+}
+
+// validateScanCoverage asserts the scanner inspected what it is supposed to
+// inspect. Printing the counts is not enough: a number in a summary nobody
+// checks is decoration, so the skipped population is an exact pin and the
+// attributed population has a floor.
+func validateScanCoverage(counts scanCounts, pinnedSkipped int, minAttributed int) error {
+	switch {
+	case counts.SkippedLines > pinnedSkipped:
+		return fmt.Errorf(
+			"skipped Eshu command lines (unsupported shell forms) grew from its pinned count of %d to %d: rewrite the example into the supported segment grammar (see go/cmd/docs-cli-env-refs/README.md), or re-pin pinnedSkippedEshuLines with the reason",
+			pinnedSkipped, counts.SkippedLines,
+		)
+	case counts.SkippedLines < pinnedSkipped:
+		return fmt.Errorf(
+			"skipped Eshu command lines (unsupported shell forms) shrank from its pinned count of %d to %d: re-pin pinnedSkippedEshuLines to %d in the same change, otherwise the population creeps back up against a stale number",
+			pinnedSkipped, counts.SkippedLines, counts.SkippedLines,
+		)
+	case counts.AttributedSegments < minAttributed:
+		return fmt.Errorf(
+			"scanner attributed only %d Eshu command segment(s), below the code-owned floor of %d: coverage collapsed, so a clean result here proves nothing",
+			counts.AttributedSegments, minAttributed,
+		)
+	}
 	return nil
 }
 
@@ -170,10 +244,10 @@ func validateBaselineUpdate(unresolved []reference, baseline map[string]struct{}
 	return fmt.Errorf("baseline update would add %d unresolved reference(s): %s", len(newRefs), strings.Join(values, ", "))
 }
 
-func scanDocs(root string) (refs []reference, resultErr error) {
+func scanDocs(root string) (refs []reference, counts scanCounts, resultErr error) {
 	docsRoot, err := os.OpenRoot(root)
 	if err != nil {
-		return nil, fmt.Errorf("open docs root: %w", err)
+		return nil, counts, fmt.Errorf("open docs root: %w", err)
 	}
 	defer func() {
 		if closeErr := docsRoot.Close(); closeErr != nil && resultErr == nil {
@@ -182,10 +256,10 @@ func scanDocs(root string) (refs []reference, resultErr error) {
 	}()
 	info, err := docsRoot.Stat(".")
 	if err != nil {
-		return nil, fmt.Errorf("stat opened docs root: %w", err)
+		return nil, counts, fmt.Errorf("stat opened docs root: %w", err)
 	}
 	if !info.IsDir() {
-		return nil, fmt.Errorf("docs root is not a directory: %s", root)
+		return nil, counts, fmt.Errorf("docs root is not a directory: %s", root)
 	}
 
 	refs = []reference{}
@@ -200,15 +274,18 @@ func scanDocs(root string) (refs []reference, resultErr error) {
 		if err != nil {
 			return err
 		}
-		refs = append(refs, scanMarkdown(filepath.ToSlash(path), string(content))...)
+		pageRefs, pageCounts := scanMarkdown(filepath.ToSlash(path), string(content))
+		refs = append(refs, pageRefs...)
+		counts.AttributedSegments += pageCounts.AttributedSegments
+		counts.SkippedLines += pageCounts.SkippedLines
 		return nil
 	})
 	if err != nil {
-		return nil, fmt.Errorf("scan docs: %w", err)
+		return nil, counts, fmt.Errorf("scan docs: %w", err)
 	}
 	refs = uniqueReferences(refs)
 	sortReferences(refs)
-	return refs, nil
+	return refs, counts, nil
 }
 
 func unresolvedReferences(refs []reference, knownFlags map[string]map[string]struct{}) []reference {

@@ -272,6 +272,7 @@ jobs:
               - 'go/cmd/docs-cli-env-refs/**'
               - 'scripts/verify-docs-cli-env-refs.sh'
               - 'scripts/test-verify-docs-cli-env-refs.sh'
+              - 'scripts/lib/test-verify-docs-cli-env-refs-segment-cases.sh'
               - 'scripts/docs-cli-env-refs-baseline.txt'
               - 'scripts/docs-cli-env-refs-ceiling.txt'
             querydoccommitrefs:

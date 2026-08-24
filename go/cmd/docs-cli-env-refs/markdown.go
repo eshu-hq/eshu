@@ -28,8 +28,23 @@ type reference struct {
 	Value    string
 }
 
-func scanMarkdown(document string, content string) []reference {
+// scanCounts records how much of a page the flag scanner actually inspected.
+// AttributedSegments is the denominator -- Eshu command segments whose flags
+// were resolved against a command -- and SkippedLines is the gate's own blind
+// spot: logical lines that invoke an `eshu` command and fell outside the
+// supported command-segment grammar. Reported together, they separate a genuinely clean
+// run from a scanner that silently stopped reading shell fences; either number
+// alone cannot.
+type scanCounts struct {
+	AttributedSegments int
+	SkippedLines       int
+}
+
+// scanMarkdown returns the concrete references cited by one public Markdown
+// page together with the coverage counts above.
+func scanMarkdown(document string, content string) ([]reference, scanCounts) {
 	seen := map[string]reference{}
+	counts := scanCounts{}
 	for _, name := range concreteEnvPattern.FindAllString(content, -1) {
 		ref := reference{Kind: referenceKindEnv, Document: document, Value: name}
 		seen[referenceKey(ref)] = ref
@@ -41,10 +56,19 @@ func scanMarkdown(document string, content string) []reference {
 	listContentIndent := 0
 	pending := ""
 	flush := func() {
-		command, flags := flagsFromEshuCommand(pending)
-		for _, flag := range flags {
-			ref := reference{Kind: referenceKindFlag, Document: document, Command: command, Value: flag}
-			seen[referenceKey(ref)] = ref
+		segments := commandSegments(pending)
+		if segments == nil && mentionsEshuCommand(pending) {
+			counts.SkippedLines++
+		}
+		for _, segment := range segments {
+			if _, ok := eshuCommandFields(segment); ok {
+				counts.AttributedSegments++
+			}
+			command, flags := flagsFromEshuCommand(segment)
+			for _, flag := range flags {
+				ref := reference{Kind: referenceKindFlag, Document: document, Command: command, Value: flag}
+				seen[referenceKey(ref)] = ref
+			}
 		}
 		pending = ""
 	}
@@ -105,7 +129,7 @@ func scanMarkdown(document string, content string) []reference {
 		out = append(out, ref)
 	}
 	sortReferences(out)
-	return out
+	return out, counts
 }
 
 func leadingSpaces(line string) int {
@@ -137,22 +161,13 @@ func isFenceClose(line string, marker string, maxIndent int) bool {
 }
 
 func flagsFromEshuCommand(line string) (string, []string) {
-	if containsUnquotedShellListOperator(line) {
+	args, ok := eshuCommandFields(line)
+	if !ok {
 		return "", nil
 	}
-	fields := splitShellFields(strings.TrimSpace(line))
-	if len(fields) == 0 {
-		return "", nil
-	}
-	if fields[0] == "$" || fields[0] == ">" {
-		fields = fields[1:]
-	}
-	if len(fields) == 0 || fields[0] != "eshu" {
-		return "", nil
-	}
-	if len(fields) > 1 && strings.HasPrefix(fields[1], "-") {
+	if len(args) > 0 && strings.HasPrefix(args[0], "-") {
 		flags := []string{}
-		for _, field := range fields[1:] {
+		for _, field := range args {
 			if !longFlagPattern.MatchString(field) {
 				break
 			}
@@ -163,7 +178,7 @@ func flagsFromEshuCommand(line string) (string, []string) {
 	}
 	seen := map[string]struct{}{}
 	commandFields := []string{}
-	for _, field := range fields[1:] {
+	for _, field := range args {
 		if !strings.HasPrefix(field, "-") && len(seen) == 0 {
 			commandFields = append(commandFields, field)
 		}

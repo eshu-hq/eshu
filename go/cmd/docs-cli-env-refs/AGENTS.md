@@ -2,6 +2,16 @@
 
 - Preserve the precision-first exclusions documented in README.md and the
   wrapper header unless a failing regression proves a safe expansion.
+- `pinnedSkippedEshuLines` is pinned in BOTH directions on purpose. When the
+  gate reports growth, the first move is to rewrite the documented example into
+  the supported grammar; re-pinning is the fallback and needs the reason in the
+  change. Never widen `minAttributedEshuSegments` downward to make a red run
+  green — a falling attributed count is the scanner losing coverage.
+- The simple-list grammar in `commandSegments` is a deliberate
+  under-approximation. Widening it needs a hostile collision test first: a later
+  segment carrying a flag that is invalid there but valid on an earlier command,
+  proving the gate still fails. A conservative skip is correct; a splitter that
+  attributes a flag to the wrong command is the #6108 defect.
 - Tests must exercise `envregistry.Default()` and a real built Eshu CLI, not a
   copied flag allowlist.
 - Keep baseline updates deterministic and burn-down-only. The `-update` path
