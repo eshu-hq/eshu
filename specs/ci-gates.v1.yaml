@@ -3538,6 +3538,8 @@ gates:
       - "scripts/verify-live-required-status-checks.sh"
       - "scripts/test-verify-live-required-status-checks.sh"
       - "scripts/test-pre-pr-whole-module-gates.sh"
+      - "scripts/lib/pre-pr-test-selection.sh"
+      - "scripts/lib/test-pre-pr-test-selection.sh"
       - "scripts/generate-ci-gates-doc.sh"
       - "scripts/lib/ci-gates-doc-parse.awk"
       - "scripts/lib/test-verify-ci-gates-registry-telemetry-cases.sh"

@@ -186,8 +186,8 @@ Start narrow, then prove the read path you claim.
 
 | Claim | Minimum focused proof |
 | --- | --- |
-| Parser syntax or metadata only | `cd go && go test ./internal/parser -run <focused-test> -count=1` |
-| Parser behavior used by collection or content shape | `cd go && go test ./internal/parser ./internal/collector/discovery ./internal/content/shape -run <focused-test> -count=1` |
+| Parser syntax or metadata only | `cd go && go test ./internal/parser/... -run <focused-test> -count=1` |
+| Parser behavior used by collection or content shape | `cd go && go test ./internal/parser/... ./internal/collector/discovery ./internal/content/shape -run <focused-test> -count=1` |
 | Language query, entity resolve/context, story, or relationships | Parser test plus focused `go/internal/query` test for the public route or helper. |
 | Dead-code root or maturity change | Parser root test plus focused `go/internal/query` dead-code test and maturity-doc update. |
 | Infrastructure/config language evidence | Parser test plus relationship or query proof when the evidence feeds those surfaces. |
@@ -365,7 +365,7 @@ canonical summaries.
 
 ```bash
 cd go
-go test ./internal/parser ./internal/collector ./internal/content/shape -count=1
+go test ./internal/parser/... ./internal/collector ./internal/content/shape -count=1
 ```
 
 Run the parser and relationship kit verifier:

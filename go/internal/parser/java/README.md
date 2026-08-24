@@ -14,8 +14,8 @@ The package is responsible for Java syntax traversal, Java-specific type and
 call inference, Java dead-code root classification, Java reflection evidence,
 Java taint lowering over Spring request parameters and typed JDBC/JPA sinks,
 same-file Java summary/interprocedural extraction, and ServiceLoader or Spring
-metadata class references. The parent
-internal/parser package owns registry dispatch, Engine methods, runtime
+metadata class references. The parent `go/internal/parser` package owns
+registry dispatch, Engine methods, runtime
 language lookup, and compatibility wrappers such as `parseJavaMetadata`.
 
 ## Exported surface
@@ -72,7 +72,7 @@ interface, enum, and record contexts; unknown or duplicate simple receiver
 names are ignored.
 
 `engine_java_implements_test.go` uses the external `java_test` package. It may
-import `internal/parser` because Go compiles it only for tests. Keep that
+import `go/internal/parser` because Go compiles it only for tests. Keep that
 exception limited to black-box tests of the public parent engine.
 
 Metadata extraction accepts repository-relative or absolute paths and

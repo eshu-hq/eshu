@@ -114,7 +114,8 @@ The README cross-references this section from its tree-sitter support table.
   4. Add capability flags that truthfully describe tree-sitter, SCIP, and
      pre-scan support; register reducer code-call resolver depth separately.
   5. Add fixtures in the parser fixture corpus and run
-     `go test ./internal/parser -count=1`.
+     `go test ./internal/parser/... -count=1` so language-owned package tests
+     and external parent-engine regressions are included.
   6. Update `internal/content/shape` if the new language emits entity keys that
      `shape.Materialize` must handle.
   7. Document the new language in the `README.md` language table.

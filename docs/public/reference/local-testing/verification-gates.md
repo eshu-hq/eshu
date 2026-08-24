@@ -10,7 +10,7 @@ Use this broad package gate for runtime and collector wiring:
 
 ```bash
 cd go
-go test ./internal/parser ./internal/collector/discovery ./internal/content/shape \
+go test ./internal/parser/... ./internal/collector/discovery ./internal/content/shape \
   ./internal/collector ./cmd/collector-git ./cmd/collector-terraform-state \
   ./cmd/collector-aws-cloud \
   ./cmd/ingester ./cmd/bootstrap-index \

@@ -312,9 +312,18 @@ awk '
 # shellcheck disable=SC2016 # The needle must stay literal shell source.
 require "fixture-consumer mapping sourced from its own file" \
 	'source "${repo_root}/scripts/lib/pre-pr-fixture-consumers.sh"'
+# shellcheck disable=SC2016 # The needle must stay literal shell source.
+require "focused test selector sourced from its own file" \
+	'source "${repo_root}/scripts/lib/pre-pr-test-selection.sh"'
+require "focused test step applies the behavioural selector" \
+	'done < <({ changed_go_dirs; fixture_consumer_dirs; } | pre_pr_select_test_dirs)'
 
 fixture_consumers_suite="${repo_root}/scripts/lib/test-pre-pr-fixture-consumers.sh"
 [[ -f "${fixture_consumers_suite}" ]] || fail "missing ${fixture_consumers_suite}"
 bash "${fixture_consumers_suite}" || fail "fixture_consumer_dirs behavioural suite failed -- see its output above"
+
+test_selection_suite="${repo_root}/scripts/lib/test-pre-pr-test-selection.sh"
+[[ -f "${test_selection_suite}" ]] || fail "missing ${test_selection_suite}"
+bash "${test_selection_suite}" || fail "focused Go test selection behavioural suite failed -- see its output above"
 
 printf 'PASS: pre-pr scheduling, worktree cache isolation, and lane wiring are pinned\n'

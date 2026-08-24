@@ -79,7 +79,11 @@ golangci-lint over the **whole** module (catching cross-package consequences
 a changed-package run misses, such as code that becomes unused when a
 sibling package changes), `go build` and `go vet` over the whole module,
 `go test` on the packages changed versus `origin/main`, the 500-line file cap
-and package-docs gates, and — driven by the gate registry
+and package-docs gates. A direct change to the parent `go/internal/parser`
+package expands that focused test target to `./internal/parser/...`, keeping
+external child-package tests of the parent Engine contract in the local gate;
+child-only parser changes remain package-focused. The preflight also runs —
+driven by the gate registry
 (#4214) — the **selected credential-free exactness and telemetry contract gates**
 for your changed paths (OpenAPI, route coverage, edge source-tool coverage,
 evidence continuity, fact-kind registry, contract source-of-truth, parser
@@ -285,7 +289,7 @@ have to remember the matching verifier — the selector picks it.
 | --- | --- | --- |
 | Docs only (fast-path-recognized paths — see above) | whole-module Go build/vet/fmt/lint and race lanes SKIPPED; changed-package `go test` still runs, narrowed to any fixture-consumer package (e.g. root `AGENTS.md`/`CLAUDE.md` maps to `./internal/runtime`) and a no-op otherwise; the selected exactness/telemetry/hygiene/docs gates still run, as do file cap and package docs (both no-ops with no changed Go file) | docs build (pre-push) |
 | Frontend only (`src/**`, `apps/console/**`) | nothing backend | `make frontend-preflight` |
-| Parser (`go/internal/parser/**`) | parser relationship kit, accuracy golden gate, scoped race | — |
+| Parser (`go/internal/parser/**`) | parser relationship kit, accuracy golden gate, scoped race; a direct parent-package change runs focused tests recursively across `./internal/parser/...` | — |
 | Reducer / storage (`go/internal/reducer/**`, `storage/**`) | query-plan regression, scale gates, **targeted graph-write race** | reducer-contention is CI-only (Postgres) |
 | Collector (`go/internal/collector/**`) | edge source-tool coverage, evidence continuity, scale corpus | — |
 | API / MCP (`go/internal/query/**`, `go/internal/mcp/**`) | OpenAPI surface, route coverage, MCP schema drift, capability budget, operator dashboard, evidence continuity (its spec's proof refs cite tests in these packages) | — |
