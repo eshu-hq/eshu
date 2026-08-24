@@ -57,8 +57,10 @@ category, rather than blocking. The bar and the unbounded loop it prevents are i
 Once the preliminary review is clean, run `make pre-pr` exactly when the branch
 is otherwise ready for its intended push or PR update, then run a final full
 `eshu-code-review` against the exact post-preflight diff. If `make pre-pr`
-changes tracked or generated files, or the final review finds anything, fix and
-reprove the affected surface and repeat the sequence. No code or documentation
+changes tracked or generated files, or the final review finds anything other
+than a recorded P3, fix and reprove the affected surface and repeat the
+sequence. A P3 is cosmetic by definition and never restarts this loop: fix it
+inline if it is a line, or record it in the verdict and push. No code or documentation
 edits may occur between the final clean review and push; any diff change
 invalidates that verdict.
 
