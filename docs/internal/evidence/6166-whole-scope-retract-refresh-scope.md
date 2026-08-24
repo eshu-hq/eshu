@@ -103,30 +103,35 @@ branches is a refresh row (see the reachability argument below), so the bound
 relationships are deleted. In the degenerate empty case: 0 statements issued,
 0 rows deleted, 0 rows left behind that should have been retracted.
 
-## No-Observability-Change:
+## Observability Evidence:
 
-Nothing operator-facing moves, and that is the honest answer rather than a
-metric invented to fill this section.
+This section previously read `No-Observability-Change:`. That was accurate for
+the original diff and is no longer, because #6233 review raised the failure mode
+it left invisible and the fix adds a signal for it.
 
-`edge_writer_retract.go` contains no metric, span, or log call of its own —
-the retract path's only instrumentation is `recordGroupedWrite` /
-`recordCodeCallBatch` in
-`go/internal/storage/cypher/edge_writer_metrics.go`, which report group count,
-duration, and statement count per domain. On today's input the same statements
-run for the same domains, so `eshu` emits the same series with the same values.
+The narrowing converts one failure from an over-delete (wrong, but visible as
+missing edges) into a lost retract (stale edges, no error, no dead letter). The
+early return also never reaches `recordGroupedWrite`, so even the statement and
+group counters stay silent -- there was no series an operator could have watched.
 
-The one behavioural difference an operator could observe is the new early
-`return nil`: on an empty whole-scope list no group is recorded, so
-`SharedEdgeWriteGroups` would not tick for that batch. That case cannot be
-reached by any current emitter (below), and `recordGroupedWrite` already
-suppresses itself on an empty statement list, so the counter behaves the same
-way it does for every other no-work batch today. No dashboard, alert, or
-runbook reads a value that changes.
+`EdgeWriter.logWholeScopeRetractSkipped` now warns on exactly that path:
 
-Accepting no new telemetry here is reasonable because the change adds no new
-failure mode to observe. It removes repository ids from a `DELETE`; the thing
-worth watching is whether edges go stale, and that is already covered by the
-graph-truth tests below rather than by a counter.
+```
+WARN whole-scope retract skipped: no rows carried the refresh intent_type
+     domain=... evidence_source=... retract_row_count=N repo_ids_bound=0
+```
+
+It fires only when retract rows arrived and every one was unmarked, so the
+normal path pays nothing -- no call, no allocation, and the helper returns
+immediately when the logger is nil or the batch is empty. No existing series,
+dashboard, alert, or runbook changes; this only adds a line where previously
+there was nothing at all.
+
+Pinned by `TestRetractEdgesNilFenceShapeSkipsWholeScopeDelete`
+(`go/internal/storage/cypher/edge_writer_nil_fence_whole_scope_test.go`), which
+asserts both halves. Mutation-proven: deleting the four log calls reds it with
+`logs=""`, and reverting the narrowing reds it with the bound `[repo-legacy]`
+and the whole-repository DELETE it would have issued.
 
 ## Why the change is safe
 

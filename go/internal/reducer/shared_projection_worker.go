@@ -377,8 +377,19 @@ func ProcessPartitionOnce(
 	// Repo-wide-retract domains (#2898/#2910): when a fence is wired, the single
 	// repo-wide retract is owned by the per-repo refresh intent and per-edge rows
 	// write only after that retract has committed. This removes the per-partition
-	// repo-wide retract that wipes sibling partitions' edges. Other domains and the
-	// nil-fence path keep the retract-then-write-everything behavior byte-identical.
+	// repo-wide retract that wipes sibling partitions' edges. Other domains keep
+	// the retract-then-write-everything behavior byte-identical.
+	//
+	// The nil-fence path does NOT, for the four domains #6166 narrowed
+	// (inheritance, rationale, sql_relationships, shell_exec). With no fence
+	// wired this block is skipped and every latest row -- including an unmarked
+	// per-edge row -- goes straight to RetractEdges, which now binds only the
+	// refresh-marked rows. A per-edge-only partition therefore issues no
+	// whole-repo DELETE where it previously issued one. Production always wires
+	// the fence (cmd/reducer/main.go), so this is a test-only shape; it is
+	// pinned by TestRetractEdgesNilFenceShapeSkipsWholeScopeDelete in
+	// go/internal/storage/cypher so the divergence stays deliberate, and
+	// EdgeWriter.logWholeScopeRetractSkipped warns when it happens.
 	if refreshFence != nil && domainHasRepoWideRetract(cfg.Domain) {
 		plan, planErr := planRepoWideRetractWork(ctx, cfg.Domain, batch.LatestRows, refreshFence, firstProjection, cfg.Logger)
 		if planErr != nil {

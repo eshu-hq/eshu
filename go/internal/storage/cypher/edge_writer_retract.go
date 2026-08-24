@@ -139,7 +139,7 @@ func (w *EdgeWriter) RetractEdges(
 	// input and a guard against the emitters changing under us.
 	repoIDs := collectRepoIDs(rows)
 	if domain == reducer.DomainCodeCalls {
-		// Deliberately the batch-wide repoIDs, and NOT the narrowing the three
+		// Deliberately the batch-wide repoIDs, and NOT the narrowing the four
 		// fenced siblings below apply -- this branch looks like them and is
 		// not one (#6166). DomainCodeCalls is absent from
 		// domainHasRepoWideRetract, so its rows never pass through
@@ -155,6 +155,7 @@ func (w *EdgeWriter) RetractEdges(
 	if domain == reducer.DomainInheritanceEdges {
 		wholeScopeRepoIDs := collectWholeScopeRefreshRepoIDs(rows)
 		if len(wholeScopeRepoIDs) == 0 {
+			w.logWholeScopeRetractSkipped(domain, evidenceSource, len(rows))
 			return nil
 		}
 		stmts := BuildRetractInheritanceEdgeStatements(wholeScopeRepoIDs, evidenceSource)
@@ -163,6 +164,7 @@ func (w *EdgeWriter) RetractEdges(
 	if domain == reducer.DomainRationaleEdges {
 		wholeScopeRepoIDs := collectWholeScopeRefreshRepoIDs(rows)
 		if len(wholeScopeRepoIDs) == 0 {
+			w.logWholeScopeRetractSkipped(domain, evidenceSource, len(rows))
 			return nil
 		}
 		return w.retractRationaleEdgesWithProbe(ctx, wholeScopeRepoIDs, evidenceSource)
@@ -178,6 +180,7 @@ func (w *EdgeWriter) RetractEdges(
 		}
 		wholeScopeRepoIDs := collectWholeScopeRefreshRepoIDs(rows)
 		if len(wholeScopeRepoIDs) == 0 {
+			w.logWholeScopeRetractSkipped(domain, evidenceSource, len(rows))
 			return nil
 		}
 		stmts := BuildRetractSQLRelationshipEdgeStatements(wholeScopeRepoIDs, evidenceSource)
@@ -193,6 +196,7 @@ func (w *EdgeWriter) RetractEdges(
 		}
 		wholeScopeRepoIDs := collectWholeScopeRefreshRepoIDs(rows)
 		if len(wholeScopeRepoIDs) == 0 {
+			w.logWholeScopeRetractSkipped(domain, evidenceSource, len(rows))
 			return nil
 		}
 		return w.retractShellExecEdges(ctx, wholeScopeRepoIDs, evidenceSource)

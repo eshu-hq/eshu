@@ -78,10 +78,24 @@ func wholeScopeRetractReachabilityCases() []wholeScopeRetractReachabilityCase {
 // to retractRows -- so only the refresh rows, which all carry intent_type,
 // retract.
 //
-// Every emitter here also postdates the refresh fence itself (#2924), and in
-// each case the commit that created the file is the only commit that has ever
-// touched retractViaRefreshKey in it, so there is no pre-fence generation of
-// unmarked durable rows either.
+// The durable store is the other half, and it needs a different argument.
+// This test proves what CURRENT emitters do; it cannot prove the queue holds no
+// pre-fence row written before the marker existed. The basis for that is that
+// each of these domains was promoted onto the shared-intent path AFTER the
+// refresh fence (#2924) landed, so no generation of these rows has ever been
+// written by an emitter that did not stamp the marker.
+//
+// Do NOT restate this as "the commit that created the file is the only commit
+// that touched retractViaRefreshKey". That reading is wrong and was corrected
+// on #6233: these files' --diff-filter=A commits are recent cmd/eshu
+// extractions (rationale_edge_intents.go was created by 5836de3aae on
+// 2026-08-18, "extract the repository-selector matcher from cmd/eshu"), so file
+// creation says nothing about when the rows were emitted.
+//
+// Because that argument rests on history rather than on something a test can
+// re-derive, the residual risk is covered at runtime instead: if a batch ever
+// does arrive with no marked row, EdgeWriter.logWholeScopeRetractSkipped warns
+// with the domain and the row count rather than skipping the DELETE silently.
 //
 // This is the test that turns each mirror from a guess into a proof. If an
 // emitter stops stamping the marker, or the marker stops surviving the durable
