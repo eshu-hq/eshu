@@ -215,11 +215,17 @@ func SharedProjectionEdgeWritePort() string {
 // materialized-edge families the reducer writes directly, bypassing the
 // shared-projection intent path MaterializedEdgeFamilies() inventories.
 //
-// Every returned family needs a row in
-// specs/ifa-materialized-edge-coverage.v1.yaml — a coverage row, or a waiver
-// naming its tracked issue, but present either way. A family absent from that
-// ledger is not leniently treated, it is invisible: the exhaustiveness gate
-// emits no row, no finding and no output for it, and reports green.
+// Every returned family needs a row in the DIRECT half of the ledger,
+// specs/ifa-materialized-edge-coverage-direct.v1.yaml — a coverage row, or a
+// waiver naming its tracked issue, but present either way. A family absent
+// from that file is not leniently treated, it is invisible: the exhaustiveness
+// gate emits no row, no finding and no output for it, and reports green.
+//
+// The shared half, specs/ifa-materialized-edge-coverage.v1.yaml, belongs to
+// MaterializedEdgeFamilies() above and is the wrong file for a direct family.
+// A row written there is reconciled against the other enumeration, which is
+// the cross-half misplacement the split exists to prevent — reached, this
+// time, by a maintainer doing what the comment said.
 func DirectMaterializedEdgeFamilies() []string {
 	seen := make(map[string]struct{}, len(directMaterializedEdgeFamilyByPort))
 	out := make([]string, 0, len(directMaterializedEdgeFamilyByPort))
