@@ -17,6 +17,41 @@
 # discovers every `require*` function and asserts each rejects a
 # comment-only and heredoc-only needle, so a bare `rg --fixed-strings` form
 # fails that probe the same as a hand-typed comment-immunity gap would.
+# The three *_count helpers below exist for one reason. `-ge 1` is satisfied by
+# any surviving occurrence, so when a needle legitimately appears more than once
+# and EVERY occurrence is load-bearing, deleting one of them leaves the pin
+# green. An exhaustive re-seed of this mirror's multi-occurrence pins -- every
+# occurrence mangled one at a time, the substitution asserted, the mirror run --
+# found eight pins in that state here (#6161), including a `synth-cassette` pin
+# that stayed green with one of the two cassettes never built and a pre-delta /
+# post-delta assertion pair where either half could go. Two identical lines
+# cannot be told apart by any single-line needle, which is what leaves the count
+# as the only thing that can bind them. Where the two sites DO differ in text,
+# prefer two ordinary pins that each name one site: a count says how many, a
+# distinguishing needle says which, and which is the stronger claim.
+#
+# Update the expected count deliberately when a real site is added or removed.
+# A count that is edited to match whatever the file happens to contain is back
+# to proving nothing.
+require_code_count() {
+	local label="$1" needle="$2" want="$3" got
+	got="$(_ifa_det_count_code_matches "${needle}" "${script}")"
+	[[ "${got}" == "${want}" ]] \
+		|| fail "${label}: expected ${want} code occurrence(s) in the gate script, found ${got} -- every one of them does work, so a -ge 1 pin stays green when one is deleted: ${needle}"
+}
+require_delta_lib_count() {
+	local label="$1" needle="$2" want="$3" got
+	got="$(_ifa_det_count_code_matches "${needle}" "${delta_lib}")"
+	[[ "${got}" == "${want}" ]] \
+		|| fail "${label}: expected ${want} code occurrence(s) in ${delta_lib##*/}, found ${got} -- the pre-delta and post-delta assertions are the same line, so losing one is invisible to a -ge 1 pin: ${needle}"
+}
+require_symbol_runtime_lib_count() {
+	local label="$1" needle="$2" want="$3" got
+	got="$(_ifa_det_count_code_matches "${needle}" "${symbol_runtime_lib}")"
+	[[ "${got}" == "${want}" ]] \
+		|| fail "${label}: expected ${want} code occurrence(s) in ${symbol_runtime_lib##*/}, found ${got} -- the three trio families each carry this line once, so a -ge 1 pin covers whichever one survives: ${needle}"
+}
+
 require_lib() {
 	local label="$1" needle="$2"
 	[[ "$(_ifa_det_count_code_matches "${needle}" "${lib}")" -ge 1 ]] \
