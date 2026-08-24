@@ -188,17 +188,13 @@ printf '%s\n' "${selection}" |
 # fixture languages get graded. That inventory was split out of the gate
 # orchestrator to respect the 500-line file cap, which is precisely how its
 # trigger came to be missing — the same cap-driven extraction that created the
-# merge_group lib. A read-as-data dependency false-greens exactly like a
-# sourced one, so it belongs in this list.
-#
-# The fourth field is the trigger STRING expected to do the selecting, which is
-# not always the helper's own path: #6200 replaced the scripts/lib/ Ifá
-# enumeration with globs, and a row that could only ever name a literal would
-# have forced one filename to stay pinned in the registry purely to keep this
-# test green -- re-creating, in the guard against dark triggers, the per-file
-# list the guard exists to retire. Both halves still bite: the trigger must be
-# declared verbatim in the gate block, and the concrete helper path must select
-# that gate THROUGH that trigger and no other.
+# merge_group lib. A read-as-data dependency false-greens like a sourced one.
+# The fourth field is the trigger STRING doing the selecting, not always the
+# helper's own path: #6200 globbed the scripts/lib/ Ifá surface, and a row that
+# could only name a literal would have pinned one filename in the registry to
+# keep this test green -- the per-file list this guard retires, inside the
+# guard. Both halves bite: the trigger must be declared verbatim in the gate
+# block, and the helper path must select that gate through it alone.
 while IFS='|' read -r sourced_gate sourced_lib sourced_tier sourced_trigger; do
 	[[ -n "${sourced_gate}" ]] || continue
 	[[ -n "${sourced_trigger}" ]] || sourced_trigger="${sourced_lib}"
