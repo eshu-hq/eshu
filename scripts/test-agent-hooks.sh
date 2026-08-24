@@ -16,12 +16,23 @@
 #     a narrow one silently reintroduces the bug. The control cases below fail
 #     if someone repairs a mis-route by widening a narrow arm instead of
 #     ordering it.
+#
+# WHERE THE CONTENTION CASES ACTUALLY RUN. Three cases exercise guard-live-gate
+# against a real bound port or a live gate process, and they skip when either is
+# already present rather than fight a real backend. Under `make pre-pr` the gate
+# runner is alive the whole time this mirror executes, so all three skip on
+# every local run and only ever assert in CI, where verify-agent-hygiene.yml
+# invokes the mirror with no runner as its parent. A green local run therefore
+# does NOT mean the guard's detection was exercised. Skips are counted and
+# reported separately for that reason: a summary that folded them into the pass
+# count would read identically whether they ran or not.
 set -uo pipefail
 
 repo_root="$(cd "$(dirname "$0")/.." && pwd)"
 hooks_dir="$repo_root/.claude/hooks"
 passed=0
 failed=0
+skipped=0
 sid=0
 
 # Every marker this suite writes is namespaced by pid so a concurrent run, or a
@@ -247,8 +258,8 @@ else
   done
 fi
 if [ -n "$probed_bound" ]; then
-  printf 'ok - SKIPPED override pass-through: %s in flight\n' "$probed_bound"
-  passed=$((passed + 1))
+  printf 'skip - override pass-through: %s in flight\n' "$probed_bound"
+  skipped=$((skipped + 1))
 else
   out=$(printf '{"tool_input":{"command":"ESHU_POSTGRES_PORT=15532 make pre-pr"}}' \
     | bash "$hooks_dir/guard-live-gate.sh" 2>&1)
@@ -354,8 +365,8 @@ fi
 # this way was caught by neither signal.
 sid=$((sid + 1))
 if pgrep -x ci-gates >/dev/null 2>&1 || lsof -nP -iTCP:7687 -sTCP:LISTEN >/dev/null 2>&1; then
-  printf 'ok - SKIPPED bolt-bound case: a gate or 7687 is already in use\n'
-  passed=$((passed + 1))
+  printf 'skip - bolt-bound case: a gate or 7687 is already in use\n'
+  skipped=$((skipped + 1))
 else
   python3 -m http.server 7687 --bind 127.0.0.1 >/dev/null 2>&1 &
   bolt_listener=$!
@@ -379,8 +390,8 @@ fi
 # already listening, since that is a real backend and not this suite's to kill.
 sid=$((sid + 1))
 if pgrep -x ci-gates >/dev/null 2>&1 || lsof -nP -iTCP:15432 -sTCP:LISTEN >/dev/null 2>&1; then
-  printf 'ok - SKIPPED port-bound case: a gate or 15432 is already in use\n'
-  passed=$((passed + 1))
+  printf 'skip - port-bound case: a gate or 15432 is already in use\n'
+  skipped=$((skipped + 1))
 else
   python3 -m http.server 15432 --bind 127.0.0.1 >/dev/null 2>&1 &
   listener=$!
@@ -569,5 +580,6 @@ else
   failed=$((failed + 1))
 fi
 
-printf '\nagent-hooks test mirror: %s passed, %s failed\n' "$passed" "$failed"
+printf '\nagent-hooks test mirror: %s passed, %s failed, %s skipped\n' \
+  "$passed" "$failed" "$skipped"
 [ "$failed" -eq 0 ] || exit 1
