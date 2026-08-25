@@ -76,14 +76,20 @@ has golden characterization fixtures for byte-parity regression detection.
 - Continuation-style call extraction from do-blocks:
   `parser_test.go:TestParseCapturesHaskellContinuationCalls` (line 101)
 - Parameter suppression in function calls:
-  `parser_test.go:TestParseSuppressesHaskellTreeFunctionParameterCalls` (line 244)
+  `parser_test.go:TestParseSuppressesHaskellTreeFunctionParameterCalls` (line 353)
 - Pattern wrapper parameters (e.g., `(Just value)`):
   `ast_extract_test.go:TestHaskellTreeFunctionParametersReadPatternWrappers` (line 103)
 - Multi-line typeclass signature (name and `::` on different lines):
   `ast_extract_test.go:TestParseCapturesMultiLineTypeSignatureClassMethod` (line 23)
 - Golden characterization fixtures for byte-parity regression:
   `characterization_test.go:TestHaskellPayloadCharacterization` (line 122)
-- Comprehensive corpus via Engine:
+- Public parent Engine dispatch and Haskell payload buckets:
+  `haskell/engine_haskell_test.go:TestDefaultEngineParsePathHaskellBasic` (line 14)
+- Empty-file payload shape:
+  `parser_test.go:TestParseHaskellEmptyFileReturnsEmptyPayload` (line 244)
+- Error-tolerant parsing of malformed Haskell:
+  `parser_test.go:TestParseHaskellSyntaxErrorHandlesGracefully` (line 266)
+- `Basic.hs` fixture assertions through the parent Engine:
   `engine_long_tail_test.go:TestDefaultEngineParsePathHaskellFixtures` (line 319)
 - Cyclomatic complexity:
   `engine_cyclomatic_complexity_test.go:TestCyclomaticComplexityPerLanguage` (Haskell cases at line 289)
@@ -93,10 +99,6 @@ has golden characterization fixtures for byte-parity regression detection.
 ## Unverified / Claimed-but-Untested Constructs
 - **PreScanWithParser** (`parser.go:74-82`): no dedicated test; only PreScan is
   tested.
-- **Cyclomatic complexity on Haskell functions** directly: the
-  `applyComplexity` method and equation-counting logic are exercised only through
-  characterization goldens. No subdirectory test asserts a specific complexity
-  value (e.g., complexity=3 for a function with 2 equations + 1 guard).
 - **Error path: nil parser** (`parser.go:37-39`, `ParseWithParser`): no
   direct test provides a nil parser.
 - **Error path: nil tree** (`parser.go:40-44`): no test causes the parser to
@@ -124,25 +126,32 @@ has golden characterization fixtures for byte-parity regression detection.
 - Function parameters are not reported as call targets:
   `parser_test.go:TestParseSuppressesHaskellTreeFunctionParameterCalls`
 - Guard clauses with `otherwise` and case alternatives with bare `_` wildcard
-  are excluded from McCabe counts:
-  `complexity.go:65-88` (code logic, indirectly tested via characterization goldens)
+  are excluded from McCabe counts. The Engine suite asserts complexity 1 for a
+  straight-line function and 4 for a function with a real guard, case arm, and
+  nested `if`:
+  `engine_cyclomatic_complexity_test.go:TestCyclomaticComplexityPerLanguage`
+  (Haskell cases at line 289)
 - Multi-equation function bindings — end_line spans the full set of clauses:
   `parser_test.go:TestParseCapturesHaskellGuardedFunctionBinding`
-- Continuation-style do-block calls:
+- Continuation-style do-block calls using `$`, a lambda continuation, nested
+  calls, and multiline RHS arguments:
   `parser_test.go:TestParseCapturesHaskellContinuationCalls`
+- Deriving clauses preserve the characterized payload shape:
+  `characterization_test.go:TestHaskellPayloadCharacterization`
+- Empty files return typed, empty symbol buckets:
+  `parser_test.go:TestParseHaskellEmptyFileReturnsEmptyPayload`
+- Tree-sitter syntax errors still return a typed Haskell payload:
+  `parser_test.go:TestParseHaskellSyntaxErrorHandlesGracefully`
 - Byte-parity golden fixtures prevent regression across a representative corpus:
   `characterization_test.go`
-- Comprehensive corpus tests at engine level:
+- `Basic.hs` fixture assertions at Engine level:
   `engine_long_tail_test.go`
 
 ## Edge Cases NOT Considered
-- **Empty Haskell file**: no test for a zero-byte `.hs` file
-- **Haskell file with syntax errors**: parser behavior on unparseable Haskell
 - **Operator-defined functions** (e.g., `(+++)`, `(.@)`): no test for
   operator-named bindings
 - **Type families or GADTs**: only data/newtype/type handled; more advanced
   type declarations not tested
-- **Deriving clauses**: not tested
 - **Qualified module names with re-exports**: `module Foo (module Bar)` style
   not tested
 - **Nested where blocks**: only single-level where blocks tested
@@ -150,7 +159,8 @@ has golden characterization fixtures for byte-parity regression detection.
   spurious calls
 - **`{-# LANGUAGE` pragmas**: no test for pragma handling
 - **All 20 Haskell keywords**: no exhaustive suppression test
-- **Instance with multi-parameter typeclass** (e.g., `instance Show Worker`):
+- **Instance with multi-parameter typeclass** (e.g.,
+  `instance Convert Int String where`):
   tested with single-param `instance Runner Worker where` but multi-param
   context formatting not verified
 
@@ -159,23 +169,20 @@ has golden characterization fixtures for byte-parity regression detection.
 
 The Haskell parser has thorough coverage for its core AST extraction boundaries
 (modules, imports, type declarations, class/instance methods, top-level
-bindings, where-block variables, dead-code roots) with 10 behavior tests plus
-golden characterization fixtures. However, operator-named functions, CPS/RHS
-call extraction, advanced type features, error paths, and keyword suppression
-are untested, and the complexity calculation has no direct assertion beyond
-golden characterization.
+bindings, where-block variables, dead-code roots) with 16 behavior tests plus
+golden characterization fixtures. The Engine suite directly asserts Haskell
+complexity values 1 and 4 for straight-line and branching functions. However,
+operator-named functions, `let-in`/`case-of` RHS call combinations, type
+families and GADTs, nil-parser/nil-tree/unreadable-file error paths, and
+exhaustive keyword suppression remain untested.
 
 ## Recommended Actions
-1. Add a direct cyclomatic complexity test asserting specific values for a
-   known fixture (e.g., a function with 2 pattern-match equations and 1 guard
-   should have complexity=3).
-2. Add a test for `PreScanWithParser` matching the existing `PreScan` test
+1. Add a test for `PreScanWithParser` matching the existing `PreScan` test
    contract.
-3. Add error-path tests: nil parser, nil tree, unreadable file, empty file.
-4. Add a characterization test for the `haskellCallTokenPattern` regex pinned
+2. Add error-path tests for a nil parser, nil tree, and unreadable file.
+3. Add a characterization test for the `haskellCallTokenPattern` regex pinned
    to specific inputs showing match/no-match behavior.
-5. Add a test for operator-named function bindings (`(+++)`).
-6. Add an exhaustive keyword suppression test for all 20 entries in
+4. Add a test for operator-named function bindings (`(+++)`).
+5. Add an exhaustive keyword suppression test for all 20 entries in
    `haskellIsKeyword`.
-7. Add a golden fixture exercising multiline RHS continuations with `$`,
-   `where`, let-in, and case-of expressions.
+6. Add a golden fixture exercising `let-in` and `case-of` RHS call combinations.

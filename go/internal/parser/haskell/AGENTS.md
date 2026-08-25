@@ -9,6 +9,8 @@
 5. helpers.go - dead-code roots, function keys, and bounded call evidence
 6. parser.go - Parse, ParseWithParser, PreScan entrypoints
 7. parser_test.go and ast_extract_test.go - behavior coverage for payload shape
+8. engine_haskell_test.go - external-package regression for the public parent
+   Engine Haskell dispatch path
 
 ## Invariants this package enforces
 
@@ -19,8 +21,10 @@
 - Function-call rows are bounded lexical evidence from definition right-hand
   sides, not compiler-resolved Haskell name binding. This is the only documented
   permanent line-text exception, alongside the function `source` span.
-- Dependency direction stays one way: parent parser code may import this
-  package, but this package must not import internal/parser.
+- Production dependency direction stays one way: parent parser code may import
+  this package, but Haskell production files and same-package tests must not
+  import `go/internal/parser`. External `haskell_test` files may import the
+  parent to exercise its public API.
 - Parse preserves modules as their own bucket and data/newtype/type/class
   declarations as class rows with `semantic_kind`.
 - Caller-owned parser entrypoints must keep parser ownership with the caller and
@@ -36,10 +40,12 @@
 
 - Add Haskell evidence by writing a focused test in parser_test.go or
   ast_extract_test.go first, and extend the AST walk rather than adding a regex.
+- Add public Engine dispatch coverage in engine_haskell_test.go as an external
+  haskell_test test that uses only the parent parser's public API.
 - Keep the `testdata/characterization` goldens current: they are the byte-parity
   gate. Regenerate intentionally with `ESHU_UPDATE_GOLDEN=1` and review the diff.
 - Keep where-block variable behavior covered when changing the `binds` walk.
-- Use internal/parser/shared helpers for payload buckets and sorting.
+- Use `go/internal/parser/shared` helpers for payload buckets and sorting.
 
 ## Failure modes and how to debug
 
@@ -50,7 +56,9 @@
 
 ## Anti-patterns specific to this package
 
-- Importing the parent parser package.
+- Importing the parent parser package from production or same-package tests.
+  Keep the test-only exception in external haskell_test files and use only the
+  parent's public API.
 - Reintroducing line-scan or regex symbol extraction.
 - Emitting new bucket keys without matching downstream shape work.
 
