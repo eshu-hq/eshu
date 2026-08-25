@@ -119,10 +119,12 @@ actual AST dispatch in `ast_walk.go:walkNode`.
 
 ## Verified-by-Test Constructs
 
-Tests live in `go/internal/parser/`. No test files exist in
-`go/internal/parser/kotlin/`. The parent engine tests use `DefaultEngine()` →
-`ParsePath()` with the Kotlin registered definition, exercising the full AST
-walk path.
+Most Kotlin engine regressions remain in `go/internal/parser/`. They use
+`DefaultEngine()` → `ParsePath()` with the registered Kotlin definition and
+exercise the full AST walk. The constructor-call regression now lives in
+`go/internal/parser/kotlin/` as an external `kotlin_test` and drives the same
+public engine path. That child directory also keeps same-package tests for
+package-owned equivalence and walk-count behavior.
 
 ### Fixture corpus walk
 
