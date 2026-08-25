@@ -7,6 +7,7 @@ import (
 	asktools "github.com/eshu-hq/eshu/go/internal/mcp/ask"
 	cloudtools "github.com/eshu-hq/eshu/go/internal/mcp/cloud"
 	doctools "github.com/eshu-hq/eshu/go/internal/mcp/documentation"
+	playbooktools "github.com/eshu-hq/eshu/go/internal/mcp/playbooks"
 	"github.com/eshu-hq/eshu/go/internal/mcp/toolcontract"
 	visualizationtools "github.com/eshu-hq/eshu/go/internal/mcp/visualization"
 )
@@ -88,6 +89,12 @@ func cloudInventoryTools() []ToolDefinition {
 // the cloud package owns the runtime-drift registration definition.
 func cloudRuntimeDriftTools() []ToolDefinition {
 	return cloudtools.RuntimeDriftTools()
+}
+
+// queryPlaybookTools preserves the root package's constructor name while the
+// playbooks package owns the registration definitions.
+func queryPlaybookTools() []ToolDefinition {
+	return playbooktools.Tools()
 }
 
 // visualizationTools preserves the root package's constructor name while the
