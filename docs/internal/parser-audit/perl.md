@@ -1,95 +1,154 @@
 # Perl Parser Audit
 
 ## Overview
-The Perl parser (`go/internal/parser/perl/`) is a tree-sitter-backed adapter that extracts packages (as classes), `use` imports, subroutine declarations, variables, function calls, and bounded dead-code root metadata. It operates on a single-pass AST walk via `tree_sitter_syntax.go`, with a shared McCabe complexity walker. The package has one subdirectory test file with 5 test functions, plus 2 parent-level cyclomatic complexity test cases and 2 long-tail fixture references.
+
+The Perl adapter in `go/internal/parser/perl/` uses tree-sitter to extract
+packages as classes, `use` imports, subroutines, variables, calls, bounded
+dead-code roots, cyclomatic complexity, and exact route semantics for narrow
+Mojolicious::Lite and Dancer forms. Its direct coverage comprises 10
+same-package tests and 5 external public Engine tests. Two shared parent tests
+cover the comprehensive fixture and two shared complexity table cases cover
+straight-line and branching subroutines.
 
 ## Claimed Constructs
-List every construct the parser claims to extract, with source references.
 
-1. **Classes** (package statements) — `tree_sitter_syntax.go:59-73` (`package_statement`)
-2. **Imports** (use statements) — `tree_sitter_syntax.go:74-81` (`use_statement`)
-3. **Functions** (subroutine declarations) — `tree_sitter_syntax.go:100-116` (`subroutine_declaration_statement`)
-4. **Phaser blocks** (BEGIN/UNITCHECK/CHECK/INIT/END) — `tree_sitter_syntax.go:84-99` (`phaser_statement`)
-5. **Variables** — `tree_sitter_syntax.go:117-118` (`variable_declaration`)
-6. **Function calls** — `tree_sitter_syntax.go:119-122` (`function_call_expression`, `ambiguous_function_call_expression`, `func0op_call_expression`, `func1op_call_expression`, `method_call_expression`)
-7. **Dead-code root kinds** (`parser.go:109-129`, `tree_sitter_syntax.go:114`):
-   - `perl.package_namespace` — public packages (`parser.go:154-159`, `tree_sitter_syntax.go:69-71`)
-   - `perl.script_entrypoint` — `sub main` in `.pl`/`.t` files (`parser.go:111-113`)
-   - `perl.constructor` — `sub new` in package context (`parser.go:119-121`)
-   - `perl.exported_subroutine` — subs named in `@EXPORT`/`@EXPORT_OK` (`parser.go:92-99`, `tree_sitter_syntax.go:132-151`)
-   - `perl.special_block` — phaser blocks (`tree_sitter_syntax.go:92`)
-   - `perl.autoload_subroutine` — `sub AUTOLOAD` (`parser.go:123-124`)
-   - `perl.destroy_subroutine` — `sub DESTROY` (`parser.go:125-126`)
-8. **Cyclomatic complexity** — `complexity.go:38-39`
-9. **PreScan** — `parser.go:181-198`
-10. **IndexSource** — `parser.go:47-49`
+1. **Classes** from package statements —
+   `tree_sitter_syntax.go:(*perlSyntaxIndex).collect`, case
+   `package_statement`.
+2. **Imports** from `use` statements —
+   `tree_sitter_syntax.go:(*perlSyntaxIndex).collect`, case `use_statement`.
+3. **Functions** from subroutine declarations —
+   `tree_sitter_syntax.go:(*perlSyntaxIndex).collect`, case
+   `subroutine_declaration_statement`.
+4. **Phaser blocks** for `BEGIN`, `UNITCHECK`, `CHECK`, `INIT`, and `END` —
+   `tree_sitter_syntax.go:perlPhaserName`.
+5. **Variables** from variable declarations —
+   `tree_sitter_syntax.go:(*perlSyntaxIndex).appendVariables`.
+6. **Function and method calls** —
+   `tree_sitter_syntax.go:(*perlSyntaxIndex).collect` and `perlCallName`.
+   Recognized node kinds are `function_call_expression`,
+   `ambiguous_function_call_expression`, `func0op_call_expression`,
+   `func1op_call_expression`, and `method_call_expression`.
+7. **Dead-code root kinds** — `parser.go:perlFunctionRootKinds` and
+   `tree_sitter_syntax.go:(*perlSyntaxIndex).collect`:
+   - `perl.package_namespace` for public packages.
+   - `perl.script_entrypoint` for `sub main` in `.pl` and `.t` files.
+   - `perl.constructor` for package-scoped `sub new`.
+   - `perl.exported_subroutine` for names in `@EXPORT` or `@EXPORT_OK`.
+   - `perl.special_block` for recognized phaser blocks.
+   - `perl.autoload_subroutine` for `sub AUTOLOAD`.
+   - `perl.destroy_subroutine` for `sub DESTROY`.
+8. **Cyclomatic complexity** — `complexity.go:perlCyclomaticComplexity`.
+9. **Exact framework route semantics** for one active Mojolicious::Lite or
+   Dancer/Dancer2 import family, literal paths, concrete HTTP verbs, and named
+   code-reference handlers — `framework_routes.go:buildPerlFrameworkSemantics`
+   and `perlExactRouteCall`.
+10. **PreScan** short and fully qualified names — `parser.go:PreScan`.
+11. **IndexSource** subroutine text — `parser.go:ParseWithParser`.
 
 ## Verified-by-Test Constructs
-List constructs verified by tests, with file:function references.
 
-1. **Classes** — `perl/parser_test.go:30` (`TestParseCapturesPerlBuckets`)
-2. **Imports** — `perl/parser_test.go:31` (`TestParseCapturesPerlBuckets`), also `:107-108`
-3. **Functions (subroutines)** — `perl/parser_test.go:32-34` (`TestParseCapturesPerlBuckets`)
-4. **Function source span (IndexSource)** — `perl/parser_test.go:33`
-5. **Variables** — `perl/parser_test.go:36` (`TestParseCapturesPerlBuckets`)
-6. **Function calls** — `perl/parser_test.go:37-38` (`TestParseCapturesPerlBuckets`)
-7. **Line/end_line metadata** — `perl/parser_test.go:57-60` (`TestParseCapturesPerlSubroutineFromTreeSitterSpan`)
-8. **`perl.package_namespace`** — `perl/parser_test.go:109` (`TestParseMarksPerlDeadCodeRoots`)
-9. **`perl.constructor`** — `perl/parser_test.go:110`
-10. **`perl.script_entrypoint`** — `perl/parser_test.go:111`
-11. **`perl.exported_subroutine`** — `perl/parser_test.go:112-114`
-12. **`perl.special_block`** — `perl/parser_test.go:115`
-13. **`perl.autoload_subroutine`** — `perl/parser_test.go:116`
-14. **`perl.destroy_subroutine`** — `perl/parser_test.go:117`
-15. **Package-scoped exporter roots** — `perl/parser_test.go:124-152` (`TestParseKeepsExporterRootsPackageScoped`)
-16. **PreScan includes full names** — `perl/parser_test.go:154-171` (`TestPreScanIncludesFullPerlPackageNames`)
-17. **Cyclomatic complexity** — `engine_cyclomatic_complexity_test.go:199-211` (`straight_line` and `branches_and_boolean`)
-18. **Long-tail comprehensive fixture parsing** — `engine_long_tail_test.go:276-301` (2 tests referencing `perl_comprehensive`)
+1. **Core package payload**: classes, imports, functions, source spans,
+   variables, and calls —
+   `perl/parser_test.go:TestParseCapturesPerlBuckets`.
+2. **Multiline subroutine position and source** —
+   `perl/parser_test.go:TestParseCapturesPerlSubroutineFromTreeSitterSpan`.
+3. **All seven dead-code root kinds, including both `@EXPORT` and
+   `@EXPORT_OK`** — `perl/parser_test.go:TestParseMarksPerlDeadCodeRoots`.
+4. **Exporter roots stay package-scoped** —
+   `perl/parser_test.go:TestParseKeepsExporterRootsPackageScoped`.
+5. **Scalar, array, and hash variable names** —
+   `perl/parser_test.go:TestParsePerlVariableExtraction`.
+6. **Exporter root selection and an unrooted helper** —
+   `perl/parser_test.go:TestParsePerlSubroutineWithDeadCodeRoots`.
+7. **Method and ordinary function calls** —
+   `perl/parser_test.go:TestParsePerlCallExpressionVariants`. The fixture's
+   tree contains `method_call_expression` and `function_call_expression`
+   nodes; it does not exercise the `func0op` or `func1op` node kinds.
+8. **Multiple import forms** —
+   `perl/parser_test.go:TestParsePerlUseImportExtraction`.
+9. **Empty source returns empty entity buckets** —
+   `perl/parser_test.go:TestParsePerlEmptyFile`.
+10. **PreScan includes fully qualified package and subroutine names** —
+    `perl/parser_test.go:TestPreScanIncludesFullPerlPackageNames`.
+11. **Public Engine dispatch and core payload shape** —
+    `perl/engine_perl_test.go:TestDefaultEngineParsePathPerlBasic`.
+12. **Exact Mojolicious and Dancer routes**: double- and single-quoted literal
+    paths, parenthesized calls, GET/POST/DELETE verbs, and route entries —
+    `perl/engine_perl_route_semantics_test.go:TestDefaultEngineParsePathPerlExactFrameworkRouteEntries`.
+13. **Qualified route handlers** —
+    `perl/engine_perl_route_semantics_test.go:TestDefaultEngineParsePathPerlPreservesQualifiedRouteHandlers`.
+14. **Unclaimed non-exact routes**: under one active Mojolicious framework,
+    dynamic paths, inline subs, controller strings, `any`, and wrapper calls
+    stay out of route methods, paths, and entries; a separate dual-import
+    fixture keeps ambiguous framework ownership unclaimed —
+    `perl/engine_perl_route_semantics_test.go:TestDefaultEngineParsePathPerlSkipsNonExactFrameworkRouteForms`
+    and `TestDefaultEngineParsePathPerlSkipsAmbiguousDualFrameworkImports`.
+15. **Comprehensive Engine fixture**: packages, functions, imports, calls, and
+    variables — `engine_long_tail_test.go:TestDefaultEngineParsePathPerlFixtures`
+    and `TestDefaultEngineParsePathPerlCallsAndVariables`.
+16. **Cyclomatic complexity** for straight-line and branching subroutines —
+    `engine_cyclomatic_complexity_test.go:TestCyclomaticComplexityPerLanguage`,
+    cases `perl_straight_line` and `perl_branches_and_boolean`.
 
 ## Unverified / Claimed-but-Untested Constructs
-List constructs claimed but not covered by any test.
 
-1. **Dollar-sigil variable filtering** (`$`, `@`, `%`, `&` stripping in `parser.go:83`): no test verifies that `$name` becomes `name`.
-2. **`func0op_call_expression` and `func1op_call_expression` call AST nodes** (`tree_sitter_syntax.go:119`): tests only exercise `function_call_expression` and `ambiguous_function_call_expression`. No file call op variants tested.
-3. **Class `full_name` and `end_line` fields**: tested only for functions, not classes.
-4. **Phaser blocks inside non-package scope** (module-level phasers): all tests place phasers inside a package.
-5. **Non-`.pl`/`.t` path `script_entrypoint`** (`parser.go:148-151`): never tested with `.pm` path and `sub main`.
-6. **Variable deduplication by name** (`tree_sitter_syntax.go:162-163`): never tested with duplicate variable names.
-7. **Call deduplication by name** (`tree_sitter_syntax.go:179-181`): never tested with duplicate calls.
-8. **`PerlFunctionKey` with empty package** (`parser.go:102-105`): no test for subroutines at file scope (no package).
-9. **`perl.exported_subroutine` with `@EXPORT`** (not `@EXPORT_OK`): tested indirectly via `default_action`, but not isolated.
-10. **Edge case: PUBLIC package check** (`parser.go:154-159`): not tested with underscore-prefix package name.
+1. **Sigil-prefixed Exporter entries**: `perlCollectExportNames` strips
+   `$`, `@`, `%`, and `&`, but no test uses a value such as `qw(&handler)`.
+2. **`func0op_call_expression` and `func1op_call_expression`**: the call
+   variants test reaches method and ordinary function nodes only.
+3. **Class `full_name` and `end_line` fields**: class names are asserted, but
+   these fields are not checked directly.
+4. **File-scope phaser context**: tested phasers follow a package declaration.
+5. **`.pm` `sub main` is not a script entrypoint**: only positive `.pl`
+   behavior is asserted.
+6. **Variable and call deduplication** for repeated names.
+7. **File-scope function keys**: complexity cases parse file-scope
+   subroutines, but do not assert key-collision behavior.
+8. **Private package namespace exclusion** for a package segment beginning
+   with an underscore.
+9. **Nil parser and unreadable-file error paths** in `ParseWithParser`.
 
 ## Edge Cases Considered
-List edge cases the tests actually cover with test references.
 
-- **Multiline subroutine declaration** (name on line after `sub`) — `perl/parser_test.go:41-67` (`TestParseCapturesPerlSubroutineFromTreeSitterSpan`)
-- **Multi-package file scope** (shared function name across packages) — `perl/parser_test.go:124-152` (`TestParseKeepsExporterRootsPackageScoped`)
-- **Private helper not marked as dead-code root** — `perl/parser_test.go:118-121` (`TestParseMarksPerlDeadCodeRoots`)
-- **IndexSource preserves tree-sitter span** — `perl/parser_test.go:33` and `:63-64`
-- **PreScan includes both short name and fully qualified name** — `perl/parser_test.go:154-171` (`TestPreScanIncludesFullPerlPackageNames`)
+- Empty input.
+- A multiline subroutine declaration and its source span.
+- Multiple package declarations with the same subroutine name.
+- A private helper that receives no dead-code root.
+- Both `@EXPORT` and `@EXPORT_OK` declarations.
+- Method calls and ordinary function calls.
+- Multiple import forms.
+- Qualified route handlers.
+- Single- and double-quoted route paths and parenthesized route calls.
+- Conservative rejection of ambiguous or dynamic route forms.
 
 ## Edge Cases NOT Considered
-List edge cases not tested.
 
-- **Empty source file**
-- **Non-ASCII subroutine names**
-- **Nested packages**
-- **Exporter with empty @EXPORT**
-- **Multiple phaser blocks in one package**
-- **A subroutine that is BOTH `new` and exported** (root kind merging)
-- **Calls spanning multiple expression kinds simultaneously**
-- **Phaser names beyond the 5 known (BEGIN/CHECK/INIT/UNITCHECK/END)**
-- **`method_call_expression` with dotted method name**
+- Non-ASCII subroutine names.
+- Nested or reopened packages beyond the covered two-package fixture.
+- Empty Exporter lists and sigil-prefixed exported names.
+- Multiple phaser blocks and file-scope phasers.
+- A function receiving more than one dead-code root kind.
+- Repeated variables or calls that should deduplicate.
+- Nil parser and unreadable source errors.
+- Private package namespace exclusion.
 
 ## Verdict
+
 moderate
 
-The core payload buckets and all 7 dead-code root kinds are verified by focused tests. The single test file provides end-to-end coverage for the primary AST walk and PreScan. However, coverage is thin: only 5 test functions total, with no tests for the `func0op`/`func1op`/`method` call expression variants, variable deduplication, or call deduplication. The complexity walker is tested only at the parent level.
+The primary payload, all seven dead-code root kinds, public Engine dispatch,
+exact supported route forms, and conservative route rejection have focused
+coverage. Coverage remains moderate because two recognized call node kinds,
+deduplication, private-package exclusion, and parser error paths are not
+directly exercised. Shared parent tests still own comprehensive fixture and
+cross-language complexity coverage.
 
 ## Recommended Actions
-1. Add a test for `func0op_call_expression` and `method_call_expression` call node parsing.
-2. Add a test for dollar-sigil stripping in variable names.
-3. Add a test for `PerlFunctionKey` at file scope (no package).
-4. Add a test for variable and call deduplication.
-5. Add a test for underscore-prefix package names not receiving `perl.package_namespace`.
+
+1. Add fixtures that prove `func0op_call_expression` and
+   `func1op_call_expression` extraction.
+2. Add a sigil-prefixed Exporter fixture such as `qw(&handler)`.
+3. Add duplicate variable and call cases.
+4. Add a private package namespace exclusion test.
+5. Add nil-parser and unreadable-file error tests for `ParseWithParser`.

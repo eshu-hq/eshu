@@ -7,12 +7,16 @@
 3. parser.go - tree-sitter parser entrypoint and pre-scan behavior
 4. tree_sitter_syntax.go - Perl syntax-tree extraction and bucket mapping
 5. framework_routes.go - exact Mojolicious::Lite and Dancer route entries
-6. parser_test.go - behavior coverage for payload shape
+6. parser_test.go - same-package behavior coverage for payload shape
+7. engine_perl_test.go - external public Engine coverage
+8. engine_perl_route_semantics_test.go - external public route coverage
 
 ## Invariants this package enforces
 
-- Dependency direction stays one way: parent parser code may import this
-  package, but this package must not import internal/parser.
+- Dependency direction stays one way in production and same-package tests:
+  parent parser code may import this package, but package `perl` must not import
+  `internal/parser`. External `perl_test` files may import the parent only to
+  exercise its public Engine API as a black-box consumer.
 - Parse preserves package declarations as class rows.
 - Public packages and bounded Exporter declarations emit
   `dead_code_root_kinds` metadata for the query dead-code policy.
@@ -25,7 +29,9 @@
 
 ## Common changes and how to scope them
 
-- Add Perl evidence by writing a focused test in parser_test.go first.
+- Add adapter-internal evidence in parser_test.go first. Add public Engine
+  dispatch or payload evidence in an external `perl_test` file, using
+  `internal/parser/parsertest` for shared fixtures and assertions.
 - Keep registry, Engine dispatch, and content-shape changes outside this
   package unless the task explicitly includes those files.
 - Use internal/parser/shared helpers for payload buckets and sorting.
@@ -45,7 +51,9 @@
 
 ## Anti-patterns specific to this package
 
-- Importing the parent parser package.
+- Importing the parent parser package from production code or a same-package
+  test. The narrow exception is external `perl_test` coverage of public Engine
+  behavior.
 - Changing package rows from classes to a new bucket without downstream shape
   work.
 - Adding repository-specific Perl conventions without fixture evidence.

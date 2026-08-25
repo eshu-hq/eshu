@@ -192,6 +192,12 @@ Start narrow, then prove the read path you claim.
 | Dead-code root or maturity change | Parser root test plus focused `go/internal/query` dead-code test and maturity-doc update. |
 | Infrastructure/config language evidence | Parser test plus relationship or query proof when the evidence feeds those surfaces. |
 
+External parser tests that exercise the parent Engine contract can reuse
+`go/internal/parser/parsertest` for fixture setup and map-shaped payload
+assertions. The package is test-only: production parser packages must not
+import it, and language-specific fixtures and expectations stay in their owning
+family.
+
 The public language page should cite the main test names or fixture proof a
 reviewer can rerun. Avoid broad "covered by tests" claims that do not point to
 the owned package or query surface.

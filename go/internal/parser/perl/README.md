@@ -11,17 +11,23 @@ Perl web route entries for narrow literal DSL forms.
 
 The package is responsible for Perl syntax-tree parsing and payload bucket
 population. The parent parser package still owns registry dispatch, engine
-orchestration, repo path handling, and parse telemetry.
+orchestration, repo path handling, and parse telemetry. External `perl_test`
+files exercise that public Engine boundary without joining the production
+dependency graph.
 
 ## Exported surface
 
-The godoc contract is in doc.go. Current exports are Parse and PreScan.
+The godoc contract is in [doc.go](doc.go). Current exports are Parse,
+ParseWithParser, and PreScan.
 
 ## Dependencies
 
 This package imports the Go standard library, the static Perl tree-sitter
-binding, go-tree-sitter, and internal/parser/shared. It must not import the
-parent internal/parser package.
+binding, go-tree-sitter, and internal/parser/shared. Production package `perl`
+and same-package tests must not import the parent `internal/parser` package.
+External `perl_test` files may import it only to verify public Engine behavior.
+Those tests use `internal/parser/parsertest` for shared fixtures and payload
+assertions.
 
 ## Telemetry
 
@@ -76,7 +82,9 @@ Route entries are exact-only: one active Mojolicious::Lite or Dancer/Dancer2
 import family per file, literal paths, concrete HTTP verbs, and a named code
 reference handler. Catalyst dispatcher conventions, Mojolicious controller
 strings, Dancer `any`, inline handlers, generated route tables, and dynamic
-symbol lookup stay outside this package boundary.
+symbol lookup stay outside this package boundary. Keep adapter-internal tests
+in package `perl`; keep parent Engine dispatch and payload checks in external
+package `perl_test` so the production import direction remains explicit.
 
 ## Related docs
 
