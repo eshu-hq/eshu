@@ -54,7 +54,7 @@ List every construct the parser claims to extract, with source references.
 List constructs verified by tests, with file:function references.
 
 1. **Classes, functions, imports, calls** — `engine_test.go:11-48` (`TestDefaultEngineParsePathPython`)
-2. **Module docstring** — `python/engine_python_module_semantics_test.go` (`TestDefaultEngineParsePathPythonModuleDocstringEmitsModuleMetadata`)
+2. **Module docstring** — `python/engine_python_module_semantics_test.go:14-57` (`TestDefaultEngineParsePathPythonModuleDocstringEmitsModuleMetadata`)
 3. **FastAPI semantics** — `engine_python_semantics_test.go` (FastAPIBindsDefHandler, FastAPISemantics)
 4. **Flask semantics** — `engine_python_semantics_test.go` (FlaskBindsDefHandler, FlaskSemantics)
 5. **ORM mappings** — `engine_python_semantics_test.go` (ORMMappings, UnknownRouteDecoratorRemainsUnclassified)

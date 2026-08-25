@@ -189,6 +189,9 @@ The README cross-references this section from its tree-sitter support table.
   `internal/parser/golang`, `internal/parser/groovy`,
   `internal/parser/dockerfile`, and the extracted first-wave adapters exist to
   remove parent-package sprawl. Keep their APIs typed and parent-independent.
+  External `*_test` packages may import the parent parser package only for
+  black-box coverage of the public `Engine`; production child packages and
+  same-package tests remain parent-independent.
 
 - **Emitting new entity keys without updating shape.Materialize** — keys not
   consumed by `shape.Materialize` are silently discarded. The fixture tests will
