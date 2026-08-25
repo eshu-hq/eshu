@@ -157,7 +157,7 @@ language_features:
     partial_features: []
     derived_features: []
     source_files: [go/internal/parser/perl_haskell_language.go, go/internal/parser/haskell/parser.go]
-    test_files: [go/internal/parser/engine_haskell_test.go, go/internal/parser/haskell/parser_test.go]
+    test_files: [go/internal/parser/haskell/engine_haskell_test.go, go/internal/parser/haskell/parser_test.go]
     docs: [docs/public/languages/haskell.md]
     read_surfaces: [execute_language_query]
   - language: helm

@@ -83,6 +83,8 @@ has golden characterization fixtures for byte-parity regression detection.
   `ast_extract_test.go:TestParseCapturesMultiLineTypeSignatureClassMethod` (line 23)
 - Golden characterization fixtures for byte-parity regression:
   `characterization_test.go:TestHaskellPayloadCharacterization` (line 122)
+- Public parent Engine dispatch and Haskell payload buckets:
+  `haskell/engine_haskell_test.go:TestDefaultEngineParsePathHaskellBasic` (line 14)
 - Comprehensive corpus via Engine:
   `engine_long_tail_test.go:TestDefaultEngineParsePathHaskellFixtures` (line 319)
 - Cyclomatic complexity:
