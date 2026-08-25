@@ -89,7 +89,7 @@ has golden characterization fixtures for byte-parity regression detection.
   `parser_test.go:TestParseHaskellEmptyFileReturnsEmptyPayload` (line 244)
 - Error-tolerant parsing of malformed Haskell:
   `parser_test.go:TestParseHaskellSyntaxErrorHandlesGracefully` (line 266)
-- Comprehensive corpus via Engine:
+- `Basic.hs` fixture assertions through the parent Engine:
   `engine_long_tail_test.go:TestDefaultEngineParsePathHaskellFixtures` (line 319)
 - Cyclomatic complexity:
   `engine_cyclomatic_complexity_test.go:TestCyclomaticComplexityPerLanguage` (Haskell cases at line 289)
@@ -144,7 +144,7 @@ has golden characterization fixtures for byte-parity regression detection.
   `parser_test.go:TestParseHaskellSyntaxErrorHandlesGracefully`
 - Byte-parity golden fixtures prevent regression across a representative corpus:
   `characterization_test.go`
-- Comprehensive corpus tests at engine level:
+- `Basic.hs` fixture assertions at Engine level:
   `engine_long_tail_test.go`
 
 ## Edge Cases NOT Considered
@@ -172,8 +172,8 @@ The Haskell parser has thorough coverage for its core AST extraction boundaries
 bindings, where-block variables, dead-code roots) with 16 behavior tests plus
 golden characterization fixtures. The Engine suite directly asserts Haskell
 complexity values 1 and 4 for straight-line and branching functions. However,
-operator-named functions, `where`/`let-in`/`case-of` RHS call combinations,
-type families and GADTs, nil-parser/nil-tree/unreadable-file error paths, and
+operator-named functions, `let-in`/`case-of` RHS call combinations, type
+families and GADTs, nil-parser/nil-tree/unreadable-file error paths, and
 exhaustive keyword suppression remain untested.
 
 ## Recommended Actions
@@ -185,5 +185,4 @@ exhaustive keyword suppression remain untested.
 4. Add a test for operator-named function bindings (`(+++)`).
 5. Add an exhaustive keyword suppression test for all 20 entries in
    `haskellIsKeyword`.
-6. Add a golden fixture exercising `where`, `let-in`, and `case-of` RHS call
-   combinations.
+6. Add a golden fixture exercising `let-in` and `case-of` RHS call combinations.
