@@ -14,8 +14,8 @@ The package is responsible for Java syntax traversal, Java-specific type and
 call inference, Java dead-code root classification, Java reflection evidence,
 Java taint lowering over Spring request parameters and typed JDBC/JPA sinks,
 same-file Java summary/interprocedural extraction, and ServiceLoader or Spring
-metadata class references. The parent
-internal/parser package owns registry dispatch, Engine methods, runtime
+metadata class references. The parent `go/internal/parser` package owns
+registry dispatch, Engine methods, runtime
 language lookup, and compatibility wrappers such as `parseJavaMetadata`.
 
 ## Exported surface
@@ -33,7 +33,9 @@ payload helpers, and tree-sitter node helpers. The opt-in value-flow path uses
 the same payload schema as Go, Python, and JS/TS. It imports tree-sitter only
 for the caller-owned parser and node traversal. It must not import the parent
 `go/internal/parser` package, collector packages, graph storage, or reducer
-code.
+code. The external implemented-interface regression imports the parent parser
+only from `java_test` to exercise the public `Engine.ParsePath` path; production
+files remain parent-independent.
 
 ## Telemetry
 
@@ -68,6 +70,10 @@ receiver, typed receiver variable, or unambiguous same-file declared type
 receiver can mark the matching method as a dead-code root across class,
 interface, enum, and record contexts; unknown or duplicate simple receiver
 names are ignored.
+
+`engine_java_implements_test.go` uses the external `java_test` package. It may
+import `go/internal/parser` because Go compiles it only for tests. Keep that
+exception limited to black-box tests of the public parent engine.
 
 Metadata extraction accepts repository-relative or absolute paths and
 normalizes separators before matching metadata locations. Invalid or duplicate

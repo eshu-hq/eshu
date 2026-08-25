@@ -15,11 +15,14 @@
 7. `dogfood_real_repo_test.go` - standing real-repo-validated snapshot test
    (#5399); do not edit `testdata/dogfood_real_repo_snapshot.txt` by hand,
    regenerate with `DOGFOOD_UPDATE_SNAPSHOT=1 bash scripts/dogfood-java.sh`
+8. `engine_java_implements_test.go` - external-package regression for
+   implemented-interface metadata through the public parent engine
 
 ## Invariants this package enforces
 
-- Dependency direction stays one way: parent parser code may import this
-  package, but this package must not import `go/internal/parser`.
+- Production dependency direction stays one way: parent parser code may import
+  this package, but Java production files must not import `go/internal/parser`.
+  External `java_test` files may import the parent to exercise its public API.
 - `Parse` preserves the parent payload contract for `functions`, `classes`,
   `interfaces`, `annotations`, `enums`, `variables`, `imports`, and
   `function_calls`; `ParseMetadata` preserves the `java_metadata`
@@ -34,8 +37,8 @@
 
 ## Common changes and how to scope them
 
-- Add Java syntax payload fields in `parser.go` with a parent engine test first
-  when the contract is visible through Engine ParsePath.
+- Add Java syntax payload fields in `parser.go` with an external-package test
+  here when the contract is visible through the public parent Engine ParsePath.
 - Add receiver or argument inference in `call_inference.go`,
   `call_context.go`, or `type_inference_helpers.go` with a child-package unit
   test when the helper contract is internal.
@@ -65,7 +68,9 @@
 
 ## Anti-patterns specific to this package
 
-- Importing the parent parser package to reuse private helpers.
+- Importing the parent parser package from production or same-package tests.
+  Keep the test-only exception in external `java_test` files and use only the
+  parent's public API.
 - Adding backend, collector, reducer, or graph storage dependencies.
 - Emitting graph truth from dynamic Java strings, comments, or naming
   conventions without source evidence.

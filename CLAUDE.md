@@ -445,7 +445,7 @@ Common checks:
 
 ```bash
 cd go && go test ./cmd/eshu ./cmd/api ./cmd/mcp-server ./internal/query ./internal/mcp -count=1
-cd go && go test ./internal/parser ./internal/collector/discovery ./internal/content/shape ./internal/collector -count=1
+cd go && go test ./internal/parser/... ./internal/collector/discovery ./internal/content/shape ./internal/collector -count=1
 cd go && go test ./internal/terraformschema ./internal/relationships -count=1
 cd go && go test ./cmd/bootstrap-index ./cmd/ingester ./cmd/reducer ./internal/runtime ./internal/status ./internal/storage/postgres -count=1
 cd go && golangci-lint run ./...

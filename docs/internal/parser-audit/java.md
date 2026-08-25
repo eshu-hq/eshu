@@ -73,7 +73,7 @@ value-flow bucket.
 - **Records**:
   `java_dead_code_maturity_test.go:TestDefaultEngineParsePathJavaModelsRecordsAndThisFieldReceivers` (line 92)
 - **Implemented interfaces**:
-  `engine_java_implements_test.go:TestDefaultEngineParsePathJavaEmitsImplementedInterfaces` (line 11)
+  `java/engine_java_implements_test.go:TestDefaultEngineParsePathJavaEmitsImplementedInterfaces` (line 27)
 - **Imports with import_type, alias, full_import_name**:
   verified in `engine_managed_oo_test.go`
 - **Method/constructor/class dead-code root kinds** (~15 root kinds):

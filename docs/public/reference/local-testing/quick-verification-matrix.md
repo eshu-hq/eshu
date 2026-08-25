@@ -20,7 +20,7 @@ change regardless of surface.
 | Pre-change impact or developer change plan API/MCP/CLI surface | `cd go && go test ./internal/query ./internal/mcp ./cmd/eshu -run 'TestDeveloperChangePlan|TestPreChangeImpact|TestChangePlan|TestFetchChangePlan|TestRunChangePlan|TestResolveRouteMapsDeveloperChangePlan|TestOpenAPIDeveloperChangePlan' -count=1` |
 | Status/admin or completeness contract | `cd go && go test ./internal/status ./internal/query ./cmd/api -count=1` and `cd go && go vet ./internal/status ./internal/query ./cmd/api` |
 | Replatforming plan, ownership-packet, or rollup API/MCP surface | `cd go && go test ./internal/mcp -run TestReplatforming -count=1` (see [Verification gates → Replatforming API/MCP parity proof](verification-gates.md#replatforming-apimcp-parity-proof)) |
-| Parser platform or collector snapshot flow | `cd go && go test ./internal/parser ./internal/collector/discovery ./internal/collector -count=1` |
+| Parser platform or collector snapshot flow | `cd go && go test ./internal/parser/... ./internal/collector/discovery ./internal/collector -count=1` |
 | Terraform provider-schema evidence or relationship extraction | `cd go && go test ./internal/terraformschema ./internal/relationships ./internal/storage/postgres -count=1` |
 | Parser, language-query, dead-code maturity, or relationship contribution docs | `scripts/verify-parser-relationship-kit.sh` plus the focused parser, query, relationship, or docs gate for the touched surface. |
 | Compose, Helm, or deployable runtime shape | `cd go && go test ./cmd/api ./cmd/bootstrap-index ./cmd/ingester ./cmd/reducer -count=1` and `helm lint deploy/helm/eshu` |

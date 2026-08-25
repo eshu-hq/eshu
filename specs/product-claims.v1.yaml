@@ -29,7 +29,7 @@ claims:
     deterministic_evidence_source: "Capability matrix proof signals, parser support docs, and query/package tests guard the deterministic code-intelligence surface."
     semantic_output: not_used
     proof:
-      command: "cd go && go test ./internal/query ./internal/parser -count=1"
+      command: "cd go && go test ./internal/query ./internal/parser/... -count=1"
       signals:
         - capability: code_search.symbol_lookup
           kind: go_test

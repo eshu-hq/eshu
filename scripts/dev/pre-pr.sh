@@ -13,7 +13,8 @@
 #   - go build / go vet: whole module.
 #   - go test: the packages changed vs origin/main, PLUS any package whose tests
 #     load a changed non-Go fixture (e.g. the B-12 golden snapshot → golden-corpus
-#     -gate) — fast, and the test failures that matter live in what you touched.
+#     -gate). A direct parent-parser change expands to ./internal/parser/... so
+#     external child tests keep exercising Engine behavior.
 #     Integration suites that need Postgres or NornicDB are CI's job — see
 #     docs/public/reference/local-testing.md.
 #   - 500-line file cap + package docs: the cheap structural gates.
@@ -38,6 +39,8 @@ source "${repo_root}/scripts/lib/pre-pr-docs-fastpath.sh"
 source "${repo_root}/scripts/lib/pre-pr-lane.sh"
 # shellcheck source=../lib/pre-pr-fixture-consumers.sh
 source "${repo_root}/scripts/lib/pre-pr-fixture-consumers.sh"
+# shellcheck source=../lib/pre-pr-test-selection.sh
+source "${repo_root}/scripts/lib/pre-pr-test-selection.sh"
 # Root the classifier's path-existence check at the repo, so a deleted
 # allowlisted file is recognized as deleted rather than as merely changed.
 # shellcheck disable=SC2034  # read by the sourced classifier, not by this file.
@@ -184,24 +187,17 @@ run_whole_module_gates_parallel() {
 
 step_test() {
 	local dirs=() d
-	while IFS= read -r d; do [[ -n "${d}" ]] && dirs+=("${d}"); done < <(changed_go_dirs)
-	# Add packages whose tests load a changed non-Go fixture (deduped against the
-	# changed-Go-package set), so a fixture-only edit still runs its consumer.
+	# A direct parent-parser change selects the full parser tree so external
+	# child-package tests exercise the parent Engine contract. Child-only changes
+	# stay focused. The selector also deduplicates fixture consumers.
 	while IFS= read -r d; do
-		[[ -n "${d}" ]] || continue
-		local seen=0 existing
-		# Guard the array expansion: under `set -u`, "${dirs[@]}" on an empty array
-		# is an unbound-variable error (the fixture-only-change case).
-		if [[ ${#dirs[@]} -gt 0 ]]; then
-			for existing in "${dirs[@]}"; do [[ "${existing}" == "${d}" ]] && seen=1 && break; done
-		fi
-		[[ ${seen} -eq 0 ]] && dirs+=("${d}")
-	done < <(fixture_consumer_dirs)
+		[[ -n "${d}" ]] && dirs+=("${d}")
+	done < <({ changed_go_dirs; fixture_consumer_dirs; } | pre_pr_select_test_dirs)
 	if [[ ${#dirs[@]} -eq 0 ]]; then
 		printf 'no changed Go packages or fixtures vs %s — skipping focused tests\n' "${base}"
 		return 0
 	fi
-	printf 'testing %d package(s) (changed Go packages + fixture consumers)\n' "${#dirs[@]}"
+	printf 'testing %d package target(s) (changed Go packages + fixture consumers)\n' "${#dirs[@]}"
 	( cd "${go_dir}" && go test -count=1 "${dirs[@]}" )
 }
 
