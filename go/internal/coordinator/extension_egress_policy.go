@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/eshu-hq/eshu/go/internal/coordinator/plannercontract"
 	"github.com/eshu-hq/eshu/go/internal/scope"
 )
 
@@ -186,12 +187,12 @@ func validateRequiredExtensionEgressIdentifier(field string, value string) error
 	if strings.TrimSpace(value) == "" {
 		return fmt.Errorf("%s must not be blank", field)
 	}
-	return validateSafePlanKey(field, value)
+	return plannercontract.ValidateSafePlanKey(field, value)
 }
 
 func validateOptionalExtensionEgressIdentifier(field string, value string) error {
 	if strings.TrimSpace(value) == "" {
 		return nil
 	}
-	return validateSafePlanKey(field, value)
+	return plannercontract.ValidateSafePlanKey(field, value)
 }

@@ -9,6 +9,8 @@ scheduled-work planning reconciliation, active-mode workflow-run progress, AWS
 and incident freshness handoff, and expired-claim reaping against a narrow
 `Store` backed by Postgres. The package also owns
 `ESHU_WORKFLOW_COORDINATOR_*` env parsing and coordinator OTEL instruments.
+The dependency-neutral `plannercontract` child owns the shared scheduler
+plan-key grammar; it does not own scheduler requests or runtime behavior.
 
 ## Where this fits in the pipeline
 
@@ -188,6 +190,8 @@ the coordinator has no GCP workflow scheduler yet.
 
 ## Dependencies
 
+- `internal/coordinator/plannercontract` — dependency-neutral shared plan-key
+  validation used directly by scheduler planners and extension egress parsing.
 - `internal/workflow` — `DesiredCollectorInstance`, `CollectorInstance`,
   `Claim`, and default accessors; used throughout `Store` and `Config`.
 - `internal/scope` — `CollectorKind` used by `Config` and

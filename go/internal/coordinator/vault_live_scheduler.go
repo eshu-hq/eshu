@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/collector/vaultlive"
+	"github.com/eshu-hq/eshu/go/internal/coordinator/plannercontract"
 	"github.com/eshu-hq/eshu/go/internal/facts"
 	"github.com/eshu-hq/eshu/go/internal/scope"
 	"github.com/eshu-hq/eshu/go/internal/workflow"
@@ -93,7 +94,7 @@ func validateVaultLivePlanRequest(request VaultLivePlanRequest) error {
 	if request.ObservedAt.IsZero() {
 		return fmt.Errorf("vault live planner observed_at must not be zero")
 	}
-	return validateSafePlanKey("vault live planner", request.PlanKey)
+	return plannercontract.ValidateSafePlanKey("vault live planner", request.PlanKey)
 }
 
 func parseVaultLiveRuntimeTargets(raw string) ([]vaultLiveTargetConfiguration, error) {

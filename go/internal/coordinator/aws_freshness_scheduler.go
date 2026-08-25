@@ -14,6 +14,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/collector/awscloud/awsruntime"
 	"github.com/eshu-hq/eshu/go/internal/collector/awscloud/freshness"
+	"github.com/eshu-hq/eshu/go/internal/coordinator/plannercontract"
 	"github.com/eshu-hq/eshu/go/internal/facts"
 	"github.com/eshu-hq/eshu/go/internal/scope"
 	"github.com/eshu-hq/eshu/go/internal/workflow"
@@ -101,7 +102,7 @@ func validateAWSFreshnessPlanRequest(request AWSFreshnessPlanRequest) error {
 	if request.ObservedAt.IsZero() {
 		return fmt.Errorf("AWS freshness planner observed_at must not be zero")
 	}
-	if err := validateSafePlanKey("AWS freshness planner", request.PlanKey); err != nil {
+	if err := plannercontract.ValidateSafePlanKey("AWS freshness planner", request.PlanKey); err != nil {
 		return err
 	}
 	return nil

@@ -11,6 +11,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/eshu-hq/eshu/go/internal/coordinator/plannercontract"
 	"github.com/eshu-hq/eshu/go/internal/facts"
 	"github.com/eshu-hq/eshu/go/internal/scope"
 	"github.com/eshu-hq/eshu/go/internal/workflow"
@@ -104,7 +105,7 @@ func validateTempoPlanRequest(request TempoPlanRequest) error {
 	if request.ObservedAt.IsZero() {
 		return fmt.Errorf("tempo planner observed_at must not be zero")
 	}
-	if err := validateSafePlanKey("tempo planner", request.PlanKey); err != nil {
+	if err := plannercontract.ValidateSafePlanKey("tempo planner", request.PlanKey); err != nil {
 		return err
 	}
 	if request.TriggerKind != "" {

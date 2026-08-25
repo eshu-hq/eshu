@@ -19,6 +19,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/collector/ociregistry/ghcr"
 	"github.com/eshu-hq/eshu/go/internal/collector/ociregistry/harbor"
 	"github.com/eshu-hq/eshu/go/internal/collector/ociregistry/jfrog"
+	"github.com/eshu-hq/eshu/go/internal/coordinator/plannercontract"
 	"github.com/eshu-hq/eshu/go/internal/facts"
 	"github.com/eshu-hq/eshu/go/internal/scope"
 	"github.com/eshu-hq/eshu/go/internal/workflow"
@@ -109,30 +110,8 @@ func validateOCIRegistryPlanRequest(request OCIRegistryPlanRequest) error {
 	if request.ObservedAt.IsZero() {
 		return fmt.Errorf("OCI registry planner observed_at must not be zero")
 	}
-	if err := validateSafePlanKey("OCI registry planner", request.PlanKey); err != nil {
+	if err := plannercontract.ValidateSafePlanKey("OCI registry planner", request.PlanKey); err != nil {
 		return err
-	}
-	return nil
-}
-
-func validateSafePlanKey(owner string, planKey string) error {
-	planKey = strings.TrimSpace(planKey)
-	if planKey == "" {
-		return fmt.Errorf("%s plan_key must not be blank", owner)
-	}
-	if strings.ContainsAny(planKey, `/\`) {
-		return fmt.Errorf("%s plan_key must not include raw source locator material", owner)
-	}
-	for _, char := range planKey {
-		if char >= 'a' && char <= 'z' || char >= 'A' && char <= 'Z' || char >= '0' && char <= '9' {
-			continue
-		}
-		switch char {
-		case '.', '_', '-':
-			continue
-		default:
-			return fmt.Errorf("%s plan_key contains unsupported character %q", owner, char)
-		}
 	}
 	return nil
 }

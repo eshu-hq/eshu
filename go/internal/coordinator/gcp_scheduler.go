@@ -13,6 +13,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/collector/gcpcloud"
 	"github.com/eshu-hq/eshu/go/internal/collector/gcpcloud/gcpruntime"
+	"github.com/eshu-hq/eshu/go/internal/coordinator/plannercontract"
 	"github.com/eshu-hq/eshu/go/internal/facts"
 	"github.com/eshu-hq/eshu/go/internal/scope"
 	"github.com/eshu-hq/eshu/go/internal/workflow"
@@ -108,7 +109,7 @@ func validateGCPPlanRequest(request GCPPlanRequest) error {
 	if request.ObservedAt.IsZero() {
 		return fmt.Errorf("gcp planner observed_at must not be zero")
 	}
-	if err := validateSafePlanKey("gcp planner", request.PlanKey); err != nil {
+	if err := plannercontract.ValidateSafePlanKey("gcp planner", request.PlanKey); err != nil {
 		return err
 	}
 	return nil

@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/component"
+	"github.com/eshu-hq/eshu/go/internal/coordinator/plannercontract"
 	"github.com/eshu-hq/eshu/go/internal/facts"
 	"github.com/eshu-hq/eshu/go/internal/workflow"
 )
@@ -69,7 +70,7 @@ func validateComponentExtensionPlanRequest(
 	if request.ObservedAt.IsZero() {
 		return componentInstanceConfig{}, fmt.Errorf("component extension planner observed_at must not be zero")
 	}
-	if err := validateSafePlanKey("component extension planner", request.PlanKey); err != nil {
+	if err := plannercontract.ValidateSafePlanKey("component extension planner", request.PlanKey); err != nil {
 		return componentInstanceConfig{}, err
 	}
 	config, ok, err := parseComponentInstanceConfig(request.Instance.Configuration)

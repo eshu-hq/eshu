@@ -11,6 +11,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/eshu-hq/eshu/go/internal/coordinator/plannercontract"
 	"github.com/eshu-hq/eshu/go/internal/facts"
 	"github.com/eshu-hq/eshu/go/internal/scope"
 	"github.com/eshu-hq/eshu/go/internal/workflow"
@@ -106,7 +107,7 @@ func validateLokiPlanRequest(request LokiPlanRequest) error {
 	if request.ObservedAt.IsZero() {
 		return fmt.Errorf("loki planner observed_at must not be zero")
 	}
-	if err := validateSafePlanKey("loki planner", request.PlanKey); err != nil {
+	if err := plannercontract.ValidateSafePlanKey("loki planner", request.PlanKey); err != nil {
 		return err
 	}
 	if request.TriggerKind != "" {

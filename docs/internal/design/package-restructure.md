@@ -217,7 +217,11 @@ lockstep. Azure, GCP, and security intent builders now demonstrate the neutral
 ownership. Coordinator: per-provider `_scheduler.go` halves extract cleanly
 (they implement a root Planner interface); the `_service.go` halves are
 methods on the shared `Service` struct and stay until Service is
-decomposed — a design decision, not a file move.
+decomposed — a design decision, not a file move. Shared plan-key validation now
+lives in dependency-neutral `internal/coordinator/plannercontract`; root still
+owns planner requests, scheduling order, durable open-target admission, retry,
+and telemetry. Terraform-state keeps its separate plan-key validator, and the
+root `firstNonBlank` helper remains outside this boundary.
 
 **mcp (338):** two layers. Registration (`tools_<domain>.go`, 43
 constructors, zero lateral calls) moves cleanly. Routing is the tangle:
@@ -326,8 +330,11 @@ fine. Both at once is an import cycle, and Go refuses to build it.
 | projector | `scope_generation_intents.go` has 44 reducer-intent builder call sites, defined across 41 family files | `ReducerIntent` (`runtime.go:50`) |
 | mcp | `types.go` has 42 `append(tools, <domain>Tools()...)` call sites | `ToolDefinition` (`types.go:7`) |
 
-Collector and coordinator are genuinely clear: their families are constructed
-from the external `cmd/` binaries, so root never names a family symbol.
+Collector and coordinator are genuinely clear. Collector families are
+constructed from external `cmd/` binaries. Coordinator scheduler families use
+the dependency-neutral `plannercontract` helper while root retains their
+Planner interfaces and service methods, so an extracted scheduler does not
+need to import root.
 `cmd/eshu` has a different constraint rather than a cycle — it is `package main`
 and nothing can import it, so logic extracted to `internal/cli/<family>` cannot
 call back into the shared CLI helpers at all. Either those helpers move too, or
