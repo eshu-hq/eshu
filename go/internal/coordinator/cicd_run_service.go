@@ -9,6 +9,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/eshu-hq/eshu/go/internal/coordinator/cicdrun"
 	"github.com/eshu-hq/eshu/go/internal/scope"
 	"github.com/eshu-hq/eshu/go/internal/workflow"
 )
@@ -16,7 +17,7 @@ import (
 // CICDRunPlanner plans CI/CD run workflow rows from collector instance
 // configuration.
 type CICDRunPlanner interface {
-	PlanCICDRunWork(context.Context, CICDRunPlanRequest) (workflow.Run, []workflow.WorkItem, error)
+	PlanCICDRunWork(context.Context, cicdrun.PlanRequest) (workflow.Run, []workflow.WorkItem, error)
 }
 
 // scheduleCICDRunWork plans one claimable work item per enabled CI/CD run
@@ -37,7 +38,7 @@ func (s Service) scheduleCICDRunWork(
 		if s.CICDRunPlanner == nil {
 			return fmt.Errorf("ci/cd run planner is required for active ci_cd_run collectors")
 		}
-		run, items, err := s.CICDRunPlanner.PlanCICDRunWork(ctx, CICDRunPlanRequest{
+		run, items, err := s.CICDRunPlanner.PlanCICDRunWork(ctx, cicdrun.PlanRequest{
 			Instance:   instance,
 			ObservedAt: observedAt,
 			PlanKey:    s.cicdRunPlanKey(instance, observedAt),

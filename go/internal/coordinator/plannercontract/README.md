@@ -10,10 +10,10 @@ root package.
 ## Ownership boundary
 
 This package validates scheduler plan keys. The root `internal/coordinator`
-package still owns planner interfaces and requests, `Service` call order,
-clocks, workflow admission, durable writes, queue and retry behavior, and
-telemetry. Provider-specific target parsing and work-item construction stay
-with each scheduler family.
+package still owns planner interfaces, `Service` call order, clocks, workflow
+admission, durable writes, queue and retry behavior, and telemetry.
+Provider-specific request values, target parsing, and work-item construction
+stay with each scheduler family.
 
 ## Exported surface
 

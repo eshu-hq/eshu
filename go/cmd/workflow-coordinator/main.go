@@ -19,6 +19,7 @@ import (
 	// SupportsServiceKind checks accept every service the collector ships.
 	_ "github.com/eshu-hq/eshu/go/internal/collector/awscloud/awsruntime/bindings"
 	"github.com/eshu-hq/eshu/go/internal/coordinator"
+	"github.com/eshu-hq/eshu/go/internal/coordinator/cicdrun"
 	runtimecfg "github.com/eshu-hq/eshu/go/internal/runtime"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
@@ -173,7 +174,7 @@ func run(parent context.Context) error {
 		SBOMAttestationPlanner:            coordinator.SBOMAttestationWorkPlanner{},
 		ScannerWorkerPlanner:              coordinator.ScannerWorkerWorkPlanner{},
 		SecurityAlertPlanner:              coordinator.SecurityAlertWorkPlanner{},
-		CICDRunPlanner:                    coordinator.CICDRunWorkPlanner{},
+		CICDRunPlanner:                    cicdrun.WorkPlanner{},
 		PagerDutyPlanner:                  coordinator.PagerDutyWorkPlanner{},
 		JiraPlanner:                       coordinator.JiraWorkPlanner{},
 		PrometheusMimirPlanner:            coordinator.PrometheusMimirWorkPlanner{},

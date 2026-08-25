@@ -8,12 +8,13 @@ import (
 	"testing"
 	"time"
 
+	"github.com/eshu-hq/eshu/go/internal/coordinator/cicdrun"
 	"github.com/eshu-hq/eshu/go/internal/scope"
 	"github.com/eshu-hq/eshu/go/internal/workflow"
 )
 
 type fakeCICDRunPlanner struct {
-	requests []CICDRunPlanRequest
+	requests []cicdrun.PlanRequest
 	run      workflow.Run
 	items    []workflow.WorkItem
 	err      error
@@ -21,7 +22,7 @@ type fakeCICDRunPlanner struct {
 
 func (f *fakeCICDRunPlanner) PlanCICDRunWork(
 	_ context.Context,
-	request CICDRunPlanRequest,
+	request cicdrun.PlanRequest,
 ) (workflow.Run, []workflow.WorkItem, error) {
 	f.requests = append(f.requests, request)
 	if f.err != nil {

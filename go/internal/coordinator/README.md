@@ -11,6 +11,9 @@ and incident freshness handoff, and expired-claim reaping against a narrow
 `ESHU_WORKFLOW_COORDINATOR_*` env parsing and coordinator OTEL instruments.
 The dependency-neutral `plannercontract` child owns the shared scheduler
 plan-key grammar; it does not own scheduler requests or runtime behavior.
+The `cicdrun` child owns the CI/CD run planning request and planner
+implementation; root retains its interface, scheduling position, and durable
+admission path.
 
 ## Where this fits in the pipeline
 
@@ -124,9 +127,10 @@ the coordinator has no GCP workflow scheduler yet.
 - `SBOMAttestationWorkPlanner` — plans hosted SBOM and attestation collection
   runs from configured document or OCI-referrer targets. Each target becomes one
   claimable work item keyed by `scope_id`.
-- `CICDRunWorkPlanner` — plans CI/CD run collection from configured GitHub
-  Actions repository targets. Each target becomes one claimable work item keyed
-  by `scope_id`, and `requested_scope_set` omits credential environment names.
+- `CICDRunPlanner` — the root structural interface implemented by
+  `cicdrun.WorkPlanner`. The child plans CI/CD run collection from configured
+  GitHub Actions repository targets; root keeps the service call and durable
+  admission.
 - `ScannerWorkerWorkPlanner` — plans scanner-worker source-evidence work from
   explicit configured targets. The planner only stores the analyzer, target
   kind, and `scope_id` in workflow metadata; runtime-local roots and artifact
@@ -192,6 +196,8 @@ the coordinator has no GCP workflow scheduler yet.
 
 - `internal/coordinator/plannercontract` — dependency-neutral shared plan-key
   validation used directly by scheduler planners and extension egress parsing.
+- `internal/coordinator/cicdrun` — CI/CD run plan request and deterministic
+  planner implementation.
 - `internal/workflow` — `DesiredCollectorInstance`, `CollectorInstance`,
   `Claim`, and default accessors; used throughout `Store` and `Config`.
 - `internal/scope` — `CollectorKind` used by `Config` and
@@ -394,7 +400,7 @@ completed, retried, failed, stale, unauthorized, budget-exhausted, and
 partial-evidence states without adding incident IDs, issue keys, package
 coordinates, URLs, payload fields, or credential handles to metric labels.
 
-No-Regression Evidence: `go test ./internal/coordinator ./cmd/workflow-coordinator -run 'TestServiceRunActiveModeSchedulesCICDRunWork|TestCICDRunWorkPlanner' -count=1` proves active-mode reconciliation schedules CI/CD run work through `CICDRunPlanner`, derives the reconcile-bucket plan key from the collector mode and interval, and persists work through the existing open-target admission guard. This is planning only: it creates workflow rows for configured GitHub Actions targets and does not change claim lease timing, worker counts, queue ordering, reducer graph writes, fact emission, or provider API calls.
+No-Regression Evidence: `go test ./internal/coordinator/... ./cmd/workflow-coordinator -run 'TestServiceRunActiveModeSchedulesCICDRunWork|TestWorkPlanner' -count=1` proves active-mode reconciliation schedules CI/CD run work through `CICDRunPlanner`, derives the reconcile-bucket plan key from the collector mode and interval, and persists work through the existing open-target admission guard. This is planning only: it creates workflow rows for configured GitHub Actions targets and does not change claim lease timing, worker counts, queue ordering, reducer graph writes, fact emission, or provider API calls.
 No-Observability-Change: CI/CD run scheduling reuses the existing coordinator reconcile counters and duration histogram, `workflow_runs`, `workflow_work_items`, claim status rows, `requested_scope_set`, and `/api/v0/index-status`. The planner keeps credential environment names out of `requested_scope_set`; provider request, rate-limit, and fact-emission telemetry remains gated to the deployable CI/CD collector runtime slice.
 
 No-Regression Evidence: `go test ./internal/coordinator ./internal/workflow -run 'Test(ServiceRunActiveModeSinglePass(PackageRegistry|Vulnerability)DerivedBudgetDoesNotAdmitNextBucket|PackageRegistryCollectorConfigurationRejectsUnknownDerivedPlanningMode|VulnerabilityIntelligenceCollectorConfigurationRejectsUnknownDerivedPlanningMode)' -count=1` proves representative single-pass derived target planning keeps package-registry and vulnerability-intelligence derived work inside one stable plan key across reconcile buckets while preserving rotating mode as the default.

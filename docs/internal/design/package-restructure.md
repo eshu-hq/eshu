@@ -218,10 +218,12 @@ ownership. Coordinator: per-provider `_scheduler.go` halves extract cleanly
 (they implement a root Planner interface); the `_service.go` halves are
 methods on the shared `Service` struct and stay until Service is
 decomposed — a design decision, not a file move. Shared plan-key validation now
-lives in dependency-neutral `internal/coordinator/plannercontract`; root still
-owns planner requests, scheduling order, durable open-target admission, retry,
-and telemetry. Terraform-state keeps its separate plan-key validator, and the
-root `firstNonBlank` helper remains outside this boundary.
+lives in dependency-neutral `internal/coordinator/plannercontract`. The CI/CD
+run scheduler now demonstrates the first provider extraction under
+`internal/coordinator/cicdrun`: the child owns its request and planner while
+root keeps the structural interface, scheduling order, durable open-target
+admission, retry, and telemetry. Terraform-state keeps its separate plan-key
+validator, and the root `firstNonBlank` helper remains outside this boundary.
 
 **mcp (338):** two layers. Registration (`tools_<domain>.go`, 43
 constructors, zero lateral calls) moves cleanly. Routing is the tangle:

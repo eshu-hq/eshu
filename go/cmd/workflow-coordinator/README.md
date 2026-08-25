@@ -59,7 +59,8 @@ flowchart TB
    private audit sink schema exists.
 6. `coordinator.Service` is wired with all dependencies, including
    Terraform-state, OCI registry, package registry, scanner-worker, vulnerability
-   installed advisory target readers, CI/CD run, scheduled AWS, AWS freshness,
+   installed advisory target readers, the extracted `cicdrun` planner,
+   scheduled AWS, AWS freshness,
    PagerDuty, and Jira planners, plus freshness trigger stores, and handed to
    `NewHostedWithStatusServer`, which mounts the admin surface.
 7. `NotifyContext` installs SIGINT/SIGTERM shutdown; `Service.Run` blocks
@@ -134,6 +135,7 @@ The direct process contract includes `eshu-workflow-coordinator --version` and
 
 - `internal/coordinator` — `Service`, `LoadConfig`, `NewMetrics`, `Store`;
   the coordinator loop and config parsing
+- `internal/coordinator/cicdrun` — concrete CI/CD run planner wiring
 - `internal/workflow` — type contracts consumed by `coordinator.Service`
 - `internal/storage/postgres` — `NewWorkflowControlStore`, `NewStatusStore`;
   `NewGovernanceAuditStore`; Postgres-backed store implementations
