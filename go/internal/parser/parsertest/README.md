@@ -39,3 +39,8 @@ None. Test helpers do not run in Eshu services.
 - Call every helper with the caller's `testing.T`; each helper marks itself
   with `t.Helper()` so failures point to the external test.
 - Do not add production imports of this package.
+
+## Related docs
+
+- `docs/public/contributing-language-support.md` — parser test ownership and
+  the external test-package migration path
