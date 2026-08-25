@@ -85,6 +85,17 @@ func mergesRelationship(value string) bool {
 // No production template uses that shape today; the guard is for the day one
 // does. A backslash escapes the next byte so an escaped quote does not end the
 // string.
+//
+// Limit, measured rather than assumed: an UNTERMINATED quote makes the walk run
+// to the end without ever closing the node pattern, so the port reads node-only
+// — the false-GREEN direction. Ten adversarial inputs were tried (unterminated
+// single and double quotes, a trailing backslash, a backtick label, mixed quote
+// types, a quote in a trailing comment, an escaped backslash before a closing
+// quote, and the empty and lone-paren cases); none panicked or looped, and only
+// the two unterminated-quote inputs misclassify. An unterminated quote is not
+// valid Cypher, so no template that compiles can reach it — but that is the
+// reason it is safe, and it is worth stating rather than implying the walk
+// handles every shape.
 func closingParen(value string, open int) (int, bool) {
 	depth := 0
 	var quote byte
