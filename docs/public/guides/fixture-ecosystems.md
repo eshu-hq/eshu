@@ -43,7 +43,7 @@ After indexing, query through the HTTP API or MCP.
 
 ```bash
 cd go
-go test ./internal/parser ./internal/collector ./internal/relationships -count=1
+go test ./internal/parser/... ./internal/collector ./internal/relationships -count=1
 ```
 
 Add a new ecosystem only when it proves a real parser, collector, relationship,

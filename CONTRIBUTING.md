@@ -35,7 +35,7 @@ Before opening a pull request:
 ```bash
 cd go
 go test ./cmd/eshu ./cmd/api ./cmd/mcp-server ./cmd/bootstrap-index ./cmd/ingester ./cmd/reducer -count=1
-go test ./internal/parser ./internal/collector ./internal/query ./internal/runtime ./internal/reducer ./internal/projector -count=1
+go test ./internal/parser/... ./internal/collector ./internal/query ./internal/runtime ./internal/reducer ./internal/projector -count=1
 go test ./internal/terraformschema ./internal/relationships ./internal/storage/postgres -count=1
 golangci-lint run ./...
 git diff --check
