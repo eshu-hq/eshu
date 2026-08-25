@@ -23,8 +23,8 @@
   permanent line-text exception, alongside the function `source` span.
 - Production dependency direction stays one way: parent parser code may import
   this package, but Haskell production files and same-package tests must not
-  import internal/parser. External haskell_test files may import the parent to
-  exercise its public API.
+  import `go/internal/parser`. External `haskell_test` files may import the
+  parent to exercise its public API.
 - Parse preserves modules as their own bucket and data/newtype/type/class
   declarations as class rows with `semantic_kind`.
 - Caller-owned parser entrypoints must keep parser ownership with the caller and
@@ -45,7 +45,7 @@
 - Keep the `testdata/characterization` goldens current: they are the byte-parity
   gate. Regenerate intentionally with `ESHU_UPDATE_GOLDEN=1` and review the diff.
 - Keep where-block variable behavior covered when changing the `binds` walk.
-- Use internal/parser/shared helpers for payload buckets and sorting.
+- Use `go/internal/parser/shared` helpers for payload buckets and sorting.
 
 ## Failure modes and how to debug
 

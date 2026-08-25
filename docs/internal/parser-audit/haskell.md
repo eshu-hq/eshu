@@ -85,6 +85,10 @@ has golden characterization fixtures for byte-parity regression detection.
   `characterization_test.go:TestHaskellPayloadCharacterization` (line 122)
 - Public parent Engine dispatch and Haskell payload buckets:
   `haskell/engine_haskell_test.go:TestDefaultEngineParsePathHaskellBasic` (line 14)
+- Empty-file payload shape:
+  `parser_test.go:TestParseHaskellEmptyFileReturnsEmptyPayload` (line 244)
+- Error-tolerant parsing of malformed Haskell:
+  `parser_test.go:TestParseHaskellSyntaxErrorHandlesGracefully` (line 266)
 - Comprehensive corpus via Engine:
   `engine_long_tail_test.go:TestDefaultEngineParsePathHaskellFixtures` (line 319)
 - Cyclomatic complexity:
@@ -132,14 +136,16 @@ has golden characterization fixtures for byte-parity regression detection.
   `parser_test.go:TestParseCapturesHaskellGuardedFunctionBinding`
 - Continuation-style do-block calls:
   `parser_test.go:TestParseCapturesHaskellContinuationCalls`
+- Empty files return typed, empty symbol buckets:
+  `parser_test.go:TestParseHaskellEmptyFileReturnsEmptyPayload`
+- Tree-sitter syntax errors still return a typed Haskell payload:
+  `parser_test.go:TestParseHaskellSyntaxErrorHandlesGracefully`
 - Byte-parity golden fixtures prevent regression across a representative corpus:
   `characterization_test.go`
 - Comprehensive corpus tests at engine level:
   `engine_long_tail_test.go`
 
 ## Edge Cases NOT Considered
-- **Empty Haskell file**: no test for a zero-byte `.hs` file
-- **Haskell file with syntax errors**: parser behavior on unparseable Haskell
 - **Operator-defined functions** (e.g., `(+++)`, `(.@)`): no test for
   operator-named bindings
 - **Type families or GADTs**: only data/newtype/type handled; more advanced
@@ -161,7 +167,7 @@ has golden characterization fixtures for byte-parity regression detection.
 
 The Haskell parser has thorough coverage for its core AST extraction boundaries
 (modules, imports, type declarations, class/instance methods, top-level
-bindings, where-block variables, dead-code roots) with 10 behavior tests plus
+bindings, where-block variables, dead-code roots) with 16 behavior tests plus
 golden characterization fixtures. However, operator-named functions, CPS/RHS
 call extraction, advanced type features, error paths, and keyword suppression
 are untested, and the complexity calculation has no direct assertion beyond
@@ -173,7 +179,7 @@ golden characterization.
    should have complexity=3).
 2. Add a test for `PreScanWithParser` matching the existing `PreScan` test
    contract.
-3. Add error-path tests: nil parser, nil tree, unreadable file, empty file.
+3. Add error-path tests for a nil parser, nil tree, and unreadable file.
 4. Add a characterization test for the `haskellCallTokenPattern` regex pinned
    to specific inputs showing match/no-match behavior.
 5. Add a test for operator-named function bindings (`(+++)`).

@@ -21,15 +21,15 @@ the public `Engine`.
 
 ## Exported surface
 
-The godoc contract is in doc.go. Current exports are Parse, ParseWithParser,
-PreScan, and PreScanWithParser.
+The godoc contract is in [doc.go](doc.go). Current exports are Parse,
+ParseWithParser, PreScan, and PreScanWithParser.
 
 ## Dependencies
 
-This package imports the Go standard library, internal/parser/shared,
+This package imports the Go standard library, `go/internal/parser/shared`,
 go-tree-sitter, and the Haskell tree-sitter grammar binding. It must not import
-the parent internal/parser package from production or same-package tests. The
-external Engine regression imports the parent only from `haskell_test`.
+the parent `go/internal/parser` package from production or same-package tests.
+The external Engine regression imports the parent only from `haskell_test`.
 
 ## Telemetry
 
