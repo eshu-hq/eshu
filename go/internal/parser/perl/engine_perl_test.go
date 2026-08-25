@@ -4,11 +4,11 @@
 package perl_test
 
 import (
-	"os"
 	"path/filepath"
 	"testing"
 
 	"github.com/eshu-hq/eshu/go/internal/parser"
+	"github.com/eshu-hq/eshu/go/internal/parser/parsertest"
 )
 
 func TestDefaultEngineParsePathPerlBasic(t *testing.T) {
@@ -16,7 +16,7 @@ func TestDefaultEngineParsePathPerlBasic(t *testing.T) {
 
 	repoRoot := t.TempDir()
 	filePath := filepath.Join(repoRoot, "worker.pl")
-	writeTestFile(
+	parsertest.WriteFile(
 		t,
 		filePath,
 		`package App::Worker;
@@ -53,60 +53,14 @@ sub _private_helper {}
 		t.Fatalf("payload[lang] = %#v, want perl", lang)
 	}
 
-	assertNamedBucketContains(t, got, "classes", "Worker")
-	assertNamedBucketContains(t, got, "imports", "App::Util")
-	assertNamedBucketContains(t, got, "imports", "Exporter")
-	assertNamedBucketContains(t, got, "functions", "new")
-	assertNamedBucketContains(t, got, "functions", "run")
-	assertNamedBucketContains(t, got, "functions", "public_action")
-	assertNamedBucketContains(t, got, "functions", "_private_helper")
-	assertNamedBucketContains(t, got, "variables", "task")
-	assertBucketContainsFieldValue(t, got, "function_calls", "full_name", "App::Util::build_task")
-	assertBucketContainsFieldValue(t, got, "function_calls", "full_name", "App::Util::execute")
-}
-
-func writeTestFile(t *testing.T, path string, body string) {
-	t.Helper()
-
-	if err := os.WriteFile(path, []byte(body), 0o600); err != nil {
-		t.Fatalf("os.WriteFile(%q) error = %v, want nil", path, err)
-	}
-}
-
-func assertNamedBucketContains(t *testing.T, payload map[string]any, key string, wantName string) {
-	t.Helper()
-
-	items, ok := payload[key].([]map[string]any)
-	if !ok {
-		t.Fatalf("%s = %T, want []map[string]any", key, payload[key])
-	}
-	for _, item := range items {
-		name, _ := item["name"].(string)
-		if name == wantName {
-			return
-		}
-	}
-	t.Fatalf("%s missing name %q in %#v", key, wantName, items)
-}
-
-func assertBucketContainsFieldValue(
-	t *testing.T,
-	payload map[string]any,
-	key string,
-	field string,
-	wantValue string,
-) {
-	t.Helper()
-
-	items, ok := payload[key].([]map[string]any)
-	if !ok {
-		t.Fatalf("%s = %T, want []map[string]any", key, payload[key])
-	}
-	for _, item := range items {
-		value, _ := item[field].(string)
-		if value == wantValue {
-			return
-		}
-	}
-	t.Fatalf("%s missing %s=%q in %#v", key, field, wantValue, items)
+	parsertest.AssertNamedBucketContains(t, got, "classes", "Worker")
+	parsertest.AssertNamedBucketContains(t, got, "imports", "App::Util")
+	parsertest.AssertNamedBucketContains(t, got, "imports", "Exporter")
+	parsertest.AssertNamedBucketContains(t, got, "functions", "new")
+	parsertest.AssertNamedBucketContains(t, got, "functions", "run")
+	parsertest.AssertNamedBucketContains(t, got, "functions", "public_action")
+	parsertest.AssertNamedBucketContains(t, got, "functions", "_private_helper")
+	parsertest.AssertNamedBucketContains(t, got, "variables", "task")
+	parsertest.AssertBucketContainsFieldValue(t, got, "function_calls", "full_name", "App::Util::build_task")
+	parsertest.AssertBucketContainsFieldValue(t, got, "function_calls", "full_name", "App::Util::execute")
 }

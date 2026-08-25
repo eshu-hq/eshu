@@ -30,7 +30,8 @@
 ## Common changes and how to scope them
 
 - Add adapter-internal evidence in parser_test.go first. Add public Engine
-  dispatch or payload evidence in an external `perl_test` file.
+  dispatch or payload evidence in an external `perl_test` file, using
+  `internal/parser/parsertest` for shared fixtures and assertions.
 - Keep registry, Engine dispatch, and content-shape changes outside this
   package unless the task explicitly includes those files.
 - Use internal/parser/shared helpers for payload buckets and sorting.

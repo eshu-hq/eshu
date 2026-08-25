@@ -26,6 +26,8 @@ This package imports the Go standard library, the static Perl tree-sitter
 binding, go-tree-sitter, and internal/parser/shared. Production package `perl`
 and same-package tests must not import the parent `internal/parser` package.
 External `perl_test` files may import it only to verify public Engine behavior.
+Those tests use `internal/parser/parsertest` for shared fixtures and payload
+assertions.
 
 ## Telemetry
 
