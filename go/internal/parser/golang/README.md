@@ -43,8 +43,9 @@ call-site extraction.
 The parent parser package still owns registry lookup, path normalization,
 content metadata inference, runtime parser allocation, and the compatibility
 methods on `Engine`. Shared payload and tree helpers come from
-`internal/parser/shared`; this package must not import the parent parser
-package.
+`internal/parser/shared`; production files and same-package tests here must not
+import the parent parser package. External `golang_test` files may import the
+parent only to exercise the public engine contract.
 
 ## Exported surface
 
@@ -110,7 +111,9 @@ tree-sitter node helpers, source reads, and parser options. It imports
 `github.com/tree-sitter/go-tree-sitter` for the parser and node contracts.
 
 It must not import collector, query, projector, reducer, storage, telemetry, or
-the parent parser package.
+the parent parser package in production. The external command-execution payload
+test imports the parent parser to exercise `Engine.ParsePath`; it does not add a
+production dependency.
 
 ## Telemetry
 
@@ -254,6 +257,10 @@ the defining package.
 Embedded SQL evidence only records recognized database/sql and sqlx call sites
 where a string literal contains an obvious table reference. Line numbers refer
 to the original Go source.
+
+`go_embedded_shell_test.go` uses the external `golang_test` package. It may
+import `internal/parser` because Go compiles it only for tests. Keep that
+exception limited to black-box tests of the public parent engine.
 
 No-Regression Evidence: `go test ./internal/parser -run
 'TestGo(FunctionRowsCarryPackageImportPathWhenKnown|FunctionRowsOmitBlankPackageImportPath|MethodRowsCarryReceiverScopedSCIPSymbolWhenPackageKnown|PackageQualifiedCallsCarryStableSymbolKey)'

@@ -1,7 +1,7 @@
 # Go Parser Audit
 
 ## Overview
-The Go parser (`go/internal/parser/golang/`) is the most comprehensive language adapter in Eshu. It uses tree-sitter to extract functions, methods, structs, interfaces, imports, variables, calls (with chain metadata, receiver inference, import alias tracking), composite-literal type references, dead-code roots (13+ kinds), embedded SQL queries, embedded shell commands, cyclomatic complexity, and — when opted in — dataflow functions, taint findings, interprocedural findings, and durable dataflow summaries. The package has ~30 test files: 6 in-subdirectory unit tests and ~24 parent-level test files, plus benchmarks and integration/dogfood tests against real Terraform checkouts.
+The Go parser (`go/internal/parser/golang/`) is Eshu's broadest language adapter. It uses tree-sitter to extract functions, methods, structs, interfaces, imports, variables, calls (with chain metadata, receiver inference, import alias tracking), composite-literal type references, dead-code roots (13+ kinds), embedded SQL queries, embedded shell commands, cyclomatic complexity, and — when opted in — dataflow functions, taint findings, interprocedural findings, and durable dataflow summaries. Its 37 Go-named test files comprise 14 files in the child directory (13 same-package and one external-package test) and 23 root-level files, including benchmarks and Terraform dogfood coverage.
 
 ## Claimed Constructs
 From `doc.go:7-73`, `README.md:35-104`, and function docstrings:
@@ -113,11 +113,11 @@ From `doc.go:7-73`, `README.md:35-104`, and function docstrings:
 | Ambiguous interface assignment chain receiver skipped | `go_call_metadata_receiver_assignment_test.go:216` |
 | Map receiver type detection | `go_call_metadata_map_receiver_test.go` |
 
-**Embedded SQL and shell (parent-level):**
+**Embedded SQL and shell (engine-level):**
 | Construct | Test reference |
 |---|---|
 | Embedded SQL queries | `go_embedded_sql_test.go:12` |
-| Embedded shell commands | `go_embedded_shell_test.go:12` |
+| Embedded shell commands | `golang/go_embedded_shell_test.go:15` |
 
 **Dataflow/taint (parent-level, opt-in gate):**
 | Construct | Test reference |
@@ -154,6 +154,7 @@ From `doc.go:7-73`, `README.md:35-104`, and function docstrings:
 | CFG lowering | `golang/cfg_lower_test.go` |
 | CFG guard text inspection | `golang/cfg_guard_text_test.go` |
 | Embedded SQL (subdirectory) | `golang/embedded_sql_test.go` |
+| Embedded shell alias shadowing | `golang/embedded_shell_test.go` |
 
 **Performance and dogfood:**
 | Construct | Test reference |
@@ -172,7 +173,6 @@ From `doc.go:7-73`, `README.md:35-104`, and function docstrings:
 - **LiveComponent callback root** overlap risk — the Elixir comment applies, but for Go: `go.interface_method_implementation` via imported interface methods with `allowExportedMethods` (in `goMarkConcreteTypeForInterfaceTarget` at `dead_code_semantic_flows.go:164-170`) marks every exported method of a concrete type. This is tested only indirectly via the package interface prescan tests, not with a fixture that proves a false positive cannot occur (e.g., where not every exported method is actually called).
 - **Struct field interface targets in composite literals** — `goMarkCompositeLiteralInterfaceFields` in `dead_code_semantic_flows.go:60-99` is exercised only through the broader dead-code root tests, not with specific fixtures for struct field name mismatch or empty keyed_element.
 - **`LocalInterfaceMethods` and `GenericConstraintInterfaceNames`** — documented in `README.md:67-68` as exported functions; the generic constraint interface root (`goMarkGenericConstraintInterfaceRoots`) is tested through the dead-code interface tests, but the standalone export functions are not directly tested.
-- **Embedded shell shadow detection** — `goIdentifierShadowedBeforeOffset` in `embedded_shell.go:93-98` uses regex to detect shadowed aliases but has no focused test with deliberately shadowed `exec` variables.
 - **fmt.Stringer root for formatted values** — `goCollectFmtStringerRoot` in `dead_code_semantic_flows.go:252-278` determines which `fmt.Sprint*/Fprint*` arguments are value arguments. No test for `fmt.Fprintf` specifically (3-arg pattern) with a Stringer type.
 - **AWS SDK receiver service** — tested in `golang/aws_sdk_receiver_service_test.go` but only for basic binding; no test for multiple AWS services imported in the same file with different aliases.
 
@@ -212,12 +212,11 @@ From `doc.go:7-73`, `README.md:35-104`, and function docstrings:
 ## Verdict
 **deep**
 
-The Go parser has the most comprehensive test suite of any Eshu parser by a wide margin: ~24 parent-level test files, 6 subdirectory test files, performance benchmarks, and Terraform integration dogfood tests. Every significant construct — parse output, call chain metadata, all dead-code root kinds, embedded SQL/shell extraction, and the full opt-in dataflow/taint/interprocedural pipeline — has focused, named test functions with positive and negative assertions. Edge cases for shadowed imports, ambiguous receiver types, function-literal scope, closure capture, field sensitivity, and byte-identical opt-in gates are all covered.
+The Go parser has Eshu's broadest parser test suite: 23 root-level Go-named test files and 14 child-directory files (13 same-package and one external-package test), including performance benchmarks and Terraform integration dogfood coverage. Named tests cover parse output, call chain metadata, dead-code root kinds, embedded SQL and shell extraction, and the opt-in dataflow, taint, and interprocedural pipeline. The suite also covers shadowed imports, ambiguous receiver types, function-literal scope, closure capture, field sensitivity, and byte-identical opt-in gates.
 
 ## Recommended Actions
 1. Add a focused test for `MethodDeclarationKeys` as an exported interface if it's intended to be called externally.
-2. Add a test for `emdedded_shell.go` shadow detection (`goIdentifierShadowedBeforeOffset`) with a deliberately shadowed `exec := someOtherThing` variable.
-3. Add a `fmt.Fprintf` Stringer test case (3-arg pattern where the 3rd argument is the first value argument).
-4. Add a test for multiple AWS SDK service imports with different aliases in one file.
-5. Add a generic receiver (`func (r *R[T]) Method()`) test for method row with generic receiver normalization.
-6. Add an anonymous struct field test for struct field type tracking.
+2. Add a `fmt.Fprintf` Stringer test case (3-arg pattern where the 3rd argument is the first value argument).
+3. Add a test for multiple AWS SDK service imports with different aliases in one file.
+4. Add a generic receiver (`func (r *R[T]) Method()`) test for method row with generic receiver normalization.
+5. Add an anonymous struct field test for struct field type tracking.

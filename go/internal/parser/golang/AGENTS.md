@@ -36,13 +36,17 @@
     into interprocedural findings over `internal/parser/valueflow` and
     `internal/parser/interproc` (the `interproc_findings` bucket)
 14. `helpers.go` and `types.go` - local helper and shared contract aliases
-15. Parent tests in `go/internal/parser/go*_test.go` before changing emitted
-    payload shape
+15. Go behavior tests in this directory and the remaining parent tests in
+    `go/internal/parser/go*_test.go` before changing emitted payload shape
+16. `go_embedded_shell_test.go` - external-package regression for the public
+    parent engine's Go command-execution payload
 
 ## Invariants this package enforces
 
-- Dependency direction stays one way: parent parser code may import this
-  package, but this package must not import `internal/parser`.
+- Production dependency direction stays one way: parent parser code may import
+  this package, but production files and same-package tests here must not import
+  `internal/parser`. External `golang_test` files may import the parent only to
+  exercise its public engine contract.
 - `Parse` returns the same bucket names and map fields the parent Go adapter
   returned before the language-owned move.
 - Bucket ordering is deterministic. Sort output before returning any payload or
@@ -56,8 +60,8 @@
 
 ## Common changes and how to scope them
 
-- Add a new Go payload field by writing or updating a parent Go parser test
-  first, then changing `language.go` or the focused helper that owns the
+- Add a new Go payload field by writing or updating a focused external-package
+  engine test here, then changing `language.go` or the helper that owns the
   evidence.
 - Add a new dead-code root by adding a focused parent dead-code test first,
   then editing the narrow helper that owns that evidence family.
@@ -89,8 +93,9 @@
 
 ## Anti-patterns specific to this package
 
-- Importing the parent parser package to reuse `Engine`, `Options`, payload, or
-  tree helpers.
+- Importing the parent parser package from production files or same-package
+  tests. Keep the external-test exception limited to black-box coverage of the
+  public parent engine, without reusing unexported helpers.
 - Adding JavaScript, Python, Java, SQL, YAML, JSON, or other language behavior
   here.
 - Returning partial payloads after a Go parse failure.
