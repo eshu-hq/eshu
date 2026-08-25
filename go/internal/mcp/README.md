@@ -30,6 +30,8 @@ child package owns the visualization-packet registration definition;
 visualization routing stays here.
 The `ask` child package owns the natural-language answer registration
 definition; Ask routing and execution also stay here.
+The `playbooks` child package owns the two query-playbook catalog registration
+definitions; query-playbook routing and execution also stay here.
 
 ## Where this fits in the pipeline
 
@@ -180,7 +182,7 @@ is not broken out here).
 | `contextTools` | 7 | `tools_context.go` |
 | `contentTools` | 6 | `tools_content.go` |
 | `documentationTools` | 4 | `documentation/tools.go` |
-| `queryPlaybookTools` | 2 | `tools_query_playbooks.go` |
+| `queryPlaybookTools` | 2 | `playbooks/tools.go` |
 | `investigationWorkflowTools` | 2 | `tools_investigation_workflows.go` |
 | `investigationPacketTools` | 3 | `tools_investigation_packets.go` |
 | `semanticEvidenceTools` | 2 | `tools_semantic_evidence.go` |
@@ -510,6 +512,7 @@ Internal packages: `internal/buildinfo` (version string for `mcpInitializeResult
 `internal/mcp/ask` (Ask Eshu tool registration),
 `internal/mcp/cloud` (cloud inventory and runtime-drift tool registrations),
 `internal/mcp/documentation` (documentation tool registration definitions),
+`internal/mcp/playbooks` (query-playbook tool registration definitions),
 `internal/mcp/toolcontract` (dependency-neutral `ToolDefinition` registration
 shape), `internal/mcp/visualization` (visualization-packet tool registration),
 `internal/query` (`query.ResponseEnvelope`, `query.EnvelopeMIMEType`,

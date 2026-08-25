@@ -254,6 +254,13 @@ position after reachability and before relationship-edge tools plus all Ask
 routing, dispatch, authorization, summaries, and transport ownership. The move
 uses `internal/mcp/toolcontract` and leaves the 162-tool order unchanged.
 
+The query-playbook registration family is the fifth extracted MCP family. Its
+two definitions live under `internal/mcp/playbooks`, while the root keeps their
+assembly position after documentation tools and before investigation workflows
+plus all query-playbook routing, dispatch, authorization, and transport
+ownership. The move uses `internal/mcp/toolcontract` and leaves the 162-tool
+order unchanged.
+
 **cmd/eshu (233):** `package main` — subdirectories are impossible by
 language rule. The lever is extracting business logic to new
 `internal/cli/<family>` packages, leaving thin cobra RunE wrappers —

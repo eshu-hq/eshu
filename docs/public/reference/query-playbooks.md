@@ -153,9 +153,10 @@ providers, or expose raw Cypher. Unknown playbooks, undeclared inputs, and
 missing required inputs fail with bounded errors.
 
 No-Regression Evidence: `cd go && go test ./cmd/api ./cmd/mcp-server ./cmd/eshu
-./internal/query ./internal/mcp -count=1` covers the HTTP handler, API and MCP
-binary wiring, MCP registry and dispatch, CLI resolver helper, OpenAPI assembly,
-and capability-matrix contract for the static `query.playbooks` surface.
+./internal/query ./internal/mcp/... -count=1` covers the HTTP handler, API and MCP
+binary wiring, child registration contract, MCP registry and dispatch, CLI
+resolver helper, OpenAPI assembly, and capability-matrix contract for the static
+`query.playbooks` surface.
 
 No-Observability-Change: query playbook list and resolve calls read only the
 in-process static catalog and return through the existing HTTP/MCP envelope
@@ -168,5 +169,5 @@ MCP dispatch result, and CLI transport error output.
 
 ```bash
 cd go && go test ./internal/query -count=1 -run Playbook
-cd go && go test ./internal/mcp -count=1 -run QueryPlaybookTools
+cd go && go test ./internal/mcp/playbooks ./internal/mcp -count=1
 ```
