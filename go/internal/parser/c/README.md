@@ -11,10 +11,13 @@ dead-code root metadata.
 The package receives a caller-owned tree-sitter parser from the parent parser
 engine. It owns C syntax walking and payload assembly, while the parent package
 keeps registry dispatch, runtime parser construction, and compatibility method
-signatures. Header public API roots are bounded to local headers directly
-included by the parsed C source; this package does not scan every repository
-header or resolve transitive include graphs. Header reads are also bounded to
-the caller-supplied repository root after path cleanup and symlink resolution.
+signatures. The external `c_test` package may import the parent parser through
+`parsertest` for black-box Engine coverage; production code and same-package
+tests keep the one-way dependency boundary. Header public API roots are bounded
+to local headers directly included by the parsed C source; this package does
+not scan every repository header or resolve transitive include graphs. Header
+reads are also bounded to the caller-supplied repository root after path
+cleanup and symlink resolution.
 
 ## Exported Surface
 
@@ -29,6 +32,10 @@ explicit pointer declarations, multiple initializer declarations, and local
 typedef pointer aliases, including brace initializer tables in those
 declarations.
 
+`engine_c_dead_code_roots_test.go` is the language-owned black-box Engine suite.
+It preserves the seven C dead-code-root tests while keeping their fixture path
+helper local to this package.
+
 `annotateCDeadCodeRoots` does not run its own tree-sitter walk. `Parse`'s main
 payload walk gathers `call_expression` and `declaration` node pointers
 (`shared.CloneNode`) into one ordered slice as it visits them, and
@@ -40,9 +47,11 @@ for the performance evidence and the ordering invariant this depends on.
 
 ## Dependencies
 
-This package imports the shared parser helper package and tree-sitter types. It
-must not import the parent parser package. It uses standard library filesystem
-reads only for directly included local headers passed through the parent engine.
+Production code in this package imports the shared parser helper package and
+tree-sitter types. It must not import the parent parser package. External tests
+use `internal/parser/parsertest`, which owns the parent Engine dependency for
+black-box coverage. Production code uses standard library filesystem reads only
+for directly included local headers passed through the parent engine.
 
 ## Telemetry
 

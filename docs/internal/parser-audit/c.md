@@ -1,7 +1,7 @@
 # C Parser Audit
 
 ## Overview
-The C parser (`go/internal/parser/c/`) uses a tree-sitter AST walk for primary symbol extraction (functions, structs, enums, unions, macros, typedefs, includes, variables, calls) and adds bounded dead-code root metadata for entrypoints, signal handlers, callback arguments, direct function-pointer initializers (including brace-initializer tables), and functions declared by directly-included local headers. Header prototype scanning and function-pointer initializer parsing use regex over already-located AST node text or external header files — documented permanent exceptions rather than primary symbol extraction. C has one dedicated parent-level test file (`c_dead_code_roots_test.go`) plus C-specific tests within `engine_systems_test.go`, totaling 12 C-specific subtests.
+The C parser (`go/internal/parser/c/`) uses a tree-sitter AST walk for primary symbol extraction (functions, structs, enums, unions, macros, typedefs, includes, variables, calls) and adds bounded dead-code root metadata for entrypoints, signal handlers, callback arguments, direct function-pointer initializers (including brace-initializer tables), and functions declared by directly-included local headers. Header prototype scanning and function-pointer initializer parsing use regex over already-located AST node text or external header files — documented permanent exceptions rather than primary symbol extraction. C has one dedicated external Engine test file (`go/internal/parser/c/engine_c_dead_code_roots_test.go`) plus C-specific tests within `engine_systems_test.go`, totaling 12 C-specific subtests.
 
 ## Claimed Constructs
 | Construct | Source Reference |
@@ -37,20 +37,20 @@ The C parser (`go/internal/parser/c/`) uses a tree-sitter AST walk for primary s
 | `typedefs` → enum/union/struct buckets | `engine_systems_test.go:333-376` (`TestDefaultEngineParsePathCTypedefAliases`) |
 | `typedefs` (function pointer, nested struct, named struct) | `engine_systems_test.go:383-420` (`TestDefaultEngineParsePathCTypedefAliasesFromASTOnly`) |
 | `typedefs` (multi-declarator, array typedef) | `engine_systems_test.go:429-458` (`TestDefaultEngineParsePathCTypedefAliasMultiDeclaratorAndArray`) |
-| `c.main_function` | `c_dead_code_roots_test.go:28` (`TestDefaultEngineParsePathCDeadCodeFixtureExpectedRoots`), lines 354-398 (duplicate `main`) |
-| `c.public_header_api` | `c_dead_code_roots_test.go:29`, lines 38-119 (static/commented excluded) |
-| `c.signal_handler` | `c_dead_code_roots_test.go:30`, lines 251-252 (signal with `&`) |
-| `c.callback_argument_target` | `c_dead_code_roots_test.go:249-252` (`TestDefaultEngineParsePathCMarksCallbackArgumentTargets`) |
-| `c.function_pointer_target` | `c_dead_code_roots_test.go:31`, lines 258-351 (all 11 variants) |
-| `c.callback_argument_target` + `c.signal_handler` combined | `c_dead_code_roots_test.go:252` |
-| Negative: unused handler NOT rooted | `c_dead_code_roots_test.go:253` |
-| Negative: static header prototype NOT public API | `c_dead_code_roots_test.go:111` |
-| Negative: commented-out header prototype NOT public API | `c_dead_code_roots_test.go:114-118` |
-| Negative: header outside repo root NOT read | `c_dead_code_roots_test.go:156-158` |
-| Negative: symlink outside repo root NOT followed | `c_dead_code_roots_test.go:202-203` |
-| Negative: directly-used helper NOT dead-code rooted | `c_dead_code_roots_test.go:33-35` |
-| Negative: unused callback handler NOT rooted | `c_dead_code_roots_test.go:253` |
-| Negative: unused function pointer target NOT rooted | `c_dead_code_roots_test.go:349-350` |
+| `c.main_function` | `c/engine_c_dead_code_roots_test.go:42` (`TestDefaultEngineParsePathCDeadCodeFixtureExpectedRoots`), lines 336-371 (duplicate `main`) |
+| `c.public_header_api` | `c/engine_c_dead_code_roots_test.go:43`, lines 52-131 (static/commented excluded) |
+| `c.signal_handler` | `c/engine_c_dead_code_roots_test.go:44`, lines 205-246 (signal with `&`) |
+| `c.callback_argument_target` | `c/engine_c_dead_code_roots_test.go:239-242` (`TestDefaultEngineParsePathCMarksCallbackArgumentTargets`) |
+| `c.function_pointer_target` | `c/engine_c_dead_code_roots_test.go:45`, lines 248-334 (all 11 variants) |
+| `c.callback_argument_target` + `c.signal_handler` combined | `c/engine_c_dead_code_roots_test.go:241-242` |
+| Negative: unused handler NOT rooted | `c/engine_c_dead_code_roots_test.go:243-245` |
+| Negative: static header prototype NOT public API | `c/engine_c_dead_code_roots_test.go:122-124` |
+| Negative: commented-out header prototype NOT public API | `c/engine_c_dead_code_roots_test.go:125-130` |
+| Negative: header outside repo root NOT read | `c/engine_c_dead_code_roots_test.go:162-164` |
+| Negative: symlink outside repo root NOT followed | `c/engine_c_dead_code_roots_test.go:200-202` |
+| Negative: directly-used helper NOT dead-code rooted | `c/engine_c_dead_code_roots_test.go:47-49` |
+| Negative: unused callback handler NOT rooted | `c/engine_c_dead_code_roots_test.go:243-245` |
+| Negative: unused function pointer target NOT rooted | `c/engine_c_dead_code_roots_test.go:331-333` |
 | `cyclomatic_complexity` | `engine_cyclomatic_complexity_test.go:59-66` (C-specific straight-line and branchy fixtures) |
 | PreScan names (C part of systems pre-scan) | `engine_systems_test.go:245-293` (`TestDefaultEnginePreScanPathsSystems`) |
 
@@ -64,22 +64,22 @@ The C parser (`go/internal/parser/c/`) uses a tree-sitter AST walk for primary s
 ## Edge Cases Considered
 | Edge Case | Test Reference |
 |---|---|
-| Static header prototypes excluded from public API | `c_dead_code_roots_test.go:111` |
-| Block-commented header prototypes excluded | `c_dead_code_roots_test.go:114` |
-| Line-commented header prototypes excluded | `c_dead_code_roots_test.go:117` |
-| Headers outside repo root excluded | `c_dead_code_roots_test.go:156` |
-| Symlinks outside repo root excluded | `c_dead_code_roots_test.go:202` |
-| Duplicate `main` under conditional compilation | `c_dead_code_roots_test.go:354-398` |
-| Bare callback argument (no `&`) | `c_dead_code_roots_test.go:232,249` |
-| Address-of callback argument (`&`) | `c_dead_code_roots_test.go:233,250` |
-| Signal handler via `&function_name` | `c_dead_code_roots_test.go:234,251` |
-| Bare function pointer initializer | `c_dead_code_roots_test.go:317,338` |
-| Address-of function pointer initializer (`&`) | `c_dead_code_roots_test.go:318,339` |
-| Typedef function pointer initializer | `c_dead_code_roots_test.go:319,340` |
-| Multi-declarator function pointer assignment | `c_dead_code_roots_test.go:320,341-342` |
-| Typedef multi-declarator function pointer assignment | `c_dead_code_roots_test.go:321,343-344` |
-| Brace-initializer table function pointers | `c_dead_code_roots_test.go:322,345-346` |
-| Typedef brace-initializer table function pointers | `c_dead_code_roots_test.go:323,347-348` |
+| Static header prototypes excluded from public API | `c/engine_c_dead_code_roots_test.go:122-124` |
+| Block-commented header prototypes excluded | `c/engine_c_dead_code_roots_test.go:125-127` |
+| Line-commented header prototypes excluded | `c/engine_c_dead_code_roots_test.go:128-130` |
+| Headers outside repo root excluded | `c/engine_c_dead_code_roots_test.go:162-164` |
+| Symlinks outside repo root excluded | `c/engine_c_dead_code_roots_test.go:200-202` |
+| Duplicate `main` under conditional compilation | `c/engine_c_dead_code_roots_test.go:336-371` |
+| Bare callback argument (no `&`) | `c/engine_c_dead_code_roots_test.go:230,239` |
+| Address-of callback argument (`&`) | `c/engine_c_dead_code_roots_test.go:231,240` |
+| Signal handler via `&function_name` | `c/engine_c_dead_code_roots_test.go:232,241` |
+| Bare function pointer initializer | `c/engine_c_dead_code_roots_test.go:307,320` |
+| Address-of function pointer initializer (`&`) | `c/engine_c_dead_code_roots_test.go:308,321` |
+| Typedef function pointer initializer | `c/engine_c_dead_code_roots_test.go:309,322` |
+| Multi-declarator function pointer assignment | `c/engine_c_dead_code_roots_test.go:310,323-324` |
+| Typedef multi-declarator function pointer assignment | `c/engine_c_dead_code_roots_test.go:311,325-326` |
+| Brace-initializer table function pointers | `c/engine_c_dead_code_roots_test.go:312,327-328` |
+| Typedef brace-initializer table function pointers | `c/engine_c_dead_code_roots_test.go:313,329-330` |
 | Function pointer typedef recognition | `dead_code_roots.go:199-212` (exercised by typedef_target tests) |
 | Multi-declarator typedef (first alias only) | `engine_systems_test.go:437-456` |
 | Array typedef (`buffer[64]`) | `engine_systems_test.go:441,457` |

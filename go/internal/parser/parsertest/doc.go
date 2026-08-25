@@ -5,7 +5,7 @@
 // external parser test packages.
 //
 // The helpers exercise the parent parser's public Engine contract and preserve
-// its map-shaped payload assertions. They fail through testing.T so call sites
-// report the external test line, and production packages must not import this
-// package.
+// its concrete map-slice and string-slice payload assertions. They fail through
+// testing.T so call sites report the external test line, and production
+// packages must not import this package.
 package parsertest
