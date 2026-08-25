@@ -17,8 +17,10 @@ ranges, and child relationships.
 
 The package owns Kotlin parsing only. Parent engine dispatch, repository path
 resolution, registry lookup, and runtime selection stay in go/internal/parser.
-The child package must stay independent of the parent package and use shared
-parser helpers for common payload and source behavior.
+Production Kotlin code and same-package tests stay independent of the parent
+package and use shared parser helpers for common payload and source behavior.
+External `kotlin_test` files may import the parent package to exercise the
+exported engine contract as a caller would.
 
 ## Exported surface
 
@@ -52,14 +54,19 @@ See doc.go for the godoc contract.
   collection; each sibling file is parsed with tree-sitter.
 - `helpers.go` / `scope_function_helpers.go` — string utilities (chain
   normalization, scope-function stripping) that operate on AST-derived text.
+- `engine_kotlin_constructor_calls_test.go` — an external-package engine test
+  that pins primary-constructor call extraction through the parent parser's
+  exported API.
 
 ## Dependencies
 
-The package imports go/internal/parser/shared for `shared.Options`, source
-reading, base payload construction, bucket appends, sorting, and name
-deduplication, plus go-tree-sitter for AST traversal. Standard-library
-dependencies cover filesystem walking through bounded directories, path
-normalization, and string processing.
+Production package code imports go/internal/parser/shared for `shared.Options`,
+source reading, base payload construction, bucket appends, sorting, and name
+deduplication, plus go-tree-sitter for AST traversal. The external constructor
+call test imports the parent parser only to verify `DefaultEngine.ParsePath`
+from outside the implementation package. Standard-library dependencies cover
+filesystem walking through bounded directories, path normalization, and string
+processing.
 
 ## Telemetry
 
