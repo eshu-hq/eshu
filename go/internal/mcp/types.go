@@ -8,6 +8,7 @@ import (
 	cloudtools "github.com/eshu-hq/eshu/go/internal/mcp/cloud"
 	doctools "github.com/eshu-hq/eshu/go/internal/mcp/documentation"
 	playbooktools "github.com/eshu-hq/eshu/go/internal/mcp/playbooks"
+	relationshiptools "github.com/eshu-hq/eshu/go/internal/mcp/relationships"
 	"github.com/eshu-hq/eshu/go/internal/mcp/toolcontract"
 	visualizationtools "github.com/eshu-hq/eshu/go/internal/mcp/visualization"
 )
@@ -107,4 +108,10 @@ func visualizationTools() []ToolDefinition {
 // package owns the registration definition.
 func askTools() []ToolDefinition {
 	return asktools.Tools()
+}
+
+// relationshipEdgesTool preserves the root package's constructor name while
+// the relationships package owns the registration definition.
+func relationshipEdgesTool() ToolDefinition {
+	return relationshiptools.Tool()
 }

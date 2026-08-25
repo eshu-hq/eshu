@@ -267,6 +267,13 @@ plus all query-playbook routing, dispatch, authorization, and transport
 ownership. The move uses `internal/mcp/toolcontract` and leaves the 162-tool
 order unchanged.
 
+The relationship-edge registration family is the sixth extracted MCP family.
+Its single definition lives under `internal/mcp/relationships`, while the root
+keeps its assembly position after Ask and before repository files plus all
+relationship routing, dispatch, authorization, query, and transport ownership.
+The move uses `internal/mcp/toolcontract` and leaves the 162-tool order
+unchanged.
+
 **cmd/eshu (233):** `package main` — subdirectories are impossible by
 language rule. The lever is extracting business logic to new
 `internal/cli/<family>` packages, leaving thin cobra RunE wrappers —

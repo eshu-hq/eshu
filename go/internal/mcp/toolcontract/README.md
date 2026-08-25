@@ -40,9 +40,10 @@ wire contract. Tool membership and order remain owned by `mcp.ReadOnlyTools`.
 A family move must preserve the registered set, order, and schemas.
 
 No-Regression Evidence: `internal/mcp/ask`, `internal/mcp/cloud`,
-`internal/mcp/documentation`, `internal/mcp/playbooks`, and
-`internal/mcp/visualization` import `toolcontract` and own their registration
-definitions. Their characterization tests pin the
+`internal/mcp/documentation`, `internal/mcp/playbooks`,
+`internal/mcp/relationships`, and `internal/mcp/visualization` import
+`toolcontract` and own their registration definitions. Their characterization
+tests pin the
 serialized names,
 descriptions, input schemas, and local order at SHA-256
 `51ee1b7788fce89e28d89aabe738b8e497f21bc9e92cb1cbc2d99bd3a3d8eb02`
@@ -54,10 +55,12 @@ The Ask definition hash is
 `01422a0903e582b18e10f8e64d784413b0cd1c571880a812117e9d1eab811ff2`.
 The query-playbook definitions hash is
 `ec0199c133c68ffcf2d425e7db2e0faa308102599792952fc6016d590bb15a90`.
+The relationship-edge definition hash is
+`d3c56a788ae3818221a05c3ccb28a7a7a278c27ffdb8aa3722bcfe785e657ca3`.
 The root assembler still contains 162 tools with ordered-name SHA-256
 `8256c2bf64a304185a32bfb1924a6ffd8b3439e9d7d82078ba223382360aa45b`.
 `TestReadOnlyToolsRegistrationOrderContract` retains that global order guard,
-and all seven extracted constructors remain at their previous assembly
+and all eight extracted constructors remain at their previous assembly
 positions.
 
 No-Observability-Change: tool assembly, routing, dispatch, authorization, and
