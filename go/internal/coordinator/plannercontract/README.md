@@ -52,8 +52,9 @@ logs, and open-target admission remains visible through the workflow store.
 No-Regression Evidence: `TestValidateSafePlanKey` pins valid input, blank and
 whitespace-only input, surrounding whitespace, slash and backslash rejection,
 ASCII punctuation, Unicode rejection, and exact owner-qualified error text.
-Recursive coordinator tests prove every production consumer still calls the
-same grammar after the move.
+Recursive coordinator tests prove existing behavior after the move. A source
+audit of `go/internal/coordinator` confirms every production consumer calls
+`plannercontract.ValidateSafePlanKey` directly.
 
 ## Related docs
 
