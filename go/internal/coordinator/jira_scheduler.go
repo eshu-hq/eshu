@@ -11,6 +11,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/eshu-hq/eshu/go/internal/coordinator/plannercontract"
 	"github.com/eshu-hq/eshu/go/internal/facts"
 	"github.com/eshu-hq/eshu/go/internal/scope"
 	"github.com/eshu-hq/eshu/go/internal/workflow"
@@ -93,7 +94,7 @@ func validateJiraPlanRequest(request JiraPlanRequest) error {
 	if request.ObservedAt.IsZero() {
 		return fmt.Errorf("jira planner observed_at must not be zero")
 	}
-	if err := validateSafePlanKey("jira planner", request.PlanKey); err != nil {
+	if err := plannercontract.ValidateSafePlanKey("jira planner", request.PlanKey); err != nil {
 		return err
 	}
 	if request.TriggerKind != "" {

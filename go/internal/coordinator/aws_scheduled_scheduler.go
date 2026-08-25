@@ -13,6 +13,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/collector/awscloud"
 	"github.com/eshu-hq/eshu/go/internal/collector/awscloud/freshness"
+	"github.com/eshu-hq/eshu/go/internal/coordinator/plannercontract"
 	"github.com/eshu-hq/eshu/go/internal/facts"
 	"github.com/eshu-hq/eshu/go/internal/scope"
 	"github.com/eshu-hq/eshu/go/internal/workflow"
@@ -94,7 +95,7 @@ func validateAWSScheduledPlanRequest(request AWSScheduledPlanRequest) error {
 	if request.ObservedAt.IsZero() {
 		return fmt.Errorf("AWS scheduled planner observed_at must not be zero")
 	}
-	if err := validateSafePlanKey("AWS scheduled planner", request.PlanKey); err != nil {
+	if err := plannercontract.ValidateSafePlanKey("AWS scheduled planner", request.PlanKey); err != nil {
 		return err
 	}
 	return nil

@@ -11,6 +11,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/eshu-hq/eshu/go/internal/coordinator/plannercontract"
 	"github.com/eshu-hq/eshu/go/internal/facts"
 	"github.com/eshu-hq/eshu/go/internal/scope"
 	"github.com/eshu-hq/eshu/go/internal/workflow"
@@ -90,7 +91,7 @@ func validateCICDRunPlanRequest(request CICDRunPlanRequest) error {
 	if request.ObservedAt.IsZero() {
 		return fmt.Errorf("ci/cd run planner observed_at must not be zero")
 	}
-	if err := validateSafePlanKey("ci/cd run planner", request.PlanKey); err != nil {
+	if err := plannercontract.ValidateSafePlanKey("ci/cd run planner", request.PlanKey); err != nil {
 		return err
 	}
 	return nil

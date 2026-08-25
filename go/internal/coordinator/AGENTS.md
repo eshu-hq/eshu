@@ -20,6 +20,8 @@
    `service.go` here; the workflow contracts are in `internal/workflow`)
 7. `go/internal/telemetry/instruments.go` and `contract.go` — before adding
    metric or span names
+8. `go/internal/coordinator/plannercontract/README.md` and `doc.go` — shared
+   plan-key grammar and the boundary it does not own
 
 ## Invariants this package enforces
 
@@ -39,6 +41,10 @@
   use `NewMetrics` in production wiring to get all three.
 - **Store is required** — `Service.Run` returns an error immediately if
   `s.Store == nil`. Do not add fallback behavior here.
+- **Shared plan-key validation stays dependency-neutral** — schedulers and
+  extension egress parsing call `plannercontract.ValidateSafePlanKey` directly.
+  Terraform-state keeps its separate validator, and the root `firstNonBlank`
+  helper remains with its existing OCI/package/vulnerability consumers.
 
 ## Common changes and how to scope them
 
@@ -80,6 +86,11 @@
 - **Inject a fake clock** → set `Service.Clock` to a `func() time.Time` that
   returns a fixed time. The `now()` helper uses the injected clock when
   non-nil.
+
+- **Extract a scheduler family** → keep its `<kind>_service.go`, root planner
+  interface, scheduling position, durable admission, clock, and telemetry in
+  this package. The child scheduler may depend on `plannercontract`; it must not
+  import the root coordinator package.
 
 ## Failure modes and how to debug
 

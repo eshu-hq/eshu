@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/collector/scannerworker"
+	"github.com/eshu-hq/eshu/go/internal/coordinator/plannercontract"
 	"github.com/eshu-hq/eshu/go/internal/facts"
 	"github.com/eshu-hq/eshu/go/internal/scope"
 	"github.com/eshu-hq/eshu/go/internal/workflow"
@@ -100,7 +101,7 @@ func validateScannerWorkerPlanRequest(request ScannerWorkerPlanRequest) error {
 	if request.ObservedAt.IsZero() {
 		return fmt.Errorf("scanner-worker planner observed_at must not be zero")
 	}
-	if err := validateSafePlanKey("scanner-worker planner", request.PlanKey); err != nil {
+	if err := plannercontract.ValidateSafePlanKey("scanner-worker planner", request.PlanKey); err != nil {
 		return err
 	}
 	return nil

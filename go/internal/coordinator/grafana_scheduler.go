@@ -11,6 +11,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/eshu-hq/eshu/go/internal/coordinator/plannercontract"
 	"github.com/eshu-hq/eshu/go/internal/facts"
 	"github.com/eshu-hq/eshu/go/internal/scope"
 	"github.com/eshu-hq/eshu/go/internal/workflow"
@@ -104,7 +105,7 @@ func validateGrafanaPlanRequest(request GrafanaPlanRequest) error {
 	if request.ObservedAt.IsZero() {
 		return fmt.Errorf("grafana planner observed_at must not be zero")
 	}
-	if err := validateSafePlanKey("grafana planner", request.PlanKey); err != nil {
+	if err := plannercontract.ValidateSafePlanKey("grafana planner", request.PlanKey); err != nil {
 		return err
 	}
 	if request.TriggerKind != "" {

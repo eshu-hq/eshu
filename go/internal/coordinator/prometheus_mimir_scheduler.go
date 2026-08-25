@@ -11,6 +11,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/eshu-hq/eshu/go/internal/coordinator/plannercontract"
 	"github.com/eshu-hq/eshu/go/internal/facts"
 	"github.com/eshu-hq/eshu/go/internal/scope"
 	"github.com/eshu-hq/eshu/go/internal/workflow"
@@ -110,7 +111,7 @@ func validatePrometheusMimirPlanRequest(request PrometheusMimirPlanRequest) erro
 	if request.ObservedAt.IsZero() {
 		return fmt.Errorf("prometheus/mimir planner observed_at must not be zero")
 	}
-	if err := validateSafePlanKey("prometheus/mimir planner", request.PlanKey); err != nil {
+	if err := plannercontract.ValidateSafePlanKey("prometheus/mimir planner", request.PlanKey); err != nil {
 		return err
 	}
 	if request.TriggerKind != "" {

@@ -61,6 +61,10 @@
 // denied or unavailable collector and component-extension egress decisions append
 // validation-safe audit events with hashed scope identity and low-cardinality
 // reason codes before the coordinator skips claimable work.
+// Scheduler planners call plannercontract.ValidateSafePlanKey for the shared
+// plan-key grammar. The child package validates only the string; Service keeps
+// planner request, ordering, admission, persistence, retry, and telemetry
+// ownership.
 //
 // SemanticProviderWorker is the egress-gated semantic-provider execution worker.
 // It claims semantic extraction jobs, re-checks semantic egress fail-closed with
