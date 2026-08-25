@@ -6,7 +6,7 @@ The Perl adapter in `go/internal/parser/perl/` uses tree-sitter to extract
 packages as classes, `use` imports, subroutines, variables, calls, bounded
 dead-code roots, cyclomatic complexity, and exact route semantics for narrow
 Mojolicious::Lite and Dancer forms. Its direct coverage comprises 10
-same-package tests and 4 external public Engine tests. Two shared parent tests
+same-package tests and 5 external public Engine tests. Two shared parent tests
 cover the comprehensive fixture and two shared complexity table cases cover
 straight-line and branching subroutines.
 
@@ -78,9 +78,12 @@ straight-line and branching subroutines.
     `perl/engine_perl_route_semantics_test.go:TestDefaultEngineParsePathPerlExactFrameworkRouteEntries`.
 13. **Qualified route handlers** —
     `perl/engine_perl_route_semantics_test.go:TestDefaultEngineParsePathPerlPreservesQualifiedRouteHandlers`.
-14. **Unclaimed non-exact routes**: dynamic paths, inline subs, controller
-    strings, `any`, wrapper calls, and a file importing both DSL families —
-    `perl/engine_perl_route_semantics_test.go:TestDefaultEngineParsePathPerlSkipsNonExactFrameworkRoutes`.
+14. **Unclaimed non-exact routes**: under one active Mojolicious framework,
+    dynamic paths, inline subs, controller strings, `any`, and wrapper calls
+    stay out of route methods, paths, and entries; a separate dual-import
+    fixture keeps ambiguous framework ownership unclaimed —
+    `perl/engine_perl_route_semantics_test.go:TestDefaultEngineParsePathPerlSkipsNonExactFrameworkRouteForms`
+    and `TestDefaultEngineParsePathPerlSkipsAmbiguousDualFrameworkImports`.
 15. **Comprehensive Engine fixture**: packages, functions, imports, calls, and
     variables — `engine_long_tail_test.go:TestDefaultEngineParsePathPerlFixtures`
     and `TestDefaultEngineParsePathPerlCallsAndVariables`.

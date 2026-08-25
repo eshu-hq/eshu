@@ -4,6 +4,7 @@
 package perl_test
 
 import (
+	"fmt"
 	"path/filepath"
 	"slices"
 	"testing"
@@ -117,25 +118,80 @@ get "/orders" => \&Admin::show;
 	}
 }
 
-func TestDefaultEngineParsePathPerlSkipsNonExactFrameworkRoutes(t *testing.T) {
+func TestDefaultEngineParsePathPerlSkipsNonExactFrameworkRouteForms(t *testing.T) {
+	t.Parallel()
+
+	testCases := []struct {
+		name  string
+		setup string
+		route string
+	}{
+		{
+			name:  "dynamic path",
+			setup: `my $dynamic_path = "/health";`,
+			route: `get $dynamic_path => \&health;`,
+		},
+		{
+			name:  "inline sub",
+			route: `get "/inline" => sub { health() };`,
+		},
+		{
+			name:  "controller string",
+			route: `get "/controller" => "orders#show";`,
+		},
+		{
+			name:  "any",
+			route: `any "/any" => \&health;`,
+		},
+		{
+			name:  "wrapper",
+			route: `MY_get "/wrapped" => \&health;`,
+		},
+	}
+
+	for _, testCase := range testCases {
+		t.Run(testCase.name, func(t *testing.T) {
+			repoRoot := t.TempDir()
+			filePath := filepath.Join(repoRoot, "route.pl")
+			parsertest.WriteFile(
+				t,
+				filePath,
+				fmt.Sprintf(`use Mojolicious::Lite;
+
+%s
+sub health {}
+sub exact_control {}
+
+get "/exact-control" => \&exact_control;
+%s
+`, testCase.setup, testCase.route),
+			)
+
+			got := parsertest.MustParsePath(t, repoRoot, filePath)
+
+			parsertest.AssertFrameworksEqual(t, got, "mojolicious")
+			parsertest.AssertNestedStringSliceEqual(t, got, "mojolicious", "route_methods", []string{"GET"})
+			parsertest.AssertNestedStringSliceEqual(t, got, "mojolicious", "route_paths", []string{"/exact-control"})
+			parsertest.AssertNestedRouteEntriesEqual(t, got, "mojolicious", []map[string]string{
+				{"method": "GET", "path": "/exact-control", "handler": "exact_control"},
+			})
+		})
+	}
+}
+
+func TestDefaultEngineParsePathPerlSkipsAmbiguousDualFrameworkImports(t *testing.T) {
 	t.Parallel()
 
 	repoRoot := t.TempDir()
-	filePath := filepath.Join(repoRoot, "dynamic.pl")
+	filePath := filepath.Join(repoRoot, "ambiguous.pl")
 	parsertest.WriteFile(
 		t,
 		filePath,
 		`use Mojolicious::Lite;
 use Dancer2;
 
-my $dynamic_path = "/health";
 sub health {}
 
-get $dynamic_path => \&health;
-get "/inline" => sub { health() };
-get "/controller" => "orders#show";
-any "/any" => \&health;
-MY_get "/wrapped" => \&health;
 get "/ambiguous" => \&health;
 `,
 	)
