@@ -1,12 +1,15 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package parser
+package perl_test
 
 import (
 	"path/filepath"
+	"reflect"
 	"slices"
 	"testing"
+
+	"github.com/eshu-hq/eshu/go/internal/parser"
 )
 
 func TestDefaultEngineParsePathPerlExactFrameworkRouteEntries(t *testing.T) {
@@ -141,4 +144,92 @@ get "/ambiguous" => \&health;
 	got := mustParsePath(t, repoRoot, filePath)
 
 	assertFrameworksEqual(t, got)
+}
+
+func mustParsePath(t *testing.T, repoRoot string, filePath string) map[string]any {
+	t.Helper()
+
+	engine, err := parser.DefaultEngine()
+	if err != nil {
+		t.Fatalf("DefaultEngine() error = %v, want nil", err)
+	}
+	got, err := engine.ParsePath(repoRoot, filePath, false, parser.Options{})
+	if err != nil {
+		t.Fatalf("ParsePath() error = %v, want nil", err)
+	}
+	return got
+}
+
+func assertFrameworksEqual(t *testing.T, payload map[string]any, want ...string) {
+	t.Helper()
+
+	semantics := frameworkSemanticsMap(t, payload)
+	got, ok := semantics["frameworks"].([]string)
+	if !ok {
+		t.Fatalf("framework_semantics.frameworks = %T, want []string", semantics["frameworks"])
+	}
+	if want == nil {
+		want = []string{}
+	}
+	if !reflect.DeepEqual(got, want) {
+		t.Fatalf("frameworks = %#v, want %#v", got, want)
+	}
+}
+
+func assertNestedStringSliceEqual(
+	t *testing.T,
+	payload map[string]any,
+	section string,
+	key string,
+	want []string,
+) {
+	t.Helper()
+
+	nested := nestedSemanticsSection(t, payload, section)
+	got, ok := nested[key].([]string)
+	if !ok {
+		t.Fatalf("framework_semantics.%s.%s = %T, want []string", section, key, nested[key])
+	}
+	if !reflect.DeepEqual(got, want) {
+		t.Fatalf("framework_semantics.%s.%s = %#v, want %#v", section, key, got, want)
+	}
+}
+
+func assertNestedRouteEntriesEqual(
+	t *testing.T,
+	payload map[string]any,
+	section string,
+	want []map[string]string,
+) {
+	t.Helper()
+
+	nested := nestedSemanticsSection(t, payload, section)
+	got, ok := nested["route_entries"].([]map[string]string)
+	if !ok {
+		t.Fatalf("framework_semantics.%s.route_entries = %T, want []map[string]string", section, nested["route_entries"])
+	}
+	if !reflect.DeepEqual(got, want) {
+		t.Fatalf("framework_semantics.%s.route_entries = %#v, want %#v", section, got, want)
+	}
+}
+
+func frameworkSemanticsMap(t *testing.T, payload map[string]any) map[string]any {
+	t.Helper()
+
+	semantics, ok := payload["framework_semantics"].(map[string]any)
+	if !ok {
+		t.Fatalf("framework_semantics = %T, want map[string]any", payload["framework_semantics"])
+	}
+	return semantics
+}
+
+func nestedSemanticsSection(t *testing.T, payload map[string]any, section string) map[string]any {
+	t.Helper()
+
+	semantics := frameworkSemanticsMap(t, payload)
+	nested, ok := semantics[section].(map[string]any)
+	if !ok {
+		t.Fatalf("framework_semantics.%s = %T, want map[string]any", section, semantics[section])
+	}
+	return nested
 }
