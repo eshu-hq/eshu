@@ -7,5 +7,6 @@
 // ValidateSafePlanKey accepts a non-blank key made from ASCII letters, digits,
 // dots, underscores, and hyphens. It checks a whitespace-trimmed view but does
 // not normalize the caller's value. The coordinator package retains ownership
-// of scheduler order, request types, durable admission, retries, and telemetry.
+// of scheduler order, planner interfaces, durable admission, retries, and
+// telemetry. Provider scheduler packages own their request values.
 package plannercontract

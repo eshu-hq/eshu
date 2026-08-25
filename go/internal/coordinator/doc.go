@@ -19,7 +19,7 @@
 //
 // TerraformStateWorkPlanner plans Terraform-state collection runs from resolved
 // discovery candidates. OCIRegistryWorkPlanner, PackageRegistryWorkPlanner,
-// VulnerabilityIntelligenceWorkPlanner, CICDRunWorkPlanner, JiraWorkPlanner,
+// VulnerabilityIntelligenceWorkPlanner, JiraWorkPlanner,
 // and LokiWorkPlanner each plan bounded work items without opening provider
 // connections; the Loki planner emits one work item per enabled configured Loki
 // target and partitions claims by a per-target fairness key. Package and
@@ -29,8 +29,9 @@
 // cannot safely become an exact vulnerability source query.
 // Service reads one bounded owned-package lookahead beyond each planning
 // budget so requested scope sets can show exhaustion without widening admitted
-// work. CICDRunWorkPlanner plans bounded CI/CD run collection work from
-// configured GitHub Actions repository targets. PagerDutyWorkPlanner plans
+// work. The cicdrun child package plans bounded CI/CD run collection work from
+// configured GitHub Actions repository targets while this package keeps the
+// structural planner interface and scheduling position. PagerDutyWorkPlanner plans
 // incident-evidence work from configured PagerDuty targets.
 // PrometheusMimirWorkPlanner plans bounded metric-metadata work, one item per
 // enabled Prometheus or Grafana Mimir target, partitioned by target scope so
@@ -62,9 +63,8 @@
 // validation-safe audit events with hashed scope identity and low-cardinality
 // reason codes before the coordinator skips claimable work.
 // Scheduler planners call plannercontract.ValidateSafePlanKey for the shared
-// plan-key grammar. The child package validates only the string; Service keeps
-// planner request, ordering, admission, persistence, retry, and telemetry
-// ownership.
+// plan-key grammar. The contract package validates only the string. Service
+// keeps ordering, admission, persistence, retry, and telemetry ownership.
 //
 // SemanticProviderWorker is the egress-gated semantic-provider execution worker.
 // It claims semantic extraction jobs, re-checks semantic egress fail-closed with

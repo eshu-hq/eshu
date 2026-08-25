@@ -18,6 +18,7 @@ live in the repository today.
 | `go/internal/collector/` | Git collection, discovery, snapshotting, and fact shaping |
 | `go/internal/content/` | content shaping and content-store persistence |
 | `go/internal/coordinator/` | workflow coordinator service ordering, planner interfaces, durable admission, retry, and telemetry ownership |
+| `go/internal/coordinator/cicdrun/` | CI/CD run scheduler request validation and deterministic workflow planning |
 | `go/internal/coordinator/plannercontract/` | dependency-neutral scheduler plan-key validation |
 | `go/internal/facts/` | durable fact models and queue contracts |
 | `go/internal/graph/` | canonical graph schema and write helpers |

@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package coordinator
+package cicdrun
 
 import (
 	"context"
@@ -17,16 +17,16 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/workflow"
 )
 
-// CICDRunPlanRequest carries one hosted provider CI/CD run planning request.
-type CICDRunPlanRequest struct {
+// PlanRequest carries one hosted provider CI/CD run planning request.
+type PlanRequest struct {
 	Instance   workflow.CollectorInstance
 	ObservedAt time.Time
 	PlanKey    string
 }
 
-// CICDRunWorkPlanner plans workflow rows for configured CI/CD run targets
+// WorkPlanner plans workflow rows for configured CI/CD run targets
 // without resolving credentials or contacting providers.
-type CICDRunWorkPlanner struct{}
+type WorkPlanner struct{}
 
 type cicdRunRuntimeConfiguration struct {
 	Targets []cicdRunTargetConfiguration `json:"targets"`
@@ -39,11 +39,11 @@ type cicdRunTargetConfiguration struct {
 
 // PlanCICDRunWork returns one run and one work item per configured provider
 // CI/CD run target.
-func (p CICDRunWorkPlanner) PlanCICDRunWork(
+func (p WorkPlanner) PlanCICDRunWork(
 	_ context.Context,
-	request CICDRunPlanRequest,
+	request PlanRequest,
 ) (workflow.Run, []workflow.WorkItem, error) {
-	if err := validateCICDRunPlanRequest(request); err != nil {
+	if err := validatePlanRequest(request); err != nil {
 		return workflow.Run{}, nil, err
 	}
 	targets, err := parseCICDRunRuntimeTargets(request.Instance.Configuration)
@@ -75,7 +75,7 @@ func (p CICDRunWorkPlanner) PlanCICDRunWork(
 	return run, items, nil
 }
 
-func validateCICDRunPlanRequest(request CICDRunPlanRequest) error {
+func validatePlanRequest(request PlanRequest) error {
 	if err := request.Instance.Validate(); err != nil {
 		return fmt.Errorf("ci/cd run plan request: %w", err)
 	}
