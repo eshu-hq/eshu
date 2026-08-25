@@ -1,7 +1,7 @@
 # Python Parser Audit
 
 ## Overview
-The Python parser (`go/internal/parser/python/`) is the most thoroughly tested language adapter in Eshu. It parses `.py` and `.ipynb` files via tree-sitter, emitting functions, classes, modules, variables, imports, calls, type annotations, framework semantics (FastAPI/Flask), ORM table mappings, embedded shell commands, dead-code root evidence, generator flags, rationale comments, property/cached-property/setter decorator metadata, and opt-in value-flow buckets. The package has 4 subdirectory test files plus 27 parent-level engine-python test files.
+The Python parser (`go/internal/parser/python/`) is the most thoroughly tested language adapter in Eshu. It parses `.py` and `.ipynb` files via tree-sitter, emitting functions, classes, modules, variables, imports, calls, type annotations, framework semantics (FastAPI/Flask), ORM table mappings, embedded shell commands, dead-code root evidence, generator flags, rationale comments, property/cached-property/setter decorator metadata, and opt-in value-flow buckets. Public-engine regressions and package-local tests both cover that surface.
 
 ## Claimed Constructs
 List every construct the parser claims to extract, with source references.
@@ -54,7 +54,7 @@ List every construct the parser claims to extract, with source references.
 List constructs verified by tests, with file:function references.
 
 1. **Classes, functions, imports, calls** — `engine_test.go:11-48` (`TestDefaultEngineParsePathPython`)
-2. **Module docstring** — `engine_python_module_semantics_test.go:11-38` (`TestDefaultEngineParsePathPythonModuleDocstringEmitsModuleMetadata`)
+2. **Module docstring** — `python/engine_python_module_semantics_test.go:14-57` (`TestDefaultEngineParsePathPythonModuleDocstringEmitsModuleMetadata`)
 3. **FastAPI semantics** — `engine_python_semantics_test.go` (FastAPIBindsDefHandler, FastAPISemantics)
 4. **Flask semantics** — `engine_python_semantics_test.go` (FlaskBindsDefHandler, FlaskSemantics)
 5. **ORM mappings** — `engine_python_semantics_test.go` (ORMMappings, UnknownRouteDecoratorRemainsUnclassified)
@@ -126,7 +126,7 @@ List edge cases not tested.
 ## Verdict
 deep
 
-The Python parser has 27 parent-level engine tests, 4 subdirectory test files, dedicated tests for every dead-code root kind (including `dataclass_post_init` via `engine_python_dead_code_semantics_test.go`), framework semantics, ORM mappings, embedded shell, generators, lambda assignments, annotated assignments, type annotations, call inference, rationale comments, value-flow, class-reference call items, and notebook extraction. Tests cover edge cases like reversed script guards, concatenated `__all__` exports, splat-typed parameters, and alias shadowing in embedded shell. Only a few tertiary code paths (notebook `[]any` source, explicit invalid-JSON error) lack dedicated tests.
+The Python parser has public-engine regressions and package-local tests for every dead-code root kind (including `dataclass_post_init` via `engine_python_dead_code_semantics_test.go`), framework semantics, ORM mappings, embedded shell, generators, lambda assignments, annotated assignments, type annotations, call inference, rationale comments, value-flow, class-reference call items, and notebook extraction. Tests cover edge cases like reversed script guards, concatenated `__all__` exports, splat-typed parameters, and alias shadowing in embedded shell. Only a few tertiary code paths (notebook `[]any` source, explicit invalid-JSON error) lack dedicated tests.
 
 ## Recommended Actions
 1. Add an explicit test for notebook with `source` as `[]any` array.

@@ -39,9 +39,10 @@ generator flags, metaclass data, public API roots, and Python call receiver
 inference.
 
 The parent parser package still owns registry dispatch, absolute path
-resolution, content metadata, and Engine method signatures. The child package
-must not import the parent parser package; shared payload and tree helpers come
-from the shared parser package.
+resolution, content metadata, and Engine method signatures. Production files in
+this package must not import the parent parser package; shared payload and tree
+helpers come from the shared parser package. External black-box tests may import
+the parent to exercise its public Engine contract.
 
 ## Exported surface
 
@@ -70,8 +71,10 @@ emission (`cfg_emit.go`) imports the `python/pydataflow` lowering, the shared
 engines. It imports the YAML parser child package only to decode SAM and
 serverless config candidates when marking Python Lambda handlers.
 
-It does not import the parent parser package, collector packages, storage
-packages, graph query code, or reducer code.
+Production code does not import the parent parser package, collector packages,
+storage packages, graph query code, or reducer code. The external
+`engine_python_module_semantics_test.go` regression imports the parent parser to
+exercise module metadata through `Engine.ParsePath`.
 
 ## Telemetry
 
@@ -138,6 +141,10 @@ source.
 
 Parse accepts a caller-owned tree-sitter parser. The caller opens and closes the
 parser so the parent Engine can preserve its runtime lifecycle.
+
+`engine_python_module_semantics_test.go` uses the external `python_test`
+package. It may import the parent parser because Go compiles it only for tests;
+production files and same-package tests remain parent-independent.
 
 Lambda handler detection scans template.yaml, template.yml, serverless.yaml, and
 serverless.yml from the source directory up to the repository root. It only

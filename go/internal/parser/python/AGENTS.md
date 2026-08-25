@@ -15,11 +15,15 @@
 10. cfg_emit.go - opt-in value-flow buckets (EmitDataflow) over python/pydataflow
 11. payload_buckets.go - named bucket sorting utilities
 12. notebook_test.go and language_test.go - child package contract coverage
+13. engine_python_module_semantics_test.go - external-package regression for
+    module metadata through the public parent Engine
 
 ## Invariants this package enforces
 
-- Dependency direction stays one way: the parent parser package may import this
-  package, but this package must not import internal/parser.
+- Production dependency direction stays one way: the parent parser package may
+  import this package, but production files and same-package tests here must not
+  import internal/parser. External `python_test` files may import the parent to
+  exercise its public Engine contract.
 - Parse receives a caller-owned tree-sitter parser and must not close it.
 - NotebookSource only keeps executable code cells. Markdown, raw, malformed,
   and blank cells do not become parser input.
@@ -30,8 +34,8 @@
 
 ## Common changes and how to scope them
 
-- Add parse behavior with a failing test in language_test.go or a parent
-  engine_python_* test before editing adapter code.
+- Add package-level parse behavior with a failing test in language_test.go.
+- Add public Engine parsing behavior with a focused external-package test here.
 - Add notebook behavior with a focused test in notebook_test.go first.
 - Keep generic parser helpers in the shared parser package when multiple
   language adapters need them.
@@ -52,7 +56,9 @@
 
 ## Anti-patterns specific to this package
 
-- Importing the parent parser package to reuse unexported helpers.
+- Importing the parent parser package from production files or same-package
+  tests. Keep the external-test exception limited to black-box public Engine
+  coverage, and do not use it to reuse unexported helpers.
 - Closing the tree-sitter parser passed to Parse.
 - Treating markdown or raw notebook cells as Python code.
 - Marking non-Python SAM or serverless handlers as Python dead-code roots.
