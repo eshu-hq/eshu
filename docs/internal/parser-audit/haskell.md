@@ -133,8 +133,11 @@ has golden characterization fixtures for byte-parity regression detection.
   (Haskell cases at line 289)
 - Multi-equation function bindings — end_line spans the full set of clauses:
   `parser_test.go:TestParseCapturesHaskellGuardedFunctionBinding`
-- Continuation-style do-block calls:
+- Continuation-style do-block calls using `$`, a lambda continuation, nested
+  calls, and multiline RHS arguments:
   `parser_test.go:TestParseCapturesHaskellContinuationCalls`
+- Deriving clauses preserve the characterized payload shape:
+  `characterization_test.go:TestHaskellPayloadCharacterization`
 - Empty files return typed, empty symbol buckets:
   `parser_test.go:TestParseHaskellEmptyFileReturnsEmptyPayload`
 - Tree-sitter syntax errors still return a typed Haskell payload:
@@ -149,7 +152,6 @@ has golden characterization fixtures for byte-parity regression detection.
   operator-named bindings
 - **Type families or GADTs**: only data/newtype/type handled; more advanced
   type declarations not tested
-- **Deriving clauses**: not tested
 - **Qualified module names with re-exports**: `module Foo (module Bar)` style
   not tested
 - **Nested where blocks**: only single-level where blocks tested
@@ -170,8 +172,9 @@ The Haskell parser has thorough coverage for its core AST extraction boundaries
 bindings, where-block variables, dead-code roots) with 16 behavior tests plus
 golden characterization fixtures. The Engine suite directly asserts Haskell
 complexity values 1 and 4 for straight-line and branching functions. However,
-operator-named functions, CPS/RHS call extraction, advanced type features,
-error paths, and keyword suppression are untested.
+operator-named functions, `where`/`let-in`/`case-of` RHS call combinations,
+type families and GADTs, nil-parser/nil-tree/unreadable-file error paths, and
+exhaustive keyword suppression remain untested.
 
 ## Recommended Actions
 1. Add a test for `PreScanWithParser` matching the existing `PreScan` test
@@ -182,5 +185,5 @@ error paths, and keyword suppression are untested.
 4. Add a test for operator-named function bindings (`(+++)`).
 5. Add an exhaustive keyword suppression test for all 20 entries in
    `haskellIsKeyword`.
-6. Add a golden fixture exercising multiline RHS continuations with `$`,
-   `where`, let-in, and case-of expressions.
+6. Add a golden fixture exercising `where`, `let-in`, and `case-of` RHS call
+   combinations.
