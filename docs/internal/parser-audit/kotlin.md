@@ -176,7 +176,7 @@ walk path.
 |---|---|
 | Bare calls (same-scope, top-level) | `engine_kotlin_bare_calls_test.go:17` |
 | Imported bare calls (top-level function from import) | `engine_kotlin_imported_bare_call_test.go:17` |
-| Constructor calls (local type) | `engine_kotlin_constructor_calls_test.go:11` |
+| Constructor calls (local type) | `kotlin/engine_kotlin_constructor_calls_test.go:14` |
 | Constructor calls (imported type, no alias) | `engine_kotlin_ast_test.go:128` |
 
 ### Function calls bucket — navigation and receivers

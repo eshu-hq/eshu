@@ -12,9 +12,11 @@ explicitly asks for a cross-language parser contract change.
 
 ## Invariants
 
-Do not import the parent parser package. Use go/internal/parser/shared for
-`shared.Options`, source reads, base payload construction, bucket appends,
-sorting, and pre-scan name cleanup.
+Production code and same-package tests must not import the parent parser
+package. Use go/internal/parser/shared for `shared.Options`, source reads, base
+payload construction, bucket appends, sorting, and pre-scan name cleanup.
+External `kotlin_test` files may import the parent parser to verify its exported
+engine contract without gaining access to parent internals.
 
 Extraction is AST-only. Do not reintroduce `regexp` or `strings.Split(src,
 "\n")` line-scan symbol extraction. Confirm grammar node kinds with a compiled
@@ -49,10 +51,13 @@ test and probe the AST before editing.
 
 ## Anti-Patterns
 
-Do not add parent-package imports, regex or line-scan extraction,
-whole-repository scans, hidden fallbacks for ambiguous return types, or Kotlin
-fixes in other language packages. Do not change payload keys without focused
-Kotlin tests and downstream parser contract validation.
+Do not add parent-package imports to production or same-package test files,
+regex or line-scan extraction, whole-repository scans, hidden fallbacks for
+ambiguous return types, or Kotlin fixes in other language packages. The
+external `engine_kotlin_constructor_calls_test.go` is the narrow exception: it
+imports the parent parser only to exercise the exported engine API. Do not
+change payload keys without focused Kotlin tests and downstream parser contract
+validation.
 
 ## Evidence notes
 
