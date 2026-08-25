@@ -1,12 +1,15 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package parser
+package golang_test
 
 import (
+	"os"
 	"path/filepath"
 	"reflect"
 	"testing"
+
+	"github.com/eshu-hq/eshu/go/internal/parser"
 )
 
 func TestDefaultEngineParsePathGoEmbeddedShellCommands(t *testing.T) {
@@ -14,10 +17,7 @@ func TestDefaultEngineParsePathGoEmbeddedShellCommands(t *testing.T) {
 
 	repoRoot := t.TempDir()
 	filePath := filepath.Join(repoRoot, "repo.go")
-	writeTestFile(
-		t,
-		filePath,
-		`package repo
+	if err := os.WriteFile(filePath, []byte(`package repo
 
 import (
 	execpkg "os/exec"
@@ -31,15 +31,16 @@ func runArchive() error {
 func notCommand(runner interface{ Command(string) error }) error {
 	return runner.Command("tar")
 }
-`,
-	)
+`), 0o644); err != nil {
+		t.Fatalf("WriteFile(%q) error = %v, want nil", filePath, err)
+	}
 
-	engine, err := DefaultEngine()
+	engine, err := parser.DefaultEngine()
 	if err != nil {
 		t.Fatalf("DefaultEngine() error = %v, want nil", err)
 	}
 
-	got, err := engine.ParsePath(repoRoot, filePath, false, Options{})
+	got, err := engine.ParsePath(repoRoot, filePath, false, parser.Options{})
 	if err != nil {
 		t.Fatalf("ParsePath() error = %v, want nil", err)
 	}
