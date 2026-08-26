@@ -89,6 +89,10 @@ func TestMaterializedEdgeFalseGreenMissingCoverageFailsNamingFamily(t *testing.T
 	if err != nil {
 		t.Fatalf("LoadManifest: %v", err)
 	}
+	// Shared manifest alone, not LoadMaterializedEdgeLedger, because the run
+	// below is scoped to reducer.MaterializedEdgeFamilies(). The direct half's
+	// waivers name families that run does not enumerate, so loading them here
+	// would feed the reconciler rows it has no surface for (#6181).
 	waivers, err := LoadMaterializedEdgeWaivers(filepath.Join(specsDir, MaterializedEdgeManifestFileName))
 	if err != nil {
 		t.Fatalf("LoadMaterializedEdgeWaivers: %v", err)

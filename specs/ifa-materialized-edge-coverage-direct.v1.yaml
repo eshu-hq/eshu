@@ -1,0 +1,350 @@
+# Ifá materialized-edge coverage manifest -- DIRECT-MATERIALIZATION half
+# (#6181, coverage tracked by #6228, epic #5589).
+#
+# The sibling file specs/ifa-materialized-edge-coverage.v1.yaml is the same
+# ledger for the SHARED-projection families: the reducer domains that reach the
+# graph through the ordering-safe shared-projection intent path
+# (reducer.MaterializedEdgeFamilies(), locked to allProjectionDomains). This
+# file holds the families the reducer writes DIRECTLY -- one family per port,
+# straight to a go/internal/storage/cypher writer, with no intent row in
+# between (reducer.DirectMaterializedEdgeFamilies()).
+#
+# Both halves are loaded together by
+# materializededges.LoadMaterializedEdgeLedger and reconciled by one gate. Read
+# one half alone and the other half's families produce no row, no finding and
+# no output -- which is exactly the blindness #6181 reported and this file
+# closes.
+#
+# WHY A SECOND FILE. The repository caps a file at 500 lines (CLAUDE.md), and
+# the sibling manifest's own footer records that its roadmap prose was moved to
+# docs/internal/design/5351-ifa-materialized-edge-known-gaps.md for that reason.
+# It already sits just under the cap, and every direct family below carries two
+# waiver rows -- one per proof gate -- so folding them in would push it far past
+# 500. Counted rather than quoted as a digit here on purpose: a number in prose
+# goes stale the day a family is added, and that drift is what
+# TestMaterializedEdgeFamilyCountClaimsMatchTheCode exists to catch in the
+# claims it can see. Splitting also keeps each half readable on its own terms
+# and mirrors the split between the two enumerations they reconcile against.
+#
+# THE CAP IS CONVENTION HERE, NOT ENFORCEMENT. Nothing mechanically gates the
+# length of a YAML file: the 500-line cap runs from scripts/dev/precommit-go.sh,
+# whose filecap_check_file short-circuits on `[[ "${f}" == *.go ]] || return 0`.
+# A future maintainer must not assume a gate is holding this line. It is held by
+# whoever is reading the diff, and that is the only thing holding it.
+#
+# CLAIMS-LEDGER RULE -- absence means NOT CLAIMED, never inferred covered. The
+# unit of a claim is one (surface x proof_gate) row. A required dimension with
+# neither a `coverage:` row nor a matching waiver is UNCLAIMED, and the gate
+# fails in blocking mode. Waivers are per (surface, proof_gate), never per
+# family: waiving the fault gate does not grant credit to the baseline gate.
+#
+# EVERY FAMILY BELOW IS WAIVED, NONE IS COVERED, AND THAT IS THE HONEST STATE.
+# A coverage row here would have to satisfy all four of the sibling manifest's
+# conditions: a cataloged Odù, a vacuity guard registered in
+# MaterializedEdgeOduResolver, a hand-derived expected-edge-set fixture naming
+# an edge of every relationship type the family's writer accepts, and the live
+# ifa-determinism / ifa-fault-injection matrices actually running the family.
+# None of the twenty-eight has any of the four. Seeding an aspirational
+# coverage row instead of a waiver is the specific mistake commit 42e188ba1 made
+# for documentation_edges and had to withdraw; it is not repeated here.
+#
+# These families additionally do NOT yet resolve through
+# MaterializedEdgeDomainEdgeTypes -- their relationship types are not registered
+# beside their writers in go/internal/storage/cypher, so
+# `eshu-ifa assert-edges -domain <family>` would error before any fixture is
+# consulted. Registering them is part of the #6228 work, which is why
+# TestEveryWaivedFamilyIsRegistered holds the #5543 umbrella roster to the
+# resolve check but not these. The waiver reasons below say so per family.
+#
+# WHERE THE FAMILY LIST COMES FROM. Not from this file, and not from any port's
+# name. reducer.DirectMaterializedEdgeFamilies() is the source, and
+# TestDirectMaterializedEdgePortsMatchTheExecutedCypher holds it to the Cypher
+# each port actually executes: every reducer port reaching a relationship MERGE
+# must be a declared family. An earlier guard derived the set by matching port
+# names against `^Write(.+)Edges$` and missed six ports that merge relationships
+# under other names -- WriteKubernetesNamespaceNodes merges TARGETS_ENVIRONMENT,
+# WriteSemanticEntities merges CONTAINS. Do not re-derive this list by name.
+
+version: "1"
+
+waivers:
+  - surface: "materialized_edges:assumes_iam_role"
+    proof_gate: ifa-determinism
+    issue: "#6228"
+    waived: "2026-08-23"
+    reason: "WriteAssumesIAMRoleEdges -> cypher/secrets_iam_graph_writer.go merges SECRETS_IAM_ASSUMES_IAM_ROLE; direct materialization, no Odu, expected-edge-set fixture, or registered edge types yet"
+  - surface: "materialized_edges:assumes_iam_role"
+    proof_gate: ifa-fault-injection
+    issue: "#6228"
+    waived: "2026-08-23"
+    reason: "WriteAssumesIAMRoleEdges -> cypher/secrets_iam_graph_writer.go merges SECRETS_IAM_ASSUMES_IAM_ROLE; direct materialization, no Odu, expected-edge-set fixture, or registered edge types yet"
+  - surface: "materialized_edges:authenticates_vault_role"
+    proof_gate: ifa-determinism
+    issue: "#6228"
+    waived: "2026-08-23"
+    reason: "WriteAuthenticatesVaultRoleEdges -> cypher/secrets_iam_graph_writer.go merges SECRETS_IAM_AUTHENTICATES_TO_VAULT_ROLE; direct materialization, no Odu, expected-edge-set fixture, or registered edge types yet"
+  - surface: "materialized_edges:authenticates_vault_role"
+    proof_gate: ifa-fault-injection
+    issue: "#6228"
+    waived: "2026-08-23"
+    reason: "WriteAuthenticatesVaultRoleEdges -> cypher/secrets_iam_graph_writer.go merges SECRETS_IAM_AUTHENTICATES_TO_VAULT_ROLE; direct materialization, no Odu, expected-edge-set fixture, or registered edge types yet"
+  - surface: "materialized_edges:built_from"
+    proof_gate: ifa-determinism
+    issue: "#6228"
+    waived: "2026-08-23"
+    reason: "WriteBuiltFromEdges -> cypher/provenance_edge_writer.go merges BUILT_FROM; direct materialization, no Odu, expected-edge-set fixture, or registered edge types yet"
+  - surface: "materialized_edges:built_from"
+    proof_gate: ifa-fault-injection
+    issue: "#6228"
+    waived: "2026-08-23"
+    reason: "WriteBuiltFromEdges -> cypher/provenance_edge_writer.go merges BUILT_FROM; direct materialization, no Odu, expected-edge-set fixture, or registered edge types yet"
+  - surface: "materialized_edges:cloud_resource"
+    proof_gate: ifa-determinism
+    issue: "#6228"
+    waived: "2026-08-23"
+    reason: "WriteCloudResourceEdges -> cypher/{aws,azure,gcp}_cloud_resource_edge_writer.go merges a per-row AWS_<relationship_type>; direct materialization, no Odu, expected-edge-set fixture, or registered edge types yet"
+  - surface: "materialized_edges:cloud_resource"
+    proof_gate: ifa-fault-injection
+    issue: "#6228"
+    waived: "2026-08-23"
+    reason: "WriteCloudResourceEdges -> cypher/{aws,azure,gcp}_cloud_resource_edge_writer.go merges a per-row AWS_<relationship_type>; direct materialization, no Odu, expected-edge-set fixture, or registered edge types yet"
+  - surface: "materialized_edges:cloud_resource_container_image"
+    proof_gate: ifa-determinism
+    issue: "#6228"
+    waived: "2026-08-23"
+    reason: "WriteCloudResourceContainerImageEdges -> cypher/cloud_resource_container_image_edge_writer.go merges lambda_function_uses_image; direct materialization, no Odu, expected-edge-set fixture, or registered edge types yet"
+  - surface: "materialized_edges:cloud_resource_container_image"
+    proof_gate: ifa-fault-injection
+    issue: "#6228"
+    waived: "2026-08-23"
+    reason: "WriteCloudResourceContainerImageEdges -> cypher/cloud_resource_container_image_edge_writer.go merges lambda_function_uses_image; direct materialization, no Odu, expected-edge-set fixture, or registered edge types yet"
+  - surface: "materialized_edges:code_interproc_evidence"
+    proof_gate: ifa-determinism
+    issue: "#6228"
+    waived: "2026-08-23"
+    reason: "WriteCodeInterprocEvidence -> cypher/code_interproc_evidence_writer.go merges TAINT_FLOWS_TO; direct materialization, no Odu, expected-edge-set fixture, or registered edge types yet"
+  - surface: "materialized_edges:code_interproc_evidence"
+    proof_gate: ifa-fault-injection
+    issue: "#6228"
+    waived: "2026-08-23"
+    reason: "WriteCodeInterprocEvidence -> cypher/code_interproc_evidence_writer.go merges TAINT_FLOWS_TO; direct materialization, no Odu, expected-edge-set fixture, or registered edge types yet"
+  - surface: "materialized_edges:code_taint_evidence"
+    proof_gate: ifa-determinism
+    issue: "#6228"
+    waived: "2026-08-23"
+    reason: "WriteCodeTaintEvidence -> cypher/code_taint_evidence_writer.go merges HAS_TAINT_EVIDENCE; direct materialization, no Odu, expected-edge-set fixture, or registered edge types yet"
+  - surface: "materialized_edges:code_taint_evidence"
+    proof_gate: ifa-fault-injection
+    issue: "#6228"
+    waived: "2026-08-23"
+    reason: "WriteCodeTaintEvidence -> cypher/code_taint_evidence_writer.go merges HAS_TAINT_EVIDENCE; direct materialization, no Odu, expected-edge-set fixture, or registered edge types yet"
+  - surface: "materialized_edges:crossplane_satisfied_by"
+    proof_gate: ifa-determinism
+    issue: "#6228"
+    waived: "2026-08-23"
+    reason: "WriteCrossplaneSatisfiedByEdges -> cypher/crossplane_satisfied_by_edge_writer.go merges SATISFIED_BY; direct materialization, no Odu, expected-edge-set fixture, or registered edge types yet"
+  - surface: "materialized_edges:crossplane_satisfied_by"
+    proof_gate: ifa-fault-injection
+    issue: "#6228"
+    waived: "2026-08-23"
+    reason: "WriteCrossplaneSatisfiedByEdges -> cypher/crossplane_satisfied_by_edge_writer.go merges SATISFIED_BY; direct materialization, no Odu, expected-edge-set fixture, or registered edge types yet"
+  - surface: "materialized_edges:derived_from"
+    proof_gate: ifa-determinism
+    issue: "#6228"
+    waived: "2026-08-23"
+    reason: "WriteDerivedFromEdges -> cypher/derived_from_edge_writer.go merges DERIVED_FROM; direct materialization, no Odu, expected-edge-set fixture, or registered edge types yet"
+  - surface: "materialized_edges:derived_from"
+    proof_gate: ifa-fault-injection
+    issue: "#6228"
+    waived: "2026-08-23"
+    reason: "WriteDerivedFromEdges -> cypher/derived_from_edge_writer.go merges DERIVED_FROM; direct materialization, no Odu, expected-edge-set fixture, or registered edge types yet"
+  - surface: "materialized_edges:ec2_uses_profile"
+    proof_gate: ifa-determinism
+    issue: "#6228"
+    waived: "2026-08-23"
+    reason: "WriteEC2UsesProfileEdges -> cypher/ec2_uses_profile_edge_writer.go merges USES_PROFILE; direct materialization, no Odu, expected-edge-set fixture, or registered edge types yet"
+  - surface: "materialized_edges:ec2_uses_profile"
+    proof_gate: ifa-fault-injection
+    issue: "#6228"
+    waived: "2026-08-23"
+    reason: "WriteEC2UsesProfileEdges -> cypher/ec2_uses_profile_edge_writer.go merges USES_PROFILE; direct materialization, no Odu, expected-edge-set fixture, or registered edge types yet"
+  - surface: "materialized_edges:grants_secret_read"
+    proof_gate: ifa-determinism
+    issue: "#6228"
+    waived: "2026-08-23"
+    reason: "WriteGrantsSecretReadEdges -> cypher/secrets_iam_graph_writer.go merges SECRETS_IAM_GRANTS_SECRET_READ; direct materialization, no Odu, expected-edge-set fixture, or registered edge types yet"
+  - surface: "materialized_edges:grants_secret_read"
+    proof_gate: ifa-fault-injection
+    issue: "#6228"
+    waived: "2026-08-23"
+    reason: "WriteGrantsSecretReadEdges -> cypher/secrets_iam_graph_writer.go merges SECRETS_IAM_GRANTS_SECRET_READ; direct materialization, no Odu, expected-edge-set fixture, or registered edge types yet"
+  - surface: "materialized_edges:iam_can_assume"
+    proof_gate: ifa-determinism
+    issue: "#6228"
+    waived: "2026-08-23"
+    reason: "WriteIAMCanAssumeEdges -> cypher/iam_can_assume_edge_writer.go merges CAN_ASSUME; direct materialization, no Odu, expected-edge-set fixture, or registered edge types yet"
+  - surface: "materialized_edges:iam_can_assume"
+    proof_gate: ifa-fault-injection
+    issue: "#6228"
+    waived: "2026-08-23"
+    reason: "WriteIAMCanAssumeEdges -> cypher/iam_can_assume_edge_writer.go merges CAN_ASSUME; direct materialization, no Odu, expected-edge-set fixture, or registered edge types yet"
+  - surface: "materialized_edges:iam_can_perform"
+    proof_gate: ifa-determinism
+    issue: "#6228"
+    waived: "2026-08-23"
+    reason: "WriteIAMCanPerformEdges -> cypher/iam_can_perform_edge_writer.go merges CAN_PERFORM; direct materialization, no Odu, expected-edge-set fixture, or registered edge types yet"
+  - surface: "materialized_edges:iam_can_perform"
+    proof_gate: ifa-fault-injection
+    issue: "#6228"
+    waived: "2026-08-23"
+    reason: "WriteIAMCanPerformEdges -> cypher/iam_can_perform_edge_writer.go merges CAN_PERFORM; direct materialization, no Odu, expected-edge-set fixture, or registered edge types yet"
+  - surface: "materialized_edges:iam_escalation"
+    proof_gate: ifa-determinism
+    issue: "#6228"
+    waived: "2026-08-23"
+    reason: "WriteIAMEscalationEdges -> cypher/iam_escalation_edge_writer.go merges CAN_ESCALATE_TO; direct materialization, no Odu, expected-edge-set fixture, or registered edge types yet"
+  - surface: "materialized_edges:iam_escalation"
+    proof_gate: ifa-fault-injection
+    issue: "#6228"
+    waived: "2026-08-23"
+    reason: "WriteIAMEscalationEdges -> cypher/iam_escalation_edge_writer.go merges CAN_ESCALATE_TO; direct materialization, no Odu, expected-edge-set fixture, or registered edge types yet"
+  - surface: "materialized_edges:iam_instance_profile_role"
+    proof_gate: ifa-determinism
+    issue: "#6228"
+    waived: "2026-08-23"
+    reason: "WriteIAMInstanceProfileRoleEdges -> cypher/iam_instance_profile_role_edge_writer.go merges HAS_ROLE; direct materialization, no Odu, expected-edge-set fixture, or registered edge types yet"
+  - surface: "materialized_edges:iam_instance_profile_role"
+    proof_gate: ifa-fault-injection
+    issue: "#6228"
+    waived: "2026-08-23"
+    reason: "WriteIAMInstanceProfileRoleEdges -> cypher/iam_instance_profile_role_edge_writer.go merges HAS_ROLE; direct materialization, no Odu, expected-edge-set fixture, or registered edge types yet"
+  - surface: "materialized_edges:incident_routing_evidence"
+    proof_gate: ifa-determinism
+    issue: "#6228"
+    waived: "2026-08-23"
+    reason: "WriteIncidentRoutingEvidence -> cypher/incident_routing_evidence_writer.go merges HAS_INTENDED_ROUTING / HAS_APPLIED_ROUTING / HAS_LIVE_ROUTING, one per routing slot; direct materialization, no Odu, expected-edge-set fixture, or registered edge types yet"
+  - surface: "materialized_edges:incident_routing_evidence"
+    proof_gate: ifa-fault-injection
+    issue: "#6228"
+    waived: "2026-08-23"
+    reason: "WriteIncidentRoutingEvidence -> cypher/incident_routing_evidence_writer.go merges HAS_INTENDED_ROUTING / HAS_APPLIED_ROUTING / HAS_LIVE_ROUTING, one per routing slot; direct materialization, no Odu, expected-edge-set fixture, or registered edge types yet"
+  - surface: "materialized_edges:kubernetes_correlation"
+    proof_gate: ifa-determinism
+    issue: "#6228"
+    waived: "2026-08-23"
+    reason: "WriteKubernetesCorrelationEdges -> cypher/kubernetes_correlation_edge_writer.go merges RUNS_IMAGE; direct materialization, no Odu, expected-edge-set fixture, or registered edge types yet"
+  - surface: "materialized_edges:kubernetes_correlation"
+    proof_gate: ifa-fault-injection
+    issue: "#6228"
+    waived: "2026-08-23"
+    reason: "WriteKubernetesCorrelationEdges -> cypher/kubernetes_correlation_edge_writer.go merges RUNS_IMAGE; direct materialization, no Odu, expected-edge-set fixture, or registered edge types yet"
+  - surface: "materialized_edges:kubernetes_namespace_environment"
+    proof_gate: ifa-determinism
+    issue: "#6228"
+    waived: "2026-08-23"
+    reason: "WriteKubernetesNamespaceNodes -> cypher/kubernetes_namespace_node_writer.go merges TARGETS_ENVIRONMENT; direct materialization, no Odu, expected-edge-set fixture, or registered edge types yet"
+  - surface: "materialized_edges:kubernetes_namespace_environment"
+    proof_gate: ifa-fault-injection
+    issue: "#6228"
+    waived: "2026-08-23"
+    reason: "WriteKubernetesNamespaceNodes -> cypher/kubernetes_namespace_node_writer.go merges TARGETS_ENVIRONMENT; direct materialization, no Odu, expected-edge-set fixture, or registered edge types yet"
+  - surface: "materialized_edges:observability_coverage"
+    proof_gate: ifa-determinism
+    issue: "#6228"
+    waived: "2026-08-23"
+    reason: "WriteObservabilityCoverageEdges -> cypher/observability_coverage_edge_writer.go merges one COVERS-format type per coverage signal; direct materialization, no Odu, expected-edge-set fixture, or registered edge types yet"
+  - surface: "materialized_edges:observability_coverage"
+    proof_gate: ifa-fault-injection
+    issue: "#6228"
+    waived: "2026-08-23"
+    reason: "WriteObservabilityCoverageEdges -> cypher/observability_coverage_edge_writer.go merges one COVERS-format type per coverage signal; direct materialization, no Odu, expected-edge-set fixture, or registered edge types yet"
+  - surface: "materialized_edges:publishes"
+    proof_gate: ifa-determinism
+    issue: "#6228"
+    waived: "2026-08-23"
+    reason: "WritePublishesEdges -> cypher/provenance_edge_writer.go merges PUBLISHES; direct materialization, no Odu, expected-edge-set fixture, or registered edge types yet"
+  - surface: "materialized_edges:publishes"
+    proof_gate: ifa-fault-injection
+    issue: "#6228"
+    waived: "2026-08-23"
+    reason: "WritePublishesEdges -> cypher/provenance_edge_writer.go merges PUBLISHES; direct materialization, no Odu, expected-edge-set fixture, or registered edge types yet"
+  - surface: "materialized_edges:s3_external_principal_grant"
+    proof_gate: ifa-determinism
+    issue: "#6228"
+    waived: "2026-08-23"
+    reason: "WriteS3ExternalPrincipalGrants -> cypher/s3_external_principal_grant_writer.go merges GRANTS_ACCESS_TO; direct materialization, no Odu, expected-edge-set fixture, or registered edge types yet"
+  - surface: "materialized_edges:s3_external_principal_grant"
+    proof_gate: ifa-fault-injection
+    issue: "#6228"
+    waived: "2026-08-23"
+    reason: "WriteS3ExternalPrincipalGrants -> cypher/s3_external_principal_grant_writer.go merges GRANTS_ACCESS_TO; direct materialization, no Odu, expected-edge-set fixture, or registered edge types yet"
+  - surface: "materialized_edges:s3_logs_to"
+    proof_gate: ifa-determinism
+    issue: "#6228"
+    waived: "2026-08-23"
+    reason: "WriteS3LogsToEdges -> cypher/s3_logs_to_edge_writer.go merges LOGS_TO; direct materialization, no Odu, expected-edge-set fixture, or registered edge types yet"
+  - surface: "materialized_edges:s3_logs_to"
+    proof_gate: ifa-fault-injection
+    issue: "#6228"
+    waived: "2026-08-23"
+    reason: "WriteS3LogsToEdges -> cypher/s3_logs_to_edge_writer.go merges LOGS_TO; direct materialization, no Odu, expected-edge-set fixture, or registered edge types yet"
+  - surface: "materialized_edges:security_group_rule_endpoint"
+    proof_gate: ifa-determinism
+    issue: "#6228"
+    waived: "2026-08-23"
+    reason: "WriteSecurityGroupRuleEndpointEdges -> cypher/security_group_reachability_edge_writer.go merges TO; direct materialization, no Odu, expected-edge-set fixture, or registered edge types yet"
+  - surface: "materialized_edges:security_group_rule_endpoint"
+    proof_gate: ifa-fault-injection
+    issue: "#6228"
+    waived: "2026-08-23"
+    reason: "WriteSecurityGroupRuleEndpointEdges -> cypher/security_group_reachability_edge_writer.go merges TO; direct materialization, no Odu, expected-edge-set fixture, or registered edge types yet"
+  - surface: "materialized_edges:security_group_sg_rule"
+    proof_gate: ifa-determinism
+    issue: "#6228"
+    waived: "2026-08-23"
+    reason: "WriteSecurityGroupSGRuleEdges -> cypher/security_group_reachability_edge_writer.go merges ALLOWS_INGRESS / ALLOWS_EGRESS; direct materialization, no Odu, expected-edge-set fixture, or registered edge types yet"
+  - surface: "materialized_edges:security_group_sg_rule"
+    proof_gate: ifa-fault-injection
+    issue: "#6228"
+    waived: "2026-08-23"
+    reason: "WriteSecurityGroupSGRuleEdges -> cypher/security_group_reachability_edge_writer.go merges ALLOWS_INGRESS / ALLOWS_EGRESS; direct materialization, no Odu, expected-edge-set fixture, or registered edge types yet"
+  - surface: "materialized_edges:semantic_entity_containment"
+    proof_gate: ifa-determinism
+    issue: "#6228"
+    waived: "2026-08-23"
+    reason: "WriteSemanticEntities -> cypher/semantic_entity_statements.go merges CONTAINS; direct materialization, no Odu, expected-edge-set fixture, or registered edge types yet"
+  - surface: "materialized_edges:semantic_entity_containment"
+    proof_gate: ifa-fault-injection
+    issue: "#6228"
+    waived: "2026-08-23"
+    reason: "WriteSemanticEntities -> cypher/semantic_entity_statements.go merges CONTAINS; direct materialization, no Odu, expected-edge-set fixture, or registered edge types yet"
+  - surface: "materialized_edges:uses_service_account"
+    proof_gate: ifa-determinism
+    issue: "#6228"
+    waived: "2026-08-23"
+    reason: "WriteUsesServiceAccountEdges -> cypher/secrets_iam_graph_writer.go merges SECRETS_IAM_USES_SERVICE_ACCOUNT; direct materialization, no Odu, expected-edge-set fixture, or registered edge types yet"
+  - surface: "materialized_edges:uses_service_account"
+    proof_gate: ifa-fault-injection
+    issue: "#6228"
+    waived: "2026-08-23"
+    reason: "WriteUsesServiceAccountEdges -> cypher/secrets_iam_graph_writer.go merges SECRETS_IAM_USES_SERVICE_ACCOUNT; direct materialization, no Odu, expected-edge-set fixture, or registered edge types yet"
+  - surface: "materialized_edges:uses_vault_policy"
+    proof_gate: ifa-determinism
+    issue: "#6228"
+    waived: "2026-08-23"
+    reason: "WriteUsesVaultPolicyEdges -> cypher/secrets_iam_graph_writer.go merges SECRETS_IAM_USES_VAULT_POLICY; direct materialization, no Odu, expected-edge-set fixture, or registered edge types yet"
+  - surface: "materialized_edges:uses_vault_policy"
+    proof_gate: ifa-fault-injection
+    issue: "#6228"
+    waived: "2026-08-23"
+    reason: "WriteUsesVaultPolicyEdges -> cypher/secrets_iam_graph_writer.go merges SECRETS_IAM_USES_VAULT_POLICY; direct materialization, no Odu, expected-edge-set fixture, or registered edge types yet"
+  - surface: "materialized_edges:workload_cloud_relationship"
+    proof_gate: ifa-determinism
+    issue: "#6228"
+    waived: "2026-08-23"
+    reason: "WriteWorkloadCloudRelationshipEdges -> cypher/workload_cloud_relationship_writer.go merges USES; direct materialization, no Odu, expected-edge-set fixture, or registered edge types yet"
+  - surface: "materialized_edges:workload_cloud_relationship"
+    proof_gate: ifa-fault-injection
+    issue: "#6228"
+    waived: "2026-08-23"
+    reason: "WriteWorkloadCloudRelationshipEdges -> cypher/workload_cloud_relationship_writer.go merges USES; direct materialization, no Odu, expected-edge-set fixture, or registered edge types yet"

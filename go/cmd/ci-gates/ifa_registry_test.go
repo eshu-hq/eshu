@@ -8,11 +8,12 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"regexp"
 	"strings"
 	"testing"
 
 	"github.com/eshu-hq/eshu/go/internal/cigates"
-	"github.com/eshu-hq/eshu/go/internal/replaycoverage"
+	"github.com/eshu-hq/eshu/go/internal/ifa/materializededges"
 )
 
 // TestCommittedRegistrySelectsIfaBlockingGate proves the P4 (#4397)
@@ -87,9 +88,20 @@ func TestCommittedRegistrySelectsIfaBlockingGate(t *testing.T) {
 
 // TestCoverageGateTriggersEveryFamilyCassette derives, rather than hard-codes,
 // the set of cassette directories ifa-materialized-edge-coverage must trigger
-// on: every Odù ref named by a materialized_edges:* row in
-// specs/ifa-materialized-edge-coverage.v1.yaml, resolved to the directory whose
-// cassette file is named for that ref.
+// on: every Odù ref named by a materialized_edges:* row in the coverage ledger,
+// resolved to the directory whose cassette file is named for that ref.
+//
+// BOTH halves of that ledger (#6181). It read only
+// specs/ifa-materialized-edge-coverage.v1.yaml, the shared-projection half,
+// while the reconciliation the gate performs accepts rows from the direct half
+// (specs/ifa-materialized-edge-coverage-direct.v1.yaml) on identical terms. So
+// when #6228 replaces a direct family's waiver with a real coverage row, that
+// row created no obligation here: its cassette could sit in a directory the
+// gate does not trigger on, and the compiled-Odù/cassette lockstep would be
+// silently skipped for it -- the same hole this test closed for the shared half,
+// reopened one ledger file over. Seeding a direct row whose cassette lives in
+// testdata/cassettes/replaydelta passed this test before the merged read and
+// fails after it.
 //
 // That gate is the one which RECONCILES the coverage manifest. A cassette edit
 // that changes facts while leaving the edge set identical is invisible to the
@@ -117,9 +129,14 @@ func TestCoverageGateTriggersEveryFamilyCassette(t *testing.T) {
 	// manifest's YAML form. A structural read handles every YAML spelling
 	// because the parser does, and a non-Odù ref is simply skipped instead of
 	// producing a false failure.
-	manifest, err := replaycoverage.LoadManifest(filepath.Join(root, "specs", "ifa-materialized-edge-coverage.v1.yaml"))
+	// LoadMaterializedEdgeLedger, not a per-file LoadManifest: it is the one
+	// entry point the reconciliation itself comes through, and its doc comment
+	// says every caller reading the whole surface must use it rather than
+	// opening one half. Going through it also means a row duplicated across the
+	// halves is rejected here instead of being counted twice.
+	manifest, _, err := materializededges.LoadMaterializedEdgeLedger(filepath.Join(root, "specs"))
 	if err != nil {
-		t.Fatalf("replaycoverage.LoadManifest: %v", err)
+		t.Fatalf("materializededges.LoadMaterializedEdgeLedger: %v", err)
 	}
 	if len(manifest.Coverage) < 10 {
 		t.Fatalf("coverage manifest parsed %d row(s), want >= 10; the load has collapsed and every assertion below would pass vacuously", len(manifest.Coverage))
@@ -191,4 +208,124 @@ func coverageGate(t *testing.T, registryPath string) cigates.Gate {
 	}
 	t.Fatal("ifa-materialized-edge-coverage not present in the loaded registry")
 	return cigates.Gate{}
+}
+
+// directWriterPackageDir is the package the coverage gate's direct-family drift
+// guard parses in full, repo-relative.
+const directWriterPackageDir = "go/internal/storage/cypher"
+
+// TestEveryDirectWriterFileSelectsTheCoverageGate holds the
+// ifa-materialized-edge-coverage triggers, and the CI path filter that
+// schedules the same gate's job, to the files its verdict actually depends on
+// (#6181).
+//
+// The gate runs TestDirectMaterializedEdgePortsMatchTheExecutedCypher, which
+// parses EVERY non-test file in go/internal/storage/cypher and follows each
+// reducer port through the package call graph to the Cypher it reaches. So any
+// file in that package can flip a port between edge-writing and node-only, and
+// a change to one that does not select the gate is a change the exactness gate
+// never sees.
+//
+// The trigger list named four files by hand and reached 6 of the package's 131
+// non-test files. iam_can_perform_edge_writer.go and secrets_iam_graph_writer.go
+// -- direct writers whose families the guard classifies -- were among the 125 it
+// did not reach: `ci-gates select --paths-from` returned zero ifa gates for
+// both. Derived over the whole package rather than lengthened by hand, because
+// a hand-maintained list of 131 goes stale on the next writer added and nothing
+// would say so.
+//
+// Both sides are asserted. A registry trigger the CI filter cannot select
+// schedules no job, and a filter entry with no registry trigger selects nothing
+// locally; the two have to agree or the gate is dark on one side while looking
+// wired on the other.
+func TestEveryDirectWriterFileSelectsTheCoverageGate(t *testing.T) {
+	t.Parallel()
+	root := repoRoot(t)
+
+	entries, err := os.ReadDir(filepath.Join(root, directWriterPackageDir))
+	if err != nil {
+		t.Fatalf("read %s: %v", directWriterPackageDir, err)
+	}
+	var files []string
+	for _, entry := range entries {
+		name := entry.Name()
+		if entry.IsDir() || !strings.HasSuffix(name, ".go") || strings.HasSuffix(name, "_test.go") {
+			continue
+		}
+		files = append(files, directWriterPackageDir+"/"+name)
+	}
+	if len(files) < 50 {
+		t.Fatalf("enumerated %d non-test file(s) in %s, want >= 50; the scan collapsed and every assertion below would pass vacuously", len(files), directWriterPackageDir)
+	}
+
+	gate := coverageGate(t, filepath.Join(root, "specs", "ci-gates.v1.yaml"))
+	filters, key := coverageGateDornyFilter(t, root, gate)
+
+	for _, file := range files {
+		if !matchesAnyGlob(gate.Triggers, file) {
+			t.Errorf("no ifa-materialized-edge-coverage trigger matches %s; the direct-family drift guard parses that file, so a change to it would not select the gate that runs the guard", file)
+		}
+		if !matchesAnyGlob(filters, file) {
+			t.Errorf("no pattern in the %q path filter of static-contract-gates.yml matches %s; the registry would select this gate while CI never schedules its job", key, file)
+		}
+	}
+}
+
+// coverageGateDornyFilter returns the workflow path-filter patterns that gate
+// the coverage gate's CI job, and the dorny filter key they live under.
+//
+// The key is read from the append_gate call whose display name is the gate's
+// own ci.job rather than hardcoded: a filter block renamed while the gate kept
+// its job name would otherwise be asserted against by a name that no longer
+// schedules anything, which passes and proves nothing.
+func coverageGateDornyFilter(t *testing.T, root string, gate cigates.Gate) ([]string, string) {
+	t.Helper()
+
+	if gate.CI.Workflow == "" || gate.CI.Job == "" {
+		t.Fatalf("gate %s declares no ci.workflow/ci.job; there is no filter to check it against", gate.ID)
+	}
+	raw, err := os.ReadFile(filepath.Join(root, ".github", "workflows", filepath.Base(gate.CI.Workflow)))
+	if err != nil {
+		t.Fatalf("read %s: %v", gate.CI.Workflow, err)
+	}
+	filters, every := cigates.DornyFilters(raw)
+	if len(filters) == 0 {
+		t.Fatalf("%s exposes no dorny paths-filter; this check cannot prove CI schedules the gate", gate.CI.Workflow)
+	}
+	if every {
+		// Under predicate-quantifier: every a file is selected only when ALL
+		// patterns match, so the any-match reading below would claim coverage it
+		// has not proven. Fail loudly instead of reporting a green built on the
+		// wrong quantifier.
+		t.Fatalf("%s sets predicate-quantifier: every; the any-match check below is unsound for that filter", gate.CI.Workflow)
+	}
+	var key string
+	for _, match := range appendGateDisplayRE.FindAllStringSubmatch(string(raw), -1) {
+		if match[2] == gate.CI.Job {
+			key = match[1]
+		}
+	}
+	if key == "" {
+		t.Fatalf("no append_gate call in %s names ci.job %q; the gate-to-filter-key mapping is unresolved", gate.CI.Workflow, gate.CI.Job)
+	}
+	patterns, ok := filters[key]
+	if !ok || len(patterns) == 0 {
+		t.Fatalf("%s has no %q filter entry, or it is empty", gate.CI.Workflow, key)
+	}
+	return patterns, key
+}
+
+// appendGateDisplayRE captures the dorny filter key and display name of an
+// append_gate call in a matrix-dispatch workflow.
+var appendGateDisplayRE = regexp.MustCompile(`append_gate\s+"[^"]*"\s+"([^"]*)"\s+"([^"]*)"`)
+
+// matchesAnyGlob reports whether any pattern selects path, using the same
+// matcher the registry selector and the path-filter drift check both run.
+func matchesAnyGlob(patterns []string, path string) bool {
+	for _, pattern := range patterns {
+		if cigates.MatchGlob(pattern, path) {
+			return true
+		}
+	}
+	return false
 }

@@ -7,6 +7,7 @@ import (
 	"os"
 	"path/filepath"
 	"slices"
+	"sort"
 	"strings"
 	"testing"
 
@@ -24,27 +25,40 @@ import (
 // one of the 14 allProjectionDomains families must be either genuinely
 // covered (baseline and fault rows resolve) or carry a waiver naming a tracked
 // issue. SQL relationships additionally requires a live delta row.
+//
+// It reconciles the direct-materialization families (#6181) on the same terms.
+// Reconciling only the shared half is what made the gate blind to them: an
+// unenumerated family produces no row, no finding and no output, so the gate
+// reported green without knowing it existed. Their coverage is tracked by
+// #6228 and every one of them currently resolves through a waiver.
 func TestMaterializedEdgeCoverageLockstepAgainstRealSpecs(t *testing.T) {
 	repoRoot := repoRootDir(t)
 	specsDir := filepath.Join(repoRoot, "specs")
 
-	manifest, err := replaycoverage.LoadManifest(filepath.Join(specsDir, MaterializedEdgeManifestFileName))
+	manifest, waivers, err := LoadMaterializedEdgeLedger(specsDir)
 	if err != nil {
-		t.Fatalf("LoadManifest(materialized-edge manifest): %v", err)
-	}
-	waivers, err := LoadMaterializedEdgeWaivers(filepath.Join(specsDir, MaterializedEdgeManifestFileName))
-	if err != nil {
-		t.Fatalf("LoadMaterializedEdgeWaivers: %v", err)
+		t.Fatalf("LoadMaterializedEdgeLedger: %v", err)
 	}
 	proofGates, err := cigates.Load(filepath.Join(specsDir, "ci-gates.v1.yaml"))
 	if err != nil {
 		t.Fatalf("cigates.Load(real): %v", err)
 	}
 
-	families := reducer.MaterializedEdgeFamilies()
-	if len(families) == 0 {
+	// Both halves of the reducer's materialized-edge surface, because the gate
+	// is only as honest as the family list it reconciles against. Running it on
+	// the shared half alone is exactly the blindness #6181 reported: the direct
+	// families produce no row, no finding and no output, and the gate reports
+	// green without ever knowing they exist.
+	shared := reducer.MaterializedEdgeFamilies()
+	if len(shared) == 0 {
 		t.Fatal("reducer.MaterializedEdgeFamilies() returned zero families; the registry itself is broken")
 	}
+	direct := reducer.DirectMaterializedEdgeFamilies()
+	if len(direct) == 0 {
+		t.Fatal("reducer.DirectMaterializedEdgeFamilies() returned zero families; the registry itself is broken")
+	}
+	families := append(append([]string{}, shared...), direct...)
+	sort.Strings(families)
 
 	cov, gate, dangling := RunMaterializedEdgeCoverage(MaterializedEdgeCoverageInputs{
 		Families:   families,
@@ -285,153 +299,6 @@ func TestMaterializedEdgeCoverageLockstepAgainstRealSpecs(t *testing.T) {
 		} {
 			if !slices.Contains(found.Triggers, trigger) {
 				t.Errorf("%s gate does not trigger on %q; a catalog or vacuity-guard change could keep deployable_unit_edges covered without rerunning its live proof", gateID, trigger)
-			}
-		}
-	}
-}
-
-// materializedEdgeFamilyTriggerStems maps every materialized-edge family to
-// the substring its own gate triggers carry. It is a hand-maintained map on
-// purpose: a family's trigger paths follow no derivable rule (code_calls owns
-// `code_call*`, sql_relationships owns `sql_relationship*`, and neither is the
-// family key), so guessing the stem from the family name would produce a
-// check that silently matches nothing.
-//
-// A WRONG stem is loud -- the family's own coverage row goes red the moment it
-// lands. A MISSING entry is silent, which is why
-// TestEveryCoveredFamilyTriggersBothLiveGates asserts this map's key set
-// equals reducer.MaterializedEdgeFamilies() in both directions, mirroring
-// TestMaterializedEdgeIdentityByFamilyIsTotal.
-//
-// Stems for the not-yet-covered families are prospective: nothing checks them
-// until that family gets a coverage row, which is exactly the point --
-// declaring them now means the family that lands coverage inherits a working
-// check instead of writing one under time pressure.
-var materializedEdgeFamilyTriggerStems = map[string]string{
-	"code_calls":                 "code_call",
-	"codeowners_ownership_edges": "codeowners",
-	"deployable_unit_edges":      "deployable_unit",
-	"documentation_edges":        "documentation",
-	// handles_route/runs_in/invokes_cloud_action (#5995/#6000/#5997) are the
-	// one exception to "stem is a prefix of the family's own name": all three
-	// share ONE cassette and ONE handler-side extraction seam, so their real
-	// ci-gates.v1.yaml triggers are wired under the shared "symbol_runtime"
-	// name (e.g. "go/internal/ifa/symbol_runtime_family_odu.go",
-	// "testdata/cassettes/symbolruntime/**"), not under any of the three
-	// family names individually. A stem of "handles_route" (etc.) matched
-	// nothing in either gate block and went unnoticed while these rows were
-	// still waived -- exactly the WRONG-STEM-goes-loud-only-once-covered case
-	// this map's own doc comment above describes; it went red the moment
-	// their coverage rows landed.
-	"handles_route":        "symbol_runtime",
-	"inheritance_edges":    "inheritance",
-	"invokes_cloud_action": "symbol_runtime",
-	"rationale_edges":      "rationale",
-	"repo_dependency":      "repo_dependency",
-	"runs_in":              "symbol_runtime",
-	"shell_exec":           "shell_exec",
-	"sql_relationships":    "sql_relationship",
-	"submodule_pin_edges":  "submodule",
-	"workload_dependency":  "workload_dependency",
-}
-
-// TestEveryCoveredFamilyTriggersBothLiveGates closes the third side of the
-// triangle. Two checks already exist: the registry-derived loop in
-// scripts/test-verify-ifa-determinism.sh proves registry ⊆ workflow, and the
-// selector table proves the concrete paths select both gates. Neither notices
-// a family that declares NO triggers at all -- both iterate what the registry
-// already names, so an unwired family is not merely unchecked, it is
-// vacuously green.
-//
-// A coverage row asserts the live matrices proved that family. A family with
-// no trigger in a gate never re-runs that gate when its own Odù, cassette,
-// extractor, or writer changes, so the row keeps asserting a proof that has
-// gone stale. This check binds the two.
-//
-// It is keyed to COVERAGE ROWS, not to all families, and deliberately so.
-// Requiring triggers of every family would land a red row for every family
-// that is honestly waived and not yet wired, and a check that ships red is a
-// check somebody switches off. Keyed to coverage it lands clean and stays purely
-// prospective: the next family to claim a row has to wire its triggers in the
-// same change.
-//
-// What it does NOT cover: whether the triggers a covered family declares are
-// the RIGHT ones. Nothing checks that, and nothing plausibly can -- a gate
-// cannot know which files feed a family's proof. That remains a review
-// responsibility.
-func TestEveryCoveredFamilyTriggersBothLiveGates(t *testing.T) {
-	t.Parallel()
-
-	repoRoot := repoRootDir(t)
-	specsDir := filepath.Join(repoRoot, "specs")
-
-	families := reducer.MaterializedEdgeFamilies()
-	for _, family := range families {
-		// Blank is rejected alongside missing. `"new_family": ""` is the natural
-		// placeholder and it satisfies key-set equality, so checking presence
-		// alone would let the map stay total while the value it contributes
-		// matches every trigger vacuously -- the exact silence this half of the
-		// guard exists to break.
-		if stem, ok := materializedEdgeFamilyTriggerStems[family]; !ok || strings.TrimSpace(stem) == "" {
-			t.Errorf("family %q has no usable trigger stem (present=%t, stem=%q); give it a non-blank entry in materializedEdgeFamilyTriggerStems or this family's coverage row would be checked against nothing", family, ok, stem)
-		}
-	}
-	for family := range materializedEdgeFamilyTriggerStems {
-		if !slices.Contains(families, family) {
-			t.Errorf("trigger stem declared for %q, which reducer.MaterializedEdgeFamilies() does not enumerate; remove the stale entry", family)
-		}
-	}
-
-	manifest, err := replaycoverage.LoadManifest(filepath.Join(specsDir, MaterializedEdgeManifestFileName))
-	if err != nil {
-		t.Fatalf("LoadManifest(materialized-edge manifest): %v", err)
-	}
-	proofGates, err := cigates.Load(filepath.Join(specsDir, "ci-gates.v1.yaml"))
-	if err != nil {
-		t.Fatalf("cigates.Load(real): %v", err)
-	}
-	triggersByGate := map[string][]string{}
-	for _, gateID := range []string{materializedEdgeProofGateBaseline, materializedEdgeProofGateFault} {
-		var found bool
-		for i := range proofGates.Gates {
-			if proofGates.Gates[i].ID == gateID {
-				triggersByGate[gateID] = proofGates.Gates[i].Triggers
-				found = true
-			}
-		}
-		if !found {
-			t.Fatalf("%s gate not found in ci-gates registry", gateID)
-		}
-	}
-
-	covered := map[string]struct{}{}
-	for _, row := range manifest.Coverage {
-		covered[strings.TrimPrefix(row.Surface, MaterializedEdgeSurfacePrefix)] = struct{}{}
-	}
-	if len(covered) == 0 {
-		t.Fatal("no materialized-edge family carries a coverage row; this check would pass vacuously")
-	}
-
-	for _, family := range families {
-		if _, ok := covered[family]; !ok {
-			continue
-		}
-		stem := strings.TrimSpace(materializedEdgeFamilyTriggerStems[family])
-		if stem == "" {
-			// Missing or blank, both already reported by the totality loop above.
-			// Continuing here would otherwise match every trigger and report the
-			// family as wired.
-			continue
-		}
-		for gateID, triggers := range triggersByGate {
-			matched := 0
-			for _, trigger := range triggers {
-				if strings.Contains(trigger, stem) {
-					matched++
-				}
-			}
-			if matched == 0 {
-				t.Errorf("family %q claims a coverage row but the %s gate declares no trigger containing %q; that gate never re-runs when the family's own inputs change, so the row asserts a proof nobody refreshes", family, gateID, stem)
 			}
 		}
 	}

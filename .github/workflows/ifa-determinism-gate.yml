@@ -344,6 +344,7 @@ on:
       - 'go/internal/reducer/sql_relationship_embedded_query.go'
       - 'go/internal/storage/cypher/edge_writer_sql.go'
       - 'specs/ifa-materialized-edge-coverage.v1.yaml'
+      - 'specs/ifa-materialized-edge-coverage-direct.v1.yaml'
       - 'testdata/cassettes/sqlrelationships/**'
       # code_calls (#5991) is driven and set-exactly asserted in every
       # determinism cell and in the fault-free and domain-scoped recovery cells.

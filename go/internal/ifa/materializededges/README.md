@@ -78,7 +78,8 @@ stays in `ifa`).
   `materialized_edges:<family>` coverage entry to the family's own guard.
 - `MaterializedEdgeWaiver`, `MaterializedEdgeCoverageInputs`,
   `RunMaterializedEdgeCoverage`, `EnumerateMaterializedEdgeSurfaces`,
-  `LoadMaterializedEdgeWaivers` - the coverage-manifest reconciliation surface
+  `LoadMaterializedEdgeWaivers`, `LoadMaterializedEdgeLedger` - the
+  coverage-manifest reconciliation surface
   that mirrors `ifa.RunCoverage`'s shape (`coverage.go`) with one addition:
   per-(surface, proof_gate) waivers for a family deliberately left RED with a
   tracked child issue.
@@ -197,13 +198,17 @@ commit -- `TestMaterializedEdgeLiveProofDocumentationMatchesWiring` in
 exact wording and fails if they drift.
 
 - `RegistryMaterializedEdges`, `MaterializedEdgeSurfacePrefix`,
-  `MaterializedEdgeManifestFileName`, `EnumerateMaterializedEdgeSurfaces`,
+  `MaterializedEdgeManifestFileName`, `MaterializedEdgeDirectManifestFileName`,
+  `LoadMaterializedEdgeLedger`, `EnumerateMaterializedEdgeSurfaces`,
   `MaterializedEdgeOduResolver`, `MaterializedEdgeWaiver`,
   `LoadMaterializedEdgeWaivers`, `MaterializedEdgeCoverageInputs`,
   `RunMaterializedEdgeCoverage` (`materialized_edges.go`,
   `materialized_edges_manifest.go`, #5351) - the `materialized_edges:<domain>`
   exhaustiveness gate: binds an Odù expectation to each
-  `reducer.MaterializedEdgeFamilies()` entry, mirroring `RunCoverage`'s shape
+  `reducer.MaterializedEdgeFamilies()` and
+  `reducer.DirectMaterializedEdgeFamilies()` entry — the ledger is split across
+  two files, one per half, loaded together by `LoadMaterializedEdgeLedger`
+  (#6181) — mirroring `RunCoverage`'s shape
   with one addition — a `waivers:` section (parsed separately from the
   standard `replaycoverage.Manifest` `coverage:`/`scenario_requirements:`
   rows) that softens an otherwise-required uncovered row into an advisory

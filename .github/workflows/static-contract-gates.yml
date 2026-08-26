@@ -212,11 +212,19 @@ jobs:
               - 'go/internal/reducer/sql_relationship_materialization.go'
               - 'go/internal/reducer/sql_relationship_embedded_query.go'
               - 'go/internal/reducer/sql_relationship_metadata.go'
+              # The whole cypher package, mirroring the registry trigger
+              # (#6181). The direct-family drift guard this gate runs parses
+              # every non-test file in that package and follows each reducer
+              # port through its call graph, so any file there can change the
+              # verdict; the four per-file entries below reached 6 of 131 and
+              # left every other direct writer unable to schedule this job.
+              - 'go/internal/storage/cypher/**'
               - 'go/internal/storage/cypher/edge_writer_sql.go'
               - 'go/internal/storage/cypher/materialized_edge_*.go'
               - 'go/internal/storage/cypher/canonical_code_call_edges.go'
               - 'go/internal/storage/cypher/canonical_inheritance_edges.go'
               - 'specs/ifa-materialized-edge-coverage.v1.yaml'
+              - 'specs/ifa-materialized-edge-coverage-direct.v1.yaml'
               - 'testdata/cassettes/sqlrelationships/**'
               - 'testdata/cassettes/codecalls/**'
               - 'testdata/cassettes/symbolruntime/**'

@@ -2173,12 +2173,25 @@ gates:
       - "go/internal/reducer/sql_relationship_materialization.go"
       - "go/internal/reducer/sql_relationship_embedded_query.go"
       - "go/internal/reducer/sql_relationship_metadata.go"
+      # The whole cypher package, for the same reason the reducer leg above is
+      # a subtree (#6181). This gate's direct-family drift guard parses EVERY
+      # non-test file in go/internal/storage/cypher and follows each reducer
+      # port through the package call graph to the Cypher it reaches, so any
+      # file there can change its verdict. The four per-file entries below
+      # covered 6 of the package's 131 non-test files, which meant a change to
+      # iam_can_perform_edge_writer.go or secrets_iam_graph_writer.go -- a
+      # direct writer whose family the guard classifies -- did not select this
+      # gate at all. Measured with `ci-gates select --paths-from`, not
+      # estimated. The per-file entries stay as the reader's map of what the
+      # gate is about.
+      - "go/internal/storage/cypher/**"
       - "go/internal/storage/cypher/edge_writer_sql.go"
       - "go/internal/storage/cypher/materialized_edge_*.go"
       - "go/internal/storage/cypher/canonical_code_call_edges.go"
       - "go/internal/storage/cypher/canonical_inheritance_edges.go"
       - "specs/ci-gates.v1.yaml"
       - "specs/ifa-materialized-edge-coverage.v1.yaml"
+      - "specs/ifa-materialized-edge-coverage-direct.v1.yaml"
       # The Go blocker-shape lockstep test PARSES these shell files: it reads
       # each family's declared blocker_kind from the registry rows and binds
       # it to the real handler's write shape. Without these triggers a row
@@ -2279,6 +2292,7 @@ gates:
       - ".github/workflows/ifa-determinism-gate.yml"
       - "specs/ci-gates.v1.yaml"
       - "specs/ifa-materialized-edge-coverage.v1.yaml"
+      - "specs/ifa-materialized-edge-coverage-direct.v1.yaml"
       - "docker-compose.yaml"
       - "testdata/cassettes/gcpcloud/supply-chain-demo.json"
       - "testdata/golden/e2e-20repo-snapshot.json"
@@ -2677,6 +2691,7 @@ gates:
       - ".github/workflows/ifa-determinism-gate.yml"
       - "specs/ci-gates.v1.yaml"
       - "specs/ifa-materialized-edge-coverage.v1.yaml"
+      - "specs/ifa-materialized-edge-coverage-direct.v1.yaml"
       - "go/internal/ifa/graphdump/**"
       - "go/cmd/ifa/**"
       - "go/internal/synth/gcp/**"

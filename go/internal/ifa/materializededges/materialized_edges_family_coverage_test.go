@@ -10,6 +10,7 @@ import (
 	"testing"
 
 	"github.com/eshu-hq/eshu/go/internal/graph/edgetype"
+	"github.com/eshu-hq/eshu/go/internal/reducer"
 )
 
 // materializedEdgeFamiliesUnderUmbrella lists every family the #5543 umbrella
@@ -72,10 +73,9 @@ func TestEveryUmbrellaFamilyResolves(t *testing.T) {
 func TestEveryWaivedFamilyIsRegistered(t *testing.T) {
 	t.Parallel()
 
-	manifest := filepath.Join(repoRootDir(t), "specs", MaterializedEdgeManifestFileName)
-	waivers, err := LoadMaterializedEdgeWaivers(manifest)
+	_, waivers, err := LoadMaterializedEdgeLedger(filepath.Join(repoRootDir(t), "specs"))
 	if err != nil {
-		t.Fatalf("LoadMaterializedEdgeWaivers: %v", err)
+		t.Fatalf("LoadMaterializedEdgeLedger: %v", err)
 	}
 	if len(waivers) == 0 {
 		// The success state for #5543 is zero waivers. Log rather than fail, or
@@ -89,6 +89,17 @@ func TestEveryWaivedFamilyIsRegistered(t *testing.T) {
 		roster[family] = struct{}{}
 	}
 
+	// The direct-materialization families (#6181) are the second, separately
+	// tracked half. They are deliberately NOT held to the resolve check above:
+	// registering their edge types beside their writers IS the work #6228
+	// tracks, so demanding resolution now would fail on every one of them for
+	// the reason their waiver already states. What still must hold is that each
+	// one names a family the code actually enumerates.
+	direct := map[string]struct{}{}
+	for _, family := range reducer.DirectMaterializedEdgeFamilies() {
+		direct[family] = struct{}{}
+	}
+
 	seen := map[string]struct{}{}
 	for _, waiver := range waivers {
 		family := strings.TrimPrefix(waiver.Surface, MaterializedEdgeSurfacePrefix)
@@ -97,8 +108,11 @@ func TestEveryWaivedFamilyIsRegistered(t *testing.T) {
 		}
 		seen[family] = struct{}{}
 
+		if _, ok := direct[family]; ok {
+			continue
+		}
 		if _, ok := roster[family]; !ok {
-			t.Errorf("family %q carries a waiver but is not on the umbrella roster; its waiver can never be retired by this work", family)
+			t.Errorf("family %q carries a waiver but is on neither the #5543 umbrella roster nor reducer.DirectMaterializedEdgeFamilies(); its waiver names a family nothing tracks and can never be retired", family)
 			continue
 		}
 		if _, err := MaterializedEdgeDomainEdgeTypes(family); err != nil {
@@ -162,10 +176,9 @@ func TestEveryRegisteredEdgeTypeIsCanonical(t *testing.T) {
 func TestWaiverRowsAreOnePerGatePerFamily(t *testing.T) {
 	t.Parallel()
 
-	manifest := filepath.Join(repoRootDir(t), "specs", MaterializedEdgeManifestFileName)
-	waivers, err := LoadMaterializedEdgeWaivers(manifest)
+	_, waivers, err := LoadMaterializedEdgeLedger(filepath.Join(repoRootDir(t), "specs"))
 	if err != nil {
-		t.Fatalf("LoadMaterializedEdgeWaivers: %v", err)
+		t.Fatalf("LoadMaterializedEdgeLedger: %v", err)
 	}
 	gatesByFamily := make(map[string]map[string]struct{}, len(waivers))
 	for _, waiver := range waivers {
