@@ -175,6 +175,21 @@ func TestRelationshipMergeReadsNestedNodePatternParens(t *testing.T) {
 			want:   true,
 		},
 		{
+			// A quoted `)` must not close the node pattern. Quote-unaware, the
+			// walk ends at the paren inside the string, never sees the trailing
+			// -[rel:...]->, and reports node-only.
+			name:   "quoted paren in a property value",
+			cypher: `MERGE (n:Repo {path: "a/b)c"})-[rel:REVIEW_PROBE_FLOWS_TO]->(m)`,
+			want:   true,
+		},
+		{
+			// Same, single-quoted, and with an escaped quote inside the value
+			// so the escape handling is exercised rather than assumed.
+			name:   "escaped quote and paren in a property value",
+			cypher: `MERGE (n:Repo {path: 'a\'b)c'})-[rel:REVIEW_PROBE_FLOWS_TO]->(m)`,
+			want:   true,
+		},
+		{
 			name:   "left-pointing relationship after a call",
 			cypher: "MERGE (n:Label {id: coalesce($a, $b)})<-[rel:REVIEW_PROBE_FLOWS_TO]-(m)",
 			want:   true,

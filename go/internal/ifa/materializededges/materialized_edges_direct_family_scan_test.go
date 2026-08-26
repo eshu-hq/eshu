@@ -75,10 +75,44 @@ func mergesRelationship(value string) bool {
 
 // closingParen returns the index of the parenthesis closing the one at open,
 // and whether value holds one at all.
+//
+// Parentheses inside a quoted property value do not count. A template like
+// `MERGE (n:Repo {path: "a/b)c"})-[r:CONTAINS]->(m)` closes its node pattern at
+// the `)` inside the string literal if the walk is quote-unaware, the trailing
+// `-[r:CONTAINS]->` is never seen, and the port is classified node-only -- the
+// silent false-green this scan exists to prevent, one level below the
+// function-call case (`coalesce($a, $b)`) the balanced walk already handles.
+// No production template uses that shape today; the guard is for the day one
+// does. A backslash escapes the next byte so an escaped quote does not end the
+// string.
+//
+// Limit, measured rather than assumed: an UNTERMINATED quote makes the walk run
+// to the end without ever closing the node pattern, so the port reads node-only
+// — the false-GREEN direction. Ten adversarial inputs were tried (unterminated
+// single and double quotes, a trailing backslash, a backtick label, mixed quote
+// types, a quote in a trailing comment, an escaped backslash before a closing
+// quote, and the empty and lone-paren cases); none panicked or looped, and only
+// the two unterminated-quote inputs misclassify. An unterminated quote is not
+// valid Cypher, so no template that compiles can reach it — but that is the
+// reason it is safe, and it is worth stating rather than implying the walk
+// handles every shape.
 func closingParen(value string, open int) (int, bool) {
 	depth := 0
+	var quote byte
 	for i := open; i < len(value); i++ {
-		switch value[i] {
+		c := value[i]
+		if quote != 0 {
+			switch c {
+			case '\\':
+				i++
+			case quote:
+				quote = 0
+			}
+			continue
+		}
+		switch c {
+		case '\'', '"', '`':
+			quote = c
 		case '(':
 			depth++
 		case ')':

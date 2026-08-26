@@ -168,8 +168,21 @@ var directMaterializedEdgeFamilyByPort = map[string]string{
 // They are listed rather than left out because leaving a port out is
 // indistinguishable from never having looked at it — the same absence-is-not-a
 // -waiver argument #6181 makes about the ledger itself, one level down. A port
-// here is a reviewed decision that it materializes no edge; a port in neither
-// table fails the drift guard.
+// here is a reviewed decision that it materializes no edge.
+//
+// The drift guard is total in the EDGE direction only, and the distinction
+// matters. It fails a port that MERGEs a relationship without being declared, a
+// port declared node-only that MERGEs one anyway, and a port declared an edge
+// family that writes none. A port in neither table that writes no edge falls
+// through silently — which is deliberate, not an oversight: of the 87 ports the
+// scan classifies, 43 are in neither table and every one of them is a retract,
+// sweep, execute or read port. Failing those would fail the build on 43 ports
+// that were never meant to be declared.
+//
+// So a NEW node-only write port forgotten from directMaterializedEdgeNodeOnlyPorts
+// lands with nothing red. That gap is real and bounded: the moment such a port
+// MERGEs a relationship, the first case above catches it, which is the direction
+// that can hide a materialized edge family from the ledger.
 //
 // Four of these sit in cypher/secrets_iam_graph_writer.go beside five edge
 // ports, and WriteSecurityGroupRuleNodes sits in
