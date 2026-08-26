@@ -60,6 +60,7 @@ run_ifa_determinism_registry_lockstep_cases() {
 _ifa_det_test_text_match_helper
 determinism_registry="$(sed -n '/^  - id: ifa-determinism$/,/^  - id:/p' "${registry}")"
 fault_registry="$(sed -n '/^  - id: ifa-fault-injection$/,/^  - id:/p' "${registry}")"
+dead_letter_registry="$(sed -n '/^  - id: ifa-dead-letter-matrix$/,/^  - id:/p' "${registry}")"
 selector_cases_lib="${repo_root}/scripts/lib/ifa_live_gate_selector_cases.sh"
 rg --quiet --fixed-strings --line-regexp -- 'source "${selector_cases_lib}"' "${BASH_SOURCE[0]}" \
 	|| fail "selector cases must be sourced from scripts/lib/ifa_live_gate_selector_cases.sh"
@@ -96,9 +97,16 @@ done
 # This second loop closes the other direction: registry ⊆ workflow, derived from
 # the committed registry rather than from any hand-maintained list, so it cannot
 # drift out of date the way the table can.
-for gate_id in ifa-determinism ifa-fault-injection; do
+# ifa-dead-letter-matrix joined this loop in #6200. It shares this workflow's
+# single paths: filter, so the same invariant applies to it -- but before #6200
+# it was never iterated here, which is exactly the hole the sibling
+# negative-cases file names ("a trigger widened on the dead-letter gate fails no
+# assertion anywhere"). Its triggers were satisfied by broader globs in the
+# workflow, so the gate did fire; nothing asserted that it would.
+for gate_id in ifa-determinism ifa-fault-injection ifa-dead-letter-matrix; do
 	case "${gate_id}" in
 	ifa-determinism) gate_block="${determinism_registry}" ;;
+	ifa-dead-letter-matrix) gate_block="${dead_letter_registry}" ;;
 	*) gate_block="${fault_registry}" ;;
 	esac
 	while IFS= read -r registry_trigger; do
@@ -163,6 +171,61 @@ for seam in "${ifa_live_gate_determinism_only_seams[@]}"; do
 		|| fail "${concrete_path} does not select ifa-determinism through the real registry matcher"
 	if _ifa_det_text_matches "${selection}" --quiet '^SELECTED[[:space:]]+ifa-fault-injection[[:space:]]'; then
 		fail "determinism-only input must not select ifa-fault-injection: ${concrete_path}"
+	fi
+done
+
+# Negative controls (#6200). Every loop above asks whether a path STILL selects
+# the gate it should, and none of them can catch the opposite failure: a
+# trigger widened past what the gates actually observe. That went from
+# theoretical to live when ~40 reducer filenames and six SDK entries were
+# replaced by package globs -- 'go/internal/reducer/**' one keystroke from
+# 'go/internal/**', and each of the two gates a Docker matrix. Over-triggering
+# fails no assertion anywhere; it just spends CI.
+#
+# So: named unrelated paths that must select NEITHER live gate. The existence
+# check is load-bearing, not defensive tidiness -- a renamed or deleted file
+# would leave a control that passes because it tests nothing, which is exactly
+# the false-green this issue exists to remove.
+for negative_path in "${ifa_live_gate_negative_seams[@]}"; do
+	[[ -e "${repo_root}/${negative_path}" ]] \
+		|| fail "negative control names a path that no longer exists, so it proves nothing: ${negative_path}"
+	selection="$(printf '%s\n' "${negative_path}" | (
+		cd "${repo_root}/go"
+		go run ./cmd/ci-gates select --registry "${registry}" --tier pre-pr --paths-from - --explain
+	))"
+	for gate in ifa-determinism ifa-fault-injection; do
+		if printf '%s\n' "${selection}" | rg --quiet -- "^SELECTED[[:space:]]+${gate}[[:space:]]"; then
+			fail "unrelated path must not arm the live ${gate} matrix: ${negative_path}"
+		fi
+	done
+done
+
+# Per-gate negative controls. The loop above covers paths that must select no
+# live gate at all; this one covers a path that legitimately selects one gate
+# and must not have been widened onto another. ifa-dead-letter-matrix is the
+# only Ifá gate no loop in this file otherwise names, which is how it carried
+# an over-wide scripts/lib glob through a full review round unchallenged.
+#
+# Each seam is path|required|forbidden, and the required half carries as much
+# weight as the forbidden one. A negative-only control passes just as happily
+# when the path stopped selecting anything at all -- and "asserted it still
+# selects SOMETHING" would not have caught that either, because no-diff-
+# fragments and no-ai-attribution trigger on "**" and so match every path in
+# the repository. The gate has to be named.
+for negative_gate_seam in "${ifa_live_gate_negative_gate_seams[@]}"; do
+	IFS='|' read -r negative_path required_gate forbidden_gate <<<"${negative_gate_seam}"
+	[[ -n "${negative_path}" && -n "${required_gate}" && -n "${forbidden_gate}" ]] \
+		|| fail "per-gate negative control is not path|required|forbidden: ${negative_gate_seam}"
+	[[ -e "${repo_root}/${negative_path}" ]] \
+		|| fail "per-gate negative control names a path that no longer exists, so it proves nothing: ${negative_path}"
+	selection="$(printf '%s\n' "${negative_path}" | (
+		cd "${repo_root}/go"
+		go run ./cmd/ci-gates select --registry "${registry}" --tier pre-pr --paths-from - --explain
+	))"
+	_ifa_det_text_matches "${selection}" --quiet -- "^SELECTED[[:space:]]+${required_gate}[[:space:]]" \
+		|| fail "per-gate negative control no longer selects ${required_gate}, so its forbidden half proves nothing: ${negative_path}"
+	if _ifa_det_text_matches "${selection}" --quiet -- "^SELECTED[[:space:]]+${forbidden_gate}[[:space:]]"; then
+		fail "${negative_path} must not arm ${forbidden_gate}: that gate cannot observe the file"
 	fi
 done
 }

@@ -2274,7 +2274,11 @@ gates:
       # mirrors source it; without a row here, neutering the pattern re-runs
       # nothing (#6161).
       - "scripts/lib/ifa_private_data_pattern.sh"
-      - "scripts/lib/ifa_live_gate_selector_cases.sh"
+      # Glob, not the one filename: this file is the live-gate selector case
+      # table and sits at 491 of the blocking 500-line cap, so it is itself a
+      # split waiting to happen -- and a split of the table that proves these
+      # gates select correctly is exactly the event #6200 is about.
+      - "scripts/lib/ifa_live_gate_*.sh"
       - "go/internal/storage/postgres/migrations/**"
       - "go/internal/graphschemacompat/**"
       - "go/internal/projector/retry.go"
@@ -2301,8 +2305,52 @@ gates:
       - "go/go.mod"
       - "go/go.sum"
       - "sdk/go/factschema/go.mod"
-      - "sdk/go/factschema/decode.go"
-      - "sdk/go/factschema/fact_kinds.go"
+      # The factschema root package, not a list of its filenames, for the
+      # reason above (#6200). Every Decode* funnels through decodeMapIntoWith
+      # and assignField in decode_map.go, every required-field rejection
+      # through requiredPayloadKeys in fields.go, and the synth cassette both
+      # gates generate is built by the encode_direct.go helpers -- none of
+      # which any filename-shaped trigger named, all of which split out from
+      # decode.go under the line cap. The per-family decode seams that sit in
+      # this package root rather than a */v1/ subtree (decode_codeowners.go,
+      # fact_kinds_codeowners.go, decode_documentation.go, decode_gcp.go, the
+      # ArgoCD gitops decoder) were dark for the same reason, and this
+      # supersedes #6198's *submodule*.go point fix. Go package scope is what
+      # makes the package the right granularity: a helper any decode path
+      # reaches can live in any file in it, so no name pattern bounds the
+      # set. Measured: +1 armed commit in 300. A narrower set of seven
+      # hand-aimed globs measured the same +1 and would have kept the
+      # filename fragility, so it bought nothing.
+      #
+      # Sweeps in envelope.go, which #6200 excluded as already compile-pinned
+      # by decode.go -- harmless, it was excluded as unnecessary rather than
+      # unwanted -- and the import-extraction decoders, which #6200 excluded
+      # because every parsed_file_data.imports bucket in every driven
+      # cassette is empty. Editing those now arms two live lanes that cannot
+      # fail on the change until that fixture gap is closed.
+      - "sdk/go/factschema/*.go"
+      # codegraph/v1 and gcp/v1 are separate packages, globbed for the same
+      # reason and no wider: parsed_file_data_gitops.go (the ArgoCD struct the
+      # decoder decodes into) and gcp/v1/resource.go and relationship.go were
+      # dark beside the two codegraph filenames that were listed. Sibling
+      # packages under sdk/go/factschema/ whose facts no driven cassette
+      # carries -- aws/v1, azure/v1, sbom/v1 -- stay out on that ground and
+      # only that ground. Not on reachability: 24 non-test .go files under
+      # go/internal/reducer/ import aws/v1 and 4 import azure/v1, so their
+      # code links into eshu-reducer like every other package this glob set
+      # covers. What keeps them out is that nothing these gates drive decodes
+      # an aws or azure fact: no aws_*/azure_* fact kind appears in any of the
+      # 15 driven family cassette files (checked at this commit). Two aws_
+      # tokens do appear, both payload data rather than a fact kind, and
+      # neither reaches an aws/v1 decoder: Terraform source text inside a
+      # content_body in the repodependency cassette, and an aws_account_id
+      # attribute on a workload-identity-pool fact in the gcpcloud cassette,
+      # which the gcp/v1 decoder reads. No azure_ token appears at all.
+      # gcp/v1 is IN above for the mirror-image reason: the gcpcloud cassette
+      # both gates generate carries 234 gcp_* occurrences. Both measured +0
+      # armed commits in 300.
+      - "sdk/go/factschema/codegraph/v1/**"
+      - "sdk/go/factschema/gcp/v1/**"
       - ".github/workflows/ifa-determinism-gate.yml"
       - "specs/ci-gates.v1.yaml"
       - "specs/ifa-materialized-edge-coverage.v1.yaml"
@@ -2359,59 +2407,81 @@ gates:
       - "go/internal/storage/postgres/reducer_queue_validation.go"
       - "go/internal/storage/postgres/reducer_queue_ack.go"
       - "go/internal/ifa/graphdump/**"
-      - "go/internal/ifa/catalog_seed.go"
-      - "go/internal/ifa/code_call_family_catalog.go"
-      - "go/internal/ifa/documentation_family_odu.go"
-      - "go/internal/ifa/documentation_family_catalog.go"
-      - "go/internal/ifa/codeowners_family_odu.go"
-      - "go/internal/ifa/codeowners_family_catalog.go"
+      # The ifa package root, not a list of its filenames (#6200). go/cmd/ifa
+      # -- which both live gates run for every drive and every
+      # `ifa assert-edges` -- imports this package from its own production
+      # files (coverage.go, expectations.go), so all 36 non-test files in it
+      # compile into the binary the gates execute. 12 filenames and two
+      # <family>_* globs were listed; 19 files were dark, and they were not
+      # the peripheral ones: odu.go, catalog.go, expectations.go, coverage.go,
+      # roundtrip.go and schema.go are the shared Odù machinery every family
+      # goes through, and code_call_family_odu.go, rationale_family_odu.go,
+      # sql_relationship_odu.go, repo_dependency_odu.go and
+      # repo_dependency_backfill_odu.go are compiled Odù seeded into
+      # catalogSeed. Weakening a derivation path in any of them re-ran no live
+      # lane. Recorded on #6200 as its own instance of the same defect, and
+      # fixed for every family at once rather than for the two that happened
+      # to be noticed -- fixing some while others stay dark looks like
+      # completeness without being it.
+      #
+      # Measured, same 300-commit method as the reducer and factschema globs:
+      # +0 newly armed. 23 of those 300 commits touch this package root and
+      # all 23 armed a live lane already, through a cassette, a script, or the
+      # registry itself.
+      #
+      # What this does NOT fix: an Odù that drifts from its fixture is already
+      # caught -- go/internal/ifa/testdata/<family>/** triggers both gates for
+      # the families that have it, and ifa-contract-layer runs the
+      # cassette/expected-edge cross-check. The dark case was a drift in BOTH
+      # together, where the Odù and the expected edges move to agree on
+      # something wrong.
+      #
+      # It sweeps in symbol_runtime_family_cassette.go, which the trio comment
+      # below deliberately left out because LoadSymbolRuntimeFamilyOdu is
+      # called only from a Go unit test. A package glob cannot carve one file
+      # out of a Go package, and the carve-out was never sound anyway: file
+      # membership, not call graph, is what decides whether an edit reaches
+      # the binary. It also sweeps in amplify.go and slots.go (the
+      # load-saturation surface) and mutate.go and dead_letters.go (the
+      # dead-letter matrix's), for the same reason -- one package, one binary.
+      - "go/internal/ifa/*.go"
       - "go/internal/ifa/materializededges/**"
-      - "go/internal/ifa/submodule_pin_family_odu.go"
-      - "go/internal/ifa/submodule_pin_family_catalog.go"
       - "go/cmd/bootstrap-data-plane/main.go"
       - "go/cmd/reducer/main.go"
       - "go/cmd/reducer/run.go"
       - "go/cmd/reducer/config.go"
       - "go/cmd/reducer/config_projection.go"
       - "go/cmd/reducer/main_helpers.go"
-      - "go/internal/reducer/contract/**"
-      - "go/internal/reducer/intent.go"
-      - "go/internal/reducer/domain.go"
-      - "go/internal/reducer/defaults.go"
-      - "go/internal/reducer/defaults_registry.go"
-      - "go/internal/reducer/registry.go"
-      - "go/internal/reducer/defaults_domain_catalog.go"
-      - "go/internal/reducer/code_call*.go"
-      - "go/internal/reducer/documentation_edge*.go"
-      - "go/internal/reducer/codeowners_ownership*.go"
-      - "go/internal/reducer/submodule_pin*.go"
-      - "go/internal/reducer/python_metaclass_materialization.go"
-      - "go/internal/reducer/factschema_decode_codegraph.go"
-      - "go/internal/reducer/factschema_decode.go"
-      # Glob, not two more literals. factschema_decode_<family>.go is matched
-      # by no <family>_* glob: go/internal/reducer/** catches those decoders in
-      # the static gates, but no gate that MATERIALIZES a family's edge re-runs
-      # when the decoder feeding it is edited. One entry closes that for every
-      # family at once.
-      - "go/internal/reducer/factschema_decode_*.go"
-      - "go/internal/reducer/fact_kind_loader.go"
-      - "go/internal/reducer/graph_projection_phase.go"
-      - "sdk/go/factschema/decode_codegraph.go"
-      - "sdk/go/factschema/codegraph/v1/file.go"
-      - "sdk/go/factschema/codegraph/v1/repository.go"
+      # Every non-test file in this package compiles into the eshu-reducer
+      # binary both live gates build and run, so any of them can change what
+      # the gates prove. A hand-picked subset of ~40 filenames was an
+      # under-approximation by construction (#6200): splitting a file to get
+      # under the blocking 500-line cap left the original entry in place, so
+      # nothing dangled and no drift check fired, while the new pieces went
+      # dark. #6200's audit confirmed 26 load-bearing files dark that way,
+      # and the glob covers far more than those 26 -- the whole
+      # sql_relationships family past its two pinned filenames, the shared
+      # projection helpers (admission_decisions.go, projection_helpers.go,
+      # candidate_loader.go), and graph_projection_phase_publish.go plus the
+      # repair runner that moved out of the still-listed
+      # graph_projection_phase.go. This one entry replaces all of them, and
+      # subsumes the earlier per-family point fixes (factschema_decode_*.go
+      # among them). Six other gates in this registry already glob this
+      # package. Measured cost before landing: over the last 300 merged
+      # commits on main, at least one live lane armed on 160/300 before and
+      # 169/300 after. Attributed one glob at a time against the same 300,
+      # this one is +8 and sdk/go/factschema/*.go is +1; the rest are +0. The
+      # harness is not blind -- seeding go/** the same way measures +106.
+      #
+      # It also arms the lanes on reducer files no driven cassette exercises,
+      # semantic_entity_materialization.go among them, which #6200 had
+      # deliberately left untriggered because no cassette either gate drives
+      # produces a semantic-entity intent. That is the price of the glob and
+      # it is the right trade: per-file precision is what rotted.
+      - "go/internal/reducer/**"
       - "sdk/go/factschema/documentation/v1/**"
       - "sdk/go/factschema/codeowners/v1/**"
       - "sdk/go/factschema/submodule/v1/**"
-      # sdk/go/factschema/decode_submodule.go (DecodeSubmodulePin) and
-      # fact_kinds_submodule.go (FactKindSubmodulePin) are the SDK-side
-      # decode seam reducer.decodeSubmodulePin dispatches into
-      # (go/internal/reducer/factschema_decode_submodule.go). Neither sits
-      # under submodule/v1/, so the glob above misses them; a decode/quarantine
-      # regression there would leave #6002's coverage rows backed by stale
-      # results with no gate re-running to notice.
-      - "sdk/go/factschema/*submodule*.go"
-      - "go/internal/reducer/service*.go"
-      - "go/internal/reducer/shared_projection*.go"
       - "go/internal/storage/cypher/*code_call*.go"
       - "go/internal/storage/cypher/*documentation*.go"
       # Glob though only canonical_codeowners_edges.go exists today: the
@@ -2462,14 +2532,9 @@ gates:
       - "schema/data-plane/postgres/012_graph_projection_phase_state.sql"
       - "go/internal/synth/gcp/**"
       - "go/cmd/ifa/**"
-      - "go/internal/reducer/gcp_resource_materialization.go"
-      - "go/internal/reducer/gcp_resource_materialization_teeth.go"
-      - "go/internal/reducer/gcp_resource_materialization_teeth_off.go"
       - "go/internal/storage/cypher/cloud_resource_node_writer.go"
       - "go/internal/storage/cypher/cloud_resource_node_writer_teeth.go"
       - "go/internal/storage/cypher/cloud_resource_node_writer_teeth_off.go"
-      - "go/internal/reducer/sql_relationship_materialization.go"
-      - "go/internal/reducer/sql_relationship_embedded_query.go"
       - "go/internal/storage/cypher/edge_writer_sql.go"
       - "go/internal/storage/cypher/materialized_edge_*.go"
       - "go/internal/storage/cypher/canonical_code_call_edges.go"
@@ -2484,21 +2549,11 @@ gates:
       - "go/internal/ifa/testdata/documentation/**"
       - "go/internal/ifa/testdata/codeowners/**"
       - "go/internal/ifa/testdata/submodulepin/**"
-      - "go/internal/reducer/deployable_unit*.go"
       - "go/internal/storage/cypher/canonical_deployable_unit_edges.go"
       - "go/internal/storage/cypher/edge_writer_rowmaps.go"
-      - "go/internal/ifa/deployable_unit_family_catalog.go"
-      - "go/internal/ifa/deployable_unit_family_odu.go"
       - "testdata/cassettes/deployableunit/**"
       - "go/internal/ifa/testdata/deployableunit/**"
       - "go/cmd/bootstrap-index/**"
-      - "go/internal/reducer/rationale_edge_materialization.go"
-      - "go/internal/reducer/rationale_delta_scope.go"
-      - "go/internal/reducer/rationale_edge_intents.go"
-      - "go/internal/reducer/semantic_entity_delta_scope.go"
-      - "go/internal/reducer/semantic_entity_materialization_helpers.go"
-      - "go/internal/reducer/intent_emission.go"
-      - "go/internal/reducer/dependency_domain.go"
       - "go/internal/replay/canonical.go"
       - "go/internal/storage/cypher/canonical_rationale_edges.go"
       - "go/internal/storage/cypher/edge_writer_rationale_labels.go"
@@ -2506,35 +2561,28 @@ gates:
       - "go/internal/storage/cypher/backpressure_executor.go"
       - "testdata/cassettes/rationale/**"
       - "go/internal/ifa/testdata/rationale/**"
-      - "go/internal/reducer/inheritance_materialization*.go"
-      - "go/internal/reducer/inheritance_delta_scope.go"
-      - "go/internal/reducer/inheritance_implements.go"
-      - "go/internal/reducer/inheritance_intents.go"
-      - "go/internal/reducer/inheritance_php_trait_adaptations.go"
       - "go/internal/storage/cypher/canonical_implements_edges.go"
       - "go/internal/storage/cypher/canonical_inheritance_retract.go"
       - "go/internal/storage/cypher/edge_writer_inheritance_labels.go"
-      - "go/internal/reducer/shell_exec_materialization.go"
-      - "go/internal/reducer/shell_exec_intents.go"
       - "go/internal/storage/cypher/edge_writer_shell_exec.go"
       - "testdata/cassettes/inheritance/**"
       - "testdata/cassettes/shellexec/**"
       - "go/internal/ifa/testdata/inheritance/**"
       - "go/internal/ifa/testdata/shellexec/**"
-      - "go/internal/ifa/inheritance_family_odu.go"
-      - "go/internal/ifa/shell_exec_family_odu.go"
       # handles_route/runs_in/invokes_cloud_action trio (#5995/#6000/#5997):
       # one shared cassette and Odù (symbolRuntimeFamilyOdu() is registered
       # in catalog_seed.go's catalogSeed -- live-binary-consumed, not
       # test-only), three SEPARATE expected-edge directories (one per
       # family's own exact-set assertion). symbol_runtime_family_cassette.go
-      # is deliberately NOT listed here: LoadSymbolRuntimeFamilyOdu is called
-      # only from a Go unit test
-      # (materializededges/symbol_runtime_family_odu_test.go), never from any
-      # binary either live gate invokes -- same reasoning that already
-      # leaves the sibling registry-shape Go tests
+      # used to be excluded here on the grounds that
+      # LoadSymbolRuntimeFamilyOdu is called only from a Go unit test; the
+      # go/internal/ifa/*.go package glob above now covers it, and the
+      # sibling registry-shape Go tests that same reasoning excluded
       # (materialized_edge_family_blocker_shape_test.go,
-      # ifa_family_registry_anchor_test.go) untriggered here.
+      # ifa_family_registry_anchor_test.go) sit in go/internal/reducer/ and
+      # are covered by that package's glob (#6200). Call-graph reachability
+      # was the wrong test: what decides whether an edit can reach the binary
+      # is which package the file is in.
       - "testdata/cassettes/symbolruntime/**"
       - "go/internal/ifa/testdata/handlesroute/**"
       - "go/internal/ifa/testdata/runsin/**"
@@ -2544,96 +2592,112 @@ gates:
       # and the three now-unwaived coverage rows stay green on a stale live
       # proof -- the offline coverage gate is a projection-seam proof and never
       # exercises the graph write, so it cannot catch a MERGE regression either.
-      # Every sibling family enumerates its extractor/writer here for the same
-      # reason (shell_exec_intents.go, inheritance_intents.go,
-      # canonical_inheritance_edges.go, ...).
-      - "go/internal/reducer/handles_route*.go"
-      - "go/internal/reducer/runs_in*.go"
-      - "go/internal/reducer/invokes_cloud_action*.go"
-      - "go/internal/reducer/symbol_runtime*.go"
+      # The trio's reducer-side extractors are no longer named here; the
+      # go/internal/reducer/** entry above covers them, and every sibling
+      # family, without depending on anyone remembering to add a filename
+      # (#6200). The Cypher writers below still need naming: internal/storage/
+      # cypher is not globbed by either gate, so each family enumerates its
+      # own writer there (canonical_inheritance_edges.go, ...).
       - "go/internal/storage/cypher/canonical_handles_route_edges.go"
       - "go/internal/storage/cypher/canonical_runs_in_edges.go"
       - "go/internal/storage/cypher/canonical_invokes_cloud_action_edges.go"
-      - "go/internal/ifa/symbol_runtime_family_odu.go"
-      - "scripts/lib/ifa_rationale_live.sh"
-      - "scripts/lib/ifa_family_fixtures.sh"
+      # The scripts/lib/ Ifá surface as globs (#6200). This gate went from 34
+      # literal scripts/lib/ filenames and two directory globs to 10 literals
+      # and 8 globs. Same defect as the reducer and factschema entries above,
+      # on a directory the blocking 500-line cap splits far more often than
+      # any Go package: across the four Ifá gates the registry named 78
+      # scripts/lib/ files one at a time and carried only three globs there
+      # (ifa_family_registry/**, ifa_family_registry_pins/** and, on the fault
+      # gate, ifa_fault_generic_*.sh), so every split dropped the new half out
+      # of both live gates while the original filename kept its entry and
+      # nothing dangled. Two files went dark exactly that way -- test-ifa-
+      # fault-injection-deployable-unit-kill-isolation-cases.sh and test-ifa-
+      # fault-injection-generic-runner-lease-audit-cases.sh, both split out
+      # under the cap, both absent from this registry AND from
+      # ifa-determinism-gate.yml's paths: filter, so editing either started no
+      # Ifá job at all. #6241 has since named both by hand; these globs close
+      # the class the enumeration kept reopening, not those two instances.
+      #
+      # The two gates load DIFFERENT scripts/lib/ subsets and the split is
+      # deliberate, so these globs preserve it rather than collapsing both
+      # gates onto one directory-wide pattern: verify-ifa-determinism.sh
+      # sources no *_cells.sh file for any family, and the fault mirror
+      # sources no test-ifa-determinism-* module. ifa-fault-injection gets
+      # ifa_fault_*.sh and test-ifa-fault-injection-*.sh; this gate does not.
+      # The six cross-family fault literals below stay literal for the same
+      # reason -- widening them to a glob would hand this gate the fault
+      # gate's whole surface.
+      - "scripts/lib/ifa_determinism_*.sh"
+      # Every per-family live module verify-ifa-determinism.sh sources, plus
+      # the deployable_unit diagnostics/converge pair that split off one of
+      # them. Both halves of that split were named here; the next one would
+      # not have been.
+      - "scripts/lib/ifa_*_live*.sh"
+      - "scripts/lib/ifa_family_*.sh"
       - "scripts/verify-ifa-determinism.sh"
       - "scripts/test-verify-ifa-determinism.sh"
-      - "scripts/lib/ifa_determinism_common.sh"
-      - "scripts/lib/ifa_determinism_lifecycle.sh"
-      - "scripts/lib/ifa_sql_delta_live.sh"
-      - "scripts/lib/ifa_code_call_live.sh"
-      - "scripts/lib/ifa_documentation_live.sh"
-      - "scripts/lib/ifa_codeowners_live.sh"
-      - "scripts/lib/ifa_submodule_pin_live.sh"
-      - "scripts/lib/ifa_inheritance_live.sh"
       - "scripts/lib/ifa_fault_injection_inheritance_cells.sh"
-      - "scripts/lib/ifa_shell_exec_live.sh"
       - "scripts/lib/ifa_fault_injection_shell_exec_cells.sh"
-      # ifa_symbol_runtime_live.sh IS sourced by verify-ifa-determinism.sh
-      # directly (unlike its fault-cells sibling below, which that script
-      # never sources for any family).
-      - "scripts/lib/ifa_symbol_runtime_live.sh"
-      - "scripts/lib/ifa_deployable_unit_live.sh"
-      - "scripts/lib/ifa_deployable_unit_live_diagnostics.sh"
-      - "scripts/lib/ifa_deployable_unit_live_converge.sh"
       # #6147 PR-0 family-registry extraction: shared with ifa-fault-injection
       # below (sourced directly by verify-ifa-determinism.sh, transitively by
-      # verify-ifa-fault-injection.sh), plus this mirror's own five sourced
-      # case modules -- determinism-only, since none of them execute inside
-      # the fault-injection gate.
-      - "scripts/lib/ifa_family_registry.sh"
+      # verify-ifa-fault-injection.sh), plus this mirror's own sourced case
+      # modules -- determinism-only, since none of them execute inside the
+      # fault-injection gate.
+      #
       # The row files carry every family's data; the orchestrator carries
       # none. Triggering only on the parent would leave a row correction
       # -- the most common edit -- selecting no gate at all.
       - "scripts/lib/ifa_family_registry/**"
-      - "scripts/lib/test-ifa-determinism-family-cases.sh"
-      # Split out of the file immediately above once it crossed the 500-line
-      # cap; sourced only by scripts/test-verify-ifa-determinism.sh.
-      - "scripts/lib/test-ifa-determinism-maintenance-family-cases.sh"
-      - "scripts/lib/test-ifa-determinism-pin-behaviour-cases.sh"
-      - "scripts/lib/test-ifa-determinism-registry-lockstep-cases.sh"
-      - "scripts/lib/test-ifa-determinism-require-helpers.sh"
-      - "scripts/lib/test-ifa-determinism-teeth-cases.sh"
-      - "scripts/lib/test-ifa-family-registry-derived-pins-cases.sh"
+      - "scripts/lib/test-ifa-determinism-*.sh"
+      - "scripts/lib/test-ifa-family-registry-*.sh"
       # The per-family pin files the module above sources by variable path.
       # Their hard rule is that pins are hand-derived and never generated
       # from the registry; editing one to "just make it match" must re-run
       # the gate that would object.
       - "scripts/lib/ifa_family_registry_pins/**"
-      - "scripts/lib/ifa_repo_dependency_live.sh"
       - "scripts/lib/ifa_fault_injection_repo_dependency_cells.sh"
       - "scripts/lib/test-ifa-fault-injection-repo-dependency-cases.sh"
       - "testdata/cassettes/repodependency/**"
       - "go/internal/ifa/testdata/repodependency/**"
-      - "go/internal/ifa/repo_dependency_family_*.go"
-      - "scripts/lib/ifa_workload_dependency_live.sh"
       - "scripts/lib/ifa_fault_injection_workload_dependency_cells.sh"
       - "scripts/lib/test-ifa-fault-injection-workload-dependency-cases.sh"
       - "testdata/cassettes/workloaddependency/**"
       - "go/internal/ifa/testdata/workloaddependency/**"
-      - "go/internal/ifa/workload_dependency_family_*.go"
-      - "go/internal/reducer/workload_dependency*.go"
       - "go/internal/storage/cypher/materialized_edge_endpoints.go"
       - "go/internal/collector/gitrepo/git_fact_builder*.go"
       - "go/internal/collector/gitrepo/git_followup_facts.go"
       - "go/internal/projector/canonical_import_extract.go"
       - "go/internal/projector/workload_dependency_cassette_admission_test.go"
-      - "go/internal/reducer/platform_materialization.go"
-      - "go/internal/reducer/platform_materialization_writer.go"
-      - "go/internal/reducer/workload_materialization_repo_phase.go"
-      - "go/internal/reducer/workload_materializer.go"
-      - "go/internal/reducer/workload_materializer_retract_instances.go"
       - "go/internal/storage/postgres/ingestion_reopen*.go"
-      - "go/internal/reducer/repo_dependency*.go"
-      - "go/internal/reducer/cross_repo_intent_row.go"
-      - "go/internal/reducer/cross_repo_resolution.go"
-      - "go/internal/reducer/projection.go"
-      - "go/internal/reducer/workload_materialization_handler.go"
-      - "go/internal/reducer/platforms.go"
-      - "go/internal/reducer/infrastructure_platform_materializer.go"
       - "go/internal/storage/cypher/materialized_edge_repo_dependency.go"
       - "go/internal/storage/cypher/canonical_relationships.go"
+      # Restored as explicit entries alongside the broader globs above.
+      # The broader globs cover these paths, but materialized_edges_lockstep_test.go
+      # pins the literal trigger text (slices.Contains, not a path match), and the
+      # pin is the thing that stops a catalog or vacuity-guard edit from drifting
+      # out of the live gates unnoticed. Keep both: the glob for coverage, the
+      # explicit row for the pin (#6200).
+      - "go/internal/ifa/catalog_seed.go"
+      - "go/internal/ifa/code_call_family_catalog.go"
+      - "go/internal/ifa/deployable_unit_family_catalog.go"
+      - "go/internal/ifa/deployable_unit_family_odu.go"
+      - "go/internal/ifa/documentation_family_catalog.go"
+      - "go/internal/ifa/documentation_family_odu.go"
+      - "go/internal/reducer/code_call*.go"
+      - "go/internal/reducer/deployable_unit*.go"
+      - "go/internal/reducer/documentation_edge*.go"
+      - "scripts/lib/ifa_rationale_live.sh"
+      - "sdk/go/factschema/codegraph/v1/repository.go"
+      # Stem-bearing rows for symbol_runtime and sql_relationship.
+      # TestEveryCoveredFamilyTriggersBothLiveGates requires each covered family
+      # to have at least one trigger whose TEXT contains the family stem, so a
+      # directory glob that covers the same files does not satisfy it. Keeping
+      # these explicit is what ties the coverage row to a gate that re-runs (#6200).
+      - "go/internal/ifa/symbol_runtime_family_odu.go"
+      - "go/internal/reducer/symbol_runtime*.go"
+      - "scripts/lib/ifa_symbol_runtime_live.sh"
+      - "go/internal/ifa/sql_relationship_odu*.go"
+      - "go/internal/reducer/sql_relationship_*.go"
     local:
       command: "bash scripts/test-verify-ifa-determinism.sh"
       test_command: "bash scripts/test-verify-ifa-determinism.sh"
@@ -2661,7 +2725,38 @@ gates:
       - "scripts/lib/ifa_private_data_pattern.sh"
       - "scripts/verify-ifa-dead-letter-matrix.sh"
       - "scripts/test-verify-ifa-dead-letter-matrix.sh"
-      - "scripts/lib/ifa_determinism_common.sh"
+      # Glob, not the one filename (#6200) -- but scoped to the one lib this
+      # gate loads, not to the whole ifa_determinism_ prefix.
+      # scripts/verify-ifa-dead-letter-matrix.sh:75 sources
+      # ifa_determinism_common.sh and nothing else, and that file sources
+      # nothing itself, so a 500-line-cap split of it -- the same split that
+      # already darkened two test-ifa-fault-injection-* files -- would leave
+      # the new half triggering nothing while the original entry kept the
+      # list looking complete.
+      #
+      # ifa_determinism_*.sh, the wider form ifa-determinism carries, would
+      # also hand this gate ifa_determinism_lifecycle.sh, which only
+      # verify-ifa-determinism.sh sources. Editing it would then make
+      # `make pre-pr` select a second live Docker gate that cannot observe
+      # the file. CI cost is zero either way -- this job shares
+      # ifa-determinism-gate.yml's single on.paths filter with the
+      # determinism and fault-injection jobs and carries no per-job if:, so
+      # it already runs whenever any of them does -- but the local runner
+      # pays for it, and it is the exact over-trigger this branch adds
+      # negative controls against. ifa_live_gate_negative_gate_seams pins it.
+      #
+      # The glob is the only thing protecting this dependency, and that is
+      # worth knowing before someone narrows it further. The sourced-to-
+      # triggered drift walk (go/internal/cigates/scripttrigger.go) starts at
+      # a gate's local.command, which here is
+      # test-verify-ifa-dead-letter-matrix.sh -- a static mirror that reads
+      # verify-ifa-dead-letter-matrix.sh as data (bash -n, text assertions)
+      # and sources nothing. So the walk never reaches
+      # ifa_determinism_common.sh from this gate. common*.sh catches a split
+      # that keeps the prefix, which is what a cap-driven split does; a split
+      # renamed off the prefix and then sourced would still go dark, here and
+      # under the wider form alike.
+      - "scripts/lib/ifa_determinism_common*.sh"
     local:
       command: "bash scripts/test-verify-ifa-dead-letter-matrix.sh"
       test_command: "bash scripts/test-verify-ifa-dead-letter-matrix.sh"
@@ -2679,7 +2774,11 @@ gates:
     blocking: true
     triggers:
       - "scripts/lib/test-ifa-fault-injection-cell-pins-cases.sh"
-      - "scripts/lib/ifa_live_gate_selector_cases.sh"
+      # Glob, not the one filename: this file is the live-gate selector case
+      # table and sits at 491 of the blocking 500-line cap, so it is itself a
+      # split waiting to happen -- and a split of the table that proves these
+      # gates select correctly is exactly the event #6200 is about.
+      - "scripts/lib/ifa_live_gate_*.sh"
       - "go/internal/storage/postgres/migrations/**"
       - "go/internal/graphschemacompat/**"
       - "go/internal/projector/retry.go"
@@ -2706,8 +2805,52 @@ gates:
       - "go/go.mod"
       - "go/go.sum"
       - "sdk/go/factschema/go.mod"
-      - "sdk/go/factschema/decode.go"
-      - "sdk/go/factschema/fact_kinds.go"
+      # The factschema root package, not a list of its filenames, for the
+      # reason above (#6200). Every Decode* funnels through decodeMapIntoWith
+      # and assignField in decode_map.go, every required-field rejection
+      # through requiredPayloadKeys in fields.go, and the synth cassette both
+      # gates generate is built by the encode_direct.go helpers -- none of
+      # which any filename-shaped trigger named, all of which split out from
+      # decode.go under the line cap. The per-family decode seams that sit in
+      # this package root rather than a */v1/ subtree (decode_codeowners.go,
+      # fact_kinds_codeowners.go, decode_documentation.go, decode_gcp.go, the
+      # ArgoCD gitops decoder) were dark for the same reason, and this
+      # supersedes #6198's *submodule*.go point fix. Go package scope is what
+      # makes the package the right granularity: a helper any decode path
+      # reaches can live in any file in it, so no name pattern bounds the
+      # set. Measured: +1 armed commit in 300. A narrower set of seven
+      # hand-aimed globs measured the same +1 and would have kept the
+      # filename fragility, so it bought nothing.
+      #
+      # Sweeps in envelope.go, which #6200 excluded as already compile-pinned
+      # by decode.go -- harmless, it was excluded as unnecessary rather than
+      # unwanted -- and the import-extraction decoders, which #6200 excluded
+      # because every parsed_file_data.imports bucket in every driven
+      # cassette is empty. Editing those now arms two live lanes that cannot
+      # fail on the change until that fixture gap is closed.
+      - "sdk/go/factschema/*.go"
+      # codegraph/v1 and gcp/v1 are separate packages, globbed for the same
+      # reason and no wider: parsed_file_data_gitops.go (the ArgoCD struct the
+      # decoder decodes into) and gcp/v1/resource.go and relationship.go were
+      # dark beside the two codegraph filenames that were listed. Sibling
+      # packages under sdk/go/factschema/ whose facts no driven cassette
+      # carries -- aws/v1, azure/v1, sbom/v1 -- stay out on that ground and
+      # only that ground. Not on reachability: 24 non-test .go files under
+      # go/internal/reducer/ import aws/v1 and 4 import azure/v1, so their
+      # code links into eshu-reducer like every other package this glob set
+      # covers. What keeps them out is that nothing these gates drive decodes
+      # an aws or azure fact: no aws_*/azure_* fact kind appears in any of the
+      # 15 driven family cassette files (checked at this commit). Two aws_
+      # tokens do appear, both payload data rather than a fact kind, and
+      # neither reaches an aws/v1 decoder: Terraform source text inside a
+      # content_body in the repodependency cassette, and an aws_account_id
+      # attribute on a workload-identity-pool fact in the gcpcloud cassette,
+      # which the gcp/v1 decoder reads. No azure_ token appears at all.
+      # gcp/v1 is IN above for the mirror-image reason: the gcpcloud cassette
+      # both gates generate carries 234 gcp_* occurrences. Both measured +0
+      # armed commits in 300.
+      - "sdk/go/factschema/codegraph/v1/**"
+      - "sdk/go/factschema/gcp/v1/**"
       - ".github/workflows/ifa-determinism-gate.yml"
       - "specs/ci-gates.v1.yaml"
       - "specs/ifa-materialized-edge-coverage.v1.yaml"
@@ -2715,8 +2858,33 @@ gates:
       - "go/internal/ifa/graphdump/**"
       - "go/cmd/ifa/**"
       - "go/internal/synth/gcp/**"
-      - "go/internal/reducer/gcp_resource_materialization.go"
-      - "go/internal/reducer/gcp_resource_materialization_teeth_off.go"
+      # Every non-test file in this package compiles into the eshu-reducer
+      # binary both live gates build and run, so any of them can change what
+      # the gates prove. A hand-picked subset of ~40 filenames was an
+      # under-approximation by construction (#6200): splitting a file to get
+      # under the blocking 500-line cap left the original entry in place, so
+      # nothing dangled and no drift check fired, while the new pieces went
+      # dark. #6200's audit confirmed 26 load-bearing files dark that way,
+      # and the glob covers far more than those 26 -- the whole
+      # sql_relationships family past its two pinned filenames, the shared
+      # projection helpers (admission_decisions.go, projection_helpers.go,
+      # candidate_loader.go), and graph_projection_phase_publish.go plus the
+      # repair runner that moved out of the still-listed
+      # graph_projection_phase.go. This one entry replaces all of them, and
+      # subsumes the earlier per-family point fixes (factschema_decode_*.go
+      # among them). Six other gates in this registry already glob this
+      # package. Measured cost before landing: over the last 300 merged
+      # commits on main, at least one live lane armed on 160/300 before and
+      # 169/300 after. Attributed one glob at a time against the same 300,
+      # this one is +8 and sdk/go/factschema/*.go is +1; the rest are +0. The
+      # harness is not blind -- seeding go/** the same way measures +106.
+      #
+      # It also arms the lanes on reducer files no driven cassette exercises,
+      # semantic_entity_materialization.go among them, which #6200 had
+      # deliberately left untriggered because no cassette either gate drives
+      # produces a semantic-entity intent. That is the price of the glob and
+      # it is the right trade: per-file precision is what rotted.
+      - "go/internal/reducer/**"
       - "go/internal/storage/cypher/cloud_resource_node_writer.go"
       - "go/internal/storage/cypher/cloud_resource_node_writer_teeth_off.go"
       - "docker-compose.yaml"
@@ -2770,59 +2938,54 @@ gates:
       - "go/internal/storage/postgres/reducer_queue_readiness_sql.go"
       - "go/internal/storage/postgres/reducer_queue_validation.go"
       - "go/internal/storage/postgres/reducer_queue_ack.go"
-      - "go/internal/ifa/catalog_seed.go"
-      - "go/internal/ifa/code_call_family_catalog.go"
-      - "go/internal/ifa/documentation_family_odu.go"
-      - "go/internal/ifa/documentation_family_catalog.go"
-      - "go/internal/ifa/codeowners_family_odu.go"
-      - "go/internal/ifa/codeowners_family_catalog.go"
+      # The ifa package root, not a list of its filenames (#6200). go/cmd/ifa
+      # -- which both live gates run for every drive and every
+      # `ifa assert-edges` -- imports this package from its own production
+      # files (coverage.go, expectations.go), so all 36 non-test files in it
+      # compile into the binary the gates execute. 12 filenames and two
+      # <family>_* globs were listed; 19 files were dark, and they were not
+      # the peripheral ones: odu.go, catalog.go, expectations.go, coverage.go,
+      # roundtrip.go and schema.go are the shared Odù machinery every family
+      # goes through, and code_call_family_odu.go, rationale_family_odu.go,
+      # sql_relationship_odu.go, repo_dependency_odu.go and
+      # repo_dependency_backfill_odu.go are compiled Odù seeded into
+      # catalogSeed. Weakening a derivation path in any of them re-ran no live
+      # lane. Recorded on #6200 as its own instance of the same defect, and
+      # fixed for every family at once rather than for the two that happened
+      # to be noticed -- fixing some while others stay dark looks like
+      # completeness without being it.
+      #
+      # Measured, same 300-commit method as the reducer and factschema globs:
+      # +0 newly armed. 23 of those 300 commits touch this package root and
+      # all 23 armed a live lane already, through a cassette, a script, or the
+      # registry itself.
+      #
+      # What this does NOT fix: an Odù that drifts from its fixture is already
+      # caught -- go/internal/ifa/testdata/<family>/** triggers both gates for
+      # the families that have it, and ifa-contract-layer runs the
+      # cassette/expected-edge cross-check. The dark case was a drift in BOTH
+      # together, where the Odù and the expected edges move to agree on
+      # something wrong.
+      #
+      # It sweeps in symbol_runtime_family_cassette.go, which the trio comment
+      # below deliberately left out because LoadSymbolRuntimeFamilyOdu is
+      # called only from a Go unit test. A package glob cannot carve one file
+      # out of a Go package, and the carve-out was never sound anyway: file
+      # membership, not call graph, is what decides whether an edit reaches
+      # the binary. It also sweeps in amplify.go and slots.go (the
+      # load-saturation surface) and mutate.go and dead_letters.go (the
+      # dead-letter matrix's), for the same reason -- one package, one binary.
+      - "go/internal/ifa/*.go"
       - "go/internal/ifa/materializededges/**"
-      - "go/internal/ifa/submodule_pin_family_odu.go"
-      - "go/internal/ifa/submodule_pin_family_catalog.go"
       - "go/cmd/bootstrap-data-plane/main.go"
       - "go/cmd/reducer/main.go"
       - "go/cmd/reducer/run.go"
       - "go/cmd/reducer/config.go"
       - "go/cmd/reducer/config_projection.go"
       - "go/cmd/reducer/main_helpers.go"
-      - "go/internal/reducer/contract/**"
-      - "go/internal/reducer/intent.go"
-      - "go/internal/reducer/domain.go"
-      - "go/internal/reducer/defaults.go"
-      - "go/internal/reducer/defaults_registry.go"
-      - "go/internal/reducer/registry.go"
-      - "go/internal/reducer/defaults_domain_catalog.go"
-      - "go/internal/reducer/code_call*.go"
-      - "go/internal/reducer/documentation_edge*.go"
-      - "go/internal/reducer/codeowners_ownership*.go"
-      - "go/internal/reducer/submodule_pin*.go"
-      - "go/internal/reducer/python_metaclass_materialization.go"
-      - "go/internal/reducer/factschema_decode_codegraph.go"
-      - "go/internal/reducer/factschema_decode.go"
-      # Glob, not two more literals. factschema_decode_<family>.go is matched
-      # by no <family>_* glob: go/internal/reducer/** catches those decoders in
-      # the static gates, but no gate that MATERIALIZES a family's edge re-runs
-      # when the decoder feeding it is edited. One entry closes that for every
-      # family at once.
-      - "go/internal/reducer/factschema_decode_*.go"
-      - "go/internal/reducer/fact_kind_loader.go"
-      - "go/internal/reducer/graph_projection_phase.go"
-      - "sdk/go/factschema/decode_codegraph.go"
-      - "sdk/go/factschema/codegraph/v1/file.go"
-      - "sdk/go/factschema/codegraph/v1/repository.go"
       - "sdk/go/factschema/documentation/v1/**"
       - "sdk/go/factschema/codeowners/v1/**"
       - "sdk/go/factschema/submodule/v1/**"
-      # sdk/go/factschema/decode_submodule.go (DecodeSubmodulePin) and
-      # fact_kinds_submodule.go (FactKindSubmodulePin) are the SDK-side
-      # decode seam reducer.decodeSubmodulePin dispatches into
-      # (go/internal/reducer/factschema_decode_submodule.go). Neither sits
-      # under submodule/v1/, so the glob above misses them; a decode/quarantine
-      # regression there would leave #6002's coverage rows backed by stale
-      # results with no gate re-running to notice.
-      - "sdk/go/factschema/*submodule*.go"
-      - "go/internal/reducer/service*.go"
-      - "go/internal/reducer/shared_projection*.go"
       - "go/internal/storage/cypher/*code_call*.go"
       - "go/internal/storage/cypher/*documentation*.go"
       # Glob though only canonical_codeowners_edges.go exists today: the
@@ -2877,9 +3040,6 @@ gates:
       - "go/internal/projector/gcp/resource_materialization_intents.go"
       - "go/internal/projector/gcp/relationship_materialization_intents.go"
       - "go/internal/projector/security/group_reachability_intents.go"
-      - "go/internal/reducer/defaults_additive_domains.go"
-      - "go/internal/reducer/defaults_additive_domains_cloud_nodes.go"
-      - "go/internal/reducer/defaults_additive_domains_gcp.go"
       - "go/cmd/reducer/canonical_graph_writers.go"
       - "go/internal/graphowner/family_writers.go"
       - "go/internal/graphowner/gated_writer.go"
@@ -2892,8 +3052,6 @@ gates:
       - "go/cmd/reducer/ifa_fault_wiring.go"
       - "go/cmd/reducer/ifa_fault_wiring_off.go"
       - "go/cmd/ifa/assert_edges.go"
-      - "go/internal/reducer/sql_relationship_materialization.go"
-      - "go/internal/reducer/sql_relationship_embedded_query.go"
       - "go/internal/storage/cypher/edge_writer_sql.go"
       - "go/internal/storage/cypher/materialized_edge_*.go"
       - "go/internal/storage/cypher/canonical_code_call_edges.go"
@@ -2908,21 +3066,11 @@ gates:
       - "go/internal/ifa/testdata/documentation/**"
       - "go/internal/ifa/testdata/codeowners/**"
       - "go/internal/ifa/testdata/submodulepin/**"
-      - "go/internal/reducer/deployable_unit*.go"
       - "go/internal/storage/cypher/canonical_deployable_unit_edges.go"
       - "go/internal/storage/cypher/edge_writer_rowmaps.go"
-      - "go/internal/ifa/deployable_unit_family_catalog.go"
-      - "go/internal/ifa/deployable_unit_family_odu.go"
       - "testdata/cassettes/deployableunit/**"
       - "go/internal/ifa/testdata/deployableunit/**"
       - "go/cmd/bootstrap-index/**"
-      - "go/internal/reducer/rationale_edge_materialization.go"
-      - "go/internal/reducer/rationale_delta_scope.go"
-      - "go/internal/reducer/rationale_edge_intents.go"
-      - "go/internal/reducer/semantic_entity_delta_scope.go"
-      - "go/internal/reducer/semantic_entity_materialization_helpers.go"
-      - "go/internal/reducer/intent_emission.go"
-      - "go/internal/reducer/dependency_domain.go"
       - "go/internal/replay/canonical.go"
       - "go/internal/storage/cypher/canonical_rationale_edges.go"
       - "go/internal/storage/cypher/edge_writer_rationale_labels.go"
@@ -2930,29 +3078,20 @@ gates:
       - "go/internal/storage/cypher/backpressure_executor.go"
       - "testdata/cassettes/rationale/**"
       - "go/internal/ifa/testdata/rationale/**"
-      - "go/internal/reducer/inheritance_materialization*.go"
-      - "go/internal/reducer/inheritance_delta_scope.go"
-      - "go/internal/reducer/inheritance_implements.go"
-      - "go/internal/reducer/inheritance_intents.go"
-      - "go/internal/reducer/inheritance_php_trait_adaptations.go"
       - "go/internal/storage/cypher/canonical_implements_edges.go"
       - "go/internal/storage/cypher/canonical_inheritance_retract.go"
       - "go/internal/storage/cypher/edge_writer_inheritance_labels.go"
-      - "go/internal/reducer/shell_exec_materialization.go"
-      - "go/internal/reducer/shell_exec_intents.go"
       - "go/internal/storage/cypher/edge_writer_shell_exec.go"
       - "testdata/cassettes/inheritance/**"
       - "testdata/cassettes/shellexec/**"
       - "go/internal/ifa/testdata/inheritance/**"
       - "go/internal/ifa/testdata/shellexec/**"
-      - "go/internal/ifa/inheritance_family_odu.go"
-      - "go/internal/ifa/shell_exec_family_odu.go"
       # handles_route/runs_in/invokes_cloud_action trio (#5995/#6000/#5997):
       # same cassette/Odù/expected-edges wiring as the determinism block
-      # above -- see that block's comment for why
-      # symbol_runtime_family_cassette.go and ifa_family_registry_anchor_test.go
-      # are deliberately NOT listed (Go-test-only, never invoked by either
-      # live gate's own binary).
+      # above -- see that block's comment for why the Go-test-only carve-out
+      # it used to describe (symbol_runtime_family_cassette.go,
+      # ifa_family_registry_anchor_test.go) no longer holds: both are inside
+      # packages this gate now globs (#6200).
       - "testdata/cassettes/symbolruntime/**"
       - "go/internal/ifa/testdata/handlesroute/**"
       - "go/internal/ifa/testdata/runsin/**"
@@ -2962,152 +3101,127 @@ gates:
       # and the three now-unwaived coverage rows stay green on a stale live
       # proof -- the offline coverage gate is a projection-seam proof and never
       # exercises the graph write, so it cannot catch a MERGE regression either.
-      # Every sibling family enumerates its extractor/writer here for the same
-      # reason (shell_exec_intents.go, inheritance_intents.go,
-      # canonical_inheritance_edges.go, ...).
-      - "go/internal/reducer/handles_route*.go"
-      - "go/internal/reducer/runs_in*.go"
-      - "go/internal/reducer/invokes_cloud_action*.go"
-      - "go/internal/reducer/symbol_runtime*.go"
+      # The trio's reducer-side extractors are no longer named here; the
+      # go/internal/reducer/** entry above covers them, and every sibling
+      # family, without depending on anyone remembering to add a filename
+      # (#6200). The Cypher writers below still need naming: internal/storage/
+      # cypher is not globbed by either gate, so each family enumerates its
+      # own writer there (canonical_inheritance_edges.go, ...).
       - "go/internal/storage/cypher/canonical_handles_route_edges.go"
       - "go/internal/storage/cypher/canonical_runs_in_edges.go"
       - "go/internal/storage/cypher/canonical_invokes_cloud_action_edges.go"
-      - "go/internal/ifa/symbol_runtime_family_odu.go"
-      - "scripts/lib/ifa_rationale_live.sh"
-      - "scripts/lib/ifa_family_fixtures.sh"
+      # The scripts/lib/ Ifá surface as globs (#6200). This gate went from 68
+      # literal scripts/lib/ filenames and two globs to 13 literals and 6
+      # globs. Same defect as the reducer and factschema entries above, on a
+      # directory the blocking 500-line cap splits far more often than any Go
+      # package: across the four Ifá gates the registry named 78 scripts/lib/
+      # files one at a time and carried only three globs there
+      # (ifa_family_registry/**, ifa_family_registry_pins/** and this gate's
+      # own ifa_fault_generic_*.sh), so every split dropped the new half out
+      # of both live gates while the original filename kept its entry and
+      # nothing dangled. This gate had two files
+      # dark that way --
+      # test-ifa-fault-injection-deployable-unit-kill-isolation-cases.sh and
+      # test-ifa-fault-injection-generic-runner-lease-audit-cases.sh, both
+      # split out under the cap, both absent from this registry AND from
+      # ifa-determinism-gate.yml's paths: filter, so editing either started no
+      # Ifá job at all. #6241 has since named both by hand; these globs close
+      # the class rather than those two instances. ifa_fault_injection_driver.sh sources its cells by
+      # `for f in .../ifa_fault_injection_*_cells.sh`, so the file set here is
+      # open by construction and a name list can never close it.
+      #
+      # The two gates load DIFFERENT scripts/lib/ subsets and the split is
+      # deliberate, so these globs preserve it: this gate gets ifa_fault_*.sh
+      # and test-ifa-fault-injection-*.sh, ifa-determinism does not, and
+      # ifa_determinism_common.sh stays a literal here rather than widening to
+      # ifa_determinism_*.sh, because verify-ifa-fault-injection.sh never
+      # sources the lifecycle module that glob would sweep in.
+      - "scripts/lib/ifa_fault_*.sh"
+      - "scripts/lib/test-ifa-fault-injection-*.sh"
+      # Four literals kept beside the two globs that already match them.
+      # ifa-determinism names these same four as literals -- they are its
+      # deliberate reach into the fault surface for the inheritance,
+      # shell_exec and repo_dependency families -- and
+      # ifa_live_gate_common_seams asserts one trigger STRING present in BOTH
+      # gate blocks. Without the literals here that assertion has nothing to
+      # match, since this gate covers them by glob and that gate must not be
+      # widened to the whole fault surface.
+      - "scripts/lib/ifa_fault_injection_inheritance_cells.sh"
+      - "scripts/lib/ifa_fault_injection_shell_exec_cells.sh"
+      - "scripts/lib/ifa_fault_injection_repo_dependency_cells.sh"
+      - "scripts/lib/test-ifa-fault-injection-repo-dependency-cases.sh"
+      # Every per-family live module this gate sources, plus the
+      # deployable_unit diagnostics/converge pair that split off one of them.
+      # Shared with ifa-determinism, which spells the same glob: ifa_sql_delta
+      # _live.sh in particular is sourced here for cell_deltaretract (#5544),
+      # so a change to it has to select BOTH gates.
+      - "scripts/lib/ifa_*_live*.sh"
+      - "scripts/lib/ifa_family_*.sh"
       - "scripts/verify-ifa-fault-injection.sh"
       # The job installs ripgrep through this script before running the gate;
       # the gate's own preconditions shell out to rg. Without this trigger an edit
       # to the installer would not select the gate it is a precondition for.
       - "scripts/ci/install-apt-packages.sh"
       - "scripts/test-verify-ifa-fault-injection.sh"
-      - "scripts/lib/test-ifa-fault-injection-assertions.sh"
       - "scripts/lib/ifa_private_data_pattern.sh"
-      - "scripts/lib/test-ifa-fault-injection-review-cases.sh"
-      - "scripts/lib/test-ifa-fault-injection-marker-cases.sh"
-      - "scripts/lib/ifa_fault_injection_rationale_cells.sh"
-      - "scripts/lib/test-ifa-fault-injection-rationale-cases.sh"
-      - "scripts/lib/ifa_fault_injection_collateral_nodes.sh"
-      - "scripts/lib/ifa_fault_injection_common.sh"
-      - "scripts/lib/ifa_fault_injection_cells.sh"
-      - "scripts/lib/ifa_fault_injection_driver.sh"
-      - "scripts/lib/ifa_fault_injection_sources.sh"
-      - "scripts/lib/ifa_fault_injection_sql_cells.sh"
-      - "scripts/lib/ifa_fault_injection_delivery_cells.sh"
-      - "scripts/lib/ifa_fault_injection_code_call_cells.sh"
-      - "scripts/lib/ifa_fault_injection_documentation_cells.sh"
-      - "scripts/lib/ifa_fault_injection_documentation_ack_barrier.sh"
-      - "scripts/lib/ifa_fault_injection_documentation_ack_setup.sh"
-      - "scripts/lib/test-ifa-fault-injection-documentation-cases.sh"
-      - "scripts/lib/ifa_fault_injection_codeowners_cells.sh"
-      - "scripts/lib/test-ifa-fault-injection-codeowners-cases.sh"
-      - "scripts/lib/ifa_fault_injection_submodule_pin_cells.sh"
-      - "scripts/lib/test-ifa-fault-injection-submodule-pin-cases.sh"
-      - "scripts/lib/test-ifa-fault-injection-documentation-ack-barrier-cases.sh"
-      - "scripts/lib/test-ifa-fault-injection-documentation-ack-cleanup-cases.sh"
-      - "scripts/lib/test-ifa-fault-injection-code-call-cases.sh"
-      - "scripts/lib/test-ifa-fault-injection-entrypoint-cases.sh"
-      - "scripts/lib/ifa_code_call_live.sh"
-      - "scripts/lib/ifa_documentation_live.sh"
-      - "scripts/lib/ifa_codeowners_live.sh"
-      - "scripts/lib/ifa_submodule_pin_live.sh"
-      - "scripts/lib/ifa_inheritance_live.sh"
-      - "scripts/lib/ifa_fault_injection_inheritance_cells.sh"
-      - "scripts/lib/ifa_shell_exec_live.sh"
-      - "scripts/lib/ifa_fault_injection_shell_exec_cells.sh"
-      # ifa_symbol_runtime_live.sh is sourced transitively by
-      # verify-ifa-fault-injection.sh via ifa_fault_injection_sources.sh;
-      # ifa_fault_injection_symbol_runtime_cells.sh is fault-ONLY (this
-      # gate's own cells file, never sourced by verify-ifa-determinism.sh).
-      - "scripts/lib/ifa_symbol_runtime_live.sh"
-      - "scripts/lib/ifa_fault_injection_symbol_runtime_cells.sh"
-      - "scripts/lib/ifa_fault_injection_deployable_unit_cells.sh"
-      - "scripts/lib/ifa_fault_injection_deployable_unit_lock.sh"
-      - "scripts/lib/ifa_deployable_unit_live.sh"
-      - "scripts/lib/ifa_deployable_unit_live_diagnostics.sh"
-      - "scripts/lib/ifa_deployable_unit_live_converge.sh"
-      - "scripts/lib/test-ifa-fault-injection-deployable-unit-cases.sh"
-      - "scripts/lib/test-ifa-fault-injection-deployable-unit-ordering-cases.sh"
       - "scripts/lib/test-ifa-fault-injection-deployable-unit-lock-cases.sh"
       # Sourced by the deployable-unit cases module rather than by the mirror
       # itself, which is how it went untriggered: editing it selected no gate
       # at all until this row existed.
       - "scripts/lib/test-ifa-fault-injection-deployable-unit-kill-isolation-cases.sh"
-      # Shared with the ifa-determinism gate, which also lists it. The fault
-      # gate sources it for cell_deltaretract (#5544), so a change to the
-      # shared helper has to select BOTH gates, not just determinism.
-      - "scripts/lib/ifa_sql_delta_live.sh"
       - "scripts/lib/ifa_determinism_common.sh"
       # #6147 PR-0 family-registry extraction: shared with ifa-determinism
       # above (sourced directly by verify-ifa-determinism.sh, transitively by
-      # verify-ifa-fault-injection.sh via ifa_fault_generic_cells.sh), plus
-      # the generic per-family fault cells, the shard-dispatch mechanism, and
-      # that mechanism's own static mirror module -- fault-only, since none
-      # of the latter three execute inside the determinism gate.
-      - "scripts/lib/ifa_family_registry.sh"
+      # verify-ifa-fault-injection.sh via ifa_fault_generic_cells.sh).
+      #
       # The row files carry every family's data; the orchestrator carries
       # none. Triggering only on the parent would leave a row correction
       # -- the most common edit -- selecting no gate at all.
       - "scripts/lib/ifa_family_registry/**"
-      - "scripts/lib/ifa_fault_shard.sh"
-      # The generic cells dispatcher sources these three mechanism files
-      # through a VARIABLE path, so internal/cigates/scripttrigger.go cannot
-      # see the dependency (it only resolves a literal "scripts/" in a source
-      # line). ifa_fault_generic_shared_intent_lock.sh holds
-      # _ifa_generic_require_intent_writer -- the mandatory non-vacuity
-      # precondition this whole change rests on -- so without this glob,
-      # weakening it would re-run no gate at all.
-      - "scripts/lib/ifa_fault_generic_*.sh"
-      - "scripts/lib/ifa_fault_generic_cells.sh"
-      - "scripts/lib/test-ifa-fault-injection-shard-cases.sh"
-      - "scripts/lib/test-ifa-fault-injection-generic-table-lock-cases.sh"
-      - "scripts/lib/test-ifa-fault-injection-generic-shared-intent-lock-cases.sh"
-      - "scripts/lib/test-ifa-fault-injection-generic-family-drive-cases.sh"
-      - "scripts/lib/test-ifa-fault-injection-generic-runner-lease-hold-cases.sh"
       # Declared, existence-checked, sourced and run by the fault mirror on the
-      # same source line as the lease-hold module above -- and it landed without
+      # same source line as the runner-lease-hold module -- and it landed without
       # a row, so a PR editing only it selected no Ifa gate at all (#6161).
       - "scripts/lib/test-ifa-fault-injection-generic-runner-lease-audit-cases.sh"
-      - "scripts/lib/test-ifa-fault-injection-generic-modules.sh"
-      - "scripts/lib/ifa_repo_dependency_live.sh"
-      - "scripts/lib/ifa_fault_injection_repo_dependency_cells.sh"
-      - "scripts/lib/test-ifa-fault-injection-repo-dependency-cases.sh"
-      # Split out of the file immediately above once it crossed the
-      # 500-line cap; sourced only by
-      # scripts/test-verify-ifa-fault-injection.sh, so fault-only here
-      # (unlike its sibling immediately above, which is wired into both
-      # gate blocks -- a pre-existing pattern not revisited by this edit).
-      - "scripts/lib/test-ifa-fault-injection-repo-dependency-lease-cases.sh"
       - "testdata/cassettes/repodependency/**"
       - "go/internal/ifa/testdata/repodependency/**"
-      - "go/internal/ifa/repo_dependency_family_*.go"
-      - "scripts/lib/ifa_workload_dependency_live.sh"
-      - "scripts/lib/ifa_fault_injection_workload_dependency_cells.sh"
-      - "scripts/lib/test-ifa-fault-injection-workload-dependency-cases.sh"
       - "testdata/cassettes/workloaddependency/**"
       - "go/internal/ifa/testdata/workloaddependency/**"
-      - "go/internal/ifa/workload_dependency_family_*.go"
-      - "go/internal/reducer/workload_dependency*.go"
       - "go/internal/storage/cypher/materialized_edge_endpoints.go"
       - "go/internal/collector/gitrepo/git_fact_builder*.go"
       - "go/internal/collector/gitrepo/git_followup_facts.go"
       - "go/internal/projector/canonical_import_extract.go"
       - "go/internal/projector/workload_dependency_cassette_admission_test.go"
-      - "go/internal/reducer/platform_materialization.go"
-      - "go/internal/reducer/platform_materialization_writer.go"
-      - "go/internal/reducer/workload_materialization_repo_phase.go"
-      - "go/internal/reducer/workload_materializer.go"
-      - "go/internal/reducer/workload_materializer_retract_instances.go"
       - "go/internal/storage/postgres/ingestion_reopen*.go"
-      - "go/internal/reducer/repo_dependency*.go"
-      - "go/internal/reducer/cross_repo_intent_row.go"
-      - "go/internal/reducer/cross_repo_resolution.go"
-      - "go/internal/reducer/projection.go"
-      - "go/internal/reducer/workload_materialization_handler.go"
-      - "go/internal/reducer/platforms.go"
-      - "go/internal/reducer/infrastructure_platform_materializer.go"
       - "go/internal/storage/cypher/materialized_edge_repo_dependency.go"
       - "go/internal/storage/cypher/canonical_relationships.go"
+      # Restored as explicit entries alongside the broader globs above.
+      # The broader globs cover these paths, but materialized_edges_lockstep_test.go
+      # pins the literal trigger text (slices.Contains, not a path match), and the
+      # pin is the thing that stops a catalog or vacuity-guard edit from drifting
+      # out of the live gates unnoticed. Keep both: the glob for coverage, the
+      # explicit row for the pin (#6200).
+      - "go/internal/ifa/catalog_seed.go"
+      - "go/internal/ifa/code_call_family_catalog.go"
+      - "go/internal/ifa/deployable_unit_family_catalog.go"
+      - "go/internal/ifa/deployable_unit_family_odu.go"
+      - "go/internal/ifa/documentation_family_catalog.go"
+      - "go/internal/ifa/documentation_family_odu.go"
+      - "go/internal/reducer/code_call*.go"
+      - "go/internal/reducer/deployable_unit*.go"
+      - "go/internal/reducer/documentation_edge*.go"
+      - "scripts/lib/ifa_rationale_live.sh"
+      - "sdk/go/factschema/codegraph/v1/repository.go"
+      # Stem-bearing rows for symbol_runtime and sql_relationship.
+      # TestEveryCoveredFamilyTriggersBothLiveGates requires each covered family
+      # to have at least one trigger whose TEXT contains the family stem, so a
+      # directory glob that covers the same files does not satisfy it. Keeping
+      # these explicit is what ties the coverage row to a gate that re-runs (#6200).
+      - "go/internal/ifa/symbol_runtime_family_odu.go"
+      - "go/internal/reducer/symbol_runtime*.go"
+      - "scripts/lib/ifa_symbol_runtime_live.sh"
+      - "scripts/lib/ifa_fault_injection_symbol_runtime_cells.sh"
+      - "go/internal/ifa/sql_relationship_odu*.go"
+      - "go/internal/reducer/sql_relationship_*.go"
     local:
       command: "bash scripts/test-verify-ifa-fault-injection.sh"
       test_command: "bash scripts/test-verify-ifa-fault-injection.sh"
@@ -3187,6 +3301,19 @@ gates:
       - "scripts/lib/ifa_private_data_pattern.sh"
       - "scripts/verify-ifa-replay-drive.sh"
       - "scripts/test-verify-ifa-replay-drive.sh"
+      # No scripts/lib trigger here, and that is a deliberate gap rather than
+      # an oversight: this mirror sources nothing from that directory today.
+      # An earlier draft of this change carried "scripts/lib/ifa_mirror_*.sh"
+      # ahead of #6161's shared mirror-pin helper, on the reasoning that a
+      # glob may name a surface before the file exists. #6223 closed that:
+      # a glob trigger matching no tracked file is now a hard registry error,
+      # because a trigger that resolves to nothing stops selecting its gate
+      # for good and nothing dangles. The file gets its trigger when the file
+      # lands. That policy binds ifa-determinism-gate.yml's paths: filter
+      # too, even though #6223's rule is registry-only and GitHub tolerates a
+      # glob that matches nothing: a workflow half that starts all four Ifá
+      # jobs on a path the registry selects no gate for is the same
+      # divergence as #6164, pointed the other way.
     local:
       command: "bash scripts/test-verify-ifa-replay-drive.sh"
       test_command: "bash scripts/test-verify-ifa-replay-drive.sh"
