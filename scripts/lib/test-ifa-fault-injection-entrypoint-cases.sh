@@ -148,4 +148,15 @@ run_ifa_fault_lib_cap_coverage_cases() {
 	# hand-written and below the count on disk; it only grows as families land.
 	[[ "${checked}" -ge 20 ]] \
 		|| fail "line-cap coverage checked only ${checked} test-ifa-*.sh module(s); the glob has collapsed and this case would pass vacuously"
+
+	# The private-data scan's positive control lives in a module both mirrors
+	# share, so it is pinned from both sides rather than only from the
+	# determinism scan module. Without this, deleting the control leaves the
+	# pattern handed over unchecked and every file reading clean (#6161).
+	# EXACTLY ONE of each: the control loop's assertion, and the hand-written
+	# sample count that catches a deleted sample.
+	[[ "$(_ifa_count_code_matches '[[ "${rc}" -eq 0 ]] || {' "${private_data_pattern_lib}")" -eq 1 ]] \
+		|| fail "the private-data pattern's positive control no longer asserts that each planted sample matches -- the pattern would be handed over unchecked"
+	[[ "$(_ifa_count_code_matches '"${#samples[@]}" -eq 14' "${private_data_pattern_lib}")" -eq 1 ]] \
+		|| fail "the private-data pattern's sample set is no longer counted at 14 -- add the sample for the new alternative and bump both numbers together"
 }

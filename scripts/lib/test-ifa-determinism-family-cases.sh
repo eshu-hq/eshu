@@ -57,8 +57,10 @@ require_code "SQL delta helper invocation in every cell" "ifa_det_run_sql_delta_
 require_delta_lib "SQL delta cassette drive into every cell" 'eshu-ifa" drive -cassette "${sql_delta_cassette}" -workers "${n}"'
 require_delta_lib "SQL delta populated guard" "SQL delta drive enqueued 0 new fact_work_items rows"
 require_delta_lib "rationale delta populated guard" "rationale delta drive enqueued 0 new fact_work_items rows"
-require_delta_lib "assert-edges verb invocation" '"${bin_dir}/eshu-ifa" assert-edges'
-require_delta_lib "assert-edges domain flag" "-domain sql_relationships"
+# Two assert-edges calls, pre-delta and post-delta, written identically. Either
+# could be deleted with a -ge 1 pin green, taking half the delta proof with it.
+require_delta_lib_count "assert-edges verb invocation, pre- and post-delta" '"${bin_dir}/eshu-ifa" assert-edges' 2
+require_delta_lib_count "assert-edges domain flag on both calls" "-domain sql_relationships" 2
 require_delta_lib "assert-edges expected flag" '-expected "${sql_expected_edges}"'
 require_delta_lib "assert-edges non-vacuity framing" "non-vacuity"
 require_delta_lib "assert-edges no-normalize-away directive" "do NOT normalize this away"
@@ -88,9 +90,15 @@ require_fixture "deployable-unit expected-edge set existence guard" "deployable-
 require_code "sixth binary: bootstrap-index build" "ifa_det_build_bin \"\${bin_dir}\" bootstrap-index"
 require_code "standalone cell helper invocation" "ifa_deployable_unit_live_run_standalone_cell"
 require_deployable_unit_lib "standalone cell function definition" "ifa_deployable_unit_live_run_standalone_cell()"
-require_deployable_unit_lib "drive helper invocation inside the standalone cell" "ifa_deployable_unit_live_drive"
+# These two carry their first ARGUMENT, so they bind the CALL and not the
+# definition. A bare function name has two code occurrences in that lib -- the
+# `name() {` header and the single call -- so replacing either call with `true`
+# left the pin green on the surviving definition, with the family cassette never
+# replayed and the non-vacuity assertion never run (#6161). The sibling pins on
+# either side already had an argument or a `()` suffix and were never exposed.
+require_deployable_unit_lib "drive helper invocation inside the standalone cell" 'ifa_deployable_unit_live_drive "${bin_dir}"'
 require_deployable_unit_lib "pre-maintenance drain before the maintenance pass" "ifa_deployable_unit_live_drain pre"
-require_deployable_unit_lib "empty-before-maintenance non-vacuity assertion" "ifa_deployable_unit_live_assert_empty_before_maintenance"
+require_deployable_unit_lib "empty-before-maintenance non-vacuity assertion" 'ifa_deployable_unit_live_assert_empty_before_maintenance "${bin_dir}"'
 require_deployable_unit_lib "bootstrap-index maintenance pass invocation" "eshu-bootstrap-index"
 require_deployable_unit_lib "post-maintenance drain" "ifa_deployable_unit_live_drain post"
 require_deployable_unit_lib "exact-set assert-edges domain" "-domain deployable_unit_edges"
@@ -114,7 +122,12 @@ require_fixture "rationale cassette existence guard" "rationale cassette not fou
 require_fixture "rationale expected-edge set existence guard" "rationale expected-edge set not found"
 require_fixture "rationale delta cassette existence guard" "rationale delta cassette not found"
 require_fixture "rationale delta expected-record existence guard" "rationale delta expected-record set not found"
-require_code "rationale durable-count helper invocation in every cell" "ifa_rationale_assert_work_counts"
+# Two call sites, one before the delta replay and one after, and the label said
+# "every cell" while binding neither in particular -- deleting either left the
+# pin green on the survivor. They differ in their label argument, so name each
+# one rather than counting: a count says how many, this says which.
+require_code "rationale durable-count check in the main cell" 'ifa_rationale_assert_work_counts "N=${n}"'
+require_code "rationale durable-count check after the delta replay" 'ifa_rationale_assert_work_counts "post-delta N=${n}"'
 require_rationale_lib "rationale cassette drive" 'eshu-ifa" drive -cassette "${cassette}" -workers "${workers}"'
 require_rationale_lib "rationale assert-edges domain" "-domain rationale_edges"
 require_rationale_lib "rationale expected-set argument" '-expected "${expected_edges}"'
@@ -124,7 +137,15 @@ require_rationale_lib "rationale expected-set argument" '-expected "${expected_e
 # for this family could be replaced wholesale and no gate would notice.
 require_rationale_lib "exact durable tuple" 'ifa_rationale_expected_tuple="1|1|0|4|3|1|4|0"'
 require_rationale_lib "exact delta-generation durable tuple" 'ifa_rationale_delta_expected_tuple="1|1|0|1|0|1|1|0"'
-require_rationale_lib "accepted generation exact count" "shared_projection_acceptance"
+# Two occurrences of the bare table name -- the acceptance query and the printf
+# that reports its result -- so an -ge 1 pin on it is satisfied by the printf
+# alone. The note here used to claim mangling the SQL reds; re-measured, it left
+# THIS mirror green and reddened the fault-injection one, which is a different
+# gate and a different failure message. True of the tree, false where it was
+# written, in a note whose whole job is to save the next person the measurement.
+# Bound to the query text now, so mangling the SQL reds here, on this label.
+# The printf stays unpinned on purpose: it reports, nothing reads it (#6161).
+require_rationale_lib "accepted generation exact count" "SELECT count(*) FROM shared_projection_acceptance"
 require_delta_lib "rationale delta is driven before the shared drain" 'ifa_rationale_drive "delta-n${n}"'
 sql_delta_drive_line="$(rg -n --fixed-strings -- 'eshu-ifa" drive -cassette "${sql_delta_cassette}"' "${delta_lib}" | cut -d: -f1 || true)"
 rationale_delta_drive_line="$(rg -n --fixed-strings -- 'ifa_rationale_drive "delta-n${n}"' "${delta_lib}" | cut -d: -f1 || true)"
@@ -186,9 +207,13 @@ require_code "drive loop iterates the family registry, not a hardcoded list" 'do
 # shared-cell family" and never driven or asserted while the gate stayed
 # green. Pin BOTH halves so the fail-closed check cannot be collapsed back
 # into the one-liner.
-require_code "drive/assert loop captures the accessor's exit status separately" 'family_shared_cell="$(ifa_family_shared_cell "${family}")"'
-require_code "drive/assert loop dies when the shared_cell accessor fails" 'refusing to silently skip this family'
-require_code "drive/assert loop skips non-shared_cell families" '[[ "${family_shared_cell}" == "1" ]] || continue'
+# EXACTLY TWO of each: the fail-closed filter is written out once in the DRIVE
+# loop and once in the ASSERT loop, character for character. `-ge 1` was
+# satisfied by whichever copy survived, so either loop could be collapsed back
+# to the one-liner this comment warns about with the mirror green.
+require_code_count "drive/assert loops capture the accessor's exit status separately" 'family_shared_cell="$(ifa_family_shared_cell "${family}")"' 2
+require_code_count "drive/assert loops die when the shared_cell accessor fails" 'refusing to silently skip this family' 2
+require_code_count "drive/assert loops skip non-shared_cell families" '[[ "${family_shared_cell}" == "1" ]] || continue' 2
 require_code "drive loop dispatches through the registry, not a family-specific call" 'ifa_family_registry_drive "${family}" "${n}" "${bin_dir}" "${log_dir}"'
 require_code "assert loop dispatches through the registry, not a family-specific call" 'ifa_family_registry_assert "${family}" "${n}" "${bin_dir}"'
 # The registry-fed redirect must appear exactly twice (drive, then assert) -- a
@@ -250,7 +275,11 @@ require_symbol_runtime_lib "handles_route assert-edges domain" "-domain handles_
 require_symbol_runtime_lib "runs_in assert-edges domain" "-domain runs_in"
 require_symbol_runtime_lib "invokes_cloud_action assert-edges domain" "-domain invokes_cloud_action"
 require_symbol_runtime_lib "symbol-runtime drive takes the labeled signature" 'local label="$1" bin_dir="$2" cassette="$3" workers="$4" log_dir="$5"'
-require_symbol_runtime_lib "handles_route assert is exact-set, not a digest" '-expected "${expected_edges}"'
+# One per family, three in all. The label used to name handles_route while the
+# pin was satisfied by any of the three, so runs_in or invokes_cloud_action could
+# drop its exact-set flag -- turning that family's assertion into something
+# weaker than the exact set the comment above promises -- and stay green.
+require_symbol_runtime_lib_count "all three trio asserts are exact-set, not digests" '-expected "${expected_edges}"' 3
 
 declare -A ifa_det_family_cases_hand_authored=(
 	[sql_relationships]="-domain sql_relationships"

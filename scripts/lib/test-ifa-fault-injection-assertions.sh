@@ -3,16 +3,16 @@
 # File-scoped assertion helpers for scripts/test-verify-ifa-fault-injection.sh.
 # The parent verifier owns strict mode, fail(), and all target path variables.
 
-# require pins a needle ANYWHERE in the gate, comments included. TEN call sites
-# still use it, and every one deliberately binds FRAMING -- overview text,
-# rationale, and the inventory comments that enumerate which cells a proof
-# covers. Those exist only as prose, so routing them through require_code could
-# never pass.
+# require pins a needle ANYWHERE in the gate, comments included. The call sites
+# that still use it all deliberately bind FRAMING -- overview text, rationale,
+# and the inventory comments that enumerate which cells a proof covers. Those
+# exist only as prose, so routing them through require_code could never pass.
 #
-# The rest bind code and use require_code. The exact number is deliberately
-# not spelled here: it drifted twice (45 vs 44) because a prose count in a
-# comment has no gate, which is the same trap three public docs hit with
-# "thirty cells". The split was established
+# Neither that number nor the require_code one is spelled here. The require_code
+# count drifted twice (45 vs 44) because a prose count in a comment has no gate,
+# which is the same trap three public docs hit with "thirty cells" -- and the
+# count on this side drifted the same way, sitting at "TEN" through several
+# rounds while the real figure was eight (#6161). The split was established
 # empirically, not by reading labels: every call site was converted, the mirror
 # run, and only the ones that genuinely could not pass were moved back.
 require() {
@@ -229,7 +229,7 @@ assert_pin_helpers_bind_code() {
 	needle='__ifa_pin_probe_needle__'
 	probe_dir="$(mktemp -d -t ifa-pin-probe.XXXXXX)"
 	printf '#!/usr/bin/env bash\n# %s\n:\n' "${needle}" >"${probe_dir}/comment_only.sh"
-	printf '#!/usr/bin/env bash\n: <<%sIFAEOF%s\n%s\nIFAEOF\n:\n' "'" "'" "${needle}" >"${probe_dir}/heredoc_only.sh"
+	printf '#!/usr/bin/env bash\n: <<%sIFAEOF%s\n%s\nIFAEOF\n:\n' "'" "'" "${needle}" >"${probe_dir}/heredoc_only.sh"; printf '#!/usr/bin/env bash\n: <<%sIFAEOF%s >/dev/null\n%s\nIFAEOF\n:\n' "'" "'" "${needle}" >"${probe_dir}/heredoc_redirect_only.sh"; printf '#!/usr/bin/env bash\n: <<%sIFAEOF >/dev/null\n%s\nIFAEOF\n:\n' '\' "${needle}" >"${probe_dir}/heredoc_bslash_only.sh"; printf '#!/usr/bin/env bash\n: <<%sIFAEOF  # parked\n%s\nIFAEOF\n:\n' '' "${needle}" >"${probe_dir}/heredoc_comment_tail_only.sh"; printf '#!/usr/bin/env bash\n: <<%sIFAEOF-1\n%s\nIFAEOF-1\n:\n' '' "${needle}" >"${probe_dir}/heredoc_hyphen_delim_only.sh"  # trailing-redirection, backslash-quoted, comment-tailed and hyphen-delimiter heredocs; packed for the 500-line cap
 	printf '#!/usr/bin/env bash\n%s\n' "${needle}" >"${probe_dir}/real_code.sh"
 
 	while IFS= read -r fn; do
@@ -246,10 +246,10 @@ assert_pin_helpers_bind_code() {
 				|| fail "${fn}() rejected a needle that IS live code under both call shapes -- the probe cannot distinguish binding from broken, so its comment result proves nothing"
 		fi
 		local probe
-		for probe in comment_only heredoc_only; do
+		for probe in comment_only heredoc_only heredoc_redirect_only heredoc_bslash_only heredoc_comment_tail_only heredoc_hyphen_delim_only; do
 			# Every *_lib-shaped variable is repointed at the probe file, so whichever
 			# target this helper happens to read, it reads the probe.
-			rc=0
+			rc=0; [[ -s "${probe_dir}/${probe}.sh" ]] && rg -qF -- "${needle}" "${probe_dir}/${probe}.sh" || fail "probe ${probe}.sh was not written or lacks the needle; the negative below then fails for the wrong reason and this assertion passes unconditionally"
 			_ifa_pin_probe_run "${fn}" "${probe_dir}/${probe}.sh" "${needle}" "${extra[@]}" || rc=$?
 			[[ "${rc}" -ne 0 ]] \
 				|| fail "${fn}() accepted a needle that appears only in a ${probe//_/ } -- it is not binding code, so a commented-out or dead call site would satisfy every pin that uses it"
@@ -259,7 +259,7 @@ assert_pin_helpers_bind_code() {
 	rm -rf "${probe_dir}"
 	[[ "${checked}" -ge 20 ]] \
 		|| fail "pin-helper behaviour check exercised only ${checked} helper(s); discovery has collapsed and this gate is checking nothing"
-	printf 'pin-helper behaviour check: %s helper(s) executed against comment and heredoc probes\n' "${checked}"
+	printf 'pin-helper behaviour check: %s helper(s) executed against comment, heredoc, trailing-redirection, backslash-delimiter, comment-tail and hyphen-delimiter heredoc probes\n' "${checked}"
 }
 assert_libs_parse() {
 	local lib_var lib_path syntax_checked
@@ -303,22 +303,16 @@ assert_libs_parse() {
 		|| fail "syntax check covered only ${syntax_checked} lib(s); the *_lib derivation has collapsed and nothing is being parsed"
 }
 assert_no_private_data() {
-	local private_pattern f v
+	local private_pattern f v rc
 	local -a targets
-	# Every alternative below brackets one character, so the pattern does not
-	# contain its own literals. A bracketed single-character class matches exactly
-	# the same text as the bare character, so detection is unchanged.
-	#
-	# This is required now that the scan covers every declared *_lib, including
-	# this file. Spelling any of these tokens plainly in this function -- even in
-	# prose explaining them -- makes the scanner flag itself on every run. That
-	# happened twice while writing this comment, which is why it now describes the
-	# tokens rather than quoting them.
-	#
-	# The hazard was latent before, not absent: the literal used to live in the
-	# mirror, whose ${script} points at the GATE, so the mirror never scanned
-	# itself and never noticed.
-	private_pattern='gh[p]_|github_pa[t]_|glpa[t]-|AKI[A]|ASI[A]|xo[x][baprs]-|arn:aw[s]:|(^|[^0-9])[0-9]{12}([^0-9]|$)|/[U]sers/|/[h]ome/[a-z]'
+	# The pattern and its positive control live in ifa_private_data_pattern.sh,
+	# which asserts one planted token per alternative still matches before it
+	# hands the pattern over. It was a literal here and an identical literal in
+	# the determinism scan module, bound by nothing: replacing it with anything
+	# unmatchable left this gate at exit 0, still printing its file count
+	# (#6161). It ASSIGNS rather than prints, because a `fail` inside a command
+	# substitution exits only the subshell and the caller would scan on regardless.
+	ifa_private_data_pattern private_pattern
 
 	# Built as an ARRAY, not an unquoted word list: a repo path containing a
 	# space or a glob character would otherwise split or expand and mis-scan.
@@ -349,9 +343,15 @@ assert_no_private_data() {
 
 	for f in "${targets[@]}"; do
 		[[ -f "${f}" ]] || fail "assert_no_private_data: ${f} does not exist -- a scan that skips a missing file proves nothing"
-		if rg --pcre2 --quiet -- "${private_pattern}" "${f}"; then
-			fail "$(basename "${f}") looks like it contains private data"
-		fi
+		# rc is CAPTURED, not tested through `if`: rg exits 2 on a pattern it
+		# cannot compile, `if` reads that as "no match", and `set -e` does not
+		# apply inside an `if` condition, so one uncompilable pattern made every
+		# file read as clean and this gate passed (#6161).
+		rc=0
+		rg --pcre2 --quiet -- "${private_pattern}" "${f}" || rc=$?
+		[[ "${rc}" -ne 0 ]] || fail "$(basename "${f}") looks like it contains private data"
+		[[ "${rc}" -eq 1 ]] \
+			|| fail "the private-data scan could not run over $(basename "${f}") (rg exit ${rc}); a scanner that cannot run must never read as clean"
 	done
 	printf 'private-data scan: %s file(s) scanned\n' "${#targets[@]}"
 }
@@ -368,10 +368,10 @@ _ifa_count_code_lines_exact() {
 			[[ "${stripped}" == "${heredoc}" ]] && heredoc=""
 			continue
 		fi
-		if [[ "${line}" =~ \<\<-?[[:space:]]*[\'\"]?([A-Za-z_][A-Za-z0-9_]*)[\'\"]?[[:space:]]*$ ]]; then
+		[[ "${stripped}" == "#"* ]] && continue
+		if [[ "${line}" =~ \<\<-?[[:space:]]*\\?[\'\"]?([A-Za-z_][A-Za-z0-9_-]*)[\'\"]?[[:space:]]*([0-9]*[\<\>\|\;\&\)].*|[[:space:]]+#.*)?$ ]]; then
 			heredoc="${BASH_REMATCH[1]}"
 		fi
-		[[ "${stripped}" == "#"* ]] && continue
 		[[ "${stripped}" == "${needle}" ]] && n=$((n + 1))
 	done < "${file}"
 	printf '%s\n' "${n}"
@@ -387,10 +387,11 @@ _ifa_count_code_matches() {
 			[[ "${stripped}" == "${heredoc}" ]] && heredoc=""
 			continue
 		fi
-		if [[ "${line}" =~ \<\<-?[[:space:]]*[\'\"]?([A-Za-z_][A-Za-z0-9_]*)[\'\"]?[[:space:]]*$ ]]; then
+		[[ "${stripped}" == "#"* ]] && continue
+		if [[ "${line}" =~ \<\<-?[[:space:]]*\\?[\'\"]?([A-Za-z_][A-Za-z0-9_-]*)[\'\"]?[[:space:]]*([0-9]*[\<\>\|\;\&\)].*|[[:space:]]+#.*)?$ ]]; then
 			heredoc="${BASH_REMATCH[1]}"
 		fi
-		[[ "${stripped}" == "#"* ]] && continue
+		code="${line%%[[:space:]\;\|\&\(\)\<\>\`]#*}"
 		# Truncate at a `#` that STARTS A WORD (preceded by whitespace), which is
 		# what shell treats as a comment. A blanket `%%#*` also cut at `${#arr[@]}`
 		# and `${var#prefix}`, making any line using those unpinnable -- it silently
@@ -402,7 +403,6 @@ _ifa_count_code_matches() {
 		# which reproduced on HEAD the exact defect the previous round closed --
 		# the shell checker does not flag it, `bash -n` passes, and no gate runs it
 		# on these scripts, so nothing else would have caught it.
-		code="${line%%[[:space:]\;\|\&\(\)\<\>\`]#*}"
 		[[ "${code}" == *"${needle}"* ]] && n=$((n + 1))
 	done < "${file}"
 	printf '%s\n' "${n}"
@@ -423,6 +423,34 @@ require_generic_cells() {
 # edge set. The expected count is hand-written by the caller and deliberately NOT
 # derived from the file under test -- a count read out of the artifact it checks
 # proves only that the artifact equals itself.
+# require_documentation_barrier_count is the exact-count form of
+# require_documentation_barrier. The ACK-barrier lock-identity predicates
+# ("NOT barrier.granted", the two-key objsubid, the per-database bindings) each
+# appear in THREE OR FOUR sibling pg_locks queries, and an -ge 1 pin is satisfied
+# by any one survivor: dropping "NOT barrier.granted" from a single query widened
+# it from ungranted-waiters to all locks and the mirror stayed green (#6161).
+# Each of those predicates narrows the join to the exact lock under test, so
+# losing one from one query is a correctness break in a concurrency proof.
+# The *_count wrappers route through one inner so adding another costs a line,
+# not a block -- this file is near the 500-line cap. Each exists because its
+# needle has several code occurrences that ALL do work, which `-ge 1` cannot
+# express: it is satisfied by whichever survives (#6161). `_ifa_require_count_in`
+# is deliberately not named require*, so the probe exercises the real wrappers.
+_ifa_require_count_in() {
+	local label="$1" needle="$2" want="$3" file="$4" got
+	got="$(_ifa_count_code_matches "${needle}" "${file}")"
+	[[ "${got}" == "${want}" ]] \
+		|| fail "${label}: expected ${want} code occurrence(s) in ${file##*/}, found ${got} -- each one does work, so a -ge 1 pin stays green when one of them is deleted: ${needle}"
+}
+require_cells_count() { _ifa_require_count_in "$1" "$2" "$3" "${cells_lib}"; }
+require_delivery_cells_count() { _ifa_require_count_in "$1" "$2" "$3" "${delivery_cells_lib}"; }
+require_documentation_barrier_setup_count() { _ifa_require_count_in "$1" "$2" "$3" "${documentation_barrier_setup_lib}"; }
+require_documentation_barrier_count() {
+	local label="$1" needle="$2" want="$3" got
+	got="$(_ifa_count_code_matches "${needle}" "${documentation_barrier_lib}")"
+	[[ "${got}" == "${want}" ]] \
+		|| fail "${label}: expected this predicate in ${want} barrier quer(y/ies) in ${documentation_barrier_lib##*/}, found ${got} -- a predicate dropped from one query silently widens it: ${needle}"
+}
 require_generic_cells_count() {
 	local label="$1" needle="$2" want="$3" got
 	got="$(_ifa_count_code_matches "${needle}" "${generic_cells_lib}")"
