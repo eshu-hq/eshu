@@ -201,8 +201,16 @@ var canonicalEntityPhaseSkipProbes = map[string]func(*testing.T){
 		//
 		// An earlier version of this comment said Parameter rows never come
 		// from a content_entity fact at all, which the envelope directly below
-		// it contradicts — the same "registration read as truth" imprecision
+		// it contradicts -- the same "registration read as truth" imprecision
 		// this file exists to close.
+		//
+		// This says the reader accepts the shape, NOT that any live fact
+		// carries it. No collector, parser, SDK, spec or fixture emits a
+		// param_name payload key today, and canonical_builder.go:82 calls it a
+		// Python-era key. So the ledger's Parameter owner names a writer no
+		// current fact reaches -- the same class as Variable, one layer
+		// deeper. Correcting the ledger entry is projected-truth work needing
+		// golden-corpus proof, so it is deliberately not done here.
 		mat, _ := buildCanonicalMaterialization(testScope(), testGeneration(), []facts.Envelope{{
 			FactID:   "param-1",
 			ScopeID:  "scope-1",
