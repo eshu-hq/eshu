@@ -402,7 +402,7 @@ func TestEachLedgerHalfHoldsOnlyItsOwnFamilies(t *testing.T) {
 		switch file {
 		case MaterializedEdgeManifestFileName:
 			if !isShared {
-				t.Errorf("%s carries a row for %q, which %s does not enumerate. If it is a direct-materialization family its row belongs in %s -- a row in the wrong half satisfies every union check in this file and no gate reports it",
+				t.Errorf("%s carries a row for %q, which %s does not enumerate. If it is a direct-materialization family its row belongs in %s -- a row in the wrong half satisfies every union check in this file, so nothing here names the misplacement",
 					file, family, "reducer.MaterializedEdgeFamilies()", MaterializedEdgeDirectManifestFileName)
 			}
 		case MaterializedEdgeDirectManifestFileName:
