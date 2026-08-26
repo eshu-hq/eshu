@@ -192,7 +192,8 @@ is not broken out here).
 | `collectorExtractionReadinessTools` | 2 | `tools_collector_extraction_readiness.go` |
 | `runtimeTools` | 8 | `tools_runtime.go` |
 | `askTools` | 1 | `ask/tools.go` |
-| relationship-edges + repository-files (inline, #4007) | 2 | `tools_relationship_edges.go`, `tools_repository_files.go` |
+| `relationshipEdgesTool` | 1 | `relationships/tools.go` |
+| `repositoryFilesTool` | 1 | `tools_repository_files.go` |
 
 Representative tool-to-route mappings from `resolveRoute` (`dispatch.go:173`):
 
@@ -513,6 +514,7 @@ Internal packages: `internal/buildinfo` (version string for `mcpInitializeResult
 `internal/mcp/cloud` (cloud inventory and runtime-drift tool registrations),
 `internal/mcp/documentation` (documentation tool registration definitions),
 `internal/mcp/playbooks` (query-playbook tool registration definitions),
+`internal/mcp/relationships` (relationship-edge tool registration definition),
 `internal/mcp/toolcontract` (dependency-neutral `ToolDefinition` registration
 shape), `internal/mcp/visualization` (visualization-packet tool registration),
 `internal/query` (`query.ResponseEnvelope`, `query.EnvelopeMIMEType`,

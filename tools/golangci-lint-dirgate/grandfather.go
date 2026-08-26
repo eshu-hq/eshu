@@ -25,7 +25,7 @@ var grandfatheredDirectories = map[string]grandfatherEntry{
 	"internal/collector/gitrepo":  {FileCount: 66, Digest: "774b96b40dbec9964c434c50a6056df7780e8909ecb3a0f43e1ffe17e606eae3"},
 	"internal/coordinator":        {FileCount: 65, Digest: "0d418bdbbf343437422ca03846130877c654e812d7d92c0abcb8e00a8ce5c3de"},
 	"internal/facts":              {FileCount: 45, Digest: "4622f2b6b606a2878aa88dfa1b5e5916edad5ef536989b4136774e25c1367c4e"},
-	"internal/mcp":                {FileCount: 123, Digest: "afe484884b0b5fdaac07e7727b29739ac91fb6305ef8f618a5ba13eeb5ba75f8"},
+	"internal/mcp":                {FileCount: 122, Digest: "4610e46b640973f0aaf09882f98d713cf61c767104521a4f1c10003332e0b632"},
 	"internal/parser":             {FileCount: 47, Digest: "dc6d2390c51ca20550859d3f746a14ec3899765ea31c9a8707532c6e709d2a09", NamingExempt: []string{"c_language.go", "cpp_language.go", "csharp_language.go", "dart_language.go", "dockerfile_language.go", "elixir_language.go", "gomod_language.go", "gradle_language.go", "groovy_language.go", "hcl_language.go", "java_language.go", "java_metadata_files.go", "javascript_language.go", "json_language.go", "kotlin_language.go", "maven_language.go", "perl_haskell_language.go", "php_language.go", "python_dep_language.go", "python_language.go", "ruby_language.go", "rust_language.go", "scala_language.go", "shared_bridge.go", "sql_language.go", "swift_language.go", "yaml_language.go"}},
 	"internal/parser/golang":      {FileCount: 42, Digest: "a27d65bfc9ffe3085e35e66aab932d0c361bea10ac34e407dd3300205379e039"},
 	"internal/parser/javascript":  {FileCount: 48, Digest: "b6aaa1628818f74382a4b7eee937f476f991d613f624a325b930fd89aa7e437c"},

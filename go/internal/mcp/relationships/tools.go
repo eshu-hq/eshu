@@ -1,17 +1,20 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package mcp
+package relationshiptools
 
-import "github.com/eshu-hq/eshu/go/internal/sourcetool"
+import (
+	"github.com/eshu-hq/eshu/go/internal/mcp/toolcontract"
+	"github.com/eshu-hq/eshu/go/internal/sourcetool"
+)
 
-// relationshipEdgesTool defines the bounded relationship-edges read tool. It
+// Tool returns the bounded relationship-edges read tool definition. It
 // proxies POST /api/v0/relationships/edges, which returns a slice of concrete
 // typed edges for one verb from the canonical graph. The optional source_tool
 // filter is validated against the closed sourcetool.Canonical vocabulary before
 // the request is forwarded; an unknown value is rejected with a clear error.
-func relationshipEdgesTool() ToolDefinition {
-	return ToolDefinition{
+func Tool() toolcontract.ToolDefinition {
+	return toolcontract.ToolDefinition{
 		Name: "list_relationship_edges",
 		Description: "List a bounded slice of concrete typed graph edges for one relationship verb, " +
 			"each with source/target endpoints, evidence, and optional source_tool label. " +
