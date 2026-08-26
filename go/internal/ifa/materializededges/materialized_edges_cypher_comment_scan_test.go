@@ -26,6 +26,15 @@ import (
 // string, matching closingParen; a backtick identifier escapes by doubling
 // instead, so a `//` inside one is not a comment and does not get blanked.
 //
+// A `//` comment ends at a bare CR as well as at an LF. Cypher treats a lone
+// \r as a line terminator -- go/internal/ask/sandbox/normalize_cr_test.go pins
+// the same rule for the query sandbox ("bare CR ends Cypher // comment") -- so
+// on CR-only line endings a loop that only stops at \n blanks straight through
+// the terminator and erases the next logical line. A relationship pattern
+// sitting there reads as absent and the port is classified node-only: the
+// silent false-green direction. Both terminators are left in place, so a CRLF
+// keeps both of its bytes.
+//
 // Blanked rather than deleted so byte offsets and line positions survive:
 // mergesRelationship indexes back into the text it was handed, and
 // relationshipMergeLine quotes the RAW line at the position of the stripped
@@ -70,7 +79,9 @@ func stripCypherComments(value string) string {
 			quote = c
 			i++
 		case c == '/' && i+1 < len(out) && out[i+1] == '/':
-			for ; i < len(out) && out[i] != '\n'; i++ {
+			// A bare \r ends the comment exactly as \n does -- see the doc
+			// above. Stopping only on \n blanked the following logical line.
+			for ; i < len(out) && out[i] != '\n' && out[i] != '\r'; i++ {
 				out[i] = ' '
 			}
 		case c == '/' && i+1 < len(out) && out[i+1] == '*':
@@ -132,6 +143,21 @@ func TestCypherCommentsDoNotHideARelationshipMerge(t *testing.T) {
 			wantLine: "",
 		},
 		{
+			// The one that misread. A bare CR is a line terminator, so the
+			// comment ends there and the relationship on the next logical line
+			// is code -- the blanking loop ran past it to the end of the value.
+			name:     "bare CR ends the line comment before the relationship",
+			cypher:   "MERGE (n:Label)  // the node, not the edge\r-[rel:REVIEW_PROBE_FLOWS_TO]->(m)",
+			want:     true,
+			wantLine: "",
+		},
+		{
+			name:     "CRLF ends the line comment before the relationship",
+			cypher:   "MERGE (n:Label)  // the node, not the edge\r\n-[rel:REVIEW_PROBE_FLOWS_TO]->(m)",
+			want:     true,
+			wantLine: "",
+		},
+		{
 			name:     "unbalanced paren in a line comment inside the node pattern",
 			cypher:   "MERGE (n:Label { // keyed on the coalesced id (see #6181\n  id: $id\n})-[rel:REVIEW_PROBE_FLOWS_TO]->(m)",
 			want:     true,
@@ -186,6 +212,14 @@ func TestCypherCommentsDoNotHideARelationshipMerge(t *testing.T) {
 		{
 			name:   "a node-only merge whose trailing comment quotes a relationship",
 			cypher: "MERGE (n:Label) // -[rel:REVIEW_PROBE_FLOWS_TO]->(m)",
+			want:   false,
+		},
+		{
+			// The other half of the CR rule: ending the comment at the CR must
+			// not reveal what is INSIDE it. The merge here is comment text and
+			// the code after the CR merges nothing.
+			name:   "a CR-terminated commented-out merge is still not a write site",
+			cypher: "// MERGE (a)-[rel:REVIEW_PROBE_FLOWS_TO]->(b)\rMATCH (n) RETURN n",
 			want:   false,
 		},
 	} {
@@ -290,6 +324,16 @@ func TestStripCypherCommentsBlanksCommentsInPlace(t *testing.T) {
 			name:  "line comment becomes spaces and the newline survives",
 			value: "MERGE (a) // tail\nMERGE (b)",
 			want:  "MERGE (a)        \nMERGE (b)",
+		},
+		{
+			name:  "line comment ends at a bare CR and the CR survives",
+			value: "MERGE (a) // tail\rMERGE (b)",
+			want:  "MERGE (a)        \rMERGE (b)",
+		},
+		{
+			name:  "line comment ends at the CR of a CRLF and both bytes survive",
+			value: "MERGE (a) // tail\r\nMERGE (b)",
+			want:  "MERGE (a)        \r\nMERGE (b)",
 		},
 		{
 			name:  "block comment becomes spaces and its newlines survive",
