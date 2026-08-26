@@ -75,6 +75,9 @@ func TestProvenanceReplayTombstoneCassetteDecisions(t *testing.T) {
 		got[0]["repository_id"] != provenanceReplayBuildRepoID {
 		t.Fatalf("generation 1 BUILT_FROM rows = %#v, want one build-source row", got)
 	}
+	if got := reducer.ContainerImageDerivedFromRowsForReplayTest(containerGen1, provenanceReplayBuildRepoID); len(got) != 1 {
+		t.Fatalf("generation 1 DERIVED_FROM rows = %#v, want one base-image lineage row", got)
+	}
 
 	if got := reducer.BuildPackageSourceCorrelationDecisions(gen2.facts); len(got) != 0 {
 		t.Fatalf("generation 2 package decisions = %#v, want none", got)
@@ -86,6 +89,11 @@ func TestProvenanceReplayTombstoneCassetteDecisions(t *testing.T) {
 		reducer.BuildContainerImageIdentityDecisions(gen2.facts),
 	); len(got) != 0 {
 		t.Fatalf("generation 2 BUILT_FROM rows = %#v, want none", got)
+	}
+	if got := reducer.ContainerImageDerivedFromRowsForReplayTest(
+		reducer.BuildContainerImageIdentityDecisions(gen2.facts), provenanceReplayBuildRepoID,
+	); len(got) != 0 {
+		t.Fatalf("generation 2 DERIVED_FROM rows = %#v, want none", got)
 	}
 	assertProvenanceReplayEndpoints(t, gen2.facts)
 }

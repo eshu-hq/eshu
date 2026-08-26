@@ -29,6 +29,15 @@ func ContainerImageBuiltFromRowsForReplayTest(
 	return containerImageBuiltFromRows(decisions)
 }
 
+// ContainerImageDerivedFromRowsForReplayTest exposes the package-private row
+// mapper only to the external replay test compiled with this package's tests.
+func ContainerImageDerivedFromRowsForReplayTest(
+	decisions []ContainerImageIdentityDecision,
+	repositoryID string,
+) []map[string]any {
+	return containerImageDerivedFromRows(decisions, repositoryID)
+}
+
 // ProjectPackageProvenanceEdgesForReplayTest drives the package-private
 // retract-first projection through the real writer supplied by the replay test.
 func ProjectPackageProvenanceEdgesForReplayTest(
