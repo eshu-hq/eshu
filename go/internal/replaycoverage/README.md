@@ -9,8 +9,9 @@ coverage manifest + lockstep gate**
 [#4366](https://github.com/eshu-hq/eshu/issues/4366), epic
 [#4172](https://github.com/eshu-hq/eshu/issues/4172)). It answers one question:
 **does every surface and required scenario-depth class Eshu claims to support
-have a green, credential-free, Docker-free replay scenario — and will CI notice
-when a new one doesn't?**
+map to a committed replay scenario and an enforceable proof gate — and will CI
+notice when a new one doesn't?** The inventory check is credential-free and
+Docker-free; backend-required scenarios run in their named proof gates.
 
 It is the typed, unit-tested logic; the orchestration that loads the registries,
 writes the report, and sets the exit code lives in

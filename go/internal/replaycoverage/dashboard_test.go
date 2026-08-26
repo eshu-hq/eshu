@@ -75,10 +75,15 @@ func TestRenderDashboardShowsAxesGapsAndCovered(t *testing.T) {
 		"golden-corpus-gate",
 		"`testdata/cassettes/awscloud/x.json`",
 		"mode: advisory",
+		"Each row maps to a committed scenario and the named proof gate that must pass",
+		"The inventory check itself is credential-free and Docker-free",
 	} {
 		if !strings.Contains(out, want) {
 			t.Errorf("dashboard missing %q", want)
 		}
+	}
+	if strings.Contains(out, "credential-free, Docker-free replay scenario") {
+		t.Error("dashboard must not claim backend-required replay scenarios are Docker-free")
 	}
 }
 
