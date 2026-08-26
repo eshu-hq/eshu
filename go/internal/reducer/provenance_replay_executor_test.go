@@ -103,22 +103,3 @@ func (e provenanceReplayExecutor) readRows(
 	}
 	return rows, nil
 }
-
-func (e provenanceReplayExecutor) count(
-	ctx context.Context,
-	query string,
-	params map[string]any,
-) (int64, error) {
-	rows, err := e.readRows(ctx, query, params)
-	if err != nil {
-		return 0, err
-	}
-	if len(rows) != 1 {
-		return 0, fmt.Errorf("count query rows = %d, want one", len(rows))
-	}
-	count, ok := rows[0]["count"].(int64)
-	if !ok {
-		return 0, fmt.Errorf("count query value has type %T, want int64", rows[0]["count"])
-	}
-	return count, nil
-}
