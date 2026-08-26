@@ -16,6 +16,7 @@ package materializededges
 import (
 	"regexp"
 	"strings"
+	"testing"
 )
 
 // relationshipMergeKeywordPattern finds where a Cypher clause that may CREATE a
@@ -165,11 +166,52 @@ func relationshipMergeLine(value string) (string, bool) {
 	if !mergesRelationship(scannable) {
 		return "", false
 	}
-	raw := strings.Split(value, "\n")
-	for i, line := range strings.Split(scannable, "\n") {
+	raw := splitCypherLines(value)
+	for i, line := range splitCypherLines(scannable) {
 		if mergesRelationship(line) {
 			return strings.TrimSpace(raw[i]), true
 		}
 	}
 	return strings.TrimSpace(value), true
+}
+
+// TestRelationshipMergeEvidenceQuotesTheMergingLineOnBareCR holds the evidence
+// string to the line that actually merged when the template uses bare-CR line
+// endings.
+//
+// The expected line here is not read back from the implementation: in
+// "MERGE (a:Thing)\rMERGE (a)-[r:T]->(b)\rRETURN a" exactly one of the three
+// logical lines carries a relationship pattern, so that line is the only
+// defensible evidence. Before splitCypherLines the whole template came back as
+// one line and was quoted whole.
+func TestRelationshipMergeEvidenceQuotesTheMergingLineOnBareCR(t *testing.T) {
+	t.Parallel()
+
+	const template = "MERGE (a:Thing)\rMERGE (a)-[r:T]->(b)\rRETURN a"
+	const want = "MERGE (a)-[r:T]->(b)"
+
+	got, ok := relationshipMergeLine(template)
+	if !ok {
+		t.Fatalf("relationshipMergeLine(%q) found no relationship merge", template)
+	}
+	if got != want {
+		t.Errorf("evidence line for a CR-only template:\n  got  %q\n  want %q", got, want)
+	}
+}
+
+// splitCypherLines splits on the same terminators the comment scan stops at:
+// CRLF, a bare CR, and a bare LF.
+//
+// Splitting on "\n" alone made a CR-only template one single line, so the
+// evidence quoted the whole template instead of the line that merged. The
+// verdict was never wrong -- mergesRelationship reads the blanked text either
+// way -- but the operator-facing string was, which is the half a human reads.
+//
+// Both the raw and the blanked text go through this, and the blanking
+// preserves every CR and LF byte in place, so the two keep the same line count
+// and the indexes stay aligned.
+func splitCypherLines(value string) []string {
+	normalized := strings.ReplaceAll(value, "\r\n", "\n")
+	normalized = strings.ReplaceAll(normalized, "\r", "\n")
+	return strings.Split(normalized, "\n")
 }
