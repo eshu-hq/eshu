@@ -160,7 +160,7 @@ func writeAxisTable(b *strings.Builder, rep CoverageReport) {
 func writeGaps(b *strings.Builder, rep CoverageReport) {
 	b.WriteString("## Gaps — surfaces still needing a replay scenario\n\n")
 	if len(rep.Gaps) == 0 {
-		b.WriteString("None. Every supported surface has a replay scenario.\n\n")
+		b.WriteString("None. Every non-exempt required surface has a replay scenario; exemptions carry audited reasons.\n\n")
 		return
 	}
 	fmt.Fprintf(b, "%d surface(s) uncovered or unresolved:\n\n", len(rep.Gaps))

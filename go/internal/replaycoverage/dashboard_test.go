@@ -113,14 +113,26 @@ func TestRenderDashboardBlockingModeAndCounts(t *testing.T) {
 }
 
 func TestRenderDashboardAllCoveredCelebrates(t *testing.T) {
-	cov := Coverage{Surfaces: []SurfaceCoverage{{
-		Surface:  SupportedSurface{Registry: RegistryParserLedger, Key: "parser:hcl"},
-		Status:   StatusCovered,
-		Scenario: &CoverageEntry{Scenario: ScenarioParserFixture, ScenarioType: ScenarioTypeBaseline, Ref: "x", ProofGate: "parserfixture-tests"},
-	}}}
+	cov := Coverage{Surfaces: []SurfaceCoverage{
+		{
+			Surface:  SupportedSurface{Registry: RegistryParserLedger, Key: "parser:hcl"},
+			Status:   StatusCovered,
+			Scenario: &CoverageEntry{Scenario: ScenarioParserFixture, ScenarioType: ScenarioTypeBaseline, Ref: "x", ProofGate: "parserfixture-tests"},
+		},
+		{
+			Surface:      SupportedSurface{Registry: RegistrySurfaceInventory, Key: "collector:git"},
+			ScenarioType: ScenarioTypeBaseline,
+			Status:       StatusExempt,
+			Exemption:    &Exemption{Surface: "collector:git", Reason: "filesystem-native collector"},
+			Detail:       "filesystem-native collector",
+		},
+	}}
 	out := string(RenderDashboard(BuildReport(cov, true)))
-	if !strings.Contains(out, "Every supported surface has a replay scenario") {
+	if !strings.Contains(out, "Every non-exempt required surface has a replay scenario; exemptions carry audited reasons") {
 		t.Errorf("all-covered dashboard should show the no-gaps message; got:\n%s", out)
+	}
+	if strings.Contains(out, "Every supported surface has a replay scenario") {
+		t.Error("no-gaps message must not claim exempt surfaces have replay scenarios")
 	}
 }
 

@@ -44,7 +44,7 @@ Every ledger language is satisfied by corpus or parser fixture coverage.
 
 ## Gaps — surfaces still needing a replay scenario
 
-None. Every supported surface has a replay scenario.
+None. Every non-exempt required surface has a replay scenario; exemptions carry audited reasons.
 
 ## Covered surfaces (437)
 
