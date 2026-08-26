@@ -73,15 +73,21 @@ func TestProvenanceReplayTombstoneCassetteDecisions(t *testing.T) {
 		t.Fatalf("generation 1 publication PUBLISHES rows = %#v, want one package-version row", got)
 	}
 	containerGen1 := reducer.BuildContainerImageIdentityDecisions(gen1.facts)
-	if got := reducer.ContainerImageBuiltFromRowsForReplayTest(containerGen1); len(got) != 1 ||
-		got[0]["digest"] != provenanceReplayContainerDigest ||
-		got[0]["repository_id"] != provenanceReplayBuildRepoID {
-		t.Fatalf("generation 1 BUILT_FROM rows = %#v, want one build-source row", got)
+	builtFromRows, derivedFromRows, err := reducer.ContainerImageEffectiveRowsForReplayTest(
+		containerGen1, provenanceReplayBuildRepoID,
+	)
+	if err != nil {
+		t.Fatalf("generation 1 effective container image rows: %v", err)
 	}
-	if got := reducer.ContainerImageDerivedFromRowsForReplayTest(containerGen1, provenanceReplayBuildRepoID); len(got) != 1 ||
-		got[0]["digest"] != provenanceReplayContainerDigest ||
-		got[0]["base_digest"] != provenanceReplayBaseDigest {
-		t.Fatalf("generation 1 DERIVED_FROM rows = %#v, want child-to-base lineage row", got)
+	if len(builtFromRows) != 1 ||
+		builtFromRows[0]["digest"] != provenanceReplayContainerDigest ||
+		builtFromRows[0]["repository_id"] != provenanceReplayBuildRepoID {
+		t.Fatalf("generation 1 BUILT_FROM rows = %#v, want one build-source row", builtFromRows)
+	}
+	if len(derivedFromRows) != 1 ||
+		derivedFromRows[0]["digest"] != provenanceReplayContainerDigest ||
+		derivedFromRows[0]["base_digest"] != provenanceReplayBaseDigest {
+		t.Fatalf("generation 1 DERIVED_FROM rows = %#v, want child-to-base lineage row", derivedFromRows)
 	}
 
 	if got := reducer.BuildPackageSourceCorrelationDecisions(gen2.facts); len(got) != 0 {
@@ -90,15 +96,18 @@ func TestProvenanceReplayTombstoneCassetteDecisions(t *testing.T) {
 	if got := reducer.BuildPackagePublicationDecisions(gen2.facts); len(got) != 0 {
 		t.Fatalf("generation 2 publication decisions = %#v, want none", got)
 	}
-	if got := reducer.ContainerImageBuiltFromRowsForReplayTest(
-		reducer.BuildContainerImageIdentityDecisions(gen2.facts),
-	); len(got) != 0 {
-		t.Fatalf("generation 2 BUILT_FROM rows = %#v, want none", got)
+	containerGen2 := reducer.BuildContainerImageIdentityDecisions(gen2.facts)
+	builtFromRows, derivedFromRows, err = reducer.ContainerImageEffectiveRowsForReplayTest(
+		containerGen2, provenanceReplayBuildRepoID,
+	)
+	if err != nil {
+		t.Fatalf("generation 2 effective container image rows: %v", err)
 	}
-	if got := reducer.ContainerImageDerivedFromRowsForReplayTest(
-		reducer.BuildContainerImageIdentityDecisions(gen2.facts), provenanceReplayBuildRepoID,
-	); len(got) != 0 {
-		t.Fatalf("generation 2 DERIVED_FROM rows = %#v, want none", got)
+	if len(builtFromRows) != 0 {
+		t.Fatalf("generation 2 BUILT_FROM rows = %#v, want none", builtFromRows)
+	}
+	if len(derivedFromRows) != 0 {
+		t.Fatalf("generation 2 DERIVED_FROM rows = %#v, want none", derivedFromRows)
 	}
 	assertProvenanceReplayEndpoints(t, gen2.facts)
 }
@@ -290,15 +299,10 @@ func projectProvenanceReplayGeneration(
 		t.Fatalf("project %s package provenance: %v", generation.generation.GenerationID, err)
 	}
 	containerDecisions := reducer.BuildContainerImageIdentityDecisions(generation.facts)
-	if err := reducer.ProjectContainerImageBuiltFromEdgesForReplayTest(
-		ctx, writer, generation.scope.ScopeID, generation.generation.GenerationID, containerDecisions,
+	if err := reducer.ProjectEffectiveContainerImageIdentityEdgesForReplayTest(
+		ctx, writer, writer, generation.scope.ScopeID, generation.generation.GenerationID, containerDecisions,
 	); err != nil {
-		t.Fatalf("project %s container provenance: %v", generation.generation.GenerationID, err)
-	}
-	if err := reducer.ProjectContainerImageDerivedFromEdgesForReplayTest(
-		ctx, writer, generation.scope.ScopeID, generation.generation.GenerationID, containerDecisions,
-	); err != nil {
-		t.Fatalf("project %s container lineage: %v", generation.generation.GenerationID, err)
+		t.Fatalf("project %s effective container provenance: %v", generation.generation.GenerationID, err)
 	}
 }
 
