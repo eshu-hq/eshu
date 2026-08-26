@@ -53,7 +53,13 @@ var relationshipMergeKeywordPattern = regexp.MustCompile(`(?i)\b(?:MERGE|CREATE)
 // had it — whitespace, then an optional `<`, then `-[` — so a `-[` appearing
 // anywhere later in the template still does not make an unrelated clause read
 // as a relationship merge.
+//
+// stripCypherComments blanks comments before any of that runs, because all
+// three readers misread one: the keyword pattern matches a MERGE written inside
+// a comment, an unbalanced `)` in a comment moves the walk's depth, and a
+// comment between the node pattern and its `-[` breaks the adjacency.
 func mergesRelationship(value string) bool {
+	value = stripCypherComments(value)
 	for offset := 0; offset < len(value); {
 		loc := relationshipMergeKeywordPattern.FindStringIndex(value[offset:])
 		if loc == nil {
@@ -86,12 +92,17 @@ func mergesRelationship(value string) bool {
 // does. A backslash escapes the next byte so an escaped quote does not end the
 // string.
 //
+// Comments are not this function's problem: mergesRelationship blanks them
+// first. Not free — a `'` in `// the repo's id` used to open a quoted region
+// here and swallow the rest of the template, a false-green the quote tracking
+// below introduced. TestCypherCommentsDoNotHideARelationshipMerge holds it.
+//
 // Limit, measured rather than assumed: an UNTERMINATED quote makes the walk run
 // to the end without ever closing the node pattern, so the port reads node-only
 // — the false-GREEN direction. Ten adversarial inputs were tried (unterminated
 // single and double quotes, a trailing backslash, a backtick label, mixed quote
-// types, a quote in a trailing comment, an escaped backslash before a closing
-// quote, and the empty and lone-paren cases); none panicked or looped, and only
+// types, an escaped backslash before a closing quote, and the empty and
+// lone-paren cases); none panicked or looped, and only
 // the two unterminated-quote inputs misclassify. An unterminated quote is not
 // valid Cypher, so no template that compiles can reach it — but that is the
 // reason it is safe, and it is worth stating rather than implying the walk
@@ -296,13 +307,20 @@ func (s *cypherPackageSource) reachesRelationshipMerge(key string) (string, bool
 
 // relationshipMergeLine returns the first line of value that merges a
 // relationship.
+//
+// The search runs over comment-blanked text and the evidence quotes the RAW
+// line at the same position: searching raw lines would read a MERGE inside a
+// block comment as the write site, and quoting the stripped line would hand an
+// operator a row of spaces. The blanking is in place, so the splits align.
 func relationshipMergeLine(value string) (string, bool) {
-	if !mergesRelationship(value) {
+	scannable := stripCypherComments(value)
+	if !mergesRelationship(scannable) {
 		return "", false
 	}
-	for _, line := range strings.Split(value, "\n") {
+	raw := strings.Split(value, "\n")
+	for i, line := range strings.Split(scannable, "\n") {
 		if mergesRelationship(line) {
-			return strings.TrimSpace(line), true
+			return strings.TrimSpace(raw[i]), true
 		}
 	}
 	return strings.TrimSpace(value), true
