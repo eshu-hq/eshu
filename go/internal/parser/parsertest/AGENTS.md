@@ -19,6 +19,8 @@
 ## Common changes and how to scope them
 
 - Add a helper only after two external parser tests need the same assertion.
+- Keep returned bucket-item and string-slice helpers strict: require
+  `[]map[string]any` and `[]string`, and preserve the original failure text.
 - Migrate one language family at a time and keep its fixtures and assertions
   unchanged.
 - Test helper changes through the consuming external parser package and the

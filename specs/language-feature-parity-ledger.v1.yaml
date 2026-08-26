@@ -30,7 +30,7 @@ language_features:
     partial_features: [c-http-framework-route-truth]
     derived_features: []
     source_files: [go/internal/parser/c_language.go, go/internal/parser/c/parser.go]
-    test_files: [go/internal/parser/engine_systems_test.go, go/internal/parser/c_dead_code_roots_test.go]
+    test_files: [go/internal/parser/engine_systems_test.go, go/internal/parser/c/engine_c_dead_code_roots_test.go]
     docs: [docs/public/languages/c.md]
     read_surfaces: [execute_language_query, find_dead_code]
     tracking_issues: [4038, 4116]

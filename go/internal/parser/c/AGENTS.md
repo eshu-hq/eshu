@@ -7,11 +7,14 @@
 3. parser.go - C payload extraction
 4. dead_code_roots.go - C root metadata for dead-code reachability
 5. helpers.go - local helper functions copied out of the parent package
+6. engine_c_dead_code_roots_test.go - external black-box Engine coverage for C roots
 
 ## Invariants This Package Enforces
 
 - Dependency direction stays one way: parent parser code may import this
-  package, but this package must not import internal/parser.
+  package, but production code and same-package tests here must not import
+  internal/parser. External `c_test` Engine tests may use `parsertest`, which
+  owns that test-only dependency.
 - The caller owns tree-sitter parser construction and closing.
 - Parse and PreScan must preserve the parent engine payload shape.
 - Dead-code public header roots stay bounded to directly included local headers.
@@ -34,8 +37,9 @@
 
 ## Common Changes And Scope
 
-- Add C parser behavior by starting with focused parser tests in the parent
-  parser package or this package.
+- Add C adapter behavior with focused same-package tests. Add public Engine
+  behavior to `engine_c_dead_code_roots_test.go` as an external `c_test` when
+  the assertion belongs to the C family.
 - Add dead-code root behavior in `dead_code_roots.go` and pair it with query
   tests that prove rooted C functions are suppressed from cleanup results.
 - Keep registry dispatch and runtime parser lookup in the parent parser package.
@@ -43,7 +47,9 @@
 
 ## Anti-Patterns
 
-- Importing the parent parser package.
+- Importing the parent parser package from production code or same-package
+  tests. External `c_test` files use `parsertest` instead of importing the
+  parent directly.
 - Moving registry or engine dispatch into this package.
 - Changing payload keys without updating downstream parser tests.
 - Treating every non-static C function as public API without header evidence.
@@ -127,9 +133,10 @@ for the full performance evidence.
   call-expression-based root, in both source orderings.
   `TestGatherResolveForwardReferenceSignalHandler` pins that a signal handler
   registered before its own definition still resolves. All pre-existing
-  parent-package C dead-code-root tests
-  (`go/internal/parser/c_dead_code_roots_test.go`) stayed green with zero
-  changes. `0/0` symmetric diff (`diff` + `comm -3` both empty) over the
+  C dead-code-root Engine tests now owned by
+  `go/internal/parser/c/engine_c_dead_code_roots_test.go` preserve the same
+  seven test cases and assertions. `0/0` symmetric diff (`diff` + `comm -3`
+  both empty) over the
   24-file C/H fixture corpus via `equivalence_dump_test.go`
   (`C_PARSE_DUMP`), old worktree vs. new worktree.
 - No-Observability-Change: this package emits no telemetry by design; the

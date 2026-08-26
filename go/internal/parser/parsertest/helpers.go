@@ -55,6 +55,47 @@ func AssertNamedBucketContains(t *testing.T, payload map[string]any, key string,
 	t.Fatalf("%s missing name %q in %#v", key, wantName, items)
 }
 
+// AssertBucketItemByName requires payload[key] to be a map slice and returns
+// the item whose name field equals wantName.
+func AssertBucketItemByName(
+	t *testing.T,
+	payload map[string]any,
+	key string,
+	wantName string,
+) map[string]any {
+	t.Helper()
+
+	items, ok := payload[key].([]map[string]any)
+	if !ok {
+		t.Fatalf("%s = %T, want []map[string]any", key, payload[key])
+	}
+	for _, item := range items {
+		name, _ := item["name"].(string)
+		if name == wantName {
+			return item
+		}
+	}
+	t.Fatalf("%s missing name %q in %#v", key, wantName, items)
+	return nil
+}
+
+// AssertStringSliceContains requires item[field] to be a string slice that
+// contains want.
+func AssertStringSliceContains(t *testing.T, item map[string]any, field string, want string) {
+	t.Helper()
+
+	got, ok := item[field].([]string)
+	if !ok {
+		t.Fatalf("%s = %T, want []string", field, item[field])
+	}
+	for _, value := range got {
+		if value == want {
+			return
+		}
+	}
+	t.Fatalf("%s = %#v, want to contain %#v", field, got, want)
+}
+
 // AssertBucketContainsFieldValue requires payload[key] to be a map slice with
 // one item whose field equals wantValue.
 func AssertBucketContainsFieldValue(

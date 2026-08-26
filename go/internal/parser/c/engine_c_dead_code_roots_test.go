@@ -1,34 +1,48 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package parser
+package c_test
 
 import (
 	"os"
 	"path/filepath"
+	"runtime"
 	"testing"
+
+	"github.com/eshu-hq/eshu/go/internal/parser/parsertest"
 )
+
+func cFixturePath(t *testing.T, pathParts ...string) string {
+	t.Helper()
+
+	_, sourceFile, _, ok := runtime.Caller(0)
+	if !ok || sourceFile == "" {
+		t.Fatal("runtime.Caller(0) could not locate C test source file")
+		return ""
+	}
+
+	fixtureParts := []string{filepath.Dir(sourceFile), "..", "..", "..", "..", "tests", "fixtures"}
+	return filepath.Join(append(fixtureParts, pathParts...)...)
+}
+
+func assertFunctionByName(t *testing.T, payload map[string]any, name string) map[string]any {
+	t.Helper()
+
+	return parsertest.AssertBucketItemByName(t, payload, "functions", name)
+}
 
 func TestDefaultEngineParsePathCDeadCodeFixtureExpectedRoots(t *testing.T) {
 	t.Parallel()
 
-	repoRoot := repoFixturePath("deadcode", "c")
-	sourcePath := repoFixturePath("deadcode", "c", "fixture.c")
+	repoRoot := cFixturePath(t, "deadcode", "c")
+	sourcePath := cFixturePath(t, "deadcode", "c", "fixture.c")
 
-	engine, err := DefaultEngine()
-	if err != nil {
-		t.Fatalf("DefaultEngine() error = %v, want nil", err)
-	}
+	got := parsertest.MustParsePath(t, repoRoot, sourcePath)
 
-	got, err := engine.ParsePath(repoRoot, sourcePath, false, Options{})
-	if err != nil {
-		t.Fatalf("ParsePath(%s) error = %v, want nil", sourcePath, err)
-	}
-
-	assertParserStringSliceContains(t, assertFunctionByName(t, got, "main"), "dead_code_root_kinds", "c.main_function")
-	assertParserStringSliceContains(t, assertFunctionByName(t, got, "eshu_c_public_api"), "dead_code_root_kinds", "c.public_header_api")
-	assertParserStringSliceContains(t, assertFunctionByName(t, got, "registered_signal_handler"), "dead_code_root_kinds", "c.signal_handler")
-	assertParserStringSliceContains(t, assertFunctionByName(t, got, "dispatch_target"), "dead_code_root_kinds", "c.function_pointer_target")
+	parsertest.AssertStringSliceContains(t, assertFunctionByName(t, got, "main"), "dead_code_root_kinds", "c.main_function")
+	parsertest.AssertStringSliceContains(t, assertFunctionByName(t, got, "eshu_c_public_api"), "dead_code_root_kinds", "c.public_header_api")
+	parsertest.AssertStringSliceContains(t, assertFunctionByName(t, got, "registered_signal_handler"), "dead_code_root_kinds", "c.signal_handler")
+	parsertest.AssertStringSliceContains(t, assertFunctionByName(t, got, "dispatch_target"), "dead_code_root_kinds", "c.function_pointer_target")
 
 	if helper := assertFunctionByName(t, got, "directly_used_helper"); helper["dead_code_root_kinds"] != nil {
 		t.Fatalf("directly_used_helper dead_code_root_kinds = %#v, want nil", helper["dead_code_root_kinds"])
@@ -42,7 +56,12 @@ func TestDefaultEngineParsePathCMarksOnlyIncludedHeaderPrototypesAsPublicAPI(t *
 	sourcePath := filepath.Join(repoRoot, "src", "api.c")
 	headerPath := filepath.Join(repoRoot, "src", "api.h")
 	otherHeaderPath := filepath.Join(repoRoot, "include", "private.h")
-	writeTestFile(
+	for _, dir := range []string{filepath.Dir(headerPath), filepath.Dir(otherHeaderPath)} {
+		if err := os.MkdirAll(dir, 0o755); err != nil {
+			t.Fatalf("MkdirAll(%s) error = %v, want nil", dir, err)
+		}
+	}
+	parsertest.WriteFile(
 		t,
 		headerPath,
 		`#ifndef API_H
@@ -56,7 +75,7 @@ static int static_header_helper(void);
 #endif
 `,
 	)
-	writeTestFile(
+	parsertest.WriteFile(
 		t,
 		otherHeaderPath,
 		`#ifndef PRIVATE_H
@@ -67,7 +86,7 @@ int not_exported_by_included_header(void);
 #endif
 `,
 	)
-	writeTestFile(
+	parsertest.WriteFile(
 		t,
 		sourcePath,
 		`#include "api.h"
@@ -94,17 +113,9 @@ int line_commented_public_api(void) {
 `,
 	)
 
-	engine, err := DefaultEngine()
-	if err != nil {
-		t.Fatalf("DefaultEngine() error = %v, want nil", err)
-	}
+	got := parsertest.MustParsePath(t, repoRoot, sourcePath)
 
-	got, err := engine.ParsePath(repoRoot, sourcePath, false, Options{})
-	if err != nil {
-		t.Fatalf("ParsePath(%s) error = %v, want nil", sourcePath, err)
-	}
-
-	assertParserStringSliceContains(t, assertFunctionByName(t, got, "exported_api"), "dead_code_root_kinds", "c.public_header_api")
+	parsertest.AssertStringSliceContains(t, assertFunctionByName(t, got, "exported_api"), "dead_code_root_kinds", "c.public_header_api")
 	if private := assertFunctionByName(t, got, "not_exported_by_included_header"); private["dead_code_root_kinds"] != nil {
 		t.Fatalf("not_exported_by_included_header dead_code_root_kinds = %#v, want nil", private["dead_code_root_kinds"])
 	}
@@ -126,13 +137,16 @@ func TestDefaultEngineParsePathCDoesNotReadHeadersOutsideRepoRoot(t *testing.T) 
 	repoRoot := filepath.Join(parentRoot, "repo")
 	sourcePath := filepath.Join(repoRoot, "src", "api.c")
 	outsideHeaderPath := filepath.Join(parentRoot, "outside.h")
-	writeTestFile(
+	if err := os.MkdirAll(filepath.Dir(sourcePath), 0o755); err != nil {
+		t.Fatalf("MkdirAll(%s) error = %v, want nil", filepath.Dir(sourcePath), err)
+	}
+	parsertest.WriteFile(
 		t,
 		outsideHeaderPath,
 		`int outside_header_api(void);
 `,
 	)
-	writeTestFile(
+	parsertest.WriteFile(
 		t,
 		sourcePath,
 		`#include "../../outside.h"
@@ -143,15 +157,7 @@ int outside_header_api(void) {
 `,
 	)
 
-	engine, err := DefaultEngine()
-	if err != nil {
-		t.Fatalf("DefaultEngine() error = %v, want nil", err)
-	}
-
-	got, err := engine.ParsePath(repoRoot, sourcePath, false, Options{})
-	if err != nil {
-		t.Fatalf("ParsePath(%s) error = %v, want nil", sourcePath, err)
-	}
+	got := parsertest.MustParsePath(t, repoRoot, sourcePath)
 
 	if outside := assertFunctionByName(t, got, "outside_header_api"); outside["dead_code_root_kinds"] != nil {
 		t.Fatalf("outside_header_api dead_code_root_kinds = %#v, want nil", outside["dead_code_root_kinds"])
@@ -166,7 +172,7 @@ func TestDefaultEngineParsePathCDoesNotFollowHeaderSymlinkOutsideRepoRoot(t *tes
 	sourcePath := filepath.Join(repoRoot, "src", "api.c")
 	linkPath := filepath.Join(repoRoot, "src", "outside.h")
 	outsideHeaderPath := filepath.Join(parentRoot, "outside.h")
-	writeTestFile(
+	parsertest.WriteFile(
 		t,
 		outsideHeaderPath,
 		`int symlink_header_api(void);
@@ -178,7 +184,7 @@ func TestDefaultEngineParsePathCDoesNotFollowHeaderSymlinkOutsideRepoRoot(t *tes
 	if err := os.Symlink(outsideHeaderPath, linkPath); err != nil {
 		t.Fatalf("Symlink(%s, %s) error = %v, want nil", outsideHeaderPath, linkPath, err)
 	}
-	writeTestFile(
+	parsertest.WriteFile(
 		t,
 		sourcePath,
 		`#include "outside.h"
@@ -189,15 +195,7 @@ int symlink_header_api(void) {
 `,
 	)
 
-	engine, err := DefaultEngine()
-	if err != nil {
-		t.Fatalf("DefaultEngine() error = %v, want nil", err)
-	}
-
-	got, err := engine.ParsePath(repoRoot, sourcePath, false, Options{})
-	if err != nil {
-		t.Fatalf("ParsePath(%s) error = %v, want nil", sourcePath, err)
-	}
+	got := parsertest.MustParsePath(t, repoRoot, sourcePath)
 
 	if outside := assertFunctionByName(t, got, "symlink_header_api"); outside["dead_code_root_kinds"] != nil {
 		t.Fatalf("symlink_header_api dead_code_root_kinds = %#v, want nil", outside["dead_code_root_kinds"])
@@ -209,7 +207,7 @@ func TestDefaultEngineParsePathCMarksCallbackArgumentTargets(t *testing.T) {
 
 	repoRoot := t.TempDir()
 	sourcePath := filepath.Join(repoRoot, "callbacks.c")
-	writeTestFile(
+	parsertest.WriteFile(
 		t,
 		sourcePath,
 		`typedef void (*EventHandler)(int event_id);
@@ -236,20 +234,12 @@ void setup(void) {
 `,
 	)
 
-	engine, err := DefaultEngine()
-	if err != nil {
-		t.Fatalf("DefaultEngine() error = %v, want nil", err)
-	}
+	got := parsertest.MustParsePath(t, repoRoot, sourcePath)
 
-	got, err := engine.ParsePath(repoRoot, sourcePath, false, Options{})
-	if err != nil {
-		t.Fatalf("ParsePath(%s) error = %v, want nil", sourcePath, err)
-	}
-
-	assertParserStringSliceContains(t, assertFunctionByName(t, got, "local_handler"), "dead_code_root_kinds", "c.callback_argument_target")
-	assertParserStringSliceContains(t, assertFunctionByName(t, got, "address_handler"), "dead_code_root_kinds", "c.callback_argument_target")
-	assertParserStringSliceContains(t, assertFunctionByName(t, got, "signal_address_handler"), "dead_code_root_kinds", "c.signal_handler")
-	assertParserStringSliceContains(t, assertFunctionByName(t, got, "signal_address_handler"), "dead_code_root_kinds", "c.callback_argument_target")
+	parsertest.AssertStringSliceContains(t, assertFunctionByName(t, got, "local_handler"), "dead_code_root_kinds", "c.callback_argument_target")
+	parsertest.AssertStringSliceContains(t, assertFunctionByName(t, got, "address_handler"), "dead_code_root_kinds", "c.callback_argument_target")
+	parsertest.AssertStringSliceContains(t, assertFunctionByName(t, got, "signal_address_handler"), "dead_code_root_kinds", "c.signal_handler")
+	parsertest.AssertStringSliceContains(t, assertFunctionByName(t, got, "signal_address_handler"), "dead_code_root_kinds", "c.callback_argument_target")
 	if unused := assertFunctionByName(t, got, "unused_handler"); unused["dead_code_root_kinds"] != nil {
 		t.Fatalf("unused_handler dead_code_root_kinds = %#v, want nil", unused["dead_code_root_kinds"])
 	}
@@ -260,7 +250,7 @@ func TestDefaultEngineParsePathCMarksFunctionPointerInitializerVariants(t *testi
 
 	repoRoot := t.TempDir()
 	sourcePath := filepath.Join(repoRoot, "function_pointers.c")
-	writeTestFile(
+	parsertest.WriteFile(
 		t,
 		sourcePath,
 		`typedef int (*Handler)(void);
@@ -325,27 +315,19 @@ void setup(void) {
 `,
 	)
 
-	engine, err := DefaultEngine()
-	if err != nil {
-		t.Fatalf("DefaultEngine() error = %v, want nil", err)
-	}
+	got := parsertest.MustParsePath(t, repoRoot, sourcePath)
 
-	got, err := engine.ParsePath(repoRoot, sourcePath, false, Options{})
-	if err != nil {
-		t.Fatalf("ParsePath(%s) error = %v, want nil", sourcePath, err)
-	}
-
-	assertParserStringSliceContains(t, assertFunctionByName(t, got, "bare_direct_target"), "dead_code_root_kinds", "c.function_pointer_target")
-	assertParserStringSliceContains(t, assertFunctionByName(t, got, "address_direct_target"), "dead_code_root_kinds", "c.function_pointer_target")
-	assertParserStringSliceContains(t, assertFunctionByName(t, got, "typedef_target"), "dead_code_root_kinds", "c.function_pointer_target")
-	assertParserStringSliceContains(t, assertFunctionByName(t, got, "multi_first_target"), "dead_code_root_kinds", "c.function_pointer_target")
-	assertParserStringSliceContains(t, assertFunctionByName(t, got, "multi_second_target"), "dead_code_root_kinds", "c.function_pointer_target")
-	assertParserStringSliceContains(t, assertFunctionByName(t, got, "multi_typedef_first_target"), "dead_code_root_kinds", "c.function_pointer_target")
-	assertParserStringSliceContains(t, assertFunctionByName(t, got, "multi_typedef_second_target"), "dead_code_root_kinds", "c.function_pointer_target")
-	assertParserStringSliceContains(t, assertFunctionByName(t, got, "table_first_target"), "dead_code_root_kinds", "c.function_pointer_target")
-	assertParserStringSliceContains(t, assertFunctionByName(t, got, "table_second_target"), "dead_code_root_kinds", "c.function_pointer_target")
-	assertParserStringSliceContains(t, assertFunctionByName(t, got, "typedef_table_first_target"), "dead_code_root_kinds", "c.function_pointer_target")
-	assertParserStringSliceContains(t, assertFunctionByName(t, got, "typedef_table_second_target"), "dead_code_root_kinds", "c.function_pointer_target")
+	parsertest.AssertStringSliceContains(t, assertFunctionByName(t, got, "bare_direct_target"), "dead_code_root_kinds", "c.function_pointer_target")
+	parsertest.AssertStringSliceContains(t, assertFunctionByName(t, got, "address_direct_target"), "dead_code_root_kinds", "c.function_pointer_target")
+	parsertest.AssertStringSliceContains(t, assertFunctionByName(t, got, "typedef_target"), "dead_code_root_kinds", "c.function_pointer_target")
+	parsertest.AssertStringSliceContains(t, assertFunctionByName(t, got, "multi_first_target"), "dead_code_root_kinds", "c.function_pointer_target")
+	parsertest.AssertStringSliceContains(t, assertFunctionByName(t, got, "multi_second_target"), "dead_code_root_kinds", "c.function_pointer_target")
+	parsertest.AssertStringSliceContains(t, assertFunctionByName(t, got, "multi_typedef_first_target"), "dead_code_root_kinds", "c.function_pointer_target")
+	parsertest.AssertStringSliceContains(t, assertFunctionByName(t, got, "multi_typedef_second_target"), "dead_code_root_kinds", "c.function_pointer_target")
+	parsertest.AssertStringSliceContains(t, assertFunctionByName(t, got, "table_first_target"), "dead_code_root_kinds", "c.function_pointer_target")
+	parsertest.AssertStringSliceContains(t, assertFunctionByName(t, got, "table_second_target"), "dead_code_root_kinds", "c.function_pointer_target")
+	parsertest.AssertStringSliceContains(t, assertFunctionByName(t, got, "typedef_table_first_target"), "dead_code_root_kinds", "c.function_pointer_target")
+	parsertest.AssertStringSliceContains(t, assertFunctionByName(t, got, "typedef_table_second_target"), "dead_code_root_kinds", "c.function_pointer_target")
 	if unused := assertFunctionByName(t, got, "unused_target"); unused["dead_code_root_kinds"] != nil {
 		t.Fatalf("unused_target dead_code_root_kinds = %#v, want nil", unused["dead_code_root_kinds"])
 	}
@@ -356,7 +338,7 @@ func TestDefaultEngineParsePathCMarksDuplicateEntrypoints(t *testing.T) {
 
 	repoRoot := t.TempDir()
 	sourcePath := filepath.Join(repoRoot, "conditional_main.c")
-	writeTestFile(
+	parsertest.WriteFile(
 		t,
 		sourcePath,
 		`#ifdef FIRST
@@ -371,15 +353,7 @@ int main(int argc, char **argv) {
 `,
 	)
 
-	engine, err := DefaultEngine()
-	if err != nil {
-		t.Fatalf("DefaultEngine() error = %v, want nil", err)
-	}
-
-	got, err := engine.ParsePath(repoRoot, sourcePath, false, Options{})
-	if err != nil {
-		t.Fatalf("ParsePath(%s) error = %v, want nil", sourcePath, err)
-	}
+	got := parsertest.MustParsePath(t, repoRoot, sourcePath)
 
 	functions, ok := got["functions"].([]map[string]any)
 	if !ok {
@@ -391,7 +365,7 @@ int main(int argc, char **argv) {
 			continue
 		}
 		mainCount++
-		assertParserStringSliceContains(t, item, "dead_code_root_kinds", "c.main_function")
+		parsertest.AssertStringSliceContains(t, item, "dead_code_root_kinds", "c.main_function")
 	}
 	if got, want := mainCount, 2; got != want {
 		t.Fatalf("main function count = %d, want %d in %#v", got, want, functions)
