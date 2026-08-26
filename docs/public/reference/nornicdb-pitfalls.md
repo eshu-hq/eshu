@@ -794,13 +794,21 @@ guard did not fire for this shape, so it corrupted silently.
 
 ### Fixed status
 
-NornicDB PR #265 fixed both the function-projection case and the wider chained
-second-hop property case. The implementation began at upstream commit
+NornicDB PR #265 fixed the traversal/relationship-seeded function-projection
+case and the relationship-seeded chained second-hop property case. The
+implementation began at upstream commit
 `883065cd744b835237f0a26bce0fd41883cd2b64` and was completed by
 `e4b84afef25282ee8747c66c8fddb8fdff836d28`; both are ancestors of NornicDB
 v1.2.3 commit `d9b76ae82334e6b23b847156eb81931781546b85`. Eshu's replay tier pins the
 published v1.2.3 multi-architecture image by digest and requires evaluated
-`type(rel)`, `coalesce(...)`, and chained second-hop property results.
+`type(rel)`, `coalesce(...)`, and relationship-seeded chained second-hop
+property results.
+
+The node-only compound path is not fixed in v1.2.3: when a primary node `MATCH`
+is followed by two chained `OPTIONAL MATCH` clauses, the second-hop property
+still returns its literal expression (`sourceRepo.id` → `"sourceRepo.id"`).
+The replay tier retains this as a negative control, including an explicit null
+guard. No production Eshu query uses that node-only probe.
 
 ### Eshu implications
 
@@ -844,8 +852,10 @@ for the historical before/after and the isolated executor characterization.
 The replay-tier tests
 `TestNornicDBFunctionProjectionEvaluatesAfterOptionalMatch` and
 `TestNornicDBSecondChainedOptionalMatchEvaluatesPlainPropertyReads` exercise the
-formerly broken Cypher shapes directly against v1.2.3. They require the real
-values and reject nil, empty, or literal-expression placeholders.
+measured boundary directly against v1.2.3. They require evaluated values for
+the relationship-seeded shapes and require the exact literal-placeholder
+negative control, never a missing or null column, for the node-only compound
+path.
 
 ### The boundary is wider than "function-call projection"
 
@@ -859,17 +869,19 @@ Measured against the former PR #261 build while proving issue #5694:
 | two chained, read the SECOND one's variable | `r.id` — a plain property read | **`"r.id"`** |
 | two chained, no relationship bound anywhere | `r.id` | **`"r.id"`** |
 
-So neither the relationship binding nor the function call was required. What
-corrupted was reading a variable bound by a SECOND `OPTIONAL MATCH` that matched
-on a variable the first one bound. The function-call symptom above is the
-narrower case of it, and plain property reads are affected too.
+The v1.2.3 boundary separates the executor paths: relationship-seeded traversal
+now evaluates both the function projections and the second chained property,
+while the node-only compound path still corrupts the second chained property.
+The function-call symptom above was therefore the narrower historical case;
+plain property reads remain affected only on the measured node-only path.
 
 `go/internal/query/code_relationship_story_nornicdb.go` still pairs every
 second-hop column with its historical literal placeholder through
-`nornicDBStoryProjection`. On v1.2.3 the guard sees evaluated values and is a
-no-op; older or custom backends still fail closed instead of serving expression
-text. Removing that compatibility guard belongs with any measured query-shape
-consolidation, not with the backend-proof update.
+`nornicDBStoryProjection`. Its production relationship-seeded query sees
+evaluated values on v1.2.3, so the guard is a no-op there; older or custom
+backends still fail closed instead of serving expression text. Removing that
+compatibility guard belongs with any measured query-shape consolidation, not
+with the backend-proof update.
 
 ## When To Patch NornicDB
 

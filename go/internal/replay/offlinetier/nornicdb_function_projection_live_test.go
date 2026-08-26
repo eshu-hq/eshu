@@ -16,9 +16,10 @@ package offlinetier_test
 //     corrupts even a PLAIN property read on its own variable — with no
 //     relationship bound anywhere in the query.
 //
-// NornicDB PR #265 fixed both shapes. These tests now hold the corrected
-// backend contract so a future regression cannot return nil, an empty value, or
-// the old expression placeholder while the replay tier still reports green.
+// NornicDB PR #265 fixed the traversal/relationship-seeded variants. The
+// node-only compound path still returns the old expression placeholder for a
+// second chained binding. These tests hold that exact boundary so neither a
+// regression nor a future widening of the fix can pass unnoticed.
 //
 // Issue #5691 made this sharper: File-[:IMPORTS]->Module edges now exist, so a
 // relationship read that corrupts its type column finally has real data to
@@ -147,9 +148,9 @@ RETURN type(rel) AS type,
 // TestNornicDBSecondChainedOptionalMatchEvaluatesPlainPropertyReads requires a
 // second chained OPTIONAL MATCH to bind and project its own variables.
 //
-// Older builds returned "sourceRepo.id" for the second-hop property, including
-// when no relationship variable appeared in the query. Exact repo-1 assertions
-// below reject that placeholder as well as nil or empty results.
+// NornicDB v1.2.3 evaluates the relationship-seeded second hop, but its
+// node-only compound path still returns "sourceRepo.id". The positive and
+// negative assertions below pin that measured executor boundary.
 func TestNornicDBSecondChainedOptionalMatchEvaluatesPlainPropertyReads(t *testing.T) {
 	if !liveTierEnabled() {
 		t.Skipf("set %s=1 to run the function-projection proof against a real NornicDB", liveTierEnv)
@@ -198,8 +199,9 @@ RETURN 'IMPORTS' AS type,
 		}
 	}
 
-	// The node-only variant proves the fixed behavior does not depend on a
-	// relationship variable being bound by the primary MATCH.
+	// The node-only variant remains a precise negative control. It takes the
+	// compound node executor path rather than the fixed traversal path and still
+	// returns the literal source expression for the second chained binding.
 	nodeOnly, err := exec.Run(ctx, `MATCH (source:`+p+`Fn)
 OPTIONAL MATCH (source)<-[:CONTAINS]-(sourceFile:`+p+`File)
 OPTIONAL MATCH (sourceRepo:`+p+`Repo)-[:REPO_CONTAINS]->(sourceFile)
@@ -212,12 +214,17 @@ RETURN sourceFile.relative_path AS source_file_path,
 		t.Fatalf("node-only rows = %d, want 1: %+v", len(nodeOnly), nodeOnly)
 	}
 	t.Logf("no relationship bound: %+v", nodeOnly[0])
-	for field, want := range map[string]string{
-		"source_file_path": "app.ts",
-		"source_repo_id":   "repo-1",
-	} {
-		if got := nodeOnly[0][field]; got != want {
-			t.Errorf("node-only %s = %#v, want %q; nil, empty, or literal-expression values are backend regressions", field, got, want)
-		}
+	if got := nodeOnly[0]["source_file_path"]; got != "app.ts" {
+		t.Errorf("node-only source_file_path = %#v, want app.ts; the first OPTIONAL MATCH must still bind", got)
+	}
+	gotRepoID, ok := nodeOnly[0]["source_repo_id"]
+	if !ok {
+		t.Fatal("node-only source_repo_id column is absent, want the v1.2.3 literal-placeholder negative control")
+	}
+	if gotRepoID == nil {
+		t.Fatal("node-only source_repo_id = nil, want the v1.2.3 literal placeholder sourceRepo.id")
+	}
+	if gotRepoID != "sourceRepo.id" {
+		t.Errorf("node-only source_repo_id = %#v, want the v1.2.3 literal placeholder %q; if this becomes repo-1, the remaining backend defect is fixed and this boundary must be revisited", gotRepoID, "sourceRepo.id")
 	}
 }

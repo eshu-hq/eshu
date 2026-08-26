@@ -32,8 +32,9 @@ Each edge carried resolved `source_name`/`target_name`, `source_type`/
 This is the route the matrix said "returns empty for every edge" because older
 NornicDB builds returned literal text for `type(rel)`/`coalesce` after an
 `OPTIONAL MATCH`. #5694 is closed. #5916 recorded that historical backend
-failure, and #6262 now requires the corrected v1.2.3 behavior while retaining
-the query split. The deployed route returns real edges.
+failure, and #6262 now requires the corrected v1.2.3 relationship-seeded
+behavior while retaining the query split. The deployed route returns real
+edges.
 
 The corpus fixture used is `python_comprehensive/inheritance.py`, which declares
 a deliberate hierarchy (`Animal`, `Dog(Animal)`, `Cat(Animal)`,

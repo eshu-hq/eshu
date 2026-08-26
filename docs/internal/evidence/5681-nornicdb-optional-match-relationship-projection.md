@@ -3,11 +3,15 @@
 ## Current backend status
 
 This document records the historical v1.1.11 and PR #261 failure that motivated
-the Eshu query split. NornicDB PR #265 fixed both recorded projection shapes.
-The replay tier now pins v1.2.3 at commit
-`d9b76ae82334e6b23b847156eb81931781546b85` and requires evaluated results. Eshu
-retains the split because it also preserves partial File-without-Repository
-metadata, bounded enrichment, and compatibility with older custom backends.
+the Eshu query split. NornicDB PR #265 fixed the relationship-seeded traversal
+shapes used by the affected Eshu route. The node-only compound path still
+returns a literal second-hop property expression on v1.2.3. The replay tier now
+pins v1.2.3 at commit `d9b76ae82334e6b23b847156eb81931781546b85`,
+requires evaluated results for the relationship-seeded shapes, and retains the
+node-only case as a negative control. No production Eshu query uses that
+node-only probe. Eshu retains the split because it also preserves partial
+File-without-Repository metadata, bounded enrichment, and compatibility with
+older custom backends.
 
 ## Problem
 

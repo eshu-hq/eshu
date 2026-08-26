@@ -173,7 +173,7 @@ Burn-down progress:
     - `symbol_graph.inheritance` is **restored to `production: supported`** with
       `prod-symbol-graph-inheritance`. The #5694 NornicDB literal-text defect is
       closed; #5916 recorded the historical failure, and #6262 requires the
-      corrected v1.2.3 projection behavior. The deployed
+      corrected v1.2.3 relationship-seeded projection behavior. The deployed
       `/code/relationships` route returned declared INHERITS edges in both
       directions at confidence 0.95.
     - `code_flow.reaching_def` **stays experimental by policy, not for lack of
