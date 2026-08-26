@@ -92,7 +92,9 @@ func stripCypherComments(value string) string {
 					i += 2
 					break
 				}
-				if out[i] != '\n' {
+				// Preserve both line endings, exactly as the line-comment
+				// scan above stops at both.
+				if out[i] != '\n' && out[i] != '\r' {
 					out[i] = ' '
 				}
 			}
@@ -339,6 +341,14 @@ func TestStripCypherCommentsBlanksCommentsInPlace(t *testing.T) {
 			name:  "block comment becomes spaces and its newlines survive",
 			value: "MERGE (a) /* one\ntwo */ (b)",
 			want:  "MERGE (a)       \n       (b)",
+		},
+		{
+			// The line-comment scan above already treats a bare CR as a line
+			// ending. A block comment must preserve one for the same reason it
+			// preserves \n: blanking it welds two logical lines into one.
+			name:  "block comment becomes spaces and a bare CR survives",
+			value: "MERGE (a) /* one\rtwo */ (b)",
+			want:  "MERGE (a)       \r       (b)",
 		},
 		{
 			name:  "a comment marker inside a string is not a comment",
