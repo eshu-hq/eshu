@@ -15,10 +15,32 @@
 
 ## Invariants this package enforces
 
-- **Fixed bucket order** — `contentEntityBuckets` in `materialize.go` is a
+- **Fixed bucket order** — `contentEntityBuckets` in `materialize_tables.go` is a
   stable ordered list. Inserting a new bucket anywhere except the end changes
   the persisted row order for existing entities and produces downstream churn.
   Always append.
+- **Registration is not reachability** — a bucket listed here, in the collector
+  twin and in `entityTypeLabelMap` still reaches the graph only if a write phase
+  claims it. `variables`/`Variable` has no source-local claimant: canonical
+  phase E skips the label on purpose, so plain variables live in the
+  content/search surface and produce no node (#6206). The reducer's
+  semantic-entity path is the exception, and it is reachable from ordinary
+  filesystem parsing — Elixir module attributes and TSX component-type
+  assertions from `.ex`/`.tsx` files do become `Variable` nodes. The set with no
+  source-local writer is pinned by `canonicalEntityPhaseSkipOwners` in
+  `go/internal/projector/canonical_unwritten_entity_labels_test.go`; a new
+  entry there means a label was stranded, and removing `Variable`'s means
+  re-enabling plain-`Variable` projection, which changes projected truth.
+- **Every projector label is classified** — `TestEveryProjectorLabelHasASource`
+  in `bucket_sync_projector_orphans_test.go` runs the reverse of the bucket ->
+  projector check: a label in `entityTypeLabelMap` that no bucket row produces
+  must be listed in `nonBucketProjectorLabels` with the fact source that writes
+  it. Without it a registry entry can be inert — no bucket, no fact, no node —
+  and adding the graph schema constraint alongside it leaves the whole projector
+  suite green; the one other gate that reds,
+  `TestSchemaApplicationsDeclareCompatibilityDecision` in `internal/graph`, is a
+  schema-fingerprint pin, so re-pinning the fingerprint clears it without ever
+  noticing the label is inert.
 - **Deterministic output** — entities are sorted by `lineNumber()`, then label,
   then `Name` before building `content.EntityRecord` values. Tests assert this
   order; do not remove the sort.
@@ -49,7 +71,7 @@
 ## Common changes and how to scope them
 
 - **Add a new entity bucket** → add an `entityBucketMapping` entry at the end
-  of `contentEntityBuckets` in `materialize.go`. Add the label to
+  of `contentEntityBuckets` in `materialize_tables.go`. Add the label to
   `trailingNewlineLabels` and `sourceFieldContainsCode` if appropriate. Add a
   test case in `materialize_test.go`. Run
   `go test ./internal/content/shape -count=1`. **Also register the same

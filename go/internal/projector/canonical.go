@@ -200,9 +200,33 @@ type NestedFunctionRow struct {
 // row — the same silent-skip this issue exists to close.
 var entityTypeLabelMap = map[string]string{
 	// Code entities
-	"function":                "Function",
-	"class":                   "Class",
-	"interface":               "Interface",
+	"function":  "Function",
+	"class":     "Class",
+	"interface": "Interface",
+	// Registered, and never written from a source-local generation: phase E in
+	// canonical_builder.go skips the Variable label deliberately. The entry
+	// still has to stay, but NOT to feed the reducer-owned semantic-entity path
+	// -- SemanticEntityWriter never consults this map, and deleting the row
+	// leaves internal/storage/cypher, internal/reducer and cmd/reducer green.
+	// It stays because Variable carries a uid constraint in
+	// graph/schema_tables.go, the variables bucket in content/shape
+	// materializes the label, and EntityTypeLabel is the resolver the #5531
+	// three-way bucket-sync gate reads: deleting the row reds
+	// TestEntityTypeLabelMapCoversAllSchemaLabels ("missing labels that have
+	// uid constraints in schema: Variable"), TestEntityTypeLabelHandlesBothCases
+	// and content/shape's TestContentEntityLabelsHaveProjectorLabels.
+	// Reading it as "phase E writes Variable nodes" is the mistake #6206 was
+	// filed for -- a live golden-corpus run measured (Variable) count=0 with no
+	// Variable key in graph.node_counts (REPORTED, carried from #5156; not
+	// re-run here). That zero is not evidence that nothing can write the label:
+	// the reducer's semantic-entity path writes Variable nodes for Elixir module
+	// attributes and TSX component-type assertions, and the golden corpus simply
+	// stages no Elixir or TSX fixture (scripts/lib/golden-corpus-fixtures.sh),
+	// so nothing in it matches those two predicates. Why phase E skips the label,
+	// with the corpus numbers, is on the contentEntityBuckets row in
+	// go/internal/content/shape/materialize_tables.go; the set with no
+	// source-local writer is pinned by canonicalEntityPhaseSkipOwners in
+	// canonical_unwritten_entity_labels_test.go.
 	"variable":                "Variable",
 	"trait":                   "Trait",
 	"struct":                  "Struct",

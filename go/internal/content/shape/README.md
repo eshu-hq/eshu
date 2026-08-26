@@ -77,6 +77,27 @@ around the `Materialize` call.
 - `contentEntityBuckets` order is fixed. Reordering the bucket list changes the
   persisted row sequence and produces diff churn in existing content-store rows.
   Add new buckets at the end.
+- Being in the table does not mean every row reaches the graph. `variables` /
+  `Variable` is registered here, in the collector twin and in the projector's
+  `entityTypeLabelMap`, and a plain source variable still gets no node: the
+  projector's canonical phase E skips plain `Variable` deliberately (by far the
+  largest entity family on the corpus: 12,887 chunks, 21,515s of cumulative
+  graph-write time). The reducer's semantic-entity path does write the narrower
+  subset — Elixir module attributes and TSX component-type assertions — and it
+  gets there from parsing `.ex` and `.tsx` files off disk, so those two shapes
+  do become `Variable` nodes. Plain variables stay searchable through the
+  content index. The set with no *source-local* writer is pinned by
+  `canonicalEntityPhaseSkipOwners` in
+  `go/internal/projector/canonical_unwritten_entity_labels_test.go` (#6206), so
+  stranding another label, or re-enabling plain `Variable` projection, has to
+  move that pin.
+- The reverse also holds, and is checked here rather than in the projector:
+  `TestEveryProjectorLabelHasASource` requires every label in
+  `entityTypeLabelMap` to be produced by a bucket row or declared in
+  `nonBucketProjectorLabels` with its fact source. Eighteen labels are legitimately
+  non-bucket — the OCI and package-registry families, `Parameter`, `ShellCommand`
+  — and they are named there. A nineteenth that nobody classifies is a registry
+  entry no fact can ever reach.
 - Terraform buckets cover authored configuration and parser evidence such as
   backends, imports, moved blocks, removed blocks, checks, lockfile providers,
   and declared PagerDuty module/tfvars evidence. Keep those labels in step with

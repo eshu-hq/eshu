@@ -15,6 +15,20 @@ var snapshotEntityBuckets = []struct {
 	{bucket: "functions", label: "Function"},
 	{bucket: "classes", label: "Class"},
 	{bucket: "modules", label: "Module"},
+	// UNWRITTEN for a plain source variable: the collector emits these facts and
+	// no source-local writer turns a plain one into a graph node. The row stays
+	// because the content/search surface indexes plain variables and the #5531
+	// bucket-sync gate requires this list to match content/shape's
+	// contentEntityBuckets exactly -- not because every row here becomes a
+	// Variable node. The projector's canonical phase E skips the label on purpose
+	// (volume: it was the largest entity family on the corpus). The reducer's
+	// semantic-entity writer still writes the narrower subset -- Elixir module
+	// attributes and TSX component-type assertions -- and those come from parsing
+	// .ex/.tsx files off disk, so a filesystem-parsed repo in either language
+	// does get Variable nodes. Reasons and measurements are on the
+	// contentEntityBuckets row in go/internal/content/shape/materialize_tables.go;
+	// the source-local-unwritten set is pinned in
+	// go/internal/projector/canonical_unwritten_entity_labels_test.go (#6206).
 	{bucket: "variables", label: "Variable"},
 	{bucket: "type_annotations", label: "TypeAnnotation"},
 	{bucket: "traits", label: "Trait"},
