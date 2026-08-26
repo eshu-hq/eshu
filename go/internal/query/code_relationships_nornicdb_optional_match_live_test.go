@@ -3,19 +3,17 @@
 
 //go:build live_nornicdb_relationships_proof
 
-// Live regression proof for the NornicDB OPTIONAL-MATCH function-projection
-// corruption (#5681). The fake-graph-reader unit tests cannot catch this: the
-// defect lives in the pinned NornicDB Cypher executor, which only the real Bolt
-// path exercises. This test seeds a Class inheritance graph, drives the actual
-// relationship route entry point against a live NornicDB, and asserts the
-// computed relationship type and enrichment survive the handler's exact-string
-// type filter — which they did not before the split (every edge was dropped
-// because type(rel) came back as the literal string "type(rel)").
+// Live regression proof for the NornicDB relationship-query split introduced
+// for #5681. NornicDB v1.2.3 fixed the old relationship-seeded OPTIONAL MATCH
+// projection defect, but this test still proves the retained split returns
+// evaluated relationship types and preserves File/Repository enrichment
+// through the real Bolt path.
 //
-// Run against the pinned image (see docs/public/run-locally/docker-compose.yaml):
+// Run against the replay-tier proof image:
 //
 //	docker run -d --name nornic-rel-proof -e NORNICDB_EMBEDDING_ENABLED=false \
-//	  -e NORNICDB_NO_AUTH=true -p 17687:7687 eshu-nornicdb-pr261:149245885258
+//	  -e NORNICDB_NO_AUTH=true -p 17687:7687 \
+//	  timothyswt/nornicdb-cpu-bge:v1.2.3@sha256:4dfa887d990bf0b536693830830e34351c036716b0fe6dc957e1a3680e9f3c74
 //	cd go && go test ./internal/query -tags live_nornicdb_relationships_proof \
 //	  -run TestLiveNornicDBRelationshipsSurviveOptionalMatchProjection -count=1 -v
 package query

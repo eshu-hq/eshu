@@ -49,6 +49,22 @@ has_blast_radius_nonvacuity_guard() {
 	rg --quiet '^command -v rg >/dev/null 2>&1 \|\| die' "$1"
 }
 
+# has_projection_boundary_nonvacuity_guard checks the two #6262 compatibility
+# selectors are both in the live allowlist and both produce a PASS line. A
+# renamed or skipped test must not let the real-backend tier report green.
+has_projection_boundary_nonvacuity_guard() {
+	rg --quiet \
+		"^[[:space:]]*-run '.*TestNornicDBFunctionProjectionEvaluatesAfterOptionalMatch\\|TestNornicDBChainedOptionalMatchPreservesExecutorBoundary' -count=1 -v$" \
+		"$1" || return 1
+	rg --quiet '^for projection_test in \\$' "$1" || return 1
+	local name
+	for name in TestNornicDBFunctionProjectionEvaluatesAfterOptionalMatch \
+		TestNornicDBChainedOptionalMatchPreservesExecutorBoundary; do
+		rg --quiet "^\\t${name}[; \\\\]" "$1" || return 1
+	done
+	rg --quiet '^\trg --quiet "\^--- PASS: \$\{projection_test\} " "\$\{TIER_LOG\}"' "$1"
+}
+
 # has_graph_endpoint_pins checks the gate pins every name of the graph endpoint
 # to its OWN container, not merely that an export line exists.
 #
@@ -69,6 +85,15 @@ has_graph_endpoint_pins() {
 	for var in ESHU_NEO4J_DATABASE NEO4J_DATABASE; do
 		rg --quiet "^export ${var}=\"nornic\"$" "$1" || return 1
 	done
+}
+
+# has_nornicdb_v123_image_pin binds the live gate to the released multi-arch
+# artifact whose tag resolves to NornicDB main d9b76ae82334. A tag-only check
+# would let Docker Hub retarget the proof without a repository change.
+has_nornicdb_v123_image_pin() {
+	rg --quiet \
+		'^NORNICDB_IMAGE="timothyswt/nornicdb-cpu-bge:v1\.2\.3@sha256:4dfa887d990bf0b536693830830e34351c036716b0fe6dc957e1a3680e9f3c74"$' \
+		"$1"
 }
 
 # workflow_gate_step_block prints the workflow step that runs the live gate,
@@ -202,8 +227,12 @@ has_blast_radius_command "${script}" \
 	|| fail "gate must run the sql_table blast-radius branch proof (#5409), not only the replay tier (#6182)"
 has_blast_radius_nonvacuity_guard "${script}" \
 	|| fail "gate must assert both blast-radius tests RAN; go test -run exits 0 on a regex matching nothing"
+has_projection_boundary_nonvacuity_guard "${script}" \
+	|| fail "gate must assert both #6262 OPTIONAL MATCH boundary tests RAN; go test -run exits 0 on a regex matching nothing"
 has_graph_endpoint_pins "${script}" \
 	|| fail "gate must pin every graph-endpoint name to its own container; an unpinned name lets an ambient developer value win (#6201)"
+has_nornicdb_v123_image_pin "${script}" \
+	|| fail "gate must pin the exact published NornicDB v1.2.3 multi-arch digest (#6262)"
 
 [[ -f "${workflow}" ]] || fail "missing ${workflow}"
 has_workflow_wiring "${workflow}" \
@@ -233,6 +262,21 @@ sed '/^command -v rg >\/dev\/null 2>&1 || die/s/^/# /' "${script}" >"${tmp}/scri
 if has_blast_radius_nonvacuity_guard "${tmp}/script-no-rg"; then
 	fail "gate must refuse to run without rg rather than read a missing tool as no-match (#5974)"
 fi
+# The #6262 selectors need their own standing mutation checks. Replacing either
+# exact test name must break both allowlist and PASS-line ownership.
+for projection_test in TestNornicDBFunctionProjectionEvaluatesAfterOptionalMatch \
+	TestNornicDBChainedOptionalMatchPreservesExecutorBoundary; do
+	sed "s/${projection_test}/${projection_test}Missing/g" "${script}" \
+		>"${tmp}/script-missing-${projection_test}"
+	if has_projection_boundary_nonvacuity_guard "${tmp}/script-missing-${projection_test}"; then
+		fail "a missing ${projection_test} selector must not satisfy the #6262 non-vacuity guard"
+	fi
+done
+sed '/rg --quiet "\^--- PASS: \${projection_test} "/s/^/# /' "${script}" \
+	>"${tmp}/script-vacuous-projection"
+if has_projection_boundary_nonvacuity_guard "${tmp}/script-vacuous-projection"; then
+	fail "a commented-out #6262 PASS assertion must not satisfy the non-vacuity guard"
+fi
 # One negation per pinned name: deleting any single export must fail, which is
 # the drift that produced both #6201 findings.
 for pinned_var in ESHU_NEO4J_URI NEO4J_URI ESHU_NEO4J_DATABASE NEO4J_DATABASE; do
@@ -241,6 +285,17 @@ for pinned_var in ESHU_NEO4J_URI NEO4J_URI ESHU_NEO4J_DATABASE NEO4J_DATABASE; d
 		fail "a dropped ${pinned_var} pin must not satisfy the guard"
 	fi
 done
+# A commented pin or a tag with no digest must fail. These mutations keep the
+# image name visible, which defeats a whole-file substring check.
+sed '/^NORNICDB_IMAGE=/s/^/# /' "${script}" >"${tmp}/script-no-image-pin"
+if has_nornicdb_v123_image_pin "${tmp}/script-no-image-pin"; then
+	fail "a commented NornicDB image pin must not satisfy the guard"
+fi
+sed 's/@sha256:4dfa887d990bf0b536693830830e34351c036716b0fe6dc957e1a3680e9f3c74//' \
+	"${script}" >"${tmp}/script-tag-only-image"
+if has_nornicdb_v123_image_pin "${tmp}/script-tag-only-image"; then
+	fail "a tag-only NornicDB image must not satisfy the immutable digest guard"
+fi
 # Repointing a pin away from this gate's own container must fail too, for EVERY
 # name. Deletion cases alone cannot catch the guard regressing from asserting
 # the value to asserting only the assignment: a weakened `^export ${var}=`

@@ -4,11 +4,12 @@
 package offlinetier_test
 
 // nornicdb_function_projection_live_test.go is the standing backend proof for
-// issue #5694: on the pinned NornicDB build, an OPTIONAL MATCH can make a
-// RETURN column evaluate to its own literal source text instead of a value.
+// issue #6262: the pinned NornicDB build must evaluate traversal/relationship-
+// seeded OPTIONAL MATCH projections instead of returning their literal source
+// text, while preserving the measured node-only negative control below.
 //
-// Two distinct shapes trigger it, and the second is wider than what
-// nornicdb-pitfalls.md originally recorded:
+// NornicDB v1.1.11 exposed two distinct corruption shapes that Eshu still
+// avoids in its production query builders:
 //
 //   - a relationship-bound MATCH followed by an OPTIONAL MATCH corrupts every
 //     function-call projection — type(rel), coalesce(...), head(labels(...));
@@ -16,17 +17,10 @@ package offlinetier_test
 //     corrupts even a PLAIN property read on its own variable — with no
 //     relationship bound anywhere in the query.
 //
-// The query builders already avoid the shape (see
-// docs/public/reference/nornicdb-pitfalls.md, "Trailing OPTIONAL MATCH Corrupts
-// Every Function-Call Projection"), and unit tests assert the emitted Cypher
-// text. What no test did was hold the BACKEND behavior those rewrites exist
-// for. That gap matters in both directions:
-//
-//   - if a future build fixes the defect, this test starts failing and the
-//     rewrites can be reconsidered instead of being carried forever as
-//     unexplained complexity;
-//   - if someone reintroduces the shape, a text assertion catches it only where
-//     a guard happens to exist, while this proves what the backend does with it.
+// NornicDB PR #265 fixed the traversal/relationship-seeded variants. The
+// node-only compound path still returns the old expression placeholder for a
+// second chained binding. These tests hold that exact boundary so neither a
+// regression nor a future widening of the fix can pass unnoticed.
 //
 // Issue #5691 made this sharper: File-[:IMPORTS]->Module edges now exist, so a
 // relationship read that corrupts its type column finally has real data to
@@ -80,16 +74,10 @@ func functionProjectionSeed(ctx context.Context, t *testing.T, exec liveExecutor
 	}
 }
 
-// TestNornicDBFunctionProjectionCorruptsAfterOptionalMatch pins the defect
-// itself. It asserts the CURRENT backend behavior, corruption included, so the
-// rewrites elsewhere in the query layer have a stated reason a reader can
-// verify rather than a comment they have to trust.
-//
-// If this test fails because the projections evaluated correctly, that is good
-// news, not a regression: the pinned build changed, and
-// docs/public/reference/nornicdb-pitfalls.md plus the rewrites that cite it
-// should be revisited together.
-func TestNornicDBFunctionProjectionCorruptsAfterOptionalMatch(t *testing.T) {
+// TestNornicDBFunctionProjectionEvaluatesAfterOptionalMatch requires the
+// corrected traversal-seeded OPTIONAL MATCH evaluator shipped in NornicDB
+// v1.2.3.
+func TestNornicDBFunctionProjectionEvaluatesAfterOptionalMatch(t *testing.T) {
 	if !liveTierEnabled() {
 		t.Skipf("set %s=1 to run the function-projection proof against a real NornicDB", liveTierEnv)
 	}
@@ -128,57 +116,43 @@ RETURN type(rel) AS type,
 		t.Fatalf("baseline source_id = %v, want fn-a", got)
 	}
 
-	// The shape the query layer must not emit: a relationship-bound MATCH
-	// followed by chained OPTIONAL MATCHes, with function calls in the RETURN.
-	corrupted, err := exec.Run(ctx, `MATCH (source:`+p+`Fn)-[rel:IMPORTS]->(target:`+p+`Mod)
+	// This is the historical corruption shape: a relationship-bound MATCH
+	// followed by OPTIONAL MATCH, with function calls in the RETURN.
+	withOptional, err := exec.Run(ctx, `MATCH (source:`+p+`Fn)-[rel:IMPORTS]->(target:`+p+`Mod)
 OPTIONAL MATCH (source)<-[:CONTAINS]-(sourceFile:`+p+`File)<-[:REPO_CONTAINS]-(sourceRepo:`+p+`Repo)
 RETURN type(rel) AS type,
        coalesce(source.id, source.uid) AS source_id,
+       head(labels(source)) AS source_type,
        source.name AS source_name,
        sourceFile.relative_path AS source_file_path`, nil)
 	if err != nil {
 		t.Fatalf("optional-match read: %v", err)
 	}
-	if len(corrupted) != 1 {
-		t.Fatalf("optional-match rows = %d, want 1: %+v", len(corrupted), corrupted)
+	if len(withOptional) != 1 {
+		t.Fatalf("optional-match rows = %d, want 1: %+v", len(withOptional), withOptional)
 	}
-	t.Logf("with OPTIONAL MATCH: %+v", corrupted[0])
+	t.Logf("with OPTIONAL MATCH: %+v", withOptional[0])
 
-	// Plain property reads still work. Only the function calls corrupt, which
-	// is why this is so easy to miss: the row looks populated.
-	if got := corrupted[0]["source_name"]; got != "handler" {
-		t.Errorf("source_name = %v, want handler — plain property reads are expected to survive", got)
-	}
-	if got := corrupted[0]["source_file_path"]; got != "app.ts" {
-		t.Errorf("source_file_path = %v, want app.ts — the OPTIONAL MATCH itself does bind", got)
-	}
-
-	if got := corrupted[0]["type"]; got != "type(rel)" {
-		t.Errorf("type = %v; the pinned build is expected to return the literal source text %q. "+
-			"If it now returns IMPORTS, the backend defect is fixed: revisit nornicdb-pitfalls.md "+
-			"and the query-layer rewrites that cite it", got, "type(rel)")
-	}
-	if got := corrupted[0]["source_id"]; got != "coalesce(source.id, source.uid)" {
-		t.Errorf("source_id = %v; the pinned build is expected to return the literal source text", got)
+	for field, want := range map[string]any{
+		"type":             "IMPORTS",
+		"source_id":        "fn-a",
+		"source_type":      functionProjectionLabelPrefix + "Fn",
+		"source_name":      "handler",
+		"source_file_path": "app.ts",
+	} {
+		if got := withOptional[0][field]; got != want {
+			t.Errorf("%s = %#v, want %#v; nil, empty, or literal-expression values are backend regressions", field, got, want)
+		}
 	}
 }
 
-// TestNornicDBSecondChainedOptionalMatchCorruptsPlainPropertyReads records a
-// boundary wider than the one nornicdb-pitfalls.md documented.
+// TestNornicDBChainedOptionalMatchPreservesExecutorBoundary pins the different
+// behavior of relationship-seeded and node-only chained OPTIONAL MATCH paths.
 //
-// The documented shape is "relationship-bound MATCH + OPTIONAL MATCH corrupts
-// function-call projections". Measuring it here shows the relationship binding
-// is not required and function calls are not required either: with two chained
-// OPTIONAL MATCHes, where the second matches on a variable the first bound, a
-// PLAIN property read on the second one's variable returns its own source text.
-// Reading the first one's variable in the same query is fine.
-//
-// This is why go/internal/query/code_relationship_story_nornicdb.go pairs every
-// second-hop column with its literal placeholder through
-// nornicDBStoryProjection, and collapses any value equal to that placeholder:
-// the query layer cannot avoid the second hop, so it detects the corruption
-// instead. This test is the backend half of that contract.
-func TestNornicDBSecondChainedOptionalMatchCorruptsPlainPropertyReads(t *testing.T) {
+// NornicDB v1.2.3 evaluates the relationship-seeded second hop, but its
+// node-only compound path still returns "sourceRepo.id". The positive and
+// negative assertions below pin that measured executor boundary.
+func TestNornicDBChainedOptionalMatchPreservesExecutorBoundary(t *testing.T) {
 	if !liveTierEnabled() {
 		t.Skipf("set %s=1 to run the function-projection proof against a real NornicDB", liveTierEnv)
 	}
@@ -212,24 +186,23 @@ RETURN 'IMPORTS' AS type,
 	}
 	t.Logf("rewritten shape: %+v", rows[0])
 
-	// Everything bound by the first MATCH or the first OPTIONAL MATCH survives.
+	// Every binding, including the second OPTIONAL MATCH, must survive.
 	for field, want := range map[string]string{
 		"type":             "IMPORTS",
 		"source_legacy_id": "fn-a",
 		"source_uid":       "fn-a",
 		"source_name":      "handler",
 		"source_file_path": "app.ts",
+		"source_repo_id":   "repo-1",
 	} {
 		if got := rows[0][field]; got != want {
-			t.Errorf("%s = %v, want %v — first-hop reads are expected to survive", field, got, want)
+			t.Errorf("%s = %#v, want %q; nil, empty, or literal-expression values are backend regressions", field, got, want)
 		}
 	}
 
-	// The second chained OPTIONAL MATCH does not. This is a plain property
-	// read, not a function call, which is the part the pitfall page understated.
-	// The variant the pitfalls table records but a relationship-bound query
-	// cannot demonstrate: no relationship anywhere, same corruption. Without
-	// this the doc claims a boundary the regression does not hold.
+	// The node-only variant remains a precise negative control. It takes the
+	// compound node executor path rather than the fixed traversal path and still
+	// returns the literal source expression for the second chained binding.
 	nodeOnly, err := exec.Run(ctx, `MATCH (source:`+p+`Fn)
 OPTIONAL MATCH (source)<-[:CONTAINS]-(sourceFile:`+p+`File)
 OPTIONAL MATCH (sourceRepo:`+p+`Repo)-[:REPO_CONTAINS]->(sourceFile)
@@ -243,17 +216,16 @@ RETURN sourceFile.relative_path AS source_file_path,
 	}
 	t.Logf("no relationship bound: %+v", nodeOnly[0])
 	if got := nodeOnly[0]["source_file_path"]; got != "app.ts" {
-		t.Errorf("node-only source_file_path = %v, want app.ts — the first hop still binds", got)
+		t.Errorf("node-only source_file_path = %#v, want app.ts; the first OPTIONAL MATCH must still bind", got)
 	}
-	if got := nodeOnly[0]["source_repo_id"]; got != "sourceRepo.id" {
-		t.Errorf("node-only source_repo_id = %v, want the literal %q: the corruption does not need a relationship bound anywhere, "+
-			"which is the part nornicdb-pitfalls.md originally understated", got, "sourceRepo.id")
+	gotRepoID, ok := nodeOnly[0]["source_repo_id"]
+	if !ok {
+		t.Fatal("node-only source_repo_id column is absent, want the v1.2.3 literal-placeholder negative control")
 	}
-
-	if got := rows[0]["source_repo_id"]; got != "sourceRepo.id" {
-		t.Errorf("source_repo_id = %v; the pinned build is expected to return the literal %q. "+
-			"If it now returns repo-1, the defect is narrower than recorded: revisit "+
-			"nornicdb-pitfalls.md and the nornicDBStoryProjection placeholder collapse "+
-			"in code_relationship_story_nornicdb.go, which exists only because of this", got, "sourceRepo.id")
+	if gotRepoID == nil {
+		t.Fatal("node-only source_repo_id = nil, want the v1.2.3 literal placeholder sourceRepo.id")
+	}
+	if gotRepoID != "sourceRepo.id" {
+		t.Errorf("node-only source_repo_id = %#v, want the v1.2.3 literal placeholder %q; if this becomes repo-1, the remaining backend defect is fixed and this boundary must be revisited", gotRepoID, "sourceRepo.id")
 	}
 }

@@ -20,11 +20,11 @@ type nornicDBRelationshipEndpointMeta struct {
 
 // enrichNornicDBRelationshipRows attaches file and repository metadata to the
 // relationship core rows. The core read (nornicDBOneHopRelationshipsCypher)
-// deliberately omits OPTIONAL MATCH so its function-call projections evaluate
-// correctly on the pinned NornicDB build; this restores the file/repo/language
-// columns that used to ride those OPTIONAL MATCH clauses, using
-// OPTIONAL-MATCH-free, index-anchored path reads whose results are joined to the
-// core rows by endpoint identity (coalesce(id, uid)).
+// retains the split introduced for older NornicDB builds that corrupted
+// function-call projections after OPTIONAL MATCH. The current v1.2.3 proof
+// backend evaluates that shape correctly, but these index-anchored reads still
+// preserve partial File-without-Repository metadata and bounded enrichment.
+// Results are joined to the core rows by endpoint identity (coalesce(id, uid)).
 //
 // File and repository metadata are read as SEPARATE reads rather than one
 // File->Repository path so that an endpoint with a File but no REPO_CONTAINS edge

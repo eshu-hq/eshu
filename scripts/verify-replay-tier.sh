@@ -21,7 +21,7 @@ repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "${repo_root}"
 
 # Pinned NornicDB image (digest-locked for reproducibility).
-NORNICDB_IMAGE="timothyswt/nornicdb-cpu-bge:v1.1.11@sha256:51b6174ae65e4ce54a158ac2f9eace7d36a1971545824d22add0fe06d94c1090"
+NORNICDB_IMAGE="timothyswt/nornicdb-cpu-bge:v1.2.3@sha256:4dfa887d990bf0b536693830830e34351c036716b0fe6dc957e1a3680e9f3c74"
 CONTAINER_NAME="eshu-replay-tier-nornicdb-$$"
 HTTP_PORT="${ESHU_REPLAY_TIER_HTTP_PORT:-7474}"
 BOLT_PORT="${ESHU_REPLAY_TIER_BOLT_PORT:-7687}"
@@ -30,11 +30,12 @@ log() { printf '[verify-replay-tier] %s\n' "$*"; }
 die() { printf '[verify-replay-tier] ERROR: %s\n' "$*" >&2; exit 1; }
 
 BLAST_LOG="${TMPDIR:-/tmp}/eshu-replay-tier-blast-$$.log"
+TIER_LOG="${TMPDIR:-/tmp}/eshu-replay-tier-main-$$.log"
 
 cleanup() {
 	# Always tear the container down, on every exit path.
 	docker rm -f "${CONTAINER_NAME}" >/dev/null 2>&1 || true
-	rm -f "${BLAST_LOG}"
+	rm -f "${BLAST_LOG}" "${TIER_LOG}"
 }
 trap cleanup EXIT
 
@@ -116,15 +117,22 @@ set +e
 	# Both packages mutate the same live graph, so package test binaries must run
 	# sequentially. Test-level parallelism remains available within each binary.
 	go test -p=1 ./internal/replay/offlinetier/ ./internal/reducer/ \
-		-run 'TestOfflineReplayTierGraphTruth|TestDeltaTombstone|TestDeltaEntityRetractGraphTruth|TestEntityRetractManifestBinding|TestDeltaSurvivorScopedRetractGraphTruth|TestDeltaEdgeRetractGraphTruth|TestDeltaFileRetractGraphTruth|TestReducerCodeCallEdgeRetractGraphTruth|TestReducerInheritanceEdgeRetractGraphTruth|TestReducerSQLRelationshipRetractGraphTruth|TestReducerRationaleEdgeRetractGraphTruth|TestReducerMetaclassEdgeRetractGraphTruth|TestReducerRepoDependencyEdgeRetractGraphTruth|TestReducerRuntimeEdgeRetractGraphTruth|TestReducerContentEdgeRetractGraphTruth|TestCodeInterprocTaintEdgeRetractGraphTruth|TestReducerCloudEdgeRetractGraphTruth|TestReducerSecurityGroupReachabilityEdgeRetractGraphTruth|TestReducerCanonicalGovernanceEdgeRetractGraphTruth|TestReducerWorkloadUsesEdgeRetractGraphTruth|TestReducerIAMEdgeRetractGraphTruth|TestReducerAWSCloudImageEdgeRetractGraphTruth|TestReducerSecretsIAMEdgeRetractGraphTruth|TestReducerSemanticVariableRetractGraphTruth|TestReducerKubernetesNamespaceEnvironmentRetractGraphTruth|TestReducerKubernetesNamespaceAbsentNodeRetractGraphTruth|TestReducerProvenanceReplayTombstoneGraphTruth|TestNornicDBFunctionProjectionCorruptsAfterOptionalMatch|TestNornicDBSecondChainedOptionalMatchCorruptsPlainPropertyReads' -count=1 -v
-)
+		-run 'TestOfflineReplayTierGraphTruth|TestDeltaTombstone|TestDeltaEntityRetractGraphTruth|TestEntityRetractManifestBinding|TestDeltaSurvivorScopedRetractGraphTruth|TestDeltaEdgeRetractGraphTruth|TestDeltaFileRetractGraphTruth|TestReducerCodeCallEdgeRetractGraphTruth|TestReducerInheritanceEdgeRetractGraphTruth|TestReducerSQLRelationshipRetractGraphTruth|TestReducerRationaleEdgeRetractGraphTruth|TestReducerMetaclassEdgeRetractGraphTruth|TestReducerRepoDependencyEdgeRetractGraphTruth|TestReducerRuntimeEdgeRetractGraphTruth|TestReducerContentEdgeRetractGraphTruth|TestCodeInterprocTaintEdgeRetractGraphTruth|TestReducerCloudEdgeRetractGraphTruth|TestReducerSecurityGroupReachabilityEdgeRetractGraphTruth|TestReducerCanonicalGovernanceEdgeRetractGraphTruth|TestReducerWorkloadUsesEdgeRetractGraphTruth|TestReducerIAMEdgeRetractGraphTruth|TestReducerAWSCloudImageEdgeRetractGraphTruth|TestReducerSecretsIAMEdgeRetractGraphTruth|TestReducerSemanticVariableRetractGraphTruth|TestReducerKubernetesNamespaceEnvironmentRetractGraphTruth|TestReducerKubernetesNamespaceAbsentNodeRetractGraphTruth|TestReducerProvenanceReplayTombstoneGraphTruth|TestNornicDBFunctionProjectionEvaluatesAfterOptionalMatch|TestNornicDBChainedOptionalMatchPreservesExecutorBoundary' -count=1 -v
+) >"${TIER_LOG}" 2>&1
 tier_status=$?
 set -e
 tier_end="$(date +%s)"
 tier_elapsed=$(( tier_end - tier_start ))
+cat "${TIER_LOG}"
 
 log "offline replay tier wall-clock: ${tier_elapsed}s (start=${tier_start} end=${tier_end})"
 [[ ${tier_status} -eq 0 ]] || die "offline replay tier test failed (status ${tier_status})"
+for projection_test in \
+	TestNornicDBFunctionProjectionEvaluatesAfterOptionalMatch \
+	TestNornicDBChainedOptionalMatchPreservesExecutorBoundary; do
+	rg --quiet "^--- PASS: ${projection_test} " "${TIER_LOG}" \
+		|| die "${projection_test} did not run: no '--- PASS: ${projection_test}' line, so -run matched nothing or the test skipped. A skip is not a pass."
+done
 log "offline replay tier PASSED against real NornicDB"
 
 # The sql_table blast-radius branch proof (#5409) lives in internal/query and

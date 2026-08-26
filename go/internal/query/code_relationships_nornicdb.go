@@ -199,15 +199,13 @@ func (h *CodeHandler) nornicDBOneHopRelationships(
 	return []map[string]any{}, false, nil
 }
 
-// nornicDBOneHopRelationshipsCypher is the relationship core read. It carries no
-// trailing OPTIONAL MATCH: on the pinned NornicDB build, a relationship-bound
-// MATCH followed by any OPTIONAL MATCH routes to an executor branch that emits
-// every function-call projection (type(rel), coalesce(...), head(labels(...)))
-// as its literal source text instead of the evaluated value, silently
-// corrupting the relationship type and identity columns. See
-// docs/public/reference/nornicdb-pitfalls.md ("Trailing OPTIONAL MATCH Corrupts
-// Every Function-Call Projection"). File and repository metadata is fetched by the
-// separate, OPTIONAL-MATCH-free enrichment reads in
+// nornicDBOneHopRelationshipsCypher is the relationship core read. It retains
+// the OPTIONAL-MATCH-free shape introduced for older NornicDB builds that
+// returned literal text for type(rel), coalesce(...), and head(labels(...)).
+// NornicDB v1.2.3 evaluates that historical shape correctly, but the split also
+// preserves partial File-without-Repository metadata and bounded enrichment.
+// See docs/public/reference/nornicdb-pitfalls.md. File and repository metadata
+// is fetched by the separate enrichment reads in
 // code_relationships_nornicdb_enrich.go and merged in Go. The extra
 // source_entity_uid/target_entity_uid columns key that merge and are stripped
 // before the response.
