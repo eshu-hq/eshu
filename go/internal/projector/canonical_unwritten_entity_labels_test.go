@@ -191,9 +191,18 @@ var canonicalEntityPhaseSkipProbes = map[string]func(*testing.T){
 		}
 	},
 	"Parameter": func(t *testing.T) {
-		// Parameter rows never come from a content_entity fact at all; phase G
-		// reads a param_name payload. Sending the content-entity shape here
-		// would prove nothing, so this drives the real fact shape.
+		// The distinction is payload SHAPE, not fact kind. This envelope is a
+		// content_entity fact and it DOES yield a Parameter row, because
+		// extractRelationships keys on the param_name payload field and never
+		// filters on FactKind (canonical_builder.go, "Parameters: facts with
+		// param_name payload key"). What would prove nothing is sending the
+		// entity_type/entity_name shape contentEntityEnvelopeForLabel builds,
+		// since phase G reads param_name and that shape carries none.
+		//
+		// An earlier version of this comment said Parameter rows never come
+		// from a content_entity fact at all, which the envelope directly below
+		// it contradicts — the same "registration read as truth" imprecision
+		// this file exists to close.
 		mat, _ := buildCanonicalMaterialization(testScope(), testGeneration(), []facts.Envelope{{
 			FactID:   "param-1",
 			ScopeID:  "scope-1",
