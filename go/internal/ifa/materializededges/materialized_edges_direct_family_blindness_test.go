@@ -357,11 +357,25 @@ func TestDirectEdgeFamilyResolutionFailsClosedOnAnUnclassifiedPort(t *testing.T)
 // loadMaterializedEdgeLedgerSurfaces folds both manifests into one
 // family -> first-file map, and every other check here reads the union. That is
 // the right shape for asking "is this family covered anywhere", and the wrong
-// shape for the split itself: a direct family's row dropped into the shared
-// manifest, or a shared family's row into the direct one, satisfies every union
-// check and no gate notices. The two-file split is what keeps each half
-// readable and under the 500-line cap, and #6181 treats it as load-bearing — so
-// it needs an assertion rather than a convention.
+// shape for the split itself: a family whose rows sit in the wrong half
+// satisfies every union check in this file. The two-file split is what keeps
+// each half readable and under the 500-line cap, and #6181 treats it as
+// load-bearing — so it needs an assertion rather than a convention.
+//
+// It is NOT the only thing that reds on a misplacement, and claiming so would
+// be the same overreach this change removes one file over. Measured, by moving
+// rows in a throwaway tree: the coverage/waiver reconciliation in
+// materialized_edges.go reds too, in both directions, because the moved row
+// becomes a dangling waiver or a lost coverage row against the family set its
+// caller passes. What it does NOT do is say the row is in the wrong HALF — it
+// reports "stale waiver" and sends the maintainer to the wrong question. This
+// check names the actual mistake.
+//
+// Limit, also measured: the map is family -> FIRST file, so this is a
+// family-level assertion, not a row-level one. Moving SOME of a family's rows
+// while leaving others in its correct half does not red here — the family still
+// resolves to the half it belongs to. Moving all of them does. The reconciliation
+// above is what covers the partial case, loudly if not precisely.
 //
 // The direction that matters is misplacement, not absence: absence is already
 // caught by the coverage gate, which requires every (surface, proof_gate) pair
