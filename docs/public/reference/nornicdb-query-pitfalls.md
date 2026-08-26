@@ -61,9 +61,10 @@ this: the code-call edge retract matched
 edges and stale `CALLS`/`REFERENCES`/`INSTANTIATES` edges survived every
 reprojection.
 
-The only shape that reliably retracts every source on both pinned versions is a
-**single label per statement**, so the fix fans the retract out to one statement
-per source label (`MATCH (source:Function)-[rel:CALLS|REFERENCES|INSTANTIATES]->()
+The only shape that reliably retracts every source on both historically
+measured versions is a **single label per statement**, so the fix fans the
+retract out to one statement per source label
+(`MATCH (source:Function)-[rel:CALLS|REFERENCES|INSTANTIATES]->()
 WHERE source.repo_id IN $repo_ids AND rel.evidence_source = $evidence_source
 DELETE rel`, repeated for `Class`/`Struct`/`Interface`/`TypeAlias`/`File`). The
 statements run **sequentially** (each in its own transaction), not grouped,
@@ -75,10 +76,10 @@ scoped and idempotent, so sequential execution is safe. See
 Do not resolve this by dropping the label to an unlabeled `(source)` scan (it
 passes on v1.1.9 but silently under-deletes on v1.1.11), and do not group the
 per-label statements into one transaction. A sibling instance of the same
-anti-pattern is still open and tracked in #5116: the write-path fallback
-templates (`batchCanonicalCodeCallUpsertCypher` and friends) silently write
-nothing for unresolved-label endpoints. The inheritance retract carried the
-same node-label disjunction and was fixed the same way in #4367
+anti-pattern was also recorded in #5116: the write-path fallback templates
+(`batchCanonicalCodeCallUpsertCypher` and friends) silently write nothing for
+unresolved-label endpoints. The inheritance retract carried the same node-label
+disjunction and was fixed the same way in #4367
 (`buildInheritanceRetractStatements`). The SQL-relationship retract carried
 both remaining shapes: its per-label statements ran grouped through one
 managed transaction (measured on v1.1.11: the first DELETE never applied,
@@ -150,8 +151,9 @@ relationship pattern): probed directly over the HTTP `tx/commit` auto-commit
 endpoint against a lean v1.1.11 container, seeding one
 `CloudResource-[:ALLOWS_INGRESS]->SecurityGroupRule` edge and running the
 exact retract statement as a single auto-commit statement deleted it (count 1
--> 0). The untyped-expansion shape itself is sound on this pinned version; it
-was never the anchor pattern at fault, only the `ExecuteGroup` dispatch above.
+-> 0). The untyped-expansion shape itself was sound on that historical v1.1.11
+build; it was never the anchor pattern at fault, only the `ExecuteGroup`
+dispatch above.
 
 ### Validation
 
@@ -166,10 +168,12 @@ ESHU_REPLAY_TIER_LIVE=1 bash ../scripts/verify-replay-tier.sh   # TestReducerCod
 
 No-Regression Evidence: the broken retract was a no-op (deleted nothing), so the
 #5116 fix has no slower prior path to regress; the fix makes the intended scoped
-retract work. `TestReducerCodeCallEdgeRetractGraphTruth` proves the in-scope
+retract work. The original live proof established this behavior on v1.1.11.
+The replay tier now runs `TestReducerCodeCallEdgeRetractGraphTruth` against the
+immutable v1.2.3 pin and proves the same invariants: the in-scope
 `CALLS`/`REFERENCES`/`INSTANTIATES` edges retract to zero while an out-of-scope
-repo's edge and every endpoint node survive, on a real v1.1.11 NornicDB. The
-per-label fan-out runs a bounded, fixed number of scoped deletes per retract.
+repo's edge and every endpoint node survive. The per-label fan-out runs a
+bounded, fixed number of scoped deletes per retract.
 
 No-Observability-Change: no runtime metric, span, log field, queue stage, worker
 knob, or schema phase changes. The existing canonical retract spans and
