@@ -204,13 +204,15 @@ var canonicalEntityPhaseSkipProbes = map[string]func(*testing.T){
 		// it contradicts -- the same "registration read as truth" imprecision
 		// this file exists to close.
 		//
-		// This says the reader accepts the shape, NOT that any live fact
-		// carries it. No collector, parser, SDK, spec or fixture emits a
-		// param_name payload key today, and canonical_builder.go:82 calls it a
-		// Python-era key. So the ledger's Parameter owner names a writer no
-		// current fact reaches -- the same class as Variable, one layer
-		// deeper. Correcting the ledger entry is projected-truth work needing
-		// golden-corpus proof, so it is deliberately not done here.
+		// One narrower point about the producer side: no checked-in collector,
+		// parser, SDK, spec or fixture emits a param_name payload key today,
+		// which is why canonical_builder.go calls these "Python-era payload
+		// keys". That is an inventory of emitters in this repo, and nothing
+		// more. It is NOT a reachability claim: extractRelationships accepts
+		// the key deliberately and without a FactKind filter, so retained
+		// Python-era envelopes still produce ParameterRows when an upgraded
+		// installation reprojects them. The writer stays live for exactly that
+		// reason -- do not read this note as an argument for removing it.
 		mat, _ := buildCanonicalMaterialization(testScope(), testGeneration(), []facts.Envelope{{
 			FactID:   "param-1",
 			ScopeID:  "scope-1",
