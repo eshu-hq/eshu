@@ -20,9 +20,10 @@ import (
 // tables (IFA_FAMILY_WAIT_STAGE, IFA_FAMILY_ANCHOR, ...) every row file also
 // populates. This file is the live-parse counterpart to
 // materialized_edge_family_blocker_shape_test.go's checkFamilyBlockerLockstep
-// and its wait-key domain-membership check: both exist so that file reads
-// the real declarations scripts/lib/ifa_family_registry.sh's own accessor
-// functions return, never a Go-side copy of them.
+// and to the wait-key domain-membership check in
+// ifa_family_registry_wait_key_coherence_test.go: all of them exist so those
+// files read the real declarations scripts/lib/ifa_family_registry.sh's own
+// accessor functions return, never a Go-side copy of them.
 var (
 	// Anchored to line start (?m). Unanchored, these matched an assignment
 	// anywhere in a row file -- including inside a comment -- and a later match
@@ -66,7 +67,7 @@ func parseIfaFamilyRegistryBlockerKinds(t *testing.T, rowsDir string) map[string
 // IFA_FAMILY_WAIT_KEY row from rowsDir -- the queue/domain-completion key the
 // shell fault-injection wait helper (ifa_fault_wait_for_claimed) polls on. It
 // exists so TestIfaFamilyRegistryWaitKeyIsKnownDomain in
-// materialized_edge_family_blocker_shape_test.go can bind each declared value
+// ifa_family_registry_wait_key_coherence_test.go can bind each declared value
 // to a real reducer.Domain constant instead of trusting the registry row and
 // the wait helper's own hand-typed pin to keep agreeing with each other after
 // a Domain rename. See parseIfaFamilyRegistryTable for the shared parsing
