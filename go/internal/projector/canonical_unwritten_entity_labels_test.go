@@ -191,9 +191,28 @@ var canonicalEntityPhaseSkipProbes = map[string]func(*testing.T){
 		}
 	},
 	"Parameter": func(t *testing.T) {
-		// Parameter rows never come from a content_entity fact at all; phase G
-		// reads a param_name payload. Sending the content-entity shape here
-		// would prove nothing, so this drives the real fact shape.
+		// The distinction is payload SHAPE, not fact kind. This envelope is a
+		// content_entity fact and it DOES yield a Parameter row, because
+		// extractRelationships keys on the param_name payload field and never
+		// filters on FactKind (canonical_builder.go, "Parameters: facts with
+		// param_name payload key"). What would prove nothing is sending the
+		// entity_type/entity_name shape contentEntityEnvelopeForLabel builds,
+		// since phase G reads param_name and that shape carries none.
+		//
+		// An earlier version of this comment said Parameter rows never come
+		// from a content_entity fact at all, which the envelope directly below
+		// it contradicts -- the same "registration read as truth" imprecision
+		// this file exists to close.
+		//
+		// One narrower point about the producer side: no checked-in collector,
+		// parser, SDK, spec or fixture emits a param_name payload key today,
+		// which is why canonical_builder.go calls these "Python-era payload
+		// keys". That is an inventory of emitters in this repo, and nothing
+		// more. It is NOT a reachability claim: extractRelationships accepts
+		// the key deliberately and without a FactKind filter, so retained
+		// Python-era envelopes still produce ParameterRows when an upgraded
+		// installation reprojects them. The writer stays live for exactly that
+		// reason -- do not read this note as an argument for removing it.
 		mat, _ := buildCanonicalMaterialization(testScope(), testGeneration(), []facts.Envelope{{
 			FactID:   "param-1",
 			ScopeID:  "scope-1",
