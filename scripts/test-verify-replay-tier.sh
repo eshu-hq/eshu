@@ -49,6 +49,22 @@ has_blast_radius_nonvacuity_guard() {
 	rg --quiet '^command -v rg >/dev/null 2>&1 \|\| die' "$1"
 }
 
+# has_projection_boundary_nonvacuity_guard checks the two #6262 compatibility
+# selectors are both in the live allowlist and both produce a PASS line. A
+# renamed or skipped test must not let the real-backend tier report green.
+has_projection_boundary_nonvacuity_guard() {
+	rg --quiet \
+		"^[[:space:]]*-run '.*TestNornicDBFunctionProjectionEvaluatesAfterOptionalMatch\\|TestNornicDBChainedOptionalMatchPreservesExecutorBoundary' -count=1 -v$" \
+		"$1" || return 1
+	rg --quiet '^for projection_test in \\$' "$1" || return 1
+	local name
+	for name in TestNornicDBFunctionProjectionEvaluatesAfterOptionalMatch \
+		TestNornicDBChainedOptionalMatchPreservesExecutorBoundary; do
+		rg --quiet "^\\t${name}[; \\\\]" "$1" || return 1
+	done
+	rg --quiet '^\trg --quiet "\^--- PASS: \$\{projection_test\} " "\$\{TIER_LOG\}"' "$1"
+}
+
 # has_graph_endpoint_pins checks the gate pins every name of the graph endpoint
 # to its OWN container, not merely that an export line exists.
 #
@@ -211,6 +227,8 @@ has_blast_radius_command "${script}" \
 	|| fail "gate must run the sql_table blast-radius branch proof (#5409), not only the replay tier (#6182)"
 has_blast_radius_nonvacuity_guard "${script}" \
 	|| fail "gate must assert both blast-radius tests RAN; go test -run exits 0 on a regex matching nothing"
+has_projection_boundary_nonvacuity_guard "${script}" \
+	|| fail "gate must assert both #6262 OPTIONAL MATCH boundary tests RAN; go test -run exits 0 on a regex matching nothing"
 has_graph_endpoint_pins "${script}" \
 	|| fail "gate must pin every graph-endpoint name to its own container; an unpinned name lets an ambient developer value win (#6201)"
 has_nornicdb_v123_image_pin "${script}" \
@@ -243,6 +261,21 @@ fi
 sed '/^command -v rg >\/dev\/null 2>&1 || die/s/^/# /' "${script}" >"${tmp}/script-no-rg"
 if has_blast_radius_nonvacuity_guard "${tmp}/script-no-rg"; then
 	fail "gate must refuse to run without rg rather than read a missing tool as no-match (#5974)"
+fi
+# The #6262 selectors need their own standing mutation checks. Replacing either
+# exact test name must break both allowlist and PASS-line ownership.
+for projection_test in TestNornicDBFunctionProjectionEvaluatesAfterOptionalMatch \
+	TestNornicDBChainedOptionalMatchPreservesExecutorBoundary; do
+	sed "s/${projection_test}/${projection_test}Missing/g" "${script}" \
+		>"${tmp}/script-missing-${projection_test}"
+	if has_projection_boundary_nonvacuity_guard "${tmp}/script-missing-${projection_test}"; then
+		fail "a missing ${projection_test} selector must not satisfy the #6262 non-vacuity guard"
+	fi
+done
+sed '/rg --quiet "\^--- PASS: \${projection_test} "/s/^/# /' "${script}" \
+	>"${tmp}/script-vacuous-projection"
+if has_projection_boundary_nonvacuity_guard "${tmp}/script-vacuous-projection"; then
+	fail "a commented-out #6262 PASS assertion must not satisfy the non-vacuity guard"
 fi
 # One negation per pinned name: deleting any single export must fail, which is
 # the drift that produced both #6201 findings.

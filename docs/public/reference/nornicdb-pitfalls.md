@@ -759,7 +759,7 @@ OPTIONAL MATCH (e)<-[:CONTAINS]-(f:File)
 RETURN type(rel) AS type, coalesce(e.id, e.uid) AS source_id, target.name AS target_name
 ```
 
-Precise corruption boundary, measured on the pinned image:
+Precise corruption boundary, measured on the affected older images:
 
 - **Corrupt (returns the expression's literal text):** every function call —
   `type(rel)`, `coalesce(...)`, `head(labels(...))`, `labels(...)`, and

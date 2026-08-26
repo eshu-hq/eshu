@@ -4,9 +4,10 @@
 //go:build live_nornicdb_relationships_proof
 
 // Live regression proof for the NornicDB relationship-query split introduced
-// for #5681. NornicDB v1.2.3 fixed the old OPTIONAL MATCH projection defect,
-// but this test still proves the retained split returns evaluated relationship
-// types and preserves File/Repository enrichment through the real Bolt path.
+// for #5681. NornicDB v1.2.3 fixed the old relationship-seeded OPTIONAL MATCH
+// projection defect, but this test still proves the retained split returns
+// evaluated relationship types and preserves File/Repository enrichment
+// through the real Bolt path.
 //
 // Run against the replay-tier proof image:
 //

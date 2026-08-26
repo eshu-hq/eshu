@@ -4,8 +4,9 @@
 package offlinetier_test
 
 // nornicdb_function_projection_live_test.go is the standing backend proof for
-// issue #6262: the pinned NornicDB build must evaluate OPTIONAL MATCH
-// projections instead of returning their literal source text.
+// issue #6262: the pinned NornicDB build must evaluate traversal/relationship-
+// seeded OPTIONAL MATCH projections instead of returning their literal source
+// text, while preserving the measured node-only negative control below.
 //
 // NornicDB v1.1.11 exposed two distinct corruption shapes that Eshu still
 // avoids in its production query builders:
@@ -145,13 +146,13 @@ RETURN type(rel) AS type,
 	}
 }
 
-// TestNornicDBSecondChainedOptionalMatchEvaluatesPlainPropertyReads requires a
-// second chained OPTIONAL MATCH to bind and project its own variables.
+// TestNornicDBChainedOptionalMatchPreservesExecutorBoundary pins the different
+// behavior of relationship-seeded and node-only chained OPTIONAL MATCH paths.
 //
 // NornicDB v1.2.3 evaluates the relationship-seeded second hop, but its
 // node-only compound path still returns "sourceRepo.id". The positive and
 // negative assertions below pin that measured executor boundary.
-func TestNornicDBSecondChainedOptionalMatchEvaluatesPlainPropertyReads(t *testing.T) {
+func TestNornicDBChainedOptionalMatchPreservesExecutorBoundary(t *testing.T) {
 	if !liveTierEnabled() {
 		t.Skipf("set %s=1 to run the function-projection proof against a real NornicDB", liveTierEnv)
 	}
