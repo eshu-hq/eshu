@@ -23,11 +23,11 @@ That single fact rules out both handler-stage and runner-stage forms of the
   (`scripts/lib/ifa_family_registry/rows/02_code_calls.sh:19`). Two
   handler-stage families cannot share one wait_key:
   `TestIfaFamilyRegistryHandlerWaitKeysAreExclusive`
-  (`go/internal/reducer/materialized_edge_family_blocker_shape_test.go:604-636`)
+  (`go/internal/reducer/ifa_family_registry_wait_key_coherence_test.go`)
   rejects it outright, naming both families.
 - `(shared_intent_lock, wait_stage=runner)` -- rejected by a different rule,
   independent of any wait_key collision:
-  `TestIfaFamilyRegistryWaitStageAndKeyCohere` (:544-585, the rule at :580-582)
+  `TestIfaFamilyRegistryWaitStageAndKeyCohere` (same file, the shared_intent_lock rule)
   requires `blocker_kind=shared_intent_lock` to pair with `wait_stage=handler`
   only, because that blocker's mandatory retry-above-baseline proof reads
   `fact_work_items.attempt_count` scoped to wait_key, and

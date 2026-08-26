@@ -384,7 +384,7 @@ coverage:
   # already covers -- so a handler-stage kill-worker cell would reuse
   # code_calls' wait key and prove nothing new
   # (TestIfaFamilyRegistryHandlerWaitKeysAreExclusive,
-  # go/internal/reducer/materialized_edge_family_blocker_shape_test.go). Each
+  # go/internal/reducer/ifa_family_registry_wait_key_coherence_test.go). Each
   # family keeps its own anchor-scoped cell_failgraphwrite_<family>, with a
   # one-time fault injected
   # at that family's own MERGE template (HANDLES_ROUTE / RUNS_IN /

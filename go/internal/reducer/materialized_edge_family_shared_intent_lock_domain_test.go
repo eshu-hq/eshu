@@ -16,7 +16,7 @@ import (
 //
 // This is deliberately NOT a duplicate of
 // TestIfaFamilyRegistryHandlerWaitKeysAreExclusive
-// (materialized_edge_family_blocker_shape_test.go:604-636). That test catches
+// (ifa_family_registry_wait_key_coherence_test.go). That test catches
 // two handler-stage families declaring the SAME wait_key -- an accounting
 // error visible directly from the registry's own self-reported strings. This
 // check closes the evasion path between the two: blocker_kind=shared_intent_lock

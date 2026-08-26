@@ -12,7 +12,7 @@ import (
 
 // checkRunnerWaitKeysAreExclusive mirrors
 // TestIfaFamilyRegistryHandlerWaitKeysAreExclusive's rule
-// (materialized_edge_family_blocker_shape_test.go:604-636), scoped instead to
+// (ifa_family_registry_wait_key_coherence_test.go), scoped instead to
 // wait_stage=runner: no two runner-stage families may claim the same
 // wait_key. The accounting failure is identical in kind to the handler-stage
 // one that test's doc comment describes -- a shared wait_key would let one
