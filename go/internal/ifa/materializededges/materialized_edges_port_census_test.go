@@ -67,8 +67,15 @@ type portClassificationCensus struct {
 	// prose says would fail the build if the guard were total in both
 	// directions.
 	Undeclared int
-	// UndeclaredWithoutARetractShapedName is the residue the prose pins by name.
-	UndeclaredWithoutARetractShapedName []string
+	// NeitherWithoutARetractShapedName is the residue the prose pins by name.
+	//
+	// Drawn from Neither, not Undeclared: the shared-projection port has no
+	// retract-shaped name either, so it belongs in this list even though the
+	// guard above keeps it out of Undeclared. Naming it "Undeclared..." claimed
+	// a narrower scope than it holds and left the shared port's presence here
+	// looking like an oversight. The want-side map is
+	// neitherTablePortsWithoutARetractShapedName, and the two now agree.
+	NeitherWithoutARetractShapedName []string
 }
 
 // portClassificationClaim is one prose count, the pattern that finds it, and
@@ -155,9 +162,9 @@ func TestPortClassificationCensusMatchesTheProse(t *testing.T) {
 		wantResidue = append(wantResidue, port)
 	}
 	sort.Strings(wantResidue)
-	if strings.Join(census.UndeclaredWithoutARetractShapedName, ",") != strings.Join(wantResidue, ",") {
+	if strings.Join(census.NeitherWithoutARetractShapedName, ",") != strings.Join(wantResidue, ",") {
 		t.Errorf("ports in neither classification table without a retract/sweep/execute name are %v, want %v.\n  The prose in %s says all but one of them are retract, sweep, execute or read ports, with FailureClass the exception.\n  A port that joined this set is in neither table for a NEW reason: declare it in one of the two tables, or add it to neitherTablePortsWithoutARetractShapedName with the reason and correct the prose.",
-			census.UndeclaredWithoutARetractShapedName, wantResidue, portClassificationProseFile)
+			census.NeitherWithoutARetractShapedName, wantResidue, portClassificationProseFile)
 	}
 
 	path := filepath.Join(repoRoot, portClassificationProseFile)
@@ -190,7 +197,7 @@ func TestPortClassificationCensusMatchesTheProse(t *testing.T) {
 	}
 
 	t.Logf("classified=%d neither=%d undeclared=%d residue=%v",
-		census.Classified, census.Neither, census.Undeclared, census.UndeclaredWithoutARetractShapedName)
+		census.Classified, census.Neither, census.Undeclared, census.NeitherWithoutARetractShapedName)
 }
 
 // takePortClassificationCensus runs the drift guard's own scan and counts the
@@ -225,10 +232,10 @@ func takePortClassificationCensus(t *testing.T, repoRoot string) portClassificat
 			census.Undeclared++
 		}
 		if !hasRetractShapedName(row.Port) {
-			census.UndeclaredWithoutARetractShapedName = append(census.UndeclaredWithoutARetractShapedName, row.Port)
+			census.NeitherWithoutARetractShapedName = append(census.NeitherWithoutARetractShapedName, row.Port)
 		}
 	}
-	sort.Strings(census.UndeclaredWithoutARetractShapedName)
+	sort.Strings(census.NeitherWithoutARetractShapedName)
 
 	if census.Neither == 0 {
 		t.Fatal("every classified port is in one of the two tables; the paragraph this gate holds describes a set that no longer exists, so the counts below assert nothing")
