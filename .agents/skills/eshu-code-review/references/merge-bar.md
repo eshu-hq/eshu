@@ -36,6 +36,23 @@ needs its own proof or a design decision, or would only be reachable by widening
 scope. Disposition it `deferred-to-linked-follow-up`, state it in the PR, and
 merge.
 
+**Apply both criteria before considering deferral, and record the result.**
+Deferral is only available once the finding has failed criterion 1 and
+criterion 2, so an agent that reaches the owner-agreement paragraph without
+having tested them is asking about a branch that may not be open. State which
+criterion the finding failed and why; "it is a P2" is not that statement.
+
+This ordering is load-bearing because the failure it prevents has happened. A
+review of the #6108 work found that the PR's new "scope honesty" section framed
+two counters as measuring a blind spot while a third population was measured by
+neither, then put the deferral question to the owner with "file a follow-up" as
+its recommendation. That finding contradicts a claim the PR itself makes, which is
+criterion 1 exactly. It blocked, there was no follow-up to file, and no
+question to ask — the agent had both the rule and the contradiction in its own
+words, and reached the deferral paragraph without passing through the test
+upstream of it. Read the two criteria as a gate on the paragraph below them,
+not as background for it.
+
 Deferral is not the reviewing agent's call alone. It requires **the owner's
 agreement, quoted in the PR**, exactly as `SKILL.md`, `eshu-issue-driver` Step 6
 and the root canon already demand — an exception the invoking agent can
@@ -98,8 +115,14 @@ underneath it.
 
 ## Stating it
 
-The verdict carries `P0`, `P1`, `P2-blocking`, and `P2-deferred` counts.
+The verdict carries `P0`, `P1`, `P2-blocking`, `P2-deferred` and `P3` counts.
 "Ready" means `P0=0`, `P1=0`, `P2-blocking=0`, and every deferred P2 tracked in
 a linked issue with the owner's agreement quoted in the PR, named there with its
 severity-table category, so the owner can see what was deferred and why. Never
 report a deferred finding as absent.
+
+A non-zero `P3` does not affect readiness and needs no issue. It is reported so
+the count is honest about what the review saw, and so a reader can tell a diff
+with four cosmetic findings from one with none. Do not suppress P3s to make a
+verdict look cleaner: a review that hides what it noticed is the same failure as
+one that overstates what it proved.
