@@ -73,3 +73,20 @@ func ProjectContainerImageBuiltFromEdgesForReplayTest(
 		decisions,
 	)
 }
+
+// ProjectContainerImageDerivedFromEdgesForReplayTest drives the package-private
+// retract-first projection through the real writer supplied by the replay test.
+func ProjectContainerImageDerivedFromEdgesForReplayTest(
+	ctx context.Context,
+	writer ContainerImageDerivedFromEdgeWriter,
+	scopeID string,
+	generationID string,
+	decisions []ContainerImageIdentityDecision,
+) error {
+	handler := ContainerImageIdentityHandler{DerivedFromEdgeWriter: writer}
+	return handler.projectContainerImageDerivedFromEdges(
+		ctx,
+		Intent{ScopeID: scopeID, GenerationID: generationID},
+		decisions,
+	)
+}

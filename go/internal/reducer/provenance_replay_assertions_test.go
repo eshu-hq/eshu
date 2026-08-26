@@ -48,6 +48,25 @@ RETURN rel.scope_id AS scope_id, rel.generation_id AS generation_id,
 	return rows
 }
 
+func readProvenanceReplayDerivedFrom(
+	ctx context.Context,
+	t *testing.T,
+	executor provenanceReplayExecutor,
+	digest string,
+	baseDigest string,
+) []map[string]any {
+	t.Helper()
+	rows, err := executor.readRows(ctx, `MATCH (:ContainerImage {digest: $digest})-[rel:DERIVED_FROM]->(:ContainerImage {digest: $base_digest})
+RETURN rel.scope_id AS scope_id, rel.generation_id AS generation_id,
+       rel.evidence_source AS evidence_source, rel.evidence_kinds AS evidence_kinds,
+       rel.attribution_basis AS attribution_basis, rel.source_tool AS source_tool`,
+		map[string]any{"digest": digest, "base_digest": baseDigest})
+	if err != nil {
+		t.Fatalf("read DERIVED_FROM graph truth: %v", err)
+	}
+	return rows
+}
+
 func assertProvenanceReplayRelationship(t *testing.T, rows []map[string]any, want map[string]any) {
 	t.Helper()
 	if len(rows) != 1 {

@@ -4,7 +4,7 @@
 
 Every surface Eshu claims to support should have a green, credential-free, Docker-free replay scenario. This dashboard is generated from the C-1 coverage manifest and the source-of-truth registries (epic [#4172](https://github.com/eshu-hq/eshu/issues/4172)); it is refreshed by the replay-coverage gate so the gap is reviewable in a PR diff.
 
-**Overall: 436/437 surfaces satisfied (99.77%)** — mode: blocking.
+**Overall: 437/437 surfaces satisfied (100.00%)** — mode: blocking.
 
 ## Coverage by axis
 
@@ -18,10 +18,10 @@ Every surface Eshu claims to support should have a green, credential-free, Docke
 | Product claims | 11 | 11 | 100.00% | 0 | 0 |
 | Projections (cost/ordering) | 29 | 29 | 100.00% | 0 | 1 |
 | Reducer drain (crash) | 1 | 1 | 100.00% | 0 | 0 |
-| Retractable edge types (delta) | 63 | 64 | 98.44% | 1 | 1 |
+| Retractable edge types (delta) | 64 | 64 | 100.00% | 0 | 1 |
 | Retractable node types (delta) | 100 | 100 | 100.00% | 0 | 1 |
 | Collectors | 34 | 34 | 100.00% | 0 | 8 |
-| **Total** | **436** | **437** | **99.77%** | **1** | **12** |
+| **Total** | **437** | **437** | **100.00%** | **0** | **12** |
 
 ## Coverage by scenario type
 
@@ -30,7 +30,7 @@ Every surface Eshu claims to support should have a green, credential-free, Docke
 | baseline | 222 | 222 | 100.00% | 0 | 5 |
 | cost | 28 | 28 | 100.00% | 0 | 1 |
 | crash | 2 | 2 | 100.00% | 0 | 0 |
-| delta_tombstone | 164 | 165 | 99.39% | 1 | 2 |
+| delta_tombstone | 165 | 165 | 100.00% | 0 | 2 |
 | fault | 17 | 17 | 100.00% | 0 | 4 |
 | ordering | 3 | 3 | 100.00% | 0 | 0 |
 
@@ -44,13 +44,9 @@ Every ledger language is satisfied by corpus or parser fixture coverage.
 
 ## Gaps — surfaces still needing a replay scenario
 
-1 surface(s) uncovered or unresolved:
+None. Every supported surface has a replay scenario.
 
-### Retractable edge types (delta) (1)
-
-- `retractable_edge:DERIVED_FROM` (delta_tombstone)
-
-## Covered surfaces (436)
+## Covered surfaces (437)
 
 | Surface | Scenario type | Scenario | Proof gate | Artifact |
 | --- | --- | --- | --- | --- |
@@ -308,6 +304,7 @@ Every ledger language is satisfied by corpus or parser fixture coverage.
 | `retractable_edge:DEFINES_JOB` | delta_tombstone | cassette | replay-tier | `testdata/cassettes/replaydelta/multi-generation-tombstone.json` |
 | `retractable_edge:DEPENDS_ON` | delta_tombstone | go_test | replay-tier | `go/internal/replay/offlinetier/delta_tier_reducer_repo_dependency_retract_live_test.go` |
 | `retractable_edge:DEPLOYS_FROM` | delta_tombstone | go_test | replay-tier | `go/internal/replay/offlinetier/delta_tier_reducer_repo_dependency_retract_live_test.go` |
+| `retractable_edge:DERIVED_FROM` | delta_tombstone | go_test | replay-tier | `go/internal/reducer/provenance_replay_tombstone_live_test.go` |
 | `retractable_edge:DISCOVERS_CONFIG_IN` | delta_tombstone | go_test | replay-tier | `go/internal/replay/offlinetier/delta_tier_reducer_repo_dependency_retract_live_test.go` |
 | `retractable_edge:DOCUMENTS` | delta_tombstone | go_test | replay-tier | `go/internal/replay/offlinetier/delta_tier_reducer_content_edge_retract_live_test.go` |
 | `retractable_edge:EVIDENCES_REPOSITORY_RELATIONSHIP` | delta_tombstone | go_test | replay-tier | `go/internal/replay/offlinetier/delta_tier_reducer_repo_dependency_retract_live_test.go` |
