@@ -2266,7 +2266,7 @@ gates:
       # nothing (#6161).
       - "scripts/lib/ifa_private_data_pattern.sh"
       # Glob, not the one filename: this file is the live-gate selector case
-      # table and sits at 488 of the blocking 500-line cap, so it is itself a
+      # table and sits at 491 of the blocking 500-line cap, so it is itself a
       # split waiting to happen -- and a split of the table that proves these
       # gates select correctly is exactly the event #6200 is about.
       - "scripts/lib/ifa_live_gate_*.sh"
@@ -2592,21 +2592,22 @@ gates:
       - "go/internal/storage/cypher/canonical_handles_route_edges.go"
       - "go/internal/storage/cypher/canonical_runs_in_edges.go"
       - "go/internal/storage/cypher/canonical_invokes_cloud_action_edges.go"
-      # The scripts/lib/ Ifá surface as globs (#6200). This gate went from 32
-      # literal scripts/lib/ filenames and two directory globs to 6 literals
+      # The scripts/lib/ Ifá surface as globs (#6200). This gate went from 34
+      # literal scripts/lib/ filenames and two directory globs to 10 literals
       # and 8 globs. Same defect as the reducer and factschema entries above,
       # on a directory the blocking 500-line cap splits far more often than
-      # any Go package: across the four Ifá gates the registry named 71
+      # any Go package: across the four Ifá gates the registry named 78
       # scripts/lib/ files one at a time and carried only three globs there
       # (ifa_family_registry/**, ifa_family_registry_pins/** and, on the fault
       # gate, ifa_fault_generic_*.sh), so every split dropped the new half out
       # of both live gates while the original filename kept its entry and
-      # nothing dangled. Two files are dark that
-      # way on main today -- test-ifa-fault-injection-deployable-unit-kill-
-      # isolation-cases.sh and test-ifa-fault-injection-generic-runner-lease-
-      # audit-cases.sh, both split out under the cap, both absent from this
-      # registry AND from ifa-determinism-gate.yml's paths: filter, so editing
-      # either starts no Ifá job at all.
+      # nothing dangled. Two files went dark exactly that way -- test-ifa-
+      # fault-injection-deployable-unit-kill-isolation-cases.sh and test-ifa-
+      # fault-injection-generic-runner-lease-audit-cases.sh, both split out
+      # under the cap, both absent from this registry AND from
+      # ifa-determinism-gate.yml's paths: filter, so editing either started no
+      # Ifá job at all. #6241 has since named both by hand; these globs close
+      # the class the enumeration kept reopening, not those two instances.
       #
       # The two gates load DIFFERENT scripts/lib/ subsets and the split is
       # deliberate, so these globs preserve it rather than collapsing both
@@ -2765,7 +2766,7 @@ gates:
     triggers:
       - "scripts/lib/test-ifa-fault-injection-cell-pins-cases.sh"
       # Glob, not the one filename: this file is the live-gate selector case
-      # table and sits at 488 of the blocking 500-line cap, so it is itself a
+      # table and sits at 491 of the blocking 500-line cap, so it is itself a
       # split waiting to happen -- and a split of the table that proves these
       # gates select correctly is exactly the event #6200 is about.
       - "scripts/lib/ifa_live_gate_*.sh"
@@ -3100,22 +3101,23 @@ gates:
       - "go/internal/storage/cypher/canonical_handles_route_edges.go"
       - "go/internal/storage/cypher/canonical_runs_in_edges.go"
       - "go/internal/storage/cypher/canonical_invokes_cloud_action_edges.go"
-      # The scripts/lib/ Ifá surface as globs (#6200). This gate went from 63
-      # literal scripts/lib/ filenames and two globs to 5 literals and 6
+      # The scripts/lib/ Ifá surface as globs (#6200). This gate went from 68
+      # literal scripts/lib/ filenames and two globs to 13 literals and 6
       # globs. Same defect as the reducer and factschema entries above, on a
       # directory the blocking 500-line cap splits far more often than any Go
-      # package: across the four Ifá gates the registry named 71 scripts/lib/
+      # package: across the four Ifá gates the registry named 78 scripts/lib/
       # files one at a time and carried only three globs there
       # (ifa_family_registry/**, ifa_family_registry_pins/** and this gate's
       # own ifa_fault_generic_*.sh), so every split dropped the new half out
       # of both live gates while the original filename kept its entry and
       # nothing dangled. This gate had two files
-      # dark that way on main --
+      # dark that way --
       # test-ifa-fault-injection-deployable-unit-kill-isolation-cases.sh and
       # test-ifa-fault-injection-generic-runner-lease-audit-cases.sh, both
       # split out under the cap, both absent from this registry AND from
       # ifa-determinism-gate.yml's paths: filter, so editing either started no
-      # Ifá job at all. ifa_fault_injection_driver.sh sources its cells by
+      # Ifá job at all. #6241 has since named both by hand; these globs close
+      # the class rather than those two instances. ifa_fault_injection_driver.sh sources its cells by
       # `for f in .../ifa_fault_injection_*_cells.sh`, so the file set here is
       # open by construction and a name list can never close it.
       #
