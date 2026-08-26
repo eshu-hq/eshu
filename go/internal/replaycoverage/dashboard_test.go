@@ -39,6 +39,13 @@ func sampleReport(t *testing.T, blocking bool) CoverageReport {
 				Scenario: &CoverageEntry{Scenario: ScenarioAPIMCPGolden, ScenarioType: ScenarioTypeBaseline, Ref: "missing-shape", ProofGate: "golden-corpus-gate"},
 				Detail:   "snapshot has no query shape",
 			},
+			{
+				Surface:      SupportedSurface{Registry: RegistrySurfaceInventory, Key: "collector:git"},
+				ScenarioType: ScenarioTypeBaseline,
+				Status:       StatusExempt,
+				Exemption:    &Exemption{Surface: "collector:git", Reason: "filesystem-native collector"},
+				Detail:       "filesystem-native collector",
+			},
 		},
 	}
 	return BuildReport(cov, blocking)
@@ -75,7 +82,8 @@ func TestRenderDashboardShowsAxesGapsAndCovered(t *testing.T) {
 		"golden-corpus-gate",
 		"`testdata/cassettes/awscloud/x.json`",
 		"mode: advisory",
-		"Each row maps to a committed scenario and the named proof gate that must pass",
+		"Every non-exempt required surface maps to a committed scenario and the named proof gate that must pass",
+		"Exempt rows carry the audited reason that a proof class does not apply",
 		"The inventory check itself is credential-free and Docker-free",
 	} {
 		if !strings.Contains(out, want) {
@@ -85,6 +93,9 @@ func TestRenderDashboardShowsAxesGapsAndCovered(t *testing.T) {
 	if strings.Contains(out, "credential-free, Docker-free replay scenario") {
 		t.Error("dashboard must not claim backend-required replay scenarios are Docker-free")
 	}
+	if strings.Contains(out, "Each row maps to a committed scenario") {
+		t.Error("dashboard must not claim exempt rows have scenarios and proof gates")
+	}
 }
 
 func TestRenderDashboardBlockingModeAndCounts(t *testing.T) {
@@ -92,8 +103,8 @@ func TestRenderDashboardBlockingModeAndCounts(t *testing.T) {
 	if !strings.Contains(out, "mode: blocking") {
 		t.Error("blocking report must render mode: blocking")
 	}
-	// 4 surfaces, 2 covered+exempt, 2 gaps (1 uncovered + 1 unresolved).
-	if !strings.Contains(out, "2/4 surfaces satisfied") {
+	// 5 surfaces, 3 covered+exempt, 2 gaps (1 uncovered + 1 unresolved).
+	if !strings.Contains(out, "3/5 surfaces satisfied") {
 		t.Errorf("overall tally wrong; got:\n%s", out)
 	}
 	if !strings.Contains(out, "2 surface(s) uncovered or unresolved") {

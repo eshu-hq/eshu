@@ -6,11 +6,13 @@ The **C-1/C-8/C-9/C-10 replay coverage manifest + lockstep gate**
 [#4188](https://github.com/eshu-hq/eshu/issues/4188),
 [#4189](https://github.com/eshu-hq/eshu/issues/4189), epic
 [#4172](https://github.com/eshu-hq/eshu/issues/4172)). It is the keystone of the
-replay-coverage-completeness epic: it proves that every surface and required
-scenario-depth class Eshu claims to support maps to a committed replay scenario
-and an enforceable proof gate — and fails CI on any supported-but-uncovered
-surface/scenario_type pair. The inventory command is credential-free and
-Docker-free; backend-required scenarios run in their named proof gates.
+replay-coverage-completeness epic: it proves that every non-exempt surface and
+required scenario-depth class Eshu claims to support maps to a committed replay
+scenario and an enforceable proof gate — and fails CI on any
+supported-but-uncovered surface/scenario_type pair. Exempt rows carry an audited
+reason that the proof class does not apply. The inventory command is
+credential-free and Docker-free; backend-required scenarios run in their named
+proof gates.
 
 This command is the thin orchestrator; the typed, unit-tested reconciliation
 logic lives in [`internal/replaycoverage`](../../internal/replaycoverage).
