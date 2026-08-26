@@ -30,6 +30,10 @@ const (
 	provenanceReplayContainerDigest = "sha256:1111111111111111111111111111111111111111111111111111111111111111"
 	provenanceReplayBaseDigest      = "sha256:3333333333333333333333333333333333333333333333333333333333333333"
 	provenanceReplayOutScopeID      = "replay-provenance:scope-out"
+	provenanceReplayOutPackageRepo  = "repository:replay-provenance-package-out"
+	provenanceReplayOutVersionID    = "pkg:npm/replay-provenance-out@1.0.0"
+	provenanceReplayOutBuildRepo    = "repository:replay-provenance-build-out"
+	provenanceReplayOutDigest       = "sha256:2222222222222222222222222222222222222222222222222222222222222222"
 )
 
 var provenanceReplayCassettePath = filepath.Join(
@@ -132,7 +136,9 @@ func TestReducerProvenanceReplayTombstoneGraphTruth(t *testing.T) {
 	projectorRuntime := newProvenanceReplayProjectorRuntime(executor)
 	writer := cypher.NewProvenanceEdgeWriter(executor, 10)
 	projectProvenanceReplayCanonicalGeneration(ctx, t, projectorRuntime, gen1)
-	writeProvenanceReplaySurvivor(ctx, t, writer)
+	seedProvenanceReplayLegacyEndpoints(ctx, t, executor)
+	seedProvenanceReplaySurvivorEndpoints(ctx, t, executor)
+	writeProvenanceReplaySurvivors(ctx, t, writer)
 	projectProvenanceReplayGeneration(ctx, t, writer, gen1)
 	assertProvenanceReplayGenerationOne(ctx, t, executor)
 	t.Log("generation 1 canonical child/base nodes and in-scope DERIVED_FROM edge verified")
@@ -179,24 +185,86 @@ type provenanceReplayEndpoint struct {
 }
 
 func provenanceReplayGraphEndpoints() []provenanceReplayEndpoint {
+	endpoints := append(provenanceReplayLegacyEndpoints(), []provenanceReplayEndpoint{
+		{label: "ContainerImage", key: "digest", value: provenanceReplayContainerDigest},
+		{label: "ContainerImage", key: "digest", value: provenanceReplayBaseDigest},
+		{label: "OciRegistryRepository", key: "uid", value: "oci-registry://registry.example.invalid/replay/provenance"},
+		{label: "OciRegistryRepository", key: "uid", value: "oci-registry://registry.example.invalid/replay/base"},
+	}...)
+	return append(endpoints, provenanceReplaySurvivorEndpoints()...)
+}
+
+func provenanceReplayLegacyEndpoints() []provenanceReplayEndpoint {
 	return []provenanceReplayEndpoint{
 		{label: "Repository", key: "id", value: provenanceReplayPackageRepoID},
 		{label: "Package", key: "uid", value: provenanceReplayPackageID},
 		{label: "PackageVersion", key: "uid", value: provenanceReplayVersionID},
 		{label: "Repository", key: "id", value: provenanceReplayBuildRepoID},
-		{label: "ContainerImage", key: "digest", value: provenanceReplayContainerDigest},
-		{label: "ContainerImage", key: "digest", value: provenanceReplayBaseDigest},
-		{label: "OciRegistryRepository", key: "uid", value: "oci-registry://registry.example.invalid/replay/provenance"},
-		{label: "OciRegistryRepository", key: "uid", value: "oci-registry://registry.example.invalid/replay/base"},
 	}
 }
 
-func writeProvenanceReplaySurvivor(
+func provenanceReplaySurvivorEndpoints() []provenanceReplayEndpoint {
+	return []provenanceReplayEndpoint{
+		{label: "Repository", key: "id", value: provenanceReplayOutPackageRepo},
+		{label: "PackageVersion", key: "uid", value: provenanceReplayOutVersionID},
+		{label: "Repository", key: "id", value: provenanceReplayOutBuildRepo},
+		{label: "ContainerImage", key: "digest", value: provenanceReplayOutDigest},
+	}
+}
+
+func seedProvenanceReplayLegacyEndpoints(
+	ctx context.Context,
+	t *testing.T,
+	executor provenanceReplayExecutor,
+) {
+	t.Helper()
+	// Preserve #5712's PUBLISHES/BUILT_FROM endpoint setup independently of the
+	// cassette's first-repository ordering. Do not seed either ContainerImage:
+	// #6258 requires the production canonical projector to create both images.
+	for _, endpoint := range provenanceReplayLegacyEndpoints() {
+		query := fmt.Sprintf("MERGE (node:%s {%s: $value})", endpoint.label, endpoint.key)
+		if err := executor.Execute(ctx, cypher.Statement{
+			Cypher: query, Parameters: map[string]any{"value": endpoint.value},
+		}); err != nil {
+			t.Fatalf("seed provenance replay legacy endpoint: %v", err)
+		}
+	}
+}
+
+func seedProvenanceReplaySurvivorEndpoints(
+	ctx context.Context,
+	t *testing.T,
+	executor provenanceReplayExecutor,
+) {
+	t.Helper()
+	for _, endpoint := range provenanceReplaySurvivorEndpoints() {
+		query := fmt.Sprintf("MERGE (node:%s {%s: $value})", endpoint.label, endpoint.key)
+		if err := executor.Execute(ctx, cypher.Statement{
+			Cypher: query, Parameters: map[string]any{"value": endpoint.value},
+		}); err != nil {
+			t.Fatalf("seed provenance replay survivor endpoint: %v", err)
+		}
+	}
+}
+
+func writeProvenanceReplaySurvivors(
 	ctx context.Context,
 	t *testing.T,
 	writer *cypher.ProvenanceEdgeWriter,
 ) {
 	t.Helper()
+	if err := writer.WritePublishesEdges(ctx, []map[string]any{{
+		"repository_id": provenanceReplayOutPackageRepo,
+		"version_id":    provenanceReplayOutVersionID,
+	}}, provenanceReplayOutScopeID, "replay-provenance-out-gen1", "reducer/package-ownership"); err != nil {
+		t.Fatalf("write out-of-scope PUBLISHES survivor: %v", err)
+	}
+	if err := writer.WriteBuiltFromEdges(ctx, []map[string]any{{
+		"digest":        provenanceReplayOutDigest,
+		"repository_id": provenanceReplayOutBuildRepo,
+	}}, provenanceReplayOutScopeID, "replay-provenance-out-gen1", "reducer/container-image-identity"); err != nil {
+		t.Fatalf("write out-of-scope BUILT_FROM survivor: %v", err)
+	}
 	if err := writer.WriteDerivedFromEdges(ctx, []map[string]any{{
 		"digest":            provenanceReplayContainerDigest,
 		"base_digest":       provenanceReplayBaseDigest,
@@ -213,7 +281,20 @@ func projectProvenanceReplayGeneration(
 	generation provenanceReplayGeneration,
 ) {
 	t.Helper()
+	packageDecisions := reducer.BuildPackageSourceCorrelationDecisions(generation.facts)
+	publicationDecisions := reducer.BuildPackagePublicationDecisions(generation.facts)
+	if err := reducer.ProjectPackageProvenanceEdgesForReplayTest(
+		ctx, writer, generation.scope.ScopeID, generation.generation.GenerationID,
+		packageDecisions, publicationDecisions,
+	); err != nil {
+		t.Fatalf("project %s package provenance: %v", generation.generation.GenerationID, err)
+	}
 	containerDecisions := reducer.BuildContainerImageIdentityDecisions(generation.facts)
+	if err := reducer.ProjectContainerImageBuiltFromEdgesForReplayTest(
+		ctx, writer, generation.scope.ScopeID, generation.generation.GenerationID, containerDecisions,
+	); err != nil {
+		t.Fatalf("project %s container provenance: %v", generation.generation.GenerationID, err)
+	}
 	if err := reducer.ProjectContainerImageDerivedFromEdgesForReplayTest(
 		ctx, writer, generation.scope.ScopeID, generation.generation.GenerationID, containerDecisions,
 	); err != nil {
@@ -227,8 +308,29 @@ func assertProvenanceReplayGenerationOne(
 	executor provenanceReplayExecutor,
 ) {
 	t.Helper()
+	assertProvenanceReplayRelationship(t, "ownership PUBLISHES", readProvenanceReplayPublishes(
+		ctx, t, executor, provenanceReplayPackageRepoID, "Package", "uid", provenanceReplayPackageID,
+	), map[string]any{
+		"scope_id": provenanceReplayScopeID, "generation_id": "replay-provenance-gen1",
+		"evidence_source": "reducer/package-ownership", "evidence_kinds": "PACKAGE_OWNERSHIP_CORRELATION",
+		"source_tool": "unknown",
+	})
+	assertProvenanceReplayRelationship(t, "publication PUBLISHES", readProvenanceReplayPublishes(
+		ctx, t, executor, provenanceReplayPackageRepoID, "PackageVersion", "uid", provenanceReplayVersionID,
+	), map[string]any{
+		"scope_id": provenanceReplayScopeID, "generation_id": "replay-provenance-gen1",
+		"evidence_source": "reducer/package-publication", "evidence_kinds": "PACKAGE_PUBLICATION_CORRELATION",
+		"source_tool": "unknown",
+	})
+	assertProvenanceReplayRelationship(t, "BUILT_FROM", readProvenanceReplayBuiltFrom(
+		ctx, t, executor, provenanceReplayContainerDigest, provenanceReplayBuildRepoID,
+	), map[string]any{
+		"scope_id": provenanceReplayScopeID, "generation_id": "replay-provenance-gen1",
+		"evidence_source": "reducer/container-image-identity", "evidence_kinds": "CONTAINER_IMAGE_IDENTITY_EXACT_DIGEST",
+		"source_tool": "oci",
+	})
 	assertProvenanceReplayCanonicalImages(ctx, t, executor, "replay-provenance-gen1")
-	assertProvenanceReplayRelationship(t, readProvenanceReplayDerivedFrom(
+	assertProvenanceReplayRelationship(t, "DERIVED_FROM", readProvenanceReplayDerivedFrom(
 		ctx, t, executor, provenanceReplayContainerDigest, provenanceReplayBaseDigest, provenanceReplayScopeID,
 	), map[string]any{
 		"scope_id": provenanceReplayScopeID, "generation_id": "replay-provenance-gen1",
@@ -244,26 +346,32 @@ func assertProvenanceReplayGenerationTwo(
 	executor provenanceReplayExecutor,
 ) {
 	t.Helper()
+	if rows := readProvenanceReplayPublishes(
+		ctx, t, executor, provenanceReplayPackageRepoID, "Package", "uid", provenanceReplayPackageID,
+	); len(rows) != 0 {
+		t.Fatalf("generation 2 retained in-scope ownership PUBLISHES rows: %#v", rows)
+	}
+	if rows := readProvenanceReplayPublishes(
+		ctx, t, executor, provenanceReplayPackageRepoID, "PackageVersion", "uid", provenanceReplayVersionID,
+	); len(rows) != 0 {
+		t.Fatalf("generation 2 retained in-scope publication PUBLISHES rows: %#v", rows)
+	}
+	if rows := readProvenanceReplayBuiltFrom(
+		ctx, t, executor, provenanceReplayContainerDigest, provenanceReplayBuildRepoID,
+	); len(rows) != 0 {
+		t.Fatalf("generation 2 retained in-scope BUILT_FROM rows: %#v", rows)
+	}
 	if rows := readProvenanceReplayDerivedFrom(
 		ctx, t, executor, provenanceReplayContainerDigest, provenanceReplayBaseDigest, provenanceReplayScopeID,
 	); len(rows) != 0 {
 		t.Fatalf("generation 2 retained in-scope DERIVED_FROM rows: %#v", rows)
 	}
+	assertProvenanceReplayNode(ctx, t, executor, "Repository", "id", provenanceReplayPackageRepoID)
+	assertProvenanceReplayNode(ctx, t, executor, "Package", "uid", provenanceReplayPackageID)
+	assertProvenanceReplayNode(ctx, t, executor, "PackageVersion", "uid", provenanceReplayVersionID)
+	assertProvenanceReplayNode(ctx, t, executor, "Repository", "id", provenanceReplayBuildRepoID)
 	assertProvenanceReplayCanonicalImages(ctx, t, executor, "replay-provenance-gen2")
 	assertProvenanceReplaySurvivors(ctx, t, executor)
-}
-
-func assertProvenanceReplaySurvivors(
-	ctx context.Context,
-	t *testing.T,
-	executor provenanceReplayExecutor,
-) {
-	t.Helper()
-	if rows := readProvenanceReplayDerivedFrom(
-		ctx, t, executor, provenanceReplayContainerDigest, provenanceReplayBaseDigest, provenanceReplayOutScopeID,
-	); len(rows) != 1 {
-		t.Fatalf("out-of-scope DERIVED_FROM survivor rows = %#v, want one", rows)
-	}
 }
 
 func loadProvenanceReplayGenerations(t *testing.T) (provenanceReplayGeneration, provenanceReplayGeneration) {

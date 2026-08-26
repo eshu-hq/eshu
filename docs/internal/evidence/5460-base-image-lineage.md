@@ -120,7 +120,7 @@ batch size is the writer default (500).
 
 Retract is one statement per scope+evidence_source, dispatched as a sequential
 auto-commit `Execute` — never `ExecuteGroup`, because a grouped DELETE
-under-applies on the pinned NornicDB v1.1.11
+under-applied on the historical NornicDB v1.1.11 proof backend
 (`docs/public/reference/nornicdb-pitfalls.md`). It runs unconditionally ahead of
 the row check so a generation that stops being attributable — a second Dockerfile
 added, making the repository ambiguous — still clears the prior edge.
@@ -326,9 +326,10 @@ cassette carries a repository-scoped Dockerfile base decision, the exact-digest
 base image, and the exact-digest child image with build provenance. Generation 2
 retains both image endpoints but drops the producing evidence. The live test
 drives the package-private retract-first projector through the production
-`ProvenanceEdgeWriter` against pinned NornicDB, asserts that the in-scope
-`DERIVED_FROM` edge disappears, and keeps a distinct out-of-scope lineage edge
-as the survivor control.
+`ProvenanceEdgeWriter` against the replay tier's immutable NornicDB v1.2.3 pin
+in `scripts/verify-replay-tier.sh`, asserts that the in-scope `DERIVED_FROM`
+edge disappears, and keeps a distinct out-of-scope lineage edge as the survivor
+control.
 
 No-Regression Evidence: the change adds replay facts, test-only seams, and
 graph assertions; production decision, projection, and Cypher writer code is
