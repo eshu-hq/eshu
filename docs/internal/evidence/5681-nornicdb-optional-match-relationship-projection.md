@@ -1,5 +1,14 @@
 # #5681 — NornicDB OPTIONAL MATCH corrupts relationship type/identity projection
 
+## Current backend status
+
+This document records the historical v1.1.11 and PR #261 failure that motivated
+the Eshu query split. NornicDB PR #265 fixed both recorded projection shapes.
+The replay tier now pins v1.2.3 at commit
+`d9b76ae82334e6b23b847156eb81931781546b85` and requires evaluated results. Eshu
+retains the split because it also preserves partial File-without-Repository
+metadata, bounded enrichment, and compatibility with older custom backends.
+
 ## Problem
 
 `POST /api/v0/code/relationships` name/entity lookups silently returned empty
@@ -14,8 +23,7 @@ present edges. This blocked production-tier proof for
 `nornicDBOneHopRelationshipsCypher` emitted a relationship-bound primary `MATCH`
 followed by four trailing `OPTIONAL MATCH` clauses and relied on `type(rel)`,
 `coalesce(...)`, and `head(labels(...))` in the `RETURN`. On the pinned
-`eshu-nornicdb-pr261:149245885258` image (and confirmed still present on
-NornicDB branch HEAD and `main`), that query shape routes to
+`eshu-nornicdb-pr261:149245885258` image, that query shape routed to
 `executeCompoundMatchOptionalMatch`'s traversal branch, which resolves `RETURN`
 items with `resolveReturnExprFromVarMap` (handles only `var.prop` / bare vars)
 instead of the real evaluator `evaluateExpressionWithContext`. Every

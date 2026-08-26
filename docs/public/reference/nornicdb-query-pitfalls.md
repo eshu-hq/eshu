@@ -156,12 +156,12 @@ was never the anchor pattern at fault, only the `ExecuteGroup` dispatch above.
 ### Validation
 
 Run the static shape guard (no backend) and the backend-required retract proof
-against the canonical v1.1.11 pin:
+against the replay tier's immutable v1.2.3 pin:
 
 ```bash
 cd go
 go test ./internal/storage/cypher -run TestCodeCallRetractStatementsUseSingleSourceLabel -count=1
-ESHU_REPLAY_TIER_LIVE=1 bash ../scripts/verify-replay-tier.sh   # TestReducerCodeCallEdgeRetractGraphTruth, v1.1.11
+ESHU_REPLAY_TIER_LIVE=1 bash ../scripts/verify-replay-tier.sh   # TestReducerCodeCallEdgeRetractGraphTruth, v1.2.3
 ```
 
 No-Regression Evidence: the broken retract was a no-op (deleted nothing), so the

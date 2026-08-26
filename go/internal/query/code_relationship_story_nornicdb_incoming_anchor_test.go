@@ -36,7 +36,7 @@ func TestNornicDBRelationshipStoryIncomingSeedsIndexedTarget(t *testing.T) {
 			t.Fatalf("incoming cypher does not project the validated static relationship type:\n%s", cypher)
 		}
 		if strings.Contains(cypher, "type(rel) as type") {
-			t.Fatalf("incoming cypher relies on unsupported NornicDB type(rel) projection:\n%s", cypher)
+			t.Fatalf("incoming cypher must keep the validated static relationship type:\n%s", cypher)
 		}
 	}
 }

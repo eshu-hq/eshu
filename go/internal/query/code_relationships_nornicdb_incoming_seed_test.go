@@ -34,10 +34,9 @@ func TestNornicDBIncomingOneHopCypherSeedsExactTarget(t *testing.T) {
 			if strings.Contains(cypher, "MATCH (source)-[rel:CALLS]->") {
 				t.Fatalf("cypher retains source-first incoming traversal:\n%s", cypher)
 			}
-			// The relationship core read must carry NO OPTIONAL MATCH: on the
-			// pinned NornicDB build a trailing OPTIONAL MATCH corrupts every
-			// function-call projection (type(rel), coalesce, head(labels)) to
-			// literal text. File/repo metadata is enriched separately.
+			// Keep the split query contract even though v1.2.3 fixed the old
+			// OPTIONAL MATCH projection corruption. File/repo metadata is still
+			// enriched separately to preserve partial graph behavior and bounds.
 			if strings.Contains(cypher, "OPTIONAL MATCH") {
 				t.Fatalf("relationship core cypher must not contain OPTIONAL MATCH:\n%s", cypher)
 			}

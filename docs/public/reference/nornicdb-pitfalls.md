@@ -735,11 +735,11 @@ variance *within* the returned subset (the #5644 symptom), and it is what makes
 the truncation independent of any future backend planner change. Re-run the
 proof above when the pinned NornicDB version changes.
 
-## Pitfall: Trailing `OPTIONAL MATCH` Corrupts Every Function-Call Projection
+## Historical Pitfall: Trailing `OPTIONAL MATCH` Corrupted Function-Call Projections
 
 ### Observed shape
 
-On both NornicDB backends used for the recorded proof (v1.1.11 and the former
+On both older NornicDB backends used for the recorded proof (v1.1.11 and the former
 PR #261 Compose image), a read query whose primary `MATCH` binds a relationship
 pattern, followed by one or more trailing `OPTIONAL MATCH` clauses with no
 `WITH` in between, returns
@@ -780,7 +780,7 @@ that shape routes to a different executor branch.
 
 ### Root cause
 
-In the pinned NornicDB source, a `MATCH ... OPTIONAL MATCH` with no leading
+In the affected NornicDB source, a `MATCH ... OPTIONAL MATCH` with no leading
 `WITH` routes to `executeCompoundMatchOptionalMatch`
 (`pkg/cypher/clauses.go`). When the primary `MATCH` contains a relationship
 pattern it takes the traversal branch, which resolves `RETURN` items with
@@ -790,9 +790,17 @@ everything else — instead of the real evaluator `evaluateExpressionWithContext
 that the non-traversal branch (`buildJoinedResult`) uses. The same branch also
 never binds the relationship variable, never routes aggregates to aggregation,
 and only parses the first `OPTIONAL MATCH` clause. The `fail-loud` multi-clause
-guard does not fire for this shape, so it corrupts silently. Confirmed still
-present on NornicDB branch HEAD and `main`; tracked upstream via a failing
-`pkg/cypher/bug_optional_match_function_projection_test.go` regression.
+guard did not fire for this shape, so it corrupted silently.
+
+### Fixed status
+
+NornicDB PR #265 fixed both the function-projection case and the wider chained
+second-hop property case. The implementation began at upstream commit
+`883065cd744b835237f0a26bce0fd41883cd2b64` and was completed by
+`e4b84afef25282ee8747c66c8fddb8fdff836d28`; both are ancestors of NornicDB
+v1.2.3 commit `d9b76ae82334e6b23b847156eb81931781546b85`. Eshu's replay tier pins the
+published v1.2.3 multi-architecture image by digest and requires evaluated
+`type(rel)`, `coalesce(...)`, and chained second-hop property results.
 
 ### Eshu implications
 
@@ -807,16 +815,16 @@ dropped every edge and the route returned empty `outgoing`/`incoming` even when
 the graph held correct edges — a silent false negative, the worst failure class
 for this repo.
 
-The fix is the established split-and-merge pattern: the relationship core read
+Eshu keeps the established split-and-merge pattern: the relationship core read
 carries **no** `OPTIONAL MATCH`, so `type(rel)`, `coalesce(...)`, and
 `head(labels(...))` all evaluate; file/repository/language enrichment is fetched
 by two separate, `OPTIONAL-MATCH`-free, index-anchored single-path reads
 (`code_relationships_nornicdb_enrich.go`) whose plain-property results are
 joined to the core rows by endpoint uid in Go. Endpoints with no `File` simply
 do not appear in the enrichment read (a left-join in Go), replacing the OPTIONAL
-semantics without the OPTIONAL clause. Do not "fix" this by moving the functions
-behind a `WITH` before the `OPTIONAL MATCH` — that is a separate documented
-broken shape.
+semantics without the OPTIONAL clause. The split also preserves bounded reads
+and File metadata when a Repository edge is absent. Consolidating it is a
+separate hot-query change that needs behavior and performance proof.
 
 ### Validation
 
@@ -831,14 +839,19 @@ inheritance graph and asserts the route returns three `INHERITS` edges with an
 evaluated `type` and enriched file/repo metadata, where the pre-split shape
 returned zero. See
 `docs/internal/evidence/5681-nornicdb-optional-match-relationship-projection.md`
-for the before/after and the isolated executor characterization.
+for the historical before/after and the isolated executor characterization.
+
+The replay-tier tests
+`TestNornicDBFunctionProjectionEvaluatesAfterOptionalMatch` and
+`TestNornicDBSecondChainedOptionalMatchEvaluatesPlainPropertyReads` exercise the
+formerly broken Cypher shapes directly against v1.2.3. They require the real
+values and reject nil, empty, or literal-expression placeholders.
 
 ### The boundary is wider than "function-call projection"
 
-Measured against the former PR #261 build while proving issue #5694, with a committed
-regression at `go/internal/replay/offlinetier/nornicdb_function_projection_live_test.go`:
+Measured against the former PR #261 build while proving issue #5694:
 
-| Shape | Column read | Result |
+| Historical shape | Column read | Old result |
 | --- | --- | --- |
 | no `OPTIONAL MATCH` | `type(rel)`, `coalesce(...)` | correct |
 | one `OPTIONAL MATCH`, read its own variable | `f.relative_path` | correct |
@@ -846,17 +859,17 @@ regression at `go/internal/replay/offlinetier/nornicdb_function_projection_live_
 | two chained, read the SECOND one's variable | `r.id` — a plain property read | **`"r.id"`** |
 | two chained, no relationship bound anywhere | `r.id` | **`"r.id"`** |
 
-So neither the relationship binding nor the function call is required. What
-corrupts is reading a variable bound by a SECOND `OPTIONAL MATCH` that matched
+So neither the relationship binding nor the function call was required. What
+corrupted was reading a variable bound by a SECOND `OPTIONAL MATCH` that matched
 on a variable the first one bound. The function-call symptom above is the
 narrower case of it, and plain property reads are affected too.
 
-A query that genuinely needs the second hop — repository identity behind a file,
-for example — cannot rewrite its way out. `go/internal/query/code_relationship_story_nornicdb.go`
-handles that by pairing every second-hop column with its own literal placeholder
-through `nornicDBStoryProjection` and collapsing any value equal to that text,
-so the corruption is detected rather than served. Follow that pattern when a
-second hop is unavoidable; avoid the second hop otherwise.
+`go/internal/query/code_relationship_story_nornicdb.go` still pairs every
+second-hop column with its historical literal placeholder through
+`nornicDBStoryProjection`. On v1.2.3 the guard sees evaluated values and is a
+no-op; older or custom backends still fail closed instead of serving expression
+text. Removing that compatibility guard belongs with any measured query-shape
+consolidation, not with the backend-proof update.
 
 ## When To Patch NornicDB
 

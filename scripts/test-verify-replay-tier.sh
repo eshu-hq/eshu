@@ -71,6 +71,15 @@ has_graph_endpoint_pins() {
 	done
 }
 
+# has_nornicdb_v123_image_pin binds the live gate to the released multi-arch
+# artifact whose tag resolves to NornicDB main d9b76ae82334. A tag-only check
+# would let Docker Hub retarget the proof without a repository change.
+has_nornicdb_v123_image_pin() {
+	rg --quiet \
+		'^NORNICDB_IMAGE="timothyswt/nornicdb-cpu-bge:v1\.2\.3@sha256:4dfa887d990bf0b536693830830e34351c036716b0fe6dc957e1a3680e9f3c74"$' \
+		"$1"
+}
+
 # workflow_gate_step_block prints the workflow step that runs the live gate,
 # from its `- name:` line up to the next step.
 workflow_gate_step_block() {
@@ -204,6 +213,8 @@ has_blast_radius_nonvacuity_guard "${script}" \
 	|| fail "gate must assert both blast-radius tests RAN; go test -run exits 0 on a regex matching nothing"
 has_graph_endpoint_pins "${script}" \
 	|| fail "gate must pin every graph-endpoint name to its own container; an unpinned name lets an ambient developer value win (#6201)"
+has_nornicdb_v123_image_pin "${script}" \
+	|| fail "gate must pin the exact published NornicDB v1.2.3 multi-arch digest (#6262)"
 
 [[ -f "${workflow}" ]] || fail "missing ${workflow}"
 has_workflow_wiring "${workflow}" \
@@ -241,6 +252,17 @@ for pinned_var in ESHU_NEO4J_URI NEO4J_URI ESHU_NEO4J_DATABASE NEO4J_DATABASE; d
 		fail "a dropped ${pinned_var} pin must not satisfy the guard"
 	fi
 done
+# A commented pin or a tag with no digest must fail. These mutations keep the
+# image name visible, which defeats a whole-file substring check.
+sed '/^NORNICDB_IMAGE=/s/^/# /' "${script}" >"${tmp}/script-no-image-pin"
+if has_nornicdb_v123_image_pin "${tmp}/script-no-image-pin"; then
+	fail "a commented NornicDB image pin must not satisfy the guard"
+fi
+sed 's/@sha256:4dfa887d990bf0b536693830830e34351c036716b0fe6dc957e1a3680e9f3c74//' \
+	"${script}" >"${tmp}/script-tag-only-image"
+if has_nornicdb_v123_image_pin "${tmp}/script-tag-only-image"; then
+	fail "a tag-only NornicDB image must not satisfy the immutable digest guard"
+fi
 # Repointing a pin away from this gate's own container must fail too, for EVERY
 # name. Deletion cases alone cannot catch the guard regressing from asserting
 # the value to asserting only the assignment: a weakened `^export ${var}=`
