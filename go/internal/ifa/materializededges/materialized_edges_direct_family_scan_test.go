@@ -89,8 +89,9 @@ func mergesRelationship(value string) bool {
 // silent false-green this scan exists to prevent, one level below the
 // function-call case (`coalesce($a, $b)`) the balanced walk already handles.
 // No production template uses that shape today; the guard is for the day one
-// does. A backslash escapes the next byte so an escaped quote does not end the
-// string.
+// does. A backslash escapes the next byte in a single- or double-quoted string
+// so an escaped quote does not end it; backtick identifiers do NOT work that
+// way and escape by doubling instead, which the walk handles separately.
 //
 // Comments are not this function's problem: mergesRelationship blanks them
 // first. Not free — a `'` in `// the repo's id` used to open a quoted region
@@ -113,10 +114,24 @@ func closingParen(value string, open int) (int, bool) {
 	for i := open; i < len(value); i++ {
 		c := value[i]
 		if quote != 0 {
-			switch c {
-			case '\\':
+			switch {
+			case quote == '`':
+				// Backtick identifiers escape by DOUBLING, not with a
+				// backslash. `a``b` is one identifier holding a backtick, and
+				// `a\` is a legal identifier ending in one -- both compile.
+				// Treating \ as an escape here ate the closing backtick, the
+				// identifier never closed, the pattern read unbalanced, and the
+				// port came back node-only: the false-green direction.
+				if c == '`' {
+					if i+1 < len(value) && value[i+1] == '`' {
+						i++
+						continue
+					}
+					quote = 0
+				}
+			case c == '\\':
 				i++
-			case quote:
+			case c == quote:
 				quote = 0
 			}
 			continue

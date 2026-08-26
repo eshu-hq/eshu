@@ -22,7 +22,9 @@ import (
 // Recognising a comment needs the same quote state the walk keeps -- `//` in
 // `"http://example.test/x"` starts no comment -- so this pass carries it, and
 // closingParen keeps its own for the quotes that survive into the stripped
-// text. A backslash escapes the next byte, matching closingParen.
+// text. A backslash escapes the next byte inside a single- or double-quoted
+// string, matching closingParen; a backtick identifier escapes by doubling
+// instead, so a `//` inside one is not a comment and does not get blanked.
 //
 // Blanked rather than deleted so byte offsets and line positions survive:
 // mergesRelationship indexes back into the text it was handed, and
@@ -39,6 +41,20 @@ func stripCypherComments(value string) string {
 	for i := 0; i < len(out); {
 		c := out[i]
 		if quote != 0 {
+			if quote == '`' {
+				// Doubling, not backslash -- see closingParen. A backslash
+				// escape here would eat the closing backtick and blank the
+				// rest of the template as if it were a comment.
+				if c == '`' {
+					if i+1 < len(out) && out[i+1] == '`' {
+						i += 2
+						continue
+					}
+					quote = 0
+				}
+				i++
+				continue
+			}
 			switch c {
 			case '\\':
 				i += 2
@@ -182,6 +198,70 @@ func TestCypherCommentsDoNotHideARelationshipMerge(t *testing.T) {
 			}
 			if tc.wantLine != "" && line != tc.wantLine {
 				t.Errorf("evidence line = %q, want %q", line, tc.wantLine)
+			}
+		})
+	}
+}
+
+// TestBacktickIdentifiersEscapeByDoubling holds both readers to openCypher's
+// backtick-quoted identifier rules (#6181).
+//
+// A backtick identifier escapes a backtick by DOUBLING it. It does not use
+// backslash escapes, so `a\` is a legal identifier ending in a backslash and
+// the template below compiles. Both readers treated backslash as an escape
+// inside every quoted region, so the closing backtick was consumed, the node
+// pattern never closed, and the port read node-only -- the false-green
+// direction, on valid Cypher.
+//
+// Measured before the fix rather than reasoned about: of these five shapes only
+// the backslash one misread. Doubling already worked (by accident -- two
+// backticks open and close a region, which balances), and the comment markers
+// inside backticks were already safe because the stripper tracks a backtick as
+// a quote. The four that already passed are here as regression guards, since
+// the obvious fix -- dropping backslash handling for every quote type -- would
+// break the single- and double-quoted cases the sibling tests cover.
+func TestBacktickIdentifiersEscapeByDoubling(t *testing.T) {
+	t.Parallel()
+
+	for _, tc := range []struct {
+		name   string
+		cypher string
+	}{
+		{
+			// The one that misread. \ is not an escape here, so the identifier
+			// is `a\` and the pattern closes on the very next byte.
+			name:   "backslash before the closing backtick",
+			cypher: "MERGE (n:`a\\`)-[rel:REVIEW_PROBE_FLOWS_TO]->(m)",
+		},
+		{
+			name:   "doubled backtick inside the identifier",
+			cypher: "MERGE (n:`a``b`)-[rel:REVIEW_PROBE_FLOWS_TO]->(m)",
+		},
+		{
+			name:   "paren inside a backtick identifier",
+			cypher: "MERGE (n:`we)ird`)-[rel:REVIEW_PROBE_FLOWS_TO]->(m)",
+		},
+		{
+			name:   "line-comment marker inside a backtick identifier",
+			cypher: "MERGE (n:`a//b`)-[rel:REVIEW_PROBE_FLOWS_TO]->(m)",
+		},
+		{
+			name:   "block-comment opener inside a backtick identifier",
+			cypher: "MERGE (n:`a/*b`)-[rel:REVIEW_PROBE_FLOWS_TO]->(m)",
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			if stripped := stripCypherComments(tc.cypher); stripped != tc.cypher {
+				t.Errorf("stripCypherComments(%q) = %q; nothing in a backtick identifier is a comment, and blanking part of one deletes real pattern text", tc.cypher, stripped)
+			}
+			line, merges := relationshipMergeLine(tc.cypher)
+			if !merges {
+				t.Fatalf("relationshipMergeLine(%q) reads node-only; a port whose only write site is this template never enters the enumeration, so no ledger row is ever missing for it", tc.cypher)
+			}
+			if line != tc.cypher {
+				t.Errorf("evidence line = %q, want %q", line, tc.cypher)
 			}
 		})
 	}
