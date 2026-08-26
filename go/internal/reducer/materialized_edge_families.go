@@ -174,10 +174,22 @@ var directMaterializedEdgeFamilyByPort = map[string]string{
 // matters. It fails a port that MERGEs a relationship without being declared, a
 // port declared node-only that MERGEs one anyway, and a port declared an edge
 // family that writes none. A port in neither table that writes no edge falls
-// through silently — which is deliberate, not an oversight: of the 87 ports the
-// scan classifies, 43 are in neither table and every one of them is a retract,
-// sweep, execute or read port. Failing those would fail the build on 43 ports
-// that were never meant to be declared.
+// through silently — which is deliberate, not an oversight. Of the 87 ports the
+// scan classifies, 44 are in neither table. One of those is WriteEdges, the
+// shared-projection port, which DOES write edges and is exempted by its own
+// explicit branch rather than by writing none — sharedProjectionEdgeWritePort
+// below calls it the one graph-write port belonging to neither table. Of the
+// remaining 43, all but one are retract, sweep, execute or read ports. The
+// exception is FailureClass, which is not a graph-write port at all: it is
+// declared on reducerClassifiedFailure in service_heartbeat.go, an
+// error-taxonomy interface, and reaches this scan only because
+// scanReducerInterfacePorts harvests every method on every reducer interface
+// and classifyCypherPorts matches by bare name.
+//
+// Failing that set would fail the build on 43 ports that were never meant to be
+// declared. An earlier revision of this comment said 43 and called every one of
+// them a retract, sweep, execute or read port; both halves were wrong, and this
+// is the file that exists to stop a comment asserting what the code does not.
 //
 // So a NEW node-only write port forgotten from directMaterializedEdgeNodeOnlyPorts
 // lands with nothing red. That gap is real and bounded: the moment such a port
