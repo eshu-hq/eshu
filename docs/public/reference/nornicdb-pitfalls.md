@@ -812,16 +812,17 @@ guard. No production Eshu query uses that node-only probe.
 
 ### Eshu implications
 
-Any handler that binds a relationship variable and then adds an `OPTIONAL MATCH`
-for enrichment silently loses `type(rel)` and every `coalesce()`/`head()`
-identity column. `nornicDBOneHopRelationshipsCypher`
-(`go/internal/query/code_relationships_nornicdb.go`, issue #5681) served exactly
-this shape for `POST /api/v0/code/relationships` name/entity lookups (IMPORTS,
-INHERITS, OVERRIDES, and CALLS direct callers/callees). The corrupt `type`
-column never equalled the requested relationship type, so `filterRelationships`
-dropped every edge and the route returned empty `outgoing`/`incoming` even when
-the graph held correct edges — a silent false negative, the worst failure class
-for this repo.
+On the affected older images, a handler that bound a relationship variable and
+then added an `OPTIONAL MATCH` for enrichment silently lost `type(rel)` and
+every `coalesce()`/`head()` identity column.
+`nornicDBOneHopRelationshipsCypher`
+(`go/internal/query/code_relationships_nornicdb.go`, issue #5681) formerly
+served exactly this shape for `POST /api/v0/code/relationships` name/entity
+lookups (IMPORTS, INHERITS, OVERRIDES, and CALLS direct callers/callees). The
+corrupt `type` column never equalled the requested relationship type, so
+`filterRelationships` dropped every edge and the route returned empty
+`outgoing`/`incoming` even when the graph held correct edges — a silent false
+negative, the worst failure class for this repo.
 
 Eshu keeps the established split-and-merge pattern: the relationship core read
 carries **no** `OPTIONAL MATCH`, so `type(rel)`, `coalesce(...)`, and
@@ -851,7 +852,7 @@ for the historical before/after and the isolated executor characterization.
 
 The replay-tier tests
 `TestNornicDBFunctionProjectionEvaluatesAfterOptionalMatch` and
-`TestNornicDBSecondChainedOptionalMatchEvaluatesPlainPropertyReads` exercise the
+`TestNornicDBChainedOptionalMatchPreservesExecutorBoundary` exercise the
 measured boundary directly against v1.2.3. They require evaluated values for
 the relationship-seeded shapes and require the exact literal-placeholder
 negative control, never a missing or null column, for the node-only compound
