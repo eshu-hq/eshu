@@ -54,12 +54,18 @@
 #     leading dash (`<<--foo`). Their bodies count as live code, which is the
 #     false-GREEN direction -- the same family as the hyphen case above, which
 #     is why they are named here rather than left for the next reader to find.
-#   - A false POSITIVE that predates all of this: an arithmetic left shift with
+#   - A false POSITIVE this change INTRODUCES -- it did not predate it, and an
+#     earlier version of this block wrongly said it did. An arithmetic left shift with
 #     a variable operand, `n=$(( n << shift ))`, reads as opening a heredoc
 #     delimited by `shift` and swallows the file until a line equal to it. No
 #     counted file has that shape today (all 61 detected openers are genuine
 #     `cat <<WORD`), and the direction is false-RED, but a counted file that
-#     gained one would blind every pin after it.
+#     gained one would blind every pin after it. Measured: the end-anchored
+#     recogniser this replaced returned no-match on `n=$(( n << shift ))`,
+#     because the trailing `))` defeated its `$`. The current one matches with
+#     delimiter `shift` only because `)` was added to the trailing separator
+#     class to admit `cat <<EOF >(cmd)`. The direction is false-RED and no
+#     counted file has the shape, but the cost is ours, not inherited.
 #   - Why delimiter false positives are survivable IN THIS TREE. A spurious
 #     opener puts the counter into heredoc mode, and heredoc mode SKIPS lines,
 #     so a wrong delimiter can only push counts DOWN. For a `-ge 1` or an
