@@ -145,10 +145,13 @@ require "at-least-one-dead-letter guard" "produced 0 durable dead-letter rows"
 # from the hardened copy, and replacing it with anything uncompilable left the
 # mirror at exit 0 scanning nothing (#6161).
 ifa_private_data_pattern private_pattern
-# Scans the shared pin lib too, not just the gate: it was added by #6161 and
-# nothing else in the tree covers it -- the determinism mirror's derived scan
-# only reaches *_lib variables bound in ITS scope.
-for private_target in "${script}" "${pins_lib}"; do
+# Scans the shared pin lib AND the shared determinism lib, not just the gate.
+# The pin lib was added by #6161 and nothing else in the tree covers it. The
+# determinism lib is bound here to `lib`, which does not end in _lib, so
+# neither this explicit list nor the determinism mirror's derived
+# `compgen -v | rg '_lib$'` scan reached it; only the fault mirror did, and
+# only because it binds that same file to a variable named det_lib (#6161).
+for private_target in "${script}" "${lib}" "${pins_lib}"; do
 	# rc is CAPTURED, not tested through `if`: rg exits 2 on a pattern it cannot
 	# compile, `if` reads that as "no match", and `set -e` does not apply inside an
 	# `if` condition -- so one uncompilable pattern made every file read as clean

@@ -6,7 +6,8 @@
 # sibling fault mirror moved its own assert_no_private_data into
 # test-ifa-fault-injection-assertions.sh on exactly this reasoning.
 #
-# `fail`, `script`, `repo_root` and the *_lib variables come from the parent.
+# `fail`, `script`, `repo_root`, `lib` and the *_lib variables come from the
+# parent.
 # The mirror's own path is passed in rather than read from ${BASH_SOURCE[0]},
 # which inside this file names this file, not the mirror.
 #
@@ -32,7 +33,15 @@ run_ifa_determinism_private_data_cases() {
 	# (#6161). The helper assigns into private_pattern rather than printing,
 	# because a `fail` inside a command substitution exits only the subshell.
 	ifa_private_data_pattern private_pattern
-	local -a private_targets=("${script}" "${mirror}")
+	# ${lib} is NAMED, not derived. The shared ifa_determinism_common.sh is bound
+	# to `lib`, which does not end in _lib, so the compgen derivation below cannot
+	# see it -- this mirror scanned every library it declares EXCEPT the one all
+	# three Ifá gates source. The sibling fault mirror covered it only by the
+	# accident of spelling its own variable det_lib: renaming that variable, with
+	# no behaviour change at all, carried a planted AWS key past all four mirrors
+	# while they still printed their file counts (#6161). A named target breaks
+	# loudly under `set -u` when it is renamed; a derived one just goes quiet.
+	local -a private_targets=("${script}" "${mirror}" "${lib}")
 	lib_cap_checked=0 # floors the *_lib loop itself -- see _ifa_det_assert_lib_cap_floor's own comment
 	while IFS= read -r private_lib_var; do
 		private_targets+=("${!private_lib_var}")

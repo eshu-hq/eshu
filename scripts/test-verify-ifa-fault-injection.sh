@@ -343,7 +343,15 @@ rg --fixed-strings --quiet -- 'ESHU_IFA_FAULT_SCRIPT' "${reducer_wiring}" \
 	|| fail "${reducer_wiring} must read ESHU_IFA_FAULT_SCRIPT"
 
 # No private data: hostnames, IPs, cloud account IDs, keys, internal paths.
-assert_no_private_data "${script}"
+# ${det_lib} is passed EXPLICITLY even though the *_lib derivation inside
+# already reaches it: that coverage is an accident of how the variable is
+# spelled. Renaming det_lib -> det_shared, a pure rename with no behaviour
+# change, drops the shared lib from the scan in silence -- the floor of 40 is
+# nowhere near binding, and the mirror still prints `87 file(s) scanned` with a
+# planted AWS key sitting in that file (#6161). Named here, a rename breaks
+# loudly under `set -u`. The cost is one duplicate scan of one file, which is
+# why the printed number counts targets rather than distinct files.
+assert_no_private_data "${script}" "${det_lib}"
 
 # Claimed-wait SQL-budget validation, domain-scoping (#5555), and the
 # once-fired-marker three-way discrimination (#5974/#5555) are functional
