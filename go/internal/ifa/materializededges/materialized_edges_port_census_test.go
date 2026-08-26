@@ -28,11 +28,20 @@ const portClassificationProseFile = "go/internal/reducer/materialized_edge_famil
 // and a list would have to be edited for every new retract port — which is the
 // kind of bookkeeping that gets skipped, leaving the check either stale or
 // deleted. What is NOT waved at in bulk is pinned by name below.
+//
+// The prose's fourth category, read ports, is deliberately NOT a prefix here:
+// no reducer interface port is named Read*. Read-shaped ports are spelled Has,
+// Get, List and Count, so no prefix selects them without also selecting
+// writers. A "Read" entry would match nothing while reading as though the
+// category were handled by shape, so read ports are pinned by name below —
+// which is why a new read port lands in the residue and asks for a line there
+// rather than passing silently.
 var retractShapedPortPrefixes = []string{"Retract", "Sweep", "Execute"}
 
 // neitherTablePortsWithoutARetractShapedName pins, by name, every port in
 // neither classification table whose name does not carry Retract, Sweep or
-// Execute — mapped to the reason it is in neither table.
+// Execute — mapped to the reason it is in neither table. Read ports live here
+// too, by name rather than by shape, for the reason given above.
 //
 // This is what makes "all but one are retract, sweep, execute or read ports"
 // checkable rather than decorative. The bulk claim is a prefix test; the
