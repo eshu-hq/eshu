@@ -56,6 +56,12 @@ func TestProvenanceReplayTombstoneCassetteDecisions(t *testing.T) {
 	if gen1.scope.ScopeID != provenanceReplayScopeID || gen2.scope.ScopeID != provenanceReplayScopeID {
 		t.Fatalf("scope ids = %q, %q, want %q", gen1.scope.ScopeID, gen2.scope.ScopeID, provenanceReplayScopeID)
 	}
+	if gen1.scope.PreviousGenerationExists {
+		t.Fatal("generation 1 unexpectedly reports a previous generation")
+	}
+	if !gen2.scope.PreviousGenerationExists {
+		t.Fatal("generation 2 must derive previous-generation existence from cassette order")
+	}
 
 	packageGen1 := reducer.BuildPackageSourceCorrelationDecisions(gen1.facts)
 	if got, want := len(packageGen1), 1; got != want {
@@ -384,8 +390,10 @@ func loadProvenanceReplayGenerations(t *testing.T) (provenanceReplayGeneration, 
 	if err != nil {
 		t.Fatalf("load provenance replay cassette %s: %v", provenanceReplayCassettePath, err)
 	}
-	return readProvenanceReplayGeneration(t, source, "generation 1"),
-		readProvenanceReplayGeneration(t, source, "generation 2")
+	first := readProvenanceReplayGeneration(t, source, "generation 1")
+	second := readProvenanceReplayGeneration(t, source, "generation 2")
+	second.scope.PreviousGenerationExists = true
+	return first, second
 }
 
 func readProvenanceReplayGeneration(

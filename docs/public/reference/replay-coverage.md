@@ -48,7 +48,7 @@ None. Every non-exempt required surface has a replay scenario; exemptions carry 
 
 ## Covered surfaces (437)
 
-| Surface | Scenario type | Scenario | Proof gate | Artifact |
+| Surface | Scenario type | Scenario | Proof gate | Artifact / exemption reason |
 | --- | --- | --- | --- | --- |
 | `authz_family:admin_recovery:in_grant` | baseline | authz_scoped_route | authz-scoped-route-tests | `admin_recovery:in_grant` |
 | `authz_family:admin_recovery:out_of_grant` | baseline | authz_scoped_route | authz-scoped-route-tests | `admin_recovery:out_of_grant` |
@@ -238,7 +238,7 @@ None. Every non-exempt required surface has a replay scenario; exemptions carry 
 | `read_surface:GET /api/v0/service-catalog/correlations` | baseline | api_mcp_golden | golden-corpus-gate | `GET /api/v0/service-catalog/correlations?limit=10&repository_id=repository:r_217415d9` |
 | `read_surface:GET /api/v0/supply-chain/impact/findings` | baseline | api_mcp_golden | golden-corpus-gate | `GET /api/v0/supply-chain/impact/findings?limit=50&cve_id=CVE-2026-00000` |
 | `read_surface:GET /api/v0/supply-chain/sbom-attestations/attachments` | baseline | api_mcp_golden | golden-corpus-gate | `GET /api/v0/supply-chain/sbom-attestations/attachments?limit=50&subject_digest=sha256:2b3c4d5e6f708192a3b4c5d6e7f8091a2b3c4d5e6f708192a3b4c5d6e7f8090a` |
-| `read_surface:GET /api/v0/supply-chain/security-alerts/reconciliations` | baseline | exempt | — | — |
+| `read_surface:GET /api/v0/supply-chain/security-alerts/reconciliations` | baseline | exempt | — | Truth-ceiling: the security_alert_reconciliations.list capability is unsupported in the golden-corpus gate's local_full_stack query profile (the route returns the profile-required refusal, HTTP 404), so the gate cannot assert a green response for it. The refusal is correct behavior under the capability matrix; covering it would require a profile that enables the provider security-alert reconciliation read model. |
 | `read_surface:GET /api/v0/work-items/evidence` | baseline | api_mcp_golden | golden-corpus-gate | `GET /api/v0/work-items/evidence?limit=50&scope_id=jira:supply-chain-demo:SCD` |
 | `read_surface:POST /api/v0/aws/runtime-drift/findings` | baseline | api_mcp_golden | golden-corpus-gate | `POST /api/v0/aws/runtime-drift/findings` |
 | `read_surface:POST /api/v0/cloud/runtime-drift/findings` | baseline | api_mcp_golden | golden-corpus-gate | `POST /api/v0/cloud/runtime-drift/findings` |
@@ -265,7 +265,7 @@ None. Every non-exempt required surface has a replay scenario; exemptions carry 
 | `projection:cloud_asset_resolution` | cost | go_test | go-test-race | `go/internal/replay/costcounting/cloud_asset_resolution_cost_test.go` |
 | `projection:code_graph_projection` | cost | go_test | go-test-race | `go/internal/replay/costcounting/cost_counting_test.go` |
 | `projection:codeowners_ownership` | cost | go_test | go-test-race | `go/internal/replay/costcounting/codeowners_ownership_cost_test.go` |
-| `projection:config_state_drift` | cost | exempt | — | — |
+| `projection:config_state_drift` | cost | exempt | — | config_state_drift (the terraform_state fact family, projection_hook terraform_relationship_projection) has no reducer-level write instrument for the cost axis to bound. Its sole reducer handler, TerraformConfigStateDriftHandler.Handle (go/internal/reducer/terraform_config_state_drift.go), has no Writer field and performs zero Postgres or graph writes -- it only increments bounded OTel counters (CorrelationRuleMatches, CorrelationDriftDetected) and emits structured logs. This is explicit design intent: registry_additive_domains.go sets Ownership{CanonicalWrite: false, CounterEmit: true} with "Graph projection follows per design doc §10" -- a future, not-yet-implemented write path. The only Postgres access near this domain (storage/postgres/drift_enqueue.go) is a QueryContext read that enqueues intents, not a domain-output write. Remove this exemption when the graph-projection write path lands and add a cost scenario for it. |
 | `projection:container_image_identity` | cost | go_test | go-test-race | `go/internal/replay/costcounting/container_image_identity_cost_test.go` |
 | `projection:documentation_materialization` | cost | go_test | go-test-race | `go/internal/replay/costcounting/documentation_edges_cost_test.go` |
 | `projection:ec2_instance_node_materialization` | cost | go_test | go-test-race | `go/internal/replay/costcounting/ec2_instance_node_cost_test.go` |
@@ -326,7 +326,7 @@ None. Every non-exempt required surface has a replay scenario; exemptions carry 
 | `retractable_edge:INVOKES_CLOUD_ACTION` | delta_tombstone | go_test | replay-tier | `go/internal/replay/offlinetier/delta_tier_reducer_runtime_edge_retract_live_test.go` |
 | `retractable_edge:LOGS_TO` | delta_tombstone | go_test | replay-tier | `go/internal/replay/offlinetier/delta_tier_reducer_cloud_edge_retract_live_test.go` |
 | `retractable_edge:MANAGES` | delta_tombstone | go_test | replay-tier | `go/internal/replay/offlinetier/delta_tier_canonical_governance_edge_retract_live_test.go` |
-| `retractable_edge:MATCHES_STATE` | delta_tombstone | exempt | — | — |
+| `retractable_edge:MATCHES_STATE` | delta_tombstone | exempt | — | MATCHES_STATE retraction is unconditionally skipped on a delta cycle: terraformStateMatchesConfigEdgeRetractStatements (go/internal/storage/cypher/tfstate_state_match_edge_retract.go) returns nil whenever mat.FirstGeneration \|\| mat.DeltaProjection is true, before building any retract statement -- the exact same skip condition as the TerraformStateResource node exemption above, since mat.TerraformStateResources is populated only from terraform_state envelopes present in the current materialization's input, so a delta cycle triggered by an unrelated file edit carries none and the s.generation_id anchor would never select a state resource to retract a stale edge from. This is not an authored-scenario gap (C-14) but a structural impossibility: no input can ever reach the retract statement on a delta cycle for this edge type. Genuine MATCHES_STATE edge changes missed by a delta cycle are still caught by the periodic full reconciliation generation (mat.ReconciliationProjection forces DeltaProjection=false; see internal/projector/canonical_builder.go), the same mechanism the TerraformStateResource node retraction and buildRepositoryCleanupStatements already rely on, within the reconcile interval. Registered directly as exempt rather than as a claimed delta_tombstone coverage row: no cassette exercises a MATCHES_STATE retract, and claiming cassette coverage without one would repeat the exact false-green the TerraformStateResource node exemption above corrected. Remove this exemption only if a future change adds a delta-scoped retract path for MATCHES_STATE (e.g. by threading a backend-scoped exclusion list through the delta materialization). |
 | `retractable_edge:MIGRATES` | delta_tombstone | go_test | replay-tier | `go/internal/replay/offlinetier/delta_tier_reducer_sql_relationship_retract_live_test.go` |
 | `retractable_edge:NEEDS` | delta_tombstone | cassette | replay-tier | `testdata/cassettes/replaydelta/multi-generation-tombstone.json` |
 | `retractable_edge:OVERRIDES` | delta_tombstone | go_test | replay-tier | `go/internal/replay/offlinetier/delta_tier_reducer_inheritance_edge_retract_live_test.go` |
@@ -441,7 +441,7 @@ None. Every non-exempt required surface has a replay scenario; exemptions carry 
 | `retractable_node:TerraformProvider` | delta_tombstone | cassette | replay-tier | `testdata/cassettes/replaydelta/multi-generation-tombstone.json` |
 | `retractable_node:TerraformRemovedBlock` | delta_tombstone | cassette | replay-tier | `testdata/cassettes/replaydelta/multi-generation-tombstone.json` |
 | `retractable_node:TerraformResource` | delta_tombstone | cassette | replay-tier | `testdata/cassettes/replaydelta/multi-generation-tombstone.json` |
-| `retractable_node:TerraformStateResource` | delta_tombstone | exempt | — | — |
+| `retractable_node:TerraformStateResource` | delta_tombstone | exempt | — | TerraformStateResource retraction is unconditionally skipped on a delta cycle: terraformStateResourceRetractStatements (go/internal/storage/cypher/tfstate_canonical_writer_retract.go) returns nil whenever mat.DeltaProjection is true, before building any retract statement. A tfstate resource has no file-path scope this writer can use to build a delta-scoped retract the way file- and entity-scoped retraction do, and a delta materialization carries no positive list of untouched backends to safely exclude from a scoped delete -- so a delta_tombstone scenario for this node type is not an authored-scenario gap (C-14) but a structural impossibility: no input can ever reach the retract statement on a delta cycle for this label. Genuine deletions are still caught by the periodic full reconciliation generation (mat.ReconciliationProjection forces DeltaProjection=false; see internal/projector/canonical_builder.go), the same mechanism buildRepositoryCleanupStatements already relies on for repository-node cleanup, within the reconcile interval. A prior manifest row (specs/replay-coverage-manifest.v1.yaml) claimed cassette coverage of this exact surface/scenario_type via testdata/cassettes/replaydelta/multi-generation-tombstone.json; that cassette contains zero TerraformStateResource references, so the row was removed as a false coverage claim rather than an accurate one. Remove this exemption only if a future change adds a delta-scoped retract path for TerraformStateResource (e.g. by threading a backend-scoped exclusion list through the delta materialization). |
 | `retractable_node:TerraformVariable` | delta_tombstone | cassette | replay-tier | `testdata/cassettes/replaydelta/multi-generation-tombstone.json` |
 | `retractable_node:TerragruntConfig` | delta_tombstone | cassette | replay-tier | `testdata/cassettes/replaydelta/multi-generation-tombstone.json` |
 | `retractable_node:TerragruntDependency` | delta_tombstone | cassette | replay-tier | `testdata/cassettes/replaydelta/multi-generation-tombstone.json` |
@@ -455,10 +455,10 @@ None. Every non-exempt required surface has a replay scenario; exemptions carry 
 | `retractable_node:Variable` | delta_tombstone | go_test | replay-tier | `go/internal/replay/offlinetier/delta_tier_reducer_semantic_variable_retract_live_test.go` |
 | `collector:aws` | baseline | cassette | golden-corpus-gate | `testdata/cassettes/awscloud/supply-chain-demo.json` |
 | `collector:aws` | fault | go_test | go-test-race | `go/internal/replay/inputtape/fault_timeout_test.go` |
-| `collector:documentation` | baseline | exempt | — | — |
-| `collector:documentation` | fault | exempt | — | — |
-| `collector:git` | baseline | exempt | — | — |
-| `collector:git` | fault | exempt | — | — |
+| `collector:documentation` | baseline | exempt | — | Offline export library, not a polling collector binary. Documentation facts are produced from offline export manifests (go/internal/collector/ documentationexport), so there is no credentialed upstream to record into a cassette; the offline-manifest path is the credential-free input. |
+| `collector:documentation` | fault | exempt | — | Offline export library, not a polling collector binary. Documentation facts are produced from offline export manifests (go/internal/collector/ documentationexport), so there is no credentialed upstream to record into a cassette; the offline-manifest path is the credential-free input. |
+| `collector:git` | baseline | exempt | — | Filesystem-native collector, not a credentialed upstream API. Git is already exercised end-to-end by the golden-corpus gate's 20-repo bootstrap-index corpus (sync -> discover -> parse -> emit), so a supply-chain-demo cassette would re-record a path the gate already replays from real fixtures. The fixture corpus is its replay scenario. |
+| `collector:git` | fault | exempt | — | Filesystem-native collector, not a credentialed upstream API. Git is already exercised end-to-end by the golden-corpus gate's 20-repo bootstrap-index corpus (sync -> discover -> parse -> emit), so a supply-chain-demo cassette would re-record a path the gate already replays from real fixtures. The fixture corpus is its replay scenario. |
 | `collector:grafana` | baseline | cassette | golden-corpus-gate | `testdata/cassettes/grafana/supply-chain-demo.json` |
 | `collector:grafana` | fault | go_test | go-test-race | `go/internal/replay/inputtape/fault_collectors_test.go` |
 | `collector:jira` | baseline | cassette | golden-corpus-gate | `testdata/cassettes/jira/supply-chain-demo.json` |
@@ -475,8 +475,8 @@ None. Every non-exempt required surface has a replay scenario; exemptions carry 
 | `collector:prometheus_mimir` | fault | go_test | go-test-race | `go/internal/replay/inputtape/fault_collectors_test.go` |
 | `collector:sbom_attestation` | baseline | cassette | golden-corpus-gate | `testdata/cassettes/sbomattestation/supply-chain-demo.json` |
 | `collector:sbom_attestation` | fault | go_test | go-test-race | `go/internal/replay/inputtape/fault_collectors_test.go` |
-| `collector:scanner_worker` | baseline | exempt | — | — |
-| `collector:scanner_worker` | fault | exempt | — | — |
+| `collector:scanner_worker` | baseline | exempt | — | Internal hosted worker with no external upstream. scanner-worker consumes coordinator work items (image refs, rootfs, SBOM targets) and emits analysis facts; it has no credentialed source to record, so a cassette of the supply-chain-demo kind does not apply. |
+| `collector:scanner_worker` | fault | exempt | — | Internal hosted worker with no external upstream. scanner-worker consumes coordinator work items (image refs, rootfs, SBOM targets) and emits analysis facts; it has no credentialed source to record, so a cassette of the supply-chain-demo kind does not apply. |
 | `collector:security_alert` | baseline | cassette | golden-corpus-gate | `testdata/cassettes/securityalerts/supply-chain-demo.json` |
 | `collector:security_alert` | fault | go_test | go-test-race | `go/internal/replay/inputtape/fault_collectors_test.go` |
 | `collector:tempo` | baseline | cassette | golden-corpus-gate | `testdata/cassettes/tempo/supply-chain-demo.json` |
@@ -485,5 +485,5 @@ None. Every non-exempt required surface has a replay scenario; exemptions carry 
 | `collector:terraform_state` | fault | go_test | go-test-race | `go/internal/replay/inputtape/fault_collectors_test.go` |
 | `collector:vulnerability_intelligence` | baseline | cassette | golden-corpus-gate | `testdata/cassettes/vulnerabilityintelligence/supply-chain-demo.json` |
 | `collector:vulnerability_intelligence` | fault | go_test | go-test-race | `go/internal/replay/inputtape/fault_collectors_test.go` |
-| `collector:webhook` | baseline | exempt | — | — |
-| `collector:webhook` | fault | exempt | — | — |
+| `collector:webhook` | baseline | exempt | — | Inbound webhook sink, not a pollable source. The webhook collector verifies and normalizes inbound deliveries into refresh triggers; it never polls an upstream, so there is no generation to record into a cassette. |
+| `collector:webhook` | fault | exempt | — | Inbound webhook sink, not a pollable source. The webhook collector verifies and normalizes inbound deliveries into refresh triggers; it never polls an upstream, so there is no generation to record into a cassette. |

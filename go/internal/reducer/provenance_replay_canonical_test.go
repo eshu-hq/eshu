@@ -64,9 +64,6 @@ func projectProvenanceReplayCanonicalGeneration(
 	generation provenanceReplayGeneration,
 ) {
 	t.Helper()
-	if generation.generation.GenerationID == "replay-provenance-gen2" {
-		generation.scope.PreviousGenerationExists = true
-	}
 	if _, err := runtime.Project(ctx, generation.scope, generation.generation, generation.facts); err != nil {
 		t.Fatalf("project %s canonical nodes: %v", generation.generation.GenerationID, err)
 	}

@@ -208,18 +208,19 @@ func writeCovered(b *strings.Builder, rep CoverageReport) {
 		b.WriteString("None yet.\n\n")
 		return
 	}
-	b.WriteString("| Surface | Scenario type | Scenario | Proof gate | Artifact |\n")
+	b.WriteString("| Surface | Scenario type | Scenario | Proof gate | Artifact / exemption reason |\n")
 	b.WriteString("| --- | --- | --- | --- | --- |\n")
 	for _, s := range covered {
 		scenario := s.Scenario
+		ref := s.Ref
 		if s.Status == StatusExempt {
 			scenario = "exempt"
+			ref = markdownTableText(s.Detail)
+		} else if ref != "" {
+			ref = "`" + ref + "`"
 		}
-		ref := s.Ref
 		if ref == "" {
 			ref = "—"
-		} else {
-			ref = "`" + ref + "`"
 		}
 		gate := s.ProofGate
 		if gate == "" {
@@ -228,6 +229,10 @@ func writeCovered(b *strings.Builder, rep CoverageReport) {
 		fmt.Fprintf(b, "| `%s` | %s | %s | %s | %s |\n", s.Key, s.ScenarioType, scenario, gate, ref)
 	}
 	b.WriteString("\n")
+}
+
+func markdownTableText(value string) string {
+	return strings.ReplaceAll(strings.Join(strings.Fields(value), " "), "|", "\\|")
 }
 
 func writeStale(b *strings.Builder, rep CoverageReport) {
