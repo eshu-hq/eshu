@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package coordinator
+package securityalert
 
 import (
 	"context"
@@ -17,17 +17,16 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/workflow"
 )
 
-// SecurityAlertPlanRequest carries one hosted provider security-alert planning
-// request.
-type SecurityAlertPlanRequest struct {
+// PlanRequest carries one hosted provider security-alert planning request.
+type PlanRequest struct {
 	Instance   workflow.CollectorInstance
 	ObservedAt time.Time
 	PlanKey    string
 }
 
-// SecurityAlertWorkPlanner plans workflow rows for configured provider
+// WorkPlanner plans workflow rows for configured provider
 // security-alert targets without resolving credentials or contacting providers.
-type SecurityAlertWorkPlanner struct{}
+type WorkPlanner struct{}
 
 type securityAlertRuntimeConfiguration struct {
 	Targets []securityAlertTargetConfiguration `json:"targets"`
@@ -40,9 +39,9 @@ type securityAlertTargetConfiguration struct {
 
 // PlanSecurityAlertWork returns one run and one work item per configured
 // provider security-alert target.
-func (p SecurityAlertWorkPlanner) PlanSecurityAlertWork(
+func (p WorkPlanner) PlanSecurityAlertWork(
 	_ context.Context,
-	request SecurityAlertPlanRequest,
+	request PlanRequest,
 ) (workflow.Run, []workflow.WorkItem, error) {
 	if err := validateSecurityAlertPlanRequest(request); err != nil {
 		return workflow.Run{}, nil, err
@@ -76,7 +75,7 @@ func (p SecurityAlertWorkPlanner) PlanSecurityAlertWork(
 	return run, items, nil
 }
 
-func validateSecurityAlertPlanRequest(request SecurityAlertPlanRequest) error {
+func validateSecurityAlertPlanRequest(request PlanRequest) error {
 	if err := request.Instance.Validate(); err != nil {
 		return fmt.Errorf("security alert plan request: %w", err)
 	}

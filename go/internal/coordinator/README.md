@@ -14,6 +14,8 @@ plan-key grammar; it does not own scheduler requests or runtime behavior.
 The `cicdrun` child owns the CI/CD run planning request and planner
 implementation; root retains its interface, scheduling position, and durable
 admission path.
+The `securityalert` child owns the provider security-alert planning request and
+planner implementation under the same boundary.
 
 ## Where this fits in the pipeline
 
@@ -131,6 +133,10 @@ the coordinator has no GCP workflow scheduler yet.
   `cicdrun.WorkPlanner`. The child plans CI/CD run collection from configured
   GitHub Actions repository targets; root keeps the service call and durable
   admission.
+- `SecurityAlertPlanner` — the root structural interface implemented by
+  `securityalert.WorkPlanner`. The child plans provider security-alert
+  collection from configured targets; root keeps the service call and durable
+  admission.
 - `ScannerWorkerWorkPlanner` — plans scanner-worker source-evidence work from
   explicit configured targets. The planner only stores the analyzer, target
   kind, and `scope_id` in workflow metadata; runtime-local roots and artifact
@@ -198,6 +204,8 @@ the coordinator has no GCP workflow scheduler yet.
   validation used directly by scheduler planners and extension egress parsing.
 - `internal/coordinator/cicdrun` — CI/CD run plan request and deterministic
   planner implementation.
+- `internal/coordinator/securityalert` — provider security-alert plan request
+  and deterministic planner implementation.
 - `internal/workflow` — `DesiredCollectorInstance`, `CollectorInstance`,
   `Claim`, and default accessors; used throughout `Store` and `Config`.
 - `internal/scope` — `CollectorKind` used by `Config` and
@@ -272,6 +280,9 @@ already prove the allowed scheduling path.
 - CI/CD run collector instances schedule through active-mode reconciliation;
   provider calls, rate-limit handling, artifact reads, and fact emission stay in
   the CI/CD run collector runtime.
+- Security-alert collector instances use the same active-mode scheduling path;
+  provider calls and fact emission stay in the security-alert collector
+  runtime.
 - Hosted collector and extension egress policies filter work before claimable
   rows are planned. Missing or denied policy decisions create no claimable row;
   restricted mode requires allow rules, deny wins, and broad mode must be an

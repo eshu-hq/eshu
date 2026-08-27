@@ -9,9 +9,16 @@ import (
 	"strings"
 	"time"
 
+	"github.com/eshu-hq/eshu/go/internal/coordinator/securityalert"
 	"github.com/eshu-hq/eshu/go/internal/scope"
 	"github.com/eshu-hq/eshu/go/internal/workflow"
 )
+
+// SecurityAlertPlanner plans provider security-alert workflow rows from
+// collector instance configuration.
+type SecurityAlertPlanner interface {
+	PlanSecurityAlertWork(context.Context, securityalert.PlanRequest) (workflow.Run, []workflow.WorkItem, error)
+}
 
 func (s Service) scheduleSecurityAlertWork(
 	ctx context.Context,
@@ -28,7 +35,7 @@ func (s Service) scheduleSecurityAlertWork(
 		if s.SecurityAlertPlanner == nil {
 			return fmt.Errorf("security alert planner is required for active security_alert collectors")
 		}
-		run, items, err := s.SecurityAlertPlanner.PlanSecurityAlertWork(ctx, SecurityAlertPlanRequest{
+		run, items, err := s.SecurityAlertPlanner.PlanSecurityAlertWork(ctx, securityalert.PlanRequest{
 			Instance:   instance,
 			ObservedAt: observedAt,
 			PlanKey:    s.securityAlertPlanKey(instance, observedAt),

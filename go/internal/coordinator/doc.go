@@ -31,7 +31,9 @@
 // budget so requested scope sets can show exhaustion without widening admitted
 // work. The cicdrun child package plans bounded CI/CD run collection work from
 // configured GitHub Actions repository targets while this package keeps the
-// structural planner interface and scheduling position. PagerDutyWorkPlanner plans
+// structural planner interface and scheduling position. The securityalert
+// child package owns the equivalent provider security-alert planner while this
+// package retains scheduling and durable admission. PagerDutyWorkPlanner plans
 // incident-evidence work from configured PagerDuty targets.
 // PrometheusMimirWorkPlanner plans bounded metric-metadata work, one item per
 // enabled Prometheus or Grafana Mimir target, partitioned by target scope so
