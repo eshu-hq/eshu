@@ -1,10 +1,13 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package mcp
+package investigationtools
 
-func investigationPacketTools() []ToolDefinition {
-	return []ToolDefinition{
+import "github.com/eshu-hq/eshu/go/internal/mcp/toolcontract"
+
+// PacketTools returns the investigation evidence-packet MCP tool definitions.
+func PacketTools() []toolcontract.ToolDefinition {
+	return []toolcontract.ToolDefinition{
 		{
 			Name:        "export_supply_chain_impact_packet",
 			Description: "Export an investigation_evidence_packet.v2 artifact for one bounded supply-chain impact investigation. The packet is composed by the shared evidence-packet builder used by API and CLI surfaces, preserving truth labels, missing evidence, refusal state, reproduce handles, and source-fact bounds.",

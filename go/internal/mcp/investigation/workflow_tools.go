@@ -1,10 +1,13 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package mcp
+package investigationtools
 
-func investigationWorkflowTools() []ToolDefinition {
-	return []ToolDefinition{
+import "github.com/eshu-hq/eshu/go/internal/mcp/toolcontract"
+
+// WorkflowTools returns the investigation workflow MCP tool definitions.
+func WorkflowTools() []toolcontract.ToolDefinition {
+	return []toolcontract.ToolDefinition{
 		{
 			Name:        "list_investigation_workflows",
 			Description: "List guided investigation workflows with input shape, required and optional evidence, expected output packet, grouped atomic tools, starter prompts, and missing-evidence routing.",

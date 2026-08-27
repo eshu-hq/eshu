@@ -107,7 +107,9 @@
   `dispatch_repositories.go`, while generation and delta routes stay in
   `dispatch_freshness.go`. Semantic routing is also deliberately split:
   evidence stays in `dispatch_semantic_evidence.go`, while search stays in
-  `dispatch_semantic_search.go`.
+  `dispatch_semantic_search.go`. Investigation routing remains split between
+  `dispatch_investigation_workflows.go` and
+  `dispatch_investigation_packets.go`.
 
 - **Add a new argument helper** → add near `stringSlice` in
   `dispatch_args.go` or near `str`, `intOr`, and `boolOr` in `dispatch.go`.
