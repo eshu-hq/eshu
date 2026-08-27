@@ -35,6 +35,10 @@ definitions; query-playbook routing and execution also stay here.
 The `freshness` child package owns four freshness registration definitions.
 Repository freshness routing stays in `dispatch_repositories.go`; generation,
 repository-delta, and service-delta routing stays in `dispatch_freshness.go`.
+The `semantic` child package owns three semantic evidence and context-search
+registration definitions. Evidence routing stays in
+`dispatch_semantic_evidence.go`; search routing stays in
+`dispatch_semantic_search.go`.
 
 ## Where this fits in the pipeline
 
@@ -188,8 +192,8 @@ is not broken out here).
 | `queryPlaybookTools` | 2 | `playbooks/tools.go` |
 | `investigationWorkflowTools` | 2 | `tools_investigation_workflows.go` |
 | `investigationPacketTools` | 3 | `tools_investigation_packets.go` |
-| `semanticEvidenceTools` | 2 | `tools_semantic_evidence.go` |
-| `semanticSearchTools` | 1 | `tools_semantic_search.go` |
+| `semanticEvidenceTools` | 2 | `semantic/evidence_tools.go` |
+| `semanticSearchTools` | 1 | `semantic/search_tools.go` |
 | `documentationFindingAggregateTools` | 2 | `documentation/finding_aggregate_tools.go` |
 | `componentExtensionTools` | 2 | `tools_component_extensions.go` |
 | `collectorExtractionReadinessTools` | 2 | `tools_collector_extraction_readiness.go` |
@@ -521,6 +525,8 @@ Internal packages: `internal/buildinfo` (version string for `mcpInitializeResult
 registrations),
 `internal/mcp/playbooks` (query-playbook tool registration definitions),
 `internal/mcp/relationships` (relationship-edge tool registration definition),
+`internal/mcp/semantic` (semantic evidence and context-search tool registration
+definitions),
 `internal/mcp/toolcontract` (dependency-neutral `ToolDefinition` registration
 shape), `internal/mcp/visualization` (visualization-packet tool registration),
 `internal/query` (`query.ResponseEnvelope`, `query.EnvelopeMIMEType`,

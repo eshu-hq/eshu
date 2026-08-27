@@ -10,6 +10,7 @@ import (
 	freshnesstools "github.com/eshu-hq/eshu/go/internal/mcp/freshness"
 	playbooktools "github.com/eshu-hq/eshu/go/internal/mcp/playbooks"
 	relationshiptools "github.com/eshu-hq/eshu/go/internal/mcp/relationships"
+	semantictools "github.com/eshu-hq/eshu/go/internal/mcp/semantic"
 	"github.com/eshu-hq/eshu/go/internal/mcp/toolcontract"
 	visualizationtools "github.com/eshu-hq/eshu/go/internal/mcp/visualization"
 )
@@ -109,6 +110,18 @@ func visualizationTools() []ToolDefinition {
 // freshness package owns the registration definitions.
 func freshnessTools() []ToolDefinition {
 	return freshnesstools.Tools()
+}
+
+// semanticEvidenceTools preserves the root package's constructor name while
+// the semantic package owns the evidence registration definitions.
+func semanticEvidenceTools() []ToolDefinition {
+	return semantictools.EvidenceTools()
+}
+
+// semanticSearchTools preserves the root package's constructor name while the
+// semantic package owns the search registration definition.
+func semanticSearchTools() []ToolDefinition {
+	return semantictools.SearchTools()
 }
 
 // askTools preserves the root package's constructor name while the ask

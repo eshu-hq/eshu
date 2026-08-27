@@ -1,10 +1,13 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package mcp
+package semantictools
 
-func semanticSearchTools() []ToolDefinition {
-	return []ToolDefinition{{
+import "github.com/eshu-hq/eshu/go/internal/mcp/toolcontract"
+
+// SearchTools returns the semantic search MCP tool definitions.
+func SearchTools() []toolcontract.ToolDefinition {
+	return []toolcontract.ToolDefinition{{
 		Name:        "search_semantic_context",
 		Description: "Search curated Eshu context for a repository with explicit scope, limit, timeout, truth, and truncation metadata.",
 		InputSchema: map[string]any{
