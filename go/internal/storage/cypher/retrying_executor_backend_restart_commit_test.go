@@ -300,6 +300,20 @@ func TestBackendRestartCommitStoreClosedClassifies(t *testing.T) {
 	require.False(t, isNornicDBStoreClosingCommitFailure(unrelatedBody),
 		"a real constraint violation at commit must remain terminal")
 
+	// The same conflict, but carrying the store-closed TAIL inside the
+	// conflicting identity. NornicDB inlines that identity, and identities are
+	// evidence-derived, so one can hold a repo-relative path or any other text
+	// -- "DB Closed" included. Matching the bare tail under this code would
+	// read a terminal schema conflict as a backend restart, and the queue would
+	// retry it until the attempt budget was spent: a loud stop turned into a
+	// slow one. Matching the operation prefix is what keeps this false.
+	conflictCarryingTheTail := &neo4jdriver.Neo4jError{
+		Code: "Neo.ClientError.Transaction.TransactionCommitFailed",
+		Msg:  `commit failed: constraint violation: Node with uid="repos/acme/DB Closed/schema.sql" already exists`,
+	}
+	require.False(t, isNornicDBStoreClosingCommitFailure(conflictCarryingTheTail),
+		"a constraint violation whose identity contains the store-closed tail must stay terminal")
+
 	unrelatedCode := &neo4jdriver.Neo4jError{
 		Code: "Neo.ClientError.Schema.ConstraintValidationFailed",
 		Msg:  "commit failed: materializing mvcc commit state: DB Closed",

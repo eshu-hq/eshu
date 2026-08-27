@@ -42,11 +42,24 @@ const (
 	// "UNWIND MERGE chain create failed: checking node existence: reading node:
 	// DB Closed". It arrives under nornicDBStatementSyntaxErrorCode -- the same
 	// code a genuinely malformed query uses -- so the message, not the code, is
-	// what separates a backend teardown from a Cypher bug here. The commit path
-	// reports it as "commit failed: materializing mvcc commit state: DB Closed"
-	// under nornicDBTransactionCommitFailedCode, which is why
-	// isNornicDBStoreClosingCommitFailure accepts it too (#6162).
+	// what separates a backend teardown from a Cypher bug here.
 	nornicDBStoreClosedMsg = "DB Closed"
+	// nornicDBStoreClosedCommitMsg is the commit-path spelling of the same
+	// condition, matched with its operation prefix rather than by its
+	// "DB Closed" tail.
+	//
+	// The tail alone is NOT safe under the commit code. A genuine constraint
+	// violation is reported there with the conflicting identity inlined --
+	// `Node with uid="..." already exists` -- and identities are
+	// evidence-derived, so one can carry a repo-relative path or any other
+	// text, "DB Closed" included. Matching the tail would classify that
+	// terminal schema conflict as a backend restart; the queue would retry it
+	// and apply backpressure until the attempt budget was spent, turning a
+	// loud stop into a slow one.
+	//
+	// The statement-side guard can use the bare tail because its code is
+	// Statement.SyntaxError, which a schema conflict never carries (#6162).
+	nornicDBStoreClosedCommitMsg = "materializing mvcc commit state: DB Closed"
 )
 
 var errMalformedNeo4jConnectivity = errors.New(malformedNeo4jConnectivityErrorMessage)
@@ -232,7 +245,7 @@ func isNornicDBStoreClosingCommitFailure(err error) bool {
 	return errors.As(err, &neo4jErr) &&
 		neo4jErr.Code == nornicDBTransactionCommitFailedCode &&
 		(strings.Contains(neo4jErr.Msg, nornicDBStoreClosingCommitMsg) ||
-			strings.Contains(neo4jErr.Msg, nornicDBStoreClosedMsg))
+			strings.Contains(neo4jErr.Msg, nornicDBStoreClosedCommitMsg))
 }
 
 // isNornicDBStoreClosedStatementFailure recognizes a statement that failed
