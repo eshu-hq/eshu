@@ -166,6 +166,9 @@ func resolveRoute(toolName string, args map[string]any) (*route, error) {
 	if route, ok := codeFlowRoute(toolName, args); ok {
 		return route, nil
 	}
+	if route, ok, err := codeRelationshipRoute(toolName, args); ok {
+		return route, err
+	}
 	switch toolName {
 	// ── Code ──
 	case "find_code":
@@ -247,10 +250,6 @@ func resolveRoute(toolName string, args map[string]any) (*route, error) {
 			"limit":              intOr(args, "limit", 25),
 			"offset":             intOr(args, "offset", 0),
 		}}, nil
-	case "get_code_relationship_story":
-		return codeRelationshipStoryRoute(args), nil
-	case "analyze_code_relationships":
-		return resolveAnalyzeCodeRelationshipsRoute(args)
 	case "find_dead_code":
 		return &route{method: "POST", path: "/api/v0/code/dead-code", body: map[string]any{
 			"repo_id":                str(args, "repo_id"),

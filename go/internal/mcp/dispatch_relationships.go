@@ -8,6 +8,20 @@ import (
 	"strings"
 )
 
+// codeRelationshipRoute claims the code-relationship family while leaving
+// unrelated tools available to the remaining dispatch fanout.
+func codeRelationshipRoute(toolName string, args map[string]any) (*route, bool, error) {
+	switch toolName {
+	case "get_code_relationship_story":
+		return codeRelationshipStoryRoute(args), true, nil
+	case "analyze_code_relationships":
+		route, err := resolveAnalyzeCodeRelationshipsRoute(args)
+		return route, true, err
+	default:
+		return nil, false, nil
+	}
+}
+
 func codeRelationshipStoryRoute(args map[string]any) *route {
 	body := map[string]any{
 		"target":             str(args, "target"),
