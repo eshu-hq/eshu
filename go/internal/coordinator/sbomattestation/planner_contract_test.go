@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package coordinator
+package sbomattestation
 
 import (
 	"context"
@@ -29,7 +29,7 @@ func TestSBOMAttestationWorkPlannerPlansOneWorkItemPerTarget(t *testing.T) {
 		UpdatedAt:      observedAt,
 	}
 
-	run, items, err := SBOMAttestationWorkPlanner{}.PlanSBOMAttestationWork(context.Background(), SBOMAttestationPlanRequest{
+	run, items, err := WorkPlanner{}.PlanSBOMAttestationWork(context.Background(), PlanRequest{
 		Instance:   instance,
 		ObservedAt: observedAt,
 		PlanKey:    "schedule-20260515T120000Z",
@@ -74,7 +74,7 @@ func TestSBOMAttestationWorkPlannerRejectsDuplicateScopes(t *testing.T) {
 		UpdatedAt:      observedAt,
 	}
 
-	_, _, err := SBOMAttestationWorkPlanner{}.PlanSBOMAttestationWork(context.Background(), SBOMAttestationPlanRequest{
+	_, _, err := WorkPlanner{}.PlanSBOMAttestationWork(context.Background(), PlanRequest{
 		Instance:   instance,
 		ObservedAt: observedAt,
 		PlanKey:    "schedule-20260515T120000Z",

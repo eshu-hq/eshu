@@ -9,9 +9,16 @@ import (
 	"strings"
 	"time"
 
+	"github.com/eshu-hq/eshu/go/internal/coordinator/sbomattestation"
 	"github.com/eshu-hq/eshu/go/internal/scope"
 	"github.com/eshu-hq/eshu/go/internal/workflow"
 )
+
+// SBOMAttestationPlanner plans hosted SBOM/attestation workflow rows from
+// collector instance configuration.
+type SBOMAttestationPlanner interface {
+	PlanSBOMAttestationWork(context.Context, sbomattestation.PlanRequest) (workflow.Run, []workflow.WorkItem, error)
+}
 
 func (s Service) scheduleSBOMAttestationWork(
 	ctx context.Context,
@@ -28,7 +35,7 @@ func (s Service) scheduleSBOMAttestationWork(
 		if s.SBOMAttestationPlanner == nil {
 			return fmt.Errorf("SBOM attestation planner is required for active sbom_attestation collectors")
 		}
-		run, items, err := s.SBOMAttestationPlanner.PlanSBOMAttestationWork(ctx, SBOMAttestationPlanRequest{
+		run, items, err := s.SBOMAttestationPlanner.PlanSBOMAttestationWork(ctx, sbomattestation.PlanRequest{
 			Instance:   instance,
 			ObservedAt: observedAt,
 			PlanKey:    s.sbomAttestationPlanKey(instance, observedAt),

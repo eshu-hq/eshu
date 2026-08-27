@@ -16,6 +16,8 @@ implementation; root retains its interface, scheduling position, and durable
 admission path.
 The `securityalert` child owns the provider security-alert planning request and
 planner implementation under the same boundary.
+The `sbomattestation` child owns the hosted SBOM-attestation planning request
+and planner while root retains scheduling and durable admission.
 
 ## Where this fits in the pipeline
 
@@ -126,7 +128,8 @@ the coordinator has no GCP workflow scheduler yet.
   reason-coded aggregate counts by ecosystem. Exact package-version queries are
   batched across packages within one ecosystem while keeping scope IDs below
   indexed workflow tuple limits.
-- `SBOMAttestationWorkPlanner` — plans hosted SBOM and attestation collection
+- `SBOMAttestationPlanner` — the root interface implemented by
+  `sbomattestation.WorkPlanner`, which plans hosted SBOM and attestation collection
   runs from configured document or OCI-referrer targets. Each target becomes one
   claimable work item keyed by `scope_id`.
 - `CICDRunPlanner` — the root structural interface implemented by
@@ -205,6 +208,8 @@ the coordinator has no GCP workflow scheduler yet.
 - `internal/coordinator/cicdrun` — CI/CD run plan request and deterministic
   planner implementation.
 - `internal/coordinator/securityalert` — provider security-alert plan request
+  and deterministic planner implementation.
+- `internal/coordinator/sbomattestation` — hosted SBOM-attestation plan request
   and deterministic planner implementation.
 - `internal/workflow` — `DesiredCollectorInstance`, `CollectorInstance`,
   `Claim`, and default accessors; used throughout `Store` and `Config`.
