@@ -12,6 +12,7 @@ import (
 	playbooktools "github.com/eshu-hq/eshu/go/internal/mcp/playbooks"
 	relationshiptools "github.com/eshu-hq/eshu/go/internal/mcp/relationships"
 	semantictools "github.com/eshu-hq/eshu/go/internal/mcp/semantic"
+	servicetools "github.com/eshu-hq/eshu/go/internal/mcp/service"
 	"github.com/eshu-hq/eshu/go/internal/mcp/toolcontract"
 	visualizationtools "github.com/eshu-hq/eshu/go/internal/mcp/visualization"
 )
@@ -123,6 +124,25 @@ func visualizationTools() []ToolDefinition {
 // freshness package owns the registration definitions.
 func freshnessTools() []ToolDefinition {
 	return freshnesstools.Tools()
+}
+
+// serviceCatalogTools preserves the root package's constructor name while the
+// service package owns the catalog registration definition.
+func serviceCatalogTools() []ToolDefinition {
+	return servicetools.CatalogTools()
+}
+
+// contextTools preserves the root package's constructor name while composing
+// root-owned entity/workload definitions with service-owned definitions.
+func contextTools() []ToolDefinition {
+	tools := entityWorkloadContextTools()
+	return append(tools, servicetools.ContextTools()...)
+}
+
+// serviceIntelligenceTools preserves the root package's constructor name while
+// the service package owns the intelligence-report registration definition.
+func serviceIntelligenceTools() []ToolDefinition {
+	return servicetools.IntelligenceTools()
 }
 
 // semanticEvidenceTools preserves the root package's constructor name while

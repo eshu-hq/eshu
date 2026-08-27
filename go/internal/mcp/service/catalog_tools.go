@@ -1,10 +1,13 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package mcp
+package servicetools
 
-func serviceCatalogTools() []ToolDefinition {
-	return []ToolDefinition{
+import "github.com/eshu-hq/eshu/go/internal/mcp/toolcontract"
+
+// CatalogTools returns the service catalog correlation registration.
+func CatalogTools() []toolcontract.ToolDefinition {
+	return []toolcontract.ToolDefinition{
 		{
 			Name:        "list_service_catalog_correlations",
 			Description: "List reducer-owned service catalog ownership and drift correlations by entity, repository, service, workload, owner, or scope, including repository-local descriptor evidence and external confirmation state.",

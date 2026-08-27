@@ -31,6 +31,7 @@ live in the repository today.
 | `go/internal/mcp/playbooks/` | query-playbook MCP tool registration definitions |
 | `go/internal/mcp/relationships/` | relationship-edge MCP tool registration definition |
 | `go/internal/mcp/semantic/` | semantic-evidence and semantic-search MCP tool registration definitions |
+| `go/internal/mcp/service/` | service catalog, context, investigation, and intelligence-report MCP tool registration definitions |
 | `go/internal/mcp/toolcontract/` | dependency-neutral MCP tool registration shape |
 | `go/internal/mcp/visualization/` | visualization-packet MCP tool registration definition |
 | `go/internal/parser/` | native parser registry, language adapters, and SCIP support |
