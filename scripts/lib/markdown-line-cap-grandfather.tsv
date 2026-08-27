@@ -11,6 +11,14 @@
 # all. Nothing regenerates this file; edit it by hand, using
 # `bash scripts/verify-markdown-line-cap.sh --pin <path>` to measure the row.
 #
+# "Closed list" is enforced, not merely intended. The gate compares this file
+# against its committed baseline (MARKDOWN_LINE_CAP_BASE_REF, default
+# origin/main), and accepts only two edits: REMOVING a row, or LOWERING a pin.
+# Adding a row, or raising one, is refused -- otherwise a change could add an
+# over-cap file together with the row exempting it and satisfy every check,
+# which is exactly what it did before #6279. If you are here to add a row for a
+# new file, that is the case this refuses: split the file by audience instead.
+#
 # Columns (tab-separated): path<TAB>line_count
 #   path       - repo-root-relative path of the Markdown file.
 #   line_count - the file's exact line count (awk NR, which counts a final

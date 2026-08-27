@@ -157,3 +157,117 @@ test_unknown_mode_exits_two() {
 	assert_contains "${MDCAP_OUT}" "usage: verify-markdown-line-cap.sh" "usage is printed"
 	rm -rf "${repo}"
 }
+
+# mdcap_commit_baseline REPO TSV ROWS... writes ROWS to TSV, commits, and
+# prints the resulting SHA. The growth check compares against a COMMITTED
+# ledger, so a test for it needs a real baseline commit rather than a working
+# tree -- that difference is the whole point of the check.
+mdcap_commit_baseline() {
+	local repo="$1" tsv="$2" row
+	shift 2
+	printf '# scratch markdown-line-cap ledger\n' > "${tsv}"
+	for row in "$@"; do
+		printf '%s\n' "${row}" >> "${tsv}"
+	done
+	git -C "${repo}" add -A >/dev/null 2>&1
+	git -C "${repo}" commit -q -m "baseline ledger" --allow-empty >/dev/null 2>&1
+	git -C "${repo}" rev-parse HEAD
+}
+
+# The hole codex found on #6279: every working-tree check agrees when a change
+# adds an over-cap file AND the row pinning it at its own length. count ==
+# pinned, the row is not stale, the pin clears the cap -- exit 0. The ledger
+# freezes debt that predates the gate, so a row that is not in the baseline is
+# a change authorising its own exemption.
+test_new_ledger_row_is_rejected() {
+	local repo tsv base
+	repo="$(new_scratch_repo)"
+	write_md_lines "${repo}/go/internal/old/README.md" 600
+	tsv="${repo}/ledger.tsv"
+	base="$(mdcap_commit_baseline "${repo}" "${tsv}" "go/internal/old/README.md"$'\t'"600")"
+
+	write_md_lines "${repo}/go/internal/new/README.md" 501
+	printf '%s\t%s\n' "go/internal/new/README.md" "501" >> "${tsv}"
+
+	MARKDOWN_LINE_CAP_BASE_REF="${base}" MARKDOWN_LINE_CAP_TSV_REL="ledger.tsv" \
+		run_mdcap "${repo}" "${tsv}" --all
+	assert_exit "${MDCAP_EXIT}" 1 "a self-authored ledger row is rejected"
+	assert_contains "${MDCAP_OUT}" "NEW ledger row go/internal/new/README.md pinned at 501" \
+		"the finding names the row the change tried to author for itself"
+	rm -rf "${repo}"
+}
+
+# The same hole reached by re-pinning rather than by adding: a grandfathered
+# file grows, and the change raises its pin to match. Working-tree checks see
+# count == pinned and agree.
+test_raised_ledger_pin_is_rejected() {
+	local repo tsv base
+	repo="$(new_scratch_repo)"
+	write_md_lines "${repo}/go/internal/thing/README.md" 600
+	tsv="${repo}/ledger.tsv"
+	base="$(mdcap_commit_baseline "${repo}" "${tsv}" "go/internal/thing/README.md"$'\t'"600")"
+
+	write_md_lines "${repo}/go/internal/thing/README.md" 700
+	printf '# scratch markdown-line-cap ledger\ngo/internal/thing/README.md\t700\n' > "${tsv}"
+
+	MARKDOWN_LINE_CAP_BASE_REF="${base}" MARKDOWN_LINE_CAP_TSV_REL="ledger.tsv" \
+		run_mdcap "${repo}" "${tsv}" --all
+	assert_exit "${MDCAP_EXIT}" 1 "raising a pin to cover growth is rejected"
+	assert_contains "${MDCAP_OUT}" "RAISED ledger pin go/internal/thing/README.md from 600 to 700" \
+		"the finding names both the old pin and the new one"
+	rm -rf "${repo}"
+}
+
+# Removing a row and lowering a pin are the only legitimate ledger edits, and
+# both must stay green or the gate blocks the cleanup it exists to encourage.
+test_lowered_ledger_pin_is_accepted() {
+	local repo tsv base
+	repo="$(new_scratch_repo)"
+	write_md_lines "${repo}/go/internal/thing/README.md" 600
+	tsv="${repo}/ledger.tsv"
+	base="$(mdcap_commit_baseline "${repo}" "${tsv}" "go/internal/thing/README.md"$'\t'"600")"
+
+	write_md_lines "${repo}/go/internal/thing/README.md" 550
+	printf '# scratch markdown-line-cap ledger\ngo/internal/thing/README.md\t550\n' > "${tsv}"
+
+	MARKDOWN_LINE_CAP_BASE_REF="${base}" MARKDOWN_LINE_CAP_TSV_REL="ledger.tsv" \
+		run_mdcap "${repo}" "${tsv}" --all
+	assert_exit "${MDCAP_EXIT}" 0 "lowering a pin toward the cap stays green"
+	rm -rf "${repo}"
+}
+
+# The commit that INTRODUCES the ledger has no baseline to be measured
+# against, and its rows are the baseline. Without this the gate would fail on
+# the very change that adds it.
+test_ledger_absent_at_baseline_is_accepted() {
+	local repo tsv base
+	repo="$(new_scratch_repo)"
+	write_md_lines "${repo}/go/internal/thing/README.md" 600
+	git -C "${repo}" add -A >/dev/null 2>&1
+	git -C "${repo}" commit -q -m "no ledger yet" --allow-empty >/dev/null 2>&1
+	base="$(git -C "${repo}" rev-parse HEAD)"
+
+	tsv="$(write_ledger "${repo}" "go/internal/thing/README.md"$'\t'"600")"
+	MARKDOWN_LINE_CAP_BASE_REF="${base}" MARKDOWN_LINE_CAP_TSV_REL="ledger.tsv" \
+		run_mdcap "${repo}" "${tsv}" --all
+	assert_exit "${MDCAP_EXIT}" 0 "the commit introducing the ledger is its own baseline"
+	rm -rf "${repo}"
+}
+
+# A digits-only pin is not enough: bash reads a leading zero as octal, so
+# "0900" aborts the comparison with "value too great for base". The abort makes
+# the arithmetic FALSE and, inside a negated condition, the growth goes
+# unreported -- a 901-line file exited 0 with the gate believing it checked.
+test_leading_zero_ledger_pin_is_rejected() {
+	local repo tsv
+	repo="$(new_scratch_repo)"
+	write_md_lines "${repo}/go/internal/thing/README.md" 901
+	tsv="$(write_ledger "${repo}" "go/internal/thing/README.md"$'\t'"0900")"
+	run_mdcap "${repo}" "${tsv}" --all
+	assert_exit "${MDCAP_EXIT}" 1 "a leading-zero pin is rejected rather than silently disabling the check"
+	assert_contains "${MDCAP_OUT}" "MALFORMED ledger row go/internal/thing/README.md" \
+		"the finding names the malformed row"
+	assert_contains "${MDCAP_OUT}" "got 0900" \
+		"the finding quotes the noncanonical value back"
+	rm -rf "${repo}"
+}

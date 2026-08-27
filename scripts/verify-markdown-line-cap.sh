@@ -67,6 +67,12 @@ case "${mode}" in
 		if ! mdcap_verify_ledger "${repo_root}"; then
 			exit_status=1
 		fi
+		# Growth is checked against the committed baseline, not the working
+		# tree, because a change that adds a file AND its own pin satisfies
+		# every working-tree check above.
+		if ! mdcap_verify_ledger_growth "${repo_root}"; then
+			exit_status=1
+		fi
 		exit "${exit_status}"
 		;;
 	--files)
@@ -87,6 +93,12 @@ case "${mode}" in
 		# this call it would evaluate 0 files, exit 0, and read exactly like a
 		# pass. It is also cheap -- one `awk` per pinned row, 20 rows.
 		if ! mdcap_verify_ledger "${repo_root}"; then
+			exit_status=1
+		fi
+		# Growth is checked against the committed baseline, not the working
+		# tree, because a change that adds a file AND its own pin satisfies
+		# every working-tree check above.
+		if ! mdcap_verify_ledger_growth "${repo_root}"; then
 			exit_status=1
 		fi
 		exit "${exit_status}"

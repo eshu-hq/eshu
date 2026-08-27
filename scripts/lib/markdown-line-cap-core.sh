@@ -111,6 +111,23 @@ mdcap_grandfather_lookup() {
 # would fail on every edit that leaves the line count alone, which is most of
 # them, and would turn the ledger into a merge-conflict magnet for no
 # additional protection against the growth this gate measures.
+# mdcap_pin_is_canonical rejects any pin that is not a canonical decimal
+# integer. Digits-only is NOT enough: bash reads a leading zero as octal, so a
+# row pinned "0900" makes `(( count > pinned ))` abort with "value too great
+# for base". That abort makes the arithmetic FALSE, and because the comparison
+# sits inside a negated condition the growth simply goes unreported -- a
+# 901-line file pinned at 0900 exited 0 with the gate believing it had checked.
+# A malformed pin must fail loudly, never quietly disable the comparison it
+# was supposed to feed. Pinned by test_leading_zero_ledger_pin_is_rejected.
+mdcap_pin_is_canonical() {
+	local value="$1"
+	[[ -n "${value}" && -z "${value//[0-9]/}" ]] || return 1
+	# A single "0" is canonical but can never be a valid pin (it is below the
+	# cap and mdcap_verify_ledger rejects it as INVALID); any other leading
+	# zero is noncanonical input.
+	[[ "${value}" == "0" || "${value#0}" == "${value}" ]]
+}
+
 mdcap_evaluate_file() {
 	local repo_root="$1" path="$2"
 	local full="${repo_root}/${path}"
@@ -127,7 +144,7 @@ mdcap_evaluate_file() {
 	# "nine hundred" aborted the whole run with `nine: unbound variable`
 	# under `set -u` before the ledger check that explains it ever ran.
 	# Pinned by test_malformed_ledger_row_hard_fails.
-	if ! pinned="$(mdcap_grandfather_lookup "${path}")" || [[ -z "${pinned}" || -n "${pinned//[0-9]/}" ]]; then
+	if ! pinned="$(mdcap_grandfather_lookup "${path}")" || ! mdcap_pin_is_canonical "${pinned}"; then
 		printf '%s: %s has %d lines, exceeding the %d-line cap; split it by audience (doc.go for the godoc contract, README.md for human architecture, AGENTS.md for scoped agent instructions) rather than cutting at an arbitrary line -- see scripts/lib/markdown-line-cap-grandfather.tsv if this file predates the gate\n' \
 			"${MARKDOWN_LINE_CAP_NAME}" "${path}" "${count}" "${MARKDOWN_LINE_CAP_MAX_LINES}" >&2
 		return 1
@@ -164,8 +181,8 @@ mdcap_verify_ledger() {
 			""|\#*) continue ;;
 		esac
 
-		if [[ -z "${pinned}" || -n "${pinned//[0-9]/}" ]]; then
-			printf '%s: MALFORMED ledger row %s -- second column must be a decimal line count, got %s\n' \
+		if ! mdcap_pin_is_canonical "${pinned}"; then
+			printf '%s: MALFORMED ledger row %s -- second column must be a canonical decimal line count with no leading zero, got %s\n' \
 				"${MARKDOWN_LINE_CAP_NAME}" "${path}" "${pinned:-<empty>}" >&2
 			exit_status=1
 			continue
@@ -200,6 +217,76 @@ mdcap_verify_ledger() {
 		if (( count <= MARKDOWN_LINE_CAP_MAX_LINES )); then
 			printf '%s: STALE ledger row %s -- the file is now %d lines and no longer needs grandfathering; remove this row from scripts/lib/markdown-line-cap-grandfather.tsv\n' \
 				"${MARKDOWN_LINE_CAP_NAME}" "${path}" "${count}" >&2
+			exit_status=1
+		fi
+	done < "${MARKDOWN_LINE_CAP_TSV}"
+	return "${exit_status}"
+}
+
+# mdcap_verify_ledger_growth rejects a ledger that GREW against its committed
+# baseline. Every other check in this file reads the working tree alone, and
+# that is precisely the hole: a change may add a brand-new over-cap file
+# together with a row pinning it at its own length, and every working-tree
+# check agrees. count == pinned, the row is not stale, the pin exceeds the cap
+# -- exit 0. The gate a change must not be able to satisfy by editing the
+# ledger it is judged against was satisfiable by exactly that.
+#
+# The ledger freezes debt that predates the gate. So only two edits are ever
+# legitimate: removing a row, or lowering a pin. Adding a row, or raising one,
+# is new debt authorising itself, and is refused here.
+#
+# The baseline is the ledger as committed at MARKDOWN_LINE_CAP_BASE_REF
+# (default origin/main). Two cases are deliberately permissive:
+#
+#   * the ref does not resolve -- a shallow clone, a detached worktree, or a
+#     fresh clone with no origin. The check reports that it could not run
+#     rather than failing the build on a repository shape it cannot read.
+#   * the ledger does not exist at the baseline. That is the commit that
+#     introduces the ledger, whose rows ARE the initial baseline. Once it
+#     lands, the file exists in main and every later addition is measured.
+#
+# Pinned by test_new_ledger_row_is_rejected and test_raised_ledger_pin_is_rejected.
+mdcap_verify_ledger_growth() {
+	local repo_root="$1"
+	local base_ref="${MARKDOWN_LINE_CAP_BASE_REF:-origin/main}"
+	local tsv_rel="${MARKDOWN_LINE_CAP_TSV_REL:-scripts/lib/markdown-line-cap-grandfather.tsv}"
+
+	[[ -f "${MARKDOWN_LINE_CAP_TSV}" ]] || return 0
+
+	local base_sha
+	if ! base_sha="$(git -C "${repo_root}" rev-parse --verify --quiet "${base_ref}^{commit}")"; then
+		printf '%s: NOTE ledger growth not checked -- %s does not resolve here, so there is no committed baseline to compare against\n' \
+			"${MARKDOWN_LINE_CAP_NAME}" "${base_ref}" >&2
+		return 0
+	fi
+
+	local baseline
+	if ! baseline="$(git -C "${repo_root}" show "${base_sha}:${tsv_rel}" 2>/dev/null)"; then
+		# The commit that introduces the ledger. Its rows are the baseline.
+		return 0
+	fi
+
+	local exit_status=0 path pinned base_pin
+	while IFS=$'\t' read -r path pinned; do
+		case "${path}" in
+			""|\#*) continue ;;
+		esac
+		mdcap_pin_is_canonical "${pinned}" || continue
+
+		base_pin="$(printf '%s\n' "${baseline}" |
+			awk -F'\t' -v want="${path}" '$1 == want { print $2; exit }')"
+
+		if [[ -z "${base_pin}" ]]; then
+			printf '%s: NEW ledger row %s pinned at %s -- the grandfather ledger freezes debt that predates the gate, and a change MUST NOT authorise its own exemption; bring the file under the %d-line cap, or split it by audience\n' \
+				"${MARKDOWN_LINE_CAP_NAME}" "${path}" "${pinned}" "${MARKDOWN_LINE_CAP_MAX_LINES}" >&2
+			exit_status=1
+			continue
+		fi
+
+		mdcap_pin_is_canonical "${base_pin}" || continue
+		if (( 10#${pinned} > 10#${base_pin} )); then
+			printf '%s: RAISED ledger pin %s from %s to %s -- a grandfathered file may shrink but MUST NOT grow, and re-pinning it upward is the same growth wearing a ledger edit; split it, or move the new content into a sibling document\n' \
+				"${MARKDOWN_LINE_CAP_NAME}" "${path}" "${base_pin}" "${pinned}" >&2
 			exit_status=1
 		fi
 	done < "${MARKDOWN_LINE_CAP_TSV}"

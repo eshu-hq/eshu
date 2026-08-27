@@ -161,6 +161,12 @@ main() {
 	test_pin_helper_refuses_a_file_under_the_cap
 	test_unknown_mode_exits_two
 
+	test_new_ledger_row_is_rejected
+	test_raised_ledger_pin_is_rejected
+	test_lowered_ledger_pin_is_accepted
+	test_ledger_absent_at_baseline_is_accepted
+	test_leading_zero_ledger_pin_is_rejected
+
 	printf '\ntests passed: %d/%d\n' "${pass_count}" "$((pass_count + fail_count))"
 	[[ "${fail_count}" -eq 0 ]]
 }
