@@ -22,11 +22,12 @@ How to read this appendix:
   the reports were committed here.
 - **What is editorial.** This intro, the section headings, and anything
   marked *Correction made when this appendix was committed* or *Completed when
-  this appendix was committed* were written
-  while moving the research out of the issue comments. Every other word is
-  the agents' own. The only other changes were mechanical: the outer code
-  fence came off, escaped newlines became real ones, and literal asterisks
-  and angle brackets were escaped or backticked so they render.
+  this appendix was committed* were written while moving the research out of
+  the issue comments. Later editorial updates are marked *Status update made
+  YYYY-MM-DD*. Every other word is the agents' own. The only other changes made
+  during that migration were mechanical: the outer code fence came off,
+  escaped newlines became real ones, and literal asterisks and angle brackets
+  were escaped or backticked so they render.
 
 ## Gate mechanics and restructure blast surface
 
@@ -421,6 +422,12 @@ Wave 2 (clean at the tools_\*.go/dispatch_\*.go symbol level, but their Route fu
   codeintel <- tools_codebase*, tools_code_flow*, tools_code_topic*, tools_ [~17 prod / ~17 test] tangled
   misc / split further per name <- tools_component_extensions*, tools_collector_extraction_read [~7 prod / ~10 test] tangled
 ```
+
+*Status update made 2026-08-27:* The inventory above preserves the filenames
+measured on 2026-08-11. The 23-definition registration family now lives under
+`internal/mcp/ecosystem/`; `tools.go` owns canonical assembly while sibling
+files own the split definitions. Root `dispatch_ecosystem.go` remains in
+`internal/mcp`.
 
 ## go/internal/reducer
 
