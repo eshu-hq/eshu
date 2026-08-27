@@ -6,7 +6,9 @@
 // ToolDefinition aliases the dependency-neutral toolcontract definition. The
 // ask, cloud, documentation, ecosystem, freshness, investigation, playbooks,
 // relationships, semantic, service, and visualization child packages own
-// their registration definitions without importing this parent package.
+// their registration definitions without importing this parent package. The
+// relationships child owns both code-relationship definitions and the bounded
+// relationship-edge definition.
 // ReadOnlyTools remains the sole ordered assembler; routing, dispatch,
 // transport, authorization, and query execution remain owned here.
 //

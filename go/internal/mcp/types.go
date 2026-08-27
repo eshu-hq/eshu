@@ -170,6 +170,24 @@ func askTools() []ToolDefinition {
 	return asktools.Tools()
 }
 
+// codeRelationshipTools preserves the root package's constructor name while
+// the relationships package owns the code-relationship definitions.
+func codeRelationshipTools() []ToolDefinition {
+	return relationshiptools.CodeTools()
+}
+
+// codeRelationshipStoryTool preserves the former root helper for tests and
+// callers that need the story definition in isolation.
+func codeRelationshipStoryTool() ToolDefinition {
+	return codeRelationshipTools()[0]
+}
+
+// analyzeCodeRelationshipsSchema preserves the former root helper while the
+// relationships package owns and freshly constructs the analysis schema.
+func analyzeCodeRelationshipsSchema() map[string]any {
+	return codeRelationshipTools()[1].InputSchema.(map[string]any)
+}
+
 // relationshipEdgesTool preserves the root package's constructor name while
 // the relationships package owns the registration definition.
 func relationshipEdgesTool() ToolDefinition {

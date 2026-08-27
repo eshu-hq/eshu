@@ -1,7 +1,9 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package mcp
+package relationshiptools
+
+import "github.com/eshu-hq/eshu/go/internal/mcp/toolcontract"
 
 // relationshipTypeEnum lists the relationship types the bounded relationship
 // story query path can follow.
@@ -11,8 +13,8 @@ func relationshipTypeEnum() []string {
 
 // codeRelationshipStoryTool defines the get_code_relationship_story MCP tool: a
 // bounded, budget-aware relationship story for one resolved code symbol.
-func codeRelationshipStoryTool() ToolDefinition {
-	return ToolDefinition{
+func codeRelationshipStoryTool() toolcontract.ToolDefinition {
+	return toolcontract.ToolDefinition{
 		Name:        "get_code_relationship_story",
 		Description: "Get a bounded relationship story for one resolved code symbol, including ambiguity candidates, direct callers/callees/imports, per-row provenance blocks, optional transitive CALLS traversal, an optional token_budget that trims to fit and reports what was cut, truncation, and source handles. Provide target or entity_id.",
 		InputSchema: map[string]any{
@@ -86,6 +88,19 @@ func codeRelationshipStoryTool() ToolDefinition {
 					"maximum":     10000,
 				},
 			},
+		},
+	}
+}
+
+// CodeTools returns fresh definitions for the relationship-story and
+// relationship-analysis tools in their canonical registry order.
+func CodeTools() []toolcontract.ToolDefinition {
+	return []toolcontract.ToolDefinition{
+		codeRelationshipStoryTool(),
+		{
+			Name:        "analyze_code_relationships",
+			Description: "Analyze code relationships like 'who calls this function' or 'class hierarchy'. Relationship-story query types return per-row provenance blocks. Supported query types include: find_callers, find_callees, find_all_callers, find_all_callees, find_cross_repo_callers, find_cross_repo_callees, find_importers, find_cross_repo_importers, who_modifies, class_hierarchy, cross_repo_class_hierarchy, overrides, cross_repo_overrides, dead_code, call_chain, find_cross_repo_call_chain, module_deps, variable_scope, find_complexity, find_functions_by_argument, find_functions_by_decorator.",
+			InputSchema: analyzeCodeRelationshipsSchema(),
 		},
 	}
 }

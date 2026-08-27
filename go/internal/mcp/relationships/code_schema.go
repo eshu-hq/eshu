@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package mcp
+package relationshiptools
 
 func analyzeCodeRelationshipsSchema() map[string]any {
 	return map[string]any{

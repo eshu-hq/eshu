@@ -32,7 +32,7 @@ live in the repository today.
 | `go/internal/mcp/freshness/` | generation, repository, and service freshness MCP tool registration definitions |
 | `go/internal/mcp/investigation/` | investigation workflow and evidence-packet MCP tool registration definitions |
 | `go/internal/mcp/playbooks/` | query-playbook MCP tool registration definitions |
-| `go/internal/mcp/relationships/` | relationship-edge MCP tool registration definition |
+| `go/internal/mcp/relationships/` | code-relationship and relationship-edge MCP tool registration definitions |
 | `go/internal/mcp/semantic/` | semantic-evidence and semantic-search MCP tool registration definitions |
 | `go/internal/mcp/service/` | service catalog, context, investigation, and intelligence-report MCP tool registration definitions |
 | `go/internal/mcp/toolcontract/` | dependency-neutral MCP tool registration shape |
