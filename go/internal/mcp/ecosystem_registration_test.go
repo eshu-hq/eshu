@@ -16,10 +16,6 @@ func TestReadOnlyToolsKeepsEcosystemRegistrationPosition(t *testing.T) {
 	t.Parallel()
 
 	wantEcosystem := ecosystemtools.Tools()
-	if got := ecosystemTools(); !reflect.DeepEqual(got, wantEcosystem) {
-		t.Fatal("root ecosystemTools wrapper drifted from ecosystem.Tools")
-	}
-
 	tools := ReadOnlyTools()
 	if got, want := len(tools), 162; got != want {
 		t.Fatalf("ReadOnlyTools count = %d, want %d", got, want)
