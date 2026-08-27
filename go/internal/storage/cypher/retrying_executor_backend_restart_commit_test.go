@@ -376,3 +376,48 @@ func TestBackendRestartCommitStoreClosedIsNotReplayedInPlace(t *testing.T) {
 	require.Same(t, storeClosed, err)
 	require.Equal(t, int32(1), inner.calls.Load())
 }
+
+// TestBackendRestartCommitVersionAllocationStoreClosedClassifies pins the
+// sibling shape at the same commit site. BadgerTransaction.Commit allocates the
+// MVCC version immediately before materializing it, and both wrap a store error
+// with their own operation prefix:
+//
+//	allocating mvcc commit version: %w   (badger_transaction.go)
+//	materializing mvcc commit state: %w  (the line below it)
+//
+// The allocation half reaches the store only on a namespace cache MISS:
+// allocateMVCCVersion serves a cached namespaceMVCCState from memory, but the
+// first write to a namespace in a process falls through to namespaceMVCC ->
+// loadPersistedNamespaceSequence, which runs b.db.View and answers "DB Closed"
+// when the store is already closed under it.
+//
+// That is rarer than the materialize half, which is why the live dead-letter
+// (#6162) caught the other one first. It is the same backend restart and the
+// same retry decision, so classifying only its sibling would leave a real
+// restart dead-lettering as a projection bug on the first write to a namespace.
+func TestBackendRestartCommitVersionAllocationStoreClosedClassifies(t *testing.T) {
+	t.Parallel()
+
+	// RAW LITERAL, per the co-derivation ban above: deriving this from the
+	// constant under test would keep it green through a typo in that constant.
+	allocationClosed := &neo4jdriver.Neo4jError{
+		Code: "Neo.ClientError.Transaction.TransactionCommitFailed",
+		Msg:  "commit failed: allocating mvcc commit version: DB Closed",
+	}
+	require.True(t, isNornicDBStoreClosingCommitFailure(allocationClosed),
+		"a commit that failed allocating its MVCC version on a closed store is the same backend restart as the materialize half")
+
+	// The narrowness that actually holds. Matching the operation prefix rather
+	// than the bare "DB Closed" tail is what keeps a terminal constraint
+	// violation terminal: NornicDB inlines the conflicting identity into that
+	// diagnostic, and an identity carrying the tail is plausible where one
+	// carrying the whole operation prefix is not. This guard is not proof
+	// against a forged prefix -- neither is the materialize half -- and that is
+	// the same accepted trade, not a new one.
+	plainConflict := &neo4jdriver.Neo4jError{
+		Code: "Neo.ClientError.Transaction.TransactionCommitFailed",
+		Msg:  `commit failed: constraint violation: Node with uid="repos/acme/DB Closed/x.sql" already exists`,
+	}
+	require.False(t, isNornicDBStoreClosingCommitFailure(plainConflict),
+		"a terminal constraint violation whose inlined identity carries the bare tail must stay terminal")
+}

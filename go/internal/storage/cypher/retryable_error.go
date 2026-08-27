@@ -60,6 +60,17 @@ const (
 	// The statement-side guard can use the bare tail because its code is
 	// Statement.SyntaxError, which a schema conflict never carries (#6162).
 	nornicDBStoreClosedCommitMsg = "materializing mvcc commit state: DB Closed"
+	// nornicDBStoreClosedCommitAllocMsg is the sibling shape at the same commit
+	// site. BadgerTransaction.Commit allocates the MVCC version immediately
+	// before materializing it, and each wraps a store error with its own
+	// operation prefix. The allocation half reaches the store only on a
+	// namespace cache miss -- allocateMVCCVersion serves a cached
+	// namespaceMVCCState from memory, and only the first write to a namespace
+	// falls through to loadPersistedNamespaceSequence, whose b.db.View answers
+	// "DB Closed" on an already-closed store. Rarer than its sibling, which is
+	// why the live dead-letter surfaced the other one first, but the same
+	// backend restart and the same retry decision.
+	nornicDBStoreClosedCommitAllocMsg = "allocating mvcc commit version: DB Closed"
 )
 
 var errMalformedNeo4jConnectivity = errors.New(malformedNeo4jConnectivityErrorMessage)
@@ -245,7 +256,8 @@ func isNornicDBStoreClosingCommitFailure(err error) bool {
 	return errors.As(err, &neo4jErr) &&
 		neo4jErr.Code == nornicDBTransactionCommitFailedCode &&
 		(strings.Contains(neo4jErr.Msg, nornicDBStoreClosingCommitMsg) ||
-			strings.Contains(neo4jErr.Msg, nornicDBStoreClosedCommitMsg))
+			strings.Contains(neo4jErr.Msg, nornicDBStoreClosedCommitMsg) ||
+			strings.Contains(neo4jErr.Msg, nornicDBStoreClosedCommitAllocMsg))
 }
 
 // isNornicDBStoreClosedStatementFailure recognizes a statement that failed
