@@ -114,6 +114,9 @@
   `dispatch_service_catalog.go`, while context, story, investigation, and
   intelligence-report routes stay in `dispatch.go` and
   `dispatch_service_selector.go`.
+  Ecosystem registration is one 23-definition group, but routing remains split
+  across `dispatch_ecosystem.go`, `dispatch_repositories.go`, `dispatch.go`,
+  `dispatch_infra_search.go`, and `dispatch_impact.go`.
 
 - **Add a new argument helper** → add near `stringSlice` in
   `dispatch_args.go` or near `str`, `intOr`, and `boolOr` in `dispatch.go`.

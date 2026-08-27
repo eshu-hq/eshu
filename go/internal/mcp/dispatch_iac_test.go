@@ -249,8 +249,8 @@ func TestResolveRouteMapsTraceDeploymentChain(t *testing.T) {
 }
 
 // TestResolveRouteMapsTraceDeploymentChainOmittedMaxDepthMatchesAdvertisedDefault
-// is a PR #5933 review fix (Codex, tools_ecosystem.go:51). The trace_deployment_chain
-// MCP schema description says an omitted max_depth "does not apply a default --
+// covers the trace-deployment-chain schema in ecosystem/tools.go. The MCP
+// schema description says an omitted max_depth "does not apply a default --
 // it resolves to the handler's own operator-safe default search limit of 25"
 // (boundedTraceEnrichmentLimit(0) in impact_trace_deployment.go). Before this
 // fix, impactRoute forwarded intOr(args, "max_depth", 8) for an omitted

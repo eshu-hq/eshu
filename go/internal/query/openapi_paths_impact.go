@@ -7,7 +7,7 @@ package query
 //
 // #5720 round-8 P3-4: trace-deployment-chain's max_depth declares "minimum": 0
 // and "maximum": 1000 here, while the same parameter on the sibling MCP tool
-// (go/internal/mcp/tools_ecosystem.go) deliberately declares neither. The
+// (go/internal/mcp/ecosystem/tools.go) deliberately declares neither. The
 // clamping rationale recorded there applies to JSON Schema in an OpenAPI
 // document just as literally, and both feed generated clients and validators,
 // so the split is deliberate rather than an oversight. What differs is what

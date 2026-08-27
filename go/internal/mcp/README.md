@@ -28,6 +28,9 @@ stays here. The `cloud` child package owns the cloud inventory and runtime-drift
 registration definitions; cloud routing also stays here. The `visualization`
 child package owns the visualization-packet registration definition;
 visualization routing stays here.
+The `ecosystem` child package owns the 23 ecosystem, repository-context,
+infrastructure-impact, and change-planning registration definitions. Their
+existing split routers stay here.
 The `ask` child package owns the natural-language answer registration
 definition; Ask routing and execution also stay here.
 The `playbooks` child package owns the two query-playbook catalog registration
@@ -168,10 +171,10 @@ is not broken out here).
 
 | Group | Count | Source file |
 |---|---|---|
-| `codebaseTools` | 31 | `tools_codebase.go`, `tools_code_topic.go`, `tools_dead_code.go`, `tools_import_dependencies.go`, `tools_call_graph_metrics.go`, `tools_route_to_caller.go`, `tools_security.go`, `tools_structural_inventory.go`, `tools_iac.go` |
+| `codebaseTools` | 33 | `tools_codebase.go`, `tools_code_topic.go`, `tools_dead_code.go`, `tools_import_dependencies.go`, `tools_call_graph_metrics.go`, `tools_route_to_caller.go`, `tools_security.go`, `tools_structural_inventory.go`, `tools_iac.go` |
 | `codeFlowTools` | 4 | `tools_code_flow.go` |
 | `repositoryLanguageTools` | 3 | `tools_repository_language.go` |
-| `ecosystemTools` | 23 | `tools_ecosystem.go`, `tools_graph_summary_packet.go`, `tools_prechange_impact.go`, `tools_contract_impact.go` |
+| `ecosystemTools` | 23 | `ecosystem/tools.go`, `ecosystem/*_tools.go` |
 | `infraResourceAggregateTools` | 2 | `tools_infra_resource_aggregates.go` |
 | `cloudInventoryTools` | 1 | `cloud/inventory_tools.go` |
 | `cloudRuntimeDriftTools` | 1 | `cloud/runtime_drift_tools.go` |
@@ -530,6 +533,8 @@ Internal packages: `internal/buildinfo` (version string for `mcpInitializeResult
 `internal/mcp/ask` (Ask Eshu tool registration),
 `internal/mcp/cloud` (cloud inventory and runtime-drift tool registrations),
 `internal/mcp/documentation` (documentation tool registration definitions),
+`internal/mcp/ecosystem` (ecosystem, repository-context, infrastructure-impact,
+and change-planning tool registrations),
 `internal/mcp/freshness` (generation, repository, and service freshness tool
 registrations),
 `internal/mcp/investigation` (investigation workflow and evidence-packet tool
