@@ -41,7 +41,8 @@ A family move must preserve the registered set, order, and schemas.
 
 No-Regression Evidence: `internal/mcp/ask`, `internal/mcp/cloud`,
 `internal/mcp/documentation`, `internal/mcp/freshness`, `internal/mcp/playbooks`,
-`internal/mcp/relationships`, and `internal/mcp/visualization` import
+`internal/mcp/relationships`, `internal/mcp/semantic`, and
+`internal/mcp/visualization` import
 `toolcontract` and own their registration definitions. Their characterization
 tests pin the
 serialized names,
@@ -59,10 +60,12 @@ The relationship-edge definition hash is
 `d3c56a788ae3818221a05c3ccb28a7a7a278c27ffdb8aa3722bcfe785e657ca3`.
 The freshness definitions hash is
 `eaa373680ec77f5007fa6c46507485d987a53507e08df2868091cb18cc7c6c23`.
+The semantic evidence and search definitions hash is
+`4f58551bed9b8e61e7595b12b68f05f2a140ad9c53b11e95f60a3f7b8999021d`.
 The root assembler still contains 162 tools with ordered-name SHA-256
 `8256c2bf64a304185a32bfb1924a6ffd8b3439e9d7d82078ba223382360aa45b`.
 `TestReadOnlyToolsRegistrationOrderContract` retains that global order guard,
-and all nine extracted constructors remain at their previous assembly
+and all eleven extracted constructors remain at their previous assembly
 positions.
 
 No-Observability-Change: tool assembly, routing, dispatch, authorization, and

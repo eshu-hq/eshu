@@ -282,6 +282,14 @@ also stays in root: `get_repository_freshness` remains in
 `dispatch_freshness.go`. The move uses `internal/mcp/toolcontract` and leaves
 the 162-tool order unchanged.
 
+The semantic registration family is the eighth extracted MCP family. Its three
+definitions live under `internal/mcp/semantic`, while the root keeps the
+semantic-evidence and semantic-search assembly positions after investigation
+packets and before documentation finding aggregates. Routing also stays in
+root: the evidence pair remains in `dispatch_semantic_evidence.go`, and search
+remains in `dispatch_semantic_search.go`. The move uses
+`internal/mcp/toolcontract` and leaves the 162-tool order unchanged.
+
 **cmd/eshu (233):** `package main` — subdirectories are impossible by
 language rule. The lever is extracting business logic to new
 `internal/cli/<family>` packages, leaving thin cobra RunE wrappers —

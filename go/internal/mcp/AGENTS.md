@@ -105,7 +105,9 @@
   exact `ReadOnlyTools` position. Routes stay with their current root router.
   Freshness is deliberately split: repository freshness stays in
   `dispatch_repositories.go`, while generation and delta routes stay in
-  `dispatch_freshness.go`.
+  `dispatch_freshness.go`. Semantic routing is also deliberately split:
+  evidence stays in `dispatch_semantic_evidence.go`, while search stays in
+  `dispatch_semantic_search.go`.
 
 - **Add a new argument helper** → add near `stringSlice` in
   `dispatch_args.go` or near `str`, `intOr`, and `boolOr` in `dispatch.go`.

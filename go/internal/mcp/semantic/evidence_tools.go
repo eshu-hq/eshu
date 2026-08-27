@@ -1,9 +1,12 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package mcp
+package semantictools
 
-func semanticEvidenceTools() []ToolDefinition {
+import "github.com/eshu-hq/eshu/go/internal/mcp/toolcontract"
+
+// EvidenceTools returns the semantic evidence MCP tool definitions.
+func EvidenceTools() []toolcontract.ToolDefinition {
 	commonProperties := map[string]any{
 		"fact_id":             map[string]any{"type": "string"},
 		"scope_id":            map[string]any{"type": "string"},
@@ -43,7 +46,7 @@ func semanticEvidenceTools() []ToolDefinition {
 	codeHintProperties["corroboration_state"] = map[string]any{"type": "string"}
 	codeHintProperties["hint_type"] = map[string]any{"type": "string"}
 	codeHintProperties["relationship_kind"] = map[string]any{"type": "string"}
-	return []ToolDefinition{
+	return []toolcontract.ToolDefinition{
 		{
 			Name:        "list_semantic_documentation_observations",
 			Description: "List opt-in LLM-assisted documentation observations with truth basis, freshness, provider profile, prompt version, redaction version, and policy state.",
