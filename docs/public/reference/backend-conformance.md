@@ -86,6 +86,28 @@ read that line before treating a green live check as full coverage. The pair
 passes on Neo4j, so setting the variable there is a regression detector rather
 than a known failure.
 
+### CI runs the pair with the expectation inverted
+
+Being opt-in used to mean nothing ran it: no job, no schedule, no local default.
+The `Value Flow Conformance Expectation` workflow closes that. It runs both
+backends in one job and asserts the behaviour that is actually documented —
+the NornicDB lane fails naming the read case, the Neo4j lane passes as the
+positive control:
+
+```bash
+scripts/verify-value-flow-conformance-expectation.sh neo4j
+scripts/verify-value-flow-conformance-expectation.sh nornicdb
+```
+
+Green means the upstream defects are still there, as documented. Red means one
+of the two lanes changed and somebody needs to look — most likely because
+upstream landed a fix, in which case the script prints the one-step repair.
+Both lanes bind the same Bolt port, so run one stack at a time.
+
+The NornicDB lane matches the failure message, not the exit code. A broken
+fixture, a failed seed, and a refused connection all exit non-zero, and an
+expected-fail that accepts any of them proves nothing.
+
 ## Profile Matrix
 
 The backend matrix carries a `profile_matrix` gate for every authoritative graph

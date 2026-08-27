@@ -3419,6 +3419,53 @@ gates:
       - postgres
     ci_only_reason: "requires Docker Compose service stack"
 
+  - id: value-flow-conformance-expectation
+    name: Value-flow conformance pair (expectation inverted)
+    category: exactness
+    tier: ci-heavy
+    blocking: true
+    # Runs the opt-in value-flow cloud sink pair on both backends and asserts
+    # the behaviour this repo has measured: the NornicDB lane fails naming the
+    # read case, the Neo4j lane passes. Green means "still broken upstream, as
+    # documented"; red means upstream landed and the opt-in comes off (#6192).
+    #
+    # Keep these triggers byte-identical to the pull_request paths in
+    # .github/workflows/value-flow-conformance-expectation.yml. This gate is
+    # blocking, so a trigger the workflow does not mirror selects a gate GitHub
+    # never starts, and required-gates-complete then waits for it forever.
+    # TestValueFlowExpectationRegistryAndWorkflowTriggersMatch
+    # (go/internal/cigates/valueflow_required_test.go) holds the two lists to
+    # set equality, and proves each trigger selects the gate through
+    # RequiredGates -- Select() cannot, because it drops every ci-heavy gate
+    # before it looks at a trigger.
+    triggers:
+      - "go/internal/backendconformance/**"
+      - "go/internal/reducer/value_flow_cloud_sink_loader.go"
+      - "docker-compose.yaml"
+      - "docker-compose.neo4j.yml"
+      - "scripts/verify_backend_conformance_live.sh"
+      - "scripts/verify-value-flow-conformance-expectation.sh"
+      - "scripts/test-verify-value-flow-conformance-expectation.sh"
+      - "scripts/ci/install-apt-packages.sh"
+      - ".github/workflows/value-flow-conformance-expectation.yml"
+    local:
+      # No local command: each lane needs its own live Bolt endpoint, both on
+      # the same port, so there is nothing credential-free to run here. The
+      # test mirror is the part that runs anywhere, and it is where every
+      # verdict the gate can reach is proven reachable.
+      command: ""
+      test_command: "bash scripts/test-verify-value-flow-conformance-expectation.sh"
+    ci:
+      workflow: value-flow-conformance-expectation.yml
+      job: "Value flow conformance expectation"
+    # The Neo4j lane has no requirement of its own to declare: it comes up from
+    # docker-compose.neo4j.yml, so `docker` covers it.
+    requirements:
+      - go
+      - docker
+      - nornicdb
+    ci_only_reason: ""
+
   - id: auth-mcp-e2e
     name: MCP-identity auth E2E (browser + scripted OAuth, fresh stack)
     category: exactness

@@ -28,6 +28,7 @@ on:
       - SDK Go Modules
       - Security Scan
       - Static Contract Gates
+      - Value Flow Conformance Expectation
       - Verify Agent Hygiene
       - Verify CI Gate Registry
     types: [in_progress, completed]

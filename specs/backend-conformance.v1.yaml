@@ -34,7 +34,12 @@ backends:
           along the statement. See the value-flow read case in
           go/internal/backendconformance/corpus_value_flow.go and that package's
           evidence-notes.md, which carries the controls and the live exit codes for both
-          backends. Filed upstream as orneryd/NornicDB#297, #298, #301 and #302.
+          backends. The live check is the
+          .github/workflows/value-flow-conformance-expectation.yml job (#6192): it runs
+          the pair on both backends with the expectation inverted, so the NornicDB
+          failure and the Neo4j pass are re-measured on every run rather than recorded
+          once and left to go stale. Filed upstream as orneryd/NornicDB#297, #298, #301
+          and #302.
       path_traversal:
         status: supported
         verification:
@@ -55,7 +60,10 @@ backends:
           orneryd/NornicDB#302. Decomposing it into chained single-hop clauses works, and
           the "value-flow cloud sink aggregation and subscript projection" read case in
           go/internal/backendconformance/corpus_value_flow.go holds the shape with the
-          controls in that package's evidence-notes.md. The other three divergences that
+          controls in that package's evidence-notes.md, and the
+          .github/workflows/value-flow-conformance-expectation.yml job (#6192) is the
+          live check that keeps re-measuring it on both backends. The other three
+          divergences that
           case carries are aggregation, projection, and list-predicate semantics rather
           than traversal, so they bear on direct_graph_reads rather than on this class.
       full_text_support:

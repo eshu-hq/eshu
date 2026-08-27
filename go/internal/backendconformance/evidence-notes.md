@@ -79,6 +79,10 @@ pinned NornicDB:
 Run it to check whether upstream has landed a fix: the day it exits 0 with the
 opt-in set, the defects are gone and the gate can come off.
 
+Nobody has to remember to. CI runs both lanes on every change to this package,
+to the production query, or to either Compose file — see
+[Running it in CI](#running-it-in-ci) below.
+
 No-Regression Evidence: the cases are data appended to `DefaultReadCorpus` and
 `DefaultWriteCorpus`. They are evaluated only under the existing
 `ESHU_BACKEND_CONFORMANCE_LIVE` opt-in, so the default test path does no
@@ -135,3 +139,75 @@ down with `down -v` after the run.
 This is the positive control #6192 exists to make permanent. Run by hand it proves the
 pair today; wired into CI it stops the next person having to take this paragraph on
 trust.
+
+## Running it in CI
+
+That wiring now exists. `.github/workflows/value-flow-conformance-expectation.yml`
+runs both lanes in one job with the expectation inverted, through
+`scripts/verify-value-flow-conformance-expectation.sh`:
+
+- the NornicDB lane must FAIL, and the run must name this read case,
+- the Neo4j lane must PASS, in the same job, as the positive control.
+
+So the job is normally green, and green means "still broken upstream, exactly as
+this note says". It goes red the moment either half stops being true, which is
+the only moment anyone needs to know.
+
+The nornicdb lane matches on the message rather than the exit code, deliberately.
+A broken fixture, a failed seed, and a refused Bolt connection all exit non-zero,
+and an expected-fail that accepts any of them is a false green wearing the costume
+of a gate. `scripts/test-verify-value-flow-conformance-expectation.sh` drives the
+gate with stub lanes to prove that verdict and the other five are each reachable,
+and reachable only for their own reason; it needs no backend and runs anywhere.
+
+The measurement below was taken through that gate script, on this branch, on a
+developer machine — not from a CI run, which cannot exist until this lands. What
+CI changes is that the numbers stop being a memory: the job re-measures both
+lanes on every run, so this section cannot go stale the way the paragraph above
+it did.
+
+```
+== value-flow conformance expectation: neo4j lane ==
+Running live backend conformance for neo4j on bolt://localhost:7788 database neo4j
+  value-flow cloud sink pair: INCLUDED (ESHU_BACKEND_CONFORMANCE_VALUE_FLOW is set)
+--- PASS: TestLiveBackendConformance (13.07s)
+ok  github.com/eshu-hq/eshu/go/internal/backendconformance  13.328s
+neo4j lane: observed exit code 0
+
+== value-flow conformance expectation: nornicdb lane ==
+Running live backend conformance for nornicdb on bolt://localhost:7788 database nornic
+  value-flow cloud sink pair: INCLUDED (ESHU_BACKEND_CONFORMANCE_VALUE_FLOW is set)
+  live_test.go:101: run nornicdb live read corpus: read case "value-flow cloud
+    sink aggregation and subscript projection" returned 0 rows, want at least 1
+--- FAIL: TestLiveBackendConformance (3.23s)
+nornicdb lane: observed exit code 1
+```
+
+Images: `neo4j:2026-community` (Neo4j 2026.07.1, the current Compose default —
+the earlier by-hand run above used `neo4j:5-community`, so the Neo4j side of this
+holds across both major lines) and `eshu-nornicdb-pr290:3722b483c02c`. Each ran in
+its own throwaway Compose project on a non-default Bolt port, torn down with
+`down -v` before the next came up, because both lanes bind the same port.
+
+No-Regression Evidence: nothing here runs at runtime. The gate lives in CI and
+in two shell scripts; the only Go edit outside a test file is the description
+string on the `ESHU_BACKEND_CONFORMANCE_VALUE_FLOW` entry in
+`go/internal/envregistry/entries.go`, which now names the third consumer of the
+variable. No query, write, worker, lease, batch, or knob changed, so there is no
+before/after to measure. The two live lanes above are the runtime cost the job
+itself adds, and they run only on the nine paths its registry entry lists — a
+change to `go/internal/query` or to a docs page does not select it, which
+`TestValueFlowExpectationIsRequiredForItsOwnTriggers` holds as a control.
+
+No-Observability-Change: the failure signal is the one the live-conformance
+runner already emits, naming the case and the row shortfall, plus the observed
+exit code the gate script prints for each lane. No metric, span, or log is
+added; this is a test lane with no service in it.
+
+**When upstream lands.** The NornicDB lane going green is the signal, and the
+repair is one change: delete `valueFlowCasesEnabled` and its callers in
+`corpus_value_flow.go` so the pair joins the default corpora and comes back under
+the blocking e2e live-conformance gate on both backends. The expectation gate,
+its script, its test mirror, its workflow, and its registry entry have nothing
+left to assert at that point and come out with it. The gate script prints exactly
+this when it sees the lane pass, so nobody has to find this paragraph first.
