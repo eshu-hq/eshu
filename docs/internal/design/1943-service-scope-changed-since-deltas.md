@@ -194,7 +194,7 @@ Even setting keys aside, the families are read by joining
 "the service as of prior reference R" snapshot to compare against. The
 `materialization_status` field (`identity_only` vs materialized) is a
 qualitative status, not a versioned lineage. The catalog "generation" exposed by
-`tools_service_catalog.go` is the **catalog source scope's** ingestion
+`service/catalog_tools.go` is the **catalog source scope's** ingestion
 generation, not a per-service generation.
 
 ### Consequence

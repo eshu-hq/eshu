@@ -27,7 +27,7 @@ shipped:
   fact with six outcomes.
 - Read surface: `go/internal/query/service_catalog_correlations.go` (#560) and
   MCP tool `list_service_catalog_correlations`
-  (`go/internal/mcp/tools_service_catalog.go`).
+  (`go/internal/mcp/service/catalog_tools.go`).
 - Telemetry counter: `Instruments.ServiceCatalogCorrelations`
   (`go/internal/telemetry/instruments.go`, contract in
   `contract_service_catalog.go`).

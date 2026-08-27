@@ -1,16 +1,18 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package mcp
+package servicetools
 
-// serviceIntelligenceTools returns the MCP tool for the composed service
+import "github.com/eshu-hq/eshu/go/internal/mcp/toolcontract"
+
+// IntelligenceTools returns the MCP tool for the composed service
 // intelligence report. The tool maps to GET
 // /api/v0/services/{service_name}/intelligence-report and returns the
 // service_intelligence_report.v1 schema: identity, code-to-runtime, deployment,
 // supply-chain, and incident sections with truth labels, evidence handles,
 // limitations, bounded next calls, and suggested investigations.
-func serviceIntelligenceTools() []ToolDefinition {
-	return []ToolDefinition{
+func IntelligenceTools() []toolcontract.ToolDefinition {
+	return []toolcontract.ToolDefinition{
 		{
 			Name:        "get_service_intelligence_report",
 			Description: "Compose the one-call service intelligence report for a service: identity, code-to-runtime trace, deployment/config influence, supply-chain, and incidents, each with preserved truth labels, evidence handles, limitations, and bounded next calls, plus deterministic suggested investigations. Returns schema service_intelligence_report.v1.",

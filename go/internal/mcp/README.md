@@ -43,6 +43,10 @@ The `semantic` child package owns three semantic evidence and context-search
 registration definitions. Evidence routing stays in
 `dispatch_semantic_evidence.go`; search routing stays in
 `dispatch_semantic_search.go`.
+The `service` child package owns five service catalog, context, investigation,
+and intelligence-report registration definitions. Catalog routing stays in
+`dispatch_repositories.go` and `dispatch_service_catalog.go`; the other service
+routes stay in `dispatch.go` and `dispatch_service_selector.go`.
 
 ## Where this fits in the pipeline
 
@@ -176,7 +180,7 @@ is not broken out here).
 | `packageRegistryAggregateTools` | 2 | `tools_package_registry_aggregates.go` |
 | `cicdTools` | 1 | `tools_cicd.go` |
 | `cicdRunCorrelationAggregateTools` | 2 | `tools_cicd_aggregates.go` |
-| `serviceCatalogTools` | 1 | `tools_service_catalog.go` |
+| `serviceCatalogTools` | 1 | `service/catalog_tools.go` |
 | `codeownersTools` | 1 | `tools_codeowners.go` |
 | `kubernetesTools` | 1 | `tools_kubernetes.go` |
 | `secretsIAMTools` | 5 | `tools_secrets_iam.go` |
@@ -190,7 +194,8 @@ is not broken out here).
 | `workItemTools` | 1 | `tools_work_item.go` |
 | `visualizationTools` | 1 | `visualization/tools.go` |
 | `freshnessTools` | 4 | `freshness/tools.go` |
-| `contextTools` | 7 | `tools_context.go` |
+| `contextTools` | 7 | `tools_context.go`, `service/context_tools.go` |
+| `serviceIntelligenceTools` | 1 | `service/intelligence_tools.go` |
 | `contentTools` | 6 | `tools_content.go` |
 | `documentationTools` | 4 | `documentation/tools.go` |
 | `queryPlaybookTools` | 2 | `playbooks/tools.go` |
@@ -533,6 +538,8 @@ registrations),
 `internal/mcp/relationships` (relationship-edge tool registration definition),
 `internal/mcp/semantic` (semantic evidence and context-search tool registration
 definitions),
+`internal/mcp/service` (service catalog, context, investigation, and
+intelligence-report tool registrations),
 `internal/mcp/toolcontract` (dependency-neutral `ToolDefinition` registration
 shape), `internal/mcp/visualization` (visualization-packet tool registration),
 `internal/query` (`query.ResponseEnvelope`, `query.EnvelopeMIMEType`,

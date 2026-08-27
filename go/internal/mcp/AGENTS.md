@@ -109,7 +109,11 @@
   evidence stays in `dispatch_semantic_evidence.go`, while search stays in
   `dispatch_semantic_search.go`. Investigation routing remains split between
   `dispatch_investigation_workflows.go` and
-  `dispatch_investigation_packets.go`.
+  `dispatch_investigation_packets.go`. Service routing is deliberately split:
+  catalog correlations stay in `dispatch_repositories.go` and
+  `dispatch_service_catalog.go`, while context, story, investigation, and
+  intelligence-report routes stay in `dispatch.go` and
+  `dispatch_service_selector.go`.
 
 - **Add a new argument helper** → add near `stringSlice` in
   `dispatch_args.go` or near `str`, `intOr`, and `boolOr` in `dispatch.go`.

@@ -299,6 +299,16 @@ workflow discovery and resolution remain in
 `dispatch_investigation_packets.go`. The move uses
 `internal/mcp/toolcontract` and leaves the 162-tool order unchanged.
 
+The service registration family is the tenth extracted MCP family. Its catalog
+definition, three service-context and investigation definitions, and
+intelligence-report definition live under `internal/mcp/service`, while the
+root keeps all three assembly positions. Routing also stays split in root:
+catalog correlations remain in `dispatch_repositories.go` and
+`dispatch_service_catalog.go`; service context, story, investigation, and
+intelligence-report routes remain in `dispatch.go` and
+`dispatch_service_selector.go`. The move uses
+`internal/mcp/toolcontract` and leaves the 162-tool order unchanged.
+
 **cmd/eshu (233):** `package main` — subdirectories are impossible by
 language rule. The lever is extracting business logic to new
 `internal/cli/<family>` packages, leaving thin cobra RunE wrappers —
