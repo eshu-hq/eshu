@@ -3,7 +3,140 @@
 
 package mcp
 
-import "testing"
+import (
+	"reflect"
+	"testing"
+)
+
+func TestCodeRelationshipRouteClaimsOnlyFamilyTools(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name        string
+		toolName    string
+		args        map[string]any
+		wantPath    string
+		wantBody    map[string]any
+		wantHandled bool
+		wantError   string
+	}{
+		{
+			name:     "relationship story",
+			toolName: "get_code_relationship_story",
+			args: map[string]any{
+				"target":             "checkout",
+				"entity_id":          "entity:checkout",
+				"repo_id":            "repo-1",
+				"language":           "go",
+				"relationship_type":  "CALLS",
+				"relationship_types": []any{"CALLS", "IMPORTS"},
+				"direction":          "both",
+				"include_transitive": true,
+				"max_depth":          4,
+				"limit":              19,
+				"offset":             3,
+				"token_budget":       1200,
+				"cross_repo":         true,
+				"min_confidence":     0.75,
+			},
+			wantPath: "/api/v0/code/relationships/story",
+			wantBody: map[string]any{
+				"target":             "checkout",
+				"entity_id":          "entity:checkout",
+				"repo_id":            "repo-1",
+				"language":           "go",
+				"relationship_type":  "CALLS",
+				"relationship_types": []any{"CALLS", "IMPORTS"},
+				"direction":          "both",
+				"include_transitive": true,
+				"max_depth":          4,
+				"limit":              19,
+				"offset":             3,
+				"token_budget":       1200,
+				"cross_repo":         true,
+				"min_confidence":     0.75,
+			},
+			wantHandled: true,
+		},
+		{
+			name:     "relationship analysis",
+			toolName: "analyze_code_relationships",
+			args: map[string]any{
+				"query_type":         "find_callers",
+				"target":             "charge",
+				"repo_id":            "repo-2",
+				"relationship_types": []any{"CALLS"},
+				"limit":              11,
+			},
+			wantPath: "/api/v0/code/relationships/story",
+			wantBody: map[string]any{
+				"target":             "charge",
+				"repo_id":            "repo-2",
+				"direction":          "incoming",
+				"relationship_type":  "CALLS",
+				"relationship_types": []any{"CALLS"},
+				"include_transitive": false,
+				"max_depth":          5,
+				"limit":              11,
+				"offset":             0,
+				"token_budget":       0,
+				"cross_repo":         false,
+			},
+			wantHandled: true,
+		},
+		{
+			name:        "invalid call chain stays claimed",
+			toolName:    "analyze_code_relationships",
+			args:        map[string]any{"query_type": "call_chain", "target": "missing-arrow"},
+			wantHandled: true,
+			wantError:   "call_chain target must use start->end format",
+		},
+		{
+			name:     "unrelated tool",
+			toolName: "find_code",
+			args:     map[string]any{"query": "checkout"},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			gotRoute, gotHandled, err := codeRelationshipRoute(tt.toolName, tt.args)
+			if gotHandled != tt.wantHandled {
+				t.Fatalf("codeRelationshipRoute() handled = %v, want %v", gotHandled, tt.wantHandled)
+			}
+			if tt.wantError != "" {
+				if err == nil || err.Error() != tt.wantError {
+					t.Fatalf("codeRelationshipRoute() error = %v, want %q", err, tt.wantError)
+				}
+				if gotRoute != nil {
+					t.Fatalf("codeRelationshipRoute() route = %#v, want nil on error", gotRoute)
+				}
+				return
+			}
+			if err != nil {
+				t.Fatalf("codeRelationshipRoute() error = %v, want nil", err)
+			}
+			if !tt.wantHandled {
+				if gotRoute != nil {
+					t.Fatalf("codeRelationshipRoute() route = %#v, want nil for unrelated tool", gotRoute)
+				}
+				return
+			}
+			if got, want := gotRoute.method, "POST"; got != want {
+				t.Fatalf("route.method = %q, want %q", got, want)
+			}
+			if gotRoute.path != tt.wantPath {
+				t.Fatalf("route.path = %q, want %q", gotRoute.path, tt.wantPath)
+			}
+			gotBody := requireRouteBody(t, gotRoute)
+			if !reflect.DeepEqual(gotBody, tt.wantBody) {
+				t.Fatalf("route.body = %#v, want %#v", gotBody, tt.wantBody)
+			}
+		})
+	}
+}
 
 func TestResolveRouteMapsAnalyzeCodeRelationshipsCallersToStory(t *testing.T) {
 	t.Parallel()
