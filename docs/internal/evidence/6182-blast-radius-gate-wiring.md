@@ -318,14 +318,24 @@ after a pipe.
 | branch restored | focused rerun against the same container | exit 0, both `--- PASS`, zero cleanup errors |
 
 The bite proof — the `INDEXES` row above — kills exactly one branch and leaves
-the other eight intact. It is a manual experiment recorded here, not a standing
-test; the one test whose name claimed that role was a negative control and has
-been renamed. Making it permanent would mean seeding eight of nine branches and
-asserting the ninth is reported missing, which is real work and outside what
-this PR was asked for. Raised on #6201 for the owner rather than built here. The
-hermetic count guard still passes at nine fixtures against
-`blastRadiusSqlTableBranches = 9`, so the live test is the only thing in the
-repo that catches it — which is the claim this wiring is here to make true.
+the other eight intact. When this was written it was a manual experiment
+recorded here, not a standing test; the one test whose name claimed that role
+was a negative control and has been renamed. Making it permanent meant seeding
+eight of nine branches and asserting the ninth is reported missing, which was
+real work and outside what this PR was asked for, so it was raised on #6201 for
+the owner rather than built here.
+
+**It is a standing test now.** #6204 built it:
+`TestSQLTableBlastRadiusReportsUnseededBranchMissingLive` omits each branch in
+turn and asserts the omitted one is reported missing by name, through the same
+`sqlBlastRadiusMissingBranches` the nine-branch proof calls. See
+[6204-blast-radius-bite-test.md](6204-blast-radius-bite-test.md). Read the
+paragraph above as the state at the time of this PR, not as the state today.
+
+The hermetic count guard still passes at nine fixtures against
+`blastRadiusSqlTableBranches = 9`, so the live tests remain the only thing in
+the repo that catches a branch which stops matching — which is the claim this
+wiring is here to make true.
 
 Two guards I wrote were weak, and both were found by trying to break them rather
 than by reading them. The registry check searched all of `ci-gates.v1.yaml`,

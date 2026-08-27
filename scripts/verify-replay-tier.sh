@@ -148,13 +148,20 @@ log "offline replay tier PASSED against real NornicDB"
 # graph, so it must not interleave with the exact node and edge assertions the
 # tier makes. And a separate invocation attributes a failure to the branch
 # proof rather than to the tier.
-log "running sql_table blast-radius branch proof (#5409) against the same NornicDB"
+# TestSQLTableBlastRadiusReportsUnseededBranchMissingLive is the #6204 bite
+# proof. The other two prove the branches match; only this one proves the
+# dead-branch DETECTION still works, by seeding eight of nine branches and
+# asserting the ninth comes back named. Before it existed, a refactor that
+# accumulated the missing list from the fixture table instead of the returned
+# rows would have kept both other tests green and gutted the detection -- which
+# is what the test #6201 renamed actually did.
+log "running sql_table blast-radius branch proof (#5409) and bite proof (#6204) against the same NornicDB"
 blast_start="$(date +%s)"
 set +e
 (
 	cd go
 	go test -p=1 ./internal/query/ \
-		-run 'TestSQLTableBlastRadiusEveryBranchContributesLive|TestSQLTableBlastRadiusMatchesNothingForUnknownTableLive' \
+		-run 'TestSQLTableBlastRadiusEveryBranchContributesLive|TestSQLTableBlastRadiusMatchesNothingForUnknownTableLive|TestSQLTableBlastRadiusReportsUnseededBranchMissingLive' \
 		-count=1 -v
 ) >"${BLAST_LOG}" 2>&1
 blast_status=$?
@@ -168,7 +175,8 @@ log "sql_table blast-radius wall-clock: $(( $(date +%s) - blast_start ))s"
 # per test: a skip is not a pass.
 for required_test in \
 	TestSQLTableBlastRadiusEveryBranchContributesLive \
-	TestSQLTableBlastRadiusMatchesNothingForUnknownTableLive; do
+	TestSQLTableBlastRadiusMatchesNothingForUnknownTableLive \
+	TestSQLTableBlastRadiusReportsUnseededBranchMissingLive; do
 	rg --quiet "^--- PASS: ${required_test} " "${BLAST_LOG}" \
 		|| die "${required_test} did not run: no '--- PASS: ${required_test}' line, so -run matched nothing or the test skipped. A skip is not a pass."
 done
