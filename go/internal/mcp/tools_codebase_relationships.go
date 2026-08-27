@@ -94,7 +94,7 @@ func analyzeCodeRelationshipsSchema() map[string]any {
 			},
 			"relationship_types": map[string]any{
 				"type":        "array",
-				"items":       map[string]any{"type": "string", "enum": relationshipTypeEnum},
+				"items":       map[string]any{"type": "string", "enum": relationshipTypeEnum()},
 				"description": "Optional additive multi-type filter for direct caller/callee/importer queries; merges each type's bounded results.",
 			},
 			"token_budget": map[string]any{
