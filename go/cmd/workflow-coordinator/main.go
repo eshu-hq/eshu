@@ -22,6 +22,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/coordinator/cicdrun"
 	"github.com/eshu-hq/eshu/go/internal/coordinator/sbomattestation"
 	"github.com/eshu-hq/eshu/go/internal/coordinator/securityalert"
+	coordinatorvaultlive "github.com/eshu-hq/eshu/go/internal/coordinator/vaultlive"
 	runtimecfg "github.com/eshu-hq/eshu/go/internal/runtime"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
@@ -184,7 +185,7 @@ func run(parent context.Context) error {
 		GCPPlanner:                        coordinator.GCPWorkPlanner{},
 		GrafanaPlanner:                    coordinator.GrafanaWorkPlanner{},
 		LokiPlanner:                       coordinator.LokiWorkPlanner{},
-		VaultLivePlanner:                  coordinator.VaultLiveWorkPlanner{},
+		VaultLivePlanner:                  coordinatorvaultlive.WorkPlanner{},
 		ComponentExtensionPlanner:         coordinator.ComponentExtensionWorkPlanner{},
 		OwnedPackageTargetReader:          postgres.NewFactStore(ownedPackageTargetsDB),
 		TenantGrantReader:                 tenantGrantReader{store: tenantGrantStore},

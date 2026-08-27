@@ -5,16 +5,18 @@ package coordinator
 
 import (
 	"context"
+	"reflect"
 	"testing"
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/collector/vaultlive"
+	coordinatorvaultlive "github.com/eshu-hq/eshu/go/internal/coordinator/vaultlive"
 	"github.com/eshu-hq/eshu/go/internal/scope"
 	"github.com/eshu-hq/eshu/go/internal/workflow"
 )
 
 type fakeVaultLivePlanner struct {
-	requests []VaultLivePlanRequest
+	requests []coordinatorvaultlive.PlanRequest
 	run      workflow.Run
 	items    []workflow.WorkItem
 	err      error
@@ -22,7 +24,7 @@ type fakeVaultLivePlanner struct {
 
 func (f *fakeVaultLivePlanner) PlanVaultLiveWork(
 	_ context.Context,
-	request VaultLivePlanRequest,
+	request coordinatorvaultlive.PlanRequest,
 ) (workflow.Run, []workflow.WorkItem, error) {
 	f.requests = append(f.requests, request)
 	if f.err != nil {
@@ -31,7 +33,7 @@ func (f *fakeVaultLivePlanner) PlanVaultLiveWork(
 	return f.run, append([]workflow.WorkItem(nil), f.items...), nil
 }
 
-func TestServiceRunActiveModeSchedulesVaultLiveWork(t *testing.T) {
+func TestServiceRunActiveModeSchedulesVaultLiveWorkThroughChildPlanner(t *testing.T) {
 	t.Parallel()
 
 	now := time.Date(2026, time.June, 6, 14, 0, 0, 0, time.UTC)
@@ -97,8 +99,13 @@ func TestServiceRunActiveModeSchedulesVaultLiveWork(t *testing.T) {
 	if got, want := len(planner.requests), 1; got != want {
 		t.Fatalf("planner requests = %d, want %d", got, want)
 	}
-	if got, want := planner.requests[0].PlanKey, "continuous-20260606T140000Z"; got != want {
-		t.Fatalf("planner PlanKey = %q, want %q", got, want)
+	wantRequest := coordinatorvaultlive.PlanRequest{
+		Instance:   instance,
+		ObservedAt: now,
+		PlanKey:    "continuous-20260606T140000Z",
+	}
+	if got := planner.requests[0]; !reflect.DeepEqual(got, wantRequest) {
+		t.Fatalf("planner request = %+v, want %+v", got, wantRequest)
 	}
 	store := service.Store.(*fakeStore)
 	if got, want := len(store.createdRuns), 1; got != want {

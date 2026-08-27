@@ -227,7 +227,9 @@ second extraction under `internal/coordinator/securityalert`: the child owns
 its request and planner while root keeps the same scheduling, plan-key,
 admission, retry, and telemetry responsibilities. The hosted SBOM-attestation
 scheduler is the third extraction under `internal/coordinator/sbomattestation`
-with the same boundary. Terraform-state keeps its
+with the same boundary. The Vault metadata scheduler is the fourth extraction
+under `internal/coordinator/vaultlive`; its pure planner moves while root keeps
+scheduling, admission, retries, and telemetry. Terraform-state keeps its
 separate plan-key validator, and the root `firstNonBlank` helper remains
 outside this boundary.
 

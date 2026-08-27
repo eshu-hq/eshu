@@ -34,7 +34,9 @@
 // structural planner interface and scheduling position. The securityalert
 // child package owns the equivalent provider security-alert planner while this
 // package retains scheduling and durable admission. The sbomattestation child
-// follows the same boundary for hosted SBOM and attestation targets.
+// follows the same boundary for hosted SBOM and attestation targets. The
+// vaultlive child owns deterministic Vault metadata planning while this
+// package retains scheduling, admission, retries, and telemetry.
 // PagerDutyWorkPlanner plans
 // incident-evidence work from configured PagerDuty targets.
 // PrometheusMimirWorkPlanner plans bounded metric-metadata work, one item per

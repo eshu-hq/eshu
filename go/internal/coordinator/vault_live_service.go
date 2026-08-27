@@ -9,9 +9,16 @@ import (
 	"strings"
 	"time"
 
+	coordinatorvaultlive "github.com/eshu-hq/eshu/go/internal/coordinator/vaultlive"
 	"github.com/eshu-hq/eshu/go/internal/scope"
 	"github.com/eshu-hq/eshu/go/internal/workflow"
 )
+
+// VaultLivePlanner plans live Vault metadata workflow rows from collector
+// instance configuration.
+type VaultLivePlanner interface {
+	PlanVaultLiveWork(context.Context, coordinatorvaultlive.PlanRequest) (workflow.Run, []workflow.WorkItem, error)
+}
 
 func (s Service) scheduleVaultLiveWork(
 	ctx context.Context,
@@ -28,7 +35,7 @@ func (s Service) scheduleVaultLiveWork(
 		if s.VaultLivePlanner == nil {
 			return fmt.Errorf("vault live planner is required for active vault live collectors")
 		}
-		run, items, err := s.VaultLivePlanner.PlanVaultLiveWork(ctx, VaultLivePlanRequest{
+		run, items, err := s.VaultLivePlanner.PlanVaultLiveWork(ctx, coordinatorvaultlive.PlanRequest{
 			Instance:   instance,
 			ObservedAt: observedAt,
 			PlanKey:    s.vaultLivePlanKey(instance, observedAt),

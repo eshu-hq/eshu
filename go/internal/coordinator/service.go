@@ -104,12 +104,6 @@ type LokiPlanner interface {
 	PlanLokiWork(context.Context, LokiPlanRequest) (workflow.Run, []workflow.WorkItem, error)
 }
 
-// VaultLivePlanner plans live Vault metadata workflow rows from collector
-// instance configuration.
-type VaultLivePlanner interface {
-	PlanVaultLiveWork(context.Context, VaultLivePlanRequest) (workflow.Run, []workflow.WorkItem, error)
-}
-
 // ComponentExtensionPlanner plans generic component extension workflow rows.
 type ComponentExtensionPlanner interface {
 	PlanComponentExtensionWork(context.Context, ComponentExtensionPlanRequest) (workflow.Run, []workflow.WorkItem, error)

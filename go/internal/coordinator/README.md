@@ -18,6 +18,9 @@ The `securityalert` child owns the provider security-alert planning request and
 planner implementation under the same boundary.
 The `sbomattestation` child owns the hosted SBOM-attestation planning request
 and planner while root retains scheduling and durable admission.
+The `vaultlive` child owns the Vault metadata planning request and planner
+under the same boundary; root retains scheduling, admission, retries, and
+telemetry.
 
 ## Where this fits in the pipeline
 
@@ -140,6 +143,10 @@ the coordinator has no GCP workflow scheduler yet.
   `securityalert.WorkPlanner`. The child plans provider security-alert
   collection from configured targets; root keeps the service call and durable
   admission.
+- `VaultLivePlanner` — the root structural interface implemented by
+  `vaultlive.WorkPlanner`. The child plans Vault metadata collection from
+  configured targets; root keeps scheduling order, the plan-key clock, durable
+  admission, retries, and telemetry.
 - `ScannerWorkerWorkPlanner` — plans scanner-worker source-evidence work from
   explicit configured targets. The planner only stores the analyzer, target
   kind, and `scope_id` in workflow metadata; runtime-local roots and artifact
@@ -211,6 +218,8 @@ the coordinator has no GCP workflow scheduler yet.
   and deterministic planner implementation.
 - `internal/coordinator/sbomattestation` — hosted SBOM-attestation plan request
   and deterministic planner implementation.
+- `internal/coordinator/vaultlive` — Vault metadata plan request and
+  deterministic planner implementation.
 - `internal/workflow` — `DesiredCollectorInstance`, `CollectorInstance`,
   `Claim`, and default accessors; used throughout `Store` and `Config`.
 - `internal/scope` — `CollectorKind` used by `Config` and
