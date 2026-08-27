@@ -74,7 +74,7 @@ go/cmd/ingester/README.md	690
 go/internal/cigates/AGENTS.md	513
 go/internal/collector/terraformstate/README.md	501
 go/internal/coordinator/README.md	688
-go/internal/mcp/README.md	660
+go/internal/mcp/README.md	665
 go/internal/parser/README.md	901
 go/internal/projector/README.md	797
 go/internal/query/README.md	1418
