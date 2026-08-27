@@ -1,23 +1,25 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
+// The ledger-halves machinery this file leans on -- materializedEdgeLedgerHalves,
+// loadMaterializedEdgeLedgerRows, ledgerSurfaceHalves and the per-half
+// assertion -- lives in materialized_edges_ledger_halves_test.go. It was split
+// out when this file passed the 500-line cap CLAUDE.md sets, and the seam is
+// the question each half answers: this file asks whether a family is claimed at
+// all, that one asks which half of the ledger the claim sits in.
+
 package materializededges
 
 import (
 	"fmt"
 	"os"
 	"path/filepath"
-	"regexp"
 	"sort"
 	"strings"
 	"testing"
 
 	"github.com/eshu-hq/eshu/go/internal/reducer"
 )
-
-// manifestSurfaceKey pulls the family out of a `surface: "materialized_edges:x"`
-// line in the committed ledger.
-var manifestSurfaceKey = regexp.MustCompile(`surface:\s*"` + regexp.QuoteMeta(MaterializedEdgeSurfacePrefix) + `([^"]+)"`)
 
 // directMaterializedEdgeFamilyTableFile is where directMaterializedEdgeFamilyByPort
 // is declared, repo-relative.
@@ -83,10 +85,17 @@ func TestDirectMaterializedEdgePortsMatchTheExecutedCypher(t *testing.T) {
 
 	// isEdge is derived from DirectMaterializedEdgeFamilyForPort rather than from
 	// a set built out of DirectMaterializedEdgeWritePorts(). Both read the same
-	// table, so the set form made the lookup's fail-closed branch unreachable:
-	// every call site sat behind `isEdge`, which already meant "the lookup would
-	// succeed". A contract that cannot fire is not a contract, and this guard
-	// exists to keep exactly that shape out of the ledger.
+	// table, so under the set form every call site IN THIS GUARD sat behind
+	// `isEdge`, which already meant "the lookup would succeed" -- so the guard
+	// could never reach the lookup's fail-closed branch, and the contract it
+	// most needs held was one this guard was not holding.
+	//
+	// Not unreachable everywhere, and an earlier wording here said it was:
+	// TestDirectEdgeFamilyResolutionFailsClosedOnAnUnclassifiedPort below is a
+	// pre-existing call site that does not sit behind `isEdge` and does reach
+	// that branch. The claim was wrong in the direction that flattered this
+	// change, so it is corrected rather than softened. What survives is
+	// narrower and still worth the derivation.
 	declaredNode := setOf(reducer.DirectMaterializedEdgeNodeOnlyWritePorts())
 	sharedPort := reducer.SharedProjectionEdgeWritePort()
 
@@ -208,7 +217,7 @@ func TestDirectMaterializationFamiliesAreEnumerated(t *testing.T) {
 	t.Parallel()
 	repoRoot := repoRootDir(t)
 
-	ledger := loadMaterializedEdgeLedgerSurfaces(t, filepath.Join(repoRoot, "specs"))
+	ledger := ledgerSurfaceHalves(loadMaterializedEdgeLedgerRows(t, filepath.Join(repoRoot, "specs")))
 	direct := reducer.DirectMaterializedEdgeFamilies()
 	if len(direct) == 0 {
 		t.Fatal("reducer.DirectMaterializedEdgeFamilies() returned zero families; the enumeration itself is broken")
@@ -241,56 +250,12 @@ func TestDirectMaterializationFamiliesAreEnumerated(t *testing.T) {
 	}
 	sort.Strings(orphaned)
 	for _, family := range orphaned {
-		// ledger[family], not a hardcoded file name: the surfaces come from
-		// BOTH halves, and naming the shared manifest for a row that lives in
-		// the direct one sends the operator to a file the row is not in.
-		t.Errorf("specs/%s names family %q, which neither reducer.MaterializedEdgeFamilies() nor reducer.DirectMaterializedEdgeFamilies() enumerates; remove the stale row", ledger[family], family)
+		// The halves the family was actually found in, not a hardcoded file
+		// name: the surfaces come from BOTH files, and naming the shared
+		// manifest for a row that lives in the direct one sends the operator to
+		// a file the row is not in. Both are named when both carry one.
+		t.Errorf("specs/%s names family %q, which neither reducer.MaterializedEdgeFamilies() nor reducer.DirectMaterializedEdgeFamilies() enumerates; remove the stale row", strings.Join(ledger[family], " and specs/"), family)
 	}
-}
-
-// loadMaterializedEdgeLedgerSurfaces reads BOTH halves of the committed claims
-// ledger as TEXT and returns every family named by a `surface:` key, from the
-// coverage: and waivers: sections alike.
-//
-// Text rather than the typed loaders (replaycoverage.LoadManifest /
-// LoadMaterializedEdgeWaivers) on purpose: those validate rows against the
-// enumerated family set and would reject or drop a surface naming a family the
-// enumeration does not return. That is exactly the row this test needs to be
-// able to see — a ledger entry for a family the enumeration is blind to would
-// be invisible to a typed read, and the orphaned-row check would then pass by
-// construction.
-//
-// Both files, because reading one is the very failure being tested for: a
-// family whose ledger half is never opened looks identical to a family nobody
-// enumerated.
-//
-// The value is the file the surface was found in, so a failure about a row can
-// name the half that actually carries it. A family named in both halves keeps
-// the first, which is the shared manifest; the coverage gate rejects a waiver
-// declared twice across the halves, so the ambiguity is caught there rather
-// than being resolved here.
-func loadMaterializedEdgeLedgerSurfaces(t *testing.T, specsDir string) map[string]string {
-	t.Helper()
-
-	out := map[string]string{}
-	for _, name := range []string{MaterializedEdgeManifestFileName, MaterializedEdgeDirectManifestFileName} {
-		path := filepath.Join(specsDir, name)
-		raw, err := os.ReadFile(path) // #nosec G304 -- repo-relative path built from a package constant.
-		if err != nil {
-			t.Fatalf("read %s: %v", path, err)
-		}
-		found := 0
-		for _, m := range manifestSurfaceKey.FindAllStringSubmatch(string(raw), -1) {
-			if _, dup := out[m[1]]; !dup {
-				out[m[1]] = name
-			}
-			found++
-		}
-		if found == 0 {
-			t.Fatalf("no %q surface keys parsed from %s; the ledger format changed and this check went vacuous", MaterializedEdgeSurfacePrefix, path)
-		}
-	}
-	return out
 }
 
 // setOf renders a slice as a lookup set.
@@ -349,71 +314,4 @@ func TestDirectEdgeFamilyResolutionFailsClosedOnAnUnclassifiedPort(t *testing.T)
 	if _, err := directEdgeFamilyOrBug(unclassified); err == nil {
 		t.Errorf("directEdgeFamilyOrBug(%s) returned no error; an unrecognised port is a registration bug, never a valid steady state, and swallowing it is what turns a missing declaration into a silent blank family", unclassified)
 	}
-}
-
-// TestEachLedgerHalfHoldsOnlyItsOwnFamilies pins WHICH file a family's row lives
-// in, not merely that some file holds one.
-//
-// loadMaterializedEdgeLedgerSurfaces folds both manifests into one
-// family -> first-file map, and every other check here reads the union. That is
-// the right shape for asking "is this family covered anywhere", and the wrong
-// shape for the split itself: a family whose rows sit in the wrong half
-// satisfies every union check in this file. The two-file split is what keeps
-// each half readable and under the 500-line cap, and #6181 treats it as
-// load-bearing — so it needs an assertion rather than a convention.
-//
-// It is NOT the only thing that reds on a misplacement, and claiming so would
-// be the same overreach this change removes one file over. Measured, by moving
-// rows in a throwaway tree: the coverage/waiver reconciliation in
-// materialized_edges.go reds too, in both directions, because the moved row
-// becomes a dangling waiver or a lost coverage row against the family set its
-// caller passes. What it does NOT do is say the row is in the wrong HALF — it
-// reports "stale waiver" and sends the maintainer to the wrong question. This
-// check names the actual mistake.
-//
-// Limit, also measured: the map is family -> FIRST file, so this is a
-// family-level assertion, not a row-level one. Moving SOME of a family's rows
-// while leaving others in its correct half does not red here — the family still
-// resolves to the half it belongs to. Moving all of them does. The reconciliation
-// above is what covers the partial case, loudly if not precisely.
-//
-// The direction that matters is misplacement, not absence: absence is already
-// caught by the coverage gate, which requires every (surface, proof_gate) pair
-// to be covered or waived.
-func TestEachLedgerHalfHoldsOnlyItsOwnFamilies(t *testing.T) {
-	t.Parallel()
-
-	repoRoot := repoRootDir(t)
-	ledger := loadMaterializedEdgeLedgerSurfaces(t, filepath.Join(repoRoot, "specs"))
-	if len(ledger) == 0 {
-		t.Fatal("ledger parsed to zero surfaces; this check would assert nothing")
-	}
-
-	shared := setOf(reducer.MaterializedEdgeFamilies())
-	direct := setOf(reducer.DirectMaterializedEdgeFamilies())
-	if len(shared) == 0 || len(direct) == 0 {
-		t.Fatal("one of the two family enumerations is empty; every row would resolve to the other half for the wrong reason")
-	}
-
-	checked := 0
-	for family, file := range ledger {
-		_, isShared := shared[family]
-		_, isDirect := direct[family]
-		switch file {
-		case MaterializedEdgeManifestFileName:
-			if !isShared {
-				t.Errorf("%s carries a row for %q, which %s does not enumerate. If it is a direct-materialization family its row belongs in %s -- a row in the wrong half satisfies every union check in this file, so nothing here names the misplacement",
-					file, family, "reducer.MaterializedEdgeFamilies()", MaterializedEdgeDirectManifestFileName)
-			}
-		case MaterializedEdgeDirectManifestFileName:
-			if !isDirect {
-				t.Errorf("%s carries a row for %q, which %s does not enumerate. If it reaches the graph through the shared-projection intent path its row belongs in %s",
-					file, family, "reducer.DirectMaterializedEdgeFamilies()", MaterializedEdgeManifestFileName)
-			}
-		default:
-			t.Fatalf("ledger surface %q came from unexpected file %q", family, file)
-		}
-		checked++
-	}
-	t.Logf("checked %d ledger row(s) against the half that owns them", checked)
 }
