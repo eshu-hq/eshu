@@ -8,6 +8,7 @@ import (
 	cloudtools "github.com/eshu-hq/eshu/go/internal/mcp/cloud"
 	doctools "github.com/eshu-hq/eshu/go/internal/mcp/documentation"
 	freshnesstools "github.com/eshu-hq/eshu/go/internal/mcp/freshness"
+	investigationtools "github.com/eshu-hq/eshu/go/internal/mcp/investigation"
 	playbooktools "github.com/eshu-hq/eshu/go/internal/mcp/playbooks"
 	relationshiptools "github.com/eshu-hq/eshu/go/internal/mcp/relationships"
 	semantictools "github.com/eshu-hq/eshu/go/internal/mcp/semantic"
@@ -98,6 +99,18 @@ func cloudRuntimeDriftTools() []ToolDefinition {
 // playbooks package owns the registration definitions.
 func queryPlaybookTools() []ToolDefinition {
 	return playbooktools.Tools()
+}
+
+// investigationWorkflowTools preserves the root package's constructor name
+// while the investigation package owns the workflow registration definitions.
+func investigationWorkflowTools() []ToolDefinition {
+	return investigationtools.WorkflowTools()
+}
+
+// investigationPacketTools preserves the root package's constructor name
+// while the investigation package owns the evidence-packet definitions.
+func investigationPacketTools() []ToolDefinition {
+	return investigationtools.PacketTools()
 }
 
 // visualizationTools preserves the root package's constructor name while the

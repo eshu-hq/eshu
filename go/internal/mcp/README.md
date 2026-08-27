@@ -35,6 +35,10 @@ definitions; query-playbook routing and execution also stay here.
 The `freshness` child package owns four freshness registration definitions.
 Repository freshness routing stays in `dispatch_repositories.go`; generation,
 repository-delta, and service-delta routing stays in `dispatch_freshness.go`.
+The `investigation` child package owns two workflow and three evidence-packet
+registration definitions. Workflow routing stays in
+`dispatch_investigation_workflows.go`; packet routing stays in
+`dispatch_investigation_packets.go`.
 The `semantic` child package owns three semantic evidence and context-search
 registration definitions. Evidence routing stays in
 `dispatch_semantic_evidence.go`; search routing stays in
@@ -190,8 +194,8 @@ is not broken out here).
 | `contentTools` | 6 | `tools_content.go` |
 | `documentationTools` | 4 | `documentation/tools.go` |
 | `queryPlaybookTools` | 2 | `playbooks/tools.go` |
-| `investigationWorkflowTools` | 2 | `tools_investigation_workflows.go` |
-| `investigationPacketTools` | 3 | `tools_investigation_packets.go` |
+| `investigationWorkflowTools` | 2 | `investigation/workflow_tools.go` |
+| `investigationPacketTools` | 3 | `investigation/packet_tools.go` |
 | `semanticEvidenceTools` | 2 | `semantic/evidence_tools.go` |
 | `semanticSearchTools` | 1 | `semantic/search_tools.go` |
 | `documentationFindingAggregateTools` | 2 | `documentation/finding_aggregate_tools.go` |
@@ -522,6 +526,8 @@ Internal packages: `internal/buildinfo` (version string for `mcpInitializeResult
 `internal/mcp/cloud` (cloud inventory and runtime-drift tool registrations),
 `internal/mcp/documentation` (documentation tool registration definitions),
 `internal/mcp/freshness` (generation, repository, and service freshness tool
+registrations),
+`internal/mcp/investigation` (investigation workflow and evidence-packet tool
 registrations),
 `internal/mcp/playbooks` (query-playbook tool registration definitions),
 `internal/mcp/relationships` (relationship-edge tool registration definition),

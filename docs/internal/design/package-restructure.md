@@ -290,6 +290,15 @@ root: the evidence pair remains in `dispatch_semantic_evidence.go`, and search
 remains in `dispatch_semantic_search.go`. The move uses
 `internal/mcp/toolcontract` and leaves the 162-tool order unchanged.
 
+The investigation registration family is the ninth extracted MCP family. Its
+two workflow and three evidence-packet definitions live under
+`internal/mcp/investigation`, while the root keeps both assembly positions
+after query playbooks and before semantic evidence. Routing also stays in root:
+workflow discovery and resolution remain in
+`dispatch_investigation_workflows.go`, and the three packet exports remain in
+`dispatch_investigation_packets.go`. The move uses
+`internal/mcp/toolcontract` and leaves the 162-tool order unchanged.
+
 **cmd/eshu (233):** `package main` — subdirectories are impossible by
 language rule. The lever is extracting business logic to new
 `internal/cli/<family>` packages, leaving thin cobra RunE wrappers —

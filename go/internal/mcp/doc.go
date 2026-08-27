@@ -4,9 +4,9 @@
 // Package mcp implements the Model Context Protocol tool surface for Eshu.
 //
 // ToolDefinition aliases the dependency-neutral toolcontract definition. The
-// ask, cloud, documentation, freshness, playbooks, relationships, semantic,
-// and visualization child packages own their registration definitions without
-// importing this parent package.
+// ask, cloud, documentation, freshness, investigation, playbooks,
+// relationships, semantic, and visualization child packages own their
+// registration definitions without importing this parent package.
 // ReadOnlyTools remains the sole ordered assembler; routing, dispatch,
 // transport, authorization, and query execution remain owned here.
 //
@@ -111,6 +111,9 @@
 // surfaces: they forward to HTTP static resolvers that describe bounded call
 // plans and missing-evidence-driven next calls without executing those calls or
 // reading tenant data.
+// The investigation child package owns only the workflow and evidence-packet
+// registration definitions. Workflow and packet routing, authorization, query
+// execution, response envelopes, transport, and telemetry remain here.
 // Relationship-story tools forward min_confidence unchanged to the query layer
 // so the HTTP handler owns confidence-floor validation and filtering.
 // Relationship-story responses preserve the HTTP per-row provenance block in
