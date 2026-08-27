@@ -14,8 +14,12 @@ import (
 // impact_blast_radius_sql_table_bite_live_test.go is the standing bite proof
 // for issue #6204.
 //
-// TestSQLTableBlastRadiusEveryBranchContributesLive is the repo's only
-// dead-branch detector for the sql_table blast-radius UNION. Until now the only
+// TestSQLTableBlastRadiusEveryBranchContributesLive is the repo's only RUNTIME
+// dead-branch detector for the sql_table blast-radius UNION -- the only thing
+// that catches a branch which still parses but has stopped matching against a
+// live graph. TestBlastRadiusSqlTableCypherDropsDeadBranchesKeepsLiveOnes
+// catches a text-level dead branch with no backend, so "only" is the runtime
+// sense #5409 names, not dead-branch detection generally. Until now the only
 // evidence that its detection actually bites was a manual experiment recorded in
 // docs/internal/evidence/6182-blast-radius-gate-wiring.md: break the INDEXES
 // branch, watch the gate fail naming it, revert. A recorded manual run is not a
