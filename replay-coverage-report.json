@@ -3,11 +3,11 @@
   "blocking": true,
   "totals": {
     "total": 437,
-    "covered": 424,
-    "uncovered": 1,
+    "covered": 425,
+    "uncovered": 0,
     "unresolved": 0,
     "exempt": 12,
-    "percent_satisfied": 99.77
+    "percent_satisfied": 100
   },
   "registry_summaries": [
     {
@@ -85,11 +85,11 @@
     {
       "registry": "retractable_edge_type",
       "total": 64,
-      "covered": 62,
-      "uncovered": 1,
+      "covered": 63,
+      "uncovered": 0,
       "unresolved": 0,
       "exempt": 1,
-      "percent_satisfied": 98.44
+      "percent_satisfied": 100
     },
     {
       "registry": "retractable_type",
@@ -141,11 +141,11 @@
     {
       "scenario_type": "delta_tombstone",
       "total": 165,
-      "covered": 162,
-      "uncovered": 1,
+      "covered": 163,
+      "uncovered": 0,
       "unresolved": 0,
       "exempt": 2,
-      "percent_satisfied": 99.39
+      "percent_satisfied": 100
     },
     {
       "scenario_type": "fault",
@@ -2705,8 +2705,11 @@
       "registry": "retractable_edge_type",
       "key": "retractable_edge:DERIVED_FROM",
       "scenario_type": "delta_tombstone",
-      "status": "uncovered",
-      "detail": "no replay scenario mapped for required scenario_type delta_tombstone"
+      "status": "covered",
+      "scenario": "go_test",
+      "ref": "go/internal/reducer/provenance_replay_tombstone_live_test.go",
+      "proof_gate": "replay-tier",
+      "detail": "artifact present: go/internal/reducer/provenance_replay_tombstone_live_test.go"
     },
     {
       "registry": "retractable_edge_type",
@@ -4499,9 +4502,7 @@
       "detail": "Inbound webhook sink, not a pollable source. The webhook collector verifies and normalizes inbound deliveries into refresh triggers; it never polls an upstream, so there is no generation to record into a cassette."
     }
   ],
-  "gaps": [
-    "retractable_edge:DERIVED_FROM|delta_tombstone"
-  ],
+  "gaps": null,
   "stale_manifest_surfaces": null,
   "language_scoreboard": {
     "total": 33,

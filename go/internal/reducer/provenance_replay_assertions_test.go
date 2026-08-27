@@ -23,7 +23,10 @@ func readProvenanceReplayPublishes(
 RETURN rel.scope_id AS scope_id, rel.generation_id AS generation_id,
        rel.evidence_source AS evidence_source, rel.evidence_kinds AS evidence_kinds,
        rel.source_tool AS source_tool`, targetLabel, targetKey)
-	rows, err := executor.readRows(ctx, query, map[string]any{"repository_id": repositoryID, "target_id": targetID})
+	rows, err := executor.readRows(ctx, query, map[string]any{
+		"repository_id": repositoryID,
+		"target_id":     targetID,
+	})
 	if err != nil {
 		t.Fatalf("read PUBLISHES graph truth: %v", err)
 	}
@@ -48,23 +51,78 @@ RETURN rel.scope_id AS scope_id, rel.generation_id AS generation_id,
 	return rows
 }
 
-func assertProvenanceReplayRelationship(t *testing.T, rows []map[string]any, want map[string]any) {
+func readProvenanceReplayDerivedFrom(
+	ctx context.Context,
+	t *testing.T,
+	executor provenanceReplayExecutor,
+	digest string,
+	baseDigest string,
+	scopeID string,
+) []map[string]any {
+	t.Helper()
+	rows, err := executor.readRows(ctx, `MATCH (:ContainerImage {digest: $digest})-[rel:DERIVED_FROM]->(:ContainerImage {digest: $base_digest})
+WHERE rel.scope_id = $scope_id
+RETURN rel.scope_id AS scope_id, rel.generation_id AS generation_id,
+       rel.evidence_source AS evidence_source, rel.evidence_kinds AS evidence_kinds,
+       rel.attribution_basis AS attribution_basis, rel.source_tool AS source_tool`,
+		map[string]any{"digest": digest, "base_digest": baseDigest, "scope_id": scopeID})
+	if err != nil {
+		t.Fatalf("read DERIVED_FROM graph truth: %v", err)
+	}
+	return rows
+}
+
+func assertProvenanceReplayRelationship(
+	t *testing.T,
+	name string,
+	rows []map[string]any,
+	want map[string]any,
+) {
 	t.Helper()
 	if len(rows) != 1 {
-		t.Fatalf("relationship rows = %#v, want exactly one", rows)
+		t.Fatalf("%s relationship rows = %#v, want exactly one", name, rows)
 	}
 	for key, expected := range want {
 		actual := rows[0][key]
 		if key == "evidence_kinds" {
 			if !provenanceReplayEvidenceContains(actual, expected.(string)) {
-				t.Errorf("%s = %#v, want single token %q", key, actual, expected)
+				t.Errorf("%s %s = %#v, want single token %q", name, key, actual, expected)
 			}
 			continue
 		}
 		if actual != expected {
-			t.Errorf("%s = %#v, want %#v", key, actual, expected)
+			t.Errorf("%s %s = %#v, want %#v", name, key, actual, expected)
 		}
 	}
+}
+
+func assertProvenanceReplaySurvivors(
+	ctx context.Context,
+	t *testing.T,
+	executor provenanceReplayExecutor,
+) {
+	t.Helper()
+	assertProvenanceReplayRelationship(t, "out-of-scope PUBLISHES survivor", readProvenanceReplayPublishes(
+		ctx, t, executor, provenanceReplayOutPackageRepo, "PackageVersion", "uid", provenanceReplayOutVersionID,
+	), map[string]any{
+		"scope_id": provenanceReplayOutScopeID, "generation_id": "replay-provenance-out-gen1",
+		"evidence_source": "reducer/package-ownership", "evidence_kinds": "PACKAGE_OWNERSHIP_CORRELATION",
+		"source_tool": "unknown",
+	})
+	assertProvenanceReplayRelationship(t, "out-of-scope BUILT_FROM survivor", readProvenanceReplayBuiltFrom(
+		ctx, t, executor, provenanceReplayOutDigest, provenanceReplayOutBuildRepo,
+	), map[string]any{
+		"scope_id": provenanceReplayOutScopeID, "generation_id": "replay-provenance-out-gen1",
+		"evidence_source": "reducer/container-image-identity", "evidence_kinds": "CONTAINER_IMAGE_IDENTITY_EXACT_DIGEST",
+		"source_tool": "oci",
+	})
+	assertProvenanceReplayRelationship(t, "out-of-scope DERIVED_FROM survivor", readProvenanceReplayDerivedFrom(
+		ctx, t, executor, provenanceReplayContainerDigest, provenanceReplayBaseDigest, provenanceReplayOutScopeID,
+	), map[string]any{
+		"scope_id": provenanceReplayOutScopeID, "generation_id": "replay-provenance-out-gen1",
+		"evidence_source": "reducer/container-image-base-image", "evidence_kinds": "CONTAINER_IMAGE_DERIVED_FROM",
+		"attribution_basis": "repository_single_base", "source_tool": "oci",
+	})
 }
 
 func provenanceReplayEvidenceContains(value any, want string) bool {

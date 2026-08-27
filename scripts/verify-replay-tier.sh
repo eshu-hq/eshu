@@ -133,6 +133,8 @@ for projection_test in \
 	rg --quiet "^--- PASS: ${projection_test} " "${TIER_LOG}" \
 		|| die "${projection_test} did not run: no '--- PASS: ${projection_test}' line, so -run matched nothing or the test skipped. A skip is not a pass."
 done
+rg --quiet "^--- PASS: TestReducerProvenanceReplayTombstoneGraphTruth " "${TIER_LOG}" \
+	|| die "TestReducerProvenanceReplayTombstoneGraphTruth did not run: no exact PASS line, so the #6258 selector matched nothing or the test skipped. A skip is not a pass."
 log "offline replay tier PASSED against real NornicDB"
 
 # The sql_table blast-radius branch proof (#5409) lives in internal/query and

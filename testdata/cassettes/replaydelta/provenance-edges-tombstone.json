@@ -3,13 +3,13 @@
   "schema_version": "1",
   "scopes": [
     {
-      "scope_id": "replay-provenance:scope-in",
+      "scope_id": "git-repository-scope:repository:replay-provenance-build-in",
       "source_system": "replay",
       "scope_kind": "synthetic",
       "collector_kind": "reducer_provenance_replay",
-      "partition_key": "replay-provenance:scope-in",
+      "partition_key": "git-repository-scope:repository:replay-provenance-build-in",
       "metadata": {
-        "purpose": "Generation 1 admits package PUBLISHES and image BUILT_FROM provenance edges"
+        "purpose": "Generation 1 admits package PUBLISHES, image BUILT_FROM, and image DERIVED_FROM provenance edges"
       },
       "generation_id": "replay-provenance-gen1",
       "observed_at": "2026-08-06T12:00:00Z",
@@ -83,17 +83,50 @@
               "org.opencontainers.image.source": "https://example.invalid/replay/provenance-build"
             }
           }
+        },
+        {
+          "fact_kind": "oci_registry.image_manifest",
+          "stable_fact_key": "oci-manifest:replay-provenance-base-in",
+          "schema_version": "1.0.0",
+          "collector_kind": "oci_registry",
+          "payload": {
+            "registry": "registry.example.invalid",
+            "repository": "replay/base",
+            "repository_id": "oci-registry://registry.example.invalid/replay/base",
+            "digest": "sha256:3333333333333333333333333333333333333333333333333333333333333333",
+            "media_type": "application/vnd.oci.image.manifest.v1+json"
+          }
+        },
+        {
+          "fact_kind": "file",
+          "stable_fact_key": "file:replay-provenance-dockerfile-in",
+          "schema_version": "1.0.0",
+          "collector_kind": "git",
+          "payload": {
+            "repo_id": "repository:replay-provenance-build-in",
+            "language": "dockerfile",
+            "relative_path": "Dockerfile",
+            "parsed_file_data": {
+              "dockerfile_stages": [
+                {
+                  "stage_index": 0,
+                  "base_image": "registry.example.invalid/replay/base@sha256:3333333333333333333333333333333333333333333333333333333333333333",
+                  "base_tag": ""
+                }
+              ]
+            }
+          }
         }
       ]
     },
     {
-      "scope_id": "replay-provenance:scope-in",
+      "scope_id": "git-repository-scope:repository:replay-provenance-build-in",
       "source_system": "replay",
       "scope_kind": "synthetic",
       "collector_kind": "reducer_provenance_replay",
-      "partition_key": "replay-provenance:scope-in",
+      "partition_key": "git-repository-scope:repository:replay-provenance-build-in",
       "metadata": {
-        "purpose": "Generation 2 retains endpoints but drops both producing evidence signals"
+        "purpose": "Generation 2 retains endpoints but drops all three producing evidence signals"
       },
       "generation_id": "replay-provenance-gen2",
       "observed_at": "2026-08-06T12:05:00Z",
@@ -151,6 +184,19 @@
             "repository": "replay/provenance",
             "repository_id": "oci-registry://registry.example.invalid/replay/provenance",
             "digest": "sha256:1111111111111111111111111111111111111111111111111111111111111111",
+            "media_type": "application/vnd.oci.image.manifest.v1+json"
+          }
+        },
+        {
+          "fact_kind": "oci_registry.image_manifest",
+          "stable_fact_key": "oci-manifest:replay-provenance-base-in",
+          "schema_version": "1.0.0",
+          "collector_kind": "oci_registry",
+          "payload": {
+            "registry": "registry.example.invalid",
+            "repository": "replay/base",
+            "repository_id": "oci-registry://registry.example.invalid/replay/base",
+            "digest": "sha256:3333333333333333333333333333333333333333333333333333333333333333",
             "media_type": "application/vnd.oci.image.manifest.v1+json"
           }
         }

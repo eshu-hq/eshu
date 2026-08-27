@@ -3,7 +3,11 @@
 
 package reducer
 
-import "context"
+import (
+	"context"
+	"fmt"
+	"strings"
+)
 
 // PackageOwnershipPublishesRowsForReplayTest exposes the package-private row
 // mapper only to the external replay test compiled with this package's tests.
@@ -29,6 +33,21 @@ func ContainerImageBuiltFromRowsForReplayTest(
 	return containerImageBuiltFromRows(decisions)
 }
 
+// ContainerImageEffectiveRowsForReplayTest normalizes decisions through the
+// digest-v3 support set used by production and exposes both graph row families
+// to the external replay test compiled with this package's tests.
+func ContainerImageEffectiveRowsForReplayTest(
+	decisions []ContainerImageIdentityDecision,
+	repositoryID string,
+) ([]map[string]any, []map[string]any, error) {
+	supports, err := containerImageIdentitySupportsForReplayTest("replay-test", decisions)
+	if err != nil {
+		return nil, nil, err
+	}
+	return containerImageBuiltFromSupportRows(supports),
+		containerImageDerivedFromSupportRows(supports, repositoryID), nil
+}
+
 // ProjectPackageProvenanceEdgesForReplayTest drives the package-private
 // retract-first projection through the real writer supplied by the replay test.
 func ProjectPackageProvenanceEdgesForReplayTest(
@@ -48,19 +67,45 @@ func ProjectPackageProvenanceEdgesForReplayTest(
 	)
 }
 
-// ProjectContainerImageBuiltFromEdgesForReplayTest drives the package-private
-// retract-first projection through the real writer supplied by the replay test.
-func ProjectContainerImageBuiltFromEdgesForReplayTest(
+// ProjectEffectiveContainerImageIdentityEdgesForReplayTest normalizes cassette
+// decisions through the production digest-v3 support representation, then
+// drives the production effective-support projector through the real writers.
+func ProjectEffectiveContainerImageIdentityEdgesForReplayTest(
 	ctx context.Context,
-	writer ContainerImageProvenanceEdgeWriter,
+	provenanceWriter ContainerImageProvenanceEdgeWriter,
+	derivedFromWriter ContainerImageDerivedFromEdgeWriter,
 	scopeID string,
 	generationID string,
 	decisions []ContainerImageIdentityDecision,
 ) error {
-	handler := ContainerImageIdentityHandler{ProvenanceEdgeWriter: writer}
-	return handler.projectContainerImageBuiltFromEdges(
+	supports, err := containerImageIdentitySupportsForReplayTest(scopeID, decisions)
+	if err != nil {
+		return err
+	}
+	handler := ContainerImageIdentityHandler{
+		ProvenanceEdgeWriter:  provenanceWriter,
+		DerivedFromEdgeWriter: derivedFromWriter,
+	}
+	return handler.projectEffectiveContainerImageIdentityEdges(
 		ctx,
 		Intent{ScopeID: scopeID, GenerationID: generationID},
-		decisions,
+		ContainerImageIdentityWriteResult{
+			effectiveSupports:          supports,
+			effectiveProjectionPresent: true,
+		},
 	)
+}
+
+func containerImageIdentitySupportsForReplayTest(
+	scopeID string,
+	decisions []ContainerImageIdentityDecision,
+) ([]containerImageIdentitySupport, error) {
+	supportSet, err := buildContainerImageIdentitySupportSet(ContainerImageIdentityWrite{
+		ScopeID:   strings.TrimSpace(scopeID),
+		Decisions: decisions,
+	}, nil)
+	if err != nil {
+		return nil, fmt.Errorf("normalize replay container image supports: %w", err)
+	}
+	return supportSet.Supports, nil
 }

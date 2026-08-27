@@ -120,7 +120,7 @@ batch size is the writer default (500).
 
 Retract is one statement per scope+evidence_source, dispatched as a sequential
 auto-commit `Execute` — never `ExecuteGroup`, because a grouped DELETE
-under-applies on the pinned NornicDB v1.1.11
+under-applied on the historical NornicDB v1.1.11 proof backend
 (`docs/public/reference/nornicdb-pitfalls.md`). It runs unconditionally ahead of
 the row check so a generation that stops being attributable — a second Dockerfile
 added, making the repository ambiguous — still clears the prior edge.
@@ -318,12 +318,26 @@ satisfy an assertion written for Dockerfile-only inference. Since #4596 the gate
 single-sources its blocking set from the snapshot's own `required_correlations`
 ids, so `rc-167` is blocking on add with no second list to edit.
 
-## Known gap (tracked, not silently carried)
+## Replay tombstone proof (#6258)
 
-`retractable_edge:DERIVED_FROM` is registered as retractable but has no
-`delta_tombstone` replay scenario, so the generated replay-coverage dashboard
-lists it as uncovered. It joins `BUILT_FROM` and `PUBLISHES`, which #5457 left in
-the same state and which follow-up **#5712** tracks. Closing it needs a live
-NornicDB write+retract scenario in `go/internal/replay/offlinetier/`, the same
-shape as the repo-dependency retract test, and belongs with that follow-up rather
-than being claimed here.
+`retractable_edge:DERIVED_FROM` now shares the provenance replay harness that
+#5712 introduced for `BUILT_FROM` and `PUBLISHES`. Generation 1 of the synthetic
+cassette carries a repository-scoped Dockerfile base decision, the exact-digest
+base image, and the exact-digest child image with build provenance. Generation 2
+retains both image endpoints but drops the producing evidence. The live test
+drives the package-private retract-first projector through the production
+`ProvenanceEdgeWriter` against the replay tier's immutable NornicDB v1.2.3 pin
+in `scripts/verify-replay-tier.sh`, asserts that the in-scope `DERIVED_FROM`
+edge disappears, and keeps a distinct out-of-scope lineage edge as the survivor
+control.
+
+No-Regression Evidence: the change adds replay facts, test-only seams, and
+graph assertions; production decision, projection, and Cypher writer code is
+unchanged. The focused credential-free test proves generation 1 produces the
+expected child-to-base row and generation 2 produces none. The replay-tier live
+test supplies the backend-required write, retract, endpoint-retention,
+survivor-isolation, and idempotent second-replay proof.
+
+No-Observability-Change: production projection and writer code is unchanged.
+The replay test adds no runtime metric, span, log field, worker, queue, retry,
+or configuration surface.

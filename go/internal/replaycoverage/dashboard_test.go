@@ -39,6 +39,13 @@ func sampleReport(t *testing.T, blocking bool) CoverageReport {
 				Scenario: &CoverageEntry{Scenario: ScenarioAPIMCPGolden, ScenarioType: ScenarioTypeBaseline, Ref: "missing-shape", ProofGate: "golden-corpus-gate"},
 				Detail:   "snapshot has no query shape",
 			},
+			{
+				Surface:      SupportedSurface{Registry: RegistrySurfaceInventory, Key: "collector:git"},
+				ScenarioType: ScenarioTypeBaseline,
+				Status:       StatusExempt,
+				Exemption:    &Exemption{Surface: "collector:git", Reason: "filesystem-native\ncollector | audited"},
+				Detail:       "filesystem-native\ncollector | audited",
+			},
 		},
 	}
 	return BuildReport(cov, blocking)
@@ -74,11 +81,22 @@ func TestRenderDashboardShowsAxesGapsAndCovered(t *testing.T) {
 		"fault",
 		"golden-corpus-gate",
 		"`testdata/cassettes/awscloud/x.json`",
+		"| Surface | Scenario type | Scenario | Proof gate | Artifact / exemption reason |",
+		"| `collector:git` | baseline | exempt | — | filesystem-native collector \\| audited |",
 		"mode: advisory",
+		"Every non-exempt required surface maps to a committed scenario and the named proof gate that must pass",
+		"Exempt rows carry the audited reason that a proof class does not apply",
+		"The inventory check itself is credential-free and Docker-free",
 	} {
 		if !strings.Contains(out, want) {
 			t.Errorf("dashboard missing %q", want)
 		}
+	}
+	if strings.Contains(out, "credential-free, Docker-free replay scenario") {
+		t.Error("dashboard must not claim backend-required replay scenarios are Docker-free")
+	}
+	if strings.Contains(out, "Each row maps to a committed scenario") {
+		t.Error("dashboard must not claim exempt rows have scenarios and proof gates")
 	}
 }
 
@@ -87,8 +105,8 @@ func TestRenderDashboardBlockingModeAndCounts(t *testing.T) {
 	if !strings.Contains(out, "mode: blocking") {
 		t.Error("blocking report must render mode: blocking")
 	}
-	// 4 surfaces, 2 covered+exempt, 2 gaps (1 uncovered + 1 unresolved).
-	if !strings.Contains(out, "2/4 surfaces satisfied") {
+	// 5 surfaces, 3 covered+exempt, 2 gaps (1 uncovered + 1 unresolved).
+	if !strings.Contains(out, "3/5 surfaces satisfied") {
 		t.Errorf("overall tally wrong; got:\n%s", out)
 	}
 	if !strings.Contains(out, "2 surface(s) uncovered or unresolved") {
@@ -97,14 +115,26 @@ func TestRenderDashboardBlockingModeAndCounts(t *testing.T) {
 }
 
 func TestRenderDashboardAllCoveredCelebrates(t *testing.T) {
-	cov := Coverage{Surfaces: []SurfaceCoverage{{
-		Surface:  SupportedSurface{Registry: RegistryParserLedger, Key: "parser:hcl"},
-		Status:   StatusCovered,
-		Scenario: &CoverageEntry{Scenario: ScenarioParserFixture, ScenarioType: ScenarioTypeBaseline, Ref: "x", ProofGate: "parserfixture-tests"},
-	}}}
+	cov := Coverage{Surfaces: []SurfaceCoverage{
+		{
+			Surface:  SupportedSurface{Registry: RegistryParserLedger, Key: "parser:hcl"},
+			Status:   StatusCovered,
+			Scenario: &CoverageEntry{Scenario: ScenarioParserFixture, ScenarioType: ScenarioTypeBaseline, Ref: "x", ProofGate: "parserfixture-tests"},
+		},
+		{
+			Surface:      SupportedSurface{Registry: RegistrySurfaceInventory, Key: "collector:git"},
+			ScenarioType: ScenarioTypeBaseline,
+			Status:       StatusExempt,
+			Exemption:    &Exemption{Surface: "collector:git", Reason: "filesystem-native collector"},
+			Detail:       "filesystem-native collector",
+		},
+	}}
 	out := string(RenderDashboard(BuildReport(cov, true)))
-	if !strings.Contains(out, "Every supported surface has a replay scenario") {
+	if !strings.Contains(out, "Every non-exempt required surface has a replay scenario; exemptions carry audited reasons") {
 		t.Errorf("all-covered dashboard should show the no-gaps message; got:\n%s", out)
+	}
+	if strings.Contains(out, "Every supported surface has a replay scenario") {
+		t.Error("no-gaps message must not claim exempt surfaces have replay scenarios")
 	}
 }
 

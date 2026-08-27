@@ -65,6 +65,18 @@ has_projection_boundary_nonvacuity_guard() {
 	rg --quiet '^\trg --quiet "\^--- PASS: \$\{projection_test\} " "\$\{TIER_LOG\}"' "$1"
 }
 
+# has_provenance_tombstone_nonvacuity_guard binds the #6258 manifest proof to
+# an exact live-test PASS line. The coverage generator verifies that the file
+# exists, but `go test -run` exits zero when a renamed selector matches nothing.
+has_provenance_tombstone_nonvacuity_guard() {
+	rg --quiet \
+		"^[[:space:]]*-run '.*TestReducerProvenanceReplayTombstoneGraphTruth.*' -count=1 -v$" \
+		"$1" || return 1
+	rg --quiet \
+		'^rg --quiet "\^--- PASS: TestReducerProvenanceReplayTombstoneGraphTruth " "\$\{TIER_LOG\}"' \
+		"$1"
+}
+
 # has_graph_endpoint_pins checks the gate pins every name of the graph endpoint
 # to its OWN container, not merely that an export line exists.
 #
@@ -229,6 +241,8 @@ has_blast_radius_nonvacuity_guard "${script}" \
 	|| fail "gate must assert both blast-radius tests RAN; go test -run exits 0 on a regex matching nothing"
 has_projection_boundary_nonvacuity_guard "${script}" \
 	|| fail "gate must assert both #6262 OPTIONAL MATCH boundary tests RAN; go test -run exits 0 on a regex matching nothing"
+has_provenance_tombstone_nonvacuity_guard "${script}" \
+	|| fail "gate must assert the #6258 DERIVED_FROM tombstone proof RAN; go test -run exits 0 on a regex matching nothing"
 has_graph_endpoint_pins "${script}" \
 	|| fail "gate must pin every graph-endpoint name to its own container; an unpinned name lets an ambient developer value win (#6201)"
 has_nornicdb_v123_image_pin "${script}" \
@@ -276,6 +290,21 @@ sed '/rg --quiet "\^--- PASS: \${projection_test} "/s/^/# /' "${script}" \
 	>"${tmp}/script-vacuous-projection"
 if has_projection_boundary_nonvacuity_guard "${tmp}/script-vacuous-projection"; then
 	fail "a commented-out #6262 PASS assertion must not satisfy the non-vacuity guard"
+fi
+# The #6258 manifest row is only honest if its exact live test both remains in
+# the selector and produces a PASS line.
+sed "/^[[:space:]]*-run '.*TestReducerProvenanceReplayTombstoneGraphTruth.*' -count=1 -v$/s/TestReducerProvenanceReplayTombstoneGraphTruth/TestProvenanceTombstoneSelectorMissing/" \
+	"${script}" >"${tmp}/script-missing-provenance-tombstone"
+rg --quiet '^rg --quiet "\^--- PASS: TestReducerProvenanceReplayTombstoneGraphTruth "' \
+	"${tmp}/script-missing-provenance-tombstone" \
+	|| fail "the #6258 selector mutation must leave the exact-PASS assertion intact"
+if has_provenance_tombstone_nonvacuity_guard "${tmp}/script-missing-provenance-tombstone"; then
+	fail "a missing #6258 provenance tombstone selector must not satisfy the non-vacuity guard"
+fi
+sed '/rg --quiet "\^--- PASS: TestReducerProvenanceReplayTombstoneGraphTruth "/s/^/# /' \
+	"${script}" >"${tmp}/script-vacuous-provenance-tombstone"
+if has_provenance_tombstone_nonvacuity_guard "${tmp}/script-vacuous-provenance-tombstone"; then
+	fail "a commented-out #6258 PASS assertion must not satisfy the non-vacuity guard"
 fi
 # One negation per pinned name: deleting any single export must fail, which is
 # the drift that produced both #6201 findings.

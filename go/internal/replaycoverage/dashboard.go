@@ -49,9 +49,12 @@ func RenderDashboard(rep CoverageReport) []byte {
 	b.WriteString("# Replay coverage\n\n")
 	b.WriteString(DashboardGeneratedMarker)
 	b.WriteString("\n\n")
-	b.WriteString("Every surface Eshu claims to support should have a green, credential-free, ")
-	b.WriteString("Docker-free replay scenario. This dashboard is generated from the C-1 coverage ")
-	b.WriteString("manifest and the source-of-truth registries (epic ")
+	b.WriteString("Every non-exempt required surface maps to a committed scenario and the named ")
+	b.WriteString("proof gate that must pass. Exempt rows carry the audited reason that a proof ")
+	b.WriteString("class does not apply. ")
+	b.WriteString("The inventory check itself is credential-free and Docker-free; backend-required ")
+	b.WriteString("scenarios run in their named proof gates. This dashboard is generated from the ")
+	b.WriteString("C-1 coverage manifest and the source-of-truth registries (epic ")
 	b.WriteString("[#4172](https://github.com/eshu-hq/eshu/issues/4172)); it is refreshed by the ")
 	b.WriteString("replay-coverage gate so the gap is reviewable in a PR diff.\n\n")
 
@@ -157,7 +160,7 @@ func writeAxisTable(b *strings.Builder, rep CoverageReport) {
 func writeGaps(b *strings.Builder, rep CoverageReport) {
 	b.WriteString("## Gaps — surfaces still needing a replay scenario\n\n")
 	if len(rep.Gaps) == 0 {
-		b.WriteString("None. Every supported surface has a replay scenario.\n\n")
+		b.WriteString("None. Every non-exempt required surface has a replay scenario; exemptions carry audited reasons.\n\n")
 		return
 	}
 	fmt.Fprintf(b, "%d surface(s) uncovered or unresolved:\n\n", len(rep.Gaps))
@@ -205,18 +208,19 @@ func writeCovered(b *strings.Builder, rep CoverageReport) {
 		b.WriteString("None yet.\n\n")
 		return
 	}
-	b.WriteString("| Surface | Scenario type | Scenario | Proof gate | Artifact |\n")
+	b.WriteString("| Surface | Scenario type | Scenario | Proof gate | Artifact / exemption reason |\n")
 	b.WriteString("| --- | --- | --- | --- | --- |\n")
 	for _, s := range covered {
 		scenario := s.Scenario
+		ref := s.Ref
 		if s.Status == StatusExempt {
 			scenario = "exempt"
+			ref = markdownTableText(s.Detail)
+		} else if ref != "" {
+			ref = "`" + ref + "`"
 		}
-		ref := s.Ref
 		if ref == "" {
 			ref = "—"
-		} else {
-			ref = "`" + ref + "`"
 		}
 		gate := s.ProofGate
 		if gate == "" {
@@ -225,6 +229,10 @@ func writeCovered(b *strings.Builder, rep CoverageReport) {
 		fmt.Fprintf(b, "| `%s` | %s | %s | %s | %s |\n", s.Key, s.ScenarioType, scenario, gate, ref)
 	}
 	b.WriteString("\n")
+}
+
+func markdownTableText(value string) string {
+	return strings.ReplaceAll(strings.Join(strings.Fields(value), " "), "|", "\\|")
 }
 
 func writeStale(b *strings.Builder, rep CoverageReport) {
