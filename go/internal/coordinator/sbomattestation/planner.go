@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package coordinator
+package sbomattestation
 
 import (
 	"context"
@@ -17,17 +17,16 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/workflow"
 )
 
-// SBOMAttestationPlanRequest carries one hosted SBOM/attestation planning
-// request.
-type SBOMAttestationPlanRequest struct {
+// PlanRequest carries one hosted SBOM/attestation planning request.
+type PlanRequest struct {
 	Instance   workflow.CollectorInstance
 	ObservedAt time.Time
 	PlanKey    string
 }
 
-// SBOMAttestationWorkPlanner plans workflow rows for configured hosted SBOM
-// and attestation targets.
-type SBOMAttestationWorkPlanner struct{}
+// WorkPlanner plans workflow rows for configured hosted SBOM and attestation
+// targets.
+type WorkPlanner struct{}
 
 type sbomAttestationRuntimeConfiguration struct {
 	Targets []sbomAttestationTargetConfiguration `json:"targets"`
@@ -43,9 +42,9 @@ type sbomAttestationTargetConfiguration struct {
 
 // PlanSBOMAttestationWork returns one run and one work item per configured
 // hosted SBOM or attestation target.
-func (p SBOMAttestationWorkPlanner) PlanSBOMAttestationWork(
+func (p WorkPlanner) PlanSBOMAttestationWork(
 	_ context.Context,
-	request SBOMAttestationPlanRequest,
+	request PlanRequest,
 ) (workflow.Run, []workflow.WorkItem, error) {
 	if err := validateSBOMAttestationPlanRequest(request); err != nil {
 		return workflow.Run{}, nil, err
@@ -79,7 +78,7 @@ func (p SBOMAttestationWorkPlanner) PlanSBOMAttestationWork(
 	return run, items, nil
 }
 
-func validateSBOMAttestationPlanRequest(request SBOMAttestationPlanRequest) error {
+func validateSBOMAttestationPlanRequest(request PlanRequest) error {
 	if err := request.Instance.Validate(); err != nil {
 		return fmt.Errorf("SBOM attestation plan request: %w", err)
 	}

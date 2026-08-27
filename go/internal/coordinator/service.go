@@ -57,12 +57,6 @@ type VulnerabilityIntelligencePlanner interface {
 	PlanVulnerabilityIntelligenceWork(context.Context, VulnerabilityIntelligencePlanRequest) (workflow.Run, []workflow.WorkItem, error)
 }
 
-// SBOMAttestationPlanner plans hosted SBOM/attestation workflow rows from
-// collector instance configuration.
-type SBOMAttestationPlanner interface {
-	PlanSBOMAttestationWork(context.Context, SBOMAttestationPlanRequest) (workflow.Run, []workflow.WorkItem, error)
-}
-
 // ScannerWorkerPlanner plans scanner-worker workflow rows from collector
 // instance configuration.
 type ScannerWorkerPlanner interface {

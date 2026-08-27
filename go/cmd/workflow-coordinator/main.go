@@ -20,6 +20,7 @@ import (
 	_ "github.com/eshu-hq/eshu/go/internal/collector/awscloud/awsruntime/bindings"
 	"github.com/eshu-hq/eshu/go/internal/coordinator"
 	"github.com/eshu-hq/eshu/go/internal/coordinator/cicdrun"
+	"github.com/eshu-hq/eshu/go/internal/coordinator/sbomattestation"
 	"github.com/eshu-hq/eshu/go/internal/coordinator/securityalert"
 	runtimecfg "github.com/eshu-hq/eshu/go/internal/runtime"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres"
@@ -172,7 +173,7 @@ func run(parent context.Context) error {
 		OCIRegistryPlanner:                coordinator.OCIRegistryWorkPlanner{},
 		PackageRegistryPlanner:            coordinator.PackageRegistryWorkPlanner{},
 		VulnerabilityIntelligencePlanner:  coordinator.VulnerabilityIntelligenceWorkPlanner{},
-		SBOMAttestationPlanner:            coordinator.SBOMAttestationWorkPlanner{},
+		SBOMAttestationPlanner:            sbomattestation.WorkPlanner{},
 		ScannerWorkerPlanner:              coordinator.ScannerWorkerWorkPlanner{},
 		SecurityAlertPlanner:              securityalert.WorkPlanner{},
 		CICDRunPlanner:                    cicdrun.WorkPlanner{},

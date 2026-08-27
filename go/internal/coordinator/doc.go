@@ -33,7 +33,9 @@
 // configured GitHub Actions repository targets while this package keeps the
 // structural planner interface and scheduling position. The securityalert
 // child package owns the equivalent provider security-alert planner while this
-// package retains scheduling and durable admission. PagerDutyWorkPlanner plans
+// package retains scheduling and durable admission. The sbomattestation child
+// follows the same boundary for hosted SBOM and attestation targets.
+// PagerDutyWorkPlanner plans
 // incident-evidence work from configured PagerDuty targets.
 // PrometheusMimirWorkPlanner plans bounded metric-metadata work, one item per
 // enabled Prometheus or Grafana Mimir target, partitioned by target scope so

@@ -225,7 +225,9 @@ root keeps the structural interface, scheduling order, durable open-target
 admission, retry, and telemetry. The provider security-alert scheduler is the
 second extraction under `internal/coordinator/securityalert`: the child owns
 its request and planner while root keeps the same scheduling, plan-key,
-admission, retry, and telemetry responsibilities. Terraform-state keeps its
+admission, retry, and telemetry responsibilities. The hosted SBOM-attestation
+scheduler is the third extraction under `internal/coordinator/sbomattestation`
+with the same boundary. Terraform-state keeps its
 separate plan-key validator, and the root `firstNonBlank` helper remains
 outside this boundary.
 
