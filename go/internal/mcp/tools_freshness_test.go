@@ -8,7 +8,12 @@ import "testing"
 func TestFreshnessToolsAreRegistered(t *testing.T) {
 	t.Parallel()
 
-	for _, name := range []string{"get_generation_lifecycle", "get_changed_since", "get_service_changed_since"} {
+	for _, name := range []string{
+		"get_generation_lifecycle",
+		"get_changed_since",
+		"get_repository_freshness",
+		"get_service_changed_since",
+	} {
 		tool := requireToolDefinition(t, name)
 		schema, ok := tool.InputSchema.(map[string]any)
 		if !ok {

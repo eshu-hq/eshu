@@ -32,6 +32,9 @@ The `ask` child package owns the natural-language answer registration
 definition; Ask routing and execution also stay here.
 The `playbooks` child package owns the two query-playbook catalog registration
 definitions; query-playbook routing and execution also stay here.
+The `freshness` child package owns four freshness registration definitions.
+Repository freshness routing stays in `dispatch_repositories.go`; generation,
+repository-delta, and service-delta routing stays in `dispatch_freshness.go`.
 
 ## Where this fits in the pipeline
 
@@ -178,7 +181,7 @@ is not broken out here).
 | `incidentContextTools` | 1 | `tools_incident_context.go` |
 | `workItemTools` | 1 | `tools_work_item.go` |
 | `visualizationTools` | 1 | `visualization/tools.go` |
-| `freshnessTools` | 3 | `tools_freshness.go` |
+| `freshnessTools` | 4 | `freshness/tools.go` |
 | `contextTools` | 7 | `tools_context.go` |
 | `contentTools` | 6 | `tools_content.go` |
 | `documentationTools` | 4 | `documentation/tools.go` |
@@ -240,6 +243,7 @@ Representative tool-to-route mappings from `resolveRoute` (`dispatch.go:173`):
 | `derive_visualization_packet` | POST | `/api/v0/visualizations/derive` |
 | `get_generation_lifecycle` | GET | `/api/v0/freshness/generations` |
 | `get_changed_since` | GET | `/api/v0/freshness/changed-since` (repository-scope delta diffing a prior generation against the current active generation by `stable_fact_key`; per-category added/updated/unchanged/retired/superseded counts plus bounded sample handles; unknown scope returns not-found, no current active generation returns an explicit unavailable diff, and retention-pruned baselines return `unavailable_reason=retention_expired` with `get_generation_lifecycle` as the bounded next check) |
+| `get_repository_freshness` | GET | `/api/v0/repositories/{repo_id}/freshness` (repository commit receipt and build-completeness verdict; routed by `dispatch_repositories.go`, not the freshness router) |
 | `get_service_changed_since` | GET | `/api/v0/freshness/services/changed-since` (service-scope delta diffing a prior service materialization generation against the current active generation by generation-independent `service_evidence_key`; reports the ownership, deployment, runtime, dependencies, docs, incidents, and vulnerabilities families; per-family added/updated/unchanged/retired/superseded counts plus bounded sample handles; unknown service returns service-not-found, no current active generation returns an explicit unavailable diff) |
 | `get_vulnerability_scanner_read_contract` | GET | `/api/v0/supply-chain/vulnerability-scanner/contract` |
 | `list_supply_chain_impact_findings` | GET | `/api/v0/supply-chain/impact/findings` (accepts repository ids or human repository selectors plus scanner filters such as `advisory_id`, `image_ref`, `ecosystem`, `service_id`, `workload_id`, `environment`, `severity`, `profile`, `include_suppressed`, and `suppression_state`; precise rows require supported exact-version evidence such as npm, Maven, Cargo, Pub `pubspec.lock`, NuGet, or Swift `Package.resolved`, and each row carries a `suppression` block with state, source, justification, author, timestamps, reason, and VEX provenance) |
@@ -513,6 +517,8 @@ Internal packages: `internal/buildinfo` (version string for `mcpInitializeResult
 `internal/mcp/ask` (Ask Eshu tool registration),
 `internal/mcp/cloud` (cloud inventory and runtime-drift tool registrations),
 `internal/mcp/documentation` (documentation tool registration definitions),
+`internal/mcp/freshness` (generation, repository, and service freshness tool
+registrations),
 `internal/mcp/playbooks` (query-playbook tool registration definitions),
 `internal/mcp/relationships` (relationship-edge tool registration definition),
 `internal/mcp/toolcontract` (dependency-neutral `ToolDefinition` registration
