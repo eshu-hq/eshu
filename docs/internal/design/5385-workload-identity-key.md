@@ -1286,11 +1286,11 @@ retracted and rebuilt rather than rewritten in place.
    uses it to classify added, updated, unchanged, **retired** and superseded
    between generations. That is published through the MCP tool
    `get_service_changed_since`, whose own description
-   (`go/internal/mcp/tools_freshness.go:101`) promises "Retired and superseded are
-   never collapsed into unchanged." That sentence appears verbatim on **two** tool
-   descriptions, and the repository-scope tool at `:51` is the other one — but
-   `:51` is keyed by stable fact key and never mentions `service_evidence_key`, so
-   citing it would attribute this consequence to a tool the re-key does not touch. So the generation that re-keys reports every
+   (`go/internal/mcp/freshness/tools.go`) promises "Retired and superseded are
+   never collapsed into unchanged." That sentence also appears on the
+   repository-scope definition in the same file, but that tool is keyed by
+   stable fact key and never mentions `service_evidence_key`. Citing it would
+   attribute this consequence to a tool the re-key does not touch. So the generation that re-keys reports every
    service's runtime evidence as retired-plus-added through a tool that guarantees
    the churn cannot be suppressed. Section 6a's consumer-breakage accounting should
    carry it too.

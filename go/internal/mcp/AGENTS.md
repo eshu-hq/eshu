@@ -100,6 +100,13 @@
   contract; mismatches between schema and dispatch body produce silent wrong
   queries.
 
+- **Move an existing registration family** → put only its definitions in a
+  child package that imports `toolcontract`; retain a root wrapper and the
+  exact `ReadOnlyTools` position. Routes stay with their current root router.
+  Freshness is deliberately split: repository freshness stays in
+  `dispatch_repositories.go`, while generation and delta routes stay in
+  `dispatch_freshness.go`.
+
 - **Add a new argument helper** → add near `stringSlice` in
   `dispatch_args.go` or near `str`, `intOr`, and `boolOr` in `dispatch.go`.
   Write a focused unit test. Why: helpers are

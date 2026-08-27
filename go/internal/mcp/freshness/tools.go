@@ -1,10 +1,14 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package mcp
+package freshnesstools
 
-func freshnessTools() []ToolDefinition {
-	return []ToolDefinition{
+import "github.com/eshu-hq/eshu/go/internal/mcp/toolcontract"
+
+// Tools returns fresh MCP definitions for generation, repository, and service
+// freshness reads.
+func Tools() []toolcontract.ToolDefinition {
+	return []toolcontract.ToolDefinition{
 		{
 			Name:        "get_generation_lifecycle",
 			Description: "Inspect bounded scope generation lifecycle history (active, pending, superseded, completed, failed) for a scope, repository, collector, source system, generation, or status. Each row carries the current active generation, trigger kind, freshness hint, observed/activated/superseded timestamps, the per-generation queue status, and the latest failure when present. Unknown scope/repository/generation selectors return an explicit not-found, never a confident empty list.",

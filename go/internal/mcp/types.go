@@ -7,6 +7,7 @@ import (
 	asktools "github.com/eshu-hq/eshu/go/internal/mcp/ask"
 	cloudtools "github.com/eshu-hq/eshu/go/internal/mcp/cloud"
 	doctools "github.com/eshu-hq/eshu/go/internal/mcp/documentation"
+	freshnesstools "github.com/eshu-hq/eshu/go/internal/mcp/freshness"
 	playbooktools "github.com/eshu-hq/eshu/go/internal/mcp/playbooks"
 	relationshiptools "github.com/eshu-hq/eshu/go/internal/mcp/relationships"
 	"github.com/eshu-hq/eshu/go/internal/mcp/toolcontract"
@@ -102,6 +103,12 @@ func queryPlaybookTools() []ToolDefinition {
 // visualization package owns the registration definition.
 func visualizationTools() []ToolDefinition {
 	return visualizationtools.Tools()
+}
+
+// freshnessTools preserves the root package's constructor name while the
+// freshness package owns the registration definitions.
+func freshnessTools() []ToolDefinition {
+	return freshnesstools.Tools()
 }
 
 // askTools preserves the root package's constructor name while the ask

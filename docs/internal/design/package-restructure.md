@@ -274,6 +274,14 @@ relationship routing, dispatch, authorization, query, and transport ownership.
 The move uses `internal/mcp/toolcontract` and leaves the 162-tool order
 unchanged.
 
+The freshness registration family is the seventh extracted MCP family. Its
+four definitions live under `internal/mcp/freshness`, while the root keeps
+their assembly position after visualization and before context tools. Routing
+also stays in root: `get_repository_freshness` remains in
+`dispatch_repositories.go`, and the other three definitions remain in
+`dispatch_freshness.go`. The move uses `internal/mcp/toolcontract` and leaves
+the 162-tool order unchanged.
+
 **cmd/eshu (233):** `package main` — subdirectories are impossible by
 language rule. The lever is extracting business logic to new
 `internal/cli/<family>` packages, leaving thin cobra RunE wrappers —
