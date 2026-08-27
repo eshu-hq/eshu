@@ -1,10 +1,12 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package mcp
+package ecosystemtools
 
-func infraResourceSearchTool() ToolDefinition {
-	return ToolDefinition{
+import "github.com/eshu-hq/eshu/go/internal/mcp/toolcontract"
+
+func infraResourceSearchTool() toolcontract.ToolDefinition {
+	return toolcontract.ToolDefinition{
 		Name:        "find_infra_resources",
 		Description: "Search infrastructure resources (cloud, K8s, Terraform, ArgoCD, Crossplane, Helm) by text or structured scope.",
 		InputSchema: map[string]any{

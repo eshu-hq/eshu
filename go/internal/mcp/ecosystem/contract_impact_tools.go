@@ -1,10 +1,12 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package mcp
+package ecosystemtools
 
-func contractImpactTool() ToolDefinition {
-	return ToolDefinition{
+import "github.com/eshu-hq/eshu/go/internal/mcp/toolcontract"
+
+func contractImpactTool() toolcontract.ToolDefinition {
+	return toolcontract.ToolDefinition{
 		Name:        "investigate_contract_impact",
 		Description: "Investigate deterministic cross-repository API contract impact without string similarity inference. HTTP provider evidence is supported; topic and grpc return explicit unsupported family states until deterministic projections land.",
 		InputSchema: map[string]any{

@@ -1,10 +1,28 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package mcp
+package ecosystemtools
 
-func ecosystemTools() []ToolDefinition {
-	return []ToolDefinition{
+import "github.com/eshu-hq/eshu/go/internal/mcp/toolcontract"
+
+// Tools returns the ecosystem tool definitions in their canonical order.
+func Tools() []toolcontract.ToolDefinition {
+	tools := ecosystemOverviewTools()
+	tools = append(tools, graphSummaryPacketTool(), contractImpactTool())
+	tools = append(tools, deploymentTools()...)
+	tools = append(tools, infraResourceSearchTool())
+	tools = append(tools, infrastructureTools()...)
+	tools = append(tools, repositoryTools()...)
+	tools = append(tools, preChangeImpactTool(), developerChangePlanTool())
+	tools = append(tools, packageRegistryDefinitionTools()...)
+	tools = append(tools, repositoryImpactTools()...)
+	tools = append(tools, findChangeSurfaceTool(), investigateChangeSurfaceTool())
+	tools = append(tools, compareEnvironmentTools()...)
+	return tools
+}
+
+func ecosystemOverviewTools() []toolcontract.ToolDefinition {
+	return []toolcontract.ToolDefinition{
 		{
 			Name:        "get_ecosystem_overview",
 			Description: "Get a high-level overview of the indexed ecosystem: repos, tiers, infrastructure counts, and cross-repo relationships.",
@@ -14,8 +32,11 @@ func ecosystemTools() []ToolDefinition {
 				"required":   []string{},
 			},
 		},
-		graphSummaryPacketTool(),
-		contractImpactTool(),
+	}
+}
+
+func deploymentTools() []toolcontract.ToolDefinition {
+	return []toolcontract.ToolDefinition{
 		{
 			Name:        "trace_deployment_chain",
 			Description: "Trace the full deployment chain for a service across ArgoCD Applications and ApplicationSets.",
@@ -115,7 +136,11 @@ func ecosystemTools() []ToolDefinition {
 				"required": []string{"target"},
 			},
 		},
-		infraResourceSearchTool(),
+	}
+}
+
+func infrastructureTools() []toolcontract.ToolDefinition {
+	return []toolcontract.ToolDefinition{
 		{
 			Name:        "investigate_resource",
 			Description: "Resolve a queue, database, cloud resource, Terraform resource, or Kubernetes object into a bounded investigation packet with workload users, provisioning repositories, source handles, ambiguity metadata, and next calls. Provide query or resource_id.",
@@ -177,6 +202,11 @@ func ecosystemTools() []ToolDefinition {
 				"required": []string{"query_type", "target"},
 			},
 		},
+	}
+}
+
+func repositoryTools() []toolcontract.ToolDefinition {
+	return []toolcontract.ToolDefinition{
 		{
 			Name:        "get_repo_summary",
 			Description: "Get a lightweight identity and coverage summary for a repository: file count, languages, entity count, entity types, and indexing coverage state. Use this for a quick overview before calling get_repo_context, which returns the full enriched context including entry points, infrastructure, relationships, API surface, and deployment evidence. Provide exactly one of repo_id (preferred) or repo_name; the call is rejected if neither is set.",
@@ -222,58 +252,11 @@ func ecosystemTools() []ToolDefinition {
 				"required": []string{"resolved_id"},
 			},
 		},
-		preChangeImpactTool(),
-		developerChangePlanTool(),
-		{
-			Name:        "list_package_registry_packages",
-			Description: "List package registry package identities by package_id or ecosystem/name without inferring repository ownership; malformed rows are returned under identity_issues. Populated by the opt-in package_registry collector (off in a default deploy; enable with ESHU_COLLECTOR_INSTANCES_JSON plus registry credentials), so a default git-only deploy returns an empty page.",
-			InputSchema: map[string]any{
-				"type": "object",
-				"properties": map[string]any{
-					"package_id": map[string]any{
-						"type":        "string",
-						"description": "Exact Package.uid lookup.",
-					},
-					"ecosystem": map[string]any{
-						"type":        "string",
-						"description": "Package ecosystem scope such as npm, maven, pypi, go, cargo, hex, or nuget.",
-					},
-					"name": map[string]any{
-						"type":        "string",
-						"description": "Normalized package name. Requires ecosystem when package_id is absent.",
-					},
-					"limit": map[string]any{
-						"type":        "integer",
-						"description": "Maximum packages to return.",
-						"default":     50,
-						"minimum":     1,
-						"maximum":     200,
-					},
-				},
-				"required": []string{"limit"},
-			},
-		},
-		{
-			Name:        "list_package_registry_versions",
-			Description: "List package registry version identities for one Package.uid without inferring repository ownership. Populated by the opt-in package_registry collector (off in a default deploy; enable with ESHU_COLLECTOR_INSTANCES_JSON plus registry credentials), so a default git-only deploy returns an empty page.",
-			InputSchema: map[string]any{
-				"type": "object",
-				"properties": map[string]any{
-					"package_id": map[string]any{
-						"type":        "string",
-						"description": "Package.uid to anchor the version lookup.",
-					},
-					"limit": map[string]any{
-						"type":        "integer",
-						"description": "Maximum versions to return.",
-						"default":     50,
-						"minimum":     1,
-						"maximum":     200,
-					},
-				},
-				"required": []string{"package_id", "limit"},
-			},
-		},
+	}
+}
+
+func repositoryImpactTools() []toolcontract.ToolDefinition {
+	return []toolcontract.ToolDefinition{
 		{
 			Name:        "get_repo_story",
 			Description: "Get a structured story for a repository. Accepts a repository selector such as canonical ID, name, repo slug, or indexed path.",
@@ -354,104 +337,11 @@ func ecosystemTools() []ToolDefinition {
 				"required": []string{"source", "target"},
 			},
 		},
-		{
-			Name:        "find_change_surface",
-			Description: "Find the blast or change surface for a workload, cloud resource, or terraform module.",
-			InputSchema: map[string]any{
-				"type": "object",
-				"properties": map[string]any{
-					"target": map[string]any{
-						"type":        "string",
-						"description": "Target entity identifier",
-					},
-					"environment": map[string]any{
-						"type":        "string",
-						"description": "Optional environment context",
-					},
-					"limit": map[string]any{
-						"type":        "integer",
-						"description": "Maximum impacted rows to return",
-						"default":     50,
-						"minimum":     1,
-						"maximum":     200,
-					},
-				},
-				"required": []string{"target"},
-			},
-		},
-		{
-			Name:        "investigate_change_surface",
-			Description: "Investigate the code, repository, workload, infrastructure, and transitive impact surface for a service, module, resource, code topic, or changed path set in one bounded call.",
-			InputSchema: map[string]any{
-				"type": "object",
-				"properties": map[string]any{
-					"target": map[string]any{
-						"type":        "string",
-						"description": "Optional canonical entity id or exact entity name to resolve before impact traversal.",
-					},
-					"target_type": map[string]any{
-						"type":        "string",
-						"description": "Optional target kind used to choose the exact resolver shape.",
-						"enum":        []string{"service", "workload", "workload_instance", "repository", "resource", "cloud_resource", "terraform_module", "module"},
-					},
-					"service_name": map[string]any{
-						"type":        "string",
-						"description": "Service or workload name to resolve as the graph impact anchor.",
-					},
-					"workload_id": map[string]any{
-						"type":        "string",
-						"description": "Canonical workload id to resolve as the graph impact anchor.",
-					},
-					"resource_id": map[string]any{
-						"type":        "string",
-						"description": "Canonical cloud resource id to resolve as the graph impact anchor.",
-					},
-					"module_id": map[string]any{
-						"type":        "string",
-						"description": "Terraform module uid or name to resolve as the graph impact anchor.",
-					},
-					"topic": map[string]any{
-						"type":        "string",
-						"description": "Natural-language code topic such as repo-sync auth behavior.",
-					},
-					"repo_id": map[string]any{
-						"type":        "string",
-						"description": "Repository selector for code-topic and changed-path scoping.",
-					},
-					"changed_paths": map[string]any{
-						"type":        "array",
-						"description": "Changed file paths to map to touched code symbols.",
-						"items":       map[string]any{"type": "string"},
-					},
-					"environment": map[string]any{
-						"type":        "string",
-						"description": "Optional environment filter for graph impact rows.",
-					},
-					"max_depth": map[string]any{
-						"type":        "integer",
-						"description": "Maximum graph traversal depth.",
-						"default":     4,
-						"minimum":     1,
-						"maximum":     8,
-					},
-					"limit": map[string]any{
-						"type":        "integer",
-						"description": "Maximum rows to return per surface.",
-						"default":     25,
-						"minimum":     1,
-						"maximum":     100,
-					},
-					"offset": map[string]any{
-						"type":        "integer",
-						"description": "Result offset for content-backed code investigation.",
-						"default":     0,
-						"minimum":     0,
-						"maximum":     10000,
-					},
-				},
-				"required": []string{},
-			},
-		},
+	}
+}
+
+func compareEnvironmentTools() []toolcontract.ToolDefinition {
+	return []toolcontract.ToolDefinition{
 		{
 			Name:        "compare_environments",
 			Description: "Compare the dependency surface for a workload across two environments with shared, dedicated, evidence, limitation, and next-call story fields.",

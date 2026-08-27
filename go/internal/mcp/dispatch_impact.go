@@ -15,8 +15,8 @@ func impactRoute(toolName string, args map[string]any) (*route, bool, error) {
 		return &route{method: "POST", path: "/api/v0/impact/trace-deployment-chain", body: map[string]any{
 			"service_name": str(args, "service_name"),
 			"direct_only":  boolOr(args, "direct_only", true),
-			// PR #5933 review (Codex, tools_ecosystem.go:51): the schema
-			// documents that an omitted max_depth resolves to the handler's
+			// The trace-deployment-chain schema in ecosystem/tools.go documents
+			// that an omitted max_depth resolves to the handler's
 			// own operator-safe default (boundedTraceEnrichmentLimit(0) = 25),
 			// not to 8. Forwarding 0 for an omitted argument mirrors an HTTP
 			// caller who leaves max_depth out of the JSON body entirely (the

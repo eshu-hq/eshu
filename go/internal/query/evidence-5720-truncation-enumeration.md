@@ -132,29 +132,37 @@ It now calls `extractAPISpecEvidenceWithoutRefs`, which is error-free because
 
 ## Round 10 P2-3: service_evidence.go split, no new file
 
-Four files sat within 15 lines of the 500-line rule `CLAUDE.md` says to split
-*before* approaching: `service_evidence.go` 487,
+Round 10 found four files within 15 lines of the 500-line rule `CLAUDE.md` says
+to split *before* approaching: `service_evidence.go` 487,
 `deployment_trace_truncation_disclosure_test.go` 488,
-`openapi_paths_impact.go` 486, `tools_ecosystem.go` 485.
+`openapi_paths_impact.go` 486, and the former
+`internal/mcp/tools_ecosystem.go` 485. The #6058 package move initially put the
+last file at `internal/mcp/ecosystem/tools.go` with 488 lines. Its approved
+change-surface split moved two definitions into
+`internal/mcp/ecosystem/change_surface_tools.go`; the package-registry pair
+moved into `internal/mcp/ecosystem/package_registry_tools.go`; and the remaining
+definitions were grouped into bounded constructors in the history-preserving
+`tools.go`. That file is now 375 lines, so the near-cap condition is retired
+without a file-length or function-length waiver.
 
-A new production `.go` file would stale
-`docs/public/reference/code-coverage.md`, whose `included_files` count is built
-from the coverage profile and covers non-test files only. The split needs no new
-file. `service_evidence_types.go` (103 lines) is the natural home for the reader
-port and the plumbing that reads through it, so `serviceEvidenceReader`,
+At the time, a new production `.go` file would have staled
+`docs/public/reference/code-coverage.md`, whose `included_files` count was built
+from the coverage profile and covered non-test files only. The split needed no
+new file. `service_evidence_types.go` (103 lines) was the natural home for the
+reader port and the plumbing that reads through it, so `serviceEvidenceReader`,
 `serviceEvidenceFileLimit`, `listServiceEvidenceFiles`, `specFileResolver`,
 `buildSpecFileResolver`, `openAPIRefFilePath` and the three loose-document value
 accessors moved there.
 
 Adding no file did not keep the coverage doc valid, and an earlier revision of
-this paragraph claimed it did. A file reaches the coverage profile only once it
-holds executable statements, so a move that takes an existing file's function
-count from zero to non-zero moves `included_files` as surely as adding a file
-does. A move between two files that both already hold functions changes both
-files' statement counts but moves `included_files` by exactly zero, because
-`generate-code-coverage-report.sh`'s own selection rule keys each file into
+this paragraph claimed it did. Under that generator, a file entered the
+coverage profile only after it held executable statements. Moving functions
+into a previously declaration-only file therefore changed `included_files`, as
+did adding a file. Moving functions between two files that already held
+functions changed both statement counts but left `included_files` unchanged,
+because `generate-code-coverage-report.sh`'s selection rule keyed each file into
 `included_files` on "at least one profile block with statements > 0," and
-neither file crosses that zero/non-zero boundary. Verified against the real
+neither file crossed that zero/non-zero boundary. Verified against the real
 generator on a synthetic before/after profile: two files with two functions
 each, one function moved from the first to the second, `included_files` reads
 2 in both the before and the after report.
@@ -176,9 +184,9 @@ stale count can still merge silently.
 `service_evidence_types.go` is 211. `buildSpecFileResolver` also took its
 `context.Context` back to the first parameter position on the way across.
 
-The other three files are recorded rather than split: the two OpenAPI/tool
-documents are single-statement string builders where a split would cut a wire
-contract in half, and the new P1-1 regression went into
+Of the other two near-cap files, `openapi_paths_impact.go` remains recorded
+rather than split because its single-statement string builder would cut a wire
+contract in half. The new P1-1 regression went into
 `deployment_trace_repoid_tiebreak_test.go` (205 to 283) specifically to keep
 `deployment_trace_truncation_disclosure_test.go` at 488.
 

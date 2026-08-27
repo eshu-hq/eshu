@@ -7,6 +7,7 @@ import (
 	asktools "github.com/eshu-hq/eshu/go/internal/mcp/ask"
 	cloudtools "github.com/eshu-hq/eshu/go/internal/mcp/cloud"
 	doctools "github.com/eshu-hq/eshu/go/internal/mcp/documentation"
+	ecosystemtools "github.com/eshu-hq/eshu/go/internal/mcp/ecosystem"
 	freshnesstools "github.com/eshu-hq/eshu/go/internal/mcp/freshness"
 	investigationtools "github.com/eshu-hq/eshu/go/internal/mcp/investigation"
 	playbooktools "github.com/eshu-hq/eshu/go/internal/mcp/playbooks"
@@ -82,6 +83,12 @@ func documentationTools() []ToolDefinition {
 // name while the documentation package owns the registration definitions.
 func documentationFindingAggregateTools() []ToolDefinition {
 	return doctools.FindingAggregateTools()
+}
+
+// ecosystemTools preserves the root package's constructor name while the
+// ecosystem package owns the registration definitions.
+func ecosystemTools() []ToolDefinition {
+	return ecosystemtools.Tools()
 }
 
 // cloudInventoryTools preserves the root package's constructor name while the

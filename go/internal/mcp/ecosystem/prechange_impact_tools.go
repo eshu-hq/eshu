@@ -1,18 +1,20 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package mcp
+package ecosystemtools
 
-func preChangeImpactTool() ToolDefinition {
-	return ToolDefinition{
+import "github.com/eshu-hq/eshu/go/internal/mcp/toolcontract"
+
+func preChangeImpactTool() toolcontract.ToolDefinition {
+	return toolcontract.ToolDefinition{
 		Name:        "analyze_pre_change_impact",
 		Description: "Analyze a base/head diff or explicit changed files before editing or landing a change, returning bounded affected code, graph impact, missing evidence, and next calls.",
 		InputSchema: preChangeImpactInputSchema(false),
 	}
 }
 
-func developerChangePlanTool() ToolDefinition {
-	return ToolDefinition{
+func developerChangePlanTool() toolcontract.ToolDefinition {
+	return toolcontract.ToolDefinition{
 		Name:        "plan_developer_change",
 		Description: "Build a read-only developer_change_plan.v1 artifact from a base/head diff or explicit changed files, returning ordered actions, risk, tests, missing evidence, and bounded next calls.",
 		InputSchema: preChangeImpactInputSchema(true),

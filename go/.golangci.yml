@@ -382,9 +382,6 @@ linters:
       - path: 'internal/mcp/tools_context\.go'
         linters:
           - funlen
-      - path: 'internal/mcp/tools_ecosystem\.go'
-        linters:
-          - funlen
       - path: 'internal/mcp/tools_runtime\.go'
         linters:
           - funlen

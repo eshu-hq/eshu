@@ -26,6 +26,7 @@ live in the repository today.
 | `go/internal/mcp/ask/` | Ask Eshu MCP tool registration definition |
 | `go/internal/mcp/cloud/` | cloud inventory and runtime-drift MCP tool registration definitions |
 | `go/internal/mcp/documentation/` | documentation-family MCP tool registration definitions |
+| `go/internal/mcp/ecosystem/` | ecosystem, repository-context, infrastructure-impact, and change-planning MCP tool registration definitions |
 | `go/internal/mcp/freshness/` | generation, repository, and service freshness MCP tool registration definitions |
 | `go/internal/mcp/investigation/` | investigation workflow and evidence-packet MCP tool registration definitions |
 | `go/internal/mcp/playbooks/` | query-playbook MCP tool registration definitions |

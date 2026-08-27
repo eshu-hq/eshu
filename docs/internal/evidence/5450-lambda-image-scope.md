@@ -92,7 +92,7 @@ P1-B (above) fixed the raw canonical-value lookup
 resolve), and #5751 added the verb to `relationshipVerbCatalog`. Neither
 touched `infraRelationshipTypeAliases` or the `analyze_infra_relationships`
 MCP tool's `query_type` JSON-schema `enum`
-(`go/internal/mcp/tools_ecosystem.go`), which only ever listed the five
+(`go/internal/mcp/ecosystem/tools.go`), which only ever listed the five
 semantic aliases (`what_deploys`, `what_provisions`, `who_consumes_xrd`,
 `module_consumers`, `what_runs_image`) — never a raw edge-type string. An MCP
 client (the tool-calling model) only ever sees the advertised enum, so it had

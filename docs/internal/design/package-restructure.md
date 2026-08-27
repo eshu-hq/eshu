@@ -309,6 +309,17 @@ intelligence-report routes remain in `dispatch.go` and
 `dispatch_service_selector.go`. The move uses
 `internal/mcp/toolcontract` and leaves the 162-tool order unchanged.
 
+The ecosystem registration family is the eleventh extracted MCP family. Its
+23 definitions live under `internal/mcp/ecosystem`, while the root keeps their
+single assembly position after repository-language tools and before
+infrastructure aggregates. Routing stays split across the existing root
+routers: ecosystem summaries and change planning remain in
+`dispatch_ecosystem.go`; repository and package-registry reads remain in
+`dispatch_repositories.go`; infrastructure reads remain in `dispatch.go` and
+`dispatch_infra_search.go`; impact reads remain in `dispatch_impact.go`; and
+environment comparison remains in `compareRoute`. The move uses
+`internal/mcp/toolcontract` and leaves the 162-tool order unchanged.
+
 **cmd/eshu (233):** `package main` — subdirectories are impossible by
 language rule. The lever is extracting business logic to new
 `internal/cli/<family>` packages, leaving thin cobra RunE wrappers —
