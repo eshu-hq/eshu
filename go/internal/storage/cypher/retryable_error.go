@@ -35,12 +35,17 @@ const (
 	// is stable across NornicDB builds; the code is checked alongside it so an
 	// unrelated commit failure stays terminal.
 	nornicDBStoreClosingCommitMsg = "Writes are blocked, possibly due to DropAll or Close"
-	// nornicDBStoreClosedMsg is what NornicDB's UNWIND MERGE chain fast path
-	// reports once the store is closed rather than merely closing, e.g.
+	// nornicDBStoreClosedMsg is what NornicDB reports once the store is closed
+	// rather than merely closing. It arrives on two paths, and both guards below
+	// pair it with their own error code. The UNWIND MERGE chain fast path
+	// reports it mid-statement, e.g.
 	// "UNWIND MERGE chain create failed: checking node existence: reading node:
 	// DB Closed". It arrives under nornicDBStatementSyntaxErrorCode -- the same
 	// code a genuinely malformed query uses -- so the message, not the code, is
-	// what separates a backend teardown from a Cypher bug here.
+	// what separates a backend teardown from a Cypher bug here. The commit path
+	// reports it as "commit failed: materializing mvcc commit state: DB Closed"
+	// under nornicDBTransactionCommitFailedCode, which is why
+	// isNornicDBStoreClosingCommitFailure accepts it too (#6162).
 	nornicDBStoreClosedMsg = "DB Closed"
 )
 
@@ -103,12 +108,13 @@ func (e *schemaFenceError) Retryable() bool { return true }
 // to retry from the durable reducer queue. It wraps known retryable Neo4j error
 // codes, driver retry-budget exhaustion, connectivity failures, and the three
 // NornicDB failures a backend restart emits: the transaction-start failure
-// raised once the WAL is closed (matched on an exact message), the commit
-// failure raised once the store has blocked writes for shutdown, and the
-// statement failure raised once the store is closed outright (both matched on a
-// distinguishing substring, since their bodies carry variable context). Every
-// one requires its error code as well. Malformed connectivity errors remain
-// terminal, and all other errors are returned unchanged.
+// raised once the WAL is closed or the engine is closed (matched on exact
+// messages), the commit failure raised once the store has blocked writes for
+// shutdown or is closed outright, and the statement failure raised once the
+// store is closed outright (the latter two matched on a distinguishing
+// substring, since their bodies carry variable context). Every one requires its
+// error code as well. Malformed connectivity errors remain terminal, and all
+// other errors are returned unchanged.
 func WrapRetryableNeo4jError(err error) error {
 	if err == nil {
 		return nil
@@ -196,11 +202,37 @@ func isNornicDBRestartTransactionStartFailure(err error) bool {
 // beside it: NornicDB reports this backend-unavailable condition under a
 // ClientError prefix that a real constraint violation also uses, so the code
 // alone would swallow genuine terminal commit failures.
+//
+// Like the start-side guard, this accepts TWO bodies for the one condition,
+// because the store reports commit-side teardown differently depending on how
+// far into shutdown it is. nornicDBStoreClosingCommitMsg is Badger refusing a
+// commit while the store is still CLOSING; nornicDBStoreClosedMsg is the store
+// answering "DB Closed" once it is already CLOSED under the open transaction:
+//
+//	Neo.ClientError.Transaction.TransactionCommitFailed
+//	commit failed: materializing mvcc commit state: DB Closed
+//
+// That second shape dead-lettered gcp_resource_materialization as
+// failure_class=projection_bug in eshu-hq/eshu run 32665272053 and blew the
+// restart cell's 4-minute drain budget. It is the cross-product of the two
+// guards this file added for #6142 -- the commit code from this one, the
+// "DB Closed" body from isNornicDBStoreClosedStatementFailure -- and because
+// each guard requires its OWN pairing, the cross matched neither and fell
+// through to terminal. Refs #6162.
+//
+// Pairing "DB Closed" with the commit code is strictly narrower than the
+// already-shipped statement-side use of the same constant. There the code is
+// Statement.SyntaxError, which a genuinely malformed query also carries, so the
+// body does all the discrimination. Here the code already means the commit
+// failed, so the body only has to separate a backend teardown from a real
+// constraint violation -- and a constraint violation does not report the store
+// as closed.
 func isNornicDBStoreClosingCommitFailure(err error) bool {
 	var neo4jErr *neo4jdriver.Neo4jError
 	return errors.As(err, &neo4jErr) &&
 		neo4jErr.Code == nornicDBTransactionCommitFailedCode &&
-		strings.Contains(neo4jErr.Msg, nornicDBStoreClosingCommitMsg)
+		(strings.Contains(neo4jErr.Msg, nornicDBStoreClosingCommitMsg) ||
+			strings.Contains(neo4jErr.Msg, nornicDBStoreClosedMsg))
 }
 
 // isNornicDBStoreClosedStatementFailure recognizes a statement that failed
