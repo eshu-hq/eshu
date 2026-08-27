@@ -5,6 +5,82 @@ package mcp
 
 import "testing"
 
+func TestReadOnlyToolsReturnsIndependentRelationshipTypeEnums(t *testing.T) {
+	firstRegistry := ReadOnlyTools()
+	secondRegistry := ReadOnlyTools()
+
+	enums := []struct {
+		name string
+		enum []string
+	}{
+		{name: "first registry story relationship_type", enum: registeredRelationshipEnum(t, firstRegistry, "get_code_relationship_story", "relationship_type")},
+		{name: "first registry story relationship_types", enum: registeredRelationshipEnum(t, firstRegistry, "get_code_relationship_story", "relationship_types")},
+		{name: "first registry analysis relationship_types", enum: registeredRelationshipEnum(t, firstRegistry, "analyze_code_relationships", "relationship_types")},
+		{name: "second registry story relationship_type", enum: registeredRelationshipEnum(t, secondRegistry, "get_code_relationship_story", "relationship_type")},
+		{name: "second registry story relationship_types", enum: registeredRelationshipEnum(t, secondRegistry, "get_code_relationship_story", "relationship_types")},
+		{name: "second registry analysis relationship_types", enum: registeredRelationshipEnum(t, secondRegistry, "analyze_code_relationships", "relationship_types")},
+	}
+	wantFirstValues := make([]string, len(enums))
+	for i, enum := range enums {
+		wantFirstValues[i] = enum.enum[0]
+	}
+
+	for mutatedIndex, mutated := range enums {
+		t.Run("mutating "+mutated.name, func(t *testing.T) {
+			original := mutated.enum[0]
+			t.Cleanup(func() {
+				mutated.enum[0] = original
+			})
+			mutated.enum[0] = "MUTATED"
+
+			for observedIndex, observed := range enums {
+				if observedIndex == mutatedIndex {
+					continue
+				}
+				if got, want := observed.enum[0], wantFirstValues[observedIndex]; got != want {
+					t.Errorf("%s first enum value = %q after mutating %s, want %q", observed.name, got, mutated.name, want)
+				}
+			}
+		})
+	}
+}
+
+func registeredRelationshipEnum(t *testing.T, tools []ToolDefinition, toolName, propertyName string) []string {
+	t.Helper()
+
+	var inputSchema map[string]any
+	for _, tool := range tools {
+		if tool.Name == toolName {
+			var ok bool
+			inputSchema, ok = tool.InputSchema.(map[string]any)
+			if !ok {
+				t.Fatalf("%s input schema type = %T, want map[string]any", toolName, tool.InputSchema)
+			}
+			break
+		}
+	}
+	if inputSchema == nil {
+		t.Fatalf("ReadOnlyTools missing %q", toolName)
+	}
+
+	properties, ok := inputSchema["properties"].(map[string]any)
+	if !ok {
+		t.Fatalf("%s properties type = %T, want map[string]any", toolName, inputSchema["properties"])
+	}
+	property, ok := properties[propertyName].(map[string]any)
+	if !ok {
+		t.Fatalf("%s.%s schema type = %T, want map[string]any", toolName, propertyName, properties[propertyName])
+	}
+	if items, ok := property["items"].(map[string]any); ok {
+		property = items
+	}
+	enum, ok := property["enum"].([]string)
+	if !ok || len(enum) == 0 {
+		t.Fatalf("%s.%s enum = %#v, want non-empty []string", toolName, propertyName, property["enum"])
+	}
+	return enum
+}
+
 func TestAnalyzeCodeRelationshipsSchemaProperties(t *testing.T) {
 	t.Parallel()
 

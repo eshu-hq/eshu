@@ -5,7 +5,9 @@ package mcp
 
 // relationshipTypeEnum lists the relationship types the bounded relationship
 // story query path can follow.
-var relationshipTypeEnum = []string{"CALLS", "IMPORTS", "REFERENCES", "INHERITS", "OVERRIDES", "TAINT_FLOWS_TO"}
+func relationshipTypeEnum() []string {
+	return []string{"CALLS", "IMPORTS", "REFERENCES", "INHERITS", "OVERRIDES", "TAINT_FLOWS_TO"}
+}
 
 // codeRelationshipStoryTool defines the get_code_relationship_story MCP tool: a
 // bounded, budget-aware relationship story for one resolved code symbol.
@@ -35,12 +37,12 @@ func codeRelationshipStoryTool() ToolDefinition {
 				"relationship_type": map[string]any{
 					"type":        "string",
 					"description": "Relationship type to follow.",
-					"enum":        relationshipTypeEnum,
+					"enum":        relationshipTypeEnum(),
 					"default":     "CALLS",
 				},
 				"relationship_types": map[string]any{
 					"type":        "array",
-					"items":       map[string]any{"type": "string", "enum": relationshipTypeEnum},
+					"items":       map[string]any{"type": "string", "enum": relationshipTypeEnum()},
 					"description": "Optional additive multi-type filter; supersedes relationship_type and merges each type's bounded results. Not supported with include_transitive, class_hierarchy, or overrides.",
 				},
 				"direction": map[string]any{
