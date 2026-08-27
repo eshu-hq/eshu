@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package coordinator
+package securityalert
 
 import (
 	"strings"
@@ -12,7 +12,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/workflow"
 )
 
-func TestSecurityAlertWorkPlannerPlansOneClaimPerAllowedRepository(t *testing.T) {
+func TestWorkPlannerPreservesSecurityAlertPlanningContract(t *testing.T) {
 	t.Parallel()
 
 	observedAt := time.Date(2026, time.May, 25, 15, 0, 0, 0, time.UTC)
@@ -28,7 +28,7 @@ func TestSecurityAlertWorkPlannerPlansOneClaimPerAllowedRepository(t *testing.T)
 		UpdatedAt:      observedAt,
 	}
 
-	run, items, err := (SecurityAlertWorkPlanner{}).PlanSecurityAlertWork(t.Context(), SecurityAlertPlanRequest{
+	run, items, err := (WorkPlanner{}).PlanSecurityAlertWork(t.Context(), PlanRequest{
 		Instance:   instance,
 		ObservedAt: observedAt,
 		PlanKey:    "schedule-20260525T150000Z",

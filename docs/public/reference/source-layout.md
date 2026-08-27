@@ -20,6 +20,7 @@ live in the repository today.
 | `go/internal/coordinator/` | workflow coordinator service ordering, planner interfaces, durable admission, retry, and telemetry ownership |
 | `go/internal/coordinator/cicdrun/` | CI/CD run scheduler request validation and deterministic workflow planning |
 | `go/internal/coordinator/plannercontract/` | dependency-neutral scheduler plan-key validation |
+| `go/internal/coordinator/securityalert/` | provider security-alert scheduler request validation and deterministic workflow planning |
 | `go/internal/facts/` | durable fact models and queue contracts |
 | `go/internal/graph/` | canonical graph schema and write helpers |
 | `go/internal/mcp/` | MCP transport and tool wiring |

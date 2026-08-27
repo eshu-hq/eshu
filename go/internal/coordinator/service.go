@@ -69,12 +69,6 @@ type ScannerWorkerPlanner interface {
 	PlanScannerWorkerWork(context.Context, ScannerWorkerPlanRequest) (workflow.Run, []workflow.WorkItem, error)
 }
 
-// SecurityAlertPlanner plans provider security-alert workflow rows from
-// collector instance configuration.
-type SecurityAlertPlanner interface {
-	PlanSecurityAlertWork(context.Context, SecurityAlertPlanRequest) (workflow.Run, []workflow.WorkItem, error)
-}
-
 // PagerDutyPlanner plans PagerDuty incident evidence workflow rows from
 // collector instance configuration.
 type PagerDutyPlanner interface {

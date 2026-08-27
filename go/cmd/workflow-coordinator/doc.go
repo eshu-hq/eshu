@@ -10,7 +10,8 @@
 // version and exits before runtime setup. Otherwise the binary boots OTEL
 // telemetry, opens Postgres, builds coordinator.Service
 // from the configured workflow store, governance audit sink, metrics, and
-// provider-family planners (including the extracted cicdrun planner), and
+// provider-family planners (including the extracted cicdrun and securityalert
+// planners), and
 // hosts it through app.NewHostedWithStatusServer so it exposes the shared `/healthz`,
 // `/readyz`, `/metrics`, and `/admin/status` admin surface. Deployment mode
 // (dark by default, active when the deployment knobs documented in the

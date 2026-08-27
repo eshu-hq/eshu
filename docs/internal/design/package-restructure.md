@@ -222,8 +222,12 @@ lives in dependency-neutral `internal/coordinator/plannercontract`. The CI/CD
 run scheduler now demonstrates the first provider extraction under
 `internal/coordinator/cicdrun`: the child owns its request and planner while
 root keeps the structural interface, scheduling order, durable open-target
-admission, retry, and telemetry. Terraform-state keeps its separate plan-key
-validator, and the root `firstNonBlank` helper remains outside this boundary.
+admission, retry, and telemetry. The provider security-alert scheduler is the
+second extraction under `internal/coordinator/securityalert`: the child owns
+its request and planner while root keeps the same scheduling, plan-key,
+admission, retry, and telemetry responsibilities. Terraform-state keeps its
+separate plan-key validator, and the root `firstNonBlank` helper remains
+outside this boundary.
 
 **mcp (338):** two layers. Registration (`tools_<domain>.go`, 43
 constructors, zero lateral calls) moves cleanly. Routing is the tangle:
