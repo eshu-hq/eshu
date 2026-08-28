@@ -7,7 +7,6 @@ import (
 	"fmt"
 	"path/filepath"
 
-	"github.com/eshu-hq/eshu/go/internal/environment"
 	"github.com/eshu-hq/eshu/go/internal/ifa"
 	"github.com/eshu-hq/eshu/go/internal/reducer"
 )
@@ -114,11 +113,16 @@ func resolveKubernetesNamespaceEnvironmentMaterializedEdges(odu ifa.Odu, expecte
 //
 // target_entity_id is the Environment node's NAME, not a uid: the template
 // MERGEs `(env:Environment {name: row.environment})`, so name is this label's
-// canonical identity. environment.Canonical is applied again, over the value
-// the extractor already canonicalized, so a regression that stopped
-// canonicalizing (leaving a raw "production" where the graph carries "prod")
-// still fails -- the fixture's target is the canonical form, and re-canonicalizing
-// an already-canonical value is a no-op.
+// canonical identity, and row["environment"] is passed through VERBATIM.
+//
+// Re-canonicalizing it here would be a false green, and this is not
+// hypothetical -- an earlier version of this function called
+// environment.Canonical on the row value, and a mutation that made
+// namespaceEnvironmentFromLabels return the raw normalized token instead of
+// the canonical one (leaving "production" where the graph would carry "prod")
+// left the guard GREEN. The guard would have been repairing, inside itself,
+// the exact drift it exists to report. Whatever the extractor puts on the row
+// is what the writer MERGEs, so that is what gets compared.
 //
 // generation_id, cluster_id and the source_* provenance columns are
 // deliberately not asserted: they are node properties this template SETs on the
@@ -136,7 +140,7 @@ func kubernetesNamespaceRowsToExpectedEdges(rows []map[string]any) []ExpectedEdg
 		edge := ExpectedEdge{
 			RelationshipType: kubernetesNamespaceEnvironmentRelationshipType,
 			SourceEntityID:   anyToStringValue(row["uid"]),
-			TargetEntityID:   environment.Canonical(environmentName),
+			TargetEntityID:   environmentName,
 		}
 		if evidenceClass := anyToStringValue(row["evidence_class"]); evidenceClass != "" {
 			edge.Properties = map[string]string{"evidence_class": evidenceClass}
