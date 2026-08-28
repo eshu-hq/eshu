@@ -174,7 +174,7 @@ func TestNornicDBGraphSearchSplitDesignTracksImplementedStabilization(t *testing
 	normalizedDocs := strings.Join(strings.Fields(docs), " ")
 	for _, want := range []string{
 		"Phase-1 stabilization status:",
-		"Helm pins NornicDB `v1.1.11`; Compose temporarily pins the exact orneryd/NornicDB#290 source commit",
+		"Helm pins NornicDB `v1.2.3` by digest; Compose temporarily pins the exact orneryd/NornicDB#290 source commit",
 		"Runtime contract tests enforce the graph-only NornicDB controls",
 	} {
 		if !strings.Contains(normalizedDocs, want) {
