@@ -250,6 +250,22 @@ func sqlBlastRadiusProbes(prefix string) []sqlBlastRadiusProbe {
 	}
 }
 
+// sqlBlastRadiusFailer is the part of *testing.T that the cleanup helper
+// reports through. It carries Logf alongside Errorf deliberately: this helper's
+// whole bug history is that it logged where it should have failed, so a
+// recorder able to observe only Errorf could not tell a downgrade back to
+// logging apart from the call being deleted outright.
+type sqlBlastRadiusFailer interface {
+	Errorf(format string, args ...any)
+	Logf(format string, args ...any)
+}
+
+// sqlBlastRadiusRunner executes one cleanup statement against the graph.
+// (*Neo4jReader).Run satisfies it, and so does a stub -- which is the only way
+// to reach the delete-error, read-back-error, and leftover-rows paths without a
+// live NornicDB.
+type sqlBlastRadiusRunner func(ctx context.Context, cypher string, params map[string]any) ([]map[string]any, error)
+
 // sqlBlastRadiusCleanup deletes every node a prefix's fixtures created plus the
 // shared table they converge on, and FAILS the test when a delete errors or
 // leaves anything behind. It runs on its own context because the test's context
@@ -269,21 +285,35 @@ func sqlBlastRadiusCleanup(t *testing.T, reader *Neo4jReader, prefix string) {
 	t.Helper()
 	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
 	defer cancel()
+	sqlBlastRadiusCleanupWith(ctx, t, reader.Run, prefix)
+}
+
+// sqlBlastRadiusCleanupWith is the body of sqlBlastRadiusCleanup with the
+// failure handle and the graph runner passed in. The live caller above hands it
+// *testing.T and (*Neo4jReader).Run, so the function the gate executes and the
+// function TestSQLBlastRadiusCleanupReportsEveryFailure covers are the same
+// one, not a copy of it.
+//
+// The seam exists because a real backend does not fail on demand. Without it
+// the three reporting decisions below could only be exercised by a live run,
+// which is how a downgrade from Errorf to Logf sat here undetected by every
+// test that runs without a backend.
+func sqlBlastRadiusCleanupWith(ctx context.Context, failer sqlBlastRadiusFailer, run sqlBlastRadiusRunner, prefix string) {
 	for _, probe := range sqlBlastRadiusProbes(prefix) {
-		if _, err := reader.Run(ctx, probe.delete, nil); err != nil {
-			t.Errorf("cleanup of %s failed: %v -- fixtures are left in the graph this gate "+
+		if _, err := run(ctx, probe.delete, nil); err != nil {
+			failer.Errorf("cleanup of %s failed: %v -- fixtures are left in the graph this gate "+
 				"shares with the replay tier's exact node and edge assertions (%s)",
 				probe.what, err, probe.delete)
 			continue
 		}
-		rows, err := reader.Run(ctx, probe.verify, nil)
+		rows, err := run(ctx, probe.verify, nil)
 		if err != nil {
-			t.Errorf("cleanup of %s could not be confirmed: %v -- the delete reported success "+
+			failer.Errorf("cleanup of %s could not be confirmed: %v -- the delete reported success "+
 				"but the graph was never read back (%s)", probe.what, err, probe.verify)
 			continue
 		}
 		if len(rows) > 0 {
-			t.Errorf("cleanup of %s left %v behind -- the delete reported success and the "+
+			failer.Errorf("cleanup of %s left %v behind -- the delete reported success and the "+
 				"fixtures are still there, which is the #6182 leak reached by another route",
 				probe.what, sqlBlastRadiusLeftovers(rows))
 		}
