@@ -8,7 +8,7 @@ of truth mapping a changed path to the local and CI checks it requires. See
 and `make prove` select from this table, and
 [Local Testing](local-testing.md) for the full verification map.
 
-The registry currently defines 105 gates. Local execution runs the primary
+The registry currently defines 106 gates. Local execution runs the primary
 command first, then a distinct self-test when one is registered; byte-identical
 pairs run once. A row with no primary local command is
 CI-only (it needs a credential, a service container, or hosted infrastructure
@@ -34,6 +34,7 @@ Advisory rows remain visible but do not block merge.
 | `go-vet` | Go vet | hygiene | pre-push | true | `cd go && go vet ./...` | test.yml / go-core | 1 path(s): go/** |
 | `go-file-cap` | Go 500-line file cap | hygiene | pre-commit | true | `bash scripts/dev/precommit-go.sh filecap-all`<br>then self-test: `bash scripts/test-precommit-go-filecap.sh && cd tools/golangci-lint-filelength && env -u GOROOT go test -count=1 .` | test.yml / go-core | 5 path(s): go/**, scripts/dev/precommit-go.sh, scripts/test-precommit-go-filecap.sh, … |
 | `go-dir-gate` | Go directory-size and naming gate | hygiene | pre-commit | true | `bash scripts/dev/precommit-go.sh dirgate-all`<br>then self-test: `bash scripts/test-verify-dirgate.sh && bash scripts/test-generate-dirgate-grandfather-go.sh` | test.yml / go-core | 8 path(s): go/**, scripts/dev/precommit-go.sh, scripts/verify-dirgate.sh, … |
+| `markdown-file-cap` | Markdown 500-line file cap (go/) | hygiene | pre-commit | true | `bash scripts/verify-markdown-line-cap.sh --all`<br>then self-test: `bash scripts/test-verify-markdown-line-cap.sh` | test.yml / verify-contracts | 4 path(s): go/**/*.md, scripts/verify-markdown-line-cap.sh, scripts/test-verify-markdown-line-cap.sh, … |
 | `package-docs` | Go package docs coverage | hygiene | pre-pr | true | `bash scripts/verify-package-docs.sh`<br>then self-test: `bash scripts/test-verify-package-docs.sh` | test.yml / verify-contracts | 3 path(s): go/**, scripts/test-verify-package-docs.sh, scripts/verify-package-docs.sh |
 | `agent-canon` | Agent canon check | hygiene | pre-pr | true | `bash scripts/verify-agent-canon.sh`<br>then self-test: `bash scripts/test-verify-agent-hygiene.sh && bash scripts/test-agent-hooks.sh` | verify-agent-hygiene.yml / Agent hygiene gate | 12 path(s): go/**, .agents/**, .claude/skills/**, … |
 | `no-diff-fragments` | No diff fragments or conflict markers in source | hygiene | pre-commit | true | `bash scripts/verify-no-diff-fragments.sh`<br>then self-test: `bash scripts/test-verify-no-diff-fragments.sh` | verify-agent-hygiene.yml / Agent hygiene gate | 1 path(s): ** |

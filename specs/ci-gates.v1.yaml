@@ -185,6 +185,36 @@ gates:
     ci_only_reason: ""
     hook_id: go-dir-gate
 
+  - id: markdown-file-cap
+    name: Markdown 500-line file cap (go/)
+    category: hygiene
+    tier: pre-commit
+    blocking: true
+    triggers:
+      - "go/**/*.md"
+      - "scripts/verify-markdown-line-cap.sh"
+      - "scripts/test-verify-markdown-line-cap.sh"
+      # Glob, for the reason go-dir-gate globs its own lib files: the core
+      # implementation, the pinned ledger, and the two case files the test
+      # mirror sources all live under scripts/lib/ and all belong to this
+      # gate. Listing them individually is what let the dirgate ledgers fall
+      # out of their own gate's trigger list twice (#6054 review finding); a
+      # glob cannot drift as files are added.
+      - "scripts/lib/*markdown-line-cap*"
+    local:
+      command: "bash scripts/verify-markdown-line-cap.sh --all"
+      test_command: "bash scripts/test-verify-markdown-line-cap.sh"
+    ci:
+      workflow: test.yml
+      job: "verify-contracts"
+    # No `go` requirement, unlike go-file-cap and go-dir-gate: this gate is
+    # pure bash plus `git ls-files`. The Go cap needs a toolchain because its
+    # CI half is a golangci-lint plugin; Markdown has no such plugin, which is
+    # exactly why #6187 needed a separate checker rather than a setting.
+    requirements: []
+    ci_only_reason: ""
+    hook_id: markdown-file-cap
+
   - id: package-docs
     name: Go package docs coverage
     category: hygiene

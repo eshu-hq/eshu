@@ -1,0 +1,91 @@
+# Line-count-pinned grandfather ledger for the Markdown 500-line file cap
+# under go/ (issue #6187), the Markdown sibling of
+# scripts/lib/dirgate-grandfather.tsv: a closed list of the .md files that
+# already exceeded the cap when the gate landed, so the gate lands green on
+# today's tree and new or growing files fail immediately.
+#
+# This file is the single source of truth for the cap check.
+# scripts/lib/markdown-line-cap-core.sh reads it directly -- there is no
+# generated Go mirror the way dirgate has one, because the Go cap is enforced
+# by a golangci-lint plugin that walks the Go AST and cannot see a .md file at
+# all. Nothing regenerates this file; edit it by hand, using
+# `bash scripts/verify-markdown-line-cap.sh --pin <path>` to measure the row.
+#
+# "Closed list" is enforced, not merely intended. The gate compares this file
+# against its committed baseline (MARKDOWN_LINE_CAP_BASE_REF, default
+# origin/main), and accepts only two edits: REMOVING a row, or LOWERING a pin.
+# Adding a row, or raising one, is refused -- otherwise a change could add an
+# over-cap file together with the row exempting it and satisfy every check,
+# which is exactly what it did before #6279. If you are here to add a row for a
+# new file, that is the case this refuses: split the file by audience instead.
+#
+# Columns (tab-separated): path<TAB>line_count
+#   path       - repo-root-relative path of the Markdown file.
+#   line_count - the file's exact line count (awk NR, which counts a final
+#                unterminated line that `wc -l` would miss) at the commit
+#                this row was pinned.
+#
+# The rule the pin is checked with is `live <= line_count`, NOT dirgate's
+# `live == file_count`. A count match is not a pin match, and the two ledgers
+# deliberately assert different things:
+#
+#   - A file whose live count EXCEEDS line_count FAILS. Pinning the number
+#     rather than allowlisting the filename is the entire point: a bare
+#     filename allowlist would let go/internal/storage/postgres/README.md
+#     drift from 3766 lines to 5000 without a gate ever going red. Between
+#     the #6187 census and this commit four of these files had already grown
+#     -- reducer/AGENTS.md by 6 lines, storage/cypher/README.md by 86,
+#     query/README.md by 4, query/evidence-notes.md by 38 -- which is the
+#     drift this column measures.
+#   - A file whose live count is BELOW line_count passes, and the gate prints
+#     a non-fatal NOTE asking for a re-pin. dirgate hard-fails a shrink to
+#     force its ratchet down; that is right for a ledger whose rows move when
+#     FILES move, and wrong here. Markdown shrinks a line at a time on
+#     ordinary prose edits, and requiring a re-pin for each one would make
+#     every documentation edit under go/ re-touch this one shared file, which
+#     serialises documentation edits against each other -- the exact cost
+#     #6187 warned a second dirgate-shaped ledger would carry. The bounded
+#     price of the softer rule: a file that shrinks to 600 lines may regrow
+#     to its pin before failing. It can never exceed the pin.
+#
+# There is deliberately NO content digest column. A digest would fail on
+# every edit that leaves the line count alone -- most edits -- and would add
+# no protection against the growth this gate measures.
+#
+# A row is STALE, and the gate hard-fails on it, once its file no longer
+# exists or has been brought to 500 lines or fewer. The change that splits a
+# file deletes its row in the same commit; the list only shrinks.
+#
+# What a good split looks like, so this gate teaches rather than only blocks:
+# these are three documents with three audiences, and the repo already names
+# them (docs/internal/agent-guide.md, "Documentation Workflow"). doc.go is
+# the godoc contract, README.md is human architecture and operational
+# context, AGENTS.md is scoped agent instruction. An over-long README.md is
+# usually carrying material that belongs in one of the other two, or in a
+# topic-scoped sibling (see go/internal/query/read-models.md, or the
+# evidence-notes.md files below). Cut along that boundary. Do not cut at
+# whichever line brings the number under 500.
+#
+# Pinned at 5570de3454a942449a339168041fd87c215e7fa1 with
+# `bash scripts/verify-markdown-line-cap.sh --pin <path>`.
+#
+go/cmd/bootstrap-index/README.md	568
+go/cmd/ingester/README.md	690
+go/internal/cigates/AGENTS.md	513
+go/internal/collector/terraformstate/README.md	501
+go/internal/coordinator/README.md	722
+go/internal/mcp/README.md	666
+go/internal/parser/README.md	901
+go/internal/projector/README.md	797
+go/internal/query/README.md	1418
+go/internal/query/evidence-notes.md	1197
+go/internal/query/read-models.md	805
+go/internal/reducer/AGENTS.md	2407
+go/internal/reducer/evidence-notes.md	804
+go/internal/relationships/README.md	532
+go/internal/storage/cypher/README.md	2124
+go/internal/storage/postgres/AGENTS.md	1172
+go/internal/storage/postgres/README.md	3766
+go/internal/storage/postgres/evidence-notes.md	1032
+go/internal/telemetry/README.md	558
+go/internal/workflow/README.md	518
