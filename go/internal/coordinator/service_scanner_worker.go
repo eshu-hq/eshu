@@ -9,9 +9,19 @@ import (
 	"strings"
 	"time"
 
+	"github.com/eshu-hq/eshu/go/internal/coordinator/scannerworker"
 	"github.com/eshu-hq/eshu/go/internal/scope"
 	"github.com/eshu-hq/eshu/go/internal/workflow"
 )
+
+// ScannerWorkerPlanner plans scanner-worker workflow rows from collector
+// instance configuration.
+type ScannerWorkerPlanner interface {
+	PlanScannerWorkerWork(
+		context.Context,
+		scannerworker.PlanRequest,
+	) (workflow.Run, []workflow.WorkItem, error)
+}
 
 func (s Service) scheduleScannerWorkerWork(
 	ctx context.Context,
@@ -28,7 +38,7 @@ func (s Service) scheduleScannerWorkerWork(
 		if s.ScannerWorkerPlanner == nil {
 			return fmt.Errorf("scanner-worker planner is required for active scanner_worker collectors")
 		}
-		run, items, err := s.ScannerWorkerPlanner.PlanScannerWorkerWork(ctx, ScannerWorkerPlanRequest{
+		run, items, err := s.ScannerWorkerPlanner.PlanScannerWorkerWork(ctx, scannerworker.PlanRequest{
 			Instance:   instance,
 			ObservedAt: observedAt,
 			PlanKey:    s.scannerWorkerPlanKey(instance, observedAt),

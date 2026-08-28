@@ -8,22 +8,79 @@ import (
 	"testing"
 	"time"
 
+	"github.com/eshu-hq/eshu/go/internal/coordinator/scannerworker"
 	"github.com/eshu-hq/eshu/go/internal/scope"
 	"github.com/eshu-hq/eshu/go/internal/workflow"
 )
 
 type fakeScannerWorkerPlanner struct {
-	requests []ScannerWorkerPlanRequest
+	requests []scannerworker.PlanRequest
 	run      workflow.Run
 	items    []workflow.WorkItem
 }
 
 func (f *fakeScannerWorkerPlanner) PlanScannerWorkerWork(
 	_ context.Context,
-	request ScannerWorkerPlanRequest,
+	request scannerworker.PlanRequest,
 ) (workflow.Run, []workflow.WorkItem, error) {
 	f.requests = append(f.requests, request)
 	return f.run, append([]workflow.WorkItem(nil), f.items...), nil
+}
+
+func TestScheduleScannerWorkerWorkPassesExactPlanRequest(t *testing.T) {
+	t.Parallel()
+
+	observedAt := time.Date(2026, time.June, 4, 14, 7, 12, 0, time.FixedZone("test-offset", -7*60*60))
+	tests := []struct {
+		name        string
+		bootstrap   bool
+		wantPlanKey string
+	}{
+		{name: "schedule", wantPlanKey: "continuous-20260604T210000Z"},
+		{name: "bootstrap", bootstrap: true, wantPlanKey: "bootstrap"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			instance := workflow.CollectorInstance{
+				InstanceID:     "scanner-worker-boundary-" + tt.name,
+				CollectorKind:  scope.CollectorScannerWorker,
+				Mode:           workflow.CollectorModeContinuous,
+				Enabled:        true,
+				Bootstrap:      tt.bootstrap,
+				ClaimsEnabled:  true,
+				Configuration:  `{"analyzer":"sbom_generation","sbom_targets":[{"scope_id":"scanner-worker://repository/boundary","root_path":"/fixtures"}]}`,
+				LastObservedAt: observedAt,
+				CreatedAt:      observedAt,
+				UpdatedAt:      observedAt,
+			}
+			planner := &fakeScannerWorkerPlanner{}
+			service := Service{
+				Config: Config{
+					DeploymentMode:    deploymentModeActive,
+					ClaimsEnabled:     true,
+					ReconcileInterval: time.Hour,
+				},
+				ScannerWorkerPlanner: planner,
+			}
+
+			if err := service.scheduleScannerWorkerWork(context.Background(), observedAt, []workflow.CollectorInstance{instance}); err != nil {
+				t.Fatalf("scheduleScannerWorkerWork() error = %v, want nil", err)
+			}
+			if got, want := len(planner.requests), 1; got != want {
+				t.Fatalf("planner requests = %d, want %d", got, want)
+			}
+			want := scannerworker.PlanRequest{
+				Instance:   instance,
+				ObservedAt: observedAt,
+				PlanKey:    tt.wantPlanKey,
+			}
+			if got := planner.requests[0]; got != want {
+				t.Fatalf("planner request = %#v, want %#v", got, want)
+			}
+		})
+	}
 }
 
 func TestServiceRunActiveModeSchedulesScannerWorkerWork(t *testing.T) {

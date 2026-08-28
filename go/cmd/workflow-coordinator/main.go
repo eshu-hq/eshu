@@ -22,6 +22,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/coordinator/cicdrun"
 	"github.com/eshu-hq/eshu/go/internal/coordinator/lokiplanner"
 	"github.com/eshu-hq/eshu/go/internal/coordinator/sbomattestation"
+	"github.com/eshu-hq/eshu/go/internal/coordinator/scannerworker"
 	"github.com/eshu-hq/eshu/go/internal/coordinator/securityalert"
 	"github.com/eshu-hq/eshu/go/internal/coordinator/tempoplanner"
 	coordinatorvaultlive "github.com/eshu-hq/eshu/go/internal/coordinator/vaultlive"
@@ -177,7 +178,7 @@ func run(parent context.Context) error {
 		PackageRegistryPlanner:            coordinator.PackageRegistryWorkPlanner{},
 		VulnerabilityIntelligencePlanner:  coordinator.VulnerabilityIntelligenceWorkPlanner{},
 		SBOMAttestationPlanner:            sbomattestation.WorkPlanner{},
-		ScannerWorkerPlanner:              coordinator.ScannerWorkerWorkPlanner{},
+		ScannerWorkerPlanner:              scannerworker.WorkPlanner{},
 		SecurityAlertPlanner:              securityalert.WorkPlanner{},
 		CICDRunPlanner:                    cicdrun.WorkPlanner{},
 		PagerDutyPlanner:                  coordinator.PagerDutyWorkPlanner{},

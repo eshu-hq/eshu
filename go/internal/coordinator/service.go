@@ -57,12 +57,6 @@ type VulnerabilityIntelligencePlanner interface {
 	PlanVulnerabilityIntelligenceWork(context.Context, VulnerabilityIntelligencePlanRequest) (workflow.Run, []workflow.WorkItem, error)
 }
 
-// ScannerWorkerPlanner plans scanner-worker workflow rows from collector
-// instance configuration.
-type ScannerWorkerPlanner interface {
-	PlanScannerWorkerWork(context.Context, ScannerWorkerPlanRequest) (workflow.Run, []workflow.WorkItem, error)
-}
-
 // PagerDutyPlanner plans PagerDuty incident evidence workflow rows from
 // collector instance configuration.
 type PagerDutyPlanner interface {

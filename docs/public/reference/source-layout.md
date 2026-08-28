@@ -21,6 +21,7 @@ live in the repository today.
 | `go/internal/coordinator/cicdrun/` | CI/CD run scheduler request validation and deterministic workflow planning |
 | `go/internal/coordinator/lokiplanner/` | Grafana Loki scheduler request validation, target filtering, and deterministic workflow planning |
 | `go/internal/coordinator/plannercontract/` | dependency-neutral scheduler plan-key validation |
+| `go/internal/coordinator/scannerworker/` | scanner-worker scheduler configuration validation, requested-scope privacy, and deterministic workflow planning |
 | `go/internal/coordinator/securityalert/` | provider security-alert scheduler request validation and deterministic workflow planning |
 | `go/internal/coordinator/sbomattestation/` | hosted SBOM and attestation scheduler request validation and deterministic workflow planning |
 | `go/internal/coordinator/tempoplanner/` | Grafana Tempo scheduler request validation, target filtering, and deterministic workflow planning |

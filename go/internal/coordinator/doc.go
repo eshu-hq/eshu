@@ -58,7 +58,8 @@
 // fairness key. The coordinator's Postgres open-target admission prevents
 // overlapping scheduled work. GCPWorkPlanner plans one
 // bounded Cloud Asset Inventory work item per enabled GCP scope after explicit
-// live opt-in. ScannerWorkerWorkPlanner plans explicit scanner-worker source
+// live opt-in. The root ScannerWorkerPlanner interface accepts the child
+// scannerworker.PlanRequest; the child plans explicit scanner-worker source
 // evidence targets so a healthy worker must still have claimable work before a
 // proof can count source evidence. AWSScheduledWorkPlanner and
 // AWSFreshnessWorkPlanner plan ordinary AWS collector work from configured

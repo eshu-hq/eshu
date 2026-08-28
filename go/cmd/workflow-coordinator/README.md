@@ -58,9 +58,9 @@ flowchart TB
    connection through an instrumented `governance_audit` store and ensures the
    private audit sink schema exists.
 6. `coordinator.Service` is wired with all dependencies, including
-   Terraform-state, OCI registry, package registry, scanner-worker, vulnerability
-   installed advisory target readers, the extracted `cicdrun`,
-   `securityalert`, `sbomattestation`, `lokiplanner`, `tempoplanner`, and
+   Terraform-state, OCI registry, package registry, vulnerability installed
+   advisory target readers, the extracted `cicdrun`, `securityalert`,
+   `sbomattestation`, `scannerworker`, `lokiplanner`, `tempoplanner`, and
    `vaultlive` planners,
    scheduled AWS, AWS freshness,
    PagerDuty, and Jira planners, plus freshness trigger stores, and handed to
