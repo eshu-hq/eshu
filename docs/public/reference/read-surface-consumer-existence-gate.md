@@ -30,10 +30,11 @@ label to a live artifact:
   `ReadOnlyTools()`. Six of the nine labels are literal MCP dispatch case
   strings (`dispatch.go`/`dispatch_impact.go`) and are also registered tool
   names, so the ref equals the label. `list_relationship_edges` is a seventh
-  label that equals its tool name directly, routed through its own dispatch
-  function (`dispatch_relationship_edges.go`) rather than the shared
-  case-string switch. `entity_context` aliases to the `get_entity_context`
-  tool.
+  label that equals its tool name directly; `relationshiptools.EdgeRoute` owns
+  its family claim and request selection, and the thin root adapter in
+  `dispatch_relationship_edges.go` copies that request into the global dispatch
+  fanout rather than using the shared case-string switch. `entity_context`
+  aliases to the `get_entity_context` tool.
 - **`go_symbol`** — `content_relationships` aliases to the unexported
   `query.buildContentRelationshipSet` symbol. `query.ReadSurfaceGoSymbolBackings`
   (`go/internal/query/content_relationships_read_surface_backing.go`) holds a

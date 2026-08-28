@@ -5,8 +5,11 @@
 1. `README.md` and `doc.go` in this directory.
 2. `../AGENTS.md` for route resolution, HTTP dispatch, and transport rules.
 3. `../dispatch.go` for the root route shape and dispatch path.
-4. `../dispatch_relationships.go` for the first root adapter.
-5. The owning domain route and its tests before changing an argument method.
+4. `../relationships/code_routes.go` and `../relationships/edge_routes.go` for
+   the first family selectors.
+5. `../dispatch_relationships.go` and `../dispatch_relationship_edges.go` for
+   their root fanout adapters.
+6. The owning domain route and its tests before changing an argument method.
 
 ## Invariants
 
@@ -16,7 +19,8 @@
   `Arguments` method. Domain routers rely on those coercions for wire
   compatibility.
 - Keep `Request` limited to method, path, body, and query data.
-- Route membership and execution remain outside this package.
+- Tool names, family membership, route-selection policy, global fanout,
+  adapters, and execution remain outside this package.
 
 ## Common changes
 

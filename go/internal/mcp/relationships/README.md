@@ -1,16 +1,19 @@
-# MCP relationship registrations
+# MCP relationship registrations and route selection
 
 ## Purpose
 
-This package owns the MCP definitions for code-relationship stories, code-
-relationship analysis, and bounded relationship-edge listing.
+This package owns the MCP definitions and dependency-neutral route selection
+for code-relationship stories, code-relationship analysis, and bounded
+relationship-edge listing.
 
 ## Ownership boundary
 
-This package owns registration data only. `internal/mcp` retains global
-positions, route resolution, HTTP dispatch, authorization, response envelopes,
-and transport telemetry. `internal/query` owns relationship validation, graph
-reads, bounds, and response shaping.
+This package owns registration data and the pure family selectors that decide
+whether a tool belongs to the relationship family and convert decoded arguments
+into `routecontract.Request` values. `internal/mcp` retains global fanout order,
+root route adapters, HTTP dispatch, authorization, transport, timeouts, response
+budgets, response envelopes, and telemetry. `internal/query` owns relationship
+validation, graph reads, bounds, and response shaping.
 
 ## Exported surface
 
@@ -19,6 +22,8 @@ reads, bounds, and response shaping.
 - `AnalyzeCodeRelationshipsSchema` returns the canonical analysis schema
   without requiring callers to inspect the ordered tool registry.
 - `Tool` returns the `list_relationship_edges` definition.
+- `CodeRoute` selects code-story and code-analysis requests.
+- `EdgeRoute` selects bounded relationship-edge requests.
 
 See `doc.go` for the godoc contract.
 
@@ -26,15 +31,17 @@ See `doc.go` for the godoc contract.
 
 - `internal/mcp/toolcontract` owns the dependency-neutral `ToolDefinition`
   shape returned by both constructors.
+- `internal/mcp/routecontract` owns the dependency-neutral decoded-argument and
+  selected-request values used by both route selectors.
 - `internal/sourcetool` owns the canonical closed vocabulary advertised by the
   optional `source_tool` field.
 
 ## Telemetry
 
-None. Registration only constructs in-memory data. The parent MCP package keeps
-transport and dispatch signals, while the relationship HTTP handlers retain
-`eshu_dp_api_request_duration_seconds` and
-`eshu_dp_api_request_errors_total`.
+None. Registration constructs in-memory data and route selection constructs an
+in-memory request value. The parent MCP package keeps dispatch and transport
+signals, while the relationship HTTP handlers retain
+`eshu_dp_api_request_duration_seconds` and `eshu_dp_api_request_errors_total`.
 
 ## Gotchas / invariants
 
@@ -49,12 +56,14 @@ transport and dispatch signals, while the relationship HTTP handlers retain
 - The root registry keeps `list_relationship_edges` at position 161 of 162,
   after `ask` and before `list_repository_files`.
 - Keep the `source_tool` enum aligned with `sourcetool.Canonical`.
-- Keep routing, graph reads, query execution, authorization, and telemetry out
-  of this package.
+- Keep global fanout order, request execution, graph reads, query execution,
+  authorization, transport, timeout, budget, envelope, and telemetry behavior
+  out of this package.
 
-No-Observability-Change: these extraction moves do not change routing,
-dispatch, authorization, graph reads, query execution, response shaping, or
-telemetry.
+No-Observability-Change: these selectors preserve the existing selected method,
+path, body, and query values. Root dispatch, authorization, timeouts, response
+budgets, envelopes, transport, and telemetry remain unchanged, as do query
+validation, graph reads, and response shaping.
 
 ## Related docs
 

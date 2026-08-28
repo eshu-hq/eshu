@@ -7,10 +7,12 @@ HTTP request without importing the parent MCP package.
 
 ## Ownership boundary
 
-This package owns decoded argument access and the selected request value. The
-root `internal/mcp` package still owns route membership, request dispatch,
-authorization forwarding, response envelopes, transport behavior, and
-telemetry. Domain packages own their route-selection logic after it moves.
+This package owns decoded argument access and the selected request value. It
+does not own tool names, family membership, or route-selection policy. Family
+packages such as `internal/mcp/relationships` own those decisions. The root
+`internal/mcp` package still owns global route fanout, family adapters, request dispatch,
+authorization forwarding, timeouts, response budgets, response envelopes,
+transport behavior, and telemetry.
 
 ## Exported surface
 

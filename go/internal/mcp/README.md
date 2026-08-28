@@ -21,8 +21,12 @@ refs, and deterministic/provider-gated/optional-semantic truth profiles.
 
 The dependency-neutral `toolcontract` and `routecontract` child packages own the
 tool-definition and internal-request value shapes. `mcp.ToolDefinition` remains
-an alias for source compatibility. Ordered registration, route membership,
-dispatch, transport, and authorization stay in root. The `documentation` child package
+an alias for source compatibility. Ordered registration, global route
+membership, family adapters, dispatch, transport, authorization, timeouts,
+response budgets, envelopes, and telemetry stay in root. The `relationships`
+child package owns both its registrations and its pure, dependency-neutral
+family route selection; `internal/query` retains validation and graph reads.
+The `documentation` child package
 owns the six documentation registration definitions; documentation routing
 stays here. The `cloud` child package owns the cloud inventory and runtime-drift
 registration definitions; cloud routing also stays here. The `visualization`
