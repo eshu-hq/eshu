@@ -11,6 +11,13 @@
 #   scripts/verify-markdown-line-cap.sh --files <f> [f...]  changed files
 #   scripts/verify-markdown-line-cap.sh --pin <path>        print a ledger row
 #
+# MARKDOWN_LINE_CAP_REQUIRE_BASE=1 turns the ledger-growth check's "could not
+# resolve a baseline" report from a NOTE into a failure. CI sets it (see
+# test.yml's "Verify Markdown file cap" step) because a checkout that cannot
+# reach its baseline has no anti-self-exemption backstop at all, and exiting 0
+# there reads exactly like a pass. Local runs leave it unset, so a clone with
+# no origin remote still gets every other check.
+#
 # MARKDOWN_LINE_CAP_REPO_ROOT and MARKDOWN_LINE_CAP_TSV let
 # scripts/test-verify-markdown-line-cap.sh point this script at an isolated
 # scratch tree and ledger, so the BITES proof exercises this exact CLI entry

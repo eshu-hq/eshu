@@ -223,6 +223,46 @@ mdcap_verify_ledger() {
 	return "${exit_status}"
 }
 
+# mdcap_resolve_base_sha prints the commit SHA the growth check measures
+# against, FETCHING the ref first when this repository has no such ref yet.
+# Returns 1 with no output when the baseline cannot be resolved at all.
+#
+# The fetch is load-bearing, and its destination refspec doubly so. test.yml's
+# verify-contracts job -- the job that runs this gate -- checks out with
+# `fetch-depth: 2`, which leaves the clone with no refs/remotes/origin/main at
+# all. Without a fetch here, `rev-parse origin/main` failed, the growth check
+# printed its NOTE and returned 0, and the anti-self-exemption backstop was
+# silently absent while reading exactly like a pass. It resolved in CI only
+# because the earlier "Verify hot-path evidence" step runs
+# verify-performance-evidence.sh, whose own fetch populates the ref as a side
+# effect -- an undocumented ordering dependency that any step reorder breaks.
+#
+# `git fetch origin <branch>` with NO `<src>:<dst>` destination updates
+# FETCH_HEAD alone and never refs/remotes/origin/<branch>; that trap is what
+# scripts/lib/gate-diff-base.sh was written to hold, and the refspec below
+# mirrors its exactly.
+#
+# The fetch is attempted only after the ref fails to resolve locally, so an
+# ordinary local run costs nothing and touches the network never. It is also
+# skipped for any base ref that is not an `origin/<branch>` name -- a SHA or a
+# local ref names nothing fetchable, and every scratch fixture repo (no origin
+# remote at all) falls out here rather than waiting on git.
+mdcap_resolve_base_sha() {
+	local repo_root="$1" base_ref="$2" sha branch
+	if sha="$(git -C "${repo_root}" rev-parse --verify --quiet "${base_ref}^{commit}")"; then
+		printf '%s\n' "${sha}"
+		return 0
+	fi
+	case "${base_ref}" in
+		origin/*) branch="${base_ref#origin/}" ;;
+		*) return 1 ;;
+	esac
+	[[ -n "${branch}" ]] || return 1
+	git -C "${repo_root}" fetch --no-tags --depth=1 origin \
+		"${branch}:refs/remotes/origin/${branch}" >/dev/null 2>&1 || return 1
+	git -C "${repo_root}" rev-parse --verify --quiet "${base_ref}^{commit}"
+}
+
 # mdcap_verify_ledger_growth rejects a ledger that GREW against its committed
 # baseline. Every other check in this file reads the working tree alone, and
 # that is precisely the hole: a change may add a brand-new over-cap file
@@ -235,27 +275,40 @@ mdcap_verify_ledger() {
 # legitimate: removing a row, or lowering a pin. Adding a row, or raising one,
 # is new debt authorising itself, and is refused here.
 #
-# The baseline is the ledger as committed at MARKDOWN_LINE_CAP_BASE_REF
-# (default origin/main). Two cases are deliberately permissive:
+# The baseline is the ledger as committed at MARKDOWN_LINE_CAP_BASE_REF,
+# defaulting to origin/<the branch the PR targets> and to origin/main outside
+# CI. mdcap_resolve_base_sha fetches that ref when the checkout lacks it, so
+# the two permissive cases below are now the only ways the check declines to
+# run:
 #
-#   * the ref does not resolve -- a shallow clone, a detached worktree, or a
-#     fresh clone with no origin. The check reports that it could not run
-#     rather than failing the build on a repository shape it cannot read.
+#   * the ref does not resolve AND could not be fetched -- a clone with no
+#     origin remote, or an offline machine. The check reports that it could
+#     not run rather than failing on a repository shape it cannot read. Set
+#     MARKDOWN_LINE_CAP_REQUIRE_BASE=1 to turn that report into a failure;
+#     CI does, because in CI an unreadable baseline is a missing gate, not a
+#     local convenience.
 #   * the ledger does not exist at the baseline. That is the commit that
 #     introduces the ledger, whose rows ARE the initial baseline. Once it
 #     lands, the file exists in main and every later addition is measured.
 #
-# Pinned by test_new_ledger_row_is_rejected and test_raised_ledger_pin_is_rejected.
+# Pinned by test_new_ledger_row_is_rejected, test_raised_ledger_pin_is_rejected,
+# test_absent_baseline_ref_is_fetched, and
+# test_unresolvable_baseline_is_red_under_require_base.
 mdcap_verify_ledger_growth() {
 	local repo_root="$1"
-	local base_ref="${MARKDOWN_LINE_CAP_BASE_REF:-origin/main}"
+	local base_ref="${MARKDOWN_LINE_CAP_BASE_REF:-origin/${GITHUB_BASE_REF:-main}}"
 	local tsv_rel="${MARKDOWN_LINE_CAP_TSV_REL:-scripts/lib/markdown-line-cap-grandfather.tsv}"
 
 	[[ -f "${MARKDOWN_LINE_CAP_TSV}" ]] || return 0
 
 	local base_sha
-	if ! base_sha="$(git -C "${repo_root}" rev-parse --verify --quiet "${base_ref}^{commit}")"; then
-		printf '%s: NOTE ledger growth not checked -- %s does not resolve here, so there is no committed baseline to compare against\n' \
+	if ! base_sha="$(mdcap_resolve_base_sha "${repo_root}" "${base_ref}")"; then
+		if [[ "${MARKDOWN_LINE_CAP_REQUIRE_BASE:-}" == "1" ]]; then
+			printf '%s: NO BASELINE -- %s does not resolve and could not be fetched, so the ledger growth check could not run; MARKDOWN_LINE_CAP_REQUIRE_BASE=1 refuses to report a pass this gate never performed\n' \
+				"${MARKDOWN_LINE_CAP_NAME}" "${base_ref}" >&2
+			return 1
+		fi
+		printf '%s: NOTE ledger growth not checked -- %s does not resolve here and could not be fetched, so there is no committed baseline to compare against\n' \
 			"${MARKDOWN_LINE_CAP_NAME}" "${base_ref}" >&2
 		return 0
 	fi

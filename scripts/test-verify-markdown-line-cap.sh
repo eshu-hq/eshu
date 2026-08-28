@@ -165,6 +165,8 @@ main() {
 	test_raised_ledger_pin_is_rejected
 	test_lowered_ledger_pin_is_accepted
 	test_ledger_absent_at_baseline_is_accepted
+	test_absent_baseline_ref_is_fetched
+	test_unresolvable_baseline_is_red_under_require_base
 	test_leading_zero_ledger_pin_is_rejected
 
 	printf '\ntests passed: %d/%d\n' "${pass_count}" "$((pass_count + fail_count))"

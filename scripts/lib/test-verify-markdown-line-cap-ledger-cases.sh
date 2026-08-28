@@ -254,6 +254,70 @@ test_ledger_absent_at_baseline_is_accepted() {
 	rm -rf "${repo}"
 }
 
+# The false green codex found on #6279: test.yml's verify-contracts job checks
+# out with `fetch-depth: 2`, so the runner has no refs/remotes/origin/main and
+# the growth check resolved no baseline -- NOTE, exit 0, backstop gone, reads
+# like a pass. This builds exactly that shape: a clone whose remote-tracking
+# ref for the base branch has been deleted, carrying a self-authored ledger
+# row. The gate must fetch its own baseline and go red.
+test_absent_baseline_ref_is_fetched() {
+	local upstream clone tsv
+	upstream="$(new_scratch_repo)"
+	write_md_lines "${upstream}/go/internal/old/README.md" 600
+	printf '# scratch markdown-line-cap ledger\ngo/internal/old/README.md\t600\n' \
+		> "${upstream}/ledger.tsv"
+	git -C "${upstream}" add -A >/dev/null 2>&1
+	git -C "${upstream}" commit -q -m "baseline ledger" >/dev/null 2>&1
+	git -C "${upstream}" branch -M main >/dev/null 2>&1
+
+	clone="$(mktemp -d)/clone"
+	git clone -q "${upstream}" "${clone}" >/dev/null 2>&1
+	git -C "${clone}" config user.email "markdown-line-cap-test@example.invalid"
+	git -C "${clone}" config user.name "markdown-line-cap-test"
+	# The verify-contracts checkout shape: the base branch has no
+	# remote-tracking ref of its own.
+	git -C "${clone}" update-ref -d refs/remotes/origin/main >/dev/null 2>&1
+	git -C "${clone}" remote set-head origin -d >/dev/null 2>&1
+
+	write_md_lines "${clone}/go/internal/new/README.md" 501
+	tsv="${clone}/ledger.tsv"
+	printf '%s\t%s\n' "go/internal/new/README.md" "501" >> "${tsv}"
+
+	MARKDOWN_LINE_CAP_BASE_REF="origin/main" MARKDOWN_LINE_CAP_TSV_REL="ledger.tsv" \
+		run_mdcap "${clone}" "${tsv}" --all
+	assert_exit "${MDCAP_EXIT}" 1 "a missing base ref is fetched rather than skipped"
+	assert_contains "${MDCAP_OUT}" "NEW ledger row go/internal/new/README.md pinned at 501" \
+		"the fetched baseline still catches the self-authored row"
+	assert_not_contains "${MDCAP_OUT}" "ledger growth not checked" \
+		"the growth check does not report itself skipped once the ref is fetchable"
+	rm -rf "${upstream}" "${clone}"
+}
+
+# When the baseline genuinely cannot be reached -- no origin remote, or no
+# network -- a local run says so and carries on. CI passes
+# MARKDOWN_LINE_CAP_REQUIRE_BASE=1 instead, because a gate that could not run
+# is not a gate that passed, and a false green on this backstop is how a
+# change authorises its own exemption.
+test_unresolvable_baseline_is_red_under_require_base() {
+	local repo tsv
+	repo="$(new_scratch_repo)"
+	write_md_lines "${repo}/go/internal/thing/README.md" 600
+	tsv="$(write_ledger "${repo}" "go/internal/thing/README.md"$'\t'"600")"
+
+	MARKDOWN_LINE_CAP_BASE_REF="origin/main" MARKDOWN_LINE_CAP_TSV_REL="ledger.tsv" \
+		MARKDOWN_LINE_CAP_REQUIRE_BASE="1" run_mdcap "${repo}" "${tsv}" --all
+	assert_exit "${MDCAP_EXIT}" 1 "an unfetchable baseline fails under REQUIRE_BASE"
+	assert_contains "${MDCAP_OUT}" "NO BASELINE -- origin/main does not resolve" \
+		"the failure names the ref it could not reach"
+
+	MARKDOWN_LINE_CAP_BASE_REF="origin/main" MARKDOWN_LINE_CAP_TSV_REL="ledger.tsv" \
+		run_mdcap "${repo}" "${tsv}" --all
+	assert_exit "${MDCAP_EXIT}" 0 "the same repo stays green without REQUIRE_BASE"
+	assert_contains "${MDCAP_OUT}" "NOTE ledger growth not checked" \
+		"the local run says the check could not run"
+	rm -rf "${repo}"
+}
+
 # A digits-only pin is not enough: bash reads a leading zero as octal, so
 # "0900" aborts the comparison with "value too great for base". The abort makes
 # the arithmetic FALSE and, inside a negated condition, the growth goes
