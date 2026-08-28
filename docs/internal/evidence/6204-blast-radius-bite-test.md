@@ -109,6 +109,16 @@ compile and vet clean, and every non-live test in the package passes, but no
 run has yet executed them against a backend. The three extra reads per cleanup
 call are bounded (`LIMIT 5`, no aggregate) and the timings above predate them.
 
+What no test without a backend catches is the reporting call itself. Downgrading
+`t.Errorf` back to `t.Logf` on the leftover branch (1 substitution, `go vet` exit
+0, so the mutated tree really compiled) still leaves
+`go test ./internal/query/ -count=1` at exit 0, because
+`TestSQLBlastRadiusCleanupVerifiesEveryDelete` reads the probe table and never
+runs the cleanup loop. Two mutations it does catch, both exit 1: dropping a
+probe's verify query, and pointing a verify at a different prefix than its
+delete. The delete/verify pairing is guarded without a backend. The `t.Errorf`
+that turns a leftover row into a failure is guarded only by a live run.
+
 ### The bite proof bites
 
 The mutation the issue names — gut the accumulation to walk the fixture list —
