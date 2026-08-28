@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package coordinator
+package vaultlive
 
 import (
 	"context"
@@ -11,23 +11,23 @@ import (
 	"strings"
 	"time"
 
-	"github.com/eshu-hq/eshu/go/internal/collector/vaultlive"
+	vaultcollector "github.com/eshu-hq/eshu/go/internal/collector/vaultlive"
 	"github.com/eshu-hq/eshu/go/internal/coordinator/plannercontract"
 	"github.com/eshu-hq/eshu/go/internal/facts"
 	"github.com/eshu-hq/eshu/go/internal/scope"
 	"github.com/eshu-hq/eshu/go/internal/workflow"
 )
 
-// VaultLivePlanRequest carries one Vault metadata planning request.
-type VaultLivePlanRequest struct {
+// PlanRequest carries one Vault metadata planning request.
+type PlanRequest struct {
 	Instance   workflow.CollectorInstance
 	ObservedAt time.Time
 	PlanKey    string
 }
 
-// VaultLiveWorkPlanner plans workflow rows for configured Vault metadata
+// WorkPlanner plans workflow rows for configured Vault metadata
 // targets without resolving credentials or contacting Vault.
-type VaultLiveWorkPlanner struct{}
+type WorkPlanner struct{}
 
 type vaultLiveRuntimeConfiguration struct {
 	Targets []vaultLiveTargetConfiguration `json:"targets"`
@@ -42,9 +42,9 @@ type vaultLiveTargetConfiguration struct {
 
 // PlanVaultLiveWork returns one run and one work item per configured Vault
 // metadata target.
-func (p VaultLiveWorkPlanner) PlanVaultLiveWork(
+func (p WorkPlanner) PlanVaultLiveWork(
 	_ context.Context,
-	request VaultLivePlanRequest,
+	request PlanRequest,
 ) (workflow.Run, []workflow.WorkItem, error) {
 	if err := validateVaultLivePlanRequest(request); err != nil {
 		return workflow.Run{}, nil, err
@@ -78,7 +78,7 @@ func (p VaultLiveWorkPlanner) PlanVaultLiveWork(
 	return run, items, nil
 }
 
-func validateVaultLivePlanRequest(request VaultLivePlanRequest) error {
+func validateVaultLivePlanRequest(request PlanRequest) error {
 	if err := request.Instance.Validate(); err != nil {
 		return fmt.Errorf("vault live plan request: %w", err)
 	}
@@ -161,7 +161,7 @@ func vaultLiveRequestedScopeSet(
 		Targets:             make([]requestedTarget, 0, len(targets)),
 	}
 	for _, target := range targets {
-		scopeID, err := vaultlive.VaultScopeID(target.VaultClusterID, target.Namespace)
+		scopeID, err := vaultcollector.VaultScopeID(target.VaultClusterID, target.Namespace)
 		if err != nil {
 			continue
 		}
@@ -187,7 +187,7 @@ func vaultLiveWorkItem(
 	planKey string,
 	observedAt time.Time,
 ) (workflow.WorkItem, error) {
-	scopeID, err := vaultlive.VaultScopeID(target.VaultClusterID, target.Namespace)
+	scopeID, err := vaultcollector.VaultScopeID(target.VaultClusterID, target.Namespace)
 	if err != nil {
 		return workflow.WorkItem{}, err
 	}
@@ -201,7 +201,7 @@ func vaultLiveWorkItem(
 		RunID:               runID,
 		CollectorKind:       scope.CollectorVaultLive,
 		CollectorInstanceID: strings.TrimSpace(instance.InstanceID),
-		SourceSystem:        vaultlive.CollectorKind,
+		SourceSystem:        vaultcollector.CollectorKind,
 		ScopeID:             scopeID,
 		AcceptanceUnitID:    scopeID,
 		SourceRunID:         generationID,

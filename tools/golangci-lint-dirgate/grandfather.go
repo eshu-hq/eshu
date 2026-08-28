@@ -23,7 +23,7 @@ var grandfatheredDirectories = map[string]grandfatherEntry{
 	"internal/collector/awscloud": {FileCount: 154, Digest: "5f0ea4b0c73faae13cc03f3c05609b6a7b6befd92941cfa599b08ff5c2fae641"},
 	"internal/collector/gcpcloud": {FileCount: 96, Digest: "0cb76eb63cd133ea5dc15c2556fb64b08db61757f23372af1c0e170845858af3"},
 	"internal/collector/gitrepo":  {FileCount: 66, Digest: "774b96b40dbec9964c434c50a6056df7780e8909ecb3a0f43e1ffe17e606eae3"},
-	"internal/coordinator":        {FileCount: 63, Digest: "d24961d4319c70c5db2634f9132a56c9d39065d2df5712c982c4da14dcb8e3e9"},
+	"internal/coordinator":        {FileCount: 62, Digest: "ab22823ed4ee2bbaf13928d86eb47c58c48fac51662e0fc1a9056840eb3700dc"},
 	"internal/facts":              {FileCount: 45, Digest: "4622f2b6b606a2878aa88dfa1b5e5916edad5ef536989b4136774e25c1367c4e"},
 	"internal/mcp":                {FileCount: 108, Digest: "3fc7cc063a663150f6029d141e75c89643339906f8f52521f7ad95310010bb47"},
 	"internal/parser":             {FileCount: 47, Digest: "dc6d2390c51ca20550859d3f746a14ec3899765ea31c9a8707532c6e709d2a09", NamingExempt: []string{"c_language.go", "cpp_language.go", "csharp_language.go", "dart_language.go", "dockerfile_language.go", "elixir_language.go", "gomod_language.go", "gradle_language.go", "groovy_language.go", "hcl_language.go", "java_language.go", "java_metadata_files.go", "javascript_language.go", "json_language.go", "kotlin_language.go", "maven_language.go", "perl_haskell_language.go", "php_language.go", "python_dep_language.go", "python_language.go", "ruby_language.go", "rust_language.go", "scala_language.go", "shared_bridge.go", "sql_language.go", "swift_language.go", "yaml_language.go"}},
