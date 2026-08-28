@@ -27,7 +27,7 @@ live in the repository today.
 | `go/internal/coordinator/vaultlive/` | Vault metadata scheduler request validation and deterministic workflow planning |
 | `go/internal/facts/` | durable fact models and queue contracts |
 | `go/internal/graph/` | canonical graph schema and write helpers |
-| `go/internal/mcp/` | MCP transport and tool wiring |
+| `go/internal/mcp/` | MCP ordered assembly, global route fanout and adapters, dispatch, authorization, transport, timeouts, response budgets, envelopes, and telemetry |
 | `go/internal/mcp/ask/` | Ask Eshu MCP tool registration definition |
 | `go/internal/mcp/cloud/` | cloud inventory and runtime-drift MCP tool registration definitions |
 | `go/internal/mcp/documentation/` | documentation-family MCP tool registration definitions |
@@ -35,7 +35,7 @@ live in the repository today.
 | `go/internal/mcp/freshness/` | generation, repository, and service freshness MCP tool registration definitions |
 | `go/internal/mcp/investigation/` | investigation workflow and evidence-packet MCP tool registration definitions |
 | `go/internal/mcp/playbooks/` | query-playbook MCP tool registration definitions |
-| `go/internal/mcp/relationships/` | code-relationship and relationship-edge MCP tool registration definitions |
+| `go/internal/mcp/relationships/` | code-relationship and relationship-edge MCP registrations plus pure family membership and dependency-neutral route selection |
 | `go/internal/mcp/routecontract/` | dependency-neutral MCP route arguments and internal-request shape |
 | `go/internal/mcp/semantic/` | semantic-evidence and semantic-search MCP tool registration definitions |
 | `go/internal/mcp/service/` | service catalog, context, investigation, and intelligence-report MCP tool registration definitions |
@@ -110,7 +110,11 @@ Read and operator surfaces live under:
 
 - `go/internal/query/`: HTTP handlers, root compatibility aliases, and OpenAPI
 - `go/internal/query/querycontract/`: response contracts, profile gates, and read ports
-- `go/internal/mcp/`: MCP transport and tool routing
+- `go/internal/mcp/`: MCP ordered assembly, global route fanout and adapters,
+  dispatch, authorization, transport, timeouts, response budgets, envelopes,
+  and telemetry
+- `go/internal/mcp/relationships/`: relationship-family registrations, family
+  membership decisions, and pure dependency-neutral request selection
 - `go/internal/runtime/`: `/healthz`, `/readyz`, `/metrics`, `/admin/status`,
   retry policy, runtime lifecycle
 - `go/internal/status/`: request lifecycle and indexing completeness reporting

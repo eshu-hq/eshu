@@ -284,19 +284,18 @@ plus all query-playbook routing, dispatch, authorization, and transport
 ownership. The move uses `internal/mcp/toolcontract` and leaves the 162-tool
 order unchanged.
 
-The relationship registration family is the sixth extracted MCP family. Its
-three definitions live under `internal/mcp/relationships`: the code story and
+The relationship family is the sixth extracted MCP family. Its three
+definitions live under `internal/mcp/relationships`: the code story and
 analysis definitions remain at zero-based positions 8 and 9 in the codebase
 group, and the relationship-edge definition remains after Ask and before
-repository files. The root keeps ordered assembly plus all relationship
-routing, dispatch, authorization, query, and transport ownership. The move
-uses `internal/mcp/toolcontract` and leaves the 33-tool codebase group and
-162-tool global order unchanged.
-
-The code-relationship router now selects an `internal/mcp/routecontract`
-request before the root adapter converts it to the private dispatch shape. This
-is the dependency-neutral prerequisite for a later route move; route membership,
-dispatch, and the router itself remain in the root MCP package in this stage.
+repository files. The same child package owns `CodeRoute` and `EdgeRoute`, pure
+selectors that decide family membership and convert decoded arguments into
+`internal/mcp/routecontract` requests. Root keeps ordered assembly, global
+fanout order, thin route adapters, dispatch, authorization, transport,
+timeouts, response budgets, envelopes, and telemetry. `internal/query` keeps
+relationship validation, graph reads, bounds, and response shaping. The
+extraction leaves the 33-tool codebase group and 162-tool global order
+unchanged.
 
 The freshness registration family is the seventh extracted MCP family. Its
 four definitions live under `internal/mcp/freshness`, while the root keeps

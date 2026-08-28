@@ -1,18 +1,22 @@
-# AGENTS.md — MCP relationship registration guidance
+# AGENTS.md — MCP relationship registration and route guidance
 
 ## Read first
 
 1. `README.md` and `doc.go` in this directory.
 2. `../AGENTS.md` for MCP routing, authorization, and transport rules.
 3. `../types.go` and `../tools_codebase.go` for the ordered assembly positions.
-4. The root relationship dispatch files and tests for route and body mapping.
+4. `code_routes.go` and `edge_routes.go` for pure family membership and request
+   selection, then the root relationship dispatch files for adapter behavior.
 5. `../toolcontract/README.md` for the dependency-neutral definition contract.
 6. `../../query/AGENTS.md` before changing the relationship-edge query path.
 
 ## Invariants
 
-- Keep this package registration-only. Routing and argument mapping stay in the
-  parent MCP package; validation and graph reads stay in `internal/query`.
+- Keep route selection pure and dependency-neutral: `CodeRoute` and `EdgeRoute`
+  decide family membership, decode arguments, and return
+  `routecontract.Request`, but must not execute requests. Global fanout order
+  and adapters stay in the parent MCP package; validation and graph reads stay
+  in `internal/query`.
 - Keep the package clause as `package relationshiptools`; the root imports it
   with an explicit alias.
 - Preserve every tool name, description, schema, required verb, bounds, and
@@ -38,17 +42,16 @@
 
 - Importing the MCP root creates a parent-child cycle. Use `toolcontract` for
   registrations and `routecontract` for route values.
-- Move a relationship route only after it uses the dependency-neutral
-  `routecontract`; never import the parent MCP package to reach route or
-  argument helpers.
+- Add or change a relationship route through `routecontract`; never import the
+  parent MCP package to reach private route or argument helpers.
 - Reusing package-level maps or slices lets caller mutation leak into later
   `tools/list` responses.
 - A set-only test misses moving the tool away from its client-visible position.
 
 ## Anti-patterns
 
-- Do not add route, HTTP, query, graph, storage, authorization, or telemetry
-  helpers.
+- Do not add HTTP execution, global fanout, query, graph, storage,
+  authorization, transport, timeout, budget, envelope, or telemetry helpers.
 - Do not register tools through `init` functions.
 - Do not weaken the serialized-definition or root ordered-name hash guards.
 - Do not duplicate or widen the canonical source-tool vocabulary here.

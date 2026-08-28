@@ -60,10 +60,11 @@ type readSurfaceBacking struct {
 //
 // Seven labels equal a registered tool name directly, so Ref equals the
 // label: six are literal MCP dispatch case strings (dispatch.go,
-// dispatch_impact.go), and "list_relationship_edges" (#5369) is routed
-// through its own dispatch function (dispatch_relationship_edges.go) rather
-// than the shared case-string switch, but its label still equals its tool
-// name. Two labels are aliases the label text does not name directly:
+// dispatch_impact.go), and "list_relationship_edges" (#5369) is claimed and
+// selected by relationshiptools.EdgeRoute, then copied by the thin root adapter
+// in dispatch_relationship_edges.go rather than the shared case-string switch.
+// Its label still equals its tool name. Two labels are aliases the label text
+// does not name directly:
 // "entity_context" is served by the get_entity_context MCP tool, and
 // "content_relationships" is served by the unexported
 // query.buildContentRelationshipSet Go symbol (there is no MCP tool wrapping
