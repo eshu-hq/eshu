@@ -8,7 +8,7 @@ of truth mapping a changed path to the local and CI checks it requires. See
 and `make prove` select from this table, and
 [Local Testing](local-testing.md) for the full verification map.
 
-The registry currently defines 106 gates. Local execution runs the primary
+The registry currently defines 107 gates. Local execution runs the primary
 command first, then a distinct self-test when one is registered; byte-identical
 pairs run once. A row with no primary local command is
 CI-only (it needs a credential, a service container, or hosted infrastructure
