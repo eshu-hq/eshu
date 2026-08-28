@@ -160,3 +160,27 @@ No-Observability-Change: no runtime code changed, so the semantic writer emits
 exactly the per-statement execution telemetry it emitted before. The signal an
 operator would use to see this defect is unchanged, and is the reason the defect
 is silent: an under-applying grouped DELETE reports success.
+
+## Outcome
+
+The removal landed. The owner settled the compatibility question this record
+left open: v1.2.3 — the build the deployment runs, self-reporting `1.2.2` — is
+the supported backend, and it is above the 1.2.1 floor measured above. Option 1
+without the capability flag, in other words, with the version decision made
+rather than inferred.
+
+`WithSequentialRetract` and its plumbing are gone, and the grouped retract was
+re-measured on that build before the deletion: 20 of 20 PASS at `-count=20`,
+exit 0, with the live executor asserted to implement `cypher.GroupExecutor` so
+the run cannot pass through the per-statement fallback. Details, including both
+mutation proofs, are in
+`go/internal/storage/cypher/evidence-6176-semantic-retract-regrouped.md`.
+
+Two things this record flagged are still open and were NOT addressed by that
+change. `deploy/helm/eshu/values.yaml` still pins `v1.1.11@sha256:51b6174a`, so
+a deployment made from this repository as committed still lands on the backend
+where the grouped retract under-applies, and would be exposed if the operator
+turned grouped writes on; that pin is #6296's to move. And the other eleven
+v1.1.11-era workaround classes under `go/internal/storage/cypher/` remain
+unmeasured on 1.2.2 — only the semantic `Variable` grouped delta-retract has
+been.

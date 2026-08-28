@@ -1,5 +1,14 @@
 # Evidence: C-14 (#4367) semantic entity retract dispatch fix
 
+> **Superseded by #6176.** `WithSequentialRetract` no longer exists. The mode
+> this record describes was removed once Eshu's supported NornicDB floor moved
+> above v1.1.11, the only version where the grouped retract under-applied;
+> retract and upsert share one transaction again. This record stays because it
+> is the measurement that justified the split while v1.1.11 was supported, and
+> because the defect it names is real on that version. Read
+> `evidence-6176-semantic-retract-regrouped.md` for the current dispatch route
+> and the measurement that removed the split.
+
 ## Scope
 
 `SemanticEntityWriter.WriteSemanticEntities` (`go/internal/storage/cypher/semantic_entity.go`)

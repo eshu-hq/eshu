@@ -692,7 +692,14 @@ fresh, uncontaminated container and found NOT to be production bugs (details in
   `ExecuteGroup`, rewrite the batch shape from `UNWIND` to `WHERE ... IN`
   (`MATCH (f:File) WHERE f.path IN $file_paths MATCH (f)-[r:IMPORTS]->(:Module)
   DELETE r`), which was proven to delete correctly. The underlying backend
-  shapes are tracked upstream as #4902 and #5323.
+  shapes are tracked upstream as #4902 and #5323. One retract does route
+  through `ExecuteGroup`: the semantic entity retract, since #6176 removed the
+  sequential split it carried while v1.1.11 was supported. That is safe for two
+  independent reasons — its Cypher is already the `WHERE ... IN` shape rather
+  than the `UNWIND`-batched one, and the grouped `DETACH DELETE` under-apply it
+  used to work around is a v1.1.11 defect that does not reproduce on 1.2.1 or
+  1.2.2 (measured 20/20 in
+  `go/internal/storage/cypher/evidence-6176-semantic-retract-regrouped.md`).
 
 ### Validation
 
