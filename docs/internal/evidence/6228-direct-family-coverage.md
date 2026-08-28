@@ -122,27 +122,142 @@ is corroborated by three other things — the retract alternation, the canonical
 registry, and a reader should not believe it is. Recorded because assuming
 otherwise is the shape of mistake #6181 was reported over.
 
+## What condition 4 actually requires
+
+The fourth condition — "the live matrices actually run the family" — is not one
+switch. Read against the two gate scripts it decomposes into five committed
+artifacts plus a green run:
+
+1. A committed cassette (a recorded collector output the gate replays instead
+   of calling a real cloud or cluster) under `testdata/cassettes/`, and a
+   committed expected-edge-set JSON. Both paths need a variable and a fail-fast
+   existence check in `scripts/lib/ifa_family_fixtures.sh`
+   (`ifa_family_fixtures_require`, lines 134-167). Both gates call that
+   function before starting any container, so a missing file stops the run
+   early.
+2. A row file under `scripts/lib/ifa_family_registry/rows/` carrying the seven
+   schema fields plus the dispatch metadata the gate loop needs: `drive_fn`,
+   `assert_fn`, `cassette_var`, `expected_var`
+   (`scripts/lib/ifa_family_registry.sh`, lines 55-158).
+3. A family library supplying that row's two callbacks, in the shape
+   `scripts/lib/ifa_shell_exec_live.sh` uses: replay the cassette, then call
+   `eshu-ifa assert-edges -domain <family> -expected <file>`.
+4. Fault-injection cells, workflow path triggers, and a
+   `materializedEdgeFamilyTriggerStems` entry.
+   `TestEveryCoveredFamilyTriggersBothLiveGates` demands the stem the moment a
+   coverage row lands.
+5. Both matrices green with the family driven and its exact edge set asserted.
+   The determinism gate drives every `shared_cell=1` family into each of its
+   N∈{1,2,4} cells and asserts each one after the drain
+   (`scripts/verify-ifa-determinism.sh`, lines 339-345 and 390-396).
+
+So it is the strict reading, not the loose one. A gate that merely executes
+with the family's guard reachable does not satisfy it. The matrix corpus has to
+contain a committed fixture that produces edges of that family, and the gate has
+to assert that family's absolute expected set in every cell.
+
+## The live path works — measured, not assumed
+
+Before writing any of that wiring I proved the part that could have made all of
+it pointless: whether a direct-materialization family can be driven through a
+live stack at all. None ever has been. All fourteen families registered with
+the gates are the shared-projection half, exactly
+`reducer.MaterializedEdgeFamilies()`, and the registry's vocabulary is built
+around that path.
+
+One Postgres plus NornicDB stack, two scratch cassettes written to match the
+two Odùs fact for fact, one `eshu-ifa drive` each, then a projector and reducer
+drain:
+
+```
+fact_work_items after the drain (domain | status | count)
+  iam_instance_profile_role_materialization | succeeded | 1
+  kubernetes_namespace_materialization      | succeeded | 1
+```
+
+Both families reach the reducer through an ordinary work-item domain, which
+also settles what the registry's `wait_stage=handler` and `wait_key` fields
+would hold for them. Then:
+
+```
+ifa assert-edges: domain=iam_instance_profile_role expected=2 edges matched exactly
+```
+
+First run, live graph, committed expected-edge fixture unchanged. The fan-out
+profile produced its two edges; the unresolved-role and empty-attachment
+profiles produced none.
+
+Those scratch cassettes are deliberately not committed here. A committed
+cassette extends the golden standard, which needs the owner's agreement, and
+that is where this change stops.
+
+## The gap that would have blocked kubernetes_namespace_environment
+
+The same run failed for the other family, and the failure was worth having:
+
+```
+ifa assert-edges: domain=kubernetes_namespace_environment materialized edge set
+does not match the expected set exactly
+  missing (2, in expected-set but not in graph):
+    TARGETS_ENVIRONMENT|k8s-ns:eshu-fixture-cluster:payments-prod|prod|...
+    TARGETS_ENVIRONMENT|k8s-ns:eshu-fixture-cluster:payments-staging|stage|...
+  endpoint defects (2):
+    ... target endpoint carries neither uid, id, nor (for a CodeownerTeam
+    endpoint) ref ... — an unmaterialized endpoint node
+```
+
+The reducer was right and the gate was wrong. A graph dump showed exactly two
+`TARGETS_ENVIRONMENT` edges carrying the correct `evidence_class` and
+`evidence_source`, and exactly two `Environment` nodes, `{name: "prod"}` and
+`{name: "stage"}` — the canonical forms of the fixture's `production` and
+`staging` labels. Both deliberately-unbound namespaces produced nothing.
+
+Those nodes carry `name` and nothing else, because the writer MERGEs them
+`MERGE (env:Environment {name: row.environment})`. `endpointID`
+(`go/cmd/ifa/assert_edges.go`) read `uid`, then `id`, then `ref` scoped to a
+`CodeownerTeam` label. A name-keyed node resolved to the empty string, so every
+edge of this family reported an unmaterialized endpoint. No fixture and no
+writer could have satisfied condition 4 while that held.
+
+This change adds a fourth fallback: `name`, scoped to the `Environment` label,
+in the shape #6137 already established for `CodeownerTeam`'s `ref`. Scoping
+matters more here than it did there. `name` is a common display property, so an
+unscoped fallback would let any uid/id-keyed node that lost its real identity
+pass as identified on its display name alone.
+
+After the fix, rebuilt binary, same live stack, same committed fixtures:
+
+```
+ifa assert-edges: domain=kubernetes_namespace_environment expected=2 edges matched exactly
+ifa assert-edges: domain=iam_instance_profile_role       expected=2 edges matched exactly
+```
+
+Mutation check on the new guard: replacing
+`if hasLabel(labels, endpointEnvironmentLabel)` with `if true` (subs=1) leaves
+`go vet` at exit 0 and turns `TestNameFallbackIsScopedToEnvironment` red, so the
+scoping is load-bearing rather than decorative. Restored, exit 0.
+
+The operator-facing defect message widened with it, and the test pinning that
+message moved in the same edit.
+
 ## What is still missing for a coverage row
 
-Both families need the live half before either waiver can be retired:
+Both waivers stand, and neither family gained a coverage row. Neither live
+matrix has been run with either family wired in, because none of the wiring in
+items 1-4 above exists yet. What changed is that the remaining work is now
+known to be reachable instead of assumed:
 
-1. A committed cassette per family under `testdata/cassettes/`, plus the
-   compiled-catalog/cassette lockstep test the other families carry.
-2. A row in `scripts/lib/ifa_family_registry/rows/`, a drive/assert function
-   pair, and an entry in `materializedEdgeFamilyTriggerStems`.
-3. Workflow path triggers so `ifa-determinism` and `ifa-fault-injection` re-run
-   when the family's Odù, fixture, extractor, or writer changes.
-   `TestEveryCoveredFamilyTriggersBothLiveGates` requires this the moment a
-   coverage row appears.
-4. A green live run of both matrices with the family driven and its exact set
-   asserted.
-
-None of that was done here, and neither live matrix was run for this change.
-Several agents shared this machine for the whole session, and the live gates
-hold a cross-worktree mutex precisely so they are not self-scheduled alongside
-other work — see
-`docs/internal/agent-guide.md#live-gate-serialization-and-contention`. Running
-them needs an explicit hand-over of the machine.
+- The cassettes and expected sets are the next step. Committing them needs the
+  owner's agreement, since they extend the golden standard.
+- The fault-injection half needs no new machinery. A direct family fits the
+  existing generic dispatcher as `blocker_kind=table_lock:fact_records` with
+  `cell_kind=generic`, the same shape `codeowners_ownership_edges` already uses
+  (`scripts/lib/ifa_fault_generic_cells.sh`, lines 415-419). The two
+  shared-projection blocker kinds are unavailable to a direct family, and
+  neither is required.
+- Running both matrices needs an explicit hand-over of the machine. They bind
+  fixed host ports and hold a cross-worktree mutex — see
+  `docs/internal/agent-guide.md#live-gate-serialization-and-contention`.
 
 ## Registry-shape blocker for part of the remaining 26
 

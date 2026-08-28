@@ -423,11 +423,17 @@ func TestEvidenceSourceConstraintTracksTheWriterConstant(t *testing.T) {
 }
 
 // TestEndpointDefectMessageNamesTheRefFallback pins the diagnostic, not the
-// behavior. endpointID has three fallbacks, but the failure message it feeds
-// only named the first two, so an operator debugging a DECLARES_CODEOWNER
+// behavior. endpointID has four fallbacks, and the failure message it feeds
+// once named only the first two, so an operator debugging a DECLARES_CODEOWNER
 // regression was told to go look for a uid or an id on a node keyed by
 // neither. codeowners_ownership_edges is the first family that can reach this
 // branch on a real target, so its operator is the one who reads it.
+//
+// The Environment "name" fallback is named here too. It is not this family's
+// fallback, but the message is one shared string, and an operator reading it
+// must be able to see every identity the check actually tried — otherwise the
+// next family to hit this branch inherits the same misleading diagnosis this
+// test was written to end.
 func TestEndpointDefectMessageNamesTheRefFallback(t *testing.T) {
 	t.Parallel()
 
@@ -449,7 +455,7 @@ func TestEndpointDefectMessageNamesTheRefFallback(t *testing.T) {
 	if err == nil {
 		t.Fatal("assertMaterializedEdges(endpoint with no identity property at all) = nil, want an endpoint-defect failure")
 	}
-	const want = "carries neither uid, id, nor (for a CodeownerTeam endpoint) ref"
+	const want = "carries none of uid, id, a CodeownerTeam endpoint's ref, or an Environment endpoint's name"
 	if !strings.Contains(err.Error(), want) {
 		t.Fatalf("error = %q, want it to contain %q so the message names every identity endpointID actually tries", err, want)
 	}

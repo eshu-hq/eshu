@@ -174,8 +174,12 @@ This change adds no metric, span, log field, status field, queue table, worker,
 lease, batch, or runtime knob, and no route or graph query shape.
 
 It does change one operator-facing string. `eshu-ifa assert-edges`'s
-endpoint-defect diagnostic previously read "carries neither uid nor id"; it now
-reads "carries neither uid, id, nor (for a CodeownerTeam endpoint) ref".
+endpoint-defect diagnostic previously read "carries neither uid nor id"; this
+change made it read "carries neither uid, id, nor (for a CodeownerTeam
+endpoint) ref". (#6228 later added a fourth, Environment-scoped `name` fallback
+and widened the same string again — see
+`docs/internal/evidence/6228-direct-family-coverage.md`. This paragraph records
+what this change did, not the wording that is current today.)
 `endpointID` has had three fallbacks since #6137 and the message named two, so
 the operator of a `DECLARES_CODEOWNER` regression was sent looking for two
 properties a `CodeownerTeam` node is never keyed by.

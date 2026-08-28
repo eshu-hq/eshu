@@ -147,16 +147,18 @@ func runAssertEdgesCommand(ctx context.Context, args []string, stdout, stderr io
 // duplicate that a plain set comparison, and the cross-worker digest, would
 // both miss.
 //
-// An edge's endpoint identity (endpointID) is its node's "uid" property when it has one, and
-// its "id" otherwise — the graph keys nodes both ways and the assertion has to
-// speak both. Content entities are uid-keyed (for a SQL entity the uid equals
+// An edge's endpoint identity (endpointID) is its node's "uid" property when it
+// has one and its "id" otherwise, and failing both a per-label key for the two
+// labels that carry neither: a CodeownerTeam's "ref" and an Environment's
+// "name". The graph keys nodes all four ways and the assertion has to speak
+// each. Content entities are uid-keyed (for a SQL entity the uid equals
 // its content_entity id; for a canonicalNamePathLineEntityLabels endpoint such
 // as a Function it is the derived hash the fixture precomputes — see
 // internal/ifa's sqlFamilyGetUserFunctionUID), while Repository, Workload,
 // WorkloadInstance and Platform are MERGEd `{id: ...}` and carry no uid at all.
-// uid is consulted first, so a node carrying both resolves by uid. An edge whose
-// endpoint has NEITHER is a real defect (an unmaterialized endpoint node), so it
-// is surfaced, never silently skipped.
+// uid is consulted first, so a node carrying several resolves by uid. An edge
+// whose endpoint has NONE of them is a real defect (an unmaterialized endpoint
+// node), so it is surfaced, never silently skipped.
 //
 // Endpoint scoping (#5543): a family whose relationship types are shared with
 // another family also constrains its edges' endpoint labels. DEPENDS_ON is
@@ -340,10 +342,16 @@ func assertMaterializedEdges(
 // endpointID's body.
 const endpointCodeownerTeamLabel = "CodeownerTeam"
 
+// endpointEnvironmentLabel is the one node label endpointID's "name" fallback
+// applies to, kept as a named constant for the same reason
+// endpointCodeownerTeamLabel is.
+const endpointEnvironmentLabel = "Environment"
+
 // endpointID extracts a node's canonical identity: its "uid" when present,
-// its "id" next, and — ONLY for a CodeownerTeam-labeled endpoint — its "ref"
-// last. It returns "" when none of those applicable checks resolves, which
-// the caller reports as an unmaterialized endpoint.
+// its "id" next, then — each scoped to a single node label — a CodeownerTeam
+// endpoint's "ref" or an Environment endpoint's "name". It returns "" when
+// none of the applicable checks resolves, which the caller reports as an
+// unmaterialized endpoint.
 func endpointID(props map[string]any, labels []string) string {
 	if props == nil {
 		return ""
@@ -378,11 +386,30 @@ func endpointID(props map[string]any, labels []string) string {
 	// an incidental "ref" would then read as "identified" instead of
 	// "unmaterialized" — the exact false pass this scoping closes. See
 	// TestRefFallbackIsScopedToCodeownerTeam.
-	if !hasLabel(labels, endpointCodeownerTeamLabel) {
-		return ""
+	if hasLabel(labels, endpointCodeownerTeamLabel) {
+		ref, _ := props["ref"].(string)
+		return ref
 	}
-	ref, _ := props["ref"].(string)
-	return ref
+	// Fall back to "name", but ONLY for an Environment-labeled endpoint.
+	// Environment is MERGEd `{name: row.environment}`
+	// (canonicalKubernetesNamespaceWithEnvironmentUpsertCypher) and carries
+	// neither uid nor id, so without this the target endpoint of every
+	// TARGETS_ENVIRONMENT edge reports as unmaterialized. Measured, not
+	// assumed: a live kubernetes_namespace_environment drive materialized both
+	// edges and both Environment nodes correctly, and assert-edges still
+	// failed them as unmaterialized endpoints.
+	//
+	// The label scoping matters more here than it does for "ref" above, not
+	// less. "name" is a common display property — Repository, Workload and
+	// most content entities carry one beside their real identity — so an
+	// unscoped fallback would let any uid/id-keyed node that lost its real
+	// identity pass as "identified" on its display name alone. See
+	// TestNameFallbackIsScopedToEnvironment.
+	if hasLabel(labels, endpointEnvironmentLabel) {
+		name, _ := props["name"].(string)
+		return name
+	}
+	return ""
 }
 
 // hasLabel reports whether a graph endpoint carries the required node label.
