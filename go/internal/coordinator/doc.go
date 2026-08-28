@@ -45,9 +45,10 @@
 // overlapping scheduled work.
 // PagerDutyWorkPlanner plans
 // incident-evidence work from configured PagerDuty targets.
-// PrometheusMimirWorkPlanner plans bounded metric-metadata work, one item per
-// enabled Prometheus or Grafana Mimir target, partitioned by target scope so
-// concurrent reconciles never contend for one metric source.
+// The root PrometheusMimirPlanner interface accepts
+// prometheusmimir.PlanRequest. The child plans bounded metric-metadata work,
+// one item per enabled Prometheus or Grafana Mimir target, partitioned by
+// target scope so concurrent reconciles never contend for one metric source.
 // The root TempoPlanner interface accepts the child tempoplanner.PlanRequest;
 // the child emits one bounded trace-signal work item per enabled Grafana Tempo
 // target and skips disabled targets. The root LokiPlanner interface likewise

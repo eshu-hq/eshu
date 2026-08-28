@@ -68,12 +68,6 @@ type JiraPlanner interface {
 	PlanJiraWork(context.Context, JiraPlanRequest) (workflow.Run, []workflow.WorkItem, error)
 }
 
-// PrometheusMimirPlanner plans Prometheus/Mimir metric-metadata workflow rows
-// from collector instance configuration.
-type PrometheusMimirPlanner interface {
-	PlanPrometheusMimirWork(context.Context, PrometheusMimirPlanRequest) (workflow.Run, []workflow.WorkItem, error)
-}
-
 // GCPPlanner plans GCP Cloud Asset Inventory workflow rows from collector
 // instance configuration.
 type GCPPlanner interface {

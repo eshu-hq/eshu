@@ -24,9 +24,10 @@ telemetry.
 The `tempoplanner` child owns the Tempo trace-signal planning request and pure
 planner; root retains scheduling order, tenant and egress filtering, the
 plan-key clock, durable admission, retries, and telemetry.
-The `lokiplanner` child owns the Loki observability planning request and pure
-planner under the same boundary; root retains scheduling order, tenant and
-egress filtering, the plan-key clock, durable admission, retries, and telemetry.
+The `lokiplanner` and `prometheusmimir` children own pure planning for Loki and
+Prometheus/Mimir observability targets; root retains scheduling order, tenant
+and egress filtering, the plan-key clock, durable admission, retries, and
+telemetry.
 
 ## Where this fits in the pipeline
 
@@ -164,12 +165,12 @@ one enabled bounded scope; invalid configurations fail validation.
 - `JiraWorkPlanner` — plans Jira work-item evidence collection runs from
   configured Jira Cloud site targets without resolving credential environment
   variables. Each target becomes one claimable work item keyed by `scope_id`.
-- `PrometheusMimirWorkPlanner` — plans Prometheus/Grafana Mimir metric-metadata
-  collection runs from the instance `configuration.targets[]` list. Each
-  `enabled` target becomes one claimable work item keyed by `scope_id`; disabled
-  targets, empty configuration, and an empty target list plan no work. The
-  fairness key partitions per target scope, and `requested_scope_set` omits
-  token and tenant environment references.
+- `PrometheusMimirPlanner` — the root interface implemented by
+  `prometheusmimir.WorkPlanner`. The child plans Prometheus/Grafana Mimir
+  metric-metadata work from `configuration.targets[]`; each enabled target is
+  one claimable item, while disabled or empty target sets plan no work. Root
+  retains scheduling and admission. Per-scope fairness keys stay unchanged,
+  and requested-scope metadata omits URLs and credential environment names.
 - `TempoPlanner` — the root structural interface implemented by
   `tempoplanner.WorkPlanner`. The child plans Grafana Tempo trace-signal
   collection from `configuration.targets[]`; root keeps scheduling order, the
@@ -227,10 +228,8 @@ one enabled bounded scope; invalid configurations fail validation.
   requested-scope privacy, and deterministic planning.
 - `internal/coordinator/vaultlive` — Vault metadata plan request and
   deterministic planner implementation.
-- `internal/coordinator/tempoplanner` — Tempo trace-signal plan request and
-  deterministic planner implementation.
-- `internal/coordinator/lokiplanner` — Loki observability plan request and
-  deterministic planner implementation.
+- `internal/coordinator/tempoplanner`, `lokiplanner`, and `prometheusmimir` —
+  deterministic observability planner requests and implementations.
 - `internal/workflow` — `DesiredCollectorInstance`, `CollectorInstance`,
   `Claim`, and default accessors; used throughout `Store` and `Config`.
 - `internal/scope` — `CollectorKind` used by `Config` and

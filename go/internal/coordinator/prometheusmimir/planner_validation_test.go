@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package coordinator
+package prometheusmimir
 
 import (
 	"strings"
@@ -12,7 +12,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/workflow"
 )
 
-func TestPrometheusMimirWorkPlannerPlansOneClaimPerEnabledTarget(t *testing.T) {
+func TestWorkPlannerPlansOneClaimPerEnabledTarget(t *testing.T) {
 	t.Parallel()
 
 	observedAt := time.Date(2026, time.June, 5, 15, 0, 0, 0, time.UTC)
@@ -28,7 +28,7 @@ func TestPrometheusMimirWorkPlannerPlansOneClaimPerEnabledTarget(t *testing.T) {
 		UpdatedAt:      observedAt,
 	}
 
-	run, items, err := (PrometheusMimirWorkPlanner{}).PlanPrometheusMimirWork(t.Context(), PrometheusMimirPlanRequest{
+	run, items, err := (WorkPlanner{}).PlanPrometheusMimirWork(t.Context(), PlanRequest{
 		Instance:   instance,
 		ObservedAt: observedAt,
 		PlanKey:    "schedule-20260605T150000Z",
@@ -84,7 +84,7 @@ func TestPrometheusMimirWorkPlannerPlansOneClaimPerEnabledTarget(t *testing.T) {
 	}
 }
 
-func TestPrometheusMimirWorkPlannerScopeIDFilter(t *testing.T) {
+func TestWorkPlannerScopeIDFilter(t *testing.T) {
 	t.Parallel()
 
 	observedAt := time.Date(2026, time.June, 5, 15, 0, 0, 0, time.UTC)
@@ -100,7 +100,7 @@ func TestPrometheusMimirWorkPlannerScopeIDFilter(t *testing.T) {
 		UpdatedAt:      observedAt,
 	}
 
-	_, items, err := (PrometheusMimirWorkPlanner{}).PlanPrometheusMimirWork(t.Context(), PrometheusMimirPlanRequest{
+	_, items, err := (WorkPlanner{}).PlanPrometheusMimirWork(t.Context(), PlanRequest{
 		Instance:   instance,
 		ObservedAt: observedAt,
 		PlanKey:    "schedule-20260605T150000Z",
@@ -117,7 +117,7 @@ func TestPrometheusMimirWorkPlannerScopeIDFilter(t *testing.T) {
 	}
 }
 
-func TestPrometheusMimirWorkPlannerEmptyConfigPlansNoWork(t *testing.T) {
+func TestWorkPlannerEmptyConfigPlansNoWork(t *testing.T) {
 	t.Parallel()
 
 	observedAt := time.Date(2026, time.June, 5, 15, 0, 0, 0, time.UTC)
@@ -141,7 +141,7 @@ func TestPrometheusMimirWorkPlannerEmptyConfigPlansNoWork(t *testing.T) {
 				CreatedAt:      observedAt,
 				UpdatedAt:      observedAt,
 			}
-			_, items, err := (PrometheusMimirWorkPlanner{}).PlanPrometheusMimirWork(t.Context(), PrometheusMimirPlanRequest{
+			_, items, err := (WorkPlanner{}).PlanPrometheusMimirWork(t.Context(), PlanRequest{
 				Instance:   instance,
 				ObservedAt: observedAt,
 				PlanKey:    "schedule-20260605T150000Z",
@@ -156,7 +156,7 @@ func TestPrometheusMimirWorkPlannerEmptyConfigPlansNoWork(t *testing.T) {
 	}
 }
 
-func TestPrometheusMimirWorkPlannerRejectsWrongKind(t *testing.T) {
+func TestWorkPlannerRejectsWrongKind(t *testing.T) {
 	t.Parallel()
 
 	observedAt := time.Date(2026, time.June, 5, 15, 0, 0, 0, time.UTC)
@@ -171,7 +171,7 @@ func TestPrometheusMimirWorkPlannerRejectsWrongKind(t *testing.T) {
 		CreatedAt:      observedAt,
 		UpdatedAt:      observedAt,
 	}
-	_, _, err := (PrometheusMimirWorkPlanner{}).PlanPrometheusMimirWork(t.Context(), PrometheusMimirPlanRequest{
+	_, _, err := (WorkPlanner{}).PlanPrometheusMimirWork(t.Context(), PlanRequest{
 		Instance:   instance,
 		ObservedAt: observedAt,
 		PlanKey:    "schedule-20260605T150000Z",
@@ -181,7 +181,7 @@ func TestPrometheusMimirWorkPlannerRejectsWrongKind(t *testing.T) {
 	}
 }
 
-func TestPrometheusMimirWorkPlannerDeterministicPlanKey(t *testing.T) {
+func TestWorkPlannerDeterministicPlanKey(t *testing.T) {
 	t.Parallel()
 
 	observedAt := time.Date(2026, time.June, 5, 15, 0, 0, 0, time.UTC)
@@ -196,17 +196,17 @@ func TestPrometheusMimirWorkPlannerDeterministicPlanKey(t *testing.T) {
 		CreatedAt:      observedAt,
 		UpdatedAt:      observedAt,
 	}
-	request := PrometheusMimirPlanRequest{
+	request := PlanRequest{
 		Instance:   instance,
 		ObservedAt: observedAt,
 		PlanKey:    "schedule-20260605T150000Z",
 	}
 
-	firstRun, firstItems, err := (PrometheusMimirWorkPlanner{}).PlanPrometheusMimirWork(t.Context(), request)
+	firstRun, firstItems, err := (WorkPlanner{}).PlanPrometheusMimirWork(t.Context(), request)
 	if err != nil {
 		t.Fatalf("first PlanPrometheusMimirWork() error = %v, want nil", err)
 	}
-	secondRun, secondItems, err := (PrometheusMimirWorkPlanner{}).PlanPrometheusMimirWork(t.Context(), request)
+	secondRun, secondItems, err := (WorkPlanner{}).PlanPrometheusMimirWork(t.Context(), request)
 	if err != nil {
 		t.Fatalf("second PlanPrometheusMimirWork() error = %v, want nil", err)
 	}

@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package coordinator
+package prometheusmimir
 
 import (
 	"context"
@@ -17,10 +17,10 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/workflow"
 )
 
-// PrometheusMimirPlanRequest carries one Prometheus/Mimir metric-metadata work
+// PlanRequest carries one Prometheus/Mimir metric-metadata work
 // planning request. ScopeIDs, when set, restricts planning to the named target
 // scopes so a targeted refresh can re-poll a subset of configured sources.
-type PrometheusMimirPlanRequest struct {
+type PlanRequest struct {
 	Instance    workflow.CollectorInstance
 	ObservedAt  time.Time
 	PlanKey     string
@@ -28,11 +28,11 @@ type PrometheusMimirPlanRequest struct {
 	ScopeIDs    []string
 }
 
-// PrometheusMimirWorkPlanner plans workflow rows for configured Prometheus and
+// WorkPlanner plans workflow rows for configured Prometheus and
 // Grafana Mimir metric targets without resolving credentials or contacting any
 // provider. It mirrors the periodic external-API poll planners (Jira, PagerDuty,
 // scheduled AWS): one bounded work item per enabled target tuple.
-type PrometheusMimirWorkPlanner struct{}
+type WorkPlanner struct{}
 
 type prometheusMimirRuntimeConfiguration struct {
 	Targets []prometheusMimirTargetConfiguration `json:"targets"`
@@ -56,9 +56,9 @@ type prometheusMimirTargetConfiguration struct {
 // per-target conflict domain is the target scope_id (carried as ScopeID and
 // AcceptanceUnitID), and the per-target fairness lane is keyed on the same
 // scope so no two concurrent claims contend for one metric source.
-func (p PrometheusMimirWorkPlanner) PlanPrometheusMimirWork(
+func (p WorkPlanner) PlanPrometheusMimirWork(
 	_ context.Context,
-	request PrometheusMimirPlanRequest,
+	request PlanRequest,
 ) (workflow.Run, []workflow.WorkItem, error) {
 	if err := validatePrometheusMimirPlanRequest(request); err != nil {
 		return workflow.Run{}, nil, err
@@ -95,7 +95,7 @@ func (p PrometheusMimirWorkPlanner) PlanPrometheusMimirWork(
 	return run, items, nil
 }
 
-func validatePrometheusMimirPlanRequest(request PrometheusMimirPlanRequest) error {
+func validatePrometheusMimirPlanRequest(request PlanRequest) error {
 	if err := request.Instance.Validate(); err != nil {
 		return fmt.Errorf("prometheus/mimir plan request: %w", err)
 	}
@@ -185,7 +185,7 @@ func prometheusMimirRunID(
 	)
 }
 
-func prometheusMimirRequestTriggerKind(request PrometheusMimirPlanRequest) workflow.TriggerKind {
+func prometheusMimirRequestTriggerKind(request PlanRequest) workflow.TriggerKind {
 	if request.TriggerKind != "" {
 		return request.TriggerKind
 	}

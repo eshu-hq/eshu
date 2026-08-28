@@ -9,9 +9,16 @@ import (
 	"strings"
 	"time"
 
+	"github.com/eshu-hq/eshu/go/internal/coordinator/prometheusmimir"
 	"github.com/eshu-hq/eshu/go/internal/scope"
 	"github.com/eshu-hq/eshu/go/internal/workflow"
 )
+
+// PrometheusMimirPlanner plans Prometheus/Mimir metric-metadata workflow rows
+// from collector instance configuration.
+type PrometheusMimirPlanner interface {
+	PlanPrometheusMimirWork(context.Context, prometheusmimir.PlanRequest) (workflow.Run, []workflow.WorkItem, error)
+}
 
 // schedulePrometheusMimirWork admits one scheduled run per active, claim-enabled
 // Prometheus/Mimir collector instance. It is a no-op outside active mode or when
@@ -32,7 +39,7 @@ func (s Service) schedulePrometheusMimirWork(
 		if s.PrometheusMimirPlanner == nil {
 			return fmt.Errorf("prometheus/mimir planner is required for active prometheus_mimir collectors")
 		}
-		run, items, err := s.PrometheusMimirPlanner.PlanPrometheusMimirWork(ctx, PrometheusMimirPlanRequest{
+		run, items, err := s.PrometheusMimirPlanner.PlanPrometheusMimirWork(ctx, prometheusmimir.PlanRequest{
 			Instance:   instance,
 			ObservedAt: observedAt,
 			PlanKey:    s.prometheusMimirPlanKey(instance, observedAt),
