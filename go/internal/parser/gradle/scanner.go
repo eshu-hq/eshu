@@ -22,6 +22,10 @@ var (
 // block comments while preserving string literal interiors verbatim. Unclosed
 // single-line strings terminate at the newline so subsequent lines parse
 // cleanly rather than getting absorbed into a runaway string.
+//
+// "Newline" here means '\n' or a bare '\r'. A classic-Mac source carries no
+// '\n' at all, so a scan that stopped only on '\n' ran to EOF and erased
+// every declaration after the first comment or unclosed string (#6268).
 func stripCommentsAndStringInteriorsKept(source string) string {
 	var builder strings.Builder
 	builder.Grow(len(source))
@@ -33,7 +37,11 @@ func stripCommentsAndStringInteriorsKept(source string) string {
 			next = source[index+1]
 		}
 		if current == '/' && next == '/' {
-			for index < len(source) && source[index] != '\n' {
+			// A bare '\r' ends the line comment exactly as '\n' does, so a
+			// classic-Mac build script does not lose every declaration after
+			// its first comment (#6268). The terminator stays in source and
+			// is copied by the main loop.
+			for index < len(source) && source[index] != '\n' && source[index] != '\r' {
 				index++
 			}
 			continue
@@ -92,7 +100,7 @@ func copyStringLiteral(source string, index int, quote byte, builder *strings.Bu
 			index++
 			return index
 		}
-		if source[index] == '\n' {
+		if source[index] == '\n' || source[index] == '\r' {
 			return index
 		}
 		builder.WriteByte(source[index])
