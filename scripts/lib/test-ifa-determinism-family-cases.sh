@@ -266,6 +266,23 @@ require_shell_exec_lib "shell-exec assert-edges domain" "-domain shell_exec"
 require_shell_exec_lib "shell-exec drive takes the labeled signature" 'local label="$1" bin_dir="$2" cassette="$3" workers="$4" log_dir="$5"'
 require_shell_exec_lib "shell-exec assert is exact-set, not a digest" '-expected "${expected_edges}"'
 
+# kubernetes_namespace_environment and iam_instance_profile_role (#6228): the
+# first DIRECT-materialization families in the shared cell. They share ONE lib
+# file (scripts/lib/ifa_direct_family_live.sh) because their drive and assert
+# bodies differ only in a cassette path and a domain, but each needle below
+# names its OWN domain, so the shared file cannot let one family's wiring pass
+# for the other's.
+#
+# The exact-set assert carries more weight for these two than for most. Both
+# fixtures are built around edges that must NOT exist -- two namespaces whose
+# labels bind no Environment, and two instance profiles (one naming an
+# unscanned role, one with no attachment) that must produce nothing -- and a
+# count-only or digest check cannot tell "correct" from "invented an endpoint".
+require_direct_family_lib "kubernetes-namespace-environment assert-edges domain" "-domain kubernetes_namespace_environment"
+require_direct_family_lib "kubernetes-namespace-environment drive takes the labeled signature" 'local label="$1" bin_dir="$2" cassette="$3" workers="$4" log_dir="$5"'
+require_direct_family_lib "direct-family assert is exact-set, not a digest" '-expected "${expected_edges}"'
+require_direct_family_lib "iam-instance-profile-role assert-edges domain" "-domain iam_instance_profile_role"
+
 # handles_route/runs_in/invokes_cloud_action (#5995/#6000/#5997): all three
 # share ONE lib file (scripts/lib/ifa_symbol_runtime_live.sh) and one drive
 # function, since they come from the same production entry point
@@ -293,6 +310,8 @@ declare -A ifa_det_family_cases_hand_authored=(
 	[handles_route]="-domain handles_route"
 	[runs_in]="-domain runs_in"
 	[invokes_cloud_action]="-domain invokes_cloud_action"
+	[kubernetes_namespace_environment]="-domain kubernetes_namespace_environment"
+	[iam_instance_profile_role]="-domain iam_instance_profile_role"
 )
 # First, the map value must literally be this family's own `-domain
 # <family>` flag -- never a bare placeholder like `1` and never another
@@ -318,6 +337,7 @@ for family in "${!ifa_det_family_cases_hand_authored[@]}"; do
 	rg --fixed-strings --quiet -- "${domain_needle}" \
 		"${delta_lib}" "${code_call_lib}" "${documentation_lib}" "${rationale_lib}" "${codeowners_lib}" \
 		"${submodule_pin_lib}" "${inheritance_lib}" "${shell_exec_lib}" "${symbol_runtime_lib}" \
+		"${direct_family_lib}" \
 		|| fail "family registry totality: '${family}' is hand-authored in ifa_det_family_cases_hand_authored with expected needle '${domain_needle}' but it does not appear in any of this module's target lib files -- add fixtures + a require_*_lib drive/assert-shape needle for it, a bare map-key acknowledgement is not acceptable"
 done
 # shellcheck source=scripts/lib/ifa_family_registry.sh

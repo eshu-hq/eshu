@@ -82,6 +82,8 @@ IFA_FAMILY_PINS_NAMES=(
 	handles_route
 	runs_in
 	invokes_cloud_action
+	kubernetes_namespace_environment
+	iam_instance_profile_role
 )
 
 ifa_family_registry_pins_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/ifa_family_registry_pins"

@@ -2605,6 +2605,27 @@ gates:
       - "testdata/cassettes/shellexec/**"
       - "go/internal/ifa/testdata/inheritance/**"
       - "go/internal/ifa/testdata/shellexec/**"
+      # kubernetes_namespace_environment / iam_instance_profile_role (#6228):
+      # the first DIRECT-materialization families in either live gate. Each
+      # carries its own Odù builder, committed cassette and expected-edge
+      # directory, plus the reducer handler and cypher writer whose output the
+      # exact-set assertion pins -- a change to any of them must re-run the
+      # gate that proves the family, or its coverage row keeps asserting a
+      # proof that has gone stale. ifa_direct_family_live.sh supplies both
+      # families' drive/assert callbacks, so it is listed once for both.
+      - "go/internal/ifa/kubernetes_namespace_environment_family_odu.go"
+      - "go/internal/ifa/iam_instance_profile_role_family_odu.go"
+      - "go/internal/ifa/direct_family_cassette.go"
+      - "go/internal/reducer/kubernetes_namespace_materialization.go"
+      - "go/internal/reducer/iam_instance_profile_role_materialization.go"
+      - "go/internal/reducer/iam_instance_profile_role_edge_rows.go"
+      - "go/internal/storage/cypher/kubernetes_namespace_node_writer.go"
+      - "go/internal/storage/cypher/iam_instance_profile_role_edge_writer.go"
+      - "testdata/cassettes/kubernetesnamespaceenvironment/**"
+      - "testdata/cassettes/iaminstanceprofilerole/**"
+      - "go/internal/ifa/testdata/kubernetesnamespaceenvironment/**"
+      - "go/internal/ifa/testdata/iaminstanceprofilerole/**"
+      - "scripts/lib/ifa_direct_family_live.sh"
       # handles_route/runs_in/invokes_cloud_action trio (#5995/#6000/#5997):
       # one shared cassette and Odù (symbolRuntimeFamilyOdu() is registered
       # in catalog_seed.go's catalogSeed -- live-binary-consumed, not
@@ -3122,6 +3143,27 @@ gates:
       - "testdata/cassettes/shellexec/**"
       - "go/internal/ifa/testdata/inheritance/**"
       - "go/internal/ifa/testdata/shellexec/**"
+      # kubernetes_namespace_environment / iam_instance_profile_role (#6228):
+      # the first DIRECT-materialization families in either live gate. Each
+      # carries its own Odù builder, committed cassette and expected-edge
+      # directory, plus the reducer handler and cypher writer whose output the
+      # exact-set assertion pins -- a change to any of them must re-run the
+      # gate that proves the family, or its coverage row keeps asserting a
+      # proof that has gone stale. ifa_direct_family_live.sh supplies both
+      # families' drive/assert callbacks, so it is listed once for both.
+      - "go/internal/ifa/kubernetes_namespace_environment_family_odu.go"
+      - "go/internal/ifa/iam_instance_profile_role_family_odu.go"
+      - "go/internal/ifa/direct_family_cassette.go"
+      - "go/internal/reducer/kubernetes_namespace_materialization.go"
+      - "go/internal/reducer/iam_instance_profile_role_materialization.go"
+      - "go/internal/reducer/iam_instance_profile_role_edge_rows.go"
+      - "go/internal/storage/cypher/kubernetes_namespace_node_writer.go"
+      - "go/internal/storage/cypher/iam_instance_profile_role_edge_writer.go"
+      - "testdata/cassettes/kubernetesnamespaceenvironment/**"
+      - "testdata/cassettes/iaminstanceprofilerole/**"
+      - "go/internal/ifa/testdata/kubernetesnamespaceenvironment/**"
+      - "go/internal/ifa/testdata/iaminstanceprofilerole/**"
+      - "scripts/lib/ifa_direct_family_live.sh"
       # handles_route/runs_in/invokes_cloud_action trio (#5995/#6000/#5997):
       # same cassette/Odù/expected-edges wiring as the determinism block
       # above -- see that block's comment for why the Go-test-only carve-out

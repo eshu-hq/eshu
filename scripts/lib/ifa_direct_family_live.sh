@@ -1,0 +1,108 @@
+#!/usr/bin/env bash
+# shellcheck shell=bash
+# Live-gate drive/assert callbacks for the two DIRECT-materialization families
+# (#6228): kubernetes_namespace_environment and iam_instance_profile_role.
+#
+# SOURCED by both scripts/verify-ifa-determinism.sh and
+# scripts/verify-ifa-fault-injection.sh. The families are registered through
+# scripts/lib/ifa_family_registry/rows/12_kubernetes_namespace_environment.sh
+# and rows/13_iam_instance_profile_role.sh, which decide which cells drive
+# them; this file only supplies the callbacks those rows name. Callers own
+# strict mode and cleanup.
+#
+# ONE FILE FOR TWO FAMILIES, unlike the shared-projection families' one file
+# each. Their drive and assert bodies differ only in a cassette path, a domain
+# name and a log filename, and both are four lines of real work; two files
+# would be one contract in two places. The per-family REGISTRY ROWS stay
+# separate, which is where the split that matters already is.
+#
+# WHY THESE ARE DIRECT, and why that changes nothing here: the reducer writes
+# both families straight to a go/internal/storage/cypher writer rather than
+# through a shared-projection intent row. The gate does not care -- it drives a
+# cassette and asserts an exact edge set either way -- but it does mean the
+# handler is scheduled by an ordinary fact_work_items domain
+# (kubernetes_namespace_materialization / iam_instance_profile_role_materialization)
+# rather than by a shared_followup fact the cassette has to carry.
+
+# ifa_direct_family_drive replays one committed family cassette into a matrix
+# cell. The caller performs the aggregate fact_work_items non-vacuity check.
+#
+# label/slug are separate arguments because the label carries the cell identity
+# (n1, N=2, "post-delta N=4") and would make an unusable filename, while the
+# slug is the stable per-family log name.
+_ifa_direct_family_drive() {
+	local slug="$1" label="$2" bin_dir="$3" cassette="$4" workers="$5" log_dir="$6"
+	printf '\n=== %s: drive %s family cassette (-workers %s) ===\n' "${label}" "${slug}" "${workers}"
+	if ! "${bin_dir}/eshu-ifa" drive -cassette "${cassette}" -workers "${workers}" \
+		>"${log_dir}/ifa-drive-${slug}-${label}.log" 2>&1; then
+		tail -40 "${log_dir}/ifa-drive-${slug}-${label}.log" >&2 || true
+		return 1
+	fi
+	cat "${log_dir}/ifa-drive-${slug}-${label}.log"
+}
+
+# Each assert below spells its `-domain <family>` flag out literally rather
+# than taking the domain as a parameter. That is deliberate: the domain is the
+# one thing a shared helper must not abstract away, because it is what makes
+# these two families' assertions distinguishable from each other, and
+# scripts/lib/test-ifa-determinism-family-cases.sh greps each family's own flag
+# out of this file to prove the wiring exists. A parameterized call would let
+# one family's coverage stand in for the other's and satisfy that check with a
+# single needle.
+
+# ifa_kubernetes_namespace_environment_drive replays the namespace cassette.
+ifa_kubernetes_namespace_environment_drive() {
+	local label="$1" bin_dir="$2" cassette="$3" workers="$4" log_dir="$5"
+	_ifa_direct_family_drive kubernetes-namespace-environment \
+		"${label}" "${bin_dir}" "${cassette}" "${workers}" "${log_dir}"
+}
+
+# ifa_kubernetes_namespace_environment_assert pins the two-edge exact set.
+#
+# Two of the Odù's four namespaces bind an Environment and two deliberately do
+# not, so this assertion is as much about the two edges that must NOT exist as
+# the two that must. The targets are the CANONICAL environment names ("prod",
+# "stage"), not the raw labels ("production", "staging"): the reducer
+# canonicalizes through environment.Canonical, and asserting the raw values
+# would pass on a build that had dropped that step.
+#
+# The target endpoints are name-keyed Environment nodes carrying no uid and no
+# id, which `ifa assert-edges` resolves through endpointID's Environment-scoped
+# "name" fallback. Before that fallback existed this family's edges materialized
+# correctly and the gate still reported every one of them an unmaterialized
+# endpoint.
+ifa_kubernetes_namespace_environment_assert() {
+	local label="$1" bin_dir="$2" expected_edges="$3"
+	printf '\n=== %s: assert kubernetes_namespace_environment materialized edges (two-edge exact set) ===\n' "${label}"
+	"${bin_dir}/eshu-ifa" assert-edges \
+		-domain kubernetes_namespace_environment \
+		-expected "${expected_edges}"
+}
+
+# ifa_iam_instance_profile_role_drive replays the instance-profile cassette.
+ifa_iam_instance_profile_role_drive() {
+	local label="$1" bin_dir="$2" cassette="$3" workers="$4" log_dir="$5"
+	_ifa_direct_family_drive iam-instance-profile-role \
+		"${label}" "${bin_dir}" "${cassette}" "${workers}" "${log_dir}"
+}
+
+# ifa_iam_instance_profile_role_assert pins the two-edge exact set.
+#
+# Both edges come from ONE instance profile attaching two scanned roles, so a
+# regression that emitted one edge per profile instead of one per attachment
+# still produces "some edges" and fails only against an exact set. The Odù's
+# other two profiles -- one naming a role ARN nothing scanned, one with an empty
+# attachment list -- must contribute nothing; the extractor drops an unresolved
+# target rather than inventing an endpoint, and this set is what holds it to
+# that.
+#
+# The relationship type is HAS_ROLE, read off the writer's MERGE. It is NOT
+# IAM_INSTANCE_PROFILE_HAS_ROLE, which is statement metadata carried beside the
+# query and never reaches the graph.
+ifa_iam_instance_profile_role_assert() {
+	local label="$1" bin_dir="$2" expected_edges="$3"
+	printf '\n=== %s: assert iam_instance_profile_role materialized edges (two-edge exact set) ===\n' "${label}"
+	"${bin_dir}/eshu-ifa" assert-edges \
+		-domain iam_instance_profile_role \
+		-expected "${expected_edges}"
+}

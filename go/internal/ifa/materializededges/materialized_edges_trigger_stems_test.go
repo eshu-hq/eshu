@@ -63,6 +63,13 @@ var materializedEdgeFamilyTriggerStems = map[string]string{
 	"sql_relationships":    "sql_relationship",
 	"submodule_pin_edges":  "submodule",
 	"workload_dependency":  "workload_dependency",
+	// The first two DIRECT families to be wired into a live gate (#6228). Both
+	// stems are prefixes of real trigger paths in BOTH gate blocks --
+	// go/internal/ifa/<stem>_family_odu.go, the reducer handler and the cypher
+	// writer -- rather than guesses at paths nobody has written, which is the
+	// state the comment above describes for the remaining direct families.
+	"iam_instance_profile_role":        "iam_instance_profile_role",
+	"kubernetes_namespace_environment": "kubernetes_namespace_environment",
 }
 
 // TestEveryCoveredFamilyTriggersBothLiveGates closes the third side of the
