@@ -44,6 +44,12 @@ Not claimed today:
   unchanged: `/* */` is blanked in full, line breaks included, because the
   offset map that keeps `line_number` accurate depends on it.
 
+- Line numbers count a bare `\r` as a line break, and count a `\r\n` pair once.
+  Recovering a classic-Mac JSONC file is only half the fix: while line counting
+  looked for `\n` alone, every row that file produced -- each `extends`,
+  `references` entry, and `compilerOptions.paths` alias -- reported line 1, and
+  the content identity derived from those positions was wrong with it (#6268).
+
 ## Known Limitations
 - Generic JSON files emit metadata only and do not expand arbitrary nested objects into graph nodes
 - `json_metadata.top_level_keys` is parsed and returned in the parser payload, but it is not queryable: no reducer, content materializer, or query/MCP reader consumes it today. There is no `property:File` graph surface for this capability. The properties/`Property` bucket this row previously implied it fed is unimplemented repository-wide (no emitter, reducer, or query reader for `:Property` nodes; tracked as issue #5341) and is out of scope for this fix. The `generic-json-metadata-only` row's `partial` status is parser-proof only; it does not have the consumer proof [Support Maturity](support-maturity.md)'s promotion rule requires for `partial`, and is recorded here rather than silently passing as compliant

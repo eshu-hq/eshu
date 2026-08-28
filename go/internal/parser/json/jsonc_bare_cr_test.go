@@ -102,3 +102,105 @@ func TestParseBareCRJSONCKeepsKeysAfterLineComment(t *testing.T) {
 		t.Fatalf("top-level keys = %#v, want %#v", got, want)
 	}
 }
+
+// TestParseBareCRJSONCReportsRealLineNumbers is the #6268 follow-up found in
+// review: recovering the document is not enough if every recovered row is
+// stamped line 1. `"extends"` sits on physical line 4 of the bare-CR
+// document, and buildNewlineIndex must count the lone '\r' bytes for the
+// emitted row (and the canonical content identity derived from it) to be
+// truthful.
+func TestParseBareCRJSONCReportsRealLineNumbers(t *testing.T) {
+	t.Parallel()
+
+	path := writeJSONTestFile(t, "tsconfig.json", bareCRJSONCDocument)
+	payload, err := Parse(path, false, shared.Options{}, Config{})
+	if err != nil {
+		t.Fatalf("Parse() error = %v, want nil", err)
+	}
+	rows, ok := payload["variables"].([]map[string]any)
+	if !ok {
+		t.Fatalf("variables = %T, want []map[string]any", payload["variables"])
+	}
+	for _, row := range rows {
+		if name, _ := row["name"].(string); name != "extends" {
+			continue
+		}
+		if got, want := row["line_number"], 4; got != want {
+			t.Fatalf("extends line_number = %#v, want %d (its real bare-CR source line); row = %#v", got, want, row)
+		}
+		return
+	}
+	t.Fatalf("no extends row emitted; rows = %#v", rows)
+}
+
+// TestParseCRLFJSONCReportsRealLineNumbers is the control for the line
+// counting change: CRLF must still count one break per pair, so `"extends"`
+// stays on line 4 rather than doubling to 7.
+func TestParseCRLFJSONCReportsRealLineNumbers(t *testing.T) {
+	t.Parallel()
+
+	path := writeJSONTestFile(t, "tsconfig.json", crlfJSONCDocument)
+	payload, err := Parse(path, false, shared.Options{}, Config{})
+	if err != nil {
+		t.Fatalf("Parse() error = %v, want nil", err)
+	}
+	rows, ok := payload["variables"].([]map[string]any)
+	if !ok {
+		t.Fatalf("variables = %T, want []map[string]any", payload["variables"])
+	}
+	for _, row := range rows {
+		if name, _ := row["name"].(string); name != "extends" {
+			continue
+		}
+		if got, want := row["line_number"], 4; got != want {
+			t.Fatalf("extends line_number = %#v, want %d: CRLF must count one break per pair; row = %#v", got, want, row)
+		}
+		return
+	}
+	t.Fatalf("no extends row emitted; rows = %#v", rows)
+}
+
+// TestNewlineIndexCountsBareCRAndCRLFOnce is the unit-level pin under both
+// Parse tests above: a lone '\r' is a line break, a CRLF pair is exactly one
+// break, and a mixed file gets both right.
+func TestNewlineIndexCountsBareCRAndCRLFOnce(t *testing.T) {
+	t.Parallel()
+
+	cases := []struct {
+		name   string
+		source string
+		offset int64
+		want   int
+	}{
+		{name: "bare CR ends a line", source: "a\rb\rc", offset: 4, want: 3},
+		{name: "CRLF counts once", source: "a\r\nb\r\nc", offset: 6, want: 3},
+		{name: "LF unchanged", source: "a\nb\nc", offset: 4, want: 3},
+		{name: "mixed endings", source: "a\rb\r\nc\nd", offset: 7, want: 4},
+	}
+	for _, testCase := range cases {
+		t.Run(testCase.name, func(t *testing.T) {
+			t.Parallel()
+
+			idx := buildNewlineIndex([]byte(testCase.source))
+			if got := idx.lineAt(testCase.offset); got != testCase.want {
+				t.Fatalf("buildNewlineIndex(%q).lineAt(%d) = %d, want %d", testCase.source, testCase.offset, got, testCase.want)
+			}
+		})
+	}
+}
+
+// TestStripJSONCCommentsCRLFBytesAreExact replaces the PR's unproven "the
+// same bytes come out" claim with the bytes that actually come out. The '\r'
+// of a CRLF line comment used to be swallowed by the scan and is now emitted,
+// so the stripped result really does differ by that one byte -- harmless
+// (it is JSON whitespace and the offset map stays faithful) but not
+// "unchanged", and only an exact-byte assertion can say so.
+func TestStripJSONCCommentsCRLFBytesAreExact(t *testing.T) {
+	t.Parallel()
+
+	stripped, _ := stripJSONCCommentsWithOffsets(crlfJSONCDocument)
+	want := "{\r\n\r\n\"compilerOptions\": {\"strict\": true},\r\n\"extends\": \"./base.json\"\r\n}"
+	if stripped != want {
+		t.Fatalf("stripJSONCCommentsWithOffsets(CRLF) = %q, want %q", stripped, want)
+	}
+}

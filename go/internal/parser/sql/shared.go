@@ -28,10 +28,21 @@ type sqlLineIndex struct {
 	newlines     []int
 }
 
+// newSQLLineIndex records the byte offset of every line break in source so
+// recovered nodes can be stamped with their real source line. A lone '\r'
+// (classic-Mac) is a line break; in a CRLF pair only the '\n' is recorded, so
+// the pair counts once and Windows checkouts keep the line numbers they
+// always had (#6268).
 func newSQLLineIndex(source []byte) sqlLineIndex {
 	newlines := make([]int, 0)
-	for index, b := range source {
-		if b == '\n' {
+	for index := 0; index < len(source); index++ {
+		switch source[index] {
+		case '\n':
+			newlines = append(newlines, index)
+		case '\r':
+			if index+1 < len(source) && source[index+1] == '\n' {
+				continue
+			}
 			newlines = append(newlines, index)
 		}
 	}

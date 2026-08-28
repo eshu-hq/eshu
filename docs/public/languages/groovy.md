@@ -82,6 +82,13 @@ Not claimed today:
   an unclosed quote absorbed every following line into a runaway string, so
   dependencies after either were invisible (#6268).
 
+- Bare `\r` also ends a line for the two scans that run after comment
+  stripping: the one that finds a `dependencies { }` block and the one that
+  splits it into declarations. A classic-Mac build script previously yielded no
+  dependencies at all unless `dependencies` opened the file, and even then all
+  its declarations were glued into a single statement, so at most one was
+  recorded (#6268).
+
 ## Known Limitations
 - Generic Groovy source is indexed conservatively; the current parser focuses on Jenkins pipeline metadata rather than broad class and method extraction
 - Jenkins metadata is strongest for Jenkinsfile-style entrypoints and may not detect custom shared-library DSLs that hide deployment semantics behind opaque helper calls

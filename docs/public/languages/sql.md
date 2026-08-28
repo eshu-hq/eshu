@@ -57,10 +57,21 @@ Not claimed today:
   reachability, and broad dbt macro semantics remain outside the exactness
   boundary.
 
-- A `--` line comment ends at a bare `\r` as well as at `\n` and `\r\n`. In a
-  file using classic-Mac line endings, a comment between `DROP` targets
-  previously swallowed the remaining targets on that line, so they were never
-  extracted (#6268).
+- A `--` line comment ends at a bare `\r` as well as at `\n` and `\r\n`. This
+  holds in the statement splitter that runs before the grammar, not only in
+  `DROP`-target recovery: in a file using classic-Mac line endings the first
+  `--` comment previously ran to end of file, so the whole migration arrived as
+  one unterminated statement and every table after that comment was missing
+  (#6268).
+
+- Line numbers count a bare `\r` as a line break, and count a `\r\n` pair once.
+  A recovered entity in a classic-Mac file is stamped with its own source line
+  rather than line 1 (#6268).
+
+- When a malformed statement leaves a parenthesis open, the next `CREATE` or
+  `ALTER` at the start of a line is still a recovery boundary after a bare `\r`.
+  It previously read as mid-line, so the malformed statement absorbed the ones
+  that followed it (#6268).
 
 ## Known Limitations
 

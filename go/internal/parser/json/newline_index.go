@@ -34,14 +34,22 @@ type newlineIndex struct {
 // over.
 type offsetTranslator func(offset int64) int64
 
-// buildNewlineIndex scans data once and records every newline byte offset.
-// CRLF line endings are handled by counting only the '\n' byte; a lone '\r'
-// (old Mac-style endings) is not treated as a line break, matching every
-// other line-counting path in this codebase.
+// buildNewlineIndex scans data once and records every line-break byte offset.
+// CRLF is counted once, by recording only its '\n'. A lone '\r' (classic-Mac
+// endings) is a line break too: once the JSONC comment scan stopped ending a
+// line comment only at '\n' (#6268), such a file parses, and counting only
+// '\n' would stamp every row in it with line 1 -- corrupting both the
+// reported source position and the content identity derived from it.
 func buildNewlineIndex(data []byte) *newlineIndex {
 	offsets := make([]int64, 0)
-	for i, b := range data {
-		if b == '\n' {
+	for i := 0; i < len(data); i++ {
+		switch data[i] {
+		case '\n':
+			offsets = append(offsets, int64(i))
+		case '\r':
+			if i+1 < len(data) && data[i+1] == '\n' {
+				continue
+			}
 			offsets = append(offsets, int64(i))
 		}
 	}

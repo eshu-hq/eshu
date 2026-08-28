@@ -48,11 +48,20 @@ func collectBlocks(source string, parent string, blocks *[]dependencyBlock) {
 				continue
 			}
 		}
-		newline := strings.IndexByte(source[index:], '\n')
+		// Advance to the next line. A bare '\r' ends a line exactly as '\n'
+		// does; a classic-Mac build script carries no '\n' at all, so
+		// stopping only on '\n' returned at the first line that was not a
+		// block header and `dependencies` was never found unless it opened
+		// the file (#6268). A CRLF pair is consumed as one break so the
+		// cursor still lands on the next real line.
+		newline := strings.IndexAny(source[index:], "\r\n")
 		if newline < 0 {
 			return
 		}
 		index += newline + 1
+		if source[index-1] == '\r' && index < len(source) && source[index] == '\n' {
+			index++
+		}
 	}
 }
 
@@ -60,6 +69,12 @@ func collectBlocks(source string, parent string, blocks *[]dependencyBlock) {
 // declaration statements on newlines or semicolons at top-level brace and
 // paren depth. Unclosed single-line strings are treated as terminated at the
 // newline so a malformed declaration does not swallow the rest of the block.
+//
+// "Newline" here is '\n' or a bare '\r'. Splitting only on '\n' glued every
+// declaration in a classic-Mac build script into one statement, so at most
+// the first dependency in the block was ever emitted (#6268). A CRLF pair
+// flushes on its '\r' and the '\n' then flushes an empty segment, which is
+// discarded, so Windows checkouts split exactly as before.
 func splitDependencyStatements(body string) []string {
 	statements := make([]string, 0)
 	depth := 0
@@ -81,7 +96,7 @@ func splitDependencyStatements(body string) []string {
 				index++
 				continue
 			}
-			if current == '\n' {
+			if current == '\n' || current == '\r' {
 				inString = false
 				if depth == 0 && parenDepth == 0 {
 					flush(index)
@@ -109,7 +124,7 @@ func splitDependencyStatements(body string) []string {
 			if depth > 0 {
 				depth--
 			}
-		case '\n':
+		case '\n', '\r':
 			if depth == 0 && parenDepth == 0 {
 				flush(index)
 			}
