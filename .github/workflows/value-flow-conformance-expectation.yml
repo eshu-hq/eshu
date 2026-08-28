@@ -1,0 +1,154 @@
+name: Value Flow Conformance Expectation
+
+# Runs the value-flow cloud sink conformance pair on both backends with the
+# expectation inverted (#6192).
+#
+# The pair is gated behind ESHU_BACKEND_CONFORMANCE_VALUE_FLOW because it fails
+# against NornicDB by design — it reproduces four measured divergences that
+# empty the production valueFlowCloudSinkTargetsCypher query. Nothing set that
+# variable anywhere, so the pair was absent from every run that happened on its
+# own, and the day upstream fixes the underlying defects nothing would have
+# changed and nobody would have found out.
+#
+# A scheduled job that is red by design gets muted inside a month, and a muted
+# job is worse than no job because it still looks like coverage. So this one
+# asserts the CURRENT, documented behaviour instead: the NornicDB lane fails
+# with the message corpus.go emits, and the Neo4j lane passes. Green means
+# "still broken, as documented". Red means upstream landed and the opt-in can
+# come off — scripts/verify-value-flow-conformance-expectation.sh prints the
+# one-step repair when that happens.
+#
+# Both lanes run in ONE job, sequentially, because they are one observation.
+# Neo4j-passes plus NornicDB-fails-with-that-exact-message is what separates a
+# backend defect from a broken fixture; a green Neo4j lane sitting in a
+# different job is a fact nobody reads. They also both bind
+# bolt://localhost:7687, so the first stack comes down before the second goes
+# up.
+#
+# The control runs FIRST. A failing step skips the rest of the job, so putting
+# NornicDB first would mean the one run that most needs its control never got
+# one. This order also skips the expensive NornicDB build when the control has
+# already said the fixture is broken.
+
+on:
+  push:
+    branches:
+      - main
+  # Path-filtered on PRs; main runs unconditionally above as the backstop, so a
+  # change reaching the pair through an unfiltered path (the Bolt executor, for
+  # one) is still caught. Keep this list byte-identical to the
+  # value-flow-conformance-expectation gate's triggers in specs/ci-gates.v1.yaml
+  # — TestValueFlowExpectationRegistryAndWorkflowTriggersMatch
+  # (go/internal/cigates/valueflow_required_test.go) compares the two sets, in
+  # both directions, because a registry trigger the workflow does not mirror
+  # marks a blocking gate GitHub never starts and required-gates-complete then
+  # waits for it forever.
+  pull_request:
+    paths:
+      - "go/internal/backendconformance/**"
+      - "go/internal/reducer/value_flow_cloud_sink_loader.go"
+      - "docker-compose.yaml"
+      - "docker-compose.neo4j.yml"
+      - "scripts/verify_backend_conformance_live.sh"
+      - "scripts/verify-value-flow-conformance-expectation.sh"
+      - "scripts/test-verify-value-flow-conformance-expectation.sh"
+      - "scripts/ci/install-apt-packages.sh"
+      - ".github/workflows/value-flow-conformance-expectation.yml"
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+permissions:
+  contents: read
+
+env:
+  ESHU_NEO4J_PASSWORD: change-me
+  NEO4J_URI: bolt://localhost:7687
+  NEO4J_USERNAME: neo4j
+  NEO4J_PASSWORD: change-me
+
+jobs:
+  expectation:
+    name: Value flow conformance expectation
+    runs-on: ubuntu-latest
+    # The NornicDB service builds from a pinned upstream commit rather than
+    # pulling a released image, which is the bulk of this budget. The two
+    # conformance runs themselves take seconds.
+    timeout-minutes: 45
+
+    steps:
+      - name: Check out code
+        uses: actions/checkout@v5
+
+      - name: Set up Go
+        uses: actions/setup-go@v6
+        with:
+          go-version-file: go/go.mod
+          cache-dependency-path: go/go.sum
+
+      - name: Install ripgrep
+        run: scripts/ci/install-apt-packages.sh ripgrep
+
+      - name: Prove the expectation script itself
+        run: scripts/test-verify-value-flow-conformance-expectation.sh
+
+      # Deliberately NOT `up --wait`. The Neo4j service healthcheck has no
+      # start_period and gives up after ten five-second retries, so a slow or
+      # loaded host marks the container unhealthy while it is still starting
+      # normally — measured here: Bolt came up 66s in and `--wait` had already
+      # failed the step at ~50s. Poll on our own budget instead, the way
+      # e2e-tests.yml does.
+      - name: Start Neo4j
+        run: |
+          docker compose -f docker-compose.neo4j.yml up -d neo4j
+          for _ in $(seq 1 90); do
+            if docker compose -f docker-compose.neo4j.yml exec -T neo4j \
+              cypher-shell -u neo4j -p "${ESHU_NEO4J_PASSWORD}" "RETURN 1" > /dev/null 2>&1; then
+              exit 0
+            fi
+            sleep 2
+          done
+          docker compose -f docker-compose.neo4j.yml logs neo4j
+          exit 1
+
+      - name: Neo4j lane — the positive control, expected to pass
+        env:
+          DEFAULT_DATABASE: neo4j
+          ESHU_NEO4J_DATABASE: neo4j
+          NEO4J_DATABASE: neo4j
+        run: scripts/verify-value-flow-conformance-expectation.sh neo4j
+
+      - name: Tear down Neo4j
+        if: always()
+        run: docker compose -f docker-compose.neo4j.yml down -v
+
+      # Same budget for NornicDB, for the same reason. Its healthcheck does
+      # carry a start_period and it came up healthy in seconds locally, but the
+      # image builds from a pinned upstream commit on a clean runner, and there
+      # is nothing to gain from the two services disagreeing about how long
+      # "starting" is allowed to take.
+      - name: Start NornicDB
+        run: |
+          docker compose -f docker-compose.yaml up -d nornicdb
+          for _ in $(seq 1 90); do
+            if docker compose -f docker-compose.yaml exec -T nornicdb \
+              wget --spider -q http://localhost:7474/health > /dev/null 2>&1; then
+              exit 0
+            fi
+            sleep 2
+          done
+          docker compose -f docker-compose.yaml logs nornicdb
+          exit 1
+
+      - name: NornicDB lane — expected to fail, naming the value-flow read case
+        env:
+          DEFAULT_DATABASE: nornic
+          ESHU_NEO4J_DATABASE: nornic
+          NEO4J_DATABASE: nornic
+        run: scripts/verify-value-flow-conformance-expectation.sh nornicdb
+
+      - name: Tear down NornicDB
+        if: always()
+        run: docker compose -f docker-compose.yaml down -v
