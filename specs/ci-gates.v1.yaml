@@ -2310,6 +2310,7 @@ gates:
       # mirrors source it; without a row here, neutering the pattern re-runs
       # nothing (#6161).
       - "scripts/lib/ifa_private_data_pattern.sh"
+      - "scripts/lib/ifa_dead_command_line.sh"
       # Glob, not the one filename: this file is the live-gate selector case
       # table and sits at 491 of the blocking 500-line cap, so it is itself a
       # split waiting to happen -- and a split of the table that proves these
@@ -2805,6 +2806,7 @@ gates:
       # control. The scan sources it now instead of carrying a hand-copied
       # literal; without a row here, neutering the pattern re-runs nothing (#6161).
       - "scripts/lib/ifa_private_data_pattern.sh"
+      - "scripts/lib/ifa_dead_command_line.sh"
       - "scripts/verify-ifa-dead-letter-matrix.sh"
       - "scripts/test-verify-ifa-dead-letter-matrix.sh"
       # Glob, not the one filename (#6200) -- but scoped to the one lib this
@@ -3246,6 +3248,7 @@ gates:
       - "scripts/ci/install-apt-packages.sh"
       - "scripts/test-verify-ifa-fault-injection.sh"
       - "scripts/lib/ifa_private_data_pattern.sh"
+      - "scripts/lib/ifa_dead_command_line.sh"
       - "scripts/lib/test-ifa-fault-injection-deployable-unit-lock-cases.sh"
       # Sourced by the deployable-unit cases module rather than by the mirror
       # itself, which is how it went untriggered: editing it selected no gate
@@ -3381,6 +3384,7 @@ gates:
       # control. The scan sources it now instead of carrying a hand-copied
       # literal; without a row here, neutering the pattern re-runs nothing (#6161).
       - "scripts/lib/ifa_private_data_pattern.sh"
+      - "scripts/lib/ifa_dead_command_line.sh"
       - "scripts/verify-ifa-replay-drive.sh"
       - "scripts/test-verify-ifa-replay-drive.sh"
       # No scripts/lib trigger here, and that is a deliberate gap rather than
