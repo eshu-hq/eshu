@@ -123,6 +123,52 @@ var singleTypeMaterializedEdgeFamilies = map[string]materializedEdgeFamily{
 		RetractCypher:  retractRationaleEdgesCypher,
 		IdentityCypher: batchCanonicalRationaleExplainsEdgeCypher,
 	},
+	// The first two DIRECT-materialization families registered here (#6228).
+	// Unlike every entry above them, these reach the graph straight from their
+	// own reducer port with no shared-projection intent row in between, so
+	// reducer.DirectMaterializedEdgeFamilies() enumerates them rather than
+	// reducer.MaterializedEdgeFamilies().
+	//
+	// Both types below are read off the Cypher the port executes, never off
+	// the port's name and never off its statement-metadata label. That is the
+	// #6181 rule, and both families are cases where the shortcut would have
+	// produced the wrong answer:
+	//
+	//   - kubernetes_namespace_environment's port is named
+	//     WriteKubernetesNamespaceNodes and MERGEs a relationship.
+	//   - iam_instance_profile_role's statement-metadata label is
+	//     iamInstanceProfileRoleEdgeLabel ("IAM_INSTANCE_PROFILE_HAS_ROLE"),
+	//     which is NOT a graph relationship type; the type its template MERGEs
+	//     is HAS_ROLE.
+	//
+	// Neither carries a coverage row yet. Registering a family here makes
+	// `eshu-ifa assert-edges -domain <family>` addressable and lets its vacuity
+	// guard resolve; it does not assert that any live matrix drives it. Both
+	// still carry their two waiver rows in
+	// specs/ifa-materialized-edge-coverage-direct.v1.yaml for that reason.
+	//
+	// kubernetes_namespace_environment's write template MERGEs the Environment
+	// node with a property map and the relationship without one, so the
+	// identity scan (which only matches a property map on a relationship
+	// MERGE, `-[rel:TYPE {...}]`) correctly reports no identity properties:
+	// this edge keys on its two endpoint nodes alone.
+	"kubernetes_namespace_environment": {
+		EdgeTypes:      map[string]string{"TARGETS_ENVIRONMENT": "namespace-to-environment binding (canonicalKubernetesNamespaceWithEnvironmentUpsertCypher)"},
+		RetractCypher:  retractKubernetesNamespaceStaleTargetsEnvironmentCypher,
+		IdentityCypher: canonicalKubernetesNamespaceWithEnvironmentUpsertCypher,
+	},
+	// iam_instance_profile_role's IdentityCypher holds the %s FORMAT const
+	// itself, unformatted. The token substituted into it comes from
+	// iamInstanceProfileRoleRelationshipVocabulary, a closed single-member set
+	// screened per row by validateIAMInstanceProfileRoleRelationshipType, so
+	// HAS_ROLE is the only type this writer can emit. The template MERGEs on
+	// its two endpoint nodes alone, so the identity scan yields nothing
+	// whether or not the %s has been substituted.
+	"iam_instance_profile_role": {
+		EdgeTypes:      map[string]string{"HAS_ROLE": "IAM instance-profile to role attachment (canonicalIAMInstanceProfileRoleEdgeUpsertCypherFormat)"},
+		RetractCypher:  retractIAMInstanceProfileRoleEdgesCypher,
+		IdentityCypher: canonicalIAMInstanceProfileRoleEdgeUpsertCypherFormat,
+	},
 }
 
 // materializedEdgeIdentityByFamily declares identity for the four

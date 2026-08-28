@@ -311,18 +311,49 @@ func TestSingleTypeFamilyIdentityMatchesWriteCypher(t *testing.T) {
 
 // TestMaterializedEdgeIdentityByFamilyIsTotal locks the union of
 // singleTypeMaterializedEdgeFamilies and materializedEdgeIdentityByFamily to
-// reducer.MaterializedEdgeFamilies() in both directions: a family enumerated
-// there with no identity declaration would let
+// the reducer's materialized-edge enumerations, in both directions: a family
+// with no identity declaration would let
 // TestSingleTypeFamilyIdentityMatchesWriteCypher silently skip it, and a
-// stale declaration for a family no longer enumerated would mislead a reader
-// into thinking it is still gated.
+// stale declaration for a family neither enumeration names would mislead a
+// reader into thinking it is still gated.
+//
+// The two directions are deliberately asymmetric, because the two halves of
+// the reducer's materialized-edge surface are at different stages (#6181,
+// #6228):
+//
+//   - REQUIRED for every reducer.MaterializedEdgeFamilies() (shared-projection)
+//     family. That half is fully covered, so a shared family with no identity
+//     declaration is a registration bug.
+//   - PERMITTED for a reducer.DirectMaterializedEdgeFamilies() family. Most of
+//     the direct half is still honestly waived and unregistered, so requiring
+//     a declaration from all of them would land a red for every family whose
+//     waiver already states the same gap. A direct family registers here on
+//     the change that gives it a vacuity guard, not before.
+//
+// A declaration for a family NEITHER enumeration names is stale in both
+// halves and still fails.
 func TestMaterializedEdgeIdentityByFamilyIsTotal(t *testing.T) {
 	t.Parallel()
 
-	families := reducer.MaterializedEdgeFamilies()
-	want := make(map[string]struct{}, len(families))
-	for _, family := range families {
-		want[family] = struct{}{}
+	shared := reducer.MaterializedEdgeFamilies()
+	if len(shared) == 0 {
+		t.Fatal("reducer.MaterializedEdgeFamilies() returned zero families; the required direction below would assert nothing")
+	}
+	required := make(map[string]struct{}, len(shared))
+	for _, family := range shared {
+		required[family] = struct{}{}
+	}
+
+	direct := reducer.DirectMaterializedEdgeFamilies()
+	if len(direct) == 0 {
+		t.Fatal("reducer.DirectMaterializedEdgeFamilies() returned zero families; every registered direct family would report as stale")
+	}
+	permitted := make(map[string]struct{}, len(shared)+len(direct))
+	for _, family := range shared {
+		permitted[family] = struct{}{}
+	}
+	for _, family := range direct {
+		permitted[family] = struct{}{}
 	}
 
 	have := make(map[string]struct{}, len(singleTypeMaterializedEdgeFamilies)+len(materializedEdgeIdentityByFamily))
@@ -333,26 +364,66 @@ func TestMaterializedEdgeIdentityByFamilyIsTotal(t *testing.T) {
 		have[family] = struct{}{}
 	}
 
-	var missing, extra []string
-	for family := range want {
+	var missing, stale []string
+	for family := range required {
 		if _, ok := have[family]; !ok {
 			missing = append(missing, family)
 		}
 	}
 	for family := range have {
-		if _, ok := want[family]; !ok {
-			extra = append(extra, family)
+		if _, ok := permitted[family]; !ok {
+			stale = append(stale, family)
 		}
 	}
 	sort.Strings(missing)
-	sort.Strings(extra)
+	sort.Strings(stale)
 
 	if len(missing) > 0 {
 		t.Errorf("reducer.MaterializedEdgeFamilies() names %v with no identity declaration; register it in singleTypeMaterializedEdgeFamilies or materializedEdgeIdentityByFamily (empty if the family MERGEs on endpoints alone) before it can be gated", missing)
 	}
-	if len(extra) > 0 {
-		t.Errorf("identity declared for %v, which reducer.MaterializedEdgeFamilies() no longer enumerates; remove the stale entry", extra)
+	if len(stale) > 0 {
+		t.Errorf("identity declared for %v, which neither reducer.MaterializedEdgeFamilies() nor reducer.DirectMaterializedEdgeFamilies() enumerates; remove the stale entry", stale)
 	}
+}
+
+// TestRegisteredDirectFamiliesAreEnumeratedAsDirect stops the permitted
+// direction of the test above from turning into a hole.
+//
+// Relaxing `stale` to shared ∪ direct is what lets a direct family register
+// here ahead of its coverage row. This check keeps that concession narrow: a
+// family in this table that is neither shared nor direct is already caught
+// above, and one that IS direct must be direct in the reducer's own
+// enumeration rather than because a maintainer said so here. Without it, the
+// only thing separating a legitimate early registration from a typo'd family
+// name would be that both happen to be absent from the shared list.
+func TestRegisteredDirectFamiliesAreEnumeratedAsDirect(t *testing.T) {
+	t.Parallel()
+
+	shared := make(map[string]struct{})
+	for _, family := range reducer.MaterializedEdgeFamilies() {
+		shared[family] = struct{}{}
+	}
+	direct := make(map[string]struct{})
+	for _, family := range reducer.DirectMaterializedEdgeFamilies() {
+		direct[family] = struct{}{}
+	}
+	if len(direct) == 0 {
+		t.Fatal("reducer.DirectMaterializedEdgeFamilies() returned zero families; this check would pass vacuously")
+	}
+
+	var registeredDirect []string
+	for family := range singleTypeMaterializedEdgeFamilies {
+		if _, isShared := shared[family]; isShared {
+			continue
+		}
+		if _, isDirect := direct[family]; !isDirect {
+			t.Errorf("family %q is registered in singleTypeMaterializedEdgeFamilies but is neither a shared-projection nor a direct-materialization family", family)
+			continue
+		}
+		registeredDirect = append(registeredDirect, family)
+	}
+	sort.Strings(registeredDirect)
+	t.Logf("direct-materialization families registered ahead of a coverage row: %v", registeredDirect)
 }
 
 // TestMaterializedEdgeIdentityPropertiesFailsClosed proves an unregistered

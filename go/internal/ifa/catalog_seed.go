@@ -62,6 +62,15 @@ var catalogSeed = []CatalogOdu{
 	shellExecFamilyOdu(),
 	workloadDependencyFamilyOdu(),
 	symbolRuntimeFamilyOdu(),
+	// The first two DIRECT-materialization families (#6228). Every entry above
+	// belongs to reducer.MaterializedEdgeFamilies(); these two belong to
+	// reducer.DirectMaterializedEdgeFamilies(), and both still carry their
+	// waiver rows in specs/ifa-materialized-edge-coverage-direct.v1.yaml
+	// because no live matrix drives them yet. Being cataloged is one of the
+	// four conditions a coverage row asserts, not the whole of it, so neither
+	// gets a coverage row on the strength of appearing here.
+	KubernetesNamespaceEnvironmentFamilyOdu(),
+	IAMInstanceProfileRoleFamilyOdu(),
 }
 
 // awsFamilySchemaBackedKinds are the representative aws_* fact kinds
