@@ -362,6 +362,22 @@ rg --fixed-strings --quiet -- 'ESHU_IFA_FAULT_SCRIPT' "${reducer_wiring}" \
 # loudly under `set -u`. The cost is one duplicate scan of one file, which is
 # why the printed number counts targets rather than distinct files.
 assert_no_private_data "${script}" "${det_lib}"
+# ...and the NUMBER in each derivation floor, not just the message that reports
+# it. test-ifa-fault-injection-documentation-cases.sh pins that both floors are
+# still asserted, by counting a string only each can produce -- but a floor
+# lowered rather than deleted keeps that string and stops catching anything:
+# `-ge 40` -> `-ge 1` and `-ge 45` -> `-ge 1` both left this mirror at exit 0
+# (#6195). Its determinism sibling pins the number and this side did not, which
+# is the same asymmetry #6173 had to close twice.
+#
+# EXACTLY ONE each, counted in the assertions lib rather than here, so these two
+# lines cannot satisfy themselves. RAISING a floor is meant to cost an edit in
+# both places: the number here is the claim, and a claim that tracks whatever
+# the subject happens to say is not a pin.
+[[ "$(_ifa_count_code_matches '"${#targets[@]}" -ge 40' "${assertions_lib}")" -eq 1 ]] \
+	|| fail "assert_no_private_data's scanned-file floor is no longer exactly 40 -- a lowered floor still reports a count and still passes on a collapsed derivation"
+[[ "$(_ifa_count_code_matches '"${syntax_checked}" -ge 45' "${assertions_lib}")" -eq 1 ]] \
+	|| fail "assert_libs_parse's parsed-lib floor is no longer exactly 45 -- a lowered floor still reports a count and still passes on a collapsed derivation"
 
 # Claimed-wait SQL-budget validation, domain-scoping (#5555), and the
 # once-fired-marker three-way discrimination (#5974/#5555) are functional
