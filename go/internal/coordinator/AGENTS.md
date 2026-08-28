@@ -16,6 +16,9 @@
      the extracted periodic external-API planner and its root scheduling seam:
      one enabled `configuration.targets[]` entry becomes one claimable work
      item with a per-`scope_id` `FairnessKey`; disabled targets are skipped
+   - `go/internal/coordinator/lokiplanner/planner.go` and `loki_service.go` —
+     the extracted Loki planner and its root scheduling seam under the same
+     ordering, clock, admission, retry, and telemetry boundary
 6. `go/internal/workflow/service.go` (does not exist — `Store` is defined in
    `service.go` here; the workflow contracts are in `internal/workflow`)
 7. `go/internal/telemetry/instruments.go` and `contract.go` — before adding
@@ -59,8 +62,9 @@
   `grafana_scheduler.go` + `grafana_service.go`) → add a `<Kind>Planner`
   interface and a planner field on `Service` in `service.go`; add the concrete
   `PlanXxxWork` planner in `<kind>_scheduler.go` that emits one work item per
-  enabled `configuration.targets[]` entry with a per-target `FairnessKey` so
-  concurrent reconciles never claim the same target twice; add
+  enabled `configuration.targets[]` entry with a per-target `FairnessKey` that
+  preserves durable partition metadata; rely on the parent Postgres open-target
+  admission guard to prevent overlapping scheduled work; add
   `schedule<Kind>Work`, `shouldSchedule<Kind>`, and `<kind>PlanKey` in
   `<kind>_service.go`; call `schedule<Kind>Work` in `runReconcile` adjacent to
   the existing schedule calls (guarded by active mode and `ClaimsEnabled`); wire

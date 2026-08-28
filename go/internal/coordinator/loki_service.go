@@ -9,9 +9,16 @@ import (
 	"strings"
 	"time"
 
+	"github.com/eshu-hq/eshu/go/internal/coordinator/lokiplanner"
 	"github.com/eshu-hq/eshu/go/internal/scope"
 	"github.com/eshu-hq/eshu/go/internal/workflow"
 )
+
+// LokiPlanner plans Loki observability workflow rows from collector instance
+// configuration.
+type LokiPlanner interface {
+	PlanLokiWork(context.Context, lokiplanner.PlanRequest) (workflow.Run, []workflow.WorkItem, error)
+}
 
 // scheduleLokiWork plans and admits one work item per enabled Loki target for
 // every active, claim-enabled Loki collector instance. It is a no-op outside
@@ -32,7 +39,7 @@ func (s Service) scheduleLokiWork(
 		if s.LokiPlanner == nil {
 			return fmt.Errorf("loki planner is required for active loki collectors")
 		}
-		run, items, err := s.LokiPlanner.PlanLokiWork(ctx, LokiPlanRequest{
+		run, items, err := s.LokiPlanner.PlanLokiWork(ctx, lokiplanner.PlanRequest{
 			Instance:   instance,
 			ObservedAt: observedAt,
 			PlanKey:    s.lokiPlanKey(instance, observedAt),

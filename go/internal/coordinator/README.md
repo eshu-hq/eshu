@@ -24,6 +24,9 @@ telemetry.
 The `tempoplanner` child owns the Tempo trace-signal planning request and pure
 planner; root retains scheduling order, tenant and egress filtering, the
 plan-key clock, durable admission, retries, and telemetry.
+The `lokiplanner` child owns the Loki observability planning request and pure
+planner under the same boundary; root retains scheduling order, tenant and
+egress filtering, the plan-key clock, durable admission, retries, and telemetry.
 
 ## Where this fits in the pipeline
 
@@ -177,11 +180,12 @@ one enabled bounded scope; invalid configurations fail validation.
   keyed by `scope_id`; disabled targets are skipped, the per-target fairness key
   is `grafana:<instance_id>:<target instance_id|scope_id>`, and
   `requested_scope_set` omits `token_env`, `base_url`, and resource limits.
-- `LokiWorkPlanner` — plans Grafana Loki observability collection runs from the
-  `configuration.targets[]` array. Each `enabled` target becomes one claimable
-  work item keyed by `scope_id` with a per-target fairness key
-  (`loki:<instance_id>:<scope_id>`); disabled targets are skipped and
-  `requested_scope_set` omits token environment references.
+- `LokiPlanner` — the root structural interface implemented by
+  `lokiplanner.WorkPlanner`. The child plans Grafana Loki observability
+  collection from `configuration.targets[]`; root keeps scheduling order, the
+  plan-key clock, tenant and egress filtering, and durable admission. Each
+  enabled target remains one claimable work item with the per-target fairness
+  key `loki:<instance_id>:<scope_id>`.
 - `OwnedPackageTargetReader` — optional active-mode dependency target reader
   used by `Service` when package-registry or vulnerability-intelligence
   instances enable `derive_from_owned_packages`.
@@ -222,6 +226,8 @@ one enabled bounded scope; invalid configurations fail validation.
 - `internal/coordinator/vaultlive` — Vault metadata plan request and
   deterministic planner implementation.
 - `internal/coordinator/tempoplanner` — Tempo trace-signal plan request and
+  deterministic planner implementation.
+- `internal/coordinator/lokiplanner` — Loki observability plan request and
   deterministic planner implementation.
 - `internal/workflow` — `DesiredCollectorInstance`, `CollectorInstance`,
   `Claim`, and default accessors; used throughout `Store` and `Config`.
