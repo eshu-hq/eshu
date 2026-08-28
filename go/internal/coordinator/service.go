@@ -92,12 +92,6 @@ type GrafanaPlanner interface {
 	PlanGrafanaWork(context.Context, GrafanaPlanRequest) (workflow.Run, []workflow.WorkItem, error)
 }
 
-// LokiPlanner plans Loki observability workflow rows from collector instance
-// configuration.
-type LokiPlanner interface {
-	PlanLokiWork(context.Context, LokiPlanRequest) (workflow.Run, []workflow.WorkItem, error)
-}
-
 // ComponentExtensionPlanner plans generic component extension workflow rows.
 type ComponentExtensionPlanner interface {
 	PlanComponentExtensionWork(context.Context, ComponentExtensionPlanRequest) (workflow.Run, []workflow.WorkItem, error)

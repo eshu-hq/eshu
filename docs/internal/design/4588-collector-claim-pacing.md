@@ -69,13 +69,13 @@ populate it, each with a per-target key:
 | `aws_scheduled_scheduler.go:285` | `aws:<instance>:<account id>` |
 | `oci_registry_scheduler.go:258` | `oci_registry:<instance>:<provider>` |
 | `package_registry_scheduler.go:350` | `package_registry:<instance>:<class>:<ecosystem>` |
-| `loki_scheduler.go:272` | `loki:<instance>:<scope>` |
+| `lokiplanner/planner.go` | `loki:<instance>:<scope>` |
 
-`loki_scheduler.go:270` states the intent outright: "FairnessKey partitions
-claims by the per-target Loki source."
-
-Not for claiming, it does not — and the precise scope of that matters, because
-two production paths *do* consult the key:
+`lokiplanner/planner.go` records the actual boundary: `FairnessKey` preserves
+the target's durable partition identity when Postgres stores and returns the
+claimed work item, while the coordinator's open-target admission guard prevents
+overlapping scheduled work. It does not pace claims, and the precise scope of
+that matters because two production paths *do* consult the key:
 
 - `go/internal/collector/extensionhost/mapping.go:69-73` — `partitionKey()`
   returns `item.FairnessKey` when set, falling back to

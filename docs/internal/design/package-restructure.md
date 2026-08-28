@@ -234,10 +234,13 @@ the fifth extraction under `internal/coordinator/tempoplanner`; its
 deterministic request validation, target filtering, and workflow-row
 construction move while root keeps service scheduling, the plan-key clock,
 tenant and egress filtering, durable admission, retries, and telemetry. The
-move does not change scheduler order, configured target order, IDs, fairness
-keys, workflow wire values, concurrency, or observability. Terraform-state
-keeps its separate plan-key validator, and the root `firstNonBlank` helper
-remains outside this boundary.
+Grafana Loki scheduler is the sixth extraction under
+`internal/coordinator/lokiplanner`; its deterministic request validation,
+target filtering, and workflow-row construction move under the same ownership
+boundary. These moves do not change scheduler order, configured target order,
+IDs, fairness keys, workflow wire values, concurrency, or observability.
+Terraform-state keeps its separate plan-key validator, and the root
+`firstNonBlank` helper remains outside this boundary.
 
 **mcp (338):** two layers. Registration (`tools_<domain>.go`, 43
 constructors, zero lateral calls) moves cleanly. Routing is the tangle:

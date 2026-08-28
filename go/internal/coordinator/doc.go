@@ -19,10 +19,8 @@
 //
 // TerraformStateWorkPlanner plans Terraform-state collection runs from resolved
 // discovery candidates. OCIRegistryWorkPlanner, PackageRegistryWorkPlanner,
-// VulnerabilityIntelligenceWorkPlanner, JiraWorkPlanner,
-// and LokiWorkPlanner each plan bounded work items without opening provider
-// connections; the Loki planner emits one work item per enabled configured Loki
-// target and partitions claims by a per-target fairness key. Package and
+// VulnerabilityIntelligenceWorkPlanner, and JiraWorkPlanner each plan bounded
+// work items without opening provider connections. Package and
 // vulnerability planners preserve direct and owned target priority ahead of
 // broad fanout and report aggregate skipped-target evidence when an
 // owned-package derivation budget is exhausted or partial dependency evidence
@@ -40,6 +38,11 @@
 // The tempoplanner child owns deterministic Tempo trace-signal planning while
 // this package retains scheduling order, tenant and egress filtering, the
 // plan-key clock, durable admission, retries, and telemetry.
+// The lokiplanner child owns deterministic Loki observability planning under
+// the same boundary. It preserves each enabled target's durable partition
+// identity as work-item metadata; claim ordering and pacing do not use that
+// metadata. The parent coordinator's Postgres open-target admission prevents
+// overlapping scheduled work.
 // PagerDutyWorkPlanner plans
 // incident-evidence work from configured PagerDuty targets.
 // PrometheusMimirWorkPlanner plans bounded metric-metadata work, one item per
@@ -47,11 +50,13 @@
 // concurrent reconciles never contend for one metric source.
 // The root TempoPlanner interface accepts the child tempoplanner.PlanRequest;
 // the child emits one bounded trace-signal work item per enabled Grafana Tempo
-// target and skips disabled targets. GrafanaWorkPlanner plans one bounded
+// target and skips disabled targets. The root LokiPlanner interface likewise
+// accepts lokiplanner.PlanRequest. GrafanaWorkPlanner plans one bounded
 // observability work item
 // per enabled Grafana target parsed from configuration.targets, skipping
-// disabled targets and partitioning by a per-target fairness key so concurrent
-// reconciles never claim the same target twice. GCPWorkPlanner plans one
+// disabled targets and preserving durable per-target partition metadata in its
+// fairness key. The coordinator's Postgres open-target admission prevents
+// overlapping scheduled work. GCPWorkPlanner plans one
 // bounded Cloud Asset Inventory work item per enabled GCP scope after explicit
 // live opt-in. ScannerWorkerWorkPlanner plans explicit scanner-worker source
 // evidence targets so a healthy worker must still have claimable work before a

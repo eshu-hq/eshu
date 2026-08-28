@@ -101,6 +101,13 @@ unexported declaration was file-local, and production imports were limited to
 `cicd_run_service.go`, the structural planner interface, scheduling position,
 clock-derived plan key, and durable admission.
 
+The Loki scheduler now follows that boundary under
+`internal/coordinator/lokiplanner`. The child owns request validation, target
+filtering, and deterministic workflow-row construction. Root keeps
+`loki_service.go`, the structural interface, service scheduling order,
+clock-derived plan key, tenant and egress filtering, durable admission, retries,
+and telemetry.
+
 **Shared core:** projector root MUST retain: canonical\* (18f, buildCanonicalMaterialization + CanonicalMaterialization struct — called from tfstate/package_registry/oci_registry/runtime), runtime_\* (15f, orchestrator), service.go/service_logging.go/service_superseded.go (Service type + lifecycle), stage_\*.go (9f, pipeline phases), factschema_decode_\*.go (9f, decode helpers reused across >=2 unrelated families — measured decodeAWSResource used by both iam and observability families), payload.go/entity_metadata.go (generic payload readers, used by 15+ files), reducer_intent_fact_index.go (consumed by every intents family), scope_generation_intents.go (the fan-out hub with 43 measured build-call sites to every family), and failure_classification.go/decisions.go/retry.go/work_errors.go/schema_version_admission.go (generic infra). CRITICAL ADDITIONAL FACT: canonical.go's exported Row types (EntityRow, FileRow  […truncated at source]
 
 **Move order:** projector (safest-first): (1) oci_registry_\* and tfstate_\* and container_image_identity and semantic_entity — single-owner leaf families with no internal cross-family calls, though each still requires updating their known external consumers (oci_registry: go/internal/storage/cypher/oci_registry_canonical_writer\*.go; tfstate: go/internal/storage/cypher/tfstate_canonical_writer\*.go, go/internal/storage/postgres/drift_\*.go, go/internal/replay/offlinetier/tfstate_\*.go, go/cmd/{ingester,bootstrap-index,projector}/terraform_state_ownership\*.go, go/internal/relationships/tfstatebackend/canonicalwriter/\*). (2) single-cloud-provider intents families (aws, azure, gcp, ec2, s3, iam, kubernetes, observa  […truncated at source]

@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package coordinator
+package lokiplanner
 
 import (
 	"context"
@@ -17,8 +17,8 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/workflow"
 )
 
-// LokiPlanRequest carries one Loki observability work-item planning request.
-type LokiPlanRequest struct {
+// PlanRequest carries one Loki observability work-item planning request.
+type PlanRequest struct {
 	// Instance is the durable Loki collector instance whose configuration the
 	// planner reads to enumerate targets.
 	Instance workflow.CollectorInstance
@@ -34,9 +34,9 @@ type LokiPlanRequest struct {
 	ScopeIDs []string
 }
 
-// LokiWorkPlanner plans workflow rows for configured Loki targets without
+// WorkPlanner plans workflow rows for configured Loki targets without
 // resolving credentials or contacting Loki.
-type LokiWorkPlanner struct{}
+type WorkPlanner struct{}
 
 type lokiRuntimeConfiguration struct {
 	Targets []lokiTargetConfiguration `json:"targets"`
@@ -53,9 +53,9 @@ type lokiTargetConfiguration struct {
 // target parsed from the collector instance configuration. Disabled targets are
 // skipped and never produce work. The returned run records the planned targets
 // in requested_scope_set so an operator can audit what was scheduled.
-func (p LokiWorkPlanner) PlanLokiWork(
+func (WorkPlanner) PlanLokiWork(
 	_ context.Context,
-	request LokiPlanRequest,
+	request PlanRequest,
 ) (workflow.Run, []workflow.WorkItem, error) {
 	if err := validateLokiPlanRequest(request); err != nil {
 		return workflow.Run{}, nil, err
@@ -91,7 +91,7 @@ func (p LokiWorkPlanner) PlanLokiWork(
 	return run, items, nil
 }
 
-func validateLokiPlanRequest(request LokiPlanRequest) error {
+func validateLokiPlanRequest(request PlanRequest) error {
 	if err := request.Instance.Validate(); err != nil {
 		return fmt.Errorf("loki plan request: %w", err)
 	}
@@ -173,7 +173,7 @@ func lokiRunID(instance workflow.CollectorInstance, planKey string, triggerKind 
 
 // lokiRequestTriggerKind honors an explicit request override and otherwise
 // derives the trigger from the instance bootstrap flag.
-func lokiRequestTriggerKind(request LokiPlanRequest) workflow.TriggerKind {
+func lokiRequestTriggerKind(request PlanRequest) workflow.TriggerKind {
 	if request.TriggerKind != "" {
 		return request.TriggerKind
 	}
@@ -268,8 +268,10 @@ func lokiWorkItem(
 		AcceptanceUnitID:    scopeID,
 		SourceRunID:         generationID,
 		GenerationID:        generationID,
-		// FairnessKey partitions claims by the per-target Loki source so two
-		// concurrent reconciles never plan overlapping work for the same target.
+		// FairnessKey preserves the target's durable partition identity when
+		// Postgres stores and returns the claimed work item. The parent
+		// coordinator's open-target admission guard prevents overlapping
+		// scheduled work for the same target.
 		FairnessKey: fmt.Sprintf("%s:%s:%s", scope.CollectorLoki, strings.TrimSpace(instance.InstanceID), scopeID),
 		Status:      workflow.WorkItemStatusPending,
 		CreatedAt:   observedAt.UTC(),

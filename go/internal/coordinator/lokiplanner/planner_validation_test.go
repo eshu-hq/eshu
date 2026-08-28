@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package coordinator
+package lokiplanner
 
 import (
 	"strings"
@@ -12,7 +12,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/workflow"
 )
 
-func TestLokiWorkPlannerPlansOneClaimPerEnabledTarget(t *testing.T) {
+func TestWorkPlannerPlansOneWorkItemPerEnabledTarget(t *testing.T) {
 	t.Parallel()
 
 	observedAt := time.Date(2026, time.June, 5, 15, 0, 0, 0, time.UTC)
@@ -28,7 +28,7 @@ func TestLokiWorkPlannerPlansOneClaimPerEnabledTarget(t *testing.T) {
 		UpdatedAt:      observedAt,
 	}
 
-	run, items, err := (LokiWorkPlanner{}).PlanLokiWork(t.Context(), LokiPlanRequest{
+	run, items, err := (WorkPlanner{}).PlanLokiWork(t.Context(), PlanRequest{
 		Instance:   instance,
 		ObservedAt: observedAt,
 		PlanKey:    "schedule-20260605T150000Z",
@@ -70,7 +70,7 @@ func TestLokiWorkPlannerPlansOneClaimPerEnabledTarget(t *testing.T) {
 			t.Fatalf("AcceptanceUnitID = %q, want %q", got, want)
 		}
 		if _, dup := seenFairness[item.FairnessKey]; dup {
-			t.Fatalf("FairnessKey %q reused; targets must partition by distinct conflict key", item.FairnessKey)
+			t.Fatalf("FairnessKey %q reused; targets must preserve distinct durable partition identity metadata", item.FairnessKey)
 		}
 		seenFairness[item.FairnessKey] = struct{}{}
 		if err := item.Validate(); err != nil {
@@ -79,7 +79,7 @@ func TestLokiWorkPlannerPlansOneClaimPerEnabledTarget(t *testing.T) {
 	}
 }
 
-func TestLokiWorkPlannerPlanKeyIsIdempotent(t *testing.T) {
+func TestWorkPlannerPlanKeyIsIdempotent(t *testing.T) {
 	t.Parallel()
 
 	observedAt := time.Date(2026, time.June, 5, 16, 0, 0, 0, time.UTC)
@@ -94,17 +94,17 @@ func TestLokiWorkPlannerPlanKeyIsIdempotent(t *testing.T) {
 		CreatedAt:      observedAt,
 		UpdatedAt:      observedAt,
 	}
-	request := LokiPlanRequest{
+	request := PlanRequest{
 		Instance:   instance,
 		ObservedAt: observedAt,
 		PlanKey:    "schedule-20260605T160000Z",
 	}
 
-	runA, itemsA, err := (LokiWorkPlanner{}).PlanLokiWork(t.Context(), request)
+	runA, itemsA, err := (WorkPlanner{}).PlanLokiWork(t.Context(), request)
 	if err != nil {
 		t.Fatalf("PlanLokiWork() first call error = %v", err)
 	}
-	runB, itemsB, err := (LokiWorkPlanner{}).PlanLokiWork(t.Context(), request)
+	runB, itemsB, err := (WorkPlanner{}).PlanLokiWork(t.Context(), request)
 	if err != nil {
 		t.Fatalf("PlanLokiWork() second call error = %v", err)
 	}
@@ -124,7 +124,7 @@ func TestLokiWorkPlannerPlanKeyIsIdempotent(t *testing.T) {
 	}
 }
 
-func TestLokiWorkPlannerRejectsWrongCollectorKind(t *testing.T) {
+func TestWorkPlannerRejectsWrongCollectorKind(t *testing.T) {
 	t.Parallel()
 
 	observedAt := time.Date(2026, time.June, 5, 15, 0, 0, 0, time.UTC)
@@ -140,7 +140,7 @@ func TestLokiWorkPlannerRejectsWrongCollectorKind(t *testing.T) {
 		UpdatedAt:      observedAt,
 	}
 
-	if _, _, err := (LokiWorkPlanner{}).PlanLokiWork(t.Context(), LokiPlanRequest{
+	if _, _, err := (WorkPlanner{}).PlanLokiWork(t.Context(), PlanRequest{
 		Instance:   instance,
 		ObservedAt: observedAt,
 		PlanKey:    "schedule-20260605T150000Z",
@@ -149,7 +149,7 @@ func TestLokiWorkPlannerRejectsWrongCollectorKind(t *testing.T) {
 	}
 }
 
-func TestLokiWorkPlannerEmptyConfigPlansNoWork(t *testing.T) {
+func TestWorkPlannerEmptyConfigPlansNoWork(t *testing.T) {
 	t.Parallel()
 
 	observedAt := time.Date(2026, time.June, 5, 15, 0, 0, 0, time.UTC)
@@ -165,7 +165,7 @@ func TestLokiWorkPlannerEmptyConfigPlansNoWork(t *testing.T) {
 		UpdatedAt:      observedAt,
 	}
 
-	run, items, err := (LokiWorkPlanner{}).PlanLokiWork(t.Context(), LokiPlanRequest{
+	run, items, err := (WorkPlanner{}).PlanLokiWork(t.Context(), PlanRequest{
 		Instance:   instance,
 		ObservedAt: observedAt,
 		PlanKey:    "schedule-20260605T150000Z",
@@ -181,7 +181,7 @@ func TestLokiWorkPlannerEmptyConfigPlansNoWork(t *testing.T) {
 	}
 }
 
-func TestLokiWorkPlannerAllDisabledPlansNoWork(t *testing.T) {
+func TestWorkPlannerAllDisabledPlansNoWork(t *testing.T) {
 	t.Parallel()
 
 	observedAt := time.Date(2026, time.June, 5, 15, 0, 0, 0, time.UTC)
@@ -197,7 +197,7 @@ func TestLokiWorkPlannerAllDisabledPlansNoWork(t *testing.T) {
 		UpdatedAt:      observedAt,
 	}
 
-	_, items, err := (LokiWorkPlanner{}).PlanLokiWork(t.Context(), LokiPlanRequest{
+	_, items, err := (WorkPlanner{}).PlanLokiWork(t.Context(), PlanRequest{
 		Instance:   instance,
 		ObservedAt: observedAt,
 		PlanKey:    "schedule-20260605T150000Z",
@@ -210,7 +210,7 @@ func TestLokiWorkPlannerAllDisabledPlansNoWork(t *testing.T) {
 	}
 }
 
-func TestLokiWorkPlannerScopeIDsFilterAndTriggerOverride(t *testing.T) {
+func TestWorkPlannerScopeIDsFilterAndTriggerOverride(t *testing.T) {
 	t.Parallel()
 
 	observedAt := time.Date(2026, time.June, 5, 15, 0, 0, 0, time.UTC)
@@ -226,7 +226,7 @@ func TestLokiWorkPlannerScopeIDsFilterAndTriggerOverride(t *testing.T) {
 		UpdatedAt:      observedAt,
 	}
 
-	run, items, err := (LokiWorkPlanner{}).PlanLokiWork(t.Context(), LokiPlanRequest{
+	run, items, err := (WorkPlanner{}).PlanLokiWork(t.Context(), PlanRequest{
 		Instance:    instance,
 		ObservedAt:  observedAt,
 		PlanKey:     "schedule-20260605T150000Z",
