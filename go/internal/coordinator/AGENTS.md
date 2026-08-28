@@ -12,10 +12,10 @@
    type-assertion pattern for `RecordReap`/`RecordRunReconciliation`
 5. `go/internal/coordinator/package_registry_scheduler.go` — bounded
    `package_registry` work-item planning
-   - `go/internal/coordinator/tempo_scheduler.go` and `tempo_service.go` — the
-     reference periodic external-API poll planner: one enabled
-     `configuration.targets[]` entry becomes one claimable work item with a
-     per-`scope_id` `FairnessKey`; disabled targets are skipped
+   - `go/internal/coordinator/tempoplanner/planner.go` and `tempo_service.go` —
+     the extracted periodic external-API planner and its root scheduling seam:
+     one enabled `configuration.targets[]` entry becomes one claimable work
+     item with a per-`scope_id` `FairnessKey`; disabled targets are skipped
 6. `go/internal/workflow/service.go` (does not exist — `Store` is defined in
    `service.go` here; the workflow contracts are in `internal/workflow`)
 7. `go/internal/telemetry/instruments.go` and `contract.go` — before adding
@@ -27,11 +27,11 @@
 
 - **Dark by default** — `deploymentModeDark` is the fallback in `withDefaults`.
   Do not change the default mode without a documented deployment decision.
-- **Active mode gate** — `Config.Validate` at line 104 returns an error if
+- **Active mode gate** — `Config.Validate` returns an error if
   `DeploymentMode == active` without `ClaimsEnabled=true` and at least one
   enabled claim-capable collector instance. This gate must not be weakened.
-- **HeartbeatInterval < ClaimLeaseTTL** — enforced in `Config.Validate` at
-  line 123. Violated configurations exit at startup.
+- **HeartbeatInterval < ClaimLeaseTTL** — enforced by `Config.Validate`.
+  Violated configurations exit at startup.
 - **Nil reap ticker in dark mode** — `reapTicker` is nil in dark mode;
   `tickerChan(nil)` returns a nil channel. The `select` never fires on it.
   Do not replace `tickerChan` with a non-nil channel in dark mode.

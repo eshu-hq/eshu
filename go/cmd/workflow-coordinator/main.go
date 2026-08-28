@@ -22,6 +22,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/coordinator/cicdrun"
 	"github.com/eshu-hq/eshu/go/internal/coordinator/sbomattestation"
 	"github.com/eshu-hq/eshu/go/internal/coordinator/securityalert"
+	"github.com/eshu-hq/eshu/go/internal/coordinator/tempoplanner"
 	coordinatorvaultlive "github.com/eshu-hq/eshu/go/internal/coordinator/vaultlive"
 	runtimecfg "github.com/eshu-hq/eshu/go/internal/runtime"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres"
@@ -181,7 +182,7 @@ func run(parent context.Context) error {
 		PagerDutyPlanner:                  coordinator.PagerDutyWorkPlanner{},
 		JiraPlanner:                       coordinator.JiraWorkPlanner{},
 		PrometheusMimirPlanner:            coordinator.PrometheusMimirWorkPlanner{},
-		TempoPlanner:                      coordinator.TempoWorkPlanner{},
+		TempoPlanner:                      tempoplanner.WorkPlanner{},
 		GCPPlanner:                        coordinator.GCPWorkPlanner{},
 		GrafanaPlanner:                    coordinator.GrafanaWorkPlanner{},
 		LokiPlanner:                       coordinator.LokiWorkPlanner{},

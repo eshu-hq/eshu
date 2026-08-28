@@ -21,6 +21,9 @@ and planner while root retains scheduling and durable admission.
 The `vaultlive` child owns the Vault metadata planning request and planner
 under the same boundary; root retains scheduling, admission, retries, and
 telemetry.
+The `tempoplanner` child owns the Tempo trace-signal planning request and pure
+planner; root retains scheduling order, tenant and egress filtering, the
+plan-key clock, durable admission, retries, and telemetry.
 
 ## Where this fits in the pipeline
 
@@ -80,9 +83,9 @@ loop cleanly.
 
 `Config.Validate` runs at `LoadConfig` time and again at `Service.Run` entry.
 Defaults are applied by `withDefaults` before validation, so missing env vars
-fall back to defaults rather than failing; malformed values fail fast. Enabled
-GCP collector instances with `claims_enabled=true` also fail validation because
-the coordinator has no GCP workflow scheduler yet.
+fall back to defaults rather than failing; malformed values fail fast.
+Claim-enabled GCP instances require `live_collection_enabled=true` and at least
+one enabled bounded scope; invalid configurations fail validation.
 
 `Service.Clock` is a testable time source. Production wiring leaves it nil;
 `now()` falls back to `time.Now()`.
@@ -164,12 +167,10 @@ the coordinator has no GCP workflow scheduler yet.
   targets, empty configuration, and an empty target list plan no work. The
   fairness key partitions per target scope, and `requested_scope_set` omits
   token and tenant environment references.
-- `TempoWorkPlanner` — plans Grafana Tempo trace-signal collection runs from
-  `configuration.targets[]`. Each enabled target becomes one claimable work item
-  keyed by `scope_id`; disabled targets are skipped, and `requested_scope_set`
-  omits token environment references. The per-target `FairnessKey` is
-  `tempo:<instance_id>:<scope_id>` so concurrent reconciles cannot admit two
-  open claims for the same target.
+- `TempoPlanner` — the root structural interface implemented by
+  `tempoplanner.WorkPlanner`. The child plans Grafana Tempo trace-signal
+  collection from `configuration.targets[]`; root keeps scheduling order, the
+  plan-key clock, tenant and egress filtering, and durable admission.
 - `GrafanaWorkPlanner` — plans Grafana observability metadata collection runs
   from configured `configuration.targets[]` without resolving credential
   environment variables. Each `enabled` target becomes one claimable work item
@@ -219,6 +220,8 @@ the coordinator has no GCP workflow scheduler yet.
 - `internal/coordinator/sbomattestation` — hosted SBOM-attestation plan request
   and deterministic planner implementation.
 - `internal/coordinator/vaultlive` — Vault metadata plan request and
+  deterministic planner implementation.
+- `internal/coordinator/tempoplanner` — Tempo trace-signal plan request and
   deterministic planner implementation.
 - `internal/workflow` — `DesiredCollectorInstance`, `CollectorInstance`,
   `Claim`, and default accessors; used throughout `Store` and `Config`.

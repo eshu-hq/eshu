@@ -229,9 +229,15 @@ admission, retry, and telemetry responsibilities. The hosted SBOM-attestation
 scheduler is the third extraction under `internal/coordinator/sbomattestation`
 with the same boundary. The Vault metadata scheduler is the fourth extraction
 under `internal/coordinator/vaultlive`; its pure planner moves while root keeps
-scheduling, admission, retries, and telemetry. Terraform-state keeps its
-separate plan-key validator, and the root `firstNonBlank` helper remains
-outside this boundary.
+scheduling, admission, retries, and telemetry. The Grafana Tempo scheduler is
+the fifth extraction under `internal/coordinator/tempoplanner`; its
+deterministic request validation, target filtering, and workflow-row
+construction move while root keeps service scheduling, the plan-key clock,
+tenant and egress filtering, durable admission, retries, and telemetry. The
+move does not change scheduler order, configured target order, IDs, fairness
+keys, workflow wire values, concurrency, or observability. Terraform-state
+keeps its separate plan-key validator, and the root `firstNonBlank` helper
+remains outside this boundary.
 
 **mcp (338):** two layers. Registration (`tools_<domain>.go`, 43
 constructors, zero lateral calls) moves cleanly. Routing is the tangle:

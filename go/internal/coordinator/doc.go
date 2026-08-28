@@ -37,14 +37,18 @@
 // follows the same boundary for hosted SBOM and attestation targets. The
 // vaultlive child owns deterministic Vault metadata planning while this
 // package retains scheduling, admission, retries, and telemetry.
+// The tempoplanner child owns deterministic Tempo trace-signal planning while
+// this package retains scheduling order, tenant and egress filtering, the
+// plan-key clock, durable admission, retries, and telemetry.
 // PagerDutyWorkPlanner plans
 // incident-evidence work from configured PagerDuty targets.
 // PrometheusMimirWorkPlanner plans bounded metric-metadata work, one item per
 // enabled Prometheus or Grafana Mimir target, partitioned by target scope so
 // concurrent reconciles never contend for one metric source.
-// TempoWorkPlanner plans one bounded trace-signal work item per enabled
-// Grafana Tempo target parsed from collector instance configuration, skipping
-// disabled targets. GrafanaWorkPlanner plans one bounded observability work item
+// The root TempoPlanner interface accepts the child tempoplanner.PlanRequest;
+// the child emits one bounded trace-signal work item per enabled Grafana Tempo
+// target and skips disabled targets. GrafanaWorkPlanner plans one bounded
+// observability work item
 // per enabled Grafana target parsed from configuration.targets, skipping
 // disabled targets and partitioning by a per-target fairness key so concurrent
 // reconciles never claim the same target twice. GCPWorkPlanner plans one

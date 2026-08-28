@@ -5,15 +5,17 @@ package coordinator
 
 import (
 	"context"
+	"reflect"
 	"testing"
 	"time"
 
+	"github.com/eshu-hq/eshu/go/internal/coordinator/tempoplanner"
 	"github.com/eshu-hq/eshu/go/internal/scope"
 	"github.com/eshu-hq/eshu/go/internal/workflow"
 )
 
 type fakeTempoPlanner struct {
-	requests []TempoPlanRequest
+	requests []tempoplanner.PlanRequest
 	run      workflow.Run
 	items    []workflow.WorkItem
 	err      error
@@ -21,7 +23,7 @@ type fakeTempoPlanner struct {
 
 func (f *fakeTempoPlanner) PlanTempoWork(
 	_ context.Context,
-	request TempoPlanRequest,
+	request tempoplanner.PlanRequest,
 ) (workflow.Run, []workflow.WorkItem, error) {
 	f.requests = append(f.requests, request)
 	if f.err != nil {
@@ -30,7 +32,7 @@ func (f *fakeTempoPlanner) PlanTempoWork(
 	return f.run, append([]workflow.WorkItem(nil), f.items...), nil
 }
 
-func TestServiceRunActiveModeSchedulesTempoWork(t *testing.T) {
+func TestServiceRunActiveModeSchedulesTempoWorkThroughChildPlanner(t *testing.T) {
 	t.Parallel()
 
 	now := time.Date(2026, time.June, 5, 18, 30, 0, 0, time.UTC)
@@ -92,8 +94,13 @@ func TestServiceRunActiveModeSchedulesTempoWork(t *testing.T) {
 	if got, want := len(planner.requests), 1; got != want {
 		t.Fatalf("planner requests = %d, want %d", got, want)
 	}
-	if got, want := planner.requests[0].PlanKey, "continuous-20260605T180000Z"; got != want {
-		t.Fatalf("planner PlanKey = %q, want %q", got, want)
+	wantRequest := tempoplanner.PlanRequest{
+		Instance:   instance,
+		ObservedAt: now,
+		PlanKey:    "continuous-20260605T180000Z",
+	}
+	if got := planner.requests[0]; !reflect.DeepEqual(got, wantRequest) {
+		t.Fatalf("planner request = %#v, want %#v", got, wantRequest)
 	}
 	if got, want := len(service.Store.(*fakeStore).createdRuns), 1; got != want {
 		t.Fatalf("created runs = %d, want %d", got, want)
@@ -102,12 +109,17 @@ func TestServiceRunActiveModeSchedulesTempoWork(t *testing.T) {
 
 func testServiceTempoInstance(observedAt time.Time) workflow.CollectorInstance {
 	return workflow.CollectorInstance{
-		InstanceID:     "tempo-primary",
-		CollectorKind:  scope.CollectorTempo,
-		Mode:           workflow.CollectorModeContinuous,
-		Enabled:        true,
-		ClaimsEnabled:  true,
-		Configuration:  testTempoConfigWithTwoEnabledTargets(),
+		InstanceID:    "tempo-primary",
+		CollectorKind: scope.CollectorTempo,
+		Mode:          workflow.CollectorModeContinuous,
+		Enabled:       true,
+		ClaimsEnabled: true,
+		Configuration: `{"targets":[{
+			"scope_id":"tempo:source:platform-prod",
+			"instance_id":"platform-prod",
+			"base_url":"https://tempo.platform-prod.example.com",
+			"enabled":true
+		}]}`,
 		LastObservedAt: observedAt,
 		CreatedAt:      observedAt,
 		UpdatedAt:      observedAt,

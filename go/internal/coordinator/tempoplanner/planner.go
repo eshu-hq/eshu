@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package coordinator
+package tempoplanner
 
 import (
 	"context"
@@ -17,8 +17,8 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/workflow"
 )
 
-// TempoPlanRequest carries one Tempo trace-signal evidence planning request.
-type TempoPlanRequest struct {
+// PlanRequest carries one Tempo trace-signal evidence planning request.
+type PlanRequest struct {
 	// Instance is the durable Tempo collector instance to plan work for.
 	Instance workflow.CollectorInstance
 	// ObservedAt anchors the run and work-item timestamps for this reconcile.
@@ -32,9 +32,9 @@ type TempoPlanRequest struct {
 	ScopeIDs []string
 }
 
-// TempoWorkPlanner plans workflow rows for configured Tempo targets without
+// WorkPlanner plans workflow rows for configured Tempo targets without
 // resolving credentials or contacting Tempo.
-type TempoWorkPlanner struct{}
+type WorkPlanner struct{}
 
 type tempoRuntimeConfiguration struct {
 	Targets []tempoTargetConfiguration `json:"targets"`
@@ -51,9 +51,9 @@ type tempoTargetConfiguration struct {
 // target. Disabled targets, an empty target list, and targets filtered out by
 // ScopeIDs produce no work item. The returned plan is deterministic for a fixed
 // (instance, plan key) pair so repeated reconciles are idempotent.
-func (p TempoWorkPlanner) PlanTempoWork(
+func (WorkPlanner) PlanTempoWork(
 	_ context.Context,
-	request TempoPlanRequest,
+	request PlanRequest,
 ) (workflow.Run, []workflow.WorkItem, error) {
 	if err := validateTempoPlanRequest(request); err != nil {
 		return workflow.Run{}, nil, err
@@ -89,7 +89,7 @@ func (p TempoWorkPlanner) PlanTempoWork(
 	return run, items, nil
 }
 
-func validateTempoPlanRequest(request TempoPlanRequest) error {
+func validateTempoPlanRequest(request PlanRequest) error {
 	if err := request.Instance.Validate(); err != nil {
 		return fmt.Errorf("tempo plan request: %w", err)
 	}
@@ -170,7 +170,7 @@ func tempoRunID(instance workflow.CollectorInstance, planKey string, triggerKind
 	)
 }
 
-func tempoRequestTriggerKind(request TempoPlanRequest) workflow.TriggerKind {
+func tempoRequestTriggerKind(request PlanRequest) workflow.TriggerKind {
 	if request.TriggerKind != "" {
 		return request.TriggerKind
 	}
