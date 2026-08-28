@@ -19,7 +19,6 @@ type SemanticEntityWriter struct {
 	entityLabelBatchSizes map[string]int
 	writeMode             semanticEntityWriteMode
 	retractMode           semanticEntityRetractMode
-	sequentialRetract     bool
 }
 
 // semanticEntityWriteMode names the exact Cypher row shape used by the writer.
@@ -111,21 +110,6 @@ func (w *SemanticEntityWriter) WithLabelScopedRetract() *SemanticEntityWriter {
 	return w
 }
 
-// WithSequentialRetract dispatches retract statements sequentially (each in its
-// own autocommit Execute) instead of grouping them atomically with the upserts.
-// Set this only for NornicDB, whose managed-transaction (ExecuteGroup) DETACH
-// DELETEs under-apply on v1.1.11 and silently leave nodes; on Neo4j the default
-// (grouped, atomic retract+upsert) is correct and must be preserved. The
-// retract→upsert window is non-atomic under this mode, which is acceptable
-// because semantic writes are idempotent and the reducer retries to convergence.
-func (w *SemanticEntityWriter) WithSequentialRetract() *SemanticEntityWriter {
-	if w == nil {
-		return w
-	}
-	w.sequentialRetract = true
-	return w
-}
-
 // WithEntityLabelBatchSize overrides the per-statement row batch size for one
 // semantic entity label.
 func (w *SemanticEntityWriter) WithEntityLabelBatchSize(label string, batchSize int) *SemanticEntityWriter {
@@ -149,16 +133,19 @@ func (w *SemanticEntityWriter) batchSizeForLabel(label string) int {
 }
 
 // WriteSemanticEntities retracts stale semantic nodes for the touched
-// repositories and upserts the current rows. By default retract and upsert
-// statements share one grouped transaction (on GroupExecutor-capable backends
-// such as Neo4j), so they commit or roll back atomically. In WithSequentialRetract
-// mode (NornicDB — whose managed-transaction DETACH DELETEs under-apply on
-// v1.1.11) the retracts are instead dispatched sequentially, each in its own
-// autocommit transaction, before the grouped upserts; that opens a brief
-// non-atomic window in which a concurrent reader may observe the retracted nodes
-// as absent before the upserts land. The reducer requeues on error and the
-// write is idempotent, so a retry converges; the split is deliberate and bounded
-// (retracts emit at most one statement per semantic label).
+// repositories and upserts the current rows. Retract and upsert statements
+// share one grouped transaction on GroupExecutor-capable executors, so they
+// commit or roll back atomically; executors that expose only Execute (NornicDB's
+// default ExecuteOnlyExecutor, and test stubs) fall back to a per-statement
+// loop in the same order.
+//
+// The retract used to be held out of the group and dispatched one autocommit
+// statement at a time on NornicDB, because grouped DETACH DELETEs under-applied
+// there and silently left nodes behind (#4367). That is a NornicDB v1.1.11
+// defect and Eshu's supported floor is now above it — #5323 measured the grouped
+// retract correct on 1.2.1 and 1.2.2, and #6176 re-measured it on the deployed
+// 1.2.2 build — so the split is gone and the atomic retract→upsert window is
+// back on every backend.
 func (w *SemanticEntityWriter) WriteSemanticEntities(
 	ctx context.Context,
 	write reducer.SemanticEntityWrite,
@@ -176,35 +163,21 @@ func (w *SemanticEntityWriter) WriteSemanticEntities(
 		return reducer.SemanticEntityWriteResult{}, fmt.Errorf("semantic entity delta projection requires file paths")
 	}
 
-	// Build the retract statements. By default they join the grouped statement
-	// list below so retract+upsert commit in one atomic transaction (correct on
-	// Neo4j, where grouped DELETEs apply and rollback together). Only when
-	// sequentialRetract is set — the NornicDB path via WithSequentialRetract —
-	// are they held out for sequential dispatch: grouped DETACH DELETEs
-	// under-apply on the pinned NornicDB v1.1.11 (the #4367 semantic Variable
-	// delta-retract hole; the same limitation the EdgeWriter retract path works
-	// around in edge_writer_retract.go), so they must run each in its own
-	// autocommit transaction there. NornicDB's default executor already hides
-	// GroupExecutor (ExecuteOnlyExecutor), so the sequential split only changes
-	// behaviour for the grouped-writes-enabled NornicDB configuration; the
-	// retract→upsert window is non-atomic there, and the reducer's idempotent
-	// retry converges it.
-	var retractStmts []Statement
+	// Retract statements lead the grouped statement list so retract+upsert
+	// commit in one atomic transaction wherever the executor is group-capable.
+	// Their Cypher is the WHERE ... IN shape (semantic_entity_statements.go),
+	// not the UNWIND-batched MATCH ... DELETE that no-ops inside a NornicDB
+	// managed transaction — see the retract entry in
+	// docs/public/reference/nornicdb-pitfalls.md.
+	var stmts []Statement
 	if !write.SkipRetract {
 		if write.DeltaProjection {
-			retractStmts = w.semanticDeltaRetractStatements(deltaFilePaths)
+			stmts = append(stmts, w.semanticDeltaRetractStatements(deltaFilePaths)...)
 		} else {
-			retractStmts = w.semanticRetractStatements(repoIDs)
+			stmts = append(stmts, w.semanticRetractStatements(repoIDs)...)
 		}
 	}
 
-	var stmts []Statement
-	if !w.sequentialRetract {
-		// Neo4j (and any grouped backend where DELETEs apply): keep retract and
-		// upsert in one atomic grouped transaction.
-		stmts = append(stmts, retractStmts...)
-		retractStmts = nil
-	}
 	writes := 0
 	switch w.writeMode {
 	case semanticEntityWriteModeParameterizedRows:
@@ -332,21 +305,10 @@ func (w *SemanticEntityWriter) WriteSemanticEntities(
 		})
 	}
 
-	// Sequential-retract mode only (see the retractStmts comment above):
-	// retractStmts is populated when sequentialRetract is set, so each retract
-	// runs in its own autocommit transaction and a grouped-DELETE under-apply
-	// cannot silently leave stale semantic nodes. In the default (grouped) mode
-	// retractStmts is nil here — the retracts were folded into stmts above and
-	// commit atomically with the upserts — so this loop is a no-op.
-	for _, stmt := range retractStmts {
-		if err := w.executor.Execute(ctx, stmt); err != nil {
-			return reducer.SemanticEntityWriteResult{}, fmt.Errorf("retract semantic entities: %w", WrapRetryableNeo4jError(err))
-		}
-	}
-
 	if len(stmts) > 0 {
-		// Prefer atomic grouped execution; fall back to sequential for
-		// executors that don't support transactions (e.g., test stubs).
+		// Prefer atomic grouped execution; fall back to per-statement dispatch
+		// for executors that expose only Execute — NornicDB's default
+		// ExecuteOnlyExecutor, and test stubs.
 		if ge, ok := w.executor.(GroupExecutor); ok {
 			if err := ge.ExecuteGroup(ctx, stmts); err != nil {
 				return reducer.SemanticEntityWriteResult{}, fmt.Errorf("write semantic entities: %w", WrapRetryableNeo4jError(err))
