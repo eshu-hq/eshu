@@ -243,17 +243,15 @@ func commandPositionChunks(line string) []string {
 // `eshu`: `docker compose logs eshu 2>&1` names a container, not a command, and
 // counting it would fail the gate on an unrelated docs edit.
 //
-// It differs from eshuCommandFields in one deliberate way: it steps over
-// leading `NAME=value` assignments, because a command behind an environment
-// prefix is still an eshu command line the scanner declined to parse. This
-// count measures the gate's blind spot, and hiding a real blind spot is the
-// failure it exists to prevent.
+// Since #6230 it shares stripCommandPrefixes with eshuCommandFields, so the
+// two agree on what counts as an eshu command line. They differ only in what
+// they do with one: this reports whether the line invokes eshu at all, so a
+// prefixed command the segment grammar still cannot parse -- a backgrounded
+// `ESHU_PPROF_ADDR=… eshu graph start … 2>&1 &`, say -- lands in the skipped
+// count instead of disappearing.
 func mentionsEshuCommand(line string) bool {
 	for _, chunk := range commandPositionChunks(line) {
-		fields := stripConsolePrompt(splitShellFields(strings.TrimSpace(chunk)))
-		for len(fields) > 0 && shellAssignmentPattern.MatchString(fields[0]) {
-			fields = fields[1:]
-		}
+		fields := stripCommandPrefixes(stripConsolePrompt(splitShellFields(strings.TrimSpace(chunk))))
 		if len(fields) > 0 && fields[0] == "eshu" {
 			return true
 		}
@@ -271,16 +269,42 @@ func stripConsolePrompt(fields []string) []string {
 	return fields
 }
 
+// stripCommandPrefixes drops the words that run ahead of a command without
+// being the command: `NAME=value` environment assignments and `sudo`, in any
+// order and any number.
+//
+// Before #6230 only mentionsEshuCommand stepped over assignments, and nothing
+// stepped over `sudo`, so `ESHU_PPROF_ADDR=… eshu docs verify --stale` and
+// `sudo eshu docs verify --stale` fell into the gap between the two
+// populations: not attributed, because the first field was not `eshu`, and not
+// skipped either, because the line carries no list operator. Their flags were
+// unchecked AND invisible in both counters -- the failure the counters were
+// added to prevent, reachable through the counters themselves.
+//
+// Only bare `sudo` is stripped. `sudo -u eshu …` keeps its option word, so the
+// segment still does not begin with `eshu` and stays out of scope rather than
+// being guessed at; and a real non-Eshu command behind a prefix, such as
+// `sudo docker compose logs eshu`, still fails the `eshu` test afterwards.
+func stripCommandPrefixes(fields []string) []string {
+	for len(fields) > 0 && (fields[0] == "sudo" || shellAssignmentPattern.MatchString(fields[0])) {
+		fields = fields[1:]
+	}
+	return fields
+}
+
 // eshuCommandFields returns the arguments of the eshu invocation in one command
 // segment. The second result reports whether the segment invokes the eshu CLI
 // at all, which is what separates an attributed segment from a neighbouring
 // non-Eshu stage such as `cat` in `cat story.json | eshu service-report`. A
-// leading console prompt (`$` or `>`) is stripped.
+// leading console prompt (`$` or `>`) is stripped, and so are `NAME=value`
+// assignments and `sudo` (#6230). The prefix is stripped for the purpose of
+// finding the command only: the returned arguments, and so the command scope a
+// diagnostic names, are the eshu invocation's own.
 func eshuCommandFields(segment string) ([]string, bool) {
 	if containsUnquotedShellListOperator(segment) {
 		return nil, false
 	}
-	fields := stripConsolePrompt(splitShellFields(strings.TrimSpace(segment)))
+	fields := stripCommandPrefixes(stripConsolePrompt(splitShellFields(strings.TrimSpace(segment))))
 	if len(fields) == 0 || fields[0] != "eshu" {
 		return nil, false
 	}

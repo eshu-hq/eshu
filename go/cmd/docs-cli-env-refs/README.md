@@ -39,6 +39,15 @@ The scanner is precision-first. It includes indented or list-contained
 double-quoted long flags. It skips prose, inline flags, non-shell fences, short
 flags, dynamic flag names, and wildcard environment-variable prefixes.
 
+A segment is an Eshu command when its first word is `eshu` after a console
+prompt (`$` or `>`), any number of `NAME=value` environment assignments, and a
+bare `sudo` are stripped (#6230). The prefix is removed to *find* the command,
+not to rename it, so `ESHU_PPROF_ADDR=… eshu docs verify --stale` reports
+`--stale` against `eshu docs verify`. Two limits are deliberate:
+`sudo docker compose logs eshu` is a `docker` command and stays out of scope,
+and only a bare `sudo` is stripped, so `sudo -u builder eshu …` keeps its
+option word and stays out of scope rather than being guessed at.
+
 A logical line may be a **simple list**, and each of its segments is checked
 against its own command (#6108):
 
@@ -78,7 +87,7 @@ run that finds nothing to complain about and a run whose scanner quietly stopped
 reading shell fences are otherwise identical, so every run reports two numbers:
 
 ```text
-docs-cli-env-refs: 190 Eshu command segment(s) attributed, 1 Eshu command line(s) skipped as unsupported shell forms
+docs-cli-env-refs: 195 Eshu command segment(s) attributed, 1 Eshu command line(s) skipped as unsupported shell forms
 ```
 
 Both are asserted, because a number in a summary nobody checks is decoration:
@@ -93,7 +102,11 @@ Both are asserted, because a number in a summary nobody checks is decoration:
   a public page: rewrite it into the supported grammar, or re-pin with the
   reason. A shrink also fails, demanding a re-pin, so the population cannot
   creep back up under a stale number. The pinned line today is a backgrounded
-  `eshu graph start ... 2>&1 &` in the profiling runbook.
+  `ESHU_PPROF_ADDR=… eshu graph start ... 2>&1 &` in the profiling runbook.
+  Before #6230 an env-prefixed line like that one reached the skipped count
+  only when it also carried a shell-list operator; a prefixed line with no
+  operator sat in neither population, unchecked and uncounted at once. That gap
+  is closed: the prefix no longer decides whether a line is seen.
 - **Attributed segments** have a floor, `minAttributedEshuSegments`, not a pin.
   That count moves with ordinary documentation edits, so pinning it would fail
   every docs PR; the floor only has to catch the failure it exists for, a

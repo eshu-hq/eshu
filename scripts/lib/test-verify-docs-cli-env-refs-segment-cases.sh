@@ -227,3 +227,59 @@ test_root_flag_and_env_diagnostics_name_their_scope() {
     '^docs-cli-env-refs: root-scope\.md cites unknown env ESHU_NOT_REGISTERED_ROOT \(not in .*\)$' \
     "${out}" "an environment reference carries no command scope"
 }
+
+# test_env_and_sudo_prefixed_commands_are_attributed covers #6230. A segment
+# that reaches `eshu` only after a `NAME=value` assignment or a `sudo` used to
+# fall out of BOTH populations: `fields[0] == "eshu"` was false so nothing was
+# attributed, and the line carried no list operator so it never reached the
+# skipped count either. Every flag on it was unchecked AND invisible in the
+# summary, which is the exact failure the two counters exist to prevent.
+#
+# Every assertion here is whole-line: the prefix is stripped for attribution
+# only, so the diagnostic must still name the eshu subcommand that owns the
+# flag rather than `eshu sudo` or a command built from the assignment.
+test_env_and_sudo_prefixed_commands_are_attributed() {
+  local root="${tmp_root}/prefixed/docs/public"
+  local baseline="${tmp_root}/prefixed/baseline.txt"
+  local out="${tmp_root}/prefixed.out"
+  write_doc "${root}" "prefixed.md" \
+    '```bash' \
+    'ESHU_PPROF_ADDR=127.0.0.1:0 eshu docs verify --totally-not-a-real-flag' \
+    'sudo eshu docs verify --also-not-a-real-flag' \
+    'sudo ESHU_PPROF_ADDR=127.0.0.1:0 eshu docs verify --sudo-then-env-invalid' \
+    'ESHU_PPROF_ADDR=127.0.0.1:0 sudo eshu docs verify --env-then-sudo-invalid' \
+    'eshu docs verify --json | sudo eshu graph status --after-sudo-in-pipe-invalid' \
+    '```'
+  # Precision guard: `sudo` is stripped, not treated as a synonym for `eshu`.
+  # A line whose real command is something else must stay out of scope even
+  # when the word `eshu` appears later on it.
+  write_doc "${root}" "not-eshu.md" \
+    '```bash' \
+    'sudo docker compose logs eshu --not-an-eshu-flag' \
+    'ESHU_PPROF_ADDR=127.0.0.1:0 docker compose up --not-an-eshu-flag-either' \
+    '```'
+  : >"${baseline}"
+  if run_verifier "${root}" "${baseline}" "${out}"; then
+    record_fail "env- and sudo-prefixed eshu commands are checked"
+  else
+    record_pass "env- and sudo-prefixed eshu commands are checked"
+  fi
+  for prefixed_case in totally-not-a-real-flag also-not-a-real-flag \
+    sudo-then-env-invalid env-then-sudo-invalid; do
+    assert_output_line \
+      "^docs-cli-env-refs: prefixed\\.md cites unknown flag --${prefixed_case} on command .eshu docs verify. \\(not in .*\\)$" \
+      "${out}" "prefixed segment is attributed to eshu docs verify (--${prefixed_case})"
+  done
+  assert_output_line \
+    '^docs-cli-env-refs: prefixed\.md cites unknown flag --after-sudo-in-pipe-invalid on command .eshu graph status. \(not in .*\)$' \
+    "${out}" "a sudo prefix inside a pipeline keeps its own segment's command"
+  assert_absent "not-eshu.md" "${out}" \
+    "a prefix in front of a non-Eshu command stays out of scope"
+  # Six segments: four prefixed single commands plus both halves of the
+  # pipeline. Zero skipped, because the whole point is that these lines are now
+  # inside the grammar rather than sitting in the blind spot between the two
+  # populations.
+  assert_output_line \
+    '^docs-cli-env-refs: 6 Eshu command segment\(s\) attributed, 0 Eshu command line\(s\) skipped as unsupported shell forms$' \
+    "${out}" "prefixed segments join the attributed population"
+}
