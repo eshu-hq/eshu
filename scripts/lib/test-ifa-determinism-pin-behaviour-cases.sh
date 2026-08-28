@@ -22,6 +22,12 @@ run_ifa_determinism_pin_behaviour_cases() {
 	printf '#!/usr/bin/env bash\n: <<%sIFAEOF >/dev/null\n%s\nIFAEOF\n:\n' '\' "${det_needle}" >"${det_probe_dir}/heredoc_bslash_only.sh"
 	printf '#!/usr/bin/env bash\n: <<%sIFAEOF  # parked\n%s\nIFAEOF\n:\n' '' "${det_needle}" >"${det_probe_dir}/heredoc_comment_tail_only.sh"
 	printf '#!/usr/bin/env bash\n: <<%sIFAEOF-1\n%s\nIFAEOF-1\n:\n' '' "${det_needle}" >"${det_probe_dir}/heredoc_hyphen_delim_only.sh"
+	# The needle parked as an argument to a null command: `:` discards its
+	# arguments, so this line installs nothing. Every ordinary way to disable a
+	# line was already caught, which is what left this one open -- `require_code
+	# "exit trap" "trap ifa_det_cleanup EXIT"` stayed green with the real trap
+	# rewritten as `:  'trap ifa_det_cleanup EXIT'` (#6194).
+	printf '#!/usr/bin/env bash\n:  %s%s%s\n' "'" "${det_needle}" "'" >"${det_probe_dir}/null_command_only.sh"
 	printf '#!/usr/bin/env bash\n%s\n' "${det_needle}" >"${det_probe_dir}/real_code.sh"
 	_ifa_det_pin_probe_run() {
 		local fn="$1" target="$2"
@@ -52,7 +58,7 @@ run_ifa_determinism_pin_behaviour_cases() {
 			_ifa_det_pin_probe_run "${det_fn}" "${det_probe_dir}/real_code.sh" "${det_needle}" "${det_extra[@]}" \
 				|| fail "${det_fn}() rejected a needle that IS live code under both call shapes -- the probe cannot distinguish binding from broken"
 		fi
-		for det_probe in comment_only heredoc_only heredoc_redirect_only heredoc_bslash_only heredoc_comment_tail_only heredoc_hyphen_delim_only; do
+		for det_probe in comment_only heredoc_only heredoc_redirect_only heredoc_bslash_only heredoc_comment_tail_only heredoc_hyphen_delim_only null_command_only; do
 			[[ -s "${det_probe_dir}/${det_probe}.sh" ]] && rg -qF -- "${det_needle}" "${det_probe_dir}/${det_probe}.sh" || fail "probe ${det_probe}.sh was not written or lacks the needle; the negative below then fails for the wrong reason and this assertion passes unconditionally"
 			if _ifa_det_pin_probe_run "${det_fn}" "${det_probe_dir}/${det_probe}.sh" "${det_needle}" "${det_extra[@]}"; then
 				fail "${det_fn}() accepted a needle that appears only in a ${det_probe%%_*} -- it is not binding code, so a commented-out or dead call site would satisfy every pin that uses it"
@@ -62,6 +68,6 @@ run_ifa_determinism_pin_behaviour_cases() {
 	rm -rf "${det_probe_dir}"
 	[[ "${det_pin_checked}" -ge 5 ]] \
 		|| fail "determinism pin-helper behaviour check exercised only ${det_pin_checked} helper(s); discovery has collapsed"
-	printf 'pin-helper behaviour check: %s helper(s) executed against comment, heredoc, trailing-redirection, backslash-delimiter, comment-tail and hyphen-delimiter heredoc probes\n' "${det_pin_checked}"
+	printf 'pin-helper behaviour check: %s helper(s) executed against comment, heredoc, trailing-redirection, backslash-delimiter, comment-tail and hyphen-delimiter heredoc, and null-command probes\n' "${det_pin_checked}"
 
 }

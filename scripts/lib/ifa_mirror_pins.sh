@@ -282,6 +282,10 @@ ifa_mirror_assert_pins_bind_code() {
 	printf '#!/usr/bin/env bash\n: <<%sIFAEOF >/dev/null\n%s\nIFAEOF\n:\n' '\' "${needle}" >"${probe_dir}/heredoc_bslash_only.sh"
 	printf '#!/usr/bin/env bash\n: <<%sIFAEOF  # parked\n%s\nIFAEOF\n:\n' '' "${needle}" >"${probe_dir}/heredoc_comment_tail_only.sh"
 	printf '#!/usr/bin/env bash\n: <<%sIFAEOF-1\n%s\nIFAEOF-1\n:\n' '' "${needle}" >"${probe_dir}/heredoc_hyphen_delim_only.sh"
+	# The needle parked as an argument to a null command. `:` discards its
+	# arguments, so this line installs nothing -- and every ordinary way to
+	# disable a line was already caught, which is what left this one (#6194).
+	printf '#!/usr/bin/env bash\n:  %s%s%s\n' "'" "${needle}" "'" >"${probe_dir}/null_command_only.sh"
 	printf '#!/usr/bin/env bash\n%s\n' "${needle}" >"${probe_dir}/real_code.sh"
 	local -a extra=()
 	while IFS= read -r fn; do
@@ -298,7 +302,7 @@ ifa_mirror_assert_pins_bind_code() {
 			_ifa_mirror_pin_probe_run "${fn}" "${probe_dir}/real_code.sh" "${needle}" "${extra[@]}" \
 				|| fail "${fn}() rejected a needle that IS live code under both call shapes -- the probe cannot tell binding from broken"
 		fi
-		for probe in comment_only heredoc_only heredoc_redirect_only heredoc_bslash_only heredoc_comment_tail_only heredoc_hyphen_delim_only; do
+		for probe in comment_only heredoc_only heredoc_redirect_only heredoc_bslash_only heredoc_comment_tail_only heredoc_hyphen_delim_only null_command_only; do
 			[[ -s "${probe_dir}/${probe}.sh" ]] && rg -qF -- "${needle}" "${probe_dir}/${probe}.sh" || fail "probe ${probe}.sh was not written or lacks the needle; the negative below then fails for the wrong reason and this assertion passes unconditionally"
 			if _ifa_mirror_pin_probe_run "${fn}" "${probe_dir}/${probe}.sh" "${needle}" "${extra[@]}"; then
 				fail "${fn}() accepted a needle that appears only in a ${probe%%_*} -- it is not binding code, so a commented-out or deleted call site would satisfy every pin that uses it"
@@ -316,7 +320,7 @@ ifa_mirror_assert_pins_bind_code() {
 	# collapse, and total collapse is the one case that is obvious anyway.
 	[[ "${checked}" -ge 2 ]] \
 		|| fail "pin-helper behaviour check exercised ${checked} helper(s), expected at least 2; discovery has collapsed or a pin helper was renamed out of it"
-	printf 'pin-helper behaviour check: %s helper(s) executed against comment, heredoc, trailing-redirection, backslash-delimiter, comment-tail and hyphen-delimiter heredoc probes\n' "${checked}"
+	printf 'pin-helper behaviour check: %s helper(s) executed against comment, heredoc, trailing-redirection, backslash-delimiter, comment-tail and hyphen-delimiter heredoc, and null-command probes\n' "${checked}"
 }
 
 # _ifa_mirror_pin_probe_run executes one pin helper against one synthetic target.
