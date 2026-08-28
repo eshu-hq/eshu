@@ -263,10 +263,10 @@ run_ifa_documentation_live_static_cases() {
 	# pin-binding check with the mirror still green.
 	[[ "$(_ifa_count_code_matches 'assert_pin_helpers_bind_code' "${static_test}")" -ge 1 ]] \
 		|| fail "the fault mirror no longer calls assert_pin_helpers_bind_code -- nothing would check that pin helpers bind code"
-	# Bind the derivation this message is about. `compgen -v | rg` has three code
-	# occurrences in that file -- the probe's var repointing, assert_libs_parse's
-	# loop, and this one -- so the private-data file list could stop deriving
-	# itself with the pin green on either of the others (#6161).
+	# Bind the derivation this message is about. `compgen -v | rg` has two code
+	# occurrences left in that file -- assert_libs_parse's loop and this one --
+	# so the private-data list could stop deriving itself with the pin green on
+	# the other (#6161; the probe's repointing was a third until #6261).
 	[[ "$(_ifa_count_code_matches "done < <(compgen -v | rg '_lib\$' | sort)" "${assertions_src}")" -ge 1 ]] \
 		|| fail "private-data scan no longer derives its file list from the declared *_lib vars -- a hand-typed list stops growing when the tree does"
 	[[ "$(_ifa_count_code_matches 'does not exist -- a scan that skips a missing file proves nothing' "${assertions_src}")" -ge 1 ]] \
