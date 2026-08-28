@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package coordinator
+package grafanaplanner
 
 import (
 	"strings"
@@ -12,7 +12,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/workflow"
 )
 
-func TestGrafanaWorkPlannerPlansOneClaimPerEnabledTarget(t *testing.T) {
+func TestWorkPlannerPlansOneClaimPerEnabledTarget(t *testing.T) {
 	t.Parallel()
 
 	observedAt := time.Date(2026, time.June, 5, 15, 0, 0, 0, time.UTC)
@@ -28,7 +28,7 @@ func TestGrafanaWorkPlannerPlansOneClaimPerEnabledTarget(t *testing.T) {
 		UpdatedAt:      observedAt,
 	}
 
-	run, items, err := (GrafanaWorkPlanner{}).PlanGrafanaWork(t.Context(), GrafanaPlanRequest{
+	run, items, err := (WorkPlanner{}).PlanGrafanaWork(t.Context(), PlanRequest{
 		Instance:   instance,
 		ObservedAt: observedAt,
 		PlanKey:    "schedule-20260605T150000Z",
@@ -66,7 +66,7 @@ func TestGrafanaWorkPlannerPlansOneClaimPerEnabledTarget(t *testing.T) {
 	}
 }
 
-func TestGrafanaWorkPlannerDistinctFairnessKeyPerTarget(t *testing.T) {
+func TestWorkPlannerDistinctFairnessKeyPerTarget(t *testing.T) {
 	t.Parallel()
 
 	observedAt := time.Date(2026, time.June, 5, 15, 0, 0, 0, time.UTC)
@@ -82,7 +82,7 @@ func TestGrafanaWorkPlannerDistinctFairnessKeyPerTarget(t *testing.T) {
 		UpdatedAt:      observedAt,
 	}
 
-	_, items, err := (GrafanaWorkPlanner{}).PlanGrafanaWork(t.Context(), GrafanaPlanRequest{
+	_, items, err := (WorkPlanner{}).PlanGrafanaWork(t.Context(), PlanRequest{
 		Instance:   instance,
 		ObservedAt: observedAt,
 		PlanKey:    "schedule-20260605T150000Z",
@@ -103,7 +103,7 @@ func TestGrafanaWorkPlannerDistinctFairnessKeyPerTarget(t *testing.T) {
 	}
 }
 
-func TestGrafanaWorkPlannerSkipsDisabledTargets(t *testing.T) {
+func TestWorkPlannerSkipsDisabledTargets(t *testing.T) {
 	t.Parallel()
 
 	observedAt := time.Date(2026, time.June, 5, 15, 0, 0, 0, time.UTC)
@@ -119,7 +119,7 @@ func TestGrafanaWorkPlannerSkipsDisabledTargets(t *testing.T) {
 		UpdatedAt:      observedAt,
 	}
 
-	run, items, err := (GrafanaWorkPlanner{}).PlanGrafanaWork(t.Context(), GrafanaPlanRequest{
+	run, items, err := (WorkPlanner{}).PlanGrafanaWork(t.Context(), PlanRequest{
 		Instance:   instance,
 		ObservedAt: observedAt,
 		PlanKey:    "schedule-20260605T150000Z",
@@ -138,7 +138,7 @@ func TestGrafanaWorkPlannerSkipsDisabledTargets(t *testing.T) {
 	}
 }
 
-func TestGrafanaWorkPlannerFiltersByScopeIDs(t *testing.T) {
+func TestWorkPlannerFiltersByScopeIDs(t *testing.T) {
 	t.Parallel()
 
 	observedAt := time.Date(2026, time.June, 5, 15, 0, 0, 0, time.UTC)
@@ -154,7 +154,7 @@ func TestGrafanaWorkPlannerFiltersByScopeIDs(t *testing.T) {
 		UpdatedAt:      observedAt,
 	}
 
-	_, items, err := (GrafanaWorkPlanner{}).PlanGrafanaWork(t.Context(), GrafanaPlanRequest{
+	_, items, err := (WorkPlanner{}).PlanGrafanaWork(t.Context(), PlanRequest{
 		Instance:   instance,
 		ObservedAt: observedAt,
 		PlanKey:    "schedule-20260605T150000Z",
@@ -171,7 +171,7 @@ func TestGrafanaWorkPlannerFiltersByScopeIDs(t *testing.T) {
 	}
 }
 
-func TestGrafanaWorkPlannerPlanKeyIsDeterministic(t *testing.T) {
+func TestWorkPlannerPlanKeyIsDeterministic(t *testing.T) {
 	t.Parallel()
 
 	observedAt := time.Date(2026, time.June, 5, 15, 0, 0, 0, time.UTC)
@@ -186,17 +186,17 @@ func TestGrafanaWorkPlannerPlanKeyIsDeterministic(t *testing.T) {
 		CreatedAt:      observedAt,
 		UpdatedAt:      observedAt,
 	}
-	request := GrafanaPlanRequest{
+	request := PlanRequest{
 		Instance:   instance,
 		ObservedAt: observedAt,
 		PlanKey:    "schedule-20260605T150000Z",
 	}
 
-	runA, itemsA, err := (GrafanaWorkPlanner{}).PlanGrafanaWork(t.Context(), request)
+	runA, itemsA, err := (WorkPlanner{}).PlanGrafanaWork(t.Context(), request)
 	if err != nil {
 		t.Fatalf("first PlanGrafanaWork() error = %v", err)
 	}
-	runB, itemsB, err := (GrafanaWorkPlanner{}).PlanGrafanaWork(t.Context(), request)
+	runB, itemsB, err := (WorkPlanner{}).PlanGrafanaWork(t.Context(), request)
 	if err != nil {
 		t.Fatalf("second PlanGrafanaWork() error = %v", err)
 	}
@@ -216,13 +216,13 @@ func TestGrafanaWorkPlannerPlanKeyIsDeterministic(t *testing.T) {
 	}
 }
 
-func TestGrafanaWorkPlannerRejectsWrongCollectorKind(t *testing.T) {
+func TestWorkPlannerRejectsWrongCollectorKind(t *testing.T) {
 	t.Parallel()
 
 	observedAt := time.Date(2026, time.June, 5, 15, 0, 0, 0, time.UTC)
 	instance := workflow.CollectorInstance{
 		InstanceID:     "grafana-primary",
-		CollectorKind:  scope.CollectorJira,
+		CollectorKind:  scope.CollectorGit,
 		Mode:           workflow.CollectorModeContinuous,
 		Enabled:        true,
 		ClaimsEnabled:  true,
@@ -232,16 +232,20 @@ func TestGrafanaWorkPlannerRejectsWrongCollectorKind(t *testing.T) {
 		UpdatedAt:      observedAt,
 	}
 
-	if _, _, err := (GrafanaWorkPlanner{}).PlanGrafanaWork(t.Context(), GrafanaPlanRequest{
+	_, _, err := (WorkPlanner{}).PlanGrafanaWork(t.Context(), PlanRequest{
 		Instance:   instance,
 		ObservedAt: observedAt,
 		PlanKey:    "schedule-20260605T150000Z",
-	}); err == nil {
-		t.Fatalf("PlanGrafanaWork() error = nil, want collector_kind rejection")
+	})
+	if err == nil {
+		t.Fatal("PlanGrafanaWork() error = nil, want collector_kind rejection")
+	}
+	if got, want := err.Error(), `grafana planner requires collector_kind "grafana"`; got != want {
+		t.Fatalf("PlanGrafanaWork() error = %q, want %q", got, want)
 	}
 }
 
-func TestGrafanaWorkPlannerEmptyConfigPlansNoWork(t *testing.T) {
+func TestWorkPlannerEmptyConfigPlansNoWork(t *testing.T) {
 	t.Parallel()
 
 	observedAt := time.Date(2026, time.June, 5, 15, 0, 0, 0, time.UTC)
@@ -257,7 +261,7 @@ func TestGrafanaWorkPlannerEmptyConfigPlansNoWork(t *testing.T) {
 		UpdatedAt:      observedAt,
 	}
 
-	_, items, err := (GrafanaWorkPlanner{}).PlanGrafanaWork(t.Context(), GrafanaPlanRequest{
+	_, items, err := (WorkPlanner{}).PlanGrafanaWork(t.Context(), PlanRequest{
 		Instance:   instance,
 		ObservedAt: observedAt,
 		PlanKey:    "schedule-20260605T150000Z",

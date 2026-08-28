@@ -52,12 +52,13 @@
 // The root TempoPlanner interface accepts the child tempoplanner.PlanRequest;
 // the child emits one bounded trace-signal work item per enabled Grafana Tempo
 // target and skips disabled targets. The root LokiPlanner interface likewise
-// accepts lokiplanner.PlanRequest. GrafanaWorkPlanner plans one bounded
-// observability work item
-// per enabled Grafana target parsed from configuration.targets, skipping
-// disabled targets and preserving durable per-target partition metadata in its
-// fairness key. The coordinator's Postgres open-target admission prevents
-// overlapping scheduled work. GCPWorkPlanner plans one
+// accepts lokiplanner.PlanRequest. The root GrafanaPlanner interface accepts
+// grafanaplanner.PlanRequest. The child emits one bounded observability work
+// item per enabled Grafana target, preserves configured order and per-target
+// fairness metadata, and returns a populated run for valid empty selections.
+// The coordinator retains collector-egress filtering, tenant-grant authorization,
+// and Postgres open-target admission, which prevents overlapping scheduled work.
+// GCPWorkPlanner plans one
 // bounded Cloud Asset Inventory work item per enabled GCP scope after explicit
 // live opt-in. The root ScannerWorkerPlanner interface accepts the child
 // scannerworker.PlanRequest; the child plans explicit scanner-worker source

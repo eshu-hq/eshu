@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package coordinator
+package grafanaplanner
 
 import (
 	"context"
@@ -17,12 +17,12 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/workflow"
 )
 
-// GrafanaPlanRequest carries one Grafana observability planning request. The
+// PlanRequest carries one Grafana observability planning request. The
 // coordinator supplies the resolved collector instance, the reconcile observed
 // time, a deterministic plan key, and optional scope and trigger overrides for
 // freshness wake-ups; the planner never resolves credentials or contacts
 // Grafana.
-type GrafanaPlanRequest struct {
+type PlanRequest struct {
 	Instance    workflow.CollectorInstance
 	ObservedAt  time.Time
 	PlanKey     string
@@ -30,10 +30,10 @@ type GrafanaPlanRequest struct {
 	ScopeIDs    []string
 }
 
-// GrafanaWorkPlanner plans workflow rows for enabled Grafana targets without
+// WorkPlanner plans workflow rows for enabled Grafana targets without
 // resolving credentials or contacting Grafana. It is the concrete planner the
 // coordinator wires for the grafana collector kind.
-type GrafanaWorkPlanner struct{}
+type WorkPlanner struct{}
 
 type grafanaRuntimeConfiguration struct {
 	Targets []grafanaTargetConfiguration `json:"targets"`
@@ -48,12 +48,12 @@ type grafanaTargetConfiguration struct {
 
 // PlanGrafanaWork returns one collection-pending run and one work item per
 // enabled, scope-allowed Grafana target. Disabled targets are skipped, so an
-// instance with no enabled targets yields no work. The run, work item, and
-// generation identities are deterministic for a fixed instance and plan key,
-// which keeps repeated reconciles idempotent.
-func (p GrafanaWorkPlanner) PlanGrafanaWork(
+// instance with no enabled targets yields no work. RunID is fixed by the
+// instance, resolved trigger, and plan key; GenerationID and WorkItemID are
+// fixed by the instance, plan key, and target scope.
+func (p WorkPlanner) PlanGrafanaWork(
 	_ context.Context,
-	request GrafanaPlanRequest,
+	request PlanRequest,
 ) (workflow.Run, []workflow.WorkItem, error) {
 	if err := validateGrafanaPlanRequest(request); err != nil {
 		return workflow.Run{}, nil, err
@@ -89,7 +89,7 @@ func (p GrafanaWorkPlanner) PlanGrafanaWork(
 	return run, items, nil
 }
 
-func validateGrafanaPlanRequest(request GrafanaPlanRequest) error {
+func validateGrafanaPlanRequest(request PlanRequest) error {
 	if err := request.Instance.Validate(); err != nil {
 		return fmt.Errorf("grafana plan request: %w", err)
 	}
@@ -170,7 +170,7 @@ func grafanaRunID(instance workflow.CollectorInstance, planKey string, triggerKi
 	)
 }
 
-func grafanaRequestTriggerKind(request GrafanaPlanRequest) workflow.TriggerKind {
+func grafanaRequestTriggerKind(request PlanRequest) workflow.TriggerKind {
 	if request.TriggerKind != "" {
 		return request.TriggerKind
 	}

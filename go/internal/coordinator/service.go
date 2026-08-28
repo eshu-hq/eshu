@@ -74,12 +74,6 @@ type GCPPlanner interface {
 	PlanGCPWork(context.Context, GCPPlanRequest) (workflow.Run, []workflow.WorkItem, error)
 }
 
-// GrafanaPlanner plans Grafana observability workflow rows from collector
-// instance configuration.
-type GrafanaPlanner interface {
-	PlanGrafanaWork(context.Context, GrafanaPlanRequest) (workflow.Run, []workflow.WorkItem, error)
-}
-
 // ComponentExtensionPlanner plans generic component extension workflow rows.
 type ComponentExtensionPlanner interface {
 	PlanComponentExtensionWork(context.Context, ComponentExtensionPlanRequest) (workflow.Run, []workflow.WorkItem, error)

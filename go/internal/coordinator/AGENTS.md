@@ -23,6 +23,10 @@
      `prometheus_mimir_service.go` — the extracted Prometheus/Mimir planner and
      root seam; preserve configured order, safe requested-scope metadata, and
      per-target fairness partitions
+   - `go/internal/coordinator/grafanaplanner/planner.go` and
+     `grafana_service.go` — the extracted Grafana planner and root seam;
+     preserve all-target validation, configured order, privacy, and the
+     instance-ID-to-scope-ID fairness fallback
    - `go/internal/coordinator/scannerworker/planner.go` and
      `service_scanner_worker.go` — the extracted scanner-worker planner and its
      root scheduling seam; runtime-local paths stay out of requested-scope
@@ -67,9 +71,10 @@
   `go test ./internal/coordinator -count=1`.
 
 - **Add a new periodic external-API collector scheduler** (template:
-  `grafana_scheduler.go` + `grafana_service.go`) → add a `<Kind>Planner`
-  interface and a planner field on `Service` in `service.go`; add the concrete
-  `PlanXxxWork` planner in `<kind>_scheduler.go` that emits one work item per
+  `grafanaplanner/planner.go` + `grafana_service.go`) → add a `<Kind>Planner`
+  interface in `<kind>_service.go` and a planner field on `Service` in
+  `service.go`; add the concrete request and `PlanXxxWork` planner in
+  `<kind>planner/planner.go` that emits one work item per
   enabled `configuration.targets[]` entry with a per-target `FairnessKey` that
   preserves durable partition metadata; rely on the parent Postgres open-target
   admission guard to prevent overlapping scheduled work; add
@@ -78,8 +83,11 @@
   the existing schedule calls (guarded by active mode and `ClaimsEnabled`); wire
   the concrete planner in `go/cmd/workflow-coordinator/main.go`; add the
   `CollectorKind` constant in `internal/scope/scope.go`. The planner must be
-  idempotent: `RunID`, `WorkItemID`, and `GenerationID` are derived from the
-  instance and plan key only. Run `go test ./internal/coordinator ./internal/scope -count=1`.
+  idempotent: `RunID` derives from the instance, resolved trigger, and plan key;
+  `GenerationID` and `WorkItemID` derive from the instance, plan key, and target
+  scope. Run the child package explicitly with
+  `go test ./internal/coordinator/<kind>planner ./internal/coordinator
+  ./internal/scope -count=1`.
 
 - **Change the reconcile interval default** → edit `defaultReconcileInterval`
   in `config.go`; document the change in `README.md` and the configuration
