@@ -211,24 +211,124 @@ func sqlBlastRadiusLiveReader(ctx context.Context, t *testing.T) *Neo4jReader {
 	return NewNeo4jReader(driver, database)
 }
 
+// sqlBlastRadiusProbe pairs one cleanup DELETE with the query that proves it
+// actually emptied what it targeted. The verify half exists because a delete
+// reporting success is not the same claim as a graph with nothing left in it,
+// and this gate shares its graph with the replay tier's exact node and edge
+// assertions.
+//
+// The verify half returns leftover identifiers under a LIMIT rather than an
+// aggregate, so a failure names what leaked instead of only counting it, and
+// stays bounded whatever it finds.
+type sqlBlastRadiusProbe struct {
+	what   string
+	delete string
+	verify string
+}
+
+// sqlBlastRadiusProbes lists the deletes that empty one fixture prefix, in
+// order: the prefixed fixture nodes, the repositories keyed by id rather than
+// repo_id, then the shared table the branches converge on.
+func sqlBlastRadiusProbes(prefix string) []sqlBlastRadiusProbe {
+	table := sqlBlastRadiusTableFor(prefix)
+	return []sqlBlastRadiusProbe{
+		{
+			what:   "prefixed fixture nodes",
+			delete: `MATCH (n) WHERE n.repo_id STARTS WITH '` + prefix + `' DETACH DELETE n`,
+			verify: `MATCH (n) WHERE n.repo_id STARTS WITH '` + prefix + `' RETURN n.repo_id AS leftover LIMIT 5`,
+		},
+		{
+			what:   "fixture repositories",
+			delete: `MATCH (r:Repository) WHERE r.id STARTS WITH '` + prefix + `' DETACH DELETE r`,
+			verify: `MATCH (r:Repository) WHERE r.id STARTS WITH '` + prefix + `' RETURN r.id AS leftover LIMIT 5`,
+		},
+		{
+			what:   "the shared fixture table",
+			delete: `MATCH (t:SqlTable {name: '` + table + `'}) DETACH DELETE t`,
+			verify: `MATCH (t:SqlTable {name: '` + table + `'}) RETURN t.name AS leftover LIMIT 5`,
+		},
+	}
+}
+
+// sqlBlastRadiusFailer is the part of *testing.T that the cleanup helper
+// reports through. It carries Logf alongside Errorf deliberately: this helper's
+// whole bug history is that it logged where it should have failed, so a
+// recorder able to observe only Errorf could not tell a downgrade back to
+// logging apart from the call being deleted outright.
+type sqlBlastRadiusFailer interface {
+	Errorf(format string, args ...any)
+	Logf(format string, args ...any)
+}
+
+// sqlBlastRadiusRunner executes one cleanup statement against the graph.
+// (*Neo4jReader).Run satisfies it, and so does a stub -- which is the only way
+// to reach the delete-error, read-back-error, and leftover-rows paths without a
+// live NornicDB.
+type sqlBlastRadiusRunner func(ctx context.Context, cypher string, params map[string]any) ([]map[string]any, error)
+
 // sqlBlastRadiusCleanup deletes every node a prefix's fixtures created plus the
-// shared table they converge on. It runs on its own context because the test's
-// context may already be cancelled by the time cleanup fires. Callers run it
-// before seeding as well as after, so a crashed earlier run cannot answer this
-// one's query.
+// shared table they converge on, and FAILS the test when a delete errors or
+// leaves anything behind. It runs on its own context because the test's context
+// may already be cancelled by the time cleanup fires. Callers run it before
+// seeding as well as after, so a crashed earlier run cannot answer this one's
+// query.
+//
+// A swallowed delete is exactly what #6182 was: the trailing DELETEs failed,
+// probe nodes leaked into the graph this gate shares with the replay tier, and
+// the test passed anyway. Registering the driver close first (see
+// sqlBlastRadiusLiveReader) removed that specific trigger, but any other delete
+// failure -- a transient backend error, a later ordering regression -- went the
+// same way while this helper only logged. "graph left clean" was a row a human
+// checked by hand in docs/internal/evidence/6204-blast-radius-bite-test.md; the
+// verify half of each probe makes it an assertion the run enforces itself.
 func sqlBlastRadiusCleanup(t *testing.T, reader *Neo4jReader, prefix string) {
 	t.Helper()
 	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
 	defer cancel()
-	for _, stmt := range []string{
-		`MATCH (n) WHERE n.repo_id STARTS WITH '` + prefix + `' DETACH DELETE n`,
-		`MATCH (r:Repository) WHERE r.id STARTS WITH '` + prefix + `' DETACH DELETE r`,
-		`MATCH (t:SqlTable {name: '` + sqlBlastRadiusTableFor(prefix) + `'}) DETACH DELETE t`,
-	} {
-		if _, err := reader.Run(ctx, stmt, nil); err != nil {
-			t.Logf("cleanup %q: %v", stmt, err)
+	sqlBlastRadiusCleanupWith(ctx, t, reader.Run, prefix)
+}
+
+// sqlBlastRadiusCleanupWith is the body of sqlBlastRadiusCleanup with the
+// failure handle and the graph runner passed in. The live caller above hands it
+// *testing.T and (*Neo4jReader).Run, so the function the gate executes and the
+// function TestSQLBlastRadiusCleanupReportsEveryFailure covers are the same
+// one, not a copy of it.
+//
+// The seam exists because a real backend does not fail on demand. Without it
+// the three reporting decisions below could only be exercised by a live run,
+// which is how a downgrade from Errorf to Logf sat here undetected by every
+// test that runs without a backend.
+func sqlBlastRadiusCleanupWith(ctx context.Context, failer sqlBlastRadiusFailer, run sqlBlastRadiusRunner, prefix string) {
+	for _, probe := range sqlBlastRadiusProbes(prefix) {
+		if _, err := run(ctx, probe.delete, nil); err != nil {
+			failer.Errorf("cleanup of %s failed: %v -- fixtures are left in the graph this gate "+
+				"shares with the replay tier's exact node and edge assertions (%s)",
+				probe.what, err, probe.delete)
+			continue
+		}
+		rows, err := run(ctx, probe.verify, nil)
+		if err != nil {
+			failer.Errorf("cleanup of %s could not be confirmed: %v -- the delete reported success "+
+				"but the graph was never read back (%s)", probe.what, err, probe.verify)
+			continue
+		}
+		if len(rows) > 0 {
+			failer.Errorf("cleanup of %s left %v behind -- the delete reported success and the "+
+				"fixtures are still there, which is the #6182 leak reached by another route",
+				probe.what, sqlBlastRadiusLeftovers(rows))
 		}
 	}
+}
+
+// sqlBlastRadiusLeftovers reduces the verify rows to the identifiers they
+// carry, so a cleanup failure names the fixtures still in the graph.
+func sqlBlastRadiusLeftovers(rows []map[string]any) []string {
+	leftovers := make([]string, 0, len(rows))
+	for _, row := range rows {
+		value, _ := row["leftover"].(string)
+		leftovers = append(leftovers, value)
+	}
+	return leftovers
 }
 
 // sqlBlastRadiusMissingBranches reduces the rows blastRadiusSqlTableQuery
