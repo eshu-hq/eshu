@@ -76,6 +76,12 @@ Not claimed today:
   among many non-Ansible commands) plus the B-12 golden snapshot. See epic
   #4831 and issue #4845.
 
+- A `//` line comment in a Gradle build script ends at a bare `\r` as well as
+  at `\n` and `\r\n`, and an unclosed single-line string terminates there too.
+  Under classic-Mac line endings the comment previously ran to end of file, and
+  an unclosed quote absorbed every following line into a runaway string, so
+  dependencies after either were invisible (#6268).
+
 ## Known Limitations
 - Generic Groovy source is indexed conservatively; the current parser focuses on Jenkins pipeline metadata rather than broad class and method extraction
 - Jenkins metadata is strongest for Jenkinsfile-style entrypoints and may not detect custom shared-library DSLs that hide deployment semantics behind opaque helper calls

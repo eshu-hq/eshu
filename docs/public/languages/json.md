@@ -36,6 +36,14 @@ Not claimed today:
 - Arbitrary nested JSON objects, lockfiles, minified assets, and package-manager
   runtime semantics are not expanded into framework reachability truth.
 
+- A `//` line comment in a JSONC file ends at a bare `\r` as well as at `\n`
+  and `\r\n`. A file using classic-Mac line endings previously had everything
+  after its first line comment absorbed into that comment, so `Parse` returned
+  `unexpected end of JSON input` and the file yielded no entities at all -- a
+  whole-file loss rather than a partial one (#6268). Block comments are
+  unchanged: `/* */` is blanked in full, line breaks included, because the
+  offset map that keeps `line_number` accurate depends on it.
+
 ## Known Limitations
 - Generic JSON files emit metadata only and do not expand arbitrary nested objects into graph nodes
 - `json_metadata.top_level_keys` is parsed and returned in the parser payload, but it is not queryable: no reducer, content materializer, or query/MCP reader consumes it today. There is no `property:File` graph surface for this capability. The properties/`Property` bucket this row previously implied it fed is unimplemented repository-wide (no emitter, reducer, or query reader for `:Property` nodes; tracked as issue #5341) and is out of scope for this fix. The `generic-json-metadata-only` row's `partial` status is parser-proof only; it does not have the consumer proof [Support Maturity](support-maturity.md)'s promotion rule requires for `partial`, and is recorded here rather than silently passing as compliant

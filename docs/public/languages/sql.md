@@ -57,6 +57,11 @@ Not claimed today:
   reachability, and broad dbt macro semantics remain outside the exactness
   boundary.
 
+- A `--` line comment ends at a bare `\r` as well as at `\n` and `\r\n`. In a
+  file using classic-Mac line endings, a comment between `DROP` targets
+  previously swallowed the remaining targets on that line, so they were never
+  extracted (#6268).
+
 ## Known Limitations
 
 - Procedural SQL beyond the checked Postgres-style routine forms is not a broad
