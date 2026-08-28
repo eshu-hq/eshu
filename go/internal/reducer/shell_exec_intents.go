@@ -98,9 +98,18 @@ func buildShellExecRefreshIntents(
 			"action":          repoRefreshAction,
 			"evidence_source": shellExecEvidenceSource,
 		}
-		if deltaScope.hasDelta {
+		// hasDelta is SCOPE-wide, but the delta payload is per-repository, so
+		// this gates on the repository's own paths -- matching the rationale
+		// sibling (buildRationaleRefreshIntents), whose doc carries the long
+		// form. A repository with nothing qualified in this generation must fall
+		// back to the repo-wide refresh: delta_projection:true with an empty path
+		// list is the one shape collectDeltaFilePaths
+		// (storage/cypher/edge_writer_retract_scope.go) rejects outright, so the
+		// partition fails and the intent dead-letters instead of retracting
+		// anything (#6216).
+		if repoFilePaths := deltaScope.filePathsByRepoID[repoID]; deltaScope.hasDelta && len(repoFilePaths) > 0 {
 			payload["delta_projection"] = true
-			payload["delta_file_paths"] = append([]string(nil), deltaScope.filePathsByRepoID[repoID]...)
+			payload["delta_file_paths"] = append([]string(nil), repoFilePaths...)
 		}
 		intents = append(intents, BuildSharedProjectionIntent(SharedProjectionIntentInput{
 			ProjectionDomain: DomainShellExec,
