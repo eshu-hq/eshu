@@ -115,32 +115,51 @@ Backend-Required Evidence: `timothyswt/nornicdb-cpu-bge:v1.2.3` (which reports
 
 ```bash
 cd go
-ESHU_REPLAY_TIER_LIVE=1 ESHU_GRAPH_BACKEND=nornicdb ESHU_NEO4J_DATABASE=nornic \
+ESHU_REPLAY_TIER_LIVE=1 ESHU_GRAPH_BACKEND=nornicdb \
+ESHU_NEO4J_URI=bolt://localhost:17801 ESHU_NEO4J_DATABASE=nornic \
 NEO4J_URI=bolt://localhost:17801 NEO4J_USERNAME=neo4j NEO4J_PASSWORD=nornicdb \
-go test ./internal/query/ -run 'SQLTableBlastRadius' -count=1 -v; echo $?
-# exit 0 -- 9 omitted-branch subtests plus the three sibling live proofs, all PASS
+go test ./internal/query/ -count=1; echo $?
+# exit 0 -- ok github.com/eshu-hq/eshu/go/internal/query 3.825s
 ```
 
-Exit code captured directly, not after a pipe. Every cleanup call in that run
-executed all three verify queries and reported nothing, so the queries are
-accepted by the backend and the graph really was left clean.
+Exit code captured directly, not after a pipe. Unfiltered, so this run keeps the
+preamble's promise that every Go run recorded here executes the whole package.
 
-A clean run is not by itself proof the read-back WORKS, and that gap is the one
-worth naming: a verify query whose alias failed to survive would return zero
-rows and be indistinguishable from an empty graph. So the detection half was
-proven separately, with a throwaway probe (not committed) that seeded one node
-and ran each committed verify query against it:
+`ESHU_NEO4J_URI` is set explicitly, not just `NEO4J_URI`. `sqlBlastRadiusBackend`
+resolves `firstNonEmpty("ESHU_NEO4J_URI", "NEO4J_URI")`, so on a machine that
+already exports the former, a command setting only the latter silently measures
+a different graph than the one it names. An earlier revision of this record made
+exactly that mistake.
+
+Every cleanup call in that run executed all three verify queries and reported
+nothing, so the queries are accepted by the backend and the graph really was
+left clean.
+
+A clean run is not by itself proof the read-backs WORK: a query that matches
+nothing returns zero rows, and zero rows is what a clean graph looks like. So
+detection was proven separately with a throwaway probe (not committed) that
+seeded BOTH a prefixed node and the shared `SqlTable`, then ran each committed
+verify query against them:
 
 ```
-probe "prefixed fixture nodes"  -> 1 row(s)   leftover=tmpAliasProbe/x
-probe "fixture repositories"    -> 1 row(s)   leftover=tmpAliasProbe/x
-probe "the shared fixture table" -> 0 row(s)  (no SqlTable seeded)
-total leftover rows detected across probes: 2
+shared table name for prefix "tmpProbe2" = "tmpProbe2_orders"
+probe "prefixed fixture nodes"   -> 1 row(s), leftover=tmpProbe2/x
+probe "fixture repositories"     -> 1 row(s), leftover=tmpProbe2/x
+probe "the shared fixture table" -> 1 row(s), leftover=tmpProbe2_orders
 ```
 
-The alias survives into the row map, the `STARTS WITH` prefix anchors match, and
-a real leak is detected rather than silently read as clean. The third probe
-returning zero is correct: that fixture was not seeded.
+All three match, all three carry the alias. An earlier revision seeded no
+`SqlTable` and reported the third probe returning zero rows as if that confirmed
+it -- it confirmed nothing, because a query that never matches and a query that
+matches an empty graph are indistinguishable at zero rows. The third probe is
+only proven by seeding the table it looks for.
+
+One correction to that earlier reasoning, from review: this was never an "alias
+false-green" risk in the way the record first framed it. `Neo4jReader.Run`
+returns one map per collected record and `sqlBlastRadiusCleanup` branches on
+`len(rows)`, so a missing `leftover` key would still fail cleanup on the row
+count alone. The alias matters for the failure MESSAGE naming what leaked, not
+for detection.
 
 The three extra reads per cleanup call are bounded (`LIMIT 5`, no aggregate) and
 the timings above predate them.
