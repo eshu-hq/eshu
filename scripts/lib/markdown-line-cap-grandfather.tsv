@@ -73,8 +73,8 @@ go/cmd/bootstrap-index/README.md	568
 go/cmd/ingester/README.md	690
 go/internal/cigates/AGENTS.md	513
 go/internal/collector/terraformstate/README.md	501
-go/internal/coordinator/README.md	688
-go/internal/mcp/README.md	665
+go/internal/coordinator/README.md	722
+go/internal/mcp/README.md	666
 go/internal/parser/README.md	901
 go/internal/projector/README.md	797
 go/internal/query/README.md	1418
@@ -83,7 +83,7 @@ go/internal/query/read-models.md	805
 go/internal/reducer/AGENTS.md	2407
 go/internal/reducer/evidence-notes.md	804
 go/internal/relationships/README.md	532
-go/internal/storage/cypher/README.md	2010
+go/internal/storage/cypher/README.md	2124
 go/internal/storage/postgres/AGENTS.md	1172
 go/internal/storage/postgres/README.md	3766
 go/internal/storage/postgres/evidence-notes.md	1032
