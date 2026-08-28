@@ -19,6 +19,10 @@
    - `go/internal/coordinator/lokiplanner/planner.go` and `loki_service.go` —
      the extracted Loki planner and its root scheduling seam under the same
      ordering, clock, admission, retry, and telemetry boundary
+   - `go/internal/coordinator/scannerworker/planner.go` and
+     `service_scanner_worker.go` — the extracted scanner-worker planner and its
+     root scheduling seam; runtime-local paths stay out of requested-scope
+     metadata
 6. `go/internal/workflow/service.go` (does not exist — `Store` is defined in
    `service.go` here; the workflow contracts are in `internal/workflow`)
 7. `go/internal/telemetry/instruments.go` and `contract.go` — before adding

@@ -237,8 +237,14 @@ tenant and egress filtering, durable admission, retries, and telemetry. The
 Grafana Loki scheduler is the sixth extraction under
 `internal/coordinator/lokiplanner`; its deterministic request validation,
 target filtering, and workflow-row construction move under the same ownership
-boundary. These moves do not change scheduler order, configured target order,
-IDs, fairness keys, workflow wire values, concurrency, or observability.
+boundary. The scanner-worker scheduler is the seventh extraction under
+`internal/coordinator/scannerworker`; the child owns configuration validation,
+requested-scope privacy, configured target order, deterministic IDs, and
+fairness-key construction. Root keeps the interface, scheduling and plan-key
+clock, active and claims gates, tenant-grant and collector-egress gates, durable
+admission, retries, queue and lease behavior, and telemetry. These moves do not
+change scheduler order, configured target order, IDs, fairness keys, workflow
+wire values, concurrency, or observability.
 Terraform-state keeps its separate plan-key validator, and the root
 `firstNonBlank` helper remains outside this boundary.
 

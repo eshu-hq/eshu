@@ -558,14 +558,14 @@ linters:
       - path: 'internal/serviceintel/compose\.go'
         linters:
           - exhaustive
-      # Component readback and coordinator scanner_worker_scheduler
-      # handle a subset of error/analyzer codes; the full list is
-      # declared in the same package and the missing cases route
-      # to a default branch.
+      # Component readback handles a subset of error codes. The scanner-worker
+      # planner validates target-specific fields only for analyzer kinds that
+      # produce scheduled targets; the remaining kinds produce no planner
+      # targets. Both enums include additional values by design.
       - path: 'internal/component/readback\.go'
         linters:
           - exhaustive
-      - path: 'internal/coordinator/scanner_worker_scheduler\.go'
+      - path: 'internal/coordinator/scannerworker/planner\.go'
         linters:
           - exhaustive
       # Collector boundary switches on a subset of upstream enum

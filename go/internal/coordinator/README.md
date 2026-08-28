@@ -153,10 +153,10 @@ one enabled bounded scope; invalid configurations fail validation.
   `vaultlive.WorkPlanner`. The child plans Vault metadata collection from
   configured targets; root keeps scheduling order, the plan-key clock, durable
   admission, retries, and telemetry.
-- `ScannerWorkerWorkPlanner` — plans scanner-worker source-evidence work from
-  explicit configured targets. The planner only stores the analyzer, target
-  kind, and `scope_id` in workflow metadata; runtime-local roots and artifact
-  locators stay in the worker configuration.
+- `ScannerWorkerPlanner` — the root interface implemented by
+  `scannerworker.WorkPlanner`. The child plans configured targets without
+  exposing runtime-local roots in workflow metadata; root keeps scheduling,
+  the plan-key clock, durable admission, retries, and telemetry.
 - `PagerDutyWorkPlanner` — plans PagerDuty incident-context collection runs
   from configured account or service-allowlist targets. Each target becomes one
   claimable work item keyed by `scope_id`, and `requested_scope_set` omits
@@ -223,6 +223,8 @@ one enabled bounded scope; invalid configurations fail validation.
   and deterministic planner implementation.
 - `internal/coordinator/sbomattestation` — hosted SBOM-attestation plan request
   and deterministic planner implementation.
+- `internal/coordinator/scannerworker` — scanner-worker request validation,
+  requested-scope privacy, and deterministic planning.
 - `internal/coordinator/vaultlive` — Vault metadata plan request and
   deterministic planner implementation.
 - `internal/coordinator/tempoplanner` — Tempo trace-signal plan request and
@@ -237,8 +239,6 @@ one enabled bounded scope; invalid configurations fail validation.
   `otelMetrics`.
 - `internal/collector/ociregistry` — OCI repository identity normalization used
   by the claim planner.
-- `internal/collector/scannerworker` — scanner-worker analyzer and target-kind
-  contracts used by the source-evidence planner.
 - `internal/collector/awscloud/freshness` — normalized AWS freshness trigger
   and target identity used by the AWS freshness planner.
 - `internal/webhook` — normalized PagerDuty and Jira incident freshness
