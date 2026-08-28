@@ -7,6 +7,7 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
+	"sort"
 	"strings"
 
 	log "github.com/eshu-hq/eshu/go/pkg/log"
@@ -68,13 +69,41 @@ const (
 // commits — because the refresh carries whichever delta scope the materializer
 // attached. Repo-keyed domains (platform_infra, workload_dependency, …) keep one
 // partition per repo, so they do not spread and are intentionally excluded.
+// The set is written down once, here, because a second copy of it lives in
+// another package: storage/cypher's wholeScopeRetractDomains table splits these
+// same domains into the narrowed and un-narrowed halves of the whole-scope
+// retract. A domain added to the fence but missed there gets a
+// whole-repository DELETE bound to the batch-wide repository list, which is the
+// #6166 over-delete, and nothing in that package's tests would iterate over it.
+// The predicate and RepoWideRetractDomains read this one map so
+// TestWholeScopeRetractDomainsCoversFencedSet compares the two sets rather than
+// two hand-typed lists that happen to agree today.
+var repoWideRetractDomains = map[string]struct{}{
+	DomainHandlesRoute:       {},
+	DomainRunsIn:             {},
+	DomainInvokesCloudAction: {},
+	DomainInheritanceEdges:   {},
+	DomainSQLRelationships:   {},
+	DomainShellExec:          {},
+	DomainRationaleEdges:     {},
+}
+
 func domainHasRepoWideRetract(domain string) bool {
-	switch domain {
-	case DomainHandlesRoute, DomainRunsIn, DomainInvokesCloudAction, DomainInheritanceEdges, DomainSQLRelationships, DomainShellExec, DomainRationaleEdges:
-		return true
-	default:
-		return false
+	_, fenced := repoWideRetractDomains[domain]
+	return fenced
+}
+
+// RepoWideRetractDomains returns every domain whose retract the per-repo refresh
+// intent owns, sorted, so another package can check its own handling of that set
+// against this one instead of re-enumerating it. It reads the same map
+// domainHasRepoWideRetract does, so the two cannot disagree.
+func RepoWideRetractDomains() []string {
+	domains := make([]string, 0, len(repoWideRetractDomains))
+	for domain := range repoWideRetractDomains {
+		domains = append(domains, domain)
 	}
+	sort.Strings(domains)
+	return domains
 }
 
 // repoWideRetractRefreshPartitionKey is the whole-scope partition key the per-repo

@@ -409,6 +409,13 @@ func buildDocumentationDeltaRetractStatements(
 // TestRetractEdgesNilFenceShapeSkipsWholeScopeDelete fails for it. A false row must NOT have one, or
 // TestFencedButNotNarrowedDomainsStillBindBatchWideRepoIDs fails for it.
 // Narrowing a domain without registering it here fails the same way.
+//
+// MISSING a row fails too, which it did not use to. The rows must be exactly the
+// domains reducer.RepoWideRetractDomains() returns, and
+// TestWholeScopeRetractDomainsCoversFencedSet compares the two sets in both
+// directions -- an eighth fenced domain left out of this table would otherwise
+// re-introduce the #6166 over-delete with every test in that file green,
+// because no loop here would ever reach it.
 var wholeScopeRetractDomains = map[string]bool{
 	reducer.DomainInheritanceEdges:   true,
 	reducer.DomainRationaleEdges:     true,

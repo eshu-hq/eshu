@@ -36,6 +36,46 @@ func unmarkedLegacyRetractRows() []reducer.SharedProjectionIntentRow {
 	}
 }
 
+// TestWholeScopeRetractDomainsCoversFencedSet ties this package's table to the
+// reducer's fence, which is the set the table is meant to mirror.
+//
+// The two agreed when the table was written, but they are enumerated in
+// different packages and nothing compared them. A domain added to
+// domainHasRepoWideRetract (reducer/shared_projection_worker_refresh_fence.go)
+// and missed here never reaches narrowedWholeScopeRepoIDs or this table, so none
+// of the three guard tests below iterate over it: on an unmarked legacy per-edge
+// row it binds the batch-wide repository list to a whole-repository DELETE,
+// which is the #6166 over-delete the narrowing exists to prevent, and it does so
+// with every test here still green. (A domain added to the fence WITHOUT a
+// buildRetractStatement case fails loudly at the builder's default, so the
+// silent direction is the one worth a test.)
+//
+// The comparison runs both ways: a fenced domain missing from the table is that
+// over-delete, and a table row the reducer does not fence describes a
+// whole-scope retract that never happens.
+func TestWholeScopeRetractDomainsCoversFencedSet(t *testing.T) {
+	t.Parallel()
+
+	fenced := reducer.RepoWideRetractDomains()
+	if len(fenced) == 0 {
+		t.Fatal("reducer.RepoWideRetractDomains() is empty; the comparison below would pass having checked nothing")
+	}
+	fencedSet := make(map[string]struct{}, len(fenced))
+	for _, domain := range fenced {
+		fencedSet[domain] = struct{}{}
+		if _, ok := wholeScopeRetractDomains[domain]; !ok {
+			t.Errorf("%s is fenced by the reducer's repo-wide retract but absent from wholeScopeRetractDomains; its RetractEdges path binds the batch-wide repo_ids to a whole-repository DELETE (#6166) and no test in this file iterates over it",
+				domain)
+		}
+	}
+	for domain := range wholeScopeRetractDomains {
+		if _, ok := fencedSet[domain]; !ok {
+			t.Errorf("wholeScopeRetractDomains lists %s, which the reducer does not fence behind a repo refresh intent; the table describes a whole-scope retract that does not exist",
+				domain)
+		}
+	}
+}
+
 // TestWholeScopeRetractDomainsHalvesAreNonEmpty floors both halves of the
 // table.
 //

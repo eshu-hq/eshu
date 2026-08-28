@@ -20,7 +20,7 @@ comments and left the loop passing on its own list.
 ## Why re-deriving it gives the wrong answer
 
 `domainHasRepoWideRetract`
-(`go/internal/reducer/shared_projection_worker_refresh_fence.go:71`) returns
+(`go/internal/reducer/shared_projection_worker_refresh_fence.go:91`) returns
 true for **seven** domains, not four. The other three — `handles_route`,
 `runs_in`, `invokes_cloud_action` — are fenced but not narrowed: they fall
 through to `buildRetractStatement` with the batch-wide repo-id list. A fifth
@@ -130,4 +130,55 @@ No-Observability-Change: no metric, span, or log line changes.
 firing condition; it moved call site, not behaviour, and the nil-fence test
 still asserts the warning text on every narrowed domain.
 
+## Review follow-up — the table was never compared to the fence
+
+The table's rows are exactly the domains `domainHasRepoWideRetract` fences, and
+that was the whole basis for calling it a mirror of the fence — but the two sets
+were enumerated in different packages and nothing compared them. An eighth
+fenced domain left out of the table never reaches `narrowedWholeScopeRepoIDs`
+or the table, so none of the three guard tests iterate over it; on an unmarked
+legacy per-edge row it binds the batch-wide repository list to a
+whole-repository DELETE, the #6166 over-delete, with every test in the file
+green. (A domain added to the fence with no `buildRetractStatement` case fails
+loudly at the builder's `default`, so the silent direction is the one worth a
+test.)
+
+The fence is now written down once. `domainHasRepoWideRetract` reads a
+`repoWideRetractDomains` map instead of a `switch`, and the new exported
+`RepoWideRetractDomains()` returns that same map's keys sorted, so the predicate
+and the accessor cannot disagree.
+`TestWholeScopeRetractDomainsCoversFencedSet` compares the accessor's set with
+`wholeScopeRetractDomains` in both directions.
+
+| Mutation | subs | `go vet` | test | What reddened |
+| --- | ---: | ---: | ---: | --- |
+| eighth domain added to the reducer fence, not to the table | 1 | 0 | 1 | `…CoversFencedSet`: "mutation_probe_domain is fenced by the reducer's repo-wide retract but absent from wholeScopeRetractDomains" |
+| `reducer.DomainShellExec` row deleted from the table | 1 | 0 | 1 | `…CoversFencedSet`: "shell_exec is fenced … but absent from wholeScopeRetractDomains" |
+| table row added for a domain the reducer does not fence | 1 | 0 | 1 | `…CoversFencedSet`: "wholeScopeRetractDomains lists mutation_probe_domain, which the reducer does not fence" |
+
+Verification after the final edit, exit codes captured directly:
+
+```
+go vet ./internal/storage/cypher/ ./internal/reducer/                    exit 0
+go test ./internal/storage/cypher/ ./internal/reducer -count=1           exit 0
+ESHU_PERFORMANCE_EVIDENCE_BASE=origin/main scripts/verify-performance-evidence.sh   exit 0
+```
+
+Benchmark Evidence: the predicate changed shape, so it was measured rather than
+assumed. A throwaway shim in the reducer package benchmarked the map lookup
+against the switch it replaced over a six-domain mix (three fenced, two
+unfenced, one unknown), `-benchtime=2000000x -count=5` on darwin/arm64, Apple
+M4 Pro: map 6.65-7.22 ns/op, switch 1.59-2.13 ns/op, so about +5 ns per call.
+Both call sites are per-partition-batch, not per-row —
+`shared_projection_worker.go` calls it once per partition batch and
+`buildRepoWideRetractRefreshIntents` once per materialization pass — against
+batches that each do Postgres round-trips and graph writes in the millisecond
+range. The same shim asserted the map and the switch agree on every domain in
+`AllDomains()`, and that `RepoWideRetractDomains()` returns only domains the old
+switch fenced; it was deleted after the measurement.
+
+No-Observability-Change: the review follow-up adds no metric, span, or log line,
+and changes no logging condition.
+
 Refs #6276
+Refs #6261
