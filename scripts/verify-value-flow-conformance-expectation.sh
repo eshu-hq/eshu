@@ -16,13 +16,20 @@
 # something changed and somebody needs to look: either upstream landed a fix
 # (see "When upstream lands" below) or the fixture broke.
 #
-# Two things keep this honest rather than decorative.
+# Three things keep this honest rather than decorative.
 #
 # It matches the MESSAGE, not the exit code. A non-zero exit can come from a
 # broken fixture, a failed seed, or a connection error, and an expected-fail
 # that passes for the wrong reason is a false green wearing the costume of a
 # gate. The nornicdb lane only counts when the run names the value-flow read
 # case and its row shortfall.
+#
+# It requires that message to be the ONLY failure. TestLiveBackendConformance
+# calls t.Fatalf from two deferred closures — the corpus cleanup and the driver
+# close — and a defer runs after the read-corpus t.Fatalf has already recorded
+# the documented failure, so both messages land in the same run. Matching the
+# documented message alone would let a cleanup or close regression ride in
+# behind it and still report green.
 #
 # The neo4j lane is the positive control, and it belongs in the same CI job as
 # the nornicdb lane. Without it, a broken fixture and the backend defect the
@@ -46,7 +53,7 @@
 #
 # Exit codes:
 #   0 — the lane behaved as documented.
-#   1 — it did not, and the message says which of the four ways.
+#   1 — it did not, and the message says which way.
 #   2 — usage error.
 #
 # When upstream lands
@@ -66,6 +73,19 @@ repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 # whole gate rests on, so a regex that quietly stopped matching would look
 # exactly like the defect having been fixed.
 expected_nornicdb_failure='read case "value-flow cloud sink aggregation and subscript projection" returned 0 rows, want at least 1'
+
+# The failures that can be recorded ALONGSIDE the one above, rather than instead
+# of it. Both come from a deferred closure in live_test.go — cleanupLiveCorpus
+# and driver.Close — and a defer runs after the read-corpus t.Fatalf has already
+# recorded the documented failure, so the run carries two. Every other t.Fatalf
+# in that test sits on the straight-line path, where the first one ends the test
+# and the documented message never appears at all; those are already caught by
+# the needle check. The test mirror pins live_test.go's failure set so this list
+# cannot quietly go stale when someone adds another deferred failure.
+cooccurring_failures=(
+	'cleanup live corpus fixture:'
+	'close Bolt driver:'
+)
 
 # The driver prints this before it runs anything. Without it a green neo4j lane
 # proves nothing, because the pair is ABSENT from the corpus when the opt-in is
@@ -130,6 +150,34 @@ case "${lane}" in
   Expected to find: ${expected_nornicdb_failure}
   A different failure is a broken fixture, a failed seed, or a connection error,
   not the backend divergence this gate tracks. Read the run output above."
+
+		# The documented shape has exactly ONE failure in it. Naming the read
+		# case is not enough on its own: a second failure in the same run makes
+		# the red mean something else as well, and the gate would report green
+		# over it.
+		for marker in "${cooccurring_failures[@]}"; do
+			if rg --fixed-strings --quiet -- "${marker}" "${log_file}"; then
+				fail "nornicdb lane named the value-flow read case, but also recorded a second failure: \"${marker}\"
+  That one comes from a deferred closure in TestLiveBackendConformance, so it
+  lands in the same run as the documented failure rather than replacing it.
+  Only the read-case row shortfall is expected here. Read the run output above:
+  a cleanup or driver-close regression is riding in behind an expected red."
+			fi
+		done
+
+		# A second FAILING TEST is the case the message check cannot see, because
+		# its failure text is its own. go test prints one "--- FAIL:" line per
+		# test — however many messages that test recorded — so more than one of
+		# them means more than one test failed. That also makes this check blind
+		# to the co-occurring messages above, which is why both exist.
+		failed_tests="$(rg --count-matches '^[[:space:]]*--- FAIL: ' "${log_file}" || true)"
+		if [[ "${failed_tests:-0}" -gt 1 ]]; then
+			fail "nornicdb lane named the value-flow read case, but more than one test failed (${failed_tests} \"--- FAIL:\" lines).
+  Only TestLiveBackendConformance is documented as failing here, and the lane's
+  driver runs three go test invocations. Read the run output above: something
+  other than the backend divergence this gate tracks is red."
+		fi
+
 		printf '%s lane: failed as documented, naming the value-flow read case.\n' "${lane}"
 		;;
 	neo4j)
