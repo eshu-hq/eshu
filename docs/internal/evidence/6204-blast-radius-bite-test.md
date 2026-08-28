@@ -94,6 +94,21 @@ a real bug under #6182. Its blast-radius half went from 3s warm to 4s with the
 bite proof added, which the `--- PASS` line breaks down as 0.28s for the nine
 subtests.
 
+That row was a hand-run query, and a hand-run query is not a gate. The review of
+this change pointed out that `sqlBlastRadiusCleanup` only logged its delete
+failures, so any failure other than the closed-driver one #6182 hit would leak
+the same way and still pass. Each cleanup delete now carries a verify query over
+the same pattern, and the helper calls `t.Errorf` when a delete fails or leaves
+rows behind, so a live run enforces `graph left clean` itself instead of waiting
+for someone to check it by hand. The pairing between each delete and its verify
+is held without a backend by `TestSQLBlastRadiusCleanupVerifiesEveryDelete`.
+
+The leftover assertion itself runs only under `ESHU_REPLAY_TIER_LIVE=1` and has
+NOT been re-run against a live NornicDB since it was added: the verify queries
+compile and vet clean, and every non-live test in the package passes, but no
+run has yet executed them against a backend. The three extra reads per cleanup
+call are bounded (`LIMIT 5`, no aggregate) and the timings above predate them.
+
 ### The bite proof bites
 
 The mutation the issue names — gut the accumulation to walk the fixture list —

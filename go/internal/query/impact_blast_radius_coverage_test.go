@@ -285,3 +285,74 @@ func TestFindBlastRadiusRepositoryCompleteWithEmptyCoverage(t *testing.T) {
 		t.Fatalf("coverage = %#v, want empty", resp.Coverage)
 	}
 }
+
+// TestSQLBlastRadiusCleanupVerifiesEveryDelete pins the pairing sqlBlastRadiusCleanup
+// depends on: every fixture DELETE carries a query that reads the same pattern
+// back out of the graph.
+//
+// A delete reporting success is not the claim "nothing is left". #6182 was that
+// gap -- the trailing deletes failed, probe nodes leaked into the graph the
+// replay tier asserts exact node and edge counts against, and the test passed.
+// The live cleanup now fails on a leftover row, but the live tests only run
+// against a real NornicDB; this case runs everywhere and holds the shape a
+// future probe would have to keep. A probe added with a delete and no verify,
+// or with a verify aimed at a different pattern than its delete, turns this red
+// without a backend.
+func TestSQLBlastRadiusCleanupVerifiesEveryDelete(t *testing.T) {
+	const prefix = "probeCleanupShape"
+	probes := sqlBlastRadiusProbes(prefix)
+	if len(probes) == 0 {
+		t.Fatal("sqlBlastRadiusProbes returned nothing: cleanup that deletes nothing cannot leave the graph clean")
+	}
+	for _, probe := range probes {
+		if probe.what == "" {
+			t.Errorf("probe %q has no description; a cleanup failure has to name what leaked", probe.delete)
+		}
+		if probe.verify == "" {
+			t.Errorf("probe %q deletes without verifying: a delete that reports success is not "+
+				"proof the graph is empty, which is how #6182 leaked probe nodes while passing", probe.what)
+			continue
+		}
+		if !strings.Contains(probe.verify, "AS leftover") {
+			t.Errorf("probe %q verify query must return its rows as `leftover`; sqlBlastRadiusLeftovers "+
+				"reads that column and reports an empty name otherwise: %s", probe.what, probe.verify)
+		}
+		if !strings.Contains(probe.verify, "LIMIT") {
+			t.Errorf("probe %q verify query is unbounded: %s", probe.what, probe.verify)
+		}
+		if strings.Contains(probe.verify, "DELETE") {
+			t.Errorf("probe %q verify query mutates instead of reading back: %s", probe.what, probe.verify)
+		}
+		if !strings.Contains(probe.delete, prefix) || !strings.Contains(probe.verify, prefix) {
+			t.Errorf("probe %q must scope both halves to the fixture prefix, or cleanup reaches "+
+				"data this gate does not own: delete=%s verify=%s", probe.what, probe.delete, probe.verify)
+		}
+		deleteMatch := strings.TrimSpace(strings.Split(probe.delete, "DETACH DELETE")[0])
+		verifyMatch := strings.TrimSpace(strings.Split(probe.verify, "RETURN")[0])
+		if deleteMatch != verifyMatch {
+			t.Errorf("probe %q verifies a different pattern than it deletes:\n delete matches %q\n verify matches %q",
+				probe.what, deleteMatch, verifyMatch)
+		}
+	}
+}
+
+// TestSQLBlastRadiusLeftoversNamesTheRows covers what a cleanup failure prints.
+// A row missing the column yields an empty name rather than a panic, because
+// this runs inside t.Cleanup where a panic would bury the failure it is
+// reporting.
+func TestSQLBlastRadiusLeftoversNamesTheRows(t *testing.T) {
+	got := sqlBlastRadiusLeftovers([]map[string]any{
+		{"leftover": "probe5409_repo_a"},
+		{"leftover": "probe5409_repo_b"},
+		{"unexpected": 7},
+	})
+	want := []string{"probe5409_repo_a", "probe5409_repo_b", ""}
+	if len(got) != len(want) {
+		t.Fatalf("leftovers = %#v, want %#v", got, want)
+	}
+	for i := range want {
+		if got[i] != want[i] {
+			t.Errorf("leftovers[%d] = %q, want %q", i, got[i], want[i])
+		}
+	}
+}
