@@ -19,17 +19,18 @@ has_serialized_package_command() {
 }
 
 # has_blast_radius_command checks the gate also runs the sql_table blast-radius
-# branch proof (#5409). Those two tests skip unless ESHU_REPLAY_TIER_LIVE=1, and
+# branch proof (#5409) and its bite proof (#6204). All three tests skip unless
+# ESHU_REPLAY_TIER_LIVE=1, and
 # until #6182 the only thing setting it was this gate, whose package list and
 # -run allowlist named neither. A skipped test is indistinguishable from a
 # passing one in any summary a reviewer reads.
 has_blast_radius_command() {
 	rg --quiet '^[[:space:]]*go test -p=1 \./internal/query/ \\$' "$1" &&
-		rg --quiet "^[[:space:]]*-run 'TestSQLTableBlastRadiusEveryBranchContributesLive\|TestSQLTableBlastRadiusMatchesNothingForUnknownTableLive' \\\\$" "$1"
+		rg --quiet "^[[:space:]]*-run 'TestSQLTableBlastRadiusEveryBranchContributesLive\|TestSQLTableBlastRadiusMatchesNothingForUnknownTableLive\|TestSQLTableBlastRadiusReportsUnseededBranchMissingLive' \\\\$" "$1"
 }
 
-# has_blast_radius_nonvacuity_guard checks the gate asserts both tests actually
-# RAN. `go test -run` exits 0 when its regex matches nothing, so renaming a test
+# has_blast_radius_nonvacuity_guard checks the gate asserts all three tests
+# actually RAN. `go test -run` exits 0 when its regex matches nothing, so renaming a test
 # turns the proof into a no-op that reports success. That is #5974's shape,
 # where an assertion which never fired read as green for months -- and it failed
 # there because it called a binary the runner did not have, so the guard must
@@ -42,7 +43,8 @@ has_blast_radius_command() {
 has_blast_radius_nonvacuity_guard() {
 	local name
 	for name in TestSQLTableBlastRadiusEveryBranchContributesLive \
-		TestSQLTableBlastRadiusMatchesNothingForUnknownTableLive; do
+		TestSQLTableBlastRadiusMatchesNothingForUnknownTableLive \
+		TestSQLTableBlastRadiusReportsUnseededBranchMissingLive; do
 		rg --quiet "^\t${name}[; \\\\]" "$1" || return 1
 	done
 	rg --quiet '^\trg --quiet "\^--- PASS: \$\{required_test\} "' "$1" || return 1
@@ -236,9 +238,9 @@ command -v rg >/dev/null 2>&1 || fail "missing required tool: rg"
 has_serialized_package_command "${script}" \
 	|| fail "shared-graph package test binaries must run sequentially with go test -p=1"
 has_blast_radius_command "${script}" \
-	|| fail "gate must run the sql_table blast-radius branch proof (#5409), not only the replay tier (#6182)"
+	|| fail "gate must run the sql_table blast-radius branch proof (#5409) and its bite proof (#6204), not only the replay tier (#6182)"
 has_blast_radius_nonvacuity_guard "${script}" \
-	|| fail "gate must assert both blast-radius tests RAN; go test -run exits 0 on a regex matching nothing"
+	|| fail "gate must assert all three blast-radius tests RAN; go test -run exits 0 on a regex matching nothing"
 has_projection_boundary_nonvacuity_guard "${script}" \
 	|| fail "gate must assert both #6262 OPTIONAL MATCH boundary tests RAN; go test -run exits 0 on a regex matching nothing"
 has_provenance_tombstone_nonvacuity_guard "${script}" \
@@ -276,6 +278,21 @@ sed '/^command -v rg >\/dev\/null 2>&1 || die/s/^/# /' "${script}" >"${tmp}/scri
 if has_blast_radius_nonvacuity_guard "${tmp}/script-no-rg"; then
 	fail "gate must refuse to run without rg rather than read a missing tool as no-match (#5974)"
 fi
+# Each blast-radius test needs its own standing rename case. The #6204 bite
+# proof is the only standing check that the dead-branch DETECTION still bites,
+# and `go test -run` exits 0 on a regex matching nothing -- so a rename that
+# this mirror did not notice would drop the proof and report success.
+for blast_test in TestSQLTableBlastRadiusEveryBranchContributesLive \
+	TestSQLTableBlastRadiusMatchesNothingForUnknownTableLive \
+	TestSQLTableBlastRadiusReportsUnseededBranchMissingLive; do
+	sed "s/${blast_test}/${blast_test}Renamed/g" "${script}" >"${tmp}/script-renamed"
+	if has_blast_radius_command "${tmp}/script-renamed"; then
+		fail "renaming ${blast_test} must not satisfy the blast-radius invocation guard"
+	fi
+	if has_blast_radius_nonvacuity_guard "${tmp}/script-renamed"; then
+		fail "renaming ${blast_test} must not satisfy the blast-radius non-vacuity guard"
+	fi
+done
 # The #6262 selectors need their own standing mutation checks. Replacing either
 # exact test name must break both allowlist and PASS-line ownership.
 for projection_test in TestNornicDBFunctionProjectionEvaluatesAfterOptionalMatch \
