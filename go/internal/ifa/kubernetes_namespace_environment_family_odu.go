@@ -47,7 +47,34 @@ const (
 	// kubernetesNamespaceEnvironmentFamilyClusterID is the operator-declared
 	// cluster identity stamped on every namespace below.
 	kubernetesNamespaceEnvironmentFamilyClusterID = "eshu-fixture-cluster"
+
+	// kubernetesNamespaceEnvironmentFamilyGenerationID is the one scope
+	// generation the committed cassette replays. The reducer's handler loads a
+	// single scope generation's namespace facts, so every fact below shares it.
+	kubernetesNamespaceEnvironmentFamilyGenerationID = "gen-ifa-kubernetes-namespace-environment-family-1"
+
+	// kubernetesNamespaceEnvironmentFamilyCollectorKind and
+	// kubernetesNamespaceEnvironmentFamilySchemaVersion mirror what the
+	// kubernetes_live collector stamps on a namespace fact, so the compiled Odù
+	// and the committed cassette describe the same envelope rather than agreeing
+	// only on the payload.
+	kubernetesNamespaceEnvironmentFamilyCollectorKind = "kubernetes_live"
+	kubernetesNamespaceEnvironmentFamilySchemaVersion = "1.0.0"
+
+	// kubernetesNamespaceEnvironmentFamilySourceConfidence marks these facts as
+	// directly observed, the posture a live cluster read carries.
+	kubernetesNamespaceEnvironmentFamilySourceConfidence = "observed"
 )
+
+// kubernetesNamespaceEnvironmentFamilyStableFactKey derives one fact's durable
+// dedup key from the identity the collector keys it by, so the cassette and the
+// compiled Odù cannot drift apart on two independently hand-typed strings.
+func kubernetesNamespaceEnvironmentFamilyStableFactKey(namespace string) string {
+	return fmt.Sprintf(
+		"kubernetes_live:%s:namespace::%s",
+		kubernetesNamespaceEnvironmentFamilyClusterID, namespace,
+	)
+}
 
 // kubernetesNamespaceEnvironmentFixture describes one namespace fact in the
 // Odù, and — separately — whether it is expected to produce a
@@ -143,9 +170,14 @@ func KubernetesNamespaceEnvironmentFamilyOdu() CatalogOdu {
 			))
 		}
 		factsForOdu = append(factsForOdu, facts.Envelope{
-			ScopeID:  kubernetesNamespaceEnvironmentFamilyScopeID,
-			FactKind: facts.KubernetesNamespaceFactKind,
-			Payload:  payload,
+			ScopeID:          kubernetesNamespaceEnvironmentFamilyScopeID,
+			GenerationID:     kubernetesNamespaceEnvironmentFamilyGenerationID,
+			FactKind:         facts.KubernetesNamespaceFactKind,
+			StableFactKey:    kubernetesNamespaceEnvironmentFamilyStableFactKey(fixture.Namespace),
+			SchemaVersion:    kubernetesNamespaceEnvironmentFamilySchemaVersion,
+			CollectorKind:    kubernetesNamespaceEnvironmentFamilyCollectorKind,
+			SourceConfidence: kubernetesNamespaceEnvironmentFamilySourceConfidence,
+			Payload:          payload,
 		})
 	}
 

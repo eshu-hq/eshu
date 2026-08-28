@@ -53,7 +53,36 @@ const (
 	// collector's own redaction posture.
 	iamInstanceProfileRoleFamilyAccountID = "123456789012"
 	iamInstanceProfileRoleFamilyRegion    = "us-east-1"
+
+	// iamInstanceProfileRoleFamilyGenerationID is the one scope generation the
+	// committed cassette replays. The reducer's handler loads a single scope
+	// generation's aws_resource facts, so every fact below shares it.
+	iamInstanceProfileRoleFamilyGenerationID = "gen-ifa-iam-instance-profile-role-family-1"
+
+	// iamInstanceProfileRoleFamilyCollectorKind and
+	// iamInstanceProfileRoleFamilySchemaVersion mirror what the awscloud
+	// collector stamps on an aws_resource fact, so the compiled Odù and the
+	// committed cassette describe the same envelope rather than agreeing only
+	// on the payload.
+	iamInstanceProfileRoleFamilyCollectorKind = "aws"
+	iamInstanceProfileRoleFamilySchemaVersion = "1.0.0"
+
+	// iamInstanceProfileRoleFamilySourceConfidence marks these facts as
+	// directly observed, the posture a scanner-emitted resource carries.
+	iamInstanceProfileRoleFamilySourceConfidence = "observed"
 )
+
+// iamInstanceProfileRoleFamilyStableFactKey derives one fact's durable
+// dedup key from the identity the collector would key it by, rather than
+// letting the cassette and the compiled Odù carry two hand-typed strings that
+// can drift apart.
+func iamInstanceProfileRoleFamilyStableFactKey(resourceType, resourceID string) string {
+	return fmt.Sprintf(
+		"aws:%s:%s:iam:%s:%s",
+		iamInstanceProfileRoleFamilyAccountID, iamInstanceProfileRoleFamilyRegion,
+		resourceType, resourceID,
+	)
+}
 
 // iamInstanceProfileRoleFixture describes one aws_resource fact in the Odù.
 //
@@ -169,9 +198,14 @@ func IAMInstanceProfileRoleFamilyOdu() CatalogOdu {
 			))
 		}
 		factsForOdu = append(factsForOdu, facts.Envelope{
-			ScopeID:  iamInstanceProfileRoleFamilyScopeID,
-			FactKind: facts.AWSResourceFactKind,
-			Payload:  payload,
+			ScopeID:          iamInstanceProfileRoleFamilyScopeID,
+			GenerationID:     iamInstanceProfileRoleFamilyGenerationID,
+			FactKind:         facts.AWSResourceFactKind,
+			StableFactKey:    iamInstanceProfileRoleFamilyStableFactKey(fixture.ResourceType, fixture.ResourceID),
+			SchemaVersion:    iamInstanceProfileRoleFamilySchemaVersion,
+			CollectorKind:    iamInstanceProfileRoleFamilyCollectorKind,
+			SourceConfidence: iamInstanceProfileRoleFamilySourceConfidence,
+			Payload:          payload,
 		})
 	}
 

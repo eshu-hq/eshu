@@ -1,0 +1,86 @@
+{
+  "collector": "kubernetes_live",
+  "schema_version": "1",
+  "scopes": [
+    {
+      "scope_id": "kubernetes_live:eshu-fixture-cluster",
+      "source_system": "kubernetes_live",
+      "scope_kind": "cluster",
+      "collector_kind": "kubernetes_live",
+      "partition_key": "kubernetes_live:eshu-fixture-cluster",
+      "metadata": {
+        "cluster_id": "eshu-fixture-cluster",
+        "cluster_name": "eshu-fixture-cluster"
+      },
+      "generation_id": "gen-ifa-kubernetes-namespace-environment-family-1",
+      "observed_at": "2026-08-18T00:00:00Z",
+      "trigger_kind": "snapshot",
+      "facts": [
+        {
+          "fact_kind": "kubernetes_live.namespace",
+          "stable_fact_key": "kubernetes_live:eshu-fixture-cluster:namespace::payments-prod",
+          "schema_version": "1.0.0",
+          "collector_kind": "kubernetes_live",
+          "fencing_token": 1,
+          "source_confidence": "observed",
+          "payload": {
+            "cluster_id": "eshu-fixture-cluster",
+            "labels": {
+              "environment": "production"
+            },
+            "namespace": "payments-prod",
+            "object_id": "k8s-ns:eshu-fixture-cluster:payments-prod"
+          }
+        },
+        {
+          "fact_kind": "kubernetes_live.namespace",
+          "stable_fact_key": "kubernetes_live:eshu-fixture-cluster:namespace::payments-staging",
+          "schema_version": "1.0.0",
+          "collector_kind": "kubernetes_live",
+          "fencing_token": 1,
+          "source_confidence": "observed",
+          "payload": {
+            "cluster_id": "eshu-fixture-cluster",
+            "labels": {
+              "app.kubernetes.io/environment": "staging"
+            },
+            "namespace": "payments-staging",
+            "object_id": "k8s-ns:eshu-fixture-cluster:payments-staging"
+          }
+        },
+        {
+          "fact_kind": "kubernetes_live.namespace",
+          "stable_fact_key": "kubernetes_live:eshu-fixture-cluster:namespace::platform-team",
+          "schema_version": "1.0.0",
+          "collector_kind": "kubernetes_live",
+          "fencing_token": 1,
+          "source_confidence": "observed",
+          "payload": {
+            "cluster_id": "eshu-fixture-cluster",
+            "labels": {
+              "environment": "platform-team"
+            },
+            "namespace": "platform-team",
+            "object_id": "k8s-ns:eshu-fixture-cluster:platform-team"
+          }
+        },
+        {
+          "fact_kind": "kubernetes_live.namespace",
+          "stable_fact_key": "kubernetes_live:eshu-fixture-cluster:namespace::kube-system",
+          "schema_version": "1.0.0",
+          "collector_kind": "kubernetes_live",
+          "fencing_token": 1,
+          "source_confidence": "observed",
+          "payload": {
+            "cluster_id": "eshu-fixture-cluster",
+            "labels": {
+              "kubernetes.io/metadata.name": "kube-system"
+            },
+            "namespace": "kube-system",
+            "object_id": "k8s-ns:eshu-fixture-cluster:kube-system"
+          }
+        }
+      ]
+    }
+  ]
+}
