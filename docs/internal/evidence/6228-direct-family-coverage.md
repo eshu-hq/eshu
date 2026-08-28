@@ -240,24 +240,60 @@ scoping is load-bearing rather than decorative. Restored, exit 0.
 The operator-facing defect message widened with it, and the test pinning that
 message moved in the same edit.
 
+## Correction: the fault half is not ordinary work
+
+An earlier revision of this note claimed the fault-injection half "needs no new
+machinery", that a direct family fits the generic dispatcher as
+`blocker_kind=table_lock:fact_records` with `cell_kind=generic`, and that this
+was "the same shape `codeowners_ownership_edges` already uses". Every clause is
+wrong. It came from reading the dispatcher's `case` arms and inferring, instead
+of reading the family's row — the conflation of blocker_kind (a shape) with
+cell_kind (dispatch reality) that `ifa_family_registry.sh`'s own
+`IFA_FAMILY_CELL_KIND` comment warns against.
+
+`scripts/lib/ifa_fault_generic_table_lock.sh:8-24` says it plainly: "no family
+is registered cell_kind=generic with a table_lock blocker today", both families
+that declare one "keep bespoke cells",
+`_ifa_generic_require_table_domain_written` "assumes the locked table carries a
+`domain` column, which is true of admission_decisions and is NOT true of
+fact_records", and "Flip a family's registry row to cell_kind=generic only once
+you have proven this mechanism against that family's live cell".
+`codeowners_ownership_edges` is `cell_kind=custom`
+(`rows/06_codeowners_ownership_edges.sh:95`).
+
+So the generic table_lock path has never run against a live stack, and pointing
+a direct family at it would fail part-way into a live shard rather than at
+authoring time. `fact_work_items` is not the way around it despite carrying the
+`domain` column that precondition wants: an ACCESS EXCLUSIVE lock on it would
+block the cell's own wait predicate rather than the handler.
+
+The honest path is bespoke cells modelled on
+`ifa_fault_injection_codeowners_cells.sh`, proven live. That family is the right
+template because it is single-stage and writes its edges directly — structurally
+what these two do — and its `fact_records` lock holds the handler between
+claiming its work item and loading facts, the same pre-write window both
+handlers have (`kubernetes_namespace_materialization.go:129,147,157`;
+`iam_instance_profile_role_materialization.go:57,85,114`).
+
+That is a change in a subsystem nothing has exercised, so it is tracked
+separately rather than folded in here.
+
 ## What is still missing for a coverage row
 
-Both waivers stand, and neither family gained a coverage row. Neither live
-matrix has been run with either family wired in, because none of the wiring in
-items 1-4 above exists yet. What changed is that the remaining work is now
-known to be reachable instead of assumed:
+Both families keep both waiver rows, and the ledger's rows are per (surface,
+proof_gate), so the two halves would retire separately.
 
-- The cassettes and expected sets are the next step. Committing them needs the
-  owner's agreement, since they extend the golden standard.
-- The fault-injection half needs no new machinery. A direct family fits the
-  existing generic dispatcher as `blocker_kind=table_lock:fact_records` with
-  `cell_kind=generic`, the same shape `codeowners_ownership_edges` already uses
-  (`scripts/lib/ifa_fault_generic_cells.sh`, lines 415-419). The two
-  shared-projection blocker kinds are unavailable to a direct family, and
-  neither is required.
-- Running both matrices needs an explicit hand-over of the machine. They bind
-  fixed host ports and hold a cross-worktree mutex — see
+- **Live gate wiring: none of it is here.** No registry row, drive/assert lib,
+  gate trigger or trigger stem. That is deliberate — half-wiring makes a family
+  look driven when no matrix drives it, which is worse than an honest waiver.
+- **The fault half** needs the bespoke cells described above, proven live.
+- **Running either matrix** needs an explicit hand-over of the machine. They
+  bind fixed host ports and hold a cross-worktree mutex — see
   `docs/internal/agent-guide.md#live-gate-serialization-and-contention`.
+
+What this change does contribute is the groundwork that had to exist first: a
+committed cassette per family, derived from its compiled Odù rather than
+hand-typed, and the lockstep test that keeps the two halves from drifting.
 
 ## Registry-shape blocker for part of the remaining 26
 

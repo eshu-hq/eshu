@@ -28,20 +28,26 @@ func writeDirectFamilyCassetteFixture(t *testing.T, body string) string {
 // canonicalOduJSON renders an Odù to canonical JSON so the lockstep comparison
 // is by MEANING rather than by Go type.
 //
-// reflect.DeepEqual is the wrong instrument here, and not for a cosmetic
-// reason. The compiled Odù builds its payload from typed factschema values, so
+// DO NOT "SIMPLIFY" THIS BACK TO reflect.DeepEqual. It looks like the obvious
+// comparison for two Odù values and it produces a spurious red, which is the
+// worst combination: a maintainer who swaps it in gets a failure that names no
+// real drift and then has to rediscover why. The compiled Odù builds its
+// payload from typed factschema values, so
 // kubernetes_namespace_environment's nested `labels` arrives as a
 // map[string]string. The cassette projection decodes the same bytes from JSON,
-// where it is necessarily a map[string]any. The two describe identical facts
-// and DeepEqual still reports them different.
+// where it is necessarily a map[string]any. Identical facts, different Go type,
+// and DeepEqual reports them different.
 //
 // The JSON form is also the one that matters. In production a fact travels
 // collector -> JSON -> Postgres -> reducer, so what an extractor actually reads
 // is the decoded map[string]any, not the builder's typed map -- confirmed on a
 // live stack, where driving this cassette produced exactly the expected
-// TARGETS_ENVIRONMENT edges. Comparing canonical JSON compares the fixture both
-// halves really mean, and still fails on any added, dropped, renamed or
-// re-valued field. json.Marshal sorts map keys, so the rendering is stable.
+// TARGETS_ENVIRONMENT edges.
+//
+// This gives up nothing the lockstep needs. Comparing canonical JSON still
+// fails on any added, dropped, renamed or re-valued field in either half, which
+// is the drift the test exists to catch; dropping a single fact from a cassette
+// reds it. json.Marshal sorts map keys, so the rendering is stable.
 func canonicalOduJSON(t *testing.T, odu ifa.Odu) string {
 	t.Helper()
 	blob, err := json.Marshal(odu)
