@@ -185,7 +185,7 @@ func codeRelationshipStoryTool() ToolDefinition {
 // analyzeCodeRelationshipsSchema preserves the former root helper while the
 // relationships package owns and freshly constructs the analysis schema.
 func analyzeCodeRelationshipsSchema() map[string]any {
-	return codeRelationshipTools()[1].InputSchema.(map[string]any)
+	return relationshiptools.AnalyzeCodeRelationshipsSchema()
 }
 
 // relationshipEdgesTool preserves the root package's constructor name while

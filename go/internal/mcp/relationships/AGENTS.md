@@ -18,8 +18,10 @@
 - Preserve every tool name, description, schema, required verb, bounds, and
   canonical enum order.
 - `CodeTools` returns exactly the story definition followed by the analysis
-  definition. Both `CodeTools` and `Tool` return fresh, deeply independent
-  definitions on every call.
+  definition. `AnalyzeCodeRelationshipsSchema` is the canonical analysis
+  schema constructor used by `CodeTools`; root compatibility helpers delegate
+  to it directly instead of inspecting the ordered registry. All constructors
+  return fresh, deeply independent definitions or schemas on every call.
 - Keep the code tools at zero-based root positions 8 and 9. Keep
   `list_relationship_edges` after `ask` and before `list_repository_files`.
 

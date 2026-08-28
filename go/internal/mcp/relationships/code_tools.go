@@ -100,7 +100,7 @@ func CodeTools() []toolcontract.ToolDefinition {
 		{
 			Name:        "analyze_code_relationships",
 			Description: "Analyze code relationships like 'who calls this function' or 'class hierarchy'. Relationship-story query types return per-row provenance blocks. Supported query types include: find_callers, find_callees, find_all_callers, find_all_callees, find_cross_repo_callers, find_cross_repo_callees, find_importers, find_cross_repo_importers, who_modifies, class_hierarchy, cross_repo_class_hierarchy, overrides, cross_repo_overrides, dead_code, call_chain, find_cross_repo_call_chain, module_deps, variable_scope, find_complexity, find_functions_by_argument, find_functions_by_decorator.",
-			InputSchema: analyzeCodeRelationshipsSchema(),
+			InputSchema: AnalyzeCodeRelationshipsSchema(),
 		},
 	}
 }

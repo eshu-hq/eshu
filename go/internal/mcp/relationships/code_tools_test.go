@@ -140,6 +140,29 @@ func TestCodeToolsReturnDeeplyIndependentDefinitions(t *testing.T) {
 	}
 }
 
+func TestAnalyzeCodeRelationshipsSchemaReturnsFreshSchema(t *testing.T) {
+	first := AnalyzeCodeRelationshipsSchema()
+	second := AnalyzeCodeRelationshipsSchema()
+	registered := codeToolSchema(t, CodeTools()[1])
+	if !reflect.DeepEqual(first, registered) {
+		t.Fatal("analysis schema constructor drifted from the registered tool schema")
+	}
+
+	firstProperties := first["properties"].(map[string]any)
+	secondProperties := second["properties"].(map[string]any)
+	firstProperties["target"] = "MUTATED"
+	if got := secondProperties["target"]; got == "MUTATED" {
+		t.Fatal("analysis schema constructor shares nested property-map storage")
+	}
+
+	firstRequired := first["required"].([]string)
+	secondRequired := second["required"].([]string)
+	firstRequired[0] = "MUTATED"
+	if got, want := secondRequired[0], "query_type"; got != want {
+		t.Fatalf("second required field = %q after mutating first schema, want %q", got, want)
+	}
+}
+
 func codeToolEnum(t *testing.T, tool toolcontract.ToolDefinition, propertyName string) []string {
 	t.Helper()
 

@@ -16,6 +16,8 @@ reads, bounds, and response shaping.
 
 - `CodeTools` returns `get_code_relationship_story` followed by
   `analyze_code_relationships`.
+- `AnalyzeCodeRelationshipsSchema` returns the canonical analysis schema
+  without requiring callers to inspect the ordered tool registry.
 - `Tool` returns the `list_relationship_edges` definition.
 
 See `doc.go` for the godoc contract.
@@ -38,9 +40,9 @@ transport and dispatch signals, while the relationship HTTP handlers retain
 
 - The import path ends in `relationships`, while the declared package is
   `relationshiptools`. The root uses an explicit import alias.
-- Both constructors return fresh definitions. Mutating one result, including a
-  nested schema slice or map, must not change a sibling definition or a later
-  result.
+- All constructors return fresh definitions or schemas. Mutating one result,
+  including a nested schema slice or map, must not change a sibling definition
+  or a later result.
 - `CodeTools` returns exactly two definitions in story-then-analysis order.
 - The root registry keeps those definitions at zero-based positions 8 and 9
   within the 33-tool codebase group and the 162-tool global registry.
