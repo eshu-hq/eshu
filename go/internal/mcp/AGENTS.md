@@ -118,6 +118,11 @@
   across `dispatch_ecosystem.go`, `dispatch_repositories.go`, `dispatch.go`,
   `dispatch_infra_search.go`, and `dispatch_impact.go`.
 
+- **Prepare a domain route for extraction** → express its decoded arguments
+  and selected HTTP request through `routecontract`, keep the root route adapter
+  and membership check in place, and prove the old and neutral shapes agree.
+  Move only that domain's router in a later family-owned change.
+
 - **Add a new argument helper** → add near `stringSlice` in
   `dispatch_args.go` or near `str`, `intOr`, and `boolOr` in `dispatch.go`.
   Write a focused unit test. Why: helpers are
