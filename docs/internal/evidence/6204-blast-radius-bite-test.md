@@ -103,21 +103,100 @@ rows behind, so a live run enforces `graph left clean` itself instead of waiting
 for someone to check it by hand. The pairing between each delete and its verify
 is held without a backend by `TestSQLBlastRadiusCleanupVerifiesEveryDelete`.
 
-The leftover assertion itself runs only under `ESHU_REPLAY_TIER_LIVE=1` and has
-NOT been re-run against a live NornicDB since it was added: the verify queries
-compile and vet clean, and every non-live test in the package passes, but no
-run has yet executed them against a backend. The three extra reads per cleanup
-call are bounded (`LIMIT 5`, no aggregate) and the timings above predate them.
+The leftover assertion runs only under `ESHU_REPLAY_TIER_LIVE=1`, and it has now
+been executed against a live backend. Review raised this as a P1 twice: the
+read-back half was new Cypher that no run had ever sent to a database, so
+nothing proved the dialect accepted it or that the `leftover` alias survived
+into the row map.
 
-What no test without a backend catches is the reporting call itself. Downgrading
-`t.Errorf` back to `t.Logf` on the leftover branch (1 substitution, `go vet` exit
-0, so the mutated tree really compiled) still leaves
-`go test ./internal/query/ -count=1` at exit 0, because
+Backend-Required Evidence: `timothyswt/nornicdb-cpu-bge:v1.2.3` (which reports
+`1.2.2` internally -- pin bumps by digest, not by that tag), started with
+`NORNICDB_ASYNC_WRITES_ENABLED=false`, embeddings and search off, Bolt on 17801.
+
+```bash
+cd go
+ESHU_REPLAY_TIER_LIVE=1 ESHU_GRAPH_BACKEND=nornicdb \
+ESHU_NEO4J_URI=bolt://localhost:17801 ESHU_NEO4J_DATABASE=nornic \
+NEO4J_URI=bolt://localhost:17801 NEO4J_USERNAME=neo4j NEO4J_PASSWORD=nornicdb \
+go test ./internal/query/ -count=1; echo $?
+# exit 0 -- ok github.com/eshu-hq/eshu/go/internal/query 3.825s
+```
+
+Exit code captured directly, not after a pipe. Unfiltered, so this run keeps the
+preamble's promise that every Go run recorded here executes the whole package.
+
+`ESHU_NEO4J_URI` is set explicitly, not just `NEO4J_URI`. `sqlBlastRadiusBackend`
+resolves `firstNonEmpty("ESHU_NEO4J_URI", "NEO4J_URI")`, so on a machine that
+already exports the former, a command setting only the latter silently measures
+a different graph than the one it names. An earlier revision of this record made
+exactly that mistake.
+
+Every cleanup call in that run executed all three verify queries and reported
+nothing, so the queries are accepted by the backend and the graph really was
+left clean.
+
+A clean run is not by itself proof the read-backs WORK: a query that matches
+nothing returns zero rows, and zero rows is what a clean graph looks like. So
+detection was proven separately with a throwaway probe (not committed) that
+seeded BOTH a prefixed node and the shared `SqlTable`, then ran each committed
+verify query against them:
+
+```
+shared table name for prefix "tmpProbe2" = "tmpProbe2_orders"
+probe "prefixed fixture nodes"   -> 1 row(s), leftover=tmpProbe2/x
+probe "fixture repositories"     -> 1 row(s), leftover=tmpProbe2/x
+probe "the shared fixture table" -> 1 row(s), leftover=tmpProbe2_orders
+```
+
+All three match, all three carry the alias. An earlier revision seeded no
+`SqlTable` and reported the third probe returning zero rows as if that confirmed
+it -- it confirmed nothing, because a query that never matches and a query that
+matches an empty graph are indistinguishable at zero rows. The third probe is
+only proven by seeding the table it looks for.
+
+One correction to that earlier reasoning, from review: this was never an "alias
+false-green" risk in the way the record first framed it. `Neo4jReader.Run`
+returns one map per collected record and `sqlBlastRadiusCleanup` branches on
+`len(rows)`, so a missing `leftover` key would still fail cleanup on the row
+count alone. The alias matters for the failure MESSAGE naming what leaked, not
+for detection.
+
+The three extra reads per cleanup call are bounded (`LIMIT 5`, no aggregate) and
+the timings above predate them.
+
+The reporting calls are guarded without a backend, and it took two passes to get
+there. The first version of this change moved three cleanup faults from `t.Logf`
+to `t.Errorf` and nothing without a backend could tell: downgrading any one of
+them back to `Logf` left `go test ./internal/query/ -count=1` at exit 0, because
 `TestSQLBlastRadiusCleanupVerifiesEveryDelete` reads the probe table and never
-runs the cleanup loop. Two mutations it does catch, both exit 1: dropping a
-probe's verify query, and pointing a verify at a different prefix than its
-delete. The delete/verify pairing is guarded without a backend. The `t.Errorf`
-that turns a leftover row into a failure is guarded only by a live run.
+runs the cleanup loop. A guard whose own removal nothing detects is the same
+silent-failure shape this change exists to remove, one level up.
+
+`sqlBlastRadiusCleanupWith` now takes the failure handle and the graph runner as
+parameters, and `TestSQLBlastRadiusCleanupReportsEveryFailure` drives it with a
+recorder and a stub runner. The live caller passes `*testing.T` and
+`(*Neo4jReader).Run`, so the function the gate executes is the function the test
+covers rather than a copy of it. `sqlBlastRadiusFailer` carries `Logf` alongside
+`Errorf` deliberately: a recorder able to observe only `Errorf` could not tell a
+downgrade back to logging from the call being deleted outright, which is exactly
+the mutation that escaped the first time.
+
+Mutations caught without a backend, each `go vet` exit 0 so every red is
+behavioural rather than a build break:
+
+| mutation | result |
+| --- | --- |
+| drop a probe's verify query | exit 1 |
+| point a verify at a different prefix than its delete | exit 1 |
+| `Errorf` -> `Logf` on the delete-error site | exit 1 |
+| `Errorf` -> `Logf` on the read-back-error site | exit 1 |
+| `Errorf` -> `Logf` on the leftover-rows site | exit 1 |
+| restored | exit 0 |
+
+What remains unguarded without a backend is narrower than "the reporting call":
+it is the one-line wiring in `sqlBlastRadiusCleanup` that routes `*testing.T`
+and `reader.Run` into the seam. Nothing without a live run proves that wiring is
+present and correct.
 
 ### The bite proof bites
 
