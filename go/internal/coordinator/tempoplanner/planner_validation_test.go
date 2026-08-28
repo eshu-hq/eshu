@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package coordinator
+package tempoplanner
 
 import (
 	"strings"
@@ -12,7 +12,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/workflow"
 )
 
-func TestTempoWorkPlannerPlansOneClaimPerEnabledTarget(t *testing.T) {
+func TestWorkPlannerPlansOneClaimPerEnabledTarget(t *testing.T) {
 	t.Parallel()
 
 	observedAt := time.Date(2026, time.June, 5, 15, 0, 0, 0, time.UTC)
@@ -28,7 +28,7 @@ func TestTempoWorkPlannerPlansOneClaimPerEnabledTarget(t *testing.T) {
 		UpdatedAt:      observedAt,
 	}
 
-	run, items, err := (TempoWorkPlanner{}).PlanTempoWork(t.Context(), TempoPlanRequest{
+	run, items, err := (WorkPlanner{}).PlanTempoWork(t.Context(), PlanRequest{
 		Instance:   instance,
 		ObservedAt: observedAt,
 		PlanKey:    "schedule-20260605T150000Z",
@@ -70,7 +70,7 @@ func TestTempoWorkPlannerPlansOneClaimPerEnabledTarget(t *testing.T) {
 	}
 }
 
-func TestTempoWorkPlannerSkipsDisabledTargets(t *testing.T) {
+func TestWorkPlannerSkipsDisabledTargets(t *testing.T) {
 	t.Parallel()
 
 	observedAt := time.Date(2026, time.June, 5, 15, 0, 0, 0, time.UTC)
@@ -86,7 +86,7 @@ func TestTempoWorkPlannerSkipsDisabledTargets(t *testing.T) {
 		UpdatedAt:      observedAt,
 	}
 
-	run, items, err := (TempoWorkPlanner{}).PlanTempoWork(t.Context(), TempoPlanRequest{
+	run, items, err := (WorkPlanner{}).PlanTempoWork(t.Context(), PlanRequest{
 		Instance:   instance,
 		ObservedAt: observedAt,
 		PlanKey:    "schedule-20260605T150000Z",
@@ -105,7 +105,7 @@ func TestTempoWorkPlannerSkipsDisabledTargets(t *testing.T) {
 	}
 }
 
-func TestTempoWorkPlannerEmptyConfigPlansNoWork(t *testing.T) {
+func TestWorkPlannerEmptyConfigPlansNoWork(t *testing.T) {
 	t.Parallel()
 
 	observedAt := time.Date(2026, time.June, 5, 15, 0, 0, 0, time.UTC)
@@ -121,7 +121,7 @@ func TestTempoWorkPlannerEmptyConfigPlansNoWork(t *testing.T) {
 		UpdatedAt:      observedAt,
 	}
 
-	_, items, err := (TempoWorkPlanner{}).PlanTempoWork(t.Context(), TempoPlanRequest{
+	_, items, err := (WorkPlanner{}).PlanTempoWork(t.Context(), PlanRequest{
 		Instance:   instance,
 		ObservedAt: observedAt,
 		PlanKey:    "schedule-20260605T150000Z",
@@ -134,7 +134,7 @@ func TestTempoWorkPlannerEmptyConfigPlansNoWork(t *testing.T) {
 	}
 }
 
-func TestTempoWorkPlannerRejectsWrongCollectorKind(t *testing.T) {
+func TestWorkPlannerRejectsWrongCollectorKind(t *testing.T) {
 	t.Parallel()
 
 	observedAt := time.Date(2026, time.June, 5, 15, 0, 0, 0, time.UTC)
@@ -150,7 +150,7 @@ func TestTempoWorkPlannerRejectsWrongCollectorKind(t *testing.T) {
 		UpdatedAt:      observedAt,
 	}
 
-	if _, _, err := (TempoWorkPlanner{}).PlanTempoWork(t.Context(), TempoPlanRequest{
+	if _, _, err := (WorkPlanner{}).PlanTempoWork(t.Context(), PlanRequest{
 		Instance:   instance,
 		ObservedAt: observedAt,
 		PlanKey:    "schedule-20260605T150000Z",
@@ -159,7 +159,7 @@ func TestTempoWorkPlannerRejectsWrongCollectorKind(t *testing.T) {
 	}
 }
 
-func TestTempoWorkPlannerPlanKeyDeterministic(t *testing.T) {
+func TestWorkPlannerPlanKeyDeterministic(t *testing.T) {
 	t.Parallel()
 
 	observedAt := time.Date(2026, time.June, 5, 15, 0, 0, 0, time.UTC)
@@ -174,17 +174,17 @@ func TestTempoWorkPlannerPlanKeyDeterministic(t *testing.T) {
 		CreatedAt:      observedAt,
 		UpdatedAt:      observedAt,
 	}
-	request := TempoPlanRequest{
+	request := PlanRequest{
 		Instance:   instance,
 		ObservedAt: observedAt,
 		PlanKey:    "schedule-20260605T150000Z",
 	}
 
-	firstRun, firstItems, err := (TempoWorkPlanner{}).PlanTempoWork(t.Context(), request)
+	firstRun, firstItems, err := (WorkPlanner{}).PlanTempoWork(t.Context(), request)
 	if err != nil {
 		t.Fatalf("PlanTempoWork() error = %v, want nil", err)
 	}
-	secondRun, secondItems, err := (TempoWorkPlanner{}).PlanTempoWork(t.Context(), request)
+	secondRun, secondItems, err := (WorkPlanner{}).PlanTempoWork(t.Context(), request)
 	if err != nil {
 		t.Fatalf("PlanTempoWork() error = %v, want nil", err)
 	}

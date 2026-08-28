@@ -9,9 +9,16 @@ import (
 	"strings"
 	"time"
 
+	"github.com/eshu-hq/eshu/go/internal/coordinator/tempoplanner"
 	"github.com/eshu-hq/eshu/go/internal/scope"
 	"github.com/eshu-hq/eshu/go/internal/workflow"
 )
+
+// TempoPlanner plans Tempo trace-signal workflow rows from collector instance
+// configuration.
+type TempoPlanner interface {
+	PlanTempoWork(context.Context, tempoplanner.PlanRequest) (workflow.Run, []workflow.WorkItem, error)
+}
 
 func (s Service) scheduleTempoWork(
 	ctx context.Context,
@@ -28,7 +35,7 @@ func (s Service) scheduleTempoWork(
 		if s.TempoPlanner == nil {
 			return fmt.Errorf("tempo planner is required for active tempo collectors")
 		}
-		run, items, err := s.TempoPlanner.PlanTempoWork(ctx, TempoPlanRequest{
+		run, items, err := s.TempoPlanner.PlanTempoWork(ctx, tempoplanner.PlanRequest{
 			Instance:   instance,
 			ObservedAt: observedAt,
 			PlanKey:    s.tempoPlanKey(instance, observedAt),

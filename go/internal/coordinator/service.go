@@ -80,12 +80,6 @@ type PrometheusMimirPlanner interface {
 	PlanPrometheusMimirWork(context.Context, PrometheusMimirPlanRequest) (workflow.Run, []workflow.WorkItem, error)
 }
 
-// TempoPlanner plans Tempo trace-signal workflow rows from collector instance
-// configuration.
-type TempoPlanner interface {
-	PlanTempoWork(context.Context, TempoPlanRequest) (workflow.Run, []workflow.WorkItem, error)
-}
-
 // GCPPlanner plans GCP Cloud Asset Inventory workflow rows from collector
 // instance configuration.
 type GCPPlanner interface {
