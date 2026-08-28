@@ -38,7 +38,7 @@ an immutable compatible build, select `ESHU_GRAPH_BACKEND=nornicdb`, and enable
 the capability acknowledgement before routing workloads to it.
 
 Key defaults: image repository `timothyswt/nornicdb-cpu-bge`, image tag
-`v1.1.11@sha256:51b6174ae65e4ce54a158ac2f9eace7d36a1971545824d22add0fe06d94c1090`,
+`v1.2.3@sha256:4dfa887d990bf0b536693830830e34351c036716b0fe6dc957e1a3680e9f3c74`,
 persistence enabled with `500Gi`, no server auth, async writes off, Heimdall
 off, Qdrant gRPC off, embeddings off, BM25 and vector indexes disabled,
 BM25/vector warming set to `lazy`, search index persistence off, and
@@ -60,11 +60,18 @@ probes, named `http` and `bolt` container ports, and the existing Service
 targetPorts. Operators still diagnose this path through the same pod readiness,
 container logs, Service endpoints, and graph-backed Eshu readiness checks.
 
-The pinned v1.1.11 default remains visible for reproducibility but cannot be
-enabled with the current Eshu provenance writer: it collapses same-endpoint
-relationship assertions whose identities differ by properties. Publish or
-mirror a verified immutable backend image, override `nornicdb.image`, and only
-then acknowledge the capability flag.
+The pin is a digest, not a tag, and the tag is not the version: a container
+started from `sha256:4dfa887d…` logs `Starting NornicDB v1.2.2` and stamps
+`"version":"1.2.2"` on its structured log lines. Read the digest when you need
+to know what is running.
+
+That default still cannot be enabled without a measurement. The relationship
+MERGE identity capability has never been measured against this image, and the
+predecessor it replaces (`v1.1.11`, `sha256:51b6174a…`) failed it — it
+collapsed same-endpoint relationship assertions whose identities differ only by
+properties, which the Eshu provenance writers depend on. Measure the build you
+intend to run, or mirror a verified immutable image and override
+`nornicdb.image`, before acknowledging the capability flag.
 
 The bundled NornicDB deployment is the canonical graph lane. Search index
 persistence is off because BM25/vector indexing is disabled for the graph lane.

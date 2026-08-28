@@ -1092,15 +1092,22 @@ neo4j:
 
 nornicdb:
   enabled: false
-  # The bundled v1.1.11 default does not satisfy this capability. Keep false
-  # unless every selected external or bundled NornicDB endpoint uses an
-  # immutable build that preserves relationship MERGE identity properties
-  # (orneryd/NornicDB#290 or later).
+  # Keep false unless every selected external or bundled NornicDB endpoint uses
+  # an immutable build that preserves relationship MERGE identity properties
+  # (orneryd/NornicDB#290 or later). This acknowledgement also covers external
+  # endpoints the chart never renders, so a chart image bump cannot settle it.
+  # Nobody has measured the capability against the image pinned below, so it
+  # stays false: flipping it on a version comparison alone would let the
+  # provenance writers collapse relationship identities silently.
   capabilities:
     relationshipMergePropertyIdentity: false
   image:
     repository: timothyswt/nornicdb-cpu-bge
-    tag: "v1.1.11@sha256:51b6174ae65e4ce54a158ac2f9eace7d36a1971545824d22add0fe06d94c1090"
+    # Pinned by digest, because the tag is not the version: a container from
+    # this digest starts with "Starting NornicDB v1.2.2" and stamps
+    # "version":"1.2.2" on every structured log line. The v1.2.3 tag name is a
+    # label on a build that reports 1.2.2. Multi-arch (linux/amd64, linux/arm64).
+    tag: "v1.2.3@sha256:4dfa887d990bf0b536693830830e34351c036716b0fe6dc957e1a3680e9f3c74"
     pullPolicy: IfNotPresent
   ports:
     http: 7474
