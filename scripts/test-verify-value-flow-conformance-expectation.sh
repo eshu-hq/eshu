@@ -188,8 +188,16 @@ expect_output "the co-occurring close failure is named in the verdict" \
 
 # The other way is a SECOND FAILING TEST, whose failure text is its own and so
 # cannot be enumerated ahead of time. Counting "--- FAIL:" lines is what catches
-# that one. It is a real shape: the nornicdb lane's driver runs three go test
-# invocations, not one.
+# that one.
+#
+# This is DEFENCE IN DEPTH, not a reachable shape today, and the difference is
+# worth stating so the check is not read as proof the shape was observed.
+# scripts/verify_backend_conformance_live.sh runs three `go test` invocations on
+# the nornicdb lane, but under `set -euo pipefail` with none of them guarded, so
+# a failing TestLiveBackendConformance exits the driver at the first one and the
+# other two never run. A second "--- FAIL:" therefore cannot co-occur with the
+# documented message unless that driver is restructured to run all three
+# unconditionally -- which is exactly when this check starts earning its keep.
 
 stub="$(make_stub nornicdb-second-failing-test 1 \
 	"${included_banner}" \

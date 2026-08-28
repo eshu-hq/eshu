@@ -173,9 +173,11 @@ case "${lane}" in
 		failed_tests="$(rg --count-matches '^[[:space:]]*--- FAIL: ' "${log_file}" || true)"
 		if [[ "${failed_tests:-0}" -gt 1 ]]; then
 			fail "nornicdb lane named the value-flow read case, but more than one test failed (${failed_tests} \"--- FAIL:\" lines).
-  Only TestLiveBackendConformance is documented as failing here, and the lane's
-  driver runs three go test invocations. Read the run output above: something
-  other than the backend divergence this gate tracks is red."
+  Only TestLiveBackendConformance is documented as failing here. Its driver runs
+  three go test invocations but exits at the first failure under set -euo
+  pipefail, so reaching this message means either that driver changed or a
+  second test failed alongside the documented one. Read the run output above:
+  something other than the backend divergence this gate tracks is red."
 		fi
 
 		printf '%s lane: failed as documented, naming the value-flow read case.\n' "${lane}"
