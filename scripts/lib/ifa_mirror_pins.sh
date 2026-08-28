@@ -210,6 +210,10 @@ ifa_mirror_count_code_matches() {
 			continue
 		fi
 		[[ "${stripped}" == "#"* ]] && continue
+		# ...and neither is a null command's argument list: `:` discards it, so
+		# `:  'trap ifa_det_cleanup EXIT'` installs nothing (#6194). The rule
+		# lives in ifa_dead_command_line.sh, shared with both large mirrors.
+		ifa_is_dead_command_line "${stripped}" && continue
 		if [[ "${line}" =~ \<\<-?[[:space:]]*\\?[\'\"]?([A-Za-z_][A-Za-z0-9_-]*)[\'\"]?[[:space:]]*([0-9]*[\<\>\|\;\&\)].*|[[:space:]]+#.*)?$ ]]; then
 			heredoc="${BASH_REMATCH[1]}"
 		fi

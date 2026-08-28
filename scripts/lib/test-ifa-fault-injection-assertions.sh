@@ -278,7 +278,7 @@ _ifa_count_code_lines_exact() {
 			[[ "${stripped}" == "${heredoc}" ]] && heredoc=""
 			continue
 		fi
-		[[ "${stripped}" == "#"* ]] && continue
+		[[ "${stripped}" == "#"* ]] && continue; ifa_is_dead_command_line "${stripped}" && continue  # a null command discards its arguments, so nothing on such a line executes (#6194); packed for the 500-line cap
 		if [[ "${line}" =~ \<\<-?[[:space:]]*\\?[\'\"]?([A-Za-z_][A-Za-z0-9_-]*)[\'\"]?[[:space:]]*([0-9]*[\<\>\|\;\&\)].*|[[:space:]]+#.*)?$ ]]; then
 			heredoc="${BASH_REMATCH[1]}"
 		fi
@@ -297,7 +297,7 @@ _ifa_count_code_matches() {
 			[[ "${stripped}" == "${heredoc}" ]] && heredoc=""
 			continue
 		fi
-		[[ "${stripped}" == "#"* ]] && continue
+		[[ "${stripped}" == "#"* ]] && continue; ifa_is_dead_command_line "${stripped}" && continue  # a null command discards its arguments, so nothing on such a line executes (#6194); packed for the 500-line cap
 		if [[ "${line}" =~ \<\<-?[[:space:]]*\\?[\'\"]?([A-Za-z_][A-Za-z0-9_-]*)[\'\"]?[[:space:]]*([0-9]*[\<\>\|\;\&\)].*|[[:space:]]+#.*)?$ ]]; then
 			heredoc="${BASH_REMATCH[1]}"
 		fi

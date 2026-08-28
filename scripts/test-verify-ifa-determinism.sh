@@ -36,7 +36,7 @@ family_cases_lib="${repo_root}/scripts/lib/test-ifa-determinism-family-cases.sh"
 maintenance_family_cases_lib="${repo_root}/scripts/lib/test-ifa-determinism-maintenance-family-cases.sh"
 registry_lockstep_cases_lib="${repo_root}/scripts/lib/test-ifa-determinism-registry-lockstep-cases.sh"
 family_registry_pins_lib="${repo_root}/scripts/lib/test-ifa-family-registry-derived-pins-cases.sh"
-teeth_cases_lib="${repo_root}/scripts/lib/test-ifa-determinism-teeth-cases.sh"; pin_behaviour_cases_lib="${repo_root}/scripts/lib/test-ifa-determinism-pin-behaviour-cases.sh"; private_data_cases_lib="${repo_root}/scripts/lib/test-ifa-determinism-private-data-cases.sh"; private_data_pattern_lib="${repo_root}/scripts/lib/ifa_private_data_pattern.sh"  # packed for the 500-line cap
+teeth_cases_lib="${repo_root}/scripts/lib/test-ifa-determinism-teeth-cases.sh"; pin_behaviour_cases_lib="${repo_root}/scripts/lib/test-ifa-determinism-pin-behaviour-cases.sh"; private_data_cases_lib="${repo_root}/scripts/lib/test-ifa-determinism-private-data-cases.sh"; private_data_pattern_lib="${repo_root}/scripts/lib/ifa_private_data_pattern.sh"; dead_command_lib="${repo_root}/scripts/lib/ifa_dead_command_line.sh"  # packed for the 500-line cap
 # registry_family_lib (ifa_family_registry.sh) is used by both
 # test-ifa-determinism-family-cases.sh (the shared-cell drive/assert loop's
 # totality check) and test-ifa-family-registry-derived-pins-cases.sh (its own
@@ -65,7 +65,7 @@ fail() { printf 'test-verify-ifa-determinism: %s\n' "$*" >&2; exit 1; }
 [[ -f "${maintenance_family_cases_lib}" ]] || fail "missing ${maintenance_family_cases_lib}"
 [[ -f "${registry_lockstep_cases_lib}" ]] || fail "missing ${registry_lockstep_cases_lib}"
 [[ -f "${family_registry_pins_lib}" ]] || fail "missing ${family_registry_pins_lib}"
-[[ -f "${teeth_cases_lib}" ]] || fail "missing ${teeth_cases_lib}"; [[ -f "${pin_behaviour_cases_lib}" ]] || fail "missing ${pin_behaviour_cases_lib}"; [[ -f "${private_data_cases_lib}" ]] || fail "missing ${private_data_cases_lib}"; [[ -f "${private_data_pattern_lib}" ]] || fail "missing ${private_data_pattern_lib}"
+[[ -f "${teeth_cases_lib}" ]] || fail "missing ${teeth_cases_lib}"; [[ -f "${pin_behaviour_cases_lib}" ]] || fail "missing ${pin_behaviour_cases_lib}"; [[ -f "${private_data_cases_lib}" ]] || fail "missing ${private_data_cases_lib}"; [[ -f "${private_data_pattern_lib}" ]] || fail "missing ${private_data_pattern_lib}"; [[ -f "${dead_command_lib}" ]] || fail "missing ${dead_command_lib}"
 [[ -f "${registry_family_lib}" ]] || fail "missing ${registry_family_lib}"
 [[ -f "${workflow}" ]] || fail "missing ${workflow}"
 [[ -f "${registry}" ]] || fail "missing ${registry}"
@@ -87,7 +87,7 @@ bash -n "${family_cases_lib}" || fail "test-ifa-determinism-family-cases.sh has 
 bash -n "${maintenance_family_cases_lib}" || fail "test-ifa-determinism-maintenance-family-cases.sh has a syntax error"
 bash -n "${registry_lockstep_cases_lib}" || fail "test-ifa-determinism-registry-lockstep-cases.sh has a syntax error"
 bash -n "${family_registry_pins_lib}" || fail "test-ifa-family-registry-derived-pins-cases.sh has a syntax error"
-bash -n "${teeth_cases_lib}" || fail "test-ifa-determinism-teeth-cases.sh has a syntax error"; bash -n "${pin_behaviour_cases_lib}" || fail "test-ifa-determinism-pin-behaviour-cases.sh has a syntax error"; bash -n "${private_data_cases_lib}" || fail "test-ifa-determinism-private-data-cases.sh has a syntax error"; bash -n "${private_data_pattern_lib}" || fail "ifa_private_data_pattern.sh has a syntax error"
+bash -n "${teeth_cases_lib}" || fail "test-ifa-determinism-teeth-cases.sh has a syntax error"; bash -n "${pin_behaviour_cases_lib}" || fail "test-ifa-determinism-pin-behaviour-cases.sh has a syntax error"; bash -n "${private_data_cases_lib}" || fail "test-ifa-determinism-private-data-cases.sh has a syntax error"; bash -n "${private_data_pattern_lib}" || fail "ifa_private_data_pattern.sh has a syntax error"; bash -n "${dead_command_lib}" || fail "ifa_dead_command_line.sh has a syntax error"
 bash -n "${registry_family_lib}" || fail "ifa_family_registry.sh has a syntax error"
 # This mirror needs the same guard as its fault-injection sibling. The fault
 # side has always asserted on both itself (test-verify-ifa-fault-injection.sh
@@ -114,6 +114,12 @@ bash -n "${registry_family_lib}" || fail "ifa_family_registry.sh has a syntax er
 # Whole-line form, sharing the comment and heredoc rules. `rg --line-regexp` is
 # comment-immune but NOT heredoc-immune -- a heredoc line equal to the needle
 # satisfies a whole-line regex, and the behavioural probe caught exactly that.
+# The null-command rule both counters below use to decide a line executes
+# nothing, so a needle parked on it is data rather than live code. Sourced
+# here, not with the case modules at the bottom, because the counters are
+# defined next and the pins call them immediately (#6194).
+# shellcheck source=scripts/lib/ifa_dead_command_line.sh
+source "${dead_command_lib}"
 _ifa_det_count_code_lines_exact() {
 	local needle="$1" file="$2" n=0 line stripped heredoc=""
 	while IFS= read -r line || [[ -n "${line}" ]]; do
@@ -123,6 +129,7 @@ _ifa_det_count_code_lines_exact() {
 			continue
 		fi
 		[[ "${stripped}" == "#"* ]] && continue
+		ifa_is_dead_command_line "${stripped}" && continue
 		if [[ "${line}" =~ \<\<-?[[:space:]]*\\?[\'\"]?([A-Za-z_][A-Za-z0-9_-]*)[\'\"]?[[:space:]]*([0-9]*[\<\>\|\;\&\)].*|[[:space:]]+#.*)?$ ]]; then
 			heredoc="${BASH_REMATCH[1]}"
 		fi
@@ -143,6 +150,7 @@ _ifa_det_count_code_matches() {
 			continue
 		fi
 		[[ "${stripped}" == "#"* ]] && continue
+		ifa_is_dead_command_line "${stripped}" && continue
 		if [[ "${line}" =~ \<\<-?[[:space:]]*\\?[\'\"]?([A-Za-z_][A-Za-z0-9_-]*)[\'\"]?[[:space:]]*([0-9]*[\<\>\|\;\&\)].*|[[:space:]]+#.*)?$ ]]; then
 			heredoc="${BASH_REMATCH[1]}"
 		fi
