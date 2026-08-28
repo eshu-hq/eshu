@@ -284,6 +284,11 @@ routing, dispatch, authorization, query, and transport ownership. The move
 uses `internal/mcp/toolcontract` and leaves the 33-tool codebase group and
 162-tool global order unchanged.
 
+The code-relationship router now selects an `internal/mcp/routecontract`
+request before the root adapter converts it to the private dispatch shape. This
+is the dependency-neutral prerequisite for a later route move; route membership,
+dispatch, and the router itself remain in the root MCP package in this stage.
+
 The freshness registration family is the seventh extracted MCP family. Its
 four definitions live under `internal/mcp/freshness`, while the root keeps
 their assembly position after visualization and before context tools. Routing

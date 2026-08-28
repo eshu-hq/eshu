@@ -3,10 +3,7 @@
 
 package mcp
 
-import (
-	"strconv"
-	"strings"
-)
+import "strconv"
 
 func str(args map[string]any, key string) string {
 	v, _ := args[key].(string)
@@ -23,21 +20,6 @@ func intOr(args map[string]any, key string, def int) int {
 		return int(v)
 	default:
 		return def
-	}
-}
-
-func optionalFloat(args map[string]any, key string) (float64, bool) {
-	switch v := args[key].(type) {
-	case float64:
-		return v, true
-	case float32:
-		return float64(v), true
-	case int:
-		return float64(v), true
-	case int64:
-		return float64(v), true
-	default:
-		return 0, false
 	}
 }
 
@@ -112,24 +94,6 @@ func contentSearchBody(args map[string]any) map[string]any {
 	}
 
 	return body
-}
-
-func parseMaxDepth(args map[string]any, defaultDepth int) int {
-	if depth, ok := args["max_depth"].(float64); ok {
-		return int(depth)
-	}
-	if depth, ok := args["max_depth"].(int); ok {
-		return depth
-	}
-	contextValue := str(args, "context")
-	if contextValue == "" {
-		return defaultDepth
-	}
-	depth, err := strconv.Atoi(strings.TrimSpace(contextValue))
-	if err != nil {
-		return defaultDepth
-	}
-	return depth
 }
 
 func paginationQuery(args map[string]any, defaultLimit int) map[string]string {

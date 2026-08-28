@@ -36,9 +36,11 @@
 
 ## Failure modes
 
-- Importing the MCP root creates a parent-child cycle. Use `toolcontract` only.
-- Moving a relationship route here would pull root-only route and argument
-  helpers across the ownership boundary.
+- Importing the MCP root creates a parent-child cycle. Use `toolcontract` for
+  registrations and `routecontract` for route values.
+- Move a relationship route only after it uses the dependency-neutral
+  `routecontract`; never import the parent MCP package to reach route or
+  argument helpers.
 - Reusing package-level maps or slices lets caller mutation leak into later
   `tools/list` responses.
 - A set-only test misses moving the tool away from its client-visible position.

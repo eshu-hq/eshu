@@ -19,10 +19,10 @@ structured response preserves collector `collector_contract` provenance, so MCP
 callers can trace fact kinds to projection/read consumers, proof gates, fixture
 refs, and deterministic/provider-gated/optional-semantic truth profiles.
 
-The dependency-neutral `toolcontract` child package owns the
-`ToolDefinition` data shape. `mcp.ToolDefinition` remains an alias for source
-compatibility, while ordered registration, routing, dispatch, transport, and
-authorization stay in this root package. The `documentation` child package
+The dependency-neutral `toolcontract` and `routecontract` child packages own the
+tool-definition and internal-request value shapes. `mcp.ToolDefinition` remains
+an alias for source compatibility. Ordered registration, route membership,
+dispatch, transport, and authorization stay in root. The `documentation` child package
 owns the six documentation registration definitions; documentation routing
 stays here. The `cloud` child package owns the cloud inventory and runtime-drift
 registration definitions; cloud routing also stays here. The `visualization`

@@ -5,176 +5,212 @@ package mcp
 
 import (
 	"fmt"
+	"strconv"
 	"strings"
+
+	"github.com/eshu-hq/eshu/go/internal/mcp/routecontract"
 )
 
 // codeRelationshipRoute claims the code-relationship family while leaving
 // unrelated tools available to the remaining dispatch fanout.
 func codeRelationshipRoute(toolName string, args map[string]any) (*route, bool, error) {
+	request, handled, err := codeRelationshipRequest(toolName, routecontract.Arguments(args))
+	if !handled || err != nil {
+		return nil, handled, err
+	}
+	return &route{
+		method: request.Method,
+		path:   request.Path,
+		body:   request.Body,
+		query:  request.Query,
+	}, true, nil
+}
+
+// codeRelationshipRequest selects a dependency-neutral request while the root
+// package retains route membership and dispatch ownership.
+func codeRelationshipRequest(toolName string, args routecontract.Arguments) (routecontract.Request, bool, error) {
 	switch toolName {
 	case "get_code_relationship_story":
-		return codeRelationshipStoryRoute(args), true, nil
+		return codeRelationshipStoryRequest(args), true, nil
 	case "analyze_code_relationships":
-		route, err := resolveAnalyzeCodeRelationshipsRoute(args)
-		return route, true, err
+		request, err := resolveAnalyzeCodeRelationshipsRequest(args)
+		return request, true, err
 	default:
-		return nil, false, nil
+		return routecontract.Request{}, false, nil
 	}
 }
 
-func codeRelationshipStoryRoute(args map[string]any) *route {
+func codeRelationshipStoryRequest(args routecontract.Arguments) routecontract.Request {
 	body := map[string]any{
-		"target":             str(args, "target"),
-		"entity_id":          str(args, "entity_id"),
-		"repo_id":            str(args, "repo_id"),
-		"language":           str(args, "language"),
-		"relationship_type":  str(args, "relationship_type"),
-		"relationship_types": stringSlice(args, "relationship_types"),
-		"direction":          str(args, "direction"),
-		"include_transitive": boolOr(args, "include_transitive", false),
-		"max_depth":          intOr(args, "max_depth", 5),
-		"limit":              intOr(args, "limit", 25),
-		"offset":             intOr(args, "offset", 0),
-		"token_budget":       intOr(args, "token_budget", 0),
+		"target":             args.String("target"),
+		"entity_id":          args.String("entity_id"),
+		"repo_id":            args.String("repo_id"),
+		"language":           args.String("language"),
+		"relationship_type":  args.String("relationship_type"),
+		"relationship_types": args.StringSlice("relationship_types"),
+		"direction":          args.String("direction"),
+		"include_transitive": args.BoolOr("include_transitive", false),
+		"max_depth":          args.IntOr("max_depth", 5),
+		"limit":              args.IntOr("limit", 25),
+		"offset":             args.IntOr("offset", 0),
+		"token_budget":       args.IntOr("token_budget", 0),
 		"cross_repo":         analyzeCodeRelationshipsCrossRepo(args, false),
 	}
-	if minConfidence, ok := optionalFloat(args, "min_confidence"); ok {
+	if minConfidence, ok := args.OptionalFloat("min_confidence"); ok {
 		body["min_confidence"] = minConfidence
 	}
-	return &route{method: "POST", path: "/api/v0/code/relationships/story", body: body}
+	return routecontract.Request{Method: "POST", Path: "/api/v0/code/relationships/story", Body: body}
 }
 
-// resolveAnalyzeCodeRelationshipsRoute maps an analyze_code_relationships call to
-// the bounded HTTP route for its query_type. Direct caller/callee/importer
+// resolveAnalyzeCodeRelationshipsRequest maps an analyze_code_relationships call
+// to the bounded HTTP request for its query_type. Direct caller/callee/importer
 // queries flow through the relationship story route (and carry the additive
 // token_budget and relationship_types filters); typed and path queries use their
 // dedicated routes.
-func resolveAnalyzeCodeRelationshipsRoute(args map[string]any) (*route, error) {
-	switch str(args, "query_type") {
+func resolveAnalyzeCodeRelationshipsRequest(args routecontract.Arguments) (routecontract.Request, error) {
+	switch args.String("query_type") {
 	case "find_callers":
-		return analyzeCodeRelationshipsStoryRoute(args, "incoming", "CALLS", false), nil
+		return analyzeCodeRelationshipsStoryRequest(args, "incoming", "CALLS", false), nil
 	case "find_callees":
-		return analyzeCodeRelationshipsStoryRoute(args, "outgoing", "CALLS", false), nil
+		return analyzeCodeRelationshipsStoryRequest(args, "outgoing", "CALLS", false), nil
 	case "find_all_callers":
-		return analyzeCodeRelationshipsStoryRoute(args, "incoming", "CALLS", true), nil
+		return analyzeCodeRelationshipsStoryRequest(args, "incoming", "CALLS", true), nil
 	case "find_all_callees":
-		return analyzeCodeRelationshipsStoryRoute(args, "outgoing", "CALLS", true), nil
+		return analyzeCodeRelationshipsStoryRequest(args, "outgoing", "CALLS", true), nil
 	case "find_cross_repo_callers":
-		return analyzeCodeRelationshipsStoryRoute(args, "incoming", "CALLS", false, true), nil
+		return analyzeCodeRelationshipsStoryRequest(args, "incoming", "CALLS", false, true), nil
 	case "find_cross_repo_callees":
-		return analyzeCodeRelationshipsStoryRoute(args, "outgoing", "CALLS", false, true), nil
+		return analyzeCodeRelationshipsStoryRequest(args, "outgoing", "CALLS", false, true), nil
 	case "find_importers":
-		return analyzeCodeRelationshipsStoryRoute(args, "incoming", "IMPORTS", false), nil
+		return analyzeCodeRelationshipsStoryRequest(args, "incoming", "IMPORTS", false), nil
 	case "find_cross_repo_importers":
-		return analyzeCodeRelationshipsStoryRoute(args, "incoming", "IMPORTS", false, true), nil
+		return analyzeCodeRelationshipsStoryRequest(args, "incoming", "IMPORTS", false, true), nil
 	case "class_hierarchy":
-		return analyzeCodeRelationshipsTypedStoryRoute(args, "class_hierarchy", "both", "INHERITS"), nil
+		return analyzeCodeRelationshipsTypedStoryRequest(args, "class_hierarchy", "both", "INHERITS"), nil
 	case "cross_repo_class_hierarchy":
-		return analyzeCodeRelationshipsStoryRoute(args, "both", "INHERITS", false, true), nil
+		return analyzeCodeRelationshipsStoryRequest(args, "both", "INHERITS", false, true), nil
 	case "overrides":
-		return analyzeCodeRelationshipsTypedStoryRoute(args, "overrides", "both", "OVERRIDES"), nil
+		return analyzeCodeRelationshipsTypedStoryRequest(args, "overrides", "both", "OVERRIDES"), nil
 	case "cross_repo_overrides":
-		return analyzeCodeRelationshipsStoryRoute(args, "both", "OVERRIDES", false, true), nil
+		return analyzeCodeRelationshipsStoryRequest(args, "both", "OVERRIDES", false, true), nil
 	case "call_chain", "find_cross_repo_call_chain":
-		startEntityID := str(args, "start_entity_id")
-		endEntityID := str(args, "end_entity_id")
+		startEntityID := args.String("start_entity_id")
+		endEntityID := args.String("end_entity_id")
 		start, end := "", ""
-		if target := str(args, "target"); target != "" {
+		if target := args.String("target"); target != "" {
 			var ok bool
 			start, end, ok = strings.Cut(target, "->")
 			if !ok {
-				return nil, fmt.Errorf("call_chain target must use start->end format")
+				return routecontract.Request{}, fmt.Errorf("call_chain target must use start->end format")
 			}
 			start = strings.TrimSpace(start)
 			end = strings.TrimSpace(end)
 		}
 		if start == "" && startEntityID == "" || end == "" && endEntityID == "" {
-			return nil, fmt.Errorf("call_chain target must use start->end format or provide start_entity_id and end_entity_id")
+			return routecontract.Request{}, fmt.Errorf("call_chain target must use start->end format or provide start_entity_id and end_entity_id")
 		}
-		return &route{method: "POST", path: "/api/v0/code/call-chain", body: map[string]any{
+		return routecontract.Request{Method: "POST", Path: "/api/v0/code/call-chain", Body: map[string]any{
 			"start":           start,
 			"end":             end,
-			"repo_id":         str(args, "repo_id"),
-			"cross_repo":      analyzeCodeRelationshipsCrossRepo(args, str(args, "query_type") == "find_cross_repo_call_chain"),
-			"start_repo_id":   str(args, "start_repo_id"),
-			"end_repo_id":     str(args, "end_repo_id"),
+			"repo_id":         args.String("repo_id"),
+			"cross_repo":      analyzeCodeRelationshipsCrossRepo(args, args.String("query_type") == "find_cross_repo_call_chain"),
+			"start_repo_id":   args.String("start_repo_id"),
+			"end_repo_id":     args.String("end_repo_id"),
 			"start_entity_id": startEntityID,
 			"end_entity_id":   endEntityID,
-			"max_depth":       parseMaxDepth(args, 5),
+			"max_depth":       parseCodeRelationshipMaxDepth(args, 5),
 		}}, nil
 	case "dead_code":
-		return &route{method: "POST", path: "/api/v0/code/dead-code", body: map[string]any{
-			"repo_id":                str(args, "repo_id"),
-			"limit":                  intOr(args, "limit", 100),
-			"exclude_decorated_with": stringSlice(args, "exclude_decorated_with"),
+		return routecontract.Request{Method: "POST", Path: "/api/v0/code/dead-code", Body: map[string]any{
+			"repo_id":                args.String("repo_id"),
+			"limit":                  args.IntOr("limit", 100),
+			"exclude_decorated_with": args.StringSlice("exclude_decorated_with"),
 		}}, nil
 	}
-	return &route{method: "POST", path: "/api/v0/code/relationships", body: map[string]any{
-		"entity_id":  str(args, "target"),
-		"query_type": str(args, "query_type"),
+	return routecontract.Request{Method: "POST", Path: "/api/v0/code/relationships", Body: map[string]any{
+		"entity_id":  args.String("target"),
+		"query_type": args.String("query_type"),
 	}}, nil
 }
 
-func analyzeCodeRelationshipsStoryRoute(
-	args map[string]any,
+func analyzeCodeRelationshipsStoryRequest(
+	args routecontract.Arguments,
 	direction string,
 	relationshipType string,
 	includeTransitive bool,
 	forceCrossRepo ...bool,
-) *route {
+) routecontract.Request {
 	body := map[string]any{
-		"target":             str(args, "target"),
-		"repo_id":            str(args, "repo_id"),
+		"target":             args.String("target"),
+		"repo_id":            args.String("repo_id"),
 		"direction":          direction,
 		"relationship_type":  relationshipType,
-		"relationship_types": stringSlice(args, "relationship_types"),
+		"relationship_types": args.StringSlice("relationship_types"),
 		"include_transitive": includeTransitive,
-		"max_depth":          parseMaxDepth(args, 5),
-		"limit":              intOr(args, "limit", 25),
-		"offset":             intOr(args, "offset", 0),
-		"token_budget":       intOr(args, "token_budget", 0),
+		"max_depth":          parseCodeRelationshipMaxDepth(args, 5),
+		"limit":              args.IntOr("limit", 25),
+		"offset":             args.IntOr("offset", 0),
+		"token_budget":       args.IntOr("token_budget", 0),
 		"cross_repo":         analyzeCodeRelationshipsCrossRepo(args, len(forceCrossRepo) > 0 && forceCrossRepo[0]),
 	}
-	if minConfidence, ok := optionalFloat(args, "min_confidence"); ok {
+	if minConfidence, ok := args.OptionalFloat("min_confidence"); ok {
 		body["min_confidence"] = minConfidence
 	}
-	return &route{
-		method: "POST",
-		path:   "/api/v0/code/relationships/story",
-		body:   body,
+	return routecontract.Request{
+		Method: "POST",
+		Path:   "/api/v0/code/relationships/story",
+		Body:   body,
 	}
 }
 
-func analyzeCodeRelationshipsTypedStoryRoute(
-	args map[string]any,
+func analyzeCodeRelationshipsTypedStoryRequest(
+	args routecontract.Arguments,
 	queryType string,
 	direction string,
 	relationshipType string,
 	forceCrossRepo ...bool,
-) *route {
+) routecontract.Request {
 	body := map[string]any{
 		"query_type":        queryType,
-		"target":            str(args, "target"),
-		"repo_id":           str(args, "repo_id"),
-		"language":          str(args, "language"),
+		"target":            args.String("target"),
+		"repo_id":           args.String("repo_id"),
+		"language":          args.String("language"),
 		"direction":         direction,
 		"relationship_type": relationshipType,
-		"max_depth":         parseMaxDepth(args, 5),
-		"limit":             intOr(args, "limit", 25),
-		"offset":            intOr(args, "offset", 0),
-		"token_budget":      intOr(args, "token_budget", 0),
+		"max_depth":         parseCodeRelationshipMaxDepth(args, 5),
+		"limit":             args.IntOr("limit", 25),
+		"offset":            args.IntOr("offset", 0),
+		"token_budget":      args.IntOr("token_budget", 0),
 		"cross_repo":        analyzeCodeRelationshipsCrossRepo(args, len(forceCrossRepo) > 0 && forceCrossRepo[0]),
 	}
-	if minConfidence, ok := optionalFloat(args, "min_confidence"); ok {
+	if minConfidence, ok := args.OptionalFloat("min_confidence"); ok {
 		body["min_confidence"] = minConfidence
 	}
-	return &route{
-		method: "POST",
-		path:   "/api/v0/code/relationships/story",
-		body:   body,
+	return routecontract.Request{
+		Method: "POST",
+		Path:   "/api/v0/code/relationships/story",
+		Body:   body,
 	}
 }
 
-func analyzeCodeRelationshipsCrossRepo(args map[string]any, forced bool) bool {
-	return forced || boolOr(args, "cross_repo", false) || strings.EqualFold(str(args, "scope"), "cross_repo")
+func analyzeCodeRelationshipsCrossRepo(args routecontract.Arguments, forced bool) bool {
+	return forced || args.BoolOr("cross_repo", false) || strings.EqualFold(args.String("scope"), "cross_repo")
+}
+
+func parseCodeRelationshipMaxDepth(args routecontract.Arguments, defaultDepth int) int {
+	if depth, ok := args["max_depth"].(float64); ok {
+		return int(depth)
+	}
+	if depth, ok := args["max_depth"].(int); ok {
+		return depth
+	}
+	contextValue := args.String("context")
+	if contextValue == "" {
+		return defaultDepth
+	}
+	depth, err := strconv.Atoi(strings.TrimSpace(contextValue))
+	if err != nil {
+		return defaultDepth
+	}
+	return depth
 }
