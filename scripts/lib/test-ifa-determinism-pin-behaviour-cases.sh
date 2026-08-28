@@ -7,11 +7,12 @@
 # It must run LAST, after every case module has been sourced: discovery is
 # `compgen -A function`, so it sees exactly the helpers that are loaded.
 run_ifa_determinism_pin_behaviour_cases() {
-	local det_probe_dir det_needle det_fn det_probe det_pin_checked=0
+	local det_probe_dir det_needle det_live_needle det_fn det_probe det_pin_checked=0
 	local -a det_extra=()
 	local IFA_DET_PROSE_HELPERS="require"
 	det_probe_dir="$(mktemp -d -t ifa-det-pin-probe.XXXXXX)"
 	det_needle='__ifa_det_pin_probe__'
+	det_live_needle=': "${__ifa_det_pin_probe_live__:=x}"'
 	printf '#!/usr/bin/env bash\n# %s\n:\n' "${det_needle}" >"${det_probe_dir}/comment_only.sh"
 	printf '#!/usr/bin/env bash\n: <<%sIFAEOF%s\n%s\nIFAEOF\n:\n' "'" "'" "${det_needle}" >"${det_probe_dir}/heredoc_only.sh"
 	# Same heredoc, opened with a TRAILING redirection. Heredoc recognition used
@@ -28,6 +29,24 @@ run_ifa_determinism_pin_behaviour_cases() {
 	# "exit trap" "trap ifa_det_cleanup EXIT"` stayed green with the real trap
 	# rewritten as `:  'trap ifa_det_cleanup EXIT'` (#6194).
 	printf '#!/usr/bin/env bash\n:  %s%s%s\n' "'" "${det_needle}" "'" >"${det_probe_dir}/null_command_only.sh"
+	# The same parked line with a trailing COMMENT, which is how a human disables
+	# one. The first cut of the rule judged the raw line, so `;` and `()` inside
+	# the comment made it read "live", the counter then stripped the comment and
+	# kept the needle, and the #6194 false green survived its own fix.
+	printf '#!/usr/bin/env bash\n:  %s%s%s # disabled; see (#6194)\n' "'" "${det_needle}" "'" >"${det_probe_dir}/null_command_comment_tail.sh"
+	# A metacharacter INSIDE the quotes. Single quotes are absolute in bash, so
+	# this line still installs nothing, but a rule that searches the raw text
+	# reads the `;` and `||` as live and counts the needle -- and plenty of pinned
+	# needles carry one (`docker compose down -v || true`).
+	printf '#!/usr/bin/env bash\n:  %s%s; parked || true%s\n' "'" "${det_needle}" "'" >"${det_probe_dir}/null_command_quoted_meta.sh"
+	# `true` and `false` complete the closed set the rule names. Probing only `:`
+	# left a typo in either of the other two patterns reddening nothing.
+	printf '#!/usr/bin/env bash\ntrue  %s%s%s\n' "'" "${det_needle}" "'" >"${det_probe_dir}/null_command_true.sh"
+	printf '#!/usr/bin/env bash\nfalse  %s%s%s\n' "'" "${det_needle}" "'" >"${det_probe_dir}/null_command_false.sh"
+	# The live control, asserted in the other direction below: `: "${VAR:=x}"`
+	# assigns, so it must stay counted. Its needle is the whole line, so a
+	# whole-line helper accepts it too.
+	printf '#!/usr/bin/env bash\n%s\n' "${det_live_needle}" >"${det_probe_dir}/null_command_live_expansion.sh"
 	printf '#!/usr/bin/env bash\n%s\n' "${det_needle}" >"${det_probe_dir}/real_code.sh"
 	_ifa_det_pin_probe_run() {
 		local fn="$1" target="$2"
@@ -58,16 +77,22 @@ run_ifa_determinism_pin_behaviour_cases() {
 			_ifa_det_pin_probe_run "${det_fn}" "${det_probe_dir}/real_code.sh" "${det_needle}" "${det_extra[@]}" \
 				|| fail "${det_fn}() rejected a needle that IS live code under both call shapes -- the probe cannot distinguish binding from broken"
 		fi
-		for det_probe in comment_only heredoc_only heredoc_redirect_only heredoc_bslash_only heredoc_comment_tail_only heredoc_hyphen_delim_only null_command_only; do
+		for det_probe in comment_only heredoc_only heredoc_redirect_only heredoc_bslash_only heredoc_comment_tail_only heredoc_hyphen_delim_only null_command_only null_command_comment_tail null_command_quoted_meta null_command_true null_command_false; do
 			[[ -s "${det_probe_dir}/${det_probe}.sh" ]] && rg -qF -- "${det_needle}" "${det_probe_dir}/${det_probe}.sh" || fail "probe ${det_probe}.sh was not written or lacks the needle; the negative below then fails for the wrong reason and this assertion passes unconditionally"
 			if _ifa_det_pin_probe_run "${det_fn}" "${det_probe_dir}/${det_probe}.sh" "${det_needle}" "${det_extra[@]}"; then
-				fail "${det_fn}() accepted a needle that appears only in a ${det_probe%%_*} -- it is not binding code, so a commented-out or dead call site would satisfy every pin that uses it"
+				fail "${det_fn}() accepted a needle that appears only in a ${det_probe//_/ } -- it is not binding code, so a commented-out or dead call site would satisfy every pin that uses it"
 			fi
 		done
+		# The one positive: a null command that DOES have an effect must still be
+		# counted, or the rule stops removing dead lines and starts hiding live ones.
+		rg -qF -- "${det_live_needle}" "${det_probe_dir}/null_command_live_expansion.sh" \
+			|| fail "probe null_command_live_expansion.sh lacks its needle; the acceptance check below would then pass or fail for the wrong reason"
+		_ifa_det_pin_probe_run "${det_fn}" "${det_probe_dir}/null_command_live_expansion.sh" "${det_live_needle}" "${det_extra[@]}" \
+			|| fail "${det_fn}() rejected \`${det_live_needle}\`, which assigns and is live code -- the doubt rule that keeps a \$-bearing null command counted has been lost"
 	done < <(compgen -A function | rg '^require' | sort)
 	rm -rf "${det_probe_dir}"
 	[[ "${det_pin_checked}" -ge 5 ]] \
 		|| fail "determinism pin-helper behaviour check exercised only ${det_pin_checked} helper(s); discovery has collapsed"
-	printf 'pin-helper behaviour check: %s helper(s) executed against comment, heredoc, trailing-redirection, backslash-delimiter, comment-tail and hyphen-delimiter heredoc, and null-command probes\n' "${det_pin_checked}"
+	printf 'pin-helper behaviour check: %s helper(s) executed against comment, heredoc, trailing-redirection, backslash-delimiter, comment-tail and hyphen-delimiter heredoc, bare, comment-tailed, quoted-metacharacter, true and false null-command probes, and the live null-command control\n' "${det_pin_checked}"
 
 }

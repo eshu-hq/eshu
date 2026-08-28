@@ -274,8 +274,9 @@ require_count() {
 #
 # Call it LAST, after every helper is defined, since discovery is by scope.
 ifa_mirror_assert_pins_bind_code() {
-	local probe_dir needle fn probe checked=0
+	local probe_dir needle live_needle fn probe checked=0
 	needle='__ifa_mirror_pin_probe__'
+	live_needle=': "${__ifa_mirror_pin_probe_live__:=x}"'
 	probe_dir="$(mktemp -d -t ifa-mirror-pin-probe.XXXXXX)"
 	printf '#!/usr/bin/env bash\n# %s\n:\n' "${needle}" >"${probe_dir}/comment_only.sh"
 	printf '#!/usr/bin/env bash\n: <<%sIFAEOF%s\n%s\nIFAEOF\n:\n' "'" "'" "${needle}" >"${probe_dir}/heredoc_only.sh"
@@ -290,6 +291,30 @@ ifa_mirror_assert_pins_bind_code() {
 	# arguments, so this line installs nothing -- and every ordinary way to
 	# disable a line was already caught, which is what left this one (#6194).
 	printf '#!/usr/bin/env bash\n:  %s%s%s\n' "'" "${needle}" "'" >"${probe_dir}/null_command_only.sh"
+	# The same parked line with a TRAILING COMMENT, which is how a human actually
+	# disables one -- and the shape that survived the first cut of this rule. The
+	# doubt check read the RAW line, so the `;` and `()` in the comment made it
+	# "live", the counter's own comment strip then removed the comment and left
+	# the needle, and #6194 came straight back through the front door.
+	printf '#!/usr/bin/env bash\n:  %s%s%s # disabled; see (#6194)\n' "'" "${needle}" "'" >"${probe_dir}/null_command_comment_tail.sh"
+	# `true` and `false` are the other two members of the closed set the rule
+	# claims. Probing only `:` left both unexercised: a typo in either pattern --
+	# or a name dropped from the list -- would have reddened nothing.
+	# A METACHARACTER INSIDE THE QUOTES. Single quotes are absolute in bash, so
+	# this line still installs nothing -- but a rule that searches the raw text
+	# reads the `;` and `||` as live and counts the needle. Plenty of pinned
+	# needles carry one (`docker compose down -v || true`), so without the quote
+	# scan the parking trick keeps working for exactly those.
+	printf '#!/usr/bin/env bash\n:  %s%s; parked || true%s\n' "'" "${needle}" "'" >"${probe_dir}/null_command_quoted_meta.sh"
+	printf '#!/usr/bin/env bash\ntrue  %s%s%s\n' "'" "${needle}" "'" >"${probe_dir}/null_command_true.sh"
+	printf '#!/usr/bin/env bash\nfalse  %s%s%s\n' "'" "${needle}" "'" >"${probe_dir}/null_command_false.sh"
+	# LIVE control, run in the opposite direction below. `: "${VAR:=default}"`
+	# ASSIGNS, so it is live code and four pinned lines in this corpus are exactly
+	# that idiom. The `$` doubt rule is the only thing keeping them counted, and
+	# nothing executed it: dropping `$` from the metacharacter class would have
+	# made every one of them read dead, with pins quietly counting one less. The
+	# needle here is the whole line, so a whole-line helper accepts it too.
+	printf '#!/usr/bin/env bash\n%s\n' "${live_needle}" >"${probe_dir}/null_command_live_expansion.sh"
 	printf '#!/usr/bin/env bash\n%s\n' "${needle}" >"${probe_dir}/real_code.sh"
 	local -a extra=()
 	while IFS= read -r fn; do
@@ -306,12 +331,20 @@ ifa_mirror_assert_pins_bind_code() {
 			_ifa_mirror_pin_probe_run "${fn}" "${probe_dir}/real_code.sh" "${needle}" "${extra[@]}" \
 				|| fail "${fn}() rejected a needle that IS live code under both call shapes -- the probe cannot tell binding from broken"
 		fi
-		for probe in comment_only heredoc_only heredoc_redirect_only heredoc_bslash_only heredoc_comment_tail_only heredoc_hyphen_delim_only null_command_only; do
+		for probe in comment_only heredoc_only heredoc_redirect_only heredoc_bslash_only heredoc_comment_tail_only heredoc_hyphen_delim_only null_command_only null_command_comment_tail null_command_quoted_meta null_command_true null_command_false; do
 			[[ -s "${probe_dir}/${probe}.sh" ]] && rg -qF -- "${needle}" "${probe_dir}/${probe}.sh" || fail "probe ${probe}.sh was not written or lacks the needle; the negative below then fails for the wrong reason and this assertion passes unconditionally"
 			if _ifa_mirror_pin_probe_run "${fn}" "${probe_dir}/${probe}.sh" "${needle}" "${extra[@]}"; then
-				fail "${fn}() accepted a needle that appears only in a ${probe%%_*} -- it is not binding code, so a commented-out or deleted call site would satisfy every pin that uses it"
+				fail "${fn}() accepted a needle that appears only in a ${probe//_/ } -- it is not binding code, so a commented-out or deleted call site would satisfy every pin that uses it"
 			fi
 		done
+		# The one positive: a null command that DOES have an effect must still be
+		# counted, or this rule stops removing only dead lines and starts hiding
+		# live ones -- a false RED for whoever hits it, and a silently weaker pin
+		# for everyone else.
+		rg -qF -- "${live_needle}" "${probe_dir}/null_command_live_expansion.sh" \
+			|| fail "probe null_command_live_expansion.sh lacks its needle; the acceptance check below would then pass or fail for the wrong reason"
+		_ifa_mirror_pin_probe_run "${fn}" "${probe_dir}/null_command_live_expansion.sh" "${live_needle}" "${extra[@]}" \
+			|| fail "${fn}() rejected \`${live_needle}\`, which assigns and is live code -- the doubt rule that keeps a \$-bearing null command counted has been lost"
 	done < <(compgen -A function | rg '^require' | sort)
 	rm -rf "${probe_dir}"
 	# Both mirrors that source this file execute exactly two pin helpers, so the
@@ -324,7 +357,7 @@ ifa_mirror_assert_pins_bind_code() {
 	# collapse, and total collapse is the one case that is obvious anyway.
 	[[ "${checked}" -ge 2 ]] \
 		|| fail "pin-helper behaviour check exercised ${checked} helper(s), expected at least 2; discovery has collapsed or a pin helper was renamed out of it"
-	printf 'pin-helper behaviour check: %s helper(s) executed against comment, heredoc, trailing-redirection, backslash-delimiter, comment-tail and hyphen-delimiter heredoc, and null-command probes\n' "${checked}"
+	printf 'pin-helper behaviour check: %s helper(s) executed against comment, heredoc, trailing-redirection, backslash-delimiter, comment-tail and hyphen-delimiter heredoc, bare, comment-tailed, quoted-metacharacter, true and false null-command probes, and the live null-command control\n' "${checked}"
 }
 
 # _ifa_mirror_pin_probe_run executes one pin helper against one synthetic target.

@@ -33,10 +33,29 @@
 #
 # EVERY DOUBT RESOLVES TO "LIVE". A line is called dead only when nothing on it
 # can expand, redirect, or start another command. Any `$`, backtick, redirection,
-# separator, subshell, or line continuation and the answer is "live", which is
-# the status quo. So this rule can only ever REMOVE matches, never add them, and
-# a wrong answer costs a false RED (a human minute) rather than a false GREEN (a
-# dead gate) -- the same direction every other choice in these counters elects.
+# separator, subshell, or backslash OUTSIDE single quotes and BEFORE a comment
+# and the answer is "live", which is the status quo. So this rule can only ever
+# REMOVE matches, never add them, and a wrong answer costs a false RED (a human
+# minute) rather than a false GREEN (a dead gate) -- the same direction every
+# other choice in these counters elects.
+#
+# WHERE a metacharacter sits decides whether it means anything, which is why the
+# scan below tracks single quotes and comments instead of searching the raw line.
+# The first cut of this rule did search the raw line, and it left the #6194 false
+# green fully open through the shape a human actually types:
+#
+#	:  'trap ifa_det_cleanup EXIT' # disabled; see #6194
+#
+# Nothing there executes -- `:` discards its argument and the rest is a comment --
+# but the `;` in that comment read as a separator, the line was called live, the
+# counters then stripped the same comment and kept the needle, and the pin passed
+# over a trap that is never installed. `(`, `)`, `$`, `>`, `&` and `|` are just as
+# natural in a comment (`# (see #6194)`, `# costs $5`, `# foo > bar`), and a needle
+# with a metacharacter in it -- `docker compose down -v || true` -- carries the
+# same problem inside the quotes. Single quotes are absolute in bash: no
+# expansion, no escapes, no splitting, so nothing inside them can act. Double
+# quotes are NOT absolute (`$` and backtick still expand), so they are deliberately
+# not treated as literal, and `: "${VAR:=default}"` keeps reading live.
 #
 # WHY `: "${VAR:=default}"` SURVIVES, and why that mattered. Every null-command
 # line in the counted corpus is that idiom -- `: "${GATE_DRAIN_TIMEOUT:=3m}"`,
@@ -65,7 +84,7 @@
 # therefore executes nothing at all. It returns 1 for everything else, including
 # everything it is unsure about.
 ifa_is_dead_command_line() {
-	local line="$1" rest
+	local line="$1" rest ch prev="" i=0 n quoted=0
 	case "${line}" in
 	# A bare null command carries no needle worth counting either way.
 	: | true | false) return 0 ;;
@@ -76,13 +95,39 @@ ifa_is_dead_command_line() {
 	*) return 1 ;;
 	esac
 	rest="${line#*[[:space:]]}"
-	case "${rest}" in
-	# Anything that can expand (`$`, backtick), redirect, or begin another
-	# command means the line is not provably inert. Live is the safe answer.
-	*['$`<>|;&()']*) return 1 ;;
-	# A trailing backslash continues the command onto the next line, which this
-	# function never sees. Refuse to judge it.
-	*\\) return 1 ;;
-	esac
+	n=${#rest}
+	# One left-to-right pass over the arguments, carrying just enough state to
+	# know whether a character means anything: which single-quoted span it is in,
+	# and whether a comment has started. Anything richer would be the expansion
+	# parser this file exists to avoid.
+	while [[ "${i}" -lt "${n}" ]]; do
+		ch="${rest:i:1}"
+		if [[ "${quoted}" -eq 1 ]]; then
+			[[ "${ch}" == "'" ]] && quoted=0
+		else
+			case "${ch}" in
+			# Inside single quotes bash interprets nothing at all, so a
+			# metacharacter there is text and cannot make the line act.
+			"'") quoted=1 ;;
+			# A `#` that starts a word starts a comment: everything after it is
+			# not executed, so it cannot make the line act either.
+			'#')
+				if [[ -z "${prev}" || "${prev}" == [[:space:]] ]]; then
+					return 0
+				fi
+				;;
+			# Anything that can expand (`$`, backtick), redirect, escape, or
+			# begin another command means the line is not provably inert. Live is
+			# the safe answer. A backslash anywhere goes the same way: it may
+			# quote the next character or continue the line onto the next one,
+			# which this function never sees.
+			'$' | '`' | '<' | '>' | '|' | ';' | '&' | '(' | ')' | '\') return 1 ;;
+			esac
+		fi
+		prev="${ch}"
+		i=$((i + 1))
+	done
+	# An unclosed quote is a line this pass cannot read. Refuse to judge it.
+	[[ "${quoted}" -eq 0 ]] || return 1
 	return 0
 }

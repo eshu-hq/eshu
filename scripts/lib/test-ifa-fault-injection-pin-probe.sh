@@ -83,8 +83,10 @@ assert_pin_helpers_bind_code() {
 	# is not binding code, whatever it is implemented with. Spelling, formatting,
 	# comments about the matcher, and ignoring the matcher's return value all stop
 	# mattering, because none of them survives being run.
-	local probe_dir needle fn rc checked=0
+	local probe_dir needle live_needle fn rc checked=0
 	needle='__ifa_pin_probe_needle__'
+	# The LIVE control, asserted in the opposite direction below.
+	live_needle=': "${__ifa_pin_probe_live__:=x}"'
 	probe_dir="$(mktemp -d -t ifa-pin-probe.XXXXXX)"
 	printf '#!/usr/bin/env bash\n# %s\n:\n' "${needle}" >"${probe_dir}/comment_only.sh"
 	printf '#!/usr/bin/env bash\n: <<%sIFAEOF%s\n%s\nIFAEOF\n:\n' "'" "'" "${needle}" >"${probe_dir}/heredoc_only.sh"
@@ -102,6 +104,21 @@ assert_pin_helpers_bind_code() {
 	# its arguments, so `:  'trap ifa_det_cleanup EXIT'` installs nothing and a
 	# pin satisfied by that line is bound to a line that does not run.
 	printf '#!/usr/bin/env bash\n:  %s%s%s\n' "'" "${needle}" "'" >"${probe_dir}/null_command_only.sh"
+	# The same line with the trailing comment a human actually types: the `;` in
+	# it read as a separator, so the line stayed classified live, the comment
+	# strip then removed the comment and kept the needle, and the pin passed
+	# over a trap that is never installed.
+	printf '#!/usr/bin/env bash\n:  %s%s%s # disabled; see (#6194)\n' "'" "${needle}" "'" >"${probe_dir}/null_command_comment_tail.sh"
+	# ...and a metacharacter INSIDE the quotes, which cannot act: single quotes
+	# are absolute in bash.
+	printf '#!/usr/bin/env bash\n:  %s%s; parked || true%s\n' "'" "${needle}" "'" >"${probe_dir}/null_command_quoted_meta.sh"
+	# `true` and `false` discard their arguments exactly as `:` does.
+	printf '#!/usr/bin/env bash\ntrue  %s%s%s\n' "'" "${needle}" "'" >"${probe_dir}/null_command_true.sh"
+	printf '#!/usr/bin/env bash\nfalse  %s%s%s\n' "'" "${needle}" "'" >"${probe_dir}/null_command_false.sh"
+	# The one POSITIVE: `: "${VAR:=default}"` ASSIGNS, so it is live code and must
+	# still be counted. The `$` doubt rule is the only thing keeping it counted.
+	# The needle here is the whole line, so a whole-line helper accepts it too.
+	printf '#!/usr/bin/env bash\n%s\n' "${live_needle}" >"${probe_dir}/null_command_live_expansion.sh"
 	printf '#!/usr/bin/env bash\n%s\n' "${needle}" >"${probe_dir}/real_code.sh"
 
 	while IFS= read -r fn; do
@@ -118,7 +135,7 @@ assert_pin_helpers_bind_code() {
 				|| fail "${fn}() rejected a needle that IS live code under both call shapes -- the probe cannot distinguish binding from broken, so its comment result proves nothing"
 		fi
 		local probe
-		for probe in comment_only heredoc_only heredoc_redirect_only heredoc_bslash_only heredoc_comment_tail_only heredoc_hyphen_delim_only null_command_only; do
+		for probe in comment_only heredoc_only heredoc_redirect_only heredoc_bslash_only heredoc_comment_tail_only heredoc_hyphen_delim_only null_command_only null_command_comment_tail null_command_quoted_meta null_command_true null_command_false; do
 			# Every *_lib-shaped variable is repointed at the probe file, so whichever
 			# target this helper happens to read, it reads the probe.
 			rc=0; [[ -s "${probe_dir}/${probe}.sh" ]] && rg -qF -- "${needle}" "${probe_dir}/${probe}.sh" || fail "probe ${probe}.sh was not written or lacks the needle; the negative below then fails for the wrong reason and this assertion passes unconditionally"
@@ -126,10 +143,18 @@ assert_pin_helpers_bind_code() {
 			[[ "${rc}" -ne 0 ]] \
 				|| fail "${fn}() accepted a needle that appears only in a ${probe//_/ } -- it is not binding code, so a commented-out or dead call site would satisfy every pin that uses it"
 		done
+		# The one positive: a null command that DOES have an effect must still be
+		# counted, or this rule stops removing only dead lines and starts hiding
+		# live ones -- a false RED for whoever hits it, and a silently weaker pin
+		# for everyone else.
+		rg -qF -- "${live_needle}" "${probe_dir}/null_command_live_expansion.sh" \
+			|| fail "probe null_command_live_expansion.sh lacks its needle; the acceptance check next to it would then pass or fail for the wrong reason"
+		_ifa_pin_probe_run "${fn}" "${probe_dir}/null_command_live_expansion.sh" "${live_needle}" "${extra[@]}" \
+			|| fail "${fn}() rejected ${live_needle}, which ASSIGNS and is therefore live code -- the doubt rule that keeps a \$-bearing null command counted has been lost, so every pin on that idiom now counts one less"
 	done < <(compgen -A function | rg '^require' | sort)
 
 	rm -rf "${probe_dir}"
 	[[ "${checked}" -ge 20 ]] \
 		|| fail "pin-helper behaviour check exercised only ${checked} helper(s); discovery has collapsed and this gate is checking nothing"
-	printf 'pin-helper behaviour check: %s helper(s) executed against comment, heredoc, trailing-redirection, backslash-delimiter, comment-tail and hyphen-delimiter heredoc, and null-command probes\n' "${checked}"
+	printf 'pin-helper behaviour check: %s helper(s) executed against comment, heredoc, trailing-redirection, backslash-delimiter, comment-tail and hyphen-delimiter heredoc, bare, comment-tailed, quoted-metacharacter, true and false null-command probes, and the live null-command control\n' "${checked}"
 }
