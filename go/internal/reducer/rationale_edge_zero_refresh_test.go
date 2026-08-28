@@ -140,22 +140,46 @@ func rationaleMaterializationIntent() Intent {
 	}
 }
 
-// TestRationaleHandlerDeltaSkipsRepositoryWithNoQualifiedPaths pins the
-// per-repo half of the delta decision. hasDelta is a SCOPE-wide flag, so one
-// repository with qualified changed paths used to stamp delta_projection=true
-// onto every repository in the scope -- including ones whose own path list is
-// empty. That payload is unroutable: collectDeltaFilePaths
-// (edge_writer_retract_scope.go) rejects delta_projection with no
-// delta_file_paths, the partition fails, and the intent dead-letters. The
-// repository simply has nothing changed in this generation, which is a
-// repo-wide refresh, not a delta.
-func TestRationaleHandlerDeltaSkipsRepositoryWithNoQualifiedPaths(t *testing.T) {
+// TestRationaleHandlerDeltaKeepsUnqualifiedRepositoryFailClosed pins the
+// per-repo half of the delta decision, and it REPLACES an earlier test that
+// pinned the opposite (#6216).
+//
+// The earlier test read this fixture as "the repository simply has nothing
+// changed in this generation, which is a repo-wide refresh, not a delta", and
+// asserted repo-untouched got no delta keys. That reading does not survive the
+// collector. A repository is marked Delta only when its git delta is non-empty
+// (buildSelectedRepositories, collector/gitrepo/git_selection_native.go, guards
+// on GitSyncDelta.IsEmpty), so "delta generation, no changed paths" is never
+// emitted for a repository that genuinely had no changes. What DOES emit this
+// exact payload is a delta whose changed paths could not be expressed: on a
+// symlinked repos root in git mode every target relativizes to a "../"-prefixed
+// path that normalizeSnapshotRelativePaths drops, leaving delta_generation=true
+// with both path slices empty.
+//
+// The two are indistinguishable in the repository fact, and only one of them is
+// safe to widen. A delta generation carries content-entity facts for the CHANGED
+// files only, so a repo-wide retract for such a repository deletes every
+// unchanged file's EXPLAINS edge with nothing left to re-create it -- silent
+// wrong graph, no error, no dead letter. So the repository stays delta-scoped
+// with an empty path list, which collectDeltaFilePaths
+// (storage/cypher/edge_writer_retract_scope.go) rejects before any statement
+// runs. The partition fails and the intent dead-letters, which an operator can
+// see and act on.
+//
+// A silent third option -- emit no retract at all for this repository -- was
+// rejected: it also avoids the over-delete, but it hides the broken delta and
+// lets stale edges accumulate with no signal.
+func TestRationaleHandlerDeltaKeepsUnqualifiedRepositoryFailClosed(t *testing.T) {
 	t.Parallel()
 	changed := rationaleRepositoryContextFact("run-delta-mixed")
 	changed.Payload["repo_id"] = "repo-changed"
 	changed.Payload["delta_generation"] = true
 	changed.Payload["delta_deleted_relative_paths"] = []string{"src/deleted.go"}
 
+	// delta_generation with BOTH path slices absent, while local_path is
+	// present: the shape a delta whose changed paths could not be expressed
+	// produces, and the one a repository that genuinely had no changes never
+	// reaches (see this test's doc).
 	untouched := rationaleRepositoryContextFact("run-delta-mixed")
 	untouched.Payload["repo_id"] = "repo-untouched"
 	untouched.Payload["delta_generation"] = true
@@ -169,22 +193,35 @@ func TestRationaleHandlerDeltaSkipsRepositoryWithNoQualifiedPaths(t *testing.T) 
 		t.Fatalf("Handle() error = %v, want nil", err)
 	}
 
+	seen := map[string]bool{}
 	for _, row := range writer.refreshRows() {
 		repoID, _ := row.Payload["repo_id"].(string)
 		paths, _ := row.Payload["delta_file_paths"].([]string)
 		isDelta, _ := row.Payload["delta_projection"].(bool)
+		seen[repoID] = true
 		switch repoID {
 		case "repo-changed":
 			if !isDelta || len(paths) == 0 {
 				t.Errorf("repo-changed: delta_projection=%v paths=%#v, want a real delta", isDelta, paths)
 			}
 		case "repo-untouched":
-			if isDelta {
-				t.Errorf("repo-untouched carries delta_projection=true with paths=%#v; an empty delta payload is unroutable and dead-letters, so this repository must emit a repo-wide refresh", paths)
+			if !isDelta {
+				t.Errorf("repo-untouched: delta_projection=%v, want true; dropping it widens the retract to "+
+					"the whole repository and deletes every unchanged file's EXPLAINS edge, which a delta "+
+					"generation's changed-files-only facts cannot re-create", isDelta)
 			}
-			if _, present := row.Payload["delta_file_paths"]; present {
-				t.Errorf("repo-untouched carries delta_file_paths=%#v; a repo-wide refresh must not carry delta keys at all", paths)
+			if _, present := row.Payload["delta_file_paths"]; !present {
+				t.Error("repo-untouched carries no delta_file_paths key; the retract dispatch needs the empty " +
+					"list to reject the intent instead of running a repo-wide DELETE")
 			}
+			if len(paths) != 0 {
+				t.Errorf("repo-untouched: delta_file_paths=%#v, want empty", paths)
+			}
+		}
+	}
+	for _, repoID := range []string{"repo-changed", "repo-untouched"} {
+		if !seen[repoID] {
+			t.Fatalf("no refresh intent emitted for %q; the fixture no longer reaches the gate", repoID)
 		}
 	}
 }

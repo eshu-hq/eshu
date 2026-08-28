@@ -121,18 +121,18 @@ func TestEdgeWriterRetractEdgesSiblingMixedBatchRetractsBothDeltaAndWholeScopeRe
 	}
 }
 
-// TestEdgeWriterRetractEdgesSiblingEmptyDeltaFilePathsFailsThePartition is the
-// dispatch half of the #6216 gate proof, and it is green both before and after
-// the reducer-side fix. It records what a refresh intent carrying
-// delta_projection:true with an empty delta_file_paths actually costs: not a
-// wrong DELETE but a hard partition failure, which retries and then
-// dead-letters an intent that should simply have degraded to the repo-wide
-// retract.
+// TestEdgeWriterRetractEdgesSiblingEmptyDeltaFilePathsFailsThePartition pins
+// the dispatch guarantee the #6216 fix depends on: a refresh intent carrying
+// delta_projection:true with an empty delta_file_paths fails the partition
+// before any statement runs, so it retries and then dead-letters.
 //
-// The reducer half -- proving those three domains emitted exactly this payload
-// for a repository with nothing qualified in the generation -- is
-// TestSiblingRefreshIntentsGateDeltaProjectionOnRepositoryOwnPaths in
-// internal/reducer.
+// That is the intended outcome, not a cost to be engineered away. A repository
+// whose delta could not be qualified has no correct retract available here --
+// the file-scoped one has nothing to bind, and the repo-wide one deletes every
+// unchanged file's edge that this generation's changed-files-only facts cannot
+// re-create. See collectDeltaFilePaths (edge_writer_retract_scope.go) and
+// TestUnusableDeltaRefreshFailsClosedInsteadOfRetractingRepoWide, which drives
+// the real reducer handler into this same dispatch.
 func TestEdgeWriterRetractEdgesSiblingEmptyDeltaFilePathsFailsThePartition(t *testing.T) {
 	t.Parallel()
 
