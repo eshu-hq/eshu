@@ -1,19 +1,15 @@
 # internal/mcp
 
-`mcp` owns the Model Context Protocol tool surface for Eshu. It implements the
-MCP server, the JSON-RPC dispatcher, the SSE session model, the HTTP transport
-authentication (issue #5168), and the registered read-only tool definitions. Tool
-dispatch calls into the same `http.Handler` chain the HTTP API uses, so a tool
-response and the corresponding HTTP query response share the same truth. Dispatch wraps each handler request in a
-bounded context with a deterministic 30s default, so MCP calls cannot run
-without a deadline; handlers remain responsible for honoring `r.Context()`
-cancellation. Deadline and parent cancellation failures return an MCP error
-result with structured content and an `eshu://tool-error/dispatch` JSON
-resource.
-`get_capability_catalog` is transport-only over `/api/v0/capabilities`; its
-structured response preserves the top-level built-in role/grant/data-class
-catalog and each capability's matched permission family, action, scope levels,
-default roles, and sensitive-data marker.
+`mcp` owns Eshu's Model Context Protocol tool surface. It implements the MCP
+server, JSON-RPC dispatcher, SSE session model, HTTP transport authentication
+(issue #5168), and read-only tool registry. Tool dispatch uses the same `http.Handler` chain as
+the HTTP API, so both surfaces return the same truth. Each request gets a
+deterministic 30-second default deadline; handlers must still honor
+`r.Context()` cancellation. Deadline and parent cancellation return an MCP error
+result with structured content and an `eshu://tool-error/dispatch` JSON resource.
+`get_capability_catalog` is transport-only over `/api/v0/capabilities`; it preserves
+the top-level built-in role, grant, and data-class catalog plus each capability's
+matched permission family, action, scope levels, default roles, and sensitive-data marker.
 `get_surface_inventory` is transport-only over `/api/v0/surface-inventory`; its
 structured response preserves collector `collector_contract` provenance, so MCP
 callers can trace fact kinds to projection/read consumers, proof gates, fixture
