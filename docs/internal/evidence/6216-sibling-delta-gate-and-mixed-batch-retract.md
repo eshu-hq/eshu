@@ -2,16 +2,49 @@
 
 ## What changed
 
-Two coupled defects in the three fenced repo-wide-retract domains that never
-picked up the rationale `EXPLAINS` treatment: inheritance, SQL relationships,
-and shell exec. Rationale is not touched — it already carries both halves.
+Two defects in the fenced repo-wide-retract domains: inheritance, rationale
+`EXPLAINS`, SQL relationships, and shell exec. The gate half touches all four;
+the mixed-batch half touches the three that never picked up rationale's `#5998`
+review F6 treatment.
 
-**The gate.** `buildInheritanceRefreshIntents`,
-`buildSQLRelationshipRefreshIntents` and `buildShellExecRefreshIntents` stamped
-`delta_projection: true` whenever the SCOPE-wide `deltaScope.hasDelta` was set,
-and paired it with `deltaScope.filePathsByRepoID[repoID]`, which can be empty
-for a repository that qualified nothing in that generation. They now gate on
-the repository's own path list, the way `buildRationaleRefreshIntents` does.
+**The gate.** All four refresh builders decided delta scoping from the wrong
+question. The original shape asked "is the SCOPE on a delta generation"
+(`deltaScope.hasDelta`), which stamps `delta_projection: true` on a
+full-generation repository that merely shares a scope with a delta sibling. The
+obvious repair — also ask "does this repository have qualified paths"
+(`len(repoFilePaths) > 0`) — is worse: it silently drops delta scoping for a
+delta-generation repository whose paths could not be qualified, and the
+repo-wide retract that replaces it deletes edges the generation cannot restore
+(see below).
+
+They now ask the question that actually decides the retract's scope: **is THIS
+repository on a delta generation**, i.e. is it in `deltaScope.repositoryIDs`.
+The decision lives in one place, `applyRepoRefreshDeltaScope`
+(`go/internal/reducer/semantic_entity_delta_scope.go`), which all four builders
+call.
+
+**Why an unusable delta must fail closed.** On a delta generation the collector
+replaces the discovered file set with the changed targets alone
+(`resolveNativeSnapshotFileSetForTargets`,
+`go/internal/collector/gitrepo/git_snapshot_native.go`), so the generation
+carries `content_entity` facts for the CHANGED files only and the per-edge
+intents re-create only those files' edges. A repo-wide
+`DELETE ... WHERE <child>.repo_id IN $repo_ids` for such a repository therefore
+removes every UNCHANGED file's edge with nothing left to re-create it — silent
+wrong graph, no error, no dead letter.
+
+So a delta-generation repository stays delta-scoped even with an empty path
+list. `collectDeltaFilePaths`
+(`go/internal/storage/cypher/edge_writer_retract_scope.go`) rejects that shape
+before any statement executes; the partition fails, retries, and dead-letters.
+That is the intended outcome. A dead letter an operator can see beats a graph
+that quietly lost edges, and the error now names the repository so the dead
+letter is actionable.
+
+A third option — emit no retract at all for such a repository — was considered
+and rejected. It also avoids the over-delete, but it hides the broken delta and
+lets stale edges accumulate with no signal, which is the silent-fallback
+behaviour the repo rules forbid.
 
 **The mixed batch.** All three `RetractEdges` branches in
 `go/internal/storage/cypher/edge_writer_retract.go` returned as soon as
@@ -47,8 +80,8 @@ re-pin the same row.
 
 ## Why both halves had to land together
 
-They are not two independent tidy-ups. Fixing the gate alone converts one
-failure into the other.
+They are independent failures on the same four domains, and both leave wrong
+graph truth, so both are fixed here.
 
 A `ProcessPartitionOnce` batch is selected by partition **ID**
 (`hashtext(partition_key) % partition_count`), not by partition key, so one
@@ -56,18 +89,17 @@ batch routinely carries refresh rows for many repositories. A repository on a
 delta generation and a repository on a full generation share a batch as a matter
 of course at corpus scale.
 
-- Before either fix, a repository with nothing qualified got
-  `delta_projection: true` with an empty `delta_file_paths`. That is the one
-  shape `collectDeltaFilePaths` rejects outright — `delta retract requires
-  delta_file_paths` — so the partition fails, retries, and dead-letters the
-  intent instead of degrading to the repo-wide retract it should have asked for.
-- Fix only the gate, and that repository now emits a clean non-delta refresh
-  row. It lands in a batch with a delta-flagged sibling, the domain takes the
-  delta branch, returns, and the repository's whole-scope retract never runs.
-  Nothing else issues it — the refresh intent owns it — so its stale edges
-  survive with no error and no dead letter. A loud dead-letter would have been
-  traded for a silent wrong graph.
-- Fix only the mixed batch, and the empty-delta payload still dead-letters.
+- **Gate.** A full-generation repository sharing a scope with a delta sibling
+  must not be delta-scoped, or its removed-file edges are never retracted. A
+  delta-generation repository must not be widened to repo-wide, or its unchanged
+  files' edges are deleted with nothing to restore them. The scope-wide flag gets
+  the first wrong; the qualified-paths test gets the second wrong. Membership in
+  `deltaScope.repositoryIDs` gets both right.
+- **Mixed batch.** All three sibling `RetractEdges` branches returned as soon as
+  `collectDeltaFilePaths` reported `hasDeltaScope=true`, so a full-generation
+  repository sharing the batch never reached a retract at all. Nothing else
+  issues it — the refresh intent owns it — so its stale edges survived with no
+  error and no dead letter.
 
 ## Reachability, stated honestly
 
@@ -94,10 +126,25 @@ relative paths cannot be qualified. Two collector paths produce that fact:
   `normalizeSnapshotRelativePaths` drops — while `repository.Delta` stays true,
   because `git_selection_native.go` set it from the pre-relativization delta.
 
-Neither has been reproduced against a live corpus. The dead-letter half is
-therefore filed as conditional; the fix stands on its own because the gate it
-restores is the one the sibling domain already uses, and because the
-mixed-batch fix requires it.
+Neither has been reproduced against a live corpus, so the reachability claim is
+filed as **traced in source, not observed at runtime**. The consequence, by
+contrast, is proved rather than argued:
+`TestUnusableDeltaRefreshFailsClosedInsteadOfRetractingRepoWide`
+(`go/internal/storage/cypher`) drives the real reducer materialization handler
+into the real `RetractEdges` and, against the pre-fix code, records the actual
+repo-wide `DELETE` that ran bound to the delta repository, for all four domains.
+
+One further point that closes the "maybe it just had no changes" reading. A
+repository is marked `Delta` only when its git delta is non-empty
+(`buildSelectedRepositories` guards on `GitSyncDelta.IsEmpty`,
+`go/internal/collector/gitrepo/git_selection_native.go`), so a repository that
+genuinely had no changes is never emitted as a delta generation. "Delta
+generation, no qualified paths" therefore always means the delta could not be
+expressed — never "nothing changed" — and the two are indistinguishable in the
+repository fact anyway. An earlier rationale test
+(`TestRationaleHandlerDeltaSkipsRepositoryWithNoQualifiedPaths`) encoded the
+opposite reading and pinned the over-delete; it is replaced by
+`TestRationaleHandlerDeltaKeepsUnqualifiedRepositoryFailClosed`.
 
 ## No-Regression Evidence:
 
@@ -158,7 +205,14 @@ would be the right proof for a statement rewrite; it is not what this is.
 ## Observability Evidence:
 
 `No-Observability-Change:` — no metric, span, log field, or status field is
-added, removed, or renamed. The whole-scope retract on the mixed path runs
+added, removed, or renamed. One operator-facing string does change: the
+fail-closed `collectDeltaFilePaths` error now names the repository that carries
+no `delta_file_paths` (`delta retract requires delta_file_paths: repository %q
+carries none`) and the aggregate variant reports the delta-flagged row count.
+That text reaches an operator through the existing dead-letter failure record —
+it adds no instrument, and the dead letter is the whole reason failing closed is
+preferable to widening the retract, so it has to say which repository to look
+at. `TestUnusableDeltaRefreshFailsClosedInsteadOfRetractingRepoWide` asserts it. The whole-scope retract on the mixed path runs
 through the same `executeInheritanceRetractStatements` /
 `executeSQLRelationshipRetractStatements` / `retractShellExecEdges` helpers as
 the non-delta path, so the statements it issues appear in the existing
@@ -173,26 +227,38 @@ F6 branch made the same choice, and this keeps the four domains consistent.
 ## Verification
 
 ```
-cd go && go test ./internal/reducer ./internal/storage/cypher ./cmd/reducer \
-  ./internal/replay/... ./internal/projector/... ./internal/storage/... -count=1
+cd go && go test ./internal/reducer/... ./internal/storage/... ./internal/projector/... \
+  ./internal/replay/... ./internal/query ./internal/mcp/... ./cmd/reducer ./cmd/api \
+  ./cmd/eshu ./cmd/ingester -count=1            # exit 0, no non-ok lines
+cd go && go vet ./internal/reducer/ ./internal/storage/cypher/ ./cmd/reducer   # exit 0
 ```
 
-Mutation-proved rather than accepted on a green suite. Each of the six
-production sites was reverted individually; `go vet` exited 0 on every mutant
-first, so each red is behavioural and not a compile failure:
+Mutation-proved rather than accepted on a green suite. Each production site was
+reverted individually; `go vet` exited 0 on every mutant first, so each red is
+behavioural and not a compile failure. Each of the four gate mutants restores
+exactly the `deltaScope.hasDelta && len(repoFilePaths) > 0` shape for one domain
+and nothing else.
 
 | mutant | vet exit | test exit |
 | --- | ---: | ---: |
 | reducer gate, inheritance | 0 | 1 |
+| reducer gate, rationale | 0 | 1 |
 | reducer gate, SQL relationships | 0 | 1 |
 | reducer gate, shell exec | 0 | 1 |
+| `applyRepoRefreshDeltaScope` drops the empty-path delta | 0 | 1 |
+| `applyRepoRefreshDeltaScope` ignores delta membership | 0 | 1 |
+| fail-closed error stops naming the repository | 0 | 1 |
 | mixed-batch retract, inheritance | 0 | 1 |
 | mixed-batch retract, SQL relationships | 0 | 1 |
 | mixed-batch retract, shell exec | 0 | 1 |
 
-`subs=6`, six of six red. The per-domain split matters here: these three sites
-are near-identical and have been fixed one at a time before, so a single
-representative mutant would not have shown that all three variants are guarded.
+`subs=10`, ten of ten red (`subs=7` for the gate run, `subs=3` for the
+mixed-batch run). The per-domain split matters here: these sites are
+near-identical and have been fixed one at a time before, so a single
+representative mutant would not have shown that every variant is guarded. The
+two helper mutants pin the gate in both directions — dropping an unusable delta,
+and stamping delta on a full-generation repository — which one call-site mutant
+alone would not.
 
 ## Classification
 

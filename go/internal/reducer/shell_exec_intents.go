@@ -86,6 +86,7 @@ func buildShellExecRefreshIntents(
 	sorted := append([]string(nil), repoIDs...)
 	sort.Strings(sorted)
 
+	deltaRepositoryIDs := deltaScopeRepositorySet(deltaScope.repositoryIDs)
 	intents := make([]SharedProjectionIntentRow, 0, len(sorted))
 	for _, repoID := range sorted {
 		context, ok := contextByRepoID[repoID]
@@ -98,19 +99,11 @@ func buildShellExecRefreshIntents(
 			"action":          repoRefreshAction,
 			"evidence_source": shellExecEvidenceSource,
 		}
-		// hasDelta is SCOPE-wide, but the delta payload is per-repository, so
-		// this gates on the repository's own paths -- matching the rationale
-		// sibling (buildRationaleRefreshIntents), whose doc carries the long
-		// form. A repository with nothing qualified in this generation must fall
-		// back to the repo-wide refresh: delta_projection:true with an empty path
-		// list is the one shape collectDeltaFilePaths
-		// (storage/cypher/edge_writer_retract_scope.go) rejects outright, so the
-		// partition fails and the intent dead-letters instead of retracting
-		// anything (#6216).
-		if repoFilePaths := deltaScope.filePathsByRepoID[repoID]; deltaScope.hasDelta && len(repoFilePaths) > 0 {
-			payload["delta_projection"] = true
-			payload["delta_file_paths"] = append([]string(nil), repoFilePaths...)
-		}
+		// Delta scoping is per repository and fails closed on an unusable
+		// delta; applyRepoRefreshDeltaScope (semantic_entity_delta_scope.go)
+		// carries the full rule and why the two obvious alternatives lose
+		// edges (#6216).
+		applyRepoRefreshDeltaScope(payload, repoID, deltaRepositoryIDs, deltaScope.filePathsByRepoID)
 		intents = append(intents, BuildSharedProjectionIntent(SharedProjectionIntentInput{
 			ProjectionDomain: DomainShellExec,
 			PartitionKey:     shellExecWholeScopePartitionKey(repoID),
