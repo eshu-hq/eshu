@@ -162,13 +162,23 @@ func (s Service) runBatchConcurrent(
 					return
 				}
 
-				result, err := s.executeAndReport(ctx, wi.intent, workerID)
+				result, needsAck, err := s.executeAndReport(ctx, wi.intent, workerID)
 				if err != nil {
 					// Execute failures that require a Fail() call are handled
 					// inside executeAndReport. A returned error means the Fail
 					// itself broke — that's fatal.
 					appendErr(err)
 					return
+				}
+				if !needsAck {
+					// executeAndReport already terminalized this intent through
+					// WorkSink.Fail. Acking it as well would match zero rows
+					// (Fail clears lease_owner and moves status off
+					// 'claimed'/'running'), which the container_image_identity
+					// and ci_cd_run_correlation ack paths report as
+					// ErrReducerClaimRejected — a fatal error that cancels the
+					// whole run over a routine, retryable handler failure.
+					continue
 				}
 
 				select {
@@ -249,7 +259,13 @@ func (s Service) runBatchConcurrent(
 // executeAndReport runs one intent through the executor and reports the
 // result. On execution failure, it calls WorkSink.Fail and returns nil. On
 // Fail/Ack infrastructure errors, it returns a non-nil error (fatal).
-func (s Service) executeAndReport(ctx context.Context, intent Intent, workerID int) (Result, error) {
+//
+// The second return is whether the caller still owes this intent an
+// acknowledgment. It is false exactly when WorkSink.Fail has already
+// terminalized the row, so the caller must not ack it a second time; the
+// per-item path in service.go holds the same contract by returning early
+// after its own Fail call.
+func (s Service) executeAndReport(ctx context.Context, intent Intent, workerID int) (Result, bool, error) {
 	start := time.Now()
 	queueWait := reducerQueueWaitSeconds(start, intent.AvailableAt)
 
@@ -276,16 +292,16 @@ func (s Service) executeAndReport(ctx context.Context, intent Intent, workerID i
 		status = "failed"
 		s.recordReducerResult(ctx, intent, Result{}, duration, queueWait, status, workerID, err)
 		if failErr := s.WorkSink.Fail(ctx, intent, err); failErr != nil {
-			return Result{}, errors.Join(err, fmt.Errorf("fail reducer work: %w", failErr))
+			return Result{}, false, errors.Join(err, fmt.Errorf("fail reducer work: %w", failErr))
 		}
-		return Result{Status: ResultStatusFailed}, nil
+		return Result{Status: ResultStatusFailed}, false, nil
 	}
 
 	if heartbeatErr := stopHeartbeat(); heartbeatErr != nil {
 		s.recordReducerResult(ctx, intent, Result{}, duration, queueWait, "ack_failed", workerID, heartbeatErr)
-		return Result{}, fmt.Errorf("heartbeat reducer work: %w", heartbeatErr)
+		return Result{}, false, fmt.Errorf("heartbeat reducer work: %w", heartbeatErr)
 	}
 
 	s.recordReducerResult(ctx, intent, result, duration, queueWait, status, workerID, nil)
-	return result, nil
+	return result, true, nil
 }

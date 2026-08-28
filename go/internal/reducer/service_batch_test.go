@@ -158,8 +158,12 @@ func TestServiceExecuteAndReportPersistsQuarantineThroughBatchPath(t *testing.T)
 	intent := makeTestIntents(1)[0]
 	intent.Domain = DomainSupplyChainImpact
 
-	if _, err := svc.executeAndReport(context.Background(), intent, 1); err != nil {
+	_, needsAck, err := svc.executeAndReport(context.Background(), intent, 1)
+	if err != nil {
 		t.Fatalf("executeAndReport() error = %v", err)
+	}
+	if !needsAck {
+		t.Fatalf("executeAndReport() needsAck = false, want true for a succeeded intent")
 	}
 	if writer.callCount != 1 {
 		t.Fatalf("quarantine writer calls = %d, want 1", writer.callCount)
