@@ -1,12 +1,13 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-// Package relationshiptools defines the MCP registration for listing bounded
-// relationship edges.
+// Package relationshiptools defines MCP registrations for code-relationship
+// stories, code-relationship analysis, and bounded relationship-edge listing.
 //
-// Tool returns a fresh copy of the canonical definition. The parent mcp
-// package owns its global position, route resolution, dispatch, authorization,
-// response envelopes, and telemetry. The query package owns graph reads and
-// result shaping. This package runs no query and must keep the tool name,
-// description, and input schema stable.
+// CodeTools, Tool, and AnalyzeCodeRelationshipsSchema return fresh copies of
+// their canonical definitions or schema. The parent mcp package owns their
+// global positions, route resolution, dispatch, authorization, response
+// envelopes, and telemetry. The query package owns graph reads and result
+// shaping. This package runs no query and must keep tool names, descriptions,
+// definition order, and input schemas stable.
 package relationshiptools

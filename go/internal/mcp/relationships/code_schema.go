@@ -1,9 +1,11 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package mcp
+package relationshiptools
 
-func analyzeCodeRelationshipsSchema() map[string]any {
+// AnalyzeCodeRelationshipsSchema returns a fresh canonical input schema for
+// the analyze_code_relationships tool.
+func AnalyzeCodeRelationshipsSchema() map[string]any {
 	return map[string]any{
 		"type": "object",
 		"properties": map[string]any{

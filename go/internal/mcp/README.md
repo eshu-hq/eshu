@@ -171,7 +171,7 @@ is not broken out here).
 
 | Group | Count | Source file |
 |---|---|---|
-| `codebaseTools` | 33 | `tools_codebase.go`, `tools_code_topic.go`, `tools_dead_code.go`, `tools_import_dependencies.go`, `tools_call_graph_metrics.go`, `tools_route_to_caller.go`, `tools_security.go`, `tools_structural_inventory.go`, `tools_iac.go` |
+| `codebaseTools` | 33 | `tools_codebase.go`, `relationships/code_tools.go`, `tools_code_topic.go`, `tools_dead_code.go`, `tools_import_dependencies.go`, `tools_call_graph_metrics.go`, `tools_route_to_caller.go`, `tools_security.go`, `tools_structural_inventory.go`, `tools_iac.go` |
 | `codeFlowTools` | 4 | `tools_code_flow.go` |
 | `repositoryLanguageTools` | 3 | `tools_repository_language.go` |
 | `ecosystemTools` | 23 | `ecosystem/tools.go`, `ecosystem/*_tools.go` |
@@ -540,7 +540,8 @@ registrations),
 `internal/mcp/investigation` (investigation workflow and evidence-packet tool
 registrations),
 `internal/mcp/playbooks` (query-playbook tool registration definitions),
-`internal/mcp/relationships` (relationship-edge tool registration definition),
+`internal/mcp/relationships` (code-relationship and relationship-edge tool
+registration definitions),
 `internal/mcp/semantic` (semantic evidence and context-search tool registration
 definitions),
 `internal/mcp/service` (service catalog, context, investigation, and

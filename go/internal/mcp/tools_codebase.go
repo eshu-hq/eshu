@@ -4,7 +4,7 @@
 package mcp
 
 func codebaseTools() []ToolDefinition {
-	return []ToolDefinition{
+	tools := []ToolDefinition{
 		{
 			Name:        "find_code",
 			Description: "Find code entities by case-sensitive name. Repository-selected calls use indexed graph lookup. Global substring calls use the content entity-name index and require at least three Unicode characters; set exact=true for complete names, including shorter names.",
@@ -104,12 +104,9 @@ func codebaseTools() []ToolDefinition {
 		routeToCallerTool(),
 		codeTopicInvestigationTool(),
 		securityInvestigationTool(),
-		codeRelationshipStoryTool(),
-		{
-			Name:        "analyze_code_relationships",
-			Description: "Analyze code relationships like 'who calls this function' or 'class hierarchy'. Relationship-story query types return per-row provenance blocks. Supported query types include: find_callers, find_callees, find_all_callers, find_all_callees, find_cross_repo_callers, find_cross_repo_callees, find_importers, find_cross_repo_importers, who_modifies, class_hierarchy, cross_repo_class_hierarchy, overrides, cross_repo_overrides, dead_code, call_chain, find_cross_repo_call_chain, module_deps, variable_scope, find_complexity, find_functions_by_argument, find_functions_by_decorator.",
-			InputSchema: analyzeCodeRelationshipsSchema(),
-		},
+	}
+	tools = append(tools, codeRelationshipTools()...)
+	return append(tools, []ToolDefinition{
 		{
 			Name:        "find_dead_code",
 			Description: "Find potentially unused functions (dead code) across the indexed codebase, optionally scoped to a canonical repository identifier and excluding functions with specific decorators.",
@@ -459,5 +456,5 @@ func codebaseTools() []ToolDefinition {
 				"required": []string{},
 			},
 		},
-	}
+	}...)
 }

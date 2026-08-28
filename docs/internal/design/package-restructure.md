@@ -273,12 +273,14 @@ plus all query-playbook routing, dispatch, authorization, and transport
 ownership. The move uses `internal/mcp/toolcontract` and leaves the 162-tool
 order unchanged.
 
-The relationship-edge registration family is the sixth extracted MCP family.
-Its single definition lives under `internal/mcp/relationships`, while the root
-keeps its assembly position after Ask and before repository files plus all
-relationship routing, dispatch, authorization, query, and transport ownership.
-The move uses `internal/mcp/toolcontract` and leaves the 162-tool order
-unchanged.
+The relationship registration family is the sixth extracted MCP family. Its
+three definitions live under `internal/mcp/relationships`: the code story and
+analysis definitions remain at zero-based positions 8 and 9 in the codebase
+group, and the relationship-edge definition remains after Ask and before
+repository files. The root keeps ordered assembly plus all relationship
+routing, dispatch, authorization, query, and transport ownership. The move
+uses `internal/mcp/toolcontract` and leaves the 33-tool codebase group and
+162-tool global order unchanged.
 
 The freshness registration family is the seventh extracted MCP family. Its
 four definitions live under `internal/mcp/freshness`, while the root keeps
