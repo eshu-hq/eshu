@@ -246,3 +246,178 @@ func (e *backendRestartEngineClosedGroupExecutor) ExecuteGroup(context.Context, 
 	}
 	return nil
 }
+
+// Point 2 above -- "store closing, commit refused" -- was also only PARTLY
+// classified, in exactly the way point 3 was. isNornicDBStoreClosingCommitFailure
+// pinned the commit code against ONE body, Badger's ErrBlockedWrites sentence,
+// which the store reports while it is still CLOSING and merely refusing new
+// writes. NornicDB reports the same commit-side teardown a second way once the
+// store is already CLOSED under the open transaction:
+//
+//	write canonical cloud resource nodes: Neo4jError:
+//	Neo.ClientError.Transaction.TransactionCommitFailed
+//	commit failed: materializing mvcc commit state: DB Closed
+//
+// Observed live on 2026-08-23 in eshu-hq/eshu run 32665272053,
+// fault-injection (shard 4/4), the same restart-backend-between-phase-groups
+// cell: it dead-lettered gcp_resource_materialization for
+// gcp:project:acme-demo-gcp-00:seed:4580 as failure_class=projection_bug and
+// blew the gate's 4-minute drain budget at residual=2.
+//
+// This is the CROSS-PRODUCT of the two guards #6142 added: the commit code from
+// isNornicDBStoreClosingCommitFailure with the "DB Closed" body from
+// isNornicDBStoreClosedStatementFailure. Each guard requires its own pairing, so
+// a message that belongs to one and a code that belongs to the other matched
+// neither and fell through to terminal. Refs #6162.
+func TestBackendRestartCommitStoreClosedClassifies(t *testing.T) {
+	t.Parallel()
+
+	// RAW LITERALS, per the co-derivation ban stated on
+	// TestBackendRestartEngineClosedTransactionStartIsRetryable above: building
+	// the input from the constants under test would keep this green through a
+	// typo in one of them while the real backend message kept dead-lettering.
+	storeClosed := &neo4jdriver.Neo4jError{
+		Code: "Neo.ClientError.Transaction.TransactionCommitFailed",
+		Msg:  "commit failed: materializing mvcc commit state: DB Closed",
+	}
+	require.True(t, isNornicDBStoreClosingCommitFailure(storeClosed),
+		"a commit that failed because the store is already closed is a backend restart, not a projection bug")
+
+	blockedWrites := &neo4jdriver.Neo4jError{
+		Code: "Neo.ClientError.Transaction.TransactionCommitFailed",
+		Msg:  "commit failed: badger commit failed: Writes are blocked, possibly due to DropAll or Close",
+	}
+	require.True(t, isNornicDBStoreClosingCommitFailure(blockedWrites),
+		"the original blocked-writes spelling must keep classifying")
+
+	// The narrowness the widening rests on. Both halves are still required: a
+	// genuine terminal commit failure under the same code stays terminal, and
+	// the store-closed body under a code this guard does not own stays terminal.
+	unrelatedBody := &neo4jdriver.Neo4jError{
+		Code: "Neo.ClientError.Transaction.TransactionCommitFailed",
+		Msg:  "commit failed: constraint violation: UNIQUE on :CloudResource(uid) already exists",
+	}
+	require.False(t, isNornicDBStoreClosingCommitFailure(unrelatedBody),
+		"a real constraint violation at commit must remain terminal")
+
+	// The same conflict, but carrying the store-closed TAIL inside the
+	// conflicting identity. NornicDB inlines that identity, and identities are
+	// evidence-derived, so one can hold a repo-relative path or any other text
+	// -- "DB Closed" included. Matching the bare tail under this code would
+	// read a terminal schema conflict as a backend restart, and the queue would
+	// retry it until the attempt budget was spent: a loud stop turned into a
+	// slow one. Matching the operation prefix is what keeps this false.
+	conflictCarryingTheTail := &neo4jdriver.Neo4jError{
+		Code: "Neo.ClientError.Transaction.TransactionCommitFailed",
+		Msg:  `commit failed: constraint violation: Node with uid="repos/acme/DB Closed/schema.sql" already exists`,
+	}
+	require.False(t, isNornicDBStoreClosingCommitFailure(conflictCarryingTheTail),
+		"a constraint violation whose identity contains the store-closed tail must stay terminal")
+
+	unrelatedCode := &neo4jdriver.Neo4jError{
+		Code: "Neo.ClientError.Schema.ConstraintValidationFailed",
+		Msg:  "commit failed: materializing mvcc commit state: DB Closed",
+	}
+	require.False(t, isNornicDBStoreClosingCommitFailure(unrelatedCode),
+		"the store-closed body under a code this guard does not own must remain terminal")
+}
+
+// TestBackendRestartCommitStoreClosedRemainsQueueRetryable is the end-to-end
+// twin: it asserts the change's user-visible claim through the real
+// CloudResourceNodeWriter dispatch, which is the value reducer.IsRetryable
+// actually sees. The predicate test above cannot say that on its own.
+func TestBackendRestartCommitStoreClosedRemainsQueueRetryable(t *testing.T) {
+	t.Parallel()
+
+	inner := &backendRestartTerminalGroupExecutor{
+		err: &neo4jdriver.Neo4jError{
+			Code: "Neo.ClientError.Transaction.TransactionCommitFailed",
+			Msg:  "commit failed: materializing mvcc commit state: DB Closed",
+		},
+	}
+	writer := NewCloudResourceNodeWriter(inner, 0)
+	writerErr := writer.WriteCloudResourceNodes(
+		context.Background(),
+		[]map[string]any{{"uid": "store-closed-commit-recovery-resource"}},
+		"reducer/gcp-resources",
+	)
+	handlerErr := fmt.Errorf("write canonical cloud resource nodes: %w", writerErr)
+
+	require.True(t, reducer.IsRetryable(handlerErr),
+		"a commit refused because the graph store is closed must reach the queue as retryable, not as a projection bug")
+	var classified interface{ FailureClass() string }
+	require.ErrorAs(t, handlerErr, &classified)
+	require.Equal(t, GraphWriteTimeoutFailureClass, classified.FailureClass())
+	var driverErr *neo4jdriver.Neo4jError
+	require.ErrorAs(t, handlerErr, &driverErr)
+	require.Equal(t, "Neo.ClientError.Transaction.TransactionCommitFailed", driverErr.Code)
+}
+
+// TestBackendRestartCommitStoreClosedIsNotReplayedInPlace keeps the new body on
+// the same side of the line as its blocked-writes sibling: recovery is DURABLE
+// QUEUE replay only. A commit failure leaves an outcome this process cannot
+// observe, so classifyTransientNeo4jError must not pick it up and re-run the
+// transaction body in place.
+func TestBackendRestartCommitStoreClosedIsNotReplayedInPlace(t *testing.T) {
+	t.Parallel()
+
+	storeClosed := &neo4jdriver.Neo4jError{
+		Code: "Neo.ClientError.Transaction.TransactionCommitFailed",
+		Msg:  "commit failed: materializing mvcc commit state: DB Closed",
+	}
+	require.Empty(t, classifyTransientNeo4jError(storeClosed))
+
+	inner := &backendRestartTerminalGroupExecutor{err: storeClosed}
+	executor := &RetryingExecutor{Inner: inner, MaxRetries: 3, BaseDelay: time.Nanosecond}
+	err := executor.ExecuteGroup(context.Background(), []Statement{{
+		Operation: OperationCanonicalUpsert,
+		Cypher:    "UNWIND $rows AS row MERGE (r:CloudResource {uid: row.uid})",
+	}})
+	require.Same(t, storeClosed, err)
+	require.Equal(t, int32(1), inner.calls.Load())
+}
+
+// TestBackendRestartCommitVersionAllocationStoreClosedClassifies pins the
+// sibling shape at the same commit site. BadgerTransaction.Commit allocates the
+// MVCC version immediately before materializing it, and both wrap a store error
+// with their own operation prefix:
+//
+//	allocating mvcc commit version: %w   (badger_transaction.go)
+//	materializing mvcc commit state: %w  (the line below it)
+//
+// The allocation half reaches the store only on a namespace cache MISS:
+// allocateMVCCVersion serves a cached namespaceMVCCState from memory, but the
+// first write to a namespace in a process falls through to namespaceMVCC ->
+// loadPersistedNamespaceSequence, which runs b.db.View and answers "DB Closed"
+// when the store is already closed under it.
+//
+// That is rarer than the materialize half, which is why the live dead-letter
+// (#6162) caught the other one first. It is the same backend restart and the
+// same retry decision, so classifying only its sibling would leave a real
+// restart dead-lettering as a projection bug on the first write to a namespace.
+func TestBackendRestartCommitVersionAllocationStoreClosedClassifies(t *testing.T) {
+	t.Parallel()
+
+	// RAW LITERAL, per the co-derivation ban above: deriving this from the
+	// constant under test would keep it green through a typo in that constant.
+	allocationClosed := &neo4jdriver.Neo4jError{
+		Code: "Neo.ClientError.Transaction.TransactionCommitFailed",
+		Msg:  "commit failed: allocating mvcc commit version: DB Closed",
+	}
+	require.True(t, isNornicDBStoreClosingCommitFailure(allocationClosed),
+		"a commit that failed allocating its MVCC version on a closed store is the same backend restart as the materialize half")
+
+	// The narrowness that actually holds. Matching the operation prefix rather
+	// than the bare "DB Closed" tail is what keeps a terminal constraint
+	// violation terminal: NornicDB inlines the conflicting identity into that
+	// diagnostic, and an identity carrying the tail is plausible where one
+	// carrying the whole operation prefix is not. This guard is not proof
+	// against a forged prefix -- neither is the materialize half -- and that is
+	// the same accepted trade, not a new one.
+	plainConflict := &neo4jdriver.Neo4jError{
+		Code: "Neo.ClientError.Transaction.TransactionCommitFailed",
+		Msg:  `commit failed: constraint violation: Node with uid="repos/acme/DB Closed/x.sql" already exists`,
+	}
+	require.False(t, isNornicDBStoreClosingCommitFailure(plainConflict),
+		"a terminal constraint violation whose inlined identity carries the bare tail must stay terminal")
+}
