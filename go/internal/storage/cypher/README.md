@@ -2009,19 +2009,44 @@ diagnosed. After the change the same write is retried and the operator-facing
 evidence is the existing retry/attempt counters the restart cell already asserts
 against (`ifa_fault_assert_retried_above`).
 
-## Backend-restart commit failures: second message spelling (#6162)
+## Backend-restart commit failures: the closed-store spellings (#6162)
 
 `isNornicDBStoreClosingCommitFailure` (`retryable_error.go`) is the commit-side
 twin of the begin-side guard above, and it had the same gap. It matched one
 body, Badger's `Writes are blocked, possibly due to DropAll or Close`, which the
 store reports while it is still *closing* and refusing new writes. Once the
 store is already *closed* under the open transaction, NornicDB reports the same
-commit-side teardown differently, and that spelling fell through to terminal:
+commit-side teardown differently, and those spellings fell through to terminal.
+The predicate now carries three bodies, not one:
+
+| Body | Store state | Where NornicDB v1.1.11 wraps it |
+|---|---|---|
+| `Writes are blocked, possibly due to DropAll or Close` | closing | Badger's `ErrBlockedWrites` |
+| `allocating mvcc commit version: DB Closed` | closed | `pkg/storage/badger_transaction.go:1680` |
+| `materializing mvcc commit state: DB Closed` | closed | `pkg/storage/badger_transaction.go:1685` |
+
+The live dead-letter caught the materialize half:
 
 ```
 Neo.ClientError.Transaction.TransactionCommitFailed
 commit failed: materializing mvcc commit state: DB Closed
 ```
+
+`BadgerTransaction.Commit` (`badger_transaction.go:1610`) makes both store calls
+back to back and gives each its own operation prefix, so the allocation half is
+the same failure one call earlier. It only reaches the store on a namespace
+cache miss: `allocateMVCCVersion` (`pkg/storage/badger.go:1007`) serves a cached
+`namespaceMVCCState` from memory, and only the first write to a namespace in a
+process falls through to `loadPersistedNamespaceSequence`
+(`pkg/storage/badger_mvcc_per_namespace.go:251`) and `recoverNamespaceMVCCFloor`
+(`:275`), whose `b.db.View` answers `DB Closed`. That rarity is why the live
+dead-letter surfaced its sibling first, and it is not a reason to leave it
+terminal — the first write to a namespace during a restart hits it. The
+`DB Closed` tail is Badger's `ErrDBClosed`
+(`dgraph-io/badger/v4 v4.9.2 errors.go:116`); the outer `commit failed: ` comes
+from `pkg/cypher/executor.go:2168`, which calls that substring a wire contract
+for downstream Bolt classifiers. Those citations are what let the constants and
+their test literals be checked against the pinned backend without a live run.
 
 This shape is the cross-product of the two guards #6142 added: the commit code
 belongs to this guard, the `DB Closed` body belongs to
@@ -2033,16 +2058,27 @@ dead-lettered `gcp_resource_materialization` for
 blew the `restart-backend-between-phase-groups` cell's 4-minute drain budget at
 `residual=2`.
 
-The widening is bounded by keeping both halves required. Pairing `DB Closed`
-with the commit code is strictly narrower than the already-shipped
-statement-side use of the same constant: there the code is
-`Statement.SyntaxError`, which a genuinely malformed query also carries, so the
-body does all the discrimination; here the code already means the commit failed,
-so the body only has to separate a backend teardown from a real constraint
-violation, and a constraint violation does not report the store as closed. A
-commit-failed code with an unrelated body, and the `DB Closed` body under a code
-this guard does not own, both stay terminal;
-`TestBackendRestartCommitStoreClosedClassifies` pins all four directions.
+The widening is bounded two ways: both the code and the body are still
+required, and the body matched is the full operation prefix, never the bare
+`DB Closed` tail. The second point is what the re-push changed. A genuine
+constraint violation arrives under this same commit code with the conflicting
+identity inlined, identities are evidence-derived, and one carrying the tail —
+a path like `repos/acme/DB Closed/schema.sql` — is plausible where one carrying
+a whole `materializing mvcc commit state:` prefix is not. Matching the tail
+here would read a terminal schema conflict as a backend restart and retry it
+until the attempt budget was spent, turning a loud stop into a slow one. The
+statement-side guard can still match the bare constant, because its code is
+`Statement.SyntaxError`, which a schema conflict never carries.
+
+`TestBackendRestartCommitStoreClosedClassifies` pins five directions for the
+materialize body: the closed-store and blocked-writes bodies both classify,
+while an unrelated body under the commit code, a conflicting identity carrying
+the bare tail, and the closed-store body under a code this guard does not own
+all stay terminal.
+`TestBackendRestartCommitVersionAllocationStoreClosedClassifies` pins the
+allocation body and repeats the bare-tail conflict against it. Neither is proof
+against a forged operation prefix; that is the same trade the materialize half
+already accepted, not a new one.
 
 Retry stays bounded. `GraphWriteTimeoutFailureClass` is not enrolled in
 `nonCountingReducerRetryFailureClasses`
@@ -2054,10 +2090,24 @@ No-Regression Evidence: unit-level only, and deliberately scoped that way — th
 change alters the Go error *type* returned on an already-failing path, adding no
 query, round trip, or statement. `cd go && go test ./internal/storage/cypher
 ./internal/reducer ./cmd/reducer ./internal/projector ./internal/storage/postgres
--count=1`. The new guard is proven load-bearing by mutation: removing the second
-body from the predicate leaves the tree compiling (`go vet` exit 0) and reds
-exactly `TestBackendRestartCommitStoreClosedClassifies` and
-`TestBackendRestartCommitStoreClosedRemainsQueueRetryable`.
+-count=1`. Each added body is proven load-bearing by its own mutation, both run
+on this branch against `./internal/storage/cypher`. Each mutation leaves the
+tree compiling (`go vet` exit 0), which is what makes the red mean anything:
+
+| Mutation (`subs=1` each) | `go vet` | `go test` | Went red |
+|---|---|---|---|
+| drop `nornicDBStoreClosedCommitMsg` from the predicate | 0 | 1 | `TestBackendRestartCommitStoreClosedClassifies`, `TestBackendRestartCommitStoreClosedRemainsQueueRetryable` |
+| drop `nornicDBStoreClosedCommitAllocMsg` from the predicate | 0 | 1 | `TestBackendRestartCommitVersionAllocationStoreClosedClassifies` |
+
+Restoring the file returned the package to green (exit 0) after each. The
+allocation body reds one test where the materialize body reds two, and that is
+a real difference in coverage rather than a wording choice: the materialize
+body has an end-to-end twin that walks `CloudResourceNodeWriter` through to
+`reducer.IsRetryable`
+(`TestBackendRestartCommitStoreClosedRemainsQueueRetryable`) and the allocation
+body has none. Both bodies feed the same predicate and the same dispatch after
+it, so the second walk would re-prove the dispatch rather than the
+classification.
 
 Not claimed, and still owed: no live `scripts/verify-ifa-fault-injection.sh` run
 was made on this branch, so unlike the begin-side section above there is no
