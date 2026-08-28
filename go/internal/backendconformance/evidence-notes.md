@@ -146,7 +146,8 @@ That wiring now exists. `.github/workflows/value-flow-conformance-expectation.ym
 runs both lanes in one job with the expectation inverted, through
 `scripts/verify-value-flow-conformance-expectation.sh`:
 
-- the NornicDB lane must FAIL, and the run must name this read case,
+- the NornicDB lane must FAIL, and the run must name this read case, and that
+  must be the only failure in the run,
 - the Neo4j lane must PASS, in the same job, as the positive control.
 
 So the job is normally green, and green means "still broken upstream, exactly as
@@ -156,13 +157,26 @@ the only moment anyone needs to know.
 The nornicdb lane matches on the message rather than the exit code, deliberately.
 A broken fixture, a failed seed, and a refused Bolt connection all exit non-zero,
 and an expected-fail that accepts any of them is a false green wearing the costume
-of a gate. `scripts/test-verify-value-flow-conformance-expectation.sh` drives the
-gate with stub lanes to prove that verdict and the other five are each reachable,
-and reachable only for their own reason; it needs no backend and runs anywhere.
+of a gate. Matching the message is not enough on its own either: the lane also
+rejects a run that reports the documented failure and a second one behind it,
+which `TestLiveBackendConformance` can do from a deferred closure — the corpus
+cleanup and the driver close both fail the test after the read-corpus failure is
+already recorded. `scripts/test-verify-value-flow-conformance-expectation.sh`
+drives the gate with stub lanes to prove every verdict is reachable, and
+reachable only for its own reason; it needs no backend and runs anywhere.
 
-The measurement below was taken through that gate script, on this branch, on a
-developer machine — not from a CI run, which cannot exist until this lands. What
-CI changes is that the numbers stop being a memory: the job re-measures both
+The measurement below is a real run through that gate script on a developer
+machine, both lanes, not a CI run — CI cannot have one until this lands. Pin it
+to the tree it measured: it was taken on the working tree that became commit
+`7ccf9ed9b5`, before that commit existed, so it predates every later head on
+this branch. Read it as evidence for that tree and not for the branch tip.
+
+One caveat when you read it. The transcript does satisfy the second-failure
+check described above — one `--- FAIL:` line, no cleanup or close failure — but
+it was recorded before that check existed, so it is not a run of the gate as it
+now stands. The first CI run is.
+
+What CI changes is that the numbers stop being a memory: the job re-measures both
 lanes on every run, so this section cannot go stale the way the paragraph above
 it did.
 
