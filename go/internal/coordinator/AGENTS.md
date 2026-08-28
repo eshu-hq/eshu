@@ -19,6 +19,10 @@
    - `go/internal/coordinator/lokiplanner/planner.go` and `loki_service.go` —
      the extracted Loki planner and its root scheduling seam under the same
      ordering, clock, admission, retry, and telemetry boundary
+   - `go/internal/coordinator/prometheusmimir/planner.go` and
+     `prometheus_mimir_service.go` — the extracted Prometheus/Mimir planner and
+     root seam; preserve configured order, safe requested-scope metadata, and
+     per-target fairness partitions
    - `go/internal/coordinator/scannerworker/planner.go` and
      `service_scanner_worker.go` — the extracted scanner-worker planner and its
      root scheduling seam; runtime-local paths stay out of requested-scope

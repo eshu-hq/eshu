@@ -242,7 +242,14 @@ boundary. The scanner-worker scheduler is the seventh extraction under
 requested-scope privacy, configured target order, deterministic IDs, and
 fairness-key construction. Root keeps the interface, scheduling and plan-key
 clock, active and claims gates, tenant-grant and collector-egress gates, durable
-admission, retries, queue and lease behavior, and telemetry. These moves do not
+admission, retries, queue and lease behavior, and telemetry. The
+Prometheus/Mimir scheduler is the eighth extraction under
+`internal/coordinator/prometheusmimir`; the child owns all five request fields,
+enabled-target validation and filtering, configured order, deterministic IDs,
+requested-scope privacy, trigger precedence, and per-target fairness keys. Root
+keeps scheduling order, its plan-key clock, tenant and egress filtering,
+empty-item admission skips, durable admission, retries, queue and lease
+behavior, and telemetry. These moves do not
 change scheduler order, configured target order, IDs, fairness keys, workflow
 wire values, concurrency, or observability.
 Terraform-state keeps its separate plan-key validator, and the root
