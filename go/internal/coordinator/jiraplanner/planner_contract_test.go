@@ -108,6 +108,12 @@ func TestWorkPlannerPreservesOrderingIdentityAndPrivacyContract(t *testing.T) {
 		if item.CreatedAt != observedAt.UTC() || item.UpdatedAt != observedAt.UTC() {
 			t.Fatalf("item timestamps = %s/%s, want %s", item.CreatedAt, item.UpdatedAt, observedAt.UTC())
 		}
+		if got, want := item.CollectorInstanceID, instance.InstanceID; got != want {
+			t.Fatalf("CollectorInstanceID = %q, want %q", got, want)
+		}
+		if got, want := item.Status, workflow.WorkItemStatusPending; got != want {
+			t.Fatalf("Status = %q, want %q", got, want)
+		}
 		if item.RunID != wantRun.RunID || item.CollectorKind != scope.CollectorJira || item.SourceSystem != string(scope.CollectorJira) {
 			t.Fatalf("item identity = %#v, want Jira item for run %q", item, wantRun.RunID)
 		}

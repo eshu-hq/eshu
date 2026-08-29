@@ -42,7 +42,7 @@ type jiraTargetConfiguration struct {
 	SiteID   string `json:"site_id"`
 }
 
-// PlanJiraWork returns one run and one work item per configured Jira target.
+// PlanJiraWork returns one run and one work item per selected configured Jira target.
 func (p WorkPlanner) PlanJiraWork(
 	_ context.Context,
 	request PlanRequest,

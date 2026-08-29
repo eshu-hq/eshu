@@ -13,7 +13,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/workflow"
 )
 
-func TestJiraWorkPlannerPlansOneClaimPerTarget(t *testing.T) {
+func TestWorkPlannerPlansOneClaimPerTarget(t *testing.T) {
 	t.Parallel()
 
 	observedAt := time.Date(2026, time.May, 31, 15, 0, 0, 0, time.UTC)
@@ -59,7 +59,7 @@ func TestJiraWorkPlannerPlansOneClaimPerTarget(t *testing.T) {
 	}
 }
 
-func TestJiraWorkPlannerPlansWebhookScopeSubset(t *testing.T) {
+func TestWorkPlannerPlansWebhookScopeSubset(t *testing.T) {
 	t.Parallel()
 
 	observedAt := time.Date(2026, time.May, 31, 15, 0, 0, 0, time.UTC)
@@ -99,7 +99,7 @@ func TestJiraWorkPlannerPlansWebhookScopeSubset(t *testing.T) {
 	}
 }
 
-func TestJiraWorkPlannerScheduledPollingCoversAllTargetsAfterMissedWebhook(t *testing.T) {
+func TestWorkPlannerScheduledPollingCoversAllTargetsAfterMissedWebhook(t *testing.T) {
 	t.Parallel()
 
 	observedAt := time.Date(2026, time.May, 31, 16, 0, 0, 0, time.UTC)
@@ -133,6 +133,54 @@ func TestJiraWorkPlannerScheduledPollingCoversAllTargetsAfterMissedWebhook(t *te
 		if !strings.Contains(run.RequestedScopeSet, want) {
 			t.Fatalf("RequestedScopeSet = %q, want polling target %q", run.RequestedScopeSet, want)
 		}
+	}
+}
+
+func TestWorkPlannerDerivesScheduleAndBootstrapTriggers(t *testing.T) {
+	t.Parallel()
+
+	observedAt := time.Date(2026, time.May, 31, 16, 30, 0, 0, time.UTC)
+	const planKey = "recovery-20260531T163000Z"
+	tests := []struct {
+		name        string
+		bootstrap   bool
+		wantTrigger workflow.TriggerKind
+		wantRunID   string
+	}{
+		{
+			name:        "schedule fallback",
+			wantTrigger: workflow.TriggerKindSchedule,
+			wantRunID:   "jira:jira-primary:schedule:" + planKey,
+		},
+		{
+			name:        "bootstrap fallback",
+			bootstrap:   true,
+			wantTrigger: workflow.TriggerKindBootstrap,
+			wantRunID:   "jira:jira-primary:bootstrap:" + planKey,
+		},
+	}
+	for _, test := range tests {
+		test := test
+		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+
+			instance := validJiraInstance(observedAt, testJiraConfig())
+			instance.Bootstrap = test.bootstrap
+			run, _, err := (WorkPlanner{}).PlanJiraWork(t.Context(), PlanRequest{
+				Instance:   instance,
+				ObservedAt: observedAt,
+				PlanKey:    planKey,
+			})
+			if err != nil {
+				t.Fatalf("PlanJiraWork() error = %v, want nil", err)
+			}
+			if got := run.TriggerKind; got != test.wantTrigger {
+				t.Fatalf("TriggerKind = %q, want %q", got, test.wantTrigger)
+			}
+			if got := run.RunID; got != test.wantRunID {
+				t.Fatalf("RunID = %q, want %q", got, test.wantRunID)
+			}
+		})
 	}
 }
 
