@@ -24,7 +24,7 @@ retain_out="$(
 			"$(<"${lock_path}.keep")"
 	' _ "${lock_lib}" 2>&1
 )" || fail "retain probe failed: ${retain_out}"
-rg --quiet 'MARKER=yes LOCK=yes' <<<"${retain_out}" \
+rg --quiet 'MARKER=yes LOCK=yes' < <(printf '%s\n' "${retain_out}") \
 	|| fail "retain must write the marker and leave the lock in place; got: ${retain_out}"
 
 retain_raw="$(<"${lock_file}.keep")"
@@ -52,7 +52,7 @@ set -e
 	|| fail "a retained running project with a dead holder must block a later run"
 rg --fixed-strings --quiet -- \
 	'still has compose project eshu-gate-retained running on the fixed host ports' \
-	<<<"${retain_block_out}" \
+	< <(printf '%s\n' "${retain_block_out}") \
 	|| fail "dead-holder refusal must name the running retained project; got: ${retain_block_out}"
 [[ "$(wc -l <"${retain_probe_calls}" | tr -d ' ')" == "1" ]] \
 	|| fail "retained lifecycle must make exactly one Compose ps query"

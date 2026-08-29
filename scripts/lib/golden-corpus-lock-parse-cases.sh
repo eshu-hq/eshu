@@ -43,7 +43,7 @@ crosstz_status=$?
 set -e
 [[ "${crosstz_status}" -ne 0 ]] \
 	|| fail "a live holder fingerprinted under one TZ must still block an acquirer running under a DIFFERENT TZ, got exit 0 (lock reclaimed): ${crosstz_out}"
-rg --quiet 'another live gate is already running' <<<"${crosstz_out}" \
+rg --quiet 'another live gate is already running' < <(printf '%s\n' "${crosstz_out}") \
 	|| fail "cross-TZ live holder must be reported as running, not silently reclaimed; got: ${crosstz_out}"
 rm -f "${lock_file}"
 
@@ -64,7 +64,7 @@ bare_status=$?
 set -e
 [[ "${bare_status}" -ne 0 ]] \
 	|| fail "a live pid recorded as a bare colon-less payload must still block, got exit 0 (lock reclaimed): ${bare_out}"
-rg --quiet 'another live gate is already running' <<<"${bare_out}" \
+rg --quiet 'another live gate is already running' < <(printf '%s\n' "${bare_out}") \
 	|| fail "bare-pid live holder must be reported as running, not silently reclaimed; got: ${bare_out}"
 rm -f "${lock_file}"
 

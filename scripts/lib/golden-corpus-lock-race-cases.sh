@@ -129,7 +129,7 @@ ln -s "${window_dead}:/dead-worktree" "${lock_file}"
 mkdir -p "${lock_file}.reclaim"
 guard_debris_out="$(try_acquire)" \
 	|| fail "a non-symlink guard must self-heal, not wedge: ${guard_debris_out}"
-rg --quiet 'ACQUIRED=' <<<"${guard_debris_out}" \
+rg --quiet 'ACQUIRED=' < <(printf '%s\n' "${guard_debris_out}") \
 	|| fail "guard-debris reclaim must end holding the lock; got: ${guard_debris_out}"
 
 # ...but a guard held by a LIVE reclaimer must still be respected.

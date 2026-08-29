@@ -173,7 +173,7 @@ try_acquire() {
 # A free lock is acquired.
 acquired_out="$(try_acquire)" \
 	|| fail "acquire on a free lock must succeed; got: ${acquired_out}"
-rg --quiet 'ACQUIRED=.*eshu-live-gate.lock' <<<"${acquired_out}" \
+rg --quiet 'ACQUIRED=.*eshu-live-gate.lock' < <(printf '%s\n' "${acquired_out}") \
 	|| fail "acquire must end holding the lock; got: ${acquired_out}"
 
 # #P1-1 regression: the lock must be a symlink whose payload ALREADY carries the
@@ -183,7 +183,7 @@ rg --quiet 'ACQUIRED=.*eshu-live-gate.lock' <<<"${acquired_out}" \
 [[ -L "${lock_file}" ]] \
 	|| fail "lock must be a symlink so the holder identity is published atomically"
 lock_payload_observed="$(readlink "${lock_file}")"
-rg --quiet '^[0-9]+:' <<<"${lock_payload_observed}" \
+rg --quiet '^[0-9]+:' < <(printf '%s\n' "${lock_payload_observed}") \
 	|| fail "lock payload must lead with the holder pid; got: ${lock_payload_observed}"
 
 # A LIVE holder must block. Uses this test's own pid: guaranteed alive, so the
@@ -196,9 +196,9 @@ blocked_status=$?
 set -e
 [[ "${blocked_status}" -ne 0 ]] \
 	|| fail "a second concurrent gate run must fail fast, got exit 0"
-rg --quiet 'another live gate is already running' <<<"${blocked_out}" \
+rg --quiet 'another live gate is already running' < <(printf '%s\n' "${blocked_out}") \
 	|| fail "blocked run must say WHY it refused; got: ${blocked_out}"
-rg --quiet 'serialized' <<<"${blocked_out}" \
+rg --quiet 'serialized' < <(printf '%s\n' "${blocked_out}") \
 	|| fail "blocked run must explain the serialization requirement"
 
 # PID-reuse defense (#5826 review, P2): a live pid is not enough on its own -
@@ -210,7 +210,7 @@ rm -f "${lock_file}"
 ln -s "$$:0:/nonexistent/reused-pid-worktree" "${lock_file}"
 reuse_out="$(try_acquire)" \
 	|| fail "a live pid with a mismatched start-id must be reclaimed as stale, not treated as live: ${reuse_out}"
-rg --quiet 'reclaimed stale lock' <<<"${reuse_out}" \
+rg --quiet 'reclaimed stale lock' < <(printf '%s\n' "${reuse_out}") \
 	|| fail "pid-reuse reclaim must be announced, not silent; got: ${reuse_out}"
 
 # ...and the inverse: a live pid whose start-id genuinely MATCHES must still
@@ -226,7 +226,7 @@ samestart_status=$?
 set -e
 [[ "${samestart_status}" -ne 0 ]] \
 	|| fail "a live pid with a MATCHING start-id must still block, got exit 0: ${samestart_out}"
-rg --quiet 'another live gate is already running' <<<"${samestart_out}" \
+rg --quiet 'another live gate is already running' < <(printf '%s\n' "${samestart_out}") \
 	|| fail "matching start-id holder must be reported as running; got: ${samestart_out}"
 
 # Payload-parsing edge cases (TZ/locale-dependent fingerprints, malformed
@@ -257,7 +257,7 @@ else
 	ln -s "${dead_pid}:/nonexistent/dead-worktree" "${lock_file}"
 	reclaim_out="$(try_acquire)" \
 		|| fail "stale lock must be reclaimed, not fatal: ${reclaim_out}"
-	rg --quiet 'reclaimed stale lock' <<<"${reclaim_out}" \
+	rg --quiet 'reclaimed stale lock' < <(printf '%s\n' "${reclaim_out}") \
 		|| fail "stale reclaim must be announced, not silent; got: ${reclaim_out}"
 
 	# #P1-2 regression: N racers against ONE stale lock must never observe TWO
@@ -314,7 +314,7 @@ else
 	ln -sfn "${dead_pid}:$(( $(date +%s) - 120 ))" "${lock_file}.reclaim"
 	aged_out="$(try_acquire)" \
 		|| fail "an aged orphan guard must be reclaimable: ${aged_out}"
-	rg --quiet 'ACQUIRED=' <<<"${aged_out}" \
+	rg --quiet 'ACQUIRED=' < <(printf '%s\n' "${aged_out}") \
 		|| fail "aged-guard reclaim must end holding the lock; got: ${aged_out}"
 	rm -f "${lock_file}.reclaim"
 
@@ -341,7 +341,7 @@ else
 		fail "a --keep marker published while a racer was mid-loop must still block; got exit 0: ${inloop_out}"
 	# Not just non-zero: exhausting the retry budget also exits non-zero, so the
 	# case would go green for the wrong reason with the in-loop check removed.
-	rg --quiet 'keep run retained the compose stack' <<<"${inloop_out}" ||
+	rg --quiet 'keep run retained the compose stack' < <(printf '%s\n' "${inloop_out}") ||
 		fail "the mid-loop refusal must name the retained stack; got: ${inloop_out}"
 	rm -f "${lock_file}" "${lock_file}.keep" "${lock_file}.reclaim"
 fi
@@ -360,7 +360,7 @@ release_out="$(
 		printf "SURVIVED=%s\n" "$(readlink "${lock_path}" 2>/dev/null || echo GONE)"
 	' _ "${lock_lib}" 2>&1
 )" || fail "release probe failed: ${release_out}"
-rg --quiet 'SURVIVED=999999:/other/worktree' <<<"${release_out}" \
+rg --quiet 'SURVIVED=999999:/other/worktree' < <(printf '%s\n' "${release_out}") \
 	|| fail "release deleted a foreign holder's lock; got: ${release_out}"
 
 # The happy path must actually release, or one clean run wedges the next.
@@ -386,7 +386,7 @@ skip_out="$(
 		printf "SKIPPED lock_path=[%s]\n" "${lock_path}"
 	' _ "${lock_lib}" 2>&1
 )" || fail "ESHU_SKIP_LIVE_GATE_LOCK path failed under set -u: ${skip_out}"
-rg --quiet 'SKIPPED lock_path=\[\]' <<<"${skip_out}" \
+rg --quiet 'SKIPPED lock_path=\[\]' < <(printf '%s\n' "${skip_out}") \
 	|| fail "skip path must leave lock_path empty; got: ${skip_out}"
 
 # A DIRECTORY at the lock path (what the superseded mkdir lock left behind) must
@@ -432,7 +432,7 @@ cross_user_status=$?
 set -e
 [[ "${cross_user_status}" -ne 0 ]] \
 	|| fail "a live holder owned by another user must block, got exit 0: ${cross_user_out}"
-rg --quiet 'another live gate is already running' <<<"${cross_user_out}" \
+rg --quiet 'another live gate is already running' < <(printf '%s\n' "${cross_user_out}") \
 	|| fail "cross-user holder must be reported as running; got: ${cross_user_out}"
 
 # The full production retain lifecycle is extracted to keep this file under
@@ -454,7 +454,7 @@ keeponly_status=$?
 set -e
 [[ "${keeponly_status}" -ne 0 ]] \
 	|| fail "a .keep marker without a lock must still block; got exit 0: ${keeponly_out}"
-rg --quiet 'keep run retained the compose stack' <<<"${keeponly_out}" \
+rg --quiet 'keep run retained the compose stack' < <(printf '%s\n' "${keeponly_out}") \
 	|| fail ".keep-without-lock refusal must name the retained stack; got: ${keeponly_out}"
 rm -f "${lock_file}.keep"
 

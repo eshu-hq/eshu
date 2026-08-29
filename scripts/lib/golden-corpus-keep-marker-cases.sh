@@ -40,7 +40,7 @@ require_holder_age() {
 	local label="$1" output="$2" where="$3"
 	[[ "${output}" == *"holder pid $$"* && "${output}" == *"at ${where}"* ]] \
 		|| fail "${label} must identify the retained holder and full worktree (got: ${output})"
-	rg --quiet -- 'retained for [0-9]+ seconds' <<<"${output}" \
+	rg --quiet -- 'retained for [0-9]+ seconds' < <(printf '%s\n' "${output}") \
 		|| fail "${label} must report elapsed retention age in stable units (got: ${output})"
 }
 
