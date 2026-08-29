@@ -183,9 +183,19 @@ func ClearSource(path string) {
 // inference) need the bytes. A cache miss never populates the cache -- only
 // PrimeSource does that -- so ReadSource callers outside a primed ParsePath
 // call always see a real, current disk read.
+//
+// Every returned buffer passes through NormalizeLineEndings, which rewrites a
+// bare '\r' to '\n' and leaves LF and CRLF sources byte-identical. This is
+// the single read boundary shared by every language Parse in this tree, so
+// normalizing here is what makes a classic-Mac file parse at all: without it
+// tree-sitter reports row 0 for every node and each hand-rolled '\n' scanner
+// treats the file as one line (issue #6306). Normalization runs on the cached
+// path too, not only the disk path -- the git collector reads the file itself
+// and primes these bytes, so a disk-only normalization would miss the entire
+// production parse path.
 func ReadSource(path string) ([]byte, error) {
 	if cached, ok := cachedSource(path); ok {
-		return cached, nil
+		return NormalizeLineEndings(cached), nil
 	}
 	readSourceHookMu.Lock()
 	hook := readSourceHook
@@ -197,7 +207,7 @@ func ReadSource(path string) ([]byte, error) {
 	if err != nil {
 		return nil, fmt.Errorf("read source %q: %w", path, err)
 	}
-	return body, nil
+	return NormalizeLineEndings(body), nil
 }
 
 // cachedSource returns the primed body for path, if any, under the shared
