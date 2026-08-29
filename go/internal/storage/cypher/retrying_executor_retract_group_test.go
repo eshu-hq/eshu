@@ -231,6 +231,16 @@ func TestClassifyRetryableGraphWriteGroupErrorKeepsNonIdempotentGroupsTerminal(t
 			Operation: OperationCanonicalRetract,
 			Cypher:    "MATCH (n:Variable)\nWHERE n.stale\nDETACH DELETE n",
 		},
+		// The hybrid: a parameter IS named and no complement operator appears,
+		// so the membership and open-ended checks both pass. The delete cannot
+		// leave the key space $repo_ids enumerates, but within it the set still
+		// moves -- a concurrent writer flipping n.stale between the failed
+		// attempt and the replay puts a node in range the first attempt never
+		// saw. Bounded blast radius, same broken "removes the same set" premise.
+		"retract mixing a bound membership with a graph-state term": {
+			Operation: OperationCanonicalRetract,
+			Cypher:    "MATCH (n:Variable)\nWHERE n.repo_id IN $repo_ids\n  AND n.stale\nDETACH DELETE n",
+		},
 	} {
 		t.Run(name, func(t *testing.T) {
 			t.Parallel()

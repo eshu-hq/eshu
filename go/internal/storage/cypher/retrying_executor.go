@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"log/slog"
 	"math/rand/v2"
+	"regexp"
 	"strings"
 	"time"
 
@@ -453,6 +454,46 @@ func isNornicDBUniqueConflictBody(msg string) bool {
 	}
 	if !strings.Contains(msg, "already exists") {
 		return false
+	}
+	return true
+}
+
+// whereClausePattern captures the WHERE body up to the first write clause.
+var whereClausePattern = regexp.MustCompile(`(?is)\bWHERE\b(.*?)(?:\bDETACH\s+DELETE\b|\bDELETE\b|\bREMOVE\b|\bRETURN\b|\z)`)
+
+// andSeparatorPattern splits a WHERE body into conjuncts.
+var andSeparatorPattern = regexp.MustCompile(`(?i)\bAND\b`)
+
+// literalComparisonPattern matches a comparison against an immutable literal --
+// a quoted string, a number, a boolean. A concurrent writer cannot move those,
+// so they bound the match set as firmly as a $param does.
+var literalComparisonPattern = regexp.MustCompile(`(?i)=\s*('[^']*'|"[^"]*"|-?\d+(\.\d+)?|true|false)`)
+
+// everyConjunctIsBounded requires each AND-separated WHERE term to name a
+// parameter or compare against a literal.
+//
+// A predicate can name a parameter and still read mutable graph state:
+// `WHERE n.repo_id IN $repo_ids AND n.stale` passes both the membership and the
+// open-ended checks in hasParameterBoundedPredicate. The delete stays inside the
+// key space $repo_ids enumerates, so the blast radius is smaller than the
+// complement case -- but within that space the set still moves, because a
+// concurrent writer flipping n.stale between the failed attempt and the replay
+// puts a node in range the first attempt never saw. Same broken premise.
+//
+// Every retract reaching this path today is a conjunction of bound terms, so
+// requiring it rejects nothing that currently retries.
+func everyConjunctIsBounded(cypher string) bool {
+	where := whereClausePattern.FindStringSubmatch(cypher)
+	if where == nil {
+		return true
+	}
+	for _, conjunct := range andSeparatorPattern.Split(where[1], -1) {
+		if strings.TrimSpace(conjunct) == "" || strings.Contains(conjunct, "$") {
+			continue
+		}
+		if !literalComparisonPattern.MatchString(conjunct) {
+			return false
+		}
 	}
 	return true
 }
