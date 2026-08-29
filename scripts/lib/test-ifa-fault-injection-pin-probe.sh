@@ -100,24 +100,18 @@ assert_pin_helpers_bind_code() {
 	printf '#!/usr/bin/env bash\n: <<%sIFAEOF >/dev/null\n%s\nIFAEOF\n:\n' '\' "${needle}" >"${probe_dir}/heredoc_bslash_only.sh"
 	printf '#!/usr/bin/env bash\n: <<%sIFAEOF  # parked\n%s\nIFAEOF\n:\n' '' "${needle}" >"${probe_dir}/heredoc_comment_tail_only.sh"
 	printf '#!/usr/bin/env bash\n: <<%sIFAEOF-1\n%s\nIFAEOF-1\n:\n' '' "${needle}" >"${probe_dir}/heredoc_hyphen_delim_only.sh"
-	# The needle parked as an argument to a null command (#6194). `:` discards
-	# its arguments, so `:  'trap ifa_det_cleanup EXIT'` installs nothing and a
-	# pin satisfied by that line is bound to a line that does not run.
-	printf '#!/usr/bin/env bash\n:  %s%s%s\n' "'" "${needle}" "'" >"${probe_dir}/null_command_only.sh"
-	# The same line with the trailing comment a human actually types: the `;` in
-	# it read as a separator, so the line stayed classified live, the comment
-	# strip then removed the comment and kept the needle, and the pin passed
-	# over a trap that is never installed.
-	printf '#!/usr/bin/env bash\n:  %s%s%s # disabled; see (#6194)\n' "'" "${needle}" "'" >"${probe_dir}/null_command_comment_tail.sh"
-	# ...and a metacharacter INSIDE the quotes, which cannot act: single quotes
-	# are absolute in bash.
-	printf '#!/usr/bin/env bash\n:  %s%s; parked || true%s\n' "'" "${needle}" "'" >"${probe_dir}/null_command_quoted_meta.sh"
-	# `true` and `false` discard their arguments exactly as `:` does.
-	printf '#!/usr/bin/env bash\ntrue  %s%s%s\n' "'" "${needle}" "'" >"${probe_dir}/null_command_true.sh"
-	printf '#!/usr/bin/env bash\nfalse  %s%s%s\n' "'" "${needle}" "'" >"${probe_dir}/null_command_false.sh"
-	# The one POSITIVE: `: "${VAR:=default}"` ASSIGNS, so it is live code and must
-	# still be counted. The `$` doubt rule is the only thing keeping it counted.
-	# The needle here is the whole line, so a whole-line helper accepts it too.
+	# The null-command corpus: the needle parked as an argument to `:`, `true`
+	# and `false` -- bare, with the trailing comment a human actually types, and
+	# with a metacharacter inside single and inside double quotes -- plus one
+	# live line per doubt-class character. It lives beside the rule it pins
+	# (ifa_dead_command_line.sh) rather than here, because a copy per mirror
+	# pins one mirror: `true` and `false` went unprobed in all three copies at
+	# once, and so did nine of the ten doubt-class characters.
+	ifa_write_dead_command_probes "${probe_dir}" "${needle}"
+	# The one POSITIVE that stays here: `: "${VAR:=default}"` ASSIGNS, so it is
+	# live code and must still be counted. The `$` doubt rule is the only thing
+	# keeping it counted. The needle is the whole line, so a whole-line helper
+	# accepts it too.
 	printf '#!/usr/bin/env bash\n%s\n' "${live_needle}" >"${probe_dir}/null_command_live_expansion.sh"
 	printf '#!/usr/bin/env bash\n%s\n' "${needle}" >"${probe_dir}/real_code.sh"
 
@@ -135,7 +129,7 @@ assert_pin_helpers_bind_code() {
 				|| fail "${fn}() rejected a needle that IS live code under both call shapes -- the probe cannot distinguish binding from broken, so its comment result proves nothing"
 		fi
 		local probe
-		for probe in comment_only heredoc_only heredoc_redirect_only heredoc_bslash_only heredoc_comment_tail_only heredoc_hyphen_delim_only null_command_only null_command_comment_tail null_command_quoted_meta null_command_true null_command_false; do
+		for probe in comment_only heredoc_only heredoc_redirect_only heredoc_bslash_only heredoc_comment_tail_only heredoc_hyphen_delim_only "${IFA_DEAD_COMMAND_DEAD_PROBES[@]}"; do
 			# Every *_lib-shaped variable is repointed at the probe file, so whichever
 			# target this helper happens to read, it reads the probe.
 			rc=0; [[ -s "${probe_dir}/${probe}.sh" ]] && rg -qF -- "${needle}" "${probe_dir}/${probe}.sh" || fail "probe ${probe}.sh was not written or lacks the needle; the negative below then fails for the wrong reason and this assertion passes unconditionally"
@@ -151,10 +145,14 @@ assert_pin_helpers_bind_code() {
 			|| fail "probe null_command_live_expansion.sh lacks its needle; the acceptance check next to it would then pass or fail for the wrong reason"
 		_ifa_pin_probe_run "${fn}" "${probe_dir}/null_command_live_expansion.sh" "${live_needle}" "${extra[@]}" \
 			|| fail "${fn}() rejected ${live_needle}, which ASSIGNS and is therefore live code -- the doubt rule that keeps a \$-bearing null command counted has been lost, so every pin on that idiom now counts one less"
+		# ...and one positive per member of the doubt class. `$` was the only one
+		# with a control, so dropping any of the other nine from the class turned
+		# a live line into a dead one and reddened nothing.
+		ifa_assert_live_command_probes _ifa_pin_probe_run "${fn}" "${probe_dir}" "${needle}" "${extra[@]}"
 	done < <(compgen -A function | rg '^require' | sort)
 
 	rm -rf "${probe_dir}"
 	[[ "${checked}" -ge 20 ]] \
 		|| fail "pin-helper behaviour check exercised only ${checked} helper(s); discovery has collapsed and this gate is checking nothing"
-	printf 'pin-helper behaviour check: %s helper(s) executed against comment, heredoc, trailing-redirection, backslash-delimiter, comment-tail and hyphen-delimiter heredoc, bare, comment-tailed, quoted-metacharacter, true and false null-command probes, and the live null-command control\n' "${checked}"
+	printf 'pin-helper behaviour check: %s helper(s) executed against comment, heredoc, trailing-redirection, backslash-delimiter, comment-tail and hyphen-delimiter heredoc, bare, comment-tailed, quoted-metacharacter, true and false null-command probes, the live null-command control, and one live probe per doubt-class metacharacter\n' "${checked}"
 }

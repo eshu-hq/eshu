@@ -165,7 +165,11 @@ _ifa_det_count_code_matches() {
 		# which reproduced on HEAD the exact defect the previous round closed --
 		# the shell checker does not flag it, `bash -n` passes, and no gate runs it
 		# on these scripts, so nothing else would have caught it.
-		code="${line%%[[:space:]\;\|\&\(\)\<\>\`]#*}"
+		# The code portion, with `#` read as a comment only where bash reads one:
+		# outside quotes. The plain expansion this replaces cut inside them too,
+		# so `: "see #6194" && <call>` lost its live half (shared with the rule
+		# that decides the line executes nothing, in ifa_dead_command_line.sh).
+		ifa_code_portion "${line}"; code="${IFA_CODE_PORTION}"
 		if [[ "${code}" == *"${needle}"* ]]; then
 			n=$((n + 1))
 			matches+="${line_no}"$'\n'
