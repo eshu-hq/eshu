@@ -326,9 +326,10 @@ current turn, stop and ask — do not self-approve and proceed.
    otherwise ready for its intended push, run `make pre-pr` exactly once. Do
    not spend its CPU cost as an early discovery loop. Then run a final full
    `eshu-code-review` against the exact post-preflight diff. If preflight changes
-   generated or tracked files, or the final review finds anything other than a
-   recorded P3, fix the issue, rerun affected focused proof, and repeat from the
-   preliminary review. A recorded P3 is cosmetic and does not restart this loop.
+   generated or tracked files, or the final review finds a P0, P1, or blocking
+   P2, fix the issue, rerun affected focused proof, and repeat from the
+   preliminary review. A deferred P2 is already tracked and a P3 is cosmetic;
+   neither restarts this loop.
    If `make pre-pr` fails, do not immediately rerun it. Fix the failure, rerun
    affected focused proof, repeat the preliminary full review to
    `P0=0, P1=0, P2-blocking=0`, and only then begin a new promotion attempt.

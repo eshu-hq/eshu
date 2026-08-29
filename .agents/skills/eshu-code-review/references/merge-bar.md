@@ -95,12 +95,11 @@ Count these separately and say so in the verdict. This section is the single
 exception to the deferral gate above: a fix-induced P2 may be deferred without
 failing criterion 2, because the alternative is a loop with no terminator. A
 fix-induced P2 is evidence the fix widened scope, and it is the signal to stop
-fixing inline and defer,
-not to start another round; prefer reverting the widening fix over leaving it
-together with the finding it induced. Two consecutive rounds whose only new
-findings are fix-induced **P2s** means the diff is converged: land it and track
-the remainder. A fix-induced P0 or P1 is never covered by this — those stay
-absolute.
+fixing inline and defer, not to start another round; prefer reverting the
+widening fix over leaving it together with the finding it induced. Two
+consecutive rounds whose only new findings are fix-induced **P2s** means the
+diff is converged: land it and track the remainder. A fix-induced P0 or P1 is
+never covered by this — those stay absolute.
 
 ## Sweeping rule text
 
