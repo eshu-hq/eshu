@@ -21,9 +21,9 @@
 #   - CLAUDE_GOAL_OFF=1                          -> stop allowed
 #   - budget spent for this prompt_id            -> stop allowed
 #
-# Tests: test-goal-hook-core.sh (12 cases) and test-goal-hook-blocked.sh
-# (8 cases), both alongside this file. Run them after any edit here -- a hook
-# that can refuse to end a session is worth a regression suite.
+# Tests: scripts/test-goal-continue-hook.sh (19 cases). Run it after any edit
+# here -- a hook that can refuse to end a session is worth a regression suite.
+# The agent-canon gate runs it in CI.
 #
 # The budget is keyed on prompt_id, so it is "at most N continuations per user
 # message", not "N per session". A new user message gets a fresh budget, and a
@@ -40,7 +40,36 @@ command -v python3 >/dev/null 2>&1 || exit 0
 [ -n "${payload}" ] || exit 0
 [ "${CLAUDE_GOAL_OFF:-0}" = "1" ] && exit 0
 
-read -r session_id prompt_id stop_active cwd <<PYEOF
+# Fields arrive one per line, NOT whitespace-split. An earlier version
+# collapsed spaces to underscores so `read -r a b c d` would see four tokens,
+# which silently corrupted `cwd`: a checkout under "/Users/you/My Projects"
+# became "My_Projects", the worktree-scoped goal lookup missed, and the
+# per-worktree feature quietly did nothing. Process substitution, not a
+# here-string, for the same pipe-buffer reason as everywhere else in this repo.
+{
+	read -r session_id
+	read -r prompt_id
+	read -r stop_active
+	IFS= read -r cwd
+} < <(printf '%s' "${payload}" | python3 -c '
+import json, sys
+try:
+    d = json.load(sys.stdin)
+except Exception:
+    print("-"); print("-"); print("False"); print("-")
+    raise SystemExit(0)
+def g(k, dflt="-"):
+    v = d.get(k)
+    if v is None or v == "":
+        return dflt
+    # Only newlines are unrepresentable in a line-delimited field; spaces are
+    # preserved, which is the entire point of this shape.
+    return str(v).replace("\r", " ").replace("\n", " ")
+print(g("session_id"))
+print(g("prompt_id"))
+print(g("stop_hook_active", "False"))
+print(g("cwd"))
+' 2>/dev/null)
 $(printf '%s' "${payload}" | python3 -c '
 import json, sys
 try:

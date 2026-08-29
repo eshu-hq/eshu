@@ -34,7 +34,7 @@ no() { printf 'not ok - %s\n' "$1"; failed=$((failed + 1)); }
 
 check() { # label expect(block|allow) output
 	local label="$1" expect="$2" out="$3" got
-	if printf '%s' "${out}" | rg -q '"decision"[[:space:]]*:[[:space:]]*"block"'; then
+	if printf '%s' "${out}" | rg '"decision"[[:space:]]*:[[:space:]]*"block"' >/dev/null; then
 		got=block
 	else
 		got=allow
@@ -62,7 +62,7 @@ printf 'Drive PR 6310 to merged.\n' >"${goal}"
 out="$(run "$(payload p3)")"
 check "an active goal blocks the stop" block "${out}"
 
-if printf '%s' "${out}" | rg -q 'Drive PR 6310'; then
+if printf '%s' "${out}" | rg 'Drive PR 6310' >/dev/null; then
 	ok "the block reason quotes the goal text"
 else
 	no "the block reason quotes the goal text"
@@ -82,7 +82,7 @@ check "DONE on the first line allows the stop" allow "$(run "$(payload p4)")"
 printf 'Keep going.\n' >"${goal}"
 blocks=0
 for _ in 1 2 3 4 5; do
-	printf '%s' "$(run "$(payload budget)")" | rg -q '"block"' && blocks=$((blocks + 1))
+	printf '%s' "$(run "$(payload budget)")" | rg '"block"' >/dev/null && blocks=$((blocks + 1))
 done
 if [[ "${blocks}" -eq 3 ]]; then
 	ok "the budget stops after 3 nudges for one prompt_id"
@@ -135,7 +135,7 @@ check "BLOCKED naming a DEAD watcher still blocks" block "${dead_out}"
 
 # A dead watcher means nothing will wake the agent, so the refusal has to say
 # so -- otherwise the agent re-reads the same goal and stops again.
-if printf '%s' "${dead_out}" | rg -qi 'watcher'; then
+if printf '%s' "${dead_out}" | rg -i 'watcher' >/dev/null; then
 	ok "the dead-watcher refusal names the watcher"
 else
 	no "the dead-watcher refusal names the watcher"
@@ -143,10 +143,29 @@ fi
 
 printf 'BLOCKED: waiting on GitHub runners\nDo the thing.\n' >"${goal}"
 audit="$(printf '%s' "$(payload b5)" | CLAUDE_GOAL_FILE="${goal}" bash "${HOOK}" 2>&1 >/dev/null)"
-if printf '%s' "${audit}" | rg -q 'waiting on GitHub runners'; then
+if printf '%s' "${audit}" | rg 'waiting on GitHub runners' >/dev/null; then
 	ok "the claimed BLOCKED reason is echoed for audit"
 else
 	no "the claimed BLOCKED reason is echoed for audit"
+fi
+
+# A worktree path containing a space must still resolve its own goal file. An
+# earlier version collapsed spaces to underscores to survive a whitespace-split
+# `read`, which silently pointed the lookup at a path that does not exist -- so
+# the per-worktree feature did nothing, without an error.
+spacey="${work}/My Projects/eshu"
+mkdir -p "${spacey}/.claude"
+printf 'Worktree goal behind a space.\n' >"${spacey}/.claude/active-goal"
+spacey_payload="$(SPACEY="${spacey}" python3 -c '
+import json, os
+print(json.dumps({"session_id": "sp", "prompt_id": "sp1", "stop_hook_active": False,
+                  "cwd": os.environ["SPACEY"], "hook_event_name": "Stop"}))
+')"
+spacey_out="$(printf '%s' "${spacey_payload}" | bash "${HOOK}" 2>/dev/null)"
+if printf '%s' "${spacey_out}" | rg 'Worktree goal behind a space' >/dev/null; then
+	ok "a worktree path containing a space still finds its goal file"
+else
+	no "a worktree path containing a space still finds its goal file"
 fi
 
 printf '\ngoal-continue hook mirror: %s passed, %s failed\n' "${passed}" "${failed}"
