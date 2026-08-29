@@ -8,6 +8,7 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/eshu-hq/eshu/go/internal/parser/shared"
 	"github.com/hashicorp/hcl/v2/hclparse"
 	"github.com/hashicorp/hcl/v2/hclsyntax"
 )
@@ -125,10 +126,19 @@ func walkTerragruntIncludeChain(
 		return nil
 	}
 
-	source, err := os.ReadFile(absolute) // #nosec G304 -- reads a Terragrunt include file at a path validated by Lstat and size cap above
+	raw, err := os.ReadFile(absolute) // #nosec G304 -- reads a Terragrunt include file at a path validated by Lstat and size cap above
 	if err != nil {
 		return nil
 	}
+	// This read bypasses shared.ReadSource, so it inherits none of the
+	// read-boundary line-ending normalization and must do its own (#6306).
+	// hclsyntax recognises only '\n' and '\r\n' as a newline -- its scanner
+	// defines `Newline = '\r' ? '\n'` and terminates a `#` or `//` comment at
+	// EndOfLine -- so on a classic-Mac file a single leading comment runs to
+	// EOF and every remote_state block after it vanishes. The parse reports
+	// no error, so the loss is silent, and any block that does survive is
+	// stamped line_number 1.
+	source := shared.NormalizeLineEndings(raw)
 	parser := hclparse.NewParser()
 	file, diags := parser.ParseHCL(source, absolute)
 	if diags.HasErrors() {

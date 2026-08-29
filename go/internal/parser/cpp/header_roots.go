@@ -9,6 +9,8 @@ import (
 	"regexp"
 	"strings"
 	"unicode"
+
+	"github.com/eshu-hq/eshu/go/internal/parser/shared"
 )
 
 // The regex patterns in this file are a justified permanent exception to the
@@ -69,7 +71,13 @@ func AnnotatePublicHeaderRoots(payload map[string]any, repoRoot string, sourcePa
 		if err != nil {
 			continue
 		}
-		for _, declaration := range cppHeaderPublicDeclarations(string(source)) {
+		// The header is read here directly, so it never passes through
+		// shared.ReadSource and does not inherit its bare-CR normalization.
+		// It needs its own: cppLineCommentPattern is `(?m)//.*$`, and on a
+		// classic-Mac header `(?m)$` matches only at EOF, so the first `//`
+		// comment strips the rest of the file and the header yields zero
+		// public declarations (issue #6306).
+		for _, declaration := range cppHeaderPublicDeclarations(string(shared.NormalizeLineEndings(source))) {
 			for _, function := range functions[declaration] {
 				appendCPPDeadCodeRootKind(function, cppPublicHeaderAPIRoot)
 			}

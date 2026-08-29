@@ -58,7 +58,12 @@ func AnnotatePublicHeaderRoots(payload map[string]any, repoRoot string, sourcePa
 		if err != nil {
 			continue
 		}
-		for _, name := range cHeaderPrototypeNames(string(source)) {
+		// Read directly rather than through shared.ReadSource, so this call
+		// site needs its own bare-CR normalization for the same reason the
+		// C++ twin does: cLineCommentPattern is `(?m)//.*$`, whose `$`
+		// anchors only at '\n', so one `//` comment in a classic-Mac header
+		// deletes every prototype after it (issue #6306).
+		for _, name := range cHeaderPrototypeNames(string(shared.NormalizeLineEndings(source))) {
 			for _, function := range functions[name] {
 				appendCDeadCodeRootKind(function, cPublicHeaderAPIRoot)
 			}

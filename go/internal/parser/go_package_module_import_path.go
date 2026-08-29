@@ -7,6 +7,8 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+
+	"github.com/eshu-hq/eshu/go/internal/parser/shared"
 )
 
 func goModulePath(repoRoot string) string {
@@ -14,7 +16,13 @@ func goModulePath(repoRoot string) string {
 	if err != nil {
 		return ""
 	}
-	for _, line := range strings.Split(string(body), "\n") {
+	// go.mod is read here directly, not through shared.ReadSource, so it does
+	// not inherit that boundary's bare-CR normalization and needs its own. A
+	// classic-Mac go.mod would otherwise collapse into one line, Fields would
+	// see far more than two, and the module path would come back empty --
+	// silently costing every Go package in the module its import path
+	// (issue #6306).
+	for _, line := range strings.Split(string(shared.NormalizeLineEndings(body)), "\n") {
 		fields := strings.Fields(line)
 		if len(fields) == 2 && fields[0] == "module" {
 			return strings.TrimSpace(fields[1])

@@ -9,6 +9,7 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/eshu-hq/eshu/go/internal/parser/shared"
 	tree_sitter "github.com/tree-sitter/go-tree-sitter"
 )
 
@@ -174,7 +175,11 @@ func pythonModuleSpecsForInit(repoRoot string, initPath string, sourcePath strin
 }
 
 func pythonFromImportStatements(source string) []string {
-	lines := strings.Split(source, "\n")
+	// The caller reads __init__.py with its own os.ReadFile rather than
+	// through shared.ReadSource, so normalize here: on a bare-CR file this
+	// Split yields one element and no `from ... import` statement is ever
+	// found (issue #6306).
+	lines := strings.Split(string(shared.NormalizeLineEndings([]byte(source))), "\n")
 	statements := make([]string, 0)
 	for i := 0; i < len(lines); i++ {
 		trimmed := strings.TrimSpace(lines[i])
