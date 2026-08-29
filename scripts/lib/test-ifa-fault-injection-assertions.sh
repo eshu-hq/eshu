@@ -196,13 +196,19 @@ assert_libs_parse() {
 	# an error), so one pattern edit would silently skip every lib, where the
 	# explicit `bash -n` lines it replaced could only ever lose one at a time.
 	# Hand-written, below the current count, never derived from the expression
-	# it guards. Re-derived after binding the six previously-literal-path case
-	# modules (repo-dependency, workload-dependency, submodule-pin, codeowners,
-	# marker, plus the already-bound repo-dependency-lease sibling) to *_lib
-	# vars: `compgen -v | rg '_lib$'` against the mirror now resolves 50 names
-	# (verified by sourcing the mirror's own var-declaration lines in a
-	# subshell and counting the result), up from the ~37 this floor of 35 was
-	# originally set against.
+	# it guards. It was last raised from 35 after the six previously-literal-path
+	# case modules (repo-dependency, workload-dependency, submodule-pin,
+	# codeowners, marker, plus the already-bound repo-dependency-lease sibling)
+	# were bound to *_lib vars.
+	#
+	# What the derivation resolves to TODAY is deliberately not written here.
+	# require()'s docstring above has the reason: a prose count has no gate, and
+	# this one proved it -- it sat at "50 names" while the mirror was resolving
+	# more than that, drifting again with every lib the tree gained (#6276). The
+	# only number worth stating is this floor, because a run checks it; the count
+	# a run actually reached is in the failure message below when it does not
+	# clear it. Raise the floor when a batch of libs lands, never to the exact
+	# figure of the day.
 	[[ "${syntax_checked}" -ge 45 ]] \
 		|| fail "syntax check covered only ${syntax_checked} lib(s); the *_lib derivation has collapsed and nothing is being parsed"
 }
