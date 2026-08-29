@@ -423,7 +423,13 @@ codeowners_assert_count="$(rg --count --fixed-strings -- 'ifa_codeowners_assert 
 # be satisfied by the pre-delta call moving out of the loop, so the ordering
 # check below is what says WHERE the surviving call has to be.
 for direct_assert_fn in ifa_kubernetes_namespace_environment_assert ifa_iam_instance_profile_role_assert; do
-	direct_assert_count="$(rg --count --fixed-strings -- "${direct_assert_fn} \"" "${script}")"
+	# `|| true`, and the shape check that follows it, are load-bearing under
+	# `set -e`: rg exits 1 on ZERO matches, so a bare command substitution
+	# would abort this whole mirror with status 1 and print nothing at all --
+	# the case this pin exists to report is exactly the one it would report
+	# least. Proven by deleting the post-delta call and re-running.
+	direct_assert_count="$(rg --count --fixed-strings -- "${direct_assert_fn} \"" "${script}" || true)"
+	[[ "${direct_assert_count}" =~ ^[0-9]+$ ]] || direct_assert_count=0
 	[[ "${direct_assert_count}" -eq 1 ]] \
 		|| fail "expected exactly 1 occurrence of ${direct_assert_fn} (the post-delta re-assertion) outside the registry loop; found ${direct_assert_count} -- a second occurrence would double-assert this DIRECT family in every N-loop cell, and zero would leave generation 2 unchecked for it"
 done
