@@ -198,9 +198,11 @@ func isIdempotentRetractStatement(stmt Statement) bool {
 // rather than merely stated.
 //
 // Positive membership -- `n.path IN $file_paths`, an inline `{id: $repo_id}`
-// map, an equality against an immutable literal -- confines the delete to a key
-// space the parameters enumerate. Nothing a concurrent writer commits can
-// enlarge that space, so the replay sees the same candidates.
+// map -- confines the delete to a key space the parameters enumerate. Nothing a
+// concurrent writer commits can enlarge that space, so the replay sees the same
+// candidates. A literal comparison does NOT count: `n.kind = 'module'` reads a
+// property a concurrent writer can move, which is why everyConjunctIsBounded
+// (retrying_executor.go) requires every AND/OR term to name a $param.
 //
 // An open-ended predicate inverts that. `p.generation_id <> $generation_id`
 // (canonicalNodeRetractParametersCypher) matches every generation EXCEPT this
@@ -211,9 +213,9 @@ func isIdempotentRetractStatement(stmt Statement) bool {
 // Refusing them keeps the group terminal and sends the work item to dead-letter
 // redrive instead of silently deleting another writer's rows.
 //
-// The check is syntactic and fail-closed: it proves a predicate is bounded, not
-// that an unbounded one is unsafe in a given deployment. A refused group loses a
-// retry; accepting one whose match set grows under concurrency costs graph truth.
+// Syntactic and fail-closed: it proves a predicate is bounded, not that an
+// unbounded one is unsafe. A refused group loses a retry; accepting one whose
+// match set grows under concurrency costs graph truth.
 func hasParameterBoundedPredicate(cypher string) bool {
 	if !boundParameterPattern.MatchString(cypher) {
 		return false
