@@ -391,9 +391,20 @@ graph-write route surface.
   not implement `GroupExecutor`; writes are sequential; investigate whether
   the wired executor is missing `ExecuteGroup`.
 
-- Symptom: NornicDB MERGE unique constraint violation not retried → check
-  `isNornicDBMergeUniqueConflict` in `retrying_executor.go:129`; the cypher
-  string must contain MERGE and the error must match the expected message shape.
+- Symptom: NornicDB MERGE unique constraint violation not retried, SINGLE
+  statement (`Execute`) → check `isNornicDBMergeUniqueConflict` in
+  `retrying_executor.go`; the cypher string must contain MERGE and the error
+  must match the expected message shape.
+- Symptom: the same violation not retried for a GROUP (`ExecuteGroup`) → that
+  path does NOT require MERGE. `classifyRetryableGraphWriteGroupError` retries
+  when `allStatementsAreReplaySafe`, which admits an idempotent retract with no
+  MERGE in it. A group stays terminal when any statement fails
+  `isIdempotentRetractStatement` — it is not a canonical retract, it does not
+  open on MATCH, it writes through something other than DELETE/REMOVE, or its
+  WHERE has a term that names no `$param`. That last one is the common
+  surprise: `n.stale`, `n.stale = true`, `... OR n.stale`, and
+  `generation_id <> $generation_id` are all refused, because a replay would not
+  remove the same set. Check `everyConjunctIsBounded` for the exact rule.
 
 ## Anti-patterns
 

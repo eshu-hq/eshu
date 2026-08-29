@@ -461,16 +461,12 @@ func isNornicDBUniqueConflictBody(msg string) bool {
 // whereClausePattern captures the WHERE body up to the first write clause.
 var whereClausePattern = regexp.MustCompile(`(?is)\bWHERE\b(.*?)(?:\bDETACH\s+DELETE\b|\bDELETE\b|\bREMOVE\b|\bRETURN\b|\z)`)
 
-// andSeparatorPattern splits a WHERE body into conjuncts.
-var andSeparatorPattern = regexp.MustCompile(`(?i)\bAND\b`)
+// predicateSeparatorPattern splits a WHERE body into its terms. It splits on OR
+// as well as AND: an OR term WIDENS the match set, so leaving it joined would
+// let `n.repo_id IN $repo_ids OR n.stale` pass as one term containing a $param.
+var predicateSeparatorPattern = regexp.MustCompile(`(?i)\b(AND|OR)\b`)
 
-// literalComparisonPattern matches a comparison against an immutable literal --
-// a quoted string, a number, a boolean. A concurrent writer cannot move those,
-// so they bound the match set as firmly as a $param does.
-var literalComparisonPattern = regexp.MustCompile(`(?i)=\s*('[^']*'|"[^"]*"|-?\d+(\.\d+)?|true|false)`)
-
-// everyConjunctIsBounded requires each AND-separated WHERE term to name a
-// parameter or compare against a literal.
+// everyConjunctIsBounded requires every WHERE term to name a parameter.
 //
 // A predicate can name a parameter and still read mutable graph state:
 // `WHERE n.repo_id IN $repo_ids AND n.stale` passes both the membership and the
@@ -480,18 +476,22 @@ var literalComparisonPattern = regexp.MustCompile(`(?i)=\s*('[^']*'|"[^"]*"|-?\d
 // concurrent writer flipping n.stale between the failed attempt and the replay
 // puts a node in range the first attempt never saw. Same broken premise.
 //
-// Every retract reaching this path today is a conjunction of bound terms, so
-// requiring it rejects nothing that currently retries.
+// A literal comparison is NOT accepted as bounding: `n.stale = true` reads the
+// same mutable property as the bare `n.stale`. Only a $param names a value the
+// caller fixed for the duration of the statement.
+//
+// Every retract reaching this path today is a conjunction of parameter-bound
+// terms, so requiring it rejects nothing that currently retries.
 func everyConjunctIsBounded(cypher string) bool {
 	where := whereClausePattern.FindStringSubmatch(cypher)
 	if where == nil {
 		return true
 	}
-	for _, conjunct := range andSeparatorPattern.Split(where[1], -1) {
-		if strings.TrimSpace(conjunct) == "" || strings.Contains(conjunct, "$") {
+	for _, term := range predicateSeparatorPattern.Split(where[1], -1) {
+		if strings.TrimSpace(term) == "" {
 			continue
 		}
-		if !literalComparisonPattern.MatchString(conjunct) {
+		if !strings.Contains(term, "$") {
 			return false
 		}
 	}

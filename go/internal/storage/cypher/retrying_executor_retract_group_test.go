@@ -237,6 +237,18 @@ func TestClassifyRetryableGraphWriteGroupErrorKeepsNonIdempotentGroupsTerminal(t
 		// moves -- a concurrent writer flipping n.stale between the failed
 		// attempt and the replay puts a node in range the first attempt never
 		// saw. Bounded blast radius, same broken "removes the same set" premise.
+		// OR WIDENS the set, so a term joined by it is more dangerous than an
+		// AND'd one, not less: the parameter no longer bounds anything.
+		"retract whose predicate ORs a graph-state term onto a bound membership": {
+			Operation: OperationCanonicalRetract,
+			Cypher:    "MATCH (n:Variable)\nWHERE n.repo_id IN $repo_ids\n  OR n.stale\nDETACH DELETE n",
+		},
+		// A literal cannot move, but the PROPERTY it is compared against can.
+		// This is the same mutable read as the bare `n.stale` above.
+		"retract comparing a mutable property against a literal": {
+			Operation: OperationCanonicalRetract,
+			Cypher:    "MATCH (n:Variable)\nWHERE n.repo_id IN $repo_ids\n  AND n.stale = true\nDETACH DELETE n",
+		},
 		"retract mixing a bound membership with a graph-state term": {
 			Operation: OperationCanonicalRetract,
 			Cypher:    "MATCH (n:Variable)\nWHERE n.repo_id IN $repo_ids\n  AND n.stale\nDETACH DELETE n",
