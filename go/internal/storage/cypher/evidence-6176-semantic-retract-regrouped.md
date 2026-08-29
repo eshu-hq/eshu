@@ -122,7 +122,7 @@ and new rule:
 | canonical node, full refresh (files + dirs + entities) | terminal | terminal |
 | canonical node, files but no entities | terminal | terminal |
 | canonical node, delta retract | terminal | terminal |
-| canonical node, repo with no files/dirs/entities | retryable | **terminal** |
+| canonical node, repo with no files/dirs/entities | terminal | terminal |
 
 The shapes newly refused are the negation/complement family:
 `canonicalNodeRetract{Files,RemovedFiles,Directories,Parameters}Cypher`, the

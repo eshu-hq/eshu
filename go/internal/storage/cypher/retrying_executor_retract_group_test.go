@@ -237,6 +237,13 @@ func TestClassifyRetryableGraphWriteGroupErrorKeepsNonIdempotentGroupsTerminal(t
 		// moves -- a concurrent writer flipping n.stale between the failed
 		// attempt and the replay puts a node in range the first attempt never
 		// saw. Bounded blast radius, same broken "removes the same set" premise.
+		// No WHERE at all. boundParameterPattern sees $entity_ids and passes,
+		// but a $param somewhere in the cypher says nothing about what the
+		// match set is -- so this is refused rather than assumed bounded.
+		"retract with no WHERE clause to verify": {
+			Operation: OperationCanonicalRetract,
+			Cypher:    "MATCH (n:Variable)\nDETACH DELETE n\n// $entity_ids",
+		},
 		// OR WIDENS the set, so a term joined by it is more dangerous than an
 		// AND'd one, not less: the parameter no longer bounds anything.
 		"retract whose predicate ORs a graph-state term onto a bound membership": {
