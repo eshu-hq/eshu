@@ -20,7 +20,7 @@ Canonical implementation: `go/internal/parser/registry.go` plus the entrypoint a
 
 | Capability | Feature key | Status | Evidence | Current truth |
 | --- | --- | --- | --- | --- |
-| Axum/Actix/Rocket route truth | `axum-actix-rocket-route-truth` | supported | `go/internal/parser/rust_route_entries_test.go::TestDefaultEngineParsePathRustEmitsExactFrameworkRouteEntries`, `go/internal/reducer/handles_route_rust_test.go::TestBuildHandlesRouteIntentRowsEmitsRustAxumRouteMatches`, `go/internal/query/content_reader_framework_routes_rust_test.go::TestParseFrameworkSemanticsExtractsRustFrameworkRoutes` | Direct Axum `Router::new().route("...", get(handler))` chains, Actix route attributes resolved to `actix_web`, and Rocket route attributes resolved to `rocket` emit exact `framework_semantics.*.route_entries` when the source proves literal path, literal HTTP method, and handler identifier. `HANDLES_ROUTE` is projected only when the reducer resolves that handler exactly. |
+| Axum/Actix/Rocket route truth | `axum-actix-rocket-route-truth` | supported | `go/internal/parser/rust/rust_route_entries_test.go::TestDefaultEngineParsePathRustEmitsExactFrameworkRouteEntries`, `go/internal/reducer/handles_route_rust_test.go::TestBuildHandlesRouteIntentRowsEmitsRustAxumRouteMatches`, `go/internal/query/content_reader_framework_routes_rust_test.go::TestParseFrameworkSemanticsExtractsRustFrameworkRoutes` | Direct Axum `Router::new().route("...", get(handler))` chains, Actix route attributes resolved to `actix_web`, and Rocket route attributes resolved to `rocket` emit exact `framework_semantics.*.route_entries` when the source proves literal path, literal HTTP method, and handler identifier. `HANDLES_ROUTE` is projected only when the reducer resolves that handler exactly. |
 
 ## Supported Surfaces
 
@@ -38,7 +38,7 @@ Primary proof:
 
 - `go/internal/parser/engine_systems_test.go::TestDefaultEngineParsePathRust`
 - `go/internal/parser/engine_systems_test.go::TestDefaultEngineParsePathRustImplBlocks`
-- `go/internal/parser/engine_rust_lifetimes_test.go::TestDefaultEngineParsePathRustCapturesImplLifetimes`
+- `go/internal/parser/rust/engine_rust_lifetimes_test.go::TestDefaultEngineParsePathRustCapturesImplLifetimes`
 - `go/internal/query/code_relationships_rust_graph_test.go::TestHandleRelationshipsReturnsGraphBackedRustImplBlockOwnership`
 - `go/internal/query/content_relationships_rust_test.go::TestBuildContentRelationshipSetRustImplBlockContainsMethods`
 

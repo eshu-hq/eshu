@@ -1,11 +1,14 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package parser
+package rust_test
 
 import (
 	"path/filepath"
 	"testing"
+
+	"github.com/eshu-hq/eshu/go/internal/parser"
+	"github.com/eshu-hq/eshu/go/internal/parser/parsertest"
 )
 
 func TestDefaultEngineParsePathRustEmitsExactFrameworkRouteEntries(t *testing.T) {
@@ -51,24 +54,24 @@ async fn axum_create() -> &'static str {
 `,
 	)
 
-	engine, err := DefaultEngine()
+	engine, err := parser.DefaultEngine()
 	if err != nil {
 		t.Fatalf("DefaultEngine() error = %v, want nil", err)
 	}
 
-	got, err := engine.ParsePath(repoRoot, sourcePath, false, Options{IndexSource: true})
+	got, err := engine.ParsePath(repoRoot, sourcePath, false, parser.Options{IndexSource: true})
 	if err != nil {
 		t.Fatalf("ParsePath(%s) error = %v, want nil", sourcePath, err)
 	}
 
-	assertNestedRouteEntriesEqual(t, got, "rocket", []map[string]string{
+	parsertest.AssertNestedRouteEntriesEqual(t, got, "rocket", []map[string]string{
 		{"method": "GET", "path": "/rocket/<id>", "handler": "rocket_show"},
 	})
-	assertNestedRouteEntriesEqual(t, got, "actix_web", []map[string]string{
+	parsertest.AssertNestedRouteEntriesEqual(t, got, "actix_web", []map[string]string{
 		{"method": "GET", "path": "/actix/{id}", "handler": "actix_show"},
 		{"method": "POST", "path": "/actix", "handler": "actix_create"},
 	})
-	assertNestedRouteEntriesEqual(t, got, "axum", []map[string]string{
+	parsertest.AssertNestedRouteEntriesEqual(t, got, "axum", []map[string]string{
 		{"method": "GET", "path": "/axum/:id", "handler": "axum_show"},
 		{"method": "POST", "path": "/axum", "handler": "axum_create"},
 	})
@@ -128,12 +131,12 @@ async fn dynamic_handler() -> &'static str {
 `,
 	)
 
-	engine, err := DefaultEngine()
+	engine, err := parser.DefaultEngine()
 	if err != nil {
 		t.Fatalf("DefaultEngine() error = %v, want nil", err)
 	}
 
-	got, err := engine.ParsePath(repoRoot, sourcePath, false, Options{IndexSource: true})
+	got, err := engine.ParsePath(repoRoot, sourcePath, false, parser.Options{IndexSource: true})
 	if err != nil {
 		t.Fatalf("ParsePath(%s) error = %v, want nil", sourcePath, err)
 	}

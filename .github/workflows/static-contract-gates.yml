@@ -44,6 +44,7 @@ jobs:
       ifaload: ${{ steps.filter.outputs.ifaload }}
       ifareplaydrive: ${{ steps.filter.outputs.ifareplaydrive }}
       heredoc: ${{ steps.filter.outputs.heredoc }}
+      parserrelationship: ${{ steps.filter.outputs.parserrelationship }}
       docsrefs: ${{ steps.filter.outputs.docsrefs }}
       docsclienvrefs: ${{ steps.filter.outputs.docsclienvrefs }}
       querydoccommitrefs: ${{ steps.filter.outputs.querydoccommitrefs }}
@@ -266,6 +267,26 @@ jobs:
               - 'scripts/**/*.sh'
               - 'scripts/heredoc-budget-baseline.txt'
               - 'go/cmd/heredoc-budget/**'
+            parserrelationship:
+              - '.github/workflows/static-contract-gates.yml'
+              - 'specs/ci-gates.v1.yaml'
+              - 'docs/**/*.md'
+              - 'go/internal/parser/**'
+              - 'go/internal/relationships/**'
+              - 'specs/language-feature-parity-ledger.v1.yaml'
+              - 'specs/parser-backing-ledger.v1.yaml'
+              - 'scripts/lib/gate-diff-base.sh'
+              - 'scripts/lib/parser_documented_test_commands.sh'
+              - 'scripts/lib/parser_documented_test_goflags.sh'
+              - 'scripts/lib/parser_documented_test_preamble_assignments.sh'
+              - 'scripts/lib/parser_documented_test_scan.sh'
+              - 'scripts/lib/parser_documented_test_selector.sh'
+              - 'scripts/lib/parser_documented_test_workdir.sh'
+              - 'scripts/lib/parser_selector_matcher.go'
+              - 'scripts/lib/parser_relationship_language_ledger.sh'
+              - 'scripts/lib/test-verify-parser-relationship-kit-*'
+              - 'scripts/test-verify-parser-relationship-kit.sh'
+              - 'scripts/verify-parser-relationship-kit.sh'
             docsrefs:
               - '.github/workflows/static-contract-gates.yml'
               - 'specs/ci-gates.v1.yaml'
@@ -403,6 +424,7 @@ jobs:
           append_gate "${{ steps.filter.outputs.ifaload }}" "ifaload" "Verify Ifa P5 load/saturation gate" "cd go && go test ./internal/ifa/saturation/ ./internal/ifa/throughput/ -race -count=1" "cd go && go test ./internal/ifa/saturation/ ./internal/ifa/throughput/ -race -count=1"
           append_gate "${{ steps.filter.outputs.ifareplaydrive }}" "ifareplaydrive" "Verify Ifa replay-drive mirror gate" "bash scripts/test-verify-ifa-replay-drive.sh" "bash scripts/test-verify-ifa-replay-drive.sh"
           append_gate "${{ steps.filter.outputs.heredoc }}" "heredoc" "Verify heredoc budget gate" "cd go && go test ./cmd/heredoc-budget -count=1" "cd go && go run ./cmd/heredoc-budget -baseline ../scripts/heredoc-budget-baseline.txt"
+          append_gate "${{ steps.filter.outputs.parserrelationship }}" "parserrelationship" "Verify parser relationship kit gate" "bash scripts/test-verify-parser-relationship-kit.sh" "bash scripts/verify-parser-relationship-kit.sh"
           append_gate "${{ steps.filter.outputs.docsrefs }}" "docsrefs" "Verify docs-refs gate" "bash scripts/test-verify-docs-refs.sh" "bash scripts/verify-docs-refs.sh"
           append_gate "${{ steps.filter.outputs.docsclienvrefs }}" "docsclienvrefs" "Verify docs CLI/env refs gate" "bash scripts/test-verify-docs-cli-env-refs.sh" "bash scripts/verify-docs-cli-env-refs.sh"
           append_gate "${{ steps.filter.outputs.querydoccommitrefs }}" "querydoccommitrefs" "Verify query-doc-commit-refs gate" "bash scripts/test-verify-query-doc-commit-refs.sh" "bash scripts/verify-query-doc-commit-refs.sh"

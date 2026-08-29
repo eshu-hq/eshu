@@ -1,11 +1,14 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package parser
+package rust_test
 
 import (
 	"path/filepath"
 	"testing"
+
+	"github.com/eshu-hq/eshu/go/internal/parser"
+	"github.com/eshu-hq/eshu/go/internal/parser/parsertest"
 )
 
 func TestDefaultEngineParsePathRustCapturesFunctionLifetimes(t *testing.T) {
@@ -22,17 +25,17 @@ func TestDefaultEngineParsePathRustCapturesFunctionLifetimes(t *testing.T) {
 `,
 	)
 
-	engine, err := DefaultEngine()
+	engine, err := parser.DefaultEngine()
 	if err != nil {
 		t.Fatalf("DefaultEngine() error = %v, want nil", err)
 	}
 
-	got, err := engine.ParsePath(repoRoot, filePath, false, Options{})
+	got, err := engine.ParsePath(repoRoot, filePath, false, parser.Options{})
 	if err != nil {
 		t.Fatalf("ParsePath() error = %v, want nil", err)
 	}
 
-	borrow := assertBucketItemByName(t, got, "functions", "borrow")
+	borrow := parsertest.AssertBucketItemByName(t, got, "functions", "borrow")
 	assertStringSliceFieldValue(t, borrow, "lifetime_parameters", []string{"a"})
 	assertStringSliceFieldValue(t, borrow, "signature_lifetimes", []string{"a"})
 	assertStringFieldValue(t, borrow, "return_lifetime", "a")
@@ -58,22 +61,22 @@ impl<'a> Container<'a> {
 `,
 	)
 
-	engine, err := DefaultEngine()
+	engine, err := parser.DefaultEngine()
 	if err != nil {
 		t.Fatalf("DefaultEngine() error = %v, want nil", err)
 	}
 
-	got, err := engine.ParsePath(repoRoot, filePath, false, Options{})
+	got, err := engine.ParsePath(repoRoot, filePath, false, parser.Options{})
 	if err != nil {
 		t.Fatalf("ParsePath() error = %v, want nil", err)
 	}
 
-	implBlock := assertBucketItemByName(t, got, "impl_blocks", "Container")
+	implBlock := parsertest.AssertBucketItemByName(t, got, "impl_blocks", "Container")
 	assertStringFieldValue(t, implBlock, "target", "Container<'a>")
 	assertStringSliceFieldValue(t, implBlock, "lifetime_parameters", []string{"a"})
 	assertStringSliceFieldValue(t, implBlock, "signature_lifetimes", []string{"a"})
 
-	value := assertBucketItemByName(t, got, "functions", "value")
+	value := parsertest.AssertBucketItemByName(t, got, "functions", "value")
 	assertStringFieldValue(t, value, "impl_context", "Container")
 	assertStringSliceFieldValue(t, value, "signature_lifetimes", []string{"a"})
 	assertStringFieldValue(t, value, "return_lifetime", "a")

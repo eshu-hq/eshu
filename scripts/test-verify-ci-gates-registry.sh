@@ -104,6 +104,9 @@ done < <(
 [[ -f "${frontend_workflow}" ]] || fail "missing ${frontend_workflow}"
 # shellcheck source=scripts/lib/test-verify-ci-gates-registry-path-assertions.sh
 . "${repo_root}/scripts/lib/test-verify-ci-gates-registry-path-assertions.sh"
+# shellcheck source=scripts/lib/test-verify-ci-gates-registry-parser-relationship-cases.sh
+. "${repo_root}/scripts/lib/test-verify-ci-gates-registry-parser-relationship-cases.sh"
+check_parser_relationship_trigger_parity
 
 frontend_pull_request_paths="$(
 	sed -n '/^  pull_request:/,/^  workflow_dispatch:/p' "${frontend_workflow}"

@@ -205,11 +205,6 @@ jobs:
       - name: Verify accuracy golden gate
         run: scripts/verify_accuracy_golden_gate.sh
 
-      - name: Verify parser relationship and language ledger
-        run: |
-          scripts/test-verify-parser-relationship-kit.sh
-          scripts/verify-parser-relationship-kit.sh
-
       - name: Verify golden-corpus filter exhaustiveness
         run: |
           scripts/test-verify-golden-corpus-filter-exhaustive.sh

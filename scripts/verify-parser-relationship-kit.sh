@@ -20,7 +20,8 @@ base="$eshu_gate_diff_base"
 
 changed_files=()
 tmp_file="$(mktemp)"
-trap 'rm -f "$tmp_file"' EXIT
+parser_selector_matcher_output="${tmp_file}.parser-selector-matcher"
+trap 'rm -f "$tmp_file" "$parser_selector_matcher_output"' EXIT
 if [ -n "$base" ]; then
   if git -C "$repo_root" diff --name-only "$base"...HEAD >"$tmp_file" 2>/dev/null; then
     :
@@ -239,6 +240,10 @@ validate_required_docs() {
     "positive/negative/ambiguous fixture rule" || issues=1
   return "$issues"
 }
+
+# shellcheck source=scripts/lib/parser_documented_test_commands.sh
+. "$script_dir/lib/parser_documented_test_commands.sh"
+PARSER_SELECTOR_MATCHER_OUTPUT="$parser_selector_matcher_output"
 
 validate_parser_backing_ledger() {
   local issues=0
@@ -468,6 +473,7 @@ validate_diff_contracts() {
 
 issues=0
 validate_required_docs || issues=1
+validate_documented_parser_test_commands "$repo_root" || issues=1
 validate_parser_backing_ledger || issues=1
 validate_language_feature_ledger || issues=1
 validate_support_maturity_matrix || issues=1

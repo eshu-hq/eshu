@@ -916,17 +916,37 @@ gates:
     tier: pre-pr
     blocking: true
     triggers:
+      - ".github/workflows/static-contract-gates.yml"
+      - "specs/ci-gates.v1.yaml"
+      - "docs/**/*.md"
       - "go/internal/parser/**"
       - "go/internal/relationships/**"
+      - "specs/language-feature-parity-ledger.v1.yaml"
       - "specs/parser-backing-ledger.v1.yaml"
       - "scripts/lib/gate-diff-base.sh"
+      - "scripts/lib/parser_documented_test_commands.sh"
+      - "scripts/lib/parser_documented_test_goflags.sh"
+      - "scripts/lib/parser_documented_test_preamble_assignments.sh"
+      - "scripts/lib/parser_documented_test_scan.sh"
+      - "scripts/lib/parser_documented_test_selector.sh"
+      - "scripts/lib/parser_documented_test_workdir.sh"
+      - "scripts/lib/parser_selector_matcher.go"
       - "scripts/lib/parser_relationship_language_ledger.sh"
       - "scripts/lib/test-verify-parser-relationship-kit-*"
       - "scripts/test-verify-parser-relationship-kit.sh"
       - "scripts/verify-parser-relationship-kit.sh"
     self_test_triggers:
+      - ".github/workflows/static-contract-gates.yml"
+      - "specs/ci-gates.v1.yaml"
       - "specs/parser-backing-ledger.v1.yaml"
       - "scripts/lib/gate-diff-base.sh"
+      - "scripts/lib/parser_documented_test_commands.sh"
+      - "scripts/lib/parser_documented_test_goflags.sh"
+      - "scripts/lib/parser_documented_test_preamble_assignments.sh"
+      - "scripts/lib/parser_documented_test_scan.sh"
+      - "scripts/lib/parser_documented_test_selector.sh"
+      - "scripts/lib/parser_documented_test_workdir.sh"
+      - "scripts/lib/parser_selector_matcher.go"
       - "scripts/lib/parser_relationship_language_ledger.sh"
       - "scripts/lib/test-verify-parser-relationship-kit-*"
       - "scripts/test-verify-parser-relationship-kit.sh"
@@ -935,8 +955,8 @@ gates:
       command: "bash scripts/verify-parser-relationship-kit.sh"
       test_command: "bash scripts/test-verify-parser-relationship-kit.sh"
     ci:
-      workflow: test.yml
-      job: "verify-contracts"
+      workflow: static-contract-gates.yml
+      job: "Verify parser relationship kit gate"
     requirements:
       - go
     ci_only_reason: ""
@@ -4002,6 +4022,7 @@ gates:
       - "scripts/lib/test-verify-ci-gates-registry-performance-cases.sh"
       - "scripts/lib/test-verify-ci-gates-registry-docs-cli-env-cases.sh"
       - "scripts/lib/test-verify-ci-gates-registry-ifa-filter-cases.sh"
+      - "scripts/lib/test-verify-ci-gates-registry-parser-relationship-cases.sh"
       - "scripts/lib/test-verify-ci-gates-registry-path-assertions.sh"
       - "scripts/test-generate-ci-gates-doc.sh"
       - "docs/public/reference/ci-gates.md"
@@ -4038,6 +4059,7 @@ gates:
       - "scripts/lib/test-verify-ci-gates-registry-performance-cases.sh"
       - "scripts/lib/test-verify-ci-gates-registry-docs-cli-env-cases.sh"
       - "scripts/lib/test-verify-ci-gates-registry-ifa-filter-cases.sh"
+      - "scripts/lib/test-verify-ci-gates-registry-parser-relationship-cases.sh"
       - "scripts/lib/test-verify-ci-gates-registry-path-assertions.sh"
       - "scripts/test-generate-ci-gates-doc.sh"
       - "docs/public/reference/ci-gates.md"

@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package parser
+package rust_test
 
 import (
 	"path/filepath"
@@ -9,6 +9,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/eshu-hq/eshu/go/internal/parser"
 	jsonparser "github.com/eshu-hq/eshu/go/internal/parser/json"
 )
 
@@ -45,11 +46,11 @@ cc = "1"
 libc = "0.2"
 `)
 
-	engine, err := DefaultEngine()
+	engine, err := parser.DefaultEngine()
 	if err != nil {
 		t.Fatalf("DefaultEngine() error = %v, want nil", err)
 	}
-	payload, err := engine.ParsePath(repoRoot, memberManifest, false, Options{})
+	payload, err := engine.ParsePath(repoRoot, memberManifest, false, parser.Options{})
 	if err != nil {
 		t.Fatalf("ParsePath(Cargo.toml) error = %v, want nil", err)
 	}
@@ -118,11 +119,11 @@ version = "0.1.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 `)
 
-	engine, err := DefaultEngine()
+	engine, err := parser.DefaultEngine()
 	if err != nil {
 		t.Fatalf("DefaultEngine() error = %v, want nil", err)
 	}
-	payload, err := engine.ParsePath(repoRoot, lockfile, false, Options{})
+	payload, err := engine.ParsePath(repoRoot, lockfile, false, parser.Options{})
 	if err != nil {
 		t.Fatalf("ParsePath(Cargo.lock) error = %v, want nil", err)
 	}
@@ -182,11 +183,11 @@ version = "0.1.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 `)
 
-	engine, err := DefaultEngine()
+	engine, err := parser.DefaultEngine()
 	if err != nil {
 		t.Fatalf("DefaultEngine() error = %v, want nil", err)
 	}
-	payload, err := engine.ParsePath(repoRoot, lockfile, false, Options{})
+	payload, err := engine.ParsePath(repoRoot, lockfile, false, parser.Options{})
 	if err != nil {
 		t.Fatalf("ParsePath(Cargo.lock) error = %v, want nil", err)
 	}
@@ -233,11 +234,11 @@ func TestDefaultEngineParsePathCargoRejectsMalformedDependencyFiles(t *testing.T
 
 			path := filepath.Join(repoRoot, tt.name, tt.file)
 			writeTestFile(t, path, tt.body)
-			engine, engineErr := DefaultEngine()
+			engine, engineErr := parser.DefaultEngine()
 			if engineErr != nil {
 				t.Fatalf("DefaultEngine() error = %v, want nil", engineErr)
 			}
-			_, err := engine.ParsePath(repoRoot, path, false, Options{})
+			_, err := engine.ParsePath(repoRoot, path, false, parser.Options{})
 			if err == nil {
 				t.Fatalf("ParsePath(%s) error = nil, want malformed Cargo dependency file error", tt.file)
 			}

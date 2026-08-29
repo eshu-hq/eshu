@@ -8,18 +8,34 @@
 4. helpers.go - tree-sitter and syntax helper functions
 5. lifetimes.go - AST-node lifetime collection (parameters, signature, return)
 6. metadata.go - attribute, import, module, and generic metadata helpers
+7. engine_rust_lifetimes_test.go, engine_rust_module_resolution_test.go,
+   rust_route_entries_test.go, rust_cargo_dependency_test.go - external
+   `rust_test` regressions that drive Rust source and exact-name Cargo inputs
+   through the parent engine
+8. engine_rust_assertions_test.go - the `rust_test` fixture writer and the two
+   strict field assertions those regressions need
 
 ## Invariants This Package Enforces
 
 - Dependency direction stays one way: parent parser code may import this
-  package, but this package must not import internal/parser.
+  package, but package `rust` must not import internal/parser. The external
+  `rust_test` package in this directory may, and only to exercise the public
+  `parser.DefaultEngine` / `parser.Options` boundary.
 - The caller owns tree-sitter parser construction and closing.
 - Parse and PreScan must preserve the parent engine payload shape.
 
 ## Common Changes And Scope
 
-- Add Rust parser behavior by starting with focused parser tests in the parent
-  parser package or this package.
+- Add Rust parser behavior by starting with focused tests in this package: the
+  in-package `rust` tests for payload helpers, or the external `rust_test` tests
+  when the behavior must be proven through the parent engine. Do not add new
+  standalone Rust regressions to the parent parser directory. The Rust cases
+  retained there belong to the shared engine suite (`engine_systems_test.go`)
+  and cross-language complexity suite (`engine_cyclomatic_complexity_test.go`).
+- Keep `rust_test` helpers strict. Reuse `internal/parser/parsertest` for
+  fixtures and bucket assertions, and add a local helper only for an assertion
+  parsertest does not already make. Keep Cargo row and dependency-chain helpers
+  with `rust_cargo_dependency_test.go`; they assert Rust-owned payload fields.
 - Keep registry dispatch and runtime parser lookup in the parent parser package.
 - Keep shared cross-language primitives in internal/parser/shared.
 - Preserve current limits in README.md when adding coverage. Brace imports,
@@ -52,7 +68,9 @@
 
 ## Anti-Patterns
 
-- Importing the parent parser package.
+- Importing the parent parser package from production `rust` code or
+  same-package tests. The external `rust_test` exception above is limited to
+  black-box coverage of the public Engine boundary.
 - Moving registry or engine dispatch into this package.
 - Changing payload keys without updating downstream parser tests.
 

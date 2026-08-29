@@ -48,6 +48,22 @@ engine. It owns Rust syntax walking and payload assembly, while the parent
 package keeps registry dispatch, runtime parser construction, and compatibility
 method signatures.
 
+Rust test ownership sits here too. The in-package `rust` tests cover `Parse`,
+`PreScan`, and the helpers directly. The black-box tests that drive Rust source
+through the parent engine live in this directory in the external `rust_test`
+package: `engine_rust_lifetimes_test.go`, `engine_rust_module_resolution_test.go`,
+`rust_route_entries_test.go`, and `rust_cargo_dependency_test.go`. They call
+`parser.DefaultEngine` and `parser.Options`; shared parser assertions live in
+`internal/parser/parsertest`, while the Cargo suite keeps its row and dependency
+chain assertions beside the Rust tests that use them.
+
+The parent parser directory still holds `TestDefaultEngineParsePathRust`,
+`TestDefaultEngineParsePathRustImplOwnership`, and
+`TestDefaultEngineParsePathRustImplBlocks` in `engine_systems_test.go`, plus the
+Rust cases in `engine_cyclomatic_complexity_test.go`. Those remain at the root
+because they belong to shared and cross-language suites; new standalone Rust
+regressions belong here.
+
 ## Exported Surface
 
 The package exposes `Parse` for full payload extraction, `PreScan` for
