@@ -54,7 +54,7 @@ has() { rg -qF -- "$2" "$1"; }
 # line before the next 2-space job key.
 job_block() { awk -v j="  $2:" '$0==j{f=1;print;next} f&&/^  [A-Za-z]/{exit} f{print}' "$1"; }
 # job_gated <file> <job> — true if the job carries a `needs: changes` code gate.
-job_gated()    { job_block "$1" "$2" | rg -qF 'needs: changes'; }
+job_gated()    { job_block "$1" "$2" | rg -F 'needs: changes' >/dev/null; }
 job_alwayson() { ! job_gated "$1" "$2"; }
 
 # step_block and run_merge_group_checks (the merge_group / #5814 assertion
@@ -294,7 +294,7 @@ fi
 
 # --- security-scan.yml: keep the secret scan on, gate the Go scanners. ---
 s="${wf}/security-scan.yml"
-if has "${s}" 'dorny/paths-filter' && job_block "${s}" changes | rg -qF 'code: ${{ steps.filter.outputs.code }}'; then
+if has "${s}" 'dorny/paths-filter' && job_block "${s}" changes | rg -F 'code: ${{ steps.filter.outputs.code }}' >/dev/null; then
 	ok "security-scan.yml has a changes job exporting the code filter"
 else
 	bad "security-scan.yml has a changes job exporting code"
@@ -311,7 +311,7 @@ done
 
 # --- mcp-schema-drift.yml: keep the docs guard on, gate the Go drift jobs. ---
 m="${wf}/mcp-schema-drift.yml"
-if has "${m}" 'dorny/paths-filter' && job_block "${m}" changes | rg -qF 'code: ${{ steps.filter.outputs.code }}'; then
+if has "${m}" 'dorny/paths-filter' && job_block "${m}" changes | rg -F 'code: ${{ steps.filter.outputs.code }}' >/dev/null; then
 	ok "mcp-schema-drift.yml has a changes job exporting the code filter"
 else
 	bad "mcp-schema-drift.yml has a changes job exporting code"
@@ -371,17 +371,17 @@ for umbrella in go-race-complete go-core-complete; do
 	go-core-complete) dep="go-core" ;;
 	esac
 	block="$(job_block "${t}" "${umbrella}")"
-	if rg -qF "needs: [changes, ${dep}]" <<<"${block}"; then
+	if rg -F "needs: [changes, ${dep}]" < <(printf '%s\n' "${block}") >/dev/null; then
 		ok "${umbrella} depends on both changes and ${dep}"
 	else
 		bad "${umbrella} must declare needs: [changes, ${dep}]"
 	fi
-	if rg -qF 'if: ${{ always() }}' <<<"${block}"; then
+	if rg -F 'if: ${{ always() }}' < <(printf '%s\n' "${block}") >/dev/null; then
 		ok "${umbrella} always reports (if: \${{ always() }})"
 	else
 		bad "${umbrella} must carry if: \${{ always() }} so it always reports"
 	fi
-	if rg -qF '!= "skipped"' <<<"${block}"; then
+	if rg -F '!= "skipped"' < <(printf '%s\n' "${block}") >/dev/null; then
 		ok "${umbrella} accepts a skipped ${dep} as pass (required-check-safe)"
 	else
 		bad "${umbrella} treats result==skipped as pass"
@@ -396,8 +396,8 @@ for umbrella in go-race-complete go-core-complete; do
 	# A bare `exit 1` search over the whole job block is no good either: the
 	# SECOND guard (the lane-result check) carries its own `exit 1` and would
 	# satisfy it. So slice out just this guard's body and look inside it.
-	guard_body="$(awk '/"\$\{changes_result\}" != "success"/{f=1} f{print} f&&/^[[:space:]]*fi[[:space:]]*$/{exit}' <<<"${block}")"
-	if [[ -n "${guard_body}" ]] && rg -q '^\s*exit [1-9]' <<<"${guard_body}"; then
+	guard_body="$(awk '/"\$\{changes_result\}" != "success"/{f=1} f{print} f&&/^[[:space:]]*fi[[:space:]]*$/{exit}' < <(printf '%s\n' "${block}"))"
+	if [[ -n "${guard_body}" ]] && rg '^\s*exit [1-9]' < <(printf '%s\n' "${guard_body}") >/dev/null; then
 		ok "${umbrella} fails when the changes gate itself failed (guard exits non-zero)"
 	else
 		bad "${umbrella} changes_result guard must compare != \"success\" AND exit non-zero inside that same if-block"

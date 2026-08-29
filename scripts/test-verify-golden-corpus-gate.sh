@@ -131,7 +131,7 @@ snapshot_fixture_count="$(jq -er '.corpus_composition.git_repos' "${snapshot}")"
 	|| fail "B-12 declares ${snapshot_fixture_count} repos but the fixture inventory stages ${fixture_count}"
 repository_note="$(jq -er '.graph.node_counts.Repository.note' "${snapshot}")" \
 	|| fail "B-12 Repository note must be a string"
-rg --fixed-strings --quiet -- "${fixture_count} corpus repos" <<<"${repository_note}" \
+rg --fixed-strings --quiet -- "${fixture_count} corpus repos" < <(printf '%s\n' "${repository_note}") \
 	|| fail "B-12 Repository note must name the ${fixture_count}-repo fixture inventory"
 
 suppression_lib="${repo_root}/scripts/lib/golden-corpus-vulnerability-suppression.sh"
@@ -145,7 +145,7 @@ pg() {
 # shellcheck source=scripts/lib/golden-corpus-vulnerability-suppression.sh
 . "${suppression_lib}"
 golden_suppression_counts >/dev/null
-rg --fixed-strings --quiet -- "stage='projector'" <<<"${captured_suppression_count_query}" \
+rg --fixed-strings --quiet -- "stage='projector'" < <(printf '%s\n' "${captured_suppression_count_query}") \
 	|| fail "suppression mutation count must isolate projector work from reducer fanout"
 rg --fixed-strings --quiet -- "golden_suppression_verify_producer_truth()" "${suppression_lib}" \
 	|| fail "suppression proof must keep its orchestration in the sourced helper"

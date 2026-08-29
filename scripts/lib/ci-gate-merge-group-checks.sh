@@ -64,7 +64,7 @@ step_block() {
 		END {
 			if (!found && hit) { printf "%s", cur }
 		}
-	' <<<"${block}"
+	' < <(printf '%s\n' "${block}")
 }
 
 # run_merge_group_checks <test.yml path> — the four merge_group assertions.
@@ -73,14 +73,14 @@ run_merge_group_checks() {
 	local t="$1" on_block changes_block merge_group_code_step
 
 	on_block="$(awk '/^on:$/{f=1;print;next} f&&/^[A-Za-z]/{exit} f{print}' "${t}")"
-	if rg -qF 'merge_group:' <<<"${on_block}"; then
+	if rg -F 'merge_group:' < <(printf '%s\n' "${on_block}") >/dev/null; then
 		ok "test.yml on: block listens for merge_group"
 	else
 		bad "test.yml on: block must add a merge_group trigger (required checks never report on a merge-queue entry otherwise)"
 	fi
 
 	changes_block="$(job_block "${t}" changes)"
-	if rg -qF "if: \${{ github.event_name != 'merge_group' }}" <<<"${changes_block}"; then
+	if rg -F "if: \${{ github.event_name != 'merge_group' }}" < <(printf '%s\n' "${changes_block}") >/dev/null; then
 		ok "test.yml changes job skips the paths-filter diff on merge_group"
 	else
 		bad "test.yml changes job's Filter changed paths step must guard if: \${{ github.event_name != 'merge_group' }} (do not depend on paths-filter's unproven merge_group behavior)"
@@ -91,13 +91,13 @@ run_merge_group_checks() {
 	# step elsewhere in the job happened to contain the literal text "code=true".
 	merge_group_code_step="$(step_block "${changes_block}" merge_group_code)"
 	if [[ -n "${merge_group_code_step}" ]] \
-		&& rg -qF "if: \${{ github.event_name == 'merge_group' }}" <<<"${merge_group_code_step}" \
-		&& rg -qF 'code=true' <<<"${merge_group_code_step}"; then
+		&& rg -F "if: \${{ github.event_name == 'merge_group' }}" < <(printf '%s\n' "${merge_group_code_step}") >/dev/null \
+		&& rg -F 'code=true' < <(printf '%s\n' "${merge_group_code_step}") >/dev/null; then
 		ok "test.yml changes job forces code=true on merge_group instead of depending on paths-filter"
 	else
 		bad "test.yml changes job must have a single step (id: merge_group_code) that sets code=true directly when github.event_name == 'merge_group'"
 	fi
-	if rg -qF 'steps.filter.outputs.code || steps.merge_group_code.outputs.code' <<<"${changes_block}"; then
+	if rg -F 'steps.filter.outputs.code || steps.merge_group_code.outputs.code' < <(printf '%s\n' "${changes_block}") >/dev/null; then
 		ok "test.yml changes job output falls back to the merge_group step when the filter step is skipped"
 	else
 		bad "test.yml changes job outputs.code must fall back to the merge_group step's output (steps.filter.outputs.code || steps.merge_group_code.outputs.code)"

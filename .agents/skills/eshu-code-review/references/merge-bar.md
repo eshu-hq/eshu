@@ -39,8 +39,16 @@ merge.
 **Apply both criteria before considering deferral, and record the result.**
 Deferral is only available once the finding has failed criterion 1 and
 criterion 2, so an agent that reaches the owner-agreement paragraph without
-having tested them is asking about a branch that may not be open. State which
-criterion the finding failed and why; "it is a P2" is not that statement.
+having tested them is asking about a branch that may not be open. State, for
+each criterion, whether the finding failed it and why; naming one criterion
+leaves the gate half-tested, and "it is a P2" tests neither.
+
+One exception, and only one: the fix-induced convergence rule below. A P2 that
+a review fix introduced may be deferred even when criterion 2 would hold it,
+because that rule exists to terminate a loop this gate would otherwise make
+endless — each fix widens the surface, the next pass finds another cheap
+same-file P2, and criterion 2 blocks it forever. Convergence beats the gate
+there by design. Everywhere else the gate stands.
 
 This ordering is load-bearing because the failure it prevents has happened. A
 review of the #6108 work found that the PR's new "scope honesty" section framed
@@ -83,13 +91,15 @@ Two rules keep the judgement that DOES stay with the agent auditable:
 
 ## Findings introduced by review fixes
 
-Count these separately and say so in the verdict. A fix-induced P2 is evidence
-the fix widened scope, and it is the signal to stop fixing inline and defer,
-not to start another round; prefer reverting the widening fix over leaving it
-together with the finding it induced. Two consecutive rounds whose only new
-findings are fix-induced **P2s** means the diff is converged: land it and track
-the remainder. A fix-induced P0 or P1 is never covered by this — those stay
-absolute.
+Count these separately and say so in the verdict. This section is the single
+exception to the deferral gate above: a fix-induced P2 may be deferred without
+failing criterion 2, because the alternative is a loop with no terminator. A
+fix-induced P2 is evidence the fix widened scope, and it is the signal to stop
+fixing inline and defer, not to start another round; prefer reverting the
+widening fix over leaving it together with the finding it induced. Two
+consecutive rounds whose only new findings are fix-induced **P2s** means the
+diff is converged: land it and track the remainder. A fix-induced P0 or P1 is
+never covered by this — those stay absolute.
 
 ## Sweeping rule text
 

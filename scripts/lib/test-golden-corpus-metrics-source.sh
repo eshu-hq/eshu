@@ -47,7 +47,7 @@ jq -e '
     enabled: true
   }]
 ' <<<"${ESHU_COLLECTOR_INSTANCES_JSON}" >/dev/null || fail "collector JSON does not pin the credential-free source"
-rg -q 'token|credential|authorization' <<<"${ESHU_COLLECTOR_INSTANCES_JSON}" && fail "collector JSON contains a credential field"
+rg -q 'token|credential|authorization' < <(printf '%s\n' "${ESHU_COLLECTOR_INSTANCES_JSON}") && fail "collector JSON contains a credential field"
 
 if (
 	die() { exit 73; }

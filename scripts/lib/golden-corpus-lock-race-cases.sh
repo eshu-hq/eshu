@@ -129,7 +129,7 @@ ln -s "${window_dead}:/dead-worktree" "${lock_file}"
 mkdir -p "${lock_file}.reclaim"
 guard_debris_out="$(try_acquire)" \
 	|| fail "a non-symlink guard must self-heal, not wedge: ${guard_debris_out}"
-rg --quiet 'ACQUIRED=' <<<"${guard_debris_out}" \
+rg --quiet 'ACQUIRED=' < <(printf '%s\n' "${guard_debris_out}") \
 	|| fail "guard-debris reclaim must end holding the lock; got: ${guard_debris_out}"
 
 # ...but a guard held by a LIVE reclaimer must still be respected.
@@ -225,7 +225,7 @@ require_lock "destroy stays observable to the rm shim" 'rm -rf "${candidate}"'
 # CONTAINS the pinned string, so the pin above cannot see that substitution, and
 # a rename would evade the shim entirely. Neither has any legitimate use here.
 for destroy_bypass in 'command rm' 'mv '; do
-	if rg -v '^[[:space:]]*#' "${lock_lib}" | rg --fixed-strings --quiet -- "${destroy_bypass}"; then
+	if rg -v '^[[:space:]]*#' "${lock_lib}" | rg --fixed-strings -- "${destroy_bypass}" >/dev/null; then
 		fail "live-gate-lock.sh uses '${destroy_bypass}': it bypasses the rm shim the free-name probe depends on"
 	fi
 done

@@ -334,17 +334,17 @@ case11_workflow_gate="$(
 component_extension_self_test='bash scripts/test-verify-remote-e2e-component-extension.sh'
 component_extension_fixture_trigger='tests/fixtures/component_extension_proof/**'
 if printf '%s\n' "${case11_registry_gate}" |
-	rg -q --fixed-strings "${component_extension_self_test}" &&
+	rg --fixed-strings "${component_extension_self_test}" >/dev/null &&
 	printf '%s\n' "${case11_workflow_gate}" |
-		rg -q --fixed-strings "${component_extension_self_test}"; then
+		rg --fixed-strings "${component_extension_self_test}" >/dev/null; then
 	record_pass "component-extension hostile verifier runs locally and in CI"
 else
 	record_fail "component-extension hostile verifier runs locally and in CI"
 fi
 if printf '%s\n' "${case11_registry_gate}" |
-	rg -q --fixed-strings "      - \"${component_extension_fixture_trigger}\"" &&
+	rg --fixed-strings "      - \"${component_extension_fixture_trigger}\"" >/dev/null &&
 	printf '%s\n' "${case11_workflow_filter}" |
-		rg -q --fixed-strings "              - '${component_extension_fixture_trigger}'"; then
+		rg --fixed-strings "              - '${component_extension_fixture_trigger}'" >/dev/null; then
 	record_pass "component-extension proof fixtures trigger the static contract gate"
 else
 	record_fail "component-extension proof fixtures trigger the static contract gate"
@@ -352,9 +352,9 @@ fi
 while IFS='|' read -r trigger representative; do
 	[[ -n "${trigger}" ]] || continue
 	if ! printf '%s\n' "${case11_registry_gate}" |
-		rg -q --fixed-strings "      - \"${trigger}\"" ||
+		rg --fixed-strings "      - \"${trigger}\"" >/dev/null ||
 		! printf '%s\n' "${case11_workflow_filter}" |
-			rg -q --fixed-strings "              - '${trigger}'"; then
+			rg --fixed-strings "              - '${trigger}'" >/dev/null; then
 		record_fail "allowed evidence source has CI path coverage (${trigger})"
 		continue
 	fi
@@ -364,9 +364,9 @@ while IFS='|' read -r trigger representative; do
 				--registry "${case11_registry}" --tier pre-pr --paths-from - --explain)
 	)"
 	if printf '%s\n' "${selection}" |
-		rg -q '^SELECTED[[:space:]]+remote-validation-artifacts[[:space:]]' &&
+		rg '^SELECTED[[:space:]]+remote-validation-artifacts[[:space:]]' >/dev/null &&
 		printf '%s\n' "${selection}" |
-			rg -q --fixed-strings "matched trigger \"${trigger}\" on path \"${representative}\""; then
+			rg --fixed-strings "matched trigger \"${trigger}\" on path \"${representative}\"" >/dev/null; then
 		record_pass "allowed evidence source has CI path coverage (${trigger})"
 	else
 		record_fail "allowed evidence source selects remote-validation-artifacts (${representative})"
@@ -389,9 +389,9 @@ component_extension_selection="$(
 			--registry "${case11_registry}" --tier pre-pr --paths-from - --explain)
 )"
 if printf '%s\n' "${component_extension_selection}" |
-	rg -q '^SELECTED[[:space:]]+remote-validation-artifacts[[:space:]]' &&
+	rg '^SELECTED[[:space:]]+remote-validation-artifacts[[:space:]]' >/dev/null &&
 	printf '%s\n' "${component_extension_selection}" |
-		rg -q --fixed-strings "matched trigger \"${component_extension_fixture_trigger}\" on path \"${component_extension_fixture}\""; then
+		rg --fixed-strings "matched trigger \"${component_extension_fixture_trigger}\" on path \"${component_extension_fixture}\"" >/dev/null; then
 	record_pass "component-extension proof fixture selects remote-validation-artifacts"
 else
 	record_fail "component-extension proof fixture selects remote-validation-artifacts"

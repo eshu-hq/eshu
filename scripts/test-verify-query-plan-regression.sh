@@ -80,7 +80,7 @@ for required_trigger in \
 	"scripts/verify-query-plan-regression.sh" \
 	"scripts/verify-query-plan-profile.sh" \
 	"scripts/test-verify-query-plan-regression.sh"; do
-	if ! printf '%s\n' "$gate_triggers" | rg --quiet --fixed-strings "\"${required_trigger}\""; then
+	if ! printf '%s\n' "$gate_triggers" | rg --fixed-strings "\"${required_trigger}\"" >/dev/null ; then
 		printf 'test-verify-query-plan-regression: %s is not in the query-plan-regression triggers in specs/ci-gates.v1.yaml, so a change to it alone would not re-run this gate in CI\n' \
 			"$required_trigger" >&2
 		exit 1

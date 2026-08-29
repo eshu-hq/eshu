@@ -326,8 +326,10 @@ current turn, stop and ask — do not self-approve and proceed.
    otherwise ready for its intended push, run `make pre-pr` exactly once. Do
    not spend its CPU cost as an early discovery loop. Then run a final full
    `eshu-code-review` against the exact post-preflight diff. If preflight changes
-   generated or tracked files, or the final review finds anything, fix the
-   issue, rerun affected focused proof, and repeat from the preliminary review.
+   generated or tracked files, or the final review finds a P0, P1, or blocking
+   P2, fix the issue, rerun affected focused proof, and repeat from the
+   preliminary review. A deferred P2 is already tracked and a P3 is cosmetic;
+   neither restarts this loop.
    If `make pre-pr` fails, do not immediately rerun it. Fix the failure, rerun
    affected focused proof, repeat the preliminary full review to
    `P0=0, P1=0, P2-blocking=0`, and only then begin a new promotion attempt.
@@ -419,7 +421,7 @@ it to the epic's follow-ups list at creation time.
   cannot ride along and the owner agreed. If this was self-review mode, the
   verdict explicitly says so and lists the inspected evidence.
 - The promotion record names the preliminary review phase, reviewed head, and
-  P0/P1/P2-blocking/P2-deferred counts; the exact `make pre-pr` command and
+  P0/P1/P2-blocking/P2-deferred/P3 counts; the exact `make pre-pr` command and
   result; the post-preflight head and clean-status result; and the final review
   phase and the same counts. The recorded order must show a preliminary review
   with no blocking finding before preflight, and the same afterward.
