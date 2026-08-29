@@ -2,7 +2,7 @@ apiVersion: v2
 name: eshu
 description: Eshu API and repository ingester workloads with MCP, indexing, and repo sync.
 type: application
-version: 0.0.3-pre-release-20
+version: 0.0.3-pre-release-21
 appVersion: "v0.0.3-pre-release-18"
 # Helm 3.3.2+ disallows extra top-level Chart.yaml fields; the official
 # extension point is `annotations:`. Artifact Hub reads the chart license
