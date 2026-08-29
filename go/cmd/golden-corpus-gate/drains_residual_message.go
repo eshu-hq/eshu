@@ -31,7 +31,17 @@ const (
 	// residualMessageMaxLen is the printed budget for one group's message, in
 	// runes. Long enough for the leading frames of a Go error chain, which is
 	// where the cause is ("reduce intent: graph write: ..."); short enough that
-	// the full set stays under a kilobyte and cannot bury the counts beside it.
+	// the full set cannot bury the counts beside it.
+	//
+	// On the printed size: 4 groups x 200 runes is under a kilobyte for the
+	// ASCII error text this sees in practice, but runes are not bytes. %q
+	// escapes a non-printable non-ASCII rune into a 6-character \uXXXX
+	// sequence -- including U+0085, U+2000-U+200A, U+2028, U+2029 and U+3000,
+	// exactly the ones residualWhitespace deliberately preserves -- and
+	// multi-byte printable text costs 3-4 bytes per rune. A worst case is
+	// therefore nearer 5 KB than 1 KB. That is still bounded and still fine for
+	// a CI log, and the drain verdict does not depend on it; the bound that
+	// matters is the rune budget, not a byte figure.
 	residualMessageMaxLen = 200
 
 	// maxResidualMessageGroups bounds how many groups get a message at all.
