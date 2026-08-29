@@ -21,9 +21,10 @@
 #   - CLAUDE_GOAL_OFF=1                          -> stop allowed
 #   - budget spent for this prompt_id            -> stop allowed
 #
-# Tests: scripts/test-goal-continue-hook.sh (19 cases). Run it after any edit
-# here -- a hook that can refuse to end a session is worth a regression suite.
-# The agent-canon gate runs it in CI.
+# Tests: scripts/test-goal-continue-hook.sh -- run it after any edit here, and
+# read its own tally rather than trusting a count written down elsewhere. A
+# hook that can refuse to end a session is worth a regression suite, and the
+# agent-canon gate runs this one in CI.
 #
 # The budget is keyed on prompt_id, so it is "at most N continuations per user
 # message", not "N per session". A new user message gets a fresh budget, and a
