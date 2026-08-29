@@ -13,6 +13,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/eshu-hq/eshu/go/internal/coordinator/pagerdutyplanner"
 	"github.com/eshu-hq/eshu/go/internal/scope"
 	"github.com/eshu-hq/eshu/go/internal/webhook"
 	"github.com/eshu-hq/eshu/go/internal/workflow"
@@ -53,7 +54,7 @@ func TestServiceRunActiveModeHandoffsIncidentFreshnessTriggers(t *testing.T) {
 			ExpiredClaimRequeueDelay: 5 * time.Second,
 		},
 		Store:                     store,
-		PagerDutyPlanner:          PagerDutyWorkPlanner{},
+		PagerDutyPlanner:          pagerdutyplanner.WorkPlanner{},
 		JiraPlanner:               JiraWorkPlanner{},
 		IncidentFreshnessTriggers: triggerStore,
 		Clock:                     func() time.Time { return now },
@@ -90,7 +91,7 @@ func TestServiceRunActiveModeMarksStaleIncidentFreshnessTriggerFailed(t *testing
 			ClaimsEnabled:  true,
 		},
 		Store:                     &fakeStore{instances: []workflow.CollectorInstance{testServicePagerDutyInstance(now)}},
-		PagerDutyPlanner:          PagerDutyWorkPlanner{},
+		PagerDutyPlanner:          pagerdutyplanner.WorkPlanner{},
 		IncidentFreshnessTriggers: triggerStore,
 		Clock:                     func() time.Time { return now },
 	}
@@ -103,6 +104,156 @@ func TestServiceRunActiveModeMarksStaleIncidentFreshnessTriggerFailed(t *testing
 	}
 	if got := triggerStore.failedCall("unauthorized_target"); !reflect.DeepEqual(got, []string{"trigger-stale"}) {
 		t.Fatalf("failed unauthorized_target = %#v, want stale trigger ID", got)
+	}
+}
+
+func TestPagerDutyFreshnessHandoffForwardsExactRequestAndSkipsEmptyAdmission(t *testing.T) {
+	t.Parallel()
+
+	now := time.Date(2026, time.May, 31, 18, 37, 0, 0, time.UTC)
+	instance := testServicePagerDutyInstance(now)
+	triggers := []webhook.StoredIncidentFreshnessTrigger{
+		incidentFreshnessStoredTrigger("trigger-zeta", webhook.ProviderPagerDuty, " pagerduty:service:zeta ", now),
+		incidentFreshnessStoredTrigger("trigger-alpha", webhook.ProviderPagerDuty, "pagerduty:service:alpha", now),
+		incidentFreshnessStoredTrigger("trigger-blank", webhook.ProviderPagerDuty, " \t ", now),
+		incidentFreshnessStoredTrigger("trigger-zeta-duplicate", webhook.ProviderPagerDuty, "pagerduty:service:zeta", now),
+	}
+	planner := &fakePagerDutyPlanner{run: workflow.Run{
+		RunID:              "pagerduty-empty-freshness",
+		TriggerKind:        workflow.TriggerKindWebhook,
+		Status:             workflow.RunStatusCollectionPending,
+		RequestedScopeSet:  "{}",
+		RequestedCollector: string(scope.CollectorPagerDuty),
+		CreatedAt:          now,
+		UpdatedAt:          now,
+	}}
+	store := &pagerDutyAdmissionSpyStore{fakeStore: &fakeStore{instances: []workflow.CollectorInstance{instance}}}
+	triggerStore := &fakeIncidentFreshnessTriggerStore{}
+	service := Service{
+		Config:                    Config{ReconcileInterval: time.Hour},
+		Store:                     store,
+		PagerDutyPlanner:          planner,
+		IncidentFreshnessTriggers: triggerStore,
+	}
+	assignment := incidentFreshnessAssignment{instance: instance, triggers: triggers}
+
+	if err := service.handoffPagerDutyFreshnessAssignment(context.Background(), now, assignment); err != nil {
+		t.Fatalf("handoffPagerDutyFreshnessAssignment() error = %v, want nil", err)
+	}
+	wantRequest := pagerdutyplanner.PlanRequest{
+		Instance:    instance,
+		ObservedAt:  now,
+		PlanKey:     "freshness-20260531T180000Z",
+		TriggerKind: workflow.TriggerKindWebhook,
+		ScopeIDs:    []string{"pagerduty:service:alpha", "pagerduty:service:zeta"},
+	}
+	if !reflect.DeepEqual(planner.requests, []pagerdutyplanner.PlanRequest{wantRequest}) {
+		t.Fatalf("planner requests = %#v, want %#v", planner.requests, []pagerdutyplanner.PlanRequest{wantRequest})
+	}
+	if got := store.admissionCalls; got != 0 {
+		t.Fatalf("Store admission calls = %d, want 0", got)
+	}
+	wantHandedOff := []string{"trigger-alpha", "trigger-blank", "trigger-zeta", "trigger-zeta-duplicate"}
+	if !reflect.DeepEqual(triggerStore.handedOff, wantHandedOff) {
+		t.Fatalf("handedOff = %#v, want %#v", triggerStore.handedOff, wantHandedOff)
+	}
+}
+
+func TestPagerDutyFreshnessHandoffClassifiesPlanningFailure(t *testing.T) {
+	t.Parallel()
+
+	now := time.Date(2026, time.May, 31, 18, 37, 0, 0, time.UTC)
+	trigger := incidentFreshnessStoredTrigger(
+		"trigger-plan-failure",
+		webhook.ProviderPagerDuty,
+		"pagerduty:account:example",
+		now,
+	)
+	triggerStore := &fakeIncidentFreshnessTriggerStore{}
+	service := Service{
+		Config:                    Config{ReconcileInterval: time.Hour},
+		Store:                     &fakeStore{},
+		PagerDutyPlanner:          &fakePagerDutyPlanner{err: errors.New("planner unavailable")},
+		IncidentFreshnessTriggers: triggerStore,
+	}
+	assignment := incidentFreshnessAssignment{
+		instance: testServicePagerDutyInstance(now),
+		triggers: []webhook.StoredIncidentFreshnessTrigger{trigger},
+	}
+
+	err := service.handoffPagerDutyFreshnessAssignment(context.Background(), now, assignment)
+	if err == nil || !strings.Contains(err.Error(), "planner unavailable") {
+		t.Fatalf("handoffPagerDutyFreshnessAssignment() error = %v, want planner failure", err)
+	}
+	if got, want := triggerStore.failedCall("plan_failed"), []string{"trigger-plan-failure"}; !reflect.DeepEqual(got, want) {
+		t.Fatalf("plan_failed triggers = %#v, want %#v", got, want)
+	}
+	if got := triggerStore.failedCall("workflow_handoff_failed"); len(got) != 0 {
+		t.Fatalf("workflow_handoff_failed triggers = %#v, want none", got)
+	}
+	if len(triggerStore.handedOff) != 0 {
+		t.Fatalf("handedOff = %#v, want none", triggerStore.handedOff)
+	}
+}
+
+func TestPagerDutyFreshnessHandoffClassifiesWorkflowAdmissionFailure(t *testing.T) {
+	t.Parallel()
+
+	now := time.Date(2026, time.May, 31, 18, 37, 0, 0, time.UTC)
+	instance := testServicePagerDutyInstance(now)
+	trigger := incidentFreshnessStoredTrigger(
+		"trigger-workflow-failure",
+		webhook.ProviderPagerDuty,
+		"pagerduty:account:example",
+		now,
+	)
+	run := workflow.Run{
+		RunID:              "pagerduty-freshness-run",
+		TriggerKind:        workflow.TriggerKindWebhook,
+		Status:             workflow.RunStatusCollectionPending,
+		RequestedScopeSet:  "{}",
+		RequestedCollector: string(scope.CollectorPagerDuty),
+		CreatedAt:          now,
+		UpdatedAt:          now,
+	}
+	item := workflow.WorkItem{
+		WorkItemID:          "pagerduty-freshness-item",
+		RunID:               run.RunID,
+		CollectorKind:       scope.CollectorPagerDuty,
+		CollectorInstanceID: instance.InstanceID,
+		SourceSystem:        string(scope.CollectorPagerDuty),
+		ScopeID:             "pagerduty:account:example",
+		AcceptanceUnitID:    "pagerduty:account:example",
+		SourceRunID:         "pagerduty:freshness-generation",
+		GenerationID:        "pagerduty:freshness-generation",
+		FairnessKey:         "pagerduty:pagerduty-primary:pagerduty",
+		Status:              workflow.WorkItemStatusPending,
+		CreatedAt:           now,
+		UpdatedAt:           now,
+	}
+	triggerStore := &fakeIncidentFreshnessTriggerStore{}
+	service := Service{
+		Config: Config{ReconcileInterval: time.Hour},
+		Store: &fakeStore{
+			createRunErr: errors.New("admission unavailable"),
+		},
+		PagerDutyPlanner:          &fakePagerDutyPlanner{run: run, items: []workflow.WorkItem{item}},
+		IncidentFreshnessTriggers: triggerStore,
+	}
+	assignment := incidentFreshnessAssignment{instance: instance, triggers: []webhook.StoredIncidentFreshnessTrigger{trigger}}
+
+	err := service.handoffPagerDutyFreshnessAssignment(context.Background(), now, assignment)
+	if err == nil || !strings.Contains(err.Error(), "admission unavailable") {
+		t.Fatalf("handoffPagerDutyFreshnessAssignment() error = %v, want admission failure", err)
+	}
+	if got, want := triggerStore.failedCall("workflow_handoff_failed"), []string{"trigger-workflow-failure"}; !reflect.DeepEqual(got, want) {
+		t.Fatalf("workflow_handoff_failed triggers = %#v, want %#v", got, want)
+	}
+	if got := triggerStore.failedCall("plan_failed"); len(got) != 0 {
+		t.Fatalf("plan_failed triggers = %#v, want none", got)
+	}
+	if len(triggerStore.handedOff) != 0 {
+		t.Fatalf("handedOff = %#v, want none", triggerStore.handedOff)
 	}
 }
 

@@ -22,6 +22,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/coordinator/cicdrun"
 	"github.com/eshu-hq/eshu/go/internal/coordinator/grafanaplanner"
 	"github.com/eshu-hq/eshu/go/internal/coordinator/lokiplanner"
+	"github.com/eshu-hq/eshu/go/internal/coordinator/pagerdutyplanner"
 	"github.com/eshu-hq/eshu/go/internal/coordinator/prometheusmimir"
 	"github.com/eshu-hq/eshu/go/internal/coordinator/sbomattestation"
 	"github.com/eshu-hq/eshu/go/internal/coordinator/scannerworker"
@@ -183,7 +184,7 @@ func run(parent context.Context) error {
 		ScannerWorkerPlanner:              scannerworker.WorkPlanner{},
 		SecurityAlertPlanner:              securityalert.WorkPlanner{},
 		CICDRunPlanner:                    cicdrun.WorkPlanner{},
-		PagerDutyPlanner:                  coordinator.PagerDutyWorkPlanner{},
+		PagerDutyPlanner:                  pagerdutyplanner.WorkPlanner{},
 		JiraPlanner:                       coordinator.JiraWorkPlanner{},
 		PrometheusMimirPlanner:            prometheusmimir.WorkPlanner{},
 		TempoPlanner:                      tempoplanner.WorkPlanner{},

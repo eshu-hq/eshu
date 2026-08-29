@@ -256,7 +256,14 @@ order, deterministic IDs, requested-scope privacy, trigger precedence, and the
 target-instance-to-scope fairness fallback. Root keeps scheduling order, its
 plan-key clock, collector-egress filtering, tenant-grant authorization,
 empty-item admission skips, durable admission, retries, queue and lease
-behavior, and telemetry. These moves do not
+behavior, and telemetry. The PagerDuty scheduler is the tenth extraction under
+`internal/coordinator/pagerdutyplanner`; the child owns all five request fields,
+all-target validation before scope filtering, webhook-scope membership,
+configured order, deterministic IDs, privacy, schedule/bootstrap/webhook
+resolution and precedence, and provider-partitioned fairness identity. Root
+keeps scheduling, clock, policy filtering,
+empty-item skips, durable admission, freshness-trigger transitions, retries,
+queue and lease behavior, and telemetry. These moves do not
 change scheduler order, configured target order, IDs, fairness keys, workflow
 wire values, concurrency, or observability.
 Terraform-state keeps its separate plan-key validator, and the root

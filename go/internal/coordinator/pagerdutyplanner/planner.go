@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package coordinator
+package pagerdutyplanner
 
 import (
 	"context"
@@ -17,8 +17,10 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/workflow"
 )
 
-// PagerDutyPlanRequest carries one PagerDuty incident evidence planning request.
-type PagerDutyPlanRequest struct {
+// PlanRequest carries one PagerDuty incident-evidence planning request. The
+// coordinator supplies the collector instance, observation time, deterministic
+// plan key, and optional trigger and scope overrides for freshness wake-ups.
+type PlanRequest struct {
 	Instance    workflow.CollectorInstance
 	ObservedAt  time.Time
 	PlanKey     string
@@ -26,9 +28,9 @@ type PagerDutyPlanRequest struct {
 	ScopeIDs    []string
 }
 
-// PagerDutyWorkPlanner plans workflow rows for configured PagerDuty targets
-// without resolving credentials or contacting PagerDuty.
-type PagerDutyWorkPlanner struct{}
+// WorkPlanner plans workflow rows for configured PagerDuty targets without
+// resolving credentials or contacting PagerDuty.
+type WorkPlanner struct{}
 
 type pagerDutyRuntimeConfiguration struct {
 	Targets []pagerDutyTargetConfiguration `json:"targets"`
@@ -40,11 +42,11 @@ type pagerDutyTargetConfiguration struct {
 	AccountID string `json:"account_id"`
 }
 
-// PlanPagerDutyWork returns one run and one work item per configured PagerDuty
-// target.
-func (p PagerDutyWorkPlanner) PlanPagerDutyWork(
+// PlanPagerDutyWork returns one run and one work item per selected configured
+// PagerDuty target.
+func (p WorkPlanner) PlanPagerDutyWork(
 	_ context.Context,
-	request PagerDutyPlanRequest,
+	request PlanRequest,
 ) (workflow.Run, []workflow.WorkItem, error) {
 	if err := validatePagerDutyPlanRequest(request); err != nil {
 		return workflow.Run{}, nil, err
@@ -79,7 +81,7 @@ func (p PagerDutyWorkPlanner) PlanPagerDutyWork(
 	return run, items, nil
 }
 
-func validatePagerDutyPlanRequest(request PagerDutyPlanRequest) error {
+func validatePagerDutyPlanRequest(request PlanRequest) error {
 	if err := request.Instance.Validate(); err != nil {
 		return fmt.Errorf("pagerduty plan request: %w", err)
 	}
@@ -146,11 +148,31 @@ func pagerDutyRunID(instance workflow.CollectorInstance, planKey string, trigger
 	)
 }
 
-func pagerDutyRequestTriggerKind(request PagerDutyPlanRequest) workflow.TriggerKind {
+func pagerDutyRequestTriggerKind(request PlanRequest) workflow.TriggerKind {
 	if request.TriggerKind != "" {
 		return request.TriggerKind
 	}
 	return pagerDutyTriggerKind(request.Instance)
+}
+
+// HasConfiguredScope reports whether a validated PagerDuty collector
+// configuration contains the requested target scope. Invalid configuration,
+// a blank scope, and an unconfigured scope do not match.
+func HasConfiguredScope(configuration string, scopeID string) bool {
+	targets, err := parsePagerDutyRuntimeTargets(configuration)
+	if err != nil {
+		return false
+	}
+	requestedScopeID := strings.TrimSpace(scopeID)
+	if requestedScopeID == "" {
+		return false
+	}
+	for _, target := range targets {
+		if strings.TrimSpace(target.ScopeID) == requestedScopeID {
+			return true
+		}
+	}
+	return false
 }
 
 func pagerDutyTriggerKind(instance workflow.CollectorInstance) workflow.TriggerKind {

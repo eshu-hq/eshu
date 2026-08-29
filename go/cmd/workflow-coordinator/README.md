@@ -61,9 +61,10 @@ flowchart TB
    Terraform-state, OCI registry, package registry, vulnerability installed
    advisory target readers, the extracted `cicdrun`, `securityalert`,
    `sbomattestation`, `scannerworker`, `grafanaplanner`, `lokiplanner`,
-   `prometheusmimir`, `tempoplanner`, and `vaultlive` planners,
+   `pagerdutyplanner`, `prometheusmimir`, `tempoplanner`, and `vaultlive`
+   planners,
    scheduled AWS, AWS freshness,
-   PagerDuty, and Jira planners, plus freshness trigger stores, and handed to
+   and Jira planners, plus freshness trigger stores, and handed to
    `NewHostedWithStatusServer`, which mounts the admin surface.
 7. `NotifyContext` installs SIGINT/SIGTERM shutdown; `Service.Run` blocks
    until the context is cancelled.
@@ -140,6 +141,8 @@ The direct process contract includes `eshu-workflow-coordinator --version` and
 - `internal/coordinator/cicdrun` — concrete CI/CD run planner wiring
 - `internal/coordinator/grafanaplanner` — concrete scheduler wiring for Grafana
   observability targets
+- `internal/coordinator/pagerdutyplanner` — concrete PagerDuty scheduled and
+  webhook-freshness planner wiring
 - `internal/coordinator/securityalert` — concrete provider security-alert
   planner wiring
 - `internal/coordinator/sbomattestation` — concrete scheduler wiring for hosted
