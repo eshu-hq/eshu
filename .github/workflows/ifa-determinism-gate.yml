@@ -426,6 +426,32 @@ on:
       - 'testdata/cassettes/shellexec/**'
       - 'go/internal/ifa/testdata/inheritance/**'
       - 'go/internal/ifa/testdata/shellexec/**'
+      # kubernetes_namespace_environment / iam_instance_profile_role (#6228),
+      # the first DIRECT-materialization families in these matrices. Mirrors
+      # the paths specs/ci-gates.v1.yaml lists for the ifa-determinism gate
+      # ONLY: the ifa-fault-injection registry has no triggers for either
+      # family, because neither has a fault cell (see that block's "ON THIS
+      # GATE ONLY" comment). The registry-subset-of-workflow check fails if the
+      # two drift, because a gate selected as blocking from a trigger this
+      # filter omits is selected and then never starts.
+      #
+      # This single shared on.pull_request.paths filter still ARMS the
+      # fault-injection job on these paths, since there is no per-job
+      # condition -- that is the CI-level caveat specs/ci-gates.v1.yaml
+      # records, not a per-gate registry trigger.
+      - 'go/internal/ifa/kubernetes_namespace_environment_family_odu.go'
+      - 'go/internal/ifa/iam_instance_profile_role_family_odu.go'
+      - 'go/internal/ifa/direct_family_cassette.go'
+      - 'go/internal/reducer/kubernetes_namespace_materialization.go'
+      - 'go/internal/reducer/iam_instance_profile_role_materialization.go'
+      - 'go/internal/reducer/iam_instance_profile_role_edge_rows.go'
+      - 'go/internal/storage/cypher/kubernetes_namespace_node_writer.go'
+      - 'go/internal/storage/cypher/iam_instance_profile_role_edge_writer.go'
+      - 'testdata/cassettes/kubernetesnamespaceenvironment/**'
+      - 'testdata/cassettes/iaminstanceprofilerole/**'
+      - 'go/internal/ifa/testdata/kubernetesnamespaceenvironment/**'
+      - 'go/internal/ifa/testdata/iaminstanceprofilerole/**'
+      - 'scripts/lib/ifa_direct_family_live.sh'
       # handles_route/runs_in/invokes_cloud_action trio (#5995/#6000/#5997):
       # one shared cassette and Odù (symbolRuntimeFamilyOdu() is registered
       # in catalog_seed.go's catalogSeed, so it is live-binary-consumed, not

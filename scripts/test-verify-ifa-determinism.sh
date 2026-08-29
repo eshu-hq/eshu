@@ -29,6 +29,7 @@ submodule_pin_lib="${repo_root}/scripts/lib/ifa_submodule_pin_live.sh"
 inheritance_lib="${repo_root}/scripts/lib/ifa_inheritance_live.sh"
 shell_exec_lib="${repo_root}/scripts/lib/ifa_shell_exec_live.sh"
 symbol_runtime_lib="${repo_root}/scripts/lib/ifa_symbol_runtime_live.sh"
+direct_family_lib="${repo_root}/scripts/lib/ifa_direct_family_live.sh"
 fixtures_lib="${repo_root}/scripts/lib/ifa_family_fixtures.sh"
 require_helpers_lib="${repo_root}/scripts/lib/test-ifa-determinism-require-helpers.sh"
 family_cases_lib="${repo_root}/scripts/lib/test-ifa-determinism-family-cases.sh"
@@ -240,6 +241,15 @@ require_shell_exec_lib() {
 	local label="$1" needle="$2"
 	[[ "$(_ifa_det_count_code_matches "${needle}" "${shell_exec_lib}")" -ge 1 ]] \
 		|| fail "missing ${label} (shell-exec lib): ${needle}, or it survives only inside a comment"
+}
+
+# The two DIRECT-materialization families (#6228) share one lib file, so one
+# helper covers both. Their needles still name each family's own domain, so a
+# shared file cannot let one family's coverage stand in for the other's.
+require_direct_family_lib() {
+	local label="$1" needle="$2"
+	[[ "$(_ifa_det_count_code_matches "${needle}" "${direct_family_lib}")" -ge 1 ]] \
+		|| fail "missing ${label} (direct-family lib): ${needle}, or it survives only inside a comment"
 }
 
 # Strict mode and self-cleanup.

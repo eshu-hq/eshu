@@ -124,7 +124,7 @@ source "${repo_root}/scripts/lib/ifa_rationale_live.sh"
 # shellcheck source=scripts/lib/ifa_codeowners_live.sh
 source "${repo_root}/scripts/lib/ifa_codeowners_live.sh"; source "${repo_root}/scripts/lib/ifa_submodule_pin_live.sh"
 source "${repo_root}/scripts/lib/ifa_inheritance_live.sh"; source "${repo_root}/scripts/lib/ifa_shell_exec_live.sh"  # paired sources keep this near-cap gate below 500 lines
-source "${repo_root}/scripts/lib/ifa_symbol_runtime_live.sh"
+source "${repo_root}/scripts/lib/ifa_symbol_runtime_live.sh"; source "${repo_root}/scripts/lib/ifa_direct_family_live.sh"  # paired sources keep this near-cap gate below 500 lines
 
 # ----------------------------------------------------------------------------
 # Configuration (override via environment). One Compose project + one port
@@ -421,6 +421,11 @@ for n in "${worker_counts[@]}"; do
 		|| die "N=${n}: rationale generation-2 durable lifecycle assertion failed"
 	ifa_workload_dependency_live_assert "${bin_dir}" "${workload_dependency_expected_edges}" \
 		|| die "N=${n}: workload_dependency exact set changed before canonical output"
+	# #6228: generation 2 must not retract or mutate either DIRECT family's exact set -- see ifa_direct_family_live.sh.
+	ifa_kubernetes_namespace_environment_assert "post-delta N=${n}" "${bin_dir}" "${kubernetes_namespace_environment_expected_edges}" \
+		|| die "N=${n}: SQL generation 2 changed the kubernetes_namespace_environment family's two-edge exact set"
+	ifa_iam_instance_profile_role_assert "post-delta N=${n}" "${bin_dir}" "${iam_instance_profile_role_expected_edges}" \
+		|| die "N=${n}: SQL generation 2 changed the iam_instance_profile_role family's two-edge exact set"
 
 	log "N=${n}: canonicalize post-delta graph (ifa graph-dump)"
 	"${bin_dir}/eshu-ifa" graph-dump -out "${work_dir}/graph-n${n}.dump" \
