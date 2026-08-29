@@ -103,21 +103,17 @@ bash -n "${registry_family_lib}" || fail "ifa_family_registry.sh has a syntax er
 	|| fail "verify-ifa-determinism.sh must stay under 500 lines"
 
 # _ifa_det_count_code_matches counts lines of ${2} where ${1} appears in the CODE
-# portion -- before any `#`. Lines whose first non-whitespace character is `#`
-# are skipped. Mirrors scripts/lib/test-ifa-fault-injection-assertions.sh's
-# helper of the same shape, for the same reason: the bare `rg --fixed-strings`
-# form below was satisfied by a COMMENT quoting its needle. Proven on this very
-# file's pins -- prefixing both occurrences of the shared_cell guard with
-# `# DISABLED: ` left this mirror green while the drive loop stopped skipping
-# non-shared_cell families. Truncating at `#` also stops the `true  # was: X`
-# shape. A `#` inside a quoted string can only make a pin RED, never pass.
+# portion -- before any `#` -- skipping lines that start with one. Mirrors the
+# same-shaped helper in test-ifa-fault-injection-assertions.sh for the same
+# reason: the bare `rg --fixed-strings` form was satisfied by a COMMENT quoting
+# its needle. Proven on this file's own pins -- prefixing both occurrences of the
+# shared_cell guard with `# DISABLED: ` left the mirror green while the drive
+# loop stopped skipping non-shared_cell families. Truncating at `#` also stops
+# `true  # was: X`; a `#` inside quotes can only make a pin RED, never pass.
 # Whole-line form, sharing the comment and heredoc rules. `rg --line-regexp` is
-# comment-immune but NOT heredoc-immune -- a heredoc line equal to the needle
-# satisfies a whole-line regex, and the behavioural probe caught exactly that.
-# The null-command rule both counters below use to decide a line executes
-# nothing, so a needle parked on it is data rather than live code. Sourced
-# here, not with the case modules at the bottom, because the counters are
-# defined next and the pins call them immediately (#6194).
+# comment-immune but NOT heredoc-immune: a heredoc line equal to the needle
+# satisfies it, as the behavioural probe caught.
+# The null-command rule both counters use (#6194); see ifa_dead_command_line.sh.
 # shellcheck source=scripts/lib/ifa_dead_command_line.sh
 source "${dead_command_lib}"
 _ifa_det_count_code_lines_exact() {
@@ -165,10 +161,9 @@ _ifa_det_count_code_matches() {
 		# which reproduced on HEAD the exact defect the previous round closed --
 		# the shell checker does not flag it, `bash -n` passes, and no gate runs it
 		# on these scripts, so nothing else would have caught it.
-		# The code portion, with `#` read as a comment only where bash reads one:
-		# outside quotes. The plain expansion this replaces cut inside them too,
-		# so `: "see #6194" && <call>` lost its live half (shared with the rule
-		# that decides the line executes nothing, in ifa_dead_command_line.sh).
+		# Code portion, with `#` a comment only outside quotes. The plain expansion
+		# this replaces cut inside them, losing the live half of
+		# `: "see #6194" && <call>` (see ifa_dead_command_line.sh).
 		ifa_code_portion "${line}"; code="${IFA_CODE_PORTION}"
 		if [[ "${code}" == *"${needle}"* ]]; then
 			n=$((n + 1))
