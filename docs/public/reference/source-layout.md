@@ -45,7 +45,7 @@ live in the repository today.
 | `go/internal/mcp/semantic/` | semantic-evidence and semantic-search MCP tool registration definitions |
 | `go/internal/mcp/service/` | service catalog, context, investigation, and intelligence-report MCP tool registration definitions |
 | `go/internal/mcp/toolcontract/` | dependency-neutral MCP tool registration shape |
-| `go/internal/mcp/visualization/` | visualization-packet MCP tool registration definition |
+| `go/internal/mcp/visualization/` | visualization-packet MCP registration plus pure family membership and dependency-neutral route selection |
 | `go/internal/parser/` | native parser registry, language adapters, and SCIP support |
 | `go/internal/projector/` | source-local projection stages and failure classification |
 | `go/internal/projector/azure/` | Azure resource and relationship reducer-intent family builders |
@@ -123,6 +123,8 @@ Read and operator surfaces live under:
   dependency-neutral request selection
 - `go/internal/mcp/relationships/`: relationship-family registrations, family
   membership decisions, and pure dependency-neutral request selection
+- `go/internal/mcp/visualization/`: visualization registration, family
+  membership, and pure dependency-neutral request selection
 - `go/internal/runtime/`: `/healthz`, `/readyz`, `/metrics`, `/admin/status`,
   retry policy, runtime lifecycle
 - `go/internal/status/`: request lifecycle and indexing completeness reporting

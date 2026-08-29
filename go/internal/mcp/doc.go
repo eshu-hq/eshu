@@ -8,13 +8,13 @@
 // ask, cloud, documentation, ecosystem, freshness, investigation, playbooks,
 // relationships, semantic, service, and visualization child packages own
 // their registration definitions without importing this parent package. The
-// ask and relationships children own pure dependency-neutral family route
-// selectors alongside their definitions. ReadOnlyTools remains the sole ordered
-// assembler; global route membership, family adapters, dispatch, transport,
-// authorization, timeouts,
+// ask, relationships, and visualization children own pure dependency-neutral
+// family route selectors alongside their definitions. ReadOnlyTools remains the
+// sole ordered assembler; global route membership, family adapters, dispatch,
+// transport, authorization, timeouts,
 // response budgets, envelopes, and telemetry remain owned here. The query
-// package retains Ask execution plus relationship validation, graph reads, and
-// response shaping.
+// package retains Ask execution, visualization derivation, relationship
+// validation, graph reads, and response shaping.
 //
 // MCP tools dispatch into the same HTTP query handlers that power the public
 // HTTP API, so a tool response and the corresponding HTTP query response

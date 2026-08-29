@@ -291,12 +291,12 @@ keeps both assembly positions and all cloud routing, dispatch, authorization,
 and transport ownership. The move uses `internal/mcp/toolcontract` and leaves
 the 162-tool order unchanged.
 
-The visualization registration family is the third extracted MCP family. Its
-single definition lives under `internal/mcp/visualization`, while the root keeps
-its assembly position between work-item and freshness tools plus all
-visualization routing, dispatch, authorization, summaries, and transport
-ownership. The move uses `internal/mcp/toolcontract` and leaves the 162-tool
-order unchanged.
+The visualization family is the third MCP extraction. Its definition, family
+membership, and pure `routecontract` request selection live under
+`internal/mcp/visualization`. The root keeps its assembly position between
+work-item and freshness tools plus global fanout, its private adapter, dispatch,
+authorization, summaries, transport, and all operational behavior. The
+162-tool order and HTTP request remain unchanged.
 
 The Ask family is the fourth MCP extraction. Its definition, family membership,
 and pure `routecontract` request selection live under `internal/mcp/ask`. The

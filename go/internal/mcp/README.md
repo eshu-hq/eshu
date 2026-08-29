@@ -26,8 +26,8 @@ The `documentation` child package
 owns the six documentation registration definitions; documentation routing
 stays here. The `cloud` child package owns the cloud inventory and runtime-drift
 registration definitions; cloud routing also stays here. The `visualization`
-child package owns the visualization-packet registration definition;
-visualization routing stays here.
+child owns visualization-packet registration and pure request selection; global
+fanout and dispatch stay here, while query derives packets.
 The `ecosystem` child package owns the 23 ecosystem, repository-context,
 infrastructure-impact, and change-planning registration definitions. Their
 existing split routers stay here.
@@ -547,7 +547,7 @@ definitions),
 `internal/mcp/service` (service catalog, context, investigation, and
 intelligence-report tool registrations),
 `internal/mcp/toolcontract` (dependency-neutral `ToolDefinition` registration
-shape), `internal/mcp/visualization` (visualization-packet tool registration),
+shape), `internal/mcp/visualization` (visualization registration and request selection),
 `internal/query` (`query.ResponseEnvelope`, `query.EnvelopeMIMEType`,
 `query.AuthContextFromContext`, `query.AuthMode*`, the mounted `http.Handler`),
 and `internal/telemetry` (`transport_auth_metrics.go` registers one counter

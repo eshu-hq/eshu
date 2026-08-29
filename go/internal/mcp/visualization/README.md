@@ -1,19 +1,23 @@
-# MCP visualization registration
+# MCP visualization registration and route selection
 
 ## Purpose
 
-This package owns the MCP tool definition for deriving a bounded visualization
-packet from an answer the caller has already received.
+This package owns the MCP tool definition and pure internal-request selection
+for deriving a bounded visualization packet from an answer the caller has
+already received.
 
 ## Ownership boundary
 
-This package owns registration data only. `internal/mcp` still owns the tool's
-global position, route resolution, HTTP dispatch, authorization, response
-envelopes, and telemetry. `internal/query` owns packet derivation and validation.
+This package owns registration data, visualization family membership, and the
+pure mapping from decoded arguments to a dependency-neutral internal request.
+`internal/mcp` keeps the tool's global position, global route fanout, private
+adapter, HTTP dispatch, authorization, response envelopes, summaries, and
+telemetry. `internal/query` owns packet derivation and validation.
 
 ## Exported surface
 
 - `Tools` returns the `derive_visualization_packet` definition.
+- `Route` selects the visualization request without executing it.
 
 See `doc.go` for the godoc contract.
 
@@ -21,12 +25,14 @@ See `doc.go` for the godoc contract.
 
 - `internal/mcp/toolcontract` owns the dependency-neutral `ToolDefinition`
   shape returned by `Tools`.
+- `internal/mcp/routecontract` owns the dependency-neutral decoded-argument and
+  internal-request shapes used by `Route`.
 
 ## Telemetry
 
-None. Registration only constructs in-memory data. The parent MCP package keeps
-transport and dispatch signals, while the HTTP handler retains the shared API
-request duration and error metrics.
+None. Registration and route selection only construct in-memory values. The
+parent MCP package keeps transport and dispatch signals, while the HTTP handler
+retains the shared API request duration and error metrics.
 
 ## Gotchas / invariants
 
@@ -36,15 +42,21 @@ request duration and error metrics.
   without changing a later result.
 - The root registry keeps this definition between the work-item and freshness
   families in the client-visible 162-tool order.
-- This tool reshapes a caller-supplied response. Do not add query, storage,
-  authorization, or route logic here.
+- `Route` maps `view` as a string and passes `source_response` and
+  `source_truth` through unchanged. It returns `handled=false` for unrelated
+  tools.
+- This tool reshapes a caller-supplied response. Keep global fanout, HTTP
+  execution, query, storage, authorization, and telemetry out of this package.
 
-No-Observability-Change: this extraction does not change routing, dispatch,
-authorization, query execution, or telemetry.
+No-Observability-Change: this extraction moves only pure visualization route
+selection. The root adapter still feeds the same global fanout, dispatch,
+authorization, summaries, and transport telemetry, and the same query handler
+executes the request.
 
 ## Related docs
 
 - [MCP package](../README.md)
+- [MCP route contract](../routecontract/README.md)
 - [MCP tool contract](../toolcontract/README.md)
 - [Visualization packets](../../../../docs/public/reference/visualization-packets.md)
 
