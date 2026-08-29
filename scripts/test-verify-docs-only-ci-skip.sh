@@ -73,7 +73,7 @@ PY
 if out="$(run_scratch 2>&1)"; then
 	no "guard 1 should fail when one of the three code: filters drifts from the other two"
 else
-	if rg -qF 'code: filter has drifted' <<<"${out}"; then
+	if rg -qF 'code: filter has drifted' < <(printf '%s\n' "${out}"); then
 		ok "guard 1 fails and names the drift when one code: filter copy loses !.agents/**"
 	else
 		no "guard 1 failed for the wrong reason; got:"
@@ -112,7 +112,7 @@ PY
 if out="$(run_scratch 2>&1)"; then
 	no "guard 2 should fail when a code-gated gate's trigger is swallowed by the filter's negations"
 else
-	if rg -qF "swallowed by the code filter's own negations" <<<"${out}"; then
+	if rg -qF "swallowed by the code filter's own negations" < <(printf '%s\n' "${out}"); then
 		ok "guard 2 fails and names the swallowed trigger when go-fmt gains a .agents/** trigger"
 	else
 		no "guard 2 failed for the wrong reason; got:"
@@ -155,7 +155,7 @@ done
 if out="$(run_scratch 2>&1)"; then
 	no "guard 2 should fail when a NEW negation, added identically to all three filters, swallows an existing code-gated trigger whole"
 else
-	if rg -qF "trigger 'go/internal/query/**' is swallowed by the code filter's own negations" <<<"${out}"; then
+	if rg -qF "trigger 'go/internal/query/**' is swallowed by the code filter's own negations" < <(printf '%s\n' "${out}"); then
 		ok "guard 2 fails and names the swallowed trigger for a NEW negation not in the old hard-coded case list"
 	else
 		no "guard 2 failed for the wrong reason; got:"
@@ -193,7 +193,7 @@ PY
 if out="$(run_scratch 2>&1)"; then
 	no "guard 2 should fail when a code-gated gate's trigger is swallowed by the LIVE '!.github/**/*.md' negation"
 else
-	if rg -qF "trigger '.github/workflows/generated-notes.md' is swallowed by the code filter's own negations" <<<"${out}"; then
+	if rg -qF "trigger '.github/workflows/generated-notes.md' is swallowed by the code filter's own negations" < <(printf '%s\n' "${out}"); then
 		ok "guard 2 fails and names the swallowed trigger for the live '<dir>/**/*.<ext>' hybrid negation shape"
 	else
 		no "guard 2 failed for the wrong reason; got:"
@@ -229,7 +229,7 @@ PY
 if out="$(run_scratch 2>&1)"; then
 	no "merge_group case 1 should fail when on: drops the merge_group trigger"
 else
-	if rg -qF 'test.yml on: block must add a merge_group trigger' <<<"${out}"; then
+	if rg -qF 'test.yml on: block must add a merge_group trigger' < <(printf '%s\n' "${out}"); then
 		ok "merge_group case 1 fails and names the missing on: trigger"
 	else
 		no "merge_group case 1 failed for the wrong reason; got:"
@@ -265,7 +265,7 @@ PY
 if out="$(run_scratch 2>&1)"; then
 	no "merge_group case 2 should fail when the Filter changed paths step loses its merge_group skip guard"
 else
-	if rg -qF "Filter changed paths step must guard if" <<<"${out}"; then
+	if rg -qF "Filter changed paths step must guard if" < <(printf '%s\n' "${out}"); then
 		ok "merge_group case 2 fails and names the missing skip guard"
 	else
 		no "merge_group case 2 failed for the wrong reason; got:"
@@ -301,7 +301,7 @@ PY
 if out="$(run_scratch 2>&1)"; then
 	no "merge_group case 3 should fail when the merge_group_code step is removed"
 else
-	if rg -qF "must have a single step (id: merge_group_code) that sets code=true" <<<"${out}"; then
+	if rg -qF "must have a single step (id: merge_group_code) that sets code=true" < <(printf '%s\n' "${out}"); then
 		ok "merge_group case 3 fails and names the missing merge_group_code step"
 	else
 		no "merge_group case 3 failed for the wrong reason; got:"
@@ -331,7 +331,7 @@ PY
 if out="$(run_scratch 2>&1)"; then
 	no "merge_group case 4 should fail when outputs.code drops the merge_group_code fallback"
 else
-	if rg -qF "must fall back to the merge_group step's output" <<<"${out}"; then
+	if rg -qF "must fall back to the merge_group step's output" < <(printf '%s\n' "${out}"); then
 		ok "merge_group case 4 fails and names the missing outputs.code fallback"
 	else
 		no "merge_group case 4 failed for the wrong reason; got:"
@@ -362,7 +362,7 @@ PY
 if out="$(run_scratch 2>&1)"; then
 	no "guard 3 should fail when a code: filter loses predicate-quantifier: 'every'"
 else
-	if rg -qF 'predicate-quantifier' <<<"${out}" && rg -qF 'security-scan.yml' <<<"${out}"; then
+	if rg -qF 'predicate-quantifier' < <(printf '%s\n' "${out}") && rg -qF 'security-scan.yml' < <(printf '%s\n' "${out}"); then
 		ok "guard 3 fails and names the workflow that lost predicate-quantifier: 'every'"
 	else
 		no "guard 3 failed for the wrong reason; got:"
@@ -393,7 +393,7 @@ PY
 if out="$(run_scratch 2>&1)"; then
 	no "guard 3 should fail for predicate-quantifier: 'all', which dorny treats as the default"
 else
-	if rg -qF 'predicate-quantifier' <<<"${out}" && rg -qF 'test.yml' <<<"${out}"; then
+	if rg -qF 'predicate-quantifier' < <(printf '%s\n' "${out}") && rg -qF 'test.yml' < <(printf '%s\n' "${out}"); then
 		ok "guard 3 rejects a wrong quantifier value, not just a missing line"
 	else
 		no "guard 3 wrong-value case failed for the wrong reason; got:"
@@ -448,7 +448,7 @@ PYS
 if out="$(run_scratch 2>&1)"; then
 	no "guard 3 should fail when the quantifier is moved out of the paths-filter step"
 else
-	if rg -qF 'predicate-quantifier' <<<"${out}" && rg -qF 'test.yml' <<<"${out}"; then
+	if rg -qF 'predicate-quantifier' < <(printf '%s\n' "${out}") && rg -qF 'test.yml' < <(printf '%s\n' "${out}"); then
 		ok "guard 3 is scoped to the filter step, not the file — a relocated line still fails"
 	else
 		no "guard 3 relocation case failed for the wrong reason; got:"
