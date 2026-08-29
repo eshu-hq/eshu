@@ -9,9 +9,15 @@ import (
 	"strings"
 	"time"
 
+	"github.com/eshu-hq/eshu/go/internal/coordinator/jiraplanner"
 	"github.com/eshu-hq/eshu/go/internal/scope"
 	"github.com/eshu-hq/eshu/go/internal/workflow"
 )
+
+// JiraPlanner plans Jira workflow rows from collector instance configuration.
+type JiraPlanner interface {
+	PlanJiraWork(context.Context, jiraplanner.PlanRequest) (workflow.Run, []workflow.WorkItem, error)
+}
 
 func (s Service) scheduleJiraWork(
 	ctx context.Context,
@@ -28,7 +34,7 @@ func (s Service) scheduleJiraWork(
 		if s.JiraPlanner == nil {
 			return fmt.Errorf("jira planner is required for active jira collectors")
 		}
-		run, items, err := s.JiraPlanner.PlanJiraWork(ctx, JiraPlanRequest{
+		run, items, err := s.JiraPlanner.PlanJiraWork(ctx, jiraplanner.PlanRequest{
 			Instance:   instance,
 			ObservedAt: observedAt,
 			PlanKey:    s.jiraPlanKey(instance, observedAt),

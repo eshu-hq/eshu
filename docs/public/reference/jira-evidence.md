@@ -319,7 +319,7 @@ visibility, deletion, archive, and provider failure classification.
 Webhook No-Regression Evidence:
 
 ```bash
-go test ./internal/webhook ./cmd/webhook-listener ./internal/coordinator \
+go test ./internal/webhook ./cmd/webhook-listener ./internal/coordinator/jiraplanner ./internal/coordinator \
   -run 'TestNormalizeJiraIncidentFreshness|TestNewStoredJiraIncidentFreshness|TestWebhookHandler(DoesNotRegisterUnsignedJiraRouteWhenSecretDisabled|RejectsBadJiraSignature|RejectsUnsupportedJiraEvent|RecordsJiraUnsupportedEventTelemetry)|TestServiceRunActiveModeCoalescesRepeatedJiraWebhookClaims|TestJiraWorkPlannerScheduledPollingCoversAllTargetsAfterMissedWebhook' \
   -count=1
 ```

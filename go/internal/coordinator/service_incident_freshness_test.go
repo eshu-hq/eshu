@@ -13,6 +13,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/eshu-hq/eshu/go/internal/coordinator/jiraplanner"
 	"github.com/eshu-hq/eshu/go/internal/coordinator/pagerdutyplanner"
 	"github.com/eshu-hq/eshu/go/internal/scope"
 	"github.com/eshu-hq/eshu/go/internal/webhook"
@@ -55,7 +56,7 @@ func TestServiceRunActiveModeHandoffsIncidentFreshnessTriggers(t *testing.T) {
 		},
 		Store:                     store,
 		PagerDutyPlanner:          pagerdutyplanner.WorkPlanner{},
-		JiraPlanner:               JiraWorkPlanner{},
+		JiraPlanner:               jiraplanner.WorkPlanner{},
 		IncidentFreshnessTriggers: triggerStore,
 		Clock:                     func() time.Time { return now },
 	}
@@ -149,6 +150,58 @@ func TestPagerDutyFreshnessHandoffForwardsExactRequestAndSkipsEmptyAdmission(t *
 	}
 	if !reflect.DeepEqual(planner.requests, []pagerdutyplanner.PlanRequest{wantRequest}) {
 		t.Fatalf("planner requests = %#v, want %#v", planner.requests, []pagerdutyplanner.PlanRequest{wantRequest})
+	}
+	if got := store.admissionCalls; got != 0 {
+		t.Fatalf("Store admission calls = %d, want 0", got)
+	}
+	wantHandedOff := []string{"trigger-alpha", "trigger-blank", "trigger-zeta", "trigger-zeta-duplicate"}
+	if !reflect.DeepEqual(triggerStore.handedOff, wantHandedOff) {
+		t.Fatalf("handedOff = %#v, want %#v", triggerStore.handedOff, wantHandedOff)
+	}
+}
+
+func TestJiraFreshnessHandoffForwardsExactRequestAndSkipsEmptyAdmission(t *testing.T) {
+	t.Parallel()
+
+	now := time.Date(2026, time.May, 31, 18, 37, 0, 0, time.UTC)
+	instance := testServiceJiraInstance(now)
+	triggers := []webhook.StoredIncidentFreshnessTrigger{
+		incidentFreshnessStoredTrigger("trigger-zeta", webhook.ProviderJira, " jira:site:zeta ", now),
+		incidentFreshnessStoredTrigger("trigger-alpha", webhook.ProviderJira, "jira:site:alpha", now),
+		incidentFreshnessStoredTrigger("trigger-blank", webhook.ProviderJira, " \t ", now),
+		incidentFreshnessStoredTrigger("trigger-zeta-duplicate", webhook.ProviderJira, "jira:site:zeta", now),
+	}
+	planner := &fakeJiraPlanner{run: workflow.Run{
+		RunID:              "jira-empty-freshness",
+		TriggerKind:        workflow.TriggerKindWebhook,
+		Status:             workflow.RunStatusCollectionPending,
+		RequestedScopeSet:  "{}",
+		RequestedCollector: string(scope.CollectorJira),
+		CreatedAt:          now,
+		UpdatedAt:          now,
+	}}
+	store := &jiraAdmissionSpyStore{fakeStore: &fakeStore{instances: []workflow.CollectorInstance{instance}}}
+	triggerStore := &fakeIncidentFreshnessTriggerStore{}
+	service := Service{
+		Config:                    Config{ReconcileInterval: time.Hour},
+		Store:                     store,
+		JiraPlanner:               planner,
+		IncidentFreshnessTriggers: triggerStore,
+	}
+	assignment := incidentFreshnessAssignment{instance: instance, triggers: triggers}
+
+	if err := service.handoffJiraFreshnessAssignment(context.Background(), now, assignment); err != nil {
+		t.Fatalf("handoffJiraFreshnessAssignment() error = %v, want nil", err)
+	}
+	wantRequest := jiraplanner.PlanRequest{
+		Instance:    instance,
+		ObservedAt:  now,
+		PlanKey:     "freshness-20260531T180000Z",
+		TriggerKind: workflow.TriggerKindWebhook,
+		ScopeIDs:    []string{"jira:site:alpha", "jira:site:zeta"},
+	}
+	if !reflect.DeepEqual(planner.requests, []jiraplanner.PlanRequest{wantRequest}) {
+		t.Fatalf("planner requests = %#v, want %#v", planner.requests, []jiraplanner.PlanRequest{wantRequest})
 	}
 	if got := store.admissionCalls; got != 0 {
 		t.Fatalf("Store admission calls = %d, want 0", got)
@@ -286,7 +339,7 @@ func TestServiceRunActiveModeCoalescesRepeatedJiraWebhookClaims(t *testing.T) {
 			ReconcileInterval: time.Hour,
 		},
 		Store:                     store,
-		JiraPlanner:               JiraWorkPlanner{},
+		JiraPlanner:               jiraplanner.WorkPlanner{},
 		IncidentFreshnessTriggers: triggerStore,
 		Clock:                     func() time.Time { return now },
 	}

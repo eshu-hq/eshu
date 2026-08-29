@@ -57,11 +57,6 @@ type VulnerabilityIntelligencePlanner interface {
 	PlanVulnerabilityIntelligenceWork(context.Context, VulnerabilityIntelligencePlanRequest) (workflow.Run, []workflow.WorkItem, error)
 }
 
-// JiraPlanner plans Jira workflow rows from collector instance configuration.
-type JiraPlanner interface {
-	PlanJiraWork(context.Context, JiraPlanRequest) (workflow.Run, []workflow.WorkItem, error)
-}
-
 // GCPPlanner plans GCP Cloud Asset Inventory workflow rows from collector
 // instance configuration.
 type GCPPlanner interface {

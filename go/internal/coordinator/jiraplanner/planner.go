@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package coordinator
+package jiraplanner
 
 import (
 	"context"
@@ -17,8 +17,10 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/workflow"
 )
 
-// JiraPlanRequest carries one Jira work-item evidence planning request.
-type JiraPlanRequest struct {
+// PlanRequest carries one Jira work-item evidence planning request. The
+// coordinator supplies the collector instance, observation time, deterministic
+// plan key, and optional trigger and scope overrides for freshness wake-ups.
+type PlanRequest struct {
 	Instance    workflow.CollectorInstance
 	ObservedAt  time.Time
 	PlanKey     string
@@ -26,9 +28,9 @@ type JiraPlanRequest struct {
 	ScopeIDs    []string
 }
 
-// JiraWorkPlanner plans workflow rows for configured Jira targets without
+// WorkPlanner plans workflow rows for configured Jira targets without
 // resolving credentials or contacting Jira.
-type JiraWorkPlanner struct{}
+type WorkPlanner struct{}
 
 type jiraRuntimeConfiguration struct {
 	Targets []jiraTargetConfiguration `json:"targets"`
@@ -41,9 +43,9 @@ type jiraTargetConfiguration struct {
 }
 
 // PlanJiraWork returns one run and one work item per configured Jira target.
-func (p JiraWorkPlanner) PlanJiraWork(
+func (p WorkPlanner) PlanJiraWork(
 	_ context.Context,
-	request JiraPlanRequest,
+	request PlanRequest,
 ) (workflow.Run, []workflow.WorkItem, error) {
 	if err := validateJiraPlanRequest(request); err != nil {
 		return workflow.Run{}, nil, err
@@ -78,7 +80,7 @@ func (p JiraWorkPlanner) PlanJiraWork(
 	return run, items, nil
 }
 
-func validateJiraPlanRequest(request JiraPlanRequest) error {
+func validateJiraPlanRequest(request PlanRequest) error {
 	if err := request.Instance.Validate(); err != nil {
 		return fmt.Errorf("jira plan request: %w", err)
 	}
@@ -145,11 +147,31 @@ func jiraRunID(instance workflow.CollectorInstance, planKey string, triggerKind 
 	)
 }
 
-func jiraRequestTriggerKind(request JiraPlanRequest) workflow.TriggerKind {
+func jiraRequestTriggerKind(request PlanRequest) workflow.TriggerKind {
 	if request.TriggerKind != "" {
 		return request.TriggerKind
 	}
 	return jiraTriggerKind(request.Instance)
+}
+
+// HasConfiguredScope reports whether a validated Jira collector configuration
+// contains the requested target scope. Invalid configuration, a blank scope,
+// and an unconfigured scope do not match.
+func HasConfiguredScope(configuration string, scopeID string) bool {
+	targets, err := parseJiraRuntimeTargets(configuration)
+	if err != nil {
+		return false
+	}
+	requestedScopeID := strings.TrimSpace(scopeID)
+	if requestedScopeID == "" {
+		return false
+	}
+	for _, target := range targets {
+		if strings.TrimSpace(target.ScopeID) == requestedScopeID {
+			return true
+		}
+	}
+	return false
 }
 
 func jiraTriggerKind(instance workflow.CollectorInstance) workflow.TriggerKind {
