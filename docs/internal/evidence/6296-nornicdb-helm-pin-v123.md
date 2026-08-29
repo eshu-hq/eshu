@@ -47,7 +47,9 @@ and assert graph truth), then the three `sql_table` blast-radius live read tests
 
 Held identical across both arms: the cassette, the writer, the container
 environment (copied from `scripts/verify-replay-tier.sh` — async writes off,
-Heimdall, embeddings, BM25 and vector search all off), a prebuilt test binary so
+Heimdall, embeddings, BM25 and vector search all off; the BM25/vector warming
+knobs and search-index persistence were left at their defaults, so those two
+chart settings are not exercised here), a prebuilt test binary so
 no Go compilation lands inside a timed window, and a **fresh container on an
 empty data directory for every single run**, so neither build ever inherits
 warm state from the other or from its own previous round. The two arms were
@@ -166,11 +168,12 @@ startup by the backend itself.
   in this repository states whether published v1.2.3 preserves relationship MERGE
   identity properties (orneryd/NornicDB#290), and a version comparison is not a
   measurement. The flag was deliberately not flipped.
-- **Eleven of the twelve v1.1.11 workaround classes remain unmeasured on 1.2.2.**
-  Sixty-four comment sites under `go/internal/storage/cypher/` cite v1.1.11 as
-  the reason for a workaround. Only the grouped semantic retract has a number.
-  Moving the pin is not evidence that any of those workarounds can be removed;
-  each needs its own measurement on the new build first. The same caveat now
+- **The v1.1.11 workarounds stay unmeasured on 1.2.2, bar one.**
+  `rg 'v1\.1\.11' go/internal/storage/cypher/` returns 154 lines across 74
+  files (111 lines in the 53 non-test files), citing that version as the reason
+  for a workaround. Exactly one of them — the grouped semantic retract — has a
+  number on the new build. Moving the pin is not evidence that any of the rest
+  can be removed; each needs its own measurement first. The same caveat now
   heads `docs/public/reference/nornicdb-pitfalls.md` and
   `docs/public/reference/nornicdb-query-pitfalls.md`, whose entries were measured
   when v1.1.11 was the chart's pin and have not been re-run on this digest.

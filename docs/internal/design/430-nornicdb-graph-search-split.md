@@ -59,10 +59,21 @@ BM25/vector enable and warming controls Eshu depends on shipped in v1.1.2
 preserved in later releases; `v1.2.3` is the latest published multi-arch Docker
 Hub manifest for the `nornicdb-cpu-bge` image line (`linux/amd64` and
 `linux/arm64`). That tag reports version `1.2.2` from the running container, so
-the chart pins the digest and the tag is only a label. Releases v1.1.4–v1.1.6 are
-maintenance/compatibility releases (Cypher/Bolt correctness, storage resilience,
-vector-search performance, Neo4j/Graphiti compatibility) with no on-disk format
-change, so tracking the latest keeps the same graph-only startup policy.
+the chart pins the digest and the tag is only a label.
+
+Earlier revisions justified tracking the latest tag by noting that v1.1.4–v1.1.6
+were maintenance/compatibility releases with no on-disk format change. The chart
+now crosses a minor version, so that argument no longer carries the move on its
+own. What does: the pinned digest was run with the three disable controls this
+policy leans on — `NORNICDB_SEARCH_BM25_ENABLED=false`,
+`NORNICDB_SEARCH_VECTOR_ENABLED=false`, `NORNICDB_EMBEDDING_ENABLED=false`, plus
+`NORNICDB_ASYNC_WRITES_ENABLED=false` and `NORNICDB_HEIMDALL_ENABLED=false` — and
+on that container the production canonical projection writer and the `sql_table`
+blast-radius reads both ran green over Bolt, with the write and read paths timed
+against the previous pin at the same time. The two warming knobs and
+`NORNICDB_PERSIST_SEARCH_INDEXES` were left at their defaults there and are still
+unexercised on this digest. See
+[`docs/internal/evidence/6296-nornicdb-helm-pin-v123.md`](../evidence/6296-nornicdb-helm-pin-v123.md).
 The canonical graph lane uses this graph-only policy:
 
 - `NORNICDB_SEARCH_BM25_ENABLED=false`;
