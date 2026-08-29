@@ -55,8 +55,16 @@ the pure builders adds no queue, storage, graph, span, metric, or log boundary.
 ## Performance
 
 Lookup construction stays in root, which passes the same concrete
-`intent.FactLookup` to these builders. The extraction adds no fact scan,
-interface allocation, queue row, or graph operation to the 44-probe fan-out.
+`intent.FactLookup` to these builders. On Apple M5 Max with Go 1.26.6
+darwin/arm64 and no other Go build or test process running, six same-command
+samples of `BenchmarkAppendScopeGenerationReducerIntentsFanOut` used distinct
+isolated `GOCACHE` directories. Exact base
+`f172823e99a0dcedea6a295e1ce7b0ef2fbf9cf0` measured 160,813-171,019 ns/op,
+74,928-74,930 B/op, and 178 allocs/op; exact extracted checkpoint
+`ebb4327633a6b7f20f63001d317502b2aefa2ea1` measured 156,851-168,505 ns/op,
+74,928-74,930 B/op, and 178 allocs/op. The ranges overlap and allocation count
+is identical. This in-process benchmark builds 42 ordered intents across 44
+probes; it performs no queue or graph operation.
 
 ## Verification
 
