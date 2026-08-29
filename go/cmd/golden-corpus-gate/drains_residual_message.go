@@ -5,6 +5,7 @@ package main
 
 import (
 	"fmt"
+	"regexp"
 	"strings"
 )
 
@@ -130,6 +131,22 @@ func formatResidualMessages(rows []residualRow) string {
 	return out
 }
 
+// residualWhitespace is the whitespace alphabet residualMessageColumnSQL's
+// regexp_replace collapses, spelled for Go.
+//
+// It must match the DATABASE's set, not Go's. Postgres `\s` is the
+// locale-sensitive `[[:space:]]`, which under the C/musl locale of the
+// postgres:18-alpine image this runs against is exactly these six ASCII bytes.
+// strings.Fields would be wrong here: it splits on unicode.IsSpace, which also
+// matches U+00A0, U+0085, U+2000-U+200A, U+2028, U+2029 and U+3000. A message
+// the database cut at residualMessageFetchLen whose text contains one of those
+// would then be collapsed FURTHER in Go, could land back under
+// residualMessageMaxLen, and would print with no truncation marker -- an
+// incomplete error presented as a complete one, which is the failure the
+// fetch-one-extra sentinel exists to prevent. Keeping the two alphabets equal
+// is what makes this flatten a genuine no-op on already-collapsed input.
+var residualWhitespace = regexp.MustCompile(`[\t\n\v\f\r ]+`)
+
 // flattenResidualMessage collapses every run of whitespace to a single space.
 //
 // Printing through %q is what stops a raw newline reaching the log, so this is
@@ -138,7 +155,7 @@ func formatResidualMessages(rows []residualRow) string {
 // error chain as a run of "\n" escapes, which is hard to read and spends the
 // residualMessageMaxLen budget on punctuation rather than on the cause.
 func flattenResidualMessage(message string) string {
-	return strings.Join(strings.Fields(message), " ")
+	return strings.Trim(residualWhitespace.ReplaceAllString(message, " "), " ")
 }
 
 // truncateResidualMessage cuts to residualMessageMaxLen runes — runes, not

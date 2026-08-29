@@ -285,3 +285,59 @@ func TestZeroCorrelationPipelineIgnoresFailureMessages(t *testing.T) {
 		t.Errorf("pipeline diagnosis changed when messages were added:\n base = %s\n with = %s", base, enriched)
 	}
 }
+
+// TestFlattenResidualMessageMatchesPostgresWhitespaceAlphabet pins the Go
+// flatten to the same whitespace set residualMessageColumnSQL's regexp_replace
+// collapses, so the flatten stays a no-op on input the database already
+// collapsed.
+//
+// The failure this prevents: strings.Fields splits on unicode.IsSpace, which
+// matches NBSP and friends that Postgres's C-locale [[:space:]] does not. A
+// message the database cut at residualMessageFetchLen containing one of those
+// would be collapsed further here, could fall back under residualMessageMaxLen,
+// and would print without the truncation marker -- an incomplete error shown as
+// a complete one.
+func TestFlattenResidualMessageMatchesPostgresWhitespaceAlphabet(t *testing.T) {
+	t.Parallel()
+
+	for _, test := range []struct {
+		name string
+		in   string
+		want string
+	}{
+		{name: "ascii_run_collapses", in: "a \t\n\v\f\r b", want: "a b"},
+		{name: "leading_and_trailing_trimmed", in: "  a b  ", want: "a b"},
+		// Postgres C-locale [[:space:]] does NOT include these, so neither may
+		// this. Collapsing them would shorten a message the database already
+		// measured and cost it its truncation marker.
+		{name: "nbsp_preserved", in: "a\u00a0b", want: "a\u00a0b"},
+		{name: "next_line_preserved", in: "a\u0085b", want: "a\u0085b"},
+		{name: "en_quad_preserved", in: "a\u2000b", want: "a\u2000b"},
+		{name: "line_separator_preserved", in: "a\u2028b", want: "a\u2028b"},
+		{name: "ideographic_space_preserved", in: "a\u3000b", want: "a\u3000b"},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+			if got := flattenResidualMessage(test.in); got != test.want {
+				t.Fatalf("flattenResidualMessage(%q) = %q, want %q", test.in, got, test.want)
+			}
+		})
+	}
+}
+
+// TestFlattenResidualMessageIsNoOpOnAlreadyCollapsedInput is the invariant the
+// truncation marker depends on: whatever length the database measured after its
+// own regexp_replace is the length this code measures.
+func TestFlattenResidualMessageIsNoOpOnAlreadyCollapsedInput(t *testing.T) {
+	t.Parallel()
+
+	for _, collapsed := range []string{
+		"reduce intent: value-flow fixpoint: node not found",
+		"a b c",
+		"plain",
+	} {
+		if got := flattenResidualMessage(collapsed); got != collapsed {
+			t.Errorf("flattenResidualMessage(%q) = %q, want it unchanged", collapsed, got)
+		}
+	}
+}
