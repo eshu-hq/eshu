@@ -11,8 +11,8 @@
 // telemetry, opens Postgres, builds coordinator.Service
 // from the configured workflow store, governance audit sink, metrics, and
 // provider-family planners (including the extracted cicdrun, securityalert,
-// sbomattestation, scannerworker, lokiplanner, prometheusmimir, tempoplanner,
-// and vaultlive scheduler planners), and hosts it through
+// sbomattestation, scannerworker, grafanaplanner, lokiplanner,
+// prometheusmimir, tempoplanner, and vaultlive scheduler planners), and hosts it through
 // app.NewHostedWithStatusServer. The hosted runtime exposes `/healthz`,
 // `/readyz`, `/metrics`, and `/admin/status`.
 // Deployment mode (dark by default, active when the deployment knobs in the

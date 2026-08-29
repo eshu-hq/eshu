@@ -175,12 +175,13 @@ one enabled bounded scope; invalid configurations fail validation.
   `tempoplanner.WorkPlanner`. The child plans Grafana Tempo trace-signal
   collection from `configuration.targets[]`; root keeps scheduling order, the
   plan-key clock, tenant and egress filtering, and durable admission.
-- `GrafanaWorkPlanner` — plans Grafana observability metadata collection runs
-  from configured `configuration.targets[]` without resolving credential
-  environment variables. Each `enabled` target becomes one claimable work item
-  keyed by `scope_id`; disabled targets are skipped, the per-target fairness key
-  is `grafana:<instance_id>:<target instance_id|scope_id>`, and
-  `requested_scope_set` omits `token_env`, `base_url`, and resource limits.
+- `GrafanaPlanner` — the root interface implemented by
+  `grafanaplanner.WorkPlanner`. The child plans Grafana observability metadata
+  from `configuration.targets[]`; each enabled target becomes one claimable
+  item, while root retains scheduling, collector-egress filtering, tenant-grant
+  authorization, and admission. Fairness keys use target instance IDs with
+  scope-ID fallback, and requested-scope metadata omits URLs, credential
+  environment names, resource limits, and staleness settings.
 - `LokiPlanner` — the root structural interface implemented by
   `lokiplanner.WorkPlanner`. The child plans Grafana Loki observability
   collection from `configuration.targets[]`; root keeps scheduling order, the
@@ -228,8 +229,8 @@ one enabled bounded scope; invalid configurations fail validation.
   requested-scope privacy, and deterministic planning.
 - `internal/coordinator/vaultlive` — Vault metadata plan request and
   deterministic planner implementation.
-- `internal/coordinator/tempoplanner`, `lokiplanner`, and `prometheusmimir` —
-  deterministic observability planner requests and implementations.
+- `internal/coordinator/tempoplanner`, `lokiplanner`, `prometheusmimir`, and
+  `grafanaplanner` — deterministic observability planner requests and implementations.
 - `internal/workflow` — `DesiredCollectorInstance`, `CollectorInstance`,
   `Claim`, and default accessors; used throughout `Store` and `Config`.
 - `internal/scope` — `CollectorKind` used by `Config` and

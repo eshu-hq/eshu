@@ -60,8 +60,8 @@ flowchart TB
 6. `coordinator.Service` is wired with all dependencies, including
    Terraform-state, OCI registry, package registry, vulnerability installed
    advisory target readers, the extracted `cicdrun`, `securityalert`,
-   `sbomattestation`, `scannerworker`, `lokiplanner`, `prometheusmimir`,
-   `tempoplanner`, and `vaultlive` planners,
+   `sbomattestation`, `scannerworker`, `grafanaplanner`, `lokiplanner`,
+   `prometheusmimir`, `tempoplanner`, and `vaultlive` planners,
    scheduled AWS, AWS freshness,
    PagerDuty, and Jira planners, plus freshness trigger stores, and handed to
    `NewHostedWithStatusServer`, which mounts the admin surface.
@@ -138,6 +138,8 @@ The direct process contract includes `eshu-workflow-coordinator --version` and
 - `internal/coordinator` — `Service`, `LoadConfig`, `NewMetrics`, `Store`;
   the coordinator loop and config parsing
 - `internal/coordinator/cicdrun` — concrete CI/CD run planner wiring
+- `internal/coordinator/grafanaplanner` — concrete scheduler wiring for Grafana
+  observability targets
 - `internal/coordinator/securityalert` — concrete provider security-alert
   planner wiring
 - `internal/coordinator/sbomattestation` — concrete scheduler wiring for hosted

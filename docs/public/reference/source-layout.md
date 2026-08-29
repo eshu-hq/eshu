@@ -19,6 +19,7 @@ live in the repository today.
 | `go/internal/content/` | content shaping and content-store persistence |
 | `go/internal/coordinator/` | workflow coordinator service ordering, planner interfaces, durable admission, retry, and telemetry ownership |
 | `go/internal/coordinator/cicdrun/` | CI/CD run scheduler request validation and deterministic workflow planning |
+| `go/internal/coordinator/grafanaplanner/` | Grafana scheduler request validation, target filtering, privacy, and deterministic workflow planning |
 | `go/internal/coordinator/lokiplanner/` | Grafana Loki scheduler request validation, target filtering, and deterministic workflow planning |
 | `go/internal/coordinator/plannercontract/` | dependency-neutral scheduler plan-key validation |
 | `go/internal/coordinator/prometheusmimir/` | Prometheus/Mimir scheduler request validation, target filtering, privacy, and deterministic workflow planning |
