@@ -9,10 +9,10 @@ HTTP request without importing the parent MCP package.
 
 This package owns decoded argument access and the selected request value. It
 does not own tool names, family membership, or route-selection policy. Family
-packages such as `internal/mcp/relationships` own those decisions. The root
-`internal/mcp` package still owns global route fanout, family adapters, request dispatch,
-authorization forwarding, timeouts, response budgets, response envelopes,
-transport behavior, and telemetry.
+packages such as `internal/mcp/ask` and `internal/mcp/relationships` own those
+decisions. The root `internal/mcp` package still owns global route fanout,
+family adapters, request dispatch, authorization forwarding, timeouts,
+response budgets, response envelopes, transport behavior, and telemetry.
 
 ## Exported surface
 
@@ -41,13 +41,14 @@ existing logs, spans, and metrics.
   `[]any`. Other input shapes return nil.
 - `Request` describes a route. It does not execute one.
 
-No-Observability-Change: the code-relationship route still runs through the
-root MCP dispatcher and the same HTTP query handlers, which retain the existing
-MCP transport and API request telemetry.
+No-Observability-Change: extracted family routes still run through the root MCP
+dispatcher and the same HTTP query handlers, which retain the existing MCP
+transport and API request telemetry.
 
 ## Related docs
 
 - [MCP package](../README.md)
+- [MCP Ask registration and route selection](../ask/README.md)
 - [MCP relationship registrations](../relationships/README.md)
 - [Source layout](../../../../docs/public/reference/source-layout.md)
 

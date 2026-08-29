@@ -32,7 +32,7 @@ live in the repository today.
 | `go/internal/facts/` | durable fact models and queue contracts |
 | `go/internal/graph/` | canonical graph schema and write helpers |
 | `go/internal/mcp/` | MCP ordered assembly, global route fanout and adapters, dispatch, authorization, transport, timeouts, response budgets, envelopes, and telemetry |
-| `go/internal/mcp/ask/` | Ask Eshu MCP tool registration definition |
+| `go/internal/mcp/ask/` | Ask Eshu MCP registration plus pure family membership and dependency-neutral route selection |
 | `go/internal/mcp/cloud/` | cloud inventory and runtime-drift MCP tool registration definitions |
 | `go/internal/mcp/documentation/` | documentation-family MCP tool registration definitions |
 | `go/internal/mcp/ecosystem/` | ecosystem, repository-context, infrastructure-impact, and change-planning MCP tool registration definitions |
@@ -117,6 +117,8 @@ Read and operator surfaces live under:
 - `go/internal/mcp/`: MCP ordered assembly, global route fanout and adapters,
   dispatch, authorization, transport, timeouts, response budgets, envelopes,
   and telemetry
+- `go/internal/mcp/ask/`: Ask registration, family membership, and pure
+  dependency-neutral request selection
 - `go/internal/mcp/relationships/`: relationship-family registrations, family
   membership decisions, and pure dependency-neutral request selection
 - `go/internal/runtime/`: `/healthz`, `/readyz`, `/metrics`, `/admin/status`,

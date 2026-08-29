@@ -31,8 +31,8 @@ visualization routing stays here.
 The `ecosystem` child package owns the 23 ecosystem, repository-context,
 infrastructure-impact, and change-planning registration definitions. Their
 existing split routers stay here.
-The `ask` child package owns the natural-language answer registration
-definition; Ask routing and execution also stay here.
+The `ask` child owns natural-language answer registration and pure request
+selection; global fanout and dispatch stay here, while query executes answers.
 The `playbooks` child package owns the two query-playbook catalog registration
 definitions; query-playbook routing and execution also stay here.
 The `freshness` child package owns four freshness registration definitions.
@@ -530,7 +530,7 @@ with a giant body.
 ## Dependencies
 
 Internal packages: `internal/buildinfo` (version string for `mcpInitializeResult`),
-`internal/mcp/ask` (Ask Eshu tool registration),
+`internal/mcp/ask` (Ask Eshu registration and pure request selection),
 `internal/mcp/cloud` (cloud inventory and runtime-drift tool registrations),
 `internal/mcp/documentation` (documentation tool registration definitions),
 `internal/mcp/ecosystem` (ecosystem, repository-context, infrastructure-impact,
