@@ -1,21 +1,23 @@
-# MCP Ask registration
+# MCP Ask registration and route selection
 
 ## Purpose
 
-This package owns the MCP tool definition for Ask Eshu's natural-language
-answer surface.
+This package owns the MCP tool definition and pure internal-request selection
+for Ask Eshu's natural-language answer surface.
 
 ## Ownership boundary
 
-This package owns registration data only. `internal/mcp` retains the tool's
-global position, route resolution, HTTP dispatch, authorization, response
-envelopes, summaries, and transport telemetry. `internal/query` owns the Ask
-handler, default-off checks, provider use, answer construction, and truth
-metadata.
+This package owns registration data, Ask family membership, and the pure
+mapping from decoded arguments to a dependency-neutral internal request.
+`internal/mcp` retains the tool's global position, global route fanout, the
+private adapter, HTTP dispatch, authorization, response envelopes, summaries,
+and transport telemetry. `internal/query` owns the Ask handler, default-off
+checks, provider use, answer construction, and truth metadata.
 
 ## Exported surface
 
 - `Tools` returns the single `ask` definition.
+- `Route` selects the Ask request without executing it.
 
 See `doc.go` for the godoc contract.
 
@@ -23,11 +25,14 @@ See `doc.go` for the godoc contract.
 
 - `internal/mcp/toolcontract` owns the dependency-neutral `ToolDefinition`
   shape returned by `Tools`.
+- `internal/mcp/routecontract` owns the dependency-neutral decoded-argument and
+  internal-request shapes used by `Route`.
 
 ## Telemetry
 
-None. Registration only constructs in-memory data. The parent MCP package keeps
-transport and dispatch signals, while the Ask HTTP handler retains
+None. Registration and route selection only construct in-memory values. The
+parent MCP package keeps transport and dispatch signals, while the Ask HTTP
+handler retains
 `eshu_dp_api_request_duration_seconds` and
 `eshu_dp_api_request_errors_total`.
 
@@ -41,15 +46,20 @@ transport and dispatch signals, while the Ask HTTP handler retains
   `trace_exposure_path` and before `list_relationship_edges`.
 - Registration advertises the default-off requirement. Runtime enforcement
   remains in the query handler and server wiring.
-- Keep routing, query execution, provider calls, authorization, and telemetry
-  out of this package.
+- `Route` must return `handled=false` for unrelated tools and must not execute
+  HTTP requests, query data, or enforce the default-off gate.
+- Keep global fanout, the root adapter, HTTP dispatch, query execution,
+  provider calls, authorization, and telemetry out of this package.
 
-No-Observability-Change: this extraction does not change routing, dispatch,
-authorization, query execution, summaries, or telemetry.
+No-Observability-Change: this extraction moves only pure Ask route selection.
+The root adapter still feeds the same global fanout, dispatch, authorization,
+summaries, and transport telemetry, and the same query handler executes the
+request.
 
 ## Related docs
 
 - [MCP package](../README.md)
+- [MCP route contract](../routecontract/README.md)
 - [MCP tool contract](../toolcontract/README.md)
 - [Ask local proof](../../../../docs/public/reference/local-testing/ask-eshu-local-proof.md)
 

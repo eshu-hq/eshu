@@ -298,11 +298,12 @@ visualization routing, dispatch, authorization, summaries, and transport
 ownership. The move uses `internal/mcp/toolcontract` and leaves the 162-tool
 order unchanged.
 
-The Ask registration family is the fourth extracted MCP family. Its single
-definition lives under `internal/mcp/ask`, while the root keeps its assembly
-position after reachability and before relationship-edge tools plus all Ask
-routing, dispatch, authorization, summaries, and transport ownership. The move
-uses `internal/mcp/toolcontract` and leaves the 162-tool order unchanged.
+The Ask family is the fourth MCP extraction. Its definition, family membership,
+and pure `routecontract` request selection live under `internal/mcp/ask`. The
+root keeps its assembly position after reachability and before relationship
+edges plus global fanout, its private adapter, dispatch, authorization,
+summaries, transport, and all operational behavior. The 162-tool order and HTTP
+request remain unchanged.
 
 The query-playbook registration family is the fifth extracted MCP family. Its
 two definitions live under `internal/mcp/playbooks`, while the root keeps their
