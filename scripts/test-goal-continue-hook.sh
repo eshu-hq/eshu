@@ -173,5 +173,19 @@ else
 	no "a worktree path containing a space still finds its goal file"
 fi
 
+# On the ordinary blocking path the hook must write NOTHING to stderr. Every
+# other case here pipes stderr to /dev/null, so none of them can see stray
+# output -- which is exactly how 15 lines of orphaned parser survived a review
+# and emitted two "command not found" lines on every Stop. The decision was
+# right; the noise was somewhere nobody looked.
+printf 'Quiet-path goal.\n' >"${goal}"
+quiet_err="$(printf '%s' "$(payload quiet)" | CLAUDE_GOAL_FILE="${goal}" \
+	bash "${HOOK}" 2>&1 >/dev/null)"
+if [[ -z "${quiet_err}" ]]; then
+	ok "the hook writes nothing to stderr on the plain blocking path"
+else
+	no "the hook writes nothing to stderr on the plain blocking path (got: ${quiet_err})"
+fi
+
 printf '\ngoal-continue hook mirror: %s passed, %s failed\n' "${passed}" "${failed}"
 [[ "${failed}" -eq 0 ]]
