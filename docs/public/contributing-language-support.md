@@ -354,9 +354,17 @@ Two rules follow for new parser code:
 - **A file read outside `shared.ReadSource` does not inherit this.** A parser
   that reaches for a second file with its own `os.ReadFile` -- a C/C++ header,
   a sibling module, a tsconfig -- must call `shared.NormalizeLineEndings` on
-  those bytes itself. The C and C++ public-header scans do exactly this; both
-  strip line comments with `(?m)//.*$`, which on a bare-CR header deletes
-  from the first `//` to end of file.
+  those bytes itself. Five call sites do this today, and each one lost real
+  data without it: the C and C++ public-header scans (both strip line comments
+  with `(?m)//.*$`, which on a bare-CR header deletes from the first `//` to
+  end of file, so the file yields zero public-header roots); `goModulePath`,
+  which splits go.mod on `\n` and returns an empty module path for the whole
+  module when the file is one line; and the Python package-`__init__` scan,
+  which finds no `from ... import` statement and drops the
+  `python.package_init_export` root from every symbol the package re-exports.
+  The JavaScript sibling parser normalizes for consistency rather than for a
+  currently observable defect -- its consumers read names by byte offset, not
+  by line -- but its rows would otherwise all be 0.
 
 The rewrite is length-preserving on purpose: a bare `\r` becomes `\n` in
 place and a CRLF pair is left intact, so a byte offset into the returned

@@ -380,3 +380,80 @@ func TestParsePathBareCRUnderCollectorPrimedSource(t *testing.T) {
 		t.Fatalf("ParsePath mutated the collector's primed bytes; content identity would move")
 	}
 }
+
+// TestParsePathBareCRGoModuleImportPath covers goModulePath, which reads
+// go.mod with its own os.ReadFile and splits it on '\n'. On a bare-CR go.mod
+// the whole file is one line, strings.Fields sees far more than the two
+// tokens the module directive is recognised by, and the module path resolves
+// empty -- costing every Go package under that module its import path
+// (issue #6306).
+func TestParsePathBareCRGoModuleImportPath(t *testing.T) {
+	for _, variant := range bareCREOLVariants {
+		t.Run(variant.name, func(t *testing.T) {
+			repoRoot := t.TempDir()
+			goMod := joinWithEOL(variant.eol,
+				"module github.com/example/widget",
+				"",
+				"go 1.25",
+			)
+			if err := os.WriteFile(filepath.Join(repoRoot, "go.mod"), []byte(goMod), 0o600); err != nil {
+				t.Fatalf("WriteFile(go.mod) error = %v, want nil", err)
+			}
+			if got := goModulePath(repoRoot); got != "github.com/example/widget" {
+				t.Fatalf("goModulePath(eol=%s) = %q, want %q", variant.name, got, "github.com/example/widget")
+			}
+		})
+	}
+}
+
+// TestParsePathBareCRPythonPackageInitExports covers
+// pythonPackageInitExportedNames, which reads __init__.py with its own
+// os.ReadFile and splits it on '\n'. On a bare-CR __init__.py the whole file
+// is one line, no `from ... import` statement is recognised, and every symbol
+// the package re-exports loses its python.package_init_export dead-code root
+// -- so a live public class reads as dead (issue #6306).
+func TestParsePathBareCRPythonPackageInitExports(t *testing.T) {
+	for _, variant := range bareCREOLVariants {
+		t.Run(variant.name, func(t *testing.T) {
+			repoRoot := t.TempDir()
+			packageDir := filepath.Join(repoRoot, "service")
+			if err := os.MkdirAll(packageDir, 0o750); err != nil {
+				t.Fatalf("MkdirAll(%q) error = %v, want nil", packageDir, err)
+			}
+			initBody := joinWithEOL(variant.eol,
+				"\"\"\"Package surface.\"\"\"",
+				"from .models import PublicService as Service",
+			)
+			if err := os.WriteFile(filepath.Join(packageDir, "__init__.py"), []byte(initBody), 0o600); err != nil {
+				t.Fatalf("WriteFile(__init__.py) error = %v, want nil", err)
+			}
+			modelsPath := filepath.Join(packageDir, "models.py")
+			models := joinWithEOL("\n",
+				"class PublicService:",
+				"    def run(self):",
+				`        return "ok"`,
+			)
+			if err := os.WriteFile(modelsPath, []byte(models), 0o600); err != nil {
+				t.Fatalf("WriteFile(models.py) error = %v, want nil", err)
+			}
+
+			payload := mustParsePath(t, repoRoot, modelsPath)
+			classes, _ := payload["classes"].([]map[string]any)
+			found := false
+			for _, class := range classes {
+				if name, _ := class["name"].(string); name != "PublicService" {
+					continue
+				}
+				kinds, _ := class["dead_code_root_kinds"].([]string)
+				for _, kind := range kinds {
+					if kind == "python.package_init_export" {
+						found = true
+					}
+				}
+			}
+			if !found {
+				t.Fatalf("PublicService missing python.package_init_export for eol=%s (%#v)", variant.name, classes)
+			}
+		})
+	}
+}

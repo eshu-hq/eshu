@@ -95,6 +95,21 @@ func (p *javaScriptSiblingParser) parseFile(path string) (*tree_sitter.Node, *tr
 	if err != nil || len(source) == 0 {
 		return nil, nil, nil
 	}
+	// Sibling files are read here directly rather than through
+	// shared.ReadSource, so they do not inherit its bare-CR normalization.
+	// Normalize so every tree-sitter parse in this tree sees the same shape
+	// of input: tree-sitter advances StartPosition().Row only on '\n', so a
+	// classic-Mac sibling parses as one line with every row 0 (issue #6306,
+	// measured).
+	//
+	// This is consistency, not a fix for a defect anyone can currently
+	// observe: today's sibling consumers read NAMES (re-exports, imported
+	// type references, Hapi handler specs) via byte offsets, which a bare CR
+	// does not disturb, and tree-sitter-javascript already ends a `//`
+	// comment at a bare '\r' -- also measured -- so no declaration is lost.
+	// The row numbers are wrong without this line, and would become a silent
+	// wrong-line bug the moment a consumer reads one.
+	source = normalizeLineEndings(source)
 	parser, err := p.factory(runtimeLanguage)
 	if err != nil || parser == nil {
 		return nil, nil, nil
