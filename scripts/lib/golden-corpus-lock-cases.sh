@@ -90,7 +90,7 @@ require_lock "verified claim" 'claim_lock_link'
 # `kill -0` fails with EPERM on another user's live process, which would read as
 # "dead" and let a second run reclaim a live lock.
 require_lock "ownership-independent liveness" 'ps -p "$1"'
-if rg -v '^[[:space:]]*#' "${lock_lib}" | rg --fixed-strings --quiet -- 'kill -0'; then
+if rg -v '^[[:space:]]*#' "${lock_lib}" | rg --fixed-strings -- 'kill -0' >/dev/null; then
 	fail "liveness reverted to kill -0 (misreads another user's live process as dead)"
 fi
 # The orphan-guard reap must be age-gated; an unconditional reap can delete a
@@ -101,7 +101,7 @@ fi
 # Pin the POLARITY, not the flag: inverting this to reap guards YOUNGER than
 # the budget reinstates the bug while keeping the "> 60" substring.
 require_lock "age-gate polarity" '(( $(date +%s) - guard_born > 60 ))'
-if rg -v '^[[:space:]]*#' "${lock_lib}" | rg --quiet -- 'find '; then
+if rg -v '^[[:space:]]*#' "${lock_lib}" | rg -- 'find ' >/dev/null; then
 	fail "live-gate-lock.sh reverted to using find - it is a banned discovery primitive repo-wide"
 fi
 # The reclaim guard excludes other RECLAIMERS, not an ordinary claimer - and an
