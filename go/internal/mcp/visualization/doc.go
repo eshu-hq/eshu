@@ -1,11 +1,13 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-// Package visualizationtools defines the MCP registration for deriving a
-// visualization packet from an already-authorized response.
+// Package visualizationtools defines MCP registration and pure route selection
+// for deriving a visualization packet from an already-authorized response.
 //
-// Tools returns a fresh copy of the one canonical definition. The parent mcp
-// package owns its global position, route resolution, dispatch, authorization,
-// response envelopes, and telemetry. This package runs no query and must keep
-// the derive_visualization_packet name, description, and input schema stable.
+// Tools returns a fresh copy of the canonical definition. Route maps decoded
+// arguments to a dependency-neutral internal request without executing it. The
+// parent mcp package owns the global position, route fanout, private adapter,
+// dispatch, authorization, response envelopes, summaries, and telemetry. The
+// query package owns packet derivation and validation. This package runs no
+// query and must keep the tool name, schema, and request shape stable.
 package visualizationtools

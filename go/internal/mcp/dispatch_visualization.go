@@ -3,15 +3,22 @@
 
 package mcp
 
+import (
+	"github.com/eshu-hq/eshu/go/internal/mcp/routecontract"
+	visualizationtools "github.com/eshu-hq/eshu/go/internal/mcp/visualization"
+)
+
+// visualizationRoute adapts the child package's visualization request into
+// the root dispatcher's transport route.
 func visualizationRoute(toolName string, args map[string]any) (*route, bool) {
-	switch toolName {
-	case "derive_visualization_packet":
-		return &route{method: "POST", path: "/api/v0/visualizations/derive", body: map[string]any{
-			"view":            str(args, "view"),
-			"source_response": args["source_response"],
-			"source_truth":    args["source_truth"],
-		}}, true
-	default:
+	request, handled := visualizationtools.Route(toolName, routecontract.Arguments(args))
+	if !handled {
 		return nil, false
 	}
+	return &route{
+		method: request.Method,
+		path:   request.Path,
+		body:   request.Body,
+		query:  request.Query,
+	}, true
 }
