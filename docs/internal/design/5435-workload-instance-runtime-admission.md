@@ -157,8 +157,10 @@ observing cluster scope:
   `projector/kubernetes/workload_materialization_intents.go` emit
   `DomainKubernetesCorrelation`,
   `DomainKubernetesWorkloadMaterialization`, and
-  `DomainKubernetesCorrelationMaterialization` intents, all with
-  `ScopeID: scopeValue.ScopeID` — the cluster scope. None targets a repo scope.
+  `DomainKubernetesCorrelationMaterialization` intents. The root dispatcher
+  forwards `scopeValue.ScopeID` as the `scopeID` argument, and each child builder
+  stores that argument in the intent's `ScopeID` field — the cluster scope. None
+  targets a repo scope.
 
 Repo-scope `DomainWorkloadMaterialization` is triggered today only by a
 repo-sync-time `shared_followup` fact (stable key

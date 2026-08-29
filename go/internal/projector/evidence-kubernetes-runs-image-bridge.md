@@ -5,28 +5,32 @@
 
 ## Change
 
-Two scope-generation reducer-intent builders make the live Kubernetes to OCI
-supply-chain bridge run:
+Two scope-generation reducer-intent builders return the work needed for the
+live Kubernetes to OCI supply-chain bridge:
 
-- `kubernetes.BuildWorkloadMaterializationReducerIntent` enqueues the
-  `kubernetes_workload_materialization` additive domain so the `KubernetesWorkload`
-  node (design #388) commits. The handler was registered and wired but never
-  received an intent, so the node never materialized.
-- `kubernetes.BuildCorrelationMaterializationReducerIntent` enqueues the
-  `kubernetes_correlation_materialization` graph-write domain so an exact image
-  correlation decision is promoted into the `RUNS_IMAGE` edge to the digest-pinned
-  OCI manifest node. The edge intent carries the workload domain's acceptance-unit
-  key so the canonical-nodes readiness gate matches the phase the workload domain
-  publishes (mirrors `workload_cloud_relationship`).
+- `kubernetes.BuildWorkloadMaterializationReducerIntent` builds and returns a
+  reducer intent for the `kubernetes_workload_materialization` additive domain
+  so the `KubernetesWorkload` node (design #388) commits. The handler was
+  registered and wired but never received an intent, so the node never
+  materialized.
+- `kubernetes.BuildCorrelationMaterializationReducerIntent` builds and returns
+  a reducer intent for the `kubernetes_correlation_materialization` graph-write
+  domain so an exact image correlation decision is promoted into the
+  `RUNS_IMAGE` edge to the digest-pinned OCI manifest node. The edge intent
+  carries the workload domain's acceptance-unit key so the canonical-nodes
+  readiness gate matches the phase the workload domain publishes (mirrors
+  `workload_cloud_relationship`).
 
-Both fire at most once per scope generation that observed a live workload
-(triggered by the pod-template fact), matching the existing per-scope
-`kubernetes.BuildCorrelationReducerIntent` builder.
+Both return at most one intent per scope generation that observed a live
+workload (triggered by the pod-template fact), matching the existing per-scope
+`kubernetes.BuildCorrelationReducerIntent` builder. Root assembly appends the
+returned intents, and `Runtime.Project` enqueues the assembled list through
+`IntentWriter.Enqueue`.
 
 ## Performance
 
 No-Regression Evidence: the two builders do one indexed lookup per scope
-generation for the first `kubernetes_live.pod_template` envelope and append at
+generation for the first `kubernetes_live.pod_template` envelope and return at
 most one bounded, per-scope reducer intent. Root constructs that lookup once
 for the full family fan-out. No new
 per-workload or per-image fan-out is introduced, no hot graph-write loop changes,
