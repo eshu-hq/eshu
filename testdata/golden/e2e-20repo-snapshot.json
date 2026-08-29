@@ -3245,7 +3245,7 @@
         }
       },
       "dispatch_reaching_def": {
-        "description": "MCP tool coverage shape for dispatch_reaching_def; asserted live through the MCP tool layer and kept in lockstep with ReadOnlyTools(). Non-vacuous since #5970: minimum_results was 0, so this shape stayed green whether or not a deployed run produced reaching-def facts at all -- which is the state #5692 left behind, where the ESHU_EMIT_DATAFLOW wiring existed but no deployed run had ever been captured with it on. orders-api's main.go carries one dataflow function fact for `main`, so the whole answer is pinned: one definition, that function, that language, and an exact parser fact label rather than a derived guess.",
+        "description": "MCP tool coverage shape for dispatch_reaching_def; asserted live through the MCP tool layer and kept in lockstep with ReadOnlyTools(). Pinned to the reaching-definition payload itself since #6090. It used to answer for orders-api's main(), whose body is a single blank assignment: the Go parser measures zero def->use edges there, and the shape asserted only the function name, its language, and the fact label -- fields a definition row carries whether or not one def->use edge survived, because codeFlowReachingPayloads emits a row per matched function and hangs def_use off it. The shape therefore passed on a null, empty, or absent payload. It now answers for GoldenDataflowHandler in go_comprehensive/dataflow_proof.go, the same function dispatch_cfg_summary and dispatch_pdg_summary already pin at def_use_count 4, and asserts all four measured bindings with their definition and use lines. Emptying def_use now fails the shape.",
         "required_response_fields": [
           "ambiguity",
           "bounds",
@@ -3254,24 +3254,70 @@
           "query"
         ],
         "minimum_results": 1,
+        "maximum_results": 1,
         "results_field": "definitions",
         "result_item_required_fields": [
-          "function_name",
-          "language",
-          "fact_label",
+          "repo_id",
           "relative_path",
-          "evidence_handle"
+          "function_name",
+          "function_uid",
+          "language",
+          "line_number",
+          "evidence_handle",
+          "generation_id",
+          "fact_label",
+          "def_use",
+          "overflow"
         ],
-        "required_json_values": {
-          "bounds.count": 1,
-          "coverage.state": "exact",
-          "definitions[].function_name": "main",
-          "definitions[].language": "go",
-          "definitions[].fact_label": "exact_parser_fact"
-        },
         "arguments": {
-          "repo_id": "orders-api",
-          "symbol": "main"
+          "repo_id": "repository:r_8477a002",
+          "language": "go",
+          "symbol": "GoldenDataflowHandler",
+          "file_path": "dataflow_proof.go",
+          "limit": 1
+        },
+        "required_json_values": {
+          "query.kind": "reaching_def",
+          "query.repo_id": "repository:r_8477a002",
+          "query.language": "go",
+          "query.symbol": "GoldenDataflowHandler",
+          "query.file_path": "dataflow_proof.go",
+          "bounds.count": 1,
+          "bounds.truncated": false,
+          "coverage.state": "exact",
+          "definitions[].repo_id": "repository:r_8477a002",
+          "definitions[].relative_path": "dataflow_proof.go",
+          "definitions[].function_name": "GoldenDataflowHandler",
+          "definitions[].language": "go",
+          "definitions[].fact_label": "exact_parser_fact",
+          "definitions[].overflow": false
+        },
+        "required_json_paths": [
+          "definitions[].def_use[]"
+        ],
+        "required_json_object_matches": {
+          "definitions[].def_use[]": [
+            {
+              "binding": "r",
+              "def_line": 12,
+              "use_line": 13
+            },
+            {
+              "binding": "query",
+              "def_line": 13,
+              "use_line": 14
+            },
+            {
+              "binding": "db",
+              "def_line": 12,
+              "use_line": 15
+            },
+            {
+              "binding": "query",
+              "def_line": 13,
+              "use_line": 15
+            }
+          ]
         }
       },
       "dispatch_cfg_summary": {

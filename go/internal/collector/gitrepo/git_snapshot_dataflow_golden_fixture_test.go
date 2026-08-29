@@ -51,6 +51,19 @@ func TestGoldenDataflowFixtureReachesCollectorReadContracts(t *testing.T) {
 	if got, want := len(function.DefUse), 4; got != want {
 		t.Errorf("def-use edges = %d, want %d", got, want)
 	}
+	// Pin the rows, not just the count. The B-7 golden snapshot's
+	// dispatch_reaching_def shape asserts these same four bindings and their
+	// definition and use lines, so a silent change here would otherwise show up
+	// only as a live gate failure hours later (eshu-hq/eshu#6090).
+	wantDefUse := []map[string]any{
+		{"binding": "r", "def_stmt": 0, "def_line": 12, "use_stmt": 1, "use_line": 13},
+		{"binding": "query", "def_stmt": 1, "def_line": 13, "use_stmt": 2, "use_line": 14},
+		{"binding": "db", "def_stmt": 0, "def_line": 12, "use_stmt": 3, "use_line": 15},
+		{"binding": "query", "def_stmt": 1, "def_line": 13, "use_stmt": 3, "use_line": 15},
+	}
+	if !reflect.DeepEqual(function.DefUse, wantDefUse) {
+		t.Errorf("def-use edges = %#v, want %#v", function.DefUse, wantDefUse)
+	}
 	if got, want := len(function.ControlDependencies), 1; got != want {
 		t.Errorf("control dependencies = %d, want %d", got, want)
 	}
