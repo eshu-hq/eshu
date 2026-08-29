@@ -188,6 +188,29 @@ func TestNamespaceMaterializationIntentPreservesFactAndReconciliationContract(t 
 			},
 		},
 		{
+			name: "namespace fact in complete snapshot",
+			scopeValue: scope.IngestionScope{
+				ScopeID: scopeID, ScopeKind: scope.KindCluster,
+				SourceSystem:  "kubernetes_live",
+				CollectorKind: scope.CollectorKubernetesLive,
+				Metadata:      map[string]string{"cluster_id": " prod-us-east-1 "},
+			},
+			generation: scope.ScopeGeneration{
+				GenerationID:  generationID,
+				FreshnessHint: "complete",
+			},
+			facts:  []facts.Envelope{namespaceFact},
+			wantOK: true,
+			want: projectorintent.ReducerIntent{
+				ScopeID: scopeID, GenerationID: generationID,
+				Domain:    reducer.DomainKubernetesNamespaceMaterialization,
+				EntityKey: "kubernetes_namespace_materialization:" + scopeID,
+				Reason:    "kubernetes live namespace facts observed",
+				FactID:    "namespace-first", SourceSystem: "kubernetes-live-source",
+				Payload: map[string]any{"cluster_id": "prod-us-east-1", "reconcile_complete": true},
+			},
+		},
+		{
 			name:       "partial empty snapshot",
 			scopeValue: completeKubernetesScope(scopeID, "prod-us-east-1"),
 			generation: scope.ScopeGeneration{GenerationID: generationID, FreshnessHint: "partial"},
