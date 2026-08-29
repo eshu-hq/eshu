@@ -79,10 +79,14 @@ read `0.202 s` (`ledger:6296-replay-tier-read-wallclock-v1111`) against `0.201 s
 (`ledger:6296-replay-tier-read-wallclock-v123`).
 
 The paired per-round difference is the figure to read, because it cancels
-machine load: median `-0.095 s` on the write path, new build faster, faster in
+machine load: median `-0.116 s` on the write path, new build faster, faster in
 10 of 12 rounds, and the two rounds that went the other way were `+0.030 s` and
-`+0.027 s` — inside the run-to-run spread of either build. The read path's
-paired median is `-0.001 s`, which is noise; call it unchanged, not a win.
+`+0.027 s` — inside the run-to-run spread of either build. With 12 paired
+values the median is the mean of the 6th and 7th smallest, `(-0.137 + -0.095)
+/ 2`; an earlier revision of this note reported `-0.095 s`, which is the 7th
+value alone and would be the median only for an odd number of rounds. The read
+path's paired median is `-0.0005 s`, which is noise; call it unchanged, not a
+win.
 
 Round 1's `5.133 s` is a load artifact, not a v1.1.11 property: the machine was
 at load average 12–24 when it ran and had fallen to 1.8 by the last round. It is
