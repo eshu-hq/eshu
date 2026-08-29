@@ -21,6 +21,7 @@ live in the repository today.
 | `go/internal/coordinator/cicdrun/` | CI/CD run scheduler request validation and deterministic workflow planning |
 | `go/internal/coordinator/grafanaplanner/` | Grafana scheduler request validation, target filtering, privacy, and deterministic workflow planning |
 | `go/internal/coordinator/lokiplanner/` | Grafana Loki scheduler request validation, target filtering, and deterministic workflow planning |
+| `go/internal/coordinator/pagerdutyplanner/` | PagerDuty scheduler request and target validation, webhook-scope membership, privacy, and deterministic workflow planning |
 | `go/internal/coordinator/plannercontract/` | dependency-neutral scheduler plan-key validation |
 | `go/internal/coordinator/prometheusmimir/` | Prometheus/Mimir scheduler request validation, target filtering, privacy, and deterministic workflow planning |
 | `go/internal/coordinator/scannerworker/` | scanner-worker scheduler configuration validation, requested-scope privacy, and deterministic workflow planning |

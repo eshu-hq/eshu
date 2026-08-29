@@ -43,8 +43,11 @@
 // identity as work-item metadata; claim ordering and pacing do not use that
 // metadata. The parent coordinator's Postgres open-target admission prevents
 // overlapping scheduled work.
-// PagerDutyWorkPlanner plans
-// incident-evidence work from configured PagerDuty targets.
+// The root PagerDutyPlanner interface accepts pagerdutyplanner.PlanRequest.
+// The child validates every configured target before filtering, checks
+// configured webhook-scope membership, and plans deterministic
+// incident-evidence work. This package retains authorization, scheduling, and
+// freshness orchestration.
 // The root PrometheusMimirPlanner interface accepts
 // prometheusmimir.PlanRequest. The child plans bounded metric-metadata work,
 // one item per enabled Prometheus or Grafana Mimir target, partitioned by

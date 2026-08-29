@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package coordinator
+package pagerdutyplanner
 
 import (
 	"strings"
@@ -12,7 +12,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/workflow"
 )
 
-func TestPagerDutyWorkPlannerPlansOneClaimPerTarget(t *testing.T) {
+func TestWorkPlannerPlansOneClaimPerTarget(t *testing.T) {
 	t.Parallel()
 
 	observedAt := time.Date(2026, time.May, 31, 17, 0, 0, 0, time.UTC)
@@ -28,7 +28,7 @@ func TestPagerDutyWorkPlannerPlansOneClaimPerTarget(t *testing.T) {
 		UpdatedAt:      observedAt,
 	}
 
-	run, items, err := (PagerDutyWorkPlanner{}).PlanPagerDutyWork(t.Context(), PagerDutyPlanRequest{
+	run, items, err := (WorkPlanner{}).PlanPagerDutyWork(t.Context(), PlanRequest{
 		Instance:   instance,
 		ObservedAt: observedAt,
 		PlanKey:    "schedule-20260531T170000Z",
@@ -57,7 +57,7 @@ func TestPagerDutyWorkPlannerPlansOneClaimPerTarget(t *testing.T) {
 	}
 }
 
-func TestPagerDutyWorkPlannerPlansWebhookScopeSubset(t *testing.T) {
+func TestWorkPlannerPlansWebhookScopeSubset(t *testing.T) {
 	t.Parallel()
 
 	observedAt := time.Date(2026, time.May, 31, 17, 0, 0, 0, time.UTC)
@@ -73,7 +73,7 @@ func TestPagerDutyWorkPlannerPlansWebhookScopeSubset(t *testing.T) {
 		UpdatedAt:      observedAt,
 	}
 
-	run, items, err := (PagerDutyWorkPlanner{}).PlanPagerDutyWork(t.Context(), PagerDutyPlanRequest{
+	run, items, err := (WorkPlanner{}).PlanPagerDutyWork(t.Context(), PlanRequest{
 		Instance:    instance,
 		ObservedAt:  observedAt,
 		PlanKey:     "freshness-20260531T170000Z",

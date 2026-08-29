@@ -27,6 +27,11 @@
      `grafana_service.go` — the extracted Grafana planner and root seam;
      preserve all-target validation, configured order, privacy, and the
      instance-ID-to-scope-ID fairness fallback
+   - `go/internal/coordinator/pagerdutyplanner/planner.go` and
+     `pagerduty_service.go` — the extracted PagerDuty planner and root seam;
+     preserve schedule/bootstrap/webhook trigger resolution and precedence,
+     all-target validation, scope membership, privacy, configured order,
+     and provider-partitioned fairness identity
    - `go/internal/coordinator/scannerworker/planner.go` and
      `service_scanner_worker.go` — the extracted scanner-worker planner and its
      root scheduling seam; runtime-local paths stay out of requested-scope
@@ -110,7 +115,8 @@
 - **Extract a scheduler family** → keep its `<kind>_service.go`, root planner
   interface, scheduling position, durable admission, clock, and telemetry in
   this package. The child scheduler may depend on `plannercontract`; it must not
-  import the root coordinator package.
+  import the root coordinator package. Freshness families also keep trigger
+  claiming and handed-off/failed transitions in the root service.
 
 ## Failure modes and how to debug
 

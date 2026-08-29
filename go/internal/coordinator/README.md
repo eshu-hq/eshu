@@ -158,10 +158,9 @@ one enabled bounded scope; invalid configurations fail validation.
   `scannerworker.WorkPlanner`. The child plans configured targets without
   exposing runtime-local roots in workflow metadata; root keeps scheduling,
   the plan-key clock, durable admission, retries, and telemetry.
-- `PagerDutyWorkPlanner` — plans PagerDuty incident-context collection runs
-  from configured account or service-allowlist targets. Each target becomes one
-  claimable work item keyed by `scope_id`, and `requested_scope_set` omits
-  token environment references, incident URLs, service IDs, and titles.
+- `PagerDutyPlanner` — implemented by `pagerdutyplanner.WorkPlanner`; child owns
+  validated target membership and private planning. Root retains authorization,
+  scheduling, admission, trigger transitions, retries, and telemetry.
 - `JiraWorkPlanner` — plans Jira work-item evidence collection runs from
   configured Jira Cloud site targets without resolving credential environment
   variables. Each target becomes one claimable work item keyed by `scope_id`.
@@ -227,6 +226,7 @@ one enabled bounded scope; invalid configurations fail validation.
   and deterministic planner implementation.
 - `internal/coordinator/scannerworker` — scanner-worker request validation,
   requested-scope privacy, and deterministic planning.
+- `internal/coordinator/pagerdutyplanner` — PagerDuty validated membership, privacy, and deterministic planning.
 - `internal/coordinator/vaultlive` — Vault metadata plan request and
   deterministic planner implementation.
 - `internal/coordinator/tempoplanner`, `lokiplanner`, `prometheusmimir`, and
