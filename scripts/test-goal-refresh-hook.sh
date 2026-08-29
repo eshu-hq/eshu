@@ -193,5 +193,26 @@ else
 	no "END TO END: the Stop hook hands back the goal the producer wrote"
 fi
 
+# The Stop hook falls back to ${HOME}/.claude/active-goal. If this hook does not
+# look there too, such a goal is ENFORCED but never REFRESHED -- blocking turns
+# while going stale, the worst of both halves. Uses a fake HOME so the real one
+# is never touched.
+fake_home="${work}/fakehome"
+mkdir -p "${fake_home}/.claude"
+printf 'SESSION: %s\nHome-scoped objective.\n' "${sid}" >"${fake_home}/.claude/active-goal"
+empty_cwd="${work}/no-goal-here"
+mkdir -p "${empty_cwd}/.claude"
+home_out="$(SID="${sid}" PROMPT='a plain prompt' CWD="${empty_cwd}" HOME="${fake_home}" python3 -c '
+import json, os
+print(json.dumps({"session_id": os.environ["SID"], "prompt_id": "homeonly",
+                  "cwd": os.environ["CWD"], "prompt": os.environ["PROMPT"],
+                  "hook_event_name": "UserPromptSubmit"}))
+' | HOME="${fake_home}" bash "${REFRESH}" 2>/dev/null)"
+if printf '%s' "$(injected "${home_out}")" | rg -q 'Home-scoped objective'; then
+	ok "a \$HOME-only goal is still refreshed (lookup matches the Stop hook)"
+else
+	no "a \$HOME-only goal is still refreshed (lookup matches the Stop hook)"
+fi
+
 printf '\ngoal-refresh hook mirror: %s passed, %s failed\n' "${passed}" "${failed}"
 [[ "${failed}" -eq 0 ]]

@@ -262,6 +262,10 @@ gates:
       - "scripts/test-agent-hooks.sh"
       - "scripts/test-goal-continue-hook.sh"
       - "scripts/test-goal-refresh-hook.sh"
+      # The workflow itself, so removing a test STEP selects the gate
+      # that asserts the step is there. Without this a workflow-only
+      # edit re-opens the local/CI parity gap silently.
+      - ".github/workflows/verify-agent-hygiene.yml"
     local:
       command: "bash scripts/verify-agent-canon.sh"
       # Both mirrors. .claude/hooks/** is a trigger for this gate, so a hook

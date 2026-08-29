@@ -187,5 +187,35 @@ else
 	no "the hook writes nothing to stderr on the plain blocking path (got: ${quiet_err})"
 fi
 
+# A goal file carries `SESSION: <id>` when goal-refresh.sh wrote it. The Stop
+# hook must compare that against its OWN session, or a later session in the same
+# checkout is handed a previous session's stale goal -- the exact leak the header
+# exists to prevent. The header was added to the producer first and the consumer
+# read it as ordinary goal text, so this case failed silently in between.
+printf 'SESSION: %s\nGoal owned by this very session.\n' "${sid}" >"${goal}"
+check "a goal headed with MY session id still blocks" block "$(run "$(payload own)")"
+
+printf 'SESSION: some-other-session\nGoal owned by somebody else.\n' >"${goal}"
+xout="$(run "$(payload foreign)")"
+check "a goal owned by ANOTHER session allows the stop" allow "${xout}"
+if printf '%s' "${xout}" | rg 'Goal owned by somebody else' >/dev/null; then
+	no "a foreign goal must never be handed back"
+else
+	ok "a foreign goal is never handed back"
+fi
+
+# The header must not leak into the text the agent is shown.
+printf 'SESSION: %s\nThe actual objective.\n' "${sid}" >"${goal}"
+hout="$(run "$(payload hdr)")"
+if printf '%s' "${hout}" | rg 'SESSION:' >/dev/null; then
+	no "the SESSION header is stripped before the goal is quoted"
+else
+	ok "the SESSION header is stripped before the goal is quoted"
+fi
+
+# DONE under a header must still retire the goal.
+printf 'SESSION: %s\nDONE\nFinished objective.\n' "${sid}" >"${goal}"
+check "DONE beneath a SESSION header allows the stop" allow "$(run "$(payload hdrdone)")"
+
 printf '\ngoal-continue hook mirror: %s passed, %s failed\n' "${passed}" "${failed}"
 [[ "${failed}" -eq 0 ]]

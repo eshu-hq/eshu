@@ -65,7 +65,26 @@ print(g("prompt"))
 [ "${session_id:--}" = "-" ] && exit 0
 [ "${cwd:--}" = "-" ] && exit 0
 
-goal_file="${CLAUDE_GOAL_FILE:-${cwd}/.claude/active-goal}"
+# The SAME ordered lookup the Stop hook uses. When these two disagree, a goal
+# is enforced from a path that is never refreshed -- a $HOME-scoped goal would
+# block turns while going stale, which is the worst of both halves.
+#
+# For WRITING a new goal there is no ambiguity: an explicit override wins,
+# otherwise the worktree. The producer never writes $HOME, because a
+# machine-wide goal file would be inherited by every concurrent session in
+# every other worktree.
+goal_write="${CLAUDE_GOAL_FILE:-${cwd}/.claude/active-goal}"
+goal_file=""
+for candidate in \
+	"${CLAUDE_GOAL_FILE:-}" \
+	"${cwd}/.claude/active-goal" \
+	"${HOME}/.claude/active-goal"; do
+	[ -n "${candidate}" ] || continue
+	if [ -f "${candidate}" ]; then
+		goal_file="${candidate}"
+		break
+	fi
+done
 
 # ── producer ───────────────────────────────────────────────────────────────
 # `/goal <text>` or `GOAL: <text>` sets it; `/goal done` or `/goal clear`
@@ -73,10 +92,11 @@ goal_file="${CLAUDE_GOAL_FILE:-${cwd}/.claude/active-goal}"
 # that set it and nagging the next one about finished work.
 case "${prompt}" in
 	'/goal done'*|'/goal clear'*|'GOAL: done'*)
-		if [ -f "${goal_file}" ]; then
-			printf 'DONE\n' > "${goal_file}.tmp" 2>/dev/null &&
-				cat "${goal_file}" >> "${goal_file}.tmp" 2>/dev/null &&
-				mv "${goal_file}.tmp" "${goal_file}" 2>/dev/null || true
+		retire="${goal_file:-${goal_write}}"
+		if [ -f "${retire}" ]; then
+			printf 'DONE\n' > "${retire}.tmp" 2>/dev/null &&
+				cat "${retire}" >> "${retire}.tmp" 2>/dev/null &&
+				mv "${retire}.tmp" "${retire}" 2>/dev/null || true
 		fi
 		exit 0
 		;;
@@ -84,11 +104,12 @@ case "${prompt}" in
 		goal_text="${prompt#*[ :]}"
 		goal_text="${goal_text# }"
 		if [ -n "${goal_text}" ]; then
-			mkdir -p "$(dirname "${goal_file}")" 2>/dev/null || exit 0
+			mkdir -p "$(dirname "${goal_write}")" 2>/dev/null || exit 0
 			{
 				printf 'SESSION: %s\n' "${session_id}"
 				printf '%s\n' "${goal_text}"
-			} > "${goal_file}" 2>/dev/null || exit 0
+			} > "${goal_write}" 2>/dev/null || exit 0
+			goal_file="${goal_write}"
 		fi
 		;;
 esac
