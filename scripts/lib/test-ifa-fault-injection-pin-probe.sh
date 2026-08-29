@@ -90,12 +90,14 @@ assert_pin_helpers_bind_code() {
 	probe_dir="$(mktemp -d -t ifa-pin-probe.XXXXXX)"
 	printf '#!/usr/bin/env bash\n# %s\n:\n' "${needle}" >"${probe_dir}/comment_only.sh"
 	printf '#!/usr/bin/env bash\n: <<%sIFAEOF%s\n%s\nIFAEOF\n:\n' "'" "'" "${needle}" >"${probe_dir}/heredoc_only.sh"
-	# Unpacked one statement per line (#6261). These five writers were packed
-	# onto one line to stay under the 500-line cap, and that is how a sixth
-	# printf came to be appended after a trailing `#`: it read as a comment, the
-	# probe file was never written, the loop below probed a missing path, every
-	# helper failed for THAT reason, and the assertion passed unconditionally
-	# while printing a six-class coverage message it had not earned.
+	# Unpacked one statement per line (#6261). Five of the writers here were
+	# packed onto one line to stay under the 500-line cap, and that is how a
+	# sixth printf came to be appended after a trailing `#`: it read as a
+	# comment, the probe file was never written, the loop below probed a missing
+	# path, every helper failed for THAT reason, and the assertion passed
+	# unconditionally while printing a six-class coverage message it had not
+	# earned. What #6194 added since -- the corpus call and the live control --
+	# is unpacked for the same reason, so "five" no longer means "all of them".
 	printf '#!/usr/bin/env bash\n: <<%sIFAEOF%s >/dev/null\n%s\nIFAEOF\n:\n' "'" "'" "${needle}" >"${probe_dir}/heredoc_redirect_only.sh"
 	printf '#!/usr/bin/env bash\n: <<%sIFAEOF >/dev/null\n%s\nIFAEOF\n:\n' '\' "${needle}" >"${probe_dir}/heredoc_bslash_only.sh"
 	printf '#!/usr/bin/env bash\n: <<%sIFAEOF  # parked\n%s\nIFAEOF\n:\n' '' "${needle}" >"${probe_dir}/heredoc_comment_tail_only.sh"
