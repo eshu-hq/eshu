@@ -5,14 +5,14 @@
 
 ## Change
 
-Two scope-generation reducer intent builders were added to the projector so the
-live-Kubernetes → OCI supply-chain bridge actually runs:
+Two scope-generation reducer-intent builders make the live Kubernetes to OCI
+supply-chain bridge run:
 
-- `buildKubernetesWorkloadMaterializationReducerIntent` enqueues the
+- `kubernetes.BuildWorkloadMaterializationReducerIntent` enqueues the
   `kubernetes_workload_materialization` additive domain so the `KubernetesWorkload`
   node (design #388) commits. The handler was registered and wired but never
   received an intent, so the node never materialized.
-- `buildKubernetesCorrelationMaterializationReducerIntent` enqueues the
+- `kubernetes.BuildCorrelationMaterializationReducerIntent` enqueues the
   `kubernetes_correlation_materialization` graph-write domain so an exact image
   correlation decision is promoted into the `RUNS_IMAGE` edge to the digest-pinned
   OCI manifest node. The edge intent carries the workload domain's acceptance-unit
@@ -21,14 +21,14 @@ live-Kubernetes → OCI supply-chain bridge actually runs:
 
 Both fire at most once per scope generation that observed a live workload
 (triggered by the pod-template fact), matching the existing per-scope
-`kubernetes_correlation` builder.
+`kubernetes.BuildCorrelationReducerIntent` builder.
 
 ## Performance
 
-No-Regression Evidence: The two new builders are O(1) per scope generation — each
-scans the generation's input facts once for the first `kubernetes_live.pod_template`
-envelope (the same single-pass the pre-existing `buildKubernetesCorrelationReducerIntent`
-already performs) and appends at most one bounded, per-scope reducer intent. No new
+No-Regression Evidence: the two builders do one indexed lookup per scope
+generation for the first `kubernetes_live.pod_template` envelope and append at
+most one bounded, per-scope reducer intent. Root constructs that lookup once
+for the full family fan-out. No new
 per-workload or per-image fan-out is introduced, no hot graph-write loop changes,
 and the additive reducer domains were already registered (only the enqueue was
 missing). Net steady-state cost is two extra scope-keyed work items per live-cluster

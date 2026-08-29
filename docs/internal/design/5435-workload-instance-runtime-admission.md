@@ -153,8 +153,8 @@ Today there is **no** path from a cluster scope's facts into a repo scope's
 materialization. Every kubernetes_live intent builder stays inside the
 observing cluster scope:
 
-- `projector/kubernetes_correlation_intents.go:20-38` and
-  `projector/kubernetes_workload_materialization_intents.go:26-102` emit
+- `projector/kubernetes/correlation_intents.go` and
+  `projector/kubernetes/workload_materialization_intents.go` emit
   `DomainKubernetesCorrelation`,
   `DomainKubernetesWorkloadMaterialization`, and
   `DomainKubernetesCorrelationMaterialization` intents, all with

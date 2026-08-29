@@ -212,9 +212,9 @@ from `scope_generation_intents.go` across 41 family files). Root keeps `canonica
 and failure/retry infra (~70 files). Hazard: canonical Row types are
 consumed by 182 external files; family moves need qualifier updates or root
 aliases, and the `canonical.go` exact-path gate trigger (#5531) moves in
-lockstep. Azure, GCP, and security intent builders now demonstrate the neutral
-`internal/projector/intent` boundary while root retains assembly and runtime
-ownership. Coordinator: per-provider `_scheduler.go` halves extract cleanly
+lockstep. Azure, GCP, Kubernetes, and security intent builders now use the
+neutral `internal/projector/intent` boundary while root retains assembly,
+lifecycle, enqueue, retry, and telemetry. Coordinator `_scheduler.go` halves extract cleanly
 (they implement a root Planner interface); the `_service.go` halves are
 methods on the shared `Service` struct and stay until Service is
 decomposed — a design decision, not a file move. Shared plan-key validation now

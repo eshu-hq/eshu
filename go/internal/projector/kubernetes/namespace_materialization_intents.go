@@ -1,36 +1,37 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package projector
+package kubernetes
 
 import (
 	"strings"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	projectorintent "github.com/eshu-hq/eshu/go/internal/projector/intent"
 	"github.com/eshu-hq/eshu/go/internal/reducer"
 	"github.com/eshu-hq/eshu/go/internal/scope"
 )
 
-// buildKubernetesNamespaceMaterializationReducerIntent enqueues one
+// BuildNamespaceMaterializationReducerIntent enqueues one
 // kubernetes_namespace_materialization intent for each scope generation that
 // contains live namespace facts or is a complete Kubernetes live snapshot. The
 // reducer handler loads every namespace fact in that generation, so the
 // projector emits one scope-keyed intent rather than one work item per
 // namespace. Complete snapshots enqueue even when empty so the reducer can
 // retract namespaces that disappeared; partial empty snapshots never retract.
-func buildKubernetesNamespaceMaterializationReducerIntent(
+func BuildNamespaceMaterializationReducerIntent(
 	scopeValue scope.IngestionScope,
 	generation scope.ScopeGeneration,
-	index *reducerIntentFactIndex,
-) (ReducerIntent, bool) {
-	envelope, hasNamespaceFact := index.firstOfKind(facts.KubernetesNamespaceFactKind)
+	lookup projectorintent.FactLookup,
+) (projectorintent.ReducerIntent, bool) {
+	envelope, hasNamespaceFact := lookup.FirstOfKind(facts.KubernetesNamespaceFactKind)
 	clusterID := strings.TrimSpace(scopeValue.Metadata["cluster_id"])
 	reconcileComplete := scopeValue.ScopeKind == scope.KindCluster &&
 		scopeValue.CollectorKind == scope.CollectorKubernetesLive &&
 		strings.TrimSpace(generation.FreshnessHint) == "complete" &&
 		clusterID != ""
 	if !hasNamespaceFact && !reconcileComplete {
-		return ReducerIntent{}, false
+		return projectorintent.ReducerIntent{}, false
 	}
 
 	factID := ""
@@ -41,7 +42,7 @@ func buildKubernetesNamespaceMaterializationReducerIntent(
 	reason := "complete kubernetes live namespace snapshot observed"
 	if hasNamespaceFact {
 		factID = envelope.FactID
-		sourceSystem = kubernetesCorrelationSourceSystem(envelope)
+		sourceSystem = projectorintent.SourceSystem(envelope)
 		reason = "kubernetes live namespace facts observed"
 	}
 	var payload map[string]any
@@ -51,7 +52,7 @@ func buildKubernetesNamespaceMaterializationReducerIntent(
 			"reconcile_complete": true,
 		}
 	}
-	return ReducerIntent{
+	return projectorintent.ReducerIntent{
 		ScopeID:      scopeValue.ScopeID,
 		GenerationID: generation.GenerationID,
 		Domain:       reducer.DomainKubernetesNamespaceMaterialization,

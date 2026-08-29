@@ -50,14 +50,16 @@ No graph backend participates in this in-process benchmark, and it creates no
 queue rows; the terminal count is the parity test's unchanged 42 intents.
 
 No-Regression Evidence: `internal/projector/azure`, `internal/projector/gcp`,
-and `internal/projector/security` import this contract for their extracted
-intent builders while root assembly passes the shared `FactLookup`. Focused
+`internal/projector/kubernetes`, and `internal/projector/security` import this
+contract for their extracted intent builders while root assembly passes the
+shared `FactLookup`. Focused
 family and ordered fan-out tests plus the full projector tree preserve exact
 trigger, value, and order behavior. Same-shape fan-out measurements preserve
 the allocation count and comparable CPU cost on the same host and fixture.
 
-No-Observability-Change (Azure, GCP, and security extractions): the boundary
-adds no metric, span, log, status field, queue behavior, or runtime setting.
+No-Observability-Change (Azure, GCP, Kubernetes, and security extractions): the
+boundary adds no metric, span, log, status field, queue behavior, or runtime
+setting.
 Existing projection and reducer-intent enqueue telemetry remains owned by the
 root projector package; the telemetry coverage verifier confirms the moved
 stages remain mapped to `eshu_dp_reducer_intents_enqueued_total`.

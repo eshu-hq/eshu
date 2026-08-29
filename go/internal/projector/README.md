@@ -216,17 +216,17 @@ GCP CloudResource substrate before projecting `GCP_<TYPE>` edges. The projector
 does not create GCP nodes or edges itself. The scope-generation-level intent
 builders are assembled in `appendScopeGenerationReducerIntents`.
 
-Live Kubernetes namespace facts follow the same reducer-owned handoff. When a
-generation contains `kubernetes_live.namespace`, or when a Kubernetes live
-cluster generation is explicitly marked `FreshnessHint=complete`,
-`buildKubernetesNamespaceMaterializationReducerIntent` emits one
-`kubernetes_namespace_materialization` intent keyed to the scope. The reducer
-loads all namespace facts for that generation and materializes their canonical
-`KubernetesNamespace` nodes and recognized environment bindings. A complete
-snapshot also carries the cluster identity so the reducer can retract nodes
-absent from the new generation, including deletion of the last namespace. A
-partial empty snapshot emits no work and can never retract previously observed
-truth.
+Live Kubernetes facts follow the same reducer-owned handoff. The child
+`kubernetes` package builds correlation, workload-node, image-edge, and
+namespace intents from the root-owned lookup. Its workload-node and image-edge
+builders share one acceptance key so `RUNS_IMAGE` projection waits for
+canonical workload-node readiness. A namespace fact or a valid Kubernetes live
+cluster generation marked `FreshnessHint=complete` makes
+`kubernetes.BuildNamespaceMaterializationReducerIntent` emit one scope-keyed
+intent. Complete snapshots carry cluster identity so the reducer can retract
+absent namespaces, including the last one. Partial empty snapshots emit no
+work and cannot retract previously observed truth. Root retains assembly,
+enqueue, retry, and telemetry ownership.
 
 `appendScopeGenerationReducerIntents` builds one shared, read-only
 `reducerIntentFactIndex` (`reducer_intent_fact_index.go`) over `inputFacts` and
@@ -246,10 +246,10 @@ old full scan made — not "earliest fact of the first-checked kind" — so anch
 `FactID`, `Reason`, and `SourceSystem` stay byte-identical.
 Root assembly constructs one concrete `intent.FactLookup` per generation and
 retains a compatibility wrapper for unmoved family builders. The extracted
-`internal/projector/azure`, `internal/projector/gcp`, and
-`internal/projector/security` families import that neutral lookup without
-importing root projector assembly; remaining root builders keep using the
-private forwarders until their move PRs land.
+`internal/projector/azure`, `internal/projector/gcp`,
+`internal/projector/kubernetes`, and `internal/projector/security` families
+import that neutral lookup without importing root projector assembly;
+remaining root builders keep using the private forwarders until they move.
 `ReducerIntent` in the root package is a type alias, so existing writer and
 command wiring remains source-compatible.
 The "44 probes" count above is not a bare claim: `documentedReducerIntentProbeCount`
