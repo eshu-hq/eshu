@@ -37,6 +37,16 @@ import (
 // asserted by a guard whose whole subject is not asserting unverified things.
 // The check below demands the entry at the moment the row lands instead, which
 // is the same obligation arriving when it can actually be met.
+//
+// TWO EXCEPTIONS, and they are exceptions to the REASON rather than to the
+// rule: iam_instance_profile_role and kubernetes_namespace_environment carry
+// stems while still waived. #6228 wired both into the live determinism matrix,
+// so their ifa-determinism triggers are written files, not guesses, and the
+// stems below are read off them. Both stay waived until the fault half exists
+// (#6309), so nothing here asserts a proof either family has not earned --
+// the coverage-keyed checks skip them exactly as they skip the other
+// twenty-six. Do not re-remove them by applying the paragraph above: a stem
+// whose triggers exist is the thing that paragraph is waiting for.
 var materializedEdgeFamilyTriggerStems = map[string]string{
 	"code_calls":                 "code_call",
 	"codeowners_ownership_edges": "codeowners",
@@ -64,10 +74,17 @@ var materializedEdgeFamilyTriggerStems = map[string]string{
 	"submodule_pin_edges":  "submodule",
 	"workload_dependency":  "workload_dependency",
 	// The first two DIRECT families to be wired into a live gate (#6228). Both
-	// stems are prefixes of real trigger paths in BOTH gate blocks --
+	// stems are prefixes of real trigger paths in the ifa-determinism block --
 	// go/internal/ifa/<stem>_family_odu.go, the reducer handler and the cypher
 	// writer -- rather than guesses at paths nobody has written, which is the
 	// state the comment above describes for the remaining direct families.
+	//
+	// NOT in the ifa-fault-injection block, deliberately: neither family has a
+	// fault cell (#6309), so triggering that gate on their inputs would arm a
+	// four-shard matrix that never reads them. The both-gates check below is
+	// keyed to coverage rows, and both families are waived, so it does not
+	// demand the fault-side trigger yet -- it will on the day the coverage row
+	// lands, which is the same day the cells have to exist.
 	"iam_instance_profile_role":        "iam_instance_profile_role",
 	"kubernetes_namespace_environment": "kubernetes_namespace_environment",
 }

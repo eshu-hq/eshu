@@ -27,6 +27,20 @@ rg --quiet --fixed-strings --line-regexp -- 'source "${ifa_live_gate_negative_ca
 # shellcheck source=scripts/lib/ifa_live_gate_negative_cases.sh
 source "${ifa_live_gate_negative_cases_lib}"
 
+# The determinism-only seams took the same split at 491 lines. Same variable-path
+# source and the same rg pin, for the same reason: the drift walk cannot resolve
+# the path, so nothing else would notice the source line being deleted -- and a
+# deleted source leaves the consuming loop iterating an unset array, which under
+# `set -u` is a hard error and under anything laxer is silent zero coverage.
+ifa_live_gate_determinism_only_cases_lib="${BASH_SOURCE[0]%/*}/ifa_live_gate_determinism_only_cases.sh"
+rg --quiet --fixed-strings --line-regexp -- 'source "${ifa_live_gate_determinism_only_cases_lib}"' "${BASH_SOURCE[0]}" ||
+	{
+		printf 'ifa_live_gate_selector_cases: determinism-only seams must be sourced from scripts/lib/ifa_live_gate_determinism_only_cases.sh\n' >&2
+		exit 1
+	}
+# shellcheck source=scripts/lib/ifa_live_gate_determinism_only_cases.sh
+source "${ifa_live_gate_determinism_only_cases_lib}"
+
 ifa_live_gate_common_seams=(
 	'scripts/lib/ifa_live_gate_*.sh|scripts/lib/ifa_live_gate_selector_cases.sh'
 	# The half this file was split into at 488 of the 500-line cap. Pinned
@@ -34,6 +48,7 @@ ifa_live_gate_common_seams=(
 	# first split in scripts/lib/ that does NOT go dark, and the assertion
 	# that it does not is worth more than the sentence saying so.
 	'scripts/lib/ifa_live_gate_*.sh|scripts/lib/ifa_live_gate_negative_cases.sh'
+	'scripts/lib/ifa_live_gate_*.sh|scripts/lib/ifa_live_gate_determinism_only_cases.sh'
 	# Wildcard fixtures. The literals above cannot exercise a glob, and this
 	# file's own contract is one representative PATH per pattern -- a
 	# string-only registry/workflow comparison agrees just as happily on a
@@ -465,27 +480,4 @@ ifa_live_gate_fault_only_seams=(
 	# that lost them looked complete the whole time it was wrong.
 	'scripts/lib/test-ifa-fault-injection-*.sh|scripts/lib/test-ifa-fault-injection-deployable-unit-kill-isolation-cases.sh'
 	'scripts/lib/test-ifa-fault-injection-*.sh|scripts/lib/test-ifa-fault-injection-generic-runner-lease-audit-cases.sh'
-)
-
-# Determinism-only case data is the mirror image of ifa_live_gate_fault_only_seams
-# above: these inputs must retrigger ifa-determinism but never
-# ifa-fault-injection, so the matcher proves a determinism-only test module
-# cannot silently broaden the fault registry (a real cost -- the fault gate
-# runs a four-shard, ~22-minute Docker matrix per shard). Classify by WHERE a
-# file executes, not what its content is about: test-ifa-family-registry-
-# derived-pins-cases.sh's subject matter is fault-cell blocker semantics, but
-# it only ever runs inside test-verify-ifa-determinism.sh (the mirror that
-# sources and calls it), so ifa-determinism is the gate that must re-run when
-# it changes.
-ifa_live_gate_determinism_only_seams=(
-	'scripts/lib/test-ifa-determinism-*.sh|scripts/lib/test-ifa-determinism-family-cases.sh'
-	# Split out of the file immediately above once it crossed the 500-line
-	# cap; sourced only by scripts/test-verify-ifa-determinism.sh.
-	'scripts/lib/test-ifa-determinism-*.sh|scripts/lib/test-ifa-determinism-maintenance-family-cases.sh'
-	'scripts/lib/test-ifa-determinism-*.sh|scripts/lib/test-ifa-determinism-pin-behaviour-cases.sh'
-	'scripts/lib/test-ifa-determinism-*.sh|scripts/lib/test-ifa-determinism-registry-lockstep-cases.sh'
-	'scripts/lib/test-ifa-determinism-*.sh|scripts/lib/test-ifa-determinism-require-helpers.sh'
-	'scripts/lib/test-ifa-determinism-*.sh|scripts/lib/test-ifa-determinism-teeth-cases.sh'
-	'scripts/lib/test-ifa-family-registry-*.sh|scripts/lib/test-ifa-family-registry-derived-pins-cases.sh'
-	'scripts/lib/ifa_family_registry_pins/**|scripts/lib/ifa_family_registry_pins/code_calls.sh'
 )

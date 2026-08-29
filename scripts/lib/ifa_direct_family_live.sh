@@ -3,12 +3,16 @@
 # Live-gate drive/assert callbacks for the two DIRECT-materialization families
 # (#6228): kubernetes_namespace_environment and iam_instance_profile_role.
 #
-# SOURCED by both scripts/verify-ifa-determinism.sh and
-# scripts/verify-ifa-fault-injection.sh. The families are registered through
+# SOURCED BY scripts/verify-ifa-determinism.sh ONLY. The fault gate does not
+# source it: scripts/verify-ifa-fault-injection.sh loads its libs through
+# scripts/lib/ifa_fault_injection_sources.sh, which does not list this file.
+# Neither family has a fault cell of any kind (#6309) -- nothing here is
+# reachable from the fault gate, and nothing below should be read as evidence
+# that a fault cell exists. The families are registered through
 # scripts/lib/ifa_family_registry/rows/12_kubernetes_namespace_environment.sh
-# and rows/13_iam_instance_profile_role.sh, which decide which cells drive
-# them; this file only supplies the callbacks those rows name. Callers own
-# strict mode and cleanup.
+# and rows/13_iam_instance_profile_role.sh, which say the same thing in
+# cell_kind=none; this file only supplies the drive/assert callbacks the
+# determinism gate's N-loop names. Callers own strict mode and cleanup.
 #
 # ONE FILE FOR TWO FAMILIES, unlike the shared-projection families' one file
 # each. Their drive and assert bodies differ only in a cassette path, a domain
@@ -59,6 +63,15 @@ ifa_kubernetes_namespace_environment_drive() {
 
 # ifa_kubernetes_namespace_environment_assert pins the two-edge exact set.
 #
+# CALLED TWICE PER CELL, pre-delta inside the registry loop and again after
+# ifa_det_run_sql_delta_live. The second call is not belt-and-braces: the matrix
+# compares one canonicalized digest per N, so a generation-2 regression that
+# retracted or mutated these edges IDENTICALLY at N=1, 2 and 4 leaves all three
+# digests equal and the gate green while the graph no longer matches the
+# expected set. Only re-running the exact-set assertion after generation 2 can
+# see that. Both direct families were asserted pre-delta only when they first
+# landed (#6309).
+#
 # Two of the Odù's four namespaces bind an Environment and two deliberately do
 # not, so this assertion is as much about the two edges that must NOT exist as
 # the two that must. The targets are the CANONICAL environment names ("prod",
@@ -86,7 +99,9 @@ ifa_iam_instance_profile_role_drive() {
 		"${label}" "${bin_dir}" "${cassette}" "${workers}" "${log_dir}"
 }
 
-# ifa_iam_instance_profile_role_assert pins the two-edge exact set.
+# ifa_iam_instance_profile_role_assert pins the two-edge exact set. Called twice
+# per cell for the reason recorded on the namespace assert above: post-delta is
+# the only place an identical-across-N generation-2 mutation shows up.
 #
 # Both edges come from ONE instance profile attaching two scanned roles, so a
 # regression that emitted one edge per profile instead of one per attachment

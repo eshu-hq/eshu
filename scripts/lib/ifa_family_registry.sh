@@ -98,11 +98,23 @@
 #                text against this substring (see
 #                ifa_fault_injection_common.sh's ifa_fault_write_once_script
 #                doc comment for why a substring, not a fixed ordinal).
-#   cell_kind    generic | custom. This records DISPATCH REALITY: does the gate
-#                reach this family's fault cells through cell_killworker_family
-#                / cell_failgraphwrite_family (generic), or by naming its own
-#                hand-written cell functions (custom)? It is NOT "could the
-#                generic dispatcher express this family's blocker in principle".
+#   cell_kind    generic | custom | none. This records DISPATCH REALITY: does
+#                the gate reach this family's fault cells through
+#                cell_killworker_family / cell_failgraphwrite_family (generic),
+#                by naming its own hand-written cell functions (custom), or does
+#                the fault gate not reach this family at all (none)? It is NOT
+#                "could the generic dispatcher express this family's blocker in
+#                principle".
+#
+#                `none` is for a family registered for the DETERMINISM gate
+#                alone: no cell function, no IFA_FAULT_ALL_CELLS entry, no
+#                dispatch in scripts/verify-ifa-fault-injection.sh. Both direct
+#                families (rows/12, rows/13) are that today. Recording custom
+#                for one of them -- the first cut of rows/12 did -- asserts a
+#                dispatch that does not exist and makes the family read as
+#                covered while nothing drives it, which is the exact failure
+#                #6181 was filed over. A family moving to custom or generic is
+#                a change that lands WITH the cells, never ahead of them.
 #
 #                Those two readings disagree for real families, and the wrong
 #                one is dangerous. sql_relationships' blocker_kind=none IS a
