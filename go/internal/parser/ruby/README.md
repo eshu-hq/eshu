@@ -33,6 +33,11 @@ This package imports the Go standard library, internal/parser/shared, the
 go-tree-sitter runtime, and the tree-sitter-ruby grammar binding. It must not
 import the parent internal/parser package.
 
+The `ruby_test` files in this directory are an external test package, not part
+of `package ruby`. They import internal/parser and internal/parser/parsertest to
+drive `parser.DefaultEngine().ParsePath` as a black box, which is how the Ruby
+Engine-contract tests live beside the adapter without creating an import cycle.
+
 ## Telemetry
 
 This package emits no telemetry. Parse timing remains owned by the parent

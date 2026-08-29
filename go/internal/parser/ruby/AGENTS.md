@@ -12,12 +12,19 @@
 6. calls.go - AST call-name composition and argument/assignment-type helpers
 7. dead_code_roots.go - Ruby parser-backed dead-code root metadata from the AST
 8. bundler_blocks.go - opaque-block helper retained for the Bundler scanner
-9. parser_test.go - behavior coverage for payload shape
+9. parser_test.go - same-package behavior coverage for payload shape
+10. engine_ruby_semantics_test.go, ruby_dead_code_roots_test.go,
+    ruby_route_entries_test.go, engine_bundler_lockfile_test.go - external
+    `package ruby_test` coverage of the public Engine contract, with local
+    helpers in ruby_engine_helpers_test.go
 
 ## Invariants this package enforces
 
 - Dependency direction stays one way: parent parser code may import this
-  package, but this package must not import internal/parser.
+  package, but `package ruby` must not import internal/parser. The external
+  `package ruby_test` files in this directory do import it, on purpose: Go
+  compiles an external test package separately, so black-box Engine tests can
+  sit next to the adapter they cover without an import cycle.
 - Parse preserves the Ruby payload shape, including modules, module_inclusions,
   framework_semantics, and context metadata. The tree-sitter rewrite must keep
   parity with the prior output for every bucket.
@@ -37,7 +44,9 @@
 
 ## Common changes and how to scope them
 
-- Add Ruby evidence by writing a focused test in parser_test.go first.
+- Add Ruby evidence by writing a focused test first: parser_test.go for adapter
+  internals, or the matching `package ruby_test` file when the claim is about
+  what `parser.DefaultEngine().ParsePath` emits.
 - Keep registry, Engine dispatch, and content-shape changes outside this
   package unless the task explicitly includes those files.
 - Use internal/parser/shared helpers for payload buckets and sorting.
@@ -57,7 +66,8 @@
 
 ## Anti-patterns specific to this package
 
-- Importing the parent parser package.
+- Importing the parent parser package from `package ruby` (the external
+  `package ruby_test` files are the sanctioned exception).
 - Treating Ruby blocks as fully parsed syntax without fixture proof.
 - Emitting new bucket keys without matching downstream shape work.
 

@@ -1,11 +1,14 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package parser
+package ruby_test
 
 import (
 	"path/filepath"
 	"testing"
+
+	"github.com/eshu-hq/eshu/go/internal/parser"
+	"github.com/eshu-hq/eshu/go/internal/parser/parsertest"
 )
 
 func TestDefaultEngineParsePathRubyEmitsExactRailsRouteEntries(t *testing.T) {
@@ -34,18 +37,18 @@ end
 `,
 	)
 
-	engine, err := DefaultEngine()
+	engine, err := parser.DefaultEngine()
 	if err != nil {
-		t.Fatalf("DefaultEngine() error = %v, want nil", err)
+		t.Fatalf("parser.DefaultEngine() error = %v, want nil", err)
 	}
 
-	got, err := engine.ParsePath(repoRoot, sourcePath, false, Options{IndexSource: true})
+	got, err := engine.ParsePath(repoRoot, sourcePath, false, parser.Options{IndexSource: true})
 	if err != nil {
 		t.Fatalf("ParsePath(%s) error = %v, want nil", sourcePath, err)
 	}
 
-	assertFrameworksEqual(t, got, "rails")
-	assertNestedRouteEntriesEqual(t, got, "rails", []map[string]string{
+	parsertest.AssertFrameworksEqual(t, got, "rails")
+	parsertest.AssertNestedRouteEntriesEqual(t, got, "rails", []map[string]string{
 		{"method": "GET", "path": "/reports/:id", "handler": "ReportsController.show"},
 		{"method": "POST", "path": "/reports", "handler": "ReportsController.create"},
 	})
@@ -85,18 +88,18 @@ end
 `,
 	)
 
-	engine, err := DefaultEngine()
+	engine, err := parser.DefaultEngine()
 	if err != nil {
-		t.Fatalf("DefaultEngine() error = %v, want nil", err)
+		t.Fatalf("parser.DefaultEngine() error = %v, want nil", err)
 	}
 
-	got, err := engine.ParsePath(repoRoot, sourcePath, false, Options{IndexSource: true})
+	got, err := engine.ParsePath(repoRoot, sourcePath, false, parser.Options{IndexSource: true})
 	if err != nil {
 		t.Fatalf("ParsePath(%s) error = %v, want nil", sourcePath, err)
 	}
 
-	assertFrameworksEqual(t, got, "sinatra")
-	assertNestedRouteEntriesEqual(t, got, "sinatra", []map[string]string{
+	parsertest.AssertFrameworksEqual(t, got, "sinatra")
+	parsertest.AssertNestedRouteEntriesEqual(t, got, "sinatra", []map[string]string{
 		{"method": "GET", "path": "/health", "handler": "ReportsApp.health"},
 		{"method": "POST", "path": "/reports", "handler": "ReportsApp.create_report"},
 	})

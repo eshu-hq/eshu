@@ -1,7 +1,7 @@
 # Ruby Parser Audit
 
 ## Overview
-The Ruby parser (`go/internal/parser/ruby/`) is a tree-sitter-backed adapter that extracts modules, classes, singleton classes, methods, imports (`require`/`require_relative`/`load`), module inclusions (`include`), variables (constants, identifiers, instance variables), method calls (dotted and receiverless), block end lines, Rails-idiomatic dead-code root metadata, and Bundler dependency evidence from `Gemfile`/`Gemfile.lock`. The AST walk in `syntax.go` uses a scope stack for context resolution. Call extraction uses `calls.go` for dotted name composition. The package has 3 subdirectory test files plus 6 parent-level dead-code root tests and a parent-level Ruby semantics test.
+The Ruby parser (`go/internal/parser/ruby/`) is a tree-sitter-backed adapter that extracts modules, classes, singleton classes, methods, imports (`require`/`require_relative`/`load`), module inclusions (`include`), variables (constants, identifiers, instance variables), method calls (dotted and receiverless), block end lines, Rails-idiomatic dead-code root metadata, and Bundler dependency evidence from `Gemfile`/`Gemfile.lock`. The AST walk in `syntax.go` uses a scope stack for context resolution. Call extraction uses `calls.go` for dotted name composition. The package holds 4 external `package ruby_test` files (and one helper file) that drive the public `parser.DefaultEngine().ParsePath` contract from inside the package directory, alongside its existing same-package tests. The parent `go/internal/parser` directory keeps only cross-language Ruby coverage: the long-tail fixture, cyclomatic complexity, dependency-coverage, registry, runtime, and benchmark suites.
 
 ## Claimed Constructs
 List every construct the parser claims to extract, with source references.
@@ -45,15 +45,15 @@ List constructs verified by tests, with file:function references.
 8. **Dotted function calls** — `ruby/parser_test.go:53-54` (task.call, Rails.application.routes.draw, env.ready?)
 9. **Method arguments** — `ruby/parser_test.go:45-46` (task, retries)
 10. **IndexSource** — `ruby/parser_test.go:42-43` (source line capture)
-11. **Rails controller action root** — `ruby_dead_code_roots_test.go:75` (`TestDefaultEngineParsePathRubyEmitsDeadCodeRootKinds`)
-12. **Rails callback method root** — `ruby_dead_code_roots_test.go:76`
-13. **Dynamic dispatch hook root** — `ruby_dead_code_roots_test.go:77-78`
-14. **Script entrypoint root** — `ruby_dead_code_roots_test.go:79`
-15. **Method reference target root** — `ruby_dead_code_roots_test.go:80`
-16. **Dead code fixture expected roots** — `ruby_dead_code_roots_test.go:86-108` (comprehensive fixture)
-17. **Receiverless helper calls** — `ruby_dead_code_roots_test.go:112-168` (`TestDefaultEngineParsePathRubyEmitsReceiverlessHelperCalls`)
-18. **Array callback methods** — `ruby_dead_code_roots_test.go:173-206` (`before_action [:a, :b]`)
-19. **Non-equality script guard rejected** — `ruby_dead_code_roots_test.go:209-246` (`TestDefaultEngineParsePathRubyRejectsNonEqualityScriptGuard`)
+11. **Rails controller action root** — `ruby/ruby_dead_code_roots_test.go:78` (`TestDefaultEngineParsePathRubyEmitsDeadCodeRootKinds`)
+12. **Rails callback method root** — `ruby/ruby_dead_code_roots_test.go:79`
+13. **Dynamic dispatch hook root** — `ruby/ruby_dead_code_roots_test.go:80-81`
+14. **Script entrypoint root** — `ruby/ruby_dead_code_roots_test.go:82`
+15. **Method reference target root** — `ruby/ruby_dead_code_roots_test.go:83`
+16. **Dead code fixture expected roots** — `ruby/ruby_dead_code_roots_test.go:89-111` (comprehensive fixture)
+17. **Receiverless helper calls** — `ruby/ruby_dead_code_roots_test.go:115-171` (`TestDefaultEngineParsePathRubyEmitsReceiverlessHelperCalls`)
+18. **Array callback methods** — `ruby/ruby_dead_code_roots_test.go:176-209` (`before_action [:a, :b]`)
+19. **Non-equality script guard rejected** — `ruby/ruby_dead_code_roots_test.go:358-395` (`TestDefaultEngineParsePathRubyRejectsNonEqualityScriptGuard`)
 20. **Bundler Gemfile dependencies** — `ruby/bundler_test.go:13-59` (direct deps, groups, sources)
 21. **Bundler lockfile dependencies** — `ruby/bundler_test.go:63-105` (exact versions, dependency paths)
 22. **Git source in lockfile** — `ruby/bundler_test.go:111-145`
@@ -68,7 +68,11 @@ List constructs claimed but not covered by any test.
 1. **Singleton class (`class << self`)** — `syntax.go:184-199`: not tested in any test file. Neither the singleton class scope nor methods inside it are explicitly verified.
 2. **`def self.name` singleton method** (`syntax.go:211`): tested indirectly via `OrdersController.self.call`, but not isolated.
 3. **Visibility transitions** (`public`/`private`/`protected` toggles) — `syntax.go:228-229`: the public/private interaction with Rails controller action marking is tested, but visibility transitions within a class body are not.
-4. **`method_missing` / `respond_to_missing?` as dynamic_dispatch_hook** — `dead_code_roots.go:51-52`: tested via dead_code_roots_test but not as a standalone function type test.
+4. **`method_missing` / `respond_to_missing?` as dynamic_dispatch_hook** — `dead_code_roots.go:51-52`:
+   covered incidentally, not as a standalone construct test. `ruby/ruby_dead_code_roots_test.go:81`
+   asserts the `ruby.dynamic_dispatch_hook` root kind and
+   `ruby/engine_ruby_semantics_test.go:272` asserts `type=dynamic_dispatch`; neither exercises the
+   pair as a dedicated dynamic-dispatch case, which is the residual gap that keeps this entry here.
 5. **Assignment-side bare identifier calls** (`calls.go:44-59`): the `x = build_scopes` pattern is not tested in isolation; only dotted calls from the main test cover call extraction.
 6. **Call deduplication by full name + line** (`calls.go:64-66`): not explicitly tested with duplicate calls on the same line.
 7. **Variable deduplication across scopes** — `syntax.go:318-321` (`seenVariables`): not tested with a variable assigned in two scopes.
@@ -77,20 +81,21 @@ List constructs claimed but not covered by any test.
 10. **Opaque block balancing in Bundler** (`bundler_blocks.go`): tested implicitly through group tests, but not in isolation.
 11. **Bundler `github:` source type** (`bundler_gemfile.go:16`): no test with `github "user/repo" do`.
 12. **Bundler `source` option within group context** (`bundler_gemfile.go:99-103`): not tested.
-13. **`Gemfile.lock` with `PATH` section** — `bundler_lockfile.go:139-142`: not tested.
 
 ## Edge Cases Considered
 List edge cases the tests actually cover with test references.
 
 - **Scoped variable context across nested blocks** — `ruby/parser_test.go:56-106` (constant in class, instance variable in method)
 - **Chained call receivers** (`Rails.application.routes.draw`) — `ruby/parser_test.go:104`
-- **Array-form callback methods** (`before_action [:authenticate_user!, :set_account]`) — `ruby_dead_code_roots_test.go:173-206`
-- **Non-equality script guard (`!=`)** — `ruby_dead_code_roots_test.go:209-246` (only `==` roots the calls)
+- **Array-form callback methods** (`before_action [:authenticate_user!, :set_account]`) — `ruby/ruby_dead_code_roots_test.go:176-209`
+- **Non-equality script guard (`!=`)** — `ruby/ruby_dead_code_roots_test.go:358-395` (only `==` roots the calls)
 - **Direct vs transitive lockfile dependency chains** — `ruby/bundler_test.go:63-105`
+- **Bundler lockfile `GIT` section** — `ruby/engine_bundler_lockfile_test.go` (asserts `source_type=git`, `source_path=https://github.com/rails/rails.git`). This is the lockfile path, not the Gemfile gem-call `github:` option at `bundler_gemfile.go:15,69,91`, which remains untested — see Unverified item 11 and Recommended Action 4.
+- **Bundler `PATH` local source** — first covered at `ruby/bundler_test.go:108-145` (`TestParseGemfileLockPreservesGitAndPathAmbiguity`, `source_type=path`, `source_path=../components/local`); `ruby/engine_bundler_lockfile_test.go` adds the same assertion through the parent Engine (`source_path=../vendor/gems/auth`).
 - **CRLF line endings in lockfile** — `ruby/bundler_test.go:148-161`
 - **Nested Bundler group blocks with end balancing** — `ruby/bundler_test.go:168-185`
 - **Dependency aliases (`gem "pg", require: "pg")`** — handled by Bundler option parser but not explicitly tested
-- **Receiverless call in script guard body** — `ruby_dead_code_roots_test.go:79` (main calls)
+- **Receiverless call in script guard body** — `ruby/ruby_dead_code_roots_test.go:82` (main calls)
 
 ## Edge Cases NOT Considered
 List edge cases not tested.
@@ -98,23 +103,19 @@ List edge cases not tested.
 - **`class << self` (singleton class) with methods**
 - **`def ClassName.method` (non-self singleton method notation)**
 - **Redundant `end` in Bundler context stack**
-- **Bundler `github:` source in gem call**
-- **Bundler `PATH` source section in lockfile**
 - **Call node inside nested receiver** (three-level chain)
 - **Instance variable read (not assignment)** — `syntax.go:301-306` mentions this but no test.
 - **`Operator_assignment` node kind for variables** — `syntax.go:121`
 - **Superclass with scope resolution** (e.g., `ApplicationRecord < ActiveRecord::Base`)
-- **`respond_to_missing?` as dynamic_dispatch_hook** (only `method_missing` tested)
 
 ## Verdict
 moderate
 
-The Ruby parser has focused subdirectory tests for core payload extraction, extensive Bundler parsing tests with edge cases (CRLF, nested groups, dependency chains), and parent-level dead-code root tests covering all 5 root kinds plus array-form callbacks and non-equality guards. However, several important AST constructs (singleton class `class << self`, visibility transitions, operator_assignment) lack dedicated tests, and the call deduplication/variable deduplication logic is untested. The Bundler `github:` and `PATH` lockfile sources are also untested.
+The Ruby parser has focused subdirectory tests for core payload extraction, extensive Bundler parsing tests with edge cases (CRLF, nested groups, dependency chains), and package-local external Engine tests covering all 5 dead-code root kinds plus array-form callbacks and non-equality guards. However, several important AST constructs (singleton class `class << self`, visibility transitions, operator_assignment) lack dedicated tests, and the call deduplication/variable deduplication logic is untested.
 
 ## Recommended Actions
 1. Add a test for `class << self` (singleton class) scope extraction.
 2. Add a test for `visibility` transitions (`private`, `protected`) within a class body.
 3. Add a test for `rubyNormalizeArgument` covering splat, block, keyword, and quoted args.
 4. Add a test for Bundler `github:` source in Gemfile.
-5. Add a test for `PATH` section in Gemfile.lock.
-6. Add a test for `def ClassName.method` non-self singleton method notation (explicitly documented as out-of-contract but worth verifying).
+5. Add a test for `def ClassName.method` non-self singleton method notation (explicitly documented as out-of-contract but worth verifying).

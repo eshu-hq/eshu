@@ -284,7 +284,7 @@ language_features:
     partial_features: [broader-rails-sinatra-route-truth, dynamic-dispatch]
     derived_features: [dead-code-roots]
     source_files: [go/internal/parser/ruby_language.go, go/internal/parser/ruby/parser.go, go/internal/parser/ruby/framework_routes.go]
-    test_files: [go/internal/parser/engine_ruby_test.go, go/internal/parser/ruby_dead_code_roots_test.go, go/internal/parser/ruby_route_entries_test.go, go/internal/reducer/handles_route_ruby_test.go, go/internal/query/content_reader_framework_routes_ruby_test.go]
+    test_files: [go/internal/parser/ruby/engine_bundler_lockfile_test.go, go/internal/parser/ruby/engine_ruby_semantics_test.go, go/internal/parser/ruby/ruby_dead_code_roots_test.go, go/internal/parser/ruby/ruby_route_entries_test.go, go/internal/reducer/handles_route_ruby_test.go, go/internal/query/content_reader_framework_routes_ruby_test.go]
     docs: [docs/public/languages/ruby.md]
     read_surfaces: [execute_language_query, find_dead_code, trace_route_callers]
     tracking_issues: [4038, 4161]
