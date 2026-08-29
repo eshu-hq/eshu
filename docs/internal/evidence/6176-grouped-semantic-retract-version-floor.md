@@ -180,7 +180,16 @@ Two things this record flagged are still open and were NOT addressed by that
 change. `deploy/helm/eshu/values.yaml` still pins `v1.1.11@sha256:51b6174a`, so
 a deployment made from this repository as committed still lands on the backend
 where the grouped retract under-applies, and would be exposed if the operator
-turned grouped writes on; that pin is #6296's to move. And the other eleven
-v1.1.11-era workaround classes under `go/internal/storage/cypher/` remain
-unmeasured on 1.2.2 — only the semantic `Variable` grouped delta-retract has
-been.
+turned grouped writes on; that pin is #6296's to move, and #6313 is the PR
+moving it to v1.2.3 by digest. And the other eleven v1.1.11-era workaround
+classes under `go/internal/storage/cypher/` remain unmeasured on 1.2.2 — only
+the semantic `Variable` grouped delta-retract has been.
+
+**The removal must therefore merge after #6313, and GitHub will not enforce
+that.** Whoever merges the removal has to confirm the pin moved first;
+otherwise the tree ships the code without the backend it was measured against.
+The exposure is the grouped-writes opt-in only — with
+`ESHU_NORNICDB_CANONICAL_GROUPED_WRITES` unset the NornicDB semantic executor
+is `ExecuteOnlyExecutor`, which hides `GroupExecutor`, and
+`go/cmd/reducer/AGENTS.md` documents that opt-in as conformance-only rather
+than a production configuration. Narrow is not zero: the ordering stands.

@@ -82,6 +82,14 @@ Two facts narrow the blast radius:
   together, so a failed write leaves the previous generation intact instead of a
   partially-retracted graph. The writer remains idempotent and the reducer's
   requeue is unchanged.
+- **Concurrency, the part an earlier draft of this bullet missed:** the
+  reducer's requeue was never the retry that mattered here. `ExecuteGroup`
+  absorbs a commit-time UNIQUE conflict **in place**, and it only did so for a
+  group whose every statement contained `MERGE`. Folding the retract in made
+  the group mixed and silently dropped that in-place retry, so a concurrent
+  canonical MERGE on the same semantic uid would have dead-lettered instead of
+  converging. That is fixed in the same PR — see "Keeping the group retryable"
+  below — not left to the requeue.
 
 ## No-Observability-Change:
 
@@ -93,6 +101,133 @@ attention: a retract failure now surfaces as a failure of the whole semantic
 write group rather than as a standalone retract error, so the error text reads
 `write semantic entities:` where it previously read `retract semantic entities:`.
 
+## Keeping the group retryable
+
+`RetryingExecutor.ExecuteGroup` retries a commit-time UNIQUE conflict or a
+relationship-snapshot conflict only when the group is safe to replay, and the
+old test for that was "every statement contains MERGE". The semantic retract
+contains none, so the group this change creates would have failed the gate: the
+race that `ExecuteGroup` exists to absorb — a concurrent canonical writer
+committing the same uid first — would have surfaced as
+`Neo.ClientError.Transaction.TransactionCommitFailed` and dead-lettered the
+work item.
+
+The gate now tests the property the replay actually needs. A NornicDB commit
+failure rolls the whole transaction back rather than tearing it, so the replay
+restarts from the pre-group state; what it needs is that every statement
+converges when run again. `allStatementsAreReplaySafe` (in
+`go/internal/storage/cypher/writer.go`, beside the `Statement` type it reasons
+about) accepts two shapes: a MERGE-shaped statement, unchanged, and a
+predicate-scoped retract — `OperationCanonicalRetract` on Cypher that opens
+with `MATCH` and whose only write clauses are `DELETE` or `REMOVE`, so a second
+run removes the same parameter-bound set.
+
+Everything else still keeps the group terminal, which is the narrowness the old
+gate bought by refusing every mixed group: a `CREATE` duplicates on replay, an
+accumulating `SET` double-applies, and a row-driven `UNWIND ... MATCH ...
+DELETE` is the shape that no-ops inside a managed transaction and must never be
+replayed as though it had applied.
+
+Nothing was serialized to get here. The concurrent writers stay concurrent and
+the conflict is absorbed by replaying an idempotent group.
+
+- **Regression, failing first:** `TestSemanticEntityWriterGroupedRetractConvergesOnCommitUniqueConflict`
+  drives the production `SemanticEntityWriter`, wired as
+  `go/cmd/reducer/neo4j_wiring.go` wires it for NornicDB, through the production
+  `RetryingExecutor` over a group executor that fails the first commit with the
+  UNIQUE-conflict body. Against the code as this branch first stood it failed
+  with `write semantic entities: Neo4jError:
+  Neo.ClientError.Transaction.TransactionCommitFailed (commit failed:
+  constraint violation ...)` on both the full-repo and the delta variant. It
+  now passes with `ExecuteGroup calls = 2` (one conflict, one replay), and it
+  asserts the group really is mixed so it cannot pass for the wrong reason.
+- **Mutation proofs — every guard bites.** Five single-substitution mutants,
+  `go vet` exit 0 on each before the test run:
+
+  | Mutant (`subs=1`) | Result |
+  | --- | --- |
+  | drop the retract branch from `allStatementsAreReplaySafe` | RED — 7 subtests, including both writer-level convergence cases |
+  | drop the non-idempotent-clause guard | RED — all 5 clause cases (CREATE, SET, UNWIND, CALL, FOREACH) |
+  | drop the `OperationCanonicalRetract` requirement | RED — `delete_not_labelled_as_a_retract` |
+  | drop the leading-`MATCH` requirement | RED — `retract_that_does_not_open_on_MATCH` |
+  | accept any retract-labelled statement without a DELETE/REMOVE clause | RED — `retract_operation_on_a_non-delete_statement` |
+
+## The full-repo retract, measured rather than inferred
+
+The live proof above exercises the DELTA retract (`WHERE n.path IN
+$file_paths`), whose retracted paths are disjoint from the upserted rows, so no
+uid is ever deleted and recreated inside one transaction. The full-repo retract
+(`semanticRetractStatements` -> `WHERE n.repo_id IN $repo_ids ... DETACH
+DELETE`) always overlaps: every row the generation keeps is deleted by the
+retract and re-MERGEd by the upsert in the same grouped transaction. That is a
+different read-your-writes question and it was previously inferred from the
+delta number, not measured.
+
+`TestSemanticEntityWriterLiveNornicDBFullRepoRetractRecreatesSameUID`
+(`go/internal/storage/cypher/semantic_entity_full_repo_retract_live_test.go`)
+measures it. gen1 writes two `Variable` rows for one repo; gen2 does a
+full-repo write carrying only one of them, with a changed property value. The
+assertions separate the three ways this can go wrong instead of collapsing them
+into one count: the dropped uid must be gone (the retract applied), the kept
+uid must exist exactly once with its gen2 value (the re-MERGE saw the delete
+and landed), its `File` containment edge must not be duplicated, and both
+`File` nodes must survive.
+
+- **Backend / version:** `timothyswt/nornicdb-cpu-bge:v1.2.3`, self-reporting
+  `"version":"1.2.2"`, started with the `docker-compose.yaml` NornicDB
+  environment (`NORNICDB_ASYNC_WRITES_ENABLED=false`, embeddings and search
+  off) on host Bolt port 17811.
+- **Result:** `-count=20`, exit 0, **20 PASS, 0 FAIL, 0 SKIP**.
+- **The grouped route is really exercised:** the test asserts the live executor
+  implements `cypher.GroupExecutor` before writing, so it cannot pass through
+  `WriteSemanticEntities`'s per-statement fallback.
+- **Mutation proof:** dropping the retract emission from `WriteSemanticEntities`
+  (`subs=1`, `go vet` exit 0 on the mutant) turned it RED, 3 FAIL of 3 at
+  `-count=3`, each reporting `dropped Variable count after gen2 = 1, want 0` —
+  the same symptom shape the v1.1.11 defect reports.
+
+One result worth recording because it is easy to misread. The same test, and a
+throwaway variant of it using the delta predicate, both pass 20/20 against the
+v1.1.11 container (`@sha256:51b6174a`, host Bolt port 17813) too, and the
+mutation above goes RED there as well, so the harness is live and biting on
+that backend. This harness therefore does **not** reproduce the under-
+application that
+`docs/internal/evidence/6176-grouped-semantic-retract-version-floor.md`
+measured through the `internal/replay/offlinetier` shim. That is a difference
+between two harnesses, not a contradiction of the floor: it is **not** evidence
+that v1.1.11 is safe, and the 1.2.1 floor stands on the offlinetier
+measurement, unchanged.
+
+```bash
+cd go
+ESHU_SEMANTIC_ENTITY_NORNICDB_LIVE=1 ESHU_GRAPH_BACKEND=nornicdb \
+ESHU_NEO4J_DATABASE=nornic NEO4J_URI=bolt://localhost:17811 \
+NEO4J_USERNAME=neo4j NEO4J_PASSWORD=nornicdb \
+go test ./internal/storage/cypher/ \
+  -run 'TestSemanticEntityWriterLiveNornicDBFullRepoRetractRecreatesSameUID' \
+  -count=20 -v; echo $?
+```
+
+Exit codes captured directly, never after a pipe. Pass and fail counts came
+from counting `--- PASS:` / `--- FAIL:` lines, because a `-run` filter matching
+nothing also exits 0.
+
+## Merge ordering: this must land after #6313
+
+`deploy/helm/eshu/values.yaml` still pins
+`v1.1.11@sha256:51b6174a`, and #6313 is the PR that moves it to v1.2.3 by
+digest. GitHub enforces no cross-PR ordering, so the person merging has to
+confirm #6313 landed first. Merging this one ahead of it would leave a
+deployment built from this repository as committed on the backend where the
+grouped retract was measured to under-apply.
+
+The exposure is narrow and stays stated rather than assumed. With
+`ESHU_NORNICDB_CANONICAL_GROUPED_WRITES` unset — the default — the NornicDB
+semantic executor is `ExecuteOnlyExecutor`, which hides `GroupExecutor`
+entirely, so nothing on the default path changes. The opt-in is the only route
+affected, and `go/cmd/reducer/AGENTS.md` already documents it as
+conformance-only: "Enable it only for conformance runs, not production."
+
 ## Not covered by this change
 
 The other v1.1.11-era retract workarounds are untouched and unmeasured on
@@ -102,4 +237,5 @@ per-label retracts, the SQL relationship sequential writes, and the
 Drain-marked canonical edge retracts. #6176 sequences the semantic writer
 first on purpose; each of the others needs its own live measurement before it
 can be unpicked. The `deploy/helm/eshu/values.yaml` NornicDB pin is also
-unchanged and still names v1.1.11 — see the report note under #6296.
+unchanged and still names v1.1.11 — that is #6313's to move, and the merge
+order it forces is under "Merge ordering" above.
