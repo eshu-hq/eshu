@@ -63,6 +63,18 @@ LLM-assistant companion to `README.md`. Read this before editing any file in
   the database cut at it, and normalizing before the cut stops a Go-side flatten
   from shrinking an already-cut message back under the budget, where it would
   print with no truncation marker.
+- **The residual breakdown runs only after the drain has already failed, so it
+  needs its own live proof.** `make pre-pr` passing means the drain succeeded,
+  which means this query never ran. `drains_residual_breakdown_live_test.go`
+  executes the real `residualBreakdownSQL` against a disposable Postgres
+  (`ESHU_TEST_DRAIN_RESIDUAL_POSTGRES_DSN` +
+  `ESHU_TEST_DRAIN_RESIDUAL_POSTGRES_DISPOSABLE=1`, run command in the test's
+  doc comment) over NULL, empty, multiple-distinct, over-budget, and multi-line
+  messages, and differentials the first four columns against
+  `residualBreakdownCountsSQL()` — the pre-message query, *derived* from the
+  shipped halves rather than hand-copied. Asserting substrings of the SQL string
+  is not execution: a wrong column name or a rejected aggregate clause passes
+  every such test.
 - **Required vs advisory is the safety boundary.** Required findings fail the
   gate; advisory findings only warn. Node/edge count tolerances are now **required**
   (`-graph-required-only=false`, #3866) because the orchestrator runs the full
