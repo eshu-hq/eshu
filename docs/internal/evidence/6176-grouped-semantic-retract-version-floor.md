@@ -128,7 +128,15 @@ graph state and would send the next diagnosis hunting for absent writes.
 
 So #6176 step 4 ("pin the floor") is not paperwork to do alongside the removal.
 It is a prerequisite with a number attached: the floor is **1.2.1**, and the
-Helm chart is three patch versions below it. Two orders that work:
+Helm chart is three patch versions below it.
+
+> **State at diagnosis.** The rest of this section describes the tree as it
+> stood when this was written, and its present tense is historical. Order 1
+> below is the one that was taken: #6313 merged as `a281fad7523b` and the chart
+> now pins `v1.2.3` by digest. See "The ordering constraint ... is now
+> SATISFIED" below.
+
+Two orders that work:
 
 1. Bump `deploy/helm/eshu/values.yaml` to a digest reporting 1.2.1 or newer,
    which also closes a drift that already exists: the operator reports running
@@ -176,20 +184,28 @@ the run cannot pass through the per-statement fallback. Details, including both
 mutation proofs, are in
 `go/internal/storage/cypher/evidence-6176-semantic-retract-regrouped.md`.
 
-Two things this record flagged are still open and were NOT addressed by that
-change. `deploy/helm/eshu/values.yaml` still pins `v1.1.11@sha256:51b6174a`, so
-a deployment made from this repository as committed still lands on the backend
-where the grouped retract under-applies, and would be exposed if the operator
-turned grouped writes on; that pin is #6296's to move, and #6313 is the PR
-moving it to v1.2.3 by digest. And the other eleven v1.1.11-era workaround
-classes under `go/internal/storage/cypher/` remain unmeasured on 1.2.2 — only
-the semantic `Variable` grouped delta-retract has been.
+**The ordering constraint this record raised is now SATISFIED.** #6313 merged
+as `a281fad7523b` and `deploy/helm/eshu/values.yaml:1110` pins
+`v1.2.3@sha256:4dfa887d990bf0b536693830830e34351c036716b0fe6dc957e1a3680e9f3c74`.
+This branch is rebased onto that commit (`git merge-base --is-ancestor
+a281fad7523b HEAD` exits 0), so the removal ships together with the backend it
+was measured against rather than ahead of it.
 
-**The removal must therefore merge after #6313, and GitHub will not enforce
-that.** Whoever merges the removal has to confirm the pin moved first;
-otherwise the tree ships the code without the backend it was measured against.
-The exposure is the grouped-writes opt-in only — with
-`ESHU_NORNICDB_CANONICAL_GROUPED_WRITES` unset the NornicDB semantic executor
-is `ExecuteOnlyExecutor`, which hides `GroupExecutor`, and
-`go/cmd/reducer/AGENTS.md` documents that opt-in as conformance-only rather
-than a production configuration. Narrow is not zero: the ordering stands.
+Kept here because the reasoning is why the ordering mattered: while the chart
+pinned `v1.1.11@sha256:51b6174a`, a deployment made from this repository landed
+on the backend where the grouped retract under-applies, and would have been
+exposed if an operator turned grouped writes on. GitHub enforces no cross-PR
+merge order, so the sequencing was held by hand and then checked rather than
+assumed.
+
+One thing this record flagged IS still open: the other eleven v1.1.11-era
+workaround classes under `go/internal/storage/cypher/` remain unmeasured on
+1.2.2 — only the semantic `Variable` grouped delta-retract has been. That does
+not block this removal, which is scoped to the class it measured, but it is not
+closed either.
+
+The exposure that motivated the ordering was the grouped-writes opt-in only —
+with `ESHU_NORNICDB_CANONICAL_GROUPED_WRITES` unset the NornicDB semantic
+executor is `ExecuteOnlyExecutor`, which hides `GroupExecutor`, and
+`go/cmd/reducer/AGENTS.md` documents that opt-in as conformance-only rather than
+a production configuration.
