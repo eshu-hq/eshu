@@ -11,6 +11,20 @@ that looks correct does not silently return wrong rows.
 Use it to avoid rediscovering the same failure shape. Still check the current
 NornicDB source before patching.
 
+## Which Build "The Pinned Build" Means Here
+
+Almost every entry below was measured on `nornicdb-cpu-bge:v1.1.11`
+(`sha256:51b6174a…`) or on a `NornicDB-New` fork checkout, back when v1.1.11 was
+what `deploy/helm/eshu/values.yaml` shipped. It no longer is: #6296 moved the
+chart to `v1.2.3@sha256:4dfa887d…`, a build that self-reports version `1.2.2`.
+
+Read every "on the pinned build" sentence below as naming the build in that
+entry, not the build you are deploying today. None of these shapes has been
+re-measured on `sha256:4dfa887d…`, so an entry is a reason to check, not
+evidence that the behaviour is still there — or that it is gone. Re-run the
+reproduction against the digest you actually run before relying on either
+answer.
+
 ## How To Use This Page
 
 1. Read the matching section before writing or changing a Cypher read/retract
@@ -611,9 +625,11 @@ on all three:
 - `eshu-nornicdb-pr290:3722b483c02c` — the Compose default
   (`docker-compose.yaml:10`), the local lane. The Neo4j-vs-NornicDB counts under
   **Observed shape** above were measured here against Neo4j 2026.05.0.
-- `timothyswt/nornicdb-cpu-bge:v1.1.11` — the Helm chart's pin
-  (`deploy/helm/eshu/values.yaml:1102-1103`), the deployed lane, and the image
-  most of this page's other entries name. The ignored-label-filter behaviour
+- `timothyswt/nornicdb-cpu-bge:v1.1.11` — the image most of this page's other
+  entries name, and the chart's pin at the time this was measured. #6296 has
+  since moved `deploy/helm/eshu/values.yaml` to `v1.2.3` by digest, so v1.1.11
+  is a historical build here rather than the deployed lane, and this shape has
+  not been re-run on the current pin. The ignored-label-filter behaviour
   **reproduces here too**: a `WHERE impacted:Workload` clause attached to a
   `WITH` still admitted a `File` row.
 - NornicDB `main` at `8abc2269` — a local checkout rather than a published

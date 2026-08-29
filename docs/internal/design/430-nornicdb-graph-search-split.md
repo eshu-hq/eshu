@@ -5,8 +5,8 @@ stabilization is implemented in Compose, Helm, runtime contract tests, and
 operator docs. The curated search projection remains design- and
 benchmark-gated before any public API, MCP, schema, or graph-write change.
 
-Phase-1 stabilization status: Helm pins NornicDB `v1.1.11`; Compose temporarily
-pins the exact orneryd/NornicDB#290 source commit, and both runtime paths
+Phase-1 stabilization status: Helm pins NornicDB `v1.2.3` by digest; Compose
+temporarily pins the exact orneryd/NornicDB#290 source commit, and both runtime paths
 set the canonical graph lane to graph-only startup controls. Runtime contract
 tests enforce the graph-only NornicDB controls in Compose, Helm, and the public
 environment reference.
@@ -53,14 +53,27 @@ vector indexes over every graph node and property unless a specific proof says
 that deployment also serves a curated Eshu search lane from the same database.
 
 Eshu temporarily pins the exact orneryd/NornicDB#290 source commit for Compose
-graph startup. Helm remains on NornicDB `v1.1.11`. The per-database
+graph startup. Helm pins NornicDB `v1.2.3` by digest. The per-database
 BM25/vector enable and warming controls Eshu depends on shipped in v1.1.2
 ([orneryd/NornicDB#177](https://github.com/orneryd/NornicDB/pull/177)) and are
-preserved in later releases; v1.1.11 is the latest published multi-arch Docker Hub
-manifest for the `nornicdb-cpu-bge` image line. Releases v1.1.4–v1.1.6 are
-maintenance/compatibility releases (Cypher/Bolt correctness, storage resilience,
-vector-search performance, Neo4j/Graphiti compatibility) with no on-disk format
-change, so tracking the latest keeps the same graph-only startup policy.
+preserved in later releases; `v1.2.3` is the latest published multi-arch Docker
+Hub manifest for the `nornicdb-cpu-bge` image line (`linux/amd64` and
+`linux/arm64`). That tag reports version `1.2.2` from the running container, so
+the chart pins the digest and the tag is only a label.
+
+Earlier revisions justified tracking the latest tag by noting that v1.1.4–v1.1.6
+were maintenance/compatibility releases with no on-disk format change. The chart
+now crosses a minor version, so that argument no longer carries the move on its
+own. What does: the pinned digest was run with the three disable controls this
+policy leans on — `NORNICDB_SEARCH_BM25_ENABLED=false`,
+`NORNICDB_SEARCH_VECTOR_ENABLED=false`, `NORNICDB_EMBEDDING_ENABLED=false`, plus
+`NORNICDB_ASYNC_WRITES_ENABLED=false` and `NORNICDB_HEIMDALL_ENABLED=false` — and
+on that container the production canonical projection writer and the `sql_table`
+blast-radius reads both ran green over Bolt, with the write and read paths timed
+against the previous pin at the same time. The two warming knobs and
+`NORNICDB_PERSIST_SEARCH_INDEXES` were left at their defaults there and are still
+unexercised on this digest. See
+[`docs/internal/evidence/6296-nornicdb-helm-pin-v123.md`](../evidence/6296-nornicdb-helm-pin-v123.md).
 The canonical graph lane uses this graph-only policy:
 
 - `NORNICDB_SEARCH_BM25_ENABLED=false`;
@@ -321,8 +334,9 @@ one shadow-read and shadow-write comparison.
 
 No-Regression Evidence: the phase-1 stabilization is a graph backend runtime
 contract change, not a fact, reducer, Cypher, schema, OpenAPI, MCP, or query
-truth change. Helm pins NornicDB `v1.1.11`, while Compose temporarily pins the
-exact orneryd/NornicDB#290 source commit; both disable BM25/vector
+truth change. Helm pinned NornicDB `v1.1.11` when that phase-1 change landed
+(#6296 later moved the chart to `v1.2.3` by digest), while Compose temporarily
+pins the exact orneryd/NornicDB#290 source commit; both disable BM25/vector
 search and embedding generation for the canonical graph lane, leave BM25/vector
 warming lazy for deliberate proof runs, and disable search-index persistence.
 Runtime package tests enforce those defaults and the public environment
