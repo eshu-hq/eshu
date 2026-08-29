@@ -156,9 +156,14 @@ fi
 spacey="${work}/My Projects/eshu"
 mkdir -p "${spacey}/.claude"
 printf 'Worktree goal behind a space.\n' >"${spacey}/.claude/active-goal"
-spacey_payload="$(SPACEY="${spacey}" python3 -c '
+# Use the run-unique session id, not a literal. The nudge budget is keyed on
+# (session_id, prompt_id) and its counter lives in TMPDIR, so a hardcoded id
+# passes the first three runs on a machine and fails every run after -- while
+# staying green forever on a fresh CI runner.
+spacey_payload="$(SPACEY="${spacey}" SID="${sid}" python3 -c '
 import json, os
-print(json.dumps({"session_id": "sp", "prompt_id": "sp1", "stop_hook_active": False,
+print(json.dumps({"session_id": os.environ["SID"], "prompt_id": "spacey",
+                  "stop_hook_active": False,
                   "cwd": os.environ["SPACEY"], "hook_event_name": "Stop"}))
 ')"
 spacey_out="$(printf '%s' "${spacey_payload}" | bash "${HOOK}" 2>/dev/null)"

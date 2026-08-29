@@ -70,21 +70,6 @@ print(g("prompt_id"))
 print(g("stop_hook_active", "False"))
 print(g("cwd"))
 ' 2>/dev/null)
-$(printf '%s' "${payload}" | python3 -c '
-import json, sys
-try:
-    d = json.load(sys.stdin)
-except Exception:
-    print("- - - -")
-    raise SystemExit(0)
-def g(k, dflt="-"):
-    v = d.get(k)
-    if v is None or v == "":
-        return dflt
-    return str(v).replace(" ", "_")
-print(g("session_id"), g("prompt_id"), g("stop_hook_active", "False"), g("cwd"))
-' 2>/dev/null)
-PYEOF
 
 [ "${session_id:--}" = "-" ] && exit 0
 
