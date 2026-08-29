@@ -383,8 +383,14 @@ done
 # re-assertion of any kind, so neither ifa_submodule_pin_drive nor
 # ifa_submodule_pin_assert has a legitimate bare-name call anywhere in the
 # gate; dispatch is entirely through the registry loop for this family.
+# The two DIRECT families (#6228) join the drive half of this list only. Both
+# are dispatched into every N cell through the registry loop, so neither drive
+# function has a legitimate bare-name call in the gate -- but each ASSERT
+# function does have exactly one (the post-delta re-assertion pinned below), so
+# the asserts take a count pin instead of a place here.
 for leftover_fn in ifa_det_drive_sql_baseline ifa_code_call_drive ifa_documentation_drive ifa_rationale_drive \
 	ifa_codeowners_drive ifa_submodule_pin_drive ifa_submodule_pin_assert \
+	ifa_kubernetes_namespace_environment_drive ifa_iam_instance_profile_role_drive \
 	ifa_det_assert_sql_baseline ifa_rationale_assert; do
 	if rg --fixed-strings --quiet -- "${leftover_fn} \"" "${script}"; then
 		fail "leftover literal per-family call survives outside the registry loop: ${leftover_fn} (would double-drive/assert that family and change what every N-loop digest covers)"
@@ -407,4 +413,26 @@ documentation_assert_count="$(rg --count --fixed-strings -- 'ifa_documentation_a
 codeowners_assert_count="$(rg --count --fixed-strings -- 'ifa_codeowners_assert "' "${script}")"
 [[ "${codeowners_assert_count}" -eq 1 ]] \
 	|| fail "expected exactly 1 occurrence of ifa_codeowners_assert (the post-delta re-assertion) outside the registry loop; found ${codeowners_assert_count} -- an extra occurrence would double-assert this family in every N-loop cell"
+
+# The two DIRECT families (#6228/#6309) take the same single-post-delta-call
+# shape as the three above. Both were asserted pre-delta ONLY when they landed,
+# and the matrix cannot see that gap: it compares one canonicalized digest per
+# N, so a generation-2 regression that retracts or mutates these edges
+# identically at N=1, 2 and 4 keeps all three digests equal and the gate green
+# while the graph no longer matches the expected set. A count pin alone would
+# be satisfied by the pre-delta call moving out of the loop, so the ordering
+# check below is what says WHERE the surviving call has to be.
+for direct_assert_fn in ifa_kubernetes_namespace_environment_assert ifa_iam_instance_profile_role_assert; do
+	direct_assert_count="$(rg --count --fixed-strings -- "${direct_assert_fn} \"" "${script}")"
+	[[ "${direct_assert_count}" -eq 1 ]] \
+		|| fail "expected exactly 1 occurrence of ${direct_assert_fn} (the post-delta re-assertion) outside the registry loop; found ${direct_assert_count} -- a second occurrence would double-assert this DIRECT family in every N-loop cell, and zero would leave generation 2 unchecked for it"
+done
+post_delta_ns_line="$(rg -n --fixed-strings -- 'ifa_kubernetes_namespace_environment_assert "post-delta N=${n}"' "${script}" | cut -d: -f1 || true)"
+post_delta_iam_line="$(rg -n --fixed-strings -- 'ifa_iam_instance_profile_role_assert "post-delta N=${n}"' "${script}" | cut -d: -f1 || true)"
+[[ "${post_delta_ns_line}" =~ ^[0-9]+$ && "${post_delta_iam_line}" =~ ^[0-9]+$ \
+	&& "${delta_call_line}" -lt "${post_delta_ns_line}" \
+	&& "${post_delta_ns_line}" -lt "${post_delta_dump_line}" \
+	&& "${delta_call_line}" -lt "${post_delta_iam_line}" \
+	&& "${post_delta_iam_line}" -lt "${post_delta_dump_line}" ]] \
+	|| fail "every N cell must exact-assert both DIRECT families (kubernetes_namespace_environment, iam_instance_profile_role) AFTER the shared delta drain and BEFORE its graph dump -- asserted only pre-delta, an identical-across-N generation-2 mutation leaves every digest equal and the matrix green"
 }
