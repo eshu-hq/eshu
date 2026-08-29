@@ -8,18 +8,18 @@ import (
 	"testing"
 )
 
-func TestVisualizationRouteAdaptsExactChildRequest(t *testing.T) {
+func TestResolveRouteUsesExactVisualizationChildRequest(t *testing.T) {
 	t.Parallel()
 
 	sourceResponse := map[string]any{"service_id": "svc-1"}
 	sourceTruth := map[string]any{"level": "exact"}
-	got, handled := visualizationRoute("derive_visualization_packet", map[string]any{
+	got, err := resolveRoute("derive_visualization_packet", map[string]any{
 		"view":            "service_story",
 		"source_response": sourceResponse,
 		"source_truth":    sourceTruth,
 	})
-	if !handled {
-		t.Fatal("visualizationRoute() handled = false, want true")
+	if err != nil {
+		t.Fatalf("resolveRoute() error = %v, want nil", err)
 	}
 	want := &route{
 		method: "POST",
@@ -31,6 +31,6 @@ func TestVisualizationRouteAdaptsExactChildRequest(t *testing.T) {
 		},
 	}
 	if !reflect.DeepEqual(got, want) {
-		t.Fatalf("visualizationRoute() = %#v, want %#v", got, want)
+		t.Fatalf("resolveRoute() = %#v, want %#v", got, want)
 	}
 }

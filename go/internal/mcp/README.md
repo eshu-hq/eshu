@@ -546,8 +546,8 @@ registration definitions),
 definitions),
 `internal/mcp/service` (service catalog, context, investigation, and
 intelligence-report tool registrations),
-`internal/mcp/toolcontract` (dependency-neutral `ToolDefinition` registration
-shape), `internal/mcp/visualization` (visualization registration and request selection),
+`internal/mcp/routecontract` (neutral argument/request values), `internal/mcp/toolcontract`
+(neutral `ToolDefinition` registrations), and `internal/mcp/visualization` (visualization registration/request selection),
 `internal/query` (`query.ResponseEnvelope`, `query.EnvelopeMIMEType`,
 `query.AuthContextFromContext`, `query.AuthMode*`, the mounted `http.Handler`),
 and `internal/telemetry` (`transport_auth_metrics.go` registers one counter
