@@ -91,6 +91,66 @@ Two facts narrow the blast radius:
   converging. That is fixed in the same PR — see "Keeping the group retryable"
   below — not left to the requeue.
 
+## Which statements the replay-safety guard accepts
+
+`allStatementsAreReplaySafe` decides whether a commit-time UNIQUE conflict on a
+grouped write is retried in place or left terminal. It sits on the shared
+`RetryingExecutor.ExecuteGroup` path, so it classifies **every**
+`OperationCanonicalRetract` emitter in the repository, not only the semantic
+writer this record measures. `isIdempotentRetractStatement` therefore has to be
+true of the whole population, not just of the one writer that motivated it.
+
+It was not. The guard accepted any retract that opened on `MATCH` and wrote
+only through `DELETE`/`REMOVE`, while the doc comment claimed a replay "removes
+the same parameter-bound set". A live statement broke that claim:
+`canonicalNodeRetractParametersCypher` is a non-drain retract that reaches the
+grouped path with `p.generation_id <> $generation_id` — a predicate matching
+every generation EXCEPT this writer's. A Parameter committed by a concurrent
+writer on a different generation between the failed attempt and the replay is
+newly in range, so the replayed `DETACH DELETE` removes a node the first
+attempt never saw.
+
+The guard now also requires the predicate to be bounded BY the bound parameters
+rather than by their complement. Enumerating the statements this reclassifies,
+by building the real writers' groups and classifying each under both the old
+and new rule:
+
+| group | before | after |
+| --- | --- | --- |
+| semantic full-repo retract + upsert | retryable | **retryable** |
+| semantic delta retract + upsert | retryable | **retryable** |
+| canonical node, full refresh (files + dirs + entities) | terminal | terminal |
+| canonical node, files but no entities | terminal | terminal |
+| canonical node, delta retract | terminal | terminal |
+| canonical node, repo with no files/dirs/entities | retryable | **terminal** |
+
+The shapes newly refused are the negation/complement family:
+`canonicalNodeRetract{Files,RemovedFiles,Directories,Parameters}Cypher`, the
+per-label entity retracts, `canonicalNodeRepositoryPathCleanupCypher`, the
+tfstate generation retracts, `retractStaleCodeTaintEvidenceByUIDsCypher` and
+its interproc sibling, and the Kubernetes namespace `coalesce(...) <> $gen`
+retract — thirteen Cypher shapes in all.
+
+Only one measured group actually changes classification, and the cost is
+bounded three ways. Every writer in that list except the canonical node writer
+dispatches its retract standalone through `Execute` (`dispatchRetract`), so the
+group classifier never sees it. The canonical node writer's group does carry
+them, but on any materialization with files or entities that group is already
+terminal because the same group carries `UNWIND ... MATCH ... DELETE`
+containment-refresh statements. And the one group that does change — a
+repo-scoped full refresh with zero files, directories and entities — was
+terminal on `main` too, where `allStatementsAreMerge` refused every group
+containing a retract. This narrows a widening introduced by this PR; it cannot
+regress against the base.
+
+The semantic writer's own retract, the shape this PR measured and the reason
+the widening exists, uses positive `IN $params` membership and stays retryable.
+
+Accuracy is ranked above performance here deliberately. A refused group loses a
+retry it might not have needed and takes dead-letter redrive, which costs time
+and is visible. Accepting a predicate whose match set grows under concurrency
+costs graph truth silently.
+
 ## No-Observability-Change:
 
 No instrument, span, log, or status surface is added, removed, or renamed. The
@@ -212,14 +272,17 @@ Exit codes captured directly, never after a pipe. Pass and fail counts came
 from counting `--- PASS:` / `--- FAIL:` lines, because a `-run` filter matching
 nothing also exits 0.
 
-## Merge ordering: this must land after #6313
+## Merge ordering: satisfied, #6313 has landed
 
-`deploy/helm/eshu/values.yaml` still pins
-`v1.1.11@sha256:51b6174a`, and #6313 is the PR that moves it to v1.2.3 by
-digest. GitHub enforces no cross-PR ordering, so the person merging has to
-confirm #6313 landed first. Merging this one ahead of it would leave a
-deployment built from this repository as committed on the backend where the
-grouped retract was measured to under-apply.
+This removal was only safe once #6313 moved the chart off the backend where
+the grouped retract under-applies. That has happened: `#6313` merged as
+`a281fad7523b`, this branch is rebased onto it, and
+`deploy/helm/eshu/values.yaml:1110` now reads
+`tag: "v1.2.3@sha256:4dfa887d990bf0b536693830830e34351c036716b0fe6dc957e1a3680e9f3c74"`.
+The `v1.1.11@sha256:51b6174a` pin this section was originally written against
+is gone, so the combination it warned about — bundled v1.1.11 plus the
+grouped-writes opt-in with the sequential retract removed — is no longer
+reachable from this chart.
 
 The exposure is narrow and stays stated rather than assumed. With
 `ESHU_NORNICDB_CANONICAL_GROUPED_WRITES` unset — the default — the NornicDB

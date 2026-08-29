@@ -112,13 +112,32 @@ when the typed error code is `Neo.ClientError.Statement.SyntaxError`.
 
 Two statement shapes converge. A MERGE-shaped statement does by definition. So
 does a predicate-scoped retract — `OperationCanonicalRetract` on Cypher that
-opens with `MATCH` and whose only write clauses are `DELETE` or `REMOVE` —
-because deleting whatever currently matches parameter-bound predicates removes
-the same set on a second run. Anything else keeps the group terminal:
-re-executing a `CREATE` duplicates, an accumulating `SET` double-applies, and a
-row-driven `UNWIND ... MATCH ... DELETE` is the shape that no-ops inside a
-managed transaction (see the retract pitfall above), so it must never be
-replayed as though it had applied.
+opens with `MATCH`, whose only write clauses are `DELETE` or `REMOVE`, and
+whose predicates are bounded by the bound parameters rather than by their
+complement — because deleting whatever currently matches a key space the
+parameters enumerate removes the same set on a second run. Anything else keeps
+the group terminal: re-executing a `CREATE` duplicates, an accumulating `SET`
+double-applies, and a row-driven `UNWIND ... MATCH ... DELETE` is the shape
+that no-ops inside a managed transaction (see the retract pitfall above), so it
+must never be replayed as though it had applied.
+
+An open-ended predicate keeps the group terminal for a different reason. A
+retract selecting the complement of a parameter — `n.generation_id <>
+$generation_id`, `NOT (n.path IN $paths)` — or naming no parameter at all has
+no fixed key space: rows a concurrent writer commits outside the parameter
+values fall INTO range. Its match set therefore grows between a failed attempt
+and its replay, and the replayed `DELETE` can remove rows the first attempt
+never saw, which is exactly the "removes the same set" premise the retract
+shape rests on. Those groups take dead-letter redrive instead. The check is
+syntactic and fail-closed: it proves a predicate is bounded, it does not prove
+an unbounded one is unsafe in a given deployment. A refused group loses a retry
+it might not have needed and costs time; accepting a predicate whose match set
+grows under concurrency costs graph truth.
+
+This gate is repo-wide. `allStatementsAreReplaySafe` sits on the shared
+`RetryingExecutor.ExecuteGroup` path, so it classifies every
+`OperationCanonicalRetract` emitter, not only the semantic writer whose #6176
+regrouping motivated it.
 
 That retract shape was added for #6176. The semantic writer used to dispatch
 its retract outside the group, so what reached the classifier was all-MERGE;

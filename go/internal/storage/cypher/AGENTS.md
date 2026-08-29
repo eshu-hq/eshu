@@ -83,11 +83,20 @@
   (`allStatementsAreReplaySafe`, in `writer.go` beside the `Statement` type it
   reasons about). Two shapes qualify: a statement containing
   MERGE, and a predicate-scoped retract — `OperationCanonicalRetract` on Cypher
-  that opens with `MATCH` and whose only write clauses are `DELETE` or `REMOVE`,
-  so a second run removes the same parameter-bound set. Anything else keeps the
-  group terminal: a `CREATE` duplicates on replay, an accumulating `SET`
-  double-applies, and a row-driven `UNWIND ... MATCH ... DELETE` is the shape
-  that no-ops inside a NornicDB managed transaction. The retract shape was
+  that opens with `MATCH`, whose only write clauses are `DELETE` or `REMOVE`,
+  and whose predicates are bounded by the bound parameters rather than by their
+  complement, so a second run removes the same parameter-bound set. Anything
+  else keeps the group terminal: a `CREATE` duplicates on replay, an
+  accumulating `SET` double-applies, and a row-driven
+  `UNWIND ... MATCH ... DELETE` is the shape that no-ops inside a NornicDB
+  managed transaction. So does an open-ended predicate — `n.generation_id <>
+  $generation_id`, `NOT (n.path IN $paths)`, or a `WHERE` naming no parameter —
+  because a concurrent writer can move rows INTO that match set between the
+  failed attempt and the replay, and the replayed `DELETE` would remove rows
+  the first attempt never saw. This gate is repo-wide: it sits on the shared
+  `RetryingExecutor.ExecuteGroup` path and classifies every
+  `OperationCanonicalRetract` emitter, not only the semantic writer. The
+  retract shape was
   added for #6176, when `SemanticEntityWriter` stopped dispatching its retract
   outside the group: a MERGE-only gate would have made the writer's own atomic
   retract+upsert group unretryable and dead-lettered the concurrent-MERGE race

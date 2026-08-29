@@ -74,6 +74,36 @@ func TestClassifyRetryableGraphWriteGroupErrorRetriesIdempotentRetractWithMerge(
 				Cypher:    semanticEntityBatchedPropertiesUpsertCypher("Variable"),
 			},
 		},
+		// A relationship retract writes its pattern with arrows. The `<` and
+		// `>` in `-[rel]->` are not comparison operators, so the
+		// parameter-binding check must not read them as one and fail-close
+		// every edge retract in the repository.
+		"relationship retract then upsert": {
+			{
+				Operation: OperationCanonicalRetract,
+				Cypher: "MATCH (source:CloudResource)-[rel]->(:CloudResource)\n" +
+					"WHERE rel.scope_id IN $scope_ids\n" +
+					"  AND rel.evidence_source = $evidence_source\n" +
+					"DELETE rel",
+			},
+			{
+				Operation: OperationCanonicalUpsert,
+				Cypher:    semanticEntityBatchedPropertiesUpsertCypher("Variable"),
+			},
+		},
+		// The reverse arrow form, for the same reason.
+		"incoming relationship retract then upsert": {
+			{
+				Operation: OperationCanonicalRetract,
+				Cypher: "MATCH (s:TerraformStateResource)<-[e:MATCHES_STATE]-(:TerraformResource)\n" +
+					"WHERE s.scope_id = $scope_id AND s.uid IN $uids\n" +
+					"DELETE e",
+			},
+			{
+				Operation: OperationCanonicalUpsert,
+				Cypher:    semanticEntityBatchedPropertiesUpsertCypher("Variable"),
+			},
+		},
 	} {
 		t.Run(name, func(t *testing.T) {
 			t.Parallel()
@@ -156,6 +186,50 @@ func TestClassifyRetryableGraphWriteGroupErrorKeepsNonIdempotentGroupsTerminal(t
 		"retract that deletes inside a foreach": {
 			Operation: OperationCanonicalRetract,
 			Cypher:    "MATCH (r:Repository {uid: $repo_uid})\nFOREACH (n IN $nodes | DETACH DELETE n)",
+		},
+		// The open-ended-predicate cases. Every clause case above asks what
+		// the statement WRITES; these ask what it MATCHES. A predicate that
+		// selects the complement of a bound parameter, or that names no
+		// parameter at all, grows its match set as concurrent writers commit,
+		// so the replay can delete rows the failed attempt never saw. That
+		// breaks the "removes the same parameter-bound set" premise the whole
+		// widening rests on, so those retracts keep the group terminal.
+
+		// The live shape: canonicalNodeRetractParametersCypher. Its
+		// generation_id inequality matches every generation except this
+		// writer's, so a Parameter committed by a concurrent writer on a
+		// different generation between the failed attempt and the replay is
+		// newly in range and is deleted.
+		"retract whose predicate excludes a parameter instead of matching it": {
+			Operation: OperationCanonicalRetract,
+			Cypher: "MATCH (p:Parameter)\n" +
+				"WHERE p.path IN $file_paths AND p.evidence_source = 'projector/canonical'\n" +
+				"  AND p.generation_id <> $generation_id\n" +
+				"DETACH DELETE p",
+		},
+		// Same class through negated membership rather than inequality.
+		"retract whose predicate negates a parameter membership": {
+			Operation: OperationCanonicalRetract,
+			Cypher: "MATCH (d:Directory)\n" +
+				"WHERE d.repo_id = $repo_id\n" +
+				"  AND (d.path IS NULL OR NOT (d.path IN $directory_paths))\n" +
+				"DETACH DELETE d",
+		},
+		// Same class through a coalesce-wrapped inequality, which the
+		// Kubernetes namespace writer uses.
+		"retract whose predicate wraps the inequality in coalesce": {
+			Operation: OperationCanonicalRetract,
+			Cypher: "MATCH (n:KubernetesNamespace {cluster_id: $cluster_id})\n" +
+				"WHERE n.evidence_source = $evidence_source\n" +
+				"  AND coalesce(n.generation_id, \"\") <> $generation_id\n" +
+				"DETACH DELETE n",
+		},
+		// The extreme of the same class: a bare graph-state predicate binding
+		// no parameter at all, so the match set is every node carrying the
+		// flag whenever the statement happens to run.
+		"retract whose predicate binds no parameter": {
+			Operation: OperationCanonicalRetract,
+			Cypher:    "MATCH (n:Variable)\nWHERE n.stale\nDETACH DELETE n",
 		},
 	} {
 		t.Run(name, func(t *testing.T) {

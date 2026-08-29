@@ -88,10 +88,15 @@ type Statement struct {
 // statement. Empty groups return false because there is nothing to retry.
 //
 // Two statement shapes qualify. A MERGE-shaped statement converges by
-// definition. A predicate-scoped retract does too: it deletes or clears
-// whatever currently matches parameter-bound predicates, so running it a
-// second time removes the same set (a no-op when the first attempt committed
-// nothing) and never creates or accumulates anything.
+// definition. A predicate-scoped retract does too, but only when its
+// predicates are bounded BY the bound parameters rather than by their
+// complement: it then deletes or clears whatever matches a key space the
+// parameters enumerate, so a second run removes the same set (a no-op when the
+// first attempt committed nothing) and never creates or accumulates anything.
+// isIdempotentRetractStatement enforces that bound; a retract selecting a
+// parameter's complement (`n.generation_id <> $gen`, `NOT (n.path IN
+// $paths)`) or naming no parameter at all is refused, because a concurrent
+// writer can move rows INTO its match set between attempt and replay.
 //
 // Everything else keeps the group terminal — a CREATE duplicates on replay and
 // an accumulating SET double-applies, which is the safety the MERGE-only gate
@@ -144,15 +149,33 @@ var (
 	// come from the graph plus bound parameters rather than from rows the
 	// group itself produced.
 	leadingMatchPattern = regexp.MustCompile(`(?i)^\s*MATCH\b`)
+	// relationshipArrowPattern matches the arrow tokens of a Cypher
+	// relationship pattern, stripped before the predicate scan below: the `<`
+	// and `>` in `-[rel]->` and `<-[e:MATCHES_STATE]-` are pattern syntax, not
+	// comparisons, and reading them as comparisons would fail-close every
+	// relationship retract in the repository.
+	relationshipArrowPattern = regexp.MustCompile(`<-\[[^\]]*\]-|-\[[^\]]*\]->|<--|-->|<-|->`)
+	// openEndedPredicatePattern matches the comparison forms selecting the
+	// COMPLEMENT of what the bound parameters name: `<>`, `!=`, the ordering
+	// operators, and any NOT (covering `NOT (n.path IN $paths)` and a bare
+	// `n.x IS NOT NULL`). Such a predicate has no fixed key space -- rows a
+	// concurrent writer commits outside the parameter values fall INTO range
+	// -- so its match set grows between a failed attempt and its replay.
+	openEndedPredicatePattern = regexp.MustCompile(`(?i)(<>|!=|<=|>=|<|>|\bNOT\b)`)
+	// boundParameterPattern matches a Cypher parameter reference. A retract
+	// that names none is scoped by graph state alone, which is the same
+	// unbounded-match-set problem in its most extreme form.
+	boundParameterPattern = regexp.MustCompile(`\$\w+`)
 )
 
 // isIdempotentRetractStatement reports whether stmt is a predicate-scoped
-// retract whose replay is a no-op once it has applied. It requires all three
-// of: the statement declaring itself a retract through
-// OperationCanonicalRetract, Cypher that opens on MATCH, and Cypher whose only
-// write clauses are DELETE or REMOVE. The clause checks are word-bounded so a
-// property name such as n.offset cannot be read as a SET clause and
-// fail-close a legitimate retract.
+// retract whose replay removes the same parameter-bound set. It requires all
+// four of: the statement declaring itself a retract through
+// OperationCanonicalRetract, Cypher that opens on MATCH, Cypher whose only
+// write clauses are DELETE or REMOVE, and predicates that are bounded by the
+// bound parameters rather than by their complement. The clause checks are
+// word-bounded so a property name such as n.offset cannot be read as a SET
+// clause and fail-close a legitimate retract.
 func isIdempotentRetractStatement(stmt Statement) bool {
 	if stmt.Operation != OperationCanonicalRetract {
 		return false
@@ -163,7 +186,43 @@ func isIdempotentRetractStatement(stmt Statement) bool {
 	if nonIdempotentClausePattern.MatchString(stmt.Cypher) {
 		return false
 	}
+	if !hasParameterBoundedPredicate(stmt.Cypher) {
+		return false
+	}
 	return retractClausePattern.MatchString(stmt.Cypher)
+}
+
+// hasParameterBoundedPredicate reports whether every comparison in cypher
+// narrows the match set to what the bound parameters name rather than to their
+// complement. It makes the "removes the same parameter-bound set" premise true
+// rather than merely stated.
+//
+// Positive membership -- `n.path IN $file_paths`, `n.repo_id = $repo_id`, an
+// inline `{id: $repo_id}` map, an equality against an immutable literal --
+// confines the delete to a key space the parameters enumerate. Nothing a
+// concurrent writer commits can enlarge that space, so the replay after a
+// rolled-back attempt sees the same candidates.
+//
+// An open-ended predicate inverts that. `p.generation_id <> $generation_id`
+// (canonicalNodeRetractParametersCypher) matches every generation EXCEPT this
+// writer's, so a Parameter a concurrent writer commits on a different
+// generation between the failed attempt and the replay is newly in range and
+// gets deleted -- a node the first attempt never saw. `NOT (d.path IN
+// $directory_paths)` and a parameterless `WHERE n.stale` are the same class.
+// Refusing them keeps the group terminal and sends the work item to
+// dead-letter redrive instead of silently deleting another writer's rows.
+//
+// The check is syntactic and fail-closed: it proves a predicate is bounded,
+// not that an unbounded one is unsafe in a given deployment. A refused group
+// loses a retry it might not have needed, which costs time; accepting one
+// whose match set grows under concurrency costs graph truth.
+func hasParameterBoundedPredicate(cypher string) bool {
+	if !boundParameterPattern.MatchString(cypher) {
+		return false
+	}
+	return !openEndedPredicatePattern.MatchString(
+		relationshipArrowPattern.ReplaceAllString(cypher, " "),
+	)
 }
 
 // Plan is the deterministic source-local write plan for one materialization.
