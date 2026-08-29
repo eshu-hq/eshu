@@ -79,11 +79,28 @@ string, join, lookup, file, templatefile, and local interpolation shapes already
 covered by HCL-focused parser tests.
 
 Terragrunt include-chain walking is bounded by depth, cycle detection, a
-regular-file check (`include_chain.go:96` rejects symlinks, devices, FIFOs),
+regular-file check (`include_chain.go:112` rejects symlinks, devices, FIFOs),
 and a per-file size cap (`terragruntIncludeMaxFileBytes` at
-`include_chain.go:25`, 1 MiB). Each rejection emits a row in the
+`include_chain.go:30`, 1 MiB). Each rejection emits a row in the
 `terragrunt_include_warnings` payload bucket so downstream consumers can
 observe walker failures rather than infer them from missing rows.
+
+The walker reads every file it visits -- the starting `terragrunt.hcl` and
+each parent it follows -- with its own `os.ReadFile`, so it bypasses
+`shared.ReadSource` and normalizes line endings itself with
+`shared.NormalizeLineEndings` (`include_chain.go:141`, #6306). This is not
+cosmetic. `hclsyntax` recognises only `\n` and `\r\n` as a newline (its
+scanner defines `Newline = '\r' ? '\n'` and ends a `#` or `//` comment at
+end-of-line), so on a classic-Mac file one leading comment swallows the rest
+of the file: every `remote_state` block after it disappears, the parse reports
+no error, and any surviving block is stamped `line_number` 1. Regression
+coverage is in `include_chain_line_endings_test.go`.
+
+Beware a false green here: `collectTerragruntIncludeTargets` also recovers
+include targets from a raw-source regex that never looks at line endings, so
+the include *declaration* survives an unnormalized bare-CR file while the
+`remote_state` *block* is lost. An end-to-end case that still resolves is not
+proof the parse is intact.
 
 Terragrunt `remote_state` rows store the parser-side source file path under
 `source_path`, kept distinct from the local backend's `path` attribute so
