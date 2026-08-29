@@ -4,6 +4,7 @@
 package mcp
 
 import (
+	"reflect"
 	"testing"
 )
 
@@ -35,27 +36,22 @@ func TestReadOnlyToolsKeepsAskRegistrationPosition(t *testing.T) {
 func TestResolveRouteMapsAsk(t *testing.T) {
 	t.Parallel()
 
-	route, err := resolveRoute("ask", map[string]any{
+	got, err := resolveRoute("ask", map[string]any{
 		"question": "what is the deployment story for service X?",
 		"format":   "markdown",
 	})
 	if err != nil {
 		t.Fatalf("resolveRoute() error = %v, want nil", err)
 	}
-	if got, want := route.method, "POST"; got != want {
-		t.Fatalf("route.method = %q, want %q", got, want)
+	want := &route{
+		method: "POST",
+		path:   "/api/v0/ask",
+		body: map[string]any{
+			"question": "what is the deployment story for service X?",
+			"format":   "markdown",
+		},
 	}
-	if got, want := route.path, "/api/v0/ask"; got != want {
-		t.Fatalf("route.path = %q, want %q", got, want)
-	}
-	body, ok := route.body.(map[string]any)
-	if !ok {
-		t.Fatalf("route.body type = %T, want map[string]any", route.body)
-	}
-	if got, want := body["question"], "what is the deployment story for service X?"; got != want {
-		t.Fatalf("body[question] = %#v, want %#v", got, want)
-	}
-	if got, want := body["format"], "markdown"; got != want {
-		t.Fatalf("body[format] = %#v, want %#v", got, want)
+	if !reflect.DeepEqual(got, want) {
+		t.Fatalf("resolveRoute(ask) route = %#v, want %#v", got, want)
 	}
 }
