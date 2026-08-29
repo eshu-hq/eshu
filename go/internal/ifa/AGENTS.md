@@ -123,7 +123,15 @@
   triggers WILL use; nothing checks it until the coverage row lands. A DIRECT
   family (#6181) owes its stem the day it claims a coverage row instead: #6228
   writes the live wiring, and a stem declared before those triggers exist would
-  be a guess. Without a trigger, the gate never re-runs when
+  be a guess. ONE EXCEPTION, added with #6309: a DIRECT family whose live
+  determinism triggers ALREADY exist may declare its stem ahead of its
+  coverage row, because the stem is then read off committed triggers rather
+  than guessed. kubernetes_namespace_environment and iam_instance_profile_role
+  are that case -- both stay waived, and both carry stems. Do not remove a stem
+  for being ahead of its coverage row without first checking whether the
+  family's determinism triggers exist; see the doc comment on
+  directFamilyTriggerStems in
+  go/internal/ifa/materializededges/materialized_edges_trigger_stems_test.go. Without a trigger, the gate never re-runs when
   that family's Odù, cassette, extractor, or writer changes, and the coverage
   row keeps asserting a proof that has gone stale. Note what this does NOT
   check: whether the declared triggers are the RIGHT ones for the family. No
