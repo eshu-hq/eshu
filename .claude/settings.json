@@ -61,6 +61,17 @@
           }
         ]
       }
+    ],
+    "UserPromptSubmit": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "${CLAUDE_PROJECT_DIR}/.claude/hooks/goal-refresh.sh",
+            "timeout": 10
+          }
+        ]
+      }
     ]
   }
 }

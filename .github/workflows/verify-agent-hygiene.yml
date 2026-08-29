@@ -42,6 +42,16 @@ jobs:
       - name: Run agent hooks test mirror
         run: scripts/test-agent-hooks.sh
 
+      # These two were chained in the ci-gates registry's test_command but had
+      # no step here, so they ran in local promotion and NOWHERE in Actions --
+      # the registry and the workflow disagreeing is the two-layer false-green
+      # this repo has been bitten by before.
+      - name: Run goal-continue hook test mirror
+        run: scripts/test-goal-continue-hook.sh
+
+      - name: Run goal-refresh hook test mirror
+        run: scripts/test-goal-refresh-hook.sh
+
   verify:
     name: Agent hygiene gate
     timeout-minutes: 10

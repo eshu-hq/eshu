@@ -30,6 +30,7 @@ rebuilding the whole snapshot, which only works for a hook that needs no path.
 | `guard-live-gate.sh` | Claude | PreToolUse on Bash | **blocking** | Blocks a second live gate on the default ports |
 | `on-compact.sh` | Claude | SessionStart, compact or resume | advisory | Points a re-grounded session at `eshu-session-lifecycle` |
 | `goal-continue.sh` | Claude | Stop | **blocking** | Refuses to end the turn while `.claude/active-goal` names unfinished work, and hands the goal back. |
+| `goal-refresh.sh` | Claude | UserPromptSubmit | side effect | Sets a goal from `/goal <text>`, and re-injects the active goal into context on every prompt so it cannot go stale. |
 
 ## Why the nudge blocks instead of suggesting
 
@@ -162,6 +163,42 @@ Every parse failure allows the stop — no goal file, an empty one, malformed
 JSON, empty stdin, no `python3`. A hook that can refuse to end a session must
 never be the reason a session breaks. `scripts/test-goal-continue-hook.sh`
 covers all of it, and the `agent-canon` gate runs it.
+
+## Why the goal is restated every turn
+
+The Stop hook alone does not solve idling, and the first version of it proved
+that twice over.
+
+It shipped with **no producer**. It read `.claude/active-goal`; nothing wrote
+one. Measured on a second machine that had pulled the merge: the hook was
+installed, registered, executable, its suite green -- and it had never fired,
+on any session, because no goal file existed anywhere. A consumer without a
+producer is not a feature, and every gate passed while it did nothing.
+
+The second problem is staleness. A goal set once, forty turns ago, is not a
+goal the model is still holding: compaction summarizes it away, and attention
+drifts. Setting it is not the same as keeping it.
+
+`goal-refresh.sh` fixes both, on `UserPromptSubmit`:
+
+- **Producer.** A prompt beginning `/goal ` or `GOAL: ` writes the goal file.
+  That is the single write path. There is deliberately no fuzzy inference --
+  guessing that some sentence was an objective is how a hook starts enforcing
+  a goal nobody set.
+- **Refresher.** On *every* prompt, an active goal is injected back into
+  context via `additionalContext`, together with the rule that the owner should
+  not be asked what the code, a local doc, a loaded skill, or a Deep-tier
+  dispatch can settle. The objective is therefore never more than one turn old,
+  and it survives compaction because it is re-added afterwards too.
+
+A `SESSION:` header binds a goal to the session that set it, so a goal cannot
+outlive its session and nag the next one about finished work. `/goal done`
+retires it. An unheaded file is the owner's own hand-written goal and is
+honoured as-is.
+
+This complements the built-in `/goal`, which evaluates whether a condition is
+*met*; these hooks keep the objective and the rules *in front of the model*.
+They are not alternatives to each other.
 
 ## Installing
 

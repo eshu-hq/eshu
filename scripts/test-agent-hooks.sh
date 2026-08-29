@@ -480,6 +480,10 @@ want = [
     # key and group.get("matcher") is None. Comparing against None is the
     # assertion, not a placeholder for one.
     ("Stop",         None,                      "goal-continue.sh"),
+    # The producer/refresher. Without this triple a dropped registration
+    # would leave the goal never restated and the Stop hook never fed --
+    # correct and unreachable, the same way the Stop triple was missing.
+    ("UserPromptSubmit", None,                  "goal-refresh.sh"),
 ]
 bad = []
 for event, matcher, name in want:
