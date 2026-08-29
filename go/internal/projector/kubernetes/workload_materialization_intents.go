@@ -9,7 +9,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/reducer"
 )
 
-// BuildWorkloadMaterializationReducerIntent enqueues one
+// BuildWorkloadMaterializationReducerIntent builds one
 // kubernetes_workload_materialization reducer intent per scope generation that
 // observed a live Kubernetes workload. The pod-template fact is the trigger: the
 // additive domain materializes those facts into canonical KubernetesWorkload
@@ -22,7 +22,7 @@ import (
 // can never resolve. One intent per scope generation matches the per-scope
 // conflict domain (no per-workload fan-out); the handler's FactLoader reads every
 // pod-template in the generation. It mirrors BuildCorrelationReducerIntent,
-// which already enqueues the edge domain from the same trigger fact.
+// which returns the edge-domain intent from the same trigger fact.
 func BuildWorkloadMaterializationReducerIntent(
 	scopeID string,
 	generationID string,
@@ -72,7 +72,7 @@ func buildPodTemplateReducerIntent(
 	}, true
 }
 
-// BuildCorrelationMaterializationReducerIntent enqueues one
+// BuildCorrelationMaterializationReducerIntent builds one
 // kubernetes_correlation_materialization reducer intent per scope generation that
 // observed a live Kubernetes workload. That additive graph-write domain promotes
 // the exact image correlation decisions into canonical RUNS_IMAGE edges between

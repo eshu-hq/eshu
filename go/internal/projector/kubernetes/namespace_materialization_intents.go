@@ -12,12 +12,12 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/scope"
 )
 
-// BuildNamespaceMaterializationReducerIntent enqueues one
+// BuildNamespaceMaterializationReducerIntent builds one
 // kubernetes_namespace_materialization intent for each scope generation that
 // contains live namespace facts or is a complete Kubernetes live snapshot. The
 // reducer handler loads every namespace fact in that generation, so the
 // projector emits one scope-keyed intent rather than one work item per
-// namespace. Complete snapshots enqueue even when empty so the reducer can
+// namespace. Complete snapshots return an intent even when empty so the reducer can
 // retract namespaces that disappeared; partial empty snapshots never retract.
 func BuildNamespaceMaterializationReducerIntent(
 	scopeValue scope.IngestionScope,

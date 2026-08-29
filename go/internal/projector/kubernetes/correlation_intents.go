@@ -9,7 +9,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/reducer"
 )
 
-// BuildCorrelationReducerIntent enqueues one kubernetes_correlation
+// BuildCorrelationReducerIntent builds one kubernetes_correlation
 // reducer intent per scope generation that observed a live Kubernetes workload.
 // The pod-template fact is the trigger because it carries the workload identity
 // and image references the correlation read model joins to deployment-source

@@ -17,14 +17,14 @@ readiness publication.
 
 ## Exported surface
 
-- `BuildCorrelationReducerIntent` schedules the live-workload correlation read
-  model.
-- `BuildWorkloadMaterializationReducerIntent` schedules canonical
-  `KubernetesWorkload` nodes.
-- `BuildCorrelationMaterializationReducerIntent` schedules `RUNS_IMAGE` edge
-  materialization.
-- `BuildNamespaceMaterializationReducerIntent` schedules namespace nodes and
-  recognized environment bindings.
+- `BuildCorrelationReducerIntent` builds the live-workload correlation read
+  model intent.
+- `BuildWorkloadMaterializationReducerIntent` builds the canonical
+  `KubernetesWorkload` node intent.
+- `BuildCorrelationMaterializationReducerIntent` builds the `RUNS_IMAGE` edge
+  materialization intent.
+- `BuildNamespaceMaterializationReducerIntent` builds the namespace-node and
+  recognized-environment-binding intent.
 
 ## Dependencies
 
