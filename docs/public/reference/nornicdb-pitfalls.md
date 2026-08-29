@@ -12,6 +12,16 @@ companion [NornicDB Query-Shape Pitfalls](nornicdb-query-pitfalls.md).
 Use it to avoid rediscovering the same failure shape. Still check the current
 NornicDB source before patching.
 
+## Which Build "The Pinned Build" Means Here
+
+The same scoping note applies as on the companion page: entries below name
+`nornicdb-cpu-bge:v1.1.11` (`sha256:51b6174a…`) or a `NornicDB-New` fork
+checkout, measured when v1.1.11 was what `deploy/helm/eshu/values.yaml`
+shipped. #6296 moved the chart to `v1.2.3@sha256:4dfa887d…`, a build that
+self-reports version `1.2.2`, and these behaviors have not been re-measured on
+it. Treat an entry as a reason to check the digest you actually run, not as a
+statement about it.
+
 ## How To Use This Page
 
 1. Read the matching section before patching NornicDB or routing around a
@@ -593,7 +603,7 @@ form) from ever reappearing in the rendered Cypher.
 
 ### Observed shape
 
-On the pinned production image (`nornicdb-cpu-bge:v1.1.11`), an
+On `nornicdb-cpu-bge:v1.1.11` (the chart's pin when this was measured), an
 `UNWIND`-batched statement whose anchor clause is a bare, property-keyed
 `MATCH` — with no `MERGE` anywhere in the statement — silently drops its
 `SET`:
