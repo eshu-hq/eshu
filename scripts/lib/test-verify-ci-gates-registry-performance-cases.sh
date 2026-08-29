@@ -9,8 +9,8 @@ check_performance_evidence_trigger_parity() {
 		sed -n '/^  - id: perf-evidence$/,/^  - id:/p' "${registry}"
 	)"
 	printf '%s\n' "${perf_gate}" |
-		rg --fixed-strings --quiet -- \
-		'test_command: "bash scripts/test-verify-performance-evidence.sh"' ||
+		rg --fixed-strings -- \
+		'test_command: "bash scripts/test-verify-performance-evidence.sh"' >/dev/null ||
 		fail "perf-evidence local.test_command omits its regression suite"
 
 	for perf_input in \
@@ -25,7 +25,7 @@ check_performance_evidence_trigger_parity() {
 					--tier pre-pr --paths-from - --explain
 		)"
 		printf '%s\n' "${perf_selection}" |
-			rg --quiet '^SELECTED[[:space:]]+perf-evidence[[:space:]]' ||
+			rg '^SELECTED[[:space:]]+perf-evidence[[:space:]]' >/dev/null ||
 			fail "a change to ${perf_input} did not select perf-evidence at pre-pr"
 	done
 }

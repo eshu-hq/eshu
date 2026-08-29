@@ -31,7 +31,7 @@
 require_workflow_filter_line() {
 	local haystack="$1" needle="$2" message="$3"
 	printf '%s\n' "${haystack}" |
-		rg --fixed-strings --line-regexp --quiet -- "              - '${needle}'" ||
+		rg --fixed-strings --line-regexp -- "              - '${needle}'" >/dev/null ||
 		fail "${message}: expected the exact line \`              - '${needle}'\` (14 spaces, single-quoted)"
 }
 
@@ -68,7 +68,7 @@ check_telemetry_coverage_trigger_parity() {
 					--registry "${registry}" --tier pre-pr --paths-from - --explain)
 		)"
 		printf '%s\n' "${telemetry_selection}" |
-			rg --quiet '^SELECTED[[:space:]]+telemetry-coverage[[:space:]]' ||
+			rg '^SELECTED[[:space:]]+telemetry-coverage[[:space:]]' >/dev/null ||
 			fail "a change to ${telemetry_input} did not select telemetry-coverage"
 	done
 }

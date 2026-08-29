@@ -137,7 +137,7 @@ run_ci_gates_registry_ifa_filter_cases() {
 	# side too. drift.go proves the workflow filter selects it; nothing proved
 	# the gate still declares it, and deleting it from the spec left this whole
 	# test green. The glob loop above cannot cover it -- it is not a glob.
-	printf '%s\n' "${gate_block}" | rg --fixed-strings --quiet -- '- "scripts/lib/ifa_family_registry.sh"' \
+	printf '%s\n' "${gate_block}" | rg --fixed-strings -- '- "scripts/lib/ifa_family_registry.sh"' >/dev/null \
 		|| fail "the ifa-materialized-edge-coverage gate no longer triggers on scripts/lib/ifa_family_registry.sh -- an edit to the fail-closed row loader or its accessors would not select the gate that runs ifa_family_registry_parse_test.go"
 
 	printf 'test-verify-ci-gates-registry: ifa filter covers all %d glob trigger(s) the registry declares\n' "${#glob_triggers[@]}"

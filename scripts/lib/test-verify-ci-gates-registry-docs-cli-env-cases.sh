@@ -7,7 +7,7 @@ check_docs_cli_env_refs_trigger_parity() {
   gate="$(sed -n '/^  - id: docs-cli-env-refs$/,/^  - id:/p' "${registry}")"
   [[ -n "${gate}" ]] || fail "missing docs-cli-env-refs registry gate"
   printf '%s\n' "${gate}" |
-    rg --multiline --quiet 'requirements:\n[[:space:]]+- go' ||
+    rg --multiline 'requirements:\n[[:space:]]+- go' >/dev/null ||
     fail "docs-cli-env-refs registry gate omits its Go requirement"
   workflow_filter="$(sed -n '/^[[:space:]]*docsclienvrefs:/,/^[[:space:]]*[a-z][a-z0-9]*:/p' "${static_contract_workflow}")"
   [[ -n "${workflow_filter}" ]] || fail "missing docsclienvrefs workflow filter"
@@ -75,7 +75,7 @@ check_docs_cli_env_refs_trigger_parity() {
     # this assertion is the thing that has to be updated deliberately.
     require_path_line "${gate}" "${input}" "docs-cli-env-refs registry triggers omit ${input}"
     printf '%s\n' "${workflow_filter}" |
-      rg --fixed-strings --line-regexp --quiet "              - '${input}'" ||
+      rg --fixed-strings --line-regexp "              - '${input}'" >/dev/null ||
       fail "docsclienvrefs workflow filter omits ${input}, which specs/ci-gates.v1.yaml lists as a docs-cli-env-refs trigger: a PR touching only that path would select the gate locally and skip it in CI"
   done
 
@@ -84,14 +84,14 @@ check_docs_cli_env_refs_trigger_parity() {
   for input in 'docs/public/reference/cli-reference.md' 'go/cmd/eshu/docs.go' 'go/internal/cli/firstrun/classify.go' 'go/internal/envregistry/entries.go' 'scripts/test-verify-docs-cli-env-refs.sh' 'scripts/lib/test-verify-docs-cli-env-refs-segment-cases.sh'; do
     selection="$(printf '%s\n' "${input}" | (cd "${repo_root}/go" && go run ./cmd/ci-gates select --registry "${registry}" --tier pre-pr --paths-from - --explain))"
     printf '%s\n' "${selection}" |
-      rg --quiet '^SELECTED[[:space:]]+docs-cli-env-refs[[:space:]]' ||
+      rg '^SELECTED[[:space:]]+docs-cli-env-refs[[:space:]]' >/dev/null ||
       fail "${input} does not select docs-cli-env-refs"
   done
 
   for input in 'go/cmd/docs-cli-env-refs/main.go' 'go/internal/capabilitycatalog/data/surface-inventory.generated.json'; do
     selection="$(printf '%s\n' "${input}" | (cd "${repo_root}/go" && go run ./cmd/ci-gates select --registry "${registry}" --tier pre-pr --paths-from - --explain))"
     printf '%s\n' "${selection}" |
-      rg --quiet '^SELECTED[[:space:]]+capability-surface-inventory[[:space:]]' ||
+      rg '^SELECTED[[:space:]]+capability-surface-inventory[[:space:]]' >/dev/null ||
       fail "${input} does not select capability-surface-inventory"
   done
 }

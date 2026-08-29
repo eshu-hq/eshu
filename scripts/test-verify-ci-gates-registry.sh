@@ -91,7 +91,7 @@ while IFS= read -r registry_test_input; do
 				--registry "${registry}" --tier pre-pr --paths-from - --explain)
 	)"
 	printf '%s\n' "${selection}" |
-		rg --quiet '^SELECTED[[:space:]]+ci-gate-registry[[:space:]]' ||
+		rg '^SELECTED[[:space:]]+ci-gate-registry[[:space:]]' >/dev/null ||
 		fail "ci-gate-registry test input does not select its gate (${registry_test_input})"
 done < <(
 	printf '%s\n' "${ci_gate_registry_test_command}" |
@@ -107,8 +107,14 @@ done < <(
 # "temporarily" disabled - would keep this guard green.
 require_path_line() {
 	local haystack="$1" needle="$2" message="$3"
+	# No --quiet: it exits on the first match, and on a haystack larger than
+	# the pipe buffer printf is still writing, so it takes SIGPIPE and
+	# `set -o pipefail` turns the pipeline into 141. The guard then reports the
+	# line as MISSING precisely because it was PRESENT -- a match that arrives
+	# early enough to close the pipe. Draining the input costs nothing here and
+	# keeps the exit code meaning what it says.
 	printf '%s\n' "${haystack}" |
-		rg --fixed-strings --line-regexp --quiet -- "      - \"${needle}\"" ||
+		rg --fixed-strings --line-regexp -- "      - \"${needle}\"" >/dev/null ||
 		fail "${message}: expected the exact line \`      - \"${needle}\"\` (six spaces, double-quoted)"
 }
 
@@ -120,7 +126,11 @@ frontend_pull_request_paths="$(
 # workflow that executes it and select the same registered CI-heavy gate.
 [[ -f "${e2e_workflow}" ]] || fail "missing ${e2e_workflow}"
 e2e_pull_request_paths="$(
-	sed -n '/^  pull_request:/,/^  concurrency:/p' "${e2e_workflow}"
+	# `concurrency:` is a top-level key at column 0, so a two-space end anchor
+	# never matches and the range ran to EOF -- scoping this "pull_request
+	# paths" assertion to the entire workflow, where a path line anywhere in
+	# the file would have satisfied it.
+	sed -n '/^  pull_request:/,/^concurrency:/p' "${e2e_workflow}"
 )"
 e2e_gate="$(
 	sed -n '/^  - id: e2e-tests$/,/^  - id:/p' "${registry}"
@@ -163,13 +173,13 @@ selection="$(
 # then fail for a reason unrelated to the wiring it guards. Assert the gates
 # that must be selected, and let unrelated ones come and go.
 printf '%s\n' "${selection}" |
-	rg --quiet '^SELECTED[[:space:]]+docs-only-ci-skip[[:space:]]' ||
+	rg '^SELECTED[[:space:]]+docs-only-ci-skip[[:space:]]' >/dev/null ||
 	fail "merge_group checks lib did not select docs-only-ci-skip (${merge_group_lib})"
 printf '%s\n' "${selection}" |
-	rg --fixed-strings --quiet -- "matched trigger \"${merge_group_lib}\" on path \"${merge_group_lib}\"" ||
+	rg --fixed-strings -- "matched trigger \"${merge_group_lib}\" on path \"${merge_group_lib}\"" >/dev/null ||
 	fail "docs-only-ci-skip selected for the wrong reason (${merge_group_lib})"
 printf '%s\n' "${selection}" |
-	rg --quiet '^SELECTED[[:space:]]+heredoc-budget[[:space:]]' ||
+	rg '^SELECTED[[:space:]]+heredoc-budget[[:space:]]' >/dev/null ||
 	fail "merge_group checks lib did not also select heredoc-budget (${merge_group_lib})"
 
 # #5814 class fix: five more gates depend on a scripts/lib helper their own
@@ -209,10 +219,10 @@ while IFS='|' read -r sourced_gate sourced_lib sourced_tier sourced_trigger; do
 				--registry "${registry}" --tier "${sourced_tier}" --paths-from - --explain)
 	)"
 	printf '%s\n' "${sourced_selection}" |
-		rg --quiet "^SELECTED[[:space:]]+${sourced_gate}[[:space:]]" ||
+		rg "^SELECTED[[:space:]]+${sourced_gate}[[:space:]]" >/dev/null ||
 		fail "${sourced_lib} did not select ${sourced_gate}"
 	printf '%s\n' "${sourced_selection}" |
-		rg --fixed-strings --quiet -- "matched trigger \"${sourced_trigger}\" on path \"${sourced_lib}\"" ||
+		rg --fixed-strings -- "matched trigger \"${sourced_trigger}\" on path \"${sourced_lib}\"" >/dev/null ||
 		fail "${sourced_gate} selected for the wrong reason (${sourced_lib} via ${sourced_trigger})"
 done <<'SOURCED_LIB_GATES'
 parser-relationship-kit|scripts/lib/parser_relationship_language_ledger.sh|pre-pr|
@@ -267,13 +277,13 @@ for sql_fixture in \
 	[[ "$(printf '%s\n' "${selection}" | rg --count '^SELECTED[[:space:]]+' || true)" == "$((1 + pr_wide_gates))" ]] ||
 		fail "retained SQL fixture must select its surface gate plus the ${pr_wide_gates} PR-wide gate(s) (${sql_fixture})"
 	printf '%s\n' "${selection}" |
-		rg --quiet '^SELECTED[[:space:]]+frontend-console-checks[[:space:]]' ||
+		rg '^SELECTED[[:space:]]+frontend-console-checks[[:space:]]' >/dev/null ||
 		fail "retained SQL fixture did not select frontend-console-checks (${sql_fixture})"
 	printf '%s\n' "${selection}" |
-		rg --quiet '^SELECTED[[:space:]]+no-ai-attribution[[:space:]]' ||
+		rg '^SELECTED[[:space:]]+no-ai-attribution[[:space:]]' >/dev/null ||
 		fail "retained SQL fixture did not select the PR-wide attribution gate (${sql_fixture})"
 	printf '%s\n' "${selection}" |
-		rg --fixed-strings --quiet -- "matched trigger \"${sql_fixture}\" on path \"${sql_fixture}\"" ||
+		rg --fixed-strings -- "matched trigger \"${sql_fixture}\" on path \"${sql_fixture}\"" >/dev/null ||
 		fail "frontend-console-checks selected for the wrong reason (${sql_fixture})"
 done
 
@@ -310,10 +320,10 @@ for cloudflare_input in '.nvmrc' 'CLOUDFLARE_PAGES.md'; do
 	[[ "$(printf '%s\n' "${selection}" | rg --count '^SELECTED[[:space:]]+' || true)" == "$((1 + pr_wide_gates))" ]] ||
 		fail "Cloudflare Pages input must select its surface gate plus the ${pr_wide_gates} PR-wide gate(s) (${cloudflare_input})"
 	printf '%s\n' "${selection}" |
-		rg --quiet '^SELECTED[[:space:]]+frontend-site[[:space:]]' ||
+		rg '^SELECTED[[:space:]]+frontend-site[[:space:]]' >/dev/null ||
 		fail "Cloudflare Pages input did not select frontend-site (${cloudflare_input})"
 	printf '%s\n' "${selection}" |
-		rg --fixed-strings --quiet -- "matched trigger \"${cloudflare_input}\" on path \"${cloudflare_input}\"" ||
+		rg --fixed-strings -- "matched trigger \"${cloudflare_input}\" on path \"${cloudflare_input}\"" >/dev/null ||
 		fail "frontend-site selected for the wrong reason (${cloudflare_input})"
 done
 
@@ -344,14 +354,14 @@ for bundle_input in \
 	[[ "$(printf '%s\n' "${selection}" | rg --count '^SELECTED[[:space:]]+' || true)" == "${expected_with_pr_wide}" ]] ||
 		fail "console bundle-budget input must select ${expected_gates} surface gate(s) plus the ${pr_wide_gates} PR-wide gate(s) (${bundle_input})"
 	printf '%s\n' "${selection}" |
-		rg --quiet '^SELECTED[[:space:]]+frontend-console-checks[[:space:]]' ||
+		rg '^SELECTED[[:space:]]+frontend-console-checks[[:space:]]' >/dev/null ||
 		fail "console bundle-budget input did not select frontend-console-checks (${bundle_input})"
 	printf '%s\n' "${selection}" |
-		rg --fixed-strings --quiet -- "matched trigger \"${bundle_input}\" on path \"${bundle_input}\"" ||
+		rg --fixed-strings -- "matched trigger \"${bundle_input}\" on path \"${bundle_input}\"" >/dev/null ||
 		fail "frontend-console-checks selected for the wrong reason (${bundle_input})"
 	if [[ "${expected_gates}" -eq 2 ]]; then
 		printf '%s\n' "${selection}" |
-			rg --quiet '^SELECTED[[:space:]]+frontend-eslint[[:space:]]' ||
+			rg '^SELECTED[[:space:]]+frontend-eslint[[:space:]]' >/dev/null ||
 			fail "linted bundle script did not select frontend-eslint (${bundle_input})"
 	fi
 done
@@ -374,13 +384,13 @@ for marketing_input in \
 	[[ "$(printf '%s\n' "${selection}" | rg --count '^SELECTED[[:space:]]+' || true)" == "$((2 + pr_wide_gates))" ]] ||
 		fail "marketing-review input must select two surface gates plus the ${pr_wide_gates} PR-wide gate(s) (${marketing_input})"
 	printf '%s\n' "${selection}" |
-		rg --quiet '^SELECTED[[:space:]]+frontend-site[[:space:]]' ||
+		rg '^SELECTED[[:space:]]+frontend-site[[:space:]]' >/dev/null ||
 		fail "marketing-review input did not select frontend-site (${marketing_input})"
 	printf '%s\n' "${selection}" |
-		rg --fixed-strings --quiet -- "matched trigger \"${marketing_input}\" on path \"${marketing_input}\"" ||
+		rg --fixed-strings -- "matched trigger \"${marketing_input}\" on path \"${marketing_input}\"" >/dev/null ||
 		fail "frontend-site selected for the wrong reason (${marketing_input})"
 	printf '%s\n' "${selection}" |
-		rg --quiet '^SELECTED[[:space:]]+frontend-eslint[[:space:]]' ||
+		rg '^SELECTED[[:space:]]+frontend-eslint[[:space:]]' >/dev/null ||
 		fail "marketing-review input did not select frontend-eslint (${marketing_input})"
 done
 
@@ -421,7 +431,7 @@ selection="$(select_explain "${public_asset}")"
 [[ "$(printf '%s\n' "${selection}" | rg --count '^SELECTED[[:space:]]+' || true)" == "$((1 + pr_wide_gates))" ]] ||
 	fail "a published public asset must select its surface gate plus the ${pr_wide_gates} PR-wide gate(s) (${public_asset})"
 printf '%s\n' "${selection}" |
-	rg --quiet '^SELECTED[[:space:]]+frontend-site[[:space:]]' ||
+	rg '^SELECTED[[:space:]]+frontend-site[[:space:]]' >/dev/null ||
 	fail "public asset did not select frontend-site (${public_asset})"
 
 # The exact-source auth CLI helper is shared by both fresh-stack auth gates.
