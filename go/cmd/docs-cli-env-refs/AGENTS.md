@@ -7,6 +7,12 @@
   the supported grammar; re-pinning is the fallback and needs the reason in the
   change. Never widen `minAttributedEshuSegments` downward to make a red run
   green — a falling attributed count is the scanner losing coverage.
+- `stripCommandPrefixes` strips `NAME=value` assignments and a bare `sudo`
+  before the `eshu` test, and `eshuCommandFields` and `mentionsEshuCommand`
+  MUST keep sharing it. When they disagreed (#6230), a prefixed line was
+  neither attributed nor skipped, so its flags went unchecked while both
+  counters still read healthy. Widening the prefix set needs a fixture proving
+  a non-Eshu command behind the same prefix stays out of scope.
 - The simple-list grammar in `commandSegments` is a deliberate
   under-approximation. Widening it needs a hostile collision test first: a later
   segment carrying a flag that is invalid there but valid on an earlier command,

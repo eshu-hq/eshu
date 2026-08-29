@@ -3,10 +3,18 @@
 # Verify concrete ESHU_* citations and long flags in fenced Eshu shell commands.
 #
 # Precision-first flag scope: bash/sh/shell/console fences only; command
-# segments beginning with `eshu` (optionally after `$` or `>`); concrete long
-# flags only. Prose, inline code, non-shell fences, short flags, shell-expanded
-# flag names, command-local flags after a leading root flag, and wildcard ESHU_*
+# segments beginning with `eshu`, optionally after a console prompt (`$` or
+# `>`), `NAME=value` environment assignments, or `sudo`; concrete long flags
+# only. Prose, inline code, non-shell fences, short flags, shell-expanded flag
+# names, command-local flags after a leading root flag, and wildcard ESHU_*
 # family prefixes are deliberately skipped.
+#
+# Since #6230 the prefixes above are stripped to FIND the command, not to
+# rename it: `sudo eshu docs verify --stale` is attributed to
+# `eshu docs verify`, while `sudo docker compose logs eshu` is still a non-Eshu
+# command and stays out of scope. Only a bare `sudo` is stripped, so
+# `sudo -u builder eshu ...` keeps its option word and stays out of scope
+# rather than being guessed at.
 #
 # Since #6108 a logical line may be a simple list: segments separated by an
 # unquoted `|`, `&&`, or `;`, each checked against its own command so one

@@ -38,17 +38,23 @@ const (
 	// dirgate grandfather rows are: growth means a new unparseable example
 	// slipped in, and a shrink that is not re-pinned lets the population creep
 	// back up under a stale number. Today's one line is a backgrounded
-	// `eshu graph start ... 2>&1 &` in the profiling runbook.
+	// `ESHU_PPROF_ADDR=… eshu graph start ... 2>&1 &` in the profiling
+	// runbook. It is env-prefixed, and before #6230 it was counted only because
+	// it happens to end in `&`; the prefix itself no longer hides a line from
+	// both populations.
 	pinnedSkippedEshuLines = 1
 
 	// minAttributedEshuSegments is a floor, not a pin: it moves with ordinary
 	// documentation edits, so pinning it would fail every docs PR. The floor
 	// only has to catch the failure it exists for -- a scanner that stops
 	// seeing shell fences and reports a clean run over a shrunken population.
-	// docs/public attributes 190 segments today (VERIFIED by running the gate);
-	// 150 is roughly four fifths of that, so deleting a whole page of examples
+	// docs/public attributes 195 segments today (VERIFIED by running the gate;
+	// 190 before #6230 taught the scanner to see through `VAR=value` and `sudo`
+	// prefixes, which added the five `ESHU_*=… eshu …` lines in docs/public,
+	// four of them backslash-continued);
+	// 156 is roughly four fifths of that, so deleting a whole page of examples
 	// still passes while a collapse does not.
-	minAttributedEshuSegments = 150
+	minAttributedEshuSegments = 156
 )
 
 type options struct {

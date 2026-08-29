@@ -175,7 +175,11 @@ func skipDropTargetSpaceAndComments(source string, index int) int {
 		case source[index] == ' ' || source[index] == '\t' || source[index] == '\n' || source[index] == '\r':
 			index++
 		case strings.HasPrefix(source[index:], "--"):
-			for index < len(source) && source[index] != '\n' {
+			// A bare '\r' ends the line comment exactly as '\n' does; the
+			// whitespace case above then consumes it. Stopping only on '\n'
+			// swallowed the rest of a classic-Mac tail, losing every DROP
+			// target after the comment (#6268).
+			for index < len(source) && source[index] != '\n' && source[index] != '\r' {
 				index++
 			}
 		case strings.HasPrefix(source[index:], "/*"):

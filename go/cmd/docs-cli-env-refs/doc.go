@@ -4,6 +4,9 @@
 // Package main implements the public documentation CLI and environment reference verifier.
 // It applies a precision-first contract to concrete references in conservative
 // shell fences and leaves excluded shell forms outside the gate's scope. A
+// command segment is in scope when it begins with `eshu`, optionally after a
+// console prompt, `NAME=value` environment assignments, or `sudo`; those
+// prefixes are stripped to find the command, never to rename it. A
 // logical line that is a simple list -- segments separated by an unquoted pipe,
 // AND, or semicolon -- is split so each segment is checked against its own
 // command; every other shell form keeps the whole line out of scope rather than

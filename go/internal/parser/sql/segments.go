@@ -216,13 +216,17 @@ func startsStatementBoundary(source string, offset int, depth int) bool {
 }
 
 // atLineStart reports whether offset is preceded only by horizontal whitespace
-// back to a newline or the start of the source.
+// back to a newline or the start of the source. A bare '\r' is a line break,
+// not horizontal whitespace: treating it as whitespace made every statement
+// in a classic-Mac file look mid-line, so the unbalanced-paren recovery
+// boundary was never taken and a malformed statement swallowed its successors
+// (#6268). In a CRLF pair the '\n' is reached first, so nothing changes there.
 func atLineStart(source string, offset int) bool {
 	for index := offset - 1; index >= 0; index-- {
 		switch source[index] {
-		case ' ', '\t', '\r':
+		case ' ', '\t':
 			continue
-		case '\n':
+		case '\n', '\r':
 			return true
 		default:
 			return false
@@ -259,8 +263,15 @@ func startsKeyword(source string, offset int) bool {
 	return false
 }
 
+// skipLineComment returns how many bytes of rest a `--` line comment
+// occupies, including its terminator. A bare '\r' ends the comment exactly as
+// '\n' does: a classic-Mac migration carries no '\n' at all, so a scan that
+// stopped only on '\n' ran to EOF and swallowed every statement after the
+// first comment before tree-sitter ever saw it (#6268). In a CRLF ending the
+// '\r' terminates and the following '\n' falls through the caller's normal
+// path, so the bytes each caller emits are unchanged.
 func skipLineComment(rest string) int {
-	if end := strings.IndexByte(rest, '\n'); end >= 0 {
+	if end := strings.IndexAny(rest, "\r\n"); end >= 0 {
 		return end + 1
 	}
 	return len(rest)

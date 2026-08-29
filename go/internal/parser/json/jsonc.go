@@ -10,13 +10,14 @@ import "strings"
 // or `/*` text inside a quoted string) untouched. It also returns a parallel
 // offset map: offsets[j] is the byte index in source that produced result[j],
 // for every j in [0, len(result)]; offsets[len(result)] is the sentinel
-// len(source) (issue #5358). A `/* ... */` block comment writes nothing to
-// result for its full span -- including any '\n' bytes inside it -- so a
-// caller that needs real on-disk line numbers for offsets into result MUST
-// translate through this map before consulting a newlineIndex built over the
-// original source; counting '\n' bytes in result directly undercounts every
-// line after a multi-line block comment by however many newlines the comment
-// swallowed.
+// len(source) (issue #5358). A `//` line comment ends at the first '\n' or
+// bare '\r', so a classic-Mac source keeps everything after its first comment
+// (#6268). A `/* ... */` block comment writes nothing to result for its full
+// span -- including any '\n' or '\r' bytes inside it -- so a caller that
+// needs real on-disk line numbers for offsets into result MUST translate
+// through this map before consulting a newlineIndex built over the original
+// source; counting '\n' bytes in result directly undercounts every line after
+// a multi-line block comment by however many newlines the comment swallowed.
 func stripJSONCCommentsWithOffsets(source string) (string, []int64) {
 	var builder strings.Builder
 	offsets := make([]int64, 0, len(source)+1)
@@ -51,7 +52,12 @@ func stripJSONCCommentsWithOffsets(source string) (string, []int64) {
 		if current == '/' && index+1 < len(source) {
 			next := source[index+1]
 			if next == '/' {
-				for index < len(source) && source[index] != '\n' {
+				// A bare '\r' ends the line comment exactly as '\n' does.
+				// Classic-Mac sources carry no '\n' at all, so stopping only
+				// on '\n' ran to EOF and dropped the whole document after the
+				// first comment (#6268). The terminator itself is written
+				// below, so a CRLF ending keeps both of its bytes.
+				for index < len(source) && source[index] != '\n' && source[index] != '\r' {
 					index++
 				}
 				if index < len(source) {
