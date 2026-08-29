@@ -4,8 +4,11 @@
 package runtime
 
 import (
+	"regexp"
 	"strings"
 	"testing"
+
+	"gopkg.in/yaml.v3"
 )
 
 func TestNornicDBComposeDefaultPinsMergedPR290ExactSourceCommit(t *testing.T) {
@@ -180,5 +183,79 @@ func TestNornicDBGraphSearchSplitDesignTracksImplementedStabilization(t *testing
 		if !strings.Contains(normalizedDocs, want) {
 			t.Fatalf("issue-430 design doc missing implemented stabilization status %q", want)
 		}
+	}
+}
+
+// replayTierImageAssignment matches the live gate's own image assignment in
+// scripts/verify-replay-tier.sh.
+var replayTierImageAssignment = regexp.MustCompile(`(?m)^NORNICDB_IMAGE="([^"]+)"$`)
+
+// replayTierMirrorImagePin matches the anchored rg pattern that
+// scripts/test-verify-replay-tier.sh uses to hold the gate's image steady. The
+// pattern is a regex embedded in shell single quotes, so its dots arrive here
+// backslash-escaped and are unescaped before comparison.
+var replayTierMirrorImagePin = regexp.MustCompile(`\^NORNICDB_IMAGE="([^"]+)"\$`)
+
+// digestedImageRef requires a full 64-hex sha256 digest. A tag-only reference
+// must not satisfy the lockstep assertion: Docker Hub can retarget a tag
+// without any repository change, which is the whole reason these pins exist.
+var digestedImageRef = regexp.MustCompile(`^[^:@\s]+:[^@\s]+@sha256:[0-9a-f]{64}$`)
+
+// TestHelmNornicDBImageMatchesReplayTierGate binds the chart's bundled NornicDB
+// default to the artifact the R-5 replay gate actually exercises.
+//
+// Before #6296 the chart's image had no gate coverage at all: the B-7
+// golden-corpus gate and the e2e workflows drive docker-compose.yaml, which
+// builds the orneryd/NornicDB#290 source commit, not the chart's published
+// image. Putting the chart and the replay gate on one build is what buys that
+// coverage — and nothing enforced it. scripts/test-verify-replay-tier.sh pins
+// the gate's own NORNICDB_IMAGE and TestNornicDBGraphSearchSplitDesignTracks-
+// ImplementedStabilization pins the design doc's prose, but either file could
+// move without the other and every existing test would stay green while the
+// claim quietly stopped being true.
+//
+// The reference is compared whole (repository, tag, and digest), not digest
+// alone: a chart that pointed a different repository at the same digest would
+// still render an image the gate never ran.
+func TestHelmNornicDBImageMatchesReplayTierGate(t *testing.T) {
+	t.Parallel()
+
+	valuesYAML := readRepositoryFile(t, "../../..", "deploy/helm/eshu/values.yaml")
+	var values map[string]any
+	if err := yaml.Unmarshal([]byte(valuesYAML), &values); err != nil {
+		t.Fatalf("parse deploy/helm/eshu/values.yaml: %v", err)
+	}
+	image := helmMap(helmMap(values["nornicdb"])["image"])
+	repository, _ := image["repository"].(string)
+	tag, _ := image["tag"].(string)
+	if repository == "" || tag == "" {
+		t.Fatalf("nornicdb.image.repository/tag missing from deploy/helm/eshu/values.yaml, got repository=%q tag=%q", repository, tag)
+	}
+	chartRef := repository + ":" + tag
+	if !digestedImageRef.MatchString(chartRef) {
+		t.Fatalf("chart nornicdb image %q is not pinned by a full sha256 digest; a tag alone can be retargeted upstream without a repository change", chartRef)
+	}
+
+	gateScript := readRepositoryFile(t, "../../..", "scripts/verify-replay-tier.sh")
+	gateMatch := replayTierImageAssignment.FindStringSubmatch(gateScript)
+	if gateMatch == nil {
+		t.Fatal("scripts/verify-replay-tier.sh has no NORNICDB_IMAGE=\"...\" assignment; the replay-tier lockstep assertion cannot be evaluated")
+	}
+	if gateRef := gateMatch[1]; gateRef != chartRef {
+		t.Fatalf("scripts/verify-replay-tier.sh runs %q but deploy/helm/eshu/values.yaml renders %q; the chart's image must be the artifact the R-5 replay gate exercises", gateRef, chartRef)
+	}
+
+	mirrorScript := readRepositoryFile(t, "../../..", "scripts/test-verify-replay-tier.sh")
+	mirrorMatch := replayTierMirrorImagePin.FindStringSubmatch(mirrorScript)
+	if mirrorMatch == nil {
+		t.Fatal("scripts/test-verify-replay-tier.sh no longer pins ^NORNICDB_IMAGE=\"...\"$; the gate's image pin has lost its mirror")
+	}
+	if mirrorRef := strings.ReplaceAll(mirrorMatch[1], `\.`, "."); mirrorRef != chartRef {
+		t.Fatalf("scripts/test-verify-replay-tier.sh pins %q but deploy/helm/eshu/values.yaml renders %q", mirrorRef, chartRef)
+	}
+
+	operatorDocs := readRepositoryFile(t, "../../..", "docs/public/deploy/kubernetes/helm-routing-and-storage-values.md")
+	if !strings.Contains(operatorDocs, tag) {
+		t.Fatalf("docs/public/deploy/kubernetes/helm-routing-and-storage-values.md does not name the chart's nornicdb.image.tag %q, so operators read a stale pin", tag)
 	}
 }
