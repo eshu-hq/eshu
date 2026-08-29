@@ -83,6 +83,31 @@ var materializedEdgeEndpointsByFamily = map[string]map[string]MaterializedEdgeEn
 			EvidenceSource: reducer.EvidenceSourceWorkloads,
 		},
 	},
+	// TARGETS_ENVIRONMENT is shared, and it is the first DIRECT-materialization
+	// family to need a constraint (#6228). canonicalKubernetesNamespaceWithEnvironmentUpsertCypher
+	// writes it KubernetesNamespace->Environment;
+	// batchCanonicalRepoEvidenceArtifactWithEnvironmentUpsertCypher
+	// (canonical_relationships.go) writes the same type
+	// EvidenceArtifact->Environment for the repo-manifest alias path. Both
+	// converge on one canonical Environment node per name by design, so the
+	// target label cannot separate them and the type alone certainly cannot:
+	// asserting this family by type would count every repo-manifest binding in
+	// the graph as a spurious extra.
+	//
+	// The source label already partitions the two producers. EvidenceSource is
+	// declared anyway because it is the predicate the family's own retract
+	// scopes by (retractKubernetesNamespaceStaleTargetsEnvironmentCypher
+	// deletes `WHERE rel.evidence_source = $evidence_source`), so the gate
+	// asserts exactly the population the reducer owns and reaps rather than
+	// every KubernetesNamespace->Environment edge a future third producer might
+	// add.
+	"kubernetes_namespace_environment": {
+		"TARGETS_ENVIRONMENT": {
+			FromLabel:      "KubernetesNamespace",
+			ToLabel:        "Environment",
+			EvidenceSource: reducer.KubernetesNamespaceEvidenceSource,
+		},
+	},
 }
 
 // MaterializedEdgeEndpointLabels returns the per-edge-type endpoint constraints

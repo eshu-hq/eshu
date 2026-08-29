@@ -96,7 +96,7 @@ func (s *materializedEdgeScan) recordEndpointDefect(edge graphdump.Edge, fromUID
 		missing = "target"
 	}
 	s.endpointErrs = append(s.endpointErrs, fmt.Sprintf(
-		"%s edge whose %s endpoint carries neither uid, id, nor (for a CodeownerTeam endpoint) ref (from=%q to=%q) — an unmaterialized endpoint node",
+		"%s edge whose %s endpoint carries none of uid, id, a CodeownerTeam endpoint's ref, or an Environment endpoint's name (from=%q to=%q) — an unmaterialized endpoint node",
 		edge.Type, missing, fromUID, toUID,
 	))
 }

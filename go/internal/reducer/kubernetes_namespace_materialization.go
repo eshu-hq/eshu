@@ -86,6 +86,24 @@ func kubernetesNamespaceMaterializationDomainDefinition() DomainDefinition {
 // scope their writes to this domain's own materialization.
 const kubernetesNamespaceEvidenceSource = "reducer/kubernetes-namespaces"
 
+// KubernetesNamespaceEvidenceSource is the exported view of the same value, for
+// the Ifá materialized-edge endpoint constraints (#6228). It is an alias of the
+// unexported constant above rather than a second literal, so the two cannot
+// drift.
+//
+// TARGETS_ENVIRONMENT has two producers: this domain writes it
+// KubernetesNamespace->Environment, and canonical repo-evidence-artifact
+// projection writes it EvidenceArtifact->Environment
+// (batchCanonicalRepoEvidenceArtifactWithEnvironmentUpsertCypher). A live
+// `eshu-ifa assert-edges -domain kubernetes_namespace_environment` filtered by
+// relationship type alone would count the other producer's edges as spurious
+// extras on any graph where both have run, so
+// cypher.materializedEdgeEndpointsByFamily narrows the family by endpoint
+// labels AND by this evidence_source -- the same predicate
+// retractKubernetesNamespaceStaleTargetsEnvironmentCypher already scopes its
+// DELETE with. The gate asserts what the retract reaps.
+const KubernetesNamespaceEvidenceSource = kubernetesNamespaceEvidenceSource
+
 // KubernetesNamespaceNodeWriter persists canonical KubernetesNamespace graph
 // nodes from extracted node rows, binding an Environment node only for rows
 // carrying a non-empty "environment" property. Implementations MUST be

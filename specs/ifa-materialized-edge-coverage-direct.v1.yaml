@@ -44,17 +44,49 @@
 # MaterializedEdgeOduResolver, a hand-derived expected-edge-set fixture naming
 # an edge of every relationship type the family's writer accepts, and the live
 # ifa-determinism / ifa-fault-injection matrices actually running the family.
-# None of the twenty-eight has any of the four. Seeding an aspirational
-# coverage row instead of a waiver is the specific mistake commit 42e188ba1 made
-# for documentation_edges and had to withdraw; it is not repeated here.
+# NO family below has the fourth, which is why no family below has a coverage
+# row. Seeding an aspirational coverage row instead of a waiver is the specific
+# mistake commit 42e188ba1 made for documentation_edges and had to withdraw; it
+# is not repeated here.
 #
-# These families additionally do NOT yet resolve through
+# TWO OF THEM NOW HAVE THE FIRST THREE. kubernetes_namespace_environment and
+# iam_instance_profile_role each carry a cataloged Odù, a registered edge-type
+# set, a vacuity guard dispatched from MaterializedEdgeOduResolver, and a
+# hand-derived expected-edge-set fixture their guard reproduces exactly. Their
+# waiver reasons below say so, and say what is still missing. Three of four is
+# not covered: without a live matrix driving the family, a coverage row would
+# assert a proof that has never run, which is the nominally-covered failure
+# both #5589 and #6181 exist to prevent.
+#
+# Which families those are is asserted in code, not only here.
+# guardedDirectMaterializedEdgeFamilies
+# (go/internal/ifa/materializededges/materialized_edges_direct_family_coverage_test.go)
+# is the roster, and TestGuardedDirectFamiliesStillCarryTheirWaivers fails if a
+# family on it gains a coverage row or loses either waiver row. Retiring a
+# waiver here is therefore a two-sided edit: wire the family into the live
+# matrices, then remove its rows here AND its roster entry there.
+#
+# The remaining twenty-six do NOT yet resolve through
 # MaterializedEdgeDomainEdgeTypes -- their relationship types are not registered
 # beside their writers in go/internal/storage/cypher, so
 # `eshu-ifa assert-edges -domain <family>` would error before any fixture is
-# consulted. Registering them is part of the #6228 work, which is why
+# consulted. Registering them is part of the remaining #6228 work, which is why
 # TestEveryWaivedFamilyIsRegistered holds the #5543 umbrella roster to the
 # resolve check but not these. The waiver reasons below say so per family.
+#
+# NOT EVERY FAMILY CAN BE REGISTERED IN ITS CURRENT SHAPE, and the blocker is
+# the registry's own contract rather than fixture effort.
+# TestMaterializedEdgeFamilyRegistryMatchesItsRetract extracts a `[rel:TYPE]`
+# alternation from each registered family's retract template and pins it against
+# the declared edge types. A family whose retract names no relationship type
+# cannot supply one. Several here are in that position: code_taint_evidence and
+# incident_routing_evidence retract by `DETACH DELETE` on their evidence NODE,
+# semantic_entity_containment retracts by a node-label alternation, and
+# cloud_resource, observability_coverage and security_group_sg_rule retract
+# through a deliberately bare `[rel]` scoped by evidence_source (their type
+# vocabularies are open or derived, so an alternation would be an ever-growing
+# allowlist). Covering those needs a decision about the registry contract, not
+# another Odù -- record it in an ADR before writing the fixture.
 #
 # WHERE THE FAMILY LIST COMES FROM. Not from this file, and not from any port's
 # name. reducer.DirectMaterializedEdgeFamilies() is the source, and
@@ -212,12 +244,12 @@ waivers:
     proof_gate: ifa-determinism
     issue: "#6228"
     waived: "2026-08-23"
-    reason: "WriteIAMInstanceProfileRoleEdges -> cypher/iam_instance_profile_role_edge_writer.go merges HAS_ROLE; direct materialization, no Odu, expected-edge-set fixture, or registered edge types yet"
+    reason: "WriteIAMInstanceProfileRoleEdges -> cypher/iam_instance_profile_role_edge_writer.go merges HAS_ROLE; Odu (odu:ifa-iam-instance-profile-role-family), registered edge types, vacuity guard and expected-edge-set fixture all landed under #6228, but neither live matrix drives the family yet, so the fourth condition is unmet and this row stays waived"
   - surface: "materialized_edges:iam_instance_profile_role"
     proof_gate: ifa-fault-injection
     issue: "#6228"
     waived: "2026-08-23"
-    reason: "WriteIAMInstanceProfileRoleEdges -> cypher/iam_instance_profile_role_edge_writer.go merges HAS_ROLE; direct materialization, no Odu, expected-edge-set fixture, or registered edge types yet"
+    reason: "WriteIAMInstanceProfileRoleEdges -> cypher/iam_instance_profile_role_edge_writer.go merges HAS_ROLE; Odu (odu:ifa-iam-instance-profile-role-family), registered edge types, vacuity guard and expected-edge-set fixture all landed under #6228, but neither live matrix drives the family yet, so the fourth condition is unmet and this row stays waived"
   - surface: "materialized_edges:incident_routing_evidence"
     proof_gate: ifa-determinism
     issue: "#6228"
@@ -242,12 +274,12 @@ waivers:
     proof_gate: ifa-determinism
     issue: "#6228"
     waived: "2026-08-23"
-    reason: "WriteKubernetesNamespaceNodes -> cypher/kubernetes_namespace_node_writer.go merges TARGETS_ENVIRONMENT; direct materialization, no Odu, expected-edge-set fixture, or registered edge types yet"
+    reason: "WriteKubernetesNamespaceNodes -> cypher/kubernetes_namespace_node_writer.go merges TARGETS_ENVIRONMENT; Odu (odu:ifa-kubernetes-namespace-environment-family), registered edge types, vacuity guard and expected-edge-set fixture all landed under #6228, but neither live matrix drives the family yet, so the fourth condition is unmet and this row stays waived"
   - surface: "materialized_edges:kubernetes_namespace_environment"
     proof_gate: ifa-fault-injection
     issue: "#6228"
     waived: "2026-08-23"
-    reason: "WriteKubernetesNamespaceNodes -> cypher/kubernetes_namespace_node_writer.go merges TARGETS_ENVIRONMENT; direct materialization, no Odu, expected-edge-set fixture, or registered edge types yet"
+    reason: "WriteKubernetesNamespaceNodes -> cypher/kubernetes_namespace_node_writer.go merges TARGETS_ENVIRONMENT; Odu (odu:ifa-kubernetes-namespace-environment-family), registered edge types, vacuity guard and expected-edge-set fixture all landed under #6228, but neither live matrix drives the family yet, so the fourth condition is unmet and this row stays waived"
   - surface: "materialized_edges:observability_coverage"
     proof_gate: ifa-determinism
     issue: "#6228"

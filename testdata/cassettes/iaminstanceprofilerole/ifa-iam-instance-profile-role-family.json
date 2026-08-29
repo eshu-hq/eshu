@@ -1,0 +1,112 @@
+{
+  "collector": "aws",
+  "schema_version": "1",
+  "scopes": [
+    {
+      "scope_id": "aws:eshu-fixture-account",
+      "source_system": "aws",
+      "scope_kind": "region",
+      "collector_kind": "aws",
+      "partition_key": "aws:eshu-fixture-account",
+      "metadata": {
+        "account_id": "123456789012",
+        "region": "us-east-1",
+        "service_kind": "iam"
+      },
+      "generation_id": "gen-ifa-iam-instance-profile-role-family-1",
+      "observed_at": "2026-08-18T00:00:00Z",
+      "trigger_kind": "snapshot",
+      "facts": [
+        {
+          "fact_kind": "aws_resource",
+          "stable_fact_key": "aws:123456789012:us-east-1:iam:aws_iam_role:eshu-fixture-app-role",
+          "schema_version": "1.0.0",
+          "collector_kind": "aws",
+          "fencing_token": 1,
+          "source_confidence": "observed",
+          "payload": {
+            "account_id": "123456789012",
+            "arn": "arn:aws:iam::123456789012:role/eshu-fixture-app-role",
+            "region": "us-east-1",
+            "resource_id": "eshu-fixture-app-role",
+            "resource_type": "aws_iam_role"
+          }
+        },
+        {
+          "fact_kind": "aws_resource",
+          "stable_fact_key": "aws:123456789012:us-east-1:iam:aws_iam_role:eshu-fixture-batch-role",
+          "schema_version": "1.0.0",
+          "collector_kind": "aws",
+          "fencing_token": 1,
+          "source_confidence": "observed",
+          "payload": {
+            "account_id": "123456789012",
+            "arn": "arn:aws:iam::123456789012:role/eshu-fixture-batch-role",
+            "region": "us-east-1",
+            "resource_id": "eshu-fixture-batch-role",
+            "resource_type": "aws_iam_role"
+          }
+        },
+        {
+          "fact_kind": "aws_resource",
+          "stable_fact_key": "aws:123456789012:us-east-1:iam:aws_iam_instance_profile:eshu-fixture-app-profile",
+          "schema_version": "1.0.0",
+          "collector_kind": "aws",
+          "fencing_token": 1,
+          "source_confidence": "observed",
+          "payload": {
+            "account_id": "123456789012",
+            "arn": "arn:aws:iam::123456789012:instance-profile/eshu-fixture-app-profile",
+            "attributes": {
+              "role_arns": [
+                "arn:aws:iam::123456789012:role/eshu-fixture-app-role",
+                "arn:aws:iam::123456789012:role/eshu-fixture-batch-role"
+              ]
+            },
+            "region": "us-east-1",
+            "resource_id": "eshu-fixture-app-profile",
+            "resource_type": "aws_iam_instance_profile"
+          }
+        },
+        {
+          "fact_kind": "aws_resource",
+          "stable_fact_key": "aws:123456789012:us-east-1:iam:aws_iam_instance_profile:eshu-fixture-orphan-profile",
+          "schema_version": "1.0.0",
+          "collector_kind": "aws",
+          "fencing_token": 1,
+          "source_confidence": "observed",
+          "payload": {
+            "account_id": "123456789012",
+            "arn": "arn:aws:iam::123456789012:instance-profile/eshu-fixture-orphan-profile",
+            "attributes": {
+              "role_arns": [
+                "arn:aws:iam::123456789012:role/never-scanned-role"
+              ]
+            },
+            "region": "us-east-1",
+            "resource_id": "eshu-fixture-orphan-profile",
+            "resource_type": "aws_iam_instance_profile"
+          }
+        },
+        {
+          "fact_kind": "aws_resource",
+          "stable_fact_key": "aws:123456789012:us-east-1:iam:aws_iam_instance_profile:eshu-fixture-empty-profile",
+          "schema_version": "1.0.0",
+          "collector_kind": "aws",
+          "fencing_token": 1,
+          "source_confidence": "observed",
+          "payload": {
+            "account_id": "123456789012",
+            "arn": "arn:aws:iam::123456789012:instance-profile/eshu-fixture-empty-profile",
+            "attributes": {
+              "role_arns": []
+            },
+            "region": "us-east-1",
+            "resource_id": "eshu-fixture-empty-profile",
+            "resource_type": "aws_iam_instance_profile"
+          }
+        }
+      ]
+    }
+  ]
+}
