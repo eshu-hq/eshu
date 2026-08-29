@@ -93,6 +93,17 @@ func TestGoldenSnapshotReachingDefPinsNonEmptyDefUsePayload(t *testing.T) {
 		{name: "null_payload", mutate: func(definition map[string]any) { definition["def_use"] = nil }},
 		{name: "empty_payload", mutate: func(definition map[string]any) { definition["def_use"] = []any{} }},
 		{name: "absent_payload", mutate: func(definition map[string]any) { delete(definition, "def_use") }},
+		// A non-empty payload whose rows are subtly wrong. This is the case the
+		// three emptiness mutations cannot reach: it proves
+		// RequiredJSONObjectMatches pins the def->use CONTENT, not merely that
+		// some rows arrived. The row below is the first measured edge with both
+		// line numbers shifted by one, which is exactly the drift a parser
+		// regression would produce.
+		{name: "wrong_content_payload", mutate: func(definition map[string]any) {
+			definition["def_use"] = []any{
+				map[string]any{"binding": "r", "def_line": float64(13), "use_line": float64(14)},
+			}
+		}},
 	} {
 		t.Run(test.name, func(t *testing.T) {
 			finding := EvaluateQueryShape("reaching-def-"+test.name, shape, reachingDefResponse(t, test.mutate))
