@@ -81,6 +81,7 @@ generic_modules_lib="${repo_root}/scripts/lib/test-ifa-fault-injection-generic-m
 generic_shared_intent_lock_lib="${repo_root}/scripts/lib/ifa_fault_generic_shared_intent_lock.sh"
 generic_runner_wait_lib="${repo_root}/scripts/lib/ifa_fault_generic_runner_wait.sh"
 private_data_pattern_lib="${repo_root}/scripts/lib/ifa_private_data_pattern.sh"
+dead_command_lib="${repo_root}/scripts/lib/ifa_dead_command_line.sh"
 fail() { printf 'test-verify-ifa-fault-injection: %s\n' "$*" >&2; exit 1; }
 for f in "${script}" "${fault_lib}" "${det_lib}" "${driver_lib}" "${sources_lib}" "${delta_lib}" "${cells_lib}" "${sql_cells_lib}" "${delivery_cells_lib}" "${collateral_nodes_lib}" "${code_call_lib}" "${code_call_cells_lib}" "${code_call_cases_lib}" "${documentation_lib}" "${documentation_cells_lib}" "${documentation_barrier_lib}" "${documentation_barrier_setup_lib}" "${documentation_cases_lib}" "${documentation_barrier_cases_lib}" "${documentation_barrier_cleanup_cases_lib}" "${rationale_lib}" "${rationale_cells_lib}" "${rationale_cases_lib}" "${review_cases_lib}" "${entrypoint_cases_lib}" "${deployable_unit_cases_lib}" "${assertions_lib}" "${pin_probe_lib}" "${deployable_unit_live_lib}" "${deployable_unit_diagnostics_lib}" "${deployable_unit_converge_lib}" "${deployable_unit_lock_lib}" "${deployable_unit_cells_lib}" "${shard_lib}" "${shard_cases_lib}" "${repo_dependency_lease_cases_lib}" "${repo_dependency_cases_lib}" "${workload_dependency_cases_lib}" "${codeowners_cases_lib}" "${submodule_pin_cases_lib}" "${marker_cases_lib}" "${deployable_unit_ordering_cases_lib}" "${generic_cells_lib}" "${table_lock_lib}" "${table_lock_cases_lib}" "${shared_intent_lock_cases_lib}" "${family_drive_cases_lib}" "${runner_lease_hold_cases_lib}" "${runner_lease_audit_cases_lib}" "${generic_modules_lib}" "${generic_shared_intent_lock_lib}" "${generic_runner_wait_lib}" "${private_data_pattern_lib}"; do
 	[[ -f "${f}" ]] || fail "missing ${f}"
@@ -107,6 +108,10 @@ rg --fixed-strings --quiet -- 'ifa_fault_injection_documentation_ack_setup.sh' "
 [[ "$(wc -l <"${script}" | tr -d '[:space:]')" -lt 500 ]] \
 	|| fail "verify-ifa-fault-injection.sh must stay under 500 lines"
 
+# The null-command rule the code-portion counters use to decide a line
+# executes nothing. Sourced BEFORE the assertions lib, which calls it (#6194).
+# shellcheck source=scripts/lib/ifa_dead_command_line.sh
+source "${dead_command_lib}"
 # shellcheck source=scripts/lib/ifa_private_data_pattern.sh
 source "${private_data_pattern_lib}"
 # shellcheck source=scripts/lib/test-ifa-fault-injection-assertions.sh
@@ -357,6 +362,22 @@ rg --fixed-strings --quiet -- 'ESHU_IFA_FAULT_SCRIPT' "${reducer_wiring}" \
 # loudly under `set -u`. The cost is one duplicate scan of one file, which is
 # why the printed number counts targets rather than distinct files.
 assert_no_private_data "${script}" "${det_lib}"
+# ...and the NUMBER in each derivation floor, not just the message that reports
+# it. test-ifa-fault-injection-documentation-cases.sh pins that both floors are
+# still asserted, by counting a string only each can produce -- but a floor
+# lowered rather than deleted keeps that string and stops catching anything:
+# `-ge 40` -> `-ge 1` and `-ge 45` -> `-ge 1` both left this mirror at exit 0
+# (#6195). Its determinism sibling pins the number and this side did not, which
+# is the same asymmetry #6173 had to close twice.
+#
+# EXACTLY ONE each, counted in the assertions lib rather than here, so these two
+# lines cannot satisfy themselves. RAISING a floor is meant to cost an edit in
+# both places: the number here is the claim, and a claim that tracks whatever
+# the subject happens to say is not a pin.
+[[ "$(_ifa_count_code_matches '"${#targets[@]}" -ge 40' "${assertions_lib}")" -eq 1 ]] \
+	|| fail "assert_no_private_data's scanned-file floor is no longer exactly 40 -- a lowered floor still reports a count and still passes on a collapsed derivation"
+[[ "$(_ifa_count_code_matches '"${syntax_checked}" -ge 45' "${assertions_lib}")" -eq 1 ]] \
+	|| fail "assert_libs_parse's parsed-lib floor is no longer exactly 45 -- a lowered floor still reports a count and still passes on a collapsed derivation"
 
 # Claimed-wait SQL-budget validation, domain-scoping (#5555), and the
 # once-fired-marker three-way discrimination (#5974/#5555) are functional

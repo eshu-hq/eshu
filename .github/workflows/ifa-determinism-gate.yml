@@ -32,6 +32,7 @@ on:
       - 'scripts/lib/test-ifa-fault-injection-deployable-unit-kill-isolation-cases.sh'
       - 'scripts/lib/test-ifa-determinism-private-data-cases.sh'
       - 'scripts/lib/ifa_private_data_pattern.sh'
+      - 'scripts/lib/ifa_dead_command_line.sh'
       # The scripts/lib/ Ifá surface as globs, not the 65 filenames that were
       # here (#6200). This filter is shared by all four jobs below -- there is
       # no per-job `if:` -- so it is the single thing that decides whether ANY

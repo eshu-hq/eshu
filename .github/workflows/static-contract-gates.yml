@@ -258,6 +258,7 @@ jobs:
               - 'scripts/test-verify-ifa-replay-drive.sh'
               - 'scripts/lib/ifa_mirror_pins.sh'
               - 'scripts/lib/ifa_private_data_pattern.sh'
+              - 'scripts/lib/ifa_dead_command_line.sh'
             heredoc:
               - '.github/workflows/static-contract-gates.yml'
               - 'specs/ci-gates.v1.yaml'

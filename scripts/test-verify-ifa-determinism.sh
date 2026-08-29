@@ -36,7 +36,7 @@ family_cases_lib="${repo_root}/scripts/lib/test-ifa-determinism-family-cases.sh"
 maintenance_family_cases_lib="${repo_root}/scripts/lib/test-ifa-determinism-maintenance-family-cases.sh"
 registry_lockstep_cases_lib="${repo_root}/scripts/lib/test-ifa-determinism-registry-lockstep-cases.sh"
 family_registry_pins_lib="${repo_root}/scripts/lib/test-ifa-family-registry-derived-pins-cases.sh"
-teeth_cases_lib="${repo_root}/scripts/lib/test-ifa-determinism-teeth-cases.sh"; pin_behaviour_cases_lib="${repo_root}/scripts/lib/test-ifa-determinism-pin-behaviour-cases.sh"; private_data_cases_lib="${repo_root}/scripts/lib/test-ifa-determinism-private-data-cases.sh"; private_data_pattern_lib="${repo_root}/scripts/lib/ifa_private_data_pattern.sh"  # packed for the 500-line cap
+teeth_cases_lib="${repo_root}/scripts/lib/test-ifa-determinism-teeth-cases.sh"; pin_behaviour_cases_lib="${repo_root}/scripts/lib/test-ifa-determinism-pin-behaviour-cases.sh"; private_data_cases_lib="${repo_root}/scripts/lib/test-ifa-determinism-private-data-cases.sh"; private_data_pattern_lib="${repo_root}/scripts/lib/ifa_private_data_pattern.sh"; dead_command_lib="${repo_root}/scripts/lib/ifa_dead_command_line.sh"  # packed for the 500-line cap
 # registry_family_lib (ifa_family_registry.sh) is used by both
 # test-ifa-determinism-family-cases.sh (the shared-cell drive/assert loop's
 # totality check) and test-ifa-family-registry-derived-pins-cases.sh (its own
@@ -65,7 +65,7 @@ fail() { printf 'test-verify-ifa-determinism: %s\n' "$*" >&2; exit 1; }
 [[ -f "${maintenance_family_cases_lib}" ]] || fail "missing ${maintenance_family_cases_lib}"
 [[ -f "${registry_lockstep_cases_lib}" ]] || fail "missing ${registry_lockstep_cases_lib}"
 [[ -f "${family_registry_pins_lib}" ]] || fail "missing ${family_registry_pins_lib}"
-[[ -f "${teeth_cases_lib}" ]] || fail "missing ${teeth_cases_lib}"; [[ -f "${pin_behaviour_cases_lib}" ]] || fail "missing ${pin_behaviour_cases_lib}"; [[ -f "${private_data_cases_lib}" ]] || fail "missing ${private_data_cases_lib}"; [[ -f "${private_data_pattern_lib}" ]] || fail "missing ${private_data_pattern_lib}"
+[[ -f "${teeth_cases_lib}" ]] || fail "missing ${teeth_cases_lib}"; [[ -f "${pin_behaviour_cases_lib}" ]] || fail "missing ${pin_behaviour_cases_lib}"; [[ -f "${private_data_cases_lib}" ]] || fail "missing ${private_data_cases_lib}"; [[ -f "${private_data_pattern_lib}" ]] || fail "missing ${private_data_pattern_lib}"; [[ -f "${dead_command_lib}" ]] || fail "missing ${dead_command_lib}"
 [[ -f "${registry_family_lib}" ]] || fail "missing ${registry_family_lib}"
 [[ -f "${workflow}" ]] || fail "missing ${workflow}"
 [[ -f "${registry}" ]] || fail "missing ${registry}"
@@ -87,7 +87,7 @@ bash -n "${family_cases_lib}" || fail "test-ifa-determinism-family-cases.sh has 
 bash -n "${maintenance_family_cases_lib}" || fail "test-ifa-determinism-maintenance-family-cases.sh has a syntax error"
 bash -n "${registry_lockstep_cases_lib}" || fail "test-ifa-determinism-registry-lockstep-cases.sh has a syntax error"
 bash -n "${family_registry_pins_lib}" || fail "test-ifa-family-registry-derived-pins-cases.sh has a syntax error"
-bash -n "${teeth_cases_lib}" || fail "test-ifa-determinism-teeth-cases.sh has a syntax error"; bash -n "${pin_behaviour_cases_lib}" || fail "test-ifa-determinism-pin-behaviour-cases.sh has a syntax error"; bash -n "${private_data_cases_lib}" || fail "test-ifa-determinism-private-data-cases.sh has a syntax error"; bash -n "${private_data_pattern_lib}" || fail "ifa_private_data_pattern.sh has a syntax error"
+bash -n "${teeth_cases_lib}" || fail "test-ifa-determinism-teeth-cases.sh has a syntax error"; bash -n "${pin_behaviour_cases_lib}" || fail "test-ifa-determinism-pin-behaviour-cases.sh has a syntax error"; bash -n "${private_data_cases_lib}" || fail "test-ifa-determinism-private-data-cases.sh has a syntax error"; bash -n "${private_data_pattern_lib}" || fail "ifa_private_data_pattern.sh has a syntax error"; bash -n "${dead_command_lib}" || fail "ifa_dead_command_line.sh has a syntax error"
 bash -n "${registry_family_lib}" || fail "ifa_family_registry.sh has a syntax error"
 # This mirror needs the same guard as its fault-injection sibling. The fault
 # side has always asserted on both itself (test-verify-ifa-fault-injection.sh
@@ -103,17 +103,19 @@ bash -n "${registry_family_lib}" || fail "ifa_family_registry.sh has a syntax er
 	|| fail "verify-ifa-determinism.sh must stay under 500 lines"
 
 # _ifa_det_count_code_matches counts lines of ${2} where ${1} appears in the CODE
-# portion -- before any `#`. Lines whose first non-whitespace character is `#`
-# are skipped. Mirrors scripts/lib/test-ifa-fault-injection-assertions.sh's
-# helper of the same shape, for the same reason: the bare `rg --fixed-strings`
-# form below was satisfied by a COMMENT quoting its needle. Proven on this very
-# file's pins -- prefixing both occurrences of the shared_cell guard with
-# `# DISABLED: ` left this mirror green while the drive loop stopped skipping
-# non-shared_cell families. Truncating at `#` also stops the `true  # was: X`
-# shape. A `#` inside a quoted string can only make a pin RED, never pass.
+# portion -- before any `#` -- skipping lines that start with one. Mirrors the
+# same-shaped helper in test-ifa-fault-injection-assertions.sh for the same
+# reason: the bare `rg --fixed-strings` form was satisfied by a COMMENT quoting
+# its needle. Proven on this file's own pins -- prefixing both occurrences of the
+# shared_cell guard with `# DISABLED: ` left the mirror green while the drive
+# loop stopped skipping non-shared_cell families. Truncating at `#` also stops
+# `true  # was: X`; a `#` inside quotes can only make a pin RED, never pass.
 # Whole-line form, sharing the comment and heredoc rules. `rg --line-regexp` is
-# comment-immune but NOT heredoc-immune -- a heredoc line equal to the needle
-# satisfies a whole-line regex, and the behavioural probe caught exactly that.
+# comment-immune but NOT heredoc-immune: a heredoc line equal to the needle
+# satisfies it, as the behavioural probe caught.
+# The null-command rule both counters use (#6194); see ifa_dead_command_line.sh.
+# shellcheck source=scripts/lib/ifa_dead_command_line.sh
+source "${dead_command_lib}"
 _ifa_det_count_code_lines_exact() {
 	local needle="$1" file="$2" n=0 line stripped heredoc=""
 	while IFS= read -r line || [[ -n "${line}" ]]; do
@@ -123,6 +125,7 @@ _ifa_det_count_code_lines_exact() {
 			continue
 		fi
 		[[ "${stripped}" == "#"* ]] && continue
+		ifa_is_dead_command_line "${stripped}" && continue
 		if [[ "${line}" =~ \<\<-?[[:space:]]*\\?[\'\"]?([A-Za-z_][A-Za-z0-9_-]*)[\'\"]?[[:space:]]*([0-9]*[\<\>\|\;\&\)].*|[[:space:]]+#.*)?$ ]]; then
 			heredoc="${BASH_REMATCH[1]}"
 		fi
@@ -143,6 +146,7 @@ _ifa_det_count_code_matches() {
 			continue
 		fi
 		[[ "${stripped}" == "#"* ]] && continue
+		ifa_is_dead_command_line "${stripped}" && continue
 		if [[ "${line}" =~ \<\<-?[[:space:]]*\\?[\'\"]?([A-Za-z_][A-Za-z0-9_-]*)[\'\"]?[[:space:]]*([0-9]*[\<\>\|\;\&\)].*|[[:space:]]+#.*)?$ ]]; then
 			heredoc="${BASH_REMATCH[1]}"
 		fi
@@ -157,7 +161,10 @@ _ifa_det_count_code_matches() {
 		# which reproduced on HEAD the exact defect the previous round closed --
 		# the shell checker does not flag it, `bash -n` passes, and no gate runs it
 		# on these scripts, so nothing else would have caught it.
-		code="${line%%[[:space:]\;\|\&\(\)\<\>\`]#*}"
+		# Code portion, with `#` a comment only outside quotes. The plain expansion
+		# this replaces cut inside them, losing the live half of
+		# `: "see #6194" && <call>` (see ifa_dead_command_line.sh).
+		ifa_code_portion "${line}"; code="${IFA_CODE_PORTION}"
 		if [[ "${code}" == *"${needle}"* ]]; then
 			n=$((n + 1))
 			matches+="${line_no}"$'\n'

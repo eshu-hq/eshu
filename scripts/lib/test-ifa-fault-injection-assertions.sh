@@ -279,6 +279,10 @@ _ifa_count_code_lines_exact() {
 			continue
 		fi
 		[[ "${stripped}" == "#"* ]] && continue
+		# ...and neither is a null command's argument list: `:` discards it, so
+		# `:  'trap ifa_det_cleanup EXIT'` installs nothing (#6194). The rule
+		# lives in ifa_dead_command_line.sh, shared with both large mirrors.
+		ifa_is_dead_command_line "${stripped}" && continue
 		if [[ "${line}" =~ \<\<-?[[:space:]]*\\?[\'\"]?([A-Za-z_][A-Za-z0-9_-]*)[\'\"]?[[:space:]]*([0-9]*[\<\>\|\;\&\)].*|[[:space:]]+#.*)?$ ]]; then
 			heredoc="${BASH_REMATCH[1]}"
 		fi
@@ -298,10 +302,18 @@ _ifa_count_code_matches() {
 			continue
 		fi
 		[[ "${stripped}" == "#"* ]] && continue
+		# ...and neither is a null command's argument list: `:` discards it, so
+		# `:  'trap ifa_det_cleanup EXIT'` installs nothing (#6194). The rule
+		# lives in ifa_dead_command_line.sh, shared with both large mirrors.
+		ifa_is_dead_command_line "${stripped}" && continue
 		if [[ "${line}" =~ \<\<-?[[:space:]]*\\?[\'\"]?([A-Za-z_][A-Za-z0-9_-]*)[\'\"]?[[:space:]]*([0-9]*[\<\>\|\;\&\)].*|[[:space:]]+#.*)?$ ]]; then
 			heredoc="${BASH_REMATCH[1]}"
 		fi
-		code="${line%%[[:space:]\;\|\&\(\)\<\>\`]#*}"
+		# The code portion, with `#` read as a comment only where bash reads one:
+		# outside quotes. The plain expansion this replaces cut inside them too,
+		# so `: "see #6194" && <call>` lost its live half (shared with the rule
+		# that decides the line executes nothing, in ifa_dead_command_line.sh).
+		ifa_code_portion "${line}"; code="${IFA_CODE_PORTION}"
 		# Truncate at a `#` that STARTS A WORD (preceded by whitespace), which is
 		# what shell treats as a comment. A blanket `%%#*` also cut at `${#arr[@]}`
 		# and `${var#prefix}`, making any line using those unpinnable -- it silently

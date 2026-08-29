@@ -12,6 +12,7 @@ repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 script="${repo_root}/scripts/verify-ifa-replay-drive.sh"
 pins_lib="${repo_root}/scripts/lib/ifa_mirror_pins.sh"
 private_data_pattern_lib="${repo_root}/scripts/lib/ifa_private_data_pattern.sh"
+dead_command_lib="${repo_root}/scripts/lib/ifa_dead_command_line.sh"
 
 fail() { printf 'test-verify-ifa-replay-drive: %s\n' "$*" >&2; exit 1; }
 
@@ -19,8 +20,10 @@ fail() { printf 'test-verify-ifa-replay-drive: %s\n' "$*" >&2; exit 1; }
 [[ -x "${script}" ]] || fail "verify-ifa-replay-drive.sh must be executable"
 [[ -f "${pins_lib}" ]] || fail "missing ${pins_lib}"
 [[ -f "${private_data_pattern_lib}" ]] || fail "missing ${private_data_pattern_lib}"
+[[ -f "${dead_command_lib}" ]] || fail "missing ${dead_command_lib}"
 bash -n "${pins_lib}" || fail "ifa_mirror_pins.sh has a syntax error"
 bash -n "${private_data_pattern_lib}" || fail "ifa_private_data_pattern.sh has a syntax error"
+bash -n "${dead_command_lib}" || fail "ifa_dead_command_line.sh has a syntax error"
 
 # Parses under bash -n.
 bash -n "${script}" || fail "verify-ifa-replay-drive.sh has a syntax error"
@@ -28,6 +31,10 @@ bash -n "${script}" || fail "verify-ifa-replay-drive.sh has a syntax error"
 # Pin helpers are shared with the sibling mirror so there is ONE matcher, not a
 # private copy per mirror that drifts. `require` binds LIVE CODE: the bare
 # whole-file match this used to be was satisfied by a comment, which is #6161.
+# The null-command rule the shared matcher below uses to decide a line
+# executes nothing. Sourced BEFORE the pins lib, which calls it (#6194).
+# shellcheck source=scripts/lib/ifa_dead_command_line.sh
+source "${dead_command_lib}"
 # shellcheck source=scripts/lib/ifa_mirror_pins.sh
 source "${pins_lib}"
 # shellcheck source=scripts/lib/ifa_private_data_pattern.sh

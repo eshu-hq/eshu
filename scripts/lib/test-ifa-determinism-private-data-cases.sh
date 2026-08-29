@@ -48,6 +48,14 @@ run_ifa_determinism_private_data_cases() {
 		_ifa_det_assert_lib_under_500 "${private_lib_var}" "${!private_lib_var}"; lib_cap_checked=$((lib_cap_checked + 1))
 	done < <(compgen -v | rg '_lib$' | sort)
 	_ifa_det_assert_lib_cap_floor "${lib_cap_checked}"
+	# The floor that call applies is `-ge 18`, and its NUMBER was pinned by
+	# nothing: lowering it to `-ge 1` left every gate at exit 0 (#6195), so the
+	# one guard on the 500-line cap's own coverage could be neutered without
+	# being deleted. Same defect as the scan floor two blocks below, one file
+	# over. EXACTLY ONE, counted in the helpers lib rather than here, so this
+	# line cannot satisfy itself; raising the floor is meant to cost both edits.
+	[[ "$(_ifa_det_count_code_matches '"${checked}" -ge 18' "${require_helpers_lib}")" -eq 1 ]] \
+		|| fail "the 500-line-cap coverage floor is no longer exactly 18 -- a lowered floor still passes on a collapsed *_lib derivation"
 	# The registry, its rows and its hand-derived pins are not bound to *_lib vars,
 	# so the derivation cannot see them. Globbed, so a seventh row is covered the
 	# day it lands.
