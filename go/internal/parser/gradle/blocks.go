@@ -52,16 +52,14 @@ func collectBlocks(source string, parent string, blocks *[]dependencyBlock) {
 		// does; a classic-Mac build script carries no '\n' at all, so
 		// stopping only on '\n' returned at the first line that was not a
 		// block header and `dependencies` was never found unless it opened
-		// the file (#6268). A CRLF pair is consumed as one break so the
-		// cursor still lands on the next real line.
+		// the file (#6268). A CRLF pair needs no special case: the cursor
+		// lands on the '\n', blockHeaderAtCursor does not match a leading
+		// newline, and the next pass consumes it.
 		newline := strings.IndexAny(source[index:], "\r\n")
 		if newline < 0 {
 			return
 		}
 		index += newline + 1
-		if source[index-1] == '\r' && index < len(source) && source[index] == '\n' {
-			index++
-		}
 	}
 }
 
