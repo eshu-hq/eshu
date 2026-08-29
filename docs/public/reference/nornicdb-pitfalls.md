@@ -100,14 +100,31 @@ the winning commit should match the existing node.
 
 ### Eshu status
 
-Eshu handles this in `go/internal/storage/cypher/retrying_executor.go`.
+Eshu handles this in `go/internal/storage/cypher/retrying_executor.go`, with
+the group replay-safety predicates in `writer.go` beside the `Statement` type
+they reason about.
 `RetryingExecutor.Execute` retries commit-time unique conflicts for a
 MERGE-shaped statement, and `ExecuteGroup` does the same only when every
-statement in the group is MERGE-shaped. It also retries NornicDB's
+statement in the group converges on re-execution (`allStatementsAreReplaySafe`).
+It also retries NornicDB's
 `UNWIND MERGE chain relationship update failed: not found` snapshot conflict
-when the typed error code is `Neo.ClientError.Statement.SyntaxError`. Mixed
-groups are not retried because re-executing non-MERGE statements after partial
-success can be unsafe.
+when the typed error code is `Neo.ClientError.Statement.SyntaxError`.
+
+Two statement shapes converge. A MERGE-shaped statement does by definition. So
+does a predicate-scoped retract — `OperationCanonicalRetract` on Cypher that
+opens with `MATCH` and whose only write clauses are `DELETE` or `REMOVE` —
+because deleting whatever currently matches parameter-bound predicates removes
+the same set on a second run. Anything else keeps the group terminal:
+re-executing a `CREATE` duplicates, an accumulating `SET` double-applies, and a
+row-driven `UNWIND ... MATCH ... DELETE` is the shape that no-ops inside a
+managed transaction (see the retract pitfall above), so it must never be
+replayed as though it had applied.
+
+That retract shape was added for #6176. The semantic writer used to dispatch
+its retract outside the group, so what reached the classifier was all-MERGE;
+folding retract and upsert into one atomic transaction made the group mixed,
+and a MERGE-only gate would have turned this very race into a dead-lettered
+work item instead of a retried, converging write.
 
 The retry classifier normally uses the typed Neo4j error code
 `Neo.ClientError.Transaction.TransactionCommitFailed` or
@@ -117,14 +134,16 @@ body. For the pinned backend's compatibility shape, it accepts
 the observed `commit failed: constraint violation` prefix and the complete
 UNIQUE-conflict body (`constraint violation`, `UNIQUE on`, and
 `already exists`). The caller must still prove the statement is MERGE-shaped;
-ordinary syntax errors and non-MERGE writes remain terminal. Untyped or wrapped
-errors keep the historical fallback for `failed to commit implicit transaction`
-and `commit failed: constraint violation` shapes.
+ordinary syntax errors and writes that do not converge on replay remain
+terminal. Untyped or wrapped errors keep the historical fallback for
+`failed to commit implicit transaction` and
+`commit failed: constraint violation` shapes.
 
 No-Regression Evidence: `go test ./internal/storage/cypher -run
-'RelationshipSnapshot|PlatformCommitUniqueConflict|TestRetryingExecutor(ClassifiesTypedNornicDBTransactionCommitFailedByCode|RetriesNornicDBMergeUniqueConflict|RetriesNornicDBMergeUniqueConflictV1045Format|ExecuteGroupRetriesOnCommitTimeUniqueConflict|ExecuteGroupDoesNotRetryNonMergeStatements)'
+'RelationshipSnapshot|PlatformCommitUniqueConflict|TestRetryingExecutor(ClassifiesTypedNornicDBTransactionCommitFailedByCode|RetriesNornicDBMergeUniqueConflict|RetriesNornicDBMergeUniqueConflictV1045Format|ExecuteGroupRetriesOnCommitTimeUniqueConflict|ExecuteGroupDoesNotRetryNonIdempotentStatements)|IdempotentRetract|NonIdempotentGroups|SemanticEntityWriterGroupedRetractConverges'
 -count=1` proves typed error-code classification, historical substring
-fallbacks, MERGE-only group retry, and mixed-group non-retry behavior.
+fallbacks, MERGE-only group retry, the #6176 idempotent-retract group retry,
+and non-convergent-group non-retry behavior.
 `scripts/verify_backend_conformance_live.sh` now runs
 `TestLiveNornicDBRetryConflictClassificationContract` and
 `TestLiveNornicDBRelationshipSnapshotConflictRetryContract` only in the

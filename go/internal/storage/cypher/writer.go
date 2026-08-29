@@ -14,6 +14,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"regexp"
 	"strings"
 
 	"github.com/eshu-hq/eshu/go/internal/graph"
@@ -77,6 +78,92 @@ type Statement struct {
 	// unbounded trailing DETACH DELETE clause (e.g. "f", "d", "n"). It is empty
 	// for bounded mixed-phase relationship retracts.
 	DrainVar string
+}
+
+// allStatementsAreReplaySafe returns true when re-executing every statement in
+// stmts, in order, converges on the same graph state as the attempt that
+// failed. That is the property the group retry actually needs: a NornicDB
+// commit failure rolls the whole transaction back rather than tearing it, so
+// the replay starts from the pre-group state and must be free to repeat every
+// statement. Empty groups return false because there is nothing to retry.
+//
+// Two statement shapes qualify. A MERGE-shaped statement converges by
+// definition. A predicate-scoped retract does too: it deletes or clears
+// whatever currently matches parameter-bound predicates, so running it a
+// second time removes the same set (a no-op when the first attempt committed
+// nothing) and never creates or accumulates anything.
+//
+// Everything else keeps the group terminal — a CREATE duplicates on replay and
+// an accumulating SET double-applies, which is the safety the MERGE-only gate
+// used to buy by refusing every mixed group.
+//
+// #6176 is why the retract shape had to be named explicitly. The semantic
+// writer used to dispatch its retract outside the group, so the group reaching
+// this classifier was all-MERGE; folding retract and upsert into one atomic
+// transaction made it mixed, and a MERGE-only gate would have turned the
+// commit-time UNIQUE conflict that a concurrent canonical writer produces from
+// a retried, converging write into a dead-lettered work item.
+func allStatementsAreReplaySafe(stmts []Statement) bool {
+	if len(stmts) == 0 {
+		return false
+	}
+	for _, s := range stmts {
+		if isMergeShapedCypher(s.Cypher) {
+			continue
+		}
+		if isIdempotentRetractStatement(s) {
+			continue
+		}
+		return false
+	}
+	return true
+}
+
+// isMergeShapedCypher reports whether cypher contains a MERGE clause, the
+// original and still-primary replay-safety signal for a canonical upsert.
+func isMergeShapedCypher(cypher string) bool {
+	return strings.Contains(strings.ToUpper(cypher), "MERGE")
+}
+
+var (
+	// nonIdempotentClausePattern matches the clauses that stop a retract from
+	// being a plain delete-by-predicate. CREATE duplicates on replay and SET
+	// can accumulate; CALL and FOREACH hide writes this reasoning cannot see;
+	// and UNWIND marks the row-driven MATCH ... DELETE shape that no-ops
+	// inside a NornicDB managed transaction
+	// (docs/public/reference/nornicdb-pitfalls.md), which must never be
+	// replayed as though it had applied. MERGE is deliberately absent: a
+	// statement containing one is already replay-safe by the MERGE branch, so
+	// listing it here would be unreachable.
+	nonIdempotentClausePattern = regexp.MustCompile(`(?i)\b(CREATE|SET|UNWIND|CALL|FOREACH)\b`)
+	// retractClausePattern matches the clauses a retract uses to remove state:
+	// DELETE (with or without DETACH) for nodes and relationships, REMOVE for
+	// labels and properties.
+	retractClausePattern = regexp.MustCompile(`(?i)\b(DELETE|REMOVE)\b`)
+	// leadingMatchPattern anchors the statement on MATCH, so its predicates
+	// come from the graph plus bound parameters rather than from rows the
+	// group itself produced.
+	leadingMatchPattern = regexp.MustCompile(`(?i)^\s*MATCH\b`)
+)
+
+// isIdempotentRetractStatement reports whether stmt is a predicate-scoped
+// retract whose replay is a no-op once it has applied. It requires all three
+// of: the statement declaring itself a retract through
+// OperationCanonicalRetract, Cypher that opens on MATCH, and Cypher whose only
+// write clauses are DELETE or REMOVE. The clause checks are word-bounded so a
+// property name such as n.offset cannot be read as a SET clause and
+// fail-close a legitimate retract.
+func isIdempotentRetractStatement(stmt Statement) bool {
+	if stmt.Operation != OperationCanonicalRetract {
+		return false
+	}
+	if !leadingMatchPattern.MatchString(stmt.Cypher) {
+		return false
+	}
+	if nonIdempotentClausePattern.MatchString(stmt.Cypher) {
+		return false
+	}
+	return retractClausePattern.MatchString(stmt.Cypher)
 }
 
 // Plan is the deterministic source-local write plan for one materialization.

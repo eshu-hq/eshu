@@ -76,12 +76,22 @@
   and `EdgeWriter`.
 - **No direct driver calls in this package** — the concrete Neo4j and NornicDB
   driver sessions live in `cmd/` wiring. This package only defines contracts.
-- **RetryingExecutor.ExecuteGroup retries on MERGE-shaped groups** — both
+- **RetryingExecutor.ExecuteGroup retries on replay-safe groups** — both
   `Execute` and `ExecuteGroup` run through `runWithRetry` with the same
   exponential-backoff cadence. `ExecuteGroup` retries on commit-time UNIQUE
-  conflicts only when every statement in the group contains MERGE
-  (`allStatementsAreMerge`); mixed groups containing non-MERGE statements
-  are NOT retried, preserving idempotency safety. Driver-level
+  conflicts only when every statement in the group converges on re-execution
+  (`allStatementsAreReplaySafe`, in `writer.go` beside the `Statement` type it
+  reasons about). Two shapes qualify: a statement containing
+  MERGE, and a predicate-scoped retract — `OperationCanonicalRetract` on Cypher
+  that opens with `MATCH` and whose only write clauses are `DELETE` or `REMOVE`,
+  so a second run removes the same parameter-bound set. Anything else keeps the
+  group terminal: a `CREATE` duplicates on replay, an accumulating `SET`
+  double-applies, and a row-driven `UNWIND ... MATCH ... DELETE` is the shape
+  that no-ops inside a NornicDB managed transaction. The retract shape was
+  added for #6176, when `SemanticEntityWriter` stopped dispatching its retract
+  outside the group: a MERGE-only gate would have made the writer's own atomic
+  retract+upsert group unretryable and dead-lettered the concurrent-MERGE race
+  the retry exists to absorb. Driver-level
   `session.ExecuteWrite` retries handle Neo.TransientError.* codes; the Eshu
   retry loop additionally handles driver `ConnectivityError` only when the
   driver classifies it as retryable. A `ConnectivityError` wrapping

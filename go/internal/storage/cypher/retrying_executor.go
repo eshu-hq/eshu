@@ -283,12 +283,11 @@ func classifyRetryableGraphWriteError(err error, stmt Statement) string {
 }
 
 // classifyRetryableGraphWriteGroupError classifies a phase-group write failure
-// as retryable when EVERY statement in the group is MERGE-shaped (and
-// therefore idempotent on re-execution) AND the underlying error matches a
-// NornicDB relationship snapshot or commit-time UNIQUE conflict pattern. Mixed
-// groups containing non-MERGE statements are NOT retried — re-executing a
-// CREATE/DELETE/SET-only statement under partial-success conditions can
-// double-apply effects.
+// as retryable when EVERY statement in the group converges on re-execution
+// (see allStatementsAreReplaySafe) AND the underlying error matches a NornicDB
+// relationship snapshot or commit-time UNIQUE conflict pattern. Groups holding
+// a statement that does NOT converge — CREATE, an accumulating SET — are NOT
+// retried, because re-executing one can double-apply effects.
 //
 // Immediate driver-level transient errors (deadlocks, lock timeouts) remain
 // retryable regardless of statement shape because session.ExecuteWrite re-runs
@@ -309,7 +308,7 @@ func classifyRetryableGraphWriteGroupError(err error, stmts []Statement) string 
 	if err == nil {
 		return ""
 	}
-	if !allStatementsAreMerge(stmts) {
+	if !allStatementsAreReplaySafe(stmts) {
 		return ""
 	}
 	if isNornicDBRelationshipSnapshotConflict(err) {
@@ -319,21 +318,6 @@ func classifyRetryableGraphWriteGroupError(err error, stmts []Statement) string 
 		return graphWriteRetryReasonUniqueConflict
 	}
 	return ""
-}
-
-// allStatementsAreMerge returns true when every statement in stmts contains
-// MERGE in its Cypher source. Empty groups return false because there is
-// nothing safe to retry.
-func allStatementsAreMerge(stmts []Statement) bool {
-	if len(stmts) == 0 {
-		return false
-	}
-	for _, s := range stmts {
-		if !strings.Contains(strings.ToUpper(s.Cypher), "MERGE") {
-			return false
-		}
-	}
-	return true
 }
 
 func isNornicDBWriteConflict(msg string) bool {
