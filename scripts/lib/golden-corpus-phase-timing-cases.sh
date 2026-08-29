@@ -242,7 +242,7 @@ phase_timing_over_exclusion_dir="$(mktemp -d)"
 		printf 'over-exclusion must die, not silently emit a negative phase duration\n' >&2
 		exit 1
 	}
-	printf '%s\n' "${die_output}" | rg --fixed-strings --quiet -- 'does not fit inside' || {
+	printf '%s\n' "${die_output}" | rg --fixed-strings -- 'does not fit inside' >/dev/null || {
 		printf 'over-exclusion die message missing expected diagnostic: %s\n' "${die_output}" >&2
 		exit 1
 	}
@@ -282,7 +282,7 @@ phase_timing_negative_exclusion_dir="$(mktemp -d)"
 		printf 'negative exclusion (end before start) must die, not silently emit an inflated phase duration\n' >&2
 		exit 1
 	}
-	printf '%s\n' "${die_output}" | rg --fixed-strings --quiet -- 'has a negative span' || {
+	printf '%s\n' "${die_output}" | rg --fixed-strings -- 'has a negative span' >/dev/null || {
 		printf 'negative exclusion die message missing expected diagnostic: %s\n' "${die_output}" >&2
 		exit 1
 	}
@@ -312,7 +312,7 @@ phase_timing_half_set_start_missing_dir="$(mktemp -d)"
 		printf 'unequal-length exclusion arrays (starts short) must die, not silently treat the missing entry as absent\n' >&2
 		exit 1
 	}
-	printf '%s\n' "${die_output}" | rg --fixed-strings --quiet -- 'have different lengths' || {
+	printf '%s\n' "${die_output}" | rg --fixed-strings -- 'have different lengths' >/dev/null || {
 		printf 'unequal-length (starts short) die message missing expected diagnostic: %s\n' "${die_output}" >&2
 		exit 1
 	}
@@ -342,7 +342,7 @@ phase_timing_half_set_end_missing_dir="$(mktemp -d)"
 		printf 'unequal-length exclusion arrays (ends short) must die, not silently treat the missing entry as absent\n' >&2
 		exit 1
 	}
-	printf '%s\n' "${die_output}" | rg --fixed-strings --quiet -- 'have different lengths' || {
+	printf '%s\n' "${die_output}" | rg --fixed-strings -- 'have different lengths' >/dev/null || {
 		printf 'unequal-length (ends short) die message missing expected diagnostic: %s\n' "${die_output}" >&2
 		exit 1
 	}

@@ -90,10 +90,19 @@ for panel in "${required_panels[@]}"; do
 		|| die "dashboard missing required panel: ${panel}"
 done
 
-private_label_pattern='(repo(id|sitory)?|path|file|payload|token|delivery|work_item|account_id)[[:space:]]*(=|:|=~|!~)'
+# `repo_id` is the label this guard most obviously exists to keep out, and
+# `repo(id|sitory)?` missed it: the underscore stops the match. Snake_case is
+# the convention for every other key in this list (work_item, account_id), so
+# accept an optional underscore before `id` on the repo/repository forms too.
+private_label_pattern='(repo(_?id|sitory(_?id)?)?|path|file|payload|token|delivery|work_item|account_id)[[:space:]]*(=|:|=~|!~)'
 
 dashboard_exprs="$(jq -r '.. | objects | select(has("expr")) | .expr' "${dashboard}")"
-if printf '%s\n' "${dashboard_exprs}" | rg --quiet "${private_label_pattern}"; then
+# No --quiet on a piped haystack: rg exits on the first match while printf is
+# still writing, printf takes SIGPIPE, and `set -o pipefail` makes the pipeline
+# non-zero. In this `if match; then die` shape that INVERTS the guard -- a real
+# private-data label matched early and was reported as absent. Measured blind at
+# the live dashboard size (1433 bytes; macOS pipes buffer 512).
+if printf '%s\n' "${dashboard_exprs}" | rg "${private_label_pattern}" >/dev/null; then
 	die "dashboard queries use high-cardinality or private-data-shaped labels"
 fi
 
@@ -117,9 +126,9 @@ done < <(ruby -r yaml -e '
 ' "${prometheus_rule}")
 
 for alert in "${required_alerts[@]}"; do
-	printf '%s\n' "${standalone_alerts[@]}" | rg --fixed-strings --quiet -- "${alert}" \
+	printf '%s\n' "${standalone_alerts[@]}" | rg --fixed-strings -- "${alert}" >/dev/null \
 		|| die "missing required alert in standalone rules: ${alert}"
-	printf '%s\n' "${wrapped_alerts[@]}" | rg --fixed-strings --quiet -- "${alert}" \
+	printf '%s\n' "${wrapped_alerts[@]}" | rg --fixed-strings -- "${alert}" >/dev/null \
 		|| die "missing required alert in PrometheusRule: ${alert}"
 done
 

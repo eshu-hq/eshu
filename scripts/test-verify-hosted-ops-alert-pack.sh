@@ -38,6 +38,27 @@ cp "${repo_root}/deploy/observability/hosted-operations-alerts.yaml" "${bad_aler
 perl -0pi -e 's/EshuHostedDeadLettersPresent/EshuHostedDeadLettersRenamed/' "${bad_alerts}"
 expect_fail bad_alerts "missing required alert" --alerts "${bad_alerts}"
 
+# The private-label guard had no negative case, and it was blind: it pipes the
+# dashboard expressions into `rg` and asks "did anything match". With --quiet,
+# rg exits on the first match while printf is still writing, printf takes
+# SIGPIPE, and pipefail makes the pipeline non-zero -- so `if match; then die`
+# read a REAL match as "no match" and passed. Measured blind at the live
+# dashboard size (1433 bytes; macOS pipes buffer 512).
+leaky_dashboard="${tmp_dir}/leaky-dashboard.json"
+jq '.panels[0].targets[0].expr = "sum(rate(eshu_probe_total{path=\"/etc/secret\"}[5m]))"' \
+	"${repo_root}/deploy/grafana/dashboards/eshu-hosted-operations.json" >"${leaky_dashboard}"
+expect_fail leaky_dashboard "private-data-shaped labels" --dashboard "${leaky_dashboard}"
+
+# `repo_id` is the label name this guard exists to keep out, and the pattern
+# missed it: `repo(id|sitory)?` matches repo/repoid/repository, and the
+# underscore in repo_id stops the match dead. Found while fixing the SIGPIPE
+# blindness above -- the first fixture used repo_id and "passed" for this
+# reason rather than the one under test.
+repo_id_dashboard="${tmp_dir}/repo-id-dashboard.json"
+jq '.panels[0].targets[0].expr = "sum(rate(eshu_probe_total{repo_id=\"leak\"}[5m]))"' \
+	"${repo_root}/deploy/grafana/dashboards/eshu-hosted-operations.json" >"${repo_id_dashboard}"
+expect_fail repo_id_dashboard "private-data-shaped labels" --dashboard "${repo_id_dashboard}"
+
 bad_rule="${tmp_dir}/bad-prometheus-rule.yaml"
 cp "${repo_root}/deploy/observability/hosted-operations-prometheus-rule.yaml" "${bad_rule}"
 perl -0pi -e 's/runbook:/note:/' "${bad_rule}"

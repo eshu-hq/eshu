@@ -102,21 +102,8 @@ done < <(
 # Retained-console SQL fixtures are executable proof inputs. A fixture-only
 # change must select the same frontend gate in both GitHub and local parity.
 [[ -f "${frontend_workflow}" ]] || fail "missing ${frontend_workflow}"
-# Anchored to the whole line: an unanchored substring match also accepts
-# `# - "path"`, so commenting a filter line out - the most common way one gets
-# "temporarily" disabled - would keep this guard green.
-require_path_line() {
-	local haystack="$1" needle="$2" message="$3"
-	# No --quiet: it exits on the first match, and on a haystack larger than
-	# the pipe buffer printf is still writing, so it takes SIGPIPE and
-	# `set -o pipefail` turns the pipeline into 141. The guard then reports the
-	# line as MISSING precisely because it was PRESENT -- a match that arrives
-	# early enough to close the pipe. Draining the input costs nothing here and
-	# keeps the exit code meaning what it says.
-	printf '%s\n' "${haystack}" |
-		rg --fixed-strings --line-regexp -- "      - \"${needle}\"" >/dev/null ||
-		fail "${message}: expected the exact line \`      - \"${needle}\"\` (six spaces, double-quoted)"
-}
+# shellcheck source=scripts/lib/test-verify-ci-gates-registry-path-assertions.sh
+. "${repo_root}/scripts/lib/test-verify-ci-gates-registry-path-assertions.sh"
 
 frontend_pull_request_paths="$(
 	sed -n '/^  pull_request:/,/^  workflow_dispatch:/p' "${frontend_workflow}"

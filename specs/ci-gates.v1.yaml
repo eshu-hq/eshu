@@ -3810,6 +3810,7 @@ gates:
       - "scripts/lib/test-verify-ci-gates-registry-performance-cases.sh"
       - "scripts/lib/test-verify-ci-gates-registry-docs-cli-env-cases.sh"
       - "scripts/lib/test-verify-ci-gates-registry-ifa-filter-cases.sh"
+      - "scripts/lib/test-verify-ci-gates-registry-path-assertions.sh"
       - "scripts/test-generate-ci-gates-doc.sh"
       - "docs/public/reference/ci-gates.md"
       - ".github/workflows/**"

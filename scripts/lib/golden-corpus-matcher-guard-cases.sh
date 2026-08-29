@@ -55,7 +55,7 @@ EOF
 			"${output}" >&2
 		exit 1
 	}
-	printf '%s\n' "${output}" | rg --fixed-strings --quiet -- 'ambiguous' || {
+	printf '%s\n' "${output}" | rg --fixed-strings -- 'ambiguous' >/dev/null || {
 		printf 'wrong diagnostic for comment-decoy ambiguity: %s\n' "${output}" >&2
 		exit 1
 	}
@@ -82,7 +82,7 @@ EOF
 			"${output}" >&2
 		exit 1
 	}
-	printf '%s\n' "${output}" | rg --fixed-strings --quiet -- 'ambiguous' || {
+	printf '%s\n' "${output}" | rg --fixed-strings -- 'ambiguous' >/dev/null || {
 		printf 'wrong diagnostic for heredoc-body decoy: %s\n' "${output}" >&2
 		exit 1
 	}
@@ -118,7 +118,7 @@ EOF
 			"${start_line}" "${open_line}" >&2
 		exit 1
 	}
-	printf '%s\n' "${output}" | rg --fixed-strings --quiet -- 'is not after phase_graph_query_start=' || {
+	printf '%s\n' "${output}" | rg --fixed-strings -- 'is not after phase_graph_query_start=' >/dev/null || {
 		printf 'wrong diagnostic for a bracket relocated above the start assignment: %s\n' "${output}" >&2
 		exit 1
 	}
@@ -167,7 +167,7 @@ EOF
 			"${close_line}" "${emit_line}" >&2
 		exit 1
 	}
-	printf '%s\n' "${output}" | rg --fixed-strings --quiet -- 'is not before emit_phase_timings_and_flags' || {
+	printf '%s\n' "${output}" | rg --fixed-strings -- 'is not before emit_phase_timings_and_flags' >/dev/null || {
 		printf 'wrong diagnostic for a bracket relocated below emit_phase_timings_and_flags: %s\n' "${output}" >&2
 		exit 1
 	}
@@ -200,11 +200,11 @@ EOF
 		printf 'require_in must die "missing" on a genuinely absent anchor, not silently pass: %s\n' "${require_output}" >&2
 		exit 1
 	}
-	printf '%s\n' "${require_output}" | rg --fixed-strings --quiet -- 'missing start assignment' || {
+	printf '%s\n' "${require_output}" | rg --fixed-strings -- 'missing start assignment' >/dev/null || {
 		printf 'require_in missing-anchor diagnostic does not name the label: %s\n' "${require_output}" >&2
 		exit 1
 	}
-	printf '%s\n' "${require_output}" | rg --fixed-strings --quiet -- "$(basename "${fixture}")" || {
+	printf '%s\n' "${require_output}" | rg --fixed-strings -- "$(basename "${fixture}")" >/dev/null || {
 		printf 'require_in missing-anchor diagnostic does not name the file: %s\n' "${require_output}" >&2
 		exit 1
 	}
@@ -213,7 +213,7 @@ EOF
 			"${resolve_output}" >&2
 		exit 1
 	}
-	printf '%s\n' "${resolve_output}" | rg --fixed-strings --quiet -- 'missing start assignment' || {
+	printf '%s\n' "${resolve_output}" | rg --fixed-strings -- 'missing start assignment' >/dev/null || {
 		printf 'resolve_unique_line missing-anchor diagnostic does not name the label: %s\n' "${resolve_output}" >&2
 		exit 1
 	}
@@ -250,7 +250,7 @@ EOF
 			"${require_message_count:-0}" "${require_output}" >&2
 		exit 1
 	}
-	printf '%s\n' "${require_output}" | rg --fixed-strings --quiet -- 'needle carries a literal \E' || {
+	printf '%s\n' "${require_output}" | rg --fixed-strings -- 'needle carries a literal \E' >/dev/null || {
 		printf 'require_in \\E diagnostic missing expected message: %s\n' "${require_output}" >&2
 		exit 1
 	}
@@ -265,7 +265,7 @@ EOF
 			"${resolve_message_count:-0}" "${resolve_output}" >&2
 		exit 1
 	}
-	printf '%s\n' "${resolve_output}" | rg --fixed-strings --quiet -- 'needle carries a literal \E' || {
+	printf '%s\n' "${resolve_output}" | rg --fixed-strings -- 'needle carries a literal \E' >/dev/null || {
 		printf 'resolve_unique_line \\E diagnostic missing expected message: %s\n' "${resolve_output}" >&2
 		exit 1
 	}
