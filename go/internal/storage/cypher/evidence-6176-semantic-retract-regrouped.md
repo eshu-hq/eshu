@@ -299,6 +299,8 @@ The other v1.1.11-era retract workarounds are untouched and unmeasured on
 per-label retracts, the SQL relationship sequential writes, and the
 Drain-marked canonical edge retracts. #6176 sequences the semantic writer
 first on purpose; each of the others needs its own live measurement before it
-can be unpicked. The `deploy/helm/eshu/values.yaml` NornicDB pin is also
-unchanged and still names v1.1.11 — that is #6313's to move, and the merge
-order it forces is under "Merge ordering" above.
+can be unpicked. The `deploy/helm/eshu/values.yaml` NornicDB pin was #6313's to
+move and it has moved: that PR merged as `a281fad7523b` and the chart now pins
+`v1.2.3@sha256:4dfa887d…`, so the ordering it forced is satisfied rather than
+pending — see "Merge ordering" above. It is listed here only because this
+section enumerates what this change does NOT itself touch.
