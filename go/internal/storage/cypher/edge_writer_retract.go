@@ -86,14 +86,16 @@ func (w *EdgeWriter) RetractEdges(
 	// running -- measured across code calls, repo dependency, submodule pin,
 	// codeowners and workload dependency. See the code-call note below.
 	//
-	// FENCED repo-wide-retract domains never reach here: they returned from
-	// retractFencedRepoWideDomain above, which narrows to
-	// collectWholeScopeRefreshRepoIDs instead. See its doc for why.
+	// FENCED repo-wide-retract domains never reach here: retractFencedRepoWideDomain
+	// above handled them, narrowing to collectWholeScopeRefreshRepoIDs. WHICH
+	// domains those are is the narrowed half of wholeScopeRetractDomains
+	// (edge_writer_retract_scope.go), never a count restated here (#6276).
 	repoIDs := collectRepoIDs(rows)
 	if domain == reducer.DomainCodeCalls {
-		// Deliberately the batch-wide repoIDs, and NOT the narrowing the four
+		// Deliberately the batch-wide repoIDs, and NOT the narrowing its
 		// fenced siblings apply -- this branch looks like them and is not one
-		// (#6166). DomainCodeCalls is absent from
+		// (#6166). DomainCodeCalls is in NEITHER half of
+		// wholeScopeRetractDomains, and absent from
 		// domainHasRepoWideRetract, so its rows never pass through
 		// planRepoWideRetractWork at all; they are synthesised by
 		// buildCodeCallRepoRetractRows (reducer/code_call_projection_work.go),
@@ -338,22 +340,19 @@ func buildRetractStatement(
 	}
 }
 
-// retractFencedRepoWideDomain handles the four domains whose retract is owned
-// by a per-repo refresh intent behind the #2898 fence: inheritance, rationale
-// EXPLAINS, SQL relationships and shell exec. It reports handled=false for
-// every other domain, so RetractEdges falls through to the repo-keyed group.
+// retractFencedRepoWideDomain handles the domains whose retract is owned by a
+// per-repo refresh intent behind the #2898 fence: the narrowed half of
+// wholeScopeRetractDomains (edge_writer_retract_scope.go), which the guard below
+// asks rather than re-listing (#6276). It reports handled=false for every other
+// domain, so RetractEdges falls through to the repo-keyed group.
 //
-// All four narrow to collectWholeScopeRefreshRepoIDs rather than the batch-wide
-// collectRepoIDs (#6166). planRepoWideRetractWork
-// (reducer/shared_projection_worker_refresh_fence.go) routes two kinds of row
-// into the retract: per-repo refresh rows, which asked for a whole-repository
-// DELETE, and unmarked legacy per-edge rows, which asked for a write. Binding
-// the second kind erases its repository's edges across every file while only
-// this batch's rows get rewritten. Each domain carries a reachability test
-// proving no current emitter can produce such a row, so the narrowing is a
-// no-op on today's input and a guard for the day an emitter changes.
+// They narrow to collectWholeScopeRefreshRepoIDs rather than the batch-wide
+// collectRepoIDs, through narrowedWholeScopeRepoIDs (#6166): a whole-repository
+// DELETE bound to an unmarked legacy per-edge row erases that repository's edges
+// across every file while only this batch's rows get rewritten. That table's doc
+// carries the full mechanism and the per-domain reachability argument.
 //
-// All four also run the whole-scope retract AFTER their delta statements, not
+// Each also runs the whole-scope retract AFTER its delta statements, not
 // instead of them (#5998 review F6, extended to the three siblings by #6216). A
 // ProcessPartitionOnce batch is selected by partition ID, not by partition key,
 // so it routinely carries refresh rows for many repositories: one on a delta
@@ -370,10 +369,7 @@ func (w *EdgeWriter) retractFencedRepoWideDomain(
 	rows []reducer.SharedProjectionIntentRow,
 	evidenceSource string,
 ) (bool, error) {
-	switch domain {
-	case reducer.DomainInheritanceEdges, reducer.DomainRationaleEdges,
-		reducer.DomainSQLRelationships, reducer.DomainShellExec:
-	default:
+	if !isWholeScopeNarrowedDomain(domain) {
 		return false, nil
 	}
 
@@ -396,9 +392,11 @@ func (w *EdgeWriter) retractFencedRepoWideDomain(
 				BuildRetractInheritanceEdgeStatements(wholeScopeRepoIDs, evidenceSource),
 			)
 		}
-		wholeScopeRepoIDs := collectWholeScopeRefreshRepoIDs(rows)
-		if len(wholeScopeRepoIDs) == 0 {
-			w.logWholeScopeRetractSkipped(domain, evidenceSource, len(rows))
+		wholeScopeRepoIDs, skip, err := w.narrowedWholeScopeRepoIDs(domain, rows, evidenceSource)
+		if err != nil {
+			return true, err
+		}
+		if skip {
 			return true, nil
 		}
 		stmts := BuildRetractInheritanceEdgeStatements(wholeScopeRepoIDs, evidenceSource)
@@ -425,9 +423,11 @@ func (w *EdgeWriter) retractFencedRepoWideDomain(
 			}
 			return true, w.retractRationaleEdgesWithProbe(ctx, wholeScopeRepoIDs, evidenceSource)
 		}
-		wholeScopeRepoIDs := collectWholeScopeRefreshRepoIDs(rows)
-		if len(wholeScopeRepoIDs) == 0 {
-			w.logWholeScopeRetractSkipped(domain, evidenceSource, len(rows))
+		wholeScopeRepoIDs, skip, err := w.narrowedWholeScopeRepoIDs(domain, rows, evidenceSource)
+		if err != nil {
+			return true, err
+		}
+		if skip {
 			return true, nil
 		}
 		return true, w.retractRationaleEdgesWithProbe(ctx, wholeScopeRepoIDs, evidenceSource)
@@ -452,9 +452,11 @@ func (w *EdgeWriter) retractFencedRepoWideDomain(
 				BuildRetractSQLRelationshipEdgeStatements(wholeScopeRepoIDs, evidenceSource),
 			)
 		}
-		wholeScopeRepoIDs := collectWholeScopeRefreshRepoIDs(rows)
-		if len(wholeScopeRepoIDs) == 0 {
-			w.logWholeScopeRetractSkipped(domain, evidenceSource, len(rows))
+		wholeScopeRepoIDs, skip, err := w.narrowedWholeScopeRepoIDs(domain, rows, evidenceSource)
+		if err != nil {
+			return true, err
+		}
+		if skip {
 			return true, nil
 		}
 		stmts := BuildRetractSQLRelationshipEdgeStatements(wholeScopeRepoIDs, evidenceSource)
@@ -475,12 +477,20 @@ func (w *EdgeWriter) retractFencedRepoWideDomain(
 			}
 			return true, w.retractShellExecEdges(ctx, wholeScopeRepoIDs, evidenceSource)
 		}
-		wholeScopeRepoIDs := collectWholeScopeRefreshRepoIDs(rows)
-		if len(wholeScopeRepoIDs) == 0 {
-			w.logWholeScopeRetractSkipped(domain, evidenceSource, len(rows))
+		wholeScopeRepoIDs, skip, err := w.narrowedWholeScopeRepoIDs(domain, rows, evidenceSource)
+		if err != nil {
+			return true, err
+		}
+		if skip {
 			return true, nil
 		}
 		return true, w.retractShellExecEdges(ctx, wholeScopeRepoIDs, evidenceSource)
 	}
-	return false, nil
+	// Reachable only for a domain registered in the narrowed half of
+	// wholeScopeRetractDomains with no branch above; falling through to the
+	// batch-wide repo-keyed group is the over-delete the narrowing prevents.
+	return true, fmt.Errorf(
+		"domain %q is narrowed in wholeScopeRetractDomains (edge_writer_retract_scope.go) but retractFencedRepoWideDomain has no branch for it",
+		domain,
+	)
 }

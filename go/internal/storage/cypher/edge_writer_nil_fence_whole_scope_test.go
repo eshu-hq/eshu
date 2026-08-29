@@ -19,9 +19,9 @@ import (
 // ProcessPartitionOnce only calls planRepoWideRetractWork when a refresh fence
 // is wired (shared_projection_worker.go). With refreshFence == nil it passes
 // every latest row -- including unmarked per-edge rows -- straight to
-// RetractEdges. For the four narrowed domains that batch now binds an empty
-// repo id list and issues no whole-repository DELETE, where before #6166 it
-// issued one over the whole batch.
+// RetractEdges. For a narrowed domain that batch now binds an empty repo id
+// list and issues no whole-repository DELETE, where before #6166 it issued one
+// over the whole batch.
 //
 // Production always wires the fence (cmd/reducer/main.go), so this is a
 // test-only shape today. It is pinned here rather than left implicit because
@@ -34,12 +34,18 @@ import (
 // recordGroupedWrite -- so this also asserts the warning that makes it
 // greppable.
 //
-// All four narrowed domains are exercised, including shell exec, which needs no
-// OrphanSweepReader here: on an all-unmarked batch the empty-list early return
-// happens BEFORE the orphan sweep, so the Reader is never consulted. That is
-// the property under test, so the absence of a Reader is not a gap -- if the
-// early return ever moved below the sweep, this test would fail on a nil Reader
-// rather than pass quietly.
+// The subtests are driven from wholeScopeNarrowedDomains()
+// (edge_writer_retract_scope.go) rather than from a literal list, so the
+// loop covers whatever the dispatch actually narrows and no count is stated in
+// prose anywhere (#6276). TestWholeScopeRetractDomainsHalvesAreNonEmpty floors
+// that half, because ranging over an empty one would pass having tested
+// nothing.
+//
+// Shell exec is among them and needs no OrphanSweepReader here: on an
+// all-unmarked batch the empty-list early return happens BEFORE the orphan
+// sweep, so the Reader is never consulted. That is the property under test, so
+// the absence of a Reader is not a gap -- if the early return ever moved below
+// the sweep, this test would fail on a nil Reader rather than pass quietly.
 func TestRetractEdgesNilFenceShapeSkipsWholeScopeDelete(t *testing.T) {
 	t.Parallel()
 
@@ -58,12 +64,7 @@ func TestRetractEdgesNilFenceShapeSkipsWholeScopeDelete(t *testing.T) {
 		},
 	}
 
-	for _, domain := range []string{
-		reducer.DomainInheritanceEdges,
-		reducer.DomainRationaleEdges,
-		reducer.DomainSQLRelationships,
-		reducer.DomainShellExec,
-	} {
+	for _, domain := range wholeScopeNarrowedDomains() {
 		t.Run(domain, func(t *testing.T) {
 			t.Parallel()
 

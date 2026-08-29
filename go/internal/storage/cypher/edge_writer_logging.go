@@ -229,8 +229,11 @@ func sharedEdgeStatementSummaries(stmts []Statement) []string {
 // logWholeScopeRetractSkipped reports the one outcome of the #6166 narrowing
 // that would otherwise leave no trace anywhere.
 //
-// The four fenced domains bind collectWholeScopeRefreshRepoIDs, so a retract
-// row that carries no refresh intent_type contributes no repository id. When
+// The narrowed half of wholeScopeRetractDomains
+// (edge_writer_retract_scope.go) binds collectWholeScopeRefreshRepoIDs, so
+// a retract row that carries no refresh intent_type contributes no repository
+// id -- which domains those are is that table's business, not this comment's
+// (#6276). When
 // EVERY row in a batch is unmarked the list comes back empty and the whole-repo
 // DELETE is skipped: the rows still write, and any edge the DELETE would have
 // removed stays behind. That is a lost retract, and unlike the over-delete it

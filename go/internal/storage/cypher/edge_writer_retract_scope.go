@@ -366,3 +366,130 @@ func buildDocumentationDeltaRetractStatements(
 	}
 	return stmts
 }
+
+// wholeScopeRetractDomains splits the domains that reducer's
+// domainHasRepoWideRetract fences (shared_projection_worker_refresh_fence.go)
+// into the two groups RetractEdges treats differently. It is the ONE place
+// either group is written down: retractFencedRepoWideDomain
+// (edge_writer_retract.go) gates on isWholeScopeNarrowedDomain and reaches the
+// narrowed half through narrowedWholeScopeRepoIDs, and the nil-fence and
+// fenced-but-not-narrowed tests loop over the halves instead of over a
+// hand-typed literal, so the size of either group is never stated in prose
+// independently of this table.
+//
+// true -- NARROWED (#6166). The whole-scope retract binds
+// collectWholeScopeRefreshRepoIDs, so a batch whose rows carry no refresh
+// intent_type contributes no repository id, and the whole-repository DELETE is
+// skipped rather than run over the batch-wide list. Their retract rows come
+// from planRepoWideRetractWork, which also routes unmarked legacy per-edge rows
+// into the retract; binding one of those to a whole-repository DELETE erases a
+// repository's edges across every file while only this batch's rows get
+// rewritten.
+//
+// false -- FENCED BUT NOT NARROWED. These fall through to buildRetractStatement
+// with the batch-wide collectRepoIDs list, and must keep doing so.
+//
+// Both halves live in one table because re-deriving either from the fencing
+// predicate gives the WRONG answer. domainHasRepoWideRetract returns true for
+// all seven rows below, so a reader who counts narrowed domains under it gets
+// seven; only a reader who walks collectWholeScopeRefreshRepoIDs' non-test call
+// sites can tell the halves apart. Written down once, that is not a derivation
+// anyone has to repeat or get wrong.
+//
+// DomainCodeCalls is deliberately in NEITHER half. It looks like a narrowed
+// sibling and is not one: it is absent from domainHasRepoWideRetract, its rows
+// never pass through planRepoWideRetractWork, and requiring the refresh
+// intent_type on them empties repoIDs and stops the code-call retract running
+// at all. Read the note at its branch in RetractEdges before adding it here for
+// symmetry.
+//
+// Adding a row: a true row needs a branch in retractFencedRepoWideDomain that
+// routes through narrowedWholeScopeRepoIDs -- without one that function returns
+// an error naming this table, and
+// TestRetractEdgesNilFenceShapeSkipsWholeScopeDelete fails for it. A false row must NOT have one, or
+// TestFencedButNotNarrowedDomainsStillBindBatchWideRepoIDs fails for it.
+// Narrowing a domain without registering it here fails the same way.
+//
+// MISSING a row fails too, which it did not use to. The rows must be exactly the
+// domains reducer.RepoWideRetractDomains() returns, and
+// TestWholeScopeRetractDomainsCoversFencedSet compares the two sets in both
+// directions -- an eighth fenced domain left out of this table would otherwise
+// re-introduce the #6166 over-delete with every test in that file green,
+// because no loop here would ever reach it.
+var wholeScopeRetractDomains = map[string]bool{
+	reducer.DomainInheritanceEdges:   true,
+	reducer.DomainRationaleEdges:     true,
+	reducer.DomainSQLRelationships:   true,
+	reducer.DomainShellExec:          true,
+	reducer.DomainHandlesRoute:       false,
+	reducer.DomainRunsIn:             false,
+	reducer.DomainInvokesCloudAction: false,
+}
+
+// wholeScopeNarrowedDomains returns the narrowed half of
+// wholeScopeRetractDomains in a stable order. Map iteration order is
+// randomised, so a caller that subtests or reports on the result would
+// otherwise vary run to run.
+func wholeScopeNarrowedDomains() []string {
+	return wholeScopeDomainsWhereNarrowed(true)
+}
+
+// wholeScopeUnnarrowedDomains returns the fenced-but-not-narrowed half of
+// wholeScopeRetractDomains in a stable order.
+func wholeScopeUnnarrowedDomains() []string {
+	return wholeScopeDomainsWhereNarrowed(false)
+}
+
+// wholeScopeDomainsWhereNarrowed returns the half of wholeScopeRetractDomains
+// whose narrowing flag equals narrowed, sorted.
+func wholeScopeDomainsWhereNarrowed(narrowed bool) []string {
+	domains := make([]string, 0, len(wholeScopeRetractDomains))
+	for domain, isNarrowed := range wholeScopeRetractDomains {
+		if isNarrowed == narrowed {
+			domains = append(domains, domain)
+		}
+	}
+	sort.Strings(domains)
+	return domains
+}
+
+// isWholeScopeNarrowedDomain reports whether a domain's whole-scope retract
+// narrows to the refresh-marked repository ids rather than the batch-wide list.
+func isWholeScopeNarrowedDomain(domain string) bool {
+	return wholeScopeRetractDomains[domain]
+}
+
+// narrowedWholeScopeRepoIDs is the one sanctioned way a retract branch narrows
+// its whole-scope repository ids, and the only place logWholeScopeRetractSkipped
+// is called from.
+//
+// It returns the repository ids the caller may bind, and skip=true when the
+// batch carried no refresh-marked row at all -- the anomalous shape where the
+// whole-repository DELETE must not run. The caller returns nil on a skip; the
+// warning is logged here because that early return never reaches
+// recordGroupedWrite and would otherwise leave no trace anywhere.
+//
+// A domain outside the narrowed half of wholeScopeRetractDomains is a
+// programming error, and it returns an ERROR rather than skipping. Skipping
+// would be a silent lost retract -- the exact failure this mechanism exists to
+// make visible -- while an error surfaces through the batch and names the fix.
+// Routing all four branches through here is what binds the dispatch to the
+// table: a fifth branch either registers its domain or fails on first use.
+func (w *EdgeWriter) narrowedWholeScopeRepoIDs(
+	domain string,
+	rows []reducer.SharedProjectionIntentRow,
+	evidenceSource string,
+) (repoIDs []string, skip bool, err error) {
+	if !isWholeScopeNarrowedDomain(domain) {
+		return nil, false, fmt.Errorf(
+			"whole-scope retract narrowing requested for domain %q, which is not in the narrowed half of wholeScopeRetractDomains (edge_writer_retract_scope.go); register it there so the nil-fence and logging contracts cover it",
+			domain,
+		)
+	}
+	repoIDs = collectWholeScopeRefreshRepoIDs(rows)
+	if len(repoIDs) == 0 {
+		w.logWholeScopeRetractSkipped(domain, evidenceSource, len(rows))
+		return nil, true, nil
+	}
+	return repoIDs, false, nil
+}
