@@ -233,18 +233,47 @@ func collectScopeIDs(rows []reducer.SharedProjectionIntentRow) []string {
 	return result
 }
 
+// retractRowRepositoryID returns a retract row's repository id, preferring the
+// typed field and falling back to the payload, matching how every collector in
+// this file resolves it. It exists so a fail-closed error can name the
+// repository an operator has to look at.
+func retractRowRepositoryID(row reducer.SharedProjectionIntentRow) string {
+	if row.RepositoryID != "" {
+		return row.RepositoryID
+	}
+	return payloadString(row.Payload, "repo_id")
+}
+
+// collectDeltaFilePaths gathers the file paths a delta-scoped retract binds, and
+// FAILS CLOSED on a delta-flagged row that carries none.
+//
+// That rejection is load-bearing, not defensive tidiness (#6216). A repository
+// on a delta generation had content-entity facts emitted for its CHANGED files
+// only, so the generation's writes re-create only those files' edges. There is
+// no correct retract to run for it here: the file-scoped one has nothing to
+// bind, and the repo-wide one would delete every UNCHANGED file's edge with
+// nothing left to restore it. Failing the partition dead-letters the intent,
+// which an operator can see; the alternative loses graph edges silently. The
+// error names the repository so the dead letter is actionable -- the usual cause
+// is a repository fact with no local_path, or a symlinked repos root whose
+// changed paths normalizeSnapshotRelativePaths drops.
 func collectDeltaFilePaths(rows []reducer.SharedProjectionIntentRow) ([]string, bool, error) {
 	seen := make(map[string]struct{})
 	hasDeltaScope := false
+	deltaRowCount := 0
 	var filePaths []string
 	for _, row := range rows {
 		if !payloadBool(row.Payload, "delta_projection") {
 			continue
 		}
 		hasDeltaScope = true
+		deltaRowCount++
 		rowFilePaths := payloadStringSlice(row.Payload, "delta_file_paths")
 		if len(rowFilePaths) == 0 {
-			return nil, true, fmt.Errorf("delta retract requires delta_file_paths")
+			return nil, true, fmt.Errorf(
+				"delta retract requires delta_file_paths: repository %q carries none",
+				retractRowRepositoryID(row),
+			)
 		}
 		for _, filePath := range rowFilePaths {
 			filePath = strings.TrimSpace(filePath)
@@ -259,7 +288,10 @@ func collectDeltaFilePaths(rows []reducer.SharedProjectionIntentRow) ([]string, 
 		}
 	}
 	if hasDeltaScope && len(filePaths) == 0 {
-		return nil, true, fmt.Errorf("delta retract requires delta_file_paths")
+		return nil, true, fmt.Errorf(
+			"delta retract requires delta_file_paths: no path survived across %d delta-flagged row(s)",
+			deltaRowCount,
+		)
 	}
 	sort.Strings(filePaths)
 	return filePaths, hasDeltaScope, nil

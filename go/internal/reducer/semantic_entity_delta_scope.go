@@ -140,3 +140,63 @@ func semanticDeltaPayloadStringSlice(payload map[string]any, key string) []strin
 		return nil
 	}
 }
+
+// deltaScopeRepositorySet indexes the repositories a delta scope reports as
+// being on a delta generation. The four fenced repo-wide-retract domains
+// (inheritance, rationale, SQL relationships, shell exec) build it once per
+// refresh-intent batch and hand it to applyRepoRefreshDeltaScope per
+// repository, so the gate stays O(1) per repository.
+func deltaScopeRepositorySet(repositoryIDs []string) map[string]struct{} {
+	if len(repositoryIDs) == 0 {
+		return nil
+	}
+	set := make(map[string]struct{}, len(repositoryIDs))
+	for _, repositoryID := range repositoryIDs {
+		set[repositoryID] = struct{}{}
+	}
+	return set
+}
+
+// applyRepoRefreshDeltaScope stamps the delta retract scope onto one
+// repository's repo-wide refresh payload.
+//
+// The gate is membership in deltaRepositoryIDs -- the repositories whose
+// repository fact carried delta_generation this cycle. It is deliberately NOT
+// the scope-wide hasDelta flag, and deliberately NOT "this repository has
+// qualified paths". All three readings differ, and two of them are wrong
+// (#6216):
+//
+//   - On a delta generation, ALWAYS delta-scoped, even with an empty path list.
+//     The collector replaces the discovered file set with the changed targets
+//     alone on a delta sync (resolveNativeSnapshotFileSetForTargets,
+//     collector/gitrepo/git_snapshot_native.go), so the generation carries
+//     content-entity facts for the CHANGED files only and the per-edge intents
+//     re-create only those files' edges. Widening such a repository's retract to
+//     the whole repository deletes every UNCHANGED file's edge with nothing left
+//     to restore it: silent wrong graph, no error, no dead letter. An empty list
+//     instead reaches collectDeltaFilePaths
+//     (storage/cypher/edge_writer_retract_scope.go), which rejects it before any
+//     statement runs, so the partition fails and the intent dead-letters. That
+//     is the intended outcome -- a dead letter an operator can see beats a graph
+//     that quietly lost edges. A repository reaches this state when its changed
+//     paths cannot be qualified: no local_path on the repository fact, or a
+//     symlinked repos root whose targets normalizeSnapshotRelativePaths drops.
+//
+//   - On a FULL generation, never delta-scoped, even when a delta-generation
+//     repository shares the scope. hasDelta is scope-wide, so gating on it would
+//     scope a full-generation repository's retract to a sibling's changed paths
+//     and leave its removed-file edges behind. Its own generation re-emits every
+//     file, so the repo-wide retract is the correct scope for it.
+func applyRepoRefreshDeltaScope(
+	payload map[string]any,
+	repoID string,
+	deltaRepositoryIDs map[string]struct{},
+	filePathsByRepoID map[string][]string,
+) {
+	if _, onDeltaGeneration := deltaRepositoryIDs[repoID]; !onDeltaGeneration {
+		return
+	}
+	filePaths := filePathsByRepoID[repoID]
+	payload["delta_projection"] = true
+	payload["delta_file_paths"] = append(make([]string, 0, len(filePaths)), filePaths...)
+}

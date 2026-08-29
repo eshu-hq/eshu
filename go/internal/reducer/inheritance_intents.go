@@ -119,9 +119,9 @@ func buildInheritanceSharedIntentRows(
 }
 
 // buildInheritanceRefreshIntents emits one whole-scope refresh intent per
-// repository that has a projection context. The refresh carries the delta scope
-// (when present) so the worker issues the file-scoped retract for exactly the
-// changed files; otherwise it issues the repo-wide retract. Repos are sorted so
+// repository that has a projection context. A repository on a DELTA generation
+// carries the delta scope so the worker issues the file-scoped retract; one on
+// a full generation carries none, so the worker issues the repo-wide retract. Repos are sorted so
 // emission is deterministic (#2867/#2898).
 func buildInheritanceRefreshIntents(
 	deltaScope inheritanceDeltaScope,
@@ -132,6 +132,7 @@ func buildInheritanceRefreshIntents(
 	sorted := append([]string(nil), repoIDs...)
 	sort.Strings(sorted)
 
+	deltaRepositoryIDs := deltaScopeRepositorySet(deltaScope.repositoryIDs)
 	intents := make([]SharedProjectionIntentRow, 0, len(sorted))
 	for _, repoID := range sorted {
 		context, ok := contextByRepoID[repoID]
@@ -144,10 +145,11 @@ func buildInheritanceRefreshIntents(
 			"action":          repoRefreshAction,
 			"evidence_source": inheritanceEvidenceSource,
 		}
-		if deltaScope.hasDelta {
-			payload["delta_projection"] = true
-			payload["delta_file_paths"] = append([]string(nil), deltaScope.filePathsByRepoID[repoID]...)
-		}
+		// Delta scoping is per repository and fails closed on an unusable
+		// delta; applyRepoRefreshDeltaScope (semantic_entity_delta_scope.go)
+		// carries the full rule and why the two obvious alternatives lose
+		// edges (#6216).
+		applyRepoRefreshDeltaScope(payload, repoID, deltaRepositoryIDs, deltaScope.filePathsByRepoID)
 		intents = append(intents, BuildSharedProjectionIntent(SharedProjectionIntentInput{
 			ProjectionDomain: DomainInheritanceEdges,
 			PartitionKey:     inheritanceWholeScopePartitionKey(repoID),

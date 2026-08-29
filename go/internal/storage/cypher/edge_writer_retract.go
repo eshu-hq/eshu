@@ -52,48 +52,8 @@ func (w *EdgeWriter) RetractEdges(
 		}
 	}
 
-	if domain == reducer.DomainInheritanceEdges {
-		filePaths, hasDeltaScope, err := collectDeltaFilePaths(rows)
-		if err != nil {
-			return err
-		}
-		if hasDeltaScope {
-			stmts := BuildRetractInheritanceEdgeStatementsByFilePath(filePaths, evidenceSource)
-			return w.executeInheritanceRetractStatements(ctx, stmts)
-		}
-	}
-
-	if domain == reducer.DomainRationaleEdges {
-		filePaths, hasDeltaScope, err := collectDeltaFilePaths(rows)
-		if err != nil {
-			return err
-		}
-		if hasDeltaScope {
-			// Per-target-label statements run sequentially (#5116 sibling): a
-			// target-label disjunction matches zero rows on NornicDB v1.1.11.
-			// The canonical source also retracts the one bounded legacy source
-			// in each statement; custom sources remain exact-source retracts.
-			stmts := BuildRetractRationaleEdgeStatementsByFilePath(filePaths, evidenceSource)
-			probes := BuildProbeRationaleEdgeStatementsByFilePath(filePaths, evidenceSource)
-			if err := w.executeGuardedRationaleDeltaRetracts(ctx, probes, stmts, collectDeltaProjectionRepoIDs(rows)); err != nil {
-				return err
-			}
-			// #5998 review F6: a ProcessPartitionOnce batch can legitimately mix
-			// delta-flagged rows (handled above) with sibling REFRESH rows that
-			// carry no delta_projection at all -- a repository on a full
-			// generation whose refresh happened to share this partition bucket
-			// with a delta-generation repository. collectDeltaFilePaths only
-			// inspects the delta-flagged rows, so those non-delta repositories
-			// never reach a retract at all unless handled here too. The
-			// collector matches on the refresh intent_type and not merely on the
-			// absence of delta_projection; see its doc for the unmarked-legacy
-			// over-delete that distinction prevents.
-			wholeScopeRepoIDs := collectWholeScopeRefreshRepoIDs(rows)
-			if len(wholeScopeRepoIDs) == 0 {
-				return nil
-			}
-			return w.retractRationaleEdgesWithProbe(ctx, wholeScopeRepoIDs, evidenceSource)
-		}
+	if handled, err := w.retractFencedRepoWideDomain(ctx, domain, rows, evidenceSource); handled {
+		return err
 	}
 
 	if domain == reducer.DomainDocumentationEdges {
@@ -126,22 +86,14 @@ func (w *EdgeWriter) RetractEdges(
 	// running -- measured across code calls, repo dependency, submodule pin,
 	// codeowners and workload dependency. See the code-call note below.
 	//
-	// FENCED repo-wide-retract domains (inheritance, rationale, SQL
-	// relationships, shell exec) narrow to collectWholeScopeRefreshRepoIDs
-	// instead. Their retract rows come from planRepoWideRetractWork
-	// (reducer/shared_projection_worker_refresh_fence.go), which routes only
-	// per-repo refresh rows and unmarked legacy per-edge rows into the
-	// retract. A whole-repository DELETE is what the refresh row asked for; an
-	// unmarked per-edge row asked for a write, and binding it here erases its
-	// repository's edges across every file while only this batch's rows get
-	// rewritten. Each of the four has a reachability test proving no current
-	// emitter can produce such a row, so narrowing is a no-op on today's
-	// input and a guard against the emitters changing under us.
+	// FENCED repo-wide-retract domains never reach here: they returned from
+	// retractFencedRepoWideDomain above, which narrows to
+	// collectWholeScopeRefreshRepoIDs instead. See its doc for why.
 	repoIDs := collectRepoIDs(rows)
 	if domain == reducer.DomainCodeCalls {
 		// Deliberately the batch-wide repoIDs, and NOT the narrowing the four
-		// fenced siblings below apply -- this branch looks like them and is
-		// not one (#6166). DomainCodeCalls is absent from
+		// fenced siblings apply -- this branch looks like them and is not one
+		// (#6166). DomainCodeCalls is absent from
 		// domainHasRepoWideRetract, so its rows never pass through
 		// planRepoWideRetractWork at all; they are synthesised by
 		// buildCodeCallRepoRetractRows (reducer/code_call_projection_work.go),
@@ -151,55 +103,6 @@ func (w *EdgeWriter) RetractEdges(
 		// behind. Do not "fix" this for symmetry with its neighbours.
 		stmts := BuildRetractCodeCallEdgeStatements(repoIDs, evidenceSource)
 		return w.executeCodeCallRetractStatements(ctx, stmts)
-	}
-	if domain == reducer.DomainInheritanceEdges {
-		wholeScopeRepoIDs := collectWholeScopeRefreshRepoIDs(rows)
-		if len(wholeScopeRepoIDs) == 0 {
-			w.logWholeScopeRetractSkipped(domain, evidenceSource, len(rows))
-			return nil
-		}
-		stmts := BuildRetractInheritanceEdgeStatements(wholeScopeRepoIDs, evidenceSource)
-		return w.executeInheritanceRetractStatements(ctx, stmts)
-	}
-	if domain == reducer.DomainRationaleEdges {
-		wholeScopeRepoIDs := collectWholeScopeRefreshRepoIDs(rows)
-		if len(wholeScopeRepoIDs) == 0 {
-			w.logWholeScopeRetractSkipped(domain, evidenceSource, len(rows))
-			return nil
-		}
-		return w.retractRationaleEdgesWithProbe(ctx, wholeScopeRepoIDs, evidenceSource)
-	}
-	if domain == reducer.DomainSQLRelationships {
-		filePaths, hasDeltaScope, err := collectDeltaFilePaths(rows)
-		if err != nil {
-			return err
-		}
-		if hasDeltaScope {
-			stmts := BuildRetractSQLRelationshipEdgeStatementsByFilePath(filePaths, evidenceSource)
-			return w.executeSQLRelationshipRetractStatements(ctx, stmts)
-		}
-		wholeScopeRepoIDs := collectWholeScopeRefreshRepoIDs(rows)
-		if len(wholeScopeRepoIDs) == 0 {
-			w.logWholeScopeRetractSkipped(domain, evidenceSource, len(rows))
-			return nil
-		}
-		stmts := BuildRetractSQLRelationshipEdgeStatements(wholeScopeRepoIDs, evidenceSource)
-		return w.executeSQLRelationshipRetractStatements(ctx, stmts)
-	}
-	if domain == reducer.DomainShellExec {
-		filePaths, hasDeltaScope, err := collectDeltaFilePaths(rows)
-		if err != nil {
-			return err
-		}
-		if hasDeltaScope {
-			return w.retractShellExecEdgesByFilePath(ctx, filePaths, evidenceSource)
-		}
-		wholeScopeRepoIDs := collectWholeScopeRefreshRepoIDs(rows)
-		if len(wholeScopeRepoIDs) == 0 {
-			w.logWholeScopeRetractSkipped(domain, evidenceSource, len(rows))
-			return nil
-		}
-		return w.retractShellExecEdges(ctx, wholeScopeRepoIDs, evidenceSource)
 	}
 	if domain == reducer.DomainRepoDependency {
 		return w.executeRepoDependencyRetractStatements(ctx, repoIDs, evidenceSource)
@@ -433,4 +336,151 @@ func buildRetractStatement(
 	default:
 		return Statement{}, fmt.Errorf("unsupported domain for retract: %q", domain)
 	}
+}
+
+// retractFencedRepoWideDomain handles the four domains whose retract is owned
+// by a per-repo refresh intent behind the #2898 fence: inheritance, rationale
+// EXPLAINS, SQL relationships and shell exec. It reports handled=false for
+// every other domain, so RetractEdges falls through to the repo-keyed group.
+//
+// All four narrow to collectWholeScopeRefreshRepoIDs rather than the batch-wide
+// collectRepoIDs (#6166). planRepoWideRetractWork
+// (reducer/shared_projection_worker_refresh_fence.go) routes two kinds of row
+// into the retract: per-repo refresh rows, which asked for a whole-repository
+// DELETE, and unmarked legacy per-edge rows, which asked for a write. Binding
+// the second kind erases its repository's edges across every file while only
+// this batch's rows get rewritten. Each domain carries a reachability test
+// proving no current emitter can produce such a row, so the narrowing is a
+// no-op on today's input and a guard for the day an emitter changes.
+//
+// All four also run the whole-scope retract AFTER their delta statements, not
+// instead of them (#5998 review F6, extended to the three siblings by #6216). A
+// ProcessPartitionOnce batch is selected by partition ID, not by partition key,
+// so it routinely carries refresh rows for many repositories: one on a delta
+// generation, another on a full generation. collectDeltaFilePaths only inspects
+// the delta-flagged rows, so returning after them leaves the full-generation
+// sibling with no retract at all -- the refresh intent owns that retract,
+// nothing else issues it, and nothing errors, so its stale edges survive
+// silently. An empty list there is the ordinary all-delta batch and is
+// deliberately not logged as a skip; on the non-delta path below it is
+// anomalous, and is.
+func (w *EdgeWriter) retractFencedRepoWideDomain(
+	ctx context.Context,
+	domain string,
+	rows []reducer.SharedProjectionIntentRow,
+	evidenceSource string,
+) (bool, error) {
+	switch domain {
+	case reducer.DomainInheritanceEdges, reducer.DomainRationaleEdges,
+		reducer.DomainSQLRelationships, reducer.DomainShellExec:
+	default:
+		return false, nil
+	}
+
+	if domain == reducer.DomainInheritanceEdges {
+		filePaths, hasDeltaScope, err := collectDeltaFilePaths(rows)
+		if err != nil {
+			return true, err
+		}
+		if hasDeltaScope {
+			stmts := BuildRetractInheritanceEdgeStatementsByFilePath(filePaths, evidenceSource)
+			if err := w.executeInheritanceRetractStatements(ctx, stmts); err != nil {
+				return true, err
+			}
+			wholeScopeRepoIDs := collectWholeScopeRefreshRepoIDs(rows)
+			if len(wholeScopeRepoIDs) == 0 {
+				return true, nil
+			}
+			return true, w.executeInheritanceRetractStatements(
+				ctx,
+				BuildRetractInheritanceEdgeStatements(wholeScopeRepoIDs, evidenceSource),
+			)
+		}
+		wholeScopeRepoIDs := collectWholeScopeRefreshRepoIDs(rows)
+		if len(wholeScopeRepoIDs) == 0 {
+			w.logWholeScopeRetractSkipped(domain, evidenceSource, len(rows))
+			return true, nil
+		}
+		stmts := BuildRetractInheritanceEdgeStatements(wholeScopeRepoIDs, evidenceSource)
+		return true, w.executeInheritanceRetractStatements(ctx, stmts)
+	}
+	if domain == reducer.DomainRationaleEdges {
+		filePaths, hasDeltaScope, err := collectDeltaFilePaths(rows)
+		if err != nil {
+			return true, err
+		}
+		if hasDeltaScope {
+			// Per-target-label statements run sequentially (#5116 sibling): a
+			// target-label disjunction matches zero rows on NornicDB v1.1.11.
+			// The canonical source also retracts the one bounded legacy source
+			// in each statement; custom sources remain exact-source retracts.
+			stmts := BuildRetractRationaleEdgeStatementsByFilePath(filePaths, evidenceSource)
+			probes := BuildProbeRationaleEdgeStatementsByFilePath(filePaths, evidenceSource)
+			if err := w.executeGuardedRationaleDeltaRetracts(ctx, probes, stmts, collectDeltaProjectionRepoIDs(rows)); err != nil {
+				return true, err
+			}
+			wholeScopeRepoIDs := collectWholeScopeRefreshRepoIDs(rows)
+			if len(wholeScopeRepoIDs) == 0 {
+				return true, nil
+			}
+			return true, w.retractRationaleEdgesWithProbe(ctx, wholeScopeRepoIDs, evidenceSource)
+		}
+		wholeScopeRepoIDs := collectWholeScopeRefreshRepoIDs(rows)
+		if len(wholeScopeRepoIDs) == 0 {
+			w.logWholeScopeRetractSkipped(domain, evidenceSource, len(rows))
+			return true, nil
+		}
+		return true, w.retractRationaleEdgesWithProbe(ctx, wholeScopeRepoIDs, evidenceSource)
+	}
+
+	if domain == reducer.DomainSQLRelationships {
+		filePaths, hasDeltaScope, err := collectDeltaFilePaths(rows)
+		if err != nil {
+			return true, err
+		}
+		if hasDeltaScope {
+			stmts := BuildRetractSQLRelationshipEdgeStatementsByFilePath(filePaths, evidenceSource)
+			if err := w.executeSQLRelationshipRetractStatements(ctx, stmts); err != nil {
+				return true, err
+			}
+			wholeScopeRepoIDs := collectWholeScopeRefreshRepoIDs(rows)
+			if len(wholeScopeRepoIDs) == 0 {
+				return true, nil
+			}
+			return true, w.executeSQLRelationshipRetractStatements(
+				ctx,
+				BuildRetractSQLRelationshipEdgeStatements(wholeScopeRepoIDs, evidenceSource),
+			)
+		}
+		wholeScopeRepoIDs := collectWholeScopeRefreshRepoIDs(rows)
+		if len(wholeScopeRepoIDs) == 0 {
+			w.logWholeScopeRetractSkipped(domain, evidenceSource, len(rows))
+			return true, nil
+		}
+		stmts := BuildRetractSQLRelationshipEdgeStatements(wholeScopeRepoIDs, evidenceSource)
+		return true, w.executeSQLRelationshipRetractStatements(ctx, stmts)
+	}
+	if domain == reducer.DomainShellExec {
+		filePaths, hasDeltaScope, err := collectDeltaFilePaths(rows)
+		if err != nil {
+			return true, err
+		}
+		if hasDeltaScope {
+			if err := w.retractShellExecEdgesByFilePath(ctx, filePaths, evidenceSource); err != nil {
+				return true, err
+			}
+			wholeScopeRepoIDs := collectWholeScopeRefreshRepoIDs(rows)
+			if len(wholeScopeRepoIDs) == 0 {
+				return true, nil
+			}
+			return true, w.retractShellExecEdges(ctx, wholeScopeRepoIDs, evidenceSource)
+		}
+		wholeScopeRepoIDs := collectWholeScopeRefreshRepoIDs(rows)
+		if len(wholeScopeRepoIDs) == 0 {
+			w.logWholeScopeRetractSkipped(domain, evidenceSource, len(rows))
+			return true, nil
+		}
+		return true, w.retractShellExecEdges(ctx, wholeScopeRepoIDs, evidenceSource)
+	}
+	return false, nil
 }

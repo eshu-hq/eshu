@@ -86,6 +86,7 @@ func buildShellExecRefreshIntents(
 	sorted := append([]string(nil), repoIDs...)
 	sort.Strings(sorted)
 
+	deltaRepositoryIDs := deltaScopeRepositorySet(deltaScope.repositoryIDs)
 	intents := make([]SharedProjectionIntentRow, 0, len(sorted))
 	for _, repoID := range sorted {
 		context, ok := contextByRepoID[repoID]
@@ -98,10 +99,11 @@ func buildShellExecRefreshIntents(
 			"action":          repoRefreshAction,
 			"evidence_source": shellExecEvidenceSource,
 		}
-		if deltaScope.hasDelta {
-			payload["delta_projection"] = true
-			payload["delta_file_paths"] = append([]string(nil), deltaScope.filePathsByRepoID[repoID]...)
-		}
+		// Delta scoping is per repository and fails closed on an unusable
+		// delta; applyRepoRefreshDeltaScope (semantic_entity_delta_scope.go)
+		// carries the full rule and why the two obvious alternatives lose
+		// edges (#6216).
+		applyRepoRefreshDeltaScope(payload, repoID, deltaRepositoryIDs, deltaScope.filePathsByRepoID)
 		intents = append(intents, BuildSharedProjectionIntent(SharedProjectionIntentInput{
 			ProjectionDomain: DomainShellExec,
 			PartitionKey:     shellExecWholeScopePartitionKey(repoID),

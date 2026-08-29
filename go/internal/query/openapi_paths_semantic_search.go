@@ -33,7 +33,7 @@ const openAPIPathsSemanticSearch = `
                   },
                   "languages": {
                     "type": "array",
-                    "description": "Optional filter over recognized parser-registry language values (e.g. \"go\", \"python\", \"typescript\"). Documents are included only when their Labels array contains \"language:<lang>\" for one of the requested values. An empty array means no language filter. Unknown values are rejected with HTTP 400.",
+                    "description": "Optional filter over recognized parser-registry language values (e.g. \"go\", \"python\", \"typescript\"). Documents are included only when their Labels array contains \"language:<lang>\" for one of the requested values. An empty array means no language filter. Any non-empty token is accepted and lowercased; the index is the source of truth for which language values exist, so an unmatched value returns an empty result set rather than an error.",
                     "items": {"type": "string"}
                   },
                   "rerank": {"type": "boolean", "description": "Opt into graph-neighborhood reranking over the in-scope results. When true the response reports the reranking state, per-result ranking basis, and recommended next calls. Off by default."}

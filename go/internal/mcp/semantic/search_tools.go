@@ -69,8 +69,9 @@ func SearchTools() []toolcontract.ToolDefinition {
 					},
 					"description": "Optional language filter. Documents are included only when their Labels array " +
 						"contains language:<lang> for one of the listed values. " +
-						"Use recognized parser-registry language values (e.g. go, python, typescript). " +
-						"An empty array means no filter. Unknown values are rejected with HTTP 400.",
+						"Values are lowercased; the index is the source of truth for which ones exist " +
+						"(e.g. go, python, typescript). An empty array means no filter, and an unmatched " +
+						"value returns an empty result set rather than an error.",
 				},
 				"rerank": map[string]any{
 					"type": "boolean",
