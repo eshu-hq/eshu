@@ -428,10 +428,17 @@ on:
       - 'go/internal/ifa/testdata/shellexec/**'
       # kubernetes_namespace_environment / iam_instance_profile_role (#6228),
       # the first DIRECT-materialization families in these matrices. Mirrors
-      # the same paths specs/ci-gates.v1.yaml lists for both gates; the
-      # registry-subset-of-workflow check fails if the two drift, because a
-      # gate selected as blocking from a trigger this filter omits is selected
-      # and then never starts.
+      # the paths specs/ci-gates.v1.yaml lists for the ifa-determinism gate
+      # ONLY: the ifa-fault-injection registry has no triggers for either
+      # family, because neither has a fault cell (see that block's "ON THIS
+      # GATE ONLY" comment). The registry-subset-of-workflow check fails if the
+      # two drift, because a gate selected as blocking from a trigger this
+      # filter omits is selected and then never starts.
+      #
+      # This single shared on.pull_request.paths filter still ARMS the
+      # fault-injection job on these paths, since there is no per-job
+      # condition -- that is the CI-level caveat specs/ci-gates.v1.yaml
+      # records, not a per-gate registry trigger.
       - 'go/internal/ifa/kubernetes_namespace_environment_family_odu.go'
       - 'go/internal/ifa/iam_instance_profile_role_family_odu.go'
       - 'go/internal/ifa/direct_family_cassette.go'
