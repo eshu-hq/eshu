@@ -161,9 +161,8 @@ one enabled bounded scope; invalid configurations fail validation.
 - `PagerDutyPlanner` — implemented by `pagerdutyplanner.WorkPlanner`; child owns
   validated target membership and private planning. Root retains authorization,
   scheduling, admission, trigger transitions, retries, and telemetry.
-- `JiraWorkPlanner` — plans Jira work-item evidence collection runs from
-  configured Jira Cloud site targets without resolving credential environment
-  variables. Each target becomes one claimable work item keyed by `scope_id`.
+- `JiraPlanner` — implemented by `jiraplanner.WorkPlanner`; child owns private
+  planning and validated membership, while root keeps scheduling and admission.
 - `PrometheusMimirPlanner` — the root interface implemented by
   `prometheusmimir.WorkPlanner`. The child plans Prometheus/Grafana Mimir
   metric-metadata work from `configuration.targets[]`; each enabled target is
@@ -227,6 +226,7 @@ one enabled bounded scope; invalid configurations fail validation.
 - `internal/coordinator/scannerworker` — scanner-worker request validation,
   requested-scope privacy, and deterministic planning.
 - `internal/coordinator/pagerdutyplanner` — PagerDuty validated membership, privacy, and deterministic planning.
+- `internal/coordinator/jiraplanner` — Jira membership, privacy, and planning.
 - `internal/coordinator/vaultlive` — Vault metadata plan request and
   deterministic planner implementation.
 - `internal/coordinator/tempoplanner`, `lokiplanner`, `prometheusmimir`, and

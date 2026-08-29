@@ -19,8 +19,8 @@
 //
 // TerraformStateWorkPlanner plans Terraform-state collection runs from resolved
 // discovery candidates. OCIRegistryWorkPlanner, PackageRegistryWorkPlanner,
-// VulnerabilityIntelligenceWorkPlanner, and JiraWorkPlanner each plan bounded
-// work items without opening provider connections. Package and
+// and VulnerabilityIntelligenceWorkPlanner each plan bounded work items without
+// opening provider connections. Package and
 // vulnerability planners preserve direct and owned target priority ahead of
 // broad fanout and report aggregate skipped-target evidence when an
 // owned-package derivation budget is exhausted or partial dependency evidence
@@ -48,6 +48,10 @@
 // configured webhook-scope membership, and plans deterministic
 // incident-evidence work. This package retains authorization, scheduling, and
 // freshness orchestration.
+// The root JiraPlanner interface accepts jiraplanner.PlanRequest. The child
+// validates every configured target before filtering, checks configured
+// webhook-scope membership, and plans deterministic work-item evidence. This
+// package retains authorization, scheduling, and freshness orchestration.
 // The root PrometheusMimirPlanner interface accepts
 // prometheusmimir.PlanRequest. The child plans bounded metric-metadata work,
 // one item per enabled Prometheus or Grafana Mimir target, partitioned by
