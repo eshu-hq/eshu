@@ -32,6 +32,7 @@ func BenchmarkNormalizeLineEndings(b *testing.B) {
 		{name: "lf_no_copy", eol: "\n"},
 		{name: "crlf_no_copy", eol: "\r\n"},
 		{name: "bare_cr_copies", eol: "\r"},
+		{name: "no_terminator", eol: ""},
 	} {
 		body := benchBody(variant.eol)
 		b.Run(variant.name, func(b *testing.B) {

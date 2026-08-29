@@ -330,10 +330,10 @@ bound is logged (`javascript-family pre-scan file bounded` /
 ## Line Endings
 
 `shared.ReadSource` is the single read boundary every language `Parse` in
-`go/internal/parser` goes through, and it rewrites a **bare carriage return**
--- a `\r` with no `\n` after it -- to `\n` before any parser sees the bytes
-(#6306). LF and CRLF sources are returned unchanged, as the caller's own
-slice.
+`go/internal/parser` goes through, and it rewrites carriage returns to `\n`
+before any parser sees the bytes -- but only in a source that contains **no
+`\n` at all** (#6306). Any source with a newline in it is returned unchanged,
+as the caller's own slice.
 
 This exists because nothing downstream treats a lone `\r` as a line break.
 tree-sitter advances `StartPosition().Row` only on `\n`, so on a classic-Mac
@@ -345,6 +345,32 @@ and `strings.Split(src, "\n")`, `strings.IndexByte(rest, '\n')` and the
 throughout: a lockfile yielding zero dependencies, a header yielding zero
 public roots, or every row stamped line 1 -- never an error.
 
+### The rule is file-scoped, not byte-scoped
+
+A `\r` byte carries no meaning on its own. The same byte terminates a line in
+a classic-Mac file and carries payload inside a Go raw string, a regex, or a
+route or wire-format constant. Nothing local to the byte separates the two, so
+the decision is made about the whole file: the absence of `\n` is the signal.
+A source with even one newline already has a working LF or CRLF convention and
+correct line numbers, so every `\r` in it is data or half a CRLF pair; a
+source with no newline has no other candidate terminator.
+
+Getting this wrong is not theoretical. A byte-scoped rewrite turned the Go
+route `` `GET /foo<CR>bar` `` -- whose runtime value is `/foobar`, because
+`strconv.Unquote` drops `\r` from a raw string but keeps `\n` -- into the
+path `GET /foo\nbar` with its method degraded from `GET` to `ANY`. It is
+pinned by `TestParsePathPreservesDataCarriageReturnInsideGoRawString`.
+
+Two limits follow, and neither is fixable at the byte level:
+
+- A **mixed** file -- LF or CRLF lines plus a `\r` the author meant as a
+  separator -- keeps that `\r`, and the line it merges stays merged. That
+  shape is byte-for-byte identical to a data `\r` in an LF file. Leaving one
+  line of a malformed file merged is the smaller loss.
+- A classic-Mac file that embeds a data `\r` inside a literal has that byte
+  rewritten along with the separators around it. Such a file parses as a
+  single line today, so there is no working behavior to protect.
+
 Two rules follow for new parser code:
 
 - **Do not add your own line-ending handling to a language parser.** By the
@@ -353,22 +379,42 @@ Two rules follow for new parser code:
   worst.
 - **A file read outside `shared.ReadSource` does not inherit this.** A parser
   that reaches for a second file with its own `os.ReadFile` -- a C/C++ header,
-  a sibling module, a tsconfig -- must call `shared.NormalizeLineEndings` on
-  those bytes itself. Five call sites do this today, and each one lost real
-  data without it: the C and C++ public-header scans (both strip line comments
-  with `(?m)//.*$`, which on a bare-CR header deletes from the first `//` to
-  end of file, so the file yields zero public-header roots); `goModulePath`,
-  which splits go.mod on `\n` and returns an empty module path for the whole
-  module when the file is one line; and the Python package-`__init__` scan,
-  which finds no `from ... import` statement and drops the
-  `python.package_init_export` root from every symbol the package re-exports.
-  The JavaScript sibling parser normalizes for consistency rather than for a
-  currently observable defect -- its consumers read names by byte offset, not
-  by line -- but its rows would otherwise all be 0.
+  a sibling module, a tsconfig, a Terragrunt include -- must call
+  `shared.NormalizeLineEndings` on those bytes itself. Six call sites do this
+  today. Five of them lost real data without it:
 
-The rewrite is length-preserving on purpose: a bare `\r` becomes `\n` in
-place and a CRLF pair is left intact, so a byte offset into the returned
-buffer still addresses the same byte on disk. The JSONC offset translator
+    - the C and C++ public-header scans, which strip line comments with
+      `(?m)//.*$`; on a bare-CR header that deletes from the first `//` to end
+      of file, so the file yields zero public-header roots;
+    - `goModulePath`, which splits `go.mod` on `\n` and returns an empty
+      module path for the whole module when the file arrives as one line;
+    - the Python package-`__init__` scan, which finds no `from ... import`
+      statement and drops the `python.package_init_export` root from every
+      symbol the package re-exports;
+    - the Terragrunt include-chain walk in `hcl/include_chain.go`, which reads
+      both the starting `terragrunt.hcl` and every parent it follows with its
+      own `os.ReadFile` and hands the bytes to `hclparse.ParseHCL`. `hclsyntax`
+      recognises only `\n` and `\r\n` as a newline -- its scanner defines
+      `Newline = '\r' ? '\n'` and terminates a `#` or `//` comment at
+      end-of-line -- so on a classic-Mac file one leading comment swallows the
+      rest of the file. Every `remote_state` block after it disappears, the
+      parse reports no error, and anything that does survive is stamped
+      `line_number` 1.
+
+  The sixth, the JavaScript sibling parser, normalizes for consistency rather
+  than for a currently observable defect -- its consumers read names by byte
+  offset, not by line -- but its rows would otherwise all be 0.
+
+  Note that a text fallback can mask one of these and hide the loss. The
+  include walk recovers its parent target through a raw-source regex
+  (`collectNormalizedHelperPaths`) that never looks at line endings, so the
+  include *declaration* survived a bare-CR file by accident while the
+  `remote_state` *block*, which has no such fallback, did not. Do not read a
+  passing end-to-end case as proof the parse is intact.
+
+The rewrite is length-preserving on purpose: a `\r` becomes `\n` in place and
+no byte is added or removed, so a byte offset into the returned buffer still
+addresses the same byte on disk. The JSONC offset translator
 (#5358), the SQL entity spans and every `IndexSource` snippet depend on that.
 Collapsing CRLF to LF would shift all of them, which is why normalization
 stops at the bare CR.
