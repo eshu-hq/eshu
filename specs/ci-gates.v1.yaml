@@ -260,13 +260,14 @@ gates:
       - "scripts/verify-agent-canon.sh"
       - "scripts/test-verify-agent-hygiene.sh"
       - "scripts/test-agent-hooks.sh"
+      - "scripts/test-goal-continue-hook.sh"
     local:
       command: "bash scripts/verify-agent-canon.sh"
       # Both mirrors. .claude/hooks/** is a trigger for this gate, so a hook
       # change selects it -- but running only the canon mirror would skip the
       # behavioural hook suite, and an exit-code or routing regression would
       # first appear in Actions despite being credential-free.
-      test_command: "bash scripts/test-verify-agent-hygiene.sh && bash scripts/test-agent-hooks.sh"
+      test_command: "bash scripts/test-verify-agent-hygiene.sh && bash scripts/test-agent-hooks.sh && bash scripts/test-goal-continue-hook.sh"
     ci:
       workflow: verify-agent-hygiene.yml
       job: "Agent hygiene gate"

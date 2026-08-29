@@ -1,0 +1,153 @@
+#!/usr/bin/env bash
+# Behavioural mirror for .claude/hooks/goal-continue.sh (the Stop hook).
+#
+# This hook can REFUSE to end a session, so its failure mode is the most
+# annoying one available: a wedged turn the owner has to break out of. Every
+# fail-open path below is therefore load-bearing -- no goal file, an empty one,
+# malformed JSON, empty stdin, or a missing python3 must all allow the stop.
+#
+# The suite is split in two halves:
+#   1. core        -- the nudge itself, the budget, and every fail-open path.
+#   2. blocked     -- the BLOCKED: escape and its liveness witness.
+set -uo pipefail
+
+repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+HOOK="${repo_root}/.claude/hooks/goal-continue.sh"
+
+work="$(mktemp -d)"
+trap 'rm -rf "${work}"' EXIT
+mkdir -p "${work}/.claude"
+goal="${work}/goal"
+passed=0
+failed=0
+sid="goalhook-$$"
+
+payload() { # prompt_id
+	printf '{"session_id":"%s","prompt_id":"%s","stop_hook_active":false,"cwd":"%s","hook_event_name":"Stop"}' \
+		"${sid}" "$1" "${work}"
+}
+
+run() { printf '%s' "$1" | CLAUDE_GOAL_FILE="${goal}" bash "${HOOK}" 2>/dev/null; }
+
+ok() { printf 'ok - %s\n' "$1"; passed=$((passed + 1)); }
+no() { printf 'not ok - %s\n' "$1"; failed=$((failed + 1)); }
+
+check() { # label expect(block|allow) output
+	local label="$1" expect="$2" out="$3" got
+	if printf '%s' "${out}" | rg -q '"decision"[[:space:]]*:[[:space:]]*"block"'; then
+		got=block
+	else
+		got=allow
+	fi
+	if [[ "${got}" == "${expect}" ]]; then
+		ok "${label} (${got})"
+	else
+		no "${label} (got ${got}, want ${expect})"
+	fi
+}
+
+[[ -f "${HOOK}" ]] || { printf 'not ok - hook missing at %s\n' "${HOOK}"; exit 1; }
+[[ -x "${HOOK}" ]] || no "hook is executable"
+bash -n "${HOOK}" || no "hook parses"
+
+# ── 1. core ────────────────────────────────────────────────────────────────
+
+rm -f "${goal}"
+check "no goal file allows the stop" allow "$(run "$(payload p1)")"
+
+: >"${goal}"
+check "empty goal file allows the stop" allow "$(run "$(payload p2)")"
+
+printf 'Drive PR 6310 to merged.\n' >"${goal}"
+out="$(run "$(payload p3)")"
+check "an active goal blocks the stop" block "${out}"
+
+if printf '%s' "${out}" | rg -q 'Drive PR 6310'; then
+	ok "the block reason quotes the goal text"
+else
+	no "the block reason quotes the goal text"
+fi
+
+if printf '%s' "${out}" | python3 -c 'import json,sys; json.load(sys.stdin)' 2>/dev/null; then
+	ok "stdout is valid JSON"
+else
+	no "stdout is valid JSON"
+fi
+
+printf 'DONE\nDrive PR 6310 to merged.\n' >"${goal}"
+check "DONE on the first line allows the stop" allow "$(run "$(payload p4)")"
+
+# The budget is keyed on prompt_id, so it bounds continuations per USER
+# MESSAGE. Without that a stuck agent could spin on one prompt forever.
+printf 'Keep going.\n' >"${goal}"
+blocks=0
+for _ in 1 2 3 4 5; do
+	printf '%s' "$(run "$(payload budget)")" | rg -q '"block"' && blocks=$((blocks + 1))
+done
+if [[ "${blocks}" -eq 3 ]]; then
+	ok "the budget stops after 3 nudges for one prompt_id"
+else
+	no "the budget stops after 3 nudges for one prompt_id (got ${blocks})"
+fi
+
+check "a new prompt_id gets a fresh budget" block "$(run "$(payload fresh)")"
+
+check "CLAUDE_GOAL_OFF=1 allows the stop" allow \
+	"$(printf '%s' "$(payload p7)" | CLAUDE_GOAL_OFF=1 CLAUDE_GOAL_FILE="${goal}" bash "${HOOK}" 2>/dev/null)"
+check "malformed JSON allows the stop" allow \
+	"$(printf 'not json' | CLAUDE_GOAL_FILE="${goal}" bash "${HOOK}" 2>/dev/null)"
+check "empty stdin allows the stop" allow \
+	"$(printf '' | CLAUDE_GOAL_FILE="${goal}" bash "${HOOK}" 2>/dev/null)"
+
+printf '%s' "$(payload p10)" | CLAUDE_GOAL_FILE="${goal}" bash "${HOOK}" >/dev/null 2>&1
+rc=$?
+if [[ "${rc}" -eq 0 ]]; then
+	ok "the hook exits 0 even when it blocks"
+else
+	no "the hook exits 0 even when it blocks (got ${rc})"
+fi
+
+# ── 2. the BLOCKED escape ──────────────────────────────────────────────────
+#
+# The agent writes the goal file, so a bare "I am blocked" would be a
+# self-issued permission slip. The escape is only worth having because the
+# claim is checkable: a named watcher pid must actually be running.
+
+printf 'Do the thing.\n' >"${goal}"
+check "a plain goal still blocks (control)" block "$(run "$(payload c1)")"
+
+printf 'BLOCKED: waiting on CI runners\nDo the thing.\n' >"${goal}"
+check "BLOCKED with a reason allows the stop" allow "$(run "$(payload b1)")"
+
+printf 'BLOCKED:\nDo the thing.\n' >"${goal}"
+check "BLOCKED with an empty reason still blocks" block "$(run "$(payload b2)")"
+
+sleep 300 &
+live_pid=$!
+printf 'BLOCKED: waiting on CI WATCH=%s\nDo the thing.\n' "${live_pid}" >"${goal}"
+check "BLOCKED naming a LIVE watcher allows the stop" allow "$(run "$(payload b3)")"
+
+kill "${live_pid}" 2>/dev/null
+wait "${live_pid}" 2>/dev/null
+printf 'BLOCKED: waiting on CI WATCH=%s\nDo the thing.\n' "${live_pid}" >"${goal}"
+dead_out="$(run "$(payload b4)")"
+check "BLOCKED naming a DEAD watcher still blocks" block "${dead_out}"
+
+# A dead watcher means nothing will wake the agent, so the refusal has to say
+# so -- otherwise the agent re-reads the same goal and stops again.
+if printf '%s' "${dead_out}" | rg -qi 'watcher'; then
+	ok "the dead-watcher refusal names the watcher"
+else
+	no "the dead-watcher refusal names the watcher"
+fi
+
+printf 'BLOCKED: waiting on GitHub runners\nDo the thing.\n' >"${goal}"
+audit="$(printf '%s' "$(payload b5)" | CLAUDE_GOAL_FILE="${goal}" bash "${HOOK}" 2>&1 >/dev/null)"
+if printf '%s' "${audit}" | rg -q 'waiting on GitHub runners'; then
+	ok "the claimed BLOCKED reason is echoed for audit"
+else
+	no "the claimed BLOCKED reason is echoed for audit"
+fi
+
+printf '\ngoal-continue hook mirror: %s passed, %s failed\n' "${passed}" "${failed}"
+[[ "${failed}" -eq 0 ]]

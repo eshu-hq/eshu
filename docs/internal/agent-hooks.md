@@ -29,6 +29,7 @@ rebuilding the whole snapshot, which only works for a hook that needs no path.
 | `skill-loaded.sh` | Claude | PostToolUse on `Skill` | side effect | Records which skills were loaded this session |
 | `guard-live-gate.sh` | Claude | PreToolUse on Bash | **blocking** | Blocks a second live gate on the default ports |
 | `on-compact.sh` | Claude | SessionStart, compact or resume | advisory | Points a re-grounded session at `eshu-session-lifecycle` |
+| `goal-continue.sh` | Claude | Stop | **blocking** | Refuses to end the turn while `.claude/active-goal` names unfinished work, and hands the goal back. |
 
 ## Why the nudge blocks instead of suggesting
 
@@ -126,6 +127,41 @@ The fallback is bounded because the requirement is per `(session, skill)`, not
 per edit: load `golang-engineering` once and every later Go edit in that session
 passes untouched. Non-Go paths nobody claims stay silent, and that stays
 deliberate — a hook that fires on everything gets ignored.
+
+## The Stop hook, and why its escape is checkable
+
+`goal-continue.sh` exists because prose did not fix idling. An agent with a
+multi-step goal would finish one step, report, and wait for the owner to type
+"continue" — over and over. AGENTS.md said not to; the model drifted past it.
+A Stop hook is the enforcement point, because it runs whether or not the model
+remembered the rule.
+
+It reads `.claude/active-goal` (or `$CLAUDE_GOAL_FILE`, or `~/.claude/active-goal`)
+and, if that file names unfinished work, returns
+`{"decision":"block","reason":...}` with the goal text and the three legitimate
+reasons to stop: the goal is met, an irreversible act needs consent, or the work
+is blocked on something no local action clears.
+
+The design problem is that **the agent writes the goal file**. Every escape has
+to survive that:
+
+| Escape | Why it is safe to trust |
+|---|---|
+| `DONE` on the first line | Checkable against the work itself. |
+| `BLOCKED: <reason>` | The reason is echoed to stderr, so the owner reads the exact claim rather than only seeing the turn end. |
+| `BLOCKED: … WATCH=<pid>` | The hook verifies the process is alive. **A dead watcher REFUSES the stop** — nothing would wake the agent, so waiting is the bug rather than the excuse. |
+| `CLAUDE_GOAL_OFF=1` | Owner-side, not agent-side. |
+| budget | At most three continuations per `prompt_id`, so a new owner message resets it and a stuck agent cannot spin on one prompt. |
+
+The general rule, worth applying to any gate with an override: ask who authors
+the override value. If it is the party being constrained, attach evidence the
+gate can verify itself, and prefer refusing on a failed check over allowing on
+an unchecked assertion.
+
+Every parse failure allows the stop — no goal file, an empty one, malformed
+JSON, empty stdin, no `python3`. A hook that can refuse to end a session must
+never be the reason a session breaks. `scripts/test-goal-continue-hook.sh`
+covers all of it, and the `agent-canon` gate runs it.
 
 ## Installing
 
