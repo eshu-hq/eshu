@@ -53,7 +53,9 @@ group on its own.
 
 The production dispatch reaches its narrowed half through one helper,
 `narrowedWholeScopeRepoIDs`, which is now the only place
-`logWholeScopeRetractSkipped` is called from. A domain outside the narrowed half
+`logWholeScopeRetractSkipped` is called from. (That dispatch lived in
+`RetractEdges` when this section was written; the rebase below moved it into
+`retractFencedRepoWideDomain` without changing the binding.) A domain outside the narrowed half
 gets an error there, not a skip: skipping would be a silent lost retract, which
 is the failure the whole mechanism exists to make visible.
 
@@ -182,3 +184,70 @@ and changes no logging condition.
 
 Refs #6276
 Refs #6261
+
+## Rebase onto #6299/#6300 — the dispatch moved, the binding did not
+
+`origin/main` gained `retractFencedRepoWideDomain` (#6299/#6300), which lifted
+the four narrowed domains out of `RetractEdges` into one function and gave each
+of them a whole-scope tail AFTER its delta statements, so a full-generation
+sibling repository in a mixed batch stops being dropped. This branch had
+narrowed those same four branches in place. The conflict was resolved by keeping
+`origin/main`'s extraction and re-applying this branch's table binding on top,
+not by taking either side whole:
+
+- The four NON-delta whole-scope paths inside `retractFencedRepoWideDomain` now
+  call `narrowedWholeScopeRepoIDs`, so `logWholeScopeRetractSkipped` still has
+  exactly one caller.
+- The four DELTA tails keep calling `collectWholeScopeRefreshRepoIDs` directly.
+  They deliberately log no skip — an empty list there is the ordinary all-delta
+  batch, not an anomaly — so routing them through the logging helper would
+  invent a warning. `TestWholeScopeNarrowingHasOneSanctionedCallSite` names
+  `retractFencedRepoWideDomain` with count `4` for that callee, one per narrowed
+  domain, so a fifth hand-rolled site still reddens.
+- The domain guard is now the table rather than a second literal: the
+  `switch domain { case DomainInheritanceEdges, … }` head became
+  `if !isWholeScopeNarrowedDomain(domain)`, which is what the issue asked for.
+  A domain registered as narrowed with no branch would otherwise fall through to
+  the batch-wide repo-keyed group — the #6166 over-delete — so the fall-out at
+  the end of the function returns `handled=true` with an error naming the table
+  instead of `false, nil`.
+
+Verification after the rebase and after the final edit, exit codes captured
+directly:
+
+```
+$ cd go && go build ./...                                          exit 0
+$ cd go && go vet ./...                                            exit 0
+$ cd go && go test ./internal/storage/cypher/ ./internal/reducer/ -count=1
+ok  	github.com/eshu-hq/eshu/go/internal/storage/cypher	1.349s
+ok  	github.com/eshu-hq/eshu/go/internal/reducer	2.933s
+exit 0
+$ git diff --check                                                 exit 0
+```
+
+### Mutation proof, re-run against the rebased shape
+
+`go vet` clean on each mutant first, so the red is an assertion and not a build
+error. All restored to green afterwards.
+
+| Mutation | subs | `go vet` | test | What reddened |
+| --- | ---: | ---: | ---: | --- |
+| eighth domain added to the reducer fence, absent from the table | 1 | 0 | 1 | `…CoversFencedSet`: "mutation_probe_domain is fenced by the reducer's repo-wide retract but absent from wholeScopeRetractDomains" |
+| `DomainHandlesRoute: false` to `true` — narrowed in the table, no branch in the dispatch | 1 | 0 | 1 | `…NilFenceShapeSkipsWholeScopeDelete/handles_route`: "domain \"handles_route\" is narrowed in wholeScopeRetractDomains … but retractFencedRepoWideDomain has no branch for it" |
+| hand-rolled narrowing in the `repo_dependency` branch, bypassing the helper | 1 | 0 | 1 | `…HasOneSanctionedCallSite`: "collectWholeScopeRefreshRepoIDs is called 1 time(s) from UNSANCTIONED caller RetractEdges" |
+
+The second row is the one the rebase created and the old shape could not catch:
+before this resolution, a table row with no dispatch branch fell through to the
+batch-wide list silently.
+
+No-Regression Evidence: the resolution changes no Cypher text, no bound
+parameter, and no statement builder. Both sides' behaviour is preserved — the
+delta tails from #6299 still run, and the #6166 narrowing still binds
+`collectWholeScopeRefreshRepoIDs` on every non-delta path. The added work is one
+lookup in a seven-entry map per retract call, off the per-row path. The
+package's retract suites pass unchanged (`go test ./internal/storage/cypher
+-count=1`, exit 0).
+
+No-Observability-Change: no metric, span, or log line changes.
+`logWholeScopeRetractSkipped` keeps its message, its fields, its firing
+condition, and its single caller.
