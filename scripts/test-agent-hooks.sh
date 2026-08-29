@@ -476,6 +476,10 @@ want = [
     ("PreToolUse",   "Edit|MultiEdit|Write",    "skill-nudge.sh"),
     ("PreToolUse",   "Bash",                    "guard-live-gate.sh"),
     ("SessionStart", "compact|resume",          "on-compact.sh"),
+    # Stop groups carry no matcher, so the registration stores no "matcher"
+    # key and group.get("matcher") is None. Comparing against None is the
+    # assertion, not a placeholder for one.
+    ("Stop",         None,                      "goal-continue.sh"),
 ]
 bad = []
 for event, matcher, name in want:
