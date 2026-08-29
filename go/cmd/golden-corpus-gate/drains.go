@@ -237,6 +237,11 @@ func residualBreakdownCountsSQL() string {
 	return residualBreakdownColumnsSQL + residualBreakdownScopeSQL
 }
 
+// #nosec G202 -- every operand is a compile-time constant: the two SQL halves
+// above are untyped string constants, and residualMessageAggregateSQL formats
+// only residualMessageColumnSQL (a constant) and residualMessageFetchLen (an
+// int constant). No caller input, query parameter, or database value reaches
+// this string, so there is no injection surface for the concatenation to open.
 var residualBreakdownSQL = residualBreakdownColumnsSQL + ",\n       " +
 	residualMessageAggregateSQL() + residualBreakdownScopeSQL
 
