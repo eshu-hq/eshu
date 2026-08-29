@@ -4,6 +4,7 @@
 package projector
 
 import (
+	"reflect"
 	"testing"
 	"time"
 
@@ -121,6 +122,50 @@ func TestBuildProjectionQueuesKubernetesNamespaceReconciliationIntentForComplete
 		return
 	}
 	t.Fatalf("no kubernetes namespace reconciliation intent enqueued for complete empty snapshot; intents=%+v", projection.reducerIntents)
+}
+
+func TestBuildProjectionPreservesKubernetesNamespaceFactAnchorAndCompleteReconciliationPayload(t *testing.T) {
+	t.Parallel()
+
+	scopeValue := scope.IngestionScope{
+		ScopeID:       "k8s://prod-us-east-1",
+		ScopeKind:     scope.KindCluster,
+		SourceSystem:  "kubernetes_live",
+		CollectorKind: scope.CollectorKubernetesLive,
+		Metadata:      map[string]string{"cluster_id": "prod-us-east-1"},
+	}
+	generation := scope.ScopeGeneration{
+		ScopeID:       scopeValue.ScopeID,
+		GenerationID:  "k8s-generation-complete-nonempty",
+		ObservedAt:    time.Date(2026, time.May, 15, 10, 0, 0, 0, time.UTC),
+		IngestedAt:    time.Date(2026, time.May, 15, 10, 0, 1, 0, time.UTC),
+		Status:        scope.GenerationStatusPending,
+		FreshnessHint: "complete",
+	}
+
+	projection, err := buildProjection(scopeValue, generation, []facts.Envelope{
+		kubernetesNamespaceEnvelope("fact-namespace-complete-1", scopeValue.ScopeID, generation.GenerationID),
+	})
+	if err != nil {
+		t.Fatalf("buildProjection() error = %v, want nil", err)
+	}
+	for _, intent := range projection.reducerIntents {
+		if intent.Domain != reducer.DomainKubernetesNamespaceMaterialization {
+			continue
+		}
+		if got, want := intent.FactID, "fact-namespace-complete-1"; got != want {
+			t.Fatalf("intent.FactID = %q, want %q", got, want)
+		}
+		wantPayload := map[string]any{
+			"cluster_id":         "prod-us-east-1",
+			"reconcile_complete": true,
+		}
+		if !reflect.DeepEqual(intent.Payload, wantPayload) {
+			t.Fatalf("intent.Payload = %#v, want %#v", intent.Payload, wantPayload)
+		}
+		return
+	}
+	t.Fatalf("no kubernetes namespace reconciliation intent assembled for complete nonempty snapshot; intents=%+v", projection.reducerIntents)
 }
 
 func TestBuildProjectionDoesNotReconcileKubernetesNamespacesForPartialEmptySnapshot(t *testing.T) {

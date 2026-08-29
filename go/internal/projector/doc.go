@@ -19,10 +19,9 @@
 // ownership still project canonical and reducer-owned evidence but do not write
 // repository content rows or source ref metadata.
 // The neutral internal/projector/intent contract is the boundary for extracted
-// reducer-intent family packages. Azure, GCP, and security family builders live
-// in internal/projector/azure, internal/projector/gcp, and
-// internal/projector/security; this root package owns lookup construction and
-// lifetime, family assembly, and enqueue.
+// reducer-intent family packages. Azure, GCP, Kubernetes, and security builders
+// live in their internal/projector child packages; this root package owns
+// lookup construction and lifetime, family assembly, and enqueue.
 // OCI registry projection keeps digest-addressed manifests, indexes, and
 // descriptors as canonical identity while treating tags as mutable weak
 // observations that can enrich queries but do not mint image identity.

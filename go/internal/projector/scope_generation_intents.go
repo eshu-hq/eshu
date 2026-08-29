@@ -7,6 +7,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/facts"
 	projectorazure "github.com/eshu-hq/eshu/go/internal/projector/azure"
 	projectorgcp "github.com/eshu-hq/eshu/go/internal/projector/gcp"
+	projectorkubernetes "github.com/eshu-hq/eshu/go/internal/projector/kubernetes"
 	projectorsecurity "github.com/eshu-hq/eshu/go/internal/projector/security"
 	"github.com/eshu-hq/eshu/go/internal/scope"
 )
@@ -142,16 +143,16 @@ func appendScopeGenerationReducerIntents(
 	if intent, ok := projectorsecurity.BuildSecurityAlertReconciliationReducerIntent(scopeValue.ScopeID, generation.GenerationID, index.lookup); ok {
 		intents = append(intents, intent)
 	}
-	if intent, ok := buildKubernetesCorrelationReducerIntent(scopeValue, generation, index); ok {
+	if intent, ok := projectorkubernetes.BuildCorrelationReducerIntent(scopeValue.ScopeID, generation.GenerationID, index.lookup); ok {
 		intents = append(intents, intent)
 	}
-	if intent, ok := buildKubernetesWorkloadMaterializationReducerIntent(scopeValue, generation, index); ok {
+	if intent, ok := projectorkubernetes.BuildWorkloadMaterializationReducerIntent(scopeValue.ScopeID, generation.GenerationID, index.lookup); ok {
 		intents = append(intents, intent)
 	}
-	if intent, ok := buildKubernetesNamespaceMaterializationReducerIntent(scopeValue, generation, index); ok {
+	if intent, ok := projectorkubernetes.BuildNamespaceMaterializationReducerIntent(scopeValue, generation, index.lookup); ok {
 		intents = append(intents, intent)
 	}
-	if intent, ok := buildKubernetesCorrelationMaterializationReducerIntent(scopeValue, generation, index); ok {
+	if intent, ok := projectorkubernetes.BuildCorrelationMaterializationReducerIntent(scopeValue.ScopeID, generation.GenerationID, index.lookup); ok {
 		intents = append(intents, intent)
 	}
 	if intent, ok := buildCrossplaneSatisfiedByMaterializationReducerIntent(scopeValue, generation, index); ok {
