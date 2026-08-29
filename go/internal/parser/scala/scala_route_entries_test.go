@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package parser
+package scala_test
 
 import (
 	"path/filepath"
@@ -25,12 +25,12 @@ GET     /assets/*file     controllers.Assets.versioned(path="/public", file: Ass
 `,
 	)
 
-	engine, err := DefaultEngine()
+	engine, err := defaultEngine()
 	if err != nil {
 		t.Fatalf("DefaultEngine() error = %v, want nil", err)
 	}
 
-	got, err := engine.ParsePath(repoRoot, sourcePath, false, Options{IndexSource: true})
+	got, err := engine.ParsePath(repoRoot, sourcePath, false, parserOptions{IndexSource: true})
 	if err != nil {
 		t.Fatalf("ParsePath(%s) error = %v, want nil", sourcePath, err)
 	}
@@ -70,12 +70,12 @@ object ReportRoutes {
 `,
 	)
 
-	engine, err := DefaultEngine()
+	engine, err := defaultEngine()
 	if err != nil {
 		t.Fatalf("DefaultEngine() error = %v, want nil", err)
 	}
 
-	got, err := engine.ParsePath(repoRoot, sourcePath, false, Options{IndexSource: true})
+	got, err := engine.ParsePath(repoRoot, sourcePath, false, parserOptions{IndexSource: true})
 	if err != nil {
 		t.Fatalf("ParsePath(%s) error = %v, want nil", sourcePath, err)
 	}
