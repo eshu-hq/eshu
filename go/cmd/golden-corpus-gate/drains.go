@@ -178,21 +178,72 @@ func pollUntilDrained(
 // residualRow is one (domain, status, failure_class) group of work items left
 // behind when the drain gave up. The drain already counts these rows; grouping
 // them costs one extra query and turns an unactionable number into a diagnosis.
+//
+// FailureMessage carries the error text behind the group. failure_class is a
+// triage bucket the projector assigns ("projection_bug", "input_invalid"), not
+// the failure: a real reducer defect and a machine-contention timeout both land
+// in the same bucket. The gate destroys its Postgres and its temp dir on exit,
+// so the moment this row is not printed the error text is unrecoverable and the
+// two are indistinguishable afterwards (#6306).
 type residualRow struct {
 	Domain       string
 	Status       string
 	FailureClass string
 	Count        int64
+	// FailureMessage is the distinct failure_message text for this group,
+	// already collapsed and length-bounded by residualBreakdownSQL. Empty when
+	// no row in the group recorded one (a pending row never failed).
+	FailureMessage string
 }
 
 // residualBreakdownSQL groups whatever the residual count counted. Same
 // predicate as factWorkItemsResidualSQL so the totals cannot disagree.
-const residualBreakdownSQL = `
-SELECT domain, status, COALESCE(failure_class, ''), count(*)
+//
+// The message column aggregates WITHIN the existing grouping rather than
+// joining failure_message into the GROUP BY. That keeps the returned row count
+// byte-identical to what it was before messages existed, which matters because
+// ResidualWorkItems hands these same rows to the zero-correlation diagnosis: a
+// finer grouping would have silently changed that unrelated message too. That
+// is measured, not assumed: the live differential runs this query beside
+// residualBreakdownCountsSQL and compares the four columns row by row.
+// string_agg ignores NULL inputs, so a group of pending rows aggregates to NULL
+// and COALESCE renders it as no message rather than a literal "<nil>".
+//
+// The query is assembled from two halves so a test can rebuild the pre-message
+// query by derivation instead of hand-copying it, which is how a frozen
+// differential goes quietly false-green.
+const (
+	// residualBreakdownColumnsSQL is the four columns the breakdown returned
+	// before it carried a message, and the four EvaluateDrains's number is
+	// reconciled against.
+	residualBreakdownColumnsSQL = `SELECT domain, status, COALESCE(failure_class, ''), count(*)`
+
+	// residualBreakdownScopeSQL is the row-set half: the drain's residual
+	// predicate, its grouping, and its order. Shared verbatim by the shipped
+	// query and by the reference query the live differential compares against.
+	residualBreakdownScopeSQL = `
 FROM fact_work_items
 WHERE status NOT IN ('succeeded', 'superseded')
 GROUP BY domain, status, COALESCE(failure_class, '')
 ORDER BY count(*) DESC, domain, status`
+)
+
+// residualBreakdownCountsSQL is the breakdown WITHOUT the message column: the
+// query as it stood before #6306. The live differential runs it beside the
+// shipped one to prove the message column changed the output and not the row
+// set. Derived from the same two constants, so it cannot drift away from
+// production and start proving nothing.
+func residualBreakdownCountsSQL() string {
+	return residualBreakdownColumnsSQL + residualBreakdownScopeSQL
+}
+
+// #nosec G202 -- every operand is a compile-time constant: the two SQL halves
+// above are untyped string constants, and residualMessageAggregateSQL formats
+// only residualMessageColumnSQL (a constant) and residualMessageFetchLen (an
+// int constant). No caller input, query parameter, or database value reaches
+// this string, so there is no injection surface for the concatenation to open.
+var residualBreakdownSQL = residualBreakdownColumnsSQL + ",\n       " +
+	residualMessageAggregateSQL() + residualBreakdownScopeSQL
 
 // readinessDeferredFailureClasses are the failure classes a work item
 // self-assigns when a readiness gate defers it: it is waiting for an upstream
@@ -250,11 +301,7 @@ func formatResidualBreakdown(rows []residualRow) string {
 		default:
 			live += row.Count
 		}
-		detail := fmt.Sprintf("%s/%s", row.Domain, row.Status)
-		if row.FailureClass != "" {
-			detail += "/" + row.FailureClass
-		}
-		details = append(details, fmt.Sprintf("%s=%d", detail, row.Count))
+		details = append(details, fmt.Sprintf("%s=%d", residualGroupLabel(row), row.Count))
 	}
 
 	summary := fmt.Sprintf("live=%d readiness-deferred=%d dead_letter=%d failed=%d", live, deferred, deadLetter, failed)
@@ -265,7 +312,7 @@ func formatResidualBreakdown(rows []residualRow) string {
 	if live == 0 && deferred > 0 && deadLetter == 0 && failed == 0 {
 		summary += " — no live work remained: every residual row is waiting on a readiness precondition, so more drain time would not have helped"
 	}
-	return summary + " [" + strings.Join(details, " ") + "]"
+	return summary + " [" + strings.Join(details, " ") + "]" + formatResidualMessages(rows)
 }
 
 // ResidualBreakdown implements drainQuerier.
@@ -279,7 +326,7 @@ func (q *sqlDrainQuerier) ResidualBreakdown(ctx context.Context) ([]residualRow,
 	var out []residualRow
 	for rows.Next() {
 		var r residualRow
-		if err := rows.Scan(&r.Domain, &r.Status, &r.FailureClass, &r.Count); err != nil {
+		if err := rows.Scan(&r.Domain, &r.Status, &r.FailureClass, &r.Count, &r.FailureMessage); err != nil {
 			return nil, fmt.Errorf("scan residual breakdown: %w", err)
 		}
 		out = append(out, r)

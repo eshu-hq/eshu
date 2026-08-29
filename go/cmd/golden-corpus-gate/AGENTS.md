@@ -37,6 +37,44 @@ LLM-assistant companion to `README.md`. Read this before editing any file in
   subset is reported because B-13 (#3859) made it the primary drain signal. If
   the queue contract changes in `go/internal/storage/postgres`, update the SQL in
   `drains.go` and its rationale comment.
+- **The residual breakdown prints the error text, and the bound is the reason it
+  can.** `failure_class` is a triage bucket ("projection_bug"), not the failure —
+  a real reducer defect and a machine-contention timeout land in the same one, so
+  a count alone leaves a red run unattributable once the stack is torn down
+  (#6306). `residualBreakdownSQL` therefore also selects `failure_message`, and
+  `formatResidualBreakdown` prints it for at most `maxResidualMessageGroups`
+  groups, each cut to `residualMessageMaxLen` runes and flattened onto one line.
+  Keep all three bounds if you touch this: a 624-row residual must not become 624
+  messages, and error text must never emit something that reads as another gate
+  line. The message aggregates *within* the existing grouping rather than joining
+  `failure_message` into the `GROUP BY`, so the returned row count is unchanged —
+  `ResidualWorkItems` hands the same rows to the zero-correlation diagnosis, which
+  a finer grouping would have quietly rewritten.
+- **Two details of that query are load-bearing, and neither is visible from the
+  Go side.** The aggregate carries its own `ORDER BY` over the message
+  expression, because without one the concatenation order of a group holding
+  several distinct causes is unspecified — two runs over identical data could
+  then blame different things, which is worse than blaming nothing. Postgres
+  rejects an ordinal there (`in an aggregate with DISTINCT, ORDER BY expressions
+  must appear in argument list`), so the expression is repeated verbatim. And
+  the query returns `residualMessageFetchLen` = budget **+ 1** characters, after
+  collapsing whitespace *in SQL*: the extra character is how
+  `truncateResidualMessage` tells a message that ended at the budget from one
+  the database cut at it, and normalizing before the cut stops a Go-side flatten
+  from shrinking an already-cut message back under the budget, where it would
+  print with no truncation marker.
+- **The residual breakdown runs only after the drain has already failed, so it
+  needs its own live proof.** `make pre-pr` passing means the drain succeeded,
+  which means this query never ran. `drains_residual_breakdown_live_test.go`
+  executes the real `residualBreakdownSQL` against a disposable Postgres
+  (`ESHU_TEST_DRAIN_RESIDUAL_POSTGRES_DSN` +
+  `ESHU_TEST_DRAIN_RESIDUAL_POSTGRES_DISPOSABLE=1`, run command in the test's
+  doc comment) over NULL, empty, multiple-distinct, over-budget, and multi-line
+  messages, and differentials the first four columns against
+  `residualBreakdownCountsSQL()` — the pre-message query, *derived* from the
+  shipped halves rather than hand-copied. Asserting substrings of the SQL string
+  is not execution: a wrong column name or a rejected aggregate clause passes
+  every such test.
 - **Required vs advisory is the safety boundary.** Required findings fail the
   gate; advisory findings only warn. Node/edge count tolerances are now **required**
   (`-graph-required-only=false`, #3866) because the orchestrator runs the full
