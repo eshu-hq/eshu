@@ -113,6 +113,31 @@ the collector snapshot path.
 - No-Observability-Change (issue #3488): the walker writes only the existing
   `cyclomatic_complexity` function-entity field; it adds no metric, span, log,
   status field, env var, or graph query.
+- Benchmark Evidence (issue #6306): `NormalizeLineEndings` adds one scan to
+  every `ReadSource` return, so it sits on the per-file parse hot path.
+  Measured with `go test ./internal/parser/shared -run '^$' -bench
+  BenchmarkNormalizeLineEndings -benchtime 2000x -count=5` on a 64 KiB body
+  (large for a parser input; the median repository source file is well under
+  8 KiB), darwin/arm64 Apple M4 Pro, go1.26.6, 12 usable CPUs, worktree
+  GOCACHE, best of five: LF
+  666ns/op and 0 allocs (one `bytes.IndexByte` that finds nothing, ~98 GB/s);
+  CRLF 7.74us/op and 0 allocs (hops CR to CR, allocates nothing because a CRLF
+  pair is never rewritten); bare CR 27.0us/op and 1 alloc of 73728 B, the only
+  case that copies. Compare against the parse it precedes, from `go test
+  ./internal/parser -run '^$' -bench 'BenchmarkParsePathPHPRouteHeavy|
+  BenchmarkParsePathGoIdentifierHeavy' -benchtime 30x -count=5` on the same
+  machine: 10.0ms/op for the PHP route-heavy file and 249ms/op for the Go
+  identifier-heavy one. `ReadSource` is called about twice per `ParsePath`, so
+  the added cost is roughly 1.3us against a >=10ms parse (about 0.013%) for
+  the LF files that are essentially all real input, and about 54us (about
+  0.5%) in the bare-CR case that previously produced wrong data. No new graph
+  write, queue operation, Cypher, lock, goroutine, or worker coordination.
+- No-Observability-Change (issue #6306): this package remains telemetry-free.
+  Normalization adds no metric, span, structured log, status field, env var,
+  or runtime knob; it changes only the bytes a language parser is handed, and
+  an LF or CRLF source is returned as the caller's own slice, so operator-
+  visible parse timing and failure signals stay on the existing collector
+  path.
 - Benchmark/No-Observability-Change evidence for the `ReadSource` single-read
   cache (`PrimeSource`/`ClearSource`) is recorded in the parent package
   README's "Single physical read per `ParsePath` call" section; this package
