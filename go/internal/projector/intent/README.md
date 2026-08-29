@@ -44,9 +44,9 @@ Go build or test process running, six same-command samples of
 `BenchmarkAppendScopeGenerationReducerIntentsFanOut` used distinct isolated
 `GOCACHE` directories. Exact base
 `f172823e99a0dcedea6a295e1ce7b0ef2fbf9cf0` measured 160,813-171,019 ns/op,
-74,928-74,930 B/op, and 178 allocs/op. Exact extracted checkpoint
-`ebb4327633a6b7f20f63001d317502b2aefa2ea1` measured 156,851-168,505 ns/op,
-74,928-74,930 B/op, and 178 allocs/op. The latency ranges overlap and the
+74,928-74,930 B/op, and 178 allocs/op. Published extracted checkpoint
+`6aab9ee0e17e7b79406ca43abb3cf609bce73a01` measured 156,646-159,664 ns/op,
+74,928-74,929 B/op, and 178 allocs/op. The latency ranges overlap and the
 allocation count is identical; this in-process benchmark observed no
 allocation regression. Its fixture contains 5,000 interleaved source-code
 decoys and produces 42 ordered intents across 44 builder probes. No graph
