@@ -261,10 +261,13 @@ func (s Service) runBatchConcurrent(
 // Fail/Ack infrastructure errors, it returns a non-nil error (fatal).
 //
 // The second return is whether the caller still owes this intent an
-// acknowledgment. It is false exactly when WorkSink.Fail has already
-// terminalized the row, so the caller must not ack it a second time; the
-// per-item path in service.go holds the same contract by returning early
-// after its own Fail call.
+// acknowledgment. When err is nil, it is false exactly when WorkSink.Fail has
+// already terminalized the row, so the caller must not ack it a second time.
+// The non-nil-error returns carry a don't-care false value: Fail may not have
+// terminalized the row at all, and on the heartbeat-error path the executor
+// actually succeeded and the row is still claimed. The per-item path in
+// service.go holds the same contract by returning early after its own Fail
+// call.
 func (s Service) executeAndReport(ctx context.Context, intent Intent, workerID int) (Result, bool, error) {
 	start := time.Now()
 	queueWait := reducerQueueWaitSeconds(start, intent.AvailableAt)
