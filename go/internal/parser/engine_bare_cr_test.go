@@ -133,7 +133,47 @@ func TestParsePathBareCRMatchesLFTruth(t *testing.T) {
 			},
 		},
 		{
-			name:     "yaml_line_comment_terminator",
+			// JSONC, Gradle and SQL are the three scanners #6268 patched
+			// individually on its own branch. That work is not on main, so
+			// these cases stand unfixed on this base and prove the single
+			// read-boundary normalization covers the same ground.
+			name:     "jsonc_line_comment_terminator",
+			fileName: "tsconfig.json",
+			lines: []string{
+				"{",
+				`  // compiler options for the app`,
+				`  "compilerOptions": {`,
+				`    "baseUrl": "./src"`,
+				"  }",
+				"}",
+			},
+		},
+		{
+			name:     "gradle_dependency_block",
+			fileName: "build.gradle",
+			lines: []string{
+				"// build script for the service",
+				"dependencies {",
+				`    implementation "com.example:widget:1.2.3"`,
+				`    implementation "com.example:gadget:4.5.6"`,
+				"}",
+			},
+		},
+		{
+			name:     "sql_statements_after_a_line_comment",
+			fileName: "migration.sql",
+			lines: []string{
+				"-- create the widget tables",
+				"CREATE TABLE widget (id int);",
+				"CREATE TABLE gadget (id int);",
+			},
+		},
+		{
+			// Control. yaml.v3 honours a bare CR as a line break on its own,
+			// so this case passes with and without the normalization; it is
+			// here to prove normalization does not perturb a language that
+			// was already correct, not as a regression for one that was not.
+			name:     "yaml_bare_cr_control",
 			fileName: "values.yaml",
 			lines: []string{
 				"# top banner comment",

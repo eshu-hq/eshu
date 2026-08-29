@@ -327,6 +327,49 @@ bound is logged (`javascript-family pre-scan file bounded` /
 `php pre-scan file bounded`) since pre-scan has no payload map to carry a
 `*_parse_bounded` row.
 
+## Line Endings
+
+`shared.ReadSource` is the single read boundary every language `Parse` in
+`go/internal/parser` goes through, and it rewrites a **bare carriage return**
+-- a `\r` with no `\n` after it -- to `\n` before any parser sees the bytes
+(#6306). LF and CRLF sources are returned unchanged, as the caller's own
+slice.
+
+This exists because nothing downstream treats a lone `\r` as a line break.
+tree-sitter advances `StartPosition().Row` only on `\n`, so on a classic-Mac
+file every AST-derived `line_number` in every language was 1; measured
+directly, three C functions on physical lines 1, 2 and 3 all reported row 0.
+`bufio.ScanLines` splits only on `\n` (it merely trims a trailing `\r`),
+and `strings.Split(src, "\n")`, `strings.IndexByte(rest, '\n')` and the
+`(?m)$` regex anchor share the same blind spot. The failure was silent
+throughout: a lockfile yielding zero dependencies, a header yielding zero
+public roots, or every row stamped line 1 -- never an error.
+
+Two rules follow for new parser code:
+
+- **Do not add your own line-ending handling to a language parser.** By the
+  time `Parse` has its bytes there is no bare CR left, so a `\r` case in a
+  scanner is dead weight at best and a second, divergent normalization at
+  worst.
+- **A file read outside `shared.ReadSource` does not inherit this.** A parser
+  that reaches for a second file with its own `os.ReadFile` -- a C/C++ header,
+  a sibling module, a tsconfig -- must call `shared.NormalizeLineEndings` on
+  those bytes itself. The C and C++ public-header scans do exactly this; both
+  strip line comments with `(?m)//.*$`, which on a bare-CR header deletes
+  from the first `//` to end of file.
+
+The rewrite is length-preserving on purpose: a bare `\r` becomes `\n` in
+place and a CRLF pair is left intact, so a byte offset into the returned
+buffer still addresses the same byte on disk. The JSONC offset translator
+(#5358), the SQL entity spans and every `IndexSource` snippet depend on that.
+Collapsing CRLF to LF would shift all of them, which is why normalization
+stops at the bare CR.
+
+Only the parser's view is normalized. The git collector hands its own raw
+bytes to the content snapshot whose digest becomes content identity, and
+`NormalizeLineEndings` never mutates its input, so content identity does not
+move for any file.
+
 ## Parser Worker Sizing
 
 Parser subsystems that fan work across goroutines size their worker pools from

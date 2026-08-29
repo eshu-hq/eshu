@@ -43,11 +43,25 @@ inference, parser runtime caching, or language-specific semantics.
 The godoc contract is in `doc.go` and `shared.go`. Current exports are
 `Options`, `GoImportedInterfaceParamMethods`, `GoDirectMethodCallRoots`,
 `GoPackageSemanticRoots`, `GoPackageSemanticRootOptions`, `BasePayload`, `ReadSource`,
-`PrimeSource`, `ClearSource`, `SetReadSourceHookForTest`,
+`NormalizeLineEndings`, `PrimeSource`, `ClearSource`, `SetReadSourceHookForTest`,
 `WalkNamed`, `NodeText`, `NodeLine`, `NodeEndLine`, `CloneNode`,
 `AppendBucket`, `SortNamedBucket`, `SortNamedMaps`, `CollectBucketNames`,
 `IntValue`, `LastPathSegment`, `DedupeNonEmptyStrings`, `BranchNodeSet`,
 `NewBranchNodeSet`, and `CyclomaticComplexity`.
+
+`NormalizeLineEndings` rewrites a bare carriage return -- a `\r` with no `\n`
+after it -- to `\n`, and returns an LF or CRLF source untouched as the
+caller's own slice. `ReadSource` applies it to every buffer it returns, on the
+cached path as well as the disk path, so no language parser in this tree ever
+sees a classic-Mac line ending (#6306). Without it tree-sitter reports row 0
+for every node in such a file and each hand-rolled `\n` scanner treats the
+whole file as one line, silently. The rewrite is length-preserving, which is
+what keeps downstream byte offsets (the JSONC offset translator, SQL entity
+spans, `IndexSource` snippets) valid against the file on disk, and it never
+mutates its input, which is what keeps the git collector's content digest
+stable. A parser that reads a SECOND file with its own `os.ReadFile` -- a
+C/C++ header, a sibling module, a tsconfig -- does not go through `ReadSource`
+and must call `NormalizeLineEndings` itself.
 
 `PrimeSource`/`ClearSource` back the single-physical-read cache
 `Engine.ParsePath` uses so the language parser and the engine's

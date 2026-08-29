@@ -23,7 +23,10 @@
 // real complexity from data tables rather than per-language traversal code.
 //
 // ReadSource is the single physical-read chokepoint every child parser package
-// calls. PrimeSource/ClearSource let Engine.ParsePath cache one file's bytes
+// calls. Every buffer it returns passes through NormalizeLineEndings, which
+// rewrites a bare carriage return to '\n' and leaves LF and CRLF sources
+// byte-identical, so no language parser in this tree ever has to handle a
+// classic-Mac line ending itself (#6306). PrimeSource/ClearSource let Engine.ParsePath cache one file's bytes
 // for the duration of a single call so the dispatched language parser and the
 // engine's post-parse content-metadata inference share one os.ReadFile instead
 // of each reading independently. Callers of PrimeSource MUST pair it with
