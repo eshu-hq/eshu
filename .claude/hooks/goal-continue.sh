@@ -100,6 +100,29 @@ case "${first_line}" in
 	DONE*|done*) exit 0 ;;
 esac
 
+# A goal belongs to the session that set it. goal-refresh.sh writes a
+# `SESSION: <id>` header; without parsing it HERE, the header is read as
+# ordinary goal text and a later session in the same checkout gets blocked with
+# a previous session's stale goal -- the precise leak the header exists to stop.
+# Producer and consumer have to agree on the format; implementing it on one
+# side only is worse than not having it, because it reads as protection.
+#
+# An unheaded file is the owner's own hand-written goal and is honoured as-is,
+# which keeps the manual workflow working.
+case "${first_line}" in
+	SESSION:*)
+		goal_owner="${first_line#SESSION:}"
+		goal_owner="${goal_owner# }"
+		[ "${goal_owner}" = "${session_id}" ] || exit 0
+		goal="$(printf '%s\n' "${goal}" | tail -n +2)"
+		[ -n "${goal}" ] || exit 0
+		first_line="$(printf '%s\n' "${goal}" | head -1)"
+		case "${first_line}" in
+			DONE*|done*) exit 0 ;;
+		esac
+		;;
+esac
+
 # BLOCKED: <reason> releases the stop when the work is genuinely waiting on
 # something outside this machine -- a CI run, a remote queue, another person.
 # Without it the hook nags for local action that does not exist, which teaches

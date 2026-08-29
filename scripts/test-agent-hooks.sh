@@ -480,6 +480,10 @@ want = [
     # key and group.get("matcher") is None. Comparing against None is the
     # assertion, not a placeholder for one.
     ("Stop",         None,                      "goal-continue.sh"),
+    # The producer/refresher. Without this triple a dropped registration
+    # would leave the goal never restated and the Stop hook never fed --
+    # correct and unreachable, the same way the Stop triple was missing.
+    ("UserPromptSubmit", None,                  "goal-refresh.sh"),
 ]
 bad = []
 for event, matcher, name in want:
@@ -583,6 +587,28 @@ else
   printf 'FAIL - on-compact should be silent outside the repo; got: %s\n' "$out" >&2
   failed=$((failed + 1))
 fi
+
+# --- CI/local parity for the hook suites ------------------------------------
+# The agent-canon gate's test_command chains four scripts; the workflow must run
+# the same four. They drifted once already: two goal suites were chained locally
+# with no workflow step, so 40-odd cases ran in promotion and NOWHERE in
+# Actions. A passing test that never executes in CI is the most expensive kind
+# of green, so assert the steps rather than trusting them to stay.
+hygiene_wf="$repo_root/.github/workflows/verify-agent-hygiene.yml"
+for suite in \
+  test-verify-agent-hygiene.sh \
+  test-agent-hooks.sh \
+  test-goal-continue-hook.sh \
+  test-goal-refresh-hook.sh; do
+  if rg -Fq -- "scripts/$suite" "$hygiene_wf" 2>/dev/null; then
+    printf 'ok - verify-agent-hygiene.yml runs %s\n' "$suite"
+    passed=$((passed + 1))
+  else
+    printf 'FAIL - verify-agent-hygiene.yml has no step for %s (chained locally, absent in CI)\n' \
+      "$suite" >&2
+    failed=$((failed + 1))
+  fi
+done
 
 printf '\nagent-hooks test mirror: %s passed, %s failed, %s skipped\n' \
   "$passed" "$failed" "$skipped"
