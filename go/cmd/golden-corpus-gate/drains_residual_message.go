@@ -95,9 +95,17 @@ var residualMessageColumnSQL = fmt.Sprintf(
 // be an argument of a DISTINCT aggregate verbatim (an ordinal "ORDER BY 1" is
 // rejected: "in an aggregate with DISTINCT, ORDER BY expressions must appear in
 // argument list"), which is why the column expression appears twice.
+//
+// NULLIF is what keeps an empty message out of the join. string_agg skips NULL
+// inputs but treats ” as an ordinary distinct value, so a group holding both a
+// blank failure_message and a real one would aggregate to " | real error" --
+// empty sorts first -- and the formatter's Trim would leave a stray leading
+// "| ". Mapping ” to NULL drops it instead. It appears in the sort expression
+// too, because the DISTINCT-aggregate rule above requires the two to match
+// verbatim.
 func residualMessageAggregateSQL() string {
 	return fmt.Sprintf(
-		"COALESCE(left(string_agg(DISTINCT %[1]s, ' | ' ORDER BY %[1]s), %[2]d), '')",
+		"COALESCE(left(string_agg(DISTINCT NULLIF(%[1]s, ''), ' | ' ORDER BY NULLIF(%[1]s, '')), %[2]d), '')",
 		residualMessageColumnSQL, residualMessageFetchLen,
 	)
 }

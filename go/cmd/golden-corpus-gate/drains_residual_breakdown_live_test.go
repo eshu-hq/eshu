@@ -61,6 +61,10 @@ func TestResidualBreakdownLivePostgres(t *testing.T) {
 		// not the literal "<nil>" a naked Scan into string would produce.
 		{name: "null message", domain: "residual_null", want: ""},
 		{name: "empty message", domain: "residual_empty", want: ""},
+		// A blank message beside a real one must not survive as an aggregate
+		// element: NULLIF maps '' to NULL, string_agg skips it, and no leading
+		// separator reaches the printed line.
+		{name: "empty mixed with a real message", domain: "residual_mixed", want: "real error"},
 		// Distinct causes inside one group come back in a fixed order, so the
 		// cause printed for a red run cannot flip between identical runs.
 		{
@@ -187,6 +191,12 @@ func seedResidualWorkItems(t *testing.T, ctx context.Context, db *sql.DB) {
 		{id: "wi-null-1", domain: "residual_null", status: "pending"},
 		{id: "wi-null-2", domain: "residual_null", status: "pending"},
 		{id: "wi-empty", domain: "residual_empty", status: "dead_letter", failureClass: deadLetter, message: sql.NullString{String: "", Valid: true}},
+		// One group holding BOTH a blank message and a real one. Without NULLIF
+		// the blank is an ordinary distinct value that sorts first, so the
+		// aggregate yields " | real error" and the printed line keeps a stray
+		// leading separator.
+		{id: "wi-mixed-1", domain: "residual_mixed", status: "dead_letter", failureClass: deadLetter, message: sql.NullString{String: "", Valid: true}},
+		{id: "wi-mixed-2", domain: "residual_mixed", status: "dead_letter", failureClass: deadLetter, message: sql.NullString{String: "real error", Valid: true}},
 		{id: "wi-multi-1", domain: "residual_multi", status: "dead_letter", failureClass: deadLetter, message: sql.NullString{String: "zebra cause", Valid: true}},
 		{id: "wi-multi-2", domain: "residual_multi", status: "dead_letter", failureClass: deadLetter, message: sql.NullString{String: "apple cause", Valid: true}},
 		{id: "wi-multi-3", domain: "residual_multi", status: "dead_letter", failureClass: deadLetter, message: sql.NullString{String: "apple cause", Valid: true}},
