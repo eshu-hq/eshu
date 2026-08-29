@@ -371,17 +371,17 @@ for umbrella in go-race-complete go-core-complete; do
 	go-core-complete) dep="go-core" ;;
 	esac
 	block="$(job_block "${t}" "${umbrella}")"
-	if rg -qF "needs: [changes, ${dep}]" <<<"${block}"; then
+	if rg -qF "needs: [changes, ${dep}]" < <(printf '%s\n' "${block}"); then
 		ok "${umbrella} depends on both changes and ${dep}"
 	else
 		bad "${umbrella} must declare needs: [changes, ${dep}]"
 	fi
-	if rg -qF 'if: ${{ always() }}' <<<"${block}"; then
+	if rg -qF 'if: ${{ always() }}' < <(printf '%s\n' "${block}"); then
 		ok "${umbrella} always reports (if: \${{ always() }})"
 	else
 		bad "${umbrella} must carry if: \${{ always() }} so it always reports"
 	fi
-	if rg -qF '!= "skipped"' <<<"${block}"; then
+	if rg -qF '!= "skipped"' < <(printf '%s\n' "${block}"); then
 		ok "${umbrella} accepts a skipped ${dep} as pass (required-check-safe)"
 	else
 		bad "${umbrella} treats result==skipped as pass"
@@ -396,8 +396,8 @@ for umbrella in go-race-complete go-core-complete; do
 	# A bare `exit 1` search over the whole job block is no good either: the
 	# SECOND guard (the lane-result check) carries its own `exit 1` and would
 	# satisfy it. So slice out just this guard's body and look inside it.
-	guard_body="$(awk '/"\$\{changes_result\}" != "success"/{f=1} f{print} f&&/^[[:space:]]*fi[[:space:]]*$/{exit}' <<<"${block}")"
-	if [[ -n "${guard_body}" ]] && rg -q '^\s*exit [1-9]' <<<"${guard_body}"; then
+	guard_body="$(awk '/"\$\{changes_result\}" != "success"/{f=1} f{print} f&&/^[[:space:]]*fi[[:space:]]*$/{exit}' < <(printf '%s\n' "${block}"))"
+	if [[ -n "${guard_body}" ]] && rg -q '^\s*exit [1-9]' < <(printf '%s\n' "${guard_body}"); then
 		ok "${umbrella} fails when the changes gate itself failed (guard exits non-zero)"
 	else
 		bad "${umbrella} changes_result guard must compare != \"success\" AND exit non-zero inside that same if-block"
