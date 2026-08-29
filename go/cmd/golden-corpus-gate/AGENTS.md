@@ -37,6 +37,19 @@ LLM-assistant companion to `README.md`. Read this before editing any file in
   subset is reported because B-13 (#3859) made it the primary drain signal. If
   the queue contract changes in `go/internal/storage/postgres`, update the SQL in
   `drains.go` and its rationale comment.
+- **The residual breakdown prints the error text, and the bound is the reason it
+  can.** `failure_class` is a triage bucket ("projection_bug"), not the failure —
+  a real reducer defect and a machine-contention timeout land in the same one, so
+  a count alone leaves a red run unattributable once the stack is torn down
+  (#6306). `residualBreakdownSQL` therefore also selects `failure_message`, and
+  `formatResidualBreakdown` prints it for at most `maxResidualMessageGroups`
+  groups, each cut to `residualMessageMaxLen` runes and flattened onto one line.
+  Keep all three bounds if you touch this: a 624-row residual must not become 624
+  messages, and error text must never emit something that reads as another gate
+  line. The message aggregates *within* the existing grouping rather than joining
+  `failure_message` into the `GROUP BY`, so the returned row count is unchanged —
+  `ResidualWorkItems` hands the same rows to the zero-correlation diagnosis, which
+  a finer grouping would have quietly rewritten.
 - **Required vs advisory is the safety boundary.** Required findings fail the
   gate; advisory findings only warn. Node/edge count tolerances are now **required**
   (`-graph-required-only=false`, #3866) because the orchestrator runs the full
