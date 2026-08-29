@@ -54,7 +54,7 @@ has() { rg -qF -- "$2" "$1"; }
 # line before the next 2-space job key.
 job_block() { awk -v j="  $2:" '$0==j{f=1;print;next} f&&/^  [A-Za-z]/{exit} f{print}' "$1"; }
 # job_gated <file> <job> — true if the job carries a `needs: changes` code gate.
-job_gated()    { job_block "$1" "$2" | rg -qF 'needs: changes'; }
+job_gated()    { job_block "$1" "$2" | rg -F 'needs: changes' >/dev/null; }
 job_alwayson() { ! job_gated "$1" "$2"; }
 
 # step_block and run_merge_group_checks (the merge_group / #5814 assertion
@@ -294,7 +294,7 @@ fi
 
 # --- security-scan.yml: keep the secret scan on, gate the Go scanners. ---
 s="${wf}/security-scan.yml"
-if has "${s}" 'dorny/paths-filter' && job_block "${s}" changes | rg -qF 'code: ${{ steps.filter.outputs.code }}'; then
+if has "${s}" 'dorny/paths-filter' && job_block "${s}" changes | rg -F 'code: ${{ steps.filter.outputs.code }}' >/dev/null; then
 	ok "security-scan.yml has a changes job exporting the code filter"
 else
 	bad "security-scan.yml has a changes job exporting code"
@@ -311,7 +311,7 @@ done
 
 # --- mcp-schema-drift.yml: keep the docs guard on, gate the Go drift jobs. ---
 m="${wf}/mcp-schema-drift.yml"
-if has "${m}" 'dorny/paths-filter' && job_block "${m}" changes | rg -qF 'code: ${{ steps.filter.outputs.code }}'; then
+if has "${m}" 'dorny/paths-filter' && job_block "${m}" changes | rg -F 'code: ${{ steps.filter.outputs.code }}' >/dev/null; then
 	ok "mcp-schema-drift.yml has a changes job exporting the code filter"
 else
 	bad "mcp-schema-drift.yml has a changes job exporting code"
