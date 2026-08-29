@@ -50,6 +50,19 @@ LLM-assistant companion to `README.md`. Read this before editing any file in
   `failure_message` into the `GROUP BY`, so the returned row count is unchanged —
   `ResidualWorkItems` hands the same rows to the zero-correlation diagnosis, which
   a finer grouping would have quietly rewritten.
+- **Two details of that query are load-bearing, and neither is visible from the
+  Go side.** The aggregate carries its own `ORDER BY` over the message
+  expression, because without one the concatenation order of a group holding
+  several distinct causes is unspecified — two runs over identical data could
+  then blame different things, which is worse than blaming nothing. Postgres
+  rejects an ordinal there (`in an aggregate with DISTINCT, ORDER BY expressions
+  must appear in argument list`), so the expression is repeated verbatim. And
+  the query returns `residualMessageFetchLen` = budget **+ 1** characters, after
+  collapsing whitespace *in SQL*: the extra character is how
+  `truncateResidualMessage` tells a message that ended at the budget from one
+  the database cut at it, and normalizing before the cut stops a Go-side flatten
+  from shrinking an already-cut message back under the budget, where it would
+  print with no truncation marker.
 - **Required vs advisory is the safety boundary.** Required findings fail the
   gate; advisory findings only warn. Node/edge count tolerances are now **required**
   (`-graph-required-only=false`, #3866) because the orchestrator runs the full

@@ -203,16 +203,42 @@ type residualRow struct {
 // joining failure_message into the GROUP BY. That keeps the returned row count
 // byte-identical to what it was before messages existed, which matters because
 // ResidualWorkItems hands these same rows to the zero-correlation diagnosis: a
-// finer grouping would have silently changed that unrelated message too.
+// finer grouping would have silently changed that unrelated message too. That
+// is measured, not assumed: the live differential runs this query beside
+// residualBreakdownCountsSQL and compares the four columns row by row.
 // string_agg ignores NULL inputs, so a group of pending rows aggregates to NULL
 // and COALESCE renders it as no message rather than a literal "<nil>".
-const residualBreakdownSQL = `
-SELECT domain, status, COALESCE(failure_class, ''), count(*),
-       COALESCE(left(string_agg(DISTINCT left(failure_message, 200), ' | '), 400), '')
+//
+// The query is assembled from two halves so a test can rebuild the pre-message
+// query by derivation instead of hand-copying it, which is how a frozen
+// differential goes quietly false-green.
+const (
+	// residualBreakdownColumnsSQL is the four columns the breakdown returned
+	// before it carried a message, and the four EvaluateDrains's number is
+	// reconciled against.
+	residualBreakdownColumnsSQL = `SELECT domain, status, COALESCE(failure_class, ''), count(*)`
+
+	// residualBreakdownScopeSQL is the row-set half: the drain's residual
+	// predicate, its grouping, and its order. Shared verbatim by the shipped
+	// query and by the reference query the live differential compares against.
+	residualBreakdownScopeSQL = `
 FROM fact_work_items
 WHERE status NOT IN ('succeeded', 'superseded')
 GROUP BY domain, status, COALESCE(failure_class, '')
 ORDER BY count(*) DESC, domain, status`
+)
+
+// residualBreakdownCountsSQL is the breakdown WITHOUT the message column: the
+// query as it stood before #6306. The live differential runs it beside the
+// shipped one to prove the message column changed the output and not the row
+// set. Derived from the same two constants, so it cannot drift away from
+// production and start proving nothing.
+func residualBreakdownCountsSQL() string {
+	return residualBreakdownColumnsSQL + residualBreakdownScopeSQL
+}
+
+var residualBreakdownSQL = residualBreakdownColumnsSQL + ",\n       " +
+	residualMessageAggregateSQL() + residualBreakdownScopeSQL
 
 // readinessDeferredFailureClasses are the failure classes a work item
 // self-assigns when a readiness gate defers it: it is waiting for an upstream

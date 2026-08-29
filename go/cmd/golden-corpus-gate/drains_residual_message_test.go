@@ -5,6 +5,7 @@ package main
 
 import (
 	"context"
+	"fmt"
 	"strings"
 	"testing"
 )
@@ -176,6 +177,71 @@ func TestResidualBreakdownSQLSelectsTheFailureMessage(t *testing.T) {
 	}
 	if !strings.Contains(residualBreakdownSQL, "left(") {
 		t.Errorf("residual breakdown query does not bound the message length:\n%s", residualBreakdownSQL)
+	}
+}
+
+// A group can hold several distinct causes — a contention timeout and a real
+// reducer defect can share a domain, status, and failure class. Without a sort
+// inside the aggregate, which of them survives the printed budget is
+// unspecified, so two runs over identical data can blame different things. That
+// is worse than blaming nothing, and no formatter test can catch it.
+func TestResidualBreakdownSQLOrdersMessagesDeterministically(t *testing.T) {
+	t.Parallel()
+
+	aggregate := residualMessageAggregateSQL()
+	if !strings.Contains(aggregate, " ORDER BY ") {
+		t.Fatalf("message aggregate has no sort, so its concatenation order is unspecified:\n%s", aggregate)
+	}
+	// Postgres rejects an ordinal here ("in an aggregate with DISTINCT, ORDER BY
+	// expressions must appear in argument list"), so the sort must repeat the
+	// column expression verbatim. Counting the occurrences pins that: one as the
+	// aggregate's argument, one as its sort key.
+	if got := strings.Count(aggregate, residualMessageColumnSQL); got != 2 {
+		t.Errorf("column expression appears %d times, want 2 (argument and sort key):\n%s", got, aggregate)
+	}
+}
+
+// The formatter can only mark a message as cut if it can SEE that it was cut.
+// Fetching exactly the printed budget hands it a message that is
+// indistinguishable from one that ended there, and every long error then prints
+// as a complete short one.
+func TestResidualBreakdownSQLFetchesMoreThanItPrints(t *testing.T) {
+	t.Parallel()
+
+	if residualMessageFetchLen <= residualMessageMaxLen {
+		t.Fatalf("query fetches %d runes but prints %d: a database-side cut is undetectable",
+			residualMessageFetchLen, residualMessageMaxLen)
+	}
+	if !strings.Contains(residualBreakdownSQL, fmt.Sprintf("%d", residualMessageFetchLen)) {
+		t.Errorf("query does not carry the %d-rune fetch bound:\n%s", residualMessageFetchLen, residualBreakdownSQL)
+	}
+	// The cut happens after the whitespace collapse. The other order lets a Go
+	// flatten shrink an already-cut message back under the budget, where it
+	// prints unmarked.
+	if !strings.Contains(residualMessageColumnSQL, "regexp_replace") {
+		t.Errorf("query does not normalize whitespace before cutting:\n%s", residualMessageColumnSQL)
+	}
+	if strings.Index(residualMessageColumnSQL, "left(") > strings.Index(residualMessageColumnSQL, "regexp_replace") {
+		t.Errorf("query cuts before it normalizes, so a cut can be hidden by flattening:\n%s", residualMessageColumnSQL)
+	}
+}
+
+// The live differential rebuilds the pre-message query from
+// residualBreakdownCountsSQL. That only proves anything while the shipped query
+// really starts with those same four columns — a hand-frozen copy that drifted
+// would pass a differential against itself.
+func TestResidualBreakdownCountsSQLIsAPrefixOfTheShippedQuery(t *testing.T) {
+	t.Parallel()
+
+	if !strings.HasPrefix(residualBreakdownSQL, residualBreakdownColumnsSQL+",") {
+		t.Errorf("shipped query does not begin with the four pre-message columns:\n%s", residualBreakdownSQL)
+	}
+	if !strings.HasSuffix(residualBreakdownSQL, residualBreakdownScopeSQL) {
+		t.Errorf("shipped query does not end with the shared predicate/grouping/order:\n%s", residualBreakdownSQL)
+	}
+	if !strings.HasPrefix(residualBreakdownCountsSQL(), residualBreakdownColumnsSQL) ||
+		!strings.HasSuffix(residualBreakdownCountsSQL(), residualBreakdownScopeSQL) {
+		t.Errorf("reference query is not derived from the shipped halves:\n%s", residualBreakdownCountsSQL())
 	}
 }
 

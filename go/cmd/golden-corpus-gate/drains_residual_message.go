@@ -42,7 +42,54 @@ const (
 	// printed through %q, which would escape a non-ASCII marker into a \u
 	// sequence and stop a reader (or a grep) from recognising it.
 	residualMessageTruncationMarker = "...(truncated)"
+
+	// residualMessageFetchLen is how many characters the QUERY returns for one
+	// group: exactly one more than the printed budget. That extra character is
+	// what lets truncateResidualMessage tell a message that ENDED at the budget
+	// from one the database CUT at it. Fetching exactly the budget instead
+	// makes every long error arrive as a complete-looking short one, which is
+	// worse than no message: the reader stops at a cause that was never the
+	// whole cause.
+	residualMessageFetchLen = residualMessageMaxLen + 1
 )
+
+// residualMessageColumnSQL is one stored failure_message, normalized and cut to
+// the fetch bound, as the query sees it.
+//
+// The whitespace collapse happens in SQL, BEFORE the cut, and that order is
+// load-bearing. flattenResidualMessage collapses whitespace again on the way
+// out; if the database cut a raw message at 201 characters and Go then
+// collapsed a run of newlines inside it, the result could land back under the
+// 200-rune budget and print with no truncation marker — the very defect the
+// extra character exists to prevent. Normalizing first means what Go receives
+// is already flat, so its own flatten is a no-op and the length it measures is
+// the length the database measured.
+//
+// regexp_replace with '\s+' is Postgres's spelling of what strings.Fields does
+// in Go, and btrim is the leading/trailing half of it.
+var residualMessageColumnSQL = fmt.Sprintf(
+	`left(btrim(regexp_replace(failure_message, '\s+', ' ', 'g')), %d)`,
+	residualMessageFetchLen,
+)
+
+// residualMessageAggregateSQL is the failure-message column of
+// residualBreakdownSQL: the distinct messages of one group, collapsed to a
+// single bounded value so a 624-row residual never crosses the wire in full.
+//
+// The ORDER BY is not decoration. Without it the concatenation order of a group
+// holding several distinct causes is unspecified, so which cause survives the
+// printed budget can differ between two runs over identical data — a red run
+// that blames a contention timeout one time and a reducer defect the next is
+// worse than one that blames nothing. Postgres requires the sort expression to
+// be an argument of a DISTINCT aggregate verbatim (an ordinal "ORDER BY 1" is
+// rejected: "in an aggregate with DISTINCT, ORDER BY expressions must appear in
+// argument list"), which is why the column expression appears twice.
+func residualMessageAggregateSQL() string {
+	return fmt.Sprintf(
+		"COALESCE(left(string_agg(DISTINCT %[1]s, ' | ' ORDER BY %[1]s), %[2]d), '')",
+		residualMessageColumnSQL, residualMessageFetchLen,
+	)
+}
 
 // formatResidualMessages appends the error text behind the largest residual
 // groups. Returns "" when no group recorded one, so a residual of purely
@@ -97,6 +144,13 @@ func flattenResidualMessage(message string) string {
 // truncateResidualMessage cuts to residualMessageMaxLen runes — runes, not
 // bytes, so a cut never lands mid-character and produces mojibake — and says it
 // cut, because a silently clipped error reads as a complete one.
+//
+// It can only say so because residualBreakdownSQL hands over
+// residualMessageFetchLen runes, one more than the budget. A message the
+// database already cut therefore arrives one rune over and is marked here; one
+// that genuinely ended at the budget arrives at the budget and is not. Shrink
+// the query's bound to the printed budget and this function silently stops
+// marking anything.
 func truncateResidualMessage(message string) string {
 	runes := []rune(message)
 	if len(runes) <= residualMessageMaxLen {
