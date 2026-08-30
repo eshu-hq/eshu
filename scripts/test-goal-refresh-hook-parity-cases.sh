@@ -36,7 +36,14 @@ try:
     d = json.loads(raw)
 except Exception:
     print("none"); raise SystemExit
-print(d.get("hookSpecificOutput", {}).get("additionalContext", "") or "none")
+ctx = d.get("hookSpecificOutput", {}).get("additionalContext", "")
+if not ctx:
+    print("none"); raise SystemExit
+# the goal text only: between the header line and the standing instructions
+body = ctx.split("cannot go stale):", 1)[-1]
+for tail in ("Keep working it", "OWNER CONSENT ALREADY GRANTED"):
+    body = body.split(tail, 1)[0]
+print(body.strip() or "none")
 ' 2>/dev/null
 }
 
@@ -67,7 +74,13 @@ try:
     d = json.loads(raw)
 except Exception:
     print("none"); raise SystemExit
-print(d.get("reason", "") or "none")
+reason = d.get("reason", "")
+if not reason:
+    print("none"); raise SystemExit
+body = reason.split("ACTIVE GOAL (", 1)[-1].split("):", 1)[-1]
+for tail in ("Continue it now", "OWNER CONSENT ALREADY GRANTED"):
+    body = body.split(tail, 1)[0]
+print(body.strip() or "none")
 ' 2>/dev/null
 }
 
@@ -90,7 +103,16 @@ parity_case() {
 	case "${s}" in *"${marker}"*) s_has=yes ;; *) s_has=no ;; esac
 
 	if [[ "${r_has}" != "${s_has}" ]]; then
-		no "PARITY ${label}: hooks disagree (refresher=${r_has} stop=${s_has}) -- same file, same session"
+		no "PARITY ${label}: hooks disagree on the DECISION (refresher=${r_has} stop=${s_has}) -- same file, same session"
+		return
+	fi
+	# Deciding alike is not enough: they must show the agent the SAME GOAL. A
+	# decision-only assertion passes while one hook silently truncates the
+	# objective, which is exactly the defect that got past the first version of
+	# this matrix -- a filter meant to drop the header line deleted every
+	# SESSION: line in the body.
+	if [[ "${r_has}" == yes && "${r}" != "${s}" ]]; then
+		no "PARITY ${label}: same decision, DIFFERENT goal text -- refresher=[${r}] stop=[${s}]"
 		return
 	fi
 	case "${expect}" in
@@ -165,6 +187,13 @@ parity_case "body line starting SESSION:" "${me}" enforce "BODYHEADER" \
 	"SESSION: ${me}
 BODYHEADER objective.
 SESSION: is documented above
+"
+parity_case "body carrying SESSION: lines, indented and flush" "${me}" enforce "BODYSESSIONS" \
+	"SESSION: ${me}
+BODYSESSIONS objective.
+SESSION: doc A is discussed here
+  SESSION: doc B, indented
+trailing line.
 "
 parity_case "only CONSENT lines, no objective" "${me}" silent "NOTHINGHERE" \
 	"CONSENT: push

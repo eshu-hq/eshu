@@ -366,8 +366,23 @@ case "${header_line}" in
 		# Drop the header from the text the agent sees, from BOTH views: the
 		# body drives the DONE re-check, the full goal still carries the
 		# CONSENT lines the restatement needs.
+		#
+		# The full view must drop THE HEADER -- the first SESSION: line -- and
+		# nothing else. A filter (`rg -v '^[[:space:]]*SESSION:'`) deleted every
+		# such line anywhere in the body, so a goal that discusses the SESSION
+		# header, which goals in this repo routinely do, was silently truncated
+		# before the agent ever saw it. Not a leak: data loss, with the agent
+		# working from a shortened objective and nothing saying so.
 		goal_body="$(printf '%s\n' "${goal_body}" | tail -n +2)"
-		goal="$(printf '%s\n' "${goal}" | rg -v '^[[:space:]]*SESSION:' || true)"
+		goal="$(printf '%s\n' "${goal}" | python3 -c '
+import sys
+dropped = False
+for line in sys.stdin.read().splitlines():
+    if not dropped and line.lstrip().startswith("SESSION:"):
+        dropped = True
+        continue
+    print(line)
+' 2>/dev/null)"
 		;;
 esac
 [ -n "${goal_body}" ] || exit 0
