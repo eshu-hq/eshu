@@ -49,6 +49,26 @@ assert_selection \
 	'./internal/parser/...'
 
 assert_selection \
+	"json_change_selects_the_dbtsql_black_box_engine_tests" \
+	$'./internal/parser/json\n' \
+	$'./internal/parser/json\n./internal/parser/dbtsql'
+
+assert_selection \
+	"cross_package_expansion_does_not_duplicate_an_already_changed_sibling" \
+	$'./internal/parser/json\n./internal/parser/dbtsql\n' \
+	$'./internal/parser/json\n./internal/parser/dbtsql'
+
+assert_selection \
+	"parser_tree_absorbs_the_cross_package_expansion" \
+	$'./internal/parser\n./internal/parser/json\n' \
+	'./internal/parser/...'
+
+assert_selection \
+	"cross_package_expansion_is_keyed_on_the_exact_dir" \
+	$'./internal/parser/jsonnet\n' \
+	'./internal/parser/jsonnet'
+
+assert_selection \
 	"unrelated_packages_are_preserved_and_deduplicated" \
 	$'./internal/query\n./internal/runtime\n./internal/query\n' \
 	$'./internal/query\n./internal/runtime'

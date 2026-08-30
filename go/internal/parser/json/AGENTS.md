@@ -42,7 +42,14 @@
 - New JSON or JSONC document shapes belong in `language.go` only when they are
   selected by filename or decoded document shape with bounded cost.
 - New dbt manifest fields belong in `dbt_manifest.go` and need focused tests
-  proving payload rows and coverage state.
+  proving payload rows and coverage state. The black-box coverage that drives
+  the parent Engine over a manifest lives outside this package, in
+  `../dbtsql/json_dbt_test.go`, and it is the only assertion for the
+  `COMPILES_TO` and `USES_MACRO` rows this package builds. `make pre-pr` runs
+  it for a change here: `pre_pr_cross_package_test_dirs` in
+  `scripts/lib/pre-pr-test-selection.sh` maps this package to
+  `./internal/parser/dbtsql`. `go test ./internal/parser/... -count=1` from
+  `go/` is the wider form.
 - New replay fixture families belong in `data_intelligence.go` unless they are
   governance-specific, where `governance.go` owns the rows.
 - New parent-owned behavior should be passed through `Config` instead of adding
