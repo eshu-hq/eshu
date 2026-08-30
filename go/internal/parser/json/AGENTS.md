@@ -22,11 +22,15 @@
 8. `dbt_manifest.go` - dbt manifest payload construction.
 9. `data_intelligence.go` and `governance.go` - replay fixture extraction.
 10. Parent wrapper in `../json_language.go`.
+11. `json_language_test.go` - external `json_test` coverage of the parent
+    engine's JSON dispatch, run through `internal/parser/parsertest`.
 
 ## Invariants this package enforces
 
-- Do not import the parent `internal/parser` package. The parent wrapper depends
-  on this package and supplies parent-owned helpers through `Config`.
+- Production files must not import the parent `internal/parser` package. The
+  parent wrapper depends on this package and supplies parent-owned helpers
+  through `Config`. External `json_test` files may import the parent engine and
+  `internal/parser/parsertest` to verify public Engine contracts.
 - Preserve existing JSON payload bucket names and row fields.
 - Preserve document order for metadata, dependency, script, and TypeScript path
   rows when ordered JSON or JSONC data is available.
@@ -85,3 +89,8 @@
   dependencies.
 - Do not move `dbt_sql_lineage.go` or its parent-exported lineage types into
   this package.
+
+## Verification
+
+Run `go test ./internal/parser/json ./internal/parser -count=1` after changing
+this package, its external `json_test` Engine coverage, or the parent wrapper.

@@ -72,7 +72,7 @@ Use this page to answer:
 | Crossplane | `Partial` | The documented Crossplane surface is supported, but composition transforms remain bounded. | `docs/public/languages/crossplane.md`, `go/internal/parser/yaml/engine_yaml_semantics_test.go` | Patch transforms, validation schema detail, and composition functions stay outside this documented claim. |
 | Helm | `Partial` | The documented Helm surface is supported, but hooks and weight modeling remain bounded. | `docs/public/languages/helm.md`, `go/internal/parser/yaml/engine_yaml_semantics_kustomize_test.go` | No query/content fallback surface yet and hook metadata remains unstructured. |
 | Kubernetes | `Partial` | The documented Kubernetes surface is supported, but selector and CRD modeling remain bounded. | `docs/public/languages/kubernetes.md`, `go/internal/parser/engine_infra_test.go`, `go/internal/query/content_relationships_k8s_test.go` | Container images are not separate nodes and CRDs stay generic. |
-| JSON Config | `Partial` | The documented JSON/dbt surface is supported, but generic JSON remains intentionally shallow. | `docs/public/languages/json.md`, `go/internal/parser/json_language_test.go`, `go/internal/parser/json_dbt_test.go` | Generic JSON is shallow and dbt lineage keeps bounded gaps for unresolved refs and macros. |
+| JSON Config | `Partial` | The documented JSON/dbt surface is supported, but generic JSON remains intentionally shallow. | `docs/public/languages/json.md`, `go/internal/parser/json/json_language_test.go`, `go/internal/parser/json_dbt_test.go` | Generic JSON is shallow and dbt lineage keeps bounded gaps for unresolved refs and macros. |
 
 ## What This Means Right Now
 

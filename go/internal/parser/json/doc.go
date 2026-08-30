@@ -11,7 +11,8 @@
 // JSONC normalization strips comments
 // and trailing commas with bounded scans before strict JSON decoding. The
 // package depends on shared parser helpers and CloudFormation extraction, but
-// it does not import the parent parser package; parent-owned dbt SQL lineage is
+// no production file here imports the parent parser package, though an external
+// json_test file may; parent-owned dbt SQL lineage is
 // supplied through Config and converted at the parent wrapper boundary.
 //
 // DependencyCoverage publishes the per-ecosystem repository dependency parser
