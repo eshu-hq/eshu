@@ -308,7 +308,7 @@ language_features:
     partial_features: [broader-play-http4s-route-truth, outbound-contracts]
     derived_features: []
     source_files: [go/internal/parser/scala_language.go, go/internal/parser/scala/language.go, go/internal/parser/scala/framework_routes.go]
-    test_files: [go/internal/parser/engine_scala_imports_test.go, go/internal/parser/scala_dead_code_roots_test.go, go/internal/parser/scala_route_entries_test.go, go/internal/reducer/handles_route_scala_test.go, go/internal/query/content_reader_framework_routes_scala_test.go]
+    test_files: [go/internal/parser/scala/engine_scala_imports_test.go, go/internal/parser/scala/scala_dead_code_roots_test.go, go/internal/parser/scala/scala_route_entries_test.go, go/internal/reducer/handles_route_scala_test.go, go/internal/query/content_reader_framework_routes_scala_test.go]
     docs: [docs/public/languages/scala.md]
     read_surfaces: [execute_language_query, find_dead_code, trace_route_callers]
     tracking_issues: [4038, 4164]

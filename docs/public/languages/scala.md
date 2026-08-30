@@ -27,16 +27,17 @@ Canonical implementation: `go/internal/parser/registry.go` plus the entrypoint a
 | Val definitions | `val-definitions` | supported | `variables` | `name, line_number` | `node:Variable` | `go/internal/parser/engine_managed_oo_test.go::TestDefaultEngineParsePathScala` | Compose-backed fixture verification | - |
 | Var definitions | `var-definitions` | supported | `variables` | `name, line_number` | `node:Variable` | `go/internal/parser/engine_managed_oo_test.go::TestDefaultEngineParsePathScala` | Compose-backed fixture verification | - |
 | Parent context (class_context) | `parent-context-class-context` | supported | `functions` | `name, line_number, class_context` | `property:Function.class_context` | `go/internal/parser/engine_managed_oo_test.go::TestDefaultEngineParsePathScala` | Compose-backed fixture verification | - |
-| Exact Play/http4s route entries | `play-http4s-literal-route-truth` | supported | `framework_semantics.{play,http4s}.route_entries` | `method, path, handler` | `relationship:HANDLES_ROUTE` when the reducer resolves one exact handler | `go/internal/parser/scala_route_entries_test.go::TestDefaultEngineParsePathScalaEmitsExactPlayRouteEntries`, `go/internal/parser/scala_route_entries_test.go::TestDefaultEngineParsePathScalaEmitsExactHttp4sRouteEntries`, `go/internal/reducer/handles_route_scala_test.go::TestBuildHandlesRouteIntentRowsEmitsScalaPlayRouteMatches`, `go/internal/query/content_reader_framework_routes_scala_test.go::TestParseFrameworkSemanticsExtractsScalaRoutes` | Golden corpus gate | Exact Play `conf/routes` and `.routes` rows plus literal http4s `HttpRoutes.of` cases emit route entries. Reducer projection stays exact-only and skips unresolved or ambiguous handlers. |
-| Dead-code roots | `dead-code-roots` | supported | `dead_code_root_kinds` | parser metadata | `code_quality.dead_code` exclusion metadata | `go/internal/parser/scala_dead_code_roots_test.go` | Fixture-backed dead-code validation | Derived roots for main, `App`, traits, overrides, Play, Akka, JUnit, ScalaTest, and lifecycle callbacks |
+| Exact Play/http4s route entries | `play-http4s-literal-route-truth` | supported | `framework_semantics.{play,http4s}.route_entries` | `method, path, handler` | `relationship:HANDLES_ROUTE` when the reducer resolves one exact handler | `go/internal/parser/scala/scala_route_entries_test.go::TestDefaultEngineParsePathScalaEmitsExactPlayRouteEntries`, `go/internal/parser/scala/scala_route_entries_test.go::TestDefaultEngineParsePathScalaEmitsExactHttp4sRouteEntries`, `go/internal/reducer/handles_route_scala_test.go::TestBuildHandlesRouteIntentRowsEmitsScalaPlayRouteMatches`, `go/internal/query/content_reader_framework_routes_scala_test.go::TestParseFrameworkSemanticsExtractsScalaRoutes` | Golden corpus gate | Exact Play `conf/routes` and `.routes` rows plus literal http4s `HttpRoutes.of` cases emit route entries. Reducer projection stays exact-only and skips unresolved or ambiguous handlers. |
+| Dead-code roots | `dead-code-roots` | supported | `dead_code_root_kinds` | parser metadata | `code_quality.dead_code` exclusion metadata | `go/internal/parser/scala/scala_dead_code_roots_test.go` | Fixture-backed dead-code validation | Derived roots for main, `App`, traits, overrides, Play, Akka, JUnit, ScalaTest, and lifecycle callbacks |
 
 ## Known Limitations
 - Implicit conversions and given/using clauses (Scala 3) are not separately tracked
 - Pattern matching extractors are not modeled as function calls
 - For-comprehension generators are not surfaced as variable bindings
 - Dead-code support is `derived`, not exact. Macros, implicit/given resolution,
-  dynamic dispatch, reflection, sbt source sets, Play route files, compiler
-  plugin output, and broad public API surfaces remain named exactness blockers.
+  dynamic dispatch, reflection, sbt source sets, dynamic or generated Play
+  routes, compiler plugin output, and broad public API surfaces remain named
+  exactness blockers.
 - Historical note (not current grade evidence): an Issue #105 dogfood run
   covered `playframework/playframework` at
   `bcdc682de2250bbd0f2788bc5acc06f6d66ad5a7` and `scala/scala` at

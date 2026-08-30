@@ -2,7 +2,9 @@
 
 Read `language.go` first, then `dead_code_roots.go`. Keep this package
 parent-independent: use `internal/parser/shared` for payload, source, sorting,
-and tree-sitter node helpers. Do not import `internal/parser`.
+and tree-sitter node helpers. Production files must not import
+`internal/parser`; external `scala_test` files may import the parent engine and
+`internal/parser/parsertest` to verify public Engine contracts.
 
 Preserve existing payload keys and sorting unless a parser contract change is
 covered by tests and downstream materialization updates.
@@ -18,3 +20,6 @@ equivalence harness. Do not hand-edit
 `testdata/dogfood_real_repo_snapshot.txt`; regenerate it with
 `DOGFOOD_UPDATE_SNAPSHOT=1 bash scripts/dogfood-scala.sh` after an intended
 parser change and verify the bucket-count delta is expected.
+
+Run `go test ./internal/parser/scala ./internal/parser -count=1` after changing
+the child implementation, its black-box Engine coverage, or parent dispatch.

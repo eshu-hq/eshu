@@ -4,6 +4,10 @@ This package owns Scala language extraction that can run without importing the
 parent `internal/parser` package. The parent engine still owns registry
 dispatch and tree-sitter runtime setup.
 
+Black-box Engine coverage lives beside the implementation in external
+`scala_test` files. It imports the parent engine and `internal/parser/parsertest`
+only to verify the public dispatch, payload, route, and dead-code contracts.
+
 Exports:
 
 - `Parse` extracts Scala classes, objects, traits, functions, variables,
