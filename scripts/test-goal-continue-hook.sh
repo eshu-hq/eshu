@@ -217,5 +217,88 @@ fi
 printf 'SESSION: %s\nDONE\nFinished objective.\n' "${sid}" >"${goal}"
 check "DONE beneath a SESSION header allows the stop" allow "$(run "$(payload hdrdone)")"
 
+# ── 3. pre-granted consent ─────────────────────────────────────────────────
+#
+# The hook told every stopping agent that "you need consent for an irreversible
+# act" is a legitimate reason to end the turn. That is right by default and
+# wrong once the owner has already said yes: the agent finished six lanes,
+# stopped to ask for permission to push, was handed the same list back, and
+# stopped again -- so the owner typed consent by hand into a session that had
+# already been told to continue. `CONSENT: <acts>` in the goal file is that
+# permission written down where the hook can read it.
+
+printf 'CONSENT: push, pr-open\nOpen the six-PR train.\n' >"${goal}"
+cout="$(run "$(payload k1)")"
+check "a goal with CONSENT still blocks (the work is not done)" block "${cout}"
+
+if printf '%s' "${cout}" | rg 'push, pr-open' >/dev/null; then
+	ok "the refusal names the acts the owner already consented to"
+else
+	no "the refusal names the acts the owner already consented to"
+fi
+
+# The whole point: the consent bullet must stop reading as an open invitation
+# to stop for the acts that were already granted.
+if printf '%s' "${cout}" | rg -i 'already granted|already consented' >/dev/null; then
+	ok "the refusal says the granted acts are not a reason to stop"
+else
+	no "the refusal says the granted acts are not a reason to stop"
+fi
+
+if printf '%s' "${cout}" | rg 'CONSENT:' >/dev/null; then
+	no "the CONSENT line is stripped from the quoted goal text"
+else
+	ok "the CONSENT line is stripped from the quoted goal text"
+fi
+
+# Blanket consent retires the bullet entirely rather than narrowing it.
+printf 'CONSENT: all\nShip it.\n' >"${goal}"
+allout="$(run "$(payload k2)")"
+check "CONSENT: all still blocks on unfinished work" block "${allout}"
+if printf '%s' "${allout}" | rg -i 'you need consent for an irreversible act' >/dev/null; then
+	no "CONSENT: all removes the generic consent stop reason"
+else
+	ok "CONSENT: all removes the generic consent stop reason"
+fi
+
+# Control: with no consent declared the bullet must survive untouched. Without
+# this, a bug that always drops the bullet would look like a pass above.
+printf 'Plain goal, nobody consented to anything.\n' >"${goal}"
+plain="$(run "$(payload k3)")"
+if printf '%s' "${plain}" | rg -i 'you need consent for an irreversible act' >/dev/null; then
+	ok "with no CONSENT the consent stop reason is still offered"
+else
+	no "with no CONSENT the consent stop reason is still offered"
+fi
+
+# An empty claim grants nothing. The agent writes this file, so `CONSENT:` with
+# no acts after it must fail closed exactly like `BLOCKED:` with no reason.
+printf 'CONSENT:\nDo the thing.\n' >"${goal}"
+empty="$(run "$(payload k4)")"
+if printf '%s' "${empty}" | rg -i 'you need consent for an irreversible act' >/dev/null; then
+	ok "an empty CONSENT: grants nothing"
+else
+	no "an empty CONSENT: grants nothing"
+fi
+
+# The env form is for a launcher that already knows what the run is allowed to
+# do, without writing it into a file another session shares.
+printf 'Env-granted goal.\n' >"${goal}"
+envout="$(printf '%s' "$(payload k5)" | CLAUDE_GOAL_CONSENT='push' \
+	CLAUDE_GOAL_FILE="${goal}" bash "${HOOK}" 2>/dev/null)"
+if printf '%s' "${envout}" | rg -i 'already granted|already consented' >/dev/null; then
+	ok "CLAUDE_GOAL_CONSENT grants without a goal-file line"
+else
+	no "CLAUDE_GOAL_CONSENT grants without a goal-file line"
+fi
+
+# CONSENT sits above the objective, so it must not shadow the two escapes that
+# are read off the first line.
+printf 'CONSENT: push\nDONE\nFinished.\n' >"${goal}"
+check "DONE beneath a CONSENT line allows the stop" allow "$(run "$(payload k6)")"
+
+printf 'CONSENT: push\nBLOCKED: waiting on a human reviewer\nMore work.\n' >"${goal}"
+check "BLOCKED beneath a CONSENT line allows the stop" allow "$(run "$(payload k7)")"
+
 printf '\ngoal-continue hook mirror: %s passed, %s failed\n' "${passed}" "${failed}"
 [[ "${failed}" -eq 0 ]]

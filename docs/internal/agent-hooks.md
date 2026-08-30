@@ -140,8 +140,9 @@ remembered the rule.
 It reads `.claude/active-goal` (or `$CLAUDE_GOAL_FILE`, or `~/.claude/active-goal`)
 and, if that file names unfinished work, returns
 `{"decision":"block","reason":...}` with the goal text and the three legitimate
-reasons to stop: the goal is met, an irreversible act needs consent, or the work
-is blocked on something no local action clears.
+reasons to stop: the goal is met, an irreversible act needs consent the owner
+has not already given, or the work is blocked on something no local action
+clears.
 
 The design problem is that **the agent writes the goal file**. Every escape has
 to survive that:
@@ -153,6 +154,30 @@ to survive that:
 | `BLOCKED: … WATCH=<pid>` | The hook verifies the process is alive. **A dead watcher REFUSES the stop** — nothing would wake the agent, so waiting is the bug rather than the excuse. |
 | `CLAUDE_GOAL_OFF=1` | Owner-side, not agent-side. |
 | budget | At most three continuations per `prompt_id`, so a new owner message resets it and a stuck agent cannot spin on one prompt. |
+
+### Consent the owner already gave
+
+The consent reason was unconditional, and that is right exactly once. An owner
+who has already said "yes, push" says it into a chat turn; the next Stop hands
+the agent the same *an irreversible act needs consent* bullet, and the agent
+stops again — on work it had been told to finish. Observed on a six-lane PR
+train: the owner typed consent, the turn ended anyway, and the owner typed it
+again.
+
+`CONSENT: <acts>` on a line of the goal file is that answer written where the
+hook can read it. `/goal consent push, pr-open` writes it, `/goal revoke-consent`
+removes it, and `CLAUDE_GOAL_CONSENT` is the launcher-side form for a run whose
+permissions are known before it starts. Both hooks read it: the refusal and the
+per-turn restatement each name the granted acts and say that asking again for
+one of them is not a reason to stop. `CONSENT: all` retires the bullet
+outright; a named list narrows it to everything not on the list.
+
+This grants nothing on its own — the permission is the owner's, and the file is
+the owner's. What the hook removes is the chance to forget it. The escapes
+above are checked *because the agent writes them*; consent is checked by
+nobody, because a consent line the agent wrote for itself only ever unblocks
+what the owner has to review anyway on the PR. An empty `CONSENT:` grants
+nothing, the same way an empty `BLOCKED:` releases nothing.
 
 The general rule, worth applying to any gate with an override: ask who authors
 the override value. If it is the party being constrained, attach evidence the
@@ -184,7 +209,10 @@ drifts. Setting it is not the same as keeping it.
 - **Producer.** A prompt beginning `/goal ` or `GOAL: ` writes the goal file.
   That is the single write path. There is deliberately no fuzzy inference --
   guessing that some sentence was an objective is how a hook starts enforcing
-  a goal nobody set.
+  a goal nobody set. `/goal consent <acts>` and `/goal revoke-consent` edit the
+  `CONSENT:` line only; they are matched before the generic producer, because
+  read as an objective `/goal consent push` would replace the real goal with
+  the word "consent" and grant nothing.
 - **Refresher.** On *every* prompt, an active goal is injected back into
   context via `additionalContext`, together with the rule that the owner should
   not be asked what the code, a local doc, a loaded skill, or a Deep-tier

@@ -21,6 +21,10 @@
 #   - CLAUDE_GOAL_OFF=1                          -> stop allowed
 #   - budget spent for this prompt_id            -> stop allowed
 #
+# Not an escape, but the same file: `CONSENT: <acts>` (or CLAUDE_GOAL_CONSENT)
+# records a permission the owner has already given, and REMOVES "I need consent
+# for that" as a reason to stop for the acts it names.
+#
 # Tests: scripts/test-goal-continue-hook.sh -- run it after any edit here, and
 # read its own tally rather than trusting a count written down elsewhere. A
 # hook that can refuse to end a session is worth a regression suite, and the
@@ -123,6 +127,51 @@ case "${first_line}" in
 		;;
 esac
 
+# CONSENT: <acts> is the owner writing down a permission the agent would
+# otherwise stop to ask for. The refusal used to offer "you need consent for an
+# irreversible act" as a legitimate reason to stop, unconditionally -- correct
+# by default, and wrong once the owner has already said yes. An agent that had
+# been told to go ahead still read that bullet, stopped, and got the same
+# bullet handed back.
+#
+# The acts are echoed back to the agent rather than acted on here, because this
+# hook grants nothing by itself: the permission is the owner's, written in the
+# owner's file, and the hook only stops it from being forgotten. `CONSENT: all`
+# is the blanket form. An empty `CONSENT:` grants nothing, the same way an
+# empty `BLOCKED:` releases nothing -- the agent writes this file too.
+consent=""
+if printf '%s\n' "${goal}" | python3 -c '
+import sys
+sys.exit(0 if any(l.lstrip().lower().startswith("consent:") for l in sys.stdin) else 1)
+' 2>/dev/null; then
+	stripped=""
+	while IFS= read -r line; do
+		case "${line}" in
+			[Cc][Oo][Nn][Ss][Ee][Nn][Tt]:*)
+				acts="${line#*:}"
+				acts="${acts#"${acts%%[![:space:]]*}"}"
+				[ -n "${acts}" ] && consent="${consent:+${consent}, }${acts}"
+				;;
+			*)
+				stripped="${stripped}${line}
+"
+				;;
+		esac
+	done < <(printf '%s\n' "${goal}")
+	goal="${stripped%$'\n'}"
+	[ -n "${goal}" ] || exit 0
+	first_line="$(printf '%s\n' "${goal}" | head -1)"
+	case "${first_line}" in
+		DONE*|done*) exit 0 ;;
+	esac
+fi
+
+# A launcher that already knows what its run may do can grant without editing a
+# file that concurrent sessions in the same checkout share.
+if [ -n "${CLAUDE_GOAL_CONSENT:-}" ]; then
+	consent="${consent:+${consent}, }${CLAUDE_GOAL_CONSENT}"
+fi
+
 # BLOCKED: <reason> releases the stop when the work is genuinely waiting on
 # something outside this machine -- a CI run, a remote queue, another person.
 # Without it the hook nags for local action that does not exist, which teaches
@@ -181,16 +230,37 @@ else
 	reason_head="You are stopping with an active goal still open. Do not end the turn on a status report."
 fi
 
+# The consent bullet is the one line of the refusal that changes with what the
+# owner already granted. Blanket consent retires it; a named list narrows it to
+# everything NOT on that list; no consent leaves it as it was.
+consent_note=""
+consent_bullet="
+  - you need consent for an irreversible act (push, merge, deploy, delete, data mutation, anything outward-facing)"
+if [ -n "${consent}" ]; then
+	consent_note="
+
+OWNER CONSENT ALREADY GRANTED for: ${consent}
+Do those yourself now. Stopping to ask again for something on that list is not a valid stop -- the owner already answered."
+	case "$(printf '%s' "${consent}" | tr '[:upper:]' '[:lower:]')" in
+		*all*|*'*'*)
+			consent_bullet=""
+			;;
+		*)
+			consent_bullet="
+  - you need consent for an irreversible act NOT on the granted list above"
+			;;
+	esac
+fi
+
 reason="${reason_head}
 
 ACTIVE GOAL (${goal_file}):
-${goal}
+${goal}${consent_note}
 
 Continue it now. Take the next concrete action yourself rather than describing what could be done, and do not ask the owner a question that the code, a local doc, or a cheap experiment can settle.
 
 Stop for real only when one of these is true, and say which:
-  - the goal is met -- then put DONE on the first line of ${goal_file}
-  - you need consent for an irreversible act (push, merge, deploy, delete, data mutation, anything outward-facing)
+  - the goal is met -- then put DONE on the first line of ${goal_file}${consent_bullet}
   - you are blocked on something no action of yours can clear -- name it exactly
 
 Continuations left for this message: ${remaining}."

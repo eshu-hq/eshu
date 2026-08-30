@@ -100,6 +100,46 @@ case "${prompt}" in
 		fi
 		exit 0
 		;;
+	'/goal consent'*|'GOAL: consent'*|'/goal revoke-consent'*|'GOAL: revoke-consent'*)
+		# Consent the owner typed in chat dies with that turn. Written into the
+		# goal file it survives compaction, the next Stop, and the next session
+		# that adopts the file. This case has to sit ABOVE the generic `/goal
+		# <text>` producer: otherwise "/goal consent push" is read as a new
+		# objective and silently replaces the actual one with the word
+		# "consent" -- granting nothing and losing the goal in the same move.
+		target="${goal_file:-}"
+		[ -n "${target}" ] || exit 0
+		[ -f "${target}" ] || exit 0
+		case "${prompt}" in
+			*revoke-consent*) acts="" ;;
+			*)
+				acts="${prompt#*consent}"
+				acts="${acts# }"
+				;;
+		esac
+		ACTS="${acts}" TARGET="${target}" python3 -c '
+import os, sys
+target = os.environ["TARGET"]
+acts = os.environ["ACTS"].strip()
+try:
+    lines = open(target).read().splitlines()
+except Exception:
+    raise SystemExit(0)
+kept = [l for l in lines if not l.lstrip().lower().startswith("consent:")]
+if acts:
+    # Under the SESSION header, so the header stays first and the DONE /
+    # BLOCKED escapes the Stop hook reads off the first line are unaffected.
+    at = 1 if kept and kept[0].startswith("SESSION:") else 0
+    kept.insert(at, "CONSENT: " + acts)
+try:
+    with open(target + ".tmp", "w") as fh:
+        fh.write("\n".join(kept) + "\n")
+    os.replace(target + ".tmp", target)
+except Exception:
+    pass
+' 2>/dev/null || true
+		exit 0
+		;;
 	'/goal '*|'GOAL: '*)
 		goal_text="${prompt#*[ :]}"
 		goal_text="${goal_text# }"
@@ -136,20 +176,45 @@ case "${first_line}" in
 esac
 [ -n "${goal}" ] || exit 0
 
-printf '%s' "${goal}" | python3 -c '
-import json, sys
-goal = sys.stdin.read().strip()
+printf '%s' "${goal}" | CONSENT_ENV="${CLAUDE_GOAL_CONSENT:-}" python3 -c '
+import json, os, sys
+lines = sys.stdin.read().splitlines()
+# CONSENT: <acts> is a permission the owner already gave. It is restated
+# separately from the objective, because an act the owner has consented to is
+# no longer something to stop and ask about -- and the ask-only-for-consent
+# sentence below reads as an invitation to do exactly that.
+acts = [l.split(":", 1)[1].strip() for l in lines
+        if l.lstrip().lower().startswith("consent:")
+        and l.split(":", 1)[1].strip()]
+env_acts = os.environ.get("CONSENT_ENV", "").strip()
+if env_acts:
+    acts.append(env_acts)
+goal = "\n".join(l for l in lines
+                 if not l.lstrip().lower().startswith("consent:")).strip()
 if not goal:
     raise SystemExit(0)
+granted = ", ".join(acts)
+if granted:
+    consent_note = (
+        "\n\nOWNER CONSENT ALREADY GRANTED for: " + granted
+        + ". Carry those out yourself when the work reaches them; do not stop "
+          "to ask again for anything on that list. Ask only for an "
+          "irreversible act NOT on it, or when complete evidence would still "
+          "leave a product-taste call."
+    )
+else:
+    consent_note = (
+        " Ask only for consent on an irreversible act (push, merge, deploy, "
+        "delete, data mutation), or when complete evidence would still leave a "
+        "product-taste call."
+    )
 note = (
     "ACTIVE GOAL (restated each turn so it cannot go stale):\n"
     + goal
     + "\n\nKeep working it. Take the next concrete action yourself. Do not ask "
       "the owner something the code, a local doc, a loaded skill, or a "
-      "Deep-tier model dispatch can settle -- their rules already cover it. "
-      "Ask only for consent on an irreversible act (push, merge, deploy, "
-      "delete, data mutation), or when complete evidence would still leave a "
-      "product-taste call."
+      "Deep-tier model dispatch can settle -- their rules already cover it."
+    + consent_note
 )
 print(json.dumps({"hookSpecificOutput": {
     "hookEventName": "UserPromptSubmit",
