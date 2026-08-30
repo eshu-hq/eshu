@@ -12,7 +12,6 @@
 # it alone still selects the gate that runs it. The sentinel is what makes the
 # parent notice if it ever stops being sourced: a trigger makes a gate RUN, it
 # cannot make a gate FAIL.
-goal_refresh_cases_loaded=1
 
 # ── consent ────────────────────────────────────────────────────────────────
 #
@@ -307,8 +306,14 @@ import json, os
 print(json.dumps({"session_id": os.environ["SID"], "prompt_id": "envc",
                   "cwd": os.environ["CWD"], "prompt": os.environ["PROMPT"],
                   "hook_event_name": "UserPromptSubmit"}))
-' | CLAUDE_GOAL_CONSENT='push' bash "${REFRESH}" 2>/dev/null)")"
-if printf '%s' "${env_inj}" | rg -q 'push'; then
+' | CLAUDE_GOAL_CONSENT='pr-open' bash "${REFRESH}" 2>/dev/null)")"
+# `pr-open` appears in no fallback text, and `already granted` is the marker
+# only the consent branch emits. The first version of this case grepped for
+# `push` -- which the NO-consent sentence also contains ("Ask only for consent
+# on an irreversible act (push, merge, deploy, ...)") -- so it passed with the
+# branch deleted: the vacuous-test defect it was written to prevent, inside it.
+if printf '%s' "${env_inj}" | rg -qi 'already granted' &&
+	printf '%s' "${env_inj}" | rg -q 'pr-open'; then
 	ok "CLAUDE_GOAL_CONSENT reaches the per-turn restatement"
 else
 	no "CLAUDE_GOAL_CONSENT reaches the per-turn restatement"
@@ -390,3 +395,31 @@ if printf '%s' "$(injected "${nocwd_write}")" | rg -q 'set something'; then
 else
 	ok "a cwd-less /goal does not become the goal"
 fi
+
+# LAST line on purpose. Set at the top, this proved the file began loading; a
+# companion truncated mid-way still reported a clean pass with 40 cases gone.
+# Here it means the file ran to the end, which is what the parent asserts.
+goal_refresh_cases_loaded=1
+
+# The two write arms disagreed about the SAME situation: with no goal file
+# anywhere, the consent arm said "no goal file for this session" and the retire
+# arm said the file "belongs to another session or to the owner" -- of a path
+# that belongs to neither, being this session's own write target, simply absent.
+# The `-z` branch is unreachable from the retire arm, which passes a defaulted
+# path, so a nonexistence condition was reported as an ownership refusal: the
+# divergence the shared helper was extracted to end, one level further down.
+mw="${work}/missing"
+mkdir -p "${mw}/.claude"
+for action in done 'consent push'; do
+	miss_err="$(SID="${sid}" PROMPT="/goal ${action}" CWD="${mw}" python3 -c '
+import json, os
+print(json.dumps({"session_id": os.environ["SID"], "prompt_id": "missing",
+                  "cwd": os.environ["CWD"], "prompt": os.environ["PROMPT"],
+                  "hook_event_name": "UserPromptSubmit"}))
+' | HOME="${work}/no-home-at-all" bash "${REFRESH}" 2>&1 >/dev/null)"
+	if printf '%s' "${miss_err}" | rg -qi 'no goal file'; then
+		ok "/goal ${action} with no goal file reports nonexistence, not ownership"
+	else
+		no "/goal ${action} with no goal file reports nonexistence, not ownership (got: ${miss_err})"
+	fi
+done

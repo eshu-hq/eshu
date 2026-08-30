@@ -50,13 +50,15 @@ This skill is doctrine only — it does not loop by itself. Pair it with `/goal`
 load the eshu-issue-driver skill now and follow it. Not done until every proof
 clause in that skill's DONE section is pasted and clean. Stop after 50 turns if
 blocked only on operator-side action (say so).
-CONSENT: push, pr-open, merge
+CONSENT: push, pr-open
 ```
 
-The `CONSENT:` line is what lets the drive reach the merge in step 10 without
-stopping to ask: it is the owner granting those irreversible acts up front, and
-without it the agent must stop and ask before each one. Grant only the acts you
-mean — drop `merge` to keep the merge yourself.
+The `CONSENT:` line is the owner granting those irreversible acts up front;
+without it the agent stops and asks before each one. Grant only the acts you
+mean. **Add `merge` to that line** if you want the drive to land the PR in
+step 10 unattended — it is left out of the template deliberately, because a
+merge is the least reversible act in the canon's list and the one nobody
+reviews afterwards, and a copy-pasted default is not the place to grant it.
 
 The `/goal` evaluator reads the conversation, which includes this loaded skill,
 so "done per the skill" is checkable. Run with auto mode on so each turn runs

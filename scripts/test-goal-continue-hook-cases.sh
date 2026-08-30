@@ -15,7 +15,6 @@
 # sourced. Deleting the source line used to leave the suite reporting "26
 # passed, 0 failed" and exiting 0, with 47 assertions silently gone -- a
 # trigger path makes the gate RUN, it cannot make the gate FAIL.
-goal_hook_cases_loaded=1
 
 # ── 3. pre-granted consent ─────────────────────────────────────────────────
 #
@@ -454,3 +453,8 @@ fi
 printf 'SESSION: %s\nSESSION: is the header we document\nmore goal\n' "${sid}" >"${goal}"
 check "the same goal without a CONSENT line behaves identically" block \
 	"$(run "$(payload bodyheader2)")"
+
+# LAST line on purpose. Set at the top, this proved the file began loading; a
+# companion truncated mid-way still reported a clean pass with 40 cases gone.
+# Here it means the file ran to the end, which is what the parent asserts.
+goal_hook_cases_loaded=1

@@ -164,6 +164,10 @@ writable_goal_target() { # path action
 			"$1" >&2
 		return 1
 	fi
+	if [ ! -f "$1" ]; then
+		printf 'goal-refresh: no goal file for this session, %s not recorded. Set one with /goal <text>.\n' "$2" >&2
+		return 1
+	fi
 	if ! owns_goal_file "$1"; then
 		printf 'goal-refresh: %s belongs to another session or to the owner, %s not recorded.\n' \
 			"$1" "$2" >&2
