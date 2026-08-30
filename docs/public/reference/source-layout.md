@@ -45,6 +45,7 @@ live in the repository today.
 | `go/internal/mcp/playbooks/` | query-playbook MCP tool registration definitions |
 | `go/internal/mcp/relationships/` | code-relationship and relationship-edge MCP registrations plus pure family membership and dependency-neutral route selection |
 | `go/internal/mcp/routecontract/` | dependency-neutral MCP route arguments and internal-request shape |
+| `go/internal/mcp/secretsiam/` | secrets/IAM posture MCP family membership and dependency-neutral route selection |
 | `go/internal/mcp/semantic/` | semantic-evidence and semantic-search MCP tool registration definitions |
 | `go/internal/mcp/service/` | service catalog, context, investigation, and intelligence-report MCP tool registration definitions |
 | `go/internal/mcp/toolcontract/` | dependency-neutral MCP tool registration shape |
@@ -132,6 +133,8 @@ Read and operator surfaces live under:
   pure dependency-neutral request selection
 - `go/internal/mcp/relationships/`: relationship-family registrations, family
   membership decisions, and pure dependency-neutral request selection
+- `go/internal/mcp/secretsiam/`: secrets/IAM posture family membership and
+  pure dependency-neutral request selection
 - `go/internal/mcp/visualization/`: visualization registration, family
   membership, and pure dependency-neutral request selection
 - `go/internal/runtime/`: `/healthz`, `/readyz`, `/metrics`, `/admin/status`,
