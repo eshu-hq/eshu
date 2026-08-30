@@ -154,7 +154,8 @@ to survive that:
 | `BLOCKED: <reason>` | The reason is echoed to stderr, so the owner reads the exact claim rather than only seeing the turn end. |
 | `BLOCKED: … WATCH=<pid>` | The hook verifies the process is alive. **A dead watcher REFUSES the stop** — nothing would wake the agent, so waiting is the bug rather than the excuse. |
 | `CLAUDE_GOAL_OFF=1` | Owner-side, not agent-side. |
-| budget | At most three NO-PROGRESS continuations per `prompt_id`, plus a hard ceiling of 20. A new owner message resets both. |
+| budget | At most three NO-PROGRESS continuations per `prompt_id` (`CLAUDE_GOAL_MAX_NUDGES`), plus a hard ceiling of 20 (`CLAUDE_GOAL_MAX_TOTAL`). A new owner message resets both. |
+| `CONSENT: <acts>` | Not an escape — it does not end a turn. It removes "I need consent for that" as a reason to stop, for the acts it names. Nothing verifies who wrote it, which is why every honoured grant is echoed to stderr with its acts. |
 
 ### Consent the owner already gave
 
@@ -250,6 +251,20 @@ force: a progress signal that failed open would remove the bound entirely.
 
 When the budget is what allowed the stop, the hook now says so on stderr.
 
+### Probing this hook: use run-unique ids
+
+The nudge counter is keyed on `(session_id, prompt_id)` and lives in `TMPDIR`
+as `claude-goal-nudge-<session>-<prompt>`, so a probe that reuses a pair reads
+whatever the last probe left there. A spent counter makes the hook allow the
+stop — which looks exactly like the hook deciding not to enforce, and reads as
+a behavioural finding rather than stale state.
+
+This has now caught the author of the feature and a reviewer who knew it well;
+the reviewer nearly reported an inversion that does not exist. Any probe must
+use a run-unique session or prompt id, and any surprising ALLOW should be
+re-run with a fresh pair before it is believed. The suites do this already, and
+say so where they do.
+
 ## Why the goal is restated every turn
 
 The Stop hook alone does not solve idling, and the first version of it proved
@@ -313,8 +328,10 @@ names it. Deleting them is safe at any time.
 
 A `SESSION:` header binds a goal to the session that set it, so a goal cannot
 outlive its session and nag the next one about finished work. `/goal done`
-retires it. An unheaded file is the owner's own hand-written goal and is
-honoured as-is.
+retires a goal this session owns. An unheaded file is the owner's own
+hand-written goal: it is read and enforced as-is, and no session retires or
+amends it — `/goal done` against one prints a refusal naming the file. Clearing
+it is the owner's to do, by editing or deleting the file.
 
 This complements the built-in `/goal`, which evaluates whether a condition is
 *met*; these hooks keep the objective and the rules *in front of the model*.

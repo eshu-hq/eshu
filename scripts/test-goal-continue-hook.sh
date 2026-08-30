@@ -228,22 +228,6 @@ else
 	no "the sourced case file did NOT load -- most of this suite did not run"
 fi
 
-# The sentinel only means "ran to the end" while it IS the end. It was moved to
-# the last line once and then undone by appending cases below it in the same
-# commit, which restored the exact residual the move closed. So assert the
-# position, not just the value -- for both companions, since the parent of the
-# other one cannot see this file either.
-for companion in test-goal-continue-hook-cases test-goal-refresh-hook-cases; do
-	last_line="$(rg -v '^[[:space:]]*$' "${repo_root}/scripts/${companion}.sh" | tail -1)"
-	case "${last_line}" in
-		*_cases_loaded=1)
-			ok "${companion}: the load sentinel is the last line"
-			;;
-		*)
-			no "${companion}: the load sentinel is NOT the last line (got: ${last_line}) -- append above it"
-			;;
-	esac
-done
 
 printf '\ngoal-continue hook mirror: %s passed, %s failed\n' "${passed}" "${failed}"
 [[ "${failed}" -eq 0 ]]

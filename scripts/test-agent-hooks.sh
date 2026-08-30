@@ -610,6 +610,38 @@ for suite in \
   fi
 done
 
+# --- the mirrors' load sentinels must be the LAST line ----------------------
+# Each mirror sources a companion holding most of its cases, and the companion
+# sets a sentinel the parent asserts, so a companion that stops being sourced
+# fails loudly instead of reporting a clean pass over a third of its suite.
+#
+# That only means "the companion ran to the end" while the sentinel IS the end.
+# Three commits in a row appended cases BELOW it -- including the commit that
+# introduced the sentinel, and the commits whose own regression cases then sat
+# in the unprotected tail. Truncating there reported 54 passed, 0 failed, exit
+# 0, with five assertions silently gone.
+#
+# A convention that has failed three times is not a convention. This asserts
+# the position, so forgetting fails here rather than in whatever the tail
+# happened to contain.
+for companion in \
+  test-goal-continue-hook-cases.sh \
+  test-goal-refresh-hook-cases.sh; do
+  companion_path="$repo_root/scripts/$companion"
+  last_line="$(rg -v '^[[:space:]]*(#|$)' "$companion_path" 2>/dev/null | tail -1)"
+  case "$last_line" in
+    *_cases_loaded=1)
+      printf 'ok - %s: the load sentinel is its last line\n' "$companion"
+      passed=$((passed + 1))
+      ;;
+    *)
+      printf 'FAIL - %s: the load sentinel is NOT the last line (last: %s) -- append ABOVE it\n' \
+        "$companion" "$last_line" >&2
+      failed=$((failed + 1))
+      ;;
+  esac
+done
+
 printf '\nagent-hooks test mirror: %s passed, %s failed, %s skipped\n' \
   "$passed" "$failed" "$skipped"
 [ "$failed" -eq 0 ] || exit 1
