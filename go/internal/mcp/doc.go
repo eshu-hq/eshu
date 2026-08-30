@@ -10,8 +10,8 @@
 // their registration definitions without importing this parent package. The
 // ask, relationships, and visualization children own pure dependency-neutral
 // family route selectors alongside their definitions, and the cicd,
-// codeowners, packageregistry, and secretsiam children own such a selector
-// without owning a registration.
+// codeowners, observabilitycoverage, packageregistry, and secretsiam children
+// own such a selector without owning a registration.
 // ReadOnlyTools remains the sole ordered assembler; global route membership,
 // family adapters, dispatch,
 // transport, authorization, timeouts,
