@@ -41,6 +41,9 @@ func repositoryRoute(toolName string, args map[string]any) (*route, bool, error)
 	if route, ok := cicdRoute(toolName, args); ok {
 		return route, true, nil
 	}
+	if route, ok := codeownersRoute(toolName, args); ok {
+		return route, true, nil
+	}
 	switch toolName {
 	case "list_indexed_repositories":
 		return &route{method: "GET", path: "/api/v0/repositories", query: paginationQuery(args, 100)}, true, nil
@@ -72,8 +75,6 @@ func repositoryRoute(toolName string, args map[string]any) (*route, bool, error)
 		return admissionDecisionsRoute(args), true, nil
 	case "list_service_catalog_correlations":
 		return serviceCatalogCorrelationsRoute(args), true, nil
-	case "list_codeowners_ownership":
-		return codeownersOwnershipRoute(args), true, nil
 	case "list_kubernetes_correlations":
 		return kubernetesCorrelationsRoute(args), true, nil
 	case "list_secrets_iam_identity_trust_chains":

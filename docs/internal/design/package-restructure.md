@@ -405,6 +405,26 @@ order, the advertised schemas, the `limit` defaults of 50 and 100, the `offset`
 default of 0, the `group_by` fallback to `outcome`, and every selected method,
 path, and query key remain unchanged.
 
+The CODEOWNERS ownership route family is the third Wave 2 MCP extraction and
+the smallest: one tool, one arm of the same `repositoryRoute` switch. Its
+request builder sat in `dispatch_codeowners.go` beside a private
+`optionalIntString` helper that nothing else called. Family membership, the
+builder, and that helper now live under `internal/mcp/codeowners`, and
+`dispatch_codeowners.go` keeps only the thin `codeownersRoute` adapter. Root
+keeps the tool definition and its assembly position, global fanout order,
+dispatch, authorization, transport, timeouts, response budgets, envelopes,
+summaries, and telemetry. The adapter is consulted directly after the CI/CD one
+at the top of `repositoryRoute`, so the repository router keeps its own position
+in the global chain and no other family's resolution order changes. The one tool
+name is disjoint from the package-registry and CI/CD families and from the
+remaining switch arms, and the 162-tool order, the advertised schema, the
+`limit` default of 50, and every selected method, path, and query key remain
+unchanged. The `optionalIntString` semantics move verbatim: `after_order_index`
+is the numeric leg of a three-part keyset cursor the handler admits only whole,
+so an absent key stays the empty string rather than taking a default, which is
+why the child reimplements the helper against `routecontract.Arguments` instead
+of collapsing it into `IntOr`.
+
 **cmd/eshu (233):** `package main` — subdirectories are impossible by
 language rule. The lever is extracting business logic to new
 `internal/cli/<family>` packages, leaving thin cobra RunE wrappers —

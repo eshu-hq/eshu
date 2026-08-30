@@ -14,12 +14,13 @@
 3. `go/internal/mcp/dispatch.go`, `go/internal/mcp/dispatch_timeout.go`,
    `go/internal/mcp/dispatch_args.go`,
    `go/internal/mcp/dispatch_package_registry.go`, and
-   `go/internal/mcp/dispatch_cicd.go` — `dispatchTool`,
-   deadline handling, `resolveRoute`, the package-registry and CI/CD child
-   adapters, and argument helpers; understand `parseCanonicalEnvelope` before touching
+   `go/internal/mcp/dispatch_cicd.go`, and
+   `go/internal/mcp/dispatch_codeowners.go` — `dispatchTool`, deadline
+   handling, `resolveRoute`, the child route adapters, and argument helpers; understand `parseCanonicalEnvelope` before touching
    response shaping. Package-registry request selection itself lives in
-   `go/internal/mcp/packageregistry`, and CI/CD run-correlation request
-   selection in `go/internal/mcp/cicd`
+   `go/internal/mcp/packageregistry`, CI/CD run-correlation request selection
+   in `go/internal/mcp/cicd`, and CODEOWNERS ownership request selection in
+   `go/internal/mcp/codeowners`
 4. `go/internal/mcp/types.go` — `ToolDefinition` and `ReadOnlyTools`; this is
    the tool registry entry point
 5. `go/internal/query/` — the `http.Handler` that backs every tool call;
