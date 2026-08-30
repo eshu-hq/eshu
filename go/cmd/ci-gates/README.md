@@ -89,6 +89,26 @@ self-consistent. This is the runner-wide form of the per-`go install`
 isolation `scripts/dev/precommit-go.sh` got in
 [#6113](https://github.com/eshu-hq/eshu/pull/6113).
 
+### audit-scripts
+
+```bash
+ci-gates audit-scripts \
+  --registry specs/ci-gates.v1.yaml \
+  --repo-root . \
+  [--unreferenced-only] [--json]
+```
+
+Inventories every regular Git-tracked `.sh` file present in the work tree and
+reports typed evidence from gate commands and triggers, workflow run blocks,
+literal shell-source edges, and other exact repo-relative path mentions. Gate
+triggers show selection coverage; they do not count as usage. Results are
+deterministic and credential-free. `--unreferenced-only` narrows the rows while
+retaining totals for the full inventory.
+
+`unreferenced` is an investigation signal, not a deletion verdict. It means no
+supported in-repository usage reference was observed; maintainers, community
+users, or external automation may still invoke the script directly.
+
 ### await
 
 ```bash

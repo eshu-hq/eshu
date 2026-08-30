@@ -110,6 +110,16 @@
 // boundaries are documented on EvaluatePublisher itself. Like the rest of the
 // package it needs no network, Docker, or credentials.
 //
+// # Script audit
+//
+// AuditScripts inventories every tracked regular .sh file present in the
+// working tree and reports typed evidence from registry commands and triggers,
+// workflow run blocks, literal source edges, and other exact repo-relative
+// mentions. Gate triggers are selection coverage and do not count as usage
+// references. The unreferenced status is an investigation signal only; it does
+// not mean a manual or externally invoked script is unused, redundant,
+// orphaned, or safe to delete.
+//
 // # Glob matching
 //
 // MatchGlob implements a small doublestar matcher (** crosses segments, * stays

@@ -8,6 +8,7 @@
 //
 //	ci-gates select  --registry <path> --tier <tier> [--base <ref>] [--paths-from <file|->] [--explain] [--json]
 //	ci-gates run     --registry <path> --tier <tier> [--base <ref>] [--paths-from <file|->] [--json]
+//	ci-gates audit-scripts --registry <path> --repo-root <path> [--unreferenced-only] [--json]
 //	ci-gates validate --registry <path> --repo-root <path>
 package main
 
@@ -41,6 +42,8 @@ func main() {
 		err = runAwait(args)
 	case "contexts":
 		err = runContexts(args)
+	case "audit-scripts":
+		err = runAuditScripts(args)
 	case "validate":
 		err = runValidate(args)
 	case "uncovered":

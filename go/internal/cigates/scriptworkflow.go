@@ -38,15 +38,26 @@ const scriptWorkflowSoundSubsetCount = 40
 
 // runStep is the minimal shape needed to read a step's executable command.
 type runStep struct {
-	Run string `yaml:"run"`
+	Run              string `yaml:"run"`
+	WorkingDirectory string `yaml:"working-directory"`
+}
+
+type runDefaultsRun struct {
+	WorkingDirectory string `yaml:"working-directory"`
+}
+
+type runDefaults struct {
+	Run runDefaultsRun `yaml:"run"`
 }
 
 type runJob struct {
-	Steps []runStep `yaml:"steps"`
+	Defaults runDefaults `yaml:"defaults"`
+	Steps    []runStep   `yaml:"steps"`
 }
 
 type runWorkflowFile struct {
-	Jobs map[string]runJob `yaml:"jobs"`
+	Defaults runDefaults       `yaml:"defaults"`
+	Jobs     map[string]runJob `yaml:"jobs"`
 }
 
 // workflowRunCommands returns every step `run:` block in raw, which is the only

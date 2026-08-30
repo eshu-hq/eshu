@@ -3,13 +3,14 @@
 
 // Command ci-gates is the CLI for the CI gate registry (#4213).
 //
-// It provides six subcommands that give local workflows and the trusted CI
+// It provides seven subcommands that give local workflows and the trusted CI
 // publisher one source of truth for path-selected verification:
 //
 //	ci-gates select   — print or explain which gates match the changed paths
 //	ci-gates run      — execute the selected gates and report PASS/FAIL/SKIP
 //	ci-gates await    — wait for exact blocking checks on an exact PR head
 //	ci-gates contexts — print the required-status context manifest
+//	ci-gates audit-scripts — inventory tracked shell scripts and reference evidence
 //	ci-gates validate — verify that every registry entry's script and workflow exist
 //	ci-gates uncovered — print changed paths without local category coverage
 //
@@ -17,6 +18,13 @@
 // internal/cigates package. All but await are credential-free and work offline
 // once the repo is cloned. Await uses GitHub's pull-request files and check
 // rollup APIs; no subcommand requires Docker directly.
+//
+// Audit-scripts is advisory. It reports typed registry, workflow, shell-source,
+// and literal-mention evidence for every tracked regular .sh file present in
+// the work tree. Gate triggers are reported as selection coverage, not usage. An
+// unreferenced row means only that supported in-repository usage evidence did
+// not name the script; it is not a claim that a manual or external caller does
+// not use it.
 //
 // # await and contexts
 //
