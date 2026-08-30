@@ -3977,6 +3977,8 @@ gates:
       - "scripts/test-verify-ci-gates-registry.sh"
       - "scripts/verify-live-required-status-checks.sh"
       - "scripts/test-verify-live-required-status-checks.sh"
+      - "scripts/resolve-required-gates-pr.sh"
+      - "scripts/test-resolve-required-gates-pr.sh"
       - "scripts/test-pre-pr-whole-module-gates.sh"
       - "scripts/lib/pre-pr-fixture-consumers.sh"
       - "scripts/lib/test-pre-pr-fixture-consumers.sh"
@@ -4041,7 +4043,7 @@ gates:
       - "scripts/verify-ci-gates-registry.sh"
     local:
       command: "bash scripts/verify-ci-gates-registry.sh --drift"
-      test_command: "bash scripts/test-verify-ci-gates-registry.sh && bash scripts/test-pre-pr-whole-module-gates.sh && bash scripts/test-generate-ci-gates-doc.sh && bash scripts/test-verify-live-required-status-checks.sh && (cd go && go test ./internal/cigates -count=1)"
+      test_command: "bash scripts/test-verify-ci-gates-registry.sh && bash scripts/test-pre-pr-whole-module-gates.sh && bash scripts/test-generate-ci-gates-doc.sh && bash scripts/test-verify-live-required-status-checks.sh && bash scripts/test-resolve-required-gates-pr.sh && (cd go && go test ./internal/cigates -count=1)"
     ci:
       workflow: verify-ci-gate-registry.yml
       job: "Verify ci-gate registry + drift"
