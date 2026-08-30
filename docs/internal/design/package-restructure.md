@@ -387,6 +387,24 @@ family's resolution order changes. The six tool names are disjoint from the
 remaining switch arms, and the 162-tool order, the advertised schemas, and every
 selected method, path, and query key remain unchanged.
 
+The CI/CD run-correlation route family is the second Wave 2 MCP extraction and
+follows the same shape. Its three tools — the bounded run-correlation listing
+and the two run-correlation aggregates — were answered by arms of the same
+`repositoryRoute` switch, with their request builders split across
+`dispatch_cicd.go` and `dispatch_cicd_aggregates.go`. Family membership, both
+aggregate builders, and the private `provider_run_id`-to-`run_id` fallback now
+live under `internal/mcp/cicd`, and `dispatch_cicd_aggregates.go` is gone. Root
+keeps every tool definition and its assembly position, global fanout order, the
+thin `cicdRoute` adapter, dispatch, authorization, transport, timeouts, response
+budgets, envelopes, summaries, and telemetry. The adapter is consulted directly
+after the package-registry one at the top of `repositoryRoute`, so the
+repository router keeps its own position in the global chain and no other
+family's resolution order changes. The three tool names are disjoint from the
+package-registry family and from the remaining switch arms, and the 162-tool
+order, the advertised schemas, the `limit` defaults of 50 and 100, the `offset`
+default of 0, the `group_by` fallback to `outcome`, and every selected method,
+path, and query key remain unchanged.
+
 **cmd/eshu (233):** `package main` — subdirectories are impossible by
 language rule. The lever is extracting business logic to new
 `internal/cli/<family>` packages, leaving thin cobra RunE wrappers —

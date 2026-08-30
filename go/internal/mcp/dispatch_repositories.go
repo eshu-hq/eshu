@@ -38,6 +38,9 @@ func repositoryRoute(toolName string, args map[string]any) (*route, bool, error)
 	if route, ok := packageRegistryRoute(toolName, args); ok {
 		return route, true, nil
 	}
+	if route, ok := cicdRoute(toolName, args); ok {
+		return route, true, nil
+	}
 	switch toolName {
 	case "list_indexed_repositories":
 		return &route{method: "GET", path: "/api/v0/repositories", query: paginationQuery(args, 100)}, true, nil
@@ -67,12 +70,6 @@ func repositoryRoute(toolName string, args map[string]any) (*route, bool, error)
 		return &route{method: "GET", path: "/api/v0/evidence/relationships/" + url.PathEscape(str(args, "resolved_id"))}, true, nil
 	case "list_admission_decisions":
 		return admissionDecisionsRoute(args), true, nil
-	case "list_ci_cd_run_correlations":
-		return cicdRunCorrelationsRoute(args), true, nil
-	case "count_ci_cd_run_correlations":
-		return cicdRunCorrelationAggregateCountRoute(args), true, nil
-	case "get_ci_cd_run_correlation_inventory":
-		return cicdRunCorrelationAggregateInventoryRoute(args), true, nil
 	case "list_service_catalog_correlations":
 		return serviceCatalogCorrelationsRoute(args), true, nil
 	case "list_codeowners_ownership":
