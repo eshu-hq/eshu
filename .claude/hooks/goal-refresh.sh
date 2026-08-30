@@ -283,11 +283,24 @@ try:
     lines = open(target).read().splitlines()
 except Exception:
     raise SystemExit(0)
-kept = [l for l in lines if not l.lstrip().lower().startswith("consent:")]
+kept, meta_zone, saw_header_meta = [], True, False
+for l in lines:
+    if meta_zone:
+        if l.lstrip().lower().startswith("consent:"):
+            continue
+        # lstrip, like every sibling parser in these two hooks. Testing the RAW
+        # line meant an indented header ended the metadata zone here while the
+        # others still treated it as one -- the leading-whitespace disagreement
+        # this suite already pins as a defect for the Stop hook.
+        if not l.lstrip().startswith("SESSION:") or saw_header_meta:
+            meta_zone = False
+        else:
+            saw_header_meta = True
+    kept.append(l)
 if acts:
     # Under the SESSION header, so the header stays first and the DONE /
     # BLOCKED escapes the Stop hook reads off the first line are unaffected.
-    at = 1 if kept and kept[0].startswith("SESSION:") else 0
+    at = 1 if kept and kept[0].lstrip().startswith("SESSION:") else 0
     kept.insert(at, "CONSENT: " + acts)
 try:
     with open(target + ".tmp", "w") as fh:
@@ -344,11 +357,25 @@ esac
 
 # CONSENT lines are metadata, not the objective and not a header. They are held
 # aside for the restatement below and must not be able to stand in for either.
+#
+# And metadata is a LEADING BLOCK. Matching the pattern anywhere deleted body
+# lines that merely discuss the format -- the same defect as the `SESSION:`
+# filter, in the sibling field. The first ordinary line ends the metadata.
 goal_body=""
+goal_meta=1
+goal_seen_header=0
 while IFS= read -r goal_line; do
-	case "${goal_line#"${goal_line%%[![:space:]]*}"}" in
-		[Cc][Oo][Nn][Ss][Ee][Nn][Tt]:*) continue ;;
-	esac
+	if [ "${goal_meta}" -eq 1 ]; then
+		case "${goal_line#"${goal_line%%[![:space:]]*}"}" in
+			[Cc][Oo][Nn][Ss][Ee][Nn][Tt]:*) continue ;;
+			SESSION:*)
+				# First one only; see the sibling comment in goal-continue.sh.
+				[ "${goal_seen_header}" -eq 1 ] && goal_meta=0
+				goal_seen_header=1
+				;;
+			*) goal_meta=0 ;;
+		esac
+	fi
 	goal_body="${goal_body}${goal_line}
 "
 done < <(printf '%s\n' "${goal}")
@@ -400,14 +427,38 @@ lines = sys.stdin.read().splitlines()
 # separately from the objective, because an act the owner has consented to is
 # no longer something to stop and ask about -- and the ask-only-for-consent
 # sentence below reads as an invitation to do exactly that.
-acts = [l.split(":", 1)[1].strip() for l in lines
-        if l.lstrip().lower().startswith("consent:")
-        and l.split(":", 1)[1].strip()]
+# Leading metadata only, for the same reason the shell view above stops at the
+# first ordinary line: a body line discussing the consent format is objective
+# text, not a grant, and reading it as one both truncates the goal and tells
+# the agent the owner permitted something they never mentioned.
+meta = []
+seen_header = False
+for line in lines:
+    stripped_line = line.lstrip()
+    low = stripped_line.lower()
+    if low.startswith("consent:"):
+        meta.append(stripped_line)
+        continue
+    if stripped_line.startswith("SESSION:") and not seen_header:
+        seen_header = True
+        continue
+    break
+acts = [m.split(":", 1)[1].strip() for m in meta if m.split(":", 1)[1].strip()]
 env_acts = os.environ.get("CONSENT_ENV", "").strip()
 if env_acts:
     acts.append(env_acts)
-goal = "\n".join(l for l in lines
-                 if not l.lstrip().lower().startswith("consent:")).strip()
+kept_lines, in_meta, saw_header = [], True, False
+for line in lines:
+    if in_meta:
+        bare = line.lstrip()
+        if bare.lower().startswith("consent:"):
+            continue
+        if bare.startswith("SESSION:") and not saw_header:
+            saw_header = True
+        else:
+            in_meta = False
+    kept_lines.append(line)
+goal = "\n".join(kept_lines).strip()
 if not goal:
     raise SystemExit(0)
 granted = ", ".join(acts)
