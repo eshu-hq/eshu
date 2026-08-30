@@ -32,15 +32,13 @@
 #
 # The budget is keyed on prompt_id, so it bounds work per user message, not per
 # session. It counts stops that made NO PROGRESS -- real tool calls between
-# stops reset it -- with a hard per-message ceiling behind it, so a working
-# agent is never released by exhaustion and a stuck one still cannot spin.
+# stops reset it, so a working agent is never released by exhaustion. Nothing
+# bounds a session that keeps calling tools; that is deliberate and the
+# consequence is stated in docs/internal/agent-hooks.md.
 
 set -uo pipefail
 
 MAX_NUDGES="${CLAUDE_GOAL_MAX_NUDGES:-3}"
-# Hard ceiling on nudges per user message, whatever the agent is doing. The
-# soft budget above resets on progress, so something has to bound the loop.
-MAX_TOTAL="${CLAUDE_GOAL_MAX_TOTAL:-20}"
 
 payload="$(cat)"
 
@@ -216,33 +214,37 @@ apply_session_header() {
 # owner's file, and the hook only stops it from being forgotten. `CONSENT: all`
 # is the blanket form. An empty `CONSENT:` grants nothing, the same way an
 # empty `BLOCKED:` releases nothing -- the agent writes this file too.
+# Metadata is a LEADING BLOCK, not a pattern matched anywhere in the file. The
+# `SESSION:` header taught this once: a filter over the whole body deleted every
+# line that looked like one, silently truncating goals that discuss the format.
+# The `CONSENT:` strip had the same shape and the same bug -- an objective with
+# a body line like `consent: make it whole-token` lost that line AND was echoed
+# to the agent as a grant of "make it whole-token". So: consume CONSENT: and
+# SESSION: lines only while they are still at the TOP; the first ordinary line
+# ends the metadata and everything from there is the objective, verbatim.
 consent=""
-if printf '%s\n' "${goal}" | python3 -c '
-import sys
-sys.exit(0 if any(l.lstrip().lower().startswith("consent:") for l in sys.stdin) else 1)
-' 2>/dev/null; then
-	stripped=""
-	while IFS= read -r line; do
-		# lstrip first: the python detector above uses .lstrip(), and a shell
-		# arm that rejected leading whitespace made the refresher and the Stop
-		# hook read the same file two different ways.
-		trimmed="${line#"${line%%[![:space:]]*}"}"
+consent_meta=1
+stripped=""
+while IFS= read -r line; do
+	trimmed="${line#"${line%%[![:space:]]*}"}"
+	if [ "${consent_meta}" -eq 1 ]; then
 		case "${trimmed}" in
 			[Cc][Oo][Nn][Ss][Ee][Nn][Tt]:*)
 				acts="${trimmed#*:}"
 				acts="${acts#"${acts%%[![:space:]]*}"}"
 				[ -n "${acts}" ] && consent="${consent:+${consent}, }${acts}"
+				continue
 				;;
-			*)
-				stripped="${stripped}${line}
-"
-				;;
+			SESSION:*) : ;;
+			*) consent_meta=0 ;;
 		esac
-	done < <(printf '%s\n' "${goal}")
-	goal="${stripped%$'\n'}"
-	[ -n "${goal}" ] || exit 0
-	first_line="$(printf '%s\n' "${goal}" | head -1)"
-fi
+	fi
+	stripped="${stripped}${line}
+"
+done < <(printf '%s\n' "${goal}")
+goal="${stripped%$'\n'}"
+[ -n "${goal}" ] || exit 0
+first_line="$(printf '%s\n' "${goal}" | head -1)"
 
 # A launcher that already knows what its run may do can grant without editing a
 # file that concurrent sessions in the same checkout share.
@@ -296,8 +298,8 @@ esac
 # ceiling released it -- which looks exactly like a clean finish afterwards.
 #
 # So the soft budget counts NO-PROGRESS stops and real work resets it, while a
-# hard ceiling still bounds the loop: an agent making one token call per turn
-# cannot spin forever. Progress is tool calls appended to the transcript since
+# budget still releases a genuinely stuck agent, which makes no tool calls at
+# all. Progress is tool calls appended to the transcript since
 # the last nudge, read from a stored byte offset rather than by re-reading the
 # file -- these run to 8MB.
 state_dir="${TMPDIR:-/tmp}"
@@ -309,14 +311,16 @@ state_dir="${TMPDIR:-/tmp}"
 pid_safe="$(printf '%s' "${prompt_id}" | tr -c 'A-Za-z0-9._-' '-')"
 counter="${state_dir}/claude-goal-nudge-${sid_safe}-${pid_safe}"
 count=0
-total=0
 offset=0
 if [ -f "${counter}" ]; then
 	# `count total offset`. A file written by the previous version holds a bare
 	# number; reading it must not crash or silently reset the bound to zero.
-	read -r count total offset <"${counter}" 2>/dev/null || true
+	# `count offset`. Older files hold `count total offset` from an earlier
+	# revision of this branch, and older ones still a bare number; reading
+	# either must not crash or silently reset the bound.
+	read -r count second third <"${counter}" 2>/dev/null || true
 	case "${count}" in ''|*[!0-9]*) count=0 ;; esac
-	case "${total}" in ''|*[!0-9]*) total="${count}" ;; esac
+	offset="${third:-${second:-0}}"
 	case "${offset}" in ''|*[!0-9]*) offset=0 ;; esac
 fi
 
@@ -362,30 +366,33 @@ except Exception:
 fi
 
 if [ "${progress}" -gt 0 ]; then
+	# Real work since the last nudge clears the budget outright. Only stops
+	# that made NO progress spend it -- so a working session is never released,
+	# which is the owner's decision and the whole point of the change.
 	count=0
-	# The ceiling resets on progress too. It used to increment unconditionally,
-	# so a session working steadily through one long user message was still
-	# released at MAX_TOTAL -- release-by-exhaustion moved from 3 to 20 rather
-	# than removed. The owner's call, and the right one: being cut off mid-goal
-	# costs more than the residual risk, which is an agent making one token
-	# tool call per turn forever. A genuinely stuck agent makes no tool calls
-	# at all and is still released by the soft budget after MAX_NUDGES.
-	total=0
 fi
 
-if [ "${count}" -ge "${MAX_NUDGES}" ] || [ "${total}" -ge "${MAX_TOTAL}" ]; then
+if [ "${count}" -ge "${MAX_NUDGES}" ]; then
 	# Say why. On the live run this released a session mid-goal and read as a
 	# clean finish; nobody could tell the two apart afterwards.
 	printf 'goal-continue: stop allowed after %s stops with no progress. The goal is still open and the owner is now the one who has to answer.\n' \
 		"${count}" >&2
 	printf 'goal-continue: if the work is finished, put DONE on the first line of %s. If it is waiting on something outside this machine, put BLOCKED: <reason> there instead. Either would have ended the turn cleanly without an interruption.\n' \
 		"${goal_file}" >&2
-	printf '%s %s %s' "${count}" "${total}" "${new_offset}" >"${counter}" 2>/dev/null || true
+	printf '%s %s' "${count}" "${new_offset}" >"${counter}" 2>/dev/null || true
 	exit 0
 fi
-printf '%s %s %s' "$((count + 1))" "$((total + 1))" "${new_offset}" >"${counter}" 2>/dev/null || exit 0
+# Only a no-progress stop spends a nudge. Incrementing unconditionally meant a
+# working stop still burned one, so three narrated stops after it released on
+# the second -- the implementation contradicting the contract above it.
+if [ "${progress}" -gt 0 ]; then
+	printf '%s %s' "${count}" "${new_offset}" >"${counter}" 2>/dev/null || exit 0
+else
+	printf '%s %s' "$((count + 1))" "${new_offset}" >"${counter}" 2>/dev/null || exit 0
+fi
 
-remaining="$((MAX_NUDGES - count - 1))"
+remaining="$((MAX_NUDGES - count))"
+[ "${progress}" -gt 0 ] || remaining="$((remaining - 1))"
 
 # On the last one, say so. An agent that knows this is its final continuation
 # can retire or block the goal itself; one that does not simply stops again and

@@ -137,9 +137,9 @@ multi-step goal would finish one step, report, and wait for the owner to type
 A Stop hook is the enforcement point, because it runs whether or not the model
 remembered the rule.
 
-It reads `.claude/active-goal.<session_id>` (or `$CLAUDE_GOAL_FILE`, or the
-checkout-shared `.claude/active-goal`, or `~/.claude/active-goal`) and, if that
-file names unfinished work, returns
+It reads `.claude/active-goal.<session_id>` (or `$CLAUDE_GOAL_FILE`, the shared
+`.claude/active-goal`, or `~/.claude/active-goal`) and, if that file names
+unfinished work, returns
 `{"decision":"block","reason":...}` with the goal text and the legitimate
 reasons to stop: the goal is met, an irreversible act needs consent the owner
 has not already given, or the work is blocked on something no local action
@@ -154,7 +154,7 @@ to survive that:
 | `BLOCKED: <reason>` | The reason is echoed to stderr, so the owner reads the exact claim rather than only seeing the turn end. |
 | `BLOCKED: … WATCH=<pid>` | The hook verifies the process is alive. **A dead watcher REFUSES the stop** — nothing would wake the agent, so waiting is the bug rather than the excuse. |
 | `CLAUDE_GOAL_OFF=1` | Owner-side, not agent-side. |
-| budget | A bounded number of NO-PROGRESS continuations per `prompt_id` (`CLAUDE_GOAL_MAX_NUDGES`, default 3), behind a hard ceiling (`CLAUDE_GOAL_MAX_TOTAL`, default 20). A new owner message resets both; the defaults live in the hook. |
+| budget | A bounded number of NO-PROGRESS continuations per `prompt_id` (`CLAUDE_GOAL_MAX_NUDGES`, default 3). Real work resets it, so only stops that made no tool calls spend it. A new owner message resets it too. |
 | `CONSENT: <acts>` | Not an escape — it does not end a turn. It removes "I need consent for that" as a reason to stop, for the acts it names. Nothing verifies who wrote it, which is why every honoured grant is echoed to stderr with its acts. |
 
 ### Consent the owner already gave
@@ -228,15 +228,14 @@ between them gives 16, 0, 0, 1. The two zeroes are the failure the hook exists
 for. The 16 and the 1 are an agent working, and the old rule counted all four
 the same.
 
-So the soft budget counts stops with **no tool calls since the previous
-nudge**, and real work resets it; a hard ceiling (`CLAUDE_GOAL_MAX_TOTAL`,
-default 20) still bounds the loop, so an agent making one token call per turn
-cannot spin forever. Progress is read from a stored byte offset, so the stops
+So the budget counts stops with **no tool calls since the previous nudge**, and
+real work resets it. Nothing bounds a session that keeps calling tools — see
+the consequence stated below, which is deliberate. Progress is read from a
+stored byte offset, so the stops
 after the first in a message read only a tail — these transcripts run past 8MB.
-The first stop of each message still reads the whole file (159-172ms measured
-on a real 9.9MB one) and that read is behaviourally a no-op; seeding the offset
-from the file size instead would make work done before the first nudge
-invisible.
+The first stop of each message reads the whole file (159-172ms on a real 9.9MB
+one), which is a no-op behaviourally; seeding the offset from the file size
+would make work done before the first nudge invisible.
 
 The tool-call pattern tolerates whitespace, because pinning one JSON spelling
 meant a single added space would silently restore the old behaviour. It does
@@ -251,19 +250,25 @@ force: a progress signal that failed open would remove the bound entirely.
 
 When the budget is what allowed the stop, the hook now says so on stderr.
 
-Both counters reset on progress. An earlier version reset only the soft budget
-and let `CLAUDE_GOAL_MAX_TOTAL` increment unconditionally, which moved
-release-by-exhaustion from three to twenty rather than removing it: a session
-working steadily through one long user message was still handed back to the
-owner at the ceiling. That is the failure this hook exists to prevent, arriving
-later instead of never, so the ceiling resets too.
+There is one budget, and only stops that made **no tool calls since the last
+nudge** spend it. Real work clears it. So a session that keeps working is never
+released, and a genuinely stuck one — which makes no tool calls at all — is
+released after `CLAUDE_GOAL_MAX_NUDGES`.
 
-What still bounds the loop is the soft budget: a stop with **no tool calls
-since the last nudge** spends one, and `CLAUDE_GOAL_MAX_NUDGES` of those
-release the turn. A genuinely stuck agent makes no tool calls and is released
-after three. The residual risk is an agent making one token tool call per turn
-forever — a deliberate trade, because being cut off mid-goal costs more than
-that risk does.
+Three revisions shipped on one branch and all three looked right. A separate
+ceiling incrementing unconditionally moved release-by-exhaustion from three to
+twenty rather than removing it; resetting both counters together made that
+ceiling unreachable, leaving dead code an operator would read as a safety net;
+and the reset set the count to zero while the unconditional write stored one,
+so a working stop still spent a nudge.
+
+**State the consequence plainly.** Nothing now bounds a session that keeps
+making tool calls — not "a pathological one-call-per-turn agent" but *any*
+progressing session, of which a looping one is a member. A deliberate trade of
+a certain harm for an uncertain one: being cut off mid-goal was measured
+happening, repeatedly, and cost more. If it ever bites, `stop_hook_active` is
+parsed from the payload and used nowhere — the harness saying "I already
+blocked once this turn", discarded — and that is the first place to look.
 
 When the budget does release a turn, the owner is about to be interrupted, so
 the hook says why on stderr and names the two escapes that would have avoided
@@ -290,16 +295,15 @@ cold after eleven rounds of per-hook review had missed them:
   `/goal done` did not retire a goal for the refresher at all — it went on
   restating a finished objective indefinitely
 
-The order is now the same in both: DONE, strip `CONSENT:`, `SESSION:`, then
-DONE again beneath the header. A retired file is also passed over during
-lookup, so a `DONE` tombstone at the per-session path cannot shadow an active
-checkout-shared goal — except when `CLAUDE_GOAL_FILE` names it, because the
-owner naming a file means that file.
-
+Metadata is a **leading block**: `CONSENT:` and `SESSION:` lines are consumed
+only while they are still at the top of the file, and the first ordinary line
+ends them. The order is the same in both now: DONE, strip `CONSENT:`, `SESSION:`, then
+DONE again beneath the header. A retired file is passed over during lookup, so
+a tombstone cannot shadow an active shared goal — except when
+`CLAUDE_GOAL_FILE` names it, since the owner naming a file means that file.
 `scripts/test-goal-refresh-hook-parity-cases.sh` runs every layout against
-**both** hooks and asserts they agree. Testing each hook separately is what let
-this through: every case was green on each side while the two disagreed with
-each other.
+**both** hooks and compares the goal text each would show. Testing each side
+separately is what let this through.
 
 ### Probing this hook: use run-unique ids
 

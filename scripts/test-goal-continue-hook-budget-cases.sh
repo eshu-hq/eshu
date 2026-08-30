@@ -336,10 +336,14 @@ for _ in 1 2 3 4; do
 	said_something
 	printf '%s' "$(run "$(tx_payload mixedlong)")" | rg -q '"block"' && mixed=$((mixed + 1))
 done
-# Two, not three: the final WORKING stop reset the counters and then spent one
-# itself, so the narrated phase starts at one. The point of the case is that a
-# long working run does not buy immunity -- the budget still closes.
-if [[ "${mixed}" -eq 2 ]]; then
+# Three. An earlier revision of this case said two, because the working stop
+# still spent a nudge -- and rather than question that, the expectation was
+# edited to match it. A test adjusted to fit the behaviour stops being able to
+# find the behaviour wrong, which is what a PR reviewer then caught. Only
+# no-progress stops spend the budget, so a narrated run after a long working
+# one gets the full three. The point of the case is unchanged: a long working
+# run does not buy immunity, the budget still closes.
+if [[ "${mixed}" -eq 3 ]]; then
 	ok "after a long working run, narrated stops still release it"
 else
 	no "after a long working run, narrated stops still release it (blocked ${mixed}/4)"
@@ -377,6 +381,58 @@ if printf '%s' "${last_out}" | rg -qi 'last continuation'; then
 else
 	no "the final nudge warns that the next stop will be allowed"
 fi
+# ── 9. what the PR review found on the pushed head ─────────────────────────
+#
+# Metadata is a LEADING BLOCK, not a pattern that applies anywhere. The
+# `SESSION:` fix taught this once and the `CONSENT:` strip still had the
+# original shape: every line matching `consent:` was removed from the goal
+# ANYWHERE in the body and echoed as a grant. So an objective discussing the
+# consent format lost that line and told the agent the owner had granted it.
+printf 'CONSENT: push\nSESSION: %s\nObjective line.\nconsent: make it whole-token\ntail line.\n' \
+	"${sid}" >"${goal}"
+meta_out="$(run "$(payload metaleading)")"
+if printf '%s' "${meta_out}" | rg -q 'make it whole-token'; then
+	ok "a body line starting consent: survives into the goal"
+else
+	no "a body line starting consent: survives into the goal"
+fi
+if printf '%s' "${meta_out}" | rg -q 'GRANTED for: push'; then
+	ok "the leading CONSENT line is still read as the grant"
+else
+	no "the leading CONSENT line is still read as the grant"
+fi
+if printf '%s' "${meta_out}" | rg -q 'GRANTED for:.*whole-token'; then
+	no "a body consent: line is not echoed as a grant"
+else
+	ok "a body consent: line is not echoed as a grant"
+fi
+
+# Only NO-PROGRESS stops spend the budget. The reset set count to zero and the
+# unconditional write immediately stored one, so a working stop still spent a
+# slot and three narrated stops after it released on the second.
+: >"${tx}"
+work_happened
+run "$(tx_payload spend)" >/dev/null
+spend=0
+for _ in 1 2 3 4; do
+	said_something
+	printf '%s' "$(run "$(tx_payload spend)")" | rg -q '"block"' && spend=$((spend + 1))
+done
+if [[ "${spend}" -eq 3 ]]; then
+	ok "a working stop spends no budget: three narrated stops still follow it"
+else
+	no "a working stop spends no budget: three narrated stops still follow it (blocked ${spend}/4)"
+fi
+
+# And the knob that no longer bounds anything is gone rather than left inert.
+# With both counters resetting together and MAX_NUDGES below it, the ceiling
+# could never fire -- dead code an operator would still read as a safety net.
+if rg -q 'MAX_TOTAL' "${HOOK}"; then
+	no "the inert MAX_TOTAL ceiling is removed rather than left as dead code"
+else
+	ok "the inert MAX_TOTAL ceiling is removed rather than left as dead code"
+fi
+
 
 # LAST line on purpose -- see the sibling companions.
 goal_hook_budget_cases_loaded=1
