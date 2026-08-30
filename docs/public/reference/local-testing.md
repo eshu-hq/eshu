@@ -54,6 +54,25 @@ expectations are firm:
   runs the targeted/scoped race lane; `make pre-pr-full` adds the whole-module
   `go test ./... -race`, and CI runs the authoritative full race gate.
 
+### Local and hosted ownership
+
+The local and hosted layers have different jobs. Do not remove one because the
+other runs a similar command.
+
+| Proof | Mandatory locally | Mandatory in GitHub Actions |
+| --- | --- | --- |
+| TDD reproduction and focused touched-surface tests | Before review and before `make pre-pr` | Re-run when selected; CI is not the first proof attempt |
+| Credential-free promotion checks | `make pre-pr` once on the final reviewed diff; use `make pre-pr-full` only when the proof tier requires it | Re-run independently on the exact PR head |
+| Frontend and security-heavy checks | Run the matching preflight when those surfaces change | Blocking path-selected jobs remain authoritative |
+| OS-, credential-, service-, or artifact-dependent checks | Run locally or on the dedicated remote validation host when the change contract requires that proof | Mandatory hosted owner; a local or remote pass does not create a GitHub required status |
+| Required merge decision | No local command can satisfy it | `go-core-complete`, `go-race-complete`, and `required-gates-complete` must pass |
+
+Deduplicate within a layer: one local invocation should not execute the same
+command twice for registry rows owned by the same hosted job, and one hosted job
+should not repeat a byte-identical test/gate command. Keep the local-versus-CI
+rerun because it proves the final bytes in an independent environment and is
+the non-bypassable merge record.
+
 Frontend- and security-heavy lanes are not in `make pre-pr` (they need Node, the
 network, or are slow); run `make frontend-preflight` / `make security-preflight`
 when you touch those surfaces. None of these silently skip: a gate that cannot

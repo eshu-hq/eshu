@@ -80,6 +80,108 @@ func TestExecuteGatesRunsIdenticalCommandOnce(t *testing.T) {
 	assertTrace(t, repoRoot, "once\n")
 }
 
+func TestExecuteGatesReusesCommandForSharedCIJob(t *testing.T) {
+	t.Parallel()
+	repoRoot := t.TempDir()
+	command := "printf 'once\\n' >> trace.log"
+	selections := []cigates.Selection{
+		selectedGateWithCI("first-gate", command, true, "shared.yml", "Shared job"),
+		selectedGateWithCI("second-gate", command, true, "shared.yml", "Shared job"),
+	}
+
+	var output bytes.Buffer
+	if err := executeGates(&output, selections, repoRoot); err != nil {
+		t.Fatalf("executeGates() error = %v, want nil", err)
+	}
+
+	assertTrace(t, repoRoot, "once\n")
+	if !strings.Contains(output.String(), "REUSE   second-gate: "+command+" (result from first-gate)") {
+		t.Fatalf("executeGates() output did not report shared result reuse:\n%s", output.String())
+	}
+	if !strings.Contains(output.String(), "PASS     second-gate") {
+		t.Fatalf("executeGates() output did not pass the second gate:\n%s", output.String())
+	}
+}
+
+func TestExecuteGatesReusedFailureStillFailsBlockingOwner(t *testing.T) {
+	t.Parallel()
+	repoRoot := t.TempDir()
+	command := "printf 'once\\n' >> trace.log; exit 19"
+	selections := []cigates.Selection{
+		selectedGateWithCI("advisory-gate", command, false, "shared.yml", "Shared job"),
+		selectedGateWithCI("blocking-gate", command, true, "shared.yml", "Shared job"),
+	}
+
+	var output bytes.Buffer
+	if err := executeGates(&output, selections, repoRoot); err == nil {
+		t.Fatal("executeGates() error = nil, want reused failure to fail blocking owner")
+	}
+
+	assertTrace(t, repoRoot, "once\n")
+	if !strings.Contains(output.String(), "FAIL     blocking-gate (blocking)") {
+		t.Fatalf("executeGates() output did not attribute reused failure to blocking owner:\n%s", output.String())
+	}
+}
+
+func TestExecuteGatesDoesNotReuseCommandAcrossDistinctCIJobs(t *testing.T) {
+	t.Parallel()
+	repoRoot := t.TempDir()
+	command := "printf 'run\\n' >> trace.log"
+	selections := []cigates.Selection{
+		selectedGateWithCI("first-gate", command, true, "shared.yml", "First job"),
+		selectedGateWithCI("second-gate", command, true, "shared.yml", "Second job"),
+	}
+
+	var output bytes.Buffer
+	if err := executeGates(&output, selections, repoRoot); err != nil {
+		t.Fatalf("executeGates() error = %v, want nil", err)
+	}
+
+	assertTrace(t, repoRoot, "run\nrun\n")
+	if strings.Contains(output.String(), "REUSE") {
+		t.Fatalf("executeGates() reused a command owned by distinct CI jobs:\n%s", output.String())
+	}
+}
+
+func TestExecuteGatesDoesNotReuseCommandAcrossDistinctCIWorkflows(t *testing.T) {
+	t.Parallel()
+	repoRoot := t.TempDir()
+	command := "printf 'run\\n' >> trace.log"
+	selections := []cigates.Selection{
+		selectedGateWithCI("first-gate", command, true, "first.yml", "Shared job"),
+		selectedGateWithCI("second-gate", command, true, "second.yml", "Shared job"),
+	}
+
+	var output bytes.Buffer
+	if err := executeGates(&output, selections, repoRoot); err != nil {
+		t.Fatalf("executeGates() error = %v, want nil", err)
+	}
+
+	assertTrace(t, repoRoot, "run\nrun\n")
+	if strings.Contains(output.String(), "REUSE") {
+		t.Fatalf("executeGates() reused a command owned by distinct CI workflows:\n%s", output.String())
+	}
+}
+
+func TestExecuteGatesDoesNotReuseDistinctCommandsForSharedCIJob(t *testing.T) {
+	t.Parallel()
+	repoRoot := t.TempDir()
+	selections := []cigates.Selection{
+		selectedGateWithCI("first-gate", "printf 'first\\n' >> trace.log", true, "shared.yml", "Shared job"),
+		selectedGateWithCI("second-gate", "printf 'second\\n' >> trace.log", true, "shared.yml", "Shared job"),
+	}
+
+	var output bytes.Buffer
+	if err := executeGates(&output, selections, repoRoot); err != nil {
+		t.Fatalf("executeGates() error = %v, want nil", err)
+	}
+
+	assertTrace(t, repoRoot, "first\nsecond\n")
+	if strings.Contains(output.String(), "REUSE") {
+		t.Fatalf("executeGates() reused distinct commands owned by one CI job:\n%s", output.String())
+	}
+}
+
 func TestExecuteGatesAdvisoryTestCommandFailureDoesNotFailRun(t *testing.T) {
 	t.Parallel()
 	repoRoot := t.TempDir()
@@ -227,6 +329,13 @@ func selectedGate(command, testCommand string, blocking bool) cigates.Selection 
 			},
 		},
 	}
+}
+
+func selectedGateWithCI(id, command string, blocking bool, workflow, job string) cigates.Selection {
+	selection := selectedGate(command, "", blocking)
+	selection.Gate.ID = id
+	selection.Gate.CI = cigates.CI{Workflow: workflow, Job: job}
+	return selection
 }
 
 func assertTrace(t *testing.T, repoRoot, want string) {

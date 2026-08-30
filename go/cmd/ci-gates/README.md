@@ -53,10 +53,14 @@ the heavy pre-push gates (gosec, console e2e, frontend) out of this step.
 
 Runs each selected gate's `local.command` and then its non-empty
 `local.test_command` via `/bin/sh -c`. Byte-identical command/test-command
-pairs run once. The runner accumulates all results (including running a test
-command after its gate command fails) and exits non-zero if any blocking gate
-failed. Advisory failures are printed but do not affect the exit code. CI-only
-gates are printed as `CI-ONLY` and never executed.
+pairs run once. Separate selected rows also reuse a byte-identical command when
+both rows declare the same `ci.workflow` and `ci.job`; the runner prints
+`REUSE`, attributes the shared result to each gate, and still applies each
+gate's own blocking or advisory disposition. Commands with different hosted
+owners remain independent. The runner accumulates all results (including
+running a test command after its gate command fails) and exits non-zero if any
+blocking gate failed. CI-only gates are printed as `CI-ONLY` and never
+executed.
 
 For a `command` shape of `bash scripts/verify-*.sh`, the inner `bash` token
 resolves via PATH, and on macOS that finds the system `/bin/bash` (3.2.57)

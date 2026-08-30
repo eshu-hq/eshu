@@ -17,11 +17,23 @@ type localGateCommand struct {
 	command string
 }
 
+type sharedGateCommandKey struct {
+	workflow string
+	job      string
+	command  string
+}
+
+type sharedGateCommandResult struct {
+	gateID string
+	err    error
+}
+
 // executeGates runs all selected gates, accumulates results, and returns an
 // error if any blocking gate failed. Advisory failures are printed but do not
 // affect the exit code.
 func executeGates(w io.Writer, sels []cigates.Selection, repoRoot string) error {
 	anyBlockingFail := false
+	sharedResults := make(map[sharedGateCommandKey]sharedGateCommandResult)
 	for _, selection := range sels {
 		if selection.Gate.CIOnlyReason != "" {
 			_, _ = fmt.Fprintf(w, "CI-ONLY  %s: %s\n", selection.Gate.ID, selection.Gate.CIOnlyReason)
@@ -49,14 +61,33 @@ func executeGates(w io.Writer, sels []cigates.Selection, repoRoot string) error 
 
 		gateFailed := false
 		for _, localCommand := range commands {
-			action := "RUN"
-			if localCommand.label == "test_command" {
-				action = "TEST"
+			key, canReuse := sharedCommandKey(selection.Gate, localCommand.command)
+			result, reused := sharedResults[key]
+			if canReuse && reused {
+				_, _ = fmt.Fprintf(
+					w,
+					"REUSE   %s: %s (result from %s)\n",
+					selection.Gate.ID,
+					localCommand.command,
+					result.gateID,
+				)
+			} else {
+				action := "RUN"
+				if localCommand.label == "test_command" {
+					action = "TEST"
+				}
+				_, _ = fmt.Fprintf(w, "%-8s %s: %s\n", action, selection.Gate.ID, localCommand.command)
+				result = sharedGateCommandResult{
+					gateID: selection.Gate.ID,
+					err:    runShellCommand(localCommand.command, repoRoot),
+				}
+				if canReuse {
+					sharedResults[key] = result
+				}
 			}
-			_, _ = fmt.Fprintf(w, "%-8s %s: %s\n", action, selection.Gate.ID, localCommand.command)
-			if err := runShellCommand(localCommand.command, repoRoot); err != nil {
+			if result.err != nil {
 				gateFailed = true
-				printGateFailure(w, selection.Gate, localCommand.label, err)
+				printGateFailure(w, selection.Gate, localCommand.label, result.err)
 				if selection.Gate.Blocking {
 					anyBlockingFail = true
 				}
@@ -70,6 +101,20 @@ func executeGates(w io.Writer, sels []cigates.Selection, repoRoot string) error 
 		return fmt.Errorf("one or more blocking gates failed")
 	}
 	return nil
+}
+
+// sharedCommandKey mirrors RequiredGates' hosted workflow/job deduplication.
+// Commands without a complete hosted owner stay independent because byte
+// equality alone is not enough evidence that two registry rows are one check.
+func sharedCommandKey(gate cigates.Gate, command string) (sharedGateCommandKey, bool) {
+	if gate.CI.Workflow == "" || gate.CI.Job == "" {
+		return sharedGateCommandKey{}, false
+	}
+	return sharedGateCommandKey{
+		workflow: gate.CI.Workflow,
+		job:      gate.CI.Job,
+		command:  command,
+	}, true
 }
 
 // localGateCommands returns the shell commands this gate actually runs, in

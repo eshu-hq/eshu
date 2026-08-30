@@ -57,11 +57,14 @@
 // # run
 //
 // Runs each selected gate's local.command and non-empty local.test_command via
-// /bin/sh -c, deduplicates byte-identical pairs, accumulates all results, and
-// exits non-zero if any blocking gate failed. Advisory failures are printed
-// but do not affect the exit code. --category applies the same filter as
-// select; `make pre-pr` uses exactness, telemetry, hygiene, and docs for its
-// credential-free registry lane (#4214).
+// /bin/sh -c, deduplicates byte-identical pairs, and reuses identical commands
+// across selected rows only when they share one ci.workflow/ci.job owner. The
+// shared result is still attributed to every gate and applies each gate's own
+// blocking disposition. The command accumulates all results and exits non-zero
+// if any blocking gate failed. Advisory failures are printed but do not affect
+// the exit code. --category applies the same filter as select; `make pre-pr`
+// uses exactness, telemetry, hygiene, and docs for its credential-free registry
+// lane (#4214).
 //
 // When a gate command shells out to "bash scripts/verify-*.sh", run resolves
 // a bash >= 4.4 (checking PATH, then /opt/homebrew/bin/bash, then

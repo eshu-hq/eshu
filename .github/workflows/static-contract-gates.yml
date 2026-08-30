@@ -370,9 +370,14 @@ jobs:
             local display="$3"
             local test="$4"
             local gate="$5"
+            local run_gate=true
+
+            if [[ "${test}" == "${gate}" ]]; then
+              run_gate=false
+            fi
 
             if [[ "${{ github.event_name }}" == "push" || "${selected}" == "true" ]]; then
-              local item="{\"key\":\"${key}\",\"display\":\"${display}\",\"test\":\"${test}\",\"gate\":\"${gate}\"}"
+              local item="{\"key\":\"${key}\",\"display\":\"${display}\",\"test\":\"${test}\",\"gate\":\"${gate}\",\"run_gate\":${run_gate}}"
               if [[ -n "${matrix_items}" ]]; then
                 matrix_items="${matrix_items},${item}"
               else
@@ -432,4 +437,5 @@ jobs:
       - name: Run test mirror (${{ matrix.key }})
         run: ${{ matrix.test }}
       - name: Run gate (${{ matrix.key }})
+        if: ${{ matrix.run_gate }}
         run: ${{ matrix.gate }}
