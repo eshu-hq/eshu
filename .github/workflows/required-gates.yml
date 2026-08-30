@@ -86,18 +86,20 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
           HEAD_SHA: ${{ github.event.workflow_run.head_sha }}
-          DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
         run: |
           set -euo pipefail
-          pulls="$(gh api "repos/${GITHUB_REPOSITORY}/commits/${HEAD_SHA}/pulls")"
-          matches="$(jq -c --arg base "${DEFAULT_BRANCH}" \
-            '[.[] | select(.state == "open" and .base.ref == $base)]' <<<"${pulls}")"
-          count="$(jq 'length' <<<"${matches}")"
-          if [[ "${count}" -ne 1 ]]; then
-            echo "::error::expected exactly one open ${DEFAULT_BRANCH} PR for ${HEAD_SHA}; got ${count}"
-            exit 1
-          fi
-          echo "number=$(jq -r '.[0].number' <<<"${matches}")" >> "${GITHUB_OUTPUT}"
+          # Selection lives in scripts/resolve-required-gates-pr.sh so it can be
+          # exercised locally; scripts/test-resolve-required-gates-pr.sh replays
+          # real commits/<sha>/pulls payload shapes against it. It sat inline
+          # here before, which is why nobody caught that base.ref == the default
+          # branch matches ZERO open PRs for a stacked lane: that endpoint
+          # returns the lane plus the lanes ABOVE it, none of them main-based.
+          # The step then exited 1, aggregate never wrote code=, and the
+          # publisher fell through to its catch-all (run 33308583604: "...got 0").
+          # This runs from the trusted default-branch checkout above, never from
+          # the pull request's own tree.
+          number="$(bash scripts/resolve-required-gates-pr.sh)"
+          echo "number=${number}" >> "${GITHUB_OUTPUT}"
 
       - name: Await every selected blocking gate
         id: aggregate
@@ -194,6 +196,17 @@ jobs:
                 exit 0
                 ;;
               13) state=error; description='A required gate was cancelled or never ran; re-run it (no gate failed)' ;;
+              # An empty code is not a broken aggregator: the aggregate step
+              # produced no verdict. Two things do that. A step before it failed,
+              # so GitHub skipped it -- `continue-on-error` does not add
+              # `always()`. Or it started and died before `echo "code="`: the
+              # `go build` on its first line runs outside the `set +e` window
+              # under the default `bash -e` shell, and `continue-on-error: true`
+              # carries the job here anyway. Neither is the aggregator breaking,
+              # which is what `*)` says and would send someone reading exit codes
+              # for a verdict that was never produced. This arm must not name
+              # WHICH step failed, because it cannot know.
+              "") state=error; description='Required gate aggregation produced no verdict; the step was skipped or failed before classifying (see the run log)' ;;
               *) state=error; description='Required gate aggregation broke (not a gate result)' ;;
             esac
           fi
