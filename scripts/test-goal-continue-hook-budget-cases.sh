@@ -78,22 +78,22 @@ check "work after two narrated stops restores the budget" block "$(run "$(tx_pay
 said_something
 check "and the restored budget is a full one" block "$(run "$(tx_payload mixed)")"
 
-# The ceiling no longer bounds a WORKING agent -- it resets on progress, by the
-# owner's decision, because being cut off mid-goal costs more than the residual
-# risk. Even a deliberately tiny ceiling must not release a session that is
-# making tool calls. What still bounds the loop is the soft budget below.
+# There is no ceiling any more: one budget, spent only by no-progress stops.
+# This block used to set CLAUDE_GOAL_MAX_TOTAL=4 and assert a working session
+# survived it -- which passed vacuously the moment the knob was deleted, since
+# an ignored env var cannot release anything. A test that exercises a removed
+# feature as though it were alive is worse than no test: it reads as coverage.
+# What it asserts now is the property that replaced it, with no env var at all.
 : >"${tx}"
 ceil=0
 for _ in 1 2 3 4 5 6 7 8; do
 	work_happened
-	out_c="$(printf '%s' "$(tx_payload ceiling)" | CLAUDE_GOAL_MAX_TOTAL=4 \
-		CLAUDE_GOAL_FILE="${goal}" bash "${HOOK}" 2>/dev/null)"
-	printf '%s' "${out_c}" | rg -q '"block"' && ceil=$((ceil + 1))
+	printf '%s' "$(run "$(tx_payload ceiling)")" | rg -q '"block"' && ceil=$((ceil + 1))
 done
 if [[ "${ceil}" -eq 8 ]]; then
-	ok "even a tiny ceiling does not release a session that keeps working"
+	ok "a working session is never released, with no ceiling knob involved"
 else
-	no "even a tiny ceiling does not release a session that keeps working (blocked ${ceil}/8)"
+	no "a working session is never released, with no ceiling knob involved (blocked ${ceil}/8)"
 fi
 
 # No transcript, or an unreadable one, must behave exactly as before: three and
@@ -427,11 +427,54 @@ fi
 # And the knob that no longer bounds anything is gone rather than left inert.
 # With both counters resetting together and MAX_NUDGES below it, the ceiling
 # could never fire -- dead code an operator would still read as a safety net.
-if rg -q 'MAX_TOTAL' "${HOOK}"; then
-	no "the inert MAX_TOTAL ceiling is removed rather than left as dead code"
+# Scan the hook AND the suite: a case still setting the knob is how the removal
+# gets quietly undone, and one was doing exactly that when a reviewer looked.
+#
+# Match the CODE form on a non-comment line, not the bare word. The first
+# version of this guard searched for the word and so matched its own failure
+# message and the comment above it -- a check that fails because it can see
+# itself, which is the same self-match that made a sibling session's poller
+# report BUSY forever. A guard whose subject includes its own text is not a
+# guard.
+if rg -q '^[^#]*CLAUDE_GOAL_MAX_TOTAL[=}]' "${HOOK}" "${repo_root}/scripts/"test-goal-*.sh; then
+	no "no live use of the removed ceiling knob remains in the hook or the cases"
 else
-	ok "the inert MAX_TOTAL ceiling is removed rather than left as dead code"
+	ok "no live use of the removed ceiling knob remains in the hook or the cases"
 fi
+# The metadata block ends at the first line that is not the HEADER. Only the
+# first `SESSION:` line is a header -- a second one is body text, and this repo
+# writes goals that discuss the hook format. Leaving metadata mode open across
+# any number of SESSION: lines meant a body `CONSENT:` line after one was still
+# consumed and echoed as a grant: the exact spurious-grant class this branch
+# removed for the single-line case, surviving one layout deeper.
+printf 'SESSION: %s\nSESSION: this is body text\nCONSENT: this is also body text\nreal objective.\n' \
+	"${sid}" >"${goal}"
+second_out="$(run "$(payload secondsession)")"
+if printf '%s' "${second_out}" | rg -q 'GRANTED for: this is also body text'; then
+	no "a CONSENT line after a body SESSION line is not read as a grant"
+else
+	ok "a CONSENT line after a body SESSION line is not read as a grant"
+fi
+if printf '%s' "${second_out}" | rg -q 'CONSENT: this is also body text'; then
+	ok "that body line survives into the goal"
+else
+	no "that body line survives into the goal"
+fi
+if printf '%s' "${second_out}" | rg -q 'SESSION: this is body text'; then
+	ok "the second SESSION line survives as body text"
+else
+	no "the second SESSION line survives as body text"
+fi
+
+# A real leading block still works: consent above the header, header, objective.
+printf 'CONSENT: push\nSESSION: %s\nreal objective.\n' "${sid}" >"${goal}"
+lead_out="$(run "$(payload realleading)")"
+if printf '%s' "${lead_out}" | rg -q 'GRANTED for: push'; then
+	ok "a genuine leading CONSENT line is still the grant"
+else
+	no "a genuine leading CONSENT line is still the grant"
+fi
+
 
 
 # LAST line on purpose -- see the sibling companions.

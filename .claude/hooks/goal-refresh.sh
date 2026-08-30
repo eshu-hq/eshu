@@ -283,18 +283,24 @@ try:
     lines = open(target).read().splitlines()
 except Exception:
     raise SystemExit(0)
-kept, meta_zone = [], True
+kept, meta_zone, saw_header_meta = [], True, False
 for l in lines:
     if meta_zone:
         if l.lstrip().lower().startswith("consent:"):
             continue
-        if not l.startswith("SESSION:"):
+        # lstrip, like every sibling parser in these two hooks. Testing the RAW
+        # line meant an indented header ended the metadata zone here while the
+        # others still treated it as one -- the leading-whitespace disagreement
+        # this suite already pins as a defect for the Stop hook.
+        if not l.lstrip().startswith("SESSION:") or saw_header_meta:
             meta_zone = False
+        else:
+            saw_header_meta = True
     kept.append(l)
 if acts:
     # Under the SESSION header, so the header stays first and the DONE /
     # BLOCKED escapes the Stop hook reads off the first line are unaffected.
-    at = 1 if kept and kept[0].startswith("SESSION:") else 0
+    at = 1 if kept and kept[0].lstrip().startswith("SESSION:") else 0
     kept.insert(at, "CONSENT: " + acts)
 try:
     with open(target + ".tmp", "w") as fh:
@@ -357,11 +363,16 @@ esac
 # filter, in the sibling field. The first ordinary line ends the metadata.
 goal_body=""
 goal_meta=1
+goal_seen_header=0
 while IFS= read -r goal_line; do
 	if [ "${goal_meta}" -eq 1 ]; then
 		case "${goal_line#"${goal_line%%[![:space:]]*}"}" in
 			[Cc][Oo][Nn][Ss][Ee][Nn][Tt]:*) continue ;;
-			SESSION:*) : ;;
+			SESSION:*)
+				# First one only; see the sibling comment in goal-continue.sh.
+				[ "${goal_seen_header}" -eq 1 ] && goal_meta=0
+				goal_seen_header=1
+				;;
 			*) goal_meta=0 ;;
 		esac
 	fi
@@ -421,26 +432,30 @@ lines = sys.stdin.read().splitlines()
 # text, not a grant, and reading it as one both truncates the goal and tells
 # the agent the owner permitted something they never mentioned.
 meta = []
+seen_header = False
 for line in lines:
     stripped_line = line.lstrip()
     low = stripped_line.lower()
     if low.startswith("consent:"):
         meta.append(stripped_line)
         continue
-    if stripped_line.startswith("SESSION:"):
+    if stripped_line.startswith("SESSION:") and not seen_header:
+        seen_header = True
         continue
     break
 acts = [m.split(":", 1)[1].strip() for m in meta if m.split(":", 1)[1].strip()]
 env_acts = os.environ.get("CONSENT_ENV", "").strip()
 if env_acts:
     acts.append(env_acts)
-kept_lines, in_meta = [], True
+kept_lines, in_meta, saw_header = [], True, False
 for line in lines:
     if in_meta:
-        low = line.lstrip().lower()
-        if low.startswith("consent:"):
+        bare = line.lstrip()
+        if bare.lower().startswith("consent:"):
             continue
-        if not line.lstrip().startswith("SESSION:"):
+        if bare.startswith("SESSION:") and not saw_header:
+            saw_header = True
+        else:
             in_meta = False
     kept_lines.append(line)
 goal = "\n".join(kept_lines).strip()

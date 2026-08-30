@@ -224,6 +224,7 @@ apply_session_header() {
 # ends the metadata and everything from there is the objective, verbatim.
 consent=""
 consent_meta=1
+consent_seen_header=0
 stripped=""
 while IFS= read -r line; do
 	trimmed="${line#"${line%%[![:space:]]*}"}"
@@ -235,7 +236,17 @@ while IFS= read -r line; do
 				[ -n "${acts}" ] && consent="${consent:+${consent}, }${acts}"
 				continue
 				;;
-			SESSION:*) : ;;
+			SESSION:*)
+				# Only the FIRST one is the header -- apply_session_header
+				# consumes exactly one. A second is body text, and leaving
+				# metadata mode open across it let a following CONSENT: line be
+				# eaten and echoed as a grant, which is the spurious-grant class
+				# this hook removed for the single-line layout, one deeper.
+				if [ "${consent_seen_header}" -eq 1 ]; then
+					consent_meta=0
+				fi
+				consent_seen_header=1
+				;;
 			*) consent_meta=0 ;;
 		esac
 	fi
