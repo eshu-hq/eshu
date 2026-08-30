@@ -140,10 +140,10 @@ remembered the rule.
 It reads `.claude/active-goal.<session_id>` (or `$CLAUDE_GOAL_FILE`, or the
 checkout-shared `.claude/active-goal`, or `~/.claude/active-goal`) and, if that
 file names unfinished work, returns
-`{"decision":"block","reason":...}` with the goal text and the three legitimate
+`{"decision":"block","reason":...}` with the goal text and the legitimate
 reasons to stop: the goal is met, an irreversible act needs consent the owner
 has not already given, or the work is blocked on something no local action
-clears.
+clears. Under blanket consent the middle one is dropped and two remain.
 
 The design problem is that **the agent writes the goal file**. Every escape has
 to survive that:
@@ -168,17 +168,40 @@ again.
 `CONSENT: <acts>` on a line of the goal file is that answer written where the
 hook can read it. `/goal consent push, pr-open` writes it, `/goal revoke-consent`
 removes it, and `CLAUDE_GOAL_CONSENT` is the launcher-side form for a run whose
-permissions are known before it starts. Both hooks read it: the refusal and the
+permissions are known before it starts. The producer refuses, on stderr rather
+than silently, when there is no goal file for this session, when the resolved
+file belongs to another session, and when it resolves to the machine-wide
+`~/.claude/active-goal` — a grant written there would be inherited by every
+concurrent session in every other worktree. A consent that silently goes
+nowhere is the very loop this feature closes. Both hooks read it: the refusal and the
 per-turn restatement each name the granted acts and say that asking again for
 one of them is not a reason to stop. `CONSENT: all` retires the bullet
 outright; a named list narrows it to everything not on the list.
 
-This grants nothing on its own — the permission is the owner's, and the file is
-the owner's. What the hook removes is the chance to forget it. The escapes
-above are checked *because the agent writes them*; consent is checked by
-nobody, because a consent line the agent wrote for itself only ever unblocks
-what the owner has to review anyway on the PR. An empty `CONSENT:` grants
-nothing, the same way an empty `BLOCKED:` releases nothing.
+Blanket is a whole token, split on commas — `all` or `*`, not a substring. The
+first version tested `case … in *all*`, which read `CONSENT: install deps` as
+blanket consent and silently retired the entire irreversible-act stop reason,
+delete and deploy included. `call`, `allow`, `fallback` and `recall` all did
+the same. Leading whitespace is stripped on both sides, because the producer
+used `.lstrip()` and the consumer did not, and one indented line meant two
+different things to the two halves of the same feature.
+
+Be exact about what this is. The agent writes the goal file, so an agent can
+write itself a `CONSENT:` line, and **that line is not checked by anything** —
+unlike `BLOCKED: … WATCH=<pid>`, which the hook verifies. Do not read the
+review process as the backstop: a merge closes the PR rather than being
+reviewed on it, and a deploy, a delete, a data mutation or a cassette rewrite
+is never reviewed on a PR at all.
+
+What actually bounds it is narrower, and worth stating plainly. The hook emits
+*text*, not authority: Claude Code's permission system is untouched, so nothing
+here turns a denied action into an allowed one. In a session running with
+permissions bypassed, though, the norm is the only control there is — which is
+why honouring consent is echoed to stderr with the acts it covers, exactly as
+`BLOCKED:` is. The owner can see a grant being used.
+
+An empty `CONSENT:` grants nothing, the same way an empty `BLOCKED:` releases
+nothing.
 
 The general rule, worth applying to any gate with an override: ask who authors
 the override value. If it is the party being constrained, attach evidence the

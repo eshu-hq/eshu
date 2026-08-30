@@ -364,5 +364,81 @@ else
 	no "END TO END: the Stop hook enforces each session's own goal"
 fi
 
+# ── what the reviewers proved wrong ────────────────────────────────────────
+
+# The consent arm matched on a bare prefix, so an ordinary objective beginning
+# with the word "consented" was swallowed by it: the goal update was dropped
+# and a garbage CONSENT value written in its place.
+bw="${work}/boundary"
+mkdir -p "${bw}/.claude"
+submit "${sid}" '/goal ship the release' "${bw}" >/dev/null
+submit "${sid}" '/goal consented users need a migration path' "${bw}" >/dev/null
+bfile="${bw}/.claude/active-goal.${sid}"
+if rg -q '^CONSENT: ed users' "${bfile}" 2>/dev/null; then
+	no "an objective starting with 'consented' is not read as a grant"
+else
+	ok "an objective starting with 'consented' is not read as a grant"
+fi
+if rg -q 'consented users need a migration path' "${bfile}" 2>/dev/null; then
+	ok "that objective is stored as the goal it is"
+else
+	no "that objective is stored as the goal it is"
+fi
+
+# `/goal consent` resolved the READ path and wrote to it. With no worktree goal
+# file that path is $HOME/.claude/active-goal -- a machine-wide file every
+# concurrent session in every other worktree falls through to. The producer's
+# own comment forbids writing it.
+hw="${work}/homeless"
+fake_h="${work}/fakehome2"
+mkdir -p "${hw}/.claude" "${fake_h}/.claude"
+printf 'A hand-written machine-wide objective.\n' >"${fake_h}/.claude/active-goal"
+SID="${sid}" PROMPT='/goal consent push, merge, deploy' CWD="${hw}" python3 -c '
+import json, os
+print(json.dumps({"session_id": os.environ["SID"], "prompt_id": "homewrite",
+                  "cwd": os.environ["CWD"], "prompt": os.environ["PROMPT"],
+                  "hook_event_name": "UserPromptSubmit"}))
+' | HOME="${fake_h}" bash "${REFRESH}" >/dev/null 2>&1
+if rg -q '^CONSENT:' "${fake_h}/.claude/active-goal" 2>/dev/null; then
+	no "the consent producer never writes the machine-wide goal file"
+else
+	ok "the consent producer never writes the machine-wide goal file"
+fi
+
+# A consent that goes nowhere is the exact loop this whole change exists to
+# close: the owner types it, nothing records it, the next Stop asks again.
+nw="${work}/nogoal"
+mkdir -p "${nw}/.claude"
+noop_err="$(SID="${sid}" PROMPT='/goal consent push' CWD="${nw}" python3 -c '
+import json, os
+print(json.dumps({"session_id": os.environ["SID"], "prompt_id": "noopc",
+                  "cwd": os.environ["CWD"], "prompt": os.environ["PROMPT"],
+                  "hook_event_name": "UserPromptSubmit"}))
+' | HOME="${work}/no-such-home" bash "${REFRESH}" 2>&1 >/dev/null)"
+if printf '%s' "${noop_err}" | rg -qi 'consent'; then
+	ok "a consent with no goal file to write says so on stderr"
+else
+	no "a consent with no goal file to write says so on stderr (got: ${noop_err})"
+fi
+
+# The ownership guard had no case that executed its false branch: every
+# existing case gave each session its own file, so deleting the guard left both
+# mirrors green. These two run a session AT a file it does not own.
+fw="${work}/foreign"
+mkdir -p "${fw}/.claude"
+printf 'SESSION: someone-else\nTheir objective.\n' >"${fw}/.claude/active-goal"
+submit "${sid}" '/goal done' "${fw}" >/dev/null
+if [[ "$(head -1 "${fw}/.claude/active-goal")" == "SESSION: someone-else" ]]; then
+	ok "/goal done does not retire a file this session does not own"
+else
+	no "/goal done does not retire a file this session does not own"
+fi
+submit "${sid}" '/goal consent force-push, delete branches' "${fw}" >/dev/null
+if rg -q '^CONSENT:' "${fw}/.claude/active-goal" 2>/dev/null; then
+	no "/goal consent does not amend a file this session does not own"
+else
+	ok "/goal consent does not amend a file this session does not own"
+fi
+
 printf '\ngoal-refresh hook mirror: %s passed, %s failed\n' "${passed}" "${failed}"
 [[ "${failed}" -eq 0 ]]

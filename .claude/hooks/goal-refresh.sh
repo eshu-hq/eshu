@@ -127,16 +127,42 @@ case "${prompt}" in
 		fi
 		exit 0
 		;;
-	'/goal consent'*|'GOAL: consent'*|'/goal revoke-consent'*|'GOAL: revoke-consent'*)
+	'/goal consent'|'/goal consent '*|'GOAL: consent'|'GOAL: consent '*|\
+	'/goal revoke-consent'|'/goal revoke-consent '*|\
+	'GOAL: revoke-consent'|'GOAL: revoke-consent '*)
 		# Consent the owner typed in chat dies with that turn. Written into the
 		# goal file it survives compaction, the next Stop, and the next session
 		# that adopts the file. This case has to sit ABOVE the generic `/goal
 		# <text>` producer: otherwise "/goal consent push" is read as a new
 		# objective and silently replaces the actual one with the word
 		# "consent" -- granting nothing and losing the goal in the same move.
+		# The word boundary above matters: a bare `'/goal consent'*` prefix
+		# swallowed "/goal consented users need a migration path", dropped the
+		# objective the owner was actually setting, and wrote the remainder as
+		# a grant.
+		#
+		# Every rejection below says so on stderr. A consent that silently goes
+		# nowhere is the exact loop this feature exists to close -- the owner
+		# types it, nothing records it, the next Stop asks again.
 		target="${goal_file:-}"
-		[ -n "${target}" ] || exit 0
-		owns_goal_file "${target}" || exit 0
+		if [ -z "${target}" ]; then
+			printf 'goal-refresh: no goal file for this session, consent not recorded. Set a goal first with /goal <text>.\n' >&2
+			exit 0
+		fi
+		# Never the machine-wide file. This hook's own rule, thirty lines up:
+		# a $HOME goal file is inherited by every concurrent session in every
+		# other worktree, so a grant written there is a grant to all of them.
+		# An explicit CLAUDE_GOAL_FILE is the owner naming a target on purpose.
+		if [ -z "${CLAUDE_GOAL_FILE:-}" ] && [ "${target}" = "${HOME}/.claude/active-goal" ]; then
+			printf 'goal-refresh: refusing to write consent into the machine-wide goal file %s; set a goal in this worktree first.\n' \
+				"${target}" >&2
+			exit 0
+		fi
+		if ! owns_goal_file "${target}"; then
+			printf 'goal-refresh: %s belongs to another session, consent not recorded.\n' \
+				"${target}" >&2
+			exit 0
+		fi
 		case "${prompt}" in
 			*revoke-consent*) acts="" ;;
 			*)

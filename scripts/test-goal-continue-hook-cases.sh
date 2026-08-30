@@ -302,3 +302,78 @@ if printf '%s' "${legacy_out}" | rg -q '"block"'; then
 else
 	ok "a legacy counter of 2 leaves exactly one nudge"
 fi
+
+# ── 6. what the reviewers proved wrong ─────────────────────────────────────
+#
+# Three defects found by execution, not by reading. Each case below is the
+# probe that found one.
+
+# A substring test read "install deps" as blanket consent, because it contains
+# "all". Every value in between the two the suite happened to test -- `all` and
+# `push` -- was undefended, and the discriminator has to be whole tokens.
+for narrow in 'install deps' 'call the API' 'allow push' 'fallback to compose' 'recall the baseline'; do
+	printf 'CONSENT: %s\nDo the work.\n' "${narrow}" >"${goal}"
+	nout="$(run "$(payload "narrow-${narrow%% *}")")"
+	if printf '%s' "${nout}" | rg -qi 'you need consent for an irreversible act'; then
+		ok "CONSENT: ${narrow} narrows rather than going blanket"
+	else
+		no "CONSENT: ${narrow} narrows rather than going blanket"
+	fi
+done
+
+# The blanket forms must still be blanket, including inside a list.
+for blanket in 'all' '*' 'push, all' 'ALL'; do
+	printf 'CONSENT: %s\nDo the work.\n' "${blanket}" >"${goal}"
+	bout="$(run "$(payload "blanket-${blanket}")")"
+	if printf '%s' "${bout}" | rg -qi 'you need consent for an irreversible act'; then
+		no "CONSENT: ${blanket} is still blanket"
+	else
+		ok "CONSENT: ${blanket} is still blanket"
+	fi
+done
+
+# A CONSENT line above a SESSION header shadowed the ownership escape: the
+# stripping re-checked DONE but not SESSION, so a foreign session was handed
+# another session's goal AND its consent grant. Verbatim the leak the header
+# exists to stop.
+printf 'CONSENT: push\nSESSION: somebody-else\nTheir private objective.\n' >"${goal}"
+shadow="$(run "$(payload shadow)")"
+check "a CONSENT line cannot shadow the SESSION escape" allow "${shadow}"
+if printf '%s' "${shadow}" | rg -q 'Their private objective'; then
+	no "a foreign goal is not leaked through a CONSENT line"
+else
+	ok "a foreign goal is not leaked through a CONSENT line"
+fi
+
+# Consent above MY session header must still work.
+printf 'CONSENT: push\nSESSION: %s\nMy objective.\n' "${sid}" >"${goal}"
+mine="$(run "$(payload mineconsent)")"
+check "a CONSENT line above my own SESSION header still blocks" block "${mine}"
+if printf '%s' "${mine}" | rg -qi 'already granted'; then
+	ok "consent above my own header is honoured"
+else
+	no "consent above my own header is honoured"
+fi
+
+# The two sides of the format disagreed on leading whitespace: the refresher
+# stripped an indented CONSENT line and the Stop hook did not, so the same file
+# meant two different things to the producer and the consumer.
+printf '  CONSENT: push\nDo the work.\n' >"${goal}"
+indent="$(run "$(payload indent)")"
+if printf '%s' "${indent}" | rg -q 'CONSENT:'; then
+	no "an indented CONSENT line is read the same as a flush one"
+else
+	ok "an indented CONSENT line is read the same as a flush one"
+fi
+
+# Honouring consent removes the requirement to ask before push, merge, deploy
+# and delete. The strictly weaker BLOCKED escape echoes its claim to stderr
+# precisely because the agent writes the file; this one echoed nothing.
+printf 'CONSENT: push, merge, deploy\nDo the work.\n' >"${goal}"
+cerr="$(printf '%s' "$(payload consenterr)" | CLAUDE_GOAL_FILE="${goal}" \
+	bash "${HOOK}" 2>&1 >/dev/null)"
+if printf '%s' "${cerr}" | rg -q 'push, merge, deploy'; then
+	ok "honouring consent is announced on stderr with the acts"
+else
+	no "honouring consent is announced on stderr with the acts (got: ${cerr})"
+fi

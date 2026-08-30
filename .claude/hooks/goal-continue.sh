@@ -134,19 +134,28 @@ esac
 #
 # An unheaded file is the owner's own hand-written goal and is honoured as-is,
 # which keeps the manual workflow working.
-case "${first_line}" in
-	SESSION:*)
-		goal_owner="${first_line#SESSION:}"
-		goal_owner="${goal_owner# }"
-		[ "${goal_owner}" = "${session_id}" ] || exit 0
-		goal="$(printf '%s\n' "${goal}" | tail -n +2)"
-		[ -n "${goal}" ] || exit 0
-		first_line="$(printf '%s\n' "${goal}" | head -1)"
-		case "${first_line}" in
-			DONE*|done*) exit 0 ;;
-		esac
-		;;
-esac
+# A function, because this has to run AGAIN after CONSENT lines are stripped: a
+# `CONSENT:` line above the header shadowed the ownership check, and a foreign
+# session was handed another session's goal and its consent grant -- the leak
+# the header exists to stop, reintroduced by the feature that reads above it.
+# Returns non-zero when the stop should be allowed.
+apply_session_header() {
+	case "${first_line}" in
+		SESSION:*)
+			goal_owner="${first_line#SESSION:}"
+			goal_owner="${goal_owner# }"
+			[ "${goal_owner}" = "${session_id}" ] || return 1
+			goal="$(printf '%s\n' "${goal}" | tail -n +2)"
+			[ -n "${goal}" ] || return 1
+			first_line="$(printf '%s\n' "${goal}" | head -1)"
+			;;
+	esac
+	case "${first_line}" in
+		DONE*|done*) return 1 ;;
+	esac
+	return 0
+}
+apply_session_header || exit 0
 
 # CONSENT: <acts> is the owner writing down a permission the agent would
 # otherwise stop to ask for. The refusal used to offer "you need consent for an
@@ -167,9 +176,13 @@ sys.exit(0 if any(l.lstrip().lower().startswith("consent:") for l in sys.stdin) 
 ' 2>/dev/null; then
 	stripped=""
 	while IFS= read -r line; do
-		case "${line}" in
+		# lstrip first: the python detector above uses .lstrip(), and a shell
+		# arm that rejected leading whitespace made the refresher and the Stop
+		# hook read the same file two different ways.
+		trimmed="${line#"${line%%[![:space:]]*}"}"
+		case "${trimmed}" in
 			[Cc][Oo][Nn][Ss][Ee][Nn][Tt]:*)
-				acts="${line#*:}"
+				acts="${trimmed#*:}"
 				acts="${acts#"${acts%%[![:space:]]*}"}"
 				[ -n "${acts}" ] && consent="${consent:+${consent}, }${acts}"
 				;;
@@ -182,9 +195,7 @@ sys.exit(0 if any(l.lstrip().lower().startswith("consent:") for l in sys.stdin) 
 	goal="${stripped%$'\n'}"
 	[ -n "${goal}" ] || exit 0
 	first_line="$(printf '%s\n' "${goal}" | head -1)"
-	case "${first_line}" in
-		DONE*|done*) exit 0 ;;
-	esac
+	apply_session_header || exit 0
 fi
 
 # A launcher that already knows what its run may do can grant without editing a
@@ -312,19 +323,38 @@ consent_note=""
 consent_bullet="
   - you need consent for an irreversible act (push, merge, deploy, delete, data mutation, anything outward-facing)"
 if [ -n "${consent}" ]; then
+	printf 'goal-continue: consent honoured, not asking again for: %s\n' \
+		"${consent}" >&2
 	consent_note="
 
 OWNER CONSENT ALREADY GRANTED for: ${consent}
 Do those yourself now. Stopping to ask again for something on that list is not a valid stop -- the owner already answered."
-	case "$(printf '%s' "${consent}" | tr '[:upper:]' '[:lower:]')" in
-		*all*|*'*'*)
-			consent_bullet=""
-			;;
-		*)
-			consent_bullet="
+	# Whole tokens, split on commas. A substring test read `install deps` as
+	# blanket consent -- it contains "all" -- and silently retired the entire
+	# irreversible-act stop reason, delete and deploy included. So do "call",
+	# "allow", "fallback" and "recall".
+	consent_blanket=0
+	consent_ifs="${IFS}"
+	IFS=','
+	# Globbing off around the split: the token being tested for is `*`, and an
+	# unquoted expansion of it would be replaced by the filenames in the
+	# working directory before the comparison ever ran.
+	set -f
+	for consent_tok in ${consent}; do
+		consent_tok="$(printf '%s' "${consent_tok}" |
+			tr '[:upper:]' '[:lower:]' | tr -d '[:space:]')"
+		case "${consent_tok}" in
+			all|'*') consent_blanket=1 ;;
+		esac
+	done
+	set +f
+	IFS="${consent_ifs}"
+	if [ "${consent_blanket}" -eq 1 ]; then
+		consent_bullet=""
+	else
+		consent_bullet="
   - you need consent for an irreversible act NOT on the granted list above"
-			;;
-	esac
+	fi
 fi
 
 reason="${reason_head}
