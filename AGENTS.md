@@ -54,15 +54,15 @@ owner's agreement quoted in the PR, and named there with its severity-table
 category, rather than blocking. The bar and the unbounded loop it prevents are in
 `.agents/skills/eshu-code-review/references/merge-bar.md`.
 
-Once the preliminary review is clean, run `make pre-pr` exactly when the branch
-is otherwise ready for its intended push or PR update, then run a final full
-`eshu-code-review` against the exact post-preflight diff. If `make pre-pr`
-changes tracked or generated files, or the final review finds a P0, P1, or
-blocking P2, fix and reprove the affected surface and repeat the sequence. A
-deferred P2 is already tracked and a P3 is cosmetic by definition; neither
-restarts this loop -- fix a P3 inline if it is a line, or record it in the
-verdict and push. No code or documentation edits may occur between the final
-clean review and push; any diff change invalidates that verdict.
+Once the preliminary review is clean, capture a `ci-gates review-attest`
+receipt, then run `make pre-pr` exactly when the branch is otherwise ready for
+its intended push or PR update. If the post-preflight receipt verifies, the
+exact reviewed inputs did not change and a second full semantic review is not
+required. A changed base, commit, tree, worktree, submodule, PR claim, review
+packet, or verdict invalidates the receipt; repeat the affected proof and full
+review before pushing. A deferred P2 is already tracked and a P3 is cosmetic by
+definition; neither restarts this loop. No code or documentation edits may
+occur between the verified attestation and push.
 
 ## Mandatory Pre-PR Local Proof
 
@@ -447,9 +447,10 @@ or PR update. It is the one-command local promotion preflight that selects and
 runs the credential-free gates required by changed paths; it is not an early
 discovery loop. Exactness and race gates are blocking. Use `make pre-pr-full`,
 `make frontend-preflight`, and `make security-preflight` for the heavier lanes.
-Run the final full `eshu-code-review` on the exact post-preflight diff before
-push. CI stays authoritative, but MUST NOT be the first place a
-credential-free failure appears.
+Verify the preliminary review receipt against the exact post-preflight inputs
+before push. If verification fails, run a new full `eshu-code-review`. CI stays
+authoritative, but MUST NOT be the first place a credential-free failure
+appears.
 
 Common checks:
 

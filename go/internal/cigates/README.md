@@ -12,7 +12,8 @@ It answers two related questions:
 | File | Purpose |
 | --- | --- |
 | `registry.go` | Types (`Registry`, `Gate`, `Tier`, `Category`, `Requirement`, `Local`, `CI`) and `Load` |
-| `select.go` | `(*Registry).Select` — pure path-trigger matcher |
+| `select.go` | `(*Registry).Select` and `Gate.ShouldRunSelfTest` — pure path-trigger matchers |
+| `selftest.go` | Strict parsing for optional `self_test_triggers`; omission preserves always-run behavior |
 | `required.go` | `(*Registry).RequiredGates` — every path-selected blocking CI job, including CI-only and heavy tiers |
 | `validate.go` | `(*Registry).Validate` — script (command + test_command) + workflow existence checks, plus literal-trigger existence ([#6055](https://github.com/eshu-hq/eshu/issues/6055)) |
 | `globtrigger.go` | `trackedPaths` + `checkGlobTriggerResolves`, called from `Validate` — a glob trigger must select at least one tracked path, or it can never select its gate ([#6159](https://github.com/eshu-hq/eshu/issues/6159)) |
@@ -32,7 +33,7 @@ It answers two related questions:
 
 ## Registry format
 
-The registry lives at `specs/ci-gates.v1.yaml`. Each gate entry has a stable kebab-case id, a tier, a set of path-glob triggers, an optional local command, an optional local self-test command, and a CI workflow reference. The CLI runs a selected gate's command followed by its distinct, non-empty self-test command; byte-identical pairs run once. Gates whose `local` field is absent are CI-only and always require a non-empty `ci_only_reason`. Gates with a local command but no CI workflow are local-only and must carry a non-empty `local_only_reason` when used as replay proof gates.
+The registry lives at `specs/ci-gates.v1.yaml`. Each gate entry has a stable kebab-case id, a tier, path-glob `triggers`, an optional local command, an optional local self-test command, and a CI workflow reference. `self_test_triggers` may narrow the distinct `test_command` to changes in the verifier harness; every entry must also appear in `triggers`. If the field is absent, the CLI runs the self-test whenever the gate is selected. This fail-closed default keeps unclassified test commands in the promotion path. Gates whose `local` field is absent are CI-only and always require a non-empty `ci_only_reason`. Gates with a local command but no CI workflow are local-only and must carry a non-empty `local_only_reason` when used as replay proof gates.
 
 The top-level `required_status_checks` manifest mirrors the contexts expected in
 the effective `main` ruleset. Exactly one entry sets
@@ -49,6 +50,11 @@ the aggregate never relies on a prefix match.
 3. Its `local` field is non-nil (CI-only gates are reported but never selected).
 
 `ci-heavy` and `manual` tiers are never selected locally, regardless of the requested ceiling.
+
+`Gate.ShouldRunSelfTest(changed)` is separate from gate selection. It returns
+true for every distinct legacy `test_command`, then narrows only gates that
+declare `self_test_triggers`. This lets a product change run the product
+verifier without rerunning the verifier's own fixture suite.
 
 ## Required-gate semantics
 

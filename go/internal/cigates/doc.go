@@ -14,8 +14,9 @@
 // so callers that require proof orchestration can distinguish intentional local
 // proofs from stale CI metadata. The result is a *Registry whose Gates slice
 // preserves the YAML order for deterministic output. Local.TestCommand remains
-// declarative in this package; cmd/ci-gates executes a distinct, non-empty
-// self-test after the primary command.
+// declarative in this package. Gate.ShouldRunSelfTest narrows it only when the
+// registry declares self_test_triggers; an absent declaration runs the distinct
+// self-test whenever the primary gate is selected.
 //
 // # Selection
 //

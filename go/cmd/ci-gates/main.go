@@ -48,6 +48,8 @@ func main() {
 		err = runValidate(args)
 	case "uncovered":
 		err = runUncovered(args)
+	case "review-attest":
+		err = runReviewAttest(args)
 	default:
 		_, _ = fmt.Fprintf(os.Stderr, "ci-gates: unknown subcommand %q\n", sub)
 		usage(os.Stderr)
@@ -119,7 +121,10 @@ func runRun(args []string) error {
 	pathsFrom := fs.String("paths-from", "", "file of changed paths, one per line ('-' for stdin)")
 	repoRoot := fs.String("repo-root", "", "repository root to run gate commands from (default: git toplevel)")
 	category := fs.String("category", "", "comma-separated category filter (e.g. exactness,telemetry); empty = all")
-	_ = fs.Bool("json", false, "emit JSON summary (reserved for future use)")
+	selfTests := fs.String("self-tests", "all", "self-test policy: all or changed")
+	blockingOnly := fs.Bool("blocking-only", false, "run only blocking selected gates")
+	reportFile := fs.String("report-file", "", "write an atomic JSON timing report to this path")
+	_ = fs.Bool("json", false, "reserved for compatibility; use --report-file for structured output")
 	if err := fs.Parse(args); err != nil {
 		return err
 	}
@@ -151,7 +156,22 @@ func runRun(args []string) error {
 		return err
 	}
 	sels := cigates.FilterByCategory(reg.Select(changed, cigates.Tier(*tier)), cats)
-	return executeGates(os.Stdout, sels, root)
+	policy := selfTestPolicy(*selfTests)
+	if policy != selfTestsAll && policy != selfTestsChanged {
+		return fmt.Errorf("--self-tests must be %q or %q", selfTestsAll, selfTestsChanged)
+	}
+	report, runErr := executeGatesWithOptions(os.Stdout, sels, root, executeOptions{
+		changedPaths: changed,
+		selfTests:    policy,
+		blockingOnly: *blockingOnly,
+	})
+	if reportErr := writeGateRunReport(*reportFile, report); reportErr != nil {
+		if runErr != nil {
+			return fmt.Errorf("%v; write report: %w", runErr, reportErr)
+		}
+		return reportErr
+	}
+	return runErr
 }
 
 // parseCategories splits a comma-separated category list into typed categories,

@@ -223,12 +223,13 @@ for a branch that has already survived design review. The order is:
    `P0=0, P1=0, P2-blocking=0`, with every deferred P2 tracked in a linked
    issue with the owner's agreement quoted in the PR, and named there with its
    severity-table category.
-3. Only when the branch is otherwise ready to push, run `make pre-pr` once.
-4. Run a final full `eshu-code-review` on the exact post-preflight diff. Any
-   tracked/generated change, or any P0, P1, or blocking P2, restarts the
-   affected proof and review. A deferred P2 is already tracked and a P3 is
-   cosmetic; neither does.
-5. Push the reviewed diff, open or update the PR, then use CI and external
+3. Capture a `ci-gates review-attest` receipt for the clean preliminary review.
+4. Only when the branch is otherwise ready to push, run `make pre-pr` once.
+5. Verify the receipt against the exact post-preflight inputs. A match replaces
+   a duplicate full semantic review. Any changed base, diff, worktree, claims,
+   packet, or verdict invalidates it and restarts the affected proof and review.
+   A deferred P2 is already tracked and a P3 is cosmetic; neither does.
+6. Push the reviewed diff, open or update the PR, then use CI and external
    reviews as authoritative post-push gates. No edit may occur between the final
    clean review and push.
 

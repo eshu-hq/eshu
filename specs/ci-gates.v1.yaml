@@ -123,6 +123,10 @@ gates:
       # ended up rejecting long _test.go files that CI passed (#6104) with
       # nothing catching it.
       - "tools/golangci-lint-filelength/**"
+    self_test_triggers:
+      - "scripts/dev/precommit-go.sh"
+      - "scripts/test-precommit-go-filecap.sh"
+      - "tools/golangci-lint-filelength/**"
     local:
       command: "bash scripts/dev/precommit-go.sh filecap-all"
       # Half of this test_command now runs in CI and half does not, and the
@@ -174,6 +178,14 @@ gates:
       - "scripts/generate-dirgate-grandfather-go.sh"
       - "scripts/test-generate-dirgate-grandfather-go.sh"
       - "tools/golangci-lint-dirgate/**"
+    self_test_triggers:
+      - "scripts/dev/precommit-go.sh"
+      - "scripts/verify-dirgate.sh"
+      - "scripts/lib/*dirgate*"
+      - "scripts/test-verify-dirgate.sh"
+      - "scripts/generate-dirgate-grandfather-go.sh"
+      - "scripts/test-generate-dirgate-grandfather-go.sh"
+      - "tools/golangci-lint-dirgate/**"
     local:
       command: "bash scripts/dev/precommit-go.sh dirgate-all"
       test_command: "bash scripts/test-verify-dirgate.sh && bash scripts/test-generate-dirgate-grandfather-go.sh"
@@ -201,6 +213,10 @@ gates:
       # out of their own gate's trigger list twice (#6054 review finding); a
       # glob cannot drift as files are added.
       - "scripts/lib/*markdown-line-cap*"
+    self_test_triggers:
+      - "scripts/verify-markdown-line-cap.sh"
+      - "scripts/test-verify-markdown-line-cap.sh"
+      - "scripts/lib/*markdown-line-cap*"
     local:
       command: "bash scripts/verify-markdown-line-cap.sh --all"
       test_command: "bash scripts/test-verify-markdown-line-cap.sh"
@@ -222,6 +238,9 @@ gates:
     blocking: true
     triggers:
       - "go/**"
+      - "scripts/test-verify-package-docs.sh"
+      - "scripts/verify-package-docs.sh"
+    self_test_triggers:
       - "scripts/test-verify-package-docs.sh"
       - "scripts/verify-package-docs.sh"
     local:
@@ -284,6 +303,26 @@ gates:
       # The workflow itself, so removing a test STEP selects the gate
       # that asserts the step is there. Without this a workflow-only
       # edit re-opens the local/CI parity gap silently.
+      - ".github/workflows/verify-agent-hygiene.yml"
+    self_test_triggers:
+      - ".agents/**"
+      - ".claude/skills/**"
+      - ".codex/skills/**"
+      - ".claude/hooks/**"
+      - ".claude/settings.json"
+      - ".opencode/agent/**"
+      - "AGENTS.md"
+      - "CLAUDE.md"
+      - "scripts/verify-agent-canon.sh"
+      - "scripts/test-verify-agent-hygiene.sh"
+      - "scripts/test-agent-hooks.sh"
+      - "scripts/test-goal-continue-hook.sh"
+      - "scripts/test-goal-continue-hook-cases.sh"
+      - "scripts/test-goal-continue-hook-budget-cases.sh"
+      - "scripts/test-goal-refresh-hook.sh"
+      - "scripts/test-goal-refresh-hook-cases.sh"
+      - "scripts/test-goal-refresh-hook-guard-cases.sh"
+      - "scripts/test-goal-refresh-hook-parity-cases.sh"
       - ".github/workflows/verify-agent-hygiene.yml"
     local:
       command: "bash scripts/verify-agent-canon.sh"
@@ -362,6 +401,9 @@ gates:
       # it is added; this also stops a non-Go change under go/ (a README, a
       # fixture) from selecting a gate that would not inspect it.
       - "**/*.go"
+      - "scripts/test-verify-license-header.sh"
+      - "scripts/verify-license-header.sh"
+    self_test_triggers:
       - "scripts/test-verify-license-header.sh"
       - "scripts/verify-license-header.sh"
     local:
@@ -445,6 +487,10 @@ gates:
       - ".github/openapi-known-drift.txt"
       - "scripts/test-verify-openapi.sh"
       - "scripts/verify-openapi.sh"
+    self_test_triggers:
+      - "scripts/lib/*verify-openapi*.sh"
+      - "scripts/test-verify-openapi.sh"
+      - "scripts/verify-openapi.sh"
     local:
       command: "bash scripts/verify-openapi.sh"
       test_command: "bash scripts/test-verify-openapi.sh"
@@ -463,6 +509,9 @@ gates:
     triggers:
       - "go/internal/query/**"
       - "go/cmd/api/**"
+      - "scripts/test-verify-route-coverage.sh"
+      - "scripts/verify-route-coverage.sh"
+    self_test_triggers:
       - "scripts/test-verify-route-coverage.sh"
       - "scripts/verify-route-coverage.sh"
     local:
@@ -484,6 +533,9 @@ gates:
       - "go/internal/relationships/**"
       - "go/internal/collector/**"
       - "specs/surface-inventory.v1.yaml"
+      - "scripts/test-verify-edge-source-tool-coverage.sh"
+      - "scripts/verify-edge-source-tool-coverage.sh"
+    self_test_triggers:
       - "scripts/test-verify-edge-source-tool-coverage.sh"
       - "scripts/verify-edge-source-tool-coverage.sh"
     local:
@@ -856,6 +908,12 @@ gates:
       - "scripts/lib/parser_relationship_language_ledger.sh"
       - "scripts/test-verify-parser-relationship-kit.sh"
       - "scripts/verify-parser-relationship-kit.sh"
+    self_test_triggers:
+      - "specs/parser-backing-ledger.v1.yaml"
+      - "scripts/lib/gate-diff-base.sh"
+      - "scripts/lib/parser_relationship_language_ledger.sh"
+      - "scripts/test-verify-parser-relationship-kit.sh"
+      - "scripts/verify-parser-relationship-kit.sh"
     local:
       command: "bash scripts/verify-parser-relationship-kit.sh"
       test_command: "bash scripts/test-verify-parser-relationship-kit.sh"
@@ -936,6 +994,10 @@ gates:
     triggers:
       - "go/internal/collector/**"
       - "go/internal/parser/**"
+      - "specs/scale-lab-corpus.v1.yaml"
+      - "scripts/test-verify-scale-corpus-suite.sh"
+      - "scripts/verify-scale-corpus-suite.sh"
+    self_test_triggers:
       - "specs/scale-lab-corpus.v1.yaml"
       - "scripts/test-verify-scale-corpus-suite.sh"
       - "scripts/verify-scale-corpus-suite.sh"
@@ -1052,6 +1114,11 @@ gates:
       - "scripts/lib/test-verify-telemetry-coverage-*"
       - ".github/workflows/static-contract-gates.yml"
       - "specs/ci-gates.v1.yaml"
+    self_test_triggers:
+      - "scripts/*verify-telemetry-coverage*.sh"
+      - "scripts/lib/telemetry-coverage-bucket-check.sh"
+      - "scripts/lib/telemetry-coverage-row-check.sh"
+      - "scripts/lib/test-verify-telemetry-coverage-*"
     local:
       command: "bash scripts/verify-telemetry-coverage.sh"
       test_command: "bash scripts/test-verify-telemetry-coverage.sh"
@@ -1077,6 +1144,11 @@ gates:
       - "scripts/lib/operator-dashboard-metrics.sh"
       - ".github/workflows/static-contract-gates.yml"
       - "specs/ci-gates.v1.yaml"
+      - "scripts/test-generate-operator-dashboard.sh"
+    self_test_triggers:
+      - "scripts/generate-operator-dashboard.sh"
+      - "scripts/lib/operator-dashboard-*.json.tmpl"
+      - "scripts/lib/operator-dashboard-metrics.sh"
       - "scripts/test-generate-operator-dashboard.sh"
     local:
       command: "bash scripts/generate-operator-dashboard.sh"
@@ -2090,6 +2162,11 @@ gates:
     blocking: true
     triggers:
       - "go/**"
+      - ".github/workflows/golden-corpus-gate.yml"
+      - "scripts/verify-golden-corpus-filter-exhaustive.sh"
+      - "scripts/test-verify-golden-corpus-filter-exhaustive.sh"
+      - "scripts/lib/golden-corpus-filter-exclusions.txt"
+    self_test_triggers:
       - ".github/workflows/golden-corpus-gate.yml"
       - "scripts/verify-golden-corpus-filter-exhaustive.sh"
       - "scripts/test-verify-golden-corpus-filter-exhaustive.sh"
@@ -3491,6 +3568,9 @@ gates:
       - "docs/public/reference/code-coverage.md"
       - "docs/public/reference/code-coverage-shield.json"
       - ".github/workflows/code-coverage-report.yml"
+    self_test_triggers:
+      - "scripts/generate-code-coverage-report.sh"
+      - "scripts/test-generate-code-coverage-report.sh"
     local:
       command: "bash scripts/generate-code-coverage-report.sh"
       test_command: "bash scripts/test-generate-code-coverage-report.sh"
@@ -3888,6 +3968,27 @@ gates:
       - "scripts/lib/test-verify-ci-gates-registry-path-assertions.sh"
       - "scripts/test-generate-ci-gates-doc.sh"
       - "docs/public/reference/ci-gates.md"
+      - ".github/workflows/**"
+      - "scripts/verify-ci-gates-registry.sh"
+    self_test_triggers:
+      - "specs/ci-gates.v1.yaml"
+      - "go/internal/cigates/**"
+      - "go/cmd/ci-gates/**"
+      - "scripts/dev/pre-pr.sh"
+      - "scripts/test-verify-ci-gates-registry.sh"
+      - "scripts/verify-live-required-status-checks.sh"
+      - "scripts/test-verify-live-required-status-checks.sh"
+      - "scripts/test-pre-pr-whole-module-gates.sh"
+      - "scripts/lib/pre-pr-test-selection.sh"
+      - "scripts/lib/test-pre-pr-test-selection.sh"
+      - "scripts/generate-ci-gates-doc.sh"
+      - "scripts/lib/ci-gates-doc-parse.awk"
+      - "scripts/lib/test-verify-ci-gates-registry-telemetry-cases.sh"
+      - "scripts/lib/test-verify-ci-gates-registry-performance-cases.sh"
+      - "scripts/lib/test-verify-ci-gates-registry-docs-cli-env-cases.sh"
+      - "scripts/lib/test-verify-ci-gates-registry-ifa-filter-cases.sh"
+      - "scripts/lib/test-verify-ci-gates-registry-path-assertions.sh"
+      - "scripts/test-generate-ci-gates-doc.sh"
       - ".github/workflows/**"
       - "scripts/verify-ci-gates-registry.sh"
     local:
