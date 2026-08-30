@@ -54,7 +54,9 @@ print(d.get("hookSpecificOutput", {}).get("additionalContext", ""))
 if [[ -x "${REFRESH}" ]]; then ok "hook is executable"; else no "hook is executable"; fi
 if bash -n "${REFRESH}" 2>/dev/null; then ok "hook parses"; else no "hook parses"; fi
 
-goal_file="${work}/.claude/active-goal"
+# The producer writes THIS session's goal file, not the checkout-shared one:
+# concurrent sessions in one clone must not overwrite each other.
+goal_file="${work}/.claude/active-goal.${sid}"
 
 # ── producer ───────────────────────────────────────────────────────────────
 
@@ -148,7 +150,7 @@ fi
 spacey="${work}/My Projects/eshu"
 mkdir -p "${spacey}/.claude"
 submit "${sid}" '/goal survive a spacey path' "${spacey}" >/dev/null
-if rg -q 'survive a spacey path' "${spacey}/.claude/active-goal" 2>/dev/null; then
+if rg -q 'survive a spacey path' "${spacey}/.claude/active-goal.${sid}" 2>/dev/null; then
 	ok "a cwd containing a space still gets its own goal file"
 else
 	no "a cwd containing a space still gets its own goal file"
@@ -224,7 +226,7 @@ fi
 
 cw="${work}/consent"
 mkdir -p "${cw}/.claude"
-cgoal="${cw}/.claude/active-goal"
+cgoal="${cw}/.claude/active-goal.${sid}"
 submit "${sid}" '/goal open the six-PR train' "${cw}" >/dev/null
 submit "${sid}" '/goal consent push, pr-open' "${cw}" >/dev/null
 
@@ -290,6 +292,76 @@ if printf '%s' "${consent_stop}" | rg -qi 'already granted|already consented'; t
 	ok "END TO END: /goal consent is honoured by the Stop hook"
 else
 	no "END TO END: /goal consent is honoured by the Stop hook"
+fi
+
+# ── concurrent sessions in one checkout ────────────────────────────────────
+#
+# Sessions are not per-checkout. Three agents in one clone shared a single
+# `.claude/active-goal`: the last `/goal` to run overwrote the others, and the
+# SESSION header then denied the losers any enforcement at all -- silently.
+# The producer writes `.claude/active-goal.<session_id>`, so parallel sessions
+# hold parallel goals.
+
+pw="${work}/parallel"
+mkdir -p "${pw}/.claude"
+sid_a="${sid}-a"
+sid_b="${sid}-b"
+
+submit "${sid_a}" '/goal lane A: land the parser train' "${pw}" >/dev/null
+submit "${sid_b}" '/goal lane B: chase the flaky gate' "${pw}" >/dev/null
+
+if [[ -f "${pw}/.claude/active-goal.${sid_a}" && -f "${pw}/.claude/active-goal.${sid_b}" ]]; then
+	ok "two sessions in one checkout get two goal files"
+else
+	no "two sessions in one checkout get two goal files"
+fi
+
+# The shared file is the owner's hand-written form. The producer must not
+# create or touch it, or the next hand-written goal is somebody's leftovers.
+if [[ -f "${pw}/.claude/active-goal" ]]; then
+	no "the producer leaves the checkout-shared goal file alone"
+else
+	ok "the producer leaves the checkout-shared goal file alone"
+fi
+
+inj_a="$(injected "$(submit "${sid_a}" 'carry on' "${pw}")")"
+inj_b="$(injected "$(submit "${sid_b}" 'carry on' "${pw}")")"
+if printf '%s' "${inj_a}" | rg -q 'lane A' && ! printf '%s' "${inj_a}" | rg -q 'lane B'; then
+	ok "session A is refreshed with only its own goal"
+else
+	no "session A is refreshed with only its own goal"
+fi
+if printf '%s' "${inj_b}" | rg -q 'lane B' && ! printf '%s' "${inj_b}" | rg -q 'lane A'; then
+	ok "session B is refreshed with only its own goal"
+else
+	no "session B is refreshed with only its own goal"
+fi
+
+# Retirement is per session too. One agent finishing must not release the other.
+submit "${sid_a}" '/goal done' "${pw}" >/dev/null
+if [[ -z "$(submit "${sid_a}" 'anything' "${pw}")" ]]; then
+	ok "/goal done retires only the caller's goal"
+else
+	no "/goal done retires only the caller's goal"
+fi
+if printf '%s' "$(injected "$(submit "${sid_b}" 'anything' "${pw}")")" | rg -q 'lane B'; then
+	ok "the other session's goal survives that retirement"
+else
+	no "the other session's goal survives that retirement"
+fi
+
+# END TO END: the file the producer wrote for THIS session is the file the Stop
+# hook enforces for it -- while a second session's goal sits beside it.
+par_stop="$(SID="${sid_b}" CWD="${pw}" python3 -c '
+import json, os
+print(json.dumps({"session_id": os.environ["SID"], "prompt_id": "par-e2e",
+                  "stop_hook_active": False, "cwd": os.environ["CWD"],
+                  "hook_event_name": "Stop"}))
+' | bash "${CONTINUE}" 2>/dev/null)"
+if printf '%s' "${par_stop}" | rg -q 'lane B' && ! printf '%s' "${par_stop}" | rg -q 'lane A'; then
+	ok "END TO END: the Stop hook enforces each session's own goal"
+else
+	no "END TO END: the Stop hook enforces each session's own goal"
 fi
 
 printf '\ngoal-refresh hook mirror: %s passed, %s failed\n' "${passed}" "${failed}"

@@ -70,13 +70,24 @@ print(g("prompt"))
 # block turns while going stale, which is the worst of both halves.
 #
 # For WRITING a new goal there is no ambiguity: an explicit override wins,
-# otherwise the worktree. The producer never writes $HOME, because a
-# machine-wide goal file would be inherited by every concurrent session in
-# every other worktree.
-goal_write="${CLAUDE_GOAL_FILE:-${cwd}/.claude/active-goal}"
+# otherwise this session's own file in the worktree. The producer never writes
+# $HOME, because a machine-wide goal file would be inherited by every
+# concurrent session in every other worktree.
+#
+# The per-session file comes first, and is what `/goal` WRITES. Sessions are
+# not per-checkout: three agents in one clone shared a single
+# `.claude/active-goal`, so the last `/goal` won and the SESSION header then
+# denied the losers any enforcement at all -- silently. Parallel sessions need
+# parallel goals, and the checkout-shared file stays the owner's hand-written
+# form, which the producer never touches.
+#
+# The session id is sanitized before it becomes part of a path.
+sid_safe="$(printf '%s' "${session_id}" | tr -c 'A-Za-z0-9._-' '-')"
+goal_write="${CLAUDE_GOAL_FILE:-${cwd}/.claude/active-goal.${sid_safe}}"
 goal_file=""
 for candidate in \
 	"${CLAUDE_GOAL_FILE:-}" \
+	"${cwd}/.claude/active-goal.${sid_safe}" \
 	"${cwd}/.claude/active-goal" \
 	"${HOME}/.claude/active-goal"; do
 	[ -n "${candidate}" ] || continue
@@ -86,6 +97,22 @@ for candidate in \
 	fi
 done
 
+# A resolved goal file may belong to somebody else: a session with no goal of
+# its own still RESOLVES the checkout-shared file, and retiring or amending it
+# from here would edit another agent's objective. Writes below use this.
+owns_goal_file() { # path
+	local head_line
+	[ -f "$1" ] || return 1
+	head_line="$(head -1 "$1" 2>/dev/null)"
+	case "${head_line}" in
+		SESSION:*)
+			head_line="${head_line#SESSION:}"
+			[ "${head_line# }" = "${session_id}" ]
+			;;
+		*) return 0 ;;
+	esac
+}
+
 # ── producer ───────────────────────────────────────────────────────────────
 # `/goal <text>` or `GOAL: <text>` sets it; `/goal done` or `/goal clear`
 # retires it. The SESSION header is what stops a goal outliving the session
@@ -93,7 +120,7 @@ done
 case "${prompt}" in
 	'/goal done'*|'/goal clear'*|'GOAL: done'*)
 		retire="${goal_file:-${goal_write}}"
-		if [ -f "${retire}" ]; then
+		if owns_goal_file "${retire}"; then
 			printf 'DONE\n' > "${retire}.tmp" 2>/dev/null &&
 				cat "${retire}" >> "${retire}.tmp" 2>/dev/null &&
 				mv "${retire}.tmp" "${retire}" 2>/dev/null || true
@@ -109,7 +136,7 @@ case "${prompt}" in
 		# "consent" -- granting nothing and losing the goal in the same move.
 		target="${goal_file:-}"
 		[ -n "${target}" ] || exit 0
-		[ -f "${target}" ] || exit 0
+		owns_goal_file "${target}" || exit 0
 		case "${prompt}" in
 			*revoke-consent*) acts="" ;;
 			*)

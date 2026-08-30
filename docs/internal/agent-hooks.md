@@ -137,8 +137,9 @@ multi-step goal would finish one step, report, and wait for the owner to type
 A Stop hook is the enforcement point, because it runs whether or not the model
 remembered the rule.
 
-It reads `.claude/active-goal` (or `$CLAUDE_GOAL_FILE`, or `~/.claude/active-goal`)
-and, if that file names unfinished work, returns
+It reads `.claude/active-goal.<session_id>` (or `$CLAUDE_GOAL_FILE`, or the
+checkout-shared `.claude/active-goal`, or `~/.claude/active-goal`) and, if that
+file names unfinished work, returns
 `{"decision":"block","reason":...}` with the goal text and the three legitimate
 reasons to stop: the goal is met, an irreversible act needs consent the owner
 has not already given, or the work is blocked on something no local action
@@ -218,6 +219,27 @@ drifts. Setting it is not the same as keeping it.
   not be asked what the code, a local doc, a loaded skill, or a Deep-tier
   dispatch can settle. The objective is therefore never more than one turn old,
   and it survives compaction because it is re-added afterwards too.
+
+### Parallel sessions in one checkout
+
+The goal file was per-*checkout*, and sessions are not. Measured on one
+machine: three live agents in the same clone, one `.claude/active-goal`
+between them. The last `/goal` to run overwrote the others, and the `SESSION:`
+header — there so a goal cannot outlive the session that set it — then denied
+the two losers any enforcement at all. They stopped whenever they liked, and
+nothing said the feature was off for them. A silent no-op is worse than an
+absent feature, because the owner believes it is on.
+
+So `/goal` writes `.claude/active-goal.<session_id>`, and both hooks look there
+first. Parallel agents hold parallel goals with no contention, and one agent
+finishing retires only its own. `.claude/*` is already gitignored, so the files
+never reach a commit.
+
+The checkout-shared `.claude/active-goal` stays as the owner's hand-written
+form and is still read — but never *written* by the producer, and never
+retired or amended by a session whose id does not match its header. A session
+holding no goal of its own still resolves that shared file, and editing it from
+there would be one agent rewriting another's objective.
 
 A `SESSION:` header binds a goal to the session that set it, so a goal cannot
 outlive its session and nag the next one about finished work. `/goal done`

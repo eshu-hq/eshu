@@ -78,12 +78,27 @@ print(g("cwd"))
 
 [ "${session_id:--}" = "-" ] && exit 0
 
-# Goal file: an explicit override, then the worktree this session is in, then a
-# single per-user goal. The worktree form is what makes concurrent agents in
-# different worktrees able to hold different goals at once.
+# Goal file: an explicit override, then this session's own goal in the worktree
+# it is in, then the worktree's shared goal, then a single per-user goal. The
+# worktree form is what makes concurrent agents in different worktrees able to
+# hold different goals at once; the per-session form does the same for agents
+# sharing ONE worktree.
+#
+# The per-session file comes FIRST because sessions are not per-checkout.
+# Three agents in one clone shared a single `.claude/active-goal`, and the
+# SESSION header -- there so a goal cannot outlive the session that set it --
+# meant the two that did not own the file got a silent exit 0: no enforcement,
+# and nothing saying so. Measured on a live machine: three sessions in one
+# checkout, one goal file, one session actually held to it.
+#
+# The session id is sanitized before it reaches a path. It arrives in the hook
+# payload rather than from the agent, but a value that becomes a filename is
+# worth constraining wherever it came from.
+sid_safe="$(printf '%s' "${session_id}" | tr -c 'A-Za-z0-9._-' '-')"
 goal_file=""
 for candidate in \
 	"${CLAUDE_GOAL_FILE:-}" \
+	"${cwd}/.claude/active-goal.${sid_safe}" \
 	"${cwd}/.claude/active-goal" \
 	"${HOME}/.claude/active-goal"; do
 	[ -n "${candidate}" ] || continue

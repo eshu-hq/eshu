@@ -300,5 +300,83 @@ check "DONE beneath a CONSENT line allows the stop" allow "$(run "$(payload k6)"
 printf 'CONSENT: push\nBLOCKED: waiting on a human reviewer\nMore work.\n' >"${goal}"
 check "BLOCKED beneath a CONSENT line allows the stop" allow "$(run "$(payload k7)")"
 
+# ── 4. concurrent sessions in one checkout ─────────────────────────────────
+#
+# The goal file was per-CHECKOUT, and sessions are not. Three agents running in
+# the same clone shared one `.claude/active-goal`, and the SESSION header --
+# which exists so a goal cannot outlive the session that set it -- meant the
+# two sessions that did not own the file got a silent exit 0: no enforcement,
+# and no signal that there was none. Measured on this machine: three live
+# sessions in one checkout, one goal, one of them enforced.
+#
+# `.claude/active-goal.<session_id>` is looked up FIRST, so concurrent sessions
+# hold separate goals with no contention. The shared file stays as the
+# hand-written form and is still header-checked.
+
+par="${work}/parallel"
+mkdir -p "${par}/.claude"
+sid_a="${sid}-a"
+sid_b="${sid}-b"
+
+stop_in() { # session_id prompt_id cwd
+	SID="$1" PID="$2" CWD="$3" python3 -c '
+import json, os
+print(json.dumps({"session_id": os.environ["SID"], "prompt_id": os.environ["PID"],
+                  "stop_hook_active": False, "cwd": os.environ["CWD"],
+                  "hook_event_name": "Stop"}))
+' | bash "${HOOK}" 2>/dev/null
+}
+
+printf 'SESSION: %s\nSession B owns the shared file.\n' "${sid_b}" >"${par}/.claude/active-goal"
+printf 'SESSION: %s\nSession A has its own goal.\n' "${sid_a}" >"${par}/.claude/active-goal.${sid_a}"
+
+a_out="$(stop_in "${sid_a}" par1 "${par}")"
+check "a session with its own goal file blocks" block "${a_out}"
+if printf '%s' "${a_out}" | rg -q 'Session A has its own goal'; then
+	ok "the per-session goal file is preferred over the shared one"
+else
+	no "the per-session goal file is preferred over the shared one"
+fi
+if printf '%s' "${a_out}" | rg -q 'Session B owns the shared file'; then
+	no "another session's goal is never handed to this one"
+else
+	ok "another session's goal is never handed to this one"
+fi
+
+b_out="$(stop_in "${sid_b}" par2 "${par}")"
+check "the session that owns the shared file still blocks on it" block "${b_out}"
+if printf '%s' "${b_out}" | rg -q 'Session B owns the shared file'; then
+	ok "the shared file still works for the session that owns it"
+else
+	no "the shared file still works for the session that owns it"
+fi
+
+# A third session in the same checkout, holding no goal of its own, must still
+# be allowed to stop rather than inheriting either of theirs.
+check "a third session in the same checkout may stop" allow \
+	"$(stop_in "${sid}-c" par3 "${par}")"
+
+# An explicit override still outranks the per-session file, or the escape hatch
+# stops being an escape hatch.
+printf 'Explicit override goal.\n' >"${goal}"
+ovr="$(printf '%s' "$(SID="${sid_a}" CWD="${par}" python3 -c '
+import json, os
+print(json.dumps({"session_id": os.environ["SID"], "prompt_id": "par4",
+                  "stop_hook_active": False, "cwd": os.environ["CWD"],
+                  "hook_event_name": "Stop"}))
+')" | CLAUDE_GOAL_FILE="${goal}" bash "${HOOK}" 2>/dev/null)"
+if printf '%s' "${ovr}" | rg -q 'Explicit override goal'; then
+	ok "CLAUDE_GOAL_FILE still outranks the per-session file"
+else
+	no "CLAUDE_GOAL_FILE still outranks the per-session file"
+fi
+
+# DONE in a per-session file retires only that session's goal.
+printf 'SESSION: %s\nDONE\nFinished.\n' "${sid_a}" >"${par}/.claude/active-goal.${sid_a}"
+check "DONE in a per-session file allows that session to stop" allow \
+	"$(stop_in "${sid_a}" par5 "${par}")"
+check "the other session is unaffected by that DONE" block \
+	"$(stop_in "${sid_b}" par6 "${par}")"
+
 printf '\ngoal-continue hook mirror: %s passed, %s failed\n' "${passed}" "${failed}"
 [[ "${failed}" -eq 0 ]]
