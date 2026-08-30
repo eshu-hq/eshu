@@ -4,10 +4,12 @@
 package main
 
 import (
+	"crypto/sha256"
 	"fmt"
 	"io"
 	"os"
 	"os/exec"
+	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/cigates"
 )
@@ -17,11 +19,50 @@ type localGateCommand struct {
 	command string
 }
 
+type sharedGateCommandKey struct {
+	workflow string
+	job      string
+	role     string
+	command  string
+}
+
+type sharedGateCommandResult struct {
+	gateID     string
+	err        error
+	durationMS int64
+}
+
+type selfTestPolicy string
+
+const (
+	selfTestsAll     selfTestPolicy = "all"
+	selfTestsChanged selfTestPolicy = "changed"
+)
+
+type executeOptions struct {
+	changedPaths []string
+	selfTests    selfTestPolicy
+	blockingOnly bool
+}
+
 // executeGates runs all selected gates, accumulates results, and returns an
 // error if any blocking gate failed. Advisory failures are printed but do not
 // affect the exit code.
 func executeGates(w io.Writer, sels []cigates.Selection, repoRoot string) error {
+	_, err := executeGatesWithOptions(w, sels, repoRoot, executeOptions{selfTests: selfTestsAll})
+	return err
+}
+
+func executeGatesWithOptions(
+	w io.Writer,
+	sels []cigates.Selection,
+	repoRoot string,
+	options executeOptions,
+) (gateRunReport, error) {
+	report := newGateRunReport(options)
+	runStarted := time.Now()
 	anyBlockingFail := false
+	sharedResults := make(map[sharedGateCommandKey]sharedGateCommandResult)
 	for _, selection := range sels {
 		if selection.Gate.CIOnlyReason != "" {
 			_, _ = fmt.Fprintf(w, "CI-ONLY  %s: %s\n", selection.Gate.ID, selection.Gate.CIOnlyReason)
@@ -31,9 +72,20 @@ func executeGates(w io.Writer, sels []cigates.Selection, repoRoot string) error 
 			_, _ = fmt.Fprintf(w, "SKIP     %s: %s\n", selection.Gate.ID, selection.Reason)
 			continue
 		}
+		if options.blockingOnly && !selection.Gate.Blocking {
+			_, _ = fmt.Fprintf(w, "ADVISORY-SKIP %s: outside the blocking promotion path\n", selection.Gate.ID)
+			report.addSkipped(selection.Gate, "gate", "advisory gate excluded by --blocking-only")
+			continue
+		}
 
-		commands := localGateCommands(selection.Gate.Local)
+		runSelfTest := options.selfTests != selfTestsChanged || selection.Gate.ShouldRunSelfTest(options.changedPaths)
+		commands := localGateCommands(selection.Gate.Local, runSelfTest)
 		if len(commands) == 0 {
+			if selection.Gate.Local != nil && selection.Gate.Local.TestCommand != "" && !runSelfTest {
+				_, _ = fmt.Fprintf(w, "SELFTEST-SKIP %s: no self_test_trigger matched changed paths\n", selection.Gate.ID)
+				report.addSkipped(selection.Gate, "test_command", "no self_test_trigger matched changed paths")
+				continue
+			}
 			// Load (go/internal/cigates/registry.go) now rejects this shape
 			// at registry-load time -- a local block with neither command
 			// nor test_command. This guards the other entry point: a Gate
@@ -49,27 +101,69 @@ func executeGates(w io.Writer, sels []cigates.Selection, repoRoot string) error 
 
 		gateFailed := false
 		for _, localCommand := range commands {
-			action := "RUN"
-			if localCommand.label == "test_command" {
-				action = "TEST"
+			key, canReuse := sharedCommandKey(selection.Gate, localCommand.label, localCommand.command)
+			result, reused := sharedResults[key]
+			if canReuse && reused {
+				_, _ = fmt.Fprintf(
+					w,
+					"REUSE   %s: %s (result from %s)\n",
+					selection.Gate.ID,
+					localCommand.command,
+					result.gateID,
+				)
+			} else {
+				action := "RUN"
+				if localCommand.label == "test_command" {
+					action = "TEST"
+				}
+				_, _ = fmt.Fprintf(w, "%-8s %s: %s\n", action, selection.Gate.ID, localCommand.command)
+				started := time.Now()
+				result = sharedGateCommandResult{
+					gateID:     selection.Gate.ID,
+					err:        runShellCommand(localCommand.command, repoRoot),
+					durationMS: time.Since(started).Milliseconds(),
+				}
+				if canReuse {
+					sharedResults[key] = result
+				}
 			}
-			_, _ = fmt.Fprintf(w, "%-8s %s: %s\n", action, selection.Gate.ID, localCommand.command)
-			if err := runShellCommand(localCommand.command, repoRoot); err != nil {
+			report.addCommand(selection.Gate, localCommand, result, reused)
+			if result.err != nil {
 				gateFailed = true
-				printGateFailure(w, selection.Gate, localCommand.label, err)
+				printGateFailure(w, selection.Gate, localCommand.label, result.err)
 				if selection.Gate.Blocking {
 					anyBlockingFail = true
 				}
 			}
 		}
+		if selection.Gate.Local != nil && selection.Gate.Local.TestCommand != "" && !runSelfTest {
+			_, _ = fmt.Fprintf(w, "SELFTEST-SKIP %s: no self_test_trigger matched changed paths\n", selection.Gate.ID)
+			report.addSkipped(selection.Gate, "test_command", "no self_test_trigger matched changed paths")
+		}
 		if !gateFailed {
 			_, _ = fmt.Fprintf(w, "PASS     %s\n", selection.Gate.ID)
 		}
 	}
+	report.DurationMS = time.Since(runStarted).Milliseconds()
 	if anyBlockingFail {
-		return fmt.Errorf("one or more blocking gates failed")
+		return report, fmt.Errorf("one or more blocking gates failed")
 	}
-	return nil
+	return report, nil
+}
+
+// sharedCommandKey mirrors RequiredGates' hosted workflow/job deduplication.
+// Commands without a complete hosted owner stay independent because byte
+// equality alone is not enough evidence that two registry rows are one check.
+func sharedCommandKey(gate cigates.Gate, role, command string) (sharedGateCommandKey, bool) {
+	if gate.CI.Workflow == "" || gate.CI.Job == "" {
+		return sharedGateCommandKey{}, false
+	}
+	return sharedGateCommandKey{
+		workflow: gate.CI.Workflow,
+		job:      gate.CI.Job,
+		role:     role,
+		command:  command,
+	}, true
 }
 
 // localGateCommands returns the shell commands this gate actually runs, in
@@ -82,18 +176,22 @@ func executeGates(w io.Writer, sels []cigates.Selection, repoRoot string) error 
 // line with nothing after the colon -- a reporting false-green: it read
 // exactly like every other command line in the log but never ran anything
 // (#6149 follow-up item 8 review, "verify before push").
-func localGateCommands(local *cigates.Local) []localGateCommand {
+func localGateCommands(local *cigates.Local, runSelfTest bool) []localGateCommand {
 	var commands []localGateCommand
 	if local.Command != "" {
 		commands = append(commands, localGateCommand{label: "command", command: local.Command})
 	}
-	if local.TestCommand != "" && local.TestCommand != local.Command {
+	if runSelfTest && local.TestCommand != "" && local.TestCommand != local.Command {
 		commands = append(commands, localGateCommand{
 			label:   "test_command",
 			command: local.TestCommand,
 		})
 	}
 	return commands
+}
+
+func commandSHA256(command string) string {
+	return fmt.Sprintf("%x", sha256.Sum256([]byte(command)))
 }
 
 func printGateFailure(w io.Writer, gate cigates.Gate, label string, err error) {

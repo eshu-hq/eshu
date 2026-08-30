@@ -155,3 +155,23 @@ func FilterByCategory(sels []Selection, categories []Category) []Selection {
 	}
 	return out
 }
+
+// ShouldRunSelfTest reports whether this gate's distinct local test command
+// applies to changed. A gate without self_test_triggers keeps the fail-closed
+// legacy behavior and runs its test command whenever the gate is selected.
+func (g Gate) ShouldRunSelfTest(changed []string) bool {
+	if g.Local == nil || g.Local.TestCommand == "" || g.Local.TestCommand == g.Local.Command {
+		return false
+	}
+	if g.SelfTestTriggers == nil {
+		return true
+	}
+	for _, trigger := range g.SelfTestTriggers {
+		for _, path := range changed {
+			if MatchGlob(trigger, path) {
+				return true
+			}
+		}
+	}
+	return false
+}

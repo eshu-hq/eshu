@@ -27,21 +27,23 @@ Use this fixed promotion order before opening or updating a PR:
 3. Once the preliminary verdict is `P0=0, P1=0, P2-blocking=0` — every
    deferred P2 tracked in a linked issue with the owner's agreement quoted in
    the PR and named there with its severity-table category, per
-   `.agents/skills/eshu-code-review/references/merge-bar.md` — and the branch is
-   otherwise ready to push, run `make pre-pr` exactly once as the late promotion
-   gate. Use `make pre-pr-full` here instead when the risk tier requires the
-   whole-module race lane.
-4. Run a final full `eshu-code-review` against the exact post-preflight diff.
-   Make no edits before push; any diff change invalidates the verdict and
-   restarts this sequence at focused proof.
+   `.agents/skills/eshu-code-review/references/merge-bar.md` — capture a
+   `ci-gates review-attest` receipt with the clean preliminary review and exact
+   proposed PR claims.
+4. With the branch otherwise ready to push, run `make pre-pr` exactly once as
+   the late promotion gate. Use `make pre-pr-full` instead when the risk tier
+   requires the whole-module race lane, then verify the review receipt. A
+   matching receipt replaces the second full semantic review because every
+   reviewed input is unchanged. If verification fails, repeat the affected
+   proof and full review. Make no edits before push.
 
-`make pre-pr` is the one-command local mirror of the credential-free CI gates,
-so format, exactness, race, contract, docs, and (for Go changes) security
-failures are caught in a single local pass instead of across multiple
-~20-minute CI rounds:
+`make pre-pr` is the blocking local promotion path for credential-free CI
+gates. It catches format, exactness, race, contract, docs, and Go security
+failures before a branch enters the hosted queue:
 
 ```bash
 make pre-pr            # or: bash scripts/dev/pre-pr.sh
+make pre-pr-full       # adds advisory registry gates and whole-module race
 ```
 
 CI remains the authoritative, non-bypassable source of truth — but it should
@@ -53,6 +55,34 @@ expectations are firm:
 - **Race gates are blocking** when Go implementation code changes. `make pre-pr`
   runs the targeted/scoped race lane; `make pre-pr-full` adds the whole-module
   `go test ./... -race`, and CI runs the authoritative full race gate.
+
+### Local and hosted ownership
+
+The local and hosted layers have different jobs. Do not remove one because the
+other runs a similar command.
+
+| Proof | Mandatory locally | Mandatory in GitHub Actions |
+| --- | --- | --- |
+| TDD reproduction and focused touched-surface tests | Before review and before `make pre-pr` | Re-run when selected; CI is not the first proof attempt |
+| Credential-free promotion checks | `make pre-pr` once on the final reviewed diff; use `make pre-pr-full` only when the proof tier requires it | Re-run independently on the exact PR head |
+| Advisory analysis | Outside the default promotion path; run with `make pre-pr-full` or its focused command when useful | May publish evidence but does not block the local promotion stamp |
+| Frontend and security-heavy checks | Run the matching preflight when those surfaces change | Blocking path-selected jobs remain authoritative |
+| OS-, credential-, service-, or artifact-dependent checks | Run locally or on the dedicated remote validation host when the change contract requires that proof | Mandatory hosted owner; a local or remote pass does not create a GitHub required status |
+| Required merge decision | No local command can satisfy it | `go-core-complete`, `go-race-complete`, and `required-gates-complete` must pass |
+
+Deduplicate within a layer: one local invocation should not execute the same
+command twice for registry rows owned by the same hosted job, and one hosted job
+should not repeat a byte-identical test/gate command. Keep the local-versus-CI
+rerun because it proves the final bytes in an independent environment and is
+the non-bypassable merge record.
+
+The selected-gate runner separates a verifier from the tests of that verifier.
+`local.command` always runs when its gate is selected. A `test_command` still
+runs by default, but `make pre-pr` may skip it when the registry declares
+`self_test_triggers` and none of those harness paths changed. Entries without
+that field stay fail-closed and run both commands. The per-SHA stamp directory
+also retains a JSON report with command hashes, run/reuse decisions, skip
+reasons, and durations.
 
 Frontend- and security-heavy lanes are not in `make pre-pr` (they need Node, the
 network, or are slow); run `make frontend-preflight` / `make security-preflight`
@@ -106,8 +136,33 @@ locally. **CI remains the authoritative blocking race gate** (whole-module
 `go test ./... -race`); for a local whole-module race before a high-risk PR:
 
 ```bash
-make pre-pr-full      # pre-pr + `go test ./... -race`
+make pre-pr-full      # pre-pr + advisory gates + `go test ./... -race`
 ```
+
+The default promotion path runs blocking registry gates only. Advisory checks
+remain available through `make pre-pr-full` and focused commands, so they can
+inform a review without withholding the local promotion stamp.
+
+### Exact review attestation
+
+Agents keep the preliminary review packet, verdict, and exact PR title/body in
+local files outside the worktree. After the clean full review, capture a receipt:
+
+```bash
+go -C go run ./cmd/ci-gates review-attest capture \
+  --base origin/main \
+  --claims-file "$claims_file" \
+  --review-packet "$review_packet" \
+  --verdict "$review_verdict" \
+  --receipt "$review_receipt"
+```
+
+Run the same command with `verify` after `make pre-pr`. A pass means the base,
+head, diff, worktree, submodules, claims, packet, and verdict are byte-for-byte
+the reviewed inputs. A failure names the changed binding and requires another
+full review. This receipt is local proof for the agent workflow; it does not
+replace GitHub review or a required hosted check, and `make pre-pr` does not
+require community contributors to create one.
 
 For frontend changes, a separate focused preflight mirrors `.github/workflows/frontend.yml`
 (#4216) — root-site and console typecheck/test/build, console a11y (critical +

@@ -8,6 +8,7 @@
 //
 //	ci-gates select  --registry <path> --tier <tier> [--base <ref>] [--paths-from <file|->] [--explain] [--json]
 //	ci-gates run     --registry <path> --tier <tier> [--base <ref>] [--paths-from <file|->] [--json]
+//	ci-gates audit-scripts --registry <path> --repo-root <path> [--unreferenced-only] [--json]
 //	ci-gates validate --registry <path> --repo-root <path>
 package main
 
@@ -41,10 +42,14 @@ func main() {
 		err = runAwait(args)
 	case "contexts":
 		err = runContexts(args)
+	case "audit-scripts":
+		err = runAuditScripts(args)
 	case "validate":
 		err = runValidate(args)
 	case "uncovered":
 		err = runUncovered(args)
+	case "review-attest":
+		err = runReviewAttest(args)
 	default:
 		_, _ = fmt.Fprintf(os.Stderr, "ci-gates: unknown subcommand %q\n", sub)
 		usage(os.Stderr)
@@ -104,51 +109,6 @@ func runSelect(args []string) error {
 	}
 	printSelectText(os.Stdout, sels, *explain)
 	return nil
-}
-
-// --- run subcommand ---
-
-func runRun(args []string) error {
-	fs := flag.NewFlagSet("run", flag.ContinueOnError)
-	registry := fs.String("registry", "", "path to ci-gates.v1.yaml registry")
-	tier := fs.String("tier", "pre-pr", "tier ceiling (pre-commit|pre-push|pre-pr|ci-heavy|manual)")
-	base := fs.String("base", "origin/main", "git base ref for changed-path detection")
-	pathsFrom := fs.String("paths-from", "", "file of changed paths, one per line ('-' for stdin)")
-	repoRoot := fs.String("repo-root", "", "repository root to run gate commands from (default: git toplevel)")
-	category := fs.String("category", "", "comma-separated category filter (e.g. exactness,telemetry); empty = all")
-	_ = fs.Bool("json", false, "emit JSON summary (reserved for future use)")
-	if err := fs.Parse(args); err != nil {
-		return err
-	}
-	if *registry == "" {
-		return fmt.Errorf("--registry is required")
-	}
-
-	// Gate commands in the registry are repo-root-relative ("bash scripts/...",
-	// "cd go && ..."). Resolve the repo root so they run from there regardless of
-	// this process's own working directory (e.g. the wrappers invoke us via
-	// `go -C go run`, which would otherwise leave commands running from go/).
-	root, err := resolveRepoRoot(*repoRoot)
-	if err != nil {
-		return fmt.Errorf("resolve repo root: %w", err)
-	}
-
-	reg, err := cigates.Load(*registry)
-	if err != nil {
-		return fmt.Errorf("load registry: %w", err)
-	}
-
-	changed, err := resolveChangedPaths(*pathsFrom, *base)
-	if err != nil {
-		return fmt.Errorf("resolve changed paths: %w", err)
-	}
-
-	cats, err := parseCategories(*category)
-	if err != nil {
-		return err
-	}
-	sels := cigates.FilterByCategory(reg.Select(changed, cigates.Tier(*tier)), cats)
-	return executeGates(os.Stdout, sels, root)
 }
 
 // parseCategories splits a comma-separated category list into typed categories,

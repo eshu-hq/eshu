@@ -43,6 +43,8 @@ ci-gates run \
   [--base origin/main] \
   [--paths-from paths.txt] \
   [--category exactness,telemetry,hygiene,docs] \
+  [--self-tests all|changed] [--blocking-only] \
+  [--report-file /path/to/report.json] \
   [--repo-root /path/to/repo]
 ```
 
@@ -53,10 +55,22 @@ the heavy pre-push gates (gosec, console e2e, frontend) out of this step.
 
 Runs each selected gate's `local.command` and then its non-empty
 `local.test_command` via `/bin/sh -c`. Byte-identical command/test-command
-pairs run once. The runner accumulates all results (including running a test
-command after its gate command fails) and exits non-zero if any blocking gate
-failed. Advisory failures are printed but do not affect the exit code. CI-only
-gates are printed as `CI-ONLY` and never executed.
+pairs run once. Separate selected rows also reuse a byte-identical command when
+both rows declare the same `ci.workflow` and `ci.job`; the runner prints
+`REUSE`, attributes the shared result to each gate, and still applies each
+gate's own blocking or advisory disposition. Commands with different hosted
+owners remain independent. The runner accumulates all results (including
+running a test command after its gate command fails) and exits non-zero if any
+blocking gate failed. CI-only gates are printed as `CI-ONLY` and never
+executed.
+
+`--self-tests changed` uses a gate's optional `self_test_triggers` to keep
+tests of the verifier itself out of a product-only change. A gate without that
+field keeps the safe legacy behavior and always runs its distinct
+`test_command`. `--blocking-only` leaves advisory gates outside the promotion
+path. `--report-file` writes an atomic mode-0600 JSON record with command
+hashes, durations, reuse, skip reasons, and failure counts. `make pre-pr` uses
+all three flags; `make pre-pr-full` includes advisory gates.
 
 For a `command` shape of `bash scripts/verify-*.sh`, the inner `bash` token
 resolves via PATH, and on macOS that finds the system `/bin/bash` (3.2.57)
@@ -84,6 +98,48 @@ binary and re-switches per its own `go.mod`, so both module families stay
 self-consistent. This is the runner-wide form of the per-`go install`
 isolation `scripts/dev/precommit-go.sh` got in
 [#6113](https://github.com/eshu-hq/eshu/pull/6113).
+
+### audit-scripts
+
+```bash
+ci-gates audit-scripts \
+  --registry specs/ci-gates.v1.yaml \
+  --repo-root . \
+  [--unreferenced-only] [--json]
+```
+
+Inventories every regular Git-tracked `.sh` file present in the work tree and
+reports typed evidence from gate commands and triggers, workflow run blocks,
+literal shell-source edges, and other exact repo-relative path mentions. Gate
+triggers show selection coverage; they do not count as usage. Results are
+deterministic and credential-free. `--unreferenced-only` narrows the rows while
+retaining totals for the full inventory.
+
+`unreferenced` is an investigation signal, not a deletion verdict. It means no
+supported in-repository usage reference was observed; maintainers, community
+users, or external automation may still invoke the script directly.
+
+### review-attest
+
+```bash
+ci-gates review-attest capture \
+  --base origin/main \
+  --claims-file /path/to/exact-pr-title-and-body \
+  --review-packet /path/to/reviewed-diff-packet \
+  --verdict /path/to/review-verdict \
+  --receipt /path/outside-the-worktree/review.json
+
+ci-gates review-attest verify  # repeat the same flags
+```
+
+`capture` records the exact review inputs on a clean named feature branch.
+`verify` recomputes them after `make pre-pr`. It checks the base and head
+commits and trees, merge base, binary and raw diffs, commit range, worktree,
+submodules, PR claims, review packet, and verdict. A match permits a mechanical
+final attestation instead of a second semantic review. A mismatch names the
+first changed field and requires a full rereview. Keep the receipt outside the
+worktree, normally under the shared Git common directory, so the receipt does
+not make the tree dirty.
 
 ### await
 

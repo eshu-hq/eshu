@@ -145,6 +145,9 @@ type Gate struct {
 	// Triggers are the path globs that activate this gate when matched against changed paths.
 	// Must be non-empty.
 	Triggers []string
+	// SelfTestTriggers narrows a distinct local.test_command. Nil always runs it.
+	// Every declared entry must also appear in Triggers.
+	SelfTestTriggers []string
 	// Local is the local execution config. Nil when the gate is CI-only.
 	Local *Local
 	// CI is the CI execution config.
@@ -194,61 +197,6 @@ type Registry struct {
 	// RequiredStatusChecks is the repository-owned manifest of status contexts
 	// configured as required by the live GitHub ruleset.
 	RequiredStatusChecks []RequiredStatusCheck
-}
-
-// --- YAML parse types ---
-
-type registryFile struct {
-	Version              string                    `yaml:"version"`
-	Gates                []gateFile                `yaml:"gates"`
-	HygieneHooks         []hygieneHookFile         `yaml:"hygiene_hooks"`
-	NonGateWorkflows     []nonGateWorkflowFile     `yaml:"non_gate_workflows"`
-	RequiredStatusChecks []requiredStatusCheckFile `yaml:"required_status_checks"`
-}
-
-type gateFile struct {
-	ID              string     `yaml:"id"`
-	Name            string     `yaml:"name"`
-	Category        string     `yaml:"category"`
-	Tier            string     `yaml:"tier"`
-	Blocking        bool       `yaml:"blocking"`
-	Triggers        []string   `yaml:"triggers"`
-	Local           *localFile `yaml:"local"`
-	CI              ciFile     `yaml:"ci"`
-	Requirements    []string   `yaml:"requirements"`
-	CIOnlyReason    string     `yaml:"ci_only_reason"`
-	LocalOnlyReason string     `yaml:"local_only_reason"`
-	HookID          string     `yaml:"hook_id"`
-}
-
-type localFile struct {
-	Command     string `yaml:"command"`
-	TestCommand string `yaml:"test_command"`
-}
-
-type ciFile struct {
-	Workflow   string   `yaml:"workflow"`
-	Job        string   `yaml:"job"`
-	CheckNames []string `yaml:"check_names"`
-}
-
-type hygieneHookFile struct {
-	ID     string `yaml:"id"`
-	Reason string `yaml:"reason"`
-}
-
-type nonGateWorkflowFile struct {
-	File   string `yaml:"file"`
-	Reason string `yaml:"reason"`
-}
-
-type requiredStatusCheckFile struct {
-	Context                 string `yaml:"context"`
-	Workflow                string `yaml:"workflow"`
-	Job                     string `yaml:"job"`
-	SourceWorkflow          string `yaml:"source_workflow"`
-	IntegrationID           int64  `yaml:"integration_id"`
-	AggregatesBlockingGates bool   `yaml:"aggregates_blocking_gates"`
 }
 
 // validCategories is the closed set of allowed Category values.
@@ -307,7 +255,9 @@ func Load(path string) (*Registry, error) {
 		return nil, fmt.Errorf("read ci-gates registry %s: %w", path, err)
 	}
 	var parsed registryFile
-	if err := yaml.Unmarshal(raw, &parsed); err != nil {
+	decoder := yaml.NewDecoder(strings.NewReader(string(raw)))
+	decoder.KnownFields(true)
+	if err := decoder.Decode(&parsed); err != nil {
 		return nil, fmt.Errorf("parse ci-gates registry %s: %w", path, err)
 	}
 
@@ -352,6 +302,11 @@ func Load(path string) (*Registry, error) {
 			seenTriggers[trig] = struct{}{}
 		}
 
+		selfTestTriggers, err := parseSelfTestTriggers(path, id, gf.SelfTestTriggers, seenTriggers)
+		if err != nil {
+			return nil, err
+		}
+
 		reqs := make([]Requirement, 0, len(gf.Requirements))
 		for _, r := range gf.Requirements {
 			req := Requirement(strings.TrimSpace(r))
@@ -388,6 +343,9 @@ func Load(path string) (*Registry, error) {
 				path, id,
 			)
 		}
+		if len(selfTestTriggers) > 0 && (local == nil || local.TestCommand == "" || local.TestCommand == local.Command) {
+			return nil, fmt.Errorf("ci-gates registry %s: gate %q declares self_test_triggers without a distinct test_command", path, id)
+		}
 		localOnlyReason := strings.TrimSpace(gf.LocalOnlyReason)
 		ciWorkflow := strings.TrimSpace(gf.CI.Workflow)
 		ciJob := strings.TrimSpace(gf.CI.Job)
@@ -415,13 +373,14 @@ func Load(path string) (*Registry, error) {
 		}
 
 		reg.Gates = append(reg.Gates, Gate{
-			ID:       id,
-			Name:     strings.TrimSpace(gf.Name),
-			Category: cat,
-			Tier:     tier,
-			Blocking: gf.Blocking,
-			Triggers: gf.Triggers,
-			Local:    local,
+			ID:               id,
+			Name:             strings.TrimSpace(gf.Name),
+			Category:         cat,
+			Tier:             tier,
+			Blocking:         gf.Blocking,
+			Triggers:         gf.Triggers,
+			SelfTestTriggers: selfTestTriggers,
+			Local:            local,
 			CI: CI{
 				Workflow:   strings.TrimSpace(gf.CI.Workflow),
 				Job:        strings.TrimSpace(gf.CI.Job),

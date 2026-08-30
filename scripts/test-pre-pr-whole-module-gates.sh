@@ -4,6 +4,7 @@ set -euo pipefail
 
 repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 script="${repo_root}/scripts/dev/pre-pr.sh"
+makefile="${repo_root}/Makefile"
 precommit_script="${repo_root}/scripts/dev/precommit-go.sh"
 fast_runner="${repo_root}/tests/run_tests.sh"
 parser_agent_guidance="${repo_root}/go/internal/parser/AGENTS.md"
@@ -167,6 +168,11 @@ require "build capture" 'capture_whole_module_gate "${tmpdir}" build "go build .
 require "vet capture" 'capture_whole_module_gate "${tmpdir}" vet "go vet ./..." step_vet'
 # shellcheck disable=SC2016
 require "stored duration readback" 'duration="$(cat "${tmpdir}/${n}.duration" 2>/dev/null || printf "0")"'
+require "changed verifier self-tests" '--self-tests changed'
+require "structured gate report" '--report-file "${pre_pr_gate_report}"'
+require "default blocking promotion path" 'exactness_args+=(--blocking-only)'
+rg --fixed-strings --quiet -- 'ESHU_PRE_PR_INCLUDE_ADVISORY=1' "${makefile}" ||
+	fail "make pre-pr-full must include advisory gates"
 
 reject "shared parallel launcher state" "starts=()"
 reject "wait-time duration accounting" 'SECONDS - starts[i]'

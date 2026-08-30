@@ -9,8 +9,8 @@ help: ## List available targets
 pre-pr: ## Run the local CI-mirror gate (lint/build/vet/test/exactness/race) before opening a PR
 	@bash scripts/dev/pre-pr.sh
 
-pre-pr-full: ## Like pre-pr but with whole-module race (go test ./... -race) for high-risk PRs
-	@ESHU_PRE_PR_FULL_RACE=1 bash scripts/dev/pre-pr.sh
+pre-pr-full: ## Like pre-pr but with whole-module race and advisory gates for high-risk PRs
+	@ESHU_PRE_PR_FULL_RACE=1 ESHU_PRE_PR_INCLUDE_ADVISORY=1 bash scripts/dev/pre-pr.sh
 
 frontend-preflight: ## Run the selected frontend gates (typecheck/test/build/a11y/eslint/audit) for changed paths
 	@bash scripts/dev/frontend-preflight.sh

@@ -56,6 +56,7 @@ base="${PRE_PR_FASTPATH_BASE}"
 pre_pr_git_state_init
 # shellcheck disable=SC2154  # pre_pr_state_dir is set by the sourced library.
 trap '[[ -n "${pre_pr_state_dir}" ]] && rm -rf "${pre_pr_state_dir}"' EXIT
+pre_pr_gate_report="${pre_pr_state_dir}/selected-gates.json"
 
 # changed_go_files: the Go files under go/ among those paths.
 changed_go_files() {
@@ -219,31 +220,19 @@ step_docs() {
 	fi
 }
 
-# step_exactness runs the credential-free exactness and telemetry contract gates
-# that the changed paths select, via the shared gate registry (#4213/#4214). This
-# replaces the old "remember the right verifier from the local-testing matrix"
-# workflow: openapi/route-coverage/edge-source-tool/evidence-continuity/
-# fact-kind/contract-source-of-truth/parser-relationship/query-plan/scale/
-# capability-budget/collector-entrypoints/skill-roundtrip/telemetry-coverage/
-# operator-dashboard etc. are now selected automatically. The --category filter
-# selects the STATIC, credential-free contract gates that block a PR in CI:
-#   - exactness/telemetry: the contract + coverage gates.
-#   - hygiene: agent-canon, no-ai-attribution, license-header, ci-gate-registry
-#     drift. These are blocking in CI (verify-agent-hygiene / test.yml /
-#     verify-ci-gate-registry) and cheap to run locally; excluding them let a
-#     PR pass `make pre-pr` and then fail CI on a stale registry, a missing
-#     license header, or an AI-attribution slip (#5730-era friction).
-#   - docs: docs-build-changed — the mkdocs `--strict` build that CI runs on
-#     any docs/** change (including docs/public/observability/*.md), the actual
-#     "telemetry docs didn't build" failure that used to only surface in CI.
-# Every selected gate is tier<=pre-pr with a runnable local command; ci-heavy
-# (Docker/NornicDB/Postgres) and credentialed gates are still hard-excluded by
-# tier in cmd/ci-gates and are covered by the path-triggered live lane below.
-# The race lane is #4215; heavy pre-push gates (whole-module gosec, console e2e,
-# frontend) run via `make security-preflight` / `make frontend-preflight`.
 step_exactness() {
-	bash "${repo_root}/scripts/dev/run-selected-gates.sh" \
+	local exactness_args=(
 		--base "${base}" --tier pre-pr --category exactness,telemetry,hygiene,docs
+		--self-tests changed --report-file "${pre_pr_gate_report}"
+	)
+	if [[ "${ESHU_PRE_PR_INCLUDE_ADVISORY:-0}" != "1" ]]; then
+		exactness_args+=(--blocking-only)
+	fi
+	bash "${repo_root}/scripts/dev/run-selected-gates.sh" "${exactness_args[@]}" || return $?
+	[[ -s "${pre_pr_gate_report}" ]] || {
+		printf 'pre-pr: selected-gate runner returned success without its timing report\n' >&2
+		return 1
+	}
 }
 
 # step_race runs the local race lane for Go code changes (#4215). CI remains the
@@ -454,26 +443,18 @@ for r in "${results[@]}"; do printf '%s\n' "${r}"; done
 if [[ ${overall} -ne 0 ]]; then
 	printf '\n\033[31mpre-pr: failures above — fix before pushing (CI runs the same gates).\033[0m\n'
 else
-	# Stamp this exact HEAD so the pre-push hook can prove `make pre-pr` passed
-	# on the commit being pushed (scripts/dev/prepr-stamp-verify.sh). The stamp
-	# lives under the shared git common dir, keyed per-SHA so concurrent
-	# worktrees never clobber each other, and records BOTH skip classes so the
-	# push is honest about what was validated locally: live_lane_deferred (a
-	# path-triggered live gate whose prerequisite was missing, or a forced
-	# ESHU_PREPR_SKIP_LIVE=1) and fast_path_skipped (the whole static Go lane
-	# or the race lane, skipped because the diff classified as
-	# documentation-only). Neither field's key is the ambiguous "deferred="
-	# this stamp used to write — a reader consulting only the stamp, without
-	# having seen the run's own terminal summary, could not tell "nothing was
-	# skipped" from "the field that would have said so didn't track this skip
-	# class" (see the fast_path_skipped declaration above for the incident).
+	# Stamp this exact HEAD for the pre-push hook and retain the command-level
+	# timing report beside it. Both records are keyed by SHA, so rebases and
+	# amends invalidate them without cross-worktree collisions.
 	head_sha="$(git -C "${repo_root}" rev-parse HEAD 2>/dev/null || true)"
 	common_dir="$(git -C "${repo_root}" rev-parse --path-format=absolute --git-common-dir 2>/dev/null || true)"
 	if [[ -n "${head_sha}" && -n "${common_dir}" ]]; then
 		stamp_dir="${common_dir}/eshu-prepr-stamp"
 		mkdir -p "${stamp_dir}"
+		install -m 0600 "${pre_pr_gate_report}" "${stamp_dir}/${head_sha}.gates.json" || exit 1
 		printf 'sha=%s\nlive_lane_deferred=%s\nfast_path_skipped=%s\n' \
 			"${head_sha}" "${live_deferred[*]:-}" "${fast_path_skipped[*]:-}" > "${stamp_dir}/${head_sha}"
+		printf 'gate_report=%s.gates.json\n' "${head_sha}" >> "${stamp_dir}/${head_sha}"
 		printf '\n\033[32mpre-pr: all local gates passed — stamped %s' "${head_sha:0:12}"
 		[[ ${#live_deferred[@]} -gt 0 ]] && printf ' (deferred to CI: %s)' "${live_deferred[*]}"
 		[[ ${#fast_path_skipped[@]} -gt 0 ]] && printf ' (fast-path skipped: %s)' "${fast_path_skipped[*]}"

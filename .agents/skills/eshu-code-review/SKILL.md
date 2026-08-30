@@ -47,13 +47,15 @@ water them down:
 
 ## When To Use
 
-Use this first as a preliminary full review after focused proof and before
-`make pre-pr`, then again on the exact post-preflight diff before every Eshu
-`git push`, PR create/update, and merge-readiness claim. `make pre-pr` may run
-only after a preliminary P0=0/P1=0/P2-blocking=0 verdict. Re-run review after any fix or
-diff/evidence change. Self-review is valid only when the harness exposes no
-way to reach a separate reviewer — not when dispatching one felt
-unnecessary — and the verdict must say so and name the limitation.
+Use this for one full preliminary review after focused proof and before
+`make pre-pr`. When that review is clean, bind its inputs with
+`ci-gates review-attest capture`. After preflight, `review-attest verify` may
+replace a second full semantic pass only when the receipt matches. Any changed
+base, commit, tree, worktree, submodule, PR claim, review packet, or verdict
+requires another full review. `make pre-pr` may run only after a preliminary
+P0=0/P1=0/P2-blocking=0 verdict. Self-review is valid only when the harness
+exposes no way to reach a separate reviewer, and the verdict must name that
+limitation.
 
 Inputs required:
 

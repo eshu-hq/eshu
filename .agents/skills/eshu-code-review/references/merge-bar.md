@@ -123,6 +123,20 @@ then and is unfixed now, it is still blocking and the PR is not ready. If it was
 dispositioned, the disposition stands unless the diff changed
 underneath it.
 
+## Final exact-diff attestation
+
+One clean full semantic review is required before `make pre-pr`. Capture its
+inputs with `ci-gates review-attest capture`. After preflight, a matching
+`review-attest verify` receipt replaces a duplicate full semantic pass; it does
+not weaken the finding bar above. The receipt binds the base and head, merge
+base, diff and commit range, clean worktree and submodules, exact PR claims,
+review packet, and verdict.
+
+If any binding changes, the receipt is invalid. Repeat the affected proof and
+full semantic review. The attestation cannot find, grade, or disposition a
+finding. It proves only that the inputs already reviewed are still the inputs
+being pushed.
+
 ## Stating it
 
 The verdict carries `P0`, `P1`, `P2-blocking`, `P2-deferred` and `P3` counts.
