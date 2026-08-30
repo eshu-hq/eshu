@@ -30,13 +30,17 @@
 # hook that can refuse to end a session is worth a regression suite, and the
 # agent-canon gate runs this one in CI.
 #
-# The budget is keyed on prompt_id, so it is "at most N continuations per user
-# message", not "N per session". A new user message gets a fresh budget, and a
-# stuck agent can never spin forever on one prompt.
+# The budget is keyed on prompt_id, so it bounds work per user message, not per
+# session. It counts stops that made NO PROGRESS -- real tool calls between
+# stops reset it -- with a hard per-message ceiling behind it, so a working
+# agent is never released by exhaustion and a stuck one still cannot spin.
 
 set -uo pipefail
 
 MAX_NUDGES="${CLAUDE_GOAL_MAX_NUDGES:-3}"
+# Hard ceiling on nudges per user message, whatever the agent is doing. The
+# soft budget above resets on progress, so something has to bound the loop.
+MAX_TOTAL="${CLAUDE_GOAL_MAX_TOTAL:-20}"
 
 payload="$(cat)"
 
@@ -56,12 +60,13 @@ command -v python3 >/dev/null 2>&1 || exit 0
 	read -r prompt_id
 	read -r stop_active
 	IFS= read -r cwd
+	IFS= read -r transcript
 } < <(printf '%s' "${payload}" | python3 -c '
 import json, sys
 try:
     d = json.load(sys.stdin)
 except Exception:
-    print("-"); print("-"); print("False"); print("-")
+    print("-"); print("-"); print("False"); print("-"); print("-")
     raise SystemExit(0)
 def g(k, dflt="-"):
     v = d.get(k)
@@ -74,6 +79,7 @@ print(g("session_id"))
 print(g("prompt_id"))
 print(g("stop_hook_active", "False"))
 print(g("cwd"))
+print(g("transcript_path"))
 ' 2>/dev/null)
 
 [ "${session_id:--}" = "-" ] && exit 0
@@ -224,18 +230,72 @@ case "${first_line}" in
 		;;
 esac
 
+# The budget used to count CONTINUATIONS, which put an agent grinding through
+# six lanes on the same ceiling of three as an agent emitting status reports.
+# Measured on a live run: all eight of that session's prompt counters read 3,
+# and the run that ended had made one tool call since the previous nudge. The
+# ceiling released it -- which looks exactly like a clean finish afterwards.
+#
+# So the soft budget counts NO-PROGRESS stops and real work resets it, while a
+# hard ceiling still bounds the loop: an agent making one token call per turn
+# cannot spin forever. Progress is tool calls appended to the transcript since
+# the last nudge, read from a stored byte offset rather than by re-reading the
+# file -- these run to 8MB.
 state_dir="${TMPDIR:-/tmp}"
 counter="${state_dir}/claude-goal-nudge-${session_id}-${prompt_id}"
 count=0
-[ -f "${counter}" ] && count="$(cat "${counter}" 2>/dev/null || echo 0)"
-case "${count}" in
-	''|*[!0-9]*) count=0 ;;
-esac
+total=0
+offset=0
+if [ -f "${counter}" ]; then
+	# `count total offset`. A file written by the previous version holds a bare
+	# number; reading it must not crash or silently reset the bound to zero.
+	read -r count total offset <"${counter}" 2>/dev/null || true
+	case "${count}" in ''|*[!0-9]*) count=0 ;; esac
+	case "${total}" in ''|*[!0-9]*) total="${count}" ;; esac
+	case "${offset}" in ''|*[!0-9]*) offset=0 ;; esac
+fi
 
-if [ "${count}" -ge "${MAX_NUDGES}" ]; then
+# Tool calls in the bytes appended since the last nudge. A transcript that is
+# missing or unreadable reports no progress, which leaves the original
+# three-stop bound in force -- a progress signal that failed OPEN would remove
+# the bound entirely.
+progress=0
+new_offset="${offset}"
+if [ -n "${transcript:-}" ] && [ "${transcript}" != "-" ] && [ -f "${transcript}" ]; then
+	{
+		read -r progress
+		read -r new_offset
+	} < <(TX="${transcript}" OFF="${offset}" python3 -c '
+import os, sys
+path = os.environ["TX"]
+try:
+    off = int(os.environ.get("OFF") or 0)
+    size = os.path.getsize(path)
+    if off > size:  # transcript replaced or truncated: rescan from the start
+        off = 0
+    with open(path, "rb") as fh:
+        fh.seek(off)
+        tail = fh.read()
+    print(tail.count(b"\"type\":\"tool_use\""))
+    print(size)
+except Exception:
+    print(0); print(os.environ.get("OFF") or 0)
+' 2>/dev/null)
+	case "${progress}" in ''|*[!0-9]*) progress=0 ;; esac
+	case "${new_offset}" in ''|*[!0-9]*) new_offset="${offset}" ;; esac
+fi
+
+[ "${progress}" -gt 0 ] && count=0
+
+if [ "${count}" -ge "${MAX_NUDGES}" ] || [ "${total}" -ge "${MAX_TOTAL}" ]; then
+	# Say why. On the live run this released a session mid-goal and read as a
+	# clean finish; nobody could tell the two apart afterwards.
+	printf 'goal-continue: stop allowed, continuation budget spent for this message (%s no-progress stops, %s total).\n' \
+		"${count}" "${total}" >&2
+	printf '%s %s %s' "${count}" "${total}" "${new_offset}" >"${counter}" 2>/dev/null || true
 	exit 0
 fi
-printf '%s' "$((count + 1))" >"${counter}" 2>/dev/null || exit 0
+printf '%s %s %s' "$((count + 1))" "$((total + 1))" "${new_offset}" >"${counter}" 2>/dev/null || exit 0
 
 remaining="$((MAX_NUDGES - count - 1))"
 

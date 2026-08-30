@@ -261,6 +261,10 @@ gates:
       - "scripts/test-verify-agent-hygiene.sh"
       - "scripts/test-agent-hooks.sh"
       - "scripts/test-goal-continue-hook.sh"
+      # The Stop-hook mirror's later suites live in a sourced companion file,
+      # so it is a trigger path in its own right -- otherwise deleting a case
+      # from it would not select the gate that runs it.
+      - "scripts/test-goal-continue-hook-cases.sh"
       - "scripts/test-goal-refresh-hook.sh"
       # The workflow itself, so removing a test STEP selects the gate
       # that asserts the step is there. Without this a workflow-only

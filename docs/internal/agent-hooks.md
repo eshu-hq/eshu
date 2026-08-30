@@ -154,7 +154,7 @@ to survive that:
 | `BLOCKED: <reason>` | The reason is echoed to stderr, so the owner reads the exact claim rather than only seeing the turn end. |
 | `BLOCKED: … WATCH=<pid>` | The hook verifies the process is alive. **A dead watcher REFUSES the stop** — nothing would wake the agent, so waiting is the bug rather than the excuse. |
 | `CLAUDE_GOAL_OFF=1` | Owner-side, not agent-side. |
-| budget | At most three continuations per `prompt_id`, so a new owner message resets it and a stuck agent cannot spin on one prompt. |
+| budget | At most three NO-PROGRESS continuations per `prompt_id`, plus a hard ceiling of 20. A new owner message resets both. |
 
 ### Consent the owner already gave
 
@@ -189,6 +189,30 @@ Every parse failure allows the stop — no goal file, an empty one, malformed
 JSON, empty stdin, no `python3`. A hook that can refuse to end a session must
 never be the reason a session breaks. `scripts/test-goal-continue-hook.sh`
 covers all of it, and the `agent-canon` gate runs it.
+
+### The budget counts stops that made no progress
+
+The budget bounded continuations per user message, which put an agent grinding
+through six lanes on the same ceiling of three as an agent emitting status
+reports. On a live session: 75 stop-hook refusals in one transcript, every
+prompt counter pinned at 3, and the run that finally ended had done real work
+right before it stopped. The ceiling released it — and a release by exhaustion
+reads exactly like a clean finish afterwards, which is how it went unnoticed.
+
+Counting the last four refusal regions of that transcript by tool calls made
+between them gives 16, 0, 0, 1. The two zeroes are the failure the hook exists
+for. The 16 and the 1 are an agent working, and the old rule counted all four
+the same.
+
+So the soft budget counts stops with **no tool calls since the previous
+nudge**, and real work resets it; a hard ceiling (`CLAUDE_GOAL_MAX_TOTAL`,
+default 20) still bounds the loop, so an agent making one token call per turn
+cannot spin forever. Progress is read from a stored byte offset rather than by
+re-reading the file — these transcripts run past 8MB. A missing or unreadable
+transcript reports *no* progress, leaving the original three-stop bound in
+force: a progress signal that failed open would remove the bound entirely.
+
+When the budget is what allowed the stop, the hook now says so on stderr.
 
 ## Why the goal is restated every turn
 
