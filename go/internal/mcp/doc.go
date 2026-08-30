@@ -9,10 +9,10 @@
 // relationships, semantic, service, and visualization child packages own
 // their registration definitions without importing this parent package. The
 // ask, relationships, and visualization children own pure dependency-neutral
-// family route selectors alongside their definitions, and the packageregistry
-// child owns such a selector without owning a registration. ReadOnlyTools
-// remains the sole ordered assembler; global route membership, family
-// adapters, dispatch,
+// family route selectors alongside their definitions, and the cicd and
+// packageregistry children own such a selector without owning a registration.
+// ReadOnlyTools remains the sole ordered assembler; global route membership,
+// family adapters, dispatch,
 // transport, authorization, timeouts,
 // response budgets, envelopes, and telemetry remain owned here. The query
 // package retains Ask execution, visualization derivation, relationship
