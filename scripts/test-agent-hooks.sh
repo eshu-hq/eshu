@@ -624,10 +624,16 @@ done
 # A convention that has failed three times is not a convention. This asserts
 # the position, so forgetting fails here rather than in whatever the tail
 # happened to contain.
-for companion in \
-  test-goal-continue-hook-cases.sh \
-  test-goal-refresh-hook-cases.sh; do
-  companion_path="$repo_root/scripts/$companion"
+# Enumerated by glob, not by a hand-written list. A third companion was added
+# one commit after this check landed, and a list would have silently not
+# covered it -- the same shape as the check itself: correct when written, with
+# nothing that fails when the world moves. The count floor is what stops a
+# rename turning the glob into a vacuous zero-iteration pass.
+companion_count=0
+for companion_path in "$repo_root"/scripts/test-goal-*cases*.sh; do
+  [ -f "$companion_path" ] || continue
+  companion="$(basename "$companion_path")"
+  companion_count=$((companion_count + 1))
   last_line="$(rg -v '^[[:space:]]*(#|$)' "$companion_path" 2>/dev/null | tail -1)"
   case "$last_line" in
     *_cases_loaded=1)
@@ -641,6 +647,14 @@ for companion in \
       ;;
   esac
 done
+if [ "$companion_count" -ge 3 ]; then
+  printf 'ok - the companion glob found %s files to check\n' "$companion_count"
+  passed=$((passed + 1))
+else
+  printf 'FAIL - the companion glob found only %s file(s); a rename would make this check vacuous\n' \
+    "$companion_count" >&2
+  failed=$((failed + 1))
+fi
 
 printf '\nagent-hooks test mirror: %s passed, %s failed, %s skipped\n' \
   "$passed" "$failed" "$skipped"

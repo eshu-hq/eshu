@@ -270,6 +270,9 @@ gates:
       # later suites are sourced from their own file, which must select this
       # gate on its own.
       - "scripts/test-goal-refresh-hook-cases.sh"
+      # The refresh mirror needed a second companion when the first crossed the
+      # 500-line cap; it is a trigger path for the same reason as its sibling.
+      - "scripts/test-goal-refresh-hook-guard-cases.sh"
       # The workflow itself, so removing a test STEP selects the gate
       # that asserts the step is there. Without this a workflow-only
       # edit re-opens the local/CI parity gap silently.
