@@ -469,4 +469,36 @@ fi
 # undone by appending cases BELOW it in the same commit, which put the residual
 # straight back -- so there is now a case asserting this assignment is the final
 # non-blank line. Append ABOVE it.
+# The two hooks have to agree about what a BLANKET grant means. The Stop hook
+# retires the consent bullet outright for `all`; the refresher went on telling
+# the agent to ask for anything "NOT on it", which under a blanket grant is
+# nothing at all -- the same file saying two things to the same agent.
+bl="${work}/blanket"
+mkdir -p "${bl}/.claude"
+submit "${sid}" '/goal ship the thing' "${bl}" >/dev/null
+submit "${sid}" '/goal consent all' "${bl}" >/dev/null
+bl_inj="$(injected "$(submit "${sid}" 'carry on' "${bl}")")"
+if printf '%s' "${bl_inj}" | rg -q 'NOT on it'; then
+	no "a blanket grant is not described as a list to check against"
+else
+	ok "a blanket grant is not described as a list to check against"
+fi
+if printf '%s' "${bl_inj}" | rg -qi 'blanket'; then
+	ok "a blanket grant says so"
+else
+	no "a blanket grant says so"
+fi
+# A named grant keeps the list wording, so the distinction cannot be lost by
+# making both branches generic.
+nm="${work}/named"
+mkdir -p "${nm}/.claude"
+submit "${sid}" '/goal ship the other thing' "${nm}" >/dev/null
+submit "${sid}" '/goal consent push' "${nm}" >/dev/null
+nm_inj="$(injected "$(submit "${sid}" 'carry on' "${nm}")")"
+if printf '%s' "${nm_inj}" | rg -q 'NOT on it'; then
+	ok "a named grant still says to ask for acts not on the list"
+else
+	no "a named grant still says to ask for acts not on the list"
+fi
+
 goal_refresh_cases_loaded=1

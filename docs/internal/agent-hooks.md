@@ -29,7 +29,7 @@ rebuilding the whole snapshot, which only works for a hook that needs no path.
 | `skill-loaded.sh` | Claude | PostToolUse on `Skill` | side effect | Records which skills were loaded this session |
 | `guard-live-gate.sh` | Claude | PreToolUse on Bash | **blocking** | Blocks a second live gate on the default ports |
 | `on-compact.sh` | Claude | SessionStart, compact or resume | advisory | Points a re-grounded session at `eshu-session-lifecycle` |
-| `goal-continue.sh` | Claude | Stop | **blocking** | Refuses to end the turn while `.claude/active-goal` names unfinished work, and hands the goal back. |
+| `goal-continue.sh` | Claude | Stop | **blocking** | Refuses to end the turn while this session's goal file (`.claude/active-goal.<session_id>`, else the shared `.claude/active-goal`) names unfinished work, and hands the goal back. |
 | `goal-refresh.sh` | Claude | UserPromptSubmit | side effect | Sets a goal from `/goal <text>`, and re-injects the active goal into context on every prompt so it cannot go stale. |
 
 ## Why the nudge blocks instead of suggesting
@@ -154,7 +154,7 @@ to survive that:
 | `BLOCKED: <reason>` | The reason is echoed to stderr, so the owner reads the exact claim rather than only seeing the turn end. |
 | `BLOCKED: … WATCH=<pid>` | The hook verifies the process is alive. **A dead watcher REFUSES the stop** — nothing would wake the agent, so waiting is the bug rather than the excuse. |
 | `CLAUDE_GOAL_OFF=1` | Owner-side, not agent-side. |
-| budget | At most three NO-PROGRESS continuations per `prompt_id` (`CLAUDE_GOAL_MAX_NUDGES`), plus a hard ceiling of 20 (`CLAUDE_GOAL_MAX_TOTAL`). A new owner message resets both. |
+| budget | A bounded number of NO-PROGRESS continuations per `prompt_id` (`CLAUDE_GOAL_MAX_NUDGES`, default 3), behind a hard ceiling (`CLAUDE_GOAL_MAX_TOTAL`, default 20). A new owner message resets both; the defaults live in the hook. |
 | `CONSENT: <acts>` | Not an escape — it does not end a turn. It removes "I need consent for that" as a reason to stop, for the acts it names. Nothing verifies who wrote it, which is why every honoured grant is echoed to stderr with its acts. |
 
 ### Consent the owner already gave

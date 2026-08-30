@@ -18,6 +18,11 @@
 # `GOAL:` writes the file here, which makes this hook the single write path.
 #
 # Contract:
+#   prompts: `/goal <text>` and `GOAL: <text>` set the goal; `/goal done` and
+#            `/goal clear` retire it; `/goal consent <acts>` and
+#            `/goal revoke-consent` edit only the CONSENT line, and are matched
+#            ABOVE the generic arm so an objective beginning with the word
+#            "consent" is not read as a grant.
 #   stdin  : {session_id, prompt_id, cwd, prompt, hook_event_name, ...}
 #   stdout : {"hookSpecificOutput":{"hookEventName":"UserPromptSubmit",
 #             "additionalContext":"..."}}  -- or nothing
@@ -308,7 +313,19 @@ goal = "\n".join(l for l in lines
 if not goal:
     raise SystemExit(0)
 granted = ", ".join(acts)
-if granted:
+# Blanket is a whole token, the same test the Stop hook applies -- a substring
+# match read "install deps" as blanket consent there, and the two halves have
+# to agree about what a grant means or the same file says two things.
+blanket = any(tok.strip().lower() in ("all", "*")
+              for act in acts for tok in act.split(","))
+if granted and blanket:
+    consent_note = (
+        "\n\nOWNER CONSENT ALREADY GRANTED, blanket, for: " + granted
+        + ". Carry out the irreversible acts this goal needs; do not stop to "
+          "ask for them. Ask only when complete evidence would still leave a "
+          "product-taste call."
+    )
+elif granted:
     consent_note = (
         "\n\nOWNER CONSENT ALREADY GRANTED for: " + granted
         + ". Carry those out yourself when the work reaches them; do not stop "
