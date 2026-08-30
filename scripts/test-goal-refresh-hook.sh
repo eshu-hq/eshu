@@ -516,5 +516,30 @@ else
 	no "CLAUDE_GOAL_CONSENT reaches the per-turn restatement"
 fi
 
+# The consent arm got a $HOME guard and the retire arm did not, so `/goal done`
+# from a worktree with no goal of its own still retired the MACHINE-WIDE goal
+# for every session on the machine -- silently. The reasoning the consent guard
+# was written with applies identically to a retirement.
+hw2="${work}/homeretire"
+fh2="${work}/fakehome3"
+mkdir -p "${hw2}/.claude" "${fh2}/.claude"
+printf 'SESSION: %s\nMachine-wide objective.\n' "${sid}" >"${fh2}/.claude/active-goal"
+retire_err="$(SID="${sid}" PROMPT='/goal done' CWD="${hw2}" python3 -c '
+import json, os
+print(json.dumps({"session_id": os.environ["SID"], "prompt_id": "homeretire",
+                  "cwd": os.environ["CWD"], "prompt": os.environ["PROMPT"],
+                  "hook_event_name": "UserPromptSubmit"}))
+' | HOME="${fh2}" bash "${REFRESH}" 2>&1 >/dev/null)"
+if [[ "$(head -1 "${fh2}/.claude/active-goal")" == DONE* ]]; then
+	no "/goal done does not retire the machine-wide goal file"
+else
+	ok "/goal done does not retire the machine-wide goal file"
+fi
+if printf '%s' "${retire_err}" | rg -qi 'machine-wide'; then
+	ok "the refused retirement says so on stderr"
+else
+	no "the refused retirement says so on stderr (got: ${retire_err})"
+fi
+
 printf '\ngoal-refresh hook mirror: %s passed, %s failed\n' "${passed}" "${failed}"
 [[ "${failed}" -eq 0 ]]

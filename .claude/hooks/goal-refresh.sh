@@ -134,6 +134,33 @@ owns_goal_file() { # path
 	esac
 }
 
+# May this session WRITE the file it resolved? Both write arms ask here, rather
+# than one of them carrying a guard the other lacks -- which is exactly how the
+# consent arm ended up refusing $HOME while the retire arm silently prepended
+# DONE to it, retiring the machine-wide goal for every session on the machine.
+# Prints the reason it refuses; the caller decides whether to exit.
+writable_goal_target() { # path action
+	if [ -z "$1" ]; then
+		printf 'goal-refresh: no goal file for this session, %s not recorded. Set one with /goal <text>.\n' "$2" >&2
+		return 1
+	fi
+	# Never the machine-wide file: a goal written there is inherited by every
+	# concurrent session in every other worktree, so retiring or amending it
+	# reaches all of them. An explicit CLAUDE_GOAL_FILE is the owner naming a
+	# target on purpose.
+	if [ -z "${CLAUDE_GOAL_FILE:-}" ] && [ "$1" = "${HOME}/.claude/active-goal" ]; then
+		printf 'goal-refresh: refusing to write the machine-wide goal file %s from this worktree; set a goal here first.\n' \
+			"$1" >&2
+		return 1
+	fi
+	if ! owns_goal_file "$1"; then
+		printf 'goal-refresh: %s belongs to another session or to the owner, not written.\n' \
+			"$1" >&2
+		return 1
+	fi
+	return 0
+}
+
 # ── producer ───────────────────────────────────────────────────────────────
 # `/goal <text>` or `GOAL: <text>` sets it; `/goal done` or `/goal clear`
 # retires it. The SESSION header is what stops a goal outliving the session
@@ -141,7 +168,7 @@ owns_goal_file() { # path
 case "${prompt}" in
 	'/goal done'*|'/goal clear'*|'GOAL: done'*)
 		retire="${goal_file:-${goal_write}}"
-		if owns_goal_file "${retire}"; then
+		if writable_goal_target "${retire}" retirement; then
 			printf 'DONE\n' > "${retire}.tmp" 2>/dev/null &&
 				cat "${retire}" >> "${retire}.tmp" 2>/dev/null &&
 				mv "${retire}.tmp" "${retire}" 2>/dev/null || true
@@ -166,24 +193,7 @@ case "${prompt}" in
 		# nowhere is the exact loop this feature exists to close -- the owner
 		# types it, nothing records it, the next Stop asks again.
 		target="${goal_file:-}"
-		if [ -z "${target}" ]; then
-			printf 'goal-refresh: no goal file for this session, consent not recorded. Set a goal first with /goal <text>.\n' >&2
-			exit 0
-		fi
-		# Never the machine-wide file. This hook's own rule, thirty lines up:
-		# a $HOME goal file is inherited by every concurrent session in every
-		# other worktree, so a grant written there is a grant to all of them.
-		# An explicit CLAUDE_GOAL_FILE is the owner naming a target on purpose.
-		if [ -z "${CLAUDE_GOAL_FILE:-}" ] && [ "${target}" = "${HOME}/.claude/active-goal" ]; then
-			printf 'goal-refresh: refusing to write consent into the machine-wide goal file %s; set a goal in this worktree first.\n' \
-				"${target}" >&2
-			exit 0
-		fi
-		if ! owns_goal_file "${target}"; then
-			printf 'goal-refresh: %s belongs to another session, consent not recorded.\n' \
-				"${target}" >&2
-			exit 0
-		fi
+		writable_goal_target "${target}" consent || exit 0
 		case "${prompt}" in
 			*revoke-consent*) acts="" ;;
 			*)

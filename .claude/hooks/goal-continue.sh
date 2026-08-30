@@ -134,10 +134,15 @@ esac
 #
 # An unheaded file is the owner's own hand-written goal and is honoured as-is,
 # which keeps the manual workflow working.
-# A function, because this has to run AGAIN after CONSENT lines are stripped: a
-# `CONSENT:` line above the header shadowed the ownership check, and a foreign
-# session was handed another session's goal and its consent grant -- the leak
-# the header exists to stop, reintroduced by the feature that reads above it.
+# The header rules, applied ONCE and only after CONSENT lines are stripped.
+#
+# They used to run before the strip, and a CONSENT line above the header then
+# shadowed the ownership check. Applying them a SECOND time after the strip
+# fixed that and introduced a worse defect: a goal whose BODY started a line
+# with `SESSION:` was read by the second pass as an ownership header, the id
+# did not match, and the stop was silently ALLOWED -- enforcement off, no
+# output, and dependent on whether an unrelated CONSENT line was present.
+# Stripping first and parsing once closes both without a second layer.
 # Returns non-zero when the stop should be allowed.
 apply_session_header() {
 	case "${first_line}" in
@@ -155,7 +160,6 @@ apply_session_header() {
 	esac
 	return 0
 }
-apply_session_header || exit 0
 
 # CONSENT: <acts> is the owner writing down a permission the agent would
 # otherwise stop to ask for. The refusal used to offer "you need consent for an
@@ -195,7 +199,6 @@ sys.exit(0 if any(l.lstrip().lower().startswith("consent:") for l in sys.stdin) 
 	goal="${stripped%$'\n'}"
 	[ -n "${goal}" ] || exit 0
 	first_line="$(printf '%s\n' "${goal}" | head -1)"
-	apply_session_header || exit 0
 fi
 
 # A launcher that already knows what its run may do can grant without editing a
@@ -203,6 +206,8 @@ fi
 if [ -n "${CLAUDE_GOAL_CONSENT:-}" ]; then
 	consent="${consent:+${consent}, }${CLAUDE_GOAL_CONSENT}"
 fi
+
+apply_session_header || exit 0
 
 # BLOCKED: <reason> releases the stop when the work is genuinely waiting on
 # something outside this machine -- a CI run, a remote queue, another person.
@@ -351,7 +356,7 @@ Do those yourself now. Stopping to ask again for something on that list is not a
 	# irreversible-act stop reason, delete and deploy included. So do "call",
 	# "allow", "fallback" and "recall".
 	consent_blanket=0
-	consent_ifs="${IFS}"
+	consent_ifs="${IFS-}"
 	IFS=','
 	# Globbing off around the split: the token being tested for is `*`, and an
 	# unquoted expansion of it would be replaced by the filenames in the

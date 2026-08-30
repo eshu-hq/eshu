@@ -433,3 +433,24 @@ if [[ "${quoted_blocks}" -eq 3 ]]; then
 else
 	no "a transcript quoting the pattern earns no progress credit (blocked ${quoted_blocks}/5)"
 fi
+
+# Applying the header rules twice made the hook consume a header twice: a goal
+# whose BODY starts a line with `SESSION:` was read by the second pass as an
+# ownership header, the id did not match, and the stop was SILENTLY ALLOWED --
+# enforcement off, no output. Worse, it depended on whether a CONSENT line was
+# present, so the same file enforced or did not depending on an unrelated line.
+printf 'SESSION: %s\nCONSENT: push\nSESSION: is the header we document\nmore goal\n' \
+	"${sid}" >"${goal}"
+body_out="$(run "$(payload bodyheader)")"
+check "a body line starting SESSION: does not disable the hook" block "${body_out}"
+if printf '%s' "${body_out}" | rg -q 'is the header we document'; then
+	ok "that body line survives into the quoted goal"
+else
+	no "that body line survives into the quoted goal"
+fi
+
+# The control the defect was found with: same file, no CONSENT line. Both must
+# behave identically now.
+printf 'SESSION: %s\nSESSION: is the header we document\nmore goal\n' "${sid}" >"${goal}"
+check "the same goal without a CONSENT line behaves identically" block \
+	"$(run "$(payload bodyheader2)")"

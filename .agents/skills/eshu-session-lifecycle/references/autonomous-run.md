@@ -27,7 +27,7 @@ the proof gets run.
    | A committed fact settles it — code, a local doc, an ADR, a measurement, a cheap experiment | **Research it**, cite the settling evidence, proceed |
    | Owner, design intent, performance contract, or verification gate is unsettled | **Ask** |
    | Complete evidence would still leave a product-taste or business call | **Ask** |
-   | The next act is irreversible | **Ask** |
+   | The next act is irreversible | **Ask** — unless the owner already granted that act durably (`CONSENT:` in the goal file, or `CLAUDE_GOAL_CONSENT`), in which case do it and say you did |
 
    Architecture is not itself an anchor. Under a settled design intent, an
    architecture question is a research task, and settled intent admitting two
