@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package parser
+package yaml_test
 
 import (
 	"path/filepath"
@@ -42,12 +42,12 @@ spec:
 `,
 	)
 
-	engine, err := DefaultEngine()
+	engine, err := defaultEngine()
 	if err != nil {
 		t.Fatalf("DefaultEngine() error = %v, want nil", err)
 	}
 
-	got, err := engine.ParsePath(repoRoot, filePath, false, Options{})
+	got, err := engine.ParsePath(repoRoot, filePath, false, parserOptions{})
 	if err != nil {
 		t.Fatalf("ParsePath() error = %v, want nil", err)
 	}
@@ -104,12 +104,12 @@ spec:
 `,
 	)
 
-	engine, err := DefaultEngine()
+	engine, err := defaultEngine()
 	if err != nil {
 		t.Fatalf("DefaultEngine() error = %v, want nil", err)
 	}
 
-	got, err := engine.ParsePath(repoRoot, filePath, false, Options{})
+	got, err := engine.ParsePath(repoRoot, filePath, false, parserOptions{})
 	if err != nil {
 		t.Fatalf("ParsePath() error = %v, want nil", err)
 	}
@@ -176,12 +176,12 @@ spec:
 `,
 	)
 
-	engine, err := DefaultEngine()
+	engine, err := defaultEngine()
 	if err != nil {
 		t.Fatalf("DefaultEngine() error = %v, want nil", err)
 	}
 
-	got, err := engine.ParsePath(repoRoot, filePath, false, Options{})
+	got, err := engine.ParsePath(repoRoot, filePath, false, parserOptions{})
 	if err != nil {
 		t.Fatalf("ParsePath() error = %v, want nil", err)
 	}
@@ -223,12 +223,12 @@ spec:
 `,
 	)
 
-	engine, err := DefaultEngine()
+	engine, err := defaultEngine()
 	if err != nil {
 		t.Fatalf("DefaultEngine() error = %v, want nil", err)
 	}
 
-	got, err := engine.ParsePath(repoRoot, filePath, false, Options{})
+	got, err := engine.ParsePath(repoRoot, filePath, false, parserOptions{})
 	if err != nil {
 		t.Fatalf("ParsePath() error = %v, want nil", err)
 	}
@@ -265,12 +265,12 @@ spec:
 `,
 	)
 
-	engine, err := DefaultEngine()
+	engine, err := defaultEngine()
 	if err != nil {
 		t.Fatalf("DefaultEngine() error = %v, want nil", err)
 	}
 
-	got, err := engine.ParsePath(repoRoot, filePath, false, Options{})
+	got, err := engine.ParsePath(repoRoot, filePath, false, parserOptions{})
 	if err != nil {
 		t.Fatalf("ParsePath() error = %v, want nil", err)
 	}
@@ -320,12 +320,12 @@ resources:
 `,
 			)
 
-			engine, err := DefaultEngine()
+			engine, err := defaultEngine()
 			if err != nil {
 				t.Fatalf("DefaultEngine() error = %v, want nil", err)
 			}
 
-			got, err := engine.ParsePath(repoRoot, filePath, false, Options{})
+			got, err := engine.ParsePath(repoRoot, filePath, false, parserOptions{})
 			if err != nil {
 				t.Fatalf("ParsePath() error = %v, want nil", err)
 			}

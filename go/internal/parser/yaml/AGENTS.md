@@ -19,7 +19,11 @@
 ## Invariants this package enforces
 
 - Dependency direction stays one way: parent parser code may import this
-  package, but this package must not import internal/parser.
+  package, but production files here must not import internal/parser. External
+  `yaml_test` files may import the parent engine and
+  internal/parser/parsertest to verify public Engine contracts.
+- Run `go test ./internal/parser/yaml ./internal/parser -count=1` after
+  changing this package, its black-box Engine coverage, or parent dispatch.
 - Parse returns the same payload shape and ordering the parent YAML adapter
   emitted before the package split.
 - The CloudFormation/SAM path stays shared through internal/parser/cloudformation;
@@ -85,8 +89,9 @@
 
 ## Anti-patterns specific to this package
 
-- Importing the parent parser package to reuse engine, registry, or helper
-  types.
+- Importing the parent parser package from a production file, to reuse engine,
+  registry, or helper types. External `yaml_test` files may import it — that is
+  how the relocated black-box coverage drives the engine.
 - Evaluating Jinja, Helm, Kustomize, or CloudFormation expressions as runtime
   truth.
 - Emitting unsorted map-derived rows.

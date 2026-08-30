@@ -17,7 +17,7 @@
 // automated consumer -- into an executable proof, mirroring
 // TestDefaultEngineParsePathYAMLCloudFormationVpcFixtureRealLines's
 // fixtureDir/ParsePath pattern.
-package parser
+package yaml_test
 
 import (
 	"path/filepath"
@@ -26,7 +26,10 @@ import (
 
 func fluxComprehensiveFixtureDir(t *testing.T) string {
 	t.Helper()
-	dir, err := filepath.Abs(filepath.Join("..", "..", "..", "tests", "fixtures", "ecosystems", "flux_comprehensive"))
+	// go test runs with the package directory as the working directory, so
+	// this climbs go/internal/parser/yaml back to the repo root. The extra
+	// segment over the pre-relocation path is this package's added depth.
+	dir, err := filepath.Abs(filepath.Join("..", "..", "..", "..", "tests", "fixtures", "ecosystems", "flux_comprehensive"))
 	if err != nil {
 		t.Fatalf("filepath.Abs() error = %v, want nil", err)
 	}
@@ -38,11 +41,11 @@ func parseFluxFixtureFile(t *testing.T, fileName string) map[string]any {
 	fixtureDir := fluxComprehensiveFixtureDir(t)
 	filePath := filepath.Join(fixtureDir, fileName)
 
-	engine, err := DefaultEngine()
+	engine, err := defaultEngine()
 	if err != nil {
 		t.Fatalf("DefaultEngine() error = %v, want nil", err)
 	}
-	got, err := engine.ParsePath(fixtureDir, filePath, false, Options{})
+	got, err := engine.ParsePath(fixtureDir, filePath, false, parserOptions{})
 	if err != nil {
 		t.Fatalf("ParsePath(%s) error = %v, want nil", fileName, err)
 	}

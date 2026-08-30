@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package parser
+package yaml_test
 
 import (
 	"path/filepath"
@@ -56,12 +56,12 @@ image:
 `,
 	)
 
-	engine, err := DefaultEngine()
+	engine, err := defaultEngine()
 	if err != nil {
 		t.Fatalf("DefaultEngine() error = %v, want nil", err)
 	}
 
-	kustomizePayload, err := engine.ParsePath(repoRoot, kustomizePath, false, Options{})
+	kustomizePayload, err := engine.ParsePath(repoRoot, kustomizePath, false, parserOptions{})
 	if err != nil {
 		t.Fatalf("ParsePath(%q) error = %v, want nil", kustomizePath, err)
 	}
@@ -78,7 +78,7 @@ image:
 	if len(bases) != 2 || bases[0] != "../app" || bases[1] != "../base" {
 		t.Fatalf("kustomize_overlays[0].bases = %#v, want [../app ../base]", bases)
 	}
-	chartPayload, err := engine.ParsePath(repoRoot, chartPath, false, Options{})
+	chartPayload, err := engine.ParsePath(repoRoot, chartPath, false, parserOptions{})
 	if err != nil {
 		t.Fatalf("ParsePath(%q) error = %v, want nil", chartPath, err)
 	}
@@ -86,7 +86,7 @@ image:
 	assertBucketContainsFieldValue(t, chartPayload, "helm_charts", "dependencies", "redis")
 	assertBucketContainsFieldValue(t, chartPayload, "helm_charts", "dependency_repositories", "https://charts.example.test/redis")
 
-	valuesPayload, err := engine.ParsePath(repoRoot, valuesPath, false, Options{})
+	valuesPayload, err := engine.ParsePath(repoRoot, valuesPath, false, parserOptions{})
 	if err != nil {
 		t.Fatalf("ParsePath(%q) error = %v, want nil", valuesPath, err)
 	}
@@ -116,12 +116,12 @@ patches:
 `,
 	)
 
-	engine, err := DefaultEngine()
+	engine, err := defaultEngine()
 	if err != nil {
 		t.Fatalf("DefaultEngine() error = %v, want nil", err)
 	}
 
-	payload, err := engine.ParsePath(repoRoot, filePath, false, Options{})
+	payload, err := engine.ParsePath(repoRoot, filePath, false, parserOptions{})
 	if err != nil {
 		t.Fatalf("ParsePath(%q) error = %v, want nil", filePath, err)
 	}
@@ -164,12 +164,12 @@ images:
 `,
 	)
 
-	engine, err := DefaultEngine()
+	engine, err := defaultEngine()
 	if err != nil {
 		t.Fatalf("DefaultEngine() error = %v, want nil", err)
 	}
 
-	payload, err := engine.ParsePath(repoRoot, filePath, false, Options{})
+	payload, err := engine.ParsePath(repoRoot, filePath, false, parserOptions{})
 	if err != nil {
 		t.Fatalf("ParsePath(%q) error = %v, want nil", filePath, err)
 	}
@@ -232,12 +232,12 @@ images:
 `,
 	)
 
-	engine, err := DefaultEngine()
+	engine, err := defaultEngine()
 	if err != nil {
 		t.Fatalf("DefaultEngine() error = %v, want nil", err)
 	}
 
-	payload, err := engine.ParsePath(repoRoot, filePath, false, Options{})
+	payload, err := engine.ParsePath(repoRoot, filePath, false, parserOptions{})
 	if err != nil {
 		t.Fatalf("ParsePath(%q) error = %v, want nil", filePath, err)
 	}
@@ -319,12 +319,12 @@ images:
 `,
 	)
 
-	engine, err := DefaultEngine()
+	engine, err := defaultEngine()
 	if err != nil {
 		t.Fatalf("DefaultEngine() error = %v, want nil", err)
 	}
 
-	payload, err := engine.ParsePath(repoRoot, filePath, false, Options{})
+	payload, err := engine.ParsePath(repoRoot, filePath, false, parserOptions{})
 	if err != nil {
 		t.Fatalf("ParsePath(%q) error = %v, want nil", filePath, err)
 	}

@@ -1,7 +1,7 @@
 # CloudFormation Parser Audit
 
 ## Overview
-Parses CloudFormation and SAM template evidence from already-decoded YAML/JSON documents. This is a **declarative data** parser — it receives an already-decoded map from the JSON or YAML parent adapter, evaluates bounded condition expressions (Ref, Equals, literal comparison), and extracts resource, parameter, output, condition, import, and export buckets. 5 src files, 2 test files.
+Parses CloudFormation and SAM template evidence from already-decoded YAML/JSON documents. This is a **declarative data** parser — it receives an already-decoded map from the JSON or YAML parent adapter, evaluates bounded condition expressions (Ref, Equals, literal comparison), and extracts resource, parameter, output, condition, import, and export buckets. 5 src files, 4 test files.
 
 ## Claimed Constructs
 From `doc.go`, `README.md`, `parser.go`:
@@ -21,17 +21,22 @@ From `doc.go`, `README.md`, `parser.go`:
 - `TestParsePersistsFileFormat` (`parser_test.go:53`): File format preserved on params, resources, outputs, exports; AllowedValues; DependsOn; Export name
 - `TestParseCapturesConditionsAndNestedStackMetadata` (`conditions_test.go:8`): Conditions name/expression, resource condition/template_url
 - `TestParseEvaluatesResolvableConditions` (`conditions_test.go:48`): Resolved conditions (Fn::Equals with Ref), evaluated values, unresolved condition
-- Parent-level: `engine_infra_test.go`, `engine_yaml_semantics_test.go` verify JSON/YAML attachment
+- `TestIsTemplateDetectsSAMResourceTypeWithoutTransform` (`imports_test.go:8`): SAM resource-type recognition without a Transform field
+- `TestParseCollectsCrossStackImports` (`imports_test.go:24`): cross-stack `Fn::ImportValue` collection
+- `positions_test.go`: source-position attachment for parameters, resources, outputs, and exports
+- Parent-level: `engine_infra_test.go` verifies JSON attachment; YAML attachment is
+  verified by `go/internal/parser/yaml/engine_yaml_semantics_test.go`, which moved into
+  the yaml package in issue #6062
 
 ## Unverified / Claimed-but-Untested Constructs
-- **Cross-stack Imports**: not explicitly tested (TestParsePersistsFileFormat checks imports count = 0)
-- **SAM resource type recognition** (`AWS::Serverless::*` pattern in IsTemplate): tested only for transform list form, not resource-type form directly
 - **Nested map-style condition evaluation beyond Fn::Equals**: only Fn::Equals with Ref vs literal is tested
 - **TemplateURL extraction**: only tested for nested CloudFormation::Stack resources
 
 ## Edge Cases Considered
 - Parameter with no explicit Type defaults to `String` (`TestParseDefaultsParameterTypeToString`)
 - SAM transform as list (not just string) in `Transform` field
+- SAM resource recognition without a Transform field
+- Cross-stack `Fn::ImportValue` collection
 - Both `json` and `yaml` file formats
 - Resolved vs unresolved conditions (evaluated_value/condition_value)
 - AllowedValues list preservation
@@ -48,10 +53,9 @@ From `doc.go`, `README.md`, `parser.go`:
 - Intrinsic functions: Fn::Sub, Fn::Join, Fn::Select, Fn::FindInMap for property extraction
 
 ## Verdict
-**moderate** — Tests cover the core structural extraction (parameters, resources, conditions, outputs, exports, file format) and the happy-path of Fn::Equals condition evaluation. As a declarative data parser receiving pre-decoded documents, moderate coverage is acceptable. The parser correctly delegates document decoding to JSON/YAML parents and focuses on bucket extraction.
+**moderate** — Tests cover the core structural extraction (parameters, resources, conditions, imports, outputs, exports, file format) and the happy-path of Fn::Equals condition evaluation. As a declarative data parser receiving pre-decoded documents, moderate coverage is appropriate. The parser delegates document decoding to JSON/YAML parents and focuses on bucket extraction.
 
 ## Recommended Actions
-- Add a test for cross-stack imports (Fn::ImportValue collection)
 - Add at least one malformed-document test (empty sections, non-map Resources)
 - Document that CloudFormation is a **permanent exception** in the parser taxonomy — it uses bounded structural evaluation over decoded documents, not tree-sitter
 - Consider testing non-string parameter types and Fn::And/Fn::Or/Fn::Not condition evaluation
