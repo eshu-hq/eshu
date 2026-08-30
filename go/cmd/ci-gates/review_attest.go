@@ -123,6 +123,8 @@ func (o reviewAttestOptions) validate() error {
 
 func collectReviewAttestation(options reviewAttestOptions) (reviewAttestation, error) {
 	git := func(args ...string) ([]byte, error) {
+		// #nosec G204 -- executable is the literal git; arguments are fixed
+		// attestation operations plus the operator-selected repository/base.
 		cmd := exec.Command("git", append([]string{"-C", options.repoRoot}, args...)...)
 		cmd.Env = reviewGitEnv(os.Environ())
 		out, err := cmd.Output()
@@ -260,6 +262,8 @@ func reviewGitEnv(env []string) []string {
 }
 
 func fileSHA256(path string) (string, error) {
+	// #nosec G304 -- the local operator explicitly selects each reviewed input;
+	// this command only reads and hashes it.
 	raw, err := os.ReadFile(path)
 	if err != nil {
 		return "", err
@@ -279,6 +283,8 @@ func writeReviewAttestation(path string, receipt reviewAttestation) error {
 	}
 	raw = append(raw, '\n')
 	dir := filepath.Dir(path)
+	// #nosec G703 -- the local operator explicitly selects the receipt path;
+	// the directory and receipt remain local proof outside the repository.
 	if err := os.MkdirAll(dir, 0o700); err != nil {
 		return fmt.Errorf("create review receipt directory: %w", err)
 	}
@@ -287,6 +293,8 @@ func writeReviewAttestation(path string, receipt reviewAttestation) error {
 		return fmt.Errorf("create review receipt: %w", err)
 	}
 	tmpName := tmp.Name()
+	// #nosec G703 -- tmpName is returned by os.CreateTemp in the selected
+	// receipt directory, not constructed from untrusted input.
 	defer func() { _ = os.Remove(tmpName) }()
 	if err := tmp.Chmod(0o600); err != nil {
 		_ = tmp.Close()
@@ -299,6 +307,8 @@ func writeReviewAttestation(path string, receipt reviewAttestation) error {
 	if err := tmp.Close(); err != nil {
 		return err
 	}
+	// #nosec G703 -- source is the CreateTemp result and destination is the
+	// operator-selected local receipt path; rename provides atomic publication.
 	if err := os.Rename(tmpName, path); err != nil {
 		return fmt.Errorf("publish review receipt: %w", err)
 	}
@@ -306,6 +316,8 @@ func writeReviewAttestation(path string, receipt reviewAttestation) error {
 }
 
 func readReviewAttestation(path string) (reviewAttestation, error) {
+	// #nosec G304,G703 -- the local operator explicitly selects the receipt to
+	// verify; this command only reads and decodes it.
 	raw, err := os.ReadFile(path)
 	if err != nil {
 		return reviewAttestation{}, fmt.Errorf("read review receipt: %w", err)
