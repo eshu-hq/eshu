@@ -21,6 +21,8 @@ the file represents applied state rather than declared intent.
 
 ## Ownership boundary
 
+Black-box Engine coverage lives beside the implementation in external `yaml_test` files named `engine_yaml_*` or `engine_kubernetes_*`; AGENTS.md records what they import.
+
 This package is responsible for reading one YAML file, decoding YAML documents,
 normalizing templated YAML enough for parser-safe reads, emitting hosted Pub
 dependency rows from `pubspec.yaml` and `pubspec.lock`, and returning
@@ -159,7 +161,7 @@ DecodeDocuments, and SanitizeTemplating.
 This package imports internal/parser/shared for source reads, common payload
 fields, numeric conversion, bucket appends, and deterministic bucket sorting.
 It imports internal/parser/cloudformation for shared CloudFormation/SAM
-template extraction. It must not import the parent internal/parser package,
+template extraction. Production files here must not import the parent internal/parser package,
 collector packages, graph storage, projector, query, or reducer code.
 
 ## Telemetry

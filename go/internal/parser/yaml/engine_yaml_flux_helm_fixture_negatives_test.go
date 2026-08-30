@@ -16,7 +16,7 @@
 // Wires the new fixtures in tests/fixtures/ecosystems/flux_comprehensive/
 // into an executable proof, mirroring
 // engine_yaml_flux_fixture_negatives_test.go's fixtureDir/ParsePath pattern.
-package parser
+package yaml_test
 
 import "testing"
 

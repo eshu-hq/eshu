@@ -16,7 +16,7 @@ parser_backing:
       - go/internal/parser/cloudformation/parser_test.go
       - go/internal/parser/cloudformation/conditions_test.go
       - go/internal/parser/cloudformation/imports_test.go
-      - go/internal/parser/engine_yaml_semantics_test.go
+      - go/internal/parser/yaml/engine_yaml_semantics_test.go
     downstream_relevance:
       - cloudformation_resources -> CloudFormationResource
       - cloudformation_parameters -> CloudFormationParameter
@@ -102,8 +102,8 @@ parser_backing:
       - go/internal/parser/yaml/flux_source_test.go
       - go/internal/parser/yaml/gitlab_ci_test.go
       - go/internal/parser/yaml/helm_template_values_test.go
-      - go/internal/parser/engine_yaml_semantics_test.go
-      - go/internal/parser/engine_yaml_semantics_crossplane_test.go
+      - go/internal/parser/yaml/engine_yaml_semantics_test.go
+      - go/internal/parser/yaml/engine_yaml_semantics_crossplane_test.go
     graph_projection_relevance:
       - k8s_resources -> K8sResource
       - argocd_applications -> ArgoCDApplication

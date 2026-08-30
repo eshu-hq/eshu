@@ -8,7 +8,7 @@ language_features:
     partial_features: []
     derived_features: []
     source_files: [go/internal/parser/yaml/argocd.go, go/internal/parser/yaml/language.go]
-    test_files: [go/internal/parser/engine_yaml_semantics_test.go, go/internal/query/content_relationships_argocd_test.go]
+    test_files: [go/internal/parser/yaml/engine_yaml_semantics_test.go, go/internal/query/content_relationships_argocd_test.go]
     docs: [docs/public/languages/argocd.md]
     read_surfaces: [entity_context, trace_deployment_chain]
   - language: atlantis
@@ -66,7 +66,7 @@ language_features:
     partial_features: [composition-transforms, function-pipelines]
     derived_features: []
     source_files: [go/internal/parser/yaml/semantics.go, go/internal/parser/yaml/language.go]
-    test_files: [go/internal/parser/engine_yaml_semantics_test.go]
+    test_files: [go/internal/parser/yaml/engine_yaml_semantics_test.go]
     docs: [docs/public/languages/crossplane.md]
     read_surfaces: [content_relationships]
   - language: csharp
@@ -111,7 +111,7 @@ language_features:
     partial_features: []
     derived_features: []
     source_files: [go/internal/parser/yaml/flux.go, go/internal/parser/yaml/flux_source.go, go/internal/parser/yaml/flux_helm.go, go/internal/parser/yaml/language.go, go/internal/storage/cypher/canonical_flux_edges.go, go/internal/storage/cypher/canonical_flux_helm_edges.go, go/internal/query/relationships_catalog_cypher.go, go/internal/relationships/flux_evidence.go, go/internal/relationships/evidence.go, go/internal/relationships/catalog.go, go/internal/storage/postgres/ingestion.go, go/internal/query/impact_trace_deployment_controllers.go, go/internal/query/impact_trace_deployment_gitops_helpers.go, go/internal/query/impact_trace_deployment_sources.go]
-    test_files: [go/internal/parser/yaml/flux_test.go, go/internal/parser/yaml/flux_source_test.go, go/internal/parser/yaml/flux_helm_test.go, go/internal/parser/engine_yaml_flux_semantics_test.go, go/internal/parser/engine_yaml_flux_fixture_negatives_test.go, go/internal/parser/engine_yaml_flux_helm_fixture_negatives_test.go, go/internal/storage/cypher/canonical_flux_edges_test.go, go/internal/storage/cypher/canonical_flux_edges_retract_test.go, go/internal/storage/cypher/canonical_flux_helm_edges_test.go, go/internal/query/relationships_catalog_flux_test.go, go/internal/relationships/flux_evidence_test.go, go/internal/query/impact_trace_deployment_flux_test.go, go/internal/storage/postgres/ingestion_flux_cross_repo_evidence_integration_test.go]
+    test_files: [go/internal/parser/yaml/flux_test.go, go/internal/parser/yaml/flux_source_test.go, go/internal/parser/yaml/flux_helm_test.go, go/internal/parser/yaml/engine_yaml_flux_semantics_test.go, go/internal/parser/yaml/engine_yaml_flux_fixture_negatives_test.go, go/internal/parser/yaml/engine_yaml_flux_helm_fixture_negatives_test.go, go/internal/storage/cypher/canonical_flux_edges_test.go, go/internal/storage/cypher/canonical_flux_edges_retract_test.go, go/internal/storage/cypher/canonical_flux_helm_edges_test.go, go/internal/query/relationships_catalog_flux_test.go, go/internal/relationships/flux_evidence_test.go, go/internal/query/impact_trace_deployment_flux_test.go, go/internal/storage/postgres/ingestion_flux_cross_repo_evidence_integration_test.go]
     docs: [docs/public/languages/flux.md]
     read_surfaces: [entity_context, list_relationship_edges, trace_deployment_chain]
     tracking_issues: [5360, 5483]
@@ -168,7 +168,7 @@ language_features:
     partial_features: [hook-metadata, query-content-fallback]
     derived_features: []
     source_files: [go/internal/parser/yaml/helm.go, go/internal/parser/yaml/helm_template_values.go]
-    test_files: [go/internal/parser/yaml/helm_template_values_test.go, go/internal/parser/engine_yaml_semantics_test.go]
+    test_files: [go/internal/parser/yaml/helm_template_values_test.go, go/internal/parser/yaml/engine_yaml_semantics_test.go]
     docs: [docs/public/languages/helm.md]
     read_surfaces: [content_relationships]
   - language: java
@@ -237,7 +237,7 @@ language_features:
     partial_features: []
     derived_features: []
     source_files: [go/internal/parser/yaml/semantics.go, go/internal/parser/yaml/language.go]
-    test_files: [go/internal/parser/engine_yaml_semantics_test.go, go/internal/query/content_relationships_kustomize_test.go]
+    test_files: [go/internal/parser/yaml/engine_yaml_semantics_test.go, go/internal/query/content_relationships_kustomize_test.go]
     docs: [docs/public/languages/kustomize.md]
     read_surfaces: [content_relationships]
   - language: perl

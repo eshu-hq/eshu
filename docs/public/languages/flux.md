@@ -9,7 +9,7 @@ Canonical implementation: `go/internal/parser/registry.go` plus the entrypoint a
 - Parser: `DefaultEngine (yaml)`
 - Entrypoint: `go/internal/parser/yaml_language.go`
 - Fixture repo: `tests/fixtures/ecosystems/flux_comprehensive/`
-- Unit test suite: `go/internal/parser/yaml/flux_test.go`, `go/internal/parser/yaml/flux_source_test.go`, `go/internal/parser/yaml/flux_helm_test.go`, `go/internal/parser/engine_yaml_flux_semantics_test.go`, `go/internal/parser/engine_yaml_flux_helm_fixture_negatives_test.go`
+- Unit test suite: `go/internal/parser/yaml/flux_test.go`, `go/internal/parser/yaml/flux_source_test.go`, `go/internal/parser/yaml/flux_helm_test.go`, `go/internal/parser/yaml/engine_yaml_flux_semantics_test.go`, `go/internal/parser/yaml/engine_yaml_flux_helm_fixture_negatives_test.go`
 - Integration validation: compose-backed fixture verification (see [Local Testing Runbook](../reference/local-testing.md))
 
 ## Capability Checklist
