@@ -151,8 +151,18 @@ owns_goal_file() { # path
 # DONE to it, retiring the machine-wide goal for every session on the machine.
 # Prints the reason it refuses; the caller decides whether to exit.
 writable_goal_target() { # path action
+	# The remedy has to fit the ACTION, not just the condition. Both messages
+	# were consent-shaped, so `/goal done` against a machine-wide goal was told
+	# to "set a goal here first" -- advice that creates a new goal instead of
+	# retiring the one the owner meant.
+	local remedy_missing="Set one with /goal <text>." remedy_elsewhere="set a goal here first"
+	if [ "$2" = retirement ]; then
+		remedy_missing="There is nothing to retire."
+		remedy_elsewhere="retire it from the session that set it, or edit the file yourself"
+	fi
 	if [ -z "$1" ]; then
-		printf 'goal-refresh: no goal file for this session, %s not recorded. Set one with /goal <text>.\n' "$2" >&2
+		printf 'goal-refresh: no goal file for this session, %s not recorded. %s\n' \
+			"$2" "${remedy_missing}" >&2
 		return 1
 	fi
 	# Never the machine-wide file: a goal written there is inherited by every
@@ -160,12 +170,13 @@ writable_goal_target() { # path action
 	# reaches all of them. An explicit CLAUDE_GOAL_FILE is the owner naming a
 	# target on purpose.
 	if [ -z "${CLAUDE_GOAL_FILE:-}" ] && [ "$1" = "${HOME}/.claude/active-goal" ]; then
-		printf 'goal-refresh: refusing to write the machine-wide goal file %s from this worktree; set a goal here first.\n' \
-			"$1" >&2
+		printf 'goal-refresh: refusing to write %s into the machine-wide goal file %s from this worktree; %s.\n' \
+			"$2" "$1" "${remedy_elsewhere}" >&2
 		return 1
 	fi
 	if [ ! -f "$1" ]; then
-		printf 'goal-refresh: no goal file for this session, %s not recorded. Set one with /goal <text>.\n' "$2" >&2
+		printf 'goal-refresh: no goal file for this session, %s not recorded. %s\n' \
+			"$2" "${remedy_missing}" >&2
 		return 1
 	fi
 	if ! owns_goal_file "$1"; then

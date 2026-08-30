@@ -423,3 +423,46 @@ print(json.dumps({"session_id": os.environ["SID"], "prompt_id": "missing",
 		no "/goal ${action} with no goal file reports nonexistence, not ownership (got: ${miss_err})"
 	fi
 done
+
+# A refusal that names the right condition can still send the owner the wrong
+# way. Both remedies were consent-shaped: `/goal done` against a machine-wide
+# goal was told to "set a goal here first", and following that advice creates a
+# NEW worktree goal instead of retiring the one they meant.
+rw="${work}/remedy"
+rh="${work}/remedyhome"
+mkdir -p "${rw}/.claude" "${rh}/.claude"
+printf 'SESSION: %s\nMachine-wide objective.\n' "${sid}" >"${rh}/.claude/active-goal"
+remedy_err="$(SID="${sid}" PROMPT='/goal done' CWD="${rw}" python3 -c '
+import json, os
+print(json.dumps({"session_id": os.environ["SID"], "prompt_id": "remedy",
+                  "cwd": os.environ["CWD"], "prompt": os.environ["PROMPT"],
+                  "hook_event_name": "UserPromptSubmit"}))
+' | HOME="${rh}" bash "${REFRESH}" 2>&1 >/dev/null)"
+if printf '%s' "${remedy_err}" | rg -qi 'set a goal here first|set one with'; then
+	no "a refused retirement is not told to set a goal"
+else
+	ok "a refused retirement is not told to set a goal"
+fi
+missing_retire="$(SID="${sid}" PROMPT='/goal done' CWD="${work}/no-goal-dir" python3 -c '
+import json, os
+print(json.dumps({"session_id": os.environ["SID"], "prompt_id": "remedy2",
+                  "cwd": os.environ["CWD"], "prompt": os.environ["PROMPT"],
+                  "hook_event_name": "UserPromptSubmit"}))
+' | HOME="${work}/no-home-either" bash "${REFRESH}" 2>&1 >/dev/null)"
+if printf '%s' "${missing_retire}" | rg -qi 'nothing to retire'; then
+	ok "retiring a goal that does not exist says there is nothing to retire"
+else
+	no "retiring a goal that does not exist says there is nothing to retire (got: ${missing_retire})"
+fi
+# The consent arm keeps the remedy that fits IT.
+missing_consent="$(SID="${sid}" PROMPT='/goal consent push' CWD="${work}/no-goal-dir" python3 -c '
+import json, os
+print(json.dumps({"session_id": os.environ["SID"], "prompt_id": "remedy3",
+                  "cwd": os.environ["CWD"], "prompt": os.environ["PROMPT"],
+                  "hook_event_name": "UserPromptSubmit"}))
+' | HOME="${work}/no-home-either" bash "${REFRESH}" 2>&1 >/dev/null)"
+if printf '%s' "${missing_consent}" | rg -qi 'set one with'; then
+	ok "a consent with nothing to attach to is still told to set a goal"
+else
+	no "a consent with nothing to attach to is still told to set a goal"
+fi
