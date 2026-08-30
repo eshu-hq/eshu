@@ -65,8 +65,8 @@ parser_backing:
       - go/internal/parser/hcl/parser_edge_cases_test.go
       - go/internal/parser/hcl/include_chain_test.go
       - go/internal/parser/hcl/terraform_resource_attributes_test.go
-      - go/internal/parser/hcl_terraform_test.go
-      - go/internal/parser/hcl_terragrunt_test.go
+      - go/internal/parser/hcl/hcl_terraform_test.go
+      - go/internal/parser/hcl/hcl_terragrunt_test.go
     graph_projection_relevance:
       - terraform_resources -> TerraformResource
       - terraform_variables -> TerraformVariable

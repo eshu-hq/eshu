@@ -1,11 +1,14 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package parser
+package hcl_test
 
 import (
 	"path/filepath"
 	"testing"
+
+	"github.com/eshu-hq/eshu/go/internal/parser"
+	"github.com/eshu-hq/eshu/go/internal/parser/parsertest"
 )
 
 func TestDefaultEngineParsePathHCLTerraformModernBlockMetadata(t *testing.T) {
@@ -43,17 +46,17 @@ check "api" {
 `,
 	)
 
-	engine, err := DefaultEngine()
+	engine, err := parser.DefaultEngine()
 	if err != nil {
-		t.Fatalf("DefaultEngine() error = %v, want nil", err)
+		t.Fatalf("parser.DefaultEngine() error = %v, want nil", err)
 	}
 
-	got, err := engine.ParsePath(repoRoot, filePath, false, Options{})
+	got, err := engine.ParsePath(repoRoot, filePath, false, parser.Options{})
 	if err != nil {
 		t.Fatalf("ParsePath() error = %v, want nil", err)
 	}
 
-	importBlock := findNamedBucketItem(t, got, "terraform_imports", "random_string.test1")
+	importBlock := parsertest.AssertBucketItemByName(t, got, "terraform_imports", "random_string.test1")
 	if got, want := importBlock["to"], "random_string.test1"; got != want {
 		t.Fatalf("terraform_imports[random_string.test1].to = %#v, want %#v", got, want)
 	}
@@ -64,7 +67,7 @@ check "api" {
 		t.Fatalf("terraform_imports[random_string.test1].id = %#v, want %#v", got, want)
 	}
 
-	movedBlock := findNamedBucketItem(t, got, "terraform_moved_blocks", "test.foo -> module.a.test.foo")
+	movedBlock := parsertest.AssertBucketItemByName(t, got, "terraform_moved_blocks", "test.foo -> module.a.test.foo")
 	if got, want := movedBlock["from"], "test.foo"; got != want {
 		t.Fatalf("terraform_moved_blocks[test.foo].from = %#v, want %#v", got, want)
 	}
@@ -72,7 +75,7 @@ check "api" {
 		t.Fatalf("terraform_moved_blocks[test.foo].to = %#v, want %#v", got, want)
 	}
 
-	removedBlock := findNamedBucketItem(t, got, "terraform_removed_blocks", "module.child.test_resource.baz")
+	removedBlock := parsertest.AssertBucketItemByName(t, got, "terraform_removed_blocks", "module.child.test_resource.baz")
 	if got, want := removedBlock["from"], "module.child.test_resource.baz"; got != want {
 		t.Fatalf("terraform_removed_blocks[module.child.test_resource.baz].from = %#v, want %#v", got, want)
 	}
@@ -80,7 +83,7 @@ check "api" {
 		t.Fatalf("terraform_removed_blocks[module.child.test_resource.baz].lifecycle_destroy = %#v, want %#v", got, want)
 	}
 
-	checkBlock := findNamedBucketItem(t, got, "terraform_checks", "api")
+	checkBlock := parsertest.AssertBucketItemByName(t, got, "terraform_checks", "api")
 	if got, want := checkBlock["assert_count"], 1; got != want {
 		t.Fatalf("terraform_checks[api].assert_count = %#v, want %#v", got, want)
 	}
@@ -105,17 +108,17 @@ func TestDefaultEngineParsePathHCLTerraformLockFileProviderMetadata(t *testing.T
 `,
 	)
 
-	engine, err := DefaultEngine()
+	engine, err := parser.DefaultEngine()
 	if err != nil {
-		t.Fatalf("DefaultEngine() error = %v, want nil", err)
+		t.Fatalf("parser.DefaultEngine() error = %v, want nil", err)
 	}
 
-	got, err := engine.ParsePath(repoRoot, filePath, false, Options{})
+	got, err := engine.ParsePath(repoRoot, filePath, false, parser.Options{})
 	if err != nil {
 		t.Fatalf("ParsePath() error = %v, want nil", err)
 	}
 
-	lockProvider := findNamedBucketItem(
+	lockProvider := parsertest.AssertBucketItemByName(
 		t,
 		got,
 		"terraform_lock_providers",

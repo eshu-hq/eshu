@@ -10,14 +10,18 @@
 6. `values.go` - HCL expression and object value formatting helpers
 7. `terraform_resource_attributes.go` - cty-value evaluation for drift attribute extraction
 8. `lexical_helpers.go` - comment, delimiter, and repository-relative path helpers
-9. `../hcl_terraform_test.go` - Terraform behavior coverage through the parent engine
-10. `../hcl_terragrunt_test.go` - Terragrunt payload and helper-path coverage
-11. `../hcl_terragrunt_join_additional_test.go` - additional Terragrunt expression coverage
+9. `hcl_terraform_test.go` - Terraform behavior coverage through the parent engine
+10. `hcl_terraform_modern_test.go` - import/moved/removed/check and lockfile coverage
+11. `hcl_terragrunt_test.go` - Terragrunt payload and helper-path coverage
+12. `hcl_terragrunt_join_additional_test.go` - additional Terragrunt expression coverage
+13. `hcl_engine_helpers_test.go` - local helpers for the external `hcl_test` files
 
 ## Invariants this package enforces
 
-- Dependency direction stays one way: parent parser code may import this
-  package, but this package must not import `internal/parser`.
+- Dependency direction stays one way for production code: parent parser code
+  may import this package, but no non-test file here may import
+  `internal/parser`. External `hcl_test` files may import the parent engine and
+  `internal/parser/parsertest` to exercise the public Engine contract.
 - `Parse` preserves the legacy Terraform and Terragrunt payload buckets exactly.
 - `terragrunt.hcl` uses the Terragrunt path; other HCL files use the Terraform
   block path.
@@ -29,10 +33,12 @@
 ## Common changes and how to scope them
 
 - Add Terraform block metadata by writing or updating a focused test in
-  `../hcl_terraform_test.go` first.
+  `hcl_terraform_test.go` first.
 - Add Terragrunt helper-expression support by writing or updating a focused
-  test in `../hcl_terragrunt_test.go` or
-  `../hcl_terragrunt_join_additional_test.go` first.
+  test in `hcl_terragrunt_test.go` or
+  `hcl_terragrunt_join_additional_test.go` first.
+- Run `go test ./internal/parser/hcl ./internal/parser -count=1` after changing
+  this package, its black-box Engine coverage, or parent dispatch.
 - Keep registry dispatch and parent engine method signatures in `../engine.go`
   and `../hcl_language.go`.
 - Keep shared parser helpers in `internal/parser/shared`; do not copy them into
@@ -51,7 +57,9 @@
 
 ## Anti-patterns specific to this package
 
-- Importing the parent parser package to reuse unexported helpers.
+- Importing the parent parser package from a production file, to reuse
+  unexported helpers. External `hcl_test` files may import it — that is how the
+  relocated Terraform coverage drives the engine.
 - Evaluating arbitrary Terraform or Terragrunt expressions as if parser
   evidence were runtime truth.
 - Adding repository-specific Terragrunt conventions without fixture evidence.

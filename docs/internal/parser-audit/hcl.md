@@ -1,7 +1,7 @@
 # HCL Parser Audit
 
 ## Overview
-Parses Terraform (`.tf`) and Terragrunt (`.hcl`) configuration files using the official HashiCorp `hcl/v2` library with its `hclsyntax` native parser — NOT tree-sitter. This is a **declarative configuration** parser. Extracts Terraform blocks (resources, providers, modules, data sources, variables, outputs, locals, backends, imports, moved, removed, checks, lockfile providers), Terragrunt configs (dependencies, inputs, locals, remote states, module sources, include chain), PagerDuty declarations, and Grafana resource metadata. 15 src files, 6 test files. regexp.MustCompile in 2 files.
+Parses Terraform (`.tf`) and Terragrunt (`.hcl`) configuration files using the official HashiCorp `hcl/v2` library with its `hclsyntax` native parser — NOT tree-sitter. This is a **declarative configuration** parser. Extracts Terraform blocks (resources, providers, modules, data sources, variables, outputs, locals, backends, imports, moved, removed, checks, lockfile providers), Terragrunt configs (dependencies, inputs, locals, remote states, module sources, include chain), PagerDuty declarations, and Grafana resource metadata. 15 src files, 10 test files (the test count is the number of distinct test files in this package's directory cited under Verified-by-Test below, not every test file in the directory). regexp.MustCompile in 2 files.
 
 ## Claimed Constructs
 From `doc.go`, `README.md`, `parser.go`:
@@ -30,8 +30,10 @@ From `doc.go`, `README.md`, `parser.go`:
 ## Verified-by-Test Constructs
 - `TestTerraformParseResourceMetadata` (`parser_test.go:16`): resources with count/for_each, provider, resource_service
 - `TestTerraformParsePagerDutyDeclarationsFromModules` (`parser_test.go:55`): PagerDuty module declarations, source_class, declaration_kind
-- `TestParseTerragruntHCL` (`parser_test.go:100+`): Terragrunt path detection, config rows
-- Parent-level tests (`hcl_terraform_test.go`, `hcl_terragrunt_test.go`, `hcl_terragrunt_join_additional_test.go`, `hcl_terraform_modern_test.go`): comprehensive Terraform block extraction, Terragrunt expression coverage
+- `TestTerragruntParseHelperPaths` (`parser_test.go:248`): Terragrunt path detection, config rows
+- External `hcl_test` tests reach the code two ways: `hcl_terraform_test.go` and `hcl_terraform_modern_test.go` drive the parent engine (`parser.DefaultEngine`); `hcl_terragrunt_test.go` and `hcl_terragrunt_join_additional_test.go` call this package's `Parse` directly — the first through `parseTerragruntPayloadForTest`, the second through `parseTerragruntConfigForTest`, which wraps it — never touching the parent engine. Together: comprehensive Terraform block extraction, Terragrunt expression coverage
+- `TestDefaultEngineParsePathHCLTerraformModernBlockMetadata` (`hcl_terraform_modern_test.go`): import, moved, removed, and check block metadata
+- `TestDefaultEngineParsePathHCLTerraformLockFileProviderMetadata` (`hcl_terraform_modern_test.go`): provider lockfile version, constraints, and hashes
 - `grafana_declarations_test.go`: Grafana folder/dashboard/datasource/rule-group extraction
 - `pagerduty_declarations_test.go`: PagerDuty module declaration details
 - `include_chain_test.go`: Terragrunt include-chain walking
@@ -39,9 +41,7 @@ From `doc.go`, `README.md`, `parser.go`:
 - `terragrunt_remote_state_test.go`: remote state with include-chain resolution
 
 ## Unverified / Claimed-but-Untested Constructs
-Most claimed constructs have dedicated test files. The package has 6 test files plus 6 parent-level test files. However:
-- **Terraform checks block**: claimed in README but may not have a dedicated test (verify in parser_test.go beyond line 100)
-- **Provider lockfile parsing**: no separate lockfile test file visible
+Most claimed constructs have dedicated test files. Ten test files are cited below, and all ten now live in this package, since the four Terraform and Terragrunt files among them have moved here. The directory itself holds 13. However:
 - **Terragrunt include warnings**: not explicitly tested in isolated form
 - **Helm provider resources** (if any special handling)
 
@@ -63,10 +63,8 @@ Most claimed constructs have dedicated test files. The package has 6 test files 
 - Terraform functions in expressions (cty evaluation with nil context)
 
 ## Verdict
-**deep** — 15 src files with 6 package-internal test files plus 6 parent-level test files. Covers Terraform blocks comprehensively, Terragrunt with include chains, PagerDuty/Grafana declarations, resource attribute extraction for drift. Uses the official HashiCorp HCL parser (permanent exception — no tree-sitter needed). This is substantially the most-tested parser in the manifest category.
+**deep** — 15 src files with 10 test files, all in this package: six declaring `package hcl` and four external `hcl_test` files, of which only the Terraform pair (`hcl_terraform_test.go`, `hcl_terraform_modern_test.go`) drives the parent engine — the Terragrunt pair (`hcl_terragrunt_test.go`, `hcl_terragrunt_join_additional_test.go`) calls this package's `Parse` directly. Counts here are the distinct test files cited under Verified-by-Test that live in this package's directory, not a listing of that directory. Both halves matter: the section cites 10 files at both ends of this change, and before the move only 6 of them lived here, which is the 6 the previous revision reported. Covers Terraform blocks comprehensively, Terragrunt with include chains, PagerDuty/Grafana declarations, resource attribute extraction for drift. Uses the official HashiCorp HCL parser (permanent exception — no tree-sitter needed). This is substantially the most-tested parser in the manifest category.
 
 ## Recommended Actions
 - Document that HCL is a **permanent exception** — it uses HashiCorp's canonical `hcl/v2` parser, not tree-sitter
-- Verify checks block testing coverage (may be in `hcl_terraform_modern_test.go`)
-- Verify provider lockfile testing coverage
 - Consider a malformed-HCL tolerance test

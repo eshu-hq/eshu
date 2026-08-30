@@ -1,12 +1,15 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package parser
+package hcl_test
 
 import (
 	"path/filepath"
 	"strings"
 	"testing"
+
+	"github.com/eshu-hq/eshu/go/internal/parser"
+	"github.com/eshu-hq/eshu/go/internal/parser/parsertest"
 )
 
 func TestDefaultEngineParsePathHCLTerraformBlockMetadata(t *testing.T) {
@@ -28,19 +31,19 @@ func TestDefaultEngineParsePathHCLTerraformBlockMetadata(t *testing.T) {
 `,
 	)
 
-	engine, err := DefaultEngine()
+	engine, err := parser.DefaultEngine()
 	if err != nil {
-		t.Fatalf("DefaultEngine() error = %v, want nil", err)
+		t.Fatalf("parser.DefaultEngine() error = %v, want nil", err)
 	}
 
-	got, err := engine.ParsePath(repoRoot, filePath, false, Options{})
+	got, err := engine.ParsePath(repoRoot, filePath, false, parser.Options{})
 	if err != nil {
 		t.Fatalf("ParsePath() error = %v, want nil", err)
 	}
 
-	assertNamedBucketContains(t, got, "terraform_blocks", "terraform")
-	assertBucketContainsFieldValue(t, got, "terraform_blocks", "required_providers", "aws")
-	assertBucketContainsFieldValue(t, got, "terraform_blocks", "required_provider_sources", "aws=hashicorp/aws")
+	parsertest.AssertNamedBucketContains(t, got, "terraform_blocks", "terraform")
+	parsertest.AssertBucketContainsFieldValue(t, got, "terraform_blocks", "required_providers", "aws")
+	parsertest.AssertBucketContainsFieldValue(t, got, "terraform_blocks", "required_provider_sources", "aws=hashicorp/aws")
 
 	blocks, ok := got["terraform_blocks"].([]map[string]any)
 	if !ok {
@@ -73,17 +76,17 @@ func TestDefaultEngineParsePathHCLTerraformBackendMetadata(t *testing.T) {
 `,
 	)
 
-	engine, err := DefaultEngine()
+	engine, err := parser.DefaultEngine()
 	if err != nil {
-		t.Fatalf("DefaultEngine() error = %v, want nil", err)
+		t.Fatalf("parser.DefaultEngine() error = %v, want nil", err)
 	}
 
-	got, err := engine.ParsePath(repoRoot, filePath, false, Options{})
+	got, err := engine.ParsePath(repoRoot, filePath, false, parser.Options{})
 	if err != nil {
 		t.Fatalf("ParsePath() error = %v, want nil", err)
 	}
 
-	backend := findNamedBucketItem(t, got, "terraform_backends", "s3")
+	backend := parsertest.AssertBucketItemByName(t, got, "terraform_backends", "s3")
 	if got, want := backend["backend_kind"], "s3"; got != want {
 		t.Fatalf("terraform_backends[0].backend_kind = %#v, want %#v", got, want)
 	}
@@ -125,17 +128,17 @@ func TestDefaultEngineParsePathHCLTerraformBackendMarksDynamicMetadata(t *testin
 `,
 	)
 
-	engine, err := DefaultEngine()
+	engine, err := parser.DefaultEngine()
 	if err != nil {
-		t.Fatalf("DefaultEngine() error = %v, want nil", err)
+		t.Fatalf("parser.DefaultEngine() error = %v, want nil", err)
 	}
 
-	got, err := engine.ParsePath(repoRoot, filePath, false, Options{})
+	got, err := engine.ParsePath(repoRoot, filePath, false, parser.Options{})
 	if err != nil {
 		t.Fatalf("ParsePath() error = %v, want nil", err)
 	}
 
-	backend := findNamedBucketItem(t, got, "terraform_backends", "s3")
+	backend := parsertest.AssertBucketItemByName(t, got, "terraform_backends", "s3")
 	if got, want := backend["bucket_is_literal"], false; got != want {
 		t.Fatalf("terraform_backends[0].bucket_is_literal = %#v, want %#v", got, want)
 	}
@@ -166,17 +169,17 @@ func TestDefaultEngineParsePathHCLTerraformBackendAttributeLineNumbers(t *testin
 `,
 	)
 
-	engine, err := DefaultEngine()
+	engine, err := parser.DefaultEngine()
 	if err != nil {
-		t.Fatalf("DefaultEngine() error = %v, want nil", err)
+		t.Fatalf("parser.DefaultEngine() error = %v, want nil", err)
 	}
 
-	got, err := engine.ParsePath(repoRoot, filePath, false, Options{})
+	got, err := engine.ParsePath(repoRoot, filePath, false, parser.Options{})
 	if err != nil {
 		t.Fatalf("ParsePath() error = %v, want nil", err)
 	}
 
-	backend := findNamedBucketItem(t, got, "terraform_backends", "s3")
+	backend := parsertest.AssertBucketItemByName(t, got, "terraform_backends", "s3")
 	cases := []struct {
 		field string
 		want  int
@@ -213,17 +216,17 @@ func TestDefaultEngineParsePathHCLLocalBackendBareBlockOmitsPathAttribute(t *tes
 `,
 	)
 
-	engine, err := DefaultEngine()
+	engine, err := parser.DefaultEngine()
 	if err != nil {
-		t.Fatalf("DefaultEngine() error = %v, want nil", err)
+		t.Fatalf("parser.DefaultEngine() error = %v, want nil", err)
 	}
 
-	got, err := engine.ParsePath(repoRoot, filePath, false, Options{})
+	got, err := engine.ParsePath(repoRoot, filePath, false, parser.Options{})
 	if err != nil {
 		t.Fatalf("ParsePath() error = %v, want nil", err)
 	}
 
-	backend := findNamedBucketItem(t, got, "terraform_backends", "local")
+	backend := parsertest.AssertBucketItemByName(t, got, "terraform_backends", "local")
 	if got, want := backend["backend_kind"], "local"; got != want {
 		t.Fatalf("terraform_backends[0].backend_kind = %#v, want %#v", got, want)
 	}
@@ -256,17 +259,17 @@ func TestDefaultEngineParsePathHCLLocalBackendCapturesPathAttributeSeparately(t 
 `,
 	)
 
-	engine, err := DefaultEngine()
+	engine, err := parser.DefaultEngine()
 	if err != nil {
-		t.Fatalf("DefaultEngine() error = %v, want nil", err)
+		t.Fatalf("parser.DefaultEngine() error = %v, want nil", err)
 	}
 
-	got, err := engine.ParsePath(repoRoot, filePath, false, Options{})
+	got, err := engine.ParsePath(repoRoot, filePath, false, parser.Options{})
 	if err != nil {
 		t.Fatalf("ParsePath() error = %v, want nil", err)
 	}
 
-	backend := findNamedBucketItem(t, got, "terraform_backends", "local")
+	backend := parsertest.AssertBucketItemByName(t, got, "terraform_backends", "local")
 	if got, want := backend["state_path"], "custom/terraform.tfstate"; got != want {
 		t.Fatalf("terraform_backends[0].state_path = %#v, want %#v", got, want)
 	}
@@ -300,12 +303,12 @@ resource "aws_iam_user" "writer" {
 `,
 	)
 
-	engine, err := DefaultEngine()
+	engine, err := parser.DefaultEngine()
 	if err != nil {
-		t.Fatalf("DefaultEngine() error = %v, want nil", err)
+		t.Fatalf("parser.DefaultEngine() error = %v, want nil", err)
 	}
 
-	got, err := engine.ParsePath(repoRoot, filePath, false, Options{})
+	got, err := engine.ParsePath(repoRoot, filePath, false, parser.Options{})
 	if err != nil {
 		t.Fatalf("ParsePath() error = %v, want nil", err)
 	}
@@ -318,7 +321,7 @@ resource "aws_iam_user" "writer" {
 		t.Fatalf("len(terraform_resources) = %d, want 2", len(resources))
 	}
 
-	bucket := findNamedBucketItem(t, got, "terraform_resources", "aws_s3_bucket.logs")
+	bucket := parsertest.AssertBucketItemByName(t, got, "terraform_resources", "aws_s3_bucket.logs")
 	if got, want := bucket["count"], "2"; got != want {
 		t.Fatalf("terraform_resources[aws_s3_bucket.logs].count = %#v, want %#v", got, want)
 	}
@@ -332,7 +335,7 @@ resource "aws_iam_user" "writer" {
 		t.Fatalf("terraform_resources[aws_s3_bucket.logs].resource_category = %#v, want %#v", got, want)
 	}
 
-	user := findNamedBucketItem(t, got, "terraform_resources", "aws_iam_user.writer")
+	user := parsertest.AssertBucketItemByName(t, got, "terraform_resources", "aws_iam_user.writer")
 	if got, want := user["for_each"], `{ alice = "reader" }`; got != want {
 		t.Fatalf("terraform_resources[aws_iam_user.writer].for_each = %#v, want %#v", got, want)
 	}

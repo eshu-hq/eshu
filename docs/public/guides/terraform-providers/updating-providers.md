@@ -48,7 +48,7 @@ If parser resource classification is part of the change, also run:
 
 ```bash
 cd go
-go test ./internal/parser -run 'HCL|Terraform' -count=1
+go test ./internal/parser ./internal/parser/hcl -run 'HCL|Terraform' -count=1
 ```
 
 Rollback should be a normal git revert unless the runtime loader contract has
