@@ -365,11 +365,27 @@ The ecosystem registration family is the eleventh extracted MCP family. Its
 single assembly position after repository-language tools and before
 infrastructure aggregates. Routing stays split across the existing root
 routers: ecosystem summaries and change planning remain in
-`dispatch_ecosystem.go`; repository and package-registry reads remain in
-`dispatch_repositories.go`; infrastructure reads remain in `dispatch.go` and
+`dispatch_ecosystem.go`; repository reads remain in
+`dispatch_repositories.go`, and package-registry reads moved to
+`internal/mcp/packageregistry` in the first Wave 2 extraction below;
+infrastructure reads remain in `dispatch.go` and
 `dispatch_infra_search.go`; impact reads remain in `dispatch_impact.go`; and
 environment comparison remains in `compareRoute`. The move uses
 `internal/mcp/toolcontract` and leaves the 162-tool order unchanged.
+
+The package-registry route family is the first Wave 2 MCP extraction, and the
+first that moves route selection without moving a registration. Its six tools
+were answered by arms of the 46-arm `repositoryRoute` switch in
+`dispatch_repositories.go`; family membership and pure `routecontract` request
+selection now live under `internal/mcp/packageregistry`. Root keeps every tool
+definition and its assembly position, global fanout order, the thin
+`packageRegistryRoute` adapter, dispatch, authorization, transport, timeouts,
+response budgets, envelopes, summaries, and telemetry. The adapter is consulted
+at the top of `repositoryRoute` rather than as a new entry in `resolveRoute`, so
+the repository router keeps its own position in the global chain and no other
+family's resolution order changes. The six tool names are disjoint from the
+remaining switch arms, and the 162-tool order, the advertised schemas, and every
+selected method, path, and query key remain unchanged.
 
 **cmd/eshu (233):** `package main` — subdirectories are impossible by
 language rule. The lever is extracting business logic to new

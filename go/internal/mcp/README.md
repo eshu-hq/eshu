@@ -22,12 +22,12 @@ membership, family adapters, dispatch, transport, authorization, timeouts,
 response budgets, envelopes, and telemetry stay in root. The `relationships`
 child package owns both its registrations and its pure, dependency-neutral
 family route selection; `internal/query` retains validation and graph reads.
-The `documentation` child package
-owns the six documentation registration definitions; documentation routing
-stays here. The `cloud` child package owns the cloud inventory and runtime-drift
-registration definitions; cloud routing also stays here. The `visualization`
-child owns visualization-packet registration and pure request selection; global
-fanout and dispatch stay here, while query derives packets.
+The `documentation` child owns its six registration definitions and the `cloud`
+child the cloud inventory and runtime-drift pair; both families' routing stays
+here. The `visualization` child owns registration and pure request selection,
+while query derives packets. The `packageregistry` child owns only its family's
+membership and pure request selection; root keeps its six definitions, the
+`packageRegistryRoute` adapter, and dispatch.
 The `ecosystem` child package owns the 23 ecosystem, repository-context,
 infrastructure-impact, and change-planning registration definitions. Their
 existing split routers stay here.
@@ -352,8 +352,8 @@ envelope as structured content and as the envelope resource.
 
 Package-registry tools keep MCP as transport too. Ownership candidates,
 package-version publication evidence, and manifest-backed consumption all come
-from the query handler; `dispatch_package_registry.go` owns the bounded route
-builders while MCP only maps arguments and preserves the envelope.
+from the query handler; the `packageregistry` child owns the bounded request
+selection and `dispatch_package_registry.go` adapts it into a transport route.
 
 Repository-language tools keep MCP as transport only. The HTTP query layer owns
 the content-index aggregate, language-family aliases, paging, truncation, and

@@ -9,8 +9,10 @@
 // relationships, semantic, service, and visualization child packages own
 // their registration definitions without importing this parent package. The
 // ask, relationships, and visualization children own pure dependency-neutral
-// family route selectors alongside their definitions. ReadOnlyTools remains the
-// sole ordered assembler; global route membership, family adapters, dispatch,
+// family route selectors alongside their definitions, and the packageregistry
+// child owns such a selector without owning a registration. ReadOnlyTools
+// remains the sole ordered assembler; global route membership, family
+// adapters, dispatch,
 // transport, authorization, timeouts,
 // response budgets, envelopes, and telemetry remain owned here. The query
 // package retains Ask execution, visualization derivation, relationship
@@ -72,10 +74,12 @@
 // preserves collector source-to-read-surface contracts so MCP callers see the
 // same fact-kind provenance, proof gates, fixture refs, and truth profiles as
 // HTTP and console callers.
-// Package-registry and supply-chain tools follow the same rule and keep their
-// route builders in dedicated dispatch files, so bounded package, version,
-// dependency, correlation, source-only advisory evidence, vulnerability
-// finding, explanation, SBOM, and attestation attachment requests stay thin;
+// Package-registry and supply-chain tools follow the same rule, so bounded
+// package, version, dependency, correlation, source-only advisory evidence,
+// vulnerability finding, explanation, SBOM, and attestation attachment
+// requests stay thin. Supply-chain route builders live in dedicated dispatch
+// files here, while the package-registry selector lives in the packageregistry
+// child and reaches dispatch through the packageRegistryRoute adapter;
 // SBOM attachment tools forward repository_id to the query layer so repository
 // scope returns reducer-owned image/SBOM missing evidence instead of becoming
 // an unscoped aggregate.

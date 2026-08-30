@@ -13,8 +13,10 @@ global position, route resolution, HTTP dispatch, authorization, query
 execution, response envelopes, transport, and telemetry.
 
 Routing remains split in the parent package. Ecosystem summaries and change
-planning enter through `dispatch_ecosystem.go`; repository and package-registry
-reads enter through `dispatch_repositories.go`; infrastructure reads enter
+planning enter through `dispatch_ecosystem.go`; repository reads enter through
+`dispatch_repositories.go`, while package-registry request selection lives in
+`../packageregistry` and reaches dispatch through the `packageRegistryRoute`
+adapter; infrastructure reads enter
 through `dispatch.go` and `dispatch_infra_search.go`; impact reads enter through
 `dispatch_impact.go`; environment comparison stays in `compareRoute`.
 

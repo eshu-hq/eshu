@@ -14,9 +14,10 @@
 3. `go/internal/mcp/dispatch.go`, `go/internal/mcp/dispatch_timeout.go`,
    `go/internal/mcp/dispatch_args.go`, and
    `go/internal/mcp/dispatch_package_registry.go` — `dispatchTool`,
-   deadline handling, `resolveRoute`, package-registry cursor mapping, and
+   deadline handling, `resolveRoute`, the package-registry child adapter, and
    argument helpers; understand `parseCanonicalEnvelope` before touching
-   response shaping
+   response shaping. Package-registry request selection itself lives in
+   `go/internal/mcp/packageregistry`
 4. `go/internal/mcp/types.go` — `ToolDefinition` and `ReadOnlyTools`; this is
    the tool registry entry point
 5. `go/internal/query/` — the `http.Handler` that backs every tool call;
