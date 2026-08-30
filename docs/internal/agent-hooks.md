@@ -29,7 +29,7 @@ rebuilding the whole snapshot, which only works for a hook that needs no path.
 | `skill-loaded.sh` | Claude | PostToolUse on `Skill` | side effect | Records which skills were loaded this session |
 | `guard-live-gate.sh` | Claude | PreToolUse on Bash | **blocking** | Blocks a second live gate on the default ports |
 | `on-compact.sh` | Claude | SessionStart, compact or resume | advisory | Points a re-grounded session at `eshu-session-lifecycle` |
-| `goal-continue.sh` | Claude | Stop | **blocking** | Refuses to end the turn while `.claude/active-goal` names unfinished work, and hands the goal back. |
+| `goal-continue.sh` | Claude | Stop | **blocking** | Refuses to end the turn while this session's goal file (`.claude/active-goal.<session_id>`, else the shared `.claude/active-goal`) names unfinished work, and hands the goal back. |
 | `goal-refresh.sh` | Claude | UserPromptSubmit | side effect | Sets a goal from `/goal <text>`, and re-injects the active goal into context on every prompt so it cannot go stale. |
 
 ## Why the nudge blocks instead of suggesting
@@ -137,11 +137,13 @@ multi-step goal would finish one step, report, and wait for the owner to type
 A Stop hook is the enforcement point, because it runs whether or not the model
 remembered the rule.
 
-It reads `.claude/active-goal` (or `$CLAUDE_GOAL_FILE`, or `~/.claude/active-goal`)
-and, if that file names unfinished work, returns
-`{"decision":"block","reason":...}` with the goal text and the three legitimate
-reasons to stop: the goal is met, an irreversible act needs consent, or the work
-is blocked on something no local action clears.
+It reads `.claude/active-goal.<session_id>` (or `$CLAUDE_GOAL_FILE`, or the
+checkout-shared `.claude/active-goal`, or `~/.claude/active-goal`) and, if that
+file names unfinished work, returns
+`{"decision":"block","reason":...}` with the goal text and the legitimate
+reasons to stop: the goal is met, an irreversible act needs consent the owner
+has not already given, or the work is blocked on something no local action
+clears. Under blanket consent the middle one is dropped and two remain.
 
 The design problem is that **the agent writes the goal file**. Every escape has
 to survive that:
@@ -152,7 +154,55 @@ to survive that:
 | `BLOCKED: <reason>` | The reason is echoed to stderr, so the owner reads the exact claim rather than only seeing the turn end. |
 | `BLOCKED: … WATCH=<pid>` | The hook verifies the process is alive. **A dead watcher REFUSES the stop** — nothing would wake the agent, so waiting is the bug rather than the excuse. |
 | `CLAUDE_GOAL_OFF=1` | Owner-side, not agent-side. |
-| budget | At most three continuations per `prompt_id`, so a new owner message resets it and a stuck agent cannot spin on one prompt. |
+| budget | A bounded number of NO-PROGRESS continuations per `prompt_id` (`CLAUDE_GOAL_MAX_NUDGES`, default 3), behind a hard ceiling (`CLAUDE_GOAL_MAX_TOTAL`, default 20). A new owner message resets both; the defaults live in the hook. |
+| `CONSENT: <acts>` | Not an escape — it does not end a turn. It removes "I need consent for that" as a reason to stop, for the acts it names. Nothing verifies who wrote it, which is why every honoured grant is echoed to stderr with its acts. |
+
+### Consent the owner already gave
+
+The consent reason was unconditional, and that is right exactly once. An owner
+who has already said "yes, push" says it into a chat turn; the next Stop hands
+the agent the same *an irreversible act needs consent* bullet, and the agent
+stops again — on work it had been told to finish. Observed on a six-lane PR
+train: the owner typed consent, the turn ended anyway, and the owner typed it
+again.
+
+`CONSENT: <acts>` on a line of the goal file is that answer written where the
+hook can read it. `/goal consent push, pr-open` writes it, `/goal revoke-consent`
+removes it, and `CLAUDE_GOAL_CONSENT` is the launcher-side form for a run whose
+permissions are known before it starts. The producer refuses, on stderr rather
+than silently, when there is no goal file for this session, when the resolved
+file belongs to another session, and when it resolves to the machine-wide
+`~/.claude/active-goal` — a grant written there would be inherited by every
+concurrent session in every other worktree. A consent that silently goes
+nowhere is the very loop this feature closes. Both hooks read it: the refusal and the
+per-turn restatement each name the granted acts and say that asking again for
+one of them is not a reason to stop. `CONSENT: all` retires the bullet
+outright; a named list narrows it to everything not on the list.
+
+Blanket is a whole token, split on commas — `all` or `*`, not a substring. The
+first version tested `case … in *all*`, which read `CONSENT: install deps` as
+blanket consent and silently retired the entire irreversible-act stop reason,
+delete and deploy included. `call`, `allow`, `fallback` and `recall` all did
+the same. Leading whitespace is stripped on both sides, because the producer
+used `.lstrip()` and the consumer did not, and one indented line meant two
+different things to the two halves of the same feature.
+
+Be exact about what this is. The agent writes the goal file, so an agent can
+write itself a `CONSENT:` line, and **that line is not checked by anything** —
+unlike `BLOCKED: … WATCH=<pid>`, which the hook verifies. Do not read the
+review process as the backstop: a merge closes the PR rather than being
+reviewed on it, and a deploy, a delete, a data mutation or a cassette rewrite
+is never reviewed on a PR at all.
+
+What actually bounds it is narrower, and worth stating plainly. The hook emits
+*text*, not authority: Claude Code's permission system is untouched, so nothing
+here turns a denied action into an allowed one. In a session running with
+permissions bypassed, though, the norm is the only control there is — which is
+why honouring consent is echoed to stderr with the acts it covers, exactly as
+`BLOCKED:` is. The owner can see a grant being used.
+
+An empty `CONSENT:` grants nothing, the same way an empty `BLOCKED:` releases
+nothing.
 
 The general rule, worth applying to any gate with an override: ask who authors
 the override value. If it is the party being constrained, attach evidence the
@@ -163,6 +213,107 @@ Every parse failure allows the stop — no goal file, an empty one, malformed
 JSON, empty stdin, no `python3`. A hook that can refuse to end a session must
 never be the reason a session breaks. `scripts/test-goal-continue-hook.sh`
 covers all of it, and the `agent-canon` gate runs it.
+
+### The budget counts stops that made no progress
+
+The budget bounded continuations per user message, which put an agent grinding
+through six lanes on the same ceiling of three as an agent emitting status
+reports. On a live session: 75 stop-hook refusals in one transcript, every
+prompt counter pinned at 3, and the run that finally ended had done real work
+right before it stopped. The ceiling released it — and a release by exhaustion
+reads exactly like a clean finish afterwards, which is how it went unnoticed.
+
+Counting the last four refusal regions of that transcript by tool calls made
+between them gives 16, 0, 0, 1. The two zeroes are the failure the hook exists
+for. The 16 and the 1 are an agent working, and the old rule counted all four
+the same.
+
+So the soft budget counts stops with **no tool calls since the previous
+nudge**, and real work resets it; a hard ceiling (`CLAUDE_GOAL_MAX_TOTAL`,
+default 20) still bounds the loop, so an agent making one token call per turn
+cannot spin forever. Progress is read from a stored byte offset, so the stops
+after the first in a message read only a tail — these transcripts run past 8MB.
+The first stop of each message still reads the whole file (159-172ms measured
+on a real 9.9MB one) and that read is behaviourally a no-op; seeding the offset
+from the file size instead would make work done before the first nudge
+invisible.
+
+The tool-call pattern tolerates whitespace, because pinning one JSON spelling
+meant a single added space would silently restore the old behaviour. It does
+*not* match a transcript that quotes the pattern — an agent reading a
+transcript, or this diff — because the embedded copy is JSON-escaped and cannot
+match. Checked across 346 transcripts and 505,064 rows, byte-pattern and
+structural JSON counting never disagreed. Two dependencies worth naming: the
+count would inflate if subagent turns ever landed in the parent transcript
+(none do today), and it reads a file format this repo does not own. A missing or unreadable
+transcript reports *no* progress, leaving the original three-stop bound in
+force: a progress signal that failed open would remove the bound entirely.
+
+When the budget is what allowed the stop, the hook now says so on stderr.
+
+Both counters reset on progress. An earlier version reset only the soft budget
+and let `CLAUDE_GOAL_MAX_TOTAL` increment unconditionally, which moved
+release-by-exhaustion from three to twenty rather than removing it: a session
+working steadily through one long user message was still handed back to the
+owner at the ceiling. That is the failure this hook exists to prevent, arriving
+later instead of never, so the ceiling resets too.
+
+What still bounds the loop is the soft budget: a stop with **no tool calls
+since the last nudge** spends one, and `CLAUDE_GOAL_MAX_NUDGES` of those
+release the turn. A genuinely stuck agent makes no tool calls and is released
+after three. The residual risk is an agent making one token tool call per turn
+forever — a deliberate trade, because being cut off mid-goal costs more than
+that risk does.
+
+When the budget does release a turn, the owner is about to be interrupted, so
+the hook says why on stderr and names the two escapes that would have avoided
+it. The last continuation warns as well, giving the agent one chance to write
+`DONE` or `BLOCKED: <reason>` itself. Most releases happen because an agent
+that is finished, or waiting, never says so — and the owner pays for that.
+
+### The two hooks must decide alike
+
+Both hooks parse the same goal file, and they must answer one question
+identically: does THIS session own an active, unfinished goal here, and what is
+its text. They emit different things — one injects context, the other refuses a
+stop — but the decision behind it is the same.
+
+They did not. `goal-continue.sh` was hardened for the `CONSENT:`-above-header
+layout; `goal-refresh.sh` checked ownership on the raw first line and stripped
+`CONSENT:` last. Two consequences, both found by reviewers reading the diff
+cold after eleven rounds of per-hook review had missed them:
+
+- a `CONSENT:` line above a foreign `SESSION:` header made the refresher treat
+  the file as unheaded, so it injected **another session's objective together
+  with a grant that was never made to this session**
+- a `SESSION:` header above a `DONE` meant the retirement was never seen, so
+  `/goal done` did not retire a goal for the refresher at all — it went on
+  restating a finished objective indefinitely
+
+The order is now the same in both: DONE, strip `CONSENT:`, `SESSION:`, then
+DONE again beneath the header. A retired file is also passed over during
+lookup, so a `DONE` tombstone at the per-session path cannot shadow an active
+checkout-shared goal — except when `CLAUDE_GOAL_FILE` names it, because the
+owner naming a file means that file.
+
+`scripts/test-goal-refresh-hook-parity-cases.sh` runs every layout against
+**both** hooks and asserts they agree. Testing each hook separately is what let
+this through: every case was green on each side while the two disagreed with
+each other.
+
+### Probing this hook: use run-unique ids
+
+The nudge counter is keyed on `(session_id, prompt_id)` and lives in `TMPDIR`
+as `claude-goal-nudge-<session>-<prompt>`, so a probe that reuses a pair reads
+whatever the last probe left there. A spent counter makes the hook allow the
+stop — which looks exactly like the hook deciding not to enforce, and reads as
+a behavioural finding rather than stale state.
+
+This has now caught the author of the feature and a reviewer who knew it well;
+the reviewer nearly reported an inversion that does not exist. Any probe must
+use a run-unique session or prompt id, and any surprising ALLOW should be
+re-run with a fresh pair before it is believed. The suites do this already, and
+say so where they do.
 
 ## Why the goal is restated every turn
 
@@ -184,17 +335,53 @@ drifts. Setting it is not the same as keeping it.
 - **Producer.** A prompt beginning `/goal ` or `GOAL: ` writes the goal file.
   That is the single write path. There is deliberately no fuzzy inference --
   guessing that some sentence was an objective is how a hook starts enforcing
-  a goal nobody set.
+  a goal nobody set. `/goal consent <acts>` and `/goal revoke-consent` edit the
+  `CONSENT:` line only; they are matched before the generic producer, because
+  read as an objective `/goal consent push` would replace the real goal with
+  the word "consent" and grant nothing.
 - **Refresher.** On *every* prompt, an active goal is injected back into
   context via `additionalContext`, together with the rule that the owner should
   not be asked what the code, a local doc, a loaded skill, or a Deep-tier
   dispatch can settle. The objective is therefore never more than one turn old,
   and it survives compaction because it is re-added afterwards too.
 
+### Parallel sessions in one checkout
+
+The goal file was per-*checkout*, and sessions are not. Measured on one
+machine: three live agents in the same clone, one `.claude/active-goal`
+between them. The last `/goal` to run overwrote the others, and the `SESSION:`
+header — there so a goal cannot outlive the session that set it — then denied
+the two losers any enforcement at all. They stopped whenever they liked, and
+nothing said the feature was off for them. A silent no-op is worse than an
+absent feature, because the owner believes it is on.
+
+So `/goal` writes `.claude/active-goal.<session_id>`, and both hooks look there
+first. Parallel agents hold parallel goals with no contention, and one agent
+finishing retires only its own. `.claude/*` is already gitignored, so the files
+never reach a commit.
+
+The checkout-shared `.claude/active-goal` stays as the owner's hand-written
+form and is still read — but never *written* by the producer. `/goal done` and
+`/goal consent` only touch a file this session owns: its own write target, or a
+file whose `SESSION:` header names it. An **unheaded** file is the owner's, and
+no session amends or retires it — the first version of the guard treated
+unheaded as owned, which is backwards, and any session in the checkout could
+rewrite the owner's own goal. The header is also looked for past any `CONSENT:`
+lines, because reading line 1 alone let a `CONSENT:` line sit above the header
+and hide the check entirely.
+
+Nothing reaps these files. Every session that runs `/goal` leaves a
+`.claude/active-goal.<session_id>` behind holding its objective and any grants.
+They are gitignored so none of it reaches a commit, and a stale one is re-read
+only on a session-id collision — the ids are UUIDs — or if `CLAUDE_GOAL_FILE`
+names it. Deleting them is safe at any time.
+
 A `SESSION:` header binds a goal to the session that set it, so a goal cannot
 outlive its session and nag the next one about finished work. `/goal done`
-retires it. An unheaded file is the owner's own hand-written goal and is
-honoured as-is.
+retires a goal this session owns. An unheaded file is the owner's own
+hand-written goal: it is read and enforced as-is, and no session retires or
+amends it — `/goal done` against one prints a refusal naming the file. Clearing
+it is the owner's to do, by editing or deleting the file.
 
 This complements the built-in `/goal`, which evaluates whether a condition is
 *met*; these hooks keep the objective and the rules *in front of the model*.

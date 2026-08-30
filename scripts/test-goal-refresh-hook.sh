@@ -54,7 +54,9 @@ print(d.get("hookSpecificOutput", {}).get("additionalContext", ""))
 if [[ -x "${REFRESH}" ]]; then ok "hook is executable"; else no "hook is executable"; fi
 if bash -n "${REFRESH}" 2>/dev/null; then ok "hook parses"; else no "hook parses"; fi
 
-goal_file="${work}/.claude/active-goal"
+# The producer writes THIS session's goal file, not the checkout-shared one:
+# concurrent sessions in one clone must not overwrite each other.
+goal_file="${work}/.claude/active-goal.${sid}"
 
 # ── producer ───────────────────────────────────────────────────────────────
 
@@ -148,7 +150,7 @@ fi
 spacey="${work}/My Projects/eshu"
 mkdir -p "${spacey}/.claude"
 submit "${sid}" '/goal survive a spacey path' "${spacey}" >/dev/null
-if rg -q 'survive a spacey path' "${spacey}/.claude/active-goal" 2>/dev/null; then
+if rg -q 'survive a spacey path' "${spacey}/.claude/active-goal.${sid}" 2>/dev/null; then
 	ok "a cwd containing a space still gets its own goal file"
 else
 	no "a cwd containing a space still gets its own goal file"
@@ -212,6 +214,31 @@ if printf '%s' "$(injected "${home_out}")" | rg -q 'Home-scoped objective'; then
 	ok "a \$HOME-only goal is still refreshed (lookup matches the Stop hook)"
 else
 	no "a \$HOME-only goal is still refreshed (lookup matches the Stop hook)"
+fi
+
+# The later suites -- consent, parallel sessions, and everything the reviews
+# turned up -- live in a sourced companion, because this file reached the
+# repo's 500-line cap.
+# shellcheck source=scripts/test-goal-refresh-hook-cases.sh
+. "${repo_root}/scripts/test-goal-refresh-hook-cases.sh"
+# shellcheck source=scripts/test-goal-refresh-hook-guard-cases.sh
+. "${repo_root}/scripts/test-goal-refresh-hook-guard-cases.sh"
+# shellcheck source=scripts/test-goal-refresh-hook-parity-cases.sh
+. "${repo_root}/scripts/test-goal-refresh-hook-parity-cases.sh"
+if [[ "${goal_refresh_cases_loaded:-0}" == "1" ]]; then
+	ok "the sourced case file loaded"
+else
+	no "the sourced case file did NOT load -- most of this suite did not run"
+fi
+if [[ "${goal_refresh_guard_cases_loaded:-0}" == "1" ]]; then
+	ok "the sourced guard-case file loaded"
+else
+	no "the sourced guard-case file did NOT load -- most of this suite did not run"
+fi
+if [[ "${goal_refresh_parity_cases_loaded:-0}" == "1" ]]; then
+	ok "the sourced parity-case file loaded"
+else
+	no "the sourced parity-case file did NOT load -- the cross-hook matrix did not run"
 fi
 
 printf '\ngoal-refresh hook mirror: %s passed, %s failed\n' "${passed}" "${failed}"

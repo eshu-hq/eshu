@@ -168,8 +168,16 @@ procedure and the incident behind each rule below.
   business trade-off. Consent for an irreversible act needs no such
   precondition, and MUST always be sought: push, merge, deploy, delete, data
   mutation, golden-standard (cassette/snapshot) change, or anything
-  outward-facing. Research never waives Prove-The-Theory-First or the pre-PR
-  proof ladder.
+  outward-facing. The one exception is a durable grant the owner has already
+  given for that act — written into the session's goal file as
+  `CONSENT: <acts>`, or `CONSENT: all` for a blanket grant, or passed to the
+  run as `CLAUDE_GOAL_CONSENT` (see
+  [Agent Hooks](docs/internal/agent-hooks.md)). A named grant covers only the
+  acts it names, and an act outside it MUST still be asked for. Nothing
+  verifies who wrote a grant, so agents MUST NOT write one for themselves; the
+  rule is enforced by the owner reading the honoured-consent line the hook
+  prints, not by the harness. Research never waives Prove-The-Theory-First or the
+  pre-PR proof ladder.
 - MUST apply TDD when writing or modifying code.
 - MUST keep files under 500 lines; split before they approach the limit.
 - MUST NOT add AI attribution to commits, PRs, or docs.

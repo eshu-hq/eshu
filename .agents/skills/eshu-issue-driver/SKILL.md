@@ -50,7 +50,15 @@ This skill is doctrine only — it does not loop by itself. Pair it with `/goal`
 load the eshu-issue-driver skill now and follow it. Not done until every proof
 clause in that skill's DONE section is pasted and clean. Stop after 50 turns if
 blocked only on operator-side action (say so).
+CONSENT: push, pr-open
 ```
+
+The `CONSENT:` line is the owner granting those irreversible acts up front;
+without it the agent stops and asks before each one. Grant only the acts you
+mean. **Add `merge` to that line** if you want the drive to land the PR in
+step 10 unattended — it is left out of the template deliberately, because a
+merge is the least reversible act in the canon's list and the one nobody
+reviews afterwards, and a copy-pasted default is not the place to grant it.
 
 The `/goal` evaluator reads the conversation, which includes this loaded skill,
 so "done per the skill" is checkable. Run with auto mode on so each turn runs
@@ -359,7 +367,10 @@ current turn, stop and ask — do not self-approve and proceed.
    threads are resolved. Use `gh pr merge <n> --repo eshu-hq/eshu --squash
    --delete-branch` and confirm the returned state is `MERGED`. Deferring is
    only appropriate when an explicit blocker exists (operator-only gate,
-   outstanding P0/P1 finding, unresolved thread).
+   outstanding P0/P1 finding, unresolved thread) — or when the owner has not
+   granted the merge. A merge is irreversible, so the root canon requires
+   consent for it; a goal carrying `CONSENT: merge` (or `CONSENT: all`) is that
+   consent, and without one the merge is the owner's to run.
 
 ## Step 6 — Defects surfaced mid-drive: FIX INLINE, do not file
 

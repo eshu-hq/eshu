@@ -21,18 +21,26 @@
 #   - CLAUDE_GOAL_OFF=1                          -> stop allowed
 #   - budget spent for this prompt_id            -> stop allowed
 #
+# Not an escape, but the same file: `CONSENT: <acts>` (or CLAUDE_GOAL_CONSENT)
+# records a permission the owner has already given, and REMOVES "I need consent
+# for that" as a reason to stop for the acts it names.
+#
 # Tests: scripts/test-goal-continue-hook.sh -- run it after any edit here, and
 # read its own tally rather than trusting a count written down elsewhere. A
 # hook that can refuse to end a session is worth a regression suite, and the
 # agent-canon gate runs this one in CI.
 #
-# The budget is keyed on prompt_id, so it is "at most N continuations per user
-# message", not "N per session". A new user message gets a fresh budget, and a
-# stuck agent can never spin forever on one prompt.
+# The budget is keyed on prompt_id, so it bounds work per user message, not per
+# session. It counts stops that made NO PROGRESS -- real tool calls between
+# stops reset it -- with a hard per-message ceiling behind it, so a working
+# agent is never released by exhaustion and a stuck one still cannot spin.
 
 set -uo pipefail
 
 MAX_NUDGES="${CLAUDE_GOAL_MAX_NUDGES:-3}"
+# Hard ceiling on nudges per user message, whatever the agent is doing. The
+# soft budget above resets on progress, so something has to bound the loop.
+MAX_TOTAL="${CLAUDE_GOAL_MAX_TOTAL:-20}"
 
 payload="$(cat)"
 
@@ -52,12 +60,13 @@ command -v python3 >/dev/null 2>&1 || exit 0
 	read -r prompt_id
 	read -r stop_active
 	IFS= read -r cwd
+	IFS= read -r transcript
 } < <(printf '%s' "${payload}" | python3 -c '
 import json, sys
 try:
     d = json.load(sys.stdin)
 except Exception:
-    print("-"); print("-"); print("False"); print("-")
+    print("-"); print("-"); print("False"); print("-"); print("-")
     raise SystemExit(0)
 def g(k, dflt="-"):
     v = d.get(k)
@@ -70,20 +79,79 @@ print(g("session_id"))
 print(g("prompt_id"))
 print(g("stop_hook_active", "False"))
 print(g("cwd"))
+print(g("transcript_path"))
 ' 2>/dev/null)
 
 [ "${session_id:--}" = "-" ] && exit 0
 
-# Goal file: an explicit override, then the worktree this session is in, then a
-# single per-user goal. The worktree form is what makes concurrent agents in
-# different worktrees able to hold different goals at once.
+# A RETIRED candidate must not shadow an active one. `/goal done` leaves a DONE
+# tombstone at the per-session path, and an existence-only lookup then selects
+# it ahead of a live checkout-shared goal forever -- the session goes
+# unenforced and unrefreshed with nothing saying so. Reported by codex against
+# the opened PR.
+#
+# Retired means: the first line that is neither blank nor a CONSENT: line is
+# DONE, or is a SESSION: header whose next such line is DONE. Same rule both
+# hooks apply to the file they finally select, applied one step earlier so the
+# lookup can pass over it.
+goal_file_retired() { # path
+	local line seen_header=0 head_line
+	[ -f "$1" ] || return 1
+	while IFS= read -r line; do
+		head_line="${line#"${line%%[![:space:]]*}"}"
+		case "${head_line}" in
+			[Cc][Oo][Nn][Ss][Ee][Nn][Tt]:*|'') continue ;;
+		esac
+		case "${head_line}" in
+			DONE*|done*) return 0 ;;
+			SESSION:*)
+				if [ "${seen_header}" -eq 0 ]; then
+					seen_header=1
+					continue
+				fi
+				return 1
+				;;
+			*) return 1 ;;
+		esac
+	done <"$1"
+	return 1
+}
+
+# Goal file: an explicit override, then this session's own goal in the worktree
+# it is in, then the worktree's shared goal, then a single per-user goal. The
+# worktree form is what makes concurrent agents in different worktrees able to
+# hold different goals at once; the per-session form does the same for agents
+# sharing ONE worktree.
+#
+# The per-session file comes FIRST because sessions are not per-checkout.
+# Three agents in one clone shared a single `.claude/active-goal`, and the
+# SESSION header -- there so a goal cannot outlive the session that set it --
+# meant the two that did not own the file got a silent exit 0: no enforcement,
+# and nothing saying so. Measured on a live machine: three sessions in one
+# checkout, one goal file, one session actually held to it.
+#
+# The session id is sanitized before it reaches a path. It arrives in the hook
+# payload rather than from the agent, but a value that becomes a filename is
+# worth constraining wherever it came from.
+sid_safe="$(printf '%s' "${session_id}" | tr -c 'A-Za-z0-9._-' '-')"
 goal_file=""
 for candidate in \
 	"${CLAUDE_GOAL_FILE:-}" \
+	"${cwd}/.claude/active-goal.${sid_safe}" \
 	"${cwd}/.claude/active-goal" \
 	"${HOME}/.claude/active-goal"; do
 	[ -n "${candidate}" ] || continue
 	if [ -f "${candidate}" ]; then
+		# A retired candidate is passed over, so an active one further down the
+		# list can be found -- but NOT an explicit CLAUDE_GOAL_FILE. The owner
+		# naming a file means that file; falling through from it to a different
+		# goal would be the override silently selecting something else. A
+		# retired override is honoured as retired, which the DONE checks below
+		# then act on.
+		if [ "${candidate}" != "${CLAUDE_GOAL_FILE:-}" ] &&
+			goal_file_retired "${candidate}"; then
+			continue
+		fi
 		goal_file="${candidate}"
 		break
 	fi
@@ -109,19 +177,80 @@ esac
 #
 # An unheaded file is the owner's own hand-written goal and is honoured as-is,
 # which keeps the manual workflow working.
-case "${first_line}" in
-	SESSION:*)
-		goal_owner="${first_line#SESSION:}"
-		goal_owner="${goal_owner# }"
-		[ "${goal_owner}" = "${session_id}" ] || exit 0
-		goal="$(printf '%s\n' "${goal}" | tail -n +2)"
-		[ -n "${goal}" ] || exit 0
-		first_line="$(printf '%s\n' "${goal}" | head -1)"
-		case "${first_line}" in
-			DONE*|done*) exit 0 ;;
+# The header rules, applied ONCE and only after CONSENT lines are stripped.
+#
+# They used to run before the strip, and a CONSENT line above the header then
+# shadowed the ownership check. Applying them a SECOND time after the strip
+# fixed that and introduced a worse defect: a goal whose BODY started a line
+# with `SESSION:` was read by the second pass as an ownership header, the id
+# did not match, and the stop was silently ALLOWED -- enforcement off, no
+# output, and dependent on whether an unrelated CONSENT line was present.
+# Stripping first and parsing once closes both without a second layer.
+# Returns non-zero when the stop should be allowed.
+apply_session_header() {
+	case "${first_line}" in
+		SESSION:*)
+			goal_owner="${first_line#SESSION:}"
+			goal_owner="${goal_owner# }"
+			[ "${goal_owner}" = "${session_id}" ] || return 1
+			goal="$(printf '%s\n' "${goal}" | tail -n +2)"
+			[ -n "${goal}" ] || return 1
+			first_line="$(printf '%s\n' "${goal}" | head -1)"
+			;;
+	esac
+	case "${first_line}" in
+		DONE*|done*) return 1 ;;
+	esac
+	return 0
+}
+
+# CONSENT: <acts> is the owner writing down a permission the agent would
+# otherwise stop to ask for. The refusal used to offer "you need consent for an
+# irreversible act" as a legitimate reason to stop, unconditionally -- correct
+# by default, and wrong once the owner has already said yes. An agent that had
+# been told to go ahead still read that bullet, stopped, and got the same
+# bullet handed back.
+#
+# The acts are echoed back to the agent rather than acted on here, because this
+# hook grants nothing by itself: the permission is the owner's, written in the
+# owner's file, and the hook only stops it from being forgotten. `CONSENT: all`
+# is the blanket form. An empty `CONSENT:` grants nothing, the same way an
+# empty `BLOCKED:` releases nothing -- the agent writes this file too.
+consent=""
+if printf '%s\n' "${goal}" | python3 -c '
+import sys
+sys.exit(0 if any(l.lstrip().lower().startswith("consent:") for l in sys.stdin) else 1)
+' 2>/dev/null; then
+	stripped=""
+	while IFS= read -r line; do
+		# lstrip first: the python detector above uses .lstrip(), and a shell
+		# arm that rejected leading whitespace made the refresher and the Stop
+		# hook read the same file two different ways.
+		trimmed="${line#"${line%%[![:space:]]*}"}"
+		case "${trimmed}" in
+			[Cc][Oo][Nn][Ss][Ee][Nn][Tt]:*)
+				acts="${trimmed#*:}"
+				acts="${acts#"${acts%%[![:space:]]*}"}"
+				[ -n "${acts}" ] && consent="${consent:+${consent}, }${acts}"
+				;;
+			*)
+				stripped="${stripped}${line}
+"
+				;;
 		esac
-		;;
-esac
+	done < <(printf '%s\n' "${goal}")
+	goal="${stripped%$'\n'}"
+	[ -n "${goal}" ] || exit 0
+	first_line="$(printf '%s\n' "${goal}" | head -1)"
+fi
+
+# A launcher that already knows what its run may do can grant without editing a
+# file that concurrent sessions in the same checkout share.
+if [ -n "${CLAUDE_GOAL_CONSENT:-}" ]; then
+	consent="${consent:+${consent}, }${CLAUDE_GOAL_CONSENT}"
+fi
+
+apply_session_header || exit 0
 
 # BLOCKED: <reason> releases the stop when the work is genuinely waiting on
 # something outside this machine -- a CI run, a remote queue, another person.
@@ -160,20 +289,113 @@ case "${first_line}" in
 		;;
 esac
 
+# The budget used to count CONTINUATIONS, which put an agent grinding through
+# six lanes on the same ceiling of three as an agent emitting status reports.
+# Measured on a live run: all eight of that session's prompt counters read 3,
+# and the run that ended had made one tool call since the previous nudge. The
+# ceiling released it -- which looks exactly like a clean finish afterwards.
+#
+# So the soft budget counts NO-PROGRESS stops and real work resets it, while a
+# hard ceiling still bounds the loop: an agent making one token call per turn
+# cannot spin forever. Progress is tool calls appended to the transcript since
+# the last nudge, read from a stored byte offset rather than by re-reading the
+# file -- these run to 8MB.
 state_dir="${TMPDIR:-/tmp}"
-counter="${state_dir}/claude-goal-nudge-${session_id}-${prompt_id}"
+# sid_safe, not the raw id: the goal path was sanitized and this one was not,
+# so a session id containing a slash made the counter write fail and `|| exit 0`
+# ALLOWED the stop -- enforcement silently off, which is the exact failure the
+# sanitizing exists to prevent. prompt_id gets the same treatment for the same
+# reason.
+pid_safe="$(printf '%s' "${prompt_id}" | tr -c 'A-Za-z0-9._-' '-')"
+counter="${state_dir}/claude-goal-nudge-${sid_safe}-${pid_safe}"
 count=0
-[ -f "${counter}" ] && count="$(cat "${counter}" 2>/dev/null || echo 0)"
-case "${count}" in
-	''|*[!0-9]*) count=0 ;;
-esac
+total=0
+offset=0
+if [ -f "${counter}" ]; then
+	# `count total offset`. A file written by the previous version holds a bare
+	# number; reading it must not crash or silently reset the bound to zero.
+	read -r count total offset <"${counter}" 2>/dev/null || true
+	case "${count}" in ''|*[!0-9]*) count=0 ;; esac
+	case "${total}" in ''|*[!0-9]*) total="${count}" ;; esac
+	case "${offset}" in ''|*[!0-9]*) offset=0 ;; esac
+fi
 
-if [ "${count}" -ge "${MAX_NUDGES}" ]; then
+# Tool calls in the bytes appended since the last nudge. A transcript that is
+# missing or unreadable reports no progress, which leaves the original
+# three-stop bound in force -- a progress signal that failed OPEN would remove
+# the bound entirely.
+#
+# The offset is per (session, prompt_id), so the FIRST stop of each user
+# message still reads the whole file -- measured at 159-172ms on a real 9.9MB
+# transcript -- and only the stops after it read a tail. That first read is
+# behaviourally a no-op (the count is already 0 on a fresh counter), so it buys
+# nothing; it is left alone because seeding the offset from the file size would
+# make work done BEFORE the first nudge of a message invisible to it.
+progress=0
+new_offset="${offset}"
+if [ -n "${transcript:-}" ] && [ "${transcript}" != "-" ] && [ -f "${transcript}" ]; then
+	{
+		read -r progress
+		read -r new_offset
+	} < <(TX="${transcript}" OFF="${offset}" python3 -c '
+import os, re, sys
+path = os.environ["TX"]
+try:
+    off = int(os.environ.get("OFF") or 0)
+    size = os.path.getsize(path)
+    if off > size:  # transcript replaced or truncated: rescan from the start
+        off = 0
+    with open(path, "rb") as fh:
+        fh.seek(off)
+        tail = fh.read()
+    # Tolerate whitespace from the transcript writer. Pinning the exact
+    # compact spelling meant one space after a colon silently restored the
+    # pre-change behaviour: real work invisible, the agent released by
+    # exhaustion, the mirror still green.
+    print(len(re.findall(rb"\"type\"\s*:\s*\"tool_use\"", tail)))
+    print(size)
+except Exception:
+    print(0); print(os.environ.get("OFF") or 0)
+' 2>/dev/null)
+	case "${progress}" in ''|*[!0-9]*) progress=0 ;; esac
+	case "${new_offset}" in ''|*[!0-9]*) new_offset="${offset}" ;; esac
+fi
+
+if [ "${progress}" -gt 0 ]; then
+	count=0
+	# The ceiling resets on progress too. It used to increment unconditionally,
+	# so a session working steadily through one long user message was still
+	# released at MAX_TOTAL -- release-by-exhaustion moved from 3 to 20 rather
+	# than removed. The owner's call, and the right one: being cut off mid-goal
+	# costs more than the residual risk, which is an agent making one token
+	# tool call per turn forever. A genuinely stuck agent makes no tool calls
+	# at all and is still released by the soft budget after MAX_NUDGES.
+	total=0
+fi
+
+if [ "${count}" -ge "${MAX_NUDGES}" ] || [ "${total}" -ge "${MAX_TOTAL}" ]; then
+	# Say why. On the live run this released a session mid-goal and read as a
+	# clean finish; nobody could tell the two apart afterwards.
+	printf 'goal-continue: stop allowed after %s stops with no progress. The goal is still open and the owner is now the one who has to answer.\n' \
+		"${count}" >&2
+	printf 'goal-continue: if the work is finished, put DONE on the first line of %s. If it is waiting on something outside this machine, put BLOCKED: <reason> there instead. Either would have ended the turn cleanly without an interruption.\n' \
+		"${goal_file}" >&2
+	printf '%s %s %s' "${count}" "${total}" "${new_offset}" >"${counter}" 2>/dev/null || true
 	exit 0
 fi
-printf '%s' "$((count + 1))" >"${counter}" 2>/dev/null || exit 0
+printf '%s %s %s' "$((count + 1))" "$((total + 1))" "${new_offset}" >"${counter}" 2>/dev/null || exit 0
 
 remaining="$((MAX_NUDGES - count - 1))"
+
+# On the last one, say so. An agent that knows this is its final continuation
+# can retire or block the goal itself; one that does not simply stops again and
+# the owner is interrupted for something the agent could have closed.
+final_warning=""
+if [ "${remaining}" -le 0 ]; then
+	final_warning="
+
+This is your LAST continuation for this message: the next stop will be allowed and the owner will have to answer. If the work is done, put DONE on the first line of ${goal_file}. If it is waiting on something outside this machine, put BLOCKED: <reason> there. Do not simply stop and leave it open."
+fi
 
 if [ -n "${dead_watcher:-}" ]; then
 	reason_head="Your goal file claims BLOCKED with WATCH=${dead_watcher}, but that watcher process is NOT running. Nothing will wake you, so waiting is not an option -- re-arm the watcher or do the work now."
@@ -181,19 +403,59 @@ else
 	reason_head="You are stopping with an active goal still open. Do not end the turn on a status report."
 fi
 
+# The consent bullet is the one line of the refusal that changes with what the
+# owner already granted. Blanket consent retires it; a named list narrows it to
+# everything NOT on that list; no consent leaves it as it was.
+consent_note=""
+consent_bullet="
+  - you need consent for an irreversible act (push, merge, deploy, delete, data mutation, anything outward-facing)"
+if [ -n "${consent}" ]; then
+	printf 'goal-continue: consent honoured, not asking again for: %s\n' \
+		"${consent}" >&2
+	consent_note="
+
+OWNER CONSENT ALREADY GRANTED for: ${consent}
+Do those yourself now. Stopping to ask again for something on that list is not a valid stop -- the owner already answered."
+	# Whole tokens, split on commas. A substring test read `install deps` as
+	# blanket consent -- it contains "all" -- and silently retired the entire
+	# irreversible-act stop reason, delete and deploy included. So do "call",
+	# "allow", "fallback" and "recall".
+	consent_blanket=0
+	consent_ifs="${IFS-}"
+	IFS=','
+	# Globbing off around the split: the token being tested for is `*`, and an
+	# unquoted expansion of it would be replaced by the filenames in the
+	# working directory before the comparison ever ran.
+	set -f
+	for consent_tok in ${consent}; do
+		consent_tok="$(printf '%s' "${consent_tok}" |
+			tr '[:upper:]' '[:lower:]' | tr -d '[:space:]')"
+		case "${consent_tok}" in
+			all|'*') consent_blanket=1 ;;
+		esac
+	done
+	set +f
+	IFS="${consent_ifs}"
+	if [ "${consent_blanket}" -eq 1 ]; then
+		consent_bullet=""
+	else
+		consent_bullet="
+  - you need consent for an irreversible act NOT on the granted list above"
+	fi
+fi
+
 reason="${reason_head}
 
 ACTIVE GOAL (${goal_file}):
-${goal}
+${goal}${consent_note}
 
 Continue it now. Take the next concrete action yourself rather than describing what could be done, and do not ask the owner a question that the code, a local doc, or a cheap experiment can settle.
 
 Stop for real only when one of these is true, and say which:
-  - the goal is met -- then put DONE on the first line of ${goal_file}
-  - you need consent for an irreversible act (push, merge, deploy, delete, data mutation, anything outward-facing)
+  - the goal is met -- then put DONE on the first line of ${goal_file}${consent_bullet}
   - you are blocked on something no action of yours can clear -- name it exactly
 
-Continuations left for this message: ${remaining}."
+Continuations left for this message: ${remaining}.${final_warning}"
 
 printf '%s' "${reason}" | python3 -c '
 import json, sys
