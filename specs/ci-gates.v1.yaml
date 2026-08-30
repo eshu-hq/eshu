@@ -266,6 +266,10 @@ gates:
       # from it would not select the gate that runs it.
       - "scripts/test-goal-continue-hook-cases.sh"
       - "scripts/test-goal-refresh-hook.sh"
+      # Same reason as the Stop mirror's companion above: the refresh mirror's
+      # later suites are sourced from their own file, which must select this
+      # gate on its own.
+      - "scripts/test-goal-refresh-hook-cases.sh"
       # The workflow itself, so removing a test STEP selects the gate
       # that asserts the step is there. Without this a workflow-only
       # edit re-opens the local/CI parity gap silently.

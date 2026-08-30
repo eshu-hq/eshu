@@ -63,7 +63,13 @@ print(g("prompt"))
 ' 2>/dev/null)
 
 [ "${session_id:--}" = "-" ] && exit 0
-[ "${cwd:--}" = "-" ] && exit 0
+# NOT a top-level guard. cwd is needed to WRITE a goal -- `goal_write`
+# interpolates it -- and not to read one. Exiting here meant a $HOME goal was
+# ENFORCED by the Stop hook and never refreshed by this one: blocking turns on
+# an objective it never restated. The producer arm carries the guard instead,
+# so the two hooks resolve a cwd-less payload identically.
+have_cwd=1
+[ "${cwd:--}" = "-" ] && have_cwd=0
 
 # The SAME ordered lookup the Stop hook uses. When these two disagree, a goal
 # is enforced from a path that is never refreshed -- a $HOME-scoped goal would
@@ -83,14 +89,19 @@ print(g("prompt"))
 #
 # The session id is sanitized before it becomes part of a path.
 sid_safe="$(printf '%s' "${session_id}" | tr -c 'A-Za-z0-9._-' '-')"
-goal_write="${CLAUDE_GOAL_FILE:-${cwd}/.claude/active-goal.${sid_safe}}"
+cwd_prefix="${cwd:--}"
+goal_write="${CLAUDE_GOAL_FILE:-${cwd_prefix}/.claude/active-goal.${sid_safe}}"
 goal_file=""
 for candidate in \
 	"${CLAUDE_GOAL_FILE:-}" \
-	"${cwd}/.claude/active-goal.${sid_safe}" \
-	"${cwd}/.claude/active-goal" \
+	"${cwd_prefix}/.claude/active-goal.${sid_safe}" \
+	"${cwd_prefix}/.claude/active-goal" \
 	"${HOME}/.claude/active-goal"; do
 	[ -n "${candidate}" ] || continue
+	# With no cwd the two worktree candidates are paths built from a dash.
+	case "${candidate}" in
+		"-/.claude/"*) continue ;;
+	esac
 	if [ -f "${candidate}" ]; then
 		goal_file="${candidate}"
 		break
@@ -154,8 +165,8 @@ writable_goal_target() { # path action
 		return 1
 	fi
 	if ! owns_goal_file "$1"; then
-		printf 'goal-refresh: %s belongs to another session or to the owner, not written.\n' \
-			"$1" >&2
+		printf 'goal-refresh: %s belongs to another session or to the owner, %s not recorded.\n' \
+			"$1" "$2" >&2
 		return 1
 	fi
 	return 0
@@ -225,6 +236,10 @@ except Exception:
 		exit 0
 		;;
 	'/goal '*|'GOAL: '*)
+		# Writing is what needs a cwd; without one there is no worktree to
+		# write the goal into, and CLAUDE_GOAL_FILE is the way to name a
+		# target anyway.
+		[ "${have_cwd}" = "1" ] || [ -n "${CLAUDE_GOAL_FILE:-}" ] || exit 0
 		goal_text="${prompt#*[ :]}"
 		goal_text="${goal_text# }"
 		if [ -n "${goal_text}" ]; then
