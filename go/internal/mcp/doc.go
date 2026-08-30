@@ -9,8 +9,9 @@
 // relationships, semantic, service, and visualization child packages own
 // their registration definitions without importing this parent package. The
 // ask, relationships, and visualization children own pure dependency-neutral
-// family route selectors alongside their definitions, and the cicd and
-// packageregistry children own such a selector without owning a registration.
+// family route selectors alongside their definitions, and the cicd,
+// codeowners, and packageregistry children own such a selector without owning
+// a registration.
 // ReadOnlyTools remains the sole ordered assembler; global route membership,
 // family adapters, dispatch,
 // transport, authorization, timeouts,
@@ -148,5 +149,8 @@
 // unchanged and preserves the effective_owner field the HTTP handler resolves
 // from manifest-vs-codeowners precedence, so a scoped caller sees the same
 // bounded empty-ownership shape over MCP that the HTTP route returns for an
-// out-of-grant repository.
+// out-of-grant repository. That selection lives in the codeowners child and
+// reaches dispatch through the codeownersRoute adapter; the child formats
+// after_order_index only when the caller sent it, so an absent leg stays empty
+// rather than defaulting to zero and half-supplying the cursor.
 package mcp
