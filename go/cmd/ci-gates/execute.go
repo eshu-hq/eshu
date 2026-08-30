@@ -22,6 +22,7 @@ type localGateCommand struct {
 type sharedGateCommandKey struct {
 	workflow string
 	job      string
+	role     string
 	command  string
 }
 
@@ -100,7 +101,7 @@ func executeGatesWithOptions(
 
 		gateFailed := false
 		for _, localCommand := range commands {
-			key, canReuse := sharedCommandKey(selection.Gate, localCommand.command)
+			key, canReuse := sharedCommandKey(selection.Gate, localCommand.label, localCommand.command)
 			result, reused := sharedResults[key]
 			if canReuse && reused {
 				_, _ = fmt.Fprintf(
@@ -153,13 +154,14 @@ func executeGatesWithOptions(
 // sharedCommandKey mirrors RequiredGates' hosted workflow/job deduplication.
 // Commands without a complete hosted owner stay independent because byte
 // equality alone is not enough evidence that two registry rows are one check.
-func sharedCommandKey(gate cigates.Gate, command string) (sharedGateCommandKey, bool) {
+func sharedCommandKey(gate cigates.Gate, role, command string) (sharedGateCommandKey, bool) {
 	if gate.CI.Workflow == "" || gate.CI.Job == "" {
 		return sharedGateCommandKey{}, false
 	}
 	return sharedGateCommandKey{
 		workflow: gate.CI.Workflow,
 		job:      gate.CI.Job,
+		role:     role,
 		command:  command,
 	}, true
 }

@@ -67,6 +67,55 @@ func TestReviewAttestRejectsNewHeadCommit(t *testing.T) {
 	}
 }
 
+func TestReviewAttestIgnoresAmbientRepositoryPointers(t *testing.T) {
+	t.Parallel()
+	fixture := newReviewAttestFixture(t)
+	elsewhere := newReviewAttestFixture(t)
+	writeTestFile(t, filepath.Join(elsewhere.repo, "foreign.txt"), "foreign\n")
+	elsewhere.git(t, "add", "foreign.txt")
+	elsewhere.git(t, "commit", "-m", "foreign head")
+	if fixtureHead(t, fixture) == fixtureHead(t, elsewhere) {
+		t.Fatal("hostile repositories must have distinct heads")
+	}
+
+	cmd := fixture.command("capture")
+	cmd.Env = append(repositoryIndependentTestEnv(os.Environ()),
+		"GIT_DIR="+filepath.Join(elsewhere.repo, ".git"),
+		"GIT_WORK_TREE="+elsewhere.repo,
+	)
+	output, err := cmd.CombinedOutput()
+	if err != nil {
+		t.Fatalf("review-attest capture with ambient git pointers: %v\n%s", err, output)
+	}
+
+	raw, err := os.ReadFile(fixture.receipt)
+	if err != nil {
+		t.Fatalf("read receipt: %v", err)
+	}
+	if !strings.Contains(string(raw), fixtureHead(t, fixture)) {
+		t.Fatalf("receipt did not bind repo-root checkout under ambient git pointers:\n%s", raw)
+	}
+}
+
+func TestReviewAttestRejectsMovedLinkedWorktree(t *testing.T) {
+	t.Parallel()
+	fixture := newReviewAttestFixture(t)
+	fixture.git(t, "checkout", "main")
+	linked := filepath.Join(filepath.Dir(fixture.repo), "linked")
+	moved := filepath.Join(filepath.Dir(fixture.repo), "moved")
+	fixture.git(t, "worktree", "add", linked, "feature")
+	linkedFixture := fixture
+	linkedFixture.repo = linked
+	linkedFixture.run(t, "capture")
+
+	fixture.git(t, "worktree", "move", linked, moved)
+	linkedFixture.repo = moved
+	output, err := linkedFixture.command("verify").CombinedOutput()
+	if err == nil || !strings.Contains(string(output), "worktree_sha256 changed") {
+		t.Fatalf("verify error = %v, output = %s", err, output)
+	}
+}
+
 type reviewAttestFixture struct {
 	repo    string
 	claims  string
@@ -142,4 +191,25 @@ func writeTestFile(t *testing.T, path, content string) {
 	if err := os.WriteFile(path, []byte(content), 0o600); err != nil {
 		t.Fatalf("write %s: %v", path, err)
 	}
+}
+
+func repositoryIndependentTestEnv(env []string) []string {
+	kept := make([]string, 0, len(env))
+	for _, entry := range env {
+		if strings.HasPrefix(entry, "GIT_DIR=") || strings.HasPrefix(entry, "GIT_WORK_TREE=") {
+			continue
+		}
+		kept = append(kept, entry)
+	}
+	return kept
+}
+
+func fixtureHead(t *testing.T, fixture reviewAttestFixture) string {
+	t.Helper()
+	cmd := exec.Command("git", "-C", fixture.repo, "rev-parse", "HEAD")
+	out, err := cmd.Output()
+	if err != nil {
+		t.Fatalf("rev-parse fixture HEAD: %v", err)
+	}
+	return strings.TrimSpace(string(out))
 }

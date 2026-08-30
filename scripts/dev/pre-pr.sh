@@ -220,28 +220,6 @@ step_docs() {
 	fi
 }
 
-# step_exactness runs the credential-free exactness and telemetry contract gates
-# that the changed paths select, via the shared gate registry (#4213/#4214). This
-# replaces the old "remember the right verifier from the local-testing matrix"
-# workflow: openapi/route-coverage/edge-source-tool/evidence-continuity/
-# fact-kind/contract-source-of-truth/parser-relationship/query-plan/scale/
-# capability-budget/collector-entrypoints/skill-roundtrip/telemetry-coverage/
-# operator-dashboard etc. are now selected automatically. The --category filter
-# selects the STATIC, credential-free contract gates that block a PR in CI:
-#   - exactness/telemetry: the contract + coverage gates.
-#   - hygiene: agent-canon, no-ai-attribution, license-header, ci-gate-registry
-#     drift. These are blocking in CI (verify-agent-hygiene / test.yml /
-#     verify-ci-gate-registry) and cheap to run locally; excluding them let a
-#     PR pass `make pre-pr` and then fail CI on a stale registry, a missing
-#     license header, or an AI-attribution slip (#5730-era friction).
-#   - docs: docs-build-changed — the mkdocs `--strict` build that CI runs on
-#     any docs/** change (including docs/public/observability/*.md), the actual
-#     "telemetry docs didn't build" failure that used to only surface in CI.
-# Every selected gate is tier<=pre-pr with a runnable local command; ci-heavy
-# (Docker/NornicDB/Postgres) and credentialed gates are still hard-excluded by
-# tier in cmd/ci-gates and are covered by the path-triggered live lane below.
-# The race lane is #4215; heavy pre-push gates (whole-module gosec, console e2e,
-# frontend) run via `make security-preflight` / `make frontend-preflight`.
 step_exactness() {
 	local exactness_args=(
 		--base "${base}" --tier pre-pr --category exactness,telemetry,hygiene,docs

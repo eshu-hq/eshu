@@ -103,6 +103,37 @@ func TestExecuteGatesReusesCommandForSharedCIJob(t *testing.T) {
 	}
 }
 
+func TestExecuteGatesDoesNotReuseAcrossCommandRoles(t *testing.T) {
+	t.Parallel()
+	repoRoot := t.TempDir()
+	shared := "printf 'shared\\n' >> trace.log"
+	selections := []cigates.Selection{
+		selectedGateWithCI("primary-owner", shared, true, "shared.yml", "Shared job"),
+		{
+			Selected: true,
+			Gate: cigates.Gate{
+				ID:       "self-test-owner",
+				Blocking: true,
+				Local: &cigates.Local{
+					Command:     "printf 'second-primary\\n' >> trace.log",
+					TestCommand: shared,
+				},
+				CI: cigates.CI{Workflow: "shared.yml", Job: "Shared job"},
+			},
+		},
+	}
+
+	var output bytes.Buffer
+	if err := executeGates(&output, selections, repoRoot); err != nil {
+		t.Fatalf("executeGates() error = %v, want nil", err)
+	}
+
+	assertTrace(t, repoRoot, "shared\nsecond-primary\nshared\n")
+	if strings.Contains(output.String(), "REUSE   self-test-owner: "+shared) {
+		t.Fatalf("executeGates() reused a primary result as a self-test:\n%s", output.String())
+	}
+}
+
 func TestExecuteGatesReusedFailureStillFailsBlockingOwner(t *testing.T) {
 	t.Parallel()
 	repoRoot := t.TempDir()

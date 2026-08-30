@@ -23,6 +23,7 @@ type reviewAttestation struct {
 	SchemaVersion     string `json:"schema_version"`
 	CapturedAt        string `json:"captured_at"`
 	RepositorySHA256  string `json:"repository_sha256"`
+	WorktreeSHA256    string `json:"worktree_sha256"`
 	BaseRef           string `json:"base_ref"`
 	BaseCommit        string `json:"base_commit"`
 	BaseTree          string `json:"base_tree"`
@@ -123,6 +124,7 @@ func (o reviewAttestOptions) validate() error {
 func collectReviewAttestation(options reviewAttestOptions) (reviewAttestation, error) {
 	git := func(args ...string) ([]byte, error) {
 		cmd := exec.Command("git", append([]string{"-C", options.repoRoot}, args...)...)
+		cmd.Env = reviewGitEnv(os.Environ())
 		out, err := cmd.Output()
 		if err != nil {
 			return nil, fmt.Errorf("git %s: %w", strings.Join(args, " "), err)
@@ -164,6 +166,14 @@ func collectReviewAttestation(options reviewAttestOptions) (reviewAttestation, e
 	if err != nil {
 		return reviewAttestation{}, err
 	}
+	topLevel, err := text("rev-parse", "--path-format=absolute", "--show-toplevel")
+	if err != nil {
+		return reviewAttestation{}, err
+	}
+	gitDir, err := text("rev-parse", "--path-format=absolute", "--absolute-git-dir")
+	if err != nil {
+		return reviewAttestation{}, err
+	}
 	binaryDiff, err := git("diff", "--binary", "--full-index", "--no-ext-diff", mergeBase, headCommit)
 	if err != nil {
 		return reviewAttestation{}, err
@@ -200,6 +210,7 @@ func collectReviewAttestation(options reviewAttestOptions) (reviewAttestation, e
 		SchemaVersion:     reviewAttestationSchema,
 		CapturedAt:        time.Now().UTC().Format(time.RFC3339Nano),
 		RepositorySHA256:  bytesSHA256([]byte(commonDir)),
+		WorktreeSHA256:    bytesSHA256([]byte(topLevel + "\x00" + gitDir)),
 		BaseRef:           options.base,
 		BaseCommit:        baseCommit,
 		BaseTree:          baseTree,
@@ -217,6 +228,35 @@ func collectReviewAttestation(options reviewAttestOptions) (reviewAttestation, e
 		VerdictSHA256:     verdictHash,
 		WorktreeClean:     len(status) == 0,
 	}, nil
+}
+
+// reviewGitEnv removes ambient repository pointers so --repo-root is the only
+// checkout an attestation can bind. Unlike a pre-commit trigger scan, review
+// attestation always describes the committed tree and must not honor a pending
+// or foreign index.
+func reviewGitEnv(env []string) []string {
+	retargeting := map[string]struct{}{
+		"GIT_DIR":                          {},
+		"GIT_WORK_TREE":                    {},
+		"GIT_COMMON_DIR":                   {},
+		"GIT_INDEX_FILE":                   {},
+		"GIT_OBJECT_DIRECTORY":             {},
+		"GIT_ALTERNATE_OBJECT_DIRECTORIES": {},
+		"GIT_NAMESPACE":                    {},
+		"GIT_CEILING_DIRECTORIES":          {},
+		"GIT_DISCOVERY_ACROSS_FILESYSTEM":  {},
+	}
+	kept := make([]string, 0, len(env))
+	for _, entry := range env {
+		name, _, ok := strings.Cut(entry, "=")
+		if ok {
+			if _, drop := retargeting[name]; drop {
+				continue
+			}
+		}
+		kept = append(kept, entry)
+	}
+	return kept
 }
 
 func fileSHA256(path string) (string, error) {
@@ -289,6 +329,7 @@ func firstReviewAttestationChange(before, after reviewAttestation) (string, stri
 		after  string
 	}{
 		{"repository_sha256", before.RepositorySHA256, after.RepositorySHA256},
+		{"worktree_sha256", before.WorktreeSHA256, after.WorktreeSHA256},
 		{"base_ref", before.BaseRef, after.BaseRef},
 		{"base_commit", before.BaseCommit, after.BaseCommit},
 		{"base_tree", before.BaseTree, after.BaseTree},
