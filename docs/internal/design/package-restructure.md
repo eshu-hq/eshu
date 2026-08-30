@@ -425,6 +425,36 @@ so an absent key stays the empty string rather than taking a default, which is
 why the child reimplements the helper against `routecontract.Arguments` instead
 of collapsing it into `IntOr`.
 
+The secrets/IAM posture route family is the fourth Wave 2 MCP extraction: five
+tools, five arms of the same `repositoryRoute` switch -- one fewer than the
+package-registry family moved -- with all five request builders sitting together
+in `dispatch_secrets_iam.go` and no private helper between them. Family membership and all five builders now live
+under `internal/mcp/secretsiam`, and `dispatch_secrets_iam.go` keeps only the
+thin `secretsIAMRoute` adapter. Root keeps every tool definition and its
+assembly position, global fanout order, dispatch, authorization, transport,
+timeouts, response budgets, envelopes, summaries, and telemetry. The adapter is
+consulted directly after the CODEOWNERS one at the top of `repositoryRoute`, so
+the repository router keeps its own position in the global chain and no other
+family's resolution order changes. The five tool names are disjoint from the
+package-registry, CI/CD, and CODEOWNERS families and from the remaining switch
+arms, and the 162-tool order, the advertised schemas, the `limit` default of 50,
+and every selected method, path, and query key remain unchanged.
+
+What makes this family worth reading is that it is not uniform. The four
+listings page, so each carries `limit` plus its own keyset cursor and filters.
+`count_secrets_iam_posture` is a scope-anchored aggregate over the whole
+posture, so it carries `scope_id` and nothing else -- no `limit`, no cursor, no
+filter. The tempting edit is to give it a `limit` for symmetry with its four
+siblings; that compiles and reads like a consistency fix. It would not cap the
+total either -- the handler reads only `scope_id` -- so the key would be inert
+and would advertise a bound the endpoint does not honor. Two guards fail on a mutant that adds one and
+on one that drops `scope_id`: the child's own summary test and the
+dispatch-level `TestSecretsIAMPostureSummaryStaysScopeOnlyThroughDispatch`. The
+adapter parity test is not one of them and cannot be -- it builds its expected
+value by calling the same child selector, so a mutation moves both sides
+together. What it does prove is that the adapter transcribes method, path, body,
+and query faithfully, which is a different claim.
+
 **cmd/eshu (233):** `package main` — subdirectories are impossible by
 language rule. The lever is extracting business logic to new
 `internal/cli/<family>` packages, leaving thin cobra RunE wrappers —
