@@ -440,5 +440,81 @@ else
 	ok "/goal consent does not amend a file this session does not own"
 fi
 
+# ── round-three findings ───────────────────────────────────────────────────
+
+# The ownership guard treated an UNHEADED file as owned, and an unheaded file
+# is exactly the shared hand-written case it exists to protect. Any session in
+# the checkout could amend or retire the owner's own goal.
+uw="${work}/unheaded"
+mkdir -p "${uw}/.claude"
+printf 'Owner hand-written objective.\n' >"${uw}/.claude/active-goal"
+submit "sess-stranger" '/goal consent deploy to prod' "${uw}" >/dev/null
+if rg -q '^CONSENT:' "${uw}/.claude/active-goal" 2>/dev/null; then
+	no "an unheaded shared goal is not amended by a passing session"
+else
+	ok "an unheaded shared goal is not amended by a passing session"
+fi
+submit "sess-stranger" '/goal done' "${uw}" >/dev/null
+if [[ "$(head -1 "${uw}/.claude/active-goal")" == DONE* ]]; then
+	no "an unheaded shared goal is not retired by a passing session"
+else
+	ok "an unheaded shared goal is not retired by a passing session"
+fi
+
+# The guard read line 1 only, and the consent feature made line 1 something a
+# CONSENT line can occupy. A CONSENT line above the header hid it: the write
+# went through AND normalized the file to SESSION-first, erasing the trace.
+cw2="${work}/consent-above"
+mkdir -p "${cw2}/.claude"
+printf 'CONSENT: read-only\nSESSION: sess-owner\nTheir private objective.\n' \
+	>"${cw2}/.claude/active-goal"
+submit "sess-intruder" '/goal consent force-push, delete branches' "${cw2}" >/dev/null
+if rg -q 'force-push' "${cw2}/.claude/active-goal" 2>/dev/null; then
+	no "a CONSENT line above the header does not defeat the ownership guard"
+else
+	ok "a CONSENT line above the header does not defeat the ownership guard"
+fi
+if [[ "$(head -1 "${cw2}/.claude/active-goal")" == "CONSENT: read-only" ]]; then
+	ok "the intruder's write does not reorder somebody else's file"
+else
+	no "the intruder's write does not reorder somebody else's file"
+fi
+
+# This hook runs on EVERY prompt the owner types, so a stray diagnostic is
+# noise on every turn. The Stop mirror pins this for its hook; the higher
+# traffic one had no such assertion, and three stderr lines were just added.
+qw="${work}/quiet"
+mkdir -p "${qw}/.claude"
+submit "${sid}" '/goal keep quiet' "${qw}" >/dev/null
+quiet_err="$(SID="${sid}" PROMPT='an ordinary prompt' CWD="${qw}" python3 -c '
+import json, os
+print(json.dumps({"session_id": os.environ["SID"], "prompt_id": "quiet",
+                  "cwd": os.environ["CWD"], "prompt": os.environ["PROMPT"],
+                  "hook_event_name": "UserPromptSubmit"}))
+' | bash "${REFRESH}" 2>&1 >/dev/null)"
+if [[ -z "${quiet_err}" ]]; then
+	ok "the refresher writes nothing to stderr on the ordinary path"
+else
+	no "the refresher writes nothing to stderr on the ordinary path (got: ${quiet_err})"
+fi
+
+# The launcher-side grant had no case at all: deleting the branch that reads it
+# left the whole suite green, so it could stop reaching the restatement without
+# anything noticing.
+ew="${work}/envconsent"
+mkdir -p "${ew}/.claude"
+submit "${sid}" '/goal ship it' "${ew}" >/dev/null
+env_inj="$(injected "$(SID="${sid}" PROMPT='carry on' CWD="${ew}" python3 -c '
+import json, os
+print(json.dumps({"session_id": os.environ["SID"], "prompt_id": "envc",
+                  "cwd": os.environ["CWD"], "prompt": os.environ["PROMPT"],
+                  "hook_event_name": "UserPromptSubmit"}))
+' | CLAUDE_GOAL_CONSENT='push' bash "${REFRESH}" 2>/dev/null)")"
+if printf '%s' "${env_inj}" | rg -q 'push'; then
+	ok "CLAUDE_GOAL_CONSENT reaches the per-turn restatement"
+else
+	no "CLAUDE_GOAL_CONSENT reaches the per-turn restatement"
+fi
+
 printf '\ngoal-refresh hook mirror: %s passed, %s failed\n' "${passed}" "${failed}"
 [[ "${failed}" -eq 0 ]]

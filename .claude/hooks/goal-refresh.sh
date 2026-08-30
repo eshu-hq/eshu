@@ -100,16 +100,37 @@ done
 # A resolved goal file may belong to somebody else: a session with no goal of
 # its own still RESOLVES the checkout-shared file, and retiring or amending it
 # from here would edit another agent's objective. Writes below use this.
+#
+# Two holes a review found by execution, both fixed here. The default arm used
+# to return OWNED for a file with no `SESSION:` header -- which is precisely
+# the shared, hand-written case the guard exists to protect, so any session in
+# the checkout could amend or retire the owner's own goal. And it read line 1
+# only, which stopped being the header line the moment CONSENT lines could sit
+# above it: a `CONSENT:` first line hid the check entirely, and the write went
+# through AND reordered somebody else's file.
+#
+# So: owned means this session's own write target, or a `SESSION:` header
+# naming this session, found past any CONSENT lines. An unheaded file is the
+# owner's -- read it, enforce it, never write it.
 owns_goal_file() { # path
-	local head_line
+	local line header=""
 	[ -f "$1" ] || return 1
-	head_line="$(head -1 "$1" 2>/dev/null)"
-	case "${head_line}" in
+	case "$1" in
+		"${goal_write}") return 0 ;;
+	esac
+	while IFS= read -r line; do
+		case "${line#"${line%%[![:space:]]*}"}" in
+			[Cc][Oo][Nn][Ss][Ee][Nn][Tt]:*) continue ;;
+		esac
+		header="${line}"
+		break
+	done <"$1"
+	case "${header}" in
 		SESSION:*)
-			head_line="${head_line#SESSION:}"
-			[ "${head_line# }" = "${session_id}" ]
+			header="${header#SESSION:}"
+			[ "${header# }" = "${session_id}" ]
 			;;
-		*) return 0 ;;
+		*) return 1 ;;
 	esac
 }
 

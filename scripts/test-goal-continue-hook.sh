@@ -222,6 +222,11 @@ check "DONE beneath a SESSION header allows the stop" allow "$(run "$(payload hd
 # they share these helpers and one tally.
 # shellcheck source=scripts/test-goal-continue-hook-cases.sh
 . "${repo_root}/scripts/test-goal-continue-hook-cases.sh"
+if [[ "${goal_hook_cases_loaded:-0}" == "1" ]]; then
+	ok "the sourced case file loaded"
+else
+	no "the sourced case file did NOT load -- most of this suite did not run"
+fi
 
 printf '\ngoal-continue hook mirror: %s passed, %s failed\n' "${passed}" "${failed}"
 [[ "${failed}" -eq 0 ]]

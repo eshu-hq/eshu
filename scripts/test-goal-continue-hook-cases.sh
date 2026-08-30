@@ -10,6 +10,12 @@
 #
 # This file is a trigger path for the agent-canon gate, so editing it alone
 # still selects the gate that runs it.
+#
+# The sentinel below is what makes the parent notice if this file stops being
+# sourced. Deleting the source line used to leave the suite reporting "26
+# passed, 0 failed" and exiting 0, with 47 assertions silently gone -- a
+# trigger path makes the gate RUN, it cannot make the gate FAIL.
+goal_hook_cases_loaded=1
 
 # ── 3. pre-granted consent ─────────────────────────────────────────────────
 #
@@ -376,4 +382,54 @@ if printf '%s' "${cerr}" | rg -q 'push, merge, deploy'; then
 	ok "honouring consent is announced on stderr with the acts"
 else
 	no "honouring consent is announced on stderr with the acts (got: ${cerr})"
+fi
+
+# ── 7. what round three proved wrong ───────────────────────────────────────
+
+# The progress detector was pinned to one JSON spelling. A serializer that ever
+# wrote `"type": "tool_use"` -- one space -- would silently restore the exact
+# behaviour the budget change exists to remove: an agent doing real work
+# released by exhaustion, with a green mirror and no stderr.
+: >"${tx}"
+spaced_blocks=0
+for _ in 1 2 3 4 5; do
+	printf '%s\n' '{"type": "assistant", "message": {"content": [{"type": "tool_use", "name": "Bash"}]}}' >>"${tx}"
+	printf '%s' "$(run "$(tx_payload spaced)")" | rg -q '"block"' && spaced_blocks=$((spaced_blocks + 1))
+done
+if [[ "${spaced_blocks}" -eq 5 ]]; then
+	ok "progress is detected whatever spacing the transcript uses"
+else
+	no "progress is detected whatever spacing the transcript uses (blocked ${spaced_blocks}/5)"
+fi
+
+# The counter path was built from the RAW session id while the goal path used
+# the sanitized one, so a session id with a slash made the counter write fail
+# and `|| exit 0` allowed the stop -- enforcement silently off, which is the
+# failure the sanitizing exists to prevent.
+printf 'A goal for a session with an awkward id.\n' >"${goal}"
+# Run-unique, not a literal: the counter is keyed on (session_id, prompt_id)
+# and lives in TMPDIR, so a hardcoded id passes three runs on a machine and
+# fails every run after -- the trap this suite already documents once.
+slash_out="$(SID="${sid}/awkward" CWD="${work}" python3 -c '
+import json, os
+print(json.dumps({"session_id": os.environ["SID"], "prompt_id": "slash",
+                  "stop_hook_active": False, "cwd": os.environ["CWD"],
+                  "hook_event_name": "Stop"}))
+' | CLAUDE_GOAL_FILE="${goal}" bash "${HOOK}" 2>/dev/null)"
+check "a session id containing a slash still blocks" block "${slash_out}"
+
+# A transcript that QUOTES the pattern -- an agent reading a transcript, or
+# this very diff -- must not earn progress credit. JSON escaping is what makes
+# that safe: the embedded copy serializes with backslashes and cannot match.
+# Pinned here because it is the property the whole heuristic rests on.
+: >"${tx}"
+quoted_blocks=0
+for _ in 1 2 3 4 5; do
+	printf '%s\n' '{"type":"user","message":{"content":[{"type":"tool_result","content":"the pattern is {\"type\":\"tool_use\"} in the file"}]}}' >>"${tx}"
+	printf '%s' "$(run "$(tx_payload quoted)")" | rg -q '"block"' && quoted_blocks=$((quoted_blocks + 1))
+done
+if [[ "${quoted_blocks}" -eq 3 ]]; then
+	ok "a transcript quoting the pattern earns no progress credit"
+else
+	no "a transcript quoting the pattern earns no progress credit (blocked ${quoted_blocks}/5)"
 fi

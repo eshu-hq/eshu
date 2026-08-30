@@ -230,8 +230,21 @@ the same.
 So the soft budget counts stops with **no tool calls since the previous
 nudge**, and real work resets it; a hard ceiling (`CLAUDE_GOAL_MAX_TOTAL`,
 default 20) still bounds the loop, so an agent making one token call per turn
-cannot spin forever. Progress is read from a stored byte offset rather than by
-re-reading the file — these transcripts run past 8MB. A missing or unreadable
+cannot spin forever. Progress is read from a stored byte offset, so the stops
+after the first in a message read only a tail — these transcripts run past 8MB.
+The first stop of each message still reads the whole file (159-172ms measured
+on a real 9.9MB one) and that read is behaviourally a no-op; seeding the offset
+from the file size instead would make work done before the first nudge
+invisible.
+
+The tool-call pattern tolerates whitespace, because pinning one JSON spelling
+meant a single added space would silently restore the old behaviour. It does
+*not* match a transcript that quotes the pattern — an agent reading a
+transcript, or this diff — because the embedded copy is JSON-escaped and cannot
+match. Checked across 346 transcripts and 505,064 rows, byte-pattern and
+structural JSON counting never disagreed. Two dependencies worth naming: the
+count would inflate if subagent turns ever landed in the parent transcript
+(none do today), and it reads a file format this repo does not own. A missing or unreadable
 transcript reports *no* progress, leaving the original three-stop bound in
 force: a progress signal that failed open would remove the bound entirely.
 
@@ -283,10 +296,20 @@ finishing retires only its own. `.claude/*` is already gitignored, so the files
 never reach a commit.
 
 The checkout-shared `.claude/active-goal` stays as the owner's hand-written
-form and is still read — but never *written* by the producer, and never
-retired or amended by a session whose id does not match its header. A session
-holding no goal of its own still resolves that shared file, and editing it from
-there would be one agent rewriting another's objective.
+form and is still read — but never *written* by the producer. `/goal done` and
+`/goal consent` only touch a file this session owns: its own write target, or a
+file whose `SESSION:` header names it. An **unheaded** file is the owner's, and
+no session amends or retires it — the first version of the guard treated
+unheaded as owned, which is backwards, and any session in the checkout could
+rewrite the owner's own goal. The header is also looked for past any `CONSENT:`
+lines, because reading line 1 alone let a `CONSENT:` line sit above the header
+and hide the check entirely.
+
+Nothing reaps these files. Every session that runs `/goal` leaves a
+`.claude/active-goal.<session_id>` behind holding its objective and any grants.
+They are gitignored so none of it reaches a commit, and a stale one is re-read
+only on a session-id collision — the ids are UUIDs — or if `CLAUDE_GOAL_FILE`
+names it. Deleting them is safe at any time.
 
 A `SESSION:` header binds a goal to the session that set it, so a goal cannot
 outlive its session and nag the next one about finished work. `/goal done`

@@ -253,7 +253,13 @@ esac
 # the last nudge, read from a stored byte offset rather than by re-reading the
 # file -- these run to 8MB.
 state_dir="${TMPDIR:-/tmp}"
-counter="${state_dir}/claude-goal-nudge-${session_id}-${prompt_id}"
+# sid_safe, not the raw id: the goal path was sanitized and this one was not,
+# so a session id containing a slash made the counter write fail and `|| exit 0`
+# ALLOWED the stop -- enforcement silently off, which is the exact failure the
+# sanitizing exists to prevent. prompt_id gets the same treatment for the same
+# reason.
+pid_safe="$(printf '%s' "${prompt_id}" | tr -c 'A-Za-z0-9._-' '-')"
+counter="${state_dir}/claude-goal-nudge-${sid_safe}-${pid_safe}"
 count=0
 total=0
 offset=0
@@ -270,6 +276,13 @@ fi
 # missing or unreadable reports no progress, which leaves the original
 # three-stop bound in force -- a progress signal that failed OPEN would remove
 # the bound entirely.
+#
+# The offset is per (session, prompt_id), so the FIRST stop of each user
+# message still reads the whole file -- measured at 159-172ms on a real 9.9MB
+# transcript -- and only the stops after it read a tail. That first read is
+# behaviourally a no-op (the count is already 0 on a fresh counter), so it buys
+# nothing; it is left alone because seeding the offset from the file size would
+# make work done BEFORE the first nudge of a message invisible to it.
 progress=0
 new_offset="${offset}"
 if [ -n "${transcript:-}" ] && [ "${transcript}" != "-" ] && [ -f "${transcript}" ]; then
@@ -277,7 +290,7 @@ if [ -n "${transcript:-}" ] && [ "${transcript}" != "-" ] && [ -f "${transcript}
 		read -r progress
 		read -r new_offset
 	} < <(TX="${transcript}" OFF="${offset}" python3 -c '
-import os, sys
+import os, re, sys
 path = os.environ["TX"]
 try:
     off = int(os.environ.get("OFF") or 0)
@@ -287,7 +300,11 @@ try:
     with open(path, "rb") as fh:
         fh.seek(off)
         tail = fh.read()
-    print(tail.count(b"\"type\":\"tool_use\""))
+    # Tolerate whitespace from the transcript writer. Pinning the exact
+    # compact spelling meant one space after a colon silently restored the
+    # pre-change behaviour: real work invisible, the agent released by
+    # exhaustion, the mirror still green.
+    print(len(re.findall(rb"\"type\"\s*:\s*\"tool_use\"", tail)))
     print(size)
 except Exception:
     print(0); print(os.environ.get("OFF") or 0)
