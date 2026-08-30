@@ -237,6 +237,14 @@ func TestClassifyRetryableGraphWriteGroupErrorKeepsNonIdempotentGroupsTerminal(t
 		// moves -- a concurrent writer flipping n.stale between the failed
 		// attempt and the replay puts a node in range the first attempt never
 		// saw. Bounded blast radius, same broken "removes the same set" premise.
+		// A second MATCH ... WHERE before the delete. whereClausePattern's
+		// non-greedy body runs to the first write clause, so it swallows the
+		// second pattern instead of yielding it separately -- the bare m.stale
+		// would otherwise ride along inside a body holding $repo_ids.
+		"retract whose second MATCH carries an unbounded WHERE": {
+			Operation: OperationCanonicalRetract,
+			Cypher:    "MATCH (n:Variable)\nWHERE n.repo_id IN $repo_ids\nMATCH (m:Other)\nWHERE m.stale\nDETACH DELETE n",
+		},
 		// No WHERE at all. boundParameterPattern sees $entity_ids and passes,
 		// but a $param somewhere in the cypher says nothing about what the
 		// match set is -- so this is refused rather than assumed bounded.
