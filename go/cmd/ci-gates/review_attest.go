@@ -284,7 +284,7 @@ func writeReviewAttestation(path string, receipt reviewAttestation) error {
 	raw = append(raw, '\n')
 	dir := filepath.Dir(path)
 	// #nosec G703 -- the local operator explicitly selects the receipt path;
-	// the directory and receipt remain local proof outside the repository.
+	// mode 0700 limits a newly created receipt directory to that operator.
 	if err := os.MkdirAll(dir, 0o700); err != nil {
 		return fmt.Errorf("create review receipt directory: %w", err)
 	}
