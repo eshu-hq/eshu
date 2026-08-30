@@ -11,6 +11,13 @@ Terragrunt configs, dependencies, inputs, local config asset paths, and
 Terragrunt `remote_state` blocks (including blocks inherited via the include
 chain), then returns the parser payload shape.
 
+Black-box coverage lives beside the implementation in external `hcl_test`
+files, and it reaches the code two ways. The Terraform block, backend, and
+modern-block tests go through the parent engine, importing
+`internal/parser` and `internal/parser/parsertest` to drive public dispatch.
+The Terragrunt tests import neither; they call this package's `Parse` directly
+with `shared.Options` and assert on the returned payload.
+
 ## HCL parse flow
 
 ```mermaid
@@ -53,7 +60,9 @@ The godoc contract is in `doc.go`. Current export:
 This package imports `internal/parser/shared` for shared parser options, source
 reading, base payload construction, bucket appends, and deterministic bucket
 sorting. It imports `internal/terraformschema` only for Terraform resource type
-classification. It must not import the parent `internal/parser` package.
+classification. No production file here may import the parent
+`internal/parser` package; the external `hcl_test` files may, which is how the
+relocated Terraform coverage drives the engine.
 
 ## Telemetry
 
