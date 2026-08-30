@@ -396,10 +396,6 @@ else
 	ok "a cwd-less /goal does not become the goal"
 fi
 
-# LAST line on purpose. Set at the top, this proved the file began loading; a
-# companion truncated mid-way still reported a clean pass with 40 cases gone.
-# Here it means the file ran to the end, which is what the parent asserts.
-goal_refresh_cases_loaded=1
 
 # The two write arms disagreed about the SAME situation: with no goal file
 # anywhere, the consent arm said "no goal file for this session" and the retire
@@ -466,3 +462,11 @@ if printf '%s' "${missing_consent}" | rg -qi 'set one with'; then
 else
 	no "a consent with nothing to attach to is still told to set a goal"
 fi
+
+# The LAST line of this file, and it must stay last: the parent asserts it, so
+# it means "this companion ran to the end". Set at the top it only meant "began
+# loading", and a truncated file still reported a clean pass. Then the move was
+# undone by appending cases BELOW it in the same commit, which put the residual
+# straight back -- so there is now a case asserting this assignment is the final
+# non-blank line. Append ABOVE it.
+goal_refresh_cases_loaded=1

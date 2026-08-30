@@ -454,7 +454,10 @@ printf 'SESSION: %s\nSESSION: is the header we document\nmore goal\n' "${sid}" >
 check "the same goal without a CONSENT line behaves identically" block \
 	"$(run "$(payload bodyheader2)")"
 
-# LAST line on purpose. Set at the top, this proved the file began loading; a
-# companion truncated mid-way still reported a clean pass with 40 cases gone.
-# Here it means the file ran to the end, which is what the parent asserts.
+# The LAST line of this file, and it must stay last: the parent asserts it, so
+# it means "this companion ran to the end". Set at the top it only meant "began
+# loading", and a truncated file still reported a clean pass. Then the move was
+# undone by appending cases BELOW it in the same commit, which put the residual
+# straight back -- so there is now a case asserting this assignment is the final
+# non-blank line. Append ABOVE it.
 goal_hook_cases_loaded=1
