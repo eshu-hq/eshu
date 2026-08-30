@@ -251,14 +251,25 @@ force: a progress signal that failed open would remove the bound entirely.
 
 When the budget is what allowed the stop, the hook now says so on stderr.
 
-Be plain about what this does not do: it moves release-by-exhaustion from three
-to twenty, it does not remove it. `total` increments on every refusal and never
-resets, so a session that keeps making real progress across one long user
-message is still released at the ceiling. That is deliberate — something has to
-bound the loop, and an unbounded soft budget would let one token tool call per
-turn spin forever — but a reader who assumes a working agent is never released
-by the budget would be wrong. Raise `CLAUDE_GOAL_MAX_TOTAL` for a genuinely
-long single-message run.
+Both counters reset on progress. An earlier version reset only the soft budget
+and let `CLAUDE_GOAL_MAX_TOTAL` increment unconditionally, which moved
+release-by-exhaustion from three to twenty rather than removing it: a session
+working steadily through one long user message was still handed back to the
+owner at the ceiling. That is the failure this hook exists to prevent, arriving
+later instead of never, so the ceiling resets too.
+
+What still bounds the loop is the soft budget: a stop with **no tool calls
+since the last nudge** spends one, and `CLAUDE_GOAL_MAX_NUDGES` of those
+release the turn. A genuinely stuck agent makes no tool calls and is released
+after three. The residual risk is an agent making one token tool call per turn
+forever — a deliberate trade, because being cut off mid-goal costs more than
+that risk does.
+
+When the budget does release a turn, the owner is about to be interrupted, so
+the hook says why on stderr and names the two escapes that would have avoided
+it. The last continuation warns as well, giving the agent one chance to write
+`DONE` or `BLOCKED: <reason>` itself. Most releases happen because an agent
+that is finished, or waiting, never says so — and the owner pays for that.
 
 ### The two hooks must decide alike
 

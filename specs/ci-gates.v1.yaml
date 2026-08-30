@@ -265,6 +265,9 @@ gates:
       # so it is a trigger path in its own right -- otherwise deleting a case
       # from it would not select the gate that runs it.
       - "scripts/test-goal-continue-hook-cases.sh"
+      # The Stop mirror's budget suite, split out when its sibling crossed the
+      # 500-line cap. Trigger path for the same reason as every companion.
+      - "scripts/test-goal-continue-hook-budget-cases.sh"
       - "scripts/test-goal-refresh-hook.sh"
       # Same reason as the Stop mirror's companion above: the refresh mirror's
       # later suites are sourced from their own file, which must select this

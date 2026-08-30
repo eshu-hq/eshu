@@ -361,19 +361,41 @@ except Exception:
 	case "${new_offset}" in ''|*[!0-9]*) new_offset="${offset}" ;; esac
 fi
 
-[ "${progress}" -gt 0 ] && count=0
+if [ "${progress}" -gt 0 ]; then
+	count=0
+	# The ceiling resets on progress too. It used to increment unconditionally,
+	# so a session working steadily through one long user message was still
+	# released at MAX_TOTAL -- release-by-exhaustion moved from 3 to 20 rather
+	# than removed. The owner's call, and the right one: being cut off mid-goal
+	# costs more than the residual risk, which is an agent making one token
+	# tool call per turn forever. A genuinely stuck agent makes no tool calls
+	# at all and is still released by the soft budget after MAX_NUDGES.
+	total=0
+fi
 
 if [ "${count}" -ge "${MAX_NUDGES}" ] || [ "${total}" -ge "${MAX_TOTAL}" ]; then
 	# Say why. On the live run this released a session mid-goal and read as a
 	# clean finish; nobody could tell the two apart afterwards.
-	printf 'goal-continue: stop allowed, continuation budget spent for this message (%s no-progress stops, %s total).\n' \
-		"${count}" "${total}" >&2
+	printf 'goal-continue: stop allowed after %s stops with no progress. The goal is still open and the owner is now the one who has to answer.\n' \
+		"${count}" >&2
+	printf 'goal-continue: if the work is finished, put DONE on the first line of %s. If it is waiting on something outside this machine, put BLOCKED: <reason> there instead. Either would have ended the turn cleanly without an interruption.\n' \
+		"${goal_file}" >&2
 	printf '%s %s %s' "${count}" "${total}" "${new_offset}" >"${counter}" 2>/dev/null || true
 	exit 0
 fi
 printf '%s %s %s' "$((count + 1))" "$((total + 1))" "${new_offset}" >"${counter}" 2>/dev/null || exit 0
 
 remaining="$((MAX_NUDGES - count - 1))"
+
+# On the last one, say so. An agent that knows this is its final continuation
+# can retire or block the goal itself; one that does not simply stops again and
+# the owner is interrupted for something the agent could have closed.
+final_warning=""
+if [ "${remaining}" -le 0 ]; then
+	final_warning="
+
+This is your LAST continuation for this message: the next stop will be allowed and the owner will have to answer. If the work is done, put DONE on the first line of ${goal_file}. If it is waiting on something outside this machine, put BLOCKED: <reason> there. Do not simply stop and leave it open."
+fi
 
 if [ -n "${dead_watcher:-}" ]; then
 	reason_head="Your goal file claims BLOCKED with WATCH=${dead_watcher}, but that watcher process is NOT running. Nothing will wake you, so waiting is not an option -- re-arm the watcher or do the work now."
@@ -433,7 +455,7 @@ Stop for real only when one of these is true, and say which:
   - the goal is met -- then put DONE on the first line of ${goal_file}${consent_bullet}
   - you are blocked on something no action of yours can clear -- name it exactly
 
-Continuations left for this message: ${remaining}."
+Continuations left for this message: ${remaining}.${final_warning}"
 
 printf '%s' "${reason}" | python3 -c '
 import json, sys
