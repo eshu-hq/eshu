@@ -32,6 +32,12 @@ func repositorySummarySelector(args map[string]any) (string, error) {
 }
 
 func repositoryRoute(toolName string, args map[string]any) (*route, bool, error) {
+	// Families extracted under #6058 answer first. Their tool names are
+	// disjoint from the arms below, so this keeps repositoryRoute's own
+	// position in resolveRoute and each family's resolution unchanged.
+	if route, ok := packageRegistryRoute(toolName, args); ok {
+		return route, true, nil
+	}
 	switch toolName {
 	case "list_indexed_repositories":
 		return &route{method: "GET", path: "/api/v0/repositories", query: paginationQuery(args, 100)}, true, nil
@@ -61,18 +67,6 @@ func repositoryRoute(toolName string, args map[string]any) (*route, bool, error)
 		return &route{method: "GET", path: "/api/v0/evidence/relationships/" + url.PathEscape(str(args, "resolved_id"))}, true, nil
 	case "list_admission_decisions":
 		return admissionDecisionsRoute(args), true, nil
-	case "list_package_registry_packages":
-		return packageRegistryPackagesRoute(args), true, nil
-	case "count_package_registry_packages":
-		return packageRegistryAggregateCountRoute(args), true, nil
-	case "get_package_registry_package_inventory":
-		return packageRegistryAggregateInventoryRoute(args), true, nil
-	case "list_package_registry_versions":
-		return packageRegistryVersionsRoute(args), true, nil
-	case "list_package_registry_dependencies":
-		return packageRegistryDependenciesRoute(args), true, nil
-	case "list_package_registry_correlations":
-		return packageRegistryCorrelationsRoute(args), true, nil
 	case "list_ci_cd_run_correlations":
 		return cicdRunCorrelationsRoute(args), true, nil
 	case "count_ci_cd_run_correlations":
