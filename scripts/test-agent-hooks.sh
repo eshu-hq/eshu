@@ -647,7 +647,7 @@ for companion_path in "$repo_root"/scripts/test-goal-*cases*.sh; do
       ;;
   esac
 done
-if [ "$companion_count" -ge 3 ]; then
+if [ "$companion_count" -ge 4 ]; then
   printf 'ok - the companion glob found %s files to check\n' "$companion_count"
   passed=$((passed + 1))
 else

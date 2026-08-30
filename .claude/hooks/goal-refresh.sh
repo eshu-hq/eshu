@@ -76,6 +76,39 @@ print(g("prompt"))
 have_cwd=1
 [ "${cwd:--}" = "-" ] && have_cwd=0
 
+# A RETIRED candidate must not shadow an active one. `/goal done` leaves a DONE
+# tombstone at the per-session path, and an existence-only lookup then selects
+# it ahead of a live checkout-shared goal forever -- the session goes
+# unenforced and unrefreshed with nothing saying so. Reported by codex against
+# the opened PR.
+#
+# Retired means: the first line that is neither blank nor a CONSENT: line is
+# DONE, or is a SESSION: header whose next such line is DONE. Same rule both
+# hooks apply to the file they finally select, applied one step earlier so the
+# lookup can pass over it.
+goal_file_retired() { # path
+	local line seen_header=0 head_line
+	[ -f "$1" ] || return 1
+	while IFS= read -r line; do
+		head_line="${line#"${line%%[![:space:]]*}"}"
+		case "${head_line}" in
+			[Cc][Oo][Nn][Ss][Ee][Nn][Tt]:*|'') continue ;;
+		esac
+		case "${head_line}" in
+			DONE*|done*) return 0 ;;
+			SESSION:*)
+				if [ "${seen_header}" -eq 0 ]; then
+					seen_header=1
+					continue
+				fi
+				return 1
+				;;
+			*) return 1 ;;
+		esac
+	done <"$1"
+	return 1
+}
+
 # The SAME ordered lookup the Stop hook uses. When these two disagree, a goal
 # is enforced from a path that is never refreshed -- a $HOME-scoped goal would
 # block turns while going stale, which is the worst of both halves.
@@ -108,6 +141,16 @@ for candidate in \
 		"-/.claude/"*) continue ;;
 	esac
 	if [ -f "${candidate}" ]; then
+		# A retired candidate is passed over, so an active one further down the
+		# list can be found -- but NOT an explicit CLAUDE_GOAL_FILE. The owner
+		# naming a file means that file; falling through from it to a different
+		# goal would be the override silently selecting something else. A
+		# retired override is honoured as retired, which the DONE checks below
+		# then act on.
+		if [ "${candidate}" != "${CLAUDE_GOAL_FILE:-}" ] &&
+			goal_file_retired "${candidate}"; then
+			continue
+		fi
 		goal_file="${candidate}"
 		break
 	fi
@@ -278,20 +321,60 @@ esac
 goal="$(cat "${goal_file}" 2>/dev/null)"
 [ -n "${goal}" ] || exit 0
 
+# The ORDER here is the contract, and it must match goal-continue.sh exactly:
+# DONE, then strip CONSENT, then SESSION, then DONE again beneath the header.
+#
+# It used to run DONE and SESSION on the RAW first line and strip CONSENT last,
+# inside the python below. Two PR reviewers, reading the diff cold, found what
+# that costs. A `CONSENT:` line above the header made the ownership check see a
+# consent line instead of a header, treat the file as unheaded, and inject
+# ANOTHER session's objective together with a grant that was never made to this
+# session. And a `SESSION:` header above a `DONE` meant the retirement was
+# never seen at all, so `/goal done` did not retire a goal for the refresher —
+# it went on restating a finished objective indefinitely.
+#
+# Both fall out of one asymmetry: the Stop hook was hardened for this file
+# format and its sibling, parsing the same format, was never checked for the
+# same shape. scripts/test-goal-refresh-hook-parity-cases.sh now runs every
+# layout against BOTH hooks and asserts they decide alike.
 first_line="$(printf '%s\n' "${goal}" | head -1)"
 case "${first_line}" in
 	DONE*|done*) exit 0 ;;
 esac
 
+# CONSENT lines are metadata, not the objective and not a header. They are held
+# aside for the restatement below and must not be able to stand in for either.
+goal_body=""
+while IFS= read -r goal_line; do
+	case "${goal_line#"${goal_line%%[![:space:]]*}"}" in
+		[Cc][Oo][Nn][Ss][Ee][Nn][Tt]:*) continue ;;
+	esac
+	goal_body="${goal_body}${goal_line}
+"
+done < <(printf '%s\n' "${goal}")
+goal_body="${goal_body%$'\n'}"
+[ -n "${goal_body}" ] || exit 0
+
 # A goal belongs to the session that set it. An unheaded file is the owner's
 # own hand-written goal and is honoured as-is.
-case "${first_line}" in
+header_line="$(printf '%s\n' "${goal_body}" | head -1)"
+case "${header_line}" in
 	SESSION:*)
-		owner="${first_line#SESSION:}"
+		owner="${header_line#SESSION:}"
 		owner="${owner# }"
 		[ "${owner}" = "${session_id}" ] || exit 0
-		goal="$(printf '%s\n' "${goal}" | tail -n +2)"
+		# Drop the header from the text the agent sees, from BOTH views: the
+		# body drives the DONE re-check, the full goal still carries the
+		# CONSENT lines the restatement needs.
+		goal_body="$(printf '%s\n' "${goal_body}" | tail -n +2)"
+		goal="$(printf '%s\n' "${goal}" | rg -v '^[[:space:]]*SESSION:' || true)"
 		;;
+esac
+[ -n "${goal_body}" ] || exit 0
+
+# DONE beneath the header, which the raw first-line check above cannot see.
+case "$(printf '%s\n' "${goal_body}" | head -1)" in
+	DONE*|done*) exit 0 ;;
 esac
 [ -n "${goal}" ] || exit 0
 

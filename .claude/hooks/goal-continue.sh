@@ -84,6 +84,39 @@ print(g("transcript_path"))
 
 [ "${session_id:--}" = "-" ] && exit 0
 
+# A RETIRED candidate must not shadow an active one. `/goal done` leaves a DONE
+# tombstone at the per-session path, and an existence-only lookup then selects
+# it ahead of a live checkout-shared goal forever -- the session goes
+# unenforced and unrefreshed with nothing saying so. Reported by codex against
+# the opened PR.
+#
+# Retired means: the first line that is neither blank nor a CONSENT: line is
+# DONE, or is a SESSION: header whose next such line is DONE. Same rule both
+# hooks apply to the file they finally select, applied one step earlier so the
+# lookup can pass over it.
+goal_file_retired() { # path
+	local line seen_header=0 head_line
+	[ -f "$1" ] || return 1
+	while IFS= read -r line; do
+		head_line="${line#"${line%%[![:space:]]*}"}"
+		case "${head_line}" in
+			[Cc][Oo][Nn][Ss][Ee][Nn][Tt]:*|'') continue ;;
+		esac
+		case "${head_line}" in
+			DONE*|done*) return 0 ;;
+			SESSION:*)
+				if [ "${seen_header}" -eq 0 ]; then
+					seen_header=1
+					continue
+				fi
+				return 1
+				;;
+			*) return 1 ;;
+		esac
+	done <"$1"
+	return 1
+}
+
 # Goal file: an explicit override, then this session's own goal in the worktree
 # it is in, then the worktree's shared goal, then a single per-user goal. The
 # worktree form is what makes concurrent agents in different worktrees able to
@@ -109,6 +142,16 @@ for candidate in \
 	"${HOME}/.claude/active-goal"; do
 	[ -n "${candidate}" ] || continue
 	if [ -f "${candidate}" ]; then
+		# A retired candidate is passed over, so an active one further down the
+		# list can be found -- but NOT an explicit CLAUDE_GOAL_FILE. The owner
+		# naming a file means that file; falling through from it to a different
+		# goal would be the override silently selecting something else. A
+		# retired override is honoured as retired, which the DONE checks below
+		# then act on.
+		if [ "${candidate}" != "${CLAUDE_GOAL_FILE:-}" ] &&
+			goal_file_retired "${candidate}"; then
+			continue
+		fi
 		goal_file="${candidate}"
 		break
 	fi

@@ -223,6 +223,8 @@ fi
 . "${repo_root}/scripts/test-goal-refresh-hook-cases.sh"
 # shellcheck source=scripts/test-goal-refresh-hook-guard-cases.sh
 . "${repo_root}/scripts/test-goal-refresh-hook-guard-cases.sh"
+# shellcheck source=scripts/test-goal-refresh-hook-parity-cases.sh
+. "${repo_root}/scripts/test-goal-refresh-hook-parity-cases.sh"
 if [[ "${goal_refresh_cases_loaded:-0}" == "1" ]]; then
 	ok "the sourced case file loaded"
 else
@@ -232,6 +234,11 @@ if [[ "${goal_refresh_guard_cases_loaded:-0}" == "1" ]]; then
 	ok "the sourced guard-case file loaded"
 else
 	no "the sourced guard-case file did NOT load -- most of this suite did not run"
+fi
+if [[ "${goal_refresh_parity_cases_loaded:-0}" == "1" ]]; then
+	ok "the sourced parity-case file loaded"
+else
+	no "the sourced parity-case file did NOT load -- the cross-hook matrix did not run"
 fi
 
 printf '\ngoal-refresh hook mirror: %s passed, %s failed\n' "${passed}" "${failed}"

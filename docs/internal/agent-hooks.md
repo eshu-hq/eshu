@@ -251,6 +251,45 @@ force: a progress signal that failed open would remove the bound entirely.
 
 When the budget is what allowed the stop, the hook now says so on stderr.
 
+Be plain about what this does not do: it moves release-by-exhaustion from three
+to twenty, it does not remove it. `total` increments on every refusal and never
+resets, so a session that keeps making real progress across one long user
+message is still released at the ceiling. That is deliberate — something has to
+bound the loop, and an unbounded soft budget would let one token tool call per
+turn spin forever — but a reader who assumes a working agent is never released
+by the budget would be wrong. Raise `CLAUDE_GOAL_MAX_TOTAL` for a genuinely
+long single-message run.
+
+### The two hooks must decide alike
+
+Both hooks parse the same goal file, and they must answer one question
+identically: does THIS session own an active, unfinished goal here, and what is
+its text. They emit different things — one injects context, the other refuses a
+stop — but the decision behind it is the same.
+
+They did not. `goal-continue.sh` was hardened for the `CONSENT:`-above-header
+layout; `goal-refresh.sh` checked ownership on the raw first line and stripped
+`CONSENT:` last. Two consequences, both found by reviewers reading the diff
+cold after eleven rounds of per-hook review had missed them:
+
+- a `CONSENT:` line above a foreign `SESSION:` header made the refresher treat
+  the file as unheaded, so it injected **another session's objective together
+  with a grant that was never made to this session**
+- a `SESSION:` header above a `DONE` meant the retirement was never seen, so
+  `/goal done` did not retire a goal for the refresher at all — it went on
+  restating a finished objective indefinitely
+
+The order is now the same in both: DONE, strip `CONSENT:`, `SESSION:`, then
+DONE again beneath the header. A retired file is also passed over during
+lookup, so a `DONE` tombstone at the per-session path cannot shadow an active
+checkout-shared goal — except when `CLAUDE_GOAL_FILE` names it, because the
+owner naming a file means that file.
+
+`scripts/test-goal-refresh-hook-parity-cases.sh` runs every layout against
+**both** hooks and asserts they agree. Testing each hook separately is what let
+this through: every case was green on each side while the two disagreed with
+each other.
+
 ### Probing this hook: use run-unique ids
 
 The nudge counter is keyed on `(session_id, prompt_id)` and lives in `TMPDIR`

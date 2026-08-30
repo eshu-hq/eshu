@@ -273,6 +273,11 @@ gates:
       # The refresh mirror needed a second companion when the first crossed the
       # 500-line cap; it is a trigger path for the same reason as its sibling.
       - "scripts/test-goal-refresh-hook-guard-cases.sh"
+      # The cross-hook parity matrix: both hooks parse the same goal-file
+      # format, and two PR reviewers found them disagreeing on check ORDER
+      # after eleven rounds of per-hook review. It is a trigger path so
+      # editing it alone selects the gate that runs it.
+      - "scripts/test-goal-refresh-hook-parity-cases.sh"
       # The workflow itself, so removing a test STEP selects the gate
       # that asserts the step is there. Without this a workflow-only
       # edit re-opens the local/CI parity gap silently.
