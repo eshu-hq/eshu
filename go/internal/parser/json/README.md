@@ -19,6 +19,13 @@ domain files so no single helper becomes a catch-all parser. This package does
 not own parser dispatch, repository discovery, fact persistence, graph
 projection, YAML decoding, or dbt SQL lineage parsing.
 
+Black-box coverage of the parent engine's JSON dispatch lives beside the
+implementation in the external `json_test` package (`json_language_test.go`).
+Those tests import the parent engine through `internal/parser/parsertest` and
+assert the payload contract callers actually see: document order, JSON
+metadata, replay fixture rows, and the Helm-directive preamble that
+`normalizeJSONSource` strips before decoding.
+
 ## Exported surface
 
 The godoc contract is in `doc.go`. Current exports are:
@@ -44,8 +51,10 @@ The godoc contract is in `doc.go`. Current exports are:
 
 This package imports `internal/parser/shared` for `Options`, `BasePayload`, and
 `ReadSource`. It imports `internal/parser/cloudformation` so JSON templates use
-the same CloudFormation and SAM extraction as YAML. It must not import
-`internal/parser`, collector, storage, query, projector, or reducer packages.
+the same CloudFormation and SAM extraction as YAML. Production files must not
+import `internal/parser`, collector, storage, query, projector, or reducer
+packages. External `json_test` files are the one exception: they may import the
+parent engine and `internal/parser/parsertest` to drive public Engine contracts.
 
 ## Telemetry
 
@@ -127,10 +136,10 @@ stay in their own `require`/`require-dev` rows so downstream code can
 present both the declared range and the installed version as joined
 evidence.
 
-dbt SQL lineage stays parent-owned. Do not import `internal/parser` from this
-package; add only narrow callback fields to `Config` when parent-owned behavior
-must be supplied. The parent wrapper converts the lineage result into the JSON
-package boundary type.
+dbt SQL lineage stays parent-owned. Production files here must not import
+`internal/parser`; add only narrow callback fields to `Config` when
+parent-owned behavior must be supplied. The parent wrapper converts the
+lineage result into the JSON package boundary type.
 
 CloudFormation and SAM documents return after template extraction so generic
 JSON dependency rows do not mix with infrastructure payload rows.

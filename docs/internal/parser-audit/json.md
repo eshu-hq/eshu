@@ -1,7 +1,7 @@
 # JSON Parser Audit
 
 ## Overview
-Parses JSON and JSONC configuration files using `encoding/json` with custom ordered-object and JSONC normalization. This is a **declarative data** parser — NOT a language parser. Decodes package.json, package-lock.json, composer.lock, NuGet packages.lock.json, SwiftPM Package.resolved, TypeScript configs (tsconfig), .jsonc config files, CloudFormation templates (delegated to cloudformation), dbt manifests, Pipfile.lock, and replay fixture documents. 14 src files, 8 test files. No regexp.MustCompile.
+Parses JSON and JSONC configuration files using `encoding/json` with custom ordered-object and JSONC normalization. This is a **declarative data** parser — NOT a language parser. Decodes package.json, package-lock.json, composer.lock, NuGet packages.lock.json, SwiftPM Package.resolved, TypeScript configs (tsconfig), .jsonc config files, CloudFormation templates (delegated to cloudformation), dbt manifests, Pipfile.lock, and replay fixture documents. 14 src files, 9 test files cited below. No regexp.MustCompile.
 
 ## Claimed Constructs
 From `doc.go`, `README.md`, `language.go`:
@@ -20,7 +20,7 @@ From `doc.go`, `README.md`, `language.go`:
 
 ## Verified-by-Test Constructs
 - `TestParsePackageJSONPreservesOrderedMetadataAndDependencyRows` (`parser_test.go:15`): ordered top-level keys, scripts as functions, dependencies/devDependencies as variables
-- `TestParsePackageLockJSONEmitsExactDependencyRows` (`parser_test.go:50`): lockfile v3 exact versions, optional/dev scope, dev_dependency flag
+- `TestParsePackageLockJSONEmitsExactDependencyRows` (`parser_test.go:90`): lockfile v3 exact versions, optional/dev scope, dev_dependency flag
 - `npm_scope_parity_test.go`: scoped npm packages preserved correctly
 - `composer_lock_test.go`: Composer lockfile exact versions
 - `swift_package_resolved_test.go`: SwiftPM lockfile dependency rows
@@ -28,13 +28,11 @@ From `doc.go`, `README.md`, `language.go`:
 - `dependency_coverage_test.go`: coverage matrix assertions
 - `dependency_coverage_emit_test.go`: coverage emit behavior
 - `dependency_coverage_fixtures_test.go`: fixture-driven coverage checks
-- Parent-level: 20 parent test files reference json parsing
+- `json_language_test.go`: external `json_test` coverage of parent-engine dispatch, replay fixtures, document order, and Helm-directive preambles
+- Parent-level: parent-package tests also reference json parsing
 
 ## Unverified / Claimed-but-Untested Constructs
-- **JSONC-specific normalization edge cases**: no dedicated JSONC test file
-- **dbt manifest lineage**: lineage extraction is tested via dbtsql tests and JSON dbt manifest tests (check `json_dbt_test.go` — file not found, likely `dbt_manifest_test.go` or similar)
 - **TypeScript config (tsconfig.json) path handling**: may be covered in `parser_test.go` beyond line 100 or in parent-level tests
-- **Replay fixtures**: data_intelligence.go extraction — may not have dedicated tests
 - **Empty JSON objects/arrays**: edge cases
 
 ## Edge Cases Considered
@@ -55,7 +53,7 @@ From `doc.go`, `README.md`, `language.go`:
 - workspace-aware package-lock.json (npm workspaces)
 
 ## Verdict
-**deep** — 8 internal test files plus 20 parent-level test files. Covers npm (package.json + package-lock.json), Composer, SwiftPM, Pipfile.lock, ordered keys, scoped packages, dependency coverage matrix. As a permanent exception using `encoding/json` (canonical), deep coverage is expected and delivered.
+**deep** — 9 test files cited here, plus parent-level test coverage. Covers npm (package.json + package-lock.json), Composer, SwiftPM, Pipfile.lock, ordered keys, scoped packages, dependency coverage matrix. As a permanent exception using `encoding/json` (canonical), deep coverage is expected and delivered.
 
 ## Recommended Actions
 - Document that JSON is a **permanent exception** — uses `encoding/json` with ordered-object decode, not tree-sitter

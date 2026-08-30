@@ -1,12 +1,15 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package parser
+package json_test
 
 import (
 	"path/filepath"
 	"reflect"
+	"runtime"
 	"testing"
+
+	"github.com/eshu-hq/eshu/go/internal/parser/parsertest"
 )
 
 func TestDefaultEngineParsePathJSONPreservesDocumentOrderForMetadataAndConfigBuckets(t *testing.T) {
@@ -14,7 +17,7 @@ func TestDefaultEngineParsePathJSONPreservesDocumentOrderForMetadataAndConfigBuc
 
 	repoRoot := t.TempDir()
 	filePath := filepath.Join(repoRoot, "package.json")
-	writeTestFile(
+	parsertest.WriteFile(
 		t,
 		filePath,
 		`{
@@ -32,15 +35,7 @@ func TestDefaultEngineParsePathJSONPreservesDocumentOrderForMetadataAndConfigBuc
 `,
 	)
 
-	engine, err := DefaultEngine()
-	if err != nil {
-		t.Fatalf("DefaultEngine() error = %v, want nil", err)
-	}
-
-	got, err := engine.ParsePath(repoRoot, filePath, false, Options{})
-	if err != nil {
-		t.Fatalf("ParsePath() error = %v, want nil", err)
-	}
+	got := parsertest.MustParsePath(t, repoRoot, filePath)
 
 	if got, want := jsonTopLevelKeys(t, got), []string{"zeta", "alpha", "scripts", "dependencies"}; !reflect.DeepEqual(got, want) {
 		t.Fatalf("json top-level keys = %#v, want %#v", got, want)
@@ -59,15 +54,7 @@ func TestDefaultEngineParsePathJSONWarehouseReplay(t *testing.T) {
 	filePath := repoFixturePath("ecosystems", "warehouse_replay_comprehensive", "warehouse_replay.json")
 	repoRoot := filepath.Dir(filePath)
 
-	engine, err := DefaultEngine()
-	if err != nil {
-		t.Fatalf("DefaultEngine() error = %v, want nil", err)
-	}
-
-	got, err := engine.ParsePath(repoRoot, filePath, false, Options{})
-	if err != nil {
-		t.Fatalf("ParsePath() error = %v, want nil", err)
-	}
+	got := parsertest.MustParsePath(t, repoRoot, filePath)
 
 	if got, want := bucketNames(t, got, "query_executions"), []string{"daily_revenue_build", "revenue_dashboard_lookup"}; !reflect.DeepEqual(got, want) {
 		t.Fatalf("query executions = %#v, want %#v", got, want)
@@ -82,15 +69,7 @@ func TestDefaultEngineParsePathJSONBIReplay(t *testing.T) {
 	filePath := repoFixturePath("ecosystems", "bi_replay_comprehensive", "bi_replay.json")
 	repoRoot := filepath.Dir(filePath)
 
-	engine, err := DefaultEngine()
-	if err != nil {
-		t.Fatalf("DefaultEngine() error = %v, want nil", err)
-	}
-
-	got, err := engine.ParsePath(repoRoot, filePath, false, Options{})
-	if err != nil {
-		t.Fatalf("ParsePath() error = %v, want nil", err)
-	}
+	got := parsertest.MustParsePath(t, repoRoot, filePath)
 
 	if got, want := bucketNames(t, got, "dashboard_assets"), []string{"Revenue Overview"}; !reflect.DeepEqual(got, want) {
 		t.Fatalf("dashboard assets = %#v, want %#v", got, want)
@@ -105,15 +84,7 @@ func TestDefaultEngineParsePathJSONSemanticReplay(t *testing.T) {
 	filePath := repoFixturePath("ecosystems", "semantic_replay_comprehensive", "semantic_replay.json")
 	repoRoot := filepath.Dir(filePath)
 
-	engine, err := DefaultEngine()
-	if err != nil {
-		t.Fatalf("DefaultEngine() error = %v, want nil", err)
-	}
-
-	got, err := engine.ParsePath(repoRoot, filePath, false, Options{})
-	if err != nil {
-		t.Fatalf("ParsePath() error = %v, want nil", err)
-	}
+	got := parsertest.MustParsePath(t, repoRoot, filePath)
 
 	if got, want := bucketNames(t, got, "data_assets"), []string{"semantic.finance.revenue_semantic"}; !reflect.DeepEqual(got, want) {
 		t.Fatalf("data assets = %#v, want %#v", got, want)
@@ -135,15 +106,7 @@ func TestDefaultEngineParsePathJSONQualityReplay(t *testing.T) {
 	filePath := repoFixturePath("ecosystems", "quality_replay_comprehensive", "quality_replay.json")
 	repoRoot := filepath.Dir(filePath)
 
-	engine, err := DefaultEngine()
-	if err != nil {
-		t.Fatalf("DefaultEngine() error = %v, want nil", err)
-	}
-
-	got, err := engine.ParsePath(repoRoot, filePath, false, Options{})
-	if err != nil {
-		t.Fatalf("ParsePath() error = %v, want nil", err)
-	}
+	got := parsertest.MustParsePath(t, repoRoot, filePath)
 
 	if got, want := bucketNames(t, got, "data_quality_checks"), []string{
 		"daily_revenue_freshness",
@@ -162,15 +125,7 @@ func TestDefaultEngineParsePathJSONGovernanceReplay(t *testing.T) {
 	filePath := repoFixturePath("ecosystems", "governance_replay_comprehensive", "governance_replay.json")
 	repoRoot := filepath.Dir(filePath)
 
-	engine, err := DefaultEngine()
-	if err != nil {
-		t.Fatalf("DefaultEngine() error = %v, want nil", err)
-	}
-
-	got, err := engine.ParsePath(repoRoot, filePath, false, Options{})
-	if err != nil {
-		t.Fatalf("ParsePath() error = %v, want nil", err)
-	}
+	got := parsertest.MustParsePath(t, repoRoot, filePath)
 
 	if got, want := bucketNames(t, got, "data_owners"), []string{"Finance Analytics"}; !reflect.DeepEqual(got, want) {
 		t.Fatalf("data owners = %#v, want %#v", got, want)
@@ -188,7 +143,7 @@ func TestDefaultEngineParsePathJSONStripsHelmDirectivePreamble(t *testing.T) {
 
 	repoRoot := t.TempDir()
 	filePath := filepath.Join(repoRoot, "base.json")
-	writeTestFile(
+	parsertest.WriteFile(
 		t,
 		filePath,
 		`{{- $env := required "env is required" .Values.env | trim -}}
@@ -204,15 +159,7 @@ func TestDefaultEngineParsePathJSONStripsHelmDirectivePreamble(t *testing.T) {
 `,
 	)
 
-	engine, err := DefaultEngine()
-	if err != nil {
-		t.Fatalf("DefaultEngine() error = %v, want nil", err)
-	}
-
-	got, err := engine.ParsePath(repoRoot, filePath, false, Options{})
-	if err != nil {
-		t.Fatalf("ParsePath() error = %v, want nil", err)
-	}
+	got := parsertest.MustParsePath(t, repoRoot, filePath)
 
 	if got, want := jsonTopLevelKeys(t, got), []string{"sample-service-api"}; !reflect.DeepEqual(got, want) {
 		t.Fatalf("json top-level keys = %#v, want %#v", got, want)
@@ -322,4 +269,17 @@ func assertGovernanceAnnotationPresent(t *testing.T, payload map[string]any, tar
 		}
 	}
 	t.Fatalf("missing protected governance annotation for %q in %#v", targetName, items)
+}
+
+// repoFixturePath resolves a path under the repository-wide tests/fixtures tree
+// from this test file's own location, so the JSON replay fixtures stay
+// reachable after the move out of the parent parser package.
+func repoFixturePath(pathParts ...string) string {
+	_, sourceFile, _, ok := runtime.Caller(0)
+	if !ok {
+		panic("runtime.Caller(0) failed")
+	}
+
+	fixtureParts := []string{filepath.Dir(sourceFile), "..", "..", "..", "..", "tests", "fixtures"}
+	return filepath.Join(append(fixtureParts, pathParts...)...)
 }
