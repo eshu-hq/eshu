@@ -357,13 +357,22 @@ func TestRetryingExecutorExecuteGroupRetriesOnCommitTimeUniqueConflict(t *testin
 	}
 }
 
-// TestRetryingExecutorExecuteGroupDoesNotRetryNonMergeStatements verifies the
-// retry path stays narrow: a group that mixes a non-MERGE statement with a
-// MERGE statement is NOT retried on commit-time UNIQUE violation, because
-// re-executing the non-MERGE statement is not idempotent. This guards
-// against the retry loop double-applying CREATE/DELETE/SET-only patterns
-// when a future writer adds a non-MERGE statement to a phase group.
-func TestRetryingExecutorExecuteGroupDoesNotRetryNonMergeStatements(t *testing.T) {
+// TestRetryingExecutorExecuteGroupDoesNotRetryNonIdempotentStatements verifies
+// the retry path stays narrow: a group that mixes a statement which does NOT
+// converge on re-execution with a MERGE statement is NOT retried on a
+// commit-time UNIQUE violation, because replaying that statement would
+// double-apply. This guards against the retry loop repeating CREATE or
+// accumulating-SET patterns when a future writer adds one to a phase group.
+//
+// #6176 narrowed what "not idempotent" means here. The gate used to be "every
+// statement contains MERGE", which also rejected a predicate-scoped retract
+// whose replay is a no-op; that turned the semantic writer's atomic
+// retract+upsert group into a dead-letter on the exact race the retry exists
+// to absorb. The gate is now convergence on replay, so the statement this test
+// mixes in has to be one that genuinely does not converge — a CREATE, not a
+// DELETE. TestClassifyRetryableGraphWriteGroupErrorRetriesIdempotentRetractWithMerge
+// pins the other side of that boundary.
+func TestRetryingExecutorExecuteGroupDoesNotRetryNonIdempotentStatements(t *testing.T) {
 	t.Parallel()
 
 	inner := &failingGroupExecutor{
@@ -380,15 +389,17 @@ func TestRetryingExecutorExecuteGroupDoesNotRetryNonMergeStatements(t *testing.T
 		BaseDelay:  1 * time.Millisecond,
 	}
 
-	// Mix MERGE with a non-MERGE statement; retry must NOT fire.
+	// Mix MERGE with a statement that does not converge on replay; retry must
+	// NOT fire. A second execution of this CREATE would add a second Audit
+	// node, which is exactly the double-apply the gate exists to prevent.
 	stmts := []Statement{
 		{
 			Operation: OperationCanonicalUpsert,
 			Cypher:    "UNWIND $rows AS row MERGE (r:TerraformResource {uid: row.uid})",
 		},
 		{
-			Operation: OperationCanonicalRetract,
-			Cypher:    "MATCH (d:Deleted {uid: $uid}) DETACH DELETE d",
+			Operation: OperationCanonicalUpsert,
+			Cypher:    "MATCH (r:TerraformResource {uid: $uid}) CREATE (a:Audit {uid: $audit_uid})",
 		},
 	}
 

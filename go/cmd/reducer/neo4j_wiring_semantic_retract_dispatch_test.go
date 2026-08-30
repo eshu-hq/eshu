@@ -15,8 +15,8 @@ import (
 
 // routeRecordingReducerExecutor is group-capable and records which dispatch
 // route — autocommit Execute vs grouped ExecuteGroup — each statement took, so
-// a factory-level test can assert the production wiring (not a manually-enabled
-// writer option) routes retract DELETEs correctly per backend.
+// a factory-level test can assert the production wiring routes retract DELETEs
+// correctly per backend.
 type routeRecordingReducerExecutor struct {
 	executeCyphers []string
 	groupCyphers   []string
@@ -43,16 +43,20 @@ func anyReducerCypherContains(cyphers []string, sub string) bool {
 	return false
 }
 
-// TestSemanticEntityWriterForGraphBackendNornicDBRoutesRetractThroughExecute
-// proves the FACTORY (semanticEntityWriterForGraphBackend), not a manually
-// enabled writer option, wires sequential retract for NornicDB: driven by a
-// group-capable executor, the Module DETACH DELETE retract routes through
-// autocommit Execute while upserts batch through ExecuteGroup. If the factory
-// dropped the WithSequentialRetract() call, the retract would route through
-// ExecuteGroup (grouped DELETEs under-apply on NornicDB v1.1.11) and this test
-// would fail — closing the gap left by the writer-level dispatch tests, which
-// enable the option directly.
-func TestSemanticEntityWriterForGraphBackendNornicDBRoutesRetractThroughExecute(t *testing.T) {
+// TestSemanticEntityWriterForGraphBackendNornicDBGroupsRetractWithUpserts
+// proves the FACTORY (semanticEntityWriterForGraphBackend) leaves the NornicDB
+// semantic retract inside the grouped, atomic transaction: driven by a
+// group-capable executor, the Module DETACH DELETE retract and the UNWIND
+// upserts both route through ExecuteGroup, with nothing on autocommit Execute.
+//
+// This inverts the #4367 assertion it replaces, deliberately. That one required
+// the retract on autocommit Execute because grouped DETACH DELETEs under-applied
+// on NornicDB v1.1.11 and silently left semantic nodes behind. #5323 measured
+// the grouped retract correct on 1.2.1 and 1.2.2, #6176 re-measured it on the
+// deployed 1.2.2 build, and the supported floor now sits above v1.1.11 — so
+// re-splitting the retract onto Execute would give up the atomic retract+upsert
+// rollback for a defect no supported backend has (#6176).
+func TestSemanticEntityWriterForGraphBackendNornicDBGroupsRetractWithUpserts(t *testing.T) {
 	t.Parallel()
 
 	exec := &routeRecordingReducerExecutor{}
@@ -66,11 +70,11 @@ func TestSemanticEntityWriterForGraphBackendNornicDBRoutesRetractThroughExecute(
 	}); err != nil {
 		t.Fatalf("WriteSemanticEntities() error = %v", err)
 	}
-	if !anyReducerCypherContains(exec.executeCyphers, "DETACH DELETE") {
-		t.Fatal("NornicDB factory: the Module DETACH DELETE retract did not route through autocommit Execute — the WithSequentialRetract() factory wiring is missing, so grouped-writes would send DELETEs through ExecuteGroup and under-apply")
+	if len(exec.executeCyphers) != 0 {
+		t.Fatalf("NornicDB factory: %d statement(s) routed through autocommit Execute, want 0 — retract and upsert must commit in one atomic ExecuteGroup", len(exec.executeCyphers))
 	}
-	if anyReducerCypherContains(exec.groupCyphers, "DETACH DELETE") {
-		t.Fatal("NornicDB factory: a DETACH DELETE routed through ExecuteGroup — grouped DELETEs under-apply on v1.1.11")
+	if !anyReducerCypherContains(exec.groupCyphers, "DETACH DELETE") {
+		t.Fatal("NornicDB factory: the Module DETACH DELETE retract must be inside the grouped transaction with the upserts")
 	}
 	if !anyReducerCypherContains(exec.groupCyphers, "UNWIND $rows AS row") {
 		t.Fatal("NornicDB factory: upserts must still batch through ExecuteGroup")

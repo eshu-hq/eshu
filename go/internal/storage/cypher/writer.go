@@ -14,6 +14,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"regexp"
 	"strings"
 
 	"github.com/eshu-hq/eshu/go/internal/graph"
@@ -77,6 +78,154 @@ type Statement struct {
 	// unbounded trailing DETACH DELETE clause (e.g. "f", "d", "n"). It is empty
 	// for bounded mixed-phase relationship retracts.
 	DrainVar string
+}
+
+// allStatementsAreReplaySafe returns true when re-executing every statement in
+// stmts, in order, converges on the same graph state as the attempt that
+// failed. That is the property the group retry actually needs: a NornicDB
+// commit failure rolls the whole transaction back rather than tearing it, so
+// the replay starts from the pre-group state and must be free to repeat every
+// statement. Empty groups return false because there is nothing to retry.
+//
+// Two statement shapes qualify. A MERGE-shaped statement converges by
+// definition. A predicate-scoped retract does too, but only when its
+// predicates are bounded BY the bound parameters rather than by their
+// complement: it then deletes or clears whatever matches a key space the
+// parameters enumerate, so a second run removes the same set (a no-op when the
+// first attempt committed nothing) and never creates or accumulates anything.
+// isIdempotentRetractStatement enforces that bound; a retract selecting a
+// parameter's complement (`n.generation_id <> $gen`, `NOT (n.path IN
+// $paths)`) or naming no parameter at all is refused, because a concurrent
+// writer can move rows INTO its match set between attempt and replay.
+//
+// Everything else keeps the group terminal — a CREATE duplicates on replay and
+// an accumulating SET double-applies, which is the safety the MERGE-only gate
+// used to buy by refusing every mixed group.
+//
+// #6176 is why the retract shape had to be named explicitly. The semantic
+// writer used to dispatch its retract outside the group, so the group reaching
+// this classifier was all-MERGE; folding retract and upsert into one atomic
+// transaction made it mixed, and a MERGE-only gate would have turned the
+// commit-time UNIQUE conflict that a concurrent canonical writer produces from
+// a retried, converging write into a dead-lettered work item.
+func allStatementsAreReplaySafe(stmts []Statement) bool {
+	if len(stmts) == 0 {
+		return false
+	}
+	for _, s := range stmts {
+		if isMergeShapedCypher(s.Cypher) {
+			continue
+		}
+		if isIdempotentRetractStatement(s) {
+			continue
+		}
+		return false
+	}
+	return true
+}
+
+// isMergeShapedCypher reports whether cypher contains a MERGE clause, the
+// original and still-primary replay-safety signal for a canonical upsert.
+func isMergeShapedCypher(cypher string) bool {
+	return strings.Contains(strings.ToUpper(cypher), "MERGE")
+}
+
+var (
+	// nonIdempotentClausePattern matches the clauses that stop a retract from
+	// being a plain delete-by-predicate. CREATE duplicates on replay and SET
+	// can accumulate; CALL and FOREACH hide writes this reasoning cannot see;
+	// and UNWIND marks the row-driven MATCH ... DELETE shape that no-ops
+	// inside a NornicDB managed transaction
+	// (docs/public/reference/nornicdb-pitfalls.md), which must never be
+	// replayed as though it had applied. MERGE is deliberately absent: a
+	// statement containing one is already replay-safe by the MERGE branch, so
+	// listing it here would be unreachable.
+	nonIdempotentClausePattern = regexp.MustCompile(`(?i)\b(CREATE|SET|UNWIND|CALL|FOREACH)\b`)
+	// retractClausePattern matches the clauses a retract uses to remove state:
+	// DELETE (with or without DETACH) for nodes and relationships, REMOVE for
+	// labels and properties.
+	retractClausePattern = regexp.MustCompile(`(?i)\b(DELETE|REMOVE)\b`)
+	// leadingMatchPattern anchors the statement on MATCH, so its predicates
+	// come from the graph plus bound parameters rather than from rows the
+	// group itself produced.
+	leadingMatchPattern = regexp.MustCompile(`(?i)^\s*MATCH\b`)
+	// relationshipArrowPattern matches the arrow tokens of a Cypher
+	// relationship pattern, stripped before the predicate scan below: the `<`
+	// and `>` in `-[rel]->` and `<-[e:MATCHES_STATE]-` are pattern syntax, not
+	// comparisons, and reading them as comparisons would fail-close every
+	// relationship retract in the repository.
+	relationshipArrowPattern = regexp.MustCompile(`<-\[[^\]]*\]-|-\[[^\]]*\]->|<--|-->|<-|->`)
+	// openEndedPredicatePattern matches the comparison forms selecting the
+	// COMPLEMENT of what the bound parameters name: `<>`, `!=`, the ordering
+	// operators, and any NOT (covering `NOT (n.path IN $paths)` and a bare
+	// `n.x IS NOT NULL`). Such a predicate has no fixed key space -- rows a
+	// concurrent writer commits outside the parameter values fall INTO range
+	// -- so its match set grows between a failed attempt and its replay.
+	openEndedPredicatePattern = regexp.MustCompile(`(?i)(<>|!=|<=|>=|<|>|\bNOT\b)`)
+	// boundParameterPattern matches a Cypher parameter reference. A retract
+	// that names none is scoped by graph state alone, which is the same
+	// unbounded-match-set problem in its most extreme form.
+	boundParameterPattern = regexp.MustCompile(`\$\w+`)
+)
+
+// isIdempotentRetractStatement reports whether stmt is a predicate-scoped
+// retract whose replay removes the same parameter-bound set. It requires all
+// four of: the statement declaring itself a retract through
+// OperationCanonicalRetract, Cypher that opens on MATCH, Cypher whose only
+// write clauses are DELETE or REMOVE, and predicates that are bounded by the
+// bound parameters rather than by their complement. The clause checks are
+// word-bounded so a property name such as n.offset cannot be read as a SET
+// clause and fail-close a legitimate retract.
+func isIdempotentRetractStatement(stmt Statement) bool {
+	if stmt.Operation != OperationCanonicalRetract {
+		return false
+	}
+	if !leadingMatchPattern.MatchString(stmt.Cypher) {
+		return false
+	}
+	if nonIdempotentClausePattern.MatchString(stmt.Cypher) {
+		return false
+	}
+	if !hasParameterBoundedPredicate(stmt.Cypher) {
+		return false
+	}
+	return retractClausePattern.MatchString(stmt.Cypher)
+}
+
+// hasParameterBoundedPredicate reports whether every comparison in cypher
+// narrows the match set to what the bound parameters name rather than to their
+// complement. It makes the "removes the same parameter-bound set" premise true
+// rather than merely stated.
+//
+// Positive membership -- `n.path IN $file_paths`, an inline `{id: $repo_id}`
+// map -- confines the delete to a key space the parameters enumerate, so the
+// replay sees the same candidates. A literal comparison does NOT count:
+// `n.kind = 'module'` reads a property a concurrent writer can move, which is
+// why everyConjunctIsBounded requires every AND/OR term to name a $param.
+//
+// An open-ended predicate inverts that. `p.generation_id <> $generation_id`
+// (canonicalNodeRetractParametersCypher) matches every generation EXCEPT this
+// writer's, so a Parameter a concurrent writer commits on a different
+// generation between the failed attempt and the replay is newly in range and
+// gets deleted -- a node the first attempt never saw. `NOT (d.path IN
+// $directory_paths)` and a parameterless `WHERE n.stale` are the same class.
+// Refusing them keeps the group terminal and sends the work item to dead-letter
+// redrive rather than silently deleting another writer's rows.
+//
+// Syntactic and fail-closed -- a statement with no WHERE at all is refused,
+// because a $param elsewhere in the cypher says nothing about the match set. It
+// proves a predicate is bounded, not that an unbounded one is unsafe. A refused
+// group loses a retry; accepting one whose set grows costs graph truth.
+func hasParameterBoundedPredicate(cypher string) bool {
+	if !boundParameterPattern.MatchString(cypher) {
+		return false
+	}
+	if openEndedPredicatePattern.MatchString(
+		relationshipArrowPattern.ReplaceAllString(cypher, " "),
+	) {
+		return false
+	}
+	return everyConjunctIsBounded(cypher)
 }
 
 // Plan is the deterministic source-local write plan for one materialization.

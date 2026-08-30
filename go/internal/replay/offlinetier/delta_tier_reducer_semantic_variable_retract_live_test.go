@@ -15,15 +15,15 @@
 // while a same-label Variable in another file survives — a genuine
 // create-then-delta-tombstone vehicle for the Variable label.
 //
-// The writer uses WithSequentialRetract (the NornicDB dispatch), so the delta
-// retract runs sequentially through Execute (one autocommit transaction per
-// DETACH DELETE, one per semantic label) instead of grouping through
-// ExecuteGroup. That is what this PR added for NornicDB: grouped-transaction
-// DETACH DELETEs under-apply on the pinned NornicDB v1.1.11 and silently leave
-// the Variable node. This test is the failing-then-green regression — it fails
-// (Variable survives gen2, count=1) when the grouped-writes NornicDB path
-// retracts through ExecuteGroup, and passes (count=0) with sequential retract.
-// Neo4j keeps the atomic grouped retract+upsert (default, no WithSequentialRetract).
+// The delta retract rides the same grouped transaction as the upserts, which is
+// what makes this the live proof for #6176. It was split onto autocommit
+// Execute for NornicDB (#4367) because grouped DETACH DELETEs under-applied on
+// v1.1.11 and silently left the Variable node behind; #5323 measured the
+// grouped route correct on 1.2.1 and 1.2.2 and #6176 removed the split, so this
+// test now exercises ExecuteGroup on both backends. The test asserts the
+// executor really implements cypher.GroupExecutor before writing: without that
+// check the writer would quietly take its per-statement fallback and a green
+// run would prove nothing about grouped dispatch.
 //
 // Skills active: golang-engineering, eshu-golden-corpus-rigor,
 // cypher-query-rigor, concurrency-deadlock-rigor.
@@ -79,14 +79,18 @@ func TestReducerSemanticVariableRetractGraphTruth(t *testing.T) {
 		t.Fatalf("seed files: %v", err)
 	}
 
+	// The grouped route is the thing under test, so fail loudly rather than
+	// letting WriteSemanticEntities fall back to its per-statement loop and
+	// report a vacuous pass.
+	if _, ok := any(exec).(cypher.GroupExecutor); !ok {
+		t.Fatalf("live executor %T does not implement cypher.GroupExecutor; the retract would take the per-statement fallback and this test would prove nothing about grouped dispatch", exec)
+	}
+
 	// Production semantic writer for the NornicDB path: canonical-node-rows mode
-	// + label-scoped retract + sequential retract, exactly as
-	// semanticEntityWriterForGraphBackend wires it for NornicDB (the
-	// WithSequentialRetract dispatch is what makes the grouped-DETACH-DELETE
-	// under-apply not bite).
+	// + label-scoped retract, exactly as semanticEntityWriterForGraphBackend
+	// wires it for NornicDB. Retract and upsert share one grouped transaction.
 	writer := cypher.NewSemanticEntityWriterWithCanonicalNodeRows(exec, 500).
-		WithLabelScopedRetract().
-		WithSequentialRetract()
+		WithLabelScopedRetract()
 
 	variableRow := func(uid, file string) reducer.SemanticEntityRow {
 		return reducer.SemanticEntityRow{

@@ -100,14 +100,50 @@ the winning commit should match the existing node.
 
 ### Eshu status
 
-Eshu handles this in `go/internal/storage/cypher/retrying_executor.go`.
+Eshu handles this in `go/internal/storage/cypher/retrying_executor.go`, with
+the group replay-safety predicates in `writer.go` beside the `Statement` type
+they reason about.
 `RetryingExecutor.Execute` retries commit-time unique conflicts for a
 MERGE-shaped statement, and `ExecuteGroup` does the same only when every
-statement in the group is MERGE-shaped. It also retries NornicDB's
+statement in the group converges on re-execution (`allStatementsAreReplaySafe`).
+It also retries NornicDB's
 `UNWIND MERGE chain relationship update failed: not found` snapshot conflict
-when the typed error code is `Neo.ClientError.Statement.SyntaxError`. Mixed
-groups are not retried because re-executing non-MERGE statements after partial
-success can be unsafe.
+when the typed error code is `Neo.ClientError.Statement.SyntaxError`.
+
+Two statement shapes converge. A MERGE-shaped statement does by definition. So
+does a predicate-scoped retract — `OperationCanonicalRetract` on Cypher that
+opens with `MATCH`, whose only write clauses are `DELETE` or `REMOVE`, and
+whose predicates are bounded by the bound parameters rather than by their
+complement — because deleting whatever currently matches a key space the
+parameters enumerate removes the same set on a second run. Anything else keeps
+the group terminal: re-executing a `CREATE` duplicates, an accumulating `SET`
+double-applies, and a row-driven `UNWIND ... MATCH ... DELETE` is the shape
+that no-ops inside a managed transaction (see the retract pitfall above), so it
+must never be replayed as though it had applied.
+
+An open-ended predicate keeps the group terminal for a different reason. A
+retract selecting the complement of a parameter — `n.generation_id <>
+$generation_id`, `NOT (n.path IN $paths)` — or naming no parameter at all has
+no fixed key space: rows a concurrent writer commits outside the parameter
+values fall INTO range. Its match set therefore grows between a failed attempt
+and its replay, and the replayed `DELETE` can remove rows the first attempt
+never saw, which is exactly the "removes the same set" premise the retract
+shape rests on. Those groups take dead-letter redrive instead. The check is
+syntactic and fail-closed: it proves a predicate is bounded, it does not prove
+an unbounded one is unsafe in a given deployment. A refused group loses a retry
+it might not have needed and costs time; accepting a predicate whose match set
+grows under concurrency costs graph truth.
+
+This gate is repo-wide. `allStatementsAreReplaySafe` sits on the shared
+`RetryingExecutor.ExecuteGroup` path, so it classifies every
+`OperationCanonicalRetract` emitter, not only the semantic writer whose #6176
+regrouping motivated it.
+
+That retract shape was added for #6176. The semantic writer used to dispatch
+its retract outside the group, so what reached the classifier was all-MERGE;
+folding retract and upsert into one atomic transaction made the group mixed,
+and a MERGE-only gate would have turned this very race into a dead-lettered
+work item instead of a retried, converging write.
 
 The retry classifier normally uses the typed Neo4j error code
 `Neo.ClientError.Transaction.TransactionCommitFailed` or
@@ -117,14 +153,16 @@ body. For the pinned backend's compatibility shape, it accepts
 the observed `commit failed: constraint violation` prefix and the complete
 UNIQUE-conflict body (`constraint violation`, `UNIQUE on`, and
 `already exists`). The caller must still prove the statement is MERGE-shaped;
-ordinary syntax errors and non-MERGE writes remain terminal. Untyped or wrapped
-errors keep the historical fallback for `failed to commit implicit transaction`
-and `commit failed: constraint violation` shapes.
+ordinary syntax errors and writes that do not converge on replay remain
+terminal. Untyped or wrapped errors keep the historical fallback for
+`failed to commit implicit transaction` and
+`commit failed: constraint violation` shapes.
 
 No-Regression Evidence: `go test ./internal/storage/cypher -run
-'RelationshipSnapshot|PlatformCommitUniqueConflict|TestRetryingExecutor(ClassifiesTypedNornicDBTransactionCommitFailedByCode|RetriesNornicDBMergeUniqueConflict|RetriesNornicDBMergeUniqueConflictV1045Format|ExecuteGroupRetriesOnCommitTimeUniqueConflict|ExecuteGroupDoesNotRetryNonMergeStatements)'
+'RelationshipSnapshot|PlatformCommitUniqueConflict|TestRetryingExecutor(ClassifiesTypedNornicDBTransactionCommitFailedByCode|RetriesNornicDBMergeUniqueConflict|RetriesNornicDBMergeUniqueConflictV1045Format|ExecuteGroupRetriesOnCommitTimeUniqueConflict|ExecuteGroupDoesNotRetryNonIdempotentStatements)|IdempotentRetract|NonIdempotentGroups|SemanticEntityWriterGroupedRetractConverges'
 -count=1` proves typed error-code classification, historical substring
-fallbacks, MERGE-only group retry, and mixed-group non-retry behavior.
+fallbacks, MERGE-only group retry, the #6176 idempotent-retract group retry,
+and non-convergent-group non-retry behavior.
 `scripts/verify_backend_conformance_live.sh` now runs
 `TestLiveNornicDBRetryConflictClassificationContract` and
 `TestLiveNornicDBRelationshipSnapshotConflictRetryContract` only in the
@@ -692,7 +730,14 @@ fresh, uncontaminated container and found NOT to be production bugs (details in
   `ExecuteGroup`, rewrite the batch shape from `UNWIND` to `WHERE ... IN`
   (`MATCH (f:File) WHERE f.path IN $file_paths MATCH (f)-[r:IMPORTS]->(:Module)
   DELETE r`), which was proven to delete correctly. The underlying backend
-  shapes are tracked upstream as #4902 and #5323.
+  shapes are tracked upstream as #4902 and #5323. One retract does route
+  through `ExecuteGroup`: the semantic entity retract, since #6176 removed the
+  sequential split it carried while v1.1.11 was supported. That is safe for two
+  independent reasons — its Cypher is already the `WHERE ... IN` shape rather
+  than the `UNWIND`-batched one, and the grouped `DETACH DELETE` under-apply it
+  used to work around is a v1.1.11 defect that does not reproduce on 1.2.1 or
+  1.2.2 (measured 20/20 in
+  `go/internal/storage/cypher/evidence-6176-semantic-retract-regrouped.md`).
 
 ### Validation
 

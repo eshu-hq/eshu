@@ -164,13 +164,31 @@ func TestBackendClosingMergeChainClassificationFailsClosedForNearMisses(t *testi
 		require.Same(t, err, WrapRetryableNeo4jError(err))
 	})
 
-	t.Run("missing start node in a non-MERGE group stays terminal", func(t *testing.T) {
+	// #6176 moved this boundary from "contains MERGE" to "converges on
+	// replay", so the group that must stay terminal is one holding a statement
+	// a second execution would double-apply. The predicate-scoped retract this
+	// subtest used to carry is now replay-safe and is asserted retryable in the
+	// following subtest; keeping it here would have pinned the old gate rather
+	// than the safety property behind it.
+	t.Run("missing start node in a non-idempotent group stays terminal", func(t *testing.T) {
 		t.Parallel()
 		err := newNeo4jError(nornicDBStatementSyntaxErrorCode,
 			"UNWIND MERGE chain relationship create failed: start node nornic:abc does not exist")
 		require.Empty(t, classifyRetryableGraphWriteGroupError(err, []Statement{{
-			Operation: OperationCanonicalRetract,
-			Cypher:    "MATCH (source:CloudResource)-[rel]->() WHERE rel.scope_id IN $scope_ids DELETE rel",
+			Operation: OperationCanonicalUpsert,
+			Cypher:    "MATCH (source:CloudResource {uid: $uid}) CREATE (a:Audit {uid: $audit_uid})",
 		}}))
+	})
+
+	t.Run("missing start node in an idempotent retract group is replayed", func(t *testing.T) {
+		t.Parallel()
+		err := newNeo4jError(nornicDBStatementSyntaxErrorCode,
+			"UNWIND MERGE chain relationship create failed: start node nornic:abc does not exist")
+		require.Equal(t, graphWriteRetryReasonWriteConflict,
+			classifyRetryableGraphWriteGroupError(err, []Statement{{
+				Operation: OperationCanonicalRetract,
+				Cypher:    "MATCH (source:CloudResource)-[rel]->() WHERE rel.scope_id IN $scope_ids DELETE rel",
+			}}),
+			"deleting the same predicate-bound edges twice removes the same set, so the replay is safe")
 	})
 }

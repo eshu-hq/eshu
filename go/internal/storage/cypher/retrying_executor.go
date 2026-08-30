@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"log/slog"
 	"math/rand/v2"
+	"regexp"
 	"strings"
 	"time"
 
@@ -283,12 +284,11 @@ func classifyRetryableGraphWriteError(err error, stmt Statement) string {
 }
 
 // classifyRetryableGraphWriteGroupError classifies a phase-group write failure
-// as retryable when EVERY statement in the group is MERGE-shaped (and
-// therefore idempotent on re-execution) AND the underlying error matches a
-// NornicDB relationship snapshot or commit-time UNIQUE conflict pattern. Mixed
-// groups containing non-MERGE statements are NOT retried — re-executing a
-// CREATE/DELETE/SET-only statement under partial-success conditions can
-// double-apply effects.
+// as retryable when EVERY statement in the group converges on re-execution
+// (see allStatementsAreReplaySafe) AND the underlying error matches a NornicDB
+// relationship snapshot or commit-time UNIQUE conflict pattern. Groups holding
+// a statement that does NOT converge — CREATE, an accumulating SET — are NOT
+// retried, because re-executing one can double-apply effects.
 //
 // Immediate driver-level transient errors (deadlocks, lock timeouts) remain
 // retryable regardless of statement shape because session.ExecuteWrite re-runs
@@ -309,7 +309,7 @@ func classifyRetryableGraphWriteGroupError(err error, stmts []Statement) string 
 	if err == nil {
 		return ""
 	}
-	if !allStatementsAreMerge(stmts) {
+	if !allStatementsAreReplaySafe(stmts) {
 		return ""
 	}
 	if isNornicDBRelationshipSnapshotConflict(err) {
@@ -319,21 +319,6 @@ func classifyRetryableGraphWriteGroupError(err error, stmts []Statement) string 
 		return graphWriteRetryReasonUniqueConflict
 	}
 	return ""
-}
-
-// allStatementsAreMerge returns true when every statement in stmts contains
-// MERGE in its Cypher source. Empty groups return false because there is
-// nothing safe to retry.
-func allStatementsAreMerge(stmts []Statement) bool {
-	if len(stmts) == 0 {
-		return false
-	}
-	for _, s := range stmts {
-		if !strings.Contains(strings.ToUpper(s.Cypher), "MERGE") {
-			return false
-		}
-	}
-	return true
 }
 
 func isNornicDBWriteConflict(msg string) bool {
@@ -469,6 +454,47 @@ func isNornicDBUniqueConflictBody(msg string) bool {
 	}
 	if !strings.Contains(msg, "already exists") {
 		return false
+	}
+	return true
+}
+
+var whereClausePattern = regexp.MustCompile(`(?is)\bWHERE\b(.*?)(?:\bDETACH\s+DELETE\b|\bDELETE\b|\bREMOVE\b|\bRETURN\b|\z)`)
+
+// predicateSeparatorPattern splits a WHERE body into terms. OR as well as AND,
+// because an OR term WIDENS the set and would otherwise pass as one term
+// holding a $param. MATCH and WHERE too: whereClausePattern's non-greedy body
+// runs to the first write clause and so SWALLOWS a second `MATCH ... WHERE`,
+// and splitting makes that second predicate its own term.
+var predicateSeparatorPattern = regexp.MustCompile(`(?i)\b(AND|OR|MATCH|WHERE)\b`)
+
+// everyConjunctIsBounded requires every term of every WHERE to name a parameter.
+//
+// A predicate can name a parameter and still read mutable graph state:
+// `WHERE n.repo_id IN $repo_ids AND n.stale` passes the membership and
+// open-ended checks in hasParameterBoundedPredicate. The delete stays inside the
+// key space $repo_ids enumerates -- smaller blast radius than the complement
+// case -- but within it the set still moves: a concurrent writer flipping
+// n.stale between the failed attempt and the replay puts a node in range the
+// first attempt never saw. Same broken premise.
+//
+// A literal comparison is NOT bounding: `n.stale = true` reads the same mutable
+// property as the bare `n.stale`. Only a $param names a value the caller fixed
+// for the statement. Every retract here today is a conjunction of bound terms.
+func everyConjunctIsBounded(cypher string) bool {
+	clauses := whereClausePattern.FindAllStringSubmatch(cypher, -1)
+	if len(clauses) == 0 {
+		// No WHERE to verify: a $param elsewhere says nothing about the set.
+		return false
+	}
+	for _, where := range clauses {
+		for _, term := range predicateSeparatorPattern.Split(where[1], -1) {
+			if strings.TrimSpace(term) == "" {
+				continue
+			}
+			if !strings.Contains(term, "$") {
+				return false
+			}
+		}
 	}
 	return true
 }

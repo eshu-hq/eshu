@@ -76,12 +76,31 @@
   and `EdgeWriter`.
 - **No direct driver calls in this package** — the concrete Neo4j and NornicDB
   driver sessions live in `cmd/` wiring. This package only defines contracts.
-- **RetryingExecutor.ExecuteGroup retries on MERGE-shaped groups** — both
+- **RetryingExecutor.ExecuteGroup retries on replay-safe groups** — both
   `Execute` and `ExecuteGroup` run through `runWithRetry` with the same
   exponential-backoff cadence. `ExecuteGroup` retries on commit-time UNIQUE
-  conflicts only when every statement in the group contains MERGE
-  (`allStatementsAreMerge`); mixed groups containing non-MERGE statements
-  are NOT retried, preserving idempotency safety. Driver-level
+  conflicts only when every statement in the group converges on re-execution
+  (`allStatementsAreReplaySafe`, in `writer.go` beside the `Statement` type it
+  reasons about). Two shapes qualify: a statement containing
+  MERGE, and a predicate-scoped retract — `OperationCanonicalRetract` on Cypher
+  that opens with `MATCH`, whose only write clauses are `DELETE` or `REMOVE`,
+  and whose predicates are bounded by the bound parameters rather than by their
+  complement, so a second run removes the same parameter-bound set. Anything
+  else keeps the group terminal: a `CREATE` duplicates on replay, an
+  accumulating `SET` double-applies, and a row-driven
+  `UNWIND ... MATCH ... DELETE` is the shape that no-ops inside a NornicDB
+  managed transaction. So does an open-ended predicate — `n.generation_id <>
+  $generation_id`, `NOT (n.path IN $paths)`, or a `WHERE` naming no parameter —
+  because a concurrent writer can move rows INTO that match set between the
+  failed attempt and the replay, and the replayed `DELETE` would remove rows
+  the first attempt never saw. This gate is repo-wide: it sits on the shared
+  `RetryingExecutor.ExecuteGroup` path and classifies every
+  `OperationCanonicalRetract` emitter, not only the semantic writer. The
+  retract shape was
+  added for #6176, when `SemanticEntityWriter` stopped dispatching its retract
+  outside the group: a MERGE-only gate would have made the writer's own atomic
+  retract+upsert group unretryable and dead-lettered the concurrent-MERGE race
+  the retry exists to absorb. Driver-level
   `session.ExecuteWrite` retries handle Neo.TransientError.* codes; the Eshu
   retry loop additionally handles driver `ConnectivityError` only when the
   driver classifies it as retryable. A `ConnectivityError` wrapping
@@ -372,9 +391,20 @@ graph-write route surface.
   not implement `GroupExecutor`; writes are sequential; investigate whether
   the wired executor is missing `ExecuteGroup`.
 
-- Symptom: NornicDB MERGE unique constraint violation not retried → check
-  `isNornicDBMergeUniqueConflict` in `retrying_executor.go:129`; the cypher
-  string must contain MERGE and the error must match the expected message shape.
+- Symptom: NornicDB MERGE unique constraint violation not retried, SINGLE
+  statement (`Execute`) → check `isNornicDBMergeUniqueConflict` in
+  `retrying_executor.go`; the cypher string must contain MERGE and the error
+  must match the expected message shape.
+- Symptom: the same violation not retried for a GROUP (`ExecuteGroup`) → that
+  path does NOT require MERGE. `classifyRetryableGraphWriteGroupError` retries
+  when `allStatementsAreReplaySafe`, which admits an idempotent retract with no
+  MERGE in it. A group stays terminal when any statement fails
+  `isIdempotentRetractStatement` — it is not a canonical retract, it does not
+  open on MATCH, it writes through something other than DELETE/REMOVE, or its
+  WHERE has a term that names no `$param`. That last one is the common
+  surprise: `n.stale`, `n.stale = true`, `... OR n.stale`, and
+  `generation_id <> $generation_id` are all refused, because a replay would not
+  remove the same set. Check `everyConjunctIsBounded` for the exact rule.
 
 ## Anti-patterns
 

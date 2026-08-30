@@ -298,8 +298,7 @@ func semanticEntityWriterForGraphBackend(
 		// labels. That avoids repeated relationship-existence checks as the graph
 		// grows while still preserving Module's semantic-owned uid nodes.
 		writer = sourcecypher.NewSemanticEntityWriterWithCanonicalNodeRows(executor, batchSize).
-			WithLabelScopedRetract().
-			WithSequentialRetract()
+			WithLabelScopedRetract()
 		labelBatchSizes, err := nornicDBSemanticEntityLabelBatchSizes(getenv, effectiveNeo4jBatchSize(batchSize))
 		if err != nil {
 			return nil, err

@@ -334,7 +334,7 @@ export ESHU_TIER2_V25_GEN2_CLAIMS=true
 #
 # ingester stays in the running set: the canonical writer's commit-time
 # UNIQUE-on-MERGE retry path (RetryingExecutor.ExecuteGroup classifying
-# isNornicDBCommitTimeUniqueConflict + allStatementsAreMerge as retryable,
+# isNornicDBCommitTimeUniqueConflict + allStatementsAreReplaySafe as retryable,
 # go/internal/storage/cypher/retrying_executor.go) absorbs concurrent
 # writers on the same File.[path] uid without serializing here. Per the
 # project rule "Serialization Is Not A Fix" (CLAUDE.md / AGENTS.md), a
