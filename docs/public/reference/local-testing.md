@@ -27,14 +27,15 @@ Use this fixed promotion order before opening or updating a PR:
 3. Once the preliminary verdict is `P0=0, P1=0, P2-blocking=0` — every
    deferred P2 tracked in a linked issue with the owner's agreement quoted in
    the PR and named there with its severity-table category, per
-   `.agents/skills/eshu-code-review/references/merge-bar.md` — and the branch is
-   otherwise ready to push, run `make pre-pr` exactly once as the late promotion
-   gate. Use `make pre-pr-full` here instead when the risk tier requires the
-   whole-module race lane.
-4. Capture a `ci-gates review-attest` receipt with the clean preliminary review,
-   then verify it after preflight. A matching receipt replaces the second full
-   semantic review because every reviewed input is unchanged. If verification
-   fails, repeat the affected proof and full review. Make no edits before push.
+   `.agents/skills/eshu-code-review/references/merge-bar.md` — capture a
+   `ci-gates review-attest` receipt with the clean preliminary review and exact
+   proposed PR claims.
+4. With the branch otherwise ready to push, run `make pre-pr` exactly once as
+   the late promotion gate. Use `make pre-pr-full` instead when the risk tier
+   requires the whole-module race lane, then verify the review receipt. A
+   matching receipt replaces the second full semantic review because every
+   reviewed input is unchanged. If verification fails, repeat the affected
+   proof and full review. Make no edits before push.
 
 `make pre-pr` is the blocking local promotion path for credential-free CI
 gates. It catches format, exactness, race, contract, docs, and Go security
