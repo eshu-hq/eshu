@@ -50,6 +50,9 @@ func repositoryRoute(toolName string, args map[string]any) (*route, bool, error)
 	if route, ok := observabilityCoverageRoute(toolName, args); ok {
 		return route, true, nil
 	}
+	if route, ok := containerImageRoute(toolName, args); ok {
+		return route, true, nil
+	}
 	switch toolName {
 	case "list_indexed_repositories":
 		return &route{method: "GET", path: "/api/v0/repositories", query: paginationQuery(args, 100)}, true, nil
@@ -83,14 +86,6 @@ func repositoryRoute(toolName string, args map[string]any) (*route, bool, error)
 		return serviceCatalogCorrelationsRoute(args), true, nil
 	case "list_kubernetes_correlations":
 		return kubernetesCorrelationsRoute(args), true, nil
-	case "list_container_image_identities":
-		return containerImageIdentitiesRoute(args), true, nil
-	case "list_container_image_tag_history":
-		return containerImageTagHistoryRoute(args), true, nil
-	case "count_container_image_identities":
-		return containerImageIdentityAggregateCountRoute(args), true, nil
-	case "get_container_image_identity_inventory":
-		return containerImageIdentityAggregateInventoryRoute(args), true, nil
 	case "list_advisory_evidence":
 		return advisoryEvidenceRoute(args), true, nil
 	case "get_vulnerability_scanner_read_contract":
