@@ -179,6 +179,64 @@ Two consequences worth knowing before the remaining children:
   gone and the replacement is 66, and dirgate's ratchet means any later
   extraction has to re-pin it lower.
 
+No-Regression Evidence: the reducer factwrite hoist (#6061 PR4) moves the
+batched fact-write path and extracts the Execer port, with no logic change. The
+two batch-insert files move whole by `git mv`. batch_insert_versioned.go is
+rename-only: capitalizing the exported identifiers is its only edit.
+batch_insert.go also gained new godoc — on `BatchInsertSource` (:118-129),
+`BatchInsertConflict` (:185-187), `BatchInsertQuery` (:206-207), `ChunkArgs`
+(:332-336), and a rewritten opening on `BatchInsertPrefix` (:12) — so the only
+STATEMENT edits, not body edits, are capitalizing the exported identifiers.
+The statement fragments, the ON CONFLICT target, the chunk size, and the
+last-write-wins deduplication by fact ID are byte-identical, which matters more
+here than anywhere else in this stack:
+deduplication is a correctness requirement, not a tuning knob, because two rows
+sharing a fact ID in one batch collide on the conflict target and fail the whole
+chunk. `git diff --name-only <base>..HEAD -- testdata/ specs/` is empty, so the
+golden-corpus recordings and the end-to-end snapshot cannot move. Backend and
+version unchanged (NornicDB plus Postgres, default local profile); input shape
+unchanged; terminal queue and row counts unchanged, because no queue, lease, or
+transaction-scope behavior is touched.
+
+Codegen: measured, not assumed, because PR1 established that a forwarder can
+cost a CALLER its inlinability by raising it past Go's budget of 80. A net
+count cannot find a named regression, so the set difference is what follows.
+`go build -a -gcflags=-m ./internal/reducer`, counting `inlining call to` on
+go1.27.0, reports 14322 sites on this PR's base (the factload head) and 14337
+here: up 15. The head measurement EXCLUDES factwrite itself — this narrow,
+non-recursive `-gcflags=-m ./internal/reducer` never covers a subpackage on
+either ref — so it says nothing about factwrite's own inlining, only about
+the reducer root's.
+
+The `can inline` set (`sed -nE 's/.*: can inline //p' | sort -u`) confirms no
+caller lost inlinability. 4 names leave the root's set: the two
+`dedupeReducerFactRowsByFactID` generic instantiations and two closures
+(`reducerBatchInsertFacts.func1`, `reducerBatchInsertVersionedFacts.func1`)
+that lived inside the old, now-moved function bodies. All four are
+definitions that moved, not calls that regressed; the closures disappear
+because the root functions that contained them are now one-line forwarders
+with no inner closure of their own. 6 names join it: the same
+`dedupeReducerFactRowsByFactID` generic function reappears twice — both
+instantiated at `factwrite.Row` (`reducer_fact_write_compat.go:65`), once
+reported under its named type and once under its gcshape form, now that
+`reducerFactRow` is an alias to `factwrite.Row` rather than a locally declared
+type — plus the four new compat forwarders
+(`reducerBatchInsertFacts`, `reducerBatchInsertVersionedFacts`,
+`execReducerFactChunk`, `reducerFactChunkArgs`), which are now inlinable
+one-liners. Every entry on both sides is accounted for by the move itself;
+none is an unrelated caller. The only negative call-site deltas are
+`fmt.Errorf` (933 -> 931) and `errors.New` (1013 -> 1011), both by 2, matching
+the two `fmt.Errorf` wrapper calls that left the root's own body when
+`ExecChunk` and `execVersionedChunk` moved with their statements. No
+regression.
+
+No-Observability-Change: no metric, span, log field, status field, or runtime
+setting is added, removed, or renamed. The batch statements stay covered by
+`eshu_dp_postgres_query_duration_seconds` and the owning pass by
+`eshu_dp_reducer_executions_total` and `eshu_dp_reducer_run_duration_seconds`.
+One telemetry-coverage row named a moved file and is repointed rather than
+duplicated; two further rows are added for the new files that had none.
+
 No-Regression Evidence: the reducer factload hoist (#6061 PR3) moves the scoped
 fact loader and extracts the FactLoader port, with no logic change. The loader
 file moves whole by `git mv`; the only body edits are capitalizing the exported

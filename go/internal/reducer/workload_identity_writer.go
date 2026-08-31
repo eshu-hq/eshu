@@ -5,7 +5,6 @@ package reducer
 
 import (
 	"context"
-	"database/sql"
 	"encoding/json"
 	"fmt"
 	"strings"
@@ -50,10 +49,6 @@ ON CONFLICT (fact_id) DO UPDATE SET
 `
 
 const workloadIdentityFactKind = "reducer_workload_identity"
-
-type workloadIdentityExecer interface {
-	ExecContext(context.Context, string, ...any) (sql.Result, error)
-}
 
 // PostgresWorkloadIdentityWriter persists one workload-identity reducer
 // reconciliation into the shared fact store.

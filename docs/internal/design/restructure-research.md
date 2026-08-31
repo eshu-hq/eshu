@@ -457,6 +457,8 @@ that boundary exists.
 
 **Move order:** 1) Do nothing to the shared-core file group (domain.go, intent.go, registry.go, registry_additive_domains.go, defaults\*.go including defaults_additive_domains\*.go, cross_scope_dependencies.go, runtime.go, service.go, reducer_fact_batch_insert\*.go, materialized_edge_families.go, doc.go/README.md/AGENTS.md) and the shared_projection\*.go harness (26 files) — these stay in the reducer package root permanently; every subpackage will import root, root imports nothing family-specific. 2) Extract the verified-clean, zero-inbound-coupling families first, in ascending risk order: iam_can_perform, secrets_iam_trust, secrets_iam_graph, sbom_attestation_attachment, aws_cloud_runtime, terraform_config_sta  […truncated at source]
 
+> **Correction, landed with #6061.** `reducer_fact_batch_insert*.go` did not stay in the root — it moved into `internal/reducer/factwrite`. See the correction note at the end of this file.
+
 **Hazards:** CI path filters with hardcoded per-file (not glob) triggers — these go dark silently if the named file moves without updating both the generator source and the regenerated workflow: specs/ci-gates.v1.yaml:1957-1961 and .github/workflows/static-contract-gates.yml:190-194 (materialized_edge_families.go, shared_projection.go, sql_relationship_materialization.go, sql_relationship_embedded_query.go, sql_relationship_metadata.go); specs/ci-gates.v1.yaml:2106 and static-contract-gates.yml:214 (intent.go); specs/ci-gates.v1.yaml:1991-1993,1997-1998 and .github/workflows/ifa-determinism-gate.yml:30-32,68-69 (gcp_resource_materialization.go, gcp_resource_materialization_teeth.go, gcp_resource_materialization_teeth_off.go, sql_relationship_materialization.go, sql_relationship_embedded_query.go). specs/ci-gates.v1.yaml is the generator source for .github/workflows/\*.yml (per this repo's generator-script-discipline convention); a file move must be reflected in both or the gate is regenerated stale. Broader glob triggers (go/internal/reducer/\*\*) in reducer-contention-gate.yml:27, race-graph-writes.yml:10,24, verify-replay-tier.yml:24, golden-corpus-gate.yml:18, payload-usage-manifest.yml:12, static-contract-gates.yml:189, ifa-determinism-gate.yml, specs/ci-gates.v1.yaml:463,749,913,936,1697,2384,2439 will keep matching regardless of subdirectory depth and need no change. Hardcoded script paths (live defaults, not just comments): scripts/verify-edge-source-tool-coverage.sh:38 defaults ESHU_  […truncated at source]
 
 **Families:**
@@ -495,3 +497,10 @@ that boundary exists.
   one subpackage per cloud resource family (awsrelationship, azurerelationship, gcprelationship, ec2identity, s3exposure, rdsposture, k8scorrelation, ...) or a shared cloudposture/ parent <- aws_relationship_materialization / azure_relationship_materi [~60 files across ~15 small per-cloud-res] clean
   not assessed individually — apply the same measure-before-move discipline per cluster <- long tail (~350+ prefix clusters of 1-4 files each) [~600 files not itemized above] tangled
 ```
+
+**Correction, landed with #6061.** The "stays in the reducer package root
+permanently" (Move order) and "not domain-specific" (Families,
+`reducer_fact_batch` row) characterization of `reducer_fact_batch_insert.go`
+and `reducer_fact_batch_insert_versioned.go` does not hold: both files moved
+into `go/internal/reducer/factwrite` (#6061 PR4), leaving type aliases and
+forwarders behind in `reducer_fact_write_compat.go`.

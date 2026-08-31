@@ -467,7 +467,10 @@ kind and belongs to the family that owns that kind.
 
 Reading the facts for one scope generation, and classifying whether a failed
 read should retry, belong in `factload`. Per-domain fact-kind filtering on top
-of that read stays with the calling family.
+of that read stays with the calling family. A batched fact write — the row
+shape, the statement fragments, chunking, and last-write-wins deduplication by
+fact ID — belongs in `factwrite`; a domain's own admission or classification
+logic stays with the family even when it calls into `factwrite` to publish.
 
 ## Related docs
 
@@ -482,6 +485,7 @@ of that read stays with the calling family.
 - `go/internal/reducer/payloadcore/README.md`
 - `go/internal/reducer/factdecode/README.md`
 - `go/internal/reducer/factload/README.md`
+- `go/internal/reducer/factwrite/README.md`
 - `go/internal/reducer/dsl/README.md`
 - `go/internal/reducer/tags/README.md`
 - `go/internal/reducer/tfstate/README.md`
