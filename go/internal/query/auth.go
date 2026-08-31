@@ -57,8 +57,11 @@ type AuthMode = queryauth.AuthMode
 
 // Compatibility constants preserve this package's public contract.
 const (
-	AuthModeShared         = queryauth.AuthModeShared
-	AuthModeScoped         = queryauth.AuthModeScoped
+	// AuthModeShared identifies the legacy shared bearer-token path.
+	AuthModeShared = queryauth.AuthModeShared
+	// AuthModeScoped identifies a token resolved through the scoped registry.
+	AuthModeScoped = queryauth.AuthModeScoped
+	// AuthModeBrowserSession identifies a server-managed dashboard session.
 	AuthModeBrowserSession = queryauth.AuthModeBrowserSession
 )
 
