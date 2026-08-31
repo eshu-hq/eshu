@@ -14,7 +14,9 @@
 #   - go test: the packages changed vs origin/main, PLUS any package whose tests
 #     load a changed non-Go fixture (e.g. the B-12 golden snapshot → golden-corpus
 #     -gate). A direct parent-parser change expands to ./internal/parser/... so
-#     external child tests keep exercising Engine behavior.
+#     external child tests keep exercising Engine behavior, and a changed
+#     package whose only black-box coverage sits in a sibling package also
+#     selects that sibling (pre_pr_cross_package_test_dirs).
 #     Integration suites that need Postgres or NornicDB are CI's job — see
 #     docs/public/reference/local-testing.md.
 #   - 500-line file cap + package docs: the cheap structural gates.

@@ -25,9 +25,16 @@ The godoc contract is in `doc.go`. Current exports are:
 
 ## Dependencies
 
-This package imports only the Go standard library. It must not import the parent
-`internal/parser` package, JSON parser package, collector, storage, query,
-projector, or reducer packages.
+The production files import only the Go standard library. They must not import
+the parent `internal/parser` package, JSON parser package, collector, storage,
+query, projector, or reducer packages.
+
+Black-box Engine coverage for dbt manifest parsing lives beside the
+implementation in the external `dbtsql_test` package (`json_dbt_test.go`). It
+imports `internal/parser/parsertest` and reaches the public Engine through
+that helper, which owns the parent import, to assert the manifest payload the
+Engine produces. An external test package is not part of this package's
+import graph, so the parent-independence rule above still holds.
 
 ## Telemetry
 

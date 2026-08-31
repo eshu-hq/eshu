@@ -9,10 +9,14 @@
 5. `identifiers.go` - identifier scanning and SQL keyword exclusions.
 6. Parent wrapper `../dbt_sql_lineage.go`.
 7. JSON caller `../json/dbt_manifest.go`.
+8. `json_dbt_test.go` - black-box Engine coverage for dbt manifest parsing.
 
 ## Invariants this package enforces
 
-- Do not import the parent `internal/parser` package.
+- Production files must not import the parent `internal/parser` package.
+  External `dbtsql_test` files may import it and `internal/parser/parsertest`
+  to verify the public Engine contract for dbt manifests. Prefer `parsertest`,
+  which owns the parent import, over importing `internal/parser` directly.
 - Do not infer lineage for expressions outside the bounded supported set.
 - Preserve unresolved reasons when expression truth is partial or unknown.
 - Keep extraction deterministic across map iteration, CTE order, and projection
@@ -25,6 +29,13 @@
 - New SQL syntax support belongs here only when it can be handled from one
   compiled model string without repository scans.
 - JSON manifest payload changes belong in `../json`, not this package.
+- `json_dbt_test.go` asserts the parent Engine's dbt manifest payload here, so
+  a change to payload construction in `../json` has to run this package's
+  tests. `make pre-pr` does that on its own --
+  `pre_pr_cross_package_test_dirs` in `scripts/lib/pre-pr-test-selection.sh`
+  maps `./internal/parser/json` to this package. Use
+  `go test ./internal/parser/... -count=1` from `go/` for the wider run, which
+  also covers the parent-engine regressions in `../json/json_language_test.go`.
 
 ## Failure modes
 

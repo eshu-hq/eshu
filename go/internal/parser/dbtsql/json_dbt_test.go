@@ -1,13 +1,16 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package parser
+package dbtsql_test
 
 import (
 	"encoding/json"
 	"path/filepath"
 	"reflect"
+	"runtime"
 	"testing"
+
+	"github.com/eshu-hq/eshu/go/internal/parser/parsertest"
 )
 
 func TestApplyDBTManifestDocumentIncludesMacroDependenciesAndLineage(t *testing.T) {
@@ -63,16 +66,9 @@ func TestApplyDBTManifestDocumentIncludesMacroDependenciesAndLineage(t *testing.
 		t.Fatalf("json.Marshal(document) error = %v, want nil", err)
 	}
 	filePath := filepath.Join(t.TempDir(), "dbt_manifest.json")
-	writeTestFile(t, filePath, string(source))
+	parsertest.WriteFile(t, filePath, string(source))
 
-	engine, err := DefaultEngine()
-	if err != nil {
-		t.Fatalf("DefaultEngine() error = %v, want nil", err)
-	}
-	payload, err := engine.ParsePath(filepath.Dir(filePath), filePath, false, Options{})
-	if err != nil {
-		t.Fatalf("ParsePath() error = %v, want nil", err)
-	}
+	payload := parsertest.MustParsePath(t, filepath.Dir(filePath), filePath)
 
 	if got, want := dbtBucketNames(t, payload, "analytics_models"), []string{"order_metrics"}; !reflect.DeepEqual(got, want) {
 		t.Fatalf("analytics models = %#v, want %#v", got, want)
@@ -96,15 +92,7 @@ func TestDefaultEngineParsePathJSONDBTManifestWildcardExpansionAndCoalesce(t *te
 	filePath := repoFixturePath("ecosystems", "analytics_compiled_comprehensive", "dbt_manifest.json")
 	repoRoot := filepath.Dir(filePath)
 
-	engine, err := DefaultEngine()
-	if err != nil {
-		t.Fatalf("DefaultEngine() error = %v, want nil", err)
-	}
-
-	got, err := engine.ParsePath(repoRoot, filePath, false, Options{})
-	if err != nil {
-		t.Fatalf("ParsePath() error = %v, want nil", err)
-	}
+	got := parsertest.MustParsePath(t, repoRoot, filePath)
 
 	dbtAssertRelationshipPresent(t, got, "COLUMN_DERIVES_FROM", "analytics.public.orders_expanded.id", "raw.public.orders.id")
 	dbtAssertRelationshipPresent(t, got, "COLUMN_DERIVES_FROM", "analytics.public.orders_expanded.customer_id", "raw.public.orders.customer_id")
@@ -120,6 +108,16 @@ func TestDefaultEngineParsePathJSONDBTManifestWildcardExpansionAndCoalesce(t *te
 		t.Fatalf("customer_segment transform_expression = %#v, want %#v", gotValue, want)
 	}
 	dbtAssertCoverageState(t, got, "complete")
+}
+
+func repoFixturePath(pathParts ...string) string {
+	_, sourceFile, _, ok := runtime.Caller(0)
+	if !ok {
+		panic("runtime.Caller(0) failed")
+	}
+
+	fixtureParts := []string{filepath.Dir(sourceFile), "..", "..", "..", "..", "tests", "fixtures"}
+	return filepath.Join(append(fixtureParts, pathParts...)...)
 }
 
 func dbtBucketNames(t *testing.T, payload map[string]any, key string) []string {
