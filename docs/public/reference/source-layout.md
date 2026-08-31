@@ -50,6 +50,7 @@ live in the repository today.
 | `go/internal/mcp/secretsiam/` | secrets/IAM posture MCP family membership and dependency-neutral route selection |
 | `go/internal/mcp/semantic/` | semantic-evidence and semantic-search MCP tool registration definitions |
 | `go/internal/mcp/service/` | service catalog, context, investigation, and intelligence-report MCP tool registration definitions |
+| `go/internal/mcp/supplychainimpact/` | supply-chain-impact findings, count, inventory, and explanation MCP family membership and dependency-neutral route selection |
 | `go/internal/mcp/toolcontract/` | dependency-neutral MCP tool registration shape |
 | `go/internal/mcp/visualization/` | visualization-packet MCP registration plus pure family membership and dependency-neutral route selection |
 | `go/internal/parser/` | native parser registry, language adapters, and SCIP support |
@@ -143,6 +144,8 @@ Read and operator surfaces live under:
   membership decisions, and pure dependency-neutral request selection
 - `go/internal/mcp/secretsiam/`: secrets/IAM posture family membership and
   pure dependency-neutral request selection
+- `go/internal/mcp/supplychainimpact/`: supply-chain-impact family membership
+  and pure dependency-neutral request selection
 - `go/internal/mcp/visualization/`: visualization registration, family
   membership, and pure dependency-neutral request selection
 - `go/internal/runtime/`: `/healthz`, `/readyz`, `/metrics`, `/admin/status`,

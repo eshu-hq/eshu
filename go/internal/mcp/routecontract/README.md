@@ -12,8 +12,9 @@ does not own tool names, family membership, or route-selection policy. Family
 packages such as `internal/mcp/ask`, `internal/mcp/cicd`,
 `internal/mcp/codeowners`, `internal/mcp/containerimage`,
 `internal/mcp/observabilitycoverage`, `internal/mcp/packageregistry`,
-`internal/mcp/relationships`, `internal/mcp/secretsiam`, and
-`internal/mcp/visualization` own those decisions. The root `internal/mcp`
+`internal/mcp/relationships`, `internal/mcp/secretsiam`,
+`internal/mcp/supplychainimpact`, and `internal/mcp/visualization` own those
+decisions. The root `internal/mcp`
 package still owns global route fanout, family adapters, request dispatch,
 authorization forwarding, timeouts, response budgets, response envelopes,
 transport behavior, and telemetry.
@@ -60,6 +61,7 @@ transport and API request telemetry.
 - [MCP package-registry route selection](../packageregistry/README.md)
 - [MCP relationship registrations](../relationships/README.md)
 - [MCP secrets/IAM route selection](../secretsiam/README.md)
+- [MCP supply-chain-impact route selection](../supplychainimpact/README.md)
 - [MCP visualization registration and route selection](../visualization/README.md)
 - [Source layout](../../../../docs/public/reference/source-layout.md)
 

@@ -16,17 +16,20 @@
    `go/internal/mcp/dispatch_package_registry.go`,
    `go/internal/mcp/dispatch_cicd.go`, `go/internal/mcp/dispatch_codeowners.go`,
    `go/internal/mcp/dispatch_secrets_iam.go`,
-   `go/internal/mcp/dispatch_observability_coverage.go`, and
-   `go/internal/mcp/dispatch_container_image.go` — `dispatchTool`, deadline
-   handling, `resolveRoute`, the child route adapters, and argument helpers;
-   understand `parseCanonicalEnvelope` before touching response shaping.
+   `go/internal/mcp/dispatch_observability_coverage.go`,
+   `go/internal/mcp/dispatch_container_image.go`, and
+   `go/internal/mcp/dispatch_supply_chain_impact.go` — `dispatchTool`,
+   deadline handling, `resolveRoute`, the child route adapters, and argument
+   helpers; understand `parseCanonicalEnvelope` before touching response
+   shaping.
    Package-registry request selection itself lives in
    `go/internal/mcp/packageregistry`, CI/CD run-correlation request selection in
    `go/internal/mcp/cicd`, CODEOWNERS ownership request selection in
    `go/internal/mcp/codeowners`, secrets/IAM posture request selection in
    `go/internal/mcp/secretsiam`, observability-coverage request selection in
-   `go/internal/mcp/observabilitycoverage`, and container-image identity request
-   selection in `go/internal/mcp/containerimage`
+   `go/internal/mcp/observabilitycoverage`, container-image identity request
+   selection in `go/internal/mcp/containerimage`, and supply-chain-impact
+   request selection in `go/internal/mcp/supplychainimpact`
 4. `go/internal/mcp/types.go` — `ToolDefinition` and `ReadOnlyTools`; this is
    the tool registry entry point
 5. `go/internal/query/` — the `http.Handler` that backs every tool call;

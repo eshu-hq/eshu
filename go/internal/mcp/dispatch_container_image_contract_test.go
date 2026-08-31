@@ -5,6 +5,7 @@ package mcp
 
 import (
 	"reflect"
+	"strings"
 	"testing"
 
 	containerimagetools "github.com/eshu-hq/eshu/go/internal/mcp/containerimage"
@@ -334,6 +335,57 @@ func TestContainerImageRouteRejectsNonFamilyTools(t *testing.T) {
 	} {
 		if _, handled := containerImageRoute(tool, map[string]any{}); handled {
 			t.Errorf("containerImageRoute(%q) handled = true, want false", tool)
+		}
+	}
+}
+
+// TestResolveRouteMapsContainerImageAggregatesForwardSourceRepositoryScope
+// relocated here (#6058) from the since-deleted dispatch_supply_chain_
+// aggregates_test.go: it predates this family's extraction and was left
+// untouched by #6340 because resolveRoute's behavior did not change, but its
+// old home named a file that no longer exists once the neighboring
+// supply-chain-impact family is extracted onto the same routecontract seam.
+func TestResolveRouteMapsContainerImageAggregatesForwardSourceRepositoryScope(t *testing.T) {
+	t.Parallel()
+
+	for _, toolName := range []string{
+		"count_container_image_identities",
+		"get_container_image_identity_inventory",
+	} {
+		toolName := toolName
+		t.Run(toolName, func(t *testing.T) {
+			t.Parallel()
+
+			route, err := resolveRoute(toolName, map[string]any{
+				"source_repository_id": "repo://example/api",
+			})
+			if err != nil {
+				t.Fatalf("resolveRoute() error = %v, want nil", err)
+			}
+			if got, want := route.query["source_repository_id"], "repo://example/api"; got != want {
+				t.Fatalf("route.query[source_repository_id] = %#v, want %#v", got, want)
+			}
+			if got, want := route.query["repository_id"], ""; got != want {
+				t.Fatalf("route.query[repository_id] = %#v, want empty OCI scope", got)
+			}
+		})
+	}
+}
+
+// TestContainerImageAggregateToolSchemasAdvertiseSourceRepositoryScope
+// relocated here (#6058) alongside the test above, for the same reason.
+func TestContainerImageAggregateToolSchemasAdvertiseSourceRepositoryScope(t *testing.T) {
+	t.Parallel()
+
+	for _, tool := range containerImageIdentityAggregateTools() {
+		schema := tool.InputSchema.(map[string]any)
+		properties := schema["properties"].(map[string]any)
+		sourceRepository := properties["source_repository_id"].(map[string]any)
+		description := sourceRepository["description"].(string)
+		for _, want := range []string{"source repository", "not an OCI"} {
+			if !strings.Contains(description, want) {
+				t.Fatalf("%s source_repository_id description = %q, want %q", tool.Name, description, want)
+			}
 		}
 	}
 }
