@@ -5,12 +5,20 @@
 # require_path_line(); not intended to run standalone.
 
 check_parser_relationship_trigger_parity() {
-	local gate_block ledger_path selection helper_path docs_path docs_trigger
+	local gate_block gate_job parserrelationship_filter ledger_path selection
+	local helper_path docs_path docs_trigger root_docs_path root_docs_trigger
 	local parser_docs_path parser_docs_trigger
 	local test_helper_trigger
 
 	gate_block="$(
 		sed -n '/^  - id: parser-relationship-kit$/,/^  - id:/p' "${registry}"
+	)"
+	parserrelationship_filter="$(
+		sed -n '/^            parserrelationship:$/,/^            docsrefs:$/p' \
+			"${static_contract_workflow}"
+	)"
+	gate_job="$(
+		sed -n '/^  gate:$/,$p' "${static_contract_workflow}"
 	)"
 	ledger_path='specs/language-feature-parity-ledger.v1.yaml'
 
@@ -44,6 +52,13 @@ check_parser_relationship_trigger_parity() {
 	require "parser relationship static-contract matrix entry" \
 		'append_gate "${{ steps.filter.outputs.parserrelationship }}" "parserrelationship" "Verify parser relationship kit gate" "bash scripts/test-verify-parser-relationship-kit.sh" "bash scripts/verify-parser-relationship-kit.sh"' \
 		"${static_contract_workflow}"
+	rg --multiline --fixed-strings -- \
+		"      - name: Checkout repository
+        uses: actions/checkout@v5
+        with:
+          fetch-depth: 2" \
+		<<<"${gate_job}" >/dev/null ||
+		fail "the shared static-contract gate checkout needs exactly fetch-depth 2 for parser relationship diff-base selection"
 	printf '%s\n' "${gate_block}" |
 		rg -F 'workflow: static-contract-gates.yml' >/dev/null ||
 		fail "parser-relationship-kit registry does not name static-contract-gates.yml"
@@ -65,12 +80,32 @@ check_parser_relationship_trigger_parity() {
 		rg --fixed-strings -- "matched trigger \"${docs_trigger}\" on path \"${docs_path}\"" >/dev/null ||
 		fail "parser-relationship-kit selected docs-only change for the wrong reason (${docs_path})"
 
+	root_docs_path='README.md'
+	root_docs_trigger='*.md'
+	require_path_line "${gate_block}" "${root_docs_trigger}" \
+		"parser-relationship-kit registry triggers omit root-level Markdown"
+	printf '%s\n' "${parserrelationship_filter}" |
+		rg --fixed-strings --line-regexp -- "              - '${root_docs_trigger}'" >/dev/null ||
+		fail "static-contract-gates.yml parserrelationship filter omits ${root_docs_trigger}"
+	selection="$(
+		printf '%s\n' "${root_docs_path}" |
+			(cd "${repo_root}/go" && go run ./cmd/ci-gates select \
+				--registry "${registry}" --tier pre-pr --paths-from - --explain)
+	)"
+	printf '%s\n' "${selection}" |
+		rg '^SELECTED[[:space:]]+parser-relationship-kit[[:space:]]' >/dev/null ||
+		fail "a root README change did not select parser-relationship-kit (${root_docs_path})"
+	printf '%s\n' "${selection}" |
+		rg --fixed-strings -- "matched trigger \"${root_docs_trigger}\" on path \"${root_docs_path}\"" >/dev/null ||
+		fail "parser-relationship-kit selected root Markdown for the wrong reason (${root_docs_path})"
+
 	parser_docs_path='go/internal/parser/rust/README.md'
 	parser_docs_trigger='go/internal/parser/**'
 	require_path_line "${gate_block}" "${parser_docs_trigger}" \
 		"parser-relationship-kit registry triggers omit parser package Markdown"
 	rg --multiline --fixed-strings -- \
 		"              - '${docs_trigger}'
+              - '${root_docs_trigger}'
               - '${parser_docs_trigger}'" \
 		"${static_contract_workflow}" >/dev/null ||
 		fail "static-contract-gates.yml parserrelationship filter omits ${parser_docs_trigger}"

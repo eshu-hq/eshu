@@ -919,6 +919,7 @@ gates:
       - ".github/workflows/static-contract-gates.yml"
       - "specs/ci-gates.v1.yaml"
       - "docs/**/*.md"
+      - "*.md"
       - "go/internal/parser/**"
       - "go/internal/relationships/**"
       - "specs/language-feature-parity-ledger.v1.yaml"

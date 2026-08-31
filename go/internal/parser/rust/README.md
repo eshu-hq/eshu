@@ -75,8 +75,10 @@ carries the godoc contract for callers.
 
 ## Dependencies
 
-This package imports the shared parser helper package and tree-sitter types. It
-must not import the parent parser package.
+Production files and same-package `rust` tests import the shared parser helper
+package and tree-sitter types. Neither may import the parent parser package.
+External `rust_test` black-box tests may import the parent only to drive the
+public `parser.DefaultEngine` and `parser.Options` boundary.
 
 ## Telemetry
 

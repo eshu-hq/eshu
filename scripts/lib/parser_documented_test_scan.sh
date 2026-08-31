@@ -11,6 +11,8 @@ documented_command_is_known_nonrunnable_overlay_example() {
 
 validate_documented_parser_test_commands() {
   local root="$1" matches precise_matches line_matches records_file path line command stale=''
+  local markdown_path
+  local -a scan_paths=("$root/docs" "$root/go/internal/parser")
   local precise_rc=0 line_rc=0 bare_run_pattern
   local relocated_name_pattern='' documented_test_signal name
   local go_executable go_test_start shell_command_start shell_cd_prefix assignment_value command_join
@@ -43,7 +45,7 @@ validate_documented_parser_test_commands() {
   command_env='(?:env|/usr/bin/env)'
   shell_prefix_token="(?:\"(?:\\\\.|[^\"\\\\])*\"|'[^']*'|[^\\s;&|\\x60]+)"
   go_test_start="${go_executable}\\s+(?:--?C(?:=|\\s)${shell_prefix_token}\\s+)?test"
-  command_env_option="(?:-|-[0iv]+|--ignore-environment|--chdir=${shell_prefix_token}|(?:-u|--unset|-P|-C)${command_join}${shell_prefix_token}|(?:-u=|--unset=|-P|-C)${shell_prefix_token})"
+  command_env_option="(?:-|-[0iv]+|--ignore-environment|--chdir=${shell_prefix_token}|(?:-u|--unset|-P|-C|--chdir)${command_join}${shell_prefix_token}|(?:-u=|--unset=|-P|-C)${shell_prefix_token})"
   command_env_options="(?:${command_env_option}${command_join})*"
   command_wrapper="command(?:${command_join}-p)?"
   exec_wrapper="exec(?:${command_join}(?:-c|-l|-cl|-lc|-a${command_join}${shell_prefix_token}))*"
@@ -77,8 +79,12 @@ validate_documented_parser_test_commands() {
   logical_continuation_candidate="(?:^|\\r?\\n)[\\t ]*(?:\\$\\s+)?\\K(?:[^\\r\\n]*\\\\[\\t ]*\\r?\\n)+[^\\r\\n]+"
   candidate_pattern="(?s)(?:${inline_code_candidate}|${logical_continuation_candidate}|${env_split_candidate}|${assign_export_goflags_candidate}|${export_goflags_candidate}|${cd_goflags_candidate}|${prefixed_goflags_candidate}|${cd_candidate})"
 
+  for markdown_path in "$root"/*.md; do
+    [ -e "$markdown_path" ] || continue
+    scan_paths+=("$markdown_path")
+  done
   if precise_matches="$(rg -n -U --json --pcre2 --glob '*.md' \
-    -e "$candidate_pattern" "$root/docs" "$root/go/internal/parser" 2>&1)"; then
+    -e "$candidate_pattern" "${scan_paths[@]}" 2>&1)"; then
     :
   else
     precise_rc=$?
@@ -91,7 +97,7 @@ validate_documented_parser_test_commands() {
   fi
   if line_matches="$(rg -n --json --pcre2 --glob '*.md' \
     -e "$bare_run_pattern" \
-    "$root/docs" "$root/go/internal/parser" 2>&1)"; then
+    "${scan_paths[@]}" 2>&1)"; then
     :
   else
     line_rc=$?

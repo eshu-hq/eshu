@@ -271,6 +271,7 @@ jobs:
               - '.github/workflows/static-contract-gates.yml'
               - 'specs/ci-gates.v1.yaml'
               - 'docs/**/*.md'
+              - '*.md'
               - 'go/internal/parser/**'
               - 'go/internal/relationships/**'
               - 'specs/language-feature-parity-ledger.v1.yaml'
@@ -450,6 +451,8 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@v5
+        with:
+          fetch-depth: 2
       - name: Set up Go
         uses: actions/setup-go@v6
         with:

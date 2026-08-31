@@ -198,7 +198,7 @@ documented_go_test_prefix() {
             -P?*)
               ((index++))
               ;;
-            -C)
+            -C|--chdir)
               ((index++))
               ((index < token_count)) || return 2
               env_directory="${PARSER_COMMAND_TOKENS[index]}"

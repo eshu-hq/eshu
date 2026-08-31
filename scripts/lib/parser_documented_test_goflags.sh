@@ -137,7 +137,7 @@ documented_record_env_split_assignment_prefix() {
           ((i <= token_count)) || return 2
           ;;
         -P?*) ((i++)) ;;
-        -C)
+        -C|--chdir)
           ((i++))
           ((i < token_count)) || return 2
           env_change_directory="${PARSER_COMMAND_TOKENS[i]}"
