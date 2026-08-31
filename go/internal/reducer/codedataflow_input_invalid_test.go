@@ -46,8 +46,8 @@ func TestDecodeCodeTaintEvidenceQuarantinesMissingFunctionUID(t *testing.T) {
 	if !quarantinable {
 		t.Fatalf("partitionDecodeFailures classified the missing-function_uid decode error as fatal (%v), want a quarantinable input_invalid", fatal)
 	}
-	if q.field != "function_uid" || q.classification != "input_invalid" {
-		t.Fatalf("quarantinedFact = {field:%q classification:%q}, want {function_uid input_invalid}", q.field, q.classification)
+	if q.Field != "function_uid" || q.Classification != "input_invalid" {
+		t.Fatalf("quarantinedFact = {field:%q classification:%q}, want {function_uid input_invalid}", q.Field, q.Classification)
 	}
 
 	// A valid sibling fact in the same batch must still decode and be usable
@@ -114,8 +114,8 @@ func TestDecodeCodeInterprocEvidenceQuarantinesMissingEndpoint(t *testing.T) {
 		if !quarantinable {
 			t.Fatalf("partitionDecodeFailures classified the missing-source_function_uid decode error as fatal (%v), want a quarantinable input_invalid", fatal)
 		}
-		if q.field != "source_function_uid" || q.classification != "input_invalid" {
-			t.Fatalf("quarantinedFact = {field:%q classification:%q}, want {source_function_uid input_invalid}", q.field, q.classification)
+		if q.Field != "source_function_uid" || q.Classification != "input_invalid" {
+			t.Fatalf("quarantinedFact = {field:%q classification:%q}, want {source_function_uid input_invalid}", q.Field, q.Classification)
 		}
 	}
 
@@ -171,8 +171,8 @@ func TestDecodeCodeFunctionSummaryQuarantinesMissingFunctionID(t *testing.T) {
 		if !quarantinable {
 			t.Fatalf("partitionDecodeFailures classified the missing-function_id decode error as fatal (%v), want a quarantinable input_invalid", fatal)
 		}
-		if q.field != "function_id" || q.classification != "input_invalid" {
-			t.Fatalf("quarantinedFact = {field:%q classification:%q}, want {function_id input_invalid}", q.field, q.classification)
+		if q.Field != "function_id" || q.Classification != "input_invalid" {
+			t.Fatalf("quarantinedFact = {field:%q classification:%q}, want {function_id input_invalid}", q.Field, q.Classification)
 		}
 	}
 
@@ -219,8 +219,8 @@ func TestDecodeCodeFunctionSourceQuarantinesMissingRequiredFields(t *testing.T) 
 		if !quarantinable {
 			t.Fatalf("partitionDecodeFailures did not classify the missing-kind decode error as quarantinable input_invalid")
 		}
-		if q.field != "kind" {
-			t.Fatalf("quarantinedFact.field = %q, want kind", q.field)
+		if q.Field != "kind" {
+			t.Fatalf("quarantinedFact.Field = %q, want kind", q.Field)
 		}
 	}
 

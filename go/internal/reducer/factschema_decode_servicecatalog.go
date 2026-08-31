@@ -71,16 +71,16 @@ func decodeServiceCatalogRepositoryLink(env facts.Envelope) (servicecatalogv1.Re
 // codegraphDecodeQuarantine (factschema_decode_codegraph.go).
 func serviceCatalogDecodeQuarantine(env facts.Envelope, err error) quarantinedFact {
 	q := quarantinedFact{
-		factID:         env.FactID,
-		factKind:       env.FactKind,
-		classification: factschema.ClassificationInputInvalid,
+		FactID:         env.FactID,
+		FactKind:       env.FactKind,
+		Classification: factschema.ClassificationInputInvalid,
 	}
 	var decodeErr *factschema.DecodeError
 	if errors.As(err, &decodeErr) {
 		if decodeErr.Classification != "" {
-			q.classification = decodeErr.Classification
+			q.Classification = decodeErr.Classification
 		}
-		q.field = decodeErr.Field
+		q.Field = decodeErr.Field
 	}
 	return q
 }

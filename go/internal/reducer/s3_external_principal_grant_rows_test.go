@@ -229,14 +229,14 @@ func TestExtractS3ExternalPrincipalGrantRowsQuarantinesMissingRequiredField(t *t
 	if len(quarantined) != 1 {
 		t.Fatalf("len(quarantined) = %d, want 1; the missing-account_id fact must be quarantined", len(quarantined))
 	}
-	if quarantined[0].factKind != facts.S3ExternalPrincipalGrantFactKind {
-		t.Fatalf("quarantined factKind = %q, want %q", quarantined[0].factKind, facts.S3ExternalPrincipalGrantFactKind)
+	if quarantined[0].FactKind != facts.S3ExternalPrincipalGrantFactKind {
+		t.Fatalf("quarantined factKind = %q, want %q", quarantined[0].FactKind, facts.S3ExternalPrincipalGrantFactKind)
 	}
-	if quarantined[0].field != "account_id" {
-		t.Fatalf("quarantined field = %q, want %q", quarantined[0].field, "account_id")
+	if quarantined[0].Field != "account_id" {
+		t.Fatalf("quarantined field = %q, want %q", quarantined[0].Field, "account_id")
 	}
-	if quarantined[0].classification != "input_invalid" {
-		t.Fatalf("quarantined classification = %q, want %q", quarantined[0].classification, "input_invalid")
+	if quarantined[0].Classification != "input_invalid" {
+		t.Fatalf("quarantined classification = %q, want %q", quarantined[0].Classification, "input_invalid")
 	}
 	if tally.totalSkipped() != 0 {
 		t.Fatalf("totalSkipped() = %d, want 0; a malformed fact dead-letters through quarantine, it is not counted as a skip", tally.totalSkipped())

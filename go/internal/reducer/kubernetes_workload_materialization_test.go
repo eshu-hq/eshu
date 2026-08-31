@@ -213,8 +213,8 @@ func TestExtractKubernetesWorkloadNodeRowsRequiresObjectID(t *testing.T) {
 	if len(quarantined) != 1 {
 		t.Fatalf("len(quarantined) = %d, want 1 for missing object_id", len(quarantined))
 	}
-	if quarantined[0].field != "object_id" {
-		t.Fatalf("quarantined[0].field = %q, want %q", quarantined[0].field, "object_id")
+	if quarantined[0].Field != "object_id" {
+		t.Fatalf("quarantined[0].Field = %q, want %q", quarantined[0].Field, "object_id")
 	}
 }
 

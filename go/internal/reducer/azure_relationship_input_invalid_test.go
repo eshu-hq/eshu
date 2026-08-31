@@ -61,11 +61,11 @@ func TestAzureRelationshipMaterializationQuarantinesMissingResourceType(t *testi
 	if len(quarantined) != 1 {
 		t.Fatalf("len(quarantined) = %d, want 1; the missing-resource_type fact must be recorded as one input_invalid quarantine", len(quarantined))
 	}
-	if quarantined[0].field != "resource_type" {
-		t.Fatalf("quarantined[0].field = %q, want %q", quarantined[0].field, "resource_type")
+	if quarantined[0].Field != "resource_type" {
+		t.Fatalf("quarantined[0].Field = %q, want %q", quarantined[0].Field, "resource_type")
 	}
-	if quarantined[0].classification != "input_invalid" {
-		t.Fatalf("quarantined[0].classification = %q, want %q", quarantined[0].classification, "input_invalid")
+	if quarantined[0].Classification != "input_invalid" {
+		t.Fatalf("quarantined[0].Classification = %q, want %q", quarantined[0].Classification, "input_invalid")
 	}
 
 	if len(rows) != 1 {

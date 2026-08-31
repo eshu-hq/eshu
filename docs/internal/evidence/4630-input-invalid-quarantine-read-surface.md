@@ -5,9 +5,10 @@ operator can query which facts the reducer skipped during typed-payload decode
 for a missing or null required field, instead of only seeing the aggregate
 `eshu_dp_reducer_input_invalid_facts_total` rate and a structured log line. The
 reducer's existing quarantine choke point (`recordQuarantinedFacts`,
-`go/internal/reducer/factschema_decode.go`) now also best-effort persists each
+`go/internal/reducer/quarantine_compat.go`, forwarding to
+`go/internal/reducer/factdecode/quarantine_record.go`) now also best-effort persists each
 quarantined fact through an optional `QuarantinedFactWriter`
-(`go/internal/reducer/quarantine_writer.go`), stashed on the execution context
+(`go/internal/reducer/factdecode/quarantine_writer.go`), stashed on the execution context
 once per intent by `Service.executeWithTelemetry`
 (`go/internal/reducer/service.go`). The write goes through
 `ReducerInputInvalidFactStore.WriteQuarantinedFacts`

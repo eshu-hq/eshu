@@ -363,8 +363,8 @@ func TestExtractEC2BlockDeviceKMSPostureRowsMalformedKeyManagerQuarantines(t *te
 	if len(quarantined) != 1 {
 		t.Fatalf("len(quarantined) = %d, want 1 for a malformed key_manager value", len(quarantined))
 	}
-	if quarantined[0].classification != "input_invalid" {
-		t.Fatalf("quarantined[0].classification = %q, want input_invalid", quarantined[0].classification)
+	if quarantined[0].Classification != "input_invalid" {
+		t.Fatalf("quarantined[0].Classification = %q, want input_invalid", quarantined[0].Classification)
 	}
 }
 
@@ -392,8 +392,8 @@ func TestExtractEC2BlockDeviceKMSPostureRowsMalformedEncryptedQuarantines(t *tes
 	if len(quarantined) != 1 {
 		t.Fatalf("len(quarantined) = %d, want 1 for a malformed encrypted value", len(quarantined))
 	}
-	if quarantined[0].classification != "input_invalid" {
-		t.Fatalf("quarantined[0].classification = %q, want input_invalid", quarantined[0].classification)
+	if quarantined[0].Classification != "input_invalid" {
+		t.Fatalf("quarantined[0].Classification = %q, want input_invalid", quarantined[0].Classification)
 	}
 	// The volume never entered the index, so the posture resolves to the
 	// conservative "unknown" outcome rather than a silently wrong classification.

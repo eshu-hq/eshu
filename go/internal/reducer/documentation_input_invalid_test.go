@@ -49,11 +49,11 @@ func TestExtractDocumentationEdgeRowsQuarantinesMissingDocumentID(t *testing.T) 
 	if len(quarantined) != 1 {
 		t.Fatalf("quarantined = %#v, want exactly 1; the missing-document_id fact must be recorded as one input_invalid quarantine", quarantined)
 	}
-	if quarantined[0].field != "document_id" {
-		t.Fatalf("quarantined[0].field = %q, want %q", quarantined[0].field, "document_id")
+	if quarantined[0].Field != "document_id" {
+		t.Fatalf("quarantined[0].Field = %q, want %q", quarantined[0].Field, "document_id")
 	}
-	if quarantined[0].factID != "fact-mention-malformed" {
-		t.Fatalf("quarantined[0].factID = %q, want %q", quarantined[0].factID, "fact-mention-malformed")
+	if quarantined[0].FactID != "fact-mention-malformed" {
+		t.Fatalf("quarantined[0].FactID = %q, want %q", quarantined[0].FactID, "fact-mention-malformed")
 	}
 
 	// The valid sibling must still produce its edge despite the quarantined
@@ -317,11 +317,11 @@ func TestBuildDocumentationDeltaScopeWithQuarantineQuarantinesMissingDocumentID(
 	if len(quarantined) != 1 {
 		t.Fatalf("quarantined = %#v, want exactly 1; the missing-document_id fact must be recorded as one input_invalid quarantine", quarantined)
 	}
-	if quarantined[0].field != "document_id" {
-		t.Fatalf("quarantined[0].field = %q, want %q", quarantined[0].field, "document_id")
+	if quarantined[0].Field != "document_id" {
+		t.Fatalf("quarantined[0].Field = %q, want %q", quarantined[0].Field, "document_id")
 	}
-	if quarantined[0].factID != "fact-doc-malformed" {
-		t.Fatalf("quarantined[0].factID = %q, want %q", quarantined[0].factID, "fact-doc-malformed")
+	if quarantined[0].FactID != "fact-doc-malformed" {
+		t.Fatalf("quarantined[0].FactID = %q, want %q", quarantined[0].FactID, "fact-doc-malformed")
 	}
 
 	// The valid sibling must still contribute to the delta scope despite the

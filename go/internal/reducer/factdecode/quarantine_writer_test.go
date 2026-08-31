@@ -1,16 +1,18 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package reducer
+package factdecode
 
 import (
 	"context"
 	"errors"
 	"testing"
+
+	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
 )
 
-// fakeQuarantinedFactWriter is an in-memory reducer.QuarantinedFactWriter used
-// to assert what recordQuarantinedFacts/persistQuarantinedFacts hand off to a
+// fakeQuarantinedFactWriter is an in-memory QuarantinedFactWriter used
+// to assert what RecordQuarantinedFacts/persistQuarantinedFacts hand off to a
 // durable writer, without a live Postgres connection.
 type fakeQuarantinedFactWriter struct {
 	writes    [][]QuarantinedFactRecord
@@ -35,7 +37,7 @@ func (w *fakeQuarantinedFactWriter) WriteQuarantinedFacts(_ context.Context, rec
 // TestWithQuarantineWriterRoundTrip proves the context helpers in
 // quarantine_writer.go round-trip a writer, and that a nil writer never gets
 // stashed (quarantineWriterFromContext must return nil either way, so
-// recordQuarantinedFacts' nil-writer no-op path is reachable from an
+// RecordQuarantinedFacts' nil-writer no-op path is reachable from an
 // unconfigured Service).
 func TestWithQuarantineWriterRoundTrip(t *testing.T) {
 	t.Parallel()
@@ -60,24 +62,24 @@ func TestWithQuarantineWriterRoundTrip(t *testing.T) {
 }
 
 // TestRecordQuarantinedFactsPersistsThroughContextWriter proves (a) rows are
-// written for quarantined facts: recordQuarantinedFacts, given a writer
+// written for quarantined facts: RecordQuarantinedFacts, given a writer
 // stashed on ctx, builds and hands off exactly one QuarantinedFactRecord per
-// quarantinedFact, with every field the durable table needs.
+// QuarantinedFact, with every field the durable table needs.
 func TestRecordQuarantinedFactsPersistsThroughContextWriter(t *testing.T) {
 	t.Parallel()
 
 	writer := &fakeQuarantinedFactWriter{}
 	ctx := WithQuarantineWriter(context.Background(), writer)
 
-	quarantined := []quarantinedFact{
-		{factID: "fact-1", factKind: "aws_resource", field: "account_id", classification: "input_invalid"},
-		{factID: "fact-2", factKind: "aws_resource", field: "region", classification: "input_invalid"},
+	quarantined := []QuarantinedFact{
+		{FactID: "fact-1", FactKind: "aws_resource", Field: "account_id", Classification: "input_invalid"},
+		{FactID: "fact-2", FactKind: "aws_resource", Field: "region", Classification: "input_invalid"},
 	}
 
-	count := recordQuarantinedFacts(ctx, nil, DomainAWSResourceMaterialization, "scope-1", "gen-1", quarantined)
+	count := RecordQuarantinedFacts(ctx, nil, reducercontract.DomainAWSResourceMaterialization, "scope-1", "gen-1", quarantined)
 
 	if count != 2 {
-		t.Fatalf("recordQuarantinedFacts() count = %d, want 2", count)
+		t.Fatalf("RecordQuarantinedFacts() count = %d, want 2", count)
 	}
 	if writer.callCount != 1 {
 		t.Fatalf("writer.callCount = %d, want 1 (one batched round trip per intent)", writer.callCount)
@@ -87,8 +89,8 @@ func TestRecordQuarantinedFactsPersistsThroughContextWriter(t *testing.T) {
 	}
 	got := writer.writes[0]
 	want := []QuarantinedFactRecord{
-		{FactID: "fact-1", FactKind: "aws_resource", MissingField: "account_id", FailureClass: "input_invalid", Domain: string(DomainAWSResourceMaterialization), ScopeID: "scope-1", GenerationID: "gen-1"},
-		{FactID: "fact-2", FactKind: "aws_resource", MissingField: "region", FailureClass: "input_invalid", Domain: string(DomainAWSResourceMaterialization), ScopeID: "scope-1", GenerationID: "gen-1"},
+		{FactID: "fact-1", FactKind: "aws_resource", MissingField: "account_id", FailureClass: "input_invalid", Domain: string(reducercontract.DomainAWSResourceMaterialization), ScopeID: "scope-1", GenerationID: "gen-1"},
+		{FactID: "fact-2", FactKind: "aws_resource", MissingField: "region", FailureClass: "input_invalid", Domain: string(reducercontract.DomainAWSResourceMaterialization), ScopeID: "scope-1", GenerationID: "gen-1"},
 	}
 	for i := range want {
 		if got[i].FactID != want[i].FactID || got[i].FactKind != want[i].FactKind ||
@@ -104,7 +106,7 @@ func TestRecordQuarantinedFactsPersistsThroughContextWriter(t *testing.T) {
 }
 
 // TestRecordQuarantinedFactsWriteFailureIsNonFatal proves (b) a persist error
-// does NOT fail the intent: recordQuarantinedFacts has no error return at
+// does NOT fail the intent: RecordQuarantinedFacts has no error return at
 // all, so a durable-write failure can only ever be observed as a swallowed,
 // logged, counted side effect — it is architecturally impossible for it to
 // propagate to the handler's Result/error path. This test proves the
@@ -116,14 +118,14 @@ func TestRecordQuarantinedFactsWriteFailureIsNonFatal(t *testing.T) {
 	writer := &fakeQuarantinedFactWriter{failNext: true}
 	ctx := WithQuarantineWriter(context.Background(), writer)
 
-	quarantined := []quarantinedFact{
-		{factID: "fact-1", factKind: "aws_resource", field: "account_id", classification: "input_invalid"},
+	quarantined := []QuarantinedFact{
+		{FactID: "fact-1", FactKind: "aws_resource", Field: "account_id", Classification: "input_invalid"},
 	}
 
-	count := recordQuarantinedFacts(ctx, nil, DomainAWSResourceMaterialization, "scope-1", "gen-1", quarantined)
+	count := RecordQuarantinedFacts(ctx, nil, reducercontract.DomainAWSResourceMaterialization, "scope-1", "gen-1", quarantined)
 
 	if count != 1 {
-		t.Fatalf("recordQuarantinedFacts() count = %d, want 1 even though the durable write failed", count)
+		t.Fatalf("RecordQuarantinedFacts() count = %d, want 1 even though the durable write failed", count)
 	}
 	if writer.callCount != 1 {
 		t.Fatalf("writer.callCount = %d, want 1 (persistQuarantinedFacts must still attempt the write)", writer.callCount)
@@ -140,14 +142,14 @@ func TestRecordQuarantinedFactsWriteFailureIsNonFatal(t *testing.T) {
 func TestRecordQuarantinedFactsNilWriterIsNoOp(t *testing.T) {
 	t.Parallel()
 
-	quarantined := []quarantinedFact{
-		{factID: "fact-1", factKind: "aws_resource", field: "account_id", classification: "input_invalid"},
+	quarantined := []QuarantinedFact{
+		{FactID: "fact-1", FactKind: "aws_resource", Field: "account_id", Classification: "input_invalid"},
 	}
 
-	count := recordQuarantinedFacts(context.Background(), nil, DomainAWSResourceMaterialization, "scope-1", "gen-1", quarantined)
+	count := RecordQuarantinedFacts(context.Background(), nil, reducercontract.DomainAWSResourceMaterialization, "scope-1", "gen-1", quarantined)
 
 	if count != 1 {
-		t.Fatalf("recordQuarantinedFacts() count = %d, want 1", count)
+		t.Fatalf("RecordQuarantinedFacts() count = %d, want 1", count)
 	}
 }
 
@@ -161,10 +163,10 @@ func TestRecordQuarantinedFactsEmptyBatchSkipsWriter(t *testing.T) {
 	writer := &fakeQuarantinedFactWriter{}
 	ctx := WithQuarantineWriter(context.Background(), writer)
 
-	count := recordQuarantinedFacts(ctx, nil, DomainAWSResourceMaterialization, "scope-1", "gen-1", nil)
+	count := RecordQuarantinedFacts(ctx, nil, reducercontract.DomainAWSResourceMaterialization, "scope-1", "gen-1", nil)
 
 	if count != 0 {
-		t.Fatalf("recordQuarantinedFacts() count = %d, want 0", count)
+		t.Fatalf("RecordQuarantinedFacts() count = %d, want 0", count)
 	}
 	if writer.callCount != 0 {
 		t.Fatalf("writer.callCount = %d, want 0 for an empty quarantine batch", writer.callCount)

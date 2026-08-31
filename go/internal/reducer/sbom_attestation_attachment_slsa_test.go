@@ -243,7 +243,7 @@ func TestBuildSBOMAttestationAttachmentDecisionsSLSAProvenanceMissingStatementID
 	if len(quarantined) != 1 {
 		t.Fatalf("quarantined = %#v, want exactly one input_invalid quarantine for the missing statement_id", quarantined)
 	}
-	if quarantined[0].factID != "provenance-missing-statement-id" {
-		t.Fatalf("quarantined fact = %q, want provenance-missing-statement-id", quarantined[0].factID)
+	if quarantined[0].FactID != "provenance-missing-statement-id" {
+		t.Fatalf("quarantined fact = %q, want provenance-missing-statement-id", quarantined[0].FactID)
 	}
 }

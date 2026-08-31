@@ -70,8 +70,8 @@ func TestExtractAllCodeRelationshipRowsQuarantinesFileFromBothExtractors(t *test
 	if len(quarantined) != 1 {
 		t.Fatalf("len(quarantined) = %d, want 1 (the missing-relative_path file): %+v", len(quarantined), quarantined)
 	}
-	if quarantined[0].factID != "malformed-metaclass-file" || quarantined[0].field != "relative_path" {
-		t.Fatalf("quarantined[0] = {factID:%q field:%q}, want {malformed-metaclass-file relative_path}", quarantined[0].factID, quarantined[0].field)
+	if quarantined[0].FactID != "malformed-metaclass-file" || quarantined[0].Field != "relative_path" {
+		t.Fatalf("quarantined[0] = {factID:%q field:%q}, want {malformed-metaclass-file relative_path}", quarantined[0].FactID, quarantined[0].Field)
 	}
 
 	// The malformed file must NOT emit a metaclass row — the quarantine is

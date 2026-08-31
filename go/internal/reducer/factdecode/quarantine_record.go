@@ -1,17 +1,18 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package reducer
+package factdecode
 
-// This file holds the durable-quarantine persistence concern split out of
-// factschema_decode.go to keep that file under the repo's 500-line cap
-// (issue #4630): recordQuarantinedFacts, the visible dead-letter emitter
+// This file holds the durable-quarantine persistence concern, split out of the
+// reducer root's factschema_decode.go to keep that file under the repo's
+// 500-line cap
+// (issue #4630): RecordQuarantinedFacts, the visible dead-letter emitter
 // (metric + structured log) for facts a batch extractor quarantined during
 // decode, and persistQuarantinedFacts, the best-effort batched write of those
 // records to the durable reducer_input_invalid_facts read surface. Both
-// operate on the quarantinedFact/QuarantinedFactRecord types and the
-// classification machinery (factDecodeError, partitionDecodeFailures, and the
-// attribute-shape adapters) that remain in factschema_decode.go — this is a
+// operate on the QuarantinedFact/QuarantinedFactRecord types and the
+// classification machinery (FactDecodeError, PartitionDecodeFailures, and the
+// attribute-shape adapters) in decode_error.go, alongside this file — this is a
 // move-only split with no behavior change.
 
 import (
@@ -19,13 +20,15 @@ import (
 	"log/slog"
 	"time"
 
+	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
+
 	"go.opentelemetry.io/otel/metric"
 
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
 	log "github.com/eshu-hq/eshu/go/pkg/log"
 )
 
-// recordQuarantinedFacts emits the visible, operator-diagnosable dead-letter for
+// RecordQuarantinedFacts emits the visible, operator-diagnosable dead-letter for
 // each fact a batch extractor quarantined during decode: it increments the
 // eshu_dp_reducer_input_invalid_facts_total counter (labeled by domain and
 // fact_kind) and logs one structured error per fact naming the fact id and the
@@ -44,12 +47,12 @@ import (
 // strictly best-effort: a write failure is logged and counted but NEVER
 // returned, so a durable-write outage can never turn a per-fact quarantine
 // (which is by design non-fatal) into a fatal intent failure.
-func recordQuarantinedFacts(
+func RecordQuarantinedFacts(
 	ctx context.Context,
 	instruments *telemetry.Instruments,
-	domain Domain,
+	domain reducercontract.Domain,
 	scopeID, generationID string,
-	quarantined []quarantinedFact,
+	quarantined []QuarantinedFact,
 ) int {
 	if len(quarantined) == 0 {
 		return 0
@@ -60,7 +63,7 @@ func recordQuarantinedFacts(
 		if instruments != nil && instruments.ReducerInputInvalidFacts != nil {
 			instruments.ReducerInputInvalidFacts.Add(ctx, 1, metric.WithAttributes(
 				telemetry.AttrDomain(string(domain)),
-				telemetry.AttrFactKind(q.factKind),
+				telemetry.AttrFactKind(q.FactKind),
 			))
 		}
 		slog.ErrorContext(
@@ -68,16 +71,16 @@ func recordQuarantinedFacts(
 			log.Domain(string(domain)),
 			log.ScopeID(scopeID),
 			log.GenerationID(generationID),
-			slog.String("fact_id", q.factID),
-			slog.String("fact_kind", q.factKind),
-			slog.String("missing_field", q.field),
-			slog.String("failure_class", q.classification),
+			slog.String("fact_id", q.FactID),
+			slog.String("fact_kind", q.FactKind),
+			slog.String("missing_field", q.Field),
+			slog.String("failure_class", q.Classification),
 		)
 		records = append(records, QuarantinedFactRecord{
-			FactID:       q.factID,
-			FactKind:     q.factKind,
-			MissingField: q.field,
-			FailureClass: q.classification,
+			FactID:       q.FactID,
+			FactKind:     q.FactKind,
+			MissingField: q.Field,
+			FailureClass: q.Classification,
 			Domain:       string(domain),
 			ScopeID:      scopeID,
 			GenerationID: generationID,

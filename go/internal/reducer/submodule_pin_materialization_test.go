@@ -338,7 +338,7 @@ func TestExtractSubmodulePinEdgeRowsSkipsUnresolvedAndQuarantinesMissingRequired
 	if len(quarantined) != 1 {
 		t.Fatalf("quarantined len = %d, want 1", len(quarantined))
 	}
-	if quarantined[0].factID != "fact-bad-1" {
-		t.Errorf("quarantined factID = %q, want fact-bad-1", quarantined[0].factID)
+	if quarantined[0].FactID != "fact-bad-1" {
+		t.Errorf("quarantined factID = %q, want fact-bad-1", quarantined[0].FactID)
 	}
 }
