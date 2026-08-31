@@ -37,4 +37,12 @@
 // feature when off. Shell-command evidence records only API and source location
 // metadata; command text, arguments, and environment values are intentionally
 // omitted.
+//
+// The Engine-level black-box regressions that used to live in
+// internal/parser as engine_javascript_*_test.go now live here as external
+// package javascript_test, matching the earlier Elixir relocation (#6335).
+// They drive extraction through parser.DefaultEngine().ParsePath, which Go
+// compiles separately from this package's own tests, so exercising the
+// public engine contract does not give this package's production files a
+// reverse dependency on internal/parser.
 package javascript

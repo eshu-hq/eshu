@@ -26,6 +26,8 @@
     tests for package-local Fastify computations; it does not import the parent
 13. engine_typescript_implements_test.go - external-package regression for
     implemented-interface metadata through the public parent engine
+14. engine_javascript_test_helpers_test.go - shared helpers for the relocated
+    `engine_javascript_*_test.go` external-package suites (issue #6062)
 
 ## Invariants this package enforces
 
@@ -34,8 +36,11 @@
   external `javascript_test` file may import the parent only to test or benchmark
   its public engine contract. The Fastify characterization test stays in
   `package javascript` and must not import the parent; the external Fastify
-  benchmark and TypeScript implemented-interface regression are the black-box
-  exceptions.
+  benchmark, TypeScript implemented-interface regression, and the relocated
+  `engine_javascript_*_test.go` Engine-level suites (issue #6062, following the
+  Elixir precedent in #6335) are the black-box exceptions. Add new
+  Engine-level JavaScript/TypeScript/TSX regressions to `package
+  javascript_test`, not to `internal/parser`.
 - `Parse` receives a `ParserFactory` from the parent wrapper. Do not pass or
   store parent Engine values here.
 - Payload buckets must stay deterministic. Sort named buckets before returning
