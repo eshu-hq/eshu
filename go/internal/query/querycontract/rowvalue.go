@@ -18,11 +18,11 @@ import "fmt"
 // (#6060) moves each handler family in go/internal/query into its own
 // subpackage, and a subpackage cannot import the root package back without an
 // import cycle, because root names family symbols in its compatibility
-// aliases. StringVal alone is called from 203 of the 880 non-test root files
-// (325 counting the 1042 test files), so leaving these in root would block
+// aliases. StringVal alone is called from 202 of the 880 non-test root files
+// (322 counting the 1042 test files), so leaving these in root would block
 // every family move. Package query keeps forwarding wrappers under the
 // original names, so its own callers and the 28 files outside the package that
-// call these four functions all compile unchanged.
+// call these four functions -- 5 non-test and 23 test -- all compile unchanged.
 
 // StringVal safely extracts a string from a map value. A missing key or a nil
 // yields "". A present value of some other type is rendered with %v rather
