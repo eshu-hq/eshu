@@ -53,6 +53,9 @@ func repositoryRoute(toolName string, args map[string]any) (*route, bool, error)
 	if route, ok := containerImageRoute(toolName, args); ok {
 		return route, true, nil
 	}
+	if route, ok := supplyChainImpactRoute(toolName, args); ok {
+		return route, true, nil
+	}
 	switch toolName {
 	case "list_indexed_repositories":
 		return &route{method: "GET", path: "/api/v0/repositories", query: paginationQuery(args, 100)}, true, nil
@@ -90,14 +93,6 @@ func repositoryRoute(toolName string, args map[string]any) (*route, bool, error)
 		return advisoryEvidenceRoute(args), true, nil
 	case "get_vulnerability_scanner_read_contract":
 		return vulnerabilityScannerReadContractRoute(args), true, nil
-	case "list_supply_chain_impact_findings":
-		return supplyChainImpactFindingsRoute(args), true, nil
-	case "count_supply_chain_impact_findings":
-		return supplyChainImpactAggregateCountRoute(args), true, nil
-	case "get_supply_chain_impact_inventory":
-		return supplyChainImpactAggregateInventoryRoute(args), true, nil
-	case "explain_supply_chain_impact":
-		return supplyChainImpactExplanationRoute(args), true, nil
 	case "list_security_alert_reconciliations":
 		return securityAlertReconciliationsRoute(args), true, nil
 	case "count_security_alert_reconciliations":

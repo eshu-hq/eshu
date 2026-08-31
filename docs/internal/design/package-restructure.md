@@ -645,7 +645,7 @@ the graph does not have. That is why the child tests and the dispatch-level test
 assert all twelve keys individually as well as by exact request: a loud failure
 and a silent one need the same per-key coverage.
 
-The container-image identity route family is the sixth and last Wave 2 MCP
+The container-image identity route family is the sixth Wave 2 MCP
 extraction, and the only one whose request builders did not come out of a file
 named for the family. `containerImageIdentitiesRoute` and
 `containerImageTagHistoryRoute` sat in `dispatch_supply_chain.go` beside six
@@ -694,6 +694,49 @@ to another dimension changes every ungrouped caller's answer. The child tests
 and the dispatch-level test therefore assert each route's keys individually
 against literal expectations, not against the child selector, since the
 adapter parity test builds both of its sides from that same selector.
+
+The supply-chain-impact route family is the seventh Wave 2 MCP extraction.
+Its four tools -- the bounded vulnerability finding listing plus its
+whole-scope count, grouped inventory, and single bounded explanation -- were
+answered by four arms of the same `repositoryRoute` switch. Two request
+builders, `supplyChainImpactFindingsRoute` and
+`supplyChainImpactExplanationRoute`, sat in `dispatch_supply_chain.go` beside
+four supply-chain builders that stay there; the other two, plus the
+fourteen-filter helper they share, sat alone in
+`dispatch_supply_chain_aggregates.go`. Family membership and all four
+builders now live under `internal/mcp/supplychainimpact`; the aggregates file
+is deleted and `dispatch_supply_chain_impact.go` takes its place holding only
+the thin `supplyChainImpactRoute` adapter. Root keeps the four tool
+definitions and their assembly positions, global fanout order, dispatch,
+authorization, transport, timeouts, response budgets, envelopes, summaries,
+and telemetry. The adapter is consulted directly after the container-image
+one at the top of `repositoryRoute`, so the repository router keeps its own
+position in the global chain and no other family's resolution order changes.
+The four tool names are disjoint from the six earlier families and from the
+remaining switch arms, and the 162-tool order, the advertised schemas, the
+`limit` defaults of 50 and 100, the `offset` default of 0, the `group_by`
+fallback to `impact_status`, and every selected method, path, and query key
+remain unchanged.
+
+As with the container-image extraction, deleting
+`dispatch_supply_chain_aggregates.go` and adding
+`dispatch_supply_chain_impact.go` is a same-count file swap: `internal/mcp`
+holds the same non-test Go file count it had before, so the dirgate re-pin
+here is digest-only.
+
+What makes this family worth reading is the `include_suppressed` filter. It
+is not a plain string like its neighbors: the handler treats a missing key as
+its documented `false` default and only rejects a non-true/false value, so the
+route must forward `"true"` or `"false"` when the caller set an explicit bool
+and omit the key entirely otherwise. `routecontract.Arguments.BoolOr` cannot
+express that three-state contract -- it collapses "the caller never set this"
+into the fallback, which is indistinguishable from an explicit `false` -- so
+the child package carries its own `boolStr` helper rather than reusing
+`BoolOr`, the same shape the root dispatcher used before extraction. The
+listing and the two aggregates share this helper and the same fourteen
+filters; the explanation carries none of them, since it answers exactly one
+finding, one no-evidence explanation, or one ambiguous-scope refusal rather
+than a page.
 
 **cmd/eshu (233):** `package main` — subdirectories are impossible by
 language rule. The lever is extracting business logic to new
