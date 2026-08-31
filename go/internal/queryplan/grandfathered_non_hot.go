@@ -71,7 +71,7 @@ var grandfatheredNonHotSourceDigests = map[string]string{
 	"repository_context_helpers.go:queryRepoSourceToolBreakdown":                                          "3918e78a83ba8142c1859b588f5c6aeb940f23fd7b5aa5bdb3e19544c87f6a1d",
 	"repository_coverage.go:(*RepositoryHandler).queryRepositoryGraphCoverageStats":                       "03a1169e19cecd151db58a7b04bd73951442ea968ec6adb7fa4167441dd92282",
 	"repository_name_lookup.go:queryRepositoryNamesByID":                                                  "bc5bc4ba6a121331df4503d2fcc3e6dce99dbcd9f6577be390cfed2836b7ff42",
-	"repository_selector.go:resolveRepositorySelectorExactForAccess":                                      "5a1c4c7ed8ef6c00afaf83615e271ea5bef57ecc5a38faeb422b4a445cc4f740",
+	"queryselector/selector.go:ResolveExactForAccess":                                                     "32ca35a98c2720a5017f32627c28d7d3a9d3e474ec482afedf840d1bb90472b6",
 	"repository_stats.go:(*RepositoryHandler).repositoryStatsRepositoryRef":                               "d77ea6fafc6b643991204c6aef8cff77b0a6c3a96b07293d1da2e46f5435340d",
 	"service_ingress_posture.go:ingressPostureEdgeSet":                                                    "b59356535aed2f95d7a9f96644dbba8c39ee267e8f0f78442d363432eb548a07",
 	"service_story_overview.go:buildServiceDocumentationOverview":                                         "8c1253751e3215f2b7646751cc76fb9995a8d1600a2d39c4a7690bfad59f6c82",
