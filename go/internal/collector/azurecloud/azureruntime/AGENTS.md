@@ -8,8 +8,9 @@
    there; do not duplicate them here.
 3. `docs/public/reference/azure-cloud-collector-contract.md` - the provider
    contract. The runtime is now in-scope, and fixture-backed resource-change
-   emission is allowed behind `SourceLaneResourceChanges`, but reducer
-   admission, API/MCP readback, and Helm/chart wiring remain gated.
+   emission is allowed behind `SourceLaneResourceChanges`. Default-off
+   Helm/chart wiring is implemented outside this package; the sanitized
+   real-tenant live proof remains gated by issue #3066.
 4. `docs/public/reference/multi-cloud-collector-contract.md` - shared
    scope/generation, redaction, and telemetry rules.
 5. `config.go` - declarative `Config`/`TargetConfig`; credentials by name only.

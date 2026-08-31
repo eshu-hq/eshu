@@ -23,8 +23,9 @@ the parent `azurecloud` fact engine into a `collector.Source` that the shared
   pages. It issues no network calls.
 - `LiveProviderFactory`: a gated-by-default production seam. Its zero value
   returns `ErrLiveProviderGated`; only explicitly injected read-only Resource
-  Graph and allowlisted ARM fallback clients can make live calls. The command
-  and chart paths still do not activate it.
+  Graph and allowlisted ARM fallback clients can make live calls. The opt-in
+  claimed-live command injects the read-only Resource Graph client; fixture and
+  default paths remain inert, and ARM fallback stays unwired.
 
 ## What this package does NOT own
 
@@ -36,9 +37,10 @@ resolves an already-claimed work item to its authorized scope target, but it
 does not own coordinator-side claim scheduling, reducer admission, graph writes,
 API/MCP readback, Helm/chart wiring, or live-smoke proof. Existing reducer slices
 already admit Azure resource, tag, image-reference, and managed-relationship
-evidence outside this package; identity, change, DNS, live source lanes, readback
-expansion, Helm chart activation, and live-smoke proof remain gated follow-ups
-(issue #3024 tracks the live-transport promotion).
+evidence outside this package. Issue #3024 delivered the claimed-live Resource
+Graph transport and default-off Helm activation outside this package. Identity,
+change, DNS, ARM-fallback live source lanes, and readback expansion remain gated;
+the sanitized real-tenant live proof is tracked by issue #3066.
 
 ## Scope and generation
 

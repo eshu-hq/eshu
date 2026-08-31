@@ -8,9 +8,9 @@ Runtime binary for the Azure cloud collector. It runs in two modes:
 - **claimed-live** (`-mode claimed-live`): selects one enabled, claim-enabled
   Azure collector instance, wires the read-only live Resource Graph adapter, and
   runs through `collector.ClaimedService` so claim acquire, heartbeat, fenced
-  commit, retry, and terminal failure follow the shared workflow lifecycle. This
-  is the live-transport promotion path tracked by issue #3024 (the Azure
-  equivalent of GCP #1997). It is opt-in and off by default.
+  commit, retry, and terminal failure follow the shared workflow lifecycle.
+  Issue #3024 delivered this live-transport path; it is opt-in and off by
+  default. The remaining real-tenant promotion proof is tracked by issue #3066.
 
 ## Configuration (declarative, credentials by name only)
 
@@ -92,8 +92,9 @@ the zero-value `azureruntime.LiveProviderFactory`, which returns
 `ErrLiveProviderGated`. No default code path and no test issues a live Azure
 request. Live transport is reached only in `-mode claimed-live`, which is opt-in
 and requires an explicit `live_collection_enabled=true` collector instance and a
-granted workflow claim before any read. Helm chart activation of the claimed-live
-deployment remains gated until the runtime and security gates pass.
+granted workflow claim before any read. Default-off Helm activation is
+implemented; production promotion remains gated on the sanitized real-tenant
+proof in issue #3066.
 
 ## Ownership boundary
 
@@ -105,11 +106,10 @@ reducer admission, graph writes, API/MCP readback, Helm values, or live-smoke
 proof.
 
 Azure resource, tag, image-reference, and managed-relationship reducer slices
-are implemented in their owning packages and stay outside this binary. Helm
-chart activation, the hosted security posture gate, and live-smoke proof remain
-issue #3024 follow-ups gated by the Azure cloud collector contract; this PR
-delivers the claimed-live runtime and its fixture-proven claim handoff, and
-keeps live transport off by default.
+are implemented in their owning packages and stay outside this binary. Issue
+#3024 delivered the claimed-live runtime and default-off Helm activation. The
+sanitized real-tenant live proof and its security evidence remain gated by
+issue #3066; live transport stays off by default.
 
 ## Verify
 
