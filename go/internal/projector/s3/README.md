@@ -87,6 +87,17 @@ parity and probe-count tests, the projector package tree, package-doc and
 path mirrors, dirgate, telemetry coverage, and the golden-corpus gates
 selected by the changed paths.
 
+No-Regression Evidence: this extraction moves three builders and their typed
+decode wrapper without changing a trigger, a value, or the order they run in.
+Reducer intent domains emitted by all three builders are identical to the base
+commit, and the dispatcher's ordered fan-out is unchanged at 32 builders with
+each swap at its original position. `awsCloudRuntimeDriftSourceSystem` and
+`codegraphDerefString` were compared body-for-body against their
+`projectorintent` and local replacements rather than by name. Focused proof:
+`go test ./internal/projector/... -count=1` green, whole-module `go build` and
+`go vet` clean, and the B-7 golden corpus gate reports 561 pass /
+0 required-fail with the B-12 snapshot byte-identical to main.
+
 ## Related docs
 
 - [Projector architecture](../README.md)
