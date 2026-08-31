@@ -36,43 +36,46 @@ extraction — not tree-sitter.
 These support the parser engine but are not parsers themselves. They are out of
 scope for parser-depth audits.
 
-## Parent-Level Test Convention
+## Parser Integration Test Convention
 
-The parser package places engine-level integration tests at the **package root**
-(`go/internal/parser/`), not inside each language subdirectory. This is by
-design, not a coverage gap:
+Issue #6062 moves language-specific black-box engine tests into the owning
+language directory. These tests use the external `<language>_test` package so
+they can import the parent parser, drive `parser.DefaultEngine`, and assert the
+full discovery and parse path without reversing the production dependency from
+the parent engine to its language adapter.
 
-1. **Engine tests** (`engine_<lang>_*_test.go`) exercise the full parse path
-   through parser discovery, initialisation, and result verification. They live
-   at the package root because they import and exercise the shared engine
-   dispatch, not a single language adapter.
+Rust is one migrated example. Its `engine_rust_lifetimes_test.go`,
+`engine_rust_module_resolution_test.go`, `rust_route_entries_test.go`, and
+`rust_cargo_dependency_test.go` files now live under `go/internal/parser/rust/`
+as package `rust_test`. The in-package `rust` tests in the same directory still
+cover adapter helpers and parsing details directly.
 
-2. **Language subdirectory tests** (`go/internal/parser/<lang>/*_test.go`) cover
-   package-internal helpers, edge cases, and unit-level parsing logic. Not every
-   language needs subdirectory tests when the parent engine tests provide
-   sufficient coverage.
+The parent package root (`go/internal/parser/`) continues to own shared and
+cross-language engine tests. Rust coverage in `engine_systems_test.go` and the
+Rust cases in `engine_cyclomatic_complexity_test.go` stays there because those
+suites exercise common engine behavior. Language-specific tests that have not
+yet moved also remain at the parent root until their migration lands.
 
-3. **Dead-code root tests** (`<lang>_dead_code_roots_test.go`) live at the
-   package root and verify framework-specific entry-point detection per language.
-
-This convention means that a language parser can have **zero subdirectory test
-files** and still be thoroughly tested at the engine level. Subdirectory test
-counts are not a coverage signal.
+Test location therefore records ownership, not depth of coverage. A language
+may have external engine tests in its subdirectory, parent-root coverage in a
+shared suite, package-internal unit tests, or a mix of those forms. Counting
+only one directory still produces a false coverage gap.
 
 ## Corrected Baseline
 
 The original P1 framing ("c, kotlin, php, scala, swift — 49 src files with zero
 test coverage") counted only `_test.go` files inside each language subdirectory.
-Parent-level tests prove the opposite:
+The current tree proves the opposite through both migrated subdirectory tests
+and retained parent-root coverage:
 
-| Parser | Parent-level test files | Subdirectory tests | Verdict |
-|--------|------------------------|-------------------|---------|
-| kotlin | 15 (`engine_kotlin_*`, `kotlin_dead_code_roots`) | 0 | Deep |
-| php | 15 (`php_language_*`, `php_dead_code_roots`) | 0 | Deep |
-| swift | 4 (`engine_swift_*`, `swift_dead_code_roots`) | 0 | Deep |
-| c | 1 (`c_dead_code_roots`) | 0 | Deep |
-| csharp | 2 | 0 | Moderate |
-| scala | 1 (`scala_dead_code_roots`) + 3 incidental | 0 | Moderate |
+| Parser | Parent-root `_test.go` files | Subdirectory `_test.go` files | Verdict |
+|--------|------------------------------|-------------------------------|---------|
+| kotlin | 16 | 3 | Deep |
+| php | 17 | 5 | Deep |
+| swift | 7 | 3 | Deep |
+| c | 0 | 4 | Deep |
+| csharp | 4 | 1 | Moderate |
+| scala | 0 | 6 | Moderate |
 
 Per-parser audit docs live at `docs/internal/parser-audit/<name>.md`. See the
 [audit index](#audit-index) below.

@@ -89,7 +89,7 @@ For the supply-chain impact reducer, the practical implications are:
   decision.
 
 No-Regression Evidence: Cargo dependency coverage is guarded by
-`go test ./internal/parser -run 'TestCargoDependencyCoverageMatrixMarksCargoFilesCovered|TestDefaultEngineParsePathCargo' -count=1`,
+`go test ./internal/parser/rust -run 'TestCargoDependencyCoverageMatrixMarksCargoFilesCovered|TestDefaultEngineParsePathCargo' -count=1`,
 `go test ./internal/parser/json -run 'TestDependencyCoverageMatrixIsStableAndExhaustive|TestDependencyCoverageCoveredFilesEmitDependencyRows' -count=1`,
 and `go test ./internal/reducer -run 'TestBuildPackageConsumptionDecisions(MatchesCargoRenamedPackage|KeepsCargoLockfileWithoutProofUnchained)|TestPackageCorrelationWriterPersistsCargoLockfileEvidence|TestBuildSupplyChainImpactFindings(UsesCargoLockfileVersion|MarksCargoLockfileVersionKnownFixed|KeepsCargoManifestVersionRangeOnly)' -count=1`.
 The fixtures prove parser evidence, coverage-matrix truth, renamed Cargo
@@ -160,7 +160,7 @@ remote-E2E verifier status output; no new metric, span, queue, worker, route,
 or graph-write shape was introduced.
 
 No-Regression Evidence: Swift Package Manager impact support is guarded by
-`go test ./internal/parser ./internal/parser/json -run 'Swift|PackageResolved|DependencyCoverage' -count=1`,
+`go test ./internal/parser ./internal/parser/rust ./internal/parser/json -run 'Swift|PackageResolved|DependencyCoverage' -count=1`,
 `go test ./internal/collector/vulnerabilityintelligence ./internal/collector/vulnerabilityintelligence/vulnruntime -run 'SwiftURL|SwiftOSV|MapsSwiftOSV' -count=1`,
 and `go test ./internal/reducer ./internal/query -run 'Swift|SupplyChainImpactFindingQueryUsesDetectionProfileFilter|DecodeSupplyChainImpactFindingRowBackfillsLegacyPreciseProfile|AggregateQueriesUseListProfileAndSuppressionPredicates' -count=1`.
 The fixtures prove exact `Package.resolved` dependency evidence, OSV

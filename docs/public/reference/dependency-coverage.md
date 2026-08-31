@@ -225,7 +225,7 @@ package-lock, Yarn classic/Berry, and pnpm, including dev-scope propagation
 and unsupported-lockfile rejection.
 
 No-Regression Evidence: Cargo coverage is guarded by
-`go test ./internal/parser -run 'TestCargoDependencyCoverageMatrixMarksCargoFilesCovered|TestDefaultEngineParsePathCargo' -count=1`,
+`go test ./internal/parser/rust -run 'TestCargoDependencyCoverageMatrixMarksCargoFilesCovered|TestDefaultEngineParsePathCargo' -count=1`,
 `go test ./internal/parser/json -run 'TestDependencyCoverageMatrixIsStableAndExhaustive|TestDependencyCoverageCoveredFilesEmitDependencyRows' -count=1`,
 and `go test ./internal/reducer -run 'TestBuildPackageConsumptionDecisions(MatchesCargoRenamedPackage|KeepsCargoLockfileWithoutProofUnchained)|TestPackageCorrelationWriterPersistsCargoLockfileEvidence|TestBuildSupplyChainImpactFindings(UsesCargoLockfileVersion|MarksCargoLockfileVersionKnownFixed|KeepsCargoManifestVersionRangeOnly)' -count=1`.
 These are in-memory parser and reducer fixtures; they do not claim queue,
@@ -267,7 +267,7 @@ hosted-runtime work.
 
 No-Regression Evidence: Pub dependency evidence is guarded by
 `go test ./internal/packageidentity -run 'Pub|NormalizePackageIdentityUsesCanonicalEcosystemRules' -count=1`,
-`go test ./internal/parser ./internal/parser/yaml ./internal/parser/json -run 'Pub|DependencyCoverageMatrix|DependencyCoveragePubspec|TestDependencyCoverageEngineCoversPackageManagers' -count=1`,
+`go test ./internal/parser ./internal/parser/rust ./internal/parser/yaml ./internal/parser/json -run 'Pub|DependencyCoverageMatrix|DependencyCoveragePubspec|TestDependencyCoverageEngineCoversPackageManagers' -count=1`,
 and `go test ./internal/reducer -run 'BuildSupplyChainImpactFindingsMatchesPub' -count=1`.
 These fixtures prove Pub package identity normalization, hosted pubspec
 manifest and lockfile evidence, exact lockfile semver matching, and fail-closed

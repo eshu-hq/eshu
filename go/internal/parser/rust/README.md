@@ -48,6 +48,24 @@ engine. It owns Rust syntax walking and payload assembly, while the parent
 package keeps registry dispatch, runtime parser construction, and compatibility
 method signatures.
 
+Rust test ownership sits here too. The in-package `rust` tests cover `Parse`,
+`PreScan`, and the helpers directly. The black-box tests that drive Rust source
+through the parent engine live in this directory in the external `rust_test`
+package: `engine_rust_lifetimes_test.go`, `engine_rust_module_resolution_test.go`,
+`rust_route_entries_test.go`, and `rust_cargo_dependency_test.go`. They call
+the public parser boundary: nine tests use `parser.DefaultEngine` and
+`parser.Options`, while one Cargo coverage test uses the public
+`jsonparser.DependencyCoverageByFile` registry. Shared parser assertions live
+in `internal/parser/parsertest`, while the Cargo suite keeps its row and
+dependency chain assertions beside the Rust tests that use them.
+
+The parent parser directory still holds `TestDefaultEngineParsePathRust`,
+`TestDefaultEngineParsePathRustImplOwnership`, and
+`TestDefaultEngineParsePathRustImplBlocks` in `engine_systems_test.go`, plus the
+Rust cases in `engine_cyclomatic_complexity_test.go`. Those remain at the root
+because they belong to shared and cross-language suites; new standalone Rust
+regressions belong here.
+
 ## Exported Surface
 
 The package exposes `Parse` for full payload extraction, `PreScan` for
@@ -59,8 +77,11 @@ carries the godoc contract for callers.
 
 ## Dependencies
 
-This package imports the shared parser helper package and tree-sitter types. It
-must not import the parent parser package.
+Production files and same-package `rust` tests import the shared parser helper
+package and tree-sitter types. Neither may import the parent parser package.
+External `rust_test` black-box tests may import the parent only to drive the
+public `parser.DefaultEngine` and `parser.Options` boundary; the coverage test
+may use the public JSON parser dependency-coverage registry.
 
 ## Telemetry
 

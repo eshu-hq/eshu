@@ -296,7 +296,7 @@ language_features:
     partial_features: [broader-rust-web-route-truth, lifetime-aware-graph-semantics, macro-expansion]
     derived_features: [dead-code-roots]
     source_files: [go/internal/parser/rust_language.go, go/internal/parser/rust/parser.go, go/internal/parser/rust/framework_routes.go]
-    test_files: [go/internal/parser/engine_systems_test.go, go/internal/parser/rust_route_entries_test.go, go/internal/reducer/handles_route_rust_test.go, go/internal/query/content_reader_framework_routes_rust_test.go, go/internal/query/code_relationships_rust_graph_test.go, go/internal/query/route_query_proof_helpers_test.go, go/internal/query/route_query_proof_matrix_test.go]
+    test_files: [go/internal/parser/engine_systems_test.go, go/internal/parser/rust/rust_route_entries_test.go, go/internal/reducer/handles_route_rust_test.go, go/internal/query/content_reader_framework_routes_rust_test.go, go/internal/query/code_relationships_rust_graph_test.go, go/internal/query/route_query_proof_helpers_test.go, go/internal/query/route_query_proof_matrix_test.go]
     docs: [docs/public/languages/rust.md]
     read_surfaces: [execute_language_query, get_code_relationship_story, find_dead_code, trace_route_callers]
     tracking_issues: [4038, 4163]

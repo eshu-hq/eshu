@@ -216,6 +216,14 @@ git -C "${relationship_complete_repo}" add .
 git -C "${relationship_complete_repo}" commit -q -m 'relationship with docs and tests'
 expect_pass "${relationship_complete_repo}"
 
+# shellcheck source=scripts/lib/parser_documented_test_commands.sh
+. "${repo_root}/scripts/lib/parser_documented_test_commands.sh"
+PARSER_SELECTOR_MATCHER_OUTPUT="${tmp_root}/parser-selector-matcher"
+# shellcheck source=scripts/lib/test-verify-parser-relationship-kit-cargo-selector-cases.sh
+. "${repo_root}/scripts/lib/test-verify-parser-relationship-kit-cargo-selector-cases.sh"
+# shellcheck source=scripts/lib/test-verify-parser-relationship-kit-documented-command-regressions.sh
+. "${repo_root}/scripts/lib/test-verify-parser-relationship-kit-documented-command-regressions.sh"
+
 query_missing_dsl_repo="$(init_repo query-missing-dsl)"
 printf 'package query\nfunc languageQueryEntityType() {}\n' >"${query_missing_dsl_repo}/go/internal/query/language_queries.go"
 printf '\nDocumented new query behavior.\n' >>"${query_missing_dsl_repo}/docs/public/languages/python.md"

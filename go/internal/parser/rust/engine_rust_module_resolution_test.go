@@ -1,11 +1,14 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package parser
+package rust_test
 
 import (
 	"path/filepath"
 	"testing"
+
+	"github.com/eshu-hq/eshu/go/internal/parser"
+	"github.com/eshu-hq/eshu/go/internal/parser/parsertest"
 )
 
 func TestDefaultEngineParsePathRustAnnotatesResolvedModules(t *testing.T) {
@@ -29,33 +32,33 @@ cfg_if::cfg_if! {
 }
 `)
 
-	engine, err := DefaultEngine()
+	engine, err := parser.DefaultEngine()
 	if err != nil {
 		t.Fatalf("DefaultEngine() error = %v, want nil", err)
 	}
 
-	got, err := engine.ParsePath(repoRoot, libPath, false, Options{})
+	got, err := engine.ParsePath(repoRoot, libPath, false, parser.Options{})
 	if err != nil {
 		t.Fatalf("ParsePath() error = %v, want nil", err)
 	}
 
-	api := findNamedBucketItem(t, got, "modules", "api")
+	api := parsertest.AssertBucketItemByName(t, got, "modules", "api")
 	assertStringFieldValue(t, api, "resolved_path", "src/api.rs")
 	assertStringFieldValue(t, api, "module_resolution_status", "resolved")
 
-	osModule := findNamedBucketItem(t, got, "modules", "os")
+	osModule := parsertest.AssertBucketItemByName(t, got, "modules", "os")
 	assertStringFieldValue(t, osModule, "resolved_path", "src/platform/unix.rs")
 	assertStringFieldValue(t, osModule, "module_resolution_status", "resolved")
 
-	outside := findNamedBucketItem(t, got, "modules", "outside")
+	outside := parsertest.AssertBucketItemByName(t, got, "modules", "outside")
 	assertStringFieldValue(t, outside, "module_resolution_status", "unresolved")
 	if _, ok := outside["resolved_path"]; ok {
 		t.Fatalf("outside[resolved_path] = %#v, want absent for outside-repo path", outside["resolved_path"])
 	}
 
-	missing := findNamedBucketItem(t, got, "modules", "missing")
+	missing := parsertest.AssertBucketItemByName(t, got, "modules", "missing")
 	assertStringFieldValue(t, missing, "module_resolution_status", "unresolved")
 
-	generated := findNamedBucketItem(t, got, "modules", "generated")
+	generated := parsertest.AssertBucketItemByName(t, got, "modules", "generated")
 	assertStringFieldValue(t, generated, "module_resolution_status", "blocked")
 }
