@@ -104,9 +104,13 @@ func AssertStringSliceContains(t *testing.T, item map[string]any, field string, 
 func AssertStringSliceNotContains(t *testing.T, item map[string]any, field string, want string) {
 	t.Helper()
 
-	got, ok := item[field].([]string)
-	if !ok {
+	raw, present := item[field]
+	if !present {
 		return
+	}
+	got, ok := raw.([]string)
+	if !ok {
+		t.Fatalf("%s = %#v (%T), want []string; a present-but-malformed field must not pass a negative assertion", field, raw, raw)
 	}
 	for _, value := range got {
 		if value == want {
