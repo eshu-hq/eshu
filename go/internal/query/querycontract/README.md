@@ -29,7 +29,36 @@ This package emits no metrics, spans, or logs. Handlers and storage adapters
 retain their existing telemetry.
 
 No-Observability-Change: moving these contracts does not change the handler or
-adapter call paths that emit telemetry.
+adapter call paths that emit telemetry. The graph row-value decoders are pure
+functions with no instrumentation, before the move and after it.
+
+## Performance
+
+Moving the row-value decoders here put a forwarding wrapper in front of four
+functions the query read paths call constantly. Counted by walking the AST for
+call expressions, so a name appearing in a comment does not inflate the figure,
+`StringVal` is called from 202 of the 880 non-test root files, `IntVal` from
+89, `StringSliceVal` from 74, and `BoolVal` from 43. The question that raises
+is whether the extra call frame costs anything on a hot row-decode loop.
+
+It does not: the compiler removes it entirely.
+
+No-Regression Evidence: `cd go && go build -gcflags='-m' ./internal/query/`
+reports `can inline StringVal`, `can inline BoolVal`, `can inline IntVal` and
+`can inline StringSliceVal` for the four root wrappers; `inlining call to
+querycontract.BoolVal`, `... IntVal` and `... StringSliceVal` where each wrapper
+calls into this package; and `inlining call to StringVal` at each caller
+(`neo4j.go:307,309,311,313,317` among others). Both hops collapse at compile
+time, so a decode site emits the same code it did before the move. No benchmark
+is cited because there is no runtime delta to measure -- the indirection does not
+survive compilation.
+
+No-Observability-Change: the four decoders emit no metric, span, or log, before
+this move and after it -- they are pure functions over a map. The handlers that
+call them keep their existing `eshu_dp_api_request_duration_seconds` timing and
+their `query.*` spans, and because both wrapper hops inline away, no span
+boundary, attribute, or log line moves. An operator sees exactly the signals
+they saw before.
 
 ## Gotchas / invariants
 
