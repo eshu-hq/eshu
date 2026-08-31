@@ -169,6 +169,132 @@ func insertColumnNames(t *testing.T, query string) []string {
 	return names
 }
 
+// stageColumnNames extracts a comma-separated identifier list matched by
+// pattern's single capture group, trimming whitespace and any trailing
+// "::type" cast so a projection column such as "payload::jsonb" compares
+// equal to the plain "payload" name the INSERT column list and the AS t(...)
+// alias list carry. It fails loudly (never returns an empty slice) so a
+// pattern that stops matching cannot make the stage-agreement proof below
+// silently vacuous.
+func stageColumnNames(t *testing.T, label, query, pattern string) []string {
+	t.Helper()
+
+	re := regexp.MustCompile(pattern)
+	m := re.FindStringSubmatch(query)
+	if m == nil {
+		t.Fatalf("%s: pattern %s matched nothing in query:\n%s", label, pattern, query)
+	}
+
+	identRe := regexp.MustCompile(`^\w+`)
+	var names []string
+	for _, part := range strings.Split(m[1], ",") {
+		part = strings.TrimSpace(part)
+		if part == "" {
+			continue
+		}
+		ident := identRe.FindString(part)
+		if ident == "" {
+			t.Fatalf("%s: could not extract a leading identifier from column fragment %q", label, part)
+		}
+		names = append(names, ident)
+	}
+	if len(names) == 0 {
+		t.Fatalf("%s: parsed zero column names out of:\n%s", label, m[1])
+	}
+	return names
+}
+
+// selectProjectionColumnNames parses the SELECT list between "SELECT" and
+// "FROM unnest(" -- the middle of the three positional stages a batch insert
+// depends on agreeing.
+func selectProjectionColumnNames(t *testing.T, query string) []string {
+	t.Helper()
+	return stageColumnNames(t, "SELECT projection", query, `(?s)SELECT\s*(.*?)\s*FROM unnest\(`)
+}
+
+// unnestAliasColumnNames parses the "AS t(...)" alias list. This is what
+// actually BINDS each unnest(...) argument to a NAME: the aliases are
+// positional against the unnest(...) argument order, and the SELECT
+// projection above reads those names back. Reordering this list alone
+// silently re-routes bind parameters into different columns without
+// touching the INSERT column list or the Go arrays that feed it.
+func unnestAliasColumnNames(t *testing.T, query string) []string {
+	t.Helper()
+	return stageColumnNames(t, "unnest AS t(...) alias list", query, `(?s)\)\s*AS t\(\s*(.*?)\s*\)`)
+}
+
+// unnestBindPlaceholders extracts the ordered "$N" placeholders bound inside
+// the unnest(...) argument list, in the order they are written.
+func unnestBindPlaceholders(t *testing.T, query string) []string {
+	t.Helper()
+
+	re := regexp.MustCompile(`(?s)FROM unnest\(\s*(.*?)\s*\)\s*AS t\(`)
+	m := re.FindStringSubmatch(query)
+	if m == nil {
+		t.Fatalf("no FROM unnest(...) AS t(...) call found in query:\n%s", query)
+	}
+
+	placeholders := regexp.MustCompile(`\$\d+`).FindAllString(m[1], -1)
+	if len(placeholders) == 0 {
+		t.Fatalf("found no $N placeholders inside unnest(...) in query:\n%s", query)
+	}
+	return placeholders
+}
+
+// assertStagesAgree proves the three positional statement stages a batch
+// insert depends on -- the INSERT column list, the SELECT projection, and the
+// unnest(...) AS t(...) alias list -- name the same columns in the same
+// order, and that the unnest bind placeholders form a strict, gapless
+// $1..$N sequence matching the alias count.
+//
+// Postgres binds $N to unnest's Nth argument; the AS t(...) alias at that
+// position is what names it, and the SELECT projection then reads that name
+// back. A reorder confined to any ONE stage -- for example swapping two AS
+// t(...) aliases without touching the INSERT column list or the Go arrays --
+// silently re-routes bind parameters into the wrong columns while a check
+// against the INSERT list alone stays green. Confirmed by mutation: swapping
+// source_system and source_fact_key in BatchInsertSource's AS t(...) list
+// alone turns this red (codex, P1, PR #6357).
+func assertStagesAgree(t *testing.T, label, query string) {
+	t.Helper()
+
+	insertCols := insertColumnNames(t, query)
+	selectCols := selectProjectionColumnNames(t, query)
+	aliasCols := unnestAliasColumnNames(t, query)
+
+	if len(selectCols) != len(insertCols) {
+		t.Fatalf("%s: SELECT projection has %d columns, INSERT list has %d: %v vs %v",
+			label, len(selectCols), len(insertCols), selectCols, insertCols)
+	}
+	if len(aliasCols) != len(insertCols) {
+		t.Fatalf("%s: AS t(...) alias list has %d columns, INSERT list has %d: %v vs %v",
+			label, len(aliasCols), len(insertCols), aliasCols, insertCols)
+	}
+	for i := range insertCols {
+		if selectCols[i] != insertCols[i] {
+			t.Errorf("%s: position %d: SELECT projection column %q != INSERT column %q",
+				label, i, selectCols[i], insertCols[i])
+		}
+		if aliasCols[i] != insertCols[i] {
+			t.Errorf("%s: position %d: AS t(...) alias %q != INSERT column %q",
+				label, i, aliasCols[i], insertCols[i])
+		}
+	}
+
+	placeholders := unnestBindPlaceholders(t, query)
+	if len(placeholders) != len(aliasCols) {
+		t.Fatalf("%s: unnest(...) binds %d placeholders but AS t(...) names %d aliases",
+			label, len(placeholders), len(aliasCols))
+	}
+	for i, ph := range placeholders {
+		want := "$" + itoa(i+1)
+		if ph != want {
+			t.Errorf("%s: unnest(...) placeholder %d = %q, want %q (bind order must be strictly ascending $1..$N with no gaps or repeats)",
+				label, i, ph, want)
+		}
+	}
+}
+
 // TestChunkArgsColumnOrderMatchesTheStatement pins the unversioned
 // column<->bind-index mapping ChunkArgs and BatchInsertSource's unnest both
 // depend on. Every Row field carries a distinct sentinel, so a mismatched or
@@ -244,6 +370,12 @@ func TestChunkArgsColumnOrderMatchesTheStatement(t *testing.T) {
 			t.Errorf("BatchInsertQuery column %d = %q, want %q (want list order has drifted from the statement)", i, sqlColumns[i], w.name)
 		}
 	}
+
+	// The checks above only pin the INSERT column list against the Go bind
+	// order; they say nothing about the SELECT projection or the AS t(...)
+	// alias list that actually routes each $N bind parameter to a column.
+	// assertStagesAgree closes that hole for all three positional stages.
+	assertStagesAgree(t, "BatchInsertQuery", BatchInsertQuery)
 }
 
 // TestBatchInsertVersionedFactsColumnOrderMatchesTheStatement pins the
@@ -331,6 +463,12 @@ func TestBatchInsertVersionedFactsColumnOrderMatchesTheStatement(t *testing.T) {
 			t.Errorf("BatchInsertVersionedQuery column %d = %q, want %q (want list order has drifted from the statement)", i, sqlColumns[i], w.name)
 		}
 	}
+
+	// The checks above only pin the INSERT column list against the Go bind
+	// order; they say nothing about the SELECT projection or the AS t(...)
+	// alias list that actually routes each $N bind parameter to a column.
+	// assertStagesAgree closes that hole for all three positional stages.
+	assertStagesAgree(t, "BatchInsertVersionedQuery", BatchInsertVersionedQuery)
 }
 
 func itoa(i int) string {
