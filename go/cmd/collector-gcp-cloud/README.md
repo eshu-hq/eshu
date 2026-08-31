@@ -81,8 +81,8 @@ come from the workflow work item, not static config.
 ## Deferred
 
 Shared GCP reducer admission and API/MCP readback are implemented outside this
-command. See the canonical contract for their boundaries and the separate gated
-deployed-shape promotion proof:
+command. See the canonical contract for their boundaries and the separately
+gated partition-filtered handler and deployed-shape promotion proofs:
 `docs/public/reference/gcp-cloud-collector-contract.md`.
 
 ## Verification and evidence

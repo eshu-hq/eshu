@@ -4,8 +4,9 @@ This page defines the provider-specific design baseline for the GCP cloud
 collector. It is a child of the
 [Multi-Cloud Runtime Collector Contract](multi-cloud-collector-contract.md).
 Issues #1997 and #2644 record a completed security-only sanitized live smoke,
-but this page does not promise full promotion until the deployed-shape
-[Promotion Proof](collector-reducer-readiness.md#promotion-proof) is recorded.
+but this page does not promise full promotion until partition-filtered handler
+proof and the deployed-shape
+[Promotion Proof](collector-reducer-readiness.md#promotion-proof) are recorded.
 
 The collector kind is `gcp`. It observes Google Cloud control-plane metadata
 through Cloud Asset Inventory and emits source facts only. Reducers own
@@ -1800,7 +1801,8 @@ Implemented slices:
 
 Remaining gated slices:
 
-1. Deployed-shape full-promotion proof. The #1997/#2644 security-only
+1. Partition-filtered handler proof while the resource-scope fallback remains.
+2. Deployed-shape full-promotion proof. The #1997/#2644 security-only
    sanitized smoke is already recorded.
 
 Observability change: the first slice adds the `gcp_cloud_resource`,

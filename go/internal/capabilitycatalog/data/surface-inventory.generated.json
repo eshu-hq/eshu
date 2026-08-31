@@ -1343,7 +1343,7 @@
         "reference/collector-reducer-readiness.md",
         "reference/azure-cloud-collector-contract.md"
       ],
-      "notes": "Fixture-driven with claimed-live wiring; sanitized real-tenant live proof remains gated (issue #3066).",
+      "notes": "Fixture-driven with claimed-live wiring; partition-filtered handler proof and sanitized real-tenant live proof remain gated (issue #3066).",
       "collector_contract": {
         "fact_kinds": [
           "azure_cloud_relationship",
@@ -1468,7 +1468,7 @@
         "reference/collector-reducer-readiness.md",
         "reference/gcp-cloud-collector-contract.md"
       ],
-      "notes": "Fixture-driven with claimed-live wiring; security smoke complete, while deployed-shape promotion proof remains gated.",
+      "notes": "Fixture-driven with claimed-live wiring; security smoke complete, while partition-filtered handler and deployed-shape promotion proofs remain gated.",
       "collector_contract": {
         "fact_kinds": [
           "gcp_cloud_relationship",

@@ -46,7 +46,8 @@
 - MUST NOT add Helm values, chart wiring, claim-driven workflow scheduling, or
   a live-calling default provider in this fact engine. Claimed-live scheduling
   and default-off chart activation are implemented in their owning packages;
-  sanitized real-tenant promotion proof remains gated by issue #3066. Reducer
+  partition-filtered handler proof and the sanitized real-tenant promotion proof
+  in issue #3066 remain gated. Reducer
   admission and readback work belongs in reducer/query/MCP packages, not here.
   The fixture-backed resource-change source lane may emit existing
   `azure_resource_change` facts; it must stay provenance-only and must not admit

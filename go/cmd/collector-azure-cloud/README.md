@@ -10,7 +10,8 @@ Runtime binary for the Azure cloud collector. It runs in two modes:
   runs through `collector.ClaimedService` so claim acquire, heartbeat, fenced
   commit, retry, and terminal failure follow the shared workflow lifecycle.
   Issue #3024 delivered this live-transport path; it is opt-in and off by
-  default. The remaining real-tenant promotion proof is tracked by issue #3066.
+  default. Partition-filtered handler proof and the real-tenant proof tracked by
+  issue #3066 remain required for promotion.
 
 ## Configuration (declarative, credentials by name only)
 
@@ -93,8 +94,8 @@ the zero-value `azureruntime.LiveProviderFactory`, which returns
 request. Live transport is reached only in `-mode claimed-live`, which is opt-in
 and requires an explicit `live_collection_enabled=true` collector instance and a
 granted workflow claim before any read. Default-off Helm activation is
-implemented; production promotion remains gated on the sanitized real-tenant
-proof in issue #3066.
+implemented; production promotion remains gated on partition-filtered handler
+proof plus the sanitized real-tenant proof in issue #3066.
 
 ## Ownership boundary
 
@@ -108,6 +109,7 @@ proof.
 Azure resource, tag, image-reference, and managed-relationship reducer slices
 are implemented in their owning packages and stay outside this binary. Issue
 #3024 delivered the claimed-live runtime and default-off Helm activation. The
+partition-filtered handler proof remains required for promotion, while the
 sanitized real-tenant live proof and its security evidence remain gated by
 issue #3066; live transport stays off by default.
 

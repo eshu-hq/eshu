@@ -156,8 +156,8 @@ operator-local configuration required to take a lane to live promotion.
 | Loki | `implemented` | `operator-gated` | Fixture parity green; live needs a Loki URL. | `ESHU_LOKI_LIVE=1` + base URL (optional token/tenant). |
 | Tempo | `implemented` | `operator-gated` | Fixture parity green; live needs a Tempo URL. | `ESHU_TEMPO_LIVE=1` + base URL (optional token/tenant). |
 | CI/CD runs | `partial` | `fixture-parity` | Fixture normalizer + reducer correlation green; hosted live target proof still pending (lane stays `partial`). | Bounded GitHub Actions allowlist (optional `GITHUB_TOKEN`). |
-| GCP cloud | `gated` | `operator-gated` | Fixture parity green; #1997/#2644 record the completed security-only sanitized smoke. The deployed-shape [Promotion Proof](collector-reducer-readiness.md#promotion-proof) remains pending, so the lane stays gated. | Read-only GCP identity. Closed [#1997](https://github.com/eshu-hq/eshu/issues/1997) / [#2644](https://github.com/eshu-hq/eshu/issues/2644) record the security smoke; full promotion remains gated. |
-| Azure cloud | `gated` | `operator-gated` | Fixture parity green; sanitized live smoke pending. | Read-only Azure workload identity. Tracked by [#3066](https://github.com/eshu-hq/eshu/issues/3066). |
+| GCP cloud | `gated` | `operator-gated` | Fixture parity green; #1997/#2644 record the completed security-only sanitized smoke. Partition-filtered handler proof and the deployed-shape [Promotion Proof](collector-reducer-readiness.md#promotion-proof) remain pending, so the lane stays gated. | Read-only GCP identity. Closed [#1997](https://github.com/eshu-hq/eshu/issues/1997) / [#2644](https://github.com/eshu-hq/eshu/issues/2644) record the security smoke; full promotion remains gated. |
+| Azure cloud | `gated` | `operator-gated` | Fixture parity green; partition-filtered handler proof and sanitized live smoke pending. | Read-only Azure workload identity. Live proof tracked by [#3066](https://github.com/eshu-hq/eshu/issues/3066). |
 | Vault live (secrets/IAM) | `gated` | `operator-gated` | Fixture/parity green per package; live needs a read-only Vault. | `VAULT_ADDR` + read-only token. See [Vault read-only permissions](vault-secrets-iam-permissions.md). |
 | semantic extraction | `gated` | `research-only` | No hosted provider lane; gated behind a provider profile. | `ESHU_SEMANTIC_PROVIDER_PROFILES_JSON` opt-in; not a deployed collector. |
 | Kubernetes live | `foundation_only` | `foundation-only` | Lists a read-only core resource set + emits source facts; the reducer `kubernetes_correlation` domain and drift read model (`GET /api/v0/kubernetes/correlations`) have landed. Claim-driven runtime pending; the kubernetesLiveCollector Helm chart exists (off by default). | Correlation/drift read surface and the readiness-gated `RUNS_IMAGE` graph edge landed; claim-driven runtime pending. |
@@ -206,7 +206,9 @@ operator credentials. NVD stays key-gated and is excluded.
 Cloud promotion proof remains operator-gated and tracked separately. GCP
 [#1997](https://github.com/eshu-hq/eshu/issues/1997) /
 [#2644](https://github.com/eshu-hq/eshu/issues/2644) record the completed
-security-only smoke; its deployed-shape promotion proof remains gated. Azure
+security-only smoke; its partition-filtered handler and deployed-shape
+promotion proofs remain gated. Azure needs partition-filtered handler proof
+plus the live proof tracked by
 [#3066](https://github.com/eshu-hq/eshu/issues/3066).
 
 ## Maintainer Details
