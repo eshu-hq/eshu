@@ -115,19 +115,18 @@ func TestWriteGraphReadErrorCapabilitiesExistInMatrix(t *testing.T) {
 			t.Fatalf("parse %s: %v", name, err)
 		}
 		parsed = append(parsed, file)
-		// Declarations come from the ROOT package only. The sweep's lookup maps
-		// are keyed by bare identifier, and 23 names are declared in both root
-		// and a leaf today -- BoolVal, IntVal and BuildTruthEnvelope among them,
-		// because root keeps a forwarder for each symbol the leaf owns. Feeding
-		// every package into one map would let a capability constant resolve to
-		// whichever package happened to be parsed last.
-		//
-		// Call sites are still collected recursively, which is the whole point
-		// of the recursive walk: a handler family's calls must be swept even
-		// though its declarations are not what resolves a capability argument.
-		if filepath.Dir(name) == dir {
-			sweep.collectDecls(file)
-		}
+		// Declarations are collected from every directory the recursive walk
+		// reaches, not just the root package. The sweep's lookup maps are keyed
+		// by (declaring directory, bare identifier) -- see capabilitySweep in
+		// graph_read_error_capability_sweep_resolve_test.go -- rather than by
+		// bare identifier alone, because 23 names are declared in both root and
+		// a leaf today (BoolVal, IntVal and BuildTruthEnvelope among them, since
+		// root keeps a forwarder for each symbol a leaf owns). Directory scoping
+		// is what makes it safe to feed every package into the same maps: a
+		// lookup is always resolved against the identifier's own declaring
+		// directory, so a root forwarder and a leaf's real declaration of the
+		// same name can never shadow each other.
+		sweep.collectDecls(file)
 	}
 	for _, file := range parsed {
 		sweep.collectCallSites(file)
