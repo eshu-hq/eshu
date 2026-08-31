@@ -59,12 +59,30 @@ scan_dirs=("$query_dir" "$si_dir")
 gofiles_tmp="${tmpdir}/gofiles.txt"
 : > "$gofiles_tmp"
 for dir in "${scan_dirs[@]}"; do
-  # "--max-depth 1" keeps a subpackage of a scan dir from being searched for
-  # routes it does not own; "!openapi_*.go" keeps the OpenAPI component and
-  # schema files (11 of them under $query_dir today) from being read as
-  # HandleFunc sources; "!*_test.go" keeps a test helper's throwaway mux out.
-  # All three are pinned by fixtures in
-  # scripts/lib/test-verify-openapi-scan-scope-cases.sh and
+  # Recursive (not --max-depth 1, #6060), the same call
+  # scripts/verify-route-coverage.sh:130-136 already made for #6055: a handler
+  # that moved into a subdirectory of a scan dir must still be found.
+  #
+  # The depth-1 scan this replaces assumed a subpackage owns BOTH its routes
+  # and its OpenAPI fragments, so reading it would report routes this package
+  # never registered. Epic #6053's query split breaks that assumption in one
+  # direction only. A handler family moving to go/internal/query/<family>/
+  # takes its Mount() and its mux.HandleFunc calls with it, but CANNOT take
+  # its openapi_paths_<family>.go fragment: OpenAPISpec() concatenates
+  # unexported package-level consts, and a Go package boundary follows the
+  # directory boundary. The fragment stays in package query while the routes
+  # leave, so a depth-1 scan sees a documented path with no registration
+  # behind it and reports a phantom ORPHAN_OPENAPI -- and, worse, cannot see
+  # an UNDOCUMENTED subpackage route at all, reporting the surface clean.
+  # Both directions are pinned by scripts/test-verify-openapi-subpackage.sh.
+  #
+  # "!**/testdata/**" for the same reason verify-route-coverage.sh excludes it:
+  # a depth-1 scan never crossed into a subdirectory, so going recursive newly
+  # exposes fixture handlers that must not be counted as real routes.
+  # "!openapi_*.go" keeps the OpenAPI component and schema files (11 of them
+  # under $query_dir today) from being read as HandleFunc sources;
+  # "!*_test.go" keeps a test helper's throwaway mux out. All are pinned by
+  # fixtures in scripts/lib/test-verify-openapi-scan-scope-cases.sh and
   # scripts/test-verify-openapi.sh.
   #
   # rg --files exits 1 (not 0, unlike `find`) when a directory has zero
@@ -76,7 +94,7 @@ for dir in "${scan_dirs[@]}"; do
   # above 1 as fatal -- the same fail-closed shape already used for the
   # known-drift scan below.
   set +e
-  rg --files --max-depth 1 -g '*.go' -g '!*_test.go' -g '!openapi_*.go' \
+  rg --files -g '*.go' -g '!*_test.go' -g '!openapi_*.go' -g '!**/testdata/**' \
     "$dir" 2>"${tmpdir}/scan_dir_err.txt" \
   >> "$gofiles_tmp"
   scan_dir_rc=$?

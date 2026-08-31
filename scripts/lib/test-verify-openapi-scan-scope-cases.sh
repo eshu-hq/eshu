@@ -43,27 +43,40 @@ GOEOF
 }
 
 # ══════════════════════════════════════════════════════════════════════════════
-# Test 10d — green: a HandleFunc registration in a subpackage of a scan dir is
-# excluded. A subpackage owns its own routes and its own OpenAPI fragments (or
-# none), so pulling its registrations into this package's drift diff reports
-# routes the package never registered. Dropping `--max-depth 1` makes this
-# fixture exit 1.
-test_scan_excludes_subdirectories_green() {
+# Test 10d — green: a HandleFunc registration inside a testdata/ directory is
+# excluded, even though the scan is now recursive.
+#
+# This fixture used to assert the opposite of its first clause: that ANY
+# subpackage of a scan dir was excluded, on the reasoning that a subpackage
+# owns both its routes and its OpenAPI fragments. Epic #6053's query split
+# (#6060) makes that false for a handler family, which takes its Mount() into
+# go/internal/query/<family>/ but must leave its openapi_paths_<family>.go
+# fragment behind in package query, because OpenAPISpec() concatenates
+# unexported consts across a boundary a subdirectory cannot cross. A real
+# family route in a subpackage IS part of this surface and must be scanned;
+# scripts/test-verify-openapi-subpackage.sh pins both directions of that.
+#
+# What recursion newly puts at risk is the opposite case, so that is what this
+# fixture now guards: a fixture handler under testdata/ is not a served route
+# and must never be counted as one. The depth-1 scan excluded it for free by
+# never descending; the recursive scan needs the explicit
+# `!**/testdata/**` glob. Dropping that glob makes this fixture exit 1.
+test_scan_excludes_testdata_subdirectories_green() {
   local dir
-  dir="$(setup_repo "subdirectory-excluded")"
+  dir="$(setup_repo "testdata-subdirectory-excluded")"
 
-  mkdir -p "${dir}/go/internal/query/sub"
-  cat > "${dir}/go/internal/query/sub/h.go" << 'GOEOF'
-package sub
+  mkdir -p "${dir}/go/internal/query/testdata"
+  cat > "${dir}/go/internal/query/testdata/h.go" << 'GOEOF'
+package testdata
 
 import "net/http"
 
 func Mount(mux *http.ServeMux) {
-	mux.HandleFunc("GET /api/v0/should-not-be-scanned-sub", func(w http.ResponseWriter, _ *http.Request) {})
+	mux.HandleFunc("GET /api/v0/should-not-be-scanned-fixture", func(w http.ResponseWriter, _ *http.Request) {})
 }
 GOEOF
 
-  run_verifier "$dir" "HandleFunc inside a scan-dir subpackage is excluded from the scan, exits 0" "pass"
+  run_verifier "$dir" "HandleFunc inside a testdata/ subdirectory is excluded from the recursive scan, exits 0" "pass"
 }
 
 # ══════════════════════════════════════════════════════════════════════════════

@@ -388,7 +388,7 @@ jobs:
             fi
           }
 
-          append_gate "${{ steps.filter.outputs.openapi }}" "openapi" "Verify OpenAPI gate" "scripts/test-verify-openapi.sh" "scripts/verify-openapi.sh"
+          append_gate "${{ steps.filter.outputs.openapi }}" "openapi" "Verify OpenAPI gate" "bash scripts/test-verify-openapi.sh && bash scripts/test-verify-openapi-subpackage.sh" "scripts/verify-openapi.sh"
           append_gate "${{ steps.filter.outputs.route }}" "route" "Verify route coverage gate" "scripts/test-verify-route-coverage.sh" "scripts/verify-route-coverage.sh"
           append_gate "${{ steps.filter.outputs.edge }}" "edge" "Verify edge source-tool coverage gate" "bash scripts/test-verify-edge-source-tool-coverage.sh" "scripts/verify-edge-source-tool-coverage.sh"
           append_gate "${{ steps.filter.outputs.evidence }}" "evidence" "Verify evidence continuity gate" "scripts/test-verify-evidence-continuity.sh" "scripts/verify-evidence-continuity.sh"
