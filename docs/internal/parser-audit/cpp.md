@@ -97,6 +97,6 @@ The CPP parser has good coverage of its core dead-code root kinds (7 root types 
 ## Recommended Actions
 1. Add focused tests for `cppFunctionPointerAliasPattern`, `cppDirectInitializerTargetPattern`, and `cppBraceInitializerPattern` with malformed and edge-case inputs.
 2. Add a test for `NAPI_MODULE` and `NODE_MODULE_CONTEXT_AWARE` via call-expression registration (not just the `*_MODULE_INIT` names).
-4. Add tests for template specializations with destructors, `= default`, and `= delete`.
-5. Add Unicode identifier tests.
-6. Add a dead-code fixture test covering both `using` and `typedef` function-pointer alias forms with the same targets.
+3. Add tests for template specializations with destructors, `= default`, and `= delete`.
+4. Add Unicode identifier tests.
+5. Add a dead-code fixture test covering both `using` and `typedef` function-pointer alias forms with the same targets.
