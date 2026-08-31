@@ -738,6 +738,47 @@ filters; the explanation carries none of them, since it answers exactly one
 finding, one no-evidence explanation, or one ambiguous-scope refusal rather
 than a page.
 
+The security-alert reconciliation route family is the eighth Wave 2 MCP
+extraction. Its three tools -- the cursor-paged listing of reducer-owned
+provider security-alert reconciliations plus its whole-scope count and
+grouped inventory -- were answered by three arms of the same
+`repositoryRoute` switch. The listing builder,
+`securityAlertReconciliationsRoute`, sat in `dispatch_supply_chain.go` beside
+three supply-chain builders that stay there; the two aggregate builders sat
+alone in `dispatch_security_alert_aggregates.go`. Family membership and all
+three builders now live under `internal/mcp/securityalert`; the aggregates
+file is deleted and `dispatch_security_alert.go` takes its place holding
+only the thin `securityAlertRoute` adapter. Root keeps the three tool
+definitions and their assembly positions, global fanout order, dispatch,
+authorization, transport, timeouts, response budgets, envelopes, summaries,
+and telemetry. The adapter is consulted directly after the
+supply-chain-impact one at the top of `repositoryRoute`, so the repository
+router keeps its own position in the global chain and no other family's
+resolution order changes. The three tool names are disjoint from the seven
+earlier families and from the remaining switch arms, which drop from 22 to
+19, and the 162-tool order, the advertised schemas, the `limit` defaults of
+50 and 100, the `offset` default of 0, the `group_by` fallback to
+`reconciliation_status`, and every selected method, path, and query key
+remain unchanged.
+
+As with the container-image and supply-chain-impact extractions, deleting
+`dispatch_security_alert_aggregates.go` and adding
+`dispatch_security_alert.go` is a same-count file swap: `internal/mcp` holds
+the same non-test Go file count it had before, so the dirgate re-pin here is
+digest-only.
+
+What makes this family worth reading is that the listing is scope-anchored
+while its two aggregate siblings are not. `SecurityAlertReconciliationFilter
+.hasScope` requires one of `repository_id`, `provider`, `package_id`,
+`cve_id`, or `ghsa_id`; `provider_state` and `reconciliation_status` do not
+count as anchors on their own, so a caller who sets only those two still
+400s on the listing. The count and the inventory require nothing at all, so
+a lost filter there returns 200 over a wider scope and quietly drops that
+key from the `scope` block the response echoes back. This family carries no
+`boolStr`-shaped tri-state filter -- every key is a plain string or a paging
+integer -- so, unlike supply-chain-impact, the child needs no local
+reimplementation beside `routecontract.Arguments`.
+
 **cmd/eshu (233):** `package main` — subdirectories are impossible by
 language rule. The lever is extracting business logic to new
 `internal/cli/<family>` packages, leaving thin cobra RunE wrappers —

@@ -17,8 +17,9 @@
    `go/internal/mcp/dispatch_cicd.go`, `go/internal/mcp/dispatch_codeowners.go`,
    `go/internal/mcp/dispatch_secrets_iam.go`,
    `go/internal/mcp/dispatch_observability_coverage.go`,
-   `go/internal/mcp/dispatch_container_image.go`, and
-   `go/internal/mcp/dispatch_supply_chain_impact.go` — `dispatchTool`,
+   `go/internal/mcp/dispatch_container_image.go`,
+   `go/internal/mcp/dispatch_supply_chain_impact.go`, and
+   `go/internal/mcp/dispatch_security_alert.go` — `dispatchTool`,
    deadline handling, `resolveRoute`, the child route adapters, and argument
    helpers; understand `parseCanonicalEnvelope` before touching response
    shaping.
@@ -28,8 +29,9 @@
    `go/internal/mcp/codeowners`, secrets/IAM posture request selection in
    `go/internal/mcp/secretsiam`, observability-coverage request selection in
    `go/internal/mcp/observabilitycoverage`, container-image identity request
-   selection in `go/internal/mcp/containerimage`, and supply-chain-impact
-   request selection in `go/internal/mcp/supplychainimpact`
+   selection in `go/internal/mcp/containerimage`, supply-chain-impact request
+   selection in `go/internal/mcp/supplychainimpact`, and security-alert
+   reconciliation request selection in `go/internal/mcp/securityalert`
 4. `go/internal/mcp/types.go` — `ToolDefinition` and `ReadOnlyTools`; this is
    the tool registry entry point
 5. `go/internal/query/` — the `http.Handler` that backs every tool call;
