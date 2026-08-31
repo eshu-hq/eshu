@@ -17,10 +17,12 @@
 // packagereg for the PackageRegistryHandler/PackageRegistryCorrelationRow
 // compatibility aliases cmd/api and cmd/mcp-server still use.
 //
-// This package registers its own capabilities with querycontract
-// (package_registry_capabilities.go) rather than through root's legacy
-// capabilityMatrix compatibility map, for the same cycle reason -- and
-// because go test ./internal/query/packagereg never runs root's init()
-// functions, a registration left in root would leave every capability gate
-// in this package's own tests reporting unsupported_capability.
+// This family's six capabilities stay registered in root package query
+// (contract_package_registry.go, contract_capability_matrix.go), which owns
+// the router and always links into the production binary. Because
+// go test ./internal/query/packagereg cannot link root (the cycle above),
+// main_test.go's TestMain registers the same six capabilities with
+// querycontract before this package's own tests run, faithfully mirroring
+// root's values; see that file's doc comment for why it exists and why it is
+// not redundant.
 package packagereg

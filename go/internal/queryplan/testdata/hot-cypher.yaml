@@ -68,10 +68,10 @@ entries:
     backend: nornicdb
     query_kind: cypher
     source:
-      file: go/internal/query/packagereg/package_registry_cypher.go
-      symbol: PackageRegistryDependenciesCypher
-      source_sha256: a92f145ca61617e17f023994ab69248398c1203f993d552b90864c149a2b7630
-      line_hint: 171
+      file: go/internal/query/package_registry_cypher.go
+      symbol: packageRegistryDependenciesCypher
+      source_sha256: c1d91b77769871a2651bbe201d1d581178111b9d8fac01c9fa7b43d073a921a8
+      line_hint: 163
     required_anchors:
       - label: PackageDependency
         property: version_id
