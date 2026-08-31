@@ -33,11 +33,12 @@ type PageRequest struct {
 // and a continuation token in the page for the next call.
 //
 // The live gRPC/REST Cloud Asset Inventory client is a PageProvider
-// implementation. Default and hermetic tests use FixturePageProvider, so they
-// make no live Google Cloud call. The environment-gated
-// TestLiveSmokeCloudAssetInventory is the documented exception. Implementations
-// MUST already have dropped the raw resource data blob (the gcpcloud parser is
-// the single redaction choke point).
+// implementation. The default command path and fixture-backed tests use
+// FixturePageProvider; LiveClient transport tests inject local HTTP servers,
+// while validation-only tests fail before transport. None makes a live Google
+// Cloud call. The environment-gated TestLiveSmokeCloudAssetInventory is the
+// documented exception. Implementations MUST already have dropped the raw
+// resource data blob (the gcpcloud parser is the single redaction choke point).
 type PageProvider interface {
 	// FetchPage returns the next assets.list page for the request. The returned
 	// page's NextPageToken is empty when the scope is fully drained.
