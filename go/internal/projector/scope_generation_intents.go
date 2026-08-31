@@ -9,6 +9,7 @@ import (
 	projectorec2 "github.com/eshu-hq/eshu/go/internal/projector/ec2"
 	projectorgcp "github.com/eshu-hq/eshu/go/internal/projector/gcp"
 	projectorkubernetes "github.com/eshu-hq/eshu/go/internal/projector/kubernetes"
+	projectors3 "github.com/eshu-hq/eshu/go/internal/projector/s3"
 	projectorsecurity "github.com/eshu-hq/eshu/go/internal/projector/security"
 	"github.com/eshu-hq/eshu/go/internal/scope"
 )
@@ -96,10 +97,10 @@ func appendScopeGenerationReducerIntents(
 	if intent, ok := buildIAMCanAssumeMaterializationReducerIntent(scopeValue, generation, index); ok {
 		intents = append(intents, intent)
 	}
-	if intent, ok := buildS3LogsToMaterializationReducerIntent(scopeValue, generation, index); ok {
+	if intent, ok := projectors3.BuildLogsToMaterializationReducerIntent(scopeValue.ScopeID, generation.GenerationID, index.lookup); ok {
 		intents = append(intents, intent)
 	}
-	if intent, ok := buildS3ExternalPrincipalGrantMaterializationReducerIntent(scopeValue, generation, index); ok {
+	if intent, ok := projectors3.BuildExternalPrincipalGrantMaterializationReducerIntent(scopeValue.ScopeID, generation.GenerationID, index.lookup); ok {
 		intents = append(intents, intent)
 	}
 	if intent, ok := buildRDSPostureMaterializationReducerIntent(scopeValue, generation, index); ok {
@@ -120,7 +121,7 @@ func appendScopeGenerationReducerIntents(
 	if intent, ok := projectorec2.BuildBlockDeviceKMSPostureMaterializationReducerIntent(scopeValue.ScopeID, generation.GenerationID, index.lookup); ok {
 		intents = append(intents, intent)
 	}
-	if intent, ok := buildS3InternetExposureMaterializationReducerIntent(scopeValue, generation, index); ok {
+	if intent, ok := projectors3.BuildInternetExposureMaterializationReducerIntent(scopeValue.ScopeID, generation.GenerationID, index.lookup); ok {
 		intents = append(intents, intent)
 	}
 	if intent, ok := buildContainerImageIdentityReducerIntent(scopeValue, generation, index); ok {

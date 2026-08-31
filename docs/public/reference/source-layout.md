@@ -59,6 +59,7 @@ live in the repository today.
 | `go/internal/projector/gcp/` | GCP resource and relationship reducer-intent family builders |
 | `go/internal/projector/intent/` | dependency-neutral reducer-intent values, source labels, and immutable fact index for extracted projector families |
 | `go/internal/projector/kubernetes/` | Kubernetes live-workload and namespace reducer-intent family builders |
+| `go/internal/projector/s3/` | S3 LOGS_TO, external-principal-grant, and internet-exposure reducer-intent family builders |
 | `go/internal/projector/security/` | security-alert reconciliation and AWS security-group reducer-intent family builders |
 | `go/internal/query/` | HTTP query/admin handlers plus OpenAPI support |
 | `go/internal/query/querycontract/` | dependency-neutral query profiles, envelopes, capability registry, and read ports |
