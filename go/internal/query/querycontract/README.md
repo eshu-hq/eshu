@@ -29,10 +29,11 @@ types and wraps the functions so existing imports keep their current API.
 
 ## Dependencies
 
-The package uses only the Go standard library plus the `internal/scope` leaf,
-for the `scope.CollectorKind` the `CollectorListReadinessStore` port carries.
-`scope` is itself standard-library-only, so it introduces no transitive
-dependency and no cycle. `GraphQuery` and `ContentStore` are consumer-owned
+The package uses the Go standard library plus two standard-library-only leaves:
+`internal/scope`, for the `scope.CollectorKind` the `CollectorListReadinessStore`
+port carries, and `internal/query/queryauth`, for the `AuthContext` that
+`RepositoryAccessFilterFromContext` reads. Neither brings a transitive
+dependency and neither creates a cycle. `GraphQuery` and `ContentStore` are consumer-owned
 ports; concrete adapters remain outside this leaf package.
 
 A new import here is a contract change, not a detail. The point of this package

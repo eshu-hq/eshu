@@ -26,24 +26,7 @@ type repositoryAccessFilter = querycontract.RepositoryAccessFilter
 // dependency-neutral contract package free of the auth-context type while
 // preserving identical behavior.
 func repositoryAccessFilterFromContext(ctx context.Context) repositoryAccessFilter {
-	auth, ok := AuthContextFromContext(ctx)
-	if !ok || auth.AllScopes || auth.Mode == AuthModeShared {
-		return repositoryAccessFilter{AllScopes: true}
-	}
-	allowedScopeIDs := cleanedAuthStrings(auth.AllowedScopeIDs)
-	allowedRepositoryIDs := cleanedAuthStrings(auth.AllowedRepositoryIDs)
-	allowed := make(map[string]struct{}, len(allowedScopeIDs)+len(allowedRepositoryIDs))
-	for _, id := range allowedScopeIDs {
-		allowed[id] = struct{}{}
-	}
-	for _, id := range allowedRepositoryIDs {
-		allowed[id] = struct{}{}
-	}
-	return repositoryAccessFilter{
-		AllowedScopeIDs:      allowedScopeIDs,
-		AllowedRepositoryIDs: allowedRepositoryIDs,
-		Allowed:              allowed,
-	}
+	return querycontract.RepositoryAccessFilterFromContext(ctx)
 }
 
 // containsAuthString forwards to querycontract.ContainsAuthString so root call
