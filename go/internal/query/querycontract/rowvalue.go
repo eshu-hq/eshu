@@ -7,19 +7,22 @@ import "fmt"
 
 // Graph drivers hand a row back as map[string]any, so every read path has to
 // assert each column's type before using it. These four helpers do that
-// assertion once, returning the zero value rather than panicking on a missing
-// key, a nil, or an unexpected type -- a graph read that lost one column
-// should degrade that field, not fail the whole request.
+// assertion once and never panic. A missing key or a nil always yields the
+// zero value. An unexpected type yields the zero value too, except in
+// StringVal, which renders it with %v -- see that function's own comment for
+// why. A graph read that lost one column should degrade that field, not fail
+// the whole request.
 //
 // They live here rather than in package query because they carry no
 // dependency on anything: no driver type, no handler, no store. Epic #6053
 // (#6060) moves each handler family in go/internal/query into its own
 // subpackage, and a subpackage cannot import the root package back without an
 // import cycle, because root names family symbols in its compatibility
-// aliases. StringVal alone is called from about 325 root files, so leaving
-// these in root would block every family move. Package query keeps forwarding
-// wrappers under the original names, so its own callers and the 28 files
-// outside the package that call these four functions all compile unchanged.
+// aliases. StringVal alone is called from 203 of the 880 non-test root files
+// (325 counting the 1042 test files), so leaving these in root would block
+// every family move. Package query keeps forwarding wrappers under the
+// original names, so its own callers and the 28 files outside the package that
+// call these four functions all compile unchanged.
 
 // StringVal safely extracts a string from a map value. A missing key or a nil
 // yields "". A present value of some other type is rendered with %v rather

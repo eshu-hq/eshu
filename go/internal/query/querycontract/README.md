@@ -35,9 +35,10 @@ functions with no instrumentation, before the move and after it.
 ## Performance
 
 Moving the row-value decoders here put a forwarding wrapper in front of four
-functions the query read paths call constantly -- `StringVal` from about 325 root
-files. The question that raises is whether the extra call frame costs anything
-on a hot row-decode loop.
+functions the query read paths call constantly. `StringVal` is called from 203
+of the 880 non-test root files, `IntVal` from 90, `StringSliceVal` from 75, and
+`BoolVal` from 44. The question that raises is whether the extra call frame
+costs anything on a hot row-decode loop.
 
 It does not: the compiler removes it entirely.
 
