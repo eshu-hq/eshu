@@ -368,8 +368,20 @@ source_coverage:
           max_results: 201
   - file: packagereg/package_registry_aggregates.go
     calls:
-      - {symbol: "(GraphPackageRegistryAggregateStore).CountPackageRegistryPackages", count: 2, non_hot_reason: "inventory-only support or bounded read; promote to entry_ids when designated hot"}
-      - {symbol: "(GraphPackageRegistryAggregateStore).PackageRegistryPackageInventory", count: 1, non_hot_reason: "inventory-only support or bounded read; promote to entry_ids when designated hot"}
+      - symbol: "(GraphPackageRegistryAggregateStore).CountPackageRegistryPackages"
+        count: 2
+        non_hot:
+          class: label_inventory
+          source_sha256: e6efaf42a45de6cd02fa68d0f9245e76df4787ebff31e77e72a9a64e77e79dcb
+          label: Package
+          max_results: 32
+      - symbol: "(GraphPackageRegistryAggregateStore).PackageRegistryPackageInventory"
+        count: 1
+        non_hot:
+          class: label_inventory
+          source_sha256: 71e7f9027b36bd06b9202c8d06ee00fc06fbfeb5e19f8a90113d18bfe7941e08
+          label: Package
+          max_results: 501
   - file: packagereg/package_registry_dependencies_handler.go
     calls:
       - {symbol: "(*PackageRegistryHandler).listDependencies", count: 1, source_sha256: 15bddb1891f3020ac4b98c511b9becd90103f097b5ca3d1bdd5d03d2a43d6ac6, entry_ids: [QP-SC-PKGREG-DEPS]}
