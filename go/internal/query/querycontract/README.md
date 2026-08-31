@@ -20,16 +20,34 @@ types and wraps the functions so existing imports keep their current API.
 
 ## Dependencies
 
-The package uses only the Go standard library. `GraphQuery` and `ContentStore`
-are consumer-owned ports; concrete adapters remain outside this leaf package.
+Every file here uses only the Go standard library except `handlerspan.go`, which
+imports `go.opentelemetry.io/otel` (plus `otel/attribute` and `otel/trace`) and
+`go/internal/telemetry` for the shared service-namespace attribute. `GraphQuery`
+and `ContentStore` are consumer-owned ports; concrete adapters remain outside
+this leaf package.
 
 ## Telemetry
 
-This package emits no metrics, spans, or logs. Handlers and storage adapters
-retain their existing telemetry.
+`StartHandlerSpan` and `StartHandlerSpanWith` (`handlerspan.go`) start the
+per-route span for query HTTP reads, tagged with `http.route`,
+`eshu.capability`, and `service.namespace`. The tracer is named
+`eshu/go/internal/query` — deliberately, even though the code lives here. That
+name is what saved span queries and dashboards match on, so it tracks the
+surface the spans describe rather than the directory the code sits in. The row
+in `docs/public/observability/telemetry-coverage.md` points at
+`handlerspan.go`.
 
-No-Observability-Change: moving these contracts does not change the handler or
-adapter call paths that emit telemetry.
+`StartHandlerSpanWith` takes the tracer as an argument rather than reading the
+package-level `HandlerTracer`. Package `query` keeps its own swappable
+`queryHandlerTracer` var, which six span tests replace with a recording
+provider; reading `HandlerTracer` directly here would ignore that swap and the
+tests would observe zero spans while the handler quietly emitted them.
+
+Nothing else in the package emits metrics, spans, or logs.
+
+No-Observability-Change: the span name, its attributes, and the tracer name are
+unchanged from when this code lived in package `query`. Moving it changed where
+the code sits, not what it emits.
 
 ## Gotchas / invariants
 
