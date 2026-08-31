@@ -24,11 +24,14 @@ page cites that vocabulary and binds each lane to a proof outcome.
   values, tokens, account IDs, tenant IDs, registry hostnames, repository
   names, raw provider locators, or machine-specific paths appear here. Evidence
   is aggregate-only (counts, states, terminal queue depth).
-- Cloud live-smoke promotion is tracked by dedicated operator-gated issues and
-  is intentionally out of scope for this cross-collector gate:
-  GCP [#1997](https://github.com/eshu-hq/eshu/issues/1997) /
-  [#2644](https://github.com/eshu-hq/eshu/issues/2644), and
-  Azure [#3066](https://github.com/eshu-hq/eshu/issues/3066).
+- Provider promotion evidence is intentionally out of scope for this
+  cross-collector gate. GCP
+  [#1997](https://github.com/eshu-hq/eshu/issues/1997) /
+  [#2644](https://github.com/eshu-hq/eshu/issues/2644) record completed
+  security-only smoke evidence, not full promotion. The remaining GCP work is
+  partition-filtered handler and deployed-shape proof. Azure still needs
+  partition-filtered handler proof plus the operator live proof tracked by
+  [#3066](https://github.com/eshu-hq/eshu/issues/3066).
 
 ## Five Dimensions
 

@@ -39,8 +39,9 @@ API/MCP readback, Helm/chart wiring, or live-smoke proof. Existing reducer slice
 already admit Azure resource, tag, image-reference, and managed-relationship
 evidence outside this package. Issue #3024 delivered the claimed-live Resource
 Graph transport and default-off Helm activation outside this package. Identity,
-change, DNS, ARM-fallback live source lanes, and readback expansion remain gated;
-the sanitized real-tenant live proof is tracked by issue #3066.
+change, DNS, ARM-fallback live source lanes, and readback expansion remain gated.
+Promotion also requires partition-filtered handler proof plus the sanitized
+real-tenant live proof tracked by issue #3066.
 
 ## Scope and generation
 
