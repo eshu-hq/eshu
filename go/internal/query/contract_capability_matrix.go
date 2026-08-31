@@ -456,19 +456,27 @@ var baseCapabilityMatrix = map[string]capabilitySupport{
 		ProductionMax:         &truthExact,
 		RequiredProfile:       ProfileLocalAuthoritative,
 	},
-	// The package_registry.* capabilities (packages.list, versions.list,
-	// dependencies.list, correlations.list, dependency_chains.list,
-	// packages.aggregate) moved into
-	// internal/query/packagereg/package_registry_capabilities.go's own init()
-	// with the rest of the package-registry handler family (#6060).
-	// packagereg cannot mutate this root-only map (root's package_registry_alias.go
-	// already imports packagereg, so the reverse import would cycle), so it
-	// registers directly with querycontract.RegisterCapabilities instead --
-	// the API this package's own doc comment says new family packages should
-	// use. Registration order is unaffected: Go runs an imported package's
-	// init() before the importer's, so packagereg's capabilities are already
-	// registered by the time this file's init() (and
-	// contract_capability_matrix_terraform.go's SetCapabilityOrder) run.
+	"package_registry.packages.list": {
+		LocalLightweightMax:   nil,
+		LocalAuthoritativeMax: &truthExact,
+		LocalFullStackMax:     &truthExact,
+		ProductionMax:         &truthExact,
+		RequiredProfile:       ProfileLocalAuthoritative,
+	},
+	"package_registry.versions.list": {
+		LocalLightweightMax:   nil,
+		LocalAuthoritativeMax: &truthExact,
+		LocalFullStackMax:     &truthExact,
+		ProductionMax:         &truthExact,
+		RequiredProfile:       ProfileLocalAuthoritative,
+	},
+	"package_registry.dependencies.list": {
+		LocalLightweightMax:   nil,
+		LocalAuthoritativeMax: &truthExact,
+		LocalFullStackMax:     &truthExact,
+		ProductionMax:         &truthExact,
+		RequiredProfile:       ProfileLocalAuthoritative,
+	},
 	"dependencies.list": {
 		LocalLightweightMax:   nil,
 		LocalAuthoritativeMax: &truthExact,

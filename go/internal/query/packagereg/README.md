@@ -20,9 +20,12 @@ Root package `query` keeps compatibility aliases and forwarders
 (`package_registry_alias.go`) for `PackageRegistryHandler`,
 `PackageRegistryCorrelationRow`, `PostgresPackageRegistryCorrelationStore`,
 `GraphPackageRegistryAggregateStore`, and their two constructors, so
-`cmd/api` and `cmd/mcp-server` build unchanged. Root's `contract_capability_matrix.go`
-no longer carries this family's capability entries; they moved to this
-package's own `init()` (see below).
+`cmd/api` and `cmd/mcp-server` build unchanged. Root also keeps this family's
+six capability registrations (`contract_package_registry.go`,
+`contract_capability_matrix.go`) -- they stay in root deliberately, since root
+owns the router and always links into the production binary. This package's
+own tests get the same registrations from `main_test.go`'s `TestMain` instead
+(see Gotchas below).
 
 ## Exported surface
 
@@ -69,6 +72,18 @@ existing span queries and dashboards are unaffected by the move.
 No new metrics or logs were added by the move itself.
 
 ## Gotchas / invariants
+
+**`main_test.go`'s `TestMain` is not redundant with root's capability
+registrations.** `go test ./internal/query/packagereg` never runs root package
+`query`'s `init()` functions (the import would cycle), so without `TestMain`
+registering the same six capabilities directly with `querycontract`, every
+handler test in this package fails with the capability gate's
+`unsupported_capability` 501 -- not because the handler is broken, but because
+nothing ever registered a capability for it to check against. Production is
+unaffected: root always links into the real binary and always runs its own
+`init()`s. Keep `TestMain`'s values in sync with
+`contract_package_registry.go` and `contract_capability_matrix.go`'s
+`baseCapabilityMatrix` if either changes.
 
 **The tracer is a package-local var, not an inline `queryspan.HandlerTracer()`
 call.** `handler_tracing.go` declares `packageregTracer` once and every

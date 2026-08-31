@@ -3,30 +3,40 @@
 
 package packagereg
 
-import "github.com/eshu-hq/eshu/go/internal/query/querycontract"
+import (
+	"os"
+	"testing"
 
-// This file registers this family's six capabilities directly with
-// querycontract, rather than through root package query's local
-// capabilityMatrix compatibility map (contract_capability_matrix.go,
-// contract_package_registry.go before #6060): root's package_registry_alias.go
-// already imports packagereg for the PackageRegistryHandler compatibility
-// alias, so the reverse import needed to reach root's map would cycle.
-// querycontract.RegisterCapabilities is the API querycontract's own doc
-// comment says new family packages should use in place of the legacy
-// SetCapabilitySupport root packages still call.
+	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
+)
+
+// TestMain registers this family's six capabilities with querycontract
+// before any test runs, then runs the suite.
 //
-// Registering here rather than in root is also required for correctness, not
-// only to avoid the cycle: go test ./internal/query/packagereg never runs
-// root package query's init() functions (packagereg cannot import root), so a
-// registration left in root would leave every capability gate in this
-// package's own tests reporting unsupported_capability -- exactly the sweep
-// of 501s that motivated this file. Go still runs packagereg's init() before
-// root's own, because Go always finishes an imported package's init() before
-// the importing package's, so registration order (and
-// contract_capability_matrix_terraform.go's SetCapabilityOrder, which lists
-// all six of these capabilities) is unaffected by which package performs the
-// registration.
-func init() {
+// In production these capabilities are registered by root package query's
+// init() functions -- three in contract_package_registry.go
+// (package_registry.correlations.list, package_registry.dependency_chains.list,
+// package_registry.packages.aggregate) and three in
+// contract_capability_matrix.go's baseCapabilityMatrix
+// (package_registry.packages.list, package_registry.versions.list,
+// package_registry.dependencies.list). Root always links into the production
+// binary (it owns the router), so those init() functions always run there and
+// production is unaffected by this file.
+//
+// `go test ./internal/query/packagereg` never links root package query:
+// packagereg cannot import it without an import cycle (root's
+// package_registry_alias.go already imports packagereg for the
+// PackageRegistryHandler compatibility alias, #6060), so root's init()
+// functions never run in this test binary. Without this TestMain, every
+// handler test in this package fails with the capability gate's
+// unsupported_capability 501 -- not because the handler is broken, but
+// because no capability was ever registered for it to check against. The
+// values below are copied faithfully from the two root files named above;
+// they must be kept in sync if either changes.
+//
+// Do NOT delete this file as redundant: it is the only thing that makes this
+// package's own tests exercise the same capability gate production does.
+func TestMain(m *testing.M) {
 	exact := querycontract.TruthLevelExact
 	querycontract.RegisterCapabilities(
 		querycontract.CapabilityRegistration{
@@ -90,4 +100,5 @@ func init() {
 			},
 		},
 	)
+	os.Exit(m.Run())
 }

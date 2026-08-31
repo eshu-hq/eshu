@@ -20,13 +20,17 @@ Read `doc.go` and `README.md` first.
   already has a leaf equivalent under `internal/query` (`querycontract`,
   `queryauth`, `querydecode`, `queryselector`, `queryspan`) or it does not
   belong in this family; ask before adding one.
-- This package registers its own capabilities via
-  `querycontract.RegisterCapabilities` (`package_registry_capabilities.go`),
-  not root's `capabilityMatrix`. `go test ./internal/query/packagereg` never
-  runs root's `init()` functions, so a registration left in root leaves this
-  package's own capability gates reporting `unsupported_capability` for every
-  test -- verify with a full `go test ./internal/query/packagereg -v` case
-  count after any capability change, not just a build.
+- This family's six capabilities are registered in ROOT
+  (`contract_package_registry.go`, `contract_capability_matrix.go`), not here
+  -- root owns the router and always links into production, so its `init()`s
+  always run there. `go test ./internal/query/packagereg` never runs root's
+  `init()` functions (the cycle above), so `main_test.go`'s `TestMain`
+  registers the same six capabilities directly with
+  `querycontract.RegisterCapabilities` before this package's own tests run.
+  If you add or change a capability here, update it in BOTH root's files and
+  `main_test.go`, or this package's tests silently drift from what production
+  actually enforces -- verify with a full `go test ./internal/query/packagereg -v`
+  case count after any capability change, not just a build.
 
 ## When you change `PackageRegistryDependenciesCypher`
 
