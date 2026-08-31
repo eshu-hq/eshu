@@ -131,3 +131,63 @@ func TestStringSliceNotContainsAcceptsAbsentFieldAndMissingValue(t *testing.T) {
 		t.Fatalf("slice without the value must pass: %v", err)
 	}
 }
+
+func TestStringSliceEqualsRejectsMismatchedOrder(t *testing.T) {
+	item := map[string]any{"args": []string{"id", "name"}}
+	if err := stringSliceEquals(item, "args", []string{"name", "id"}); err == nil {
+		t.Fatal("mismatched order passed the equality assertion; want an error")
+	}
+}
+
+func TestStringSliceEqualsRejectsMalformedField(t *testing.T) {
+	for name, value := range map[string]any{
+		"string instead of slice": "id",
+		"slice of any":            []any{"id"},
+		"nil value":               nil,
+	} {
+		t.Run(name, func(t *testing.T) {
+			if err := stringSliceEquals(map[string]any{"args": value}, "args", []string{"id"}); err == nil {
+				t.Fatalf("malformed %s passed the equality assertion; want an error", name)
+			}
+		})
+	}
+}
+
+func TestIntFieldEqualsRejectsMismatchedInt(t *testing.T) {
+	item := map[string]any{"line_number": 26}
+	if err := intFieldEquals(item, "line_number", 99); err == nil {
+		t.Fatal("mismatched int passed the equality assertion; want an error")
+	}
+}
+
+func TestIntFieldEqualsRejectsMalformedField(t *testing.T) {
+	for name, value := range map[string]any{
+		"string instead of int": "26",
+		"float instead of int":  26.0,
+		"nil value":             nil,
+	} {
+		t.Run(name, func(t *testing.T) {
+			if err := intFieldEquals(map[string]any{"line_number": value}, "line_number", 26); err == nil {
+				t.Fatalf("malformed %s passed the equality assertion; want an error", name)
+			}
+		})
+	}
+}
+
+func TestFunctionByNameAndClassRejectsNoMatch(t *testing.T) {
+	payload := map[string]any{
+		"functions": []map[string]any{
+			{"name": "run", "class_context": "Runnable"},
+		},
+	}
+	if _, err := functionByNameAndClass(payload, "run", "Worker"); err == nil {
+		t.Fatal("non-matching class_context passed; want an error")
+	}
+}
+
+func TestFunctionByNameAndClassRejectsMalformedField(t *testing.T) {
+	payload := map[string]any{"functions": "not-a-slice"}
+	if _, err := functionByNameAndClass(payload, "run", "Worker"); err == nil {
+		t.Fatal("malformed functions field passed; want an error")
+	}
+}
