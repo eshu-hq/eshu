@@ -76,3 +76,31 @@ func TestCachePopulatedFilterUnchanged(t *testing.T) {
 		t.Fatal("populated filter allows an ungranted id")
 	}
 }
+
+// RepositorySearchIDs was missed when Empty and AllowsRepositoryID were made
+// slice-authoritative. Reading only the cache returned an empty id list for a
+// filter built from the slices, which narrows a scoped search to nothing.
+func TestSearchIDsFromSlicesAloneReturnsTheGrants(t *testing.T) {
+	filter := RepositoryAccessFilter{
+		AllowedRepositoryIDs: []string{"repo-a"},
+		AllowedScopeIDs:      []string{"scope-a"},
+	}
+
+	got := filter.RepositorySearchIDs()
+	if len(got) != 2 || got[0] != "repo-a" || got[1] != "scope-a" {
+		t.Fatalf("RepositorySearchIDs() = %v, want [repo-a scope-a]", got)
+	}
+}
+
+// The cache and the slices overlap in a correctly-built filter, so the union
+// must not double-count.
+func TestSearchIDsDeduplicatesCacheAndSlices(t *testing.T) {
+	filter := RepositoryAccessFilter{
+		AllowedRepositoryIDs: []string{"repo-a"},
+		Allowed:              map[string]struct{}{"repo-a": {}},
+	}
+
+	if got := filter.RepositorySearchIDs(); len(got) != 1 || got[0] != "repo-a" {
+		t.Fatalf("RepositorySearchIDs() = %v, want exactly [repo-a]", got)
+	}
+}

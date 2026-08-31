@@ -223,9 +223,30 @@ func (f RepositoryAccessFilter) RepositorySearchIDs() []string {
 	if !f.Scoped() {
 		return nil
 	}
-	ids := make([]string, 0, len(f.Allowed))
-	for id := range f.Allowed {
+	// Same rule as Empty and AllowsRepositoryID: the exported slices are
+	// authoritative and Allowed is a derived cache. Reading only the cache
+	// returned an empty id list for a filter built from the slices, which
+	// narrows a scoped search to nothing instead of to the caller's grants.
+	seen := make(map[string]struct{}, len(f.Allowed)+len(f.AllowedScopeIDs)+len(f.AllowedRepositoryIDs))
+	ids := make([]string, 0, cap(make([]string, 0, len(seen))))
+	add := func(id string) {
+		if id == "" {
+			return
+		}
+		if _, dup := seen[id]; dup {
+			return
+		}
+		seen[id] = struct{}{}
 		ids = append(ids, id)
+	}
+	for id := range f.Allowed {
+		add(id)
+	}
+	for _, id := range f.AllowedScopeIDs {
+		add(id)
+	}
+	for _, id := range f.AllowedRepositoryIDs {
+		add(id)
 	}
 	sort.Strings(ids)
 	return ids
