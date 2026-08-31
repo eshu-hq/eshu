@@ -1,24 +1,27 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package parser
+package swift_test
 
 import (
 	"path/filepath"
 	"testing"
+
+	"github.com/eshu-hq/eshu/go/internal/parser"
+	"github.com/eshu-hq/eshu/go/internal/parser/parsertest"
 )
 
 func TestDefaultEngineParsePathSwiftEmitsBasesAndFunctionArgs(t *testing.T) {
 	t.Parallel()
 
-	repoRoot := repoFixturePath("ecosystems", "swift_comprehensive")
-	engine, err := DefaultEngine()
+	repoRoot := swiftFixturePath(t, "ecosystems", "swift_comprehensive")
+	engine, err := parser.DefaultEngine()
 	if err != nil {
 		t.Fatalf("DefaultEngine() error = %v, want nil", err)
 	}
 
 	classesPath := filepath.Join(repoRoot, "Classes.swift")
-	payload, err := engine.ParsePath(repoRoot, classesPath, false, Options{IndexSource: true})
+	payload, err := engine.ParsePath(repoRoot, classesPath, false, parser.Options{IndexSource: true})
 	if err != nil {
 		t.Fatalf("ParsePath(%q) error = %v, want nil", classesPath, err)
 	}
@@ -33,14 +36,14 @@ func TestDefaultEngineParsePathSwiftEmitsBasesAndFunctionArgs(t *testing.T) {
 func TestDefaultEngineParsePathSwiftEmitsVariableContextAndTypeMetadata(t *testing.T) {
 	t.Parallel()
 
-	repoRoot := repoFixturePath("ecosystems", "swift_comprehensive")
-	engine, err := DefaultEngine()
+	repoRoot := swiftFixturePath(t, "ecosystems", "swift_comprehensive")
+	engine, err := parser.DefaultEngine()
 	if err != nil {
 		t.Fatalf("DefaultEngine() error = %v, want nil", err)
 	}
 
 	structsPath := filepath.Join(repoRoot, "Structs.swift")
-	payload, err := engine.ParsePath(repoRoot, structsPath, false, Options{})
+	payload, err := engine.ParsePath(repoRoot, structsPath, false, parser.Options{})
 	if err != nil {
 		t.Fatalf("ParsePath(%q) error = %v, want nil", structsPath, err)
 	}
@@ -53,14 +56,14 @@ func TestDefaultEngineParsePathSwiftEmitsVariableContextAndTypeMetadata(t *testi
 func TestDefaultEngineParsePathSwiftEmitsImportAndCallMetadata(t *testing.T) {
 	t.Parallel()
 
-	repoRoot := repoFixturePath("ecosystems", "swift_comprehensive")
-	engine, err := DefaultEngine()
+	repoRoot := swiftFixturePath(t, "ecosystems", "swift_comprehensive")
+	engine, err := parser.DefaultEngine()
 	if err != nil {
 		t.Fatalf("DefaultEngine() error = %v, want nil", err)
 	}
 
 	actorsPath := filepath.Join(repoRoot, "Actors.swift")
-	actorsPayload, err := engine.ParsePath(repoRoot, actorsPath, false, Options{})
+	actorsPayload, err := engine.ParsePath(repoRoot, actorsPath, false, parser.Options{})
 	if err != nil {
 		t.Fatalf("ParsePath(%q) error = %v, want nil", actorsPath, err)
 	}
@@ -69,7 +72,7 @@ func TestDefaultEngineParsePathSwiftEmitsImportAndCallMetadata(t *testing.T) {
 	assertSwiftCallMetadata(t, actorsPayload, "print", "print")
 
 	enumsPath := filepath.Join(repoRoot, "Enums.swift")
-	enumsPayload, err := engine.ParsePath(repoRoot, enumsPath, false, Options{})
+	enumsPayload, err := engine.ParsePath(repoRoot, enumsPath, false, parser.Options{})
 	if err != nil {
 		t.Fatalf("ParsePath(%q) error = %v, want nil", enumsPath, err)
 	}
@@ -82,7 +85,7 @@ func TestDefaultEngineParsePathSwiftInfersReceiverCallTypesAndEmitsProtocols(t *
 
 	repoRoot := t.TempDir()
 	filePath := filepath.Join(repoRoot, "worker.swift")
-	writeTestFile(
+	writeSwiftTestFile(
 		t,
 		filePath,
 		`import Foundation
@@ -109,12 +112,12 @@ class Worker: Runnable {
 `,
 	)
 
-	engine, err := DefaultEngine()
+	engine, err := parser.DefaultEngine()
 	if err != nil {
 		t.Fatalf("DefaultEngine() error = %v, want nil", err)
 	}
 
-	payload, err := engine.ParsePath(repoRoot, filePath, false, Options{})
+	payload, err := engine.ParsePath(repoRoot, filePath, false, parser.Options{})
 	if err != nil {
 		t.Fatalf("ParsePath(%q) error = %v, want nil", filePath, err)
 	}
@@ -130,7 +133,7 @@ func TestDefaultEngineParsePathSwiftMultilineTreeSitterScope(t *testing.T) {
 
 	repoRoot := t.TempDir()
 	filePath := filepath.Join(repoRoot, "App.swift")
-	writeTestFile(
+	writeSwiftTestFile(
 		t,
 		filePath,
 		`import SwiftUI
@@ -167,28 +170,28 @@ class Worker:
 `,
 	)
 
-	engine, err := DefaultEngine()
+	engine, err := parser.DefaultEngine()
 	if err != nil {
 		t.Fatalf("DefaultEngine() error = %v, want nil", err)
 	}
 
-	payload, err := engine.ParsePath(repoRoot, filePath, false, Options{})
+	payload, err := engine.ParsePath(repoRoot, filePath, false, parser.Options{})
 	if err != nil {
 		t.Fatalf("ParsePath(%q) error = %v, want nil", filePath, err)
 	}
 
 	assertSwiftTypeBases(t, payload, "DemoApp", []string{"App"})
 	assertSwiftTypeBases(t, payload, "Worker", []string{"Runnable"})
-	assertParserStringSliceContains(t, assertBucketItemByName(t, payload, "structs", "DemoApp"), "dead_code_root_kinds", "swift.swiftui_app_type")
-	assertParserStringSliceContains(t, assertBucketItemByName(t, payload, "variables", "body"), "dead_code_root_kinds", "swift.swiftui_body")
-	assertParserStringSliceContains(t, assertFunctionByNameAndClass(t, payload, "run", "Runnable"), "dead_code_root_kinds", "swift.protocol_method")
-	assertParserStringSliceContains(t, assertFunctionByNameAndClass(t, payload, "init", "Worker"), "dead_code_root_kinds", "swift.constructor")
+	parsertest.AssertStringSliceContains(t, parsertest.AssertBucketItemByName(t, payload, "structs", "DemoApp"), "dead_code_root_kinds", "swift.swiftui_app_type")
+	parsertest.AssertStringSliceContains(t, parsertest.AssertBucketItemByName(t, payload, "variables", "body"), "dead_code_root_kinds", "swift.swiftui_body")
+	parsertest.AssertStringSliceContains(t, parsertest.AssertFunctionByNameAndClass(t, payload, "run", "Runnable"), "dead_code_root_kinds", "swift.protocol_method")
+	parsertest.AssertStringSliceContains(t, parsertest.AssertFunctionByNameAndClass(t, payload, "init", "Worker"), "dead_code_root_kinds", "swift.constructor")
 
-	run := assertFunctionByNameAndClass(t, payload, "run", "Worker")
-	assertParserStringSliceEquals(t, run, "args", []string{"id"})
-	assertIntFieldValue(t, run, "line_number", 26)
-	assertIntFieldValue(t, run, "end_line", 30)
-	assertParserStringSliceContains(t, run, "dead_code_root_kinds", "swift.protocol_implementation_method")
+	run := parsertest.AssertFunctionByNameAndClass(t, payload, "run", "Worker")
+	parsertest.AssertStringSliceEquals(t, run, "args", []string{"id"})
+	parsertest.AssertIntFieldValue(t, run, "line_number", 26)
+	parsertest.AssertIntFieldValue(t, run, "end_line", 30)
+	parsertest.AssertStringSliceContains(t, run, "dead_code_root_kinds", "swift.protocol_implementation_method")
 
 	names, err := engine.PreScanRepositoryPathsWithWorkers(repoRoot, []string{filePath}, 1)
 	if err != nil {

@@ -1,11 +1,14 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package parser
+package swift_test
 
 import (
 	"path/filepath"
 	"testing"
+
+	"github.com/eshu-hq/eshu/go/internal/parser"
+	"github.com/eshu-hq/eshu/go/internal/parser/parsertest"
 )
 
 // TestDefaultEngineParsePathSwiftExtensionMethodsCarryClassContext proves that
@@ -19,7 +22,7 @@ func TestDefaultEngineParsePathSwiftExtensionMethodsCarryClassContext(t *testing
 
 	repoRoot := t.TempDir()
 	filePath := filepath.Join(repoRoot, "logger.swift")
-	writeTestFile(
+	writeSwiftTestFile(
 		t,
 		filePath,
 		`import Foundation
@@ -43,19 +46,19 @@ extension Point: Equatable {
 `,
 	)
 
-	engine, err := DefaultEngine()
+	engine, err := parser.DefaultEngine()
 	if err != nil {
 		t.Fatalf("DefaultEngine() error = %v, want nil", err)
 	}
 
-	payload, err := engine.ParsePath(repoRoot, filePath, false, Options{})
+	payload, err := engine.ParsePath(repoRoot, filePath, false, parser.Options{})
 	if err != nil {
 		t.Fatalf("ParsePath(%q) error = %v, want nil", filePath, err)
 	}
 
 	// Methods inside `extension Logger { ... }` must carry class_context=Logger.
-	assertFunctionByNameAndClass(t, payload, "info", "Logger")
-	assertFunctionByNameAndClass(t, payload, "warn", "Logger")
+	parsertest.AssertFunctionByNameAndClass(t, payload, "info", "Logger")
+	parsertest.AssertFunctionByNameAndClass(t, payload, "warn", "Logger")
 	// Method inside `extension Point: Equatable { ... }` must carry context Point.
-	assertFunctionByNameAndClass(t, payload, "translated", "Point")
+	parsertest.AssertFunctionByNameAndClass(t, payload, "translated", "Point")
 }

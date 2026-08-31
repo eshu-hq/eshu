@@ -2,8 +2,17 @@
 
 Read `language.go` then `ast_extract.go` first. `Parse` walks the tree-sitter
 AST once and emits every payload bucket from node ranges; there is no line-scan
-path. Keep this package parent-independent: use `internal/parser/shared` for
-payload, source, sorting, and node helpers. Do not import `internal/parser`.
+path. Keep production files parent-independent: use `internal/parser/shared`
+for payload, source, sorting, and node helpers. Do not import `internal/parser`
+from `language.go`, `ast_extract.go`, `ast_calls.go`, `ast_nodes.go`,
+`tree_sitter_syntax.go`, or `helpers.go`.
+
+The external black-box tests (`engine_swift_*_test.go`, `swift_*_test.go`,
+package `swift_test`) are the one documented exception: they import
+`internal/parser` to drive `parser.DefaultEngine().ParsePath`. Go compiles
+`swift_test` as a package separate from `swift`, so this does not create an
+import cycle or reverse the production dependency from the parent engine to
+this adapter.
 
 File layout:
 
@@ -17,6 +26,13 @@ File layout:
   (conformances, protocol methods, Vapor route handlers, exact Vapor route
   entries) and extension naming.
 - `helpers.go` — pure dead-code root classification and short-name helpers.
+- `engine_swift_ast_migration_test.go`, `engine_swift_extension_test.go`,
+  `engine_swift_semantics_test.go`, `engine_swift_vapor_routes_test.go`,
+  `swift_dead_code_roots_test.go`, `swift_vapor_golden_fixture_test.go` —
+  package `swift_test` Engine-level black-box coverage relocated from
+  `go/internal/parser` by #6062. `engine_swift_test_helpers_test.go` carries
+  the assertion helpers these files need that `internal/parser/parsertest`
+  does not already provide.
 
 Preserve existing payload keys and sorting unless a parser contract change is
 covered by tests and downstream materialization updates.

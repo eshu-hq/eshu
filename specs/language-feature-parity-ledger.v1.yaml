@@ -331,7 +331,7 @@ language_features:
     partial_features: [vapor-dynamic-route-truth]
     derived_features: [dead-code-derived-roots]
     source_files: [go/internal/parser/swift_language.go, go/internal/parser/swift/language.go, go/internal/parser/swift/tree_sitter_syntax.go]
-    test_files: [go/internal/parser/engine_swift_ast_migration_test.go, go/internal/parser/swift_dead_code_roots_test.go, go/internal/parser/engine_swift_vapor_routes_test.go, go/internal/reducer/handles_route_swift_test.go]
+    test_files: [go/internal/parser/swift/engine_swift_ast_migration_test.go, go/internal/parser/swift/swift_dead_code_roots_test.go, go/internal/parser/swift/engine_swift_vapor_routes_test.go, go/internal/reducer/handles_route_swift_test.go]
     docs: [docs/public/languages/swift.md]
     read_surfaces: [execute_language_query, find_dead_code, trace_route_callers]
     tracking_issues: [4038, 4165]

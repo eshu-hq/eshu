@@ -1,11 +1,14 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package parser
+package swift_test
 
 import (
 	"path/filepath"
 	"testing"
+
+	"github.com/eshu-hq/eshu/go/internal/parser"
+	"github.com/eshu-hq/eshu/go/internal/parser/parsertest"
 )
 
 func TestDefaultEngineParsePathSwiftEmitsDeadCodeRootKinds(t *testing.T) {
@@ -13,7 +16,7 @@ func TestDefaultEngineParsePathSwiftEmitsDeadCodeRootKinds(t *testing.T) {
 
 	repoRoot := t.TempDir()
 	sourcePath := filepath.Join(repoRoot, "Sources", "App", "App.swift")
-	writeTestFile(
+	writeSwiftTestFile(
 		t,
 		sourcePath,
 		`import SwiftUI
@@ -73,32 +76,32 @@ private func unusedCleanupCandidate() {}
 `,
 	)
 
-	engine, err := DefaultEngine()
+	engine, err := parser.DefaultEngine()
 	if err != nil {
 		t.Fatalf("DefaultEngine() error = %v, want nil", err)
 	}
 
-	got, err := engine.ParsePath(repoRoot, sourcePath, false, Options{IndexSource: true})
+	got, err := engine.ParsePath(repoRoot, sourcePath, false, parser.Options{IndexSource: true})
 	if err != nil {
 		t.Fatalf("ParsePath(%s) error = %v, want nil", sourcePath, err)
 	}
 
-	assertParserStringSliceContains(t, assertBucketItemByName(t, got, "structs", "DemoApp"), "dead_code_root_kinds", "swift.main_type")
-	assertParserStringSliceContains(t, assertBucketItemByName(t, got, "structs", "DemoApp"), "dead_code_root_kinds", "swift.swiftui_app_type")
-	assertParserStringSliceContains(t, assertBucketItemByName(t, got, "variables", "body"), "dead_code_root_kinds", "swift.swiftui_body")
-	assertParserStringSliceContains(t, assertBucketItemByName(t, got, "protocols", "Runnable"), "dead_code_root_kinds", "swift.protocol_type")
-	assertParserStringSliceContains(t, assertFunctionByNameAndClass(t, got, "run", "Runnable"), "dead_code_root_kinds", "swift.protocol_method")
-	assertParserStringSliceContains(t, assertFunctionByNameAndClass(t, got, "init", "Runnable"), "dead_code_root_kinds", "swift.protocol_method")
-	assertParserStringSliceNotContains(t, assertFunctionByNameAndClass(t, got, "init", "Runnable"), "dead_code_root_kinds", "swift.constructor")
-	assertParserStringSliceContains(t, assertFunctionByNameAndClass(t, got, "init", "Worker"), "dead_code_root_kinds", "swift.constructor")
-	assertParserStringSliceContains(t, assertFunctionByNameAndClass(t, got, "start", "Worker"), "dead_code_root_kinds", "swift.override_method")
-	assertParserStringSliceContains(t, assertFunctionByNameAndClass(t, got, "run", "Worker"), "dead_code_root_kinds", "swift.protocol_implementation_method")
-	assertParserStringSliceContains(t, assertBucketItemByName(t, got, "classes", "AppDelegate"), "dead_code_root_kinds", "swift.ui_application_delegate_type")
-	assertParserStringSliceContains(t, assertFunctionByNameAndClass(t, got, "application", "AppDelegate"), "dead_code_root_kinds", "swift.ui_application_delegate_method")
-	assertParserStringSliceContains(t, assertFunctionByName(t, got, "health"), "dead_code_root_kinds", "swift.vapor_route_handler")
-	assertParserStringSliceContains(t, assertFunctionByNameAndClass(t, got, "testRunsFromXCTest", "ServiceTests"), "dead_code_root_kinds", "swift.xctest_method")
-	assertParserStringSliceContains(t, assertFunctionByName(t, got, "swiftTestingRunsFromRunner"), "dead_code_root_kinds", "swift.swift_testing_method")
-	assertParserStringSliceContains(t, assertFunctionByName(t, got, "main"), "dead_code_root_kinds", "swift.main_function")
+	parsertest.AssertStringSliceContains(t, parsertest.AssertBucketItemByName(t, got, "structs", "DemoApp"), "dead_code_root_kinds", "swift.main_type")
+	parsertest.AssertStringSliceContains(t, parsertest.AssertBucketItemByName(t, got, "structs", "DemoApp"), "dead_code_root_kinds", "swift.swiftui_app_type")
+	parsertest.AssertStringSliceContains(t, parsertest.AssertBucketItemByName(t, got, "variables", "body"), "dead_code_root_kinds", "swift.swiftui_body")
+	parsertest.AssertStringSliceContains(t, parsertest.AssertBucketItemByName(t, got, "protocols", "Runnable"), "dead_code_root_kinds", "swift.protocol_type")
+	parsertest.AssertStringSliceContains(t, parsertest.AssertFunctionByNameAndClass(t, got, "run", "Runnable"), "dead_code_root_kinds", "swift.protocol_method")
+	parsertest.AssertStringSliceContains(t, parsertest.AssertFunctionByNameAndClass(t, got, "init", "Runnable"), "dead_code_root_kinds", "swift.protocol_method")
+	parsertest.AssertStringSliceNotContains(t, parsertest.AssertFunctionByNameAndClass(t, got, "init", "Runnable"), "dead_code_root_kinds", "swift.constructor")
+	parsertest.AssertStringSliceContains(t, parsertest.AssertFunctionByNameAndClass(t, got, "init", "Worker"), "dead_code_root_kinds", "swift.constructor")
+	parsertest.AssertStringSliceContains(t, parsertest.AssertFunctionByNameAndClass(t, got, "start", "Worker"), "dead_code_root_kinds", "swift.override_method")
+	parsertest.AssertStringSliceContains(t, parsertest.AssertFunctionByNameAndClass(t, got, "run", "Worker"), "dead_code_root_kinds", "swift.protocol_implementation_method")
+	parsertest.AssertStringSliceContains(t, parsertest.AssertBucketItemByName(t, got, "classes", "AppDelegate"), "dead_code_root_kinds", "swift.ui_application_delegate_type")
+	parsertest.AssertStringSliceContains(t, parsertest.AssertFunctionByNameAndClass(t, got, "application", "AppDelegate"), "dead_code_root_kinds", "swift.ui_application_delegate_method")
+	parsertest.AssertStringSliceContains(t, parsertest.AssertBucketItemByName(t, got, "functions", "health"), "dead_code_root_kinds", "swift.vapor_route_handler")
+	parsertest.AssertStringSliceContains(t, parsertest.AssertFunctionByNameAndClass(t, got, "testRunsFromXCTest", "ServiceTests"), "dead_code_root_kinds", "swift.xctest_method")
+	parsertest.AssertStringSliceContains(t, parsertest.AssertBucketItemByName(t, got, "functions", "swiftTestingRunsFromRunner"), "dead_code_root_kinds", "swift.swift_testing_method")
+	parsertest.AssertStringSliceContains(t, parsertest.AssertBucketItemByName(t, got, "functions", "main"), "dead_code_root_kinds", "swift.main_function")
 	assertBucketMissingItemByName(t, got, "function_calls", "available")
 	assertBucketMissingItemByName(t, got, "function_calls", "Test")
 
@@ -109,9 +112,9 @@ private func unusedCleanupCandidate() {}
 		{name: "helper", classContext: "Worker"},
 		{name: "unusedCleanupCandidate"},
 	} {
-		function := assertFunctionByName(t, got, tc.name)
+		function := parsertest.AssertBucketItemByName(t, got, "functions", tc.name)
 		if tc.classContext != "" {
-			function = assertFunctionByNameAndClass(t, got, tc.name, tc.classContext)
+			function = parsertest.AssertFunctionByNameAndClass(t, got, tc.name, tc.classContext)
 		}
 		if function["dead_code_root_kinds"] != nil {
 			t.Fatalf("%s.%s dead_code_root_kinds = %#v, want nil", tc.classContext, tc.name, function["dead_code_root_kinds"])
@@ -131,7 +134,7 @@ func TestDefaultEngineParsePathSwiftRequiresVaporImportForRouteHandlerRoot(t *te
 
 	repoRoot := t.TempDir()
 	sourcePath := filepath.Join(repoRoot, "Sources", "App", "NoVaporApp.swift")
-	writeTestFile(
+	writeSwiftTestFile(
 		t,
 		sourcePath,
 		`func configure(_ app: Application) throws {
@@ -144,17 +147,17 @@ func health(_ req: Request) async throws -> String {
 `,
 	)
 
-	engine, err := DefaultEngine()
+	engine, err := parser.DefaultEngine()
 	if err != nil {
 		t.Fatalf("DefaultEngine() error = %v, want nil", err)
 	}
 
-	got, err := engine.ParsePath(repoRoot, sourcePath, false, Options{})
+	got, err := engine.ParsePath(repoRoot, sourcePath, false, parser.Options{})
 	if err != nil {
 		t.Fatalf("ParsePath(%s) error = %v, want nil", sourcePath, err)
 	}
 
-	if health := assertFunctionByName(t, got, "health"); health["dead_code_root_kinds"] != nil {
+	if health := parsertest.AssertBucketItemByName(t, got, "functions", "health"); health["dead_code_root_kinds"] != nil {
 		t.Fatalf("health dead_code_root_kinds = %#v, want nil (no import Vapor)", health["dead_code_root_kinds"])
 	}
 }

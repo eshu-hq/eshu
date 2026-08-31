@@ -24,7 +24,12 @@ The godoc contract is in `doc.go`. Current exports are:
 ## Dependencies
 
 This package imports `internal/parser/shared`, `go-tree-sitter`, and the Go
-standard library. It must not import the parent parser package.
+standard library. Production files must not import the parent parser package.
+The external `swift_test` files under this directory (Engine-level black-box
+coverage relocated from the parent by #6062) are the documented exception:
+they import `internal/parser` to drive `parser.DefaultEngine().ParsePath`,
+which Go permits because `swift_test` compiles as a separate package from
+`swift` and does not reverse the production dependency.
 
 ## Telemetry
 

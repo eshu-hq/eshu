@@ -302,7 +302,9 @@ capability state from "parser rewrite pending" to the real hybrid line-scan +
 tree-sitter-syntax design.
 
 No-Regression Evidence:
-`go test ./internal/parser -run 'TestDefaultEngineParsePathSwiftExtensionMethodsCarryClassContext|TestDefaultEngineParsePathKotlinExtractsBareCalls|TestKotlinComprehensiveSymbolExtractionGate|TestSwiftComprehensiveSymbolExtractionGate' -count=1`
+`go test ./internal/parser -run 'TestDefaultEngineParsePathKotlinExtractsBareCalls|TestKotlinComprehensiveSymbolExtractionGate|TestSwiftComprehensiveSymbolExtractionGate' -count=1`
+plus (after #6062 relocated the Swift extension test into its own package)
+`go test ./internal/parser/swift -run 'TestDefaultEngineParsePathSwiftExtensionMethodsCarryClassContext' -count=1`
 failed before the fix (Swift extension methods carried no `class_context`; Kotlin
 bare calls like `info(...)`/`println(...)` were absent from `function_calls`) and
 passes after. Full `go test ./internal/parser/... -count=1` (1118 tests) plus
