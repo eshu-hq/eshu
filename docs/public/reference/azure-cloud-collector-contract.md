@@ -434,7 +434,7 @@ The first code PRs must prove these cases before any live smoke:
    service, ServiceMonitor, render-time validation, issue #3024; sanitized
    real-tenant proof remains gated by issue #3066.)**
 
-Remaining promotion evidence is the sanitized real-tenant proof and security
-review tracked by issue #3066. ARM-fallback live activation, later source-family
-scan loops, and their own fixture/live proof remain separate implementation
-work.
+Remaining promotion evidence is the partition-filtered handler proof plus the
+sanitized real-tenant proof and security review tracked by issue #3066.
+ARM-fallback live activation, later source-family scan loops, and their own
+fixture/live proof remain separate implementation work.
