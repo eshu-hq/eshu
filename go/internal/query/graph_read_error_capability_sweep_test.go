@@ -91,9 +91,13 @@ const minWriteGraphReadErrorCallSites = 124
 func TestWriteGraphReadErrorCapabilitiesExistInMatrix(t *testing.T) {
 	dir := queryPackageDir(t)
 	fileSet := token.NewFileSet()
-	files, err := filepath.Glob(filepath.Join(dir, "*.go"))
+	// Recursive, not a depth-1 glob (#6060). A handler family that moves into
+	// go/internal/query/<family>/ takes its WriteGraphReadError call sites with
+	// it, and a glob that never descends would report "swept clean" over files
+	// it never opened. testdata is excluded because recursion newly reaches it.
+	files, err := sweepGoFiles(dir)
 	if err != nil {
-		t.Fatalf("glob %s: %v", dir, err)
+		t.Fatalf("walk %s: %v", dir, err)
 	}
 
 	sweep := newCapabilitySweep(fileSet)
@@ -311,9 +315,13 @@ func TestCapabilitySweepDocumentedExceptionsStayPinnedAndNarrowlyScoped(t *testi
 	}
 
 	dir := queryPackageDir(t)
-	files, err := filepath.Glob(filepath.Join(dir, "*.go"))
+	// Recursive, not a depth-1 glob (#6060). A handler family that moves into
+	// go/internal/query/<family>/ takes its WriteGraphReadError call sites with
+	// it, and a glob that never descends would report "swept clean" over files
+	// it never opened. testdata is excluded because recursion newly reaches it.
+	files, err := sweepGoFiles(dir)
 	if err != nil {
-		t.Fatalf("glob %s: %v", dir, err)
+		t.Fatalf("walk %s: %v", dir, err)
 	}
 
 	for capability := range capabilitySweepDocumentedExceptions {
@@ -337,4 +345,27 @@ func TestCapabilitySweepDocumentedExceptionsStayPinnedAndNarrowlyScoped(t *testi
 				"isolated call site", capability, matchingFiles)
 		}
 	}
+}
+
+// sweepGoFiles returns every non-test .go file at or beneath dir, skipping
+// testdata and hidden or underscore-prefixed directories.
+func sweepGoFiles(dir string) ([]string, error) {
+	var files []string
+	err := filepath.WalkDir(dir, func(path string, entry fs.DirEntry, walkErr error) error {
+		if walkErr != nil {
+			return walkErr
+		}
+		if entry.IsDir() {
+			name := entry.Name()
+			if path != dir && (name == "testdata" || strings.HasPrefix(name, ".") || strings.HasPrefix(name, "_")) {
+				return fs.SkipDir
+			}
+			return nil
+		}
+		if filepath.Ext(path) == ".go" && !hasTestSuffix(path) {
+			files = append(files, path)
+		}
+		return nil
+	})
+	return files, err
 }

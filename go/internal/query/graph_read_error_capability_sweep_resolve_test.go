@@ -175,15 +175,31 @@ func (s *capabilitySweep) findCallSites(file *ast.File) ([]string, int) {
 			funcStack = funcStack[:len(funcStack)-1]
 			return false
 		case *ast.CallExpr:
-			ident, ok := node.Fun.(*ast.Ident)
-			if !ok || ident.Name != "WriteGraphReadError" || len(node.Args) != 4 {
+			// Match both the bare call (package query's own forwarder) and the
+			// qualified one. #6060 moves the implementation into querycontract
+			// and the handler families into subpackages, so a family calls
+			// querycontract.WriteGraphReadError(...) -- a SelectorExpr. Matching
+			// only *ast.Ident would let every one of those call sites skip the
+			// capabilityMatrix check while this sweep still reported clean,
+			// which is the regression this gate exists to catch.
+			if !callsWriteGraphReadError(node.Fun) || len(node.Args) != 4 {
 				break
 			}
-			matched++
 			var enclosing *ast.FuncDecl
 			if len(funcStack) > 0 {
 				enclosing = funcStack[len(funcStack)-1]
 			}
+			// The root forwarder is not a call site. It passes its own
+			// capability parameter straight through to querycontract, so there
+			// is no literal here to check against the matrix -- the callers of
+			// the forwarder are the sites that carry one, and they are swept
+			// separately. Counting it would report an unresolvable argument on
+			// every run.
+			if enclosing != nil && enclosing.Name != nil &&
+				enclosing.Name.Name == "WriteGraphReadError" {
+				break
+			}
+			matched++
 			values, resolved := s.resolveCapabilityArg(node.Args[3], enclosing, map[string]bool{})
 			if !resolved {
 				findings = append(findings, "unresolvable WriteGraphReadError capability argument at "+
@@ -391,4 +407,17 @@ func stringLiteral(expr ast.Expr) (string, bool) {
 		return "", false
 	}
 	return unquoted, true
+}
+
+// callsWriteGraphReadError reports whether fun is a call to
+// WriteGraphReadError, named directly or through a package qualifier.
+func callsWriteGraphReadError(fun ast.Expr) bool {
+	switch callee := fun.(type) {
+	case *ast.Ident:
+		return callee.Name == "WriteGraphReadError"
+	case *ast.SelectorExpr:
+		return callee.Sel != nil && callee.Sel.Name == "WriteGraphReadError"
+	default:
+		return false
+	}
 }
