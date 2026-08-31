@@ -109,8 +109,8 @@ State uses the canonical readiness lanes defined in
 | Cloud posture surface | State | Gate before promotion |
 | --- | --- | --- |
 | AWS | `implemented` | None. `aws_resource_materialization` is promoted to a versioned, hashed `cloud_resource_node` conflict family. |
-| GCP | `gated` | Partition-filtered handler proof and a sanitized live smoke; currently a risky resource-scope fallback. |
-| Azure | `gated` | Partition-filtered handler proof and a live tenant smoke ([#3024](https://github.com/eshu-hq/eshu/issues/3024)); currently a risky resource-scope fallback. |
+| GCP | `gated` | Partition-filtered handler proof and a deployed-shape promotion proof; the #1997/#2644 security-only sanitized smoke is complete. Currently a risky resource-scope fallback. |
+| Azure | `gated` | Partition-filtered handler proof and a live tenant smoke ([#3066](https://github.com/eshu-hq/eshu/issues/3066)); currently a risky resource-scope fallback. |
 | EC2-instance and security-group nodes | `partial` | Partition-filtered handler proof; risky resource-scope fallback today. |
 | Kubernetes live posture | `foundation_only` | Dedicated materializer with conflict-family promotion and EKS proof. |
 

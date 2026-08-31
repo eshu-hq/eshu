@@ -1,9 +1,10 @@
 # Azure Cloud Collector Contract
 
-This page defines the provider-specific design baseline for a future Azure cloud
-collector. It is a child of the
-[Multi-Cloud Runtime Collector Contract](multi-cloud-collector-contract.md) and
-is not a deployed runtime promise.
+This page defines the provider-specific contract for the Azure cloud collector.
+It is a child of the
+[Multi-Cloud Runtime Collector Contract](multi-cloud-collector-contract.md).
+Claimed-live transport and default-off Helm exposure are implemented; this
+contract does not by itself promote Azure beyond its gated readiness lane.
 
 The collector kind is `azure`. It observes Azure control-plane metadata through
 Azure Resource Graph and bounded Azure Resource Manager fallback reads, then
@@ -134,9 +135,10 @@ for graph readback. It does not call Azure, mint target nodes from relationship
 facts, or activate API/MCP readback lanes.
 
 Claimed-live command wiring and default-off Helm exposure now exist for the
-Resource Graph lane (issue #3024). Live smoke proof against a real tenant, the
-hosted security posture sign-off, ARM-fallback live activation, and API/MCP
-readback promotion remain gated until their own proof lands. The
+Resource Graph lane (issue #3024). Sanitized live proof against a real tenant
+and its security review remain gated by issue #3066; ARM-fallback live
+activation and API/MCP readback promotion remain gated until their own proof
+lands. The
 `azure_cloud_relationship` envelope builder
 (`NewRelationshipEnvelope`) is implemented and unit-proven as provenance-only
 (both endpoint ARM identities, relationship type, and a bounded support state;
@@ -414,22 +416,25 @@ The first code PRs must prove these cases before any live smoke:
 1. Add fact constants, schema helpers, and fixture payload tests. **(done)**
 2. Add a Resource Graph client adapter with mocked `Resources` and
    `resourcechanges` responses. **(live Resource Graph seam done; claimed-live
-   command activation done, default-off; live smoke remains gated.)**
+   command activation done, default-off; real-tenant proof remains gated by
+   issue #3066.)**
 3. Add an allowlisted ARM fallback adapter with read-only mocked `GET`
    responses. **(done behind explicit injection; ARM-fallback live activation
    remains gated — claimed-live serves the `resource_graph` lane only.)**
 4. Add the collector runtime and source fact emission. **(done: `azureruntime.Source`
    + `collector-azure-cloud` over a fixture/gated `PageProvider`, plus the
    claim-driven `-mode claimed-live` runtime through `collector.ClaimedService`
-   with fixture-proven claim handoff; live smoke remains gated.)**
+   with fixture-proven claim handoff; real-tenant proof remains gated by issue
+   #3066.)**
 5. Add reducer admission for resource identity, tag evidence, change evidence,
    relationships, and warnings.
 6. Add API/MCP readback truth tests for Azure evidence states.
 7. Add Helm and live-smoke support only after the runtime and reducer contract
    pass fixture gates. **(default-off Helm exposure done — deployment, metrics
-   service, ServiceMonitor, render-time validation, issue #3024; live smoke
-   remains gated.)**
+   service, ServiceMonitor, render-time validation, issue #3024; sanitized
+   real-tenant proof remains gated by issue #3066.)**
 
-Remaining items gated until their own implementation PRs land with fixture and
-live proof: live smoke proof against a real tenant, the hosted security posture
-sign-off, ARM-fallback live activation, and later source-family scan loops.
+Remaining promotion evidence is the partition-filtered handler proof plus the
+sanitized real-tenant proof and security review tracked by issue #3066.
+ARM-fallback live activation, later source-family scan loops, and their own
+fixture/live proof remain separate implementation work.

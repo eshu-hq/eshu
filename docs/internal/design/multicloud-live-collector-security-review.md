@@ -43,13 +43,16 @@ default-deny (the inert zero-value seams stay the command/chart default; any pat
 constructing or wiring the live adapter without explicit operator opt-in is a
 finding).
 
-GCP status: issue #1997 is closed. `gcpruntime.LiveClient` is the shipped
+GCP security status: issues #1997 and #2644 are closed after the sanitized
+live security smoke recorded below. `gcpruntime.LiveClient` is the shipped
 explicit-injection REST `PageProvider` for Cloud Asset Inventory `assets.list`.
 Fixture remains the `collector-gcp-cloud` CLI default, while the explicit
 `-mode claimed-live` command path wires the live transport and credential
 source. The chart keeps `gcpCloudCollector.enabled=false` by default and starts
 claimed-live only after operator opt-in. The sanitized GCP smoke and security
-evidence are recorded below.
+evidence are recorded below. That security result does not promote the canonical
+GCP claimed-live/full-promotion lane, which remains `gated` for its broader
+readiness proof.
 
 ## 2. Redaction-key handling
 
@@ -186,8 +189,9 @@ This run satisfies the section 6 reviewer-allowlist items for the GCP path:
 The GCP path's default posture is unchanged by this gate: fixture remains the
 CLI default and `gcpCloudCollector.enabled` remains false. The explicit
 `collector-gcp-cloud -mode claimed-live` command and conditional chart wiring
-are shipped, and the sanitized smoke above records the security evidence for
-closed issue #1997. This review does not enable live collection by default.
+are shipped, and the sanitized smoke above records the completed #1997/#2644
+security evidence. This review does not enable live collection by default or
+promote the canonical GCP lane beyond `gated`.
 
 ## Azure live-smoke gate status
 

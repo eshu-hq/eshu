@@ -1,7 +1,8 @@
 # Multi-Cloud Runtime Collector Contract
 
 This page defines the shared contract for cloud runtime collectors beyond AWS.
-It is a design baseline for GCP and Azure work, not a deployed runtime promise.
+It is the provider-neutral design baseline; current promotion state remains
+authoritative in the [collector readiness matrix](collector-readiness-proof-matrix.md).
 
 The boundary stays facts-first: cloud collectors observe provider control-plane
 truth and emit typed facts. Reducers own canonical `CloudResource` identity,
@@ -10,18 +11,18 @@ API or MCP truth.
 
 ## Status
 
-GCP and Azure collectors are gated source families. Do not add Helm values,
-runtime commands, environment variables, or API claims for them until their
-collector runtime, fact contract, reducer contract, fixtures, telemetry, and
-chart path are implemented.
+GCP and Azure remain gated source families even though their fixture runtimes,
+claimed-live commands, reducer/readback slices, telemetry, and default-off Helm
+paths are implemented. Those shipped paths do not by themselves promote either
+collector to production readiness.
 
 Provider work should remain separate:
 
-| Provider | Collector kind | Source contract | Implementation issue |
+| Provider | Collector kind | Source contract | Promotion boundary |
 | --- | --- | --- | --- |
 | AWS | `aws` | Implemented claim-driven AWS control-plane metadata collection. | Existing AWS collector work. |
-| GCP | `gcp` | Design-only [Cloud Asset Inventory collector](gcp-cloud-collector-contract.md). | [#21](https://github.com/eshu-hq/eshu/issues/21) |
-| Azure | `azure` | Design-only [Azure Resource Graph and ARM collector](azure-cloud-collector-contract.md). | [#22](https://github.com/eshu-hq/eshu/issues/22) |
+| GCP | `gcp` | [Cloud Asset Inventory collector](gcp-cloud-collector-contract.md) with fixture, claimed-live, reducer/readback, and default-off Helm paths. | The #1997/#2644 security smoke is complete; deployed-shape promotion proof remains gated. |
+| Azure | `azure` | [Azure Resource Graph and ARM collector](azure-cloud-collector-contract.md) with fixture, claimed-live, reducer/readback, and default-off Helm paths. | Sanitized real-tenant proof remains gated by [#3066](https://github.com/eshu-hq/eshu/issues/3066). |
 
 Do not hide provider differences behind one generic cloud collector. GCP and
 Azure have different hierarchy, identity, permission, pagination, freshness,

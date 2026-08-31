@@ -28,7 +28,7 @@ in this slice:
 
 - `FixturePageProvider` serves parsed pages from memory (`NewFixturePageProvider`)
   or from files (`NewFixturePageProviderFromFiles`). It performs no network call
-  and backs every test plus the binary's offline smoke path. It enforces
+  and backs the fixture tests plus the binary's offline smoke path. It enforces
   continuation-token matching so pagination resume is exercised honestly.
 - `LiveClient` is the explicitly injected live REST seam for
   `assets.list`. It requires a caller-supplied credential whose IAM grants are
@@ -60,8 +60,10 @@ Scopes call it only when `DirectTagsEnabled` or `EffectiveTagsEnabled` is true;
 tag values are fingerprinted before facts are emitted, and effective tags carry
 bounded direct/inherited state.
 
-No test performs a live Google Cloud call; live-client tests use local HTTP
-servers.
+No test runs a live Google Cloud call by default or in CI. Live-client transport
+tests use local HTTP servers, while validation-only tests fail before transport.
+The opt-in, environment-gated #1997/#2644 security-only smoke is the documented
+exception.
 
 ## Configuration
 
@@ -87,7 +89,8 @@ defaults to the contract form
 
 ## Deferred
 
-Sanitized target smoke proof is deferred per
+The #1997/#2644 security-only sanitized smoke is complete, but deployed-shape
+promotion proof remains gated per
 `docs/public/reference/gcp-cloud-collector-contract.md`. Shared cloud inventory
 admission and API/MCP readback for `gcp_cloud_resource`, tag evidence admission,
 image identity admission, relationship resolution, and IAM trust facts are

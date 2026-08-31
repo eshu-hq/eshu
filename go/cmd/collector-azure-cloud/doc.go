@@ -25,7 +25,9 @@
 // live tag observation never runs unkeyed.
 //
 // Credentials are referenced by name only in each target's credential_ref; no
-// secret value is read from the configuration. Live smoke proof, Helm chart
-// activation, reducer admission, and API/MCP readback remain gated per
+// secret value is read from the configuration. Default-off Helm activation,
+// existing Azure reducer slices, and shared cloud-inventory readback are
+// implemented outside this command. Sanitized real-tenant promotion proof
+// remains gated by issue #3066, as recorded in
 // docs/public/reference/azure-cloud-collector-contract.md.
 package main

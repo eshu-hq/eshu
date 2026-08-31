@@ -16,5 +16,6 @@
 // acquire, heartbeat, fenced commit, retry, and terminal failure behavior follow
 // the shared workflow lifecycle. Per-scope direct_tags_enabled and
 // effective_tags_enabled flags opt into Resource Manager tag evidence. Live
-// smoke proof remains gated per docs/public/reference/gcp-cloud-collector-contract.md.
+// proof status is documented by
+// docs/public/reference/gcp-cloud-collector-contract.md.
 package main
