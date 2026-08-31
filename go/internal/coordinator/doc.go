@@ -75,12 +75,19 @@
 // evidence targets so a healthy worker must still have claimable work before a
 // proof can count source evidence. AWSScheduledWorkPlanner and
 // AWSFreshnessWorkPlanner plan ordinary AWS collector work from configured
-// schedules or webhook freshness triggers. ComponentExtensionWorkPlanner plans
-// source-evidence-only work for verified claim-capable component activations
-// loaded from the local component registry after hosted extension egress policy
-// allows the component identity; it stores component identity, manifest digest,
-// runtime protocol, and a safe config handle, not raw component configuration
-// or credentials.
+// schedules or webhook freshness triggers. The root ComponentExtensionPlanner
+// interface accepts the child componentextensionplanner.PlanRequest; the child
+// plans source-evidence-only work for verified claim-capable component
+// activations loaded from the local component registry after hosted extension
+// egress policy allows the component identity, storing component identity,
+// manifest digest, runtime protocol, and a safe config handle, not raw
+// component configuration or credentials. The generic activation
+// configuration's parse and validation contract lives in the
+// dependency-neutral componentactivation package rather than in either root
+// or the planner: root's component_activation_config.go constructs it,
+// pagerduty_service.go and governance_audit.go read it for reasons unrelated
+// to component-extension scheduling, and componentextensionplanner plans from
+// it, so no one of those four owns it.
 // Incident freshness handoff narrows PagerDuty and Jira webhook wake-ups to
 // authorized configured scope IDs before creating normal collector work. Planners
 // produce workflow rows only. When a workflow tenant boundary is configured,

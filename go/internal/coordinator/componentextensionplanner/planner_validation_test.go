@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package coordinator
+package componentextensionplanner
 
 import (
 	"context"
@@ -14,6 +14,9 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/workflow"
 )
 
+// TestComponentExtensionPlannerPlansActivationScopedWork inherits the
+// planner-level coverage this package received from the pre-extraction
+// component_extension_scheduler_test.go.
 func TestComponentExtensionPlannerPlansActivationScopedWork(t *testing.T) {
 	t.Parallel()
 
@@ -41,7 +44,7 @@ func TestComponentExtensionPlannerPlansActivationScopedWork(t *testing.T) {
 		LastObservedAt: observedAt,
 	}
 
-	run, items, err := ComponentExtensionWorkPlanner{}.PlanComponentExtensionWork(context.Background(), ComponentExtensionPlanRequest{
+	run, items, err := WorkPlanner{}.PlanComponentExtensionWork(context.Background(), PlanRequest{
 		Instance:   instance,
 		ObservedAt: observedAt,
 		PlanKey:    "scheduled-20260609T130000Z",
@@ -113,7 +116,15 @@ func TestComponentExtensionPlannerPlansActivationScopedWork(t *testing.T) {
 	}
 }
 
-func TestShouldScheduleComponentExtensionSurfacesInvalidActivationConfig(t *testing.T) {
+// TestComponentExtensionPlannerRejectsUnsupportedSDKProtocol is the planner
+// half of the pre-extraction
+// TestShouldScheduleComponentExtensionSurfacesInvalidActivationConfig: the
+// root half (shouldScheduleComponentExtension still treats this
+// configuration as a component-extension instance so the planner surfaces
+// the rejection) now lives in service_component_extension_test.go. The
+// rejection itself is produced by componentactivation.ParseConfig, pinned
+// independently in componentactivation's own test package.
+func TestComponentExtensionPlannerRejectsUnsupportedSDKProtocol(t *testing.T) {
 	t.Parallel()
 
 	observedAt := time.Date(2026, time.June, 9, 13, 15, 0, 0, time.UTC)
@@ -136,36 +147,12 @@ func TestShouldScheduleComponentExtensionSurfacesInvalidActivationConfig(t *test
 		LastObservedAt: observedAt,
 	}
 
-	if !shouldScheduleComponentExtension(instance) {
-		t.Fatal("shouldScheduleComponentExtension() = false, want true so planner returns the validation error")
-	}
-	_, _, err := ComponentExtensionWorkPlanner{}.PlanComponentExtensionWork(context.Background(), ComponentExtensionPlanRequest{
+	_, _, err := WorkPlanner{}.PlanComponentExtensionWork(context.Background(), PlanRequest{
 		Instance:   instance,
 		ObservedAt: observedAt,
 		PlanKey:    "scheduled-20260609T130000Z",
 	})
 	if err == nil || !strings.Contains(err.Error(), "runtime.sdk_protocol") {
 		t.Fatalf("PlanComponentExtensionWork() error = %v, want runtime.sdk_protocol rejection", err)
-	}
-}
-
-func TestShouldScheduleComponentExtensionIgnoresUnrelatedSchemaVersionConfig(t *testing.T) {
-	t.Parallel()
-
-	observedAt := time.Date(2026, time.June, 9, 13, 20, 0, 0, time.UTC)
-	instance := workflow.CollectorInstance{
-		InstanceID:     "collector-git-primary",
-		CollectorKind:  scope.CollectorGit,
-		Mode:           workflow.CollectorModeContinuous,
-		Enabled:        true,
-		ClaimsEnabled:  true,
-		Configuration:  `{"schema_version":"git.collector.v1","provider":"github"}`,
-		CreatedAt:      observedAt,
-		UpdatedAt:      observedAt,
-		LastObservedAt: observedAt,
-	}
-
-	if shouldScheduleComponentExtension(instance) {
-		t.Fatal("shouldScheduleComponentExtension() = true, want false for unrelated collector config")
 	}
 }

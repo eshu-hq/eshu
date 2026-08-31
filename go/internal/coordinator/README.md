@@ -188,6 +188,7 @@ one enabled bounded scope; invalid configurations fail validation.
   key `loki:<instance_id>:<scope_id>`.
 - `GCPPlanner` — implemented by `gcpplanner.WorkPlanner`, which also exposes
   `EnabledScopes`/`ValidateClaimSchedulerConfiguration` for root reuse.
+- `ComponentExtensionPlanner` — `componentextensionplanner.WorkPlanner`, from `componentactivation.Config`.
 - `OwnedPackageTargetReader` — optional active-mode dependency target reader
   used by `Service` when package-registry or vulnerability-intelligence
   instances enable `derive_from_owned_packages`.
@@ -217,8 +218,7 @@ one enabled bounded scope; invalid configurations fail validation.
 
 ## Dependencies
 
-- `internal/coordinator/plannercontract` — dependency-neutral shared plan-key
-  validation used directly by scheduler planners and extension egress parsing.
+- `internal/coordinator/plannercontract` — dependency-neutral shared plan-key validation used directly by scheduler planners and extension egress parsing.
 - `internal/coordinator/cicdrun` — CI/CD run plan request and deterministic
   planner implementation.
 - `internal/coordinator/securityalert` — provider security-alert plan request
@@ -231,8 +231,8 @@ one enabled bounded scope; invalid configurations fail validation.
 - `internal/coordinator/jiraplanner` — Jira membership, privacy, and planning.
 - `internal/coordinator/vaultlive` — Vault metadata plan request and
   deterministic planner implementation.
-- `internal/coordinator/tempoplanner`, `lokiplanner`, `prometheusmimir`,
-  `grafanaplanner`, and `gcpplanner` — deterministic planner implementations.
+- `internal/coordinator/tempoplanner`, `lokiplanner`, `prometheusmimir`, `grafanaplanner`, `gcpplanner`, `componentextensionplanner` — planners;
+  `componentactivation` — dependency-neutral activation config.
 - `internal/workflow` — `DesiredCollectorInstance`, `CollectorInstance`,
   `Claim`, and default accessors; used throughout `Store` and `Config`.
 - `internal/scope` — `CollectorKind` used by `Config` and

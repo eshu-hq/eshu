@@ -445,6 +445,34 @@ Root keeps scheduling order, the plan-key clock, tenant-grant authorization,
 durable admission, freshness trigger claim/handoff/reap, retries, queue and
 lease behavior, and telemetry. These moves do not change scheduler order,
 workflow wire values, concurrency, or observability.
+The generic component extension scheduler is the thirteenth extraction under
+`internal/coordinator/componentextensionplanner`, and the first to hit the
+acyclic-boundary problem Part 3's prerequisite section describes for query,
+reducer, projector, and mcp. `parseComponentInstanceConfig` — the shared
+generic component-activation configuration parse/validate function the
+scheduler's core planning function returns and every one of its helper
+functions consumes — was not scheduler-owned: `component_activation_config.go`
+(root) constructs values of that type when it builds a collector instance's
+`Configuration` JSON, and `pagerduty_service.go` and `governance_audit.go`
+(root) also read it, for reasons unrelated to component-extension
+scheduling. Because root already imports the planner package for the
+request type, the planner package cannot import root back, so the type
+could not stay in `component_activation_config.go`; and exporting it from
+the planner would make two unrelated providers depend on a
+scheduler-specific package, the same shape `owned_package_target_helpers.go`
+and `target_priority.go` avoid by staying in root. The fix landed as its own
+commit, before the scheduler moved: the type and its parser were hoisted
+into a new dependency-neutral package, `internal/coordinator/componentactivation`
+(`Config`, `RuntimeConfig`, `ParseConfig`) — the same
+hoist-to-a-neutral-package pattern `internal/projector/intent` already uses
+for the projector families' equivalent problem. `component_activation_config.go`,
+`pagerduty_service.go`, `governance_audit.go`, and `componentextensionplanner`
+all import `componentactivation`; none of them imports another from this
+list, and `componentactivation` imports neither `coordinator` nor
+`componentextensionplanner`. Root keeps scheduling order, hosted extension
+egress-policy filtering and audit, durable admission, retries, queue and
+lease behavior, and telemetry. These moves do not change scheduler order,
+workflow wire values, concurrency, or observability.
 Terraform-state keeps its separate plan-key validator, and the root
 `firstNonBlank` helper remains outside this boundary.
 

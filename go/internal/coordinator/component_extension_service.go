@@ -9,8 +9,15 @@ import (
 	"strings"
 	"time"
 
+	"github.com/eshu-hq/eshu/go/internal/coordinator/componentactivation"
+	"github.com/eshu-hq/eshu/go/internal/coordinator/componentextensionplanner"
 	"github.com/eshu-hq/eshu/go/internal/workflow"
 )
+
+// ComponentExtensionPlanner plans generic component extension workflow rows.
+type ComponentExtensionPlanner interface {
+	PlanComponentExtensionWork(context.Context, componentextensionplanner.PlanRequest) (workflow.Run, []workflow.WorkItem, error)
+}
 
 func (s Service) scheduleComponentExtensionWork(
 	ctx context.Context,
@@ -24,7 +31,7 @@ func (s Service) scheduleComponentExtensionWork(
 		if !shouldScheduleComponentExtension(instance) {
 			continue
 		}
-		config, configOK, configErr := parseComponentInstanceConfig(instance.Configuration)
+		config, configOK, configErr := componentactivation.ParseConfig(instance.Configuration)
 		if configErr == nil && configOK {
 			decision := s.Config.ExtensionEgressPolicy.Decide(ExtensionEgressRequest{
 				ComponentID:   config.ComponentID,
@@ -52,7 +59,7 @@ func (s Service) scheduleComponentExtensionWork(
 		}
 		run, items, err := s.ComponentExtensionPlanner.PlanComponentExtensionWork(
 			ctx,
-			ComponentExtensionPlanRequest{
+			componentextensionplanner.PlanRequest{
 				Instance:   instance,
 				ObservedAt: observedAt,
 				PlanKey:    s.componentExtensionPlanKey(instance, observedAt),
@@ -75,7 +82,7 @@ func shouldScheduleComponentExtension(instance workflow.CollectorInstance) bool 
 	if !instance.Enabled || !instance.ClaimsEnabled {
 		return false
 	}
-	_, ok, err := parseComponentInstanceConfig(instance.Configuration)
+	_, ok, err := componentactivation.ParseConfig(instance.Configuration)
 	return ok || err != nil
 }
 
