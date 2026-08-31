@@ -424,8 +424,27 @@ configured order, deterministic IDs, privacy, and trigger precedence;
 PagerDuty partitions fairness by provider and Jira by site. Root keeps
 scheduling, clock, policy filtering, empty-item skips, durable admission,
 freshness-trigger transitions, retries, queue and lease behavior, and
-telemetry. These moves do not change scheduler order, workflow wire values,
-concurrency, or observability.
+telemetry. GCP is the twelfth extraction under
+`internal/coordinator/gcpplanner`; the child owns request validation,
+scope-configuration parsing and defaulting, duplicate and field validation,
+requested-scope filtering, requested-scope privacy, and deterministic
+work-item construction. Unlike the other eleven, root's own freshness handoff
+loop (`service_gcp_freshness.go`, which stays in root: it is a `_service.go`
+half, a set of methods on the shared `Service` struct) needed the same scope
+parsing the planner owns to match an inbound Cloud Asset Inventory
+change-event trigger against configured scopes, and root's config loader
+needed the same parsing to validate a claim-enabled GCP instance at startup.
+Both call sites now go through two new child exports built for this
+purpose — `EnabledScopes` (returning a privacy-scoped `ConfiguredScope`
+without content_family or the credential handle) and
+`ValidateClaimSchedulerConfiguration` — rather than reaching into the child's
+private configuration types, following the same export-a-query-function
+precedent `jiraplanner.HasConfiguredScope` and
+`pagerdutyplanner.HasConfiguredScope` set for their own freshness call sites.
+Root keeps scheduling order, the plan-key clock, tenant-grant authorization,
+durable admission, freshness trigger claim/handoff/reap, retries, queue and
+lease behavior, and telemetry. These moves do not change scheduler order,
+workflow wire values, concurrency, or observability.
 Terraform-state keeps its separate plan-key validator, and the root
 `firstNonBlank` helper remains outside this boundary.
 

@@ -41,6 +41,13 @@
      `service_scanner_worker.go` — the extracted scanner-worker planner and its
      root scheduling seam; runtime-local paths stay out of requested-scope
      metadata
+   - `go/internal/coordinator/gcpplanner/planner.go` and `gcp_service.go` —
+     the extracted GCP Cloud Asset Inventory planner and root seam; preserve
+     explicit `live_collection_enabled` opt-in, sorted scope order, default
+     derivation, and per-scope fairness identity. `service_gcp_freshness.go`
+     and `config.go` call `gcpplanner.EnabledScopes` and
+     `gcpplanner.ValidateClaimSchedulerConfiguration` instead of reaching into
+     the child's private configuration types
 6. `go/internal/workflow/service.go` (does not exist — `Store` is defined in
    `service.go` here; the workflow contracts are in `internal/workflow`)
 7. `go/internal/telemetry/instruments.go` and `contract.go` — before adding

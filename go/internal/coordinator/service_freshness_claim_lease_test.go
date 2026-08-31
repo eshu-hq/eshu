@@ -13,6 +13,7 @@ import (
 	awsfreshness "github.com/eshu-hq/eshu/go/internal/collector/awscloud/freshness"
 	"github.com/eshu-hq/eshu/go/internal/collector/gcpcloud"
 	gcpfreshness "github.com/eshu-hq/eshu/go/internal/collector/gcpcloud/freshness"
+	"github.com/eshu-hq/eshu/go/internal/coordinator/gcpplanner"
 	"github.com/eshu-hq/eshu/go/internal/scope"
 	"github.com/eshu-hq/eshu/go/internal/workflow"
 )
@@ -44,13 +45,13 @@ type fakeGCPFreshnessPlanner struct {
 
 func (p *fakeGCPFreshnessPlanner) PlanGCPWork(
 	ctx context.Context,
-	request GCPPlanRequest,
+	request gcpplanner.PlanRequest,
 ) (workflow.Run, []workflow.WorkItem, error) {
 	p.calls = append(p.calls, request.Instance.InstanceID)
 	if request.Instance.InstanceID == p.failForInstanceID {
 		return workflow.Run{}, nil, errors.New("simulated plan failure for " + request.Instance.InstanceID)
 	}
-	return GCPWorkPlanner{}.PlanGCPWork(ctx, request)
+	return gcpplanner.WorkPlanner{}.PlanGCPWork(ctx, request)
 }
 
 // TestScheduleAWSFreshnessWorkContinuesPastOneAssignmentFailure proves the
@@ -421,7 +422,7 @@ func TestRunActiveMaintenanceReapsFreshnessClaimsBeforeHandoff(t *testing.T) {
 		AWSFreshnessTriggers: awsStore,
 		AWSFreshnessPlanner:  AWSFreshnessWorkPlanner{},
 		GCPFreshnessTriggers: gcpStore,
-		GCPPlanner:           GCPWorkPlanner{},
+		GCPPlanner:           gcpplanner.WorkPlanner{},
 		Clock:                func() time.Time { return now },
 	}
 

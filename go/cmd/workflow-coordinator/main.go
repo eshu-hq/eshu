@@ -20,6 +20,7 @@ import (
 	_ "github.com/eshu-hq/eshu/go/internal/collector/awscloud/awsruntime/bindings"
 	"github.com/eshu-hq/eshu/go/internal/coordinator"
 	"github.com/eshu-hq/eshu/go/internal/coordinator/cicdrun"
+	"github.com/eshu-hq/eshu/go/internal/coordinator/gcpplanner"
 	"github.com/eshu-hq/eshu/go/internal/coordinator/grafanaplanner"
 	"github.com/eshu-hq/eshu/go/internal/coordinator/jiraplanner"
 	"github.com/eshu-hq/eshu/go/internal/coordinator/lokiplanner"
@@ -189,7 +190,7 @@ func run(parent context.Context) error {
 		JiraPlanner:                       jiraplanner.WorkPlanner{},
 		PrometheusMimirPlanner:            prometheusmimir.WorkPlanner{},
 		TempoPlanner:                      tempoplanner.WorkPlanner{},
-		GCPPlanner:                        coordinator.GCPWorkPlanner{},
+		GCPPlanner:                        gcpplanner.WorkPlanner{},
 		GrafanaPlanner:                    grafanaplanner.WorkPlanner{},
 		LokiPlanner:                       lokiplanner.WorkPlanner{},
 		VaultLivePlanner:                  coordinatorvaultlive.WorkPlanner{},

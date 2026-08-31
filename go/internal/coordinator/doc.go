@@ -65,9 +65,12 @@
 // fairness metadata, and returns a populated run for valid empty selections.
 // The coordinator retains collector-egress filtering, tenant-grant authorization,
 // and Postgres open-target admission, which prevents overlapping scheduled work.
-// GCPWorkPlanner plans one
-// bounded Cloud Asset Inventory work item per enabled GCP scope after explicit
-// live opt-in. The root ScannerWorkerPlanner interface accepts the child
+// The root GCPPlanner interface accepts the child gcpplanner.PlanRequest; the
+// child plans one bounded Cloud Asset Inventory work item per enabled GCP
+// scope after explicit live opt-in and exposes EnabledScopes and
+// ValidateClaimSchedulerConfiguration so the root freshness handoff loop and
+// config loader can reuse the same scope parsing without depending on this
+// package's private configuration types. The root ScannerWorkerPlanner interface accepts the child
 // scannerworker.PlanRequest; the child plans explicit scanner-worker source
 // evidence targets so a healthy worker must still have claimable work before a
 // proof can count source evidence. AWSScheduledWorkPlanner and
