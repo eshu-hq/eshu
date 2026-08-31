@@ -20,8 +20,15 @@ types and wraps the functions so existing imports keep their current API.
 
 ## Dependencies
 
-The package uses only the Go standard library. `GraphQuery` and `ContentStore`
-are consumer-owned ports; concrete adapters remain outside this leaf package.
+The package uses only the Go standard library plus the `internal/scope` leaf,
+for the `scope.CollectorKind` the `CollectorListReadinessStore` port carries.
+`scope` is itself standard-library-only, so it introduces no transitive
+dependency and no cycle. `GraphQuery` and `ContentStore` are consumer-owned
+ports; concrete adapters remain outside this leaf package.
+
+A new import here is a contract change, not a detail. The point of this package
+is that a family can depend on it for types without inheriting a runtime: the
+handler span lives in `queryspan` rather than here for exactly that reason.
 
 ## Telemetry
 
