@@ -182,7 +182,8 @@ func (s *capabilitySweep) findCallSites(file *ast.File) ([]string, int) {
 			// only *ast.Ident would let every one of those call sites skip the
 			// capabilityMatrix check while this sweep still reported clean,
 			// which is the regression this gate exists to catch.
-			if !callsWriteGraphReadError(node.Fun) || len(node.Args) != 4 {
+			capIdx, swept := callsWriteGraphReadError(node.Fun)
+			if !swept || len(node.Args) <= capIdx {
 				break
 			}
 			var enclosing *ast.FuncDecl
@@ -195,12 +196,13 @@ func (s *capabilitySweep) findCallSites(file *ast.File) ([]string, int) {
 			// the forwarder are the sites that carry one, and they are swept
 			// separately. Counting it would report an unresolvable argument on
 			// every run.
-			if enclosing != nil && enclosing.Name != nil &&
-				enclosing.Name.Name == "WriteGraphReadError" {
-				break
+			if enclosing != nil && enclosing.Name != nil {
+				if _, isForwarder := sweptCapabilityCallees[enclosing.Name.Name]; isForwarder {
+					break
+				}
 			}
 			matched++
-			values, resolved := s.resolveCapabilityArg(node.Args[3], enclosing, map[string]bool{})
+			values, resolved := s.resolveCapabilityArg(node.Args[capIdx], enclosing, map[string]bool{})
 			if !resolved {
 				findings = append(findings, "unresolvable WriteGraphReadError capability argument at "+
 					s.fset.Position(node.Pos()).String()+" (extend TestWriteGraphReadErrorCapabilitiesExistInMatrix's sweep)")
@@ -409,15 +411,39 @@ func stringLiteral(expr ast.Expr) (string, bool) {
 	return unquoted, true
 }
 
-// callsWriteGraphReadError reports whether fun is a call to
-// WriteGraphReadError, named directly or through a package qualifier.
-func callsWriteGraphReadError(fun ast.Expr) bool {
+// sweptCapabilityCallees maps each capability-taking function to the argument
+// INDEX its capability sits at. GraphReadErrorEnvelope is swept alongside
+// WriteGraphReadError because it takes the same capability and renders the same
+// envelope -- it is the variant for seams that return the envelope instead of
+// writing it -- so omitting it would let a caller escape the matrix check by
+// picking the other function.
+//
+// The index travels with the name because the two do NOT share an arity:
+// WriteGraphReadError(w, r, err, capability) versus
+// GraphReadErrorEnvelope(err, capability). A single hard-coded position matched
+// the envelope variant's NAME and then skipped every one of its call sites on
+// the argument count, which a seeded-violation probe caught and a passing suite
+// did not.
+var sweptCapabilityCallees = map[string]int{
+	"WriteGraphReadError":    3, // (w, r, err, capability)
+	"GraphReadErrorEnvelope": 1, // (err, capability)
+	"graphReadErrorEnvelope": 1, // root's unexported forwarder
+}
+
+// callsWriteGraphReadError reports whether fun calls one of the swept
+// capability-taking functions, named directly or through a package qualifier.
+func callsWriteGraphReadError(fun ast.Expr) (int, bool) {
 	switch callee := fun.(type) {
 	case *ast.Ident:
-		return callee.Name == "WriteGraphReadError"
+		idx, ok := sweptCapabilityCallees[callee.Name]
+		return idx, ok
 	case *ast.SelectorExpr:
-		return callee.Sel != nil && callee.Sel.Name == "WriteGraphReadError"
+		if callee.Sel == nil {
+			return 0, false
+		}
+		idx, ok := sweptCapabilityCallees[callee.Sel.Name]
+		return idx, ok
 	default:
-		return false
+		return 0, false
 	}
 }
