@@ -185,7 +185,7 @@ entries:
     source:
       file: go/internal/query/service_workload_resolution.go
       symbol: (*EntityHandler).queryServiceWorkloadCandidates
-      source_sha256: 9f267284258bc04cd9e7791a6d6d797c048371cd78aea0e559198ab1e2006910
+      source_sha256: 32654031f0afbab7196764f28269c3a73602fe8081d5b0500f4e5dfda792ad2f
       line_hint: 219
     required_anchors:
       - label: Workload
@@ -211,7 +211,7 @@ entries:
     source:
       file: go/internal/query/entity_workload_context.go
       symbol: (*EntityHandler).fetchWorkloadContextForOperation
-      source_sha256: 61ff7533fb9b451eeb660a5d51743094174a5c47350e1bd77b08641a3304d35c
+      source_sha256: 0e45cef68f95f3149b4873087b2c599dd08245328c6c7d806adf59c97cf31f6a
       line_hint: 50
     required_anchors:
       - label: Workload
@@ -235,7 +235,7 @@ entries:
     source:
       file: go/internal/query/workload_runtime_topology.go
       symbol: fetchWorkloadRuntimeTopology
-      source_sha256: 16a33c336deef34fac701a57c39faba590bb373f68e3cc0e04c990e2fa4f479c
+      source_sha256: b007aed51527b9713d3f379bb08980d5ac376ccd2e2d76af4c079d679c67daa2
       line_hint: 66
     required_anchors:
       - label: WorkloadInstance
@@ -271,7 +271,7 @@ entries:
     source:
       file: go/internal/query/entity_workload_platform.go
       symbol: (*EntityHandler).fetchWorkloadPlatformResult
-      source_sha256: 25b8c542d61b4a9eb5fe834d6e9aa409d5a81918bff392e25f675989205fba19
+      source_sha256: fe46e6ce37f6b6628197fd3694f0f008904b234bd9eaefc2b7a284b3b73178b1
       line_hint: 68
     required_anchors:
       - label: Repository
@@ -306,7 +306,7 @@ entries:
     source:
       file: go/internal/query/cloud_resource_dependencies.go
       symbol: loadMaterializedServiceCloudResourceDependencies
-      source_sha256: e43495aed2bea44e69410778f7ae80a662b1189316ffc1849e44ca02dea78f6e
+      source_sha256: 67df862808606cdb678f47d1f7d09cf3665f6dd6a3050fb97006188c913c096b
       line_hint: 10
     required_anchors:
       - label: Repository
@@ -515,7 +515,7 @@ entries:
     source:
       file: go/internal/query/impact_change_surface_traversal.go
       symbol: (*ImpactHandler).runChangeSurfaceOutgoing
-      source_sha256: 50b86670b586ad34ee1017d35da837bf40cd8e87309f36c82d5ca72ce427e3ba
+      source_sha256: 7015261af1e9042c558ca94e41ec5dd78494fa27c5331989df5ce3b57e4bba25
       line_hint: 93
     required_anchors:
       - label: Workload
@@ -545,7 +545,7 @@ entries:
     source:
       file: go/internal/query/impact_change_surface_traversal.go
       symbol: (*ImpactHandler).runChangeSurfaceOutgoing
-      source_sha256: 50b86670b586ad34ee1017d35da837bf40cd8e87309f36c82d5ca72ce427e3ba
+      source_sha256: 7015261af1e9042c558ca94e41ec5dd78494fa27c5331989df5ce3b57e4bba25
       line_hint: 93
     required_anchors:
       - label: Workload
@@ -575,7 +575,7 @@ entries:
     source:
       file: go/internal/query/impact_change_surface_traversal.go
       symbol: (*ImpactHandler).runChangeSurfaceRepositoryConsumers
-      source_sha256: c455c470e7f7127bbe68dab7c56d8c0335ae8654ab9f362b57ab664a8150712d
+      source_sha256: 2244efa6da854e50b88c84d0c1415350571cad930a1a510cccb54d3f14f36fb6
       line_hint: 124
     required_anchors:
       - label: Repository
@@ -605,7 +605,7 @@ entries:
     source:
       file: go/internal/query/impact_change_surface_traversal.go
       symbol: (*ImpactHandler).runChangeSurfaceRepositoryConsumers
-      source_sha256: c455c470e7f7127bbe68dab7c56d8c0335ae8654ab9f362b57ab664a8150712d
+      source_sha256: 2244efa6da854e50b88c84d0c1415350571cad930a1a510cccb54d3f14f36fb6
       line_hint: 124
     required_anchors:
       - label: Repository
@@ -635,7 +635,7 @@ entries:
     source:
       file: go/internal/query/impact_trace_deployment_flux_bindings.go
       symbol: fetchFluxDeploymentSourceTargetBindings
-      source_sha256: 4fb49a5ad5c2dc10f5ce4cfc058a0cfd1f54daa07f49d86882767d4b1c94810d
+      source_sha256: 64083312618ddf77929edf96de6ac2f928bbcc42a5a660f18f12ec3eb2d9f74f
       line_hint: 18
     required_anchors:
       - label: Repository
@@ -663,7 +663,7 @@ entries:
     source:
       file: go/internal/query/impact_trace_deployment_flux_bindings.go
       symbol: fetchFluxDeploymentSourceTargetBindings
-      source_sha256: 4fb49a5ad5c2dc10f5ce4cfc058a0cfd1f54daa07f49d86882767d4b1c94810d
+      source_sha256: 64083312618ddf77929edf96de6ac2f928bbcc42a5a660f18f12ec3eb2d9f74f
       line_hint: 18
     required_anchors:
       - label: EvidenceArtifact
@@ -785,7 +785,7 @@ entries:
     source:
       file: go/internal/query/infra.go
       symbol: (*InfraHandler).searchResources
-      source_sha256: ebade10548ea5d8f11d2c84164cdd6fe75b3ec349ae7ad3b2e7863e6b3f1d9ad
+      source_sha256: 6ad1a46d55d28077a13778b029dbcafdff419725ee58190f93d65737f3d3cb70
       line_hint: 195
     required_limits:
       - $limit
