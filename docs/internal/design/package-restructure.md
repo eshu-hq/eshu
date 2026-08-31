@@ -455,6 +455,36 @@ value by calling the same child selector, so a mutation moves both sides
 together. What it does prove is that the adapter transcribes method, path, body,
 and query faithfully, which is a different claim.
 
+The observability-coverage route family is the fifth Wave 2 MCP extraction and
+returns to the single-tool shape: one tool, one arm of the same
+`repositoryRoute` switch, one request builder in
+`dispatch_observability_coverage.go` with no private helper beside it. Family
+membership and the builder now live under `internal/mcp/observabilitycoverage`,
+and `dispatch_observability_coverage.go` keeps only the thin
+`observabilityCoverageRoute` adapter. Root keeps the tool definition and its
+assembly position, global fanout order, dispatch, authorization, transport,
+timeouts, response budgets, envelopes, summaries, and telemetry. The adapter is
+consulted directly after the secrets/IAM one at the top of `repositoryRoute`, so
+the repository router keeps its own position in the global chain and no other
+family's resolution order changes. The one tool name is disjoint from the
+package-registry, CI/CD, CODEOWNERS, and secrets/IAM families and from the
+remaining switch arms, and the 162-tool order, the advertised schema, the
+`limit` default of 50, and every selected method, path, and query key remain
+unchanged.
+
+What makes this family worth reading is the width of a single route.
+`list_observability_coverage_correlations` carries twelve query keys -- a
+cursor, a limit, and ten filters spanning scope, provider, coverage signal and
+status, observability object, source and resource class, outcome, and both
+target anchors -- which is more than any other route the repository router
+selects. The handler reads each key by name and has no catch-all, and a key
+dropped in the move fails two different ways. `limit` is required and a scope
+anchor is required, so losing either returns 400. Losing a plain filter returns
+200 and widens the caller's page to rows they filtered out, which reads as a gap
+the graph does not have. That is why the child tests and the dispatch-level test
+assert all twelve keys individually as well as by exact request: a loud failure
+and a silent one need the same per-key coverage.
+
 **cmd/eshu (233):** `package main` — subdirectories are impossible by
 language rule. The lever is extracting business logic to new
 `internal/cli/<family>` packages, leaving thin cobra RunE wrappers —

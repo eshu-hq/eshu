@@ -47,6 +47,9 @@ func repositoryRoute(toolName string, args map[string]any) (*route, bool, error)
 	if route, ok := secretsIAMRoute(toolName, args); ok {
 		return route, true, nil
 	}
+	if route, ok := observabilityCoverageRoute(toolName, args); ok {
+		return route, true, nil
+	}
 	switch toolName {
 	case "list_indexed_repositories":
 		return &route{method: "GET", path: "/api/v0/repositories", query: paginationQuery(args, 100)}, true, nil
@@ -80,8 +83,6 @@ func repositoryRoute(toolName string, args map[string]any) (*route, bool, error)
 		return serviceCatalogCorrelationsRoute(args), true, nil
 	case "list_kubernetes_correlations":
 		return kubernetesCorrelationsRoute(args), true, nil
-	case "list_observability_coverage_correlations":
-		return observabilityCoverageCorrelationsRoute(args), true, nil
 	case "list_container_image_identities":
 		return containerImageIdentitiesRoute(args), true, nil
 	case "list_container_image_tag_history":

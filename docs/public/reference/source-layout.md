@@ -41,6 +41,7 @@ live in the repository today.
 | `go/internal/mcp/ecosystem/` | ecosystem, repository-context, infrastructure-impact, and change-planning MCP tool registration definitions |
 | `go/internal/mcp/freshness/` | generation, repository, and service freshness MCP tool registration definitions |
 | `go/internal/mcp/investigation/` | investigation workflow and evidence-packet MCP tool registration definitions |
+| `go/internal/mcp/observabilitycoverage/` | observability-coverage MCP family membership and dependency-neutral route selection |
 | `go/internal/mcp/packageregistry/` | package-registry MCP family membership and dependency-neutral route selection |
 | `go/internal/mcp/playbooks/` | query-playbook MCP tool registration definitions |
 | `go/internal/mcp/relationships/` | code-relationship and relationship-edge MCP registrations plus pure family membership and dependency-neutral route selection |
@@ -129,6 +130,8 @@ Read and operator surfaces live under:
   dependency-neutral request selection
 - `go/internal/mcp/codeowners/`: CODEOWNERS ownership family membership and
   pure dependency-neutral request selection
+- `go/internal/mcp/observabilitycoverage/`: observability-coverage family
+  membership and pure dependency-neutral request selection
 - `go/internal/mcp/packageregistry/`: package-registry family membership and
   pure dependency-neutral request selection
 - `go/internal/mcp/relationships/`: relationship-family registrations, family
