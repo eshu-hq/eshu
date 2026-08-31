@@ -54,8 +54,8 @@ exporting the private configuration types directly.
   blank or delimiter-containing `parent_scope_id`, or an invalid
   `asset_type_family`/`content_family`/`location_bucket`.
 - Reject duplicate `scope_id` values within one configuration.
-- Keep `credential_ref` and `content_family` out of `RequestedScopeSet` and
-  out of `ConfiguredScope`.
+- Keep `credential_ref` out of `RequestedScopeSet`; keep both
+  `credential_ref` and `content_family` out of `ConfiguredScope`.
 - A valid empty scope selection returns a populated pending run and no items.
 - Keep all timestamps in UTC and all IDs deterministic for a fixed request.
 - `EnabledScopes` and `ValidateClaimSchedulerConfiguration` must return the
