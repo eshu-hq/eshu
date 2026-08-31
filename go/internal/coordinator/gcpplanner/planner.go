@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package coordinator
+package gcpplanner
 
 import (
 	"context"
@@ -19,8 +19,11 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/workflow"
 )
 
-// GCPPlanRequest carries one live GCP Cloud Asset Inventory planning request.
-type GCPPlanRequest struct {
+// PlanRequest carries one live GCP Cloud Asset Inventory planning request.
+// The coordinator supplies the collector instance, the reconcile observed
+// time, a deterministic plan key, and an optional scope filter for freshness
+// wake-ups; the planner never resolves credentials or contacts Google Cloud.
+type PlanRequest struct {
 	// Instance is the durable GCP collector instance to plan work for.
 	Instance workflow.CollectorInstance
 	// ObservedAt anchors the run and work-item timestamps for this reconcile.
@@ -32,9 +35,10 @@ type GCPPlanRequest struct {
 	ScopeIDs []string
 }
 
-// GCPWorkPlanner plans claim-driven GCP collector workflow rows without
-// resolving credentials or contacting Google Cloud.
-type GCPWorkPlanner struct{}
+// WorkPlanner plans claim-driven GCP collector workflow rows without
+// resolving credentials or contacting Google Cloud. It is the concrete
+// planner the coordinator wires for the gcp collector kind.
+type WorkPlanner struct{}
 
 type gcpRuntimeConfiguration struct {
 	LiveCollectionEnabled bool                    `json:"live_collection_enabled"`
@@ -55,9 +59,9 @@ type gcpScopeConfiguration struct {
 // PlanGCPWork returns one run and one work item per enabled configured GCP
 // scope. Live collection must be explicitly enabled in the collector instance
 // configuration; otherwise no claim-enabled GCP scheduling is admitted.
-func (p GCPWorkPlanner) PlanGCPWork(
+func (p WorkPlanner) PlanGCPWork(
 	_ context.Context,
-	request GCPPlanRequest,
+	request PlanRequest,
 ) (workflow.Run, []workflow.WorkItem, error) {
 	if err := validateGCPPlanRequest(request); err != nil {
 		return workflow.Run{}, nil, err
@@ -93,7 +97,7 @@ func (p GCPWorkPlanner) PlanGCPWork(
 	return run, items, nil
 }
 
-func validateGCPPlanRequest(request GCPPlanRequest) error {
+func validateGCPPlanRequest(request PlanRequest) error {
 	if err := request.Instance.Validate(); err != nil {
 		return fmt.Errorf("gcp plan request: %w", err)
 	}
@@ -130,7 +134,14 @@ func parseGCPRuntimeConfiguration(raw string) (gcpRuntimeConfiguration, error) {
 	return decoded, nil
 }
 
-func validateGCPClaimSchedulerConfiguration(instance workflow.DesiredCollectorInstance) error {
+// ValidateClaimSchedulerConfiguration reports whether a GCP collector
+// instance's declarative configuration is safe to admit for claim-enabled
+// scheduling: valid JSON, `live_collection_enabled=true`, and at least one
+// enabled, validated scope. The root coordinator's config loader calls this
+// for every enabled, claim-enabled GCP instance before accepting it into
+// `Config.CollectorInstances`; this performs the same parse and validation
+// `PlanGCPWork` performs, exposed for that root-owned startup gate.
+func ValidateClaimSchedulerConfiguration(instance workflow.DesiredCollectorInstance) error {
 	config, err := parseGCPRuntimeConfiguration(instance.Configuration)
 	if err != nil {
 		return fmt.Errorf("collector instance %q uses collector_kind %q: %w", instance.InstanceID, instance.CollectorKind, err)
@@ -167,6 +178,52 @@ func gcpEnabledScopes(config gcpRuntimeConfiguration) ([]gcpScopeConfiguration, 
 		return nil, fmt.Errorf("claim-enabled GCP scheduling requires at least one enabled scope")
 	}
 	return scopes, nil
+}
+
+// ConfiguredScope is the subset of one validated, enabled GCP scope's fields
+// the root coordinator's freshness handoff loop needs to match an inbound
+// Cloud Asset Inventory change-event target to a collector instance's
+// configured scopes. It omits ContentFamily (a CAI asset-change event carries
+// no content_family signal, so freshness matches on the remaining tuple and
+// fans out to every content family sharing it) and CredentialRef (root's
+// freshness matching never needs the credential handle).
+type ConfiguredScope struct {
+	ScopeID         string
+	ParentScopeKind string
+	ParentScopeID   string
+	AssetTypeFamily string
+	LocationBucket  string
+}
+
+// EnabledScopes parses a GCP collector instance's live-collection
+// configuration and returns every enabled, validated scope in the same order
+// PlanGCPWork would plan them. It returns the same validation error
+// PlanGCPWork returns for a malformed configuration, a configuration missing
+// `live_collection_enabled=true`, or a configuration with no enabled scope.
+// The root coordinator's freshness handoff loop calls this to resolve which
+// configured scopes an inbound Cloud Asset Inventory change-event trigger
+// authorizes, without reaching into this package's private configuration
+// types.
+func EnabledScopes(configuration string) ([]ConfiguredScope, error) {
+	config, err := parseGCPRuntimeConfiguration(configuration)
+	if err != nil {
+		return nil, err
+	}
+	scopes, err := gcpEnabledScopes(config)
+	if err != nil {
+		return nil, err
+	}
+	out := make([]ConfiguredScope, 0, len(scopes))
+	for _, target := range scopes {
+		out = append(out, ConfiguredScope{
+			ScopeID:         target.ScopeID,
+			ParentScopeKind: target.ParentScopeKind,
+			ParentScopeID:   target.ParentScopeID,
+			AssetTypeFamily: target.AssetTypeFamily,
+			LocationBucket:  target.LocationBucket,
+		})
+	}
+	return out, nil
 }
 
 func (s gcpScopeConfiguration) withDefaults() gcpScopeConfiguration {

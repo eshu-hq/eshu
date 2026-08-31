@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package coordinator
+package gcpplanner
 
 import (
 	"strings"
@@ -28,7 +28,7 @@ func TestGCPWorkPlannerPlansOneClaimPerEnabledScope(t *testing.T) {
 		UpdatedAt:      observedAt,
 	}
 
-	run, items, err := (GCPWorkPlanner{}).PlanGCPWork(t.Context(), GCPPlanRequest{
+	run, items, err := (WorkPlanner{}).PlanGCPWork(t.Context(), PlanRequest{
 		Instance:   instance,
 		ObservedAt: observedAt,
 		PlanKey:    "continuous-20260618T150000Z",
@@ -87,7 +87,7 @@ func TestGCPWorkPlannerSkipsDisabledScopes(t *testing.T) {
 		UpdatedAt:      observedAt,
 	}
 
-	run, items, err := (GCPWorkPlanner{}).PlanGCPWork(t.Context(), GCPPlanRequest{
+	run, items, err := (WorkPlanner{}).PlanGCPWork(t.Context(), PlanRequest{
 		Instance:   instance,
 		ObservedAt: observedAt,
 		PlanKey:    "continuous-20260618T150000Z",
@@ -122,7 +122,7 @@ func TestGCPWorkPlannerRejectsConfigWithoutLiveMode(t *testing.T) {
 		UpdatedAt:      observedAt,
 	}
 
-	if _, _, err := (GCPWorkPlanner{}).PlanGCPWork(t.Context(), GCPPlanRequest{
+	if _, _, err := (WorkPlanner{}).PlanGCPWork(t.Context(), PlanRequest{
 		Instance:   instance,
 		ObservedAt: observedAt,
 		PlanKey:    "continuous-20260618T150000Z",
@@ -147,7 +147,7 @@ func TestGCPWorkPlannerRejectsLiveModeWithoutEnabledScopes(t *testing.T) {
 		UpdatedAt:      observedAt,
 	}
 
-	if _, _, err := (GCPWorkPlanner{}).PlanGCPWork(t.Context(), GCPPlanRequest{
+	if _, _, err := (WorkPlanner{}).PlanGCPWork(t.Context(), PlanRequest{
 		Instance:   instance,
 		ObservedAt: observedAt,
 		PlanKey:    "continuous-20260618T150000Z",

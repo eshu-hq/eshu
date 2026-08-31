@@ -186,6 +186,8 @@ one enabled bounded scope; invalid configurations fail validation.
   plan-key clock, tenant and egress filtering, and durable admission. Each
   enabled target remains one claimable work item with the per-target fairness
   key `loki:<instance_id>:<scope_id>`.
+- `GCPPlanner` — implemented by `gcpplanner.WorkPlanner`, which also exposes
+  `EnabledScopes`/`ValidateClaimSchedulerConfiguration` for root reuse.
 - `OwnedPackageTargetReader` — optional active-mode dependency target reader
   used by `Service` when package-registry or vulnerability-intelligence
   instances enable `derive_from_owned_packages`.
@@ -229,8 +231,8 @@ one enabled bounded scope; invalid configurations fail validation.
 - `internal/coordinator/jiraplanner` — Jira membership, privacy, and planning.
 - `internal/coordinator/vaultlive` — Vault metadata plan request and
   deterministic planner implementation.
-- `internal/coordinator/tempoplanner`, `lokiplanner`, `prometheusmimir`, and
-  `grafanaplanner` — deterministic observability planner requests and implementations.
+- `internal/coordinator/tempoplanner`, `lokiplanner`, `prometheusmimir`,
+  `grafanaplanner`, and `gcpplanner` — deterministic planner implementations.
 - `internal/workflow` — `DesiredCollectorInstance`, `CollectorInstance`,
   `Claim`, and default accessors; used throughout `Store` and `Config`.
 - `internal/scope` — `CollectorKind` used by `Config` and
@@ -354,14 +356,12 @@ handles, source payloads, or token values. When wired to
 aggregate governance audit counts by event type, decision, scope class, actor
 class, and reason code.
 
-No-Regression Evidence: `go test ./internal/coordinator -run 'TestLoadConfig.*GCP|TestGCPWorkPlanner|TestServiceRunActiveMode(SchedulesGCPWork|SkipsGCPWorkWhenPriorTargetIsOpen|FiltersDeniedGCPTenantScopes)' -count=1`
-proves claim-enabled GCP instances still fail startup without explicit live
-mode, explicit live-mode instances plan one durable work item per enabled
-bounded scope, disabled scopes are skipped, credential handles stay out of
-`requested_scope_set`, and active reconciliation uses the shared open-target
-admission and tenant-authorization guards. This is planning only: no provider
-call, graph write, read-model write, worker-count change, Helm exposure, or
-ServiceMonitor change is introduced.
+No-Regression Evidence: `go test ./internal/coordinator/gcpplanner -count=1`
+proves live-mode rejection, sorted planning, privacy-safe `EnabledScopes`,
+deterministic IDs, and empty-selection freshness filtering; `go test
+./internal/coordinator -run 'TestLoadConfig.*GCP|TestServiceRunActiveMode(SchedulesGCPWork|SkipsGCPWorkWhenPriorTargetIsOpen|FiltersDeniedGCPTenantScopes)' -count=1`
+proves root startup rejection and tenant-scope admission filtering. Planning
+only: no provider call, graph write, worker-count, or ServiceMonitor change.
 
 No-Observability-Change: GCP planning reuses coordinator reconcile metrics,
 workflow rows, claim status rows, duplicate-skip logs, and `/api/v0/index-status`.

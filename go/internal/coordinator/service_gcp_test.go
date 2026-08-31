@@ -9,12 +9,13 @@ import (
 	"testing"
 	"time"
 
+	"github.com/eshu-hq/eshu/go/internal/coordinator/gcpplanner"
 	"github.com/eshu-hq/eshu/go/internal/scope"
 	"github.com/eshu-hq/eshu/go/internal/workflow"
 )
 
 type fakeGCPPlanner struct {
-	requests []GCPPlanRequest
+	requests []gcpplanner.PlanRequest
 	run      workflow.Run
 	items    []workflow.WorkItem
 	err      error
@@ -22,7 +23,7 @@ type fakeGCPPlanner struct {
 
 func (f *fakeGCPPlanner) PlanGCPWork(
 	_ context.Context,
-	request GCPPlanRequest,
+	request gcpplanner.PlanRequest,
 ) (workflow.Run, []workflow.WorkItem, error) {
 	f.requests = append(f.requests, request)
 	if f.err != nil {
@@ -151,7 +152,7 @@ func TestServiceRunActiveModeSkipsGCPWorkWhenPriorTargetIsOpen(t *testing.T) {
 			}},
 		},
 		Store:      store,
-		GCPPlanner: GCPWorkPlanner{},
+		GCPPlanner: gcpplanner.WorkPlanner{},
 		Clock:      func() time.Time { return now },
 	}
 
@@ -202,7 +203,7 @@ func TestServiceRunActiveModeFiltersDeniedGCPTenantScopes(t *testing.T) {
 			}},
 		},
 		Store:      store,
-		GCPPlanner: GCPWorkPlanner{},
+		GCPPlanner: gcpplanner.WorkPlanner{},
 		TenantGrantReader: &fakeTenantGrantReader{
 			grants: []WorkflowTenantScopeGrant{{
 				ScopeID:            authorizedScope,
@@ -239,9 +240,35 @@ func testServiceGCPInstance(observedAt time.Time) workflow.CollectorInstance {
 		Mode:           workflow.CollectorModeContinuous,
 		Enabled:        true,
 		ClaimsEnabled:  true,
-		Configuration:  testGCPConfigWithTwoEnabledScopes(),
+		Configuration:  testServiceGCPConfigWithTwoEnabledScopes(),
 		LastObservedAt: observedAt,
 		CreatedAt:      observedAt,
 		UpdatedAt:      observedAt,
 	}
+}
+
+// testServiceGCPConfigWithTwoEnabledScopes mirrors
+// gcpplanner's own fixture of the same shape; root keeps its own copy so
+// this file does not reach into the child package's private test helpers.
+func testServiceGCPConfigWithTwoEnabledScopes() string {
+	return `{
+		"live_collection_enabled": true,
+		"scopes": [{
+			"enabled": true,
+			"parent_scope_kind": "project",
+			"parent_scope_id": "project-alpha",
+			"asset_type_family": "compute",
+			"content_family": "resource",
+			"location_bucket": "global",
+			"credential_ref": "credential-handle"
+		}, {
+			"enabled": true,
+			"parent_scope_kind": "project",
+			"parent_scope_id": "project-beta",
+			"asset_type_family": "storage",
+			"content_family": "iam_policy",
+			"location_bucket": "us",
+			"credential_ref": "credential-ref-two"
+		}]
+	}`
 }

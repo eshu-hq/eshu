@@ -12,6 +12,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/collector/gcpcloud"
 	"github.com/eshu-hq/eshu/go/internal/collector/gcpcloud/freshness"
+	"github.com/eshu-hq/eshu/go/internal/coordinator/gcpplanner"
 	"github.com/eshu-hq/eshu/go/internal/scope"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
 	"github.com/eshu-hq/eshu/go/internal/workflow"
@@ -251,7 +252,7 @@ func (s Service) handoffGCPFreshnessAssignment(
 ) error {
 	s.recordGCPFreshnessFanOut(ctx, len(assignment.ScopeIDs))
 
-	run, items, err := s.GCPPlanner.PlanGCPWork(ctx, GCPPlanRequest{
+	run, items, err := s.GCPPlanner.PlanGCPWork(ctx, gcpplanner.PlanRequest{
 		Instance:   assignment.Instance,
 		ObservedAt: observedAt,
 		PlanKey:    s.gcpFreshnessPlanKey(observedAt),
@@ -310,11 +311,7 @@ func resolveGCPFreshnessScopeIDs(
 		if !shouldScheduleGCPFreshness(instance) {
 			continue
 		}
-		config, err := parseGCPRuntimeConfiguration(instance.Configuration)
-		if err != nil {
-			continue
-		}
-		scopes, err := gcpEnabledScopes(config)
+		scopes, err := gcpplanner.EnabledScopes(instance.Configuration)
 		if err != nil {
 			continue
 		}
@@ -338,7 +335,7 @@ func shouldScheduleGCPFreshness(instance workflow.CollectorInstance) bool {
 // axis: a CAI asset-change event has no content_family signal, so every
 // content family sharing the tuple must be scheduled (#4338).
 func matchingGCPFreshnessScopeIDs(
-	scopes []gcpScopeConfiguration,
+	scopes []gcpplanner.ConfiguredScope,
 	parentScopeKind gcpcloud.ParentScopeKind,
 	parentScopeID string,
 	assetFamily string,

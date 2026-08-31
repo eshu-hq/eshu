@@ -57,12 +57,6 @@ type VulnerabilityIntelligencePlanner interface {
 	PlanVulnerabilityIntelligenceWork(context.Context, VulnerabilityIntelligencePlanRequest) (workflow.Run, []workflow.WorkItem, error)
 }
 
-// GCPPlanner plans GCP Cloud Asset Inventory workflow rows from collector
-// instance configuration.
-type GCPPlanner interface {
-	PlanGCPWork(context.Context, GCPPlanRequest) (workflow.Run, []workflow.WorkItem, error)
-}
-
 // ComponentExtensionPlanner plans generic component extension workflow rows.
 type ComponentExtensionPlanner interface {
 	PlanComponentExtensionWork(context.Context, ComponentExtensionPlanRequest) (workflow.Run, []workflow.WorkItem, error)
