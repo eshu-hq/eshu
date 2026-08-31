@@ -702,7 +702,7 @@ answered by four arms of the same `repositoryRoute` switch. Two request
 builders, `supplyChainImpactFindingsRoute` and
 `supplyChainImpactExplanationRoute`, sat in `dispatch_supply_chain.go` beside
 four supply-chain builders that stay there; the other two, plus the
-fourteen-filter helper they share, sat alone in
+eighteen-filter helper they share, sat alone in
 `dispatch_supply_chain_aggregates.go`. Family membership and all four
 builders now live under `internal/mcp/supplychainimpact`; the aggregates file
 is deleted and `dispatch_supply_chain_impact.go` takes its place holding only
@@ -733,7 +733,7 @@ express that three-state contract -- it collapses "the caller never set this"
 into the fallback, which is indistinguishable from an explicit `false` -- so
 the child package carries its own `boolStr` helper rather than reusing
 `BoolOr`, the same shape the root dispatcher used before extraction. The
-listing and the two aggregates share this helper and the same fourteen
+listing and the two aggregates share this helper and the same eighteen
 filters; the explanation carries none of them, since it answers exactly one
 finding, one no-evidence explanation, or one ambiguous-scope refusal rather
 than a page.

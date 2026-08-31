@@ -42,7 +42,7 @@ the shared API request duration and error metrics in `internal/query`.
 
 - The import path ends in `supplychainimpact`, while the declared package is
   `supplychainimpacttools`. The root uses an explicit import alias.
-- The four key sets are deliberately unequal. The listing carries the twenty
+- The four key sets are deliberately unequal. The listing carries the twenty-one
   keys `advisory_id`, `after_finding_id`, `cve_id`, `ecosystem`,
   `environment`, `ghsa_id`, `image_ref`, `impact_status`, `limit`,
   `min_priority_score`, `osv_id`, `package_id`, `priority_bucket`, `profile`,
