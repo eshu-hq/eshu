@@ -53,14 +53,15 @@ decoys and produces 42 ordered intents across 44 builder probes. No graph
 backend participates, and it creates no queue rows.
 
 No-Regression Evidence: `internal/projector/azure`, `internal/projector/ec2`,
-`internal/projector/gcp`, `internal/projector/kubernetes`, and
-`internal/projector/security` import this contract for their extracted intent
-builders while root assembly passes the shared `FactLookup`. Focused
-family and ordered fan-out tests plus the full projector tree preserve exact
-trigger, value, and order behavior. The exact-base fan-out measurements above
-preserve the allocation count with overlapping latency ranges.
+`internal/projector/gcp`, `internal/projector/kubernetes`,
+`internal/projector/s3`, and `internal/projector/security` import this
+contract for their extracted intent builders while root assembly passes the
+shared `FactLookup`. Focused family and ordered fan-out tests plus the full
+projector tree preserve exact trigger, value, and order behavior. The
+exact-base fan-out measurements above preserve the allocation count with
+overlapping latency ranges.
 
-No-Observability-Change (Azure, EC2, GCP, Kubernetes, and security
+No-Observability-Change (Azure, EC2, GCP, Kubernetes, S3, and security
 extractions): the boundary adds no metric, span, log, status field, queue
 behavior, or runtime setting.
 Existing projection and reducer-intent enqueue telemetry remains owned by the

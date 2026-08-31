@@ -28,11 +28,3 @@ func decodeAWSRelationship(env facts.Envelope) (awsv1.Relationship, error) {
 	}
 	return relationship, nil
 }
-
-func decodeS3BucketPosture(env facts.Envelope) (awsv1.S3BucketPosture, error) {
-	posture, err := factschema.DecodeS3BucketPosture(factschemaEnvelope(env))
-	if err != nil {
-		return awsv1.S3BucketPosture{}, newProjectorDecodeError(factschema.FactKindS3BucketPosture, err)
-	}
-	return posture, nil
-}
