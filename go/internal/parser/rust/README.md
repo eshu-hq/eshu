@@ -53,9 +53,11 @@ Rust test ownership sits here too. The in-package `rust` tests cover `Parse`,
 through the parent engine live in this directory in the external `rust_test`
 package: `engine_rust_lifetimes_test.go`, `engine_rust_module_resolution_test.go`,
 `rust_route_entries_test.go`, and `rust_cargo_dependency_test.go`. They call
-`parser.DefaultEngine` and `parser.Options`; shared parser assertions live in
-`internal/parser/parsertest`, while the Cargo suite keeps its row and dependency
-chain assertions beside the Rust tests that use them.
+the public parser boundary: nine tests use `parser.DefaultEngine` and
+`parser.Options`, while one Cargo coverage test uses the public
+`jsonparser.DependencyCoverageByFile` registry. Shared parser assertions live
+in `internal/parser/parsertest`, while the Cargo suite keeps its row and
+dependency chain assertions beside the Rust tests that use them.
 
 The parent parser directory still holds `TestDefaultEngineParsePathRust`,
 `TestDefaultEngineParsePathRustImplOwnership`, and
@@ -78,7 +80,8 @@ carries the godoc contract for callers.
 Production files and same-package `rust` tests import the shared parser helper
 package and tree-sitter types. Neither may import the parent parser package.
 External `rust_test` black-box tests may import the parent only to drive the
-public `parser.DefaultEngine` and `parser.Options` boundary.
+public `parser.DefaultEngine` and `parser.Options` boundary; the coverage test
+may use the public JSON parser dependency-coverage registry.
 
 ## Telemetry
 
