@@ -1,11 +1,14 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package parser
+package swift_test
 
 import (
 	"path/filepath"
 	"testing"
+
+	"github.com/eshu-hq/eshu/go/internal/parser"
+	"github.com/eshu-hq/eshu/go/internal/parser/parsertest"
 )
 
 // TestSwiftVaporGoldenFixtureDiscriminatesRouteHandler pins the swift_vapor_app
@@ -20,18 +23,18 @@ import (
 func TestSwiftVaporGoldenFixtureDiscriminatesRouteHandler(t *testing.T) {
 	t.Parallel()
 
-	repoRoot := repoFixturePath("ecosystems", "swift_vapor_app")
-	engine, err := DefaultEngine()
+	repoRoot := swiftFixturePath(t, "ecosystems", "swift_vapor_app")
+	engine, err := parser.DefaultEngine()
 	if err != nil {
 		t.Fatalf("DefaultEngine() error = %v, want nil", err)
 	}
 
 	routesPath := filepath.Join(repoRoot, "Sources", "App", "routes.swift")
-	routesPayload, err := engine.ParsePath(repoRoot, routesPath, false, Options{})
+	routesPayload, err := engine.ParsePath(repoRoot, routesPath, false, parser.Options{})
 	if err != nil {
 		t.Fatalf("ParsePath(%q) error = %v, want nil", routesPath, err)
 	}
-	assertParserStringSliceContains(
+	parsertest.AssertStringSliceContains(
 		t,
 		assertFunctionByName(t, routesPayload, "healthCheck"),
 		"dead_code_root_kinds",
@@ -39,7 +42,7 @@ func TestSwiftVaporGoldenFixtureDiscriminatesRouteHandler(t *testing.T) {
 	)
 
 	plainPath := filepath.Join(repoRoot, "Sources", "App", "plain.swift")
-	plainPayload, err := engine.ParsePath(repoRoot, plainPath, false, Options{})
+	plainPayload, err := engine.ParsePath(repoRoot, plainPath, false, parser.Options{})
 	if err != nil {
 		t.Fatalf("ParsePath(%q) error = %v, want nil", plainPath, err)
 	}

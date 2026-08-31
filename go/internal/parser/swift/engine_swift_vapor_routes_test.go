@@ -1,11 +1,14 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package parser
+package swift_test
 
 import (
 	"path/filepath"
 	"testing"
+
+	"github.com/eshu-hq/eshu/go/internal/parser"
+	"github.com/eshu-hq/eshu/go/internal/parser/parsertest"
 )
 
 func TestDefaultEngineParsePathSwiftVaporRouteEntries(t *testing.T) {
@@ -13,7 +16,7 @@ func TestDefaultEngineParsePathSwiftVaporRouteEntries(t *testing.T) {
 
 	repoRoot := t.TempDir()
 	filePath := filepath.Join(repoRoot, "Sources", "App", "Routes.swift")
-	writeTestFile(t, filePath, `import Vapor
+	writeSwiftTestFile(t, filePath, `import Vapor
 
 func routes(_ app: Application) throws {
     app.get("health", use: health)
@@ -34,17 +37,17 @@ func deleteWidget(req: Request) async throws -> HTTPStatus {
 }
 `)
 
-	engine, err := DefaultEngine()
+	engine, err := parser.DefaultEngine()
 	if err != nil {
 		t.Fatalf("DefaultEngine() error = %v, want nil", err)
 	}
 
-	got, err := engine.ParsePath(repoRoot, filePath, false, Options{})
+	got, err := engine.ParsePath(repoRoot, filePath, false, parser.Options{})
 	if err != nil {
 		t.Fatalf("ParsePath() error = %v, want nil", err)
 	}
 
-	assertNestedRouteEntriesEqual(t, got, "vapor", []map[string]string{
+	parsertest.AssertNestedRouteEntriesEqual(t, got, "vapor", []map[string]string{
 		{"method": "GET", "path": "/health", "handler": "health"},
 		{"method": "POST", "path": "/widgets", "handler": "createWidget"},
 		{"method": "DELETE", "path": "/widgets/{id}", "handler": "deleteWidget"},
@@ -56,7 +59,7 @@ func TestDefaultEngineParsePathSwiftVaporRouteEntriesLiteralGroups(t *testing.T)
 
 	repoRoot := t.TempDir()
 	filePath := filepath.Join(repoRoot, "Sources", "App", "Routes.swift")
-	writeTestFile(t, filePath, `import Vapor
+	writeSwiftTestFile(t, filePath, `import Vapor
 
 func routes(_ app: Application) throws {
     app.group("api") { api in
@@ -76,17 +79,17 @@ func updateUser(req: Request) async throws -> HTTPStatus {
 }
 `)
 
-	engine, err := DefaultEngine()
+	engine, err := parser.DefaultEngine()
 	if err != nil {
 		t.Fatalf("DefaultEngine() error = %v, want nil", err)
 	}
 
-	got, err := engine.ParsePath(repoRoot, filePath, false, Options{})
+	got, err := engine.ParsePath(repoRoot, filePath, false, parser.Options{})
 	if err != nil {
 		t.Fatalf("ParsePath() error = %v, want nil", err)
 	}
 
-	assertNestedRouteEntriesEqual(t, got, "vapor", []map[string]string{
+	parsertest.AssertNestedRouteEntriesEqual(t, got, "vapor", []map[string]string{
 		{"method": "GET", "path": "/api/users", "handler": "listUsers"},
 		{"method": "PATCH", "path": "/api/users/{id}", "handler": "updateUser"},
 	})
@@ -97,7 +100,7 @@ func TestDefaultEngineParsePathSwiftVaporRouteEntriesSkipOuterReceiverForGrouped
 
 	repoRoot := t.TempDir()
 	filePath := filepath.Join(repoRoot, "Sources", "App", "Routes.swift")
-	writeTestFile(t, filePath, `import Vapor
+	writeSwiftTestFile(t, filePath, `import Vapor
 
 func routes(_ routes: RoutesBuilder) throws {
     routes.group("api") { routes in
@@ -110,17 +113,17 @@ func listUsers(req: Request) async throws -> String {
 }
 `)
 
-	engine, err := DefaultEngine()
+	engine, err := parser.DefaultEngine()
 	if err != nil {
 		t.Fatalf("DefaultEngine() error = %v, want nil", err)
 	}
 
-	got, err := engine.ParsePath(repoRoot, filePath, false, Options{})
+	got, err := engine.ParsePath(repoRoot, filePath, false, parser.Options{})
 	if err != nil {
 		t.Fatalf("ParsePath() error = %v, want nil", err)
 	}
 
-	assertNestedRouteEntriesEqual(t, got, "vapor", []map[string]string{
+	parsertest.AssertNestedRouteEntriesEqual(t, got, "vapor", []map[string]string{
 		{"method": "GET", "path": "/api/users", "handler": "listUsers"},
 	})
 }
@@ -130,7 +133,7 @@ func TestDefaultEngineParsePathSwiftVaporRouteEntriesSkipParentScopeForNestedGro
 
 	repoRoot := t.TempDir()
 	filePath := filepath.Join(repoRoot, "Sources", "App", "Routes.swift")
-	writeTestFile(t, filePath, `import Vapor
+	writeSwiftTestFile(t, filePath, `import Vapor
 
 func routes(_ routes: RoutesBuilder) throws {
     routes.group("api") { routes in
@@ -145,17 +148,17 @@ func listUsers(req: Request) async throws -> String {
 }
 `)
 
-	engine, err := DefaultEngine()
+	engine, err := parser.DefaultEngine()
 	if err != nil {
 		t.Fatalf("DefaultEngine() error = %v, want nil", err)
 	}
 
-	got, err := engine.ParsePath(repoRoot, filePath, false, Options{})
+	got, err := engine.ParsePath(repoRoot, filePath, false, parser.Options{})
 	if err != nil {
 		t.Fatalf("ParsePath() error = %v, want nil", err)
 	}
 
-	assertNestedRouteEntriesEqual(t, got, "vapor", []map[string]string{
+	parsertest.AssertNestedRouteEntriesEqual(t, got, "vapor", []map[string]string{
 		{"method": "GET", "path": "/api/v1/users", "handler": "listUsers"},
 	})
 }
@@ -165,7 +168,7 @@ func TestDefaultEngineParsePathSwiftVaporRouteEntriesSkipNonExactHandlers(t *tes
 
 	repoRoot := t.TempDir()
 	filePath := filepath.Join(repoRoot, "Sources", "App", "Routes.swift")
-	writeTestFile(t, filePath, `import Vapor
+	writeSwiftTestFile(t, filePath, `import Vapor
 
 let dynamicPath = "health"
 
@@ -181,12 +184,12 @@ func health(req: Request) async throws -> String {
 }
 `)
 
-	engine, err := DefaultEngine()
+	engine, err := parser.DefaultEngine()
 	if err != nil {
 		t.Fatalf("DefaultEngine() error = %v, want nil", err)
 	}
 
-	got, err := engine.ParsePath(repoRoot, filePath, false, Options{})
+	got, err := engine.ParsePath(repoRoot, filePath, false, parser.Options{})
 	if err != nil {
 		t.Fatalf("ParsePath() error = %v, want nil", err)
 	}
@@ -209,7 +212,7 @@ func TestDefaultEngineParsePathSwiftVaporRouteEntriesSkipNonExactGroups(t *testi
 
 	repoRoot := t.TempDir()
 	filePath := filepath.Join(repoRoot, "Sources", "App", "Routes.swift")
-	writeTestFile(t, filePath, `import Vapor
+	writeSwiftTestFile(t, filePath, `import Vapor
 
 let prefix = "api"
 
@@ -235,12 +238,12 @@ func listUsers(req: Request) async throws -> String {
 }
 `)
 
-	engine, err := DefaultEngine()
+	engine, err := parser.DefaultEngine()
 	if err != nil {
 		t.Fatalf("DefaultEngine() error = %v, want nil", err)
 	}
 
-	got, err := engine.ParsePath(repoRoot, filePath, false, Options{})
+	got, err := engine.ParsePath(repoRoot, filePath, false, parser.Options{})
 	if err != nil {
 		t.Fatalf("ParsePath() error = %v, want nil", err)
 	}
@@ -263,7 +266,7 @@ func TestDefaultEngineParsePathSwiftVaporRouteEntriesRequireVaporImport(t *testi
 
 	repoRoot := t.TempDir()
 	filePath := filepath.Join(repoRoot, "Sources", "App", "Router.swift")
-	writeTestFile(t, filePath, `func routes(_ app: CustomRouter) throws {
+	writeSwiftTestFile(t, filePath, `func routes(_ app: CustomRouter) throws {
     app.get("health", use: health)
 }
 
@@ -272,12 +275,12 @@ func health(req: Request) async throws -> String {
 }
 `)
 
-	engine, err := DefaultEngine()
+	engine, err := parser.DefaultEngine()
 	if err != nil {
 		t.Fatalf("DefaultEngine() error = %v, want nil", err)
 	}
 
-	got, err := engine.ParsePath(repoRoot, filePath, false, Options{})
+	got, err := engine.ParsePath(repoRoot, filePath, false, parser.Options{})
 	if err != nil {
 		t.Fatalf("ParsePath() error = %v, want nil", err)
 	}
@@ -291,7 +294,7 @@ func TestDefaultEngineParsePathSwiftVaporRouteEntriesRequireRouteBuilderReceiver
 
 	repoRoot := t.TempDir()
 	filePath := filepath.Join(repoRoot, "Sources", "App", "Routes.swift")
-	writeTestFile(t, filePath, `import Vapor
+	writeSwiftTestFile(t, filePath, `import Vapor
 
 func routes(_ cache: Cache) throws {
     cache.get("health", use: health)
@@ -302,12 +305,12 @@ func health(req: Request) async throws -> String {
 }
 `)
 
-	engine, err := DefaultEngine()
+	engine, err := parser.DefaultEngine()
 	if err != nil {
 		t.Fatalf("DefaultEngine() error = %v, want nil", err)
 	}
 
-	got, err := engine.ParsePath(repoRoot, filePath, false, Options{})
+	got, err := engine.ParsePath(repoRoot, filePath, false, parser.Options{})
 	if err != nil {
 		t.Fatalf("ParsePath() error = %v, want nil", err)
 	}

@@ -1,12 +1,15 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package parser
+package swift_test
 
 import (
 	"path/filepath"
 	"strings"
 	"testing"
+
+	"github.com/eshu-hq/eshu/go/internal/parser"
+	"github.com/eshu-hq/eshu/go/internal/parser/parsertest"
 )
 
 // TestDefaultEngineParsePathSwiftASTCallExtractionFixesRegexFalsePositives proves
@@ -20,7 +23,7 @@ func TestDefaultEngineParsePathSwiftASTCallExtractionFixesRegexFalsePositives(t 
 
 	repoRoot := t.TempDir()
 	filePath := filepath.Join(repoRoot, "Sample.swift")
-	writeTestFile(
+	writeSwiftTestFile(
 		t,
 		filePath,
 		`import Foundation
@@ -59,12 +62,12 @@ class Dog: Animal {
 `,
 	)
 
-	engine, err := DefaultEngine()
+	engine, err := parser.DefaultEngine()
 	if err != nil {
 		t.Fatalf("DefaultEngine() error = %v, want nil", err)
 	}
 
-	payload, err := engine.ParsePath(repoRoot, filePath, false, Options{})
+	payload, err := engine.ParsePath(repoRoot, filePath, false, parser.Options{})
 	if err != nil {
 		t.Fatalf("ParsePath(%q) error = %v, want nil", filePath, err)
 	}
@@ -99,7 +102,7 @@ func TestDefaultEngineParsePathSwiftOverrideFromModifiersNotBody(t *testing.T) {
 
 	repoRoot := t.TempDir()
 	filePath := filepath.Join(repoRoot, "Override.swift")
-	writeTestFile(
+	writeSwiftTestFile(
 		t,
 		filePath,
 		`class Base {
@@ -122,19 +125,19 @@ class Child: Base {
 `,
 	)
 
-	engine, err := DefaultEngine()
+	engine, err := parser.DefaultEngine()
 	if err != nil {
 		t.Fatalf("DefaultEngine() error = %v, want nil", err)
 	}
 
-	payload, err := engine.ParsePath(repoRoot, filePath, false, Options{IndexSource: true})
+	payload, err := engine.ParsePath(repoRoot, filePath, false, parser.Options{IndexSource: true})
 	if err != nil {
 		t.Fatalf("ParsePath(%q) error = %v, want nil", filePath, err)
 	}
 
 	// Positive: genuine override declaration must root.
 	doThing := assertFunctionByNameAndClass(t, payload, "doThing", "Child")
-	assertParserStringSliceContains(t, doThing, "dead_code_root_kinds", "swift.override_method")
+	parsertest.AssertStringSliceContains(t, doThing, "dead_code_root_kinds", "swift.override_method")
 
 	// Negative: helper whose body text contains "override func" must NOT root as override.
 	helper := assertFunctionByNameAndClass(t, payload, "helper", "Child")
@@ -156,7 +159,7 @@ func TestDefaultEngineParsePathSwiftASTFunctionSourceSpansFullBody(t *testing.T)
 
 	repoRoot := t.TempDir()
 	filePath := filepath.Join(repoRoot, "Worker.swift")
-	writeTestFile(
+	writeSwiftTestFile(
 		t,
 		filePath,
 		`actor Worker {
@@ -167,12 +170,12 @@ func TestDefaultEngineParsePathSwiftASTFunctionSourceSpansFullBody(t *testing.T)
 `,
 	)
 
-	engine, err := DefaultEngine()
+	engine, err := parser.DefaultEngine()
 	if err != nil {
 		t.Fatalf("DefaultEngine() error = %v, want nil", err)
 	}
 
-	payload, err := engine.ParsePath(repoRoot, filePath, false, Options{IndexSource: true})
+	payload, err := engine.ParsePath(repoRoot, filePath, false, parser.Options{IndexSource: true})
 	if err != nil {
 		t.Fatalf("ParsePath(%q) error = %v, want nil", filePath, err)
 	}

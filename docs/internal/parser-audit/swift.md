@@ -1,7 +1,7 @@
 # Swift Parser Audit
 
 ## Overview
-The Swift parser (`go/internal/parser/swift/`) uses a tree-sitter AST walk to extract imports, nominal types (classes, structs, enums, protocols, actors), functions, properties, calls, and 14 dead-code root kinds. It replaced a prior line-scan regex approach in #3589. Extension members now carry correct `class_context`. Only genuine `call_expression` nodes produce `function_calls` rows, fixing false positives from enum case declarations, `mutating`/`override` declaration lines, `private(set)` modifiers, and string interpolation. Vapor route handler detection remains a documented permanent exception (reads `use:` argument labels without symbol rows). Four parent-level test files cover the parser: `engine_swift_ast_migration_test.go`, `engine_swift_extension_test.go`, `engine_swift_semantics_test.go`, and `swift_dead_code_roots_test.go`.
+The Swift parser (`go/internal/parser/swift/`) uses a tree-sitter AST walk to extract imports, nominal types (classes, structs, enums, protocols, actors), functions, properties, calls, and 14 dead-code root kinds. It replaced a prior line-scan regex approach in #3589. Extension members now carry correct `class_context`. Only genuine `call_expression` nodes produce `function_calls` rows, fixing false positives from enum case declarations, `mutating`/`override` declaration lines, `private(set)` modifiers, and string interpolation. Vapor route handler detection remains a documented permanent exception (reads `use:` argument labels without symbol rows). The package holds 6 external `package swift_test` files (and one helper file) that drive the public `parser.DefaultEngine().ParsePath` contract from inside the package directory: `engine_swift_ast_migration_test.go`, `engine_swift_extension_test.go`, `engine_swift_semantics_test.go`, `engine_swift_vapor_routes_test.go`, `swift_dead_code_roots_test.go`, and `swift_vapor_golden_fixture_test.go`. The parent `go/internal/parser` directory keeps only cross-language Swift coverage: the Kotlin+Swift comprehensive symbol-extraction gate and the long-tail and cyclomatic-complexity fixture sweeps.
 
 ## Claimed Constructs
 | Construct | Source Reference |
@@ -31,22 +31,22 @@ Dead-code root kinds claimed: `swift.protocol_type`, `swift.main_type`, `swift.s
 ## Verified-by-Test Constructs
 | Construct | Test Reference |
 |---|---|
-| `imports` (name, full_import_name, is_dependency) | `engine_swift_semantics_test.go:53-69` (`TestDefaultEngineParsePathSwiftEmitsImportAndCallMetadata`) |
-| `classes`, `structs`, `enums`, `protocols` with `bases` | `engine_swift_semantics_test.go:11-31` (`TestDefaultEngineParsePathSwiftEmitsBasesAndFunctionArgs`), lines 128-202 (multiline) |
-| `functions` with `args` | `engine_swift_semantics_test.go:28-29` |
-| `variables` with `type`, `context`, `class_context` | `engine_swift_semantics_test.go:33-51` (`TestDefaultEngineParsePathSwiftEmitsVariableContextAndTypeMetadata`) |
-| `function_calls` (name, full_name) | `engine_swift_semantics_test.go:53-69` (`assertSwiftCallMetadata`), `engine_swift_ast_migration_test.go:87-88` |
-| `inferred_obj_type` (receiver call type) | `engine_swift_semantics_test.go:80-126` (`TestDefaultEngineParsePathSwiftInfersReceiverCallTypesAndEmitsProtocols`) |
-| Extension method `class_context` | `engine_swift_extension_test.go:11-61` |
-| Call false-positive removal (enum case, mutating, override, private(set), bark) | `engine_swift_ast_migration_test.go:12-89` |
-| Override detection from `member_modifier` (not body text) | `engine_swift_ast_migration_test.go:91-148` |
-| Full body `source` span (IndexSource) | `engine_swift_ast_migration_test.go:150-188` |
-| `line_number`, `end_line` | `engine_swift_semantics_test.go:189-190` |
-| PreScan names (functions, classes, structs, enums, protocols) | `engine_swift_semantics_test.go:193-201` |
-| All 14 dead-code root kinds | `swift_dead_code_roots_test.go:11-104` (`TestDefaultEngineParsePathSwiftEmitsDeadCodeRootKinds`) |
-| Negative: helper/private NOT rooted | `swift_dead_code_roots_test.go:106-119` |
-| Negative: init in protocol NOT `swift.constructor` | `swift_dead_code_roots_test.go:92` |
-| Negative: `@available`/`@Test` NOT in `function_calls` | `swift_dead_code_roots_test.go:102-103` |
+| `imports` (name, full_import_name, is_dependency) | `swift/engine_swift_semantics_test.go:56-72` (`TestDefaultEngineParsePathSwiftEmitsImportAndCallMetadata`) |
+| `classes`, `structs`, `enums`, `protocols` with `bases` | `swift/engine_swift_semantics_test.go:14-34` (`TestDefaultEngineParsePathSwiftEmitsBasesAndFunctionArgs`), lines 131-205 (multiline) |
+| `functions` with `args` | `swift/engine_swift_semantics_test.go:31-32` |
+| `variables` with `type`, `context`, `class_context` | `swift/engine_swift_semantics_test.go:36-54` (`TestDefaultEngineParsePathSwiftEmitsVariableContextAndTypeMetadata`) |
+| `function_calls` (name, full_name) | `swift/engine_swift_semantics_test.go:56-72` (`assertSwiftCallMetadata`), `swift/engine_swift_ast_migration_test.go:90-91` |
+| `inferred_obj_type` (receiver call type) | `swift/engine_swift_semantics_test.go:83-129` (`TestDefaultEngineParsePathSwiftInfersReceiverCallTypesAndEmitsProtocols`) |
+| Extension method `class_context` | `swift/engine_swift_extension_test.go:13-63` |
+| Call false-positive removal (enum case, mutating, override, private(set), bark) | `swift/engine_swift_ast_migration_test.go:15-92` |
+| Override detection from `member_modifier` (not body text) | `swift/engine_swift_ast_migration_test.go:94-151` |
+| Full body `source` span (IndexSource) | `swift/engine_swift_ast_migration_test.go:153-191` |
+| `line_number`, `end_line` | `swift/engine_swift_semantics_test.go:192-193` |
+| PreScan names (functions, classes, structs, enums, protocols) | `swift/engine_swift_semantics_test.go:196-204` |
+| All 14 dead-code root kinds | `swift/swift_dead_code_roots_test.go:14-107` (`TestDefaultEngineParsePathSwiftEmitsDeadCodeRootKinds`) |
+| Negative: helper/private NOT rooted | `swift/swift_dead_code_roots_test.go:109-122` |
+| Negative: init in protocol NOT `swift.constructor` | `swift/swift_dead_code_roots_test.go:95` |
+| Negative: `@available`/`@Test` NOT in `function_calls` | `swift/swift_dead_code_roots_test.go:105-106` |
 | `cyclomatic_complexity` | `engine_cyclomatic_complexity_test.go:230-238` (table-driven, swift-specific fixtures) |
 
 ## Unverified / Claimed-but-Untested Constructs
@@ -55,13 +55,13 @@ Dead-code root kinds claimed: `swift.protocol_type`, `swift.main_type`, `swift.s
 ## Edge Cases Considered
 | Edge Case | Test Reference |
 |---|---|
-| Enum case declarations not treated as calls | `engine_swift_ast_migration_test.go:73-76` |
-| `mutating func` / `override func` declaration lines not treated as calls | `engine_swift_ast_migration_test.go:77-79` |
-| `private(set)` modifier not treated as a call | `engine_swift_ast_migration_test.go:80` |
-| `override` keyword in comment/string literal does not root | `engine_swift_ast_migration_test.go:91-148` |
-| Extension methods carry class_context for protocol and struct extensions | `engine_swift_extension_test.go:56-60` |
-| Multiline declarations (class, struct, protocol across lines) | `engine_swift_semantics_test.go:128-202` |
-| `init` in protocol scope NOT `swift.constructor` | `swift_dead_code_roots_test.go:91-92` |
+| Enum case declarations not treated as calls | `swift/engine_swift_ast_migration_test.go:76-79` |
+| `mutating func` / `override func` declaration lines not treated as calls | `swift/engine_swift_ast_migration_test.go:80-82` |
+| `private(set)` modifier not treated as a call | `swift/engine_swift_ast_migration_test.go:83` |
+| `override` keyword in comment/string literal does not root | `swift/engine_swift_ast_migration_test.go:94-151` |
+| Extension methods carry class_context for protocol and struct extensions | `swift/engine_swift_extension_test.go:58-62` |
+| Multiline declarations (class, struct, protocol across lines) | `swift/engine_swift_semantics_test.go:131-205` |
+| `init` in protocol scope NOT `swift.constructor` | `swift/swift_dead_code_roots_test.go:94-95` |
 | `super`/`self` receiver calls keep their receiver text | `ast_calls.go:92` (`super_expression`, `self_expression` as receiver) |
 | Wildcard `_` parameter labels dropped | `ast_nodes.go:116` |
 | Chained navigation expression calls recorded | `ast_calls.go:86-102` |
