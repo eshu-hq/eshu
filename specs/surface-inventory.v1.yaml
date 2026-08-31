@@ -260,7 +260,7 @@ surfaces:
     readiness: gated
     owner: internal/collector/gcpcloud
     docs: [reference/collector-reducer-readiness.md, reference/gcp-cloud-collector-contract.md]
-    notes: Fixture-driven with claimed-live wiring; gated for sanitized live smoke proof.
+    notes: Fixture-driven with claimed-live wiring; security smoke complete, while deployed-shape promotion proof remains gated.
     collector_contract:
       fact_kinds: [gcp_cloud_relationship, gcp_cloud_resource, gcp_collection_warning, gcp_dns_record, gcp_iam_permission_policy, gcp_iam_policy_observation, gcp_iam_principal, gcp_iam_trust_policy, gcp_image_reference, gcp_tag_observation]
       projection_surfaces: [cloud_asset_resolution, secrets_iam_trust_chain, supply_chain_impact]
@@ -273,7 +273,7 @@ surfaces:
     readiness: gated
     owner: internal/collector/azurecloud
     docs: [reference/collector-reducer-readiness.md, reference/azure-cloud-collector-contract.md]
-    notes: "Fixture-driven with claimed-live wiring; gated for live tenant smoke proof (issue #3024)."
+    notes: "Fixture-driven with claimed-live wiring; sanitized real-tenant live proof remains gated (issue #3066)."
     collector_contract:
       fact_kinds: [azure_cloud_relationship, azure_cloud_resource, azure_collection_warning, azure_dns_record, azure_identity_observation, azure_image_reference, azure_resource_change, azure_tag_observation]
       projection_surfaces: [cloud_asset_resolution, supply_chain_impact]

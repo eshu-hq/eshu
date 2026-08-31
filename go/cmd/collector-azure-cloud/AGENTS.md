@@ -31,8 +31,9 @@
 - MUST keep config declarative and validated; surface invalid config as a
   startup error, not a silent fallback.
 - MUST NOT add reducer admission, new fact families, API/MCP readback, Helm
-  values, or chart wiring in this package. Helm activation and live-smoke proof
-  are gated follow-ups (issue #3024).
+  values, or chart wiring in this package. Default-off Helm activation is
+  implemented outside this package; the sanitized real-tenant live proof
+  remains gated by issue #3066.
 - MUST keep the claim-status committer's metric labels bounded enums only.
 - MUST keep every source file under 500 lines.
 
