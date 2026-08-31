@@ -136,11 +136,11 @@ class Child: Base {
 	}
 
 	// Positive: genuine override declaration must root.
-	doThing := assertFunctionByNameAndClass(t, payload, "doThing", "Child")
+	doThing := parsertest.AssertFunctionByNameAndClass(t, payload, "doThing", "Child")
 	parsertest.AssertStringSliceContains(t, doThing, "dead_code_root_kinds", "swift.override_method")
 
 	// Negative: helper whose body text contains "override func" must NOT root as override.
-	helper := assertFunctionByNameAndClass(t, payload, "helper", "Child")
+	helper := parsertest.AssertFunctionByNameAndClass(t, payload, "helper", "Child")
 	if kinds, _ := helper["dead_code_root_kinds"].([]string); len(kinds) > 0 {
 		for _, k := range kinds {
 			if k == "swift.override_method" {
@@ -180,7 +180,7 @@ func TestDefaultEngineParsePathSwiftASTFunctionSourceSpansFullBody(t *testing.T)
 		t.Fatalf("ParsePath(%q) error = %v, want nil", filePath, err)
 	}
 
-	run := assertFunctionByNameAndClass(t, payload, "run", "Worker")
+	run := parsertest.AssertFunctionByNameAndClass(t, payload, "run", "Worker")
 	source, _ := run["source"].(string)
 	if source == "" {
 		t.Fatalf("run source = %#v, want non-empty", run["source"])

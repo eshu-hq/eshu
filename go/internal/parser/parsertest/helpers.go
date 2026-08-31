@@ -6,6 +6,7 @@ package parsertest
 import (
 	"os"
 	"reflect"
+	"slices"
 	"testing"
 
 	"github.com/eshu-hq/eshu/go/internal/parser"
@@ -94,6 +95,78 @@ func AssertStringSliceContains(t *testing.T, item map[string]any, field string, 
 		}
 	}
 	t.Fatalf("%s = %#v, want to contain %#v", field, got, want)
+}
+
+// AssertStringSliceNotContains requires item[field], when present as a
+// []string, to not contain want. A missing or non-[]string field passes: the
+// callers of this helper use it to prove a value was never added, not that
+// the field holds a particular type.
+func AssertStringSliceNotContains(t *testing.T, item map[string]any, field string, want string) {
+	t.Helper()
+
+	got, ok := item[field].([]string)
+	if !ok {
+		return
+	}
+	for _, value := range got {
+		if value == want {
+			t.Fatalf("%s = %#v, want not to contain %#v", field, got, want)
+		}
+	}
+}
+
+// AssertStringSliceEquals requires item[field] to be a string slice that
+// equals want in order.
+func AssertStringSliceEquals(t *testing.T, item map[string]any, field string, want []string) {
+	t.Helper()
+
+	got, ok := item[field].([]string)
+	if !ok {
+		t.Fatalf("%s = %T, want []string", field, item[field])
+	}
+	if !slices.Equal(got, want) {
+		t.Fatalf("%s = %#v, want %#v", field, got, want)
+	}
+}
+
+// AssertIntFieldValue requires item[field] to hold the int want.
+func AssertIntFieldValue(t *testing.T, item map[string]any, field string, want int) {
+	t.Helper()
+
+	got, ok := item[field].(int)
+	if !ok {
+		t.Fatalf("%s = %T, want int", field, item[field])
+	}
+	if got != want {
+		t.Fatalf("%s = %d, want %d", field, got, want)
+	}
+}
+
+// AssertFunctionByNameAndClass returns the functions-bucket item matching both
+// name and class_context. Several languages (Swift, Kotlin, Java, C#, PHP)
+// reuse method names across protocol conformances, extensions, overrides, and
+// implementations, so name alone does not identify a unique row.
+func AssertFunctionByNameAndClass(
+	t *testing.T,
+	payload map[string]any,
+	name string,
+	classContext string,
+) map[string]any {
+	t.Helper()
+
+	functions, ok := payload["functions"].([]map[string]any)
+	if !ok {
+		t.Fatalf("functions = %T, want []map[string]any", payload["functions"])
+	}
+	for _, function := range functions {
+		functionName, _ := function["name"].(string)
+		functionClassContext, _ := function["class_context"].(string)
+		if functionName == name && functionClassContext == classContext {
+			return function
+		}
+	}
+	t.Fatalf("functions missing name %q with class_context %q in %#v", name, classContext, functions)
+	return nil
 }
 
 // AssertBucketContainsFieldValue requires payload[key] to be a map slice with

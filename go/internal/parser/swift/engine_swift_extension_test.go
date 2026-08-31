@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	"github.com/eshu-hq/eshu/go/internal/parser"
+	"github.com/eshu-hq/eshu/go/internal/parser/parsertest"
 )
 
 // TestDefaultEngineParsePathSwiftExtensionMethodsCarryClassContext proves that
@@ -56,8 +57,8 @@ extension Point: Equatable {
 	}
 
 	// Methods inside `extension Logger { ... }` must carry class_context=Logger.
-	assertFunctionByNameAndClass(t, payload, "info", "Logger")
-	assertFunctionByNameAndClass(t, payload, "warn", "Logger")
+	parsertest.AssertFunctionByNameAndClass(t, payload, "info", "Logger")
+	parsertest.AssertFunctionByNameAndClass(t, payload, "warn", "Logger")
 	// Method inside `extension Point: Equatable { ... }` must carry context Point.
-	assertFunctionByNameAndClass(t, payload, "translated", "Point")
+	parsertest.AssertFunctionByNameAndClass(t, payload, "translated", "Point")
 }

@@ -16,10 +16,15 @@ parser tests must not import it.
 
 - `WriteFile` creates an owner-only fixture file.
 - `MustParsePath` runs the public default Engine path.
-- `AssertNamedBucketContains`, `AssertBucketItemByName`, and
-  `AssertBucketContainsFieldValue` check map-shaped parser buckets.
-- `AssertStringSliceContains` checks an exact `[]string` field without sorting
-  or converting its values.
+- `AssertNamedBucketContains`, `AssertBucketItemByName`,
+  `AssertBucketContainsFieldValue`, and `AssertFunctionByNameAndClass` check
+  map-shaped parser buckets. `AssertFunctionByNameAndClass` matches on both
+  `name` and `class_context`, for languages where a method name repeats across
+  conformances, extensions, overrides, or implementations.
+- `AssertStringSliceContains`, `AssertStringSliceNotContains`, and
+  `AssertStringSliceEquals` check an exact `[]string` field without sorting or
+  converting its values.
+- `AssertIntFieldValue` checks an exact `int` field.
 - `AssertPrescanContains` checks that a prescan path list carries an exact
   entry.
 - `AssertFrameworksEqual`, `AssertNestedStringSliceEqual`, and

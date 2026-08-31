@@ -36,7 +36,7 @@ func TestSwiftVaporGoldenFixtureDiscriminatesRouteHandler(t *testing.T) {
 	}
 	parsertest.AssertStringSliceContains(
 		t,
-		assertFunctionByName(t, routesPayload, "healthCheck"),
+		parsertest.AssertBucketItemByName(t, routesPayload, "functions", "healthCheck"),
 		"dead_code_root_kinds",
 		"swift.vapor_route_handler",
 	)
@@ -46,7 +46,7 @@ func TestSwiftVaporGoldenFixtureDiscriminatesRouteHandler(t *testing.T) {
 	if err != nil {
 		t.Fatalf("ParsePath(%q) error = %v, want nil", plainPath, err)
 	}
-	if foil := assertFunctionByName(t, plainPayload, "statusReport"); foil["dead_code_root_kinds"] != nil {
+	if foil := parsertest.AssertBucketItemByName(t, plainPayload, "functions", "statusReport"); foil["dead_code_root_kinds"] != nil {
 		t.Fatalf("statusReport dead_code_root_kinds = %#v, want nil (no import Vapor)", foil["dead_code_root_kinds"])
 	}
 }
