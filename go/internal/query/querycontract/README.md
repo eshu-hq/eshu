@@ -20,39 +20,22 @@ types and wraps the functions so existing imports keep their current API.
 
 ## Dependencies
 
-Every file here uses only the Go standard library except `handlerspan.go`, which
-imports `go.opentelemetry.io/otel` (plus `otel/attribute` and `otel/trace`) and
-`go/internal/telemetry` for the shared service-namespace attribute. `GraphQuery`
-and `ContentStore` are consumer-owned ports; concrete adapters remain outside
-this leaf package.
+The package uses only the Go standard library. `GraphQuery` and `ContentStore`
+are consumer-owned ports; concrete adapters remain outside this leaf package.
 
 ## Telemetry
 
-`StartHandlerSpan` and `StartHandlerSpanWith` (`handlerspan.go`) start the
-per-route span for query HTTP reads, tagged with `http.route`,
-`eshu.capability`, and `service.namespace`. The tracer is named
-`eshu/go/internal/query` — deliberately, even though the code lives here. That
-name is what saved span queries and dashboards match on, so it tracks the
-surface the spans describe rather than the directory the code sits in. The row
-in `docs/public/observability/telemetry-coverage.md` points at
-`handlerspan.go`.
+This package emits no metrics, spans, or logs. Handlers and storage adapters
+retain their existing telemetry.
 
-`StartHandlerSpanWith` takes the tracer as an argument rather than reading the
-package-level `HandlerTracer`. Package `query` keeps its own swappable
-`queryHandlerTracer` var, which six span tests replace with a recording
-provider; reading `HandlerTracer` directly here would ignore that swap and the
-tests would observe zero spans while the handler quietly emitted them.
-
-Nothing else in the package emits metrics, spans, or logs.
-
-No-Observability-Change: the span name, its attributes, and the tracer name are
-unchanged from when this code lived in package `query`. Moving it changed where
-the code sits, not what it emits.
+No-Observability-Change: moving these contracts does not change the handler or
+adapter call paths that emit telemetry. The graph row-value decoders are pure
+functions with no instrumentation, before the move and after it.
 
 ## Performance
 
 Moving the row-value decoders here put a forwarding wrapper in front of four
-functions the query read paths call constantly — `StringVal` from about 325 root
+functions the query read paths call constantly -- `StringVal` from about 325 root
 files. The question that raises is whether the extra call frame costs anything
 on a hot row-decode loop.
 
@@ -65,15 +48,8 @@ querycontract.BoolVal`, `... IntVal` and `... StringSliceVal` where each wrapper
 calls into this package; and `inlining call to StringVal` at each caller
 (`neo4j.go:307,309,311,313,317` among others). Both hops collapse at compile
 time, so a decode site emits the same code it did before the move. No benchmark
-is cited because there is no runtime delta to measure — the indirection does not
+is cited because there is no runtime delta to measure -- the indirection does not
 survive compilation.
-
-Observability marker for the same change:
-
-No-Observability-Change: the handler span's name, its three attributes, and the
-tracer name are unchanged from when this code lived in package `query`. The
-existing `eshu_dp_api_request_duration_seconds` parent and `query.*` span still
-cover the path.
 
 ## Gotchas / invariants
 

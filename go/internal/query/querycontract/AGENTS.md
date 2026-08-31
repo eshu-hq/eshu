@@ -29,12 +29,6 @@ vet. Run `scripts/verify-package-docs.sh` whenever this package changes.
   YAML order through the root ordering gate.
 - Keep root aliases and function wrappers until every external caller has a
   separately reviewed migration path.
-- To start the per-route handler span from a family package, seed a package-local
-  swappable tracer var from `HandlerTracer` and pass it to
-  `StartHandlerSpanWith`, the way package `query` does. Do not reassign the
-  exported `HandlerTracer` itself: it is shared by every consumer, so a test that
-  swaps it mutates state other packages read, and two packages swapping it under
-  `t.Parallel()` race.
 
 ## Failure modes
 
