@@ -210,7 +210,7 @@ func TestBuildSBOMAttestationAttachmentDecisionsQuarantinesDependencyMissingDocu
 	if len(quarantined) != 1 {
 		t.Fatalf("quarantined = %d, want 1", len(quarantined))
 	}
-	if got, want := quarantined[0].factID, "dep-missing-doc"; got != want {
+	if got, want := quarantined[0].FactID, "dep-missing-doc"; got != want {
 		t.Fatalf("quarantined fact id = %q, want %q", got, want)
 	}
 }

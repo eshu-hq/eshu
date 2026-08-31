@@ -47,8 +47,8 @@ func TestBuildObservabilityCoverageDecisionsMalformedDimensionValueQuarantines(t
 	if len(quarantined) != 1 {
 		t.Fatalf("len(quarantined) = %d, want 1 for a malformed dimension value", len(quarantined))
 	}
-	if quarantined[0].classification != "input_invalid" {
-		t.Fatalf("quarantined[0].classification = %q, want input_invalid", quarantined[0].classification)
+	if quarantined[0].Classification != "input_invalid" {
+		t.Fatalf("quarantined[0].Classification = %q, want input_invalid", quarantined[0].Classification)
 	}
 	// The alarm resource fact itself is unaffected by the relationship's decode
 	// failure (it is a separate fact) and still classifies through the ordinary
@@ -104,7 +104,7 @@ func TestBuildObservabilityCoverageDecisionsMalformedXRayServiceNameQuarantines(
 	if len(quarantined) != 1 {
 		t.Fatalf("len(quarantined) = %d, want 1 for a malformed xray service_name", len(quarantined))
 	}
-	if quarantined[0].classification != "input_invalid" {
-		t.Fatalf("quarantined[0].classification = %q, want input_invalid", quarantined[0].classification)
+	if quarantined[0].Classification != "input_invalid" {
+		t.Fatalf("quarantined[0].Classification = %q, want input_invalid", quarantined[0].Classification)
 	}
 }

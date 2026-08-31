@@ -197,14 +197,14 @@ func TestBuildSecretsIAMTrustChainReadModelsQuarantinesPrincipalMissingAccountID
 	if len(quarantined) != 1 {
 		t.Fatalf("len(quarantined) = %d, want 1; the missing-account_id principal must be quarantined once", len(quarantined))
 	}
-	if quarantined[0].factKind != facts.AWSIAMPrincipalFactKind {
-		t.Fatalf("quarantined factKind = %q, want %q", quarantined[0].factKind, facts.AWSIAMPrincipalFactKind)
+	if quarantined[0].FactKind != facts.AWSIAMPrincipalFactKind {
+		t.Fatalf("quarantined factKind = %q, want %q", quarantined[0].FactKind, facts.AWSIAMPrincipalFactKind)
 	}
-	if quarantined[0].field != "account_id" {
-		t.Fatalf("quarantined field = %q, want %q", quarantined[0].field, "account_id")
+	if quarantined[0].Field != "account_id" {
+		t.Fatalf("quarantined field = %q, want %q", quarantined[0].Field, "account_id")
 	}
-	if quarantined[0].classification != "input_invalid" {
-		t.Fatalf("quarantined classification = %q, want %q", quarantined[0].classification, "input_invalid")
+	if quarantined[0].Classification != "input_invalid" {
+		t.Fatalf("quarantined classification = %q, want %q", quarantined[0].Classification, "input_invalid")
 	}
 
 	// With its only principal quarantined, the role resolves no valid principal,

@@ -179,6 +179,41 @@ Two consequences worth knowing before the remaining children:
   gone and the replacement is 66, and dirgate's ratchet means any later
   extraction has to re-pin it lower.
 
+No-Regression Evidence: the reducer factdecode hoist (#6061 PR2) is a
+relocation of the decode-failure classification and per-fact quarantine
+mechanism, with no logic change. The renames in decode_error.go are case-only,
+so lowercasing both sides is an exact equivalence test and its moved bodies are
+identical to the base commit under it (positive control: appending one line
+turns the check red). The other two regions need more than that test and were
+checked separately: quarantine_record.go additionally requalifies `Domain` to
+`reducercontract.Domain` — an alias of the same type, declared at
+`go/internal/reducer/intent.go:9`, so the signature is unchanged — and
+quarantine_writer.go differs only by rewritten file-location comments. `git diff --name-only <base>..HEAD -- testdata/ specs/` is empty, so the
+golden-corpus recordings and the end-to-end snapshot cannot move. The repo-wide
+reducer test-function inventory is byte-identical across the move, 3232
+functions on both sides, so no coverage was lost when the quarantine tests
+relocated. Backend and version unchanged (NornicDB, default local profile);
+input shape unchanged; terminal queue and row counts unchanged, because no
+queue, lease, Cypher, or projection path is touched. Whole-module `go build ./...` and `go vet ./...` exit 0, and the reducer tree
+(`reducer`, `contract`, `dsl`, `factdecode`, `payloadcore`, `tags`, `tfstate`)
+plus `storage/postgres`, `query` and `projector` test green.
+
+Codegen: this PR adds seven forwarders, and PR1 established that a forwarder
+can cost a CALLER its inlinability, so the set difference was measured rather
+than assumed. `go build -a -gcflags=-m ./internal/reducer` gives 1329
+can-inline entries on the base and 1330 here. NO caller lost inlinability:
+the four entries that leave the list are the moved symbols themselves
+(`FactDecodeError.FailureClass`, `.Retryable`, `.Unwrap`,
+`quarantineWriterFromContext`), now reported under factdecode. The root
+forwarders are inlinable and their cross-package targets inline into them, so
+the two-hop path collapses.
+
+No-Observability-Change: no metric, span, log field, status field, or runtime
+setting is added, removed, or renamed. The quarantine counter
+`eshu_dp_reducer_input_invalid_facts_total` is emitted by the same code at its
+new path, and the two telemetry-coverage rows that named the moved files are
+repointed rather than duplicated.
+
 No-Regression Evidence: the reducer payloadcore hoist (#6061 PR1) is a symbol
 eviction, not a logic change. Baseline and after are the same behavior by
 construction and that is asserted, not assumed: all 28 moved function bodies are

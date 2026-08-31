@@ -72,17 +72,17 @@ func TestObservabilityCoverageMetadataQuarantinesMissingSourceInstanceID(t *test
 		t.Fatalf("quarantined count = %d, want 1 (the malformed fact)", len(quarantined))
 	}
 	q := quarantined[0]
-	if q.factID != "malformed-target" {
-		t.Fatalf("quarantined fact id = %q, want malformed-target", q.factID)
+	if q.FactID != "malformed-target" {
+		t.Fatalf("quarantined fact id = %q, want malformed-target", q.FactID)
 	}
-	if q.factKind != facts.ObservabilityObservedTargetFactKind {
-		t.Fatalf("quarantined fact kind = %q, want %q", q.factKind, facts.ObservabilityObservedTargetFactKind)
+	if q.FactKind != facts.ObservabilityObservedTargetFactKind {
+		t.Fatalf("quarantined fact kind = %q, want %q", q.FactKind, facts.ObservabilityObservedTargetFactKind)
 	}
-	if q.field != "source_instance_id" {
-		t.Fatalf("quarantined missing field = %q, want source_instance_id", q.field)
+	if q.Field != "source_instance_id" {
+		t.Fatalf("quarantined missing field = %q, want source_instance_id", q.Field)
 	}
-	if q.classification != "input_invalid" {
-		t.Fatalf("quarantined classification = %q, want input_invalid", q.classification)
+	if q.Classification != "input_invalid" {
+		t.Fatalf("quarantined classification = %q, want input_invalid", q.Classification)
 	}
 
 	// The valid sibling still classifies into exactly one decision, and the
@@ -122,7 +122,7 @@ func TestBuildObservabilityCoverageDecisionsPropagatesMetadataQuarantine(t *test
 	if err != nil {
 		t.Fatalf("BuildObservabilityCoverageDecisions() error = %v, want nil", err)
 	}
-	if len(quarantined) != 1 || quarantined[0].field != "source_instance_id" {
+	if len(quarantined) != 1 || quarantined[0].Field != "source_instance_id" {
 		t.Fatalf("quarantined = %+v, want one entry naming source_instance_id", quarantined)
 	}
 	for _, decision := range decisions {

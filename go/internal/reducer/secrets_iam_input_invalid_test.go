@@ -132,13 +132,13 @@ func TestBuildSecretsIAMTrustChainReadModelsQuarantinesVaultAuthRoleMissingRoleJ
 		t.Fatalf("quarantined len = %d, want %d: %#v", got, want, quarantined)
 	}
 	q := quarantined[0]
-	if got, want := q.factID, "malformed-vault-auth-role"; got != want {
+	if got, want := q.FactID, "malformed-vault-auth-role"; got != want {
 		t.Fatalf("quarantined[0].factID = %q, want %q", got, want)
 	}
-	if got, want := q.field, "role_join_key"; got != want {
+	if got, want := q.Field, "role_join_key"; got != want {
 		t.Fatalf("quarantined[0].field = %q, want %q", got, want)
 	}
-	if got, want := q.classification, "input_invalid"; got != want {
+	if got, want := q.Classification, "input_invalid"; got != want {
 		t.Fatalf("quarantined[0].classification = %q, want %q", got, want)
 	}
 
@@ -255,13 +255,13 @@ func TestBuildSecretsIAMTrustChainReadModelsQuarantinesK8sServiceAccountMissingJ
 		t.Fatalf("quarantined len = %d, want %d: %#v", got, want, quarantined)
 	}
 	q := quarantined[0]
-	if got, want := q.factID, "malformed-k8s-service-account"; got != want {
+	if got, want := q.FactID, "malformed-k8s-service-account"; got != want {
 		t.Fatalf("quarantined[0].factID = %q, want %q", got, want)
 	}
-	if got, want := q.field, "service_account_join_key"; got != want {
+	if got, want := q.Field, "service_account_join_key"; got != want {
 		t.Fatalf("quarantined[0].field = %q, want %q", got, want)
 	}
-	if got, want := q.classification, "input_invalid"; got != want {
+	if got, want := q.Classification, "input_invalid"; got != want {
 		t.Fatalf("quarantined[0].classification = %q, want %q", got, want)
 	}
 
@@ -348,13 +348,13 @@ func TestBuildSecretsIAMTrustChainReadModelsQuarantinesGCPBindingMissingEmailDig
 		t.Fatalf("quarantined len = %d, want %d: %#v", got, want, quarantined)
 	}
 	q := quarantined[0]
-	if got, want := q.factID, "malformed-gcp-binding"; got != want {
+	if got, want := q.FactID, "malformed-gcp-binding"; got != want {
 		t.Fatalf("quarantined[0].factID = %q, want %q", got, want)
 	}
-	if got, want := q.field, "gcp_service_account_email_digest"; got != want {
+	if got, want := q.Field, "gcp_service_account_email_digest"; got != want {
 		t.Fatalf("quarantined[0].field = %q, want %q", got, want)
 	}
-	if got, want := q.classification, "input_invalid"; got != want {
+	if got, want := q.Classification, "input_invalid"; got != want {
 		t.Fatalf("quarantined[0].classification = %q, want %q", got, want)
 	}
 

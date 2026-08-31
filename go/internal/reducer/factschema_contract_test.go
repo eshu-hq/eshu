@@ -184,14 +184,14 @@ func TestPartitionDecodeFailures(t *testing.T) {
 		if fatal != nil {
 			t.Fatalf("fatal = %v, want nil for a quarantinable error", fatal)
 		}
-		if q.factID != "fact-123" || q.factKind != facts.AWSResourceFactKind {
-			t.Fatalf("quarantined fact identity = {%q,%q}, want {fact-123, %q}", q.factID, q.factKind, facts.AWSResourceFactKind)
+		if q.FactID != "fact-123" || q.FactKind != facts.AWSResourceFactKind {
+			t.Fatalf("quarantined fact identity = {%q,%q}, want {fact-123, %q}", q.FactID, q.FactKind, facts.AWSResourceFactKind)
 		}
-		if q.field != "account_id" {
-			t.Fatalf("quarantined field = %q, want account_id", q.field)
+		if q.Field != "account_id" {
+			t.Fatalf("quarantined field = %q, want account_id", q.Field)
 		}
-		if q.classification != factschema.ClassificationInputInvalid {
-			t.Fatalf("quarantined classification = %q, want %q", q.classification, factschema.ClassificationInputInvalid)
+		if q.Classification != factschema.ClassificationInputInvalid {
+			t.Fatalf("quarantined classification = %q, want %q", q.Classification, factschema.ClassificationInputInvalid)
 		}
 	})
 

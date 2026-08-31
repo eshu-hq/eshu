@@ -8,14 +8,24 @@
 // handler types plus the domain constant catalog. The payloadcore subpackage
 // owns the generic payload accessors and string helpers that both this package
 // and the domain-family subpackages need; add a new generic helper there, not
-// here. This package re-exports the contract surface and retains registry
-// composition, runtime execution, queue behavior, adapters, and telemetry. Most
-// root call sites reach payloadcore through an unexported forwarder of the same
-// lowercase name; some call it directly, either because the symbol has no
-// forwarder or because the forwarder hop would cost the calling function its
-// own inlinability. Read the call site rather than assuming which form it
-// takes: an enumeration here has been wrong in four separate revisions, and the
-// compiler, not this comment, is the authority on the second case.
+// here. The factdecode subpackage owns decode-failure classification and the
+// per-fact quarantine mechanism, while the per-fact-kind decode wrappers stay
+// with the families owning those kinds. This package re-exports the contract
+// surface and retains registry composition, runtime execution, queue behavior,
+// adapters, and telemetry. Most root call sites reach a helper subpackage
+// through an unexported forwarder of the same lowercase name; some call it
+// directly, either because the symbol has no forwarder or because the forwarder
+// hop would cost the calling function its own inlinability. Read the call site
+// rather than assuming which form it takes: an enumeration here has been wrong
+// in four separate revisions, and the compiler, not this comment, is the
+// authority on the second case. The contract package is not covered by that
+// rule at all: the root deliberately re-exports its surface. Separately, this
+// package's *_compat.go files may export a compatibility surface for callers
+// outside it; those files are the authoritative list, and as of this commit the
+// whole of it is quarantine_compat.go's QuarantinedFactRecord and
+// QuarantinedFactWriter, which internal/storage/postgres constructs and
+// implements, and WithQuarantineWriter, which Service stashes on the execution
+// context.
 // ParseDomain accepts the known reducer validation identifiers, including the
 // three reserved non-registrable identifiers. Shared-projection constants
 // remain runner names and are not admitted into the durable queue.
@@ -275,10 +285,11 @@
 // code-call intent rows and the existing code-call materialization completion
 // logs; no metric, span, status field, route, or log contract changes.
 //
-// recordQuarantinedFacts (factschema_decode.go) also best-effort persists each
+// recordQuarantinedFacts (quarantine_compat.go, forwarding to
+// factdecode/quarantine_record.go) also best-effort persists each
 // quarantined input_invalid fact to the durable reducer_input_invalid_facts
 // read surface (issue #4630) through an optional QuarantinedFactWriter
-// (quarantine_writer.go). Service stashes the writer on the execution context
+// (factdecode/quarantine_writer.go). Service stashes the writer on the execution context
 // once per claimed intent via WithQuarantineWriter, so every domain handler's
 // existing recordQuarantinedFacts call reaches it without a per-handler field.
 // The write is batched (one round trip per intent), idempotent under

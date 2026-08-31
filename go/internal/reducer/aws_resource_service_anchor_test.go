@@ -211,7 +211,7 @@ func TestExtractCloudResourceNodeRowsMalformedServiceNameQuarantines(t *testing.
 	if len(quarantined) != 1 {
 		t.Fatalf("len(quarantined) = %d, want 1 for a malformed service_name", len(quarantined))
 	}
-	if quarantined[0].classification != "input_invalid" {
-		t.Fatalf("quarantined[0].classification = %q, want input_invalid", quarantined[0].classification)
+	if quarantined[0].Classification != "input_invalid" {
+		t.Fatalf("quarantined[0].Classification = %q, want input_invalid", quarantined[0].Classification)
 	}
 }

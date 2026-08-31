@@ -92,14 +92,14 @@ func TestExtractCodeCallRowsQuarantinesFileMissingRepoID(t *testing.T) {
 	if len(quarantined) != 1 {
 		t.Fatalf("len(quarantined) = %d, want 1; the missing-repo_id file fact must be quarantined via partitionDecodeFailures", len(quarantined))
 	}
-	if quarantined[0].field != "repo_id" {
-		t.Fatalf("quarantined[0].field = %q, want %q", quarantined[0].field, "repo_id")
+	if quarantined[0].Field != "repo_id" {
+		t.Fatalf("quarantined[0].Field = %q, want %q", quarantined[0].Field, "repo_id")
 	}
-	if quarantined[0].classification != "input_invalid" {
-		t.Fatalf("quarantined[0].classification = %q, want %q", quarantined[0].classification, "input_invalid")
+	if quarantined[0].Classification != "input_invalid" {
+		t.Fatalf("quarantined[0].Classification = %q, want %q", quarantined[0].Classification, "input_invalid")
 	}
-	if quarantined[0].factID != "malformed-file-missing-repo-id" {
-		t.Fatalf("quarantined[0].factID = %q, want %q", quarantined[0].factID, "malformed-file-missing-repo-id")
+	if quarantined[0].FactID != "malformed-file-missing-repo-id" {
+		t.Fatalf("quarantined[0].FactID = %q, want %q", quarantined[0].FactID, "malformed-file-missing-repo-id")
 	}
 
 	// Per-fact isolation: the valid sibling file still produces its
@@ -179,11 +179,11 @@ func TestExtractCodeCallRowsQuarantinesFileMissingRelativePath(t *testing.T) {
 	if len(quarantined) != 1 {
 		t.Fatalf("len(quarantined) = %d, want 1; the missing-relative_path file fact must be quarantined via partitionDecodeFailures", len(quarantined))
 	}
-	if quarantined[0].field != "relative_path" {
-		t.Fatalf("quarantined[0].field = %q, want %q", quarantined[0].field, "relative_path")
+	if quarantined[0].Field != "relative_path" {
+		t.Fatalf("quarantined[0].Field = %q, want %q", quarantined[0].Field, "relative_path")
 	}
-	if quarantined[0].classification != "input_invalid" {
-		t.Fatalf("quarantined[0].classification = %q, want %q", quarantined[0].classification, "input_invalid")
+	if quarantined[0].Classification != "input_invalid" {
+		t.Fatalf("quarantined[0].Classification = %q, want %q", quarantined[0].Classification, "input_invalid")
 	}
 
 	foundValidEdge := false
@@ -260,8 +260,8 @@ func TestDecodeCodegraphTreatsAbsentSchemaVersionAsLatestMajor(t *testing.T) {
 		if !quarantinable {
 			t.Fatalf("partitionDecodeFailures classified the missing-repo_id decode error as fatal (%v), want a quarantinable input_invalid", fatal)
 		}
-		if q.field != "repo_id" || q.classification != "input_invalid" {
-			t.Fatalf("quarantinedFact = {field:%q classification:%q}, want {repo_id input_invalid}", q.field, q.classification)
+		if q.Field != "repo_id" || q.Classification != "input_invalid" {
+			t.Fatalf("quarantinedFact = {field:%q classification:%q}, want {repo_id input_invalid}", q.Field, q.Classification)
 		}
 	}
 }
@@ -319,11 +319,11 @@ func TestExtractCodeCallRowsQuarantinesFileNonObjectParsedFileData(t *testing.T)
 	if len(quarantined) != 1 {
 		t.Fatalf("len(quarantined) = %d, want 1; a non-object parsed_file_data must be quarantined, never silently dropped", len(quarantined))
 	}
-	if quarantined[0].factID != "malformed-file-non-object-parsed-file-data" {
-		t.Fatalf("quarantined[0].factID = %q, want the non-object fact", quarantined[0].factID)
+	if quarantined[0].FactID != "malformed-file-non-object-parsed-file-data" {
+		t.Fatalf("quarantined[0].FactID = %q, want the non-object fact", quarantined[0].FactID)
 	}
-	if quarantined[0].classification != "input_invalid" {
-		t.Fatalf("quarantined[0].classification = %q, want input_invalid", quarantined[0].classification)
+	if quarantined[0].Classification != "input_invalid" {
+		t.Fatalf("quarantined[0].Classification = %q, want input_invalid", quarantined[0].Classification)
 	}
 
 	foundValidEdge := false

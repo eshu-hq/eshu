@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package reducer
+package factdecode
 
 import (
 	"context"
@@ -9,7 +9,7 @@ import (
 )
 
 // QuarantinedFactRecord is one durable row describing a fact that
-// recordQuarantinedFacts (factschema_decode.go) quarantined as input_invalid
+// RecordQuarantinedFacts (quarantine_record.go) quarantined as input_invalid
 // during typed-payload decode. It carries exactly the fields the
 // reducer_input_invalid_facts table persists (issue #4630): the malformed
 // fact's identity, the reducer domain that observed it, the scope/generation
@@ -56,7 +56,7 @@ type QuarantinedFactRecord struct {
 // A WriteQuarantinedFacts failure is NEVER allowed to fail the owning
 // intent: this is a best-effort, operator-facing read-surface write, not a
 // correctness-critical one. The single caller, persistQuarantinedFacts in
-// factschema_decode.go, enforces this by logging and counting a write error
+// quarantine_record.go, enforces this by logging and counting a write error
 // without propagating it.
 type QuarantinedFactWriter interface {
 	WriteQuarantinedFacts(ctx context.Context, records []QuarantinedFactRecord) error
@@ -64,12 +64,12 @@ type QuarantinedFactWriter interface {
 
 // quarantineWriterContextKey is the unexported context key carrying the
 // optional QuarantinedFactWriter through Executor.Execute -> Handler.Handle
-// -> recordQuarantinedFacts.
+// -> RecordQuarantinedFacts.
 //
 // Why context instead of a field on every one of the ~40 domain handler
-// structs that call recordQuarantinedFacts: recordQuarantinedFacts is a
+// structs that call RecordQuarantinedFacts: RecordQuarantinedFacts is a
 // single shared helper called from nearly every materialization/correlation
-// handler in this package, each with its own struct and its own
+// handler in the reducer root, each with its own struct and its own
 // DefaultHandlers-sourced field set (mirroring the FactLoader/Instruments
 // pattern). Threading a new optional dependency through every one of those
 // structs and their defaults_additive_domains_*.go wiring sites would bloat
@@ -80,11 +80,11 @@ type QuarantinedFactWriter interface {
 // executeWithTelemetry, service.go); WithQuarantineWriter follows the same,
 // already-reviewed precedent. A nil writer (every test, and any deployment
 // that has not wired Service.QuarantineWriter) makes both helpers a no-op —
-// recordQuarantinedFacts' counter and structured log continue unchanged.
+// RecordQuarantinedFacts' counter and structured log continue unchanged.
 type quarantineWriterContextKey struct{}
 
 // WithQuarantineWriter returns a context carrying writer for
-// recordQuarantinedFacts to read via quarantineWriterFromContext. Service's
+// RecordQuarantinedFacts to read via quarantineWriterFromContext. Service's
 // executeWithTelemetry calls this once per claimed intent, before invoking
 // Executor.Execute, so every handler's quarantined facts flow to the same
 // durable writer without any handler-level wiring. Passing a nil writer

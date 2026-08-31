@@ -158,7 +158,7 @@ func TestSupplyChainImpactQuarantinesMalformedSecurityAlertWithoutPoisoningGener
 	if got, want := len(quarantined), 1; got != want {
 		t.Fatalf("quarantined = %d, want %d", got, want)
 	}
-	if quarantined[0].factID != "alert-malformed-impact" || quarantined[0].field != "repository_id" {
+	if quarantined[0].FactID != "alert-malformed-impact" || quarantined[0].Field != "repository_id" {
 		t.Fatalf("quarantined[0] = %+v, want {alert-malformed-impact, repository_id}", quarantined[0])
 	}
 	if !reflect.DeepEqual(findings, baselineFindings) {

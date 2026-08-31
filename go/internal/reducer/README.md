@@ -461,6 +461,10 @@ not see it (#6061).
 A handler, writer, lookup or decision is the owning family's product and stays
 with the family even when several families read it.
 
+Decode-failure classification and per-fact quarantine belong in `factdecode`.
+The per-fact-kind `decode*` wrappers do not — each one decodes a specific fact
+kind and belongs to the family that owns that kind.
+
 ## Related docs
 
 - `docs/public/architecture.md`
@@ -472,6 +476,7 @@ with the family even when several families read it.
 - `go/internal/reducer/code-call-materialization.md`
 - `go/internal/reducer/shared-projection.md`
 - `go/internal/reducer/payloadcore/README.md`
+- `go/internal/reducer/factdecode/README.md`
 - `go/internal/reducer/dsl/README.md`
 - `go/internal/reducer/tags/README.md`
 - `go/internal/reducer/tfstate/README.md`

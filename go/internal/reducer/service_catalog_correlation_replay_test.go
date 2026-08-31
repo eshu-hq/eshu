@@ -79,7 +79,7 @@ func TestServiceCatalogCorrelationHandleIsIdempotentUnderReplay(t *testing.T) {
 	if !reflect.DeepEqual(firstQuarantined, secondQuarantined) {
 		t.Fatalf("replay produced different quarantine sets:\nfirst:  %#v\nsecond: %#v", firstQuarantined, secondQuarantined)
 	}
-	if len(firstQuarantined) != 1 || firstQuarantined[0].factID != "malformed-entity" {
+	if len(firstQuarantined) != 1 || firstQuarantined[0].FactID != "malformed-entity" {
 		t.Fatalf("quarantined = %#v, want exactly the malformed-entity fact quarantined on every replay", firstQuarantined)
 	}
 }

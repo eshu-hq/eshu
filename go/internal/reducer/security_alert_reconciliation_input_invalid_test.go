@@ -80,14 +80,14 @@ func TestBuildSecurityAlertReconciliationsQuarantinesMissingRepositoryID(t *test
 		t.Fatalf("quarantined count = %d, want %d", got, want)
 	}
 	q := quarantined[0]
-	if q.factID != "alert-malformed" {
-		t.Fatalf("quarantined factID = %q, want alert-malformed", q.factID)
+	if q.FactID != "alert-malformed" {
+		t.Fatalf("quarantined factID = %q, want alert-malformed", q.FactID)
 	}
-	if q.factKind != facts.SecurityAlertRepositoryAlertFactKind {
-		t.Fatalf("quarantined factKind = %q, want %q", q.factKind, facts.SecurityAlertRepositoryAlertFactKind)
+	if q.FactKind != facts.SecurityAlertRepositoryAlertFactKind {
+		t.Fatalf("quarantined factKind = %q, want %q", q.FactKind, facts.SecurityAlertRepositoryAlertFactKind)
 	}
-	if q.field != "repository_id" {
-		t.Fatalf("quarantined field = %q, want repository_id", q.field)
+	if q.Field != "repository_id" {
+		t.Fatalf("quarantined field = %q, want repository_id", q.Field)
 	}
 
 	// Exactly one decision — the valid sibling — and no empty-repository
@@ -264,7 +264,7 @@ func TestSupplyChainImpactSecurityAlertScopingSurvivesAllMalformedAlerts(t *test
 	if err != nil {
 		t.Fatalf("strict extract error = %v, want nil", err)
 	}
-	if len(quarantined) != 1 || quarantined[0].field != "repository_id" {
+	if len(quarantined) != 1 || quarantined[0].Field != "repository_id" {
 		t.Fatalf("strict path quarantined = %+v, want one repository_id quarantine", quarantined)
 	}
 }

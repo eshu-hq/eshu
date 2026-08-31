@@ -36,8 +36,8 @@ func TestBuildVulnerabilitySuppressionsQuarantinesMissingIdentity(t *testing.T) 
 		t.Fatalf("suppressions = %#v, want only valid suppression", suppressions)
 	}
 	if len(quarantined) != 1 ||
-		quarantined[0].factID != "suppression-malformed" ||
-		quarantined[0].field != "suppression_id" {
+		quarantined[0].FactID != "suppression-malformed" ||
+		quarantined[0].Field != "suppression_id" {
 		t.Fatalf("quarantined = %#v, want malformed suppression_id", quarantined)
 	}
 }
@@ -66,8 +66,8 @@ func TestBuildVulnerabilitySuppressionsQuarantinesInvalidSourceJustificationPair
 		t.Fatalf("suppressions = %#v, want none", suppressions)
 	}
 	if len(quarantined) != 1 ||
-		quarantined[0].factID != "suppression-malformed-pair" ||
-		quarantined[0].field != "justification" {
+		quarantined[0].FactID != "suppression-malformed-pair" ||
+		quarantined[0].Field != "justification" {
 		t.Fatalf("quarantined = %#v, want invalid source/justification pair", quarantined)
 	}
 }
@@ -94,8 +94,8 @@ func TestBuildVulnerabilitySuppressionsQuarantinesUnknownSourceAsSource(t *testi
 		t.Fatalf("suppressions = %#v, want none", suppressions)
 	}
 	if len(quarantined) != 1 ||
-		quarantined[0].factID != "suppression-unknown-source" ||
-		quarantined[0].field != "source" {
+		quarantined[0].FactID != "suppression-unknown-source" ||
+		quarantined[0].Field != "source" {
 		t.Fatalf("quarantined = %#v, want unknown source field", quarantined)
 	}
 }
@@ -121,8 +121,8 @@ func TestBuildVulnerabilitySuppressionsQuarantinesIgnoredWithoutExpiry(t *testin
 		t.Fatalf("suppressions = %#v, want none", suppressions)
 	}
 	if len(quarantined) != 1 ||
-		quarantined[0].factID != "suppression-ignored-without-expiry" ||
-		quarantined[0].field != "expires_at" {
+		quarantined[0].FactID != "suppression-ignored-without-expiry" ||
+		quarantined[0].Field != "expires_at" {
 		t.Fatalf("quarantined = %#v, want missing expires_at", quarantined)
 	}
 }
@@ -148,8 +148,8 @@ func TestBuildVulnerabilitySuppressionsQuarantinesEvidencePathWithoutIdentityAnc
 		t.Fatalf("suppressions = %#v, want none", suppressions)
 	}
 	if len(quarantined) != 1 ||
-		quarantined[0].factID != "suppression-evidence-path-only" ||
-		quarantined[0].field != "scope" {
+		quarantined[0].FactID != "suppression-evidence-path-only" ||
+		quarantined[0].Field != "scope" {
 		t.Fatalf("quarantined = %#v, want invalid scope", quarantined)
 	}
 }
@@ -185,8 +185,8 @@ func TestBuildVulnerabilitySuppressionsQuarantinesDeploymentContextWithoutIdenti
 			t.Fatalf("scope %#v: suppressions = %#v, want none", scope, suppressions)
 		}
 		if len(quarantined) != 1 ||
-			quarantined[0].factID != "suppression-deployment-only" ||
-			quarantined[0].field != "scope" {
+			quarantined[0].FactID != "suppression-deployment-only" ||
+			quarantined[0].Field != "scope" {
 			t.Fatalf("scope %#v: quarantined = %#v, want invalid scope", scope, quarantined)
 		}
 	}

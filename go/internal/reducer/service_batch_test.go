@@ -114,10 +114,10 @@ type batchQuarantineExecutor struct{}
 
 func (batchQuarantineExecutor) Execute(ctx context.Context, intent Intent) (Result, error) {
 	recordQuarantinedFacts(ctx, nil, intent.Domain, intent.ScopeID, intent.GenerationID, []quarantinedFact{{
-		factID:         "fact-1",
-		factKind:       "vulnerability.suppression",
-		field:          "justification",
-		classification: "input_invalid",
+		FactID:         "fact-1",
+		FactKind:       "vulnerability.suppression",
+		Field:          "justification",
+		Classification: "input_invalid",
 	}})
 	return Result{
 		IntentID: intent.IntentID,

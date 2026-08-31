@@ -115,14 +115,14 @@ func TestPartitionServiceCatalogFactsQuarantinesMalformedEntity(t *testing.T) {
 	if len(quarantined) != 1 {
 		t.Fatalf("len(quarantined) = %d, want 1; the missing-entity_ref entity fact must be quarantined via partitionDecodeFailures: %#v", len(quarantined), quarantined)
 	}
-	if quarantined[0].field != "entity_ref" {
-		t.Fatalf("quarantined[0].field = %q, want %q", quarantined[0].field, "entity_ref")
+	if quarantined[0].Field != "entity_ref" {
+		t.Fatalf("quarantined[0].Field = %q, want %q", quarantined[0].Field, "entity_ref")
 	}
-	if quarantined[0].classification != "input_invalid" {
-		t.Fatalf("quarantined[0].classification = %q, want %q", quarantined[0].classification, "input_invalid")
+	if quarantined[0].Classification != "input_invalid" {
+		t.Fatalf("quarantined[0].Classification = %q, want %q", quarantined[0].Classification, "input_invalid")
 	}
-	if quarantined[0].factID != "malformed-entity-missing-entity-ref" {
-		t.Fatalf("quarantined[0].factID = %q, want %q", quarantined[0].factID, "malformed-entity-missing-entity-ref")
+	if quarantined[0].FactID != "malformed-entity-missing-entity-ref" {
+		t.Fatalf("quarantined[0].FactID = %q, want %q", quarantined[0].FactID, "malformed-entity-missing-entity-ref")
 	}
 }
 
@@ -164,8 +164,8 @@ func TestPartitionServiceCatalogFactsQuarantinesMalformedOwnershipAndLink(t *tes
 		t.Fatalf("len(quarantined) = %d, want 2: %#v", len(quarantined), quarantined)
 	}
 	for _, q := range quarantined {
-		if q.field != "entity_ref" {
-			t.Fatalf("quarantined field = %q, want entity_ref: %#v", q.field, q)
+		if q.Field != "entity_ref" {
+			t.Fatalf("quarantined field = %q, want entity_ref: %#v", q.Field, q)
 		}
 	}
 

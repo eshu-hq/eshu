@@ -133,8 +133,8 @@ func TestKubernetesRelationshipQuarantinesMissingRelationshipType(t *testing.T) 
 	if len(quarantined) != 1 {
 		t.Fatalf("quarantined = %v, want exactly 1; the missing-relationship_type fact must be recorded as one input_invalid quarantine", quarantined)
 	}
-	if quarantined[0].field != "relationship_type" {
-		t.Fatalf("quarantined[0].field = %q, want %q", quarantined[0].field, "relationship_type")
+	if quarantined[0].Field != "relationship_type" {
+		t.Fatalf("quarantined[0].Field = %q, want %q", quarantined[0].Field, "relationship_type")
 	}
 }
 
@@ -165,7 +165,7 @@ func TestKubernetesWarningQuarantinesMissingReason(t *testing.T) {
 	if len(quarantined) != 1 {
 		t.Fatalf("quarantined = %v, want exactly 1; the missing-reason fact must be recorded as one input_invalid quarantine", quarantined)
 	}
-	if quarantined[0].field != "reason" {
-		t.Fatalf("quarantined[0].field = %q, want %q", quarantined[0].field, "reason")
+	if quarantined[0].Field != "reason" {
+		t.Fatalf("quarantined[0].Field = %q, want %q", quarantined[0].Field, "reason")
 	}
 }
