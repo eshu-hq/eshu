@@ -30,14 +30,18 @@ const (
 	neo4jTransactionTerminatedCode = "Neo.ClientError.Transaction.Terminated"
 )
 
-// The graph-read sentinels live in querycontract so a handler-family subpackage
-// can compare against them without importing this package. These are var
-// aliases, not copies: errors.Is still matches because the value is the same
-// one querycontract exports, so every existing caller -- including
-// internal/mcp's dispatch test -- keeps working untouched.
+// These two are var aliases, not copies. errors.Is matches on identity, and two
+// errors.New values with identical text are not equal, so copying them would
+// compile everywhere and silently stop every graph-availability comparison from
+// matching -- including internal/mcp's dispatch test, which compares against
+// them from outside this package.
 var (
+	// ErrGraphReadDeadline reports that the bounded graph-read budget expired.
+	// It aliases the querycontract sentinel so errors.Is keeps matching.
 	ErrGraphReadDeadline = querycontract.ErrGraphReadDeadline
-	ErrGraphUnavailable  = querycontract.ErrGraphUnavailable
+	// ErrGraphUnavailable reports that the graph backend could not serve a
+	// read. It aliases the querycontract sentinel so errors.Is keeps matching.
+	ErrGraphUnavailable = querycontract.ErrGraphUnavailable
 )
 
 type graphReadOutcome string
