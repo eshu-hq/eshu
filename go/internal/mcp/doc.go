@@ -10,8 +10,8 @@
 // their registration definitions without importing this parent package. The
 // ask, relationships, and visualization children own pure dependency-neutral
 // family route selectors alongside their definitions, and the cicd,
-// codeowners, observabilitycoverage, packageregistry, and secretsiam children
-// own such a selector without owning a registration.
+// codeowners, containerimage, observabilitycoverage, packageregistry, and
+// secretsiam children own such a selector without owning a registration.
 // ReadOnlyTools remains the sole ordered assembler; global route membership,
 // family adapters, dispatch,
 // transport, authorization, timeouts,
@@ -78,9 +78,12 @@
 // Package-registry and supply-chain tools follow the same rule, so bounded
 // package, version, dependency, correlation, source-only advisory evidence,
 // vulnerability finding, explanation, SBOM, and attestation attachment
-// requests stay thin. Supply-chain route builders live in dedicated dispatch
-// files here, while the package-registry selector lives in the packageregistry
-// child and reaches dispatch through the packageRegistryRoute adapter;
+// requests stay thin. The remaining supply-chain route builders live in
+// dedicated dispatch files here, while the package-registry selector lives in
+// the packageregistry child and reaches dispatch through the
+// packageRegistryRoute adapter, and the four container-image identity, tag
+// history, and aggregate selectors live in the containerimage child and reach
+// dispatch through the containerImageRoute adapter;
 // SBOM attachment tools forward repository_id to the query layer so repository
 // scope returns reducer-owned image/SBOM missing evidence instead of becoming
 // an unscoped aggregate.

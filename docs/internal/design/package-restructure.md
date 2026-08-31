@@ -485,6 +485,56 @@ the graph does not have. That is why the child tests and the dispatch-level test
 assert all twelve keys individually as well as by exact request: a loud failure
 and a silent one need the same per-key coverage.
 
+The container-image identity route family is the sixth and last Wave 2 MCP
+extraction, and the only one whose request builders did not come out of a file
+named for the family. `containerImageIdentitiesRoute` and
+`containerImageTagHistoryRoute` sat in `dispatch_supply_chain.go` beside six
+supply-chain builders that stay there, while the count and inventory builders
+sat alone in `dispatch_container_image_aggregates.go`. All four now live under
+`internal/mcp/containerimage`; the aggregates file is deleted and
+`dispatch_container_image.go` takes its place holding only the thin
+`containerImageRoute` adapter. Root keeps the four tool definitions and their
+assembly positions, global fanout order, dispatch, authorization, transport,
+timeouts, response budgets, envelopes, summaries, and telemetry. The adapter is
+consulted directly after the observability-coverage one at the top of
+`repositoryRoute`, so the repository router keeps its own position in the
+global chain and no other family's resolution order changes. The four tool
+names are disjoint from the five earlier families and from the remaining
+switch arms, which drop from 30 to 26, and the 162-tool order, the advertised
+schemas, the `limit` defaults of 50 and 100, and every selected method, path,
+and query key remain unchanged.
+
+The root file set is the one thing this family changes that the previous five
+did not. Deleting `dispatch_container_image_aggregates.go` and adding
+`dispatch_container_image.go` leaves `internal/mcp` at the same 106 non-test Go
+files it had before, so the dirgate count still matches while the name set does
+not. That is exactly the same-count swap the grandfather digest exists to
+catch, and it is why this commit carries a re-pin whose count column is
+unchanged and whose digest column moves.
+
+What makes this family worth reading is that its four routes look
+interchangeable and are not. Tag history is served from
+`/api/v0/images/tag-history`, not the
+`/api/v0/supply-chain/container-images/identities` prefix its three siblings
+share, because `TagHistoryHandler.Mount` registers it there; folding it onto
+the sibling prefix reads like tidying and selects a path the query mux does not
+serve. The count route carries no `limit` and no `offset`, because its handler
+reads neither: a page size sent there would be inert rather than enforced.
+`limit` defaults to 50
+on the listing and tag history but 100 on the inventory. And the four routes
+fail differently when a key goes missing: the listing 400s without `limit` and
+without one of its five scope anchors, tag history 400s without both
+`repository_id` and `tag` since the handler composes them into the `image_ref`
+it anchors on, and the two aggregates require nothing at all, so a lost filter
+there returns 200 over a wider scope and quietly drops that key from the
+`scope` block the response echoes back. The `group_by` fallback to `outcome` is
+a fourth shape again: `containerImageIdentityInventory` applies the same
+default itself, so removing the fallback changes no answer, while changing it
+to another dimension changes every ungrouped caller's answer. The child tests
+and the dispatch-level test therefore assert each route's keys individually
+against literal expectations, not against the child selector, since the
+adapter parity test builds both of its sides from that same selector.
+
 **cmd/eshu (233):** `package main` — subdirectories are impossible by
 language rule. The lever is extracting business logic to new
 `internal/cli/<family>` packages, leaving thin cobra RunE wrappers —

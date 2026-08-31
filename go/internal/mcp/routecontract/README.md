@@ -10,10 +10,10 @@ HTTP request without importing the parent MCP package.
 This package owns decoded argument access and the selected request value. It
 does not own tool names, family membership, or route-selection policy. Family
 packages such as `internal/mcp/ask`, `internal/mcp/cicd`,
-`internal/mcp/codeowners`, `internal/mcp/observabilitycoverage`,
-`internal/mcp/packageregistry`, `internal/mcp/relationships`,
-`internal/mcp/secretsiam`, and `internal/mcp/visualization` own those
-decisions. The root `internal/mcp`
+`internal/mcp/codeowners`, `internal/mcp/containerimage`,
+`internal/mcp/observabilitycoverage`, `internal/mcp/packageregistry`,
+`internal/mcp/relationships`, `internal/mcp/secretsiam`, and
+`internal/mcp/visualization` own those decisions. The root `internal/mcp`
 package still owns global route fanout, family adapters, request dispatch,
 authorization forwarding, timeouts, response budgets, response envelopes,
 transport behavior, and telemetry.
@@ -55,6 +55,7 @@ transport and API request telemetry.
 - [MCP Ask registration and route selection](../ask/README.md)
 - [MCP CI/CD run-correlation route selection](../cicd/README.md)
 - [MCP CODEOWNERS ownership route selection](../codeowners/README.md)
+- [MCP container-image identity route selection](../containerimage/README.md)
 - [MCP observability-coverage route selection](../observabilitycoverage/README.md)
 - [MCP package-registry route selection](../packageregistry/README.md)
 - [MCP relationship registrations](../relationships/README.md)
