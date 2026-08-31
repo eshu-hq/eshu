@@ -55,6 +55,7 @@ live in the repository today.
 | `go/internal/parser/` | native parser registry, language adapters, and SCIP support |
 | `go/internal/projector/` | source-local projection stages and failure classification |
 | `go/internal/projector/azure/` | Azure resource and relationship reducer-intent family builders |
+| `go/internal/projector/ec2/` | EC2 instance-posture reducer-intent family builders |
 | `go/internal/projector/gcp/` | GCP resource and relationship reducer-intent family builders |
 | `go/internal/projector/intent/` | dependency-neutral reducer-intent values, source labels, and immutable fact index for extracted projector families |
 | `go/internal/projector/kubernetes/` | Kubernetes live-workload and namespace reducer-intent family builders |

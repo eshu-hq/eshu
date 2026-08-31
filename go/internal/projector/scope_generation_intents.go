@@ -6,6 +6,7 @@ package projector
 import (
 	"github.com/eshu-hq/eshu/go/internal/facts"
 	projectorazure "github.com/eshu-hq/eshu/go/internal/projector/azure"
+	projectorec2 "github.com/eshu-hq/eshu/go/internal/projector/ec2"
 	projectorgcp "github.com/eshu-hq/eshu/go/internal/projector/gcp"
 	projectorkubernetes "github.com/eshu-hq/eshu/go/internal/projector/kubernetes"
 	projectorsecurity "github.com/eshu-hq/eshu/go/internal/projector/security"
@@ -65,7 +66,7 @@ func appendScopeGenerationReducerIntents(
 	if intent, ok := buildWorkloadCloudRelationshipMaterializationReducerIntent(scopeValue, generation, index); ok {
 		intents = append(intents, intent)
 	}
-	if intent, ok := buildEC2InstanceNodeMaterializationReducerIntent(scopeValue, generation, index); ok {
+	if intent, ok := projectorec2.BuildInstanceNodeMaterializationReducerIntent(scopeValue.ScopeID, generation.GenerationID, index.lookup); ok {
 		intents = append(intents, intent)
 	}
 	if intent, ok := buildAWSRelationshipMaterializationReducerIntent(scopeValue, generation, index); ok {
@@ -104,19 +105,19 @@ func appendScopeGenerationReducerIntents(
 	if intent, ok := buildRDSPostureMaterializationReducerIntent(scopeValue, generation, index); ok {
 		intents = append(intents, intent)
 	}
-	if intent, ok := buildEC2InstanceIdentityMaterializationReducerIntent(scopeValue, generation, index); ok {
+	if intent, ok := projectorec2.BuildInstanceIdentityMaterializationReducerIntent(scopeValue.ScopeID, generation.GenerationID, index.lookup); ok {
 		intents = append(intents, intent)
 	}
-	if intent, ok := buildEC2UsesProfileMaterializationReducerIntent(scopeValue, generation, index); ok {
+	if intent, ok := projectorec2.BuildUsesProfileMaterializationReducerIntent(scopeValue.ScopeID, generation.GenerationID, index.lookup); ok {
 		intents = append(intents, intent)
 	}
 	if intent, ok := buildIAMInstanceProfileRoleMaterializationReducerIntent(scopeValue, generation, index); ok {
 		intents = append(intents, intent)
 	}
-	if intent, ok := buildEC2InternetExposureMaterializationReducerIntent(scopeValue, generation, index); ok {
+	if intent, ok := projectorec2.BuildInternetExposureMaterializationReducerIntent(scopeValue.ScopeID, generation.GenerationID, index.lookup); ok {
 		intents = append(intents, intent)
 	}
-	if intent, ok := buildEC2BlockDeviceKMSPostureMaterializationReducerIntent(scopeValue, generation, index); ok {
+	if intent, ok := projectorec2.BuildBlockDeviceKMSPostureMaterializationReducerIntent(scopeValue.ScopeID, generation.GenerationID, index.lookup); ok {
 		intents = append(intents, intent)
 	}
 	if intent, ok := buildS3InternetExposureMaterializationReducerIntent(scopeValue, generation, index); ok {

@@ -1,15 +1,15 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package projector
+package ec2
 
 import (
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	projectorintent "github.com/eshu-hq/eshu/go/internal/projector/intent"
 	"github.com/eshu-hq/eshu/go/internal/reducer"
-	"github.com/eshu-hq/eshu/go/internal/scope"
 )
 
-// buildEC2InstanceNodeMaterializationReducerIntent enqueues one reducer intent
+// BuildInstanceNodeMaterializationReducerIntent enqueues one reducer intent
 // that materializes the scope generation's ec2_instance_posture facts into
 // canonical EC2 instance :CloudResource graph nodes (issue #1146 PR-A). It mirrors
 // the #805 aws_resource node trigger: a single scope-keyed intent when any
@@ -23,22 +23,22 @@ import (
 // phase for the same scope generation; distinct entity keys keep the two phases
 // independent so the future USES_PROFILE edge (#1146 PR-B) gates on instance-node
 // readiness on its own, instead of opening as soon as either node domain commits.
-func buildEC2InstanceNodeMaterializationReducerIntent(
-	scopeValue scope.IngestionScope,
-	generation scope.ScopeGeneration,
-	index *reducerIntentFactIndex,
-) (ReducerIntent, bool) {
-	envelope, ok := index.firstOfKind(facts.EC2InstancePostureFactKind)
+func BuildInstanceNodeMaterializationReducerIntent(
+	scopeID string,
+	generationID string,
+	lookup projectorintent.FactLookup,
+) (projectorintent.ReducerIntent, bool) {
+	envelope, ok := lookup.FirstOfKind(facts.EC2InstancePostureFactKind)
 	if !ok {
-		return ReducerIntent{}, false
+		return projectorintent.ReducerIntent{}, false
 	}
-	return ReducerIntent{
-		ScopeID:      scopeValue.ScopeID,
-		GenerationID: generation.GenerationID,
+	return projectorintent.ReducerIntent{
+		ScopeID:      scopeID,
+		GenerationID: generationID,
 		Domain:       reducer.DomainEC2InstanceNodeMaterialization,
-		EntityKey:    "ec2_instance_node_materialization:" + scopeValue.ScopeID,
+		EntityKey:    "ec2_instance_node_materialization:" + scopeID,
 		Reason:       "ec2 instance posture facts observed",
 		FactID:       envelope.FactID,
-		SourceSystem: awsCloudRuntimeDriftSourceSystem(envelope),
+		SourceSystem: projectorintent.SourceSystem(envelope),
 	}, true
 }

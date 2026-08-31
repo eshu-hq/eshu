@@ -1,6 +1,8 @@
 # #5743 — EC2 instance identity intent trigger fix (golden-corpus residual)
 
-Trigger `buildEC2InstanceIdentityMaterializationReducerIntent` on the
+Trigger `projectorec2.BuildInstanceIdentityMaterializationReducerIntent` (moved to
+internal/projector/ec2 in #6057; unexported `buildEC2InstanceIdentityMaterializationReducerIntent`
+at the time of this investigation) on the
 `ec2_instance_posture` fact — the same fact `DomainEC2InstanceNodeMaterialization`
 triggers on — instead of any `aws_resource` fact, so it enqueues only when its
 claim-readiness gate (which waits on the EC2 instance node) can be satisfied.

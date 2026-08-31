@@ -51,7 +51,7 @@ built in later PRs.
    `graph_projection_phase_state` publisher — under a **distinct** entity key (see
    §Readiness wiring).
 3. **Projector trigger.** A projector intent
-   (`buildEC2InstanceNodeMaterializationReducerIntent`) enqueues the node domain
+   (`projectorec2.BuildInstanceNodeMaterializationReducerIntent`) enqueues the node domain
    when any `ec2_instance_posture` fact is present in a scope generation.
 
 Deferred (stated so reviewers do not expect them here):
