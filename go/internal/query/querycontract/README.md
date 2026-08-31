@@ -60,6 +60,27 @@ their `query.*` spans, and because both wrapper hops inline away, no span
 boundary, attribute, or log line moves. An operator sees exactly the signals
 they saw before.
 
+## Collector-list readiness
+
+`CollectorListReadinessStore` is a consumer-owned port, the same category as
+`GraphQuery` and `ContentStore`. With the state enum, counts, envelope, and the
+two `Build...` functions it answers one question a gated supply-chain list
+cannot answer on its own: whether a zero-row page means "nothing matched" or
+"the feeding collector is switched off".
+
+What is deliberately NOT here is the attach step. Deciding whether to run the
+probe, running it against a live store, and writing the result into a response
+body is request-time orchestration, and it stays in package `query`. Two
+reviewers independently flagged an earlier version of this move for putting that
+behaviour in the dependency-neutral leaf, and they were right: a family package
+that wants the envelope calls `BuildCollectorListReadiness` and owns its own
+attach.
+
+The one behavioural rule worth restating, because it is easy to invert: a
+non-empty page is classified `ready_with_results` without consulting the probe
+at all. Returned rows are themselves proof the collector ran, so a stale or
+failing probe must never downgrade a page that already carries evidence.
+
 ## Gotchas / invariants
 
 Capability registration is ordered and rejects duplicate initialization in the
