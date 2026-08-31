@@ -252,7 +252,7 @@ assertion.
   durable outcome. Proven empirically against a real Postgres + NornicDB stack
   (`scripts/verify-ifa-dead-letter-determinism.sh`), not just by reading the
   decode seam: `MutationMissingField` is QUARANTINED per fact
-  (`go/internal/reducer/factschema_decode.go`'s `partitionDecodeFailures`) —
+  (`go/internal/reducer/schemadecode/factschema_decode.go`'s `partitionDecodeFailures`) —
   metric + log, no durable `fact_work_items` row. `MutationSchemaMajor`, for a
   fact kind core registers a schema version for, trips the projector's OWN
   admission-time schema-version gate

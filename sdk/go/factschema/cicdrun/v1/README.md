@@ -19,7 +19,7 @@ of the public `github.com/eshu-hq/eshu/sdk/go/factschema` Go module
 
 `ci.deployment_event` is consumed by the reducer through a decode seam
 (`decodeCICDDeploymentEvent`,
-`go/internal/reducer/factschema_decode_cicdrun.go`) and a `ci_cd_run_correlation`
+`go/internal/reducer/schemadecode/factschema_decode_cicdrun.go`) and a `ci_cd_run_correlation`
 attach step (`attachDeploymentEventsToRuns`,
 `go/internal/reducer/ci_cd_run_correlation_deploy_events.go`), but on a
 different join key than the five `provider`+`run_id` kinds

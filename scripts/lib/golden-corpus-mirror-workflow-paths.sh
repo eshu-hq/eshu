@@ -174,7 +174,7 @@ require_workflow_path "ingestion scope + generation anchor (#5538)" "go/internal
 # internal/factenvelope is the single collector-SDK-record <-> internal
 # envelope <-> factschema decode adapter, imported directly by
 # projector/factschema_quarantine.go, projector/schema_version_admission.go,
-# and reducer/factschema_decode.go. A fact_kind/version mismatch here is
+# and reducer/schemadecode/factschema_decode.go. A fact_kind/version mismatch here is
 # silently inert -- the same 0-node-gate-result failure mode
 # eshu-golden-corpus-rigor documents for a cassette fact_kind mismatch.
 require_workflow_path "fact envelope decode adapter (#5538)" "go/internal/factenvelope/**"
