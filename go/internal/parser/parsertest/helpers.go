@@ -179,6 +179,24 @@ func AssertNestedRouteEntriesEqual(
 	}
 }
 
+// AssertPrescanContains requires importsMap[name] to contain wantPath. It
+// asserts against the map[string][]string shape PreScanPaths returns, not a
+// parsed payload.
+func AssertPrescanContains(t *testing.T, importsMap map[string][]string, name string, wantPath string) {
+	t.Helper()
+
+	paths, ok := importsMap[name]
+	if !ok {
+		t.Fatalf("imports map missing %q", name)
+	}
+	for _, path := range paths {
+		if path == wantPath {
+			return
+		}
+	}
+	t.Fatalf("imports map[%q] = %#v, want path %q", name, paths, wantPath)
+}
+
 func frameworkSemanticsMap(t *testing.T, payload map[string]any) map[string]any {
 	t.Helper()
 

@@ -1,11 +1,13 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package parser
+package cpp_test
 
 import (
 	"path/filepath"
 	"testing"
+
+	"github.com/eshu-hq/eshu/go/internal/parser/parsertest"
 )
 
 func TestDefaultEngineParsePathCPPExactFrameworkRouteEntries(t *testing.T) {
@@ -13,7 +15,7 @@ func TestDefaultEngineParsePathCPPExactFrameworkRouteEntries(t *testing.T) {
 
 	repoRoot := t.TempDir()
 	filePath := filepath.Join(repoRoot, "src", "routes.cpp")
-	writeTestFile(
+	writeCPPTestFile(
 		t,
 		filePath,
 		`#include <crow.h>
@@ -45,24 +47,24 @@ void registerRoutes(Pistache::Rest::Router& router) {
 `,
 	)
 
-	got := mustParsePath(t, repoRoot, filePath)
+	got := parsertest.MustParsePath(t, repoRoot, filePath)
 
-	assertFrameworksEqual(t, got, "crow", "drogon", "pistache")
-	assertNestedStringSliceEqual(t, got, "crow", "route_methods", []string{"GET"})
-	assertNestedStringSliceEqual(t, got, "crow", "route_paths", []string{"/health"})
-	assertNestedRouteEntriesEqual(t, got, "crow", []map[string]string{
+	parsertest.AssertFrameworksEqual(t, got, "crow", "drogon", "pistache")
+	parsertest.AssertNestedStringSliceEqual(t, got, "crow", "route_methods", []string{"GET"})
+	parsertest.AssertNestedStringSliceEqual(t, got, "crow", "route_paths", []string{"/health"})
+	parsertest.AssertNestedRouteEntriesEqual(t, got, "crow", []map[string]string{
 		{"method": "GET", "path": "/health", "handler": "health"},
 	})
-	assertNestedStringSliceEqual(t, got, "drogon", "route_methods", []string{"POST", "PUT", "PATCH"})
-	assertNestedStringSliceEqual(t, got, "drogon", "route_paths", []string{"/orders", "/orders/<id>"})
-	assertNestedRouteEntriesEqual(t, got, "drogon", []map[string]string{
+	parsertest.AssertNestedStringSliceEqual(t, got, "drogon", "route_methods", []string{"POST", "PUT", "PATCH"})
+	parsertest.AssertNestedStringSliceEqual(t, got, "drogon", "route_paths", []string{"/orders", "/orders/<id>"})
+	parsertest.AssertNestedRouteEntriesEqual(t, got, "drogon", []map[string]string{
 		{"method": "POST", "path": "/orders", "handler": "createOrder"},
 		{"method": "PUT", "path": "/orders/<id>", "handler": "updateOrder"},
 		{"method": "PATCH", "path": "/orders/<id>", "handler": "updateOrder"},
 	})
-	assertNestedStringSliceEqual(t, got, "pistache", "route_methods", []string{"GET"})
-	assertNestedStringSliceEqual(t, got, "pistache", "route_paths", []string{"/orders/:id"})
-	assertNestedRouteEntriesEqual(t, got, "pistache", []map[string]string{
+	parsertest.AssertNestedStringSliceEqual(t, got, "pistache", "route_methods", []string{"GET"})
+	parsertest.AssertNestedStringSliceEqual(t, got, "pistache", "route_paths", []string{"/orders/:id"})
+	parsertest.AssertNestedRouteEntriesEqual(t, got, "pistache", []map[string]string{
 		{"method": "GET", "path": "/orders/:id", "handler": "OrdersController.show"},
 	})
 }
@@ -72,7 +74,7 @@ func TestDefaultEngineParsePathCPPSkipsNonExactFrameworkRoutes(t *testing.T) {
 
 	repoRoot := t.TempDir()
 	filePath := filepath.Join(repoRoot, "src", "dynamic_routes.cpp")
-	writeTestFile(
+	writeCPPTestFile(
 		t,
 		filePath,
 		`#include <crow.h>
@@ -97,7 +99,7 @@ void registerRoutes(Pistache::Rest::Router& router) {
 `,
 	)
 
-	got := mustParsePath(t, repoRoot, filePath)
+	got := parsertest.MustParsePath(t, repoRoot, filePath)
 
-	assertFrameworksEqual(t, got)
+	parsertest.AssertFrameworksEqual(t, got)
 }

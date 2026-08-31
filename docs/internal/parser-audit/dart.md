@@ -113,4 +113,4 @@ The Dart parser has a single subdirectory test file with 8 test functions focuse
 6. Add a dedicated call deduplication test.
 7. Add an empty file / whitespace-only parse test.
 8. Add tests for edge cases: string interpolation with calls, nested triple-quoted strings, late variables, sealed classes.
-9. Create parent-level test files (e.g., `dart_dead_code_roots_test.go`) that follow the pattern of `cpp_dead_code_roots_test.go` to test the parser through the Engine dispatch path.
+9. Create parent-level test files (e.g., `dart_dead_code_roots_test.go`) that follow the pattern of `go/internal/parser/cpp/engine_cpp_dead_code_roots_test.go` to test the parser through the Engine dispatch path.

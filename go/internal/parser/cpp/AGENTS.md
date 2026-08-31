@@ -11,6 +11,8 @@
 7. qualified_method.go - AST extraction of out-of-line `Class::method` names
 8. header_roots.go - bounded direct local-header public API roots
 9. helpers.go - local helper functions copied out of the parent package
+10. engine_cpp_test_helpers_test.go - shared `package cpp_test` fixtures and
+    assertions for the external engine-level C++ tests
 
 ## Invariants This Package Enforces
 
@@ -79,13 +81,13 @@ included local headers that are intentionally not parsed):
 - No-Regression Evidence: the AST extractor replaces a node-text regex with a
   field walk over the already-built tree. Output is identical for the simple,
   destructor, and namespace-nested cases proven by the unchanged
-  `cpp_dead_code_roots_test.go` (including
+  `engine_cpp_dead_code_roots_test.go` (including
   `TestDefaultEngineParsePathCPPMarksNamespaceQualifiedHeaderMethod`, which pins
   `api::Service::run` to class `Service`). New parity and improvement coverage
   lives in `internal/parser/cpp/dead_code_roots_test.go`
   (`TestCPPQualifiedFunctionNameAndClassFromNode`, 10 cases incl. operator,
   template, pointer/reference return) and
-  `internal/parser/cpp_qualified_method_ast_test.go`
+  `internal/parser/cpp/cpp_qualified_method_ast_test.go`
   (`TestDefaultEngineParsePathCPPOutOfLineQualifiedMethodsViaAST`, end-to-end via
   `ParsePath`). Commands and counts:
   - `cd go && gofmt -l internal/parser/cpp` -> empty.
