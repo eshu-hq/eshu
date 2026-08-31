@@ -162,10 +162,12 @@ This run satisfies the section 6 reviewer-allowlist items for the GCP path:
   impersonation; no long-lived key material mounted.
 - Credential carried as a reference/name only (`CredentialRef` is a config
   string, never material).
-- Multi-layer default-deny: fixture is the CLI default and the chart is
-  default-off. Live calls require explicit `-mode claimed-live`, an enabled
-  chart, enabled claim-capable collector configuration, a workflow claim, and
-  `-redaction-key-file`; omitting any gate fails closed.
+- Multi-layer default-deny: fixture is the CLI default. For Helm-managed
+  launches, the chart is default-off. Direct CLI claimed-live does not read
+  Helm state; it requires explicit `-mode claimed-live`, enabled claim-capable
+  collector configuration, a workflow claim, and `-redaction-key-file`. The
+  Helm path supplies the same command, configuration, claim, and key gates.
+  Omitting a relevant gate fails closed.
 - Every emitted fact passed through the redacting envelope builders and
   stamped `redaction_policy_version` (verified at 100% coverage in the smoke
   run).
@@ -195,9 +197,11 @@ enabled, claim-enabled Azure instance, `live_collection_enabled=true`, a
 workflow claim, and `-redaction-key-file` before it calls Azure. Its Azure RBAC
 grant is an operator prerequisite that the smoke must prove; the runtime does
 not inspect the grant. The Helm chart creates that deployment only when
-`azureCloudCollector.enabled=true`; its render checks require matching
-collector and coordinator instances, an enabled scope, and the redaction
-Secret mount.
+`azureCloudCollector.enabled=true`; its render checks require enabled
+collector-side and coordinator-side Azure instances, enabled scopes, and the
+redaction Secret mount. They do not compare instance IDs. The operator must
+pair the same instance on both sides; claimed-work and live-smoke evidence must
+verify that pairing before promotion.
 
 The zero-value factory still protects fixture/default mode. No sanitized
 operator run has supplied the evidence needed to promote Azure, so the Azure
