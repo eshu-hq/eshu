@@ -1,15 +1,16 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package reducer
+package schemadecode
 
 import (
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/reducer/factdecode"
 	"github.com/eshu-hq/eshu/sdk/go/factschema"
 	scannerworkerv1 "github.com/eshu-hq/eshu/sdk/go/factschema/scannerworker/v1"
 )
 
-// decodeScannerWorkerAnalysis decodes one scanner_worker.analysis envelope
+// DecodeScannerWorkerAnalysis decodes one scanner_worker.analysis envelope
 // into the typed scannerworkerv1.Analysis struct through the contracts seam,
 // returning a self-classifying *factDecodeError when the payload is missing a
 // required field (analyzer, target_kind, target_locator_hash,
@@ -21,10 +22,10 @@ import (
 // required field is routed through partitionDecodeFailures so it
 // dead-letters as a per-fact input_invalid quarantine rather than a silent
 // empty-string identity or a whole-intent abort.
-func decodeScannerWorkerAnalysis(env facts.Envelope) (scannerworkerv1.Analysis, error) {
-	analysis, err := factschema.DecodeScannerWorkerAnalysis(factschemaEnvelope(env))
+func DecodeScannerWorkerAnalysis(env facts.Envelope) (scannerworkerv1.Analysis, error) {
+	analysis, err := factschema.DecodeScannerWorkerAnalysis(FactschemaEnvelope(env))
 	if err != nil {
-		return scannerworkerv1.Analysis{}, newFactDecodeError(factschema.FactKindScannerWorkerAnalysis, err)
+		return scannerworkerv1.Analysis{}, factdecode.NewFactDecodeError(factschema.FactKindScannerWorkerAnalysis, err)
 	}
 	return analysis, nil
 }

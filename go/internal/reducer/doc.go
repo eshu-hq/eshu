@@ -14,7 +14,9 @@
 // handler reads the facts for one scope generation and the retry
 // classification for that read; per-domain fact-kind filtering stays with the
 // family that calls it. The factwrite subpackage owns the batched fact-write
-// row shapes, statements, chunking, and its Execer port. This package
+// row shapes, statements, chunking, and its Execer port. The schemadecode
+// subpackage owns the per-fact-kind decode seams themselves, which import the
+// per-domain factschema packages and so cannot live in factdecode. This package
 // re-exports the contract surface and retains registry composition, runtime
 // execution, queue behavior, adapters, and telemetry. Most root call sites
 // reach a helper subpackage through an unexported forwarder of the same

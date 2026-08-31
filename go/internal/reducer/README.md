@@ -462,8 +462,12 @@ A handler, writer, lookup or decision is the owning family's product and stays
 with the family even when several families read it.
 
 Decode-failure classification and per-fact quarantine belong in `factdecode`.
-The per-fact-kind `decode*` wrappers do not — each one decodes a specific fact
-kind and belongs to the family that owns that kind.
+The per-fact-kind `decode*` seams belong in `schemadecode`: they import the
+per-domain `factschema` packages, which `factdecode`'s import budget excludes.
+An earlier rule sent each to "the family that owns that kind", but measured, most
+have no single owner — the ci.run seams are called from both ci_cd_run
+correlation and container-image identity, the codegraph seams from four families.
+A seam is named for the fact kind it decodes, not for an owner.
 
 Reading the facts for one scope generation, and classifying whether a failed
 read should retry, belong in `factload`. Per-domain fact-kind filtering on top
@@ -486,6 +490,7 @@ logic stays with the family even when it calls into `factwrite` to publish.
 - `go/internal/reducer/factdecode/README.md`
 - `go/internal/reducer/factload/README.md`
 - `go/internal/reducer/factwrite/README.md`
+- `go/internal/reducer/schemadecode/README.md`
 - `go/internal/reducer/dsl/README.md`
 - `go/internal/reducer/tags/README.md`
 - `go/internal/reducer/tfstate/README.md`

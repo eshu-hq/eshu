@@ -1,15 +1,16 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package reducer
+package schemadecode
 
 import (
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/reducer/factdecode"
 	"github.com/eshu-hq/eshu/sdk/go/factschema"
 	securityalertv1 "github.com/eshu-hq/eshu/sdk/go/factschema/securityalert/v1"
 )
 
-// decodeSecurityAlertRepositoryAlert decodes one security_alert.repository_alert
+// DecodeSecurityAlertRepositoryAlert decodes one security_alert.repository_alert
 // envelope into the typed securityalertv1.RepositoryAlert struct through the
 // contracts seam, returning a self-classifying *factDecodeError when the
 // payload is missing its required repository_id field or is otherwise
@@ -23,10 +24,10 @@ import (
 // routed through partitionDecodeFailures so it dead-letters as a per-fact
 // input_invalid quarantine rather than a silent blank-repository reconciliation
 // row or an empty-identity impact finding — on both consumers.
-func decodeSecurityAlertRepositoryAlert(env facts.Envelope) (securityalertv1.RepositoryAlert, error) {
-	alert, err := factschema.DecodeSecurityAlertRepositoryAlert(factschemaEnvelope(env))
+func DecodeSecurityAlertRepositoryAlert(env facts.Envelope) (securityalertv1.RepositoryAlert, error) {
+	alert, err := factschema.DecodeSecurityAlertRepositoryAlert(FactschemaEnvelope(env))
 	if err != nil {
-		return securityalertv1.RepositoryAlert{}, newFactDecodeError(factschema.FactKindSecurityAlertRepositoryAlert, err)
+		return securityalertv1.RepositoryAlert{}, factdecode.NewFactDecodeError(factschema.FactKindSecurityAlertRepositoryAlert, err)
 	}
 	return alert, nil
 }

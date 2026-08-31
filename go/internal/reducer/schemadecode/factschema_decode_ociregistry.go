@@ -1,10 +1,11 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package reducer
+package schemadecode
 
 import (
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/reducer/factdecode"
 	"github.com/eshu-hq/eshu/sdk/go/factschema"
 	ociregistryv1 "github.com/eshu-hq/eshu/sdk/go/factschema/ociregistry/v1"
 )
@@ -28,48 +29,48 @@ import (
 // skipping it would convert unknown collector completeness into authoritative
 // absence.
 
-// decodeOCIImageManifestForIndex decodes an oci_registry.image_manifest or
+// DecodeOCIImageManifestForIndex decodes an oci_registry.image_manifest or
 // oci_registry.image_index envelope's typed fields for the container-image
 // registry index. It returns ok=false on a decode error (the projector already
 // dead-lettered the malformed fact). Digest-identity emptiness is enforced by
 // the caller (ociDigestObservation), not here.
-func decodeOCIImageManifestForIndex(env facts.Envelope) (ociregistryv1.ImageManifest, bool) {
-	manifest, err := factschema.DecodeOCIImageManifest(factschemaEnvelope(env))
+func DecodeOCIImageManifestForIndex(env facts.Envelope) (ociregistryv1.ImageManifest, bool) {
+	manifest, err := factschema.DecodeOCIImageManifest(FactschemaEnvelope(env))
 	if err != nil {
 		return ociregistryv1.ImageManifest{}, false
 	}
 	return manifest, true
 }
 
-// decodeOCIImageIndexForIndex decodes an oci_registry.image_index envelope's
+// DecodeOCIImageIndexForIndex decodes an oci_registry.image_index envelope's
 // typed fields for the container-image registry index. It returns ok=false on a
 // decode error (the projector already dead-lettered the malformed fact).
-func decodeOCIImageIndexForIndex(env facts.Envelope) (ociregistryv1.ImageIndex, bool) {
-	index, err := factschema.DecodeOCIImageIndex(factschemaEnvelope(env))
+func DecodeOCIImageIndexForIndex(env facts.Envelope) (ociregistryv1.ImageIndex, bool) {
+	index, err := factschema.DecodeOCIImageIndex(FactschemaEnvelope(env))
 	if err != nil {
 		return ociregistryv1.ImageIndex{}, false
 	}
 	return index, true
 }
 
-// decodeOCIImageTagObservationForIndex decodes an
+// DecodeOCIImageTagObservationForIndex decodes an
 // oci_registry.image_tag_observation envelope's typed fields for the
 // container-image registry index. It returns ok=false on a decode error (the
 // projector already dead-lettered the malformed fact).
-func decodeOCIImageTagObservationForIndex(env facts.Envelope) (ociregistryv1.TagObservation, bool) {
-	observation, err := factschema.DecodeOCIImageTagObservation(factschemaEnvelope(env))
+func DecodeOCIImageTagObservationForIndex(env facts.Envelope) (ociregistryv1.TagObservation, bool) {
+	observation, err := factschema.DecodeOCIImageTagObservation(FactschemaEnvelope(env))
 	if err != nil {
 		return ociregistryv1.TagObservation{}, false
 	}
 	return observation, true
 }
 
-// decodeOCIRegistryWarning is the fail-closed typed decode seam for active OCI
+// DecodeOCIRegistryWarning is the fail-closed typed decode seam for active OCI
 // warnings consumed by the container-image-identity retirement planner.
-func decodeOCIRegistryWarning(env facts.Envelope) (ociregistryv1.Warning, error) {
-	warning, err := factschema.DecodeOCIRegistryWarning(factschemaEnvelope(env))
+func DecodeOCIRegistryWarning(env facts.Envelope) (ociregistryv1.Warning, error) {
+	warning, err := factschema.DecodeOCIRegistryWarning(FactschemaEnvelope(env))
 	if err != nil {
-		return ociregistryv1.Warning{}, newFactDecodeError(factschema.FactKindOCIRegistryWarning, err)
+		return ociregistryv1.Warning{}, factdecode.NewFactDecodeError(factschema.FactKindOCIRegistryWarning, err)
 	}
 	return warning, nil
 }

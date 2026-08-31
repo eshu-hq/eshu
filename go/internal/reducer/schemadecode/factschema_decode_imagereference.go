@@ -1,10 +1,11 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package reducer
+package schemadecode
 
 import (
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/reducer/factdecode"
 	"github.com/eshu-hq/eshu/sdk/go/factschema"
 	awsv1 "github.com/eshu-hq/eshu/sdk/go/factschema/aws/v1"
 	azurev1 "github.com/eshu-hq/eshu/sdk/go/factschema/azure/v1"
@@ -30,7 +31,7 @@ import (
 // (go/internal/payloadusage), so a per-family file is discovered and gated
 // the same as the main file.
 
-// decodeAWSImageReference decodes one aws_image_reference envelope into the
+// DecodeAWSImageReference decodes one aws_image_reference envelope into the
 // typed awsv1.ImageReference struct through the contracts seam, returning a
 // self-classifying *factDecodeError when the payload is missing a required
 // field (account_id, region, repository_name, image_digest, manifest_digest)
@@ -40,39 +41,39 @@ import (
 // required field is routed through partitionDecodeFailures so it dead-letters
 // as a per-fact input_invalid quarantine rather than building a registry
 // reference string from an empty account or region segment.
-func decodeAWSImageReference(env facts.Envelope) (awsv1.ImageReference, error) {
-	reference, err := factschema.DecodeAWSImageReference(factschemaEnvelope(env))
+func DecodeAWSImageReference(env facts.Envelope) (awsv1.ImageReference, error) {
+	reference, err := factschema.DecodeAWSImageReference(FactschemaEnvelope(env))
 	if err != nil {
-		return awsv1.ImageReference{}, newFactDecodeError(factschema.FactKindAWSImageReference, err)
+		return awsv1.ImageReference{}, factdecode.NewFactDecodeError(factschema.FactKindAWSImageReference, err)
 	}
 	return reference, nil
 }
 
-// decodeAzureImageReference decodes one azure_image_reference envelope into
+// DecodeAzureImageReference decodes one azure_image_reference envelope into
 // the typed azurev1.ImageReference struct through the contracts seam,
 // returning a self-classifying *factDecodeError when the payload is missing a
 // required field (owning_arm_resource_id, owning_normalized_id,
 // owning_resource_type, tag_digest_confidence) or is otherwise malformed. It
 // is the single decode site for the azure_image_reference kind on the
 // reducer side.
-func decodeAzureImageReference(env facts.Envelope) (azurev1.ImageReference, error) {
-	reference, err := factschema.DecodeAzureImageReference(factschemaEnvelope(env))
+func DecodeAzureImageReference(env facts.Envelope) (azurev1.ImageReference, error) {
+	reference, err := factschema.DecodeAzureImageReference(FactschemaEnvelope(env))
 	if err != nil {
-		return azurev1.ImageReference{}, newFactDecodeError(factschema.FactKindAzureImageReference, err)
+		return azurev1.ImageReference{}, factdecode.NewFactDecodeError(factschema.FactKindAzureImageReference, err)
 	}
 	return reference, nil
 }
 
-// decodeGCPImageReference decodes one gcp_image_reference envelope into the
+// DecodeGCPImageReference decodes one gcp_image_reference envelope into the
 // typed gcpv1.ImageReference struct through the contracts seam, returning a
 // self-classifying *factDecodeError when the payload is missing a required
 // field (owning_full_resource_name, tag_digest_confidence) or is otherwise
 // malformed. It is the single decode site for the gcp_image_reference kind on
 // the reducer side.
-func decodeGCPImageReference(env facts.Envelope) (gcpv1.ImageReference, error) {
-	reference, err := factschema.DecodeGCPImageReference(factschemaEnvelope(env))
+func DecodeGCPImageReference(env facts.Envelope) (gcpv1.ImageReference, error) {
+	reference, err := factschema.DecodeGCPImageReference(FactschemaEnvelope(env))
 	if err != nil {
-		return gcpv1.ImageReference{}, newFactDecodeError(factschema.FactKindGCPImageReference, err)
+		return gcpv1.ImageReference{}, factdecode.NewFactDecodeError(factschema.FactKindGCPImageReference, err)
 	}
 	return reference, nil
 }
