@@ -125,14 +125,16 @@
   depend on `internal/projector/intent`, never on the root projector package.
   The intent package owns the immutable fact-lookup implementation. Root
   remains the sole one-per-generation constructor and lifetime owner; Azure,
-  EC2, GCP, Kubernetes, RDS, S3, and security family builders consume the
+  EC2, GCP, Kubernetes, RDS, S3, security, and workload-cloud-relationship
+  family builders consume the
   lookup. Root owns ordered family assembly and the public `ReducerIntent`
   alias for callers. A family that needs a typed-payload decode (EC2's
   `USES_PROFILE` builder was the first; S3's `LOGS_TO` builder is the second)
   keeps its own local decode call against `sdk/go/factschema` rather than
   importing root's classified decode wrapper, matching how `internal/reducer`
-  already keeps its own independent decode copies per package. RDS's builder
-  triggers on fact-kind presence alone and needs no decode wrapper.
+  already keeps its own independent decode copies per package. The RDS and
+  workload-cloud-relationship builders trigger on fact presence alone and carry
+  no decode seam.
 - **CanonicalWriter interface boundary** — no caller in this package calls a Neo4j
   or NornicDB driver directly. All canonical writes go through `CanonicalWriter`.
   Backend-specific logic belongs in `internal/storage/cypher` adapters.
