@@ -1,12 +1,15 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package parser
+package ruby_test
 
 import (
 	"path/filepath"
 	"reflect"
 	"testing"
+
+	"github.com/eshu-hq/eshu/go/internal/parser"
+	"github.com/eshu-hq/eshu/go/internal/parser/parsertest"
 )
 
 func TestDefaultEngineParsePathRubyEmitsFunctionArgsAndContext(t *testing.T) {
@@ -27,12 +30,12 @@ end
 `,
 	)
 
-	engine, err := DefaultEngine()
+	engine, err := parser.DefaultEngine()
 	if err != nil {
-		t.Fatalf("DefaultEngine() error = %v, want nil", err)
+		t.Fatalf("parser.DefaultEngine() error = %v, want nil", err)
 	}
 
-	got, err := engine.ParsePath(repoRoot, filePath, false, Options{})
+	got, err := engine.ParsePath(repoRoot, filePath, false, parser.Options{})
 	if err != nil {
 		t.Fatalf("ParsePath() error = %v, want nil", err)
 	}
@@ -85,24 +88,24 @@ end
 `,
 	)
 
-	engine, err := DefaultEngine()
+	engine, err := parser.DefaultEngine()
 	if err != nil {
-		t.Fatalf("DefaultEngine() error = %v, want nil", err)
+		t.Fatalf("parser.DefaultEngine() error = %v, want nil", err)
 	}
 
-	got, err := engine.ParsePath(repoRoot, filePath, false, Options{})
+	got, err := engine.ParsePath(repoRoot, filePath, false, parser.Options{})
 	if err != nil {
 		t.Fatalf("ParsePath() error = %v, want nil", err)
 	}
 
-	assertNamedBucketContains(t, got, "imports", "basic")
-	assertBucketContainsFieldValue(t, got, "function_calls", "name", "require_relative")
-	assertBucketContainsFieldValue(t, got, "function_calls", "name", "attr_accessor")
-	assertBucketContainsFieldValue(t, got, "function_calls", "name", "define_method")
-	assertBucketContainsFieldValue(t, got, "function_calls", "name", "call")
-	assertBucketContainsFieldValue(t, got, "function_calls", "name", "cache_method")
-	assertBucketContainsFieldValue(t, got, "function_calls", "full_name", "task.call")
-	assertBucketContainsFieldValue(t, got, "function_calls", "full_name", "original.bind")
+	parsertest.AssertNamedBucketContains(t, got, "imports", "basic")
+	parsertest.AssertBucketContainsFieldValue(t, got, "function_calls", "name", "require_relative")
+	parsertest.AssertBucketContainsFieldValue(t, got, "function_calls", "name", "attr_accessor")
+	parsertest.AssertBucketContainsFieldValue(t, got, "function_calls", "name", "define_method")
+	parsertest.AssertBucketContainsFieldValue(t, got, "function_calls", "name", "call")
+	parsertest.AssertBucketContainsFieldValue(t, got, "function_calls", "name", "cache_method")
+	parsertest.AssertBucketContainsFieldValue(t, got, "function_calls", "full_name", "task.call")
+	parsertest.AssertBucketContainsFieldValue(t, got, "function_calls", "full_name", "original.bind")
 }
 
 func TestDefaultEngineParsePathRubyCapturesLocalAndInstanceAssignments(t *testing.T) {
@@ -123,24 +126,24 @@ end
 `,
 	)
 
-	engine, err := DefaultEngine()
+	engine, err := parser.DefaultEngine()
 	if err != nil {
-		t.Fatalf("DefaultEngine() error = %v, want nil", err)
+		t.Fatalf("parser.DefaultEngine() error = %v, want nil", err)
 	}
 
-	got, err := engine.ParsePath(repoRoot, filePath, false, Options{})
+	got, err := engine.ParsePath(repoRoot, filePath, false, parser.Options{})
 	if err != nil {
 		t.Fatalf("ParsePath() error = %v, want nil", err)
 	}
 
-	assertNamedBucketContains(t, got, "variables", "retries")
-	assertNamedBucketContains(t, got, "variables", "@last_task")
-	assertNamedBucketContains(t, got, "variables", "@cache")
-	retries := assertBucketItemByName(t, got, "variables", "retries")
+	parsertest.AssertNamedBucketContains(t, got, "variables", "retries")
+	parsertest.AssertNamedBucketContains(t, got, "variables", "@last_task")
+	parsertest.AssertNamedBucketContains(t, got, "variables", "@cache")
+	retries := parsertest.AssertBucketItemByName(t, got, "variables", "retries")
 	assertStringFieldValue(t, retries, "type", "1")
 	assertStringFieldValue(t, retries, "context", "perform")
 	assertStringFieldValue(t, retries, "context_type", "def")
-	lastTask := assertBucketItemByName(t, got, "variables", "@last_task")
+	lastTask := parsertest.AssertBucketItemByName(t, got, "variables", "@last_task")
 	assertStringFieldValue(t, lastTask, "type", "task")
 	assertStringFieldValue(t, lastTask, "context", "perform")
 	assertStringFieldValue(t, lastTask, "context_type", "def")
@@ -159,20 +162,20 @@ load 'support/bootstrap'
 `,
 	)
 
-	engine, err := DefaultEngine()
+	engine, err := parser.DefaultEngine()
 	if err != nil {
-		t.Fatalf("DefaultEngine() error = %v, want nil", err)
+		t.Fatalf("parser.DefaultEngine() error = %v, want nil", err)
 	}
 
-	got, err := engine.ParsePath(repoRoot, filePath, false, Options{})
+	got, err := engine.ParsePath(repoRoot, filePath, false, parser.Options{})
 	if err != nil {
 		t.Fatalf("ParsePath() error = %v, want nil", err)
 	}
 
-	assertNamedBucketContains(t, got, "imports", "basic")
-	assertNamedBucketContains(t, got, "imports", "support/bootstrap")
-	assertBucketContainsFieldValue(t, got, "function_calls", "name", "require_relative")
-	assertBucketContainsFieldValue(t, got, "function_calls", "name", "load")
+	parsertest.AssertNamedBucketContains(t, got, "imports", "basic")
+	parsertest.AssertNamedBucketContains(t, got, "imports", "support/bootstrap")
+	parsertest.AssertBucketContainsFieldValue(t, got, "function_calls", "name", "require_relative")
+	parsertest.AssertBucketContainsFieldValue(t, got, "function_calls", "name", "load")
 }
 
 func TestDefaultEngineParsePathRubyCapturesChainedInvocationNames(t *testing.T) {
@@ -199,19 +202,19 @@ end
 `,
 	)
 
-	engine, err := DefaultEngine()
+	engine, err := parser.DefaultEngine()
 	if err != nil {
-		t.Fatalf("DefaultEngine() error = %v, want nil", err)
+		t.Fatalf("parser.DefaultEngine() error = %v, want nil", err)
 	}
 
-	got, err := engine.ParsePath(repoRoot, filePath, false, Options{})
+	got, err := engine.ParsePath(repoRoot, filePath, false, parser.Options{})
 	if err != nil {
 		t.Fatalf("ParsePath() error = %v, want nil", err)
 	}
 
-	assertBucketContainsFieldValue(t, got, "function_calls", "full_name", "original.bind.call")
-	assertBucketContainsFieldValue(t, got, "function_calls", "full_name", "original.bind")
-	assertBucketContainsFieldValue(t, got, "function_calls", "name", "call")
+	parsertest.AssertBucketContainsFieldValue(t, got, "function_calls", "full_name", "original.bind.call")
+	parsertest.AssertBucketContainsFieldValue(t, got, "function_calls", "full_name", "original.bind")
+	parsertest.AssertBucketContainsFieldValue(t, got, "function_calls", "name", "call")
 }
 
 func TestDefaultEngineParsePathRubyDistinguishesSingletonAndDynamicDispatchMethods(t *testing.T) {
@@ -252,12 +255,12 @@ end
 `,
 	)
 
-	engine, err := DefaultEngine()
+	engine, err := parser.DefaultEngine()
 	if err != nil {
-		t.Fatalf("DefaultEngine() error = %v, want nil", err)
+		t.Fatalf("parser.DefaultEngine() error = %v, want nil", err)
 	}
 
-	got, err := engine.ParsePath(repoRoot, filePath, false, Options{})
+	got, err := engine.ParsePath(repoRoot, filePath, false, parser.Options{})
 	if err != nil {
 		t.Fatalf("ParsePath() error = %v, want nil", err)
 	}
@@ -267,5 +270,5 @@ end
 	assertStringFieldValue(t, assertFunctionByName(t, got, "from_block"), "type", "singleton")
 	assertStringFieldValue(t, assertFunctionByName(t, got, "method_missing"), "type", "dynamic_dispatch")
 	assertStringFieldValue(t, assertFunctionByName(t, got, "respond_to_missing?"), "type", "dynamic_dispatch")
-	assertBucketContainsFieldValue(t, got, "function_calls", "name", "send")
+	parsertest.AssertBucketContainsFieldValue(t, got, "function_calls", "name", "send")
 }

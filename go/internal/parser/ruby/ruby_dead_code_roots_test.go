@@ -1,11 +1,14 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package parser
+package ruby_test
 
 import (
 	"path/filepath"
 	"testing"
+
+	"github.com/eshu-hq/eshu/go/internal/parser"
+	"github.com/eshu-hq/eshu/go/internal/parser/parsertest"
 )
 
 func TestDefaultEngineParsePathRubyEmitsDeadCodeRootKinds(t *testing.T) {
@@ -62,22 +65,22 @@ end
 `,
 	)
 
-	engine, err := DefaultEngine()
+	engine, err := parser.DefaultEngine()
 	if err != nil {
-		t.Fatalf("DefaultEngine() error = %v, want nil", err)
+		t.Fatalf("parser.DefaultEngine() error = %v, want nil", err)
 	}
 
-	got, err := engine.ParsePath(repoRoot, filePath, false, Options{})
+	got, err := engine.ParsePath(repoRoot, filePath, false, parser.Options{})
 	if err != nil {
 		t.Fatalf("ParsePath(%s) error = %v, want nil", filePath, err)
 	}
 
-	assertParserStringSliceContains(t, assertFunctionByName(t, got, "index"), "dead_code_root_kinds", "ruby.rails_controller_action")
-	assertParserStringSliceContains(t, assertFunctionByName(t, got, "authenticate_user!"), "dead_code_root_kinds", "ruby.rails_callback_method")
-	assertParserStringSliceContains(t, assertFunctionByName(t, got, "method_missing"), "dead_code_root_kinds", "ruby.dynamic_dispatch_hook")
-	assertParserStringSliceContains(t, assertFunctionByName(t, got, "respond_to_missing?"), "dead_code_root_kinds", "ruby.dynamic_dispatch_hook")
-	assertParserStringSliceContains(t, assertFunctionByName(t, got, "main"), "dead_code_root_kinds", "ruby.script_entrypoint")
-	assertParserStringSliceContains(t, assertFunctionByName(t, got, "direct_helper"), "dead_code_root_kinds", "ruby.method_reference_target")
+	parsertest.AssertStringSliceContains(t, assertFunctionByName(t, got, "index"), "dead_code_root_kinds", "ruby.rails_controller_action")
+	parsertest.AssertStringSliceContains(t, assertFunctionByName(t, got, "authenticate_user!"), "dead_code_root_kinds", "ruby.rails_callback_method")
+	parsertest.AssertStringSliceContains(t, assertFunctionByName(t, got, "method_missing"), "dead_code_root_kinds", "ruby.dynamic_dispatch_hook")
+	parsertest.AssertStringSliceContains(t, assertFunctionByName(t, got, "respond_to_missing?"), "dead_code_root_kinds", "ruby.dynamic_dispatch_hook")
+	parsertest.AssertStringSliceContains(t, assertFunctionByName(t, got, "main"), "dead_code_root_kinds", "ruby.script_entrypoint")
+	parsertest.AssertStringSliceContains(t, assertFunctionByName(t, got, "direct_helper"), "dead_code_root_kinds", "ruby.method_reference_target")
 	if helper := assertFunctionByName(t, got, "internal_helper"); helper["dead_code_root_kinds"] != nil {
 		t.Fatalf("internal_helper dead_code_root_kinds = %#v, want nil", helper["dead_code_root_kinds"])
 	}
@@ -89,21 +92,21 @@ func TestDefaultEngineParsePathRubyDeadCodeFixtureExpectedRoots(t *testing.T) {
 	repoRoot := repoFixturePath("deadcode", "ruby")
 	sourcePath := repoFixturePath("deadcode", "ruby", "app.rb")
 
-	engine, err := DefaultEngine()
+	engine, err := parser.DefaultEngine()
 	if err != nil {
-		t.Fatalf("DefaultEngine() error = %v, want nil", err)
+		t.Fatalf("parser.DefaultEngine() error = %v, want nil", err)
 	}
 
-	got, err := engine.ParsePath(repoRoot, sourcePath, false, Options{})
+	got, err := engine.ParsePath(repoRoot, sourcePath, false, parser.Options{})
 	if err != nil {
 		t.Fatalf("ParsePath(%s) error = %v, want nil", sourcePath, err)
 	}
 
-	assertParserStringSliceContains(t, assertFunctionByName(t, got, "index"), "dead_code_root_kinds", "ruby.rails_controller_action")
-	assertParserStringSliceContains(t, assertFunctionByName(t, got, "authenticate_ruby_user!"), "dead_code_root_kinds", "ruby.rails_callback_method")
-	assertParserStringSliceContains(t, assertFunctionByName(t, got, "method_missing"), "dead_code_root_kinds", "ruby.dynamic_dispatch_hook")
-	assertParserStringSliceContains(t, assertFunctionByName(t, got, "main"), "dead_code_root_kinds", "ruby.script_entrypoint")
-	assertParserStringSliceContains(t, assertFunctionByName(t, got, "direct_ruby_helper"), "dead_code_root_kinds", "ruby.method_reference_target")
+	parsertest.AssertStringSliceContains(t, assertFunctionByName(t, got, "index"), "dead_code_root_kinds", "ruby.rails_controller_action")
+	parsertest.AssertStringSliceContains(t, assertFunctionByName(t, got, "authenticate_ruby_user!"), "dead_code_root_kinds", "ruby.rails_callback_method")
+	parsertest.AssertStringSliceContains(t, assertFunctionByName(t, got, "method_missing"), "dead_code_root_kinds", "ruby.dynamic_dispatch_hook")
+	parsertest.AssertStringSliceContains(t, assertFunctionByName(t, got, "main"), "dead_code_root_kinds", "ruby.script_entrypoint")
+	parsertest.AssertStringSliceContains(t, assertFunctionByName(t, got, "direct_ruby_helper"), "dead_code_root_kinds", "ruby.method_reference_target")
 	if helper := assertFunctionByName(t, got, "unused_ruby_helper"); helper["dead_code_root_kinds"] != nil {
 		t.Fatalf("unused_ruby_helper dead_code_root_kinds = %#v, want nil", helper["dead_code_root_kinds"])
 	}
@@ -148,12 +151,12 @@ end
 `,
 	)
 
-	engine, err := DefaultEngine()
+	engine, err := parser.DefaultEngine()
 	if err != nil {
-		t.Fatalf("DefaultEngine() error = %v, want nil", err)
+		t.Fatalf("parser.DefaultEngine() error = %v, want nil", err)
 	}
 
-	got, err := engine.ParsePath(repoRoot, filePath, false, Options{})
+	got, err := engine.ParsePath(repoRoot, filePath, false, parser.Options{})
 	if err != nil {
 		t.Fatalf("ParsePath(%s) error = %v, want nil", filePath, err)
 	}
@@ -163,7 +166,7 @@ end
 		t.Fatalf("create end_line = %#v, want %#v", got, want)
 	}
 	for _, callName := range []string{"build_scopes", "log_api_key", "log_api_key_restore", "build_params"} {
-		call := assertBucketItemByName(t, got, "function_calls", callName)
+		call := parsertest.AssertBucketItemByName(t, got, "function_calls", callName)
 		if got := call["class_context"]; got != "ApiController" {
 			t.Fatalf("function_calls[%s][class_context] = %#v, want ApiController; call=%#v", callName, got, call)
 		}
@@ -192,18 +195,18 @@ end
 `,
 	)
 
-	engine, err := DefaultEngine()
+	engine, err := parser.DefaultEngine()
 	if err != nil {
-		t.Fatalf("DefaultEngine() error = %v, want nil", err)
+		t.Fatalf("parser.DefaultEngine() error = %v, want nil", err)
 	}
 
-	got, err := engine.ParsePath(repoRoot, filePath, false, Options{})
+	got, err := engine.ParsePath(repoRoot, filePath, false, parser.Options{})
 	if err != nil {
 		t.Fatalf("ParsePath(%s) error = %v, want nil", filePath, err)
 	}
 
-	assertParserStringSliceContains(t, assertFunctionByName(t, got, "authenticate_user!"), "dead_code_root_kinds", "ruby.rails_callback_method")
-	assertParserStringSliceContains(t, assertFunctionByName(t, got, "set_account"), "dead_code_root_kinds", "ruby.rails_callback_method")
+	parsertest.AssertStringSliceContains(t, assertFunctionByName(t, got, "authenticate_user!"), "dead_code_root_kinds", "ruby.rails_callback_method")
+	parsertest.AssertStringSliceContains(t, assertFunctionByName(t, got, "set_account"), "dead_code_root_kinds", "ruby.rails_callback_method")
 }
 
 // TestDefaultEngineParsePathRubyGatesControllerActionOnSuperclassChain
@@ -269,35 +272,35 @@ end
 `,
 	)
 
-	engine, err := DefaultEngine()
+	engine, err := parser.DefaultEngine()
 	if err != nil {
-		t.Fatalf("DefaultEngine() error = %v, want nil", err)
+		t.Fatalf("parser.DefaultEngine() error = %v, want nil", err)
 	}
 
-	got, err := engine.ParsePath(repoRoot, filePath, false, Options{})
+	got, err := engine.ParsePath(repoRoot, filePath, false, parser.Options{})
 	if err != nil {
 		t.Fatalf("ParsePath(%s) error = %v, want nil", filePath, err)
 	}
 
 	// Reject: declared superclass is an unresolved SIMPLE non-controller name.
-	assertParserStringSliceNotContains(t, assertFunctionByName(t, got, "run_report"), "dead_code_root_kinds", "ruby.rails_controller_action")
+	assertStringSliceNotContains(t, assertFunctionByName(t, got, "run_report"), "dead_code_root_kinds", "ruby.rails_controller_action")
 
 	// Keep (#5376 F1): an unresolved QUALIFIED base (< Sinatra::Base) is
 	// keep-biased — it could be a controller base defined elsewhere, so it must
 	// never be treated as a positive non-controller downgrade.
-	assertParserStringSliceContains(t, assertFunctionByName(t, got, "route_handler"), "dead_code_root_kinds", "ruby.rails_controller_action")
+	parsertest.AssertStringSliceContains(t, assertFunctionByName(t, got, "route_handler"), "dead_code_root_kinds", "ruby.rails_controller_action")
 
 	// Keep: no declared superclass at all.
-	assertParserStringSliceContains(t, assertFunctionByName(t, got, "show_widget"), "dead_code_root_kinds", "ruby.rails_controller_action")
+	parsertest.AssertStringSliceContains(t, assertFunctionByName(t, got, "show_widget"), "dead_code_root_kinds", "ruby.rails_controller_action")
 
 	// Accept: exact accepted base.
-	assertParserStringSliceContains(t, assertFunctionByName(t, got, "list_orders"), "dead_code_root_kinds", "ruby.rails_controller_action")
+	parsertest.AssertStringSliceContains(t, assertFunctionByName(t, got, "list_orders"), "dead_code_root_kinds", "ruby.rails_controller_action")
 
 	// Accept: transitive chain through a same-file intermediate class.
-	assertParserStringSliceContains(t, assertFunctionByName(t, got, "list_users"), "dead_code_root_kinds", "ruby.rails_controller_action")
+	parsertest.AssertStringSliceContains(t, assertFunctionByName(t, got, "list_users"), "dead_code_root_kinds", "ruby.rails_controller_action")
 
 	// Accept: unresolved superclass name ending in "Controller" (chain leaves the file).
-	assertParserStringSliceContains(t, assertFunctionByName(t, got, "list_api"), "dead_code_root_kinds", "ruby.rails_controller_action")
+	parsertest.AssertStringSliceContains(t, assertFunctionByName(t, got, "list_api"), "dead_code_root_kinds", "ruby.rails_controller_action")
 }
 
 // TestDefaultEngineParsePathRubySameFileShortNameCollisionResolvesToLastRegistered
@@ -336,12 +339,12 @@ end
 `,
 	)
 
-	engine, err := DefaultEngine()
+	engine, err := parser.DefaultEngine()
 	if err != nil {
-		t.Fatalf("DefaultEngine() error = %v, want nil", err)
+		t.Fatalf("parser.DefaultEngine() error = %v, want nil", err)
 	}
 
-	got, err := engine.ParsePath(repoRoot, filePath, false, Options{})
+	got, err := engine.ParsePath(repoRoot, filePath, false, parser.Options{})
 	if err != nil {
 		t.Fatalf("ParsePath(%s) error = %v, want nil", filePath, err)
 	}
@@ -349,7 +352,7 @@ end
 	// The "BaseController" registry key was last written by Api::BaseController
 	// (< Thor), so UsersController's chain resolves to Thor and the root is
 	// dropped. Documented collision limitation; #5376 resolves it properly.
-	assertParserStringSliceNotContains(t, assertFunctionByName(t, got, "list_users"), "dead_code_root_kinds", "ruby.rails_controller_action")
+	assertStringSliceNotContains(t, assertFunctionByName(t, got, "list_users"), "dead_code_root_kinds", "ruby.rails_controller_action")
 }
 
 func TestDefaultEngineParsePathRubyRejectsNonEqualityScriptGuard(t *testing.T) {
@@ -378,16 +381,16 @@ end
 `,
 	)
 
-	engine, err := DefaultEngine()
+	engine, err := parser.DefaultEngine()
 	if err != nil {
-		t.Fatalf("DefaultEngine() error = %v, want nil", err)
+		t.Fatalf("parser.DefaultEngine() error = %v, want nil", err)
 	}
 
-	got, err := engine.ParsePath(repoRoot, filePath, false, Options{})
+	got, err := engine.ParsePath(repoRoot, filePath, false, parser.Options{})
 	if err != nil {
 		t.Fatalf("ParsePath(%s) error = %v, want nil", filePath, err)
 	}
 
-	assertParserStringSliceContains(t, assertFunctionByName(t, got, "positive_entrypoint"), "dead_code_root_kinds", "ruby.script_entrypoint")
-	assertParserStringSliceNotContains(t, assertFunctionByName(t, got, "negative_only"), "dead_code_root_kinds", "ruby.script_entrypoint")
+	parsertest.AssertStringSliceContains(t, assertFunctionByName(t, got, "positive_entrypoint"), "dead_code_root_kinds", "ruby.script_entrypoint")
+	assertStringSliceNotContains(t, assertFunctionByName(t, got, "negative_only"), "dead_code_root_kinds", "ruby.script_entrypoint")
 }
