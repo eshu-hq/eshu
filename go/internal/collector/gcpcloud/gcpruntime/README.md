@@ -60,8 +60,9 @@ Scopes call it only when `DirectTagsEnabled` or `EffectiveTagsEnabled` is true;
 tag values are fingerprinted before facts are emitted, and effective tags carry
 bounded direct/inherited state.
 
-No test performs a live Google Cloud call; live-client tests use local HTTP
-servers.
+No test runs a live Google Cloud call by default or in CI; live-client tests use
+local HTTP servers. The opt-in, environment-gated #1997/#2644 security-only
+smoke is the documented exception.
 
 ## Configuration
 

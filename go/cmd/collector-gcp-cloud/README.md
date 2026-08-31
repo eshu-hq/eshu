@@ -80,9 +80,9 @@ come from the workflow work item, not static config.
 
 ## Deferred
 
-The #1997/#2644 security-only sanitized smoke is complete, but deployed-shape
-promotion proof remains gated. Shared GCP reducer admission and API/MCP readback
-are implemented outside this command. See
+Shared GCP reducer admission and API/MCP readback are implemented outside this
+command. See the canonical contract for the separate gated reducer/readback and
+promotion-proof slices:
 `docs/public/reference/gcp-cloud-collector-contract.md`.
 
 ## Verification and evidence
