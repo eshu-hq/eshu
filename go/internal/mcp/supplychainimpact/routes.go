@@ -135,7 +135,7 @@ func aggregateInventoryRequest(args routecontract.Arguments) routecontract.Reque
 	return routecontract.Request{Method: "GET", Path: "/api/v0/supply-chain/impact/inventory", Query: query}
 }
 
-// aggregateFilterQuery builds the fourteen-key filter set the count and
+// aggregateFilterQuery builds the eighteen-key filter set the count and
 // inventory routes share. Both routes require nothing: a filter dropped here
 // returns 200 over a wider scope and drops that key from the scope block the
 // response echoes back, rather than failing loudly the way the listing's

@@ -19,7 +19,7 @@
 // advisory_id, package_id, repository_id, subject_digest, image_ref,
 // impact_status, ecosystem, workload_id, service_id, environment, severity,
 // priority_bucket, or a positive min_priority_score. The count and the
-// inventory share the same fourteen filters, carry no scope requirement at
+// inventory share the same eighteen filters, carry no scope requirement at
 // all, and answer whole-scope totals; the inventory adds a group_by falling
 // back to impact_status, a limit defaulting to 100, and an offset defaulting
 // to 0, while the count carries no paging key because its handler reads

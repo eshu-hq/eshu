@@ -19,7 +19,7 @@ var familyTools = []string{
 }
 
 // queryKeys pins the exact key set each of the four requests sends. The count
-// and the inventory share fourteen filters plus include_suppressed, but their
+// and the inventory share eighteen filters plus include_suppressed, but their
 // paths and their paging keys differ, and the listing and explanation carry
 // their own unrelated shapes, so each set is spelled out rather than derived
 // from a shared base.

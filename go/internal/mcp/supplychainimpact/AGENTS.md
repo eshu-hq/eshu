@@ -102,7 +102,7 @@
   because `routecontract` has no equivalent tri-state helper.
 - Do not widen `Route` to a prefix or regular-expression match. Family
   membership is an explicit list of names.
-- Do not fold the four query maps into one shared base for the fourteen
+- Do not fold the four query maps into one shared base for the eighteen
   filters the count and the inventory have in common with the listing. The
   sets differ by route and the difference is the contract.
 
