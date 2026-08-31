@@ -12,8 +12,15 @@ HTTP response helpers, the shared capability registry, the graph/content read
 ports, and the scoped-token repository-access authorization seam
 (`RepositoryAccessFilter` and the SHAPE-A inline-map grant primitives in
 `repository_authz.go` / `infra_scope_grant.go`). It does not own routes,
-handler orchestration, graph queries, or Postgres implementations. Those
+handler orchestration, whole graph queries, or Postgres implementations. Those
 remain in the root query package or a family package.
+
+The authorization seam emits Cypher *fragments* -- `WHERE` predicate text a
+caller splices into its own query -- and that is the one carve-out to the
+no-Cypher rule, recorded the same way in `AGENTS.md`. The bounds and the
+predicate that enforces them stay together on purpose: hand a caller the grant
+bounds without the predicate and it can forget to apply them. A complete query,
+with its own `MATCH`/`RETURN` and result shape, still does not belong here.
 
 ## Exported surface
 

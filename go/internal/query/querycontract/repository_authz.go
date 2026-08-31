@@ -30,12 +30,27 @@ func (f RepositoryAccessFilter) Scoped() bool {
 // Empty reports whether a scoped caller has no grants at all, so every
 // scoped read should fail closed to zero rows rather than fall through to an
 // unscoped query shape.
+//
+// The exported id slices are authoritative and Allowed is a derived lookup
+// cache. Consulting only the cache would report a filter built as
+// RepositoryAccessFilter{AllowedRepositoryIDs: ...} as ungranted, and silently
+// drop that caller's valid scoped reads.
 func (f RepositoryAccessFilter) Empty() bool {
-	return f.Scoped() && len(f.Allowed) == 0
+	if !f.Scoped() {
+		return false
+	}
+	return len(f.Allowed) == 0 &&
+		len(f.AllowedScopeIDs) == 0 &&
+		len(f.AllowedRepositoryIDs) == 0
 }
 
 // AllowsRepositoryID reports whether repoID is in the caller's combined
 // repository/scope grant set. Unscoped callers allow every id.
+//
+// Allowed is a derived lookup cache over the two exported id slices, which are
+// authoritative. A filter constructed from the slices alone carries real grants
+// and must be honoured; consulting only the cache would deny an authorized
+// repository.
 func (f RepositoryAccessFilter) AllowsRepositoryID(repoID string) bool {
 	if f.AllScopes {
 		return true
@@ -43,8 +58,11 @@ func (f RepositoryAccessFilter) AllowsRepositoryID(repoID string) bool {
 	if repoID == "" {
 		return false
 	}
-	_, ok := f.Allowed[repoID]
-	return ok
+	if _, ok := f.Allowed[repoID]; ok {
+		return true
+	}
+	return ContainsAuthString(f.AllowedRepositoryIDs, repoID) ||
+		ContainsAuthString(f.AllowedScopeIDs, repoID)
 }
 
 // AllowsCanonicalRepositoryID reports whether repoID is in the caller's

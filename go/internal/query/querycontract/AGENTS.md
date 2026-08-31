@@ -50,10 +50,31 @@ vet. Run `scripts/verify-package-docs.sh` whenever this package changes.
   itself.
 - Reordering capability initialization can change the canonical inventory.
 
+- A `RepositoryAccessFilter` value must be DERIVED from the request's
+  AuthContext, never hand-built to widen access. The exported fields exist so
+  root and family packages can construct one, which also means any importer can
+  write `RepositoryAccessFilter{AllScopes: true}` and hand it to a handler. The
+  compiler cannot stop that; a reviewer must. Treat a literal with `AllScopes:
+  true` outside a test as a finding.
+- The two id slices are authoritative and `Allowed` is a derived lookup cache.
+  Methods must not consult the cache alone: a filter built from the slices
+  carries real grants, and reading only the cache reports it as ungranted and
+  silently drops that caller's scoped reads.
+
 ## Anti-patterns
 
-- Do not add handler orchestration, Cypher, SQL, or family-specific response
-  models here.
+- Do not add handler orchestration, whole graph queries, SQL, or
+  family-specific response models here.
+- Cypher FRAGMENTS are a narrow, deliberate carve-out, and only for the
+  authorization seam: `RepositoryAccessFilter`'s `GraphPredicate`,
+  `GraphCondition` and `GraphWhereClause*`, plus the inline-map grant
+  primitives in `infra_scope_grant.go`, emit predicate text that callers splice
+  into their own queries. They live here because the grant bounds they encode
+  are the contract; splitting the filter from the predicate it produces would
+  let a caller hold the bounds and forget to apply them.
+  A complete query -- anything with its own `MATCH`/`RETURN` and a result shape
+  -- still belongs in a query-owning package. If you are about to add one here,
+  you want a family package or a leaf like `queryselector` instead.
 - Do not expose graph or Postgres implementations through the neutral ports.
 - Do not replace root function wrappers with mutable function variables.
 
