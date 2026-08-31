@@ -14,6 +14,7 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/governanceaudit"
+	"github.com/eshu-hq/eshu/go/internal/query/queryauth"
 )
 
 // publicHTTPPaths lists routes that bypass authentication.
@@ -48,18 +49,20 @@ var publicHTTPPaths = map[string]bool{
 	"/api/v0/auth/setup/mfa":   true,
 }
 
-type authContextKey struct{}
+// AuthMode names the source of an authenticated request context. The type and
+// its constants live in queryauth so a handler-family subpackage can read the
+// auth context without importing this package. AuthMode has no methods, so this
+// alias costs callers nothing.
+type AuthMode = queryauth.AuthMode
 
-// AuthMode names the source of an authenticated request context.
-type AuthMode string
-
+// Compatibility constants preserve this package's public contract.
 const (
 	// AuthModeShared identifies the legacy shared bearer-token path.
-	AuthModeShared AuthMode = "shared"
+	AuthModeShared = queryauth.AuthModeShared
 	// AuthModeScoped identifies a token resolved through the scoped registry.
-	AuthModeScoped AuthMode = "scoped"
+	AuthModeScoped = queryauth.AuthModeScoped
 	// AuthModeBrowserSession identifies a server-managed dashboard session.
-	AuthModeBrowserSession AuthMode = "browser_session"
+	AuthModeBrowserSession = queryauth.AuthModeBrowserSession
 )
 
 const (
@@ -96,25 +99,11 @@ var ErrBrowserSessionCSRFInvalid = errors.New("browser session csrf token invali
 var ErrBrowserSessionRefreshRequired = errors.New("browser session refresh required")
 
 // AuthContext carries request-scoped authorization bounds for query handlers.
-type AuthContext struct {
-	Mode                         AuthMode
-	TenantID                     string
-	WorkspaceID                  string
-	SubjectClass                 string
-	SubjectIDHash                string
-	PolicyRevisionHash           string
-	RoleIDs                      []string
-	PermissionCatalogEnforced    bool
-	AllowedPermissionFeatures    []string
-	AllowedPermissionDataClasses []string
-	AllScopes                    bool
-	AllowedScopeIDs              []string
-	AllowedRepositoryIDs         []string
-	// ExternalProviderConfigID is the stored OIDC/SAML config ID for sessions
-	// that were established via an external identity provider. Empty for local
-	// password sessions.
-	ExternalProviderConfigID string
-}
+// It lives in queryauth; this alias keeps every existing reference working,
+// including the ones in internal/oidcbearer, internal/scopedtoken and
+// internal/ask/engine that name it as query.AuthContext. AuthContext has no
+// methods, so the alias is complete.
+type AuthContext = queryauth.AuthContext
 
 // ScopedTokenResolver resolves a presented bearer credential into an auth
 // context without exposing raw token values to handlers.
@@ -142,16 +131,16 @@ type GovernanceAuditAppender interface {
 
 // AuthContextFromContext returns the authenticated request context, if any.
 func AuthContextFromContext(ctx context.Context) (AuthContext, bool) {
-	if ctx == nil {
-		return AuthContext{}, false
-	}
-	auth, ok := ctx.Value(authContextKey{}).(AuthContext)
-	return auth, ok
+	return queryauth.AuthContextFromContext(ctx)
 }
 
 // ContextWithAuthContext returns a child context carrying authorization bounds.
+//
+// This forwards rather than storing under a local key, and that is the whole
+// point: the key has exactly one definition, in queryauth, so middleware here
+// and a handler family there read and write the same context slot.
 func ContextWithAuthContext(ctx context.Context, auth AuthContext) context.Context {
-	return context.WithValue(ctx, authContextKey{}, auth)
+	return queryauth.ContextWithAuthContext(ctx, auth)
 }
 
 func authMiddleware(
@@ -394,20 +383,7 @@ func normalizeAuthContext(auth AuthContext) AuthContext {
 }
 
 func cleanedAuthStrings(values []string) []string {
-	cleaned := make([]string, 0, len(values))
-	seen := make(map[string]struct{}, len(values))
-	for _, value := range values {
-		value = strings.TrimSpace(value)
-		if value == "" {
-			continue
-		}
-		if _, ok := seen[value]; ok {
-			continue
-		}
-		seen[value] = struct{}{}
-		cleaned = append(cleaned, value)
-	}
-	return cleaned
+	return queryauth.CleanedStrings(values)
 }
 
 // constantTimeEqual compares two strings in constant time to prevent timing attacks.
