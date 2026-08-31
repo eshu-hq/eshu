@@ -11,6 +11,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
 	neo4jdriver "github.com/neo4j/neo4j-go-driver/v5/neo4j"
 	"go.opentelemetry.io/otel/attribute"
@@ -29,11 +30,14 @@ const (
 	neo4jTransactionTerminatedCode = "Neo.ClientError.Transaction.Terminated"
 )
 
+// The graph-read sentinels live in querycontract so a handler-family subpackage
+// can compare against them without importing this package. These are var
+// aliases, not copies: errors.Is still matches because the value is the same
+// one querycontract exports, so every existing caller -- including
+// internal/mcp's dispatch test -- keeps working untouched.
 var (
-	// ErrGraphReadDeadline reports that the bounded graph-read budget expired.
-	ErrGraphReadDeadline = errors.New("graph query exceeded its deadline")
-	// ErrGraphUnavailable reports that the graph backend could not serve a read.
-	ErrGraphUnavailable = errors.New("graph temporarily unavailable; retry after graph health is restored")
+	ErrGraphReadDeadline = querycontract.ErrGraphReadDeadline
+	ErrGraphUnavailable  = querycontract.ErrGraphUnavailable
 )
 
 type graphReadOutcome string
