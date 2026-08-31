@@ -9,6 +9,7 @@ import (
 	"strings"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/reducer/payloadcore"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
 )
 
@@ -192,7 +193,7 @@ func securityAlertReconciliationFilter(envelopes []facts.Envelope) SecurityAlert
 			cveIDs = append(cveIDs, payloadStrings(envelope.Payload, "cve_id", "cve_ids")...)
 			ghsaIDs = append(ghsaIDs, payloadStrings(envelope.Payload, "ghsa_id", "ghsa_ids")...)
 		case facts.PackageRegistryPackageFactKind:
-			packageIDs = append(packageIDs, firstNonBlank(
+			packageIDs = append(packageIDs, payloadcore.FirstNonBlank(
 				payloadStr(envelope.Payload, "package_id"),
 				envelope.ScopeID,
 			))

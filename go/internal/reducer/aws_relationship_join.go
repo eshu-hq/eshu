@@ -8,6 +8,7 @@ import (
 	"strings"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/reducer/payloadcore"
 )
 
 // Join modes for the AWS relationship edge projection (issue #805). These are
@@ -349,13 +350,7 @@ func ExtractAWSRelationshipEdgeRows(
 	return rows, tally, quarantined, nil
 }
 
-// derefString returns the pointed-to string, or the empty string when the
-// pointer is nil. Optional payload struct fields are pointers so a nil (absent)
-// value stays distinct from an observed empty string; callers that treated the
-// pre-typing empty-string default identically deref through here.
+// derefString forwards to [payloadcore.DerefString].
 func derefString(value *string) string {
-	if value == nil {
-		return ""
-	}
-	return *value
+	return payloadcore.DerefString(value)
 }

@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"github.com/eshu-hq/eshu/go/internal/packageidentity"
+	"github.com/eshu-hq/eshu/go/internal/reducer/payloadcore"
 )
 
 func joinRubyGemsLockfileManifestRanges(dependencies []packageManifestDependency) {
@@ -42,7 +43,7 @@ func joinRubyGemsLockfileManifestRanges(dependencies []packageManifestDependency
 			continue
 		}
 		dependency.DependencyRange = manifest.DependencyRange
-		dependency.DependencyScope = firstNonBlank(dependency.DependencyScope, manifest.DependencyScope)
+		dependency.DependencyScope = payloadcore.FirstNonBlank(dependency.DependencyScope, manifest.DependencyScope)
 		dependency.DevelopmentOnly = dependency.DevelopmentOnly || manifest.DevelopmentOnly
 		dependency.TestDependency = dependency.TestDependency || manifest.TestDependency
 	}

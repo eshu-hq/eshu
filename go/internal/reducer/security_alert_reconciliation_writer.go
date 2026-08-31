@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/reducer/payloadcore"
 	"github.com/eshu-hq/eshu/go/internal/truth"
 )
 
@@ -127,9 +128,9 @@ func securityAlertReconciliationIdentity(
 	return map[string]any{
 		"generation_id":         generationID,
 		"provider":              strings.TrimSpace(decision.Provider),
-		"provider_alert_id":     firstNonBlank(decision.ProviderAlertID, fmt.Sprint(decision.ProviderAlertNumber)),
+		"provider_alert_id":     payloadcore.FirstNonBlank(decision.ProviderAlertID, fmt.Sprint(decision.ProviderAlertNumber)),
 		"provider_alert_number": decision.ProviderAlertNumber,
-		"provider_repository_id": firstNonBlank(
+		"provider_repository_id": payloadcore.FirstNonBlank(
 			decision.ProviderRepositoryID,
 			decision.ProviderAlertScopeID,
 			scopeID,
@@ -185,8 +186,8 @@ func securityAlertReconciliationPayload(
 		"updated_at":             decision.UpdatedAt,
 		"fixed_at":               decision.FixedAt,
 		"dismissed_at":           decision.DismissedAt,
-		"source_freshness":       firstNonBlank(decision.SourceFreshness, "active"),
-		"collection_coverage_state": firstNonBlank(
+		"source_freshness":       payloadcore.FirstNonBlank(decision.SourceFreshness, "active"),
+		"collection_coverage_state": payloadcore.FirstNonBlank(
 			decision.CollectionCoverageState,
 			"complete",
 		),

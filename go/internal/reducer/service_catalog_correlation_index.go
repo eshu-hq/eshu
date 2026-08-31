@@ -7,6 +7,7 @@ import (
 	"sort"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/reducer/payloadcore"
 )
 
 const serviceCatalogGitRepositoryScopePrefix = "git-repository-scope:"
@@ -174,7 +175,7 @@ func buildServiceCatalogCorrelationIndexWithQuarantine(
 				continue
 			}
 			if repository.repositoryID == "" {
-				// repositoryID is firstNonBlank(graph_id, repo_id); a repository
+				// repositoryID is payloadcore.FirstNonBlank(graph_id, repo_id); a repository
 				// with both present-but-empty resolves to "" and carries no
 				// canonical identity to correlate against, so it is NOT added —
 				// exactly as the pre-migration `if repository.repositoryID != ""`
@@ -251,7 +252,7 @@ func (entity serviceCatalogEntityEvidence) key() serviceCatalogEntityKey {
 // envelope's outer identity through the contracts seam. A payload missing
 // entity_ref returns a classified decode error; the caller quarantines it.
 // The owner reference itself may arrive under either owner_ref (preferred) or
-// the legacy owner key — matched by firstNonBlank, exactly as before this
+// the legacy owner key — matched by payloadcore.FirstNonBlank, exactly as before this
 // conversion — and staying blank on both is a valid decoded fact carrying no
 // ownership claim, not a decode failure.
 func serviceCatalogOwnershipFromFact(envelope facts.Envelope) (serviceCatalogOwnershipEvidence, error) {
@@ -263,7 +264,7 @@ func serviceCatalogOwnershipFromFact(envelope facts.Envelope) (serviceCatalogOwn
 		factID:    envelope.FactID,
 		provider:  stringPtrValue(ownership.Provider),
 		entityRef: ownership.EntityRef,
-		ownerRef:  firstNonBlank(stringPtrValue(ownership.OwnerRef), stringPtrValue(ownership.OwnerLegacy)),
+		ownerRef:  payloadcore.FirstNonBlank(stringPtrValue(ownership.OwnerRef), stringPtrValue(ownership.OwnerLegacy)),
 	}, nil
 }
 
@@ -291,11 +292,11 @@ func serviceCatalogRepositoryLinkFromFact(envelope facts.Envelope) (serviceCatal
 		factID:    envelope.FactID,
 		provider:  stringPtrValue(link.Provider),
 		entityRef: link.EntityRef,
-		repositoryID: firstNonBlank(
+		repositoryID: payloadcore.FirstNonBlank(
 			stringPtrValue(link.RepositoryID),
 			stringPtrValue(link.RepoID),
 		),
-		repositoryURL: firstNonBlank(
+		repositoryURL: payloadcore.FirstNonBlank(
 			stringPtrValue(link.NormalizedURL),
 			stringPtrValue(link.RepositoryURL),
 			stringPtrValue(link.RawURL),
@@ -327,7 +328,7 @@ func serviceCatalogRepositoryFromFact(envelope facts.Envelope) (serviceCatalogRe
 	}
 	return serviceCatalogRepositoryEvidence{
 		factID:       envelope.FactID,
-		repositoryID: firstNonBlank(stringPtrValue(repository.GraphID), repository.RepoID),
+		repositoryID: payloadcore.FirstNonBlank(stringPtrValue(repository.GraphID), repository.RepoID),
 		name:         stringPtrValue(repository.Name),
 		remoteURL:    stringPtrValue(repository.RemoteURL),
 		tombstone:    envelope.IsTombstone,

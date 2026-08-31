@@ -7,6 +7,8 @@ import (
 	"fmt"
 	"strconv"
 	"strings"
+
+	"github.com/eshu-hq/eshu/go/internal/reducer/payloadcore"
 )
 
 func supplyChainImpactCounts(findings []SupplyChainImpactFinding) map[SupplyChainImpactStatus]int {
@@ -67,7 +69,7 @@ func supplyChainImpactCanonicalWrites(findings []SupplyChainImpactFinding) int {
 }
 
 func supplyChainCVEID(payload map[string]any) string {
-	return firstNonBlank(payloadStr(payload, "cve_id"), payloadStr(payload, "advisory_id"))
+	return payloadcore.FirstNonBlank(payloadStr(payload, "cve_id"), payloadStr(payload, "advisory_id"))
 }
 
 func supplyChainFloat(payload map[string]any, key string) float64 {

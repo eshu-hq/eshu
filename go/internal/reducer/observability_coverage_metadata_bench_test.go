@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/reducer/payloadcore"
 )
 
 // benchObservabilityMetadataBatch builds a representative batch of observability
@@ -149,9 +150,9 @@ func rawMetadataEvidenceForBench(env facts.Envelope) (observabilityMetadataEvide
 		coverageSignal: signal,
 		objectRef:      objectRef,
 		sourceClass:    normalizedObservabilitySourceClass(env.FactKind, view),
-		sourceKind:     firstNonBlank(view.sourceKind, provider),
+		sourceKind:     payloadcore.FirstNonBlank(view.sourceKind, provider),
 		sourceOutcome:  normalizedObservabilitySourceOutcome(view),
-		resourceClass:  firstNonBlank(view.resourceClass, view.observabilityResourceClass, signal),
+		resourceClass:  payloadcore.FirstNonBlank(view.resourceClass, view.observabilityResourceClass, signal),
 		freshnessState: normalizedObservabilityFreshness(view),
 		factID:         env.FactID,
 	}, true

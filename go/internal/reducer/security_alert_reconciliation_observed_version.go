@@ -3,7 +3,11 @@
 
 package reducer
 
-import "strings"
+import (
+	"strings"
+
+	"github.com/eshu-hq/eshu/go/internal/reducer/payloadcore"
+)
 
 const (
 	securityAlertInstalledVersionMissing   = "installed package version missing"
@@ -18,7 +22,7 @@ func applySecurityAlertDependencyEvidence(
 	decision.DependencyEvidenceID = consumption.factID
 	decision.DependencyEvidenceKind = securityAlertConsumptionEvidenceKind(consumption)
 	decision.DependencyRange = strings.TrimSpace(consumption.dependencyRange)
-	decision.RequestedRange = firstNonBlank(
+	decision.RequestedRange = payloadcore.FirstNonBlank(
 		strings.TrimSpace(consumption.requestedRange),
 		decision.DependencyRange,
 	)

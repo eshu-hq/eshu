@@ -6,6 +6,7 @@ package reducer
 import (
 	"strings"
 
+	"github.com/eshu-hq/eshu/go/internal/reducer/payloadcore"
 	sbomv1 "github.com/eshu-hq/eshu/sdk/go/factschema/sbom/v1"
 )
 
@@ -17,11 +18,11 @@ func classifySBOMAttachmentDocument(
 	policy := doc.verificationPolicy
 	evidence := []string{doc.factID}
 	if verifyFact, ok := index.verifications[doc.documentID]; ok {
-		verification = normalizedVerificationStatus(firstNonBlank(
+		verification = normalizedVerificationStatus(payloadcore.FirstNonBlank(
 			verifyFact.verificationResult,
 			verifyFact.verificationStatus,
 		))
-		policy = firstNonBlank(verifyFact.verificationPolicy, policy)
+		policy = payloadcore.FirstNonBlank(verifyFact.verificationPolicy, policy)
 		evidence = append(evidence, verifyFact.factID)
 	}
 	hasImageReferrer := false

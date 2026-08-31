@@ -3,6 +3,8 @@
 
 package reducer
 
+import "github.com/eshu-hq/eshu/go/internal/reducer/payloadcore"
+
 // The supply-chain impact writer persists explicit empty collections rather
 // than JSON nulls, so API and MCP callers can range over a finding payload's
 // collection fields without a nil guard. These helpers are the single place
@@ -15,11 +17,9 @@ package reducer
 // empty, so environment_evidence (#5426) is assigned directly and the helpers
 // would be a no-op on it.
 
+// nonNilStrings forwards to [payloadcore.NonNilStrings].
 func nonNilStrings(values []string) []string {
-	if values == nil {
-		return []string{}
-	}
-	return values
+	return payloadcore.NonNilStrings(values)
 }
 
 func nonNilMapSlice(values []map[string]any) []map[string]any {

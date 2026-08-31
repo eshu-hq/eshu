@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/graph/edgetype"
+	"github.com/eshu-hq/eshu/go/internal/reducer/payloadcore"
 )
 
 // ExistingRepoDependencyEdge represents one existing DEPENDS_ON edge between repositories.
@@ -290,13 +291,7 @@ func buildDependencyIntents(
 	return rows
 }
 
-// anyToString extracts a string from an any value, returning empty string if nil.
+// anyToString forwards to [payloadcore.AnyToString].
 func anyToString(v any) string {
-	if v == nil {
-		return ""
-	}
-	if s, ok := v.(string); ok {
-		return s
-	}
-	return fmt.Sprintf("%v", v)
+	return payloadcore.AnyToString(v)
 }

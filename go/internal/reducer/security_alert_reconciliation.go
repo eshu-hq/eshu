@@ -8,6 +8,7 @@ import (
 	"strings"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/reducer/payloadcore"
 )
 
 // SecurityAlertReconciliationDecision is one reducer-owned comparison between
@@ -277,7 +278,7 @@ func classifyProviderSecurityAlert(
 		}
 		if staleConsumption.factID != "" {
 			decision.RepositoryID = staleConsumption.repositoryID
-			decision.RepositoryName = firstNonBlank(staleConsumption.repositoryName, decision.RepositoryName)
+			decision.RepositoryName = payloadcore.FirstNonBlank(staleConsumption.repositoryName, decision.RepositoryName)
 			decision.Status = SecurityAlertReconciliationStale
 			applySecurityAlertDependencyEvidence(&decision, alert, staleConsumption)
 			decision.EvidenceFactIDs = uniqueSortedStrings(append(decision.EvidenceFactIDs, staleConsumption.factID))
@@ -308,7 +309,7 @@ func classifyProviderSecurityAlert(
 		return decision
 	}
 	decision.RepositoryID = exactConsumption.repositoryID
-	decision.RepositoryName = firstNonBlank(exactConsumption.repositoryName, decision.RepositoryName)
+	decision.RepositoryName = payloadcore.FirstNonBlank(exactConsumption.repositoryName, decision.RepositoryName)
 	applySecurityAlertDependencyEvidence(&decision, alert, exactConsumption)
 	decision.EvidenceFactIDs = uniqueSortedStrings(append(decision.EvidenceFactIDs, exactConsumption.factID))
 	if status, reasonCode, missing, ok := securityAlertUnsupportedTriage(alert); ok {

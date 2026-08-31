@@ -8,6 +8,7 @@ import (
 	"strings"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/reducer/payloadcore"
 	sbomv1 "github.com/eshu-hq/eshu/sdk/go/factschema/sbom/v1"
 )
 
@@ -250,7 +251,7 @@ func buildSBOMAttachmentIndex(envelopes []facts.Envelope) (sbomAttachmentIndex, 
 				}
 				continue
 			}
-			key := firstNonBlank(verification.StatementID, derefString(verification.DocumentID))
+			key := payloadcore.FirstNonBlank(verification.StatementID, derefString(verification.DocumentID))
 			if key != "" {
 				index.verifications[key] = sbomAttachmentVerificationEvidence{
 					factID:             envelope.FactID,
@@ -279,8 +280,8 @@ func buildSBOMAttachmentIndex(envelopes []facts.Envelope) (sbomAttachmentIndex, 
 				}
 				continue
 			}
-			key := firstNonBlank(derefString(warning.DocumentID), derefString(warning.StatementID))
-			if summary := firstNonBlank(derefString(warning.Summary), derefString(warning.Reason)); key != "" && summary != "" {
+			key := payloadcore.FirstNonBlank(derefString(warning.DocumentID), derefString(warning.StatementID))
+			if summary := payloadcore.FirstNonBlank(derefString(warning.Summary), derefString(warning.Reason)); key != "" && summary != "" {
 				index.warnings[key] = append(index.warnings[key], sbomAttachmentWarningEvidence{
 					summary:         summary,
 					occurrenceCount: warningOccurrenceCount(warning.OccurrenceCount),
@@ -371,7 +372,7 @@ func sbomDocumentFromEnvelope(envelope facts.Envelope) (sbomAttachmentDocument, 
 	if err != nil {
 		return sbomAttachmentDocument{}, err
 	}
-	documentID := firstNonBlank(document.DocumentID, envelope.FactID)
+	documentID := payloadcore.FirstNonBlank(document.DocumentID, envelope.FactID)
 	return sbomAttachmentDocument{
 		factID:             envelope.FactID,
 		documentID:         documentID,
@@ -395,7 +396,7 @@ func attestationDocumentFromEnvelope(envelope facts.Envelope) (sbomAttachmentDoc
 	if err != nil {
 		return sbomAttachmentDocument{}, err
 	}
-	statementID := firstNonBlank(statement.StatementID, envelope.FactID)
+	statementID := payloadcore.FirstNonBlank(statement.StatementID, envelope.FactID)
 	subjectDigests := uniqueSortedStrings(append(
 		[]string{derefString(statement.SubjectDigest)},
 		statement.SubjectDigests...,
@@ -408,14 +409,14 @@ func attestationDocumentFromEnvelope(envelope facts.Envelope) (sbomAttachmentDoc
 	return sbomAttachmentDocument{
 		factID:             envelope.FactID,
 		documentID:         statementID,
-		documentDigest:     firstNonBlank(derefString(statement.StatementDigest), derefString(statement.PayloadDigest)),
+		documentDigest:     payloadcore.FirstNonBlank(derefString(statement.StatementDigest), derefString(statement.PayloadDigest)),
 		subjectDigest:      subjectDigest,
 		parseStatus:        defaultStatus(derefString(statement.ParseStatus), "parsed"),
 		verificationStatus: normalizedVerificationStatus(derefString(statement.VerificationStatus)),
 		verificationPolicy: derefString(statement.VerificationPolicy),
 		artifactKind:       "attestation",
-		format:             firstNonBlank(derefString(statement.AttestationFormat), "in-toto"),
-		specVersion:        firstNonBlank(derefString(statement.AttestationVersion), derefString(statement.PredicateType)),
+		format:             payloadcore.FirstNonBlank(derefString(statement.AttestationFormat), "in-toto"),
+		specVersion:        payloadcore.FirstNonBlank(derefString(statement.AttestationVersion), derefString(statement.PredicateType)),
 		ambiguousSubject:   ambiguousSubject,
 	}, nil
 }

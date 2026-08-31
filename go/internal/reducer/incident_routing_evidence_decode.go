@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/reducer/payloadcore"
 	incidentv1 "github.com/eshu-hq/eshu/sdk/go/factschema/incident/v1"
 )
 
@@ -174,14 +175,14 @@ func incidentRoutingIncidentFromDecoded(
 		serviceURL = strings.TrimSpace(derefString(record.Service.URL))
 	}
 	return IncidentRoutingIncident{
-		Provider:           firstNonBlank(strings.TrimSpace(record.Provider), "pagerduty"),
+		Provider:           payloadcore.FirstNonBlank(strings.TrimSpace(record.Provider), "pagerduty"),
 		ProviderIncidentID: strings.TrimSpace(record.ProviderIncidentID),
 		ScopeID:            env.ScopeID,
 		ServiceID:          serviceID,
 		ServiceName:        serviceName,
 		ServiceURL:         serviceURL,
 		EvidenceFactID:     env.FactID,
-		SourceURL:          firstNonBlank(strings.TrimSpace(derefString(record.SourceURL)), env.SourceRef.SourceURI),
+		SourceURL:          payloadcore.FirstNonBlank(strings.TrimSpace(derefString(record.SourceURL)), env.SourceRef.SourceURI),
 		SourceConfidence:   env.SourceConfidence,
 		ObservedAt:         incidentRoutingFormatEnvelopeTime(env.ObservedAt),
 	}
@@ -236,7 +237,7 @@ func incidentRoutingObservedFromDecoded(
 		DeclaredMatchState:        strings.TrimSpace(service.DeclaredMatchState),
 		DriftCandidateReason:      strings.TrimSpace(derefString(service.DriftCandidateReason)),
 		RedactionState:            strings.TrimSpace(service.RedactionState),
-		SourceURL:                 firstNonBlank(strings.TrimSpace(derefString(service.SourceURL)), env.SourceRef.SourceURI),
+		SourceURL:                 payloadcore.FirstNonBlank(strings.TrimSpace(derefString(service.SourceURL)), env.SourceRef.SourceURI),
 		Disabled:                  derefBool(service.Disabled),
 		Deleted:                   derefBool(service.Deleted),
 		ManuallyCreated:           derefBool(service.ManuallyCreated),
@@ -262,11 +263,9 @@ func incidentRoutingWarningFromDecoded(
 	}
 }
 
-// derefBool returns the pointed-to bool, or false for a nil pointer. The emitter
-// omits a false boolean flag, so a nil pointer means "not set" which the reducer
-// reads as false, matching the pre-typing payloadBool read.
+// derefBool forwards to [payloadcore.DerefBool].
 func derefBool(value *bool) bool {
-	return value != nil && *value
+	return payloadcore.DerefBool(value)
 }
 
 // incidentRoutingFormatEnvelopeTime renders an envelope observed-at timestamp as

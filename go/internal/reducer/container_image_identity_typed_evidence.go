@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/reducer/payloadcore"
 )
 
 // This file holds the typed-decode evidence extractors for the
@@ -114,11 +115,11 @@ func addAWSImageReference(byRef map[string]containerImageRefEvidence, envelope f
 	if err != nil {
 		return partitionDecodeFailures(envelope, err)
 	}
-	digest := firstNonBlank(reference.ManifestDigest, reference.ImageDigest)
+	digest := payloadcore.FirstNonBlank(reference.ManifestDigest, reference.ImageDigest)
 	if reference.RepositoryName == "" || digest == "" {
 		return quarantinedFact{}, false, nil
 	}
-	registryID := firstNonBlank(derefString(reference.RegistryID), reference.AccountID)
+	registryID := payloadcore.FirstNonBlank(derefString(reference.RegistryID), reference.AccountID)
 	if registryID == "" {
 		return quarantinedFact{}, false, nil
 	}

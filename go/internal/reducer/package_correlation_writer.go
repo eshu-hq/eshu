@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/reducer/payloadcore"
 	"github.com/eshu-hq/eshu/sdk/go/factschema"
 )
 
@@ -309,10 +310,7 @@ func mustPackageCorrelationPayload(payload map[string]any, err error) map[string
 	return payload
 }
 
+// payloadString forwards to [payloadcore.PayloadString].
 func payloadString(payload map[string]any, key string) string {
-	value, ok := payload[key]
-	if !ok || value == nil {
-		return ""
-	}
-	return strings.TrimSpace(fmt.Sprint(value))
+	return payloadcore.PayloadString(payload, key)
 }

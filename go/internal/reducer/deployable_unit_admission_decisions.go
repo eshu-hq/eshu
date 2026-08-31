@@ -10,6 +10,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/correlation/engine"
 	correlationmodel "github.com/eshu-hq/eshu/go/internal/correlation/model"
+	"github.com/eshu-hq/eshu/go/internal/reducer/payloadcore"
 )
 
 func (h DeployableUnitCorrelationHandler) writeDeployableUnitAdmissionDecisions(
@@ -147,7 +148,7 @@ func deployableUnitAdmissionSourceHandles(
 		handles = append(handles, AdmissionDecisionSourceHandle{
 			Kind:    atom.EvidenceType,
 			ID:      id,
-			ScopeID: firstNonBlank(atom.ScopeID, scopeID),
+			ScopeID: payloadcore.FirstNonBlank(atom.ScopeID, scopeID),
 		})
 	}
 	return handles

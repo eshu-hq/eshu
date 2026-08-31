@@ -10,6 +10,7 @@ import (
 	"unicode"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/reducer/payloadcore"
 )
 
 const (
@@ -89,7 +90,7 @@ func pythonReachabilityRepositoryIDsByScope(
 		if envelope.FactKind != factKindRepository || envelope.IsTombstone {
 			continue
 		}
-		repositoryID := firstNonBlank(
+		repositoryID := payloadcore.FirstNonBlank(
 			payloadStr(envelope.Payload, "graph_id"),
 			payloadStr(envelope.Payload, "repo_id"),
 			payloadStr(envelope.Payload, "repository_id"),
@@ -392,7 +393,7 @@ func collectPythonImportEvidence(
 		if lang := strings.ToLower(strings.TrimSpace(payloadStr(entry, "lang"))); lang != "" && lang != "python" {
 			continue
 		}
-		root := pythonImportRoot(firstNonBlank(payloadStr(entry, "source"), payloadStr(entry, "name")))
+		root := pythonImportRoot(payloadcore.FirstNonBlank(payloadStr(entry, "source"), payloadStr(entry, "name")))
 		if root == "" {
 			continue
 		}
@@ -419,7 +420,7 @@ func collectPythonCallEvidence(
 		if lang := strings.ToLower(strings.TrimSpace(payloadStr(call, "lang"))); lang != "" && lang != "python" {
 			continue
 		}
-		fullName := firstNonBlank(payloadStr(call, "full_name"), payloadStr(call, "name"))
+		fullName := payloadcore.FirstNonBlank(payloadStr(call, "full_name"), payloadStr(call, "name"))
 		if pythonDynamicImportCall(fullName) {
 			evidence.dynamicImport = true
 		}

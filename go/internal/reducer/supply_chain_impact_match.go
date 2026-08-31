@@ -9,6 +9,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
 	"github.com/eshu-hq/eshu/go/internal/packageidentity"
+	"github.com/eshu-hq/eshu/go/internal/reducer/payloadcore"
 )
 
 // The typed-contracts-seam extraction functions for vulnerability.cve,
@@ -30,7 +31,7 @@ func supplyChainConsumptionFromEnvelope(envelope facts.Envelope) (supplyChainPac
 		packageID:                 strings.TrimSpace(correlation.PackageID),
 		repositoryID:              strings.TrimSpace(derefString(correlation.RepositoryID)),
 		dependencyRange:           strings.TrimSpace(derefString(correlation.DependencyRange)),
-		observedVersion:           firstNonBlank(derefString(correlation.ObservedVersion), derefString(correlation.ResolvedVersion)),
+		observedVersion:           payloadcore.FirstNonBlank(derefString(correlation.ObservedVersion), derefString(correlation.ResolvedVersion)),
 		requestedRange:            strings.TrimSpace(derefString(correlation.RequestedRange)),
 		installedVersion:          strings.TrimSpace(derefString(correlation.InstalledVersion)),
 		dependencyPath:            orderedStrings(correlation.DependencyPath),
@@ -69,8 +70,8 @@ func supplyChainSBOMComponentFromEnvelope(envelope facts.Envelope) supplyChainSB
 		// component joins vulnerability facts on the same identity every
 		// other package fact uses; fall back to the version-stripped purl for
 		// components ingested before the collector carried package_id.
-		packageID: firstNonBlank(payloadStr(envelope.Payload, "package_id"), packageIDFromPURL(purl)),
-		version:   firstNonBlank(payloadStr(envelope.Payload, "version"), versionFromPURL(purl)),
+		packageID: payloadcore.FirstNonBlank(payloadStr(envelope.Payload, "package_id"), packageIDFromPURL(purl)),
+		version:   payloadcore.FirstNonBlank(payloadStr(envelope.Payload, "version"), versionFromPURL(purl)),
 	}
 }
 
@@ -105,14 +106,14 @@ func supplyChainWorkloadContextsFromEnvelope(envelope facts.Envelope) []supplyCh
 }
 
 func supplyChainWorkloadRepositoryID(envelope facts.Envelope) string {
-	direct := firstNonBlank(
+	direct := payloadcore.FirstNonBlank(
 		payloadStr(envelope.Payload, "repository_id"),
 		payloadStr(envelope.Payload, "repo_id"),
 	)
 	if direct != "" {
 		return direct
 	}
-	scoped := firstNonBlank(
+	scoped := payloadcore.FirstNonBlank(
 		payloadStr(envelope.Payload, "scope_id"),
 		envelope.ScopeID,
 	)
@@ -127,28 +128,14 @@ func supplyChainWorkloadRepositoryID(envelope facts.Envelope) string {
 	return strings.TrimSpace(scoped)
 }
 
+// repositoryIDFromReducerScope forwards to [payloadcore.RepositoryIDFromReducerScope].
 func repositoryIDFromReducerScope(scopeID string) string {
-	scopeID = strings.TrimSpace(scopeID)
-	if strings.HasPrefix(scopeID, "repository:") {
-		return scopeID
-	}
-	if strings.HasPrefix(scopeID, "git-repository-scope:") {
-		return strings.TrimSpace(strings.TrimPrefix(scopeID, "git-repository-scope:"))
-	}
-	return ""
+	return payloadcore.RepositoryIDFromReducerScope(scopeID)
 }
 
+// supplyChainWorkloadIDsFromPayload forwards to [payloadcore.SupplyChainWorkloadIDsFromPayload].
 func supplyChainWorkloadIDsFromPayload(payload map[string]any) []string {
-	var workloadIDs []string
-	if workloadID := payloadStr(payload, "workload_id"); workloadID != "" {
-		workloadIDs = append(workloadIDs, workloadID)
-	}
-	for _, entityKey := range payloadOrderedStrings(payload, "entity_keys") {
-		if strings.HasPrefix(entityKey, "workload:") {
-			workloadIDs = append(workloadIDs, entityKey)
-		}
-	}
-	return uniqueSortedStrings(workloadIDs)
+	return payloadcore.SupplyChainWorkloadIDsFromPayload(payload)
 }
 
 func supplyChainServiceContextFromEnvelope(envelope facts.Envelope) supplyChainServiceContext {
@@ -166,7 +153,7 @@ func supplyChainServiceContextFromEnvelope(envelope facts.Envelope) supplyChainS
 }
 
 func supplyChainServiceRepositoryID(envelope facts.Envelope) string {
-	if repositoryID := firstNonBlank(
+	if repositoryID := payloadcore.FirstNonBlank(
 		payloadStr(envelope.Payload, "repository_id"),
 		payloadStr(envelope.Payload, "repo_id"),
 	); repositoryID != "" {
@@ -368,32 +355,17 @@ func unusableSupplyChainImageIdentityReason(image supplyChainImageIdentity) stri
 	}
 }
 
+// payloadBool forwards to [payloadcore.PayloadBool].
 func payloadBool(payload map[string]any, key string) bool {
-	value, ok := payloadBoolPointerValue(payload, key)
-	return ok && value
+	return payloadcore.PayloadBool(payload, key)
 }
 
 func payloadBoolPointer(payload map[string]any, key string) *bool {
-	value, ok := payloadBoolPointerValue(payload, key)
+	value, ok := payloadcore.PayloadBoolPointerValue(payload, key)
 	if !ok {
 		return nil
 	}
 	return &value
-}
-
-func payloadBoolPointerValue(payload map[string]any, key string) (bool, bool) {
-	switch value := payload[key].(type) {
-	case bool:
-		return value, true
-	case string:
-		trimmed := strings.TrimSpace(value)
-		if trimmed == "" {
-			return false, false
-		}
-		return strings.EqualFold(trimmed, "true"), true
-	default:
-		return false, false
-	}
 }
 
 func supplyChainInt(payload map[string]any, key string) int {

@@ -8,6 +8,7 @@ import (
 	"strings"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/reducer/payloadcore"
 )
 
 // containerImageBaseAnchorsFromEnvelope anchors a Dockerfile FROM base to the
@@ -162,5 +163,5 @@ func mapStringValue(payload map[string]any, objectKey string, key string) string
 	if !ok {
 		return ""
 	}
-	return payloadStr(object, key)
+	return payloadcore.PayloadStr(object, key)
 }

@@ -3,7 +3,11 @@
 
 package reducer
 
-import "strings"
+import (
+	"strings"
+
+	"github.com/eshu-hq/eshu/go/internal/reducer/payloadcore"
+)
 
 // ProjectionContext holds the bounded-unit freshness context for one shared
 // projection repository slice.
@@ -14,14 +18,9 @@ type ProjectionContext struct {
 	GenerationID     string
 }
 
-// copyPayload creates a shallow copy of the payload map so shared-projection
-// intent builders can stamp per-domain fields without mutating the source row.
+// copyPayload forwards to [payloadcore.CopyPayload].
 func copyPayload(m map[string]any) map[string]any {
-	result := make(map[string]any, len(m))
-	for k, v := range m {
-		result[k] = v
-	}
-	return result
+	return payloadcore.CopyPayload(m)
 }
 
 func (c ProjectionContext) acceptanceUnitID(repositoryID string) string {
