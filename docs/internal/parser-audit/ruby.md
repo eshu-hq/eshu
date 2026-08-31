@@ -61,7 +61,7 @@ List constructs verified by tests, with file:function references.
 24. **Nested group/block end balancing** — `ruby/bundler_test.go:168-185`
 25. **Cyclomatic complexity** — `engine_cyclomatic_complexity_test.go:167-181` (2 test cases)
 26. **Long-tail comprehensive fixture** — `engine_long_tail_test.go:12-15` (`TestDefaultEngineParsePathRubyFixtures`)
-27. **`method_missing` / `respond_to_missing?` as dynamic dispatch** — `ruby/engine_ruby_semantics_test.go:220` (`TestDefaultEngineParsePathRubyDistinguishesSingletonAndDynamicDispatchMethods` defines both methods and asserts `type=dynamic_dispatch` for each at :271-272); root metadata separately at `ruby/ruby_dead_code_roots_test.go:81` (`ruby.dynamic_dispatch_hook`).
+27. **`method_missing` / `respond_to_missing?` as dynamic dispatch** — `ruby/engine_ruby_semantics_test.go:220` (`TestDefaultEngineParsePathRubyDistinguishesSingletonAndDynamicDispatchMethods` defines both methods and asserts `type=dynamic_dispatch` for each at :271-272); root metadata separately at `ruby/ruby_dead_code_roots_test.go:80-81` (`ruby.dynamic_dispatch_hook`, asserted once per method).
 
 ## Unverified / Claimed-but-Untested Constructs
 List constructs claimed but not covered by any test.
@@ -75,7 +75,11 @@ List constructs claimed but not covered by any test.
 7. **`rubyNormalizeArgument` edge cases** — `calls.go:185-207`: not tested with splat, block, keyword, or quoted arguments.
 8. **`rubyInferAssignmentType`** — `calls.go:167-181`: not tested with `new ` prefix stripping or terminal handling.
 9. **Opaque block balancing in Bundler** (`bundler_blocks.go`): tested implicitly through group tests, but not in isolation.
-10. **Bundler `github:` source type** (`bundler_gemfile.go:15,69,91`): no test with `github "user/repo" do`.
+10. **Bundler `github:` source type**: two distinct untested paths. The
+    `github "user/repo" do` block form is matched by `bundlerSourceBlockPattern`
+    (`bundler_gemfile.go:15`) and handled in `parseBundlerGemfileContext`
+    (`:69`); the `gem "x", github: "user/repo"` option is handled separately in
+    `parseBundlerGemfileDependency` (`:91`). Neither shape has a test.
 11. **Bundler `source` option within group context** (`bundler_gemfile.go:99-103`): not tested.
 
 ## Edge Cases Considered
@@ -86,7 +90,7 @@ List edge cases the tests actually cover with test references.
 - **Array-form callback methods** (`before_action [:authenticate_user!, :set_account]`) — `ruby/ruby_dead_code_roots_test.go:176-209`
 - **Non-equality script guard (`!=`)** — `ruby/ruby_dead_code_roots_test.go:358-395` (only `==` roots the calls)
 - **Direct vs transitive lockfile dependency chains** — `ruby/bundler_test.go:63-105`
-- **Bundler lockfile `GIT` section** — `ruby/engine_bundler_lockfile_test.go` (asserts `source_type=git`, `source_path=https://github.com/rails/rails.git`). This is the lockfile path, not the Gemfile gem-call `github:` option at `bundler_gemfile.go:15,69,91`, which remains untested — see Unverified item 10 and Recommended Action 4.
+- **Bundler lockfile `GIT` section** — `ruby/engine_bundler_lockfile_test.go` (asserts `source_type=git`, `source_path=https://github.com/rails/rails.git`). This is the lockfile path, not the Gemfile `github:` source handling, which remains untested in both its block and gem-call forms — see Unverified item 10 and Recommended Action 4.
 - **Bundler `PATH` local source** — first covered at `ruby/bundler_test.go:108-145` (`TestParseGemfileLockPreservesGitAndPathAmbiguity`, `source_type=path`, `source_path=../components/local`); `ruby/engine_bundler_lockfile_test.go` adds the same assertion through the parent Engine (`source_path=../vendor/gems/auth`).
 - **CRLF line endings in lockfile** — `ruby/bundler_test.go:148-161`
 - **Nested Bundler group blocks with end balancing** — `ruby/bundler_test.go:168-185`
@@ -98,6 +102,8 @@ List edge cases not tested.
 
 - **`class << self` (singleton class) with methods**
 - **`def ClassName.method` (non-self singleton method notation)**
+- **Bundler `github:` source** — both the `github "user/repo" do` block form
+  (`bundler_gemfile.go:15,69`) and the `gem "x", github: "..."` option (`:91`)
 - **Redundant `end` in Bundler context stack**
 - **Call node inside nested receiver** (three-level chain)
 - **Instance variable read (not assignment)** — `syntax.go:301-306` mentions this but no test.
