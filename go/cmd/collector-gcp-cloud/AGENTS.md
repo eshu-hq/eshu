@@ -6,7 +6,7 @@
 2. `../../internal/collector/gcpcloud/gcpruntime/AGENTS.md` - the source and
    PageProvider seam contract.
 3. `docs/public/reference/gcp-cloud-collector-contract.md` - scope/generation,
-   payload boundary, telemetry, and the remaining chart/smoke gates.
+   payload boundary, telemetry, and the deployed-shape promotion boundary.
 4. `main.go` - flag parsing, telemetry/pprof/Postgres bootstrap, service run.
 5. `config.go` - declarative file config parsing and fixture-file mapping.
 6. `claimed_config.go` - claim-driven environment and collector instance
@@ -27,8 +27,9 @@
 - Reference credentials by NAME only (`credential_ref`). Never read, store, or
   log credential material or names. The redaction key comes from a file path and
   is never logged.
-- Do not add reducer/API readback or live smoke claims in this command package.
-  Those remain separate gated slices.
+- Do not add reducer/API readback or live-smoke status claims in this command
+  package. The canonical contract owns those cross-package status claims and
+  promotion boundaries.
 - Keep the status committer's recorded metric labels bounded enums only.
 - Keep every source file under 500 lines.
 
