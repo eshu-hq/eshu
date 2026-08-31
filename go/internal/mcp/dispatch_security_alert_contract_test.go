@@ -215,6 +215,7 @@ func TestRepositoryRouteStillOwnsItsArmsAfterSecurityAlert(t *testing.T) {
 		"list_kubernetes_correlations",
 		"list_container_image_identities",
 		"count_container_image_identities",
+		"get_container_image_identity_inventory",
 		"list_advisory_evidence",
 		"get_vulnerability_scanner_read_contract",
 		"list_supply_chain_impact_findings",
@@ -223,6 +224,7 @@ func TestRepositoryRouteStillOwnsItsArmsAfterSecurityAlert(t *testing.T) {
 		"explain_supply_chain_impact",
 		"list_sbom_attestation_attachments",
 		"count_sbom_attestation_attachments",
+		"get_sbom_attestation_attachment_inventory",
 		"get_repository_stats",
 	} {
 		if _, handled := securityAlertRoute(tool, map[string]any{}); handled {

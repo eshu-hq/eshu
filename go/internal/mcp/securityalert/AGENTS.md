@@ -10,8 +10,8 @@
    production-boundary proof.
 5. `../dispatch_repositories.go` for the repository switch this family is
    answered ahead of, and `../dispatch_supply_chain.go` for the three
-   supply-chain builders that stayed behind when this family's
-   `dispatch_supply_chain.go` builder left it.
+   supply-chain builders that stayed there after this family's listing
+   builder moved out.
 6. `../routecontract/README.md` for the dependency-neutral request contract.
 
 ## Invariants
