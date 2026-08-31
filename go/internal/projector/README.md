@@ -184,13 +184,13 @@ AWS resources to Terraform state; when a generation contains one or more
 `aws_cloud_runtime_drift` reducer intent for the AWS scope/generation so the
 reducer can run the bounded ARN join after source-local projection succeeds.
 The same `aws_resource` generation also emits one
-`workload_cloud_relationship_materialization` intent keyed by
-`aws_resource_materialization:<scope>` so the reducer waits for the
+`workload_cloud_relationship_materialization` intent (`workloadcloud.BuildWorkloadCloudRelationshipMaterializationReducerIntent`)
+keyed by `aws_resource_materialization:<scope>` so the reducer waits for the
 CloudResource substrate before projecting exact workload-anchored `USES` edges.
 Workload endpoints are still exact `MATCH` anchors in the graph writer; missing
 or unmaterialized workload instances leave the row unwritten rather than
 fabricating a relationship. The projector never writes those service/cloud
-relationships itself.
+relationships itself; see [workload-cloud-relationship architecture](workloadcloud/README.md).
 Provider-neutral multi-cloud runtime drift follows a related but distinct rule
 (issue #5759). When a generation contains one or more `gcp_cloud_resource` or
 `azure_cloud_resource` facts, `buildMultiCloudRuntimeDriftReducerIntent` emits
@@ -247,7 +247,7 @@ old full scan made — not "earliest fact of the first-checked kind" — so anch
 Root assembly constructs one concrete `intent.FactLookup` per generation and
 retains a compatibility wrapper for unmoved family builders. The extracted
 `internal/projector/azure`, `internal/projector/ec2`, `internal/projector/gcp`,
-`internal/projector/kubernetes`, `internal/projector/s3`, and `internal/projector/security`
+`internal/projector/kubernetes`, `internal/projector/s3`, `internal/projector/security`, and `internal/projector/workloadcloud`
 families import that neutral lookup without importing root projector assembly;
 remaining root builders keep using the private forwarders until they move.
 `ReducerIntent` in the root package is a type alias, so existing writer and

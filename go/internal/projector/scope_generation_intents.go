@@ -12,6 +12,7 @@ import (
 	projectorrds "github.com/eshu-hq/eshu/go/internal/projector/rds"
 	projectors3 "github.com/eshu-hq/eshu/go/internal/projector/s3"
 	projectorsecurity "github.com/eshu-hq/eshu/go/internal/projector/security"
+	projectorworkloadcloud "github.com/eshu-hq/eshu/go/internal/projector/workloadcloud"
 	"github.com/eshu-hq/eshu/go/internal/scope"
 )
 
@@ -65,7 +66,7 @@ func appendScopeGenerationReducerIntents(
 	if intent, ok := buildCloudInventoryAdmissionReducerIntent(scopeValue, generation, index); ok {
 		intents = append(intents, intent)
 	}
-	if intent, ok := buildWorkloadCloudRelationshipMaterializationReducerIntent(scopeValue, generation, index); ok {
+	if intent, ok := projectorworkloadcloud.BuildWorkloadCloudRelationshipMaterializationReducerIntent(scopeValue.ScopeID, generation.GenerationID, index.lookup); ok {
 		intents = append(intents, intent)
 	}
 	if intent, ok := projectorec2.BuildInstanceNodeMaterializationReducerIntent(scopeValue.ScopeID, generation.GenerationID, index.lookup); ok {
