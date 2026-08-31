@@ -17,14 +17,15 @@ import (
 type repositoryAccessFilter = querycontract.RepositoryAccessFilter
 
 // repositoryAccessFilterFromContext resolves the request's AuthContext into a
-// repositoryAccessFilter. This constructor stays in the root package rather
-// than moving into querycontract because it depends on AuthContext,
-// AuthContextFromContext, and AuthModeShared (auth.go) — root-package
-// concepts used in ~185 other call sites across this package that are out of
-// scope for this seam extraction. Moving only this function's body, and
-// building the querycontract value through its exported fields, keeps the
-// dependency-neutral contract package free of the auth-context type while
-// preserving identical behavior.
+// repositoryAccessFilter.
+//
+// This is a forwarder now. The constructor itself lives in querycontract beside
+// the type it builds. It used to carry a comment explaining that it could not
+// move because it depended on AuthContext, AuthContextFromContext and
+// AuthModeShared, which were root concepts — that stopped being true when those
+// three moved to queryauth, and the comment outlived the constraint it
+// described. Go has no function aliases, so the ~185 call sites keep this
+// unexported name rather than being rewritten.
 func repositoryAccessFilterFromContext(ctx context.Context) repositoryAccessFilter {
 	return querycontract.RepositoryAccessFilterFromContext(ctx)
 }
