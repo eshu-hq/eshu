@@ -13,15 +13,22 @@ import (
 // graph_read_error_capability_sweep_test.go: that file crossed the repo's
 // 500-line cap once the resolved-call-site floor was added. The assertion
 // lives there; the AST machinery that feeds it lives here.
-
+//
+// #6060 made this sweep walk go/internal/query recursively, so its decl maps
+// now see multiple packages. constStrings and funcDecls are keyed by
+// (declaring directory, bare identifier) rather than by bare identifier
+// alone, and every lookup resolves against a directory computed by dirOf
+// (graph_read_error_capability_sweep_scope_test.go), which also carries the
+// full rationale and the discriminating regression test for this scoping.
 type capabilitySweep struct {
-	constStrings map[string]string
-	funcDecls    map[string]*ast.FuncDecl
-	// callSites maps a called function/method name (by its Ident/Selector
-	// name only -- receiver type is not tracked) to every call site of it
-	// across the package, so a capability parameter threaded into
-	// WriteGraphReadError through a helper (e.g. applyRepositorySelectorForCapability)
-	// can be resolved back to what each caller actually passed.
+	constStrings map[string]map[string]string
+	funcDecls    map[string]map[string]*ast.FuncDecl
+	// callSites maps a called function/method name (Ident/Selector name only)
+	// to every call site of it across the package, so a capability parameter
+	// threaded through a helper can be resolved back to what each caller
+	// passed. NOT directory-scoped: a leaf's exported function is legitimately
+	// called from another directory, and resolveParam resolves each caller's
+	// argument against that caller's own directory, not the callee's.
 	callSites map[string][]capabilityCallSite
 	fset      *token.FileSet
 }
@@ -36,8 +43,8 @@ type capabilityCallSite struct {
 
 func newCapabilitySweep(fset *token.FileSet) *capabilitySweep {
 	return &capabilitySweep{
-		constStrings: map[string]string{},
-		funcDecls:    map[string]*ast.FuncDecl{},
+		constStrings: map[string]map[string]string{},
+		funcDecls:    map[string]map[string]*ast.FuncDecl{},
 		callSites:    map[string][]capabilityCallSite{},
 		fset:         fset,
 	}
@@ -128,9 +135,12 @@ var capabilitySweepDocumentedExceptions = map[string]string{
 }
 
 // collectDecls records every single-value string const and every function
-// declaration in file, so later resolution can look identifiers and calls up
-// regardless of which file declared them.
+// declaration in file, keyed by file's own directory so later resolution can
+// look identifiers and calls up scoped to the declaring package (see the
+// capabilitySweep doc comment for why bare-name keys are unsafe now that this
+// sweep walks recursively).
 func (s *capabilitySweep) collectDecls(file *ast.File) {
+	dir := s.dirOf(file.Package)
 	for _, decl := range file.Decls {
 		switch d := decl.(type) {
 		case *ast.GenDecl:
@@ -143,12 +153,18 @@ func (s *capabilitySweep) collectDecls(file *ast.File) {
 					continue
 				}
 				if lit, ok := stringLiteral(valueSpec.Values[0]); ok {
-					s.constStrings[valueSpec.Names[0].Name] = lit
+					if s.constStrings[dir] == nil {
+						s.constStrings[dir] = map[string]string{}
+					}
+					s.constStrings[dir][valueSpec.Names[0].Name] = lit
 				}
 			}
 		case *ast.FuncDecl:
 			if d.Body != nil {
-				s.funcDecls[d.Name.Name] = d
+				if s.funcDecls[dir] == nil {
+					s.funcDecls[dir] = map[string]*ast.FuncDecl{}
+				}
+				s.funcDecls[dir][d.Name.Name] = d
 			}
 		}
 	}
@@ -241,7 +257,12 @@ func (s *capabilitySweep) resolveCapabilityArg(expr ast.Expr, enclosing *ast.Fun
 	}
 	switch e := expr.(type) {
 	case *ast.Ident:
-		if lit, ok := s.constStrings[e.Name]; ok {
+		// e's own declaring/use directory, not enclosing's -- when
+		// resolveParam recurses into a caller's argument, that argument
+		// lexically lives in the caller's file, which can be a different
+		// directory than the function whose parameter is being resolved.
+		dir := s.dirOf(e.Pos())
+		if lit, ok := s.constStrings[dir][e.Name]; ok {
 			return []string{lit}, true
 		}
 		if enclosing == nil {
@@ -253,7 +274,11 @@ func (s *capabilitySweep) resolveCapabilityArg(expr ast.Expr, enclosing *ast.Fun
 		if !ok {
 			return nil, false
 		}
-		return s.resolveFuncReturns(callee.Name, visitedFuncs)
+		// An unqualified call (bare *ast.Ident callee, not a package-selector)
+		// can only reach a function declared in the same package as the call
+		// site itself, so the callee's directory is the call expression's own
+		// directory.
+		return s.resolveFuncReturns(callee.Name, s.dirOf(e.Pos()), visitedFuncs)
 	default:
 		return nil, false
 	}
@@ -325,20 +350,27 @@ func (s *capabilitySweep) resolveLocalIdent(name string, enclosing *ast.FuncDecl
 }
 
 // resolveParam handles name being a parameter of enclosing rather than a
-// locally assigned variable: it locates the parameter's position and resolves
-// every call site of enclosing (by name) at that argument position.
+// locally assigned variable: it resolves every call site of enclosing (by
+// name, across every directory -- a leaf's callers legitimately live in
+// another package, e.g. packagereg calling
+// queryselector.ResolveForRequestWithAccess) at that parameter's argument
+// position. Each caller's argument resolves against that caller's OWN
+// directory, never enclosing's.
 func (s *capabilitySweep) resolveParam(name string, enclosing *ast.FuncDecl, visitedFuncs map[string]bool) ([]string, bool) {
 	index, isParam := paramIndex(enclosing, name)
 	if !isParam {
 		return nil, false
 	}
-	funcKey := enclosing.Name.Name
+	// funcKey is qualified by enclosing's own directory: two different
+	// packages can declare a same-named function, and an unqualified key
+	// would let resolving one wrongly block recursion into the other.
+	funcKey := s.dirOf(enclosing.Pos()) + "\x00" + enclosing.Name.Name
 	if visitedFuncs[funcKey] {
 		return nil, false
 	}
 	visitedFuncs[funcKey] = true
 
-	callers := s.callSites[funcKey]
+	callers := s.callSites[enclosing.Name.Name]
 	if len(callers) == 0 {
 		return nil, false
 	}
@@ -364,17 +396,20 @@ func (s *capabilitySweep) resolveParam(name string, enclosing *ast.FuncDecl, vis
 
 // resolveFuncReturns collects every literal value a single-return-value,
 // package-level function can return, by walking its body for return
-// statements. It recurses at most one level deep per distinct function name to
-// stay terminating.
-func (s *capabilitySweep) resolveFuncReturns(name string, visitedFuncs map[string]bool) ([]string, bool) {
-	if visitedFuncs[name] {
+// statements. It recurses at most one level deep per distinct (directory,
+// function name) pair to stay terminating; dir scopes the funcDecls lookup to
+// the package the call site actually resolves to (an unqualified call can
+// only reach a function in its own package).
+func (s *capabilitySweep) resolveFuncReturns(name string, dir string, visitedFuncs map[string]bool) ([]string, bool) {
+	key := dir + "\x00" + name
+	if visitedFuncs[key] {
 		return nil, false
 	}
-	fn, ok := s.funcDecls[name]
+	fn, ok := s.funcDecls[dir][name]
 	if !ok || fn.Body == nil {
 		return nil, false
 	}
-	visitedFuncs[name] = true
+	visitedFuncs[key] = true
 
 	var values []string
 	allOK := true
