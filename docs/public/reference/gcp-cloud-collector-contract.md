@@ -36,7 +36,9 @@ explicit-injection `gcpruntime.LiveClient` REST `PageProvider` for
 `assets.list`; it requires read-only caller-supplied credentials, bounded page
 size, response bytes, timeouts, retries, backoff, OAuth scope, and asset-family
 filters. The Helm chart starts only explicit claimed-live mode and remains
-default-off. No test makes a live Google Cloud call.
+default-off. No test runs a live Google Cloud call by default or in CI. The
+environment-gated `TestLiveSmokeCloudAssetInventory` security smoke is the
+documented #1997/#2644 exception.
 
 Shared multi-cloud reducer admission and API/MCP readback for the
 `gcp_cloud_resource` identity are now implemented and fixture-proven. The
