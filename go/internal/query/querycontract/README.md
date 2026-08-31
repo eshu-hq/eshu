@@ -49,6 +49,32 @@ No-Observability-Change: the span name, its attributes, and the tracer name are
 unchanged from when this code lived in package `query`. Moving it changed where
 the code sits, not what it emits.
 
+## Performance
+
+Moving the row-value decoders here put a forwarding wrapper in front of four
+functions the query read paths call constantly — `StringVal` from about 325 root
+files. The question that raises is whether the extra call frame costs anything
+on a hot row-decode loop.
+
+It does not: the compiler removes it entirely.
+
+No-Regression Evidence: `cd go && go build -gcflags='-m' ./internal/query/`
+reports `can inline StringVal`, `can inline BoolVal`, `can inline IntVal` and
+`can inline StringSliceVal` for the four root wrappers; `inlining call to
+querycontract.BoolVal`, `... IntVal` and `... StringSliceVal` where each wrapper
+calls into this package; and `inlining call to StringVal` at each caller
+(`neo4j.go:307,309,311,313,317` among others). Both hops collapse at compile
+time, so a decode site emits the same code it did before the move. No benchmark
+is cited because there is no runtime delta to measure — the indirection does not
+survive compilation.
+
+Observability marker for the same change:
+
+No-Observability-Change: the handler span's name, its three attributes, and the
+tracer name are unchanged from when this code lived in package `query`. The
+existing `eshu_dp_api_request_duration_seconds` parent and `query.*` span still
+cover the path.
+
 ## Gotchas / invariants
 
 Capability registration is ordered and rejects duplicate initialization in the
