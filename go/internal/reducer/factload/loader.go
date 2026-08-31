@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package reducer
+package factload
 
 import (
 	"context"
@@ -13,19 +13,20 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/reducer/payloadcore"
 )
 
+// Fact-kind names the scoped loader filters on.
 const (
-	factKindContentEntity       = "content_entity"
-	factKindFile                = "file"
-	factKindParsedFile          = "parsed_file_data"
-	factKindRepository          = "repository"
-	factKindCodeownersOwnership = "codeowners.ownership"
-	factKindSubmodulePin        = "submodule.pin"
+	FactKindContentEntity       = "content_entity"
+	FactKindFile                = "file"
+	FactKindParsedFile          = "parsed_file_data"
+	FactKindRepository          = "repository"
+	FactKindCodeownersOwnership = "codeowners.ownership"
+	FactKindSubmodulePin        = "submodule.pin"
 )
 
-// factKindLoader is an optional fast path for handlers that need only a small
+// FactKindLoader is an optional fast path for handlers that need only a small
 // subset of a generation's facts. Loaders that do not implement it keep the
 // existing full-generation behavior.
-type factKindLoader interface {
+type FactKindLoader interface {
 	ListFactsByKind(
 		ctx context.Context,
 		scopeID string,
@@ -34,10 +35,10 @@ type factKindLoader interface {
 	) ([]facts.Envelope, error)
 }
 
-// factPayloadValueLoader narrows large fact-kind scans with a top-level
+// FactPayloadValueLoader narrows large fact-kind scans with a top-level
 // payload allowlist. Reducer domains use it only when the payload predicate is
 // part of their correctness contract, such as content entity type.
-type factPayloadValueLoader interface {
+type FactPayloadValueLoader interface {
 	ListFactsByKindAndPayloadValue(
 		ctx context.Context,
 		scopeID string,
@@ -48,31 +49,36 @@ type factPayloadValueLoader interface {
 	) ([]facts.Envelope, error)
 }
 
-// loadFactsForKinds uses a bounded fact-kind query when the backing store
+// LoadFactsForKinds uses a bounded fact-kind query when the backing store
 // supports it, falling back to the full FactLoader contract for test doubles
 // and older loader implementations.
-func loadFactsForKinds(
+func LoadFactsForKinds(
 	ctx context.Context,
 	loader FactLoader,
 	scopeID string,
 	generationID string,
 	factKinds []string,
 ) ([]facts.Envelope, error) {
-	if typed, ok := loader.(factKindLoader); ok {
+	if typed, ok := loader.(FactKindLoader); ok {
 		envelopes, err := typed.ListFactsByKind(ctx, scopeID, generationID, factKinds)
 		if err != nil {
-			return nil, classifyFactLoadError(err)
+			return nil, ClassifyFactLoadError(err)
 		}
 		return envelopes, nil
 	}
 	envelopes, err := loader.ListFacts(ctx, scopeID, generationID)
 	if err != nil {
-		return nil, classifyFactLoadError(err)
+		return nil, ClassifyFactLoadError(err)
 	}
 	return envelopes, nil
 }
 
-func loadFactsForKindAndPayloadValue(
+// LoadFactsForKindAndPayloadValue uses a bounded payload-value query when the
+// backing store implements [FactPayloadValueLoader], and falls back to a
+// kind-filtered [LoadFactsForKinds] read otherwise. A blank fact kind or
+// payload key, or a value set that cleans to empty, short-circuits to
+// (nil, nil).
+func LoadFactsForKindAndPayloadValue(
 	ctx context.Context,
 	loader FactLoader,
 	scopeID string,
@@ -83,12 +89,12 @@ func loadFactsForKindAndPayloadValue(
 ) ([]facts.Envelope, error) {
 	factKind = strings.TrimSpace(factKind)
 	payloadKey = strings.TrimSpace(payloadKey)
-	payloadValues = cleanFactFilterValues(payloadValues)
+	payloadValues = payloadcore.CleanFactFilterValues(payloadValues)
 	if factKind == "" || payloadKey == "" || len(payloadValues) == 0 {
 		return nil, nil
 	}
 
-	if typed, ok := loader.(factPayloadValueLoader); ok {
+	if typed, ok := loader.(FactPayloadValueLoader); ok {
 		envelopes, err := typed.ListFactsByKindAndPayloadValue(
 			ctx,
 			scopeID,
@@ -98,21 +104,16 @@ func loadFactsForKindAndPayloadValue(
 			payloadValues,
 		)
 		if err != nil {
-			return nil, classifyFactLoadError(err)
+			return nil, ClassifyFactLoadError(err)
 		}
 		return envelopes, nil
 	}
-	return loadFactsForKinds(ctx, loader, scopeID, generationID, []string{factKind})
+	return LoadFactsForKinds(ctx, loader, scopeID, generationID, []string{factKind})
 }
 
-// cleanFactFilterValues forwards to [payloadcore.CleanFactFilterValues].
-func cleanFactFilterValues(values []string) []string {
-	return payloadcore.CleanFactFilterValues(values)
-}
-
-// classifyFactLoadError preserves semantic errors while marking transient
+// ClassifyFactLoadError preserves semantic errors while marking transient
 // database stream interruptions retryable for the durable reducer queue.
-func classifyFactLoadError(err error) error {
+func ClassifyFactLoadError(err error) error {
 	if err == nil {
 		return nil
 	}

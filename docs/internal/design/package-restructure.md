@@ -179,6 +179,68 @@ Two consequences worth knowing before the remaining children:
   gone and the replacement is 66, and dirgate's ratchet means any later
   extraction has to re-pin it lower.
 
+No-Regression Evidence: the reducer factload hoist (#6061 PR3) moves the scoped
+fact loader and extracts the FactLoader port, with no logic change. The loader
+file moves whole by `git mv`; the only body edits are capitalizing the exported
+identifiers and calling payloadcore directly where a PR1 forwarder stood.
+`git diff --name-only <base>..HEAD -- testdata/ specs/` is empty, so the
+golden-corpus recordings and the end-to-end snapshot cannot move. Backend and
+version unchanged (NornicDB, default local profile); input shape unchanged;
+terminal queue and row counts unchanged, because the push-down and fallback
+behavior is byte-identical and no queue, lease, Cypher, or projection path is
+touched. The retry classification is unchanged, which is the one behavior here
+that could alter runtime shape: widening it would loop and narrowing it would
+dead-letter a scope generation.
+
+Codegen: this PR adds forwarders, and PR1 measured that a forwarder can cost a
+CALLER its inlinability by raising it past Go's budget of 80. The net count
+rises — `go build -a -gcflags=-m ./internal/reducer` counting `inlining call to`
+gives 14248 on this PR's base and 14322 here on go1.27.0 — but a net count
+cannot detect a named loss, so the set difference is what follows.
+
+Three functions gain inlinability (`loadFactsForKinds`,
+`loadFactsForKindAndPayloadValue`, `classifyFactLoadError`, now one-line root
+forwarders). Five LOSE it, at cost 77→94 (78→95 for
+`loadDocumentationMaterializationFacts`) against budget 80:
+
+- `loadCodeownersOwnershipMaterializationFacts` (codeowners_ownership_delta_scope.go)
+- `loadDocumentationMaterializationFacts` (documentation_edge_delta_scope.go)
+- `loadRationaleMaterializationFacts` (rationale_delta_scope.go)
+- `loadShellExecMaterializationFacts` (shell_exec_materialization.go)
+- `loadSubmodulePinMaterializationFacts` (submodule_pin_delta_scope.go)
+
+The mechanism inverts PR1's. At base, root `loadFactsForKinds` had a real body
+and was not inlinable, so calling it cost a caller about 57. Here it is a
+one-line forwarder that IS inlinable, so the compiler inlines it and the
+inlined cross-package call pushes each of the five callers from 77 to 94.
+
+Accepted rather than fixed, and the reason is the shape of those five: each is
+a thin wrapper that immediately issues a store read, so one non-inlined call is
+nanoseconds against a millisecond query. That is an argument from shape, not a
+benchmark — the magnitude is not measured. `//go:noinline` on the forwarders
+would restore the costs and is a hack; repointing the callers at `factload`
+directly would widen this PR past its scope. The four `retryableFactLoadError`
+methods also leave the `-m` output, but only because they changed package.
+
+The probe, so the next reader can reproduce it rather than trust the list. The
+inline LIST (function names) reproduces with plain `-m`, but the COST figures
+above came from `-m=2`: on go1.27.0, plain `-gcflags=-m` prints neither costs
+nor "cannot inline" lines, only bare `can inline <name>` lines for functions
+that stayed inlinable.
+
+```
+go build -a -gcflags=-m ./internal/reducer 2>&1 \
+  | sed -nE 's/.*: can inline //p' | LC_ALL=C sort -u
+```
+then `comm -23 base head` for the name list; `go build -a -gcflags=-m=2
+./internal/reducer` for the cost figures. Whole-module `go build
+./...` and `go vet ./...` exit 0 and the reducer tree tests green.
+
+No-Observability-Change: no metric, span, log field, status field, or runtime
+setting is added, removed, or renamed. Loader reads stay covered by
+`eshu_dp_postgres_query_duration_seconds` and the owning pass by
+`eshu_dp_reducer_executions_total` and `eshu_dp_reducer_run_duration_seconds`.
+
 No-Regression Evidence: the reducer factdecode hoist (#6061 PR2) is a
 relocation of the decode-failure classification and per-fact quarantine
 mechanism, with no logic change. The renames in decode_error.go are case-only,

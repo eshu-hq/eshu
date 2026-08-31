@@ -8,14 +8,8 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/eshu-hq/eshu/go/internal/facts"
 	"github.com/eshu-hq/eshu/go/internal/relationships"
 )
-
-// FactLoader loads fact envelopes for one scope generation.
-type FactLoader interface {
-	ListFacts(ctx context.Context, scopeID, generationID string) ([]facts.Envelope, error)
-}
 
 // ResolvedRelationshipLoader loads resolved repo relationships for one scope.
 type ResolvedRelationshipLoader interface {
