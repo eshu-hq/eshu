@@ -49,8 +49,9 @@ resolves the ambient read-only Azure credential, injects the SDK Resource Graph
 client into `LiveProviderFactory`, and runs through `collector.ClaimedService`.
 The claimed source serves the `resource_graph` lane only. Default-off Helm
 exposure (deployment, metrics service, ServiceMonitor, render-time validation)
-mirrors GCP. **Live smoke proof against a real tenant remains gated**; promotion
-to `implemented` requires an operator-run live proof.
+mirrors GCP. **Live smoke proof against a real tenant remains gated by issue
+#3066**; promotion to `implemented` also requires the separate
+partition-filtered handler proof.
 
 The allowlisted ARM fallback seam is also implemented behind
 `azureruntime.LiveProviderFactory`. It remains non-default and requires explicit
