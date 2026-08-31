@@ -84,8 +84,9 @@ valid.
   parent scope kind, asset family, content family, status class, fact kind,
   warning kind, outcome). Never label-leak resource ids, project ids, names,
   labels, IAM members, DNS names, image references, URLs, or credential names.
-- This package does not call Google Cloud APIs. A future runtime adapter owns SDK
-  pagination, retries, throttling, and credential loading.
+- This package does not call Google Cloud APIs. The shipped sibling `gcpruntime`
+  adapter owns provider pagination, retries, throttling, and ambient credential
+  loading.
 
 ## Common Changes
 
