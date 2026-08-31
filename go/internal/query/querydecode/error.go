@@ -36,12 +36,25 @@ type Error struct {
 // Error implements the error interface, naming the fact id, fact kind, and the
 // underlying classified decode failure.
 func (e *Error) Error() string {
+	// err is unexported, so an importer building this from the exported fields
+	// alone leaves it nil. New always sets it, but the type is exported for
+	// root's alias, and a panic here would surface as a 500 on a read path
+	// whose whole job is to degrade one malformed fact gracefully.
+	if e.err == nil {
+		return fmt.Sprintf("decode %s fact %s: no underlying decode error", e.FactKind, e.FactID)
+	}
 	return fmt.Sprintf("decode %s fact %s: %s", e.FactKind, e.FactID, e.err.Error())
 }
 
 // Unwrap exposes the underlying *factschema.DecodeError so errors.As/errors.Is
 // can reach it (and its ErrUnsupportedSchemaMajor sentinel).
 func (e *Error) Unwrap() error {
+	// Return an untyped nil rather than a nil *factschema.DecodeError. A typed
+	// nil is non-nil in an interface, so errors.Is would keep walking into it
+	// and callers checking Unwrap() != nil would get the wrong answer.
+	if e.err == nil {
+		return nil
+	}
 	return e.err
 }
 
