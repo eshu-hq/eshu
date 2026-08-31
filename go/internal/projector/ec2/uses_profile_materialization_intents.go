@@ -1,17 +1,17 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package projector
+package ec2
 
 import (
 	"strings"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	projectorintent "github.com/eshu-hq/eshu/go/internal/projector/intent"
 	"github.com/eshu-hq/eshu/go/internal/reducer"
-	"github.com/eshu-hq/eshu/go/internal/scope"
 )
 
-// buildEC2UsesProfileMaterializationReducerIntent enqueues one reducer intent that
+// BuildUsesProfileMaterializationReducerIntent enqueues one reducer intent that
 // projects the scope generation's ec2_instance_posture instance_profile_arn fields
 // into canonical USES_PROFILE graph edges (issue #1146 PR-B). The intent is
 // anchored to the first posture fact that has a non-blank instance_profile_arn so
@@ -29,28 +29,39 @@ import (
 // carries its OWN distinct entity key (ec2_uses_profile_materialization:<scope>)
 // which keeps the edge's own conflict/readiness identity independent of either
 // node domain.
-func buildEC2UsesProfileMaterializationReducerIntent(
-	scopeValue scope.IngestionScope,
-	generation scope.ScopeGeneration,
-	index *reducerIntentFactIndex,
-) (ReducerIntent, bool) {
-	envelope, ok := index.firstOfKindMatching(facts.EC2InstancePostureFactKind, func(envelope facts.Envelope) bool {
+func BuildUsesProfileMaterializationReducerIntent(
+	scopeID string,
+	generationID string,
+	lookup projectorintent.FactLookup,
+) (projectorintent.ReducerIntent, bool) {
+	envelope, ok := lookup.FirstOfKindMatching(facts.EC2InstancePostureFactKind, func(envelope facts.Envelope) bool {
 		posture, err := decodeEC2InstancePosture(envelope)
 		if err != nil {
 			return false
 		}
-		return strings.TrimSpace(codegraphDerefString(posture.InstanceProfileARN)) != ""
+		return strings.TrimSpace(derefString(posture.InstanceProfileARN)) != ""
 	})
 	if !ok {
-		return ReducerIntent{}, false
+		return projectorintent.ReducerIntent{}, false
 	}
-	return ReducerIntent{
-		ScopeID:      scopeValue.ScopeID,
-		GenerationID: generation.GenerationID,
+	return projectorintent.ReducerIntent{
+		ScopeID:      scopeID,
+		GenerationID: generationID,
 		Domain:       reducer.DomainEC2UsesProfileMaterialization,
-		EntityKey:    "ec2_uses_profile_materialization:" + scopeValue.ScopeID,
+		EntityKey:    "ec2_uses_profile_materialization:" + scopeID,
 		Reason:       "ec2 instance profile usage observed",
 		FactID:       envelope.FactID,
-		SourceSystem: awsCloudRuntimeDriftSourceSystem(envelope),
+		SourceSystem: projectorintent.SourceSystem(envelope),
 	}, true
+}
+
+// derefString returns the value a *string points at, or "" when it is nil.
+// Local per-package copy matching the repo convention of a small
+// family-scoped deref helper (e.g. projector root's codegraphDerefString,
+// ociDerefString, tfstateDerefString) rather than a shared one.
+func derefString(value *string) string {
+	if value == nil {
+		return ""
+	}
+	return *value
 }

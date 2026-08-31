@@ -246,7 +246,7 @@ old full scan made — not "earliest fact of the first-checked kind" — so anch
 `FactID`, `Reason`, and `SourceSystem` stay byte-identical.
 Root assembly constructs one concrete `intent.FactLookup` per generation and
 retains a compatibility wrapper for unmoved family builders. The extracted
-`internal/projector/azure`, `internal/projector/gcp`,
+`internal/projector/azure`, `internal/projector/ec2`, `internal/projector/gcp`,
 `internal/projector/kubernetes`, and `internal/projector/security` families
 import that neutral lookup without importing root projector assembly;
 remaining root builders keep using the private forwarders until they move.
@@ -266,15 +266,15 @@ contains an `rds_instance_posture` fact,
 projector does not set RDS graph properties, infer exposure, or create RDS
 nodes; the reducer waits for the CloudResource canonical-nodes phase and then
 projects bounded posture metadata onto existing RDS CloudResource nodes.
-EC2 block-device KMS posture follows the same reducer-owned boundary. When a
-generation contains an `ec2_instance_posture` fact,
-`buildEC2BlockDeviceKMSPostureMaterializationReducerIntent` emits one
-`ec2_block_device_kms_posture_materialization` reducer intent for the
-scope/generation. The intent has its own entity key because the reducer gates on
-two node phases: `ec2_instance_node_materialization:<scope>` for the EC2 source
-node and `aws_resource_materialization:<scope>` for the EBS/KMS facts. The
-projector does not join block devices to volumes or KMS keys and does not set
-EC2 graph properties.
+EC2 posture observations now use the extracted `internal/projector/ec2` child
+package. `ec2.BuildInstanceNodeMaterializationReducerIntent` and
+`ec2.BuildInstanceIdentityMaterializationReducerIntent` share the
+`ec2_instance_node_materialization:<scope>` entity key for the EC2 instance
+`CloudResource` node and its `ami_id` projection. `ec2.BuildBlockDeviceKMSPostureMaterializationReducerIntent`
+and `ec2.BuildUsesProfileMaterializationReducerIntent` each carry their own
+entity key, gating on EBS/KMS and instance-profile evidence. The projector
+does not join block devices, KMS keys, Terraform state, or set EC2 graph
+properties; the reducer owns `USES_PROFILE`.
 Container-image identity follows the same handoff rule: when a generation
 contains OCI digest/tag/referrer facts, AWS, Azure, or GCP image-reference facts,
 AWS container-image relationships, Git content-entity image references, or
@@ -337,7 +337,7 @@ does not infer coverage from telemetry values, and does not project COVERS edges
 
 EC2 internet exposure follows the same reducer-owned boundary. When a generation
 contains an `ec2_instance_posture` fact,
-`buildEC2InternetExposureMaterializationReducerIntent` emits one
+`ec2.BuildInternetExposureMaterializationReducerIntent` emits one
 `ec2_internet_exposure_materialization` reducer intent for the
 scope/generation, keyed to `ec2_instance_node_materialization:<scope>` so the
 reducer waits for the EC2 instance CloudResource canonical-nodes phase. The

@@ -1,15 +1,15 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package projector
+package ec2
 
 import (
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	projectorintent "github.com/eshu-hq/eshu/go/internal/projector/intent"
 	"github.com/eshu-hq/eshu/go/internal/reducer"
-	"github.com/eshu-hq/eshu/go/internal/scope"
 )
 
-// buildEC2InstanceIdentityMaterializationReducerIntent enqueues one reducer
+// BuildInstanceIdentityMaterializationReducerIntent enqueues one reducer
 // intent that projects the scope generation's aws_ec2_instance aws_resource
 // facts' ami_id onto the already-materialized EC2 instance CloudResource nodes
 // (#5448). It triggers on the ec2_instance_posture fact — the SAME fact
@@ -35,22 +35,22 @@ import (
 // item stuck 'pending' forever because the gate could never open — the
 // golden-corpus fact_work_items_residual failure. Aligning the trigger with the
 // node's own trigger enqueues the intent only when the gate is satisfiable.
-func buildEC2InstanceIdentityMaterializationReducerIntent(
-	scopeValue scope.IngestionScope,
-	generation scope.ScopeGeneration,
-	index *reducerIntentFactIndex,
-) (ReducerIntent, bool) {
-	envelope, ok := index.firstOfKind(facts.EC2InstancePostureFactKind)
+func BuildInstanceIdentityMaterializationReducerIntent(
+	scopeID string,
+	generationID string,
+	lookup projectorintent.FactLookup,
+) (projectorintent.ReducerIntent, bool) {
+	envelope, ok := lookup.FirstOfKind(facts.EC2InstancePostureFactKind)
 	if !ok {
-		return ReducerIntent{}, false
+		return projectorintent.ReducerIntent{}, false
 	}
-	return ReducerIntent{
-		ScopeID:      scopeValue.ScopeID,
-		GenerationID: generation.GenerationID,
+	return projectorintent.ReducerIntent{
+		ScopeID:      scopeID,
+		GenerationID: generationID,
 		Domain:       reducer.DomainEC2InstanceIdentityMaterialization,
-		EntityKey:    "ec2_instance_node_materialization:" + scopeValue.ScopeID,
+		EntityKey:    "ec2_instance_node_materialization:" + scopeID,
 		Reason:       "ec2 instance posture observed for ec2 instance identity projection",
 		FactID:       envelope.FactID,
-		SourceSystem: awsCloudRuntimeDriftSourceSystem(envelope),
+		SourceSystem: projectorintent.SourceSystem(envelope),
 	}, true
 }

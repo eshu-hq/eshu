@@ -29,14 +29,6 @@ func decodeAWSRelationship(env facts.Envelope) (awsv1.Relationship, error) {
 	return relationship, nil
 }
 
-func decodeEC2InstancePosture(env facts.Envelope) (awsv1.EC2InstancePosture, error) {
-	posture, err := factschema.DecodeEC2InstancePosture(factschemaEnvelope(env))
-	if err != nil {
-		return awsv1.EC2InstancePosture{}, newProjectorDecodeError(factschema.FactKindEC2InstancePosture, err)
-	}
-	return posture, nil
-}
-
 func decodeS3BucketPosture(env facts.Envelope) (awsv1.S3BucketPosture, error) {
 	posture, err := factschema.DecodeS3BucketPosture(factschemaEnvelope(env))
 	if err != nil {

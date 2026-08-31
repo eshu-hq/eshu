@@ -52,17 +52,17 @@ allocation regression. Its fixture contains 5,000 interleaved source-code
 decoys and produces 42 ordered intents across 44 builder probes. No graph
 backend participates, and it creates no queue rows.
 
-No-Regression Evidence: `internal/projector/azure`, `internal/projector/gcp`,
-`internal/projector/kubernetes`, and `internal/projector/security` import this
-contract for their extracted intent builders while root assembly passes the
-shared `FactLookup`. Focused
+No-Regression Evidence: `internal/projector/azure`, `internal/projector/ec2`,
+`internal/projector/gcp`, `internal/projector/kubernetes`, and
+`internal/projector/security` import this contract for their extracted intent
+builders while root assembly passes the shared `FactLookup`. Focused
 family and ordered fan-out tests plus the full projector tree preserve exact
 trigger, value, and order behavior. The exact-base fan-out measurements above
 preserve the allocation count with overlapping latency ranges.
 
-No-Observability-Change (Azure, GCP, Kubernetes, and security extractions): the
-boundary adds no metric, span, log, status field, queue behavior, or runtime
-setting.
+No-Observability-Change (Azure, EC2, GCP, Kubernetes, and security
+extractions): the boundary adds no metric, span, log, status field, queue
+behavior, or runtime setting.
 Existing projection and reducer-intent enqueue telemetry remains owned by the
 root projector package; the telemetry coverage verifier confirms the moved
 stages remain mapped to `eshu_dp_reducer_intents_enqueued_total`.
