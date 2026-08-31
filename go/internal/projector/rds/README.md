@@ -65,8 +65,13 @@ No-Regression Evidence: this extraction moves one builder without changing its
 trigger, value, or position in the dispatcher's ordered fan-out.
 `reducer.DomainRDSPostureMaterialization` intent emission is identical to the
 base commit, and the dispatcher's ordered fan-out is unchanged at 44 builder
-probes with the RDS probe at its original position (call-site line 106 of
-`scope_generation_intents.go`, unchanged). `projectorintent.SourceSystem` was
+probes with the RDS probe at its original position: in
+`scope_generation_intents.go` it still runs immediately after
+`BuildExternalPrincipalGrantMaterializationReducerIntent` and immediately
+before `BuildInstanceIdentityMaterializationReducerIntent`. That neighbour
+pair is the property that matters, and it is cited instead of an absolute
+line number because every later family extraction adds an import and shifts
+the line. `projectorintent.SourceSystem` was
 compared body-for-body against the root `awsCloudRuntimeDriftSourceSystem` it
 replaces (both trim `SourceRef.SourceSystem` and fall back to
 `CollectorKind`) rather than by name. Focused proof:
