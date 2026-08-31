@@ -9,6 +9,7 @@ import (
 	"strings"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/reducer/payloadcore"
 )
 
 // repoSignals aggregates K8s and ArgoCD signal data during candidate
@@ -299,28 +300,14 @@ func extractOverlayEnvs(repoID, relativePath string, fileData map[string]any, de
 	}
 }
 
+// payloadStr forwards to [payloadcore.PayloadStr].
 func payloadStr(payload map[string]any, key string) string {
-	val, ok := payload[key]
-	if !ok {
-		return ""
-	}
-	s := strings.TrimSpace(fmt.Sprint(val))
-	if s == "<nil>" {
-		return ""
-	}
-	return s
+	return payloadcore.PayloadStr(payload, key)
 }
 
+// sortedKeys forwards to [payloadcore.SortedKeys].
 func sortedKeys(m map[string]struct{}) []string {
-	if len(m) == 0 {
-		return nil
-	}
-	keys := make([]string, 0, len(m))
-	for k := range m {
-		keys = append(keys, k)
-	}
-	sort.Strings(keys)
-	return keys
+	return payloadcore.SortedKeys(m)
 }
 
 func sliceValue(value any) []any {

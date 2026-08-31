@@ -8,6 +8,7 @@ import (
 	"strings"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/reducer/payloadcore"
 )
 
 type containerImageRegistryIndex struct {
@@ -264,16 +265,9 @@ func ociTagObservation(envelope facts.Envelope) (containerImageTagObservation, b
 	}, true
 }
 
+// ociRepositoryID forwards to [payloadcore.OCIRepositoryID].
 func ociRepositoryID(payload map[string]any) string {
-	if repositoryID := payloadStr(payload, "repository_id"); repositoryID != "" {
-		return repositoryID
-	}
-	registry := payloadStr(payload, "registry")
-	repository := payloadStr(payload, "repository")
-	if registry == "" || repository == "" {
-		return ""
-	}
-	return "oci-registry://" + registry + "/" + repository
+	return payloadcore.OCIRepositoryID(payload)
 }
 
 func containerImageDigestKey(repositoryID string, digest string) string {
@@ -284,13 +278,9 @@ func containerImageTagKey(repositoryID string, tag string) string {
 	return strings.ToLower(strings.TrimSpace(repositoryID)) + ":" + strings.TrimSpace(tag)
 }
 
+// boolPayload forwards to [payloadcore.BoolPayload].
 func boolPayload(payload map[string]any, key string) bool {
-	value, ok := payload[key]
-	if !ok {
-		return false
-	}
-	typed, ok := value.(bool)
-	return ok && typed
+	return payloadcore.BoolPayload(payload, key)
 }
 
 // resolveContainerImageSourceRevision picks the image's OCI-config-label source
@@ -453,13 +443,4 @@ func singleContainerImageCIRunRevision(revisions []string) string {
 		}
 	}
 	return distinct
-}
-
-func firstNonBlank(values ...string) string {
-	for _, value := range values {
-		if trimmed := strings.TrimSpace(value); trimmed != "" {
-			return trimmed
-		}
-	}
-	return ""
 }

@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/reducer/payloadcore"
 )
 
 type supplyChainImpactCVE struct {
@@ -224,7 +225,7 @@ func classifySupplyChainImpactPackage(
 	var reconciliationMissing []string
 	if consumption.factID != "" {
 		finding.RepositoryID = consumption.repositoryID
-		finding.RequestedRange = firstNonBlank(
+		finding.RequestedRange = payloadcore.FirstNonBlank(
 			strings.TrimSpace(consumption.requestedRange),
 			strings.TrimSpace(consumption.dependencyRange),
 		)
@@ -236,7 +237,7 @@ func classifySupplyChainImpactPackage(
 			finding.DirectDependency = &value
 		}
 		finding.EvidenceFactIDs = append(finding.EvidenceFactIDs, consumption.factID)
-		finding.EvidencePath = append(finding.EvidencePath, firstNonBlank(consumption.evidenceKind, packageConsumptionCorrelationFactKind))
+		finding.EvidencePath = append(finding.EvidencePath, payloadcore.FirstNonBlank(consumption.evidenceKind, packageConsumptionCorrelationFactKind))
 		finding.ObservedVersion = strings.TrimSpace(consumption.observedVersion)
 		if finding.ObservedVersion == "" {
 			if manifestVersion, ok := exactConsumptionDependencyVersion(finding.Ecosystem, consumption); ok {
@@ -245,8 +246,8 @@ func classifySupplyChainImpactPackage(
 		}
 	}
 	if hasComponentPath {
-		finding.PURL = firstNonBlank(component.purl, finding.PURL)
-		finding.ObservedVersion = firstNonBlank(component.version, finding.ObservedVersion)
+		finding.PURL = payloadcore.FirstNonBlank(component.purl, finding.PURL)
+		finding.ObservedVersion = payloadcore.FirstNonBlank(component.version, finding.ObservedVersion)
 		finding.SubjectDigest = attachment.subjectDigest
 		finding.ImageRef = image.imageRef
 		finding.EvidenceFactIDs = append(finding.EvidenceFactIDs, component.factID, attachment.factID, image.factID)
@@ -268,8 +269,8 @@ func classifySupplyChainImpactPackage(
 		}
 	}
 	if hasOSPackage {
-		finding.PURL = firstNonBlank(osPackage.purl, finding.PURL)
-		finding.ObservedVersion = firstNonBlank(osPackage.installedVersion, finding.ObservedVersion)
+		finding.PURL = payloadcore.FirstNonBlank(osPackage.purl, finding.PURL)
+		finding.ObservedVersion = payloadcore.FirstNonBlank(osPackage.installedVersion, finding.ObservedVersion)
 		finding.EvidenceFactIDs = append(finding.EvidenceFactIDs, osPackage.factID)
 		finding.EvidencePath = append(finding.EvidencePath, facts.VulnerabilityOSPackageFactKind)
 		// An os_package fact's ScopeID is an opaque scan-target locator, never a
@@ -282,7 +283,7 @@ func classifySupplyChainImpactPackage(
 		analysisKey := supplyChainScopeGenerationKey(osPackage.scopeID, osPackage.generationID)
 		if analysis, ok := index.scannerAnalyses[analysisKey]; ok && analysis.imageDigest != "" {
 			finding.SubjectDigest = analysis.imageDigest
-			finding.ImageRef = firstNonBlank(analysis.imageReference, finding.ImageRef)
+			finding.ImageRef = payloadcore.FirstNonBlank(analysis.imageReference, finding.ImageRef)
 			finding.EvidenceFactIDs = append(finding.EvidenceFactIDs, analysis.factID)
 			finding.EvidencePath = append(finding.EvidencePath, facts.ScannerWorkerAnalysisFactKind)
 		}

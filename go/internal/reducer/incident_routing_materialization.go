@@ -11,6 +11,7 @@ import (
 
 	"go.opentelemetry.io/otel/metric"
 
+	"github.com/eshu-hq/eshu/go/internal/reducer/payloadcore"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
 	"github.com/eshu-hq/eshu/go/internal/truth"
 )
@@ -204,8 +205,8 @@ func (h IncidentRoutingMaterializationHandler) recordEvidenceCounter(
 	for _, row := range rows {
 		counts[key{
 			outcome: incidentRoutingTruthExact,
-			source:  firstNonBlank(anyToString(row["source_class"]), "unknown"),
-			kind:    firstNonBlank(anyToString(row["slot"]), "routing"),
+			source:  payloadcore.FirstNonBlank(anyToString(row["source_class"]), "unknown"),
+			kind:    payloadcore.FirstNonBlank(anyToString(row["slot"]), "routing"),
 		}]++
 	}
 	for outcome, count := range tally.skipped {

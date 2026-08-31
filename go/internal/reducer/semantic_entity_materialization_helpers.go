@@ -8,6 +8,7 @@ import (
 	"strings"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/reducer/payloadcore"
 )
 
 func collectSemanticMetadata(payload map[string]any) map[string]any {
@@ -72,34 +73,14 @@ func collectSemanticMetadata(payload map[string]any) map[string]any {
 	return metadata
 }
 
+// payloadMap forwards to [payloadcore.PayloadMap].
 func payloadMap(payload map[string]any, key string) map[string]any {
-	if payload == nil {
-		return nil
-	}
-	value, ok := payload[key]
-	if !ok || value == nil {
-		return nil
-	}
-	m, ok := value.(map[string]any)
-	if !ok {
-		return nil
-	}
-	return m
+	return payloadcore.PayloadMap(payload, key)
 }
 
+// semanticPayloadString forwards to [payloadcore.SemanticPayloadString].
 func semanticPayloadString(payload map[string]any, key string) string {
-	if payload == nil {
-		return ""
-	}
-	value, ok := payload[key]
-	if !ok || value == nil {
-		return ""
-	}
-	str, ok := value.(string)
-	if !ok {
-		return ""
-	}
-	return strings.TrimSpace(str)
+	return payloadcore.SemanticPayloadString(payload, key)
 }
 
 func semanticPayloadMetadataString(payload map[string]any, key string) string {
@@ -218,44 +199,9 @@ func semanticPayloadParameterCount(payload map[string]any) int {
 	return 0
 }
 
+// semanticPayloadStringSlice forwards to [payloadcore.SemanticPayloadStringSlice].
 func semanticPayloadStringSlice(payload map[string]any, key string) []string {
-	if payload == nil {
-		return nil
-	}
-	value, ok := payload[key]
-	if !ok || value == nil {
-		return nil
-	}
-	switch typed := value.(type) {
-	case []string:
-		out := make([]string, 0, len(typed))
-		for _, item := range typed {
-			if trimmed := strings.TrimSpace(item); trimmed != "" {
-				out = append(out, trimmed)
-			}
-		}
-		if len(out) == 0 {
-			return nil
-		}
-		return out
-	case []any:
-		out := make([]string, 0, len(typed))
-		for _, item := range typed {
-			text, ok := item.(string)
-			if !ok {
-				continue
-			}
-			if trimmed := strings.TrimSpace(text); trimmed != "" {
-				out = append(out, trimmed)
-			}
-		}
-		if len(out) == 0 {
-			return nil
-		}
-		return out
-	default:
-		return nil
-	}
+	return payloadcore.SemanticPayloadStringSlice(payload, key)
 }
 
 func isSemanticEntityType(payload map[string]any, entityType string) bool {

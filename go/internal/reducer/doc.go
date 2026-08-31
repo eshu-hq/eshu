@@ -5,9 +5,17 @@
 // queued repair, and reducer-owned fact publication.
 //
 // The contract subpackage owns dependency-neutral domain, intent, result, and
-// handler types plus the domain constant catalog. This package re-exports that
-// surface and retains registry composition, runtime execution, queue behavior,
-// adapters, and telemetry.
+// handler types plus the domain constant catalog. The payloadcore subpackage
+// owns the generic payload accessors and string helpers that both this package
+// and the domain-family subpackages need; add a new generic helper there, not
+// here. This package re-exports the contract surface and retains registry
+// composition, runtime execution, queue behavior, adapters, and telemetry. Most
+// root call sites reach payloadcore through an unexported forwarder of the same
+// lowercase name; some call it directly, either because the symbol has no
+// forwarder or because the forwarder hop would cost the calling function its
+// own inlinability. Read the call site rather than assuming which form it
+// takes: an enumeration here has been wrong in four separate revisions, and the
+// compiler, not this comment, is the authority on the second case.
 // ParseDomain accepts the known reducer validation identifiers, including the
 // three reserved non-registrable identifiers. Shared-projection constants
 // remain runner names and are not admitted into the durable queue.

@@ -10,6 +10,7 @@ import (
 	"strings"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/reducer/payloadcore"
 )
 
 const (
@@ -119,7 +120,7 @@ func incidentRoutingDeclaredDecision(
 		slot:    incidentRoutingSlotIntended,
 		outcome: incidentRoutingTruthExact,
 		row: incidentRoutingBaseRow(input.Incident, incidentUID, incidentRoutingSlotIntended,
-			firstNonBlank(item.SourceClass, "declared"), "content_entity.PagerDutyDeclaration", item.EntityID, map[string]any{
+			payloadcore.FirstNonBlank(item.SourceClass, "declared"), "content_entity.PagerDutyDeclaration", item.EntityID, map[string]any{
 				"repo_id":            item.RepoID,
 				"relative_path":      item.RelativePath,
 				"declaration_kind":   item.DeclarationKind,
@@ -159,7 +160,7 @@ func incidentRoutingAppliedDecision(
 		slot:    incidentRoutingSlotApplied,
 		outcome: incidentRoutingTruthExact,
 		row: incidentRoutingBaseRow(input.Incident, incidentUID, incidentRoutingSlotApplied,
-			firstNonBlank(item.SourceClass, "applied"), "incident_routing.applied_pagerduty_resource", item.FactID, map[string]any{
+			payloadcore.FirstNonBlank(item.SourceClass, "applied"), "incident_routing.applied_pagerduty_resource", item.FactID, map[string]any{
 				"source_kind":             item.SourceKind,
 				"resource_class":          item.ResourceClass,
 				"provider_object_id":      item.ProviderObjectID,
@@ -199,9 +200,9 @@ func incidentRoutingObservedDecision(
 		slot:    incidentRoutingSlotLive,
 		outcome: incidentRoutingTruthExact,
 		row: incidentRoutingBaseRow(input.Incident, incidentUID, incidentRoutingSlotLive,
-			firstNonBlank(item.SourceClass, "observed"), "incident_routing.observed_pagerduty_service", item.FactID, map[string]any{
+			payloadcore.FirstNonBlank(item.SourceClass, "observed"), "incident_routing.observed_pagerduty_service", item.FactID, map[string]any{
 				"source_kind":            item.SourceKind,
-				"provider_object_id":     firstNonBlank(item.ServiceID, item.ProviderObjectID),
+				"provider_object_id":     payloadcore.FirstNonBlank(item.ServiceID, item.ProviderObjectID),
 				"status":                 item.Status,
 				"declared_match_state":   item.DeclaredMatchState,
 				"drift_candidate_reason": item.DriftCandidateReason,
@@ -225,7 +226,7 @@ func incidentRoutingBaseRow(
 		"slot":                 slot,
 		"source_class":         sourceClass,
 		"truth_label":          incidentRoutingTruthExact,
-		"provider":             firstNonBlank(incident.Provider, "pagerduty"),
+		"provider":             payloadcore.FirstNonBlank(incident.Provider, "pagerduty"),
 		"provider_incident_id": incident.ProviderIncidentID,
 		"service_id":           incident.ServiceID,
 		"service_url":          incident.ServiceURL,
@@ -361,7 +362,7 @@ func incidentRoutingIncidentUID(incident IncidentRoutingIncident) string {
 	return facts.StableID("IncidentRoutingEvidence", map[string]any{
 		"node_kind":            "incident",
 		"scope_id":             incident.ScopeID,
-		"provider":             firstNonBlank(incident.Provider, "pagerduty"),
+		"provider":             payloadcore.FirstNonBlank(incident.Provider, "pagerduty"),
 		"provider_incident_id": incident.ProviderIncidentID,
 	})
 }

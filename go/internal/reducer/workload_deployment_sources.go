@@ -5,9 +5,9 @@ package reducer
 
 import (
 	"context"
-	"fmt"
 	"log/slog"
 
+	"github.com/eshu-hq/eshu/go/internal/reducer/payloadcore"
 	"github.com/eshu-hq/eshu/go/internal/relationships"
 	log "github.com/eshu-hq/eshu/go/pkg/log"
 )
@@ -377,39 +377,14 @@ func argoDeploymentProvenance(details map[string]any) string {
 	return ""
 }
 
+// toStringSlice forwards to [payloadcore.ToStringSlice].
 func toStringSlice(value any) []string {
-	switch typed := value.(type) {
-	case []string:
-		return typed
-	case []any:
-		result := make([]string, 0, len(typed))
-		for _, item := range typed {
-			text := fmt.Sprint(item)
-			if text == "" || text == "<nil>" {
-				continue
-			}
-			result = append(result, text)
-		}
-		return result
-	default:
-		text := fmt.Sprint(value)
-		if text == "" || text == "<nil>" {
-			return nil
-		}
-		return []string{text}
-	}
+	return payloadcore.ToStringSlice(value)
 }
 
+// appendUniqueString forwards to [payloadcore.AppendUniqueString].
 func appendUniqueString(values []string, value string) []string {
-	if value == "" {
-		return values
-	}
-	for _, existing := range values {
-		if existing == value {
-			return values
-		}
-	}
-	return append(values, value)
+	return payloadcore.AppendUniqueString(values, value)
 }
 
 func cloneStringSliceMap(values map[string][]string) map[string][]string {

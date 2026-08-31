@@ -7,6 +7,8 @@ import (
 	"fmt"
 	"path/filepath"
 	"strings"
+
+	"github.com/eshu-hq/eshu/go/internal/reducer/payloadcore"
 )
 
 func codeCallLanguage(call map[string]any, rawPath string, relativePath string) string {
@@ -118,22 +120,9 @@ func codeCallPathLineKey(path string, line int) string {
 	return fmt.Sprintf("%s#%d", path, line)
 }
 
+// mapSlice forwards to [payloadcore.MapSlice].
 func mapSlice(value any) []map[string]any {
-	switch typed := value.(type) {
-	case []map[string]any:
-		return typed
-	case []any:
-		result := make([]map[string]any, 0, len(typed))
-		for _, item := range typed {
-			asMap, ok := item.(map[string]any)
-			if ok {
-				result = append(result, asMap)
-			}
-		}
-		return result
-	default:
-		return nil
-	}
+	return payloadcore.MapSlice(value)
 }
 
 func codeCallInt(values ...any) int {

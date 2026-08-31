@@ -10,6 +10,7 @@ import (
 	"strings"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/reducer/payloadcore"
 )
 
 const (
@@ -104,21 +105,9 @@ func loadFactsForKindAndPayloadValue(
 	return loadFactsForKinds(ctx, loader, scopeID, generationID, []string{factKind})
 }
 
+// cleanFactFilterValues forwards to [payloadcore.CleanFactFilterValues].
 func cleanFactFilterValues(values []string) []string {
-	cleaned := make([]string, 0, len(values))
-	seen := make(map[string]struct{}, len(values))
-	for _, value := range values {
-		value = strings.TrimSpace(value)
-		if value == "" {
-			continue
-		}
-		if _, ok := seen[value]; ok {
-			continue
-		}
-		seen[value] = struct{}{}
-		cleaned = append(cleaned, value)
-	}
-	return cleaned
+	return payloadcore.CleanFactFilterValues(values)
 }
 
 // classifyFactLoadError preserves semantic errors while marking transient

@@ -8,6 +8,7 @@ import (
 	"strings"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/reducer/payloadcore"
 )
 
 func classifySupplyChainImpactProduct(
@@ -18,7 +19,7 @@ func classifySupplyChainImpactProduct(
 	finding := baseSupplyChainImpactProductFinding(cve, product, index)
 	component, attachment, image, hasComponentPath, imagePathMissing := firstSBOMProductImpactPath(product, index)
 	if hasComponentPath {
-		finding.ObservedVersion = firstNonBlank(component.version, versionFromCPE23Criteria(product.criteria))
+		finding.ObservedVersion = payloadcore.FirstNonBlank(component.version, versionFromCPE23Criteria(product.criteria))
 		finding.SubjectDigest = attachment.subjectDigest
 		finding.ImageRef = image.imageRef
 		finding.EvidenceFactIDs = append(finding.EvidenceFactIDs, component.factID, attachment.factID, image.factID)
@@ -49,7 +50,7 @@ func baseSupplyChainImpactProductFinding(
 ) SupplyChainImpactFinding {
 	finding := SupplyChainImpactFinding{
 		CVEID:               cve.cveID,
-		AdvisoryID:          firstNonBlank(cve.advisoryID, cve.cveID),
+		AdvisoryID:          payloadcore.FirstNonBlank(cve.advisoryID, cve.cveID),
 		ProductCriteria:     product.criteria,
 		MatchCriteriaID:     product.matchCriteriaID,
 		CVSSScore:           cve.cvssScore,
@@ -116,7 +117,7 @@ func provenanceAdvisoryID(provenance advisoryProvenanceSelection, cves supplyCha
 		return provenance.AdvisorySources[0].AdvisoryID
 	}
 	rep := cves.representative()
-	return firstNonBlank(rep.advisoryID, rep.cveID)
+	return payloadcore.FirstNonBlank(rep.advisoryID, rep.cveID)
 }
 
 func applyRiskSignals(finding *SupplyChainImpactFinding, signals supplyChainRiskSignals) {

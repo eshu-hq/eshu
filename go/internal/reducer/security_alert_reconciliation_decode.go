@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/reducer/payloadcore"
 	securityalertv1 "github.com/eshu-hq/eshu/sdk/go/factschema/securityalert/v1"
 )
 
@@ -128,7 +129,7 @@ func providerSecurityAlertFromRawPayload(envelope facts.Envelope) providerSecuri
 			ProviderState:             strings.ToLower(payloadStr(envelope.Payload, "provider_state")),
 			RepositoryID:              providerRepositoryID,
 			ProviderRepositoryID:      providerRepositoryID,
-			RepositoryName: firstNonBlank(
+			RepositoryName: payloadcore.FirstNonBlank(
 				payloadStr(envelope.Payload, "repository_name"),
 				securityAlertRepositoryNameFromID(providerRepositoryID),
 			),
@@ -167,7 +168,7 @@ func providerSecurityAlertFromDecoded(
 			ProviderState:             strings.ToLower(securityAlertDerefTrim(decoded.ProviderState)),
 			RepositoryID:              providerRepositoryID,
 			ProviderRepositoryID:      providerRepositoryID,
-			RepositoryName: firstNonBlank(
+			RepositoryName: payloadcore.FirstNonBlank(
 				securityAlertDerefTrim(decoded.RepositoryName),
 				securityAlertRepositoryNameFromID(providerRepositoryID),
 			),

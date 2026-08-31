@@ -448,6 +448,19 @@ for service-catalog/observability correlation, Kubernetes correlation,
 queue/generation invariants, code-call edge rules, and the security-sensitive
 SecurityGroup/IAM graph projections.
 
+## Where a new helper goes
+
+A generic helper — a payload accessor, a string normalizer, a scope or identity
+derivation — belongs in `payloadcore`, not in this directory. "Generic" means it
+would still be meaningful with the family whose file it sits in deleted. Adding
+one here is how this root regrew: `firstNonBlank`, `boolPayload` and
+`ociRepositoryID` spent their lives inside `container_image_identity_registry.go`
+while a dozen unrelated families called them, and a filename-based survey could
+not see it (#6061).
+
+A handler, writer, lookup or decision is the owning family's product and stays
+with the family even when several families read it.
+
 ## Related docs
 
 - `docs/public/architecture.md`
@@ -458,6 +471,7 @@ SecurityGroup/IAM graph projections.
 - `go/internal/projector/README.md` (upstream handoff)
 - `go/internal/reducer/code-call-materialization.md`
 - `go/internal/reducer/shared-projection.md`
+- `go/internal/reducer/payloadcore/README.md`
 - `go/internal/reducer/dsl/README.md`
 - `go/internal/reducer/tags/README.md`
 - `go/internal/reducer/tfstate/README.md`

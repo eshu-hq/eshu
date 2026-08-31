@@ -9,6 +9,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
 	"github.com/eshu-hq/eshu/go/internal/graph/edgetype"
+	"github.com/eshu-hq/eshu/go/internal/reducer/payloadcore"
 )
 
 // crossplaneSatisfiedByRelType is the canonical relationship type for the
@@ -235,7 +236,7 @@ func crossplaneEntityMetadataString(payload map[string]any, key string) string {
 	if !ok {
 		return ""
 	}
-	return payloadStr(metadata, key)
+	return payloadcore.PayloadStr(metadata, key)
 }
 
 // crossplaneClaimCandidateFromPayload builds a Claim candidate from a

@@ -9,6 +9,7 @@ import (
 	"strings"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/reducer/payloadcore"
 	"github.com/eshu-hq/eshu/go/internal/repositoryidentity"
 )
 
@@ -271,12 +272,7 @@ func firstPackageSourceURL(values ...string) string {
 	return ""
 }
 
+// compactStringSlice forwards to [payloadcore.CompactStringSlice].
 func compactStringSlice(values ...string) []string {
-	out := make([]string, 0, len(values))
-	for _, value := range values {
-		if trimmed := strings.TrimSpace(value); trimmed != "" {
-			out = append(out, trimmed)
-		}
-	}
-	return out
+	return payloadcore.CompactStringSlice(values...)
 }

@@ -8,6 +8,7 @@ import (
 	"strings"
 
 	"github.com/eshu-hq/eshu/go/internal/packageidentity"
+	"github.com/eshu-hq/eshu/go/internal/reducer/payloadcore"
 )
 
 func packageManifestMetadataString(payload map[string]any, key string) string {
@@ -44,7 +45,7 @@ func packageManifestCanObserveExactVersion(packageManager string, lockfile bool)
 }
 
 func packageManifestRequestedRange(payload map[string]any) string {
-	return firstNonBlank(
+	return payloadcore.FirstNonBlank(
 		packageManifestMetadataString(payload, "requested_range"),
 		packageManifestMetadataString(payload, "requested_version"),
 		packageManifestMetadataString(payload, "value"),
@@ -63,35 +64,9 @@ func packageManifestMetadataStrings(payload map[string]any, key string) []string
 	return payloadOrderedStrings(raw, key)
 }
 
+// payloadOrderedStrings forwards to [payloadcore.PayloadOrderedStrings].
 func payloadOrderedStrings(payload map[string]any, key string) []string {
-	raw, ok := payload[key]
-	if !ok {
-		return nil
-	}
-	switch typed := raw.(type) {
-	case []string:
-		out := make([]string, 0, len(typed))
-		for _, value := range typed {
-			if value = strings.TrimSpace(value); value != "" {
-				out = append(out, value)
-			}
-		}
-		return out
-	case []any:
-		out := make([]string, 0, len(typed))
-		for _, value := range typed {
-			text := strings.TrimSpace(payloadString(map[string]any{"value": value}, "value"))
-			if text != "" {
-				out = append(out, text)
-			}
-		}
-		return out
-	case string:
-		if trimmed := strings.TrimSpace(typed); trimmed != "" {
-			return []string{trimmed}
-		}
-	}
-	return nil
+	return payloadcore.PayloadOrderedStrings(payload, key)
 }
 
 func packageManifestMetadataInt(payload map[string]any, key string) int {

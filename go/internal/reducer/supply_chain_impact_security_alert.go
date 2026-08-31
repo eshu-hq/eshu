@@ -8,6 +8,7 @@ import (
 	"strings"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/reducer/payloadcore"
 )
 
 // appendSecurityAlertImpactFindings seeds supply-chain-impact findings from
@@ -75,7 +76,7 @@ func buildSecurityAlertImpactFinding(
 			observedVersion = manifestVersion
 		}
 	}
-	requestedRange := firstNonBlank(
+	requestedRange := payloadcore.FirstNonBlank(
 		strings.TrimSpace(consumption.requestedRange),
 		strings.TrimSpace(consumption.dependencyRange),
 	)
@@ -105,7 +106,7 @@ func buildSecurityAlertImpactFinding(
 		FixedVersionSource: strings.TrimSpace(alert.Provider),
 		RangeSource:        strings.TrimSpace(alert.Provider),
 		RepositoryID:       consumption.repositoryID,
-		DependencyScope:    firstNonBlank(strings.TrimSpace(consumption.dependencyScope), strings.TrimSpace(alert.DependencyScope)),
+		DependencyScope:    payloadcore.FirstNonBlank(strings.TrimSpace(consumption.dependencyScope), strings.TrimSpace(alert.DependencyScope)),
 		DependencyPath:     append([]string(nil), consumption.dependencyPath...),
 		DependencyDepth:    consumption.dependencyDepth,
 		DirectDependency:   cloneBoolPointer(consumption.directDependency),
@@ -175,11 +176,11 @@ func securityAlertImpactAlreadyExists(
 }
 
 func securityAlertImpactCVEID(alert providerSecurityAlert) string {
-	return firstNonBlank(firstSecurityAlertID(alert.CVEIDs), firstSecurityAlertID(alert.GHSAIDs))
+	return payloadcore.FirstNonBlank(firstSecurityAlertID(alert.CVEIDs), firstSecurityAlertID(alert.GHSAIDs))
 }
 
 func securityAlertImpactAdvisoryID(alert providerSecurityAlert) string {
-	return firstNonBlank(firstSecurityAlertID(alert.GHSAIDs), firstSecurityAlertID(alert.CVEIDs), alert.ProviderAlertID)
+	return payloadcore.FirstNonBlank(firstSecurityAlertID(alert.GHSAIDs), firstSecurityAlertID(alert.CVEIDs), alert.ProviderAlertID)
 }
 
 func firstSecurityAlertID(values []string) string {

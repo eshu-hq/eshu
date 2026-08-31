@@ -10,6 +10,7 @@ import (
 	"sort"
 	"strings"
 
+	"github.com/eshu-hq/eshu/go/internal/reducer/payloadcore"
 	log "github.com/eshu-hq/eshu/go/pkg/log"
 )
 
@@ -140,7 +141,7 @@ func markRowsRetractViaRefresh(rows []SharedProjectionIntentRow) []SharedProject
 // intent guarantees. Rows without it predate #2898 emission and stay on the
 // legacy per-partition retract path.
 func rowUsesRefreshFence(row SharedProjectionIntentRow) bool {
-	return payloadBool(row.Payload, retractViaRefreshKey)
+	return payloadcore.PayloadBool(row.Payload, retractViaRefreshKey)
 }
 
 // splitRepoRefreshRows separates per-repo refresh rows from per-edge rows,

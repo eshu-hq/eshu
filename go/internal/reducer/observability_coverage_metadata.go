@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/reducer/payloadcore"
 )
 
 type observabilityMetadataEvidence struct {
@@ -93,20 +94,20 @@ func observabilityMetadataEvidenceFromEnvelope(
 		provider:       provider,
 		coverageSignal: signal,
 		objectRef:      objectRef,
-		targetService: firstNonBlank(
+		targetService: payloadcore.FirstNonBlank(
 			view.serviceHints,
 			view.serviceRef,
 		),
 		sourceClass:   normalizedObservabilitySourceClass(envelope.FactKind, view),
-		sourceKind:    firstNonBlank(view.sourceKind, provider),
+		sourceKind:    payloadcore.FirstNonBlank(view.sourceKind, provider),
 		sourceOutcome: normalizedObservabilitySourceOutcome(view),
-		resourceClass: firstNonBlank(
+		resourceClass: payloadcore.FirstNonBlank(
 			view.resourceClass,
 			view.observabilityResourceClass,
 			signal,
 		),
 		freshnessState: normalizedObservabilityFreshness(view),
-		reasonCode: firstNonBlank(
+		reasonCode: payloadcore.FirstNonBlank(
 			view.warningKind,
 			view.driftCandidateReason,
 			view.declaredMatchState,
@@ -139,8 +140,8 @@ func classifyObservabilityMetadataGroup(
 		sourceKinds = append(sourceKinds, item.sourceKind)
 		sourceOutcomes = append(sourceOutcomes, item.sourceOutcome)
 		evidenceFactIDs = append(evidenceFactIDs, item.factID)
-		targetService = firstNonBlank(targetService, item.targetService)
-		resourceClass = firstNonBlank(resourceClass, item.resourceClass)
+		targetService = payloadcore.FirstNonBlank(targetService, item.targetService)
+		resourceClass = payloadcore.FirstNonBlank(resourceClass, item.resourceClass)
 		freshness = worseObservabilityFreshness(freshness, item.freshnessState)
 		state = worseObservabilityOutcome(state, metadataOutcome(item))
 	}
@@ -281,14 +282,14 @@ func observabilityMetadataProvider(factKind string, view observabilityMetadataVi
 		facts.ObservabilityObservedTraceSignalFactKind:
 		return "tempo"
 	case facts.ObservabilityDeclaredMetricRouteFactKind:
-		return firstNonBlank(view.backendKind, "prometheus")
+		return payloadcore.FirstNonBlank(view.backendKind, "prometheus")
 	case facts.ObservabilityDeclaredScrapeConfigFactKind,
 		facts.ObservabilityDeclaredMetricRuleFactKind,
 		facts.ObservabilityObservedTargetFactKind,
 		facts.ObservabilityObservedRuleFactKind:
-		return firstNonBlank(view.backendKind, view.sourceKind, "prometheus")
+		return payloadcore.FirstNonBlank(view.backendKind, view.sourceKind, "prometheus")
 	default:
-		return firstNonBlank(view.backendKind, view.sourceKind)
+		return payloadcore.FirstNonBlank(view.backendKind, view.sourceKind)
 	}
 }
 
@@ -326,7 +327,7 @@ func observabilityMetadataCoverageSignal(factKind string, view observabilityMeta
 	case facts.ObservabilityAppliedResourceFactKind,
 		facts.ObservabilityAppliedSyncStateFactKind,
 		facts.ObservabilityCoverageWarningFactKind:
-		signal := observabilitySignalFromResourceClass(firstNonBlank(
+		signal := observabilitySignalFromResourceClass(payloadcore.FirstNonBlank(
 			view.observabilityResourceClass,
 			view.resourceClass,
 			view.resourceKind,
@@ -458,7 +459,7 @@ func observabilityFreshnessRank(value string) int {
 }
 
 func collapsedObservabilityValue(values []string) string {
-	values = uniqueSortedStrings(values)
+	values = payloadcore.UniqueSortedStrings(values)
 	switch len(values) {
 	case 0:
 		return ""

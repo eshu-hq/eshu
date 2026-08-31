@@ -6,9 +6,10 @@ package reducer
 import (
 	"context"
 	"fmt"
-	"slices"
 	"strings"
 	"time"
+
+	"github.com/eshu-hq/eshu/go/internal/reducer/payloadcore"
 )
 
 // WorkloadIdentityWrite captures the bounded canonical reconciliation request
@@ -166,29 +167,7 @@ func workloadIdentityWriteFromIntent(intent Intent) (WorkloadIdentityWrite, erro
 	}, nil
 }
 
+// uniqueSortedStrings forwards to [payloadcore.UniqueSortedStrings].
 func uniqueSortedStrings(values []string) []string {
-	if len(values) == 0 {
-		return nil
-	}
-
-	seen := make(map[string]struct{}, len(values))
-	normalized := make([]string, 0, len(values))
-	for _, value := range values {
-		trimmed := strings.TrimSpace(value)
-		if trimmed == "" {
-			continue
-		}
-		if _, ok := seen[trimmed]; ok {
-			continue
-		}
-		seen[trimmed] = struct{}{}
-		normalized = append(normalized, trimmed)
-	}
-
-	if len(normalized) == 0 {
-		return nil
-	}
-
-	slices.Sort(normalized)
-	return normalized
+	return payloadcore.UniqueSortedStrings(values)
 }

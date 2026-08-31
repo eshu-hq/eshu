@@ -7,8 +7,6 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
-	"sort"
-	"strings"
 	"time"
 
 	"go.opentelemetry.io/otel/attribute"
@@ -16,6 +14,7 @@ import (
 	"go.opentelemetry.io/otel/trace"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/reducer/payloadcore"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
 	"github.com/eshu-hq/eshu/go/internal/truth"
 	log "github.com/eshu-hq/eshu/go/pkg/log"
@@ -438,21 +437,7 @@ func logAWSRelationshipMaterializationCompleted(
 	)
 }
 
-// formatTally renders a bounded count map as a deterministic key=value string
-// for the structured completion log. Cardinality is bounded by the closed set
-// of join modes / scanned target types.
+// formatTally forwards to [payloadcore.FormatTally].
 func formatTally(counts map[string]int) string {
-	if len(counts) == 0 {
-		return ""
-	}
-	keys := make([]string, 0, len(counts))
-	for key := range counts {
-		keys = append(keys, key)
-	}
-	sort.Strings(keys)
-	parts := make([]string, 0, len(keys))
-	for _, key := range keys {
-		parts = append(parts, fmt.Sprintf("%s=%d", key, counts[key]))
-	}
-	return strings.Join(parts, ",")
+	return payloadcore.FormatTally(counts)
 }

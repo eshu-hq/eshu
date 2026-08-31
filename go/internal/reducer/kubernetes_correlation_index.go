@@ -9,6 +9,7 @@ import (
 	"strings"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/reducer/payloadcore"
 	kuberneteslivev1 "github.com/eshu-hq/eshu/sdk/go/factschema/kuberneteslive/v1"
 )
 
@@ -272,7 +273,7 @@ func (index *kubernetesCorrelationIndex) ingestSourceManifest(env facts.Envelope
 }
 
 func (index *kubernetesCorrelationIndex) ingestSourceTag(env facts.Envelope) {
-	digest := firstNonBlank(
+	digest := payloadcore.FirstNonBlank(
 		payloadString(env.Payload, "resolved_digest"),
 		payloadString(env.Payload, "digest"),
 	)

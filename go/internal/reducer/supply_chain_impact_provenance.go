@@ -6,6 +6,8 @@ package reducer
 import (
 	"sort"
 	"strings"
+
+	"github.com/eshu-hq/eshu/go/internal/reducer/payloadcore"
 )
 
 // supplyChainCVEGroup is the consolidated per-(cve_id) view of every
@@ -136,7 +138,7 @@ func buildAdvisoryProvenanceObservations(
 		}
 		observations = append(observations, AdvisoryProvenanceObservation{
 			Source:          source,
-			AdvisoryID:      firstNonBlank(cve.advisoryID, cve.cveID),
+			AdvisoryID:      payloadcore.FirstNonBlank(cve.advisoryID, cve.cveID),
 			SourceUpdatedAt: strings.TrimSpace(cve.sourceUpdatedAt),
 			SeverityScore:   cve.cvssScore,
 			SeverityVector:  strings.TrimSpace(cve.cvssVector),
@@ -154,7 +156,7 @@ func buildAdvisoryProvenanceObservations(
 		}
 		observations = append(observations, AdvisoryProvenanceObservation{
 			Source:         classifyAffectedPackageAdvisorySource(pkg),
-			AdvisoryID:     firstNonBlank(pkg.advisoryID, pkg.cveID),
+			AdvisoryID:     payloadcore.FirstNonBlank(pkg.advisoryID, pkg.cveID),
 			FixedVersions:  append([]string(nil), pkg.fixedVersions...),
 			AffectedRange:  supplyChainAffectedRangeSummary(pkg),
 			AffectedFactID: pkg.factID,

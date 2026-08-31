@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/reducer/payloadcore"
 )
 
 const (
@@ -45,7 +46,7 @@ func buildJSTSPackageReachabilityIndex(envelopes []facts.Envelope) jsTSPackageRe
 		if envelope.IsTombstone || envelope.FactKind != factKindFile {
 			continue
 		}
-		repositoryID := firstNonBlank(
+		repositoryID := payloadcore.FirstNonBlank(
 			payloadStr(envelope.Payload, "repo_id"),
 			payloadStr(envelope.Payload, "repository_id"),
 			envelope.ScopeID,
@@ -104,7 +105,7 @@ func (r *jsTSRepositoryReachability) recordImports(fileData map[string]any, fact
 		}
 	}
 	for _, call := range mapSlice(fileData["function_calls"]) {
-		callName := firstNonBlank(payloadStr(call, "full_name"), payloadStr(call, "name"))
+		callName := payloadcore.FirstNonBlank(payloadStr(call, "full_name"), payloadStr(call, "name"))
 		for alias, packageRoot := range importAliases {
 			if jsTSCallReferencesImportAlias(callName, alias) {
 				r.recordUsage(packageRoot, jsTSPackageAPIUsage{
@@ -189,7 +190,7 @@ func applyJSTSPackageReachability(
 }
 
 func isJSTSParsedFile(fileData map[string]any) bool {
-	switch strings.ToLower(firstNonBlank(
+	switch strings.ToLower(payloadcore.FirstNonBlank(
 		payloadStr(fileData, "language"),
 		payloadStr(fileData, "lang"),
 	)) {

@@ -8,6 +8,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
 	"github.com/eshu-hq/eshu/go/internal/packageidentity"
+	"github.com/eshu-hq/eshu/go/internal/reducer/payloadcore"
 	vulnerabilityv1 "github.com/eshu-hq/eshu/sdk/go/factschema/vulnerability/v1"
 )
 
@@ -30,7 +31,7 @@ func supplyChainCVEFromEnvelope(envelope facts.Envelope) (supplyChainImpactCVE, 
 	}
 	return supplyChainImpactCVE{
 		factID:          envelope.FactID,
-		cveID:           firstNonBlank(derefString(cve.CVEID), cve.AdvisoryID),
+		cveID:           payloadcore.FirstNonBlank(derefString(cve.CVEID), cve.AdvisoryID),
 		advisoryID:      cve.AdvisoryID,
 		source:          derefString(cve.Source),
 		cvssScore:       derefFloat64(cve.CVSSScore),
@@ -56,7 +57,7 @@ func supplyChainAffectedPackageFromEnvelope(envelope facts.Envelope) (supplyChai
 	purl := derefString(pkg.PURL)
 	return supplyChainAffectedPackage{
 		factID:           envelope.FactID,
-		cveID:            firstNonBlank(derefString(pkg.CVEID), pkg.AdvisoryID),
+		cveID:            payloadcore.FirstNonBlank(derefString(pkg.CVEID), pkg.AdvisoryID),
 		source:           derefString(pkg.Source),
 		advisoryID:       pkg.AdvisoryID,
 		packageID:        canonicalSupplyChainAffectedPackageID(derefString(pkg.PackageID), purl),

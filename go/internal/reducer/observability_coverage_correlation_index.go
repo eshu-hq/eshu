@@ -8,6 +8,7 @@ import (
 	"strings"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/reducer/payloadcore"
 	awsv1 "github.com/eshu-hq/eshu/sdk/go/factschema/aws/v1"
 )
 
@@ -172,7 +173,7 @@ func (index *observabilityCoverageIndex) ingestResource(resource awsv1.Resource,
 func (index *observabilityCoverageIndex) ingestObservabilityObject(resource awsv1.Resource, factID, signal string) {
 	arn := derefString(resource.ARN)
 	resourceID := resource.ResourceID
-	ref := firstNonBlank(arn, resourceID)
+	ref := payloadcore.FirstNonBlank(arn, resourceID)
 	if ref == "" {
 		return
 	}
@@ -180,7 +181,7 @@ func (index *observabilityCoverageIndex) ingestObservabilityObject(resource awsv
 		resource.AccountID,
 		resource.Region,
 		resource.ResourceType,
-		firstNonBlank(resourceID, arn),
+		payloadcore.FirstNonBlank(resourceID, arn),
 	)
 	if _, exists := index.objectsByRef[ref]; !exists {
 		index.objectOrder = append(index.objectOrder, ref)
@@ -288,7 +289,7 @@ func coverageResolutionRank(mode string) int {
 // silently indexing it with a missing dimension/service-name signal, which
 // would understate coverage rather than surface the bad fact.
 func (index *observabilityCoverageIndex) ingestRelationship(relationship awsv1.Relationship, factID string) error {
-	source := firstNonBlank(derefString(relationship.SourceARN), relationship.SourceResourceID)
+	source := payloadcore.FirstNonBlank(derefString(relationship.SourceARN), relationship.SourceResourceID)
 	if source == "" {
 		return nil
 	}

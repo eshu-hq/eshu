@@ -179,6 +179,120 @@ Two consequences worth knowing before the remaining children:
   gone and the replacement is 66, and dirgate's ratchet means any later
   extraction has to re-pin it lower.
 
+No-Regression Evidence: the reducer payloadcore hoist (#6061 PR1) is a symbol
+eviction, not a logic change. Baseline and after are the same behavior by
+construction and that is asserted, not assumed: all 28 moved function bodies are
+character-identical to the merge base once every moved identifier the body
+references is capitalized, not only the declared one (six bodies call or
+reference a sibling that moved with them: PayloadOrderedStrings, PayloadBool,
+SupplyChainWorkloadIDsFromPayload, OCIRepositoryID, SourceOrderKey and
+PreferMaxSourceOrderKey; the remaining three of the 31 symbols are consts and
+have no body) (checked mechanically against `git show origin/main:<file>` for each,
+with a seeded-defect positive control — removing `PayloadStr`'s `"<nil>"` guard
+turns the check RED naming that line, reverting turns it GREEN), and
+`git diff --name-only origin/main..HEAD -- testdata/ specs/` is empty, so every
+B-7 cassette and the B-12 snapshot
+(`testdata/golden/e2e-20repo-snapshot.json`, sha256
+`d6329f7bce08e71319262319fcf435bd4a6770167b081550df691b1a84e76802`) are
+byte-identical. Backend and version are unchanged (NornicDB, default local
+profile); input shape is unchanged; terminal queue and row counts are unchanged
+because no queue, lease, Cypher, or projection path is touched. The diff is
+definitions, import blocks, and a mechanical call-site rewrite: 88 call sites
+across 31 root files change from `firstNonBlank(...)` to
+`payloadcore.FirstNonBlank(...)`, plus a handful of other sites repointed at
+payloadcore to keep their callers inlinable. These are behavior-preserving
+token swaps, not unchanged lines — the distinction matters for anyone scoping
+later regression proof from this record. Equivalence is established by the
+body comparison above, not by the call sites being untouched.
+
+Codegen moves in both directions, and the net is positive. Measured with
+`go build -a -gcflags=-m ./internal/reducer` on both refs:
+
+- Package-wide inlined call sites rise from 12291 on main to 13985 here, on
+  go1.27.0. These counts are toolchain-sensitive — go1.26.6 gives 12231 and
+  13925 on the same trees — so quote the toolchain with the number.
+- 16 functions GAIN inlinability. The raw set difference is 27 when the probe
+  covers `./internal/reducer/...` — the bare `./internal/reducer` above emits no
+  payloadcore lines and yields 16. The other 11 are
+  new exported payloadcore symbols (`PayloadBool`, `CopyPayload` and the rest)
+  that did not exist on main at all, so they are new code rather than a codegen
+  change. Only the 16 below were functions before this PR. Not the moved helpers: they are unchanged and
+  most were never inlinable (`PayloadStr` costs 148, `ToStringSlice` 188,
+  `FormatTally` 233, all against a budget of 80). What became inlinable is the
+  16 one-line ROOT FORWARDERS that inherited the old lowercase names —
+  `payloadStr`, `payloadString`, `semanticPayloadString`, `anyToString`,
+  `compactStringSlice`, `formatTally`, `toStringSlice`, `sourceOrderKey` and
+  others — each now a single `return payloadcore.X(...)` whose callee is too
+  expensive to inline into it. Go's inline cost is computed over the function
+  body; file and package size play no part.
+- 3 functions lose inlinability: `cicdWorkflowImageIsInputOnly`,
+  `indexSLSAProvenanceEvidence`, `packageRepositoryName`. Their bodies are
+  byte-identical to the base; only their inline cost changed, because calling a
+  forwarder instead of the original raises the CALLER past budget 80. None is on
+  a per-row hot path. `cicdWorkflowImageIsInputOnly` runs once per workflow
+  image over two passes (`ci_cd_run_correlation_workflow_image.go:128`, its sole
+  call site). `indexSLSAProvenanceEvidence` runs once per decoded
+  attestation.slsa_provenance envelope (`sbom_attestation_attachment_slsa_index.go:28`,
+  its sole call site). `packageRepositoryName` runs once per dependency-manifest
+  fact inside the per-envelope loop (`package_consumption_correlation.go:257`).
+  None is the shared-projection retract path
+
+  Four further symbols are inlined at fewer sites — `derefString` -3,
+  `payloadBool` -2, `strings.HasPrefix` -3, `trimmedCICDPtr` -1. None of the
+  four LOST inlinability: the lost set is exactly the three above plus the
+  deleted `firstNonBlank`, so these are changes in how often a still-inlinable
+  function was inlined, not new regressions. Three distinct mechanisms produce
+  them, and only the first is a codegen change at all. A lost caller takes its
+  callee's inlined site with it: `cicdWorkflowImageIsInputOnly` calls
+  `trimmedCICDPtr` (-1), and `indexSLSAProvenanceEvidence` calls `derefString`.
+  A call MOVED out of the measured package: `payloadcore/identity.go` contains
+  exactly three `strings.HasPrefix` calls, which is the whole of that -3 — the
+  probe measures `./internal/reducer`, so a call that relocated into the
+  subpackage stops being counted, and nothing about it got slower. And a call
+  site was deleted: repointing `rowUsesRefreshFence` at `payloadcore.PayloadBool`
+  removed its one source call to `payloadBool`. That single deletion accounts
+  for the whole -2, because `rowUsesRefreshFence` was itself inlined at one
+  site, so `payloadBool` earned two inline reports from it — its own body and
+  the inlined copy. Source call sites go 10 to 9; inline reports go 11 to 9. All four are attributed. `payloadBool` -2 is not a lost
+  inline at all but this PR's own repoint: `rowUsesRefreshFence` is inlinable on
+  BOTH refs, and the two vanished reports are its own body and its single
+  inlined copy, which called `payloadBool` on main and call
+  `payloadcore.PayloadBool` here. `derefString` -3 splits across two lost
+  functions, not one — `indexSLSAProvenanceEvidence` carried two of them and the
+  `cicdWorkflowImageIsInputOnly` inline chain the third.
+
+  The probe-scope caveat matters for reading any of this: `-gcflags=-m` reports
+  only the package named on the command line, so a call that moved into
+  payloadcore leaves the count without anything getting slower. That is the
+  whole of `strings.HasPrefix` -3, and the same effect shows up in
+  `strings.TrimPrefix` -1, `slices.Sort` -1 and the `time` internals -1 each.
+
+  Five more functions lost inlinability in an earlier revision and were FIXED
+  rather than measured, by repointing them at payloadcore directly so the
+  forwarder hop disappears: `rowUsesRefreshFence`, `payloadBoolPointer`,
+  `collapsedObservabilityValue`, `crossplaneEntityMetadataString` and
+  `mapStringValue`. `rowUsesRefreshFence` is the one that mattered — it runs
+  once per row on the shared-projection retract path, and an aggregate inline
+  count cannot establish no-regression for a per-row loop however favourable the
+  total looks. It is inlinable again and inlining at its retract-path call site,
+  verified with `-gcflags=-m`.
+
+One forwarder does not exist for the same reason. `firstNonBlank` is inlinable
+in the reducer root at cost 78; a forwarder around `payloadcore.FirstNonBlank`
+costs 82, over Go's budget of 80, because the callee inlines into its own
+forwarder. Keeping it would have dropped ALL 88 of its inlined call sites to 0.
+Its 88 call sites across 29 non-test root files call the package directly instead, which
+holds the count at 88 on both refs — parity with main, not an improvement.
+
+No-Observability-Change: no metric, span, log field, status field, or runtime
+setting is added, removed, or renamed. The four new `payloadcore` files are
+pure helpers that emit no signal; reducer execution stays covered by
+`eshu_dp_queue_claim_duration_seconds`, `eshu_dp_reducer_queue_wait_seconds`
+and `eshu_dp_queue_depth`, and shared projection by
+`eshu_dp_shared_projection_cycles_total` and
+`eshu_dp_shared_projection_step_seconds`, as the four rows added to
+`docs/public/observability/telemetry-coverage.md` record.
+
 No-Regression Evidence: the collector restructure is a file move. Baseline and
 after measurement are the same tree by construction, and that is asserted rather
 than assumed: `testdata/golden/e2e-20repo-snapshot.json` and every cassette

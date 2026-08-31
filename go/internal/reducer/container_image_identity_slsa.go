@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/reducer/payloadcore"
 	sbomv1 "github.com/eshu-hq/eshu/sdk/go/factschema/sbom/v1"
 )
 
@@ -101,7 +102,7 @@ func extractSLSADigestAnchorsWithQuarantine(
 			if verification.StatementID == "" {
 				continue
 			}
-			status := normalizedVerificationStatus(firstNonBlank(
+			status := normalizedVerificationStatus(payloadcore.FirstNonBlank(
 				derefString(verification.VerificationResult),
 				derefString(verification.VerificationStatus),
 			))
@@ -194,7 +195,7 @@ func slsaProvenanceCommitAndSource(provenance sbomv1.SLSAProvenance) (commit str
 // widely-used git-source convention) or "gitCommit" (an alternate algorithm
 // name some SLSA producers use).
 func slsaGitCommitDigest(digest map[string]string) string {
-	return strings.ToLower(strings.TrimSpace(firstNonBlank(digest["sha1"], digest["gitCommit"])))
+	return strings.ToLower(strings.TrimSpace(payloadcore.FirstNonBlank(digest["sha1"], digest["gitCommit"])))
 }
 
 // slsaConfigSourceRepositoryURL strips a SLSA config source/material URI down
