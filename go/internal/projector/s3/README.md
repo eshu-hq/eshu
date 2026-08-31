@@ -90,7 +90,7 @@ selected by the changed paths.
 No-Regression Evidence: this extraction moves three builders and their typed
 decode wrapper without changing a trigger, a value, or the order they run in.
 Reducer intent domains emitted by all three builders are identical to the base
-commit, and the dispatcher's ordered fan-out is unchanged at 32 builders with
+commit, and the dispatcher's ordered fan-out is unchanged at 44 builder probes with
 each swap at its original position. `awsCloudRuntimeDriftSourceSystem` and
 `codegraphDerefString` were compared body-for-body against their
 `projectorintent` and local replacements rather than by name. Focused proof:
