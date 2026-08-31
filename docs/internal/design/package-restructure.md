@@ -481,20 +481,25 @@ from `scope_generation_intents.go` across 41 family files). Root keeps `canonica
 and failure/retry infra (~70 files). Hazard: canonical Row types are
 consumed by 182 external files; family moves need qualifier updates or root
 aliases, and the `canonical.go` exact-path gate trigger (#5531) moves in
-lockstep. Azure, GCP, Kubernetes, EC2, S3, and security intent builders now use the
-neutral `internal/projector/intent` boundary while root retains assembly,
-lifecycle, enqueue, retry, and telemetry. EC2's `USES_PROFILE` builder is the
-first extracted family to need a typed-payload decode; it keeps its own local
-decode call against `sdk/go/factschema` rather than importing root's
-classified decode wrapper, since importing root would create the same cycle
-`ReducerIntent` and `FactLookup` route around. S3's LOGS_TO,
+lockstep. Azure, GCP, Kubernetes, EC2, RDS, S3, and security intent builders
+now use the neutral `internal/projector/intent` boundary while root retains
+assembly, lifecycle, enqueue, retry, and telemetry. EC2's `USES_PROFILE`
+builder is the first extracted family to need a typed-payload decode; it
+keeps its own local decode call against `sdk/go/factschema` rather than
+importing root's classified decode wrapper, since importing root would create
+the same cycle `ReducerIntent` and `FactLookup` route around. S3's LOGS_TO,
 external-principal-grant, and internet-exposure intent builders moved into
 `internal/projector/s3` the same way; its LOGS_TO builder is the second family
 to need a typed-payload decode and follows the same local-decode pattern. All
 three S3 builders share the generic `aws_resource_materialization:<scope>`
 entity key rather than a family-distinct one, since they gate on the same AWS
 `CloudResource` canonical-nodes phase the reducer publishes for every
-AWS-provider scope. Coordinator `_scheduler.go` halves extract cleanly
+AWS-provider scope. RDS's single posture-materialization builder moved into
+`internal/projector/rds` the same way, sharing that same generic entity key;
+unlike EC2's `USES_PROFILE` and S3's `LOGS_TO`, it triggers on
+`rds_instance_posture` fact-kind presence alone and needs no typed-payload
+decode wrapper, so the move is a one-file, one-caller extraction with no
+`factschema_decode_aws.go` companion. Coordinator `_scheduler.go` halves extract cleanly
 (they implement a root Planner interface); the `_service.go` halves are
 methods on the shared `Service` struct and stay until Service is
 decomposed — a design decision, not a file move. Shared plan-key validation now
