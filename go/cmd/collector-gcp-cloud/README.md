@@ -80,8 +80,9 @@ come from the workflow work item, not static config.
 
 ## Deferred
 
-Sanitized live smoke proof is deferred. Shared GCP reducer admission and API/MCP
-readback are implemented outside this command. See
+The #1997/#2644 security-only sanitized smoke is complete, but deployed-shape
+promotion proof remains gated. Shared GCP reducer admission and API/MCP readback
+are implemented outside this command. See
 `docs/public/reference/gcp-cloud-collector-contract.md`.
 
 ## Verification and evidence

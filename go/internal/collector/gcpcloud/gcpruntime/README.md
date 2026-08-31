@@ -87,7 +87,8 @@ defaults to the contract form
 
 ## Deferred
 
-Sanitized target smoke proof is deferred per
+The #1997/#2644 security-only sanitized smoke is complete, but deployed-shape
+promotion proof remains gated per
 `docs/public/reference/gcp-cloud-collector-contract.md`. Shared cloud inventory
 admission and API/MCP readback for `gcp_cloud_resource`, tag evidence admission,
 image identity admission, relationship resolution, and IAM trust facts are

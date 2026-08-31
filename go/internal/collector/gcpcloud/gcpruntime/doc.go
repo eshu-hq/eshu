@@ -17,9 +17,10 @@
 // FixturePageProvider serves parsed pages from memory or files for tests and the
 // binary's offline smoke path; LiveClient is the explicitly injected live REST
 // seam for assets.list and opt-in Resource Manager direct/effective tag pages.
-// No test performs a live Google Cloud call.
+// Fixture and unit tests make no live Google Cloud call. The environment-gated
+// #1997/#2644 security-only smoke is the documented exception.
 //
 // Shared GCP reducer admission and API/MCP readback live outside this package;
-// sanitized target smoke proof remains gated per
-// docs/public/reference/gcp-cloud-collector-contract.md.
+// #1997/#2644 record the completed security-only smoke, while deployed-shape
+// promotion proof remains gated per docs/public/reference/gcp-cloud-collector-contract.md.
 package gcpruntime
