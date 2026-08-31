@@ -24,7 +24,7 @@ var queryHandlerTracer = querycontract.HandlerTracer
 // cannot do without an import cycle through root's compatibility aliases. The
 // tracer name is unchanged ("eshu/go/internal/query"), so emitted spans and the
 // dashboards built on them are unaffected. This wrapper keeps the original
-// unexported name for the 99 root files that call it.
+// unexported name for the 80 root files that call it.
 func startQueryHandlerSpan(r *http.Request, spanName, route, capability string) (*http.Request, trace.Span) {
 	return querycontract.StartHandlerSpanWith(queryHandlerTracer, r, spanName, route, capability)
 }

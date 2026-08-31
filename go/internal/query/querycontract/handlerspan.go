@@ -31,7 +31,8 @@ var HandlerTracer = otel.Tracer("eshu/go/internal/query")
 // It lives here rather than in package query because #6060 moves each handler
 // family into its own subpackage, and a family subpackage cannot import the
 // root package back without an import cycle through root's compatibility
-// aliases. 99 root files start a handler span today, so every family needs
+// aliases. 84 root files start a handler span today -- 80 through
+// startQueryHandlerSpan and 4 that call the tracer directly -- so every family needs
 // this. Package query keeps startQueryHandlerSpan as a forwarding wrapper.
 //
 // The attributes are deliberately low-cardinality: route and capability are
