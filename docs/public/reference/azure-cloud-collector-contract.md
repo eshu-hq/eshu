@@ -1,9 +1,10 @@
 # Azure Cloud Collector Contract
 
-This page defines the provider-specific design baseline for a future Azure cloud
-collector. It is a child of the
-[Multi-Cloud Runtime Collector Contract](multi-cloud-collector-contract.md) and
-is not a deployed runtime promise.
+This page defines the provider-specific contract for the Azure cloud collector.
+It is a child of the
+[Multi-Cloud Runtime Collector Contract](multi-cloud-collector-contract.md).
+Claimed-live transport and default-off Helm exposure are implemented; this
+contract does not by itself promote Azure beyond its gated readiness lane.
 
 The collector kind is `azure`. It observes Azure control-plane metadata through
 Azure Resource Graph and bounded Azure Resource Manager fallback reads, then
@@ -433,6 +434,7 @@ The first code PRs must prove these cases before any live smoke:
    service, ServiceMonitor, render-time validation, issue #3024; sanitized
    real-tenant proof remains gated by issue #3066.)**
 
-Remaining items gated until their own implementation PRs land with fixture and
-live proof: live smoke proof against a real tenant, the hosted security posture
-sign-off, ARM-fallback live activation, and later source-family scan loops.
+Remaining promotion evidence is the sanitized real-tenant proof and security
+review tracked by issue #3066. ARM-fallback live activation, later source-family
+scan loops, and their own fixture/live proof remain separate implementation
+work.

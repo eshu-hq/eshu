@@ -17,7 +17,7 @@
 // instance, non-claimed status, non-positive fencing token, or generation/run
 // mismatch is rejected before any provider call.
 //
-// The runtime is the scaffolding slice of the Azure collector: it owns config
+// The runtime slice owns config
 // validation, scope and generation identity, deterministic generation
 // fingerprints, per-target tracing and logging, and the PageProviderFactory
 // seam. It delegates pagination, normalization, redaction, fact emission, and
@@ -34,14 +34,16 @@
 // exposes only GET-by-ID behavior. Tests and offline tooling use
 // FixturePageProvider, which serves pre-parsed or file-backed Resource Graph
 // inventory pages and pre-parsed resourcechanges pages with no network calls.
-// The command and chart paths do not enable live transport.
+// The opt-in claimed-live command injects the read-only Resource Graph client;
+// fixture and default paths remain inert, and ARM fallback stays unwired.
 //
 // Resource-change facts are emitted only when TargetConfig.SourceLane is
 // azurecloud.SourceLaneResourceChanges and remain provenance-only. Reducer
-// admission, graph promotion, API and MCP readback, workflow scheduling,
-// Helm/chart wiring, and live transport activation belong outside this runtime
-// package; credential-bearing and chart slices remain gated by the Azure cloud
-// collector contract. Credentials are referenced by name only in
+// admission, graph promotion, API and MCP readback, workflow scheduling, and
+// Helm/chart wiring belong outside this runtime package. Claimed-live scheduling
+// and default-off chart activation are implemented there; sanitized real-tenant
+// promotion proof remains gated by issue #3066. Credentials are referenced by
+// name only in
 // TargetConfig.CredentialRef, never inlined. Provider identifiers and credential
 // references remain control input only; they must not be copied into telemetry.
 package azureruntime

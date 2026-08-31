@@ -238,8 +238,8 @@ surfaces:
       proof_gates: [cd go && go test ./cmd/collector-tempo ./internal/collector/tempo ./internal/reducer ./internal/query ./internal/mcp -count=1]
       fixture_refs: [go/internal/collector/tempo/testdata, docs/public/reference/observability-evidence.md]
       truth_profile: provider_gated
-  # --- Pre-promotion collector lanes (honest about being not-yet-live; no proof
-  #     required). See collector-reducer-readiness.md "Gated Source Families". ---
+  # --- Pre-promotion collector lanes (not production-promoted; each row records
+  #     its remaining proof). See collector-reducer-readiness.md "Gated Source Families". ---
   - category: collector
     name: ci_cd_run
     readiness: partial
