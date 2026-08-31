@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package reducer
+package factwrite
 
 import (
 	"context"
@@ -9,7 +9,7 @@ import (
 	"time"
 )
 
-// reducerFactBatchInsertQuery is a writer-local bulk insert that sends N fact
+// BatchInsertPrefix opens the writer-local bulk insert that sends N fact
 // rows in a single round-trip using unnest. It is intentionally separate from
 // canonicalReducerFactInsertQuery (the shared single-row statement) so the many
 // per-row callers of that query are not disturbed; the column list, conflict
@@ -94,7 +94,7 @@ import (
 // which of the two happened. Adding the readback here would need its own live
 // proof and its own concurrency argument, so it is stated rather than assumed
 // away.
-const reducerFactBatchInsertPrefix = `
+const BatchInsertPrefix = `
 INSERT INTO fact_records (
     fact_id,
     scope_id,
@@ -115,7 +115,19 @@ INSERT INTO fact_records (
 )
 `
 
-const reducerFactBatchInsertSource = `
+// BatchInsertSource is the SELECT that unnests the per-column arrays bound by
+// ChunkArgs into rows. It is a separate constant from the prefix and the
+// conflict clause so a caller can compose a different tail around it — not
+// BatchInsertVersionedQuery, which is one monolithic statement literal that
+// uses none of these fragments, but the reducer root's completed-cutover
+// container-image-identity writer
+// (container_image_identity_writer_atomic.go, reached through the
+// reducer_fact_write_compat.go forwarders), whose
+// containerImageIdentityCompletedCutoverWriteQuery and
+// containerImageIdentityCompletedCutoverPublishOnlyQuery both interleave a
+// `WHERE EXISTS (SELECT 1 FROM current_claim)` guard between this SELECT and
+// BatchInsertConflict and append `RETURNING 1` inside a CTE.
+const BatchInsertSource = `
 SELECT
     fact_id,
     scope_id,
@@ -170,7 +182,10 @@ FROM unnest(
 )
 `
 
-const reducerFactBatchInsertConflict = `
+// BatchInsertConflict is the ON CONFLICT clause that makes a re-run idempotent.
+// It updates on fact_id and is guarded by the fencing-token comparison, so a
+// late-arriving older write cannot overwrite a newer one.
+const BatchInsertConflict = `
 ON CONFLICT (fact_id) DO UPDATE SET
     fact_kind         = EXCLUDED.fact_kind,
     stable_fact_key   = EXCLUDED.stable_fact_key,
@@ -188,23 +203,26 @@ ON CONFLICT (fact_id) DO UPDATE SET
 WHERE fact_records.fencing_token <= EXCLUDED.fencing_token
 `
 
-const reducerFactBatchInsertQuery = reducerFactBatchInsertPrefix +
-	reducerFactBatchInsertSource +
-	reducerFactBatchInsertConflict
+// BatchInsertQuery is the composed statement the unversioned batch writer
+// issues: prefix, source SELECT, then the conflict clause.
+const BatchInsertQuery = BatchInsertPrefix +
+	BatchInsertSource +
+	BatchInsertConflict
 
-// reducerFactBatchSize bounds how many fact rows are sent per unnest statement.
-// Both inserts bind 16 columns per row — the unversioned one adds fencing_token,
-// the versioned one schema_version — so 1000 rows consumes at most 16000 bind
+// BatchSize bounds how many fact rows are sent per unnest statement.
+// The unversioned insert binds 16 columns per row, fencing_token last at $16;
+// the versioned one binds 17, interleaving schema_version at position 6 and
+// carrying fencing_token at $17. So 1000 rows consumes at most 17000 bind
 // parameters, well under Postgres' 65535 parameter ceiling, while keeping each
 // statement large enough to amortise round-trip cost. The bound also caps
 // per-statement memory and lock footprint for a single scope.
-const reducerFactBatchSize = 1000
+const BatchSize = 1000
 
-// reducerFactRow is one canonical fact-record row for a batched insert. The
+// Row is one canonical fact-record row for a batched insert. The
 // field order and types mirror the positional arguments of
 // canonicalReducerFactInsertQuery so a batched writer is a drop-in replacement
 // for the per-row loop it replaces.
-type reducerFactRow struct {
+type Row struct {
 	FactID           string
 	ScopeID          string
 	GenerationID     string
@@ -223,12 +241,12 @@ type reducerFactRow struct {
 	// FencingToken is the row's write-ordering watermark, carried on the INSERT
 	// so the conflict guard has something to rank a colliding pass against.
 	// Leave it zero unless the domain's intent can be replayed by two workers
-	// holding different views of the evidence; see reducerFactBatchInsertQuery
+	// holding different views of the evidence; see BatchInsertQuery
 	// for why 0 is not a safe resting state for one that can.
 	FencingToken int64
 }
 
-// dedupeReducerFactRowsByFactID collapses rows sharing a fact_id to a single
+// DedupeRowsByFactID collapses rows sharing a fact_id to a single
 // row carrying the LAST occurrence's value, reproducing the per-row loop's
 // last-write-wins upsert semantics. A single `unnest` INSERT ... ON CONFLICT
 // (fact_id) DO UPDATE statement rejects a batch that carries the same conflict
@@ -238,7 +256,7 @@ type reducerFactRow struct {
 // batching replaces issued one statement per row and upserted duplicates
 // silently, last write winning; deduping to the last occurrence reproduces that
 // exact final `fact_records` state without the poison-pill statement.
-func dedupeReducerFactRowsByFactID[T any](rows []T, factID func(T) string) []T {
+func DedupeRowsByFactID[T any](rows []T, factID func(T) string) []T {
 	if len(rows) < 2 {
 		return rows
 	}
@@ -258,61 +276,67 @@ func dedupeReducerFactRowsByFactID[T any](rows []T, factID func(T) string) []T {
 	return out
 }
 
-// reducerBatchInsertFacts upserts rows in bounded chunks of reducerFactBatchSize
-// using reducerFactBatchInsertQuery. It issues ceil(len(rows)/batchSize)
+// BatchInsertFacts upserts rows in bounded chunks of BatchSize
+// using BatchInsertQuery. It issues ceil(len(rows)/batchSize)
 // ExecContext calls instead of one per row, so a scope with N rows costs
 // O(N/batchSize) round-trips rather than O(N). Each chunk is a single statement;
 // callers that need all chunks committed atomically must pass a transaction as
 // db. Rows sharing a fact_id are deduped to their last occurrence
 // (last-write-wins) to match the per-row loop and avoid the ON CONFLICT
 // double-affect error. An empty rows slice issues no statements.
-func reducerBatchInsertFacts(
+func BatchInsertFacts(
 	ctx context.Context,
-	db workloadIdentityExecer,
-	rows []reducerFactRow,
+	db Execer,
+	rows []Row,
 ) error {
-	rows = dedupeReducerFactRowsByFactID(rows, func(r reducerFactRow) string { return r.FactID })
-	for start := 0; start < len(rows); start += reducerFactBatchSize {
-		end := start + reducerFactBatchSize
+	rows = DedupeRowsByFactID(rows, func(r Row) string { return r.FactID })
+	for start := 0; start < len(rows); start += BatchSize {
+		end := start + BatchSize
 		if end > len(rows) {
 			end = len(rows)
 		}
-		if err := execReducerFactChunk(ctx, db, rows[start:end]); err != nil {
+		if err := ExecChunk(ctx, db, rows[start:end]); err != nil {
 			return err
 		}
 	}
 	return nil
 }
 
-// execReducerFactChunk sends one bounded chunk as a single unnest statement.
+// ExecChunk sends one bounded chunk as a single unnest statement.
 //
-// This and execReducerFactVersionedChunk are deliberately kept as separate,
+// This and execVersionedChunk are deliberately kept as separate,
 // explicit parallel functions rather than unified behind a shared helper. Each
-// mirrors one distinct positional query. Both bind 16 columns and differ by
-// WHICH sixteenth, not by count: the unversioned insert appends fencing_token at
-// $16, the versioned insert interleaves schema_version at position 6 and shifts
-// every later parameter by one. Same arity, different mapping, is precisely the
-// shape a shared builder would silently get wrong — and the array order here IS
-// the column↔bind-parameter contract this change was reviewed on. Collapsing
+// mirrors one distinct positional query, and the two do not even share an
+// arity: the unversioned insert binds 16 columns, with fencing_token appended
+// last at $16; the versioned insert binds 17, interleaving schema_version at
+// position 6 and shifting every later parameter by one, so fencing_token lands
+// at $17 instead. Different arity, different mapping, is precisely the shape a
+// shared builder would silently get wrong — and the array order here IS the
+// column↔bind-parameter contract this change was reviewed on. Collapsing
 // them behind a generic argument builder would hide that mapping and reintroduce
 // exactly the column-misplacement risk this change was reviewed against on the
 // governed-fact path, for no runtime benefit; the duplication is intentional.
-func execReducerFactChunk(
+func ExecChunk(
 	ctx context.Context,
-	db workloadIdentityExecer,
-	chunk []reducerFactRow,
+	db Execer,
+	chunk []Row,
 ) error {
 	if _, err := db.ExecContext(
 		ctx,
-		reducerFactBatchInsertQuery,
-		reducerFactChunkArgs(chunk)...,
+		BatchInsertQuery,
+		ChunkArgs(chunk)...,
 	); err != nil {
 		return fmt.Errorf("batch insert reducer facts: %w", err)
 	}
 	return nil
 }
 
-func reducerFactChunkArgs(chunk []reducerFactRow) []any {
+// ChunkArgs flattens one chunk into the positional arguments the batch
+// statement expects: one array per column, in the column order the INSERT
+// declares. The argument count must equal the statement's placeholder count —
+// nothing in the type system enforces that, and a mismatch surfaces only on a
+// non-empty batch.
+func ChunkArgs(chunk []Row) []any {
 	n := len(chunk)
 	factIDs := make([]string, n)
 	scopeIDs := make([]string, n)

@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package reducer
+package factwrite
 
 import (
 	"context"
@@ -9,10 +9,10 @@ import (
 	"time"
 )
 
-// reducerFactBatchInsertVersionedQuery is the schema_version-carrying sibling
-// of reducerFactBatchInsertQuery.
+// BatchInsertVersionedQuery is the schema_version-carrying sibling
+// of BatchInsertQuery.
 //
-// It carries fencing_token (#5848) the same way reducerFactBatchInsertQuery
+// It carries fencing_token (#5848) the same way BatchInsertQuery
 // does for its unversioned callers: the bind ($17, appended last so the
 // existing $1..$16 mapping stays untouched) AND the
 // `fact_records.fencing_token <= EXCLUDED.fencing_token` conflict guard. Both
@@ -21,7 +21,7 @@ import (
 // guard, a stalled worker's upsert overwrites a fresher row's content and
 // leaves the fresher token vouching for it. See "Why fencing_token is written
 // here" and "Why the conflict clause is guarded rather than merged" on
-// reducerFactBatchInsertQuery for the full rationale; it applies unchanged
+// BatchInsertQuery for the full rationale; it applies unchanged
 // here.
 //
 // aws_cloud_runtime_drift (#5848) is the first versioned writer to opt in.
@@ -43,16 +43,16 @@ import (
 // conflict-for-conflict, to the versioned single-row upsert every governed
 // writer used before issue #5317 (the retired canonicalVersionedReducerFact
 // InsertQuery formerly in workload_identity_writer.go, removed once its last
-// caller migrated onto this batched path) the same way reducerFactBatchInsertQuery
+// caller migrated onto this batched path) the same way BatchInsertQuery
 // mirrors canonicalReducerFactInsertQuery: a writer that publishes a governed
 // reducer-derived fact (schema_version set explicitly, e.g.
 // facts.ReducerDerivedSchemaVersionV1) MUST use this variant, not
-// reducerFactBatchInsertQuery — the unversioned query omits the schema_version
+// BatchInsertQuery — the unversioned query omits the schema_version
 // column entirely, so the table DEFAULT '0.0.0' would silently replace the
 // governed version on every insert and would leave an existing row's
 // schema_version untouched (not reset to the default) on conflict, which is
 // not byte-identical to the per-row loop it replaces.
-const reducerFactBatchInsertVersionedQuery = `
+const BatchInsertVersionedQuery = `
 INSERT INTO fact_records (
     fact_id,
     scope_id,
@@ -145,12 +145,12 @@ ON CONFLICT (fact_id) DO UPDATE SET
 WHERE fact_records.fencing_token <= EXCLUDED.fencing_token
 `
 
-// reducerFactVersionedRow is one canonical fact-record row for a batched
-// insert of a governed reducer-derived fact. It mirrors reducerFactRow with an
+// VersionedRow is one canonical fact-record row for a batched
+// insert of a governed reducer-derived fact. It mirrors Row with an
 // added SchemaVersion field, matching the positional arguments of the retired
 // versioned single-row upsert so a batched writer is a drop-in replacement for
 // the per-row loop it replaces.
-type reducerFactVersionedRow struct {
+type VersionedRow struct {
 	FactID           string
 	ScopeID          string
 	GenerationID     string
@@ -171,43 +171,43 @@ type reducerFactVersionedRow struct {
 	// so the conflict guard has something to rank a colliding pass against.
 	// Leave it zero unless the domain's intent can be replayed by two workers
 	// holding different views of the evidence; see
-	// reducerFactBatchInsertVersionedQuery for why 0 is not a safe resting
-	// state for one that can, and reducerFactRow.FencingToken for the
+	// BatchInsertVersionedQuery for why 0 is not a safe resting
+	// state for one that can, and Row.FencingToken for the
 	// unversioned sibling this mirrors.
 	FencingToken int64
 }
 
-// reducerBatchInsertVersionedFacts upserts governed reducer-derived fact rows
-// in bounded chunks of reducerFactBatchSize using
-// reducerFactBatchInsertVersionedQuery. It issues ceil(len(rows)/batchSize)
+// BatchInsertVersionedFacts upserts governed reducer-derived fact rows
+// in bounded chunks of BatchSize using
+// BatchInsertVersionedQuery. It issues ceil(len(rows)/batchSize)
 // ExecContext calls instead of one per row, so a scope with N rows costs
 // O(N/batchSize) round-trips rather than O(N). Each chunk is a single
 // statement; callers that need all chunks committed atomically must pass a
 // transaction as db. An empty rows slice issues no statements.
-func reducerBatchInsertVersionedFacts(
+func BatchInsertVersionedFacts(
 	ctx context.Context,
-	db workloadIdentityExecer,
-	rows []reducerFactVersionedRow,
+	db Execer,
+	rows []VersionedRow,
 ) error {
-	rows = dedupeReducerFactRowsByFactID(rows, func(r reducerFactVersionedRow) string { return r.FactID })
-	for start := 0; start < len(rows); start += reducerFactBatchSize {
-		end := start + reducerFactBatchSize
+	rows = DedupeRowsByFactID(rows, func(r VersionedRow) string { return r.FactID })
+	for start := 0; start < len(rows); start += BatchSize {
+		end := start + BatchSize
 		if end > len(rows) {
 			end = len(rows)
 		}
-		if err := execReducerFactVersionedChunk(ctx, db, rows[start:end]); err != nil {
+		if err := execVersionedChunk(ctx, db, rows[start:end]); err != nil {
 			return err
 		}
 	}
 	return nil
 }
 
-// execReducerFactVersionedChunk sends one bounded chunk as a single unnest
+// execVersionedChunk sends one bounded chunk as a single unnest
 // statement.
-func execReducerFactVersionedChunk(
+func execVersionedChunk(
 	ctx context.Context,
-	db workloadIdentityExecer,
-	chunk []reducerFactVersionedRow,
+	db Execer,
+	chunk []VersionedRow,
 ) error {
 	n := len(chunk)
 	factIDs := make([]string, n)
@@ -250,7 +250,7 @@ func execReducerFactVersionedChunk(
 
 	if _, err := db.ExecContext(
 		ctx,
-		reducerFactBatchInsertVersionedQuery,
+		BatchInsertVersionedQuery,
 		factIDs,
 		scopeIDs,
 		generationIDs,
