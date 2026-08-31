@@ -92,12 +92,11 @@ Tests verify these constructs with specific references:
 ## Verdict
 **moderate**
 
-The CPP parser has good coverage of its core dead-code root kinds (7 root types with dedicated fixture tests), qualified method extraction, and complexity computation. However, enums and unions lack explicit test coverage, and the three within-node regex fallbacks (`cppFunctionPointerAliasPattern`, `cppDirectInitializerTargetPattern`, `cppBraceInitializerPattern`) are only tested indirectly through root-kind assertions, not through focused unit tests on their boundary behavior (malformed text, empty strings, multi-target brace initializers).
+The CPP parser has good coverage of its core dead-code root kinds (7 root types with dedicated fixture tests), qualified method extraction, and complexity computation. The three within-node regex fallbacks (`cppFunctionPointerAliasPattern`, `cppDirectInitializerTargetPattern`, `cppBraceInitializerPattern`) are only tested indirectly through root-kind assertions, not through focused unit tests on their boundary behavior (malformed text, empty strings, multi-target brace initializers).
 
 ## Recommended Actions
-1. Add explicit tests for `enums` and `unions` bucket emissions with a fixture containing both.
-2. Add focused tests for `cppFunctionPointerAliasPattern`, `cppDirectInitializerTargetPattern`, and `cppBraceInitializerPattern` with malformed and edge-case inputs.
-3. Add a test for `NAPI_MODULE` and `NODE_MODULE_CONTEXT_AWARE` via call-expression registration (not just the `*_MODULE_INIT` names).
+1. Add focused tests for `cppFunctionPointerAliasPattern`, `cppDirectInitializerTargetPattern`, and `cppBraceInitializerPattern` with malformed and edge-case inputs.
+2. Add a test for `NAPI_MODULE` and `NODE_MODULE_CONTEXT_AWARE` via call-expression registration (not just the `*_MODULE_INIT` names).
 4. Add tests for template specializations with destructors, `= default`, and `= delete`.
 5. Add Unicode identifier tests.
 6. Add a dead-code fixture test covering both `using` and `typedef` function-pointer alias forms with the same targets.

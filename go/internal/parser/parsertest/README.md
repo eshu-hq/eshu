@@ -20,6 +20,8 @@ parser tests must not import it.
   `AssertBucketContainsFieldValue` check map-shaped parser buckets.
 - `AssertStringSliceContains` checks an exact `[]string` field without sorting
   or converting its values.
+- `AssertPrescanContains` checks that a prescan path list carries an exact
+  entry.
 - `AssertFrameworksEqual`, `AssertNestedStringSliceEqual`, and
   `AssertNestedRouteEntriesEqual` check framework semantics without weakening
   ordering or type assertions.
