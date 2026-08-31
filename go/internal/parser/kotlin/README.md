@@ -54,18 +54,36 @@ See doc.go for the godoc contract.
   collection; each sibling file is parsed with tree-sitter.
 - `helpers.go` / `scope_function_helpers.go` — string utilities (chain
   normalization, scope-function stripping) that operate on AST-derived text.
-- `engine_kotlin_constructor_calls_test.go` — an external-package engine test
-  that pins primary-constructor call extraction through the parent parser's
-  exported API.
+- `engine_kotlin_*_test.go` (14 files) plus `engine_kotlin_constructor_calls_test.go`
+  — external-package (`kotlin_test`) engine tests that pin the full Kotlin
+  contract through the parent parser's exported `DefaultEngine`/`ParsePath`
+  API: bare and imported bare calls, receiver/call metadata (`this`, local,
+  cast, infix, object, companion, generic, chained, safe-call, and
+  primary-constructor-property receivers), interface `class_context`,
+  smart-cast flow (`if`/`when`, generic, no-leak-across-branches), scope
+  functions (`apply`/`also`), lazy delegated properties, suspend functions,
+  same-file and cross-file/package-aware function-return aliasing, the
+  repository-boundary guard for `Parse` and `PreScan`, the tree-sitter
+  multiline/nested-class-scoping regressions, the AST fixture-corpus walk, and
+  the `TestKotlinComprehensiveSymbolExtractionGate` golden-fixture gate.
+  `engine_kotlin_test_helpers_test.go` carries the local copies of assertion
+  and fixture-write helpers these files share; `parsertest` supplies the rest.
+  Relocated from `go/internal/parser` (issue #6062) following the Elixir
+  precedent (#6335): package-owned tests move with the engine tests that
+  exercise them, while a helper still shared with tests that stay at the
+  parent keeps its own local copy here instead of exporting a parent-private
+  helper.
 
 ## Dependencies
 
 Production package code imports go/internal/parser/shared for `shared.Options`,
 source reading, base payload construction, bucket appends, sorting, and name
-deduplication, plus go-tree-sitter for AST traversal. The external constructor
-call test imports the parent parser only to verify `DefaultEngine.ParsePath`
-from outside the implementation package. Standard-library dependencies cover
-filesystem walking through bounded directories, path normalization, and string
+deduplication, plus go-tree-sitter for AST traversal. The external `kotlin_test`
+engine tests import the parent parser only to verify `DefaultEngine.ParsePath`
+(and `PreScanRepositoryPaths`) from outside the implementation package, and
+import `go/internal/parser/parsertest` for the bucket/field assertions shared
+with other language packages. Standard-library dependencies cover filesystem
+walking through bounded directories, path normalization, and string
 processing.
 
 ## Telemetry

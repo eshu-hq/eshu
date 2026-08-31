@@ -1,13 +1,16 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package parser
+package kotlin_test
 
 import (
 	"os"
 	"path/filepath"
 	"strings"
 	"testing"
+
+	"github.com/eshu-hq/eshu/go/internal/parser"
+	"github.com/eshu-hq/eshu/go/internal/parser/parsertest"
 )
 
 // TestDefaultEngineParsePathKotlinComprehensiveFixturesParseCleanly walks every
@@ -18,15 +21,15 @@ import (
 func TestDefaultEngineParsePathKotlinComprehensiveFixturesParseCleanly(t *testing.T) {
 	t.Parallel()
 
-	engine, err := DefaultEngine()
+	engine, err := parser.DefaultEngine()
 	if err != nil {
 		t.Fatalf("DefaultEngine() error = %v, want nil", err)
 	}
 
 	roots := []string{
-		repoFixturePath("ecosystems", "kotlin_comprehensive"),
-		repoFixturePath("sample_projects", "sample_project_kotlin"),
-		repoFixturePath("deadcode", "kotlin"),
+		kotlinFixturePath("ecosystems", "kotlin_comprehensive"),
+		kotlinFixturePath("sample_projects", "sample_project_kotlin"),
+		kotlinFixturePath("deadcode", "kotlin"),
 	}
 	for _, root := range roots {
 		root := root
@@ -34,7 +37,7 @@ func TestDefaultEngineParsePathKotlinComprehensiveFixturesParseCleanly(t *testin
 			if walkErr != nil || info.IsDir() || !strings.HasSuffix(path, ".kt") {
 				return walkErr
 			}
-			payload, parseErr := engine.ParsePath(root, path, false, Options{})
+			payload, parseErr := engine.ParsePath(root, path, false, parser.Options{})
 			if parseErr != nil {
 				t.Errorf("ParsePath(%q) error = %v, want nil", path, parseErr)
 				return nil
@@ -59,7 +62,7 @@ func TestDefaultEngineParsePathKotlinSmartCastDoesNotLeakAcrossBranches(t *testi
 
 	repoRoot := t.TempDir()
 	filePath := filepath.Join(repoRoot, "Usage.kt")
-	writeTestFile(
+	writeKotlinTestFile(
 		t,
 		filePath,
 		`package comprehensive
@@ -78,12 +81,12 @@ fun usage(value: Any): String {
 `,
 	)
 
-	engine, err := DefaultEngine()
+	engine, err := parser.DefaultEngine()
 	if err != nil {
 		t.Fatalf("DefaultEngine() error = %v, want nil", err)
 	}
 
-	got, err := engine.ParsePath(repoRoot, filePath, false, Options{})
+	got, err := engine.ParsePath(repoRoot, filePath, false, parser.Options{})
 	if err != nil {
 		t.Fatalf("ParsePath() error = %v, want nil", err)
 	}
@@ -130,7 +133,7 @@ func TestDefaultEngineParsePathKotlinImportedTypeConstructorCallEmitsRow(t *test
 
 	repoRoot := t.TempDir()
 	filePath := filepath.Join(repoRoot, "consumer.kt")
-	writeTestFile(
+	writeKotlinTestFile(
 		t,
 		filePath,
 		`package demo
@@ -145,22 +148,22 @@ fun run(): String {
 `,
 	)
 
-	engine, err := DefaultEngine()
+	engine, err := parser.DefaultEngine()
 	if err != nil {
 		t.Fatalf("DefaultEngine() error = %v, want nil", err)
 	}
 
-	got, err := engine.ParsePath(repoRoot, filePath, false, Options{})
+	got, err := engine.ParsePath(repoRoot, filePath, false, parser.Options{})
 	if err != nil {
 		t.Fatalf("ParsePath() error = %v, want nil", err)
 	}
 
 	// Imported type constructed with `Widget()` emits a constructor call.
-	assertNamedBucketContains(t, got, "function_calls", "Widget")
+	parsertest.AssertNamedBucketContains(t, got, "function_calls", "Widget")
 	// Imported top-level function `helper()` still emits a bare call edge
 	// (Kotlin imports do not distinguish a function from a type), preserving the
 	// #3528 imported-bare-call behavior.
-	assertNamedBucketContains(t, got, "function_calls", "helper")
+	parsertest.AssertNamedBucketContains(t, got, "function_calls", "helper")
 }
 
 // TestDefaultEngineParsePathKotlinSmartCastAppliesToUnbracedIfConsequent proves
@@ -172,7 +175,7 @@ func TestDefaultEngineParsePathKotlinSmartCastAppliesToUnbracedIfConsequent(t *t
 
 	repoRoot := t.TempDir()
 	filePath := filepath.Join(repoRoot, "Usage.kt")
-	writeTestFile(
+	writeKotlinTestFile(
 		t,
 		filePath,
 		`package comprehensive
@@ -188,12 +191,12 @@ fun usage(value: Any): String {
 `,
 	)
 
-	engine, err := DefaultEngine()
+	engine, err := parser.DefaultEngine()
 	if err != nil {
 		t.Fatalf("DefaultEngine() error = %v, want nil", err)
 	}
 
-	got, err := engine.ParsePath(repoRoot, filePath, false, Options{})
+	got, err := engine.ParsePath(repoRoot, filePath, false, parser.Options{})
 	if err != nil {
 		t.Fatalf("ParsePath() error = %v, want nil", err)
 	}

@@ -1,11 +1,13 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package parser
+package kotlin_test
 
 import (
 	"path/filepath"
 	"testing"
+
+	"github.com/eshu-hq/eshu/go/internal/parser"
 )
 
 func TestDefaultEngineParsePathKotlinInfersSameFileFunctionReturnTypeAliasCalls(t *testing.T) {
@@ -13,7 +15,7 @@ func TestDefaultEngineParsePathKotlinInfersSameFileFunctionReturnTypeAliasCalls(
 
 	repoRoot := t.TempDir()
 	filePath := filepath.Join(repoRoot, "Usage.kt")
-	writeTestFile(
+	writeKotlinTestFile(
 		t,
 		filePath,
 		`package comprehensive
@@ -31,12 +33,12 @@ fun usage(): String {
 `,
 	)
 
-	engine, err := DefaultEngine()
+	engine, err := parser.DefaultEngine()
 	if err != nil {
 		t.Fatalf("DefaultEngine() error = %v, want nil", err)
 	}
 
-	got, err := engine.ParsePath(repoRoot, filePath, false, Options{})
+	got, err := engine.ParsePath(repoRoot, filePath, false, parser.Options{})
 	if err != nil {
 		t.Fatalf("ParsePath() error = %v, want nil", err)
 	}
@@ -62,7 +64,7 @@ func TestDefaultEngineParsePathKotlinInfersSameFileFunctionReturnAliasChainCalls
 
 	repoRoot := t.TempDir()
 	filePath := filepath.Join(repoRoot, "Usage.kt")
-	writeTestFile(
+	writeKotlinTestFile(
 		t,
 		filePath,
 		`package comprehensive
@@ -81,12 +83,12 @@ fun usage(): String {
 `,
 	)
 
-	engine, err := DefaultEngine()
+	engine, err := parser.DefaultEngine()
 	if err != nil {
 		t.Fatalf("DefaultEngine() error = %v, want nil", err)
 	}
 
-	got, err := engine.ParsePath(repoRoot, filePath, false, Options{})
+	got, err := engine.ParsePath(repoRoot, filePath, false, parser.Options{})
 	if err != nil {
 		t.Fatalf("ParsePath() error = %v, want nil", err)
 	}
@@ -112,7 +114,7 @@ func TestDefaultEngineParsePathKotlinInfersNullableFunctionReturnTypeAliasCalls(
 
 	repoRoot := t.TempDir()
 	filePath := filepath.Join(repoRoot, "Usage.kt")
-	writeTestFile(
+	writeKotlinTestFile(
 		t,
 		filePath,
 		`package comprehensive
@@ -130,12 +132,12 @@ fun usage(): String {
 `,
 	)
 
-	engine, err := DefaultEngine()
+	engine, err := parser.DefaultEngine()
 	if err != nil {
 		t.Fatalf("DefaultEngine() error = %v, want nil", err)
 	}
 
-	got, err := engine.ParsePath(repoRoot, filePath, false, Options{})
+	got, err := engine.ParsePath(repoRoot, filePath, false, parser.Options{})
 	if err != nil {
 		t.Fatalf("ParsePath() error = %v, want nil", err)
 	}
@@ -161,7 +163,7 @@ func TestDefaultEngineParsePathKotlinInfersGenericFunctionReturnTypeAliasCalls(t
 
 	repoRoot := t.TempDir()
 	filePath := filepath.Join(repoRoot, "Usage.kt")
-	writeTestFile(
+	writeKotlinTestFile(
 		t,
 		filePath,
 		`package comprehensive
@@ -179,12 +181,12 @@ fun usage(): String {
 `,
 	)
 
-	engine, err := DefaultEngine()
+	engine, err := parser.DefaultEngine()
 	if err != nil {
 		t.Fatalf("DefaultEngine() error = %v, want nil", err)
 	}
 
-	got, err := engine.ParsePath(repoRoot, filePath, false, Options{})
+	got, err := engine.ParsePath(repoRoot, filePath, false, parser.Options{})
 	if err != nil {
 		t.Fatalf("ParsePath() error = %v, want nil", err)
 	}
@@ -210,7 +212,7 @@ func TestDefaultEngineParsePathKotlinInfersFunctionReturnReceiverChainsForDotCal
 
 	repoRoot := t.TempDir()
 	filePath := filepath.Join(repoRoot, "Usage.kt")
-	writeTestFile(
+	writeKotlinTestFile(
 		t,
 		filePath,
 		`package comprehensive
@@ -230,12 +232,12 @@ fun usage(): String {
 `,
 	)
 
-	engine, err := DefaultEngine()
+	engine, err := parser.DefaultEngine()
 	if err != nil {
 		t.Fatalf("DefaultEngine() error = %v, want nil", err)
 	}
 
-	got, err := engine.ParsePath(repoRoot, filePath, false, Options{})
+	got, err := engine.ParsePath(repoRoot, filePath, false, parser.Options{})
 	if err != nil {
 		t.Fatalf("ParsePath() error = %v, want nil", err)
 	}
@@ -261,7 +263,7 @@ func TestDefaultEngineParsePathKotlinInfersNestedFunctionReturnAssignmentReceive
 
 	repoRoot := t.TempDir()
 	filePath := filepath.Join(repoRoot, "Usage.kt")
-	writeTestFile(
+	writeKotlinTestFile(
 		t,
 		filePath,
 		`package comprehensive
@@ -283,12 +285,12 @@ fun usage(): String {
 `,
 	)
 
-	engine, err := DefaultEngine()
+	engine, err := parser.DefaultEngine()
 	if err != nil {
 		t.Fatalf("DefaultEngine() error = %v, want nil", err)
 	}
 
-	got, err := engine.ParsePath(repoRoot, filePath, false, Options{})
+	got, err := engine.ParsePath(repoRoot, filePath, false, parser.Options{})
 	if err != nil {
 		t.Fatalf("ParsePath() error = %v, want nil", err)
 	}
@@ -319,7 +321,7 @@ func TestDefaultEngineParsePathKotlinInfersConstructorRootReceiverChainsForDotCa
 
 	repoRoot := t.TempDir()
 	filePath := filepath.Join(repoRoot, "Usage.kt")
-	writeTestFile(
+	writeKotlinTestFile(
 		t,
 		filePath,
 		`package comprehensive
@@ -338,12 +340,12 @@ fun usage(): String {
 `,
 	)
 
-	engine, err := DefaultEngine()
+	engine, err := parser.DefaultEngine()
 	if err != nil {
 		t.Fatalf("DefaultEngine() error = %v, want nil", err)
 	}
 
-	got, err := engine.ParsePath(repoRoot, filePath, false, Options{})
+	got, err := engine.ParsePath(repoRoot, filePath, false, parser.Options{})
 	if err != nil {
 		t.Fatalf("ParsePath() error = %v, want nil", err)
 	}
@@ -373,7 +375,7 @@ func TestDefaultEngineParsePathKotlinInfersParenthesizedFunctionReturnReceiverCh
 
 	repoRoot := t.TempDir()
 	filePath := filepath.Join(repoRoot, "Usage.kt")
-	writeTestFile(
+	writeKotlinTestFile(
 		t,
 		filePath,
 		`package comprehensive
@@ -394,12 +396,12 @@ fun usage(): String {
 `,
 	)
 
-	engine, err := DefaultEngine()
+	engine, err := parser.DefaultEngine()
 	if err != nil {
 		t.Fatalf("DefaultEngine() error = %v, want nil", err)
 	}
 
-	got, err := engine.ParsePath(repoRoot, filePath, false, Options{})
+	got, err := engine.ParsePath(repoRoot, filePath, false, parser.Options{})
 	if err != nil {
 		t.Fatalf("ParsePath() error = %v, want nil", err)
 	}
@@ -431,7 +433,7 @@ func TestDefaultEngineParsePathKotlinInfersSiblingFileFunctionReturnTypeAliasCal
 	repoRoot := t.TempDir()
 	apiPath := filepath.Join(repoRoot, "Api.kt")
 	usagePath := filepath.Join(repoRoot, "Usage.kt")
-	writeTestFile(
+	writeKotlinTestFile(
 		t,
 		apiPath,
 		`package comprehensive
@@ -447,7 +449,7 @@ class Factory {
 fun createFactory(): Factory = Factory()
 `,
 	)
-	writeTestFile(
+	writeKotlinTestFile(
 		t,
 		usagePath,
 		`package comprehensive
@@ -459,12 +461,12 @@ fun usage(): String {
 `,
 	)
 
-	engine, err := DefaultEngine()
+	engine, err := parser.DefaultEngine()
 	if err != nil {
 		t.Fatalf("DefaultEngine() error = %v, want nil", err)
 	}
 
-	got, err := engine.ParsePath(repoRoot, usagePath, false, Options{})
+	got, err := engine.ParsePath(repoRoot, usagePath, false, parser.Options{})
 	if err != nil {
 		t.Fatalf("ParsePath() error = %v, want nil", err)
 	}
@@ -497,7 +499,7 @@ func TestDefaultEngineParsePathKotlinInfersParentDirectorySiblingFunctionReturnT
 	apiPath := filepath.Join(repoRoot, "Api.kt")
 	nestedDir := filepath.Join(repoRoot, "nested")
 	usagePath := filepath.Join(nestedDir, "Usage.kt")
-	writeTestFile(
+	writeKotlinTestFile(
 		t,
 		apiPath,
 		`package comprehensive
@@ -513,7 +515,7 @@ class Factory {
 fun createFactory(): Factory = Factory()
 `,
 	)
-	writeTestFile(
+	writeKotlinTestFile(
 		t,
 		usagePath,
 		`package comprehensive
@@ -525,12 +527,12 @@ fun usage(): String {
 `,
 	)
 
-	engine, err := DefaultEngine()
+	engine, err := parser.DefaultEngine()
 	if err != nil {
 		t.Fatalf("DefaultEngine() error = %v, want nil", err)
 	}
 
-	got, err := engine.ParsePath(repoRoot, usagePath, false, Options{})
+	got, err := engine.ParsePath(repoRoot, usagePath, false, parser.Options{})
 	if err != nil {
 		t.Fatalf("ParsePath(%q) error = %v, want nil", usagePath, err)
 	}
@@ -562,7 +564,7 @@ func TestDefaultEngineParsePathKotlinInfersSiblingFileFunctionReturnAliasChainCa
 	repoRoot := t.TempDir()
 	apiPath := filepath.Join(repoRoot, "Api.kt")
 	usagePath := filepath.Join(repoRoot, "Usage.kt")
-	writeTestFile(
+	writeKotlinTestFile(
 		t,
 		apiPath,
 		`package comprehensive
@@ -574,7 +576,7 @@ class Service {
 fun createService(): Service = Service()
 `,
 	)
-	writeTestFile(
+	writeKotlinTestFile(
 		t,
 		usagePath,
 		`package comprehensive
@@ -587,12 +589,12 @@ fun usage(): String {
 `,
 	)
 
-	engine, err := DefaultEngine()
+	engine, err := parser.DefaultEngine()
 	if err != nil {
 		t.Fatalf("DefaultEngine() error = %v, want nil", err)
 	}
 
-	got, err := engine.ParsePath(repoRoot, usagePath, false, Options{})
+	got, err := engine.ParsePath(repoRoot, usagePath, false, parser.Options{})
 	if err != nil {
 		t.Fatalf("ParsePath(%q) error = %v, want nil", usagePath, err)
 	}
@@ -620,7 +622,7 @@ func TestDefaultEngineParsePathKotlinPrefersPackageAwareSiblingFunctionReturnTyp
 	apiPath := filepath.Join(repoRoot, "Api.kt")
 	otherPath := filepath.Join(repoRoot, "Other.kt")
 	usagePath := filepath.Join(repoRoot, "Usage.kt")
-	writeTestFile(
+	writeKotlinTestFile(
 		t,
 		apiPath,
 		`package comprehensive
@@ -636,7 +638,7 @@ class Factory {
 fun createFactory(): Factory = Factory()
 `,
 	)
-	writeTestFile(
+	writeKotlinTestFile(
 		t,
 		otherPath,
 		`package otherpkg
@@ -648,7 +650,7 @@ class OtherFactory {
 fun createFactory(): OtherFactory = OtherFactory()
 `,
 	)
-	writeTestFile(
+	writeKotlinTestFile(
 		t,
 		usagePath,
 		`package comprehensive
@@ -660,12 +662,12 @@ fun usage(): String {
 `,
 	)
 
-	engine, err := DefaultEngine()
+	engine, err := parser.DefaultEngine()
 	if err != nil {
 		t.Fatalf("DefaultEngine() error = %v, want nil", err)
 	}
 
-	got, err := engine.ParsePath(repoRoot, usagePath, false, Options{})
+	got, err := engine.ParsePath(repoRoot, usagePath, false, parser.Options{})
 	if err != nil {
 		t.Fatalf("ParsePath() error = %v, want nil", err)
 	}
@@ -697,7 +699,7 @@ func TestDefaultEngineParsePathKotlinPrefersPackageAwareSiblingFunctionReturnTyp
 	repoRoot := t.TempDir()
 	apiPath := filepath.Join(repoRoot, "src", "main", "kotlin", "common", "Api.kt")
 	usagePath := filepath.Join(repoRoot, "src", "main", "kotlin", "feature", "module", "Usage.kt")
-	writeTestFile(
+	writeKotlinTestFile(
 		t,
 		apiPath,
 		`package comprehensive
@@ -713,7 +715,7 @@ class Factory {
 fun createFactory(): Factory = Factory()
 `,
 	)
-	writeTestFile(
+	writeKotlinTestFile(
 		t,
 		usagePath,
 		`package comprehensive
@@ -725,12 +727,12 @@ fun usage(): String {
 `,
 	)
 
-	engine, err := DefaultEngine()
+	engine, err := parser.DefaultEngine()
 	if err != nil {
 		t.Fatalf("DefaultEngine() error = %v, want nil", err)
 	}
 
-	got, err := engine.ParsePath(repoRoot, usagePath, false, Options{})
+	got, err := engine.ParsePath(repoRoot, usagePath, false, parser.Options{})
 	if err != nil {
 		t.Fatalf("ParsePath(%q) error = %v, want nil", usagePath, err)
 	}
@@ -766,7 +768,7 @@ func TestDefaultEngineParsePathKotlinInfersCrossFilePackageAwareFunctionReturnRe
 	conflictPath := filepath.Join(repoRoot, "src", "main", "kotlin", "com", "other", "Other.kt")
 	usagePath := filepath.Join(repoRoot, "src", "main", "kotlin", "com", "example", "feature", "module", "Usage.kt")
 
-	writeTestFile(
+	writeKotlinTestFile(
 		t,
 		servicePath,
 		`package com.example
@@ -776,7 +778,7 @@ class Service {
 }
 `,
 	)
-	writeTestFile(
+	writeKotlinTestFile(
 		t,
 		factoryPath,
 		`package com.example
@@ -786,7 +788,7 @@ class Factory {
 }
 `,
 	)
-	writeTestFile(
+	writeKotlinTestFile(
 		t,
 		factoryHelpersPath,
 		`package com.example
@@ -794,7 +796,7 @@ class Factory {
 fun createFactory(): Factory = Factory()
 `,
 	)
-	writeTestFile(
+	writeKotlinTestFile(
 		t,
 		conflictPath,
 		`package com.other
@@ -810,7 +812,7 @@ class OtherFactory {
 fun createFactory(): OtherFactory = OtherFactory()
 `,
 	)
-	writeTestFile(
+	writeKotlinTestFile(
 		t,
 		usagePath,
 		`package com.example
@@ -821,12 +823,12 @@ fun usage(): String {
 `,
 	)
 
-	engine, err := DefaultEngine()
+	engine, err := parser.DefaultEngine()
 	if err != nil {
 		t.Fatalf("DefaultEngine() error = %v, want nil", err)
 	}
 
-	got, err := engine.ParsePath(repoRoot, usagePath, false, Options{})
+	got, err := engine.ParsePath(repoRoot, usagePath, false, parser.Options{})
 	if err != nil {
 		t.Fatalf("ParsePath(%q) error = %v, want nil", usagePath, err)
 	}
@@ -862,7 +864,7 @@ func TestDefaultEngineParsePathKotlinInfersParenthesizedCrossFilePackageAwareFun
 	conflictPath := filepath.Join(repoRoot, "src", "main", "kotlin", "com", "other", "Other.kt")
 	usagePath := filepath.Join(repoRoot, "src", "main", "kotlin", "com", "example", "feature", "module", "Usage.kt")
 
-	writeTestFile(
+	writeKotlinTestFile(
 		t,
 		servicePath,
 		`package com.example
@@ -872,7 +874,7 @@ class Service {
 }
 `,
 	)
-	writeTestFile(
+	writeKotlinTestFile(
 		t,
 		factoryPath,
 		`package com.example
@@ -882,7 +884,7 @@ class Factory {
 }
 `,
 	)
-	writeTestFile(
+	writeKotlinTestFile(
 		t,
 		factoryHelpersPath,
 		`package com.example
@@ -890,7 +892,7 @@ class Factory {
 fun createFactory(): Factory = Factory()
 `,
 	)
-	writeTestFile(
+	writeKotlinTestFile(
 		t,
 		conflictPath,
 		`package com.other
@@ -906,7 +908,7 @@ class OtherFactory {
 fun createFactory(): OtherFactory = OtherFactory()
 `,
 	)
-	writeTestFile(
+	writeKotlinTestFile(
 		t,
 		usagePath,
 		`package com.example
@@ -917,12 +919,12 @@ fun usage(): String {
 `,
 	)
 
-	engine, err := DefaultEngine()
+	engine, err := parser.DefaultEngine()
 	if err != nil {
 		t.Fatalf("DefaultEngine() error = %v, want nil", err)
 	}
 
-	got, err := engine.ParsePath(repoRoot, usagePath, false, Options{})
+	got, err := engine.ParsePath(repoRoot, usagePath, false, parser.Options{})
 	if err != nil {
 		t.Fatalf("ParsePath(%q) error = %v, want nil", usagePath, err)
 	}

@@ -1,11 +1,14 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package parser
+package kotlin_test
 
 import (
 	"path/filepath"
 	"testing"
+
+	"github.com/eshu-hq/eshu/go/internal/parser"
+	"github.com/eshu-hq/eshu/go/internal/parser/parsertest"
 )
 
 // TestDefaultEngineParsePathKotlinExtractsImportedBareCalls proves that a
@@ -19,7 +22,7 @@ func TestDefaultEngineParsePathKotlinExtractsImportedBareCalls(t *testing.T) {
 
 	repoRoot := t.TempDir()
 	filePath := filepath.Join(repoRoot, "consumer.kt")
-	writeTestFile(
+	writeKotlinTestFile(
 		t,
 		filePath,
 		`package demo
@@ -34,19 +37,19 @@ fun run(): String {
 `,
 	)
 
-	engine, err := DefaultEngine()
+	engine, err := parser.DefaultEngine()
 	if err != nil {
 		t.Fatalf("DefaultEngine() error = %v, want nil", err)
 	}
 
-	payload, err := engine.ParsePath(repoRoot, filePath, false, Options{})
+	payload, err := engine.ParsePath(repoRoot, filePath, false, parser.Options{})
 	if err != nil {
 		t.Fatalf("ParsePath(%q) error = %v, want nil", filePath, err)
 	}
 
 	// The imported top-level function call must emit a call edge.
-	assertNamedBucketContains(t, payload, "function_calls", "helper")
+	parsertest.AssertNamedBucketContains(t, payload, "function_calls", "helper")
 	// The imported type constructed with `Widget()` is still emitted by the
 	// constructor-call path, not the bare-call path.
-	assertNamedBucketContains(t, payload, "function_calls", "Widget")
+	parsertest.AssertNamedBucketContains(t, payload, "function_calls", "Widget")
 }
