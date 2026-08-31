@@ -26,23 +26,23 @@ var routeServesDataRegistryPart2 = map[string]routeServesDataSource{
 	},
 
 	// PackageRegistryHandler.listPackages is a graph read anchored on the
-	// Package label (go/internal/query/package_registry_cypher.go:6-18),
+	// Package label (go/internal/query/packagereg/package_registry_cypher.go:6-18),
 	// projected by the package_source_correlation domain
 	// (projector/package_registry_canonical.go, projector/canonical.go:263).
 	"GET /api/v0/package-registry/packages": {
-		RegistrationFile: "go/internal/query/package_registry.go",
+		RegistrationFile: "go/internal/query/packagereg/package_registry.go",
 		HandlerStruct:    "PackageRegistryHandler",
-		StructFile:       "go/internal/query/package_registry.go",
+		StructFile:       "go/internal/query/packagereg/package_registry.go",
 		Method:           "listPackages",
-		MethodFile:       "go/internal/query/package_registry.go",
+		MethodFile:       "go/internal/query/packagereg/package_registry.go",
 		ScanFiles: []string{
-			"go/internal/query/package_registry.go",
-			"go/internal/query/package_registry_cypher.go",
+			"go/internal/query/packagereg/package_registry.go",
+			"go/internal/query/packagereg/package_registry_cypher.go",
 		},
 		Served: []routeServedDomain{{
 			Domain: "package_source_correlation",
 			Evidence: []routeReadEvidence{
-				{File: "go/internal/query/package_registry_cypher.go", Marker: "MATCH (p:Package"},
+				{File: "go/internal/query/packagereg/package_registry_cypher.go", Marker: "MATCH (p:Package"},
 			},
 		}},
 	},
