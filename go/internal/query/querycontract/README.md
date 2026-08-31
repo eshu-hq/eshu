@@ -20,8 +20,15 @@ types and wraps the functions so existing imports keep their current API.
 
 ## Dependencies
 
-The package uses only the Go standard library. `GraphQuery` and `ContentStore`
-are consumer-owned ports; concrete adapters remain outside this leaf package.
+The package uses only the Go standard library plus the `internal/scope` leaf,
+for the `scope.CollectorKind` the `CollectorListReadinessStore` port carries.
+`scope` is itself standard-library-only, so it introduces no transitive
+dependency and no cycle. `GraphQuery` and `ContentStore` are consumer-owned
+ports; concrete adapters remain outside this leaf package.
+
+A new import here is a contract change, not a detail. The point of this package
+is that a family can depend on it for types without inheriting a runtime: the
+handler span lives in `queryspan` rather than here for exactly that reason.
 
 ## Telemetry
 
@@ -59,6 +66,27 @@ call them keep their existing `eshu_dp_api_request_duration_seconds` timing and
 their `query.*` spans, and because both wrapper hops inline away, no span
 boundary, attribute, or log line moves. An operator sees exactly the signals
 they saw before.
+
+## Collector-list readiness
+
+`CollectorListReadinessStore` is a consumer-owned port, the same category as
+`GraphQuery` and `ContentStore`. With the state enum, counts, envelope, and the
+two `Build...` functions it answers one question a gated supply-chain list
+cannot answer on its own: whether a zero-row page means "nothing matched" or
+"the feeding collector is switched off".
+
+What is deliberately NOT here is the attach step. Deciding whether to run the
+probe, running it against a live store, and writing the result into a response
+body is request-time orchestration, and it stays in package `query`. Two
+reviewers independently flagged an earlier version of this move for putting that
+behaviour in the dependency-neutral leaf, and they were right: a family package
+that wants the envelope calls `BuildCollectorListReadiness` and owns its own
+attach.
+
+The one behavioural rule worth restating, because it is easy to invert: a
+non-empty page is classified `ready_with_results` without consulting the probe
+at all. Returned rows are themselves proof the collector ran, so a stale or
+failing probe must never downgrade a page that already carries evidence.
 
 ## Gotchas / invariants
 
