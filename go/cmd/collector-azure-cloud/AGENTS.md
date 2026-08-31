@@ -32,8 +32,8 @@
   startup error, not a silent fallback.
 - MUST NOT add reducer admission, new fact families, API/MCP readback, Helm
   values, or chart wiring in this package. Default-off Helm activation is
-  implemented outside this package; the sanitized real-tenant live proof
-  remains gated by issue #3066.
+  implemented outside this package; partition-filtered handler proof and the
+  sanitized real-tenant live proof in issue #3066 remain required for promotion.
 - MUST keep the claim-status committer's metric labels bounded enums only.
 - MUST keep every source file under 500 lines.
 

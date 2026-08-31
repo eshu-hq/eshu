@@ -27,7 +27,7 @@
 // Credentials are referenced by name only in each target's credential_ref; no
 // secret value is read from the configuration. Default-off Helm activation,
 // existing Azure reducer slices, and shared cloud-inventory readback are
-// implemented outside this command. Sanitized real-tenant promotion proof
-// remains gated by issue #3066, as recorded in
-// docs/public/reference/azure-cloud-collector-contract.md.
+// implemented outside this command. Partition-filtered handler proof and the
+// sanitized real-tenant promotion proof in issue #3066 remain gated, as recorded
+// in docs/public/reference/azure-cloud-collector-contract.md.
 package main

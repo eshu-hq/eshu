@@ -42,6 +42,7 @@
 // observations, label-backed and opt-in direct/effective tag observations, IAM
 // policy observations, DNS record observations, Cloud Run runtime image-reference
 // observations, collection-warning evidence, and the scoped telemetry contract.
-// Issues #1997/#2644 record the completed security-only smoke; deployed-shape
-// promotion proof remains gated. See docs/public/reference/gcp-cloud-collector-contract.md.
+// Issues #1997/#2644 record the completed security-only smoke; partition-filtered
+// handler and deployed-shape promotion proofs remain gated. See
+// docs/public/reference/gcp-cloud-collector-contract.md.
 package gcpcloud

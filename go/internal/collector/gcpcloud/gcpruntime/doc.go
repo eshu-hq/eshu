@@ -21,6 +21,7 @@
 // #1997/#2644 security-only smoke is the documented exception.
 //
 // Shared GCP reducer admission and API/MCP readback live outside this package;
-// #1997/#2644 record the completed security-only smoke, while deployed-shape
-// promotion proof remains gated per docs/public/reference/gcp-cloud-collector-contract.md.
+// #1997/#2644 record the completed security-only smoke, while partition-filtered
+// handler and deployed-shape promotion proofs remain gated per
+// docs/public/reference/gcp-cloud-collector-contract.md.
 package gcpruntime

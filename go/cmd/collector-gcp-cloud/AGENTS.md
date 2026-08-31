@@ -6,7 +6,8 @@
 2. `../../internal/collector/gcpcloud/gcpruntime/AGENTS.md` - the source and
    PageProvider seam contract.
 3. `docs/public/reference/gcp-cloud-collector-contract.md` - scope/generation,
-   payload boundary, telemetry, and the deployed-shape promotion boundary.
+   payload boundary, telemetry, and the partition-filtered handler and
+   deployed-shape promotion boundaries.
 4. `main.go` - flag parsing, telemetry/pprof/Postgres bootstrap, service run.
 5. `config.go` - declarative file config parsing and fixture-file mapping.
 6. `claimed_config.go` - claim-driven environment and collector instance

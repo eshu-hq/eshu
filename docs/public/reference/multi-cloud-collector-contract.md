@@ -21,8 +21,8 @@ Provider work should remain separate:
 | Provider | Collector kind | Source contract | Promotion boundary |
 | --- | --- | --- | --- |
 | AWS | `aws` | Implemented claim-driven AWS control-plane metadata collection. | Existing AWS collector work. |
-| GCP | `gcp` | [Cloud Asset Inventory collector](gcp-cloud-collector-contract.md) with fixture, claimed-live, reducer/readback, and default-off Helm paths. | The #1997/#2644 security smoke is complete; deployed-shape promotion proof remains gated. |
-| Azure | `azure` | [Azure Resource Graph and ARM collector](azure-cloud-collector-contract.md) with fixture, claimed-live, reducer/readback, and default-off Helm paths. | Sanitized real-tenant proof remains gated by [#3066](https://github.com/eshu-hq/eshu/issues/3066). |
+| GCP | `gcp` | [Cloud Asset Inventory collector](gcp-cloud-collector-contract.md) with fixture, claimed-live, reducer/readback, and default-off Helm paths. | The #1997/#2644 security smoke is complete; partition-filtered handler and deployed-shape promotion proofs remain gated. |
+| Azure | `azure` | [Azure Resource Graph and ARM collector](azure-cloud-collector-contract.md) with fixture, claimed-live, reducer/readback, and default-off Helm paths. | Partition-filtered handler proof and sanitized real-tenant proof tracked by [#3066](https://github.com/eshu-hq/eshu/issues/3066) remain gated. |
 
 Do not hide provider differences behind one generic cloud collector. GCP and
 Azure have different hierarchy, identity, permission, pagination, freshness,

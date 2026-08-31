@@ -9,8 +9,10 @@ they do not supply the sanitized live evidence needed to promote Azure.
 security evidence for them. Fixture parsing, shared reducer admission
 (`cloud_inventory_admission`), and API/MCP readback
 (`GET /api/v0/cloud/inventory`, `list_cloud_resource_inventory`) are shipped
-and fixture-proven. This review does not replace the remaining #3066 promotion
-evidence described in the Azure live-smoke status below.
+and fixture-proven. This review does not replace the remaining #3066 live and
+security evidence described in the Azure live-smoke status below, and it does
+not replace the separate partition-filtered handler proof required for
+promotion.
 
 This review must pass before an operator enables any credential mount,
 ServiceMonitor, or live smoke path. Shipped command and chart defaults remain

@@ -41,8 +41,9 @@
 // azurecloud.SourceLaneResourceChanges and remain provenance-only. Reducer
 // admission, graph promotion, API and MCP readback, workflow scheduling, and
 // Helm/chart wiring belong outside this runtime package. Claimed-live scheduling
-// and default-off chart activation are implemented there; sanitized real-tenant
-// promotion proof remains gated by issue #3066. Credentials are referenced by
+// and default-off chart activation are implemented there; partition-filtered
+// handler proof and sanitized real-tenant promotion proof in issue #3066 remain
+// gated. Credentials are referenced by
 // name only in
 // TargetConfig.CredentialRef, never inlined. Provider identifiers and credential
 // references remain control input only; they must not be copied into telemetry.
