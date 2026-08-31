@@ -9,6 +9,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/eshu-hq/eshu/go/internal/coordinator/componentactivation"
 	"github.com/eshu-hq/eshu/go/internal/workflow"
 )
 
@@ -24,7 +25,7 @@ func (s Service) scheduleComponentExtensionWork(
 		if !shouldScheduleComponentExtension(instance) {
 			continue
 		}
-		config, configOK, configErr := parseComponentInstanceConfig(instance.Configuration)
+		config, configOK, configErr := componentactivation.ParseConfig(instance.Configuration)
 		if configErr == nil && configOK {
 			decision := s.Config.ExtensionEgressPolicy.Decide(ExtensionEgressRequest{
 				ComponentID:   config.ComponentID,
@@ -75,7 +76,7 @@ func shouldScheduleComponentExtension(instance workflow.CollectorInstance) bool 
 	if !instance.Enabled || !instance.ClaimsEnabled {
 		return false
 	}
-	_, ok, err := parseComponentInstanceConfig(instance.Configuration)
+	_, ok, err := componentactivation.ParseConfig(instance.Configuration)
 	return ok || err != nil
 }
 

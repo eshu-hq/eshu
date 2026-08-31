@@ -11,6 +11,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/eshu-hq/eshu/go/internal/coordinator/componentactivation"
 	"github.com/eshu-hq/eshu/go/internal/governanceaudit"
 	"github.com/eshu-hq/eshu/go/internal/workflow"
 )
@@ -47,7 +48,7 @@ func (s Service) recordExtensionEgressAudit(
 	ctx context.Context,
 	observedAt time.Time,
 	instance workflow.CollectorInstance,
-	config componentInstanceConfig,
+	config componentactivation.Config,
 	decision ExtensionEgressDecision,
 ) error {
 	if s.GovernanceAudit == nil || decision.Action != ExtensionEgressActionDeny {

@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/component"
+	"github.com/eshu-hq/eshu/go/internal/coordinator/componentactivation"
 	"github.com/eshu-hq/eshu/go/internal/coordinator/plannercontract"
 	"github.com/eshu-hq/eshu/go/internal/facts"
 	"github.com/eshu-hq/eshu/go/internal/workflow"
@@ -57,35 +58,35 @@ func (p ComponentExtensionWorkPlanner) PlanComponentExtensionWork(
 
 func validateComponentExtensionPlanRequest(
 	request ComponentExtensionPlanRequest,
-) (componentInstanceConfig, error) {
+) (componentactivation.Config, error) {
 	if err := request.Instance.Validate(); err != nil {
-		return componentInstanceConfig{}, fmt.Errorf("component extension plan request: %w", err)
+		return componentactivation.Config{}, fmt.Errorf("component extension plan request: %w", err)
 	}
 	if !request.Instance.Enabled {
-		return componentInstanceConfig{}, fmt.Errorf("component extension planner requires enabled collector instance")
+		return componentactivation.Config{}, fmt.Errorf("component extension planner requires enabled collector instance")
 	}
 	if !request.Instance.ClaimsEnabled {
-		return componentInstanceConfig{}, fmt.Errorf("component extension planner requires claim-enabled collector instance")
+		return componentactivation.Config{}, fmt.Errorf("component extension planner requires claim-enabled collector instance")
 	}
 	if request.ObservedAt.IsZero() {
-		return componentInstanceConfig{}, fmt.Errorf("component extension planner observed_at must not be zero")
+		return componentactivation.Config{}, fmt.Errorf("component extension planner observed_at must not be zero")
 	}
 	if err := plannercontract.ValidateSafePlanKey("component extension planner", request.PlanKey); err != nil {
-		return componentInstanceConfig{}, err
+		return componentactivation.Config{}, err
 	}
-	config, ok, err := parseComponentInstanceConfig(request.Instance.Configuration)
+	config, ok, err := componentactivation.ParseConfig(request.Instance.Configuration)
 	if err != nil {
-		return componentInstanceConfig{}, err
+		return componentactivation.Config{}, err
 	}
 	if !ok {
-		return componentInstanceConfig{}, fmt.Errorf("component extension planner requires component activation configuration")
+		return componentactivation.Config{}, fmt.Errorf("component extension planner requires component activation configuration")
 	}
 	return config, nil
 }
 
 func componentExtensionRunID(
 	instance workflow.CollectorInstance,
-	config componentInstanceConfig,
+	config componentactivation.Config,
 	planKey string,
 ) string {
 	return fmt.Sprintf(
@@ -106,7 +107,7 @@ func componentExtensionTriggerKind(instance workflow.CollectorInstance) workflow
 
 func componentExtensionRequestedScopeSet(
 	instance workflow.CollectorInstance,
-	config componentInstanceConfig,
+	config componentactivation.Config,
 ) string {
 	payload := struct {
 		CollectorInstanceID string                                 `json:"collector_instance_id"`
@@ -142,7 +143,7 @@ func componentExtensionRequestedScopeSet(
 
 func componentExtensionWorkItem(
 	instance workflow.CollectorInstance,
-	config componentInstanceConfig,
+	config componentactivation.Config,
 	runID string,
 	planKey string,
 	observedAt time.Time,
@@ -178,7 +179,7 @@ func componentExtensionWorkItem(
 	}
 }
 
-func componentExtensionClaimIdentity(config componentInstanceConfig) (string, string) {
+func componentExtensionClaimIdentity(config componentactivation.Config) (string, string) {
 	if host, ok := componentExtensionHostClaim(config); ok {
 		return host.SourceSystem, host.Scope.ID
 	}
@@ -186,7 +187,7 @@ func componentExtensionClaimIdentity(config componentInstanceConfig) (string, st
 	return strings.TrimSpace(config.ComponentID), scopeID
 }
 
-func componentExtensionHostClaim(config componentInstanceConfig) (component.ActivationHostClaimMetadata, bool) {
+func componentExtensionHostClaim(config componentactivation.Config) (component.ActivationHostClaimMetadata, bool) {
 	if config.Host == nil {
 		return component.ActivationHostClaimMetadata{}, false
 	}
@@ -197,7 +198,7 @@ func componentExtensionHostClaim(config componentInstanceConfig) (component.Acti
 	return host, true
 }
 
-func componentExtensionIdentity(config componentInstanceConfig, planKey string) string {
+func componentExtensionIdentity(config componentactivation.Config, planKey string) string {
 	identity := map[string]any{
 		"component_id":      strings.TrimSpace(config.ComponentID),
 		"component_version": strings.TrimSpace(config.ComponentVersion),
