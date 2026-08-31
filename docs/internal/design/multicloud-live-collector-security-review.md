@@ -1,31 +1,39 @@
-# Security Review Scope — GCP/Azure Live Cloud Collector
+# Security review — GCP/Azure live cloud collector
 
-Pre-enablement review gate for issues #1997 (GCP) and #1998 (Azure).
+Pre-operator-activation and pre-promotion review for GCP issue #1997 and Azure
+issue #3066. Azure's claimed-live runtime (#3050) and default-off Helm wiring
+(#3059) are shipped. They let an operator request a credential-bearing run;
+they do not supply the sanitized live evidence needed to promote Azure.
 
-**Scope of this doc:** the credential-bearing **live transport** paths only.
-Fixture parsing, the shared reducer admission (`cloud_inventory_admission`), and
-the API/MCP readback (`GET /api/v0/cloud/inventory`, `list_cloud_resource_inventory`)
-are already shipped and fixture-proven; they are out of scope here except where
-the live path changes their inputs.
+**Scope of this doc:** the credential-bearing **live transport** paths and the
+security evidence for them. Fixture parsing, shared reducer admission
+(`cloud_inventory_admission`), and API/MCP readback
+(`GET /api/v0/cloud/inventory`, `list_cloud_resource_inventory`) are shipped
+and fixture-proven. This review does not replace the remaining #3066 promotion
+evidence described in the Azure live-smoke status below.
 
-This review must pass before any command, chart, credential mount,
-ServiceMonitor, or live smoke path enables credential-bearing live collection.
+This review must pass before an operator enables any credential mount,
+ServiceMonitor, or live smoke path. Shipped command and chart defaults remain
+off until that opt-in.
 Adapter code may merge only when default wiring stays inert and tests prove the
 seam is explicitly injected, read-only, bounded, and sanitized. Today both
-binaries run fixture/file-backed and make **zero** live calls. The GCP live seam
-exists as an explicit-injection `gcpruntime.LiveClient`, but the GCP command and
-chart do not wire it by default. The Azure live seam is gated by construction:
-`azureruntime.LiveProviderFactory{}` returns
-`ErrLiveProviderGated`, and live Resource Graph plus optional ARM fallback calls
-require explicit operator-owned injection of read-only clients and allowlist
-rules. It is not command- or chart-enabled by default.
+binaries use fixture/file-backed defaults that make **zero** live calls. The GCP
+live seam exists as an explicit-injection `gcpruntime.LiveClient`. The Azure
+zero-value `azureruntime.LiveProviderFactory{}` returns
+`ErrLiveProviderGated`. Azure also has a separate opt-in
+`collector-azure-cloud -mode claimed-live` path: it needs an enabled,
+claim-enabled `azure` instance with `live_collection_enabled=true`, a workflow
+claim, and an operator-provided credential. Azure RBAC is an operator
+prerequisite, not a runtime-enforced check: the live smoke must prove that the
+credential is read-only. The Helm chart exposes that path only when
+`azureCloudCollector.enabled=true`; the chart default is off.
 
 ## 1. Credential surfaces
 
 | Provider | Live seam | Auth model to verify | Least-privilege scope |
 | --- | --- | --- | --- |
 | GCP | `gcpruntime.LiveClient` (`go/internal/collector/gcpcloud/gcpruntime/liveclient.go`); `CredentialRef` is a name only. | Workload Identity Federation / ADC for a dedicated service account. No long-lived JSON keys mounted. | Cloud Asset Inventory read-only (`roles/cloudasset.viewer`) at the configured org/folder/project parent only. No `assets.export`, no IAM write, no data-plane reader roles. |
-| Azure | `azureruntime.LiveProviderFactory` (`go/internal/collector/azurecloud/azureruntime/live_provider.go`). Zero value is inert; explicit injected clients can read Resource Graph and allowlisted ARM `GET` only. | Managed/workload identity for the configured tenant. No client-secret string in env. | `Reader` at the configured subscription/management-group scope only; Resource Graph + allowlisted ARM `GET` only. No `Contributor`, no provider registration, no write/delete. |
+| Azure | `azureruntime.LiveProviderFactory` (`go/internal/collector/azurecloud/azureruntime/live_provider.go`). Its zero value is inert for fixture/default mode. The opt-in `collector-azure-cloud -mode claimed-live` path resolves the ambient credential and injects a Resource Graph client. ARM fallback is an unwired injectable seam, outside claimed-live and #3066 smoke scope. | Operator prerequisite: managed/workload identity with read-only Azure RBAC at the configured scope. The runtime does not verify the grant; the smoke must prove it. No client-secret string in env. | Expected operator grant: `Reader` at the configured subscription/management-group scope. Claimed-live serves Resource Graph reads only; it has no `Contributor`, provider-registration, write, or delete path. |
 
 Threat-model checks: privilege creep (read-only inventory, not secret *values*);
 credential *reference* vs material (names only — never bytes — in struct fields,
@@ -35,17 +43,21 @@ default-deny (the inert zero-value seams stay the command/chart default; any pat
 constructing or wiring the live adapter without explicit operator opt-in is a
 finding).
 
-GCP status as of #2701: `gcpruntime.LiveClient` is implemented as an
+GCP status: issue #1997 is closed. `gcpruntime.LiveClient` is the shipped
 explicit-injection REST `PageProvider` for Cloud Asset Inventory `assets.list`.
-The `collector-gcp-cloud` command and chart paths still use fixture/default-off
-wiring and make no live calls unless a future security-reviewed slice explicitly
-injects the live transport and credential source.
+Fixture remains the `collector-gcp-cloud` CLI default, while the explicit
+`-mode claimed-live` command path wires the live transport and credential
+source. The chart keeps `gcpCloudCollector.enabled=false` by default and starts
+claimed-live only after operator opt-in. The sanitized GCP smoke and security
+evidence are recorded below.
 
 ## 2. Redaction-key handling
 
-The live path **must** mirror the shipped GCP file-based key handling
-(`loadRedactionKey` in `go/cmd/collector-gcp-cloud/main.go`; the Azure binary now
-mirrors it via `ESHU_AZURE_REDACTION_KEY_FILE`):
+The GCP live path uses shipped file-based key handling
+(`loadRedactionKey` in `go/cmd/collector-gcp-cloud/main.go`). Azure
+fixture/default mode may use `ESHU_AZURE_REDACTION_KEY_FILE`; claimed-live
+requires `-redaction-key-file`, which the Helm deployment passes from the
+read-only redaction mount. Both Azure inputs follow the same rules:
 
 - Key material loaded from a `filepath.Clean`-ed **file**, never an env literal
   or config-JSON field; passed to `redact.NewKey`.
@@ -79,10 +91,11 @@ mirrors it via `ESHU_AZURE_REDACTION_KEY_FILE`):
   evidence rather than hammering the provider.
 - Response page size and per-resource payload size bounded; extension objects
   carry only safe bounded metadata.
-- Azure ARM fallback calls require exact resource-type allowlist rules, fixed
-  API versions, configured extension fields, one bounded `GetByID` per
-  allowlisted Resource Graph row, and oversized payloads degrade to explicit
-  redaction warning evidence.
+- Azure ARM fallback is an unwired injectable seam. It is outside claimed-live
+  and the #3066 operator smoke. Any future activation must use exact
+  resource-type allowlist rules, fixed API versions, configured extension
+  fields, one bounded `GetByID` per allowlisted Resource Graph row, and explicit
+  redaction warning evidence for oversized payloads.
 - **No write operations** reachable by construction (no export/register/deploy/
   delete/mutate).
 
@@ -149,9 +162,10 @@ This run satisfies the section 6 reviewer-allowlist items for the GCP path:
   impersonation; no long-lived key material mounted.
 - Credential carried as a reference/name only (`CredentialRef` is a config
   string, never material).
-- Multi-layer default-deny: the live adapter is not wired by the CLI flag, the
-  JSON config gate, the coordinator config test, or the Helm chart; each layer
-  fails closed independently.
+- Multi-layer default-deny: fixture is the CLI default and the chart is
+  default-off. Live calls require explicit `-mode claimed-live`, an enabled
+  chart, enabled claim-capable collector configuration, a workflow claim, and
+  `-redaction-key-file`; omitting any gate fails closed.
 - Every emitted fact passed through the redacting envelope builders and
   stamped `redaction_policy_version` (verified at 100% coverage in the smoke
   run).
@@ -167,31 +181,42 @@ This run satisfies the section 6 reviewer-allowlist items for the GCP path:
 - The redaction key was mounted read-only from a file, per the loader in
   `go/cmd/collector-gcp-cloud/main.go`.
 
-The GCP path's default posture is unchanged by this gate: the
-`collector-gcp-cloud` command and chart continue to run fixture/file-backed
-with no live wiring, and this review records proof only — it does not enable
-live collection anywhere by default.
+The GCP path's default posture is unchanged by this gate: fixture remains the
+CLI default and `gcpCloudCollector.enabled` remains false. The explicit
+`collector-gcp-cloud -mode claimed-live` command and conditional chart wiring
+are shipped, and the sanitized smoke above records the security evidence for
+closed issue #1997. This review does not enable live collection by default.
 
 ## Azure live-smoke gate status
 
-Issue #2660 remains blocked on an isolated Azure review target and
-operator-owned credential wiring, now tracked by issue #2665. Local and remote
-preflight on 2026-06-16 found no Azure environment variable names, no Azure CLI
-path, and no existing credential-bearing live-smoke runner. The current
-`collector-azure-cloud` command still selects the zero-value
-`azureruntime.LiveProviderFactory` when no fixture pages are configured, so it
-fails closed before any live Resource Graph or ARM request can occur. That
-default-off state is the intended security posture until live enablement is
-explicitly reviewed.
+The claimed-live runtime shipped in #3050 and its default-off Helm exposure
+shipped in #3059. `collector-azure-cloud -mode claimed-live` requires an
+enabled, claim-enabled Azure instance, `live_collection_enabled=true`, a
+workflow claim, and `-redaction-key-file` before it calls Azure. Its Azure RBAC
+grant is an operator prerequisite that the smoke must prove; the runtime does
+not inspect the grant. The Helm chart creates that deployment only when
+`azureCloudCollector.enabled=true`; its render checks require matching
+collector and coordinator instances, an enabled scope, and the redaction
+Secret mount.
 
-The Azure checklist below must stay unchecked until a sanitized live run proves:
+The zero-value factory still protects fixture/default mode. No sanitized
+operator run has supplied the evidence needed to promote Azure, so the Azure
+readiness lane remains `gated` and every checklist item below stays unchecked.
+This checklist is only the security subset of #3066. The
+[Azure readiness entry](../../public/reference/collector-reducer-readiness.md)
+also requires sanitized evidence of fact counts, zero reducer backlog, API/MCP
+status-readback agreement, and claim lease/heartbeat behavior before promotion.
 
-- a throwaway read-only identity scoped only to the configured review parent;
+An operator-run live smoke must prove:
+
+- an operator-granted read-only identity scoped only to the configured review
+  parent; the runtime does not enforce that RBAC grant;
 - workload or managed identity auth with no long-lived secret material mounted;
-- a bounded Resource Graph query and allowlisted ARM fallback family;
+- a bounded Resource Graph query. Claimed-live does not wire ARM fallback; that
+  injectable seam is out of scope for this smoke;
 - result and warning counts captured without tenant, subscription, resource,
   hostname, IP, credential, query text, or raw provider body values;
-- command and chart defaults still fail closed without explicit live wiring.
+- fixture and chart defaults fail closed without explicit live opt-in.
 
 ## 6. Reviewer allowlist (all must be checked before enablement)
 
