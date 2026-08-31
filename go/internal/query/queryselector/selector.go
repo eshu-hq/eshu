@@ -14,6 +14,11 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
 )
 
+// NotFoundError is the errors.As target for a repository selector that
+// matched nothing: no catalog entry, no graph row, and (for a scoped caller)
+// an access filter with no grants at all. Selector carries the raw input
+// string that failed to resolve, for the caller's error message. Match it
+// with IsNotFound rather than a type assertion, since it can arrive wrapped.
 type NotFoundError struct {
 	Selector string
 }
@@ -22,6 +27,10 @@ func (e NotFoundError) Error() string {
 	return fmt.Sprintf("repository selector %q did not match any indexed repository", e.Selector)
 }
 
+// AmbiguousError is the errors.As target for a repository selector that
+// matched more than one repository. Selector carries the raw input string;
+// Matches carries the matched repository ids, so the caller can report or log
+// which repositories collided.
 type AmbiguousError struct {
 	Selector string
 	Matches  []string
@@ -31,10 +40,28 @@ func (e AmbiguousError) Error() string {
 	return fmt.Sprintf("repository selector %q matched multiple repositories: %s", e.Selector, strings.Join(e.Matches, ", "))
 }
 
+// ResolveExact resolves selector against every indexed repository, ignoring
+// caller scope. Use it only where the caller genuinely has no per-request
+// access bounds to enforce (local tooling, admin paths); a request-scoped
+// caller should call ResolveExactForAccess instead so the resolution stays
+// inside its granted repositories.
 func ResolveExact(ctx context.Context, graph querycontract.GraphQuery, content querycontract.ContentStore, selector string) (string, error) {
 	return ResolveExactForAccess(ctx, graph, content, selector, querycontract.RepositoryAccessFilter{AllScopes: true})
 }
 
+// ResolveExactForAccess resolves selector to a canonical repository id,
+// trying the catalog match first and falling back to a graph lookup, both
+// bound by access.
+//
+// A scoped caller with no grants resolves nothing, but the two lookups reach
+// that answer differently and the distinction matters when editing either. The
+// catalog lookup still runs; its results pass through FilterCatalogEntries,
+// which allows nothing for an empty filter, so it yields no match and falls
+// through. The graph lookup is refused outright by an explicit Empty check
+// before the query is built. Remove either guard and a caller with no
+// repository access can resolve any repository in the index. See this
+// package's AGENTS.md before changing either one, or either query's access
+// predicate.
 func ResolveExactForAccess(
 	ctx context.Context,
 	graph querycontract.GraphQuery,
@@ -163,6 +190,9 @@ func ResolveForRequestWithAccess(
 	return repoID, true
 }
 
+// IsNotFound reports whether err is (or wraps) a NotFoundError, so callers
+// can map a selector-resolution failure to a 404 without depending on the
+// error's concrete type.
 func IsNotFound(err error) bool {
 	var target NotFoundError
 	return errors.As(err, &target)
