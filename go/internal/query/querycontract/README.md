@@ -53,6 +53,13 @@ time, so a decode site emits the same code it did before the move. No benchmark
 is cited because there is no runtime delta to measure -- the indirection does not
 survive compilation.
 
+No-Observability-Change: the four decoders emit no metric, span, or log, before
+this move and after it -- they are pure functions over a map. The handlers that
+call them keep their existing `eshu_dp_api_request_duration_seconds` timing and
+their `query.*` spans, and because both wrapper hops inline away, no span
+boundary, attribute, or log line moves. An operator sees exactly the signals
+they saw before.
+
 ## Gotchas / invariants
 
 Capability registration is ordered and rejects duplicate initialization in the
