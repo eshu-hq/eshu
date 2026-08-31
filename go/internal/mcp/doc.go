@@ -9,10 +9,11 @@
 // relationships, semantic, service, and visualization child packages own
 // their registration definitions without importing this parent package. The
 // ask, relationships, and visualization children own pure dependency-neutral
-// family route selectors alongside their definitions, and the cicd,
-// codeowners, containerimage, observabilitycoverage, packageregistry,
-// secretsiam, securityalert, and supplychainimpact children own such a
-// selector without owning a registration.
+// family route selectors alongside their definitions, and the
+// admissiondecisions, cicd, codeowners, containerimage,
+// observabilitycoverage, packageregistry, secretsiam, securityalert, and
+// supplychainimpact children own such a selector without owning a
+// registration.
 // ReadOnlyTools remains the sole ordered assembler; global route membership,
 // family adapters, dispatch,
 // transport, authorization, timeouts,
@@ -89,7 +90,10 @@
 // live in the supplychainimpact child and reach dispatch through the
 // supplyChainImpactRoute adapter, and the three security-alert reconciliation
 // listing, count, and inventory selectors live in the securityalert child and
-// reach dispatch through the securityAlertRoute adapter;
+// reach dispatch through the securityAlertRoute adapter. The one
+// admission-decisions listing selector, which the same repository router
+// answers, lives in the admissiondecisions child and reaches dispatch through
+// the admissionDecisionsRoute adapter;
 // SBOM attachment tools forward repository_id to the query layer so repository
 // scope returns reducer-owned image/SBOM missing evidence instead of becoming
 // an unscoped aggregate.

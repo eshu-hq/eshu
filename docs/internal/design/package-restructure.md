@@ -956,6 +956,43 @@ key from the `scope` block the response echoes back. This family carries no
 integer -- so, unlike supply-chain-impact, the child needs no local
 reimplementation beside `routecontract.Arguments`.
 
+The admission-decisions route family is the ninth Wave 2 MCP extraction and
+returns to the single-tool shape: one tool, `list_admission_decisions`, one
+arm of the same `repositoryRoute` switch, one request builder alone in
+`dispatch_admission_decisions.go` with no private helper beside it. Family
+membership and the builder now live under `internal/mcp/admissiondecisions`,
+and `dispatch_admission_decisions.go` keeps only the thin
+`admissionDecisionsRoute` adapter. Root keeps the tool definition and its
+assembly position, global fanout order, dispatch, authorization, transport,
+timeouts, response budgets, envelopes, summaries, and telemetry. The adapter
+is consulted directly after the security-alert one at the top of
+`repositoryRoute`, so the repository router keeps its own position in the
+global chain and no other family's resolution order changes. The one name is
+disjoint from the eight earlier families and from the remaining switch arms,
+which drop from 19 to 18, and the 162-tool order, the advertised schema, the
+`limit` default of 50, and every selected method, path, and query key remain
+unchanged. The root file set is unchanged too -- the adapter keeps the
+builder's file name -- so `internal/mcp` holds its dirgate pin of 106 with no
+re-pin.
+
+What makes this family worth reading is that its eight keys fail three
+different ways when one is lost, and the handler's own defaults hide two of
+them. `domain`, `scope_id`, and `generation_id` are required, so losing any
+of them 400s. `anchor_kind` and `anchor_id` must arrive together, so losing
+one half 400s while losing both returns 200 over every anchor in scope.
+`state`, `include_evidence`, and `limit` each have a handler default, so
+losing one returns 200 with a wider state set, no evidence rows, or a 50-row
+page -- and because the dispatcher's `limit` default is also 50, the handler
+cannot tell an omitted `limit` from a requested one. `include_evidence` is the
+key to watch: it is always sent as an explicit `"true"` or `"false"` built
+from a Go bool only, so `routecontract.Arguments.BoolOr` is the right seam and
+no `boolStr`-shaped tri-state helper is needed, but a client that stringifies
+the flag gets a 200 with no evidence rows rather than an error. The child
+tests pin each of the six string keys, the `limit` coercion table, and the
+bool-only `include_evidence` coercion individually, and the dispatch-level
+test asserts the eight keys against literal expectations rather than against
+the child selector, which the adapter parity test cannot do for it.
+
 **cmd/eshu (233):** `package main` — subdirectories are impossible by
 language rule. The lever is extracting business logic to new
 `internal/cli/<family>` packages, leaving thin cobra RunE wrappers —

@@ -9,8 +9,8 @@ HTTP request without importing the parent MCP package.
 
 This package owns decoded argument access and the selected request value. It
 does not own tool names, family membership, or route-selection policy. Family
-packages such as `internal/mcp/ask`, `internal/mcp/cicd`,
-`internal/mcp/codeowners`, `internal/mcp/containerimage`,
+packages such as `internal/mcp/admissiondecisions`, `internal/mcp/ask`,
+`internal/mcp/cicd`, `internal/mcp/codeowners`, `internal/mcp/containerimage`,
 `internal/mcp/observabilitycoverage`, `internal/mcp/packageregistry`,
 `internal/mcp/relationships`, `internal/mcp/secretsiam`,
 `internal/mcp/securityalert`, `internal/mcp/supplychainimpact`, and
@@ -53,6 +53,7 @@ transport and API request telemetry.
 ## Related docs
 
 - [MCP package](../README.md)
+- [MCP admission-decisions route selection](../admissiondecisions/README.md)
 - [MCP Ask registration and route selection](../ask/README.md)
 - [MCP CI/CD run-correlation route selection](../cicd/README.md)
 - [MCP CODEOWNERS ownership route selection](../codeowners/README.md)
