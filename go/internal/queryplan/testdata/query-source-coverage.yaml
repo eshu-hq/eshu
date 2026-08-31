@@ -459,9 +459,9 @@ source_coverage:
   - file: repository_name_lookup.go
     calls:
       - {symbol: "queryRepositoryNamesByID", count: 1, non_hot_reason: "inventory-only support or bounded read; promote to entry_ids when designated hot"}
-  - file: repository_selector.go
+  - file: queryselector/selector.go
     calls:
-      - {symbol: "resolveRepositorySelectorExactForAccess", count: 2, non_hot_reason: "inventory-only support or bounded read; promote to entry_ids when designated hot"}
+      - {symbol: "ResolveExactForAccess", count: 2, non_hot_reason: "inventory-only support or bounded read; promote to entry_ids when designated hot"}
   - file: repository_stats.go
     calls:
       - {symbol: "(*RepositoryHandler).repositoryStatsRepositoryRef", count: 1, non_hot_reason: "inventory-only support or bounded read; promote to entry_ids when designated hot"}

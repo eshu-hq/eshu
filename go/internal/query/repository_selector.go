@@ -5,32 +5,30 @@ package query
 
 import (
 	"context"
-	"errors"
-	"fmt"
 	"net/http"
-	"slices"
-	"strings"
+
+	"github.com/eshu-hq/eshu/go/internal/query/queryselector"
 )
 
-type repositorySelectorNotFoundError struct {
-	Selector string
-}
+// The repository-selector resolution moved to queryselector for #6060, so a
+// handler-family subpackage can resolve a selector without importing this
+// package, which it cannot do without an import cycle. It is not in
+// querycontract because resolveRepositorySelectorForRequestWithAccess writes to
+// a ResponseWriter, and request-time orchestration in the dependency-neutral
+// contract package is exactly what review rejected on the collector-readiness
+// seam.
 
-func (e repositorySelectorNotFoundError) Error() string {
-	return fmt.Sprintf("repository selector %q did not match any indexed repository", e.Selector)
-}
+// repositorySelectorNotFoundError reports a selector that matched no
+// repository. Aliased, so the errors.As in isRepositorySelectorNotFound and
+// every existing construction keep working.
+type repositorySelectorNotFoundError = queryselector.NotFoundError
 
-type repositorySelectorAmbiguousError struct {
-	Selector string
-	Matches  []string
-}
-
-func (e repositorySelectorAmbiguousError) Error() string {
-	return fmt.Sprintf("repository selector %q matched multiple repositories: %s", e.Selector, strings.Join(e.Matches, ", "))
-}
+// repositorySelectorAmbiguousError reports a selector that matched more than
+// one repository.
+type repositorySelectorAmbiguousError = queryselector.AmbiguousError
 
 func resolveRepositorySelectorExact(ctx context.Context, graph GraphQuery, content ContentStore, selector string) (string, error) {
-	return resolveRepositorySelectorExactForAccess(ctx, graph, content, selector, repositoryAccessFilter{AllScopes: true})
+	return queryselector.ResolveExact(ctx, graph, content, selector)
 }
 
 func resolveRepositorySelectorExactForAccess(
@@ -40,103 +38,9 @@ func resolveRepositorySelectorExactForAccess(
 	selector string,
 	access repositoryAccessFilter,
 ) (string, error) {
-	selector = strings.TrimSpace(selector)
-	if selector == "" {
-		return "", nil
-	}
-	if looksCanonicalRepositoryID(selector) {
-		if !access.AllowsRepositoryID(selector) {
-			return "", repositorySelectorNotFoundError{Selector: selector}
-		}
-		return selector, nil
-	}
-
-	if content != nil {
-		entries, err := content.MatchRepositories(ctx, selector)
-		if err != nil {
-			return "", fmt.Errorf("match repositories: %w", err)
-		}
-		entries = access.FilterCatalogEntries(entries)
-		matches := resolveRepositoryCatalogMatches(entries, selector)
-		switch len(matches) {
-		case 0:
-		case 1:
-			return matches[0], nil
-		default:
-			return "", repositorySelectorAmbiguousError{Selector: selector, Matches: matches}
-		}
-	}
-
-	if graph != nil {
-		if access.Empty() {
-			return "", repositorySelectorNotFoundError{Selector: selector}
-		}
-		rows, err := graph.Run(ctx, `
-			MATCH (r:Repository)
-			WHERE (
-			   r.id = $repo_selector
-			   OR r.name = $repo_selector
-			   OR r.path = $repo_selector
-			   OR r.local_path = $repo_selector
-			   OR r.remote_url = $repo_selector
-			   OR r.repo_slug = $repo_selector
-			)
-			`+access.GraphPredicate("r")+`
-			RETURN r.id as id
-			ORDER BY r.id
-		`, access.GraphParams(map[string]any{"repo_selector": selector}))
-		if err != nil {
-			return "", fmt.Errorf("query graph repository selector: %w", err)
-		}
-		switch len(rows) {
-		case 0:
-			row, err := graph.RunSingle(ctx, `
-				MATCH (r:Repository)
-				WHERE (
-				   r.id = $repo_selector
-				   OR r.name = $repo_selector
-				   OR r.path = $repo_selector
-				   OR r.local_path = $repo_selector
-				   OR r.remote_url = $repo_selector
-				   OR r.repo_slug = $repo_selector
-				)
-				`+access.GraphPredicate("r")+`
-				RETURN r.id as id
-			`, access.GraphParams(map[string]any{"repo_selector": selector}))
-			if err != nil {
-				return "", fmt.Errorf("query graph repository selector: %w", err)
-			}
-			if row != nil {
-				return StringVal(row, "id"), nil
-			}
-		case 1:
-			return StringVal(rows[0], "id"), nil
-		default:
-			ids := make([]string, 0, len(rows))
-			for _, row := range rows {
-				id := StringVal(row, "id")
-				if id == "" {
-					continue
-				}
-				ids = append(ids, id)
-			}
-			slices.Sort(ids)
-			return "", repositorySelectorAmbiguousError{Selector: selector, Matches: ids}
-		}
-	}
-
-	return "", repositorySelectorNotFoundError{Selector: selector}
+	return queryselector.ResolveExactForAccess(ctx, graph, content, selector, access)
 }
 
-// resolveRepositorySelectorForRequestWithAccess resolves a repository selector
-// and writes the failure response itself, reporting false when it did.
-//
-// capability names the caller's capability for the bounded graph-read envelope.
-// Selector resolution issues its own graph reads, so a backend timeout or
-// outage here must surface as the same 503/504 contract every other
-// graph-backed read uses. Without that mapping it fell through to the generic
-// branch below and reported HTTP 400, telling the client its request was
-// malformed when nothing was wrong with the request at all.
 func resolveRepositorySelectorForRequestWithAccess(
 	w http.ResponseWriter,
 	r *http.Request,
@@ -146,51 +50,17 @@ func resolveRepositorySelectorForRequestWithAccess(
 	access repositoryAccessFilter,
 	capability string,
 ) (string, bool) {
-	repoID, err := resolveRepositorySelectorExactForAccess(r.Context(), graph, content, selector, access)
-	if err != nil {
-		if WriteGraphReadError(w, r, err, capability) {
-			return "", false
-		}
-		status := http.StatusBadRequest
-		if isRepositorySelectorNotFound(err) {
-			status = http.StatusNotFound
-		}
-		WriteError(w, status, err.Error())
-		return "", false
-	}
-	return repoID, true
+	return queryselector.ResolveForRequestWithAccess(w, r, graph, content, selector, access, capability)
 }
 
 func isRepositorySelectorNotFound(err error) bool {
-	var target repositorySelectorNotFoundError
-	return errors.As(err, &target)
+	return queryselector.IsNotFound(err)
 }
 
 func looksCanonicalRepositoryID(selector string) bool {
-	return strings.HasPrefix(selector, "repo://") ||
-		strings.HasPrefix(selector, "repo-") ||
-		strings.HasPrefix(selector, "repository:")
+	return queryselector.LooksCanonicalRepositoryID(selector)
 }
 
 func resolveRepositoryCatalogMatches(entries []RepositoryCatalogEntry, selector string) []string {
-	if strings.TrimSpace(selector) == "" {
-		return nil
-	}
-	matches := make([]string, 0, 1)
-	seen := make(map[string]struct{})
-	for _, entry := range entries {
-		switch selector {
-		case entry.ID, entry.Name, entry.Path, entry.LocalPath, entry.RemoteURL, entry.RepoSlug:
-			if entry.ID == "" {
-				continue
-			}
-			if _, ok := seen[entry.ID]; ok {
-				continue
-			}
-			seen[entry.ID] = struct{}{}
-			matches = append(matches, entry.ID)
-		}
-	}
-	slices.Sort(matches)
-	return matches
+	return queryselector.CatalogMatches(entries, selector)
 }
