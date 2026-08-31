@@ -289,6 +289,19 @@ func Load(p Paths) (Manifest, error) {
 		return Manifest{}, fmt.Errorf("payloadusage: no decode seams found in %s", strings.Join(decodeFiles, ", "))
 	}
 
+	// A decode seam relocated into a subpackage (e.g.
+	// go/internal/reducer/schemadecode, issue #6061) is parsed above under its
+	// exported name (e.g. "DecodeAWSResource"). The reducer root's own
+	// compatibility forwarders keep handler call sites on the original
+	// lowercase name (e.g. "decodeAWSResource"); resolve every seam back to
+	// that root identity before it is used for cross-stage merging or usage
+	// attribution, or both break silently (#6383).
+	rootForwarders, err := ParseRootForwarders(resolved.ReducerDir)
+	if err != nil {
+		return Manifest{}, err
+	}
+	reducerSeams = ResolveForwardedSeams(reducerSeams, rootForwarders)
+
 	// The projector is the primary graph-identity producer for the oci_registry
 	// family: its canonical extractor decodes through the same sdk/go/factschema
 	// seam the reducer uses. Parse its decode-seam files and merge them so the
