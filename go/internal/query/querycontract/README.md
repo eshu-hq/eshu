@@ -97,6 +97,31 @@ non-empty page is classified `ready_with_results` without consulting the probe
 at all. Returned rows are themselves proof the collector ran, so a stale or
 failing probe must never downgrade a page that already carries evidence.
 
+## Performance and observability of the authz seam
+
+The scoped-token access filter and its predicate builders moved here, and every
+repository-shaped read path calls them, so the question is whether the move cost
+anything on those paths.
+
+No-Regression Evidence: it did not, because the emitted query is unchanged.
+String literals extracted per function with `go/parser` before and after the move
+are byte-identical across all 13 manifest-pinned symbols (356 literals), the 25
+coverage-tracked symbols, and the 6 filter methods that RETURN Cypher fragments
+compared across the package boundary. Only Go identifiers changed
+(`access.graphCondition` became `access.GraphCondition`), which is why 47
+source-text digests moved while no query did. A second method agrees: sweeping
+the diff for changed lines carrying Cypher keywords returns only method-name
+capitalisations, with the surrounding `MATCH`/`WHERE`/`LIMIT` text untouched.
+`go build ./...`, `go vet ./...` and
+`go test ./internal/query/... ./internal/mcp ./internal/queryplan -count=1` all
+exit 0.
+
+No-Observability-Change: the filter emits no metric, span, or log. The graph
+reads it bounds travel through the shared bounded read policy and carry that
+policy's `neo4j.query` span exactly as before; failures render through the
+shared error contract. Moving where the predicate is built changed no operator
+signal.
+
 ## Gotchas / invariants
 
 Capability registration is ordered and rejects duplicate initialization in the
