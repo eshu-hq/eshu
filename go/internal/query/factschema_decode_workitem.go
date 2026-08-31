@@ -4,9 +4,7 @@
 package query
 
 import (
-	"errors"
-	"fmt"
-
+	"github.com/eshu-hq/eshu/go/internal/query/querydecode"
 	"github.com/eshu-hq/eshu/sdk/go/factschema"
 	workitemv1 "github.com/eshu-hq/eshu/sdk/go/factschema/workitem/v1"
 )
@@ -27,68 +25,19 @@ import (
 // write path), it classifies one decoded row as unusable for the response it
 // is building.
 
-// queryDecodeError wraps a classified *factschema.DecodeError so a query-layer
-// caller can read the missing field and classification without importing the
-// reducer/projector's dead-letter triage types. The classification value is
-// byte-equal to "input_invalid" by the by-value contract Contract System v1
-// mandates (the contracts module cannot import go/internal, and this package
-// does not import the reducer/projector's triage classes either).
-type queryDecodeError struct {
-	// FactKind is the fact kind that failed to decode.
-	FactKind string
-	// FactID is the durable fact identifier of the malformed fact, so an
-	// operator can locate the exact row in fact_records.
-	FactID string
-	// Field is the required payload key that was absent or null. Empty when
-	// the failure is not attributable to a single field (for example an
-	// unsupported schema major).
-	Field string
-	// Classification is the decode classification, always
-	// factschema.ClassificationInputInvalid for a field-attributable failure.
-	Classification string
-	// err is the underlying classified *factschema.DecodeError.
-	err *factschema.DecodeError
-}
-
-// Error implements the error interface, naming the fact id, fact kind, and the
-// underlying classified decode failure.
-func (e *queryDecodeError) Error() string {
-	return fmt.Sprintf("decode %s fact %s: %s", e.FactKind, e.FactID, e.err.Error())
-}
-
-// Unwrap exposes the underlying *factschema.DecodeError so errors.As/errors.Is
-// can reach it (and its ErrUnsupportedSchemaMajor sentinel).
-func (e *queryDecodeError) Unwrap() error {
-	return e.err
-}
+// queryDecodeError is the query layer's classified decode failure. It aliases
+// querydecode.Error, which owns the type and both of its methods.
+//
+// The alias carries Error() and Unwrap() because they are exported; #6060's
+// other seam, RepositoryAccessFilter, needed a 177-file rename precisely
+// because ITS methods were unexported and an alias cannot reach those across a
+// package boundary. Nothing here changes for the 73 existing references.
+type queryDecodeError = querydecode.Error
 
 // newQueryDecodeError wraps a decode error returned by a factschema Decode*
-// function into the query layer's classified decode failure, attributing it to
-// factID for operator diagnosis. It expects a *factschema.DecodeError (the
-// only error the Decode* seam returns); a different error is still wrapped
-// with the input_invalid classification so the caller treats it as
-// non-retryable rather than mistaking it for a successful decode.
+// function into the query layer's classified decode failure.
 func newQueryDecodeError(factKind, factID string, err error) *queryDecodeError {
-	var decodeErr *factschema.DecodeError
-	if errors.As(err, &decodeErr) {
-		return &queryDecodeError{
-			FactKind:       factKind,
-			FactID:         factID,
-			Field:          decodeErr.Field,
-			Classification: decodeErr.Classification,
-			err:            decodeErr,
-		}
-	}
-	return &queryDecodeError{
-		FactKind:       factKind,
-		FactID:         factID,
-		Classification: factschema.ClassificationInputInvalid,
-		err: &factschema.DecodeError{
-			FactKind:       factKind,
-			Classification: factschema.ClassificationInputInvalid,
-			Err:            err,
-		},
-	}
+	return querydecode.New(factKind, factID, err)
 }
 
 // workItemSchemaEnvelope adapts one scanned work-item fact row into the
