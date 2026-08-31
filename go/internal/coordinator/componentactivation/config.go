@@ -21,13 +21,14 @@ const ConfigSchema = "eshu.component.instance.v1"
 // Config is one component instance's parsed generic activation
 // configuration. Root's component registry readback constructs one to
 // build a collector instance's Configuration JSON
-// (component_activation_config.go); component_extension_scheduler.go parses
-// it back at planning time; and pagerduty_service.go and governance_audit.go
-// read it to exclude component-extension instances from unrelated
-// scheduling and to identify the component in a denied-egress audit event.
-// This package is dependency-neutral — it imports only internal/component,
-// never internal/coordinator — so every one of those consumers can import
-// it without an import cycle.
+// (component_activation_config.go); the componentextensionplanner child
+// parses it back at planning time; and pagerduty_service.go and
+// governance_audit.go read it to exclude component-extension instances from
+// unrelated scheduling and to identify the component in a denied-egress
+// audit event. This package is dependency-neutral — it imports only
+// internal/component, never internal/coordinator or any coordinator child
+// package — so every one of those consumers can import it without an
+// import cycle.
 type Config struct {
 	SchemaVersion    string                                 `json:"schema_version"`
 	ComponentID      string                                 `json:"component_id"`

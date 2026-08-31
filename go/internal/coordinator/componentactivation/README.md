@@ -7,12 +7,14 @@ generic component-extension activation configuration
 (`eshu.component.instance.v1`) that a claim-capable component collector
 instance carries in its `Configuration` field. It exists because that
 configuration shape is a genuine cross-cutting contract, not scheduler
-state: root constructs it, the component-extension scheduler consumes it,
+state: root constructs it, the componentextensionplanner child consumes it,
 and two unrelated providers read it, so it needs a home neither of them
-owns. This package is the prerequisite for the pending extraction of
-`component_extension_scheduler.go` into its own `componentextensionplanner`
-child package (tracked in #6057): once the scheduler moves, it will import
-this package too, exactly as it already calls into it from root today.
+owns. This package landed as its own commit before the scheduler extraction
+(#6057) because it is that extraction's prerequisite, not an optional
+follow-up: root already imports the child for its request type, so the
+child cannot import root back, and this type cannot move into the
+scheduler-owned child without forcing the two unrelated providers below to
+depend on a scheduler-specific package.
 
 ## Ownership boundary
 
@@ -25,14 +27,14 @@ workflow rows, or touch Postgres.
 `internal/coordinator/component_activation_config.go` (root) owns
 constructing a `Config` from a loaded component manifest and activation and
 marshaling it into a collector instance's `Configuration` field — the write
-side of this contract. `internal/coordinator/component_extension_scheduler.go`
-(root) owns turning a parsed `Config` into a deterministic workflow run and
-work item — the planning side. `internal/coordinator/pagerduty_service.go`
-and `governance_audit.go` read a parsed `Config` for reasons that have
-nothing to do with either of those: excluding a component-extension
-instance from PagerDuty scheduling, and identifying the component in a
-denied-egress audit event. None of those four consumers owns this contract,
-which is why it lives here instead of in any of their packages.
+side of this contract. `internal/coordinator/componentextensionplanner`
+owns turning a parsed `Config` into a deterministic workflow run and work
+item — the planning side. `internal/coordinator/pagerduty_service.go` and
+`governance_audit.go` read a parsed `Config` for reasons that have nothing
+to do with either of those: excluding a component-extension instance from
+PagerDuty scheduling, and identifying the component in a denied-egress
+audit event. None of those four consumers owns this contract, which is why
+it lives here instead of in any of their packages.
 
 ## Exported surface
 
@@ -94,4 +96,5 @@ unsupported `runtime.sdk_protocol`, and an unsupported `runtime.adapter`.
 ## Related docs
 
 - `go/internal/coordinator/README.md`
+- `go/internal/coordinator/componentextensionplanner/README.md`
 - `docs/internal/design/package-restructure.md`

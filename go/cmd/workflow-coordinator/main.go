@@ -20,6 +20,7 @@ import (
 	_ "github.com/eshu-hq/eshu/go/internal/collector/awscloud/awsruntime/bindings"
 	"github.com/eshu-hq/eshu/go/internal/coordinator"
 	"github.com/eshu-hq/eshu/go/internal/coordinator/cicdrun"
+	"github.com/eshu-hq/eshu/go/internal/coordinator/componentextensionplanner"
 	"github.com/eshu-hq/eshu/go/internal/coordinator/gcpplanner"
 	"github.com/eshu-hq/eshu/go/internal/coordinator/grafanaplanner"
 	"github.com/eshu-hq/eshu/go/internal/coordinator/jiraplanner"
@@ -194,7 +195,7 @@ func run(parent context.Context) error {
 		GrafanaPlanner:                    grafanaplanner.WorkPlanner{},
 		LokiPlanner:                       lokiplanner.WorkPlanner{},
 		VaultLivePlanner:                  coordinatorvaultlive.WorkPlanner{},
-		ComponentExtensionPlanner:         coordinator.ComponentExtensionWorkPlanner{},
+		ComponentExtensionPlanner:         componentextensionplanner.WorkPlanner{},
 		OwnedPackageTargetReader:          postgres.NewFactStore(ownedPackageTargetsDB),
 		TenantGrantReader:                 tenantGrantReader{store: tenantGrantStore},
 		OSPackageAdvisoryTargetReader:     factStore,

@@ -8,6 +8,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/eshu-hq/eshu/go/internal/coordinator/componentextensionplanner"
 	"github.com/eshu-hq/eshu/go/internal/governanceaudit"
 	"github.com/eshu-hq/eshu/go/internal/scope"
 	"github.com/eshu-hq/eshu/go/internal/workflow"
@@ -59,7 +60,7 @@ func TestServiceRunSchedulesComponentExtensionWork(t *testing.T) {
 		},
 		Store:                     store,
 		GovernanceAudit:           audit,
-		ComponentExtensionPlanner: ComponentExtensionWorkPlanner{},
+		ComponentExtensionPlanner: componentextensionplanner.WorkPlanner{},
 		Clock:                     func() time.Time { return now },
 	}
 
@@ -126,7 +127,7 @@ func TestServiceRunSchedulesPagerDutyComponentExtensionThroughGenericPlanner(t *
 		},
 		Store:                     store,
 		PagerDutyPlanner:          pagerDutyPlanner,
-		ComponentExtensionPlanner: ComponentExtensionWorkPlanner{},
+		ComponentExtensionPlanner: componentextensionplanner.WorkPlanner{},
 		Clock:                     func() time.Time { return now },
 	}
 
@@ -173,7 +174,7 @@ func TestServiceRunSkipsComponentExtensionWithoutEgressPolicy(t *testing.T) {
 		},
 		Store:                     store,
 		GovernanceAudit:           audit,
-		ComponentExtensionPlanner: ComponentExtensionWorkPlanner{},
+		ComponentExtensionPlanner: componentextensionplanner.WorkPlanner{},
 		Clock:                     func() time.Time { return now },
 	}
 
@@ -240,7 +241,7 @@ func TestServiceRunSkipsDeniedComponentExtensionEgress(t *testing.T) {
 		},
 		Store:                     store,
 		GovernanceAudit:           audit,
-		ComponentExtensionPlanner: ComponentExtensionWorkPlanner{},
+		ComponentExtensionPlanner: componentextensionplanner.WorkPlanner{},
 		Clock:                     func() time.Time { return now },
 	}
 
@@ -309,7 +310,7 @@ func TestServiceComponentExtensionReconcileIsIdempotentAcrossRestart(t *testing.
 			}},
 		},
 		Store:                     store,
-		ComponentExtensionPlanner: ComponentExtensionWorkPlanner{},
+		ComponentExtensionPlanner: componentextensionplanner.WorkPlanner{},
 		Clock:                     func() time.Time { return now },
 	}
 
@@ -342,6 +343,71 @@ func testScorecardComponentInstance(now time.Time) workflow.CollectorInstance {
 		CreatedAt:      now,
 		UpdatedAt:      now,
 		LastObservedAt: now,
+	}
+}
+
+// TestShouldScheduleComponentExtensionSurfacesInvalidActivationConfig is the
+// root half of the pre-extraction test of the same name:
+// shouldScheduleComponentExtension still treats an instance whose
+// configuration matches the component-extension schema but fails deeper
+// validation (here, an unsupported runtime.sdk_protocol) as schedulable, so
+// scheduleComponentExtensionWork's planner call surfaces the validation
+// error instead of silently skipping the instance. The planner-side
+// assertion that PlanComponentExtensionWork actually returns that
+// runtime.sdk_protocol rejection now lives in
+// componentextensionplanner.TestComponentExtensionPlannerRejectsUnsupportedSDKProtocol,
+// and the parse/validation rule itself is pinned independently in
+// componentactivation.TestParseConfig.
+func TestShouldScheduleComponentExtensionSurfacesInvalidActivationConfig(t *testing.T) {
+	t.Parallel()
+
+	observedAt := time.Date(2026, time.June, 9, 13, 15, 0, 0, time.UTC)
+	instance := workflow.CollectorInstance{
+		InstanceID:    "scorecard-primary",
+		CollectorKind: scope.CollectorKind("scorecard"),
+		Mode:          workflow.CollectorModeScheduled,
+		Enabled:       true,
+		ClaimsEnabled: true,
+		Configuration: `{
+			"schema_version":"eshu.component.instance.v1",
+			"component_id":"dev.eshu.examples.scorecard",
+			"component_version":"0.1.0",
+			"manifest_digest":"sha256:1234",
+			"config_handle":"component-config:abcd",
+			"runtime":{"sdk_protocol":"collector-sdk/v9","adapter":"oci"}
+		}`,
+		CreatedAt:      observedAt,
+		UpdatedAt:      observedAt,
+		LastObservedAt: observedAt,
+	}
+
+	if !shouldScheduleComponentExtension(instance) {
+		t.Fatal("shouldScheduleComponentExtension() = false, want true so planner returns the validation error")
+	}
+}
+
+// TestShouldScheduleComponentExtensionIgnoresUnrelatedSchemaVersionConfig
+// moved from the pre-extraction component_extension_scheduler_test.go
+// unchanged: it asserts only the root shouldScheduleComponentExtension
+// predicate, not planner behavior.
+func TestShouldScheduleComponentExtensionIgnoresUnrelatedSchemaVersionConfig(t *testing.T) {
+	t.Parallel()
+
+	observedAt := time.Date(2026, time.June, 9, 13, 20, 0, 0, time.UTC)
+	instance := workflow.CollectorInstance{
+		InstanceID:     "collector-git-primary",
+		CollectorKind:  scope.CollectorGit,
+		Mode:           workflow.CollectorModeContinuous,
+		Enabled:        true,
+		ClaimsEnabled:  true,
+		Configuration:  `{"schema_version":"git.collector.v1","provider":"github"}`,
+		CreatedAt:      observedAt,
+		UpdatedAt:      observedAt,
+		LastObservedAt: observedAt,
+	}
+
+	if shouldScheduleComponentExtension(instance) {
+		t.Fatal("shouldScheduleComponentExtension() = true, want false for unrelated collector config")
 	}
 }
 

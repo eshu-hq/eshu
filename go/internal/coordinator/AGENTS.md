@@ -48,6 +48,21 @@
      and `config.go` call `gcpplanner.EnabledScopes` and
      `gcpplanner.ValidateClaimSchedulerConfiguration` instead of reaching into
      the child's private configuration types
+   - `go/internal/coordinator/componentextensionplanner/planner.go` and
+     `component_extension_service.go` — the extracted generic
+     component-extension planner and root seam; preserve activation-scoped
+     work-item construction and requested-scope privacy (no raw host config
+     path or credentials). Unlike every other extraction, the activation
+     configuration it plans from is not this planner's own type: it lives in
+     `go/internal/coordinator/componentactivation` (`Config`, `RuntimeConfig`,
+     `ParseConfig`), a dependency-neutral package below both root and the
+     planner, landed as its own commit (2026-08-31) because
+     `component_activation_config.go` (construction), `pagerduty_service.go`
+     (PagerDuty exclusion), and `governance_audit.go` (audit identity) all
+     depend on the same parsing for reasons unrelated to component-extension
+     scheduling. All four import `componentactivation`; none of them imports
+     `componentextensionplanner`, and `componentactivation` imports neither
+     `coordinator` nor `componentextensionplanner`
 6. `go/internal/workflow/service.go` (does not exist — `Store` is defined in
    `service.go` here; the workflow contracts are in `internal/workflow`)
 7. `go/internal/telemetry/instruments.go` and `contract.go` — before adding
@@ -128,7 +143,21 @@
   interface, scheduling position, durable admission, clock, and telemetry in
   this package. The child scheduler may depend on `plannercontract`; it must not
   import the root coordinator package. Freshness families also keep trigger
-  claiming and handed-off/failed transitions in the root service.
+  claiming and handed-off/failed transitions in the root service. If a
+  configuration type the scheduler's core function returns or consumes is
+  ALSO used by a root file that is not its own `<kind>_service.go` — the
+  component-extension extraction found `parseComponentInstanceConfig` used by
+  `component_activation_config.go`, `pagerduty_service.go`, and
+  `governance_audit.go` — do not export it from the child (that forces those
+  unrelated files to import a scheduler-specific package) and do not leave it
+  in root (the child cannot import root once root imports the child for the
+  request type, so the child will not compile). Hoist it into a new
+  dependency-neutral package below both root and the child FIRST, as its own
+  commit, before extracting the scheduler — see `componentactivation`, which
+  matches what `plannercontract` already is for plan-key validation and what
+  `projector/intent` is for the projector families' equivalent problem. Every
+  consumer — root's several call sites and the child — imports the neutral
+  package; neither root nor the child imports the other for this purpose.
 
 ## Failure modes and how to debug
 

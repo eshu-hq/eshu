@@ -6,13 +6,12 @@ package componentactivation
 import "testing"
 
 // TestParseConfig pins the parse and validation contract every consumer of
-// this package depends on: component_extension_scheduler.go's
-// PlanComponentExtensionWork delegates to this exact function, and
-// component_extension_service.go, pagerduty_service.go, and
-// governance_audit.go all detect or read a component-extension instance
-// through it. A caller that only needs to detect or exclude a
-// component-extension instance relies on ok/err; a caller that needs the
-// component identity relies on Config.ComponentID.
+// this package depends on: componentextensionplanner.WorkPlanner.PlanComponentExtensionWork
+// delegates to this exact function, and component_extension_service.go,
+// pagerduty_service.go, and governance_audit.go all detect or read a
+// component-extension instance through it. A caller that only needs to
+// detect or exclude a component-extension instance relies on ok/err; a
+// caller that needs the component identity relies on Config.ComponentID.
 func TestParseConfig(t *testing.T) {
 	t.Parallel()
 

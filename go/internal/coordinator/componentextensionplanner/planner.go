@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package coordinator
+package componentextensionplanner
 
 import (
 	"context"
@@ -17,26 +17,27 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/workflow"
 )
 
-// ComponentExtensionPlanRequest carries one generic component extension
-// planning request. The coordinator never resolves component credentials or
-// executes component artifacts while planning.
-type ComponentExtensionPlanRequest struct {
+// PlanRequest carries one generic component extension planning request. The
+// coordinator never resolves component credentials or executes component
+// artifacts while planning.
+type PlanRequest struct {
 	Instance   workflow.CollectorInstance
 	ObservedAt time.Time
 	PlanKey    string
 }
 
-// ComponentExtensionWorkPlanner plans one activation-scoped workflow item for
-// a claim-capable component extension instance.
-type ComponentExtensionWorkPlanner struct{}
+// WorkPlanner plans one activation-scoped workflow item for a claim-capable
+// component extension instance. It is the concrete planner the coordinator
+// wires for every generic component-extension collector kind.
+type WorkPlanner struct{}
 
 // PlanComponentExtensionWork returns one collection-pending run and one work
 // item for the activated component instance. The tuple is deterministic for
 // the component, instance, manifest digest, config handle, and plan key so
 // repeated coordinator reconciles remain idempotent.
-func (p ComponentExtensionWorkPlanner) PlanComponentExtensionWork(
+func (p WorkPlanner) PlanComponentExtensionWork(
 	_ context.Context,
-	request ComponentExtensionPlanRequest,
+	request PlanRequest,
 ) (workflow.Run, []workflow.WorkItem, error) {
 	config, err := validateComponentExtensionPlanRequest(request)
 	if err != nil {
@@ -57,7 +58,7 @@ func (p ComponentExtensionWorkPlanner) PlanComponentExtensionWork(
 }
 
 func validateComponentExtensionPlanRequest(
-	request ComponentExtensionPlanRequest,
+	request PlanRequest,
 ) (componentactivation.Config, error) {
 	if err := request.Instance.Validate(); err != nil {
 		return componentactivation.Config{}, fmt.Errorf("component extension plan request: %w", err)
