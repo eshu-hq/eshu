@@ -12,6 +12,8 @@ import (
 	"strings"
 
 	neo4jdriver "github.com/neo4j/neo4j-go-driver/v5/neo4j"
+
+	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/trace"
 )
@@ -91,70 +93,31 @@ func (r *Neo4jReader) RelationshipTypes(ctx context.Context) (map[string]struct{
 	return types, nil
 }
 
+// StringVal, BoolVal, IntVal and StringSliceVal forward to querycontract.
+// The implementations moved there for #6060 so a handler-family subpackage can
+// decode graph rows without importing this package, which it cannot do without
+// creating an import cycle through root's compatibility aliases. These wrappers
+// keep the original names for this package's callers and for the files outside
+// it that name them.
+
 // StringVal safely extracts a string from a map value.
 func StringVal(row map[string]any, key string) string {
-	v, ok := row[key]
-	if !ok || v == nil {
-		return ""
-	}
-	s, ok := v.(string)
-	if !ok {
-		return fmt.Sprintf("%v", v)
-	}
-	return s
+	return querycontract.StringVal(row, key)
 }
 
 // BoolVal safely extracts a bool from a map value.
 func BoolVal(row map[string]any, key string) bool {
-	v, ok := row[key]
-	if !ok || v == nil {
-		return false
-	}
-	b, ok := v.(bool)
-	if !ok {
-		return false
-	}
-	return b
+	return querycontract.BoolVal(row, key)
 }
 
 // IntVal safely extracts an int from a map value.
 func IntVal(row map[string]any, key string) int {
-	v, ok := row[key]
-	if !ok || v == nil {
-		return 0
-	}
-	switch n := v.(type) {
-	case int64:
-		return int(n)
-	case int:
-		return n
-	case float64:
-		return int(n)
-	default:
-		return 0
-	}
+	return querycontract.IntVal(row, key)
 }
 
 // StringSliceVal safely extracts a []string from a map value.
 func StringSliceVal(row map[string]any, key string) []string {
-	v, ok := row[key]
-	if !ok || v == nil {
-		return nil
-	}
-	switch s := v.(type) {
-	case []string:
-		return s
-	case []any:
-		result := make([]string, 0, len(s))
-		for _, item := range s {
-			if str, ok := item.(string); ok {
-				result = append(result, str)
-			}
-		}
-		return result
-	default:
-		return nil
-	}
+	return querycontract.StringSliceVal(row, key)
 }
 
 // RepoRef is the canonical repository reference returned by query endpoints.
