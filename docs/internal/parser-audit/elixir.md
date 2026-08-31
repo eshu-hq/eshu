@@ -1,7 +1,7 @@
 # Elixir Parser Audit
 
 ## Overview
-The Elixir parser (`go/internal/parser/elixir/`) uses a single tree-sitter AST walk (`elixirExtractor.extract`) to emit modules, protocols, functions, imports, attributes, variables, calls, guard calls, dead-code root kinds, and exactness blockers. Hex dependency rows from `mix.exs`/`mix.lock` use bounded regex manifest parsing. It has 1 subdirectory test file (`hex_dependency_test.go`) with hex dependency proof, and 4 parent-level test files (`engine_elixir_ast_test.go`, `engine_elixir_review_test.go`, `engine_elixir_semantics_test.go`, `elixir_dead_code_roots_test.go`) covering AST extraction, dead-code roots, semantics, and review follow-up cases.
+The Elixir parser (`go/internal/parser/elixir/`) uses a single tree-sitter AST walk (`elixirExtractor.extract`) to emit modules, protocols, functions, imports, attributes, variables, calls, guard calls, dead-code root kinds, and exactness blockers. Hex dependency rows from `mix.exs`/`mix.lock` use bounded regex manifest parsing. The child package contains six test files: `hex_dependency_test.go` runs in-package (`package elixir`) for Hex dependency proof; `engine_elixir_ast_test.go`, `engine_elixir_review_test.go`, `engine_elixir_semantics_test.go`, and `elixir_dead_code_roots_test.go` are external black-box suites (`package elixir_test`) that drive the parent `parser.Engine` contract; and `engine_elixir_test_helpers_test.go` provides shared helpers to those external suites. Cross-language cyclomatic and long-tail suites remain in the parent `package parser`.
 
 ## Claimed Constructs
 From `doc.go:7-24`, `README.md:7-18`, and function docstrings:
@@ -38,7 +38,7 @@ From `doc.go:7-24`, `README.md:7-18`, and function docstrings:
 
 ## Verified-by-Test Constructs
 
-Subdirectory test (`elixir/hex_dependency_test.go`):
+In-package test (`package elixir`):
 | Construct | Test reference |
 |---|---|
 | Hex dependency from `mix.exs` (config_kind, package_manager, value, scope) | `hex_dependency_test.go:17-82` |
@@ -50,65 +50,67 @@ Subdirectory test (`elixir/hex_dependency_test.go`):
 | Hex dependency from `mix.lock` (lockfile, direct_dependency) | `hex_dependency_test.go:84-113` |
 | Nested dependency from `mix.lock` (depth=2, direct_dependency=false) | `hex_dependency_test.go:112-113` |
 
-Parent-level tests:
+External black-box tests (`package elixir_test`):
 | Construct | Test file:function |
 |---|---|
-| Modules and protocols (module_kind) | `engine_elixir_semantics_test.go:12` (`TestDefaultEngineParsePathElixirModuleKindsAndFunctionKinds`) |
-| Function metadata (visibility, semantic_kind, args) | `engine_elixir_semantics_test.go:57` (`TestDefaultEngineParsePathElixirFunctionMetadata`) |
-| Import and call metadata (receiver, context) | `engine_elixir_semantics_test.go:126` (`TestDefaultEngineParsePathElixirImportAndCallMetadata`) |
-| Alias brace expansion (`{Basic, Worker}`) | `engine_elixir_semantics_test.go:202` (`TestDefaultEngineParsePathElixirAliasBraceExpansionAndGuardCalls`) |
-| Guard calls in defguard | `engine_elixir_semantics_test.go:202` |
-| Module attributes | `engine_elixir_semantics_test.go:253` (`TestDefaultEngineParsePathElixirEmitsModuleAttributes`) |
-| Multiline source spans | `engine_elixir_semantics_test.go:293` (`TestDefaultEngineParsePathElixirMultilineSourceSpans`) |
-| End lines (no source index) | `engine_elixir_semantics_test.go:353` (`TestDefaultEngineParsePathElixirEndLinesDoNotRequireSourceIndex`) |
-| Multiline callback signature | `engine_elixir_semantics_test.go:387` (`TestDefaultEngineParsePathElixirMultilineCallbackSignature`) |
-| Module span covers nested ends | `engine_elixir_ast_test.go:16` (`TestDefaultEngineParsePathElixirModuleSpanCoversNestedEnds`) |
-| Protocol impl functions keep own context | `engine_elixir_ast_test.go:63` (`TestDefaultEngineParsePathElixirProtocolImplFunctionsKeepOwnContext`) |
-| One-line `def ..., do:` omits calls | `engine_elixir_ast_test.go:145` (`TestDefaultEngineParsePathElixirOneLineDoBodyOmitsCalls`) |
-| Field access is not call | `engine_elixir_ast_test.go:181` (`TestDefaultEngineParsePathElixirFieldAccessIsNotCall`) |
-| @impl carries across comments | `engine_elixir_ast_test.go:223` (`TestDefaultEngineParsePathElixirImplDecoratorCarriesAcrossComments`) |
-| @impl vs @implementation distinction | `engine_elixir_review_test.go:11` (`TestDefaultEngineParsePathElixirImplPrefixAttributeIsNotCallback`) |
-| Guarded multiline callback signature | `engine_elixir_review_test.go:42` (`TestDefaultEngineParsePathElixirGuardedMultilineCallbackSignature`) |
-| `elixir.application_start` | `elixir_dead_code_roots_test.go:100` (`TestDefaultEngineParsePathElixirEmitsDeadCodeRootKinds`) |
-| `elixir.behaviour_callback` | `elixir_dead_code_roots_test.go:101,103,159,161` |
-| `elixir.genserver_callback` (init, handle_call, handle_cast, handle_info, terminate, code_change) | `elixir_dead_code_roots_test.go:102,104,160,162` |
-| `elixir.supervisor_callback` | `elixir_dead_code_roots_test.go:105` |
-| `elixir.mix_task_run` | `elixir_dead_code_roots_test.go:106` |
-| `elixir.protocol_function` | `elixir_dead_code_roots_test.go:107` |
-| `elixir.protocol_implementation_function` | `elixir_dead_code_roots_test.go:108` |
-| `elixir.phoenix_liveview_callback` (mount, handle_event, render) | `elixir_dead_code_roots_test.go:109-111` |
-| `elixir.public_macro` | `elixir_dead_code_roots_test.go:112` |
-| `elixir.public_guard` | `elixir_dead_code_roots_test.go:113` |
-| `elixir.phoenix_controller_action` | `elixir_dead_code_roots_test.go:99` |
-| Exactness blockers for dynamic dispatch | `elixir_dead_code_roots_test.go:163` (`TestDefaultEngineParsePathElixirDeadCodeFixtureExpectedRoots`) |
-| Functions without root kinds (negative assertions) | `elixir_dead_code_roots_test.go:165-166` |
+| Modules and protocols (module_kind) | `engine_elixir_semantics_test.go:15` (`TestDefaultEngineParsePathElixirModuleKindsAndFunctionKinds`) |
+| Function metadata (`defmacro`, `defmacrop`, `defdelegate`, visibility, semantic_kind, args) | `engine_elixir_semantics_test.go:60` (`TestDefaultEngineParsePathElixirFunctionMetadata`) |
+| Import and call metadata (receiver, context) | `engine_elixir_semantics_test.go:129` (`TestDefaultEngineParsePathElixirImportAndCallMetadata`) |
+| Alias brace expansion (`{Basic, Worker}`) | `engine_elixir_semantics_test.go:205` (`TestDefaultEngineParsePathElixirAliasBraceExpansionAndGuardCalls`) |
+| Guard calls in defguard | `engine_elixir_semantics_test.go:205` |
+| Module attributes | `engine_elixir_semantics_test.go:256` (`TestDefaultEngineParsePathElixirEmitsModuleAttributes`) |
+| Multiline source spans and indexed `source`/`docstring` output | `engine_elixir_semantics_test.go:296` (`TestDefaultEngineParsePathElixirMultilineSourceSpans`) |
+| End lines (no source index) | `engine_elixir_semantics_test.go:356` (`TestDefaultEngineParsePathElixirEndLinesDoNotRequireSourceIndex`) |
+| Multiline callback signature | `engine_elixir_semantics_test.go:390` (`TestDefaultEngineParsePathElixirMultilineCallbackSignature`) |
+| Module span covers nested ends | `engine_elixir_ast_test.go:19` (`TestDefaultEngineParsePathElixirModuleSpanCoversNestedEnds`) |
+| Protocol impl functions keep own context | `engine_elixir_ast_test.go:66` (`TestDefaultEngineParsePathElixirProtocolImplFunctionsKeepOwnContext`) |
+| One-line `def ..., do:` omits calls | `engine_elixir_ast_test.go:148` (`TestDefaultEngineParsePathElixirOneLineDoBodyOmitsCalls`) |
+| Field access is not call | `engine_elixir_ast_test.go:184` (`TestDefaultEngineParsePathElixirFieldAccessIsNotCall`) |
+| @impl carries across comments | `engine_elixir_ast_test.go:226` (`TestDefaultEngineParsePathElixirImplDecoratorCarriesAcrossComments`) |
+| @impl vs @implementation distinction | `engine_elixir_review_test.go:14` (`TestDefaultEngineParsePathElixirImplPrefixAttributeIsNotCallback`) |
+| Guarded multiline callback signature | `engine_elixir_review_test.go:45` (`TestDefaultEngineParsePathElixirGuardedMultilineCallbackSignature`) |
+| `elixir.application_start` | `elixir_dead_code_roots_test.go:103` (`TestDefaultEngineParsePathElixirEmitsDeadCodeRootKinds`) |
+| `elixir.behaviour_callback` | `elixir_dead_code_roots_test.go:104,106,162,164` |
+| `elixir.genserver_callback` (`init/1` and `handle_call/3`) | `elixir_dead_code_roots_test.go:105,107,163,165` |
+| `elixir.supervisor_callback` | `elixir_dead_code_roots_test.go:108` |
+| `elixir.mix_task_run` | `elixir_dead_code_roots_test.go:109` |
+| `elixir.protocol_function` | `elixir_dead_code_roots_test.go:110` |
+| `elixir.protocol_implementation_function` | `elixir_dead_code_roots_test.go:111` |
+| `elixir.phoenix_liveview_callback` (mount, handle_event, render) | `elixir_dead_code_roots_test.go:112-114` |
+| `elixir.public_macro` | `elixir_dead_code_roots_test.go:115` |
+| `elixir.public_guard` | `elixir_dead_code_roots_test.go:116` |
+| `elixir.phoenix_controller_action` | `elixir_dead_code_roots_test.go:102` |
+| Exactness blockers for dynamic dispatch | `elixir_dead_code_roots_test.go:166` (`TestDefaultEngineParsePathElixirDeadCodeFixtureExpectedRoots`) |
+| Functions without root kinds (negative assertions) | `elixir_dead_code_roots_test.go:168-169` |
+
+Retained cross-language tests (`package parser`):
+
+| Construct | Test file:function |
+|---|---|
 | Cyclomatic complexity (straight-line, branches, boolean, inline keyword body) | `engine_cyclomatic_complexity_test.go:262-278` |
 | Cyclomatic complexity (catch-all arm exclusion, boolean case arms) | `engine_cyclomatic_complexity_arms_test.go:178-190` |
 
 ## Unverified / Claimed-but-Untested Constructs
 - **Elixir fixture corpus** — `engine_long_tail_test.go:219` (`TestDefaultEngineParsePathElixirFixtures`) exists but only checks that the parser does not error; no symbol-level assertions are made against the comprehensive corpus.
-- **`defdelegate`** — claimed in `ast_shared.go:161,187` (`functionSemanticKind` returns `"delegate"`), no test verifies delegate extraction or its `semantic_kind`.
-- **`defmacrop`** — claimed in `ast_shared.go:161` (function-like keyword), not tested distinctly from `defmacro`.
 - **`defguardp`** — claimed in `ast_shared.go:161` as function-like keyword, not tested. Only `defguard` is exercised via the dead-code root kind `elixir.public_guard`.
 - **Hex key `dependency_scope=optional`** from `mix.lock` — `mixLockDependencyScope` in `hex_dependencies.go:178` supports `optional`, but not tested.
 - **`LiveComponent` use** detecting — `dead_code_roots.go:57` has `phoenix_live_component`, but `elixirIsLiveViewCallback` is only tested for `phoenix_live_view`, not `phoenix_live_component` (the conditions check both, but no fixture exercises LiveComponent callbacks).
 - **Inline keyword body complexity** — `engine_cyclomatic_complexity_test.go:278` tests the case, but only for straight-line inline bodies; branching inline bodies (with `if`/`case` in `do:` body) are not separately tested.
 - **`@doc` and `@moduledoc` suppression** — `ast_calls.go:62` claims these do not produce variable rows, but not tested.
-- **Source indexing (`options.IndexSource`)** — `ast_extract.go:194-198` emits `source`/`docstring` only when `IndexSource` is set. No test exercises this path.
 
 ## Edge Cases Considered
-- One-line `def ..., do:` omits calls: `engine_elixir_ast_test.go:145`
-- Field access (`state.items`) is not a call: `engine_elixir_ast_test.go:181`
-- @impl carries across comment lines: `engine_elixir_ast_test.go:223`
-- @implementation prefix does not trigger @impl behavior: `engine_elixir_review_test.go:11`
-- Guarded multiline callback signature: `engine_elixir_review_test.go:42`
-- Protocol and protocol_impl root kind boundaries: `engine_elixir_ast_test.go:63`
-- Module span covers nested ends: `engine_elixir_ast_test.go:16`
+- One-line `def ..., do:` omits calls: `engine_elixir_ast_test.go:148`
+- Field access (`state.items`) is not a call: `engine_elixir_ast_test.go:184`
+- @impl carries across comment lines: `engine_elixir_ast_test.go:226`
+- @implementation prefix does not trigger @impl behavior: `engine_elixir_review_test.go:14`
+- Guarded multiline callback signature: `engine_elixir_review_test.go:45`
+- Protocol and protocol_impl root kind boundaries: `engine_elixir_ast_test.go:66`
+- Module span covers nested ends: `engine_elixir_ast_test.go:19`
 - Cyclomatic complexity catch-all arm exclusion (`_` wildcard, `true` for cond): `engine_cyclomatic_complexity_arms_test.go:178-190`
 - Cyclomatic complexity inline keyword body: `engine_cyclomatic_complexity_test.go:278`
-- Alias brace expansion: `engine_elixir_semantics_test.go:202`
+- Alias brace expansion: `engine_elixir_semantics_test.go:205`
 - VCS dependencies vs Hex dependencies (git, github, non-registry source): `hex_dependency_test.go:72-82`
-- Multiline source spans and end lines: `engine_elixir_semantics_test.go:293,353`
+- Multiline source spans and end lines: `engine_elixir_semantics_test.go:296,356`
 - Call requires parenthesized arguments: `ast_calls.go:97` checked but only indirectly through fixtures
 
 ## Edge Cases NOT Considered
@@ -129,14 +131,12 @@ Parent-level tests:
 ## Verdict
 **deep**
 
-The Elixir parser has excellent coverage across its 1 subdirectory + 4 parent-level test files. Every claimed dead-code root kind is asserted with positive and negative tests. Hex dependency extraction has both `mix.exs` and `mix.lock` coverage with namespace, app_name, scope, and VCS distinction. AST-level behaviors (one-line omission, field-access filtering, @impl comment crossing, protocol boundaries) each have dedicated tests. The few gaps are in edge cases (empty files, Unicode, nested fn calls), `defdelegate`/`defmacrop`/`defguardp` distinct testing, and the fixture corpus test lacking symbol-level assertions.
+The Elixir parser has one in-package Hex dependency suite and four external black-box Engine suites, supported by one external helper file. Every claimed dead-code root kind is asserted with positive and negative tests. Hex dependency extraction has both `mix.exs` and `mix.lock` coverage with namespace, app_name, scope, and VCS distinction. AST-level behaviors (one-line omission, field-access filtering, @impl comment crossing, protocol boundaries), delegate and private-macro metadata, and indexed source output each have dedicated tests. The few gaps are in edge cases (empty files, Unicode, nested fn calls), distinct `defguardp` testing, and the fixture corpus test lacking symbol-level assertions.
 
 ## Recommended Actions
-1. Add a dedicated test for `defdelegate` with `semantic_kind=delegate` assertion.
-2. Add distinct tests for `defmacrop` and `defguardp` (not just their public counterparts).
-3. Add an empty/comment-only Elixir file parse test.
-4. Add `dependency_scope=optional` test case for `mix.lock`.
-5. Add a LiveComponent callback test (`handle_event` with `use LiveComponent`).
-6. Add symbol-level assertions to `TestDefaultEngineParsePathElixirFixtures` in `engine_long_tail_test.go` instead of just checking no-error.
-7. Add inline keyword body with branching (`if`/`case` in `do:`) complexity test.
-8. Test `options.IndexSource` path for source/text emission.
+1. Add a distinct test for `defguardp` rather than only its public counterpart.
+2. Add an empty/comment-only Elixir file parse test.
+3. Add `dependency_scope=optional` test case for `mix.lock`.
+4. Add a LiveComponent callback test (`handle_event` with `use LiveComponent`).
+5. Add symbol-level assertions to `TestDefaultEngineParsePathElixirFixtures` in `engine_long_tail_test.go` instead of just checking no-error.
+6. Add inline keyword body with branching (`if`/`case` in `do:`) complexity test.
