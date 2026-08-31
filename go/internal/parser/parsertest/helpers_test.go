@@ -66,8 +66,7 @@ func TestAssertStringSliceNotContainsAcceptsMissingField(t *testing.T) {
 	AssertStringSliceNotContains(t, map[string]any{}, "dead_code_root_kinds", "swift.constructor")
 }
 
-// helpers.go — mirror stringSliceNotContains
-func intFieldEquals(item map[string]any, field string, want int) error { ... }
+func TestAssertStringSliceEqualsAcceptsMatchingOrder(t *testing.T) {
 	t.Parallel()
 
 	item := map[string]any{"args": []string{"id", "name"}}
