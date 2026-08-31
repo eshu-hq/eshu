@@ -10,7 +10,10 @@
 // and the domain-family subpackages need; add a new generic helper there, not
 // here. The factdecode subpackage owns decode-failure classification and the
 // per-fact quarantine mechanism, while the per-fact-kind decode wrappers stay
-// with the families owning those kinds. This package re-exports the contract
+// with the families owning those kinds. The factload subpackage owns how a
+// handler reads the facts for one scope generation and the retry
+// classification for that read; per-domain fact-kind filtering stays with the
+// family that calls it. This package re-exports the contract
 // surface and retains registry composition, runtime execution, queue behavior,
 // adapters, and telemetry. Most root call sites reach a helper subpackage
 // through an unexported forwarder of the same lowercase name; some call it
@@ -24,8 +27,10 @@
 // outside it; those files are the authoritative list, and as of this commit the
 // whole of it is quarantine_compat.go's QuarantinedFactRecord and
 // QuarantinedFactWriter, which internal/storage/postgres constructs and
-// implements, and WithQuarantineWriter, which Service stashes on the execution
-// context.
+// implements, WithQuarantineWriter, which Service stashes on the execution
+// context, and scoped_fact_loader_compat.go's FactLoader, which
+// internal/storage/cypher's edge_writer_unusable_delta_fail_closed_test.go
+// names to type its materialization-handler test harness.
 // ParseDomain accepts the known reducer validation identifiers, including the
 // three reserved non-registrable identifiers. Shared-projection constants
 // remain runner names and are not admitted into the durable queue.

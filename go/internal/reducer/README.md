@@ -465,6 +465,10 @@ Decode-failure classification and per-fact quarantine belong in `factdecode`.
 The per-fact-kind `decode*` wrappers do not — each one decodes a specific fact
 kind and belongs to the family that owns that kind.
 
+Reading the facts for one scope generation, and classifying whether a failed
+read should retry, belong in `factload`. Per-domain fact-kind filtering on top
+of that read stays with the calling family.
+
 ## Related docs
 
 - `docs/public/architecture.md`
@@ -477,6 +481,7 @@ kind and belongs to the family that owns that kind.
 - `go/internal/reducer/shared-projection.md`
 - `go/internal/reducer/payloadcore/README.md`
 - `go/internal/reducer/factdecode/README.md`
+- `go/internal/reducer/factload/README.md`
 - `go/internal/reducer/dsl/README.md`
 - `go/internal/reducer/tags/README.md`
 - `go/internal/reducer/tfstate/README.md`
