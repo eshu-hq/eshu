@@ -1,11 +1,14 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package parser
+package python_test
 
 import (
 	"path/filepath"
 	"testing"
+
+	"github.com/eshu-hq/eshu/go/internal/parser"
+	"github.com/eshu-hq/eshu/go/internal/parser/parsertest"
 )
 
 func TestDefaultEngineParsePathPythonAioHTTPTornadoExactRouteEntries(t *testing.T) {
@@ -35,21 +38,21 @@ application = tornado.web.Application([
 `,
 	)
 
-	engine, err := DefaultEngine()
+	engine, err := parser.DefaultEngine()
 	if err != nil {
 		t.Fatalf("DefaultEngine() error = %v, want nil", err)
 	}
 
-	got, err := engine.ParsePath(repoRoot, filePath, false, Options{})
+	got, err := engine.ParsePath(repoRoot, filePath, false, parser.Options{})
 	if err != nil {
 		t.Fatalf("ParsePath() error = %v, want nil", err)
 	}
 
-	assertFrameworksEqual(t, got, "aiohttp", "tornado")
-	assertNestedRouteEntriesEqual(t, got, "aiohttp", []map[string]string{
+	parsertest.AssertFrameworksEqual(t, got, "aiohttp", "tornado")
+	parsertest.AssertNestedRouteEntriesEqual(t, got, "aiohttp", []map[string]string{
 		{"method": "GET", "path": "/aiohttp/widgets", "handler": "list_widgets"},
 	})
-	assertNestedRouteEntriesEqual(t, got, "tornado", []map[string]string{
+	parsertest.AssertNestedRouteEntriesEqual(t, got, "tornado", []map[string]string{
 		{"method": "GET", "path": "/tornado/health", "handler": "HealthHandler.get"},
 	})
 }
@@ -77,18 +80,18 @@ def setup_routes(app):
 `,
 	)
 
-	engine, err := DefaultEngine()
+	engine, err := parser.DefaultEngine()
 	if err != nil {
 		t.Fatalf("DefaultEngine() error = %v, want nil", err)
 	}
 
-	got, err := engine.ParsePath(repoRoot, filePath, false, Options{})
+	got, err := engine.ParsePath(repoRoot, filePath, false, parser.Options{})
 	if err != nil {
 		t.Fatalf("ParsePath() error = %v, want nil", err)
 	}
 
-	assertFrameworksEqual(t, got, "aiohttp")
-	assertNestedRouteEntriesEqual(t, got, "aiohttp", []map[string]string{
+	parsertest.AssertFrameworksEqual(t, got, "aiohttp")
+	parsertest.AssertNestedRouteEntriesEqual(t, got, "aiohttp", []map[string]string{
 		{"method": "GET", "path": "/", "handler": "index"},
 		{"method": "GET", "path": "/poll/{question_id}", "handler": "poll"},
 		{"method": "POST", "path": "/poll/{question_id}/vote", "handler": "poll"},

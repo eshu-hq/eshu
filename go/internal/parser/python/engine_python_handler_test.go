@@ -1,11 +1,14 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package parser
+package python_test
 
 import (
 	"path/filepath"
 	"testing"
+
+	"github.com/eshu-hq/eshu/go/internal/parser"
+	"github.com/eshu-hq/eshu/go/internal/parser/parsertest"
 )
 
 // TestDefaultEngineParsePathPythonFastAPIBindsDefHandler proves that the
@@ -38,18 +41,18 @@ def update_item():
 `,
 	)
 
-	engine, err := DefaultEngine()
+	engine, err := parser.DefaultEngine()
 	if err != nil {
 		t.Fatalf("DefaultEngine() error = %v, want nil", err)
 	}
 
-	got, err := engine.ParsePath(repoRoot, filePath, false, Options{})
+	got, err := engine.ParsePath(repoRoot, filePath, false, parser.Options{})
 	if err != nil {
 		t.Fatalf("ParsePath() error = %v, want nil", err)
 	}
 
-	assertFrameworksEqual(t, got, "fastapi")
-	assertNestedRouteEntriesEqual(t, got, "fastapi", []map[string]string{
+	parsertest.AssertFrameworksEqual(t, got, "fastapi")
+	parsertest.AssertNestedRouteEntriesEqual(t, got, "fastapi", []map[string]string{
 		{"method": "GET", "path": "/health", "handler": "read_health"},
 		{"method": "POST", "path": "/orphan"},
 		{"method": "PUT", "path": "/update", "handler": "update_item"},
@@ -78,18 +81,18 @@ async def read_health():
 `,
 	)
 
-	engine, err := DefaultEngine()
+	engine, err := parser.DefaultEngine()
 	if err != nil {
 		t.Fatalf("DefaultEngine() error = %v, want nil", err)
 	}
 
-	got, err := engine.ParsePath(repoRoot, filePath, false, Options{})
+	got, err := engine.ParsePath(repoRoot, filePath, false, parser.Options{})
 	if err != nil {
 		t.Fatalf("ParsePath() error = %v, want nil", err)
 	}
 
-	assertFrameworksEqual(t, got, "fastapi")
-	assertNestedRouteEntriesEqual(t, got, "fastapi", []map[string]string{
+	parsertest.AssertFrameworksEqual(t, got, "fastapi")
+	parsertest.AssertNestedRouteEntriesEqual(t, got, "fastapi", []map[string]string{
 		{"method": "GET", "path": "/health", "handler": "read_health"},
 	})
 }
@@ -120,18 +123,18 @@ def proxy():
 `,
 	)
 
-	engine, err := DefaultEngine()
+	engine, err := parser.DefaultEngine()
 	if err != nil {
 		t.Fatalf("DefaultEngine() error = %v, want nil", err)
 	}
 
-	got, err := engine.ParsePath(repoRoot, filePath, false, Options{})
+	got, err := engine.ParsePath(repoRoot, filePath, false, parser.Options{})
 	if err != nil {
 		t.Fatalf("ParsePath() error = %v, want nil", err)
 	}
 
-	assertFrameworksEqual(t, got, "flask")
-	assertNestedRouteEntriesEqual(t, got, "flask", []map[string]string{
+	parsertest.AssertFrameworksEqual(t, got, "flask")
+	parsertest.AssertNestedRouteEntriesEqual(t, got, "flask", []map[string]string{
 		{"method": "GET", "path": "/health", "handler": "health"},
 		{"method": "GET", "path": "/proxy", "handler": "proxy"},
 		{"method": "POST", "path": "/proxy", "handler": "proxy"},

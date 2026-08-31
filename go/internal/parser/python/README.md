@@ -73,8 +73,11 @@ serverless config candidates when marking Python Lambda handlers.
 
 Production code does not import the parent parser package, collector packages,
 storage packages, graph query code, or reducer code. The external
-`engine_python_module_semantics_test.go` regression imports the parent parser to
-exercise module metadata through `Engine.ParsePath`.
+`engine_python_*_test.go` regressions (`package python_test`) import the parent
+parser to exercise the full Python surface — framework routes, ORM mappings,
+dead-code semantics, call metadata, generators, lambda assignment, metaclass,
+rationale comments, and import metadata among them — through
+`parser.DefaultEngine().ParsePath`.
 
 ## Telemetry
 
@@ -142,9 +145,9 @@ source.
 Parse accepts a caller-owned tree-sitter parser. The caller opens and closes the
 parser so the parent Engine can preserve its runtime lifecycle.
 
-`engine_python_module_semantics_test.go` uses the external `python_test`
-package. It may import the parent parser because Go compiles it only for tests;
-production files and same-package tests remain parent-independent.
+The `engine_python_*_test.go` files use the external `python_test` package.
+They may import the parent parser because Go compiles that package only for
+tests; production files and same-package tests remain parent-independent.
 
 Lambda handler detection scans template.yaml, template.yml, serverless.yaml, and
 serverless.yml from the source directory up to the repository root. It only
@@ -163,6 +166,47 @@ a protocol attribute.
 
 The adapter keeps module-scope variables by default. Set the shared
 VariableScope option to all when a caller needs local assignment payloads too.
+
+## Tests
+
+`language_test.go`, `notebook_test.go`, `semantics_test.go`,
+`aiohttp_tornado_param_apps_test.go`, `django_drf_routes_test.go`, and
+`embedded_shell_test.go` run in-package (`package python`) and cover
+extraction, framework semantics, and notebook conversion directly. The
+Engine-level regressions run as external black-box tests in `package
+python_test`, so they exercise Python extraction the way callers reach it —
+through `parser.DefaultEngine().ParsePath` — rather than through package
+internals:
+
+- `engine_python_semantics_test.go` covers FastAPI/Flask semantics, ORM
+  mappings, decorator metadata, async flags, and type-annotation buckets.
+- `engine_python_call_semantics_test.go` covers dotted call metadata, method
+  context, and self-receiver inference.
+- `engine_python_dead_code_semantics_test.go` covers constructor, property, and
+  class-reference dead-code evidence.
+- `engine_python_ast_parity_test.go` covers multiline class headers, splat
+  typed-parameter annotations, and rich embedded-shell parity.
+- `engine_python_aiohttp_tornado_routes_test.go`,
+  `engine_python_django_drf_routes_test.go`, and
+  `engine_python_flask_blueprint_test.go` cover exact framework route entries.
+- `engine_python_handler_test.go` covers FastAPI/Flask handler binding after
+  stacked or commented decorators.
+- `engine_python_generator_test.go`, `engine_python_lambda_assignment_test.go`,
+  `engine_python_annotation_assignment_test.go`,
+  `engine_python_metaclass_test.go`, `engine_python_rationale_test.go`,
+  `engine_python_import_metadata_test.go`, and
+  `engine_python_imports_semantics_test.go` cover the remaining semantic
+  buckets named in each file.
+- `engine_python_module_semantics_test.go` covers module docstring metadata.
+- `engine_python_test_helpers_test.go` defines `writeTestFile` and
+  `pythonFixturePath`, and the shared-with-root duplicates
+  `assertParserStringSliceFieldValue` and `assertBucketItemByFieldValue`.
+  Across the external suites, these helpers are used alongside
+  `internal/parser/parsertest`.
+
+The external test package may import `internal/parser`; the non-test package
+must not. Go compiles `python_test` separately, so this keeps the black-box
+coverage without making the package depend on the parent dispatcher.
 
 ## Related docs
 

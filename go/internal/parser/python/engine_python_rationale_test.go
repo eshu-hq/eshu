@@ -1,12 +1,14 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package parser
+package python_test
 
 import (
 	"os"
 	"path/filepath"
 	"testing"
+
+	"github.com/eshu-hq/eshu/go/internal/parser"
 )
 
 func TestDefaultEngineParsePathPythonEmitsRationaleComments(t *testing.T) {
@@ -29,11 +31,11 @@ class Widget:
 		t.Fatalf("write source error = %v", err)
 	}
 
-	engine, err := DefaultEngine()
+	engine, err := parser.DefaultEngine()
 	if err != nil {
 		t.Fatalf("DefaultEngine() error = %v, want nil", err)
 	}
-	parsed, err := engine.ParsePath(repoRoot, filePath, false, Options{})
+	parsed, err := engine.ParsePath(repoRoot, filePath, false, parser.Options{})
 	if err != nil {
 		t.Fatalf("ParsePath(%q) error = %v, want nil", filePath, err)
 	}

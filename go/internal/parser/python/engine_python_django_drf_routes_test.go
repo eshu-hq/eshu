@@ -1,11 +1,14 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package parser
+package python_test
 
 import (
 	"path/filepath"
 	"testing"
+
+	"github.com/eshu-hq/eshu/go/internal/parser"
+	"github.com/eshu-hq/eshu/go/internal/parser/parsertest"
 )
 
 func TestDefaultEngineParsePathPythonDjangoDRFExactRouteEntries(t *testing.T) {
@@ -39,22 +42,22 @@ urlpatterns = [
 `,
 	)
 
-	engine, err := DefaultEngine()
+	engine, err := parser.DefaultEngine()
 	if err != nil {
 		t.Fatalf("DefaultEngine() error = %v, want nil", err)
 	}
 
-	got, err := engine.ParsePath(repoRoot, filePath, false, Options{})
+	got, err := engine.ParsePath(repoRoot, filePath, false, parser.Options{})
 	if err != nil {
 		t.Fatalf("ParsePath() error = %v, want nil", err)
 	}
 
-	assertFrameworksEqual(t, got, "django", "drf")
-	assertNestedRouteEntriesEqual(t, got, "django", []map[string]string{
+	parsertest.AssertFrameworksEqual(t, got, "django", "drf")
+	parsertest.AssertNestedRouteEntriesEqual(t, got, "django", []map[string]string{
 		{"method": "ANY", "path": "/health/", "handler": "health"},
 		{"method": "GET", "path": "/reports/", "handler": "ReportView.get"},
 	})
-	assertNestedRouteEntriesEqual(t, got, "drf", []map[string]string{
+	parsertest.AssertNestedRouteEntriesEqual(t, got, "drf", []map[string]string{
 		{"method": "GET", "path": "/widgets/", "handler": "WidgetViewSet.list"},
 	})
 }
