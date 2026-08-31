@@ -19,7 +19,7 @@
 // ownership still project canonical and reducer-owned evidence but do not write
 // repository content rows or source ref metadata.
 // The neutral internal/projector/intent contract is the boundary for extracted
-// reducer-intent family packages. Azure, EC2, GCP, Kubernetes, S3, and
+// reducer-intent family packages. Azure, EC2, GCP, Kubernetes, RDS, S3, and
 // security builders live in their internal/projector child packages; this
 // root package owns lookup construction and lifetime, family assembly, and
 // enqueue.
@@ -44,7 +44,8 @@
 // summary/source/graph-id stores are updated.
 // RDS posture observations emit one rds_posture_materialization reducer intent;
 // the reducer waits for CloudResource readiness and owns posture property
-// projection on existing RDS nodes.
+// projection on existing RDS nodes. The RDS posture reducer-intent builder
+// lives in the internal/projector/rds child package.
 // Azure cloud resource and relationship observations emit reducer intents for
 // Azure CloudResource node readiness and relationship edge projection; the
 // reducer owns exact ARM-id endpoint resolution.

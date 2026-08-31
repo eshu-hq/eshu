@@ -259,10 +259,10 @@ in `reducer_intent_fact_index.go` pins it, and
 reducer-intent builder calls and fails if that constant (and, by extension,
 this prose) ever drifts from the source again — this doc count went stale
 silently twice before that guard existed.
-RDS posture facts follow that same reducer-owned handoff. When a generation
-contains an `rds_instance_posture` fact,
-`buildRDSPostureMaterializationReducerIntent` emits one
-`rds_posture_materialization` reducer intent for the scope/generation. The
+RDS posture facts follow that same reducer-owned handoff, now from the
+`internal/projector/rds` child package. When a generation contains an
+`rds_instance_posture` fact, `rds.BuildRDSPostureMaterializationReducerIntent`
+emits one `rds_posture_materialization` reducer intent for the scope/generation. The
 projector does not set RDS graph properties, infer exposure, or create RDS
 nodes; the reducer waits for the CloudResource canonical-nodes phase and then
 projects bounded posture metadata onto existing RDS CloudResource nodes.

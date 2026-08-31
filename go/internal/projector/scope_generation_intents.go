@@ -9,6 +9,7 @@ import (
 	projectorec2 "github.com/eshu-hq/eshu/go/internal/projector/ec2"
 	projectorgcp "github.com/eshu-hq/eshu/go/internal/projector/gcp"
 	projectorkubernetes "github.com/eshu-hq/eshu/go/internal/projector/kubernetes"
+	projectorrds "github.com/eshu-hq/eshu/go/internal/projector/rds"
 	projectors3 "github.com/eshu-hq/eshu/go/internal/projector/s3"
 	projectorsecurity "github.com/eshu-hq/eshu/go/internal/projector/security"
 	"github.com/eshu-hq/eshu/go/internal/scope"
@@ -103,7 +104,7 @@ func appendScopeGenerationReducerIntents(
 	if intent, ok := projectors3.BuildExternalPrincipalGrantMaterializationReducerIntent(scopeValue.ScopeID, generation.GenerationID, index.lookup); ok {
 		intents = append(intents, intent)
 	}
-	if intent, ok := buildRDSPostureMaterializationReducerIntent(scopeValue, generation, index); ok {
+	if intent, ok := projectorrds.BuildRDSPostureMaterializationReducerIntent(scopeValue.ScopeID, generation.GenerationID, index.lookup); ok {
 		intents = append(intents, intent)
 	}
 	if intent, ok := projectorec2.BuildInstanceIdentityMaterializationReducerIntent(scopeValue.ScopeID, generation.GenerationID, index.lookup); ok {
