@@ -43,8 +43,10 @@ The godoc contract is in `doc.go`. Current exports are:
 ## Dependencies
 
 This package imports `internal/parser/shared`, `go-tree-sitter`, the Elixir
-tree-sitter grammar binding, and the Go standard library. It must not import
-the parent parser package. The root parser module replaces
+tree-sitter grammar binding, and the Go standard library. No production file
+here may import the parent parser package; the external `elixir_test` files
+may, which is how the relocated black-box coverage drives the engine. The root
+parser module replaces
 `github.com/tree-sitter/tree-sitter-elixir` with the official
 `github.com/elixir-lang/tree-sitter-elixir v0.3.5` repository because that
 repository declares the canonical tree-sitter module path.
@@ -78,7 +80,7 @@ still stops at the first non-comment, non-attribute sibling, so its cost stays
 bounded by the same preceding-sibling slice it already iterated; no extra parse
 pass, allocation-per-line, goroutine, channel, lock, queue, or graph-write is
 added, and the package stays single-threaded under the caller-owned parser.
-Verified by `go test ./internal/parser -run
+Verified by `go test ./internal/parser/elixir -run
 TestDefaultEngineParsePathElixirImplDecoratorCarriesAcrossComments` (NornicDB
 not involved; parser-only fixture `@impl true` + comment + `def init/1`), which
 fails without the comment-skip and passes with it.
@@ -109,6 +111,30 @@ package-local unless another language-owned package has a real caller.
 - `dead_code_roots.go` computes conservative reachability roots.
 - `hex_dependencies.go` parses `mix.exs`/`mix.lock` manifests (not source).
 - `helpers.go` holds the alias-expansion and argument-splitting text helpers.
+
+## Tests
+
+`hex_dependency_test.go` runs in-package (`package elixir`) and covers the Mix
+manifest parsing directly. The Engine-level regressions run as external
+black-box tests in `package elixir_test`, so they exercise Elixir extraction the
+way callers reach it — through `parser.DefaultEngine().ParsePath` — rather than
+through package internals:
+
+- `engine_elixir_ast_test.go` covers AST span, context, and call-gate behavior.
+- `engine_elixir_review_test.go` covers the `@impl` and guarded-signature
+  follow-up cases.
+- `engine_elixir_semantics_test.go` covers module, function, import, attribute,
+  and span semantics.
+- `elixir_dead_code_roots_test.go` covers conservative reachability roots and
+  dynamic-dispatch blockers.
+- `engine_elixir_test_helpers_test.go` defines `elixirFixturePath`,
+  `writeElixirTestFile`, `assertStringFieldValue`, `assertIntFieldValue`, and
+  `assertFunctionByNameAndClass`. Across the four external suites, these helpers
+  are used as needed alongside `internal/parser/parsertest`.
+
+The external test package may import `internal/parser`; the non-test package
+must not. Go compiles `elixir_test` separately, so this keeps the black-box
+coverage without making the package depend on the parent dispatcher.
 
 ## Related docs
 

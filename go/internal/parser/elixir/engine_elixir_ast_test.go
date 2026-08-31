@@ -1,11 +1,14 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package parser
+package elixir_test
 
 import (
 	"path/filepath"
 	"testing"
+
+	"github.com/eshu-hq/eshu/go/internal/parser"
+	"github.com/eshu-hq/eshu/go/internal/parser/parsertest"
 )
 
 // TestDefaultEngineParsePathElixirModuleSpanCoversNestedEnds proves the AST
@@ -18,7 +21,7 @@ func TestDefaultEngineParsePathElixirModuleSpanCoversNestedEnds(t *testing.T) {
 
 	repoRoot := t.TempDir()
 	filePath := filepath.Join(repoRoot, "nested_end.ex")
-	writeTestFile(
+	writeElixirTestFile(
 		t,
 		filePath,
 		`defmodule Demo.Patterns do
@@ -36,17 +39,17 @@ end
 `,
 	)
 
-	engine, err := DefaultEngine()
+	engine, err := parser.DefaultEngine()
 	if err != nil {
-		t.Fatalf("DefaultEngine() error = %v, want nil", err)
+		t.Fatalf("parser.DefaultEngine() error = %v, want nil", err)
 	}
 
-	got, err := engine.ParsePath(repoRoot, filePath, false, Options{})
+	got, err := engine.ParsePath(repoRoot, filePath, false, parser.Options{})
 	if err != nil {
 		t.Fatalf("ParsePath() error = %v, want nil", err)
 	}
 
-	module := assertBucketItemByName(t, got, "modules", "Demo.Patterns")
+	module := parsertest.AssertBucketItemByName(t, got, "modules", "Demo.Patterns")
 	assertIntFieldValue(t, module, "line_number", 1)
 	assertIntFieldValue(t, module, "end_line", 12)
 
@@ -65,7 +68,7 @@ func TestDefaultEngineParsePathElixirProtocolImplFunctionsKeepOwnContext(t *test
 
 	repoRoot := t.TempDir()
 	filePath := filepath.Join(repoRoot, "protocol_impls.ex")
-	writeTestFile(
+	writeElixirTestFile(
 		t,
 		filePath,
 		`defprotocol Demo.Describable do
@@ -86,12 +89,12 @@ end
 `,
 	)
 
-	engine, err := DefaultEngine()
+	engine, err := parser.DefaultEngine()
 	if err != nil {
-		t.Fatalf("DefaultEngine() error = %v, want nil", err)
+		t.Fatalf("parser.DefaultEngine() error = %v, want nil", err)
 	}
 
-	got, err := engine.ParsePath(repoRoot, filePath, false, Options{})
+	got, err := engine.ParsePath(repoRoot, filePath, false, parser.Options{})
 	if err != nil {
 		t.Fatalf("ParsePath() error = %v, want nil", err)
 	}
@@ -147,7 +150,7 @@ func TestDefaultEngineParsePathElixirOneLineDoBodyOmitsCalls(t *testing.T) {
 
 	repoRoot := t.TempDir()
 	filePath := filepath.Join(repoRoot, "one_line.ex")
-	writeTestFile(
+	writeElixirTestFile(
 		t,
 		filePath,
 		`defmodule Demo.Math do
@@ -157,12 +160,12 @@ end
 `,
 	)
 
-	engine, err := DefaultEngine()
+	engine, err := parser.DefaultEngine()
 	if err != nil {
-		t.Fatalf("DefaultEngine() error = %v, want nil", err)
+		t.Fatalf("parser.DefaultEngine() error = %v, want nil", err)
 	}
 
-	got, err := engine.ParsePath(repoRoot, filePath, false, Options{})
+	got, err := engine.ParsePath(repoRoot, filePath, false, parser.Options{})
 	if err != nil {
 		t.Fatalf("ParsePath() error = %v, want nil", err)
 	}
@@ -171,7 +174,7 @@ end
 	assertBucketMissingName(t, got, "function_calls", "apply")
 
 	dispatch := assertFunctionByNameAndClass(t, got, "dispatch", "Demo.Math")
-	assertParserStringSliceContains(t, dispatch, "exactness_blockers", "dynamic_dispatch_unresolved")
+	parsertest.AssertStringSliceContains(t, dispatch, "exactness_blockers", "dynamic_dispatch_unresolved")
 }
 
 // TestDefaultEngineParsePathElixirFieldAccessIsNotCall proves dotted field
@@ -183,7 +186,7 @@ func TestDefaultEngineParsePathElixirFieldAccessIsNotCall(t *testing.T) {
 
 	repoRoot := t.TempDir()
 	filePath := filepath.Join(repoRoot, "field_access.ex")
-	writeTestFile(
+	writeElixirTestFile(
 		t,
 		filePath,
 		`defmodule Demo.Worker do
@@ -199,19 +202,19 @@ end
 `,
 	)
 
-	engine, err := DefaultEngine()
+	engine, err := parser.DefaultEngine()
 	if err != nil {
-		t.Fatalf("DefaultEngine() error = %v, want nil", err)
+		t.Fatalf("parser.DefaultEngine() error = %v, want nil", err)
 	}
 
-	got, err := engine.ParsePath(repoRoot, filePath, false, Options{})
+	got, err := engine.ParsePath(repoRoot, filePath, false, parser.Options{})
 	if err != nil {
 		t.Fatalf("ParsePath() error = %v, want nil", err)
 	}
 
 	assertBucketMissingName(t, got, "function_calls", "items")
 	assertBucketMissingName(t, got, "function_calls", "case")
-	length := assertBucketItemByName(t, got, "function_calls", "length")
+	length := parsertest.AssertBucketItemByName(t, got, "function_calls", "length")
 	assertStringFieldValue(t, length, "class_context", "Demo.Worker")
 }
 
@@ -225,7 +228,7 @@ func TestDefaultEngineParsePathElixirImplDecoratorCarriesAcrossComments(t *testi
 
 	repoRoot := t.TempDir()
 	filePath := filepath.Join(repoRoot, "impl_comment.ex")
-	writeTestFile(
+	writeElixirTestFile(
 		t,
 		filePath,
 		`defmodule Demo.Worker do
@@ -238,18 +241,18 @@ end
 `,
 	)
 
-	engine, err := DefaultEngine()
+	engine, err := parser.DefaultEngine()
 	if err != nil {
-		t.Fatalf("DefaultEngine() error = %v, want nil", err)
+		t.Fatalf("parser.DefaultEngine() error = %v, want nil", err)
 	}
 
-	got, err := engine.ParsePath(repoRoot, filePath, false, Options{IndexSource: true})
+	got, err := engine.ParsePath(repoRoot, filePath, false, parser.Options{IndexSource: true})
 	if err != nil {
 		t.Fatalf("ParsePath() error = %v, want nil", err)
 	}
 
 	init := assertFunctionByNameAndClass(t, got, "init", "Demo.Worker")
-	assertParserStringSliceContains(t, init, "decorators", "@impl true")
-	assertParserStringSliceContains(t, init, "dead_code_root_kinds", "elixir.behaviour_callback")
-	assertParserStringSliceContains(t, init, "dead_code_root_kinds", "elixir.genserver_callback")
+	parsertest.AssertStringSliceContains(t, init, "decorators", "@impl true")
+	parsertest.AssertStringSliceContains(t, init, "dead_code_root_kinds", "elixir.behaviour_callback")
+	parsertest.AssertStringSliceContains(t, init, "dead_code_root_kinds", "elixir.genserver_callback")
 }
