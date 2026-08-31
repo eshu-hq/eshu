@@ -497,14 +497,16 @@ gates:
       - "scripts/lib/*verify-openapi*.sh"
       - ".github/openapi-known-drift.txt"
       - "scripts/test-verify-openapi.sh"
+      - "scripts/test-verify-openapi-subpackage.sh"
       - "scripts/verify-openapi.sh"
     self_test_triggers:
       - "scripts/lib/*verify-openapi*.sh"
       - "scripts/test-verify-openapi.sh"
+      - "scripts/test-verify-openapi-subpackage.sh"
       - "scripts/verify-openapi.sh"
     local:
       command: "bash scripts/verify-openapi.sh"
-      test_command: "bash scripts/test-verify-openapi.sh"
+      test_command: "bash scripts/test-verify-openapi.sh && bash scripts/test-verify-openapi-subpackage.sh"
     ci:
       workflow: static-contract-gates.yml
       job: "Verify OpenAPI gate"
