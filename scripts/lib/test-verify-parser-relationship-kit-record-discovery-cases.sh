@@ -186,3 +186,43 @@ documented_selector_fenced_scan_case fenced-time-shell-substring-parent-stale fa
   "time bash -lc \"go test ./internal/parser -run 'CapturesImplLifetimes' -count=1\""
 documented_selector_fenced_scan_case fenced-time-shell-substring-child-current pass \
   "time bash -lc \"go test ./internal/parser/rust -run 'CapturesImplLifetimes' -count=1\""
+documented_selector_delimited_scan_case triple-inline-shell-substring-parent-stale fail \
+  '```' "time bash -lc \"go test ./internal/parser -run 'CapturesImplLifetimes' -count=1\""
+documented_selector_delimited_scan_case triple-inline-shell-substring-child-current pass \
+  '```' "time bash -lc \"go test ./internal/parser/rust -run 'CapturesImplLifetimes' -count=1\""
+documented_selector_raw_scan_case unrelated-inline-python-current pass \
+  "\`go test ./internal/parser -run 'TestDefaultEngineParsePathPython(FastAPISemantics|FlaskSemantics)' -count=1\`."
+documented_selector_raw_scan_case unrelated-continuation-current pass \
+  "go test ./internal/query/... -run \\
+  'TestCloudInventoryAccountIDMatchesExactScopeIDLive' -count=1"
+documented_selector_raw_scan_case raw-multiline-time-shell-parent-stale fail \
+  "time bash -lc \\
+  \"go test ./internal/parser -run 'CapturesImplLifetimes' -count=1\""
+documented_selector_raw_scan_case raw-multiline-time-shell-child-current pass \
+  "time bash -lc \\
+  \"go test ./internal/parser/rust -run 'CapturesImplLifetimes' -count=1\""
+documented_selector_raw_scan_case raw-multiline-dynamic-cwd-parent-stale fail \
+  "DIR=\"go/internal/\$(printf parser)\" bash -lc \\
+  'env -C \"\$DIR\" go test . -run CapturesImplLifetimes -count=1'"
+documented_selector_raw_scan_case raw-multiline-static-cwd-child-current pass \
+  "bash -lc \\
+  'env -C go/internal/parser/rust go test . -run CapturesImplLifetimes -count=1'"
+documented_selector_raw_scan_case raw-multiline-quoted-package-parent-stale fail \
+  "bash -lc \\
+  'go test ./internal/par\"ser\" -run CapturesImplLifetimes -count=1'"
+documented_selector_raw_scan_case raw-multiline-quoted-package-child-current pass \
+  "bash -lc \\
+  'go test ./internal/par\"ser\"/rust -run CapturesImplLifetimes -count=1'"
+documented_selector_raw_scan_case unrelated-multiline-placeholder-current pass \
+  "go test ./internal/reducer -overlay=<promotion rule replaced with \`return true\`> \\
+    -run 'Branch3|RegardlessOfEnvironmentEvidence|ContradictingDigest'"
+documented_selector_raw_scan_case placeholder-assignment-parent-stale fail \
+  "NOTE='-overlay=<promotion rule replaced with \`return true\`>' bash -lc \\
+  'go test ./internal/parser -run CapturesImplLifetimes -count=1'"
+documented_selector_raw_scan_case placeholder-assignment-child-current pass \
+  "NOTE='-overlay=<promotion rule replaced with \`return true\`>' bash -lc \\
+  'go test ./internal/parser/rust -run CapturesImplLifetimes -count=1'"
+documented_selector_raw_scan_case prose-signals-current pass \
+  'The first-run guidance mentions GOFLAGS but contains no Go test command.'
+documented_selector_delimited_scan_case inline-rerun-prose-current pass \
+  '`' "classifyKindConsumer's parameters would go RED when re-running this test"

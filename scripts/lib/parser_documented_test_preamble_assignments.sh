@@ -7,7 +7,7 @@
 # update.
 
 documented_shell_command_has_stateful_preamble() {
-  local command="$1" segment token i start
+  local command="$1" segment token i start relevant=false
   documented_shell_first_operator "$command" || return 1
   segment="${command:0:PARSER_DOCUMENTED_SHELL_OPERATOR_INDEX}"
   documented_parser_command_tokens "$segment"
@@ -33,7 +33,11 @@ documented_shell_command_has_stateful_preamble() {
     if ((start == 0)) && [[ "$token" != *=* ]]; then
       return 1
     fi
+    case "$token" in
+      GOFLAGS|GOFLAGS=*|GOFLAGS+=*) relevant=true ;;
+    esac
   done
+  [ "$relevant" = true ]
 }
 
 documented_record_export_preamble() {
