@@ -72,9 +72,13 @@ func referencesIdentifierByName(fset *token.FileSet, filename string, contents [
 // quietly go unchecked.
 //
 // minWriteGraphReadErrorCallSites is a pinned floor on how many
-// WriteGraphReadError(w, r, err, <capability>) call sites (matched by callee
-// name "WriteGraphReadError" plus 4-argument arity, the same shape
-// findCallSites matches) this sweep must resolve. Counted by AST-walking
+// capability-taking call sites this sweep must resolve. findCallSites now
+// matches every callee in sweptCapabilityCallees, qualified or bare, at that
+// callee's own capability-argument index -- WriteGraphReadError at 3 and
+// GraphReadErrorEnvelope at 1 -- rather than one name at a fixed 4-argument
+// arity. The floor still counts what it always counted, because the forwarders
+// are excluded and the envelope variant has no call sites in this package yet;
+// it will need raising the first time a family adds one. Counted by AST-walking
 // every non-test .go file in this package on 2026-08-02
 // (`go run` over the same collectCallSites/findCallSites matching logic): 66
 // non-test files contain the call, at 124 total call sites. The floor exists
@@ -91,9 +95,13 @@ const minWriteGraphReadErrorCallSites = 124
 func TestWriteGraphReadErrorCapabilitiesExistInMatrix(t *testing.T) {
 	dir := queryPackageDir(t)
 	fileSet := token.NewFileSet()
-	files, err := filepath.Glob(filepath.Join(dir, "*.go"))
+	// Recursive, not a depth-1 glob (#6060). A handler family that moves into
+	// go/internal/query/<family>/ takes its WriteGraphReadError call sites with
+	// it, and a glob that never descends would report "swept clean" over files
+	// it never opened. testdata is excluded because recursion newly reaches it.
+	files, err := sweepGoFiles(dir)
 	if err != nil {
-		t.Fatalf("glob %s: %v", dir, err)
+		t.Fatalf("walk %s: %v", dir, err)
 	}
 
 	sweep := newCapabilitySweep(fileSet)
@@ -107,7 +115,19 @@ func TestWriteGraphReadErrorCapabilitiesExistInMatrix(t *testing.T) {
 			t.Fatalf("parse %s: %v", name, err)
 		}
 		parsed = append(parsed, file)
-		sweep.collectDecls(file)
+		// Declarations come from the ROOT package only. The sweep's lookup maps
+		// are keyed by bare identifier, and 23 names are declared in both root
+		// and a leaf today -- BoolVal, IntVal and BuildTruthEnvelope among them,
+		// because root keeps a forwarder for each symbol the leaf owns. Feeding
+		// every package into one map would let a capability constant resolve to
+		// whichever package happened to be parsed last.
+		//
+		// Call sites are still collected recursively, which is the whole point
+		// of the recursive walk: a handler family's calls must be swept even
+		// though its declarations are not what resolves a capability argument.
+		if filepath.Dir(name) == dir {
+			sweep.collectDecls(file)
+		}
 	}
 	for _, file := range parsed {
 		sweep.collectCallSites(file)
@@ -311,9 +331,13 @@ func TestCapabilitySweepDocumentedExceptionsStayPinnedAndNarrowlyScoped(t *testi
 	}
 
 	dir := queryPackageDir(t)
-	files, err := filepath.Glob(filepath.Join(dir, "*.go"))
+	// Recursive, not a depth-1 glob (#6060). A handler family that moves into
+	// go/internal/query/<family>/ takes its WriteGraphReadError call sites with
+	// it, and a glob that never descends would report "swept clean" over files
+	// it never opened. testdata is excluded because recursion newly reaches it.
+	files, err := sweepGoFiles(dir)
 	if err != nil {
-		t.Fatalf("glob %s: %v", dir, err)
+		t.Fatalf("walk %s: %v", dir, err)
 	}
 
 	for capability := range capabilitySweepDocumentedExceptions {
@@ -337,4 +361,27 @@ func TestCapabilitySweepDocumentedExceptionsStayPinnedAndNarrowlyScoped(t *testi
 				"isolated call site", capability, matchingFiles)
 		}
 	}
+}
+
+// sweepGoFiles returns every non-test .go file at or beneath dir, skipping
+// testdata and hidden or underscore-prefixed directories.
+func sweepGoFiles(dir string) ([]string, error) {
+	var files []string
+	err := filepath.WalkDir(dir, func(path string, entry fs.DirEntry, walkErr error) error {
+		if walkErr != nil {
+			return walkErr
+		}
+		if entry.IsDir() {
+			name := entry.Name()
+			if path != dir && (name == "testdata" || strings.HasPrefix(name, ".") || strings.HasPrefix(name, "_")) {
+				return fs.SkipDir
+			}
+			return nil
+		}
+		if filepath.Ext(path) == ".go" && !hasTestSuffix(path) {
+			files = append(files, path)
+		}
+		return nil
+	})
+	return files, err
 }

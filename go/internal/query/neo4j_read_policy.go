@@ -11,6 +11,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
 	neo4jdriver "github.com/neo4j/neo4j-go-driver/v5/neo4j"
 	"go.opentelemetry.io/otel/attribute"
@@ -29,11 +30,18 @@ const (
 	neo4jTransactionTerminatedCode = "Neo.ClientError.Transaction.Terminated"
 )
 
+// These two are var aliases, not copies. errors.Is matches on identity, and two
+// errors.New values with identical text are not equal, so copying them would
+// compile everywhere and silently stop every graph-availability comparison from
+// matching -- including internal/mcp's dispatch test, which compares against
+// them from outside this package.
 var (
 	// ErrGraphReadDeadline reports that the bounded graph-read budget expired.
-	ErrGraphReadDeadline = errors.New("graph query exceeded its deadline")
-	// ErrGraphUnavailable reports that the graph backend could not serve a read.
-	ErrGraphUnavailable = errors.New("graph temporarily unavailable; retry after graph health is restored")
+	// It aliases the querycontract sentinel so errors.Is keeps matching.
+	ErrGraphReadDeadline = querycontract.ErrGraphReadDeadline
+	// ErrGraphUnavailable reports that the graph backend could not serve a
+	// read. It aliases the querycontract sentinel so errors.Is keeps matching.
+	ErrGraphUnavailable = querycontract.ErrGraphUnavailable
 )
 
 type graphReadOutcome string

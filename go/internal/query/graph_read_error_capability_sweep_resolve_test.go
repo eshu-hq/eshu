@@ -175,16 +175,34 @@ func (s *capabilitySweep) findCallSites(file *ast.File) ([]string, int) {
 			funcStack = funcStack[:len(funcStack)-1]
 			return false
 		case *ast.CallExpr:
-			ident, ok := node.Fun.(*ast.Ident)
-			if !ok || ident.Name != "WriteGraphReadError" || len(node.Args) != 4 {
+			// Match both the bare call (package query's own forwarder) and the
+			// qualified one. #6060 moves the implementation into querycontract
+			// and the handler families into subpackages, so a family calls
+			// querycontract.WriteGraphReadError(...) -- a SelectorExpr. Matching
+			// only *ast.Ident would let every one of those call sites skip the
+			// capabilityMatrix check while this sweep still reported clean,
+			// which is the regression this gate exists to catch.
+			capIdx, swept := callsWriteGraphReadError(node.Fun)
+			if !swept || len(node.Args) <= capIdx {
 				break
 			}
-			matched++
 			var enclosing *ast.FuncDecl
 			if len(funcStack) > 0 {
 				enclosing = funcStack[len(funcStack)-1]
 			}
-			values, resolved := s.resolveCapabilityArg(node.Args[3], enclosing, map[string]bool{})
+			// The root forwarder is not a call site. It passes its own
+			// capability parameter straight through to querycontract, so there
+			// is no literal here to check against the matrix -- the callers of
+			// the forwarder are the sites that carry one, and they are swept
+			// separately. Counting it would report an unresolvable argument on
+			// every run.
+			if enclosing != nil && enclosing.Name != nil {
+				if _, isForwarder := sweptCapabilityCallees[enclosing.Name.Name]; isForwarder {
+					break
+				}
+			}
+			matched++
+			values, resolved := s.resolveCapabilityArg(node.Args[capIdx], enclosing, map[string]bool{})
 			if !resolved {
 				findings = append(findings, "unresolvable WriteGraphReadError capability argument at "+
 					s.fset.Position(node.Pos()).String()+" (extend TestWriteGraphReadErrorCapabilitiesExistInMatrix's sweep)")
@@ -391,4 +409,41 @@ func stringLiteral(expr ast.Expr) (string, bool) {
 		return "", false
 	}
 	return unquoted, true
+}
+
+// sweptCapabilityCallees maps each capability-taking function to the argument
+// INDEX its capability sits at. GraphReadErrorEnvelope is swept alongside
+// WriteGraphReadError because it takes the same capability and renders the same
+// envelope -- it is the variant for seams that return the envelope instead of
+// writing it -- so omitting it would let a caller escape the matrix check by
+// picking the other function.
+//
+// The index travels with the name because the two do NOT share an arity:
+// WriteGraphReadError(w, r, err, capability) versus
+// GraphReadErrorEnvelope(err, capability). A single hard-coded position matched
+// the envelope variant's NAME and then skipped every one of its call sites on
+// the argument count, which a seeded-violation probe caught and a passing suite
+// did not.
+var sweptCapabilityCallees = map[string]int{
+	"WriteGraphReadError":    3, // (w, r, err, capability)
+	"GraphReadErrorEnvelope": 1, // (err, capability)
+	"graphReadErrorEnvelope": 1, // root's unexported forwarder
+}
+
+// callsWriteGraphReadError reports whether fun calls one of the swept
+// capability-taking functions, named directly or through a package qualifier.
+func callsWriteGraphReadError(fun ast.Expr) (int, bool) {
+	switch callee := fun.(type) {
+	case *ast.Ident:
+		idx, ok := sweptCapabilityCallees[callee.Name]
+		return idx, ok
+	case *ast.SelectorExpr:
+		if callee.Sel == nil {
+			return 0, false
+		}
+		idx, ok := sweptCapabilityCallees[callee.Sel.Name]
+		return idx, ok
+	default:
+		return 0, false
+	}
 }
