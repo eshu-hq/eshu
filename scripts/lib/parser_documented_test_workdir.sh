@@ -147,8 +147,9 @@ documented_apply_env_change_directory() {
 }
 
 documented_go_test_prefix() {
-  local index=0 token unset_name env_change_directory=''
-  local env_change_directory_dynamic=false token_count="${#PARSER_COMMAND_TOKENS[@]}"
+  local index=0 token unset_name env_change_directory='' env_directory
+  local env_change_directory_dynamic=false env_directory_dynamic=false
+  local env_split_string=false token_count="${#PARSER_COMMAND_TOKENS[@]}"
   PARSER_COMMAND_ARGUMENT_START=0
   PARSER_COMMAND_HAS_CHANGE_DIRECTORY=false
   PARSER_COMMAND_CHANGE_DIRECTORY=''
@@ -156,134 +157,170 @@ documented_go_test_prefix() {
   PARSER_DOCUMENTED_ENV_SPLIT_STRING=''
   PARSER_DOCUMENTED_GOFLAGS_EFFECTIVE="$PARSER_DOCUMENTED_GOFLAGS_EXPORTED"
   ((token_count >= 2)) || return 1
+  documented_record_command_assignment_prefix "$index"
+  index="$PARSER_DOCUMENTED_ASSIGNMENT_PREFIX_NEXT"
   while ((index < token_count)); do
-    token="${PARSER_COMMAND_TOKENS[index]}"
-    case "$token" in
-      [A-Za-z_][A-Za-z0-9_]*=*)
-        documented_record_command_assignment \
-          "$token" "${PARSER_COMMAND_TOKEN_SHELL_EXPANSIONS[index]}"
-        if [ "${PARSER_COMMAND_TOKEN_SHELL_EXPANSIONS[index]}" = true ]; then
-          PARSER_DOCUMENTED_SHELL_ASSIGNMENT_DYNAMIC=true
-        fi
+    case "${PARSER_COMMAND_TOKENS[index]}" in
+      time)
         ((index++))
+        ((index < token_count)) || return 2
+        if [ "${PARSER_COMMAND_TOKENS[index]}" = -p ]; then
+          ((index++))
+          ((index < token_count)) || return 2
+        elif [[ "${PARSER_COMMAND_TOKENS[index]}" == -* ]]; then
+          return 2
+        fi
+        ;;
+      env|/usr/bin/env)
+        ((index++))
+        env_directory=''
+        env_directory_dynamic=false
+        env_split_string=false
+        while ((index < token_count)); do
+          token="${PARSER_COMMAND_TOKENS[index]}"
+          case "$token" in
+            --)
+              ((index++))
+              break
+              ;;
+            -|-i|--ignore-environment)
+              documented_clear_goflags_assignment
+              ((index++))
+              ;;
+            -v)
+              ((index++))
+              ;;
+            -P)
+              ((index++))
+              ((index < token_count)) || return 2
+              ((index++))
+              ;;
+            -P?*)
+              ((index++))
+              ;;
+            -C)
+              ((index++))
+              ((index < token_count)) || return 2
+              env_directory="${PARSER_COMMAND_TOKENS[index]}"
+              env_directory_dynamic="${PARSER_COMMAND_TOKEN_SHELL_EXPANSIONS[index]}"
+              ((index++))
+              ;;
+            -C?*)
+              env_directory="${token#-C}"
+              env_directory_dynamic="${PARSER_COMMAND_TOKEN_SHELL_EXPANSIONS[index]}"
+              ((index++))
+              ;;
+            --chdir=*)
+              env_directory="${token#*=}"
+              env_directory_dynamic="${PARSER_COMMAND_TOKEN_SHELL_EXPANSIONS[index]}"
+              ((index++))
+              ;;
+            -S)
+              # BSD env has its own token grammar. Route it through the
+              # conservative split-string classifier instead of guessing.
+              ((index++))
+              ((index < token_count)) || return 2
+              PARSER_DOCUMENTED_ENV_SPLIT_STRING="${PARSER_COMMAND_TOKENS[index]}"
+              env_split_string=true
+              break
+              ;;
+            -S?*)
+              PARSER_DOCUMENTED_ENV_SPLIT_STRING="${token#-S}"
+              env_split_string=true
+              break
+              ;;
+            -u|--unset)
+              ((index++))
+              ((index < token_count)) || return 1
+              unset_name="${PARSER_COMMAND_TOKENS[index]}"
+              if [ "${PARSER_COMMAND_TOKEN_SHELL_EXPANSIONS[index]}" = true ]; then
+                PARSER_DOCUMENTED_GOFLAGS_PRESENT=true
+                PARSER_DOCUMENTED_GOFLAGS_DYNAMIC=true
+              elif [ "$unset_name" = GOFLAGS ]; then
+                documented_clear_goflags_assignment
+              fi
+              ((index++))
+              ;;
+            -u=*|--unset=*)
+              unset_name="${token#*=}"
+              if [ "${PARSER_COMMAND_TOKEN_SHELL_EXPANSIONS[index]}" = true ]; then
+                PARSER_DOCUMENTED_GOFLAGS_PRESENT=true
+                PARSER_DOCUMENTED_GOFLAGS_DYNAMIC=true
+              elif [ "$unset_name" = GOFLAGS ]; then
+                documented_clear_goflags_assignment
+              fi
+              ((index++))
+              ;;
+            -*)
+              documented_apply_env_short_option_cluster "$token" || return 2
+              ((index++))
+              ;;
+            *) break ;;
+          esac
+        done
+        if [ -n "$env_directory" ]; then
+          if [ -n "$env_change_directory" ]; then
+            env_change_directory="${env_change_directory%/}/${env_directory}"
+          else
+            env_change_directory="$env_directory"
+          fi
+          [ "$env_directory_dynamic" = true ] &&
+            env_change_directory_dynamic=true
+        fi
+        if [ "$env_split_string" = true ]; then
+          documented_apply_env_change_directory \
+            "$env_change_directory" "$env_change_directory_dynamic"
+          return 2
+        fi
+        ;;
+      command)
+        ((index++))
+        ((index < token_count)) || return 1
+        if [ "${PARSER_COMMAND_TOKENS[index]}" = -p ]; then
+          ((index++))
+          ((index < token_count)) || return 1
+        fi
+        if [ "${PARSER_COMMAND_TOKENS[index]}" = -- ]; then
+          ((index++))
+          ((index < token_count)) || return 1
+        elif [[ "${PARSER_COMMAND_TOKENS[index]}" == -* ]]; then
+          return 2
+        fi
+        ;;
+      exec)
+        ((index++))
+        ((index < token_count)) || return 1
+        while ((index < token_count)); do
+          case "${PARSER_COMMAND_TOKENS[index]}" in
+            -c|-cl|-lc)
+              documented_clear_goflags_assignment
+              ((index++))
+              ;;
+            -l)
+              ((index++))
+              ;;
+            -a)
+              ((index++))
+              ((index < token_count)) || return 2
+              ((index++))
+              ;;
+            *) break ;;
+          esac
+        done
+        ((index < token_count)) || return 1
+        if [ "${PARSER_COMMAND_TOKENS[index]}" = -- ]; then
+          ((index++))
+          ((index < token_count)) || return 1
+        elif [[ "${PARSER_COMMAND_TOKENS[index]}" == -* ]]; then
+          return 2
+        fi
         ;;
       *) break ;;
     esac
+    documented_record_command_assignment_prefix "$index"
+    index="$PARSER_DOCUMENTED_ASSIGNMENT_PREFIX_NEXT"
   done
-  if ((index < token_count)) &&
-    { [ "${PARSER_COMMAND_TOKENS[index]}" = env ] ||
-      [ "${PARSER_COMMAND_TOKENS[index]}" = /usr/bin/env ]; }; then
-    ((index++))
-    while ((index < token_count)); do
-      token="${PARSER_COMMAND_TOKENS[index]}"
-      case "$token" in
-        --)
-          ((index++))
-          break
-          ;;
-        -|-i|--ignore-environment)
-          documented_clear_goflags_assignment
-          ((index++))
-          ;;
-        -v)
-          ((index++))
-          ;;
-        -P)
-          ((index++))
-          ((index < token_count)) || return 2
-          ((index++))
-          ;;
-        -P?*)
-          ((index++))
-          ;;
-        -C)
-          ((index++))
-          ((index < token_count)) || return 2
-          env_change_directory="${PARSER_COMMAND_TOKENS[index]}"
-          if [ "${PARSER_COMMAND_TOKEN_SHELL_EXPANSIONS[index]}" = true ]; then
-            env_change_directory_dynamic=true
-          fi
-          ((index++))
-          ;;
-        -C?*)
-          env_change_directory="${token#-C}"
-          env_change_directory_dynamic="${PARSER_COMMAND_TOKEN_SHELL_EXPANSIONS[index]}"
-          ((index++))
-          ;;
-        -S)
-          # BSD env applies its own splitting, escape, comment, and variable
-          # expansion grammar. Reject matching documented commands rather than
-          # pretending the shell tokenizer can recover their argv safely.
-          ((index++))
-          ((index < token_count)) || return 2
-          PARSER_DOCUMENTED_ENV_SPLIT_STRING="${PARSER_COMMAND_TOKENS[index]}"
-          documented_apply_env_change_directory \
-            "$env_change_directory" "$env_change_directory_dynamic"
-          return 2
-          ;;
-        -S?*)
-          PARSER_DOCUMENTED_ENV_SPLIT_STRING="${token#-S}"
-          documented_apply_env_change_directory \
-            "$env_change_directory" "$env_change_directory_dynamic"
-          return 2
-          ;;
-        -u|--unset)
-          ((index++))
-          ((index < token_count)) || return 1
-          unset_name="${PARSER_COMMAND_TOKENS[index]}"
-          if [ "${PARSER_COMMAND_TOKEN_SHELL_EXPANSIONS[index]}" = true ]; then
-            PARSER_DOCUMENTED_GOFLAGS_PRESENT=true
-            PARSER_DOCUMENTED_GOFLAGS_DYNAMIC=true
-          elif [ "$unset_name" = GOFLAGS ]; then
-            documented_clear_goflags_assignment
-          fi
-          ((index++))
-          ;;
-        -u=*|--unset=*)
-          unset_name="${token#*=}"
-          if [ "${PARSER_COMMAND_TOKEN_SHELL_EXPANSIONS[index]}" = true ]; then
-            PARSER_DOCUMENTED_GOFLAGS_PRESENT=true
-            PARSER_DOCUMENTED_GOFLAGS_DYNAMIC=true
-          elif [ "$unset_name" = GOFLAGS ]; then
-            documented_clear_goflags_assignment
-          fi
-          ((index++))
-          ;;
-        -*)
-          documented_apply_env_short_option_cluster "$token" || return 2
-          ((index++))
-          ;;
-        *) break ;;
-      esac
-    done
-    while ((index < token_count)); do
-      token="${PARSER_COMMAND_TOKENS[index]}"
-      case "$token" in
-        [A-Za-z_][A-Za-z0-9_]*=*)
-          documented_record_command_assignment \
-            "$token" "${PARSER_COMMAND_TOKEN_SHELL_EXPANSIONS[index]}"
-          if [ "${PARSER_COMMAND_TOKEN_SHELL_EXPANSIONS[index]}" = true ]; then
-            PARSER_DOCUMENTED_SHELL_ASSIGNMENT_DYNAMIC=true
-          fi
-          ((index++))
-          ;;
-        *) break ;;
-      esac
-    done
-  fi
   ((index < token_count)) || return 1
-  case "${PARSER_COMMAND_TOKENS[index]}" in
-    command|exec)
-      ((index++))
-      ((index < token_count)) || return 1
-      if [ "${PARSER_COMMAND_TOKENS[index]}" = -- ]; then
-        ((index++))
-        ((index < token_count)) || return 1
-      elif [[ "${PARSER_COMMAND_TOKENS[index]}" == -* ]]; then
-        return 2
-      fi
-      ;;
-  esac
   [ "${PARSER_COMMAND_TOKENS[index]##*/}" = go ] || return 1
   ((index++))
   ((index < token_count)) || return 1

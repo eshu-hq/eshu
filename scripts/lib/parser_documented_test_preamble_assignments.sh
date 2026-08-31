@@ -87,47 +87,40 @@ documented_record_assignment_preamble() {
 }
 
 documented_shell_wrapper_from_command_prefix() {
-  local i=0 prefix_end token token_count="${#PARSER_COMMAND_TOKENS[@]}"
+  local i prefix_end shell_index token token_count="${#PARSER_COMMAND_TOKENS[@]}"
+  local -a original_tokens=("${PARSER_COMMAND_TOKENS[@]}")
+  local -a original_expansions=("${PARSER_COMMAND_TOKEN_SHELL_EXPANSIONS[@]}")
   PARSER_DOCUMENTED_SHELL_WRAPPER_COMMAND=''
   PARSER_DOCUMENTED_SHELL_WRAPPER_DYNAMIC=false
-  while ((i < token_count)); do
-    token="${PARSER_COMMAND_TOKENS[i]}"
-    case "$token" in
-      [A-Za-z_][A-Za-z0-9_]*=*) ((i++)) ;;
-      *) break ;;
-    esac
-  done
-  if ((i < token_count)) &&
-    { [ "${PARSER_COMMAND_TOKENS[i]}" = env ] ||
-      [ "${PARSER_COMMAND_TOKENS[i]}" = /usr/bin/env ]; }; then
-    ((i++))
-    if ((i < token_count)) && [ "${PARSER_COMMAND_TOKENS[i]}" = -- ]; then
-      ((i++))
-    fi
-    while ((i < token_count)); do
-      token="${PARSER_COMMAND_TOKENS[i]}"
-      case "$token" in
-        [A-Za-z_][A-Za-z0-9_]*=*) ((i++)) ;;
-        -*) return 1 ;;
-        *) break ;;
+  shell_index="$({
+    for ((i = 0; i < token_count; i++)); do
+      [ "${original_expansions[i]}" = false ] || continue
+      case "${original_tokens[i]##*/}" in
+        sh|bash|zsh|dash|ksh) ;;
+        *) continue ;;
       esac
+      PARSER_COMMAND_TOKENS=("${original_tokens[@]:0:i}" go test)
+      PARSER_COMMAND_TOKEN_SHELL_EXPANSIONS=(
+        "${original_expansions[@]:0:i}" false false
+      )
+      documented_go_test_prefix || continue
+      printf '%s' "$i"
+      exit 0
     done
+    exit 1
+  })" || return 1
+  PARSER_COMMAND_TOKENS=("${original_tokens[@]:0:shell_index}" go test)
+  PARSER_COMMAND_TOKEN_SHELL_EXPANSIONS=(
+    "${original_expansions[@]:0:shell_index}" false false
+  )
+  if ! documented_go_test_prefix; then
+    PARSER_COMMAND_TOKENS=("${original_tokens[@]}")
+    PARSER_COMMAND_TOKEN_SHELL_EXPANSIONS=("${original_expansions[@]}")
+    return 1
   fi
-  ((i < token_count)) || return 1
-  case "${PARSER_COMMAND_TOKENS[i]##*/}" in
-    sh|bash|zsh|dash|ksh) ;;
-    *) return 1 ;;
-  esac
-  prefix_end="$i"
-  for ((i = 0; i < prefix_end; i++)); do
-    token="${PARSER_COMMAND_TOKENS[i]}"
-    case "$token" in
-      [A-Za-z_][A-Za-z0-9_]*=*)
-        documented_record_command_assignment \
-          "$token" "${PARSER_COMMAND_TOKEN_SHELL_EXPANSIONS[i]}"
-        ;;
-    esac
-  done
+  PARSER_COMMAND_TOKENS=("${original_tokens[@]}")
+  PARSER_COMMAND_TOKEN_SHELL_EXPANSIONS=("${original_expansions[@]}")
+  prefix_end="$shell_index"
   for ((i = prefix_end + 1; i + 1 < token_count; i++)); do
     token="${PARSER_COMMAND_TOKENS[i]}"
     [[ "$token" =~ ^-[[:alpha:]]*c[[:alpha:]]*$ ]] || continue

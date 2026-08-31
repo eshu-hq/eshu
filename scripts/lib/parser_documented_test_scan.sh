@@ -8,8 +8,9 @@ validate_documented_parser_test_commands() {
   local precise_rc=0 line_rc=0 bare_run_pattern
   local relocated_name_pattern='' documented_test_signal name
   local go_executable go_test_start shell_command_start shell_cd_prefix assignment_value command_join
-  local command_assignment command_env command_env_option command_env_options command_wrapper
-  local command_env_prefix goflags_env_prefix shell_prefix_token
+  local command_assignment command_env command_env_option command_env_options command_prefix
+  local command_wrapper exec_wrapper
+  local goflags_env_prefix shell_prefix_token
   local go_test_command prefixed_goflags_candidate cd_goflags_candidate
   local export_goflags_candidate export_goflags_segment safe_export_separator
   local assign_export_goflags_candidate assignment_token assignment_list
@@ -37,18 +38,19 @@ validate_documented_parser_test_commands() {
   command_env='(?:env|/usr/bin/env)'
   shell_prefix_token="(?:\"(?:\\\\.|[^\"\\\\])*\"|'[^']*'|[^\\s;&|\\x60]+)"
   go_test_start="${go_executable}\\s+(?:--?C(?:=|\\s)${shell_prefix_token}\\s+)?test"
-  command_env_option="(?:-|-[0iv]+|--ignore-environment|(?:-u|--unset|-P|-C)${command_join}${shell_prefix_token}|(?:-u=|--unset=|-P|-C)${shell_prefix_token})"
+  command_env_option="(?:-|-[0iv]+|--ignore-environment|--chdir=${shell_prefix_token}|(?:-u|--unset|-P|-C)${command_join}${shell_prefix_token}|(?:-u=|--unset=|-P|-C)${shell_prefix_token})"
   command_env_options="(?:${command_env_option}${command_join})*"
-  command_env_prefix="(?:(?:${command_assignment})*${command_env}${command_join}${command_env_options}(?:--${command_join})?)?(?:${command_assignment})*"
-  command_wrapper="(?:(?:command|exec)${command_join}(?:--${command_join})?)?"
+  command_wrapper="command(?:${command_join}-p)?"
+  exec_wrapper="exec(?:${command_join}(?:-c|-l|-cl|-lc|-a${command_join}${shell_prefix_token}))*"
+  command_prefix="(?:(?:${command_assignment})|(?:${command_env}${command_join}${command_env_options}(?:--${command_join})?)|(?:time(?:${command_join}-p)?${command_join})|(?:(?:${command_wrapper}|${exec_wrapper})${command_join}(?:--${command_join})?))*"
   goflags_env_prefix="(?=(?:${shell_prefix_token}${command_join})*GOFLAGS=)(?:${shell_prefix_token}${command_join})*"
   command_segment="(?:(?!${go_test_start}|\\x60)[\\s\\S])*"
   run_flag='--?(?:test[.])?run'
-  documented_test_signal="(?:GOFLAGS|${relocated_name_pattern})"
-  bare_run_pattern='^[[:blank:]]*(?:cd[[:blank:]]|env[[:blank:]]|/usr/bin/env[[:blank:]]|command[[:blank:]]|exec[[:blank:]]|(?:[A-Za-z_][A-Za-z0-9_]*=[^[:blank:]]+[[:blank:]]+)+env[[:blank:]]|[(]|[{])[^\r\n]*--?(?:test[.])?run(?:=|[[:blank:]])[^\r\n]*(?:'"${relocated_name_pattern}"')[^\r\n]*$'
+  documented_test_signal="(?:GOFLAGS|${run_flag})"
+  bare_run_pattern='^(?![^\r\n]*\x60+[[:blank:]]*$)[[:blank:]]*(?:\$[[:blank:]]+)?(?=[^\r\n]*(?:GOFLAGS|--?(?:test[.])?run(?:=|[[:blank:]])))[^\r\n]+$'
   go_test_command="${go_test_start}${command_segment}"
   go_candidate="${go_test_start}(?=${command_segment}\\s${run_flag}(?:=|\\s))${command_segment}"
-  cd_candidate="${shell_command_start}(?:${shell_cd_prefix})?${command_env_prefix}${command_wrapper}${go_candidate}"
+  cd_candidate="${shell_command_start}(?:${shell_cd_prefix})?${command_prefix}${go_candidate}"
   cd_goflags_candidate="${shell_command_start}${shell_cd_prefix}${goflags_env_prefix}${go_test_command}"
   prefixed_goflags_candidate="${shell_command_start}${goflags_env_prefix}${go_test_command}"
   safe_export_separator='(?:[\t ]*;[\t ]*|[\t ]*&&[\t ]*|\r?\n[\t ]*)'
@@ -84,7 +86,7 @@ validate_documented_parser_test_commands() {
       return 1
     fi
   fi
-  if line_matches="$(rg -n --json --glob '*.md' \
+  if line_matches="$(rg -n --json --pcre2 --glob '*.md' \
     -e "$bare_run_pattern" \
     "$root/docs" "$root/go/internal/parser" 2>&1)"; then
     :

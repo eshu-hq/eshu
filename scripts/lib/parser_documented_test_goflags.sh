@@ -21,6 +21,26 @@ documented_apply_env_short_option_cluster() {
   done
 }
 
+documented_record_command_assignment_prefix() {
+  local index="$1" token
+  while ((index < ${#PARSER_COMMAND_TOKENS[@]})); do
+    token="${PARSER_COMMAND_TOKENS[index]}"
+    case "$token" in
+      [A-Za-z_][A-Za-z0-9_]*=*)
+        documented_record_command_assignment \
+          "$token" "${PARSER_COMMAND_TOKEN_SHELL_EXPANSIONS[index]}"
+        if [ "${PARSER_COMMAND_TOKEN_SHELL_EXPANSIONS[index]}" = true ]; then
+          PARSER_DOCUMENTED_SHELL_ASSIGNMENT_DYNAMIC=true
+        fi
+        ((index++))
+        ;;
+      *) break ;;
+    esac
+  done
+  # shellcheck disable=SC2034 # Consumed by the sourced workdir classifier.
+  PARSER_DOCUMENTED_ASSIGNMENT_PREFIX_NEXT="$index"
+}
+
 documented_goflags_run_selector() {
   local token flag_kind found=false i token_count
   PARSER_DOCUMENTED_GOFLAGS_SELECTOR=''
@@ -129,6 +149,11 @@ documented_record_env_split_assignment_prefix() {
           env_change_directory_dynamic="${PARSER_COMMAND_TOKEN_SHELL_EXPANSIONS[i]}"
           ((i++))
           ;;
+        --chdir=*)
+          env_change_directory="${token#*=}"
+          env_change_directory_dynamic="${PARSER_COMMAND_TOKEN_SHELL_EXPANSIONS[i]}"
+          ((i++))
+          ;;
         -S|-S?*) return 2 ;;
         -*)
           documented_apply_env_short_option_cluster "$token"
@@ -158,6 +183,16 @@ documented_record_env_split_assignment_prefix() {
     token="${PARSER_COMMAND_TOKENS[i]}"
     case "$token" in
       env|/usr/bin/env) ((i++)) ;;
+      time)
+        ((i++))
+        ((i < token_count)) || return 2
+        if [ "${PARSER_COMMAND_TOKENS[i]}" = -p ]; then
+          ((i++))
+          ((i < token_count)) || return 2
+        elif [[ "${PARSER_COMMAND_TOKENS[i]}" == -* ]]; then
+          return 2
+        fi
+        ;;
       go)
         documented_record_static_command_tokens "$i"
         PARSER_DOCUMENTED_ENV_SPLIT_EXECUTES_GO=true
