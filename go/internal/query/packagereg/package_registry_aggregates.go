@@ -57,7 +57,12 @@ const (
 	PackageRegistryInventoryByVisibility PackageRegistryInventoryDimension = "visibility"
 )
 
-// PackageRegistryAggregateMaxLimit caps inventory result pages.
+// PackageRegistryAggregateMaxLimit caps inventory result pages. The store's
+// own limit check in PackageRegistryPackageInventory rejects any request
+// above PackageRegistryAggregateMaxLimit+1 (501), which is the queryplan
+// non_hot max_results bound registered for that symbol: the +1 covers the
+// handler's internal "ask for one extra row to detect truncation" pagination
+// probe, not an additional page of real results.
 const PackageRegistryAggregateMaxLimit = 500
 
 // PackageRegistryAggregateFilter narrows aggregate reads. An aggregate
@@ -173,6 +178,22 @@ func packageRegistryAggregateParams(filter PackageRegistryAggregateFilter) map[s
 
 // CountPackageRegistryPackages returns the cheap-summary totals envelope for
 // the scoped (:Package) slice.
+//
+// This runs two queries with no Cypher LIMIT, so it is registered as a
+// queryplan non_hot label_inventory read (not entry_ids) with max_results:
+// 32. packageRegistryAggregateCountQuery is a single-row aggregate
+// (`RETURN count(p) AS total`); packageRegistryAggregateByEcosystemQuery
+// groups by (:Package).ecosystem, so its row count is bounded by the closed
+// 13-value packageidentity.Ecosystem enum (npm, pypi, gomod, maven, nuget,
+// composer, rubygems, cargo, swift, hex, pub, os, generic) plus the query's
+// own CASE 'unknown' bucket for NULL/empty ecosystem. Every
+// package_registry.package fact — the only producer of the graph's (:Package)
+// nodes — is built by packageregistry.NewPackageEnvelope, which normalizes
+// through packageidentity.Normalize and errors out rather than emit a fact
+// for an ecosystem outside that enum, so p.ecosystem cannot carry
+// collector-supplied free text. 32 = 13 enum values + 1 unknown bucket +
+// headroom, mirroring the groupedGrantCounts precedent in
+// secrets_iam_grant_posture.go.
 func (s GraphPackageRegistryAggregateStore) CountPackageRegistryPackages(
 	ctx context.Context,
 	filter PackageRegistryAggregateFilter,
@@ -212,6 +233,14 @@ func (s GraphPackageRegistryAggregateStore) CountPackageRegistryPackages(
 // PackageRegistryPackageInventory returns a paginated grouped count along the
 // requested dimension. Limit and offset must already be normalized by the
 // caller.
+//
+// packageRegistryInventoryQueryTemplate ends `SKIP $offset LIMIT $limit`, and
+// this method rejects any limit outside 1..PackageRegistryAggregateMaxLimit+1
+// (501). That code-enforced cap is the queryplan non_hot label_inventory
+// max_results bound registered for this symbol; see
+// PackageRegistryAggregateMaxLimit's doc comment for why the bound is
+// PackageRegistryAggregateMaxLimit+1 rather than
+// PackageRegistryAggregateMaxLimit.
 func (s GraphPackageRegistryAggregateStore) PackageRegistryPackageInventory(
 	ctx context.Context,
 	filter PackageRegistryAggregateFilter,
