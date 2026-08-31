@@ -327,7 +327,7 @@ func filterCrossRepoDeadCodeEvidence(
 				continue
 			}
 		}
-		if !access.allowsRepositoryID(row.ConsumerRepoID) {
+		if !access.AllowsRepositoryID(row.ConsumerRepoID) {
 			hidden = append(hidden, row)
 			continue
 		}

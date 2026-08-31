@@ -85,23 +85,23 @@ func buildResolveEntityGraphQuery(
 		}
 	}
 
-	if !repositoryAnchored && access.scoped() {
+	if !repositoryAnchored && access.Scoped() {
 		cypher += `
 			AND EXISTS {
 				MATCH (e)<-[:CONTAINS]-(scopeFile:File)<-[:REPO_CONTAINS]-(scopeRepo:Repository)
-				WHERE ` + access.graphCondition("scopeRepo") + `
+				WHERE ` + access.GraphCondition("scopeRepo") + `
 			}
 		`
-		params = access.graphParams(params)
+		params = access.GraphParams(params)
 	}
 
 	if !repositoryAnchored {
 		cypher += `
 			OPTIONAL MATCH (e)<-[:CONTAINS]-(f:File)<-[:REPO_CONTAINS]-(r:Repository)
 		`
-		if access.scoped() {
+		if access.Scoped() {
 			cypher += `
-			WHERE ` + access.graphCondition("r") + `
+			WHERE ` + access.GraphCondition("r") + `
 		`
 		}
 	}
@@ -166,7 +166,7 @@ func (h *EntityHandler) resolveEntity(w http.ResponseWriter, r *http.Request) {
 		}
 		req.RepoID = resolvedRepoID
 	}
-	if access.empty() {
+	if access.Empty() {
 		truth := entityResolveTruthEnvelope(h.profile())
 		if req.RepoID == "" {
 			truth = globalContentEntityResolveTruthEnvelope(h.profile())
@@ -274,7 +274,7 @@ func (h *EntityHandler) getEntityContext(w http.ResponseWriter, r *http.Request)
 	}
 
 	access := repositoryAccessFilterFromContext(r.Context())
-	if access.empty() {
+	if access.Empty() {
 		WriteError(w, http.StatusNotFound, "entity not found")
 		return
 	}
@@ -282,20 +282,20 @@ func (h *EntityHandler) getEntityContext(w http.ResponseWriter, r *http.Request)
 	cypher := `
 		MATCH (e) WHERE e.id = $entity_id
 	`
-	if access.scoped() {
+	if access.Scoped() {
 		cypher += `
 		AND EXISTS {
 			MATCH (e)<-[:CONTAINS]-(scopeFile:File)<-[:REPO_CONTAINS]-(scopeRepo:Repository)
-			WHERE ` + access.graphCondition("scopeRepo") + `
+			WHERE ` + access.GraphCondition("scopeRepo") + `
 		}
 	`
 	}
 	cypher += `
 		OPTIONAL MATCH (e)<-[:CONTAINS]-(f:File)<-[:REPO_CONTAINS]-(r:Repository)
 	`
-	if access.scoped() {
+	if access.Scoped() {
 		cypher += `
-		WHERE ` + access.graphCondition("r") + `
+		WHERE ` + access.GraphCondition("r") + `
 	`
 	}
 	cypher += `
@@ -310,7 +310,7 @@ func (h *EntityHandler) getEntityContext(w http.ResponseWriter, r *http.Request)
 		       collect(DISTINCT {type: type(rel), target_name: target.name, target_id: target.id}) as relationships
 	`
 
-	params := access.graphParams(map[string]any{"entity_id": entityID})
+	params := access.GraphParams(map[string]any{"entity_id": entityID})
 	var row map[string]any
 	var err error
 	if h.Neo4j != nil {
@@ -362,7 +362,7 @@ func (h *EntityHandler) getEntityContext(w http.ResponseWriter, r *http.Request)
 		WriteError(w, http.StatusInternalServerError, fmt.Sprintf("hydrate entity repo identity: %v", err))
 		return
 	}
-	if access.scoped() && !access.allowsRepositoryID(StringVal(response, "repo_id")) {
+	if access.Scoped() && !access.AllowsRepositoryID(StringVal(response, "repo_id")) {
 		WriteError(w, http.StatusNotFound, "entity not found")
 		return
 	}
@@ -400,7 +400,7 @@ func (h *EntityHandler) getServiceContext(w http.ResponseWriter, r *http.Request
 		WriteError(w, http.StatusBadRequest, "service_name is required")
 		return
 	}
-	if repositoryAccessFilterFromContext(r.Context()).empty() {
+	if repositoryAccessFilterFromContext(r.Context()).Empty() {
 		WriteError(w, http.StatusNotFound, "service not found")
 		return
 	}

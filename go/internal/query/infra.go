@@ -267,7 +267,7 @@ func (h *InfraHandler) searchResources(w http.ResponseWriter, r *http.Request) {
 	// rebuilds the SHAPE-A disjunction three times, so emitting from there
 	// would count one degraded read as three (#5408).
 	recordScopeGrantInlineCap(r.Context(), h.Instruments, access, "infra_search")
-	if access.empty() {
+	if access.Empty() {
 		h.writeEmptyInfraSearch(w, r, req.Limit)
 		return
 	}
@@ -370,7 +370,7 @@ func (h *InfraHandler) searchResources(w http.ResponseWriter, r *http.Request) {
 	if resourceCategory != "" {
 		params["resource_category"] = resourceCategory
 	}
-	access.graphParams(params)
+	access.GraphParams(params)
 
 	var rows []map[string]any
 	var err error

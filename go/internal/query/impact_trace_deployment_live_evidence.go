@@ -95,7 +95,7 @@ func (h *ImpactHandler) fetchWorkloadLiveEvidence(
 	// #5167 access-scoping discipline, mirroring listCorrelations
 	// (go/internal/query/kubernetes.go:108-122): a scoped caller with no
 	// granted repositories never queries the store.
-	if access.empty() {
+	if access.Empty() {
 		span.SetAttributes(
 			attribute.String("eshu.live_evidence_skip_reason", "scoped_caller_no_grants"),
 			attribute.Bool("eshu.live_evidence_matched", false),

@@ -42,7 +42,7 @@ func (h *SupplyChainHandler) listContainerImageIdentities(w http.ResponseWriter,
 	// Empty scoped grants return the zero-identities page without resolving a
 	// selector or reading the identity store.
 	access := repositoryAccessFilterFromContext(r.Context())
-	if access.empty() {
+	if access.Empty() {
 		h.writeEmptyContainerImageIdentityPage(w, r, limit)
 		return
 	}
@@ -58,7 +58,7 @@ func (h *SupplyChainHandler) listContainerImageIdentities(w http.ResponseWriter,
 		Outcome:                    QueryParam(r, "outcome"),
 		AfterIdentityID:            QueryParam(r, "after_identity_id"),
 		Limit:                      limit + 1,
-		AllowedSourceRepositoryIDs: access.repositorySearchIDs(),
+		AllowedSourceRepositoryIDs: access.RepositorySearchIDs(),
 	}
 	if !filter.hasScope() {
 		WriteError(w, http.StatusBadRequest, "digest, image_ref, source_repository_id, repository_id, or outcome is required")

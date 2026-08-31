@@ -160,7 +160,7 @@ func TestProbeSupplyChainCloudRuntimeResourcesRecordsTruthfulCounts(t *testing.T
 			handler := &SupplyChainHandler{CloudResourceInventory: tt.inventory}
 			_, err := handler.probeSupplyChainCloudRuntimeResources(
 				context.Background(),
-				repositoryAccessFilter{allScopes: true},
+				repositoryAccessFilter{AllScopes: true},
 				[]string{"sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"},
 			)
 			if err != nil {
@@ -211,7 +211,7 @@ func TestApplySupplyChainCloudRuntimeEvidencePromotesRunningDigest(t *testing.T)
 		{FindingID: "f-running", SubjectDigest: runningDigest, EvidencePath: []string{cicdRunCorrelationFactKind}},
 		{FindingID: "f-notrunning", SubjectDigest: "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb", EvidencePath: []string{cicdRunCorrelationFactKind}},
 	}
-	if err := handler.applySupplyChainCloudRuntimeEvidence(context.Background(), repositoryAccessFilter{allScopes: true}, rows); err != nil {
+	if err := handler.applySupplyChainCloudRuntimeEvidence(context.Background(), repositoryAccessFilter{AllScopes: true}, rows); err != nil {
 		t.Fatalf("applySupplyChainCloudRuntimeEvidence() error = %v, want nil", err)
 	}
 
@@ -252,7 +252,7 @@ func TestApplySupplyChainCloudRuntimeEvidenceExcludesStaleOrUnauthorized(t *test
 	handler := &SupplyChainHandler{Neo4j: graph, CloudResourceInventory: inventory}
 
 	rows := []SupplyChainImpactFindingRow{{FindingID: "f", SubjectDigest: runningDigest, EvidencePath: []string{cicdRunCorrelationFactKind}}}
-	if err := handler.applySupplyChainCloudRuntimeEvidence(context.Background(), repositoryAccessFilter{allScopes: true}, rows); err != nil {
+	if err := handler.applySupplyChainCloudRuntimeEvidence(context.Background(), repositoryAccessFilter{AllScopes: true}, rows); err != nil {
 		t.Fatalf("applySupplyChainCloudRuntimeEvidence() error = %v, want nil", err)
 	}
 	if len(rows[0].CloudRuntimeResourceRefs) != 0 {
@@ -285,7 +285,7 @@ func TestApplySupplyChainCloudRuntimeEvidenceScopedCallerGetsAuthorized(t *testi
 	}
 	handler := &SupplyChainHandler{Neo4j: graph, CloudResourceInventory: inventory}
 
-	scoped := repositoryAccessFilter{allowedRepositoryIDs: []string{"repository:r_granted"}}
+	scoped := repositoryAccessFilter{AllowedRepositoryIDs: []string{"repository:r_granted"}}
 	rows := []SupplyChainImpactFindingRow{{FindingID: "f", SubjectDigest: runningDigest}}
 	if err := handler.applySupplyChainCloudRuntimeEvidence(context.Background(), scoped, rows); err != nil {
 		t.Fatalf("applySupplyChainCloudRuntimeEvidence(scoped) error = %v, want nil", err)
@@ -313,7 +313,7 @@ func TestApplySupplyChainCloudRuntimeEvidenceDoesNotReadGraph(t *testing.T) {
 	handler := &SupplyChainHandler{Neo4j: graph, CloudResourceInventory: inventory}
 	rows := []SupplyChainImpactFindingRow{{FindingID: "f", SubjectDigest: digest}}
 
-	if err := handler.applySupplyChainCloudRuntimeEvidence(context.Background(), repositoryAccessFilter{allScopes: true}, rows); err != nil {
+	if err := handler.applySupplyChainCloudRuntimeEvidence(context.Background(), repositoryAccessFilter{AllScopes: true}, rows); err != nil {
 		t.Fatalf("applySupplyChainCloudRuntimeEvidence() error = %v, want graph-free owner-ledger read", err)
 	}
 	if len(graph.gotDigests) != 0 {
@@ -333,7 +333,7 @@ func TestApplySupplyChainCloudRuntimeEvidencePropagatesLedgerError(t *testing.T)
 	handler := &SupplyChainHandler{Neo4j: graph, CloudResourceInventory: inventory}
 	rows := []SupplyChainImpactFindingRow{{FindingID: "f", SubjectDigest: digest}}
 
-	if err := handler.applySupplyChainCloudRuntimeEvidence(context.Background(), repositoryAccessFilter{allScopes: true}, rows); err == nil {
+	if err := handler.applySupplyChainCloudRuntimeEvidence(context.Background(), repositoryAccessFilter{AllScopes: true}, rows); err == nil {
 		t.Fatal("applySupplyChainCloudRuntimeEvidence() error = nil, want the owner-ledger error propagated")
 	}
 }
@@ -344,12 +344,12 @@ func TestApplySupplyChainCloudRuntimeEvidenceNilStoresAreNoOp(t *testing.T) {
 	rows := []SupplyChainImpactFindingRow{{FindingID: "f", SubjectDigest: "sha256:cc"}}
 	// Nil graph remains safe because runtime evidence resolves from Postgres.
 	if err := (&SupplyChainHandler{CloudResourceInventory: &stubCloudInventory{}}).
-		applySupplyChainCloudRuntimeEvidence(context.Background(), repositoryAccessFilter{allScopes: true}, rows); err != nil {
+		applySupplyChainCloudRuntimeEvidence(context.Background(), repositoryAccessFilter{AllScopes: true}, rows); err != nil {
 		t.Fatalf("nil graph error = %v, want nil", err)
 	}
 	// Nil inventory filter (disables the runtime tier rather than surfacing unauthorized evidence).
 	if err := (&SupplyChainHandler{Neo4j: &stubCloudRuntimeGraph{}}).
-		applySupplyChainCloudRuntimeEvidence(context.Background(), repositoryAccessFilter{allScopes: true}, rows); err != nil {
+		applySupplyChainCloudRuntimeEvidence(context.Background(), repositoryAccessFilter{AllScopes: true}, rows); err != nil {
 		t.Fatalf("nil inventory error = %v, want nil", err)
 	}
 	if len(rows[0].CloudRuntimeResourceRefs) != 0 {

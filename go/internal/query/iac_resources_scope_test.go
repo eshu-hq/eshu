@@ -166,10 +166,10 @@ func TestScopedIaCResourceListBindsRepoPredicateAndParams(t *testing.T) {
 		t.Fatalf("graph.calls = %d, want 1", graph.calls)
 	}
 	inventory := handler.Inventory.(*stubIaCInventoryStore)
-	if got := inventory.lastAccess.grantedRepositoryIDs(); len(got) != 1 || got[0] != "repo-team-a" {
+	if got := inventory.lastAccess.GrantedRepositoryIDs(); len(got) != 1 || got[0] != "repo-team-a" {
 		t.Fatalf("inventory repository grants = %#v, want [repo-team-a]", got)
 	}
-	if got := inventory.lastAccess.grantedScopeIDs(); len(got) != 1 || got[0] != "scope-a" {
+	if got := inventory.lastAccess.GrantedScopeIDs(); len(got) != 1 || got[0] != "scope-a" {
 		t.Fatalf("inventory scope grants = %#v, want [scope-a]", got)
 	}
 	if strings.Contains(graph.lastCypher, "allowed_repository_ids") || strings.Contains(graph.lastCypher, "allowed_scope_ids") {

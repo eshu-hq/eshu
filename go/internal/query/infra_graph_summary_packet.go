@@ -120,7 +120,7 @@ func (h *InfraHandler) getGraphSummaryPacket(w http.ResponseWriter, r *http.Requ
 	// ingestion scopes -- or who holds no grants at all -- gets not_found, the
 	// same no-existence-disclosure contract scopedIncidentContextRoute and
 	// scopedInfraRelationshipsRoute use for an out-of-grant seed.
-	if access.scoped() && !access.allowsRepositoryID(req.repoID()) {
+	if access.Scoped() && !access.AllowsRepositoryID(req.repoID()) {
 		WriteError(w, http.StatusNotFound, "repository not found")
 		return
 	}

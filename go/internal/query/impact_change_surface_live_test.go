@@ -135,7 +135,7 @@ RETURN DISTINCT impacted.id as id, type(rel) as rel_type, rel.confidence as conf
 	}
 
 	// NEW legacy: per-edge provenance unwound in Go.
-	legacy, _, err := handler.findChangeSurfaceImpactRows(ctx, target, "", 4, 50, repositoryAccessFilter{allScopes: true})
+	legacy, _, err := handler.findChangeSurfaceImpactRows(ctx, target, "", 4, 50, repositoryAccessFilter{AllScopes: true})
 	if err != nil {
 		t.Fatalf("findChangeSurfaceImpactRows() error = %v", err)
 	}
@@ -189,14 +189,14 @@ RETURN DISTINCT impacted.id as id, type(rel) as rel_type, rel.confidence as conf
 	if len(stagingInvestigate) != 0 {
 		t.Errorf("investigate(env=staging) = %d rows, want 0 (no staging impacted)", len(stagingInvestigate))
 	}
-	prodLegacy, _, err := handler.findChangeSurfaceImpactRows(ctx, target, "prod", 4, 50, repositoryAccessFilter{allScopes: true})
+	prodLegacy, _, err := handler.findChangeSurfaceImpactRows(ctx, target, "prod", 4, 50, repositoryAccessFilter{AllScopes: true})
 	if err != nil {
 		t.Fatalf("legacy(env=prod) error = %v", err)
 	}
 	if len(prodLegacy) == 0 {
 		t.Errorf("legacy(env=prod) returned no rows, want prod provenance (server-side env predicate must not drop all rows)")
 	}
-	stagingLegacy, _, err := handler.findChangeSurfaceImpactRows(ctx, target, "staging", 4, 50, repositoryAccessFilter{allScopes: true})
+	stagingLegacy, _, err := handler.findChangeSurfaceImpactRows(ctx, target, "staging", 4, 50, repositoryAccessFilter{AllScopes: true})
 	if err != nil {
 		t.Fatalf("legacy(env=staging) error = %v", err)
 	}

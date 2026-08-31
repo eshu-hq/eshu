@@ -89,7 +89,7 @@ func (h *CompareHandler) compareEnvironments(w http.ResponseWriter, r *http.Requ
 		resp := environmentCompareResponse(req, nil, leftSnap, rightSnap, nil, 0.0, "Workload '"+req.WorkloadID+"' not found", limit, false, false)
 		WriteSuccess(w, r, http.StatusOK, resp, BuildTruthEnvelope(h.profile(), "platform_impact.environment_compare", TruthBasisHybrid, "compared environment state from workload and cloud-resource evidence"))
 	}
-	if access.empty() {
+	if access.Empty() {
 		missingWorkloadResponse()
 		return
 	}

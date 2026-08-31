@@ -23,13 +23,13 @@ func getEntityContentForRepositoryAccess(
 	entityID string,
 	access repositoryAccessFilter,
 ) (*EntityContent, error) {
-	if content == nil || access.empty() {
+	if content == nil || access.Empty() {
 		return nil, nil
 	}
-	if !access.scoped() {
+	if !access.Scoped() {
 		return content.GetEntityContent(ctx, entityID)
 	}
-	repoIDs := access.repositorySearchIDs()
+	repoIDs := access.RepositorySearchIDs()
 	if len(repoIDs) == 0 {
 		return nil, nil
 	}
@@ -41,7 +41,7 @@ func getEntityContentForRepositoryAccess(
 	if err != nil || entity == nil {
 		return entity, err
 	}
-	if !access.allowsRepositoryID(entity.RepoID) {
+	if !access.AllowsRepositoryID(entity.RepoID) {
 		return nil, nil
 	}
 	return entity, nil
@@ -53,16 +53,16 @@ func getEntityContentsForRepositoryAccess(
 	entityIDs []string,
 	access repositoryAccessFilter,
 ) (map[string]*EntityContent, error) {
-	if content == nil || access.empty() || len(entityIDs) == 0 {
+	if content == nil || access.Empty() || len(entityIDs) == 0 {
 		return map[string]*EntityContent{}, nil
 	}
-	if !access.scoped() {
+	if !access.Scoped() {
 		if store, ok := content.(entityContentBatchStore); ok {
 			return store.GetEntityContents(ctx, entityIDs)
 		}
 		return getEntityContentsOneAtATime(ctx, content, entityIDs, access)
 	}
-	repoIDs := access.repositorySearchIDs()
+	repoIDs := access.RepositorySearchIDs()
 	if len(repoIDs) == 0 {
 		return map[string]*EntityContent{}, nil
 	}
@@ -89,7 +89,7 @@ func getEntityContentsOneAtATime(
 		if err != nil {
 			return nil, err
 		}
-		if entity != nil && access.allowsRepositoryID(entity.RepoID) {
+		if entity != nil && access.AllowsRepositoryID(entity.RepoID) {
 			results[entityID] = entity
 		}
 	}

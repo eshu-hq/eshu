@@ -156,9 +156,9 @@ func (h *SupplyChainHandler) applySupplyChainRuntimeContext(
 		return nil
 	}
 	var allowedRepositoryIDs, allowedScopeIDs []string
-	if access.scoped() {
-		allowedRepositoryIDs = access.allowedRepositoryIDs
-		allowedScopeIDs = access.allowedScopeIDs
+	if access.Scoped() {
+		allowedRepositoryIDs = access.AllowedRepositoryIDs
+		allowedScopeIDs = access.AllowedScopeIDs
 	}
 	byRepo, err := reader.ListSupplyChainImpactRuntimeContext(
 		ctx,

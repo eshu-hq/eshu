@@ -133,7 +133,7 @@ func TestAuthorizationReplayCoverageContractRejectsBroadenedRepositoryScope(t *t
 		AllowedRepositoryIDs: []string{"repository:tenant-a/payments"},
 	})
 	filter := repositoryAccessFilterFromContext(ctx)
-	got := filter.filterCatalogEntries([]RepositoryCatalogEntry{
+	got := filter.FilterCatalogEntries([]RepositoryCatalogEntry{
 		{ID: "repository:tenant-a/payments", Name: "payments"},
 		{ID: "repository:tenant-b/billing", Name: "billing"},
 	})

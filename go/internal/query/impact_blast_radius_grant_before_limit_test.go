@@ -25,17 +25,17 @@ func TestBlastRadiusGrantFragmentAddsNoEdgeTokens(t *testing.T) {
 	t.Parallel()
 
 	scoped := repositoryAccessFilter{
-		allowedRepositoryIDs: []string{"repo-a"},
-		allowedScopeIDs:      []string{"scope-a"},
-		allowed:              map[string]struct{}{"repo-a": {}, "scope-a": {}},
+		AllowedRepositoryIDs: []string{"repo-a"},
+		AllowedScopeIDs:      []string{"scope-a"},
+		Allowed:              map[string]struct{}{"repo-a": {}, "scope-a": {}},
 	}
 	for _, fragment := range []struct {
 		label string
 		text  string
 	}{
-		{"condition", scoped.graphConditionOnProperty("a", "id")},
-		{"predicate", scoped.graphPredicateOnProperty("a", "id")},
-		{"where", scoped.graphWhereClauseOnProperty("repo", "id")},
+		{"condition", scoped.GraphConditionOnProperty("a", "id")},
+		{"predicate", scoped.GraphPredicateOnProperty("a", "id")},
+		{"where", scoped.GraphWhereClauseOnProperty("repo", "id")},
 	} {
 		if tokens := extractRelationshipTypeTokens(fragment.text); len(tokens) != 0 {
 			t.Errorf("grant %s fragment %q introduced relationship tokens %v; the grant push-down must add property filtering only, no edge traversal", fragment.label, fragment.text, tokens)
@@ -125,8 +125,8 @@ func TestBlastRadiusGrantBoundBeforeLimit(t *testing.T) {
 		{"repo": "zzz-granted", "repo_id": "repo-a", "hops": int64(1)},
 	}
 	scoped := repositoryAccessFilter{
-		allowedRepositoryIDs: []string{"repo-a"},
-		allowed:              map[string]struct{}{"repo-a": {}},
+		AllowedRepositoryIDs: []string{"repo-a"},
+		Allowed:              map[string]struct{}{"repo-a": {}},
 	}
 	fake := grantBeforeLimitFake{corpus: corpus}
 	handler := &ImpactHandler{Neo4j: fake, Profile: ProfileLocalAuthoritative}
@@ -135,11 +135,11 @@ func TestBlastRadiusGrantBoundBeforeLimit(t *testing.T) {
 	// WHERE (blastRadiusRepositoryQuery on an all-scopes filter emits the
 	// grant-free const) and filtered only afterward. Prove the honest fake drops
 	// the granted row so the post-fetch filter yields nothing.
-	noGrantQuery := blastRadiusRepositoryQuery(repositoryAccessFilter{allScopes: true})
+	noGrantQuery := blastRadiusRepositoryQuery(repositoryAccessFilter{AllScopes: true})
 	if strings.Contains(noGrantQuery, "IN $allowed_repository_ids") {
 		t.Fatalf("unscoped blast-radius query unexpectedly carries a grant predicate: %s", noGrantQuery)
 	}
-	prefixRows, err := fake.Run(context.Background(), noGrantQuery, scoped.graphParams(map[string]any{"target_name": "svc", "limit": limit}))
+	prefixRows, err := fake.Run(context.Background(), noGrantQuery, scoped.GraphParams(map[string]any{"target_name": "svc", "limit": limit}))
 	if err != nil {
 		t.Fatalf("RED companion run: %v", err)
 	}
@@ -165,7 +165,7 @@ func TestBlastRadiusGrantBoundBeforeLimit(t *testing.T) {
 		t.Fatalf("GREEN: granted row must survive when the grant is bound before the LIMIT, got %v", repoNames(affected))
 	}
 	for _, row := range affected {
-		if !scoped.allowsRepositoryID(StringVal(row, "repo_id")) {
+		if !scoped.AllowsRepositoryID(StringVal(row, "repo_id")) {
 			t.Fatalf("GREEN: scoped page leaked a non-granted repo: %v", repoNames(affected))
 		}
 	}

@@ -35,9 +35,9 @@ import "context"
 // fail-closed behavior for the sibling selector route.
 func bindIaCManagementFilterAccess(ctx context.Context, filter IaCManagementFilter) IaCManagementFilter {
 	access := repositoryAccessFilterFromContext(ctx)
-	filter.Scoped = access.scoped()
+	filter.Scoped = access.Scoped()
 	if filter.Scoped {
-		filter.AllowedScopeIDs = replatformingAWSSelectorScopeIDs(access.grantedScopeIDs())
+		filter.AllowedScopeIDs = replatformingAWSSelectorScopeIDs(access.GrantedScopeIDs())
 	}
 	return filter
 }

@@ -122,7 +122,7 @@ func (h *EntityHandler) collectServiceWorkloadCandidates(
 	selector serviceWorkloadSelector,
 	repoID string,
 ) ([]serviceWorkloadCandidate, bool, error) {
-	if repositoryAccessFilterFromContext(ctx).empty() {
+	if repositoryAccessFilterFromContext(ctx).Empty() {
 		return nil, false, nil
 	}
 	limit := serviceWorkloadCandidateLimit + 1
@@ -230,12 +230,12 @@ func (h *EntityHandler) queryServiceWorkloadCandidates(
 	matchBasis string,
 ) ([]serviceWorkloadCandidate, error) {
 	access := repositoryAccessFilterFromContext(ctx)
-	params := access.graphParams(map[string]any{paramName: paramValue})
+	params := access.GraphParams(map[string]any{paramName: paramValue})
 	whereParts := []string{whereClause}
 	if repoID != "" {
 		whereParts = append(whereParts, "w.repo_id = $repo_id")
 		params["repo_id"] = repoID
-	} else if access.scoped() {
+	} else if access.Scoped() {
 		whereParts = append(whereParts, workloadScopePredicate("w", access))
 	}
 
@@ -280,12 +280,12 @@ func (h *EntityHandler) queryServiceInstanceCandidates(
 	matchBasis string,
 ) ([]serviceWorkloadCandidate, error) {
 	access := repositoryAccessFilterFromContext(ctx)
-	params := access.graphParams(map[string]any{"service_name": selector.ServiceName})
+	params := access.GraphParams(map[string]any{"service_name": selector.ServiceName})
 	whereParts := []string{"w.id = i.workload_id"}
 	if repoID != "" {
 		whereParts = append(whereParts, "w.repo_id = $repo_id")
 		params["repo_id"] = repoID
-	} else if access.scoped() {
+	} else if access.Scoped() {
 		whereParts = append(whereParts, workloadScopePredicate("w", access))
 	}
 	if selector.Environment != "" {
@@ -325,7 +325,7 @@ func (h *EntityHandler) queryServiceInstanceCandidates(
 // workloads. Callers MUST bind the scope_grant_* scalars with
 // bindScopeGrantInlineScalars(params, access.scopeGrantInlineScalars()).
 func workloadScopePredicate(alias string, access repositoryAccessFilter) string {
-	scalars, _ := access.scopeGrantInlineScalars()
+	scalars, _ := access.ScopeGrantInlineScalars()
 	disjuncts := []string{
 		alias + ".repo_id IN $allowed_repository_ids",
 		alias + ".repo_id IN $allowed_scope_ids",

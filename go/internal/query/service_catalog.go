@@ -109,7 +109,7 @@ func (h *ServiceCatalogHandler) listCorrelations(w http.ResponseWriter, r *http.
 		return
 	}
 	access := repositoryAccessFilterFromContext(r.Context())
-	if access.empty() {
+	if access.Empty() {
 		h.writeEmptyServiceCatalogCorrelationPage(w, r, limit)
 		return
 	}
@@ -225,11 +225,11 @@ func serviceCatalogCorrelationFilterWithRepositoryAccess(
 	filter ServiceCatalogCorrelationFilter,
 	access repositoryAccessFilter,
 ) ServiceCatalogCorrelationFilter {
-	if !access.scoped() {
+	if !access.Scoped() {
 		return filter
 	}
-	filter.AllowedRepositoryIDs = append([]string(nil), access.allowedRepositoryIDs...)
-	filter.AllowedScopeIDs = append([]string(nil), access.allowedScopeIDs...)
+	filter.AllowedRepositoryIDs = append([]string(nil), access.AllowedRepositoryIDs...)
+	filter.AllowedScopeIDs = append([]string(nil), access.AllowedScopeIDs...)
 	return filter
 }
 

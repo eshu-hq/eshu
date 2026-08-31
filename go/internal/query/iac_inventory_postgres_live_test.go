@@ -143,7 +143,7 @@ CREATE TABLE fact_records (
 		t.Fatalf("current summary = %#v, want total 4 with 2/1/1 kinds", summary)
 	}
 
-	allScopes := repositoryAccessFilter{allScopes: true}
+	allScopes := repositoryAccessFilter{AllScopes: true}
 	newer, err := store.SearchActive(ctx, iacInventorySearch{
 		Kind:  iacResourceKindResource,
 		Query: "replacement",
@@ -216,9 +216,9 @@ WHERE relation.relname = 'fact_records_iac_active_inventory_idx'
 
 func issue5262ScopedAccess(repositoryID, scopeID string) repositoryAccessFilter {
 	return repositoryAccessFilter{
-		allowedRepositoryIDs: []string{repositoryID},
-		allowedScopeIDs:      []string{scopeID},
-		allowed: map[string]struct{}{
+		AllowedRepositoryIDs: []string{repositoryID},
+		AllowedScopeIDs:      []string{scopeID},
+		Allowed: map[string]struct{}{
 			repositoryID: {},
 			scopeID:      {},
 		},

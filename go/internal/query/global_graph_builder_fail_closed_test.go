@@ -11,7 +11,7 @@ import (
 
 func TestGlobalGraphBuildersFailClosed(t *testing.T) {
 	t.Parallel()
-	accesses := []repositoryAccessFilter{{allScopes: true}, queryplanScopedRepositoryAccess()}
+	accesses := []repositoryAccessFilter{{AllScopes: true}, queryplanScopedRepositoryAccess()}
 	for _, access := range accesses {
 		if cypher, params := buildResolveEntityGraphQuery(resolveEntityRequest{Name: "proof", Type: "function"}, 10, access); cypher != "" || params != nil {
 			t.Fatalf("global entity graph builder = %q/%#v, want fail-closed empty", cypher, params)

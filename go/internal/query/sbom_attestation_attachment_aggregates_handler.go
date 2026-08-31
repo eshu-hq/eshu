@@ -56,7 +56,7 @@ func (h *SupplyChainHandler) countSBOMAttestationAttachments(w http.ResponseWrit
 	}
 
 	access := repositoryAccessFilterFromContext(r.Context())
-	if access.empty() {
+	if access.Empty() {
 		h.writeEmptySBOMAttachmentCount(w, r)
 		return
 	}
@@ -142,7 +142,7 @@ func (h *SupplyChainHandler) sbomAttestationAttachmentInventory(w http.ResponseW
 		return
 	}
 	access := repositoryAccessFilterFromContext(r.Context())
-	if access.empty() {
+	if access.Empty() {
 		h.writeEmptySBOMAttachmentInventory(w, r, dimension, limit, offset)
 		return
 	}
@@ -199,7 +199,7 @@ func (h *SupplyChainHandler) sbomAttestationAttachmentAggregateFilterFromRequest
 		ServiceID:                  QueryParam(r, "service_id"),
 		AttachmentStatus:           QueryParam(r, "attachment_status"),
 		ArtifactKind:               QueryParam(r, "artifact_kind"),
-		AllowedSourceRepositoryIDs: access.repositorySearchIDs(),
+		AllowedSourceRepositoryIDs: access.RepositorySearchIDs(),
 	}, true
 }
 

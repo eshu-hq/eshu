@@ -72,7 +72,7 @@ func (h *SupplyChainHandler) listImpactFindings(w http.ResponseWriter, r *http.R
 	// the impact, readiness, or repository-selector stores so a scoped caller
 	// with no authorized repositories cannot probe cross-tenant evidence.
 	access := repositoryAccessFilterFromContext(r.Context())
-	if access.empty() {
+	if access.Empty() {
 		h.writeEmptyImpactFindingsPage(w, r, limit, profile)
 		return
 	}
@@ -102,9 +102,9 @@ func (h *SupplyChainHandler) listImpactFindings(w http.ResponseWriter, r *http.R
 		AfterFindingID:    QueryParam(r, "after_finding_id"),
 		Limit:             limit + 1,
 	}
-	if access.scoped() {
-		filter.AllowedRepositoryIDs = append([]string(nil), access.allowedRepositoryIDs...)
-		filter.AllowedScopeIDs = append([]string(nil), access.allowedScopeIDs...)
+	if access.Scoped() {
+		filter.AllowedRepositoryIDs = append([]string(nil), access.AllowedRepositoryIDs...)
+		filter.AllowedScopeIDs = append([]string(nil), access.AllowedScopeIDs...)
 	}
 	if !filter.hasScope() {
 		WriteError(w, http.StatusBadRequest, "cve_id, advisory_id, package_id, repository_id, subject_digest, image_ref, impact_status, ecosystem, workload_id, service_id, environment, severity, priority_bucket, or min_priority_score > 0 is required")

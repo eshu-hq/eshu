@@ -153,9 +153,9 @@ func (h *SupplyChainHandler) probeSupplyChainCloudRuntimeResources(
 	rows, err := resolver.CurrentAuthorizedCloudResourcesByDigest(
 		ctx,
 		deduped,
-		!access.scoped(),
-		access.grantedRepositoryIDs(),
-		access.grantedScopeIDs(),
+		!access.Scoped(),
+		access.GrantedRepositoryIDs(),
+		access.GrantedScopeIDs(),
 	)
 	if err != nil {
 		span.RecordError(err)

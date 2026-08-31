@@ -59,7 +59,7 @@ func (h *ImpactHandler) changeSurfaceImpactRows(
 	// re-bound to the caller's grant independently -- an in-grant target can
 	// still transitively impact a repository the caller does not hold.
 	access := repositoryAccessFilterFromContext(ctx)
-	if access.empty() {
+	if access.Empty() {
 		return nil, false, nil
 	}
 	rows, rawTruncated, err := h.changeSurfaceTraversalRows(

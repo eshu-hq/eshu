@@ -18,10 +18,10 @@ func resolveTraceWorkloadSelector(ctx context.Context, reader GraphQuery, select
 		return "", nil
 	}
 	access := repositoryAccessFilterFromContext(ctx)
-	if access.empty() {
+	if access.Empty() {
 		return "", nil
 	}
-	params := access.graphParams(map[string]any{"service_name": selector})
+	params := access.GraphParams(map[string]any{"service_name": selector})
 	query := func(whereClause string, suffix string) (map[string]any, error) {
 		whereClause = scopedWorkloadWhereClause(whereClause, access)
 		return reader.RunSingle(ctx, fmt.Sprintf(`

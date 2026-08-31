@@ -32,10 +32,10 @@ func (h *IncidentHandler) authorizeScopedIncidentContext(
 	scopeID string,
 ) bool {
 	access := repositoryAccessFilterFromContext(r.Context())
-	if !access.scoped() {
+	if !access.Scoped() {
 		return true
 	}
-	if access.empty() {
+	if access.Empty() {
 		h.writeScopedIncidentContextNotFound(w, r)
 		return false
 	}
@@ -56,7 +56,7 @@ func (h *IncidentHandler) authorizeScopedIncidentContext(
 		return false
 	}
 	for _, repositoryID := range repositories {
-		if access.allowsRepositoryID(repositoryID) {
+		if access.AllowsRepositoryID(repositoryID) {
 			return true
 		}
 	}

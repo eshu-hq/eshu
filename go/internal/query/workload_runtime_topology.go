@@ -78,19 +78,19 @@ func fetchWorkloadRuntimeTopology(
 	// contributed by another repository, so this path must fail closed. Omit the
 	// limits as well: exact-empty metadata would falsely claim that the withheld
 	// collection was completely observed.
-	if access.scoped() {
+	if access.Scoped() {
 		return workloadRuntimeTopologyResult{
 			instances:     []map[string]any{},
 			topologyEdges: []map[string]any{},
 		}, nil
 	}
 	params = copyStringAnyMap(params)
-	params = access.graphParams(params)
+	params = access.GraphParams(params)
 	params["instance_limit"] = queryLimit
 	if StringVal(params, "workload_id") != "" {
 		whereClause = "i.workload_id = $workload_id AND (" + whereClause + ")"
 	}
-	whereClause += access.graphPredicate("repo")
+	whereClause += access.GraphPredicate("repo")
 	if repoID != "" {
 		params["repo_id"] = repoID
 		whereClause += " AND repo.id = $repo_id"

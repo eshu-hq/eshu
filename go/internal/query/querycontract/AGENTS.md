@@ -15,6 +15,17 @@
 - Register family capabilities through `RegisterCapabilities`; duplicate
   initialization attempts are contract failures.
 - Preserve the selector presence tri-state on `K8sSelectCandidate`.
+- `RepositoryAccessFilter`'s fields (`AllScopes`, `AllowedScopeIDs`,
+  `AllowedRepositoryIDs`, `Allowed`) stay exported: root and family test files
+  build the struct with keyed literals directly rather than through a
+  constructor. Do not re-introduce unexported fields without updating every
+  call site.
+- `ScopeGrantInlineParamPrefix` and the `scope_grant_<i>` param naming
+  convention it defines are shared by `ScopeGrantInlineMapDisjunction` (the
+  predicate builder) and `BindScopeGrantInlineScalars` (the param binder).
+  Keep both in this package so the two stay coupled to one constant; a
+  duplicated copy of the prefix in another package can silently drift and
+  produce a predicate that references params nobody binds.
 
 ## Verification
 

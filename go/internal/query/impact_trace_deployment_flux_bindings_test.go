@@ -33,7 +33,7 @@ func TestFetchFluxDeploymentSourceTargetBindingsIsBoundedAndEvidenceSpecific(t *
 				"source_id": "repo-deploy", "target_id": "repo-app", "flux_git_repository_namespace": "flux-system", "flux_git_repository_name": "app-source",
 			}}, nil
 		},
-	}, "repo-app", []string{"repo-deploy"}, contextStoryItemLimit+1, repositoryAccessFilter{allScopes: true})
+	}, "repo-app", []string{"repo-deploy"}, contextStoryItemLimit+1, repositoryAccessFilter{AllScopes: true})
 	if err != nil {
 		t.Fatalf("fetchFluxDeploymentSourceTargetBindings() error = %v", err)
 	}
@@ -73,7 +73,7 @@ func TestFetchFluxDeploymentSourceTargetBindingsIsBoundedAndEvidenceSpecific(t *
 func TestFetchFluxDeploymentSourceTargetBindingsScopedQueryHasOneWherePerMatch(t *testing.T) {
 	t.Parallel()
 	var cyphers []string
-	access := repositoryAccessFilter{allowedRepositoryIDs: []string{"repo-deploy", "repo-app"}, allowed: map[string]struct{}{"repo-deploy": {}, "repo-app": {}}}
+	access := repositoryAccessFilter{AllowedRepositoryIDs: []string{"repo-deploy", "repo-app"}, Allowed: map[string]struct{}{"repo-deploy": {}, "repo-app": {}}}
 	_, err := fetchFluxDeploymentSourceTargetBindings(t.Context(), fakeRepoGraphReader{run: func(_ context.Context, got string, _ map[string]any) ([]map[string]any, error) {
 		cyphers = append(cyphers, got)
 		if len(cyphers) == 1 {

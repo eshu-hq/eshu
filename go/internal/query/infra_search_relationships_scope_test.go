@@ -89,14 +89,14 @@ func TestAuthMiddlewareWithScopedTokensAllowsInfraSearchAndRelationships(t *test
 func TestInfraSearchScopePredicateRendersOnlyWhenScoped(t *testing.T) {
 	t.Parallel()
 
-	unscoped := infraSearchScopeClause(repositoryAccessFilter{allScopes: true})
+	unscoped := infraSearchScopeClause(repositoryAccessFilter{AllScopes: true})
 	if unscoped != "" {
 		t.Fatalf("unscoped search clause must be empty, got %q", unscoped)
 	}
 
 	scoped := infraSearchScopeClause(repositoryAccessFilter{
-		allowedRepositoryIDs: []string{"repo-team-a"},
-		allowed:              map[string]struct{}{"repo-team-a": {}},
+		AllowedRepositoryIDs: []string{"repo-team-a"},
+		Allowed:              map[string]struct{}{"repo-team-a": {}},
 	})
 	for _, want := range []string{
 		"AND ",
@@ -225,18 +225,18 @@ func TestInfraSearchUnscopedCypherUnchanged(t *testing.T) {
 func TestInfraRelationshipsScopePredicateRendersOnlyWhenScoped(t *testing.T) {
 	t.Parallel()
 
-	unscopedAnchor := infraRelationshipAnchorClause(repositoryAccessFilter{allScopes: true})
+	unscopedAnchor := infraRelationshipAnchorClause(repositoryAccessFilter{AllScopes: true})
 	if unscopedAnchor != "" {
 		t.Fatalf("unscoped anchor clause must be empty, got %q", unscopedAnchor)
 	}
-	unscopedNeighbor := infraRelationshipNeighborClause(repositoryAccessFilter{allScopes: true}, "target")
+	unscopedNeighbor := infraRelationshipNeighborClause(repositoryAccessFilter{AllScopes: true}, "target")
 	if unscopedNeighbor != "" {
 		t.Fatalf("unscoped neighbor clause must be empty, got %q", unscopedNeighbor)
 	}
 
 	scoped := repositoryAccessFilter{
-		allowedRepositoryIDs: []string{"repo-team-a"},
-		allowed:              map[string]struct{}{"repo-team-a": {}},
+		AllowedRepositoryIDs: []string{"repo-team-a"},
+		Allowed:              map[string]struct{}{"repo-team-a": {}},
 	}
 	anchor := infraRelationshipAnchorClause(scoped)
 	if !strings.Contains(anchor, "n.repo_id IN $allowed_repository_ids") ||

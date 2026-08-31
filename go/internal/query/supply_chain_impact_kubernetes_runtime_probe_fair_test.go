@@ -135,7 +135,7 @@ func TestApplyKubernetesRuntimeEvidenceHotDigestCannotStarveColdDigests(t *testi
 	inventory := &stubKubernetesWorkloadInventory{rows: matches}
 	handler := &SupplyChainHandler{Neo4j: graph, KubernetesWorkloadInventory: inventory}
 
-	if err := handler.applySupplyChainKubernetesRuntimeEvidence(context.Background(), repositoryAccessFilter{allScopes: true}, rows); err != nil {
+	if err := handler.applySupplyChainKubernetesRuntimeEvidence(context.Background(), repositoryAccessFilter{AllScopes: true}, rows); err != nil {
 		t.Fatalf("apply error = %v", err)
 	}
 	if got := graph.maximum.Load(); got <= 1 || got > supplyChainKubernetesRuntimeProbeMaxConcurrency {
@@ -184,7 +184,7 @@ func TestApplyKubernetesRuntimeEvidenceBoundsRepeatedDigestRefsAcrossPage(t *tes
 	graph := &fairKubernetesRuntimeGraph{rows: map[string][]map[string]any{digest: graphRows}}
 	inventory := &stubKubernetesWorkloadInventory{rows: matches}
 	if err := (&SupplyChainHandler{Neo4j: graph, KubernetesWorkloadInventory: inventory}).applySupplyChainKubernetesRuntimeEvidence(
-		context.Background(), repositoryAccessFilter{allScopes: true}, rows,
+		context.Background(), repositoryAccessFilter{AllScopes: true}, rows,
 	); err != nil {
 		t.Fatalf("apply error = %v", err)
 	}
@@ -230,7 +230,7 @@ func TestApplyKubernetesRuntimeEvidenceMaxPageRetainsOneRefPerFinding(t *testing
 	graph := &fairKubernetesRuntimeGraph{rows: map[string][]map[string]any{digest: graphRows}}
 	inventory := &stubKubernetesWorkloadInventory{rows: matches}
 	if err := (&SupplyChainHandler{Neo4j: graph, KubernetesWorkloadInventory: inventory}).applySupplyChainKubernetesRuntimeEvidence(
-		context.Background(), repositoryAccessFilter{allScopes: true}, rows,
+		context.Background(), repositoryAccessFilter{AllScopes: true}, rows,
 	); err != nil {
 		t.Fatalf("apply error = %v", err)
 	}
@@ -267,7 +267,7 @@ func TestApplyKubernetesRuntimeEvidenceScopedMetadataDoesNotDiscloseTruncation(t
 	}
 	graph := &fairKubernetesRuntimeGraph{rows: graphRows}
 	inventory := &stubKubernetesWorkloadInventory{}
-	access := repositoryAccessFilter{allowedRepositoryIDs: []string{"repository:allowed"}, allowedScopeIDs: []string{"scope:allowed"}}
+	access := repositoryAccessFilter{AllowedRepositoryIDs: []string{"repository:allowed"}, AllowedScopeIDs: []string{"scope:allowed"}}
 	if err := (&SupplyChainHandler{Neo4j: graph, KubernetesWorkloadInventory: inventory}).applySupplyChainKubernetesRuntimeEvidence(context.Background(), access, rows); err != nil {
 		t.Fatalf("apply error = %v", err)
 	}
@@ -312,7 +312,7 @@ func TestApplyKubernetesRuntimeEvidenceSingleDigestKeepsAllScopesSentinel(t *tes
 	graph := &fairKubernetesRuntimeGraph{rows: map[string][]map[string]any{digest: graphRows}}
 	inventory := &stubKubernetesWorkloadInventory{rows: matches}
 	rows := []SupplyChainImpactFindingRow{{FindingID: "finding", SubjectDigest: digest}}
-	if err := (&SupplyChainHandler{Neo4j: graph, KubernetesWorkloadInventory: inventory}).applySupplyChainKubernetesRuntimeEvidence(context.Background(), repositoryAccessFilter{allScopes: true}, rows); err != nil {
+	if err := (&SupplyChainHandler{Neo4j: graph, KubernetesWorkloadInventory: inventory}).applySupplyChainKubernetesRuntimeEvidence(context.Background(), repositoryAccessFilter{AllScopes: true}, rows); err != nil {
 		t.Fatalf("apply error = %v", err)
 	}
 	if got := len(inventory.candidates); got != supplyChainKubernetesRuntimeProbeMaxResults+1 {
@@ -342,7 +342,7 @@ func TestApplyKubernetesRuntimeEvidenceFirstErrorCancelsWithoutPartialAttachment
 	wantErr := errors.New("graph unavailable")
 	graph := &fairKubernetesRuntimeGraph{rows: graphRows, errorDigest: digests[0], err: wantErr}
 	inventory := &stubKubernetesWorkloadInventory{}
-	err := (&SupplyChainHandler{Neo4j: graph, KubernetesWorkloadInventory: inventory}).applySupplyChainKubernetesRuntimeEvidence(context.Background(), repositoryAccessFilter{allScopes: true}, rows)
+	err := (&SupplyChainHandler{Neo4j: graph, KubernetesWorkloadInventory: inventory}).applySupplyChainKubernetesRuntimeEvidence(context.Background(), repositoryAccessFilter{AllScopes: true}, rows)
 	if !errors.Is(err, wantErr) {
 		t.Fatalf("apply error = %v, want %v", err, wantErr)
 	}
@@ -370,7 +370,7 @@ func TestApplyKubernetesRuntimeEvidenceCanceledParentAttachesNothing(t *testing.
 	rows := []SupplyChainImpactFindingRow{{FindingID: "finding", SubjectDigest: digest}}
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
-	err := (&SupplyChainHandler{Neo4j: graph, KubernetesWorkloadInventory: inventory}).applySupplyChainKubernetesRuntimeEvidence(ctx, repositoryAccessFilter{allScopes: true}, rows)
+	err := (&SupplyChainHandler{Neo4j: graph, KubernetesWorkloadInventory: inventory}).applySupplyChainKubernetesRuntimeEvidence(ctx, repositoryAccessFilter{AllScopes: true}, rows)
 	if !errors.Is(err, context.Canceled) {
 		t.Fatalf("apply error = %v, want context.Canceled", err)
 	}
@@ -400,7 +400,7 @@ func TestApplyKubernetesRuntimeEvidenceDeterministicAuthorizedTrim(t *testing.T)
 	}
 	graph := &fairKubernetesRuntimeGraph{rows: graphRows}
 	inventory := &stubKubernetesWorkloadInventory{rows: matches}
-	if err := (&SupplyChainHandler{Neo4j: graph, KubernetesWorkloadInventory: inventory}).applySupplyChainKubernetesRuntimeEvidence(context.Background(), repositoryAccessFilter{allScopes: true}, rows); err != nil {
+	if err := (&SupplyChainHandler{Neo4j: graph, KubernetesWorkloadInventory: inventory}).applySupplyChainKubernetesRuntimeEvidence(context.Background(), repositoryAccessFilter{AllScopes: true}, rows); err != nil {
 		t.Fatalf("apply error = %v", err)
 	}
 	for i, row := range rows {

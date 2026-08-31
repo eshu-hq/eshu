@@ -52,7 +52,7 @@ func (h *CloudRuntimeDriftHandler) getDriftPacket(w http.ResponseWriter, r *http
 	// (getImpactPacket, getDeployableUnitPacket), without reading the drift
 	// finding store.
 	access := repositoryAccessFilterFromContext(r.Context())
-	if access.scoped() && !access.allowsDirectScopeID(filter.ScopeID) {
+	if access.Scoped() && !access.AllowsDirectScopeID(filter.ScopeID) {
 		packet, err := refusalPacketForAPI(InvestigationFamilyDrift, PacketRefusalScopeNotFound)
 		if err != nil {
 			WriteError(w, http.StatusInternalServerError, err.Error())

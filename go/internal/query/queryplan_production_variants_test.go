@@ -242,7 +242,7 @@ func cloudResourceListQueryplanVariants() map[string]string {
 }
 
 func handlerQueryplanSafeCypherVariants() map[string]string {
-	allAccess := repositoryAccessFilter{allScopes: true}
+	allAccess := repositoryAccessFilter{AllScopes: true}
 	scopedAccess := queryplanScopedRepositoryAccess()
 	variants := make(map[string]string, 13+len(allInfraLabels)*10+importDependencyQueryplanExpectedVariantCount+resourceSelectorQueryplanExpectedVariantCount)
 
@@ -329,7 +329,7 @@ func resourceSelectorQueryplanVariants() map[string]string {
 		name   string
 		filter repositoryAccessFilter
 	}{
-		{name: "all", filter: repositoryAccessFilter{allScopes: true}},
+		{name: "all", filter: repositoryAccessFilter{AllScopes: true}},
 		{name: "scoped", filter: queryplanScopedRepositoryAccess()},
 	}
 	shapes := []struct {
@@ -392,8 +392,8 @@ func resourceSelectorQueryplanVariants() map[string]string {
 
 func queryplanScopedRepositoryAccess() repositoryAccessFilter {
 	return repositoryAccessFilter{
-		allowedScopeIDs:      []string{"proof-scope"},
-		allowedRepositoryIDs: []string{"proof-repository"},
-		allowed:              map[string]struct{}{"proof-scope": {}, "proof-repository": {}},
+		AllowedScopeIDs:      []string{"proof-scope"},
+		AllowedRepositoryIDs: []string{"proof-repository"},
+		Allowed:              map[string]struct{}{"proof-scope": {}, "proof-repository": {}},
 	}
 }

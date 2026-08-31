@@ -23,14 +23,14 @@ func documentationEvidencePacketFilterWithRepositoryAccess(
 	filter documentationEvidencePacketFilter,
 ) (documentationEvidencePacketFilter, bool) {
 	access := repositoryAccessFilterFromContext(ctx)
-	if !access.scoped() {
+	if !access.Scoped() {
 		return filter, true
 	}
-	if access.empty() {
+	if access.Empty() {
 		return filter, false
 	}
-	filter.AllowedRepositoryIDs = append([]string(nil), access.allowedRepositoryIDs...)
-	filter.AllowedScopeIDs = append([]string(nil), access.allowedScopeIDs...)
+	filter.AllowedRepositoryIDs = append([]string(nil), access.AllowedRepositoryIDs...)
+	filter.AllowedScopeIDs = append([]string(nil), access.AllowedScopeIDs...)
 	return filter, true
 }
 
@@ -39,13 +39,13 @@ func documentationEvidencePacketFreshnessFilterWithRepositoryAccess(
 	filter documentationEvidencePacketFreshnessFilter,
 ) (documentationEvidencePacketFreshnessFilter, bool) {
 	access := repositoryAccessFilterFromContext(ctx)
-	if !access.scoped() {
+	if !access.Scoped() {
 		return filter, true
 	}
-	if access.empty() {
+	if access.Empty() {
 		return filter, false
 	}
-	filter.AllowedRepositoryIDs = append([]string(nil), access.allowedRepositoryIDs...)
-	filter.AllowedScopeIDs = append([]string(nil), access.allowedScopeIDs...)
+	filter.AllowedRepositoryIDs = append([]string(nil), access.AllowedRepositoryIDs...)
+	filter.AllowedScopeIDs = append([]string(nil), access.AllowedScopeIDs...)
 	return filter, true
 }

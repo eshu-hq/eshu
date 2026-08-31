@@ -22,7 +22,7 @@ func TestNornicDBRelationshipStoryIncomingSeedsIndexedTarget(t *testing.T) {
 			"Function",
 			property,
 			"incoming",
-			repositoryAccessFilter{allScopes: true},
+			repositoryAccessFilter{AllScopes: true},
 		)
 
 		want := "MATCH (anchor:Function {" + property + ": $entity_id})<-[rel:CALLS]-(source)"

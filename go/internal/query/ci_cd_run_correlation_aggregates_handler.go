@@ -49,7 +49,7 @@ func (h *CICDHandler) countRunCorrelations(w http.ResponseWriter, r *http.Reques
 	if !validateCICDRunCorrelationAggregateOutcome(w, filter) {
 		return
 	}
-	if access.empty() {
+	if access.Empty() {
 		h.writeEmptyCICDRunCorrelationAggregateCount(w, r)
 		return
 	}
@@ -132,7 +132,7 @@ func (h *CICDHandler) runCorrelationInventory(w http.ResponseWriter, r *http.Req
 	if !validateCICDRunCorrelationAggregateOutcome(w, filter) {
 		return
 	}
-	if access.empty() {
+	if access.Empty() {
 		h.writeEmptyCICDRunCorrelationInventory(w, r, dimension, limit, offset)
 		return
 	}
@@ -184,7 +184,7 @@ func (h *CICDHandler) cicdRunCorrelationAggregateFilterFromRequest(
 ) (CICDRunCorrelationAggregateFilter, bool) {
 	repositorySelector := QueryParam(r, "repository_id")
 	repositoryID := repositorySelector
-	if !access.empty() {
+	if !access.Empty() {
 		var ok bool
 		repositoryID, ok = resolveRepositorySelectorForRequestWithAccess(
 			w,
@@ -216,11 +216,11 @@ func cicdRunCorrelationAggregateFilterWithRepositoryAccess(
 	filter CICDRunCorrelationAggregateFilter,
 	access repositoryAccessFilter,
 ) CICDRunCorrelationAggregateFilter {
-	if !access.scoped() {
+	if !access.Scoped() {
 		return filter
 	}
-	filter.AllowedRepositoryIDs = append([]string(nil), access.allowedRepositoryIDs...)
-	filter.AllowedScopeIDs = append([]string(nil), access.allowedScopeIDs...)
+	filter.AllowedRepositoryIDs = append([]string(nil), access.AllowedRepositoryIDs...)
+	filter.AllowedScopeIDs = append([]string(nil), access.AllowedScopeIDs...)
 	return filter
 }
 

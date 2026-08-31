@@ -49,7 +49,7 @@ func loadUncorrelatedCloudResourceCandidatesBounded(
 	}
 	// CloudResource nodes do not carry repository ownership. Free-text matches
 	// are uncorrelated candidates, so scoped tokens cannot safely authorize them.
-	if repositoryAccessFilterFromContext(ctx).scoped() {
+	if repositoryAccessFilterFromContext(ctx).Scoped() {
 		return nil, false, nil
 	}
 	if limit <= 0 || limit > uncorrelatedCloudResourceCandidateLimit {

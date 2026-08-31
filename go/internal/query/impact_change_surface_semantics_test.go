@@ -56,7 +56,7 @@ func TestLegacyChangeSurfaceUsesConsumerDirectionAndKeepsProvenance(t *testing.T
 	}
 
 	rows, truncated, err := handler.findChangeSurfaceImpactRows(
-		t.Context(), target, "", 4, 10, repositoryAccessFilter{allScopes: true},
+		t.Context(), target, "", 4, 10, repositoryAccessFilter{AllScopes: true},
 	)
 	if err != nil {
 		t.Fatalf("findChangeSurfaceImpactRows() error = %v", err)

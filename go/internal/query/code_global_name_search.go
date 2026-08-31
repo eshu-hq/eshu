@@ -10,7 +10,7 @@ import (
 
 func (h *CodeHandler) searchGlobalEntityNames(ctx context.Context, name, language string, limit int, exact bool) ([]map[string]any, error) {
 	access := repositoryAccessFilterFromContext(ctx)
-	if access.empty() {
+	if access.Empty() {
 		return []map[string]any{}, nil
 	}
 	searcher, ok := h.Content.(EntityNameSearcher)
@@ -21,9 +21,9 @@ func (h *CodeHandler) searchGlobalEntityNames(ctx context.Context, name, languag
 	if exact {
 		search.Match = EntityNameMatchExact
 	}
-	if access.scoped() {
+	if access.Scoped() {
 		search.Scope = EntityNameScopeRepositories
-		search.RepositoryIDs = access.repositorySearchIDs()
+		search.RepositoryIDs = access.RepositorySearchIDs()
 	}
 	if strings.TrimSpace(language) != "" {
 		search.Languages = normalizedLanguageVariants(language)

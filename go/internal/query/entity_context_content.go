@@ -21,7 +21,7 @@ func (h *EntityHandler) getEntityContextFromContent(ctx context.Context, entityI
 		return nil, nil
 	}
 	access := repositoryAccessFilterFromContext(ctx)
-	if access.empty() {
+	if access.Empty() {
 		return nil, nil
 	}
 
@@ -29,7 +29,7 @@ func (h *EntityHandler) getEntityContextFromContent(ctx context.Context, entityI
 	if err != nil || entity == nil {
 		return nil, err
 	}
-	if !access.allowsRepositoryID(entity.RepoID) {
+	if !access.AllowsRepositoryID(entity.RepoID) {
 		return nil, nil
 	}
 

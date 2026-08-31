@@ -46,16 +46,16 @@ func TestRecordScopeGrantInlineCapEmitsOncePerRead(t *testing.T) {
 	}{
 		{
 			name:      "over the cap emits exactly one",
-			filter:    repositoryAccessFilter{allowedRepositoryIDs: ids(maxScopeGrantInlineTerms + 1)},
+			filter:    repositoryAccessFilter{AllowedRepositoryIDs: ids(maxScopeGrantInlineTerms + 1)},
 			wantCount: 1,
 		},
 		{
 			name:   "at the cap is not a degradation",
-			filter: repositoryAccessFilter{allowedRepositoryIDs: ids(maxScopeGrantInlineTerms)},
+			filter: repositoryAccessFilter{AllowedRepositoryIDs: ids(maxScopeGrantInlineTerms)},
 		},
 		{
 			name:   "all-scopes caller never emits",
-			filter: repositoryAccessFilter{allScopes: true, allowedRepositoryIDs: ids(maxScopeGrantInlineTerms * 2)},
+			filter: repositoryAccessFilter{AllScopes: true, AllowedRepositoryIDs: ids(maxScopeGrantInlineTerms * 2)},
 		},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
@@ -92,9 +92,9 @@ func TestRecordScopeGrantInlineCapEmitsOncePerRead(t *testing.T) {
 func TestRecordScopeGrantInlineCapSurvivesNilDependencies(t *testing.T) {
 	t.Parallel()
 
-	over := repositoryAccessFilter{allowedRepositoryIDs: make([]string, 0, maxScopeGrantInlineTerms+1)}
+	over := repositoryAccessFilter{AllowedRepositoryIDs: make([]string, 0, maxScopeGrantInlineTerms+1)}
 	for i := 0; i < maxScopeGrantInlineTerms+1; i++ {
-		over.allowedRepositoryIDs = append(over.allowedRepositoryIDs, fmt.Sprintf("repo-%d", i))
+		over.AllowedRepositoryIDs = append(over.AllowedRepositoryIDs, fmt.Sprintf("repo-%d", i))
 	}
 
 	// Nil instruments, an Instruments with no counter registered, and an empty

@@ -170,7 +170,7 @@ func TestFetchWorkloadRepositoryForAccessSelectsBoundedCandidates(t *testing.T) 
 			gotID, gotName, err := (&EntityHandler{Neo4j: reader}).fetchWorkloadRepositoryForAccess(
 				t.Context(),
 				"workload:payments",
-				repositoryAccessFilter{allScopes: true},
+				repositoryAccessFilter{AllScopes: true},
 				test.preferredRepoID,
 			)
 			if err != nil {
@@ -234,7 +234,7 @@ func TestFetchWorkloadRepositoryForAccessFailsClosedOnOverflowAndGraphError(t *t
 			},
 		}
 		gotID, gotName, err := (&EntityHandler{Neo4j: reader}).fetchWorkloadRepositoryForAccess(
-			t.Context(), "workload:payments", repositoryAccessFilter{allScopes: true}, "",
+			t.Context(), "workload:payments", repositoryAccessFilter{AllScopes: true}, "",
 		)
 		if err == nil || !strings.Contains(err.Error(), "candidates exceed bound") {
 			t.Fatalf("error = %v, want bounded-candidate error", err)
@@ -252,7 +252,7 @@ func TestFetchWorkloadRepositoryForAccessFailsClosedOnOverflowAndGraphError(t *t
 			},
 		}
 		_, _, err := (&EntityHandler{Neo4j: reader}).fetchWorkloadRepositoryForAccess(
-			t.Context(), "workload:payments", repositoryAccessFilter{allScopes: true}, "",
+			t.Context(), "workload:payments", repositoryAccessFilter{AllScopes: true}, "",
 		)
 		if !errors.Is(err, wantErr) {
 			t.Fatalf("error = %v, want %v", err, wantErr)
@@ -270,7 +270,7 @@ func TestFetchWorkloadRepositoryForAccessSkipsEmptyWorkloadID(t *testing.T) {
 		},
 	}
 	gotID, gotName, err := (&EntityHandler{Neo4j: reader}).fetchWorkloadRepositoryForAccess(
-		t.Context(), "  ", repositoryAccessFilter{allScopes: true}, "repo-a",
+		t.Context(), "  ", repositoryAccessFilter{AllScopes: true}, "repo-a",
 	)
 	if err != nil || gotID != "" || gotName != "" {
 		t.Fatalf("result = (%q, %q, %v), want empty nil result", gotID, gotName, err)

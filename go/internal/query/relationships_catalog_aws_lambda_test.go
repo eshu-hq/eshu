@@ -88,8 +88,8 @@ func TestRelationshipEdgesScopeBindsEdgeScopeForLambdaImageVerb(t *testing.T) {
 	t.Parallel()
 
 	scoped := repositoryAccessFilter{
-		allowedRepositoryIDs: []string{"repo-a"},
-		allowed:              map[string]struct{}{"repo-a": {}},
+		AllowedRepositoryIDs: []string{"repo-a"},
+		Allowed:              map[string]struct{}{"repo-a": {}},
 	}
 
 	for _, entry := range relationshipVerbCatalog {

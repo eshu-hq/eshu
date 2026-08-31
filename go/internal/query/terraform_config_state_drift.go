@@ -271,7 +271,7 @@ func (h *TerraformConfigStateDriftHandler) handleFindings(w http.ResponseWriter,
 	// required here (no account-wide fallback exists for this domain), so the
 	// precheck is simpler than AWS's.
 	access := repositoryAccessFilterFromContext(r.Context())
-	if access.empty() || (access.scoped() && !access.allowsRepositoryID(filter.ScopeID)) {
+	if access.Empty() || (access.Scoped() && !access.AllowsRepositoryID(filter.ScopeID)) {
 		writeTerraformConfigStateDriftFindings(w, r, h, filter, nil, 0)
 		return
 	}
@@ -326,9 +326,9 @@ func bindTerraformConfigStateDriftFilterAccess(
 	access repositoryAccessFilter,
 	filter TerraformConfigStateDriftFindingFilter,
 ) TerraformConfigStateDriftFindingFilter {
-	filter.Scoped = access.scoped()
+	filter.Scoped = access.Scoped()
 	if filter.Scoped {
-		filter.AllowedScopeIDs = access.repositorySearchIDs()
+		filter.AllowedScopeIDs = access.RepositorySearchIDs()
 	}
 	return filter
 }
@@ -347,7 +347,7 @@ func filterTerraformConfigStateDriftAmbiguousOwnerCandidates(
 	findings []TerraformConfigStateDriftFindingRow,
 	access repositoryAccessFilter,
 ) []TerraformConfigStateDriftFindingRow {
-	if !access.scoped() || len(findings) == 0 {
+	if !access.Scoped() || len(findings) == 0 {
 		return findings
 	}
 	for i := range findings {
@@ -357,7 +357,7 @@ func filterTerraformConfigStateDriftAmbiguousOwnerCandidates(
 		filtered := make([]map[string]any, 0, len(findings[i].AmbiguousOwnerCandidates))
 		withheld := 0
 		for _, candidate := range findings[i].AmbiguousOwnerCandidates {
-			if access.allowsRepositoryID(StringVal(candidate, "repo_id")) {
+			if access.AllowsRepositoryID(StringVal(candidate, "repo_id")) {
 				filtered = append(filtered, candidate)
 				continue
 			}

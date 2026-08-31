@@ -41,7 +41,7 @@ func (h *SupplyChainHandler) explainImpact(w http.ResponseWriter, r *http.Reques
 	// caller with no authorized repositories cannot probe cross-tenant
 	// findings, mirroring writeEmptyImpactFindingsPage's sibling routes.
 	access := repositoryAccessFilterFromContext(r.Context())
-	if access.empty() {
+	if access.Empty() {
 		h.writeEmptyImpactExplanation(w, r)
 		return
 	}
@@ -60,9 +60,9 @@ func (h *SupplyChainHandler) explainImpact(w http.ResponseWriter, r *http.Reques
 		WorkloadID:    QueryParam(r, "workload_id"),
 		ServiceID:     QueryParam(r, "service_id"),
 	})
-	if access.scoped() {
-		filter.AllowedRepositoryIDs = append([]string(nil), access.allowedRepositoryIDs...)
-		filter.AllowedScopeIDs = append([]string(nil), access.allowedScopeIDs...)
+	if access.Scoped() {
+		filter.AllowedRepositoryIDs = append([]string(nil), access.AllowedRepositoryIDs...)
+		filter.AllowedScopeIDs = append([]string(nil), access.AllowedScopeIDs...)
 	}
 	if !filter.hasBoundedScope() {
 		WriteError(w, http.StatusBadRequest, "finding_id, or advisory_id/cve_id plus package_id, repository_id, subject_digest, image_ref, workload_id, or service_id is required")

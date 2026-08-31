@@ -63,7 +63,7 @@ func (h *WorkItemHandler) listWorkItemEvidence(w http.ResponseWriter, r *http.Re
 	// granted. Shared, admin, and local callers carry no grant set and keep the
 	// unscoped read path.
 	access := repositoryAccessFilterFromContext(r.Context())
-	if access.empty() {
+	if access.Empty() {
 		h.writeEmptyWorkItemEvidencePage(w, r, limit)
 		return
 	}
@@ -81,7 +81,7 @@ func (h *WorkItemHandler) listWorkItemEvidence(w http.ResponseWriter, r *http.Re
 		ObservedAfter:        observedAfter,
 		AfterFactID:          QueryParam(r, "after_fact_id"),
 		Limit:                limit + 1,
-		AllowedRepositoryIDs: access.repositorySearchIDs(),
+		AllowedRepositoryIDs: access.RepositorySearchIDs(),
 	})
 	if !filter.hasScope() {
 		WriteError(w, http.StatusBadRequest, "scope_id, project_key, work_item_key, provider_work_item_id, external_url, url_fingerprint, or observed_after is required")

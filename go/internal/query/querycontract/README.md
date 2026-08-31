@@ -8,10 +8,12 @@ need without depending on the root `query` package.
 ## Ownership boundary
 
 This package owns query profiles, truth and error envelopes, freshness causes,
-HTTP response helpers, the shared capability registry, and the graph/content
-read ports. It does not own routes, handler orchestration, graph queries, or
-Postgres implementations. Those remain in the root query package or a family
-package.
+HTTP response helpers, the shared capability registry, the graph/content read
+ports, and the scoped-token repository-access authorization seam
+(`RepositoryAccessFilter` and the SHAPE-A inline-map grant primitives in
+`repository_authz.go` / `infra_scope_grant.go`). It does not own routes,
+handler orchestration, graph queries, or Postgres implementations. Those
+remain in the root query package or a family package.
 
 ## Exported surface
 

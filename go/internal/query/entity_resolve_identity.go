@@ -46,14 +46,14 @@ func hydrateResolvedEntityRepoIdentity(
 		MATCH (e) WHERE e.id = entity_id
 		OPTIONAL MATCH (repo:Repository)-[:DEFINES]->(direct:Workload)
 		WHERE direct = e
-		` + access.graphPredicate("repo") + `
+		` + access.GraphPredicate("repo") + `
 		OPTIONAL MATCH (repoViaInstance:Repository)-[:DEFINES]->(instanceWorkload:Workload)<-[:INSTANCE_OF]-(e)
-		` + access.graphWhereClause("repoViaInstance") + `
+		` + access.GraphWhereClause("repoViaInstance") + `
 		RETURN entity_id,
 		       coalesce(repo.id, repoViaInstance.id) AS repo_id,
 		       coalesce(repo.name, repoViaInstance.name) AS repo_name
 	`
-	rows, err := graph.Run(ctx, query, access.graphParams(map[string]any{"entity_ids": sortedUniqueStrings(entityIDs)}))
+	rows, err := graph.Run(ctx, query, access.GraphParams(map[string]any{"entity_ids": sortedUniqueStrings(entityIDs)}))
 	if err != nil {
 		return true, fmt.Errorf("hydrate resolved entity repo identity: %w", err)
 	}
@@ -113,7 +113,7 @@ func hydrateResolvedEntityRepoIdentityFromContent(
 		if row == nil || strings.TrimSpace(row.RepoID) == "" {
 			continue
 		}
-		if !access.allowsRepositoryID(row.RepoID) {
+		if !access.AllowsRepositoryID(row.RepoID) {
 			continue
 		}
 		if entityString(entity, "repo_id") == "" {

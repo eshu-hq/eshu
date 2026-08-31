@@ -131,7 +131,7 @@ func TestChangeSurfaceUnscopedQueriesStayByteIdentical(t *testing.T) {
 		"",
 		4,
 		10,
-		repositoryAccessFilter{allScopes: true},
+		repositoryAccessFilter{AllScopes: true},
 	)
 	if err != nil {
 		t.Fatalf("changeSurfaceTraversalRows() error = %v", err)
@@ -174,25 +174,25 @@ func TestChangeSurfaceGoFilterRemainsDefenseInDepth(t *testing.T) {
 
 func changeSurfaceTestAccess(repositoryIDs, scopeIDs []string) repositoryAccessFilter {
 	access := repositoryAccessFilter{
-		allowedRepositoryIDs: append([]string(nil), repositoryIDs...),
-		allowedScopeIDs:      append([]string(nil), scopeIDs...),
-		allowed:              make(map[string]struct{}, len(repositoryIDs)+len(scopeIDs)),
+		AllowedRepositoryIDs: append([]string(nil), repositoryIDs...),
+		AllowedScopeIDs:      append([]string(nil), scopeIDs...),
+		Allowed:              make(map[string]struct{}, len(repositoryIDs)+len(scopeIDs)),
 	}
 	for _, id := range repositoryIDs {
-		access.allowed[id] = struct{}{}
+		access.Allowed[id] = struct{}{}
 	}
 	for _, id := range scopeIDs {
-		access.allowed[id] = struct{}{}
+		access.Allowed[id] = struct{}{}
 	}
 	return access
 }
 
 func assertChangeSurfaceGrantParams(t *testing.T, params map[string]any, access repositoryAccessFilter) {
 	t.Helper()
-	if got, want := params["allowed_repository_ids"], access.allowedRepositoryIDs; !reflect.DeepEqual(got, want) {
+	if got, want := params["allowed_repository_ids"], access.AllowedRepositoryIDs; !reflect.DeepEqual(got, want) {
 		t.Fatalf("allowed_repository_ids = %#v, want %#v", got, want)
 	}
-	if got, want := params["allowed_scope_ids"], access.allowedScopeIDs; !reflect.DeepEqual(got, want) {
+	if got, want := params["allowed_scope_ids"], access.AllowedScopeIDs; !reflect.DeepEqual(got, want) {
 		t.Fatalf("allowed_scope_ids = %#v, want %#v", got, want)
 	}
 }

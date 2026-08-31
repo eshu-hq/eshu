@@ -89,7 +89,7 @@ func (h *IaCHandler) handleAWSRuntimeDriftFindings(w http.ResponseWriter, r *htt
 	// a scope_id outside its granted repositories/ingestion scopes gets the
 	// same zero-finding page a real empty result would produce.
 	access := repositoryAccessFilterFromContext(r.Context())
-	if access.empty() || (access.scoped() && (filter.ScopeID == "" || !access.allowsRepositoryID(filter.ScopeID))) {
+	if access.Empty() || (access.Scoped() && (filter.ScopeID == "" || !access.AllowsRepositoryID(filter.ScopeID))) {
 		writeAWSRuntimeDriftFindings(w, r, h, filter, nil, 0)
 		return
 	}

@@ -306,8 +306,8 @@ func relationshipStoryAccessParams(
 	if strings.TrimSpace(req.RepoID) != "" {
 		params["repo_id"] = strings.TrimSpace(req.RepoID)
 	}
-	if access.scoped() {
-		params["relationship_repo_ids"] = access.repositorySearchIDs()
+	if access.Scoped() {
+		params["relationship_repo_ids"] = access.RepositorySearchIDs()
 	}
 	return params
 }
@@ -326,7 +326,7 @@ func relationshipStoryRepoPredicates(
 			predicates = append(predicates, "targetRepo.id = $repo_id")
 		}
 	}
-	if access.scoped() {
+	if access.Scoped() {
 		predicates = append(predicates, "sourceRepo.id IN $relationship_repo_ids")
 		predicates = append(predicates, "targetRepo.id IN $relationship_repo_ids")
 	}

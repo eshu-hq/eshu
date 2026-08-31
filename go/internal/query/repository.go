@@ -79,12 +79,12 @@ func isRepositoryCountCypher(cypher string) bool {
 func queryRepositoryTotal(ctx context.Context, graph GraphQuery, access repositoryAccessFilter) (int, error) {
 	var cypher string
 	var params map[string]any
-	if access.scoped() {
+	if access.Scoped() {
 		cypher = fmt.Sprintf(
 			`MATCH (r:Repository) %s RETURN count(r) AS total`,
-			access.graphWhereClause("r"),
+			access.GraphWhereClause("r"),
 		)
-		params = access.graphParams(nil)
+		params = access.GraphParams(nil)
 	} else {
 		cypher = repositoryCountCypher
 	}
@@ -140,14 +140,14 @@ func (h *RepositoryHandler) listRepositories(w http.ResponseWriter, r *http.Requ
 			WriteError(w, http.StatusInternalServerError, fmt.Sprintf("query failed: %v", err))
 			return
 		}
-		repos = access.filterRepositoryMaps(repos)
+		repos = access.FilterRepositoryMaps(repos)
 		// Capture total before paging so it reflects the full filtered set.
 		total := len(repos)
 		repos, truncated := pageRepositoryMaps(repos, page)
 		WriteSuccess(w, r, http.StatusOK, repositoryInventoryResponse(repos, page, truncated, total), BuildTruthEnvelope(h.profile(), "platform_impact.context_overview", TruthBasisContentIndex, "resolved from bounded repository content catalog"))
 		return
 	}
-	if access.empty() {
+	if access.Empty() {
 		WriteSuccess(w, r, http.StatusOK, repositoryInventoryResponse([]map[string]any{}, page, false, 0), BuildTruthEnvelope(h.profile(), "platform_impact.context_overview", TruthBasisAuthoritativeGraph, "resolved from bounded repository graph catalog"))
 		return
 	}
@@ -171,9 +171,9 @@ func (h *RepositoryHandler) listRepositories(w http.ResponseWriter, r *http.Requ
 		ORDER BY r.name, r.id
 		SKIP $offset
 		LIMIT $limit
-	`, access.graphWhereClause("r"), RepoProjection("r"), repositoryDependencyMarkerProjection("r", access))
+	`, access.GraphWhereClause("r"), RepoProjection("r"), repositoryDependencyMarkerProjection("r", access))
 
-	rows, err := h.Neo4j.Run(r.Context(), cypher, access.graphParams(map[string]any{"offset": page.Offset, "limit": page.Limit + 1}))
+	rows, err := h.Neo4j.Run(r.Context(), cypher, access.GraphParams(map[string]any{"offset": page.Offset, "limit": page.Limit + 1}))
 	if err != nil {
 		if WriteGraphReadError(w, r, err, "platform_impact.context_overview") {
 			return

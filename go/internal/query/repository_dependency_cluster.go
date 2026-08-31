@@ -81,11 +81,11 @@ type repositoryDependencyEdge struct {
 // clustering keys on the edge type, not its evidence_source.
 func repositoryDependencyClusterEdgeCypher(access repositoryAccessFilter) string {
 	where := ""
-	if access.scoped() {
+	if access.Scoped() {
 		where = fmt.Sprintf(
 			"\n\t\tWHERE %s AND %s",
-			access.graphCondition("s"),
-			access.graphCondition("t"),
+			access.GraphCondition("s"),
+			access.GraphCondition("t"),
 		)
 	}
 	return fmt.Sprintf(`
@@ -107,7 +107,7 @@ func loadRepositoryDependencyClusters(ctx context.Context, graph GraphQuery, acc
 	if graph == nil {
 		return map[string]string{}
 	}
-	rows, err := graph.Run(ctx, repositoryDependencyClusterEdgeCypher(access), access.graphParams(nil))
+	rows, err := graph.Run(ctx, repositoryDependencyClusterEdgeCypher(access), access.GraphParams(nil))
 	if err != nil {
 		return map[string]string{}
 	}

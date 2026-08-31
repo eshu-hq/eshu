@@ -27,14 +27,14 @@ func (h *EntityHandler) fetchProvisionedPlatformResult(ctx context.Context, repo
 	}
 	queryLimit := contextStoryItemLimit + 1
 	access := repositoryAccessFilterFromContext(ctx)
-	if access.empty() || !access.allowsRepositoryID(repoID) {
+	if access.Empty() || !access.AllowsRepositoryID(repoID) {
 		return emptyProvisionedPlatformResult(), nil
 	}
 	scopeClause := ""
-	if access.scoped() {
-		scopeClause = "WHERE " + access.graphCondition("target") + " AND " + access.graphCondition("repo")
+	if access.Scoped() {
+		scopeClause = "WHERE " + access.GraphCondition("target") + " AND " + access.GraphCondition("repo")
 	}
-	params := access.graphParams(map[string]any{"repo_id": repoID, "provisioned_platform_limit": queryLimit})
+	params := access.GraphParams(map[string]any{"repo_id": repoID, "provisioned_platform_limit": queryLimit})
 	rows, err := h.Neo4j.Run(ctx, fmt.Sprintf(`
 		MATCH (target:Repository {id: $repo_id})<-[dependency:PROVISIONS_DEPENDENCY_FOR]-(repo:Repository)-[platformEdge:PROVISIONS_PLATFORM]->(p:Platform)
 		%s

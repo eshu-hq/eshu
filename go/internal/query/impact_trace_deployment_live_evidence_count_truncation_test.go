@@ -47,7 +47,7 @@ func TestFetchWorkloadLiveInstanceSummaryAnchorAtLimitTruncated(t *testing.T) {
 	}
 	h := &ImpactHandler{KubernetesPodTemplates: store}
 	summary, err := h.fetchWorkloadLiveInstanceSummary(
-		t.Context(), controllers, resources, []string{"img@sha256:a"}, repositoryAccessFilter{allScopes: true},
+		t.Context(), controllers, resources, []string{"img@sha256:a"}, repositoryAccessFilter{AllScopes: true},
 	)
 	if err != nil {
 		t.Fatalf("error = %v, want nil", err)
@@ -74,7 +74,7 @@ func TestFetchWorkloadLiveInstanceSummaryUnderLimitNotTruncated(t *testing.T) {
 	}
 	h := &ImpactHandler{KubernetesPodTemplates: store}
 	summary, err := h.fetchWorkloadLiveInstanceSummary(
-		t.Context(), controllers, resources, []string{"img@sha256:a"}, repositoryAccessFilter{allScopes: true},
+		t.Context(), controllers, resources, []string{"img@sha256:a"}, repositoryAccessFilter{AllScopes: true},
 	)
 	if err != nil {
 		t.Fatalf("error = %v, want nil", err)
@@ -112,7 +112,7 @@ func TestFetchWorkloadLiveInstanceSummaryAnyAnchorAtLimitTruncatesWholeSummary(t
 	}
 	h := &ImpactHandler{KubernetesPodTemplates: store}
 	summary, err := h.fetchWorkloadLiveInstanceSummary(
-		t.Context(), controllers, resources, []string{"img@sha256:shared"}, repositoryAccessFilter{allScopes: true},
+		t.Context(), controllers, resources, []string{"img@sha256:shared"}, repositoryAccessFilter{AllScopes: true},
 	)
 	if err != nil {
 		t.Fatalf("error = %v, want nil", err)
@@ -136,7 +136,7 @@ func TestFetchWorkloadLiveInstanceSummaryNilSummaryStaysNilAtLimit(t *testing.T)
 	store := &stubKubernetesPodTemplateListStore{}
 	h := &ImpactHandler{KubernetesPodTemplates: store}
 	summary, err := h.fetchWorkloadLiveInstanceSummary(
-		t.Context(), nil, nil, nil, repositoryAccessFilter{allScopes: true},
+		t.Context(), nil, nil, nil, repositoryAccessFilter{AllScopes: true},
 	)
 	if err != nil {
 		t.Fatalf("error = %v, want nil", err)
@@ -166,7 +166,7 @@ func TestFetchWorkloadLiveInstanceSummaryAllNilReadyReplicasAtLimitStaysNil(t *t
 	}
 	h := &ImpactHandler{KubernetesPodTemplates: store}
 	summary, err := h.fetchWorkloadLiveInstanceSummary(
-		t.Context(), controllers, resources, []string{"img@sha256:a"}, repositoryAccessFilter{allScopes: true},
+		t.Context(), controllers, resources, []string{"img@sha256:a"}, repositoryAccessFilter{AllScopes: true},
 	)
 	if err != nil {
 		t.Fatalf("error = %v, want nil", err)

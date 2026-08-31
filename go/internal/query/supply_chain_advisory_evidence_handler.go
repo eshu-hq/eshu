@@ -58,7 +58,7 @@ func (h *SupplyChainHandler) listAdvisoryEvidence(w http.ResponseWriter, r *http
 		Source:                     QueryParam(r, "source"),
 		AfterAdvisoryKey:           QueryParam(r, "after_advisory_key"),
 		Limit:                      limit + 1,
-		AllowedSourceRepositoryIDs: access.repositorySearchIDs(),
+		AllowedSourceRepositoryIDs: access.RepositorySearchIDs(),
 	})
 	if !filter.hasScope() {
 		WriteError(w, http.StatusBadRequest, "cve_id, advisory_id, package_id, repository_id, service_id, or workload_id is required")

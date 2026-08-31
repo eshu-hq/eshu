@@ -27,13 +27,13 @@ func loadMaterializedServiceCloudResourceDependencies(
 	access := repositoryAccessFilterFromContext(ctx)
 	// WorkloadInstance and USES relationships are global today and do not
 	// carry repository ownership, so scoped callers cannot safely consume them.
-	if access.scoped() {
+	if access.Scoped() {
 		return nil, nil
 	}
 	if limit <= 0 || limit > serviceCloudResourceDependencyLimit {
 		limit = serviceCloudResourceDependencyLimit
 	}
-	params := access.graphParams(map[string]any{
+	params := access.GraphParams(map[string]any{
 		"repo_id":     repoID,
 		"workload_id": workloadID,
 		"limit":       limit,
@@ -62,7 +62,7 @@ RETURN DISTINCT coalesce(c.id, c.uid, c.resource_id, c.arn, c.name) AS id,
        coalesce(rel.source_record_id, '') AS source_record_id,
        coalesce(rel.collector_kind, '') AS collector_kind
 ORDER BY name, id
-LIMIT $limit`, access.graphPredicate("repo")), params)
+LIMIT $limit`, access.GraphPredicate("repo")), params)
 	if err != nil {
 		return nil, err
 	}
@@ -145,7 +145,7 @@ func loadConfigDerivedCloudResourceDependenciesWithLimit(
 	}
 	// CloudResource nodes do not carry repository ownership. A config-text
 	// match is only a candidate, so a scoped token cannot safely authorize it.
-	if repositoryAccessFilterFromContext(ctx).scoped() {
+	if repositoryAccessFilterFromContext(ctx).Scoped() {
 		return nil, false, nil
 	}
 	anchors, anchorsTruncated := configReadCloudResourceAnchors(deploymentEvidence)

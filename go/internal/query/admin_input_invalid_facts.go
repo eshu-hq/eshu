@@ -84,7 +84,7 @@ func (h *AdminHandler) listInputInvalidFacts(w http.ResponseWriter, r *http.Requ
 
 	scopeID := strings.TrimSpace(req.ScopeID)
 	access := repositoryAccessFilterFromContext(r.Context())
-	if access.empty() {
+	if access.Empty() {
 		writeInputInvalidFactList(w, req.Limit, false, nil)
 		return
 	}
@@ -103,8 +103,8 @@ func (h *AdminHandler) listInputInvalidFacts(w http.ResponseWriter, r *http.Requ
 		GenerationID:         strings.TrimSpace(req.GenerationID),
 		Domain:               strings.TrimSpace(req.Domain),
 		FactKind:             strings.TrimSpace(req.FactKind),
-		AllowedRepositoryIDs: access.grantedRepositoryIDs(),
-		AllowedScopeIDs:      access.grantedScopeIDs(),
+		AllowedRepositoryIDs: access.GrantedRepositoryIDs(),
+		AllowedScopeIDs:      access.GrantedScopeIDs(),
 		Limit:                req.Limit + 1,
 		Timeout:              timeout,
 	}

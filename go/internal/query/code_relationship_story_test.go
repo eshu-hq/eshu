@@ -457,7 +457,7 @@ func TestNornicDBRelationshipStoryCypherUsesAnchoredPatternAndPagination(t *test
 		"Function",
 		"uid",
 		"outgoing",
-		repositoryAccessFilter{allScopes: true},
+		repositoryAccessFilter{AllScopes: true},
 	)
 
 	for _, fragment := range []string{

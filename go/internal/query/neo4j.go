@@ -377,7 +377,7 @@ func RepoProjection(alias string) string {
 // always false.
 func repositoryDependencyMarkerProjection(alias string, access repositoryAccessFilter) string {
 	const depAlias = "dep"
-	predicate := access.graphPredicate(depAlias)
+	predicate := access.GraphPredicate(depAlias)
 	return fmt.Sprintf(
 		"EXISTS { MATCH (%s)<-[:DEPENDS_ON]-(%s:Repository)%s } as is_dependency",
 		alias, depAlias, predicate,

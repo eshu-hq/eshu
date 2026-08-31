@@ -33,8 +33,8 @@ func fetchFluxDeploymentSourceTargetBindings(
 		"coalesce(artifact.flux_git_repository_name, '') <> ''",
 		"coalesce(artifact.flux_git_repository_namespace, '') <> ''",
 	}
-	if access.scoped() {
-		predicates = append(predicates, access.graphCondition("repo"))
+	if access.Scoped() {
+		predicates = append(predicates, access.GraphCondition("repo"))
 	}
 	firstHopCypher := `
 		UNWIND $source_repo_ids AS source_id
@@ -45,7 +45,7 @@ func fetchFluxDeploymentSourceTargetBindings(
 		       artifact.flux_git_repository_name AS flux_git_repository_name
 		LIMIT $source_limit
 	`
-	params := access.graphParams(map[string]any{"repo_id": repoID, "source_repo_ids": sourceRepoIDs, "source_limit": limit})
+	params := access.GraphParams(map[string]any{"repo_id": repoID, "source_repo_ids": sourceRepoIDs, "source_limit": limit})
 	firstHopRows, err := reader.Run(ctx, firstHopCypher, params)
 	if err != nil {
 		return fluxDeploymentSourceTargetBindingResult{}, err
@@ -72,7 +72,7 @@ func fetchFluxDeploymentSourceTargetBindings(
 		MATCH (artifact)-[targetRel:EVIDENCES_REPOSITORY_RELATIONSHIP]->(targetRepo:Repository {id: $repo_id})
 		WHERE sourceRel.relationship_type = 'DEPLOYS_FROM'
 		  AND targetRel.relationship_type = 'DEPLOYS_FROM'
-		  AND repo.id IN $source_repo_ids` + access.graphPredicate("repo") + access.graphPredicate("targetRepo") + `
+		  AND repo.id IN $source_repo_ids` + access.GraphPredicate("repo") + access.GraphPredicate("targetRepo") + `
 		RETURN repo.id AS source_id, targetRepo.id AS target_id,
 		       artifact.flux_git_repository_namespace AS flux_git_repository_namespace,
 		       artifact.flux_git_repository_name AS flux_git_repository_name

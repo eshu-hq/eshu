@@ -153,7 +153,7 @@ func (h *ContentHandler) readEntity(w http.ResponseWriter, r *http.Request) {
 	}
 
 	access := repositoryAccessFilterFromContext(r.Context())
-	if access.empty() {
+	if access.Empty() {
 		WriteError(w, http.StatusNotFound, "entity not found")
 		return
 	}
@@ -345,8 +345,8 @@ func (h *ContentHandler) normalizeContentSearchRequest(ctx context.Context, req 
 		return req, nil
 	}
 	if len(req.RepoIDs) == 0 {
-		if access.scoped() {
-			req.RepoIDs = access.repositorySearchIDs()
+		if access.Scoped() {
+			req.RepoIDs = access.RepositorySearchIDs()
 		}
 		return req, nil
 	}
@@ -368,7 +368,7 @@ func (h *ContentHandler) normalizeContentSearchRequest(ctx context.Context, req 
 }
 
 func (h *ContentHandler) searchFilesByScope(ctx context.Context, req contentSearchRequest) ([]FileContent, bool, error) {
-	if repositoryAccessFilterFromContext(ctx).empty() {
+	if repositoryAccessFilterFromContext(ctx).Empty() {
 		return []FileContent{}, false, nil
 	}
 	if searcher, ok := h.Content.(pagedContentSearcher); ok {
@@ -406,7 +406,7 @@ func (h *ContentHandler) searchFilesByScope(ctx context.Context, req contentSear
 }
 
 func (h *ContentHandler) searchEntitiesByScope(ctx context.Context, req contentSearchRequest) ([]EntityContent, bool, error) {
-	if repositoryAccessFilterFromContext(ctx).empty() {
+	if repositoryAccessFilterFromContext(ctx).Empty() {
 		return []EntityContent{}, false, nil
 	}
 	if searcher, ok := h.Content.(pagedContentSearcher); ok {

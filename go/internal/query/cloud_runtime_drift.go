@@ -284,7 +284,7 @@ func (h *CloudRuntimeDriftHandler) listFindings(w http.ResponseWriter, r *http.R
 	// ingestion scopes, gets the same zero-finding page a real empty result
 	// would produce -- no existence disclosure, no store read.
 	access := repositoryAccessFilterFromContext(r.Context())
-	if access.empty() || (access.scoped() && !access.allowsRepositoryID(filter.ScopeID)) {
+	if access.Empty() || (access.Scoped() && !access.AllowsRepositoryID(filter.ScopeID)) {
 		h.writeCloudRuntimeDriftFindings(w, r, filter, nil, 0)
 		return
 	}

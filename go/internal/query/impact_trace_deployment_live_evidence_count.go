@@ -115,7 +115,7 @@ func (h *ImpactHandler) fetchWorkloadLiveInstanceSummary(
 		span.SetAttributes(attribute.String("eshu.live_instance_count_skip_reason", "store_unwired_or_no_image_refs"))
 		return nil, nil
 	}
-	if access.empty() {
+	if access.Empty() {
 		span.SetAttributes(attribute.String("eshu.live_instance_count_skip_reason", "scoped_caller_no_grants"))
 		return nil, nil
 	}

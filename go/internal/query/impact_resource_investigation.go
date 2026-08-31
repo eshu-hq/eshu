@@ -85,7 +85,7 @@ func (h *ImpactHandler) investigateResource(w http.ResponseWriter, r *http.Reque
 	// Cypher itself, so an empty grant short-circuits to "no match" without
 	// running the resolver query, and resolveResourceInvestigationTarget filters
 	// the resolved candidates by the caller's grant below.
-	if access := repositoryAccessFilterFromContext(r.Context()); access.empty() {
+	if access := repositoryAccessFilterFromContext(r.Context()); access.Empty() {
 		resp := resourceInvestigationResponse(req, resourceInvestigationEmptyGrantResolution(req), nil, nil, nil, nil, false)
 		WriteSuccess(w, r, http.StatusOK, resp, BuildTruthEnvelope(
 			h.profile(),

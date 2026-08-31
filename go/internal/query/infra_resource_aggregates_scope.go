@@ -60,10 +60,10 @@ func (h *InfraHandler) writeEmptyInfraResourceInventory(
 // repository-anchored predicate. Shared / admin / local callers leave the
 // filter unrestricted.
 func applyInfraResourceAggregateAccess(filter InfraResourceAggregateFilter, access repositoryAccessFilter) InfraResourceAggregateFilter {
-	if !access.scoped() {
+	if !access.Scoped() {
 		return filter
 	}
-	filter.AllowedRepositoryIDs = access.grantedRepositoryIDs()
-	filter.AllowedScopeIDs = access.grantedScopeIDs()
+	filter.AllowedRepositoryIDs = access.GrantedRepositoryIDs()
+	filter.AllowedScopeIDs = access.GrantedScopeIDs()
 	return filter
 }

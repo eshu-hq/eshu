@@ -113,13 +113,13 @@ func (h *KubernetesHandler) listCorrelations(w http.ResponseWriter, r *http.Requ
 	// store (#5137 LiveActivityStore precedent); a granted scoped caller's
 	// rows are additionally bound to its grant in ListKubernetesCorrelations.
 	access := repositoryAccessFilterFromContext(r.Context())
-	if access.empty() {
+	if access.Empty() {
 		h.writeEmptyKubernetesCorrelations(w, r, limit)
 		return
 	}
-	filter.AllScopes = !access.scoped()
-	filter.AllowedRepositoryIDs = access.grantedRepositoryIDs()
-	filter.AllowedScopeIDs = access.grantedScopeIDs()
+	filter.AllScopes = !access.Scoped()
+	filter.AllowedRepositoryIDs = access.GrantedRepositoryIDs()
+	filter.AllowedScopeIDs = access.GrantedScopeIDs()
 	if h.Correlations == nil {
 		WriteContractError(
 			w,

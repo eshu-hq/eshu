@@ -30,11 +30,11 @@ func TestBlastRadiusQueriesAreNornicDBSafe(t *testing.T) {
 	// property WHERE, never an OPTIONAL MATCH / RETURN DISTINCT / post-CALL
 	// clause / untyped or zero-length traversal). unscoped is the base shape;
 	// scoped exercises the injected predicate.
-	unscoped := repositoryAccessFilter{allScopes: true}
+	unscoped := repositoryAccessFilter{AllScopes: true}
 	scoped := repositoryAccessFilter{
-		allowedRepositoryIDs: []string{"repo-a"},
-		allowedScopeIDs:      []string{"scope-a"},
-		allowed:              map[string]struct{}{"repo-a": {}, "scope-a": {}},
+		AllowedRepositoryIDs: []string{"repo-a"},
+		AllowedScopeIDs:      []string{"scope-a"},
+		Allowed:              map[string]struct{}{"repo-a": {}, "scope-a": {}},
 	}
 	for _, tc := range []struct {
 		label  string

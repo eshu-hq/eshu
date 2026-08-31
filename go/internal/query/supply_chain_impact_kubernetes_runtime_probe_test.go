@@ -131,7 +131,7 @@ func TestApplySupplyChainKubernetesRuntimeEvidencePromotesExactDigest(t *testing
 		{FindingID: "other", SubjectDigest: "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"},
 	}
 
-	if err := handler.applySupplyChainKubernetesRuntimeEvidence(context.Background(), repositoryAccessFilter{allScopes: true}, rows); err != nil {
+	if err := handler.applySupplyChainKubernetesRuntimeEvidence(context.Background(), repositoryAccessFilter{AllScopes: true}, rows); err != nil {
 		t.Fatalf("applySupplyChainKubernetesRuntimeEvidence() error = %v", err)
 	}
 	if runCalls, _ := graph.snapshot(); runCalls != 2 {
@@ -162,7 +162,7 @@ func TestApplySupplyChainKubernetesRuntimeEvidenceExcludesDeniedOwnerOrEdge(t *t
 	handler := &SupplyChainHandler{Neo4j: graph, KubernetesWorkloadInventory: inventory}
 	rows := []SupplyChainImpactFindingRow{{FindingID: "f", SubjectDigest: digest, EvidencePath: []string{cicdRunCorrelationFactKind}}}
 
-	access := repositoryAccessFilter{allowedRepositoryIDs: []string{"repository:r_allowed"}, allowedScopeIDs: []string{"scope-allowed"}}
+	access := repositoryAccessFilter{AllowedRepositoryIDs: []string{"repository:r_allowed"}, AllowedScopeIDs: []string{"scope-allowed"}}
 	if err := handler.applySupplyChainKubernetesRuntimeEvidence(context.Background(), access, rows); err != nil {
 		t.Fatalf("apply error = %v", err)
 	}
@@ -199,7 +199,7 @@ func TestApplySupplyChainKubernetesRuntimeEvidenceBoundsAndDeduplicatesDigests(t
 	inventory := &stubKubernetesWorkloadInventory{}
 	handler := &SupplyChainHandler{Neo4j: graph, KubernetesWorkloadInventory: inventory}
 
-	if err := handler.applySupplyChainKubernetesRuntimeEvidence(context.Background(), repositoryAccessFilter{allScopes: true}, rows); err != nil {
+	if err := handler.applySupplyChainKubernetesRuntimeEvidence(context.Background(), repositoryAccessFilter{AllScopes: true}, rows); err != nil {
 		t.Fatalf("apply error = %v", err)
 	}
 	runCalls, calls := graph.snapshot()
@@ -228,7 +228,7 @@ func TestApplySupplyChainKubernetesRuntimeEvidencePropagatesErrorsAndEmptyIsNoOp
 	rows := []SupplyChainImpactFindingRow{{FindingID: "f", SubjectDigest: digest}}
 	graphErr := errors.New("graph unavailable")
 	if err := (&SupplyChainHandler{Neo4j: &stubKubernetesRuntimeGraph{err: graphErr}, KubernetesWorkloadInventory: &stubKubernetesWorkloadInventory{}}).
-		applySupplyChainKubernetesRuntimeEvidence(context.Background(), repositoryAccessFilter{allScopes: true}, rows); !errors.Is(err, graphErr) {
+		applySupplyChainKubernetesRuntimeEvidence(context.Background(), repositoryAccessFilter{AllScopes: true}, rows); !errors.Is(err, graphErr) {
 		t.Fatalf("graph error = %v, want %v", err, graphErr)
 	}
 	inventoryErr := errors.New("owner ledger unavailable")
@@ -236,13 +236,13 @@ func TestApplySupplyChainKubernetesRuntimeEvidencePropagatesErrorsAndEmptyIsNoOp
 		"matched_digest": digest, "workload_uid": "kw-1", "edge_scope_id": "scope-1", "edge_generation_id": "gen-1",
 	}}}
 	if err := (&SupplyChainHandler{Neo4j: graphWithCandidate, KubernetesWorkloadInventory: &stubKubernetesWorkloadInventory{err: inventoryErr}}).
-		applySupplyChainKubernetesRuntimeEvidence(context.Background(), repositoryAccessFilter{allScopes: true}, rows); !errors.Is(err, inventoryErr) {
+		applySupplyChainKubernetesRuntimeEvidence(context.Background(), repositoryAccessFilter{AllScopes: true}, rows); !errors.Is(err, inventoryErr) {
 		t.Fatalf("inventory error = %v, want %v", err, inventoryErr)
 	}
 
 	graph := &stubKubernetesRuntimeGraph{}
 	if err := (&SupplyChainHandler{Neo4j: graph, KubernetesWorkloadInventory: &stubKubernetesWorkloadInventory{}}).
-		applySupplyChainKubernetesRuntimeEvidence(context.Background(), repositoryAccessFilter{allScopes: true}, nil); err != nil {
+		applySupplyChainKubernetesRuntimeEvidence(context.Background(), repositoryAccessFilter{AllScopes: true}, nil); err != nil {
 		t.Fatalf("empty rows error = %v", err)
 	}
 	if runCalls, _ := graph.snapshot(); runCalls != 0 {
@@ -267,7 +267,7 @@ func TestApplySupplyChainKubernetesRuntimeEvidenceRejectsMalformedAndDeduplicate
 	}}}
 	rows := []SupplyChainImpactFindingRow{{FindingID: "f", SubjectDigest: digest}}
 	if err := (&SupplyChainHandler{Neo4j: graph, KubernetesWorkloadInventory: inventory}).
-		applySupplyChainKubernetesRuntimeEvidence(context.Background(), repositoryAccessFilter{allScopes: true}, rows); err != nil {
+		applySupplyChainKubernetesRuntimeEvidence(context.Background(), repositoryAccessFilter{AllScopes: true}, rows); err != nil {
 		t.Fatalf("apply error = %v", err)
 	}
 	if got := len(inventory.candidates); got != 1 {
@@ -288,7 +288,7 @@ func TestApplySupplyChainKubernetesRuntimeEvidenceSkipsUnconfiguredGraphWithoutS
 		{FindingID: "whitespace", SubjectDigest: "  \t"},
 	}
 
-	if err := handler.applySupplyChainKubernetesRuntimeEvidence(context.Background(), repositoryAccessFilter{allScopes: true}, rows); err != nil {
+	if err := handler.applySupplyChainKubernetesRuntimeEvidence(context.Background(), repositoryAccessFilter{AllScopes: true}, rows); err != nil {
 		t.Fatalf("applySupplyChainKubernetesRuntimeEvidence() error = %v, want nil", err)
 	}
 	if len(inventory.candidates) != 0 {
@@ -312,7 +312,7 @@ func TestApplySupplyChainKubernetesRuntimeEvidenceRejectsStoreCrossFindingMismat
 		{FindingID: "b", SubjectDigest: digestB},
 	}
 	if err := (&SupplyChainHandler{Neo4j: graph, KubernetesWorkloadInventory: inventory}).
-		applySupplyChainKubernetesRuntimeEvidence(context.Background(), repositoryAccessFilter{allScopes: true}, rows); err != nil {
+		applySupplyChainKubernetesRuntimeEvidence(context.Background(), repositoryAccessFilter{AllScopes: true}, rows); err != nil {
 		t.Fatalf("apply error = %v", err)
 	}
 	if len(rows[0].KubernetesRuntimeWorkloadRefs) != 0 || len(rows[1].KubernetesRuntimeWorkloadRefs) != 0 {
@@ -394,7 +394,7 @@ func TestApplySupplyChainKubernetesRuntimeEvidenceRecordsZeroInitializedAndFinal
 				Neo4j:                       &stubKubernetesRuntimeGraph{rows: tt.graphRows},
 				KubernetesWorkloadInventory: &stubKubernetesWorkloadInventory{rows: tt.matches},
 			}
-			if err := handler.applySupplyChainKubernetesRuntimeEvidence(context.Background(), repositoryAccessFilter{allScopes: true}, rows); err != nil {
+			if err := handler.applySupplyChainKubernetesRuntimeEvidence(context.Background(), repositoryAccessFilter{AllScopes: true}, rows); err != nil {
 				t.Fatalf("apply error = %v", err)
 			}
 			spans := recorder.Ended()
@@ -434,7 +434,7 @@ func TestApplySupplyChainKubernetesRuntimeEvidenceErrorSpanKeepsPlannedBounds(t 
 	wantErr := errors.New("graph unavailable")
 	graph := &fairKubernetesRuntimeGraph{errorDigest: digests[0], err: wantErr}
 	err := (&SupplyChainHandler{Neo4j: graph, KubernetesWorkloadInventory: &stubKubernetesWorkloadInventory{}}).
-		applySupplyChainKubernetesRuntimeEvidence(context.Background(), repositoryAccessFilter{allScopes: true}, rows)
+		applySupplyChainKubernetesRuntimeEvidence(context.Background(), repositoryAccessFilter{AllScopes: true}, rows)
 	if !errors.Is(err, wantErr) {
 		t.Fatalf("apply error = %v, want %v", err, wantErr)
 	}

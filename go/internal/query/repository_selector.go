@@ -30,7 +30,7 @@ func (e repositorySelectorAmbiguousError) Error() string {
 }
 
 func resolveRepositorySelectorExact(ctx context.Context, graph GraphQuery, content ContentStore, selector string) (string, error) {
-	return resolveRepositorySelectorExactForAccess(ctx, graph, content, selector, repositoryAccessFilter{allScopes: true})
+	return resolveRepositorySelectorExactForAccess(ctx, graph, content, selector, repositoryAccessFilter{AllScopes: true})
 }
 
 func resolveRepositorySelectorExactForAccess(
@@ -45,7 +45,7 @@ func resolveRepositorySelectorExactForAccess(
 		return "", nil
 	}
 	if looksCanonicalRepositoryID(selector) {
-		if !access.allowsRepositoryID(selector) {
+		if !access.AllowsRepositoryID(selector) {
 			return "", repositorySelectorNotFoundError{Selector: selector}
 		}
 		return selector, nil
@@ -56,7 +56,7 @@ func resolveRepositorySelectorExactForAccess(
 		if err != nil {
 			return "", fmt.Errorf("match repositories: %w", err)
 		}
-		entries = access.filterCatalogEntries(entries)
+		entries = access.FilterCatalogEntries(entries)
 		matches := resolveRepositoryCatalogMatches(entries, selector)
 		switch len(matches) {
 		case 0:
@@ -68,7 +68,7 @@ func resolveRepositorySelectorExactForAccess(
 	}
 
 	if graph != nil {
-		if access.empty() {
+		if access.Empty() {
 			return "", repositorySelectorNotFoundError{Selector: selector}
 		}
 		rows, err := graph.Run(ctx, `
@@ -81,10 +81,10 @@ func resolveRepositorySelectorExactForAccess(
 			   OR r.remote_url = $repo_selector
 			   OR r.repo_slug = $repo_selector
 			)
-			`+access.graphPredicate("r")+`
+			`+access.GraphPredicate("r")+`
 			RETURN r.id as id
 			ORDER BY r.id
-		`, access.graphParams(map[string]any{"repo_selector": selector}))
+		`, access.GraphParams(map[string]any{"repo_selector": selector}))
 		if err != nil {
 			return "", fmt.Errorf("query graph repository selector: %w", err)
 		}
@@ -100,9 +100,9 @@ func resolveRepositorySelectorExactForAccess(
 				   OR r.remote_url = $repo_selector
 				   OR r.repo_slug = $repo_selector
 				)
-				`+access.graphPredicate("r")+`
+				`+access.GraphPredicate("r")+`
 				RETURN r.id as id
-			`, access.graphParams(map[string]any{"repo_selector": selector}))
+			`, access.GraphParams(map[string]any{"repo_selector": selector}))
 			if err != nil {
 				return "", fmt.Errorf("query graph repository selector: %w", err)
 			}

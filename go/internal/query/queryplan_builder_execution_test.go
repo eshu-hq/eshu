@@ -243,16 +243,16 @@ func TestResourceInvestigationExecutesBuilderBytes(t *testing.T) {
 	selected := &resourceInvestigationCandidate{ID: "proof-resource", Labels: []string{"CloudResource"}}
 	req := resourceInvestigationRequest{Environment: "prod", MaxDepth: 3, Limit: 10}
 
-	if _, _, err := handler.resourceInvestigationWorkloads(context.Background(), req, selected, repositoryAccessFilter{allScopes: true}); err != nil {
+	if _, _, err := handler.resourceInvestigationWorkloads(context.Background(), req, selected, repositoryAccessFilter{AllScopes: true}); err != nil {
 		t.Fatalf("resourceInvestigationWorkloads() error = %v", err)
 	}
 	if _, err := handler.resourceInvestigationInstanceWorkloads(context.Background(), []map[string]any{{"instance_id": "proof-instance"}}); err != nil {
 		t.Fatalf("resourceInvestigationInstanceWorkloads() error = %v", err)
 	}
-	if _, _, err := handler.resourceInvestigationRepoPaths(context.Background(), req, selected, "outgoing", repositoryAccessFilter{allScopes: true}); err != nil {
+	if _, _, err := handler.resourceInvestigationRepoPaths(context.Background(), req, selected, "outgoing", repositoryAccessFilter{AllScopes: true}); err != nil {
 		t.Fatalf("resourceInvestigationRepoPaths() error = %v", err)
 	}
-	if _, _, err := handler.resourceInvestigationRepoPaths(context.Background(), req, selected, "incoming", repositoryAccessFilter{allScopes: true}); err != nil {
+	if _, _, err := handler.resourceInvestigationRepoPaths(context.Background(), req, selected, "incoming", repositoryAccessFilter{AllScopes: true}); err != nil {
 		t.Fatalf("resourceInvestigationRepoPaths(incoming) error = %v", err)
 	}
 	if len(captured) != 4 {

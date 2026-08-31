@@ -114,8 +114,8 @@ func (h *ImpactHandler) changeSurfaceTopicRows(
 	// the granted set, not a cross-tenant-polluted page. filterCodeTopicRowsForAccess
 	// below stays as defense-in-depth.
 	if req.RepoID == "" {
-		if access := repositoryAccessFilterFromContext(ctx); access.scoped() {
-			topicReq.AllowedRepositoryIDs = access.repositorySearchIDs()
+		if access := repositoryAccessFilterFromContext(ctx); access.Scoped() {
+			topicReq.AllowedRepositoryIDs = access.RepositorySearchIDs()
 		}
 	}
 	rows, err := investigator.investigateCodeTopic(ctx, topicReq)

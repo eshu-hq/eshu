@@ -323,7 +323,7 @@ func TestResourceInvestigationResolverNarrowsQueueAndDatabaseTypes(t *testing.T)
 		Query:        "orders",
 		ResourceType: "queue",
 		Limit:        25,
-	}, repositoryAccessFilter{allScopes: true}, "CloudResource", resourceInvestigationExactSelectorPredicates)
+	}, repositoryAccessFilter{AllScopes: true}, "CloudResource", resourceInvestigationExactSelectorPredicates)
 	for _, want := range []string{"CONTAINS 'queue'", "CONTAINS 'sqs'"} {
 		if !strings.Contains(queueCypher, want) {
 			t.Fatalf("queue resolver cypher missing %q: %s", want, queueCypher)
@@ -334,7 +334,7 @@ func TestResourceInvestigationResolverNarrowsQueueAndDatabaseTypes(t *testing.T)
 		Query:        "orders",
 		ResourceType: "database",
 		Limit:        25,
-	}, repositoryAccessFilter{allScopes: true}, "CloudResource", resourceInvestigationExactSelectorPredicates)
+	}, repositoryAccessFilter{AllScopes: true}, "CloudResource", resourceInvestigationExactSelectorPredicates)
 	for _, want := range []string{"CONTAINS 'database'", "CONTAINS 'rds'", "CONTAINS 'postgres'"} {
 		if !strings.Contains(databaseCypher, want) {
 			t.Fatalf("database resolver cypher missing %q: %s", want, databaseCypher)
@@ -356,7 +356,7 @@ func TestLoadResourceInvestigationSectionsJoinsParallelErrors(t *testing.T) {
 		context.Background(),
 		resourceInvestigationRequest{Limit: 1, MaxDepth: 1},
 		&resourceInvestigationCandidate{ID: "cloud:rds:orders", Labels: []string{"CloudResource"}},
-		repositoryAccessFilter{allScopes: true},
+		repositoryAccessFilter{AllScopes: true},
 	)
 	if !errors.Is(err, workloadErr) {
 		t.Fatalf("joined error missing workload error: %v", err)
@@ -375,7 +375,7 @@ func TestLoadResourceInvestigationSectionsRejectsUnknownAnchorLabel(t *testing.T
 		context.Background(),
 		resourceInvestigationRequest{Limit: 1, MaxDepth: 1},
 		&resourceInvestigationCandidate{ID: "proof", Labels: []string{"Repository"}},
-		repositoryAccessFilter{allScopes: true},
+		repositoryAccessFilter{AllScopes: true},
 	)
 	if err == nil || !strings.Contains(err.Error(), "supported infrastructure label") {
 		t.Fatalf("loadResourceInvestigationSections() error = %v, want fail-closed label error", err)

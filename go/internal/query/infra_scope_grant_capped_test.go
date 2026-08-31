@@ -78,19 +78,19 @@ func TestGrantInlineCapExceededMatchesScalarTruncation(t *testing.T) {
 			t.Parallel()
 
 			filter := repositoryAccessFilter{
-				allScopes:            tc.allScopes,
-				allowedRepositoryIDs: tc.repos,
-				allowedScopeIDs:      tc.scopes,
+				AllScopes:            tc.allScopes,
+				AllowedRepositoryIDs: tc.repos,
+				AllowedScopeIDs:      tc.scopes,
 			}
 
-			got := filter.grantInlineCapExceeded()
+			got := filter.GrantInlineCapExceeded()
 			if got != tc.wantCapped {
 				t.Fatalf("grantInlineCapExceeded() = %v, want %v", got, tc.wantCapped)
 			}
 
 			// The signal must agree with the truncation that actually happens,
 			// or the metric reports a degradation unrelated to the query.
-			scalars, capped := filter.scopeGrantInlineScalars()
+			scalars, capped := filter.ScopeGrantInlineScalars()
 			if capped != got {
 				t.Fatalf(
 					"grantInlineCapExceeded() = %v but scopeGrantInlineScalars reported capped = %v: "+

@@ -50,14 +50,14 @@ func recordScopeGrantInlineCap(
 	filter repositoryAccessFilter,
 	surface string,
 ) {
-	if !filter.grantInlineCapExceeded() {
+	if !filter.GrantInlineCapExceeded() {
 		return
 	}
 
 	slog.WarnContext(ctx, "scoped token grant set exceeded the inline-map cap; USES and DEFINES-collision admission truncated",
 		"surface", surface,
-		"granted_repositories", len(filter.allowedRepositoryIDs),
-		"granted_scopes", len(filter.allowedScopeIDs),
+		"granted_repositories", len(filter.AllowedRepositoryIDs),
+		"granted_scopes", len(filter.AllowedScopeIDs),
 		"inline_term_cap", maxScopeGrantInlineTerms,
 		"degradation", "fail_closed_missing_rows",
 		"issue", "#5408",

@@ -122,7 +122,7 @@ func (h *InfraHandler) getEcosystemOverview(w http.ResponseWriter, r *http.Reque
 // scoped caller (#5167 Group B) since the counts are then repo-grant-bound
 // rather than the raw whole-corpus aggregate.
 func ecosystemOverviewTruth(profile QueryProfile, access repositoryAccessFilter) *TruthEnvelope {
-	if !access.scoped() {
+	if !access.Scoped() {
 		return BuildTruthEnvelope(
 			profile,
 			"platform_impact.context_overview",
@@ -149,7 +149,7 @@ func ecosystemOverviewTruth(profile QueryProfile, access repositoryAccessFilter)
 // DEFINES/INSTANCE_OF/RUNS_ON, matching the #5167 Group B accuracy bound.
 func runEcosystemOverviewCounts(ctx context.Context, neo4j GraphQuery, access repositoryAccessFilter) (map[string]any, error) {
 	counts := make(map[string]any, len(ecosystemOverviewCounts))
-	if access.empty() {
+	if access.Empty() {
 		for _, entry := range ecosystemOverviewCounts {
 			counts[entry.field] = 0
 		}
@@ -158,14 +158,14 @@ func runEcosystemOverviewCounts(ctx context.Context, neo4j GraphQuery, access re
 	for _, entry := range ecosystemOverviewCounts {
 		cypher := entry.cypher
 		var params map[string]any
-		if access.scoped() {
-			where := access.graphWhereClause(entry.repoAlias)
+		if access.Scoped() {
+			where := access.GraphWhereClause(entry.repoAlias)
 			if entry.durableProvenance {
-				scalars, _ := access.scopeGrantInlineScalars()
+				scalars, _ := access.ScopeGrantInlineScalars()
 				where = "WHERE " + infraResourceScopePredicate(entry.repoAlias, scalars)
 			}
 			cypher = fmt.Sprintf(entry.scopedCypher, where)
-			params = access.graphParams(nil)
+			params = access.GraphParams(nil)
 		}
 		row, err := neo4j.RunSingle(ctx, cypher, params)
 		if err != nil {

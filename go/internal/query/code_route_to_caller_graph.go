@@ -370,30 +370,30 @@ func splitRouteToCallerRelationships(rows []map[string]any, limit int) ([]map[st
 
 func routeToCallerAccessParams(r *http.Request, params map[string]any) map[string]any {
 	access := repositoryAccessFilterFromContext(r.Context())
-	if !access.scoped() {
+	if !access.Scoped() {
 		return params
 	}
-	params["allowed_repository_ids"] = access.grantedRepositoryIDs()
-	params["allowed_scope_ids"] = access.grantedScopeIDs()
+	params["allowed_repository_ids"] = access.GrantedRepositoryIDs()
+	params["allowed_scope_ids"] = access.GrantedScopeIDs()
 	return params
 }
 
 func routeToCallerEndpointAccessPredicate(r *http.Request) string {
-	if !repositoryAccessFilterFromContext(r.Context()).scoped() {
+	if !repositoryAccessFilterFromContext(r.Context()).Scoped() {
 		return ""
 	}
 	return "(endpoint.repo_id IN $allowed_repository_ids OR endpoint.scope_id IN $allowed_scope_ids)"
 }
 
 func routeToCallerEntityAccessPredicate(r *http.Request, alias string) string {
-	if !repositoryAccessFilterFromContext(r.Context()).scoped() {
+	if !repositoryAccessFilterFromContext(r.Context()).Scoped() {
 		return ""
 	}
 	return " AND (" + alias + ".repo_id IN $allowed_repository_ids OR " + alias + ".scope_id IN $allowed_scope_ids)"
 }
 
 func routeToCallerPathAccessPredicate(r *http.Request, pathAlias string) string {
-	if !repositoryAccessFilterFromContext(r.Context()).scoped() {
+	if !repositoryAccessFilterFromContext(r.Context()).Scoped() {
 		return ""
 	}
 	return " AND all(pathNode IN nodes(" + pathAlias + ") WHERE " +
@@ -406,7 +406,7 @@ func routeToCallerPathAccessPredicate(r *http.Request, pathAlias string) string 
 // excluded (fail-closed), which is the correct scoped behavior for the split
 // impact set reads.
 func routeToCallerRequiredNodeAccessClause(r *http.Request, alias string) string {
-	if !repositoryAccessFilterFromContext(r.Context()).scoped() {
+	if !repositoryAccessFilterFromContext(r.Context()).Scoped() {
 		return ""
 	}
 	return " AND (" + alias + ".repo_id IN $allowed_repository_ids OR " + alias + ".scope_id IN $allowed_scope_ids)"
@@ -415,7 +415,7 @@ func routeToCallerRequiredNodeAccessClause(r *http.Request, alias string) string
 // routeToCallerRequiredRepositoryAccessClause is the required-match access
 // predicate for a Repository node, whose grant identity is its own id.
 func routeToCallerRequiredRepositoryAccessClause(r *http.Request, alias string) string {
-	if !repositoryAccessFilterFromContext(r.Context()).scoped() {
+	if !repositoryAccessFilterFromContext(r.Context()).Scoped() {
 		return ""
 	}
 	return " AND (" + alias + ".id IN $allowed_repository_ids OR " + alias + ".scope_id IN $allowed_scope_ids)"

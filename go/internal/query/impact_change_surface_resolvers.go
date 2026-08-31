@@ -15,10 +15,10 @@ import (
 // returns ("", params unchanged) when the caller is not scoped, so a
 // shared/admin/local caller's query is byte-identical to before.
 func changeSurfaceResolverGrantClause(access repositoryAccessFilter, alias, grantProperty string, params map[string]any) (string, map[string]any) {
-	if !access.scoped() {
+	if !access.Scoped() {
 		return "", params
 	}
-	return "\nWHERE " + access.graphConditionOnProperty(alias, grantProperty), access.graphParams(params)
+	return "\nWHERE " + access.GraphConditionOnProperty(alias, grantProperty), access.GraphParams(params)
 }
 
 func changeSurfaceResolverQueries(req changeSurfaceInvestigationRequest, limit int, access repositoryAccessFilter) []changeSurfaceResolverQuery {

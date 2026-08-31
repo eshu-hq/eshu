@@ -143,8 +143,8 @@ func TestRepositoryDependencyClusterEdgeCypherScopesBothEndpoints(t *testing.T) 
 	t.Parallel()
 
 	scoped := repositoryAccessFilter{
-		allowedRepositoryIDs: []string{"repository:a"},
-		allowed:              map[string]struct{}{"repository:a": {}},
+		AllowedRepositoryIDs: []string{"repository:a"},
+		Allowed:              map[string]struct{}{"repository:a": {}},
 	}
 	cypher := repositoryDependencyClusterEdgeCypher(scoped)
 
@@ -169,7 +169,7 @@ func TestRepositoryDependencyClusterEdgeCypherScopesBothEndpoints(t *testing.T) 
 func TestRepositoryDependencyClusterEdgeCypherUnscopedHasNoPredicate(t *testing.T) {
 	t.Parallel()
 
-	cypher := repositoryDependencyClusterEdgeCypher(repositoryAccessFilter{allScopes: true})
+	cypher := repositoryDependencyClusterEdgeCypher(repositoryAccessFilter{AllScopes: true})
 	if strings.Contains(cypher, "allowed_repository_ids") {
 		t.Fatalf("unscoped edge cypher must not bind a tenant predicate:\n%s", cypher)
 	}

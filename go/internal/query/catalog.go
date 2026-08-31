@@ -137,7 +137,7 @@ func (h *RepositoryHandler) listCatalogRepositoriesFromGraph(
 		RETURN %s, %s
 		ORDER BY r.name, r.id
 		LIMIT $limit
-	`, RepoProjection("r"), repositoryDependencyMarkerProjection("r", repositoryAccessFilter{allScopes: true}))
+	`, RepoProjection("r"), repositoryDependencyMarkerProjection("r", repositoryAccessFilter{AllScopes: true}))
 	rows, err := h.Neo4j.Run(ctx, cypher, map[string]any{"limit": limit + 1})
 	if err != nil {
 		return nil, false, err

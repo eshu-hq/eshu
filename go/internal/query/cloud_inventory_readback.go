@@ -173,7 +173,7 @@ func (h *CloudInventoryHandler) listInventory(w http.ResponseWriter, r *http.Req
 	}
 
 	access := repositoryAccessFilterFromContext(r.Context())
-	if access.empty() {
+	if access.Empty() {
 		WriteSuccess(w, r, http.StatusOK, cloudInventoryResponse(cloudInventoryListReadModel{}, filter, nil), BuildTruthEnvelope(
 			h.profile(),
 			cloudInventoryReadbackCapability,
@@ -182,9 +182,9 @@ func (h *CloudInventoryHandler) listInventory(w http.ResponseWriter, r *http.Req
 		))
 		return
 	}
-	filter.AllScopes = !access.scoped()
-	filter.AllowedRepositoryIDs = access.grantedRepositoryIDs()
-	filter.AllowedScopeIDs = access.grantedScopeIDs()
+	filter.AllScopes = !access.Scoped()
+	filter.AllowedRepositoryIDs = access.GrantedRepositoryIDs()
+	filter.AllowedScopeIDs = access.GrantedScopeIDs()
 
 	store, ok := h.store(w, r)
 	if !ok {

@@ -149,12 +149,12 @@ func filterRepositoryArtifactSourcesForAccess(
 	sources []repositoryArtifactSource,
 	access repositoryAccessFilter,
 ) []repositoryArtifactSource {
-	if !access.scoped() {
+	if !access.Scoped() {
 		return sources
 	}
 	filtered := make([]repositoryArtifactSource, 0, len(sources))
 	for _, source := range sources {
-		if access.allowsRepositoryID(source.RepoID) {
+		if access.AllowsRepositoryID(source.RepoID) {
 			filtered = append(filtered, source)
 		}
 	}
