@@ -1,11 +1,14 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package parser
+package elixir_test
 
 import (
 	"path/filepath"
 	"testing"
+
+	"github.com/eshu-hq/eshu/go/internal/parser"
+	"github.com/eshu-hq/eshu/go/internal/parser/parsertest"
 )
 
 func TestDefaultEngineParsePathElixirEmitsDeadCodeRootKinds(t *testing.T) {
@@ -13,7 +16,7 @@ func TestDefaultEngineParsePathElixirEmitsDeadCodeRootKinds(t *testing.T) {
 
 	repoRoot := t.TempDir()
 	sourcePath := filepath.Join(repoRoot, "lib/demo_web/controllers/page_controller.ex")
-	writeTestFile(
+	writeElixirTestFile(
 		t,
 		sourcePath,
 		`defmodule DemoWeb.PageController do
@@ -86,32 +89,32 @@ end
 `,
 	)
 
-	engine, err := DefaultEngine()
+	engine, err := parser.DefaultEngine()
 	if err != nil {
-		t.Fatalf("DefaultEngine() error = %v, want nil", err)
+		t.Fatalf("parser.DefaultEngine() error = %v, want nil", err)
 	}
 
-	got, err := engine.ParsePath(repoRoot, sourcePath, false, Options{IndexSource: true})
+	got, err := engine.ParsePath(repoRoot, sourcePath, false, parser.Options{IndexSource: true})
 	if err != nil {
 		t.Fatalf("ParsePath(%s) error = %v, want nil", sourcePath, err)
 	}
 
-	assertParserStringSliceContains(t, assertFunctionByNameAndClass(t, got, "index", "DemoWeb.PageController"), "dead_code_root_kinds", "elixir.phoenix_controller_action")
-	assertParserStringSliceContains(t, assertFunctionByNameAndClass(t, got, "start", "Demo.Application"), "dead_code_root_kinds", "elixir.application_start")
-	assertParserStringSliceContains(t, assertFunctionByNameAndClass(t, got, "init", "Demo.Worker"), "dead_code_root_kinds", "elixir.behaviour_callback")
-	assertParserStringSliceContains(t, assertFunctionByNameAndClass(t, got, "init", "Demo.Worker"), "dead_code_root_kinds", "elixir.genserver_callback")
-	assertParserStringSliceContains(t, assertFunctionByNameAndClass(t, got, "handle_call", "Demo.Worker"), "dead_code_root_kinds", "elixir.behaviour_callback")
-	assertParserStringSliceContains(t, assertFunctionByNameAndClass(t, got, "handle_call", "Demo.Worker"), "dead_code_root_kinds", "elixir.genserver_callback")
-	assertParserStringSliceContains(t, assertFunctionByNameAndClass(t, got, "init", "Demo.Supervisor"), "dead_code_root_kinds", "elixir.supervisor_callback")
-	assertParserStringSliceContains(t, assertFunctionByNameAndClass(t, got, "run", "Mix.Tasks.Demo.Sync"), "dead_code_root_kinds", "elixir.mix_task_run")
-	assertParserStringSliceContains(t, assertFunctionByNameAndClass(t, got, "serialize", "Demo.Serializable"), "dead_code_root_kinds", "elixir.protocol_function")
+	parsertest.AssertStringSliceContains(t, assertFunctionByNameAndClass(t, got, "index", "DemoWeb.PageController"), "dead_code_root_kinds", "elixir.phoenix_controller_action")
+	parsertest.AssertStringSliceContains(t, assertFunctionByNameAndClass(t, got, "start", "Demo.Application"), "dead_code_root_kinds", "elixir.application_start")
+	parsertest.AssertStringSliceContains(t, assertFunctionByNameAndClass(t, got, "init", "Demo.Worker"), "dead_code_root_kinds", "elixir.behaviour_callback")
+	parsertest.AssertStringSliceContains(t, assertFunctionByNameAndClass(t, got, "init", "Demo.Worker"), "dead_code_root_kinds", "elixir.genserver_callback")
+	parsertest.AssertStringSliceContains(t, assertFunctionByNameAndClass(t, got, "handle_call", "Demo.Worker"), "dead_code_root_kinds", "elixir.behaviour_callback")
+	parsertest.AssertStringSliceContains(t, assertFunctionByNameAndClass(t, got, "handle_call", "Demo.Worker"), "dead_code_root_kinds", "elixir.genserver_callback")
+	parsertest.AssertStringSliceContains(t, assertFunctionByNameAndClass(t, got, "init", "Demo.Supervisor"), "dead_code_root_kinds", "elixir.supervisor_callback")
+	parsertest.AssertStringSliceContains(t, assertFunctionByNameAndClass(t, got, "run", "Mix.Tasks.Demo.Sync"), "dead_code_root_kinds", "elixir.mix_task_run")
+	parsertest.AssertStringSliceContains(t, assertFunctionByNameAndClass(t, got, "serialize", "Demo.Serializable"), "dead_code_root_kinds", "elixir.protocol_function")
 	assertElixirFunctionRootKindExists(t, got, "serialize", "Demo.Serializable", "elixir.protocol_implementation_function")
-	assertParserStringSliceContains(t, assertFunctionByNameAndClass(t, got, "mount", "DemoWeb.CounterLive"), "dead_code_root_kinds", "elixir.phoenix_liveview_callback")
-	assertParserStringSliceContains(t, assertFunctionByNameAndClass(t, got, "handle_event", "DemoWeb.CounterLive"), "dead_code_root_kinds", "elixir.phoenix_liveview_callback")
-	assertParserStringSliceContains(t, assertFunctionByNameAndClass(t, got, "render", "DemoWeb.CounterLive"), "dead_code_root_kinds", "elixir.phoenix_liveview_callback")
-	assertParserStringSliceContains(t, assertFunctionByNameAndClass(t, got, "expose", "Demo.Macros"), "dead_code_root_kinds", "elixir.public_macro")
-	assertParserStringSliceContains(t, assertFunctionByNameAndClass(t, got, "is_even", "Demo.Macros"), "dead_code_root_kinds", "elixir.public_guard")
-	assertParserStringSliceContains(t, assertFunctionByNameAndClass(t, got, "one_line_dispatch", "Demo.Macros"), "exactness_blockers", "dynamic_dispatch_unresolved")
+	parsertest.AssertStringSliceContains(t, assertFunctionByNameAndClass(t, got, "mount", "DemoWeb.CounterLive"), "dead_code_root_kinds", "elixir.phoenix_liveview_callback")
+	parsertest.AssertStringSliceContains(t, assertFunctionByNameAndClass(t, got, "handle_event", "DemoWeb.CounterLive"), "dead_code_root_kinds", "elixir.phoenix_liveview_callback")
+	parsertest.AssertStringSliceContains(t, assertFunctionByNameAndClass(t, got, "render", "DemoWeb.CounterLive"), "dead_code_root_kinds", "elixir.phoenix_liveview_callback")
+	parsertest.AssertStringSliceContains(t, assertFunctionByNameAndClass(t, got, "expose", "Demo.Macros"), "dead_code_root_kinds", "elixir.public_macro")
+	parsertest.AssertStringSliceContains(t, assertFunctionByNameAndClass(t, got, "is_even", "Demo.Macros"), "dead_code_root_kinds", "elixir.public_guard")
+	parsertest.AssertStringSliceContains(t, assertFunctionByNameAndClass(t, got, "one_line_dispatch", "Demo.Macros"), "exactness_blockers", "dynamic_dispatch_unresolved")
 
 	if wrongAction := assertFunctionByNameAndClass(t, got, "wrong_action", "DemoWeb.PageController"); wrongAction["dead_code_root_kinds"] != nil {
 		t.Fatalf("PageController.wrong_action dead_code_root_kinds = %#v, want nil", wrongAction["dead_code_root_kinds"])
@@ -143,24 +146,24 @@ end
 func TestDefaultEngineParsePathElixirDeadCodeFixtureExpectedRoots(t *testing.T) {
 	t.Parallel()
 
-	repoRoot := repoFixturePath("deadcode", "elixir")
-	sourcePath := repoFixturePath("deadcode", "elixir", "app.ex")
+	repoRoot := elixirFixturePath(t, "deadcode", "elixir")
+	sourcePath := elixirFixturePath(t, "deadcode", "elixir", "app.ex")
 
-	engine, err := DefaultEngine()
+	engine, err := parser.DefaultEngine()
 	if err != nil {
-		t.Fatalf("DefaultEngine() error = %v, want nil", err)
+		t.Fatalf("parser.DefaultEngine() error = %v, want nil", err)
 	}
 
-	got, err := engine.ParsePath(repoRoot, sourcePath, false, Options{})
+	got, err := engine.ParsePath(repoRoot, sourcePath, false, parser.Options{})
 	if err != nil {
 		t.Fatalf("ParsePath(%s) error = %v, want nil", sourcePath, err)
 	}
 
-	assertParserStringSliceContains(t, assertFunctionByNameAndClass(t, got, "init", "DeadCodeFixture.DynamicElixir"), "dead_code_root_kinds", "elixir.behaviour_callback")
-	assertParserStringSliceContains(t, assertFunctionByNameAndClass(t, got, "init", "DeadCodeFixture.DynamicElixir"), "dead_code_root_kinds", "elixir.genserver_callback")
-	assertParserStringSliceContains(t, assertFunctionByNameAndClass(t, got, "handle_call", "DeadCodeFixture.DynamicElixir"), "dead_code_root_kinds", "elixir.behaviour_callback")
-	assertParserStringSliceContains(t, assertFunctionByNameAndClass(t, got, "handle_call", "DeadCodeFixture.DynamicElixir"), "dead_code_root_kinds", "elixir.genserver_callback")
-	assertParserStringSliceContains(t, assertFunctionByNameAndClass(t, got, "dynamic_elixir_dispatch", "DeadCodeFixture.DynamicElixir"), "exactness_blockers", "dynamic_dispatch_unresolved")
+	parsertest.AssertStringSliceContains(t, assertFunctionByNameAndClass(t, got, "init", "DeadCodeFixture.DynamicElixir"), "dead_code_root_kinds", "elixir.behaviour_callback")
+	parsertest.AssertStringSliceContains(t, assertFunctionByNameAndClass(t, got, "init", "DeadCodeFixture.DynamicElixir"), "dead_code_root_kinds", "elixir.genserver_callback")
+	parsertest.AssertStringSliceContains(t, assertFunctionByNameAndClass(t, got, "handle_call", "DeadCodeFixture.DynamicElixir"), "dead_code_root_kinds", "elixir.behaviour_callback")
+	parsertest.AssertStringSliceContains(t, assertFunctionByNameAndClass(t, got, "handle_call", "DeadCodeFixture.DynamicElixir"), "dead_code_root_kinds", "elixir.genserver_callback")
+	parsertest.AssertStringSliceContains(t, assertFunctionByNameAndClass(t, got, "dynamic_elixir_dispatch", "DeadCodeFixture.DynamicElixir"), "exactness_blockers", "dynamic_dispatch_unresolved")
 
 	for _, name := range []string{"start", "public_elixir_api", "unused_elixir_helper", "generated_elixir_stub"} {
 		if function := assertFunctionByNameAndClass(t, got, name, "DeadCodeFixture.DynamicElixir"); function["dead_code_root_kinds"] != nil {

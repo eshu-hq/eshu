@@ -100,7 +100,7 @@ language_features:
     partial_features: []
     derived_features: []
     source_files: [go/internal/parser/elixir/language.go, go/internal/parser/elixir/ast_extract.go]
-    test_files: [go/internal/parser/engine_elixir_ast_test.go, go/internal/parser/engine_elixir_semantics_test.go]
+    test_files: [go/internal/parser/elixir/engine_elixir_ast_test.go, go/internal/parser/elixir/engine_elixir_semantics_test.go]
     docs: [docs/public/languages/elixir.md]
     read_surfaces: [execute_language_query]
   - language: flux

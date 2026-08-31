@@ -1,12 +1,15 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package parser
+package elixir_test
 
 import (
 	"path/filepath"
 	"reflect"
 	"testing"
+
+	"github.com/eshu-hq/eshu/go/internal/parser"
+	"github.com/eshu-hq/eshu/go/internal/parser/parsertest"
 )
 
 func TestDefaultEngineParsePathElixirModuleKindsAndFunctionKinds(t *testing.T) {
@@ -14,7 +17,7 @@ func TestDefaultEngineParsePathElixirModuleKindsAndFunctionKinds(t *testing.T) {
 
 	repoRoot := t.TempDir()
 	filePath := filepath.Join(repoRoot, "parity.ex")
-	writeTestFile(
+	writeElixirTestFile(
 		t,
 		filePath,
 		`defmodule Demo.Worker do
@@ -31,27 +34,27 @@ end
 `,
 	)
 
-	engine, err := DefaultEngine()
+	engine, err := parser.DefaultEngine()
 	if err != nil {
-		t.Fatalf("DefaultEngine() error = %v, want nil", err)
+		t.Fatalf("parser.DefaultEngine() error = %v, want nil", err)
 	}
 
-	got, err := engine.ParsePath(repoRoot, filePath, false, Options{IndexSource: true})
+	got, err := engine.ParsePath(repoRoot, filePath, false, parser.Options{IndexSource: true})
 	if err != nil {
 		t.Fatalf("ParsePath() error = %v, want nil", err)
 	}
 
-	assertNamedBucketContains(t, got, "modules", "Demo.Worker")
-	assertNamedBucketContains(t, got, "protocols", "Demo.Serializable")
-	assertBucketContainsFieldValue(t, got, "modules", "type", "defmodule")
-	assertBucketContainsFieldValue(t, got, "modules", "type", "defimpl")
-	assertBucketContainsFieldValue(t, got, "modules", "module_kind", "module")
-	assertBucketContainsFieldValue(t, got, "modules", "module_kind", "protocol_implementation")
-	assertBucketContainsFieldValue(t, got, "modules", "protocol", "Demo.Serializable")
-	assertBucketContainsFieldValue(t, got, "modules", "implemented_for", "Demo.Worker")
-	assertBucketContainsFieldValue(t, got, "protocols", "type", "defprotocol")
-	assertBucketContainsFieldValue(t, got, "protocols", "module_kind", "protocol")
-	assertBucketContainsFieldValue(t, got, "functions", "type", "def")
+	parsertest.AssertNamedBucketContains(t, got, "modules", "Demo.Worker")
+	parsertest.AssertNamedBucketContains(t, got, "protocols", "Demo.Serializable")
+	parsertest.AssertBucketContainsFieldValue(t, got, "modules", "type", "defmodule")
+	parsertest.AssertBucketContainsFieldValue(t, got, "modules", "type", "defimpl")
+	parsertest.AssertBucketContainsFieldValue(t, got, "modules", "module_kind", "module")
+	parsertest.AssertBucketContainsFieldValue(t, got, "modules", "module_kind", "protocol_implementation")
+	parsertest.AssertBucketContainsFieldValue(t, got, "modules", "protocol", "Demo.Serializable")
+	parsertest.AssertBucketContainsFieldValue(t, got, "modules", "implemented_for", "Demo.Worker")
+	parsertest.AssertBucketContainsFieldValue(t, got, "protocols", "type", "defprotocol")
+	parsertest.AssertBucketContainsFieldValue(t, got, "protocols", "module_kind", "protocol")
+	parsertest.AssertBucketContainsFieldValue(t, got, "functions", "type", "def")
 }
 
 func TestDefaultEngineParsePathElixirFunctionMetadata(t *testing.T) {
@@ -59,7 +62,7 @@ func TestDefaultEngineParsePathElixirFunctionMetadata(t *testing.T) {
 
 	repoRoot := t.TempDir()
 	filePath := filepath.Join(repoRoot, "macros.ex")
-	writeTestFile(
+	writeElixirTestFile(
 		t,
 		filePath,
 		`defmodule Demo.Macros do
@@ -77,12 +80,12 @@ end
 `,
 	)
 
-	engine, err := DefaultEngine()
+	engine, err := parser.DefaultEngine()
 	if err != nil {
-		t.Fatalf("DefaultEngine() error = %v, want nil", err)
+		t.Fatalf("parser.DefaultEngine() error = %v, want nil", err)
 	}
 
-	got, err := engine.ParsePath(repoRoot, filePath, false, Options{IndexSource: true})
+	got, err := engine.ParsePath(repoRoot, filePath, false, parser.Options{IndexSource: true})
 	if err != nil {
 		t.Fatalf("ParsePath() error = %v, want nil", err)
 	}
@@ -93,7 +96,7 @@ end
 		t.Fatalf("functions = %#v, want 4 entries", functions)
 	}
 
-	expand := assertBucketItemByName(t, got, "functions", "expand")
+	expand := parsertest.AssertBucketItemByName(t, got, "functions", "expand")
 	assertStringFieldValue(t, expand, "type", "defmacro")
 	assertStringFieldValue(t, expand, "semantic_kind", "macro")
 	assertStringFieldValue(t, expand, "visibility", "public")
@@ -101,21 +104,21 @@ end
 	assertStringFieldValue(t, expand, "docstring", `@doc "Macro docs."`)
 	assertStringSliceFieldValue(t, expand, "args", []string{"expr"})
 
-	reduce := assertBucketItemByName(t, got, "functions", "reduce")
+	reduce := parsertest.AssertBucketItemByName(t, got, "functions", "reduce")
 	assertStringFieldValue(t, reduce, "type", "defmacrop")
 	assertStringFieldValue(t, reduce, "semantic_kind", "macro")
 	assertStringFieldValue(t, reduce, "visibility", "private")
 	assertStringFieldValue(t, reduce, "class_context", "Demo.Macros")
 	assertStringSliceFieldValue(t, reduce, "args", []string{"expr"})
 
-	size := assertBucketItemByName(t, got, "functions", "size")
+	size := parsertest.AssertBucketItemByName(t, got, "functions", "size")
 	assertStringFieldValue(t, size, "type", "defdelegate")
 	assertStringFieldValue(t, size, "semantic_kind", "delegate")
 	assertStringFieldValue(t, size, "visibility", "public")
 	assertStringFieldValue(t, size, "class_context", "Demo.Macros")
 	assertStringSliceFieldValue(t, size, "args", []string{"values"})
 
-	isEven := assertBucketItemByName(t, got, "functions", "is_even")
+	isEven := parsertest.AssertBucketItemByName(t, got, "functions", "is_even")
 	assertStringFieldValue(t, isEven, "type", "defguard")
 	assertStringFieldValue(t, isEven, "semantic_kind", "guard")
 	assertStringFieldValue(t, isEven, "visibility", "public")
@@ -128,7 +131,7 @@ func TestDefaultEngineParsePathElixirImportAndCallMetadata(t *testing.T) {
 
 	repoRoot := t.TempDir()
 	filePath := filepath.Join(repoRoot, "imports_and_calls.ex")
-	writeTestFile(
+	writeElixirTestFile(
 		t,
 		filePath,
 		`defmodule Demo.Worker do
@@ -146,12 +149,12 @@ end
 `,
 	)
 
-	engine, err := DefaultEngine()
+	engine, err := parser.DefaultEngine()
 	if err != nil {
-		t.Fatalf("DefaultEngine() error = %v, want nil", err)
+		t.Fatalf("parser.DefaultEngine() error = %v, want nil", err)
 	}
 
-	got, err := engine.ParsePath(repoRoot, filePath, false, Options{IndexSource: true})
+	got, err := engine.ParsePath(repoRoot, filePath, false, parser.Options{IndexSource: true})
 	if err != nil {
 		t.Fatalf("ParsePath() error = %v, want nil", err)
 	}
@@ -162,36 +165,36 @@ end
 		t.Fatalf("imports = %#v, want 4 entries", imports)
 	}
 
-	genServer := assertBucketItemByName(t, got, "imports", "GenServer")
+	genServer := parsertest.AssertBucketItemByName(t, got, "imports", "GenServer")
 	assertStringFieldValue(t, genServer, "import_type", "use")
 	assertStringFieldValue(t, genServer, "full_import_name", "use GenServer")
 
-	repo := assertBucketItemByName(t, got, "imports", "Demo.Repo")
+	repo := parsertest.AssertBucketItemByName(t, got, "imports", "Demo.Repo")
 	assertStringFieldValue(t, repo, "import_type", "alias")
 	assertStringFieldValue(t, repo, "alias", "Repo")
 	assertStringFieldValue(t, repo, "full_import_name", "alias Demo.Repo")
 
-	patterns := assertBucketItemByName(t, got, "imports", "Demo.Patterns")
+	patterns := parsertest.AssertBucketItemByName(t, got, "imports", "Demo.Patterns")
 	assertStringFieldValue(t, patterns, "import_type", "import")
 	assertStringFieldValue(t, patterns, "full_import_name", "import Demo.Patterns")
 
-	logger := assertBucketItemByName(t, got, "imports", "Logger")
+	logger := parsertest.AssertBucketItemByName(t, got, "imports", "Logger")
 	assertStringFieldValue(t, logger, "import_type", "require")
 	assertStringFieldValue(t, logger, "full_import_name", "require Logger")
 
-	info := assertBucketItemByName(t, got, "function_calls", "info")
+	info := parsertest.AssertBucketItemByName(t, got, "function_calls", "info")
 	assertStringFieldValue(t, info, "full_name", "Logger.info")
 	assertStringSliceFieldValue(t, info, "args", []string{`"starting"`})
 	assertStringFieldValue(t, info, "inferred_obj_type", "Logger")
 	assertStringFieldValue(t, info, "class_context", "Demo.Worker")
 
-	greet := assertBucketItemByName(t, got, "function_calls", "greet")
+	greet := parsertest.AssertBucketItemByName(t, got, "function_calls", "greet")
 	assertStringFieldValue(t, greet, "full_name", "Demo.Basic.greet")
 	assertStringSliceFieldValue(t, greet, "args", []string{"user"})
 	assertStringFieldValue(t, greet, "inferred_obj_type", "Demo.Basic")
 	assertStringFieldValue(t, greet, "class_context", "Demo.Worker")
 
-	classify := assertBucketItemByName(t, got, "function_calls", "classify")
+	classify := parsertest.AssertBucketItemByName(t, got, "function_calls", "classify")
 	assertStringSliceFieldValue(t, classify, "args", []string{"user"})
 	assertStringFieldValue(t, classify, "class_context", "Demo.Worker")
 	assertStringFieldValue(t, classify, "name", "classify")
@@ -204,7 +207,7 @@ func TestDefaultEngineParsePathElixirAliasBraceExpansionAndGuardCalls(t *testing
 
 	repoRoot := t.TempDir()
 	filePath := filepath.Join(repoRoot, "brace_and_guard.ex")
-	writeTestFile(
+	writeElixirTestFile(
 		t,
 		filePath,
 		`defmodule Demo.Braces do
@@ -215,12 +218,12 @@ end
 `,
 	)
 
-	engine, err := DefaultEngine()
+	engine, err := parser.DefaultEngine()
 	if err != nil {
-		t.Fatalf("DefaultEngine() error = %v, want nil", err)
+		t.Fatalf("parser.DefaultEngine() error = %v, want nil", err)
 	}
 
-	got, err := engine.ParsePath(repoRoot, filePath, false, Options{IndexSource: true})
+	got, err := engine.ParsePath(repoRoot, filePath, false, parser.Options{IndexSource: true})
 	if err != nil {
 		t.Fatalf("ParsePath() error = %v, want nil", err)
 	}
@@ -231,23 +234,23 @@ end
 		t.Fatalf("imports = %#v, want 3 entries", imports)
 	}
 
-	basic := assertBucketItemByName(t, got, "imports", "Demo.Basic")
+	basic := parsertest.AssertBucketItemByName(t, got, "imports", "Demo.Basic")
 	assertStringFieldValue(t, basic, "import_type", "alias")
 	assertStringFieldValue(t, basic, "alias", "Basic")
 	assertStringFieldValue(t, basic, "full_import_name", "alias Demo.Basic")
 
-	worker := assertBucketItemByName(t, got, "imports", "Demo.Worker")
+	worker := parsertest.AssertBucketItemByName(t, got, "imports", "Demo.Worker")
 	assertStringFieldValue(t, worker, "import_type", "alias")
 	assertStringFieldValue(t, worker, "alias", "Worker")
 	assertStringFieldValue(t, worker, "full_import_name", "alias Demo.Worker")
 
-	user := assertBucketItemByName(t, got, "imports", "Demo.User")
+	user := parsertest.AssertBucketItemByName(t, got, "imports", "Demo.User")
 	assertStringFieldValue(t, user, "import_type", "alias")
 	assertStringFieldValue(t, user, "alias", "User")
 	assertStringFieldValue(t, user, "full_import_name", "alias Demo.User")
 
-	assertBucketContainsFieldValue(t, got, "functions", "name", "is_even")
-	assertBucketContainsFieldValue(t, got, "function_calls", "name", "rem")
+	parsertest.AssertBucketContainsFieldValue(t, got, "functions", "name", "is_even")
+	parsertest.AssertBucketContainsFieldValue(t, got, "function_calls", "name", "rem")
 }
 
 func TestDefaultEngineParsePathElixirEmitsModuleAttributes(t *testing.T) {
@@ -255,7 +258,7 @@ func TestDefaultEngineParsePathElixirEmitsModuleAttributes(t *testing.T) {
 
 	repoRoot := t.TempDir()
 	filePath := filepath.Join(repoRoot, "attributes.ex")
-	writeTestFile(
+	writeElixirTestFile(
 		t,
 		filePath,
 		`defmodule Demo.Attributes do
@@ -267,23 +270,23 @@ end
 `,
 	)
 
-	engine, err := DefaultEngine()
+	engine, err := parser.DefaultEngine()
 	if err != nil {
-		t.Fatalf("DefaultEngine() error = %v, want nil", err)
+		t.Fatalf("parser.DefaultEngine() error = %v, want nil", err)
 	}
 
-	got, err := engine.ParsePath(repoRoot, filePath, false, Options{IndexSource: true})
+	got, err := engine.ParsePath(repoRoot, filePath, false, parser.Options{IndexSource: true})
 	if err != nil {
 		t.Fatalf("ParsePath() error = %v, want nil", err)
 	}
 
-	timeout := assertBucketItemByName(t, got, "variables", "@timeout")
+	timeout := parsertest.AssertBucketItemByName(t, got, "variables", "@timeout")
 	assertStringFieldValue(t, timeout, "class_context", "Demo.Attributes")
 	assertStringFieldValue(t, timeout, "context_type", "module")
 	assertStringFieldValue(t, timeout, "attribute_kind", "module_attribute")
 	assertStringFieldValue(t, timeout, "value", "5_000")
 
-	serviceName := assertBucketItemByName(t, got, "variables", "@service_name")
+	serviceName := parsertest.AssertBucketItemByName(t, got, "variables", "@service_name")
 	assertStringFieldValue(t, serviceName, "class_context", "Demo.Attributes")
 	assertStringFieldValue(t, serviceName, "context_type", "module")
 	assertStringFieldValue(t, serviceName, "attribute_kind", "module_attribute")
@@ -295,7 +298,7 @@ func TestDefaultEngineParsePathElixirMultilineSourceSpans(t *testing.T) {
 
 	repoRoot := t.TempDir()
 	filePath := filepath.Join(repoRoot, "source_spans.ex")
-	writeTestFile(
+	writeElixirTestFile(
 		t,
 		filePath,
 		`defmodule Demo.Source do
@@ -309,17 +312,17 @@ end
 `,
 	)
 
-	engine, err := DefaultEngine()
+	engine, err := parser.DefaultEngine()
 	if err != nil {
-		t.Fatalf("DefaultEngine() error = %v, want nil", err)
+		t.Fatalf("parser.DefaultEngine() error = %v, want nil", err)
 	}
 
-	got, err := engine.ParsePath(repoRoot, filePath, false, Options{IndexSource: true})
+	got, err := engine.ParsePath(repoRoot, filePath, false, parser.Options{IndexSource: true})
 	if err != nil {
 		t.Fatalf("ParsePath() error = %v, want nil", err)
 	}
 
-	module := assertBucketItemByName(t, got, "modules", "Demo.Source")
+	module := parsertest.AssertBucketItemByName(t, got, "modules", "Demo.Source")
 	assertIntFieldValue(t, module, "line_number", 1)
 	assertIntFieldValue(t, module, "end_line", 8)
 	assertStringFieldValue(
@@ -336,7 +339,7 @@ end
 end`,
 	)
 
-	render := assertBucketItemByName(t, got, "functions", "render")
+	render := parsertest.AssertBucketItemByName(t, got, "functions", "render")
 	assertIntFieldValue(t, render, "line_number", 5)
 	assertIntFieldValue(t, render, "end_line", 7)
 	assertStringFieldValue(
@@ -355,7 +358,7 @@ func TestDefaultEngineParsePathElixirEndLinesDoNotRequireSourceIndex(t *testing.
 
 	repoRoot := t.TempDir()
 	filePath := filepath.Join(repoRoot, "spans_without_source.ex")
-	writeTestFile(
+	writeElixirTestFile(
 		t,
 		filePath,
 		`defmodule Demo.Worker do
@@ -366,17 +369,17 @@ end
 `,
 	)
 
-	engine, err := DefaultEngine()
+	engine, err := parser.DefaultEngine()
 	if err != nil {
-		t.Fatalf("DefaultEngine() error = %v, want nil", err)
+		t.Fatalf("parser.DefaultEngine() error = %v, want nil", err)
 	}
 
-	got, err := engine.ParsePath(repoRoot, filePath, false, Options{})
+	got, err := engine.ParsePath(repoRoot, filePath, false, parser.Options{})
 	if err != nil {
 		t.Fatalf("ParsePath() error = %v, want nil", err)
 	}
 
-	caller := assertBucketItemByName(t, got, "functions", "caller")
+	caller := parsertest.AssertBucketItemByName(t, got, "functions", "caller")
 	assertIntFieldValue(t, caller, "line_number", 2)
 	assertIntFieldValue(t, caller, "end_line", 4)
 	if _, ok := caller["source"]; ok {
@@ -389,7 +392,7 @@ func TestDefaultEngineParsePathElixirMultilineCallbackSignature(t *testing.T) {
 
 	repoRoot := t.TempDir()
 	filePath := filepath.Join(repoRoot, "multiline_callback.ex")
-	writeTestFile(
+	writeElixirTestFile(
 		t,
 		filePath,
 		`defmodule Demo.Worker do
@@ -407,24 +410,24 @@ end
 `,
 	)
 
-	engine, err := DefaultEngine()
+	engine, err := parser.DefaultEngine()
 	if err != nil {
-		t.Fatalf("DefaultEngine() error = %v, want nil", err)
+		t.Fatalf("parser.DefaultEngine() error = %v, want nil", err)
 	}
 
-	got, err := engine.ParsePath(repoRoot, filePath, false, Options{IndexSource: true})
+	got, err := engine.ParsePath(repoRoot, filePath, false, parser.Options{IndexSource: true})
 	if err != nil {
 		t.Fatalf("ParsePath() error = %v, want nil", err)
 	}
 
-	handleCall := assertBucketItemByName(t, got, "functions", "handle_call")
+	handleCall := parsertest.AssertBucketItemByName(t, got, "functions", "handle_call")
 	assertIntFieldValue(t, handleCall, "line_number", 5)
 	assertIntFieldValue(t, handleCall, "end_line", 11)
 	assertStringFieldValue(t, handleCall, "class_context", "Demo.Worker")
 	assertStringSliceFieldValue(t, handleCall, "args", []string{"{:run, value}", "_from", "state"})
-	assertParserStringSliceContains(t, handleCall, "dead_code_root_kinds", "elixir.genserver_callback")
+	parsertest.AssertStringSliceContains(t, handleCall, "dead_code_root_kinds", "elixir.genserver_callback")
 
-	normalize := assertBucketItemByName(t, got, "function_calls", "normalize")
+	normalize := parsertest.AssertBucketItemByName(t, got, "function_calls", "normalize")
 	assertIntFieldValue(t, normalize, "line_number", 10)
 	assertStringFieldValue(t, normalize, "full_name", "Demo.Helper.normalize")
 	assertStringFieldValue(t, normalize, "class_context", "Demo.Worker")

@@ -3,7 +3,12 @@
 Read `language.go`, `ast_extract.go`, `ast_calls.go`, `ast_nodes.go`,
 `ast_shared.go`, `dead_code_roots.go`, and `helpers.go` first. Keep this package
 parent-independent: use `internal/parser/shared` for payload, source, sorting,
-and common parser helpers. Do not import `internal/parser`.
+and common parser helpers. Do not import `internal/parser` from any non-test
+file. The external black-box tests in `package elixir_test` are the one
+exception: they import `internal/parser` and `internal/parser/parsertest` to
+drive extraction through `parser.DefaultEngine().ParsePath`, which Go compiles
+as a separate package. Keep `hex_dependency_test.go` in-package and add new
+Engine-level regressions to `elixir_test`.
 
 All Elixir source-symbol extraction is tree-sitter AST based. Do not reintroduce
 regex or line-scan extraction of modules, functions, imports, attributes, or

@@ -21,5 +21,6 @@
 // ParseWithParser and PreScanWithParser let the parent engine reuse a
 // caller-owned runtime parser without importing parser dispatcher internals. The
 // implementation stays parent-independent so Elixir-specific helpers do not add
-// more surface area to the central parser dispatcher.
+// more surface area to the central parser dispatcher; only the external
+// black-box test package reaches back through the parent engine.
 package elixir
