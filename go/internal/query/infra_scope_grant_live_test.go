@@ -146,11 +146,11 @@ func TestLiveInfraScopeShapeShapeADiscriminates(t *testing.T) {
 	// predicate builders derive their scalars from it, and paramsA binds the
 	// matching arrays + scope_grant_* scalars.
 	accessA := repositoryAccessFilter{
-		allowedRepositoryIDs: []string{"sst-repo-a"},
-		allowed:              map[string]struct{}{"sst-repo-a": {}},
+		AllowedRepositoryIDs: []string{"sst-repo-a"},
+		Allowed:              map[string]struct{}{"sst-repo-a": {}},
 	}
-	scalarsA, _ := accessA.scopeGrantInlineScalars()
-	paramsA := map[string]any{"allowed_repository_ids": accessA.allowedRepositoryIDs, "allowed_scope_ids": []string{}}
+	scalarsA, _ := accessA.ScopeGrantInlineScalars()
+	paramsA := map[string]any{"allowed_repository_ids": accessA.AllowedRepositoryIDs, "allowed_scope_ids": []string{}}
 	bindScopeGrantInlineScalars(paramsA, scalarsA)
 
 	// Restrict counts to the scratch fixture so unrelated data cannot skew them.
@@ -201,11 +201,11 @@ func TestLiveInfraScopeShapeShapeADiscriminates(t *testing.T) {
 
 	// GREEN: the tenant-B grant admits exactly the tenant-B secret.
 	accessB := repositoryAccessFilter{
-		allowedRepositoryIDs: []string{"sst-repo-b"},
-		allowed:              map[string]struct{}{"sst-repo-b": {}},
+		AllowedRepositoryIDs: []string{"sst-repo-b"},
+		Allowed:              map[string]struct{}{"sst-repo-b": {}},
 	}
-	scalarsB, _ := accessB.scopeGrantInlineScalars()
-	paramsB := map[string]any{"allowed_repository_ids": accessB.allowedRepositoryIDs, "allowed_scope_ids": []string{}}
+	scalarsB, _ := accessB.ScopeGrantInlineScalars()
+	paramsB := map[string]any{"allowed_repository_ids": accessB.AllowedRepositoryIDs, "allowed_scope_ids": []string{}}
 	bindScopeGrantInlineScalars(paramsB, scalarsB)
 	shapeAB := infraResourceScopePredicate("n", scalarsB) + sst
 	if got := liveScopeCount(t, session, "n", "CloudResource", shapeAB, paramsB); got != 1 {
@@ -270,11 +270,11 @@ func TestLiveInfraScopeShapeMatchesStateDiscriminates(t *testing.T) {
 	defer liveScopeRun(t, session, "MATCH (n) WHERE n.sst = true DETACH DELETE n", nil)
 
 	accessA := repositoryAccessFilter{
-		allowedRepositoryIDs: []string{"sst-repo-a"},
-		allowed:              map[string]struct{}{"sst-repo-a": {}},
+		AllowedRepositoryIDs: []string{"sst-repo-a"},
+		Allowed:              map[string]struct{}{"sst-repo-a": {}},
 	}
-	scalarsA, _ := accessA.scopeGrantInlineScalars()
-	paramsA := map[string]any{"allowed_repository_ids": accessA.allowedRepositoryIDs, "allowed_scope_ids": []string{}}
+	scalarsA, _ := accessA.ScopeGrantInlineScalars()
+	paramsA := map[string]any{"allowed_repository_ids": accessA.AllowedRepositoryIDs, "allowed_scope_ids": []string{}}
 	bindScopeGrantInlineScalars(paramsA, scalarsA)
 
 	sst := " AND n.sst = true"
@@ -320,11 +320,11 @@ func TestLiveInfraScopeShapeMatchesStateDiscriminates(t *testing.T) {
 
 	// GREEN: the repo-b grant admits exactly its own matched state resource.
 	accessB := repositoryAccessFilter{
-		allowedRepositoryIDs: []string{"sst-repo-b"},
-		allowed:              map[string]struct{}{"sst-repo-b": {}},
+		AllowedRepositoryIDs: []string{"sst-repo-b"},
+		Allowed:              map[string]struct{}{"sst-repo-b": {}},
 	}
-	scalarsB, _ := accessB.scopeGrantInlineScalars()
-	paramsB := map[string]any{"allowed_repository_ids": accessB.allowedRepositoryIDs, "allowed_scope_ids": []string{}}
+	scalarsB, _ := accessB.ScopeGrantInlineScalars()
+	paramsB := map[string]any{"allowed_repository_ids": accessB.AllowedRepositoryIDs, "allowed_scope_ids": []string{}}
 	bindScopeGrantInlineScalars(paramsB, scalarsB)
 	shapeB := infraResourceScopePredicate("n", scalarsB) + sst
 	if got := liveScopeCount(t, session, "n", "TerraformStateResource", shapeB, paramsB); got != 1 {
