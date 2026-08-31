@@ -247,7 +247,7 @@ old full scan made — not "earliest fact of the first-checked kind" — so anch
 Root assembly constructs one concrete `intent.FactLookup` per generation and
 retains a compatibility wrapper for unmoved family builders. The extracted
 `internal/projector/azure`, `internal/projector/ec2`, `internal/projector/gcp`,
-`internal/projector/kubernetes`, `internal/projector/rds`, `internal/projector/s3`, `internal/projector/security`, and `internal/projector/workloadcloud`
+`internal/projector/kubernetes`, `internal/projector/rds`, `internal/projector/s3`, `internal/projector/security`, `internal/projector/workloadcloud`, and `internal/projector/incidentrouting`
 families import that neutral lookup without importing root projector assembly;
 remaining root builders keep using the private forwarders until they move.
 `ReducerIntent` in the root package is a type alias, so existing writer and
@@ -321,7 +321,7 @@ It does not join AWS IAM, Kubernetes ServiceAccount, or Vault policy evidence
 and never derives an access path.
 PagerDuty incident-routing follows the same reducer-owned boundary. When a
 generation contains an `incident.record` fact or any `incident_routing.*` fact,
-`buildIncidentRoutingMaterializationReducerIntent` emits one
+`incidentrouting.BuildIncidentRoutingMaterializationReducerIntent` ([architecture](incidentrouting/README.md)) emits one
 `incident_routing_materialization` reducer intent for the scope/generation. The
 projector does not compare declared, applied, or live routing evidence and does
 not infer service truth from PagerDuty payloads. It does not create incident,
@@ -582,7 +582,7 @@ does not change graph write cardinality, worker counts, claim ordering, batch
 size, retry timing, or backend settings.
 
 No-Regression Evidence: PagerDuty incident-routing intent routing is covered by
-`go test ./internal/projector -run 'IncidentRoutingMaterialization' -count=1`.
+`go test ./internal/projector/... -run 'IncidentRoutingMaterialization' -count=1`.
 It adds at most one reducer intent per incident/routing scope generation and
 does not change graph writes, worker counts, claim ordering, batch size, retry
 timing, or backend settings.
