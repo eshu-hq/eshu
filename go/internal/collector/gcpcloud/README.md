@@ -24,8 +24,9 @@ fixture-backed and claimed-live `cmd/collector-gcp-cloud` runtime wiring, shared
 cloud inventory admission/readback, tag evidence admission, image identity
 admission, relationship resolution, and IAM trust facts live in sibling packages
 and reducers. Claim-enabled scheduler activation, opt-in direct/effective tag
-API evidence, and chart values are implemented; live smoke proof remains gated
-follow-up work. See
+API evidence, and chart values are implemented. Issues #1997/#2644 record the
+completed security-only sanitized smoke, while deployed-shape promotion proof
+remains gated. See
 [GCP Cloud Collector Contract](../../../../docs/public/reference/gcp-cloud-collector-contract.md).
 
 ## Collection flow
