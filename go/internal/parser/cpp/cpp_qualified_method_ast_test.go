@@ -1,11 +1,13 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package parser
+package cpp_test
 
 import (
 	"path/filepath"
 	"testing"
+
+	"github.com/eshu-hq/eshu/go/internal/parser/parsertest"
 )
 
 // TestDefaultEngineParsePathCPPOutOfLineQualifiedMethodsViaAST locks the
@@ -18,7 +20,7 @@ func TestDefaultEngineParsePathCPPOutOfLineQualifiedMethodsViaAST(t *testing.T) 
 
 	repoRoot := t.TempDir()
 	sourcePath := filepath.Join(repoRoot, "shapes.cpp")
-	writeTestFile(
+	parsertest.WriteFile(
 		t,
 		sourcePath,
 		`#include <cstddef>
@@ -57,19 +59,11 @@ Counter& Counter::operator++() {
 `,
 	)
 
-	engine, err := DefaultEngine()
-	if err != nil {
-		t.Fatalf("DefaultEngine() error = %v, want nil", err)
-	}
-
-	got, err := engine.ParsePath(repoRoot, sourcePath, false, Options{})
-	if err != nil {
-		t.Fatalf("ParsePath(%s) error = %v, want nil", sourcePath, err)
-	}
+	got := parsertest.MustParsePath(t, repoRoot, sourcePath)
 
 	// Simple out-of-line method: regex parity, now AST-derived.
 	draw := assertFunctionByNameAndClass(t, got, "draw", "Shape")
-	assertParserStringSliceContains(t, draw, "dead_code_root_kinds", "cpp.virtual_method")
+	parsertest.AssertStringSliceContains(t, draw, "dead_code_root_kinds", "cpp.virtual_method")
 
 	// Destructor: regex parity (name "~Shape", class "Shape").
 	assertFunctionByNameAndClass(t, got, "~Shape", "Shape")

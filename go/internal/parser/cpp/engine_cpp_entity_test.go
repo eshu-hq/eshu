@@ -1,11 +1,14 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package parser
+package cpp_test
 
 import (
 	"path/filepath"
 	"testing"
+
+	"github.com/eshu-hq/eshu/go/internal/parser"
+	"github.com/eshu-hq/eshu/go/internal/parser/parsertest"
 )
 
 // TestDefaultEngineParsePathCPPEnumExtraction proves that the C++ parser
@@ -16,7 +19,7 @@ func TestDefaultEngineParsePathCPPEnumExtraction(t *testing.T) {
 
 	repoRoot := t.TempDir()
 	filePath := filepath.Join(repoRoot, "enums.cpp")
-	writeTestFile(
+	parsertest.WriteFile(
 		t,
 		filePath,
 		`enum Color {
@@ -34,26 +37,18 @@ enum class LogLevel : int {
 `,
 	)
 
-	engine, err := DefaultEngine()
-	if err != nil {
-		t.Fatalf("DefaultEngine() error = %v, want nil", err)
-	}
-
-	got, err := engine.ParsePath(repoRoot, filePath, false, Options{})
-	if err != nil {
-		t.Fatalf("ParsePath() error = %v, want nil", err)
-	}
+	got := parsertest.MustParsePath(t, repoRoot, filePath)
 
 	if got["lang"] != "cpp" {
 		t.Fatalf("lang = %#v, want %#v", got["lang"], "cpp")
 	}
 
-	assertNamedBucketContains(t, got, "enums", "Color")
-	assertNamedBucketContains(t, got, "enums", "LogLevel")
+	parsertest.AssertNamedBucketContains(t, got, "enums", "Color")
+	parsertest.AssertNamedBucketContains(t, got, "enums", "LogLevel")
 
 	// Verify enum items carry expected fields.
 	for _, name := range []string{"Color", "LogLevel"} {
-		item := assertBucketItemByName(t, got, "enums", name)
+		item := parsertest.AssertBucketItemByName(t, got, "enums", name)
 		assertStringFieldValue(t, item, "lang", "cpp")
 		if _, ok := item["line_number"]; !ok {
 			t.Fatalf("enum %q missing line_number field", name)
@@ -71,7 +66,7 @@ func TestDefaultEngineParsePathCPPUnionExtraction(t *testing.T) {
 
 	repoRoot := t.TempDir()
 	filePath := filepath.Join(repoRoot, "unions.cpp")
-	writeTestFile(
+	parsertest.WriteFile(
 		t,
 		filePath,
 		`union NumericValue {
@@ -87,26 +82,18 @@ union StringOrNumber {
 `,
 	)
 
-	engine, err := DefaultEngine()
-	if err != nil {
-		t.Fatalf("DefaultEngine() error = %v, want nil", err)
-	}
-
-	got, err := engine.ParsePath(repoRoot, filePath, false, Options{})
-	if err != nil {
-		t.Fatalf("ParsePath() error = %v, want nil", err)
-	}
+	got := parsertest.MustParsePath(t, repoRoot, filePath)
 
 	if got["lang"] != "cpp" {
 		t.Fatalf("lang = %#v, want %#v", got["lang"], "cpp")
 	}
 
-	assertNamedBucketContains(t, got, "unions", "NumericValue")
-	assertNamedBucketContains(t, got, "unions", "StringOrNumber")
+	parsertest.AssertNamedBucketContains(t, got, "unions", "NumericValue")
+	parsertest.AssertNamedBucketContains(t, got, "unions", "StringOrNumber")
 
 	// Verify union items carry expected fields.
 	for _, name := range []string{"NumericValue", "StringOrNumber"} {
-		item := assertBucketItemByName(t, got, "unions", name)
+		item := parsertest.AssertBucketItemByName(t, got, "unions", name)
 		assertStringFieldValue(t, item, "lang", "cpp")
 		if _, ok := item["line_number"]; !ok {
 			t.Fatalf("union %q missing line_number field", name)
@@ -124,7 +111,7 @@ func TestDefaultEngineParsePathCPPUnionPreScan(t *testing.T) {
 
 	repoRoot := t.TempDir()
 	filePath := filepath.Join(repoRoot, "unions.cpp")
-	writeTestFile(
+	parsertest.WriteFile(
 		t,
 		filePath,
 		`union NumericValue {
@@ -134,7 +121,7 @@ func TestDefaultEngineParsePathCPPUnionPreScan(t *testing.T) {
 `,
 	)
 
-	engine, err := DefaultEngine()
+	engine, err := parser.DefaultEngine()
 	if err != nil {
 		t.Fatalf("DefaultEngine() error = %v, want nil", err)
 	}
@@ -144,7 +131,7 @@ func TestDefaultEngineParsePathCPPUnionPreScan(t *testing.T) {
 		t.Fatalf("PreScanPaths() error = %v, want nil", err)
 	}
 
-	assertPrescanContains(t, got, "NumericValue", filePath)
+	parsertest.AssertPrescanContains(t, got, "NumericValue", filePath)
 }
 
 // TestDefaultEngineParsePathCPPEnumPreScan verifies that C++ enums are
@@ -154,7 +141,7 @@ func TestDefaultEngineParsePathCPPEnumPreScan(t *testing.T) {
 
 	repoRoot := t.TempDir()
 	filePath := filepath.Join(repoRoot, "enums.cpp")
-	writeTestFile(
+	parsertest.WriteFile(
 		t,
 		filePath,
 		`enum class LogLevel : int {
@@ -164,7 +151,7 @@ func TestDefaultEngineParsePathCPPEnumPreScan(t *testing.T) {
 `,
 	)
 
-	engine, err := DefaultEngine()
+	engine, err := parser.DefaultEngine()
 	if err != nil {
 		t.Fatalf("DefaultEngine() error = %v, want nil", err)
 	}
@@ -174,5 +161,5 @@ func TestDefaultEngineParsePathCPPEnumPreScan(t *testing.T) {
 		t.Fatalf("PreScanPaths() error = %v, want nil", err)
 	}
 
-	assertPrescanContains(t, got, "LogLevel", filePath)
+	parsertest.AssertPrescanContains(t, got, "LogLevel", filePath)
 }

@@ -39,3 +39,13 @@ func TestAssertStringSliceContainsAcceptsExistingValue(t *testing.T) {
 
 	AssertStringSliceContains(t, item, "dead_code_root_kinds", "c.callback_argument_target")
 }
+
+func TestAssertPrescanContainsAcceptsExistingPath(t *testing.T) {
+	t.Parallel()
+
+	importsMap := map[string][]string{
+		"Widget": {"/repo/src/widget.cpp", "/repo/src/widget.hpp"},
+	}
+
+	AssertPrescanContains(t, importsMap, "Widget", "/repo/src/widget.hpp")
+}
