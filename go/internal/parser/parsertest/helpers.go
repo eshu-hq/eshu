@@ -4,6 +4,7 @@
 package parsertest
 
 import (
+	"fmt"
 	"os"
 	"reflect"
 	"slices"
@@ -97,25 +98,36 @@ func AssertStringSliceContains(t *testing.T, item map[string]any, field string, 
 	t.Fatalf("%s = %#v, want to contain %#v", field, got, want)
 }
 
-// AssertStringSliceNotContains requires item[field], when present as a
-// []string, to not contain want. A missing or non-[]string field passes: the
-// callers of this helper use it to prove a value was never added, not that
-// the field holds a particular type.
-func AssertStringSliceNotContains(t *testing.T, item map[string]any, field string, want string) {
-	t.Helper()
-
+// stringSliceNotContains reports why item[field] fails the negative assertion,
+// or nil when it holds. It is separated from the assertion so the decision can
+// be tested directly: an assertion that takes *testing.T can only be exercised
+// through a recorder, and the predicate needs none.
+func stringSliceNotContains(item map[string]any, field string, want string) error {
 	raw, present := item[field]
 	if !present {
-		return
+		return nil
 	}
 	got, ok := raw.([]string)
 	if !ok {
-		t.Fatalf("%s = %#v (%T), want []string; a present-but-malformed field must not pass a negative assertion", field, raw, raw)
+		return fmt.Errorf("%s = %#v (%T), want []string; a present-but-malformed field must not pass a negative assertion", field, raw, raw)
 	}
 	for _, value := range got {
 		if value == want {
-			t.Fatalf("%s = %#v, want not to contain %#v", field, got, want)
+			return fmt.Errorf("%s = %#v, want not to contain %#v", field, got, want)
 		}
+	}
+	return nil
+}
+
+// AssertStringSliceNotContains requires item[field], when present as a
+// []string, to not contain want. A missing field passes: callers use this to
+// prove a value was never added. A present field whose value is not []string
+// fails, so a drifted fixture cannot silently satisfy a negative assertion.
+func AssertStringSliceNotContains(t *testing.T, item map[string]any, field string, want string) {
+	t.Helper()
+
+	if err := stringSliceNotContains(item, field, want); err != nil {
+		t.Fatalf("%v", err)
 	}
 }
 

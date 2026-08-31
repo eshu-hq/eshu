@@ -97,3 +97,37 @@ func TestAssertFunctionByNameAndClassReturnsMatchingItem(t *testing.T) {
 		t.Fatalf("matched item = %#v, want %#v", got, want)
 	}
 }
+
+func TestStringSliceNotContainsRejectsMalformedField(t *testing.T) {
+	// A present field of the wrong type used to return silently, which let a
+	// negative assertion pass over a fixture whose shape had drifted. The
+	// predicate is tested directly so the failure path is proven, not assumed.
+	for name, value := range map[string]any{
+		"string instead of slice": "swift.constructor",
+		"slice of any":            []any{"swift.constructor"},
+		"nil value":               nil,
+	} {
+		t.Run(name, func(t *testing.T) {
+			if err := stringSliceNotContains(map[string]any{"kinds": value}, "kinds", "swift.constructor"); err == nil {
+				t.Fatalf("malformed %s passed the negative assertion; want an error", name)
+			}
+		})
+	}
+}
+
+func TestStringSliceNotContainsRejectsPresentValue(t *testing.T) {
+	item := map[string]any{"kinds": []string{"swift.main_function", "swift.constructor"}}
+	if err := stringSliceNotContains(item, "kinds", "swift.constructor"); err == nil {
+		t.Fatal("a slice containing the value passed the negative assertion; want an error")
+	}
+}
+
+func TestStringSliceNotContainsAcceptsAbsentFieldAndMissingValue(t *testing.T) {
+	if err := stringSliceNotContains(map[string]any{}, "kinds", "swift.constructor"); err != nil {
+		t.Fatalf("absent field must pass: %v", err)
+	}
+	item := map[string]any{"kinds": []string{"swift.main_function"}}
+	if err := stringSliceNotContains(item, "kinds", "swift.constructor"); err != nil {
+		t.Fatalf("slice without the value must pass: %v", err)
+	}
+}
