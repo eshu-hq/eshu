@@ -3,7 +3,13 @@ grandfathered_non_hot_baseline: 220989280718f206e53fade8670c3b240d44a9b0
 source_coverage:
   - file: catalog.go
     calls:
-      - {symbol: "(*RepositoryHandler).listCatalogRepositoriesFromGraph", count: 1, non_hot_reason: "inventory-only support or bounded read; promote to entry_ids when designated hot"}
+      - symbol: "(*RepositoryHandler).listCatalogRepositoriesFromGraph"
+        count: 1
+        non_hot:
+          class: label_inventory
+          source_sha256: d87a4fa2b37ebe12cf091119232acd88499ea05869d054a3b05ecaf2a1c3b399
+          label: "Repository"
+          max_results: 5001
   - file: catalog_workload_environments.go
     calls:
       - {symbol: "(*RepositoryHandler).assembleCatalogWorkloadsFromGraph", count: 1, non_hot_reason: "inventory-only support or bounded read; promote to entry_ids when designated hot"}
@@ -145,7 +151,14 @@ source_coverage:
       - {symbol: "(*ImpactHandler).entityMapNeighborhoodRows", count: 1, source_sha256: 5c91dacd107e037ad4ceffb0804c89b1f6baca7a66c314407b3e3359dc80bfb2, entry_ids: [QP-ENTITY-MAP-DIRECT-REPOSITORY, QP-ENTITY-MAP-BOUNDED-REPOSITORY]}
   - file: entity_resolve_identity.go
     calls:
-      - {symbol: "hydrateResolvedEntityRepoIdentity", count: 1, non_hot_reason: "inventory-only support or bounded read; promote to entry_ids when designated hot"}
+      - symbol: "hydrateResolvedEntityRepoIdentity"
+        count: 1
+        non_hot:
+          class: keyed_support
+          source_sha256: 3a77ce572e6302f8b43675f102de60e7342a7dd722730f477a2f6e3b4f1314b4
+          key_bound: bounded_key_batch
+          max_keys: 101
+          max_results: 101
   - file: entity_workload_context.go
     calls:
       - {symbol: "(*EntityHandler).fetchWorkloadContextForOperation", count: 1, source_sha256: 0e45cef68f95f3149b4873087b2c599dd08245328c6c7d806adf59c97cf31f6a, entry_ids: [QP-SVC-CONTEXT]}
@@ -272,7 +285,13 @@ source_coverage:
       - {symbol: "(*InfraHandler).searchResources", count: 1, source_sha256: 6ad1a46d55d28077a13778b029dbcafdff419725ee58190f93d65737f3d3cb70, entry_ids: [QP-INFRA-RESOURCE-SEARCH]}
   - file: infra_argocd_search.go
     calls:
-      - {symbol: "(*InfraHandler).searchArgoCDCategoryRows", count: 1, non_hot_reason: "inventory-only support or bounded read; promote to entry_ids when designated hot"}
+      - symbol: "(*InfraHandler).searchArgoCDCategoryRows"
+        count: 1
+        non_hot:
+          class: label_inventory
+          source_sha256: ad66e58f440159a4da6f9c333c9d5ab5da9d7e7ad979fe7a7130757b7769e75f
+          label: "ArgoCDApplication|ArgoCDApplicationSet"
+          max_results: 201
   - file: infra_ecosystem_overview.go
     calls:
       - symbol: "runEcosystemOverviewCounts"
@@ -385,8 +404,20 @@ source_coverage:
   - file: repository.go
     calls:
       - {symbol: "(*RepositoryHandler).getRepositoryStory", count: 1, non_hot: {class: keyed_support, source_sha256: 016f604738fe3f3278788296aa502273afab765e72f63272b815a7c37d224b11, key_bound: single_key, max_results: 1}}
-      - {symbol: "(*RepositoryHandler).listRepositories", count: 1, non_hot_reason: "inventory-only support or bounded read; promote to entry_ids when designated hot"}
-      - {symbol: "queryRepositoryTotal", count: 1, non_hot_reason: "inventory-only support or bounded read; promote to entry_ids when designated hot"}
+      - symbol: "(*RepositoryHandler).listRepositories"
+        count: 1
+        non_hot:
+          class: label_inventory
+          source_sha256: 70bfb0350e02e428357fc6e006d47f78e8a000a3c3e469b4f5d2285503e62abb
+          label: "Repository"
+          max_results: 501
+      - symbol: "queryRepositoryTotal"
+        count: 1
+        non_hot:
+          class: label_inventory
+          source_sha256: 28524716b98d78e7a512f118b784e5b324b03638c379760ff965bd8f6fe2f3ac
+          label: "Repository"
+          max_results: 1
   - file: repository_api_surface.go
     calls:
       - {symbol: "queryRepoAPISurface", count: 2, non_hot_reason: "inventory-only support or bounded read; promote to entry_ids when designated hot"}
@@ -412,7 +443,13 @@ source_coverage:
       - {symbol: "(*RepositoryHandler).queryRepositoryGraphCoverageStats", count: 1, non_hot_reason: "inventory-only support or bounded read; promote to entry_ids when designated hot"}
   - file: repository_dependency_cluster.go
     calls:
-      - {symbol: "loadRepositoryDependencyClusters", count: 1, non_hot_reason: "inventory-only support or bounded read; promote to entry_ids when designated hot"}
+      - symbol: "loadRepositoryDependencyClusters"
+        count: 1
+        non_hot:
+          class: label_inventory
+          source_sha256: 839946059f96eee74de2fb919c1b163a472fae56fbc68d50f378a209409f4952
+          label: "Repository"
+          max_results: 50000
   - file: repository_deployment_evidence.go
     calls:
       - {symbol: "queryRepoDeploymentEvidenceDirection", count: 1, non_hot: {class: keyed_support, source_sha256: 7f3031cb8f9b7ea826e939ead0ed7cfe246f87352ce51a3b9b04c06fa7e3cc6f, key_bound: single_key, max_results: 51}}

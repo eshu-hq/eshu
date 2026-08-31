@@ -10,7 +10,6 @@ const grandfatheredNonHotBaseline = "220989280718f206e53fade8670c3b240d44a9b0"
 // non_hot_reason, and any source change forces the owning callsite through a
 // typed non-hot audit or hot-path registration.
 var grandfatheredNonHotSourceDigests = map[string]string{
-	"catalog.go:(*RepositoryHandler).listCatalogRepositoriesFromGraph":                                    "d87a4fa2b37ebe12cf091119232acd88499ea05869d054a3b05ecaf2a1c3b399",
 	"catalog_workload_environments.go:(*RepositoryHandler).assembleCatalogWorkloadsFromGraph":             "81c076a9eb1a86acbd223ac25a9773a9ad2f1c776ba730023a80f6a6072e0108",
 	"code.go:(*CodeHandler).runComplexityQuery":                                                           "53fef37f7217c6b4e6aa26423fd1be4540f9e50cf8d0c0f0b5ce6f815635eaab",
 	"code_call_chain.go:(*CodeHandler).handleCallChain":                                                   "da2e8eccd7a34119a4c78663b2f8ce32ad09d5121c7a46c1adef25041fe7f6e2",
@@ -43,7 +42,6 @@ var grandfatheredNonHotSourceDigests = map[string]string{
 	"compare.go:(*CompareHandler).fetchWorkload":                                                          "cb8c6cefd899b3c46a8778cc13fb218c18564157d1e40882819c3c4b9a6684a9",
 	"contract_impact.go:(*ImpactHandler).contractImpactResponse":                                          "562e0ec5870a6a049efe6cc2f2217951a0925d7118cf18d080f78a58b038cd53",
 	"entity.go:(*EntityHandler).getEntityContext":                                                         "82ace24ea09cbf96a1b492f7c81cd55d9e38326f0f52cf5237115ed9e3f6bb62",
-	"entity_resolve_identity.go:hydrateResolvedEntityRepoIdentity":                                        "3a77ce572e6302f8b43675f102de60e7342a7dd722730f477a2f6e3b4f1314b4",
 	"exposure_path.go:(*ImpactHandler).exposurePathCandidates":                                            "157383f76058132a7c74d0105bf806386cedd0a7eae975ddecd90f29ab28b243",
 	"impact.go:(*ImpactHandler).explainDependencyPath":                                                    "9e1c716c85201826375e56ed251ccd21ab4c787577cc2bf468727819f9e5aaaf",
 	"impact.go:(*ImpactHandler).traceResourceToCode":                                                      "a150facc957f33a712a2ebe6ad41e5eeb8c4736add3136777da3dbd8db0dacf0",
@@ -52,7 +50,6 @@ var grandfatheredNonHotSourceDigests = map[string]string{
 	"impact_trace_deployment_oci.go:fetchOCIImageTagRows":                                                 "52b40e161aeeed7985650e305c59c98b3ebdae543b55774d6d648acb3c52afad",
 	"impact_trace_deployment_oci.go:fetchOCIImagesByDigest":                                               "e42e34fbdc4a895e9980767c9b7958d50774a5fc6c95b84936a05067bd983619",
 	"impact_trace_deployment_oci.go:fetchOCIRepositoriesByUID":                                            "bc32bd369075d858c192d80976b728a6ea3079fb9d9b2c2ebec45d52558255f2",
-	"infra_argocd_search.go:(*InfraHandler).searchArgoCDCategoryRows":                                     "ad66e58f440159a4da6f9c333c9d5ab5da9d7e7ad979fe7a7130757b7769e75f",
 	"infra_graph_summary_packet.go:(*InfraHandler).graphSummaryHotEntities":                               "29bb8613e51337bae4afd481348a58210d529c9b638181572ad0641fbce41e31",
 	"infra_graph_summary_packet.go:(*InfraHandler).graphSummaryRelationshipCounts":                        "22168d083366531f6a88eeee694dc46f6fbc46bfa2d0e4815b32bbce42cee411",
 	"infra_graph_summary_packet.go:(*InfraHandler).graphSummaryRepoEcosystemMap":                          "f1fbee8ad896a2c3047c9eb0a317a009e1cd61222dd1facf39a33926c52b0875",
@@ -64,8 +61,6 @@ var grandfatheredNonHotSourceDigests = map[string]string{
 	"neo4j.go:(*Neo4jReader).RunSingle":                                                                   "b77731433ac905d12ca935b11decf557c81280901ef22fcdfb0a3bf2dedf1227",
 	"package_registry_aggregates.go:(GraphPackageRegistryAggregateStore).CountPackageRegistryPackages":    "17436e4034f0d986cc2c8c9342783a36803d087ab9a44f791ac4f4922a6ad623",
 	"package_registry_aggregates.go:(GraphPackageRegistryAggregateStore).PackageRegistryPackageInventory": "2c5afd11d4b433375b7be7ad70b28e4a679db8f8a063243f6c3c6355c20b1482",
-	"repository.go:(*RepositoryHandler).listRepositories":                                                 "70bfb0350e02e428357fc6e006d47f78e8a000a3c3e469b4f5d2285503e62abb",
-	"repository.go:queryRepositoryTotal":                                                                  "28524716b98d78e7a512f118b784e5b324b03638c379760ff965bd8f6fe2f3ac",
 	"repository_api_surface.go:queryRepoAPISurface":                                                       "0cf56ba43a52fad022d03be7959ce494527fa2372bbbbf9f0415688a94c76f46",
 	"repository_config_artifacts_loader.go:queryRelatedRepositoryArtifactSources":                         "5659c0f65fa8b74c50a2a9cb78eeb2883a7c4425fae9e9301dca95ee21d32aad",
 	"repository_context_helpers.go:queryRepoConsumers":                                                    "1946e86be8b6d8e3edfbbc7359f2c3f9ad2680244de3648af1d8f50881faade7",
@@ -75,7 +70,6 @@ var grandfatheredNonHotSourceDigests = map[string]string{
 	"repository_context_helpers.go:queryRepoRelationshipOverviewDirection":                                "2f9448843d403c0c9fc77b02f980b789d9f5ed5f185d97bba8c7fe2579ac6d00",
 	"repository_context_helpers.go:queryRepoSourceToolBreakdown":                                          "3918e78a83ba8142c1859b588f5c6aeb940f23fd7b5aa5bdb3e19544c87f6a1d",
 	"repository_coverage.go:(*RepositoryHandler).queryRepositoryGraphCoverageStats":                       "03a1169e19cecd151db58a7b04bd73951442ea968ec6adb7fa4167441dd92282",
-	"repository_dependency_cluster.go:loadRepositoryDependencyClusters":                                   "839946059f96eee74de2fb919c1b163a472fae56fbc68d50f378a209409f4952",
 	"repository_name_lookup.go:queryRepositoryNamesByID":                                                  "bc5bc4ba6a121331df4503d2fcc3e6dce99dbcd9f6577be390cfed2836b7ff42",
 	"repository_selector.go:resolveRepositorySelectorExactForAccess":                                      "5a1c4c7ed8ef6c00afaf83615e271ea5bef57ecc5a38faeb422b4a445cc4f740",
 	"repository_stats.go:(*RepositoryHandler).repositoryStatsRepositoryRef":                               "d77ea6fafc6b643991204c6aef8cff77b0a6c3a96b07293d1da2e46f5435340d",
