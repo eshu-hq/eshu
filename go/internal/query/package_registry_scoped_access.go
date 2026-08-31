@@ -86,7 +86,7 @@ func resolvePackageRegistryAnchorGate(
 	packageID string,
 	access repositoryAccessFilter,
 ) (packageRegistryAnchorGate, error) {
-	if !access.scoped() {
+	if !access.Scoped() {
 		return packageRegistryAnchorGate{proceed: true}, nil
 	}
 	if packageID == "" {
@@ -125,8 +125,8 @@ func packageRegistryGateForVisibility(
 	page, err := correlations.ListPackageRegistryCorrelations(ctx, PackageRegistryCorrelationFilter{
 		PackageID:            packageID,
 		Limit:                1,
-		AllowedRepositoryIDs: access.grantedRepositoryIDs(),
-		AllowedScopeIDs:      access.grantedScopeIDs(),
+		AllowedRepositoryIDs: access.GrantedRepositoryIDs(),
+		AllowedScopeIDs:      access.GrantedScopeIDs(),
 	})
 	if err != nil {
 		return packageRegistryAnchorGate{}, err
@@ -201,8 +201,8 @@ func packageRegistryGateForVisibilityBatch(
 	page, err := correlations.ListPackageRegistryCorrelations(ctx, PackageRegistryCorrelationFilter{
 		PackageIDs:           packageIDs,
 		Limit:                packageRegistryMaxLimit,
-		AllowedRepositoryIDs: access.grantedRepositoryIDs(),
-		AllowedScopeIDs:      access.grantedScopeIDs(),
+		AllowedRepositoryIDs: access.GrantedRepositoryIDs(),
+		AllowedScopeIDs:      access.GrantedScopeIDs(),
 	})
 	if err != nil {
 		return nil, err
@@ -415,7 +415,7 @@ func packageRegistryAggregateVisibilityGate(
 	filter PackageRegistryAggregateFilter,
 ) (out PackageRegistryAggregateFilter, emptyResult bool) {
 	access := repositoryAccessFilterFromContext(ctx)
-	if !access.scoped() {
+	if !access.Scoped() {
 		return filter, false
 	}
 	if filter.Visibility != "" && filter.Visibility != packageRegistryVisibilityPublic {

@@ -26,13 +26,13 @@ package query
 // repoID present in its grant, and an empty repoID is always denied when
 // scoped (deny-by-default -- see file doc comment).
 func impactRepoIDAllowed(repoID string, access repositoryAccessFilter) bool {
-	if !access.scoped() {
+	if !access.Scoped() {
 		return true
 	}
 	if repoID == "" {
 		return false
 	}
-	return access.allowsRepositoryID(repoID)
+	return access.AllowsRepositoryID(repoID)
 }
 
 // filterChangeSurfaceCandidatesForAccess drops resolved change-surface target
@@ -45,7 +45,7 @@ func filterChangeSurfaceCandidatesForAccess(
 	candidates []changeSurfaceTargetCandidate,
 	access repositoryAccessFilter,
 ) []changeSurfaceTargetCandidate {
-	if !access.scoped() {
+	if !access.Scoped() {
 		return candidates
 	}
 	filtered := make([]changeSurfaceTargetCandidate, 0, len(candidates))
@@ -64,7 +64,7 @@ func filterResourceInvestigationCandidatesForAccess(
 	candidates []resourceInvestigationCandidate,
 	access repositoryAccessFilter,
 ) []resourceInvestigationCandidate {
-	if !access.scoped() {
+	if !access.Scoped() {
 		return candidates
 	}
 	filtered := make([]resourceInvestigationCandidate, 0, len(candidates))
@@ -82,7 +82,7 @@ func filterResourceInvestigationCandidatesForAccess(
 // that fold topic evidence into their response bind it here independently
 // (see changeSurfaceCodeSurface).
 func filterCodeTopicRowsForAccess(rows []codeTopicEvidenceRow, access repositoryAccessFilter) []codeTopicEvidenceRow {
-	if !access.scoped() {
+	if !access.Scoped() {
 		return rows
 	}
 	filtered := make([]codeTopicEvidenceRow, 0, len(rows))
@@ -110,7 +110,7 @@ func filterCodeTopicRowsForAccess(rows []codeTopicEvidenceRow, access repository
 // doc comment). A non-scoped (all-scopes/shared/admin/local) caller is
 // unaffected and every row is returned unchanged.
 func filterRowsByRepoIDForAccess(rows []map[string]any, access repositoryAccessFilter) []map[string]any {
-	if !access.scoped() {
+	if !access.Scoped() {
 		return rows
 	}
 	filtered := make([]map[string]any, 0, len(rows))
@@ -138,7 +138,7 @@ func filterProvisioningRepositoryCandidatesForAccess(
 	candidates []provisioningRepositoryCandidate,
 	access repositoryAccessFilter,
 ) []provisioningRepositoryCandidate {
-	if !access.scoped() {
+	if !access.Scoped() {
 		return candidates
 	}
 	filtered := make([]provisioningRepositoryCandidate, 0, len(candidates))

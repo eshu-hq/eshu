@@ -269,7 +269,7 @@ func runBalancedKubernetesRuntimePerformance(
 	}
 	started := time.Now()
 	err := (&SupplyChainHandler{Neo4j: reader, KubernetesWorkloadInventory: store}).
-		applySupplyChainKubernetesRuntimeEvidence(ctx, repositoryAccessFilter{allScopes: true}, findings)
+		applySupplyChainKubernetesRuntimeEvidence(ctx, repositoryAccessFilter{AllScopes: true}, findings)
 	if err != nil {
 		t.Fatalf("run balanced production probe: %v", err)
 	}

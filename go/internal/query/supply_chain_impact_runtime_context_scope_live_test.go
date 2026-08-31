@@ -24,27 +24,27 @@ func assertSupplyChainRuntimeContextScopesLive(
 	}{
 		{
 			name:              "scope_a_only",
-			access:            repositoryAccessFilter{allowedScopeIDs: []string{runtimeFilterLiveScopeA}},
+			access:            repositoryAccessFilter{AllowedScopeIDs: []string{runtimeFilterLiveScopeA}},
 			wantWorkloadCount: 6,
 		},
 		{
 			name: "lower_precedence_decoy_repository_grant",
 			access: repositoryAccessFilter{
-				allowedRepositoryIDs: []string{runtimeFilterLiveDecoyRepo},
-				allowedScopeIDs:      []string{runtimeFilterLiveScopeA},
+				AllowedRepositoryIDs: []string{runtimeFilterLiveDecoyRepo},
+				AllowedScopeIDs:      []string{runtimeFilterLiveScopeA},
 			},
 			wantWorkloadCount: 6,
 		},
 		{
 			name:                 "canonical_repository_grant",
-			access:               repositoryAccessFilter{allowedRepositoryIDs: []string{runtimeFilterLiveRepository}},
+			access:               repositoryAccessFilter{AllowedRepositoryIDs: []string{runtimeFilterLiveRepository}},
 			wantCrossScope:       true,
 			wantConflictingFacts: true,
 			wantWorkloadCount:    8,
 		},
 		{
 			name:                 "unrestricted",
-			access:               repositoryAccessFilter{allScopes: true},
+			access:               repositoryAccessFilter{AllScopes: true},
 			wantCrossScope:       true,
 			wantConflictingFacts: true,
 			wantWorkloadCount:    8,

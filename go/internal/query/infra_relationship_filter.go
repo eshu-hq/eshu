@@ -78,7 +78,7 @@ func (h *InfraHandler) getRelationships(w http.ResponseWriter, r *http.Request) 
 
 	access := repositoryAccessFilterFromContext(r.Context())
 	recordScopeGrantInlineCap(r.Context(), h.Instruments, access, "infra_relationships")
-	if access.empty() {
+	if access.Empty() {
 		WriteError(w, http.StatusNotFound, "entity not found")
 		return
 	}
@@ -108,7 +108,7 @@ func (h *InfraHandler) getRelationships(w http.ResponseWriter, r *http.Request) 
 	params := map[string]any{
 		"entity_id": req.EntityID,
 	}
-	access.graphParams(params)
+	access.GraphParams(params)
 
 	row, err := h.Neo4j.RunSingle(r.Context(), cypher, params)
 	if err != nil {

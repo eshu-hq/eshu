@@ -108,7 +108,7 @@ type impactBlastRadiusGateQuery struct {
 // callers and traverses no additional edge types, so the edge-disclosure audit
 // is identical for both shapes.
 var impactBlastRadiusGateQueries = func() []impactBlastRadiusGateQuery {
-	unscoped := repositoryAccessFilter{allScopes: true}
+	unscoped := repositoryAccessFilter{AllScopes: true}
 	return []impactBlastRadiusGateQuery{
 		{ConstName: "blastRadiusRepositoryCypher", Cypher: blastRadiusRepositoryQuery(unscoped), MinDistinctEdgeTypes: 1},
 		{ConstName: "blastRadiusTerraformSourceReposCypher", Cypher: blastRadiusTerraformSourceReposQuery(unscoped), MinDistinctEdgeTypes: 2},

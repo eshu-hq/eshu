@@ -359,10 +359,10 @@ func targetOrderTiebreaker(entry relationshipVerbEntry) string {
 // entity. It additionally binds target t when entry.targetAttributable is
 // true (see that field's doc comment for which verbs qualify).
 func relationshipEdgesScopeWhereClause(entry relationshipVerbEntry, access repositoryAccessFilter) string {
-	if !access.scoped() {
+	if !access.Scoped() {
 		return ""
 	}
-	scalars, _ := access.scopeGrantInlineScalars()
+	scalars, _ := access.ScopeGrantInlineScalars()
 	return "WHERE " + relationshipEdgesScopeExpr(entry, scalars) + "\n"
 }
 
@@ -406,8 +406,8 @@ func relationshipEdgesScopeExpr(entry relationshipVerbEntry, scalars []string) s
 // request input, so the interpolation cannot inject arbitrary patterns.
 func relationshipEdgesCypherFiltered(entry relationshipVerbEntry, access repositoryAccessFilter) string {
 	where := "WHERE r.source_tool = $source_tool"
-	if access.scoped() {
-		scalars, _ := access.scopeGrantInlineScalars()
+	if access.Scoped() {
+		scalars, _ := access.ScopeGrantInlineScalars()
 		// relationshipEdgesScopeExpr returns an atomically parenthesized group
 		// for the edgeScopeAttributable verb and an AND-chain of parenthesized
 		// endpoint predicates otherwise; both AND-combine safely after the

@@ -77,8 +77,8 @@ func TestResourceInvestigationSelectorInteractiveSLO(t *testing.T) {
 	assertResourceSelectorSLODuration(t, "exact-miss plus fuzzy fallback", fuzzyDuration)
 
 	scoped := repositoryAccessFilter{
-		allowedRepositoryIDs: []string{"repo-authorized"},
-		allowed:              map[string]struct{}{"repo-authorized": {}},
+		AllowedRepositoryIDs: []string{"repo-authorized"},
+		Allowed:              map[string]struct{}{"repo-authorized": {}},
 	}
 	scopedCandidates, err := handler.resourceInvestigationSelectorCandidates(
 		ctx,
@@ -248,7 +248,7 @@ func profileResourceSelectorSLOQueries(
 	t.Helper()
 	queries := resourceInvestigationSelectorCyphers(
 		req,
-		repositoryAccessFilter{allScopes: true},
+		repositoryAccessFilter{AllScopes: true},
 		predicates,
 	)
 	params := map[string]any{"selector": req.selector(), "limit": req.Limit + 1}

@@ -37,7 +37,7 @@ func (h *SupplyChainHandler) getImpactPacket(w http.ResponseWriter, r *http.Requ
 	if !ok {
 		return
 	}
-	if access.scoped() && repositoryID == "" {
+	if access.Scoped() && repositoryID == "" {
 		packet, err := refusalPacketForAPI(InvestigationFamilySupplyChainImpact, PacketRefusalScopeNotFound)
 		if err != nil {
 			WriteError(w, http.StatusInternalServerError, err.Error())

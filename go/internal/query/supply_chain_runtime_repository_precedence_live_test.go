@@ -133,7 +133,7 @@ func assertRuntimeRepositoryPrecedenceHydration(
 	t.Helper()
 	handler := &SupplyChainHandler{ImpactFindings: store}
 	rows := []SupplyChainImpactFindingRow{{RepositoryID: repositoryID}}
-	access := repositoryAccessFilter{allowedRepositoryIDs: []string{repositoryID}}
+	access := repositoryAccessFilter{AllowedRepositoryIDs: []string{repositoryID}}
 	if err := handler.applySupplyChainRuntimeContext(ctx, rows, access); err != nil {
 		t.Fatalf("hydrate %s for %s: %v", tc.name, repositoryID, err)
 	}

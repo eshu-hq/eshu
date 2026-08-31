@@ -55,7 +55,7 @@ func (h *SemanticSearchHandler) resolveScope(
 	// "git-repository-scope:" id, and a scoped caller whose grant names the
 	// scope id directly -- need the same lookup, so they share one branch. Kept
 	// apart, they invite a change that lands on one and misses the other.
-	scopeAddressed := (access.allScopes && strings.HasPrefix(requestedID, semanticSearchIngestionScopePrefix)) ||
+	scopeAddressed := (access.AllScopes && strings.HasPrefix(requestedID, semanticSearchIngestionScopePrefix)) ||
 		(directScopeGrant && !canonicalRepositoryGrant)
 	if scopeAddressed {
 		resolvedRepoID, err := h.ScopeResolver.ResolveSemanticSearchRepositoryForScope(ctx, requestedID)

@@ -40,14 +40,14 @@ func (h *RepositoryHandler) listRepositoriesByLanguage(w http.ResponseWriter, r 
 	languages := repositoryLanguageFamily(language)
 	page := repositoryLanguagePageFromRequest(r, true)
 
-	if access.empty() {
+	if access.Empty() {
 		h.writeEmptyRepositoryLanguagePage(w, r, language, languages, page)
 		return
 	}
 
-	allScopes := !access.scoped()
-	allowedRepositoryIDs := access.grantedRepositoryIDs()
-	allowedScopeIDs := access.grantedScopeIDs()
+	allScopes := !access.Scoped()
+	allowedRepositoryIDs := access.GrantedRepositoryIDs()
+	allowedScopeIDs := access.GrantedScopeIDs()
 
 	aggregate, err := h.Content.CountRepositoriesByLanguage(r.Context(), languages, allScopes, allowedRepositoryIDs, allowedScopeIDs)
 	if err != nil {
@@ -103,13 +103,13 @@ func (h *RepositoryHandler) getRepositoryLanguageInventory(w http.ResponseWriter
 	access := repositoryAccessFilterFromContext(r.Context())
 	page := repositoryLanguagePageFromRequest(r, false)
 
-	if access.empty() {
+	if access.Empty() {
 		h.writeEmptyRepositoryLanguageInventoryPage(w, r, page)
 		return
 	}
 
 	rows, err := h.Content.RepositoryLanguageInventory(
-		r.Context(), page.Limit+1, page.Offset, !access.scoped(), access.grantedRepositoryIDs(), access.grantedScopeIDs(),
+		r.Context(), page.Limit+1, page.Offset, !access.Scoped(), access.GrantedRepositoryIDs(), access.GrantedScopeIDs(),
 	)
 	if err != nil {
 		WriteError(w, http.StatusInternalServerError, fmt.Sprintf("repository language inventory: %v", err))

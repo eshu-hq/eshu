@@ -335,7 +335,7 @@ func (h *InfraHandler) getRelationshipEdges(w http.ResponseWriter, r *http.Reque
 		truncated bool
 	)
 	switch {
-	case access.empty():
+	case access.Empty():
 		edges = []relationshipEdge{}
 	// Short-circuit a source_tool filter on a verb that never stamps it (Tier-1
 	// self-labeling and Tier-3 code/structural verbs): no edge can match by this
@@ -402,7 +402,7 @@ func (h *InfraHandler) relationshipEdges(
 		cypher = relationshipEdgesCypher(entry, access)
 		params = map[string]any{"limit": limit + 1}
 	}
-	params = access.graphParams(params)
+	params = access.GraphParams(params)
 	rows, err := h.Neo4j.Run(ctx, cypher, params)
 	if err != nil {
 		return nil, false, err

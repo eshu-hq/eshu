@@ -74,8 +74,8 @@ func (h *IaCHandler) handleReplatformingSelectors(w http.ResponseWriter, r *http
 		return
 	}
 	access := repositoryAccessFilterFromContext(r.Context())
-	allowedScopeIDs := replatformingAWSSelectorScopeIDs(access.grantedScopeIDs())
-	if access.scoped() && len(allowedScopeIDs) == 0 {
+	allowedScopeIDs := replatformingAWSSelectorScopeIDs(access.GrantedScopeIDs())
+	if access.Scoped() && len(allowedScopeIDs) == 0 {
 		WriteSuccess(w, r, http.StatusOK, replatformingSelectorScopedEmptyResponse(limit), BuildTruthEnvelope(
 			h.profile(),
 			replatformingSelectorInventoryCapability,

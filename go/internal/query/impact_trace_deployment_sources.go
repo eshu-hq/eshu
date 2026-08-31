@@ -104,7 +104,7 @@ func fetchCanonicalDeploymentSourceRows(
 ) ([]map[string]any, error) {
 	cypher := `
 		MATCH (w:Workload {id: $workload_id})<-[:INSTANCE_OF]-(i:WorkloadInstance)-[rel:DEPLOYMENT_SOURCE]->(repo:Repository)
-		` + access.graphWhereClause("repo") + `
+		` + access.GraphWhereClause("repo") + `
 		WITH i.id as instance_id, repo.id as repo_id, repo.name as repo_name,
 		     max(coalesce(rel.confidence, 0.0)) as confidence,
 		     min(coalesce(rel.reason, '')) as reason
@@ -112,7 +112,7 @@ func fetchCanonicalDeploymentSourceRows(
 		ORDER BY repo_name, instance_id, repo_id
 		LIMIT $source_limit
 	`
-	params := access.graphParams(map[string]any{"workload_id": workloadID, "source_limit": limit})
+	params := access.GraphParams(map[string]any{"workload_id": workloadID, "source_limit": limit})
 	return reader.Run(ctx, cypher, params)
 }
 
@@ -126,9 +126,9 @@ func fetchRepositoryDeploymentSourceRows(
 	if strings.TrimSpace(repoID) == "" {
 		return nil, nil
 	}
-	scopeClause := access.graphWhereClause("repo")
-	if access.scoped() {
-		scopeClause += " AND " + access.graphCondition("targetRepo")
+	scopeClause := access.GraphWhereClause("repo")
+	if access.Scoped() {
+		scopeClause += " AND " + access.GraphCondition("targetRepo")
 	}
 	cypher := `
 		MATCH (targetRepo:Repository {id: $repo_id})<-[rel:DEPLOYS_FROM]-(repo:Repository)
@@ -140,7 +140,7 @@ func fetchRepositoryDeploymentSourceRows(
 		ORDER BY repo_name, repo_id
 		LIMIT $source_limit
 	`
-	params := access.graphParams(map[string]any{"repo_id": repoID, "source_limit": limit})
+	params := access.GraphParams(map[string]any{"repo_id": repoID, "source_limit": limit})
 	return reader.Run(ctx, cypher, params)
 }
 

@@ -61,7 +61,7 @@ func (h *InfraHandler) searchArgoCDCategoryRows(
 		{label: "ArgoCDApplication"},
 		{label: "ArgoCDApplicationSet", extraWhere: " AND NOT n:ArgoCDApplication"},
 	}
-	params := access.graphParams(map[string]any{"limit": limit})
+	params := access.GraphParams(map[string]any{"limit": limit})
 	rows := make([]map[string]any, 0, limit*len(reads))
 	for _, read := range reads {
 		cypher := "MATCH (n:" + read.label + ")\nWHERE true" +

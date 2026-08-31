@@ -39,7 +39,7 @@ func (h *EntityHandler) investigateService(w http.ResponseWriter, r *http.Reques
 		WriteError(w, http.StatusBadRequest, "service_name is required")
 		return
 	}
-	if repositoryAccessFilterFromContext(r.Context()).empty() {
+	if repositoryAccessFilterFromContext(r.Context()).Empty() {
 		WriteError(w, http.StatusNotFound, "service not found")
 		return
 	}

@@ -95,7 +95,7 @@ func TestSQLTableBlastRadiusReportsUnseededBranchMissingLive(t *testing.T) {
 			}
 
 			rows, err := reader.Run(ctx,
-				blastRadiusSqlTableQuery(repositoryAccessFilter{allScopes: true}),
+				blastRadiusSqlTableQuery(repositoryAccessFilter{AllScopes: true}),
 				map[string]any{"target_name": table, "limit": 200})
 			if err != nil {
 				t.Fatalf("run blast radius: %v", err)

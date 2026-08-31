@@ -92,8 +92,8 @@ CREATE (artifact)-[:EVIDENCES_REPOSITORY_RELATIONSHIP {relationship_type: 'DEPLO
 		}
 	}
 	access := repositoryAccessFilter{
-		allowedRepositoryIDs: []string{sourceID, targetA, targetB},
-		allowed:              map[string]struct{}{sourceID: {}, targetA: {}, targetB: {}},
+		AllowedRepositoryIDs: []string{sourceID, targetA, targetB},
+		Allowed:              map[string]struct{}{sourceID: {}, targetA: {}, targetB: {}},
 	}
 
 	seedArtifact("team-a", "team-a", "app-source", targetA)

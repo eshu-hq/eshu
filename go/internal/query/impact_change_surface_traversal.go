@@ -101,7 +101,7 @@ func (h *ImpactHandler) runChangeSurfaceOutgoing(
 ) ([]map[string]any, error) {
 	environmentClause := changeSurfaceEnvironmentClause(environment)
 	cypher := fmt.Sprintf(changeSurfaceInvestigateCypher, startPattern, depth, environmentClause)
-	if access.scoped() {
+	if access.Scoped() {
 		cypher = fmt.Sprintf(
 			changeSurfaceScopedOutgoingCypher,
 			startPattern,
@@ -117,7 +117,7 @@ func (h *ImpactHandler) runChangeSurfaceOutgoing(
 		queryParams[key] = value
 	}
 	queryParams["limit"] = limit + 1
-	queryParams = access.graphParams(queryParams)
+	queryParams = access.GraphParams(queryParams)
 	return h.Neo4j.Run(ctx, cypher, queryParams)
 }
 
@@ -132,14 +132,14 @@ func (h *ImpactHandler) runChangeSurfaceRepositoryConsumers(
 	cypher := fmt.Sprintf(
 		changeSurfaceRepositoryConsumersCypher,
 		depth,
-		changeSurfaceEnvironmentClause(environment)+access.graphPredicateOnProperty("impacted", "id"),
+		changeSurfaceEnvironmentClause(environment)+access.GraphPredicateOnProperty("impacted", "id"),
 		limit+1,
 	)
 	queryParams := make(map[string]any, len(params)+2)
 	for key, value := range params {
 		queryParams[key] = value
 	}
-	return h.Neo4j.Run(ctx, cypher, access.graphParams(queryParams))
+	return h.Neo4j.Run(ctx, cypher, access.GraphParams(queryParams))
 }
 
 // changeSurfaceImpactedLabels is the set of node labels a change-surface

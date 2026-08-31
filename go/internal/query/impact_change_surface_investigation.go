@@ -271,7 +271,7 @@ func (h *ImpactHandler) resolveChangeSurfaceTarget(
 	// short-circuits to "no match" without running any resolver query, and the
 	// post-query filter below stays as defense-in-depth.
 	access := repositoryAccessFilterFromContext(ctx)
-	if access.empty() {
+	if access.Empty() {
 		return nil, changeSurfaceEmptyGrantResolution(req), nil
 	}
 	target := req.graphTarget()

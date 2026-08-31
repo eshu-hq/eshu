@@ -15,6 +15,17 @@
 - Register family capabilities through `RegisterCapabilities`; duplicate
   initialization attempts are contract failures.
 - Preserve the selector presence tri-state on `K8sSelectCandidate`.
+- `RepositoryAccessFilter`'s fields (`AllScopes`, `AllowedScopeIDs`,
+  `AllowedRepositoryIDs`, `Allowed`) stay exported: root and family test files
+  build the struct with keyed literals directly rather than through a
+  constructor. Do not re-introduce unexported fields without updating every
+  call site.
+- `ScopeGrantInlineParamPrefix` and the `scope_grant_<i>` param naming
+  convention it defines are shared by `ScopeGrantInlineMapDisjunction` (the
+  predicate builder) and `BindScopeGrantInlineScalars` (the param binder).
+  Keep both in this package so the two stay coupled to one constant; a
+  duplicated copy of the prefix in another package can silently drift and
+  produce a predicate that references params nobody binds.
 
 ## Verification
 
@@ -39,10 +50,31 @@ vet. Run `scripts/verify-package-docs.sh` whenever this package changes.
   itself.
 - Reordering capability initialization can change the canonical inventory.
 
+- A `RepositoryAccessFilter` value must be DERIVED from the request's
+  AuthContext, never hand-built to widen access. The exported fields exist so
+  root and family packages can construct one, which also means any importer can
+  write `RepositoryAccessFilter{AllScopes: true}` and hand it to a handler. The
+  compiler cannot stop that; a reviewer must. Treat a literal with `AllScopes:
+  true` outside a test as a finding.
+- The two id slices are authoritative and `Allowed` is a derived lookup cache.
+  Methods must not consult the cache alone: a filter built from the slices
+  carries real grants, and reading only the cache reports it as ungranted and
+  silently drops that caller's scoped reads.
+
 ## Anti-patterns
 
-- Do not add handler orchestration, Cypher, SQL, or family-specific response
-  models here.
+- Do not add handler orchestration, whole graph queries, SQL, or
+  family-specific response models here.
+- Cypher FRAGMENTS are a narrow, deliberate carve-out, and only for the
+  authorization seam: `RepositoryAccessFilter`'s `GraphPredicate`,
+  `GraphCondition` and `GraphWhereClause*`, plus the inline-map grant
+  primitives in `infra_scope_grant.go`, emit predicate text that callers splice
+  into their own queries. They live here because the grant bounds they encode
+  are the contract; splitting the filter from the predicate it produces would
+  let a caller hold the bounds and forget to apply them.
+  A complete query -- anything with its own `MATCH`/`RETURN` and a result shape
+  -- still belongs in a query-owning package. If you are about to add one here,
+  you want a family package or a leaf like `queryselector` instead.
 - Do not expose graph or Postgres implementations through the neutral ports.
 - Do not replace root function wrappers with mutable function variables.
 

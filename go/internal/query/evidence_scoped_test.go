@@ -262,7 +262,7 @@ func TestRelationshipEvidenceRowWithinAccessMutationCoverage(t *testing.T) {
 		{
 			name:   "unscoped caller always passes",
 			row:    bothGranted,
-			access: repositoryAccessFilter{allScopes: true},
+			access: repositoryAccessFilter{AllScopes: true},
 			want:   true,
 		},
 		{
@@ -275,8 +275,8 @@ func TestRelationshipEvidenceRowWithinAccessMutationCoverage(t *testing.T) {
 			name: "scoped caller with both endpoints granted passes",
 			row:  bothGranted,
 			access: repositoryAccessFilter{
-				allowedRepositoryIDs: []string{"repo-a", "repo-b"},
-				allowed:              map[string]struct{}{"repo-a": {}, "repo-b": {}},
+				AllowedRepositoryIDs: []string{"repo-a", "repo-b"},
+				Allowed:              map[string]struct{}{"repo-a": {}, "repo-b": {}},
 			},
 			want: true,
 		},
@@ -284,8 +284,8 @@ func TestRelationshipEvidenceRowWithinAccessMutationCoverage(t *testing.T) {
 			name: "scoped caller missing source grant fails",
 			row:  bothGranted,
 			access: repositoryAccessFilter{
-				allowedRepositoryIDs: []string{"repo-b"},
-				allowed:              map[string]struct{}{"repo-b": {}},
+				AllowedRepositoryIDs: []string{"repo-b"},
+				Allowed:              map[string]struct{}{"repo-b": {}},
 			},
 			want: false,
 		},
@@ -293,8 +293,8 @@ func TestRelationshipEvidenceRowWithinAccessMutationCoverage(t *testing.T) {
 			name: "scoped caller missing target grant fails",
 			row:  bothGranted,
 			access: repositoryAccessFilter{
-				allowedRepositoryIDs: []string{"repo-a"},
-				allowed:              map[string]struct{}{"repo-a": {}},
+				AllowedRepositoryIDs: []string{"repo-a"},
+				Allowed:              map[string]struct{}{"repo-a": {}},
 			},
 			want: false,
 		},
@@ -305,8 +305,8 @@ func TestRelationshipEvidenceRowWithinAccessMutationCoverage(t *testing.T) {
 				"target": map[string]any{"repo_id": "repo-b"},
 			},
 			access: repositoryAccessFilter{
-				allowedRepositoryIDs: []string{"repo-b"},
-				allowed:              map[string]struct{}{"repo-b": {}},
+				AllowedRepositoryIDs: []string{"repo-b"},
+				Allowed:              map[string]struct{}{"repo-b": {}},
 			},
 			want: false,
 		},
@@ -320,8 +320,8 @@ func TestRelationshipEvidenceRowWithinAccessMutationCoverage(t *testing.T) {
 				"target":            map[string]any{"repo_id": ""},
 			},
 			access: repositoryAccessFilter{
-				allowedRepositoryIDs: []string{"repo-a"},
-				allowed:              map[string]struct{}{"repo-a": {}},
+				AllowedRepositoryIDs: []string{"repo-a"},
+				Allowed:              map[string]struct{}{"repo-a": {}},
 			},
 			want: true,
 		},
@@ -334,8 +334,8 @@ func TestRelationshipEvidenceRowWithinAccessMutationCoverage(t *testing.T) {
 				"target":            map[string]any{"repo_id": ""},
 			},
 			access: repositoryAccessFilter{
-				allowedRepositoryIDs: []string{"repo-other"},
-				allowed:              map[string]struct{}{"repo-other": {}},
+				AllowedRepositoryIDs: []string{"repo-other"},
+				Allowed:              map[string]struct{}{"repo-other": {}},
 			},
 			want: false,
 		},
@@ -350,8 +350,8 @@ func TestRelationshipEvidenceRowWithinAccessMutationCoverage(t *testing.T) {
 				"target":            map[string]any{"repo_id": "repo-b"},
 			},
 			access: repositoryAccessFilter{
-				allowedRepositoryIDs: []string{"repo-a"},
-				allowed:              map[string]struct{}{"repo-a": {}},
+				AllowedRepositoryIDs: []string{"repo-a"},
+				Allowed:              map[string]struct{}{"repo-a": {}},
 			},
 			want: false,
 		},
@@ -365,8 +365,8 @@ func TestRelationshipEvidenceRowWithinAccessMutationCoverage(t *testing.T) {
 				"target":            map[string]any{"repo_id": "repo-b"},
 			},
 			access: repositoryAccessFilter{
-				allowedRepositoryIDs: []string{"repo-a"},
-				allowed:              map[string]struct{}{"repo-a": {}},
+				AllowedRepositoryIDs: []string{"repo-a"},
+				Allowed:              map[string]struct{}{"repo-a": {}},
 			},
 			want: false,
 		},

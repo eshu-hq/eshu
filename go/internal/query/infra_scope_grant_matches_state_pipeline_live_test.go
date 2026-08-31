@@ -181,11 +181,11 @@ func TestLiveInfraScopeShapeMatchesStateStaleEdgeExcludedAfterDeltaReassignment(
 	sst := " AND n.uid = '" + stateUID + "'"
 
 	accessFormer := repositoryAccessFilter{
-		allowedRepositoryIDs: []string{formerOwnerRepo},
-		allowed:              map[string]struct{}{formerOwnerRepo: {}},
+		AllowedRepositoryIDs: []string{formerOwnerRepo},
+		Allowed:              map[string]struct{}{formerOwnerRepo: {}},
 	}
-	scalarsFormer, _ := accessFormer.scopeGrantInlineScalars()
-	paramsFormer := map[string]any{"allowed_repository_ids": accessFormer.allowedRepositoryIDs, "allowed_scope_ids": []string{}}
+	scalarsFormer, _ := accessFormer.ScopeGrantInlineScalars()
+	paramsFormer := map[string]any{"allowed_repository_ids": accessFormer.AllowedRepositoryIDs, "allowed_scope_ids": []string{}}
 	bindScopeGrantInlineScalars(paramsFormer, scalarsFormer)
 	predFormer := infraResourceScopePredicate("n", scalarsFormer) + sst
 	if got := liveScopeCount(t, session, "n", "TerraformStateResource", predFormer, paramsFormer); got != 0 {
@@ -197,11 +197,11 @@ func TestLiveInfraScopeShapeMatchesStateStaleEdgeExcludedAfterDeltaReassignment(
 	}
 
 	accessCurrent := repositoryAccessFilter{
-		allowedRepositoryIDs: []string{currentOwnerRepo},
-		allowed:              map[string]struct{}{currentOwnerRepo: {}},
+		AllowedRepositoryIDs: []string{currentOwnerRepo},
+		Allowed:              map[string]struct{}{currentOwnerRepo: {}},
 	}
-	scalarsCurrent, _ := accessCurrent.scopeGrantInlineScalars()
-	paramsCurrent := map[string]any{"allowed_repository_ids": accessCurrent.allowedRepositoryIDs, "allowed_scope_ids": []string{}}
+	scalarsCurrent, _ := accessCurrent.ScopeGrantInlineScalars()
+	paramsCurrent := map[string]any{"allowed_repository_ids": accessCurrent.AllowedRepositoryIDs, "allowed_scope_ids": []string{}}
 	bindScopeGrantInlineScalars(paramsCurrent, scalarsCurrent)
 	predCurrent := infraResourceScopePredicate("n", scalarsCurrent) + sst
 	if got := liveScopeCount(t, session, "n", "TerraformStateResource", predCurrent, paramsCurrent); got != 1 {
@@ -298,11 +298,11 @@ func TestLiveInfraScopeShapeMatchesStateFormerOwnerExcludedOnAuthoritativeNonOwn
 
 			sst := " AND n.uid = '" + stateUID + "'"
 			accessFormer := repositoryAccessFilter{
-				allowedRepositoryIDs: []string{formerOwnerRepo},
-				allowed:              map[string]struct{}{formerOwnerRepo: {}},
+				AllowedRepositoryIDs: []string{formerOwnerRepo},
+				Allowed:              map[string]struct{}{formerOwnerRepo: {}},
 			}
-			scalarsFormer, _ := accessFormer.scopeGrantInlineScalars()
-			paramsFormer := map[string]any{"allowed_repository_ids": accessFormer.allowedRepositoryIDs, "allowed_scope_ids": []string{}}
+			scalarsFormer, _ := accessFormer.ScopeGrantInlineScalars()
+			paramsFormer := map[string]any{"allowed_repository_ids": accessFormer.AllowedRepositoryIDs, "allowed_scope_ids": []string{}}
 			bindScopeGrantInlineScalars(paramsFormer, scalarsFormer)
 			predFormer := infraResourceScopePredicate("n", scalarsFormer) + sst
 			if got := liveScopeCount(t, session, "n", "TerraformStateResource", predFormer, paramsFormer); got != 0 {

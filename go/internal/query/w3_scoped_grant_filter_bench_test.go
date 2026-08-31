@@ -20,8 +20,8 @@ func benchScopedGrantAccess(repoCount int) repositoryAccessFilter {
 		allowed[id] = struct{}{}
 	}
 	return repositoryAccessFilter{
-		allowedRepositoryIDs: granted,
-		allowed:              allowed,
+		AllowedRepositoryIDs: granted,
+		Allowed:              allowed,
 	}
 }
 

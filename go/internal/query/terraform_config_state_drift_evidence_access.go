@@ -29,7 +29,7 @@ func filterTerraformConfigStateDriftEvidence(
 	findings []TerraformConfigStateDriftFindingRow,
 	access repositoryAccessFilter,
 ) []TerraformConfigStateDriftFindingRow {
-	if !access.scoped() || len(findings) == 0 {
+	if !access.Scoped() || len(findings) == 0 {
 		return findings
 	}
 	for i := range findings {
@@ -53,7 +53,7 @@ func filterTerraformConfigStateDriftEvidence(
 // only the identifier that names an ungranted repository/scope is withheld.
 func redactTerraformConfigStateDriftEvidenceAtom(atom map[string]any, access repositoryAccessFilter) map[string]any {
 	scopeID := StringVal(atom, "scope_id")
-	if scopeID == "" || access.allowsRepositoryID(scopeID) {
+	if scopeID == "" || access.AllowsRepositoryID(scopeID) {
 		return atom
 	}
 	clone := make(map[string]any, len(atom))

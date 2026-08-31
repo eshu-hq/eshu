@@ -85,7 +85,7 @@ func (h *AdminHandler) listDeadLetters(w http.ResponseWriter, r *http.Request) {
 	}
 
 	access := repositoryAccessFilterFromContext(r.Context())
-	if access.empty() {
+	if access.Empty() {
 		writeDeadLetterList(w, req.Limit, false, nil)
 		return
 	}
@@ -97,8 +97,8 @@ func (h *AdminHandler) listDeadLetters(w http.ResponseWriter, r *http.Request) {
 		CollectorKind:        strings.TrimSpace(req.CollectorKind),
 		UpdatedAfter:         updatedAfter,
 		UpdatedBefore:        updatedBefore,
-		AllowedRepositoryIDs: access.grantedRepositoryIDs(),
-		AllowedScopeIDs:      access.grantedScopeIDs(),
+		AllowedRepositoryIDs: access.GrantedRepositoryIDs(),
+		AllowedScopeIDs:      access.GrantedScopeIDs(),
 		Limit:                req.Limit + 1,
 		Timeout:              timeout,
 	}

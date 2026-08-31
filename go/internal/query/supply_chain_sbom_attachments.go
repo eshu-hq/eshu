@@ -104,7 +104,7 @@ func (h *SupplyChainHandler) listSBOMAttachments(w http.ResponseWriter, r *http.
 	// Empty scoped grants return the zero-attachments page without resolving a
 	// selector or reading the attachment store.
 	access := repositoryAccessFilterFromContext(r.Context())
-	if access.empty() {
+	if access.Empty() {
 		h.writeEmptySBOMAttachmentPage(w, r, limit)
 		return
 	}
@@ -123,7 +123,7 @@ func (h *SupplyChainHandler) listSBOMAttachments(w http.ResponseWriter, r *http.
 		ArtifactKind:               QueryParam(r, "artifact_kind"),
 		AfterAttachmentID:          QueryParam(r, "after_attachment_id"),
 		Limit:                      limit + 1,
-		AllowedSourceRepositoryIDs: access.repositorySearchIDs(),
+		AllowedSourceRepositoryIDs: access.RepositorySearchIDs(),
 	}
 	if !filter.hasScope() {
 		WriteError(w, http.StatusBadRequest, "subject_digest, document_id, document_digest, repository_id, workload_id, or service_id is required")

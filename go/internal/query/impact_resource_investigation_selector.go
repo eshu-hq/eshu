@@ -67,7 +67,7 @@ func (h *ImpactHandler) resolveResourceInvestigationTarget(
 		return nil, nil, fmt.Errorf("graph backend is unavailable")
 	}
 	access := repositoryAccessFilterFromContext(ctx)
-	if access.empty() {
+	if access.Empty() {
 		return nil, resourceInvestigationEmptyGrantResolution(req), nil
 	}
 	started := time.Now()
@@ -103,7 +103,7 @@ func (h *ImpactHandler) resourceInvestigationSelectorCandidates(
 	predicates []string,
 ) ([]resourceInvestigationCandidate, error) {
 	queries := resourceInvestigationSelectorCyphers(req, access, predicates)
-	params := access.graphParams(map[string]any{
+	params := access.GraphParams(map[string]any{
 		"selector": req.selector(),
 		"limit":    req.Limit + 1,
 	})
@@ -203,7 +203,7 @@ LIMIT $limit`,
 		typeClause,
 		strings.Join(predicates, " OR "),
 		environmentClause,
-		access.graphPredicateOnProperty("n", "repo_id"),
+		access.GraphPredicateOnProperty("n", "repo_id"),
 	)
 }
 

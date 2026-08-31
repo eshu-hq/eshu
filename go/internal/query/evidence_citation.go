@@ -271,7 +271,7 @@ func (h *EvidenceHandler) evidenceCitationFileContents(
 	handles []evidenceCitationHandle,
 ) (map[evidenceCitationFileKey]FileContent, error) {
 	access := repositoryAccessFilterFromContext(ctx)
-	if access.empty() {
+	if access.Empty() {
 		return map[evidenceCitationFileKey]FileContent{}, nil
 	}
 	lookups := make([]evidenceCitationFileLookup, 0)
@@ -280,7 +280,7 @@ func (h *EvidenceHandler) evidenceCitationFileContents(
 		if handle.Kind != "file" {
 			continue
 		}
-		if !access.allowsRepositoryID(handle.RepoID) {
+		if !access.AllowsRepositoryID(handle.RepoID) {
 			continue
 		}
 		key := evidenceCitationFileKey{repoID: handle.RepoID, relativePath: handle.RelativePath}
@@ -316,7 +316,7 @@ func (h *EvidenceHandler) evidenceCitationEntityContents(
 	handles []evidenceCitationHandle,
 ) (map[string]*EntityContent, error) {
 	access := repositoryAccessFilterFromContext(ctx)
-	if access.empty() {
+	if access.Empty() {
 		return map[string]*EntityContent{}, nil
 	}
 	entityIDs := make([]string, 0)
@@ -341,12 +341,12 @@ func filterEvidenceCitationEntitiesForAccess(
 	entities map[string]*EntityContent,
 	access repositoryAccessFilter,
 ) map[string]*EntityContent {
-	if !access.scoped() {
+	if !access.Scoped() {
 		return entities
 	}
 	filtered := make(map[string]*EntityContent, len(entities))
 	for entityID, entity := range entities {
-		if entity == nil || !access.allowsRepositoryID(entity.RepoID) {
+		if entity == nil || !access.AllowsRepositoryID(entity.RepoID) {
 			continue
 		}
 		filtered[entityID] = entity

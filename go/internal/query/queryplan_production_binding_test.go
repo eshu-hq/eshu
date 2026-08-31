@@ -32,7 +32,7 @@ func TestHandlerQueryplanManifestBindsProductionBuilders(t *testing.T) {
 }
 
 func handlerQueryplanProductionCypher() map[string]string {
-	allAccess := repositoryAccessFilter{allScopes: true}
+	allAccess := repositoryAccessFilter{AllScopes: true}
 	entityCypher, _ := buildResolveEntityGraphQuery(resolveEntityRequest{
 		Name:   "proof",
 		RepoID: "proof-repository",

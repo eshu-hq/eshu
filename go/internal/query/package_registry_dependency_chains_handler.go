@@ -65,7 +65,7 @@ func (h *PackageRegistryHandler) listDependencyChains(w http.ResponseWriter, r *
 		return
 	}
 	access := repositoryAccessFilterFromContext(r.Context())
-	if access.empty() {
+	if access.Empty() {
 		h.writeEmptyPackageDependencyChainPage(w, r, limit)
 		return
 	}
@@ -101,9 +101,9 @@ func (h *PackageRegistryHandler) listDependencyChains(w http.ResponseWriter, r *
 		AfterCorrelationID: afterCorrelationID,
 		Limit:              limit,
 	}
-	if access.scoped() {
-		req.AllowedRepositoryIDs = append([]string(nil), access.allowedRepositoryIDs...)
-		req.AllowedScopeIDs = append([]string(nil), access.allowedScopeIDs...)
+	if access.Scoped() {
+		req.AllowedRepositoryIDs = append([]string(nil), access.AllowedRepositoryIDs...)
+		req.AllowedScopeIDs = append([]string(nil), access.AllowedScopeIDs...)
 	}
 	page, err := ResolvePackageDependencyChains(r.Context(), h.Correlations, req)
 	if err != nil {

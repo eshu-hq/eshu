@@ -50,7 +50,7 @@ func (h *EntityHandler) fetchWorkloadPlatformResult(
 	access := repositoryAccessFilterFromContext(ctx)
 	// WorkloadInstance and RUNS_ON relationships are global today and do not
 	// carry repository ownership, so scoped callers cannot safely consume them.
-	if access.scoped() {
+	if access.Scoped() {
 		return emptyWorkloadPlatformResult(), nil
 	}
 	instanceIDs := make([]string, 0, len(instances))
@@ -71,8 +71,8 @@ func (h *EntityHandler) fetchWorkloadPlatformResult(
 		       collect(DISTINCT properties(runsOn)) as platform_edges
 		ORDER BY instance_id, platform_name, platform_id
 		LIMIT $platform_edge_limit
-	`, access.graphPredicate("repo"))
-	params := access.graphParams(map[string]any{
+	`, access.GraphPredicate("repo"))
+	params := access.GraphParams(map[string]any{
 		"instance_ids":        instanceIDs,
 		"platform_edge_limit": queryLimit,
 		"repo_id":             repoID,

@@ -139,7 +139,7 @@ func (h *IaCHandler) listResources(w http.ResponseWriter, r *http.Request) {
 	// Empty-grant scoped tokens (no granted repository or ingestion scope) can
 	// match nothing, so return a bounded empty page without touching the
 	// authoritative graph.
-	if access.empty() {
+	if access.Empty() {
 		metrics.recordDuration(r.Context(), string(kind), time.Since(start).Seconds())
 		writeIaCResourceEmptyPage(w, r, h.profile(), kind, limit)
 		return

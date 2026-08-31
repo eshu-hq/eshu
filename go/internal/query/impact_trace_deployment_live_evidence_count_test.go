@@ -104,7 +104,7 @@ func TestFetchWorkloadLiveInstanceSummaryNoAnchorOfAnyKindNeverQueriesStore(t *t
 		nil, // no controllers at all
 		[]map[string]any{k8sResourceFixture("ConfigMap", "workload-a", "shared-ns", "v1")},
 		[]string{"ghcr.io/eshu-hq/supply-chain-demo@sha256:shared"},
-		repositoryAccessFilter{allScopes: true},
+		repositoryAccessFilter{AllScopes: true},
 	)
 	if err != nil {
 		t.Fatalf("error = %v, want nil", err)
@@ -123,7 +123,7 @@ func TestFetchWorkloadLiveInstanceSummaryNilStore(t *testing.T) {
 	controllers, resources, _ := singleTrackingIDFixture("app-a", "Deployment", "workload-a", "ns", "apps/v1")
 	h := &ImpactHandler{} // KubernetesPodTemplates is nil
 	summary, err := h.fetchWorkloadLiveInstanceSummary(
-		t.Context(), controllers, resources, []string{"img:latest"}, repositoryAccessFilter{allScopes: true},
+		t.Context(), controllers, resources, []string{"img:latest"}, repositoryAccessFilter{AllScopes: true},
 	)
 	if err != nil {
 		t.Fatalf("error = %v, want nil", err)
@@ -140,7 +140,7 @@ func TestFetchWorkloadLiveInstanceSummaryEmptyImageRefs(t *testing.T) {
 	store := &stubKubernetesPodTemplateListStore{}
 	h := &ImpactHandler{KubernetesPodTemplates: store}
 	summary, err := h.fetchWorkloadLiveInstanceSummary(
-		t.Context(), controllers, resources, nil, repositoryAccessFilter{allScopes: true},
+		t.Context(), controllers, resources, nil, repositoryAccessFilter{AllScopes: true},
 	)
 	if err != nil {
 		t.Fatalf("error = %v, want nil", err)
@@ -199,7 +199,7 @@ func TestFetchWorkloadLiveInstanceSummaryMaxNotSum(t *testing.T) {
 	summary, err := h.fetchWorkloadLiveInstanceSummary(
 		t.Context(), controllers, resources,
 		[]string{"ghcr.io/eshu-hq/supply-chain-demo@sha256:shared"},
-		repositoryAccessFilter{allScopes: true},
+		repositoryAccessFilter{AllScopes: true},
 	)
 	if err != nil {
 		t.Fatalf("error = %v, want nil", err)
@@ -235,7 +235,7 @@ func TestFetchWorkloadLiveInstanceSummaryMultiClusterSumsAcrossClusters(t *testi
 	summary, err := h.fetchWorkloadLiveInstanceSummary(
 		t.Context(), controllers, resources,
 		[]string{"ghcr.io/eshu-hq/supply-chain-demo@sha256:shared"},
-		repositoryAccessFilter{allScopes: true},
+		repositoryAccessFilter{AllScopes: true},
 	)
 	if err != nil {
 		t.Fatalf("error = %v, want nil", err)
@@ -273,7 +273,7 @@ func TestFetchWorkloadLiveInstanceSummaryTwoTrackingIDsSum(t *testing.T) {
 	}
 	h := &ImpactHandler{KubernetesPodTemplates: store}
 	summary, err := h.fetchWorkloadLiveInstanceSummary(
-		t.Context(), controllers, resources, []string{"img@sha256:shared"}, repositoryAccessFilter{allScopes: true},
+		t.Context(), controllers, resources, []string{"img@sha256:shared"}, repositoryAccessFilter{AllScopes: true},
 	)
 	if err != nil {
 		t.Fatalf("error = %v, want nil", err)
@@ -304,7 +304,7 @@ func TestFetchWorkloadLiveInstanceSummaryAllNilReadyReplicasOmitsCount(t *testin
 	}
 	h := &ImpactHandler{KubernetesPodTemplates: store}
 	summary, err := h.fetchWorkloadLiveInstanceSummary(
-		t.Context(), controllers, resources, []string{"img@sha256:a"}, repositoryAccessFilter{allScopes: true},
+		t.Context(), controllers, resources, []string{"img@sha256:a"}, repositoryAccessFilter{AllScopes: true},
 	)
 	if err != nil {
 		t.Fatalf("error = %v, want nil", err)
@@ -328,7 +328,7 @@ func TestFetchWorkloadLiveInstanceSummaryReadyZeroIsPresent(t *testing.T) {
 	}
 	h := &ImpactHandler{KubernetesPodTemplates: store}
 	summary, err := h.fetchWorkloadLiveInstanceSummary(
-		t.Context(), controllers, resources, []string{"img@sha256:a"}, repositoryAccessFilter{allScopes: true},
+		t.Context(), controllers, resources, []string{"img@sha256:a"}, repositoryAccessFilter{AllScopes: true},
 	)
 	if err != nil {
 		t.Fatalf("error = %v, want nil", err)
@@ -369,7 +369,7 @@ func TestFetchWorkloadLiveInstanceSummaryDeclaredObjectAnchorContributesCount(t 
 	summary, err := h.fetchWorkloadLiveInstanceSummary(
 		t.Context(), nil, resources,
 		[]string{"ghcr.io/eshu-hq/supply-chain-demo@sha256:shared"},
-		repositoryAccessFilter{allScopes: true},
+		repositoryAccessFilter{AllScopes: true},
 	)
 	if err != nil {
 		t.Fatalf("error = %v, want nil", err)
@@ -427,7 +427,7 @@ func TestFetchWorkloadLiveInstanceSummaryArgoCDAndDeclaredObjectAnchorsNoDoubleC
 	summary, err := h.fetchWorkloadLiveInstanceSummary(
 		t.Context(), controllers, resources,
 		[]string{"ghcr.io/eshu-hq/supply-chain-demo@sha256:shared"},
-		repositoryAccessFilter{allScopes: true},
+		repositoryAccessFilter{AllScopes: true},
 	)
 	if err != nil {
 		t.Fatalf("error = %v, want nil", err)
@@ -447,7 +447,7 @@ func TestFetchWorkloadLiveInstanceSummaryStoreError(t *testing.T) {
 	store := &stubKubernetesPodTemplateListStore{err: fmt.Errorf("postgres offline")}
 	h := &ImpactHandler{KubernetesPodTemplates: store}
 	summary, err := h.fetchWorkloadLiveInstanceSummary(
-		t.Context(), controllers, resources, []string{"img@sha256:a"}, repositoryAccessFilter{allScopes: true},
+		t.Context(), controllers, resources, []string{"img@sha256:a"}, repositoryAccessFilter{AllScopes: true},
 	)
 	if err == nil {
 		t.Fatal("store error must be surfaced, got nil")

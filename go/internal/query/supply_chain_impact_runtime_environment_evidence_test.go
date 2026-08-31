@@ -57,7 +57,7 @@ func TestApplySupplyChainRuntimeContextUsesRepositoryEnvironmentOnlyAsExactDiges
 	handler := &SupplyChainHandler{ImpactFindings: store}
 	rows := []SupplyChainImpactFindingRow{row}
 
-	if err := handler.applySupplyChainRuntimeContext(context.Background(), rows, repositoryAccessFilter{allScopes: true}); err != nil {
+	if err := handler.applySupplyChainRuntimeContext(context.Background(), rows, repositoryAccessFilter{AllScopes: true}); err != nil {
 		t.Fatalf("applySupplyChainRuntimeContext() error = %v, want nil", err)
 	}
 	got := rows[0].RuntimeContext.EnvironmentEvidence
@@ -82,7 +82,7 @@ func TestApplySupplyChainRuntimeContextDoesNotDefaultUnconfirmedRepositoryEnviro
 	if err := (&SupplyChainHandler{ImpactFindings: store}).applySupplyChainRuntimeContext(
 		context.Background(),
 		rows,
-		repositoryAccessFilter{allScopes: true},
+		repositoryAccessFilter{AllScopes: true},
 	); err != nil {
 		t.Fatalf("applySupplyChainRuntimeContext() error = %v, want nil", err)
 	}
@@ -107,7 +107,7 @@ func TestApplySupplyChainRuntimeContextCarriesCurrentDigestBoundEnvironmentEvide
 	if err := (&SupplyChainHandler{ImpactFindings: store}).applySupplyChainRuntimeContext(
 		context.Background(),
 		rows,
-		repositoryAccessFilter{allScopes: true},
+		repositoryAccessFilter{AllScopes: true},
 	); err != nil {
 		t.Fatalf("applySupplyChainRuntimeContext() error = %v, want nil", err)
 	}
@@ -180,7 +180,7 @@ func TestApplySupplyChainRuntimeContextDefensivelyCopiesEnvironmentEvidence(t *t
 	if err := (&SupplyChainHandler{ImpactFindings: store}).applySupplyChainRuntimeContext(
 		context.Background(),
 		rows,
-		repositoryAccessFilter{allScopes: true},
+		repositoryAccessFilter{AllScopes: true},
 	); err != nil {
 		t.Fatalf("applySupplyChainRuntimeContext() error = %v, want nil", err)
 	}
@@ -214,7 +214,7 @@ func TestApplySupplyChainRuntimeContextOmitsOrphanEnvironmentEvidence(t *testing
 	if err := (&SupplyChainHandler{ImpactFindings: store}).applySupplyChainRuntimeContext(
 		context.Background(),
 		rows,
-		repositoryAccessFilter{allScopes: true},
+		repositoryAccessFilter{AllScopes: true},
 	); err != nil {
 		t.Fatalf("applySupplyChainRuntimeContext() error = %v, want nil", err)
 	}

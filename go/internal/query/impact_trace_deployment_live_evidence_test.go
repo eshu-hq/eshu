@@ -270,7 +270,7 @@ func TestFetchWorkloadLiveEvidenceNoAnchorOfAnyKindNeverQueriesStore(t *testing.
 		// absence, not merely the absence of an ArgoCD controller.
 		[]map[string]any{k8sResourceFixture("ConfigMap", "workload-a", "shared-ns", "v1")},
 		[]string{"ghcr.io/eshu-hq/supply-chain-demo@sha256:shared"},
-		repositoryAccessFilter{allScopes: true},
+		repositoryAccessFilter{AllScopes: true},
 	)
 	if err != nil {
 		t.Fatalf("error = %v, want nil", err)
@@ -292,7 +292,7 @@ func TestFetchWorkloadLiveEvidenceNilStore(t *testing.T) {
 		[]map[string]any{argoCDControllerFixture("app-a")},
 		[]map[string]any{k8sResourceFixture("Deployment", "workload-a", "ns", "apps/v1")},
 		[]string{"img:latest"},
-		repositoryAccessFilter{allScopes: true},
+		repositoryAccessFilter{AllScopes: true},
 	)
 	if err != nil {
 		t.Fatalf("error = %v, want nil", err)
@@ -312,7 +312,7 @@ func TestFetchWorkloadLiveEvidenceEmptyImageRefs(t *testing.T) {
 		[]map[string]any{argoCDControllerFixture("app-a")},
 		[]map[string]any{k8sResourceFixture("Deployment", "workload-a", "ns", "apps/v1")},
 		nil,
-		repositoryAccessFilter{allScopes: true},
+		repositoryAccessFilter{AllScopes: true},
 	)
 	if err != nil {
 		t.Fatalf("error = %v, want nil", err)
@@ -363,7 +363,7 @@ func TestFetchWorkloadLiveEvidenceDistinctWorkloadsSharedDigest(t *testing.T) {
 	}
 	h := &ImpactHandler{KubernetesPodTemplates: store}
 
-	liveA, err := h.fetchWorkloadLiveEvidence(t.Context(), controllersA, resourcesA, []string{sharedDigest}, repositoryAccessFilter{allScopes: true})
+	liveA, err := h.fetchWorkloadLiveEvidence(t.Context(), controllersA, resourcesA, []string{sharedDigest}, repositoryAccessFilter{AllScopes: true})
 	if err != nil {
 		t.Fatalf("trace(A) error = %v, want nil", err)
 	}
@@ -371,7 +371,7 @@ func TestFetchWorkloadLiveEvidenceDistinctWorkloadsSharedDigest(t *testing.T) {
 		t.Fatal("trace(A) promoted to runtime_confirmed on workload B's live row -- #5471 codex P1 regression")
 	}
 
-	liveB, err := h.fetchWorkloadLiveEvidence(t.Context(), controllersB, resourcesB, []string{sharedDigest}, repositoryAccessFilter{allScopes: true})
+	liveB, err := h.fetchWorkloadLiveEvidence(t.Context(), controllersB, resourcesB, []string{sharedDigest}, repositoryAccessFilter{AllScopes: true})
 	if err != nil {
 		t.Fatalf("trace(B) error = %v, want nil", err)
 	}
@@ -418,7 +418,7 @@ func TestFetchWorkloadLiveEvidenceStoreError(t *testing.T) {
 		[]map[string]any{argoCDControllerFixture("app-a")},
 		[]map[string]any{k8sResourceFixture("Deployment", "workload-a", "ns", "apps/v1")},
 		[]string{"img:latest"},
-		repositoryAccessFilter{allScopes: true},
+		repositoryAccessFilter{AllScopes: true},
 	)
 	if err == nil {
 		t.Fatal("store error must be surfaced, got nil")
@@ -434,10 +434,10 @@ func TestFetchWorkloadLiveEvidenceScopedAccessFilter(t *testing.T) {
 	}
 	h := &ImpactHandler{KubernetesPodTemplates: store}
 	access := repositoryAccessFilter{
-		allScopes:            false,
-		allowedRepositoryIDs: []string{"repo:sample-service-api"},
-		allowedScopeIDs:      []string{"scope:test"},
-		allowed: map[string]struct{}{
+		AllScopes:            false,
+		AllowedRepositoryIDs: []string{"repo:sample-service-api"},
+		AllowedScopeIDs:      []string{"scope:test"},
+		Allowed: map[string]struct{}{
 			"repo:sample-service-api": {},
 			"scope:test":              {},
 		},

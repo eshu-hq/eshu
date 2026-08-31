@@ -9,10 +9,10 @@ import (
 
 func authorizeSecretsIAMScopedScope(w http.ResponseWriter, r *http.Request, scopeID string) bool {
 	filter := repositoryAccessFilterFromContext(r.Context())
-	if !filter.scoped() {
+	if !filter.Scoped() {
 		return true
 	}
-	if scopeID == "" || !filter.allowsRepositoryID(scopeID) {
+	if scopeID == "" || !filter.AllowsRepositoryID(scopeID) {
 		WriteError(w, http.StatusForbidden, "scope is outside the scoped token grant")
 		return false
 	}

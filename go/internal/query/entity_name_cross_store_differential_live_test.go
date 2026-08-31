@@ -163,7 +163,7 @@ func TestIssue5318SameLogicalCorpusOldResolveEntityGraphAndNewContentIndex(t *te
 	}{
 		{
 			name:   "all-scope typed semantic",
-			access: repositoryAccessFilter{allScopes: true},
+			access: repositoryAccessFilter{AllScopes: true},
 			search: EntityNameSearch{
 				Name: "Target", Match: EntityNameMatchExact, Scope: EntityNameScopeAll,
 				EntityType: "Function", MetadataKey: "semantic_kind", MetadataValue: "guard", Limit: 50,
@@ -274,8 +274,8 @@ func issue5318ScopedRepositoryAccess(repositoryIDs []string) repositoryAccessFil
 		allowed[repositoryID] = struct{}{}
 	}
 	return repositoryAccessFilter{
-		allowedRepositoryIDs: append([]string(nil), repositoryIDs...),
-		allowed:              allowed,
+		AllowedRepositoryIDs: append([]string(nil), repositoryIDs...),
+		Allowed:              allowed,
 	}
 }
 
@@ -304,22 +304,22 @@ func issue5318BaselineBuildResolveEntityGraphQuery(
 			}
 		}
 	}
-	if !repositoryAnchored && access.scoped() {
+	if !repositoryAnchored && access.Scoped() {
 		cypher += `
 			AND EXISTS {
 				MATCH (e)<-[:CONTAINS]-(scopeFile:File)<-[:REPO_CONTAINS]-(scopeRepo:Repository)
-				WHERE ` + access.graphCondition("scopeRepo") + `
+				WHERE ` + access.GraphCondition("scopeRepo") + `
 			}
 		`
-		params = access.graphParams(params)
+		params = access.GraphParams(params)
 	}
 	if !repositoryAnchored {
 		cypher += `
 			OPTIONAL MATCH (e)<-[:CONTAINS]-(f:File)<-[:REPO_CONTAINS]-(r:Repository)
 		`
-		if access.scoped() {
+		if access.Scoped() {
 			cypher += `
-			WHERE ` + access.graphCondition("r") + `
+			WHERE ` + access.GraphCondition("r") + `
 			`
 		}
 	}

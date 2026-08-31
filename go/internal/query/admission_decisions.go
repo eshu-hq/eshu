@@ -46,7 +46,7 @@ func (h *EvidenceHandler) listAdmissionDecisions(w http.ResponseWriter, r *http.
 	}
 	access := repositoryAccessFilterFromContext(r.Context())
 	filter = admissionDecisionFilterWithRepositoryAccess(filter, access)
-	if access.empty() || !admissionDecisionReadFilterAllowed(filter) {
+	if access.Empty() || !admissionDecisionReadFilterAllowed(filter) {
 		h.writeEmptyAdmissionDecisionPage(w, r, limit)
 		return
 	}
@@ -182,12 +182,12 @@ func admissionDecisionFilterWithRepositoryAccess(
 	filter AdmissionDecisionReadFilter,
 	access repositoryAccessFilter,
 ) AdmissionDecisionReadFilter {
-	if !access.scoped() {
+	if !access.Scoped() {
 		return filter
 	}
 	filter.Scoped = true
-	filter.AllowedRepositoryIDs = append([]string(nil), access.allowedRepositoryIDs...)
-	filter.AllowedScopeIDs = append([]string(nil), access.allowedScopeIDs...)
+	filter.AllowedRepositoryIDs = append([]string(nil), access.AllowedRepositoryIDs...)
+	filter.AllowedScopeIDs = append([]string(nil), access.AllowedScopeIDs...)
 	return filter
 }
 

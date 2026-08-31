@@ -171,9 +171,9 @@ func (s PostgresIaCInventoryStore) SearchActive(
 	rows, err := s.db.QueryContext(
 		ctx,
 		iacInventorySearchSQL,
-		access.scoped(),
-		access.grantedRepositoryIDs(),
-		access.grantedScopeIDs(),
+		access.Scoped(),
+		access.GrantedRepositoryIDs(),
+		access.GrantedScopeIDs(),
 		label,
 		string(search.Kind),
 		strings.TrimSpace(search.Query),
@@ -217,9 +217,9 @@ func (s PostgresIaCInventoryStore) Summary(
 	rows, err := s.db.QueryContext(
 		ctx,
 		iacInventorySummarySQL,
-		access.scoped(),
-		access.grantedRepositoryIDs(),
-		access.grantedScopeIDs(),
+		access.Scoped(),
+		access.GrantedRepositoryIDs(),
+		access.GrantedScopeIDs(),
 		limit,
 	)
 	if err != nil {

@@ -33,7 +33,7 @@ func (h *CodeHandler) resolveRelationshipStoryTarget(
 				if strings.TrimSpace(req.RepoID) != "" && strings.TrimSpace(entity.RepoID) != strings.TrimSpace(req.RepoID) {
 					return relationshipStoryResolution{Status: "not_found", Target: target}, nil, nil
 				}
-				if !access.allowsRepositoryID(strings.TrimSpace(entity.RepoID)) {
+				if !access.AllowsRepositoryID(strings.TrimSpace(entity.RepoID)) {
 					return relationshipStoryResolution{Status: "not_found", Target: target}, nil, nil
 				}
 				resolution.Name = entity.EntityName

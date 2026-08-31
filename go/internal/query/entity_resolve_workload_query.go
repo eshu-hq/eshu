@@ -11,7 +11,7 @@ func buildResolveWorkloadQueries(
 	limit int,
 	access repositoryAccessFilter,
 ) (string, string, map[string]any) {
-	params := access.graphParams(map[string]any{
+	params := access.GraphParams(map[string]any{
 		"name":  name,
 		"limit": limit,
 	})
@@ -22,10 +22,10 @@ func buildResolveWorkloadQueries(
 		params["repo_id"] = repoID
 		propertyWhere = append(propertyWhere, "w.repo_id = $repo_id")
 		relationshipWhere = append(relationshipWhere, "repo.id = $repo_id")
-	case access.scoped():
+	case access.Scoped():
 		propertyWhere = append(propertyWhere,
 			"(w.repo_id IN $allowed_repository_ids OR w.repo_id IN $allowed_scope_ids)")
-		relationshipWhere = append(relationshipWhere, access.graphCondition("repo"))
+		relationshipWhere = append(relationshipWhere, access.GraphCondition("repo"))
 	}
 
 	propertyCypher := `
@@ -55,10 +55,10 @@ func buildHydrateResolvedWorkloadRepoNamesQuery(
 	repoIDs []string,
 	access repositoryAccessFilter,
 ) (string, map[string]any) {
-	params := access.graphParams(map[string]any{"repo_ids": repoIDs})
+	params := access.GraphParams(map[string]any{"repo_ids": repoIDs})
 	cypher := `MATCH (repo:Repository) WHERE repo.id IN $repo_ids`
-	if access.scoped() {
-		cypher += " AND " + access.graphCondition("repo")
+	if access.Scoped() {
+		cypher += " AND " + access.GraphCondition("repo")
 	}
 	cypher += ` RETURN repo.id AS repo_id, repo.name AS repo_name ORDER BY repo_id`
 	return cypher, params

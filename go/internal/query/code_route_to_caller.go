@@ -190,10 +190,10 @@ func (r routeToCallerRequest) validate() error {
 
 func routeToCallerAllowedByScope(r *http.Request, req routeToCallerRequest) bool {
 	access := repositoryAccessFilterFromContext(r.Context())
-	if access.empty() {
+	if access.Empty() {
 		return false
 	}
-	return req.RepoID == "" || access.allowsRepositoryID(req.RepoID)
+	return req.RepoID == "" || access.AllowsRepositoryID(req.RepoID)
 }
 
 func (h *CodeHandler) writeRouteToCallerNotFound(w http.ResponseWriter, r *http.Request, message string) {

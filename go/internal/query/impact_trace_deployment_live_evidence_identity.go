@@ -205,9 +205,9 @@ func liveIdentityAnchorFilter(anchor liveIdentityAnchor, imageRefs []string, acc
 	filter := KubernetesPodTemplateFilter{
 		AnchorKind:           anchor.Kind,
 		ImageRefs:            imageRefs,
-		AllScopes:            !access.scoped(),
-		AllowedRepositoryIDs: access.grantedRepositoryIDs(),
-		AllowedScopeIDs:      access.grantedScopeIDs(),
+		AllScopes:            !access.Scoped(),
+		AllowedRepositoryIDs: access.GrantedRepositoryIDs(),
+		AllowedScopeIDs:      access.GrantedScopeIDs(),
 	}
 	switch anchor.Kind {
 	case liveIdentityAnchorDeclaredObject:

@@ -96,9 +96,9 @@ func (h *EntityHandler) resolveGlobalContentEntities(ctx context.Context, name, 
 		Name: name, Match: EntityNameMatchExact, Scope: EntityNameScopeAll,
 		EntityType: filter.EntityType, MetadataKey: filter.MetadataKey, MetadataValue: filter.MetadataValue, Limit: limit,
 	}
-	if access.scoped() {
+	if access.Scoped() {
 		search.Scope = EntityNameScopeRepositories
-		search.RepositoryIDs = access.repositorySearchIDs()
+		search.RepositoryIDs = access.RepositorySearchIDs()
 	}
 	rows, err := searcher.SearchEntityNames(ctx, search)
 	if err != nil {
@@ -171,7 +171,7 @@ func (h *EntityHandler) resolveCanonicalContentEntityID(
 		return []map[string]any{}, true, nil
 	}
 	access := repositoryAccessFilterFromContext(ctx)
-	if access.empty() || !access.allowsRepositoryID(entity.RepoID) {
+	if access.Empty() || !access.AllowsRepositoryID(entity.RepoID) {
 		return []map[string]any{}, true, nil
 	}
 	if repoID != "" && entity.RepoID != repoID {
@@ -201,7 +201,7 @@ func (h *EntityHandler) resolveEntityFromContent(
 	}
 
 	access := repositoryAccessFilterFromContext(ctx)
-	if access.empty() || (repoID != "" && !access.allowsRepositoryID(repoID)) {
+	if access.Empty() || (repoID != "" && !access.AllowsRepositoryID(repoID)) {
 		return []map[string]any{}, nil
 	}
 	entityType := contentEntityTypeForResolve(typeName)
@@ -214,8 +214,8 @@ func (h *EntityHandler) resolveEntityFromContent(
 		if err != nil {
 			return nil, err
 		}
-	} else if access.scoped() {
-		for _, allowedRepoID := range access.repositorySearchIDs() {
+	} else if access.Scoped() {
+		for _, allowedRepoID := range access.RepositorySearchIDs() {
 			if len(rows) >= limit {
 				break
 			}

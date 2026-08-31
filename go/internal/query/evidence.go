@@ -73,19 +73,19 @@ func (h *EvidenceHandler) profile() QueryProfile {
 // the source. For a targetAttributable:true verb the target names a real
 // repository, so the target grant is enforced.
 func relationshipEvidenceRowWithinAccess(row map[string]any, access repositoryAccessFilter) bool {
-	if !access.scoped() {
+	if !access.Scoped() {
 		return true
 	}
-	if access.empty() {
+	if access.Empty() {
 		return false
 	}
-	if !access.allowsRepositoryID(relationshipEvidenceEndpointRepoID(row, "source")) {
+	if !access.AllowsRepositoryID(relationshipEvidenceEndpointRepoID(row, "source")) {
 		return false
 	}
 	if !relationshipEvidenceTargetAttributable(row) {
 		return true
 	}
-	return access.allowsRepositoryID(relationshipEvidenceEndpointRepoID(row, "target"))
+	return access.AllowsRepositoryID(relationshipEvidenceEndpointRepoID(row, "target"))
 }
 
 // relationshipEvidenceTargetAttributable reports whether the row's target

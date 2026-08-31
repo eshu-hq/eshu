@@ -72,7 +72,7 @@ func TestKubernetesRuntimeWorkloadGatePreservesDigestFairnessLive(t *testing.T) 
 	}
 	if err := handler.applySupplyChainKubernetesRuntimeEvidence(
 		ctx,
-		repositoryAccessFilter{allScopes: true},
+		repositoryAccessFilter{AllScopes: true},
 		findings,
 	); err != nil {
 		t.Fatalf("apply Kubernetes runtime evidence: %v", err)
@@ -126,7 +126,7 @@ func TestKubernetesRuntimeWorkloadGatePreservesSingleDigestSentinelLive(t *testi
 	}
 	if err := handler.applySupplyChainKubernetesRuntimeEvidence(
 		ctx,
-		repositoryAccessFilter{allScopes: true},
+		repositoryAccessFilter{AllScopes: true},
 		findings,
 	); err != nil {
 		t.Fatalf("apply Kubernetes runtime evidence: %v", err)

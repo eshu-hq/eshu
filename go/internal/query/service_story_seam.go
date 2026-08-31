@@ -56,7 +56,7 @@ func (h *EntityHandler) BuildServiceStoryEnvelope(
 			Capability: "platform_impact.context_overview",
 		}
 	}
-	if repositoryAccessFilterFromContext(ctx).empty() {
+	if repositoryAccessFilterFromContext(ctx).Empty() {
 		return nil, nil, http.StatusNotFound, serviceStoryNotFoundError()
 	}
 

@@ -218,24 +218,30 @@ func TestValidateSourceCoverageRejectsNewLegacyDisposition(t *testing.T) {
 }
 
 func TestValidateSourceCoverageAcceptsFrozenLegacyDisposition(t *testing.T) {
-	const key = "catalog.go:(*RepositoryHandler).listCatalogRepositoriesFromGraph"
+	// This fixture exercises the grandfather MECHANISM, not this particular
+	// symbol. It used listCatalogRepositoriesFromGraph until that entry earned a
+	// typed non_hot disposition and left the ledger; it now uses one of the
+	// entries that genuinely stays, so the test keeps proving the same thing.
+	// If getEntityContext is ever converted too, repoint this again rather than
+	// re-adding a ledger entry to keep a test green.
+	const key = "entity.go:(*EntityHandler).getEntityContext"
 	digest := grandfatheredNonHotSourceDigests[key]
 	manifest := Manifest{
 		Version:                     1,
 		GrandfatheredNonHotBaseline: grandfatheredNonHotBaseline,
 		SourceCoverage: []SourceCoverage{{
-			File: "catalog.go",
+			File: "entity.go",
 			Calls: []QueryCallsite{{
-				Symbol: "(*RepositoryHandler).listCatalogRepositoriesFromGraph",
+				Symbol: "(*EntityHandler).getEntityContext",
 				Count:  1,
 				Reason: "frozen legacy disposition",
 			}},
 		}},
 	}
 	discovered := []SourceCoverage{{
-		File: "catalog.go",
+		File: "entity.go",
 		Calls: []QueryCallsite{{
-			Symbol:       "(*RepositoryHandler).listCatalogRepositoriesFromGraph",
+			Symbol:       "(*EntityHandler).getEntityContext",
 			Count:        1,
 			SourceDigest: digest,
 		}},

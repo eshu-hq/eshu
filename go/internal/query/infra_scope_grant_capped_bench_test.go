@@ -32,21 +32,21 @@ func BenchmarkGrantInlineCapExceeded(b *testing.B) {
 	}{
 		{
 			name:   "all_scopes",
-			filter: repositoryAccessFilter{allScopes: true},
+			filter: repositoryAccessFilter{AllScopes: true},
 		},
 		{
 			name:   "typical_8_grants",
-			filter: repositoryAccessFilter{allowedRepositoryIDs: ids("repo", 8)},
+			filter: repositoryAccessFilter{AllowedRepositoryIDs: ids("repo", 8)},
 		},
 		{
 			name:   "at_cap_128_grants",
-			filter: repositoryAccessFilter{allowedRepositoryIDs: ids("repo", maxScopeGrantInlineTerms)},
+			filter: repositoryAccessFilter{AllowedRepositoryIDs: ids("repo", maxScopeGrantInlineTerms)},
 		},
 		{
 			name: "over_cap_512_grants",
 			filter: repositoryAccessFilter{
-				allowedRepositoryIDs: ids("repo", 384),
-				allowedScopeIDs:      ids("scope", 128),
+				AllowedRepositoryIDs: ids("repo", 384),
+				AllowedScopeIDs:      ids("scope", 128),
 			},
 		},
 	} {
@@ -54,7 +54,7 @@ func BenchmarkGrantInlineCapExceeded(b *testing.B) {
 			b.ReportAllocs()
 			b.ResetTimer()
 			for i := 0; i < b.N; i++ {
-				if bc.filter.grantInlineCapExceeded() {
+				if bc.filter.GrantInlineCapExceeded() {
 					continue
 				}
 			}

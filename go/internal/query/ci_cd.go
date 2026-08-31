@@ -119,7 +119,7 @@ func (h *CICDHandler) listRunCorrelations(w http.ResponseWriter, r *http.Request
 		WriteError(w, http.StatusBadRequest, "provider is required when provider_run_id is the only anchor")
 		return
 	}
-	if access.empty() {
+	if access.Empty() {
 		h.writeEmptyCICDRunCorrelationPage(w, r, limit)
 		return
 	}
@@ -210,11 +210,11 @@ func cicdRunCorrelationFilterWithRepositoryAccess(
 	filter CICDRunCorrelationFilter,
 	access repositoryAccessFilter,
 ) CICDRunCorrelationFilter {
-	if !access.scoped() {
+	if !access.Scoped() {
 		return filter
 	}
-	filter.AllowedRepositoryIDs = append([]string(nil), access.allowedRepositoryIDs...)
-	filter.AllowedScopeIDs = append([]string(nil), access.allowedScopeIDs...)
+	filter.AllowedRepositoryIDs = append([]string(nil), access.AllowedRepositoryIDs...)
+	filter.AllowedScopeIDs = append([]string(nil), access.AllowedScopeIDs...)
 	return filter
 }
 

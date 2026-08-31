@@ -32,7 +32,7 @@ func BenchmarkApplySupplyChainKubernetesRuntimeEvidence200Digests(b *testing.B) 
 		Neo4j:                       &stubKubernetesRuntimeGraph{rows: graphRows},
 		KubernetesWorkloadInventory: &stubKubernetesWorkloadInventory{rows: matches},
 	}
-	access := repositoryAccessFilter{allScopes: true}
+	access := repositoryAccessFilter{AllScopes: true}
 	b.ReportAllocs()
 	b.ResetTimer()
 	for range b.N {

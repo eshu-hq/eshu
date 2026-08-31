@@ -84,7 +84,7 @@ func TestFluxReconcilesFromCatalogStaysOneEntryCoveringHelmRelease(t *testing.T)
 		t.Fatalf("RECONCILES_FROM count cypher = %q, want the bare whole-graph relationship-type aggregate (no source-label restriction, so it counts FluxKustomization- and FluxHelmRelease-sourced edges together)", countCypher)
 	}
 
-	edgesCypher := relationshipEdgesCypher(entry, repositoryAccessFilter{allScopes: true})
+	edgesCypher := relationshipEdgesCypher(entry, repositoryAccessFilter{AllScopes: true})
 	if !strings.Contains(edgesCypher, "MATCH (s:FluxKustomization)-[r:RECONCILES_FROM]->(t)") {
 		t.Fatalf("RECONCILES_FROM edges cypher = %q, want the slice anchored on FluxKustomization only (FluxHelmRelease-sourced edges are never returned by this slice)", edgesCypher)
 	}
@@ -105,7 +105,7 @@ func TestFluxReconcilesFromEdgeCypherByteIdenticalToDefaultShape(t *testing.T) {
 		t.Fatal("RECONCILES_FROM missing from relationshipVerbCatalog")
 	}
 
-	edges := relationshipEdgesCypher(entry, repositoryAccessFilter{allScopes: true})
+	edges := relationshipEdgesCypher(entry, repositoryAccessFilter{AllScopes: true})
 	if !strings.Contains(edges, "MATCH (s:FluxKustomization)-[r:RECONCILES_FROM]->(t)") {
 		t.Fatalf("RECONCILES_FROM edge cypher missing expected MATCH clause: %s", edges)
 	}

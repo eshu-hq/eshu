@@ -244,12 +244,12 @@ func (h *SemanticSearchHandler) search(w http.ResponseWriter, r *http.Request) {
 	}
 
 	access := repositoryAccessFilterFromContext(r.Context())
-	if access.empty() {
+	if access.Empty() {
 		WriteSuccess(w, r, http.StatusOK, emptySemanticSearchResponse(req), h.truthWithSearchVectorFreshness(r, req.Mode))
 		return
 	}
-	directScopeGrant := access.allowsDirectScopeID(body.RepoID)
-	canonicalRepositoryGrant := access.allowsCanonicalRepositoryID(body.RepoID)
+	directScopeGrant := access.AllowsDirectScopeID(body.RepoID)
+	canonicalRepositoryGrant := access.AllowsCanonicalRepositoryID(body.RepoID)
 	if !directScopeGrant && !canonicalRepositoryGrant {
 		writeSemanticSearchError(w, r, http.StatusNotFound, ErrorCodeNotFound, "repository not found")
 		return

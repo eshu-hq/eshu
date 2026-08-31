@@ -183,8 +183,8 @@ func TestWorkloadScopePredicateComposesShapeA(t *testing.T) {
 	t.Parallel()
 
 	access := repositoryAccessFilter{
-		allowedRepositoryIDs: []string{"repo-a"},
-		allowed:              map[string]struct{}{"repo-a": {}},
+		AllowedRepositoryIDs: []string{"repo-a"},
+		Allowed:              map[string]struct{}{"repo-a": {}},
 	}
 	pred := workloadScopePredicate("w", access)
 	for _, want := range []string{

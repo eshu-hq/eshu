@@ -104,7 +104,7 @@ func (h *CodeownersOwnershipHandler) listOwnership(w http.ResponseWriter, r *htt
 	// could pass ?repository_id=repo-b and read repo-b's CODEOWNERS ownership
 	// and manifest owner (cross-tenant leak).
 	access := repositoryAccessFilterFromContext(r.Context())
-	if access.scoped() && !access.allowsRepositoryID(repoID) {
+	if access.Scoped() && !access.AllowsRepositoryID(repoID) {
 		h.writeEmptyCodeownersOwnership(w, r, repoID, limit)
 		return
 	}

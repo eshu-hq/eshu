@@ -146,7 +146,7 @@ func (h *ImpactHandler) findChangeSurfaceImpactRows(
 	// the caller's target is already resolved through the grant-filtered
 	// resolveChangeSurfaceTarget, but a scoped caller with no granted
 	// repositories must never see impacted rows.
-	if access.empty() {
+	if access.Empty() {
 		return nil, false, nil
 	}
 	rows, rawTruncated, err := h.changeSurfaceTraversalRows(

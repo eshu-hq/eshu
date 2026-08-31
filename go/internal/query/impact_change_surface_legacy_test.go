@@ -114,7 +114,7 @@ func TestFindChangeSurfaceImpactRowsDedupsConfidenceStably(t *testing.T) {
 		},
 	}
 	handler := &ImpactHandler{Neo4j: graph}
-	rows, _, err := handler.findChangeSurfaceImpactRows(t.Context(), changeSurfaceTargetCandidate{ID: "wl:s", Labels: []string{"Workload"}}, "", 4, 50, repositoryAccessFilter{allScopes: true})
+	rows, _, err := handler.findChangeSurfaceImpactRows(t.Context(), changeSurfaceTargetCandidate{ID: "wl:s", Labels: []string{"Workload"}}, "", 4, 50, repositoryAccessFilter{AllScopes: true})
 	if err != nil {
 		t.Fatalf("findChangeSurfaceImpactRows() error = %v", err)
 	}

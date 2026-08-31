@@ -114,9 +114,9 @@ func (h *StatusHandler) getOperations(w http.ResponseWriter, r *http.Request) {
 		activity  []status.LiveActivityRow
 		truncated bool
 	)
-	if !access.empty() {
+	if !access.Empty() {
 		activity, truncated, err = h.LiveActivity.ReadLiveActivity(
-			r.Context(), limit, !access.scoped(), access.grantedRepositoryIDs(), access.grantedScopeIDs(),
+			r.Context(), limit, !access.Scoped(), access.GrantedRepositoryIDs(), access.GrantedScopeIDs(),
 		)
 		if err != nil {
 			WriteError(w, http.StatusInternalServerError, fmt.Sprintf("read live activity: %v", err))
@@ -124,7 +124,7 @@ func (h *StatusHandler) getOperations(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	scoped := access.scoped()
+	scoped := access.Scoped()
 	ops := status.Operations(report, activity, truncated, limit)
 	WriteSuccess(
 		w,

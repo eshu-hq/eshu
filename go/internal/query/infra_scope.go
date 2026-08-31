@@ -58,10 +58,10 @@ import "net/http"
 // shared / admin / local callers (no-regression: the unscoped Cypher is
 // unchanged). The seed alias is the search node `n`.
 func infraSearchScopeClause(access repositoryAccessFilter) string {
-	if !access.scoped() {
+	if !access.Scoped() {
 		return ""
 	}
-	scalars, _ := access.scopeGrantInlineScalars()
+	scalars, _ := access.ScopeGrantInlineScalars()
 	return " AND " + infraResourceScopePredicate("n", scalars)
 }
 
@@ -70,10 +70,10 @@ func infraSearchScopeClause(access repositoryAccessFilter) string {
 // repository matches nothing, so the handler returns not_found with no existence
 // disclosure. Returns the empty string for shared / admin / local callers.
 func infraRelationshipAnchorClause(access repositoryAccessFilter) string {
-	if !access.scoped() {
+	if !access.Scoped() {
 		return ""
 	}
-	scalars, _ := access.scopeGrantInlineScalars()
+	scalars, _ := access.ScopeGrantInlineScalars()
 	return " AND " + infraResourceScopePredicate("n", scalars)
 }
 
@@ -87,10 +87,10 @@ func infraRelationshipAnchorClause(access repositoryAccessFilter) string {
 // way. Returns the empty string for shared / admin / local callers so the
 // unscoped Cypher is unchanged.
 func infraRelationshipNeighborClause(access repositoryAccessFilter, alias string) string {
-	if !access.scoped() {
+	if !access.Scoped() {
 		return ""
 	}
-	scalars, _ := access.scopeGrantInlineScalars()
+	scalars, _ := access.ScopeGrantInlineScalars()
 	return " WHERE " + infraResourceScopePredicate(alias, scalars)
 }
 

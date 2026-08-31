@@ -62,7 +62,7 @@ func (h *SupplyChainHandler) countImpactFindings(w http.ResponseWriter, r *http.
 	// Empty scoped grants return the zero-count shape without reading the
 	// aggregate store or resolving a repository selector.
 	access := repositoryAccessFilterFromContext(r.Context())
-	if access.empty() {
+	if access.Empty() {
 		h.writeEmptyImpactCount(w, r)
 		return
 	}
@@ -154,7 +154,7 @@ func (h *SupplyChainHandler) impactInventory(w http.ResponseWriter, r *http.Requ
 	// Empty scoped grants return the empty inventory page without reading the
 	// aggregate store or resolving a repository selector.
 	access := repositoryAccessFilterFromContext(r.Context())
-	if access.empty() {
+	if access.Empty() {
 		h.writeEmptyImpactInventory(w, r, dimension, limit, offset)
 		return
 	}
@@ -251,9 +251,9 @@ func (h *SupplyChainHandler) supplyChainImpactAggregateFilterFromRequest(
 		SuppressionState:  suppressionState,
 		IncludeSuppressed: includeSuppressed,
 	}
-	if access.scoped() {
-		filter.AllowedRepositoryIDs = append([]string(nil), access.allowedRepositoryIDs...)
-		filter.AllowedScopeIDs = append([]string(nil), access.allowedScopeIDs...)
+	if access.Scoped() {
+		filter.AllowedRepositoryIDs = append([]string(nil), access.AllowedRepositoryIDs...)
+		filter.AllowedScopeIDs = append([]string(nil), access.AllowedScopeIDs...)
 	}
 	return filter, true
 }

@@ -60,7 +60,7 @@ func (h *SupplyChainHandler) countSecurityAlertReconciliations(w http.ResponseWr
 	}
 
 	access := repositoryAccessFilterFromContext(r.Context())
-	if access.empty() {
+	if access.Empty() {
 		h.writeEmptySecurityAlertReconciliationCount(w, r)
 		return
 	}
@@ -148,7 +148,7 @@ func (h *SupplyChainHandler) securityAlertReconciliationInventory(w http.Respons
 		return
 	}
 	access := repositoryAccessFilterFromContext(r.Context())
-	if access.empty() {
+	if access.Empty() {
 		h.writeEmptySecurityAlertReconciliationInventory(w, r, dimension, limit, offset)
 		return
 	}
@@ -205,7 +205,7 @@ func (h *SupplyChainHandler) securityAlertReconciliationAggregateFilterFromReque
 		GHSAID:                     QueryParam(r, "ghsa_id"),
 		ProviderState:              QueryParam(r, "provider_state"),
 		ReconciliationStatus:       QueryParam(r, "reconciliation_status"),
-		AllowedSourceRepositoryIDs: access.repositorySearchIDs(),
+		AllowedSourceRepositoryIDs: access.RepositorySearchIDs(),
 	}, true
 }
 

@@ -67,7 +67,7 @@ func redactDeploymentEvidenceRowForAccess(row map[string]any, anchorRepoID strin
 		case repoID == anchorRepoID:
 			// Anchor endpoint: the grant-verified repo this evidence was queried
 			// for. Keep its identity.
-		case !access.allowsRepositoryID(repoID):
+		case !access.AllowsRepositoryID(repoID):
 			return false
 		}
 	}
@@ -106,7 +106,7 @@ func redactDeploymentEvidenceRowForAccess(row map[string]any, anchorRepoID strin
 // the same fallback never leave the anchor repository, so they need no filter
 // of their own.
 func filterDeploymentEvidenceRowsForAccess(rows []map[string]any, anchorRepoID string, access repositoryAccessFilter) []map[string]any {
-	if !access.scoped() {
+	if !access.Scoped() {
 		return rows
 	}
 	filtered := make([]map[string]any, 0, len(rows))

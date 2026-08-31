@@ -107,7 +107,7 @@ func (h *SupplyChainHandler) applySupplyChainKubernetesRuntimeEvidence(
 	if h == nil || h.KubernetesWorkloadInventory == nil || len(rows) == 0 {
 		return nil
 	}
-	allScopes := !access.scoped()
+	allScopes := !access.Scoped()
 	plans := planKubernetesRuntimeProbeQueriesForRows(rows, allScopes)
 	if len(plans) == 0 {
 		return nil
@@ -160,8 +160,8 @@ func (h *SupplyChainHandler) applySupplyChainKubernetesRuntimeEvidence(
 			ctx,
 			candidates,
 			allScopes,
-			access.grantedRepositoryIDs(),
-			access.grantedScopeIDs(),
+			access.GrantedRepositoryIDs(),
+			access.GrantedScopeIDs(),
 		)
 		if err != nil {
 			span.RecordError(err)

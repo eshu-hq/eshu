@@ -26,7 +26,7 @@ func (h *SupplyChainHandler) securityAlertReconciliationOutOfGrant(
 	access repositoryAccessFilter,
 	repositoryID string,
 ) bool {
-	if !access.scoped() || repositoryID == "" || access.allowsRepositoryID(repositoryID) {
+	if !access.Scoped() || repositoryID == "" || access.AllowsRepositoryID(repositoryID) {
 		return false
 	}
 	selector := QueryParam(r, "repository_id")

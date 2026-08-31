@@ -399,7 +399,7 @@ func TestSQLTableBlastRadiusEveryBranchContributesLive(t *testing.T) {
 	}
 
 	rows, err := reader.Run(ctx,
-		blastRadiusSqlTableQuery(repositoryAccessFilter{allScopes: true}),
+		blastRadiusSqlTableQuery(repositoryAccessFilter{AllScopes: true}),
 		map[string]any{"target_name": sqlBlastRadiusTableFor(sqlBlastRadiusPrefix), "limit": 200})
 	if err != nil {
 		t.Fatalf("run blast radius: %v", err)
@@ -457,7 +457,7 @@ func TestSQLTableBlastRadiusMatchesNothingForUnknownTableLive(t *testing.T) {
 	reader := sqlBlastRadiusLiveReader(ctx, t)
 
 	rows, err := reader.Run(ctx,
-		blastRadiusSqlTableQuery(repositoryAccessFilter{allScopes: true}),
+		blastRadiusSqlTableQuery(repositoryAccessFilter{AllScopes: true}),
 		map[string]any{"target_name": sqlBlastRadiusPrefix + "_table_that_does_not_exist", "limit": 200})
 	if err != nil {
 		t.Fatalf("run blast radius: %v", err)

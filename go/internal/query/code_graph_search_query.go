@@ -32,9 +32,9 @@ func buildSearchGraphEntitiesQuery(
 	} else {
 		cypher += " WHERE e.name CONTAINS $query"
 	}
-	if repoID == "" && access.scoped() {
-		cypher += access.graphPredicate("r")
-		params = access.graphParams(params)
+	if repoID == "" && access.Scoped() {
+		cypher += access.GraphPredicate("r")
+		params = access.GraphParams(params)
 	}
 
 	if language != "" {

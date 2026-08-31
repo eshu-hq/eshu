@@ -256,7 +256,7 @@ func queryRepoConsumers(ctx context.Context, reader GraphQuery, params map[strin
 // all-scopes or shared-key caller is unaffected (rows returned unchanged), so
 // non-scoped callers see no regression.
 func filterRepoRelationshipTargetRowsForAccess(rows []map[string]any, idField string, access repositoryAccessFilter) []map[string]any {
-	if !access.scoped() {
+	if !access.Scoped() {
 		return rows
 	}
 	filtered := make([]map[string]any, 0, len(rows))
@@ -278,7 +278,7 @@ func filterRepoRelationshipTargetRowsForAccess(rows []map[string]any, idField st
 // grant, so a scoped caller never sees a cross-tenant repository's id/name via
 // relationship_overview. An all-scopes or shared-key caller is unaffected.
 func filterRepoRelationshipOverviewRowsForAccess(rows []map[string]any, anchorRepoID string, access repositoryAccessFilter) []map[string]any {
-	if !access.scoped() {
+	if !access.Scoped() {
 		return rows
 	}
 	filtered := make([]map[string]any, 0, len(rows))

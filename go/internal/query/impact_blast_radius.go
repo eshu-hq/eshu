@@ -47,7 +47,7 @@ ORDER BY hops, repo
 LIMIT $limit`
 
 func blastRadiusRepositoryQuery(access repositoryAccessFilter) string {
-	return fmt.Sprintf(blastRadiusRepositoryCypher, access.graphPredicateOnProperty("a", "id"))
+	return fmt.Sprintf(blastRadiusRepositoryCypher, access.GraphPredicateOnProperty("a", "id"))
 }
 
 // blastRadiusTerraformSourceReposCypher resolves the repositories that DEFINE
@@ -63,7 +63,7 @@ RETURN repo.name AS repo, repo.id AS repo_id
 LIMIT $limit`
 
 func blastRadiusTerraformSourceReposQuery(access repositoryAccessFilter) string {
-	return fmt.Sprintf(blastRadiusTerraformSourceReposCypher, access.graphWhereClauseOnProperty("repo", "id"))
+	return fmt.Sprintf(blastRadiusTerraformSourceReposCypher, access.GraphWhereClauseOnProperty("repo", "id"))
 }
 
 // blastRadiusDependentsByIDCypher returns repos that transitively depend on any
@@ -80,7 +80,7 @@ ORDER BY hops, repo
 LIMIT $limit`
 
 func blastRadiusDependentsByIDQuery(access repositoryAccessFilter) string {
-	return fmt.Sprintf(blastRadiusDependentsByIDCypher, access.graphPredicateOnProperty("a", "id"))
+	return fmt.Sprintf(blastRadiusDependentsByIDCypher, access.GraphPredicateOnProperty("a", "id"))
 }
 
 // blastRadiusCrossplaneCypher resolves repositories whose claims are satisfied
@@ -111,7 +111,7 @@ ORDER BY repo
 LIMIT $limit`
 
 func blastRadiusCrossplaneQuery(access repositoryAccessFilter) string {
-	return fmt.Sprintf(blastRadiusCrossplaneCypher, access.graphWhereClauseOnProperty("repo", "id"))
+	return fmt.Sprintf(blastRadiusCrossplaneCypher, access.GraphWhereClauseOnProperty("repo", "id"))
 }
 
 // blastRadiusSqlTableBranches is the number of UNION branches in
@@ -191,8 +191,8 @@ LIMIT $limit`
 func blastRadiusSqlTableQuery(access repositoryAccessFilter) string {
 	branchGrant := ""
 	anchoredBranchGrant := ""
-	if access.scoped() {
-		condition := access.graphConditionOnProperty("repo", "id")
+	if access.Scoped() {
+		condition := access.GraphConditionOnProperty("repo", "id")
 		branchGrant = " WHERE " + condition
 		anchoredBranchGrant = " AND " + condition
 	}
@@ -334,7 +334,7 @@ func (h *ImpactHandler) findBlastRadius(w http.ResponseWriter, r *http.Request) 
 	// repos without running the (potentially expensive) traversal at all,
 	// matching the #5137 reference pattern.
 	access := repositoryAccessFilterFromContext(r.Context())
-	if access.empty() {
+	if access.Empty() {
 		WriteSuccess(w, r, http.StatusOK, map[string]any{
 			"target":         req.Target,
 			"target_type":    req.TargetType,
@@ -412,7 +412,7 @@ func (h *ImpactHandler) blastRadiusAffected(ctx context.Context, targetType, tar
 	// graphParams binds $allowed_repository_ids / $allowed_scope_ids for the
 	// grant predicate the query builders inject when the caller is scoped; it is
 	// a no-op for a non-scoped caller.
-	params := access.graphParams(map[string]any{"target_name": target, "limit": limit})
+	params := access.GraphParams(map[string]any{"target_name": target, "limit": limit})
 	emptyCoverage := []blastRadiusEdgeCoverage{}
 	switch targetType {
 	case "repository":
@@ -425,7 +425,7 @@ func (h *ImpactHandler) blastRadiusAffected(ctx context.Context, targetType, tar
 		}
 		affected := src
 		if ids := distinctRepoIDs(src); len(ids) > 0 {
-			deps, err := h.Neo4j.Run(ctx, blastRadiusDependentsByIDQuery(access), access.graphParams(map[string]any{"repo_ids": ids, "limit": limit}))
+			deps, err := h.Neo4j.Run(ctx, blastRadiusDependentsByIDQuery(access), access.GraphParams(map[string]any{"repo_ids": ids, "limit": limit}))
 			if err != nil {
 				return nil, true, true, emptyCoverage, err
 			}
@@ -442,7 +442,7 @@ func (h *ImpactHandler) blastRadiusAffected(ctx context.Context, targetType, tar
 		// LIMIT applies before mergeBlastRadiusRows collapses those duplicates.
 		// Over-fetch by the branch multiplier so the post-dedup unique set still
 		// covers the requested limit before the handler trims it.
-		rows, err := h.Neo4j.Run(ctx, blastRadiusSqlTableQuery(access), access.graphParams(map[string]any{"target_name": target, "limit": limit * blastRadiusSqlTableBranches}))
+		rows, err := h.Neo4j.Run(ctx, blastRadiusSqlTableQuery(access), access.GraphParams(map[string]any{"target_name": target, "limit": limit * blastRadiusSqlTableBranches}))
 		complete, coverage := sqlTableBlastRadiusCoverage()
 		return mergeBlastRadiusRows(rows), true, complete, coverage, err
 	default:

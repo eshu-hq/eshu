@@ -181,10 +181,10 @@ func (h *ImpactHandler) fetchCloudResourceResult(
 	// prove that a reachable cloud observation belongs to its grant. Omit the
 	// limits with the rows so consumers cannot misread withheld evidence as an
 	// exact empty collection.
-	if access.scoped() {
+	if access.Scoped() {
 		return cloudResourceResult{rows: []map[string]any{}}, nil
 	}
-	params := access.graphParams(map[string]any{
+	params := access.GraphParams(map[string]any{
 		"repo_id":                 repoID,
 		"workload_id":             workloadID,
 		"cloud_observation_limit": cloudResourceObservationLimit + 1,
@@ -209,7 +209,7 @@ func (h *ImpactHandler) fetchCloudResourceResult(
 		       properties(rel) as observation,
 		       i.environment as instance_environment,
 		       c.environment as resource_environment
-	`, access.graphPredicate("repo")), params)
+	`, access.GraphPredicate("repo")), params)
 	if err != nil {
 		return cloudResourceResult{}, err
 	}

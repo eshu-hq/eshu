@@ -326,7 +326,7 @@ func filterRepositoryRelationshipReadModelForAccess(
 	anchorRepoID string,
 	access repositoryAccessFilter,
 ) *repositoryRelationshipReadModel {
-	if readModel == nil || !access.scoped() {
+	if readModel == nil || !access.Scoped() {
 		return readModel
 	}
 	return &repositoryRelationshipReadModel{

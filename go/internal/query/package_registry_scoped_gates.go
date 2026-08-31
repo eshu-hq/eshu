@@ -66,7 +66,7 @@ func packageRegistryPackagesGate(
 ) (result packageRegistryPackagesGateResult, handled bool) {
 	result.packageID = packageID
 	access := repositoryAccessFilterFromContext(r.Context())
-	if access.empty() {
+	if access.Empty() {
 		writeEmptyPackageRegistryPackagesPage(w, r, h, limit)
 		return result, true
 	}
@@ -83,7 +83,7 @@ func packageRegistryPackagesGate(
 		)
 		return result, true
 	}
-	if !access.scoped() {
+	if !access.Scoped() {
 		return result, false
 	}
 	switch {
@@ -192,7 +192,7 @@ func packageRegistryVersionsGate(
 	limit int,
 ) bool {
 	access := repositoryAccessFilterFromContext(r.Context())
-	if access.empty() {
+	if access.Empty() {
 		writeEmptyPackageRegistryVersionsPage(w, r, h, limit)
 		return true
 	}
@@ -209,7 +209,7 @@ func packageRegistryVersionsGate(
 		)
 		return true
 	}
-	if !access.scoped() {
+	if !access.Scoped() {
 		return false
 	}
 	gate, err := resolvePackageRegistryAnchorGate(r.Context(), span, h.Neo4j, h.Correlations, packageID, access)
@@ -242,7 +242,7 @@ func packageRegistryDependenciesGate(
 	limit int,
 ) bool {
 	access := repositoryAccessFilterFromContext(r.Context())
-	if access.empty() {
+	if access.Empty() {
 		writeEmptyPackageRegistryDependenciesPage(w, r, h, limit)
 		return true
 	}
@@ -259,7 +259,7 @@ func packageRegistryDependenciesGate(
 		)
 		return true
 	}
-	if !access.scoped() {
+	if !access.Scoped() {
 		return false
 	}
 	anchorPackageID := packageID

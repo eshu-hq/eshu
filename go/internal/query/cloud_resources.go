@@ -111,7 +111,7 @@ func (h *InfraHandler) listCloudResources(w http.ResponseWriter, r *http.Request
 	}
 	start := time.Now()
 	access := repositoryAccessFilterFromContext(r.Context())
-	if access.empty() {
+	if access.Empty() {
 		recordCloudResourceList(r.Context(), start, 0, 0, false, "ok")
 		writeCloudResourceListResponse(w, r, h.profile(), filter, limit, nil, false)
 		return
@@ -125,9 +125,9 @@ func (h *InfraHandler) listCloudResources(w http.ResponseWriter, r *http.Request
 		AfterResourceType:    cursor.AfterResourceType,
 		AfterID:              cursor.AfterID,
 		Limit:                limit + 1,
-		AllScopes:            !access.scoped(),
-		AllowedRepositoryIDs: access.grantedRepositoryIDs(),
-		AllowedScopeIDs:      access.grantedScopeIDs(),
+		AllScopes:            !access.Scoped(),
+		AllowedRepositoryIDs: access.GrantedRepositoryIDs(),
+		AllowedScopeIDs:      access.GrantedScopeIDs(),
 	})
 	if err != nil {
 		recordCloudResourceList(r.Context(), start, 0, 0, false, "store_error")

@@ -26,7 +26,7 @@ func TestFetchWorkloadLiveEvidenceDeclaredObjectAnchorMatchPromotesToRuntimeConf
 		nil, // no ArgoCD controller at all
 		resources,
 		[]string{"ghcr.io/eshu-hq/supply-chain-demo@sha256:shared"},
-		repositoryAccessFilter{allScopes: true},
+		repositoryAccessFilter{AllScopes: true},
 	)
 	if err != nil {
 		t.Fatalf("error = %v, want nil", err)
@@ -88,7 +88,7 @@ func TestFetchWorkloadLiveEvidenceDeclaredObjectAnchorSharedDigestDistinctWorklo
 	}
 	h := &ImpactHandler{KubernetesPodTemplates: store}
 
-	liveA, err := h.fetchWorkloadLiveEvidence(t.Context(), nil, resourcesA, []string{sharedDigest}, repositoryAccessFilter{allScopes: true})
+	liveA, err := h.fetchWorkloadLiveEvidence(t.Context(), nil, resourcesA, []string{sharedDigest}, repositoryAccessFilter{AllScopes: true})
 	if err != nil {
 		t.Fatalf("trace(A) error = %v, want nil", err)
 	}
@@ -96,7 +96,7 @@ func TestFetchWorkloadLiveEvidenceDeclaredObjectAnchorSharedDigestDistinctWorklo
 		t.Fatal("trace(A) promoted to runtime_confirmed on workload B's declared-object live row via a shared digest -- #5639 codex-P1-clone regression")
 	}
 
-	liveB, err := h.fetchWorkloadLiveEvidence(t.Context(), nil, resourcesB, []string{sharedDigest}, repositoryAccessFilter{allScopes: true})
+	liveB, err := h.fetchWorkloadLiveEvidence(t.Context(), nil, resourcesB, []string{sharedDigest}, repositoryAccessFilter{AllScopes: true})
 	if err != nil {
 		t.Fatalf("trace(B) error = %v, want nil", err)
 	}
@@ -126,7 +126,7 @@ func TestFetchWorkloadLiveEvidenceDeclaredObjectAnchorNamespaceGuard(t *testing.
 	live, err := h.fetchWorkloadLiveEvidence(
 		t.Context(), nil, resources,
 		[]string{"ghcr.io/eshu-hq/supply-chain-demo@sha256:shared"},
-		repositoryAccessFilter{allScopes: true},
+		repositoryAccessFilter{AllScopes: true},
 	)
 	if err != nil {
 		t.Fatalf("error = %v, want nil", err)

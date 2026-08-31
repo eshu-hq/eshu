@@ -209,7 +209,7 @@ func (h *CodeHandler) searchGraphEntitiesWithExact(ctx context.Context, repoID, 
 		return h.searchEntityContentWithExact(ctx, repoID, query, language, limit, exact)
 	}
 	access := repositoryAccessFilterFromContext(ctx)
-	if access.empty() || (repoID != "" && !access.allowsRepositoryID(repoID)) {
+	if access.Empty() || (repoID != "" && !access.AllowsRepositoryID(repoID)) {
 		return []map[string]any{}, nil
 	}
 
@@ -255,7 +255,7 @@ func (h *CodeHandler) searchEntityContentWithExact(ctx context.Context, repoID, 
 		err           error
 	)
 	access := repositoryAccessFilterFromContext(ctx)
-	if access.empty() || (repoID != "" && !access.allowsRepositoryID(repoID)) {
+	if access.Empty() || (repoID != "" && !access.AllowsRepositoryID(repoID)) {
 		return []map[string]any{}, nil
 	}
 	if repoID != "" {
@@ -267,8 +267,8 @@ func (h *CodeHandler) searchEntityContentWithExact(ctx context.Context, repoID, 
 		if err != nil {
 			return nil, err
 		}
-	} else if access.scoped() {
-		for _, allowedRepoID := range access.repositorySearchIDs() {
+	} else if access.Scoped() {
+		for _, allowedRepoID := range access.RepositorySearchIDs() {
 			if len(nameMatches) < limit {
 				rows, searchErr := h.Content.SearchEntitiesByName(ctx, allowedRepoID, "", pattern, limit-len(nameMatches))
 				if searchErr != nil {

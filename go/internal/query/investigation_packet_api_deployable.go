@@ -37,7 +37,7 @@ func (h *EvidenceHandler) getDeployableUnitPacket(w http.ResponseWriter, r *http
 	}
 	access := repositoryAccessFilterFromContext(r.Context())
 	filter = admissionDecisionFilterWithRepositoryAccess(filter, access)
-	if access.empty() || !admissionDecisionReadFilterAllowed(filter) {
+	if access.Empty() || !admissionDecisionReadFilterAllowed(filter) {
 		h.writeEmptyDeployableUnitPacket(w, r)
 		return
 	}

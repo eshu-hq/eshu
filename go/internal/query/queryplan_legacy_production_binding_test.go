@@ -100,7 +100,7 @@ func legacyQueryplanProductionCypher(t *testing.T) map[string]string {
 		"Function",
 		"uid",
 		"outgoing",
-		repositoryAccessFilter{allScopes: true},
+		repositoryAccessFilter{AllScopes: true},
 	)
 	incomingRelationship, _ := nornicDBRelationshipStoryGraphCypher(
 		relationshipStoryRequest{RelationshipType: "CALLS", Limit: 10},
@@ -108,7 +108,7 @@ func legacyQueryplanProductionCypher(t *testing.T) map[string]string {
 		"Function",
 		"uid",
 		"incoming",
-		repositoryAccessFilter{allScopes: true},
+		repositoryAccessFilter{AllScopes: true},
 	)
 	transitiveRelationship, _ := nornicDBRelationshipStoryInheritanceDepthCypher(
 		relationshipStoryRequest{MaxDepth: 5, Limit: 10},
@@ -126,13 +126,13 @@ func legacyQueryplanProductionCypher(t *testing.T) map[string]string {
 		_, err := handler.runChangeSurfaceOutgoing(
 			context.Background(), "(start:Workload {id: $target_id})", "",
 			changeSurfaceLegacyDefaultDepth, 10, map[string]any{"target_id": "workload:proof"},
-			repositoryAccessFilter{allScopes: true},
+			repositoryAccessFilter{AllScopes: true},
 		)
 		return err
 	})
 	scopedAccess := repositoryAccessFilter{
-		allowedRepositoryIDs: []string{"repository:proof"},
-		allowedScopeIDs:      []string{"scope:proof"},
+		AllowedRepositoryIDs: []string{"repository:proof"},
+		AllowedScopeIDs:      []string{"scope:proof"},
 	}
 	changeSurfaceScoped := captureLegacyQueryplanCypher(t, func(graphQuery *legacyQueryplanCaptureGraph) error {
 		handler := &ImpactHandler{Neo4j: graphQuery}
@@ -148,7 +148,7 @@ func legacyQueryplanProductionCypher(t *testing.T) map[string]string {
 		_, err := handler.runChangeSurfaceRepositoryConsumers(
 			context.Background(), "", changeSurfaceLegacyDefaultDepth, 10,
 			map[string]any{"target_id": "repository:proof"},
-			repositoryAccessFilter{allScopes: true},
+			repositoryAccessFilter{AllScopes: true},
 		)
 		return err
 	})
@@ -207,7 +207,7 @@ func legacyQueryplanProductionCypher(t *testing.T) map[string]string {
 		"QP-IMPACT-FLUX-BINDINGS-FIRST-HOP":               fluxBindingsGraph.cypher[0],
 		"QP-IMPACT-FLUX-BINDINGS-TARGET-EXPANSION":        fluxBindingsGraph.cypher[1],
 		"QP-RELATIONSHIPS-CATALOG-COUNT":                  relationshipCountCypher(relationshipVerbByName["CALLS"]),
-		"QP-RELATIONSHIPS-EDGES":                          relationshipEdgesCypher(relationshipVerbByName["CALLS"], repositoryAccessFilter{allScopes: true}),
+		"QP-RELATIONSHIPS-EDGES":                          relationshipEdgesCypher(relationshipVerbByName["CALLS"], repositoryAccessFilter{AllScopes: true}),
 		"QP-RELATIONSHIPS-CATALOG-SOURCE-TOOL-REPOSITORY": sourceToolQueries[0],
 		"QP-RELATIONSHIPS-CATALOG-SOURCE-TOOL-INSTANCE":   sourceToolQueries[1],
 		"QP-INFRA-RESOURCE-SEARCH":                        infraSearch,
@@ -259,7 +259,7 @@ func captureFluxDeploymentBindingQueryplanRuns(t *testing.T) *legacyQueryplanCap
 		"repository:target",
 		[]string{"repository:source"},
 		51,
-		repositoryAccessFilter{allScopes: true},
+		repositoryAccessFilter{AllScopes: true},
 	); err != nil {
 		t.Fatalf("capture Flux deployment bindings Cypher: %v", err)
 	}

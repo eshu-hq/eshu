@@ -396,8 +396,8 @@ func TestSemanticSearchResolveScopeNeverReturnsScopeIDAsCanonicalRepository(t *t
 				ctx,
 				scopeID,
 				access,
-				access.allowsDirectScopeID(scopeID),
-				access.allowsCanonicalRepositoryID(scopeID),
+				access.AllowsDirectScopeID(scopeID),
+				access.AllowsCanonicalRepositoryID(scopeID),
 			)
 			if err != nil {
 				t.Fatalf("resolveScope() error = %v, want nil", err)

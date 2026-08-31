@@ -43,7 +43,7 @@ func (h *SupplyChainHandler) listSecurityAlertReconciliations(w http.ResponseWri
 	// Empty scoped grants return the zero-row page without resolving a selector
 	// or reading the reconciliation store.
 	access := repositoryAccessFilterFromContext(r.Context())
-	if access.empty() {
+	if access.Empty() {
 		h.writeEmptySecurityAlertReconciliationPage(w, r, limit)
 		return
 	}
@@ -65,7 +65,7 @@ func (h *SupplyChainHandler) listSecurityAlertReconciliations(w http.ResponseWri
 		ReconciliationStatus:       QueryParam(r, "reconciliation_status"),
 		AfterReconciliationID:      QueryParam(r, "after_reconciliation_id"),
 		Limit:                      limit + 1,
-		AllowedSourceRepositoryIDs: access.repositorySearchIDs(),
+		AllowedSourceRepositoryIDs: access.RepositorySearchIDs(),
 	}
 	if !filter.hasScope() {
 		WriteError(w, http.StatusBadRequest, securityAlertReconciliationAnchorRequiredMessage)

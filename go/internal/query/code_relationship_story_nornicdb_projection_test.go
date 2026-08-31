@@ -24,7 +24,7 @@ func TestNornicDBRelationshipStoryCypherReturnsDirectProperties(t *testing.T) {
 			"Function",
 			"uid",
 			direction,
-			repositoryAccessFilter{allScopes: true},
+			repositoryAccessFilter{AllScopes: true},
 		)
 		if strings.Contains(cypher, "coalesce(") {
 			t.Fatalf("%s story projection contains unsupported coalesce():\n%s", direction, cypher)
