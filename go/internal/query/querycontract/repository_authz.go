@@ -227,8 +227,9 @@ func (f RepositoryAccessFilter) RepositorySearchIDs() []string {
 	// authoritative and Allowed is a derived cache. Reading only the cache
 	// returned an empty id list for a filter built from the slices, which
 	// narrows a scoped search to nothing instead of to the caller's grants.
-	seen := make(map[string]struct{}, len(f.Allowed)+len(f.AllowedScopeIDs)+len(f.AllowedRepositoryIDs))
-	ids := make([]string, 0, cap(make([]string, 0, len(seen))))
+	capacity := len(f.Allowed) + len(f.AllowedScopeIDs) + len(f.AllowedRepositoryIDs)
+	seen := make(map[string]struct{}, capacity)
+	ids := make([]string, 0, capacity)
 	add := func(id string) {
 		if id == "" {
 			return
