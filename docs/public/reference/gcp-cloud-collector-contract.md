@@ -2,9 +2,10 @@
 
 This page defines the provider-specific design baseline for the GCP cloud
 collector. It is a child of the
-[Multi-Cloud Runtime Collector Contract](multi-cloud-collector-contract.md) and
-does not promise sanitized live Google Cloud target proof until the smoke gate is
-proven.
+[Multi-Cloud Runtime Collector Contract](multi-cloud-collector-contract.md).
+Issues #1997 and #2644 record a completed security-only sanitized live smoke,
+but this page does not promise full promotion until the deployed-shape
+[Promotion Proof](collector-reducer-readiness.md#promotion-proof) is recorded.
 
 The collector kind is `gcp`. It observes Google Cloud control-plane metadata
 through Cloud Asset Inventory and emits source facts only. Reducers own
@@ -81,8 +82,13 @@ redaction-safe workload-pool subject fingerprint used by Kubernetes
 pool, namespace, Kubernetes ServiceAccount name, and IAM member strings are not
 persisted in those trust facts.
 
-The rest of this contract remains gated. Do not claim sanitized target smoke
-until later implementation PRs prove the live target path. The
+The full-promotion lane remains gated. Issues #1997 and #2644 record a completed
+security-only sanitized smoke for the bounded read-only live path and redaction
+posture. That evidence is not a deployment-shape promotion record: the remaining
+proof must cover runtime health and status, claim leases and heartbeats, reducer
+drain to zero, and graph/read-model/API/MCP agreement. It can build on the
+completed security smoke; this contract does not imply that a second security
+smoke is required. The
 relationship, tag, IAM, DNS, and image-reference fact kinds and schema versions
 are registered in `go/internal/facts/gcp.go`, and **all five
 envelope builders are implemented and unit-proven**:
@@ -102,8 +108,9 @@ configured, with `source_kind=label`, and emits
 usable. It also emits `gcp_dns_record` from parsed CAI
 `dns.googleapis.com/ResourceRecordSet` assets when record type, record name, and
 managed-zone identity are usable. Opt-in direct/effective Resource Manager tag
-API collection emits tag-key/value-fingerprint evidence and inheritance state;
-sanitized live target smoke remains follow-up work under #1997. Raw
+API collection emits tag-key/value-fingerprint evidence and inheritance state.
+The completed #1997/#2644 security smoke does not promote those facts beyond
+their stated reducer/read-model contracts. Raw
 `gcp_iam_policy_observation`,
 `gcp_dns_record`, and `gcp_collection_warning` facts are intentionally
 provenance-only or audit evidence until separate reducer/read-model contracts
@@ -1791,7 +1798,8 @@ Implemented slices:
 
 Remaining gated slices:
 
-1. Sanitized live smoke proof.
+1. Deployed-shape full-promotion proof. The #1997/#2644 security-only
+   sanitized smoke is already recorded.
 
 Observability change: the first slice adds the `gcp_cloud_resource`,
 `gcp_cloud_relationship`, `gcp_tag_observation`,
