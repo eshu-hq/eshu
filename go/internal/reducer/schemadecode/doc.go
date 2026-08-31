@@ -22,7 +22,7 @@
 // paths — so these are shared leaf functions rather than family-local helpers.
 //
 // Filenames matter here. The payload-usage manifest gate resolves decode seams
-// by the factschema_decode*.go basename and searches one directory below the
-// reducer root (#6055), so a file keeps its basename when it moves into this
-// package. Renaming one makes its fact kinds invisible to that gate.
+// by the factschema_decode*.go basename and searches the reducer subtree
+// recursively at any depth (globFilesRecursive, #6055), so a file keeps its
+// basename when it moves into this package. Renaming one makes its fact kinds invisible to that gate.
 package schemadecode

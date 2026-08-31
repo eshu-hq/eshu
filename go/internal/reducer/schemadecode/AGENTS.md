@@ -11,9 +11,11 @@ graph writes, no queue work, no handler policy.
 ## Filenames are a contract — read this before moving or renaming anything
 
 The payload-usage manifest gate resolves decode seams by the
-`factschema_decode*.go` basename, and since #6055 it searches one directory below
-the reducer root as well as the root itself. `filepath.Glob` never crosses a `/`,
-which is why that fix exists.
+`factschema_decode*.go` basename, and since #6055 it searches the reducer
+subtree recursively at any depth (`globFilesRecursive`, see
+`go/internal/payloadusage/globfiles.go`). Before #6055 the resolver used
+`filepath.Glob`, which never crosses a `/`; that one-level limit is what #6055
+replaced, not the behavior it left in place.
 
 So: a seam file keeps its `factschema_decode_*.go` basename when it lives here.
 Do not "tidy" the stutter away by renaming `factschema_decode_azure.go` to
@@ -51,7 +53,19 @@ on its definition line in `go/internal/telemetry/instruments.go` before writing
 it — a name copied between docs can stay self-consistent while matching nothing
 that is emitted.
 
-## Decode failure is never fatal
+## Decode failure is quarantined, with one deliberate exception
 
-A malformed payload is quarantined and the pass continues. Do not add a decoder
-that returns a fatal error or panics on bad input.
+A malformed payload is normally quarantined and the pass continues. Do not add a
+decoder that panics on bad input, and do not make a decoder fatal by default.
+
+The exception already in this package is `DecodeOCIRegistryWarning`, and it is
+deliberate. Its caller, the container-image-identity retirement planner in
+`container_image_identity_retirement.go`, returns the error rather than skipping
+the fact. Skipping a malformed ACTIVE warning would turn unknown registry
+completeness into authoritative absence, and the planner would then retire
+images it has no evidence to retire. Failing closed is the safe direction there.
+
+So: quarantine is the default and the rule for new decoders. If a decode failure
+could let a caller mistake "we could not read this" for "there is nothing here",
+and the caller acts destructively on that, fail closed instead — and say why at
+the seam, as that one does.

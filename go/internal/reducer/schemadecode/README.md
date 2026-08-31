@@ -56,9 +56,9 @@ carries the `No-Observability-Change:` marker naming those signals.
 ## Gotchas / invariants
 
 **Filenames are a contract.** The payload-usage manifest gate resolves decode
-seams by the `factschema_decode*.go` basename and searches one directory below
-the reducer root (#6055 rebuilt the resolver for exactly this move, because
-`filepath.Glob` never crosses a `/`). A file keeps its basename when it moves
+seams by the `factschema_decode*.go` basename and searches the reducer subtree
+recursively at any depth (`globFilesRecursive`, #6055 — which replaced a
+`filepath.Glob` call that never crossed a `/`). A file keeps its basename when it moves
 here. Rename one and its fact kinds silently drop out of the manifest — the gate
 reports "no decode seams found" only when it finds a matching file with no seams
 in it, so a rename is quieter than that.
