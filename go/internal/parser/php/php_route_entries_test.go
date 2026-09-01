@@ -1,11 +1,14 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package parser
+package php_test
 
 import (
 	"path/filepath"
 	"testing"
+
+	"github.com/eshu-hq/eshu/go/internal/parser"
+	"github.com/eshu-hq/eshu/go/internal/parser/parsertest"
 )
 
 func TestDefaultEngineParsePathPHPEmitsSymfonyRouteEntries(t *testing.T) {
@@ -13,7 +16,7 @@ func TestDefaultEngineParsePathPHPEmitsSymfonyRouteEntries(t *testing.T) {
 
 	repoRoot := t.TempDir()
 	sourcePath := filepath.Join(repoRoot, "ReportController.php")
-	writeTestFile(
+	parsertest.WriteFile(
 		t,
 		sourcePath,
 		`<?php
@@ -45,18 +48,18 @@ final class ReportController {
 `,
 	)
 
-	engine, err := DefaultEngine()
+	engine, err := parser.DefaultEngine()
 	if err != nil {
-		t.Fatalf("DefaultEngine() error = %v, want nil", err)
+		t.Fatalf("parser.DefaultEngine() error = %v, want nil", err)
 	}
 
-	got, err := engine.ParsePath(repoRoot, sourcePath, false, Options{IndexSource: true})
+	got, err := engine.ParsePath(repoRoot, sourcePath, false, parser.Options{IndexSource: true})
 	if err != nil {
 		t.Fatalf("ParsePath(%s) error = %v, want nil", sourcePath, err)
 	}
 
-	assertFrameworksEqual(t, got, "symfony")
-	assertNestedRouteEntriesEqual(t, got, "symfony", []map[string]string{
+	parsertest.AssertFrameworksEqual(t, got, "symfony")
+	parsertest.AssertNestedRouteEntriesEqual(t, got, "symfony", []map[string]string{
 		{"method": "GET", "path": "/reports/{id}", "handler": "ReportController.show"},
 		{"method": "POST", "path": "/reports", "handler": "ReportController.create"},
 		{"method": "ANY", "path": "/reports/{id}/preview", "handler": "ReportController.preview"},
@@ -68,7 +71,7 @@ func TestDefaultEngineParsePathPHPSkipsNonExactSymfonyRoutes(t *testing.T) {
 
 	repoRoot := t.TempDir()
 	sourcePath := filepath.Join(repoRoot, "DynamicController.php")
-	writeTestFile(
+	parsertest.WriteFile(
 		t,
 		sourcePath,
 		`<?php
@@ -90,12 +93,12 @@ final class DynamicController {
 `,
 	)
 
-	engine, err := DefaultEngine()
+	engine, err := parser.DefaultEngine()
 	if err != nil {
-		t.Fatalf("DefaultEngine() error = %v, want nil", err)
+		t.Fatalf("parser.DefaultEngine() error = %v, want nil", err)
 	}
 
-	got, err := engine.ParsePath(repoRoot, sourcePath, false, Options{IndexSource: true})
+	got, err := engine.ParsePath(repoRoot, sourcePath, false, parser.Options{IndexSource: true})
 	if err != nil {
 		t.Fatalf("ParsePath(%s) error = %v, want nil", sourcePath, err)
 	}
@@ -118,7 +121,7 @@ func TestDefaultEngineParsePathPHPSkipsUnresolvedBareRouteAttribute(t *testing.T
 
 	repoRoot := t.TempDir()
 	sourcePath := filepath.Join(repoRoot, "CustomController.php")
-	writeTestFile(
+	parsertest.WriteFile(
 		t,
 		sourcePath,
 		`<?php
@@ -133,12 +136,12 @@ final class CustomController {
 `,
 	)
 
-	engine, err := DefaultEngine()
+	engine, err := parser.DefaultEngine()
 	if err != nil {
-		t.Fatalf("DefaultEngine() error = %v, want nil", err)
+		t.Fatalf("parser.DefaultEngine() error = %v, want nil", err)
 	}
 
-	got, err := engine.ParsePath(repoRoot, sourcePath, false, Options{IndexSource: true})
+	got, err := engine.ParsePath(repoRoot, sourcePath, false, parser.Options{IndexSource: true})
 	if err != nil {
 		t.Fatalf("ParsePath(%s) error = %v, want nil", sourcePath, err)
 	}
@@ -153,7 +156,7 @@ func TestDefaultEngineParsePathPHPEmitsSlimRouteEntries(t *testing.T) {
 
 	repoRoot := t.TempDir()
 	sourcePath := filepath.Join(repoRoot, "routes.php")
-	writeTestFile(
+	parsertest.WriteFile(
 		t,
 		sourcePath,
 		`<?php
@@ -168,18 +171,18 @@ $app->map(['GET', 'POST'], '/multi', 'Handler:method');
 `,
 	)
 
-	engine, err := DefaultEngine()
+	engine, err := parser.DefaultEngine()
 	if err != nil {
-		t.Fatalf("DefaultEngine() error = %v, want nil", err)
+		t.Fatalf("parser.DefaultEngine() error = %v, want nil", err)
 	}
 
-	got, err := engine.ParsePath(repoRoot, sourcePath, false, Options{IndexSource: true})
+	got, err := engine.ParsePath(repoRoot, sourcePath, false, parser.Options{IndexSource: true})
 	if err != nil {
 		t.Fatalf("ParsePath(%s) error = %v, want nil", sourcePath, err)
 	}
 
-	assertFrameworksEqual(t, got, "slim")
-	assertNestedRouteEntriesEqual(t, got, "slim", []map[string]string{
+	parsertest.AssertFrameworksEqual(t, got, "slim")
+	parsertest.AssertNestedRouteEntriesEqual(t, got, "slim", []map[string]string{
 		{"method": "GET", "path": "/", "handler": ""},
 		{"method": "POST", "path": "/users", "handler": "CreateUserAction"},
 		{"method": "GET", "path": "/multi", "handler": "Handler:method"},
@@ -192,7 +195,7 @@ func TestDefaultEngineParsePathPHPSkipsNonSlimGetCall(t *testing.T) {
 
 	repoRoot := t.TempDir()
 	sourcePath := filepath.Join(repoRoot, "not_slim.php")
-	writeTestFile(
+	parsertest.WriteFile(
 		t,
 		sourcePath,
 		`<?php
@@ -202,12 +205,12 @@ $item = $collection->get($id);
 `,
 	)
 
-	engine, err := DefaultEngine()
+	engine, err := parser.DefaultEngine()
 	if err != nil {
-		t.Fatalf("DefaultEngine() error = %v, want nil", err)
+		t.Fatalf("parser.DefaultEngine() error = %v, want nil", err)
 	}
 
-	got, err := engine.ParsePath(repoRoot, sourcePath, false, Options{IndexSource: true})
+	got, err := engine.ParsePath(repoRoot, sourcePath, false, parser.Options{IndexSource: true})
 	if err != nil {
 		t.Fatalf("ParsePath(%s) error = %v, want nil", sourcePath, err)
 	}
@@ -226,7 +229,7 @@ func TestDefaultEngineParsePathPHPEmitsSlimGroupedAndNestedRouteEntries(t *testi
 
 	repoRoot := t.TempDir()
 	sourcePath := filepath.Join(repoRoot, "grouped_routes.php")
-	writeTestFile(
+	parsertest.WriteFile(
 		t,
 		sourcePath,
 		`<?php
@@ -247,18 +250,18 @@ use Slim\Interfaces\RouteCollectorProxyInterface;
 `,
 	)
 
-	engine, err := DefaultEngine()
+	engine, err := parser.DefaultEngine()
 	if err != nil {
-		t.Fatalf("DefaultEngine() error = %v, want nil", err)
+		t.Fatalf("parser.DefaultEngine() error = %v, want nil", err)
 	}
 
-	got, err := engine.ParsePath(repoRoot, sourcePath, false, Options{IndexSource: true})
+	got, err := engine.ParsePath(repoRoot, sourcePath, false, parser.Options{IndexSource: true})
 	if err != nil {
 		t.Fatalf("ParsePath(%s) error = %v, want nil", sourcePath, err)
 	}
 
-	assertFrameworksEqual(t, got, "slim")
-	assertNestedRouteEntriesEqual(t, got, "slim", []map[string]string{
+	parsertest.AssertFrameworksEqual(t, got, "slim")
+	parsertest.AssertNestedRouteEntriesEqual(t, got, "slim", []map[string]string{
 		{"method": "GET", "path": "/", "handler": "HomeAction"},
 		{"method": "GET", "path": "/users", "handler": "ListUsers"},
 		{"method": "GET", "path": "/users/{id}", "handler": "ViewUser"},
@@ -271,7 +274,7 @@ func TestDefaultEngineParsePathPHPSkipsSlimRouteWithEmptyPath(t *testing.T) {
 
 	repoRoot := t.TempDir()
 	sourcePath := filepath.Join(repoRoot, "empty_path.php")
-	writeTestFile(
+	parsertest.WriteFile(
 		t,
 		sourcePath,
 		`<?php
@@ -283,12 +286,12 @@ $app->get('', 'SomeHandler::class');
 `,
 	)
 
-	engine, err := DefaultEngine()
+	engine, err := parser.DefaultEngine()
 	if err != nil {
-		t.Fatalf("DefaultEngine() error = %v, want nil", err)
+		t.Fatalf("parser.DefaultEngine() error = %v, want nil", err)
 	}
 
-	got, err := engine.ParsePath(repoRoot, sourcePath, false, Options{IndexSource: true})
+	got, err := engine.ParsePath(repoRoot, sourcePath, false, parser.Options{IndexSource: true})
 	if err != nil {
 		t.Fatalf("ParsePath(%s) error = %v, want nil", sourcePath, err)
 	}
@@ -308,7 +311,7 @@ func TestDefaultEngineParsePathPHPSkipsNonSlimReceiverGetCalls(t *testing.T) {
 
 	repoRoot := t.TempDir()
 	sourcePath := filepath.Join(repoRoot, "container.php")
-	writeTestFile(
+	parsertest.WriteFile(
 		t,
 		sourcePath,
 		`<?php
@@ -326,12 +329,12 @@ $cache->delete('stale-key');
 `,
 	)
 
-	engine, err := DefaultEngine()
+	engine, err := parser.DefaultEngine()
 	if err != nil {
-		t.Fatalf("DefaultEngine() error = %v, want nil", err)
+		t.Fatalf("parser.DefaultEngine() error = %v, want nil", err)
 	}
 
-	got, err := engine.ParsePath(repoRoot, sourcePath, false, Options{IndexSource: true})
+	got, err := engine.ParsePath(repoRoot, sourcePath, false, parser.Options{IndexSource: true})
 	if err != nil {
 		t.Fatalf("ParsePath(%s) error = %v, want nil", sourcePath, err)
 	}
@@ -352,7 +355,7 @@ func TestDefaultEngineParsePathPHPEmitsLaravelRouteEntries(t *testing.T) {
 
 	repoRoot := t.TempDir()
 	sourcePath := filepath.Join(repoRoot, "routes.php")
-	writeTestFile(
+	parsertest.WriteFile(
 		t,
 		sourcePath,
 		`<?php
@@ -365,18 +368,18 @@ Route::delete('users/{id}', 'UserController@destroy');
 `,
 	)
 
-	engine, err := DefaultEngine()
+	engine, err := parser.DefaultEngine()
 	if err != nil {
-		t.Fatalf("DefaultEngine() error = %v, want nil", err)
+		t.Fatalf("parser.DefaultEngine() error = %v, want nil", err)
 	}
 
-	got, err := engine.ParsePath(repoRoot, sourcePath, false, Options{IndexSource: true})
+	got, err := engine.ParsePath(repoRoot, sourcePath, false, parser.Options{IndexSource: true})
 	if err != nil {
 		t.Fatalf("ParsePath(%s) error = %v, want nil", sourcePath, err)
 	}
 
-	assertFrameworksEqual(t, got, "laravel")
-	assertNestedRouteEntriesEqual(t, got, "laravel", []map[string]string{
+	parsertest.AssertFrameworksEqual(t, got, "laravel")
+	parsertest.AssertNestedRouteEntriesEqual(t, got, "laravel", []map[string]string{
 		{"method": "POST", "path": "users/login", "handler": "AuthController@login"},
 		{"method": "GET", "path": "user", "handler": "UserController@index"},
 		{"method": "DELETE", "path": "users/{id}", "handler": "UserController@destroy"},
@@ -388,7 +391,7 @@ func TestDefaultEngineParsePathPHPSkipsNonLaravelScopedGetCall(t *testing.T) {
 
 	repoRoot := t.TempDir()
 	sourcePath := filepath.Join(repoRoot, "not_laravel.php")
-	writeTestFile(
+	parsertest.WriteFile(
 		t,
 		sourcePath,
 		`<?php
@@ -398,12 +401,12 @@ $other = \App\Utils\Helper::post('/some/path');
 `,
 	)
 
-	engine, err := DefaultEngine()
+	engine, err := parser.DefaultEngine()
 	if err != nil {
-		t.Fatalf("DefaultEngine() error = %v, want nil", err)
+		t.Fatalf("parser.DefaultEngine() error = %v, want nil", err)
 	}
 
-	got, err := engine.ParsePath(repoRoot, sourcePath, false, Options{IndexSource: true})
+	got, err := engine.ParsePath(repoRoot, sourcePath, false, parser.Options{IndexSource: true})
 	if err != nil {
 		t.Fatalf("ParsePath(%s) error = %v, want nil", sourcePath, err)
 	}
@@ -422,7 +425,7 @@ func TestDefaultEngineParsePathPHPEmitsLaravelNestedGroupRouteEntries(t *testing
 
 	repoRoot := t.TempDir()
 	sourcePath := filepath.Join(repoRoot, "nested_group.php")
-	writeTestFile(
+	parsertest.WriteFile(
 		t,
 		sourcePath,
 		`<?php
@@ -438,18 +441,18 @@ Route::group(['prefix' => 'api'], function () {
 `,
 	)
 
-	engine, err := DefaultEngine()
+	engine, err := parser.DefaultEngine()
 	if err != nil {
-		t.Fatalf("DefaultEngine() error = %v, want nil", err)
+		t.Fatalf("parser.DefaultEngine() error = %v, want nil", err)
 	}
 
-	got, err := engine.ParsePath(repoRoot, sourcePath, false, Options{IndexSource: true})
+	got, err := engine.ParsePath(repoRoot, sourcePath, false, parser.Options{IndexSource: true})
 	if err != nil {
 		t.Fatalf("ParsePath(%s) error = %v, want nil", sourcePath, err)
 	}
 
-	assertFrameworksEqual(t, got, "laravel")
-	assertNestedRouteEntriesEqual(t, got, "laravel", []map[string]string{
+	parsertest.AssertFrameworksEqual(t, got, "laravel")
+	parsertest.AssertNestedRouteEntriesEqual(t, got, "laravel", []map[string]string{
 		{"method": "GET", "path": "api/v1/users", "handler": "UserController@index"},
 		{"method": "POST", "path": "api/v1/users", "handler": "UserController@store"},
 	})
@@ -460,7 +463,7 @@ func TestDefaultEngineParsePathPHPEmitsLaravelGlobalBackslashRouteInNamespace(t 
 
 	repoRoot := t.TempDir()
 	sourcePath := filepath.Join(repoRoot, "namespaced.php")
-	writeTestFile(
+	parsertest.WriteFile(
 		t,
 		sourcePath,
 		`<?php
@@ -477,18 +480,18 @@ Route::get('profiles', 'ProfileController@show');
 `,
 	)
 
-	engine, err := DefaultEngine()
+	engine, err := parser.DefaultEngine()
 	if err != nil {
-		t.Fatalf("DefaultEngine() error = %v, want nil", err)
+		t.Fatalf("parser.DefaultEngine() error = %v, want nil", err)
 	}
 
-	got, err := engine.ParsePath(repoRoot, sourcePath, false, Options{IndexSource: true})
+	got, err := engine.ParsePath(repoRoot, sourcePath, false, parser.Options{IndexSource: true})
 	if err != nil {
 		t.Fatalf("ParsePath(%s) error = %v, want nil", sourcePath, err)
 	}
 
-	assertFrameworksEqual(t, got, "laravel")
-	assertNestedRouteEntriesEqual(t, got, "laravel", []map[string]string{
+	parsertest.AssertFrameworksEqual(t, got, "laravel")
+	parsertest.AssertNestedRouteEntriesEqual(t, got, "laravel", []map[string]string{
 		// \Route::get(...) — global alias, must emit.
 		{"method": "GET", "path": "users", "handler": "UserController@index"},
 		// Bare Route::get(...) in namespaced file without import — must NOT emit.

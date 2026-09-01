@@ -17,11 +17,25 @@
 ## Invariants this package enforces
 
 - Dependency direction stays one way: parent parser code may import this
-  package, but this package must not import internal/parser.
+  package, but production code and `package php` tests must not import
+  internal/parser. The `php_*_test.go` files (18 files, external package
+  `php_test`, relocated from the parent by #6062) are the narrow exception:
+  they import the parent only for `parser.DefaultEngine` and `parser.Options`,
+  and never reach parent internals.
 - Parse preserves the legacy PHP payload shape, including traits, interfaces,
   namespace, context metadata, aliases, and receiver inference. The migration
   from the line scanner to the tree-sitter AST kept the payload byte-identical;
-  the parent PHP parity tests pin that contract.
+  the `php_*_test.go` parity tests in this directory pin that contract, together
+  with `TestDefaultEngineParsePathPHPFixtures` and the cyclomatic-complexity
+  cases that stay in the parent because they sweep several languages.
+- Shared assertions come from `go/internal/parser/parsertest`
+  (`WriteFile`, `AssertBucketItemByName`, `AssertBucketItemByFieldValue`,
+  `AssertStringFieldValue`,
+  `AssertStringSliceContains`, `AssertStringSliceEquals`,
+  `AssertFunctionByNameAndClass`, `AssertFrameworksEqual`,
+  `AssertNestedRouteEntriesEqual`). `php_test_helpers_test.go` holds only what
+  parsertest lacks; do not add local copies of parsertest helpers back, and do
+  not export a parent-private helper to reach it.
 - PreScan uses a declaration-only AST walk so parent pre-scan and full parse
   agree on declaration names without running full semantic extraction twice.
 - Phase 1 collects declarations, imports, type evidence, dead-code facts, and
@@ -37,8 +51,11 @@
 
 ## Common changes and how to scope them
 
-- Add PHP evidence by writing a focused parent parser test first unless a child
-  package contract test already covers the behavior.
+- Add PHP evidence by writing a focused external `php_test` test in this
+  directory first (a new `php_*_test.go` file or a case in the matching family
+  file) unless an in-package contract test already covers the behavior.
+  Prove a run pin with `../scripts/go-test-run-guard.sh 55 TestDefaultEngineParsePathPHP -- ./internal/parser/php -count=1`
+  from the `go/` module root; a bare `go test -run` exits 0 on a partial match.
 - Confirm node kinds with a compiled-grammar probe (parse a snippet and dump
   `node.Kind()`), not a filtered search of the grammar source.
 - Keep registry, Engine dispatch, runtime loader, and content-shape changes
@@ -59,7 +76,8 @@
 
 ## Anti-patterns specific to this package
 
-- Importing the parent parser package.
+- Importing the parent parser package from production code or a `package php`
+  test. Only the external `php_test` files may, and only for the engine API.
 - Reintroducing line-oriented or regex symbol extraction; all extraction is
   AST node-walking.
 - Emitting new bucket keys without matching downstream shape work.
@@ -67,5 +85,7 @@
 ## What NOT to change without an ADR
 
 - Do not change PHP extension ownership or registry behavior from this package.
-- Do not change the tree-sitter PHP grammar pin without re-running the parent
-  PHP parity tests and the `php_comprehensive` golden gate.
+- Do not change the tree-sitter PHP grammar pin without re-running the
+  `php_*_test.go` parity tests here, the parent's
+  `TestDefaultEngineParsePathPHPFixtures`, and the `php_comprehensive` golden
+  gate.

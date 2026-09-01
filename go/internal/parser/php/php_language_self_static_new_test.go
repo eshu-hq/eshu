@@ -1,11 +1,14 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package parser
+package php_test
 
 import (
 	"path/filepath"
 	"testing"
+
+	"github.com/eshu-hq/eshu/go/internal/parser"
+	"github.com/eshu-hq/eshu/go/internal/parser/parsertest"
 )
 
 func TestDefaultEngineParsePathPHPInfersSelfAndStaticInstantiationReceiverCalls(t *testing.T) {
@@ -13,7 +16,7 @@ func TestDefaultEngineParsePathPHPInfersSelfAndStaticInstantiationReceiverCalls(
 
 	repoRoot := t.TempDir()
 	filePath := filepath.Join(repoRoot, "self_static_instantiation.php")
-	writeTestFile(
+	parsertest.WriteFile(
 		t,
 		filePath,
 		`<?php
@@ -34,19 +37,19 @@ class Factory {
 `,
 	)
 
-	engine, err := DefaultEngine()
+	engine, err := parser.DefaultEngine()
 	if err != nil {
-		t.Fatalf("DefaultEngine() error = %v, want nil", err)
+		t.Fatalf("parser.DefaultEngine() error = %v, want nil", err)
 	}
 
-	got, err := engine.ParsePath(repoRoot, filePath, false, Options{})
+	got, err := engine.ParsePath(repoRoot, filePath, false, parser.Options{})
 	if err != nil {
 		t.Fatalf("ParsePath() error = %v, want nil", err)
 	}
 
-	selfInfo := assertBucketItemByFieldValue(t, got, "function_calls", "full_name", "new self()->createService().info")
-	phpAssertStringFieldValue(t, selfInfo, "inferred_obj_type", "Service")
+	selfInfo := parsertest.AssertBucketItemByFieldValue(t, got, "function_calls", "full_name", "new self()->createService().info")
+	parsertest.AssertStringFieldValue(t, selfInfo, "inferred_obj_type", "Service")
 
-	staticInfo := assertBucketItemByFieldValue(t, got, "function_calls", "full_name", "new static()->createService().info")
-	phpAssertStringFieldValue(t, staticInfo, "inferred_obj_type", "Service")
+	staticInfo := parsertest.AssertBucketItemByFieldValue(t, got, "function_calls", "full_name", "new static()->createService().info")
+	parsertest.AssertStringFieldValue(t, staticInfo, "inferred_obj_type", "Service")
 }

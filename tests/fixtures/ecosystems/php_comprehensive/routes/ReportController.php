@@ -3,7 +3,7 @@
 // Copyright (c) 2025-2026 eshu-hq
 
 // #5361 route query-proof matrix: cribs the Symfony attribute-route shape
-// proven by internal/parser/php_route_entries_test.go
+// proven by internal/parser/php/php_route_entries_test.go
 // (TestDefaultEngineParsePathPHPEmitsSymfonyRouteEntries). Unlike Laravel's
 // facade convention (routes.php), Symfony's method-level #[Route] attribute
 // binds a route directly to a bare method name, which does resolve through

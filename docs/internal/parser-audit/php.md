@@ -1,7 +1,7 @@
 # PHP Parser Audit
 
 ## Overview
-The PHP parser (`go/internal/parser/php/`) is a tree-sitter-based adapter that walks the PHP AST in two passes. Pass 1 collects declarations, imports, property/return-type evidence, and dead-code facts. Pass 2 emits variable rows and call rows with inferred receiver types. It emits seven payload buckets (functions, classes, traits, interfaces, variables, imports, function_calls) plus namespace metadata, trait adaptations, semantic kind classification, and cyclomatic complexity. Dead-code root classification covers 10 bounded same-file root kinds. The parser depends on `internal/parser/shared` and the tree-sitter PHP grammar; it does not import the parent parser package.
+The PHP parser (`go/internal/parser/php/`) is a tree-sitter-based adapter that walks the PHP AST in two passes. Pass 1 collects declarations, imports, property/return-type evidence, and dead-code facts. Pass 2 emits variable rows and call rows with inferred receiver types. It emits seven payload buckets (functions, classes, traits, interfaces, variables, imports, function_calls) plus namespace metadata, trait adaptations, semantic kind classification, and cyclomatic complexity. Dead-code root classification covers 10 bounded same-file root kinds. The parser depends on `internal/parser/shared` and the tree-sitter PHP grammar; it does not import the parent parser package. The engine-level PHP regressions live beside it: `go/internal/parser/php/` holds 18 `php_*_test.go` files in the external `php_test` package (17 relocated from `go/internal/parser` by #6062 — 16 test files and the `php_parse_bench_test.go` benchmark — plus `php_test_helpers_test.go`), carrying 55 test functions and one benchmark, alongside five in-package test files with 9 test functions. Citations below of the form `php/<file>:<Test>` point at that directory; `engine_long_tail_test.go` and `engine_cyclomatic_complexity_test.go` stay in `go/internal/parser` because they sweep several languages.
 
 ## Claimed Constructs
 Constructs the parser claims to extract, with source-file references.
@@ -36,51 +36,51 @@ Constructs verified by at least one test with file:function references.
 
 | Construct | Test file:function |
 |---|---|
-| Functions (parameters, source, class_context) | `php_language_test.go:TestDefaultEngineParsePathPHPEmitsFunctionParametersSourceAndContext` |
-| Classes (bases, inheritance) | `php_language_test.go:TestDefaultEngineParsePathPHPEmitsInheritanceAndImportMetadata` |
-| Interfaces (bases) | `php_language_test.go:TestDefaultEngineParsePathPHPEmitsInheritanceAndImportMetadata` |
+| Functions (parameters, source, class_context) | `php/php_language_test.go:TestDefaultEngineParsePathPHPEmitsFunctionParametersSourceAndContext` |
+| Classes (bases, inheritance) | `php/php_language_test.go:TestDefaultEngineParsePathPHPEmitsInheritanceAndImportMetadata` |
+| Interfaces (bases) | `php/php_language_test.go:TestDefaultEngineParsePathPHPEmitsInheritanceAndImportMetadata` |
 | Traits (bucket, functions wired to trait) | `engine_long_tail_test.go:TestDefaultEngineParsePathPHPFixtures` (traits subtest, line 111-117) |
-| Anonymous classes (name, bases, variable type, call inference) | `php_language_anonymous_test.go:TestDefaultEngineParsePathPHPEmitsAnonymousClassMetadata` |
-| Imports (single use, alias, full_import_name, is_dependency, no-alias case) | `php_language_test.go:TestDefaultEngineParsePathPHPEmitsInheritanceAndImportMetadata` |
-| Grouped use imports (aliases) | `php_language_test.go:TestDefaultEngineParsePathPHPEmitsGroupedUseImportMetadata` |
-| `use function` / `use const` import kinds | `php_language_test.go:TestDefaultEngineParsePathPHPEmitsGroupedUseFunctionAndConstImportKinds` |
-| Variables (context, class_context, type from `new`, typed properties) | `php_language_test.go:TestDefaultEngineParsePathPHPEmitsVariableAndCallMetadata`, `TestDefaultEngineParsePathPHPEmitsPropertyTypeInferenceFromDeclaration` |
-| Instance member calls (full_name, args, context, class_context) | `php_language_test.go:TestDefaultEngineParsePathPHPEmitsVariableAndCallMetadata` |
-| Nullsafe calls (normalized to `->`, chained inference) | `php_language_test.go:TestDefaultEngineParsePathPHPEmitsNullsafeReceiverMetadata` |
-| Scoped calls (Logger::warn, namespaced variant) | `php_language_test.go:TestDefaultEngineParsePathPHPEmitsStaticMethodReceiverMetadata` |
-| Object creation (`new Service()`) | `php_language_test.go:TestDefaultEngineParsePathPHPEmitsVariableAndCallMetadata` |
-| Free function calls (`greet()`) | `php_language_test.go:TestDefaultEngineParsePathPHPEmitsCallContextLineMetadata` |
-| Magic method classification (`semantic_kind`) | `php_language_test.go:TestDefaultEngineParsePathPHPEmitsMagicMethodClassification` |
-| Trait adaptations (insteadof, as) | `php_language_trait_adaptation_test.go:TestDefaultEngineParsePathPHPEmitsTraitAdaptationMetadata` |
-| Typed this-property chain inference (`$this->service->info()`) | `php_language_test.go:TestDefaultEngineParsePathPHPInfersTypedThisPropertyReceiverCalls` |
-| Typed parameter inference (`run(Service $service)` → `$service.info()`) | `php_language_typed_parameter_test.go:TestDefaultEngineParsePathPHPInfersTypedParameterReceiverCalls` |
-| `new` expression receiver chain inference (`new Service()->info()`) | `php_language_alias_test.go:TestDefaultEngineParsePathPHPInfersAliasedNewExpressionReceiverCalls` |
-| Variable aliasing inference (`$logger = $service`; `$logger->info()`) | `php_language_alias_test.go:TestDefaultEngineParsePathPHPInfersAliasedNewExpressionReceiverCalls` |
-| This-property alias inference (`$logger = $this->service`) | `php_language_alias_test.go:TestDefaultEngineParsePathPHPInfersAliasedThisPropertyReceiverCalls` |
-| Property chain alias inference (`$this->container->logger` → `$logger->info()`) | `php_language_alias_test.go:TestDefaultEngineParsePathPHPInfersPropertyChainAliasReceiverCalls` |
-| Method return type chaining (`$this->factory->createService()->info()`) | `php_language_method_chain_test.go:TestDefaultEngineParsePathPHPInfersMethodReturnCallChainReceiverCalls` |
-| Method return + property dereference (`createService()->logger->info()`) | `php_language_method_chain_test.go:TestDefaultEngineParsePathPHPInfersMethodReturnPropertyDereferenceReceiverCalls` |
-| Free function return type chaining (`createService()->info()`) | `php_language_function_chain_test.go:TestDefaultEngineParsePathPHPInfersDirectFreeFunctionReturnReceiverCalls` |
-| Free function return call chain (`createFactory()->createService()->info()`) | `php_language_function_chain_test.go:TestDefaultEngineParsePathPHPInfersFreeFunctionReturnCallChainReceiverCalls` |
-| Free function return + property chain (`createFactory()->logger`) | `php_language_property_chain_alias_test.go:TestDefaultEngineParsePathPHPInfersFreeFunctionReturnPropertyChainReceiverCalls` |
-| Chained static factory (`Factory::instance()->createService()->info()`) | `php_language_alias_test.go:TestDefaultEngineParsePathPHPInfersChainedStaticFactoryReceiverCalls` |
-| Import alias receiver inference (`use X as Y`; `new Y()`) | `php_language_alias_test.go:TestDefaultEngineParsePathPHPInfersImportedTypeAliasReceiverCalls` |
-| Import alias static chain (`AppFactory::instance()->createService()->info()`) | `php_language_alias_test.go:TestDefaultEngineParsePathPHPInfersImportedStaticTypeAliasReceiverChains` |
-| Self/static direct calls (`self::emit()`, `static::emit()`) | `php_language_self_static_direct_test.go:TestDefaultEngineParsePathPHPInfersDirectSelfAndStaticReceiverCalls` |
-| Self/static in `new` chains (`new self()->createService()->info()`) | `php_language_self_static_new_test.go:TestDefaultEngineParsePathPHPInfersSelfAndStaticInstantiationReceiverCalls` |
-| Parent static receiver chain (`parent::instance()->createService()->info()`) | `php_language_parent_static_test.go:TestDefaultEngineParsePathPHPInfersParentStaticReceiverCallChains` |
-| Static property chains (`self::$service->info()`) | `php_language_static_property_receiver_test.go:TestDefaultEngineParsePathPHPInfersStaticPropertyReceiverChains` |
-| Parent/static property chains (`parent::$service->info()`, `static::$service->info()`) | `php_language_static_property_receiver_test.go:TestDefaultEngineParsePathPHPInfersParentAndStaticPropertyReceiverChains` |
-| Deep static property chains (`self::$factory->createService()->info()`) | `php_language_static_property_receiver_test.go:TestDefaultEngineParsePathPHPInfersDeepStaticPropertyReceiverChains` |
-| Namespaced instantiation (`new Demo\Service()`, parenthesized new chain) | `php_language_namespaced_new_test.go:TestDefaultEngineParsePathPHPInfersNamespacedInstantiationReceiverCalls` |
-| Parenthesized receiver normalization (`($expr)->method()`) | `php_language_parenthesized_receiver_test.go:TestDefaultEngineParsePathPHPInfersParenthesizedMethodReturnCallChainReceiverCalls` |
-| Call context line metadata | `php_language_test.go:TestDefaultEngineParsePathPHPEmitsCallContextLineMetadata` |
-| Multiline call arguments | `php_language_test.go:TestDefaultEngineParsePathPHPMultilineArgumentsAndContextLineMetadata` |
-| All 10 dead-code root kinds | `php_dead_code_roots_test.go:TestDefaultEngineParsePathPHPEmitsDeadCodeRootKinds` |
-| Dead-code roots with PSR-2 next-line braces | `php_dead_code_roots_test.go:TestDefaultEngineParsePathPHPKeepsRootKindsForNextLineTypeBraces` |
-| Ambiguous syntax NOT rooted (commented hooks, non-Route attributes, non-magic `__` methods) | `php_dead_code_roots_test.go:TestDefaultEngineParsePathPHPDoesNotRootAmbiguousSyntax` |
-| Inherited interface method roots | `php_dead_code_roots_test.go:TestDefaultEngineParsePathPHPRootsInheritedInterfaceMethods` |
-| Fixture-based dead code expectation gate | `php_dead_code_roots_test.go:TestDefaultEngineParsePathPHPDeadCodeFixtureExpectedRoots` |
+| Anonymous classes (name, bases, variable type, call inference) | `php/php_language_anonymous_test.go:TestDefaultEngineParsePathPHPEmitsAnonymousClassMetadata` |
+| Imports (single use, alias, full_import_name, is_dependency, no-alias case) | `php/php_language_test.go:TestDefaultEngineParsePathPHPEmitsInheritanceAndImportMetadata` |
+| Grouped use imports (aliases) | `php/php_language_test.go:TestDefaultEngineParsePathPHPEmitsGroupedUseImportMetadata` |
+| `use function` / `use const` import kinds | `php/php_language_test.go:TestDefaultEngineParsePathPHPEmitsGroupedUseFunctionAndConstImportKinds` |
+| Variables (context, class_context, type from `new`, typed properties) | `php/php_language_test.go:TestDefaultEngineParsePathPHPEmitsVariableAndCallMetadata`, `TestDefaultEngineParsePathPHPEmitsPropertyTypeInferenceFromDeclaration` |
+| Instance member calls (full_name, args, context, class_context) | `php/php_language_test.go:TestDefaultEngineParsePathPHPEmitsVariableAndCallMetadata` |
+| Nullsafe calls (normalized to `->`, chained inference) | `php/php_language_test.go:TestDefaultEngineParsePathPHPEmitsNullsafeReceiverMetadata` |
+| Scoped calls (Logger::warn, namespaced variant) | `php/php_language_test.go:TestDefaultEngineParsePathPHPEmitsStaticMethodReceiverMetadata` |
+| Object creation (`new Service()`) | `php/php_language_test.go:TestDefaultEngineParsePathPHPEmitsVariableAndCallMetadata` |
+| Free function calls (`greet()`) | `php/php_language_test.go:TestDefaultEngineParsePathPHPEmitsCallContextLineMetadata` |
+| Magic method classification (`semantic_kind`) | `php/php_language_test.go:TestDefaultEngineParsePathPHPEmitsMagicMethodClassification` |
+| Trait adaptations (insteadof, as) | `php/php_language_trait_adaptation_test.go:TestDefaultEngineParsePathPHPEmitsTraitAdaptationMetadata` |
+| Typed this-property chain inference (`$this->service->info()`) | `php/php_language_test.go:TestDefaultEngineParsePathPHPInfersTypedThisPropertyReceiverCalls` |
+| Typed parameter inference (`run(Service $service)` → `$service.info()`) | `php/php_language_typed_parameter_test.go:TestDefaultEngineParsePathPHPInfersTypedParameterReceiverCalls` |
+| `new` expression receiver chain inference (`new Service()->info()`) | `php/php_language_alias_test.go:TestDefaultEngineParsePathPHPInfersAliasedNewExpressionReceiverCalls` |
+| Variable aliasing inference (`$logger = $service`; `$logger->info()`) | `php/php_language_alias_test.go:TestDefaultEngineParsePathPHPInfersAliasedNewExpressionReceiverCalls` |
+| This-property alias inference (`$logger = $this->service`) | `php/php_language_alias_test.go:TestDefaultEngineParsePathPHPInfersAliasedThisPropertyReceiverCalls` |
+| Property chain alias inference (`$this->container->logger` → `$logger->info()`) | `php/php_language_alias_test.go:TestDefaultEngineParsePathPHPInfersPropertyChainAliasReceiverCalls` |
+| Method return type chaining (`$this->factory->createService()->info()`) | `php/php_language_method_chain_test.go:TestDefaultEngineParsePathPHPInfersMethodReturnCallChainReceiverCalls` |
+| Method return + property dereference (`createService()->logger->info()`) | `php/php_language_method_chain_test.go:TestDefaultEngineParsePathPHPInfersMethodReturnPropertyDereferenceReceiverCalls` |
+| Free function return type chaining (`createService()->info()`) | `php/php_language_function_chain_test.go:TestDefaultEngineParsePathPHPInfersDirectFreeFunctionReturnReceiverCalls` |
+| Free function return call chain (`createFactory()->createService()->info()`) | `php/php_language_function_chain_test.go:TestDefaultEngineParsePathPHPInfersFreeFunctionReturnCallChainReceiverCalls` |
+| Free function return + property chain (`createFactory()->logger`) | `php/php_language_property_chain_alias_test.go:TestDefaultEngineParsePathPHPInfersFreeFunctionReturnPropertyChainReceiverCalls` |
+| Chained static factory (`Factory::instance()->createService()->info()`) | `php/php_language_alias_test.go:TestDefaultEngineParsePathPHPInfersChainedStaticFactoryReceiverCalls` |
+| Import alias receiver inference (`use X as Y`; `new Y()`) | `php/php_language_alias_test.go:TestDefaultEngineParsePathPHPInfersImportedTypeAliasReceiverCalls` |
+| Import alias static chain (`AppFactory::instance()->createService()->info()`) | `php/php_language_alias_test.go:TestDefaultEngineParsePathPHPInfersImportedStaticTypeAliasReceiverChains` |
+| Self/static direct calls (`self::emit()`, `static::emit()`) | `php/php_language_self_static_direct_test.go:TestDefaultEngineParsePathPHPInfersDirectSelfAndStaticReceiverCalls` |
+| Self/static in `new` chains (`new self()->createService()->info()`) | `php/php_language_self_static_new_test.go:TestDefaultEngineParsePathPHPInfersSelfAndStaticInstantiationReceiverCalls` |
+| Parent static receiver chain (`parent::instance()->createService()->info()`) | `php/php_language_parent_static_test.go:TestDefaultEngineParsePathPHPInfersParentStaticReceiverCallChains` |
+| Static property chains (`self::$service->info()`) | `php/php_language_static_property_receiver_test.go:TestDefaultEngineParsePathPHPInfersStaticPropertyReceiverChains` |
+| Parent/static property chains (`parent::$service->info()`, `static::$service->info()`) | `php/php_language_static_property_receiver_test.go:TestDefaultEngineParsePathPHPInfersParentAndStaticPropertyReceiverChains` |
+| Deep static property chains (`self::$factory->createService()->info()`) | `php/php_language_static_property_receiver_test.go:TestDefaultEngineParsePathPHPInfersDeepStaticPropertyReceiverChains` |
+| Namespaced instantiation (`new Demo\Service()`, parenthesized new chain) | `php/php_language_namespaced_new_test.go:TestDefaultEngineParsePathPHPInfersNamespacedInstantiationReceiverCalls` |
+| Parenthesized receiver normalization (`($expr)->method()`) | `php/php_language_parenthesized_receiver_test.go:TestDefaultEngineParsePathPHPInfersParenthesizedMethodReturnCallChainReceiverCalls` |
+| Call context line metadata | `php/php_language_test.go:TestDefaultEngineParsePathPHPEmitsCallContextLineMetadata` |
+| Multiline call arguments | `php/php_language_test.go:TestDefaultEngineParsePathPHPMultilineArgumentsAndContextLineMetadata` |
+| All 10 dead-code root kinds | `php/php_dead_code_roots_test.go:TestDefaultEngineParsePathPHPEmitsDeadCodeRootKinds` |
+| Dead-code roots with PSR-2 next-line braces | `php/php_dead_code_roots_test.go:TestDefaultEngineParsePathPHPKeepsRootKindsForNextLineTypeBraces` |
+| Ambiguous syntax NOT rooted (commented hooks, non-Route attributes, non-magic `__` methods) | `php/php_dead_code_roots_test.go:TestDefaultEngineParsePathPHPDoesNotRootAmbiguousSyntax` |
+| Inherited interface method roots | `php/php_dead_code_roots_test.go:TestDefaultEngineParsePathPHPRootsInheritedInterfaceMethods` |
+| Fixture-based dead code expectation gate | `php/php_dead_code_roots_test.go:TestDefaultEngineParsePathPHPDeadCodeFixtureExpectedRoots` |
 | Cyclomatic complexity (straight-line = 1, branches = 8) | `engine_cyclomatic_complexity_test.go` (php_straight_line, php_branches_and_boolean) |
 | Comprehensive fixture gate (traits bucket, static calls, alias calls, cross-file) | `engine_long_tail_test.go:TestDefaultEngineParsePathPHPFixtures` |
 | Self/static scoped call metadata (full_name, inferred_obj_type) | `engine_long_tail_test.go:TestDefaultEngineParsePathPHPResolvesSelfStaticReceiverMetadata` |
@@ -114,36 +114,36 @@ Edge cases the tests actually cover.
 
 | Edge case | Test reference |
 |---|---|
-| Nullsafe operator `?->` normalized to `->` in full_name and receiver inference | `php_language_test.go:TestDefaultEngineParsePathPHPEmitsNullsafeReceiverMetadata` |
-| Chained nullsafe (`$session?->service?->info()`) still resolves type correctly | `php_language_test.go:TestDefaultEngineParsePathPHPEmitsNullsafeReceiverMetadata` |
-| PSR-2 next-line brace style for interfaces/traits/classes does not break dead-code roots | `php_dead_code_roots_test.go:TestDefaultEngineParsePathPHPKeepsRootKindsForNextLineTypeBraces` |
-| Commented-out `add_action` and `Route::get` calls do not produce dead-code roots | `php_dead_code_roots_test.go:TestDefaultEngineParsePathPHPDoesNotRootAmbiguousSyntax` |
-| Non-Symfony `#[MyRoute]` attribute does not produce `php.symfony_route_attribute` | `php_dead_code_roots_test.go:TestDefaultEngineParsePathPHPDoesNotRootAmbiguousSyntax` |
-| Double-underscore methods that are not magic (`__legacyHelper`) are not classified as magic or rooted | `php_dead_code_roots_test.go:TestDefaultEngineParsePathPHPDoesNotRootAmbiguousSyntax` |
-| Inherited interface methods recognized through transitive interface chains (`ChildContract extends ParentContract`) | `php_dead_code_roots_test.go:TestDefaultEngineParsePathPHPRootsInheritedInterfaceMethods` |
-| Nested interface chains do not cause infinite loops (cycle detection in `phpInterfaceHasMethod`) | `php_dead_code_roots_test.go:TestDefaultEngineParsePathPHPRootsInheritedInterfaceMethods` |
-| Unused function has no dead_code_root_kinds | `php_dead_code_roots_test.go:TestDefaultEngineParsePathPHPEmitsDeadCodeRootKinds` |
-| Private helper method in Controller has no dead_code_root_kinds | `php_dead_code_roots_test.go:TestDefaultEngineParsePathPHPEmitsDeadCodeRootKinds` |
-| Controller method without route backing is not rooted as controller action | `php_dead_code_roots_test.go:TestDefaultEngineParsePathPHPEmitsDeadCodeRootKinds` (supportOnly) |
-| `__invoke` is rooted as `php.magic_method` | `php_dead_code_roots_test.go` (both test 1 and test 5) |
-| Parenthesized receiver `($expr)->method()` resolves type through chain | `php_language_parenthesized_receiver_test.go:TestDefaultEngineParsePathPHPInfersParenthesizedMethodReturnCallChainReceiverCalls` |
-| Self/static resolution in `new self()` / `new static()` chains | `php_language_self_static_new_test.go:TestDefaultEngineParsePathPHPInfersSelfAndStaticInstantiationReceiverCalls` |
-| Parent scope resolution in scoped call chains (`parent::instance()->createService()->info()`) | `php_language_parent_static_test.go:TestDefaultEngineParsePathPHPInfersParentStaticReceiverCallChains` |
-| Namespaced class resolution in `new` (`new Demo\Service()`) | `php_language_namespaced_new_test.go:TestDefaultEngineParsePathPHPInfersNamespacedInstantiationReceiverCalls` |
-| Parenthesized new expression on receiver chain (`(new Demo\Service())->run()`) | `php_language_namespaced_new_test.go:TestDefaultEngineParsePathPHPInfersNamespacedInstantiationReceiverCalls` |
-| Import alias resolving to last segment in type inference (`use Demo\Library\Config as AppConfig` → type = `Config`) | `php_language_alias_test.go:TestDefaultEngineParsePathPHPInfersImportedTypeAliasReceiverCalls` |
-| Import alias resolving in static receiver context (`AppFactory::instance()`) | `php_language_alias_test.go:TestDefaultEngineParsePathPHPInfersImportedStaticTypeAliasReceiverChains` |
-| Property type from nullable declaration (`?Service`) → normalized to `Service` | `php_language_test.go:TestDefaultEngineParsePathPHPEmitsPropertyTypeInferenceFromDeclaration` |
-| Multiline call arguments preserved as raw source text with indentation | `php_language_test.go:TestDefaultEngineParsePathPHPMultilineArgumentsAndContextLineMetadata` |
-| Call context tuple (name, kind, line) for method-declaration context | `php_language_test.go:TestDefaultEngineParsePathPHPEmitsCallContextLineMetadata` |
+| Nullsafe operator `?->` normalized to `->` in full_name and receiver inference | `php/php_language_test.go:TestDefaultEngineParsePathPHPEmitsNullsafeReceiverMetadata` |
+| Chained nullsafe (`$session?->service?->info()`) still resolves type correctly | `php/php_language_test.go:TestDefaultEngineParsePathPHPEmitsNullsafeReceiverMetadata` |
+| PSR-2 next-line brace style for interfaces/traits/classes does not break dead-code roots | `php/php_dead_code_roots_test.go:TestDefaultEngineParsePathPHPKeepsRootKindsForNextLineTypeBraces` |
+| Commented-out `add_action` and `Route::get` calls do not produce dead-code roots | `php/php_dead_code_roots_test.go:TestDefaultEngineParsePathPHPDoesNotRootAmbiguousSyntax` |
+| Non-Symfony `#[MyRoute]` attribute does not produce `php.symfony_route_attribute` | `php/php_dead_code_roots_test.go:TestDefaultEngineParsePathPHPDoesNotRootAmbiguousSyntax` |
+| Double-underscore methods that are not magic (`__legacyHelper`) are not classified as magic or rooted | `php/php_dead_code_roots_test.go:TestDefaultEngineParsePathPHPDoesNotRootAmbiguousSyntax` |
+| Inherited interface methods recognized through transitive interface chains (`ChildContract extends ParentContract`) | `php/php_dead_code_roots_test.go:TestDefaultEngineParsePathPHPRootsInheritedInterfaceMethods` |
+| Nested interface chains do not cause infinite loops (cycle detection in `phpInterfaceHasMethod`) | `php/php_dead_code_roots_test.go:TestDefaultEngineParsePathPHPRootsInheritedInterfaceMethods` |
+| Unused function has no dead_code_root_kinds | `php/php_dead_code_roots_test.go:TestDefaultEngineParsePathPHPEmitsDeadCodeRootKinds` |
+| Private helper method in Controller has no dead_code_root_kinds | `php/php_dead_code_roots_test.go:TestDefaultEngineParsePathPHPEmitsDeadCodeRootKinds` |
+| Controller method without route backing is not rooted as controller action | `php/php_dead_code_roots_test.go:TestDefaultEngineParsePathPHPEmitsDeadCodeRootKinds` (supportOnly) |
+| `__invoke` is rooted as `php.magic_method` | `php/php_dead_code_roots_test.go` (both test 1 and test 5) |
+| Parenthesized receiver `($expr)->method()` resolves type through chain | `php/php_language_parenthesized_receiver_test.go:TestDefaultEngineParsePathPHPInfersParenthesizedMethodReturnCallChainReceiverCalls` |
+| Self/static resolution in `new self()` / `new static()` chains | `php/php_language_self_static_new_test.go:TestDefaultEngineParsePathPHPInfersSelfAndStaticInstantiationReceiverCalls` |
+| Parent scope resolution in scoped call chains (`parent::instance()->createService()->info()`) | `php/php_language_parent_static_test.go:TestDefaultEngineParsePathPHPInfersParentStaticReceiverCallChains` |
+| Namespaced class resolution in `new` (`new Demo\Service()`) | `php/php_language_namespaced_new_test.go:TestDefaultEngineParsePathPHPInfersNamespacedInstantiationReceiverCalls` |
+| Parenthesized new expression on receiver chain (`(new Demo\Service())->run()`) | `php/php_language_namespaced_new_test.go:TestDefaultEngineParsePathPHPInfersNamespacedInstantiationReceiverCalls` |
+| Import alias resolving to last segment in type inference (`use Demo\Library\Config as AppConfig` → type = `Config`) | `php/php_language_alias_test.go:TestDefaultEngineParsePathPHPInfersImportedTypeAliasReceiverCalls` |
+| Import alias resolving in static receiver context (`AppFactory::instance()`) | `php/php_language_alias_test.go:TestDefaultEngineParsePathPHPInfersImportedStaticTypeAliasReceiverChains` |
+| Property type from nullable declaration (`?Service`) → normalized to `Service` | `php/php_language_test.go:TestDefaultEngineParsePathPHPEmitsPropertyTypeInferenceFromDeclaration` |
+| Multiline call arguments preserved as raw source text with indentation | `php/php_language_test.go:TestDefaultEngineParsePathPHPMultilineArgumentsAndContextLineMetadata` |
+| Call context tuple (name, kind, line) for method-declaration context | `php/php_language_test.go:TestDefaultEngineParsePathPHPEmitsCallContextLineMetadata` |
 | Call context line metadata tracks the line of the enclosing function/method name | Many tests via `assertCallContextTuple` |
-| Grouped `use` with alias (`Logger\Stream as StreamLogger`) | `php_language_test.go:TestDefaultEngineParsePathPHPEmitsGroupedUseImportMetadata` |
-| Grouped `use function` / `use const` with mixed aliases | `php_language_test.go:TestDefaultEngineParsePathPHPEmitsGroupedUseFunctionAndConstImportKinds` |
-| Trait `insteadof` and `as` adaptation text normalized (whitespace collapsed, semicolon stripped) | `php_language_trait_adaptation_test.go:TestDefaultEngineParsePathPHPEmitsTraitAdaptationMetadata` |
-| Anonymous class extends a named class and bases are captured | `php_language_anonymous_test.go:TestDefaultEngineParsePathPHPEmitsAnonymousClassMetadata` |
-| Anonymous class used as variable type for receiver inference | `php_language_anonymous_test.go:TestDefaultEngineParsePathPHPEmitsAnonymousClassMetadata` |
-| Assignment-based type inference (RHS type recorded and used for later uses of same variable) | `php_language_alias_test.go` (multiple tests: `$logger = $service`, `$logger = $this->service`, `$logger = createFactory()->logger`) |
-| Three-level dynamic chain (`$this->factory->createService()->logger->info()`) | `php_language_method_chain_test.go:TestDefaultEngineParsePathPHPInfersMethodReturnPropertyDereferenceReceiverCalls` |
+| Grouped `use` with alias (`Logger\Stream as StreamLogger`) | `php/php_language_test.go:TestDefaultEngineParsePathPHPEmitsGroupedUseImportMetadata` |
+| Grouped `use function` / `use const` with mixed aliases | `php/php_language_test.go:TestDefaultEngineParsePathPHPEmitsGroupedUseFunctionAndConstImportKinds` |
+| Trait `insteadof` and `as` adaptation text normalized (whitespace collapsed, semicolon stripped) | `php/php_language_trait_adaptation_test.go:TestDefaultEngineParsePathPHPEmitsTraitAdaptationMetadata` |
+| Anonymous class extends a named class and bases are captured | `php/php_language_anonymous_test.go:TestDefaultEngineParsePathPHPEmitsAnonymousClassMetadata` |
+| Anonymous class used as variable type for receiver inference | `php/php_language_anonymous_test.go:TestDefaultEngineParsePathPHPEmitsAnonymousClassMetadata` |
+| Assignment-based type inference (RHS type recorded and used for later uses of same variable) | `php/php_language_alias_test.go` (multiple tests: `$logger = $service`, `$logger = $this->service`, `$logger = createFactory()->logger`) |
+| Three-level dynamic chain (`$this->factory->createService()->logger->info()`) | `php/php_language_method_chain_test.go:TestDefaultEngineParsePathPHPInfersMethodReturnPropertyDereferenceReceiverCalls` |
 
 ## Edge Cases NOT Considered
 Edge cases with no test coverage.
@@ -175,7 +175,7 @@ Edge cases with no test coverage.
 | **IndexSource mode** (source content in function rows) | Only `TestDefaultEngineParsePathPHPEmitsFunctionParametersSourceAndContext` asserts source; dead-code tests pass `IndexSource: true` but don't assert source content. |
 
 ## Verdict
-**Deep** — The PHP parser has extensive, targeted test coverage across 15 dedicated test files plus engine-level complexity and comprehensive fixture tests. Every claim in `doc.go` is exercised. Receiver inference is tested across 30+ distinct scenarios. Dead-code root classification has its own 5-test suite covering all 10 root kinds, PSR-2 style, false-positive prevention, and inherited interface chains. The gaps are real but narrow: PHP 8.1 enums are a notable missing feature, and several edge cases (union/intersection types, property promotion, closures, deduplication) lack explicit assertions despite being part of the code path.
+**Deep** — The PHP parser has extensive, targeted test coverage across the 15 dedicated test files cited above, all now in `go/internal/parser/php/` as external `php_test` files, plus engine-level complexity and comprehensive fixture tests that stay in `go/internal/parser`. Every claim in `doc.go` is exercised. Receiver inference is tested across 30+ distinct scenarios. Dead-code root classification has its own 5-test suite covering all 10 root kinds, PSR-2 style, false-positive prevention, and inherited interface chains. The gaps are real but narrow: PHP 8.1 enums are a notable missing feature, and several edge cases (union/intersection types, property promotion, closures, deduplication) lack explicit assertions despite being part of the code path.
 
 ## Recommended Actions
 1. **Add PHP 8.1 enum support** (or document as a known limitation): `enum_declaration` is not handled anywhere in the parser. Add a case to emit enum rows into the classes bucket, capture enum cases, and handle enum method bodies.

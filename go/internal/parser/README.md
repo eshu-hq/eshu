@@ -477,7 +477,7 @@ function-append site.
   `github.com/tree-sitter/tree-sitter-php v0.24.2` module via its
   `bindings/go` `LanguagePHP` loader. Refresh by running
   `go get github.com/tree-sitter/tree-sitter-php@<version>` from `go/`, then
-  `go test ./internal/parser -run TestDefaultEngineParsePathPHP -count=1`.
+  `../scripts/go-test-run-guard.sh 57 TestDefaultEngineParsePathPHP -- ./internal/parser/... -count=1` (the `./...` suffix is required since issue #6062 relocated the `php_*_test.go` family into `internal/parser/php`; the guard fails on a partial match, which a bare `go test -run` would not).
   No-Regression Evidence: the parent PHP parity tests and the
   `TestDefaultEngineParsePathPHPFixtures` golden gate pass unchanged after the
   line-scanner-to-AST migration; this adds one lazy grammar loader without
