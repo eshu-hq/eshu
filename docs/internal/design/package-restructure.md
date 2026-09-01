@@ -1484,6 +1484,144 @@ the `scripts/verify-payload-usage-manifest.sh` run in this PR's evidence table
 proves. Input shape is one fact envelope per decode call, unchanged; there is no
 queue, lease, batch, or row-count dimension to this change.
 
+## gpphase hoist: crossrepo family unblock
+
+The crossrepo family (`cross_repo_resolution.go`, `cross_repo_resolution_retract.go`,
+`cross_repo_intent_row.go`, `cross_repo_evidence_type.go`) was graded `clean` in
+Part 1's family table but could not move: it references three symbols defined at
+the reducer root — `GraphProjectionPhaseKey`, `GraphProjectionReadinessLookup`,
+`GraphProjectionReadinessPrefetch`. Measured consumer counts before the move
+(`rg -l '\bSYM\b' internal/reducer/*.go | rg -v _test | wc -l`): `GraphProjectionPhaseKey`
+12 non-test files (19 test files), `GraphProjectionReadinessLookup` 28 non-test
+files (10 test files), `GraphProjectionReadinessPrefetch` 7 non-test files (0 test
+files). All three were genuinely DEFINED at the root (`rg '^(type|func|const|var)
+SYM\b' internal/reducer/*.go` each matched exactly `graph_projection_phase.go`,
+not a forwarder or alias), so none were free.
+
+The brief that opened this hoist additionally named
+`GraphProjectionPhaseCanonicalNodesCommitted`, `graphProjectionPhaseStateForIntent`,
+`publishIntentGraphPhase`, `ProjectedSourceLedger`, and `PriorGenerationCheck` as
+possibly living in `graph_projection_phase.go`. Measured: none of the five do —
+they are defined in `generation_check.go`, `graph_projection_phase_publish.go`, and
+`projected_source_ledger.go` respectively, and none are referenced by any
+crossrepo-family file. This is the same pattern the epic has hit before: the
+issue's own framing of a family's blockers is not reliable and must be measured,
+not assumed.
+
+The minimal cohesive unit that unblocks crossrepo turned out to be larger than
+the three named symbols, because `GraphProjectionPhaseKey.Keyspace` is typed
+`GraphProjectionKeyspace` and crossrepo constructs a key with the
+`GraphProjectionKeyspaceCrossRepoEvidence` constant, and gates readiness on the
+`GraphProjectionPhaseBackwardEvidenceCommitted` constant — both members of the two
+enums (`GraphProjectionKeyspace`, `GraphProjectionPhase`) declared earlier in the
+same file. Splitting an enum across a package boundary (some constants hoisted,
+others left at the root) was rejected as incoherent, so the full identity
+vocabulary moved together: `GraphProjectionKeyspace` (13 constants),
+`GraphProjectionPhase` (7 constants), `GraphProjectionPhaseKey` plus its
+`Validate` method, `GraphProjectionReadinessLookup`, and
+`GraphProjectionReadinessPrefetch` — into a new `internal/reducer/gpphase` leaf.
+
+Deliberately left at the root: `GraphProjectionPhaseState` (6 non-test-file
+consumers) and the `GraphProjectionPhasePublisher` interface (24 non-test-file
+consumers) — the phase-publish/repair machinery's persistence shape, which adds
+no identity concept beyond `PhaseKey`/`Phase` and which crossrepo does not
+reference. `EndpointPresenceRow`/`Writer`/`Lookup` (4/15/8 non-test-file
+consumers) also stay — a distinct uid-exact, cross-scope presence primitive
+(issue #1380), unrelated to the same-scope/same-generation readiness gate
+crossrepo needs, and confirmed by grep to have zero references from any
+crossrepo-family file.
+
+The root keeps every original exported name — `GraphProjectionKeyspace`,
+`GraphProjectionPhase`, `GraphProjectionPhaseKey`, `GraphProjectionReadinessLookup`,
+`GraphProjectionReadinessPrefetch`, and one alias per constant — as Go type/const
+aliases in `graph_projection_phase.go`, so no caller changed and
+`GraphProjectionPhaseKey.Validate` needs no forwarder (an alias carries the
+method set). This hoist does not itself move the crossrepo family's files into a
+`crossrepo` subpackage; it removes a blocker so that move can happen separately.
+
+**Correction after review.** An earlier version of this section, and matching
+prose in `gpphase/doc.go`, `gpphase/README.md`, and one
+`telemetry-coverage.md` row, asserted these three symbols were crossrepo's
+*only* remaining blocker. That overstated what had actually been checked. A
+real trial move settles it: copy all five crossrepo-prefixed files —
+`cross_repo_resolution.go`, `cross_repo_resolution_retract.go`,
+`cross_repo_intent_row.go`, `cross_repo_evidence_type.go`, and
+`cross_repo_evidence_artifacts.go` (this fifth file carries the family prefix
+but was missed by the four-file set the paragraphs above describe) — into a
+throwaway `internal/reducer/crossrepotrial` package and build it
+(`go build -gcflags="-e" ./internal/reducer/crossrepotrial/...`, `-e` to see
+every error rather than the compiler's default 10-error cutoff). The first
+build reports ten undefined names. Five are exactly `GraphProjectionKeyspace*`
+constants, `GraphProjectionPhaseKey`, `GraphProjectionReadinessLookup`, and
+`GraphProjectionReadinessPrefetch` — this hoist's own symbols, and qualifying
+them as `gpphase.*` resolves every one. The other five —
+`SharedProjectionIntentRow`, `SharedProjectionIntentInput`,
+`BuildSharedProjectionIntent`, `DomainRepoDependency`, `toStringSlice` — are
+not gpphase's concern, and each resolves too, by a different route confirmed
+individually: `SharedProjectionIntentRow`/`Input` are root type aliases to
+`sharedintent.Row`/`Input`, so qualifying by the leaf name is enough;
+`BuildSharedProjectionIntent` is a real function at root (not an alias) that
+forwards to `sharedintent.Build`, so the call site must name the leaf function
+directly; `DomainRepoDependency` is a root const alias to
+`contract.DomainRepoDependency`; and `toStringSlice` — which a first pass
+believed had no leaf home — is itself a one-line forwarder to
+`payloadcore.ToStringSlice` (`internal/reducer/workload_deployment_sources.go:381`),
+already an exported leaf function, so it resolves the same way as the other
+four. With all ten qualified, the five-file trial package builds clean:
+`go build -gcflags="-e" ./internal/reducer/crossrepotrial/...` exits 0, zero
+undefined names remain. So the corrected claim is: this hoist supplies the
+crossrepo family's only symbols that had **no existing leaf home at all**;
+every other name the family needs was already reachable through an
+already-hoisted sibling leaf (`sharedintent`, `contract`, `payloadcore`) and
+needed only an import or call-site rewrite, not a new hoist. The trial
+package was deleted after the build; it is not part of this PR's diff.
+
+No-Regression Evidence: this section was re-derived after a rebase onto
+current `origin/main` invalidated the prior baseline/after SHAs and inline
+count (rebasing changes what a base-relative figure means even when the
+diff's own content is untouched). Baseline `091ec3400` (current
+`origin/main` tip), after `a39c85f31` (the rebased commit that lands this
+hoist's code), go1.27.0 darwin/arm64. This crosses a package boundary, so
+inlining is measured, not assumed, as a SET in both directions with `comm`,
+at whole-module scope (`go build -gcflags=-m ./...`) since the moved types
+are referenced from `internal/workflow`, `internal/reducer/dsl`, and
+`internal/reducer/tfstate` in addition to the reducer root: unique
+`can inline` names 12153 -> 12153 (probe confirmed non-vacuous: both sets
+exceed 12000 names before the equal total is believed). **Fifteen** names
+moved in each direction (re-derived with `wc -l` after an earlier pass in
+this same section under-counted by eye at fourteen) and every one is the
+same generic instantiation re-qualified to the new package path (e.g.
+`slices.Clone[...reducer.GraphProjectionKeyspace,...]` ->
+`slices.Clone[...reducer/gpphase.Keyspace,...]`) — a 1:1 rename set, not a net
+count, verified pair by pair by listing all thirty names and matching each
+LOST entry to its GAINED counterpart by shape. Zero functions actually lost or
+gained inlinability. Correctness: `go build ./...` and `go vet ./...` both exit 0 with
+no output; `go test ./internal/reducer/...` passes 13 packages including the new
+`gpphase` package, which carries `TestPhaseKeyValidate` and
+`TestPhaseKeyValidateRejectsBlankFields` (moved out of
+`graph_projection_phase_test.go`, unchanged assertions, package-qualified names).
+The reducer root non-test `.go` file count is unchanged (`graph_projection_phase.go`
+was edited in place, not deleted) — the dirgate whole-tree gate
+(`scripts/dev/precommit-go.sh dirgate-all`) passed with no output and needed no
+grandfather-TSV edit. No query, Cypher, batch size, worker count, lease, or queue
+behaviour is touched by this change; the moved code is enums, one struct, one
+validation method, and two function types.
+
+No-Observability-Change: `GraphProjectionKeyspace`, `GraphProjectionPhase`,
+`GraphProjectionPhaseKey`, `GraphProjectionReadinessLookup`, and
+`GraphProjectionReadinessPrefetch` are enums, a struct, and function-type
+declarations plus one pure validation method (`PhaseKey.Validate`) that computes
+no state and performs no I/O; behavior-preserving hoist out of the reducer root
+(#6061). The phase-publish and phase-repair machinery that actually writes and
+reads readiness (`graph_projection_phase_publish.go`,
+`graph_projection_phase_repair.go`, `graph_projection_phase_repair_runner.go`)
+stays at the root untouched, so its existing coverage still applies:
+`eshu_dp_reducer_executions_total` and `eshu_dp_reducer_run_duration_seconds`
+bound the handler passes that read and publish these phases, and
+`eshu_dp_postgres_query_duration_seconds` times the Postgres reads/writes the
+publisher and repair queue issue. This file emits no metric, span, or log of its
+own.
+
 ## Part 5: what this buys the modularization program
 
 Extraction grades from the research become the repo-split roadmap:
