@@ -15,14 +15,27 @@
 7. `dogfood_real_repo_test.go` - standing real-repo-validated snapshot test
    (#5399); do not edit `testdata/dogfood_real_repo_snapshot.txt` by hand,
    regenerate with `DOGFOOD_UPDATE_SNAPSHOT=1 bash scripts/dogfood-java.sh`
-8. `engine_java_implements_test.go` - external-package regression for
-   implemented-interface metadata through the public parent engine
+8. `engine_java_implements_test.go` and the `java_*_test.go` family (12 files,
+   external package `java_test`, relocated from the parent by #6062) -
+   black-box regressions through the public parent engine;
+   `java_test_helpers_test.go` holds the fixture-path and directory-creating
+   file-write helpers that `go/internal/parser/parsertest` does not provide
 
 ## Invariants this package enforces
 
 - Production dependency direction stays one way: parent parser code may import
-  this package, but Java production files must not import `go/internal/parser`.
-  External `java_test` files may import the parent to exercise its public API.
+  this package, but Java production files and `package java` tests must not
+  import `go/internal/parser`. External `java_test` files may import the parent
+  to exercise its public API (`DefaultEngine`, `DefaultRegistry`, `Options`).
+- Shared assertions come from `go/internal/parser/parsertest` (`WriteFile`,
+  `AssertBucketItemByName`, `AssertBucketItemByFieldValue`,
+  `AssertNamedBucketContains`, `AssertStringFieldValue`, `AssertIntFieldValue`,
+  `AssertStringSliceContains`, `AssertStringSliceEquals`,
+  `AssertFunctionByNameAndClass`, `AssertFrameworksEqual`,
+  `AssertNestedStringSliceEqual`, `AssertNestedRouteEntriesEqual`).
+  `java_test_helpers_test.go` holds only `javaFixturePath` and
+  `writeJavaTestFile`; do not add local copies of parsertest helpers back, and
+  do not export a parent-private helper to reach it.
 - `Parse` preserves the parent payload contract for `functions`, `classes`,
   `interfaces`, `annotations`, `enums`, `variables`, `imports`, and
   `function_calls`; `ParseMetadata` preserves the `java_metadata`
@@ -42,8 +55,11 @@
 - Add receiver or argument inference in `call_inference.go`,
   `call_context.go`, or `type_inference_helpers.go` with a child-package unit
   test when the helper contract is internal.
-- Add dead-code roots in `dead_code_roots.go` with positive and negative parent
-  parser tests so ordinary methods do not become roots by name alone.
+- Add dead-code roots in `dead_code_roots.go` with positive and negative
+  external `java_test` tests in this directory so ordinary methods do not
+  become roots by name alone. Prove a run pin with
+  `../scripts/go-test-run-guard.sh 33 TestDefaultEngineParsePathJava -- ./internal/parser/java -count=1`
+  from the `go/` module root; a bare `go test -run` exits 0 on a partial match.
 - Add reflection support in `reflection.go` only for literal, statically named
   evidence.
 - Add a metadata file shape by extending `metadata.go` and `metadata_test.go`

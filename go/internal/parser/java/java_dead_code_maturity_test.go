@@ -1,12 +1,14 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package parser
+package java_test
 
 import (
 	"path/filepath"
-	"slices"
 	"testing"
+
+	"github.com/eshu-hq/eshu/go/internal/parser"
+	"github.com/eshu-hq/eshu/go/internal/parser/parsertest"
 )
 
 func TestDefaultEngineParsePathJavaInfersTypedLambdaCallbackCalls(t *testing.T) {
@@ -14,7 +16,7 @@ func TestDefaultEngineParsePathJavaInfersTypedLambdaCallbackCalls(t *testing.T) 
 
 	repoRoot := t.TempDir()
 	filePath := filepath.Join(repoRoot, "src/main/java/example/CyclonedxPluginAction.java")
-	writeTestFile(t, filePath, `package example;
+	writeJavaTestFile(t, filePath, `package example;
 
 import org.gradle.api.Action;
 import org.gradle.api.Project;
@@ -35,19 +37,19 @@ final class CyclonedxPluginAction {
 }
 `)
 
-	engine, err := DefaultEngine()
+	engine, err := parser.DefaultEngine()
 	if err != nil {
-		t.Fatalf("DefaultEngine() error = %v, want nil", err)
+		t.Fatalf("parser.DefaultEngine() error = %v, want nil", err)
 	}
 
-	got, err := engine.ParsePath(repoRoot, filePath, false, Options{})
+	got, err := engine.ParsePath(repoRoot, filePath, false, parser.Options{})
 	if err != nil {
 		t.Fatalf("ParsePath() error = %v, want nil", err)
 	}
 
-	callback := assertBucketItemByFieldValue(t, got, "function_calls", "full_name", "configureBootJarTask")
-	assertParserStringSliceEquals(t, callback, "argument_types", []string{"BootJar", "TaskProvider"})
-	assertParserStringSliceEquals(t, assertFunctionByNameAndClass(t, got, "configureBootJarTask", "CyclonedxPluginAction"), "parameter_types", []string{"Project", "TaskProvider"})
+	callback := parsertest.AssertBucketItemByFieldValue(t, got, "function_calls", "full_name", "configureBootJarTask")
+	parsertest.AssertStringSliceEquals(t, callback, "argument_types", []string{"BootJar", "TaskProvider"})
+	parsertest.AssertStringSliceEquals(t, parsertest.AssertFunctionByNameAndClass(t, got, "configureBootJarTask", "CyclonedxPluginAction"), "parameter_types", []string{"Project", "TaskProvider"})
 }
 
 func TestDefaultEngineParsePathJavaMarksMethodReferenceTargets(t *testing.T) {
@@ -55,7 +57,7 @@ func TestDefaultEngineParsePathJavaMarksMethodReferenceTargets(t *testing.T) {
 
 	repoRoot := t.TempDir()
 	filePath := filepath.Join(repoRoot, "src/main/java/example/JavaPluginAction.java")
-	writeTestFile(t, filePath, `package example;
+	writeJavaTestFile(t, filePath, `package example;
 
 import org.gradle.api.Project;
 import org.gradle.api.tasks.compile.JavaCompile;
@@ -73,18 +75,18 @@ final class JavaPluginAction {
 }
 `)
 
-	engine, err := DefaultEngine()
+	engine, err := parser.DefaultEngine()
 	if err != nil {
-		t.Fatalf("DefaultEngine() error = %v, want nil", err)
+		t.Fatalf("parser.DefaultEngine() error = %v, want nil", err)
 	}
 
-	got, err := engine.ParsePath(repoRoot, filePath, false, Options{})
+	got, err := engine.ParsePath(repoRoot, filePath, false, parser.Options{})
 	if err != nil {
 		t.Fatalf("ParsePath() error = %v, want nil", err)
 	}
 
-	assertParserStringSliceContains(t, assertFunctionByNameAndClass(t, got, "configureUtf8Encoding", "JavaPluginAction"), "dead_code_root_kinds", "java.method_reference_target")
-	if _, ok := assertFunctionByNameAndClass(t, got, "unused", "JavaPluginAction")["dead_code_root_kinds"]; ok {
+	parsertest.AssertStringSliceContains(t, parsertest.AssertFunctionByNameAndClass(t, got, "configureUtf8Encoding", "JavaPluginAction"), "dead_code_root_kinds", "java.method_reference_target")
+	if _, ok := parsertest.AssertFunctionByNameAndClass(t, got, "unused", "JavaPluginAction")["dead_code_root_kinds"]; ok {
 		t.Fatalf("unused dead_code_root_kinds present, want absent")
 	}
 }
@@ -94,7 +96,7 @@ func TestDefaultEngineParsePathJavaModelsRecordsAndThisFieldReceivers(t *testing
 
 	repoRoot := t.TempDir()
 	filePath := filepath.Join(repoRoot, "src/main/java/example/ProtobufPluginAction.java")
-	writeTestFile(t, filePath, `package example;
+	writeJavaTestFile(t, filePath, `package example;
 
 final class ProtobufPluginAction {
     private final Dependency protocDependency = new Dependency("com.google.protobuf", "protoc");
@@ -118,20 +120,20 @@ final class SinglePublishedArtifact {
 }
 `)
 
-	engine, err := DefaultEngine()
+	engine, err := parser.DefaultEngine()
 	if err != nil {
-		t.Fatalf("DefaultEngine() error = %v, want nil", err)
+		t.Fatalf("parser.DefaultEngine() error = %v, want nil", err)
 	}
 
-	got, err := engine.ParsePath(repoRoot, filePath, false, Options{})
+	got, err := engine.ParsePath(repoRoot, filePath, false, parser.Options{})
 	if err != nil {
 		t.Fatalf("ParsePath() error = %v, want nil", err)
 	}
 
-	assertNamedBucketContains(t, got, "classes", "Dependency")
-	assertStringFieldValue(t, assertFunctionByNameAndClass(t, got, "asDependencySpec", "Dependency"), "class_context", "Dependency")
-	assertStringFieldValue(t, assertBucketItemByName(t, got, "function_calls", "asDependencySpec"), "inferred_obj_type", "Dependency")
-	assertStringFieldValue(t, assertBucketItemByName(t, got, "function_calls", "addJarCandidate"), "inferred_obj_type", "SinglePublishedArtifact")
+	parsertest.AssertNamedBucketContains(t, got, "classes", "Dependency")
+	parsertest.AssertStringFieldValue(t, parsertest.AssertFunctionByNameAndClass(t, got, "asDependencySpec", "Dependency"), "class_context", "Dependency")
+	parsertest.AssertStringFieldValue(t, parsertest.AssertBucketItemByName(t, got, "function_calls", "asDependencySpec"), "inferred_obj_type", "Dependency")
+	parsertest.AssertStringFieldValue(t, parsertest.AssertBucketItemByName(t, got, "function_calls", "addJarCandidate"), "inferred_obj_type", "SinglePublishedArtifact")
 }
 
 func TestDefaultEngineParsePathJavaMarksGradleTaskSettersAndInterfaceMethods(t *testing.T) {
@@ -139,7 +141,7 @@ func TestDefaultEngineParsePathJavaMarksGradleTaskSettersAndInterfaceMethods(t *
 
 	repoRoot := t.TempDir()
 	filePath := filepath.Join(repoRoot, "src/main/java/example/BootArchive.java")
-	writeTestFile(t, filePath, `package example;
+	writeJavaTestFile(t, filePath, `package example;
 
 import org.gradle.api.Task;
 import org.gradle.api.tasks.JavaExec;
@@ -158,20 +160,20 @@ public abstract class ProcessTestAot extends JavaExec {
 }
 `)
 
-	engine, err := DefaultEngine()
+	engine, err := parser.DefaultEngine()
 	if err != nil {
-		t.Fatalf("DefaultEngine() error = %v, want nil", err)
+		t.Fatalf("parser.DefaultEngine() error = %v, want nil", err)
 	}
 
-	got, err := engine.ParsePath(repoRoot, filePath, false, Options{})
+	got, err := engine.ParsePath(repoRoot, filePath, false, parser.Options{})
 	if err != nil {
 		t.Fatalf("ParsePath() error = %v, want nil", err)
 	}
 
-	assertParserStringSliceContains(t, assertFunctionByNameAndClass(t, got, "classpath", "BootArchive"), "dead_code_root_kinds", "java.gradle_task_interface_method")
-	assertParserStringSliceContains(t, assertFunctionByNameAndClass(t, got, "setClasspath", "BootArchive"), "dead_code_root_kinds", "java.gradle_task_interface_method")
-	assertParserStringSliceContains(t, assertFunctionByNameAndClass(t, got, "setClasspathRoots", "ProcessTestAot"), "dead_code_root_kinds", "java.gradle_task_setter")
-	if _, ok := assertFunctionByNameAndClass(t, got, "helper", "ProcessTestAot")["dead_code_root_kinds"]; ok {
+	parsertest.AssertStringSliceContains(t, parsertest.AssertFunctionByNameAndClass(t, got, "classpath", "BootArchive"), "dead_code_root_kinds", "java.gradle_task_interface_method")
+	parsertest.AssertStringSliceContains(t, parsertest.AssertFunctionByNameAndClass(t, got, "setClasspath", "BootArchive"), "dead_code_root_kinds", "java.gradle_task_interface_method")
+	parsertest.AssertStringSliceContains(t, parsertest.AssertFunctionByNameAndClass(t, got, "setClasspathRoots", "ProcessTestAot"), "dead_code_root_kinds", "java.gradle_task_setter")
+	if _, ok := parsertest.AssertFunctionByNameAndClass(t, got, "helper", "ProcessTestAot")["dead_code_root_kinds"]; ok {
 		t.Fatalf("helper dead_code_root_kinds present, want absent")
 	}
 }
@@ -181,7 +183,7 @@ func TestDefaultEngineParsePathJavaIgnoresParameterAnnotationsAsDecorators(t *te
 
 	repoRoot := t.TempDir()
 	filePath := filepath.Join(repoRoot, "src/main/java/example/BootArchiveSupport.java")
-	writeTestFile(t, filePath, `package example;
+	writeJavaTestFile(t, filePath, `package example;
 
 class BootArchiveSupport {
     void configureManifest(Manifest manifest, String mainClass,
@@ -194,30 +196,18 @@ class BootArchiveSupport {
 }
 `)
 
-	engine, err := DefaultEngine()
+	engine, err := parser.DefaultEngine()
 	if err != nil {
-		t.Fatalf("DefaultEngine() error = %v, want nil", err)
+		t.Fatalf("parser.DefaultEngine() error = %v, want nil", err)
 	}
 
-	got, err := engine.ParsePath(repoRoot, filePath, false, Options{})
+	got, err := engine.ParsePath(repoRoot, filePath, false, parser.Options{})
 	if err != nil {
 		t.Fatalf("ParsePath() error = %v, want nil", err)
 	}
 
-	if decorators, ok := assertFunctionByName(t, got, "configureManifest")["decorators"]; ok {
+	if decorators, ok := parsertest.AssertBucketItemByName(t, got, "functions", "configureManifest")["decorators"]; ok {
 		t.Fatalf("configureManifest decorators = %#v, want absent", decorators)
 	}
-	assertParserStringSliceEquals(t, assertFunctionByName(t, got, "action"), "decorators", []string{"@TaskAction"})
-}
-
-func assertParserStringSliceEquals(t *testing.T, item map[string]any, field string, want []string) {
-	t.Helper()
-
-	got, ok := item[field].([]string)
-	if !ok {
-		t.Fatalf("%s = %T, want []string", field, item[field])
-	}
-	if !slices.Equal(got, want) {
-		t.Fatalf("%s = %#v, want %#v", field, got, want)
-	}
+	parsertest.AssertStringSliceEquals(t, parsertest.AssertBucketItemByName(t, got, "functions", "action"), "decorators", []string{"@TaskAction"})
 }

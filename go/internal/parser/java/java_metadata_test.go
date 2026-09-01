@@ -1,17 +1,20 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package parser
+package java_test
 
 import (
 	"path/filepath"
 	"testing"
+
+	"github.com/eshu-hq/eshu/go/internal/parser"
+	"github.com/eshu-hq/eshu/go/internal/parser/parsertest"
 )
 
 func TestDefaultRegistryLookupByPathJavaMetadata(t *testing.T) {
 	t.Parallel()
 
-	registry := DefaultRegistry()
+	registry := parser.DefaultRegistry()
 	paths := []string{
 		filepath.Join("META-INF", "services", "com.example.Plugin"),
 		filepath.Join("src", "main", "resources", "META-INF", "services", "com.example.Plugin"),
@@ -35,22 +38,22 @@ func TestDefaultEngineParsePathJavaMetadataEmitsStaticClassReferences(t *testing
 
 	repoRoot := t.TempDir()
 	servicesPath := filepath.Join(repoRoot, "src", "main", "resources", "META-INF", "services", "com.example.Plugin")
-	writeTestFile(t, servicesPath, `# service implementations
+	writeJavaTestFile(t, servicesPath, `# service implementations
 com.example.PluginImpl
 com.example.PluginImpl # duplicate
 `)
 	importsPath := filepath.Join(repoRoot, "src", "main", "resources", "META-INF", "spring", "org.springframework.boot.autoconfigure.AutoConfiguration.imports")
-	writeTestFile(t, importsPath, `com.example.AutoConfig
+	writeJavaTestFile(t, importsPath, `com.example.AutoConfig
 `)
 	factoriesPath := filepath.Join(repoRoot, "src", "main", "resources", "META-INF", "spring.factories")
-	writeTestFile(t, factoriesPath, `org.springframework.boot.autoconfigure.EnableAutoConfiguration=\
+	writeJavaTestFile(t, factoriesPath, `org.springframework.boot.autoconfigure.EnableAutoConfiguration=\
 com.example.LegacyAutoConfig,\
 com.example.MoreAutoConfig
 `)
 
-	engine, err := DefaultEngine()
+	engine, err := parser.DefaultEngine()
 	if err != nil {
-		t.Fatalf("DefaultEngine() error = %v, want nil", err)
+		t.Fatalf("parser.DefaultEngine() error = %v, want nil", err)
 	}
 	for _, tc := range []struct {
 		path string
@@ -83,7 +86,7 @@ com.example.MoreAutoConfig
 			full: "com.example.MoreAutoConfig",
 		},
 	} {
-		got, err := engine.ParsePath(repoRoot, tc.path, false, Options{})
+		got, err := engine.ParsePath(repoRoot, tc.path, false, parser.Options{})
 		if err != nil {
 			t.Fatalf("ParsePath(%q) error = %v, want nil", tc.path, err)
 		}
@@ -91,7 +94,7 @@ com.example.MoreAutoConfig
 			t.Fatalf("ParsePath(%q) lang = %#v, want %#v", tc.path, gotLang, wantLang)
 		}
 		ref := assertJavaFunctionCallByNameAndKind(t, got, tc.name, tc.kind)
-		assertStringFieldValue(t, ref, "full_name", tc.full)
-		assertStringFieldValue(t, ref, "referenced_class", tc.full)
+		parsertest.AssertStringFieldValue(t, ref, "full_name", tc.full)
+		parsertest.AssertStringFieldValue(t, ref, "referenced_class", tc.full)
 	}
 }

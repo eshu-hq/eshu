@@ -1,12 +1,14 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package parser
+package java_test
 
 import (
 	"path/filepath"
 	"reflect"
 	"testing"
+
+	"github.com/eshu-hq/eshu/go/internal/parser"
 )
 
 const javaDataflowFixture = `import java.sql.Statement;
@@ -26,14 +28,14 @@ class SearchController {
 func TestJavaDataflowOffIsByteIdentical(t *testing.T) {
 	repoRoot := t.TempDir()
 	filePath := filepath.Join(repoRoot, "SearchController.java")
-	writeTestFile(t, filePath, javaDataflowFixture)
+	writeJavaTestFile(t, filePath, javaDataflowFixture)
 
-	engine, err := DefaultEngine()
+	engine, err := parser.DefaultEngine()
 	if err != nil {
-		t.Fatalf("DefaultEngine() error = %v", err)
+		t.Fatalf("parser.DefaultEngine() error = %v", err)
 	}
 
-	off, err := engine.ParsePath(repoRoot, filePath, false, Options{})
+	off, err := engine.ParsePath(repoRoot, filePath, false, parser.Options{})
 	if err != nil {
 		t.Fatalf("ParsePath (off) error = %v", err)
 	}
@@ -50,7 +52,7 @@ func TestJavaDataflowOffIsByteIdentical(t *testing.T) {
 		}
 	}
 
-	on, err := engine.ParsePath(repoRoot, filePath, false, Options{EmitDataflow: true})
+	on, err := engine.ParsePath(repoRoot, filePath, false, parser.Options{EmitDataflow: true})
 	if err != nil {
 		t.Fatalf("ParsePath (on) error = %v", err)
 	}
@@ -166,7 +168,7 @@ class SearchController {
   }
 }
 `
-	got := parseJavaDataflowFixtureWithOptions(t, src, Options{EmitDataflow: true, RepositoryID: "repo-alpha"})
+	got := parseJavaDataflowFixtureWithOptions(t, src, parser.Options{EmitDataflow: true, RepositoryID: "repo-alpha"})
 
 	summaryRows, ok := got["dataflow_summaries"].([]map[string]any)
 	if !ok {
@@ -197,7 +199,7 @@ class SearchController {
 }
 
 func TestJavaDurableRowsRequirePackageIdentity(t *testing.T) {
-	got := parseJavaDataflowFixtureWithOptions(t, javaDataflowFixture, Options{EmitDataflow: true, RepositoryID: "repo-alpha"})
+	got := parseJavaDataflowFixtureWithOptions(t, javaDataflowFixture, parser.Options{EmitDataflow: true, RepositoryID: "repo-alpha"})
 	if _, present := got["dataflow_summaries"]; present {
 		t.Fatalf("dataflow_summaries emitted without Java package identity: %+v", got["dataflow_summaries"])
 	}
@@ -208,18 +210,18 @@ func TestJavaDurableRowsRequirePackageIdentity(t *testing.T) {
 
 func parseJavaDataflowFixture(t *testing.T, src string) map[string]any {
 	t.Helper()
-	return parseJavaDataflowFixtureWithOptions(t, src, Options{EmitDataflow: true})
+	return parseJavaDataflowFixtureWithOptions(t, src, parser.Options{EmitDataflow: true})
 }
 
-func parseJavaDataflowFixtureWithOptions(t *testing.T, src string, options Options) map[string]any {
+func parseJavaDataflowFixtureWithOptions(t *testing.T, src string, options parser.Options) map[string]any {
 	t.Helper()
 	repoRoot := t.TempDir()
 	filePath := filepath.Join(repoRoot, "SearchController.java")
-	writeTestFile(t, filePath, src)
+	writeJavaTestFile(t, filePath, src)
 
-	engine, err := DefaultEngine()
+	engine, err := parser.DefaultEngine()
 	if err != nil {
-		t.Fatalf("DefaultEngine() error = %v", err)
+		t.Fatalf("parser.DefaultEngine() error = %v", err)
 	}
 	got, err := engine.ParsePath(repoRoot, filePath, false, options)
 	if err != nil {

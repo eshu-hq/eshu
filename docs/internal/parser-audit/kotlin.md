@@ -12,7 +12,7 @@ are exercised by 18 test files in `go/internal/parser/kotlin/`
 (54 test functions): 16 `engine_kotlin_*_test.go` files in the external
 `kotlin_test` package, plus two in-package tests (`walk_count_test.go` and
 `equivalence_dump_test.go`). Two cross-language files
-(`kotlin_dead_code_roots_test.go`, `java_kotlin_spring_route_semantics_test.go`)
+(`kotlin_dead_code_roots_test.go`, `kotlin_spring_route_semantics_test.go`)
 stay in `go/internal/parser/` because they span more than Kotlin.
 Coverage is broad and intentional.
 
@@ -128,7 +128,7 @@ Most Kotlin engine regressions now live in `go/internal/parser/kotlin/` as the
 external `kotlin_test` package. They use `parser.DefaultEngine()` →
 `ParsePath()` with the registered Kotlin definition and exercise the full AST
 walk from outside the implementation package. Two cross-language files —
-`kotlin_dead_code_roots_test.go` and `java_kotlin_spring_route_semantics_test.go`
+`kotlin_dead_code_roots_test.go` and `kotlin_spring_route_semantics_test.go`
 — stay in `go/internal/parser/` because they assert shared or multi-language
 behavior rather than Kotlin extraction alone. The Swift golden-fixture gate
 that used to share a file with the Kotlin one now lives on its own at

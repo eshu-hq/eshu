@@ -13,7 +13,7 @@ parser mechanics live in `go/internal/parser/java/README.md`.
 | Entrypoint | `go/internal/parser/java_language.go` |
 | Package detail | `go/internal/parser/java/README.md` |
 | Fixture repo | `tests/fixtures/ecosystems/java_comprehensive/` |
-| Main parser tests | `go/internal/parser/engine_managed_oo_test.go`, `go/internal/parser/java_*_test.go` |
+| Main parser tests | `go/internal/parser/engine_managed_oo_test.go`, `go/internal/parser/java/java_*_test.go` |
 | Runtime validation | Compose-backed fixture verification; see [Local Testing](../reference/local-testing.md), plus the offline real-repo dogfood check `scripts/dogfood-java.sh` (see [Support Maturity](#support-maturity)) |
 
 ## Supported Surfaces
@@ -29,11 +29,11 @@ parser mechanics live in `go/internal/parser/java/README.md`.
 Primary proof:
 
 - `go/internal/parser/engine_managed_oo_test.go::TestDefaultEngineParsePathJava`
-- `go/internal/parser/java_dead_code_roots_test.go`
-- `go/internal/parser/java_dead_code_framework_roots_test.go`
-- `go/internal/parser/java_kotlin_spring_route_semantics_test.go`
-- `go/internal/parser/java_comprehensive_route_fixture_test.go::TestDefaultEngineParsePathJavaComprehensiveRouteFixtures`
-- `go/internal/parser/java_reflection_test.go`
+- `go/internal/parser/java/java_dead_code_roots_test.go`
+- `go/internal/parser/java/java_dead_code_framework_roots_test.go`
+- `go/internal/parser/java/java_spring_route_semantics_test.go`
+- `go/internal/parser/java/java_comprehensive_route_fixture_test.go::TestDefaultEngineParsePathJavaComprehensiveRouteFixtures`
+- `go/internal/parser/java/java_reflection_test.go`
 - `go/internal/reducer/code_call_materialization_java_reflection_test.go`
 - `go/internal/reducer/handles_route_java_test.go`
 - `go/internal/query/code_dead_code_java_roots_test.go`
