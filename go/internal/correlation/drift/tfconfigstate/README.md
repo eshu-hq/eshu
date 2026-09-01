@@ -78,7 +78,7 @@ flowchart TB
 ## Telemetry emitted
 
 This package does not emit telemetry directly. The reducer handler that
-consumes its output (`go/internal/reducer/terraform_config_state_drift.go`)
+consumes its output (`go/internal/reducer/tfconfigstate/terraform_config_state_drift.go`)
 emits `eshu_dp_correlation_rule_matches_total{pack, rule}` and
 `eshu_dp_correlation_drift_detected_total{pack, rule, drift_kind}`. Keep that
 counter pair aligned with the current relationship-mapping reference.
@@ -146,7 +146,7 @@ paths) out of label space — those live in `slog` log keys instead.
 Every admitted candidate this package builds and every ambiguous-owner
 rejection the handler observes is now written as a durable
 `reducer_terraform_config_state_drift_finding` Postgres fact
-(`go/internal/reducer/terraform_config_state_drift_writer.go`), read back
+(`go/internal/reducer/tfconfigstate/terraform_config_state_drift_writer.go`), read back
 through `POST /api/v0/terraform/config-state-drift/findings` and the
 `list_terraform_config_state_drift_findings` MCP tool. Counters and structured
 logs stay a parallel signal, not a replacement.

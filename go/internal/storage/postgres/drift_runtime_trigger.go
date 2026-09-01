@@ -44,7 +44,7 @@ const driftRuntimeTriggerSourceSystem = "ingester_runtime_trigger"
 // three rounds in issue #5593: first it fired unconditionally on every
 // activation (re-evaluating generations that never needed it); narrowing it
 // to fire only on the observed rejection (moving scheduling into
-// reducer.TerraformConfigStateDriftHandler) fixed that but exposed that
+// tfconfigstate.TerraformConfigStateDriftHandler) fixed that but exposed that
 // Handle() re-running on every replay, combined with the ledger row being
 // deleted on exhaustion, made EnsureScheduled's ON CONFLICT DO NOTHING
 // insert a FRESH row every cycle — an unbounded ~20-minute retry loop for

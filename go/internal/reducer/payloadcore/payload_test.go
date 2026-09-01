@@ -207,9 +207,10 @@ func TestOCIRepositoryIDPrefersExplicitID(t *testing.T) {
 }
 
 // TestNonNilStringsSubstitutesEmptySlice pins the nil -> [] substitution. It
-// reaches API and MCP truth: a finding payload encoded from a nil slice carries
-// null, and callers are promised they can range over the collection without a
-// nil guard.
+// reaches API and MCP truth: without the substitution a finding payload
+// encoded from a nil slice would carry null; NonNilStrings encodes it as an
+// empty array instead, so callers are promised they can range over the
+// collection without a nil guard.
 func TestNonNilStringsSubstitutesEmptySlice(t *testing.T) {
 	t.Parallel()
 
@@ -223,6 +224,28 @@ func TestNonNilStringsSubstitutesEmptySlice(t *testing.T) {
 	in := []string{"a"}
 	if out := payloadcore.NonNilStrings(in); len(out) != 1 || out[0] != "a" {
 		t.Fatalf("NonNilStrings(%v) = %v, want it unchanged", in, out)
+	}
+}
+
+// TestNonNilMapSliceSubstitutesEmptySlice pins the nil -> [] substitution for
+// the map-slice sibling of NonNilStrings. It reaches the same API/MCP truth:
+// without the substitution a finding payload encoded from a nil slice of
+// maps would carry null; NonNilMapSlice encodes it as an empty array
+// instead, so callers are promised they can range over the collection
+// without a nil guard.
+func TestNonNilMapSliceSubstitutesEmptySlice(t *testing.T) {
+	t.Parallel()
+
+	got := payloadcore.NonNilMapSlice(nil)
+	if got == nil {
+		t.Fatal("NonNilMapSlice(nil) returned nil, want an empty non-nil slice")
+	}
+	if len(got) != 0 {
+		t.Fatalf("NonNilMapSlice(nil) = %v, want empty", got)
+	}
+	in := []map[string]any{{"a": 1}}
+	if out := payloadcore.NonNilMapSlice(in); len(out) != 1 || out[0]["a"] != 1 {
+		t.Fatalf("NonNilMapSlice(%v) = %v, want it unchanged", in, out)
 	}
 }
 

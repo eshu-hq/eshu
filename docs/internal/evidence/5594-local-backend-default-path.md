@@ -14,9 +14,9 @@ Touched hot-path files this covers:
 - `go/internal/collector/terraformstate/backend_config.go`
 - `go/internal/collector/terraformstate/backend_config_local.go`
 - `go/internal/collector/terraformstate/discovery_types.go`
-- `go/internal/reducer/terraform_config_state_drift.go`
-- `go/internal/reducer/terraform_config_state_drift_unresolved_owner.go`
-- `go/internal/reducer/terraform_config_state_drift_writer.go`
+- `go/internal/reducer/tfconfigstate/terraform_config_state_drift.go`
+- `go/internal/reducer/tfconfigstate/terraform_config_state_drift_unresolved_owner.go`
+- `go/internal/reducer/tfconfigstate/terraform_config_state_drift_writer.go`
 - `go/internal/storage/postgres/terraform_config_state_drift_findings.go`
 - `go/internal/storage/postgres/tfstate_backend_canonical.go`
 - `go/internal/storage/postgres/tfstate_backend_filter.go`

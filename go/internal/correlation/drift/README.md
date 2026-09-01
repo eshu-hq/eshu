@@ -44,7 +44,7 @@ flowchart LR
     E --> X[explain trace + counters]
 ```
 
-The reducer handler (`go/internal/reducer/terraform_config_state_drift.go`)
+The reducer handler (`go/internal/reducer/tfconfigstate/terraform_config_state_drift.go`)
 sits between the resolver (`go/internal/relationships/tfstatebackend/`) and
 `engine.Evaluate`; it consults a drift helper package to classify and build
 candidates.

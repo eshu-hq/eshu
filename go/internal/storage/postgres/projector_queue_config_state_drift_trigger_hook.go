@@ -23,7 +23,7 @@ type ConfigStateDriftTrigger interface {
 }
 
 // configStateDriftTriggerScopePrefix mirrors driftIntentScopePrefix in
-// go/internal/reducer/terraform_config_state_drift.go and
+// go/internal/reducer/tfconfigstate/terraform_config_state_drift.go and
 // listActiveStateSnapshotScopesQuery's LIKE predicate in drift_enqueue.go --
 // all three MUST agree on the state_snapshot scope shape
 // (state_snapshot:<backend_kind>:<locator_hash>), the exact ScopeID format
@@ -97,7 +97,7 @@ const BootstrapIndexProjectorLeaseOwner = "bootstrap-index"
 // after "wait for source-local projector drain" has activated every scope in
 // the finite bootstrap corpus, including the config-side repo that owns a
 // given state snapshot's backend --
-// reducer.TerraformConfigStateDriftHandler's backend resolver
+// tfconfigstate.TerraformConfigStateDriftHandler's backend resolver
 // (tfstatebackend.Resolver.ResolveConfigCommitForBackend) reads that
 // config-side repo's OWN active-generation terraform_backends parser fact
 // directly (go/internal/storage/postgres/tfstate_backend_canonical.go), with

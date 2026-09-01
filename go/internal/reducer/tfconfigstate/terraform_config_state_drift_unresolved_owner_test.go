@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package reducer
+package tfconfigstate
 
 import (
 	"context"
@@ -10,6 +10,7 @@ import (
 
 	"go.opentelemetry.io/otel/sdk/metric/metricdata"
 
+	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
 	"github.com/eshu-hq/eshu/go/internal/relationships/tfstatebackend"
 )
 
@@ -36,7 +37,7 @@ func TestDriftHandlerNoOwnerWritesDurableUnresolvedFinding(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Handle() err = %v", err)
 	}
-	if res.Status != ResultStatusSucceeded {
+	if res.Status != reducercontract.ResultStatusSucceeded {
 		t.Fatalf("res.Status = %q, want Succeeded (unresolved ownership is operator-actionable, not fatal)", res.Status)
 	}
 
@@ -101,7 +102,7 @@ func TestDriftHandlerAmbiguousOwnerStillWritesAmbiguousNotUnresolved(t *testing.
 // before this, the pre-existing swallow-and-log pattern was copied onto the
 // unresolved path without weighing that difference; this handler's own
 // "exact"-outcome write path already treats the identical writer failure as
-// fatal (Handle() -> Result{}, fmt.Errorf(...)) precisely so the queue
+// fatal (Handle() -> reducercontract.Result{}, fmt.Errorf(...)) precisely so the queue
 // retries it, so this restores that same treatment for consistency instead
 // of leaving the unresolved path as the only durability-losing branch.
 // The failure counter still increments -- telemetry is not the recovery

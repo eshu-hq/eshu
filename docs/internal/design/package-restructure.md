@@ -1673,6 +1673,81 @@ bound the handler passes that read and publish these phases, and
 `eshu_dp_postgres_query_duration_seconds` times the Postgres reads/writes the
 publisher and repair queue issue. This file emits no metric, span, or log of its
 own.
+No-Regression Evidence: the reducer tfconfigstate move (#6061) relocates
+eleven files -- `terraform_config_state_drift*.go`, four non-test and seven
+test -- from the reducer root into `go/internal/reducer/tfconfigstate/` with
+`git mv` and no logic change beyond qualifying the leaf-owned symbols the
+family already referenced (`Intent`/`Result`/`Domain*`/`ResultStatusSucceeded`/
+`IntentStatusClaimed`/`DomainWorkloadIdentity` from `reducer/contract`;
+`workloadIdentityExecer`/`reducerWriterNow`/`reducerFactVersionedRow`/
+`reducerBatchInsertVersionedFacts`/`reducerFactCollectorKind` from
+`reducer/factwrite`) with their real package names. This family's only true
+blocker was `nonNilMapSlice`, hoisted to `payloadcore.NonNilMapSlice` in a
+prerequisite commit the same way `nonNilStrings` already forwarded to
+`payloadcore.NonNilStrings`; a trial move (temp package, `go build -gcflags=-e`)
+reproduced this exact single-blocker finding before either commit landed.
+Baseline `c6a59f7aa` (the immediate pre-move parent), after `830634527` (the
+tfconfigstate move, on top of the `9e84c0c6e` nonNilMapSlice hoist), go1.27.0
+darwin/arm64, each built in its own throwaway worktree with an isolated
+`GOCACHE`. This crosses a package boundary, so inlining can genuinely shift
+and is measured rather than assumed: `go build -gcflags=-m ./...` whole-module
+reports unique `can inline` names 12153 -> 12154, compared as a SET with `comm`
+in both directions rather than by totals, since a matching total is also what a
+swap looks like. Zero names lost. One gained -- `NonNilMapSlice`, the new
+`payloadcore` export, the same effect the `nonNilStrings` hoist had on
+`reducerWriterNow` in the writerprims move above. Correctness: `go build ./...`
+and `go vet ./...` both exit 0 across the whole module with no output,
+`go test ./internal/reducer/...` passes 13 packages (including the new
+`tfconfigstate` leaf and its `payloadcore` sibling), and
+`go test ./internal/storage/postgres/... ./internal/query/...` — the two
+importers outside the reducer tree that name `DomainConfigStateDrift`/
+`TerraformConfigStateDriftHandler`/`PostgresTerraformConfigStateDriftWriter` at
+the type level (`cmd/reducer/wiring_handlers.go`,
+`internal/reducer/defaults_handlers.go`,
+`internal/reducer/defaults_additive_domains_correlation.go`,
+`internal/reducer/defaults_config_state_drift_writer_gate_test.go`, all
+repointed to `tfconfigstate.*` in this move) — both pass. The reducer root
+non-test file count drops from 515 to 511; `scripts/lib/dirgate-grandfather.tsv`
+and its generated mirror are re-pinned in this PR
+(`bash scripts/dev/precommit-go.sh dirgate-digest internal/reducer`, then
+`bash scripts/generate-dirgate-grandfather-go.sh`). Three of the moved test
+files (`terraform_config_state_drift_writer_test.go`,
+`..._writer_module_resolution_test.go`, `..._writer_retire_test.go`) depended on
+shared, root-only batch-insert test doubles
+(`fakeWorkloadIdentityExecer`/`fakeWorkloadIdentityExecCall`/
+`fakeWorkloadIdentityResult` in `workload_identity_writer_test.go`, and the
+`decodeBatchedVersionedFactCall*`/`decodedBatchedVersionedFactRow` helpers in
+`reducer_fact_batch_insert_test_helpers_test.go`) still used by 36 files across
+17 other families that have not moved out of the root yet (verify with `rg -l
+"fakeWorkloadIdentityExecer" go/internal/reducer/ --glob '*.go' | rg -v
+tfconfigstate | wc -l`); `go
+build ./...` does not surface this because it does not compile test files, only
+`go vet ./...` and `go test -c` do. Rather than touch a file several other
+concurrent #6061 moves also depend on, `tfconfigstate` keeps a package-scoped
+copy of just the versioned-insert shapes it needs
+(`terraform_config_state_drift_batch_test_helpers_test.go`), wired to
+`factwrite.BatchInsertVersionedQuery`/`factwrite.BatchSize` instead of the
+root's compat aliases. The symmetric direction also surfaced: `counterTotal`
+was defined inside the moved `terraform_config_state_drift_test.go` but three
+other still-in-root test files
+(`aws_cloud_runtime_drift_test.go`, `multi_cloud_runtime_drift_test.go`,
+`cloud_inventory_admission_test.go`) called it too, so a root-owned copy was
+added back (`metrics_counter_total_test_helper_test.go`) rather than moved.
+Both directions of this shared-test-fixture problem are noted here because
+every remaining #6061 family sharing these root test doubles will hit the same
+`go vet`-only-visible break.
+
+No-Observability-Change: this move relocates the `config_state_drift` intent
+handler and Postgres writer with no logic change; it emits no new metric,
+span, or log and removes none. `eshu_dp_correlation_rule_matches_total`,
+`eshu_dp_correlation_drift_detected_total`,
+`eshu_dp_drift_unresolved_owner_write_failed_total`, and
+`eshu_dp_drift_ambiguous_owner_write_failed_total` are emitted from the same
+call sites under the same names; only the package that owns the code moved.
+The `docs/public/observability/telemetry-coverage.md` rows for this domain are
+updated in this PR to the new `go/internal/reducer/tfconfigstate/` paths (one
+line-number citation shifted from :101 to :102 because the new package's
+`contract` import adds one line).
 
 ## Part 5: what this buys the modularization program
 

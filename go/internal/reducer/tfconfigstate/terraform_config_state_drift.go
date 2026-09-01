@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package reducer
+package tfconfigstate
 
 import (
 	"context"
@@ -18,6 +18,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/correlation/engine"
 	"github.com/eshu-hq/eshu/go/internal/correlation/model"
 	"github.com/eshu-hq/eshu/go/internal/correlation/rules"
+	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
 	"github.com/eshu-hq/eshu/go/internal/relationships/tfstatebackend"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
 	log "github.com/eshu-hq/eshu/go/pkg/log"
@@ -96,14 +97,14 @@ type TerraformConfigStateDriftHandler struct {
 //     - eshu_dp_correlation_drift_detected_total{pack, rule, drift_kind}
 //
 // Non-fatal rejections (no owner, ambiguous owner, no drift rows) return
-// Result{Status: ResultStatusSucceeded} and emit a structured log only;
+// reducercontract.Result{Status: reducercontract.ResultStatusSucceeded} and emit a structured log only;
 // they are operator-actionable, not runtime failures.
 func (h TerraformConfigStateDriftHandler) Handle(
 	ctx context.Context,
-	intent Intent,
-) (Result, error) {
-	if intent.Domain != DomainConfigStateDrift {
-		return Result{}, fmt.Errorf(
+	intent reducercontract.Intent,
+) (reducercontract.Result, error) {
+	if intent.Domain != reducercontract.DomainConfigStateDrift {
+		return reducercontract.Result{}, fmt.Errorf(
 			"terraform_config_state_drift handler does not accept domain %q",
 			intent.Domain,
 		)
@@ -117,10 +118,10 @@ func (h TerraformConfigStateDriftHandler) Handle(
 			FailureClass: "scope_not_state_snapshot",
 			Reason:       err.Error(),
 		})
-		return Result{
+		return reducercontract.Result{
 			IntentID: intent.IntentID,
 			Domain:   intent.Domain,
-			Status:   ResultStatusSucceeded,
+			Status:   reducercontract.ResultStatusSucceeded,
 		}, nil
 	}
 
@@ -129,10 +130,10 @@ func (h TerraformConfigStateDriftHandler) Handle(
 			FailureClass: "resolver_unavailable",
 			Reason:       "no tfstatebackend resolver wired",
 		})
-		return Result{
+		return reducercontract.Result{
 			IntentID: intent.IntentID,
 			Domain:   intent.Domain,
-			Status:   ResultStatusSucceeded,
+			Status:   reducercontract.ResultStatusSucceeded,
 		}, nil
 	}
 
@@ -176,12 +177,12 @@ func (h TerraformConfigStateDriftHandler) Handle(
 		// writeUnresolvedOwner's doc comment for why a permanently-unresolved
 		// backend has no other recovery path for a lost write.
 		if writeErr := h.writeUnresolvedOwner(ctx, intent, backendKind, locatorHash); writeErr != nil {
-			return Result{}, fmt.Errorf("write terraform config state drift unresolved owner finding: %w", writeErr)
+			return reducercontract.Result{}, fmt.Errorf("write terraform config state drift unresolved owner finding: %w", writeErr)
 		}
-		return Result{
+		return reducercontract.Result{
 			IntentID: intent.IntentID,
 			Domain:   intent.Domain,
-			Status:   ResultStatusSucceeded,
+			Status:   reducercontract.ResultStatusSucceeded,
 		}, nil
 	}
 	if errors.Is(resolveErr, tfstatebackend.ErrAmbiguousBackendOwner) {
@@ -190,14 +191,14 @@ func (h TerraformConfigStateDriftHandler) Handle(
 			Reason:       resolveErr.Error(),
 		})
 		h.writeAmbiguousOwner(ctx, intent, backendKind, locatorHash, resolveErr)
-		return Result{
+		return reducercontract.Result{
 			IntentID: intent.IntentID,
 			Domain:   intent.Domain,
-			Status:   ResultStatusSucceeded,
+			Status:   reducercontract.ResultStatusSucceeded,
 		}, nil
 	}
 	if resolveErr != nil {
-		return Result{}, fmt.Errorf("resolve config commit: %w", resolveErr)
+		return reducercontract.Result{}, fmt.Errorf("resolve config commit: %w", resolveErr)
 	}
 	h.logDefaultedLocatorResolution(ctx, intent, anchor)
 
@@ -206,23 +207,23 @@ func (h TerraformConfigStateDriftHandler) Handle(
 			FailureClass: "evidence_loader_unavailable",
 			Reason:       "no drift evidence loader wired",
 		})
-		return Result{
+		return reducercontract.Result{
 			IntentID: intent.IntentID,
 			Domain:   intent.Domain,
-			Status:   ResultStatusSucceeded,
+			Status:   reducercontract.ResultStatusSucceeded,
 		}, nil
 	}
 
 	rows, err := h.EvidenceLoader.LoadDriftEvidence(ctx, scopeID, anchor)
 	if err != nil {
-		return Result{}, fmt.Errorf("load drift evidence: %w", err)
+		return reducercontract.Result{}, fmt.Errorf("load drift evidence: %w", err)
 	}
 
 	candidates := tfconfigstate.BuildCandidates(rows, anchor, scopeID)
 	pack := rules.TerraformConfigStateDriftRulePack()
 	evaluation, err := engine.Evaluate(pack, candidates)
 	if err != nil {
-		return Result{}, fmt.Errorf("evaluate drift rule pack: %w", err)
+		return reducercontract.Result{}, fmt.Errorf("evaluate drift rule pack: %w", err)
 	}
 
 	admitted := h.emitTelemetry(ctx, intent, pack, evaluation)
@@ -242,16 +243,16 @@ func (h TerraformConfigStateDriftHandler) Handle(
 				Candidates:   admittedCandidates,
 			})
 			if writeErr != nil {
-				return Result{}, fmt.Errorf("write terraform config state drift findings: %w", writeErr)
+				return reducercontract.Result{}, fmt.Errorf("write terraform config state drift findings: %w", writeErr)
 			}
 			canonicalWrites = writeResult.CanonicalWrites
 		}
 	}
 
-	return Result{
+	return reducercontract.Result{
 		IntentID:        intent.IntentID,
 		Domain:          intent.Domain,
-		Status:          ResultStatusSucceeded,
+		Status:          reducercontract.ResultStatusSucceeded,
 		EvidenceSummary: fmt.Sprintf("drift candidates admitted: %d", admitted),
 		CanonicalWrites: canonicalWrites,
 	}, nil
@@ -279,12 +280,12 @@ func admittedDriftCandidates(evaluation engine.Evaluation) []model.Candidate {
 // tfstatebackend change that stops wrapping the sentinel with candidates).
 // Write failures are logged, not returned as a Handle() error: the ambiguous
 // case is already a non-fatal, operator-actionable rejection per
-// DriftRejection's contract (Result{Status: Succeeded}), and failing the
+// DriftRejection's contract (reducercontract.Result{Status: Succeeded}), and failing the
 // whole intent over a best-effort durability write would turn an
 // operator-actionable warning into a retry storm.
 func (h TerraformConfigStateDriftHandler) writeAmbiguousOwner(
 	ctx context.Context,
-	intent Intent,
+	intent reducercontract.Intent,
 	backendKind string,
 	locatorHash string,
 	resolveErr error,
@@ -336,7 +337,7 @@ const driftIntentScopePrefix = "state_snapshot:"
 // hex-safe by construction (`go/internal/scope/tfstate.go`); a colon inside
 // the locator hash field indicates either a malformed scope or a non-canonical
 // emitter and is rejected explicitly.
-func parseDriftIntentScope(intent Intent) (backendKind, locatorHash string, err error) {
+func parseDriftIntentScope(intent reducercontract.Intent) (backendKind, locatorHash string, err error) {
 	rest, ok := strings.CutPrefix(intent.ScopeID, driftIntentScopePrefix)
 	if !ok {
 		return "", "", fmt.Errorf("scope %q is not a state_snapshot scope", intent.ScopeID)
@@ -357,7 +358,7 @@ func parseDriftIntentScope(intent Intent) (backendKind, locatorHash string, err 
 // Returns the number of admitted candidates.
 func (h TerraformConfigStateDriftHandler) emitTelemetry(
 	ctx context.Context,
-	intent Intent,
+	intent reducercontract.Intent,
 	pack rules.RulePack,
 	evaluation engine.Evaluation,
 ) int {
@@ -372,7 +373,7 @@ func (h TerraformConfigStateDriftHandler) emitTelemetry(
 		address := result.Candidate.CorrelationKey
 
 		// Emit rule-match counter increments using the engine's
-		// Result.MatchCounts. The engine populates this map for RuleKindMatch
+		// reducercontract.Result.MatchCounts. The engine populates this map for RuleKindMatch
 		// rules only (correlation/engine/engine.go:50-56), keyed by rule name
 		// with boundedMatchCount(MaxMatches, len(Evidence)). Iteration order
 		// is sorted by rule name for deterministic test capture; counter
@@ -435,7 +436,7 @@ func readDriftKindAtom(candidate model.Candidate) string {
 // attributable to the reducer run that produced it (trace/span correlation,
 // cancellation, structured-log handlers that read ctx values). Passing
 // context.Background() here would orphan the log from any active span.
-func (h TerraformConfigStateDriftHandler) logRejection(ctx context.Context, intent Intent, rejection DriftRejection) {
+func (h TerraformConfigStateDriftHandler) logRejection(ctx context.Context, intent reducercontract.Intent, rejection DriftRejection) {
 	if h.Logger == nil {
 		return
 	}
@@ -459,7 +460,7 @@ func (h TerraformConfigStateDriftHandler) logRejection(ctx context.Context, inte
 // (which never defaults) gains no new log volume.
 func (h TerraformConfigStateDriftHandler) logDefaultedLocatorResolution(
 	ctx context.Context,
-	intent Intent,
+	intent reducercontract.Intent,
 	anchor tfstatebackend.CommitAnchor,
 ) {
 	if h.Logger == nil || !anchor.LocatorDefaulted {

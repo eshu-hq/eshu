@@ -128,7 +128,7 @@ func LocatorHash(source StateKey) string {
 // carrying lineage and serial. The drift resolver join compares the two
 // hashes byte-for-byte (go/internal/storage/postgres/tfstate_backend_canonical.go
 // against the scope hash parsed at
-// go/internal/reducer/terraform_config_state_drift.go); if the formulas
+// go/internal/reducer/tfconfigstate/terraform_config_state_drift.go); if the formulas
 // diverge, every drift intent silently rejects with
 // ErrNoConfigRepoOwnsBackend (issue #203).
 //

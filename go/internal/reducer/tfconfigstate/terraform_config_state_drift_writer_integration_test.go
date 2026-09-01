@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package reducer
+package tfconfigstate
 
 import (
 	"context"
@@ -12,6 +12,7 @@ import (
 	"go.opentelemetry.io/otel/sdk/metric/metricdata"
 
 	"github.com/eshu-hq/eshu/go/internal/correlation/drift/tfconfigstate"
+	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
 	"github.com/eshu-hq/eshu/go/internal/relationships/tfstatebackend"
 )
 
@@ -101,7 +102,7 @@ func TestDriftHandlerWritesDurableFindingForAllFiveDriftKinds(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Handle() err = %v", err)
 	}
-	if res.Status != ResultStatusSucceeded {
+	if res.Status != reducercontract.ResultStatusSucceeded {
 		t.Fatalf("res.Status = %q, want Succeeded", res.Status)
 	}
 	if res.CanonicalWrites != 5 {
@@ -172,7 +173,7 @@ func TestDriftHandlerAmbiguousOwnerWritesDurableAmbiguousFinding(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Handle() err = %v", err)
 	}
-	if res.Status != ResultStatusSucceeded {
+	if res.Status != reducercontract.ResultStatusSucceeded {
 		t.Fatalf("res.Status = %q, want Succeeded (ambiguous owner is operator-actionable, not fatal)", res.Status)
 	}
 
@@ -224,7 +225,7 @@ func TestDriftHandlerAmbiguousOwnerWriteFailureStaysNonFatal(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Handle() err = %v, want nil even when the durable write fails", err)
 	}
-	if res.Status != ResultStatusSucceeded {
+	if res.Status != reducercontract.ResultStatusSucceeded {
 		t.Fatalf("res.Status = %q, want Succeeded", res.Status)
 	}
 
