@@ -17,8 +17,15 @@
 // package existed those five symbols lived in the reducer root beside the
 // phase-publishing and repair machinery, so a family that only wanted to read
 // or construct a readiness key had to import the root — and the root imports
-// the families. That import cycle is the single reason issue #6061 could not
-// move the crossrepo family: three symbols from one file blocked it.
+// the families. That import cycle was a blocker for the crossrepo family's
+// move in issue #6061: three of its symbols (PhaseKey, ReadinessLookup,
+// ReadinessPrefetch) were defined only at the root. It was not the family's
+// only obstacle — a trial move of all five crossrepo-prefixed files also
+// needed several already-hoisted sibling leaves (sharedintent, contract,
+// payloadcore) reached by their own names instead of through the root's
+// aliases and forwarders — but those were mechanical import/call-site
+// rewrites against symbols that already had a leaf home; this package is
+// what had none.
 //
 // This package therefore holds only plain data, constants, and one pure
 // validation method. It imports nothing but the standard library, and it must

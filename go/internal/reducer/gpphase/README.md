@@ -10,10 +10,26 @@ uses to read readiness (`ReadinessLookup`, `ReadinessPrefetch`).
 
 It exists so a domain family can gate a write on graph-projection readiness
 **without importing the reducer root**. The root imports the families, so a
-family importing the root closes an import cycle. That cycle is exactly what
-blocked the crossrepo family (issue #6061): `GraphProjectionPhaseKey`,
+family importing the root closes an import cycle. That cycle blocked the
+crossrepo family (issue #6061): `GraphProjectionPhaseKey`,
 `GraphProjectionReadinessLookup`, and `GraphProjectionReadinessPrefetch` were
-its only remaining blockers, all three defined in one root file.
+defined only at the root, with no leaf home. A trial move of all five
+crossrepo-prefixed files (`cross_repo_resolution.go`,
+`cross_repo_resolution_retract.go`, `cross_repo_intent_row.go`,
+`cross_repo_evidence_type.go`, `cross_repo_evidence_artifacts.go` — a full
+build, `go build ./internal/reducer/crossrepotrial/...`, not a read-only
+survey) confirms these three were the family's only symbols with no existing
+leaf: once qualified as `gpphase.PhaseKey` / `gpphase.ReadinessLookup` /
+`gpphase.ReadinessPrefetch` (plus the `gpphase.Keyspace*` /
+`gpphase.Phase*` constants the family also reaches), every other undefined
+name in the trial build resolved to an *already-hoisted* sibling leaf by
+import or call-site rewrite alone — `sharedintent.Row`, `sharedintent.Input`,
+`sharedintent.Build` (the root's `BuildSharedProjectionIntent` is a real
+function, not an alias, so the leaf must be called directly), and
+`contract.DomainRepoDependency` — including `payloadcore.ToStringSlice`,
+which the root's unexported `toStringSlice` merely forwards to. With all of
+those qualified, the five-file trial package built clean
+(`go build -gcflags="-e" ./internal/reducer/crossrepotrial/...` exit 0).
 
 ## Ownership boundary
 
