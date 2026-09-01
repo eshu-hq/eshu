@@ -204,3 +204,56 @@ func extractLegacyRows(env facts.Envelope) {
 		t.Errorf(`usage["DecodeAWSResource"] = %+v, want empty — a call through an unrecognized package qualifier ("legacyshim") must not be attributed to the real seam merely because the function name coincides`, entries)
 	}
 }
+
+// TestScanDecodeUsageRecognizesQualifiedCallThroughFactschema proves the
+// OTHER member of KnownDecodeQualifiers, not just "schemadecode". This is not
+// a hypothetical addition: go/internal/storage/postgres's secrets_iam
+// trust-chain anchor decoder calls the SDK-level
+// factschema.DecodeAWSIAMPrincipal(schemaEnv) directly, bypassing
+// schemadecode entirely, and that call site is the one #6372 found was
+// invisible to the manifest before this fix — nine fact kinds' worth of
+// reads. TestScanDecodeUsageRecognizesQualifiedDecodeCall and
+// TestScanDecodeUsageRecognizesQualifiedCallThroughRootForwarder both only
+// exercise the "schemadecode" qualifier; without this test, an
+// allowlist that silently dropped "factschema" (the exact regression the
+// live coverage gain would suffer) would pass the whole suite.
+func TestScanDecodeUsageRecognizesQualifiedCallThroughFactschema(t *testing.T) {
+	t.Parallel()
+
+	dir := writeFixtureDir(t, map[string]string{
+		"secrets_iam_trust_chain_anchor_decode.go": `package postgres
+
+import "github.com/eshu-hq/eshu/sdk/go/factschema"
+
+func addAWSEnvelope(schemaEnv factschema.Envelope) {
+	principal, err := factschema.DecodeAWSIAMPrincipal(schemaEnv)
+	if err != nil {
+		return
+	}
+	_ = principal.PrincipalARN
+}
+`,
+	})
+
+	seams := []DecodeSeam{{
+		FuncName:      "DecodeAWSIAMPrincipal",
+		FactKindConst: "FactKindAWSIAMPrincipal",
+		StructPackage: "iamv1",
+		StructName:    "Principal",
+	}}
+	usage, err := ScanDecodeUsage(dir, seams, nil, KnownDecodeQualifiers)
+	if err != nil {
+		t.Fatalf("ScanDecodeUsage() error = %v", err)
+	}
+
+	entries := usage["DecodeAWSIAMPrincipal"]
+	found := false
+	for _, e := range entries {
+		if e.GoFieldName == "PrincipalARN" {
+			found = true
+		}
+	}
+	if !found {
+		t.Errorf(`field "PrincipalARN" read off a factschema.DecodeAWSIAMPrincipal call was not attributed; got usage["DecodeAWSIAMPrincipal"] = %+v — KnownDecodeQualifiers must include "factschema", not only "schemadecode"`, entries)
+	}
+}

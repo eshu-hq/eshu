@@ -249,10 +249,22 @@ var KnownDecodeQualifiers = DecodeQualifiers{
 // same-named DecodeX seam for two different fact kinds, and a qualified call
 // into either would then misattribute against whichever one decodeFuncs
 // happens to map that name to. The actual invariant this code relies on is
-// weaker than "never binds wrong": no seam name collides across the scanned
-// tree today (measured across all 125 kinds, reducer + projector + query +
-// loader + relationships + replay) — not a property this code enforces or
-// can detect a violation of.
+// weaker than "never binds wrong": no non-seam package exports a function
+// whose name collides with a seam name — verified today across all 125 seam
+// names, zero collisions outside factschema and schemadecode. Two concrete
+// results from that verification, so nobody re-derives them: every
+// `<ident>.Decode<Word>(` call site in the six scanned surfaces was
+// inventoried by qualifier (195 factschema, 12 awsv1, plus a handful of
+// stdlib — hex.Decode, base64.StdEncoding.Decode, utf8.DecodeRune,
+// base64.RawURLEncoding.Decode). None of the 11 distinct awsv1 names behind
+// those 12 call sites (the `Decode<Resource|Relationship>...Attributes`
+// family, decoding attribute sub-structures rather than fact envelopes) is a
+// seam name — disjoint by naming convention, not by anything this code
+// enforces. The stdlib shapes are harmless today only because their names
+// are absent from decodeFuncs, the same non-enforced coincidence. Nothing
+// stops a future `awsv1.DecodeAWSIAMPrincipal` or a `hex.Decode<SeamName>`
+// from silently colliding; this is not a property this code detects a
+// violation of.
 func decodeCallName(fun ast.Expr, forwarders RootForwarders, qualifiers DecodeQualifiers) (string, bool) {
 	switch f := fun.(type) {
 	case *ast.Ident:
