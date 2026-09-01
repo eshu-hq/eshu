@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package reducer
+package tfconfigstate
 
 import (
 	"context"
@@ -13,6 +13,9 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/correlation/drift/tfconfigstate"
 	"github.com/eshu-hq/eshu/go/internal/correlation/model"
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
+	"github.com/eshu-hq/eshu/go/internal/reducer/factwrite"
+	"github.com/eshu-hq/eshu/go/internal/reducer/payloadcore"
 	"github.com/eshu-hq/eshu/go/internal/relationships/tfstatebackend"
 	"github.com/eshu-hq/eshu/sdk/go/factschema"
 	reducerderivedv1 "github.com/eshu-hq/eshu/sdk/go/factschema/reducerderived/v1"
@@ -86,7 +89,7 @@ type TerraformConfigStateDriftWriteResult struct {
 // PostgresTerraformConfigStateDriftWriter persists admitted Terraform
 // config-vs-state drift findings into the shared fact store.
 type PostgresTerraformConfigStateDriftWriter struct {
-	DB  workloadIdentityExecer
+	DB  factwrite.Execer
 	Now func() time.Time
 }
 
@@ -119,8 +122,8 @@ func (w PostgresTerraformConfigStateDriftWriter) WriteTerraformConfigStateDriftF
 		)
 	}
 
-	now := reducerWriterNow(w.Now)
-	var rows []reducerFactVersionedRow
+	now := factwrite.Now(w.Now)
+	var rows []factwrite.VersionedRow
 	var canonicalIDs []string
 
 	switch {
@@ -149,7 +152,7 @@ func (w PostgresTerraformConfigStateDriftWriter) WriteTerraformConfigStateDriftF
 		}
 	}
 
-	if err := reducerBatchInsertVersionedFacts(ctx, w.DB, rows); err != nil {
+	if err := factwrite.BatchInsertVersionedFacts(ctx, w.DB, rows); err != nil {
 		return TerraformConfigStateDriftWriteResult{}, fmt.Errorf("write terraform config state drift fact: %w", err)
 	}
 
@@ -189,7 +192,7 @@ func perAddressFindingFactRow(
 	write TerraformConfigStateDriftWrite,
 	candidate model.Candidate,
 	now time.Time,
-) (reducerFactVersionedRow, string, error) {
+) (factwrite.VersionedRow, string, error) {
 	driftKind := readDriftKindAtom(candidate)
 	outcome := moduleResolutionOutcome(candidate)
 	stableKey := strings.Join([]string{
@@ -211,7 +214,7 @@ func perAddressFindingFactRow(
 	)
 
 	payload, err := factschema.EncodeReducerTerraformConfigStateDriftFinding(reducerderivedv1.TerraformConfigStateDriftFinding{
-		ReducerDomain: string(DomainConfigStateDrift),
+		ReducerDomain: string(reducercontract.DomainConfigStateDrift),
 		IntentID:      write.IntentID,
 		ScopeID:       write.ScopeID,
 		GenerationID:  write.GenerationID,
@@ -226,28 +229,28 @@ func perAddressFindingFactRow(
 		BackendKind:   write.BackendKind,
 		LocatorHash:   write.LocatorHash,
 		Confidence:    candidate.Confidence,
-		Evidence:      nonNilMapSlice(driftEvidencePayload(candidate.Evidence)),
+		Evidence:      payloadcore.NonNilMapSlice(driftEvidencePayload(candidate.Evidence)),
 		SourceLayers: []string{
 			"source_declaration",
 			"observed_resource",
 		},
 	})
 	if err != nil {
-		return reducerFactVersionedRow{}, "", fmt.Errorf("encode terraform config state drift payload: %w", err)
+		return factwrite.VersionedRow{}, "", fmt.Errorf("encode terraform config state drift payload: %w", err)
 	}
 	payloadJSON, err := json.Marshal(payload)
 	if err != nil {
-		return reducerFactVersionedRow{}, "", fmt.Errorf("marshal terraform config state drift payload: %w", err)
+		return factwrite.VersionedRow{}, "", fmt.Errorf("marshal terraform config state drift payload: %w", err)
 	}
 
-	return reducerFactVersionedRow{
+	return factwrite.VersionedRow{
 		FactID:           factID,
 		ScopeID:          write.ScopeID,
 		GenerationID:     write.GenerationID,
 		FactKind:         terraformConfigStateDriftFactKind,
 		StableFactKey:    stableKey,
 		SchemaVersion:    facts.ReducerDerivedSchemaVersionV1,
-		CollectorKind:    reducerFactCollectorKind(write.SourceSystem),
+		CollectorKind:    factwrite.CollectorKind(write.SourceSystem),
 		SourceConfidence: facts.SourceConfidenceInferred,
 		SourceSystem:     write.SourceSystem,
 		SourceFactKey:    write.IntentID,
@@ -260,7 +263,7 @@ func perAddressFindingFactRow(
 func ambiguousOwnerFactRow(
 	write TerraformConfigStateDriftWrite,
 	now time.Time,
-) (reducerFactVersionedRow, string, error) {
+) (factwrite.VersionedRow, string, error) {
 	stableKey := strings.Join([]string{
 		"terraform_config_state_drift",
 		"ambiguous_owner",
@@ -278,7 +281,7 @@ func ambiguousOwnerFactRow(
 	)
 
 	payload, err := factschema.EncodeReducerTerraformConfigStateDriftFinding(reducerderivedv1.TerraformConfigStateDriftFinding{
-		ReducerDomain:            string(DomainConfigStateDrift),
+		ReducerDomain:            string(reducercontract.DomainConfigStateDrift),
 		IntentID:                 write.IntentID,
 		ScopeID:                  write.ScopeID,
 		GenerationID:             write.GenerationID,
@@ -292,27 +295,27 @@ func ambiguousOwnerFactRow(
 		LocatorHash:              write.LocatorHash,
 		Confidence:               1.0,
 		AmbiguousOwnerCandidates: ambiguousOwnerCandidatesPayload(write.AmbiguousOwners),
-		Evidence:                 nonNilMapSlice(nil),
+		Evidence:                 payloadcore.NonNilMapSlice(nil),
 		SourceLayers: []string{
 			"source_declaration",
 		},
 	})
 	if err != nil {
-		return reducerFactVersionedRow{}, "", fmt.Errorf("encode terraform config state drift ambiguous payload: %w", err)
+		return factwrite.VersionedRow{}, "", fmt.Errorf("encode terraform config state drift ambiguous payload: %w", err)
 	}
 	payloadJSON, err := json.Marshal(payload)
 	if err != nil {
-		return reducerFactVersionedRow{}, "", fmt.Errorf("marshal terraform config state drift ambiguous payload: %w", err)
+		return factwrite.VersionedRow{}, "", fmt.Errorf("marshal terraform config state drift ambiguous payload: %w", err)
 	}
 
-	return reducerFactVersionedRow{
+	return factwrite.VersionedRow{
 		FactID:           factID,
 		ScopeID:          write.ScopeID,
 		GenerationID:     write.GenerationID,
 		FactKind:         terraformConfigStateDriftFactKind,
 		StableFactKey:    stableKey,
 		SchemaVersion:    facts.ReducerDerivedSchemaVersionV1,
-		CollectorKind:    reducerFactCollectorKind(write.SourceSystem),
+		CollectorKind:    factwrite.CollectorKind(write.SourceSystem),
 		SourceConfidence: facts.SourceConfidenceInferred,
 		SourceSystem:     write.SourceSystem,
 		SourceFactKey:    write.IntentID,
@@ -336,7 +339,7 @@ func ambiguousOwnerFactRow(
 func unresolvedOwnerFactRow(
 	write TerraformConfigStateDriftWrite,
 	now time.Time,
-) (reducerFactVersionedRow, string, error) {
+) (factwrite.VersionedRow, string, error) {
 	stableKey := strings.Join([]string{
 		"terraform_config_state_drift",
 		"unresolved_owner",
@@ -354,7 +357,7 @@ func unresolvedOwnerFactRow(
 	)
 
 	payload, err := factschema.EncodeReducerTerraformConfigStateDriftFinding(reducerderivedv1.TerraformConfigStateDriftFinding{
-		ReducerDomain: string(DomainConfigStateDrift),
+		ReducerDomain: string(reducercontract.DomainConfigStateDrift),
 		IntentID:      write.IntentID,
 		ScopeID:       write.ScopeID,
 		GenerationID:  write.GenerationID,
@@ -367,27 +370,27 @@ func unresolvedOwnerFactRow(
 		BackendKind:   write.BackendKind,
 		LocatorHash:   write.LocatorHash,
 		Confidence:    1.0,
-		Evidence:      nonNilMapSlice(nil),
+		Evidence:      payloadcore.NonNilMapSlice(nil),
 		SourceLayers: []string{
 			"source_declaration",
 		},
 	})
 	if err != nil {
-		return reducerFactVersionedRow{}, "", fmt.Errorf("encode terraform config state drift unresolved payload: %w", err)
+		return factwrite.VersionedRow{}, "", fmt.Errorf("encode terraform config state drift unresolved payload: %w", err)
 	}
 	payloadJSON, err := json.Marshal(payload)
 	if err != nil {
-		return reducerFactVersionedRow{}, "", fmt.Errorf("marshal terraform config state drift unresolved payload: %w", err)
+		return factwrite.VersionedRow{}, "", fmt.Errorf("marshal terraform config state drift unresolved payload: %w", err)
 	}
 
-	return reducerFactVersionedRow{
+	return factwrite.VersionedRow{
 		FactID:           factID,
 		ScopeID:          write.ScopeID,
 		GenerationID:     write.GenerationID,
 		FactKind:         terraformConfigStateDriftFactKind,
 		StableFactKey:    stableKey,
 		SchemaVersion:    facts.ReducerDerivedSchemaVersionV1,
-		CollectorKind:    reducerFactCollectorKind(write.SourceSystem),
+		CollectorKind:    factwrite.CollectorKind(write.SourceSystem),
 		SourceConfidence: facts.SourceConfidenceInferred,
 		SourceSystem:     write.SourceSystem,
 		SourceFactKey:    write.IntentID,

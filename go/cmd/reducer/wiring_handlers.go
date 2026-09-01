@@ -11,6 +11,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/query"
 	"github.com/eshu-hq/eshu/go/internal/reducer"
 	"github.com/eshu-hq/eshu/go/internal/reducer/eshusearch"
+	"github.com/eshu-hq/eshu/go/internal/reducer/tfconfigstate"
 	"github.com/eshu-hq/eshu/go/internal/relationships/tfstatebackend"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
@@ -67,7 +68,7 @@ func buildReducerDriftHandlers(
 		// queryable (issue #5442): every admitted per-address finding and
 		// every ambiguous-owner rejection now lands in fact_records instead
 		// of only incrementing counters.
-		DriftWriter: reducer.PostgresTerraformConfigStateDriftWriter{DB: database},
+		DriftWriter: tfconfigstate.PostgresTerraformConfigStateDriftWriter{DB: database},
 		DriftLogger: logger,
 		// AWS runtime drift joins current AWS resource facts to active
 		// Terraform-state resources by ARN, then resolves the state backend to

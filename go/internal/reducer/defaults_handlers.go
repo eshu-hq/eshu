@@ -7,6 +7,7 @@ import (
 	"log/slog"
 
 	"github.com/eshu-hq/eshu/go/internal/reducer/eshusearch"
+	"github.com/eshu-hq/eshu/go/internal/reducer/tfconfigstate"
 	"github.com/eshu-hq/eshu/go/internal/relationships/tfstatebackend"
 )
 
@@ -30,8 +31,8 @@ type DriftHandlers struct {
 	// findings with no durable truth surface — the same "no consumer-less
 	// kind" bar the AWS/multi-cloud runtime drift adapters below hold.
 	TerraformBackendResolver *tfstatebackend.Resolver
-	DriftEvidenceLoader      DriftEvidenceLoader
-	DriftWriter              TerraformConfigStateDriftFindingWriter
+	DriftEvidenceLoader      tfconfigstate.DriftEvidenceLoader
+	DriftWriter              tfconfigstate.TerraformConfigStateDriftFindingWriter
 	DriftLogger              *slog.Logger
 
 	// AWS cloud-runtime drift adapters (issue #39). Both must be non-nil for

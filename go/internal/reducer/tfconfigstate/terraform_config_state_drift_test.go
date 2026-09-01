@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package reducer
+package tfconfigstate
 
 import (
 	"context"
@@ -12,6 +12,7 @@ import (
 	"go.opentelemetry.io/otel/sdk/metric/metricdata"
 
 	"github.com/eshu-hq/eshu/go/internal/correlation/drift/tfconfigstate"
+	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
 	"github.com/eshu-hq/eshu/go/internal/relationships/tfstatebackend"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
 )
@@ -40,18 +41,18 @@ func (s *stubDriftLoader) LoadDriftEvidence(
 	return out, nil
 }
 
-func validIntent() Intent {
-	return Intent{
+func validIntent() reducercontract.Intent {
+	return reducercontract.Intent{
 		IntentID:        "intent-1",
 		ScopeID:         "state_snapshot:s3:hash-1",
 		GenerationID:    "gen-1",
 		SourceSystem:    "collector/terraform-state",
-		Domain:          DomainConfigStateDrift,
+		Domain:          reducercontract.DomainConfigStateDrift,
 		Cause:           "test drift intent",
 		RelatedScopeIDs: []string{"state_snapshot:s3:hash-1"},
 		EnqueuedAt:      time.Now(),
 		AvailableAt:     time.Now(),
-		Status:          IntentStatusClaimed,
+		Status:          reducercontract.IntentStatusClaimed,
 	}
 }
 
@@ -71,7 +72,7 @@ func TestDriftHandlerRejectsWrongDomain(t *testing.T) {
 
 	h := TerraformConfigStateDriftHandler{}
 	intent := validIntent()
-	intent.Domain = DomainWorkloadIdentity
+	intent.Domain = reducercontract.DomainWorkloadIdentity
 	_, err := h.Handle(context.Background(), intent)
 	if err == nil {
 		t.Fatal("Handle(wrong domain) error = nil, want non-nil")
@@ -90,7 +91,7 @@ func TestDriftHandlerRejectsNonStateSnapshotScope(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Handle() err = %v, want nil (operator-actionable)", err)
 	}
-	if res.Status != ResultStatusSucceeded {
+	if res.Status != reducercontract.ResultStatusSucceeded {
 		t.Fatalf("res.Status = %q, want Succeeded", res.Status)
 	}
 }
@@ -109,7 +110,7 @@ func TestDriftHandlerNoOwnerSucceedsWithoutCounters(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Handle() err = %v", err)
 	}
-	if res.Status != ResultStatusSucceeded {
+	if res.Status != reducercontract.ResultStatusSucceeded {
 		t.Fatalf("res.Status = %q, want Succeeded", res.Status)
 	}
 
@@ -146,7 +147,7 @@ func TestDriftHandlerAmbiguousOwnerSucceedsWithoutDriftCounter(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Handle() err = %v", err)
 	}
-	if res.Status != ResultStatusSucceeded {
+	if res.Status != reducercontract.ResultStatusSucceeded {
 		t.Fatalf("res.Status = %q, want Succeeded", res.Status)
 	}
 
@@ -214,7 +215,7 @@ func TestDriftHandlerSingleOwnerEmitsCountersForAllFiveDriftKinds(t *testing.T) 
 	if err != nil {
 		t.Fatalf("Handle() err = %v", err)
 	}
-	if res.Status != ResultStatusSucceeded {
+	if res.Status != reducercontract.ResultStatusSucceeded {
 		t.Fatalf("res.Status = %q, want Succeeded", res.Status)
 	}
 
@@ -227,7 +228,7 @@ func TestDriftHandlerSingleOwnerEmitsCountersForAllFiveDriftKinds(t *testing.T) 
 		t.Fatalf("drift_detected = %d, want 5 (one per drift kind)", got)
 	}
 
-	// Rule-match counter advances by Result.MatchCounts[ruleName] for each
+	// Rule-match counter advances by reducercontract.Result.MatchCounts[ruleName] for each
 	// RuleKindMatch rule per admitted candidate. The drift pack has exactly
 	// one match rule (match-config-against-state) with MaxMatches=1, so each
 	// admitted candidate contributes 1 increment: 5 admissions = 5.
@@ -446,7 +447,7 @@ func TestParseDriftIntentScope(t *testing.T) {
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
-			backend, locator, err := parseDriftIntentScope(Intent{ScopeID: tc.scope})
+			backend, locator, err := parseDriftIntentScope(reducercontract.Intent{ScopeID: tc.scope})
 			if tc.wantErr {
 				if err == nil {
 					t.Fatalf("parseDriftIntentScope(%q) err = nil, want non-nil", tc.scope)

@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package reducer
+package tfconfigstate
 
 import (
 	"context"
@@ -13,6 +13,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/pgarray"
 
 	"github.com/eshu-hq/eshu/go/internal/correlation/model"
+	"github.com/eshu-hq/eshu/go/internal/reducer/factwrite"
 	reducerderivedv1 "github.com/eshu-hq/eshu/sdk/go/factschema/reducerderived/v1"
 )
 
@@ -38,7 +39,7 @@ func (f *fakeTerraformDriftFactStore) ExecContext(
 	_ context.Context, query string, args ...any,
 ) (sql.Result, error) {
 	switch query {
-	case reducerFactBatchInsertVersionedQuery:
+	case factwrite.BatchInsertVersionedQuery:
 		call := fakeWorkloadIdentityExecCall{query: query, args: args}
 		for _, row := range decodeBatchedVersionedFactCall(f.t, call) {
 			f.rows[row.FactID] = row

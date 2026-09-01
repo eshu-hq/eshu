@@ -1,12 +1,13 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package reducer
+package tfconfigstate
 
 import (
 	"context"
 	"fmt"
 
+	"github.com/eshu-hq/eshu/go/internal/reducer/factwrite"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/pgarray"
 )
 
@@ -56,7 +57,7 @@ WHERE fact_kind = $1
 // drift finding fact under that same (scope_id, generation_id) is deleted.
 func retireTerraformConfigStateDriftFindings(
 	ctx context.Context,
-	db workloadIdentityExecer,
+	db factwrite.Execer,
 	scopeID string,
 	generationID string,
 	keepFactIDs []string,

@@ -3,7 +3,10 @@
 
 package reducer
 
-import "github.com/eshu-hq/eshu/go/internal/reducer/eshusearch"
+import (
+	"github.com/eshu-hq/eshu/go/internal/reducer/eshusearch"
+	"github.com/eshu-hq/eshu/go/internal/reducer/tfconfigstate"
+)
 
 // appendCorrelationCoreAdditiveDomains registers the source-neutral correlation
 // and evidence domains that depend on the fact loader plus a single dedicated
@@ -20,7 +23,7 @@ func appendCorrelationCoreAdditiveDomains(definitions []DomainDefinition, handle
 		handlers.DriftWriter != nil &&
 		handlers.DriftLogger != nil {
 		drift := configStateDriftDomainDefinition()
-		drift.Handler = TerraformConfigStateDriftHandler{
+		drift.Handler = tfconfigstate.TerraformConfigStateDriftHandler{
 			Resolver:       handlers.TerraformBackendResolver,
 			EvidenceLoader: handlers.DriftEvidenceLoader,
 			Instruments:    handlers.Instruments,

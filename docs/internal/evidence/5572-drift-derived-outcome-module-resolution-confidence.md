@@ -13,7 +13,7 @@ Touched hot-path files this covers:
 - `go/internal/storage/postgres/tfstate_drift_evidence_prior_config.go`
 - `go/internal/storage/postgres/aws_cloud_runtime_drift_evidence.go`
 - `go/internal/storage/postgres/terraform_config_state_drift_findings.go`
-- `go/internal/reducer/terraform_config_state_drift_writer.go`
+- `go/internal/reducer/tfconfigstate/terraform_config_state_drift_writer.go`
 
 ## What changed and why it does not add a new query, join, or scan pattern
 

@@ -246,7 +246,7 @@ exemptions:
       terraform_relationship_projection) has no reducer-level write instrument
       for the cost axis to bound. Its sole reducer handler,
       TerraformConfigStateDriftHandler.Handle
-      (go/internal/reducer/terraform_config_state_drift.go), has no Writer field
+      (go/internal/reducer/tfconfigstate/terraform_config_state_drift.go), has no Writer field
       and performs zero Postgres or graph writes -- it only increments bounded
       OTel counters (CorrelationRuleMatches, CorrelationDriftDetected) and emits
       structured logs. This is explicit design intent:

@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package reducer
+package tfconfigstate
 
 import (
 	"context"
@@ -11,6 +11,7 @@ import (
 	"go.opentelemetry.io/otel/metric"
 
 	"github.com/eshu-hq/eshu/go/internal/correlation/rules"
+	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
 	log "github.com/eshu-hq/eshu/go/pkg/log"
 )
@@ -44,7 +45,7 @@ import (
 // already closed it for the ambiguous case.
 func (h TerraformConfigStateDriftHandler) writeUnresolvedOwner(
 	ctx context.Context,
-	intent Intent,
+	intent reducercontract.Intent,
 	backendKind string,
 	locatorHash string,
 ) error {

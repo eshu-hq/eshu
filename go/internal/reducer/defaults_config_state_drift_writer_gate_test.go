@@ -4,9 +4,11 @@
 package reducer
 
 import (
+	"context"
 	"log/slog"
 	"testing"
 
+	"github.com/eshu-hq/eshu/go/internal/reducer/tfconfigstate"
 	"github.com/eshu-hq/eshu/go/internal/relationships/tfstatebackend"
 )
 
@@ -14,6 +16,19 @@ import (
 // tests added by issue #5442. Split out of defaults_test.go (already over the
 // repository's 500-line file cap before this change) to avoid growing that
 // file further.
+
+// stubDriftWriter is a no-op TerraformConfigStateDriftFindingWriter used only
+// to satisfy the non-nil gate in implementedDefaultDomainDefinitions; it moved
+// out of the tfconfigstate package's own test suite in issue #6061 because
+// this file, unlike that package, still needs a writer double to prove the
+// registration gate rather than the writer's own behavior.
+type stubDriftWriter struct{}
+
+func (stubDriftWriter) WriteTerraformConfigStateDriftFindings(
+	_ context.Context, _ tfconfigstate.TerraformConfigStateDriftWrite,
+) (tfconfigstate.TerraformConfigStateDriftWriteResult, error) {
+	return tfconfigstate.TerraformConfigStateDriftWriteResult{}, nil
+}
 
 func TestImplementedDefaultDomainDefinitionsIncludesConfigStateDriftWhenAdaptersPresent(t *testing.T) {
 	t.Parallel()
@@ -33,7 +48,7 @@ func TestImplementedDefaultDomainDefinitionsIncludesConfigStateDriftWhenAdapters
 	for _, def := range definitions {
 		if def.Domain == DomainConfigStateDrift {
 			found = true
-			if _, ok := def.Handler.(TerraformConfigStateDriftHandler); !ok {
+			if _, ok := def.Handler.(tfconfigstate.TerraformConfigStateDriftHandler); !ok {
 				t.Fatalf("config_state_drift handler type = %T, want TerraformConfigStateDriftHandler", def.Handler)
 			}
 		}

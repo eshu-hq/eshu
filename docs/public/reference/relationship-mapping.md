@@ -238,7 +238,7 @@ for "evaluated, no drift" and "ownership never resolved at all," with no way
 for a caller to tell the two apart. `TerraformConfigStateDriftWrite` now
 persists exactly one durable `outcome: "unresolved"` finding per
 state-snapshot scope for this case
-(`go/internal/reducer/terraform_config_state_drift_unresolved_owner.go`),
+(`go/internal/reducer/tfconfigstate/terraform_config_state_drift_unresolved_owner.go`),
 mirroring the pre-existing `"ambiguous"` write in every respect (same
 upsert-by-stable-fact-id idempotency, same non-fatal write-failure handling).
 This is the caller-visible complement to the graph-level edge retraction this
