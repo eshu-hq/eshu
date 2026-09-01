@@ -27,7 +27,8 @@ it before touching any file in this directory.
   callers must not depend on insertion order.
 - **`cross_source_anchor_ready` is reserved** —
   `GraphProjectionPhaseCrossSourceAnchorReady` is declared in
-  `internal/reducer/graph_projection_phase.go`; publish only from DSL
+  `internal/reducer/gpphase` (aliased at the root in
+  `internal/reducer/graph_projection_phase.go`); publish only from DSL
   substrate code, not from canonical projectors or other reducer handlers.
 - **`PublishEvaluationResult` is nil-safe** — `evaluator.go:163`; a nil
   `publisher` is silently a no-op. This is intentional for test scaffolding
@@ -58,7 +59,8 @@ it before touching any file in this directory.
 - The evaluator belongs in a separate package, not here. It must satisfy
   the `Evaluator` interface (`evaluator.go:41`) and return an
   `EvaluationResult` whose `Publications` use only keyspaces and phases
-  declared in `internal/reducer/graph_projection_phase.go`.
+  declared in `internal/reducer/gpphase` (aliased at the root in
+  `internal/reducer/graph_projection_phase.go`).
 
 ## Failure modes
 

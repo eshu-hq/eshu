@@ -94,7 +94,8 @@ reducer's `ESHU_REDUCER_WORKERS` value.
 ## Graph projection phase coordination
 
 `graph_projection_phase_state` is the durable readiness coordination table.
-Phases and keyspaces are declared in `graph_projection_phase.go`.
+Phases and keyspaces are declared in `internal/reducer/gpphase`, aliased at
+the root in `graph_projection_phase.go`.
 
 Key phases:
 

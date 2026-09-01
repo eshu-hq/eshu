@@ -136,7 +136,7 @@ before touching any file in this directory.
 
 ### Add a new graph projection phase or keyspace
 
-1. Add the constant to `graph_projection_phase.go`.
+1. Add the constant to `gpphase/keyspace.go` (keyspace) or `gpphase/phasekey.go` (phase) — see `gpphase/README.md`. Add a `GraphProjectionKeyspace*`/`GraphProjectionPhase*` alias in `graph_projection_phase.go` only if root callers need the old spelling.
 2. Verify the new constant does not conflict with existing keyspace usage in
    `shared_projection.go:91–99`.
 3. Update `internal/storage/postgres` schema DDL if a new readiness row
