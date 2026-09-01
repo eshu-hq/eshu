@@ -6,8 +6,9 @@ package query
 import (
 	"context"
 	"fmt"
-	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
 	"strings"
+
+	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
 )
 
 func hydrateResolvedEntityRepoIdentity(
