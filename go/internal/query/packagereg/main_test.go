@@ -90,7 +90,7 @@ func TestMain(m *testing.M) {
 			},
 		},
 		querycontract.CapabilityRegistration{
-			Capability: packageRegistryAggregateCapability,
+			Capability: "package_registry.packages.aggregate",
 			Support: querycontract.CapabilitySupport{
 				LocalLightweightMax:   nil,
 				LocalAuthoritativeMax: &exact,

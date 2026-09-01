@@ -4,8 +4,6 @@
 package query
 
 import (
-	"database/sql"
-
 	"github.com/eshu-hq/eshu/go/internal/query/packagereg"
 )
 
@@ -34,7 +32,7 @@ type GraphPackageRegistryAggregateStore = packagereg.GraphPackageRegistryAggrega
 // PackageRegistryCorrelationStore. cmd/api and cmd/mcp-server call this
 // through package query rather than packagereg directly (#6060); it forwards
 // unchanged to packagereg.NewPostgresPackageRegistryCorrelationStore.
-func NewPostgresPackageRegistryCorrelationStore(db *sql.DB) PostgresPackageRegistryCorrelationStore {
+func NewPostgresPackageRegistryCorrelationStore(db packagereg.PackageRegistryCorrelationQueryer) PostgresPackageRegistryCorrelationStore {
 	return packagereg.NewPostgresPackageRegistryCorrelationStore(db)
 }
 
