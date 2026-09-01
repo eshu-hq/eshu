@@ -15,6 +15,18 @@ const (
 	symbolSearchDefaultLimit = 25
 	symbolSearchMaxLimit     = 200
 	symbolSearchMaxOffset    = 10000
+
+	// symbolSourceBackendContentStore labels a result produced by the batched,
+	// symbol-aware SearchSymbols query (symbolContentSearcher).
+	symbolSourceBackendContentStore = "postgres_content_store"
+	// symbolSourceBackendNameFallback labels a result produced by the plain
+	// name-lookup fallback (SearchEntitiesByName) that runs when h.Content does
+	// not satisfy symbolContentSearcher. It is a distinct label from
+	// symbolSourceBackendContentStore on purpose: the fallback answers a
+	// different query (name match, not symbolContentSearcher's mustMatchMode()
+	// semantics), so a caller reading source_backend can tell which query
+	// actually answered instead of seeing an identical label for both.
+	symbolSourceBackendNameFallback = "postgres_content_store_name_fallback"
 )
 
 var (
@@ -35,7 +47,7 @@ type symbolSearchRequest struct {
 }
 
 type symbolContentSearcher interface {
-	searchSymbols(context.Context, symbolSearchRequest) ([]EntityContent, error)
+	SearchSymbols(context.Context, symbolSearchRequest) ([]EntityContent, error)
 }
 
 func (h *CodeHandler) handleSymbolSearch(w http.ResponseWriter, r *http.Request) {
@@ -140,18 +152,25 @@ func (h *CodeHandler) symbolSearchResults(
 
 	if h != nil && h.Content != nil {
 		if searcher, ok := h.Content.(symbolContentSearcher); ok {
-			entities, err := searcher.searchSymbols(ctx, probeReq)
+			entities, err := searcher.SearchSymbols(ctx, probeReq)
 			if err != nil {
 				return nil, "", "", fmt.Errorf("search symbols: %w", err)
 			}
-			return symbolEntityResults(entities, matchMode), "postgres_content_store", TruthBasisContentIndex, nil
+			return symbolEntityResults(entities, matchMode, symbolSourceBackendContentStore), symbolSourceBackendContentStore, TruthBasisContentIndex, nil
 		}
 		if req.Offset == 0 {
+			// h.Content does not satisfy symbolContentSearcher, so this falls back
+			// to a plain name lookup (SearchEntitiesByName) rather than the
+			// symbol-aware SearchSymbols query -- different match semantics (name
+			// match vs. mustMatchMode()-aware symbol search), so the response must
+			// say so rather than claim the batched path's source_backend (#6060
+			// interface-export audit: a caller reading the truth envelope had no
+			// way to tell which query actually answered).
 			entities, err := h.Content.SearchEntitiesByName(ctx, req.RepoID, firstEntityType(req), req.symbol(), probeReq.Limit)
 			if err != nil {
 				return nil, "", "", fmt.Errorf("search symbols: %w", err)
 			}
-			return symbolEntityResults(entities, matchMode), "postgres_content_store", TruthBasisContentIndex, nil
+			return symbolEntityResults(entities, matchMode, symbolSourceBackendNameFallback), symbolSourceBackendNameFallback, TruthBasisContentIndex, nil
 		}
 	}
 
@@ -244,7 +263,12 @@ func firstEntityType(req symbolSearchRequest) string {
 	return entityTypes[0]
 }
 
-func symbolEntityResults(entities []EntityContent, matchMode string) []map[string]any {
+// symbolEntityResults formats entities into wire result rows. sourceBackend
+// must be the label for whichever query actually produced entities
+// (symbolSourceBackendContentStore or symbolSourceBackendNameFallback) --
+// see those constants' doc comments for why the two callers in
+// symbolSearchResults must not share one label.
+func symbolEntityResults(entities []EntityContent, matchMode string, sourceBackend string) []map[string]any {
 	results := make([]map[string]any, 0, len(entities))
 	for index, entity := range entities {
 		result := map[string]any{
@@ -263,7 +287,7 @@ func symbolEntityResults(entities []EntityContent, matchMode string) []map[strin
 			"classification":  "definition",
 			"match_kind":      matchMode,
 			"rank":            index + 1,
-			"source_backend":  "postgres_content_store",
+			"source_backend":  sourceBackend,
 			"source_handle":   symbolSourceHandle(entity.RepoID, entity.RelativePath, entity.StartLine, entity.EndLine),
 			"definition_kind": entity.EntityType,
 		}

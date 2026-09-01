@@ -12,7 +12,7 @@ import (
 	"go.opentelemetry.io/otel/trace"
 )
 
-func (cr *ContentReader) searchSymbols(
+func (cr *ContentReader) SearchSymbols(
 	ctx context.Context,
 	req symbolSearchRequest,
 ) ([]EntityContent, error) {
