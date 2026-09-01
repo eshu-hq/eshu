@@ -96,10 +96,10 @@ metric names, same emission sites, only the package that owns the code moved.
   scoped, package-local copy**, not the reducer root's
   `reducer_fact_batch_insert_test_helpers_test.go` / `fakeWorkloadIdentity
   Execer` (defined in `workload_identity_writer_test.go`). Those root helpers
-  are still shared by 17 files across other families that have not moved out
-  of the root yet (`aws_cloud_runtime_drift`, `multi_cloud_runtime_drift`,
-  `supply_chain_impact`, `workload_identity`, `package_correlation`,
-  `cloud_inventory_admission`); duplicating rather than sharing avoided
+  are still shared by 36 files across 17 other families that have not moved
+  out of the root yet (verify with `rg -l "fakeWorkloadIdentityExecer"
+  go/internal/reducer/ --glob '*.go' | rg -v tfconfigstate | wc -l`);
+  duplicating rather than sharing avoided
   touching a file several other in-flight #6061 moves also depend on. See
   `terraform_config_state_drift_batch_test_helpers_test.go`. If a future move
   consolidates that root-shared test scaffolding into an exported package

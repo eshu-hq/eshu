@@ -97,7 +97,7 @@ const BootstrapIndexProjectorLeaseOwner = "bootstrap-index"
 // after "wait for source-local projector drain" has activated every scope in
 // the finite bootstrap corpus, including the config-side repo that owns a
 // given state snapshot's backend --
-// reducer.TerraformConfigStateDriftHandler's backend resolver
+// tfconfigstate.TerraformConfigStateDriftHandler's backend resolver
 // (tfstatebackend.Resolver.ResolveConfigCommitForBackend) reads that
 // config-side repo's OWN active-generation terraform_backends parser fact
 // directly (go/internal/storage/postgres/tfstate_backend_canonical.go), with

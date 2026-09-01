@@ -41,7 +41,9 @@ reducer root in issue #6061 after hoisting its one blocking symbol
   `fakeWorkloadIdentityExecer` / `decodeBatchedVersionedFactCalls` shapes
   instead of the root's `workload_identity_writer_test.go` /
   `reducer_fact_batch_insert_test_helpers_test.go` versions — those are still
-  shared by 17 files in other families that have not moved out of the root.
+  shared by 36 files across 17 other families that have not moved out of the
+  root (verify with `rg -l "fakeWorkloadIdentityExecer" go/internal/reducer/
+  --glob '*.go' | rg -v tfconfigstate | wc -l`).
   Keep the two copies structurally identical if you change the wire shape
   (`factwrite.BatchInsertVersionedQuery`'s argument order/count); do not let
   them silently drift apart.

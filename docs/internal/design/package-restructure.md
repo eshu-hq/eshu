@@ -1686,10 +1686,12 @@ blocker was `nonNilMapSlice`, hoisted to `payloadcore.NonNilMapSlice` in a
 prerequisite commit the same way `nonNilStrings` already forwarded to
 `payloadcore.NonNilStrings`; a trial move (temp package, `go build -gcflags=-e`)
 reproduced this exact single-blocker finding before either commit landed.
-Baseline `9b207fefc`, after `2c283770a` plus the working-tree move on top, go1.27.0
-darwin/arm64. This crosses a package boundary, so inlining can genuinely shift
+Baseline `c6a59f7aa` (the immediate pre-move parent), after `830634527` (the
+tfconfigstate move, on top of the `9e84c0c6e` nonNilMapSlice hoist), go1.27.0
+darwin/arm64, each built in its own throwaway worktree with an isolated
+`GOCACHE`. This crosses a package boundary, so inlining can genuinely shift
 and is measured rather than assumed: `go build -gcflags=-m ./...` whole-module
-reports unique `can inline` names 11106 -> 11107, compared as a SET with `comm`
+reports unique `can inline` names 12153 -> 12154, compared as a SET with `comm`
 in both directions rather than by totals, since a matching total is also what a
 swap looks like. Zero names lost. One gained -- `NonNilMapSlice`, the new
 `payloadcore` export, the same effect the `nonNilStrings` hoist had on
@@ -1715,10 +1717,10 @@ shared, root-only batch-insert test doubles
 (`fakeWorkloadIdentityExecer`/`fakeWorkloadIdentityExecCall`/
 `fakeWorkloadIdentityResult` in `workload_identity_writer_test.go`, and the
 `decodeBatchedVersionedFactCall*`/`decodedBatchedVersionedFactRow` helpers in
-`reducer_fact_batch_insert_test_helpers_test.go`) still used by 17 files across
-other families that have not moved out of the root yet
-(`aws_cloud_runtime_drift`, `multi_cloud_runtime_drift`, `supply_chain_impact`,
-`workload_identity`, `package_correlation`, `cloud_inventory_admission`); `go
+`reducer_fact_batch_insert_test_helpers_test.go`) still used by 36 files across
+17 other families that have not moved out of the root yet (verify with `rg -l
+"fakeWorkloadIdentityExecer" go/internal/reducer/ --glob '*.go' | rg -v
+tfconfigstate | wc -l`); `go
 build ./...` does not surface this because it does not compile test files, only
 `go vet ./...` and `go test -c` do. Rather than touch a file several other
 concurrent #6061 moves also depend on, `tfconfigstate` keeps a package-scoped
