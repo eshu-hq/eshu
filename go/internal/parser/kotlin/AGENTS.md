@@ -15,7 +15,7 @@ explicitly asks for a cross-language parser contract change.
 Production code and same-package tests must not import the parent parser
 package. Use go/internal/parser/shared for `shared.Options`, source reads, base
 payload construction, bucket appends, sorting, and pre-scan name cleanup.
-External `kotlin_test` files (the `engine_kotlin_*_test.go` family, 15 files)
+External `kotlin_test` files (the `engine_kotlin_*_test.go` family, 16 files)
 may import the parent parser to verify its exported engine contract without
 gaining access to parent internals. They also import
 `go/internal/parser/parsertest` for the assertion helpers that other language

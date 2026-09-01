@@ -8,11 +8,12 @@ five payload buckets — `functions`, `classes`, `interfaces`, `variables`,
 `imports`, `function_calls` — plus cyclomatic complexity, dead-code root
 classification, smart-cast flow, scope-function transparency, receiver/type
 inference, and package-bounded sibling return-type lookups. The 14 source files
-(no tests in-package) are exercised by 16 test files (~54 test functions):
-13 live in `go/internal/parser/kotlin/` as the external `kotlin_test` package,
-one (the primary-constructor call regression) already lived there, and two
-cross-language files (`kotlin_dead_code_roots_test.go`,
-`java_kotlin_spring_route_semantics_test.go`) stay in `go/internal/parser/`.
+are exercised by 18 test files in `go/internal/parser/kotlin/`
+(54 test functions): 16 `engine_kotlin_*_test.go` files in the external
+`kotlin_test` package, plus two in-package tests (`walk_count_test.go` and
+`equivalence_dump_test.go`). Two cross-language files
+(`kotlin_dead_code_roots_test.go`, `java_kotlin_spring_route_semantics_test.go`)
+stay in `go/internal/parser/` because they span more than Kotlin.
 Coverage is broad and intentional.
 
 ## Claimed Constructs
@@ -382,7 +383,7 @@ tests:
 **Deep**
 
 The Kotlin parser is among the most thoroughly tested language parsers in Eshu.
-Sixteen test files with ~54 test functions cover: every payload bucket, both
+Eighteen test files in the kotlin package with 54 test functions cover: every payload bucket, both
 call emission paths (bare and navigation), infix calls, constructor detection,
 import handling, all receiver-type inference paths (local variable, class
 property, function return, cast, smart-cast, lazy delegate, safe-call, object,

@@ -54,7 +54,8 @@ See doc.go for the godoc contract.
   collection; each sibling file is parsed with tree-sitter.
 - `helpers.go` / `scope_function_helpers.go` — string utilities (chain
   normalization, scope-function stripping) that operate on AST-derived text.
-- `engine_kotlin_*_test.go` (14 files) plus `engine_kotlin_constructor_calls_test.go`
+- `engine_kotlin_*_test.go` (16 files, which already includes
+  `engine_kotlin_constructor_calls_test.go` and the symbol gate)
   — external-package (`kotlin_test`) engine tests that pin the full Kotlin
   contract through the parent parser's exported `DefaultEngine`/`ParsePath`
   API: bare and imported bare calls, receiver/call metadata (`this`, local,
