@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package parser
+package javascript_test
 
 import (
 	"fmt"
@@ -9,6 +9,7 @@ import (
 	"sync"
 	"testing"
 
+	"github.com/eshu-hq/eshu/go/internal/parser"
 	jsparser "github.com/eshu-hq/eshu/go/internal/parser/javascript"
 )
 
@@ -52,13 +53,13 @@ export function use%d() { return helper(); }
 	)
 	defer restore()
 
-	engine, err := DefaultEngine()
+	engine, err := parser.DefaultEngine()
 	if err != nil {
-		t.Fatalf("DefaultEngine() error = %v, want nil", err)
+		t.Fatalf("parser.DefaultEngine() error = %v, want nil", err)
 	}
 
 	for _, path := range paths {
-		if _, err := engine.ParsePath(repoRoot, path, false, Options{}); err != nil {
+		if _, err := engine.ParsePath(repoRoot, path, false, parser.Options{}); err != nil {
 			t.Fatalf("ParsePath(%q) error = %v, want nil", path, err)
 		}
 	}
@@ -111,9 +112,9 @@ func TestEngineParsePathConcurrentJavaScriptFilesShareConfigComputationOnce(t *t
 	)
 	defer restore()
 
-	engine, err := DefaultEngine()
+	engine, err := parser.DefaultEngine()
 	if err != nil {
-		t.Fatalf("DefaultEngine() error = %v, want nil", err)
+		t.Fatalf("parser.DefaultEngine() error = %v, want nil", err)
 	}
 
 	var wg sync.WaitGroup
@@ -122,7 +123,7 @@ func TestEngineParsePathConcurrentJavaScriptFilesShareConfigComputationOnce(t *t
 		wg.Add(1)
 		go func(index int, path string) {
 			defer wg.Done()
-			if _, err := engine.ParsePath(repoRoot, path, false, Options{}); err != nil {
+			if _, err := engine.ParsePath(repoRoot, path, false, parser.Options{}); err != nil {
 				errs[index] = err
 			}
 		}(i, path)

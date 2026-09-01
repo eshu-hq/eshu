@@ -322,6 +322,45 @@ inference. It also follows declaration entrypoints that import symbols and
 export them through local `export type { ... }` clauses, including public
 generic defaults that reference imported declaration types.
 
+## Tests
+
+`config_scope_cache_test.go`, `tsconfig_test.go`, `package_json_test.go`,
+`parent_lookup_regression_test.go`, `walk_count_test.go`,
+`fastify_threading_characterization_test.go`, and
+`javascript_residual_regex_characterization_test.go` run in-package
+(`package javascript`) and cover package-local helpers directly.
+
+The Engine-level regressions that used to live in `internal/parser` as
+`engine_javascript_*_test.go` now run as external black-box tests in `package
+javascript_test`, so they exercise JavaScript/TypeScript/TSX extraction the way
+callers reach it — through `parser.DefaultEngine().ParsePath` — rather than
+through package internals: `engine_javascript_ast_conversion_test.go`,
+`engine_javascript_call_metadata_test.go`,
+`engine_javascript_computed_property_test.go`, `engine_javascript_handler_test.go`,
+`engine_javascript_koa_fastify_nestjs_route_entries_test.go`,
+`engine_javascript_koa_router_require_route_entries_test.go`,
+`engine_javascript_nextjs_route_entries_test.go`,
+`engine_javascript_package_surface_cache_test.go`,
+`engine_javascript_reexports_test.go`,
+`engine_javascript_repo_config_cache_bench_test.go`,
+`engine_javascript_repo_config_cache_test.go`, `engine_javascript_require_test.go`,
+`engine_javascript_route_handler_test.go`, `engine_javascript_semantics_test.go`,
+`engine_javascript_tsconfig_baseurl_test.go`, and
+`engine_javascript_type_parameters_test.go`. `fastify_threading_bench_test.go`
+and `engine_typescript_implements_test.go` were already external `javascript_test`
+regressions before this relocation.
+
+`engine_javascript_test_helpers_test.go` carries the helpers `parsertest` does
+not have (`writeTestFile`, `assertStringFieldValue`,
+`assertBucketItemByFieldValue`, `assertFunctionByName`,
+`assertNoFrameworkOrNoRoutes`, and others) for the relocated suites; the
+parent package keeps its own copies of the handful still used by tests that
+stay at root (`engine_test.go`, `engine_framework_test_helpers_test.go`).
+
+The external test package may import `internal/parser`; the non-test package
+must not. Go compiles `javascript_test` separately, so this keeps the
+black-box coverage without making the package depend on the parent dispatcher.
+
 ## Related docs
 
 - docs/public/languages/support-maturity.md

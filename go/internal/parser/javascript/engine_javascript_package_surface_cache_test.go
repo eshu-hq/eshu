@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package parser
+package javascript_test
 
 import (
 	"fmt"
@@ -9,6 +9,7 @@ import (
 	"sync"
 	"testing"
 
+	"github.com/eshu-hq/eshu/go/internal/parser"
 	jsparser "github.com/eshu-hq/eshu/go/internal/parser/javascript"
 )
 
@@ -173,13 +174,13 @@ func TestDefaultEngineParsePathPackageSurfaceCacheEquivalence(t *testing.T) {
 	repoRoot := t.TempDir()
 	paths := buildBarrelReexportPackageFixtureWithCrossFileTypeReference(t, repoRoot, moduleCount)
 
-	engine, err := DefaultEngine()
+	engine, err := parser.DefaultEngine()
 	if err != nil {
-		t.Fatalf("DefaultEngine() error = %v, want nil", err)
+		t.Fatalf("parser.DefaultEngine() error = %v, want nil", err)
 	}
 
 	for i, path := range paths[:moduleCount] {
-		got, err := engine.ParsePath(repoRoot, path, false, Options{})
+		got, err := engine.ParsePath(repoRoot, path, false, parser.Options{})
 		if err != nil {
 			t.Fatalf("ParsePath(%q) error = %v, want nil", path, err)
 		}
@@ -197,7 +198,7 @@ func TestDefaultEngineParsePathPackageSurfaceCacheEquivalence(t *testing.T) {
 	}
 
 	sharedTypesPath := filepath.Join(repoRoot, "src", "shared_types.ts")
-	gotShared, err := engine.ParsePath(repoRoot, sharedTypesPath, false, Options{})
+	gotShared, err := engine.ParsePath(repoRoot, sharedTypesPath, false, parser.Options{})
 	if err != nil {
 		t.Fatalf("ParsePath(%q) error = %v, want nil", sharedTypesPath, err)
 	}
@@ -215,7 +216,7 @@ func TestDefaultEngineParsePathPackageSurfaceCacheEquivalence(t *testing.T) {
 		{filepath.Join(repoRoot, "src", "merge_type_a.ts"), "MergeTypeA"},
 		{filepath.Join(repoRoot, "src", "merge_type_b.ts"), "MergeTypeB"},
 	} {
-		got, err := engine.ParsePath(repoRoot, tc.path, false, Options{})
+		got, err := engine.ParsePath(repoRoot, tc.path, false, parser.Options{})
 		if err != nil {
 			t.Fatalf("ParsePath(%q) error = %v, want nil", tc.path, err)
 		}
@@ -246,13 +247,13 @@ func TestEngineParsePathComputesPackageSurfaceClosureOnceForSharedBarrel(t *test
 	restore := jsparser.SetPackageSurfaceComputeHookForTest(func(string) { siblingParses++ })
 	defer restore()
 
-	engine, err := DefaultEngine()
+	engine, err := parser.DefaultEngine()
 	if err != nil {
-		t.Fatalf("DefaultEngine() error = %v, want nil", err)
+		t.Fatalf("parser.DefaultEngine() error = %v, want nil", err)
 	}
 
 	for _, path := range paths {
-		if _, err := engine.ParsePath(repoRoot, path, false, Options{}); err != nil {
+		if _, err := engine.ParsePath(repoRoot, path, false, parser.Options{}); err != nil {
 			t.Fatalf("ParsePath(%q) error = %v, want nil", path, err)
 		}
 	}
@@ -301,9 +302,9 @@ func TestEngineParsePathConcurrentPackageSurfaceCacheIsRaceSafe(t *testing.T) {
 	})
 	defer restore()
 
-	engine, err := DefaultEngine()
+	engine, err := parser.DefaultEngine()
 	if err != nil {
-		t.Fatalf("DefaultEngine() error = %v, want nil", err)
+		t.Fatalf("parser.DefaultEngine() error = %v, want nil", err)
 	}
 
 	var wg sync.WaitGroup
@@ -312,7 +313,7 @@ func TestEngineParsePathConcurrentPackageSurfaceCacheIsRaceSafe(t *testing.T) {
 		wg.Add(1)
 		go func(index int, path string) {
 			defer wg.Done()
-			if _, err := engine.ParsePath(repoRoot, path, false, Options{}); err != nil {
+			if _, err := engine.ParsePath(repoRoot, path, false, parser.Options{}); err != nil {
 				errs[index] = err
 			}
 		}(i, path)

@@ -456,6 +456,25 @@ func writeTestFile(t *testing.T, path string, body string) {
 	}
 }
 
+// mustParsePath parses filePath through the default engine and fails the test
+// if engine construction or parsing returns an error. It lives here rather
+// than in the JavaScript engine tests because engine_bare_cr_test.go and
+// engine_data_carriage_return_test.go, which cover the parent Runtime's
+// carriage-return handling across languages, also call it.
+func mustParsePath(t *testing.T, repoRoot string, filePath string) map[string]any {
+	t.Helper()
+
+	engine, err := DefaultEngine()
+	if err != nil {
+		t.Fatalf("DefaultEngine() error = %v, want nil", err)
+	}
+	got, err := engine.ParsePath(repoRoot, filePath, false, Options{})
+	if err != nil {
+		t.Fatalf("ParsePath() error = %v, want nil", err)
+	}
+	return got
+}
+
 func assertNamedBucketContains(t *testing.T, payload map[string]any, key string, wantName string) {
 	t.Helper()
 

@@ -1,13 +1,15 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package parser
+package javascript_test
 
 import (
 	"fmt"
 	"os"
 	"path/filepath"
 	"testing"
+
+	"github.com/eshu-hq/eshu/go/internal/parser"
 )
 
 // BenchmarkParsePathTypeScriptRepoSharedConfig parses every file in a
@@ -53,16 +55,16 @@ export function use%d(): boolean {
 		paths[i] = path
 	}
 
-	engine, err := DefaultEngine()
+	engine, err := parser.DefaultEngine()
 	if err != nil {
-		b.Fatalf("DefaultEngine() error = %v, want nil", err)
+		b.Fatalf("parser.DefaultEngine() error = %v, want nil", err)
 	}
 
 	b.ReportMetric(float64(fileCount), "files")
 	b.ResetTimer()
 	for b.Loop() {
 		for _, path := range paths {
-			if _, err := engine.ParsePath(repoRoot, path, false, Options{}); err != nil {
+			if _, err := engine.ParsePath(repoRoot, path, false, parser.Options{}); err != nil {
 				b.Fatalf("ParsePath(%q) error = %v, want nil", path, err)
 			}
 		}

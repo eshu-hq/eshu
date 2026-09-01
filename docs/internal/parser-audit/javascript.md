@@ -12,8 +12,15 @@ React component detection with hooks, Hapi/Express/Fastify/Next.js route
 evidence, dead-code root modeling (20+ root kinds), embedded shell commands,
 TypeScript type parameters and declaration merging, and opt-in value-flow
 analysis. A parent-lookup optimization eliminated per-node cgo crossings
-(#3586). The test suite is the largest of any parser: 33
-parent-level tests plus 11 subdirectory tests and jsdataflow tests.
+(#3586). The test suite is the largest of any parser: 17
+parent-level tests plus 27 subdirectory tests and jsdataflow tests. The
+`engine_javascript_*_test.go` files that used to be counted as parent-level
+relocated into `go/internal/parser/javascript` as external `javascript_test`
+black-box coverage (#6062), matching the earlier Elixir relocation (#6335); the
+parent package retains cross-language sweeps (`engine_test.go`,
+`engine_cyclomatic_complexity_arms_test.go`, `engine_long_tail_test.go`) that
+happen to include JavaScript rows, plus `engine_tsx_*` and
+`engine_typescript_*` files that stay out of scope for this move.
 
 ## Claimed Constructs
 - **Functions**: from function_declaration, generator_function_declaration,
@@ -84,8 +91,8 @@ parent-level tests plus 11 subdirectory tests and jsdataflow tests.
 - **PreScan**: declaration names (`javascript_language.go`)
 
 ## Verified-by-Test Constructs
-The test suite is organized by feature area with approximately 35 parent-level
-engine tests and 20+ subdirectory tests. Key coverage categories:
+The test suite is organized by feature area with approximately 17 parent-level
+engine tests and 27+ subdirectory tests. Key coverage categories:
 
 **Core parsing (engine_test.go, engine_managed_oo_test.go)**:
 - Basic JS/TS/TSX payload construction: `TestDefaultEngineParsePathJavaScript`
