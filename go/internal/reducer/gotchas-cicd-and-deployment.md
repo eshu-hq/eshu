@@ -1,11 +1,11 @@
 # Reducer Gotchas — CI/CD Generations And Deployment Mapping
 
-Split from `README.md` (issue #6061), following the same split
+Split from `README.md` (issue #5786, the 500-line-cap split), following the same
 `gotchas-supply-chain-and-vulnerabilities.md` and
 `gotchas-correlation-queue-and-graph-security.md` already made: the README had
 crept one line over the repository's 500-line Markdown cap, which fails the
 blocking `markdown-file-cap` gate for every branch, not just the one that
-pushed it over.
+pushed it over. The #6061 restructure is what grew the file past the cap again.
 
 The invariants below govern how a CI/CD generation is admitted, how git workflow
 evidence crosses scopes, and when `deployment_mapping` may reopen a closed

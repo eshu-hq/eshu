@@ -364,7 +364,8 @@ values each counter carries.
 - **CI/CD generation, git-workflow-evidence and `deployment_mapping`
   invariants live in
   [`gotchas-cicd-and-deployment.md`](gotchas-cicd-and-deployment.md)** — split
-  out of this file for the 500-line Markdown cap (#6061).
+  out of this file for the 500-line Markdown cap (#5786; the #6061 restructure
+  is what grew it past the cap again).
 - **Phase publications and graph writes are not atomic** — if a graph write
   commits but the phase publication fails, `GraphProjectionPhaseRepairQueue`
   captures the retry.

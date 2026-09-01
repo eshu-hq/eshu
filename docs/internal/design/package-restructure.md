@@ -194,7 +194,7 @@ Two gained -- `CollectorKind` and `reducerWriterNow`, the latter because it is n
 a one-line forwarder. The hoist is a prerequisite rather than a cleanup: a trial
 move measured the eshu_search family (8 non-test files) as blocked on six
 symbols, of which these two were the only ones without a leaf owner already; the
-other four resolve to contract and payloadcore.
+other four resolve to `contract` and `payloadcore`.
 
 No-Observability-Change: neither function emits a metric, span, or log, and
 neither performs I/O. They compute a UTC timestamp and a normalized column value
