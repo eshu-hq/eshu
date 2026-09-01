@@ -21,8 +21,8 @@ statement, which `querycontract/AGENTS.md` excludes from the contract leaf, and
 it was moved back. It stays in `go/internal/query/entity_resolve_identity.go`
 and calls the scrubber through the forwarder.
 
-The language taxonomy (`LanguageAliases`, `CanonicalLanguage`,
-`NormalizedLanguageVariants`, `CoverageLanguageMaps`) did move, which is what
+The language taxonomy (`CanonicalLanguage`, `NormalizedLanguageVariants`,
+`CoverageLanguageMaps`, and the unexported alias map behind them) did move, which is what
 touches `repository_coverage.go` -- its call sites now name the leaf package.
 Note that `supportedLanguages`, the accepted-language registry, stays in root.
 

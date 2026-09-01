@@ -5,7 +5,11 @@ package querycontract
 
 import "strings"
 
-// LanguageAliases maps a language spelling variant to its canonical name.
+// languageAliases maps a language spelling variant to its canonical name.
+// It is deliberately unexported: callers go through CanonicalLanguage or
+// NormalizedLanguageVariants rather than reading the map, so the contract
+// surface stays a pair of pure functions and no caller can mutate shared
+// state at runtime.
 //
 // This moved here from root package query's language_registry.go (#6060) so
 // a handler-family subpackage can normalize a language name identically to
@@ -13,16 +17,16 @@ import "strings"
 // languages are added -- this is actively maintained taxonomy, not a pure
 // stateless helper. Root has no alias for this map: its callers were updated to
 // name the leaf package directly.
-var LanguageAliases = map[string]string{
+var languageAliases = map[string]string{
 	"jsx": "javascript",
 	"tsx": "typescript",
 }
 
 // CanonicalLanguage lowercases, trims, and resolves language through
-// LanguageAliases to its canonical spelling.
+// languageAliases to its canonical spelling.
 func CanonicalLanguage(language string) string {
 	normalized := strings.ToLower(strings.TrimSpace(language))
-	if canonical, ok := LanguageAliases[normalized]; ok {
+	if canonical, ok := languageAliases[normalized]; ok {
 		return canonical
 	}
 	return normalized
