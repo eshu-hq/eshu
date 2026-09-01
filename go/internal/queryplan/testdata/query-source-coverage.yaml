@@ -149,13 +149,13 @@ source_coverage:
   - file: entity_map_traversal.go
     calls:
       - {symbol: "(*ImpactHandler).entityMapNeighborhoodRows", count: 1, source_sha256: 5c91dacd107e037ad4ceffb0804c89b1f6baca7a66c314407b3e3359dc80bfb2, entry_ids: [QP-ENTITY-MAP-DIRECT-REPOSITORY, QP-ENTITY-MAP-BOUNDED-REPOSITORY]}
-  - file: querycontract/entity_repo_identity.go
+  - file: entity_resolve_identity.go
     calls:
-      - symbol: "HydrateResolvedEntityRepoIdentity"
+      - symbol: "hydrateResolvedEntityRepoIdentity"
         count: 1
         non_hot:
           class: keyed_support
-          source_sha256: 0a071f811b272219ccf3c0ae95c00f2a4c6d2a49c4fdf678f7260f876d4d734c
+          source_sha256: 3a77ce572e6302f8b43675f102de60e7342a7dd722730f477a2f6e3b4f1314b4
           key_bound: bounded_key_batch
           max_keys: 101
           max_results: 101
