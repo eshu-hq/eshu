@@ -167,3 +167,34 @@ func TestAcceptanceKeyReportsFalseRatherThanAZeroKey(t *testing.T) {
 		}
 	}
 }
+
+// TestBuildProducesThePinnedIntentIDForItsFieldSet pins the end-to-end
+// Build -> IntentID derivation, not just the hash function underneath it.
+//
+// TestStableIntentIDIsPinnedToAnExactDigest above calls StableIntentID directly,
+// so it locks the serialization -- key order, the wrapper, the hash, the hex
+// case -- but says nothing about WHICH fields Build feeds in. Dropping
+// projection_domain from Build's identity map, adding a field, or trimming a
+// field that is currently untrimmed would silently re-key every intent already
+// persisted in Postgres while that test stayed green. This one fails instead.
+func TestBuildProducesThePinnedIntentIDForItsFieldSet(t *testing.T) {
+	t.Parallel()
+
+	row := Build(Input{
+		ProjectionDomain: "repo_dependency",
+		PartitionKey:     "part-1",
+		RepositoryID:     "repo-1",
+		GenerationID:     "gen-1",
+		SourceRunID:      "run-1",
+		ScopeID:          "scope-1",
+	})
+
+	// Same digest as the direct-call pin above: with AcceptanceUnitID empty it
+	// falls back to RepositoryID, and with IdentityKey empty the partition key
+	// passes through, so Build feeds exactly that map. Their agreement is the
+	// point -- it is what ties the field set to the serialization contract.
+	const want = "df2cf9f13bbed659e8aafcdd7f869c83ab2c8a48574c86af9e4af44d2fc35d35"
+	if row.IntentID != want {
+		t.Fatalf("Build().IntentID = %q, want %q -- Build's identity field set changed", row.IntentID, want)
+	}
+}
