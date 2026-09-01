@@ -99,3 +99,26 @@ func StringSliceVal(row map[string]any, key string) []string {
 		return nil
 	}
 }
+
+// FloatVal reads key from row as a float64, coercing the numeric types a graph
+// or SQL driver may hand back. A missing key, a nil value, or a non-numeric
+// value yields 0 rather than an error: callers use it for scoring and
+// thresholds where absence and zero are the same decision.
+func FloatVal(row map[string]any, key string) float64 {
+	v, ok := row[key]
+	if !ok || v == nil {
+		return 0
+	}
+	switch n := v.(type) {
+	case float64:
+		return n
+	case float32:
+		return float64(n)
+	case int:
+		return float64(n)
+	case int64:
+		return float64(n)
+	default:
+		return 0
+	}
+}

@@ -6,6 +6,8 @@ package query
 import (
 	"slices"
 	"strings"
+
+	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
 )
 
 func buildRepositoryRelationshipOverview(relationships []map[string]any) map[string]any {
@@ -239,25 +241,6 @@ func uniqueRelationshipStrings(rows []map[string]any, key string) []string {
 	return values
 }
 
-func relationshipFloatVal(row map[string]any, key string) float64 {
-	v, ok := row[key]
-	if !ok || v == nil {
-		return 0
-	}
-	switch n := v.(type) {
-	case float64:
-		return n
-	case float32:
-		return float64(n)
-	case int:
-		return float64(n)
-	case int64:
-		return float64(n)
-	default:
-		return 0
-	}
-}
-
 var iacEvidenceTypePrefixes = []string{
 	"docker_compose_",
 	"dockerfile_",
@@ -271,4 +254,12 @@ var controllerEvidenceTypePrefixes = []string{
 	"argocd_",
 	"ansible_",
 	"jenkins_",
+}
+
+// relationshipFloatVal forwards to querycontract.FloatVal. The coercion lives
+// in the contract leaf beside StringVal/IntVal/StringSliceVal so a handler
+// family reads a driver row exactly the way root does; a package-local copy
+// would drift the moment a driver returns a new numeric type.
+func relationshipFloatVal(row map[string]any, key string) float64 {
+	return querycontract.FloatVal(row, key)
 }
