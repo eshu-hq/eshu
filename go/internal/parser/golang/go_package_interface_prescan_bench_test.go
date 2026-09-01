@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package parser
+package golang_test
 
 import (
 	"fmt"
@@ -9,6 +9,8 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+
+	"github.com/eshu-hq/eshu/go/internal/parser"
 )
 
 // BenchmarkPreScanGoPackageSemanticRoots measures the per-repository cost of
@@ -36,7 +38,7 @@ func BenchmarkPreScanGoPackageSemanticRoots(b *testing.B) {
 	b.Run("Small", func(b *testing.B) {
 		repoRoot := b.TempDir()
 		paths := writePrescanBenchCorpus(b, repoRoot, 4, 50, prescanBenchShapeSmall)
-		engine, err := DefaultEngine()
+		engine, err := parser.DefaultEngine()
 		if err != nil {
 			b.Fatalf("DefaultEngine() error = %v, want nil", err)
 		}
@@ -51,7 +53,7 @@ func BenchmarkPreScanGoPackageSemanticRoots(b *testing.B) {
 	b.Run("K8sShape", func(b *testing.B) {
 		repoRoot := b.TempDir()
 		paths := writePrescanBenchCorpus(b, repoRoot, 4, 50, prescanBenchShapeK8s)
-		engine, err := DefaultEngine()
+		engine, err := parser.DefaultEngine()
 		if err != nil {
 			b.Fatalf("DefaultEngine() error = %v, want nil", err)
 		}

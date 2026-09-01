@@ -1,11 +1,14 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package parser
+package golang_test
 
 import (
 	"path/filepath"
 	"testing"
+
+	"github.com/eshu-hq/eshu/go/internal/parser"
+	"github.com/eshu-hq/eshu/go/internal/parser/parsertest"
 )
 
 func TestDefaultEngineParsePathGoAnnotatesReceiverSelectorCalls(t *testing.T) {
@@ -13,7 +16,7 @@ func TestDefaultEngineParsePathGoAnnotatesReceiverSelectorCalls(t *testing.T) {
 
 	repoRoot := t.TempDir()
 	filePath := filepath.Join(repoRoot, "handler.go")
-	writeTestFile(
+	parsertest.WriteFile(
 		t,
 		filePath,
 		`package query
@@ -31,32 +34,32 @@ func (h *CodeHandler) handleRelationships() {
 `,
 	)
 
-	engine, err := DefaultEngine()
+	engine, err := parser.DefaultEngine()
 	if err != nil {
 		t.Fatalf("DefaultEngine() error = %v, want nil", err)
 	}
 
-	got, err := engine.ParsePath(repoRoot, filePath, false, Options{})
+	got, err := engine.ParsePath(repoRoot, filePath, false, parser.Options{})
 	if err != nil {
 		t.Fatalf("ParsePath() error = %v, want nil", err)
 	}
 
-	methodCall := assertBucketItemByFieldValue(
+	methodCall := parsertest.AssertBucketItemByFieldValue(
 		t,
 		got,
 		"function_calls",
 		"full_name",
 		"h.transitiveRelationshipsGraphRow",
 	)
-	assertStringFieldValue(t, methodCall, "name", "transitiveRelationshipsGraphRow")
-	assertStringFieldValue(t, methodCall, "receiver_identifier", "h")
-	assertStringFieldValue(t, methodCall, "class_context", "CodeHandler")
+	parsertest.AssertStringFieldValue(t, methodCall, "name", "transitiveRelationshipsGraphRow")
+	parsertest.AssertStringFieldValue(t, methodCall, "receiver_identifier", "h")
+	parsertest.AssertStringFieldValue(t, methodCall, "class_context", "CodeHandler")
 	if got, ok := methodCall["receiver_is_import_alias"].(bool); !ok || got {
 		t.Fatalf("receiver_is_import_alias = %#v, want false", methodCall["receiver_is_import_alias"])
 	}
 
-	importCall := assertBucketItemByFieldValue(t, got, "function_calls", "full_name", "fmt.Println")
-	assertStringFieldValue(t, importCall, "receiver_identifier", "fmt")
+	importCall := parsertest.AssertBucketItemByFieldValue(t, got, "function_calls", "full_name", "fmt.Println")
+	parsertest.AssertStringFieldValue(t, importCall, "receiver_identifier", "fmt")
 	if got, ok := importCall["receiver_is_import_alias"].(bool); !ok || !got {
 		t.Fatalf("receiver_is_import_alias = %#v, want true", importCall["receiver_is_import_alias"])
 	}
@@ -70,7 +73,7 @@ func TestDefaultEngineParsePathGoInfersLocalReceiverFromConstructorReturn(t *tes
 
 	repoRoot := t.TempDir()
 	filePath := filepath.Join(repoRoot, "eval.go")
-	writeTestFile(
+	parsertest.WriteFile(
 		t,
 		filePath,
 		`package main
@@ -90,19 +93,19 @@ func addDemoTestCases() {
 `,
 	)
 
-	engine, err := DefaultEngine()
+	engine, err := parser.DefaultEngine()
 	if err != nil {
 		t.Fatalf("DefaultEngine() error = %v, want nil", err)
 	}
 
-	got, err := engine.ParsePath(repoRoot, filePath, false, Options{})
+	got, err := engine.ParsePath(repoRoot, filePath, false, parser.Options{})
 	if err != nil {
 		t.Fatalf("ParsePath() error = %v, want nil", err)
 	}
 
-	call := assertBucketItemByFieldValue(t, got, "function_calls", "full_name", "harness.AddTestCases")
-	assertStringFieldValue(t, call, "receiver_identifier", "harness")
-	assertStringFieldValue(t, call, "inferred_obj_type", "HTTPHarness")
+	call := parsertest.AssertBucketItemByFieldValue(t, got, "function_calls", "full_name", "harness.AddTestCases")
+	parsertest.AssertStringFieldValue(t, call, "receiver_identifier", "harness")
+	parsertest.AssertStringFieldValue(t, call, "inferred_obj_type", "HTTPHarness")
 }
 
 func TestDefaultEngineParsePathGoInfersReceiverFromTypedParameter(t *testing.T) {
@@ -110,7 +113,7 @@ func TestDefaultEngineParsePathGoInfersReceiverFromTypedParameter(t *testing.T) 
 
 	repoRoot := t.TempDir()
 	filePath := filepath.Join(repoRoot, "eval.go")
-	writeTestFile(
+	parsertest.WriteFile(
 		t,
 		filePath,
 		`package main
@@ -125,19 +128,19 @@ func addDemoTestCases(harness *HTTPHarness) {
 `,
 	)
 
-	engine, err := DefaultEngine()
+	engine, err := parser.DefaultEngine()
 	if err != nil {
 		t.Fatalf("DefaultEngine() error = %v, want nil", err)
 	}
 
-	got, err := engine.ParsePath(repoRoot, filePath, false, Options{})
+	got, err := engine.ParsePath(repoRoot, filePath, false, parser.Options{})
 	if err != nil {
 		t.Fatalf("ParsePath() error = %v, want nil", err)
 	}
 
-	call := assertBucketItemByFieldValue(t, got, "function_calls", "full_name", "harness.AddTestCases")
-	assertStringFieldValue(t, call, "receiver_identifier", "harness")
-	assertStringFieldValue(t, call, "inferred_obj_type", "HTTPHarness")
+	call := parsertest.AssertBucketItemByFieldValue(t, got, "function_calls", "full_name", "harness.AddTestCases")
+	parsertest.AssertStringFieldValue(t, call, "receiver_identifier", "harness")
+	parsertest.AssertStringFieldValue(t, call, "inferred_obj_type", "HTTPHarness")
 }
 
 func TestDefaultEngineParsePathGoInfersReceiverFromFuncLiteralParameter(t *testing.T) {
@@ -145,7 +148,7 @@ func TestDefaultEngineParsePathGoInfersReceiverFromFuncLiteralParameter(t *testi
 
 	repoRoot := t.TempDir()
 	filePath := filepath.Join(repoRoot, "controllers.go")
-	writeTestFile(
+	parsertest.WriteFile(
 		t,
 		filePath,
 		`package main
@@ -164,19 +167,19 @@ func runControllers() {
 `,
 	)
 
-	engine, err := DefaultEngine()
+	engine, err := parser.DefaultEngine()
 	if err != nil {
 		t.Fatalf("DefaultEngine() error = %v, want nil", err)
 	}
 
-	got, err := engine.ParsePath(repoRoot, filePath, false, Options{})
+	got, err := engine.ParsePath(repoRoot, filePath, false, parser.Options{})
 	if err != nil {
 		t.Fatalf("ParsePath() error = %v, want nil", err)
 	}
 
-	call := assertBucketItemByFieldValue(t, got, "function_calls", "full_name", "controllerDesc.BuildController")
-	assertStringFieldValue(t, call, "receiver_identifier", "controllerDesc")
-	assertStringFieldValue(t, call, "inferred_obj_type", "ControllerDescriptor")
+	call := parsertest.AssertBucketItemByFieldValue(t, got, "function_calls", "full_name", "controllerDesc.BuildController")
+	parsertest.AssertStringFieldValue(t, call, "receiver_identifier", "controllerDesc")
+	parsertest.AssertStringFieldValue(t, call, "inferred_obj_type", "ControllerDescriptor")
 }
 
 func TestDefaultEngineParsePathGoKeepsConstructorReceiverBindingsBlockScoped(t *testing.T) {
@@ -184,7 +187,7 @@ func TestDefaultEngineParsePathGoKeepsConstructorReceiverBindingsBlockScoped(t *
 
 	repoRoot := t.TempDir()
 	filePath := filepath.Join(repoRoot, "eval.go")
-	writeTestFile(
+	parsertest.WriteFile(
 		t,
 		filePath,
 		`package main
@@ -209,12 +212,12 @@ func addDemoTestCases(harness *OtherHarness, enabled bool) {
 `,
 	)
 
-	engine, err := DefaultEngine()
+	engine, err := parser.DefaultEngine()
 	if err != nil {
 		t.Fatalf("DefaultEngine() error = %v, want nil", err)
 	}
 
-	got, err := engine.ParsePath(repoRoot, filePath, false, Options{})
+	got, err := engine.ParsePath(repoRoot, filePath, false, parser.Options{})
 	if err != nil {
 		t.Fatalf("ParsePath() error = %v, want nil", err)
 	}
@@ -235,8 +238,8 @@ func addDemoTestCases(harness *OtherHarness, enabled bool) {
 	if innerCall == nil || outerCall == nil {
 		t.Fatalf("missing expected harness.AddTestCases calls; calls=%#v", got["function_calls"])
 	}
-	assertStringFieldValue(t, innerCall, "inferred_obj_type", "HTTPHarness")
-	assertStringFieldValue(t, outerCall, "inferred_obj_type", "OtherHarness")
+	parsertest.AssertStringFieldValue(t, innerCall, "inferred_obj_type", "HTTPHarness")
+	parsertest.AssertStringFieldValue(t, outerCall, "inferred_obj_type", "OtherHarness")
 }
 
 func TestDefaultEngineParsePathGoInfersRangeReceiverFromMapValueType(t *testing.T) {
@@ -244,7 +247,7 @@ func TestDefaultEngineParsePathGoInfersRangeReceiverFromMapValueType(t *testing.
 
 	repoRoot := t.TempDir()
 	filePath := filepath.Join(repoRoot, "descriptors.go")
-	writeTestFile(
+	parsertest.WriteFile(
 		t,
 		filePath,
 		`package main
@@ -265,23 +268,23 @@ func runControllers(controllerDescriptors map[string]*ControllerDescriptor) {
 `,
 	)
 
-	engine, err := DefaultEngine()
+	engine, err := parser.DefaultEngine()
 	if err != nil {
 		t.Fatalf("DefaultEngine() error = %v, want nil", err)
 	}
 
-	got, err := engine.ParsePath(repoRoot, filePath, false, Options{})
+	got, err := engine.ParsePath(repoRoot, filePath, false, parser.Options{})
 	if err != nil {
 		t.Fatalf("ParsePath() error = %v, want nil", err)
 	}
 
-	buildCall := assertBucketItemByFieldValue(t, got, "function_calls", "full_name", "controllerDesc.BuildController")
-	assertStringFieldValue(t, buildCall, "receiver_identifier", "controllerDesc")
-	assertStringFieldValue(t, buildCall, "inferred_obj_type", "ControllerDescriptor")
+	buildCall := parsertest.AssertBucketItemByFieldValue(t, got, "function_calls", "full_name", "controllerDesc.BuildController")
+	parsertest.AssertStringFieldValue(t, buildCall, "receiver_identifier", "controllerDesc")
+	parsertest.AssertStringFieldValue(t, buildCall, "inferred_obj_type", "ControllerDescriptor")
 
-	specialCall := assertBucketItemByFieldValue(t, got, "function_calls", "full_name", "controllerDesc.RequiresSpecialHandling")
-	assertStringFieldValue(t, specialCall, "receiver_identifier", "controllerDesc")
-	assertStringFieldValue(t, specialCall, "inferred_obj_type", "ControllerDescriptor")
+	specialCall := parsertest.AssertBucketItemByFieldValue(t, got, "function_calls", "full_name", "controllerDesc.RequiresSpecialHandling")
+	parsertest.AssertStringFieldValue(t, specialCall, "receiver_identifier", "controllerDesc")
+	parsertest.AssertStringFieldValue(t, specialCall, "inferred_obj_type", "ControllerDescriptor")
 }
 
 func TestDefaultEngineParsePathGoRecordsFunctionReturnType(t *testing.T) {
@@ -289,7 +292,7 @@ func TestDefaultEngineParsePathGoRecordsFunctionReturnType(t *testing.T) {
 
 	repoRoot := t.TempDir()
 	filePath := filepath.Join(repoRoot, "eval.go")
-	writeTestFile(
+	parsertest.WriteFile(
 		t,
 		filePath,
 		`package main
@@ -303,18 +306,18 @@ func (ctx *EvalContext) Actions() *Actions {
 `,
 	)
 
-	engine, err := DefaultEngine()
+	engine, err := parser.DefaultEngine()
 	if err != nil {
 		t.Fatalf("DefaultEngine() error = %v, want nil", err)
 	}
 
-	got, err := engine.ParsePath(repoRoot, filePath, false, Options{})
+	got, err := engine.ParsePath(repoRoot, filePath, false, parser.Options{})
 	if err != nil {
 		t.Fatalf("ParsePath() error = %v, want nil", err)
 	}
 
-	function := assertFunctionByNameAndClass(t, got, "Actions", "EvalContext")
-	assertStringFieldValue(t, function, "return_type", "Actions")
+	function := parsertest.AssertFunctionByNameAndClass(t, got, "Actions", "EvalContext")
+	parsertest.AssertStringFieldValue(t, function, "return_type", "Actions")
 }
 
 func TestDefaultEngineParsePathGoRecordsMethodReturnChainCallName(t *testing.T) {
@@ -322,7 +325,7 @@ func TestDefaultEngineParsePathGoRecordsMethodReturnChainCallName(t *testing.T) 
 
 	repoRoot := t.TempDir()
 	filePath := filepath.Join(repoRoot, "eval.go")
-	writeTestFile(
+	parsertest.WriteFile(
 		t,
 		filePath,
 		`package main
@@ -342,18 +345,18 @@ func execute(ctx *EvalContext) {
 `,
 	)
 
-	engine, err := DefaultEngine()
+	engine, err := parser.DefaultEngine()
 	if err != nil {
 		t.Fatalf("DefaultEngine() error = %v, want nil", err)
 	}
 
-	got, err := engine.ParsePath(repoRoot, filePath, false, Options{})
+	got, err := engine.ParsePath(repoRoot, filePath, false, parser.Options{})
 	if err != nil {
 		t.Fatalf("ParsePath() error = %v, want nil", err)
 	}
 
-	call := assertBucketItemByFieldValue(t, got, "function_calls", "name", "GetActionInstance")
-	assertStringFieldValue(t, call, "full_name", "ctx.Actions().GetActionInstance")
+	call := parsertest.AssertBucketItemByFieldValue(t, got, "function_calls", "name", "GetActionInstance")
+	parsertest.AssertStringFieldValue(t, call, "full_name", "ctx.Actions().GetActionInstance")
 }
 
 func TestDefaultEngineParsePathGoNormalizesQualifiedReturnTypes(t *testing.T) {
@@ -361,7 +364,7 @@ func TestDefaultEngineParsePathGoNormalizesQualifiedReturnTypes(t *testing.T) {
 
 	repoRoot := t.TempDir()
 	filePath := filepath.Join(repoRoot, "eval.go")
-	writeTestFile(
+	parsertest.WriteFile(
 		t,
 		filePath,
 		`package main
@@ -376,18 +379,18 @@ func (ctx *BuiltinEvalContext) Actions() *actions.Actions {
 `,
 	)
 
-	engine, err := DefaultEngine()
+	engine, err := parser.DefaultEngine()
 	if err != nil {
 		t.Fatalf("DefaultEngine() error = %v, want nil", err)
 	}
 
-	got, err := engine.ParsePath(repoRoot, filePath, false, Options{})
+	got, err := engine.ParsePath(repoRoot, filePath, false, parser.Options{})
 	if err != nil {
 		t.Fatalf("ParsePath() error = %v, want nil", err)
 	}
 
-	function := assertFunctionByNameAndClass(t, got, "Actions", "BuiltinEvalContext")
-	assertStringFieldValue(t, function, "return_type", "Actions")
+	function := parsertest.AssertFunctionByNameAndClass(t, got, "Actions", "BuiltinEvalContext")
+	parsertest.AssertStringFieldValue(t, function, "return_type", "Actions")
 }
 
 func bucketItems(t *testing.T, payload map[string]any, bucket string) []map[string]any {

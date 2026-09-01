@@ -1,13 +1,16 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package parser
+package golang_test
 
 import (
 	"path/filepath"
 	"sort"
 	"strings"
 	"testing"
+
+	"github.com/eshu-hq/eshu/go/internal/parser"
+	"github.com/eshu-hq/eshu/go/internal/parser/parsertest"
 )
 
 // TestGoDataflowSummariesEmitEffects proves the parser emits a per-function
@@ -18,7 +21,7 @@ import (
 func TestGoDataflowSummariesEmitEffects(t *testing.T) {
 	repoRoot := t.TempDir()
 	filePath := filepath.Join(repoRoot, "handlers.go")
-	writeTestFile(t, filePath, `package handlers
+	parsertest.WriteFile(t, filePath, `package handlers
 
 import (
 	"database/sql"
@@ -33,11 +36,11 @@ func query(db *sql.DB, r *http.Request) {
 	db.Query(r.FormValue("q"))
 }
 `)
-	engine, err := DefaultEngine()
+	engine, err := parser.DefaultEngine()
 	if err != nil {
 		t.Fatalf("DefaultEngine() error = %v", err)
 	}
-	got, err := engine.ParsePath(repoRoot, filePath, false, Options{
+	got, err := engine.ParsePath(repoRoot, filePath, false, parser.Options{
 		EmitDataflow:        true,
 		RepositoryID:        "repo-alpha",
 		GoPackageImportPath: "example.com/repo/handlers",
@@ -108,17 +111,17 @@ func query(db *sql.DB, r *http.Request) {
 func TestGoDataflowSummariesSortedByID(t *testing.T) {
 	repoRoot := t.TempDir()
 	filePath := filepath.Join(repoRoot, "many.go")
-	writeTestFile(t, filePath, `package many
+	parsertest.WriteFile(t, filePath, `package many
 
 func zulu(x string) string { return x }
 func alpha(x string) string { return x }
 func mike(x string) string { return x }
 `)
-	engine, err := DefaultEngine()
+	engine, err := parser.DefaultEngine()
 	if err != nil {
 		t.Fatalf("DefaultEngine() error = %v", err)
 	}
-	got, err := engine.ParsePath(repoRoot, filePath, false, Options{
+	got, err := engine.ParsePath(repoRoot, filePath, false, parser.Options{
 		EmitDataflow:        true,
 		RepositoryID:        "repo-alpha",
 		GoPackageImportPath: "example.com/repo/many",
@@ -147,15 +150,15 @@ func mike(x string) string { return x }
 func TestGoDataflowSummariesRequireRepositoryID(t *testing.T) {
 	repoRoot := t.TempDir()
 	filePath := filepath.Join(repoRoot, "handlers.go")
-	writeTestFile(t, filePath, `package handlers
+	parsertest.WriteFile(t, filePath, `package handlers
 
 func handle(x string) string { return x }
 `)
-	engine, err := DefaultEngine()
+	engine, err := parser.DefaultEngine()
 	if err != nil {
 		t.Fatalf("DefaultEngine() error = %v", err)
 	}
-	got, err := engine.ParsePath(repoRoot, filePath, false, Options{
+	got, err := engine.ParsePath(repoRoot, filePath, false, parser.Options{
 		EmitDataflow:        true,
 		GoPackageImportPath: "example.com/repo/handlers",
 	})
@@ -173,15 +176,15 @@ func handle(x string) string { return x }
 func TestGoDataflowSummariesRequireGoPackageImportPath(t *testing.T) {
 	repoRoot := t.TempDir()
 	filePath := filepath.Join(repoRoot, "handlers.go")
-	writeTestFile(t, filePath, `package handlers
+	parsertest.WriteFile(t, filePath, `package handlers
 
 func handle(x string) string { return x }
 `)
-	engine, err := DefaultEngine()
+	engine, err := parser.DefaultEngine()
 	if err != nil {
 		t.Fatalf("DefaultEngine() error = %v", err)
 	}
-	got, err := engine.ParsePath(repoRoot, filePath, false, Options{EmitDataflow: true, RepositoryID: "repo-alpha"})
+	got, err := engine.ParsePath(repoRoot, filePath, false, parser.Options{EmitDataflow: true, RepositoryID: "repo-alpha"})
 	if err != nil {
 		t.Fatalf("ParsePath error = %v", err)
 	}

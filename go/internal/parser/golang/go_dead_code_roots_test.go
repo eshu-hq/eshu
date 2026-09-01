@@ -1,12 +1,14 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package parser
+package golang_test
 
 import (
 	"path/filepath"
-	"reflect"
 	"testing"
+
+	"github.com/eshu-hq/eshu/go/internal/parser"
+	"github.com/eshu-hq/eshu/go/internal/parser/parsertest"
 )
 
 func TestDefaultEngineParsePathGoEmitsDeadCodeRootKinds(t *testing.T) {
@@ -14,7 +16,7 @@ func TestDefaultEngineParsePathGoEmitsDeadCodeRootKinds(t *testing.T) {
 
 	repoRoot := t.TempDir()
 	filePath := filepath.Join(repoRoot, "roots.go")
-	writeTestFile(
+	parsertest.WriteFile(
 		t,
 		filePath,
 		`package roots
@@ -40,19 +42,19 @@ func (r *PaymentReconciler) Reconcile(ctx ctxalias.Context, req ctrl.Request) (c
 `,
 	)
 
-	engine, err := DefaultEngine()
+	engine, err := parser.DefaultEngine()
 	if err != nil {
 		t.Fatalf("DefaultEngine() error = %v, want nil", err)
 	}
 
-	got, err := engine.ParsePath(repoRoot, filePath, false, Options{})
+	got, err := engine.ParsePath(repoRoot, filePath, false, parser.Options{})
 	if err != nil {
 		t.Fatalf("ParsePath() error = %v, want nil", err)
 	}
 
-	assertParserStringSliceFieldValue(t, assertFunctionByName(t, got, "ServePayments"), "dead_code_root_kinds", []string{"go.net_http_handler_signature"})
-	assertParserStringSliceFieldValue(t, assertFunctionByName(t, got, "runPayments"), "dead_code_root_kinds", []string{"go.cobra_run_signature"})
-	assertParserStringSliceFieldValue(t, assertFunctionByName(t, got, "Reconcile"), "dead_code_root_kinds", []string{"go.controller_runtime_reconcile_signature"})
+	parsertest.AssertStringSliceEquals(t, parsertest.AssertBucketItemByName(t, got, "functions", "ServePayments"), "dead_code_root_kinds", []string{"go.net_http_handler_signature"})
+	parsertest.AssertStringSliceEquals(t, parsertest.AssertBucketItemByName(t, got, "functions", "runPayments"), "dead_code_root_kinds", []string{"go.cobra_run_signature"})
+	parsertest.AssertStringSliceEquals(t, parsertest.AssertBucketItemByName(t, got, "functions", "Reconcile"), "dead_code_root_kinds", []string{"go.controller_runtime_reconcile_signature"})
 }
 
 func TestDefaultEngineParsePathGoDoesNotMarkValueRequestAsHTTPHandlerRoot(t *testing.T) {
@@ -60,7 +62,7 @@ func TestDefaultEngineParsePathGoDoesNotMarkValueRequestAsHTTPHandlerRoot(t *tes
 
 	repoRoot := t.TempDir()
 	filePath := filepath.Join(repoRoot, "value_request.go")
-	writeTestFile(
+	parsertest.WriteFile(
 		t,
 		filePath,
 		`package roots
@@ -71,30 +73,18 @@ func ServePayments(w handler.ResponseWriter, r handler.Request) {}
 `,
 	)
 
-	engine, err := DefaultEngine()
+	engine, err := parser.DefaultEngine()
 	if err != nil {
 		t.Fatalf("DefaultEngine() error = %v, want nil", err)
 	}
 
-	got, err := engine.ParsePath(repoRoot, filePath, false, Options{})
+	got, err := engine.ParsePath(repoRoot, filePath, false, parser.Options{})
 	if err != nil {
 		t.Fatalf("ParsePath() error = %v, want nil", err)
 	}
 
-	functionItem := assertFunctionByName(t, got, "ServePayments")
+	functionItem := parsertest.AssertBucketItemByName(t, got, "functions", "ServePayments")
 	if _, ok := functionItem["dead_code_root_kinds"]; ok {
 		t.Fatalf("dead_code_root_kinds = %#v, want absent for value request signature", functionItem["dead_code_root_kinds"])
-	}
-}
-
-func assertParserStringSliceFieldValue(t *testing.T, item map[string]any, field string, want []string) {
-	t.Helper()
-
-	got, ok := item[field].([]string)
-	if !ok {
-		t.Fatalf("%s = %T, want []string", field, item[field])
-	}
-	if !reflect.DeepEqual(got, want) {
-		t.Fatalf("%s = %#v, want %#v", field, got, want)
 	}
 }

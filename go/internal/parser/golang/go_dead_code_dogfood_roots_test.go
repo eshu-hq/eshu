@@ -1,11 +1,14 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package parser
+package golang_test
 
 import (
 	"path/filepath"
 	"testing"
+
+	"github.com/eshu-hq/eshu/go/internal/parser"
+	"github.com/eshu-hq/eshu/go/internal/parser/parsertest"
 )
 
 func TestDefaultEngineParsePathGoEmitsDependencyInjectionCallbackRoots(t *testing.T) {
@@ -13,7 +16,7 @@ func TestDefaultEngineParsePathGoEmitsDependencyInjectionCallbackRoots(t *testin
 
 	repoRoot := t.TempDir()
 	filePath := filepath.Join(repoRoot, "callbacks.go")
-	writeTestFile(
+	writeGoFixture(
 		t,
 		filePath,
 		`package roots
@@ -40,20 +43,20 @@ func main() {
 `,
 	)
 
-	engine, err := DefaultEngine()
+	engine, err := parser.DefaultEngine()
 	if err != nil {
 		t.Fatalf("DefaultEngine() error = %v, want nil", err)
 	}
 
-	got, err := engine.ParsePath(repoRoot, filePath, false, Options{})
+	got, err := engine.ParsePath(repoRoot, filePath, false, parser.Options{})
 	if err != nil {
 		t.Fatalf("ParsePath() error = %v, want nil", err)
 	}
 
-	assertParserStringSliceContains(t, assertFunctionByName(t, got, "openBootstrapDB"), "dead_code_root_kinds", "go.dependency_injection_callback")
-	assertParserStringSliceContains(t, assertFunctionByName(t, got, "applySchema"), "dead_code_root_kinds", "go.dependency_injection_callback")
-	assertParserStringSliceContains(t, assertFunctionByName(t, got, "directlyCalled"), "dead_code_root_kinds", "go.dependency_injection_callback")
-	if _, ok := assertFunctionByName(t, got, "unusedCallback")["dead_code_root_kinds"]; ok {
+	parsertest.AssertStringSliceContains(t, parsertest.AssertBucketItemByName(t, got, "functions", "openBootstrapDB"), "dead_code_root_kinds", "go.dependency_injection_callback")
+	parsertest.AssertStringSliceContains(t, parsertest.AssertBucketItemByName(t, got, "functions", "applySchema"), "dead_code_root_kinds", "go.dependency_injection_callback")
+	parsertest.AssertStringSliceContains(t, parsertest.AssertBucketItemByName(t, got, "functions", "directlyCalled"), "dead_code_root_kinds", "go.dependency_injection_callback")
+	if _, ok := parsertest.AssertBucketItemByName(t, got, "functions", "unusedCallback")["dead_code_root_kinds"]; ok {
 		t.Fatalf("unusedCallback dead_code_root_kinds present, want absent for unreferenced function")
 	}
 }
@@ -63,7 +66,7 @@ func TestDefaultEngineParsePathGoEmitsInterfaceRootsFromInterfaceReturn(t *testi
 
 	repoRoot := t.TempDir()
 	filePath := filepath.Join(repoRoot, "interface_return.go")
-	writeTestFile(
+	writeGoFixture(
 		t,
 		filePath,
 		`package roots
@@ -83,21 +86,21 @@ func openBootstrapDB() bootstrapDB {
 `,
 	)
 
-	engine, err := DefaultEngine()
+	engine, err := parser.DefaultEngine()
 	if err != nil {
 		t.Fatalf("DefaultEngine() error = %v, want nil", err)
 	}
 
-	got, err := engine.ParsePath(repoRoot, filePath, false, Options{})
+	got, err := engine.ParsePath(repoRoot, filePath, false, parser.Options{})
 	if err != nil {
 		t.Fatalf("ParsePath() error = %v, want nil", err)
 	}
 
-	assertParserStringSliceContains(t, assertBucketItemByName(t, got, "interfaces", "bootstrapDB"), "dead_code_root_kinds", "go.interface_type_reference")
-	assertParserStringSliceContains(t, assertBucketItemByName(t, got, "structs", "bootstrapSQLDB"), "dead_code_root_kinds", "go.type_reference")
-	assertParserStringSliceContains(t, assertBucketItemByName(t, got, "structs", "bootstrapSQLDB"), "dead_code_root_kinds", "go.interface_implementation_type")
-	assertParserStringSliceContains(t, assertFunctionByNameAndClass(t, got, "Close", "bootstrapSQLDB"), "dead_code_root_kinds", "go.interface_method_implementation")
-	if _, ok := assertFunctionByNameAndClass(t, got, "unused", "bootstrapSQLDB")["dead_code_root_kinds"]; ok {
+	parsertest.AssertStringSliceContains(t, parsertest.AssertBucketItemByName(t, got, "interfaces", "bootstrapDB"), "dead_code_root_kinds", "go.interface_type_reference")
+	parsertest.AssertStringSliceContains(t, parsertest.AssertBucketItemByName(t, got, "structs", "bootstrapSQLDB"), "dead_code_root_kinds", "go.type_reference")
+	parsertest.AssertStringSliceContains(t, parsertest.AssertBucketItemByName(t, got, "structs", "bootstrapSQLDB"), "dead_code_root_kinds", "go.interface_implementation_type")
+	parsertest.AssertStringSliceContains(t, parsertest.AssertFunctionByNameAndClass(t, got, "Close", "bootstrapSQLDB"), "dead_code_root_kinds", "go.interface_method_implementation")
+	if _, ok := parsertest.AssertFunctionByNameAndClass(t, got, "unused", "bootstrapSQLDB")["dead_code_root_kinds"]; ok {
 		t.Fatalf("bootstrapSQLDB.unused dead_code_root_kinds present, want absent outside local interface")
 	}
 }
@@ -107,7 +110,7 @@ func TestDefaultEngineParsePathGoMarksImportedInterfaceReturnImplementations(t *
 
 	repoRoot := t.TempDir()
 	filePath := filepath.Join(repoRoot, "imported_interface_return.go")
-	writeTestFile(
+	writeGoFixture(
 		t,
 		filePath,
 		`package roots
@@ -123,19 +126,19 @@ func openCloser() io.Closer {
 `,
 	)
 
-	engine, err := DefaultEngine()
+	engine, err := parser.DefaultEngine()
 	if err != nil {
 		t.Fatalf("DefaultEngine() error = %v, want nil", err)
 	}
 
-	got, err := engine.ParsePath(repoRoot, filePath, false, Options{})
+	got, err := engine.ParsePath(repoRoot, filePath, false, parser.Options{})
 	if err != nil {
 		t.Fatalf("ParsePath() error = %v, want nil", err)
 	}
 
-	assertParserStringSliceContains(t, assertBucketItemByName(t, got, "structs", "closerImpl"), "dead_code_root_kinds", "go.interface_implementation_type")
-	assertParserStringSliceContains(t, assertFunctionByNameAndClass(t, got, "Close", "closerImpl"), "dead_code_root_kinds", "go.interface_method_implementation")
-	if _, ok := assertFunctionByNameAndClass(t, got, "unused", "closerImpl")["dead_code_root_kinds"]; ok {
+	parsertest.AssertStringSliceContains(t, parsertest.AssertBucketItemByName(t, got, "structs", "closerImpl"), "dead_code_root_kinds", "go.interface_implementation_type")
+	parsertest.AssertStringSliceContains(t, parsertest.AssertFunctionByNameAndClass(t, got, "Close", "closerImpl"), "dead_code_root_kinds", "go.interface_method_implementation")
+	if _, ok := parsertest.AssertFunctionByNameAndClass(t, got, "unused", "closerImpl")["dead_code_root_kinds"]; ok {
 		t.Fatalf("closerImpl.unused dead_code_root_kinds present, want absent outside imported interface return")
 	}
 }
@@ -145,7 +148,7 @@ func TestDefaultEngineParsePathGoEmitsImportedInterfaceAssignmentRoots(t *testin
 
 	repoRoot := t.TempDir()
 	filePath := filepath.Join(repoRoot, "imported_interface.go")
-	writeTestFile(
+	writeGoFixture(
 		t,
 		filePath,
 		`package roots
@@ -177,23 +180,23 @@ func wire() {
 `,
 	)
 
-	engine, err := DefaultEngine()
+	engine, err := parser.DefaultEngine()
 	if err != nil {
 		t.Fatalf("DefaultEngine() error = %v, want nil", err)
 	}
 
-	got, err := engine.ParsePath(repoRoot, filePath, false, Options{})
+	got, err := engine.ParsePath(repoRoot, filePath, false, parser.Options{})
 	if err != nil {
 		t.Fatalf("ParsePath() error = %v, want nil", err)
 	}
 
-	assertParserStringSliceContains(t, assertFunctionByNameAndClass(t, got, "ExecuteCypher", "neo4jSchemaExecutor"), "dead_code_root_kinds", "go.interface_method_implementation")
-	assertParserStringSliceContains(t, assertBucketItemByName(t, got, "structs", "neo4jDeps"), "dead_code_root_kinds", "go.type_reference")
-	assertParserStringSliceContains(t, assertBucketItemByName(t, got, "structs", "neo4jSchemaExecutor"), "dead_code_root_kinds", "go.type_reference")
-	assertParserStringSliceContains(t, assertBucketItemByName(t, got, "structs", "neo4jSchemaExecutor"), "dead_code_root_kinds", "go.interface_implementation_type")
-	assertParserStringSliceContains(t, assertBucketItemByName(t, got, "structs", "drainingWorkSource"), "dead_code_root_kinds", "go.type_reference")
-	assertParserStringSliceContains(t, assertBucketItemByName(t, got, "structs", "drainingWorkSource"), "dead_code_root_kinds", "go.interface_implementation_type")
-	assertParserStringSliceContains(t, assertFunctionByNameAndClass(t, got, "Claim", "drainingWorkSource"), "dead_code_root_kinds", "go.interface_method_implementation")
+	parsertest.AssertStringSliceContains(t, parsertest.AssertFunctionByNameAndClass(t, got, "ExecuteCypher", "neo4jSchemaExecutor"), "dead_code_root_kinds", "go.interface_method_implementation")
+	parsertest.AssertStringSliceContains(t, parsertest.AssertBucketItemByName(t, got, "structs", "neo4jDeps"), "dead_code_root_kinds", "go.type_reference")
+	parsertest.AssertStringSliceContains(t, parsertest.AssertBucketItemByName(t, got, "structs", "neo4jSchemaExecutor"), "dead_code_root_kinds", "go.type_reference")
+	parsertest.AssertStringSliceContains(t, parsertest.AssertBucketItemByName(t, got, "structs", "neo4jSchemaExecutor"), "dead_code_root_kinds", "go.interface_implementation_type")
+	parsertest.AssertStringSliceContains(t, parsertest.AssertBucketItemByName(t, got, "structs", "drainingWorkSource"), "dead_code_root_kinds", "go.type_reference")
+	parsertest.AssertStringSliceContains(t, parsertest.AssertBucketItemByName(t, got, "structs", "drainingWorkSource"), "dead_code_root_kinds", "go.interface_implementation_type")
+	parsertest.AssertStringSliceContains(t, parsertest.AssertFunctionByNameAndClass(t, got, "Claim", "drainingWorkSource"), "dead_code_root_kinds", "go.interface_method_implementation")
 }
 
 func TestDefaultEngineParsePathGoMarksDirectMethodCallRoots(t *testing.T) {
@@ -201,7 +204,7 @@ func TestDefaultEngineParsePathGoMarksDirectMethodCallRoots(t *testing.T) {
 
 	repoRoot := t.TempDir()
 	filePath := filepath.Join(repoRoot, "method_calls.go")
-	writeTestFile(
+	writeGoFixture(
 		t,
 		filePath,
 		`package roots
@@ -239,23 +242,23 @@ func (c *Config) unused() {}
 `,
 	)
 
-	engine, err := DefaultEngine()
+	engine, err := parser.DefaultEngine()
 	if err != nil {
 		t.Fatalf("DefaultEngine() error = %v, want nil", err)
 	}
 
-	got, err := engine.ParsePath(repoRoot, filePath, false, Options{})
+	got, err := engine.ParsePath(repoRoot, filePath, false, parser.Options{})
 	if err != nil {
 		t.Fatalf("ParsePath() error = %v, want nil", err)
 	}
 
-	assertParserStringSliceContains(t, assertFunctionByNameAndClass(t, got, "get", "BasicAuthCache"), "dead_code_root_kinds", "go.direct_method_call")
-	assertParserStringSliceContains(t, assertFunctionByNameAndClass(t, got, "set", "BasicAuthCache"), "dead_code_root_kinds", "go.direct_method_call")
-	assertParserStringSliceContains(t, assertFunctionByNameAndClass(t, got, "serverAnnouncement", "Config"), "dead_code_root_kinds", "go.direct_method_call")
-	if _, ok := assertFunctionByNameAndClass(t, got, "get", "tokenCache")["dead_code_root_kinds"]; ok {
+	parsertest.AssertStringSliceContains(t, parsertest.AssertFunctionByNameAndClass(t, got, "get", "BasicAuthCache"), "dead_code_root_kinds", "go.direct_method_call")
+	parsertest.AssertStringSliceContains(t, parsertest.AssertFunctionByNameAndClass(t, got, "set", "BasicAuthCache"), "dead_code_root_kinds", "go.direct_method_call")
+	parsertest.AssertStringSliceContains(t, parsertest.AssertFunctionByNameAndClass(t, got, "serverAnnouncement", "Config"), "dead_code_root_kinds", "go.direct_method_call")
+	if _, ok := parsertest.AssertFunctionByNameAndClass(t, got, "get", "tokenCache")["dead_code_root_kinds"]; ok {
 		t.Fatalf("tokenCache.get dead_code_root_kinds present, want absent for uncalled same-name method")
 	}
-	if _, ok := assertFunctionByNameAndClass(t, got, "unused", "Config")["dead_code_root_kinds"]; ok {
+	if _, ok := parsertest.AssertFunctionByNameAndClass(t, got, "unused", "Config")["dead_code_root_kinds"]; ok {
 		t.Fatalf("Config.unused dead_code_root_kinds present, want absent for uncalled method")
 	}
 }
@@ -264,7 +267,7 @@ func TestDefaultEngineParsePathGoMarksImportedPackageMethodCallRoots(t *testing.
 	t.Parallel()
 
 	repoRoot := t.TempDir()
-	writeTestFile(
+	writeGoFixture(
 		t,
 		filepath.Join(repoRoot, "go.mod"),
 		`module example.com/root
@@ -276,7 +279,7 @@ go 1.24
 	refDir := filepath.Join(repoRoot, "internal", "ref")
 	addrsPath := filepath.Join(addrsDir, "module.go")
 	refPath := filepath.Join(refDir, "use.go")
-	writeTestFile(
+	writeGoFixture(
 		t,
 		addrsPath,
 		`package addrs
@@ -288,7 +291,7 @@ func (m Module) Child(name string) Module { return append(m, name) }
 func (m Module) unused() {}
 `,
 	)
-	writeTestFile(
+	writeGoFixture(
 		t,
 		refPath,
 		`package ref
@@ -302,7 +305,7 @@ func render(m addrs.Module) string {
 `,
 	)
 
-	engine, err := DefaultEngine()
+	engine, err := parser.DefaultEngine()
 	if err != nil {
 		t.Fatalf("DefaultEngine() error = %v, want nil", err)
 	}
@@ -317,7 +320,7 @@ func render(m addrs.Module) string {
 		t.Fatalf("DirectMethodCallRoots empty, want imported addrs method roots: %#v", packageTargets)
 	}
 
-	got, err := engine.ParsePath(repoRoot, addrsPath, false, Options{
+	got, err := engine.ParsePath(repoRoot, addrsPath, false, parser.Options{
 		GoPackageImportPath:             "example.com/root/internal/addrs",
 		GoDirectMethodCallRoots:         packageTargets[addrsDir].DirectMethodCallRoots,
 		GoImportedInterfaceParamMethods: packageTargets[addrsDir].ImportedInterfaceParamMethods,
@@ -326,9 +329,9 @@ func render(m addrs.Module) string {
 		t.Fatalf("ParsePath() error = %v, want nil", err)
 	}
 
-	assertParserStringSliceContains(t, assertFunctionByNameAndClass(t, got, "String", "Module"), "dead_code_root_kinds", "go.imported_direct_method_call")
-	assertParserStringSliceContains(t, assertFunctionByNameAndClass(t, got, "Child", "Module"), "dead_code_root_kinds", "go.imported_direct_method_call")
-	if _, ok := assertFunctionByNameAndClass(t, got, "unused", "Module")["dead_code_root_kinds"]; ok {
+	parsertest.AssertStringSliceContains(t, parsertest.AssertFunctionByNameAndClass(t, got, "String", "Module"), "dead_code_root_kinds", "go.imported_direct_method_call")
+	parsertest.AssertStringSliceContains(t, parsertest.AssertFunctionByNameAndClass(t, got, "Child", "Module"), "dead_code_root_kinds", "go.imported_direct_method_call")
+	if _, ok := parsertest.AssertFunctionByNameAndClass(t, got, "unused", "Module")["dead_code_root_kinds"]; ok {
 		t.Fatalf("Module.unused dead_code_root_kinds present, want absent for uncalled imported-package method")
 	}
 }
@@ -338,7 +341,7 @@ func TestDefaultEngineParsePathGoMarksLocalInterfaceFieldReferences(t *testing.T
 
 	repoRoot := t.TempDir()
 	filePath := filepath.Join(repoRoot, "interface_field.go")
-	writeTestFile(
+	writeGoFixture(
 		t,
 		filePath,
 		`package roots
@@ -353,15 +356,15 @@ type collectorDeps struct {
 `,
 	)
 
-	engine, err := DefaultEngine()
+	engine, err := parser.DefaultEngine()
 	if err != nil {
 		t.Fatalf("DefaultEngine() error = %v, want nil", err)
 	}
 
-	got, err := engine.ParsePath(repoRoot, filePath, false, Options{})
+	got, err := engine.ParsePath(repoRoot, filePath, false, parser.Options{})
 	if err != nil {
 		t.Fatalf("ParsePath() error = %v, want nil", err)
 	}
 
-	assertParserStringSliceContains(t, assertBucketItemByName(t, got, "interfaces", "bootstrapCommitter"), "dead_code_root_kinds", "go.interface_type_reference")
+	parsertest.AssertStringSliceContains(t, parsertest.AssertBucketItemByName(t, got, "interfaces", "bootstrapCommitter"), "dead_code_root_kinds", "go.interface_type_reference")
 }

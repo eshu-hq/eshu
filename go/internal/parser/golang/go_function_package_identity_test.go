@@ -1,11 +1,14 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package parser
+package golang_test
 
 import (
 	"path/filepath"
 	"testing"
+
+	"github.com/eshu-hq/eshu/go/internal/parser"
+	"github.com/eshu-hq/eshu/go/internal/parser/parsertest"
 )
 
 func TestGoFunctionRowsCarryPackageImportPathWhenKnown(t *testing.T) {
@@ -13,16 +16,16 @@ func TestGoFunctionRowsCarryPackageImportPathWhenKnown(t *testing.T) {
 
 	repoRoot := t.TempDir()
 	filePath := filepath.Join(repoRoot, "handlers.go")
-	writeTestFile(t, filePath, `package handlers
+	parsertest.WriteFile(t, filePath, `package handlers
 
 func handle(x string) string { return x }
 `)
-	engine, err := DefaultEngine()
+	engine, err := parser.DefaultEngine()
 	if err != nil {
 		t.Fatalf("DefaultEngine() error = %v", err)
 	}
 
-	got, err := engine.ParsePath(repoRoot, filePath, false, Options{GoPackageImportPath: "example.com/repo/handlers"})
+	got, err := engine.ParsePath(repoRoot, filePath, false, parser.Options{GoPackageImportPath: "example.com/repo/handlers"})
 	if err != nil {
 		t.Fatalf("ParsePath error = %v", err)
 	}
@@ -40,16 +43,16 @@ func TestGoFunctionRowsOmitBlankPackageImportPath(t *testing.T) {
 
 	repoRoot := t.TempDir()
 	filePath := filepath.Join(repoRoot, "handlers.go")
-	writeTestFile(t, filePath, `package handlers
+	parsertest.WriteFile(t, filePath, `package handlers
 
 func handle(x string) string { return x }
 `)
-	engine, err := DefaultEngine()
+	engine, err := parser.DefaultEngine()
 	if err != nil {
 		t.Fatalf("DefaultEngine() error = %v", err)
 	}
 
-	got, err := engine.ParsePath(repoRoot, filePath, false, Options{})
+	got, err := engine.ParsePath(repoRoot, filePath, false, parser.Options{})
 	if err != nil {
 		t.Fatalf("ParsePath error = %v", err)
 	}
@@ -67,18 +70,18 @@ func TestGoMethodRowsCarryReceiverScopedSCIPSymbolWhenPackageKnown(t *testing.T)
 
 	repoRoot := t.TempDir()
 	filePath := filepath.Join(repoRoot, "client.go")
-	writeTestFile(t, filePath, `package client
+	parsertest.WriteFile(t, filePath, `package client
 
 type Client struct{}
 
 func (c *Client) Request() error { return nil }
 `)
-	engine, err := DefaultEngine()
+	engine, err := parser.DefaultEngine()
 	if err != nil {
 		t.Fatalf("DefaultEngine() error = %v", err)
 	}
 
-	got, err := engine.ParsePath(repoRoot, filePath, false, Options{GoPackageImportPath: "github.com/acme/lib/client"})
+	got, err := engine.ParsePath(repoRoot, filePath, false, parser.Options{GoPackageImportPath: "github.com/acme/lib/client"})
 	if err != nil {
 		t.Fatalf("ParsePath error = %v", err)
 	}
@@ -96,7 +99,7 @@ func TestGoPackageQualifiedCallsCarryStableSymbolKey(t *testing.T) {
 
 	repoRoot := t.TempDir()
 	filePath := filepath.Join(repoRoot, "main.go")
-	writeTestFile(t, filePath, `package main
+	parsertest.WriteFile(t, filePath, `package main
 
 import client "github.com/acme/lib/client"
 
@@ -105,12 +108,12 @@ func main() {
 	client.Request()
 }
 `)
-	engine, err := DefaultEngine()
+	engine, err := parser.DefaultEngine()
 	if err != nil {
 		t.Fatalf("DefaultEngine() error = %v", err)
 	}
 
-	got, err := engine.ParsePath(repoRoot, filePath, false, Options{GoPackageImportPath: "github.com/acme/app"})
+	got, err := engine.ParsePath(repoRoot, filePath, false, parser.Options{GoPackageImportPath: "github.com/acme/app"})
 	if err != nil {
 		t.Fatalf("ParsePath error = %v", err)
 	}
@@ -125,7 +128,7 @@ func TestGoPackageQualifiedCallsOmitStableSymbolKeyForShadowedImportAlias(t *tes
 
 	repoRoot := t.TempDir()
 	filePath := filepath.Join(repoRoot, "main.go")
-	writeTestFile(t, filePath, `package main
+	parsertest.WriteFile(t, filePath, `package main
 
 import client "github.com/acme/lib/client"
 
@@ -137,12 +140,12 @@ func handle(client localClient) {
 	client.Request()
 }
 `)
-	engine, err := DefaultEngine()
+	engine, err := parser.DefaultEngine()
 	if err != nil {
 		t.Fatalf("DefaultEngine() error = %v", err)
 	}
 
-	got, err := engine.ParsePath(repoRoot, filePath, false, Options{GoPackageImportPath: "github.com/acme/app"})
+	got, err := engine.ParsePath(repoRoot, filePath, false, parser.Options{GoPackageImportPath: "github.com/acme/app"})
 	if err != nil {
 		t.Fatalf("ParsePath error = %v", err)
 	}
@@ -160,7 +163,7 @@ func TestGoPackageQualifiedCallsOmitStableSymbolKeyForLocallyShadowedImportAlias
 
 	repoRoot := t.TempDir()
 	filePath := filepath.Join(repoRoot, "main.go")
-	writeTestFile(t, filePath, `package main
+	parsertest.WriteFile(t, filePath, `package main
 
 import client "github.com/acme/lib/client"
 
@@ -173,12 +176,12 @@ func handle() {
 	client.Request()
 }
 `)
-	engine, err := DefaultEngine()
+	engine, err := parser.DefaultEngine()
 	if err != nil {
 		t.Fatalf("DefaultEngine() error = %v", err)
 	}
 
-	got, err := engine.ParsePath(repoRoot, filePath, false, Options{GoPackageImportPath: "github.com/acme/app"})
+	got, err := engine.ParsePath(repoRoot, filePath, false, parser.Options{GoPackageImportPath: "github.com/acme/app"})
 	if err != nil {
 		t.Fatalf("ParsePath error = %v", err)
 	}
@@ -197,15 +200,15 @@ func TestGoPackageSemanticRootsDeriveNestedModuleImportPath(t *testing.T) {
 	repoRoot := t.TempDir()
 	apiRoot := filepath.Join(repoRoot, "services", "api")
 	filePath := filepath.Join(apiRoot, "handlers", "handler.go")
-	writeTestFile(t, filepath.Join(apiRoot, "go.mod"), `module example.com/services/api
+	writeGoFixture(t, filepath.Join(apiRoot, "go.mod"), `module example.com/services/api
 
 go 1.24
 `)
-	writeTestFile(t, filePath, `package handlers
+	writeGoFixture(t, filePath, `package handlers
 
 func handle(x string) string { return x }
 `)
-	engine, err := DefaultEngine()
+	engine, err := parser.DefaultEngine()
 	if err != nil {
 		t.Fatalf("DefaultEngine() error = %v", err)
 	}

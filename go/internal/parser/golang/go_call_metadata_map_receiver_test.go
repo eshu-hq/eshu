@@ -1,11 +1,14 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package parser
+package golang_test
 
 import (
 	"path/filepath"
 	"testing"
+
+	"github.com/eshu-hq/eshu/go/internal/parser"
+	"github.com/eshu-hq/eshu/go/internal/parser/parsertest"
 )
 
 func TestDefaultEngineParsePathGoKeepsMapValueReceiverBindingsBlockScoped(t *testing.T) {
@@ -13,7 +16,7 @@ func TestDefaultEngineParsePathGoKeepsMapValueReceiverBindingsBlockScoped(t *tes
 
 	repoRoot := t.TempDir()
 	filePath := filepath.Join(repoRoot, "descriptors.go")
-	writeTestFile(
+	parsertest.WriteFile(
 		t,
 		filePath,
 		`package main
@@ -38,21 +41,21 @@ func runControllers(controllerDescriptors map[string]*OuterDescriptor, enabled b
 `,
 	)
 
-	engine, err := DefaultEngine()
+	engine, err := parser.DefaultEngine()
 	if err != nil {
 		t.Fatalf("DefaultEngine() error = %v, want nil", err)
 	}
 
-	got, err := engine.ParsePath(repoRoot, filePath, false, Options{})
+	got, err := engine.ParsePath(repoRoot, filePath, false, parser.Options{})
 	if err != nil {
 		t.Fatalf("ParsePath() error = %v, want nil", err)
 	}
 
-	innerCall := assertBucketItemByFieldValue(t, got, "function_calls", "full_name", "controllerDesc.BuildInner")
-	assertStringFieldValue(t, innerCall, "receiver_identifier", "controllerDesc")
-	assertStringFieldValue(t, innerCall, "inferred_obj_type", "InnerDescriptor")
+	innerCall := parsertest.AssertBucketItemByFieldValue(t, got, "function_calls", "full_name", "controllerDesc.BuildInner")
+	parsertest.AssertStringFieldValue(t, innerCall, "receiver_identifier", "controllerDesc")
+	parsertest.AssertStringFieldValue(t, innerCall, "inferred_obj_type", "InnerDescriptor")
 
-	outerCall := assertBucketItemByFieldValue(t, got, "function_calls", "full_name", "controllerDesc.BuildOuter")
-	assertStringFieldValue(t, outerCall, "receiver_identifier", "controllerDesc")
-	assertStringFieldValue(t, outerCall, "inferred_obj_type", "OuterDescriptor")
+	outerCall := parsertest.AssertBucketItemByFieldValue(t, got, "function_calls", "full_name", "controllerDesc.BuildOuter")
+	parsertest.AssertStringFieldValue(t, outerCall, "receiver_identifier", "controllerDesc")
+	parsertest.AssertStringFieldValue(t, outerCall, "inferred_obj_type", "OuterDescriptor")
 }

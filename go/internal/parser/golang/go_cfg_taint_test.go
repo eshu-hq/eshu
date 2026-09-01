@@ -1,11 +1,14 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package parser
+package golang_test
 
 import (
 	"path/filepath"
 	"testing"
+
+	"github.com/eshu-hq/eshu/go/internal/parser"
+	"github.com/eshu-hq/eshu/go/internal/parser/parsertest"
 )
 
 // taintFindingsBucket returns the taint_findings rows from a parsed payload.
@@ -36,12 +39,12 @@ func parseGoTaintFixture(t *testing.T, body string) map[string]any {
 	t.Helper()
 	repoRoot := t.TempDir()
 	filePath := filepath.Join(repoRoot, "handlers.go")
-	writeTestFile(t, filePath, body)
-	engine, err := DefaultEngine()
+	parsertest.WriteFile(t, filePath, body)
+	engine, err := parser.DefaultEngine()
 	if err != nil {
 		t.Fatalf("DefaultEngine() error = %v", err)
 	}
-	got, err := engine.ParsePath(repoRoot, filePath, false, Options{EmitDataflow: true})
+	got, err := engine.ParsePath(repoRoot, filePath, false, parser.Options{EmitDataflow: true})
 	if err != nil {
 		t.Fatalf("ParsePath error = %v", err)
 	}
@@ -307,7 +310,7 @@ func handle(r *http.Request, db *sql.DB) {
 func TestGoTaintOffIsByteIdentical(t *testing.T) {
 	repoRoot := t.TempDir()
 	filePath := filepath.Join(repoRoot, "handlers.go")
-	writeTestFile(t, filePath, `package handlers
+	parsertest.WriteFile(t, filePath, `package handlers
 
 import "net/http"
 
@@ -315,11 +318,11 @@ func handle(r *http.Request) {
 	_ = r.FormValue("q")
 }
 `)
-	engine, err := DefaultEngine()
+	engine, err := parser.DefaultEngine()
 	if err != nil {
 		t.Fatalf("DefaultEngine() error = %v", err)
 	}
-	off, err := engine.ParsePath(repoRoot, filePath, false, Options{})
+	off, err := engine.ParsePath(repoRoot, filePath, false, parser.Options{})
 	if err != nil {
 		t.Fatalf("ParsePath (off) error = %v", err)
 	}

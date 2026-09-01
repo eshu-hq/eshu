@@ -1,13 +1,16 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package parser
+package golang_test
 
 import (
 	"path/filepath"
 	"reflect"
 	"strconv"
 	"testing"
+
+	"github.com/eshu-hq/eshu/go/internal/parser"
+	"github.com/eshu-hq/eshu/go/internal/parser/parsertest"
 )
 
 const cfgDataflowFixture = `package handlers
@@ -29,14 +32,14 @@ func sanitize(s string) string { return s }
 func TestGoDataflowOffIsByteIdentical(t *testing.T) {
 	repoRoot := t.TempDir()
 	filePath := filepath.Join(repoRoot, "handlers.go")
-	writeTestFile(t, filePath, cfgDataflowFixture)
+	parsertest.WriteFile(t, filePath, cfgDataflowFixture)
 
-	engine, err := DefaultEngine()
+	engine, err := parser.DefaultEngine()
 	if err != nil {
 		t.Fatalf("DefaultEngine() error = %v", err)
 	}
 
-	off, err := engine.ParsePath(repoRoot, filePath, false, Options{})
+	off, err := engine.ParsePath(repoRoot, filePath, false, parser.Options{})
 	if err != nil {
 		t.Fatalf("ParsePath (off) error = %v", err)
 	}
@@ -44,7 +47,7 @@ func TestGoDataflowOffIsByteIdentical(t *testing.T) {
 		t.Fatalf("dataflow_functions present when gate off")
 	}
 
-	on, err := engine.ParsePath(repoRoot, filePath, false, Options{EmitDataflow: true})
+	on, err := engine.ParsePath(repoRoot, filePath, false, parser.Options{EmitDataflow: true})
 	if err != nil {
 		t.Fatalf("ParsePath (on) error = %v", err)
 	}
@@ -69,13 +72,13 @@ func TestGoDataflowOffIsByteIdentical(t *testing.T) {
 func TestGoDataflowEmitsReachingDefs(t *testing.T) {
 	repoRoot := t.TempDir()
 	filePath := filepath.Join(repoRoot, "handlers.go")
-	writeTestFile(t, filePath, cfgDataflowFixture)
+	parsertest.WriteFile(t, filePath, cfgDataflowFixture)
 
-	engine, err := DefaultEngine()
+	engine, err := parser.DefaultEngine()
 	if err != nil {
 		t.Fatalf("DefaultEngine() error = %v", err)
 	}
-	got, err := engine.ParsePath(repoRoot, filePath, false, Options{EmitDataflow: true})
+	got, err := engine.ParsePath(repoRoot, filePath, false, parser.Options{EmitDataflow: true})
 	if err != nil {
 		t.Fatalf("ParsePath error = %v", err)
 	}
