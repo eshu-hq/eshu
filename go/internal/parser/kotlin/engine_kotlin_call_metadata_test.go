@@ -52,7 +52,7 @@ fun helper(): String = "top-level"
 		if fullName != "this.helper" {
 			continue
 		}
-		assertStringFieldValue(t, item, "class_context", "Worker")
+		parsertest.AssertStringFieldValue(t, item, "class_context", "Worker")
 		return
 	}
 	t.Fatalf("function_calls missing full_name=%q in %#v", "this.helper", items)
@@ -112,7 +112,7 @@ fun usage(): String {
 	for _, item := range items {
 		fullName, _ := item["full_name"].(string)
 		if wantType, ok := want[fullName]; ok {
-			assertStringFieldValue(t, item, "inferred_obj_type", wantType)
+			parsertest.AssertStringFieldValue(t, item, "inferred_obj_type", wantType)
 			delete(want, fullName)
 		}
 	}
@@ -121,7 +121,7 @@ fun usage(): String {
 	}
 
 	extension := parsertest.AssertBucketItemByName(t, got, "functions", "removeSpaces")
-	assertStringFieldValue(t, extension, "class_context", "String")
+	parsertest.AssertStringFieldValue(t, extension, "class_context", "String")
 }
 
 func TestDefaultEngineParsePathKotlinInfersCastReceiverTypesForDotCalls(t *testing.T) {
@@ -165,7 +165,7 @@ fun usage(any: Any): String {
 		if fullName != "service.info" {
 			continue
 		}
-		assertStringFieldValue(t, item, "inferred_obj_type", "Service")
+		parsertest.AssertStringFieldValue(t, item, "inferred_obj_type", "Service")
 		return
 	}
 	t.Fatalf("function_calls missing full_name=%q in %#v", "service.info", items)
@@ -211,7 +211,7 @@ fun usage(any: Any): String {
 		if fullName != "(any as Service).info" {
 			continue
 		}
-		assertStringFieldValue(t, item, "inferred_obj_type", "Service")
+		parsertest.AssertStringFieldValue(t, item, "inferred_obj_type", "Service")
 		return
 	}
 	t.Fatalf("function_calls missing full_name=%q in %#v", "(any as Service).info", items)
@@ -258,8 +258,8 @@ fun usage(): Int {
 		if fullName != "calc add" {
 			continue
 		}
-		assertStringFieldValue(t, item, "name", "add")
-		assertStringFieldValue(t, item, "inferred_obj_type", "Calculator")
+		parsertest.AssertStringFieldValue(t, item, "name", "add")
+		parsertest.AssertStringFieldValue(t, item, "inferred_obj_type", "Calculator")
 		return
 	}
 	t.Fatalf("function_calls missing full_name=%q in %#v", "calc add", items)
@@ -310,7 +310,7 @@ class Worker {
 		if fullName != "active.info" {
 			continue
 		}
-		assertStringFieldValue(t, item, "inferred_obj_type", "Service")
+		parsertest.AssertStringFieldValue(t, item, "inferred_obj_type", "Service")
 		return
 	}
 	t.Fatalf("function_calls missing full_name=%q in %#v", "active.info", items)
@@ -356,7 +356,7 @@ fun usage(): Boolean {
 		if fullName != "AppConfig.isProduction" {
 			continue
 		}
-		assertStringFieldValue(t, item, "inferred_obj_type", "AppConfig")
+		parsertest.AssertStringFieldValue(t, item, "inferred_obj_type", "AppConfig")
 		return
 	}
 	t.Fatalf("function_calls missing full_name=%q in %#v", "AppConfig.isProduction", items)
@@ -406,7 +406,7 @@ fun usage(): String {
 	for _, item := range items {
 		fullName, _ := item["full_name"].(string)
 		if wantType, ok := want[fullName]; ok {
-			assertStringFieldValue(t, item, "inferred_obj_type", wantType)
+			parsertest.AssertStringFieldValue(t, item, "inferred_obj_type", wantType)
 			delete(want, fullName)
 		}
 	}
@@ -467,7 +467,7 @@ fun usage(): String {
 	for _, item := range items {
 		fullName, _ := item["full_name"].(string)
 		if wantType, ok := want[fullName]; ok {
-			assertStringFieldValue(t, item, "inferred_obj_type", wantType)
+			parsertest.AssertStringFieldValue(t, item, "inferred_obj_type", wantType)
 			delete(want, fullName)
 		}
 	}
@@ -521,7 +521,7 @@ fun usage(): String {
 		if fullName != "session.service.info" {
 			continue
 		}
-		assertStringFieldValue(t, item, "inferred_obj_type", "Service")
+		parsertest.AssertStringFieldValue(t, item, "inferred_obj_type", "Service")
 		return
 	}
 	t.Fatalf("function_calls missing full_name=%q in %#v", "session.service.info", items)
@@ -572,7 +572,7 @@ fun usage(): String {
 		if fullName != "session.service.info" {
 			continue
 		}
-		assertStringFieldValue(t, item, "inferred_obj_type", "Service")
+		parsertest.AssertStringFieldValue(t, item, "inferred_obj_type", "Service")
 		return
 	}
 	t.Fatalf("function_calls missing full_name=%q in %#v", "session.service.info", items)
@@ -624,7 +624,7 @@ fun usage(): String {
 		if fullName != "provider.info" {
 			continue
 		}
-		assertStringFieldValue(t, item, "inferred_obj_type", "Service")
+		parsertest.AssertStringFieldValue(t, item, "inferred_obj_type", "Service")
 		return
 	}
 	t.Fatalf("function_calls missing full_name=%q in %#v", "provider.info", items)
@@ -676,7 +676,7 @@ fun usage(): String {
 		if fullName != "provider.info" {
 			continue
 		}
-		assertStringFieldValue(t, item, "inferred_obj_type", "Service")
+		parsertest.AssertStringFieldValue(t, item, "inferred_obj_type", "Service")
 		return
 	}
 	t.Fatalf("function_calls missing full_name=%q in %#v", "provider.info", items)
@@ -724,7 +724,7 @@ class Worker(private val service: Service) {
 		if fullName != "service.info" {
 			continue
 		}
-		assertStringFieldValue(t, item, "inferred_obj_type", "Service")
+		parsertest.AssertStringFieldValue(t, item, "inferred_obj_type", "Service")
 		return
 	}
 	t.Fatalf("function_calls missing full_name=%q in %#v", "service.info", items)

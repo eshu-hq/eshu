@@ -40,27 +40,8 @@ func writeKotlinTestFile(t *testing.T, path string, body string) {
 }
 
 // assertStringFieldValue requires item[field] to hold the string want.
-func assertStringFieldValue(t *testing.T, item map[string]any, field string, want string) {
-	t.Helper()
-
-	got, _ := item[field].(string)
-	if got != want {
-		t.Fatalf("%s = %#v, want %#v", field, got, want)
-	}
-}
 
 // assertIntFieldValue requires item[field] to hold the int want.
-func assertIntFieldValue(t *testing.T, item map[string]any, field string, want int) {
-	t.Helper()
-
-	got, ok := item[field].(int)
-	if !ok {
-		t.Fatalf("%s = %T, want int", field, item[field])
-	}
-	if got != want {
-		t.Fatalf("%s = %d, want %d", field, got, want)
-	}
-}
 
 // assertBoolFieldValue requires item[field] to hold the bool want.
 func assertBoolFieldValue(t *testing.T, item map[string]any, field string, want bool) {

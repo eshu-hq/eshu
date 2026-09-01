@@ -8,6 +8,8 @@ import (
 	"testing"
 
 	"github.com/eshu-hq/eshu/go/internal/parser"
+
+	"github.com/eshu-hq/eshu/go/internal/parser/parsertest"
 )
 
 func TestDefaultEngineParsePathKotlinInfersScopeFunctionPreservedAssignmentReceiverTypesForDotCalls(t *testing.T) {
@@ -52,7 +54,7 @@ fun usage(): String {
 		if fullName != "service.info" {
 			continue
 		}
-		assertStringFieldValue(t, item, "inferred_obj_type", "Service")
+		parsertest.AssertStringFieldValue(t, item, "inferred_obj_type", "Service")
 		return
 	}
 	t.Fatalf("function_calls missing full_name=%q in %#v", "service.info", items)
@@ -100,7 +102,7 @@ fun usage(): String {
 		if fullName != "service.info" {
 			continue
 		}
-		assertStringFieldValue(t, item, "inferred_obj_type", "Service")
+		parsertest.AssertStringFieldValue(t, item, "inferred_obj_type", "Service")
 		return
 	}
 	t.Fatalf("function_calls missing full_name=%q in %#v", "service.info", items)
@@ -148,7 +150,7 @@ fun usage(): String {
 		if name != "info" {
 			continue
 		}
-		assertStringFieldValue(t, item, "inferred_obj_type", "Service")
+		parsertest.AssertStringFieldValue(t, item, "inferred_obj_type", "Service")
 		return
 	}
 	t.Fatalf("function_calls missing name=%q in %#v", "info", items)

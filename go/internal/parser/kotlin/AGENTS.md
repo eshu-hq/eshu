@@ -19,10 +19,10 @@ External `kotlin_test` files (the `engine_kotlin_*_test.go` family, 16 files)
 may import the parent parser to verify its exported engine contract without
 gaining access to parent internals. They also import
 `go/internal/parser/parsertest` for the assertion helpers that other language
-packages share; `engine_kotlin_test_helpers_test.go` holds the few local
-copies parsertest does not have (`assertStringFieldValue`,
-`assertIntFieldValue`, `assertBoolFieldValue`) and the `kotlinFixturePath` /
-`writeKotlinTestFile` fixture helpers.
+packages share; `engine_kotlin_test_helpers_test.go` holds only what
+parsertest does not provide: `assertBoolFieldValue`, plus the
+`kotlinFixturePath` and `writeKotlinTestFile` fixture helpers. String and int
+field assertions come from parsertest; do not add local copies of them back.
 
 Extraction is AST-only. Do not reintroduce `regexp` or `strings.Split(src,
 "\n")` line-scan symbol extraction. Confirm grammar node kinds with a compiled

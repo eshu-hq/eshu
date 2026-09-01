@@ -50,13 +50,13 @@ class Result(val id: String)
 
 	parsertest.AssertBucketItemByName(t, got, "classes", "Repository")
 	load := parsertest.AssertBucketItemByName(t, got, "functions", "load")
-	assertStringFieldValue(t, load, "class_context", "Repository")
-	assertIntFieldValue(t, load, "line_number", 9)
-	assertIntFieldValue(t, load, "end_line", 13)
+	parsertest.AssertStringFieldValue(t, load, "class_context", "Repository")
+	parsertest.AssertIntFieldValue(t, load, "line_number", 9)
+	parsertest.AssertIntFieldValue(t, load, "end_line", 13)
 
 	call := parsertest.AssertBucketItemByName(t, got, "function_calls", "fetch")
-	assertStringFieldValue(t, call, "full_name", "client.fetch")
-	assertStringFieldValue(t, call, "inferred_obj_type", "Client")
+	parsertest.AssertStringFieldValue(t, call, "full_name", "client.fetch")
+	parsertest.AssertStringFieldValue(t, call, "inferred_obj_type", "Client")
 }
 
 func TestDefaultEngineParsePathKotlinScopesPrimaryConstructorPropertiesToOwningClass(t *testing.T) {
@@ -98,7 +98,7 @@ class Repository {
 	}
 
 	nestedCall := assertKotlinCallByFullNameAndLine(t, got, "child.fetch", 13)
-	assertStringFieldValue(t, nestedCall, "inferred_obj_type", "ChildClient")
+	parsertest.AssertStringFieldValue(t, nestedCall, "inferred_obj_type", "ChildClient")
 }
 
 func assertKotlinCallByFullNameAndLine(t *testing.T, payload map[string]any, fullName string, line int) map[string]any {
