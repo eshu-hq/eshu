@@ -42,7 +42,7 @@ func TestGetRepositoryStoryUsesReadModelDeploymentEvidence(t *testing.T) {
 					{Language: "yaml", FileCount: 2},
 				},
 			},
-			summary: repositoryReadModelSummary{
+			summary: RepositoryReadModelSummary{
 				Available:     true,
 				WorkloadNames: []string{"checkout-service"},
 			},

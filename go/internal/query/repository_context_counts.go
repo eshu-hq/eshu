@@ -24,7 +24,7 @@ func queryRepositoryContextCounts(
 	params map[string]any,
 	fallback map[string]any,
 	contentCoverage *RepositoryContentCoverage,
-	readModelSummary *repositoryReadModelSummary,
+	readModelSummary *RepositoryReadModelSummary,
 ) (repositoryContextCounts, error) {
 	fileCount, err := queryRepositoryFileCount(ctx, reader, params, fallback, contentCoverage)
 	if err != nil {
@@ -55,7 +55,7 @@ func queryRepositoryWorkloadCount(
 	reader GraphQuery,
 	params map[string]any,
 	fallback map[string]any,
-	readModelSummary *repositoryReadModelSummary,
+	readModelSummary *RepositoryReadModelSummary,
 ) (int, error) {
 	if readModelSummary != nil && readModelSummary.Available {
 		return len(readModelSummary.WorkloadNames), nil
@@ -71,7 +71,7 @@ func queryRepositoryPlatformCount(
 	reader GraphQuery,
 	params map[string]any,
 	fallback map[string]any,
-	readModelSummary *repositoryReadModelSummary,
+	readModelSummary *RepositoryReadModelSummary,
 ) (int, error) {
 	if readModelSummary != nil && readModelSummary.Available {
 		return readModelSummary.PlatformCount, nil
@@ -89,7 +89,7 @@ func queryRepositoryDependencyCount(
 	reader GraphQuery,
 	params map[string]any,
 	fallback map[string]any,
-	readModelSummary *repositoryReadModelSummary,
+	readModelSummary *RepositoryReadModelSummary,
 ) (int, error) {
 	if readModelSummary != nil && readModelSummary.Available {
 		return readModelSummary.DependencyCount, nil

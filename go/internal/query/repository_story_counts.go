@@ -62,7 +62,7 @@ func queryRepositoryStoryGraphSummary(
 	params map[string]any,
 	fallback map[string]any,
 	contentCoverage *RepositoryContentCoverage,
-	readModelSummary *repositoryReadModelSummary,
+	readModelSummary *RepositoryReadModelSummary,
 ) (repositoryStoryGraphSummary, error) {
 	fileCount, err := queryRepositoryFileCount(ctx, reader, params, fallback, contentCoverage)
 	if err != nil {
@@ -99,7 +99,7 @@ func queryRepositoryStoryWorkloadNames(
 	reader GraphQuery,
 	params map[string]any,
 	fallback map[string]any,
-	readModelSummary *repositoryReadModelSummary,
+	readModelSummary *RepositoryReadModelSummary,
 ) ([]string, bool, error) {
 	if readModelSummary != nil && readModelSummary.Available {
 		return readModelSummary.WorkloadNames, false, nil
@@ -126,7 +126,7 @@ func queryRepositoryStoryPlatformTypes(
 	reader GraphQuery,
 	params map[string]any,
 	fallback map[string]any,
-	readModelSummary *repositoryReadModelSummary,
+	readModelSummary *RepositoryReadModelSummary,
 ) ([]string, bool, error) {
 	if readModelSummary != nil && readModelSummary.Available {
 		return readModelSummary.PlatformTypes, false, nil

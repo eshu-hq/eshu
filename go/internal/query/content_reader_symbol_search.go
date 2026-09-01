@@ -12,7 +12,16 @@ import (
 	"go.opentelemetry.io/otel/trace"
 )
 
-func (cr *ContentReader) searchSymbols(
+// SearchSymbols queries content_entities for entities whose entity_name
+// matches req's symbol (exact match when req.mustMatchMode() is "exact",
+// otherwise an ILIKE substring match), further scoped by req.RepoID and
+// req.Language. It is the symbol-aware fast path symbolContentSearcher
+// exposes to CodeHandler.symbolSearchResults; the fallback that runs
+// without a satisfying store uses SearchEntitiesByName's different name-only
+// match semantics, so callers must not treat the two as interchangeable --
+// see #6060's provenance fix, which gives the fallback its own
+// source_backend value for exactly this reason.
+func (cr *ContentReader) SearchSymbols(
 	ctx context.Context,
 	req symbolSearchRequest,
 ) ([]EntityContent, error) {

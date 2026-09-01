@@ -101,14 +101,14 @@ func TestContentReaderDocumentationFindingsReportsSourceOnlyDocumentationFacts(t
 	})
 	reader := NewContentReader(db)
 
-	got, err := reader.documentationFindings(t.Context(), documentationFindingFilter{
+	got, err := reader.DocumentationFindings(t.Context(), documentationFindingFilter{
 		Repository: "repo-payments-api",
 		TargetKind: "repository",
 		TargetID:   "repo-payments-api",
 		Limit:      10,
 	})
 	if err != nil {
-		t.Fatalf("documentationFindings() error = %v, want nil", err)
+		t.Fatalf("DocumentationFindings() error = %v, want nil", err)
 	}
 	if gotCount, want := got.Coverage.SourceOnlyCount, 1150; gotCount != want {
 		t.Fatalf("coverage.source_only_count = %d, want %d", gotCount, want)

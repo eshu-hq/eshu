@@ -411,12 +411,12 @@ func TestContentReaderRepositoryDeploymentEvidenceHydratesPreviewArtifacts(t *te
 	})
 
 	reader := NewContentReader(db)
-	got, err := reader.repositoryDeploymentEvidence(t.Context(), "repo-service")
+	got, err := reader.RepositoryDeploymentEvidence(t.Context(), "repo-service")
 	if err != nil {
-		t.Fatalf("repositoryDeploymentEvidence() error = %v, want nil", err)
+		t.Fatalf("RepositoryDeploymentEvidence() error = %v, want nil", err)
 	}
 	if !got.Available {
-		t.Fatal("repositoryDeploymentEvidence().Available = false, want true")
+		t.Fatal("RepositoryDeploymentEvidence().Available = false, want true")
 	}
 	if len(got.Rows) != 1 {
 		t.Fatalf("len(Rows) = %d, want 1", len(got.Rows))

@@ -86,7 +86,7 @@ The gate's independence from the backing map is tiered, not absolute:
 
 | Route | Handler.method | Served domain(s) | Load-bearing query evidence |
 | --- | --- | --- | --- |
-| GET /api/v0/documentation/facts | DocumentationHandler.listFacts | documentation_materialization | `(*ContentReader).documentationFacts` IN-list from `facts.Documentation*FactKind` (query/documentation_read_model.go:359-367) over `fact_records` |
+| GET /api/v0/documentation/facts | DocumentationHandler.listFacts | documentation_materialization | `(*ContentReader).DocumentationFacts` IN-list from `facts.Documentation*FactKind` (query/documentation_read_model.go:359-367) over `fact_records` |
 | GET /api/v0/cloud/inventory | CloudInventoryHandler.listInventory | aws_cloud_runtime_drift, azure_resource_materialization, gcp_resource_materialization | `fact_kind = 'reducer_cloud_resource_identity'` (query/cloud_inventory_read_model.go:22,88); producer: reducer/cloud_inventory_admission_writer.go:18 fed by the closed set {aws_resource, gcp_cloud_resource, azure_cloud_resource} (projector/cloud_inventory_admission_intents.go:18-21) |
 | GET /api/v0/ci-cd/run-correlations | CICDHandler.listRunCorrelations | ci_cd_run_correlation | `fact.fact_kind = $1` = `reducer_ci_cd_run_correlation` (query/ci_cd_run_correlations.go:15,144); writer reducer/ci_cd_run_correlation_writer.go:17 |
 | GET /api/v0/repositories | RepositoryHandler.listRepositories | code_graph_projection | `MATCH (r:Repository)` page + count Cypher (query/repository.go:66,164-171) |

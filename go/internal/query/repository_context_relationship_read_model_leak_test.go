@@ -19,8 +19,8 @@ import (
 // relationship_overview). Neither the read-model SQL nor the emit sites in
 // repository_context.go filter the related endpoint by grant (#5167 W3 P0,
 // fourth vector).
-func crossTenantRelationshipReadModel() repositoryRelationshipReadModel {
-	return repositoryRelationshipReadModel{
+func crossTenantRelationshipReadModel() RepositoryRelationshipReadModel {
+	return RepositoryRelationshipReadModel{
 		Available: true,
 		Relationships: []map[string]any{
 			{

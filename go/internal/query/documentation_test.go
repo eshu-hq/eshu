@@ -330,13 +330,13 @@ func TestContentReaderDocumentationFindingsFiltersAndBuildsPacketURL(t *testing.
 	})
 	reader := NewContentReader(db)
 
-	got, err := reader.documentationFindings(t.Context(), documentationFindingFilter{
+	got, err := reader.DocumentationFindings(t.Context(), documentationFindingFilter{
 		FindingType: "service_deployment_drift",
 		Status:      "conflict",
 		Limit:       50,
 	})
 	if err != nil {
-		t.Fatalf("documentationFindings() error = %v, want nil", err)
+		t.Fatalf("DocumentationFindings() error = %v, want nil", err)
 	}
 	if got, want := len(got.Findings), 1; got != want {
 		t.Fatalf("len(Findings) = %d, want %d", got, want)
@@ -370,12 +370,12 @@ func TestContentReaderDocumentationEvidencePacketDeniesBlockedVisibility(t *test
 	})
 	reader := NewContentReader(db)
 
-	got, err := reader.documentationEvidencePacket(t.Context(), "finding:service-deployment:1")
+	got, err := reader.DocumentationEvidencePacket(t.Context(), "finding:service-deployment:1")
 	if err != nil {
-		t.Fatalf("documentationEvidencePacket() error = %v, want nil", err)
+		t.Fatalf("DocumentationEvidencePacket() error = %v, want nil", err)
 	}
 	if !got.Denied {
-		t.Fatalf("documentationEvidencePacket().Denied = false, want true")
+		t.Fatalf("DocumentationEvidencePacket().Denied = false, want true")
 	}
 	if got, want := got.DeniedReason, "caller cannot read source document"; got != want {
 		t.Fatalf("DeniedReason = %#v, want %#v", got, want)
@@ -403,9 +403,9 @@ func TestContentReaderDocumentationEvidencePacketFreshness(t *testing.T) {
 	})
 	reader := NewContentReader(db)
 
-	got, err := reader.documentationEvidencePacketFreshness(t.Context(), "doc-packet:service-deployment:1", "")
+	got, err := reader.DocumentationEvidencePacketFreshness(t.Context(), "doc-packet:service-deployment:1", "")
 	if err != nil {
-		t.Fatalf("documentationEvidencePacketFreshness() error = %v, want nil", err)
+		t.Fatalf("DocumentationEvidencePacketFreshness() error = %v, want nil", err)
 	}
 	if got, want := got.PacketID, "doc-packet:service-deployment:1"; got != want {
 		t.Fatalf("PacketID = %#v, want %#v", got, want)

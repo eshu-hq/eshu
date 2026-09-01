@@ -24,7 +24,7 @@ type repositoryDeploymentEvidenceReadModel struct {
 }
 
 type repositoryDeploymentEvidenceReadModelStore interface {
-	repositoryDeploymentEvidence(context.Context, string) (repositoryDeploymentEvidenceReadModel, error)
+	RepositoryDeploymentEvidence(context.Context, string) (repositoryDeploymentEvidenceReadModel, error)
 }
 
 func loadRepositoryDeploymentEvidence(ctx context.Context, content ContentStore, repoID string) (map[string]any, error) {
@@ -32,7 +32,7 @@ func loadRepositoryDeploymentEvidence(ctx context.Context, content ContentStore,
 	if !ok || repoID == "" {
 		return nil, nil
 	}
-	readModel, err := store.repositoryDeploymentEvidence(ctx, repoID)
+	readModel, err := store.RepositoryDeploymentEvidence(ctx, repoID)
 	if err != nil {
 		return nil, err
 	}
@@ -56,9 +56,9 @@ func loadRepositoryDeploymentEvidence(ctx context.Context, content ContentStore,
 	return result, nil
 }
 
-// repositoryDeploymentEvidence builds the deployment-evidence response rows
+// RepositoryDeploymentEvidence builds the deployment-evidence response rows
 // from durable resolved relationships instead of graph-side artifact traversals.
-func (cr *ContentReader) repositoryDeploymentEvidence(ctx context.Context, repoID string) (repositoryDeploymentEvidenceReadModel, error) {
+func (cr *ContentReader) RepositoryDeploymentEvidence(ctx context.Context, repoID string) (repositoryDeploymentEvidenceReadModel, error) {
 	if cr == nil || cr.db == nil || repoID == "" {
 		return repositoryDeploymentEvidenceReadModel{}, nil
 	}

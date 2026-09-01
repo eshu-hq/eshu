@@ -77,7 +77,7 @@ func filterResourceInvestigationCandidatesForAccess(
 }
 
 // filterCodeTopicRowsForAccess drops codeTopicEvidenceRow entries whose
-// RepoID is outside the caller's grant. investigateCodeTopic (the "code/*"
+// RepoID is outside the caller's grant. InvestigateCodeTopic (the "code/*"
 // #5167 family) has no grant filtering of its own, so change-surface callers
 // that fold topic evidence into their response bind it here independently
 // (see changeSurfaceCodeSurface).

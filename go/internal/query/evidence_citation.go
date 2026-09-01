@@ -107,7 +107,7 @@ type evidenceCitationHandleKey struct {
 }
 
 type evidenceCitationFileStore interface {
-	evidenceCitationFiles(context.Context, []evidenceCitationFileLookup) (map[evidenceCitationFileKey]FileContent, error)
+	EvidenceCitationFiles(context.Context, []evidenceCitationFileLookup) (map[evidenceCitationFileKey]FileContent, error)
 }
 
 func (h *EvidenceHandler) buildEvidenceCitations(w http.ResponseWriter, r *http.Request) {
@@ -294,7 +294,7 @@ func (h *EvidenceHandler) evidenceCitationFileContents(
 		return map[evidenceCitationFileKey]FileContent{}, nil
 	}
 	if store, ok := h.Content.(evidenceCitationFileStore); ok {
-		return store.evidenceCitationFiles(ctx, lookups)
+		return store.EvidenceCitationFiles(ctx, lookups)
 	}
 
 	results := make(map[evidenceCitationFileKey]FileContent, len(lookups))

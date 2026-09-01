@@ -54,12 +54,12 @@ func TestContentReaderDocumentationFindingsDisclosesDeniedVisibility(t *testing.
 	})
 	reader := NewContentReader(db)
 
-	got, err := reader.documentationFindings(t.Context(), documentationFindingFilter{
+	got, err := reader.DocumentationFindings(t.Context(), documentationFindingFilter{
 		FindingType: "service_deployment_drift",
 		Limit:       50,
 	})
 	if err != nil {
-		t.Fatalf("documentationFindings() error = %v, want nil", err)
+		t.Fatalf("DocumentationFindings() error = %v, want nil", err)
 	}
 	if gotLen, want := len(got.Findings), 2; gotLen != want {
 		t.Fatalf("len(Findings) = %d, want %d (denied row disclosed, not dropped); findings = %#v", gotLen, want, got.Findings)
@@ -128,9 +128,9 @@ func TestContentReaderDocumentationFindingsDisclosesUnknownVisibility(t *testing
 	})
 	reader := NewContentReader(db)
 
-	got, err := reader.documentationFindings(t.Context(), documentationFindingFilter{Limit: 50})
+	got, err := reader.DocumentationFindings(t.Context(), documentationFindingFilter{Limit: 50})
 	if err != nil {
-		t.Fatalf("documentationFindings() error = %v, want nil", err)
+		t.Fatalf("DocumentationFindings() error = %v, want nil", err)
 	}
 	if gotLen, want := len(got.Findings), 2; gotLen != want {
 		t.Fatalf("len(Findings) = %d, want %d (unknown row disclosed, not dropped); findings = %#v", gotLen, want, got.Findings)
@@ -321,13 +321,13 @@ func TestContentReaderDocumentationEvidencePacketFreshnessComparesSavedVersion(t
 	})
 	reader := NewContentReader(db)
 
-	got, err := reader.documentationEvidencePacketFreshness(
+	got, err := reader.DocumentationEvidencePacketFreshness(
 		t.Context(),
 		"doc-packet:service-deployment:1",
 		"1",
 	)
 	if err != nil {
-		t.Fatalf("documentationEvidencePacketFreshness() error = %v, want nil", err)
+		t.Fatalf("DocumentationEvidencePacketFreshness() error = %v, want nil", err)
 	}
 	if got, want := got.PacketVersion, "1"; got != want {
 		t.Fatalf("PacketVersion = %#v, want %#v", got, want)
@@ -360,9 +360,9 @@ func TestContentReaderDocumentationEvidencePacketDeniesUnknownVisibility(t *test
 	})
 	reader := NewContentReader(db)
 
-	got, err := reader.documentationEvidencePacket(t.Context(), "finding:service-deployment:1")
+	got, err := reader.DocumentationEvidencePacket(t.Context(), "finding:service-deployment:1")
 	if err != nil {
-		t.Fatalf("documentationEvidencePacket() error = %v, want nil", err)
+		t.Fatalf("DocumentationEvidencePacket() error = %v, want nil", err)
 	}
 	if !got.Denied {
 		t.Fatal("Denied = false, want true for packet without explicit visibility")
@@ -390,13 +390,13 @@ func TestContentReaderDocumentationEvidencePacketFreshnessDeniesUnknownVisibilit
 	})
 	reader := NewContentReader(db)
 
-	got, err := reader.documentationEvidencePacketFreshness(
+	got, err := reader.DocumentationEvidencePacketFreshness(
 		t.Context(),
 		"doc-packet:service-deployment:1",
 		"1",
 	)
 	if err != nil {
-		t.Fatalf("documentationEvidencePacketFreshness() error = %v, want nil", err)
+		t.Fatalf("DocumentationEvidencePacketFreshness() error = %v, want nil", err)
 	}
 	if !got.Denied {
 		t.Fatal("Denied = false, want true for freshness packet without explicit visibility")

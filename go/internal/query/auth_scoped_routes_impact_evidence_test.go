@@ -278,7 +278,7 @@ type readModelEvidenceContentStore struct {
 	readModel repositoryDeploymentEvidenceReadModel
 }
 
-func (s readModelEvidenceContentStore) repositoryDeploymentEvidence(context.Context, string) (repositoryDeploymentEvidenceReadModel, error) {
+func (s readModelEvidenceContentStore) RepositoryDeploymentEvidence(context.Context, string) (repositoryDeploymentEvidenceReadModel, error) {
 	return s.readModel, nil
 }
 

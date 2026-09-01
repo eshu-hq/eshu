@@ -59,7 +59,7 @@ func TestContentReaderDocumentationFactsReadsArchiveContainedFacts(t *testing.T)
 			}})
 			reader := NewContentReader(db)
 
-			got, err := reader.documentationFacts(t.Context(), documentationFactFilter{
+			got, err := reader.DocumentationFacts(t.Context(), documentationFactFilter{
 				FactKind:   "documentation_section",
 				Repository: "repository:r_archive",
 				DocumentID: documentID,
@@ -67,7 +67,7 @@ func TestContentReaderDocumentationFactsReadsArchiveContainedFacts(t *testing.T)
 				Limit:      10,
 			})
 			if err != nil {
-				t.Fatalf("documentationFacts() error = %v, want nil", err)
+				t.Fatalf("DocumentationFacts() error = %v, want nil", err)
 			}
 			if got, want := len(got.Facts), 1; got != want {
 				t.Fatalf("len(Facts) = %d, want %d", got, want)

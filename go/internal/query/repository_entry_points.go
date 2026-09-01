@@ -14,7 +14,7 @@ type repositoryEntryPointReadModel struct {
 }
 
 type repositoryEntryPointReadModelStore interface {
-	repositoryEntryPoints(context.Context, string) (repositoryEntryPointReadModel, error)
+	RepositoryEntryPoints(context.Context, string) (repositoryEntryPointReadModel, error)
 }
 
 // loadRepositoryEntryPoints returns content-derived entry points when the
@@ -24,16 +24,16 @@ func loadRepositoryEntryPoints(ctx context.Context, content ContentStore, repoID
 	if !ok || repoID == "" {
 		return nil
 	}
-	readModel, err := store.repositoryEntryPoints(ctx, repoID)
+	readModel, err := store.RepositoryEntryPoints(ctx, repoID)
 	if err != nil || !readModel.Available {
 		return nil
 	}
 	return readModel.Rows
 }
 
-// repositoryEntryPoints reads only known entry-point function names from
+// RepositoryEntryPoints reads only known entry-point function names from
 // content_entities, avoiding graph backends with weak IN-list filtering.
-func (cr *ContentReader) repositoryEntryPoints(ctx context.Context, repoID string) (repositoryEntryPointReadModel, error) {
+func (cr *ContentReader) RepositoryEntryPoints(ctx context.Context, repoID string) (repositoryEntryPointReadModel, error) {
 	if cr == nil || cr.db == nil || repoID == "" {
 		return repositoryEntryPointReadModel{}, nil
 	}

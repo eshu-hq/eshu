@@ -21,8 +21,8 @@ func (fakePortGraphQuery) RunSingle(context.Context, string, map[string]any) (ma
 
 type fakePortContentStore struct {
 	coverage                     RepositoryContentCoverage
-	summary                      repositoryReadModelSummary
-	relationshipReadModel        repositoryRelationshipReadModel
+	summary                      RepositoryReadModelSummary
+	relationshipReadModel        RepositoryRelationshipReadModel
 	entryPoints                  repositoryEntryPointReadModel
 	deploymentEvidence           repositoryDeploymentEvidenceReadModel
 	deploymentEvidenceErr        error
@@ -217,7 +217,7 @@ func (f fakePortContentStore) RepositoryCoverage(context.Context, string) (Repos
 
 // fakePortContentStore's language-inventory and documentation-read-model
 // methods (CountRepositoriesByLanguage through
-// documentationEvidencePacketFreshnessWithFilter, plus the
+// DocumentationEvidencePacketFreshnessWithFilter, plus the
 // fakeFilterLanguageRepos helper) live in
 // ports_test_language_documentation_test.go, split out to keep this file under
 // the repository's 500-line cap.

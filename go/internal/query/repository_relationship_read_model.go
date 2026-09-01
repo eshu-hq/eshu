@@ -11,39 +11,47 @@ import (
 	"strings"
 )
 
-type repositoryRelationshipReadModel struct {
+// RepositoryRelationshipReadModel is the Postgres read-model fast path for a
+// repository's resolved relationship rows and derived consumers, hydrated
+// from resolved_relationships so API reads avoid the incoming-fanout graph
+// traversal repository_context.go otherwise runs as three separate Neo4j
+// queries (queryRepoDependencies, queryRepoRelationshipOverview,
+// queryRepoConsumers). Available is false when the read model has nothing
+// for the repository, in which case callers must fall back to those graph
+// queries rather than treat a zero-value read model as authoritative.
+type RepositoryRelationshipReadModel struct {
 	Available     bool
 	Relationships []map[string]any
 	Consumers     []map[string]any
 }
 
 type repositoryRelationshipReadModelStore interface {
-	repositoryRelationshipReadModel(context.Context, string) (repositoryRelationshipReadModel, error)
+	RepositoryRelationshipReadModel(context.Context, string) (RepositoryRelationshipReadModel, error)
 }
 
 // loadRepositoryRelationshipReadModel returns resolved relationship truth from
 // the Postgres read model when the content store can provide it.
-func loadRepositoryRelationshipReadModel(ctx context.Context, content ContentStore, repoID string) *repositoryRelationshipReadModel {
+func loadRepositoryRelationshipReadModel(ctx context.Context, content ContentStore, repoID string) *RepositoryRelationshipReadModel {
 	store, ok := content.(repositoryRelationshipReadModelStore)
 	if !ok || repoID == "" {
 		return nil
 	}
-	readModel, err := store.repositoryRelationshipReadModel(ctx, repoID)
+	readModel, err := store.RepositoryRelationshipReadModel(ctx, repoID)
 	if err != nil || !readModel.Available {
 		return nil
 	}
 	return &readModel
 }
 
-// repositoryRelationshipReadModel hydrates repository relationship rows from
+// RepositoryRelationshipReadModel hydrates repository relationship rows from
 // resolved_relationships so API reads avoid expensive graph incoming fanout.
-func (cr *ContentReader) repositoryRelationshipReadModel(ctx context.Context, repoID string) (repositoryRelationshipReadModel, error) {
+func (cr *ContentReader) RepositoryRelationshipReadModel(ctx context.Context, repoID string) (RepositoryRelationshipReadModel, error) {
 	if cr == nil || cr.db == nil || repoID == "" {
-		return repositoryRelationshipReadModel{}, nil
+		return RepositoryRelationshipReadModel{}, nil
 	}
 	rows, err := cr.db.QueryContext(ctx, repositoryRelationshipReadModelSQL, repoID)
 	if err != nil {
-		return repositoryRelationshipReadModel{}, fmt.Errorf("query repository relationship read model: %w", err)
+		return RepositoryRelationshipReadModel{}, fmt.Errorf("query repository relationship read model: %w", err)
 	}
 	defer func() { _ = rows.Close() }()
 
@@ -53,7 +61,7 @@ func (cr *ContentReader) repositoryRelationshipReadModel(ctx context.Context, re
 	for rows.Next() {
 		row, err := scanRepositoryRelationshipReadModelRow(rows)
 		if err != nil {
-			return repositoryRelationshipReadModel{}, err
+			return RepositoryRelationshipReadModel{}, err
 		}
 		relationships = append(relationships, row)
 		if StringVal(row, "direction") != "incoming" {
@@ -75,9 +83,9 @@ func (cr *ContentReader) repositoryRelationshipReadModel(ctx context.Context, re
 		})
 	}
 	if err := rows.Err(); err != nil {
-		return repositoryRelationshipReadModel{}, fmt.Errorf("iterate repository relationship read model: %w", err)
+		return RepositoryRelationshipReadModel{}, fmt.Errorf("iterate repository relationship read model: %w", err)
 	}
-	return repositoryRelationshipReadModel{
+	return RepositoryRelationshipReadModel{
 		Available:     len(relationships) > 0,
 		Relationships: relationships,
 		Consumers:     consumers,
@@ -322,14 +330,14 @@ func repositoryRelationshipStringSliceFromAny(value any) []string {
 // when every cross-tenant row is dropped, so the handler does not fall back to
 // the graph and re-run the (already grant-bound) helpers.
 func filterRepositoryRelationshipReadModelForAccess(
-	readModel *repositoryRelationshipReadModel,
+	readModel *RepositoryRelationshipReadModel,
 	anchorRepoID string,
 	access repositoryAccessFilter,
-) *repositoryRelationshipReadModel {
+) *RepositoryRelationshipReadModel {
 	if readModel == nil || !access.Scoped() {
 		return readModel
 	}
-	return &repositoryRelationshipReadModel{
+	return &RepositoryRelationshipReadModel{
 		Available:     readModel.Available,
 		Relationships: filterRepoRelationshipOverviewRowsForAccess(readModel.Relationships, anchorRepoID, access),
 		Consumers:     filterRepoRelationshipTargetRowsForAccess(readModel.Consumers, "id", access),
@@ -338,7 +346,7 @@ func filterRepositoryRelationshipReadModelForAccess(
 
 // repositoryReadModelDependencies returns outgoing rows in the legacy
 // repository dependency shape.
-func repositoryReadModelDependencies(readModel *repositoryRelationshipReadModel) []map[string]any {
+func repositoryReadModelDependencies(readModel *RepositoryRelationshipReadModel) []map[string]any {
 	if readModel == nil {
 		return nil
 	}

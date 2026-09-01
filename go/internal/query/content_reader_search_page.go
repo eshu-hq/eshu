@@ -15,12 +15,19 @@ import (
 // pagedContentSearcher is implemented by content readers that can push offset
 // and multi-repo scope into SQL instead of paginating in handler memory.
 type pagedContentSearcher interface {
-	searchFiles(context.Context, contentSearchRequest) ([]FileContent, error)
-	searchEntities(context.Context, contentSearchRequest) ([]EntityContent, error)
+	SearchFiles(context.Context, contentSearchRequest) ([]FileContent, error)
+	SearchEntities(context.Context, contentSearchRequest) ([]EntityContent, error)
 }
 
-// searchFiles chooses the narrowest paged SQL shape for a file-content search.
-func (cr *ContentReader) searchFiles(ctx context.Context, req contentSearchRequest) ([]FileContent, error) {
+// SearchFiles chooses the narrowest paged SQL shape for a file-content search.
+// Exported (#6060) so pagedContentSearcher's optional-interface type
+// assertion keeps matching this method if ContentReader ever moves to a
+// different package than the interface: Go qualifies an unexported method
+// name by its declaring package for interface satisfaction, so an unexported
+// searchFiles here would silently stop satisfying pagedContentSearcher the
+// moment the two sides split packages -- no compile error, just a silent
+// fallback to the slower per-request search path.
+func (cr *ContentReader) SearchFiles(ctx context.Context, req contentSearchRequest) ([]FileContent, error) {
 	if repoIDs := req.explicitRepoIDs(); len(repoIDs) > 1 {
 		return cr.searchFileContentInRepos(ctx, repoIDs, req.pattern(), req.limit()+1, req.offset())
 	}
@@ -30,8 +37,10 @@ func (cr *ContentReader) searchFiles(ctx context.Context, req contentSearchReque
 	return cr.searchFileContentAnyRepoPage(ctx, req.pattern(), req.limit()+1, req.offset())
 }
 
-// searchEntities chooses the narrowest paged SQL shape for an entity-content search.
-func (cr *ContentReader) searchEntities(ctx context.Context, req contentSearchRequest) ([]EntityContent, error) {
+// SearchEntities chooses the narrowest paged SQL shape for an entity-content
+// search. Exported for the same #6060 interface-export reason as SearchFiles
+// above.
+func (cr *ContentReader) SearchEntities(ctx context.Context, req contentSearchRequest) ([]EntityContent, error) {
 	if repoIDs := req.explicitRepoIDs(); len(repoIDs) > 1 {
 		return cr.searchEntityContentInRepos(ctx, repoIDs, req.pattern(), req.limit()+1, req.offset())
 	}

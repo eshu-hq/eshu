@@ -19,7 +19,7 @@ type hardcodedSecretInvestigationContentStore struct {
 	requests []hardcodedSecretInvestigationRequest
 }
 
-func (s *hardcodedSecretInvestigationContentStore) investigateHardcodedSecrets(
+func (s *hardcodedSecretInvestigationContentStore) InvestigateHardcodedSecrets(
 	_ context.Context,
 	req hardcodedSecretInvestigationRequest,
 ) ([]hardcodedSecretFindingRow, error) {

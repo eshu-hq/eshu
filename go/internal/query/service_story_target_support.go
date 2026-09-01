@@ -16,7 +16,7 @@ import (
 const serviceStoryTargetSupportLimit = 10
 
 type serviceStoryTargetSupportStore interface {
-	serviceStoryTargetSupportEvidence(
+	ServiceStoryTargetSupportEvidence(
 		context.Context,
 		serviceStoryTargetSupportFilter,
 	) (serviceStoryTargetSupportReadModel, error)
@@ -72,7 +72,7 @@ func loadServiceStoryTargetSupport(
 		filter.TargetKind = "repository"
 		filter.TargetID = repoID
 	}
-	readModel, err := store.serviceStoryTargetSupportEvidence(ctx, filter)
+	readModel, err := store.ServiceStoryTargetSupportEvidence(ctx, filter)
 	if err != nil {
 		return nil, err
 	}
@@ -92,7 +92,7 @@ func loadRepositoryStoryTargetSupport(
 	if repoID == "" {
 		return nil, nil
 	}
-	readModel, err := store.serviceStoryTargetSupportEvidence(ctx, serviceStoryTargetSupportFilter{
+	readModel, err := store.ServiceStoryTargetSupportEvidence(ctx, serviceStoryTargetSupportFilter{
 		Repository: repoID,
 		TargetKind: "repository",
 		TargetID:   repoID,
@@ -104,7 +104,16 @@ func loadRepositoryStoryTargetSupport(
 	return readModel.Support, nil
 }
 
-func (cr *ContentReader) serviceStoryTargetSupportEvidence(
+// ServiceStoryTargetSupportEvidence reads support-evidence rows for
+// filter.TargetKind/filter.TargetID (service or repository) from
+// fact_records via Postgres, grouped into the read model's Support map. It
+// is the read-model path serviceStoryTargetSupportStore exposes to
+// loadServiceStoryTargetSupport and loadRepositoryStoryTargetSupport. This
+// is the #6060 audit's worst fallback case: without a satisfying store,
+// those callers return (nil, nil) with no fallback of any kind, so the
+// target_support/support_overview response section silently vanishes
+// rather than erroring or degrading.
+func (cr *ContentReader) ServiceStoryTargetSupportEvidence(
 	ctx context.Context,
 	filter serviceStoryTargetSupportFilter,
 ) (serviceStoryTargetSupportReadModel, error) {

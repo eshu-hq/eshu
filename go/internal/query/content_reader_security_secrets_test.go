@@ -25,13 +25,13 @@ func TestContentReaderInvestigateHardcodedSecretsReturnsClassifiedRows(t *testin
 	})
 	reader := NewContentReader(db)
 
-	results, err := reader.investigateHardcodedSecrets(context.Background(), hardcodedSecretInvestigationRequest{
+	results, err := reader.InvestigateHardcodedSecrets(context.Background(), hardcodedSecretInvestigationRequest{
 		RepoID:            "repo-1",
 		Limit:             3,
 		IncludeSuppressed: true,
 	})
 	if err != nil {
-		t.Fatalf("investigateHardcodedSecrets() error = %v, want nil", err)
+		t.Fatalf("InvestigateHardcodedSecrets() error = %v, want nil", err)
 	}
 	if got, want := len(results), 2; got != want {
 		t.Fatalf("len(results) = %d, want %d", got, want)
@@ -61,13 +61,13 @@ func TestContentReaderInvestigateHardcodedSecretsDoesNotDropFetchedSuppressedRow
 	})
 	reader := NewContentReader(db)
 
-	results, err := reader.investigateHardcodedSecrets(context.Background(), hardcodedSecretInvestigationRequest{
+	results, err := reader.InvestigateHardcodedSecrets(context.Background(), hardcodedSecretInvestigationRequest{
 		RepoID:            "repo-1",
 		Limit:             2,
 		IncludeSuppressed: false,
 	})
 	if err != nil {
-		t.Fatalf("investigateHardcodedSecrets() error = %v, want nil", err)
+		t.Fatalf("InvestigateHardcodedSecrets() error = %v, want nil", err)
 	}
 	if got, want := len(results), 2; got != want {
 		t.Fatalf("len(results) = %d, want %d; suppression filtering must happen before SQL LIMIT/OFFSET", got, want)
@@ -95,12 +95,12 @@ func TestContentReaderInvestigateHardcodedSecretsPagesAfterSQLSuppressionFilter(
 	})
 	reader := NewContentReader(db)
 
-	_, err := reader.investigateHardcodedSecrets(context.Background(), hardcodedSecretInvestigationRequest{
+	_, err := reader.InvestigateHardcodedSecrets(context.Background(), hardcodedSecretInvestigationRequest{
 		RepoID: "repo-1",
 		Limit:  1,
 	})
 	if err != nil {
-		t.Fatalf("investigateHardcodedSecrets() error = %v, want nil", err)
+		t.Fatalf("InvestigateHardcodedSecrets() error = %v, want nil", err)
 	}
 }
 

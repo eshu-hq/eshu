@@ -14,7 +14,16 @@ import (
 
 const hardcodedSecretSQLPattern = `(password|passwd|pwd|api[_-]?key|apikey|token|secret|client[_-]?secret|private[_-]?key|authorization)[[:space:]]*[:=][[:space:]]*['"]?[A-Za-z0-9_./+=:@!#$%^-]{6,}|AKIA[0-9A-Z]{16}|sk_live_[A-Za-z0-9]{8,}|xox[baprs]-[A-Za-z0-9-]{10,}|-----BEGIN [A-Z ]*PRIVATE KEY-----`
 
-func (cr *ContentReader) investigateHardcodedSecrets(
+// InvestigateHardcodedSecrets scans content_files for lines matching
+// hardcodedSecretSQLPattern (AWS keys, private-key blocks, Slack tokens, and
+// password/token/secret literal assignments), classifies each hit into a
+// finding kind, and evaluates hardcodedSecretSQLSuppressionPredicate so
+// test/fixture paths and placeholder literals are excluded unless
+// req.IncludeSuppressed is set. It is the Postgres-backed fast path
+// hardcodedSecretInvestigator exposes to CodeHandler.hardcodedSecretRows;
+// without a satisfying store that caller returns
+// errHardcodedSecretBackendUnavailable rather than a degraded scan.
+func (cr *ContentReader) InvestigateHardcodedSecrets(
 	ctx context.Context,
 	req hardcodedSecretInvestigationRequest,
 ) ([]hardcodedSecretFindingRow, error) {

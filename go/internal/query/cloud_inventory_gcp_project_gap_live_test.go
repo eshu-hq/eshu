@@ -31,7 +31,7 @@ func TestCloudInventoryGCPOrgLevelAssetExcludedFromProjectIDButVisibleUnscopedLi
 	seedCloudInventoryGCPOrgLevelAssetLiveCorpus(t, ctx, db)
 	cr := NewContentReader(db)
 
-	byProjectID, err := cr.cloudInventoryIdentities(ctx, cloudInventoryFilter{
+	byProjectID, err := cr.CloudInventoryIdentities(ctx, cloudInventoryFilter{
 		AllScopes:         true,
 		Provider:          "gcp",
 		AccountAliasKey:   "project_id",
@@ -45,7 +45,7 @@ func TestCloudInventoryGCPOrgLevelAssetExcludedFromProjectIDButVisibleUnscopedLi
 		t.Fatalf("project_id-filtered read returned %d rows, want %d -- an org-level asset with no project must never match an unrelated project_id", got, want)
 	}
 
-	unscoped, err := cr.cloudInventoryIdentities(ctx, cloudInventoryFilter{
+	unscoped, err := cr.CloudInventoryIdentities(ctx, cloudInventoryFilter{
 		AllScopes: true,
 		Provider:  "gcp",
 		Limit:     10,

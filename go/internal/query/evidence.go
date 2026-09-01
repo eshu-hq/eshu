@@ -36,7 +36,7 @@ type relationshipEvidenceReadModel struct {
 }
 
 type relationshipEvidenceReadModelStore interface {
-	relationshipEvidenceByResolvedID(context.Context, string) (relationshipEvidenceReadModel, error)
+	RelationshipEvidenceByResolvedID(context.Context, string) (relationshipEvidenceReadModel, error)
 }
 
 // Mount registers evidence drilldown routes.
@@ -137,7 +137,7 @@ func (h *EvidenceHandler) getRelationshipEvidence(w http.ResponseWriter, r *http
 		WriteError(w, http.StatusNotImplemented, "relationship evidence drilldown requires the Postgres relationship read model")
 		return
 	}
-	readModel, err := store.relationshipEvidenceByResolvedID(r.Context(), resolvedID)
+	readModel, err := store.RelationshipEvidenceByResolvedID(r.Context(), resolvedID)
 	if err != nil {
 		WriteError(w, http.StatusInternalServerError, err.Error())
 		return

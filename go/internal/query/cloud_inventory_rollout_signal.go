@@ -60,7 +60,7 @@ func cloudInventoryRolloutGapWarningFlags(
 	if filter.AccountAliasKey == "" || filter.Offset != 0 || len(readModel.Resources) != 0 {
 		return nil
 	}
-	exists, err := store.cloudInventoryPreRolloutEvidenceExists(ctx, filter)
+	exists, err := store.CloudInventoryPreRolloutEvidenceExists(ctx, filter)
 	if err != nil {
 		return []string{cloudInventoryWarningFlagRolloutGapCheckFailed}
 	}
@@ -70,7 +70,7 @@ func cloudInventoryRolloutGapWarningFlags(
 	return []string{cloudInventoryWarningFlagRolloutGap}
 }
 
-// cloudInventoryPreRolloutEvidenceExists implements
+// CloudInventoryPreRolloutEvidenceExists implements
 // cloudInventoryReadModelStore. It reports whether ANY active-generation
 // reducer_cloud_resource_identity row in the filter's provider/access scope
 // carries no "account_id" payload key at all -- the exact shape a row
@@ -78,7 +78,7 @@ func cloudInventoryRolloutGapWarningFlags(
 // collector sync re-admits it (cloudInventoryAdmissionFactID never hashed
 // AccountID into the fact identity, so a pre-fix row keeps its existing
 // fact_id and is never rewritten by the fix alone).
-func (cr *ContentReader) cloudInventoryPreRolloutEvidenceExists(
+func (cr *ContentReader) CloudInventoryPreRolloutEvidenceExists(
 	ctx context.Context,
 	filter cloudInventoryFilter,
 ) (bool, error) {

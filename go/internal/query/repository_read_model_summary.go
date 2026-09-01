@@ -10,7 +10,14 @@ import (
 	"strings"
 )
 
-type repositoryReadModelSummary struct {
+// RepositoryReadModelSummary is the Postgres read-model fast path for a
+// repository's workload names, deployment-platform materialization count,
+// and dependency count -- the same fields repository_context.go otherwise
+// derives from per-field Neo4j graph counts in queryRepositoryContextCounts.
+// Available is false when the read model has nothing for the repository, in
+// which case callers must fall back to the graph counts rather than treat a
+// zero-value summary as authoritative.
+type RepositoryReadModelSummary struct {
 	Available       bool
 	WorkloadNames   []string
 	PlatformCount   int
@@ -19,43 +26,50 @@ type repositoryReadModelSummary struct {
 }
 
 type repositoryReadModelSummaryStore interface {
-	repositoryReadModelSummary(context.Context, string) (repositoryReadModelSummary, error)
+	RepositoryReadModelSummary(context.Context, string) (RepositoryReadModelSummary, error)
 }
 
-func loadRepositoryReadModelSummary(ctx context.Context, content ContentStore, repoID string) *repositoryReadModelSummary {
+func loadRepositoryReadModelSummary(ctx context.Context, content ContentStore, repoID string) *RepositoryReadModelSummary {
 	store, ok := content.(repositoryReadModelSummaryStore)
 	if !ok || repoID == "" {
 		return nil
 	}
-	summary, err := store.repositoryReadModelSummary(ctx, repoID)
+	summary, err := store.RepositoryReadModelSummary(ctx, repoID)
 	if err != nil || !summary.Available {
 		return nil
 	}
 	return &summary
 }
 
-func (cr *ContentReader) repositoryReadModelSummary(ctx context.Context, repoID string) (repositoryReadModelSummary, error) {
+// RepositoryReadModelSummary resolves repoID's scope ID, workload names,
+// platform materialization count, and dependency count from Postgres,
+// returning Available=false (rather than an error) when the repository has
+// no scope and no dependencies to summarize. It is the read-model fast path
+// repositoryReadModelSummaryStore exposes to loadRepositoryReadModelSummary;
+// callers that get a nil summary back fall through to the Neo4j graph-count
+// path instead.
+func (cr *ContentReader) RepositoryReadModelSummary(ctx context.Context, repoID string) (RepositoryReadModelSummary, error) {
 	if cr == nil || cr.db == nil || repoID == "" {
-		return repositoryReadModelSummary{}, nil
+		return RepositoryReadModelSummary{}, nil
 	}
 	scopeID, err := cr.repositoryScopeID(ctx, repoID)
 	if err != nil {
-		return repositoryReadModelSummary{}, err
+		return RepositoryReadModelSummary{}, err
 	}
 
 	workloadNames, err := cr.repositoryWorkloadNames(ctx, scopeID)
 	if err != nil {
-		return repositoryReadModelSummary{}, err
+		return RepositoryReadModelSummary{}, err
 	}
 	platformCount, err := cr.repositoryPlatformMaterializationCount(ctx, scopeID)
 	if err != nil {
-		return repositoryReadModelSummary{}, err
+		return RepositoryReadModelSummary{}, err
 	}
 	dependencyCount, err := cr.repositoryDependencyCount(ctx, repoID)
 	if err != nil {
-		return repositoryReadModelSummary{}, err
+		return RepositoryReadModelSummary{}, err
 	}
-	return repositoryReadModelSummary{
+	return RepositoryReadModelSummary{
 		Available:       scopeID != "" || dependencyCount > 0,
 		WorkloadNames:   workloadNames,
 		PlatformCount:   platformCount,

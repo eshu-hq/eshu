@@ -56,14 +56,14 @@ func queryRepoDeployableUnitRelationshipOverview(
 }
 
 func mergeRepositoryDeployableUnitRelationships(
-	readModel *repositoryRelationshipReadModel,
+	readModel *RepositoryRelationshipReadModel,
 	supplemental []map[string]any,
-) *repositoryRelationshipReadModel {
+) *RepositoryRelationshipReadModel {
 	if readModel == nil || len(supplemental) == 0 {
 		return readModel
 	}
 	relationships := mergeRepositoryRelationshipRows(readModel.Relationships, supplemental)
-	return &repositoryRelationshipReadModel{
+	return &RepositoryRelationshipReadModel{
 		Available:     readModel.Available,
 		Relationships: relationships,
 		Consumers:     repositoryConsumersFromRelationships(relationships),

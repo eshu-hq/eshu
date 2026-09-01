@@ -178,7 +178,7 @@ func TestFetchServiceReadModelWorkloadContextEmitsOnlyDeclaredKeys(t *testing.T)
 				Name: "readmodel-job",
 				Path: "/repos/readmodel-job",
 			}},
-			summary: repositoryReadModelSummary{
+			summary: RepositoryReadModelSummary{
 				Available:     true,
 				WorkloadNames: []string{"readmodel-job"},
 			},

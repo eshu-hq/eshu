@@ -185,9 +185,9 @@ func TestContentReaderRepositoryDeploymentEvidenceIsBoundedAtSQL(t *testing.T) {
 		},
 	})
 	reader := NewContentReader(db)
-	_, err := reader.repositoryDeploymentEvidence(context.Background(), "repo-service")
+	_, err := reader.RepositoryDeploymentEvidence(context.Background(), "repo-service")
 	if err != nil {
-		t.Fatalf("repositoryDeploymentEvidence() error = %v, want nil", err)
+		t.Fatalf("RepositoryDeploymentEvidence() error = %v, want nil", err)
 	}
 	if len(recorder.queries) != 1 {
 		t.Fatalf("len(queries) = %d, want 1", len(recorder.queries))

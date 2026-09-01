@@ -134,9 +134,9 @@ func TestContentReaderDeploymentEvidenceHydratesCommitSHA(t *testing.T) {
 	})
 
 	reader := NewContentReader(db)
-	got, err := reader.repositoryDeploymentEvidence(t.Context(), "repo-app")
+	got, err := reader.RepositoryDeploymentEvidence(t.Context(), "repo-app")
 	if err != nil {
-		t.Fatalf("repositoryDeploymentEvidence() error = %v", err)
+		t.Fatalf("RepositoryDeploymentEvidence() error = %v", err)
 	}
 	if !got.Available || len(got.Rows) == 0 {
 		t.Fatal("no rows returned")

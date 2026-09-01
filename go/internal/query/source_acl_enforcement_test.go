@@ -107,9 +107,9 @@ func TestDocumentationFindingsEnforcementProofMatrix(t *testing.T) {
 	}})
 	reader := NewContentReader(db)
 
-	got, err := reader.documentationFindings(t.Context(), documentationFindingFilter{Limit: 50})
+	got, err := reader.DocumentationFindings(t.Context(), documentationFindingFilter{Limit: 50})
 	if err != nil {
-		t.Fatalf("documentationFindings() error = %v, want nil", err)
+		t.Fatalf("DocumentationFindings() error = %v, want nil", err)
 	}
 	if len(got.Findings) != 5 {
 		t.Fatalf("len(Findings) = %d, want 5 (no row dropped); findings = %#v", len(got.Findings), got.Findings)
@@ -203,9 +203,9 @@ func TestDocumentationFindingsACLDistinctFromFreshness(t *testing.T) {
 	}})
 	reader := NewContentReader(db)
 
-	got, err := reader.documentationFindings(t.Context(), documentationFindingFilter{Limit: 50})
+	got, err := reader.DocumentationFindings(t.Context(), documentationFindingFilter{Limit: 50})
 	if err != nil {
-		t.Fatalf("documentationFindings() error = %v, want nil", err)
+		t.Fatalf("DocumentationFindings() error = %v, want nil", err)
 	}
 	byID := map[string]map[string]any{}
 	for _, f := range got.Findings {
@@ -253,9 +253,9 @@ func TestDocumentationFindingsPreservesUnsupportedAndMissingEvidenceLabels(t *te
 	}})
 	reader := NewContentReader(db)
 
-	got, err := reader.documentationFindings(t.Context(), documentationFindingFilter{Limit: 50})
+	got, err := reader.DocumentationFindings(t.Context(), documentationFindingFilter{Limit: 50})
 	if err != nil {
-		t.Fatalf("documentationFindings() error = %v, want nil", err)
+		t.Fatalf("DocumentationFindings() error = %v, want nil", err)
 	}
 	f := got.Findings[0]
 	if f[accessDispositionResponseKey] != accessDispositionDenied {
@@ -296,7 +296,7 @@ func TestDocumentationEvidencePacketEnforcement(t *testing.T) {
 			columns: []string{"payload"},
 			rows:    [][]driver.Value{{packet(facts.SourceACLStateDenied)}},
 		}})
-		got, err := NewContentReader(db).documentationEvidencePacketWithFilter(
+		got, err := NewContentReader(db).DocumentationEvidencePacketWithFilter(
 			t.Context(), documentationEvidencePacketFilter{FindingID: "finding:denied"},
 		)
 		if err != nil {
@@ -316,7 +316,7 @@ func TestDocumentationEvidencePacketEnforcement(t *testing.T) {
 			columns: []string{"payload"},
 			rows:    [][]driver.Value{{packet(facts.SourceACLStatePartial)}},
 		}})
-		got, err := NewContentReader(db).documentationEvidencePacketWithFilter(
+		got, err := NewContentReader(db).DocumentationEvidencePacketWithFilter(
 			t.Context(), documentationEvidencePacketFilter{FindingID: "finding:partial"},
 		)
 		if err != nil {
@@ -342,7 +342,7 @@ func TestDocumentationEvidencePacketEnforcement(t *testing.T) {
 			columns: []string{"payload"},
 			rows:    [][]driver.Value{{packet(facts.SourceACLStateStale)}},
 		}})
-		got, err := NewContentReader(db).documentationEvidencePacketWithFilter(
+		got, err := NewContentReader(db).DocumentationEvidencePacketWithFilter(
 			t.Context(), documentationEvidencePacketFilter{FindingID: "finding:stale"},
 		)
 		if err != nil {

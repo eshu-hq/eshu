@@ -10,9 +10,9 @@ import (
 	"fmt"
 )
 
-// relationshipEvidenceByResolvedID hydrates a compact graph evidence pointer
+// RelationshipEvidenceByResolvedID hydrates a compact graph evidence pointer
 // from the durable resolved_relationships Postgres read model.
-func (cr *ContentReader) relationshipEvidenceByResolvedID(ctx context.Context, resolvedID string) (relationshipEvidenceReadModel, error) {
+func (cr *ContentReader) RelationshipEvidenceByResolvedID(ctx context.Context, resolvedID string) (relationshipEvidenceReadModel, error) {
 	if cr == nil || cr.db == nil || resolvedID == "" {
 		return relationshipEvidenceReadModel{}, nil
 	}

@@ -12,8 +12,8 @@ import (
 	"go.opentelemetry.io/otel/trace"
 )
 
-// evidenceCitationFiles hydrates bounded file handles in one content-store read.
-func (cr *ContentReader) evidenceCitationFiles(
+// EvidenceCitationFiles hydrates bounded file handles in one content-store read.
+func (cr *ContentReader) EvidenceCitationFiles(
 	ctx context.Context,
 	lookups []evidenceCitationFileLookup,
 ) (map[evidenceCitationFileKey]FileContent, error) {

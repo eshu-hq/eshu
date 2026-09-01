@@ -21,7 +21,7 @@ import (
 //
 //   - ResolveRepository, via the embedded fakePortContentStore's repositories
 //     field, so the repository-identity lookup resolves.
-//   - repositoryReadModelSummary, the unexported repositoryReadModelSummaryStore
+//   - RepositoryReadModelSummary, the unexported repositoryReadModelSummaryStore
 //     interface loadRepositoryReadModelSummary type-asserts for; without it,
 //     that loader returns nil immediately and fetchServiceReadModelWorkloadContext
 //     never reaches its infrastructure read at all.
@@ -42,10 +42,10 @@ func (s serviceReadModelInfrastructureOverflowContentStore) ListRepoEntitiesByTy
 	return s.infrastructureEntities, nil
 }
 
-func (s serviceReadModelInfrastructureOverflowContentStore) repositoryReadModelSummary(
+func (s serviceReadModelInfrastructureOverflowContentStore) RepositoryReadModelSummary(
 	_ context.Context, _ string,
-) (repositoryReadModelSummary, error) {
-	return repositoryReadModelSummary{Available: true, WorkloadNames: s.workloadNames}, nil
+) (RepositoryReadModelSummary, error) {
+	return RepositoryReadModelSummary{Available: true, WorkloadNames: s.workloadNames}, nil
 }
 
 var _ repositoryReadModelSummaryStore = serviceReadModelInfrastructureOverflowContentStore{}

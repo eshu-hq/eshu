@@ -64,7 +64,7 @@ type hardcodedSecretFindingRow struct {
 }
 
 type hardcodedSecretInvestigator interface {
-	investigateHardcodedSecrets(context.Context, hardcodedSecretInvestigationRequest) ([]hardcodedSecretFindingRow, error)
+	InvestigateHardcodedSecrets(context.Context, hardcodedSecretInvestigationRequest) ([]hardcodedSecretFindingRow, error)
 }
 
 func init() {
@@ -147,7 +147,7 @@ func (h *CodeHandler) hardcodedSecretRows(ctx context.Context, req hardcodedSecr
 	}
 	probeReq := req
 	probeReq.Limit = req.Limit + 1
-	rows, err := investigator.investigateHardcodedSecrets(ctx, probeReq)
+	rows, err := investigator.InvestigateHardcodedSecrets(ctx, probeReq)
 	if err != nil {
 		return nil, fmt.Errorf("investigate hardcoded secrets: %w", err)
 	}

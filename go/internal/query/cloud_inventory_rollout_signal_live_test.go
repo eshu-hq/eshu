@@ -13,7 +13,7 @@ import (
 )
 
 // TestCloudInventoryPreRolloutEvidenceExistsLive proves
-// cloudInventoryPreRolloutEvidenceExists' real Postgres jsonb semantics for
+// CloudInventoryPreRolloutEvidenceExists' real Postgres jsonb semantics for
 // the #5238 account-alias rollout-gap warning: the `?` key-exists operator
 // distinguishes "no account_id key at all" (pre-fix payload shape) from
 // "account_id key present" (post-fix payload shape), scoped correctly by
@@ -26,7 +26,7 @@ func TestCloudInventoryPreRolloutEvidenceExistsLive(t *testing.T) {
 
 	// A pre-fix row exists in the aws scope, so an all-scopes aws probe must
 	// report true.
-	awsGap, err := cr.cloudInventoryPreRolloutEvidenceExists(ctx, cloudInventoryFilter{
+	awsGap, err := cr.CloudInventoryPreRolloutEvidenceExists(ctx, cloudInventoryFilter{
 		AllScopes: true,
 		Provider:  "aws",
 	})
@@ -40,7 +40,7 @@ func TestCloudInventoryPreRolloutEvidenceExistsLive(t *testing.T) {
 	// Every gcp row in this corpus is post-fix (carries account_id), so a gcp
 	// probe must report false -- a genuine "no gap, zero rows really means no
 	// such account" case.
-	gcpGap, err := cr.cloudInventoryPreRolloutEvidenceExists(ctx, cloudInventoryFilter{
+	gcpGap, err := cr.CloudInventoryPreRolloutEvidenceExists(ctx, cloudInventoryFilter{
 		AllScopes: true,
 		Provider:  "gcp",
 	})
@@ -54,7 +54,7 @@ func TestCloudInventoryPreRolloutEvidenceExistsLive(t *testing.T) {
 	// A scoped caller granted only the post-fix aws scope must not see the
 	// pre-fix row in the sibling aws scope: the probe must respect the same
 	// access-scope predicate as the primary read.
-	scopedAwsGap, err := cr.cloudInventoryPreRolloutEvidenceExists(ctx, cloudInventoryFilter{
+	scopedAwsGap, err := cr.CloudInventoryPreRolloutEvidenceExists(ctx, cloudInventoryFilter{
 		AllScopes:       false,
 		Provider:        "aws",
 		AllowedScopeIDs: []string{cloudInventoryRolloutSignalPostFixAWSScopeID},

@@ -72,14 +72,14 @@ type CloudInventoryHandler struct {
 // h.Content to this narrow interface so unit tests can supply a fixture-backed
 // reader without a live database or graph backend.
 type cloudInventoryReadModelStore interface {
-	cloudInventoryIdentities(context.Context, cloudInventoryFilter) (cloudInventoryListReadModel, error)
-	// cloudInventoryPreRolloutEvidenceExists reports whether the filter's
+	CloudInventoryIdentities(context.Context, cloudInventoryFilter) (cloudInventoryListReadModel, error)
+	// CloudInventoryPreRolloutEvidenceExists reports whether the filter's
 	// provider/access scope contains any canonical identity row predating the
 	// #5238 account_id rollout (see cloud_inventory_rollout_signal.go). The
 	// handler calls it only when an account-alias filter matched zero rows, so
 	// it never costs a round trip on the hot unfiltered or non-empty-result
 	// path.
-	cloudInventoryPreRolloutEvidenceExists(context.Context, cloudInventoryFilter) (bool, error)
+	CloudInventoryPreRolloutEvidenceExists(context.Context, cloudInventoryFilter) (bool, error)
 }
 
 // cloudInventoryFilter holds the optional, bounded filters for the readback.
@@ -190,7 +190,7 @@ func (h *CloudInventoryHandler) listInventory(w http.ResponseWriter, r *http.Req
 	if !ok {
 		return
 	}
-	readModel, err := store.cloudInventoryIdentities(r.Context(), filter)
+	readModel, err := store.CloudInventoryIdentities(r.Context(), filter)
 	if err != nil {
 		WriteContractError(
 			w,

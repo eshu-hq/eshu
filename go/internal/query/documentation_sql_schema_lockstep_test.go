@@ -43,7 +43,7 @@ func TestDocumentationFindingSQLProjectedFieldsAreSchemaDeclared(t *testing.T) {
 	// Fields these files read from documentation_finding /
 	// documentation_evidence_packet source facts via a literal field name.
 	// section_id/document_id/title/heading_text/content/target_uri/
-	// display_name in documentation_read_model.go's documentationFacts path
+	// display_name in documentation_read_model.go's DocumentationFacts path
 	// belong to the OTHER (typed-but-deferred) documentation kinds
 	// (documentation_document/section/link/source), not documentation_finding,
 	// and are excluded here; they are still declared on their own structs.
