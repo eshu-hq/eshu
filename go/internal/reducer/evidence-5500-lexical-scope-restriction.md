@@ -36,7 +36,7 @@ referent resolve EXACTLY and become downgrade-eligible.
   documented no-op for a top-level (non-namespaced) walked class — this is why
   every pre-existing `TestDecide` case (all of which use top-level classKeys)
   needed zero changes.
-- `go/internal/reducer/code_root_verdicts_lexical_scope_test.go` —
+- `go/internal/reducer/codeintel/code_root_verdicts_lexical_scope_test.go` —
   `TestBuildCodeRootVerdictsLexicalScopeRestriction` reproduces both cases
   through the REAL production registry (`rubyRepoWideControllerRegistry`), and
   `code_root_verdicts_integration_test.go`'s
@@ -104,11 +104,11 @@ same-named inner-scope class.
   `Admin::Base` masked the true `Base` referent). Post-fix: `Keep = true,
   Reason = accepted` (both candidates stay in play; `Base` →
   `ApplicationController` rescues via any-path-keeps).
-- `go/internal/reducer/code_root_verdicts_lexical_scope_test.go` —
+- `go/internal/reducer/codeintel/code_root_verdicts_lexical_scope_test.go` —
   `TestBuildCodeRootVerdictsLexicalScopeCoincidentalInnerMatchDoesNotMask`
   reproduces the same shape through the REAL production registry
   (`rubyRepoWideControllerRegistry`).
-- `go/internal/reducer/code_root_verdicts_integration_test.go` —
+- `go/internal/reducer/codeintel/code_root_verdicts_integration_test.go` —
   `TestBuildCodeRootVerdictsLexicalScopeCompactColonFormDoesNotMaskTrueReferentFromRealParserEmissions`
   reproduces it end-to-end through the REAL Ruby parser with genuine compact
   colon source (`class Admin::OrdersController < Base` with NO enclosing
@@ -125,7 +125,7 @@ same-named inner-scope class.
 ## Performance measurement (representative corpus, post P0-fix)
 
 Benchmarks (both in
-`go/internal/reducer/code_root_verdicts_lexical_scope_test.go`):
+`go/internal/reducer/codeintel/code_root_verdicts_lexical_scope_test.go`):
 `BenchmarkBuildCodeRootVerdictsNamespacedCorpus` (worst-case: 500 controllers
 nested 2 module levels deep, 20% with a base unresolvable anywhere in the
 lexical chain — the shape the issue documents as inflating
@@ -303,12 +303,12 @@ mechanism exists for does not hold here.
   proves the fix does not simply disable exact resolution for absolute refs:
   with a genuine top-level `Base < ActiveRecord::Base` present (no coincidental
   namespace-mate), the walk still downgrades via `rejected_framework_base`.
-- `go/internal/reducer/code_root_verdicts_lexical_scope_test.go` —
+- `go/internal/reducer/codeintel/code_root_verdicts_lexical_scope_test.go` —
   `TestBuildCodeRootVerdictsAbsoluteReferenceBypassesLexicalScope` reproduces
   the same shape through the REAL production registry
   (`rubyRepoWideControllerRegistry`) with a hand-built `QualifiedBases:
   []string{"::Base"}`.
-- `go/internal/reducer/code_root_verdicts_integration_test.go` —
+- `go/internal/reducer/codeintel/code_root_verdicts_integration_test.go` —
   `TestBuildCodeRootVerdictsAbsoluteReferenceFromRealParserEmissions`
   reproduces it end-to-end through the REAL Ruby parser with genuine source
   (`class OrdersController < ::Base` inside `module Admin`, plus a

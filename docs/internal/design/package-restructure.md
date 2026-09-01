@@ -205,7 +205,7 @@ plus the unchanged inlining sets, not on the test suite alone.
 
 No-Observability-Change: no metric, span, log field, status field, or runtime
 knob changes. The two `telemetry-coverage.md` rows this move touches are path
-repoints only (`go/internal/reducer/code_root_verdicts.go` ->
+repoints only (the root path for `code_root_verdicts.go` ->
 `.../codeintel/code_root_verdicts.go`), with their prose and their
 `No-Observability-Change` justifications unchanged; the code-root verdict
 builder and the route-liveness join remain pure in-process functions covered by
