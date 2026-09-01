@@ -66,15 +66,15 @@ List constructs verified by tests, with file:function references.
 11. **Public API roots (all_export, init_export, class member, base)** — `python_dead_code_roots_test.go:408-479` (`TestDefaultEngineParsePathPythonEmitsPublicAPIRootKinds`)
 12. **Concatenated `__all__` exports** — `python_dead_code_roots_test.go:491-536` (`ConcatenatedAllExportsAreRoots`)
 13. **Unknown decorators not marked** — `python_dead_code_roots_test.go:539-557` (`DoesNotMarkUnknownDecoratorsAsDeadCodeRoots`)
-14. **Embedded shell commands** — `embedded_shell_test.go:12-64` (`TestDefaultEngineParsePathPythonEmbeddedShellCommands`), `python/engine_python_ast_parity_test.go:138-199` (`EmbeddedShellRichParity`)
-15. **Generator semantic kind** — `python/engine_python_generator_test.go:13-39` (`TestDefaultEngineParsePathPythonGeneratorFunctionsEmitSemanticKind`)
-16. **Dotted call metadata** — `python/engine_python_call_semantics_test.go:13-42` (`TestDefaultEngineParsePathPythonEmitsDottedCallMetadata`)
-17. **Self receiver inference** — `python/engine_python_call_semantics_test.go:87-117` (`InfersSelfReceiverType`)
-18. **Method context and inferred receiver type** — `python/engine_python_call_semantics_test.go:44-85` (`EmitsMethodContextAndInferredReceiverType`)
-19. **Type annotations (splat params, return type)** — `python/engine_python_ast_parity_test.go:68-132` (`SplatTypedParamAnnotations`)
-20. **Multiline class header** — `python/engine_python_ast_parity_test.go:19-63` (`MultilineClassHeaderUsesAST`)
-21. **Lambda attribute assignment** — `python/engine_python_lambda_assignment_test.go:15-57` (`LambdaAttributeAssignmentEmitsNamedFunction`)
-22. **Anonymous lambda** — `python/engine_python_lambda_assignment_test.go:59-103` (`AnonymousLambdaPromotesSyntheticFunction`)
+14. **Embedded shell commands** — `embedded_shell_test.go:12-64` (`TestDefaultEngineParsePathPythonEmbeddedShellCommands`), `python/engine_python_ast_parity_test.go:140-201` (`EmbeddedShellRichParity`)
+15. **Generator semantic kind** — `python/engine_python_generator_test.go:15-41` (`TestDefaultEngineParsePathPythonGeneratorFunctionsEmitSemanticKind`)
+16. **Dotted call metadata** — `python/engine_python_call_semantics_test.go:15-44` (`TestDefaultEngineParsePathPythonEmitsDottedCallMetadata`)
+17. **Self receiver inference** — `python/engine_python_call_semantics_test.go:89-119` (`InfersSelfReceiverType`)
+18. **Method context and inferred receiver type** — `python/engine_python_call_semantics_test.go:46-87` (`EmitsMethodContextAndInferredReceiverType`)
+19. **Type annotations (splat params, return type)** — `python/engine_python_ast_parity_test.go:70-134` (`SplatTypedParamAnnotations`)
+20. **Multiline class header** — `python/engine_python_ast_parity_test.go:21-65` (`MultilineClassHeaderUsesAST`)
+21. **Lambda attribute assignment** — `python/engine_python_lambda_assignment_test.go:17-59` (`LambdaAttributeAssignmentEmitsNamedFunction`)
+22. **Anonymous lambda** — `python/engine_python_lambda_assignment_test.go:61-105` (`AnonymousLambdaPromotesSyntheticFunction`)
 23. **Annotated assignments** — `python/engine_python_annotation_assignment_test.go:14-65` (`EmitsAnnotatedAssignmentTypeAnnotations`)
 24. **Rationale comments** — `python/engine_python_rationale_test.go:14-48` (`EmitsRationaleComments`)
 25. **Value-flow taint findings** — `python_cfg_dataflow_test.go:30-99` (`DataflowOffIsByteIdentical`, `TaintSourceToSQLSink`)
@@ -99,15 +99,15 @@ List edge cases the tests actually cover with test references.
 - **Script guard skips else branches and nested definitions** — `python_dead_code_roots_test.go:239-288`
 - **Dunder method assignment via `type(x).__reduce__ = __reduce__`** — `python_dead_code_roots_test.go:292-337`
 - **Concatenated `__all__` literals** — `python_dead_code_roots_test.go:491-536`
-- **Multiline class header** — `python/engine_python_ast_parity_test.go:19-63`
+- **Multiline class header** — `python/engine_python_ast_parity_test.go:21-65`
 - **Orphaned route decorator** (no following def) — tested via correlation-truth contract (#2788), not emitting fabricated handler
-- **Splat typed parameters** — `python/engine_python_ast_parity_test.go:68-132`
-- **Embedded shell alias shadowing** — `python/engine_python_ast_parity_test.go:138-199`
-- **Module-level call skip for embedded shell** — `python/engine_python_ast_parity_test.go:138-199`
-- **Lambda assignment promotes synthetic function** — `python/engine_python_lambda_assignment_test.go:15-57`
+- **Splat typed parameters** — `python/engine_python_ast_parity_test.go:70-134`
+- **Embedded shell alias shadowing** — `python/engine_python_ast_parity_test.go:140-201`
+- **Module-level call skip for embedded shell** — `python/engine_python_ast_parity_test.go:140-201`
+- **Lambda assignment promotes synthetic function** — `python/engine_python_lambda_assignment_test.go:17-59`
 - **Value-flow gate off is byte-identical** — `python_cfg_dataflow_test.go:30-64`
 - **Duplicate method reference in `__all__` and `package_init_export`** — deduplication tested in public API root tests
-- **Generator yield in nested function is inner-only** — `python/engine_python_generator_test.go:41-79`
+- **Generator yield in nested function is inner-only** — `python/engine_python_generator_test.go:43-81`
 - **Empty constructor caller (`no args`)** — not explicitly tested (minor)
 
 ## Edge Cases NOT Considered

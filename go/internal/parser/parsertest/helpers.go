@@ -169,7 +169,6 @@ func intFieldEquals(item map[string]any, field string, want int) error {
 	return nil
 }
 
-// AssertIntFieldValue requires item[field] to hold the int want.
 // stringFieldEquals reports why item[field] fails to equal want, or nil when it
 // holds. Split from the assertion so the malformed-value branch is testable.
 func stringFieldEquals(item map[string]any, field string, want string) error {
@@ -198,6 +197,7 @@ func AssertStringFieldValue(t *testing.T, item map[string]any, field string, wan
 	}
 }
 
+// AssertIntFieldValue requires item[field] to hold the int want.
 func AssertIntFieldValue(t *testing.T, item map[string]any, field string, want int) {
 	t.Helper()
 
