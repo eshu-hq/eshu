@@ -49,7 +49,7 @@ class Config {
 	createService := parsertest.AssertBucketItemByName(t, got, "functions", "createService")
 	parsertest.AssertStringFieldValue(t, createService, "return_type", "Service")
 
-	infoCall := assertBucketItemByFieldValue(t, got, "function_calls", "full_name", "createService().info")
+	infoCall := parsertest.AssertBucketItemByFieldValue(t, got, "function_calls", "full_name", "createService().info")
 	parsertest.AssertStringFieldValue(t, infoCall, "inferred_obj_type", "Service")
 }
 
@@ -97,7 +97,7 @@ class Config {
 	factoryCall := parsertest.AssertBucketItemByName(t, got, "functions", "createFactory")
 	parsertest.AssertStringFieldValue(t, factoryCall, "return_type", "Factory")
 
-	infoCall := assertBucketItemByFieldValue(t, got, "function_calls", "name", "info")
+	infoCall := parsertest.AssertBucketItemByFieldValue(t, got, "function_calls", "name", "info")
 	phpAssertStringFieldContains(t, infoCall, "full_name", "createFactory")
 	parsertest.AssertStringFieldValue(t, infoCall, "inferred_obj_type", "Service")
 }

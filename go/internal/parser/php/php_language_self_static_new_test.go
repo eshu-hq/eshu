@@ -47,9 +47,9 @@ class Factory {
 		t.Fatalf("ParsePath() error = %v, want nil", err)
 	}
 
-	selfInfo := assertBucketItemByFieldValue(t, got, "function_calls", "full_name", "new self()->createService().info")
+	selfInfo := parsertest.AssertBucketItemByFieldValue(t, got, "function_calls", "full_name", "new self()->createService().info")
 	parsertest.AssertStringFieldValue(t, selfInfo, "inferred_obj_type", "Service")
 
-	staticInfo := assertBucketItemByFieldValue(t, got, "function_calls", "full_name", "new static()->createService().info")
+	staticInfo := parsertest.AssertBucketItemByFieldValue(t, got, "function_calls", "full_name", "new static()->createService().info")
 	parsertest.AssertStringFieldValue(t, staticInfo, "inferred_obj_type", "Service")
 }

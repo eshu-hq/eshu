@@ -44,7 +44,7 @@ class Registry {
 		t.Fatalf("ParsePath() error = %v, want nil", err)
 	}
 
-	call := assertBucketItemByFieldValue(t, got, "function_calls", "full_name", "self::$service.info")
+	call := parsertest.AssertBucketItemByFieldValue(t, got, "function_calls", "full_name", "self::$service.info")
 	parsertest.AssertStringFieldValue(t, call, "inferred_obj_type", "Service")
 }
 

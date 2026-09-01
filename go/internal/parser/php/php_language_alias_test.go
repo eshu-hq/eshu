@@ -45,13 +45,13 @@ class Config {
 		t.Fatalf("ParsePath() error = %v, want nil", err)
 	}
 
-	loggerItem := assertBucketItemByFieldValue(t, got, "variables", "name", "$logger")
+	loggerItem := parsertest.AssertBucketItemByFieldValue(t, got, "variables", "name", "$logger")
 	parsertest.AssertStringFieldValue(t, loggerItem, "type", "Service")
 
-	infoCall := assertBucketItemByFieldValue(t, got, "function_calls", "full_name", "$logger.info")
+	infoCall := parsertest.AssertBucketItemByFieldValue(t, got, "function_calls", "full_name", "$logger.info")
 	parsertest.AssertStringFieldValue(t, infoCall, "inferred_obj_type", "Service")
 
-	newServiceCall := assertBucketItemByFieldValue(t, got, "function_calls", "full_name", "new Service().info")
+	newServiceCall := parsertest.AssertBucketItemByFieldValue(t, got, "function_calls", "full_name", "new Service().info")
 	parsertest.AssertStringFieldValue(t, newServiceCall, "inferred_obj_type", "Service")
 }
 
@@ -89,10 +89,10 @@ class Config {
 		t.Fatalf("ParsePath() error = %v, want nil", err)
 	}
 
-	loggerItem := assertBucketItemByFieldValue(t, got, "variables", "name", "$logger")
+	loggerItem := parsertest.AssertBucketItemByFieldValue(t, got, "variables", "name", "$logger")
 	parsertest.AssertStringFieldValue(t, loggerItem, "type", "Service")
 
-	infoCall := assertBucketItemByFieldValue(t, got, "function_calls", "full_name", "$logger.info")
+	infoCall := parsertest.AssertBucketItemByFieldValue(t, got, "function_calls", "full_name", "$logger.info")
 	parsertest.AssertStringFieldValue(t, infoCall, "inferred_obj_type", "Service")
 }
 
@@ -134,10 +134,10 @@ class Config {
 		t.Fatalf("ParsePath() error = %v, want nil", err)
 	}
 
-	loggerItem := assertBucketItemByFieldValue(t, got, "variables", "name", "$logger")
+	loggerItem := parsertest.AssertBucketItemByFieldValue(t, got, "variables", "name", "$logger")
 	parsertest.AssertStringFieldValue(t, loggerItem, "type", "Logger")
 
-	infoCall := assertBucketItemByFieldValue(t, got, "function_calls", "full_name", "$logger.info")
+	infoCall := parsertest.AssertBucketItemByFieldValue(t, got, "function_calls", "full_name", "$logger.info")
 	parsertest.AssertStringFieldValue(t, infoCall, "inferred_obj_type", "Logger")
 }
 
@@ -184,10 +184,10 @@ class Config {
 	factoryMethod := parsertest.AssertBucketItemByName(t, got, "functions", "createService")
 	parsertest.AssertStringFieldValue(t, factoryMethod, "return_type", "Service")
 
-	serviceItem := assertBucketItemByFieldValue(t, got, "variables", "name", "$service")
+	serviceItem := parsertest.AssertBucketItemByFieldValue(t, got, "variables", "name", "$service")
 	parsertest.AssertStringFieldValue(t, serviceItem, "type", "Service")
 
-	infoCall := assertBucketItemByFieldValue(t, got, "function_calls", "full_name", "$service.info")
+	infoCall := parsertest.AssertBucketItemByFieldValue(t, got, "function_calls", "full_name", "$service.info")
 	parsertest.AssertStringFieldValue(t, infoCall, "inferred_obj_type", "Service")
 }
 
@@ -230,10 +230,10 @@ class Config {
 	createService := parsertest.AssertBucketItemByName(t, got, "functions", "createService")
 	parsertest.AssertStringFieldValue(t, createService, "return_type", "Service")
 
-	serviceItem := assertBucketItemByFieldValue(t, got, "variables", "name", "$service")
+	serviceItem := parsertest.AssertBucketItemByFieldValue(t, got, "variables", "name", "$service")
 	parsertest.AssertStringFieldValue(t, serviceItem, "type", "Service")
 
-	infoCall := assertBucketItemByFieldValue(t, got, "function_calls", "full_name", "$service.info")
+	infoCall := parsertest.AssertBucketItemByFieldValue(t, got, "function_calls", "full_name", "$service.info")
 	parsertest.AssertStringFieldValue(t, infoCall, "inferred_obj_type", "Service")
 }
 
@@ -281,10 +281,10 @@ class Config {
 		t.Fatalf("ParsePath() error = %v, want nil", err)
 	}
 
-	loggerItem := assertBucketItemByFieldValue(t, got, "variables", "name", "$logger")
+	loggerItem := parsertest.AssertBucketItemByFieldValue(t, got, "variables", "name", "$logger")
 	parsertest.AssertStringFieldValue(t, loggerItem, "type", "Logger")
 
-	infoCall := assertBucketItemByFieldValue(t, got, "function_calls", "full_name", "$logger.info")
+	infoCall := parsertest.AssertBucketItemByFieldValue(t, got, "function_calls", "full_name", "$logger.info")
 	parsertest.AssertStringFieldValue(t, infoCall, "inferred_obj_type", "Logger")
 }
 
@@ -329,7 +329,7 @@ class Config {
 		t.Fatalf("ParsePath() error = %v, want nil", err)
 	}
 
-	infoCall := assertBucketItemByFieldValue(t, got, "function_calls", "name", "info")
+	infoCall := parsertest.AssertBucketItemByFieldValue(t, got, "function_calls", "name", "info")
 	phpAssertStringFieldContains(t, infoCall, "full_name", "createService")
 	parsertest.AssertStringFieldValue(t, infoCall, "inferred_obj_type", "Service")
 }
@@ -366,10 +366,10 @@ class ConfigRunner {
 		t.Fatalf("ParsePath() error = %v, want nil", err)
 	}
 
-	configItem := assertBucketItemByFieldValue(t, got, "variables", "name", "$config")
+	configItem := parsertest.AssertBucketItemByFieldValue(t, got, "variables", "name", "$config")
 	parsertest.AssertStringFieldValue(t, configItem, "type", "Config")
 
-	infoCall := assertBucketItemByFieldValue(t, got, "function_calls", "full_name", "$config.info")
+	infoCall := parsertest.AssertBucketItemByFieldValue(t, got, "function_calls", "full_name", "$config.info")
 	parsertest.AssertStringFieldValue(t, infoCall, "inferred_obj_type", "Config")
 }
 
@@ -418,6 +418,6 @@ class ConfigRunner {
 		t.Fatalf("ParsePath() error = %v, want nil", err)
 	}
 
-	infoCall := assertBucketItemByFieldValue(t, got, "function_calls", "full_name", "AppFactory::instance()->createService().info")
+	infoCall := parsertest.AssertBucketItemByFieldValue(t, got, "function_calls", "full_name", "AppFactory::instance()->createService().info")
 	parsertest.AssertStringFieldValue(t, infoCall, "inferred_obj_type", "Service")
 }

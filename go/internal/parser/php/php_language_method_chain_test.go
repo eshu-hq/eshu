@@ -53,7 +53,7 @@ class Config {
 	createService := parsertest.AssertBucketItemByName(t, got, "functions", "createService")
 	parsertest.AssertStringFieldValue(t, createService, "return_type", "Service")
 
-	infoCall := assertBucketItemByFieldValue(t, got, "function_calls", "full_name", "$this->factory->createService().info")
+	infoCall := parsertest.AssertBucketItemByFieldValue(t, got, "function_calls", "full_name", "$this->factory->createService().info")
 	parsertest.AssertStringFieldValue(t, infoCall, "inferred_obj_type", "Service")
 }
 
@@ -100,6 +100,6 @@ class Config {
 		t.Fatalf("ParsePath() error = %v, want nil", err)
 	}
 
-	loggerCall := assertBucketItemByFieldValue(t, got, "function_calls", "full_name", "$this->factory->createService()->logger.info")
+	loggerCall := parsertest.AssertBucketItemByFieldValue(t, got, "function_calls", "full_name", "$this->factory->createService()->logger.info")
 	parsertest.AssertStringFieldValue(t, loggerCall, "inferred_obj_type", "Logger")
 }

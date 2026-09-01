@@ -54,9 +54,9 @@ class Config {
 	factoryItem := parsertest.AssertBucketItemByName(t, got, "functions", "createFactory")
 	parsertest.AssertStringFieldValue(t, factoryItem, "return_type", "Factory")
 
-	loggerItem := assertBucketItemByFieldValue(t, got, "variables", "name", "$logger")
+	loggerItem := parsertest.AssertBucketItemByFieldValue(t, got, "variables", "name", "$logger")
 	parsertest.AssertStringFieldValue(t, loggerItem, "type", "Logger")
 
-	infoCall := assertBucketItemByFieldValue(t, got, "function_calls", "full_name", "$logger.info")
+	infoCall := parsertest.AssertBucketItemByFieldValue(t, got, "function_calls", "full_name", "$logger.info")
 	parsertest.AssertStringFieldValue(t, infoCall, "inferred_obj_type", "Logger")
 }

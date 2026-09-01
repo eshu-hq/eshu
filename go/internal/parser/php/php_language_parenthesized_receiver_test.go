@@ -53,6 +53,6 @@ class Config {
 	createService := parsertest.AssertBucketItemByName(t, got, "functions", "createService")
 	parsertest.AssertStringFieldValue(t, createService, "return_type", "Service")
 
-	infoCall := assertBucketItemByFieldValue(t, got, "function_calls", "full_name", "$this->factory->createService().info")
+	infoCall := parsertest.AssertBucketItemByFieldValue(t, got, "function_calls", "full_name", "$this->factory->createService().info")
 	parsertest.AssertStringFieldValue(t, infoCall, "inferred_obj_type", "Service")
 }

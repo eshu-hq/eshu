@@ -42,6 +42,6 @@ class Worker {
 		t.Fatalf("ParsePath() error = %v, want nil", err)
 	}
 
-	call := assertBucketItemByFieldValue(t, got, "function_calls", "full_name", "$service.info")
+	call := parsertest.AssertBucketItemByFieldValue(t, got, "function_calls", "full_name", "$service.info")
 	parsertest.AssertStringFieldValue(t, call, "inferred_obj_type", "Service")
 }

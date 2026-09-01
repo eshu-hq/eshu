@@ -122,9 +122,11 @@ func assertIntFieldValue(t *testing.T, item map[string]any, field string, want i
 // field equals want. It lives here rather than in a language-specific test
 // file because the Go, Java, JavaScript, and TypeScript engine tests key
 // function_calls rows by full_name or call_kind rather than by name. The
-// external internal/parser/php tests keep a deliberately identical copy, since
-// they cannot see this unexported helper and exporting it would widen the
-// parent package's surface.
+// external internal/parser/php tests use parsertest.AssertBucketItemByFieldValue
+// instead. This copy cannot be replaced by that shared one: parsertest imports
+// this package, so an internal `package parser` test importing parsertest is an
+// import cycle. Only the external <lang>_test child packages can take the
+// shared helper.
 func assertBucketItemByFieldValue(
 	t *testing.T,
 	payload map[string]any,

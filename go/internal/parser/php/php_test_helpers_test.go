@@ -90,36 +90,6 @@ func phpAssertNilField(t *testing.T, item map[string]any, field string) {
 	}
 }
 
-// assertBucketItemByFieldValue returns the payload[bucket] item whose string
-// field equals want. PHP receiver-inference assertions key function_calls rows
-// by full_name rather than by name, so parsertest's name-keyed lookups do not
-// apply, and parsertest.AssertBucketContainsFieldValue does not return the
-// matched item. The parent package keeps its own unexported copy for the
-// other language tests that still live there; the two are deliberately
-// identical.
-func assertBucketItemByFieldValue(
-	t *testing.T,
-	payload map[string]any,
-	bucket string,
-	field string,
-	want string,
-) map[string]any {
-	t.Helper()
-
-	items, ok := payload[bucket].([]map[string]any)
-	if !ok {
-		t.Fatalf("%s = %T, want []map[string]any", bucket, payload[bucket])
-	}
-	for _, item := range items {
-		value, _ := item[field].(string)
-		if value == want {
-			return item
-		}
-	}
-	t.Fatalf("%s missing %s=%q in %#v", bucket, field, want, items)
-	return nil
-}
-
 // assertCallContextTuple requires item["context"] to be a []any whose first
 // three entries are the enclosing declaration name, its kind, and its line.
 // Each entry is type-checked before comparison so a wrongly-typed entry fails

@@ -245,6 +245,35 @@ func AssertFunctionByNameAndClass(
 
 // AssertBucketContainsFieldValue requires payload[key] to be a map slice with
 // one item whose field equals wantValue.
+// AssertBucketItemByFieldValue returns the payload[bucket] item whose string
+// field equals want, failing the test when no item matches. It is the
+// returning counterpart to AssertBucketContainsFieldValue, for callers that
+// need to make further assertions about the matched row — several language
+// engine tests key function_calls by full_name or call_kind rather than by
+// name, then assert on the row they find.
+func AssertBucketItemByFieldValue(
+	t *testing.T,
+	payload map[string]any,
+	bucket string,
+	field string,
+	want string,
+) map[string]any {
+	t.Helper()
+
+	items, ok := payload[bucket].([]map[string]any)
+	if !ok {
+		t.Fatalf("%s = %T, want []map[string]any", bucket, payload[bucket])
+	}
+	for _, item := range items {
+		value, _ := item[field].(string)
+		if value == want {
+			return item
+		}
+	}
+	t.Fatalf("%s missing %s %q in %#v", bucket, field, want, items)
+	return nil
+}
+
 func AssertBucketContainsFieldValue(
 	t *testing.T,
 	payload map[string]any,

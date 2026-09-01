@@ -60,12 +60,12 @@ class Caller {
 		t.Fatalf("ParsePath() error = %v, want nil", err)
 	}
 
-	variableCall := assertBucketItemByFieldValue(t, got, "function_calls", "full_name", "$svc.run")
+	variableCall := parsertest.AssertBucketItemByFieldValue(t, got, "function_calls", "full_name", "$svc.run")
 	parsertest.AssertStringFieldValue(t, variableCall, "inferred_obj_type", "Service")
 
-	chainCall := assertBucketItemByFieldValue(t, got, "function_calls", "full_name", "new Demo\\Service().run")
+	chainCall := parsertest.AssertBucketItemByFieldValue(t, got, "function_calls", "full_name", "new Demo\\Service().run")
 	parsertest.AssertStringFieldValue(t, chainCall, "inferred_obj_type", "Service")
 
-	bareCall := assertBucketItemByFieldValue(t, got, "function_calls", "full_name", "$bare.run")
+	bareCall := parsertest.AssertBucketItemByFieldValue(t, got, "function_calls", "full_name", "$bare.run")
 	parsertest.AssertStringFieldValue(t, bareCall, "inferred_obj_type", "Service")
 }

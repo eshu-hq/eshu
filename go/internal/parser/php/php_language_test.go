@@ -378,7 +378,7 @@ class Config {
 	parsertest.AssertStringFieldValue(t, warnCall, "full_name", "Logger.warn")
 	parsertest.AssertStringFieldValue(t, warnCall, "inferred_obj_type", "Logger")
 
-	namespacedCall := assertBucketItemByFieldValue(t, got, "function_calls", "full_name", "Demo\\Logger.warn")
+	namespacedCall := parsertest.AssertBucketItemByFieldValue(t, got, "function_calls", "full_name", "Demo\\Logger.warn")
 	parsertest.AssertStringFieldValue(t, namespacedCall, "name", "warn")
 	parsertest.AssertStringFieldValue(t, namespacedCall, "inferred_obj_type", "Demo\\Logger")
 }
@@ -422,7 +422,7 @@ class Config {
 	sessionItem := parsertest.AssertBucketItemByName(t, got, "variables", "$session")
 	parsertest.AssertStringFieldValue(t, sessionItem, "type", "Session")
 
-	infoCall := assertBucketItemByFieldValue(t, got, "function_calls", "full_name", "$session->service.info")
+	infoCall := parsertest.AssertBucketItemByFieldValue(t, got, "function_calls", "full_name", "$session->service.info")
 	parsertest.AssertStringFieldValue(t, infoCall, "name", "info")
 	parsertest.AssertStringFieldValue(t, infoCall, "inferred_obj_type", "Service")
 }
@@ -460,7 +460,7 @@ class Config {
 		t.Fatalf("ParsePath() error = %v, want nil", err)
 	}
 
-	infoCall := assertBucketItemByFieldValue(t, got, "function_calls", "full_name", "$this->service.info")
+	infoCall := parsertest.AssertBucketItemByFieldValue(t, got, "function_calls", "full_name", "$this->service.info")
 	parsertest.AssertStringFieldValue(t, infoCall, "name", "info")
 	parsertest.AssertStringFieldValue(t, infoCall, "inferred_obj_type", "Service")
 }

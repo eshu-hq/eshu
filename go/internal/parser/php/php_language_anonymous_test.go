@@ -49,9 +49,9 @@ class Logger {
 	classItem := parsertest.AssertBucketItemByName(t, got, "classes", "anonymous_class_4")
 	parsertest.AssertStringSliceEquals(t, classItem, "bases", []string{"Logger"})
 
-	loggerItem := assertBucketItemByFieldValue(t, got, "variables", "name", "$logger")
+	loggerItem := parsertest.AssertBucketItemByFieldValue(t, got, "variables", "name", "$logger")
 	parsertest.AssertStringFieldValue(t, loggerItem, "type", "anonymous_class_4")
 
-	infoCall := assertBucketItemByFieldValue(t, got, "function_calls", "full_name", "$logger.info")
+	infoCall := parsertest.AssertBucketItemByFieldValue(t, got, "function_calls", "full_name", "$logger.info")
 	parsertest.AssertStringFieldValue(t, infoCall, "inferred_obj_type", "anonymous_class_4")
 }
