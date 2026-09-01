@@ -582,7 +582,7 @@ does not change graph write cardinality, worker counts, claim ordering, batch
 size, retry timing, or backend settings.
 
 No-Regression Evidence: PagerDuty incident-routing intent routing is covered by
-`go test ./internal/projector/... -run 'IncidentRoutingMaterialization' -count=1`.
+`scripts/go-test-run-guard.sh 4 'IncidentRoutingMaterialization' -- ./internal/projector/... -count=1` (the guard rather than a bare `go test -run`, which exits 0 when the pattern matches nothing and would leave this pin silently exercising no tests after a rename).
 It adds at most one reducer intent per incident/routing scope generation and
 does not change graph writes, worker counts, claim ordering, batch size, retry
 timing, or backend settings.
