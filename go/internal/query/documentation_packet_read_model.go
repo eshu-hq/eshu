@@ -13,6 +13,17 @@ import (
 	"go.opentelemetry.io/otel/trace"
 )
 
+// DocumentationEvidencePacketWithFilter reads the latest evidence packet for
+// filter.FindingID from fact_records via Postgres, scoped by
+// filter.AllowedRepositoryIDs/AllowedScopeIDs, and applies the #2164
+// source-ACL disclosure rule: a denied packet comes back with Denied set and
+// its body withheld, a partial packet comes back available with protected
+// content withheld behind a partial marker, and a stale-but-permitted packet
+// keeps its content and existing freshness/truth labels intact. It is the
+// scoped read-model path documentationReadModelStore exposes to
+// DocumentationHandler.getEvidencePacket; without a satisfying store the
+// handler responds 501 ErrorCodeReadModelUnavailable instead of this
+// ACL-aware result.
 func (cr *ContentReader) DocumentationEvidencePacketWithFilter(
 	ctx context.Context,
 	filter documentationEvidencePacketFilter,
@@ -71,6 +82,15 @@ func (cr *ContentReader) DocumentationEvidencePacketWithFilter(
 	return documentationEvidencePacketReadModel{Available: true, Packet: packet}, nil
 }
 
+// DocumentationEvidencePacketFreshnessWithFilter reads the freshness state
+// of filter.PacketID (optionally compared against filter.SavedPacketVersion)
+// from fact_records via Postgres, scoped by filter.AllowedRepositoryIDs and
+// filter.AllowedScopeIDs, and applies the same #2164 source-ACL disclosure
+// rule as DocumentationEvidencePacketWithFilter: a denied packet comes back
+// Denied with no freshness detail exposed. It is the scoped read-model path
+// documentationReadModelStore exposes to
+// DocumentationHandler.getPacketFreshness; without a satisfying store the
+// handler responds 501 ErrorCodeReadModelUnavailable instead.
 func (cr *ContentReader) DocumentationEvidencePacketFreshnessWithFilter(
 	ctx context.Context,
 	filter documentationEvidencePacketFreshnessFilter,

@@ -11,6 +11,14 @@ import (
 	"strings"
 )
 
+// RepositoryRelationshipReadModel is the Postgres read-model fast path for a
+// repository's resolved relationship rows and derived consumers, hydrated
+// from resolved_relationships so API reads avoid the incoming-fanout graph
+// traversal repository_context.go otherwise runs as three separate Neo4j
+// queries (queryRepoDependencies, queryRepoRelationshipOverview,
+// queryRepoConsumers). Available is false when the read model has nothing
+// for the repository, in which case callers must fall back to those graph
+// queries rather than treat a zero-value read model as authoritative.
 type RepositoryRelationshipReadModel struct {
 	Available     bool
 	Relationships []map[string]any

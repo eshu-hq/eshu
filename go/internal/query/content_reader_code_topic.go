@@ -13,6 +13,14 @@ import (
 	"go.opentelemetry.io/otel/trace"
 )
 
+// InvestigateCodeTopic scores entities and files in content_entities and
+// content_files against req.Terms (name/source-cache substring match for
+// entities, path/content substring match for files), ranked by distinct
+// term hits and scoped by req.RepoID or, for a corpus-wide search, by
+// req.AllowedRepositoryIDs. It is the batched fast path
+// codeTopicContentInvestigator exposes to CodeHandler.codeTopicRows and
+// changeSurfaceTopicRows; the fallback those callers take without a
+// satisfying store returns an error rather than a slower equivalent result.
 func (cr *ContentReader) InvestigateCodeTopic(
 	ctx context.Context,
 	req codeTopicInvestigationRequest,

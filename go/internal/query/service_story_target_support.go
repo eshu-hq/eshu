@@ -104,6 +104,15 @@ func loadRepositoryStoryTargetSupport(
 	return readModel.Support, nil
 }
 
+// ServiceStoryTargetSupportEvidence reads support-evidence rows for
+// filter.TargetKind/filter.TargetID (service or repository) from
+// fact_records via Postgres, grouped into the read model's Support map. It
+// is the read-model path serviceStoryTargetSupportStore exposes to
+// loadServiceStoryTargetSupport and loadRepositoryStoryTargetSupport. This
+// is the #6060 audit's worst fallback case: without a satisfying store,
+// those callers return (nil, nil) with no fallback of any kind, so the
+// target_support/support_overview response section silently vanishes
+// rather than erroring or degrading.
 func (cr *ContentReader) ServiceStoryTargetSupportEvidence(
 	ctx context.Context,
 	filter serviceStoryTargetSupportFilter,
