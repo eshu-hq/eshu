@@ -10,7 +10,7 @@
 // their registration definitions without importing this parent package. The
 // ask, relationships, and visualization children own pure dependency-neutral
 // family route selectors alongside their definitions, and the
-// admissiondecisions, cicd, codeowners, containerimage,
+// admissiondecisions, cicd, codeowners, containerimage, kubernetes,
 // observabilitycoverage, packageregistry, secretsiam, securityalert, and
 // supplychainimpact children own such a selector without owning a
 // registration.
@@ -93,7 +93,9 @@
 // reach dispatch through the securityAlertRoute adapter. The one
 // admission-decisions listing selector, which the same repository router
 // answers, lives in the admissiondecisions child and reaches dispatch through
-// the admissionDecisionsRoute adapter;
+// the admissionDecisionsRoute adapter, and the one Kubernetes-correlation
+// listing selector, answered by that router too, lives in the kubernetes
+// child and reaches dispatch through the kubernetesCorrelationsRoute adapter;
 // SBOM attachment tools forward repository_id to the query layer so repository
 // scope returns reducer-owned image/SBOM missing evidence instead of becoming
 // an unscoped aggregate.
