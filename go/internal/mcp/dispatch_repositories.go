@@ -62,6 +62,9 @@ func repositoryRoute(toolName string, args map[string]any) (*route, bool, error)
 	if route, ok := admissionDecisionsRoute(toolName, args); ok {
 		return route, true, nil
 	}
+	if route, ok := kubernetesCorrelationsRoute(toolName, args); ok {
+		return route, true, nil
+	}
 	switch toolName {
 	case "list_indexed_repositories":
 		return &route{method: "GET", path: "/api/v0/repositories", query: paginationQuery(args, 100)}, true, nil
@@ -91,8 +94,6 @@ func repositoryRoute(toolName string, args map[string]any) (*route, bool, error)
 		return &route{method: "GET", path: "/api/v0/evidence/relationships/" + url.PathEscape(str(args, "resolved_id"))}, true, nil
 	case "list_service_catalog_correlations":
 		return serviceCatalogCorrelationsRoute(args), true, nil
-	case "list_kubernetes_correlations":
-		return kubernetesCorrelationsRoute(args), true, nil
 	case "list_advisory_evidence":
 		return advisoryEvidenceRoute(args), true, nil
 	case "get_vulnerability_scanner_read_contract":

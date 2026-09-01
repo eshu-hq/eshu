@@ -54,7 +54,9 @@ Implementation status (stated so reviewers see what landed vs what remains):
   six-outcome classifier.
 - **PR2 — LANDED** on `main`: the query/MCP read surface
   (`GET /api/v0/kubernetes/correlations` in `go/internal/query/kubernetes.go`,
-  `list_kubernetes_correlations` in `go/internal/mcp/dispatch_kubernetes.go`)
+  `list_kubernetes_correlations` selected in
+  `go/internal/mcp/kubernetes/routes.go` behind the
+  `go/internal/mcp/dispatch_kubernetes.go` adapter)
   that distinguishes live evidence, exact ownership, drift, unknown, and stale
   states (issue #388 acceptance criterion 3).
 - **PR3 — LANDED** on `main`: the readiness-gated canonical graph edge (a

@@ -3,19 +3,22 @@
 
 package mcp
 
-import "strconv"
+import (
+	kubernetestools "github.com/eshu-hq/eshu/go/internal/mcp/kubernetes"
+	"github.com/eshu-hq/eshu/go/internal/mcp/routecontract"
+)
 
-func kubernetesCorrelationsRoute(args map[string]any) *route {
-	return &route{method: "GET", path: "/api/v0/kubernetes/correlations", query: map[string]string{
-		"after_correlation_id": str(args, "after_correlation_id"),
-		"cluster_id":           str(args, "cluster_id"),
-		"drift_kind":           str(args, "drift_kind"),
-		"image_ref":            str(args, "image_ref"),
-		"limit":                strconv.Itoa(intOr(args, "limit", 50)),
-		"namespace":            str(args, "namespace"),
-		"outcome":              str(args, "outcome"),
-		"scope_id":             str(args, "scope_id"),
-		"source_digest":        str(args, "source_digest"),
-		"workload_object_id":   str(args, "workload_object_id"),
-	}}
+// kubernetesCorrelationsRoute adapts the child package's Kubernetes-correlation
+// request selection into the root dispatcher's transport route.
+func kubernetesCorrelationsRoute(toolName string, args map[string]any) (*route, bool) {
+	request, handled := kubernetestools.Route(toolName, routecontract.Arguments(args))
+	if !handled {
+		return nil, false
+	}
+	return &route{
+		method: request.Method,
+		path:   request.Path,
+		body:   request.Body,
+		query:  request.Query,
+	}, true
 }

@@ -1186,6 +1186,45 @@ bool-only `include_evidence` coercion individually, and the dispatch-level
 test asserts the eight keys against literal expectations rather than against
 the child selector, which the adapter parity test cannot do for it.
 
+The Kubernetes-correlation route family is the tenth Wave 2 MCP extraction and
+keeps the single-tool shape: one tool, `list_kubernetes_correlations`, one arm
+of the same `repositoryRoute` switch, one request builder alone in
+`dispatch_kubernetes.go` with no private helper beside it. Family membership
+and the builder now live under `internal/mcp/kubernetes`, and
+`dispatch_kubernetes.go` keeps only the thin `kubernetesCorrelationsRoute`
+adapter. Root keeps the tool definition and its assembly position, global
+fanout order, dispatch, authorization, transport, timeouts, response budgets,
+envelopes, summaries, and telemetry. The adapter is consulted directly after
+the admission-decisions one at the top of `repositoryRoute`, so the repository
+router keeps its own position in the global chain and no other family's
+resolution order changes. The one name is disjoint from the nine earlier
+families and from the remaining switch arms, which drop from 18 to 17, and the
+162-tool order, the advertised schema, the `limit` default of 50, and every
+selected method, path, and query key remain unchanged. The root file set is
+unchanged too -- the adapter keeps the builder's file name -- so
+`internal/mcp` holds its dirgate pin of 106 with no re-pin.
+
+What makes this family worth reading is that its ten keys fail four different
+ways when one is lost, and the loudest failure is the one the dispatcher's
+default hides. `limit` is required by the handler and bounded to 1..200 as a
+rejection, not a clamp: an absent `limit` 400s with `limit is required`, and
+0, -1, or 500 400s with `limit must be between 1 and 200`. The dispatcher's
+default of 50 is therefore the only reason an MCP caller who omits `limit`
+gets a page at all, and a caller who stringifies it as `"25"` gets a 50-row
+page rather than an error because `routecontract.Arguments.IntOr` does not
+parse strings. The six anchors -- `scope_id`, `cluster_id`,
+`workload_object_id`, `namespace`, `image_ref`, and `source_digest` -- are
+required as a group, so losing one 400s only the caller whose sole anchor it
+was and silently widens everyone else's page past the anchor they named.
+`outcome` and `drift_kind` are `($n = '' OR ...)` equality filters in the
+store, so losing one returns 200 over every outcome or drift kind, and
+`after_correlation_id` is the `fact_id` keyset cursor, so losing it returns
+200 from the first page again. The child tests pin each of the nine string
+keys and the `limit` coercion table individually, and the dispatch-level test
+asserts the ten keys against literal expectations rather than against the
+child selector; dropping `drift_kind` from the builder fails three child
+tests and one root test.
+
 **cmd/eshu (233):** `package main` — subdirectories are impossible by
 language rule. The lever is extracting business logic to new
 `internal/cli/<family>` packages, leaving thin cobra RunE wrappers —
