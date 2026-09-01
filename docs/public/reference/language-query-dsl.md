@@ -207,7 +207,11 @@ language, omits that entity type, or returns only a lower-authority fallback.
 When adding or promoting language-query support:
 
 1. Update the Go registry or handler enum that accepts the `language` or
-   `entity_type` value.
+   `entity_type` value. The canonical language set, the alias table behind the
+   `jsx` and `tsx` normalizations above, and the coverage maps live in
+   `go/internal/query/querycontract/language_registry.go`;
+   `go/internal/query/language_registry.go` re-exports them so existing callers
+   in the root package keep compiling.
 2. Add focused HTTP or MCP coverage for the accepted value, unsupported-value
    error behavior, limit handling, and deterministic result shape.
 3. State whether the entity type is graph-backed, graph-first with content
