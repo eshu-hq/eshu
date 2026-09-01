@@ -32,8 +32,10 @@ type options struct {
 	outputPath        string
 }
 
-const helpText = `payload-usage-manifest derives, from the typed factschema.Decode* calls in
-go/internal/reducer/factschema_decode.go, a manifest of which declared payload
+const helpText = `payload-usage-manifest derives, from the typed factschema.Decode* calls in the
+factschema_decode*.go files under go/internal/reducer (searched recursively,
+so a file matches regardless of which subdirectory a family's seams live in —
+see -reducer-dir and -decode-file below), a manifest of which declared payload
 fields each reducer-decoded fact kind's handlers actually read, and gates on a
 handler reading a field that no checked-in JSON Schema
 (sdk/go/factschema/schema/*.json) declares (Contract System v1 section 6,

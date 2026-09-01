@@ -68,12 +68,23 @@ rather than `factschema_decode_compat*`: the latter matched the seam glob while
 containing only forwarders, which failed the gate.
 
 **A decoder is named for its fact kind, not an owner.** Several families consume
-the same kind, so do not assume `factschema_decode_sbom.go` belongs to the sbom
-family — `DecodeSBOMComponent` is called from both `supply_chain_impact` and
-`sbom_attestation`.
+the same kind, so do not assume `factschema_decode_cicdrun.go` belongs to the
+ci_cd_run family — `DecodeCICDRun` is called from both `ci_cd_run_correlation`
+(`ci_cd_run_correlation_decode.go`) and `container_image_identity`
+(`container_image_identity_ci_loader.go`, `container_image_identity_typed_evidence.go`,
+the family's CI build-provenance evidence).
 
-**Decode failure is not fatal.** A bad payload is quarantined and the pass
-continues. Do not add a decoder that returns a fatal error.
+**Decode failure is quarantined, with one deliberate exception.** A bad payload
+is normally quarantined and the pass continues; do not add a decoder that
+returns a fatal error by default. The exception is `DecodeOCIRegistryWarning`,
+which fails closed: its caller, the container-image-identity retirement
+planner in `container_image_identity_retirement.go`, returns the decode error
+instead of skipping the fact, because skipping a malformed active warning
+would let the planner mistake unknown registry completeness for authoritative
+absence and retire images it has no evidence to retire. If a new decoder's
+failure could let a caller make the same "unreadable" vs. "nothing here"
+mistake and act destructively on it, fail closed the same way and say why at
+the seam.
 
 ## Related docs
 

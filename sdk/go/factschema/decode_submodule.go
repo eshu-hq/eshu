@@ -14,7 +14,7 @@ import (
 // zero-value struct on error. The git collector emits this fact kind
 // (submodule.Emit, go/internal/collector/gitrepo/gitsubmodule/git_submodule_facts.go) and the
 // reducer decodes it through this seam (decodeSubmodulePin,
-// go/internal/reducer/factschema_decode_submodule.go) to materialize
+// go/internal/reducer/schemadecode/factschema_decode_submodule.go) to materialize
 // Repository-[:PINS_SUBMODULE]->Repository graph edges (issue #5420).
 func DecodeSubmodulePin(env Envelope) (submodulev1.Pin, error) {
 	return decodeLatestMajor[submodulev1.Pin](FactKindSubmodulePin, env)

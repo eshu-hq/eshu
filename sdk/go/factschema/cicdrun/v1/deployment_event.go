@@ -15,7 +15,7 @@ package v1
 // directly).
 //
 // The reducer's ci_cd_run_correlation domain decodes and consumes this kind:
-// decodeCICDDeploymentEvent (go/internal/reducer/factschema_decode_cicdrun.go)
+// decodeCICDDeploymentEvent (go/internal/reducer/schemadecode/factschema_decode_cicdrun.go)
 // decodes the envelope, attachDeploymentEventsToRuns
 // (go/internal/reducer/ci_cd_run_correlation_deploy_events.go) joins it onto
 // every run whose CommitSHA equals this struct's SHA — the deployment carries

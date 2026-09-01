@@ -353,27 +353,27 @@ func Load(p Paths) (Manifest, error) {
 	// set, so a field a projector canonical extractor, query read-model builder,
 	// loader, relationship extractor, or replay materializer reads off a decoded
 	// struct is gated the same as a reducer handler read.
-	reducerUsage, err := ScanDecodeUsage(resolved.ReducerDir, seams)
+	reducerUsage, err := ScanDecodeUsage(resolved.ReducerDir, seams, rootForwarders, KnownDecodeQualifiers)
 	if err != nil {
 		return Manifest{}, err
 	}
-	projectorUsage, err := ScanDecodeUsage(resolved.ProjectorDir, seams)
+	projectorUsage, err := ScanDecodeUsage(resolved.ProjectorDir, seams, rootForwarders, KnownDecodeQualifiers)
 	if err != nil {
 		return Manifest{}, err
 	}
-	queryUsage, err := ScanDecodeUsage(resolved.QueryDir, seams)
+	queryUsage, err := ScanDecodeUsage(resolved.QueryDir, seams, rootForwarders, KnownDecodeQualifiers)
 	if err != nil {
 		return Manifest{}, err
 	}
-	loaderUsage, err := ScanDecodeUsage(resolved.LoaderDir, seams)
+	loaderUsage, err := ScanDecodeUsage(resolved.LoaderDir, seams, rootForwarders, KnownDecodeQualifiers)
 	if err != nil {
 		return Manifest{}, err
 	}
-	relationshipsUsage, err := ScanDecodeUsage(resolved.RelationshipsDir, seams)
+	relationshipsUsage, err := ScanDecodeUsage(resolved.RelationshipsDir, seams, rootForwarders, KnownDecodeQualifiers)
 	if err != nil {
 		return Manifest{}, err
 	}
-	replayUsage, err := ScanDecodeUsage(resolved.ReplayDir, seams)
+	replayUsage, err := ScanDecodeUsage(resolved.ReplayDir, seams, rootForwarders, KnownDecodeQualifiers)
 	if err != nil {
 		return Manifest{}, err
 	}

@@ -7,8 +7,11 @@
 // Each exported function is one decode seam: it takes a fact envelope, decodes
 // the payload against the matching sdk/go/factschema domain package, and either
 // returns the typed value or classifies the payload as a terminal dead letter
-// through [factdecode]. A decode failure is never fatal to the run — the fact is
-// quarantined and the pass continues.
+// through [factdecode]. A decode failure is quarantined and the pass continues,
+// with one deliberate exception: DecodeOCIRegistryWarning fails closed, because
+// its caller (the container-image-identity retirement planner) would otherwise
+// mistake an unreadable active warning for authoritative absence and retire
+// images it has no evidence to retire.
 //
 // The package sits below the reducer root and below the domain families, above
 // [factdecode]. It imports the per-domain factschema packages by design, which

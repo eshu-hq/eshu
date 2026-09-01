@@ -111,7 +111,22 @@ type parsedGoFile struct {
 // struct: a coincidental, unrelated same-named function must not satisfy the
 // real seam's binding for that package's own call sites (review finding on
 // #6080).
-func ScanDecodeUsage(reducerDir string, seams []DecodeSeam) (map[string][]FieldUsage, error) {
+//
+// forwarders resolves a package-qualified call site's exported name back to
+// the root identity a still-forwarded seam's FuncName was rewritten to (see
+// decodeCallName); an empty or nil RootForwarders is valid and simply leaves
+// every qualified call site matched by its own Sel.Name, which is correct for
+// a seam with no root forwarder at all — the common case per
+// schemadecode/AGENTS.md's "a family package should import this package
+// directly" guidance.
+//
+// qualifiers is the set of package identifiers a qualified call's selector
+// must resolve through to be recognized at all (see DecodeQualifiers);
+// callers pass KnownDecodeQualifiers. An empty or nil DecodeQualifiers is
+// valid but rejects every qualified call site outright, recognizing only the
+// unqualified root-forwarder shape — the pre-#6061 behavior — so a caller
+// that cares about qualified calls must pass a real set.
+func ScanDecodeUsage(reducerDir string, seams []DecodeSeam, forwarders RootForwarders, qualifiers DecodeQualifiers) (map[string][]FieldUsage, error) {
 	decodeFuncs := make(map[string]struct{}, len(seams))
 	structToFunc := make(map[string]string, len(seams)) // qualified struct -> decode func name
 	funcToStruct := make(map[string]string, len(seams)) // decode func name -> qualified struct
@@ -128,7 +143,7 @@ func ScanDecodeUsage(reducerDir string, seams []DecodeSeam) (map[string][]FieldU
 
 	usage := map[string][]FieldUsage{}
 	for _, group := range groupByPackageDir(parsedFiles) {
-		scanPackageGroup(group, decodeFuncs, structToFunc, funcToStruct, usage)
+		scanPackageGroup(group, decodeFuncs, forwarders, qualifiers, structToFunc, funcToStruct, usage)
 	}
 
 	for funcName := range usage {
@@ -178,7 +193,7 @@ func groupByPackageDir(parsedFiles []parsedGoFile) [][]parsedGoFile {
 // struct or decode-shaped function in one package from clobbering or
 // satisfying another package's entry (see ScanDecodeUsage's PACKAGE ISOLATION
 // doc).
-func scanPackageGroup(files []parsedGoFile, decodeFuncs map[string]struct{}, structToFunc, funcToStruct map[string]string, usage map[string][]FieldUsage) {
+func scanPackageGroup(files []parsedGoFile, decodeFuncs map[string]struct{}, forwarders RootForwarders, qualifiers DecodeQualifiers, structToFunc, funcToStruct map[string]string, usage map[string][]FieldUsage) {
 	localDecodeFuncs := effectiveDecodeFuncs(files, decodeFuncs, funcToStruct)
 	wrappers := wrapperSeamFields(files, structToFunc)
 
@@ -188,7 +203,7 @@ func scanPackageGroup(files []parsedGoFile, decodeFuncs map[string]struct{}, str
 			if !ok || fn.Body == nil {
 				continue
 			}
-			boundTo := boundIdentifiers(fn, localDecodeFuncs, structToFunc)
+			boundTo := boundIdentifiers(fn, localDecodeFuncs, forwarders, qualifiers, structToFunc)
 			wrapperBound := wrapperBoundIdentifiers(fn, wrappers)
 			if len(boundTo) == 0 && len(wrapperBound) == 0 {
 				continue
@@ -301,14 +316,14 @@ func parseReducerDir(dir string) ([]parsedGoFile, error) {
 // (recordDecodeBindings), or a function parameter whose type is one of
 // structToFunc's qualified struct names (the cross-function helper-parameter
 // case). It returns identifier name -> decode func name.
-func boundIdentifiers(fn *ast.FuncDecl, decodeFuncs map[string]struct{}, structToFunc map[string]string) map[string]string {
+func boundIdentifiers(fn *ast.FuncDecl, decodeFuncs map[string]struct{}, forwarders RootForwarders, qualifiers DecodeQualifiers, structToFunc map[string]string) map[string]string {
 	boundTo := map[string]string{}
 	ast.Inspect(fn.Body, func(n ast.Node) bool {
 		assign, ok := n.(*ast.AssignStmt)
 		if !ok {
 			return true
 		}
-		recordDecodeBindings(assign, decodeFuncs, boundTo)
+		recordDecodeBindings(assign, decodeFuncs, forwarders, qualifiers, boundTo)
 		return true
 	})
 	recordParameterBindings(fn, structToFunc, boundTo)
@@ -408,10 +423,16 @@ func recordFieldReads(body *ast.BlockStmt, fileName string, boundTo, wrapperBoun
 }
 
 // recordDecodeBindings inspects one assignment statement and, when its RHS is
-// a direct call to a decode<Kind> function (the `resource, err :=
-// decodeAWSResource(env)` shape every migrated handler uses), records the LHS
-// value identifier as bound to that decode function name.
-func recordDecodeBindings(assign *ast.AssignStmt, decodeFuncs map[string]struct{}, boundTo map[string]string) {
+// a direct call to a decode<Kind> function, records the LHS value identifier
+// as bound to that decode function name. Two call shapes are recognized (see
+// decodeCallName): the unqualified root-forwarder shape every pre-#6061
+// handler uses (`resource, err := decodeAWSResource(env)`), and the
+// package-qualified shape a family package calling schemadecode directly
+// uses (`identity, err := schemadecode.DecodeContainerImageIdentity(env)`).
+// Both must stay recognized — a root caller and a family caller can coexist
+// during a family's migration into schemadecode, and dropping either loses
+// real usage (#6372).
+func recordDecodeBindings(assign *ast.AssignStmt, decodeFuncs map[string]struct{}, forwarders RootForwarders, qualifiers DecodeQualifiers, boundTo map[string]string) {
 	if len(assign.Rhs) != 1 {
 		return
 	}
@@ -419,11 +440,11 @@ func recordDecodeBindings(assign *ast.AssignStmt, decodeFuncs map[string]struct{
 	if !ok {
 		return
 	}
-	callee, ok := call.Fun.(*ast.Ident)
+	calleeName, ok := decodeCallName(call.Fun, forwarders, qualifiers)
 	if !ok {
 		return
 	}
-	if _, isDecodeFunc := decodeFuncs[callee.Name]; !isDecodeFunc {
+	if _, isDecodeFunc := decodeFuncs[calleeName]; !isDecodeFunc {
 		return
 	}
 	if len(assign.Lhs) == 0 {
@@ -433,5 +454,5 @@ func recordDecodeBindings(assign *ast.AssignStmt, decodeFuncs map[string]struct{
 	if !ok || valueIdent.Name == "_" {
 		return
 	}
-	boundTo[valueIdent.Name] = callee.Name
+	boundTo[valueIdent.Name] = calleeName
 }

@@ -1350,26 +1350,75 @@ those moves wait.
 ## schemadecode hoist: codegen measurement
 
 No-Regression Evidence: measured, not asserted. `go build -gcflags=-m
-./internal/reducer/...` at base `64893c13b` (the tip of `main` this branch is
-rebased onto) and at head `0b58d4a20`, reported as a set difference and a
-per-name call-site difference rather than a net total, because a net count
+./internal/reducer/...` at base `1f0e1e172` and at head `f13adc68b` — the
+commit that squash-merged the schemadecode hoist (#6372) and its parent, so
+this brackets the merged HOIST itself (`f13adc68b^` is `1f0e1e172`, verify
+with `git rev-parse --short f13adc68b^`), not any later branch's diff. Both
+are now permanent commits on main's history, so this bracket cannot go stale
+the way a moving branch head or a pre-rebase hash can — the previous two
+versions of this citation were each wrong in an opposite direction (a
+pre-rebase hash that stopped existing, then a moving-branch-head replacement
+that would have bracketed no change at all), both from treating the SHA as
+bookkeeping rather than as part of the claim. Reported as a set difference and
+a per-name call-site difference rather than a net total, because a net count
 cannot find a named regression.
 
 **Functions that lost inlinability: zero.** The `can inline` set is 1356 at base
-and 1357 at head; the set difference is one symbol in one direction and it is the
-rename itself — `FactschemaEnvelope` gained, nothing lost. No caller's body grew
-past the inlining budget because of an added indirection.
+and 1357 at head — UNIQUE function names in the recursive build
+(`./internal/reducer/...`), not occurrences: the same build's occurrence count
+(a function reported "can inline" more than once across the log) is 1395 at
+base and 1396 at head, a constant +39 offset from the unique-name figures at
+both SHAs (a counting-method difference, not a code difference). Naming both
+here is deliberate — re-deriving this with the other method and finding 1395
+instead of 1356 looks like a regression and is not one. The set difference is
+one symbol in one direction and it is the rename itself — `FactschemaEnvelope`
+gained, nothing lost. No caller's body grew past the inlining budget because of
+an added indirection.
 
-Inlined call sites move 14646 to 14568, and the whole −78 is accounted for by two
-relocations:
+Inlined call sites (occurrence count of `inlining call to` in the same
+`go build -gcflags=-m ./internal/reducer/...` log) move 14646 to 14568.
+**These eleven are every function whose inlined-call-site count changed** — a
+full per-name diff of the two logs, not a hand-picked table; that claim is
+checkable (re-run the diff) rather than the unfalsifiable "nothing is
+unexplained" this section asserted before:
 
-| function | base | head | why |
-|---|---|---|---|
-| `factschemaEnvelope` | 98 | 1 | renamed; `FactschemaEnvelope` picks up 97 and `schemadecode.FactschemaEnvelope` 2, so this trio is net +1 |
-| `newFactDecodeError` | 101 | 7 | the 20 moved files now call `factdecode.NewFactDecodeError` directly instead of through the root forwarder |
+| function | base | head | delta | why |
+|---|---|---|---|---|
+| `factschemaEnvelope` | 98 | 1 | −97 | renamed |
+| `FactschemaEnvelope` | 0 | 97 | +97 | renamed — this and the two rows below are one trio (98 -> 1+97+2=100, net +2, not the "+1" an earlier version of this doc claimed) |
+| `schemadecode.FactschemaEnvelope` | 0 | 2 | +2 | renamed |
+| `newFactDecodeError` | 101 | 7 | −94 | the 20 moved files now call `factdecode.NewFactDecodeError` directly instead of through the root forwarder |
+| `reflect.flag.kind` | 8 | 12 | +4 | not touched by this move's own diff |
+| `reflect.flag.mustBe` | 4 | 6 | +2 | not touched by this move's own diff |
+| `reflect.flag.mustBeAssignable` | 4 | 6 | +2 | not touched by this move's own diff |
+| `reflect.flag.mustBeExported` | 4 | 6 | +2 | not touched by this move's own diff |
+| `reflect.flag.ro` | 4 | 6 | +2 | not touched by this move's own diff |
+| `factenvelope.FactSchemaFromInternal` | 99 | 100 | +1 | not touched by this move's own diff |
+| `factenvelope.sourceRefString` | 99 | 100 | +1 | not touched by this move's own diff |
 
-−191 lost, +113 gained, −78 net — the arithmetic closes, so nothing is
-unexplained.
+−191 lost, +113 gained, −78 net, and this total is COMPLETE, not partial: the
+four relocations above (the rename trio plus `newFactDecodeError`) account for
+all −191 lost and +99 of the +113 gained; the remaining +14 falls across the
+seven `reflect.flag.*` / `factenvelope.*` functions in the lower half of the
+table. An earlier version of this section named only the four relocations,
+said "the arithmetic closes, so nothing is unexplained," and was wrong in a
+narrower way than that sounds: the arithmetic WAS already complete and
+correct — summing all eleven gives exactly −191/+113/−78, the same total the
+four-relocation version claimed. What was false is that the prose described a
+smaller set of movers than the arithmetic had already accounted for. Two
+independent reviewers and the PR author each verified the totals balanced and
+stopped there; the defect was only visible by asking a different question —
+not "do these numbers add up" but "is this list of names the whole list."
+
+None of the seven `reflect.flag.*` / `factenvelope.*` functions are touched by
+this move's own diff; all seven are called pervasively by the decode path
+every seam already goes through (envelope conversion and the JSON-tag
+reflection every typed decode uses). The increase is consistent with a
+build-ordering/inlining-budget effect of splitting 20 files into a new
+compilation unit — not established as the cause, since that has not been
+measured directly (e.g. a per-callsite `-m=2` breakdown), only observed as
+plausible given what these functions are and where they sit. Do not treat
+"consistent with" as "is."
 
 `newFactDecodeError` looks alarming and is not a regression. At base the root
 forwarder inlined at 101 sites and then made a real call into `factdecode`; at

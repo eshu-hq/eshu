@@ -59,7 +59,7 @@ func TestSomething(t *T) {
 	})
 
 	seams := []DecodeSeam{{FuncName: "decodeAWSResource", FactKindConst: "FactKindAWSResource", StructPackage: "awsv1", StructName: "Resource"}}
-	usage, err := ScanDecodeUsage(dir, seams)
+	usage, err := ScanDecodeUsage(dir, seams, nil, nil)
 	if err != nil {
 		t.Fatalf("ScanDecodeUsage() error = %v", err)
 	}
@@ -122,7 +122,7 @@ func buildSomethingElse() {
 	})
 
 	seams := []DecodeSeam{{FuncName: "decodeAWSResource", FactKindConst: "FactKindAWSResource", StructPackage: "awsv1", StructName: "Resource"}}
-	usage, err := ScanDecodeUsage(dir, seams)
+	usage, err := ScanDecodeUsage(dir, seams, nil, nil)
 	if err != nil {
 		t.Fatalf("ScanDecodeUsage() error = %v", err)
 	}
@@ -134,7 +134,7 @@ func buildSomethingElse() {
 func TestScanDecodeUsageMissingDirErrors(t *testing.T) {
 	t.Parallel()
 
-	_, err := ScanDecodeUsage("/nonexistent/dir/for/sure", nil)
+	_, err := ScanDecodeUsage("/nonexistent/dir/for/sure", nil, nil, nil)
 	if err == nil {
 		t.Fatal("ScanDecodeUsage() error = nil, want an error for a missing directory")
 	}
@@ -188,7 +188,7 @@ func TestScanDecodeUsageFollowsStructValuePassedToHelperFunction(t *testing.T) {
 		StructPackage: "awsv1",
 		StructName:    "S3BucketPosture",
 	}}
-	usage, err := ScanDecodeUsage(dir, seams)
+	usage, err := ScanDecodeUsage(dir, seams, nil, nil)
 	if err != nil {
 		t.Fatalf("ScanDecodeUsage() error = %v", err)
 	}
@@ -223,7 +223,7 @@ func helper(resource Resource) {
 	})
 
 	seams := []DecodeSeam{{FuncName: "decodeAWSResource", FactKindConst: "FactKindAWSResource", StructPackage: "awsv1", StructName: "Resource"}}
-	usage, err := ScanDecodeUsage(dir, seams)
+	usage, err := ScanDecodeUsage(dir, seams, nil, nil)
 	if err != nil {
 		t.Fatalf("ScanDecodeUsage() error = %v", err)
 	}
