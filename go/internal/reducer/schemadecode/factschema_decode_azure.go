@@ -1,15 +1,16 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package reducer
+package schemadecode
 
 import (
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/reducer/factdecode"
 	"github.com/eshu-hq/eshu/sdk/go/factschema"
 	azurev1 "github.com/eshu-hq/eshu/sdk/go/factschema/azure/v1"
 )
 
-// decodeAzureCloudResource decodes one azure_cloud_resource envelope into the
+// DecodeAzureCloudResource decodes one azure_cloud_resource envelope into the
 // typed azurev1.CloudResource struct through the contracts seam, returning a
 // self-classifying *factDecodeError when the payload is missing a required
 // field (arm_resource_id, resource_type, subscription_id, location) or is
@@ -42,24 +43,24 @@ import (
 // unconverted Azure-specific storage loader, so a decode wrapper for them would
 // be dead code with no caller (and a hollow, never-validated contract). They
 // migrate with the surface that reads them.
-func decodeAzureCloudResource(env facts.Envelope) (azurev1.CloudResource, error) {
-	resource, err := factschema.DecodeAzureCloudResource(factschemaEnvelope(env))
+func DecodeAzureCloudResource(env facts.Envelope) (azurev1.CloudResource, error) {
+	resource, err := factschema.DecodeAzureCloudResource(FactschemaEnvelope(env))
 	if err != nil {
-		return azurev1.CloudResource{}, newFactDecodeError(factschema.FactKindAzureCloudResource, err)
+		return azurev1.CloudResource{}, factdecode.NewFactDecodeError(factschema.FactKindAzureCloudResource, err)
 	}
 	return resource, nil
 }
 
-// decodeAzureCloudRelationship decodes one azure_cloud_relationship envelope
+// DecodeAzureCloudRelationship decodes one azure_cloud_relationship envelope
 // into the typed azurev1.CloudRelationship struct through the contracts seam,
 // returning a self-classifying *factDecodeError when the payload is missing a
 // required field (relationship_type, source_arm_resource_id,
 // target_arm_resource_id) or is otherwise malformed. It is the single decode
 // site for the azure_cloud_relationship kind on the reducer side.
-func decodeAzureCloudRelationship(env facts.Envelope) (azurev1.CloudRelationship, error) {
-	relationship, err := factschema.DecodeAzureCloudRelationship(factschemaEnvelope(env))
+func DecodeAzureCloudRelationship(env facts.Envelope) (azurev1.CloudRelationship, error) {
+	relationship, err := factschema.DecodeAzureCloudRelationship(FactschemaEnvelope(env))
 	if err != nil {
-		return azurev1.CloudRelationship{}, newFactDecodeError(factschema.FactKindAzureCloudRelationship, err)
+		return azurev1.CloudRelationship{}, factdecode.NewFactDecodeError(factschema.FactKindAzureCloudRelationship, err)
 	}
 	return relationship, nil
 }

@@ -98,7 +98,7 @@ migrate WITH that surface (Contract System v1 §7).
   identity — so `attachDeploymentEventsToRuns`
   (`go/internal/reducer/ci_cd_run_correlation_deploy_events.go`) fans each
   decoded event (`decodeCICDDeploymentEvent`,
-  `go/internal/reducer/factschema_decode_cicdrun.go`) out to every run whose
+  `go/internal/reducer/schemadecode/factschema_decode_cicdrun.go`) out to every run whose
   `CommitSHA` equals the event's `SHA`, rather than bucketing it under a run
   key during decode the way the run-scoped kinds above are. The winning event
   per run (`classifyCICDDeploymentEventEnvironment`,

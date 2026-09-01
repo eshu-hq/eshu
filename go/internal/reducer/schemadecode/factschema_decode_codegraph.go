@@ -1,17 +1,19 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package reducer
+package schemadecode
 
 import (
 	"errors"
+
+	"github.com/eshu-hq/eshu/go/internal/reducer/factdecode"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
 	"github.com/eshu-hq/eshu/sdk/go/factschema"
 	codegraphv1 "github.com/eshu-hq/eshu/sdk/go/factschema/codegraph/v1"
 )
 
-// decodeCodegraphFile decodes one "file" envelope into the typed
+// DecodeCodegraphFile decodes one "file" envelope into the typed
 // codegraphv1.File struct through the contracts seam, returning a
 // self-classifying *factDecodeError when the payload is missing a required
 // identity field (repo_id, relative_path, parsed_file_data) or is otherwise
@@ -30,15 +32,15 @@ import (
 // AST buckets (imports, functions, function_calls, ...) are still read raw until
 // their own #4750 increment. The container itself is never narrowed, so an
 // untyped key is read exactly as before this contract.
-func decodeCodegraphFile(env facts.Envelope) (codegraphv1.File, error) {
-	file, err := factschema.DecodeCodegraphFile(factschemaEnvelope(env))
+func DecodeCodegraphFile(env facts.Envelope) (codegraphv1.File, error) {
+	file, err := factschema.DecodeCodegraphFile(FactschemaEnvelope(env))
 	if err != nil {
-		return codegraphv1.File{}, newFactDecodeError(factschema.FactKindCodegraphFile, err)
+		return codegraphv1.File{}, factdecode.NewFactDecodeError(factschema.FactKindCodegraphFile, err)
 	}
 	return file, nil
 }
 
-// decodeCodegraphRepository decodes one "repository" envelope into the typed
+// DecodeCodegraphRepository decodes one "repository" envelope into the typed
 // codegraphv1.Repository struct through the contracts seam, returning a
 // self-classifying *factDecodeError when the payload is missing its required
 // repo_id identity field or is otherwise malformed. It is the single decode
@@ -46,15 +48,15 @@ func decodeCodegraphFile(env facts.Envelope) (codegraphv1.File, error) {
 // reducer side. repo_id is the only required field: the reducer read sites
 // consume repo_id (required) plus source_run_id, local_path, and the delta
 // path slices (all optional).
-func decodeCodegraphRepository(env facts.Envelope) (codegraphv1.Repository, error) {
-	repository, err := factschema.DecodeCodegraphRepository(factschemaEnvelope(env))
+func DecodeCodegraphRepository(env facts.Envelope) (codegraphv1.Repository, error) {
+	repository, err := factschema.DecodeCodegraphRepository(FactschemaEnvelope(env))
 	if err != nil {
-		return codegraphv1.Repository{}, newFactDecodeError(factschema.FactKindCodegraphRepository, err)
+		return codegraphv1.Repository{}, factdecode.NewFactDecodeError(factschema.FactKindCodegraphRepository, err)
 	}
 	return repository, nil
 }
 
-// codegraphDecodeQuarantine builds a visible quarantinedFact from a codegraph
+// CodegraphDecodeQuarantine builds a visible factdecode.QuarantinedFact from a codegraph
 // decode error that partitionDecodeFailures did NOT classify as a per-fact
 // input_invalid (the residual fatal branch — a payload type mismatch, or, only
 // if a future change registers these kinds as versioned, an unsupported schema
@@ -64,8 +66,8 @@ func decodeCodegraphRepository(env facts.Envelope) (codegraphv1.Repository, erro
 // silently dropped by the batch extractor (which has no error return to
 // propagate a fatal decode failure). The field is empty when the error is not
 // attributable to a single field.
-func codegraphDecodeQuarantine(env facts.Envelope, err error) quarantinedFact {
-	q := quarantinedFact{
+func CodegraphDecodeQuarantine(env facts.Envelope, err error) factdecode.QuarantinedFact {
+	q := factdecode.QuarantinedFact{
 		FactID:         env.FactID,
 		FactKind:       env.FactKind,
 		Classification: factschema.ClassificationInputInvalid,

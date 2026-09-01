@@ -9,12 +9,14 @@
 // owns the generic payload accessors and string helpers that both this package
 // and the domain-family subpackages need; add a new generic helper there, not
 // here. The factdecode subpackage owns decode-failure classification and the
-// per-fact quarantine mechanism, while the per-fact-kind decode wrappers stay
-// with the families owning those kinds. The factload subpackage owns how a
+// per-fact quarantine mechanism; the per-fact-kind decode wrappers themselves
+// live in the schemadecode subpackage described below. The factload subpackage owns how a
 // handler reads the facts for one scope generation and the retry
 // classification for that read; per-domain fact-kind filtering stays with the
 // family that calls it. The factwrite subpackage owns the batched fact-write
-// row shapes, statements, chunking, and its Execer port. This package
+// row shapes, statements, chunking, and its Execer port. The schemadecode
+// subpackage owns the per-fact-kind decode seams themselves, which import the
+// per-domain factschema packages and so cannot live in factdecode. This package
 // re-exports the contract surface and retains registry composition, runtime
 // execution, queue behavior, adapters, and telemetry. Most root call sites
 // reach a helper subpackage through an unexported forwarder of the same

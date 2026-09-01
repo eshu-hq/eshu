@@ -293,7 +293,7 @@ an unsupported schema major. The three call sites
 `hasSupportedGCPRelationshipFact`) produce **no evidence** on a decode error rather
 than substituting a zero-value/empty-string identity, mirroring the reducer's
 `decodeGCPCloudRelationship` contract
-(`go/internal/reducer/factschema_decode.go`) while honoring this package's own
+(`go/internal/reducer/schemadecode/factschema_decode.go`) while honoring this package's own
 "produce no evidence rather than a speculative match" invariant (it holds no queue
 or graph handle and cannot itself dead-letter; the authoritative `input_invalid`
 dead-letter is emitted later when the reducer decodes the same fact).

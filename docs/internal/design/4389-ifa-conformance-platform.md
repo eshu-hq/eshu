@@ -423,7 +423,7 @@ Design:
      missing-field`) passes every earlier admission gate untouched and is
      **PER-FACT QUARANTINED** once a canonical extractor or reducer handler
      decodes it — `go/internal/projector/factschema_quarantine.go` and its
-     reducer twin (`go/internal/reducer/factschema_decode.go`) skip the one
+     reducer twin (`go/internal/reducer/schemadecode/factschema_decode.go`) skip the one
      fact, increment a metric, and log a structured error, but the
      surrounding `fact_work_items` row still **succeeds**. This is
      metric-and-log-only: no dead-letter row is ever written, so there is

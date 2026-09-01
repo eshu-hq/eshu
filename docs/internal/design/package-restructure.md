@@ -1064,6 +1064,61 @@ those moves wait.
 - **Timing:** after current lanes drain, before Epic M (multi-tenancy),
   feeding directly into #4047/#4398. Epic M then lands on the new layout.
 
+## schemadecode hoist: codegen measurement
+
+No-Regression Evidence: measured, not asserted. `go build -gcflags=-m
+./internal/reducer/...` at base `64893c13b` (the tip of `main` this branch is
+rebased onto) and at head `0b58d4a20`, reported as a set difference and a
+per-name call-site difference rather than a net total, because a net count
+cannot find a named regression.
+
+**Functions that lost inlinability: zero.** The `can inline` set is 1356 at base
+and 1357 at head; the set difference is one symbol in one direction and it is the
+rename itself — `FactschemaEnvelope` gained, nothing lost. No caller's body grew
+past the inlining budget because of an added indirection.
+
+Inlined call sites move 14646 to 14568, and the whole −78 is accounted for by two
+relocations:
+
+| function | base | head | why |
+|---|---|---|---|
+| `factschemaEnvelope` | 98 | 1 | renamed; `FactschemaEnvelope` picks up 97 and `schemadecode.FactschemaEnvelope` 2, so this trio is net +1 |
+| `newFactDecodeError` | 101 | 7 | the 20 moved files now call `factdecode.NewFactDecodeError` directly instead of through the root forwarder |
+
+−191 lost, +113 gained, −78 net — the arithmetic closes, so nothing is
+unexplained.
+
+`newFactDecodeError` looks alarming and is not a regression. At base the root
+forwarder inlined at 101 sites and then made a real call into `factdecode`; at
+head the moved files make that same real call one wrapper shallower.
+`factdecode.NewFactDecodeError` is absent from the inlining log at both SHAs — it
+was never inlined across the package boundary either way — so the count of real
+calls is unchanged and only the wrapper expansions are gone. Less code, same
+work.
+
+The one call site that a `var` binding would have cost an inline —
+`supply_chain_suppression_decode.go` reaching `factschemaEnvelope` — is why that
+single forwarder is a `func` rather than a `var`. The other 99 forwarders bind
+decoders far too large to inline in any form, so the binding shape costs them
+nothing.
+
+No-Observability-Change: this hoist relocates decode seams and adds
+forwarders; it emits no metric, span, or log of its own and changes no signal any
+caller emits. Every decode failure still flows through
+`factdecode.NewFactDecodeError` to the same quarantine path, so
+`eshu_dp_reducer_input_invalid_facts_total` and the reducer pass counters
+(`eshu_dp_reducer_executions_total`, `eshu_dp_reducer_run_duration_seconds`)
+carry exactly the coverage they did before. The telemetry-coverage rows for every
+moved path are updated in this PR.
+
+**Why this is safe.** The move is behaviour-preserving by construction: the seam
+bodies are unchanged, and the payload-usage manifest — the derived contract
+artifact that depends on these symbol names — is verified to report the same 125
+kinds with the same `UsedFields` after the forwarder-resolution fix, which is what
+the `scripts/verify-payload-usage-manifest.sh` run in this PR's evidence table
+proves. Input shape is one fact envelope per decode call, unchanged; there is no
+queue, lease, batch, or row-count dimension to this change.
+
 ## Part 5: what this buys the modularization program
 
 Extraction grades from the research become the repo-split roadmap:

@@ -1,0 +1,65 @@
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2025-2026 eshu-hq
+
+package reducer
+
+import (
+	"github.com/eshu-hq/eshu/go/internal/reducer/schemadecode"
+)
+
+// This file is the transitional compatibility surface for the per-fact-kind
+// decoders that moved to [schemadecode] (issue #6061). Every entry binds the
+// reducer root's original lowercase spelling to the exported name in that
+// package, so the 63 root call sites keep their current spelling; each entry is
+// deleted once its last caller has moved into a family subpackage.
+
+var (
+	codegraphDecodeQuarantine                     = schemadecode.CodegraphDecodeQuarantine
+	decodeAWSIAMPermission                        = schemadecode.DecodeAWSIAMPermission
+	decodeAWSIAMPrincipal                         = schemadecode.DecodeAWSIAMPrincipal
+	decodeAWSImageReference                       = schemadecode.DecodeAWSImageReference
+	decodeAWSRelationship                         = schemadecode.DecodeAWSRelationship
+	decodeAWSResource                             = schemadecode.DecodeAWSResource
+	decodeAWSResourcePolicyPermission             = schemadecode.DecodeAWSResourcePolicyPermission
+	decodeAWSSecurityGroupRule                    = schemadecode.DecodeAWSSecurityGroupRule
+	decodeAttestationSLSAProvenance               = schemadecode.DecodeAttestationSLSAProvenance
+	decodeAttestationSignatureVerification        = schemadecode.DecodeAttestationSignatureVerification
+	decodeAttestationStatement                    = schemadecode.DecodeAttestationStatement
+	decodeAzureCloudRelationship                  = schemadecode.DecodeAzureCloudRelationship
+	decodeAzureCloudResource                      = schemadecode.DecodeAzureCloudResource
+	decodeAzureImageReference                     = schemadecode.DecodeAzureImageReference
+	decodeCICDArtifact                            = schemadecode.DecodeCICDArtifact
+	decodeCICDDeploymentEvent                     = schemadecode.DecodeCICDDeploymentEvent
+	decodeCICDEnvironmentObservation              = schemadecode.DecodeCICDEnvironmentObservation
+	decodeCICDRun                                 = schemadecode.DecodeCICDRun
+	decodeCICDStep                                = schemadecode.DecodeCICDStep
+	decodeCICDTriggerEdge                         = schemadecode.DecodeCICDTriggerEdge
+	decodeCICDWorkflowImageEvidence               = schemadecode.DecodeCICDWorkflowImageEvidence
+	decodeCodeFunctionSource                      = schemadecode.DecodeCodeFunctionSource
+	decodeCodeFunctionSummary                     = schemadecode.DecodeCodeFunctionSummary
+	decodeCodeInterprocEvidence                   = schemadecode.DecodeCodeInterprocEvidence
+	decodeCodeTaintEvidence                       = schemadecode.DecodeCodeTaintEvidence
+	decodeCodegraphFile                           = schemadecode.DecodeCodegraphFile
+	decodeCodegraphRepository                     = schemadecode.DecodeCodegraphRepository
+	decodeCodeownersOwnership                     = schemadecode.DecodeCodeownersOwnership
+	decodeDocumentationDocument                   = schemadecode.DecodeDocumentationDocument
+	decodeDocumentationEntityMention              = schemadecode.DecodeDocumentationEntityMention
+	decodeEC2InstancePosture                      = schemadecode.DecodeEC2InstancePosture
+	decodeEKSIRSAAnnotation                       = schemadecode.DecodeEKSIRSAAnnotation
+	decodeEKSPodIdentityAssociation               = schemadecode.DecodeEKSPodIdentityAssociation
+	decodeGCPCloudRelationship                    = schemadecode.DecodeGCPCloudRelationship
+	decodeGCPCloudResource                        = schemadecode.DecodeGCPCloudResource
+	decodeGCPImageReference                       = schemadecode.DecodeGCPImageReference
+	decodeIncidentRecord                          = schemadecode.DecodeIncidentRecord
+	decodeIncidentRoutingAppliedPagerDutyResource = schemadecode.DecodeIncidentRoutingAppliedPagerDutyResource
+	decodeIncidentRoutingCoverageWarning          = schemadecode.DecodeIncidentRoutingCoverageWarning
+	decodeIncidentRoutingObservedPagerDutyService = schemadecode.DecodeIncidentRoutingObservedPagerDutyService
+	decodeKubernetesGCPWorkloadIdentityBinding    = schemadecode.DecodeKubernetesGCPWorkloadIdentityBinding
+	decodeKubernetesLiveNamespace                 = schemadecode.DecodeKubernetesLiveNamespace
+	decodeKubernetesLivePodTemplate               = schemadecode.DecodeKubernetesLivePodTemplate
+	decodeKubernetesLiveRelationship              = schemadecode.DecodeKubernetesLiveRelationship
+	decodeKubernetesLiveWarning                   = schemadecode.DecodeKubernetesLiveWarning
+	decodeKubernetesServiceAccount                = schemadecode.DecodeKubernetesServiceAccount
+	decodeKubernetesWorkloadIdentityUse           = schemadecode.DecodeKubernetesWorkloadIdentityUse
+	decodeOCIImageIndexForIndex                   = schemadecode.DecodeOCIImageIndexForIndex
+)

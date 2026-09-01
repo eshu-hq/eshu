@@ -156,7 +156,7 @@ ifa_live_gate_common_seams=(
 	'go/internal/reducer/**|go/internal/reducer/intent.go'
 	'go/internal/reducer/**|go/internal/reducer/shared_projection.go'
 	'go/internal/reducer/**|go/internal/reducer/graph_projection_phase.go'
-	'go/internal/reducer/**|go/internal/reducer/factschema_decode_submodule.go'
+	'go/internal/reducer/**|go/internal/reducer/schemadecode/factschema_decode_submodule.go'
 	# go/internal/reducer/contract/ is a subpackage, and it arrived on main as
 	# its own literal trigger (#6222) while this branch was open. The glob
 	# subsumes it, so the literal is gone -- this seam is what proves the
