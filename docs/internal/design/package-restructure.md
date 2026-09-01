@@ -179,6 +179,40 @@ Two consequences worth knowing before the remaining children:
   gone and the replacement is 66, and dirgate's ratchet means any later
   extraction has to re-pin it lower.
 
+No-Regression Evidence: the reducer sharedintent hoist (#6061) moves
+SharedProjectionIntentRow, SharedProjectionIntentInput, BuildSharedProjectionIntent,
+stableIntentID (exported as StableIntentID in the leaf), SharedProjectionAcceptanceKey and the Row.AcceptanceKey method out
+of shared_projection.go into a new `internal/reducer/sharedintent` leaf, with no
+logic change; the root keeps aliases under the original names plus one forwarder,
+so no caller changed. Baseline `38b745974`, after `579d17cbb`, go1.27.0
+darwin/arm64. This crosses a package boundary, so inlining can genuinely shift and
+is measured rather than assumed: `go build -gcflags=-m ./...` whole-module reports
+unique `can inline` names 11825 -> 11826, compared as a SET with `comm` in both
+directions rather than by totals, since a matching total is also what a swap looks
+like. Zero names lost. One gained -- `BuildSharedProjectionIntent`, which became
+inlinable because it is now a one-line forwarder to `sharedintent.Build`, the same
+effect the packagesourcecore hoist below had on `extractPackageSourceRepositories`.
+The probe was confirmed non-vacuous (both sets over 11000 names) before that zero
+was believed. Correctness: `go build ./...` and `go vet ./...` both exit 0 with no
+output, `go test ./internal/reducer/...` passes 9 packages, and six new leaf tests
+pin the behaviour that would otherwise break silently -- StableIntentID against an
+exact digest (it keys every intent already persisted in Postgres, so a
+serialization change orphans in-flight rows rather than updating them), its
+insensitivity to map insertion order, IdentityKey altering the hashed identity but
+not the stored partition key, and AcceptanceKey reporting false rather than a
+zero-value key. Input shape and terminal row counts are unchanged by construction:
+no query, Cypher, batch size, worker count, lease, or queue behaviour is touched,
+and the reducer root non-test file count is unchanged at 519, so the dirgate ledger
+needs no edit. Why this hoist at all: those three symbols are referenced by 47
+non-test root files across roughly 23 domains, and a family that must import the
+root to name an intent shape closes an import cycle -- the most common single
+blocker among the remaining #6061 moves.
+
+No-Observability-Change: no metric, span, log field, status field, or runtime knob
+changes. The moved code is plain data plus two pure functions; the worker, runner,
+readiness, lease-heartbeat, unroutable-quarantine and batch-selection machinery
+that carries this domain's instrumentation all stays in shared_projection.go, and
+the intent rows it emits are byte-identical because StableIntentID is pinned.
 No-Regression Evidence: the reducer codeintel move (#6061) relocates eleven
 files -- `code_reachability_projection*.go` and `code_root_verdicts*.go`, four
 non-test and seven test -- from the reducer root into
