@@ -184,7 +184,7 @@ SharedProjectionIntentRow, SharedProjectionIntentInput, BuildSharedProjectionInt
 stableIntentID, SharedProjectionAcceptanceKey and the Row.AcceptanceKey method out
 of shared_projection.go into a new `internal/reducer/sharedintent` leaf, with no
 logic change; the root keeps aliases under the original names plus one forwarder,
-so no caller changed. Baseline `1a1bbd98c`, after `8102598d6`, go1.27.0
+so no caller changed. Baseline `af6cdf78e`, after `66182f53e`, go1.27.0
 darwin/arm64. This crosses a package boundary, so inlining can genuinely shift and
 is measured rather than assumed: `go build -gcflags=-m ./...` whole-module reports
 unique `can inline` names 11825 -> 11826, compared as a SET with `comm` in both
