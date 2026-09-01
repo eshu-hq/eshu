@@ -154,6 +154,24 @@ type Paths struct {
 	ReplayDecodeFiles []string
 }
 
+// decodeScanDirs returns, in the fixed order Load applies them, the six
+// directory trees Load feeds to ScanDecodeUsage: reducer, projector, query,
+// loader, relationships, replay. Load's own scan loop (load.go) and this
+// package's qualifier-drift test (qualifier_drift_test.go) both iterate this
+// single slice rather than each keeping an independent hard-coded list, so a
+// surface added to Load is added here once and the test picks it up for
+// free instead of silently continuing to check only the old set.
+func decodeScanDirs(resolved Paths) []string {
+	return []string{
+		resolved.ReducerDir,
+		resolved.ProjectorDir,
+		resolved.QueryDir,
+		resolved.LoaderDir,
+		resolved.RelationshipsDir,
+		resolved.ReplayDir,
+	}
+}
+
 // ResolvePaths fills every empty DIRECTORY/RepoRoot field of p with its default
 // relative to RepoRoot (defaulting RepoRoot itself to "." when empty) and
 // returns the resolved copy. p is not mutated.

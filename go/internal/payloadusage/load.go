@@ -274,19 +274,25 @@ func parseAllStructShapes(resolved Paths) (map[string]StructShape, error) {
 // parsed shapes (a wiring gap between DecodeSeam and the struct dirs the
 // caller supplied) — both are startup-time configuration errors, not gate
 // findings, so they fail loudly rather than silently shrinking the manifest.
-func Load(p Paths) (Manifest, error) {
-	resolved := ResolvePaths(p)
-
+// resolveAllDecodeSeams resolves and merges the decode-seam set across every
+// surface Load scans -- reducer, projector, query, loader, relationships,
+// replay -- applying the same root-forwarder resolution Load applies to
+// reducer seams before the cross-stage merge. Load and this package's own
+// qualifier-drift test (qualifier_drift_test.go) both call this single
+// path, so a seam that exists only in a non-reducer surface is not invisible
+// to the test the way a hand-rolled, reducer-only re-derivation would leave
+// it (#6382 review finding 1).
+func resolveAllDecodeSeams(resolved Paths) ([]DecodeSeam, RootForwarders, error) {
 	decodeFiles, err := resolveDecodeFiles(resolved)
 	if err != nil {
-		return Manifest{}, err
+		return nil, nil, err
 	}
 	reducerSeams, err := parseDecodeSeamsFiles(decodeFiles)
 	if err != nil {
-		return Manifest{}, err
+		return nil, nil, err
 	}
 	if len(reducerSeams) == 0 {
-		return Manifest{}, fmt.Errorf("payloadusage: no decode seams found in %s", strings.Join(decodeFiles, ", "))
+		return nil, nil, fmt.Errorf("payloadusage: no decode seams found in %s", strings.Join(decodeFiles, ", "))
 	}
 
 	// A decode seam relocated into a subpackage (e.g.
@@ -298,7 +304,7 @@ func Load(p Paths) (Manifest, error) {
 	// attribution, or both break silently (#6383).
 	rootForwarders, err := ParseRootForwarders(resolved.ReducerDir)
 	if err != nil {
-		return Manifest{}, err
+		return nil, nil, err
 	}
 	reducerSeams = ResolveForwardedSeams(reducerSeams, rootForwarders)
 
@@ -309,11 +315,11 @@ func Load(p Paths) (Manifest, error) {
 	// set is valid (only oci_registry is typed in the projector today).
 	projectorDecodeFiles, err := resolveProjectorDecodeFiles(resolved)
 	if err != nil {
-		return Manifest{}, err
+		return nil, nil, err
 	}
 	projectorSeams, err := parseDecodeSeamsFiles(projectorDecodeFiles)
 	if err != nil {
-		return Manifest{}, err
+		return nil, nil, err
 	}
 
 	seams := mergeSeams(reducerSeams, projectorSeams)
@@ -328,13 +334,24 @@ func Load(p Paths) (Manifest, error) {
 	} {
 		files, resolveErr := group.files(resolved)
 		if resolveErr != nil {
-			return Manifest{}, resolveErr
+			return nil, nil, resolveErr
 		}
 		groupSeams, parseErr := parseDecodeSeamsFiles(files)
 		if parseErr != nil {
-			return Manifest{}, fmt.Errorf("payloadusage: parse %s decode seams: %w", group.name, parseErr)
+			return nil, nil, fmt.Errorf("payloadusage: parse %s decode seams: %w", group.name, parseErr)
 		}
 		seams = mergeSeams(seams, groupSeams)
+	}
+
+	return seams, rootForwarders, nil
+}
+
+func Load(p Paths) (Manifest, error) {
+	resolved := ResolvePaths(p)
+
+	seams, rootForwarders, err := resolveAllDecodeSeams(resolved)
+	if err != nil {
+		return Manifest{}, err
 	}
 
 	if missing := UnmappedSeamFactKinds(seams); len(missing) > 0 {
@@ -352,32 +369,20 @@ func Load(p Paths) (Manifest, error) {
 	// Scan every typed-decode surface for field usage against the merged seam
 	// set, so a field a projector canonical extractor, query read-model builder,
 	// loader, relationship extractor, or replay materializer reads off a decoded
-	// struct is gated the same as a reducer handler read.
-	reducerUsage, err := ScanDecodeUsage(resolved.ReducerDir, seams, rootForwarders, KnownDecodeQualifiers)
-	if err != nil {
-		return Manifest{}, err
+	// struct is gated the same as a reducer handler read. decodeScanDirs
+	// (paths.go) is the same surface list this package's qualifier-drift test
+	// iterates, so a surface added here is added there too, in one place
+	// (#6382 review finding 2).
+	scanDirs := decodeScanDirs(resolved)
+	usages := make([]map[string][]FieldUsage, 0, len(scanDirs))
+	for _, dir := range scanDirs {
+		dirUsage, scanErr := ScanDecodeUsage(dir, seams, rootForwarders, KnownDecodeQualifiers)
+		if scanErr != nil {
+			return Manifest{}, scanErr
+		}
+		usages = append(usages, dirUsage)
 	}
-	projectorUsage, err := ScanDecodeUsage(resolved.ProjectorDir, seams, rootForwarders, KnownDecodeQualifiers)
-	if err != nil {
-		return Manifest{}, err
-	}
-	queryUsage, err := ScanDecodeUsage(resolved.QueryDir, seams, rootForwarders, KnownDecodeQualifiers)
-	if err != nil {
-		return Manifest{}, err
-	}
-	loaderUsage, err := ScanDecodeUsage(resolved.LoaderDir, seams, rootForwarders, KnownDecodeQualifiers)
-	if err != nil {
-		return Manifest{}, err
-	}
-	relationshipsUsage, err := ScanDecodeUsage(resolved.RelationshipsDir, seams, rootForwarders, KnownDecodeQualifiers)
-	if err != nil {
-		return Manifest{}, err
-	}
-	replayUsage, err := ScanDecodeUsage(resolved.ReplayDir, seams, rootForwarders, KnownDecodeQualifiers)
-	if err != nil {
-		return Manifest{}, err
-	}
-	usage := mergeUsageSets(reducerUsage, projectorUsage, queryUsage, loaderUsage, relationshipsUsage, replayUsage)
+	usage := mergeUsageSets(usages...)
 
 	manifest := BuildManifest(seams, shapes, usage)
 	if err := verifyEverySeamProduced(seams, manifest); err != nil {
