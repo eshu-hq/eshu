@@ -18,4 +18,10 @@
 // MetadataClassReferences turn bounded ServiceLoader and Spring metadata files
 // into ClassReference rows while rejecting unsupported paths, invalid class
 // names, and duplicate evidence.
+//
+// The payload contract is pinned by the java_*_test.go files in this directory,
+// which compile as the external package java_test and drive
+// parser.DefaultEngine().ParsePath the way a caller would. Only that external
+// test package imports the parent parser; production code and the in-package
+// tests never do.
 package java

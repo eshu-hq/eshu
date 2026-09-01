@@ -8,6 +8,29 @@ classes, interfaces, annotations, enums, functions, variables, imports, calls,
 dead-code roots, reflection references, static metadata class references, and
 opt-in shared value-flow buckets for the supported Java taint subset.
 
+The engine-level Java regressions live in this directory as the `java_*_test.go`
+family (12 files in the external `java_test` package: 11 test files plus
+`java_test_helpers_test.go`), carrying 40 test functions. They were relocated
+from `go/internal/parser` by #6062, following the Elixir precedent (#6335), and
+still drive `parser.DefaultEngine().ParsePath` from outside the implementation
+so they prove the exported contract rather than internals. Together with
+`engine_java_implements_test.go` that makes 41 external tests; the four
+in-package `package java` files (`parser_test.go`, `metadata_test.go`,
+`equivalence_dump_test.go`, `dogfood_real_repo_test.go`) carry 12 more, for 17
+test files in all. Coverage spans call-context and receiver inference, the
+opt-in value-flow buckets, the comprehensive route and dead-code fixtures,
+Spring/JAX-RS/Micronaut route entries, framework, serialization, Gradle and Ant
+dead-code roots, method-reference targets, literal reflection references, and
+static metadata class references. `java_spring_route_semantics_test.go` holds
+only the Java half of the former `java_kotlin_spring_route_semantics_test.go`;
+the two Kotlin route tests stayed in the parent as
+`kotlin_spring_route_semantics_test.go`. `java_test_helpers_test.go` holds only
+what `internal/parser/parsertest` lacks: the `javaFixturePath` resolver and
+`writeJavaTestFile`, which creates parent directories before delegating the
+write to `parsertest.WriteFile`. The `call_kind`-keyed lookups in
+`java_dead_code_roots_test.go` and `java_reflection_test.go` are Java-specific
+and stay beside their callers.
+
 ## Ownership boundary
 
 The package is responsible for Java syntax traversal, Java-specific type and
@@ -33,9 +56,10 @@ payload helpers, and tree-sitter node helpers. The opt-in value-flow path uses
 the same payload schema as Go, Python, and JS/TS. It imports tree-sitter only
 for the caller-owned parser and node traversal. It must not import the parent
 `go/internal/parser` package, collector packages, graph storage, or reducer
-code. The external implemented-interface regression imports the parent parser
-only from `java_test` to exercise the public `Engine.ParsePath` path; production
-files remain parent-independent.
+code. The external `java_test` files are the one exception: they import the
+parent parser only to reach `DefaultEngine`, `DefaultRegistry`, and `Options`,
+and `internal/parser/parsertest` for the bucket and field assertions shared with
+the other language packages. Production files remain parent-independent.
 
 ## Telemetry
 
@@ -71,9 +95,11 @@ receiver can mark the matching method as a dead-code root across class,
 interface, enum, and record contexts; unknown or duplicate simple receiver
 names are ignored.
 
-`engine_java_implements_test.go` uses the external `java_test` package. It may
-import `go/internal/parser` because Go compiles it only for tests. Keep that
-exception limited to black-box tests of the public parent engine.
+`engine_java_implements_test.go` and the `java_*_test.go` family use the
+external `java_test` package. They may import `go/internal/parser` because Go
+compiles them only for tests. Keep that exception limited to black-box tests of
+the public parent engine, and take shared assertions from `parsertest` rather
+than adding local copies.
 
 Metadata extraction accepts repository-relative or absolute paths and
 normalizes separators before matching metadata locations. Invalid or duplicate
@@ -116,9 +142,9 @@ both repository and package identity, matching the stable identity contract.
 The Java CFG lowerer lowers try, catch, and finally bodies enough for sink lines
 inside those blocks to map back to CFG statements.
 
-No-Regression Evidence: `go test ./internal/parser -run
-'TestJava(DataflowOffIsByteIdentical|TaintSpringRequestParamToJDBCSink|TaintWildcardImportsToJDBCSink|TaintTryBlockJDBCSink|TaintIgnoresSameNamedLocalAnnotationAndSink|InterprocSummariesAndSources)'
--count=1` failed before Java emitted value-flow buckets, before sink matching
+No-Regression Evidence: `../scripts/go-test-run-guard.sh 6 'TestJava(DataflowOffIsByteIdentical|TaintSpringRequestParamToJDBCSink|TaintWildcardImportsToJDBCSink|TaintTryBlockJDBCSink|TaintIgnoresSameNamedLocalAnnotationAndSink|InterprocSummariesAndSources)' -- ./internal/parser/java -count=1`
+(run from the `go/` module root; the tests live in this package since #6062)
+failed before Java emitted value-flow buckets, before sink matching
 required import evidence, before wildcard import evidence was accepted, before
 try bodies were lowered, and before Java emitted summaries/sources/interproc
 rows, then passed after the Java lowering and catalog were added. The gate-off

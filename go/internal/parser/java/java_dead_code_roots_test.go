@@ -1,11 +1,14 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package parser
+package java_test
 
 import (
 	"path/filepath"
 	"testing"
+
+	"github.com/eshu-hq/eshu/go/internal/parser"
+	"github.com/eshu-hq/eshu/go/internal/parser/parsertest"
 )
 
 func TestDefaultEngineParsePathJavaEmitsDeadCodeRootKinds(t *testing.T) {
@@ -13,7 +16,7 @@ func TestDefaultEngineParsePathJavaEmitsDeadCodeRootKinds(t *testing.T) {
 
 	repoRoot := t.TempDir()
 	filePath := filepath.Join(repoRoot, "src/main/java/example/CLI.java")
-	writeTestFile(t, filePath, `package example;
+	writeJavaTestFile(t, filePath, `package example;
 
 public class CLI implements AutoCloseable {
     public CLI(String url) {
@@ -33,20 +36,20 @@ public class CLI implements AutoCloseable {
 }
 `)
 
-	engine, err := DefaultEngine()
+	engine, err := parser.DefaultEngine()
 	if err != nil {
-		t.Fatalf("DefaultEngine() error = %v, want nil", err)
+		t.Fatalf("parser.DefaultEngine() error = %v, want nil", err)
 	}
 
-	got, err := engine.ParsePath(repoRoot, filePath, false, Options{})
+	got, err := engine.ParsePath(repoRoot, filePath, false, parser.Options{})
 	if err != nil {
 		t.Fatalf("ParsePath() error = %v, want nil", err)
 	}
 
-	assertParserStringSliceContains(t, assertFunctionByName(t, got, "CLI"), "dead_code_root_kinds", "java.constructor")
-	assertParserStringSliceContains(t, assertFunctionByName(t, got, "main"), "dead_code_root_kinds", "java.main_method")
-	assertParserStringSliceContains(t, assertFunctionByName(t, got, "close"), "dead_code_root_kinds", "java.override_method")
-	if _, ok := assertFunctionByName(t, got, "helper")["dead_code_root_kinds"]; ok {
+	parsertest.AssertStringSliceContains(t, parsertest.AssertBucketItemByName(t, got, "functions", "CLI"), "dead_code_root_kinds", "java.constructor")
+	parsertest.AssertStringSliceContains(t, parsertest.AssertBucketItemByName(t, got, "functions", "main"), "dead_code_root_kinds", "java.main_method")
+	parsertest.AssertStringSliceContains(t, parsertest.AssertBucketItemByName(t, got, "functions", "close"), "dead_code_root_kinds", "java.override_method")
+	if _, ok := parsertest.AssertBucketItemByName(t, got, "functions", "helper")["dead_code_root_kinds"]; ok {
 		t.Fatalf("helper dead_code_root_kinds present, want absent")
 	}
 }
@@ -56,7 +59,7 @@ func TestDefaultEngineParsePathJavaMarksAntTaskSettersAsRoots(t *testing.T) {
 
 	repoRoot := t.TempDir()
 	filePath := filepath.Join(repoRoot, "src/main/java/example/FindMainClass.java")
-	writeTestFile(t, filePath, `package example;
+	writeJavaTestFile(t, filePath, `package example;
 
 import java.io.File;
 
@@ -78,21 +81,21 @@ public class FindMainClass extends Task {
 }
 `)
 
-	engine, err := DefaultEngine()
+	engine, err := parser.DefaultEngine()
 	if err != nil {
-		t.Fatalf("DefaultEngine() error = %v, want nil", err)
+		t.Fatalf("parser.DefaultEngine() error = %v, want nil", err)
 	}
 
-	got, err := engine.ParsePath(repoRoot, filePath, false, Options{})
+	got, err := engine.ParsePath(repoRoot, filePath, false, parser.Options{})
 	if err != nil {
 		t.Fatalf("ParsePath() error = %v, want nil", err)
 	}
 
-	assertParserStringSliceContains(t, assertFunctionByName(t, got, "setClassesRoot"), "dead_code_root_kinds", "java.ant_task_setter")
-	if _, ok := assertFunctionByName(t, got, "setup")["dead_code_root_kinds"]; ok {
+	parsertest.AssertStringSliceContains(t, parsertest.AssertBucketItemByName(t, got, "functions", "setClassesRoot"), "dead_code_root_kinds", "java.ant_task_setter")
+	if _, ok := parsertest.AssertBucketItemByName(t, got, "functions", "setup")["dead_code_root_kinds"]; ok {
 		t.Fatalf("setup dead_code_root_kinds present, want absent")
 	}
-	if _, ok := assertFunctionByName(t, got, "helper")["dead_code_root_kinds"]; ok {
+	if _, ok := parsertest.AssertBucketItemByName(t, got, "functions", "helper")["dead_code_root_kinds"]; ok {
 		t.Fatalf("helper dead_code_root_kinds present, want absent")
 	}
 }
@@ -102,7 +105,7 @@ func TestDefaultEngineParsePathJavaMarksGradleRoots(t *testing.T) {
 
 	repoRoot := t.TempDir()
 	filePath := filepath.Join(repoRoot, "src/main/java/example/BootPlugin.java")
-	writeTestFile(t, filePath, `package example;
+	writeJavaTestFile(t, filePath, `package example;
 
 import org.gradle.api.Action;
 import org.gradle.api.DefaultTask;
@@ -171,33 +174,33 @@ public abstract class BuildInfoProperties {
 }
 `)
 
-	engine, err := DefaultEngine()
+	engine, err := parser.DefaultEngine()
 	if err != nil {
-		t.Fatalf("DefaultEngine() error = %v, want nil", err)
+		t.Fatalf("parser.DefaultEngine() error = %v, want nil", err)
 	}
 
-	got, err := engine.ParsePath(repoRoot, filePath, false, Options{})
+	got, err := engine.ParsePath(repoRoot, filePath, false, parser.Options{})
 	if err != nil {
 		t.Fatalf("ParsePath() error = %v, want nil", err)
 	}
 
-	assertParserStringSliceContains(t, assertFunctionByNameAndClass(t, got, "apply", "BootPlugin"), "dead_code_root_kinds", "java.gradle_plugin_apply")
-	if _, ok := assertFunctionByNameAndClass(t, got, "helper", "BootPlugin")["dead_code_root_kinds"]; ok {
+	parsertest.AssertStringSliceContains(t, parsertest.AssertFunctionByNameAndClass(t, got, "apply", "BootPlugin"), "dead_code_root_kinds", "java.gradle_plugin_apply")
+	if _, ok := parsertest.AssertFunctionByNameAndClass(t, got, "helper", "BootPlugin")["dead_code_root_kinds"]; ok {
 		t.Fatalf("BootPlugin.helper dead_code_root_kinds present, want absent")
 	}
-	assertParserStringSliceContains(t, assertFunctionByNameAndClass(t, got, "buildInfo", "BootExtension"), "dead_code_root_kinds", "java.gradle_dsl_public_method")
-	if _, ok := assertFunctionByNameAndClass(t, got, "configureBuildInfoTask", "BootExtension")["dead_code_root_kinds"]; ok {
+	parsertest.AssertStringSliceContains(t, parsertest.AssertFunctionByNameAndClass(t, got, "buildInfo", "BootExtension"), "dead_code_root_kinds", "java.gradle_dsl_public_method")
+	if _, ok := parsertest.AssertFunctionByNameAndClass(t, got, "configureBuildInfoTask", "BootExtension")["dead_code_root_kinds"]; ok {
 		t.Fatalf("BootExtension.configureBuildInfoTask dead_code_root_kinds present, want absent")
 	}
-	assertParserStringSliceContains(t, assertFunctionByNameAndClass(t, got, "publishRegistry", "DockerSpec"), "dead_code_root_kinds", "java.gradle_dsl_public_method")
-	assertParserStringSliceContains(t, assertFunctionByNameAndClass(t, got, "buildImage", "BootBuildImage"), "dead_code_root_kinds", "java.gradle_task_action")
-	assertParserStringSliceContains(t, assertFunctionByNameAndClass(t, got, "docker", "BootBuildImage"), "dead_code_root_kinds", "java.gradle_dsl_public_method")
-	if _, ok := assertFunctionByNameAndClass(t, got, "unused", "InternalHelper")["dead_code_root_kinds"]; ok {
+	parsertest.AssertStringSliceContains(t, parsertest.AssertFunctionByNameAndClass(t, got, "publishRegistry", "DockerSpec"), "dead_code_root_kinds", "java.gradle_dsl_public_method")
+	parsertest.AssertStringSliceContains(t, parsertest.AssertFunctionByNameAndClass(t, got, "buildImage", "BootBuildImage"), "dead_code_root_kinds", "java.gradle_task_action")
+	parsertest.AssertStringSliceContains(t, parsertest.AssertFunctionByNameAndClass(t, got, "docker", "BootBuildImage"), "dead_code_root_kinds", "java.gradle_dsl_public_method")
+	if _, ok := parsertest.AssertFunctionByNameAndClass(t, got, "unused", "InternalHelper")["dead_code_root_kinds"]; ok {
 		t.Fatalf("InternalHelper.unused dead_code_root_kinds present, want absent")
 	}
-	assertParserStringSliceContains(t, assertFunctionByNameAndClass(t, got, "getGroup", "BuildInfoProperties"), "dead_code_root_kinds", "java.gradle_task_property")
-	assertParserStringSliceContains(t, assertFunctionByNameAndClass(t, got, "getGroupIfNotExcluded", "BuildInfoProperties"), "dead_code_root_kinds", "java.gradle_task_property")
-	if _, ok := assertFunctionByNameAndClass(t, got, "ordinaryPublicMethod", "BuildInfoProperties")["dead_code_root_kinds"]; ok {
+	parsertest.AssertStringSliceContains(t, parsertest.AssertFunctionByNameAndClass(t, got, "getGroup", "BuildInfoProperties"), "dead_code_root_kinds", "java.gradle_task_property")
+	parsertest.AssertStringSliceContains(t, parsertest.AssertFunctionByNameAndClass(t, got, "getGroupIfNotExcluded", "BuildInfoProperties"), "dead_code_root_kinds", "java.gradle_task_property")
+	if _, ok := parsertest.AssertFunctionByNameAndClass(t, got, "ordinaryPublicMethod", "BuildInfoProperties")["dead_code_root_kinds"]; ok {
 		t.Fatalf("BuildInfoProperties.ordinaryPublicMethod dead_code_root_kinds present, want absent")
 	}
 }
@@ -207,7 +210,7 @@ func TestDefaultEngineParsePathJavaEmitsMethodReferenceCalls(t *testing.T) {
 
 	repoRoot := t.TempDir()
 	filePath := filepath.Join(repoRoot, "src/main/java/example/BootExtension.java")
-	writeTestFile(t, filePath, `package example;
+	writeJavaTestFile(t, filePath, `package example;
 
 public class BootExtension {
     public void buildInfo() {
@@ -224,25 +227,25 @@ public class BootExtension {
 }
 `)
 
-	engine, err := DefaultEngine()
+	engine, err := parser.DefaultEngine()
 	if err != nil {
-		t.Fatalf("DefaultEngine() error = %v, want nil", err)
+		t.Fatalf("parser.DefaultEngine() error = %v, want nil", err)
 	}
 
-	got, err := engine.ParsePath(repoRoot, filePath, false, Options{})
+	got, err := engine.ParsePath(repoRoot, filePath, false, parser.Options{})
 	if err != nil {
 		t.Fatalf("ParsePath() error = %v, want nil", err)
 	}
 
-	configure := assertBucketItemByName(t, got, "function_calls", "configureBuildInfoTask")
-	assertStringFieldValue(t, configure, "call_kind", "java.method_reference")
-	assertStringFieldValue(t, configure, "full_name", "this.configureBuildInfoTask")
-	assertStringFieldValue(t, configure, "class_context", "BootExtension")
+	configure := parsertest.AssertBucketItemByName(t, got, "function_calls", "configureBuildInfoTask")
+	parsertest.AssertStringFieldValue(t, configure, "call_kind", "java.method_reference")
+	parsertest.AssertStringFieldValue(t, configure, "full_name", "this.configureBuildInfoTask")
+	parsertest.AssertStringFieldValue(t, configure, "class_context", "BootExtension")
 
-	determine := assertBucketItemByName(t, got, "function_calls", "determineArtifactBaseName")
-	assertStringFieldValue(t, determine, "call_kind", "java.method_reference")
-	assertStringFieldValue(t, determine, "full_name", "this.determineArtifactBaseName")
-	assertStringFieldValue(t, determine, "class_context", "BootExtension")
+	determine := parsertest.AssertBucketItemByName(t, got, "function_calls", "determineArtifactBaseName")
+	parsertest.AssertStringFieldValue(t, determine, "call_kind", "java.method_reference")
+	parsertest.AssertStringFieldValue(t, determine, "full_name", "this.determineArtifactBaseName")
+	parsertest.AssertStringFieldValue(t, determine, "class_context", "BootExtension")
 }
 
 func TestDefaultEngineParsePathJavaEmitsTypedMethodReferenceMetadata(t *testing.T) {
@@ -250,7 +253,7 @@ func TestDefaultEngineParsePathJavaEmitsTypedMethodReferenceMetadata(t *testing.
 
 	repoRoot := t.TempDir()
 	filePath := filepath.Join(repoRoot, "src/main/java/example/BootZipCopyAction.java")
-	writeTestFile(t, filePath, `package example;
+	writeJavaTestFile(t, filePath, `package example;
 
 public class BootZipCopyAction {
     void run(CopyActionProcessingStream copyActions) {
@@ -268,22 +271,22 @@ public class BootZipCopyAction {
 }
 `)
 
-	engine, err := DefaultEngine()
+	engine, err := parser.DefaultEngine()
 	if err != nil {
-		t.Fatalf("DefaultEngine() error = %v, want nil", err)
+		t.Fatalf("parser.DefaultEngine() error = %v, want nil", err)
 	}
 
-	got, err := engine.ParsePath(repoRoot, filePath, false, Options{})
+	got, err := engine.ParsePath(repoRoot, filePath, false, parser.Options{})
 	if err != nil {
 		t.Fatalf("ParsePath() error = %v, want nil", err)
 	}
 
 	processCall := assertJavaFunctionCallByNameAndKind(t, got, "process", "java.method_reference")
-	assertStringFieldValue(t, processCall, "call_kind", "java.method_reference")
-	assertStringFieldValue(t, processCall, "full_name", "processor.process")
-	assertStringFieldValue(t, processCall, "inferred_obj_type", "Processor")
-	assertParserStringSliceContains(t, assertFunctionByNameAndClass(t, got, "process", "Processor"), "dead_code_root_kinds", "java.method_reference_target")
-	if _, ok := assertFunctionByNameAndClass(t, got, "helper", "Processor")["dead_code_root_kinds"]; ok {
+	parsertest.AssertStringFieldValue(t, processCall, "call_kind", "java.method_reference")
+	parsertest.AssertStringFieldValue(t, processCall, "full_name", "processor.process")
+	parsertest.AssertStringFieldValue(t, processCall, "inferred_obj_type", "Processor")
+	parsertest.AssertStringSliceContains(t, parsertest.AssertFunctionByNameAndClass(t, got, "process", "Processor"), "dead_code_root_kinds", "java.method_reference_target")
+	if _, ok := parsertest.AssertFunctionByNameAndClass(t, got, "helper", "Processor")["dead_code_root_kinds"]; ok {
 		t.Fatalf("helper dead_code_root_kinds present, want absent")
 	}
 }
@@ -293,7 +296,7 @@ func TestDefaultEngineParsePathJavaMarksDeclaredTypeMethodReferenceTargets(t *te
 
 	repoRoot := t.TempDir()
 	filePath := filepath.Join(repoRoot, "src/main/java/example/ProcessorPipeline.java")
-	writeTestFile(t, filePath, `package example;
+	writeJavaTestFile(t, filePath, `package example;
 
 import java.util.stream.Stream;
 
@@ -313,20 +316,20 @@ final class Processor {
 }
 `)
 
-	engine, err := DefaultEngine()
+	engine, err := parser.DefaultEngine()
 	if err != nil {
-		t.Fatalf("DefaultEngine() error = %v, want nil", err)
+		t.Fatalf("parser.DefaultEngine() error = %v, want nil", err)
 	}
 
-	got, err := engine.ParsePath(repoRoot, filePath, false, Options{})
+	got, err := engine.ParsePath(repoRoot, filePath, false, parser.Options{})
 	if err != nil {
 		t.Fatalf("ParsePath() error = %v, want nil", err)
 	}
 
 	processCall := assertJavaFunctionCallByNameAndKind(t, got, "process", "java.method_reference")
-	assertStringFieldValue(t, processCall, "full_name", "Processor.process")
-	assertParserStringSliceContains(t, assertFunctionByNameAndClass(t, got, "process", "Processor"), "dead_code_root_kinds", "java.method_reference_target")
-	if _, ok := assertFunctionByNameAndClass(t, got, "helper", "Processor")["dead_code_root_kinds"]; ok {
+	parsertest.AssertStringFieldValue(t, processCall, "full_name", "Processor.process")
+	parsertest.AssertStringSliceContains(t, parsertest.AssertFunctionByNameAndClass(t, got, "process", "Processor"), "dead_code_root_kinds", "java.method_reference_target")
+	if _, ok := parsertest.AssertFunctionByNameAndClass(t, got, "helper", "Processor")["dead_code_root_kinds"]; ok {
 		t.Fatalf("helper dead_code_root_kinds present, want absent")
 	}
 }
@@ -336,7 +339,7 @@ func TestDefaultEngineParsePathJavaMarksInterfaceEnumAndRecordMethodReferenceTar
 
 	repoRoot := t.TempDir()
 	filePath := filepath.Join(repoRoot, "src/main/java/example/DeclaredTypes.java")
-	writeTestFile(t, filePath, `package example;
+	writeJavaTestFile(t, filePath, `package example;
 
 import java.util.stream.Stream;
 
@@ -370,19 +373,19 @@ final class Pipeline {
 }
 `)
 
-	engine, err := DefaultEngine()
+	engine, err := parser.DefaultEngine()
 	if err != nil {
-		t.Fatalf("DefaultEngine() error = %v, want nil", err)
+		t.Fatalf("parser.DefaultEngine() error = %v, want nil", err)
 	}
 
-	got, err := engine.ParsePath(repoRoot, filePath, false, Options{})
+	got, err := engine.ParsePath(repoRoot, filePath, false, parser.Options{})
 	if err != nil {
 		t.Fatalf("ParsePath() error = %v, want nil", err)
 	}
 
-	assertParserStringSliceContains(t, assertFunctionByNameAndClass(t, got, "process", "InterfaceProcessor"), "dead_code_root_kinds", "java.method_reference_target")
-	assertParserStringSliceContains(t, assertFunctionByNameAndClass(t, got, "process", "EnumProcessor"), "dead_code_root_kinds", "java.method_reference_target")
-	assertParserStringSliceContains(t, assertFunctionByNameAndClass(t, got, "process", "RecordProcessor"), "dead_code_root_kinds", "java.method_reference_target")
+	parsertest.AssertStringSliceContains(t, parsertest.AssertFunctionByNameAndClass(t, got, "process", "InterfaceProcessor"), "dead_code_root_kinds", "java.method_reference_target")
+	parsertest.AssertStringSliceContains(t, parsertest.AssertFunctionByNameAndClass(t, got, "process", "EnumProcessor"), "dead_code_root_kinds", "java.method_reference_target")
+	parsertest.AssertStringSliceContains(t, parsertest.AssertFunctionByNameAndClass(t, got, "process", "RecordProcessor"), "dead_code_root_kinds", "java.method_reference_target")
 }
 
 func TestDefaultEngineParsePathJavaDoesNotMarkDuplicateDeclaredTypeMethodReferenceTargets(t *testing.T) {
@@ -390,7 +393,7 @@ func TestDefaultEngineParsePathJavaDoesNotMarkDuplicateDeclaredTypeMethodReferen
 
 	repoRoot := t.TempDir()
 	filePath := filepath.Join(repoRoot, "src/main/java/example/DuplicateTypes.java")
-	writeTestFile(t, filePath, `package example;
+	writeJavaTestFile(t, filePath, `package example;
 
 import java.util.stream.Stream;
 
@@ -415,12 +418,12 @@ final class Pipeline {
 }
 `)
 
-	engine, err := DefaultEngine()
+	engine, err := parser.DefaultEngine()
 	if err != nil {
-		t.Fatalf("DefaultEngine() error = %v, want nil", err)
+		t.Fatalf("parser.DefaultEngine() error = %v, want nil", err)
 	}
 
-	got, err := engine.ParsePath(repoRoot, filePath, false, Options{})
+	got, err := engine.ParsePath(repoRoot, filePath, false, parser.Options{})
 	if err != nil {
 		t.Fatalf("ParsePath() error = %v, want nil", err)
 	}
@@ -476,7 +479,7 @@ func TestDefaultEngineParsePathJavaInfersLocalReceiverTypes(t *testing.T) {
 
 	repoRoot := t.TempDir()
 	filePath := filepath.Join(repoRoot, "src/main/java/example/CLI.java")
-	writeTestFile(t, filePath, `package example;
+	writeJavaTestFile(t, filePath, `package example;
 
 public class CLI {
     public static int run(String auth) {
@@ -497,23 +500,23 @@ public class CLIConnectionFactory {
 }
 `)
 
-	engine, err := DefaultEngine()
+	engine, err := parser.DefaultEngine()
 	if err != nil {
-		t.Fatalf("DefaultEngine() error = %v, want nil", err)
+		t.Fatalf("parser.DefaultEngine() error = %v, want nil", err)
 	}
 
-	got, err := engine.ParsePath(repoRoot, filePath, false, Options{})
+	got, err := engine.ParsePath(repoRoot, filePath, false, parser.Options{})
 	if err != nil {
 		t.Fatalf("ParsePath() error = %v, want nil", err)
 	}
 
-	noCertificateCheck := assertBucketItemByName(t, got, "function_calls", "noCertificateCheck")
-	assertStringFieldValue(t, noCertificateCheck, "inferred_obj_type", "CLIConnectionFactory")
-	assertIntFieldValue(t, noCertificateCheck, "argument_count", 1)
-	basicAuth := assertBucketItemByName(t, got, "function_calls", "basicAuth")
-	assertStringFieldValue(t, basicAuth, "inferred_obj_type", "CLIConnectionFactory")
-	assertIntFieldValue(t, basicAuth, "argument_count", 1)
-	assertIntFieldValue(t, assertFunctionByName(t, got, "basicAuth"), "parameter_count", 1)
+	noCertificateCheck := parsertest.AssertBucketItemByName(t, got, "function_calls", "noCertificateCheck")
+	parsertest.AssertStringFieldValue(t, noCertificateCheck, "inferred_obj_type", "CLIConnectionFactory")
+	parsertest.AssertIntFieldValue(t, noCertificateCheck, "argument_count", 1)
+	basicAuth := parsertest.AssertBucketItemByName(t, got, "function_calls", "basicAuth")
+	parsertest.AssertStringFieldValue(t, basicAuth, "inferred_obj_type", "CLIConnectionFactory")
+	parsertest.AssertIntFieldValue(t, basicAuth, "argument_count", 1)
+	parsertest.AssertIntFieldValue(t, parsertest.AssertBucketItemByName(t, got, "functions", "basicAuth"), "parameter_count", 1)
 }
 
 func TestDefaultEngineParsePathJavaAddsClassContextToUnqualifiedMethodCalls(t *testing.T) {
@@ -521,7 +524,7 @@ func TestDefaultEngineParsePathJavaAddsClassContextToUnqualifiedMethodCalls(t *t
 
 	repoRoot := t.TempDir()
 	filePath := filepath.Join(repoRoot, "src/main/java/example/JavaPluginAction.java")
-	writeTestFile(t, filePath, `package example;
+	writeJavaTestFile(t, filePath, `package example;
 
 public class JavaPluginAction {
     private void configureAdditionalMetadataLocations(Project project) {
@@ -538,16 +541,16 @@ public class JavaPluginAction {
 }
 `)
 
-	engine, err := DefaultEngine()
+	engine, err := parser.DefaultEngine()
 	if err != nil {
-		t.Fatalf("DefaultEngine() error = %v, want nil", err)
+		t.Fatalf("parser.DefaultEngine() error = %v, want nil", err)
 	}
 
-	got, err := engine.ParsePath(repoRoot, filePath, false, Options{})
+	got, err := engine.ParsePath(repoRoot, filePath, false, parser.Options{})
 	if err != nil {
 		t.Fatalf("ParsePath() error = %v, want nil", err)
 	}
 
-	call := assertBucketItemByName(t, got, "function_calls", "configureAdditionalMetadataLocations")
-	assertStringFieldValue(t, call, "class_context", "AdditionalMetadataLocationsConfigurer")
+	call := parsertest.AssertBucketItemByName(t, got, "function_calls", "configureAdditionalMetadataLocations")
+	parsertest.AssertStringFieldValue(t, call, "class_context", "AdditionalMetadataLocationsConfigurer")
 }

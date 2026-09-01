@@ -205,3 +205,23 @@ func TestStringFieldEqualsFailsClosedOnMalformedValue(t *testing.T) {
 		t.Fatalf("stringFieldEquals(matching) = %v, want nil", err)
 	}
 }
+
+func TestAssertBucketItemByFieldValueReturnsMatchingItem(t *testing.T) {
+	t.Parallel()
+
+	want := map[string]any{
+		"name":      "getLayer",
+		"full_name": "BootZipCopyAction.this.layerResolver.getLayer",
+		"call_kind": "java.method_call",
+	}
+	payload := map[string]any{
+		"function_calls": []map[string]any{
+			{"name": "getLayer", "full_name": "other.getLayer"},
+			want,
+		},
+	}
+
+	if got := AssertBucketItemByFieldValue(t, payload, "function_calls", "full_name", "BootZipCopyAction.this.layerResolver.getLayer"); !reflect.DeepEqual(got, want) {
+		t.Fatalf("matched item = %#v, want %#v", got, want)
+	}
+}

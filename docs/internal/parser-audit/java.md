@@ -8,9 +8,11 @@ variables, imports, calls, method references, object creations) with a layered
 call-inference index, dead-code root classification (15+ root kinds), static
 reflection references, ServiceLoader/Spring metadata, and opt-in value-flow
 analysis (taint, interproc, summaries, sources). The test suite is the largest
-of any parser at approximately 35 parent-level tests plus subdirectory tests,
-covering every entity type, root kind, inference path, metadata format, and
-value-flow bucket.
+of any parser: 41 external `java_test` engine tests in `go/internal/parser/java`
+(the 40 in the `java_*_test.go` family relocated from the parent by #6062, plus
+the implemented-interfaces regression), 12 in-package tests, and the Java cases
+of the parent's `engine_managed_oo_test.go`, covering every entity type, root
+kind, inference path, metadata format, and value-flow bucket.
 
 ## Claimed Constructs
 - **Classes, interfaces, annotations (declarations + applied), enums, records**
@@ -69,69 +71,69 @@ value-flow bucket.
   `engine_managed_oo_test.go:TestDefaultEngineParsePathJava` (line 11),
   `engine_managed_oo_test.go:TestDefaultEngineParsePathJavaAnnotationMetadata` (line 67),
   `engine_managed_oo_test.go:TestDefaultEngineParsePathJavaAnnotationUsageKinds` (line 88),
-  `java_dead_code_roots_test.go:TestDefaultEngineParsePathJavaEmitsDeadCodeRootKinds` (line 11)
+  `java/java_dead_code_roots_test.go:TestDefaultEngineParsePathJavaEmitsDeadCodeRootKinds` (line 14)
 - **Records**:
-  `java_dead_code_maturity_test.go:TestDefaultEngineParsePathJavaModelsRecordsAndThisFieldReceivers` (line 92)
+  `java/java_dead_code_maturity_test.go:TestDefaultEngineParsePathJavaModelsRecordsAndThisFieldReceivers` (line 94)
 - **Implemented interfaces**:
-  `java/engine_java_implements_test.go:TestDefaultEngineParsePathJavaEmitsImplementedInterfaces` (line 27)
+  `java/engine_java_implements_test.go:TestDefaultEngineParsePathJavaEmitsImplementedInterfaces` (line 13)
 - **Imports with import_type, alias, full_import_name**:
   verified in `engine_managed_oo_test.go`
 - **Method/constructor/class dead-code root kinds** (~15 root kinds):
-  `java_dead_code_roots_test.go:TestDefaultEngineParsePathJavaEmitsDeadCodeRootKinds`,
-  `java_dead_code_roots_test.go:TestDefaultEngineParsePathJavaMarksAntTaskSettersAsRoots` (line 54),
-  `java_dead_code_roots_test.go:TestDefaultEngineParsePathJavaMarksGradleRoots` (line 100)
+  `java/java_dead_code_roots_test.go:TestDefaultEngineParsePathJavaEmitsDeadCodeRootKinds`,
+  `java/java_dead_code_roots_test.go:TestDefaultEngineParsePathJavaMarksAntTaskSettersAsRoots` (line 57),
+  `java/java_dead_code_roots_test.go:TestDefaultEngineParsePathJavaMarksGradleRoots` (line 103)
 - **Spring framework roots**:
-  `java_dead_code_framework_roots_test.go:TestDefaultEngineParsePathJavaMarksSpringFrameworkRoots` (line 11)
+  `java/java_dead_code_framework_roots_test.go:TestDefaultEngineParsePathJavaMarksSpringFrameworkRoots` (line 14)
 - **JUnit roots**:
-  `java_dead_code_framework_roots_test.go:TestDefaultEngineParsePathJavaMarksJUnitRoots` (line 90)
+  `java/java_dead_code_framework_roots_test.go:TestDefaultEngineParsePathJavaMarksJUnitRoots` (line 93)
 - **Jenkins roots**:
-  `java_dead_code_framework_roots_test.go:TestDefaultEngineParsePathJavaMarksJenkinsFrameworkRoots` (line 149)
+  `java/java_dead_code_framework_roots_test.go:TestDefaultEngineParsePathJavaMarksJenkinsFrameworkRoots` (line 152)
 - **Method reference targets**:
-  `java_dead_code_roots_test.go:TestDefaultEngineParsePathJavaMarksDeclaredTypeMethodReferenceTargets` (line 291),
-  `java_dead_code_roots_test.go:TestDefaultEngineParsePathJavaMarksInterfaceEnumAndRecordMethodReferenceTargets` (line 334),
-  `java_dead_code_roots_test.go:TestDefaultEngineParsePathJavaDoesNotMarkDuplicateDeclaredTypeMethodReferenceTargets` (line 388),
-  `java_dead_code_maturity_test.go:TestDefaultEngineParsePathJavaMarksMethodReferenceTargets` (line 53)
+  `java/java_dead_code_roots_test.go:TestDefaultEngineParsePathJavaMarksDeclaredTypeMethodReferenceTargets` (line 294),
+  `java/java_dead_code_roots_test.go:TestDefaultEngineParsePathJavaMarksInterfaceEnumAndRecordMethodReferenceTargets` (line 337),
+  `java/java_dead_code_roots_test.go:TestDefaultEngineParsePathJavaDoesNotMarkDuplicateDeclaredTypeMethodReferenceTargets` (line 391),
+  `java/java_dead_code_maturity_test.go:TestDefaultEngineParsePathJavaMarksMethodReferenceTargets` (line 55)
 - **Method reference calls with metadata**:
-  `java_dead_code_roots_test.go:TestDefaultEngineParsePathJavaEmitsMethodReferenceCalls` (line 205),
-  `java_dead_code_roots_test.go:TestDefaultEngineParsePathJavaEmitsTypedMethodReferenceMetadata` (line 248)
+  `java/java_dead_code_roots_test.go:TestDefaultEngineParsePathJavaEmitsMethodReferenceCalls` (line 208),
+  `java/java_dead_code_roots_test.go:TestDefaultEngineParsePathJavaEmitsTypedMethodReferenceMetadata` (line 251)
 - **Local receiver type inference**:
-  `java_dead_code_roots_test.go:TestDefaultEngineParsePathJavaInfersLocalReceiverTypes` (line 474),
-  `java_dead_code_roots_test.go:TestDefaultEngineParsePathJavaAddsClassContextToUnqualifiedMethodCalls` (line 519)
+  `java/java_dead_code_roots_test.go:TestDefaultEngineParsePathJavaInfersLocalReceiverTypes` (line 477),
+  `java/java_dead_code_roots_test.go:TestDefaultEngineParsePathJavaAddsClassContextToUnqualifiedMethodCalls` (line 522)
 - **Enhanced for receiver inference**:
-  `java_call_context_test.go:TestDefaultEngineParsePathJavaInfersEnhancedForReceiverType` (line 11)
+  `java/java_call_context_test.go:TestDefaultEngineParsePathJavaInfersEnhancedForReceiverType` (line 14)
 - **Outer class context chain**:
-  `java_call_context_test.go:TestDefaultEngineParsePathJavaAddsOuterClassContextToUnqualifiedCalls` (line 49)
+  `java/java_call_context_test.go:TestDefaultEngineParsePathJavaAddsOuterClassContextToUnqualifiedCalls` (line 52)
 - **Explicit outer this field receiver**:
-  `java_call_context_test.go:TestDefaultEngineParsePathJavaInfersExplicitOuterThisFieldReceiver` (line 83)
+  `java/java_call_context_test.go:TestDefaultEngineParsePathJavaInfersExplicitOuterThisFieldReceiver` (line 86)
 - **Argument return type inference**:
-  `java_call_context_test.go:TestDefaultEngineParsePathJavaInfersUnqualifiedArgumentReturnType` (line 114)
+  `java/java_call_context_test.go:TestDefaultEngineParsePathJavaInfersUnqualifiedArgumentReturnType` (line 117)
 - **Literal reflection references (Class.forName, getMethod)**:
-  `java_reflection_test.go:TestDefaultEngineParsePathJavaEmitsLiteralReflectionReferences` (line 11)
+  `java/java_reflection_test.go:TestDefaultEngineParsePathJavaEmitsLiteralReflectionReferences` (line 14)
 - **Dynamic reflection strings rejected**:
-  `java_reflection_test.go:TestDefaultEngineParsePathJavaIgnoresDynamicReflectionStrings` (line 52)
+  `java/java_reflection_test.go:TestDefaultEngineParsePathJavaIgnoresDynamicReflectionStrings` (line 55)
 - **Value-flow: gate off byte-identical**:
-  `java_cfg_dataflow_test.go:TestJavaDataflowOffIsByteIdentical` (line 26)
+  `java/java_cfg_dataflow_test.go:TestJavaDataflowOffIsByteIdentical` (line 28)
 - **Value-flow: taint Spring request param to JDBC sink**:
-  `java_cfg_dataflow_test.go:TestJavaTaintSpringRequestParamToJDBCSink` (line 72)
+  `java/java_cfg_dataflow_test.go:TestJavaTaintSpringRequestParamToJDBCSink` (line 74)
 - **Value-flow: wildcard imports to JDBC sink**:
-  `java_cfg_dataflow_test.go:TestJavaTaintWildcardImportsToJDBCSink` (line 83)
+  `java/java_cfg_dataflow_test.go:TestJavaTaintWildcardImportsToJDBCSink` (line 85)
 - **Value-flow: try block JDBC sink**:
-  `java_cfg_dataflow_test.go:TestJavaTaintTryBlockJDBCSink` (line 105)
+  `java/java_cfg_dataflow_test.go:TestJavaTaintTryBlockJDBCSink` (line 107)
 - **Value-flow: same-named local annotation/sink ignored**:
-  `java_cfg_dataflow_test.go:TestJavaTaintIgnoresSameNamedLocalAnnotationAndSink` (line 131)
+  `java/java_cfg_dataflow_test.go:TestJavaTaintIgnoresSameNamedLocalAnnotationAndSink` (line 133)
 - **Value-flow: interproc summaries and sources**:
-  `java_cfg_dataflow_test.go:TestJavaInterprocSummariesAndSources` (line 152)
+  `java/java_cfg_dataflow_test.go:TestJavaInterprocSummariesAndSources` (line 154)
 - **Value-flow: durable rows require package identity**:
-  `java_cfg_dataflow_test.go:TestJavaDurableRowsRequirePackageIdentity` (line 199)
+  `java/java_cfg_dataflow_test.go:TestJavaDurableRowsRequirePackageIdentity` (line 201)
 - **Serialization hooks**:
-  `java_dead_code_serialization_roots_test.go:TestDefaultEngineParsePathJavaMarksSerializationRuntimeHooks` (line 11),
-  `java_dead_code_serialization_roots_test.go:TestDefaultEngineParsePathJavaDoesNotRootOrdinaryMethodsWithHookNames` (line 72)
+  `java/java_dead_code_serialization_roots_test.go:TestDefaultEngineParsePathJavaMarksSerializationRuntimeHooks` (line 14),
+  `java/java_dead_code_serialization_roots_test.go:TestDefaultEngineParsePathJavaDoesNotRootOrdinaryMethodsWithHookNames` (line 75)
 - **Lambda callback inference**:
-  `java_dead_code_maturity_test.go:TestDefaultEngineParsePathJavaInfersTypedLambdaCallbackCalls` (line 12)
+  `java/java_dead_code_maturity_test.go:TestDefaultEngineParsePathJavaInfersTypedLambdaCallbackCalls` (line 14)
 - **Gradle task setters and interface methods**:
-  `java_dead_code_maturity_test.go:TestDefaultEngineParsePathJavaMarksGradleTaskSettersAndInterfaceMethods` (line 137)
+  `java/java_dead_code_maturity_test.go:TestDefaultEngineParsePathJavaMarksGradleTaskSettersAndInterfaceMethods` (line 139)
 - **Parameter annotations as decorators suppressed**:
-  `java_dead_code_maturity_test.go:TestDefaultEngineParsePathJavaIgnoresParameterAnnotationsAsDecorators` (line 179)
+  `java/java_dead_code_maturity_test.go:TestDefaultEngineParsePathJavaIgnoresParameterAnnotationsAsDecorators` (line 181)
 - **Metadata: ServiceLoader providers**:
   `java/metadata_test.go:TestMetadataClassReferencesMetaInfServicesProvider`
 - **Metadata: Spring AutoConfiguration.imports**:
@@ -142,16 +144,16 @@ value-flow bucket.
 - **Metadata: unrecognized paths**:
   `java/metadata_test.go:TestMetadataClassReferencesUnrecognizedPath`
 - **Comprehensive dead-code fixture**:
-  `java_dead_code_fixture_test.go:TestDefaultEngineParsePathJavaComprehensiveDeadCodeFixture` (line 11)
+  `java/java_dead_code_fixture_test.go:TestDefaultEngineParsePathJavaComprehensiveDeadCodeFixture` (line 14)
 - **Comprehensive metadata fixture**:
-  `java_dead_code_fixture_test.go:TestDefaultEngineParsePathJavaComprehensiveMetadataFixtures` (line 46)
+  `java/java_dead_code_fixture_test.go:TestDefaultEngineParsePathJavaComprehensiveMetadataFixtures` (line 49)
 - **Engine-level metadata dispatch**:
-  `java_metadata_test.go:TestDefaultEngineParsePathJavaMetadataEmitsStaticClassReferences` (line 33)
+  `java/java_metadata_test.go:TestDefaultEngineParsePathJavaMetadataEmitsStaticClassReferences` (line 36)
 - **Cyclomatic complexity**: tested in `engine_cyclomatic_complexity_test.go`
 
 ## Unverified / Claimed-but-Untested Constructs
 - **Record declarations** in isolation: records are mentioned in
-  `java_dead_code_maturity_test.go` (line 92) but tested alongside this-field
+  `java/java_dead_code_maturity_test.go` (line 94) but tested alongside this-field
   receivers. No standalone record entity test verifying record-specific fields
   or compact constructor handling.
 - **Sealed classes / permits clause** (Java 17+): not handled.
@@ -172,29 +174,29 @@ value-flow bucket.
 
 ## Edge Cases Considered
 - Duplicate method reference targets not double-rooted:
-  `java_dead_code_roots_test.go:TestDefaultEngineParsePathJavaDoesNotMarkDuplicateDeclaredTypeMethodReferenceTargets`
+  `java/java_dead_code_roots_test.go:TestDefaultEngineParsePathJavaDoesNotMarkDuplicateDeclaredTypeMethodReferenceTargets`
 - Same-named local annotation as Spring annotation not confused:
-  `java_cfg_dataflow_test.go:TestJavaTaintIgnoresSameNamedLocalAnnotationAndSink`
+  `java/java_cfg_dataflow_test.go:TestJavaTaintIgnoresSameNamedLocalAnnotationAndSink`
 - Try-block JDBC sink still detected:
-  `java_cfg_dataflow_test.go:TestJavaTaintTryBlockJDBCSink`
+  `java/java_cfg_dataflow_test.go:TestJavaTaintTryBlockJDBCSink`
 - Dynamic reflection strings not emitted as evidence:
-  `java_reflection_test.go:TestDefaultEngineParsePathJavaIgnoresDynamicReflectionStrings`
+  `java/java_reflection_test.go:TestDefaultEngineParsePathJavaIgnoresDynamicReflectionStrings`
 - Ordinary methods with hook-like names not false-rooted:
-  `java_dead_code_serialization_roots_test.go:TestDefaultEngineParsePathJavaDoesNotRootOrdinaryMethodsWithHookNames`
+  `java/java_dead_code_serialization_roots_test.go:TestDefaultEngineParsePathJavaDoesNotRootOrdinaryMethodsWithHookNames`
 - Parameter annotations not treated as decorators:
-  `java_dead_code_maturity_test.go:TestDefaultEngineParsePathJavaIgnoresParameterAnnotationsAsDecorators`
+  `java/java_dead_code_maturity_test.go:TestDefaultEngineParsePathJavaIgnoresParameterAnnotationsAsDecorators`
 - Value-flow disabled by default; byte-identical output:
-  `java_cfg_dataflow_test.go:TestJavaDataflowOffIsByteIdentical`
+  `java/java_cfg_dataflow_test.go:TestJavaDataflowOffIsByteIdentical`
 - Durable summary/source rows require package identity:
-  `java_cfg_dataflow_test.go:TestJavaDurableRowsRequirePackageIdentity`
+  `java/java_cfg_dataflow_test.go:TestJavaDurableRowsRequirePackageIdentity`
 - Record and this-field receivers:
-  `java_dead_code_maturity_test.go:TestDefaultEngineParsePathJavaModelsRecordsAndThisFieldReceivers`
+  `java/java_dead_code_maturity_test.go:TestDefaultEngineParsePathJavaModelsRecordsAndThisFieldReceivers`
 - Interface, enum, and record method reference targets:
-  `java_dead_code_roots_test.go:TestDefaultEngineParsePathJavaMarksInterfaceEnumAndRecordMethodReferenceTargets`
+  `java/java_dead_code_roots_test.go:TestDefaultEngineParsePathJavaMarksInterfaceEnumAndRecordMethodReferenceTargets`
 - Unqualified call class context chain:
-  `java_call_context_test.go:TestDefaultEngineParsePathJavaAddsOuterClassContextToUnqualifiedCalls`
+  `java/java_call_context_test.go:TestDefaultEngineParsePathJavaAddsOuterClassContextToUnqualifiedCalls`
 - Wildcard Spring imports accepted:
-  `java_cfg_dataflow_test.go:TestJavaTaintWildcardImportsToJDBCSink`
+  `java/java_cfg_dataflow_test.go:TestJavaTaintWildcardImportsToJDBCSink`
 - Metadata invalid class names, empty files, unrecognized paths rejected:
   `java/metadata_test.go`
 
@@ -218,8 +220,11 @@ value-flow bucket.
 ## Verdict
 **deep**
 
-The Java parser has the most extensive test coverage in Eshu: approximately 35
-parent-level tests plus 6 subdirectory tests covering every entity type, all
+The Java parser has the most extensive test coverage in Eshu: 41 external
+`java_test` engine tests plus 12 in-package tests under `go/internal/parser/java`
+(17 test files: 12 `java_*_test.go`, `engine_java_implements_test.go`, and the
+four in-package files), with the parent's `engine_managed_oo_test.go` Java cases
+on top, covering every entity type, all
 15+ dead-code root kinds, call inference (receiver types, class context chains,
 argument types), literal reflection evidence, ServiceLoader/Spring metadata, and
 the full opt-in value-flow pipeline. The edge-case coverage is thorough for
