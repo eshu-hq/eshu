@@ -189,7 +189,9 @@ root forwarders now call their real owners -- Intent, Result and
 ResultStatusSucceeded to contract, uniqueSortedStrings to payloadcore,
 reducerWriterNow and reducerFactCollectorKind to factwrite -- each verified to be
 a one-line forwarder at the base rather than a distinct implementation.
-Baseline 091ec3400, go1.27.0 darwin/arm64. This crosses a package boundary, so
+Baseline `594dc0a3e` (current `origin/main` tip after the #6411 gpphase rebase),
+after `126be09ea` (the rebased commit that lands this hoist's code), go1.27.0
+darwin/arm64. This crosses a package boundary, so
 inlining is measured rather than assumed: go build -gcflags=-m
 ./internal/reducer/... reports unique can inline names 1378 -> 1378, compared as a
 SET with comm in BOTH directions rather than by totals, since a matching total is
