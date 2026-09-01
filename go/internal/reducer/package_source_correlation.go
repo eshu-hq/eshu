@@ -9,8 +9,8 @@ import (
 	"strings"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/reducer/packagesourcecore"
 	"github.com/eshu-hq/eshu/go/internal/reducer/payloadcore"
-	"github.com/eshu-hq/eshu/go/internal/repositoryidentity"
 )
 
 // PackageSourceCorrelationOutcome names the reducer decision for one package
@@ -57,21 +57,6 @@ type PackageSourceCorrelationDecision struct {
 	EvidenceFactIDs        []string
 }
 
-type packageSourceHint struct {
-	FactID    string
-	PackageID string
-	VersionID string
-	HintKind  string
-	SourceURL string
-}
-
-type packageSourceRepository struct {
-	RepositoryID   string
-	RepositoryName string
-	RemoteURL      string
-	Tombstone      bool
-}
-
 // BuildPackageSourceCorrelationDecisions classifies package registry
 // source_hint facts against repository facts for one reducer input set.
 func BuildPackageSourceCorrelationDecisions(envelopes []facts.Envelope) []PackageSourceCorrelationDecision {
@@ -99,7 +84,7 @@ func extractPackageSourceHints(envelopes []facts.Envelope) []packageSourceHint {
 		if envelope.FactKind != facts.PackageRegistrySourceHintFactKind {
 			continue
 		}
-		sourceURL := firstPackageSourceURL(
+		sourceURL := payloadcore.FirstNonBlank(
 			payloadStr(envelope.Payload, "normalized_url"),
 			payloadStr(envelope.Payload, "raw_url"),
 		)
@@ -112,39 +97,6 @@ func extractPackageSourceHints(envelopes []facts.Envelope) []packageSourceHint {
 		})
 	}
 	return hints
-}
-
-func extractPackageSourceRepositories(envelopes []facts.Envelope) []packageSourceRepository {
-	repositories := make([]packageSourceRepository, 0)
-	for _, envelope := range envelopes {
-		if envelope.FactKind != factKindRepository {
-			continue
-		}
-		repositoryID := firstPackageSourceURL(
-			payloadStr(envelope.Payload, "graph_id"),
-			payloadStr(envelope.Payload, "repo_id"),
-			payloadStr(envelope.Payload, "repository_id"),
-			packageSourceRepositoryIDFromScope(envelope.ScopeID),
-		)
-		if repositoryID == "" {
-			continue
-		}
-		repositories = append(repositories, packageSourceRepository{
-			RepositoryID:   repositoryID,
-			RepositoryName: payloadStr(envelope.Payload, "name"),
-			RemoteURL:      payloadStr(envelope.Payload, "remote_url"),
-			Tombstone:      envelope.IsTombstone,
-		})
-	}
-	sort.SliceStable(repositories, func(i, j int) bool {
-		return repositories[i].RepositoryID < repositories[j].RepositoryID
-	})
-	return repositories
-}
-
-func packageSourceRepositoryIDFromScope(scopeID string) string {
-	const prefix = "git-repository-scope:"
-	return strings.TrimSpace(strings.TrimPrefix(scopeID, prefix))
 }
 
 func classifyPackageSourceHint(
@@ -203,29 +155,6 @@ func classifyPackageSourceHint(
 	}
 }
 
-func matchPackageSourceRepositories(
-	hint packageSourceHint,
-	repositories []packageSourceRepository,
-) ([]packageSourceRepository, []packageSourceRepository) {
-	hintKey := canonicalPackageSourceURLKey(hint.SourceURL)
-	if hintKey == "" {
-		return nil, nil
-	}
-	var activeMatches []packageSourceRepository
-	var staleMatches []packageSourceRepository
-	for _, repository := range repositories {
-		if canonicalPackageSourceURLKey(repository.RemoteURL) != hintKey {
-			continue
-		}
-		if repository.Tombstone {
-			staleMatches = append(staleMatches, repository)
-			continue
-		}
-		activeMatches = append(activeMatches, repository)
-	}
-	return activeMatches, staleMatches
-}
-
 func packageSourceRepositoryIDs(repositories []packageSourceRepository) []string {
 	ids := make([]string, 0, len(repositories))
 	for _, repository := range repositories {
@@ -255,24 +184,47 @@ func normalizePackageSourceExactURL(raw string) string {
 	return strings.TrimRight(parsed.String(), "/")
 }
 
-// canonicalPackageSourceURLKey returns the canonical host/path key for a git
-// remote URL. It delegates to repositoryidentity.NormalizedRemoteKey so the
-// reducer and the git collector share one normalization path.
-func canonicalPackageSourceURLKey(raw string) string {
-	return repositoryidentity.NormalizedRemoteKey(raw)
-}
-
-func firstPackageSourceURL(values ...string) string {
-	for _, value := range values {
-		value = strings.TrimSpace(value)
-		if value != "" {
-			return value
-		}
-	}
-	return ""
-}
-
 // compactStringSlice forwards to [payloadcore.CompactStringSlice].
 func compactStringSlice(values ...string) []string {
 	return payloadcore.CompactStringSlice(values...)
+}
+
+// The remainder of this file is the transitional compatibility surface for
+// the package-source hint/repository shapes and matching helpers that moved
+// to [packagesourcecore] (issue #6379, epic #6061). Root call sites keep
+// their current spelling; each entry is deleted once its last caller has
+// moved into a family subpackage.
+
+// packageSourceHint is one package registry source_hint fact.
+type packageSourceHint = packagesourcecore.Hint
+
+// packageSourceRepository is one repository fact matched against source
+// hints.
+type packageSourceRepository = packagesourcecore.Repository
+
+// extractPackageSourceRepositories forwards to
+// [packagesourcecore.ExtractRepositories].
+func extractPackageSourceRepositories(envelopes []facts.Envelope) []packageSourceRepository {
+	return packagesourcecore.ExtractRepositories(envelopes)
+}
+
+// packageSourceRepositoryIDFromScope forwards to
+// [packagesourcecore.RepositoryIDFromScope].
+func packageSourceRepositoryIDFromScope(scopeID string) string {
+	return packagesourcecore.RepositoryIDFromScope(scopeID)
+}
+
+// matchPackageSourceRepositories forwards to
+// [packagesourcecore.MatchRepositories].
+func matchPackageSourceRepositories(
+	hint packageSourceHint,
+	repositories []packageSourceRepository,
+) ([]packageSourceRepository, []packageSourceRepository) {
+	return packagesourcecore.MatchRepositories(hint, repositories)
+}
+
+// canonicalPackageSourceURLKey forwards to
+// [packagesourcecore.CanonicalURLKey].
+func canonicalPackageSourceURLKey(raw string) string {
+	return packagesourcecore.CanonicalURLKey(raw)
 }
