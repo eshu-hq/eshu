@@ -1,15 +1,15 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package projector
+package awsrelationship
 
 import (
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	projectorintent "github.com/eshu-hq/eshu/go/internal/projector/intent"
 	"github.com/eshu-hq/eshu/go/internal/reducer"
-	"github.com/eshu-hq/eshu/go/internal/scope"
 )
 
-// buildAWSRelationshipMaterializationReducerIntent enqueues one reducer intent
+// BuildAWSRelationshipMaterializationReducerIntent enqueues one reducer intent
 // that projects the scope generation's aws_relationship facts into canonical
 // AWS relationship graph edges (issue #805 PR 2). The intent is anchored to the
 // first aws_relationship fact so the reducer claim is stable across
@@ -20,22 +20,22 @@ import (
 // resolves the exact GraphProjectionPhaseCanonicalNodesCommitted row that PR 1
 // publishes for the same acceptance unit — edges never project before nodes
 // commit.
-func buildAWSRelationshipMaterializationReducerIntent(
-	scopeValue scope.IngestionScope,
-	generation scope.ScopeGeneration,
-	index *reducerIntentFactIndex,
-) (ReducerIntent, bool) {
-	envelope, ok := index.firstOfKind(facts.AWSRelationshipFactKind)
+func BuildAWSRelationshipMaterializationReducerIntent(
+	scopeID string,
+	generationID string,
+	lookup projectorintent.FactLookup,
+) (projectorintent.ReducerIntent, bool) {
+	envelope, ok := lookup.FirstOfKind(facts.AWSRelationshipFactKind)
 	if !ok {
-		return ReducerIntent{}, false
+		return projectorintent.ReducerIntent{}, false
 	}
-	return ReducerIntent{
-		ScopeID:      scopeValue.ScopeID,
-		GenerationID: generation.GenerationID,
+	return projectorintent.ReducerIntent{
+		ScopeID:      scopeID,
+		GenerationID: generationID,
 		Domain:       reducer.DomainAWSRelationshipMaterialization,
-		EntityKey:    "aws_resource_materialization:" + scopeValue.ScopeID,
+		EntityKey:    "aws_resource_materialization:" + scopeID,
 		Reason:       "aws runtime relationship facts observed",
 		FactID:       envelope.FactID,
-		SourceSystem: awsCloudRuntimeDriftSourceSystem(envelope),
+		SourceSystem: projectorintent.SourceSystem(envelope),
 	}, true
 }

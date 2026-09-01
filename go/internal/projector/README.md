@@ -247,7 +247,7 @@ old full scan made — not "earliest fact of the first-checked kind" — so anch
 Root assembly constructs one concrete `intent.FactLookup` per generation and
 retains a compatibility wrapper for unmoved family builders. The extracted
 `internal/projector/azure`, `internal/projector/ec2`, `internal/projector/gcp`,
-`internal/projector/kubernetes`, `internal/projector/rds`, `internal/projector/s3`, `internal/projector/security`, `internal/projector/workloadcloud`, and `internal/projector/incidentrouting`
+`internal/projector/kubernetes`, `internal/projector/rds`, `internal/projector/s3`, `internal/projector/security`, `internal/projector/workloadcloud`, `internal/projector/incidentrouting`, and `internal/projector/awsrelationship`
 families import that neutral lookup without importing root projector assembly;
 remaining root builders keep using the private forwarders until they move.
 `ReducerIntent` in the root package is a type alias, so existing writer and
@@ -350,7 +350,7 @@ contains an `s3_bucket_posture` fact,
 `s3.BuildInternetExposureMaterializationReducerIntent` emits one
 `s3_internet_exposure_materialization` reducer intent for the scope/generation,
 keyed to `aws_resource_materialization:<scope>` so the reducer waits for the
-same CloudResource canonical-nodes phase as AWS relationship and S3 LOGS_TO
+same CloudResource canonical-nodes phase as AWS relationship (`awsrelationship.BuildAWSRelationshipMaterializationReducerIntent`, [architecture](awsrelationship/README.md)) and S3 LOGS_TO
 work. The projector does not derive exposed/not_exposed/unknown posture and never reads raw bucket policies or ACL grants.
 
 S3 external-principal grants follow the same reducer-owned boundary. When a

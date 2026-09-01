@@ -63,7 +63,7 @@ PR #2 landed the `DomainAWSRelationshipMaterialization` reducer domain
 (`go/internal/reducer/aws_relationship_materialization.go` + the bounded join in
 `aws_relationship_join.go`), the backend-neutral edge writer
 (`go/internal/storage/cypher/cloud_resource_edge_writer.go`), the projector
-intent (`go/internal/projector/aws_relationship_materialization_intents.go`), and
+intent (`go/internal/projector/awsrelationship/materialization_intents.go`), and
 the `eshu_dp_aws_relationship_edges_total` counter. It gates on the PR #1
 `GraphProjectionPhaseCanonicalNodesCommitted` phase on the CloudResource
 keyspace, so edges never resolve against uncommitted nodes. Still requires
