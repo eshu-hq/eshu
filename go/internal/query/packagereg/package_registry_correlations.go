@@ -101,19 +101,23 @@ type PackageRegistryCorrelationRow struct {
 	EvidenceFactIDs        []string
 }
 
-type packageRegistryCorrelationQueryer interface {
+// PackageRegistryCorrelationQueryer is the minimal Postgres surface the
+// correlation read model needs. It is exported so root's compatibility
+// constructor can forward any caller-supplied queryer -- a *sql.DB, a *sql.Tx,
+// or a wrapper -- rather than narrowing the parameter to *sql.DB (#6060).
+type PackageRegistryCorrelationQueryer interface {
 	QueryContext(context.Context, string, ...any) (*sql.Rows, error)
 }
 
 // PostgresPackageRegistryCorrelationStore reads reducer package correlation
 // facts from Postgres with package/repository scoped filters.
 type PostgresPackageRegistryCorrelationStore struct {
-	DB packageRegistryCorrelationQueryer
+	DB PackageRegistryCorrelationQueryer
 }
 
 // NewPostgresPackageRegistryCorrelationStore creates the Postgres-backed
 // package correlation read model.
-func NewPostgresPackageRegistryCorrelationStore(db packageRegistryCorrelationQueryer) PostgresPackageRegistryCorrelationStore {
+func NewPostgresPackageRegistryCorrelationStore(db PackageRegistryCorrelationQueryer) PostgresPackageRegistryCorrelationStore {
 	return PostgresPackageRegistryCorrelationStore{DB: db}
 }
 
