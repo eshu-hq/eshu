@@ -9,6 +9,7 @@ import (
 	projectorazure "github.com/eshu-hq/eshu/go/internal/projector/azure"
 	projectorec2 "github.com/eshu-hq/eshu/go/internal/projector/ec2"
 	projectorgcp "github.com/eshu-hq/eshu/go/internal/projector/gcp"
+	projectoriamcanassume "github.com/eshu-hq/eshu/go/internal/projector/iamcanassume"
 	projectorincidentrouting "github.com/eshu-hq/eshu/go/internal/projector/incidentrouting"
 	projectorkubernetes "github.com/eshu-hq/eshu/go/internal/projector/kubernetes"
 	projectorrds "github.com/eshu-hq/eshu/go/internal/projector/rds"
@@ -98,7 +99,7 @@ func appendScopeGenerationReducerIntents(
 	if intent, ok := buildCodeFunctionSummaryReducerIntent(scopeValue, generation, index); ok {
 		intents = append(intents, intent)
 	}
-	if intent, ok := buildIAMCanAssumeMaterializationReducerIntent(scopeValue, generation, index); ok {
+	if intent, ok := projectoriamcanassume.BuildIAMCanAssumeMaterializationReducerIntent(scopeValue.ScopeID, generation.GenerationID, index.lookup); ok {
 		intents = append(intents, intent)
 	}
 	if intent, ok := projectors3.BuildLogsToMaterializationReducerIntent(scopeValue.ScopeID, generation.GenerationID, index.lookup); ok {

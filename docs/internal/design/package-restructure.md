@@ -727,6 +727,17 @@ reducer's edge handler gates on the canonical-nodes-committed row the AWS node
 builders publish under that key. The root `awsCloudRuntimeDriftSourceSystem`
 helper it called stays at root for its seven remaining root callers; the child
 uses the body-identical `projectorintent.SourceSystem`.
+The IAM CAN_ASSUME builder moved into `internal/projector/iamcanassume` as the
+third decode-bearing family: it anchors with `FirstOfKindMatching` on the
+earliest `aws_iam_permission` fact whose payload decodes with
+`policy_source == "trust"`, skipping identity statements and undecodable
+facts, and keeps the shared `aws_resource_materialization:<scope>` entity key
+for the same node-before-edge readiness reason. Unlike EC2 and S3, whose root
+decode wrappers had other root callers, root's `factschema_decode_iam.go` had
+this builder as its only caller, so the wrapper moved with it (still named
+`factschema_decode_iam.go` so the payload-usage manifest glob finds it) and
+root keeps no copy. `awsCloudRuntimeDriftSourceSystem` stays at root for its
+five remaining root callers.
 Coordinator `_scheduler.go` halves extract cleanly
 (they implement a root Planner interface); the `_service.go` halves are
 methods on the shared `Service` struct and stay until Service is

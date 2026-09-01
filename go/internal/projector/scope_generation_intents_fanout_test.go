@@ -10,6 +10,34 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/scope"
 )
 
+// iamTrustPermissionEnvelope returns one aws_iam_permission fact with the given
+// policy_source. It lived beside the iam_can_assume builder's root tests until
+// that family moved into internal/projector/iamcanassume; the root fan-out
+// fixture still needs it to prove the dispatcher skips the identity statement
+// and anchors the trust statement through the child builder.
+func iamTrustPermissionEnvelope(factID, scopeID, generationID, policySource string) facts.Envelope {
+	return facts.Envelope{
+		FactID:        factID,
+		ScopeID:       scopeID,
+		GenerationID:  generationID,
+		FactKind:      facts.AWSIAMPermissionFactKind,
+		SchemaVersion: facts.AWSIAMPermissionSchemaVersion,
+		CollectorKind: "aws_cloud",
+		ObservedAt:    time.Date(2026, 5, 14, 10, 0, 0, 0, time.UTC),
+		SourceRef: facts.Ref{
+			SourceSystem: "aws",
+		},
+		Payload: map[string]any{
+			"account_id":        "123456789012",
+			"region":            "aws-global",
+			"principal_arn":     "arn:aws:iam::123456789012:role/eshu-runtime",
+			"policy_source":     policySource,
+			"effect":            "Allow",
+			"assume_principals": []any{"arn:aws:iam::123456789012:role/ci-deployer"},
+		},
+	}
+}
+
 // fanOutParityScopeAndGeneration returns the single scope/generation every
 // fact in fanOutParityFixture shares. appendScopeGenerationReducerIntents
 // does not validate a fact's own ScopeID/GenerationID against the caller's

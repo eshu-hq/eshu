@@ -126,9 +126,12 @@
   The intent package owns the immutable fact-lookup implementation. Root
   remains the sole one-per-generation constructor and lifetime owner; Azure,
   EC2, GCP, Kubernetes, RDS, S3, security, workload-cloud-relationship,
-  incident-routing, and AWS-relationship family builders consume the lookup. Root owns ordered family assembly and the public `ReducerIntent`
+  incident-routing, AWS-relationship, and IAM CAN_ASSUME family builders consume the lookup. Root owns ordered family assembly and the public `ReducerIntent`
   alias for callers. A family that needs a typed-payload decode (EC2's
-  `USES_PROFILE` builder was the first; S3's `LOGS_TO` builder is the second)
+  `USES_PROFILE` builder was the first; S3's `LOGS_TO` builder is the second;
+  the IAM CAN_ASSUME builder in `iamcanassume/` is the third, and it took the
+  root `factschema_decode_iam.go` wrapper with it because that builder was the
+  wrapper's only caller)
   keeps its own local decode call against `sdk/go/factschema` rather than
   importing root's classified decode wrapper, matching how `internal/reducer`
   already keeps its own independent decode copies per package. The RDS,
