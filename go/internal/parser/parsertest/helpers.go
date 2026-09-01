@@ -243,6 +243,34 @@ func AssertFunctionByNameAndClass(
 	return function
 }
 
+// bucketItemByFieldValue returns the payload[bucket] item whose string field
+// equals want, or an error describing why none matched. It fails closed on a
+// present-but-wrongly-typed field rather than skipping it: the older discarded
+// assertion let such a value read as the zero string, so a lookup for "" would
+// match a malformed row. AssertBucketItemByFieldValue is a thin wrapper over
+// this, so a test that drives this predicate covers the exported assertion too
+// — the assertion has no logic of its own.
+func bucketItemByFieldValue(payload map[string]any, bucket string, field string, want string) (map[string]any, error) {
+	items, ok := payload[bucket].([]map[string]any)
+	if !ok {
+		return nil, fmt.Errorf("%s = %#v (%T), want []map[string]any", bucket, payload[bucket], payload[bucket])
+	}
+	for _, item := range items {
+		raw, present := item[field]
+		if !present {
+			continue
+		}
+		value, isString := raw.(string)
+		if !isString {
+			return nil, fmt.Errorf("%s item has %s = %#v (%T), want string; a present-but-malformed field must not be silently treated as absent", bucket, field, raw, raw)
+		}
+		if value == want {
+			return item, nil
+		}
+	}
+	return nil, fmt.Errorf("%s missing %s=%q in %#v", bucket, field, want, items)
+}
+
 // AssertBucketItemByFieldValue returns the payload[bucket] item whose string
 // field equals want, failing the test when no item matches. It is the
 // returning counterpart to AssertBucketContainsFieldValue, for callers that
@@ -258,18 +286,11 @@ func AssertBucketItemByFieldValue(
 ) map[string]any {
 	t.Helper()
 
-	items, ok := payload[bucket].([]map[string]any)
-	if !ok {
-		t.Fatalf("%s = %T, want []map[string]any", bucket, payload[bucket])
+	item, err := bucketItemByFieldValue(payload, bucket, field, want)
+	if err != nil {
+		t.Fatalf("%v", err)
 	}
-	for _, item := range items {
-		value, _ := item[field].(string)
-		if value == want {
-			return item
-		}
-	}
-	t.Fatalf("%s missing %s=%q in %#v", bucket, field, want, items)
-	return nil
+	return item
 }
 
 // AssertBucketContainsFieldValue requires payload[key] to be a map slice with

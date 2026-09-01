@@ -108,6 +108,9 @@ five other root builders still call it. The root `decodeAWSIAMPermission`
 wrapper had this builder as its only caller, so it moved along and root keeps
 no copy. Focused proof:
 `../scripts/go-test-run-guard.sh 1 'TestBuildIAMCanAssumeMaterializationReducerIntent' -- ./internal/projector/iamcanassume -count=1`
+(run from the `go/` module root, which is what both the `../scripts/` prefix
+and the `./internal/...` package path assume; the guard is used rather than a
+bare `go test -run` because a pattern matching nothing exits 0)
 and `go test ./internal/projector/... -count=1` green, whole-module `go build`
 and `go vet` clean.
 

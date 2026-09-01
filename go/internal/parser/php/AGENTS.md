@@ -54,7 +54,10 @@
 - Add PHP evidence by writing a focused external `php_test` test in this
   directory first (a new `php_*_test.go` file or a case in the matching family
   file) unless an in-package contract test already covers the behavior.
-  Prove a run pin with `../scripts/go-test-run-guard.sh 55 TestDefaultEngineParsePathPHP -- ./internal/parser/php -count=1`
+  Prove a run pin with `../scripts/go-test-run-guard.sh 55 TestDefaultEngineParsePathPHP -- ./internal/parser/php -count=1`,
+  run from the `go/` module root — both the `../scripts/` prefix and the
+  `./internal/...` package path assume it, and the guard is used rather than a
+  bare `go test -run` because a pattern that matches nothing exits 0
   from the `go/` module root; a bare `go test -run` exits 0 on a partial match.
 - Confirm node kinds with a compiled-grammar probe (parse a snippet and dump
   `node.Kind()`), not a filtered search of the grammar source.
