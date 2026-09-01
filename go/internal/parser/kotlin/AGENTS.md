@@ -68,9 +68,9 @@ validation.
 
 ## Evidence notes
 
-No-Regression Evidence (issue #3533, Kotlin AST migration): `go test
-./internal/parser/... -run Kotlin -count=1`, `go test ./internal/reducer -run
-Kotlin -count=1`, and `go test ./internal/parser/goldenaudit -count=1` failed
+No-Regression Evidence (issue #3533, Kotlin AST migration): `../scripts/go-test-run-guard.sh 64
+Kotlin -- ./internal/parser/... -count=1`,
+`../scripts/go-test-run-guard.sh 47 Kotlin -- ./internal/reducer -count=1`, and `go test ./internal/parser/goldenaudit -count=1` failed
 on no assertion and continue to pass after the regex/line-scan parser
 (`patterns.go`, `scope.go`, `smart_cast.go`, `cast_receiver_calls.go`, and the
 line-scan loop in the old `parser.go`/`tree_sitter_syntax.go`) was replaced by

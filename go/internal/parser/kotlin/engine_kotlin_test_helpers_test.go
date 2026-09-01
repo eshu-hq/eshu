@@ -8,6 +8,8 @@ import (
 	"path/filepath"
 	"runtime"
 	"testing"
+
+	"github.com/eshu-hq/eshu/go/internal/parser/parsertest"
 )
 
 // kotlinFixturePath resolves a path under tests/fixtures relative to this
@@ -34,9 +36,7 @@ func writeKotlinTestFile(t *testing.T, path string, body string) {
 	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
 		t.Fatalf("os.MkdirAll(%q) error = %v, want nil", filepath.Dir(path), err)
 	}
-	if err := os.WriteFile(path, []byte(body), 0o600); err != nil {
-		t.Fatalf("os.WriteFile(%q) error = %v, want nil", path, err)
-	}
+	parsertest.WriteFile(t, path, body)
 }
 
 // assertStringFieldValue requires item[field] to hold the string want.
