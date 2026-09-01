@@ -1228,18 +1228,29 @@ those moves wait.
 ## schemadecode hoist: codegen measurement
 
 No-Regression Evidence: measured, not asserted. `go build -gcflags=-m
-./internal/reducer/...` at base `64893c13b` (the tip of `main` this branch is
-rebased onto) and at head `0b58d4a20`, reported as a set difference and a
-per-name call-site difference rather than a net total, because a net count
-cannot find a named regression.
+./internal/reducer/...` at base `1f0e1e172` (`origin/main...HEAD`'s merge-base
+at measurement time — re-derive with `git merge-base HEAD origin/main` rather
+than trusting this SHA after any later rebase) and at head `56ad71662` (the
+last commit on this branch whose diff touches Go/test code before this
+paragraph was written; a later doc-only commit does not change the measured
+build), reported as a set difference and a per-name call-site difference
+rather than a net total, because a net count cannot find a named regression.
 
 **Functions that lost inlinability: zero.** The `can inline` set is 1356 at base
-and 1357 at head; the set difference is one symbol in one direction and it is the
-rename itself — `FactschemaEnvelope` gained, nothing lost. No caller's body grew
-past the inlining budget because of an added indirection.
+and 1357 at head — UNIQUE function names in the recursive build
+(`./internal/reducer/...`), not occurrences: the same build's occurrence count
+(a function reported "can inline" more than once across the log) is 1395 at
+base and 1396 at head, a constant +39 offset from the unique-name figures at
+both SHAs (a counting-method difference, not a code difference). Naming both
+here is deliberate — re-deriving this with the other method and finding 1395
+instead of 1356 looks like a regression and is not one. The set difference is
+one symbol in one direction and it is the rename itself — `FactschemaEnvelope`
+gained, nothing lost. No caller's body grew past the inlining budget because of
+an added indirection.
 
-Inlined call sites move 14646 to 14568, and the whole −78 is accounted for by two
-relocations:
+Inlined call sites (grep count of `inlining call to` in the same
+`go build -gcflags=-m ./internal/reducer/...` log) move 14646 to 14568, and the
+whole −78 is accounted for by two relocations:
 
 | function | base | head | why |
 |---|---|---|---|
