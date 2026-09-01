@@ -63,6 +63,22 @@ Postgres operation, runtime setting, metric instrument, metric label, span, log
 field, or status surface. The parent runtime still wraps the same aliased
 handlers with its existing telemetry.
 
+No-Regression Evidence: #6061 moves the two generation-check func types
+(`GenerationFreshnessCheck`, `PriorGenerationCheck`) out of the reducer root into
+this package and leaves type aliases behind, so every one of the 92 root callers,
+plus `cmd/reducer` and `internal/storage/postgres`, compiles against the identical
+type. A Go type alias is the same type, not a conversion or a wrapper, so there is
+no new indirection on any call path and nothing to measure: the declarations carry
+no function bodies at all. Baseline `origin/main` at `0a0700ab1` and the branch
+build the same binaries; `go build ./...`, `go vet ./...` (which also compiles
+test files), `go test ./internal/reducer/... -count=1` (15 packages), and
+`go test ./cmd/reducer ./internal/storage/postgres -count=1` each exited 0.
+
+No-Observability-Change: #6061 adds no queue domain, worker, lease, graph or
+Postgres operation, runtime setting, metric instrument, metric label, span, log
+field, or status surface. The types name a callback shape that the runtime already
+invoked; the handlers holding those callbacks and their telemetry are untouched.
+
 ## Related docs
 
 - [Reducer package](../README.md)
