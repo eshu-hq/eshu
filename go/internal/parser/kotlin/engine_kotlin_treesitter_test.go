@@ -1,11 +1,14 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package parser
+package kotlin_test
 
 import (
 	"path/filepath"
 	"testing"
+
+	"github.com/eshu-hq/eshu/go/internal/parser"
+	"github.com/eshu-hq/eshu/go/internal/parser/parsertest"
 )
 
 func TestDefaultEngineParsePathKotlinMultilineClassScope(t *testing.T) {
@@ -13,7 +16,7 @@ func TestDefaultEngineParsePathKotlinMultilineClassScope(t *testing.T) {
 
 	repoRoot := t.TempDir()
 	sourcePath := filepath.Join(repoRoot, "Repository.kt")
-	writeKotlinTreeSitterTestFile(t, sourcePath, `
+	writeKotlinTestFile(t, sourcePath, `
 package demo
 
 interface Service
@@ -35,25 +38,25 @@ class Client {
 class Result(val id: String)
 `)
 
-	engine, err := DefaultEngine()
+	engine, err := parser.DefaultEngine()
 	if err != nil {
 		t.Fatalf("DefaultEngine() error = %v, want nil", err)
 	}
 
-	got, err := engine.ParsePath(repoRoot, sourcePath, false, Options{})
+	got, err := engine.ParsePath(repoRoot, sourcePath, false, parser.Options{})
 	if err != nil {
 		t.Fatalf("ParsePath() error = %v, want nil", err)
 	}
 
-	assertBucketItemByName(t, got, "classes", "Repository")
-	load := assertBucketItemByName(t, got, "functions", "load")
-	assertStringFieldValue(t, load, "class_context", "Repository")
-	assertIntFieldValue(t, load, "line_number", 9)
-	assertIntFieldValue(t, load, "end_line", 13)
+	parsertest.AssertBucketItemByName(t, got, "classes", "Repository")
+	load := parsertest.AssertBucketItemByName(t, got, "functions", "load")
+	parsertest.AssertStringFieldValue(t, load, "class_context", "Repository")
+	parsertest.AssertIntFieldValue(t, load, "line_number", 9)
+	parsertest.AssertIntFieldValue(t, load, "end_line", 13)
 
-	call := assertBucketItemByName(t, got, "function_calls", "fetch")
-	assertStringFieldValue(t, call, "full_name", "client.fetch")
-	assertStringFieldValue(t, call, "inferred_obj_type", "Client")
+	call := parsertest.AssertBucketItemByName(t, got, "function_calls", "fetch")
+	parsertest.AssertStringFieldValue(t, call, "full_name", "client.fetch")
+	parsertest.AssertStringFieldValue(t, call, "inferred_obj_type", "Client")
 }
 
 func TestDefaultEngineParsePathKotlinScopesPrimaryConstructorPropertiesToOwningClass(t *testing.T) {
@@ -61,7 +64,7 @@ func TestDefaultEngineParsePathKotlinScopesPrimaryConstructorPropertiesToOwningC
 
 	repoRoot := t.TempDir()
 	sourcePath := filepath.Join(repoRoot, "Repository.kt")
-	writeKotlinTreeSitterTestFile(t, sourcePath, `
+	writeKotlinTestFile(t, sourcePath, `
 package demo
 
 class Repository {
@@ -79,12 +82,12 @@ class Repository {
 }
 `)
 
-	engine, err := DefaultEngine()
+	engine, err := parser.DefaultEngine()
 	if err != nil {
 		t.Fatalf("DefaultEngine() error = %v, want nil", err)
 	}
 
-	got, err := engine.ParsePath(repoRoot, sourcePath, false, Options{})
+	got, err := engine.ParsePath(repoRoot, sourcePath, false, parser.Options{})
 	if err != nil {
 		t.Fatalf("ParsePath() error = %v, want nil", err)
 	}
@@ -95,7 +98,7 @@ class Repository {
 	}
 
 	nestedCall := assertKotlinCallByFullNameAndLine(t, got, "child.fetch", 13)
-	assertStringFieldValue(t, nestedCall, "inferred_obj_type", "ChildClient")
+	parsertest.AssertStringFieldValue(t, nestedCall, "inferred_obj_type", "ChildClient")
 }
 
 func assertKotlinCallByFullNameAndLine(t *testing.T, payload map[string]any, fullName string, line int) map[string]any {
@@ -114,15 +117,4 @@ func assertKotlinCallByFullNameAndLine(t *testing.T, payload map[string]any, ful
 	}
 	t.Fatalf("function_calls missing full_name %q on line %d: %#v", fullName, line, calls)
 	return nil
-}
-
-func writeKotlinTreeSitterTestFile(t *testing.T, path string, body string) {
-	t.Helper()
-
-	if err := ensureParentDirectory(path); err != nil {
-		t.Fatalf("ensureParentDirectory(%q) error = %v", path, err)
-	}
-	if err := osWriteFile(path, []byte(body)); err != nil {
-		t.Fatalf("osWriteFile(%q) error = %v", path, err)
-	}
 }

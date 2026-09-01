@@ -1,11 +1,15 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package parser
+package kotlin_test
 
 import (
 	"path/filepath"
 	"testing"
+
+	"github.com/eshu-hq/eshu/go/internal/parser"
+
+	"github.com/eshu-hq/eshu/go/internal/parser/parsertest"
 )
 
 func TestDefaultEngineParsePathKotlinInfersSameFileFunctionReturnTypeAliasCalls(t *testing.T) {
@@ -13,7 +17,7 @@ func TestDefaultEngineParsePathKotlinInfersSameFileFunctionReturnTypeAliasCalls(
 
 	repoRoot := t.TempDir()
 	filePath := filepath.Join(repoRoot, "Usage.kt")
-	writeTestFile(
+	writeKotlinTestFile(
 		t,
 		filePath,
 		`package comprehensive
@@ -31,12 +35,12 @@ fun usage(): String {
 `,
 	)
 
-	engine, err := DefaultEngine()
+	engine, err := parser.DefaultEngine()
 	if err != nil {
 		t.Fatalf("DefaultEngine() error = %v, want nil", err)
 	}
 
-	got, err := engine.ParsePath(repoRoot, filePath, false, Options{})
+	got, err := engine.ParsePath(repoRoot, filePath, false, parser.Options{})
 	if err != nil {
 		t.Fatalf("ParsePath() error = %v, want nil", err)
 	}
@@ -51,7 +55,7 @@ fun usage(): String {
 		if fullName != "provider.info" {
 			continue
 		}
-		assertStringFieldValue(t, item, "inferred_obj_type", "Service")
+		parsertest.AssertStringFieldValue(t, item, "inferred_obj_type", "Service")
 		return
 	}
 	t.Fatalf("function_calls missing full_name=%q in %#v", "provider.info", items)
@@ -62,7 +66,7 @@ func TestDefaultEngineParsePathKotlinInfersSameFileFunctionReturnAliasChainCalls
 
 	repoRoot := t.TempDir()
 	filePath := filepath.Join(repoRoot, "Usage.kt")
-	writeTestFile(
+	writeKotlinTestFile(
 		t,
 		filePath,
 		`package comprehensive
@@ -81,12 +85,12 @@ fun usage(): String {
 `,
 	)
 
-	engine, err := DefaultEngine()
+	engine, err := parser.DefaultEngine()
 	if err != nil {
 		t.Fatalf("DefaultEngine() error = %v, want nil", err)
 	}
 
-	got, err := engine.ParsePath(repoRoot, filePath, false, Options{})
+	got, err := engine.ParsePath(repoRoot, filePath, false, parser.Options{})
 	if err != nil {
 		t.Fatalf("ParsePath() error = %v, want nil", err)
 	}
@@ -101,7 +105,7 @@ fun usage(): String {
 		if fullName != "active.info" {
 			continue
 		}
-		assertStringFieldValue(t, item, "inferred_obj_type", "Service")
+		parsertest.AssertStringFieldValue(t, item, "inferred_obj_type", "Service")
 		return
 	}
 	t.Fatalf("function_calls missing full_name=%q in %#v", "active.info", items)
@@ -112,7 +116,7 @@ func TestDefaultEngineParsePathKotlinInfersNullableFunctionReturnTypeAliasCalls(
 
 	repoRoot := t.TempDir()
 	filePath := filepath.Join(repoRoot, "Usage.kt")
-	writeTestFile(
+	writeKotlinTestFile(
 		t,
 		filePath,
 		`package comprehensive
@@ -130,12 +134,12 @@ fun usage(): String {
 `,
 	)
 
-	engine, err := DefaultEngine()
+	engine, err := parser.DefaultEngine()
 	if err != nil {
 		t.Fatalf("DefaultEngine() error = %v, want nil", err)
 	}
 
-	got, err := engine.ParsePath(repoRoot, filePath, false, Options{})
+	got, err := engine.ParsePath(repoRoot, filePath, false, parser.Options{})
 	if err != nil {
 		t.Fatalf("ParsePath() error = %v, want nil", err)
 	}
@@ -150,7 +154,7 @@ fun usage(): String {
 		if fullName != "service.info" {
 			continue
 		}
-		assertStringFieldValue(t, item, "inferred_obj_type", "Service")
+		parsertest.AssertStringFieldValue(t, item, "inferred_obj_type", "Service")
 		return
 	}
 	t.Fatalf("function_calls missing full_name=%q in %#v", "service.info", items)
@@ -161,7 +165,7 @@ func TestDefaultEngineParsePathKotlinInfersGenericFunctionReturnTypeAliasCalls(t
 
 	repoRoot := t.TempDir()
 	filePath := filepath.Join(repoRoot, "Usage.kt")
-	writeTestFile(
+	writeKotlinTestFile(
 		t,
 		filePath,
 		`package comprehensive
@@ -179,12 +183,12 @@ fun usage(): String {
 `,
 	)
 
-	engine, err := DefaultEngine()
+	engine, err := parser.DefaultEngine()
 	if err != nil {
 		t.Fatalf("DefaultEngine() error = %v, want nil", err)
 	}
 
-	got, err := engine.ParsePath(repoRoot, filePath, false, Options{})
+	got, err := engine.ParsePath(repoRoot, filePath, false, parser.Options{})
 	if err != nil {
 		t.Fatalf("ParsePath() error = %v, want nil", err)
 	}
@@ -199,7 +203,7 @@ fun usage(): String {
 		if fullName != "box.info" {
 			continue
 		}
-		assertStringFieldValue(t, item, "inferred_obj_type", "ServiceBox")
+		parsertest.AssertStringFieldValue(t, item, "inferred_obj_type", "ServiceBox")
 		return
 	}
 	t.Fatalf("function_calls missing full_name=%q in %#v", "box.info", items)
@@ -210,7 +214,7 @@ func TestDefaultEngineParsePathKotlinInfersFunctionReturnReceiverChainsForDotCal
 
 	repoRoot := t.TempDir()
 	filePath := filepath.Join(repoRoot, "Usage.kt")
-	writeTestFile(
+	writeKotlinTestFile(
 		t,
 		filePath,
 		`package comprehensive
@@ -230,12 +234,12 @@ fun usage(): String {
 `,
 	)
 
-	engine, err := DefaultEngine()
+	engine, err := parser.DefaultEngine()
 	if err != nil {
 		t.Fatalf("DefaultEngine() error = %v, want nil", err)
 	}
 
-	got, err := engine.ParsePath(repoRoot, filePath, false, Options{})
+	got, err := engine.ParsePath(repoRoot, filePath, false, parser.Options{})
 	if err != nil {
 		t.Fatalf("ParsePath() error = %v, want nil", err)
 	}
@@ -250,7 +254,7 @@ fun usage(): String {
 		if fullName != "factory.createService().info" {
 			continue
 		}
-		assertStringFieldValue(t, item, "inferred_obj_type", "Service")
+		parsertest.AssertStringFieldValue(t, item, "inferred_obj_type", "Service")
 		return
 	}
 	t.Fatalf("function_calls missing full_name=%q in %#v", "factory.createService().info", items)
@@ -261,7 +265,7 @@ func TestDefaultEngineParsePathKotlinInfersNestedFunctionReturnAssignmentReceive
 
 	repoRoot := t.TempDir()
 	filePath := filepath.Join(repoRoot, "Usage.kt")
-	writeTestFile(
+	writeKotlinTestFile(
 		t,
 		filePath,
 		`package comprehensive
@@ -283,12 +287,12 @@ fun usage(): String {
 `,
 	)
 
-	engine, err := DefaultEngine()
+	engine, err := parser.DefaultEngine()
 	if err != nil {
 		t.Fatalf("DefaultEngine() error = %v, want nil", err)
 	}
 
-	got, err := engine.ParsePath(repoRoot, filePath, false, Options{})
+	got, err := engine.ParsePath(repoRoot, filePath, false, parser.Options{})
 	if err != nil {
 		t.Fatalf("ParsePath() error = %v, want nil", err)
 	}
@@ -305,7 +309,7 @@ fun usage(): String {
 	for _, item := range items {
 		fullName, _ := item["full_name"].(string)
 		if wantType, ok := want[fullName]; ok {
-			assertStringFieldValue(t, item, "inferred_obj_type", wantType)
+			parsertest.AssertStringFieldValue(t, item, "inferred_obj_type", wantType)
 			delete(want, fullName)
 		}
 	}
@@ -319,7 +323,7 @@ func TestDefaultEngineParsePathKotlinInfersConstructorRootReceiverChainsForDotCa
 
 	repoRoot := t.TempDir()
 	filePath := filepath.Join(repoRoot, "Usage.kt")
-	writeTestFile(
+	writeKotlinTestFile(
 		t,
 		filePath,
 		`package comprehensive
@@ -338,12 +342,12 @@ fun usage(): String {
 `,
 	)
 
-	engine, err := DefaultEngine()
+	engine, err := parser.DefaultEngine()
 	if err != nil {
 		t.Fatalf("DefaultEngine() error = %v, want nil", err)
 	}
 
-	got, err := engine.ParsePath(repoRoot, filePath, false, Options{})
+	got, err := engine.ParsePath(repoRoot, filePath, false, parser.Options{})
 	if err != nil {
 		t.Fatalf("ParsePath() error = %v, want nil", err)
 	}
@@ -359,7 +363,7 @@ fun usage(): String {
 	for _, item := range items {
 		fullName, _ := item["full_name"].(string)
 		if wantType, ok := want[fullName]; ok {
-			assertStringFieldValue(t, item, "inferred_obj_type", wantType)
+			parsertest.AssertStringFieldValue(t, item, "inferred_obj_type", wantType)
 			delete(want, fullName)
 		}
 	}
@@ -373,7 +377,7 @@ func TestDefaultEngineParsePathKotlinInfersParenthesizedFunctionReturnReceiverCh
 
 	repoRoot := t.TempDir()
 	filePath := filepath.Join(repoRoot, "Usage.kt")
-	writeTestFile(
+	writeKotlinTestFile(
 		t,
 		filePath,
 		`package comprehensive
@@ -394,12 +398,12 @@ fun usage(): String {
 `,
 	)
 
-	engine, err := DefaultEngine()
+	engine, err := parser.DefaultEngine()
 	if err != nil {
 		t.Fatalf("DefaultEngine() error = %v, want nil", err)
 	}
 
-	got, err := engine.ParsePath(repoRoot, filePath, false, Options{})
+	got, err := engine.ParsePath(repoRoot, filePath, false, parser.Options{})
 	if err != nil {
 		t.Fatalf("ParsePath() error = %v, want nil", err)
 	}
@@ -416,7 +420,7 @@ fun usage(): String {
 	for _, item := range items {
 		fullName, _ := item["full_name"].(string)
 		if wantType, ok := want[fullName]; ok {
-			assertStringFieldValue(t, item, "inferred_obj_type", wantType)
+			parsertest.AssertStringFieldValue(t, item, "inferred_obj_type", wantType)
 			delete(want, fullName)
 		}
 	}
@@ -431,7 +435,7 @@ func TestDefaultEngineParsePathKotlinInfersSiblingFileFunctionReturnTypeAliasCal
 	repoRoot := t.TempDir()
 	apiPath := filepath.Join(repoRoot, "Api.kt")
 	usagePath := filepath.Join(repoRoot, "Usage.kt")
-	writeTestFile(
+	writeKotlinTestFile(
 		t,
 		apiPath,
 		`package comprehensive
@@ -447,7 +451,7 @@ class Factory {
 fun createFactory(): Factory = Factory()
 `,
 	)
-	writeTestFile(
+	writeKotlinTestFile(
 		t,
 		usagePath,
 		`package comprehensive
@@ -459,12 +463,12 @@ fun usage(): String {
 `,
 	)
 
-	engine, err := DefaultEngine()
+	engine, err := parser.DefaultEngine()
 	if err != nil {
 		t.Fatalf("DefaultEngine() error = %v, want nil", err)
 	}
 
-	got, err := engine.ParsePath(repoRoot, usagePath, false, Options{})
+	got, err := engine.ParsePath(repoRoot, usagePath, false, parser.Options{})
 	if err != nil {
 		t.Fatalf("ParsePath() error = %v, want nil", err)
 	}
@@ -481,7 +485,7 @@ fun usage(): String {
 	for _, item := range items {
 		fullName, _ := item["full_name"].(string)
 		if wantType, ok := want[fullName]; ok {
-			assertStringFieldValue(t, item, "inferred_obj_type", wantType)
+			parsertest.AssertStringFieldValue(t, item, "inferred_obj_type", wantType)
 			delete(want, fullName)
 		}
 	}
@@ -497,7 +501,7 @@ func TestDefaultEngineParsePathKotlinInfersParentDirectorySiblingFunctionReturnT
 	apiPath := filepath.Join(repoRoot, "Api.kt")
 	nestedDir := filepath.Join(repoRoot, "nested")
 	usagePath := filepath.Join(nestedDir, "Usage.kt")
-	writeTestFile(
+	writeKotlinTestFile(
 		t,
 		apiPath,
 		`package comprehensive
@@ -513,7 +517,7 @@ class Factory {
 fun createFactory(): Factory = Factory()
 `,
 	)
-	writeTestFile(
+	writeKotlinTestFile(
 		t,
 		usagePath,
 		`package comprehensive
@@ -525,12 +529,12 @@ fun usage(): String {
 `,
 	)
 
-	engine, err := DefaultEngine()
+	engine, err := parser.DefaultEngine()
 	if err != nil {
 		t.Fatalf("DefaultEngine() error = %v, want nil", err)
 	}
 
-	got, err := engine.ParsePath(repoRoot, usagePath, false, Options{})
+	got, err := engine.ParsePath(repoRoot, usagePath, false, parser.Options{})
 	if err != nil {
 		t.Fatalf("ParsePath(%q) error = %v, want nil", usagePath, err)
 	}
@@ -547,7 +551,7 @@ fun usage(): String {
 	for _, item := range items {
 		fullName, _ := item["full_name"].(string)
 		if wantType, ok := want[fullName]; ok {
-			assertStringFieldValue(t, item, "inferred_obj_type", wantType)
+			parsertest.AssertStringFieldValue(t, item, "inferred_obj_type", wantType)
 			delete(want, fullName)
 		}
 	}
@@ -562,7 +566,7 @@ func TestDefaultEngineParsePathKotlinInfersSiblingFileFunctionReturnAliasChainCa
 	repoRoot := t.TempDir()
 	apiPath := filepath.Join(repoRoot, "Api.kt")
 	usagePath := filepath.Join(repoRoot, "Usage.kt")
-	writeTestFile(
+	writeKotlinTestFile(
 		t,
 		apiPath,
 		`package comprehensive
@@ -574,7 +578,7 @@ class Service {
 fun createService(): Service = Service()
 `,
 	)
-	writeTestFile(
+	writeKotlinTestFile(
 		t,
 		usagePath,
 		`package comprehensive
@@ -587,12 +591,12 @@ fun usage(): String {
 `,
 	)
 
-	engine, err := DefaultEngine()
+	engine, err := parser.DefaultEngine()
 	if err != nil {
 		t.Fatalf("DefaultEngine() error = %v, want nil", err)
 	}
 
-	got, err := engine.ParsePath(repoRoot, usagePath, false, Options{})
+	got, err := engine.ParsePath(repoRoot, usagePath, false, parser.Options{})
 	if err != nil {
 		t.Fatalf("ParsePath(%q) error = %v, want nil", usagePath, err)
 	}
@@ -607,7 +611,7 @@ fun usage(): String {
 		if fullName != "active.info" {
 			continue
 		}
-		assertStringFieldValue(t, item, "inferred_obj_type", "Service")
+		parsertest.AssertStringFieldValue(t, item, "inferred_obj_type", "Service")
 		return
 	}
 	t.Fatalf("function_calls missing full_name=%q in %#v", "active.info", items)
@@ -620,7 +624,7 @@ func TestDefaultEngineParsePathKotlinPrefersPackageAwareSiblingFunctionReturnTyp
 	apiPath := filepath.Join(repoRoot, "Api.kt")
 	otherPath := filepath.Join(repoRoot, "Other.kt")
 	usagePath := filepath.Join(repoRoot, "Usage.kt")
-	writeTestFile(
+	writeKotlinTestFile(
 		t,
 		apiPath,
 		`package comprehensive
@@ -636,7 +640,7 @@ class Factory {
 fun createFactory(): Factory = Factory()
 `,
 	)
-	writeTestFile(
+	writeKotlinTestFile(
 		t,
 		otherPath,
 		`package otherpkg
@@ -648,7 +652,7 @@ class OtherFactory {
 fun createFactory(): OtherFactory = OtherFactory()
 `,
 	)
-	writeTestFile(
+	writeKotlinTestFile(
 		t,
 		usagePath,
 		`package comprehensive
@@ -660,12 +664,12 @@ fun usage(): String {
 `,
 	)
 
-	engine, err := DefaultEngine()
+	engine, err := parser.DefaultEngine()
 	if err != nil {
 		t.Fatalf("DefaultEngine() error = %v, want nil", err)
 	}
 
-	got, err := engine.ParsePath(repoRoot, usagePath, false, Options{})
+	got, err := engine.ParsePath(repoRoot, usagePath, false, parser.Options{})
 	if err != nil {
 		t.Fatalf("ParsePath() error = %v, want nil", err)
 	}
@@ -682,7 +686,7 @@ fun usage(): String {
 	for _, item := range items {
 		fullName, _ := item["full_name"].(string)
 		if wantType, ok := want[fullName]; ok {
-			assertStringFieldValue(t, item, "inferred_obj_type", wantType)
+			parsertest.AssertStringFieldValue(t, item, "inferred_obj_type", wantType)
 			delete(want, fullName)
 		}
 	}
@@ -697,7 +701,7 @@ func TestDefaultEngineParsePathKotlinPrefersPackageAwareSiblingFunctionReturnTyp
 	repoRoot := t.TempDir()
 	apiPath := filepath.Join(repoRoot, "src", "main", "kotlin", "common", "Api.kt")
 	usagePath := filepath.Join(repoRoot, "src", "main", "kotlin", "feature", "module", "Usage.kt")
-	writeTestFile(
+	writeKotlinTestFile(
 		t,
 		apiPath,
 		`package comprehensive
@@ -713,7 +717,7 @@ class Factory {
 fun createFactory(): Factory = Factory()
 `,
 	)
-	writeTestFile(
+	writeKotlinTestFile(
 		t,
 		usagePath,
 		`package comprehensive
@@ -725,12 +729,12 @@ fun usage(): String {
 `,
 	)
 
-	engine, err := DefaultEngine()
+	engine, err := parser.DefaultEngine()
 	if err != nil {
 		t.Fatalf("DefaultEngine() error = %v, want nil", err)
 	}
 
-	got, err := engine.ParsePath(repoRoot, usagePath, false, Options{})
+	got, err := engine.ParsePath(repoRoot, usagePath, false, parser.Options{})
 	if err != nil {
 		t.Fatalf("ParsePath(%q) error = %v, want nil", usagePath, err)
 	}
@@ -747,7 +751,7 @@ fun usage(): String {
 	for _, item := range items {
 		fullName, _ := item["full_name"].(string)
 		if wantType, ok := want[fullName]; ok {
-			assertStringFieldValue(t, item, "inferred_obj_type", wantType)
+			parsertest.AssertStringFieldValue(t, item, "inferred_obj_type", wantType)
 			delete(want, fullName)
 		}
 	}
@@ -766,7 +770,7 @@ func TestDefaultEngineParsePathKotlinInfersCrossFilePackageAwareFunctionReturnRe
 	conflictPath := filepath.Join(repoRoot, "src", "main", "kotlin", "com", "other", "Other.kt")
 	usagePath := filepath.Join(repoRoot, "src", "main", "kotlin", "com", "example", "feature", "module", "Usage.kt")
 
-	writeTestFile(
+	writeKotlinTestFile(
 		t,
 		servicePath,
 		`package com.example
@@ -776,7 +780,7 @@ class Service {
 }
 `,
 	)
-	writeTestFile(
+	writeKotlinTestFile(
 		t,
 		factoryPath,
 		`package com.example
@@ -786,7 +790,7 @@ class Factory {
 }
 `,
 	)
-	writeTestFile(
+	writeKotlinTestFile(
 		t,
 		factoryHelpersPath,
 		`package com.example
@@ -794,7 +798,7 @@ class Factory {
 fun createFactory(): Factory = Factory()
 `,
 	)
-	writeTestFile(
+	writeKotlinTestFile(
 		t,
 		conflictPath,
 		`package com.other
@@ -810,7 +814,7 @@ class OtherFactory {
 fun createFactory(): OtherFactory = OtherFactory()
 `,
 	)
-	writeTestFile(
+	writeKotlinTestFile(
 		t,
 		usagePath,
 		`package com.example
@@ -821,12 +825,12 @@ fun usage(): String {
 `,
 	)
 
-	engine, err := DefaultEngine()
+	engine, err := parser.DefaultEngine()
 	if err != nil {
 		t.Fatalf("DefaultEngine() error = %v, want nil", err)
 	}
 
-	got, err := engine.ParsePath(repoRoot, usagePath, false, Options{})
+	got, err := engine.ParsePath(repoRoot, usagePath, false, parser.Options{})
 	if err != nil {
 		t.Fatalf("ParsePath(%q) error = %v, want nil", usagePath, err)
 	}
@@ -843,7 +847,7 @@ fun usage(): String {
 	for _, item := range items {
 		fullName, _ := item["full_name"].(string)
 		if wantType, ok := want[fullName]; ok {
-			assertStringFieldValue(t, item, "inferred_obj_type", wantType)
+			parsertest.AssertStringFieldValue(t, item, "inferred_obj_type", wantType)
 			delete(want, fullName)
 		}
 	}
@@ -862,7 +866,7 @@ func TestDefaultEngineParsePathKotlinInfersParenthesizedCrossFilePackageAwareFun
 	conflictPath := filepath.Join(repoRoot, "src", "main", "kotlin", "com", "other", "Other.kt")
 	usagePath := filepath.Join(repoRoot, "src", "main", "kotlin", "com", "example", "feature", "module", "Usage.kt")
 
-	writeTestFile(
+	writeKotlinTestFile(
 		t,
 		servicePath,
 		`package com.example
@@ -872,7 +876,7 @@ class Service {
 }
 `,
 	)
-	writeTestFile(
+	writeKotlinTestFile(
 		t,
 		factoryPath,
 		`package com.example
@@ -882,7 +886,7 @@ class Factory {
 }
 `,
 	)
-	writeTestFile(
+	writeKotlinTestFile(
 		t,
 		factoryHelpersPath,
 		`package com.example
@@ -890,7 +894,7 @@ class Factory {
 fun createFactory(): Factory = Factory()
 `,
 	)
-	writeTestFile(
+	writeKotlinTestFile(
 		t,
 		conflictPath,
 		`package com.other
@@ -906,7 +910,7 @@ class OtherFactory {
 fun createFactory(): OtherFactory = OtherFactory()
 `,
 	)
-	writeTestFile(
+	writeKotlinTestFile(
 		t,
 		usagePath,
 		`package com.example
@@ -917,12 +921,12 @@ fun usage(): String {
 `,
 	)
 
-	engine, err := DefaultEngine()
+	engine, err := parser.DefaultEngine()
 	if err != nil {
 		t.Fatalf("DefaultEngine() error = %v, want nil", err)
 	}
 
-	got, err := engine.ParsePath(repoRoot, usagePath, false, Options{})
+	got, err := engine.ParsePath(repoRoot, usagePath, false, parser.Options{})
 	if err != nil {
 		t.Fatalf("ParsePath(%q) error = %v, want nil", usagePath, err)
 	}
@@ -939,7 +943,7 @@ fun usage(): String {
 	for _, item := range items {
 		fullName, _ := item["full_name"].(string)
 		if wantType, ok := want[fullName]; ok {
-			assertStringFieldValue(t, item, "inferred_obj_type", wantType)
+			parsertest.AssertStringFieldValue(t, item, "inferred_obj_type", wantType)
 			delete(want, fullName)
 		}
 	}

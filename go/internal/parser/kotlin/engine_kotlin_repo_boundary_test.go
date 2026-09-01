@@ -1,12 +1,15 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package parser
+package kotlin_test
 
 import (
 	"os"
 	"path/filepath"
 	"testing"
+
+	"github.com/eshu-hq/eshu/go/internal/parser"
+	"github.com/eshu-hq/eshu/go/internal/parser/parsertest"
 )
 
 func TestDefaultEnginePreScanRepositoryPathsKotlinStaysWithinRepoRoot(t *testing.T) {
@@ -18,11 +21,11 @@ func TestDefaultEnginePreScanRepositoryPathsKotlinStaysWithinRepoRoot(t *testing
 	targetPath := filepath.Join(repoRoot, "src", "Basic.kt")
 	siblingPath := filepath.Join(repoRoot, "src", "Sibling.kt")
 
-	writeTestFile(t, targetPath, `package sample
+	writeKotlinTestFile(t, targetPath, `package sample
 
 class Greeter
 `)
-	writeTestFile(t, siblingPath, `package sample
+	writeKotlinTestFile(t, siblingPath, `package sample
 
 fun helper(): String = "ok"
 `)
@@ -33,7 +36,7 @@ fun helper(): String = "ok"
 		_ = os.Chmod(restrictedDir, 0o755)
 	})
 
-	engine, err := DefaultEngine()
+	engine, err := parser.DefaultEngine()
 	if err != nil {
 		t.Fatalf("DefaultEngine() error = %v, want nil", err)
 	}
@@ -43,7 +46,7 @@ fun helper(): String = "ok"
 		t.Fatalf("PreScanRepositoryPaths() error = %v, want nil", err)
 	}
 
-	assertPrescanContains(t, got, "Greeter", targetPath)
+	parsertest.AssertPrescanContains(t, got, "Greeter", targetPath)
 }
 
 func TestDefaultEngineParsePathKotlinStaysWithinRepoRoot(t *testing.T) {
@@ -55,13 +58,13 @@ func TestDefaultEngineParsePathKotlinStaysWithinRepoRoot(t *testing.T) {
 	targetPath := filepath.Join(repoRoot, "src", "Basic.kt")
 	siblingPath := filepath.Join(repoRoot, "src", "Sibling.kt")
 
-	writeTestFile(t, targetPath, `package sample
+	writeKotlinTestFile(t, targetPath, `package sample
 
 class Greeter {
     fun greet(): String = helper()
 }
 `)
-	writeTestFile(t, siblingPath, `package sample
+	writeKotlinTestFile(t, siblingPath, `package sample
 
 fun helper(): String = "ok"
 `)
@@ -72,15 +75,15 @@ fun helper(): String = "ok"
 		_ = os.Chmod(restrictedDir, 0o755)
 	})
 
-	engine, err := DefaultEngine()
+	engine, err := parser.DefaultEngine()
 	if err != nil {
 		t.Fatalf("DefaultEngine() error = %v, want nil", err)
 	}
 
-	got, err := engine.ParsePath(repoRoot, targetPath, false, Options{})
+	got, err := engine.ParsePath(repoRoot, targetPath, false, parser.Options{})
 	if err != nil {
 		t.Fatalf("ParsePath() error = %v, want nil", err)
 	}
 
-	assertNamedBucketContains(t, got, "classes", "Greeter")
+	parsertest.AssertNamedBucketContains(t, got, "classes", "Greeter")
 }

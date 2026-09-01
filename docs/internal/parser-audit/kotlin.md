@@ -8,8 +8,13 @@ five payload buckets — `functions`, `classes`, `interfaces`, `variables`,
 `imports`, `function_calls` — plus cyclomatic complexity, dead-code root
 classification, smart-cast flow, scope-function transparency, receiver/type
 inference, and package-bounded sibling return-type lookups. The 14 source files
-(no tests in-package) are exercised by 16 parent-level test files (~54 test
-functions) in `go/internal/parser/`. Coverage is broad and intentional.
+are exercised by 18 test files in `go/internal/parser/kotlin/`
+(54 test functions): 16 `engine_kotlin_*_test.go` files in the external
+`kotlin_test` package, plus two in-package tests (`walk_count_test.go` and
+`equivalence_dump_test.go`). Two cross-language files
+(`kotlin_dead_code_roots_test.go`, `java_kotlin_spring_route_semantics_test.go`)
+stay in `go/internal/parser/` because they span more than Kotlin.
+Coverage is broad and intentional.
 
 ## Claimed Constructs
 
@@ -119,127 +124,132 @@ actual AST dispatch in `ast_walk.go:walkNode`.
 
 ## Verified-by-Test Constructs
 
-Most Kotlin engine regressions remain in `go/internal/parser/`. They use
-`DefaultEngine()` → `ParsePath()` with the registered Kotlin definition and
-exercise the full AST walk. The constructor-call regression now lives in
-`go/internal/parser/kotlin/` as an external `kotlin_test` and drives the same
-public engine path. That child directory also keeps same-package tests for
-package-owned equivalence and walk-count behavior.
+Most Kotlin engine regressions now live in `go/internal/parser/kotlin/` as the
+external `kotlin_test` package. They use `parser.DefaultEngine()` →
+`ParsePath()` with the registered Kotlin definition and exercise the full AST
+walk from outside the implementation package. Two cross-language files —
+`kotlin_dead_code_roots_test.go` and `java_kotlin_spring_route_semantics_test.go`
+— stay in `go/internal/parser/` because they assert shared or multi-language
+behavior rather than Kotlin extraction alone. The Swift golden-fixture gate
+that used to share a file with the Kotlin one now lives on its own at
+`go/internal/parser/engine_swift_symbol_gate_test.go`. The `kotlin/` package
+also keeps same-package tests for package-owned equivalence and walk-count
+behavior.
 
 ### Fixture corpus walk
 
 | Test | File |
 |---|---|
-| `TestDefaultEngineParsePathKotlinComprehensiveFixturesParseCleanly` | `engine_kotlin_ast_test.go:18` |
+| `TestDefaultEngineParsePathKotlinComprehensiveFixturesParseCleanly` | `kotlin/engine_kotlin_ast_test.go:21` |
 
 ### Functions bucket
 
 | Test | File |
 |---|---|
-| Function with `class_context` (method on class) | `engine_kotlin_treesitter_test.go:49-52` |
-| Function `suspend` flag (true/false) | `engine_kotlin_suspend_test.go:11` |
-| Extension function `class_context` = Receiver | `engine_kotlin_call_metadata_test.go:120-122` |
-| Function `line_number`, `end_line` | `engine_kotlin_treesitter_test.go:51-52` |
+| Function with `class_context` (method on class) | `kotlin/engine_kotlin_treesitter_test.go:52-55` |
+| Function `suspend` flag (true/false) | `kotlin/engine_kotlin_suspend_test.go:14` |
+| Extension function `class_context` = Receiver | `kotlin/engine_kotlin_call_metadata_test.go:123-125` |
+| Function `line_number`, `end_line` | `kotlin/engine_kotlin_treesitter_test.go:54-55` |
 | Secondary constructor `constructor_kind` and `class_context` | `kotlin_dead_code_roots_test.go:101` |
-| Interface method `class_context` = Interface name | `engine_kotlin_interface_test.go:49` |
+| Interface method `class_context` = Interface name | `kotlin/engine_kotlin_interface_test.go:52` |
 
 ### Classes bucket
 
 | Test | File |
 |---|---|
-| Class declarations (data, sealed, abstract, concrete) | `engine_kotlin_swift_symbol_gate_test.go:28-32` |
-| Object declarations | `engine_kotlin_call_metadata_test.go:326-360` |
-| Companion objects | `engine_kotlin_call_metadata_test.go:362-413` |
-| Nested class scoping (outer vs inner property isolation) | `engine_kotlin_treesitter_test.go:59-99` |
-| Multiline class declarations | `engine_kotlin_treesitter_test.go:11-57` |
+| Class declarations (data, sealed, abstract, concrete) | `kotlin/engine_kotlin_symbol_gate_test.go:26-30` |
+| Object declarations | `kotlin/engine_kotlin_call_metadata_test.go:319-363` |
+| Companion objects | `kotlin/engine_kotlin_call_metadata_test.go:365-416` |
+| Nested class scoping (outer vs inner property isolation) | `kotlin/engine_kotlin_treesitter_test.go:62-102` |
+| Multiline class declarations | `kotlin/engine_kotlin_treesitter_test.go:14-60` |
 
 ### Interfaces bucket
 
 | Test | File |
 |---|---|
-| Interface declarations | `engine_kotlin_swift_symbol_gate_test.go:42-43` |
-| Interface with `class_context` on methods | `engine_kotlin_interface_test.go:49` |
+| Interface declarations | `kotlin/engine_kotlin_symbol_gate_test.go:40-41` |
+| Interface with `class_context` on methods | `kotlin/engine_kotlin_interface_test.go:52` |
 
 ### Variables bucket
 
 | Test | File |
 |---|---|
-| Property declarations (implied by type inference tests) | `engine_kotlin_call_metadata_test.go:58-122` |
+| Property declarations (implied by type inference tests) | `kotlin/engine_kotlin_call_metadata_test.go:61-125` |
 
 ### Imports bucket
 
 | Test | File |
 |---|---|
-| Import rows with alias and import_type | `engine_kotlin_ast_test.go:158-163` |
+| Import rows with alias and import_type | `kotlin/engine_kotlin_ast_test.go:161-166` |
 
 ### Function calls bucket — bare and constructor
 
 | Test | File |
 |---|---|
-| Bare calls (same-scope, top-level) | `engine_kotlin_bare_calls_test.go:17` |
-| Imported bare calls (top-level function from import) | `engine_kotlin_imported_bare_call_test.go:17` |
+| Bare calls (same-scope, top-level) | `kotlin/engine_kotlin_bare_calls_test.go:20` |
+| Imported bare calls (top-level function from import) | `kotlin/engine_kotlin_imported_bare_call_test.go:20` |
 | Constructor calls (local type) | `kotlin/engine_kotlin_constructor_calls_test.go:14` |
-| Constructor calls (imported type, no alias) | `engine_kotlin_ast_test.go:128` |
+| Constructor calls (imported type, no alias) | `kotlin/engine_kotlin_ast_test.go:131` |
 
 ### Function calls bucket — navigation and receivers
 
 | Test | File |
 |---|---|
-| `this.receiver` carries `class_context` | `engine_kotlin_call_metadata_test.go:11` |
-| Local variable receiver type inference | `engine_kotlin_call_metadata_test.go:58` |
-| Cast receiver type (`any as Service` → `service.info`) | `engine_kotlin_call_metadata_test.go:124` |
-| Direct cast receiver (`(any as Service).info`) | `engine_kotlin_call_metadata_test.go:171` |
-| Infix call receiver type | `engine_kotlin_call_metadata_test.go:217` |
-| Typed property alias chains | `engine_kotlin_call_metadata_test.go:265` |
-| Object receiver types | `engine_kotlin_call_metadata_test.go:316` |
-| Companion object receiver types | `engine_kotlin_call_metadata_test.go:362` |
-| Generic nullable receiver types | `engine_kotlin_call_metadata_test.go:415` |
-| Typed property chain calls | `engine_kotlin_call_metadata_test.go:476` |
-| Safe-call receiver chains (`?.` → `.`) | `engine_kotlin_call_metadata_test.go:527` |
-| Safe-call alias chains | `engine_kotlin_call_metadata_test.go:578` |
-| Dotted property alias chains | `engine_kotlin_call_metadata_test.go:630` |
-| Primary constructor property receivers | `engine_kotlin_call_metadata_test.go:682` |
-| Lazy delegated property `call_kind` | `engine_kotlin_lazy_property_test.go:11` |
+| `this.receiver` carries `class_context` | `kotlin/engine_kotlin_call_metadata_test.go:14` |
+| Local variable receiver type inference | `kotlin/engine_kotlin_call_metadata_test.go:61` |
+| Cast receiver type (`any as Service` → `service.info`) | `kotlin/engine_kotlin_call_metadata_test.go:127` |
+| Direct cast receiver (`(any as Service).info`) | `kotlin/engine_kotlin_call_metadata_test.go:174` |
+| Infix call receiver type | `kotlin/engine_kotlin_call_metadata_test.go:220` |
+| Typed property alias chains | `kotlin/engine_kotlin_call_metadata_test.go:268` |
+| Object receiver types | `kotlin/engine_kotlin_call_metadata_test.go:319` |
+| Companion object receiver types | `kotlin/engine_kotlin_call_metadata_test.go:365` |
+| Generic nullable receiver types | `kotlin/engine_kotlin_call_metadata_test.go:418` |
+| Typed property chain calls | `kotlin/engine_kotlin_call_metadata_test.go:479` |
+| Safe-call receiver chains (`?.` → `.`) | `kotlin/engine_kotlin_call_metadata_test.go:530` |
+| Safe-call alias chains | `kotlin/engine_kotlin_call_metadata_test.go:581` |
+| Dotted property alias chains | `kotlin/engine_kotlin_call_metadata_test.go:633` |
+| Primary constructor property receivers | `kotlin/engine_kotlin_call_metadata_test.go:685` |
+| Lazy delegated property `call_kind` | `kotlin/engine_kotlin_lazy_property_test.go:14` |
 
 ### Smart-cast flow
 
 | Test | File |
 |---|---|
-| `if (x is T)` braced consequent | `engine_kotlin_smart_cast_test.go:11` |
-| `if (x is T)` unbraced consequent | `engine_kotlin_ast_test.go:170` |
-| Smart-cast does not leak across branches | `engine_kotlin_ast_test.go:57` |
-| `when (subject) { is T -> }` | `engine_kotlin_smart_cast_test.go:60` |
-| Generic smart-cast (`ServiceBox<Service>`) | `engine_kotlin_smart_cast_test.go:118` |
+| `if (x is T)` braced consequent | `kotlin/engine_kotlin_smart_cast_test.go:13` |
+| `if (x is T)` unbraced consequent | `kotlin/engine_kotlin_ast_test.go:173` |
+| Smart-cast does not leak across branches | `kotlin/engine_kotlin_ast_test.go:60` |
+| `when (subject) { is T -> }` | `kotlin/engine_kotlin_smart_cast_test.go:62` |
+| Generic smart-cast (`ServiceBox<Service>`) | `kotlin/engine_kotlin_smart_cast_test.go:120` |
 
 ### Scope-function transparency
 
 | Test | File |
 |---|---|
-| `.apply { }` in assignment chain | `engine_kotlin_scope_function_test.go:11` |
-| `.also { }` in assignment chain | `engine_kotlin_scope_function_test.go:59` |
-| `.apply { }.info()` inline chain | `engine_kotlin_scope_function_test.go:107` |
+| `.apply { }` in assignment chain | `kotlin/engine_kotlin_scope_function_test.go:13` |
+| `.also { }` in assignment chain | `kotlin/engine_kotlin_scope_function_test.go:61` |
+| `.apply { }.info()` inline chain | `kotlin/engine_kotlin_scope_function_test.go:109` |
 
 ### Function return-type aliasing and chains
 
 | Test | File |
 |---|---|
-| Same-file return type alias | `engine_kotlin_function_return_alias_test.go:11` |
-| Alias chain through locals | `engine_kotlin_function_return_alias_test.go:60` |
-| Nullable return type alias | `engine_kotlin_function_return_alias_test.go:110` |
-| Generic return type alias | `engine_kotlin_function_return_alias_test.go:159` |
-| Function return receiver chains | `engine_kotlin_function_return_alias_test.go:208` |
-| Nested function return assignment | `engine_kotlin_function_return_alias_test.go:259` |
-| Constructor root receiver chains | `engine_kotlin_function_return_alias_test.go:317` |
-| Parenthesized receiver chains | `engine_kotlin_function_return_alias_test.go:371` |
-| Sibling file return types | `engine_kotlin_function_return_alias_test.go:428` |
-| Parent directory sibling return types | `engine_kotlin_function_return_alias_test.go:493` |
-| Sibling file alias chains | `engine_kotlin_function_return_alias_test.go:559` |
-| Package-aware sibling selection (same vs other package) | `engine_kotlin_function_return_alias_test.go:616` |
-| Cross-grandparent directory return types | `engine_kotlin_function_return_alias_test.go:694` |
-| Cross-file multi-package return types | `engine_kotlin_function_return_alias_test.go:759` |
-| Parenthesized cross-file return types | `engine_kotlin_function_return_alias_test.go:855` |
-| Package-aware sibling directories | `engine_kotlin_function_return_package_test.go:11` |
-| Deeper package directory sibling return types | `engine_kotlin_function_return_package_test.go:89` |
+| Same-file return type alias | `kotlin/engine_kotlin_function_return_alias_test.go:13` |
+| Alias chain through locals | `kotlin/engine_kotlin_function_return_alias_test.go:62` |
+| Nullable return type alias | `kotlin/engine_kotlin_function_return_alias_test.go:112` |
+| Generic return type alias | `kotlin/engine_kotlin_function_return_alias_test.go:161` |
+| Function return receiver chains | `kotlin/engine_kotlin_function_return_alias_test.go:210` |
+| Nested function return assignment | `kotlin/engine_kotlin_function_return_alias_test.go:261` |
+| Constructor root receiver chains | `kotlin/engine_kotlin_function_return_alias_test.go:319` |
+| Parenthesized receiver chains | `kotlin/engine_kotlin_function_return_alias_test.go:373` |
+| Sibling file return types | `kotlin/engine_kotlin_function_return_alias_test.go:430` |
+| Parent directory sibling return types | `kotlin/engine_kotlin_function_return_alias_test.go:495` |
+| Sibling file alias chains | `kotlin/engine_kotlin_function_return_alias_test.go:561` |
+| Package-aware sibling selection (same vs other package) | `kotlin/engine_kotlin_function_return_alias_test.go:618` |
+| Cross-grandparent directory return types | `kotlin/engine_kotlin_function_return_alias_test.go:696` |
+| Cross-file multi-package return types | `kotlin/engine_kotlin_function_return_alias_test.go:761` |
+| Parenthesized cross-file return types | `kotlin/engine_kotlin_function_return_alias_test.go:857` |
+| Package-aware sibling directories | `kotlin/engine_kotlin_function_return_package_test.go:13` |
+| Deeper package directory sibling return types | `kotlin/engine_kotlin_function_return_package_test.go:91` |
 
 ### Dead-code roots
 
@@ -254,14 +264,14 @@ package-owned equivalence and walk-count behavior.
 
 | Test | File |
 |---|---|
-| PreScan stays within repoRoot | `engine_kotlin_repo_boundary_test.go:12` |
-| Parse stays within repoRoot | `engine_kotlin_repo_boundary_test.go:49` |
+| PreScan stays within repoRoot | `kotlin/engine_kotlin_repo_boundary_test.go:15` |
+| Parse stays within repoRoot | `kotlin/engine_kotlin_repo_boundary_test.go:52` |
 
 ### Golden fixture gate
 
 | Test | File |
 |---|---|
-| `TestKotlinComprehensiveSymbolExtractionGate` — asserts classes, functions with class context, interfaces, interface methods, calls | `engine_kotlin_swift_symbol_gate_test.go:17` |
+| `TestKotlinComprehensiveSymbolExtractionGate` — asserts classes, functions with class context, interfaces, interface methods, calls | `kotlin/engine_kotlin_symbol_gate_test.go:19` |
 
 ## Unverified / Claimed-but-Untested Constructs
 
@@ -302,26 +312,26 @@ tests:
 
 | Edge case | Test reference |
 |---|---|
-| Smart-cast narrows type inside guarded block | `engine_kotlin_ast_test.go:57` |
-| Smart-cast does not leak to sibling statements after block close | `engine_kotlin_ast_test.go:57` |
-| Smart-cast with unbraced (concise) consequent | `engine_kotlin_ast_test.go:170` |
-| Nested class properties isolated from outer class | `engine_kotlin_treesitter_test.go:59` |
+| Smart-cast narrows type inside guarded block | `kotlin/engine_kotlin_ast_test.go:60` |
+| Smart-cast does not leak to sibling statements after block close | `kotlin/engine_kotlin_ast_test.go:60` |
+| Smart-cast with unbraced (concise) consequent | `kotlin/engine_kotlin_ast_test.go:173` |
+| Nested class properties isolated from outer class | `kotlin/engine_kotlin_treesitter_test.go:62` |
 | Empty source / nil parser / nil tree return errors | `ast_declarations.go:14-17` (error vars used in `walkFile`) |
 | Anonymous companion object defaults name to `"Companion"` | `ast_declarations.go:228-229` |
-| Safe-call operators (`?.`) normalized to plain dots for inference | `engine_kotlin_call_metadata_test.go:527` |
-| Scope functions `.also`/`.apply` stripped from receiver chains | `engine_kotlin_scope_function_test.go:11,59,107` |
-| Constructor vs bare-call disambiguation via `knownTypeNames` vs `localTypeNames` | `engine_kotlin_ast_test.go:128`, `engine_kotlin_imported_bare_call_test.go:17` |
+| Safe-call operators (`?.`) normalized to plain dots for inference | `kotlin/engine_kotlin_call_metadata_test.go:530` |
+| Scope functions `.also`/`.apply` stripped from receiver chains | `kotlin/engine_kotlin_scope_function_test.go:13,61,109` |
+| Constructor vs bare-call disambiguation via `knownTypeNames` vs `localTypeNames` | `kotlin/engine_kotlin_ast_test.go:131`, `kotlin/engine_kotlin_imported_bare_call_test.go:20` |
 | Chain-receiver detection prevents double-emission of `x().y()` calls | `ast_calls.go:134-163` (exercised by navigation-call tests) |
-| Package-boundary enforcement for sibling return-type collection | `engine_kotlin_function_return_alias_test.go:616`, `engine_kotlin_function_return_package_test.go:11,89` |
+| Package-boundary enforcement for sibling return-type collection | `kotlin/engine_kotlin_function_return_alias_test.go:618`, `kotlin/engine_kotlin_function_return_package_test.go:13,91` |
 | Ambiguous sibling return types (conflicting types) discarded | `repository_returns.go:79-83` (exercised by multi-package tests with conflicts) |
-| RepoRoot boundary prevents scanning outside repository | `engine_kotlin_repo_boundary_test.go:12,49` |
-| Multiline class declarations with wrapped constructor parameters | `engine_kotlin_treesitter_test.go:11` |
+| RepoRoot boundary prevents scanning outside repository | `kotlin/engine_kotlin_repo_boundary_test.go:15,52` |
+| Multiline class declarations with wrapped constructor parameters | `kotlin/engine_kotlin_treesitter_test.go:14` |
 | Multiline annotations for dead-code root classification | `kotlin_dead_code_roots_test.go:164` |
-| Nullable types (`?`) stripped during canonicalization | `type_reference.go:8-14`, `engine_kotlin_function_return_alias_test.go:110` |
-| Generic type parameter substitution (`T` → concrete type) | `type_reference.go:69-97`, `engine_kotlin_smart_cast_test.go:118` |
-| Parenthesized receiver chain normalization | `engine_kotlin_function_return_alias_test.go:371,855` |
-| Delegated property (`by lazy`) type inference and `call_kind` | `engine_kotlin_lazy_property_test.go:11` |
-| Cast receiver types via `as` expression (variable and inline) | `engine_kotlin_call_metadata_test.go:124,171` |
+| Nullable types (`?`) stripped during canonicalization | `type_reference.go:8-14`, `kotlin/engine_kotlin_function_return_alias_test.go:112` |
+| Generic type parameter substitution (`T` → concrete type) | `type_reference.go:69-97`, `kotlin/engine_kotlin_smart_cast_test.go:120` |
+| Parenthesized receiver chain normalization | `kotlin/engine_kotlin_function_return_alias_test.go:373,857` |
+| Delegated property (`by lazy`) type inference and `call_kind` | `kotlin/engine_kotlin_lazy_property_test.go:14` |
+| Cast receiver types via `as` expression (variable and inline) | `kotlin/engine_kotlin_call_metadata_test.go:127,174` |
 | Interface method set aggregation for override/implementation classification | `kotlin_dead_code_roots_test.go:11` |
 | `@Scheduled` double-count prevention (single `Scheduled` also matched by `Schedules` or-query) | `kotlin_dead_code_roots_test.go:111` |
 
@@ -336,7 +346,7 @@ tests:
 4. **`@Schedules` container annotation** — grouped scheduling annotation claimed
    but only `@Scheduled` is tested.
 5. **Enum classes** — no dedicated enum declaration test. The golden fixture
-   gate (`engine_kotlin_swift_symbol_gate_test.go:28-32`) includes sealed class
+   gate (`kotlin/engine_kotlin_symbol_gate_test.go:26-30`) includes sealed class
    variants (`Success`/`Failure`) but does not assert enum-specific behavior.
 6. **Abstract classes and abstract functions** — no test asserts abstract class
    handling (though they parse as regular classes).
@@ -373,7 +383,7 @@ tests:
 **Deep**
 
 The Kotlin parser is among the most thoroughly tested language parsers in Eshu.
-Sixteen test files with ~54 test functions cover: every payload bucket, both
+Eighteen test files in the kotlin package with 54 test functions cover: every payload bucket, both
 call emission paths (bare and navigation), infix calls, constructor detection,
 import handling, all receiver-type inference paths (local variable, class
 property, function return, cast, smart-cast, lazy delegate, safe-call, object,

@@ -1,11 +1,15 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package parser
+package kotlin_test
 
 import (
 	"path/filepath"
 	"testing"
+
+	"github.com/eshu-hq/eshu/go/internal/parser"
+
+	"github.com/eshu-hq/eshu/go/internal/parser/parsertest"
 )
 
 func TestDefaultEngineParsePathKotlinPrefersPackageAwareSiblingFunctionReturnTypesAcrossSiblingDirectoriesForDotCalls(t *testing.T) {
@@ -15,7 +19,7 @@ func TestDefaultEngineParsePathKotlinPrefersPackageAwareSiblingFunctionReturnTyp
 	apiPath := filepath.Join(repoRoot, "src", "main", "kotlin", "com", "example", "api", "Api.kt")
 	otherPath := filepath.Join(repoRoot, "src", "main", "kotlin", "com", "example", "other", "Other.kt")
 	usagePath := filepath.Join(repoRoot, "src", "main", "kotlin", "com", "example", "usage", "Usage.kt")
-	writeTestFile(
+	writeKotlinTestFile(
 		t,
 		apiPath,
 		`package com.example
@@ -31,7 +35,7 @@ class Factory {
 fun createFactory(): Factory = Factory()
 `,
 	)
-	writeTestFile(
+	writeKotlinTestFile(
 		t,
 		otherPath,
 		`package otherpkg
@@ -43,7 +47,7 @@ class OtherFactory {
 fun createFactory(): OtherFactory = OtherFactory()
 `,
 	)
-	writeTestFile(
+	writeKotlinTestFile(
 		t,
 		usagePath,
 		`package com.example
@@ -55,12 +59,12 @@ fun usage(): String {
 `,
 	)
 
-	engine, err := DefaultEngine()
+	engine, err := parser.DefaultEngine()
 	if err != nil {
 		t.Fatalf("DefaultEngine() error = %v, want nil", err)
 	}
 
-	got, err := engine.ParsePath(repoRoot, usagePath, false, Options{})
+	got, err := engine.ParsePath(repoRoot, usagePath, false, parser.Options{})
 	if err != nil {
 		t.Fatalf("ParsePath() error = %v, want nil", err)
 	}
@@ -77,7 +81,7 @@ fun usage(): String {
 	for _, item := range items {
 		fullName, _ := item["full_name"].(string)
 		if wantType, ok := want[fullName]; ok {
-			assertStringFieldValue(t, item, "inferred_obj_type", wantType)
+			parsertest.AssertStringFieldValue(t, item, "inferred_obj_type", wantType)
 			delete(want, fullName)
 		}
 	}
@@ -93,7 +97,7 @@ func TestDefaultEngineParsePathKotlinPrefersPackageAwareSiblingFunctionReturnTyp
 	apiPath := filepath.Join(repoRoot, "src", "main", "kotlin", "com", "example", "api", "Api.kt")
 	otherPath := filepath.Join(repoRoot, "src", "main", "kotlin", "com", "other", "Other.kt")
 	usagePath := filepath.Join(repoRoot, "src", "main", "kotlin", "com", "example", "feature", "module", "deep", "Usage.kt")
-	writeTestFile(
+	writeKotlinTestFile(
 		t,
 		apiPath,
 		`package com.example
@@ -109,7 +113,7 @@ class Factory {
 fun createFactory(): Factory = Factory()
 `,
 	)
-	writeTestFile(
+	writeKotlinTestFile(
 		t,
 		otherPath,
 		`package com.other
@@ -121,7 +125,7 @@ class OtherFactory {
 fun createFactory(): OtherFactory = OtherFactory()
 `,
 	)
-	writeTestFile(
+	writeKotlinTestFile(
 		t,
 		usagePath,
 		`package com.example
@@ -133,12 +137,12 @@ fun usage(): String {
 `,
 	)
 
-	engine, err := DefaultEngine()
+	engine, err := parser.DefaultEngine()
 	if err != nil {
 		t.Fatalf("DefaultEngine() error = %v, want nil", err)
 	}
 
-	got, err := engine.ParsePath(repoRoot, usagePath, false, Options{})
+	got, err := engine.ParsePath(repoRoot, usagePath, false, parser.Options{})
 	if err != nil {
 		t.Fatalf("ParsePath() error = %v, want nil", err)
 	}
@@ -155,7 +159,7 @@ fun usage(): String {
 	for _, item := range items {
 		fullName, _ := item["full_name"].(string)
 		if wantType, ok := want[fullName]; ok {
-			assertStringFieldValue(t, item, "inferred_obj_type", wantType)
+			parsertest.AssertStringFieldValue(t, item, "inferred_obj_type", wantType)
 			delete(want, fullName)
 		}
 	}

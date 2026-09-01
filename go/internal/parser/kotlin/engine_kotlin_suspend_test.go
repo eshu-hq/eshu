@@ -1,11 +1,14 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package parser
+package kotlin_test
 
 import (
 	"path/filepath"
 	"testing"
+
+	"github.com/eshu-hq/eshu/go/internal/parser"
+	"github.com/eshu-hq/eshu/go/internal/parser/parsertest"
 )
 
 func TestDefaultEngineParsePathKotlinMarksSuspendFunctions(t *testing.T) {
@@ -13,7 +16,7 @@ func TestDefaultEngineParsePathKotlinMarksSuspendFunctions(t *testing.T) {
 
 	repoRoot := t.TempDir()
 	filePath := filepath.Join(repoRoot, "Coroutine.kt")
-	writeTestFile(
+	writeKotlinTestFile(
 		t,
 		filePath,
 		`package comprehensive
@@ -28,19 +31,19 @@ fun regular(): String = "done"
 `,
 	)
 
-	engine, err := DefaultEngine()
+	engine, err := parser.DefaultEngine()
 	if err != nil {
 		t.Fatalf("DefaultEngine() error = %v, want nil", err)
 	}
 
-	got, err := engine.ParsePath(repoRoot, filePath, false, Options{})
+	got, err := engine.ParsePath(repoRoot, filePath, false, parser.Options{})
 	if err != nil {
 		t.Fatalf("ParsePath() error = %v, want nil", err)
 	}
 
-	load := assertBucketItemByName(t, got, "functions", "load")
+	load := parsertest.AssertBucketItemByName(t, got, "functions", "load")
 	assertBoolFieldValue(t, load, "suspend", true)
 
-	fetchRemote := assertBucketItemByName(t, got, "functions", "fetchRemote")
+	fetchRemote := parsertest.AssertBucketItemByName(t, got, "functions", "fetchRemote")
 	assertBoolFieldValue(t, fetchRemote, "suspend", true)
 }

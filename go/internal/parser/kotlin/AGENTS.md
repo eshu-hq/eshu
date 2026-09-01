@@ -15,8 +15,14 @@ explicitly asks for a cross-language parser contract change.
 Production code and same-package tests must not import the parent parser
 package. Use go/internal/parser/shared for `shared.Options`, source reads, base
 payload construction, bucket appends, sorting, and pre-scan name cleanup.
-External `kotlin_test` files may import the parent parser to verify its exported
-engine contract without gaining access to parent internals.
+External `kotlin_test` files (the `engine_kotlin_*_test.go` family, 16 files)
+may import the parent parser to verify its exported engine contract without
+gaining access to parent internals. They also import
+`go/internal/parser/parsertest` for the assertion helpers that other language
+packages share; `engine_kotlin_test_helpers_test.go` holds only what
+parsertest does not provide: `assertBoolFieldValue`, plus the
+`kotlinFixturePath` and `writeKotlinTestFile` fixture helpers. String and int
+field assertions come from parsertest; do not add local copies of them back.
 
 Extraction is AST-only. Do not reintroduce `regexp` or `strings.Split(src,
 "\n")` line-scan symbol extraction. Confirm grammar node kinds with a compiled
@@ -54,21 +60,24 @@ test and probe the AST before editing.
 Do not add parent-package imports to production or same-package test files,
 regex or line-scan extraction, whole-repository scans, hidden fallbacks for
 ambiguous return types, or Kotlin fixes in other language packages. The
-external `engine_kotlin_constructor_calls_test.go` is the narrow exception: it
-imports the parent parser only to exercise the exported engine API. Do not
+external `engine_kotlin_*_test.go` files (including
+`engine_kotlin_constructor_calls_test.go`) are the narrow exception: they
+import the parent parser only to exercise the exported engine API. Do not
 change payload keys without focused Kotlin tests and downstream parser contract
 validation.
 
 ## Evidence notes
 
-No-Regression Evidence (issue #3533, Kotlin AST migration): `go test
-./internal/parser -run Kotlin -count=1`, `go test ./internal/reducer -run
-Kotlin -count=1`, and `go test ./internal/parser/goldenaudit -count=1` failed
+No-Regression Evidence (issue #3533, Kotlin AST migration): `../scripts/go-test-run-guard.sh 64 Kotlin -- ./internal/parser/... -count=1`
+and `../scripts/go-test-run-guard.sh 47 Kotlin -- ./internal/reducer -count=1`, and `go test ./internal/parser/goldenaudit -count=1` failed
 on no assertion and continue to pass after the regex/line-scan parser
 (`patterns.go`, `scope.go`, `smart_cast.go`, `cast_receiver_calls.go`, and the
 line-scan loop in the old `parser.go`/`tree_sitter_syntax.go`) was replaced by
 an AST walk. The payload keys and value shapes are byte-identical to the prior
-hybrid parser, so no downstream fact, shape, or reducer contract changed.
+hybrid parser, so no downstream fact, shape, or reducer contract changed. (The
+`-run Kotlin` selector requires the `./...` suffix since issue #6062 relocated
+the `engine_kotlin_*_test.go` family from `go/internal/parser` into this
+package.)
 
 No-Observability-Change (issue #3533): the migration is parser-local. It adds no
 metric instrument, metric label, span, log line, status field, env var, queue,

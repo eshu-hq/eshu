@@ -1,11 +1,15 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package parser
+package kotlin_test
 
 import (
 	"path/filepath"
 	"testing"
+
+	"github.com/eshu-hq/eshu/go/internal/parser"
+
+	"github.com/eshu-hq/eshu/go/internal/parser/parsertest"
 )
 
 func TestDefaultEngineParsePathKotlinInfersIfSmartCastReceiverTypesForDotCalls(t *testing.T) {
@@ -13,7 +17,7 @@ func TestDefaultEngineParsePathKotlinInfersIfSmartCastReceiverTypesForDotCalls(t
 
 	repoRoot := t.TempDir()
 	filePath := filepath.Join(repoRoot, "Usage.kt")
-	writeTestFile(
+	writeKotlinTestFile(
 		t,
 		filePath,
 		`package comprehensive
@@ -31,12 +35,12 @@ fun usage(any: Any): String {
 `,
 	)
 
-	engine, err := DefaultEngine()
+	engine, err := parser.DefaultEngine()
 	if err != nil {
 		t.Fatalf("DefaultEngine() error = %v, want nil", err)
 	}
 
-	got, err := engine.ParsePath(repoRoot, filePath, false, Options{})
+	got, err := engine.ParsePath(repoRoot, filePath, false, parser.Options{})
 	if err != nil {
 		t.Fatalf("ParsePath() error = %v, want nil", err)
 	}
@@ -51,7 +55,7 @@ fun usage(any: Any): String {
 		if fullName != "any.info" {
 			continue
 		}
-		assertStringFieldValue(t, item, "inferred_obj_type", "Service")
+		parsertest.AssertStringFieldValue(t, item, "inferred_obj_type", "Service")
 		return
 	}
 	t.Fatalf("function_calls missing full_name=%q in %#v", "any.info", items)
@@ -62,7 +66,7 @@ func TestDefaultEngineParsePathKotlinInfersWhenSmartCastReceiverChainsForDotCall
 
 	repoRoot := t.TempDir()
 	filePath := filepath.Join(repoRoot, "Usage.kt")
-	writeTestFile(
+	writeKotlinTestFile(
 		t,
 		filePath,
 		`package comprehensive
@@ -84,12 +88,12 @@ fun usage(value: Any): String {
 `,
 	)
 
-	engine, err := DefaultEngine()
+	engine, err := parser.DefaultEngine()
 	if err != nil {
 		t.Fatalf("DefaultEngine() error = %v, want nil", err)
 	}
 
-	got, err := engine.ParsePath(repoRoot, filePath, false, Options{})
+	got, err := engine.ParsePath(repoRoot, filePath, false, parser.Options{})
 	if err != nil {
 		t.Fatalf("ParsePath() error = %v, want nil", err)
 	}
@@ -106,7 +110,7 @@ fun usage(value: Any): String {
 	for _, item := range items {
 		fullName, _ := item["full_name"].(string)
 		if wantType, ok := want[fullName]; ok {
-			assertStringFieldValue(t, item, "inferred_obj_type", wantType)
+			parsertest.AssertStringFieldValue(t, item, "inferred_obj_type", wantType)
 			delete(want, fullName)
 		}
 	}
@@ -120,7 +124,7 @@ func TestDefaultEngineParsePathKotlinInfersGenericSmartCastReceiverChainsForDotC
 
 	repoRoot := t.TempDir()
 	filePath := filepath.Join(repoRoot, "Usage.kt")
-	writeTestFile(
+	writeKotlinTestFile(
 		t,
 		filePath,
 		`package comprehensive
@@ -142,12 +146,12 @@ fun usage(receiver: Any): String {
 `,
 	)
 
-	engine, err := DefaultEngine()
+	engine, err := parser.DefaultEngine()
 	if err != nil {
 		t.Fatalf("DefaultEngine() error = %v, want nil", err)
 	}
 
-	got, err := engine.ParsePath(repoRoot, filePath, false, Options{})
+	got, err := engine.ParsePath(repoRoot, filePath, false, parser.Options{})
 	if err != nil {
 		t.Fatalf("ParsePath() error = %v, want nil", err)
 	}
@@ -164,7 +168,7 @@ fun usage(receiver: Any): String {
 	for _, item := range items {
 		fullName, _ := item["full_name"].(string)
 		if wantType, ok := want[fullName]; ok {
-			assertStringFieldValue(t, item, "inferred_obj_type", wantType)
+			parsertest.AssertStringFieldValue(t, item, "inferred_obj_type", wantType)
 			delete(want, fullName)
 		}
 	}
