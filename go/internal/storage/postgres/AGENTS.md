@@ -492,9 +492,9 @@ shared-intent backlog/status queries and reducer code-call cycle logs.
   `columnsPerFactRow`; update `scanFactEnvelope`; update the schema DDL; add a
   migration if the column is non-nullable without a default.
 
-- **Add a new graph projection phase** → add the phase constant in
-  `internal/reducer`; batch-upsert it via `GraphProjectionPhaseStateStore`; add
-  a matching readiness lookup path if reducer domains gate on it.
+- **Add a new graph projection phase** -> add the constant in
+  `internal/reducer/gpphase` (`phasekey.go`), NOT the root alias layer, else leaf
+  families cannot use it; batch-upsert via `GraphProjectionPhaseStateStore`.
 
 - **Add Postgres telemetry** → wrap the `ExecQueryer` with `InstrumentedDB`;
   set `StoreName` to a short descriptive label; the metric
