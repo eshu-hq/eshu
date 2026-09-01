@@ -4,6 +4,7 @@
 package javascript_test
 
 import (
+	"fmt"
 	"os"
 	"path/filepath"
 	"reflect"
@@ -145,21 +146,45 @@ func assertFunctionByName(t *testing.T, payload map[string]any, name string) map
 
 // assertNoFrameworkOrNoRoutes requires payload's framework_semantics[section]
 // to either be absent or hold no route entries.
+// noFrameworkOrNoRoutes reports why payload fails the "no framework, or no
+// route entries" expectation, or nil when it holds. The predicate is split out
+// of the assertion so its fail-closed branches can be exercised directly: the
+// assertion takes a *testing.T and calls t.Fatalf, so a test cannot drive its
+// failure paths without a fake T, and an unexercised fail-closed branch is
+// free to rot back into the false green it was written to prevent.
+func noFrameworkOrNoRoutes(payload map[string]any, section string) error {
+	semantics, ok := payload["framework_semantics"].(map[string]any)
+	if !ok {
+		return fmt.Errorf("framework_semantics = %#v (%T), want map[string]any", payload["framework_semantics"], payload["framework_semantics"])
+	}
+	rawSection, present := semantics[section]
+	if !present {
+		// Framework not present at all — acceptable.
+		return nil
+	}
+	nested, ok := rawSection.(map[string]any)
+	if !ok {
+		return fmt.Errorf("framework_semantics.%s = %#v (%T), want map[string]any; a present-but-malformed section must not pass a negative assertion", section, rawSection, rawSection)
+	}
+	rawEntries, present := nested["route_entries"]
+	if !present {
+		return nil
+	}
+	entries, ok := rawEntries.([]map[string]string)
+	if !ok {
+		return fmt.Errorf("framework_semantics.%s.route_entries = %#v (%T), want []map[string]string; a present-but-malformed field must not pass a negative assertion", section, rawEntries, rawEntries)
+	}
+	if len(entries) > 0 {
+		return fmt.Errorf("framework_semantics.%s.route_entries = %#v, want empty or absent", section, entries)
+	}
+	return nil
+}
+
 func assertNoFrameworkOrNoRoutes(t *testing.T, payload map[string]any, section string) {
 	t.Helper()
 
-	semantics, ok := payload["framework_semantics"].(map[string]any)
-	if !ok {
-		t.Fatalf("framework_semantics = %T, want map[string]any", payload["framework_semantics"])
-	}
-	nested, ok := semantics[section].(map[string]any)
-	if !ok {
-		// Framework not present at all — acceptable
-		return
-	}
-	entries, _ := nested["route_entries"].([]map[string]string)
-	if len(entries) > 0 {
-		t.Fatalf("framework_semantics.%s.route_entries = %#v, want empty or absent", section, entries)
+	if err := noFrameworkOrNoRoutes(payload, section); err != nil {
+		t.Fatalf("%v", err)
 	}
 }
 
@@ -203,4 +228,87 @@ func assertParserStringSliceContains(t *testing.T, item map[string]any, field st
 		}
 	}
 	t.Fatalf("%s = %#v, want to contain %#v", field, got, want)
+}
+
+// TestNoFrameworkOrNoRoutesFailsClosedOnMalformedInput is the positive control
+// for the two fail-closed branches. Before those branches existed, each of
+// these payloads produced a nil zero value from a discarded type assertion and
+// passed the negative assertion, which is the false green being guarded
+// against. Without this test, reverting either check to `x, _ := ...` would
+// reopen that hole silently.
+func TestNoFrameworkOrNoRoutesFailsClosedOnMalformedInput(t *testing.T) {
+	t.Parallel()
+
+	for _, tt := range []struct {
+		name    string
+		payload map[string]any
+	}{
+		{
+			name: "section present but not a map",
+			payload: map[string]any{
+				"framework_semantics": map[string]any{"express": "not-a-map"},
+			},
+		},
+		{
+			name: "route_entries present but wrongly typed",
+			payload: map[string]any{
+				"framework_semantics": map[string]any{
+					"express": map[string]any{
+						"route_entries": []map[string]any{{"path": "/x"}},
+					},
+				},
+			},
+		},
+		{
+			name:    "framework_semantics itself not a map",
+			payload: map[string]any{"framework_semantics": []string{"express"}},
+		},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			if err := noFrameworkOrNoRoutes(tt.payload, "express"); err == nil {
+				t.Fatalf("noFrameworkOrNoRoutes(%#v) = nil, want an error: a present-but-malformed value must not pass a negative assertion", tt.payload)
+			}
+		})
+	}
+}
+
+// TestNoFrameworkOrNoRoutesAcceptsAbsentAndEmpty pins the accepting side, so
+// the fail-closed branches above cannot be satisfied by a predicate that
+// simply rejects everything.
+func TestNoFrameworkOrNoRoutesAcceptsAbsentAndEmpty(t *testing.T) {
+	t.Parallel()
+
+	for _, tt := range []struct {
+		name    string
+		payload map[string]any
+	}{
+		{
+			name:    "framework absent",
+			payload: map[string]any{"framework_semantics": map[string]any{}},
+		},
+		{
+			name: "framework present, route_entries absent",
+			payload: map[string]any{
+				"framework_semantics": map[string]any{"express": map[string]any{}},
+			},
+		},
+		{
+			name: "route_entries present and empty",
+			payload: map[string]any{
+				"framework_semantics": map[string]any{
+					"express": map[string]any{"route_entries": []map[string]string{}},
+				},
+			},
+		},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			if err := noFrameworkOrNoRoutes(tt.payload, "express"); err != nil {
+				t.Fatalf("noFrameworkOrNoRoutes(%#v) = %v, want nil", tt.payload, err)
+			}
+		})
+	}
 }

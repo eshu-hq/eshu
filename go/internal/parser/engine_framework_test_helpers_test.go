@@ -22,7 +22,8 @@ import (
 // TypeScript, and TSX engine tests across this package still call them, so
 // this shared, uncontended helper file keeps its own copy for the parent
 // package. The relocated javascript_test package keeps an independent copy in
-// engine_javascript_test_helpers_test.go.
+// engine_javascript_semantics_test.go, which is where those seven helpers
+// landed — not in engine_javascript_test_helpers_test.go.
 
 func frameworkSemanticsMap(t *testing.T, payload map[string]any) map[string]any {
 	t.Helper()
