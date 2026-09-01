@@ -22,9 +22,7 @@ func nonNilStrings(values []string) []string {
 	return payloadcore.NonNilStrings(values)
 }
 
+// nonNilMapSlice forwards to [payloadcore.NonNilMapSlice].
 func nonNilMapSlice(values []map[string]any) []map[string]any {
-	if values == nil {
-		return []map[string]any{}
-	}
-	return values
+	return payloadcore.NonNilMapSlice(values)
 }

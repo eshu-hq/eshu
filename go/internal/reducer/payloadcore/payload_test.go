@@ -226,6 +226,27 @@ func TestNonNilStringsSubstitutesEmptySlice(t *testing.T) {
 	}
 }
 
+// TestNonNilMapSliceSubstitutesEmptySlice pins the nil -> [] substitution for
+// the map-slice sibling of NonNilStrings. It reaches the same API/MCP truth:
+// a finding payload encoded from a nil slice of maps carries null, and
+// callers are promised they can range over the collection without a nil
+// guard.
+func TestNonNilMapSliceSubstitutesEmptySlice(t *testing.T) {
+	t.Parallel()
+
+	got := payloadcore.NonNilMapSlice(nil)
+	if got == nil {
+		t.Fatal("NonNilMapSlice(nil) returned nil, want an empty non-nil slice")
+	}
+	if len(got) != 0 {
+		t.Fatalf("NonNilMapSlice(nil) = %v, want empty", got)
+	}
+	in := []map[string]any{{"a": 1}}
+	if out := payloadcore.NonNilMapSlice(in); len(out) != 1 || out[0]["a"] != 1 {
+		t.Fatalf("NonNilMapSlice(%v) = %v, want it unchanged", in, out)
+	}
+}
+
 // TestDerefBoolReadsThePointedValue pins that a pointer to false reads as false.
 // Treating a non-nil pointer as true would change projected incident-routing
 // truth, because the emitter omits a false flag and nil means "not set".

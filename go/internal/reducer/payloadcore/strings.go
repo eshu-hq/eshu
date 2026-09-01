@@ -95,6 +95,15 @@ func NonNilStrings(values []string) []string {
 	return values
 }
 
+// NonNilMapSlice returns values, substituting an empty slice for nil so an
+// encoded payload carries [] rather than null.
+func NonNilMapSlice(values []map[string]any) []map[string]any {
+	if values == nil {
+		return []map[string]any{}
+	}
+	return values
+}
+
 // FirstNonBlank returns the first value that is non-empty once trimmed, or "".
 func FirstNonBlank(values ...string) string {
 	for _, value := range values {
