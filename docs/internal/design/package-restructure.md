@@ -179,6 +179,125 @@ Two consequences worth knowing before the remaining children:
   gone and the replacement is 66, and dirgate's ratchet means any later
   extraction has to re-pin it lower.
 
+No-Regression Evidence: the reducer packagesourcecore hoist (#6379, #6061)
+extracts `packageSourceHint`, `packageSourceRepository`,
+`extractPackageSourceRepositories`, `matchPackageSourceRepositories`, and
+`canonicalPackageSourceURLKey` out of `package_source_correlation.go`, with no
+logic change. `packageSourceRepositoryIDFromScope` moves with them: it is a
+pure dependency `extractPackageSourceRepositories` needs and has no
+independent reason to stay in root, and its one other caller
+(`supply_chain_impact_python_reachability.go`) keeps reaching it through the
+same root forwarder every other caller uses. The five named symbols were not
+extracted whole as a family because `BuildPackageSourceCorrelationDecisions`
+and the handler that classifies a hint into a correlation outcome are called
+only from `package_source_correlation.go` and
+`package_source_correlation_handler.go` themselves (649 lines together), while
+seven other reducer-root files read these symbols directly and never call that
+handler, each needing a different subset verified against actual call sites:
+`package_consumption_correlation.go` and `package_publication_correlation.go`
+read `Repository`/`Hint` and `ExtractRepositories`;
+`container_image_identity_provenance.go` reads `Hint`, `Repository`,
+`ExtractRepositories`, `MatchRepositories`, and `CanonicalURLKey`;
+`container_image_identity_slsa.go` reads only `ExtractRepositories`;
+`service_catalog_correlation_classify.go` and
+`service_catalog_correlation_lookup.go` read only `CanonicalURLKey`; and
+`supply_chain_impact_python_reachability.go` reads only
+`RepositoryIDFromScope`. A family move would drag the handler's ~650 lines
+along to deliver these ~65. Bodies are unchanged except for renames
+(capitalized identifiers) and one direct call pulled inline:
+`extractPackageSourceRepositories` now calls `payloadcore.PayloadStr` and
+`payloadcore.FirstNonBlank` directly rather than through the root's
+`payloadStr`/`firstPackageSourceURL` forwarders, matching the PR1
+(`payloadcore`) precedent of repointing a moved caller straight at the
+already-extracted leaf it depends on rather than leaving it going back through
+root. `extractPackageSourceHints` (unmoved, stays in root) was also repointed
+from `firstPackageSourceURL` to `payloadcore.FirstNonBlank` directly, and
+`firstPackageSourceURL` itself was deleted rather than left with one caller --
+review caught that leaving it live would have meant one behavior
+(trim-and-first-non-empty) with two implementations in two packages and no
+compiler signal if they drifted, which is exactly what this issue's own
+"duplicating them would fork behaviour with no compiler signal" argument
+warns against. `git diff --name-only <base>..HEAD -- testdata/ specs/` is
+empty, so the golden-corpus recordings and the end-to-end snapshot cannot
+move. Whole-module `go build ./...` and `go vet ./...` exit 0, and
+`go test ./internal/reducer/... -count=1` and `go test ./... -count=1` both
+exit 0. `packagesourcecore` carries its own `source_test.go` covering all four
+exported functions, including two mutation-proven pins on the behaviors that
+diverge from a naive reimplementation: `RepositoryIDFromScope` returning the
+whole trimmed scope (not `""`) when unprefixed, and `MatchRepositories`
+partitioning stale matches rather than filtering them out.
+
+Codegen: measured, not assumed, per the PR4 precedent below, on both a
+narrow and a whole-tree scope. Re-derived after this branch was rebased onto
+a newer `origin/main` mid-review (absorbing #6372's schemadecode hoist,
+which also touches `internal/reducer`'s file count) -- the branch's earlier
+base (`1f0e1e172`) is no longer this PR's merge-base and its numbers are not
+comparable to this head. `go build -a -gcflags=-m ./internal/reducer`,
+counting `inlining call to` on go1.27.0, reports 13858 sites on this PR's
+current base (`07995985e`, this branch's actual merge-base after the rebase)
+and 13860 here: up 2 -- the identical delta the pre-rebase measurement found,
+because this PR's own changes touch none of the files the rebase's three
+intervening commits touched. This narrow, non-recursive invocation never
+covers `packagesourcecore` itself on either ref. The whole-tree
+`go build -a -gcflags=-m ./internal/reducer/...` reports 14568 base -> 14576
+head: up 8, matching a separate-context review's own independently measured
+delta of the same two numbers (offset by the same rebase-driven base shift).
+The per-name set difference on the whole-tree run accounts for every delta:
+`extractPackageSourceRepositories` (+6) and `matchPackageSourceRepositories`
+(+2) are the new one-line forwarders appended to the end of
+`package_source_correlation.go` -- kept in that file rather than a separate
+compat file so the reducer root's dirgate-pinned file count (519, unchanged)
+does not grow -- now inlined at every one of their call sites (verified
+against that file and each caller's file:line).
+`packageSourceRepositoryIDFromScope` (+1) is the same shape for the one
+remaining root caller, `supply_chain_impact_python_reachability.go:97`.
+`CanonicalURLKey` (+2) is `packagesourcecore.MatchRepositories`'s own two
+internal call sites, newly visible because the whole-tree scope now compiles
+the leaf itself. `packagesourcecore.CanonicalURLKey` (+4) is a nested inline
+one level up: at every site where the `canonicalPackageSourceURLKey` forwarder
+itself gets inlined (`container_image_identity_provenance.go:88`,
+`service_catalog_correlation_lookup.go:24`,
+`service_catalog_correlation_classify.go:222`, plus the forwarder's own
+definition in `package_source_correlation.go`), the call it makes to
+`packagesourcecore.CanonicalURLKey` inlines a second level into the same site.
+`canonicalPackageSourceURLKey` itself drops from 5 to 3 call sites: the 2 it
+loses are the calls that used to live inside `matchPackageSourceRepositories`'s
+own body, which moved to the leaf and now calls `CanonicalURLKey` directly
+(the +2 above). `payloadStr` (250->245, down 5) loses exactly the 5 call
+sites that lived inside the old `extractPackageSourceRepositories` body, which
+now calls `payloadcore.PayloadStr` directly instead.
+`payloadcore.FirstNonBlank` (88->90, up 2) gains one call from
+`extractPackageSourceRepositories`'s move and one from
+`extractPackageSourceHints`'s repoint (both described above);
+`firstPackageSourceURL` (2->0) loses both of its call sites and the
+definition itself is deleted. `strings.TrimPrefix` and its runtime-inlined
+`stringslite.*` siblings show no net delta on the whole-tree scope: the one
+call inside `packageSourceRepositoryIDFromScope`'s body moved from root to
+`packagesourcecore.RepositoryIDFromScope`, not away from the reducer tree, so
+a scope that covers both sides sees no change (the earlier narrow,
+root-only measurement had reported this as -1, which was correct for that
+narrower scope but not for the tree as a whole). The `can inline` definition
+set (`sed -nE 's/.*: can inline //p' | sort -u`, whole-tree) confirms every
+side is accounted for: `firstPackageSourceURL` is a genuine loss (deleted).
+`extractPackageSourceRepositories.func1` also leaves the set, but this is a
+RENAME, not a loss -- the same `sort.SliceStable` comparator closure reappears
+as `ExtractRepositories.func1` in the gained set, caught by re-checking a
+prior pass's set-difference read that had misread this same rename as a
+regression. Four more names join the set:
+`CanonicalURLKey`, `extractPackageSourceRepositories`,
+`matchPackageSourceRepositories`, and `packageSourceRepositoryIDFromScope`,
+all newly inlinable one-liners. Every entry on both sides is accounted for by
+the move itself; no caller lost inlinability.
+
+No-Observability-Change: no metric, span, log field, status field, or runtime
+setting is added, removed, or renamed. The package-source correlation
+decisions built from these values stay covered by
+`eshu_dp_reducer_executions_total` and `eshu_dp_reducer_run_duration_seconds`.
+Two telemetry-coverage rows are added: one for the new leaf source file, one
+for the root's forwarders (which live in `package_source_correlation.go`, not
+a separate file). Neither is a repoint of a prior row -- no row named either
+file before this PR.
+
 No-Regression Evidence: the reducer factwrite hoist (#6061 PR4) moves the
 batched fact-write path and extracts the Execer port, with no logic change. The
 two batch-insert files move whole by `git mv`. batch_insert_versioned.go is
