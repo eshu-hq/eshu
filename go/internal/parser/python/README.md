@@ -228,8 +228,9 @@ literal `@action` routes emitted exact method/path rows with handlers only when
 the target is exact.
 Django route literals preserve their trailing slash shape, while DRF router
 entries apply DRF's trailing slash convention after any literal mount prefix.
-`go test ./internal/parser -run
-TestDefaultEngineParsePathPythonDjangoDRFExactRouteEntries -count=1` proves the
+`scripts/go-test-run-guard.sh 1
+TestDefaultEngineParsePathPythonDjangoDRFExactRouteEntries --
+./internal/parser/python -count=1` proves the
 parent `DefaultEngine.ParsePath` payload carries those rows into the emitted
 file fact shape. `go test ./internal/reducer -run
 TestBuildHandlesRouteIntentRowsResolvesClassMethodHandler -count=1` proves the
@@ -249,8 +250,9 @@ before the parser emitted `framework_semantics.aiohttp` and
 aiohttp `RouteTableDef` decorators, `app.router.add_*`,
 `app.router.add_route(...)`, `app.add_routes([web.*(...)])`, and Tornado
 `Application` URL specs emitted exact method/path rows with handlers only when
-the target was exact. `go test ./internal/parser -run
-TestDefaultEngineParsePathPythonAioHTTPTornadoExactRouteEntries -count=1`
+the target was exact. `scripts/go-test-run-guard.sh 1
+TestDefaultEngineParsePathPythonAioHTTPTornadoExactRouteEntries --
+./internal/parser/python -count=1`
 proves the parent `DefaultEngine.ParsePath` payload carries those rows into the
 emitted file fact shape. `go test ./internal/reducer -run
 TestBuildHandlesRouteIntentRowsEmitsAioHTTPTornadoFrameworkRoutes -count=1`

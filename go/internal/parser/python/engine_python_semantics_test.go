@@ -369,46 +369,14 @@ func TestDefaultEngineParsePathPythonRichSemanticMetadata(t *testing.T) {
 	assertIntFieldValue(t, functionItem, "cyclomatic_complexity", 3)
 }
 
-func TestDefaultEngineParsePathGoRichSemanticMetadata(t *testing.T) {
-	t.Parallel()
-
-	repoRoot := t.TempDir()
-	filePath := filepath.Join(repoRoot, "worker.go")
-	writeTestFile(
-		t,
-		filePath,
-		`package worker
-
-type Worker struct{}
-
-// Work handles queued jobs.
-func (w *Worker) Work(name string) int {
-	if name == "" {
-		return 0
-	}
-	for range name {
-	}
-	return len(name)
-}
-`,
-	)
-
-	engine, err := parser.DefaultEngine()
-	if err != nil {
-		t.Fatalf("DefaultEngine() error = %v, want nil", err)
-	}
-
-	got, err := engine.ParsePath(repoRoot, filePath, false, parser.Options{})
-	if err != nil {
-		t.Fatalf("ParsePath() error = %v, want nil", err)
-	}
-
-	functionItem := assertFunctionByName(t, got, "Work")
-	assertStringFieldValue(t, functionItem, "docstring", "Work handles queued jobs.")
-	assertStringFieldValue(t, functionItem, "class_context", "Worker")
-	assertIntFieldValue(t, functionItem, "cyclomatic_complexity", 3)
-}
-
+// assertFunctionByName, assertBucketItemByName, assertStringFieldValue and
+// assertIntFieldValue are deliberate copies of the root package's helpers, not
+// drift. These tests are package python_test, so they cannot see root's
+// unexported helpers, and the alternative -- exporting root's copies purely so
+// a child could reach them -- is what the #6053 extraction rules forbid: a
+// child must not widen its parent's API surface. internal/reducer keeps its
+// own per-package copies for the same reason. If you change one side, change
+// both; they are byte-identical today.
 func assertFunctionByName(t *testing.T, payload map[string]any, name string) map[string]any {
 	t.Helper()
 
