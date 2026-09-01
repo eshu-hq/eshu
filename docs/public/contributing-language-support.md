@@ -196,7 +196,22 @@ External parser tests that exercise the parent Engine contract can reuse
 `go/internal/parser/parsertest` for fixture setup and map-shaped payload
 assertions. The package is test-only: production parser packages must not
 import it, and language-specific fixtures and expectations stay in their owning
-family.
+family. It imports `internal/parser`, so only external `<lang>_test` packages
+can use it — a root-internal `package parser` test importing it is an import
+cycle, which is why the parent package keeps its own copies of some helpers.
+
+`AssertBucketItemByFieldValue` fails closed on a malformed payload rather than
+treating it as absent, and new helpers here should do the same — some older
+ones in this package still use the discarded form and have not been hardened
+yet, so do not read the guarantee as package-wide.
+
+A field that is present but of an unexpected type is reported, not skipped:
+the older discarded-assertion form let a wrongly-typed value read as the zero
+value, so a negative assertion passed and a lookup for the empty string matched
+a broken row. When adding a helper here, distinguish absent from
+present-but-malformed, and split the predicate out of the assertion so the
+malformed branch is reachable by a test — `t.Fatalf` cannot be driven from one
+otherwise.
 
 The public language page should cite the main test names or fixture proof a
 reviewer can rerun. Avoid broad "covered by tests" claims that do not point to

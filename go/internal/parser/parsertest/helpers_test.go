@@ -225,3 +225,30 @@ func TestAssertBucketItemByFieldValueReturnsMatchingItem(t *testing.T) {
 		t.Fatalf("matched item = %#v, want %#v", got, want)
 	}
 }
+
+// TestAssertBucketItemByFieldValueFailsClosedOnMalformedField pins the
+// fail-closed branch of the predicate that AssertBucketItemByFieldValue wraps.
+// The assertion holds no logic of its own — it calls this and t.Fatalf on the
+// error — so driving the predicate covers the exported path, which a test
+// cannot call directly because t.Fatalf cannot be intercepted.
+//
+// Before this branch existed, a present-but-non-string field was read as the
+// empty string: a malformed row was skipped, and a lookup for "" matched it.
+func TestAssertBucketItemByFieldValueFailsClosedOnMalformedField(t *testing.T) {
+	t.Parallel()
+
+	malformed := map[string]any{"function_calls": []map[string]any{{"full_name": 42}}}
+	if _, err := bucketItemByFieldValue(malformed, "function_calls", "full_name", "x"); err == nil {
+		t.Fatal("bucketItemByFieldValue(malformed) = nil error, want an error")
+	}
+	if _, err := bucketItemByFieldValue(malformed, "function_calls", "full_name", ""); err == nil {
+		t.Fatal("bucketItemByFieldValue(malformed, want=\"\") = nil error, want an error: this is the exact false green the check guards")
+	}
+	good := map[string]any{"function_calls": []map[string]any{{"full_name": "pkg.Fn"}}}
+	if _, err := bucketItemByFieldValue(good, "function_calls", "full_name", "pkg.Fn"); err != nil {
+		t.Fatalf("bucketItemByFieldValue(matching) = %v, want nil", err)
+	}
+	if _, err := bucketItemByFieldValue(good, "function_calls", "full_name", "absent"); err == nil {
+		t.Fatal("bucketItemByFieldValue(no match) = nil error, want an error")
+	}
+}
