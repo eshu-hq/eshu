@@ -342,13 +342,13 @@ source_coverage:
           class: delegated
           source_sha256: 43c6de6323a6a6df8896a10980edf6615c67b98d0c6ffad2c41bfd2856437429
           delegate: graph_session
-  - file: package_registry.go
+  - file: packagereg/package_registry.go
     calls:
       - symbol: "(*PackageRegistryHandler).attachPackageVersionCounts"
         count: 1
         non_hot:
           class: keyed_support
-          source_sha256: 103491c5ca83920b2cf56215ddf3eab91301a4a2b94bc79da5c26450a79cb04c
+          source_sha256: 5fd57e7f0ce52d791c1aace27bf8633e5bcb40fed67fbb0462ca36359c5f7781
           key_bound: bounded_key_batch
           max_keys: 200
           max_results: 200
@@ -356,44 +356,56 @@ source_coverage:
         count: 1
         non_hot:
           class: keyed_support
-          source_sha256: 202a2b703326f5042e41a113d7133a6c4961319e91250cb00c4c5d9b0d0adc41
+          source_sha256: 0693b162ca52b9899b341390d3824e86d2dc02baa02fbb03ad4fc40c1d46cc4f
           key_bound: single_key
           max_results: 201
       - symbol: "(*PackageRegistryHandler).listVersions"
         count: 1
         non_hot:
           class: keyed_support
-          source_sha256: f542962a60707dbd7fc685e9f7fa913ce4ace112cf96f0098625f5167f9cc75c
+          source_sha256: dc44b3efc59c9072e88e6a8e5964595e18d5ac23d7d525e53f83e9e97a21a4aa
           key_bound: single_key
           max_results: 201
-  - file: package_registry_aggregates.go
+  - file: packagereg/package_registry_aggregates.go
     calls:
-      - {symbol: "(GraphPackageRegistryAggregateStore).CountPackageRegistryPackages", count: 2, non_hot_reason: "inventory-only support or bounded read; promote to entry_ids when designated hot"}
-      - {symbol: "(GraphPackageRegistryAggregateStore).PackageRegistryPackageInventory", count: 1, non_hot_reason: "inventory-only support or bounded read; promote to entry_ids when designated hot"}
-  - file: package_registry_dependencies_handler.go
+      - symbol: "(GraphPackageRegistryAggregateStore).CountPackageRegistryPackages"
+        count: 2
+        non_hot:
+          class: label_inventory
+          source_sha256: e6efaf42a45de6cd02fa68d0f9245e76df4787ebff31e77e72a9a64e77e79dcb
+          label: Package
+          max_results: 32
+      - symbol: "(GraphPackageRegistryAggregateStore).PackageRegistryPackageInventory"
+        count: 1
+        non_hot:
+          class: label_inventory
+          source_sha256: 71e7f9027b36bd06b9202c8d06ee00fc06fbfeb5e19f8a90113d18bfe7941e08
+          label: Package
+          max_results: 501
+  - file: packagereg/package_registry_dependencies_handler.go
     calls:
-      - {symbol: "(*PackageRegistryHandler).listDependencies", count: 1, source_sha256: 94ea4a8467978404337296b90ffa9aed55d08f2cd2a8591b0cdeb7ea045b7ff1, entry_ids: [QP-SC-PKGREG-DEPS]}
-  - file: package_registry_scoped_access.go
+      - {symbol: "(*PackageRegistryHandler).listDependencies", count: 1, source_sha256: 15bddb1891f3020ac4b98c511b9becd90103f097b5ca3d1bdd5d03d2a43d6ac6, entry_ids: [QP-SC-PKGREG-DEPS]}
+  - file: packagereg/package_registry_scoped_access.go
     calls:
       - symbol: "packageRegistryAnchorVisibility"
         count: 1
         non_hot:
           class: keyed_support
-          source_sha256: 67d07c3840993985ca66c3d7754c65b717f58e4cf18a7e451f1b40ce2ff83fb5
+          source_sha256: a1da17306221696fd2ed1f299b24209d08706e0af075d42c93817e4cda5e67b3
           key_bound: single_key
           max_results: 1
       - symbol: "packageRegistryNameAnchorCandidates"
         count: 1
         non_hot:
           class: keyed_support
-          source_sha256: d47ab5e072dff4fb7fa11c73f912e9f2db350ac012da77f498b67fd36a2d4c00
+          source_sha256: f2ff971a8c9de543ba6405541e719abfdee69baf5b867b7118113e15d4c9a07a
           key_bound: single_key
           max_results: 50
       - symbol: "packageRegistryVersionAnchorPackageID"
         count: 1
         non_hot:
           class: keyed_support
-          source_sha256: c087948c1bce642afe88e4410e6d3485d98ea44ccd95764068a90b56bbbb8368
+          source_sha256: f8aa79a58c6d7b25c8de08d0292914a6773db23a0d785863acbdee4475463f00
           key_bound: single_key
           max_results: 1
   - file: relationships_catalog.go

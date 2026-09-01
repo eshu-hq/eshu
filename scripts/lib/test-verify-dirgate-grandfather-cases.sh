@@ -13,7 +13,7 @@
 # ---------------------------------------------------------------------------
 # A cap nolint sits on the directory's representative file and would suppress the
 # cap for the whole directory forever. On a grandfathered directory that is the
-# hollow-out path: one marker on internal/query's doc.go un-gates 880 files, and
+# hollow-out path: one marker on internal/query's doc.go un-gates 867 files, and
 # "split it into a subpackage" does not compile for query/reducer/projector/mcp
 # until the acyclic boundary lands. So the hatch must be refused there.
 test_grandfathered_cap_nolint_is_refused() {

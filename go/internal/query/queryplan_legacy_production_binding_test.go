@@ -13,6 +13,7 @@ import (
 	"testing"
 
 	"github.com/eshu-hq/eshu/go/internal/graph"
+	"github.com/eshu-hq/eshu/go/internal/query/packagereg"
 	"github.com/eshu-hq/eshu/go/internal/queryplan"
 )
 
@@ -39,7 +40,7 @@ func TestLegacyQueryplanManifestBindsProductionQueries(t *testing.T) {
 
 func legacyQueryplanProductionCypher(t *testing.T) map[string]string {
 	t.Helper()
-	packageRegistryDependencies, _ := packageRegistryDependenciesCypher("", "proof-version", "", "", 51)
+	packageRegistryDependencies, _ := packagereg.PackageRegistryDependenciesCypher("", "proof-version", "", "", 51)
 	serviceResolve := captureLegacyQueryplanCypher(t, func(graphQuery *legacyQueryplanCaptureGraph) error {
 		handler := &EntityHandler{Neo4j: graphQuery}
 		_, err := handler.queryServiceWorkloadCandidates(

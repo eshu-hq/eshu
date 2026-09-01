@@ -96,7 +96,7 @@ func evaluateDirectory(key, dir string, grandfather map[string]grandfatherEntry)
 		// A cap nolint goes on the directory's representative file and would
 		// suppress the cap for EVERY file in that directory, indefinitely. On a
 		// grandfathered directory that is catastrophic: one marker on
-		// internal/query's doc.go un-gates 880 files for good, and the "split it
+		// internal/query's doc.go un-gates 867 files for good, and the "split it
 		// into a subpackage" exit does not even compile for query, reducer,
 		// projector or mcp until the acyclic boundary lands (see the Part 3
 		// prerequisite in docs/internal/design/package-restructure.md). So the

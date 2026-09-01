@@ -16,6 +16,20 @@ import (
 	neo4jdriver "github.com/neo4j/neo4j-go-driver/v5/neo4j"
 )
 
+// This file stayed in root rather than moving into packagereg with the rest
+// of the package-registry handler family (#6060): it drives NewNeo4jReader,
+// which wraps this package's read-retry policy (neo4j_read_policy.go) and has
+// no querycontract/queryauth-style leaf a family package could import without
+// an import cycle back through root (root's package_registry_alias.go already
+// imports packagereg for the compatibility aliases cmd/api and cmd/mcp-server
+// need). Extracting Neo4jReader into its own leaf, the way GraphQuery's other
+// dependencies were, is possible but is shared query-layer infrastructure
+// every handler family uses, not a package-registry-only concern, so it is
+// out of scope for this family's move. The two ex-unexported-method calls
+// below now route through Mount + http.ServeMux like every other test in this
+// file family, which needed no other change: PackageRegistryHandler's
+// unexported listPackages is reachable only from within packagereg.
+
 // TestLivePackageRegistryListPackagesReturnsZeroVersionPackages is the
 // backend-required proof that /api/v0/package-registry/packages no longer
 // silently drops every zero-version package.
@@ -104,11 +118,13 @@ func TestLivePackageRegistryListPackagesReturnsZeroVersionPackages(t *testing.T)
 	}
 
 	handler := &PackageRegistryHandler{Neo4j: reader, Profile: ProfileLocalAuthoritative}
+	mux := http.NewServeMux()
+	handler.Mount(mux)
 	post := func(target string) map[string]any {
 		req := httptest.NewRequest(http.MethodGet, target, nil)
 		req.Header.Set("Accept", EnvelopeMIMEType)
 		rec := httptest.NewRecorder()
-		handler.listPackages(rec, req)
+		mux.ServeHTTP(rec, req)
 		if rec.Code != http.StatusOK {
 			t.Fatalf("%s status = %d, body = %s", target, rec.Code, rec.Body.String())
 		}
@@ -251,6 +267,8 @@ func TestLivePackageRegistryScopedEcosystemBrowseReturnsZeroVersionPackages(t *t
 	}
 
 	handler := &PackageRegistryHandler{Neo4j: reader, Profile: ProfileLocalAuthoritative}
+	mux := http.NewServeMux()
+	handler.Mount(mux)
 	req := httptest.NewRequest(http.MethodGet, "/api/v0/package-registry/packages?ecosystem="+ecosystem+"&limit=50", nil)
 	req.Header.Set("Accept", EnvelopeMIMEType)
 	req = req.WithContext(ContextWithAuthContext(req.Context(), AuthContext{
@@ -261,7 +279,7 @@ func TestLivePackageRegistryScopedEcosystemBrowseReturnsZeroVersionPackages(t *t
 		AllowedRepositoryIDs: []string{ecosystem},
 	}))
 	rec := httptest.NewRecorder()
-	handler.listPackages(rec, req)
+	mux.ServeHTTP(rec, req)
 	if rec.Code != http.StatusOK {
 		t.Fatalf("status = %d, body = %s", rec.Code, rec.Body.String())
 	}

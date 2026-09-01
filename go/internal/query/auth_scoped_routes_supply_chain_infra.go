@@ -214,8 +214,8 @@ func scopedPackageRegistryCorrelationRoute(r *http.Request) bool {
 // oracle). The aggregate routes (count, inventory) instead force
 // visibility='public' onto the caller's filter, or return an empty envelope
 // without a store read if the caller explicitly asked for private/unknown.
-// See go/internal/query/package_registry_scoped_access.go for the gate
-// implementation.
+// See go/internal/query/packagereg/package_registry_scoped_access.go for the
+// gate implementation.
 func scopedPackageRegistryIdentityRoute(r *http.Request) bool {
 	if r.Method != http.MethodGet {
 		return false

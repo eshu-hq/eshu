@@ -185,7 +185,7 @@ directly rather than depending on a matched Go toolchain.
 `//nolint:dirgate // <reason>` on a directory's representative file suppresses
 the **cap for that whole directory**, not for one file. On a directory with a
 row in `scripts/lib/dirgate-grandfather.tsv` that would be a hole rather than an
-exemption: one marker on `internal/query/doc.go` un-gates 880 files, silently
+exemption: one marker on `internal/query/doc.go` un-gates 867 files, silently
 and for good.
 
 So both implementations refuse it there. `grandfather_eval.go` reports the cap
