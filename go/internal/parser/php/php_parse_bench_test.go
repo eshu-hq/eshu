@@ -1,13 +1,15 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package parser
+package php_test
 
 import (
 	"fmt"
 	"path/filepath"
 	"strings"
 	"testing"
+
+	"github.com/eshu-hq/eshu/go/internal/parser"
 )
 
 // BenchmarkParsePathPHPRouteHeavy parses a synthetic PHP controller with many
@@ -29,13 +31,13 @@ func BenchmarkParsePathPHPRouteHeavy(b *testing.B) {
 	filePath := filepath.Join(repoRoot, "heavy.php")
 	writeBenchFile(b, filePath, generateRouteHeavyPHPSource(60))
 
-	engine, err := DefaultEngine()
+	engine, err := parser.DefaultEngine()
 	if err != nil {
-		b.Fatalf("DefaultEngine() error = %v, want nil", err)
+		b.Fatalf("parser.DefaultEngine() error = %v, want nil", err)
 	}
 
 	for b.Loop() {
-		if _, err := engine.ParsePath(repoRoot, filePath, false, Options{}); err != nil {
+		if _, err := engine.ParsePath(repoRoot, filePath, false, parser.Options{}); err != nil {
 			b.Fatalf("ParsePath() error = %v, want nil", err)
 		}
 	}

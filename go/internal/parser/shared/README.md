@@ -159,9 +159,11 @@ the collector snapshot path.
   its copy (1.6x), and a file with no line terminator at all pays two failed
   scans instead of one (2.0x, still under 1.3 us). Neither shape parsed
   correctly before this change existed. Compare against the parse it precedes,
-  from `go test ./internal/parser -run '^$' -bench
+  from `go test ./internal/parser/... -run '^$' -bench
   'BenchmarkParsePathPHPRouteHeavy|BenchmarkParsePathGoIdentifierHeavy'
-  -benchtime 30x -count=5` on the same machine and session: 9.61 ms/op for the
+  -benchtime 30x -count=5` (the `./...` suffix is needed since #6062 moved the
+  PHP benchmark into `internal/parser/php`) on the same machine and session:
+  9.61 ms/op for the
   PHP route-heavy file and 238 ms/op for the Go identifier-heavy one.
   `ReadSource` is called about twice per `ParsePath`, so the added cost is
   roughly 11 ns against a >=9.6 ms parse (about 0.0001%) for LF and CRLF

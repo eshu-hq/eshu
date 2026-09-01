@@ -1,11 +1,14 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package parser
+package php_test
 
 import (
 	"path/filepath"
 	"testing"
+
+	"github.com/eshu-hq/eshu/go/internal/parser"
+	"github.com/eshu-hq/eshu/go/internal/parser/parsertest"
 )
 
 func TestDefaultEngineParsePathPHPInfersDirectSelfAndStaticReceiverCalls(t *testing.T) {
@@ -13,7 +16,7 @@ func TestDefaultEngineParsePathPHPInfersDirectSelfAndStaticReceiverCalls(t *test
 
 	repoRoot := t.TempDir()
 	filePath := filepath.Join(repoRoot, "self_static_direct.php")
-	writeTestFile(
+	parsertest.WriteFile(
 		t,
 		filePath,
 		`<?php
@@ -28,12 +31,12 @@ class Config {
 `,
 	)
 
-	engine, err := DefaultEngine()
+	engine, err := parser.DefaultEngine()
 	if err != nil {
-		t.Fatalf("DefaultEngine() error = %v, want nil", err)
+		t.Fatalf("parser.DefaultEngine() error = %v, want nil", err)
 	}
 
-	got, err := engine.ParsePath(repoRoot, filePath, false, Options{})
+	got, err := engine.ParsePath(repoRoot, filePath, false, parser.Options{})
 	if err != nil {
 		t.Fatalf("ParsePath() error = %v, want nil", err)
 	}
@@ -44,7 +47,7 @@ class Config {
 		if fullName != "Config.emit" {
 			continue
 		}
-		phpAssertStringFieldValue(t, item, "inferred_obj_type", "Config")
+		parsertest.AssertStringFieldValue(t, item, "inferred_obj_type", "Config")
 		found++
 	}
 	if found != 2 {

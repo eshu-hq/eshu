@@ -160,7 +160,7 @@ and telemetry.
 
 **Hazards:** CONFIRMED, cite-able hazards for any restructure of go/internal/parser root files:
 
-1. specs/language-feature-parity-ledger.v1.yaml (385 lines) — the single biggest hazard. It hardcodes exact source_files:/test_files: arrays for ~30 language-feature entries, and the large majority of those literal paths are root parser files being discussed here (e.g. line 107-108 lists go/internal/parser/go_language.go, go/internal/parser/engine_test.go, go/internal/parser/go_embedded_sql_test.go; line 130 lists go/internal/parser/php_language_test.go; similar entries for every other language). Moving/renaming ANY of these paths without updating this spec breaks it.
+1. specs/language-feature-parity-ledger.v1.yaml (385 lines) — the single biggest hazard. It hardcodes exact source_files:/test_files: arrays for ~30 language-feature entries, and the large majority of those literal paths are root parser files being discussed here (e.g. line 107-108 lists go/internal/parser/go_language.go, go/internal/parser/engine_test.go, go/internal/parser/go_embedded_sql_test.go; line 130 listed go/internal/parser/php/php_language_test.go under its pre-relocation root path, before #6062 moved it; similar entries for every other language). Moving/renaming ANY of these paths without updating this spec breaks it.
 
 2. specs/parser-backing-ledger.v1.yaml (128 lines) — a second ledger with the same literal-path pattern (e.g. line 39 go/internal/parser/dockerfile_language.go, line 62 go/internal/parser/hcl_language.go, line 68-69 hcl_terraform_test.go/hcl_terragrunt_test.go).
 

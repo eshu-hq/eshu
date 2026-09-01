@@ -1,11 +1,14 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package parser
+package php_test
 
 import (
 	"path/filepath"
 	"testing"
+
+	"github.com/eshu-hq/eshu/go/internal/parser"
+	"github.com/eshu-hq/eshu/go/internal/parser/parsertest"
 )
 
 func TestDefaultEngineParsePathPHPEmitsAnonymousClassMetadata(t *testing.T) {
@@ -13,7 +16,7 @@ func TestDefaultEngineParsePathPHPEmitsAnonymousClassMetadata(t *testing.T) {
 
 	repoRoot := t.TempDir()
 	filePath := filepath.Join(repoRoot, "anonymous_class.php")
-	writeTestFile(
+	parsertest.WriteFile(
 		t,
 		filePath,
 		`<?php
@@ -33,22 +36,22 @@ class Logger {
 `,
 	)
 
-	engine, err := DefaultEngine()
+	engine, err := parser.DefaultEngine()
 	if err != nil {
-		t.Fatalf("DefaultEngine() error = %v, want nil", err)
+		t.Fatalf("parser.DefaultEngine() error = %v, want nil", err)
 	}
 
-	got, err := engine.ParsePath(repoRoot, filePath, false, Options{})
+	got, err := engine.ParsePath(repoRoot, filePath, false, parser.Options{})
 	if err != nil {
 		t.Fatalf("ParsePath() error = %v, want nil", err)
 	}
 
-	classItem := assertBucketItemByName(t, got, "classes", "anonymous_class_4")
-	phpAssertStringSliceFieldValue(t, classItem, "bases", []string{"Logger"})
+	classItem := parsertest.AssertBucketItemByName(t, got, "classes", "anonymous_class_4")
+	parsertest.AssertStringSliceEquals(t, classItem, "bases", []string{"Logger"})
 
 	loggerItem := assertBucketItemByFieldValue(t, got, "variables", "name", "$logger")
-	phpAssertStringFieldValue(t, loggerItem, "type", "anonymous_class_4")
+	parsertest.AssertStringFieldValue(t, loggerItem, "type", "anonymous_class_4")
 
 	infoCall := assertBucketItemByFieldValue(t, got, "function_calls", "full_name", "$logger.info")
-	phpAssertStringFieldValue(t, infoCall, "inferred_obj_type", "anonymous_class_4")
+	parsertest.AssertStringFieldValue(t, infoCall, "inferred_obj_type", "anonymous_class_4")
 }

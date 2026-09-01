@@ -1,11 +1,14 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package parser
+package php_test
 
 import (
 	"path/filepath"
 	"testing"
+
+	"github.com/eshu-hq/eshu/go/internal/parser"
+	"github.com/eshu-hq/eshu/go/internal/parser/parsertest"
 )
 
 func TestDefaultEngineParsePathPHPInfersStaticPropertyReceiverChains(t *testing.T) {
@@ -13,7 +16,7 @@ func TestDefaultEngineParsePathPHPInfersStaticPropertyReceiverChains(t *testing.
 
 	repoRoot := t.TempDir()
 	filePath := filepath.Join(repoRoot, "static_property_receiver.php")
-	writeTestFile(
+	parsertest.WriteFile(
 		t,
 		filePath,
 		`<?php
@@ -31,18 +34,18 @@ class Registry {
 `,
 	)
 
-	engine, err := DefaultEngine()
+	engine, err := parser.DefaultEngine()
 	if err != nil {
-		t.Fatalf("DefaultEngine() error = %v, want nil", err)
+		t.Fatalf("parser.DefaultEngine() error = %v, want nil", err)
 	}
 
-	got, err := engine.ParsePath(repoRoot, filePath, false, Options{})
+	got, err := engine.ParsePath(repoRoot, filePath, false, parser.Options{})
 	if err != nil {
 		t.Fatalf("ParsePath() error = %v, want nil", err)
 	}
 
 	call := assertBucketItemByFieldValue(t, got, "function_calls", "full_name", "self::$service.info")
-	phpAssertStringFieldValue(t, call, "inferred_obj_type", "Service")
+	parsertest.AssertStringFieldValue(t, call, "inferred_obj_type", "Service")
 }
 
 func TestDefaultEngineParsePathPHPInfersParentAndStaticPropertyReceiverChains(t *testing.T) {
@@ -50,7 +53,7 @@ func TestDefaultEngineParsePathPHPInfersParentAndStaticPropertyReceiverChains(t 
 
 	repoRoot := t.TempDir()
 	filePath := filepath.Join(repoRoot, "parent_static_property_receiver.php")
-	writeTestFile(
+	parsertest.WriteFile(
 		t,
 		filePath,
 		`<?php
@@ -71,12 +74,12 @@ class ChildRegistry extends BaseRegistry {
 `,
 	)
 
-	engine, err := DefaultEngine()
+	engine, err := parser.DefaultEngine()
 	if err != nil {
-		t.Fatalf("DefaultEngine() error = %v, want nil", err)
+		t.Fatalf("parser.DefaultEngine() error = %v, want nil", err)
 	}
 
-	got, err := engine.ParsePath(repoRoot, filePath, false, Options{})
+	got, err := engine.ParsePath(repoRoot, filePath, false, parser.Options{})
 	if err != nil {
 		t.Fatalf("ParsePath() error = %v, want nil", err)
 	}
@@ -92,7 +95,7 @@ class ChildRegistry extends BaseRegistry {
 	for _, item := range items {
 		fullName, _ := item["full_name"].(string)
 		if wantType, ok := want[fullName]; ok {
-			phpAssertStringFieldValue(t, item, "inferred_obj_type", wantType)
+			parsertest.AssertStringFieldValue(t, item, "inferred_obj_type", wantType)
 			delete(want, fullName)
 		}
 	}
@@ -106,7 +109,7 @@ func TestDefaultEngineParsePathPHPInfersDeepStaticPropertyReceiverChains(t *test
 
 	repoRoot := t.TempDir()
 	filePath := filepath.Join(repoRoot, "deep_static_property_receiver.php")
-	writeTestFile(
+	parsertest.WriteFile(
 		t,
 		filePath,
 		`<?php
@@ -134,12 +137,12 @@ class ChildRegistry extends BaseRegistry {
 `,
 	)
 
-	engine, err := DefaultEngine()
+	engine, err := parser.DefaultEngine()
 	if err != nil {
-		t.Fatalf("DefaultEngine() error = %v, want nil", err)
+		t.Fatalf("parser.DefaultEngine() error = %v, want nil", err)
 	}
 
-	got, err := engine.ParsePath(repoRoot, filePath, false, Options{})
+	got, err := engine.ParsePath(repoRoot, filePath, false, parser.Options{})
 	if err != nil {
 		t.Fatalf("ParsePath() error = %v, want nil", err)
 	}
@@ -156,7 +159,7 @@ class ChildRegistry extends BaseRegistry {
 	for _, item := range items {
 		fullName, _ := item["full_name"].(string)
 		if wantType, ok := want[fullName]; ok {
-			phpAssertStringFieldValue(t, item, "inferred_obj_type", wantType)
+			parsertest.AssertStringFieldValue(t, item, "inferred_obj_type", wantType)
 			delete(want, fullName)
 		}
 	}

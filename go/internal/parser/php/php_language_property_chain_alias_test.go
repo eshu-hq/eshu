@@ -1,11 +1,14 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package parser
+package php_test
 
 import (
 	"path/filepath"
 	"testing"
+
+	"github.com/eshu-hq/eshu/go/internal/parser"
+	"github.com/eshu-hq/eshu/go/internal/parser/parsertest"
 )
 
 func TestDefaultEngineParsePathPHPInfersFreeFunctionReturnPropertyChainReceiverCalls(t *testing.T) {
@@ -13,7 +16,7 @@ func TestDefaultEngineParsePathPHPInfersFreeFunctionReturnPropertyChainReceiverC
 
 	repoRoot := t.TempDir()
 	filePath := filepath.Join(repoRoot, "function_return_property_chain_alias.php")
-	writeTestFile(
+	parsertest.WriteFile(
 		t,
 		filePath,
 		`<?php
@@ -38,22 +41,22 @@ class Config {
 `,
 	)
 
-	engine, err := DefaultEngine()
+	engine, err := parser.DefaultEngine()
 	if err != nil {
-		t.Fatalf("DefaultEngine() error = %v, want nil", err)
+		t.Fatalf("parser.DefaultEngine() error = %v, want nil", err)
 	}
 
-	got, err := engine.ParsePath(repoRoot, filePath, false, Options{})
+	got, err := engine.ParsePath(repoRoot, filePath, false, parser.Options{})
 	if err != nil {
 		t.Fatalf("ParsePath() error = %v, want nil", err)
 	}
 
-	factoryItem := assertBucketItemByName(t, got, "functions", "createFactory")
-	phpAssertStringFieldValue(t, factoryItem, "return_type", "Factory")
+	factoryItem := parsertest.AssertBucketItemByName(t, got, "functions", "createFactory")
+	parsertest.AssertStringFieldValue(t, factoryItem, "return_type", "Factory")
 
 	loggerItem := assertBucketItemByFieldValue(t, got, "variables", "name", "$logger")
-	phpAssertStringFieldValue(t, loggerItem, "type", "Logger")
+	parsertest.AssertStringFieldValue(t, loggerItem, "type", "Logger")
 
 	infoCall := assertBucketItemByFieldValue(t, got, "function_calls", "full_name", "$logger.info")
-	phpAssertStringFieldValue(t, infoCall, "inferred_obj_type", "Logger")
+	parsertest.AssertStringFieldValue(t, infoCall, "inferred_obj_type", "Logger")
 }

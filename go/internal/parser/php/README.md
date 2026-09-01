@@ -21,6 +21,26 @@ constructors, known magic methods, same-file interface and trait methods,
 route-backed controller actions, literal route handlers, Symfony route
 attributes, and WordPress hook callbacks.
 
+The engine-level PHP regressions live in this directory as the `php_*_test.go`
+family (18 files in the external `php_test` package: 16 test files, the
+`php_parse_bench_test.go` benchmark, and `php_test_helpers_test.go`), carrying
+55 test functions and `BenchmarkParsePathPHPRouteHeavy`. They were relocated
+from `go/internal/parser` by #6062, following the Elixir precedent (#6335), and
+still drive `parser.DefaultEngine().ParsePath` from outside the implementation
+so they prove the exported contract rather than internals. Coverage spans
+declarations, imports, grouped `use`, magic-method classification, variable and
+call metadata, every receiver-inference family (typed `$this` properties, typed
+parameters, `new`, aliases, method and free-function return chains,
+self/static/parent scopes, static properties, namespaced and parenthesized
+receivers), trait adaptations, anonymous classes, Symfony/Slim/Laravel route
+entries, and the dead-code root kinds. Five in-package `package php` test files
+(9 test functions) cover walk counts, parent-lookup cgo crossings, the
+`PHP_PARSE_DUMP` differential, and array-literal route targets.
+`php_test_helpers_test.go` holds only what `internal/parser/parsertest` lacks:
+the fixture-path resolver, a `*testing.B` file writer, string-contains, bool,
+`[]any`, nil-field, and call-context-tuple assertions, and the
+`assertBucketItemByFieldValue` lookup that returns the matched row.
+
 ## Exported surface
 
 The godoc contract is in doc.go. Current exports are `Parse` and `PreScan`,
@@ -31,8 +51,11 @@ both of which take a `*tree_sitter.Parser` configured for the PHP grammar.
 This package imports the Go standard library, `internal/parser/shared`, and
 `github.com/tree-sitter/go-tree-sitter`. The grammar is
 `github.com/tree-sitter/tree-sitter-php` (LanguagePHP), wired into the parent
-runtime loader. This package must not import the parent `internal/parser`
-package.
+runtime loader. Production code and the in-package tests must not import the
+parent `internal/parser` package. The external `php_test` files are the one
+exception: they import the parent parser only to reach `DefaultEngine` and
+`Options`, and `internal/parser/parsertest` for the bucket and field assertions
+shared with the other language packages.
 
 ## Telemetry
 
@@ -93,8 +116,9 @@ passes" in AGENTS.md. `TestParseFullTreeWalkCount` in this package installs
 `shared.SetWalkNamedHookForTest` and pins the count at exactly 2 `WalkNamed`
 calls per `Parse`, so it fails if a future change restores the route walk (or
 any other pass) as a `shared.WalkNamed` call, regardless of where in the
-package that call is added. `go test ./internal/parser -run '^$' -bench
-BenchmarkParsePathPHPRouteHeavy -benchmem -count=10` plus `benchstat` on a
+package that call is added. `go test ./internal/parser/php -run '^$' -bench
+BenchmarkParsePathPHPRouteHeavy -benchmem -count=10` (the benchmark lives in
+this package's `php_parse_bench_test.go` since #6062) plus `benchstat` on a
 synthetic 60-method, Symfony-Route-attributed PHP controller measured
 `14.53ms ± 6%` (benchstat's `14.53m` in `sec/op` units) before this change
 versus `12.58ms ± 5%` (`12.58m`) after (`-13.44%`, `p=0.000`, `n=10`);

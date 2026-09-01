@@ -26,4 +26,10 @@
 // reflection, and dynamic-dispatch behavior stays non-exact. The package is
 // deterministic and depends only on shared parser helpers and the tree-sitter
 // runtime.
+//
+// The payload contract is pinned by the php_*_test.go files in this directory,
+// which compile as the external package php_test and drive
+// parser.DefaultEngine().ParsePath the way a caller would. Only that external
+// test package imports the parent parser; production code and the in-package
+// tests never do.
 package php

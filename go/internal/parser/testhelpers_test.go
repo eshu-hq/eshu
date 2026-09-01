@@ -117,3 +117,33 @@ func assertIntFieldValue(t *testing.T, item map[string]any, field string, want i
 		t.Fatalf("%s = %d, want %d", field, got, want)
 	}
 }
+
+// assertBucketItemByFieldValue returns the payload[bucket] item whose string
+// field equals want. It lives here rather than in a language-specific test
+// file because the Go, Java, JavaScript, and TypeScript engine tests key
+// function_calls rows by full_name or call_kind rather than by name. The
+// external internal/parser/php tests keep a deliberately identical copy, since
+// they cannot see this unexported helper and exporting it would widen the
+// parent package's surface.
+func assertBucketItemByFieldValue(
+	t *testing.T,
+	payload map[string]any,
+	bucket string,
+	field string,
+	want string,
+) map[string]any {
+	t.Helper()
+
+	items, ok := payload[bucket].([]map[string]any)
+	if !ok {
+		t.Fatalf("%s = %T, want []map[string]any", bucket, payload[bucket])
+	}
+	for _, item := range items {
+		value, _ := item[field].(string)
+		if value == want {
+			return item
+		}
+	}
+	t.Fatalf("%s missing %s=%q in %#v", bucket, field, want, items)
+	return nil
+}

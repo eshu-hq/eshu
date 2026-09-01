@@ -1,13 +1,14 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package parser
+package php_test
 
 import (
 	"path/filepath"
-	"reflect"
-	"strings"
 	"testing"
+
+	"github.com/eshu-hq/eshu/go/internal/parser"
+	"github.com/eshu-hq/eshu/go/internal/parser/parsertest"
 )
 
 func TestDefaultEngineParsePathPHPInfersAliasedNewExpressionReceiverCalls(t *testing.T) {
@@ -15,7 +16,7 @@ func TestDefaultEngineParsePathPHPInfersAliasedNewExpressionReceiverCalls(t *tes
 
 	repoRoot := t.TempDir()
 	filePath := filepath.Join(repoRoot, "aliased_new.php")
-	writeTestFile(
+	parsertest.WriteFile(
 		t,
 		filePath,
 		`<?php
@@ -34,24 +35,24 @@ class Config {
 `,
 	)
 
-	engine, err := DefaultEngine()
+	engine, err := parser.DefaultEngine()
 	if err != nil {
-		t.Fatalf("DefaultEngine() error = %v, want nil", err)
+		t.Fatalf("parser.DefaultEngine() error = %v, want nil", err)
 	}
 
-	got, err := engine.ParsePath(repoRoot, filePath, false, Options{})
+	got, err := engine.ParsePath(repoRoot, filePath, false, parser.Options{})
 	if err != nil {
 		t.Fatalf("ParsePath() error = %v, want nil", err)
 	}
 
 	loggerItem := assertBucketItemByFieldValue(t, got, "variables", "name", "$logger")
-	phpAssertStringFieldValue(t, loggerItem, "type", "Service")
+	parsertest.AssertStringFieldValue(t, loggerItem, "type", "Service")
 
 	infoCall := assertBucketItemByFieldValue(t, got, "function_calls", "full_name", "$logger.info")
-	phpAssertStringFieldValue(t, infoCall, "inferred_obj_type", "Service")
+	parsertest.AssertStringFieldValue(t, infoCall, "inferred_obj_type", "Service")
 
 	newServiceCall := assertBucketItemByFieldValue(t, got, "function_calls", "full_name", "new Service().info")
-	phpAssertStringFieldValue(t, newServiceCall, "inferred_obj_type", "Service")
+	parsertest.AssertStringFieldValue(t, newServiceCall, "inferred_obj_type", "Service")
 }
 
 func TestDefaultEngineParsePathPHPInfersAliasedThisPropertyReceiverCalls(t *testing.T) {
@@ -59,7 +60,7 @@ func TestDefaultEngineParsePathPHPInfersAliasedThisPropertyReceiverCalls(t *test
 
 	repoRoot := t.TempDir()
 	filePath := filepath.Join(repoRoot, "aliased_property.php")
-	writeTestFile(
+	parsertest.WriteFile(
 		t,
 		filePath,
 		`<?php
@@ -78,21 +79,21 @@ class Config {
 `,
 	)
 
-	engine, err := DefaultEngine()
+	engine, err := parser.DefaultEngine()
 	if err != nil {
-		t.Fatalf("DefaultEngine() error = %v, want nil", err)
+		t.Fatalf("parser.DefaultEngine() error = %v, want nil", err)
 	}
 
-	got, err := engine.ParsePath(repoRoot, filePath, false, Options{})
+	got, err := engine.ParsePath(repoRoot, filePath, false, parser.Options{})
 	if err != nil {
 		t.Fatalf("ParsePath() error = %v, want nil", err)
 	}
 
 	loggerItem := assertBucketItemByFieldValue(t, got, "variables", "name", "$logger")
-	phpAssertStringFieldValue(t, loggerItem, "type", "Service")
+	parsertest.AssertStringFieldValue(t, loggerItem, "type", "Service")
 
 	infoCall := assertBucketItemByFieldValue(t, got, "function_calls", "full_name", "$logger.info")
-	phpAssertStringFieldValue(t, infoCall, "inferred_obj_type", "Service")
+	parsertest.AssertStringFieldValue(t, infoCall, "inferred_obj_type", "Service")
 }
 
 func TestDefaultEngineParsePathPHPInfersPropertyChainAliasReceiverCalls(t *testing.T) {
@@ -100,7 +101,7 @@ func TestDefaultEngineParsePathPHPInfersPropertyChainAliasReceiverCalls(t *testi
 
 	repoRoot := t.TempDir()
 	filePath := filepath.Join(repoRoot, "property_chain_alias.php")
-	writeTestFile(
+	parsertest.WriteFile(
 		t,
 		filePath,
 		`<?php
@@ -123,21 +124,21 @@ class Config {
 `,
 	)
 
-	engine, err := DefaultEngine()
+	engine, err := parser.DefaultEngine()
 	if err != nil {
-		t.Fatalf("DefaultEngine() error = %v, want nil", err)
+		t.Fatalf("parser.DefaultEngine() error = %v, want nil", err)
 	}
 
-	got, err := engine.ParsePath(repoRoot, filePath, false, Options{})
+	got, err := engine.ParsePath(repoRoot, filePath, false, parser.Options{})
 	if err != nil {
 		t.Fatalf("ParsePath() error = %v, want nil", err)
 	}
 
 	loggerItem := assertBucketItemByFieldValue(t, got, "variables", "name", "$logger")
-	phpAssertStringFieldValue(t, loggerItem, "type", "Logger")
+	parsertest.AssertStringFieldValue(t, loggerItem, "type", "Logger")
 
 	infoCall := assertBucketItemByFieldValue(t, got, "function_calls", "full_name", "$logger.info")
-	phpAssertStringFieldValue(t, infoCall, "inferred_obj_type", "Logger")
+	parsertest.AssertStringFieldValue(t, infoCall, "inferred_obj_type", "Logger")
 }
 
 func TestDefaultEngineParsePathPHPInfersMethodReturnTypeAliasedReceiverCalls(t *testing.T) {
@@ -145,7 +146,7 @@ func TestDefaultEngineParsePathPHPInfersMethodReturnTypeAliasedReceiverCalls(t *
 
 	repoRoot := t.TempDir()
 	filePath := filepath.Join(repoRoot, "return_type_alias.php")
-	writeTestFile(
+	parsertest.WriteFile(
 		t,
 		filePath,
 		`<?php
@@ -170,24 +171,24 @@ class Config {
 `,
 	)
 
-	engine, err := DefaultEngine()
+	engine, err := parser.DefaultEngine()
 	if err != nil {
-		t.Fatalf("DefaultEngine() error = %v, want nil", err)
+		t.Fatalf("parser.DefaultEngine() error = %v, want nil", err)
 	}
 
-	got, err := engine.ParsePath(repoRoot, filePath, false, Options{})
+	got, err := engine.ParsePath(repoRoot, filePath, false, parser.Options{})
 	if err != nil {
 		t.Fatalf("ParsePath() error = %v, want nil", err)
 	}
 
-	factoryMethod := assertBucketItemByName(t, got, "functions", "createService")
-	phpAssertStringFieldValue(t, factoryMethod, "return_type", "Service")
+	factoryMethod := parsertest.AssertBucketItemByName(t, got, "functions", "createService")
+	parsertest.AssertStringFieldValue(t, factoryMethod, "return_type", "Service")
 
 	serviceItem := assertBucketItemByFieldValue(t, got, "variables", "name", "$service")
-	phpAssertStringFieldValue(t, serviceItem, "type", "Service")
+	parsertest.AssertStringFieldValue(t, serviceItem, "type", "Service")
 
 	infoCall := assertBucketItemByFieldValue(t, got, "function_calls", "full_name", "$service.info")
-	phpAssertStringFieldValue(t, infoCall, "inferred_obj_type", "Service")
+	parsertest.AssertStringFieldValue(t, infoCall, "inferred_obj_type", "Service")
 }
 
 func TestDefaultEngineParsePathPHPInfersFreeFunctionReturnTypeAliasedReceiverCalls(t *testing.T) {
@@ -195,7 +196,7 @@ func TestDefaultEngineParsePathPHPInfersFreeFunctionReturnTypeAliasedReceiverCal
 
 	repoRoot := t.TempDir()
 	filePath := filepath.Join(repoRoot, "function_return_alias.php")
-	writeTestFile(
+	parsertest.WriteFile(
 		t,
 		filePath,
 		`<?php
@@ -216,24 +217,24 @@ class Config {
 `,
 	)
 
-	engine, err := DefaultEngine()
+	engine, err := parser.DefaultEngine()
 	if err != nil {
-		t.Fatalf("DefaultEngine() error = %v, want nil", err)
+		t.Fatalf("parser.DefaultEngine() error = %v, want nil", err)
 	}
 
-	got, err := engine.ParsePath(repoRoot, filePath, false, Options{})
+	got, err := engine.ParsePath(repoRoot, filePath, false, parser.Options{})
 	if err != nil {
 		t.Fatalf("ParsePath() error = %v, want nil", err)
 	}
 
-	createService := assertBucketItemByName(t, got, "functions", "createService")
-	phpAssertStringFieldValue(t, createService, "return_type", "Service")
+	createService := parsertest.AssertBucketItemByName(t, got, "functions", "createService")
+	parsertest.AssertStringFieldValue(t, createService, "return_type", "Service")
 
 	serviceItem := assertBucketItemByFieldValue(t, got, "variables", "name", "$service")
-	phpAssertStringFieldValue(t, serviceItem, "type", "Service")
+	parsertest.AssertStringFieldValue(t, serviceItem, "type", "Service")
 
 	infoCall := assertBucketItemByFieldValue(t, got, "function_calls", "full_name", "$service.info")
-	phpAssertStringFieldValue(t, infoCall, "inferred_obj_type", "Service")
+	parsertest.AssertStringFieldValue(t, infoCall, "inferred_obj_type", "Service")
 }
 
 func TestDefaultEngineParsePathPHPInfersMethodReturnPropertyChainReceiverCalls(t *testing.T) {
@@ -241,7 +242,7 @@ func TestDefaultEngineParsePathPHPInfersMethodReturnPropertyChainReceiverCalls(t
 
 	repoRoot := t.TempDir()
 	filePath := filepath.Join(repoRoot, "method_return_property_chain.php")
-	writeTestFile(
+	parsertest.WriteFile(
 		t,
 		filePath,
 		`<?php
@@ -270,21 +271,21 @@ class Config {
 `,
 	)
 
-	engine, err := DefaultEngine()
+	engine, err := parser.DefaultEngine()
 	if err != nil {
-		t.Fatalf("DefaultEngine() error = %v, want nil", err)
+		t.Fatalf("parser.DefaultEngine() error = %v, want nil", err)
 	}
 
-	got, err := engine.ParsePath(repoRoot, filePath, false, Options{})
+	got, err := engine.ParsePath(repoRoot, filePath, false, parser.Options{})
 	if err != nil {
 		t.Fatalf("ParsePath() error = %v, want nil", err)
 	}
 
 	loggerItem := assertBucketItemByFieldValue(t, got, "variables", "name", "$logger")
-	phpAssertStringFieldValue(t, loggerItem, "type", "Logger")
+	parsertest.AssertStringFieldValue(t, loggerItem, "type", "Logger")
 
 	infoCall := assertBucketItemByFieldValue(t, got, "function_calls", "full_name", "$logger.info")
-	phpAssertStringFieldValue(t, infoCall, "inferred_obj_type", "Logger")
+	parsertest.AssertStringFieldValue(t, infoCall, "inferred_obj_type", "Logger")
 }
 
 func TestDefaultEngineParsePathPHPInfersChainedStaticFactoryReceiverCalls(t *testing.T) {
@@ -292,7 +293,7 @@ func TestDefaultEngineParsePathPHPInfersChainedStaticFactoryReceiverCalls(t *tes
 
 	repoRoot := t.TempDir()
 	filePath := filepath.Join(repoRoot, "chained_factory.php")
-	writeTestFile(
+	parsertest.WriteFile(
 		t,
 		filePath,
 		`<?php
@@ -318,19 +319,19 @@ class Config {
 `,
 	)
 
-	engine, err := DefaultEngine()
+	engine, err := parser.DefaultEngine()
 	if err != nil {
-		t.Fatalf("DefaultEngine() error = %v, want nil", err)
+		t.Fatalf("parser.DefaultEngine() error = %v, want nil", err)
 	}
 
-	got, err := engine.ParsePath(repoRoot, filePath, false, Options{})
+	got, err := engine.ParsePath(repoRoot, filePath, false, parser.Options{})
 	if err != nil {
 		t.Fatalf("ParsePath() error = %v, want nil", err)
 	}
 
 	infoCall := assertBucketItemByFieldValue(t, got, "function_calls", "name", "info")
 	phpAssertStringFieldContains(t, infoCall, "full_name", "createService")
-	phpAssertStringFieldValue(t, infoCall, "inferred_obj_type", "Service")
+	parsertest.AssertStringFieldValue(t, infoCall, "inferred_obj_type", "Service")
 }
 
 func TestDefaultEngineParsePathPHPInfersImportedTypeAliasReceiverCalls(t *testing.T) {
@@ -338,7 +339,7 @@ func TestDefaultEngineParsePathPHPInfersImportedTypeAliasReceiverCalls(t *testin
 
 	repoRoot := t.TempDir()
 	filePath := filepath.Join(repoRoot, "imported_alias.php")
-	writeTestFile(
+	parsertest.WriteFile(
 		t,
 		filePath,
 		`<?php
@@ -355,21 +356,21 @@ class ConfigRunner {
 `,
 	)
 
-	engine, err := DefaultEngine()
+	engine, err := parser.DefaultEngine()
 	if err != nil {
-		t.Fatalf("DefaultEngine() error = %v, want nil", err)
+		t.Fatalf("parser.DefaultEngine() error = %v, want nil", err)
 	}
 
-	got, err := engine.ParsePath(repoRoot, filePath, false, Options{})
+	got, err := engine.ParsePath(repoRoot, filePath, false, parser.Options{})
 	if err != nil {
 		t.Fatalf("ParsePath() error = %v, want nil", err)
 	}
 
 	configItem := assertBucketItemByFieldValue(t, got, "variables", "name", "$config")
-	phpAssertStringFieldValue(t, configItem, "type", "Config")
+	parsertest.AssertStringFieldValue(t, configItem, "type", "Config")
 
 	infoCall := assertBucketItemByFieldValue(t, got, "function_calls", "full_name", "$config.info")
-	phpAssertStringFieldValue(t, infoCall, "inferred_obj_type", "Config")
+	parsertest.AssertStringFieldValue(t, infoCall, "inferred_obj_type", "Config")
 }
 
 func TestDefaultEngineParsePathPHPInfersImportedStaticTypeAliasReceiverChains(t *testing.T) {
@@ -377,7 +378,7 @@ func TestDefaultEngineParsePathPHPInfersImportedStaticTypeAliasReceiverChains(t 
 
 	repoRoot := t.TempDir()
 	filePath := filepath.Join(repoRoot, "imported_static_alias.php")
-	writeTestFile(
+	parsertest.WriteFile(
 		t,
 		filePath,
 		`<?php
@@ -407,128 +408,16 @@ class ConfigRunner {
 `,
 	)
 
-	engine, err := DefaultEngine()
+	engine, err := parser.DefaultEngine()
 	if err != nil {
-		t.Fatalf("DefaultEngine() error = %v, want nil", err)
+		t.Fatalf("parser.DefaultEngine() error = %v, want nil", err)
 	}
 
-	got, err := engine.ParsePath(repoRoot, filePath, false, Options{})
+	got, err := engine.ParsePath(repoRoot, filePath, false, parser.Options{})
 	if err != nil {
 		t.Fatalf("ParsePath() error = %v, want nil", err)
 	}
 
 	infoCall := assertBucketItemByFieldValue(t, got, "function_calls", "full_name", "AppFactory::instance()->createService().info")
-	phpAssertStringFieldValue(t, infoCall, "inferred_obj_type", "Service")
-}
-
-func phpAssertStringFieldValue(t *testing.T, item map[string]any, field string, want string) {
-	t.Helper()
-
-	got, _ := item[field].(string)
-	if got != want {
-		t.Fatalf("%s = %#v, want %#v", field, got, want)
-	}
-}
-
-func phpAssertStringFieldContains(t *testing.T, item map[string]any, field string, want string) {
-	t.Helper()
-
-	got, _ := item[field].(string)
-	if !strings.Contains(got, want) {
-		t.Fatalf("%s = %#v, want to contain %#v", field, got, want)
-	}
-}
-
-func phpAssertBoolFieldValue(t *testing.T, item map[string]any, field string, want bool) {
-	t.Helper()
-
-	got, ok := item[field].(bool)
-	if !ok {
-		t.Fatalf("%s = %T, want bool", field, item[field])
-	}
-	if got != want {
-		t.Fatalf("%s = %#v, want %#v", field, got, want)
-	}
-}
-
-func phpAssertStringSliceFieldValue(t *testing.T, item map[string]any, field string, want []string) {
-	t.Helper()
-
-	got, ok := item[field].([]string)
-	if !ok {
-		t.Fatalf("%s = %T, want []string", field, item[field])
-	}
-	if !reflect.DeepEqual(got, want) {
-		t.Fatalf("%s = %#v, want %#v", field, got, want)
-	}
-}
-
-func phpAssertAnySliceFieldValue(t *testing.T, item map[string]any, field string, want []any) {
-	t.Helper()
-
-	got, ok := item[field].([]any)
-	if !ok {
-		t.Fatalf("%s = %T, want []any", field, item[field])
-	}
-	if !reflect.DeepEqual(got, want) {
-		t.Fatalf("%s = %#v, want %#v", field, got, want)
-	}
-}
-
-func phpAssertNilField(t *testing.T, item map[string]any, field string) {
-	t.Helper()
-
-	if value, ok := item[field]; ok && value != nil {
-		t.Fatalf("%s = %#v, want nil", field, value)
-	}
-}
-
-func assertBucketItemByFieldValue(
-	t *testing.T,
-	payload map[string]any,
-	bucket string,
-	field string,
-	want string,
-) map[string]any {
-	t.Helper()
-
-	items, ok := payload[bucket].([]map[string]any)
-	if !ok {
-		t.Fatalf("%s = %T, want []map[string]any", bucket, payload[bucket])
-	}
-	for _, item := range items {
-		value, _ := item[field].(string)
-		if value == want {
-			return item
-		}
-	}
-	t.Fatalf("%s missing %s=%q in %#v", bucket, field, want, items)
-	return nil
-}
-
-func assertCallContextTuple(
-	t *testing.T,
-	item map[string]any,
-	wantName string,
-	wantType string,
-	wantLine int,
-) {
-	t.Helper()
-
-	context, ok := item["context"].([]any)
-	if !ok {
-		t.Fatalf("context = %T, want []any", item["context"])
-	}
-	if len(context) < 3 {
-		t.Fatalf("context = %#v, want at least 3 items", context)
-	}
-	if got, _ := context[0].(string); got != wantName {
-		t.Fatalf("context[0] = %#v, want %#v", got, wantName)
-	}
-	if got, _ := context[1].(string); got != wantType {
-		t.Fatalf("context[1] = %#v, want %#v", got, wantType)
-	}
-	if got, ok := context[2].(int); !ok || got != wantLine {
-		t.Fatalf("context[2] = %#v, want %#v", context[2], wantLine)
-	}
+	parsertest.AssertStringFieldValue(t, infoCall, "inferred_obj_type", "Service")
 }
