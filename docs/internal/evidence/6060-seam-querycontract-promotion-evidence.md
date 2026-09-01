@@ -12,11 +12,19 @@ than asking a reader to take it.
 
 ## What changed
 
-`hydrateResolvedEntityRepoIdentity` moved from root into `querycontract` and was
-exported. Root keeps a forwarder. The language taxonomy (`LanguageAliases`,
-`CanonicalLanguage`, `NormalizedLanguageVariants`, `CoverageLanguageMaps`) moved
-the same way, which is what touches `repository_coverage.go` — its call sites
-now name the leaf package.
+`ClearResolvedEntityRepoProjectionPlaceholders` -- the `#6408` scrubber -- moved
+from root into `querycontract` and was exported. Root keeps a forwarder.
+
+`hydrateResolvedEntityRepoIdentity` did NOT move. An earlier revision of this
+branch promoted it too; review found that it carries a complete `MATCH`/`RETURN`
+statement, which `querycontract/AGENTS.md` excludes from the contract leaf, and
+it was moved back. It stays in `go/internal/query/entity_resolve_identity.go`
+and calls the scrubber through the forwarder.
+
+The language taxonomy (`LanguageAliases`, `CanonicalLanguage`,
+`NormalizedLanguageVariants`, `CoverageLanguageMaps`) did move, which is what
+touches `repository_coverage.go` -- its call sites now name the leaf package.
+Note that `supportedLanguages`, the accepted-language registry, stays in root.
 
 The move exists because a handler-family subpackage cannot call an unexported
 root symbol, and cannot import root at all without a cycle through root's own
@@ -58,8 +66,8 @@ signals under the same names with the same cardinality.
 
 ## Why this is safe
 
-`hydrateResolvedEntityRepoIdentity` carries the `#6408` projection-placeholder
-scrubber, which is why the promotion matters beyond tidiness. `#6408` is a live
+The promoted symbol is the `#6408` projection-placeholder scrubber, which is why
+this matters beyond tidiness. `#6408` is a live
 bug: a second-hop node property reached through `OPTIONAL MATCH` returns the
 literal text of its own projection expression, so `repo_id` comes back as the
 string `"r.id"`. The scrubber string-matches the backend's output against four

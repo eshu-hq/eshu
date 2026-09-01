@@ -11,7 +11,8 @@ import "strings"
 // a handler-family subpackage can normalize a language name identically to
 // root, rather than a package-local copy that could silently drift as
 // languages are added -- this is actively maintained taxonomy, not a pure
-// stateless helper. Root keeps a plain var alias.
+// stateless helper. Root has no alias for this map: its callers were updated to
+// name the leaf package directly.
 var LanguageAliases = map[string]string{
 	"jsx": "javascript",
 	"tsx": "typescript",
