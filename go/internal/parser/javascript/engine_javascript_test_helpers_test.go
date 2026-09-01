@@ -152,12 +152,23 @@ func assertNoFrameworkOrNoRoutes(t *testing.T, payload map[string]any, section s
 	if !ok {
 		t.Fatalf("framework_semantics = %T, want map[string]any", payload["framework_semantics"])
 	}
-	nested, ok := semantics[section].(map[string]any)
-	if !ok {
-		// Framework not present at all — acceptable
+	rawSection, present := semantics[section]
+	if !present {
+		// Framework not present at all — acceptable.
 		return
 	}
-	entries, _ := nested["route_entries"].([]map[string]string)
+	nested, ok := rawSection.(map[string]any)
+	if !ok {
+		t.Fatalf("framework_semantics.%s = %#v (%T), want map[string]any; a present-but-malformed section must not pass a negative assertion", section, rawSection, rawSection)
+	}
+	rawEntries, present := nested["route_entries"]
+	if !present {
+		return
+	}
+	entries, ok := rawEntries.([]map[string]string)
+	if !ok {
+		t.Fatalf("framework_semantics.%s.route_entries = %#v (%T), want []map[string]string; a present-but-malformed field must not pass a negative assertion", section, rawEntries, rawEntries)
+	}
 	if len(entries) > 0 {
 		t.Fatalf("framework_semantics.%s.route_entries = %#v, want empty or absent", section, entries)
 	}
