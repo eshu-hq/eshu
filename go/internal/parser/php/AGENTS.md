@@ -29,7 +29,8 @@
   with `TestDefaultEngineParsePathPHPFixtures` and the cyclomatic-complexity
   cases that stay in the parent because they sweep several languages.
 - Shared assertions come from `go/internal/parser/parsertest`
-  (`WriteFile`, `AssertBucketItemByName`, `AssertStringFieldValue`,
+  (`WriteFile`, `AssertBucketItemByName`, `AssertBucketItemByFieldValue`,
+  `AssertStringFieldValue`,
   `AssertStringSliceContains`, `AssertStringSliceEquals`,
   `AssertFunctionByNameAndClass`, `AssertFrameworksEqual`,
   `AssertNestedRouteEntriesEqual`). `php_test_helpers_test.go` holds only what

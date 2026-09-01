@@ -38,8 +38,9 @@ entries, and the dead-code root kinds. Five in-package `package php` test files
 `PHP_PARSE_DUMP` differential, and array-literal route targets.
 `php_test_helpers_test.go` holds only what `internal/parser/parsertest` lacks:
 the fixture-path resolver, a `*testing.B` file writer, string-contains, bool,
-`[]any`, nil-field, and call-context-tuple assertions, and the
-`assertBucketItemByFieldValue` lookup that returns the matched row.
+`[]any`, nil-field, and call-context-tuple assertions. The by-field row lookup
+is not local: it is `parsertest.AssertBucketItemByFieldValue`, which this
+package's tests use in 37 places.
 
 ## Exported surface
 

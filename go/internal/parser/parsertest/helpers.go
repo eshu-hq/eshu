@@ -270,10 +270,12 @@ func AssertBucketItemByFieldValue(
 			return item
 		}
 	}
-	t.Fatalf("%s missing %s %q in %#v", bucket, field, want, items)
+	t.Fatalf("%s missing %s=%q in %#v", bucket, field, want, items)
 	return nil
 }
 
+// AssertBucketContainsFieldValue requires payload[key] to hold an item whose
+// string field equals wantValue.
 func AssertBucketContainsFieldValue(
 	t *testing.T,
 	payload map[string]any,
