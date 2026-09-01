@@ -25,14 +25,14 @@ family route selection; `internal/query` retains validation and graph reads. The
 `documentation` child owns its six registration definitions and the `cloud`
 child the cloud inventory and runtime-drift pair; both families' routing stays
 here. The `visualization` child owns registration and pure request selection,
-while query derives packets. The `packageregistry`, `cicd`, `codeowners`,
-`secretsiam`, `observabilitycoverage`, `containerimage`, `supplychainimpact`, and
-`securityalert` children own only family membership and pure request selection; root
-keeps their definitions, the matching `*Route` adapters, and dispatch. The `ecosystem`
+while query derives packets. The `packageregistry`, `cicd`, `codeowners`, `secretsiam`,
+`observabilitycoverage`, `containerimage`, `supplychainimpact`, `securityalert`, and
+`admissiondecisions` children own only family membership and pure request selection;
+root keeps their definitions, the matching `*Route` adapters, and dispatch. The `ecosystem`
 child package owns the 23 ecosystem, repository-context, infrastructure-impact, and
-change-planning registration definitions. Their existing split routers stay here.
-The `ask` child owns natural-language answer registration and pure request
-selection; global fanout and dispatch stay here, while query executes answers.
+change-planning registration definitions. Their existing split routers stay here. The
+`ask` child owns natural-language answer registration and pure request selection; global
+fanout and dispatch stay here, while query executes answers.
 The `playbooks` child package owns the two query-playbook catalog registration
 definitions; query-playbook routing and execution also stay here.
 The `freshness` child package owns four freshness registration definitions.

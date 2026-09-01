@@ -3,17 +3,22 @@
 
 package mcp
 
-import "strconv"
+import (
+	admissiondecisionstools "github.com/eshu-hq/eshu/go/internal/mcp/admissiondecisions"
+	"github.com/eshu-hq/eshu/go/internal/mcp/routecontract"
+)
 
-func admissionDecisionsRoute(args map[string]any) *route {
-	return &route{method: "GET", path: "/api/v0/evidence/admission-decisions", query: map[string]string{
-		"anchor_id":        str(args, "anchor_id"),
-		"anchor_kind":      str(args, "anchor_kind"),
-		"domain":           str(args, "domain"),
-		"generation_id":    str(args, "generation_id"),
-		"include_evidence": strconv.FormatBool(boolOr(args, "include_evidence", false)),
-		"limit":            strconv.Itoa(intOr(args, "limit", 50)),
-		"scope_id":         str(args, "scope_id"),
-		"state":            str(args, "state"),
-	}}
+// admissionDecisionsRoute adapts the child package's admission-decisions
+// request selection into the root dispatcher's transport route.
+func admissionDecisionsRoute(toolName string, args map[string]any) (*route, bool) {
+	request, handled := admissiondecisionstools.Route(toolName, routecontract.Arguments(args))
+	if !handled {
+		return nil, false
+	}
+	return &route{
+		method: request.Method,
+		path:   request.Path,
+		body:   request.Body,
+		query:  request.Query,
+	}, true
 }
