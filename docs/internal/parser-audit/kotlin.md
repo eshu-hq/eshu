@@ -11,9 +11,12 @@ inference, and package-bounded sibling return-type lookups. The 14 source files
 are exercised by 18 test files in `go/internal/parser/kotlin/`
 (54 test functions): 16 `engine_kotlin_*_test.go` files in the external
 `kotlin_test` package, plus two in-package tests (`walk_count_test.go` and
-`equivalence_dump_test.go`). Two cross-language files
-(`kotlin_dead_code_roots_test.go`, `kotlin_spring_route_semantics_test.go`)
-stay in `go/internal/parser/` because they span more than Kotlin.
+`equivalence_dump_test.go`). Two files (`kotlin_dead_code_roots_test.go`,
+`kotlin_spring_route_semantics_test.go`) stay in `go/internal/parser/` as
+unrelocated residual. Both are Kotlin-only: every test in them is a
+`...ParsePathKotlin...` case, and the route file became Kotlin-only when the
+Java relocation split its Java cases into
+`java/java_spring_route_semantics_test.go`.
 Coverage is broad and intentional.
 
 ## Claimed Constructs
@@ -127,10 +130,9 @@ actual AST dispatch in `ast_walk.go:walkNode`.
 Most Kotlin engine regressions now live in `go/internal/parser/kotlin/` as the
 external `kotlin_test` package. They use `parser.DefaultEngine()` →
 `ParsePath()` with the registered Kotlin definition and exercise the full AST
-walk from outside the implementation package. Two cross-language files —
-`kotlin_dead_code_roots_test.go` and `kotlin_spring_route_semantics_test.go`
-— stay in `go/internal/parser/` because they assert shared or multi-language
-behavior rather than Kotlin extraction alone. The Swift golden-fixture gate
+walk from outside the implementation package. `kotlin_dead_code_roots_test.go` and `kotlin_spring_route_semantics_test.go`
+stay in `go/internal/parser/` because they have not been relocated yet, not
+because they span languages — both hold only Kotlin cases. The Swift golden-fixture gate
 that used to share a file with the Kotlin one now lives on its own at
 `go/internal/parser/engine_swift_symbol_gate_test.go`. The `kotlin/` package
 also keeps same-package tests for package-owned equivalence and walk-count
