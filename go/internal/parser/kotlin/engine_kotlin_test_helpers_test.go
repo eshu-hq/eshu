@@ -39,10 +39,6 @@ func writeKotlinTestFile(t *testing.T, path string, body string) {
 	parsertest.WriteFile(t, path, body)
 }
 
-// assertStringFieldValue requires item[field] to hold the string want.
-
-// assertIntFieldValue requires item[field] to hold the int want.
-
 // assertBoolFieldValue requires item[field] to hold the bool want.
 func assertBoolFieldValue(t *testing.T, item map[string]any, field string, want bool) {
 	t.Helper()
