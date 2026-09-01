@@ -30,6 +30,49 @@ func NewContentReader(db *sql.DB) *ContentReader {
 	}
 }
 
+// This block is the compile-time half of the #6060 interface-export
+// tripwire.
+//
+// interface_export_tripwire_test.go and
+// interface_export_tripwire_evidence_repository_test.go prove that a given
+// handler entry point actually takes the fast path when h.Content (or a
+// content parameter) satisfies one of the 14 exported-method interfaces
+// below -- but every one of those tests wires a same-package fake, not the
+// production type. A fake keeps satisfying its interface forever no matter
+// what happens to *ContentReader, so those tests alone cannot catch the
+// defect class they exist for: the interface and its implementer drifting
+// into separate packages, or a rename that quietly un-exports one of these
+// methods again. Either leaves every fake-backed tripwire green while
+// production silently falls back to the slower or lossier path.
+//
+// These assertions close that gap. Each line fails `go build`, not only
+// `go test`, the moment *ContentReader stops satisfying the interface next
+// to it -- exactly the regression a runtime tripwire cannot see.
+//
+// All 14 are bound to *ContentReader because it is the only production
+// implementer: cmd/api/wiring.go and cmd/mcp-server/wiring.go both wire
+// NewContentReader(db) as the sole content store passed to every handler's
+// Content field, and no other type in this package defines any of these 14
+// method sets (confirmed by symbol search across internal/query when this
+// block was added; see the #6060 PR description for the break/restore
+// proof).
+var (
+	_ cloudInventoryReadModelStore               = (*ContentReader)(nil)
+	_ hardcodedSecretInvestigator                = (*ContentReader)(nil)
+	_ symbolContentSearcher                      = (*ContentReader)(nil)
+	_ codeTopicContentInvestigator               = (*ContentReader)(nil)
+	_ pagedContentSearcher                       = (*ContentReader)(nil)
+	_ documentationReadModelStore                = (*ContentReader)(nil)
+	_ relationshipEvidenceReadModelStore         = (*ContentReader)(nil)
+	_ repositoryDeploymentEvidenceReadModelStore = (*ContentReader)(nil)
+	_ repositoryEntryPointReadModelStore         = (*ContentReader)(nil)
+	_ repositoryReadModelSummaryStore            = (*ContentReader)(nil)
+	_ repositoryRelationshipReadModelStore       = (*ContentReader)(nil)
+	_ serviceStoryTargetSupportStore             = (*ContentReader)(nil)
+	_ evidenceCitationFileStore                  = (*ContentReader)(nil)
+	_ semanticEvidenceStore                      = (*ContentReader)(nil)
+)
+
 // EntityContent is one indexed entity and its content metadata.
 type EntityContent = querycontract.EntityContent
 
