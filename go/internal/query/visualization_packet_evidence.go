@@ -23,13 +23,13 @@ func BuildEvidenceCitationVisualizationPacket(response evidenceCitationResponse,
 	}
 
 	builder := newVisualizationBuilder(VisualizationViewEvidenceCitation, strings.TrimSpace(response.Question))
-	builder.truth = truth
+	builder.SetTruth(truth)
 	for _, citation := range response.Citations {
 		anchor, family := citationVisualizationIdentity(citation)
 		if anchor == "" {
 			continue
 		}
-		builder.addNode(VisualizationNode{
+		builder.AddNode(VisualizationNode{
 			ID:             visualizationNodeID("citation", anchor),
 			Type:           "citation",
 			Label:          citationVisualizationLabel(citation),
@@ -38,7 +38,7 @@ func BuildEvidenceCitationVisualizationPacket(response evidenceCitationResponse,
 		})
 	}
 
-	packet := builder.finalize()
+	packet := builder.Finalize()
 	if response.Coverage.Truncated {
 		packet.Truncation.Truncated = true
 		packet.Limitations = appendReason(packet.Limitations,
@@ -115,7 +115,7 @@ func BuildIncidentContextVisualizationPacket(response IncidentContextResponse, t
 	}
 
 	builder := newVisualizationBuilder(VisualizationViewIncidentContext, incidentVisualizationTitle(response.Incident))
-	builder.truth = truth
+	builder.SetTruth(truth)
 
 	incidentNodeID := addIncidentAnchorNode(builder, response.Incident)
 	prevNodeID := incidentNodeID
@@ -125,7 +125,7 @@ func BuildIncidentContextVisualizationPacket(response IncidentContextResponse, t
 			continue
 		}
 		slotNodeID := visualizationNodeID("incident_slot", incidentVisualizationAnchor(response.Incident), slot)
-		builder.addNode(VisualizationNode{
+		builder.AddNode(VisualizationNode{
 			ID:         slotNodeID,
 			Type:       "evidence_slot",
 			Label:      slot,
@@ -133,7 +133,7 @@ func BuildIncidentContextVisualizationPacket(response IncidentContextResponse, t
 			TruthLabel: string(edge.TruthLabel),
 		})
 		if prevNodeID != "" {
-			builder.addEdge(VisualizationEdge{
+			builder.AddEdge(VisualizationEdge{
 				Source:       prevNodeID,
 				Target:       slotNodeID,
 				Relationship: "EVIDENCE_PATH",
@@ -143,7 +143,7 @@ func BuildIncidentContextVisualizationPacket(response IncidentContextResponse, t
 		prevNodeID = slotNodeID
 	}
 
-	packet := builder.finalize()
+	packet := builder.Finalize()
 	if response.Truncated {
 		packet.Truncation.Truncated = true
 		packet.Limitations = appendReason(packet.Limitations,
@@ -165,7 +165,7 @@ func addIncidentAnchorNode(builder *visualizationBuilder, incident IncidentConte
 		return ""
 	}
 	nodeID := visualizationNodeID("incident", anchor)
-	builder.addNode(VisualizationNode{
+	builder.AddNode(VisualizationNode{
 		ID:       nodeID,
 		Type:     "incident",
 		Label:    incidentVisualizationTitle(incident),

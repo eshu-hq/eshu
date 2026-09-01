@@ -10,58 +10,55 @@ import (
 	"sort"
 	"strings"
 
+	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/pgarray"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/trace"
 )
 
 const (
-	entityNameSearchMaxLimit   = 200
-	entityNameSearchProbeLimit = entityNameSearchMaxLimit + 1
+	entityNameSearchMaxLimit   = querycontract.EntityNameSearchMaxLimit
+	entityNameSearchProbeLimit = querycontract.EntityNameSearchProbeLimit
 )
 
+// errEntityNameSearchUnavailable and errGlobalGraphEntitySearchUnsupported
+// alias querycontract's sentinel errors rather than declaring their own
+// errors.New value: root's EntityHandler (entity.go) and the CodeHandler
+// family (internal/query/code) both compare a returned error against these
+// with errors.Is, so both sides must resolve to the exact same instance
+// (#6060). The values moved to querycontract, the one leaf package both root
+// and the family already import, so this stays a plain alias rather than a
+// forwarder.
 var (
-	errEntityNameSearchUnavailable        = errors.New("global entity-name content index is unavailable")
-	errGlobalGraphEntitySearchUnsupported = errors.New("global graph entity search is unsupported")
+	errEntityNameSearchUnavailable        = querycontract.ErrEntityNameSearchUnavailable
+	errGlobalGraphEntitySearchUnsupported = querycontract.ErrGlobalGraphEntitySearchUnsupported
 )
 
 // EntityNameMatch controls the case-sensitive entity_name predicate.
-type EntityNameMatch string
+type EntityNameMatch = querycontract.EntityNameMatch
 
 const (
 	// EntityNameMatchExact requires a case-sensitive complete name match.
-	EntityNameMatchExact EntityNameMatch = "exact"
+	EntityNameMatchExact = querycontract.EntityNameMatchExact
 	// EntityNameMatchSubstring requires a case-sensitive substring match.
-	EntityNameMatchSubstring EntityNameMatch = "substring"
+	EntityNameMatchSubstring = querycontract.EntityNameMatchSubstring
 )
 
 // EntityNameScope controls repository authorization for an entity-name search.
-type EntityNameScope string
+type EntityNameScope = querycontract.EntityNameScope
 
 const (
 	// EntityNameScopeAll searches every repository visible to an all-scopes caller.
-	EntityNameScopeAll EntityNameScope = "all"
+	EntityNameScopeAll = querycontract.EntityNameScopeAll
 	// EntityNameScopeRepositories searches one explicit authorized repository set.
-	EntityNameScopeRepositories EntityNameScope = "repositories"
+	EntityNameScopeRepositories = querycontract.EntityNameScopeRepositories
 )
 
 // EntityNameSearch is the bounded, authorization-aware content name-search contract.
-type EntityNameSearch struct {
-	Name          string
-	Match         EntityNameMatch
-	Scope         EntityNameScope
-	RepositoryIDs []string
-	Languages     []string
-	EntityType    string
-	MetadataKey   string
-	MetadataValue string
-	Limit         int
-}
+type EntityNameSearch = querycontract.EntityNameSearch
 
 // EntityNameSearcher is the narrow extension used by global entity-name routes.
-type EntityNameSearcher interface {
-	SearchEntityNames(context.Context, EntityNameSearch) ([]EntityContent, error)
-}
+type EntityNameSearcher = querycontract.EntityNameSearcher
 
 // SearchEntityNames searches current content entities with every authorization
 // and semantic filter applied before the bounded deterministic LIMIT.
