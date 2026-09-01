@@ -22,6 +22,8 @@ This package owns:
 - `ExecChunk`, `ChunkArgs`, `BatchSize` and the statement fragments.
 - `Execer` — the minimal `ExecContext` surface, so callers can pass a pool, a
   connection, or a transaction.
+- `Now` and `CollectorKind` — the UTC write timestamp and the normalized
+  collector-kind column value every fact writer stamps on its rows.
 
 It does not own transaction scope, retry, or lease behavior. A caller decides
 whether a batch runs inside a transaction and what happens when it fails.
@@ -37,6 +39,7 @@ whether a batch runs inside a transaction and what happens when it fails.
 | `BatchInsertPrefix`, `BatchInsertSource`, `BatchInsertConflict`, `BatchInsertQuery` | the unversioned statement fragments and their composition |
 | `BatchInsertVersionedQuery` | the schema_version-carrying sibling statement |
 | `Execer` | the minimal `ExecContext` surface, so callers can pass a pool, a connection, or a transaction |
+| `Now`, `CollectorKind` | the UTC-normalized write timestamp and the normalized collector-kind column value |
 
 ## Dependencies
 
