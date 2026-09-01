@@ -40,7 +40,7 @@
 // extractPackageSourceHints, via raw payloadStr calls) — a separate reducer
 // family this wave does not touch (Contract System v1 Wave 4c is scoped to the
 // package_registry PROJECTOR family). The projector's own
-// package_source_correlation_intents.go reads only envelope.FactKind to route a
+// go/internal/projector/packagesource/correlation_intents.go reads only envelope.FactKind to route a
 // reducer intent, never a payload field, so SourceHint has no projector
 // decode-site consumer today either. It is typed here so the contract is ready
 // the moment a projector or reducer conversion lands; wiring the reducer's own

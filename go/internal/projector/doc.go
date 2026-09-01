@@ -21,9 +21,9 @@
 // The neutral internal/projector/intent contract is the boundary for extracted
 // reducer-intent family packages. Azure, EC2, GCP, Kubernetes, RDS, S3,
 // security, workload-cloud-relationship, incident-routing, AWS-relationship,
-// and IAM CAN_ASSUME builders live in their internal/projector child
-// packages; this root package owns lookup construction and lifetime, family
-// assembly, and enqueue.
+// IAM CAN_ASSUME, and package-source-correlation builders live in their
+// internal/projector child packages; this root package owns lookup
+// construction and lifetime, family assembly, and enqueue.
 // OCI registry projection keeps digest-addressed manifests, indexes, and
 // descriptors as canonical identity while treating tags as mutable weak
 // observations that can enrich queries but do not mint image identity.
@@ -73,6 +73,9 @@
 // Package-registry identity emits package source-correlation and supply-chain
 // impact reducer intents so manifest-backed consumption and vulnerability
 // findings can catch up when package evidence arrives after source intelligence.
+// The package-source-correlation reducer-intent builder lives in the
+// internal/projector/packagesource child package; the reducer owns hint
+// classification and consumption admission.
 // When a Postgres-backed runtime configures PackageRegistryIdentityLocker,
 // package-registry canonical writes also take transaction-scoped package UID
 // advisory locks before calling the graph writer. This coordinates ingester,

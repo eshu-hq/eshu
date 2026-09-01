@@ -12,6 +12,7 @@ import (
 	projectoriamcanassume "github.com/eshu-hq/eshu/go/internal/projector/iamcanassume"
 	projectorincidentrouting "github.com/eshu-hq/eshu/go/internal/projector/incidentrouting"
 	projectorkubernetes "github.com/eshu-hq/eshu/go/internal/projector/kubernetes"
+	projectorpackagesource "github.com/eshu-hq/eshu/go/internal/projector/packagesource"
 	projectorrds "github.com/eshu-hq/eshu/go/internal/projector/rds"
 	projectors3 "github.com/eshu-hq/eshu/go/internal/projector/s3"
 	projectorsecurity "github.com/eshu-hq/eshu/go/internal/projector/security"
@@ -42,7 +43,7 @@ func appendScopeGenerationReducerIntents(
 ) []ReducerIntent {
 	index := newReducerIntentFactIndex(inputFacts)
 
-	if intent, ok := buildPackageSourceCorrelationReducerIntent(scopeValue, generation, index); ok {
+	if intent, ok := projectorpackagesource.BuildPackageSourceCorrelationReducerIntent(scopeValue.ScopeID, generation.GenerationID, index.lookup); ok {
 		intents = append(intents, intent)
 	}
 	if intent, ok := buildAWSCloudRuntimeDriftReducerIntent(scopeValue, generation, index); ok {
