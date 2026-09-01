@@ -41,8 +41,13 @@ without re-proving the cycle is gone.
   own namespace before falling back to a broad suffix search. Do not widen
   this to a global suffix-only search — that is the exact P1 false positive
   #5376/#5500 fixed.
-- **Route-liveness downgrades require a provably exact route surface.** Only
-  downgrade on `RouteEvidenceRouted`/`RouteEvidenceUnrouted`. Any unmodeled or
+- **Only `RouteEvidenceUnrouted` may downgrade.** `RouteEvidenceRouted` is
+  positive evidence that an exact route handler dispatches to the action, so
+  downgrading on it would remove a *live* controller from the reachability root
+  set. `evaluateRouteLiveness` reflects this: the single branch that sets
+  `downgrade: true` returns `RouteEvidenceUnrouted`, while the `Routed` and
+  `Ambiguous` branches return without it. Do not widen that set.
+- **A downgrade also requires a provably exact route surface.** Any unmodeled or
   ambiguous route registration anywhere in the repo
   (`RubyRailsRouteFacts.HasUnmodeledRoutes`) must keep every controller action
   in that repo — this is the false-negative-safer bias #5494 requires, not an

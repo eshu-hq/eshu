@@ -63,7 +63,7 @@ func TestBuildCodeReachabilityRowsWithStatsReportsFullSetWhenUnbounded(t *testin
 
 // BenchmarkBuildCodeReachabilityRows records the bounded-traversal cost over a
 // large synthetic corpus: a fan-out graph with depth and visited bounds applied.
-// Run: go test ./internal/reducer -run='^$' -bench=BenchmarkBuildCodeReachabilityRows -benchmem
+// Run: go test ./internal/reducer/codeintel -run='^$' -bench=BenchmarkBuildCodeReachabilityRows -benchmem
 func BenchmarkBuildCodeReachabilityRows(b *testing.B) {
 	const (
 		nodes    = 50000
