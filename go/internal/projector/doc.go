@@ -19,10 +19,10 @@
 // ownership still project canonical and reducer-owned evidence but do not write
 // repository content rows or source ref metadata.
 // The neutral internal/projector/intent contract is the boundary for extracted
-// reducer-intent family packages. Azure, EC2, GCP, Kubernetes, RDS, S3, and
-// security builders live in their internal/projector child packages; this
-// root package owns lookup construction and lifetime, family assembly, and
-// enqueue.
+// reducer-intent family packages. Azure, EC2, GCP, Kubernetes, RDS, S3,
+// security, and workload-cloud-relationship builders live in their
+// internal/projector child packages; this root package owns lookup
+// construction and lifetime, family assembly, and enqueue.
 // OCI registry projection keeps digest-addressed manifests, indexes, and
 // descriptors as canonical identity while treating tags as mutable weak
 // observations that can enrich queries but do not mint image identity.
@@ -57,7 +57,9 @@
 // internal/projector/ec2 child package. S3 LOGS_TO, external-principal-grant,
 // and internet-exposure reducer-intent builders live in the
 // internal/projector/s3 child package; the reducer owns edge and posture
-// projection.
+// projection. The workload-cloud-relationship reducer-intent builder lives in
+// the internal/projector/workloadcloud child package; the reducer owns
+// workload-endpoint resolution and USES edge projection.
 // Package-registry identity emits package source-correlation and supply-chain
 // impact reducer intents so manifest-backed consumption and vulnerability
 // findings can catch up when package evidence arrives after source intelligence.
