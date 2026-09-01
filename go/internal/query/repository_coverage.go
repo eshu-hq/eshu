@@ -8,6 +8,8 @@ import (
 	"database/sql"
 	"fmt"
 	"time"
+
+	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
 )
 
 const (
@@ -118,18 +120,11 @@ func (h *RepositoryHandler) queryRepositoryGraphCoverageStatsWithTimeout(
 	return h.queryRepositoryGraphCoverageStats(graphCtx, repoID)
 }
 
+// coverageLanguageMaps forwards to querycontract.CoverageLanguageMaps, which
+// this implementation moved to (#6060) so a handler-family subpackage can
+// reach it without importing this package.
 func coverageLanguageMaps(languages []RepositoryLanguageCount) []map[string]any {
-	if len(languages) == 0 {
-		return []map[string]any{}
-	}
-	result := make([]map[string]any, 0, len(languages))
-	for _, language := range languages {
-		result = append(result, map[string]any{
-			"language":   language.Language,
-			"file_count": language.FileCount,
-		})
-	}
-	return result
+	return querycontract.CoverageLanguageMaps(languages)
 }
 
 type repositoryGraphCoverageStats struct {
