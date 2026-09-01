@@ -234,7 +234,7 @@ pg_diag() {
 }
 
 # log_diag_local_backend_ownership_lines answers diagnostic [4]: if [3] shows
-# zero findings, did ownership resolve at all? go/internal/reducer/terraform_config_state_drift.go
+# zero findings, did ownership resolve at all? go/internal/reducer/tfconfigstate/terraform_config_state_drift.go
 # JSON-logs (slog.LevelInfo, always enabled -- internal/telemetry/logging.go)
 # either "drift candidate rejected" (failure_class/rejection.reason -- e.g.
 # no_config_repo_owns_backend) or "drift candidate resolved via defaulted

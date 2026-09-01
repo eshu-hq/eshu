@@ -53,7 +53,7 @@
 //
 // # Outcome model (issue #5442)
 //
-// Making drift durable (go/internal/reducer/terraform_config_state_drift_
+// Making drift durable (go/internal/reducer/tfconfigstate/terraform_config_state_drift_
 // writer.go) required deciding which of the six-outcome vocabulary defined at
 // docs/internal/design/391-observability-coverage-correlation.md:294-303
 // (exact, derived, ambiguous, unresolved, stale, rejected) this domain
@@ -105,7 +105,7 @@
 //     tfconfigstate.ResourceRow.ModuleResolutionReason ->
 //     BuildCandidates's EvidenceTypeModuleResolutionConfidence atom ->
 //     the reducer writer's moduleResolutionOutcome
-//     (go/internal/reducer/terraform_config_state_drift_writer.go), which
+//     (go/internal/reducer/tfconfigstate/terraform_config_state_drift_writer.go), which
 //     downgrades Outcome from "exact" to "derived" whenever that atom is
 //     present. One "derived" value covers both causes deliberately, rather
 //     than splitting into two outcome values: the atom's Value carries the

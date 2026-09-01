@@ -23,7 +23,7 @@ type ConfigStateDriftTrigger interface {
 }
 
 // configStateDriftTriggerScopePrefix mirrors driftIntentScopePrefix in
-// go/internal/reducer/terraform_config_state_drift.go and
+// go/internal/reducer/tfconfigstate/terraform_config_state_drift.go and
 // listActiveStateSnapshotScopesQuery's LIKE predicate in drift_enqueue.go --
 // all three MUST agree on the state_snapshot scope shape
 // (state_snapshot:<backend_kind>:<locator_hash>), the exact ScopeID format

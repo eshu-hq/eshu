@@ -207,9 +207,10 @@ func TestOCIRepositoryIDPrefersExplicitID(t *testing.T) {
 }
 
 // TestNonNilStringsSubstitutesEmptySlice pins the nil -> [] substitution. It
-// reaches API and MCP truth: a finding payload encoded from a nil slice carries
-// null, and callers are promised they can range over the collection without a
-// nil guard.
+// reaches API and MCP truth: without the substitution a finding payload
+// encoded from a nil slice would carry null; NonNilStrings encodes it as an
+// empty array instead, so callers are promised they can range over the
+// collection without a nil guard.
 func TestNonNilStringsSubstitutesEmptySlice(t *testing.T) {
 	t.Parallel()
 
@@ -228,9 +229,10 @@ func TestNonNilStringsSubstitutesEmptySlice(t *testing.T) {
 
 // TestNonNilMapSliceSubstitutesEmptySlice pins the nil -> [] substitution for
 // the map-slice sibling of NonNilStrings. It reaches the same API/MCP truth:
-// a finding payload encoded from a nil slice of maps carries null, and
-// callers are promised they can range over the collection without a nil
-// guard.
+// without the substitution a finding payload encoded from a nil slice of
+// maps would carry null; NonNilMapSlice encodes it as an empty array
+// instead, so callers are promised they can range over the collection
+// without a nil guard.
 func TestNonNilMapSliceSubstitutesEmptySlice(t *testing.T) {
 	t.Parallel()
 
