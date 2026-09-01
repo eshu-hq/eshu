@@ -101,9 +101,11 @@ in `go/internal/telemetry/instruments.go`.
   `(AcceptanceUnitID, Keyspace, Phase)`; callers must not assume insertion
   order.
 - **`cross_source_anchor_ready` is reserved for the DSL layer** —
-  `GraphProjectionPhaseCrossSourceAnchorReady` is defined in
-  `internal/reducer/graph_projection_phase.go`; do not publish this phase
-  from canonical projectors or other reducer handlers.
+  `gpphase.PhaseCrossSourceAnchorReady` is defined in
+  `internal/reducer/gpphase`, aliased at the root as
+  `GraphProjectionPhaseCrossSourceAnchorReady` in
+  `internal/reducer/graph_projection_phase.go`; publish only from DSL
+  substrate code, not from canonical projectors or other reducer handlers.
 - **`PublishEvaluationResult` is a no-op when `publisher` is nil or when
   the result produces zero phase states** — `evaluator.go:163–168`.
 - **Zero `observedAt` falls back to `time.Now().UTC()`** — `PhaseStates`
