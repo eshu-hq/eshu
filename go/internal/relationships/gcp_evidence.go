@@ -24,8 +24,8 @@ const (
 // string, so decodeGCPCloudRelationship normalizes it (and the empty string an
 // in-memory fact carries before persistence) to the family's real major-1 schema
 // version. It is never a real schema version any collector emits. Mirrors the
-// reducer's persistedVersionlessSchemaVersion
-// (go/internal/reducer/factschema_decode.go).
+// reducer's own "0.0.0" sentinel handling in FactschemaEnvelope
+// (go/internal/reducer/schemadecode/factschema_decode.go).
 const gcpRelationshipPersistedVersionlessSchemaVersion = "0.0.0"
 
 // decodeGCPCloudRelationship decodes a gcp_cloud_relationship envelope's payload
@@ -36,7 +36,7 @@ const gcpRelationshipPersistedVersionlessSchemaVersion = "0.0.0"
 // target_full_resource_name, relationship_type) or an unsupported schema major.
 //
 // On a decode error the caller MUST produce no evidence. This mirrors the reducer's
-// decodeGCPCloudRelationship contract (go/internal/reducer/factschema_decode.go): a
+// decodeGCPCloudRelationship contract (go/internal/reducer/schemadecode/factschema_decode.go): a
 // malformed payload is never read as a zero-value/empty-string identity. The
 // relationships package holds no queue or graph handle and so cannot itself
 // dead-letter (see AGENTS.md "No graph writes"); returning false so the extractor
@@ -59,7 +59,7 @@ const gcpRelationshipPersistedVersionlessSchemaVersion = "0.0.0"
 // factschema.WithoutAttributesRemainder() (issue #4865), which skips rebuilding
 // the discarded Attributes remainder map — every named field decodes
 // identically to a default decode, and the unread Attributes field is left nil.
-// The reducer's own decode site (go/internal/reducer/factschema_decode.go) does
+// The reducer's own decode site (go/internal/reducer/schemadecode/factschema_decode.go) does
 // consume Attributes and so keeps the default (full-remainder) decode.
 func decodeGCPCloudRelationship(envelope facts.Envelope) (gcpv1.Relationship, bool) {
 	schemaVersion := envelope.SchemaVersion

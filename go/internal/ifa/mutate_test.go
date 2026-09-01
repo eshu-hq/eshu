@@ -161,7 +161,8 @@ func TestMutateCassetteMissingFieldQuarantinesNotDeadLetters(t *testing.T) {
 	if classified.Field != "asset_type" {
 		t.Fatalf("Field = %q, want %q", classified.Field, "asset_type")
 	}
-	// The reducer's partitionDecodeFailures (go/internal/reducer/factschema_decode.go)
+	// The reducer's partitionDecodeFailures (go/internal/reducer/factdecode's
+	// PartitionDecodeFailures)
 	// routes every ClassificationInputInvalid error EXCEPT ErrUnsupportedSchemaMajor
 	// to a per-fact QUARANTINE, not a durable fact_work_items dead-letter. A
 	// missing-field mutation must not wrap that sentinel, or this fact would
@@ -176,7 +177,8 @@ func TestMutateCassetteMissingFieldQuarantinesNotDeadLetters(t *testing.T) {
 // half of MutationSchemaMajor's guarantee in hermetic isolation: decoding the
 // mutated fact directly through factschema.DecodeGCPCloudResource returns
 // ErrUnsupportedSchemaMajor, which go/internal/reducer's partitionDecodeFailures
-// explicitly excludes from per-fact quarantine (factschema_decode.go:139-141)
+// explicitly excludes from per-fact quarantine (go/internal/reducer/factdecode's
+// PartitionDecodeFailures, the ErrUnsupportedSchemaMajor check)
 // were a fact to reach that seam. It does NOT assert this is the exact
 // runtime path exercised end to end: driving this mutation through a real
 // stack (scripts/verify-ifa-dead-letter-determinism.sh) showed the projector's
@@ -219,7 +221,8 @@ func TestMutateCassetteSchemaMajorReachesDeadLetterPath(t *testing.T) {
 		t.Fatalf("DecodeGCPCloudResource() on a schema-major-mutated fact succeeded, want a decode error")
 	}
 	// This is the FATAL branch partitionDecodeFailures excludes from
-	// quarantine (factschema_decode.go:139-141) — the contracts-seam half of
+	// quarantine (go/internal/reducer/factdecode's PartitionDecodeFailures,
+	// the ErrUnsupportedSchemaMajor check) — the contracts-seam half of
 	// the guarantee; see the test's own doc comment for the empirically
 	// observed end-to-end path and its actual failure_class.
 	if !errors.Is(decodeErr, factschema.ErrUnsupportedSchemaMajor) {

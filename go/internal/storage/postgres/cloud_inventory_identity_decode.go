@@ -18,7 +18,7 @@ import (
 // NEW decode<Kind> seams (ParseDecodeSeamsGlob, LoaderDir =
 // go/internal/storage/postgres). aws_resource and azure_cloud_resource
 // already have a canonical reducer-side seam (decodeAWSResource,
-// decodeAzureCloudResource in go/internal/reducer/factschema_decode*.go) that
+// decodeAzureCloudResource in go/internal/reducer/schemadecode/factschema_decode*.go) that
 // already gates account_id/subscription_id as required, declared fields; a
 // second same-named-pattern seam here for the SAME fact kind would give the
 // manifest TWO KindManifest entries sharing one FactKind constant, which
@@ -28,7 +28,7 @@ import (
 // required and already tracked. This mirrors the established precedent in
 // secrets_iam_trust_chain_anchor_decode.go, which decodes several fact kinds
 // (e.g. facts.AWSIAMPrincipalFactKind, already seamed by
-// go/internal/reducer/factschema_decode.go's decodeAWSIAMPrincipal) the same
+// go/internal/reducer/schemadecode/factschema_decode.go's decodeAWSIAMPrincipal) the same
 // way, through factschema.Decode* directly, in a file intentionally outside
 // the factschema_decode*.go glob.
 

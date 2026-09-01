@@ -13,8 +13,8 @@ import (
 	"strings"
 )
 
-// DecodeSeam describes one reducer-side decode<Kind> function discovered in
-// go/internal/reducer/factschema_decode.go: which factschema.FactKind*
+// DecodeSeam describes one exported Decode<Kind> function discovered in
+// go/internal/reducer/schemadecode/factschema_decode*.go: which factschema.FactKind*
 // constant it decodes and which typed struct (package-qualified, e.g.
 // "awsv1.Resource") it returns. This is the derivation root the payload-usage
 // manifest is built from — Contract System v1 §6 gate 2 requires the manifest
@@ -41,7 +41,7 @@ func (d DecodeSeam) QualifiedStruct() string {
 }
 
 // ParseDecodeSeams parses path (expected to be
-// go/internal/reducer/factschema_decode.go) and returns every decode<Kind>
+// go/internal/reducer/schemadecode/factschema_decode.go) and returns every decode<Kind>
 // function it declares, sorted by FuncName for deterministic output.
 //
 // A decode function is recognized by this exact shape: a package-level func
@@ -85,7 +85,7 @@ func ParseDecodeSeams(path string) ([]DecodeSeam, error) {
 }
 
 // ParseDecodeSeamsGlob parses every file matching glob (expected to be
-// go/internal/reducer/factschema_decode*.go) and returns the merged set of
+// go/internal/reducer/schemadecode/factschema_decode*.go) and returns the merged set of
 // decode<Kind> seams across all of them, sorted by FuncName for deterministic
 // output. Each cloud family keeps its decode wrappers in its own
 // factschema_decode_<family>.go file, so the manifest must scan the whole

@@ -244,7 +244,7 @@ var factKindSchemaFile = map[string]string{ // #nosec G101 -- fact-kind identifi
 	"FactKindWorkItemMetadataWarning":   "work_item.metadata_warning.v1.schema.json",
 	// security_alert family (Wave 4e): the single repository_alert kind a
 	// reducer decode seam wrapper actually decodes
-	// (go/internal/reducer/factschema_decode_securityalert.go). Its one decode
+	// (go/internal/reducer/schemadecode/factschema_decode_securityalert.go). Its one decode
 	// site feeds both the reconciliation read surface and the
 	// supply-chain-impact seeder, but both read the same decoded struct, so one
 	// mapping covers the gate for every field either consumer reads.

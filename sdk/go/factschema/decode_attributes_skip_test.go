@@ -102,7 +102,7 @@ func TestDecodeGCPCloudRelationship_WithoutAttributesRemainder(t *testing.T) {
 // TestDecodeGCPCloudRelationship_DefaultUnchanged guards the additive contract:
 // a decode with no options still populates the full Attributes remainder, so
 // existing callers that read .Attributes (for example the reducer's own decode
-// site, go/internal/reducer/factschema_decode.go) keep their prior behavior.
+// site, go/internal/reducer/schemadecode/factschema_decode.go) keep their prior behavior.
 func TestDecodeGCPCloudRelationship_DefaultUnchanged(t *testing.T) {
 	env := gcpRelationshipEnvelopeForSkipTest(t, 3)
 	full, err := DecodeGCPCloudRelationship(env)

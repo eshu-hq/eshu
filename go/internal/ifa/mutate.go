@@ -23,7 +23,7 @@ import (
 //   - A missing required field passes every earlier admission gate (its
 //     schema_version is untouched) and is QUARANTINED per fact once a
 //     canonical extractor or reducer handler decodes it:
-//     go/internal/reducer/factschema_decode.go's partitionDecodeFailures (and
+//     go/internal/reducer/factdecode's PartitionDecodeFailures (and
 //     its projector-side twin, go/internal/projector/factschema_quarantine.go)
 //     skip that one fact, increment a metric, and log a structured error,
 //     but the surrounding work item still SUCCEEDS. No fact_work_items row is
