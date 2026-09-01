@@ -30,7 +30,7 @@ it before touching any file in this directory.
   the root aliases that under the longer name
   `GraphProjectionPhaseCrossSourceAnchorReady` in
   `internal/reducer/graph_projection_phase.go`. Use the leaf name from a leaf
-  package, the alias from root callers;
+  package, the alias from root callers; publish only from DSL
   substrate code, not from canonical projectors or other reducer handlers.
 - **`PublishEvaluationResult` is nil-safe** — `evaluator.go:163`; a nil
   `publisher` is silently a no-op. This is intentional for test scaffolding
