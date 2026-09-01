@@ -1249,16 +1249,40 @@ gained, nothing lost. No caller's body grew past the inlining budget because of
 an added indirection.
 
 Inlined call sites (grep count of `inlining call to` in the same
-`go build -gcflags=-m ./internal/reducer/...` log) move 14646 to 14568, and the
-whole −78 is accounted for by two relocations:
+`go build -gcflags=-m ./internal/reducer/...` log) move 14646 to 14568. The two
+largest named relocations account for the bulk of that −78:
 
 | function | base | head | why |
 |---|---|---|---|
-| `factschemaEnvelope` | 98 | 1 | renamed; `FactschemaEnvelope` picks up 97 and `schemadecode.FactschemaEnvelope` 2, so this trio is net +1 |
+| `factschemaEnvelope` | 98 | 1 | renamed; `FactschemaEnvelope` picks up 97 and `schemadecode.FactschemaEnvelope` 2, so this trio (98 -> 1+97+2=100) is net +2 |
 | `newFactDecodeError` | 101 | 7 | the 20 moved files now call `factdecode.NewFactDecodeError` directly instead of through the root forwarder |
 
-−191 lost, +113 gained, −78 net — the arithmetic closes, so nothing is
-unexplained.
+−191 lost, +113 gained, −78 net — the aggregate arithmetic closes, but that is
+bookkeeping, not a causal accounting: it does not by itself mean every mover is
+named (the same "a net count cannot find a named regression" reasoning that
+opened this section). A full per-name diff of the two logs shows 7 more
+functions changed count, unnamed by the table above, totaling +14 of the +113
+gained side:
+
+| function | base | head |
+|---|---|---|
+| `reflect.flag.kind` | 8 | 12 |
+| `reflect.flag.mustBe` | 4 | 6 |
+| `reflect.flag.mustBeAssignable` | 4 | 6 |
+| `reflect.flag.mustBeExported` | 4 | 6 |
+| `reflect.flag.ro` | 4 | 6 |
+| `factenvelope.FactSchemaFromInternal` | 99 | 100 |
+| `factenvelope.sourceRefString` | 99 | 100 |
+
+None of these five `reflect.flag.*` methods or the two `factenvelope` helpers
+are touched by this PR's diff; all seven are called pervasively by the decode
+path every seam already goes through (envelope conversion and the JSON-tag
+reflection every typed decode uses). The increase is consistent with a
+build-ordering/inlining-budget effect of splitting 20 files into a new
+compilation unit — not established as the cause, since that has not been
+measured directly (e.g. a per-callsite `-m=2` breakdown), only observed as
+plausible given what these functions are and where they sit. Do not treat
+"consistent with" as "is."
 
 `newFactDecodeError` looks alarming and is not a regression. At base the root
 forwarder inlined at 101 sites and then made a real call into `factdecode`; at
