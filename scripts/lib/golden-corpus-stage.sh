@@ -17,6 +17,30 @@
 #
 # Requires (set by the orchestrator before the call): repo_root, corpus_dir,
 # corpus_fixtures (array), and the die() function.
+#
+# stage_strip_ignored_files (#6401) removes every path this repository's own
+# .gitignore hides for a fixture's SOURCE directory from the freshly `cp -R`'d
+# COPY, before anything commits it. Without this, a git-ignored file such as
+# .DS_Store or *.swp survives `cp -R` into the staged copy, and
+# stage_deterministic_git_fixture's fresh `git init` (core.excludesfile
+# /dev/null, no local .gitignore) then `git add -A`-commits it -- silently
+# drifting the staged HEAD off the commit_sha
+# testdata/cassettes/cicdrun/supply-chain-demo.json pins for container-ci-lineage
+# and github_actions_workflows, which golden_corpus_assert_pinned_fixtures
+# (scripts/lib/golden-corpus-gate-integrity.sh) now catches immediately after
+# staging. Deliberately narrow: only IGNORED paths are removed. An
+# untracked-but-not-ignored file (a fixture addition still in progress) and an
+# uncommitted edit to a tracked file both survive -- `git ls-files --others
+# --ignored --exclude-standard` reports neither of those categories.
+stage_strip_ignored_files() {
+	local fixture="$1" dest="$2" src_rel="tests/fixtures/ecosystems/${1}"
+	local ignored_path rel
+	while IFS= read -r ignored_path; do
+		[[ -n "${ignored_path}" ]] || continue
+		rel="${ignored_path#"${src_rel}"/}"
+		rm -rf -- "${dest:?stage_strip_ignored_files: dest must not be empty}/${rel}"
+	done < <(git -C "${repo_root}" ls-files --others --ignored --exclude-standard -- "${src_rel}")
+}
 
 stage_deterministic_git_fixture() {
 	local fixture_path="$1"
@@ -38,6 +62,7 @@ stage_minimal_corpus() {
 		src="${repo_root}/tests/fixtures/ecosystems/${fixture}"
 		[[ -d "${src}" ]] || die "corpus fixture not found: ${src}"
 		cp -R "${src}" "${corpus_dir}/${fixture}"
+		stage_strip_ignored_files "${fixture}" "${corpus_dir}/${fixture}"
 		# deployable-config needs a git repo so localGitRefs can discover tags
 		# for the B-12 query_shape.http branches endpoint assertion.
 		if [[ "${fixture}" = "deployable-config" ]]; then
