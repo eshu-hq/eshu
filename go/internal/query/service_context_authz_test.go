@@ -246,7 +246,7 @@ func TestGetServiceContextReadModelFallbackFiltersOutOfScopeRepository(t *testin
 
 	content := &recordingServiceContextContentStore{
 		repo: &RepositoryCatalogEntry{ID: "repo-team-b", Name: "payments"},
-		summary: repositoryReadModelSummary{
+		summary: RepositoryReadModelSummary{
 			Available:     true,
 			WorkloadNames: []string{"payments"},
 		},
@@ -414,7 +414,7 @@ func (r *recordingServiceContextGraphReader) RunSingle(
 type recordingServiceContextContentStore struct {
 	fakePortContentStore
 	repo                   *RepositoryCatalogEntry
-	summary                repositoryReadModelSummary
+	summary                RepositoryReadModelSummary
 	resolveRepositoryCalls int
 	summaryCalls           int
 }
@@ -431,10 +431,10 @@ func (s *recordingServiceContextContentStore) ResolveRepository(
 	return &repo, nil
 }
 
-func (s *recordingServiceContextContentStore) repositoryReadModelSummary(
+func (s *recordingServiceContextContentStore) RepositoryReadModelSummary(
 	context.Context,
 	string,
-) (repositoryReadModelSummary, error) {
+) (RepositoryReadModelSummary, error) {
 	s.summaryCalls++
 	return s.summary, nil
 }

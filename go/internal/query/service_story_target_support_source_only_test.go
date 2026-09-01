@@ -73,7 +73,7 @@ func TestContentReaderServiceStoryTargetSupportReportsSourceOnlySupportFacts(t *
 	})
 	reader := NewContentReader(db)
 
-	got, err := reader.serviceStoryTargetSupportEvidence(t.Context(), serviceStoryTargetSupportFilter{
+	got, err := reader.ServiceStoryTargetSupportEvidence(t.Context(), serviceStoryTargetSupportFilter{
 		Repository: "repo-payments-api",
 		TargetKind: "service",
 		TargetID:   "workload:payments-api",
@@ -81,7 +81,7 @@ func TestContentReaderServiceStoryTargetSupportReportsSourceOnlySupportFacts(t *
 		Limit:      serviceStoryTargetSupportLimit,
 	})
 	if err != nil {
-		t.Fatalf("serviceStoryTargetSupportEvidence() error = %v, want nil", err)
+		t.Fatalf("ServiceStoryTargetSupportEvidence() error = %v, want nil", err)
 	}
 	support := got.Support
 	if gotCount := IntVal(support, "evidence_count"); gotCount != 0 {

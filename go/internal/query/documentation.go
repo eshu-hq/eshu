@@ -76,12 +76,12 @@ type documentationEvidencePacketFreshnessReadModel struct {
 }
 
 type documentationReadModelStore interface {
-	documentationFindings(context.Context, documentationFindingFilter) (documentationFindingListReadModel, error)
-	documentationFacts(context.Context, documentationFactFilter) (documentationFactListReadModel, error)
-	documentationEvidencePacket(context.Context, string) (documentationEvidencePacketReadModel, error)
-	documentationEvidencePacketFreshness(context.Context, string, string) (documentationEvidencePacketFreshnessReadModel, error)
-	documentationEvidencePacketWithFilter(context.Context, documentationEvidencePacketFilter) (documentationEvidencePacketReadModel, error)
-	documentationEvidencePacketFreshnessWithFilter(
+	DocumentationFindings(context.Context, documentationFindingFilter) (documentationFindingListReadModel, error)
+	DocumentationFacts(context.Context, documentationFactFilter) (documentationFactListReadModel, error)
+	DocumentationEvidencePacket(context.Context, string) (documentationEvidencePacketReadModel, error)
+	DocumentationEvidencePacketFreshness(context.Context, string, string) (documentationEvidencePacketFreshnessReadModel, error)
+	DocumentationEvidencePacketWithFilter(context.Context, documentationEvidencePacketFilter) (documentationEvidencePacketReadModel, error)
+	DocumentationEvidencePacketFreshnessWithFilter(
 		context.Context,
 		documentationEvidencePacketFreshnessFilter,
 	) (documentationEvidencePacketFreshnessReadModel, error)
@@ -155,7 +155,7 @@ func (h *DocumentationHandler) listFindings(w http.ResponseWriter, r *http.Reque
 		))
 		return
 	}
-	readModel, err := store.documentationFindings(r.Context(), filter)
+	readModel, err := store.DocumentationFindings(r.Context(), filter)
 	if err != nil {
 		writeDocumentationInternalError(w, r)
 		return
@@ -195,7 +195,7 @@ func (h *DocumentationHandler) getEvidencePacket(w http.ResponseWriter, r *http.
 		writeDocumentationPacketNotFound(w, r)
 		return
 	}
-	readModel, err := store.documentationEvidencePacketWithFilter(r.Context(), filter)
+	readModel, err := store.DocumentationEvidencePacketWithFilter(r.Context(), filter)
 	if err != nil {
 		writeDocumentationInternalError(w, r)
 		return
@@ -247,7 +247,7 @@ func (h *DocumentationHandler) getPacketFreshness(w http.ResponseWriter, r *http
 		writeDocumentationPacketNotFound(w, r)
 		return
 	}
-	readModel, err := store.documentationEvidencePacketFreshnessWithFilter(r.Context(), filter)
+	readModel, err := store.DocumentationEvidencePacketFreshnessWithFilter(r.Context(), filter)
 	if err != nil {
 		writeDocumentationInternalError(w, r)
 		return

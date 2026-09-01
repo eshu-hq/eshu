@@ -13,7 +13,7 @@ import (
 	"go.opentelemetry.io/otel/trace"
 )
 
-func (cr *ContentReader) documentationEvidencePacketWithFilter(
+func (cr *ContentReader) DocumentationEvidencePacketWithFilter(
 	ctx context.Context,
 	filter documentationEvidencePacketFilter,
 ) (documentationEvidencePacketReadModel, error) {
@@ -71,7 +71,7 @@ func (cr *ContentReader) documentationEvidencePacketWithFilter(
 	return documentationEvidencePacketReadModel{Available: true, Packet: packet}, nil
 }
 
-func (cr *ContentReader) documentationEvidencePacketFreshnessWithFilter(
+func (cr *ContentReader) DocumentationEvidencePacketFreshnessWithFilter(
 	ctx context.Context,
 	filter documentationEvidencePacketFreshnessFilter,
 ) (documentationEvidencePacketFreshnessReadModel, error) {

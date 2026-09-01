@@ -112,30 +112,30 @@ func (f fakePortContentStore) RepositoryLanguageInventory(
 	return append([]RepositoryLanguageInventoryRow(nil), rows...), nil
 }
 
-func (f fakePortContentStore) repositoryReadModelSummary(context.Context, string) (repositoryReadModelSummary, error) {
+func (f fakePortContentStore) RepositoryReadModelSummary(context.Context, string) (RepositoryReadModelSummary, error) {
 	return f.summary, nil
 }
 
-func (f fakePortContentStore) repositoryRelationshipReadModel(context.Context, string) (repositoryRelationshipReadModel, error) {
+func (f fakePortContentStore) RepositoryRelationshipReadModel(context.Context, string) (RepositoryRelationshipReadModel, error) {
 	return f.relationshipReadModel, nil
 }
 
-func (f fakePortContentStore) repositoryEntryPoints(context.Context, string) (repositoryEntryPointReadModel, error) {
+func (f fakePortContentStore) RepositoryEntryPoints(context.Context, string) (repositoryEntryPointReadModel, error) {
 	return f.entryPoints, nil
 }
 
-func (f fakePortContentStore) repositoryDeploymentEvidence(context.Context, string) (repositoryDeploymentEvidenceReadModel, error) {
+func (f fakePortContentStore) RepositoryDeploymentEvidence(context.Context, string) (repositoryDeploymentEvidenceReadModel, error) {
 	if f.deploymentEvidenceErr != nil {
 		return repositoryDeploymentEvidenceReadModel{}, f.deploymentEvidenceErr
 	}
 	return f.deploymentEvidence, nil
 }
 
-func (f fakePortContentStore) relationshipEvidenceByResolvedID(context.Context, string) (relationshipEvidenceReadModel, error) {
+func (f fakePortContentStore) RelationshipEvidenceByResolvedID(context.Context, string) (relationshipEvidenceReadModel, error) {
 	return f.relationshipEvidence, nil
 }
 
-func (f fakePortContentStore) documentationFindings(_ context.Context, filter documentationFindingFilter) (documentationFindingListReadModel, error) {
+func (f fakePortContentStore) DocumentationFindings(_ context.Context, filter documentationFindingFilter) (documentationFindingListReadModel, error) {
 	if f.documentationFindingsFilter != nil {
 		*f.documentationFindingsFilter = filter
 	}
@@ -145,7 +145,7 @@ func (f fakePortContentStore) documentationFindings(_ context.Context, filter do
 	return f.documentationFindingsModel, nil
 }
 
-func (f fakePortContentStore) documentationFacts(_ context.Context, filter documentationFactFilter) (documentationFactListReadModel, error) {
+func (f fakePortContentStore) DocumentationFacts(_ context.Context, filter documentationFactFilter) (documentationFactListReadModel, error) {
 	if f.documentationFactsFilter != nil {
 		*f.documentationFactsFilter = filter
 	}
@@ -155,14 +155,14 @@ func (f fakePortContentStore) documentationFacts(_ context.Context, filter docum
 	return f.documentationFactsModel, nil
 }
 
-func (f fakePortContentStore) documentationEvidencePacket(context.Context, string) (documentationEvidencePacketReadModel, error) {
+func (f fakePortContentStore) DocumentationEvidencePacket(context.Context, string) (documentationEvidencePacketReadModel, error) {
 	if f.documentationPacketErr != nil {
 		return documentationEvidencePacketReadModel{}, f.documentationPacketErr
 	}
 	return f.documentationPacketModel, nil
 }
 
-func (f fakePortContentStore) documentationEvidencePacketWithFilter(
+func (f fakePortContentStore) DocumentationEvidencePacketWithFilter(
 	_ context.Context,
 	filter documentationEvidencePacketFilter,
 ) (documentationEvidencePacketReadModel, error) {
@@ -175,7 +175,7 @@ func (f fakePortContentStore) documentationEvidencePacketWithFilter(
 	return f.documentationPacketModel, nil
 }
 
-func (f fakePortContentStore) documentationEvidencePacketFreshness(
+func (f fakePortContentStore) DocumentationEvidencePacketFreshness(
 	context.Context,
 	string,
 	string,
@@ -186,7 +186,7 @@ func (f fakePortContentStore) documentationEvidencePacketFreshness(
 	return f.documentationFreshnessModel, nil
 }
 
-func (f fakePortContentStore) documentationEvidencePacketFreshnessWithFilter(
+func (f fakePortContentStore) DocumentationEvidencePacketFreshnessWithFilter(
 	_ context.Context,
 	filter documentationEvidencePacketFreshnessFilter,
 ) (documentationEvidencePacketFreshnessReadModel, error) {

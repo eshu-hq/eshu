@@ -426,7 +426,7 @@ type fakeSemanticEvidenceStore struct {
 	calls     int
 }
 
-func (s *fakeSemanticEvidenceStore) semanticEvidence(
+func (s *fakeSemanticEvidenceStore) SemanticEvidence(
 	_ context.Context,
 	filter semanticEvidenceFilter,
 ) (semanticEvidenceListReadModel, error) {

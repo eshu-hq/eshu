@@ -81,7 +81,7 @@ func (h *DocumentationHandler) listFacts(w http.ResponseWriter, r *http.Request)
 	if !ok {
 		return
 	}
-	readModel, err := store.documentationFacts(r.Context(), filter)
+	readModel, err := store.DocumentationFacts(r.Context(), filter)
 	if err != nil {
 		writeDocumentationInternalError(w, r)
 		return

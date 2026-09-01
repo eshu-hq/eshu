@@ -37,12 +37,12 @@ func TestContentReaderRepositoryRelationshipReadModelHydratesEvidence(t *testing
 	})
 
 	reader := NewContentReader(db)
-	got, err := reader.repositoryRelationshipReadModel(context.Background(), "repo-service")
+	got, err := reader.RepositoryRelationshipReadModel(context.Background(), "repo-service")
 	if err != nil {
-		t.Fatalf("repositoryRelationshipReadModel() error = %v, want nil", err)
+		t.Fatalf("RepositoryRelationshipReadModel() error = %v, want nil", err)
 	}
 	if !got.Available {
-		t.Fatal("repositoryRelationshipReadModel().Available = false, want true")
+		t.Fatal("RepositoryRelationshipReadModel().Available = false, want true")
 	}
 	if len(got.Relationships) != 2 {
 		t.Fatalf("len(Relationships) = %d, want 2", len(got.Relationships))
@@ -102,13 +102,13 @@ func TestGetRepositoryContextUsesReadModelForRelationshipsAndConsumers(t *testin
 	handler := &RepositoryHandler{
 		Neo4j: reader,
 		Content: fakePortContentStore{
-			summary: repositoryReadModelSummary{
+			summary: RepositoryReadModelSummary{
 				Available:       true,
 				WorkloadNames:   []string{"read-model-service"},
 				PlatformCount:   1,
 				DependencyCount: 1,
 			},
-			relationshipReadModel: repositoryRelationshipReadModel{
+			relationshipReadModel: RepositoryRelationshipReadModel{
 				Available: true,
 				Relationships: []map[string]any{
 					{

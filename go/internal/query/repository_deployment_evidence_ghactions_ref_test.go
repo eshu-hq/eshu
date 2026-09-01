@@ -251,7 +251,7 @@ func TestDeploymentEvidenceArtifactFromPreviewScopesGHARefToGitHubActions(t *tes
 }
 
 // TestContentReaderDeploymentEvidenceHydratesGHARef proves the end-to-end
-// read-model SQL -> scan -> artifact path (repositoryDeploymentEvidence)
+// read-model SQL -> scan -> artifact path (RepositoryDeploymentEvidence)
 // carries ref_value/ref_pinned, mirroring
 // TestContentReaderDeploymentEvidenceHydratesCommitSHA's proof for commit_sha.
 func TestContentReaderDeploymentEvidenceHydratesGHARef(t *testing.T) {
@@ -271,9 +271,9 @@ func TestContentReaderDeploymentEvidenceHydratesGHARef(t *testing.T) {
 	})
 
 	reader := NewContentReader(db)
-	got, err := reader.repositoryDeploymentEvidence(t.Context(), "repo-service")
+	got, err := reader.RepositoryDeploymentEvidence(t.Context(), "repo-service")
 	if err != nil {
-		t.Fatalf("repositoryDeploymentEvidence() error = %v", err)
+		t.Fatalf("RepositoryDeploymentEvidence() error = %v", err)
 	}
 	if !got.Available || len(got.Rows) == 0 {
 		t.Fatal("no rows returned")

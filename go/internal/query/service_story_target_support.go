@@ -16,7 +16,7 @@ import (
 const serviceStoryTargetSupportLimit = 10
 
 type serviceStoryTargetSupportStore interface {
-	serviceStoryTargetSupportEvidence(
+	ServiceStoryTargetSupportEvidence(
 		context.Context,
 		serviceStoryTargetSupportFilter,
 	) (serviceStoryTargetSupportReadModel, error)
@@ -72,7 +72,7 @@ func loadServiceStoryTargetSupport(
 		filter.TargetKind = "repository"
 		filter.TargetID = repoID
 	}
-	readModel, err := store.serviceStoryTargetSupportEvidence(ctx, filter)
+	readModel, err := store.ServiceStoryTargetSupportEvidence(ctx, filter)
 	if err != nil {
 		return nil, err
 	}
@@ -92,7 +92,7 @@ func loadRepositoryStoryTargetSupport(
 	if repoID == "" {
 		return nil, nil
 	}
-	readModel, err := store.serviceStoryTargetSupportEvidence(ctx, serviceStoryTargetSupportFilter{
+	readModel, err := store.ServiceStoryTargetSupportEvidence(ctx, serviceStoryTargetSupportFilter{
 		Repository: repoID,
 		TargetKind: "repository",
 		TargetID:   repoID,
@@ -104,7 +104,7 @@ func loadRepositoryStoryTargetSupport(
 	return readModel.Support, nil
 }
 
-func (cr *ContentReader) serviceStoryTargetSupportEvidence(
+func (cr *ContentReader) ServiceStoryTargetSupportEvidence(
 	ctx context.Context,
 	filter serviceStoryTargetSupportFilter,
 ) (serviceStoryTargetSupportReadModel, error) {

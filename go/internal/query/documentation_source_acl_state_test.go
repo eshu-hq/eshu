@@ -42,9 +42,9 @@ func TestContentReaderDocumentationFindingsSurfacesBoundedSourceACLState(t *test
 	})
 	reader := NewContentReader(db)
 
-	got, err := reader.documentationFindings(t.Context(), documentationFindingFilter{Limit: 50})
+	got, err := reader.DocumentationFindings(t.Context(), documentationFindingFilter{Limit: 50})
 	if err != nil {
-		t.Fatalf("documentationFindings() error = %v, want nil", err)
+		t.Fatalf("DocumentationFindings() error = %v, want nil", err)
 	}
 	if gotLen, want := len(got.Findings), 2; gotLen != want {
 		t.Fatalf("len(Findings) = %d, want %d (ACL state is additive, no row dropped); findings = %#v", gotLen, want, got.Findings)
@@ -84,12 +84,12 @@ func TestContentReaderDocumentationEvidencePacketSurfacesBoundedSourceACLState(t
 	})
 	reader := NewContentReader(db)
 
-	got, err := reader.documentationEvidencePacketWithFilter(
+	got, err := reader.DocumentationEvidencePacketWithFilter(
 		t.Context(),
 		documentationEvidencePacketFilter{FindingID: "finding:partial"},
 	)
 	if err != nil {
-		t.Fatalf("documentationEvidencePacketWithFilter() error = %v, want nil", err)
+		t.Fatalf("DocumentationEvidencePacketWithFilter() error = %v, want nil", err)
 	}
 	if !got.Available || got.Denied {
 		t.Fatalf("packet Available=%v Denied=%v, want available and not denied", got.Available, got.Denied)
@@ -118,12 +118,12 @@ func TestContentReaderDocumentationEvidencePacketOmitsAbsentSourceACLState(t *te
 	})
 	reader := NewContentReader(db)
 
-	got, err := reader.documentationEvidencePacketWithFilter(
+	got, err := reader.DocumentationEvidencePacketWithFilter(
 		t.Context(),
 		documentationEvidencePacketFilter{FindingID: "finding:plain"},
 	)
 	if err != nil {
-		t.Fatalf("documentationEvidencePacketWithFilter() error = %v, want nil", err)
+		t.Fatalf("DocumentationEvidencePacketWithFilter() error = %v, want nil", err)
 	}
 	if _, present := got.Packet["source_acl_state"]; present {
 		t.Fatalf("packet surfaced source_acl_state with no ACL claim: %#v", got.Packet)

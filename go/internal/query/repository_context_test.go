@@ -268,7 +268,7 @@ func TestGetRepositoryContextUsesContentCoverageForFileCountsAndLanguages(t *tes
 					{Language: "yaml", FileCount: 156},
 				},
 			},
-			summary: repositoryReadModelSummary{
+			summary: RepositoryReadModelSummary{
 				Available:       true,
 				WorkloadNames:   []string{"coverage-service"},
 				PlatformCount:   1,
@@ -359,7 +359,7 @@ func TestGetRepositoryStoryUsesContentCoverageForFileCountsAndLanguages(t *testi
 					{Language: "yaml", FileCount: 289},
 				},
 			},
-			summary: repositoryReadModelSummary{
+			summary: RepositoryReadModelSummary{
 				Available:       true,
 				WorkloadNames:   []string{"story-coverage-service"},
 				PlatformTypes:   []string{"ecs"},

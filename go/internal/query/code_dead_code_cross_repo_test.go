@@ -262,7 +262,7 @@ func TestHandleCrossRepoDeadCodeRepositoryBoundaryEvidenceStaysUnknown(t *testin
 		fakeDeadCodeContentStore: fakeDeadCodeContentStore{
 			fakePortContentStore: fakePortContentStore{
 				repositories: []RepositoryCatalogEntry{{ID: "repo-producer", Name: "payments-lib"}},
-				relationshipReadModel: repositoryRelationshipReadModel{
+				relationshipReadModel: RepositoryRelationshipReadModel{
 					Available: true,
 					Relationships: []map[string]any{{
 						"direction":         "incoming",

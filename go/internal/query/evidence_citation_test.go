@@ -361,14 +361,14 @@ func TestContentReaderEvidenceCitationFilesHydratesBatch(t *testing.T) {
 	})
 
 	reader := NewContentReader(db)
-	files, err := reader.evidenceCitationFiles(t.Context(), []evidenceCitationFileLookup{
+	files, err := reader.EvidenceCitationFiles(t.Context(), []evidenceCitationFileLookup{
 		{RepoID: "repo-service", RelativePath: "README.md"},
 		{RepoID: "repo-service", RelativePath: "cmd/api/main.go"},
 		{RepoID: "repo-service", RelativePath: "README.md"},
 		{RepoID: "", RelativePath: "ignored"},
 	})
 	if err != nil {
-		t.Fatalf("evidenceCitationFiles() error = %v, want nil", err)
+		t.Fatalf("EvidenceCitationFiles() error = %v, want nil", err)
 	}
 	if got, want := len(files), 2; got != want {
 		t.Fatalf("len(files) = %d, want %d", got, want)
@@ -395,7 +395,7 @@ type citationPacketContentStore struct {
 	singleEntityCalls        int
 }
 
-func (s *citationPacketContentStore) evidenceCitationFiles(
+func (s *citationPacketContentStore) EvidenceCitationFiles(
 	_ context.Context,
 	lookups []evidenceCitationFileLookup,
 ) (map[evidenceCitationFileKey]FileContent, error) {

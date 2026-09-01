@@ -94,7 +94,7 @@ func TestGetRepositoryContextMergesDeployableUnitEdgesWithReadModel(t *testing.T
 	handler := &RepositoryHandler{
 		Neo4j: reader,
 		Content: fakePortContentStore{
-			relationshipReadModel: repositoryRelationshipReadModel{
+			relationshipReadModel: RepositoryRelationshipReadModel{
 				Available: true,
 				Relationships: []map[string]any{
 					{

@@ -389,7 +389,7 @@ func missingSupportReadModel() serviceStoryTargetSupportReadModel {
 	}
 }
 
-func (f fakePortContentStore) serviceStoryTargetSupportEvidence(
+func (f fakePortContentStore) ServiceStoryTargetSupportEvidence(
 	context.Context,
 	serviceStoryTargetSupportFilter,
 ) (serviceStoryTargetSupportReadModel, error) {

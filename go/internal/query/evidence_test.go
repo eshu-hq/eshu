@@ -154,12 +154,12 @@ func TestContentReaderRelationshipEvidenceByResolvedIDHydratesDetails(t *testing
 	})
 
 	reader := NewContentReader(db)
-	got, err := reader.relationshipEvidenceByResolvedID(t.Context(), "resolved-1")
+	got, err := reader.RelationshipEvidenceByResolvedID(t.Context(), "resolved-1")
 	if err != nil {
-		t.Fatalf("relationshipEvidenceByResolvedID() error = %v, want nil", err)
+		t.Fatalf("RelationshipEvidenceByResolvedID() error = %v, want nil", err)
 	}
 	if !got.Available {
-		t.Fatal("relationshipEvidenceByResolvedID().Available = false, want true")
+		t.Fatal("RelationshipEvidenceByResolvedID().Available = false, want true")
 	}
 	row := got.Row
 	if got, want := row["resolved_id"], "resolved-1"; got != want {

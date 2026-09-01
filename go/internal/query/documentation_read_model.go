@@ -14,8 +14,8 @@ import (
 	"go.opentelemetry.io/otel/trace"
 )
 
-// documentationFindings returns durable documentation findings from fact_records.
-func (cr *ContentReader) documentationFindings(
+// DocumentationFindings returns durable documentation findings from fact_records.
+func (cr *ContentReader) DocumentationFindings(
 	ctx context.Context,
 	filter documentationFindingFilter,
 ) (documentationFindingListReadModel, error) {
@@ -103,8 +103,8 @@ func (cr *ContentReader) documentationFindings(
 	return readModel, nil
 }
 
-// documentationFacts returns collected documentation facts from fact_records.
-func (cr *ContentReader) documentationFacts(
+// DocumentationFacts returns collected documentation facts from fact_records.
+func (cr *ContentReader) DocumentationFacts(
 	ctx context.Context,
 	filter documentationFactFilter,
 ) (documentationFactListReadModel, error) {
@@ -154,21 +154,21 @@ func (cr *ContentReader) documentationFacts(
 	return documentationFactListReadModel{Facts: factRows, NextCursor: nextCursor}, nil
 }
 
-// documentationEvidencePacket returns the latest packet for one finding.
-func (cr *ContentReader) documentationEvidencePacket(
+// DocumentationEvidencePacket returns the latest packet for one finding.
+func (cr *ContentReader) DocumentationEvidencePacket(
 	ctx context.Context,
 	findingID string,
 ) (documentationEvidencePacketReadModel, error) {
-	return cr.documentationEvidencePacketWithFilter(ctx, documentationEvidencePacketFilter{FindingID: findingID})
+	return cr.DocumentationEvidencePacketWithFilter(ctx, documentationEvidencePacketFilter{FindingID: findingID})
 }
 
-// documentationEvidencePacketFreshness returns freshness metadata for one packet.
-func (cr *ContentReader) documentationEvidencePacketFreshness(
+// DocumentationEvidencePacketFreshness returns freshness metadata for one packet.
+func (cr *ContentReader) DocumentationEvidencePacketFreshness(
 	ctx context.Context,
 	packetID string,
 	savedPacketVersion string,
 ) (documentationEvidencePacketFreshnessReadModel, error) {
-	return cr.documentationEvidencePacketFreshnessWithFilter(ctx, documentationEvidencePacketFreshnessFilter{
+	return cr.DocumentationEvidencePacketFreshnessWithFilter(ctx, documentationEvidencePacketFreshnessFilter{
 		PacketID:           packetID,
 		SavedPacketVersion: savedPacketVersion,
 	})

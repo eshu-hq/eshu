@@ -28,7 +28,7 @@ func TestGetServiceContextFallsBackToRepositoryWorkloadIdentity(t *testing.T) {
 				Name: "serverless-job",
 				Path: "/repos/serverless-job",
 			}},
-			summary: repositoryReadModelSummary{
+			summary: RepositoryReadModelSummary{
 				Available:     true,
 				WorkloadNames: []string{"serverless-job"},
 			},
@@ -146,7 +146,7 @@ func TestGetServiceContextReadModelResetsTruncatedOnGraphFallbackError(t *testin
 					Name: "serverless-degrade",
 					Path: "/repos/serverless-degrade",
 				}},
-				summary: repositoryReadModelSummary{
+				summary: RepositoryReadModelSummary{
 					Available:     true,
 					WorkloadNames: []string{"serverless-degrade"},
 				},
@@ -224,7 +224,7 @@ func TestGetServiceContextReadModelDropsTruncatedOnEmptyGraphFallbackPanel(t *te
 				Name: "serverless-overreturn",
 				Path: "/repos/serverless-overreturn",
 			}},
-			summary: repositoryReadModelSummary{
+			summary: RepositoryReadModelSummary{
 				Available:     true,
 				WorkloadNames: []string{"serverless-overreturn"},
 			},

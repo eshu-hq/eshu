@@ -29,7 +29,7 @@ type SemanticEvidenceHandler struct {
 }
 
 type semanticEvidenceStore interface {
-	semanticEvidence(context.Context, semanticEvidenceFilter) (semanticEvidenceListReadModel, error)
+	SemanticEvidence(context.Context, semanticEvidenceFilter) (semanticEvidenceListReadModel, error)
 }
 
 type semanticEvidenceFilter struct {
@@ -165,7 +165,7 @@ func (h *SemanticEvidenceHandler) list(
 		)
 		return
 	}
-	readModel, err := store.semanticEvidence(r.Context(), filter)
+	readModel, err := store.SemanticEvidence(r.Context(), filter)
 	if err != nil {
 		writeSemanticEvidenceError(
 			w,
@@ -311,8 +311,8 @@ func writeSemanticEvidenceError(
 	})
 }
 
-// semanticEvidence returns sanitized semantic evidence rows from fact_records.
-func (cr *ContentReader) semanticEvidence(
+// SemanticEvidence returns sanitized semantic evidence rows from fact_records.
+func (cr *ContentReader) SemanticEvidence(
 	ctx context.Context,
 	filter semanticEvidenceFilter,
 ) (semanticEvidenceListReadModel, error) {

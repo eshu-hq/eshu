@@ -24,12 +24,12 @@ func TestContentReaderRepositoryEntryPointsQueriesKnownFunctionNames(t *testing.
 	})
 
 	reader := NewContentReader(db)
-	got, err := reader.repositoryEntryPoints(t.Context(), "repo-1")
+	got, err := reader.RepositoryEntryPoints(t.Context(), "repo-1")
 	if err != nil {
-		t.Fatalf("repositoryEntryPoints() error = %v, want nil", err)
+		t.Fatalf("RepositoryEntryPoints() error = %v, want nil", err)
 	}
 	if !got.Available {
-		t.Fatal("repositoryEntryPoints().Available = false, want true")
+		t.Fatal("RepositoryEntryPoints().Available = false, want true")
 	}
 	if len(got.Rows) != 2 {
 		t.Fatalf("len(Rows) = %d, want 2", len(got.Rows))

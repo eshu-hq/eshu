@@ -74,7 +74,7 @@ func loadStoryTargetDocumentation(
 	if !ok || store == nil {
 		return nil, nil
 	}
-	readModel, err := store.documentationFindings(ctx, filter)
+	readModel, err := store.DocumentationFindings(ctx, filter)
 	if err != nil {
 		return nil, err
 	}
