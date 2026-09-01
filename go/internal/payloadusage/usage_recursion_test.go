@@ -35,7 +35,7 @@ func TestScanDecodeUsageFindsUsageInSubdirectory(t *testing.T) {
 	}
 
 	seams := []DecodeSeam{{FuncName: "decodeAWSResource", FactKindConst: "FactKindAWSResource", StructPackage: "awsv1", StructName: "Resource"}}
-	usage, err := ScanDecodeUsage(dir, seams, nil)
+	usage, err := ScanDecodeUsage(dir, seams, nil, nil)
 	if err != nil {
 		t.Fatalf("ScanDecodeUsage() error = %v", err)
 	}
@@ -109,7 +109,7 @@ func TestScanDecodeUsageDoesNotClobberWrapperAcrossPackages(t *testing.T) {
 		{FuncName: "decodeAWSResource", FactKindConst: "FactKindAWSResource", StructPackage: "awsv1", StructName: "Resource"},
 		{FuncName: "decodeAWSTag", FactKindConst: "FactKindAWSTag", StructPackage: "tagsv1", StructName: "Tag"},
 	}
-	usage, err := ScanDecodeUsage(dir, seams, nil)
+	usage, err := ScanDecodeUsage(dir, seams, nil, nil)
 	if err != nil {
 		t.Fatalf("ScanDecodeUsage() error = %v", err)
 	}
@@ -192,7 +192,7 @@ func TestScanDecodeUsageDoesNotMisattributeDecodeCallAcrossPackages(t *testing.T
 	seams := []DecodeSeam{
 		{FuncName: "decodeAWSResource", FactKindConst: "FactKindAWSResource", StructPackage: "awsv1", StructName: "Resource"},
 	}
-	usage, err := ScanDecodeUsage(dir, seams, nil)
+	usage, err := ScanDecodeUsage(dir, seams, nil, nil)
 	if err != nil {
 		t.Fatalf("ScanDecodeUsage() error = %v", err)
 	}
@@ -229,7 +229,7 @@ func TestScanDecodeUsageSkipsTestdata(t *testing.T) {
 	}
 
 	seams := []DecodeSeam{{FuncName: "decodeAWSResource", FactKindConst: "FactKindAWSResource", StructPackage: "awsv1", StructName: "Resource"}}
-	usage, err := ScanDecodeUsage(dir, seams, nil)
+	usage, err := ScanDecodeUsage(dir, seams, nil, nil)
 	if err != nil {
 		t.Fatalf("ScanDecodeUsage() error = %v", err)
 	}

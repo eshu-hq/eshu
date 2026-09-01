@@ -119,7 +119,14 @@ type parsedGoFile struct {
 // a seam with no root forwarder at all — the common case per
 // schemadecode/AGENTS.md's "a family package should import this package
 // directly" guidance.
-func ScanDecodeUsage(reducerDir string, seams []DecodeSeam, forwarders RootForwarders) (map[string][]FieldUsage, error) {
+//
+// qualifiers is the set of package identifiers a qualified call's selector
+// must resolve through to be recognized at all (see DecodeQualifiers);
+// callers pass KnownDecodeQualifiers. An empty or nil DecodeQualifiers is
+// valid but rejects every qualified call site outright, recognizing only the
+// unqualified root-forwarder shape — the pre-#6061 behavior — so a caller
+// that cares about qualified calls must pass a real set.
+func ScanDecodeUsage(reducerDir string, seams []DecodeSeam, forwarders RootForwarders, qualifiers DecodeQualifiers) (map[string][]FieldUsage, error) {
 	decodeFuncs := make(map[string]struct{}, len(seams))
 	structToFunc := make(map[string]string, len(seams)) // qualified struct -> decode func name
 	funcToStruct := make(map[string]string, len(seams)) // decode func name -> qualified struct
@@ -136,7 +143,7 @@ func ScanDecodeUsage(reducerDir string, seams []DecodeSeam, forwarders RootForwa
 
 	usage := map[string][]FieldUsage{}
 	for _, group := range groupByPackageDir(parsedFiles) {
-		scanPackageGroup(group, decodeFuncs, forwarders, structToFunc, funcToStruct, usage)
+		scanPackageGroup(group, decodeFuncs, forwarders, qualifiers, structToFunc, funcToStruct, usage)
 	}
 
 	for funcName := range usage {
@@ -186,7 +193,7 @@ func groupByPackageDir(parsedFiles []parsedGoFile) [][]parsedGoFile {
 // struct or decode-shaped function in one package from clobbering or
 // satisfying another package's entry (see ScanDecodeUsage's PACKAGE ISOLATION
 // doc).
-func scanPackageGroup(files []parsedGoFile, decodeFuncs map[string]struct{}, forwarders RootForwarders, structToFunc, funcToStruct map[string]string, usage map[string][]FieldUsage) {
+func scanPackageGroup(files []parsedGoFile, decodeFuncs map[string]struct{}, forwarders RootForwarders, qualifiers DecodeQualifiers, structToFunc, funcToStruct map[string]string, usage map[string][]FieldUsage) {
 	localDecodeFuncs := effectiveDecodeFuncs(files, decodeFuncs, funcToStruct)
 	wrappers := wrapperSeamFields(files, structToFunc)
 
@@ -196,7 +203,7 @@ func scanPackageGroup(files []parsedGoFile, decodeFuncs map[string]struct{}, for
 			if !ok || fn.Body == nil {
 				continue
 			}
-			boundTo := boundIdentifiers(fn, localDecodeFuncs, forwarders, structToFunc)
+			boundTo := boundIdentifiers(fn, localDecodeFuncs, forwarders, qualifiers, structToFunc)
 			wrapperBound := wrapperBoundIdentifiers(fn, wrappers)
 			if len(boundTo) == 0 && len(wrapperBound) == 0 {
 				continue
@@ -309,14 +316,14 @@ func parseReducerDir(dir string) ([]parsedGoFile, error) {
 // (recordDecodeBindings), or a function parameter whose type is one of
 // structToFunc's qualified struct names (the cross-function helper-parameter
 // case). It returns identifier name -> decode func name.
-func boundIdentifiers(fn *ast.FuncDecl, decodeFuncs map[string]struct{}, forwarders RootForwarders, structToFunc map[string]string) map[string]string {
+func boundIdentifiers(fn *ast.FuncDecl, decodeFuncs map[string]struct{}, forwarders RootForwarders, qualifiers DecodeQualifiers, structToFunc map[string]string) map[string]string {
 	boundTo := map[string]string{}
 	ast.Inspect(fn.Body, func(n ast.Node) bool {
 		assign, ok := n.(*ast.AssignStmt)
 		if !ok {
 			return true
 		}
-		recordDecodeBindings(assign, decodeFuncs, forwarders, boundTo)
+		recordDecodeBindings(assign, decodeFuncs, forwarders, qualifiers, boundTo)
 		return true
 	})
 	recordParameterBindings(fn, structToFunc, boundTo)
@@ -425,7 +432,7 @@ func recordFieldReads(body *ast.BlockStmt, fileName string, boundTo, wrapperBoun
 // Both must stay recognized — a root caller and a family caller can coexist
 // during a family's migration into schemadecode, and dropping either loses
 // real usage (#6372).
-func recordDecodeBindings(assign *ast.AssignStmt, decodeFuncs map[string]struct{}, forwarders RootForwarders, boundTo map[string]string) {
+func recordDecodeBindings(assign *ast.AssignStmt, decodeFuncs map[string]struct{}, forwarders RootForwarders, qualifiers DecodeQualifiers, boundTo map[string]string) {
 	if len(assign.Rhs) != 1 {
 		return
 	}
@@ -433,7 +440,7 @@ func recordDecodeBindings(assign *ast.AssignStmt, decodeFuncs map[string]struct{
 	if !ok {
 		return
 	}
-	calleeName, ok := decodeCallName(call.Fun, forwarders)
+	calleeName, ok := decodeCallName(call.Fun, forwarders, qualifiers)
 	if !ok {
 		return
 	}

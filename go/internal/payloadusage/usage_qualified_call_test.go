@@ -54,7 +54,7 @@ func TestScanDecodeUsageRecognizesQualifiedDecodeCall(t *testing.T) {
 		StructPackage: "containerimagev1",
 		StructName:    "Identity",
 	}}
-	usage, err := ScanDecodeUsage(dir, seams, nil)
+	usage, err := ScanDecodeUsage(dir, seams, nil, KnownDecodeQualifiers)
 	if err != nil {
 		t.Fatalf("ScanDecodeUsage() error = %v", err)
 	}
@@ -133,7 +133,7 @@ func extractResourceRows(env facts.Envelope) {
 		StructPackage: "awsv1",
 		StructName:    "Resource",
 	}}
-	usage, err := ScanDecodeUsage(dir, seams, forwarders)
+	usage, err := ScanDecodeUsage(dir, seams, forwarders, KnownDecodeQualifiers)
 	if err != nil {
 		t.Fatalf("ScanDecodeUsage() error = %v", err)
 	}
@@ -151,5 +151,56 @@ func extractResourceRows(env facts.Envelope) {
 
 	if exported := usage["DecodeAWSResource"]; len(exported) != 0 {
 		t.Errorf(`usage["DecodeAWSResource"] (the exported name) = %+v, want empty — the read must be attributed under the ROOT name the forwarder map resolves to, not the qualified call's own spelling`, exported)
+	}
+}
+
+// TestScanDecodeUsageIgnoresQualifiedCallThroughUnknownPackage is the
+// regression guard for the #6372 round-2 P2: decodeCallName's qualified-call
+// branch joined a *ast.SelectorExpr's Sel.Name against decodeFuncs (a
+// name-keyed global set built across reducer + projector + query + loader +
+// relationships + replay, see ScanDecodeUsage's PACKAGE ISOLATION doc)
+// without checking WHICH package the selector's qualifier actually names.
+// decodeFuncs carries no package information, and effectiveDecodeFuncs only
+// strips a same-named conflict declared in the SAME package group as the
+// call site — neither guards a qualified call through a package that is
+// simply not a real decode source at all.
+//
+// legacyshim.DecodeAWSResource(env) below is contrived — "legacyshim" is not
+// schemadecode or factschema, the only two packages any real qualified
+// decode call site in this codebase uses today (measured across every scan
+// surface) — but nothing stops a same-named coincidence: decodeFuncs would
+// happily match "DecodeAWSResource" regardless of where the call came from.
+// A field read through it must NOT be attributed to the real seam.
+func TestScanDecodeUsageIgnoresQualifiedCallThroughUnknownPackage(t *testing.T) {
+	t.Parallel()
+
+	dir := writeFixtureDir(t, map[string]string{
+		"legacy_shim_handler.go": `package reducer
+
+import "example.com/some/unrelated/legacyshim"
+
+func extractLegacyRows(env facts.Envelope) {
+	resource, err := legacyshim.DecodeAWSResource(env)
+	if err != nil {
+		return
+	}
+	_ = resource.AccountID
+}
+`,
+	})
+
+	seams := []DecodeSeam{{
+		FuncName:      "DecodeAWSResource",
+		FactKindConst: "FactKindAWSResource",
+		StructPackage: "awsv1",
+		StructName:    "Resource",
+	}}
+	usage, err := ScanDecodeUsage(dir, seams, nil, KnownDecodeQualifiers)
+	if err != nil {
+		t.Fatalf("ScanDecodeUsage() error = %v", err)
+	}
+
+	if entries := usage["DecodeAWSResource"]; len(entries) != 0 {
+		t.Errorf(`usage["DecodeAWSResource"] = %+v, want empty — a call through an unrecognized package qualifier ("legacyshim") must not be attributed to the real seam merely because the function name coincides`, entries)
 	}
 }

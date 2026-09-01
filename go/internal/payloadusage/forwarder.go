@@ -177,6 +177,39 @@ func ResolveForwardedSeams(seams []DecodeSeam, forwarders RootForwarders) []Deco
 	return resolved
 }
 
+// DecodeQualifiers is the set of package-alias identifiers decodeCallName
+// accepts as a legitimate qualifier for a package-qualified decode call
+// (pkg.DecodeX(env)). decodeFuncs (the set a resolved call name is joined
+// against) is a bare name-keyed set with no package information — see
+// ScanDecodeUsage's PACKAGE ISOLATION doc — and effectiveDecodeFuncs only
+// strips a same-named conflict declared in the SAME package group as the
+// call site. Neither guards a qualified call whose selector's package is not
+// a real decode source at all: without this set, an unrelated package that
+// happens to declare a same-named DecodeX (a coincidence, not a relocation)
+// would silently misattribute its field reads to the real seam. Membership
+// is checked by the bare identifier as it appears at the call site (the
+// import alias, not the resolved import path); see KnownDecodeQualifiers.
+type DecodeQualifiers map[string]struct{}
+
+// KnownDecodeQualifiers is the DecodeQualifiers every ScanDecodeUsage caller
+// in this codebase passes: the two packages a real qualified decode call
+// site is measured to use as of #6372, across every scanned surface
+// (reducer, projector, query, loader, relationships, replay) —
+// "schemadecode" (go/internal/reducer/schemadecode, a family package calling
+// its relocated seam directly per that package's "Adding a decoder"
+// guidance) and "factschema" (sdk/go/factschema, the SDK-level decode a
+// non-reducer consumer such as go/internal/storage/postgres's secrets_iam
+// trust-chain anchor decoder calls directly, bypassing schemadecode
+// entirely). This is an invariant to KEEP true, not a claim that it always
+// will be: a third package hoisting its own qualified decode call sites
+// needs its alias added here, or decodeCallName silently stops recognizing
+// it — the same silent-undercount failure mode this set exists to close on
+// the OTHER side (an unknown qualifier), not to reopen on this one.
+var KnownDecodeQualifiers = DecodeQualifiers{
+	"schemadecode": {},
+	"factschema":   {},
+}
+
 // decodeCallName returns the decode-function identity a call expression's Fun
 // resolves to, recognizing both call shapes recordDecodeBindings must
 // attribute: an unqualified root-forwarder call (`decodeX(env)`, an
@@ -186,25 +219,50 @@ func ResolveForwardedSeams(seams []DecodeSeam, forwarders RootForwarders) []Deco
 // has moved into that subpackage with no root-level forwarder left behind
 // (#6372).
 //
-// For a qualified call, the selector's Sel.Name is resolved two ways: first
-// through forwarders (Target -> root name), so a seam that DOES still have a
-// root forwarder is recognized under the same root identity
-// ResolveForwardedSeams already rewrote its DecodeSeam.FuncName to, even when
-// this particular call site uses the exported subpackage spelling instead of
-// the root one; when forwarders has no entry (the common case per
-// schemadecode's "a family package should import this package directly"
-// guidance — a forwarder is added only when a root call site still needs
-// one), Sel.Name itself is returned, matching a seam whose FuncName was never
-// rewritten because it was never forwarded in the first place. Either way the
-// caller still joins the returned name against decodeFuncs, so an unrelated
-// same-named selector never binds — this only decides what name to look up,
-// not whether it exists.
-func decodeCallName(fun ast.Expr, forwarders RootForwarders) (string, bool) {
+// A qualified call is recognized ONLY when its selector's qualifier
+// identifier is a member of qualifiers (see DecodeQualifiers and
+// KnownDecodeQualifiers) — an *ast.SelectorExpr through any other package is
+// rejected outright, before decodeFuncs is ever consulted, closing the
+// specific hole review found in #6372 round 2: a same-named function
+// declared in a package that is not a real decode source at all (an
+// arbitrary coincidence, not a relocation) can no longer be mistaken for the
+// real seam.
+//
+// For a qualifier that passes that check, the selector's Sel.Name is
+// resolved two ways: first through forwarders (Target -> root name), so a
+// seam that DOES still have a root forwarder is recognized under the same
+// root identity ResolveForwardedSeams already rewrote its DecodeSeam.FuncName
+// to, even when this particular call site uses the exported subpackage
+// spelling instead of the root one; when forwarders has no entry (the common
+// case per schemadecode's "a family package should import this package
+// directly" guidance — a forwarder is added only when a root call site still
+// needs one), Sel.Name itself is returned, matching a seam whose FuncName was
+// never rewritten because it was never forwarded in the first place. Either
+// way the caller still joins the returned name against decodeFuncs.
+//
+// What this does NOT guarantee: decodeFuncs (see ScanDecodeUsage's PACKAGE
+// ISOLATION doc) is a bare name-keyed set with no package information, and
+// qualifiers only screens which PACKAGES are accepted — it does not verify
+// that the name a given qualified call resolves to was actually declared in
+// THAT package rather than another accepted one. Two accepted-qualifier
+// packages (schemadecode and factschema) COULD in principle both declare a
+// same-named DecodeX seam for two different fact kinds, and a qualified call
+// into either would then misattribute against whichever one decodeFuncs
+// happens to map that name to. The actual invariant this code relies on is
+// weaker than "never binds wrong": no seam name collides across the scanned
+// tree today (measured across all 125 kinds, reducer + projector + query +
+// loader + relationships + replay) — not a property this code enforces or
+// can detect a violation of.
+func decodeCallName(fun ast.Expr, forwarders RootForwarders, qualifiers DecodeQualifiers) (string, bool) {
 	switch f := fun.(type) {
 	case *ast.Ident:
 		return f.Name, true
 	case *ast.SelectorExpr:
-		if _, ok := f.X.(*ast.Ident); !ok {
+		pkgIdent, ok := f.X.(*ast.Ident)
+		if !ok {
+			return "", false
+		}
+		if _, known := qualifiers[pkgIdent.Name]; !known {
 			return "", false
 		}
 		if rootName, ok := forwarders[f.Sel.Name]; ok {
