@@ -169,6 +169,9 @@ func resolveRoute(toolName string, args map[string]any) (*route, error) {
 	if route, ok, err := codeRelationshipRoute(toolName, args); ok {
 		return route, err
 	}
+	if route, ok := infraResourceSearchRoute(toolName, args); ok {
+		return route, nil
+	}
 	switch toolName {
 	// ── Code ──
 	case "find_code":
@@ -458,8 +461,6 @@ func resolveRoute(toolName string, args map[string]any) (*route, error) {
 		return &route{method: "POST", path: "/api/v0/content/entities/search", body: contentSearchBody(args)}, nil
 
 	// ── Infra ──
-	case "find_infra_resources":
-		return infraResourceSearchRoute(args), nil
 	case "count_infra_resources":
 		return infraResourceAggregateCountRoute(args), nil
 	case "get_infra_resource_inventory":

@@ -3,15 +3,22 @@
 
 package mcp
 
-func infraResourceSearchRoute(args map[string]any) *route {
-	return &route{method: "POST", path: "/api/v0/infra/resources/search", body: map[string]any{
-		"query":             str(args, "query"),
-		"category":          str(args, "category"),
-		"kind":              str(args, "kind"),
-		"provider":          str(args, "provider"),
-		"environment":       str(args, "environment"),
-		"resource_service":  str(args, "resource_service"),
-		"resource_category": str(args, "resource_category"),
-		"limit":             intOr(args, "limit", 50),
-	}}
+import (
+	infrasearchtools "github.com/eshu-hq/eshu/go/internal/mcp/infrasearch"
+	"github.com/eshu-hq/eshu/go/internal/mcp/routecontract"
+)
+
+// infraResourceSearchRoute adapts the child package's infrastructure-search
+// request selection into the root dispatcher's transport route.
+func infraResourceSearchRoute(toolName string, args map[string]any) (*route, bool) {
+	request, handled := infrasearchtools.Route(toolName, routecontract.Arguments(args))
+	if !handled {
+		return nil, false
+	}
+	return &route{
+		method: request.Method,
+		path:   request.Path,
+		body:   request.Body,
+		query:  request.Query,
+	}, true
 }

@@ -10,10 +10,10 @@
 // their registration definitions without importing this parent package. The
 // ask, relationships, and visualization children own pure dependency-neutral
 // family route selectors alongside their definitions, and the
-// admissiondecisions, cicd, codeowners, containerimage, kubernetes,
-// observabilitycoverage, packageregistry, secretsiam, securityalert, and
-// supplychainimpact children own such a selector without owning a
-// registration.
+// admissiondecisions, cicd, codeowners, containerimage, infrasearch,
+// kubernetes, observabilitycoverage, packageregistry, secretsiam,
+// securityalert, and supplychainimpact children own such a selector
+// without owning a registration.
 // ReadOnlyTools remains the sole ordered assembler; global route membership,
 // family adapters, dispatch,
 // transport, authorization, timeouts,
@@ -62,6 +62,12 @@
 // preserves count, limit, and truncated from /api/v0/code/search inside the
 // canonical data envelope; only the query layer performs the limit-plus-one
 // probe used to determine truncation.
+// The one infrastructure-search selector, find_infra_resources, lives in the
+// infrasearch child and reaches dispatch through the infraResourceSearchRoute
+// adapter, consulted last in resolveRoute's delegation chain, directly ahead
+// of the main switch that used to answer it; its POST path, eight-key body,
+// and limit default of 50 are unchanged, and the ecosystem child still owns
+// the advertised definition.
 // Structural inventory and security investigation tools also stay
 // transport-only and delegate inventory filtering, import dependency
 // investigation, call graph metrics, or redacted finding generation to the

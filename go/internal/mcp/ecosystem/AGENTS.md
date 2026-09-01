@@ -6,8 +6,8 @@
 2. `../AGENTS.md` for MCP routing, authorization, and transport rules.
 3. `../types.go` for the ordered assembly position.
 4. `../dispatch_ecosystem.go`, `../dispatch_repositories.go`,
-   `../dispatch.go`, `../dispatch_infra_search.go`, and
-   `../dispatch_impact.go` for split route ownership.
+   `../dispatch.go`, `../dispatch_infra_search.go` (the adapter over
+   `../infrasearch`), and `../dispatch_impact.go` for split route ownership.
 5. `../toolcontract/README.md` for the dependency-neutral definition contract.
 6. `../../query/AGENTS.md` before changing ecosystem query behavior.
 

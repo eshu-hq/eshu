@@ -46,3 +46,17 @@ func TestResolveRouteMapsFindInfraResources(t *testing.T) {
 		t.Fatalf("body[query] = %#v, want %#v", got, want)
 	}
 }
+
+func TestFindInfraResourcesToolSchemaAllowsStructuredFiltersWithoutQuery(t *testing.T) {
+	t.Parallel()
+
+	searchTool := requireToolDefinition(t, "find_infra_resources")
+	schema, ok := searchTool.InputSchema.(map[string]any)
+	if !ok {
+		t.Fatalf("InputSchema type = %T, want map[string]any", searchTool.InputSchema)
+	}
+	required, _ := schema["required"].([]string)
+	if stringSliceContains(required, "query") {
+		t.Fatalf("required = %#v, want query omitted for structured filter searches", required)
+	}
+}
