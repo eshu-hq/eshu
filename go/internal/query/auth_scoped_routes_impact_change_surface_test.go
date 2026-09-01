@@ -157,11 +157,11 @@ func TestAuthMiddlewareWithScopedTokensAllowsChangeSurfaceFamily(t *testing.T) {
 
 // fakeChangeSurfaceTopicContentStore embeds fakePortContentStore (the
 // existing full-interface ContentStore fake in ports_test.go) and adds
-// investigateCodeTopic so it also satisfies codeTopicContentInvestigator --
+// InvestigateCodeTopic so it also satisfies codeTopicContentInvestigator --
 // the real production type assertion path
 // (changeSurfaceCodeSurface -> changeSurfaceTopicRows -> h.Content.(codeTopicContentInvestigator))
 // a *ContentReader (the real Postgres-backed content store, per
-// cmd/api/wiring.go) also satisfies. investigateCodeTopic itself has no repo
+// cmd/api/wiring.go) also satisfies. InvestigateCodeTopic itself has no repo
 // grant filtering of its own (a different #5167 "code/*" workstream), so this
 // fake returns rows spanning two repositories, and the test proves
 // filterCodeTopicRowsForAccess (impact_access_filter.go) -- not the
@@ -171,7 +171,7 @@ type fakeChangeSurfaceTopicContentStore struct {
 	topicRows []codeTopicEvidenceRow
 }
 
-func (f fakeChangeSurfaceTopicContentStore) investigateCodeTopic(
+func (f fakeChangeSurfaceTopicContentStore) InvestigateCodeTopic(
 	_ context.Context,
 	_ codeTopicInvestigationRequest,
 ) ([]codeTopicEvidenceRow, error) {
@@ -182,7 +182,7 @@ func (f fakeChangeSurfaceTopicContentStore) investigateCodeTopic(
 // #5167 W3 mutation-check route: removing filterCodeTopicRowsForAccess in
 // impact_change_surface_response.go's changeSurfaceCodeSurface makes a
 // caller granted only repo-a also see repo-b's code-topic evidence (touched
-// symbols and matched files), because investigateCodeTopic itself performs a
+// symbols and matched files), because InvestigateCodeTopic itself performs a
 // corpus-wide search with no repo predicate. This drives the real content-store
 // type-assertion path (h.Content.(codeTopicContentInvestigator)), the same
 // path production's *ContentReader satisfies -- not a Neo4j-only fake.

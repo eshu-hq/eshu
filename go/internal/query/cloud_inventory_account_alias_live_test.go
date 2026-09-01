@@ -49,7 +49,7 @@ func TestCloudInventoryAccountIDMatchesExactScopeIDLive(t *testing.T) {
 	const boundedLimit = 10
 
 	// --- (1) single-scope account: account_id and exact scope_id agree exactly ---
-	singleScopeAccount, err := cr.cloudInventoryIdentities(ctx, cloudInventoryFilter{
+	singleScopeAccount, err := cr.CloudInventoryIdentities(ctx, cloudInventoryFilter{
 		AllScopes:         true,
 		Provider:          "aws",
 		AccountAliasKey:   "account_id",
@@ -59,7 +59,7 @@ func TestCloudInventoryAccountIDMatchesExactScopeIDLive(t *testing.T) {
 	if err != nil {
 		t.Fatalf("account_id (single-scope account) read: %v", err)
 	}
-	exactScope, err := cr.cloudInventoryIdentities(ctx, cloudInventoryFilter{
+	exactScope, err := cr.CloudInventoryIdentities(ctx, cloudInventoryFilter{
 		AllScopes: true,
 		Provider:  "aws",
 		ScopeID:   "aws:cloud:222222222222:us-east-1:s3",
@@ -82,7 +82,7 @@ func TestCloudInventoryAccountIDMatchesExactScopeIDLive(t *testing.T) {
 	}
 
 	// --- (2) multi-scope account: account_id unions rows across every scope ---
-	multiScopeAccount, err := cr.cloudInventoryIdentities(ctx, cloudInventoryFilter{
+	multiScopeAccount, err := cr.CloudInventoryIdentities(ctx, cloudInventoryFilter{
 		AllScopes:         true,
 		Provider:          "aws",
 		AccountAliasKey:   "account_id",
@@ -102,7 +102,7 @@ func TestCloudInventoryAccountIDMatchesExactScopeIDLive(t *testing.T) {
 	}
 
 	// One scope alone must NOT see the other scope's resource.
-	oneOfTwoScopes, err := cr.cloudInventoryIdentities(ctx, cloudInventoryFilter{
+	oneOfTwoScopes, err := cr.CloudInventoryIdentities(ctx, cloudInventoryFilter{
 		AllScopes: true,
 		Provider:  "aws",
 		ScopeID:   "aws:cloud:111111111111:us-east-1:s3",
@@ -131,7 +131,7 @@ func TestCloudInventoryAccountIDMatchesExactScopeIDLive(t *testing.T) {
 	// constant, so truncation is never mistaken for account-alias correctness
 	// or emptiness (the documented default-limit=50 trap). ---
 	const smallLimit = 2
-	truncatedByAccount, err := cr.cloudInventoryIdentities(ctx, cloudInventoryFilter{
+	truncatedByAccount, err := cr.CloudInventoryIdentities(ctx, cloudInventoryFilter{
 		AllScopes:         true,
 		Provider:          "aws",
 		AccountAliasKey:   "account_id",
@@ -141,7 +141,7 @@ func TestCloudInventoryAccountIDMatchesExactScopeIDLive(t *testing.T) {
 	if err != nil {
 		t.Fatalf("account_id truncated-page read: %v", err)
 	}
-	truncatedByScope, err := cr.cloudInventoryIdentities(ctx, cloudInventoryFilter{
+	truncatedByScope, err := cr.CloudInventoryIdentities(ctx, cloudInventoryFilter{
 		AllScopes: true,
 		Provider:  "aws",
 		ScopeID:   "aws:cloud:222222222222:us-east-1:s3",
@@ -204,7 +204,7 @@ func TestCloudInventoryGCPAndAzureAccountAliasMatchExactScopeIDLive(t *testing.T
 	}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			byAlias, err := cr.cloudInventoryIdentities(ctx, cloudInventoryFilter{
+			byAlias, err := cr.CloudInventoryIdentities(ctx, cloudInventoryFilter{
 				AllScopes:         true,
 				Provider:          tc.provider,
 				AccountAliasKey:   tc.aliasKey,
@@ -214,7 +214,7 @@ func TestCloudInventoryGCPAndAzureAccountAliasMatchExactScopeIDLive(t *testing.T
 			if err != nil {
 				t.Fatalf("%s alias read: %v", tc.name, err)
 			}
-			byScope, err := cr.cloudInventoryIdentities(ctx, cloudInventoryFilter{
+			byScope, err := cr.CloudInventoryIdentities(ctx, cloudInventoryFilter{
 				AllScopes: true,
 				Provider:  tc.provider,
 				ScopeID:   tc.scopeID,

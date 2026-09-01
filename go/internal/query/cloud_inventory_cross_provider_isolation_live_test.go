@@ -31,7 +31,7 @@ func TestCloudInventoryAccountAliasCrossProviderIsolationLive(t *testing.T) {
 
 	const collidingAccountID = "999999999999"
 
-	awsOnly, err := cr.cloudInventoryIdentities(ctx, cloudInventoryFilter{
+	awsOnly, err := cr.CloudInventoryIdentities(ctx, cloudInventoryFilter{
 		AllScopes:         true,
 		Provider:          "aws",
 		AccountAliasKey:   "account_id",
@@ -47,7 +47,7 @@ func TestCloudInventoryAccountAliasCrossProviderIsolationLive(t *testing.T) {
 			collidingAccountID, awsUIDs)
 	}
 
-	gcpOnly, err := cr.cloudInventoryIdentities(ctx, cloudInventoryFilter{
+	gcpOnly, err := cr.CloudInventoryIdentities(ctx, cloudInventoryFilter{
 		AllScopes:         true,
 		Provider:          "gcp",
 		AccountAliasKey:   "project_id",

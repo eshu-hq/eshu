@@ -41,7 +41,7 @@ func TestCloudInventoryPreFixPayloadRolloutWindowLive(t *testing.T) {
 
 	const scopeID = "aws:cloud:333333333333:us-east-1:s3"
 
-	byAccountID, err := cr.cloudInventoryIdentities(ctx, cloudInventoryFilter{
+	byAccountID, err := cr.CloudInventoryIdentities(ctx, cloudInventoryFilter{
 		AllScopes:         true,
 		Provider:          "aws",
 		AccountAliasKey:   "account_id",
@@ -56,7 +56,7 @@ func TestCloudInventoryPreFixPayloadRolloutWindowLive(t *testing.T) {
 			"(payload has no account_id key -- this is the documented rollout-window gap)", got, want)
 	}
 
-	byScopeID, err := cr.cloudInventoryIdentities(ctx, cloudInventoryFilter{
+	byScopeID, err := cr.CloudInventoryIdentities(ctx, cloudInventoryFilter{
 		AllScopes: true,
 		Provider:  "aws",
 		ScopeID:   scopeID,
@@ -70,7 +70,7 @@ func TestCloudInventoryPreFixPayloadRolloutWindowLive(t *testing.T) {
 			"-- scope_id must stay unaffected by the rollout window", got, want)
 	}
 
-	unfiltered, err := cr.cloudInventoryIdentities(ctx, cloudInventoryFilter{
+	unfiltered, err := cr.CloudInventoryIdentities(ctx, cloudInventoryFilter{
 		AllScopes: true,
 		Provider:  "aws",
 		Limit:     10,

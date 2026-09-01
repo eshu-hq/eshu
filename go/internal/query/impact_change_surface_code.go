@@ -36,7 +36,7 @@ func (h *ImpactHandler) changeSurfaceCodeSurface(
 		if err != nil {
 			return nil, err
 		}
-		// #5167 W3: investigateCodeTopic (POST /api/v0/code/topics/investigate,
+		// #5167 W3: InvestigateCodeTopic (POST /api/v0/code/topics/investigate,
 		// the "code/*" family, a different #5167 workstream) has no grant
 		// filtering of its own yet -- a topic search with no repo_id scans the
 		// whole content-entity corpus. Bind every evidence row to the caller's
@@ -118,7 +118,7 @@ func (h *ImpactHandler) changeSurfaceTopicRows(
 			topicReq.AllowedRepositoryIDs = access.RepositorySearchIDs()
 		}
 	}
-	rows, err := investigator.investigateCodeTopic(ctx, topicReq)
+	rows, err := investigator.InvestigateCodeTopic(ctx, topicReq)
 	if err != nil {
 		return nil, fmt.Errorf("investigate code topic: %w", err)
 	}

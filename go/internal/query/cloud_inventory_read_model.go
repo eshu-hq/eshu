@@ -21,11 +21,11 @@ import (
 // observation.
 const cloudInventoryFactKind = "reducer_cloud_resource_identity"
 
-// cloudInventoryIdentities returns canonical CloudResource identity rows from
+// CloudInventoryIdentities returns canonical CloudResource identity rows from
 // each scope's active generation, filtered by the bounded readback filters and
 // ordered deterministically. It fetches limit+1 rows so the handler can report
 // a continuation offset without a second count query.
-func (cr *ContentReader) cloudInventoryIdentities(
+func (cr *ContentReader) CloudInventoryIdentities(
 	ctx context.Context,
 	filter cloudInventoryFilter,
 ) (cloudInventoryListReadModel, error) {

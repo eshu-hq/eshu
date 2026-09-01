@@ -372,7 +372,7 @@ func (h *ContentHandler) searchFilesByScope(ctx context.Context, req contentSear
 		return []FileContent{}, false, nil
 	}
 	if searcher, ok := h.Content.(pagedContentSearcher); ok {
-		results, err := searcher.searchFiles(ctx, req)
+		results, err := searcher.SearchFiles(ctx, req)
 		if err != nil {
 			return nil, false, err
 		}
@@ -410,7 +410,7 @@ func (h *ContentHandler) searchEntitiesByScope(ctx context.Context, req contentS
 		return []EntityContent{}, false, nil
 	}
 	if searcher, ok := h.Content.(pagedContentSearcher); ok {
-		results, err := searcher.searchEntities(ctx, req)
+		results, err := searcher.SearchEntities(ctx, req)
 		if err != nil {
 			return nil, false, err
 		}

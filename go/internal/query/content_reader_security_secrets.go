@@ -14,7 +14,7 @@ import (
 
 const hardcodedSecretSQLPattern = `(password|passwd|pwd|api[_-]?key|apikey|token|secret|client[_-]?secret|private[_-]?key|authorization)[[:space:]]*[:=][[:space:]]*['"]?[A-Za-z0-9_./+=:@!#$%^-]{6,}|AKIA[0-9A-Z]{16}|sk_live_[A-Za-z0-9]{8,}|xox[baprs]-[A-Za-z0-9-]{10,}|-----BEGIN [A-Z ]*PRIVATE KEY-----`
 
-func (cr *ContentReader) investigateHardcodedSecrets(
+func (cr *ContentReader) InvestigateHardcodedSecrets(
 	ctx context.Context,
 	req hardcodedSecretInvestigationRequest,
 ) ([]hardcodedSecretFindingRow, error) {

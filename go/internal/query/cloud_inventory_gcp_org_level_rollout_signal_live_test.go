@@ -28,7 +28,7 @@ import (
 // (cloud_inventory_gcp_project_gap_live_test.go), the existing fixture for
 // exactly this present-but-blank account_id shape, rather than duplicating
 // it. This exercises the full production path -- the HTTP handler, not
-// cloudInventoryIdentities directly -- so it proves the same code a real
+// CloudInventoryIdentities directly -- so it proves the same code a real
 // GET /api/v0/cloud/inventory?provider=gcp&project_id=... request runs.
 func TestCloudInventoryGCPOrgLevelAssetDoesNotFalselyWarnRolloutGapLive(t *testing.T) {
 	db, ctx, cancel := openCloudInventoryLiveDB(t)

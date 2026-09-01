@@ -62,7 +62,7 @@ type codeTopicEvidenceRow struct {
 }
 
 type codeTopicContentInvestigator interface {
-	investigateCodeTopic(context.Context, codeTopicInvestigationRequest) ([]codeTopicEvidenceRow, error)
+	InvestigateCodeTopic(context.Context, codeTopicInvestigationRequest) ([]codeTopicEvidenceRow, error)
 }
 
 func (h *CodeHandler) handleTopicInvestigation(w http.ResponseWriter, r *http.Request) {
@@ -141,7 +141,7 @@ func (h *CodeHandler) codeTopicRows(ctx context.Context, req codeTopicInvestigat
 	}
 	probeReq := req
 	probeReq.Limit = req.Limit + 1
-	rows, err := investigator.investigateCodeTopic(ctx, probeReq)
+	rows, err := investigator.InvestigateCodeTopic(ctx, probeReq)
 	if err != nil {
 		return nil, fmt.Errorf("investigate code topic: %w", err)
 	}

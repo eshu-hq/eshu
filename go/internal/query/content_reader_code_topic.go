@@ -13,7 +13,7 @@ import (
 	"go.opentelemetry.io/otel/trace"
 )
 
-func (cr *ContentReader) investigateCodeTopic(
+func (cr *ContentReader) InvestigateCodeTopic(
 	ctx context.Context,
 	req codeTopicInvestigationRequest,
 ) ([]codeTopicEvidenceRow, error) {

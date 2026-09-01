@@ -21,7 +21,7 @@ type topicInvestigationContentStore struct {
 	err      error
 }
 
-func (s *topicInvestigationContentStore) investigateCodeTopic(
+func (s *topicInvestigationContentStore) InvestigateCodeTopic(
 	_ context.Context,
 	req codeTopicInvestigationRequest,
 ) ([]codeTopicEvidenceRow, error) {
@@ -254,14 +254,14 @@ func TestContentReaderInvestigateCodeTopicUsesOneScoredQuery(t *testing.T) {
 	})
 	reader := NewContentReader(db)
 
-	rows, err := reader.investigateCodeTopic(context.Background(), codeTopicInvestigationRequest{
+	rows, err := reader.InvestigateCodeTopic(context.Background(), codeTopicInvestigationRequest{
 		RepoID: "repo-1",
 		Terms:  []string{"repo", "sync", "auth", "github"},
 		Limit:  26,
 		Offset: 0,
 	})
 	if err != nil {
-		t.Fatalf("investigateCodeTopic() error = %v, want nil", err)
+		t.Fatalf("InvestigateCodeTopic() error = %v, want nil", err)
 	}
 	if got, want := len(rows), 1; got != want {
 		t.Fatalf("len(rows) = %d, want %d", got, want)
@@ -294,12 +294,12 @@ func TestInvestigateCodeTopicUnscopedRequiresSubstringIndexesReady(t *testing.T)
 	}})
 	reader := NewContentReader(db)
 
-	_, err := reader.investigateCodeTopic(context.Background(), codeTopicInvestigationRequest{
+	_, err := reader.InvestigateCodeTopic(context.Background(), codeTopicInvestigationRequest{
 		Terms: []string{"auth"},
 		Limit: 26,
 	})
 	if err != nil {
-		t.Fatalf("investigateCodeTopic() error = %v, want nil", err)
+		t.Fatalf("InvestigateCodeTopic() error = %v, want nil", err)
 	}
 	if !strings.Contains(recorder.queries[0], "eshu_require_content_substring_indexes_ready()") {
 		t.Fatalf("query = %q, want durable unscoped substring-index readiness gate", recorder.queries[0])

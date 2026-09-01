@@ -9,7 +9,7 @@ const openAPIPathsCodeSecurity = `
         "tags": ["code", "security"],
         "summary": "Investigate hardcoded secret candidates",
         "description": "Scans indexed content for hardcoded password, token, key, and risky literal candidates. Findings are redacted before they leave the API.",
-        "operationId": "investigateHardcodedSecrets",
+        "operationId": "InvestigateHardcodedSecrets",
         "requestBody": {
           "required": true,
           "content": {
