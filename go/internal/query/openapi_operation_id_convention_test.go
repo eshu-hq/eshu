@@ -5,8 +5,8 @@ package query
 
 import (
 	"encoding/json"
+	"regexp"
 	"testing"
-	"unicode"
 )
 
 // TestOpenAPIOperationIDsStayLowerCamelCase guards a wire contract that no
@@ -20,6 +20,14 @@ import (
 //
 // This asserts over the assembled spec rather than the source files, because
 // the assembled spec is what clients actually receive.
+// lowerCamelCaseOperationID is the shape every operationId in this spec
+// follows: a lowercase first letter and nothing but letters and digits after
+// it. Checking only the first rune is not enough -- investigate_hardcoded_secrets
+// starts lowercase and would pass, while still breaking the method name a
+// generated client derives from it. All 242 operationIds match this today, so
+// the strict form costs nothing and closes the gap.
+var lowerCamelCaseOperationID = regexp.MustCompile(`^[a-z][A-Za-z0-9]*$`)
+
 func TestOpenAPIOperationIDsStayLowerCamelCase(t *testing.T) {
 	t.Parallel()
 
@@ -33,8 +41,8 @@ func TestOpenAPIOperationIDsStayLowerCamelCase(t *testing.T) {
 				t.Errorf("%s %s: empty operationId", method, path)
 				continue
 			}
-			if first := []rune(id)[0]; !unicode.IsLower(first) {
-				t.Errorf("%s %s: operationId = %q, want lowerCamelCase (a generated client turns this into a method name)", method, path, id)
+			if !lowerCamelCaseOperationID.MatchString(id) {
+				t.Errorf("%s %s: operationId = %q, want lowerCamelCase matching %s (a generated client turns this into a method name)", method, path, id, lowerCamelCaseOperationID)
 			}
 		}
 	}
