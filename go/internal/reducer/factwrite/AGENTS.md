@@ -21,6 +21,13 @@
   the real driver and server limits, not a guess.
 - `Execer` stays minimal. Widening it to a full `*sql.DB` breaks callers that
   pass a transaction.
+- `Now` always returns UTC. Rows from different collectors are ordered
+  against each other by `observed_at`, so returning a local time orders wrongly
+  against every other writer while still type-checking and still passing a
+  single-writer test.
+- `CollectorKind` substitutes the literal `"unknown"` for a blank source.
+  Operators group fact rows by that column, so returning `""` instead creates a
+  second, invisible bucket beside the one they read.
 
 ## Common changes
 

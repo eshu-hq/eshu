@@ -5,6 +5,7 @@ package reducer
 
 import (
 	"context"
+	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/reducer/factwrite"
 )
@@ -64,4 +65,14 @@ func reducerFactChunkArgs(chunk []reducerFactRow) []any {
 // a func statement keeps the call inlinable.
 func dedupeReducerFactRowsByFactID[T any](rows []T, factID func(T) string) []T {
 	return factwrite.DedupeRowsByFactID(rows, factID)
+}
+
+// reducerWriterNow forwards to [factwrite.Now].
+func reducerWriterNow(now func() time.Time) time.Time {
+	return factwrite.Now(now)
+}
+
+// reducerFactCollectorKind forwards to [factwrite.CollectorKind].
+func reducerFactCollectorKind(sourceSystem string) string {
+	return factwrite.CollectorKind(sourceSystem)
 }

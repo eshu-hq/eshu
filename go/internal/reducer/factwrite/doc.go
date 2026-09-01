@@ -15,6 +15,12 @@
 // rows so a large generation cannot build a single statement past what the
 // driver and server will accept.
 //
+// Now and CollectorKind are the two small primitives every fact writer needs
+// before it can build a row: the UTC-normalized write timestamp and the
+// normalized collector-kind column value. They live here rather than beside any
+// one writer because a domain family that writes facts needs them without
+// importing the reducer root.
+//
 // Execer is the minimal database surface these writers need, so a caller can
 // pass a pool, a connection, or a transaction, and a test can substitute a
 // recorder without a live database.

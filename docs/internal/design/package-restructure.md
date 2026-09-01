@@ -179,6 +179,27 @@ Two consequences worth knowing before the remaining children:
   gone and the replacement is 66, and dirgate's ratchet means any later
   extraction has to re-pin it lower.
 
+No-Regression Evidence: the reducer writer-primitive hoist (#6061) moves the two
+fact-writer primitives reducerWriterNow and reducerFactCollectorKind out of
+workload_identity_writer.go into `internal/reducer/factwrite` as Now and
+CollectorKind, with no logic change; the root keeps both under their original
+unexported names in reducer_fact_write_compat.go, the file that already forwards
+factwrite.Execer and factwrite.VersionedRow, so all 22 and 20 non-test
+root files that call them were untouched. Baseline `a6ff376ab`, go1.27.0 darwin/arm64. This crosses a
+package boundary, so inlining can genuinely shift and is measured rather than
+assumed: `go build -gcflags=-m ./internal/reducer/...` reports unique `can inline`
+names 1376 -> 1378, compared as a SET with `comm` in BOTH directions rather than by
+totals, since a matching total is also what a swap looks like. Zero names lost.
+Two gained -- `CollectorKind` and `reducerWriterNow`, the latter because it is now
+a one-line forwarder. The hoist is a prerequisite rather than a cleanup: a trial
+move measured the eshu_search family (8 non-test files) as blocked on exactly
+these two symbols and nothing else.
+
+No-Observability-Change: neither function emits a metric, span, or log, and
+neither performs I/O. They compute a UTC timestamp and a normalized column value
+that the batch writers stamp on rows; the instrumentation on that path lives with
+the writers and is unchanged.
+
 No-Regression Evidence: the reducer sharedintent hoist (#6061) moves
 SharedProjectionIntentRow, SharedProjectionIntentInput, BuildSharedProjectionIntent,
 stableIntentID (exported as StableIntentID in the leaf), SharedProjectionAcceptanceKey and the Row.AcceptanceKey method out
