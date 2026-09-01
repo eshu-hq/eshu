@@ -8,6 +8,7 @@ import (
 	projectorazure "github.com/eshu-hq/eshu/go/internal/projector/azure"
 	projectorec2 "github.com/eshu-hq/eshu/go/internal/projector/ec2"
 	projectorgcp "github.com/eshu-hq/eshu/go/internal/projector/gcp"
+	projectorincidentrouting "github.com/eshu-hq/eshu/go/internal/projector/incidentrouting"
 	projectorkubernetes "github.com/eshu-hq/eshu/go/internal/projector/kubernetes"
 	projectorrds "github.com/eshu-hq/eshu/go/internal/projector/rds"
 	projectors3 "github.com/eshu-hq/eshu/go/internal/projector/s3"
@@ -84,7 +85,7 @@ func appendScopeGenerationReducerIntents(
 	if intent, ok := buildObservabilityCoverageCorrelationReducerIntent(scopeValue, generation, index); ok {
 		intents = append(intents, intent)
 	}
-	if intent, ok := buildIncidentRoutingMaterializationReducerIntent(scopeValue, generation, index); ok {
+	if intent, ok := projectorincidentrouting.BuildIncidentRoutingMaterializationReducerIntent(scopeValue.ScopeID, generation.GenerationID, index.lookup); ok {
 		intents = append(intents, intent)
 	}
 	if intent, ok := buildCodeTaintEvidenceReducerIntent(scopeValue, generation, index); ok {

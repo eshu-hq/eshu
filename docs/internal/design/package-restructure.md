@@ -600,8 +600,8 @@ from `scope_generation_intents.go` across 41 family files). Root keeps `canonica
 and failure/retry infra (~70 files). Hazard: canonical Row types are
 consumed by 182 external files; family moves need qualifier updates or root
 aliases, and the `canonical.go` exact-path gate trigger (#5531) moves in
-lockstep. Azure, GCP, Kubernetes, EC2, RDS, S3, security, and
-workload-cloud-relationship intent builders now use the neutral
+lockstep. Azure, GCP, Kubernetes, EC2, RDS, S3, security,
+workload-cloud-relationship, and incident-routing intent builders now use the neutral
 `internal/projector/intent` boundary while root retains assembly, lifecycle,
 enqueue, retry, and telemetry. EC2's `USES_PROFILE`
 builder is the first extracted family to need a typed-payload decode; it
@@ -623,7 +623,13 @@ decode wrapper, so the move is a one-file, one-caller extraction with no
 moved into `internal/projector/workloadcloud` on that same shape: it triggers
 on mere `aws_resource` fact presence, decodes no payload, and shares the
 generic `aws_resource_materialization:<scope>` entity key with the S3 and RDS
-builders. Coordinator `_scheduler.go` halves extract cleanly
+builders. The incident-routing builder moved into
+`internal/projector/incidentrouting` on the same presence-only shape: it
+triggers on `incident.record` plus the `incident_routing.*` kinds
+`internal/facts` registers, anchors with the cross-kind `FirstAcrossKinds`
+lookup the security-alert builder also uses, keys on its own
+`incident_routing_materialization:<scope>` entity, and decodes no payload.
+Coordinator `_scheduler.go` halves extract cleanly
 (they implement a root Planner interface); the `_service.go` halves are
 methods on the shared `Service` struct and stay until Service is
 decomposed — a design decision, not a file move. Shared plan-key validation now
