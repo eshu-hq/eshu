@@ -186,12 +186,22 @@ func packageRegistryAggregateParams(filter PackageRegistryAggregateFilter) map[s
 // groups by (:Package).ecosystem, so its row count is bounded by the closed
 // 13-value packageidentity.Ecosystem enum (npm, pypi, gomod, maven, nuget,
 // composer, rubygems, cargo, swift, hex, pub, os, generic) plus the query's
-// own CASE 'unknown' bucket for NULL/empty ecosystem. Every
-// package_registry.package fact — the only producer of the graph's (:Package)
-// nodes — is built by packageregistry.NewPackageEnvelope, which normalizes
-// through packageidentity.Normalize and errors out rather than emit a fact
-// for an ecosystem outside that enum, so p.ecosystem cannot carry
-// collector-supplied free text. 32 = 13 enum values + 1 unknown bucket +
+// own CASE 'unknown' bucket for NULL/empty ecosystem.
+//
+// Two write paths mint (:Package) nodes and set .ecosystem, and the bound
+// needs BOTH to normalize, not just the obvious one. Directly-observed
+// packages come from the package_registry.package fact, built by
+// packageregistry.NewPackageEnvelope, which calls packageidentity.Normalize.
+// Dependency TARGETS never observed directly are minted separately by
+// storage/cypher/package_registry_canonical_writer.go's
+// canonicalPackageRegistryDependencyTargetUpsertCypher
+// (`MERGE (target:Package:PackageRegistryPackage {uid: ...}) ON CREATE SET
+// target.ecosystem = row.dependency_ecosystem`), fed by the
+// package_registry.package_dependency fact from
+// packageregistry.NewPackageDependencyEnvelope, which calls
+// NormalizePackageIdentity. Both normalizers reject an ecosystem outside the
+// enum rather than emit the fact, so p.ecosystem cannot carry
+// collector-supplied free text by either route. 32 = 13 enum values + 1 unknown bucket +
 // headroom, mirroring the groupedGrantCounts precedent in
 // secrets_iam_grant_posture.go.
 func (s GraphPackageRegistryAggregateStore) CountPackageRegistryPackages(

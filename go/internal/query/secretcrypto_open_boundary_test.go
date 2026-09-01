@@ -6,7 +6,6 @@ package query
 import (
 	"go/parser"
 	"go/token"
-	"path/filepath"
 	"strings"
 	"testing"
 )
@@ -20,6 +19,20 @@ import (
 // boundary is ever crossed from this package.
 const secretcryptoImportPath = `"github.com/eshu-hq/eshu/go/internal/secretcrypto"`
 
+// minQueryTreeNonTestFiles is a floor on how many non-test .go files a
+// whole-tree guard must walk under go/internal/query before its clean verdict
+// means anything. 907 at the time #6060 moved the first handler family out of
+// root; the floor sits well below that so a genuine removal never trips it,
+// while a walk that silently stops descending reads as a hard failure instead
+// of a pass over files it never opened.
+//
+// It exists because the guards below previously used filepath.Glob("*.go"),
+// which never crosses a separator. That was correct while every file sat flat
+// in root and became a false green the moment a family moved into
+// go/internal/query/<family>/ — root still held hundreds of files, so a
+// len(matches) == 0 check could never fire.
+const minQueryTreeNonTestFiles = 800
+
 // TestNoQueryFileImportsSecretcrypto proves no non-test .go file under
 // go/internal/query imports secretcrypto. The read path (GET provider
 // configs, provider config list, revision history) must never call
@@ -30,12 +43,12 @@ const secretcryptoImportPath = `"github.com/eshu-hq/eshu/go/internal/secretcrypt
 func TestNoQueryFileImportsSecretcrypto(t *testing.T) {
 	t.Parallel()
 
-	matches, err := filepath.Glob("*.go")
+	matches, err := sweepGoFiles(queryPackageDir(t))
 	if err != nil {
-		t.Fatalf("glob go/internal/query/*.go: %v", err)
+		t.Fatalf("walk go/internal/query: %v", err)
 	}
-	if len(matches) == 0 {
-		t.Fatal("no .go files found in go/internal/query — glob pattern is broken")
+	if len(matches) < minQueryTreeNonTestFiles {
+		t.Fatalf("walked %d non-test .go files under go/internal/query, below the floor of %d — the walk is broken, not the tree", len(matches), minQueryTreeNonTestFiles)
 	}
 
 	fset := token.NewFileSet()

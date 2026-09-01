@@ -205,12 +205,16 @@ func TestHandleConfirmTOTPEnrollment_WrongCodeReturnsBadRequest(t *testing.T) {
 // surface fails this test immediately instead of shipping silently.
 func TestOnlyTOTPBeginResponseCarriesSecretJSONField(t *testing.T) {
 	t.Parallel()
-	matches, err := filepath.Glob("*.go")
+	// Recursive, not filepath.Glob("*.go") (#6060). Glob never crosses a
+	// separator, so a handler family that moves into go/internal/query/<family>/
+	// and re-exposes the secret would pass this guard while root's hundreds of
+	// remaining files kept the fail-loud clause quiet.
+	matches, err := sweepGoFiles(queryPackageDir(t))
 	if err != nil {
-		t.Fatalf("glob *.go: %v", err)
+		t.Fatalf("walk go/internal/query: %v", err)
 	}
-	if len(matches) == 0 {
-		t.Fatal("no .go files found in go/internal/query — glob pattern is broken")
+	if len(matches) < minQueryTreeNonTestFiles {
+		t.Fatalf("walked %d non-test .go files under go/internal/query, below the floor of %d — the walk is broken, not the tree", len(matches), minQueryTreeNonTestFiles)
 	}
 	secretTag := regexp.MustCompile(`json:"(secret|otpauth_uri)"`)
 	var offenders []string
@@ -218,10 +222,12 @@ func TestOnlyTOTPBeginResponseCarriesSecretJSONField(t *testing.T) {
 		if strings.HasSuffix(path, "_test.go") {
 			continue
 		}
-		if path == "local_identity_totp.go" {
+		// Compare the base name: the walk now yields full paths, so the old
+		// equality against a bare filename would exempt nothing.
+		if filepath.Base(path) == "local_identity_totp.go" {
 			continue
 		}
-		data, err := os.ReadFile(path) // #nosec G304 -- path comes from filepath.Glob("*.go") in this package's own directory, not external input
+		data, err := os.ReadFile(path) // #nosec G304 -- path comes from a walk of this package's own directory tree, not external input
 		if err != nil {
 			t.Fatalf("read %s: %v", path, err)
 		}
