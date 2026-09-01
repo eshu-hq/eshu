@@ -148,7 +148,7 @@ Search documents are derived retrieval evidence; this domain performs no graph
 write. No-Regression Evidence: the persisted index path adds no SQL statement,
 queue, graph write, worker knob, or high-cardinality metric label; it records
 OpenTelemetry signals from existing `ExecContext` results and the same SQL
-shape. Observability Evidence: `go test ./internal/reducer -run
+shape. Observability Evidence: `go test ./internal/reducer/eshusearch -run
 'TestWriteEshuSearchDocumentsRecordsSearchIndexTelemetry|TestWriteEshuSearchDocumentsRecordsSearchIndexErrors'
 -count=1` and `go test ./internal/telemetry -run
 'TestSearchIndexInstrumentsRecordBoundedLabels|TestSpanNames' -count=1`.
