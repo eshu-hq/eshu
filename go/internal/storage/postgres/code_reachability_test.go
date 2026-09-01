@@ -13,7 +13,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/eshu-hq/eshu/go/internal/reducer"
+	"github.com/eshu-hq/eshu/go/internal/reducer/codeintel"
 )
 
 func TestCodeReachabilitySchemaSQL(t *testing.T) {
@@ -39,14 +39,14 @@ func TestCodeReachabilityStoreUpsertBatchesRows(t *testing.T) {
 	now := time.Date(2026, 6, 17, 3, 0, 0, 0, time.UTC)
 	db := newCodeReachabilityTestDB()
 	store := NewCodeReachabilityStore(db)
-	err := store.Upsert(context.Background(), []reducer.CodeReachabilityRow{{
+	err := store.Upsert(context.Background(), []codeintel.CodeReachabilityRow{{
 		ScopeID:             "scope-1",
 		GenerationID:        "generation-1",
 		RepositoryID:        "repo-1",
 		RootEntityID:        "entity:root",
 		EntityID:            "entity:leaf",
 		Depth:               2,
-		State:               reducer.CodeReachabilityStateReachable,
+		State:               codeintel.CodeReachabilityStateReachable,
 		Confidence:          0.99,
 		MinResolutionMethod: "scip",
 		Evidence:            []string{"entity:root CALLS entity:leaf"},
@@ -77,7 +77,7 @@ func TestCodeReachabilityStoreReplaceRepositoryRowsDeletesStaleRows(t *testing.T
 		RootEntityID:        "entity:root",
 		EntityID:            "entity:stale",
 		Depth:               2,
-		State:               reducer.CodeReachabilityStateReachable,
+		State:               codeintel.CodeReachabilityStateReachable,
 		Confidence:          0.99,
 		MinResolutionMethod: "scip",
 		Evidence:            []string{"stale"},
@@ -91,14 +91,14 @@ func TestCodeReachabilityStoreReplaceRepositoryRowsDeletesStaleRows(t *testing.T
 		"scope-1",
 		"generation-1",
 		"repo-1",
-		[]reducer.CodeReachabilityRow{{
+		[]codeintel.CodeReachabilityRow{{
 			ScopeID:             "scope-1",
 			GenerationID:        "generation-1",
 			RepositoryID:        "repo-1",
 			RootEntityID:        "entity:root",
 			EntityID:            "entity:live",
 			Depth:               1,
-			State:               reducer.CodeReachabilityStateReachable,
+			State:               codeintel.CodeReachabilityStateReachable,
 			Confidence:          0.99,
 			MinResolutionMethod: "scip",
 			Evidence:            []string{"entity:root CALLS entity:live"},
@@ -178,11 +178,11 @@ func TestCodeReachabilityStoreReplaceRepositoryRowsReplacesVerdicts(t *testing.T
 		context.Background(),
 		"scope-1", "generation-1", "repo-1",
 		nil,
-		[]reducer.CodeRootVerdictRow{{
+		[]codeintel.CodeRootVerdictRow{{
 			ScopeID: "scope-1", GenerationID: "generation-1", RepositoryID: "repo-1",
 			EntityID: "entity:live", RootKind: "ruby.rails_controller_action",
-			Verdict: reducer.CodeRootVerdictDowngraded,
-			Basis: reducer.CodeRootVerdictBasis{
+			Verdict: codeintel.CodeRootVerdictDowngraded,
+			Basis: codeintel.CodeRootVerdictBasis{
 				Chain:    []string{"OrdersController", "ApplicationRecord", "ActiveRecord::Base"},
 				Terminal: "unresolved_base:ActiveRecord::Base",
 				Reason:   "unresolved_non_controller",

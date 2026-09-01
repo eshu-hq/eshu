@@ -9,6 +9,8 @@ import (
 	"sync"
 	"testing"
 	"time"
+
+	"github.com/eshu-hq/eshu/go/internal/reducer/codeintel"
 )
 
 func TestServiceRunClaimsExecutesAndAcknowledges(t *testing.T) {
@@ -156,17 +158,17 @@ func TestServiceRunStartsCodeReachabilityProjectionRunner(t *testing.T) {
 		WorkSource:   &stubReducerWorkSource{},
 		Executor:     &stubReducerExecutor{},
 		WorkSink:     &stubReducerWorkSink{},
-		CodeReachabilityProjectionRunner: &CodeReachabilityProjectionRunner{
+		CodeReachabilityProjectionRunner: &codeintel.CodeReachabilityProjectionRunner{
 			InputLoader: &fakeCodeReachabilityInputLoader{
-				inputs: []CodeReachabilityProjectionInput{{
+				inputs: []codeintel.CodeReachabilityProjectionInput{{
 					ScopeID:      "scope-1",
 					GenerationID: "generation-1",
 					RepositoryID: "repo-1",
-					Roots:        []CodeReachabilityRoot{{EntityID: "entity:root"}},
+					Roots:        []codeintel.CodeReachabilityRoot{{EntityID: "entity:root"}},
 				}},
 			},
 			RowWriter: writer,
-			Config: CodeReachabilityProjectionRunnerConfig{
+			Config: codeintel.CodeReachabilityProjectionRunnerConfig{
 				PollInterval: 10 * time.Millisecond,
 				BatchLimit:   1,
 			},
@@ -430,5 +432,51 @@ func (s *stubReducerWorkSink) Fail(_ context.Context, _ Intent, err error) error
 	defer s.mu.Unlock()
 	s.failCalls++
 	s.failedWith = err
+	return nil
+}
+
+// fakeCodeReachabilityInputLoader and fakeCodeReachabilityRowWriter are
+// duplicated here rather than imported from codeintel: they are test-only
+// recorder types, and a production package must not export a test helper. The
+// codeintel package keeps its own copy for its own tests
+// (code_reachability_projection_runner_test.go).
+type fakeCodeReachabilityInputLoader struct {
+	inputs []codeintel.CodeReachabilityProjectionInput
+}
+
+func (f *fakeCodeReachabilityInputLoader) LoadPendingCodeReachabilityInputs(
+	_ context.Context,
+	_ int,
+) ([]codeintel.CodeReachabilityProjectionInput, error) {
+	return append([]codeintel.CodeReachabilityProjectionInput(nil), f.inputs...), nil
+}
+
+type fakeCodeReachabilityRowWriter struct {
+	scopeID      string
+	generationID string
+	repositoryID string
+	watermark    time.Time
+	truncated    bool
+	rows         []codeintel.CodeReachabilityRow
+	verdicts     []codeintel.CodeRootVerdictRow
+}
+
+func (f *fakeCodeReachabilityRowWriter) ReplaceRepositoryRows(
+	_ context.Context,
+	scopeID string,
+	generationID string,
+	repositoryID string,
+	rows []codeintel.CodeReachabilityRow,
+	verdicts []codeintel.CodeRootVerdictRow,
+	watermark time.Time,
+	truncated bool,
+) error {
+	f.scopeID = scopeID
+	f.generationID = generationID
+	f.repositoryID = repositoryID
+	f.watermark = watermark
+	f.truncated = truncated
+	f.rows = append(f.rows, rows...)
+	f.verdicts = append(f.verdicts, verdicts...)
 	return nil
 }

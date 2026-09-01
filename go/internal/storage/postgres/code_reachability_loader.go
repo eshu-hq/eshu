@@ -11,7 +11,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/eshu-hq/eshu/go/internal/reducer"
+	"github.com/eshu-hq/eshu/go/internal/reducer/codeintel"
 )
 
 const listPendingCodeReachabilityInputsSQL = `
@@ -155,7 +155,7 @@ ORDER BY source_entity_id ASC, target_entity_id ASC, relationship_type ASC
 func (s *CodeReachabilityStore) LoadPendingCodeReachabilityInputs(
 	ctx context.Context,
 	limit int,
-) ([]reducer.CodeReachabilityProjectionInput, error) {
+) ([]codeintel.CodeReachabilityProjectionInput, error) {
 	if limit <= 0 {
 		limit = 10
 	}
@@ -190,7 +190,7 @@ func (s *CodeReachabilityStore) LoadPendingCodeReachabilityInputs(
 		return nil, err
 	}
 
-	inputs := make([]reducer.CodeReachabilityProjectionInput, 0, len(candidates))
+	inputs := make([]codeintel.CodeReachabilityProjectionInput, 0, len(candidates))
 	for _, candidate := range candidates {
 		roots, err := s.loadCodeReachabilityRoots(ctx, candidate.repositoryID)
 		if err != nil {
@@ -203,8 +203,8 @@ func (s *CodeReachabilityStore) LoadPendingCodeReachabilityInputs(
 		// Only pay for the repo-wide Ruby class-registry load when this
 		// repository actually has a controller-action root to evaluate; a
 		// non-Ruby or controller-free repository loads no classes.
-		var rubyClasses []reducer.RubyClassEntity
-		var rubyRoutes reducer.RubyRailsRouteFacts
+		var rubyClasses []codeintel.RubyClassEntity
+		var rubyRoutes codeintel.RubyRailsRouteFacts
 		if codeReachabilityRootsHaveRailsController(roots) {
 			rubyClasses, err = s.loadCodeReachabilityRubyClasses(ctx, candidate.repositoryID)
 			if err != nil {
@@ -215,7 +215,7 @@ func (s *CodeReachabilityStore) LoadPendingCodeReachabilityInputs(
 				return nil, err
 			}
 		}
-		inputs = append(inputs, reducer.CodeReachabilityProjectionInput{
+		inputs = append(inputs, codeintel.CodeReachabilityProjectionInput{
 			ScopeID:      candidate.scopeID,
 			GenerationID: candidate.generationID,
 			RepositoryID: candidate.repositoryID,
@@ -232,10 +232,10 @@ func (s *CodeReachabilityStore) LoadPendingCodeReachabilityInputs(
 // codeReachabilityRootsHaveRailsController reports whether any loaded root
 // carries the ruby.rails_controller_action kind, gating the repo-wide Ruby
 // class-registry load to Ruby repositories with controller roots.
-func codeReachabilityRootsHaveRailsController(roots []reducer.CodeReachabilityRoot) bool {
+func codeReachabilityRootsHaveRailsController(roots []codeintel.CodeReachabilityRoot) bool {
 	for _, root := range roots {
 		for _, kind := range root.RootKinds {
-			if kind == reducer.CodeRootKindRubyRailsControllerAction {
+			if kind == codeintel.CodeRootKindRubyRailsControllerAction {
 				return true
 			}
 		}
@@ -246,16 +246,16 @@ func codeReachabilityRootsHaveRailsController(roots []reducer.CodeReachabilityRo
 func (s *CodeReachabilityStore) loadCodeReachabilityRoots(
 	ctx context.Context,
 	repositoryID string,
-) ([]reducer.CodeReachabilityRoot, error) {
+) ([]codeintel.CodeReachabilityRoot, error) {
 	rows, err := s.db.QueryContext(ctx, listCodeReachabilityRootsSQL, repositoryID)
 	if err != nil {
 		return nil, fmt.Errorf("query code reachability roots: %w", err)
 	}
 	defer func() { _ = rows.Close() }()
 
-	roots := make([]reducer.CodeReachabilityRoot, 0)
+	roots := make([]codeintel.CodeReachabilityRoot, 0)
 	for rows.Next() {
-		var root reducer.CodeReachabilityRoot
+		var root codeintel.CodeReachabilityRoot
 		var rootKindsRaw []byte
 		var classContext sql.NullString
 		var actionName sql.NullString
@@ -281,19 +281,19 @@ func (s *CodeReachabilityStore) loadCodeReachabilityRoots(
 func (s *CodeReachabilityStore) loadCodeReachabilityRailsRouteFacts(
 	ctx context.Context,
 	repositoryID string,
-) (reducer.RubyRailsRouteFacts, error) {
+) (codeintel.RubyRailsRouteFacts, error) {
 	rows, err := s.db.QueryContext(ctx, listCodeReachabilityRailsRouteFactsSQL, repositoryID)
 	if err != nil {
-		return reducer.RubyRailsRouteFacts{}, fmt.Errorf("query code reachability rails route facts: %w", err)
+		return codeintel.RubyRailsRouteFacts{}, fmt.Errorf("query code reachability rails route facts: %w", err)
 	}
 	defer func() { _ = rows.Close() }()
 
-	facts := reducer.RubyRailsRouteFacts{RoutedHandlers: make(map[string]struct{})}
+	facts := codeintel.RubyRailsRouteFacts{RoutedHandlers: make(map[string]struct{})}
 	for rows.Next() {
 		var handler sql.NullString
 		var hasUnmodeledRoutes bool
 		if err := rows.Scan(&handler, &hasUnmodeledRoutes); err != nil {
-			return reducer.RubyRailsRouteFacts{}, fmt.Errorf("scan code reachability rails route fact: %w", err)
+			return codeintel.RubyRailsRouteFacts{}, fmt.Errorf("scan code reachability rails route fact: %w", err)
 		}
 		facts.HasAnyRouteEvidence = true
 		if hasUnmodeledRoutes {
@@ -313,16 +313,16 @@ func (s *CodeReachabilityStore) loadCodeReachabilityRailsRouteFacts(
 func (s *CodeReachabilityStore) loadCodeReachabilityRubyClasses(
 	ctx context.Context,
 	repositoryID string,
-) ([]reducer.RubyClassEntity, error) {
+) ([]codeintel.RubyClassEntity, error) {
 	rows, err := s.db.QueryContext(ctx, listCodeReachabilityRubyClassesSQL, repositoryID)
 	if err != nil {
 		return nil, fmt.Errorf("query code reachability ruby classes: %w", err)
 	}
 	defer func() { _ = rows.Close() }()
 
-	classes := make([]reducer.RubyClassEntity, 0)
+	classes := make([]codeintel.RubyClassEntity, 0)
 	for rows.Next() {
-		var class reducer.RubyClassEntity
+		var class codeintel.RubyClassEntity
 		var qualifiedName sql.NullString
 		var qualifiedBasesRaw []byte
 		if err := rows.Scan(&class.Name, &qualifiedName, &qualifiedBasesRaw); err != nil {
@@ -345,16 +345,16 @@ func (s *CodeReachabilityStore) loadCodeReachabilityEdges(
 	repositoryID string,
 	sourceRunID string,
 	generationID string,
-) ([]reducer.CodeReachabilityEdge, error) {
+) ([]codeintel.CodeReachabilityEdge, error) {
 	rows, err := s.db.QueryContext(ctx, listCodeReachabilityEdgesSQL, scopeID, repositoryID, sourceRunID, generationID)
 	if err != nil {
 		return nil, fmt.Errorf("query code reachability edges: %w", err)
 	}
 	defer func() { _ = rows.Close() }()
 
-	edges := make([]reducer.CodeReachabilityEdge, 0)
+	edges := make([]codeintel.CodeReachabilityEdge, 0)
 	for rows.Next() {
-		var edge reducer.CodeReachabilityEdge
+		var edge codeintel.CodeReachabilityEdge
 		if err := rows.Scan(
 			&edge.SourceEntityID,
 			&edge.TargetEntityID,

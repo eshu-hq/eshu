@@ -14,7 +14,7 @@ import (
 
 	_ "github.com/jackc/pgx/v5/stdlib"
 
-	"github.com/eshu-hq/eshu/go/internal/reducer"
+	"github.com/eshu-hq/eshu/go/internal/reducer/codeintel"
 )
 
 // upgradeBackfillLargeBatchLimit is used both for the loader observation and the
@@ -188,11 +188,11 @@ func loadedRepoIDs(t *testing.T, ctx context.Context, store *CodeReachabilitySto
 	return got
 }
 
-func upgradeBackfillRunner(store *CodeReachabilityStore) *reducer.CodeReachabilityProjectionRunner {
-	return &reducer.CodeReachabilityProjectionRunner{
+func upgradeBackfillRunner(store *CodeReachabilityStore) *codeintel.CodeReachabilityProjectionRunner {
+	return &codeintel.CodeReachabilityProjectionRunner{
 		InputLoader: store,
 		RowWriter:   store,
-		Config:      reducer.CodeReachabilityProjectionRunnerConfig{BatchLimit: upgradeBackfillLargeBatchLimit},
+		Config:      codeintel.CodeReachabilityProjectionRunnerConfig{BatchLimit: upgradeBackfillLargeBatchLimit},
 	}
 }
 

@@ -13,14 +13,14 @@ import (
 
 	_ "github.com/jackc/pgx/v5/stdlib"
 
-	"github.com/eshu-hq/eshu/go/internal/reducer"
+	"github.com/eshu-hq/eshu/go/internal/reducer/codeintel"
 	storagepostgres "github.com/eshu-hq/eshu/go/internal/storage/postgres"
 )
 
 // TestDowngradedCodeRootKindsRoundTripLive is the #5376 P2 drift guard: it writes
 // a downgraded (and a confirmed) verdict through the reducer's postgres store,
 // then reads it back through the query's DowngradedCodeRootKinds. Because the
-// store writes reducer.CodeRootVerdictDowngraded and the query's SQL predicate
+// store writes codeintel.CodeRootVerdictDowngraded and the query's SQL predicate
 // binds rubycontroller.VerdictDowngraded — the SAME shared constant — the
 // round-trip returns exactly the downgraded entity. A rename of the verdict
 // value on either side would make this return empty (fail-keep), so this test
@@ -82,17 +82,17 @@ func TestDowngradedCodeRootKindsRoundTripLive(t *testing.T) {
 	  VALUES ($1,$2,'manual',$3,$3,'active',$3)`, generationID, scopeID, now)
 
 	store := storagepostgres.NewCodeReachabilityStore(storagepostgres.SQLDB{DB: db})
-	verdictRow := func(entityID, verdict, reason string) reducer.CodeRootVerdictRow {
-		return reducer.CodeRootVerdictRow{
+	verdictRow := func(entityID, verdict, reason string) codeintel.CodeRootVerdictRow {
+		return codeintel.CodeRootVerdictRow{
 			ScopeID: scopeID, GenerationID: generationID, RepositoryID: repoID,
-			EntityID: entityID, RootKind: reducer.CodeRootKindRubyRailsControllerAction,
-			Verdict: verdict, Basis: reducer.CodeRootVerdictBasis{Reason: reason},
+			EntityID: entityID, RootKind: codeintel.CodeRootKindRubyRailsControllerAction,
+			Verdict: verdict, Basis: codeintel.CodeRootVerdictBasis{Reason: reason},
 			ObservedAt: now, UpdatedAt: now,
 		}
 	}
-	if err := store.ReplaceRepositoryRows(ctx, scopeID, generationID, repoID, nil, []reducer.CodeRootVerdictRow{
-		verdictRow("e:down", reducer.CodeRootVerdictDowngraded, "rejected_framework_base"),
-		verdictRow("e:conf", reducer.CodeRootVerdictConfirmed, "accepted"),
+	if err := store.ReplaceRepositoryRows(ctx, scopeID, generationID, repoID, nil, []codeintel.CodeRootVerdictRow{
+		verdictRow("e:down", codeintel.CodeRootVerdictDowngraded, "rejected_framework_base"),
+		verdictRow("e:conf", codeintel.CodeRootVerdictConfirmed, "accepted"),
 	}, now, false); err != nil {
 		t.Fatalf("ReplaceRepositoryRows: %v", err)
 	}
@@ -102,7 +102,7 @@ func TestDowngradedCodeRootKindsRoundTripLive(t *testing.T) {
 	if err != nil {
 		t.Fatalf("DowngradedCodeRootKinds: %v", err)
 	}
-	if _, ok := got["e:down"][reducer.CodeRootKindRubyRailsControllerAction]; !ok {
+	if _, ok := got["e:down"][codeintel.CodeRootKindRubyRailsControllerAction]; !ok {
 		t.Fatalf("downgraded entity not returned — reader/writer verdict-value drift: got %#v", got)
 	}
 	if _, ok := got["e:conf"]; ok {
