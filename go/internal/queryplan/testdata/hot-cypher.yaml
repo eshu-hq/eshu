@@ -71,7 +71,7 @@ entries:
       file: go/internal/query/packagereg/package_registry_cypher.go
       symbol: PackageRegistryDependenciesCypher
       source_sha256: a92f145ca61617e17f023994ab69248398c1203f993d552b90864c149a2b7630
-      line_hint: 163
+      line_hint: 171
     required_anchors:
       - label: PackageDependency
         property: version_id
