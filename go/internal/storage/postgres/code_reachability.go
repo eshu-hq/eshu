@@ -11,7 +11,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/eshu-hq/eshu/go/internal/reducer"
+	"github.com/eshu-hq/eshu/go/internal/reducer/codeintel"
 )
 
 const (
@@ -186,7 +186,7 @@ func (s *CodeReachabilityStore) EnsureSchema(ctx context.Context) error {
 }
 
 // Upsert writes code reachability rows in bounded batches.
-func (s *CodeReachabilityStore) Upsert(ctx context.Context, rows []reducer.CodeReachabilityRow) error {
+func (s *CodeReachabilityStore) Upsert(ctx context.Context, rows []codeintel.CodeReachabilityRow) error {
 	if len(rows) == 0 {
 		return nil
 	}
@@ -214,8 +214,8 @@ func (s *CodeReachabilityStore) ReplaceRepositoryRows(
 	scopeID string,
 	generationID string,
 	repositoryID string,
-	rows []reducer.CodeReachabilityRow,
-	verdicts []reducer.CodeRootVerdictRow,
+	rows []codeintel.CodeReachabilityRow,
+	verdicts []codeintel.CodeRootVerdictRow,
 	watermark time.Time,
 	truncated bool,
 ) error {
@@ -251,11 +251,11 @@ func (s *CodeReachabilityStore) ListLatestByEntities(
 	ctx context.Context,
 	repositoryID string,
 	entityIDs []string,
-) (map[string]reducer.CodeReachabilityRow, error) {
+) (map[string]codeintel.CodeReachabilityRow, error) {
 	repositoryID = strings.TrimSpace(repositoryID)
 	entityIDs = cleanCodeReachabilityEntityIDs(entityIDs)
 	if repositoryID == "" || len(entityIDs) == 0 {
-		return map[string]reducer.CodeReachabilityRow{}, nil
+		return map[string]codeintel.CodeReachabilityRow{}, nil
 	}
 
 	query, args := buildListLatestCodeReachabilityByEntitiesQuery(repositoryID, entityIDs)
@@ -265,7 +265,7 @@ func (s *CodeReachabilityStore) ListLatestByEntities(
 	}
 	defer func() { _ = rows.Close() }()
 
-	result := make(map[string]reducer.CodeReachabilityRow, len(entityIDs))
+	result := make(map[string]codeintel.CodeReachabilityRow, len(entityIDs))
 	for rows.Next() {
 		row, err := scanCodeReachabilityRow(rows)
 		if err != nil {
@@ -279,7 +279,7 @@ func (s *CodeReachabilityStore) ListLatestByEntities(
 	return result, rows.Err()
 }
 
-func upsertCodeReachabilityBatch(ctx context.Context, db ExecQueryer, rows []reducer.CodeReachabilityRow) error {
+func upsertCodeReachabilityBatch(ctx context.Context, db ExecQueryer, rows []codeintel.CodeReachabilityRow) error {
 	values := make([]string, 0, len(rows))
 	args := make([]any, 0, len(rows)*codeReachabilityColumns)
 	for _, row := range rows {
@@ -329,8 +329,8 @@ func replaceCodeReachabilityRepositoryRows(
 	scopeID string,
 	generationID string,
 	repositoryID string,
-	rows []reducer.CodeReachabilityRow,
-	verdicts []reducer.CodeRootVerdictRow,
+	rows []codeintel.CodeReachabilityRow,
+	verdicts []codeintel.CodeRootVerdictRow,
 	watermark time.Time,
 	truncated bool,
 ) error {
@@ -376,7 +376,7 @@ func replaceCodeReachabilityRepositoryRows(
 	return nil
 }
 
-func upsertCodeRootVerdictBatch(ctx context.Context, db ExecQueryer, verdicts []reducer.CodeRootVerdictRow) error {
+func upsertCodeRootVerdictBatch(ctx context.Context, db ExecQueryer, verdicts []codeintel.CodeRootVerdictRow) error {
 	values := make([]string, 0, len(verdicts))
 	args := make([]any, 0, len(verdicts)*codeRootVerdictColumns)
 	for _, verdict := range verdicts {
@@ -438,8 +438,8 @@ ORDER BY row.entity_id ASC, row.confidence DESC, row.depth ASC, row.root_entity_
 	return query, args
 }
 
-func scanCodeReachabilityRow(rows Rows) (reducer.CodeReachabilityRow, error) {
-	var row reducer.CodeReachabilityRow
+func scanCodeReachabilityRow(rows Rows) (codeintel.CodeReachabilityRow, error) {
+	var row codeintel.CodeReachabilityRow
 	var evidence []byte
 	var rootKinds []byte
 	if err := rows.Scan(
@@ -458,15 +458,15 @@ func scanCodeReachabilityRow(rows Rows) (reducer.CodeReachabilityRow, error) {
 		&row.UpdatedAt,
 	); err != nil {
 		if err == sql.ErrNoRows {
-			return reducer.CodeReachabilityRow{}, err
+			return codeintel.CodeReachabilityRow{}, err
 		}
-		return reducer.CodeReachabilityRow{}, fmt.Errorf("scan code reachability row: %w", err)
+		return codeintel.CodeReachabilityRow{}, fmt.Errorf("scan code reachability row: %w", err)
 	}
 	if err := json.Unmarshal(evidence, &row.Evidence); err != nil {
-		return reducer.CodeReachabilityRow{}, fmt.Errorf("unmarshal code reachability evidence: %w", err)
+		return codeintel.CodeReachabilityRow{}, fmt.Errorf("unmarshal code reachability evidence: %w", err)
 	}
 	if err := json.Unmarshal(rootKinds, &row.RootKinds); err != nil {
-		return reducer.CodeReachabilityRow{}, fmt.Errorf("unmarshal code reachability root kinds: %w", err)
+		return codeintel.CodeReachabilityRow{}, fmt.Errorf("unmarshal code reachability root kinds: %w", err)
 	}
 	return row, nil
 }
@@ -488,7 +488,7 @@ func cleanCodeReachabilityEntityIDs(entityIDs []string) []string {
 	return cleaned
 }
 
-func strongerCodeReachabilityRow(left, right reducer.CodeReachabilityRow) bool {
+func strongerCodeReachabilityRow(left, right codeintel.CodeReachabilityRow) bool {
 	if left.Confidence != right.Confidence {
 		return left.Confidence > right.Confidence
 	}

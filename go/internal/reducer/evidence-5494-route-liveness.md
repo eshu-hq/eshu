@@ -83,7 +83,7 @@ re-running): `TestParseFlagsUnmodeledRailsRouteConstructs`
 shorthand, `root to:`, `match`+`via:`, `devise_for`, `controller:`/`action:`,
 bare path, interpolated path, non-string `to:`),
 `TestBuildCodeRootVerdictsRootOnlyRoutedControllerKept`
-(`internal/reducer/code_root_verdicts_routes_test.go`), and
+(`internal/reducer/codeintel/code_root_verdicts_routes_test.go`), and
 `TestCodeReachabilityRailsRouteFactsLoaderKeepsRootOnlyRoutedController`
 (`internal/storage/postgres/code_reachability_route_liveness_live_test.go`,
 real Postgres, real production loader path).
@@ -121,7 +121,7 @@ fully exact route is captured normally, not forced into ambiguity),
 `TestParseFlagsUnmodeledRouteInCurlyBraceDrawBlock` (all three in
 `internal/parser/ruby/framework_routes_ambiguity_test.go`), and
 `TestBuildCodeRootVerdictsAppendOnlyRoutedControllerKept`
-(`internal/reducer/code_root_verdicts_routes_test.go`) -- at the reducer's
+(`internal/reducer/codeintel/code_root_verdicts_routes_test.go`) -- at the reducer's
 abstraction level an append-only-routed controller produces the identical
 input shape as the P0 root-only-routed case, so the new ground this last test
 actually pins is the reducer-contract half of the same regression; the
@@ -411,7 +411,7 @@ untouched by this change; only the verdict-builder input and the
 ## Observability Evidence
 
 `CodeRootVerdictStats` gains `RouteDowngraded`, `RouteConfirmed`,
-`RouteAmbiguousKept`, `RouteNoData` (`internal/reducer/code_root_verdicts.go`).
+`RouteAmbiguousKept`, `RouteNoData` (`internal/reducer/codeintel/code_root_verdicts.go`).
 The runner (`code_reachability_projection_runner.go`) surfaces
 `VerdictsRouteDowngraded` on `CodeReachabilityProjectionResult` and logs
 `verdicts_route_downgraded` on every `"code reachability projection completed"`

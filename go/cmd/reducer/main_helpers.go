@@ -16,6 +16,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/clock"
 	"github.com/eshu-hq/eshu/go/internal/query"
 	"github.com/eshu-hq/eshu/go/internal/reducer"
+	"github.com/eshu-hq/eshu/go/internal/reducer/codeintel"
 	"github.com/eshu-hq/eshu/go/internal/relationships/tfstatebackend"
 	runtimecfg "github.com/eshu-hq/eshu/go/internal/runtime"
 	sourcecypher "github.com/eshu-hq/eshu/go/internal/storage/cypher"
@@ -250,12 +251,12 @@ func codeReachabilityProjectionRunnerFor(
 	sharedCfg reducer.SharedProjectionRunnerConfig,
 	concurrency int,
 	logger *slog.Logger,
-) *reducer.CodeReachabilityProjectionRunner {
+) *codeintel.CodeReachabilityProjectionRunner {
 	store := postgres.NewCodeReachabilityStore(database)
-	return &reducer.CodeReachabilityProjectionRunner{
+	return &codeintel.CodeReachabilityProjectionRunner{
 		InputLoader: store,
 		RowWriter:   store,
-		Config: reducer.CodeReachabilityProjectionRunnerConfig{
+		Config: codeintel.CodeReachabilityProjectionRunnerConfig{
 			PollInterval: sharedCfg.PollInterval,
 			BatchLimit:   sharedCfg.BatchLimit,
 			Concurrency:  concurrency,

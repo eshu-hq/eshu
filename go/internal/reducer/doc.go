@@ -16,7 +16,13 @@
 // family that calls it. The factwrite subpackage owns the batched fact-write
 // row shapes, statements, chunking, and its Execer port. The schemadecode
 // subpackage owns the per-fact-kind decode seams themselves, which import the
-// per-domain factschema packages and so cannot live in factdecode. This package
+// per-domain factschema packages and so cannot live in factdecode. The
+// packagesourcecore subpackage owns the package-source hint and repository
+// shapes plus their extraction, matching, and canonical-URL keying. The
+// codeintel subpackage is the first that is a domain rather than a shared
+// helper: it owns the code-reachability projection and the code-root verdicts
+// that gate it, which depend on each other in both directions and so move as
+// one unit. This package
 // re-exports the contract surface and retains registry composition, runtime
 // execution, queue behavior, adapters, and telemetry. Most root call sites
 // reach a helper subpackage through an unexported forwarder of the same

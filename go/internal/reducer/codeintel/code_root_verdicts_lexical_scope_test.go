@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package reducer
+package codeintel
 
 import (
 	"fmt"
@@ -211,7 +211,7 @@ func buildNamespacedVerdictBenchInput(controllers, unresolvableCount int) CodeRe
 // case (immediate-scope hit), outer-scope hit, and full-miss-then-broad-fallback
 // paths (20% of controllers). Compare ns/op against the pre-#5500 commit on the
 // same corpus size.
-// Run: go test ./internal/reducer -run='^$' -bench=BenchmarkBuildCodeRootVerdictsNamespacedCorpus -benchmem
+// Run: go test ./internal/reducer/codeintel -run='^$' -bench=BenchmarkBuildCodeRootVerdictsNamespacedCorpus -benchmem
 func BenchmarkBuildCodeRootVerdictsNamespacedCorpus(b *testing.B) {
 	input := buildNamespacedVerdictBenchInput(500, 100) // 20% unresolvable-anywhere.
 	b.ResetTimer()
@@ -227,7 +227,7 @@ func BenchmarkBuildCodeRootVerdictsNamespacedCorpus(b *testing.B) {
 // worst-case unresolvable-anywhere fraction. This is the throughput number that
 // matters for a real Rails corpus, where nearly every controller resolves on
 // the first (innermost) lexical candidate.
-// Run: go test ./internal/reducer -run='^$' -bench=BenchmarkBuildCodeRootVerdictsNamespacedCorpusTypical -benchmem
+// Run: go test ./internal/reducer/codeintel -run='^$' -bench=BenchmarkBuildCodeRootVerdictsNamespacedCorpusTypical -benchmem
 func BenchmarkBuildCodeRootVerdictsNamespacedCorpusTypical(b *testing.B) {
 	input := buildNamespacedVerdictBenchInput(500, 5) // ~1% unresolvable-anywhere.
 	b.ResetTimer()

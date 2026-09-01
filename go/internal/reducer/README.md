@@ -491,6 +491,8 @@ logic stays with the family even when it calls into `factwrite` to publish.
 - `go/internal/reducer/factload/README.md`
 - `go/internal/reducer/factwrite/README.md`
 - `go/internal/reducer/schemadecode/README.md`
+- `go/internal/reducer/packagesourcecore/README.md`
+- `go/internal/reducer/codeintel/README.md`
 - `go/internal/reducer/dsl/README.md`
 - `go/internal/reducer/tags/README.md`
 - `go/internal/reducer/tfstate/README.md`

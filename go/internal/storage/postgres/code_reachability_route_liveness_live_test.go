@@ -9,7 +9,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/eshu-hq/eshu/go/internal/reducer"
+	"github.com/eshu-hq/eshu/go/internal/reducer/codeintel"
 )
 
 // seedRouteLivenessController seeds one Ruby controller class (ancestry:
@@ -66,7 +66,7 @@ func seedRouteLivenessRailsFile(t *testing.T, ctx context.Context, exec func(str
 // repo with no observed route data all stay confirmed. It exercises the ACTUAL
 // production path: loadCodeReachabilityRailsRouteFacts (the SQL query proven
 // with EXPLAIN in the #5494 proof note) feeding the real
-// reducer.BuildCodeRootVerdicts, not a hand-built fixture.
+// codeintel.BuildCodeRootVerdicts, not a hand-built fixture.
 func TestCodeReachabilityRailsRouteFactsLoaderRoundTrip(t *testing.T) {
 	ctx, db := openUpgradeBackfillLiveDB(t)
 	store := NewCodeReachabilityStore(SQLDB{DB: db})
@@ -132,7 +132,7 @@ func TestCodeReachabilityRailsRouteFactsLoaderRoundTrip(t *testing.T) {
 		if err != nil {
 			t.Fatalf("loadCodeReachabilityRailsRouteFacts(%s): %v", repoID, err)
 		}
-		rows, _, _ := reducer.BuildCodeRootVerdicts(reducer.CodeReachabilityProjectionInput{
+		rows, _, _ := codeintel.BuildCodeRootVerdicts(codeintel.CodeReachabilityProjectionInput{
 			ScopeID:      scopeID,
 			GenerationID: generationID,
 			RepositoryID: repoID,
@@ -146,19 +146,19 @@ func TestCodeReachabilityRailsRouteFactsLoaderRoundTrip(t *testing.T) {
 		row := rows[0]
 		switch repoID {
 		case repoRouted:
-			if row.Verdict != reducer.CodeRootVerdictConfirmed || row.Basis.RouteEvidence != reducer.RouteEvidenceRouted {
+			if row.Verdict != codeintel.CodeRootVerdictConfirmed || row.Basis.RouteEvidence != codeintel.RouteEvidenceRouted {
 				t.Fatalf("routed repo: got verdict=%s route_evidence=%s, want confirmed/routed (basis=%+v)", row.Verdict, row.Basis.RouteEvidence, row.Basis)
 			}
 		case repoUnrouted:
-			if row.Verdict != reducer.CodeRootVerdictDowngraded || row.Basis.Reason != reducer.ReasonRouteUnreachable {
+			if row.Verdict != codeintel.CodeRootVerdictDowngraded || row.Basis.Reason != codeintel.ReasonRouteUnreachable {
 				t.Fatalf("unrouted repo: got verdict=%s reason=%s, want downgraded/route_unreachable (basis=%+v)", row.Verdict, row.Basis.Reason, row.Basis)
 			}
 		case repoAmbiguous:
-			if row.Verdict != reducer.CodeRootVerdictConfirmed || row.Basis.RouteEvidence != reducer.RouteEvidenceAmbiguous {
+			if row.Verdict != codeintel.CodeRootVerdictConfirmed || row.Basis.RouteEvidence != codeintel.RouteEvidenceAmbiguous {
 				t.Fatalf("ambiguous repo: got verdict=%s route_evidence=%s, want confirmed/unmodeled_routes_present (basis=%+v)", row.Verdict, row.Basis.RouteEvidence, row.Basis)
 			}
 		case repoNoData:
-			if row.Verdict != reducer.CodeRootVerdictConfirmed || row.Basis.RouteEvidence != reducer.RouteEvidenceNoData {
+			if row.Verdict != codeintel.CodeRootVerdictConfirmed || row.Basis.RouteEvidence != codeintel.RouteEvidenceNoData {
 				t.Fatalf("no-data repo: got verdict=%s route_evidence=%s, want confirmed/no_route_data (basis=%+v)", row.Verdict, row.Basis.RouteEvidence, row.Basis)
 			}
 		}
@@ -171,7 +171,7 @@ func TestCodeReachabilityRailsRouteFactsLoaderRoundTrip(t *testing.T) {
 // CONFIRMED through the full real production path -- the loader reading the
 // exact fact_records shape internal/parser/ruby/framework_routes.go now emits
 // for a `root` route (empty route_entries, has_unmodeled_routes=true) feeding
-// the real reducer.BuildCodeRootVerdicts. Before the parser fix, `root` set
+// the real codeintel.BuildCodeRootVerdicts. Before the parser fix, `root` set
 // neither an exact route_entries handler NOR has_unmodeled_routes, so this
 // exact scenario would have silently downgraded WelcomeController#index to
 // route_unreachable -- a live controller called dead.
@@ -224,7 +224,7 @@ func TestCodeReachabilityRailsRouteFactsLoaderKeepsRootOnlyRoutedController(t *t
 		t.Fatalf("expected HasUnmodeledRoutes=true for the root-only-routed repo, got %+v", routes)
 	}
 
-	rows, downgraded, _ := reducer.BuildCodeRootVerdicts(reducer.CodeReachabilityProjectionInput{
+	rows, downgraded, _ := codeintel.BuildCodeRootVerdicts(codeintel.CodeReachabilityProjectionInput{
 		ScopeID:      scopeID,
 		GenerationID: generationID,
 		RepositoryID: repoID,
@@ -236,11 +236,11 @@ func TestCodeReachabilityRailsRouteFactsLoaderKeepsRootOnlyRoutedController(t *t
 		t.Fatalf("expected exactly one verdict row, got %+v", rows)
 	}
 	row := rows[0]
-	if row.Verdict != reducer.CodeRootVerdictConfirmed {
+	if row.Verdict != codeintel.CodeRootVerdictConfirmed {
 		t.Fatalf("root-only-routed WelcomeController#index: verdict = %s, want confirmed (basis=%+v)", row.Verdict, row.Basis)
 	}
-	if row.Basis.RouteEvidence != reducer.RouteEvidenceAmbiguous {
-		t.Fatalf("root-only-routed WelcomeController#index: route_evidence = %s, want %s", row.Basis.RouteEvidence, reducer.RouteEvidenceAmbiguous)
+	if row.Basis.RouteEvidence != codeintel.RouteEvidenceAmbiguous {
+		t.Fatalf("root-only-routed WelcomeController#index: route_evidence = %s, want %s", row.Basis.RouteEvidence, codeintel.RouteEvidenceAmbiguous)
 	}
 	if len(downgraded) != 0 {
 		t.Fatalf("root-only-routed WelcomeController#index must not be downgraded, got %v", downgraded)

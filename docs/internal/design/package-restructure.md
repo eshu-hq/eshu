@@ -179,6 +179,40 @@ Two consequences worth knowing before the remaining children:
   gone and the replacement is 66, and dirgate's ratchet means any later
   extraction has to re-pin it lower.
 
+No-Regression Evidence: the reducer codeintel move (#6061) relocates eleven
+files -- `code_reachability_projection*.go` and `code_root_verdicts*.go`, four
+non-test and seven test -- from the reducer root into
+`go/internal/reducer/codeintel/` with `git mv` and no logic change. Baseline
+`5b1f4381d`, after `ae9ebc2e6`, go1.27.0 darwin/arm64. This is the first move in
+this epic that crosses a package boundary rather than hoisting helpers, so calls
+that were intra-package become cross-package and inlining can genuinely change;
+that is measured here rather than assumed. `go build -gcflags=-m ./...`
+whole-module, unique `can inline` names: 11825 base -> 11825 after, and the two
+name SETS are identical -- zero lost, zero gained, verified by `comm` in both
+directions rather than by comparing totals, because a matching total is also
+what a swap looks like. The probe was confirmed non-vacuous (both sets over
+11000 names) before that zero was believed. Correctness: `go build ./...` and
+`go vet ./...` both exit 0 with no output, `go test ./internal/reducer/...` and
+`go test ./internal/storage/postgres/... ./cmd/reducer/... ./internal/query/...`
+both exit 0 across 18 packages with no FAIL line, and `reducer/codeintel` itself
+passes in 1.7s. Input shape and terminal row counts are unchanged by
+construction: no query, Cypher, batch size, worker count, lease, or queue
+behaviour is touched, and the moved code is the same bytes modulo its package
+clause and import qualifiers -- ten of the eleven files are `R099` renames to
+git, and the eleventh is `R087` only because it is an external test package that
+requalifies every type reference. Safety rests on that mechanical equivalence
+plus the unchanged inlining sets, not on the test suite alone.
+
+No-Observability-Change: no metric, span, log field, status field, or runtime
+knob changes. The two `telemetry-coverage.md` rows this move touches are path
+repoints only (the root path for `code_root_verdicts.go` ->
+`.../codeintel/code_root_verdicts.go`), with their prose and their
+`No-Observability-Change` justifications unchanged; the code-root verdict
+builder and the route-liveness join remain pure in-process functions covered by
+the CodeReachability projection runner's existing `eshu_dp_reducer_executions_total`,
+`eshu_dp_reducer_run_duration_seconds`, and Postgres query spans, and neither
+emits a metric of its own before or after the move.
+
 No-Regression Evidence: the reducer packagesourcecore hoist (#6379, #6061)
 extracts `packageSourceHint`, `packageSourceRepository`,
 `extractPackageSourceRepositories`, `matchPackageSourceRepositories`, and

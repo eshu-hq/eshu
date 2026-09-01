@@ -15,6 +15,7 @@ import (
 	"go.opentelemetry.io/otel/metric"
 	"go.opentelemetry.io/otel/trace"
 
+	"github.com/eshu-hq/eshu/go/internal/reducer/codeintel"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
 	log "github.com/eshu-hq/eshu/go/pkg/log"
 )
@@ -93,7 +94,7 @@ type Service struct {
 
 	// CodeReachabilityProjectionRunner maintains the materialized code
 	// reachable-set read model. Nil disables it.
-	CodeReachabilityProjectionRunner *CodeReachabilityProjectionRunner
+	CodeReachabilityProjectionRunner *codeintel.CodeReachabilityProjectionRunner
 
 	// GraphProjectionPhaseRepairer retries exact readiness publications that
 	// failed after the underlying graph write already committed.

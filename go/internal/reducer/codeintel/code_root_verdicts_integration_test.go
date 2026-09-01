@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package reducer_test
+package codeintel_test
 
 import (
 	"os"
@@ -10,7 +10,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/parser/ruby"
 	"github.com/eshu-hq/eshu/go/internal/parser/shared"
-	"github.com/eshu-hq/eshu/go/internal/reducer"
+	"github.com/eshu-hq/eshu/go/internal/reducer/codeintel"
 )
 
 // parseRubyCorpus parses each source file with the REAL Ruby parser and returns
@@ -19,11 +19,11 @@ import (
 // #5376 anti-masking harness: the original P1 false positive was hidden by
 // hand-built RubyClassEntity.Name values (e.g. "Admin::BaseController") that the
 // parser's constantName can never emit. This test feeds genuine parser output.
-func parseRubyCorpus(t *testing.T, files map[string]string) ([]reducer.RubyClassEntity, []reducer.CodeReachabilityRoot) {
+func parseRubyCorpus(t *testing.T, files map[string]string) ([]codeintel.RubyClassEntity, []codeintel.CodeReachabilityRoot) {
 	t.Helper()
 	dir := t.TempDir()
-	var classes []reducer.RubyClassEntity
-	var roots []reducer.CodeReachabilityRoot
+	var classes []codeintel.RubyClassEntity
+	var roots []codeintel.CodeReachabilityRoot
 	for name, src := range files {
 		path := filepath.Join(dir, name)
 		if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
@@ -42,15 +42,15 @@ func parseRubyCorpus(t *testing.T, files map[string]string) ([]reducer.RubyClass
 	return classes, roots
 }
 
-func rubyClassEntitiesFromPayload(t *testing.T, payload map[string]any) []reducer.RubyClassEntity {
+func rubyClassEntitiesFromPayload(t *testing.T, payload map[string]any) []codeintel.RubyClassEntity {
 	t.Helper()
 	items, _ := payload["classes"].([]map[string]any)
-	out := make([]reducer.RubyClassEntity, 0, len(items))
+	out := make([]codeintel.RubyClassEntity, 0, len(items))
 	for _, item := range items {
 		name, _ := item["name"].(string)
 		qualifiedName, _ := item["qualified_name"].(string)
 		qualifiedBases, _ := item["qualified_bases"].([]string)
-		out = append(out, reducer.RubyClassEntity{
+		out = append(out, codeintel.RubyClassEntity{
 			Name:           name,
 			QualifiedName:  qualifiedName,
 			QualifiedBases: qualifiedBases,
@@ -59,10 +59,10 @@ func rubyClassEntitiesFromPayload(t *testing.T, payload map[string]any) []reduce
 	return out
 }
 
-func rubyControllerRootsFromPayload(t *testing.T, file string, payload map[string]any) []reducer.CodeReachabilityRoot {
+func rubyControllerRootsFromPayload(t *testing.T, file string, payload map[string]any) []codeintel.CodeReachabilityRoot {
 	t.Helper()
 	items, _ := payload["functions"].([]map[string]any)
-	out := make([]reducer.CodeReachabilityRoot, 0)
+	out := make([]codeintel.CodeReachabilityRoot, 0)
 	for _, item := range items {
 		kinds, _ := item["dead_code_root_kinds"].([]string)
 		if len(kinds) == 0 {
@@ -70,7 +70,7 @@ func rubyControllerRootsFromPayload(t *testing.T, file string, payload map[strin
 		}
 		classContext, _ := item["class_context"].(string)
 		name, _ := item["name"].(string)
-		out = append(out, reducer.CodeReachabilityRoot{
+		out = append(out, codeintel.CodeReachabilityRoot{
 			EntityID:     file + ":" + name,
 			RootKinds:    kinds,
 			ClassContext: classContext,
@@ -123,7 +123,7 @@ end
 		t.Fatalf("parser did not root both controller actions; roots=%+v", roots)
 	}
 
-	rows, downgraded, _ := reducer.BuildCodeRootVerdicts(reducer.CodeReachabilityProjectionInput{
+	rows, downgraded, _ := codeintel.BuildCodeRootVerdicts(codeintel.CodeReachabilityProjectionInput{
 		ScopeID:      "scope-1",
 		GenerationID: "gen-1",
 		RepositoryID: "repo-1",
@@ -132,7 +132,7 @@ end
 	})
 
 	confirmed := verdictForAction(rows, "index")
-	if confirmed == nil || confirmed.Verdict != reducer.CodeRootVerdictConfirmed {
+	if confirmed == nil || confirmed.Verdict != codeintel.CodeRootVerdictConfirmed {
 		t.Fatalf("WidgetsController#index must be CONFIRMED (genuine controller via namespaced base), got %+v", confirmed)
 	}
 	if _, isDown := downgraded[confirmed.EntityID]; isDown {
@@ -140,7 +140,7 @@ end
 	}
 
 	downgradedRow := verdictForAction(rows, "list")
-	if downgradedRow == nil || downgradedRow.Verdict != reducer.CodeRootVerdictDowngraded {
+	if downgradedRow == nil || downgradedRow.Verdict != codeintel.CodeRootVerdictDowngraded {
 		t.Fatalf("OrdersController#list must be DOWNGRADED (resolves onward to ApplicationRecord), got %+v", downgradedRow)
 	}
 	if _, isDown := downgraded[downgradedRow.EntityID]; !isDown {
@@ -188,7 +188,7 @@ end
 		t.Fatalf("parser did not root the controller action; roots=%+v", roots)
 	}
 
-	rows, downgraded, _ := reducer.BuildCodeRootVerdicts(reducer.CodeReachabilityProjectionInput{
+	rows, downgraded, _ := codeintel.BuildCodeRootVerdicts(codeintel.CodeReachabilityProjectionInput{
 		ScopeID:      "scope-1",
 		GenerationID: "gen-1",
 		RepositoryID: "repo-1",
@@ -197,7 +197,7 @@ end
 	})
 
 	row := verdictForAction(rows, "index")
-	if row == nil || row.Verdict != reducer.CodeRootVerdictDowngraded {
+	if row == nil || row.Verdict != codeintel.CodeRootVerdictDowngraded {
 		t.Fatalf("Admin::OrdersController#index must be DOWNGRADED (lexically resolves to Admin::Base < ActiveRecord::Base), got %+v", row)
 	}
 	if _, isDown := downgraded[row.EntityID]; !isDown {
@@ -242,7 +242,7 @@ end
 		t.Fatalf("parser did not root the controller action; roots=%+v", roots)
 	}
 
-	rows, downgraded, _ := reducer.BuildCodeRootVerdicts(reducer.CodeReachabilityProjectionInput{
+	rows, downgraded, _ := codeintel.BuildCodeRootVerdicts(codeintel.CodeReachabilityProjectionInput{
 		ScopeID:      "scope-1",
 		GenerationID: "gen-1",
 		RepositoryID: "repo-1",
@@ -251,7 +251,7 @@ end
 	})
 
 	row := verdictForAction(rows, "index")
-	if row == nil || row.Verdict != reducer.CodeRootVerdictConfirmed {
+	if row == nil || row.Verdict != codeintel.CodeRootVerdictConfirmed {
 		t.Fatalf("Admin::OrdersController#index (compact-colon form) must be CONFIRMED (the true top-level Base < ApplicationController referent must stay in the candidate set, not be masked by the unrelated Admin::Base), got %+v", row)
 	}
 	if _, isDown := downgraded[row.EntityID]; isDown {
@@ -296,7 +296,7 @@ end
 		t.Fatalf("parser did not root the controller action; roots=%+v", roots)
 	}
 
-	rows, downgraded, _ := reducer.BuildCodeRootVerdicts(reducer.CodeReachabilityProjectionInput{
+	rows, downgraded, _ := codeintel.BuildCodeRootVerdicts(codeintel.CodeReachabilityProjectionInput{
 		ScopeID:      "scope-1",
 		GenerationID: "gen-1",
 		RepositoryID: "repo-1",
@@ -305,7 +305,7 @@ end
 	})
 
 	row := verdictForAction(rows, "index")
-	if row == nil || row.Verdict != reducer.CodeRootVerdictConfirmed {
+	if row == nil || row.Verdict != codeintel.CodeRootVerdictConfirmed {
 		t.Fatalf("Admin::OrdersController#index (absolute `::Base` reference) must be CONFIRMED (the real top-level Base is external to the corpus; it must not resolve onto the unrelated in-corpus Admin::Base), got %+v", row)
 	}
 	if _, isDown := downgraded[row.EntityID]; isDown {
@@ -313,7 +313,7 @@ end
 	}
 }
 
-func hasRoot(roots []reducer.CodeReachabilityRoot, action string) bool {
+func hasRoot(roots []codeintel.CodeReachabilityRoot, action string) bool {
 	for _, r := range roots {
 		if endsWith(r.EntityID, ":"+action) {
 			return true
@@ -322,7 +322,7 @@ func hasRoot(roots []reducer.CodeReachabilityRoot, action string) bool {
 	return false
 }
 
-func verdictForAction(rows []reducer.CodeRootVerdictRow, action string) *reducer.CodeRootVerdictRow {
+func verdictForAction(rows []codeintel.CodeRootVerdictRow, action string) *codeintel.CodeRootVerdictRow {
 	for i := range rows {
 		if endsWith(rows[i].EntityID, ":"+action) {
 			return &rows[i]
