@@ -94,7 +94,7 @@ introduced.
 No-Regression Evidence: `go test ./internal/query -run 'TestContentReaderDocumentationFacts(SearchesLinkTargetURI|ReturnsEmptyForNoMatch|FiltersAndPaginates)|TestDocumentationHandlerRequiresFactScopeOrAnchor|TestBuildDocumentationFactsSQLIsScopedAndBounded|TestOpenAPISpecIncludesDocumentationFacts' -count=1` and `go test ./internal/mcp -run 'TestListDocumentationFacts(SchemaIncludesBoundedFilters|RouteIncludesScopeAndSearchFilters)' -count=1` cover link target URI matches, non-link text matches, no-match responses, scope-required behavior, SQL bounds, OpenAPI, and MCP routing parity.
 
 No-Observability-Change: link target URI matching stays inside the existing
-bounded `documentationFacts` Postgres read and reuses the
+bounded `DocumentationFacts` Postgres read and reuses the
 `query.documentation_facts` handler span, `db.operation=list_documentation_facts`
 Postgres instrumentation, and HTTP/MCP envelope paths. It adds no graph write,
 queue, worker, metric instrument, metric label, or runtime deployment knob.

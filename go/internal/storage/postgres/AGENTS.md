@@ -819,7 +819,7 @@ reads are unaffected (they use `fact_records_scope_generation_idx`).
 A proposal to drop the two `pg_trgm` GIN indexes on `content_files.content`
 and `content_entities.source_cache` was audited against a live 838-repo Postgres
 stack and disproven. Both indexes are actively used by the all-repo / code-topic
-search read path: `investigateCodeTopic` (`content_reader_code_topic.go`) and
+search read path: `InvestigateCodeTopic` (`content_reader_code_topic.go`) and
 the `SearchFileContentAnyRepo` / `SearchEntityContentAnyRepo` content readers.
 Repo-scoped searches do not use these GINs (the selective `repo_id` equality
 wins), so the all-repo `ILIKE '%term%'` reads are the only load-bearing consumers.

@@ -32,7 +32,7 @@ the response body:
 
 Implementation: `go/internal/query/cloud_inventory_rollout_signal.go`
 (`cloudInventoryRolloutGapWarningFlags`, `buildCloudInventoryPreRolloutProbeSQL`,
-`(*ContentReader).cloudInventoryPreRolloutEvidenceExists`), wired into
+`(*ContentReader).CloudInventoryPreRolloutEvidenceExists`), wired into
 `go/internal/query/cloud_inventory_readback.go`'s `listInventory` handler.
 
 The probe is gated strictly to `filter.AccountAliasKey != "" &&
@@ -245,7 +245,7 @@ future refactor cannot silently reopen this class of false positive:
   seeds the real present-but-blank shape (reusing
   `seedCloudInventoryGCPOrgLevelAssetLiveCorpus`), issues a
   `project_id`-filtered `GET /api/v0/cloud/inventory` through the actual HTTP
-  handler (not `cloudInventoryIdentities` directly), and asserts
+  handler (not `CloudInventoryIdentities` directly), and asserts
   `warning_flags` is absent.
 
 Both were proven RED before GREEN, not just written and left green:
@@ -396,7 +396,7 @@ representative corpus), not an unbounded or quadratic addition.
 ## No-Observability-Change:
 
 This change reuses the exact `cr.tracer.Start(ctx, "postgres.query", ...)`
-OTEL span pattern `cloudInventoryIdentities` already uses in the same file,
+OTEL span pattern `CloudInventoryIdentities` already uses in the same file,
 with its own `db.operation` attribute value
 (`cloud_inventory_pre_rollout_evidence_exists`) and `span.RecordError` on
 failure — the same span mechanism, not a new metric, log, or runtime knob. The

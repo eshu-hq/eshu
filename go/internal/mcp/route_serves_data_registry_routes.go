@@ -18,7 +18,7 @@ package mcp
 // docs/internal/design/5584-route-serves-data-registry.md.
 var routeServesDataRegistryPart1 = map[string]routeServesDataSource{
 	// DocumentationHandler.listFacts reads the collected documentation fact
-	// family from fact_records via (*ContentReader).documentationFacts: the
+	// family from fact_records via (*ContentReader).DocumentationFacts: the
 	// IN (...) list is built from facts.Documentation*FactKind constants
 	// (go/internal/query/documentation_read_model.go:359-367). The list also
 	// includes facts.SemanticDocumentationObservationFactKind (line 366) —
