@@ -16,7 +16,9 @@ tool registration and its client-visible order, global route fanout, the private
 adapter, HTTP dispatch, authorization, timeouts, response budgets, envelopes,
 summaries, and telemetry. `internal/query` owns the bounded read this path
 reaches, including the required-key check, the state vocabulary, the anchor-pair
-rule, the 1-200 limit bound, and the per-decision evidence cap.
+rule, the limit bound, and the per-decision evidence cap. That bound is
+asymmetric: a nonpositive limit becomes the 50-row default, and only values
+above 200 are capped.
 
 ## Exported surface
 
@@ -61,8 +63,9 @@ span.
 - `limit` defaults to 50. That is the dispatcher's historical default, and it
   happens to match the handler's own default, so the handler cannot tell a
   caller who omitted `limit` from one who asked for 50. The handler still
-  enforces its 1-200 bound; a zero, negative, or over-200 value is forwarded
-  as-is and corrected there, not here.
+  enforces its own bound; a zero, negative, or over-200 value is forwarded
+  as-is and corrected there, not here. Note that correction is not symmetric:
+  zero and negative become the 50-row default, not one row.
 - Numeric coercion follows `routecontract.Arguments.IntOr`: `int`, `int64`, and
   `float64` are accepted, a `float64` truncates toward zero, and every other
   type falls back to the default.

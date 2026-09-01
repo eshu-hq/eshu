@@ -171,7 +171,7 @@ func TestRouteAppliesAdmissionDecisionsDefaultsAndCoercions(t *testing.T) {
 	// Numeric coercions match routecontract.Arguments.IntOr exactly, including
 	// float truncation toward zero and the fallback for unsupported types.
 	// Out-of-range values are forwarded as-is: the handler, not the selector,
-	// owns the 1-200 bound.
+	// owns the bound (nonpositive becomes the 50-row default; over-200 caps).
 	for _, tt := range []struct {
 		limit any
 		want  string

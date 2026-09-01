@@ -19,8 +19,10 @@
 // which the handler requires; anchor_kind and anchor_id, which it requires
 // together or not at all; an optional state filter drawn from the handler's
 // vocabulary; include_evidence, sent as an explicit "true" or "false"; and a
-// limit defaulting to 50, which the handler clamps to 1-200. Dropping one is
-// not uniformly loud: losing any of the three required keys or one half of
+// limit defaulting to 50: the handler substitutes that default for any
+// nonpositive value and caps anything above 200, so a limit of 0 or -1 serves
+// 50 rows rather than one. Dropping one is not uniformly loud: losing any of
+// the three required keys or one half of
 // the anchor pair 400s the request, while losing state, include_evidence,
 // limit, or both anchor halves returns 200 with a wider state set, no
 // evidence rows, a 50-row page, or every anchor in scope.

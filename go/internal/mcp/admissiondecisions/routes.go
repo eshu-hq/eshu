@@ -23,7 +23,8 @@ func Route(toolName string, args routecontract.Arguments) (routecontract.Request
 
 // decisionsRequest maps list_admission_decisions to the bounded read-only
 // route GET /api/v0/evidence/admission-decisions, which
-// query.EvidenceHandler serves; the handler owns the 1-200 limit bound, the
+// query.EvidenceHandler serves; the handler owns the limit bound (nonpositive
+// becomes the 50-row default, over-200 caps at 200), the
 // state vocabulary, and the anchor-pair rule.
 //
 // Eight keys travel together, and they do not fail alike when one is lost.
