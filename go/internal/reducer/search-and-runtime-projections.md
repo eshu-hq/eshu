@@ -169,7 +169,7 @@ the current generation-clear lifecycle normally records term removal under
 `term_upsert`, `document_retire`, `stats_upsert`, `page_total`, and
 `finalize_total` without scope, generation, document, path, or term labels.
 No-Regression Evidence:
-`go test ./internal/reducer -run TestWriteEshuSearchDocumentsReportsSubphaseTimings -count=1`
+`go test ./internal/reducer/eshusearch -run TestWriteEshuSearchDocumentsReportsSubphaseTimings -count=1`
 fails without the timing fields and passes once every active write subphase
 reports a positive duration in a delayed fake-DB proof.
 
@@ -183,7 +183,7 @@ in the term write. During those writes Postgres reported active `WALInsert`,
 The term writer now relies on the page-level refresh delete plus reducer queue
 same-scope conflict fencing and inserts refreshed term rows without PostgreSQL's
 `ON CONFLICT DO UPDATE` path. No-Regression Evidence:
-`go test ./internal/reducer -run TestWriteEshuSearchDocumentsTermInsertAvoidsConflictUpdate -count=1`
+`go test ./internal/reducer/eshusearch -run TestWriteEshuSearchDocumentsTermInsertAvoidsConflictUpdate -count=1`
 fails if the term insert reintroduces conflict-update churn after the refresh
 delete.
 

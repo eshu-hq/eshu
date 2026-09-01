@@ -90,12 +90,12 @@ operators can size projection gaps without reading raw payloads.
 The reducer projects curated documents into the shared Postgres fact store as a
 generation-scoped read model, separate from canonical graph writes:
 
-- `reducer.ProjectSearchDocuments` curates a bounded per-generation source set
+- `eshusearch.ProjectSearchDocuments` curates a bounded per-generation source set
   (content entities, content files, runtime summaries) into the included
   documents plus a low-cardinality curation summary.
-- `reducer.EshuSearchDocumentHandler` runs that curation for one intent and
+- `eshusearch.EshuSearchDocumentHandler` runs that curation for one intent and
   writes the authoritative document set for the scope and generation.
-- `reducer.PostgresEshuSearchDocumentWriter` upserts each document as a derived
+- `eshusearch.PostgresEshuSearchDocumentWriter` upserts each document as a derived
   fact (`fact_kind = reducer_eshu_search_document`, `truth_scope.level = derived`)
   keyed by a deterministic `fact_id` over scope, generation, and document id, so
   retries of the same generation converge.
@@ -122,7 +122,7 @@ The focused gate is:
 
 ```bash
 cd go && go test ./internal/searchdocs -count=1
-cd go && go test ./internal/reducer -run EshuSearchDocument -count=1
+cd go && go test ./internal/reducer/eshusearch -run EshuSearchDocument -count=1
 cd go && go test ./internal/storage/postgres -run EshuSearchDocument -count=1
 ```
 

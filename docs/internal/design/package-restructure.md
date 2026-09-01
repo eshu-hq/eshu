@@ -196,8 +196,7 @@ SET with comm in BOTH directions rather than by totals, since a matching total i
 also what a swap looks like. Zero names lost, zero gained -- the identical set is
 what a pure relocation with no forwarders produces, and both sets carry 1378
 entries so the probe is not vacuous. Reducer root drops 515 -> 507 and the dirgate
-row is re-pinned DOWN to 507 / 59186458cff3, re-derived with the tool own
-algorithm rather than hand-computed.
+row is re-pinned DOWN to 507 / 59186458cff3, re-derived with the tool's own algorithm rather than hand-computed.
 
 No-Observability-Change: the move relocates the search-document writer and its
 timing accumulator without altering either. The existing coverage rows for
