@@ -10,6 +10,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/query"
 	"github.com/eshu-hq/eshu/go/internal/reducer"
+	"github.com/eshu-hq/eshu/go/internal/reducer/eshusearch"
 	"github.com/eshu-hq/eshu/go/internal/relationships/tfstatebackend"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
@@ -104,7 +105,7 @@ func buildReducerSearchDocumentHandlers(
 ) reducer.SearchDocumentHandlers {
 	return reducer.SearchDocumentHandlers{
 		EshuSearchDocumentSourceLoader: postgres.NewEshuSearchDocumentSourceLoader(database),
-		EshuSearchDocumentWriter: reducer.PostgresEshuSearchDocumentWriter{
+		EshuSearchDocumentWriter: eshusearch.PostgresEshuSearchDocumentWriter{
 			DB:              database,
 			Instruments:     instruments,
 			Tracer:          tracer,

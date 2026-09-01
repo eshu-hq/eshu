@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package reducer
+package eshusearch
 
 import (
 	"context"
@@ -9,6 +9,7 @@ import (
 	"log/slog"
 	"time"
 
+	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
 	log "github.com/eshu-hq/eshu/go/pkg/log"
 	"go.opentelemetry.io/otel/metric"
@@ -48,12 +49,12 @@ type EshuSearchDocumentHandler struct {
 }
 
 // Handle curates and persists the search documents for one intent.
-func (h EshuSearchDocumentHandler) Handle(ctx context.Context, intent Intent) (Result, error) {
+func (h EshuSearchDocumentHandler) Handle(ctx context.Context, intent reducercontract.Intent) (reducercontract.Result, error) {
 	if intent.Domain != DomainEshuSearchDocument {
-		return Result{}, fmt.Errorf("eshu search document handler received unexpected domain %q", intent.Domain)
+		return reducercontract.Result{}, fmt.Errorf("eshu search document handler received unexpected domain %q", intent.Domain)
 	}
 	if h.Loader == nil || h.Writer == nil {
-		return Result{}, fmt.Errorf("eshu search document handler requires a loader and writer")
+		return reducercontract.Result{}, fmt.Errorf("eshu search document handler requires a loader and writer")
 	}
 
 	started := time.Now()
@@ -64,7 +65,7 @@ func (h EshuSearchDocumentHandler) Handle(ctx context.Context, intent Intent) (R
 		SourceSystem: intent.SourceSystem,
 	})
 	if err != nil {
-		return Result{}, fmt.Errorf("begin eshu search document write: %w", err)
+		return reducercontract.Result{}, fmt.Errorf("begin eshu search document write: %w", err)
 	}
 
 	// Stream source pages: project and insert each bounded page independently,
@@ -92,20 +93,20 @@ func (h EshuSearchDocumentHandler) Handle(ctx context.Context, intent Intent) (R
 		if cancelErr := session.Cancel(ctx); cancelErr != nil {
 			h.logCancelError(ctx, intent, cancelErr)
 		}
-		return Result{}, fmt.Errorf("load eshu search document sources: %w", streamErr)
+		return reducercontract.Result{}, fmt.Errorf("load eshu search document sources: %w", streamErr)
 	}
 
 	writeResult, err := session.Finalize(ctx)
 	if err != nil {
-		return Result{}, fmt.Errorf("finalize eshu search documents: %w", err)
+		return reducercontract.Result{}, fmt.Errorf("finalize eshu search documents: %w", err)
 	}
 
 	h.recordCycle(ctx, intent, summary, writeResult, started)
 
-	return Result{
+	return reducercontract.Result{
 		IntentID:        intent.IntentID,
 		Domain:          intent.Domain,
-		Status:          ResultStatusSucceeded,
+		Status:          reducercontract.ResultStatusSucceeded,
 		EvidenceSummary: eshuSearchDocumentEvidenceSummary(summary, writeResult),
 		CanonicalWrites: writeResult.CanonicalWrites,
 		CompletedAt:     time.Now(),
@@ -125,7 +126,7 @@ func eshuSearchDocumentEvidenceSummary(summary SearchDocumentCurationSummary, wr
 // and log fields an operator can read at 3 AM.
 func (h EshuSearchDocumentHandler) recordCycle(
 	ctx context.Context,
-	intent Intent,
+	intent reducercontract.Intent,
 	summary SearchDocumentCurationSummary,
 	write EshuSearchDocumentWriteResult,
 	startedAt time.Time,
@@ -165,7 +166,7 @@ func (h EshuSearchDocumentHandler) recordCycle(
 // error. The original stream error is still returned to the caller; this log
 // lets an operator know that partial search documents may remain for the scope
 // and that the work item will be retried.
-func (h EshuSearchDocumentHandler) logCancelError(ctx context.Context, intent Intent, cancelErr error) {
+func (h EshuSearchDocumentHandler) logCancelError(ctx context.Context, intent reducercontract.Intent, cancelErr error) {
 	if h.Logger == nil {
 		return
 	}

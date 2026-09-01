@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package reducer
+package eshusearch
 
 import (
 	"context"
@@ -9,6 +9,7 @@ import (
 	"strings"
 	"testing"
 
+	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
 	"github.com/eshu-hq/eshu/go/internal/searchdocs"
 )
 
@@ -105,8 +106,8 @@ func (s *capturingSearchDocWriteSession) Cancel(_ context.Context) error {
 	return s.parent.cancelErr
 }
 
-func searchDocIntent() Intent {
-	return Intent{
+func searchDocIntent() reducercontract.Intent {
+	return reducercontract.Intent{
 		IntentID:     "intent-1",
 		ScopeID:      "scope-1",
 		GenerationID: "gen-1",
@@ -144,7 +145,7 @@ func TestEshuSearchDocumentHandlerProjectsAndWrites(t *testing.T) {
 	if got := len(writer.insertedPages[0]); got != 2 {
 		t.Fatalf("written documents = %d, want 2 (sensitive dropped)", got)
 	}
-	if result.Status != ResultStatusSucceeded {
+	if result.Status != reducercontract.ResultStatusSucceeded {
 		t.Errorf("status = %v, want succeeded", result.Status)
 	}
 	if result.CanonicalWrites != 2 {
@@ -220,7 +221,7 @@ func TestEshuSearchDocumentHandlerRejectsWrongDomain(t *testing.T) {
 
 	handler := EshuSearchDocumentHandler{Loader: &fakePagedSearchDocLoader{}, Writer: &capturingSearchDocWriter{}}
 	intent := searchDocIntent()
-	intent.Domain = DomainWorkloadIdentity
+	intent.Domain = reducercontract.DomainWorkloadIdentity
 	if _, err := handler.Handle(context.Background(), intent); err == nil {
 		t.Fatal("expected error for wrong domain")
 	}

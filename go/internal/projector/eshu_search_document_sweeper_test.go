@@ -8,7 +8,7 @@ import (
 	"errors"
 	"testing"
 
-	"github.com/eshu-hq/eshu/go/internal/reducer"
+	"github.com/eshu-hq/eshu/go/internal/reducer/eshusearch"
 )
 
 type fakePendingLister struct {
@@ -52,7 +52,7 @@ func TestSearchDocumentSweeperEnqueuesPendingScopes(t *testing.T) {
 		t.Fatalf("writer received %d intents, want 2", len(writer.enqueued))
 	}
 	first := writer.enqueued[0]
-	if first.Domain != reducer.DomainEshuSearchDocument {
+	if first.Domain != eshusearch.DomainEshuSearchDocument {
 		t.Errorf("domain = %q, want eshu_search_document", first.Domain)
 	}
 	if first.EntityKey != "eshu_search_document:git-repository-scope:repository:r_a" {

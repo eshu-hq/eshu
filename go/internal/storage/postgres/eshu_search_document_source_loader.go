@@ -10,7 +10,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/eshu-hq/eshu/go/internal/reducer"
+	"github.com/eshu-hq/eshu/go/internal/reducer/eshusearch"
 	"github.com/eshu-hq/eshu/go/internal/searchdocs"
 )
 
@@ -92,7 +92,7 @@ LIMIT $3
 
 // EshuSearchDocumentSourceLoader streams the current indexed content for a
 // scope's repository as curated-search projection inputs in bounded keyset
-// pages. It implements reducer.SearchDocumentSourceLoader.
+// pages. It implements eshusearch.SearchDocumentSourceLoader.
 type EshuSearchDocumentSourceLoader struct {
 	db Queryer
 	// entityPageSize and filePageSize bound rows per keyset page. They default
@@ -141,7 +141,7 @@ func (l EshuSearchDocumentSourceLoader) StreamSearchDocumentSources(
 	ctx context.Context,
 	scopeID string,
 	generationID string,
-	page func(reducer.SearchDocumentProjectionInput) error,
+	page func(eshusearch.SearchDocumentProjectionInput) error,
 ) error {
 	if l.db == nil {
 		return fmt.Errorf("eshu search document source loader requires a database")
@@ -195,7 +195,7 @@ func (l EshuSearchDocumentSourceLoader) resolveRepoID(ctx context.Context, scope
 func (l EshuSearchDocumentSourceLoader) streamEntities(
 	ctx context.Context,
 	repoID string,
-	page func(reducer.SearchDocumentProjectionInput) error,
+	page func(eshusearch.SearchDocumentProjectionInput) error,
 ) error {
 	pageSize := l.resolvedEntityPageSize()
 	cursor := ""
@@ -207,7 +207,7 @@ func (l EshuSearchDocumentSourceLoader) streamEntities(
 		if len(entities) == 0 {
 			return nil
 		}
-		if err := page(reducer.SearchDocumentProjectionInput{ContentEntities: entities}); err != nil {
+		if err := page(eshusearch.SearchDocumentProjectionInput{ContentEntities: entities}); err != nil {
 			return err
 		}
 		if len(entities) < pageSize {
@@ -271,7 +271,7 @@ func (l EshuSearchDocumentSourceLoader) loadEntityPage(
 func (l EshuSearchDocumentSourceLoader) streamFiles(
 	ctx context.Context,
 	repoID string,
-	page func(reducer.SearchDocumentProjectionInput) error,
+	page func(eshusearch.SearchDocumentProjectionInput) error,
 ) error {
 	pageSize := l.resolvedFilePageSize()
 	cursor := ""
@@ -283,7 +283,7 @@ func (l EshuSearchDocumentSourceLoader) streamFiles(
 		if len(files) == 0 {
 			return nil
 		}
-		if err := page(reducer.SearchDocumentProjectionInput{ContentFiles: files}); err != nil {
+		if err := page(eshusearch.SearchDocumentProjectionInput{ContentFiles: files}); err != nil {
 			return err
 		}
 		if !more {

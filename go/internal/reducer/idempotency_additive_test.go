@@ -3,7 +3,11 @@
 
 package reducer
 
-import "sort"
+import (
+	"sort"
+
+	"github.com/eshu-hq/eshu/go/internal/reducer/eshusearch"
+)
 
 // B-6 (#3799) additive-domain coverage for the idempotency replay suite.
 //
@@ -102,9 +106,9 @@ var idempotencyAdditiveExemptDomains = map[Domain]string{
 
 	// Search/curation + package/code import correlation: fact-loader + dedicated
 	// writer gated, proven by their own suites.
-	DomainEshuSearchDocument:       "additive, gated on EshuSearchDocument source loader+writer; reprojection idempotency proven by eshu_search_document_*_test.go",
-	DomainPackageSourceCorrelation: "additive, gated on FactLoader+PackageCorrelationWriter with admission-decision fan-in; idempotency proven by package_source_correlation_*_test.go",
-	DomainCodeImportRepoEdge:       "additive, gated on FactLoader+package-ownership loader+RepoDependencyIntentWriter; idempotency proven by code_import_repo_edge_*_test.go",
+	eshusearch.DomainEshuSearchDocument: "additive, gated on EshuSearchDocument source loader+writer; reprojection idempotency proven by eshu_search_document_*_test.go",
+	DomainPackageSourceCorrelation:      "additive, gated on FactLoader+PackageCorrelationWriter with admission-decision fan-in; idempotency proven by package_source_correlation_*_test.go",
+	DomainCodeImportRepoEdge:            "additive, gated on FactLoader+package-ownership loader+RepoDependencyIntentWriter; idempotency proven by code_import_repo_edge_*_test.go",
 
 	// Image identity + CI/CD + supply chain: cross-source digest/artifact fan-in,
 	// proven by their own suites.

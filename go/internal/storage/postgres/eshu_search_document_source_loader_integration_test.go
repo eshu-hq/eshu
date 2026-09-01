@@ -12,7 +12,7 @@ import (
 
 	_ "github.com/jackc/pgx/v5/stdlib"
 
-	"github.com/eshu-hq/eshu/go/internal/reducer"
+	"github.com/eshu-hq/eshu/go/internal/reducer/eshusearch"
 )
 
 // TestEshuSearchDocumentProjectionRoundTripLive proves the curated search
@@ -62,8 +62,8 @@ func TestEshuSearchDocumentProjectionRoundTripLive(t *testing.T) {
 	// and writing each page incrementally, then finalize the authoritative retire
 	// once — the production #3440 streaming path.
 	loader := NewEshuSearchDocumentSourceLoader(db)
-	writer := reducer.PostgresEshuSearchDocumentWriter{DB: db}
-	session, err := writer.BeginEshuSearchDocumentWrite(ctx, reducer.EshuSearchDocumentWriteBegin{
+	writer := eshusearch.PostgresEshuSearchDocumentWriter{DB: db}
+	session, err := writer.BeginEshuSearchDocumentWrite(ctx, eshusearch.EshuSearchDocumentWriteBegin{
 		IntentID:     "searchdoc-proof",
 		ScopeID:      scopeID,
 		GenerationID: generationID,
@@ -75,10 +75,10 @@ func TestEshuSearchDocumentProjectionRoundTripLive(t *testing.T) {
 
 	var consideredTotal, includedTotal, loadedEntities, loadedFiles int
 	streamErr := loader.StreamSearchDocumentSources(ctx, scopeID, generationID,
-		func(input reducer.SearchDocumentProjectionInput) error {
+		func(input eshusearch.SearchDocumentProjectionInput) error {
 			loadedEntities += len(input.ContentEntities)
 			loadedFiles += len(input.ContentFiles)
-			projection := reducer.ProjectSearchDocuments(input)
+			projection := eshusearch.ProjectSearchDocuments(input)
 			consideredTotal += projection.Summary.Considered
 			includedTotal += projection.Summary.Included
 			return session.InsertPage(ctx, projection.Documents)

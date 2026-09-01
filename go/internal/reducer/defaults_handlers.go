@@ -6,6 +6,7 @@ package reducer
 import (
 	"log/slog"
 
+	"github.com/eshu-hq/eshu/go/internal/reducer/eshusearch"
 	"github.com/eshu-hq/eshu/go/internal/relationships/tfstatebackend"
 )
 
@@ -101,8 +102,8 @@ type SearchDocumentHandlers struct {
 	// Curated search-document projection (design 430). Both must be non-nil for
 	// the registry to register DomainEshuSearchDocument; it loads the scope's
 	// indexed content and writes derived EshuSearchDocument facts.
-	EshuSearchDocumentSourceLoader SearchDocumentSourceLoader
-	EshuSearchDocumentWriter       SearchDocumentWriter
+	EshuSearchDocumentSourceLoader eshusearch.SearchDocumentSourceLoader
+	EshuSearchDocumentWriter       eshusearch.SearchDocumentWriter
 	EshuSearchDocumentLogger       *slog.Logger
 }
 

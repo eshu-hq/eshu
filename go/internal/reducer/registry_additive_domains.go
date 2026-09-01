@@ -3,7 +3,10 @@
 
 package reducer
 
-import "github.com/eshu-hq/eshu/go/internal/truth"
+import (
+	"github.com/eshu-hq/eshu/go/internal/reducer/eshusearch"
+	"github.com/eshu-hq/eshu/go/internal/truth"
+)
 
 // configStateDriftDomainDefinition returns the additive DomainDefinition for
 // terraform_config_state_drift. The drift domain is intentionally NOT part of
@@ -66,7 +69,7 @@ func configStateDriftDomainDefinition() DomainDefinition {
 // and exposes bounded operator counters and logs.
 func eshuSearchDocumentDomainDefinition() DomainDefinition {
 	return DomainDefinition{
-		Domain:  DomainEshuSearchDocument,
+		Domain:  eshusearch.DomainEshuSearchDocument,
 		Summary: "project curated EshuSearchDocument records from indexed content for the search lane",
 		Ownership: OwnershipShape{
 			CrossSource:    true,

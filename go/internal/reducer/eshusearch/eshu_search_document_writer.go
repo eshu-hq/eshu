@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package reducer
+package eshusearch
 
 import (
 	"context"
@@ -13,6 +13,8 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/reducer/factwrite"
+	"github.com/eshu-hq/eshu/go/internal/reducer/payloadcore"
 	"github.com/eshu-hq/eshu/go/internal/searchdocs"
 	"github.com/eshu-hq/eshu/go/internal/searchhybrid"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
@@ -154,7 +156,7 @@ func (w PostgresEshuSearchDocumentWriter) BeginEshuSearchDocumentWrite(
 		generationID:       generationID,
 		sourceSystem:       strings.TrimSpace(begin.SourceSystem),
 		intentID:           strings.TrimSpace(begin.IntentID),
-		now:                reducerWriterNow(w.Now),
+		now:                factwrite.Now(w.Now),
 		started:            time.Now(),
 		keepFactIDs:        make([]string, 0),
 		keepDocIDs:         make([]string, 0),
@@ -259,7 +261,7 @@ func (s *eshuSearchDocumentWriteSession) Finalize(ctx context.Context) (EshuSear
 	// projection state as ready. A false CAS result (stale/superseded) must
 	// NOT fail the write — a superseding generation legitimately owns the row.
 	if s.writer.ProjectionState != nil {
-		documentCount := int64(len(uniqueSortedStrings(s.keepDocIDs)))
+		documentCount := int64(len(payloadcore.UniqueSortedStrings(s.keepDocIDs)))
 		ok, err := s.writer.ProjectionState.FinalizeReady(ctx, s.scopeID, s.generationID, s.projectionRevision, s.projectionFence, documentCount)
 		if err != nil {
 			return EshuSearchDocumentWriteResult{}, fmt.Errorf("finalize ready eshu search document projection state: %w", err)
@@ -367,7 +369,7 @@ func (w PostgresEshuSearchDocumentWriter) insertSearchDocumentFacts(
 	payloads := make([]string, 0, count)
 	indexRows := make([]eshuSearchIndexDocumentWrite, 0, count)
 
-	collectorKind := reducerFactCollectorKind(sourceSystem)
+	collectorKind := factwrite.CollectorKind(sourceSystem)
 	writeMeta := EshuSearchDocumentWrite{ScopeID: scopeID, GenerationID: generationID, SourceSystem: sourceSystem}
 
 	for _, doc := range documents {
