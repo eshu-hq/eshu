@@ -1,11 +1,14 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package parser
+package golang_test
 
 import (
 	"path/filepath"
 	"testing"
+
+	"github.com/eshu-hq/eshu/go/internal/parser"
+	"github.com/eshu-hq/eshu/go/internal/parser/parsertest"
 )
 
 func TestDefaultEngineParsePathGoEmitsDeadCodeRegistrationRoots(t *testing.T) {
@@ -13,7 +16,7 @@ func TestDefaultEngineParsePathGoEmitsDeadCodeRegistrationRoots(t *testing.T) {
 
 	repoRoot := t.TempDir()
 	filePath := filepath.Join(repoRoot, "registrations.go")
-	writeTestFile(
+	parsertest.WriteFile(
 		t,
 		filePath,
 		`package roots
@@ -41,25 +44,25 @@ func wire() {
 `,
 	)
 
-	engine, err := DefaultEngine()
+	engine, err := parser.DefaultEngine()
 	if err != nil {
 		t.Fatalf("DefaultEngine() error = %v, want nil", err)
 	}
 
-	got, err := engine.ParsePath(repoRoot, filePath, false, Options{})
+	got, err := engine.ParsePath(repoRoot, filePath, false, parser.Options{})
 	if err != nil {
 		t.Fatalf("ParsePath() error = %v, want nil", err)
 	}
 
-	assertParserStringSliceContains(t, assertFunctionByName(t, got, "ServeDirect"), "dead_code_root_kinds", "go.net_http_handler_registration")
-	assertParserStringSliceContains(t, assertFunctionByName(t, got, "ServeMuxed"), "dead_code_root_kinds", "go.net_http_handler_registration")
-	assertParserStringSliceContains(t, assertFunctionByName(t, got, "ServeStatus"), "dead_code_root_kinds", "go.net_http_handler_registration")
-	assertParserStringSliceContains(t, assertFunctionByName(t, got, "runDirect"), "dead_code_root_kinds", "go.cobra_run_registration")
-	assertParserStringSliceContains(t, assertFunctionByName(t, got, "runAssigned"), "dead_code_root_kinds", "go.cobra_run_registration")
-	assertFrameworksEqual(t, got, "net_http")
-	assertNestedStringSliceEqual(t, got, "net_http", "route_methods", []string{"ANY", "GET"})
-	assertNestedStringSliceEqual(t, got, "net_http", "route_paths", []string{"/payments", "/status", "/health"})
-	assertNestedRouteEntriesEqual(t, got, "net_http", []map[string]string{
+	parsertest.AssertStringSliceContains(t, parsertest.AssertBucketItemByName(t, got, "functions", "ServeDirect"), "dead_code_root_kinds", "go.net_http_handler_registration")
+	parsertest.AssertStringSliceContains(t, parsertest.AssertBucketItemByName(t, got, "functions", "ServeMuxed"), "dead_code_root_kinds", "go.net_http_handler_registration")
+	parsertest.AssertStringSliceContains(t, parsertest.AssertBucketItemByName(t, got, "functions", "ServeStatus"), "dead_code_root_kinds", "go.net_http_handler_registration")
+	parsertest.AssertStringSliceContains(t, parsertest.AssertBucketItemByName(t, got, "functions", "runDirect"), "dead_code_root_kinds", "go.cobra_run_registration")
+	parsertest.AssertStringSliceContains(t, parsertest.AssertBucketItemByName(t, got, "functions", "runAssigned"), "dead_code_root_kinds", "go.cobra_run_registration")
+	parsertest.AssertFrameworksEqual(t, got, "net_http")
+	parsertest.AssertNestedStringSliceEqual(t, got, "net_http", "route_methods", []string{"ANY", "GET"})
+	parsertest.AssertNestedStringSliceEqual(t, got, "net_http", "route_paths", []string{"/payments", "/status", "/health"})
+	parsertest.AssertNestedRouteEntriesEqual(t, got, "net_http", []map[string]string{
 		{"method": "ANY", "path": "/payments", "handler": "ServeDirect"},
 		{"method": "GET", "path": "/status", "handler": "ServeStatus"},
 		{"method": "ANY", "path": "/health", "handler": "ServeMuxed"},
@@ -71,7 +74,7 @@ func TestDefaultEngineParsePathGoIgnoresUnknownHandleFuncReceivers(t *testing.T)
 
 	repoRoot := t.TempDir()
 	filePath := filepath.Join(repoRoot, "unknown_mux.go")
-	writeTestFile(
+	parsertest.WriteFile(
 		t,
 		filePath,
 		`package roots
@@ -89,22 +92,22 @@ func wire() {
 `,
 	)
 
-	engine, err := DefaultEngine()
+	engine, err := parser.DefaultEngine()
 	if err != nil {
 		t.Fatalf("DefaultEngine() error = %v, want nil", err)
 	}
 
-	got, err := engine.ParsePath(repoRoot, filePath, false, Options{})
+	got, err := engine.ParsePath(repoRoot, filePath, false, parser.Options{})
 	if err != nil {
 		t.Fatalf("ParsePath() error = %v, want nil", err)
 	}
 
-	functionItem := assertFunctionByName(t, got, "maybeHTTP")
+	functionItem := parsertest.AssertBucketItemByName(t, got, "functions", "maybeHTTP")
 	if semantics, ok := got["framework_semantics"]; ok {
 		t.Fatalf("framework_semantics = %#v, want absent for unknown mux receiver", semantics)
 	}
-	assertParserStringSliceContains(t, functionItem, "dead_code_root_kinds", "go.function_value_reference")
-	assertParserStringSliceNotContains(
+	parsertest.AssertStringSliceContains(t, functionItem, "dead_code_root_kinds", "go.function_value_reference")
+	parsertest.AssertStringSliceNotContains(
 		t,
 		functionItem,
 		"dead_code_root_kinds",
@@ -117,7 +120,7 @@ func TestDefaultEngineParsePathGoEmitsMixedCaseServeMuxRouteEntry(t *testing.T) 
 
 	repoRoot := t.TempDir()
 	filePath := filepath.Join(repoRoot, "mixed_case_mux.go")
-	writeTestFile(
+	parsertest.WriteFile(
 		t,
 		filePath,
 		`package roots
@@ -133,18 +136,18 @@ func wire() {
 `,
 	)
 
-	engine, err := DefaultEngine()
+	engine, err := parser.DefaultEngine()
 	if err != nil {
 		t.Fatalf("DefaultEngine() error = %v, want nil", err)
 	}
 
-	got, err := engine.ParsePath(repoRoot, filePath, false, Options{})
+	got, err := engine.ParsePath(repoRoot, filePath, false, parser.Options{})
 	if err != nil {
 		t.Fatalf("ParsePath() error = %v, want nil", err)
 	}
 
-	assertParserStringSliceContains(t, assertFunctionByName(t, got, "ServeReady"), "dead_code_root_kinds", "go.net_http_handler_registration")
-	assertNestedRouteEntriesEqual(t, got, "net_http", []map[string]string{
+	parsertest.AssertStringSliceContains(t, parsertest.AssertBucketItemByName(t, got, "functions", "ServeReady"), "dead_code_root_kinds", "go.net_http_handler_registration")
+	parsertest.AssertNestedRouteEntriesEqual(t, got, "net_http", []map[string]string{
 		{"method": "GET", "path": "/ready", "handler": "ServeReady"},
 	})
 }
@@ -264,7 +267,7 @@ func wire() {
 
 			repoRoot := t.TempDir()
 			filePath := filepath.Join(repoRoot, "routes.go")
-			writeTestFile(
+			parsertest.WriteFile(
 				t,
 				filePath,
 				`package roots
@@ -279,18 +282,18 @@ func UpdateWidget() {}
 `+tc.wire,
 			)
 
-			engine, err := DefaultEngine()
+			engine, err := parser.DefaultEngine()
 			if err != nil {
 				t.Fatalf("DefaultEngine() error = %v, want nil", err)
 			}
 
-			got, err := engine.ParsePath(repoRoot, filePath, false, Options{})
+			got, err := engine.ParsePath(repoRoot, filePath, false, parser.Options{})
 			if err != nil {
 				t.Fatalf("ParsePath() error = %v, want nil", err)
 			}
 
-			assertFrameworksEqual(t, got, tc.framework)
-			assertNestedRouteEntriesEqual(t, got, tc.framework, tc.want)
+			parsertest.AssertFrameworksEqual(t, got, tc.framework)
+			parsertest.AssertNestedRouteEntriesEqual(t, got, tc.framework, tc.want)
 		})
 	}
 }
@@ -300,7 +303,7 @@ func TestDefaultEngineParsePathGoSkipsAmbiguousThirdPartyRoutes(t *testing.T) {
 
 	repoRoot := t.TempDir()
 	filePath := filepath.Join(repoRoot, "ambiguous_routes.go")
-	writeTestFile(
+	parsertest.WriteFile(
 		t,
 		filePath,
 		`package roots
@@ -322,12 +325,12 @@ func wire(dynamicPath string) {
 `,
 	)
 
-	engine, err := DefaultEngine()
+	engine, err := parser.DefaultEngine()
 	if err != nil {
 		t.Fatalf("DefaultEngine() error = %v, want nil", err)
 	}
 
-	got, err := engine.ParsePath(repoRoot, filePath, false, Options{})
+	got, err := engine.ParsePath(repoRoot, filePath, false, parser.Options{})
 	if err != nil {
 		t.Fatalf("ParsePath() error = %v, want nil", err)
 	}
@@ -342,7 +345,7 @@ func TestDefaultEngineParsePathGoScopesThirdPartyRouteReceivers(t *testing.T) {
 
 	repoRoot := t.TempDir()
 	filePath := filepath.Join(repoRoot, "scoped_routes.go")
-	writeTestFile(
+	parsertest.WriteFile(
 		t,
 		filePath,
 		`package roots
@@ -365,47 +368,18 @@ func other(router customRouter) {
 `,
 	)
 
-	engine, err := DefaultEngine()
+	engine, err := parser.DefaultEngine()
 	if err != nil {
 		t.Fatalf("DefaultEngine() error = %v, want nil", err)
 	}
 
-	got, err := engine.ParsePath(repoRoot, filePath, false, Options{})
+	got, err := engine.ParsePath(repoRoot, filePath, false, parser.Options{})
 	if err != nil {
 		t.Fatalf("ParsePath() error = %v, want nil", err)
 	}
 
-	assertFrameworksEqual(t, got, "gin")
-	assertNestedRouteEntriesEqual(t, got, "gin", []map[string]string{
+	parsertest.AssertFrameworksEqual(t, got, "gin")
+	parsertest.AssertNestedRouteEntriesEqual(t, got, "gin", []map[string]string{
 		{"method": "GET", "path": "/health", "handler": "Health"},
 	})
-}
-
-func assertParserStringSliceContains(t *testing.T, item map[string]any, field string, want string) {
-	t.Helper()
-
-	got, ok := item[field].([]string)
-	if !ok {
-		t.Fatalf("%s = %T, want []string", field, item[field])
-	}
-	for _, value := range got {
-		if value == want {
-			return
-		}
-	}
-	t.Fatalf("%s = %#v, want to contain %#v", field, got, want)
-}
-
-func assertParserStringSliceNotContains(t *testing.T, item map[string]any, field string, want string) {
-	t.Helper()
-
-	got, ok := item[field].([]string)
-	if !ok {
-		return
-	}
-	for _, value := range got {
-		if value == want {
-			t.Fatalf("%s = %#v, want not to contain %#v", field, got, want)
-		}
-	}
 }

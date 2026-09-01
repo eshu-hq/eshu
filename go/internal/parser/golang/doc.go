@@ -70,4 +70,10 @@
 // untouched unless a caller opts in. Embedded shell-command evidence records
 // only structural os/exec call metadata; command text, arguments, and
 // environment values are intentionally omitted.
+//
+// The payload contract is pinned by the go_*_test.go files and
+// engine_go_rich_semantics_test.go in this directory, which compile as the
+// external package golang_test and drive parser.DefaultEngine().ParsePath the
+// way a caller would. Only that external test package imports the parent
+// parser; production code and the in-package tests never do.
 package golang

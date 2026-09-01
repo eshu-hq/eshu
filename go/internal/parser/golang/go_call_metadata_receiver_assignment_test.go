@@ -1,11 +1,14 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package parser
+package golang_test
 
 import (
 	"path/filepath"
 	"testing"
+
+	"github.com/eshu-hq/eshu/go/internal/parser"
+	"github.com/eshu-hq/eshu/go/internal/parser/parsertest"
 )
 
 func TestDefaultEngineParsePathGoSkipsSelectorAssignmentReceiverBindings(t *testing.T) {
@@ -13,7 +16,7 @@ func TestDefaultEngineParsePathGoSkipsSelectorAssignmentReceiverBindings(t *test
 
 	repoRoot := t.TempDir()
 	filePath := filepath.Join(repoRoot, "eval.go")
-	writeTestFile(
+	parsertest.WriteFile(
 		t,
 		filePath,
 		`package main
@@ -37,19 +40,19 @@ func configure(s *State) {
 `,
 	)
 
-	engine, err := DefaultEngine()
+	engine, err := parser.DefaultEngine()
 	if err != nil {
 		t.Fatalf("DefaultEngine() error = %v, want nil", err)
 	}
 
-	got, err := engine.ParsePath(repoRoot, filePath, false, Options{})
+	got, err := engine.ParsePath(repoRoot, filePath, false, parser.Options{})
 	if err != nil {
 		t.Fatalf("ParsePath() error = %v, want nil", err)
 	}
 
-	call := assertBucketItemByFieldValue(t, got, "function_calls", "full_name", "s.AddTestCases")
-	assertStringFieldValue(t, call, "receiver_identifier", "s")
-	assertStringFieldValue(t, call, "inferred_obj_type", "State")
+	call := parsertest.AssertBucketItemByFieldValue(t, got, "function_calls", "full_name", "s.AddTestCases")
+	parsertest.AssertStringFieldValue(t, call, "receiver_identifier", "s")
+	parsertest.AssertStringFieldValue(t, call, "inferred_obj_type", "State")
 }
 
 func TestDefaultEngineParsePathGoAnnotatesAliasedImports(t *testing.T) {
@@ -57,7 +60,7 @@ func TestDefaultEngineParsePathGoAnnotatesAliasedImports(t *testing.T) {
 
 	repoRoot := t.TempDir()
 	filePath := filepath.Join(repoRoot, "context.go")
-	writeTestFile(
+	parsertest.WriteFile(
 		t,
 		filePath,
 		`package terraform
@@ -70,18 +73,18 @@ func configureContext() {
 `,
 	)
 
-	engine, err := DefaultEngine()
+	engine, err := parser.DefaultEngine()
 	if err != nil {
 		t.Fatalf("DefaultEngine() error = %v, want nil", err)
 	}
 
-	got, err := engine.ParsePath(repoRoot, filePath, false, Options{})
+	got, err := engine.ParsePath(repoRoot, filePath, false, parser.Options{})
 	if err != nil {
 		t.Fatalf("ParsePath() error = %v, want nil", err)
 	}
 
-	importItem := assertBucketItemByFieldValue(t, got, "imports", "name", "github.com/hashicorp/terraform/internal/actions")
-	assertStringFieldValue(t, importItem, "alias", "acts")
+	importItem := parsertest.AssertBucketItemByFieldValue(t, got, "imports", "name", "github.com/hashicorp/terraform/internal/actions")
+	parsertest.AssertStringFieldValue(t, importItem, "alias", "acts")
 }
 
 func TestDefaultEngineParsePathGoAnnotatesMethodReturnChainReceiverType(t *testing.T) {
@@ -89,7 +92,7 @@ func TestDefaultEngineParsePathGoAnnotatesMethodReturnChainReceiverType(t *testi
 
 	repoRoot := t.TempDir()
 	filePath := filepath.Join(repoRoot, "eval.go")
-	writeTestFile(
+	parsertest.WriteFile(
 		t,
 		filePath,
 		`package main
@@ -109,20 +112,20 @@ func execute(ctx *BuiltinEvalContext) {
 `,
 	)
 
-	engine, err := DefaultEngine()
+	engine, err := parser.DefaultEngine()
 	if err != nil {
 		t.Fatalf("DefaultEngine() error = %v, want nil", err)
 	}
 
-	got, err := engine.ParsePath(repoRoot, filePath, false, Options{})
+	got, err := engine.ParsePath(repoRoot, filePath, false, parser.Options{})
 	if err != nil {
 		t.Fatalf("ParsePath() error = %v, want nil", err)
 	}
 
-	call := assertBucketItemByFieldValue(t, got, "function_calls", "name", "GetActionInstance")
-	assertStringFieldValue(t, call, "chain_receiver_identifier", "ctx")
-	assertStringFieldValue(t, call, "chain_receiver_method", "Actions")
-	assertStringFieldValue(t, call, "chain_receiver_obj_type", "BuiltinEvalContext")
+	call := parsertest.AssertBucketItemByFieldValue(t, got, "function_calls", "name", "GetActionInstance")
+	parsertest.AssertStringFieldValue(t, call, "chain_receiver_identifier", "ctx")
+	parsertest.AssertStringFieldValue(t, call, "chain_receiver_method", "Actions")
+	parsertest.AssertStringFieldValue(t, call, "chain_receiver_obj_type", "BuiltinEvalContext")
 }
 
 func TestDefaultEngineParsePathGoAnnotatesConcreteInterfaceAssignmentChainReceiverType(t *testing.T) {
@@ -130,7 +133,7 @@ func TestDefaultEngineParsePathGoAnnotatesConcreteInterfaceAssignmentChainReceiv
 
 	repoRoot := t.TempDir()
 	filePath := filepath.Join(repoRoot, "eval.go")
-	writeTestFile(
+	parsertest.WriteFile(
 		t,
 		filePath,
 		`package main
@@ -154,20 +157,20 @@ func execute() {
 `,
 	)
 
-	engine, err := DefaultEngine()
+	engine, err := parser.DefaultEngine()
 	if err != nil {
 		t.Fatalf("DefaultEngine() error = %v, want nil", err)
 	}
 
-	got, err := engine.ParsePath(repoRoot, filePath, false, Options{})
+	got, err := engine.ParsePath(repoRoot, filePath, false, parser.Options{})
 	if err != nil {
 		t.Fatalf("ParsePath() error = %v, want nil", err)
 	}
 
-	call := assertBucketItemByFieldValue(t, got, "function_calls", "name", "GetActionInstance")
-	assertStringFieldValue(t, call, "chain_receiver_identifier", "ctx")
-	assertStringFieldValue(t, call, "chain_receiver_method", "Actions")
-	assertStringFieldValue(t, call, "chain_receiver_obj_type", "BuiltinEvalContext")
+	call := parsertest.AssertBucketItemByFieldValue(t, got, "function_calls", "name", "GetActionInstance")
+	parsertest.AssertStringFieldValue(t, call, "chain_receiver_identifier", "ctx")
+	parsertest.AssertStringFieldValue(t, call, "chain_receiver_method", "Actions")
+	parsertest.AssertStringFieldValue(t, call, "chain_receiver_obj_type", "BuiltinEvalContext")
 }
 
 func TestDefaultEngineParsePathGoSkipsUnprovenInterfaceParameterChainReceiverType(t *testing.T) {
@@ -175,7 +178,7 @@ func TestDefaultEngineParsePathGoSkipsUnprovenInterfaceParameterChainReceiverTyp
 
 	repoRoot := t.TempDir()
 	filePath := filepath.Join(repoRoot, "eval.go")
-	writeTestFile(
+	parsertest.WriteFile(
 		t,
 		filePath,
 		`package main
@@ -193,21 +196,21 @@ func execute(ctx EvalContext) {
 `,
 	)
 
-	engine, err := DefaultEngine()
+	engine, err := parser.DefaultEngine()
 	if err != nil {
 		t.Fatalf("DefaultEngine() error = %v, want nil", err)
 	}
 
-	got, err := engine.ParsePath(repoRoot, filePath, false, Options{})
+	got, err := engine.ParsePath(repoRoot, filePath, false, parser.Options{})
 	if err != nil {
 		t.Fatalf("ParsePath() error = %v, want nil", err)
 	}
 
-	directCall := assertBucketItemByFieldValue(t, got, "function_calls", "full_name", "ctx.Actions")
-	assertStringFieldValue(t, directCall, "receiver_identifier", "ctx")
-	assertStringFieldValue(t, directCall, "inferred_obj_type", "EvalContext")
+	directCall := parsertest.AssertBucketItemByFieldValue(t, got, "function_calls", "full_name", "ctx.Actions")
+	parsertest.AssertStringFieldValue(t, directCall, "receiver_identifier", "ctx")
+	parsertest.AssertStringFieldValue(t, directCall, "inferred_obj_type", "EvalContext")
 
-	call := assertBucketItemByFieldValue(t, got, "function_calls", "name", "GetActionInstance")
+	call := parsertest.AssertBucketItemByFieldValue(t, got, "function_calls", "name", "GetActionInstance")
 	if gotType, ok := call["chain_receiver_obj_type"]; ok {
 		t.Fatalf("chain_receiver_obj_type = %#v, want no unproven concrete receiver type", gotType)
 	}
@@ -218,7 +221,7 @@ func TestDefaultEngineParsePathGoSkipsAmbiguousInterfaceAssignmentChainReceiverT
 
 	repoRoot := t.TempDir()
 	filePath := filepath.Join(repoRoot, "eval.go")
-	writeTestFile(
+	parsertest.WriteFile(
 		t,
 		filePath,
 		`package main
@@ -248,17 +251,17 @@ func execute() {
 `,
 	)
 
-	engine, err := DefaultEngine()
+	engine, err := parser.DefaultEngine()
 	if err != nil {
 		t.Fatalf("DefaultEngine() error = %v, want nil", err)
 	}
 
-	got, err := engine.ParsePath(repoRoot, filePath, false, Options{})
+	got, err := engine.ParsePath(repoRoot, filePath, false, parser.Options{})
 	if err != nil {
 		t.Fatalf("ParsePath() error = %v, want nil", err)
 	}
 
-	call := assertBucketItemByFieldValue(t, got, "function_calls", "name", "GetActionInstance")
+	call := parsertest.AssertBucketItemByFieldValue(t, got, "function_calls", "name", "GetActionInstance")
 	if gotType, ok := call["chain_receiver_obj_type"]; ok {
 		t.Fatalf("chain_receiver_obj_type = %#v, want no ambiguous concrete receiver type", gotType)
 	}

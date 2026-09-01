@@ -1,12 +1,15 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package parser
+package golang_test
 
 import (
 	"path/filepath"
 	"strings"
 	"testing"
+
+	"github.com/eshu-hq/eshu/go/internal/parser"
+	"github.com/eshu-hq/eshu/go/internal/parser/parsertest"
 )
 
 // TestGoInterprocFindingAcrossFunctions proves the value-flow engine detects an
@@ -15,7 +18,7 @@ import (
 func TestGoInterprocFindingAcrossFunctions(t *testing.T) {
 	repoRoot := t.TempDir()
 	filePath := filepath.Join(repoRoot, "handlers.go")
-	writeTestFile(t, filePath, `package handlers
+	parsertest.WriteFile(t, filePath, `package handlers
 
 import (
 	"database/sql"
@@ -30,11 +33,11 @@ func query(db *sql.DB, r *http.Request) {
 	db.Query(r.FormValue("q"))
 }
 `)
-	engine, err := DefaultEngine()
+	engine, err := parser.DefaultEngine()
 	if err != nil {
 		t.Fatalf("DefaultEngine() error = %v", err)
 	}
-	got, err := engine.ParsePath(repoRoot, filePath, false, Options{EmitDataflow: true})
+	got, err := engine.ParsePath(repoRoot, filePath, false, parser.Options{EmitDataflow: true})
 	if err != nil {
 		t.Fatalf("ParsePath error = %v", err)
 	}
@@ -62,7 +65,7 @@ func query(db *sql.DB, r *http.Request) {
 func TestGoInterprocFunctionIDsIncludeRepositoryID(t *testing.T) {
 	repoRoot := t.TempDir()
 	filePath := filepath.Join(repoRoot, "handlers.go")
-	writeTestFile(t, filePath, `package handlers
+	parsertest.WriteFile(t, filePath, `package handlers
 
 import (
 	"database/sql"
@@ -77,11 +80,11 @@ func query(db *sql.DB, r *http.Request) {
 	db.Query(r.FormValue("q"))
 }
 `)
-	engine, err := DefaultEngine()
+	engine, err := parser.DefaultEngine()
 	if err != nil {
 		t.Fatalf("DefaultEngine() error = %v", err)
 	}
-	got, err := engine.ParsePath(repoRoot, filePath, false, Options{EmitDataflow: true, RepositoryID: "repo-alpha"})
+	got, err := engine.ParsePath(repoRoot, filePath, false, parser.Options{EmitDataflow: true, RepositoryID: "repo-alpha"})
 	if err != nil {
 		t.Fatalf("ParsePath error = %v", err)
 	}
@@ -105,7 +108,7 @@ func query(db *sql.DB, r *http.Request) {
 func TestGoInterprocNoFalseEdgeFromMethodCall(t *testing.T) {
 	repoRoot := t.TempDir()
 	filePath := filepath.Join(repoRoot, "handlers.go")
-	writeTestFile(t, filePath, `package handlers
+	parsertest.WriteFile(t, filePath, `package handlers
 
 import (
 	"database/sql"
@@ -120,11 +123,11 @@ func handle(req *http.Request, conn *sql.DB) {
 	conn.Query(req)
 }
 `)
-	engine, err := DefaultEngine()
+	engine, err := parser.DefaultEngine()
 	if err != nil {
 		t.Fatalf("DefaultEngine() error = %v", err)
 	}
-	got, err := engine.ParsePath(repoRoot, filePath, false, Options{EmitDataflow: true})
+	got, err := engine.ParsePath(repoRoot, filePath, false, parser.Options{EmitDataflow: true})
 	if err != nil {
 		t.Fatalf("ParsePath error = %v", err)
 	}
@@ -145,7 +148,7 @@ func handle(req *http.Request, conn *sql.DB) {
 func TestGoInterprocOffIsByteIdentical(t *testing.T) {
 	repoRoot := t.TempDir()
 	filePath := filepath.Join(repoRoot, "handlers.go")
-	writeTestFile(t, filePath, `package handlers
+	parsertest.WriteFile(t, filePath, `package handlers
 
 import "net/http"
 
@@ -153,11 +156,11 @@ func handle(r *http.Request) {
 	_ = r.FormValue("q")
 }
 `)
-	engine, err := DefaultEngine()
+	engine, err := parser.DefaultEngine()
 	if err != nil {
 		t.Fatalf("DefaultEngine() error = %v", err)
 	}
-	off, err := engine.ParsePath(repoRoot, filePath, false, Options{})
+	off, err := engine.ParsePath(repoRoot, filePath, false, parser.Options{})
 	if err != nil {
 		t.Fatalf("ParsePath (off) error = %v", err)
 	}
@@ -172,7 +175,7 @@ func handle(r *http.Request) {
 func TestGoInterprocNoFalseEdgeFromShadowedCallee(t *testing.T) {
 	repoRoot := t.TempDir()
 	filePath := filepath.Join(repoRoot, "handlers.go")
-	writeTestFile(t, filePath, `package handlers
+	parsertest.WriteFile(t, filePath, `package handlers
 
 import (
 	"net/http"
@@ -187,11 +190,11 @@ func handle(userReq *http.Request, query func(*http.Request)) {
 	query(userReq)
 }
 `)
-	engine, err := DefaultEngine()
+	engine, err := parser.DefaultEngine()
 	if err != nil {
 		t.Fatalf("DefaultEngine() error = %v", err)
 	}
-	got, err := engine.ParsePath(repoRoot, filePath, false, Options{EmitDataflow: true})
+	got, err := engine.ParsePath(repoRoot, filePath, false, parser.Options{EmitDataflow: true})
 	if err != nil {
 		t.Fatalf("ParsePath error = %v", err)
 	}
@@ -211,7 +214,7 @@ func handle(userReq *http.Request, query func(*http.Request)) {
 func TestGoInterprocCallBeforeLocalShadow(t *testing.T) {
 	repoRoot := t.TempDir()
 	filePath := filepath.Join(repoRoot, "handlers.go")
-	writeTestFile(t, filePath, `package handlers
+	parsertest.WriteFile(t, filePath, `package handlers
 
 import (
 	"database/sql"
@@ -228,11 +231,11 @@ func handle(r *http.Request, db *sql.DB) {
 	_ = sink
 }
 `)
-	engine, err := DefaultEngine()
+	engine, err := parser.DefaultEngine()
 	if err != nil {
 		t.Fatalf("DefaultEngine() error = %v", err)
 	}
-	got, err := engine.ParsePath(repoRoot, filePath, false, Options{EmitDataflow: true})
+	got, err := engine.ParsePath(repoRoot, filePath, false, parser.Options{EmitDataflow: true})
 	if err != nil {
 		t.Fatalf("ParsePath error = %v", err)
 	}

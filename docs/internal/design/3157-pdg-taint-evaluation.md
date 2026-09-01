@@ -137,13 +137,15 @@ Admit only what strengthens evidence-backed code-to-cloud truth at bounded cost:
 
 Each corpus is a deterministic fixture set with positive and negative cases and
 expected confidence/provenance. They extend the existing
-`go_cfg_taint_test.go` / `*_cfg_dataflow_test.go` and `exposure/*_test.go`
+`golang/go_cfg_taint_test.go` / `golang/go_cfg_dataflow*_test.go` (the Go
+dataflow tests moved into the child in #6062; the C#, Python and JavaScript
+`*_cfg_dataflow_test.go` files remain at parser root) and `exposure/*_test.go`
 patterns; no new harness.
 
 | Sink class | Corpus intent | Status / where |
 | --- | --- | --- |
 | Command injection | user input → `Process.Start`/`exec`/shell with and without sanitizer; negative: constant/allow-listed arg | extend `taint` shell sink fixtures; C# `Process.Start` exists |
-| SQL | tainted param → `SqlCommand`/query builder; negative: parameterized query (sanitized) | exists (`go_cfg_taint_test.go`, C# ADO.NET); add Python/JS |
+| SQL | tainted param → `SqlCommand`/query builder; negative: parameterized query (sanitized) | exists (`golang/go_cfg_taint_test.go`, C# ADO.NET); add Python/JS |
 | Shell | env/arg → shell exec; negative: fixed command | exists; extend negatives |
 | **Config** (new) | untrusted value written to a security-relevant config key (e.g. disabling TLS verify, world-readable perms); negative: constant safe value | **new** corpus under `exposure` + taint sink entry |
 | **IaC** (new) | tainted/templated value into an IaC misconfig sink (public bucket ACL, `0.0.0.0/0` ingress, plaintext secret); negative: restricted value | **new** corpus, cross-referenced with `relationships` (Terraform/Helm) extraction |

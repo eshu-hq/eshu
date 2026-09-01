@@ -1,11 +1,14 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package parser
+package golang_test
 
 import (
 	"path/filepath"
 	"testing"
+
+	"github.com/eshu-hq/eshu/go/internal/parser"
+	"github.com/eshu-hq/eshu/go/internal/parser/parsertest"
 )
 
 func TestDefaultEngineParsePathGoEmitsFunctionValueRootKinds(t *testing.T) {
@@ -13,7 +16,7 @@ func TestDefaultEngineParsePathGoEmitsFunctionValueRootKinds(t *testing.T) {
 
 	repoRoot := t.TempDir()
 	filePath := filepath.Join(repoRoot, "function_values.go")
-	writeTestFile(
+	parsertest.WriteFile(
 		t,
 		filePath,
 		`package roots
@@ -43,25 +46,25 @@ func wire() {
 `,
 	)
 
-	engine, err := DefaultEngine()
+	engine, err := parser.DefaultEngine()
 	if err != nil {
 		t.Fatalf("DefaultEngine() error = %v, want nil", err)
 	}
 
-	got, err := engine.ParsePath(repoRoot, filePath, false, Options{})
+	got, err := engine.ParsePath(repoRoot, filePath, false, parser.Options{})
 	if err != nil {
 		t.Fatalf("ParsePath() error = %v, want nil", err)
 	}
 
-	assertParserStringSliceContains(t, assertFunctionByName(t, got, "assignedCallback"), "dead_code_root_kinds", "go.function_value_reference")
-	assertParserStringSliceContains(t, assertFunctionByName(t, got, "compositeCallback"), "dead_code_root_kinds", "go.function_value_reference")
-	assertParserStringSliceContains(t, assertFunctionByName(t, got, "mapCallback"), "dead_code_root_kinds", "go.function_value_reference")
-	assertParserStringSliceContains(t, assertFunctionByName(t, got, "fieldCallback"), "dead_code_root_kinds", "go.function_value_reference")
+	parsertest.AssertStringSliceContains(t, parsertest.AssertBucketItemByName(t, got, "functions", "assignedCallback"), "dead_code_root_kinds", "go.function_value_reference")
+	parsertest.AssertStringSliceContains(t, parsertest.AssertBucketItemByName(t, got, "functions", "compositeCallback"), "dead_code_root_kinds", "go.function_value_reference")
+	parsertest.AssertStringSliceContains(t, parsertest.AssertBucketItemByName(t, got, "functions", "mapCallback"), "dead_code_root_kinds", "go.function_value_reference")
+	parsertest.AssertStringSliceContains(t, parsertest.AssertBucketItemByName(t, got, "functions", "fieldCallback"), "dead_code_root_kinds", "go.function_value_reference")
 
-	if _, ok := assertFunctionByName(t, got, "directlyCalled")["dead_code_root_kinds"]; ok {
+	if _, ok := parsertest.AssertBucketItemByName(t, got, "functions", "directlyCalled")["dead_code_root_kinds"]; ok {
 		t.Fatalf("directlyCalled dead_code_root_kinds present, want absent for ordinary direct call")
 	}
-	if _, ok := assertFunctionByName(t, got, "unusedCallback")["dead_code_root_kinds"]; ok {
+	if _, ok := parsertest.AssertBucketItemByName(t, got, "functions", "unusedCallback")["dead_code_root_kinds"]; ok {
 		t.Fatalf("unusedCallback dead_code_root_kinds present, want absent for unreferenced function")
 	}
 }
@@ -71,7 +74,7 @@ func TestDefaultEngineParsePathGoEmitsFunctionLiteralInitializerCallRoots(t *tes
 
 	repoRoot := t.TempDir()
 	filePath := filepath.Join(repoRoot, "function_literal_initializer.go")
-	writeTestFile(
+	parsertest.WriteFile(
 		t,
 		filePath,
 		`package roots
@@ -96,22 +99,22 @@ func unused() {}
 `,
 	)
 
-	engine, err := DefaultEngine()
+	engine, err := parser.DefaultEngine()
 	if err != nil {
 		t.Fatalf("DefaultEngine() error = %v, want nil", err)
 	}
 
-	got, err := engine.ParsePath(repoRoot, filePath, false, Options{})
+	got, err := engine.ParsePath(repoRoot, filePath, false, parser.Options{})
 	if err != nil {
 		t.Fatalf("ParsePath() error = %v, want nil", err)
 	}
 
-	assertParserStringSliceContains(t, assertFunctionByName(t, got, "normalize"), "dead_code_root_kinds", "go.function_literal_reachable_call")
-	assertParserStringSliceContains(t, assertFunctionByName(t, got, "rename"), "dead_code_root_kinds", "go.function_literal_reachable_call")
-	if _, ok := assertFunctionByName(t, got, "shadowed")["dead_code_root_kinds"]; ok {
+	parsertest.AssertStringSliceContains(t, parsertest.AssertBucketItemByName(t, got, "functions", "normalize"), "dead_code_root_kinds", "go.function_literal_reachable_call")
+	parsertest.AssertStringSliceContains(t, parsertest.AssertBucketItemByName(t, got, "functions", "rename"), "dead_code_root_kinds", "go.function_literal_reachable_call")
+	if _, ok := parsertest.AssertBucketItemByName(t, got, "functions", "shadowed")["dead_code_root_kinds"]; ok {
 		t.Fatalf("shadowed dead_code_root_kinds present, want absent for locally shadowed literal call")
 	}
-	if _, ok := assertFunctionByName(t, got, "unused")["dead_code_root_kinds"]; ok {
+	if _, ok := parsertest.AssertBucketItemByName(t, got, "functions", "unused")["dead_code_root_kinds"]; ok {
 		t.Fatalf("unused dead_code_root_kinds present, want absent for unreferenced function")
 	}
 }
@@ -121,7 +124,7 @@ func TestDefaultEngineParsePathGoEmitsCallArgumentFunctionValueRoots(t *testing.
 
 	repoRoot := t.TempDir()
 	filePath := filepath.Join(repoRoot, "call_arguments.go")
-	writeTestFile(
+	parsertest.WriteFile(
 		t,
 		filePath,
 		`package roots
@@ -139,21 +142,21 @@ func main() {
 `,
 	)
 
-	engine, err := DefaultEngine()
+	engine, err := parser.DefaultEngine()
 	if err != nil {
 		t.Fatalf("DefaultEngine() error = %v, want nil", err)
 	}
 
-	got, err := engine.ParsePath(repoRoot, filePath, false, Options{})
+	got, err := engine.ParsePath(repoRoot, filePath, false, parser.Options{})
 	if err != nil {
 		t.Fatalf("ParsePath() error = %v, want nil", err)
 	}
 
-	assertParserStringSliceContains(t, assertFunctionByName(t, got, "cloudInitializer"), "dead_code_root_kinds", "go.function_value_reference")
-	if _, ok := assertFunctionByName(t, got, "calledHelper")["dead_code_root_kinds"]; ok {
+	parsertest.AssertStringSliceContains(t, parsertest.AssertBucketItemByName(t, got, "functions", "cloudInitializer"), "dead_code_root_kinds", "go.function_value_reference")
+	if _, ok := parsertest.AssertBucketItemByName(t, got, "functions", "calledHelper")["dead_code_root_kinds"]; ok {
 		t.Fatalf("calledHelper dead_code_root_kinds present, want absent for ordinary call argument result")
 	}
-	if _, ok := assertFunctionByName(t, got, "unused")["dead_code_root_kinds"]; ok {
+	if _, ok := parsertest.AssertBucketItemByName(t, got, "functions", "unused")["dead_code_root_kinds"]; ok {
 		t.Fatalf("unused dead_code_root_kinds present, want absent for unreferenced function")
 	}
 }
@@ -163,7 +166,7 @@ func TestDefaultEngineParsePathGoEmitsFunctionValueReferenceCalls(t *testing.T) 
 
 	repoRoot := t.TempDir()
 	filePath := filepath.Join(repoRoot, "function_values.go")
-	writeTestFile(
+	parsertest.WriteFile(
 		t,
 		filePath,
 		`package roots
@@ -183,18 +186,18 @@ func wire() {
 `,
 	)
 
-	engine, err := DefaultEngine()
+	engine, err := parser.DefaultEngine()
 	if err != nil {
 		t.Fatalf("DefaultEngine() error = %v, want nil", err)
 	}
 
-	got, err := engine.ParsePath(repoRoot, filePath, false, Options{})
+	got, err := engine.ParsePath(repoRoot, filePath, false, parser.Options{})
 	if err != nil {
 		t.Fatalf("ParsePath() error = %v, want nil", err)
 	}
 
-	call := assertBucketItemByFieldValue(t, got, "function_calls", "name", "helpFunc")
-	assertStringFieldValue(t, call, "call_kind", "go.function_value_reference")
+	call := parsertest.AssertBucketItemByFieldValue(t, got, "function_calls", "name", "helpFunc")
+	parsertest.AssertStringFieldValue(t, call, "call_kind", "go.function_value_reference")
 	if bucketHasFieldValues(got, "function_calls", map[string]string{
 		"name":      "directCall",
 		"call_kind": "go.function_value_reference",
@@ -208,7 +211,7 @@ func TestDefaultEngineParsePathGoSkipsShadowedFunctionValueReferences(t *testing
 
 	repoRoot := t.TempDir()
 	filePath := filepath.Join(repoRoot, "function_values.go")
-	writeTestFile(
+	parsertest.WriteFile(
 		t,
 		filePath,
 		`package roots
@@ -224,12 +227,12 @@ func wire(helper func()) {
 `,
 	)
 
-	engine, err := DefaultEngine()
+	engine, err := parser.DefaultEngine()
 	if err != nil {
 		t.Fatalf("DefaultEngine() error = %v, want nil", err)
 	}
 
-	got, err := engine.ParsePath(repoRoot, filePath, false, Options{})
+	got, err := engine.ParsePath(repoRoot, filePath, false, parser.Options{})
 	if err != nil {
 		t.Fatalf("ParsePath() error = %v, want nil", err)
 	}
@@ -249,7 +252,7 @@ func TestDefaultEngineParsePathGoEmitsMethodValueCallArgumentRoots(t *testing.T)
 
 	repoRoot := t.TempDir()
 	filePath := filepath.Join(repoRoot, "method_argument.go")
-	writeTestFile(
+	parsertest.WriteFile(
 		t,
 		filePath,
 		`package roots
@@ -272,18 +275,18 @@ func main() {
 `,
 	)
 
-	engine, err := DefaultEngine()
+	engine, err := parser.DefaultEngine()
 	if err != nil {
 		t.Fatalf("DefaultEngine() error = %v, want nil", err)
 	}
 
-	got, err := engine.ParsePath(repoRoot, filePath, false, Options{})
+	got, err := engine.ParsePath(repoRoot, filePath, false, parser.Options{})
 	if err != nil {
 		t.Fatalf("ParsePath() error = %v, want nil", err)
 	}
 
-	assertParserStringSliceContains(t, assertFunctionByNameAndClass(t, got, "StartNodeIpamControllerWrapper", "nodeIPAMController"), "dead_code_root_kinds", "go.method_value_reference")
-	if _, ok := assertFunctionByNameAndClass(t, got, "unusedMethod", "nodeIPAMController")["dead_code_root_kinds"]; ok {
+	parsertest.AssertStringSliceContains(t, parsertest.AssertFunctionByNameAndClass(t, got, "StartNodeIpamControllerWrapper", "nodeIPAMController"), "dead_code_root_kinds", "go.method_value_reference")
+	if _, ok := parsertest.AssertFunctionByNameAndClass(t, got, "unusedMethod", "nodeIPAMController")["dead_code_root_kinds"]; ok {
 		t.Fatalf("unusedMethod dead_code_root_kinds present, want absent for unreferenced method")
 	}
 }
@@ -293,7 +296,7 @@ func TestDefaultEngineParsePathGoEmitsMethodValueRootKinds(t *testing.T) {
 
 	repoRoot := t.TempDir()
 	filePath := filepath.Join(repoRoot, "method_values.go")
-	writeTestFile(
+	parsertest.WriteFile(
 		t,
 		filePath,
 		`package roots
@@ -314,19 +317,19 @@ func wire() {
 `,
 	)
 
-	engine, err := DefaultEngine()
+	engine, err := parser.DefaultEngine()
 	if err != nil {
 		t.Fatalf("DefaultEngine() error = %v, want nil", err)
 	}
 
-	got, err := engine.ParsePath(repoRoot, filePath, false, Options{})
+	got, err := engine.ParsePath(repoRoot, filePath, false, parser.Options{})
 	if err != nil {
 		t.Fatalf("ParsePath() error = %v, want nil", err)
 	}
 
-	assertParserStringSliceContains(t, assertFunctionByName(t, got, "assignedMethod"), "dead_code_root_kinds", "go.method_value_reference")
-	assertParserStringSliceContains(t, assertFunctionByName(t, got, "compositeMethod"), "dead_code_root_kinds", "go.method_value_reference")
-	if _, ok := assertFunctionByName(t, got, "unusedMethod")["dead_code_root_kinds"]; ok {
+	parsertest.AssertStringSliceContains(t, parsertest.AssertBucketItemByName(t, got, "functions", "assignedMethod"), "dead_code_root_kinds", "go.method_value_reference")
+	parsertest.AssertStringSliceContains(t, parsertest.AssertBucketItemByName(t, got, "functions", "compositeMethod"), "dead_code_root_kinds", "go.method_value_reference")
+	if _, ok := parsertest.AssertBucketItemByName(t, got, "functions", "unusedMethod")["dead_code_root_kinds"]; ok {
 		t.Fatalf("unusedMethod dead_code_root_kinds present, want absent for unreferenced method")
 	}
 }
@@ -336,7 +339,7 @@ func TestDefaultEngineParsePathGoEmitsConvertedMethodValueRootKinds(t *testing.T
 
 	repoRoot := t.TempDir()
 	filePath := filepath.Join(repoRoot, "converted_method_values.go")
-	writeTestFile(
+	parsertest.WriteFile(
 		t,
 		filePath,
 		`package roots
@@ -353,18 +356,18 @@ func join(rx []runFunc) runFunc {
 `,
 	)
 
-	engine, err := DefaultEngine()
+	engine, err := parser.DefaultEngine()
 	if err != nil {
 		t.Fatalf("DefaultEngine() error = %v, want nil", err)
 	}
 
-	got, err := engine.ParsePath(repoRoot, filePath, false, Options{})
+	got, err := engine.ParsePath(repoRoot, filePath, false, parser.Options{})
 	if err != nil {
 		t.Fatalf("ParsePath() error = %v, want nil", err)
 	}
 
-	assertParserStringSliceContains(t, assertFunctionByNameAndClass(t, got, "Run", "runFuncSlice"), "dead_code_root_kinds", "go.method_value_reference")
-	if _, ok := assertFunctionByNameAndClass(t, got, "unusedMethod", "runFuncSlice")["dead_code_root_kinds"]; ok {
+	parsertest.AssertStringSliceContains(t, parsertest.AssertFunctionByNameAndClass(t, got, "Run", "runFuncSlice"), "dead_code_root_kinds", "go.method_value_reference")
+	if _, ok := parsertest.AssertFunctionByNameAndClass(t, got, "unusedMethod", "runFuncSlice")["dead_code_root_kinds"]; ok {
 		t.Fatalf("unusedMethod dead_code_root_kinds present, want absent for unreferenced converted method value")
 	}
 }

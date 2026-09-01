@@ -225,7 +225,7 @@ saturated CPU for 80+ minutes on Terraform's 1927-file checkout without
 emitting any fact_records. After: the same checkout's snapshot pipeline
 (discovery + per-language pre_scan + parse + materialize) completes in ~20s
 and produces 100,016 fact_records. The proof tests in
-`go/internal/parser/go_terraform_dogfood_test.go` gate per-file parse cost
+`go_terraform_dogfood_test.go` in this directory gate per-file parse cost
 and the package-prescan path against TF_DOGFOOD_REPO.
 
 Dead-code evidence is conservative. Handler signatures, Cobra run signatures,
@@ -258,13 +258,43 @@ Embedded SQL evidence only records recognized database/sql and sqlx call sites
 where a string literal contains an obvious table reference. Line numbers refer
 to the original Go source.
 
-`go_embedded_shell_test.go` uses the external `golang_test` package. It may
-import `internal/parser` because Go compiles it only for tests. Keep that
-exception limited to black-box tests of the public parent engine.
+The `go_*_test.go` files and `engine_go_rich_semantics_test.go` (25 files,
+external package `golang_test`; 23 of them relocated from the parent by #6062)
+pin the payload contract through `parser.DefaultEngine().ParsePath` the way a
+caller would. Each figure has its own command, because one does not produce
+both: 93 test functions across the `go_*` family, from
+`rg -o '^func Test' go_*_test.go engine_go_rich_semantics_test.go | wc -l`,
+and 2 benchmarks, from `rg -o '^func Benchmark' *_test.go | wc -l`. Counting
+every test file in the package rather than the `go_*` glob gives 135
+functions — `rg --no-filename -o '^func Test' *_test.go | wc -l`.
+They may import `internal/parser` because Go compiles them only for tests;
+keep that exception limited to black-box tests of the public parent engine
+(`parser.DefaultEngine`, `parser.Options`, `parser.Engine`) and never reach
+parent internals. Shared assertions come from `go/internal/parser/parsertest`
+(`WriteFile`, `AssertBucketItemByName`, `AssertBucketItemByFieldValue`,
+`AssertStringFieldValue`, `AssertIntFieldValue`, `AssertStringSliceContains`,
+`AssertStringSliceNotContains`, `AssertStringSliceEquals`,
+`AssertFunctionByNameAndClass`, `AssertFrameworksEqual`,
+`AssertNestedStringSliceEqual`, `AssertNestedRouteEntriesEqual`).
+`go_test_helpers_test.go` holds only `writeGoFixture`, which creates parent
+directories before delegating to `parsertest.WriteFile` for the tests that lay
+out multi-package module trees; `go_parent_lookup_bench_test.go` keeps its own
+`*testing.B` writer because parsertest has none. The 13 `package golang`
+`*_test.go` files (42 test functions) stay white-box and must not import the
+parent. `go_package_interface_prescan_test.go` remains in the parent: it tests
+parent-owned worker sizing through unexported functions, so it cannot compile
+as `golang_test`.
 
-No-Regression Evidence: `go test ./internal/parser -run
-'TestGo(FunctionRowsCarryPackageImportPathWhenKnown|FunctionRowsOmitBlankPackageImportPath|MethodRowsCarryReceiverScopedSCIPSymbolWhenPackageKnown|PackageQualifiedCallsCarryStableSymbolKey)'
--count=1` failed before native Go function rows emitted `scip_symbol` and
+Run the engine tests from the `go/` module root with
+`go test ./internal/parser/golang -count=1`; pin a subset with
+`../scripts/go-test-run-guard.sh 56 TestDefaultEngineParsePathGo -- ./internal/parser/golang -count=1`,
+which fails on a partial match where a bare `go test -run` would not.
+
+No-Regression Evidence:
+`../scripts/go-test-run-guard.sh 4 'TestGo(FunctionRowsCarryPackageImportPathWhenKnown|FunctionRowsOmitBlankPackageImportPath|MethodRowsCarryReceiverScopedSCIPSymbolWhenPackageKnown|PackageQualifiedCallsCarryStableSymbolKey)' -- ./internal/parser/golang -count=1`
+(run from the `go/` module root; the four tests moved here from the parent in
+#6062, and the guard fails on a partial match where a bare `go test -run` would
+not) failed before native Go function rows emitted `scip_symbol` and
 package-qualified imported calls emitted `stable_symbol_key`, then passed after
 symbol emission was tied only to stable package import paths. `go test
 ./internal/reducer -run

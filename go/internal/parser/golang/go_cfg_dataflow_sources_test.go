@@ -1,11 +1,14 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package parser
+package golang_test
 
 import (
 	"path/filepath"
 	"testing"
+
+	"github.com/eshu-hq/eshu/go/internal/parser"
+	"github.com/eshu-hq/eshu/go/internal/parser/parsertest"
 )
 
 // TestGoDataflowSourcesEmitParamEntryPoints proves the parser emits a
@@ -15,7 +18,7 @@ import (
 func TestGoDataflowSourcesEmitParamEntryPoints(t *testing.T) {
 	repoRoot := t.TempDir()
 	filePath := filepath.Join(repoRoot, "handlers.go")
-	writeTestFile(t, filePath, `package handlers
+	parsertest.WriteFile(t, filePath, `package handlers
 
 import (
 	"database/sql"
@@ -30,11 +33,11 @@ func query(db *sql.DB, r *http.Request) {
 	db.Query(r.FormValue("q"))
 }
 `)
-	engine, err := DefaultEngine()
+	engine, err := parser.DefaultEngine()
 	if err != nil {
 		t.Fatalf("DefaultEngine() error = %v", err)
 	}
-	got, err := engine.ParsePath(repoRoot, filePath, false, Options{EmitDataflow: true, RepositoryID: "repo-alpha", GoPackageImportPath: "example.com/repo/handlers"})
+	got, err := engine.ParsePath(repoRoot, filePath, false, parser.Options{EmitDataflow: true, RepositoryID: "repo-alpha", GoPackageImportPath: "example.com/repo/handlers"})
 	if err != nil {
 		t.Fatalf("ParsePath error = %v", err)
 	}
@@ -60,17 +63,17 @@ func query(db *sql.DB, r *http.Request) {
 func TestGoDataflowSourcesRequireRepositoryID(t *testing.T) {
 	repoRoot := t.TempDir()
 	filePath := filepath.Join(repoRoot, "handlers.go")
-	writeTestFile(t, filePath, `package handlers
+	parsertest.WriteFile(t, filePath, `package handlers
 
 import "net/http"
 
 func handle(r *http.Request) {}
 `)
-	engine, err := DefaultEngine()
+	engine, err := parser.DefaultEngine()
 	if err != nil {
 		t.Fatalf("DefaultEngine() error = %v", err)
 	}
-	got, err := engine.ParsePath(repoRoot, filePath, false, Options{EmitDataflow: true})
+	got, err := engine.ParsePath(repoRoot, filePath, false, parser.Options{EmitDataflow: true})
 	if err != nil {
 		t.Fatalf("ParsePath error = %v", err)
 	}

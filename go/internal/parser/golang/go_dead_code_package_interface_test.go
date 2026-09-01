@@ -1,11 +1,14 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package parser
+package golang_test
 
 import (
 	"path/filepath"
 	"testing"
+
+	"github.com/eshu-hq/eshu/go/internal/parser"
+	"github.com/eshu-hq/eshu/go/internal/parser/parsertest"
 )
 
 func TestDefaultEngineParsePathGoMarksPackageImportedInterfaceParameterImplementations(t *testing.T) {
@@ -14,7 +17,7 @@ func TestDefaultEngineParsePathGoMarksPackageImportedInterfaceParameterImplement
 	repoRoot := t.TempDir()
 	callerPath := filepath.Join(repoRoot, "wiring.go")
 	calleePath := filepath.Join(repoRoot, "nornicdb_wiring.go")
-	writeTestFile(
+	writeGoFixture(
 		t,
 		calleePath,
 		`package roots
@@ -24,7 +27,7 @@ func bootstrapCanonicalExecutorForGraphBackend(rawExecutor sourcecypher.Executor
 }
 `,
 	)
-	writeTestFile(
+	writeGoFixture(
 		t,
 		callerPath,
 		`package roots
@@ -42,7 +45,7 @@ func wireAPI() {
 `,
 	)
 
-	engine, err := DefaultEngine()
+	engine, err := parser.DefaultEngine()
 	if err != nil {
 		t.Fatalf("DefaultEngine() error = %v, want nil", err)
 	}
@@ -54,17 +57,17 @@ func wireAPI() {
 		t.Fatalf("PreScanGoPackageSemanticRoots() error = %v, want nil", err)
 	}
 
-	got, err := engine.ParsePath(repoRoot, callerPath, false, Options{
+	got, err := engine.ParsePath(repoRoot, callerPath, false, parser.Options{
 		GoImportedInterfaceParamMethods: packageTargets[repoRoot].ImportedInterfaceParamMethods,
 	})
 	if err != nil {
 		t.Fatalf("ParsePath() error = %v, want nil", err)
 	}
 
-	assertParserStringSliceContains(t, assertBucketItemByName(t, got, "structs", "bootstrapNeo4jExecutor"), "dead_code_root_kinds", "go.interface_implementation_type")
-	assertParserStringSliceContains(t, assertFunctionByNameAndClass(t, got, "Execute", "bootstrapNeo4jExecutor"), "dead_code_root_kinds", "go.interface_method_implementation")
-	assertParserStringSliceContains(t, assertFunctionByNameAndClass(t, got, "ExecuteGroup", "bootstrapNeo4jExecutor"), "dead_code_root_kinds", "go.interface_method_implementation")
-	if _, ok := assertFunctionByNameAndClass(t, got, "unused", "bootstrapNeo4jExecutor")["dead_code_root_kinds"]; ok {
+	parsertest.AssertStringSliceContains(t, parsertest.AssertBucketItemByName(t, got, "structs", "bootstrapNeo4jExecutor"), "dead_code_root_kinds", "go.interface_implementation_type")
+	parsertest.AssertStringSliceContains(t, parsertest.AssertFunctionByNameAndClass(t, got, "Execute", "bootstrapNeo4jExecutor"), "dead_code_root_kinds", "go.interface_method_implementation")
+	parsertest.AssertStringSliceContains(t, parsertest.AssertFunctionByNameAndClass(t, got, "ExecuteGroup", "bootstrapNeo4jExecutor"), "dead_code_root_kinds", "go.interface_method_implementation")
+	if _, ok := parsertest.AssertFunctionByNameAndClass(t, got, "unused", "bootstrapNeo4jExecutor")["dead_code_root_kinds"]; ok {
 		t.Fatalf("bootstrapNeo4jExecutor.unused dead_code_root_kinds present, want absent outside the imported interface contract")
 	}
 }
@@ -73,7 +76,7 @@ func TestDefaultEngineParsePathGoMarksSameRepoImportedPackageInterfaceEscapes(t 
 	t.Parallel()
 
 	repoRoot := t.TempDir()
-	writeTestFile(
+	writeGoFixture(
 		t,
 		filepath.Join(repoRoot, "go.mod"),
 		`module example.com/runtime
@@ -82,7 +85,7 @@ go 1.24
 `,
 	)
 	boltPath := filepath.Join(repoRoot, "pkg", "bolt", "server.go")
-	writeTestFile(
+	writeGoFixture(
 		t,
 		boltPath,
 		`package bolt
@@ -130,7 +133,7 @@ func (s *Server) begin(ctx context.Context) error {
 `,
 	)
 	mainPath := filepath.Join(repoRoot, "cmd", "nornicdb", "main.go")
-	writeTestFile(
+	writeGoFixture(
 		t,
 		mainPath,
 		`package main
@@ -160,7 +163,7 @@ func run(dbManager bolt.DatabaseManager) {
 `,
 	)
 
-	engine, err := DefaultEngine()
+	engine, err := parser.DefaultEngine()
 	if err != nil {
 		t.Fatalf("DefaultEngine() error = %v, want nil", err)
 	}
@@ -172,22 +175,22 @@ func run(dbManager bolt.DatabaseManager) {
 		t.Fatalf("PreScanGoPackageSemanticRoots() error = %v, want nil", err)
 	}
 
-	got, err := engine.ParsePath(repoRoot, mainPath, false, Options{
+	got, err := engine.ParsePath(repoRoot, mainPath, false, parser.Options{
 		GoImportedInterfaceParamMethods: packageTargets[filepath.Dir(mainPath)].ImportedInterfaceParamMethods,
 	})
 	if err != nil {
 		t.Fatalf("ParsePath() error = %v, want nil", err)
 	}
 
-	assertParserStringSliceContains(t, assertBucketItemByName(t, got, "structs", "DBQueryExecutor"), "dead_code_root_kinds", "go.interface_implementation_type")
-	assertParserStringSliceContains(t, assertFunctionByNameAndClass(t, got, "Execute", "DBQueryExecutor"), "dead_code_root_kinds", "go.interface_method_implementation")
-	assertParserStringSliceContains(t, assertFunctionByNameAndClass(t, got, "NewSessionExecutor", "DBQueryExecutor"), "dead_code_root_kinds", "go.interface_method_implementation")
-	assertParserStringSliceContains(t, assertFunctionByNameAndClass(t, got, "BeginTransaction", "DBQueryExecutor"), "dead_code_root_kinds", "go.interface_method_implementation")
-	assertParserStringSliceContains(t, assertFunctionByNameAndClass(t, got, "CommitTransaction", "DBQueryExecutor"), "dead_code_root_kinds", "go.interface_method_implementation")
-	if _, ok := assertFunctionByNameAndClass(t, got, "ExportedButNotInInterface", "DBQueryExecutor")["dead_code_root_kinds"]; ok {
+	parsertest.AssertStringSliceContains(t, parsertest.AssertBucketItemByName(t, got, "structs", "DBQueryExecutor"), "dead_code_root_kinds", "go.interface_implementation_type")
+	parsertest.AssertStringSliceContains(t, parsertest.AssertFunctionByNameAndClass(t, got, "Execute", "DBQueryExecutor"), "dead_code_root_kinds", "go.interface_method_implementation")
+	parsertest.AssertStringSliceContains(t, parsertest.AssertFunctionByNameAndClass(t, got, "NewSessionExecutor", "DBQueryExecutor"), "dead_code_root_kinds", "go.interface_method_implementation")
+	parsertest.AssertStringSliceContains(t, parsertest.AssertFunctionByNameAndClass(t, got, "BeginTransaction", "DBQueryExecutor"), "dead_code_root_kinds", "go.interface_method_implementation")
+	parsertest.AssertStringSliceContains(t, parsertest.AssertFunctionByNameAndClass(t, got, "CommitTransaction", "DBQueryExecutor"), "dead_code_root_kinds", "go.interface_method_implementation")
+	if _, ok := parsertest.AssertFunctionByNameAndClass(t, got, "ExportedButNotInInterface", "DBQueryExecutor")["dead_code_root_kinds"]; ok {
 		t.Fatalf("DBQueryExecutor.ExportedButNotInInterface dead_code_root_kinds present, want absent outside package interface contracts")
 	}
-	if _, ok := assertFunctionByNameAndClass(t, got, "helper", "DBQueryExecutor")["dead_code_root_kinds"]; ok {
+	if _, ok := parsertest.AssertFunctionByNameAndClass(t, got, "helper", "DBQueryExecutor")["dead_code_root_kinds"]; ok {
 		t.Fatalf("DBQueryExecutor.helper dead_code_root_kinds present, want absent for unexported method")
 	}
 }

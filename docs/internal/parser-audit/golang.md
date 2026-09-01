@@ -1,7 +1,7 @@
 # Go Parser Audit
 
 ## Overview
-The Go parser (`go/internal/parser/golang/`) is Eshu's broadest language adapter. It uses tree-sitter to extract functions, methods, structs, interfaces, imports, variables, calls (with chain metadata, receiver inference, import alias tracking), composite-literal type references, dead-code roots (13+ kinds), embedded SQL queries, embedded shell commands, cyclomatic complexity, and — when opted in — dataflow functions, taint findings, interprocedural findings, and durable dataflow summaries. Its 37 Go-named test files comprise 14 files in the child directory (13 same-package and one external-package test) and 23 root-level files, including benchmarks and Terraform dogfood coverage.
+The Go parser (`go/internal/parser/golang/`) is Eshu's broadest language adapter. It uses tree-sitter to extract functions, methods, structs, interfaces, imports, variables, calls (with chain metadata, receiver inference, import alias tracking), composite-literal type references, dead-code roots (13+ kinds), embedded SQL queries, embedded shell commands, cyclomatic complexity, and — when opted in — dataflow functions, taint findings, interprocedural findings, and durable dataflow summaries. The child directory holds 38 test files: 13 same-package `package golang` unit tests (42 test functions) and 25 external `package golang_test` files (the `go_*_test.go` family plus `engine_go_rich_semantics_test.go`: 93 test functions and 2 benchmarks, including Terraform dogfood coverage; 23 of them relocated from the parent by #6062, alongside `go_embedded_shell_test.go` and the `go_test_helpers_test.go` fixture writer). One Go-named test file stays in the parent because it exercises parent-owned code: `go_package_interface_prescan_test.go` (white-box tests of the parent's `effectivePackagePrescanWorkers` and `packagePrescanPassWorkerCount`). Counts derived with `rg -o '^func Test' | wc -l` and `rg -l '^package golang(_test)?$' *_test.go | wc -l`.
 
 ## Claimed Constructs
 From `doc.go:7-73`, `README.md:35-104`, and function docstrings:
@@ -77,75 +77,75 @@ From `doc.go:7-73`, `README.md:35-104`, and function docstrings:
 
 ## Verified-by-Test Constructs
 
-**Core parse (parent-level, `engine_test.go`, `go_language_test.go`):**
+**Core parse (`engine_test.go` in the parent; `golang/go_language_test.go` and the rows below in the child `golang_test` package):**
 | Construct | Test reference |
 |---|---|
 | Full Go parse with all buckets | `engine_test.go:123` (`TestDefaultEngineParsePathGo`) |
-| Functions with return_type | `go_language_test.go` |
-| Functions with package_import_path | `go_function_package_identity_test.go:25` (`TestGoFunctionRowsCarryPackageImportPathWhenKnown`) |
-| Functions omit blank package_import_path | `go_function_package_identity_test.go:38` |
-| Methods with scip_symbol | `go_function_package_identity_test.go:65` |
-| Package-qualified calls with stable_symbol_key | `go_function_package_identity_test.go:94` |
-| Shadowed import alias no stable_symbol_key | `go_function_package_identity_test.go:123,158` |
-| Nested module import path derivation | `go_function_package_identity_test.go:194` |
+| Functions with return_type | `golang/go_language_test.go` |
+| Functions with package_import_path | `golang/go_function_package_identity_test.go:14` (`TestGoFunctionRowsCarryPackageImportPathWhenKnown`) |
+| Functions omit blank package_import_path | `golang/go_function_package_identity_test.go:41` |
+| Methods with scip_symbol | `golang/go_function_package_identity_test.go:68` |
+| Package-qualified calls with stable_symbol_key | `golang/go_function_package_identity_test.go:97` |
+| Shadowed import alias no stable_symbol_key | `golang/go_function_package_identity_test.go:126,161` |
+| Nested module import path derivation | `golang/go_function_package_identity_test.go:197` |
 
-**Dead-code roots (parent-level, `go_dead_code_roots_test.go`, `go_dead_code_registrations_test.go`, `go_dead_code_interfaces_test.go`, etc.):**
+**Dead-code roots (child `golang_test` package, `golang/go_dead_code_roots_test.go`, `golang/go_dead_code_registrations_test.go`, `golang/go_dead_code_interfaces_test.go`, etc.):**
 | Construct | Test reference |
 |---|---|
-| HTTP handler registration roots | `go_dead_code_registrations_test.go:11` |
-| HTTP handler unknown receiver ignored | `go_dead_code_registrations_test.go:58` |
-| Cobra run/literal/assignment roots | `go_dead_code_registrations_test.go:11` |
-| Local interface root kinds | `go_dead_code_interfaces_test.go:11` |
-| Function-value roots | `go_dead_code_function_values_test.go` |
-| Function-literal scope (unused closure vs callback closure) | `go_dead_code_function_literal_scope_test.go:11,48` |
-| Package-interface roots | `go_dead_code_package_interface_test.go` |
-| Dogfood Terraform dead-code roots | `go_dead_code_dogfood_roots_test.go` |
-| Terraform gap roots (controller-runtime, etc.) | `go_dead_code_terraform_gaps_test.go` |
+| HTTP handler registration roots | `golang/go_dead_code_registrations_test.go:14` |
+| HTTP handler unknown receiver ignored | `golang/go_dead_code_registrations_test.go:72` |
+| Cobra run/literal/assignment roots | `golang/go_dead_code_registrations_test.go:14` |
+| Local interface root kinds | `golang/go_dead_code_interfaces_test.go:14` |
+| Function-value roots | `golang/go_dead_code_function_values_test.go` |
+| Function-literal scope (unused closure vs callback closure) | `golang/go_dead_code_function_literal_scope_test.go:14,51` |
+| Package-interface roots | `golang/go_dead_code_package_interface_test.go` |
+| Dogfood Terraform dead-code roots | `golang/go_dead_code_dogfood_roots_test.go` |
+| Terraform gap roots (controller-runtime, etc.) | `golang/go_dead_code_terraform_gaps_test.go` |
 
-**Call metadata (parent-level):**
+**Call metadata (child `golang_test` package):**
 | Construct | Test reference |
 |---|---|
-| Selector assignment receiver bindings skipped | `go_call_metadata_receiver_assignment_test.go:11` |
-| Aliased imports annotated | `go_call_metadata_receiver_assignment_test.go:55` |
-| Method-return chain receiver type | `go_call_metadata_receiver_assignment_test.go:87` |
-| Concrete interface assignment chain receiver | `go_call_metadata_receiver_assignment_test.go:128` |
-| Unproven interface parameter chain receiver skipped | `go_call_metadata_receiver_assignment_test.go:173` |
-| Ambiguous interface assignment chain receiver skipped | `go_call_metadata_receiver_assignment_test.go:216` |
-| Map receiver type detection | `go_call_metadata_map_receiver_test.go` |
+| Selector assignment receiver bindings skipped | `golang/go_call_metadata_receiver_assignment_test.go:14` |
+| Aliased imports annotated | `golang/go_call_metadata_receiver_assignment_test.go:58` |
+| Method-return chain receiver type | `golang/go_call_metadata_receiver_assignment_test.go:90` |
+| Concrete interface assignment chain receiver | `golang/go_call_metadata_receiver_assignment_test.go:131` |
+| Unproven interface parameter chain receiver skipped | `golang/go_call_metadata_receiver_assignment_test.go:176` |
+| Ambiguous interface assignment chain receiver skipped | `golang/go_call_metadata_receiver_assignment_test.go:219` |
+| Map receiver type detection | `golang/go_call_metadata_map_receiver_test.go` |
 
 **Embedded SQL and shell (engine-level):**
 | Construct | Test reference |
 |---|---|
-| Embedded SQL queries | `go_embedded_sql_test.go:12` |
+| Embedded SQL queries | `golang/go_embedded_sql_test.go:15` |
 | Embedded shell commands | `golang/go_embedded_shell_test.go:15` |
 
-**Dataflow/taint (parent-level, opt-in gate):**
+**Dataflow/taint (child `golang_test` package, opt-in gate):**
 | Construct | Test reference |
 |---|---|
-| Dataflow functions bucket | `go_cfg_dataflow_test.go` |
-| Dataflow sources bucket | `go_cfg_dataflow_sources_test.go` |
-| Taint source-to-SQL-sink | `go_cfg_taint_test.go:53` |
-| Taint wrong-kind sanitizer still tainted | `go_cfg_taint_test.go:74` |
-| Taint correct sanitizer suppresses | `go_cfg_taint_test.go:98` |
-| Field-sensitive source-to-sink | `go_cfg_taint_test.go:123` |
-| Pointer alias source/sanitizer | `go_cfg_taint_test.go:155,182` |
-| Container element source-to-sink | `go_cfg_taint_test.go:215` |
-| Closure capture source | `go_cfg_taint_test.go:237` |
-| Uncalled closure does not report | `go_cfg_taint_test.go:260` |
-| Closure local shadow does not capture | `go_cfg_taint_test.go:283` |
-| Taint off is byte-identical | `go_cfg_taint_test.go:307` |
-| Interprocedural findings across functions | `go_cfg_interproc_test.go:15` |
-| Interproc function IDs include repository ID | `go_cfg_interproc_test.go:62` |
-| Interproc no false edge from method call | `go_cfg_interproc_test.go:105` |
-| Interproc off is byte-identical | `go_cfg_interproc_test.go:145` |
-| Interproc no false edge from shadowed callee | `go_cfg_interproc_test.go:172` |
-| Interproc call before local shadow | `go_cfg_interproc_test.go:211` |
-| Dataflow summaries emit effects | `go_cfg_dataflow_summaries_test.go:18` |
-| Dataflow summaries sorted by ID | `go_cfg_dataflow_summaries_test.go:108` |
-| Dataflow summaries require repository ID | `go_cfg_dataflow_summaries_test.go:147` |
-| Dataflow summaries require package import path | `go_cfg_dataflow_summaries_test.go:173` |
+| Dataflow functions bucket | `golang/go_cfg_dataflow_test.go` |
+| Dataflow sources bucket | `golang/go_cfg_dataflow_sources_test.go` |
+| Taint source-to-SQL-sink | `golang/go_cfg_taint_test.go:56` |
+| Taint wrong-kind sanitizer still tainted | `golang/go_cfg_taint_test.go:77` |
+| Taint correct sanitizer suppresses | `golang/go_cfg_taint_test.go:100` |
+| Field-sensitive source-to-sink | `golang/go_cfg_taint_test.go:126` |
+| Pointer alias source/sanitizer | `golang/go_cfg_taint_test.go:158,185` |
+| Container element source-to-sink | `golang/go_cfg_taint_test.go:218` |
+| Closure capture source | `golang/go_cfg_taint_test.go:240` |
+| Uncalled closure does not report | `golang/go_cfg_taint_test.go:263` |
+| Closure local shadow does not capture | `golang/go_cfg_taint_test.go:286` |
+| Taint off is byte-identical | `golang/go_cfg_taint_test.go:310` |
+| Interprocedural findings across functions | `golang/go_cfg_interproc_test.go:18` |
+| Interproc function IDs include repository ID | `golang/go_cfg_interproc_test.go:65` |
+| Interproc no false edge from method call | `golang/go_cfg_interproc_test.go:108` |
+| Interproc off is byte-identical | `golang/go_cfg_interproc_test.go:148` |
+| Interproc no false edge from shadowed callee | `golang/go_cfg_interproc_test.go:175` |
+| Interproc call before local shadow | `golang/go_cfg_interproc_test.go:214` |
+| Dataflow summaries emit effects | `golang/go_cfg_dataflow_summaries_test.go:21` |
+| Dataflow summaries sorted by ID | `golang/go_cfg_dataflow_summaries_test.go:111` |
+| Dataflow summaries require repository ID | `golang/go_cfg_dataflow_summaries_test.go:150` |
+| Dataflow summaries require package import path | `golang/go_cfg_dataflow_summaries_test.go:176` |
 
-**Subdirectory unit tests (`golang/`):**
+**Same-package unit tests (`package golang`):**
 | Construct | Test reference |
 |---|---|
 | Local variable types | `golang/local_variable_types_test.go` |
@@ -156,14 +156,14 @@ From `doc.go:7-73`, `README.md:35-104`, and function docstrings:
 | Embedded SQL (subdirectory) | `golang/embedded_sql_test.go` |
 | Embedded shell alias shadowing | `golang/embedded_shell_test.go` |
 
-**Performance and dogfood:**
+**Performance and dogfood (child `golang_test` package):**
 | Construct | Test reference |
 |---|---|
-| Go parent lookup benchmark | `go_parent_lookup_bench_test.go` |
-| Go package prescan benchmark | `go_package_interface_prescan_bench_test.go` |
-| Terraform dogfood parse + prescan | `go_terraform_dogfood_test.go` |
+| Go parent lookup benchmark | `golang/go_parent_lookup_bench_test.go` |
+| Go package prescan benchmark | `golang/go_package_interface_prescan_bench_test.go` |
+| Terraform dogfood parse + prescan | `golang/go_terraform_dogfood_test.go` |
 
-**Package interface pre-scan:**
+**Package interface pre-scan (stays in the parent: white-box tests of parent-owned worker sizing):**
 | Construct | Test reference |
 |---|---|
 | Package interface prescan | `go_package_interface_prescan_test.go` |
@@ -179,21 +179,21 @@ From `doc.go:7-73`, `README.md:35-104`, and function docstrings:
 ## Edge Cases Considered
 - Empty parse: likely tested through the empty-file/system fixture tests
 - Blank/dot import alias exclusion: `language.go:143`
-- Shadowed import aliases for stable_symbol_key: `go_function_package_identity_test.go:123,158`
-- Ambiguous interface assignment chain receiver: `go_call_metadata_receiver_assignment_test.go:216`
-- Unproven interface parameter chain receiver: `go_call_metadata_receiver_assignment_test.go:173`
-- Concrete interface assignment: `go_call_metadata_receiver_assignment_test.go:128`
-- Function-literal scope (unused vs callback): `go_dead_code_function_literal_scope_test.go:11,48`
-- Closure local shadow does not capture: `go_cfg_taint_test.go:283`
-- Uncalled closure does not report: `go_cfg_taint_test.go:260`
-- Container element (array/slice/map) approximation: `go_cfg_taint_test.go:215`
-- Field-sensitive taint (field A vs field B): `go_cfg_taint_test.go:123`
-- Pointer alias normalization: `go_cfg_taint_test.go:155,182`
-- Taint off byte-identical: `go_cfg_taint_test.go:307`
-- Interproc off byte-identical: `go_cfg_interproc_test.go:145`
-- Interproc call before local shadow: `go_cfg_interproc_test.go:211`
-- Terraform dogfood perf regression gate: `go_terraform_dogfood_test.go`
-- Per-file amortization (parent lookup, variable type indices): bench tested via `go_parent_lookup_bench_test.go` and Terraform dogfood
+- Shadowed import aliases for stable_symbol_key: `golang/go_function_package_identity_test.go:126,161`
+- Ambiguous interface assignment chain receiver: `golang/go_call_metadata_receiver_assignment_test.go:219`
+- Unproven interface parameter chain receiver: `golang/go_call_metadata_receiver_assignment_test.go:176`
+- Concrete interface assignment: `golang/go_call_metadata_receiver_assignment_test.go:131`
+- Function-literal scope (unused vs callback): `golang/go_dead_code_function_literal_scope_test.go:14,51`
+- Closure local shadow does not capture: `golang/go_cfg_taint_test.go:286`
+- Uncalled closure does not report: `golang/go_cfg_taint_test.go:263`
+- Container element (array/slice/map) approximation: `golang/go_cfg_taint_test.go:218`
+- Field-sensitive taint (field A vs field B): `golang/go_cfg_taint_test.go:126`
+- Pointer alias normalization: `golang/go_cfg_taint_test.go:158,185`
+- Taint off byte-identical: `golang/go_cfg_taint_test.go:310`
+- Interproc off byte-identical: `golang/go_cfg_interproc_test.go:148`
+- Interproc call before local shadow: `golang/go_cfg_interproc_test.go:214`
+- Terraform dogfood perf regression gate: `golang/go_terraform_dogfood_test.go`
+- Per-file amortization (parent lookup, variable type indices): bench tested via `golang/go_parent_lookup_bench_test.go` and Terraform dogfood
 
 ## Edge Cases NOT Considered
 - Go file with only package declaration and no other declarations
@@ -212,7 +212,9 @@ From `doc.go:7-73`, `README.md:35-104`, and function docstrings:
 ## Verdict
 **deep**
 
-The Go parser has Eshu's broadest parser test suite: 23 root-level Go-named test files and 14 child-directory files (13 same-package and one external-package test), including performance benchmarks and Terraform integration dogfood coverage. Named tests cover parse output, call chain metadata, dead-code root kinds, embedded SQL and shell extraction, and the opt-in dataflow, taint, and interprocedural pipeline. The suite also covers shadowed imports, ambiguous receiver types, function-literal scope, closure capture, field sensitivity, and byte-identical opt-in gates.
+The Go parser has Eshu's broadest parser test suite. After the #6062 relocation it lives almost entirely in the child directory: 38 test files under `go/internal/parser/golang/` (13 same-package, 25 external `golang_test`), with one Go-named test file left at parser root because it exercises the cross-language prescan path rather than Go extraction alone. It includes 2 performance benchmarks and Terraform integration dogfood coverage.
+
+Counts are reproducible: `ls go/internal/parser/golang/*_test.go | wc -l` for the file total, `rg -l '^package golang$' go/internal/parser/golang/*_test.go | wc -l` for the same-package share, and `rg --no-filename -o '^func Benchmark' go/internal/parser/golang/*_test.go | wc -l` for the benchmarks. Named tests cover parse output, call chain metadata, dead-code root kinds, embedded SQL and shell extraction, and the opt-in dataflow, taint, and interprocedural pipeline. The suite also covers shadowed imports, ambiguous receiver types, function-literal scope, closure capture, field sensitivity, and byte-identical opt-in gates.
 
 ## Recommended Actions
 1. Add a focused test for `MethodDeclarationKeys` as an exported interface if it's intended to be called externally.

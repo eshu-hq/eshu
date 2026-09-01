@@ -36,17 +36,36 @@
     into interprocedural findings over `internal/parser/valueflow` and
     `internal/parser/interproc` (the `interproc_findings` bucket)
 14. `helpers.go` and `types.go` - local helper and shared contract aliases
-15. Go behavior tests in this directory and the remaining parent tests in
-    `go/internal/parser/go*_test.go` before changing emitted payload shape
-16. `go_embedded_shell_test.go` - external-package regression for the public
-    parent engine's Go command-execution payload
+15. The `go_*_test.go` and `engine_go_rich_semantics_test.go` external-package
+    engine tests in this directory (25 files, package `golang_test`; 23 of
+    them relocated from the parent by #6062), plus the parent's
+    `TestDefaultEngineParsePathGo` in `engine_test.go` and
+    `go_package_interface_prescan_test.go`, before changing emitted payload
+    shape
+16. `go_test_helpers_test.go` - `writeGoFixture`, the shared nested-directory
+    fixture writer. Cross-file assertions come from `../parsertest`; helpers
+    that stay file-local (taint and dataflow row lookups, dogfood corpus
+    pickers, the `*testing.B` writer) live beside the tests that use them
 
 ## Invariants this package enforces
 
 - Production dependency direction stays one way: parent parser code may import
   this package, but production files and same-package tests here must not import
-  `internal/parser`. External `golang_test` files may import the parent only to
-  exercise its public engine contract.
+  `internal/parser`. External `golang_test` files may import the parent only
+  for `parser.DefaultEngine`, `parser.Options`, and `parser.Engine`, and never
+  reach parent internals.
+- Shared assertions come from `go/internal/parser/parsertest` (`WriteFile`,
+  `AssertBucketItemByName`, `AssertBucketItemByFieldValue`,
+  `AssertStringFieldValue`, `AssertIntFieldValue`, `AssertStringSliceContains`,
+  `AssertStringSliceNotContains`, `AssertStringSliceEquals`,
+  `AssertFunctionByNameAndClass`, `AssertFrameworksEqual`,
+  `AssertNestedStringSliceEqual`, `AssertNestedRouteEntriesEqual`).
+  `go_test_helpers_test.go` holds only `writeGoFixture`, which creates parent
+  directories before delegating to `parsertest.WriteFile` for the tests that
+  lay out multi-package module trees, and `go_parent_lookup_bench_test.go`
+  keeps its own `*testing.B` writer because parsertest has none. Do not add
+  local copies of parsertest helpers back, and do not export a parent-private
+  helper to reach it.
 - `Parse` returns the same bucket names and map fields the parent Go adapter
   returned before the language-owned move.
 - Bucket ordering is deterministic. Sort output before returning any payload or
@@ -63,8 +82,10 @@
 - Add a new Go payload field by writing or updating a focused external-package
   engine test here, then changing `language.go` or the helper that owns the
   evidence.
-- Add a new dead-code root by adding a focused parent dead-code test first,
-  then editing the narrow helper that owns that evidence family.
+- Add a new dead-code root by adding a focused `go_dead_code_*_test.go` case in
+  this directory first, then editing the narrow helper that owns that evidence
+  family. Prove a run pin with `../scripts/go-test-run-guard.sh 56 TestDefaultEngineParsePathGo -- ./internal/parser/golang -count=1`
+  from the `go/` module root; a bare `go test -run` exits 0 on a partial match.
 - Add SQL API support by writing a focused `embedded_sql_test.go` case first.
 - Change same-package interface evidence by testing both
   `ImportedInterfaceParamMethods` and the parent package pre-scan wrapper.
@@ -76,7 +97,7 @@
 
 - Missing Go functions, structs, interfaces, imports, variables, or calls
   usually means `language.go` skipped a tree-sitter node kind or changed bucket
-  names. Compare the focused parent `go*_test.go` fixture output.
+  names. Compare the focused `go_*_test.go` fixture output in this directory.
 - False Go CALLS edges for package-qualified or chained calls usually mean
   import alias metadata, `chain_receiver_obj_type`, or
   `chain_receiver_method` drifted from reducer expectations.
@@ -96,6 +117,9 @@
 - Importing the parent parser package from production files or same-package
   tests. Keep the external-test exception limited to black-box coverage of the
   public parent engine, without reusing unexported helpers.
+- Carrying a discarded type assertion (`x, _ := v.(T)`) into a test helper: a
+  present-but-wrongly-typed field then reads as absent and passes a negative
+  assertion. The parsertest helpers fail closed; keep it that way.
 - Adding JavaScript, Python, Java, SQL, YAML, JSON, or other language behavior
   here.
 - Returning partial payloads after a Go parse failure.

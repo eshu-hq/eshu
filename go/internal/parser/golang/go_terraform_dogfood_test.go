@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package parser
+package golang_test
 
 import (
 	"os"
@@ -11,6 +11,8 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/eshu-hq/eshu/go/internal/parser"
 )
 
 // TestGoTerraformDogfoodParse times engine.ParsePath against a
@@ -23,8 +25,13 @@ import (
 //
 // Skipped unless TF_DOGFOOD_REPO is set, e.g.:
 //
-//	TF_DOGFOOD_REPO=/Users/asanabria/os-repos/terraform \
-//	  go test ./internal/parser -run TestGoTerraformDogfoodParse -v -count=1
+//	TF_DOGFOOD_REPO=/path/to/terraform \
+//	  ../scripts/go-test-run-guard.sh 1 TestGoTerraformDogfoodParse -- \
+//	  ./internal/parser/golang -v -count=1
+//
+// Run it from the go/ module root. The guard is used rather than a bare
+// go test -run because that exits 0 when the pattern matches nothing, which
+// would turn this performance proof green without running it.
 //
 // A CPU profile of the largest file lands under the test's TempDir as
 // terraform-large.cpu.pprof; the test logs the absolute path so callers can
@@ -51,7 +58,7 @@ func TestGoTerraformDogfoodParse(t *testing.T) {
 	medium := pickByLineCount(t, candidates, 800, 1500)
 	large := pickByLineCount(t, candidates, 2000, 1<<30)
 
-	engine, err := DefaultEngine()
+	engine, err := parser.DefaultEngine()
 	if err != nil {
 		t.Fatalf("DefaultEngine: %v", err)
 	}
@@ -62,14 +69,14 @@ func TestGoTerraformDogfoodParse(t *testing.T) {
 	// Warm caches identically across runs by parsing once and discarding before
 	// timing the small file. tree_sitter parser objects amortize allocation
 	// state on second invocation, so the first measurement is otherwise noisy.
-	if _, err := engine.ParsePath(repoRoot, small.path, false, Options{}); err != nil {
+	if _, err := engine.ParsePath(repoRoot, small.path, false, parser.Options{}); err != nil {
 		t.Fatalf("warmup ParsePath: %v", err)
 	}
 
 	cases := []dogfoodCase{small, medium, large}
 	for index, c := range cases {
 		start := time.Now()
-		if _, err := engine.ParsePath(repoRoot, c.path, false, Options{}); err != nil {
+		if _, err := engine.ParsePath(repoRoot, c.path, false, parser.Options{}); err != nil {
 			t.Fatalf("ParsePath(%s): %v", c.path, err)
 		}
 		elapsed := time.Since(start)
@@ -119,7 +126,7 @@ func dogfoodGate(label string) time.Duration {
 // profileLargest captures a CPU profile across 10 sequential ParsePath calls
 // on the largest dogfood file so a single short run still produces a profile
 // dense enough for `go tool pprof` to pinpoint hot helpers.
-func profileLargest(t *testing.T, engine *Engine, repoRoot, path, dest string) {
+func profileLargest(t *testing.T, engine *parser.Engine, repoRoot, path, dest string) {
 	t.Helper()
 	f, err := os.Create(dest)
 	if err != nil {
@@ -131,7 +138,7 @@ func profileLargest(t *testing.T, engine *Engine, repoRoot, path, dest string) {
 	}
 	defer pprof.StopCPUProfile()
 	for i := range 10 {
-		if _, err := engine.ParsePath(repoRoot, path, false, Options{}); err != nil {
+		if _, err := engine.ParsePath(repoRoot, path, false, parser.Options{}); err != nil {
 			t.Fatalf("ParsePath profile iter %d: %v", i, err)
 		}
 	}
@@ -205,7 +212,7 @@ func TestGoTerraformDogfoodPackageSemanticRoots(t *testing.T) {
 		paths = append(paths, c.path)
 	}
 
-	engine, err := DefaultEngine()
+	engine, err := parser.DefaultEngine()
 	if err != nil {
 		t.Fatalf("DefaultEngine: %v", err)
 	}
