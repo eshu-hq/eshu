@@ -31,7 +31,7 @@
 // roughly 23 domains.
 //
 // This package therefore holds only plain data and pure functions. It imports
-// [payloadcore] for one string coercion and otherwise nothing but the standard
+// `payloadcore` for one string coercion and otherwise nothing but the standard
 // library, and it must never import the reducer root. The worker, runner,
 // readiness, lease-heartbeat and batch-selection machinery deliberately stay in
 // the root: they are the reducer's concurrency core, not a shape a family needs.

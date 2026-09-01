@@ -1,10 +1,27 @@
 # internal/reducer/sharedintent
 
-The shape of one shared-domain projection intent, its deterministic identity,
-and the freshness key read off it. Plain data and pure functions — no queue, no
-graph handle, no worker.
+## Purpose
 
-## What lives here
+Owns the shape of one shared-domain projection intent, its deterministic
+identity, and the freshness key read off it. Plain data and pure functions.
+
+It exists so a domain family can construct and read an intent **without
+importing the reducer root**. The root imports the families, so a family
+importing the root closes an import cycle — and that cycle is the most common
+single reason a family in issue #6061 cannot become a subpackage. Those symbols
+are referenced by 47 non-test root files spanning roughly 23 domains.
+
+## Ownership boundary
+
+**Owns:** the intent row and input shapes, the identity derivation, the
+acceptance-key shape and the method that reads it off a row.
+
+**Does not own:** anything that runs. The worker, runner, readiness,
+lease-heartbeat, unroutable-quarantine and batch-selection machinery — 11
+non-test files, roughly 7000 lines — stays in `shared_projection.go` at the
+root. Issue #6061 pins it there, and no family needs it.
+
+## Exported surface
 
 | symbol | what it is |
 |---|---|
@@ -15,65 +32,67 @@ graph handle, no worker.
 | `AcceptanceKey` | the bounded-unit freshness slice |
 | `Row.AcceptanceKey()` | reads that slice off a row, reporting whether one exists |
 
-## Why this is a leaf, and why it mattered
+The reducer root keeps aliases under the original names — `SharedProjectionIntentRow`,
+`SharedProjectionIntentInput`, `SharedProjectionAcceptanceKey` — and a forwarder
+for `BuildSharedProjectionIntent`, so callers in `internal/storage/postgres`,
+`internal/ifa/materializededges` and `internal/replay/offlinetier` reach these
+through the root and were untouched by the hoist.
 
-Domain families build intents. Before this package, `Row`, `Input` and `Build`
-lived in the reducer root next to the worker, runner, lease-heartbeat and
-batch-selection machinery. A family that only wanted to construct an intent had
-to import the root — and the root imports the families. That is an import cycle.
+## Dependencies
 
-It is the most common single blocker in issue #6061. Measured against
-`origin/main`: those three symbols are referenced by **47 non-test files in the
-reducer root, spanning roughly 23 domains**. Two families were picked as
-"next to move" and disqualified after measurement for exactly this reason —
-`crossrepo`'s own exported function signatures name `SharedProjectionIntentRow`,
-so it can never become a subpackage while that type is in the root.
+The standard library, plus `internal/reducer/payloadcore` for one string
+coercion. `payloadcore` imports no reducer root either, so the chain is
+leaf-to-leaf with no cycle.
 
-Moving the shape out removes the blocker once instead of fighting the same cycle
-once per family.
+**This package must never import `internal/reducer`**, directly or
+transitively. Adding that import defeats the entire reason the package exists
+and re-blocks 47 files. If you need a type from the root, either move that type
+here too or reconsider whether the code belongs here.
 
-## What deliberately did NOT move
+## Telemetry
 
-`shared_projection.go` keeps the worker, runner, readiness, lease-heartbeat,
-unroutable-quarantine and batch-selection code — 11 non-test files and around
-7000 lines. That is the reducer's concurrency core and it is not a shape a
-family needs. Issue #6061 pins it to the root, and this change respects that:
-what moved is the ~110 lines of data and pure derivation the families actually
-consume.
+None. This package registers no metric, span, or log field, and performs no I/O.
+The shared-projection instrumentation — `eshu_dp_shared_edge_write_groups_total`,
+`eshu_dp_reducer_executions_total`, `eshu_dp_reducer_run_duration_seconds` —
+lives with the machinery at the root and is unchanged by the hoist. See the
+`No-Observability-Change` row for this file in
+`docs/public/observability/telemetry-coverage.md`.
 
-## The identity function is a contract, not an implementation detail
+## Gotchas / invariants
 
-`StableIntentID` serializes the identity map as compact JSON with sorted keys
-and hashes it. Two properties depend on that exact byte sequence:
+**`StableIntentID`'s derivation is a persisted contract.** It serializes the
+identity map as compact JSON with sorted keys and hashes it. Two properties
+depend on that exact byte sequence:
 
-- **Idempotency under retry.** The same logical work always names the same row,
-  so a redelivery updates rather than duplicates. Changing the derivation
-  silently orphans every intent already persisted under the old identity.
-- **Cross-implementation agreement.** It matches the original Python
-  `_stable_intent_id` byte for byte. `internal/reducer/AGENTS.md` warns against
-  changing it without auditing all in-flight intents in Postgres; that warning
-  still applies here.
+- *Idempotency under retry.* The same logical work always names the same row, so
+  a redelivery updates rather than duplicates. Changing the derivation silently
+  orphans every intent already persisted under the old identity.
+- *Cross-implementation agreement.* It matches the original Python
+  `_stable_intent_id` byte for byte.
 
-## Import rule
+`intent_test.go` pins it to an exact digest rather than round-tripping it,
+because a round-trip test stays green through precisely that change.
 
-This package must never import the reducer root, directly or transitively. It
-imports `payloadcore` for one string coercion and otherwise only the standard
-library. A new dependency here is a design change, not a convenience: the whole
-point is that a family can depend on this without depending on the root.
+**`IdentityKey` affects the hashed identity only.** It overrides the partition
+key for intent-ID construction while the stored `PartitionKey` keeps its
+original value — several rows deliberately share one stored partition while
+needing distinct intent IDs. A change that let it leak into the stored column
+would pass any test that only checked the digest.
 
-## Compatibility
+**`Row.AcceptanceKey` returns false rather than a zero key.** A row that cannot
+name a freshness slice is not eligible for acceptance; returning `true` with a
+zero-value key would collapse every such row into one bogus slice. Its fallbacks
+to the payload's `scope_id` / `acceptance_unit_id` and then to `RepositoryID`
+exist because rows are persisted from more than one path and not all populate
+every column — removing one looks harmless in unit tests and silently drops rows
+from acceptance in a live drain.
 
-The root keeps aliases under the original names and one forwarder, so no caller
-changed when this moved:
+**Adding a field to the identity set inside `Build`** is a `StableIntentID`
+change by another route: it alters the hashed bytes. Same rule applies.
 
-```go
-type SharedProjectionIntentRow = sharedintent.Row
-type SharedProjectionIntentInput = sharedintent.Input
-type SharedProjectionAcceptanceKey = sharedintent.AcceptanceKey
+## Related docs
 
-func BuildSharedProjectionIntent(input SharedProjectionIntentInput) SharedProjectionIntentRow
-```
-
-Callers in `internal/storage/postgres`, `internal/ifa/materializededges` and
-`internal/replay/offlinetier` reach these through the root today and are
-untouched by this change.
+- `go/internal/reducer/README.md` — the root package and its subpackage inventory
+- `go/internal/reducer/shared-projection.md` — the worker/runner machinery that stays at the root
+- `docs/internal/design/package-restructure.md` — the #6061 restructure and this hoist's no-regression evidence
+- `docs/public/observability/telemetry-coverage.md` — the coverage row for this file

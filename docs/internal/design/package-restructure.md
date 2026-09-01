@@ -181,7 +181,7 @@ Two consequences worth knowing before the remaining children:
 
 No-Regression Evidence: the reducer sharedintent hoist (#6061) moves
 SharedProjectionIntentRow, SharedProjectionIntentInput, BuildSharedProjectionIntent,
-stableIntentID, SharedProjectionAcceptanceKey and the Row.AcceptanceKey method out
+stableIntentID (exported as StableIntentID in the leaf), SharedProjectionAcceptanceKey and the Row.AcceptanceKey method out
 of shared_projection.go into a new `internal/reducer/sharedintent` leaf, with no
 logic change; the root keeps aliases under the original names plus one forwarder,
 so no caller changed. Baseline `af6cdf78e`, after `66182f53e`, go1.27.0
