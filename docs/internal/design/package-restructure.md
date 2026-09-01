@@ -1579,8 +1579,8 @@ package was deleted after the build; it is not part of this PR's diff.
 No-Regression Evidence: this section was re-derived after a rebase onto
 current `origin/main` invalidated the prior baseline/after SHAs and inline
 count (rebasing changes what a base-relative figure means even when the
-diff's own content is untouched). Baseline `9b207fefc6` (current
-`origin/main` tip), after `0a9f93c33` (the rebased commit that lands this
+diff's own content is untouched). Baseline `091ec3400` (current
+`origin/main` tip), after `a39c85f31` (the rebased commit that lands this
 hoist's code), go1.27.0 darwin/arm64. This crosses a package boundary, so
 inlining is measured, not assumed, as a SET in both directions with `comm`,
 at whole-module scope (`go build -gcflags=-m ./...`) since the moved types
