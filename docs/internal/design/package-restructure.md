@@ -1537,21 +1537,65 @@ The root keeps every original exported name — `GraphProjectionKeyspace`,
 aliases in `graph_projection_phase.go`, so no caller changed and
 `GraphProjectionPhaseKey.Validate` needs no forwarder (an alias carries the
 method set). This hoist does not itself move the crossrepo family's files into a
-`crossrepo` subpackage; it removes the blocker so that move can happen separately.
+`crossrepo` subpackage; it removes a blocker so that move can happen separately.
 
-No-Regression Evidence: baseline `0b92f4b744`, after `538baf20a`, go1.27.0
-darwin/arm64. This crosses a package boundary, so inlining is measured, not
-assumed, as a SET in both directions with `comm`, at whole-module scope
-(`go build -gcflags=-m ./...`) since the moved types are referenced from
-`internal/workflow`, `internal/reducer/dsl`, and `internal/reducer/tfstate` in
-addition to the reducer root: unique `can inline` names 12153 -> 12153 (probe
-confirmed non-vacuous: both sets exceed 12000 names before the equal total is
-believed). Fourteen names moved in each direction and every one is the same
-generic instantiation re-qualified to the new package path (e.g.
+**Correction after review.** An earlier version of this section, and matching
+prose in `gpphase/doc.go`, `gpphase/README.md`, and one
+`telemetry-coverage.md` row, asserted these three symbols were crossrepo's
+*only* remaining blocker. That overstated what had actually been checked. A
+real trial move settles it: copy all five crossrepo-prefixed files —
+`cross_repo_resolution.go`, `cross_repo_resolution_retract.go`,
+`cross_repo_intent_row.go`, `cross_repo_evidence_type.go`, and
+`cross_repo_evidence_artifacts.go` (this fifth file carries the family prefix
+but was missed by the four-file set the paragraphs above describe) — into a
+throwaway `internal/reducer/crossrepotrial` package and build it
+(`go build -gcflags="-e" ./internal/reducer/crossrepotrial/...`, `-e` to see
+every error rather than the compiler's default 10-error cutoff). The first
+build reports ten undefined names. Five are exactly `GraphProjectionKeyspace*`
+constants, `GraphProjectionPhaseKey`, `GraphProjectionReadinessLookup`, and
+`GraphProjectionReadinessPrefetch` — this hoist's own symbols, and qualifying
+them as `gpphase.*` resolves every one. The other five —
+`SharedProjectionIntentRow`, `SharedProjectionIntentInput`,
+`BuildSharedProjectionIntent`, `DomainRepoDependency`, `toStringSlice` — are
+not gpphase's concern, and each resolves too, by a different route confirmed
+individually: `SharedProjectionIntentRow`/`Input` are root type aliases to
+`sharedintent.Row`/`Input`, so qualifying by the leaf name is enough;
+`BuildSharedProjectionIntent` is a real function at root (not an alias) that
+forwards to `sharedintent.Build`, so the call site must name the leaf function
+directly; `DomainRepoDependency` is a root const alias to
+`contract.DomainRepoDependency`; and `toStringSlice` — which a first pass
+believed had no leaf home — is itself a one-line forwarder to
+`payloadcore.ToStringSlice` (`internal/reducer/workload_deployment_sources.go:381`),
+already an exported leaf function, so it resolves the same way as the other
+four. With all ten qualified, the five-file trial package builds clean:
+`go build -gcflags="-e" ./internal/reducer/crossrepotrial/...` exits 0, zero
+undefined names remain. So the corrected claim is: this hoist supplies the
+crossrepo family's only symbols that had **no existing leaf home at all**;
+every other name the family needs was already reachable through an
+already-hoisted sibling leaf (`sharedintent`, `contract`, `payloadcore`) and
+needed only an import or call-site rewrite, not a new hoist. The trial
+package was deleted after the build; it is not part of this PR's diff.
+
+No-Regression Evidence: this section was re-derived after a rebase onto
+current `origin/main` invalidated the prior baseline/after SHAs and inline
+count (rebasing changes what a base-relative figure means even when the
+diff's own content is untouched). Baseline `9b207fefc6` (current
+`origin/main` tip), after `0a9f93c33` (the rebased commit that lands this
+hoist's code), go1.27.0 darwin/arm64. This crosses a package boundary, so
+inlining is measured, not assumed, as a SET in both directions with `comm`,
+at whole-module scope (`go build -gcflags=-m ./...`) since the moved types
+are referenced from `internal/workflow`, `internal/reducer/dsl`, and
+`internal/reducer/tfstate` in addition to the reducer root: unique
+`can inline` names 12153 -> 12153 (probe confirmed non-vacuous: both sets
+exceed 12000 names before the equal total is believed). **Fifteen** names
+moved in each direction (re-derived with `wc -l` after an earlier pass in
+this same section under-counted by eye at fourteen) and every one is the
+same generic instantiation re-qualified to the new package path (e.g.
 `slices.Clone[...reducer.GraphProjectionKeyspace,...]` ->
 `slices.Clone[...reducer/gpphase.Keyspace,...]`) — a 1:1 rename set, not a net
-count, verified pair by pair. Zero functions actually lost or gained
-inlinability. Correctness: `go build ./...` and `go vet ./...` both exit 0 with
+count, verified pair by pair by listing all thirty names and matching each
+LOST entry to its GAINED counterpart by shape. Zero functions actually lost or
+gained inlinability. Correctness: `go build ./...` and `go vet ./...` both exit 0 with
 no output; `go test ./internal/reducer/...` passes 13 packages including the new
 `gpphase` package, which carries `TestPhaseKeyValidate` and
 `TestPhaseKeyValidateRejectsBlankFields` (moved out of
