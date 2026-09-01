@@ -48,6 +48,11 @@ own files moved.
 | `DomainEshuSearchDocument` | the reducer domain identifier |
 | `EshuSearchDocumentFactKind` | the durable `fact_records.fact_kind` value |
 | `EshuSearchDocumentWriteTimings` | in-process timing accumulator for one write cycle |
+| `EshuSearchDocumentWrite` | one curated document row as written |
+| `SearchDocumentWriteSession` | the open write session a `SearchDocumentWriter` hands back |
+| `SearchDocumentProjection` | the curated output of one projection pass |
+| `SearchDocumentCurationSummary` | per-page curation counts, carried for telemetry |
+| `SearchDocumentProjectionStateWriter` | records projection progress for a scope+generation |
 
 This family kept no compatibility aliases in the reducer root. Every caller —
 `internal/reducer` (registry, defaults wiring), `internal/projector` (pending
