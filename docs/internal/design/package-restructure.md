@@ -635,7 +635,8 @@ and failure/retry infra (~70 files). Hazard: canonical Row types are
 consumed by 182 external files; family moves need qualifier updates or root
 aliases, and the `canonical.go` exact-path gate trigger (#5531) moves in
 lockstep. Azure, GCP, Kubernetes, EC2, RDS, S3, security,
-workload-cloud-relationship, and incident-routing intent builders now use the neutral
+workload-cloud-relationship, incident-routing, and AWS-relationship intent
+builders now use the neutral
 `internal/projector/intent` boundary while root retains assembly, lifecycle,
 enqueue, retry, and telemetry. EC2's `USES_PROFILE`
 builder is the first extracted family to need a typed-payload decode; it
@@ -663,6 +664,14 @@ triggers on `incident.record` plus the `incident_routing.*` kinds
 `internal/facts` registers, anchors with the cross-kind `FirstAcrossKinds`
 lookup the security-alert builder also uses, keys on its own
 `incident_routing_materialization:<scope>` entity, and decodes no payload.
+The AWS relationship builder moved into `internal/projector/awsrelationship`
+on the same presence-only shape: it triggers on `aws_relationship` fact
+presence, anchors with `FirstOfKind`, decodes no payload, and keeps the shared
+`aws_resource_materialization:<scope>` entity key on purpose, because the
+reducer's edge handler gates on the canonical-nodes-committed row the AWS node
+builders publish under that key. The root `awsCloudRuntimeDriftSourceSystem`
+helper it called stays at root for its seven remaining root callers; the child
+uses the body-identical `projectorintent.SourceSystem`.
 Coordinator `_scheduler.go` halves extract cleanly
 (they implement a root Planner interface); the `_service.go` halves are
 methods on the shared `Service` struct and stay until Service is
