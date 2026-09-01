@@ -1,11 +1,16 @@
 # Cross-Repo Call Resolver Benchmark Evidence (#3487 / #3624)
 
 Moved from `go/internal/reducer/README.md` (issue #5786) to keep the
-package README under the repository's 500-line cap. Content is
-unchanged from the original section. The resolver coverage table itself
-stays in the README because `go/internal/accuracygate/golden_gate_test.go`
-(`TestAccuracyResolverMatrixMatchesPublishedDoc`) parses it directly from
-that file.
+package README under the repository's 500-line cap.
+
+The measurements, commands, and numbers below are verbatim from the original
+section. One closing paragraph did not come across: it explained why the
+section stayed in the README rather than moving to `domain-catalog.md`, which
+would contradict itself here. Its substance still applies and now lives in the
+README beside the table -- `go/internal/accuracygate/golden_gate_test.go`
+(`TestAccuracyResolverMatrixMatchesPublishedDoc`) reads that file directly and
+parses the resolver coverage table, so the table must resolve at that path and
+stays there.
 
 ## Dedicated resolver dispatch cost (#3487)
 
