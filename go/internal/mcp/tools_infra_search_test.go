@@ -55,7 +55,11 @@ func TestFindInfraResourcesToolSchemaAllowsStructuredFiltersWithoutQuery(t *test
 	if !ok {
 		t.Fatalf("InputSchema type = %T, want map[string]any", searchTool.InputSchema)
 	}
-	required, _ := schema["required"].([]string)
+	rawRequired, present := schema["required"]
+	required, ok := rawRequired.([]string)
+	if present && !ok {
+		t.Fatalf("required = %#v (%T), want []string; a present-but-malformed field must not be silently treated as absent", rawRequired, rawRequired)
+	}
 	if stringSliceContains(required, "query") {
 		t.Fatalf("required = %#v, want query omitted for structured filter searches", required)
 	}
