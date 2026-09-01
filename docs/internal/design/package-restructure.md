@@ -179,6 +179,33 @@ Two consequences worth knowing before the remaining children:
   gone and the replacement is 66, and dirgate's ratchet means any later
   extraction has to re-pin it lower.
 
+No-Regression Evidence: the eshu_search family move (#6061) relocates the eight
+non-test eshu_search_*.go files and their eleven test siblings out of the reducer
+root into `internal/reducer/eshusearch`, with no logic change. Unlike the earlier
+hoists in this epic the root keeps NO aliases: every caller was repointed to
+import the leaf directly, across internal/reducer, internal/projector,
+internal/storage/postgres and cmd/reducer. Six symbols the family reached through
+root forwarders now call their real owners -- Intent, Result and
+ResultStatusSucceeded to contract, uniqueSortedStrings to payloadcore,
+reducerWriterNow and reducerFactCollectorKind to factwrite -- each verified to be
+a one-line forwarder at the base rather than a distinct implementation.
+Baseline 9b207fefc, go1.27.0 darwin/arm64. This crosses a package boundary, so
+inlining is measured rather than assumed: go build -gcflags=-m
+./internal/reducer/... reports unique can inline names 1378 -> 1378, compared as a
+SET with comm in BOTH directions rather than by totals, since a matching total is
+also what a swap looks like. Zero names lost, zero gained -- the identical set is
+what a pure relocation with no forwarders produces, and both sets carry 1378
+entries so the probe is not vacuous. Reducer root drops 515 -> 507 and the dirgate
+row is re-pinned DOWN to 507 / 59186458cff3, re-derived with the tool own
+algorithm rather than hand-computed.
+
+No-Observability-Change: the move relocates the search-document writer and its
+timing accumulator without altering either. The existing coverage rows for
+eshu_search_document_writer.go, _index_writer.go and _write_timings.go are
+repointed to the new path in the same change, and the signals they name --
+eshu_dp_reducer_executions_total, eshu_dp_reducer_run_duration_seconds and
+eshu_dp_postgres_query_duration_seconds -- are unchanged.
+
 No-Regression Evidence: the reducer writer-primitive hoist (#6061) moves the two
 fact-writer primitives reducerWriterNow and reducerFactCollectorKind out of
 workload_identity_writer.go into `internal/reducer/factwrite` as Now and
