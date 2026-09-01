@@ -19,6 +19,17 @@ into an ordinary intra-package one. The [package-restructure design
 doc](../../../../docs/internal/design/package-restructure.md) has the general
 seam.
 
+Four of the five symbols crossing that boundary (`BuildCodeRootVerdicts`,
+`CodeRootVerdictRow`, `RubyClassEntity`, `RubyRailsRouteFacts`) are already
+exported; only `removeDowngradedRailsControllerRoots` is not. That is why a
+symbol-graph pass that counts unexported cross-family edges as the blockers
+scored this pair as cheap — export status does not help when the dependency
+runs both ways, because the child would import root for one symbol while root
+imports the child for another. Distrust a cheap score on that basis for any
+later family in this epic; it is exactly how the epic's original first pick,
+`containerimage`, turned out to sit in three simultaneous cycles despite being
+labelled clean and zero-inbound.
+
 ## Ownership boundary
 
 This package owns the reachability walk, the code-root verdict builder, the
