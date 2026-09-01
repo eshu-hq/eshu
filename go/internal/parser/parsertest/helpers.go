@@ -243,8 +243,6 @@ func AssertFunctionByNameAndClass(
 	return function
 }
 
-// AssertBucketContainsFieldValue requires payload[key] to be a map slice with
-// one item whose field equals wantValue.
 // AssertBucketItemByFieldValue returns the payload[bucket] item whose string
 // field equals want, failing the test when no item matches. It is the
 // returning counterpart to AssertBucketContainsFieldValue, for callers that
@@ -274,8 +272,8 @@ func AssertBucketItemByFieldValue(
 	return nil
 }
 
-// AssertBucketContainsFieldValue requires payload[key] to hold an item whose
-// string field equals wantValue.
+// AssertBucketContainsFieldValue requires payload[key] to be a map slice with
+// one item whose field equals wantValue.
 func AssertBucketContainsFieldValue(
 	t *testing.T,
 	payload map[string]any,
