@@ -16,6 +16,7 @@ import (
 	projectorrds "github.com/eshu-hq/eshu/go/internal/projector/rds"
 	projectors3 "github.com/eshu-hq/eshu/go/internal/projector/s3"
 	projectorsecurity "github.com/eshu-hq/eshu/go/internal/projector/security"
+	projectorservicecatalog "github.com/eshu-hq/eshu/go/internal/projector/servicecatalog"
 	projectorworkloadcloud "github.com/eshu-hq/eshu/go/internal/projector/workloadcloud"
 	"github.com/eshu-hq/eshu/go/internal/scope"
 )
@@ -139,7 +140,7 @@ func appendScopeGenerationReducerIntents(
 	if intent, ok := buildSBOMAttestationAttachmentReducerIntent(scopeValue, generation, index); ok {
 		intents = append(intents, intent)
 	}
-	if intent, ok := buildServiceCatalogCorrelationReducerIntent(scopeValue, generation, index); ok {
+	if intent, ok := projectorservicecatalog.BuildServiceCatalogCorrelationReducerIntent(scopeValue, generation, index.lookup); ok {
 		intents = append(intents, intent)
 	}
 	if intent, ok := buildSecretsIAMTrustChainReducerIntent(scopeValue, generation, index); ok {

@@ -748,6 +748,19 @@ earliest `package_registry.source_hint` fact and falls back to the earliest
 was body-identical to `projectorintent.SourceSystem`, so it was dropped
 rather than moved. The `packageIdentityEnvelope` test fixture stays at root
 because the fan-out and supply-chain-impact tests still build on it.
+The service-catalog-correlation builder moved into
+`internal/projector/servicecatalog`. It triggers on any fact kind the
+`facts.ServiceCatalogSchemaVersion` registry recognizes, anchoring with
+`FirstMatchingKindPredicate` on the earliest such fact in input order, and
+carries no decode seam. Its private `serviceCatalogCorrelationSourceSystem`
+helper was checked body-for-body against `projectorintent.SourceSystem` and
+was not identical: it carries a third fallback to the ingestion scope's
+`SourceSystem`, so it moved with the family unchanged and the child builder
+takes the scope value the way the `kubernetes` builders already do. The root
+`firstMatchingKindPredicate` forwarder stays for its three remaining root
+callers. The unsupported-schema-version regression test stays at root in
+`schema_version_admission_test.go` because it asserts root's
+`validateFactSchemaVersion`, not the builder.
 Coordinator `_scheduler.go` halves extract cleanly
 (they implement a root Planner interface); the `_service.go` halves are
 methods on the shared `Service` struct and stay until Service is
