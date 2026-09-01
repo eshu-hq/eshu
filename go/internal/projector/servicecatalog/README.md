@@ -81,7 +81,7 @@ catalog kinds, and three-tier source-system derivation are identical to the
 base commit, and the dispatcher's ordered fan-out is unchanged at 44 builder
 probes with this probe still running immediately after
 `buildSBOMAttestationAttachmentReducerIntent` and before
-`buildSecretsIAMTrustChainReducerIntent`. The private
+`secretsiam.BuildSecretsIAMTrustChainReducerIntent`. The private
 `serviceCatalogCorrelationSourceSystem` helper the root file owned was
 compared body-for-body against `projectorintent.SourceSystem` and found to
 carry a third fallback (the scope's `SourceSystem`) the shared helper lacks,

@@ -791,6 +791,20 @@ takes the scope value the way the `kubernetes` builders already do. The root
 callers. The unsupported-schema-version regression test stays at root in
 `schema_version_admission_test.go` because it asserts root's
 `validateFactSchemaVersion`, not the builder.
+The secrets/IAM trust-chain builder moved into
+`internal/projector/secretsiam`. It triggers on any fact kind the
+`facts.SecretsIAMSchemaVersion` registry recognizes, anchoring with
+`FirstMatchingKindPredicate` on the earliest such fact in input order, and
+carries no decode seam. Its private `secretsIAMSourceSystem` helper was
+checked body-for-body against `projectorintent.SourceSystem` and was not
+identical: it carries a literal third fallback to `secrets_iam_posture`
+where the shared helper returns an empty string, so it moved with the family
+unchanged; the builder needs no scope value beyond the IDs, so it takes
+`scopeID`/`generationID` strings the way `packagesource` does. The root
+`firstMatchingKindPredicate` forwarder stays for its two remaining root
+callers. The unsupported-schema-version regression test stays at root in
+`schema_version_admission_test.go` because it asserts root's
+`validateFactSchemaVersion`, not the builder.
 Coordinator `_scheduler.go` halves extract cleanly
 (they implement a root Planner interface); the `_service.go` halves are
 methods on the shared `Service` struct and stay until Service is
