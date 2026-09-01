@@ -52,7 +52,7 @@ func TestScanDecodeUsageFollowsWrapperStructField(t *testing.T) {
 		StructPackage: "iamv1",
 		StructName:    "Permission",
 	}}
-	usage, err := ScanDecodeUsage(dir, seams)
+	usage, err := ScanDecodeUsage(dir, seams, nil)
 	if err != nil {
 		t.Fatalf("ScanDecodeUsage() error = %v", err)
 	}
@@ -111,7 +111,7 @@ func TestScanDecodeUsageWrapperAttributesEmptyPrincipalFields(t *testing.T) {
 		StructPackage: "iamv1",
 		StructName:    "Principal",
 	}}
-	usage, err := ScanDecodeUsage(dir, seams)
+	usage, err := ScanDecodeUsage(dir, seams, nil)
 	if err != nil {
 		t.Fatalf("ScanDecodeUsage() error = %v", err)
 	}
@@ -194,7 +194,7 @@ func TestScanDecodeUsageWrapperFollowsInferredVarDeclarations(t *testing.T) {
 		StructPackage: "iamv1",
 		StructName:    "Permission",
 	}}
-	usage, err := ScanDecodeUsage(dir, seams)
+	usage, err := ScanDecodeUsage(dir, seams, nil)
 	if err != nil {
 		t.Fatalf("ScanDecodeUsage() error = %v", err)
 	}
@@ -225,7 +225,7 @@ func TestScanDecodeUsageWrapperIgnoresNonSeamWrapperField(t *testing.T) {
 		StructPackage: "iamv1",
 		StructName:    "Permission",
 	}}
-	usage, err := ScanDecodeUsage(dir, seams)
+	usage, err := ScanDecodeUsage(dir, seams, nil)
 	if err != nil {
 		t.Fatalf("ScanDecodeUsage() error = %v", err)
 	}

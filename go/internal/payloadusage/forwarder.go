@@ -176,3 +176,42 @@ func ResolveForwardedSeams(seams []DecodeSeam, forwarders RootForwarders) []Deco
 	sort.Slice(resolved, func(i, j int) bool { return resolved[i].FuncName < resolved[j].FuncName })
 	return resolved
 }
+
+// decodeCallName returns the decode-function identity a call expression's Fun
+// resolves to, recognizing both call shapes recordDecodeBindings must
+// attribute: an unqualified root-forwarder call (`decodeX(env)`, an
+// *ast.Ident) and a package-qualified call
+// (`schemadecode.DecodeX(env)`, an *ast.SelectorExpr) — the shape
+// schemadecode/AGENTS.md instructs a family package to write once its seam
+// has moved into that subpackage with no root-level forwarder left behind
+// (#6372).
+//
+// For a qualified call, the selector's Sel.Name is resolved two ways: first
+// through forwarders (Target -> root name), so a seam that DOES still have a
+// root forwarder is recognized under the same root identity
+// ResolveForwardedSeams already rewrote its DecodeSeam.FuncName to, even when
+// this particular call site uses the exported subpackage spelling instead of
+// the root one; when forwarders has no entry (the common case per
+// schemadecode's "a family package should import this package directly"
+// guidance — a forwarder is added only when a root call site still needs
+// one), Sel.Name itself is returned, matching a seam whose FuncName was never
+// rewritten because it was never forwarded in the first place. Either way the
+// caller still joins the returned name against decodeFuncs, so an unrelated
+// same-named selector never binds — this only decides what name to look up,
+// not whether it exists.
+func decodeCallName(fun ast.Expr, forwarders RootForwarders) (string, bool) {
+	switch f := fun.(type) {
+	case *ast.Ident:
+		return f.Name, true
+	case *ast.SelectorExpr:
+		if _, ok := f.X.(*ast.Ident); !ok {
+			return "", false
+		}
+		if rootName, ok := forwarders[f.Sel.Name]; ok {
+			return rootName, true
+		}
+		return f.Sel.Name, true
+	default:
+		return "", false
+	}
+}
