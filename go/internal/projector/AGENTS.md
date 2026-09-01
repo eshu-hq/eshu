@@ -61,7 +61,7 @@
   package identity rows and package-native dependency rows. Source hints are
   provenance only; do not create repository ownership, publication, or
   consumption truth in the projector.
-  `package_source_correlation_intents.go` may enqueue the reducer classifier,
+  `packagesource/correlation_intents.go` may enqueue the reducer classifier,
   but that intent is counter-only until reducer admission grows stronger
   provenance. The five consumed kinds (`package`, `.package_version`,
   `.package_dependency`, — since #5458 — `.package_artifact`, and — also
@@ -126,7 +126,7 @@
   The intent package owns the immutable fact-lookup implementation. Root
   remains the sole one-per-generation constructor and lifetime owner; Azure,
   EC2, GCP, Kubernetes, RDS, S3, security, workload-cloud-relationship,
-  incident-routing, AWS-relationship, and IAM CAN_ASSUME family builders consume the lookup. Root owns ordered family assembly and the public `ReducerIntent`
+  incident-routing, AWS-relationship, IAM CAN_ASSUME, and package-source-correlation family builders consume the lookup. Root owns ordered family assembly and the public `ReducerIntent`
   alias for callers. A family that needs a typed-payload decode (EC2's
   `USES_PROFILE` builder was the first; S3's `LOGS_TO` builder is the second;
   the IAM CAN_ASSUME builder in `iamcanassume/` is the third, and it took the
@@ -135,8 +135,9 @@
   keeps its own local decode call against `sdk/go/factschema` rather than
   importing root's classified decode wrapper, matching how `internal/reducer`
   already keeps its own independent decode copies per package. The RDS,
-  workload-cloud-relationship, incident-routing, and AWS-relationship builders
-  trigger on fact presence alone and carry no decode seam.
+  workload-cloud-relationship, incident-routing, AWS-relationship, and
+  package-source-correlation builders trigger on fact presence alone and carry
+  no decode seam.
 - **CanonicalWriter interface boundary** — no caller in this package calls a Neo4j
   or NornicDB driver directly. All canonical writes go through `CanonicalWriter`.
   Backend-specific logic belongs in `internal/storage/cypher` adapters.

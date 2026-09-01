@@ -739,6 +739,15 @@ this builder as its only caller, so the wrapper moved with it (still named
 `factschema_decode_iam.go` so the payload-usage manifest glob finds it) and
 root keeps no copy. `awsCloudRuntimeDriftSourceSystem` stays at root for its
 five remaining root callers.
+The package-source-correlation builder moved into
+`internal/projector/packagesource`. It is the first probe in the ordered
+fan-out and carries no decode seam: it anchors with `FirstOfKind` on the
+earliest `package_registry.source_hint` fact and falls back to the earliest
+`package_registry.package` fact, reading only the fact kind. Its private
+`packageSourceCorrelationSourceSystem` helper had no other root caller and
+was body-identical to `projectorintent.SourceSystem`, so it was dropped
+rather than moved. The `packageIdentityEnvelope` test fixture stays at root
+because the fan-out and supply-chain-impact tests still build on it.
 Coordinator `_scheduler.go` halves extract cleanly
 (they implement a root Planner interface); the `_service.go` halves are
 methods on the shared `Service` struct and stay until Service is

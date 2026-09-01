@@ -172,7 +172,7 @@ other non-repository scopes may still carry fields named `path`, `name`, or
 similar provider-native identifiers; those fields must not mint repository
 content rows or bypass the content package's non-empty `RepoID` contract.
 When a generation contains package identity or source hints,
-`buildPackageSourceCorrelationReducerIntent` emits one
+`packagesource.BuildPackageSourceCorrelationReducerIntent` emits one
 `package_source_correlation` reducer intent for the scope so the reducer can
 classify hints and manifest-backed package consumption against active Git facts
 once. Package identity also triggers `supply_chain_impact` so vulnerability
@@ -247,7 +247,7 @@ old full scan made — not "earliest fact of the first-checked kind" — so anch
 Root assembly constructs one concrete `intent.FactLookup` per generation and
 retains a compatibility wrapper for unmoved family builders. The extracted
 `internal/projector/azure`, `internal/projector/ec2`, `internal/projector/gcp`,
-`internal/projector/kubernetes`, `internal/projector/rds`, `internal/projector/s3`, `internal/projector/security`, `internal/projector/workloadcloud`, `internal/projector/incidentrouting`, `internal/projector/awsrelationship`, and `internal/projector/iamcanassume`
+`internal/projector/kubernetes`, `internal/projector/rds`, `internal/projector/s3`, `internal/projector/security`, `internal/projector/workloadcloud`, `internal/projector/incidentrouting`, `internal/projector/awsrelationship`, `internal/projector/iamcanassume`, and `internal/projector/packagesource`
 families import that neutral lookup without importing root projector assembly;
 remaining root builders keep using the private forwarders until they move.
 `ReducerIntent` in the root package is a type alias, so existing writer and

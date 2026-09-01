@@ -95,7 +95,7 @@ decode-seam read consumer in the current codebase:
   `package_source_correlation` domain
   (`go/internal/reducer/package_source_correlation.go`, raw `payloadStr`
   calls) — a separate reducer family this wave does not convert. The
-  projector's own `package_source_correlation_intents.go` reads only
+  projector's own `go/internal/projector/packagesource/correlation_intents.go` reads only
   `envelope.FactKind` to route a reducer intent, never a payload field.
 - `VulnerabilityHint.PackageID` and `Warning.Ecosystem`/`.WarningCode` are read
   by raw-SQL-JSONB loaders in `go/internal/storage/postgres`

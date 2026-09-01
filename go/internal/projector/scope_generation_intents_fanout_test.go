@@ -38,6 +38,32 @@ func iamTrustPermissionEnvelope(factID, scopeID, generationID, policySource stri
 	}
 }
 
+// packageIdentityEnvelope returns one package_registry.package identity fact.
+// It lived beside the package_source_correlation builder's root tests until
+// that family moved into internal/projector/packagesource; the root fan-out
+// fixture and the supply-chain-impact test still need it, so it stays at root.
+func packageIdentityEnvelope(factID, scopeID, generationID string) facts.Envelope {
+	return facts.Envelope{
+		FactID:           factID,
+		ScopeID:          scopeID,
+		GenerationID:     generationID,
+		FactKind:         facts.PackageRegistryPackageFactKind,
+		SchemaVersion:    facts.PackageRegistryPackageSchemaVersion,
+		CollectorKind:    "package_registry",
+		SourceConfidence: "reported",
+		ObservedAt:       time.Date(2026, 5, 23, 10, 0, 0, 0, time.UTC),
+		SourceRef: facts.Ref{
+			SourceSystem: "package_registry",
+		},
+		Payload: map[string]any{
+			"package_id":      "npm://registry.npmjs.org/vite",
+			"ecosystem":       "npm",
+			"raw_name":        "vite",
+			"normalized_name": "vite",
+		},
+	}
+}
+
 // fanOutParityScopeAndGeneration returns the single scope/generation every
 // fact in fanOutParityFixture shares. appendScopeGenerationReducerIntents
 // does not validate a fact's own ScopeID/GenerationID against the caller's
