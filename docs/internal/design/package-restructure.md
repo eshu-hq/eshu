@@ -202,8 +202,8 @@ No-Observability-Change: the move relocates the search-document writer and its
 timing accumulator without altering either. The existing coverage rows for
 eshu_search_document_writer.go, _index_writer.go and _write_timings.go are
 repointed to the new path in the same change, and the signals they name --
-eshu_dp_reducer_executions_total, eshu_dp_reducer_run_duration_seconds and
-eshu_dp_postgres_query_duration_seconds -- are unchanged.
+eshu_dp_search_index_mutations_total, eshu_dp_search_index_errors_total and
+eshu_dp_search_index_write_duration_seconds -- are unchanged.
 
 No-Regression Evidence: the reducer writer-primitive hoist (#6061) moves the two
 fact-writer primitives reducerWriterNow and reducerFactCollectorKind out of
