@@ -112,14 +112,22 @@ including a rename -- fails `TestLegacyQueryplanManifestBindsProductionQueries`
 until the digest is re-pinned; re-pin only after proving the Cypher text
 itself did not change.
 
-**Two test doubles are local copies of root test helpers, not forks.** Go
-never compiles a package's `_test.go` files into anything another package can
-import, so `workItemDerefString`/`workItemDerefBool`
-(`package_registry_correlation_deref.go`) and the slice-comparison/SQL-lockstep
-helpers (`package_registry_slice_test_helpers_test.go`,
-`package_registry_sql_lockstep_helpers_test.go`) are this family's own copies
-of small, self-contained root helpers -- not forks of anything with real
-drift risk.
+**Some helpers are local copies of root helpers, not forks.** Two separate
+Go constraints force this, and they are worth keeping apart.
+
+`derefString`/`derefBool` (`package_registry_correlation_deref.go`) are
+production code. Root has the same two as `workItemDerefString`/
+`workItemDerefBool`, but they are unexported, and an unexported symbol cannot
+be called across a package boundary. Root exports no equivalent to wrap, and
+the root pair cannot move here because many root decode files still call them.
+
+The slice-comparison and SQL-lockstep helpers
+(`package_registry_slice_test_helpers_test.go`,
+`package_registry_sql_lockstep_helpers_test.go`) are copies for a different
+reason: Go never compiles a package's `_test.go` files into anything another
+package can import, so a test helper cannot be shared across packages at all.
+
+Both are small and self-contained, so neither carries real drift risk.
 
 **`package_registry_nornicdb_live_test.go` and two auth-middleware tests stay
 in root**, not here, even though they test this family's routes. The
