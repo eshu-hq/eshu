@@ -219,9 +219,6 @@ func TestOnlyTOTPBeginResponseCarriesSecretJSONField(t *testing.T) {
 	secretTag := regexp.MustCompile(`json:"(secret|otpauth_uri)"`)
 	var offenders []string
 	for _, path := range matches {
-		if strings.HasSuffix(path, "_test.go") {
-			continue
-		}
 		// Compare the base name: the walk now yields full paths, so the old
 		// equality against a bare filename would exempt nothing.
 		if filepath.Base(path) == "local_identity_totp.go" {

@@ -6,7 +6,6 @@ package query
 import (
 	"go/parser"
 	"go/token"
-	"strings"
 	"testing"
 )
 
@@ -54,9 +53,6 @@ func TestNoQueryFileImportsSecretcrypto(t *testing.T) {
 	fset := token.NewFileSet()
 	checked := 0
 	for _, path := range matches {
-		if strings.HasSuffix(path, "_test.go") {
-			continue
-		}
 		checked++
 		file, err := parser.ParseFile(fset, path, nil, parser.ImportsOnly)
 		if err != nil {
