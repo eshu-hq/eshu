@@ -55,9 +55,9 @@ List constructs verified by tests, with file:function references.
 
 1. **Classes, functions, imports, calls** — `engine_test.go:11-48` (`TestDefaultEngineParsePathPython`)
 2. **Module docstring** — `python/engine_python_module_semantics_test.go:14-57` (`TestDefaultEngineParsePathPythonModuleDocstringEmitsModuleMetadata`)
-3. **FastAPI semantics** — `engine_python_semantics_test.go` (FastAPIBindsDefHandler, FastAPISemantics)
-4. **Flask semantics** — `engine_python_semantics_test.go` (FlaskBindsDefHandler, FlaskSemantics)
-5. **ORM mappings** — `engine_python_semantics_test.go` (ORMMappings, UnknownRouteDecoratorRemainsUnclassified)
+3. **FastAPI semantics** — `python/engine_python_semantics_test.go` (FastAPIBindsDefHandler, FastAPISemantics)
+4. **Flask semantics** — `python/engine_python_semantics_test.go` (FlaskBindsDefHandler, FlaskSemantics)
+5. **ORM mappings** — `python/engine_python_semantics_test.go` (ORMMappings, UnknownRouteDecoratorRemainsUnclassified)
 6. **Dead-code root kinds (FastAPI/Flask/Celery decorators)** — `python_dead_code_roots_test.go:11-87` (`TestDefaultEngineParsePathPythonEmitsDeadCodeRootKinds`)
 7. **CLI root kinds (click, typer)** — `python_dead_code_roots_test.go:91-157` (`TestDefaultEngineParsePathPythonEmitsDeadCodeCLIRootKinds`)
 8. **Script main guard root** — `python_dead_code_roots_test.go:159-232` (`TestDefaultEngineParsePathPythonEmitsScriptMainGuardRoot`, `ReversedScriptMainGuardRoot`, `ScriptMainGuardSkipsElseAndNestedDefinitions`)
@@ -66,17 +66,17 @@ List constructs verified by tests, with file:function references.
 11. **Public API roots (all_export, init_export, class member, base)** — `python_dead_code_roots_test.go:408-479` (`TestDefaultEngineParsePathPythonEmitsPublicAPIRootKinds`)
 12. **Concatenated `__all__` exports** — `python_dead_code_roots_test.go:491-536` (`ConcatenatedAllExportsAreRoots`)
 13. **Unknown decorators not marked** — `python_dead_code_roots_test.go:539-557` (`DoesNotMarkUnknownDecoratorsAsDeadCodeRoots`)
-14. **Embedded shell commands** — `embedded_shell_test.go:12-64` (`TestDefaultEngineParsePathPythonEmbeddedShellCommands`), `engine_python_ast_parity_test.go:136-192` (`EmbeddedShellRichParity`)
-15. **Generator semantic kind** — `engine_python_generator_test.go:11-38` (`TestDefaultEngineParsePathPythonGeneratorFunctionsEmitSemanticKind`)
-16. **Dotted call metadata** — `engine_python_call_semantics_test.go:11-41` (`TestDefaultEngineParsePathPythonEmitsDottedCallMetadata`)
-17. **Self receiver inference** — `engine_python_call_semantics_test.go:85-107` (`InfersSelfReceiverType`)
-18. **Method context and inferred receiver type** — `engine_python_call_semantics_test.go:42-84` (`EmitsMethodContextAndInferredReceiverType`)
-19. **Type annotations (splat params, return type)** — `engine_python_ast_parity_test.go:66-131` (`SplatTypedParamAnnotations`)
-20. **Multiline class header** — `engine_python_ast_parity_test.go:17-59` (`MultilineClassHeaderUsesAST`)
-21. **Lambda attribute assignment** — `engine_python_lambda_assignment_test.go:13-56` (`LambdaAttributeAssignmentEmitsNamedFunction`)
-22. **Anonymous lambda** — `engine_python_lambda_assignment_test.go:57-96` (`AnonymousLambdaPromotesSyntheticFunction`)
-23. **Annotated assignments** — `engine_python_annotation_assignment_test.go:12-62` (`EmitsAnnotatedAssignmentTypeAnnotations`)
-24. **Rationale comments** — `engine_python_rationale_test.go:12-55` (`EmitsRationaleComments`)
+14. **Embedded shell commands** — `embedded_shell_test.go:12-64` (`TestDefaultEngineParsePathPythonEmbeddedShellCommands`), `python/engine_python_ast_parity_test.go:140-201` (`EmbeddedShellRichParity`)
+15. **Generator semantic kind** — `python/engine_python_generator_test.go:15-41` (`TestDefaultEngineParsePathPythonGeneratorFunctionsEmitSemanticKind`)
+16. **Dotted call metadata** — `python/engine_python_call_semantics_test.go:15-44` (`TestDefaultEngineParsePathPythonEmitsDottedCallMetadata`)
+17. **Self receiver inference** — `python/engine_python_call_semantics_test.go:89-119` (`InfersSelfReceiverType`)
+18. **Method context and inferred receiver type** — `python/engine_python_call_semantics_test.go:46-87` (`EmitsMethodContextAndInferredReceiverType`)
+19. **Type annotations (splat params, return type)** — `python/engine_python_ast_parity_test.go:70-134` (`SplatTypedParamAnnotations`)
+20. **Multiline class header** — `python/engine_python_ast_parity_test.go:21-65` (`MultilineClassHeaderUsesAST`)
+21. **Lambda attribute assignment** — `python/engine_python_lambda_assignment_test.go:17-59` (`LambdaAttributeAssignmentEmitsNamedFunction`)
+22. **Anonymous lambda** — `python/engine_python_lambda_assignment_test.go:61-105` (`AnonymousLambdaPromotesSyntheticFunction`)
+23. **Annotated assignments** — `python/engine_python_annotation_assignment_test.go:14-65` (`EmitsAnnotatedAssignmentTypeAnnotations`)
+24. **Rationale comments** — `python/engine_python_rationale_test.go:14-48` (`EmitsRationaleComments`)
 25. **Value-flow taint findings** — `python_cfg_dataflow_test.go:30-99` (`DataflowOffIsByteIdentical`, `TaintSourceToSQLSink`)
 26. **Interproc findings** — `python_cfg_dataflow_test.go:83-119` (`InterprocFindingAcrossFunctions`, `FunctionIDsIncludeRepositoryID`)
 27. **Cyclomatic complexity** — `engine_cyclomatic_complexity_test.go:43-57` (2 test cases)
@@ -99,15 +99,15 @@ List edge cases the tests actually cover with test references.
 - **Script guard skips else branches and nested definitions** — `python_dead_code_roots_test.go:239-288`
 - **Dunder method assignment via `type(x).__reduce__ = __reduce__`** — `python_dead_code_roots_test.go:292-337`
 - **Concatenated `__all__` literals** — `python_dead_code_roots_test.go:491-536`
-- **Multiline class header** — `engine_python_ast_parity_test.go:17-59`
+- **Multiline class header** — `python/engine_python_ast_parity_test.go:21-65`
 - **Orphaned route decorator** (no following def) — tested via correlation-truth contract (#2788), not emitting fabricated handler
-- **Splat typed parameters** — `engine_python_ast_parity_test.go:66-131`
-- **Embedded shell alias shadowing** — `engine_python_ast_parity_test.go:136-192`
-- **Module-level call skip for embedded shell** — `engine_python_ast_parity_test.go:136-192`
-- **Lambda assignment promotes synthetic function** — `engine_python_lambda_assignment_test.go:13-56`
+- **Splat typed parameters** — `python/engine_python_ast_parity_test.go:70-134`
+- **Embedded shell alias shadowing** — `python/engine_python_ast_parity_test.go:140-201`
+- **Module-level call skip for embedded shell** — `python/engine_python_ast_parity_test.go:140-201`
+- **Lambda assignment promotes synthetic function** — `python/engine_python_lambda_assignment_test.go:17-59`
 - **Value-flow gate off is byte-identical** — `python_cfg_dataflow_test.go:30-64`
 - **Duplicate method reference in `__all__` and `package_init_export`** — deduplication tested in public API root tests
-- **Generator yield in nested function is inner-only** — `engine_python_generator_test.go:39-63`
+- **Generator yield in nested function is inner-only** — `python/engine_python_generator_test.go:43-81`
 - **Empty constructor caller (`no args`)** — not explicitly tested (minor)
 
 ## Edge Cases NOT Considered
@@ -126,7 +126,7 @@ List edge cases not tested.
 ## Verdict
 deep
 
-The Python parser has public-engine regressions and package-local tests for every dead-code root kind (including `dataclass_post_init` via `engine_python_dead_code_semantics_test.go`), framework semantics, ORM mappings, embedded shell, generators, lambda assignments, annotated assignments, type annotations, call inference, rationale comments, value-flow, class-reference call items, and notebook extraction. Tests cover edge cases like reversed script guards, concatenated `__all__` exports, splat-typed parameters, and alias shadowing in embedded shell. Only a few tertiary code paths (notebook `[]any` source, explicit invalid-JSON error) lack dedicated tests.
+The Python parser has public-engine regressions and package-local tests for every dead-code root kind (including `dataclass_post_init` via `python/engine_python_dead_code_semantics_test.go`), framework semantics, ORM mappings, embedded shell, generators, lambda assignments, annotated assignments, type annotations, call inference, rationale comments, value-flow, class-reference call items, and notebook extraction. Tests cover edge cases like reversed script guards, concatenated `__all__` exports, splat-typed parameters, and alias shadowing in embedded shell. Only a few tertiary code paths (notebook `[]any` source, explicit invalid-JSON error) lack dedicated tests.
 
 ## Recommended Actions
 1. Add an explicit test for notebook with `source` as `[]any` array.

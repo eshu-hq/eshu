@@ -15,8 +15,13 @@
 10. cfg_emit.go - opt-in value-flow buckets (EmitDataflow) over python/pydataflow
 11. payload_buckets.go - named bucket sorting utilities
 12. notebook_test.go and language_test.go - child package contract coverage
-13. engine_python_module_semantics_test.go - external-package regression for
-    module metadata through the public parent Engine
+13. engine_python_*_test.go (package python_test) - external-package
+    regressions for the full Python surface (framework routes, ORM mappings,
+    dead-code semantics, call metadata, generators, lambda assignment,
+    metaclass, rationale comments, import metadata, and module metadata)
+    through the public parent Engine
+14. engine_python_test_helpers_test.go - shared fixtures and assertions for
+    the external-package regressions
 
 ## Invariants this package enforces
 
@@ -94,7 +99,8 @@ No-Regression Evidence: `go test ./internal/parser/... -count=1` stays green
 (1112 baseline plus the new AST-node tests in
 `internal/parser/python/semantics_test.go`). The pre-existing engine parity
 suites still pass byte-for-byte:
-`go test ./internal/parser -run 'TestDefaultEngineParsePathPython(FastAPISemantics|FlaskSemantics|ORMMappings|UnknownRouteDecoratorRemainsUnclassified|FastAPIBindsDefHandler|FlaskBindsDefHandler|EmitsScriptMainGuardRoot|EmitsReversedScriptMainGuardRoot|DunderAssignmentEvidenceIsEnclosingScopeScoped|EmitsPublicAPIRootKinds)' -count=1`.
+`go test ./internal/parser/python -run 'TestDefaultEngineParsePathPython(FastAPISemantics|FlaskSemantics|ORMMappings|UnknownRouteDecoratorRemainsUnclassified|FastAPIBindsDefHandler|FlaskBindsDefHandler)' -count=1` and
+`go test ./internal/parser -run 'TestDefaultEngineParsePathPython(EmitsScriptMainGuardRoot|EmitsReversedScriptMainGuardRoot|DunderAssignmentEvidenceIsEnclosingScopeScoped|EmitsPublicAPIRootKinds)' -count=1` (the first six moved into `internal/parser/python` with the #6062 relocation; the dead-code-root cases stay at the parent).
 The orphan route (`@app.post("/orphan")` with no following def) still emits the
 route with no handler because tree-sitter parks the bare decorator under an
 ERROR node whose parent is not a `decorated_definition`, preserving the #2788
@@ -158,8 +164,11 @@ No-Regression Evidence: `go test ./internal/parser/python ./internal/parser
 ./internal/collector/discovery ./internal/content/shape ./internal/collector
 -count=1` (1020 tests) stay green; `golangci-lint run ./internal/parser/...`
 reports no issues. The pre-existing engine parity suites pass byte-for-byte:
-`go test ./internal/parser -run 'TestDefaultEngineParsePathPython(EmitsTypeAnnotationsBucket|EmitsMetaclassMetadata|EmbeddedShellCommands)' -count=1`.
-New guards added in `internal/parser/engine_python_ast_parity_test.go`:
+`go test ./internal/parser/python -run 'TestDefaultEngineParsePathPython(EmitsTypeAnnotationsBucket|EmitsMetaclassMetadata)' -count=1` and
+`go test ./internal/parser -run TestDefaultEngineParsePathPythonEmbeddedShellCommands -count=1` (the first two moved into
+`internal/parser/python` with the #6062 relocation; the embedded-shell case
+lives in the parent's own `embedded_shell_test.go`).
+New guards added in `internal/parser/python/engine_python_ast_parity_test.go`:
 `TestDefaultEngineParsePathPythonMultilineClassHeaderUsesAST` fails on the prior
 single-line regex and passes on AST; the splat-typed-parameter and rich
 embedded-shell (module alias, direct import, os module, alias shadowing,

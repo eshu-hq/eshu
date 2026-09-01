@@ -1,11 +1,15 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package parser
+package python_test
 
 import (
 	"path/filepath"
 	"testing"
+
+	"github.com/eshu-hq/eshu/go/internal/parser"
+
+	"github.com/eshu-hq/eshu/go/internal/parser/parsertest"
 )
 
 func TestDefaultEngineParsePathPythonEmitsConstructorPropertyAndClassReferenceMetadata(t *testing.T) {
@@ -50,39 +54,39 @@ def main():
 `,
 	)
 
-	engine, err := DefaultEngine()
+	engine, err := parser.DefaultEngine()
 	if err != nil {
 		t.Fatalf("DefaultEngine() error = %v, want nil", err)
 	}
 
-	got, err := engine.ParsePath(repoRoot, filePath, false, Options{})
+	got, err := engine.ParsePath(repoRoot, filePath, false, parser.Options{})
 	if err != nil {
 		t.Fatalf("ParsePath() error = %v, want nil", err)
 	}
 
-	assertParserStringSliceFieldValue(t, assertBucketItemByName(t, got, "classes", "S3Event"), "bases", []string{"BaseModel"})
+	assertParserStringSliceFieldValue(t, parsertest.AssertBucketItemByName(t, got, "classes", "S3Event"), "bases", []string{"BaseModel"})
 	assertParserStringSliceFieldValue(
 		t,
-		assertFunctionByName(t, got, "__post_init__"),
+		parsertest.AssertBucketItemByName(t, got, "functions", "__post_init__"),
 		"dead_code_root_kinds",
 		[]string{"python.dataclass_post_init"},
 	)
 	assertParserStringSliceFieldValue(
 		t,
-		assertFunctionByName(t, got, "object_url"),
+		parsertest.AssertBucketItemByName(t, got, "functions", "object_url"),
 		"dead_code_root_kinds",
 		[]string{"python.property_decorator"},
 	)
 	assertParserStringSliceFieldValue(
 		t,
-		assertFunctionByName(t, got, "__str__"),
+		parsertest.AssertBucketItemByName(t, got, "functions", "__str__"),
 		"dead_code_root_kinds",
 		[]string{"python.dunder_method"},
 	)
 	constructorCall := assertBucketItemByFieldValue(t, got, "function_calls", "full_name", "Worker")
-	assertStringFieldValue(t, constructorCall, "call_kind", "constructor_call")
+	parsertest.AssertStringFieldValue(t, constructorCall, "call_kind", "constructor_call")
 	classReference := assertBucketItemByFieldValue(t, got, "function_calls", "call_kind", "python.class_reference")
-	assertStringFieldValue(t, classReference, "name", "S3Event")
+	parsertest.AssertStringFieldValue(t, classReference, "name", "S3Event")
 }
 
 func TestDefaultEngineParsePathPythonEmitsProtocolAndCachedPropertyRoots(t *testing.T) {
@@ -121,43 +125,43 @@ class PublicKey:
 `,
 	)
 
-	engine, err := DefaultEngine()
+	engine, err := parser.DefaultEngine()
 	if err != nil {
 		t.Fatalf("DefaultEngine() error = %v, want nil", err)
 	}
 
-	got, err := engine.ParsePath(repoRoot, filePath, false, Options{})
+	got, err := engine.ParsePath(repoRoot, filePath, false, parser.Options{})
 	if err != nil {
 		t.Fatalf("ParsePath() error = %v, want nil", err)
 	}
 
 	assertParserStringSliceFieldValue(
 		t,
-		assertFunctionByName(t, got, "__getattr__"),
+		parsertest.AssertBucketItemByName(t, got, "functions", "__getattr__"),
 		"dead_code_root_kinds",
 		[]string{"python.dunder_method"},
 	)
 	assertParserStringSliceFieldValue(
 		t,
-		assertFunctionByName(t, got, "__reduce__"),
+		parsertest.AssertBucketItemByName(t, got, "functions", "__reduce__"),
 		"dead_code_root_kinds",
 		[]string{"python.dunder_method"},
 	)
-	if helper := assertFunctionByName(t, got, "__unused_helper__"); helper["dead_code_root_kinds"] != nil {
+	if helper := parsertest.AssertBucketItemByName(t, got, "functions", "__unused_helper__"); helper["dead_code_root_kinds"] != nil {
 		t.Fatalf("__unused_helper__ dead_code_root_kinds = %#v, want nil", helper["dead_code_root_kinds"])
 	}
-	if private := assertFunctionByName(t, got, "__private_protocol_name__"); private["dead_code_root_kinds"] != nil {
+	if private := parsertest.AssertBucketItemByName(t, got, "functions", "__private_protocol_name__"); private["dead_code_root_kinds"] != nil {
 		t.Fatalf("__private_protocol_name__ dead_code_root_kinds = %#v, want nil", private["dead_code_root_kinds"])
 	}
 	assertParserStringSliceFieldValue(
 		t,
-		assertFunctionByName(t, got, "fingerprint"),
+		parsertest.AssertBucketItemByName(t, got, "functions", "fingerprint"),
 		"dead_code_root_kinds",
 		[]string{"python.property_decorator"},
 	)
 	assertParserStringSliceFieldValue(
 		t,
-		assertFunctionByName(t, got, "public_key"),
+		parsertest.AssertBucketItemByName(t, got, "functions", "public_key"),
 		"dead_code_root_kinds",
 		[]string{"python.property_decorator"},
 	)

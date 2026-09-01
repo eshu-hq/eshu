@@ -1,12 +1,16 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package parser
+package python_test
 
 import (
 	"path/filepath"
 	"reflect"
 	"testing"
+
+	"github.com/eshu-hq/eshu/go/internal/parser"
+
+	"github.com/eshu-hq/eshu/go/internal/parser/parsertest"
 )
 
 // TestDefaultEngineParsePathPythonMultilineClassHeaderUsesAST proves the class
@@ -39,17 +43,17 @@ class Logged(
 `,
 	)
 
-	engine, err := DefaultEngine()
+	engine, err := parser.DefaultEngine()
 	if err != nil {
 		t.Fatalf("DefaultEngine() error = %v, want nil", err)
 	}
 
-	got, err := engine.ParsePath(repoRoot, filePath, false, Options{})
+	got, err := engine.ParsePath(repoRoot, filePath, false, parser.Options{})
 	if err != nil {
 		t.Fatalf("ParsePath() error = %v, want nil", err)
 	}
 
-	logged := assertBucketItemByName(t, got, "classes", "Logged")
+	logged := parsertest.AssertBucketItemByName(t, got, "classes", "Logged")
 	bases, ok := logged["bases"].([]string)
 	if !ok {
 		t.Fatalf(`classes["Logged"]["bases"] = %T, want []string`, logged["bases"])
@@ -57,7 +61,7 @@ class Logged(
 	if want := []string{"Base", "Mixin"}; !reflect.DeepEqual(bases, want) {
 		t.Fatalf(`classes["Logged"]["bases"] = %#v, want %#v`, bases, want)
 	}
-	assertStringFieldValue(t, logged, "metaclass", "abc.ABCMeta")
+	parsertest.AssertStringFieldValue(t, logged, "metaclass", "abc.ABCMeta")
 }
 
 // TestDefaultEngineParsePathPythonSplatTypedParamAnnotations characterizes the
@@ -76,12 +80,12 @@ func TestDefaultEngineParsePathPythonSplatTypedParamAnnotations(t *testing.T) {
 `,
 	)
 
-	engine, err := DefaultEngine()
+	engine, err := parser.DefaultEngine()
 	if err != nil {
 		t.Fatalf("DefaultEngine() error = %v, want nil", err)
 	}
 
-	got, err := engine.ParsePath(repoRoot, filePath, false, Options{})
+	got, err := engine.ParsePath(repoRoot, filePath, false, parser.Options{})
 	if err != nil {
 		t.Fatalf("ParsePath() error = %v, want nil", err)
 	}
@@ -170,12 +174,12 @@ result = sp.Popen(["module-level"])
 `,
 	)
 
-	engine, err := DefaultEngine()
+	engine, err := parser.DefaultEngine()
 	if err != nil {
 		t.Fatalf("DefaultEngine() error = %v, want nil", err)
 	}
 
-	got, err := engine.ParsePath(repoRoot, filePath, false, Options{})
+	got, err := engine.ParsePath(repoRoot, filePath, false, parser.Options{})
 	if err != nil {
 		t.Fatalf("ParsePath() error = %v, want nil", err)
 	}

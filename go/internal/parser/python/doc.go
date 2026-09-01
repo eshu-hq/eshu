@@ -22,4 +22,9 @@
 // payload is byte-identical to before this feature when off. Shell-command
 // evidence records only API and source location metadata; command text,
 // arguments, and environment values are intentionally omitted.
+//
+// Production files and same-package tests must not import the parent parser
+// package; only the external python_test black-box suite (the
+// engine_python_*_test.go files) reaches back through the parent engine to
+// exercise Parse via parser.DefaultEngine().ParsePath.
 package python

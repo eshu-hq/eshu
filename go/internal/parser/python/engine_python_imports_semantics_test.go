@@ -1,25 +1,27 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package parser
+package python_test
 
 import (
 	"path/filepath"
 	"testing"
+
+	"github.com/eshu-hq/eshu/go/internal/parser"
 )
 
 func TestDefaultEngineParsePathPythonEmitsModuleImportSourceIdentity(t *testing.T) {
 	t.Parallel()
 
-	repoRoot := repoFixturePath("sample_projects", "sample_project")
+	repoRoot := pythonFixturePath(t, "sample_projects", "sample_project")
 	filePath := filepath.Join(repoRoot, "module_a.py")
 
-	engine, err := DefaultEngine()
+	engine, err := parser.DefaultEngine()
 	if err != nil {
 		t.Fatalf("DefaultEngine() error = %v, want nil", err)
 	}
 
-	got, err := engine.ParsePath(repoRoot, filePath, false, Options{})
+	got, err := engine.ParsePath(repoRoot, filePath, false, parser.Options{})
 	if err != nil {
 		t.Fatalf("ParsePath(%q) error = %v, want nil", filePath, err)
 	}
@@ -31,15 +33,15 @@ func TestDefaultEngineParsePathPythonEmitsModuleImportSourceIdentity(t *testing.
 func TestDefaultEngineParsePathPythonEmitsRelativeImportSourceIdentity(t *testing.T) {
 	t.Parallel()
 
-	repoRoot := repoFixturePath("ecosystems", "python_comprehensive")
+	repoRoot := pythonFixturePath(t, "ecosystems", "python_comprehensive")
 	filePath := filepath.Join(repoRoot, "complex_imports.py")
 
-	engine, err := DefaultEngine()
+	engine, err := parser.DefaultEngine()
 	if err != nil {
 		t.Fatalf("DefaultEngine() error = %v, want nil", err)
 	}
 
-	got, err := engine.ParsePath(repoRoot, filePath, false, Options{})
+	got, err := engine.ParsePath(repoRoot, filePath, false, parser.Options{})
 	if err != nil {
 		t.Fatalf("ParsePath(%q) error = %v, want nil", filePath, err)
 	}

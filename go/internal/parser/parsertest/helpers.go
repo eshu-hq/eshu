@@ -169,6 +169,34 @@ func intFieldEquals(item map[string]any, field string, want int) error {
 	return nil
 }
 
+// stringFieldEquals reports why item[field] fails to equal want, or nil when it
+// holds. Split from the assertion so the malformed-value branch is testable.
+func stringFieldEquals(item map[string]any, field string, want string) error {
+	raw, present := item[field]
+	if !present {
+		return fmt.Errorf("%s missing, want %#v", field, want)
+	}
+	got, ok := raw.(string)
+	if !ok {
+		return fmt.Errorf("%s = %#v (%T), want string; a present-but-malformed field must not pass a value assertion", field, raw, raw)
+	}
+	if got != want {
+		return fmt.Errorf("%s = %#v, want %#v", field, got, want)
+	}
+	return nil
+}
+
+// AssertStringFieldValue requires item[field] to be a string equal to want. It
+// fails closed on a present-but-wrongly-typed value rather than comparing the
+// zero value, which would let a malformed payload pass when want is empty.
+func AssertStringFieldValue(t *testing.T, item map[string]any, field string, want string) {
+	t.Helper()
+
+	if err := stringFieldEquals(item, field, want); err != nil {
+		t.Fatalf("%v", err)
+	}
+}
+
 // AssertIntFieldValue requires item[field] to hold the int want.
 func AssertIntFieldValue(t *testing.T, item map[string]any, field string, want int) {
 	t.Helper()

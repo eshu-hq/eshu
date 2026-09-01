@@ -2,7 +2,7 @@
 # Copyright (c) 2025-2026 eshu-hq
 
 # #5361 route query-proof matrix: cribs the FastAPI decorator shape proven by
-# internal/parser/engine_python_semantics_test.go
+# internal/parser/python/engine_python_semantics_test.go
 # (TestDefaultEngineParsePathPythonFastAPISemantics).
 from fastapi import APIRouter, FastAPI, Request
 

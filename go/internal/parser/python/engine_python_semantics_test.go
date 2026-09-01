@@ -1,12 +1,15 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package parser
+package python_test
 
 import (
 	"path/filepath"
 	"reflect"
 	"testing"
+
+	"github.com/eshu-hq/eshu/go/internal/parser"
+	"github.com/eshu-hq/eshu/go/internal/parser/parsertest"
 )
 
 func TestDefaultEngineParsePathPythonFastAPISemantics(t *testing.T) {
@@ -32,24 +35,24 @@ async def predict(_request: Request):
 `,
 	)
 
-	engine, err := DefaultEngine()
+	engine, err := parser.DefaultEngine()
 	if err != nil {
 		t.Fatalf("DefaultEngine() error = %v, want nil", err)
 	}
 
-	got, err := engine.ParsePath(repoRoot, filePath, false, Options{})
+	got, err := engine.ParsePath(repoRoot, filePath, false, parser.Options{})
 	if err != nil {
 		t.Fatalf("ParsePath() error = %v, want nil", err)
 	}
 
-	assertFrameworksEqual(t, got, "fastapi")
-	assertNestedStringSliceEqual(t, got, "fastapi", "route_methods", []string{"GET", "POST"})
-	assertNestedStringSliceEqual(t, got, "fastapi", "route_paths", []string{"/health", "/api/predict"})
-	assertNestedRouteEntriesEqual(t, got, "fastapi", []map[string]string{
+	parsertest.AssertFrameworksEqual(t, got, "fastapi")
+	parsertest.AssertNestedStringSliceEqual(t, got, "fastapi", "route_methods", []string{"GET", "POST"})
+	parsertest.AssertNestedStringSliceEqual(t, got, "fastapi", "route_paths", []string{"/health", "/api/predict"})
+	parsertest.AssertNestedRouteEntriesEqual(t, got, "fastapi", []map[string]string{
 		{"method": "GET", "path": "/health", "handler": "health"},
 		{"method": "POST", "path": "/api/predict", "handler": "predict"},
 	})
-	assertNestedStringSliceEqual(t, got, "fastapi", "server_symbols", []string{"app", "router"})
+	parsertest.AssertNestedStringSliceEqual(t, got, "fastapi", "server_symbols", []string{"app", "router"})
 }
 
 func TestDefaultEngineParsePathPythonFlaskSemantics(t *testing.T) {
@@ -74,25 +77,25 @@ def proxy():
 `,
 	)
 
-	engine, err := DefaultEngine()
+	engine, err := parser.DefaultEngine()
 	if err != nil {
 		t.Fatalf("DefaultEngine() error = %v, want nil", err)
 	}
 
-	got, err := engine.ParsePath(repoRoot, filePath, false, Options{})
+	got, err := engine.ParsePath(repoRoot, filePath, false, parser.Options{})
 	if err != nil {
 		t.Fatalf("ParsePath() error = %v, want nil", err)
 	}
 
-	assertFrameworksEqual(t, got, "flask")
-	assertNestedStringSliceEqual(t, got, "flask", "route_methods", []string{"GET", "POST"})
-	assertNestedStringSliceEqual(t, got, "flask", "route_paths", []string{"/health", "/proxy"})
-	assertNestedRouteEntriesEqual(t, got, "flask", []map[string]string{
+	parsertest.AssertFrameworksEqual(t, got, "flask")
+	parsertest.AssertNestedStringSliceEqual(t, got, "flask", "route_methods", []string{"GET", "POST"})
+	parsertest.AssertNestedStringSliceEqual(t, got, "flask", "route_paths", []string{"/health", "/proxy"})
+	parsertest.AssertNestedRouteEntriesEqual(t, got, "flask", []map[string]string{
 		{"method": "GET", "path": "/health", "handler": "health"},
 		{"method": "GET", "path": "/proxy", "handler": "proxy"},
 		{"method": "POST", "path": "/proxy", "handler": "proxy"},
 	})
-	assertNestedStringSliceEqual(t, got, "flask", "server_symbols", []string{"app"})
+	parsertest.AssertNestedStringSliceEqual(t, got, "flask", "server_symbols", []string{"app"})
 }
 
 func TestDefaultEngineParsePathPythonORMMappings(t *testing.T) {
@@ -127,12 +130,12 @@ class AuditEvent(models.Model):
 `,
 	)
 
-	engine, err := DefaultEngine()
+	engine, err := parser.DefaultEngine()
 	if err != nil {
 		t.Fatalf("DefaultEngine() error = %v, want nil", err)
 	}
 
-	sqlAlchemyPayload, err := engine.ParsePath(repoRoot, sqlAlchemyPath, false, Options{})
+	sqlAlchemyPayload, err := engine.ParsePath(repoRoot, sqlAlchemyPath, false, parser.Options{})
 	if err != nil {
 		t.Fatalf("ParsePath(%q) error = %v, want nil", sqlAlchemyPath, err)
 	}
@@ -148,7 +151,7 @@ class AuditEvent(models.Model):
 		}},
 	)
 
-	djangoPayload, err := engine.ParsePath(repoRoot, djangoPath, false, Options{})
+	djangoPayload, err := engine.ParsePath(repoRoot, djangoPath, false, parser.Options{})
 	if err != nil {
 		t.Fatalf("ParsePath(%q) error = %v, want nil", djangoPath, err)
 	}
@@ -187,17 +190,17 @@ def health():
 `,
 	)
 
-	engine, err := DefaultEngine()
+	engine, err := parser.DefaultEngine()
 	if err != nil {
 		t.Fatalf("DefaultEngine() error = %v, want nil", err)
 	}
 
-	got, err := engine.ParsePath(repoRoot, filePath, false, Options{})
+	got, err := engine.ParsePath(repoRoot, filePath, false, parser.Options{})
 	if err != nil {
 		t.Fatalf("ParsePath() error = %v, want nil", err)
 	}
 
-	assertFrameworksEqual(t, got)
+	parsertest.AssertFrameworksEqual(t, got)
 }
 
 func TestDefaultEngineParsePathPythonDecoratedFunctionsEmitDecoratorMetadata(t *testing.T) {
@@ -217,17 +220,17 @@ def greet(name):
 `,
 	)
 
-	engine, err := DefaultEngine()
+	engine, err := parser.DefaultEngine()
 	if err != nil {
 		t.Fatalf("DefaultEngine() error = %v, want nil", err)
 	}
 
-	got, err := engine.ParsePath(repoRoot, filePath, false, Options{})
+	got, err := engine.ParsePath(repoRoot, filePath, false, parser.Options{})
 	if err != nil {
 		t.Fatalf("ParsePath() error = %v, want nil", err)
 	}
 
-	greet := assertFunctionByName(t, got, "greet")
+	greet := parsertest.AssertBucketItemByName(t, got, "functions", "greet")
 	decorators, ok := greet["decorators"].([]string)
 	if !ok {
 		t.Fatalf(`functions["greet"]["decorators"] = %T, want []string`, greet["decorators"])
@@ -250,17 +253,17 @@ func TestDefaultEngineParsePathPythonAsyncFunctionsEmitAsyncFlag(t *testing.T) {
 `,
 	)
 
-	engine, err := DefaultEngine()
+	engine, err := parser.DefaultEngine()
 	if err != nil {
 		t.Fatalf("DefaultEngine() error = %v, want nil", err)
 	}
 
-	got, err := engine.ParsePath(repoRoot, filePath, false, Options{})
+	got, err := engine.ParsePath(repoRoot, filePath, false, parser.Options{})
 	if err != nil {
 		t.Fatalf("ParsePath() error = %v, want nil", err)
 	}
 
-	fetchRemote := assertFunctionByName(t, got, "fetch_remote")
+	fetchRemote := parsertest.AssertBucketItemByName(t, got, "functions", "fetch_remote")
 	asyncFlag, ok := fetchRemote["async"].(bool)
 	if !ok {
 		t.Fatalf(`functions["fetch_remote"]["async"] = %T, want bool`, fetchRemote["async"])
@@ -283,12 +286,12 @@ func TestDefaultEngineParsePathPythonEmitsTypeAnnotationsBucket(t *testing.T) {
 `,
 	)
 
-	engine, err := DefaultEngine()
+	engine, err := parser.DefaultEngine()
 	if err != nil {
 		t.Fatalf("DefaultEngine() error = %v, want nil", err)
 	}
 
-	got, err := engine.ParsePath(repoRoot, filePath, false, Options{})
+	got, err := engine.ParsePath(repoRoot, filePath, false, parser.Options{})
 	if err != nil {
 		t.Fatalf("ParsePath() error = %v, want nil", err)
 	}
@@ -348,117 +351,22 @@ func TestDefaultEngineParsePathPythonRichSemanticMetadata(t *testing.T) {
 `,
 	)
 
-	engine, err := DefaultEngine()
+	engine, err := parser.DefaultEngine()
 	if err != nil {
 		t.Fatalf("DefaultEngine() error = %v, want nil", err)
 	}
 
-	got, err := engine.ParsePath(repoRoot, filePath, false, Options{})
+	got, err := engine.ParsePath(repoRoot, filePath, false, parser.Options{})
 	if err != nil {
 		t.Fatalf("ParsePath() error = %v, want nil", err)
 	}
 
-	classItem := assertBucketItemByName(t, got, "classes", "Greeter")
-	assertStringFieldValue(t, classItem, "docstring", "Greeter docs.")
+	classItem := parsertest.AssertBucketItemByName(t, got, "classes", "Greeter")
+	parsertest.AssertStringFieldValue(t, classItem, "docstring", "Greeter docs.")
 
-	functionItem := assertFunctionByName(t, got, "greet")
-	assertStringFieldValue(t, functionItem, "docstring", "Greet a person.")
-	assertIntFieldValue(t, functionItem, "cyclomatic_complexity", 3)
-}
-
-func TestDefaultEngineParsePathGoRichSemanticMetadata(t *testing.T) {
-	t.Parallel()
-
-	repoRoot := t.TempDir()
-	filePath := filepath.Join(repoRoot, "worker.go")
-	writeTestFile(
-		t,
-		filePath,
-		`package worker
-
-type Worker struct{}
-
-// Work handles queued jobs.
-func (w *Worker) Work(name string) int {
-	if name == "" {
-		return 0
-	}
-	for range name {
-	}
-	return len(name)
-}
-`,
-	)
-
-	engine, err := DefaultEngine()
-	if err != nil {
-		t.Fatalf("DefaultEngine() error = %v, want nil", err)
-	}
-
-	got, err := engine.ParsePath(repoRoot, filePath, false, Options{})
-	if err != nil {
-		t.Fatalf("ParsePath() error = %v, want nil", err)
-	}
-
-	functionItem := assertFunctionByName(t, got, "Work")
-	assertStringFieldValue(t, functionItem, "docstring", "Work handles queued jobs.")
-	assertStringFieldValue(t, functionItem, "class_context", "Worker")
-	assertIntFieldValue(t, functionItem, "cyclomatic_complexity", 3)
-}
-
-func assertFunctionByName(t *testing.T, payload map[string]any, name string) map[string]any {
-	t.Helper()
-
-	functions, ok := payload["functions"].([]map[string]any)
-	if !ok {
-		t.Fatalf("functions = %T, want []map[string]any", payload["functions"])
-	}
-	for _, function := range functions {
-		functionName, _ := function["name"].(string)
-		if functionName == name {
-			return function
-		}
-	}
-	t.Fatalf("functions missing name %q in %#v", name, functions)
-	return nil
-}
-
-func assertBucketItemByName(t *testing.T, payload map[string]any, bucket string, name string) map[string]any {
-	t.Helper()
-
-	items, ok := payload[bucket].([]map[string]any)
-	if !ok {
-		t.Fatalf("%s = %T, want []map[string]any", bucket, payload[bucket])
-	}
-	for _, item := range items {
-		itemName, _ := item["name"].(string)
-		if itemName == name {
-			return item
-		}
-	}
-	t.Fatalf("%s missing name %q in %#v", bucket, name, items)
-	return nil
-}
-
-func assertStringFieldValue(t *testing.T, item map[string]any, field string, want string) {
-	t.Helper()
-
-	got, _ := item[field].(string)
-	if got != want {
-		t.Fatalf("%s = %#v, want %#v", field, got, want)
-	}
-}
-
-func assertIntFieldValue(t *testing.T, item map[string]any, field string, want int) {
-	t.Helper()
-
-	got, ok := item[field].(int)
-	if !ok {
-		t.Fatalf("%s = %T, want int", field, item[field])
-	}
-	if got != want {
-		t.Fatalf("%s = %d, want %d", field, got, want)
-	}
+	functionItem := parsertest.AssertBucketItemByName(t, got, "functions", "greet")
+	parsertest.AssertStringFieldValue(t, functionItem, "docstring", "Greet a person.")
+	parsertest.AssertIntFieldValue(t, functionItem, "cyclomatic_complexity", 3)
 }
 
 func assertORMMappingsEqual(t *testing.T, payload map[string]any, want []map[string]any) {

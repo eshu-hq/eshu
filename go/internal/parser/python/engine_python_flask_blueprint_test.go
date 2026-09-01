@@ -1,11 +1,14 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package parser
+package python_test
 
 import (
 	"path/filepath"
 	"testing"
+
+	"github.com/eshu-hq/eshu/go/internal/parser"
+	"github.com/eshu-hq/eshu/go/internal/parser/parsertest"
 )
 
 func TestDefaultEngineParsePathPythonFlaskBlueprintRouteEntries(t *testing.T) {
@@ -37,22 +40,22 @@ def admin():
 `,
 	)
 
-	engine, err := DefaultEngine()
+	engine, err := parser.DefaultEngine()
 	if err != nil {
 		t.Fatalf("DefaultEngine() error = %v, want nil", err)
 	}
 
-	got, err := engine.ParsePath(repoRoot, filePath, false, Options{})
+	got, err := engine.ParsePath(repoRoot, filePath, false, parser.Options{})
 	if err != nil {
 		t.Fatalf("ParsePath() error = %v, want nil", err)
 	}
 
-	assertFrameworksEqual(t, got, "flask")
-	assertNestedStringSliceEqual(t, got, "flask", "route_methods", []string{"GET", "PUT"})
-	assertNestedStringSliceEqual(t, got, "flask", "route_paths", []string{"/api/articles", "/api/articles/<slug>"})
-	assertNestedRouteEntriesEqual(t, got, "flask", []map[string]string{
+	parsertest.AssertFrameworksEqual(t, got, "flask")
+	parsertest.AssertNestedStringSliceEqual(t, got, "flask", "route_methods", []string{"GET", "PUT"})
+	parsertest.AssertNestedStringSliceEqual(t, got, "flask", "route_paths", []string{"/api/articles", "/api/articles/<slug>"})
+	parsertest.AssertNestedRouteEntriesEqual(t, got, "flask", []map[string]string{
 		{"method": "GET", "path": "/api/articles", "handler": "get_articles"},
 		{"method": "PUT", "path": "/api/articles/<slug>", "handler": "update_article"},
 	})
-	assertNestedStringSliceEqual(t, got, "flask", "server_symbols", []string{"blueprint"})
+	parsertest.AssertNestedStringSliceEqual(t, got, "flask", "server_symbols", []string{"blueprint"})
 }
