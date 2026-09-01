@@ -228,7 +228,7 @@ literal `@action` routes emitted exact method/path rows with handlers only when
 the target is exact.
 Django route literals preserve their trailing slash shape, while DRF router
 entries apply DRF's trailing slash convention after any literal mount prefix.
-`scripts/go-test-run-guard.sh 1
+`../scripts/go-test-run-guard.sh 1
 TestDefaultEngineParsePathPythonDjangoDRFExactRouteEntries --
 ./internal/parser/python -count=1` proves the
 parent `DefaultEngine.ParsePath` payload carries those rows into the emitted
@@ -250,7 +250,7 @@ before the parser emitted `framework_semantics.aiohttp` and
 aiohttp `RouteTableDef` decorators, `app.router.add_*`,
 `app.router.add_route(...)`, `app.add_routes([web.*(...)])`, and Tornado
 `Application` URL specs emitted exact method/path rows with handlers only when
-the target was exact. `scripts/go-test-run-guard.sh 1
+the target was exact. `../scripts/go-test-run-guard.sh 1
 TestDefaultEngineParsePathPythonAioHTTPTornadoExactRouteEntries --
 ./internal/parser/python -count=1`
 proves the parent `DefaultEngine.ParsePath` payload carries those rows into the

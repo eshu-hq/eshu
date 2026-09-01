@@ -230,7 +230,7 @@ def greet(name):
 		t.Fatalf("ParsePath() error = %v, want nil", err)
 	}
 
-	greet := assertFunctionByName(t, got, "greet")
+	greet := parsertest.AssertBucketItemByName(t, got, "functions", "greet")
 	decorators, ok := greet["decorators"].([]string)
 	if !ok {
 		t.Fatalf(`functions["greet"]["decorators"] = %T, want []string`, greet["decorators"])
@@ -263,7 +263,7 @@ func TestDefaultEngineParsePathPythonAsyncFunctionsEmitAsyncFlag(t *testing.T) {
 		t.Fatalf("ParsePath() error = %v, want nil", err)
 	}
 
-	fetchRemote := assertFunctionByName(t, got, "fetch_remote")
+	fetchRemote := parsertest.AssertBucketItemByName(t, got, "functions", "fetch_remote")
 	asyncFlag, ok := fetchRemote["async"].(bool)
 	if !ok {
 		t.Fatalf(`functions["fetch_remote"]["async"] = %T, want bool`, fetchRemote["async"])
@@ -361,75 +361,12 @@ func TestDefaultEngineParsePathPythonRichSemanticMetadata(t *testing.T) {
 		t.Fatalf("ParsePath() error = %v, want nil", err)
 	}
 
-	classItem := assertBucketItemByName(t, got, "classes", "Greeter")
-	assertStringFieldValue(t, classItem, "docstring", "Greeter docs.")
+	classItem := parsertest.AssertBucketItemByName(t, got, "classes", "Greeter")
+	parsertest.AssertStringFieldValue(t, classItem, "docstring", "Greeter docs.")
 
-	functionItem := assertFunctionByName(t, got, "greet")
-	assertStringFieldValue(t, functionItem, "docstring", "Greet a person.")
-	assertIntFieldValue(t, functionItem, "cyclomatic_complexity", 3)
-}
-
-// assertFunctionByName, assertBucketItemByName, assertStringFieldValue and
-// assertIntFieldValue are deliberate copies of the root package's helpers, not
-// drift. These tests are package python_test, so they cannot see root's
-// unexported helpers, and the alternative -- exporting root's copies purely so
-// a child could reach them -- is what the #6053 extraction rules forbid: a
-// child must not widen its parent's API surface. internal/reducer keeps its
-// own per-package copies for the same reason. If you change one side, change
-// both; they are byte-identical today.
-func assertFunctionByName(t *testing.T, payload map[string]any, name string) map[string]any {
-	t.Helper()
-
-	functions, ok := payload["functions"].([]map[string]any)
-	if !ok {
-		t.Fatalf("functions = %T, want []map[string]any", payload["functions"])
-	}
-	for _, function := range functions {
-		functionName, _ := function["name"].(string)
-		if functionName == name {
-			return function
-		}
-	}
-	t.Fatalf("functions missing name %q in %#v", name, functions)
-	return nil
-}
-
-func assertBucketItemByName(t *testing.T, payload map[string]any, bucket string, name string) map[string]any {
-	t.Helper()
-
-	items, ok := payload[bucket].([]map[string]any)
-	if !ok {
-		t.Fatalf("%s = %T, want []map[string]any", bucket, payload[bucket])
-	}
-	for _, item := range items {
-		itemName, _ := item["name"].(string)
-		if itemName == name {
-			return item
-		}
-	}
-	t.Fatalf("%s missing name %q in %#v", bucket, name, items)
-	return nil
-}
-
-func assertStringFieldValue(t *testing.T, item map[string]any, field string, want string) {
-	t.Helper()
-
-	got, _ := item[field].(string)
-	if got != want {
-		t.Fatalf("%s = %#v, want %#v", field, got, want)
-	}
-}
-
-func assertIntFieldValue(t *testing.T, item map[string]any, field string, want int) {
-	t.Helper()
-
-	got, ok := item[field].(int)
-	if !ok {
-		t.Fatalf("%s = %T, want int", field, item[field])
-	}
-	if got != want {
-		t.Fatalf("%s = %d, want %d", field, got, want)
-	}
+	functionItem := parsertest.AssertBucketItemByName(t, got, "functions", "greet")
+	parsertest.AssertStringFieldValue(t, functionItem, "docstring", "Greet a person.")
+	parsertest.AssertIntFieldValue(t, functionItem, "cyclomatic_complexity", 3)
 }
 
 func assertORMMappingsEqual(t *testing.T, payload map[string]any, want []map[string]any) {

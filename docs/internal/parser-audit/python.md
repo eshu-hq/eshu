@@ -99,15 +99,15 @@ List edge cases the tests actually cover with test references.
 - **Script guard skips else branches and nested definitions** — `python_dead_code_roots_test.go:239-288`
 - **Dunder method assignment via `type(x).__reduce__ = __reduce__`** — `python_dead_code_roots_test.go:292-337`
 - **Concatenated `__all__` literals** — `python_dead_code_roots_test.go:491-536`
-- **Multiline class header** — `python/engine_python_ast_parity_test.go:17-59`
+- **Multiline class header** — `python/engine_python_ast_parity_test.go:19-63`
 - **Orphaned route decorator** (no following def) — tested via correlation-truth contract (#2788), not emitting fabricated handler
-- **Splat typed parameters** — `python/engine_python_ast_parity_test.go:66-131`
-- **Embedded shell alias shadowing** — `python/engine_python_ast_parity_test.go:136-192`
-- **Module-level call skip for embedded shell** — `python/engine_python_ast_parity_test.go:136-192`
-- **Lambda assignment promotes synthetic function** — `python/engine_python_lambda_assignment_test.go:13-56`
+- **Splat typed parameters** — `python/engine_python_ast_parity_test.go:68-132`
+- **Embedded shell alias shadowing** — `python/engine_python_ast_parity_test.go:138-199`
+- **Module-level call skip for embedded shell** — `python/engine_python_ast_parity_test.go:138-199`
+- **Lambda assignment promotes synthetic function** — `python/engine_python_lambda_assignment_test.go:15-57`
 - **Value-flow gate off is byte-identical** — `python_cfg_dataflow_test.go:30-64`
 - **Duplicate method reference in `__all__` and `package_init_export`** — deduplication tested in public API root tests
-- **Generator yield in nested function is inner-only** — `python/engine_python_generator_test.go:39-63`
+- **Generator yield in nested function is inner-only** — `python/engine_python_generator_test.go:41-79`
 - **Empty constructor caller (`no args`)** — not explicitly tested (minor)
 
 ## Edge Cases NOT Considered

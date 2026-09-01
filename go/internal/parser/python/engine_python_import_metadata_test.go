@@ -8,6 +8,8 @@ import (
 	"testing"
 
 	"github.com/eshu-hq/eshu/go/internal/parser"
+
+	"github.com/eshu-hq/eshu/go/internal/parser/parsertest"
 )
 
 func TestDefaultEngineParsePathPythonEmitsImportSourceAndAliasMetadata(
@@ -35,14 +37,14 @@ import pkg.mod as mod
 		t.Fatalf("ParsePath() error = %v, want nil", err)
 	}
 
-	createApp := assertBucketItemByName(t, got, "imports", "create_app")
-	assertStringFieldValue(t, createApp, "alias", "make_app")
-	assertStringFieldValue(t, createApp, "source", "lib.factory")
+	createApp := parsertest.AssertBucketItemByName(t, got, "imports", "create_app")
+	parsertest.AssertStringFieldValue(t, createApp, "alias", "make_app")
+	parsertest.AssertStringFieldValue(t, createApp, "source", "lib.factory")
 
-	helper := assertBucketItemByName(t, got, "imports", "helper")
-	assertStringFieldValue(t, helper, "source", "lib.factory")
+	helper := parsertest.AssertBucketItemByName(t, got, "imports", "helper")
+	parsertest.AssertStringFieldValue(t, helper, "source", "lib.factory")
 
-	moduleAlias := assertBucketItemByName(t, got, "imports", "pkg.mod")
-	assertStringFieldValue(t, moduleAlias, "alias", "mod")
-	assertStringFieldValue(t, moduleAlias, "source", "pkg.mod")
+	moduleAlias := parsertest.AssertBucketItemByName(t, got, "imports", "pkg.mod")
+	parsertest.AssertStringFieldValue(t, moduleAlias, "alias", "mod")
+	parsertest.AssertStringFieldValue(t, moduleAlias, "source", "pkg.mod")
 }

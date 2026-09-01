@@ -191,3 +191,17 @@ func TestFunctionByNameAndClassRejectsMalformedField(t *testing.T) {
 		t.Fatal("malformed functions field passed; want an error")
 	}
 }
+
+func TestStringFieldEqualsFailsClosedOnMalformedValue(t *testing.T) {
+	t.Parallel()
+
+	if err := stringFieldEquals(map[string]any{"docstring": 42}, "docstring", ""); err == nil {
+		t.Fatal("stringFieldEquals(int value) = nil, want an error: a present-but-malformed field must not pass a value assertion")
+	}
+	if err := stringFieldEquals(map[string]any{}, "docstring", ""); err == nil {
+		t.Fatal("stringFieldEquals(missing field) = nil, want an error")
+	}
+	if err := stringFieldEquals(map[string]any{"docstring": "x"}, "docstring", "x"); err != nil {
+		t.Fatalf("stringFieldEquals(matching) = %v, want nil", err)
+	}
+}

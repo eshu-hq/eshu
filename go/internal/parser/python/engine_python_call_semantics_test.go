@@ -8,6 +8,8 @@ import (
 	"testing"
 
 	"github.com/eshu-hq/eshu/go/internal/parser"
+
+	"github.com/eshu-hq/eshu/go/internal/parser/parsertest"
 )
 
 func TestDefaultEngineParsePathPythonEmitsDottedCallMetadata(t *testing.T) {
@@ -37,8 +39,8 @@ client.service.request()
 		t.Fatalf("ParsePath() error = %v, want nil", err)
 	}
 
-	call := assertBucketItemByName(t, got, "function_calls", "request")
-	assertStringFieldValue(t, call, "full_name", "client.service.request")
+	call := parsertest.AssertBucketItemByName(t, got, "function_calls", "request")
+	parsertest.AssertStringFieldValue(t, call, "full_name", "client.service.request")
 }
 
 func TestDefaultEngineParsePathPythonEmitsMethodContextAndInferredReceiverType(t *testing.T) {
@@ -75,13 +77,13 @@ def lambda_handler(event, context):
 		t.Fatalf("ParsePath() error = %v, want nil", err)
 	}
 
-	assertStringFieldValue(t, assertFunctionByName(t, got, "create_partition"), "class_context", "LogProcessor")
-	assertStringFieldValue(t, assertFunctionByName(t, got, "from_event"), "class_context", "LogPartition")
+	parsertest.AssertStringFieldValue(t, parsertest.AssertBucketItemByName(t, got, "functions", "create_partition"), "class_context", "LogProcessor")
+	parsertest.AssertStringFieldValue(t, parsertest.AssertBucketItemByName(t, got, "functions", "from_event"), "class_context", "LogPartition")
 	staticCall := assertBucketItemByFieldValue(t, got, "function_calls", "full_name", "LogPartition.from_event")
-	assertStringFieldValue(t, staticCall, "name", "from_event")
+	parsertest.AssertStringFieldValue(t, staticCall, "name", "from_event")
 	memberCall := assertBucketItemByFieldValue(t, got, "function_calls", "full_name", "log_processor.create_partition")
-	assertStringFieldValue(t, memberCall, "name", "create_partition")
-	assertStringFieldValue(t, memberCall, "inferred_obj_type", "LogProcessor")
+	parsertest.AssertStringFieldValue(t, memberCall, "name", "create_partition")
+	parsertest.AssertStringFieldValue(t, memberCall, "inferred_obj_type", "LogProcessor")
 }
 
 func TestDefaultEngineParsePathPythonInfersSelfReceiverType(t *testing.T) {
@@ -112,6 +114,6 @@ func TestDefaultEngineParsePathPythonInfersSelfReceiverType(t *testing.T) {
 	}
 
 	memberCall := assertBucketItemByFieldValue(t, got, "function_calls", "full_name", "self.object")
-	assertStringFieldValue(t, memberCall, "name", "object")
-	assertStringFieldValue(t, memberCall, "inferred_obj_type", "LogProcessor")
+	parsertest.AssertStringFieldValue(t, memberCall, "name", "object")
+	parsertest.AssertStringFieldValue(t, memberCall, "inferred_obj_type", "LogProcessor")
 }

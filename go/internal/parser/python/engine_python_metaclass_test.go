@@ -9,6 +9,8 @@ import (
 	"testing"
 
 	"github.com/eshu-hq/eshu/go/internal/parser"
+
+	"github.com/eshu-hq/eshu/go/internal/parser/parsertest"
 )
 
 func TestDefaultEngineParsePathPythonEmitsMetaclassMetadata(t *testing.T) {
@@ -37,8 +39,8 @@ class Logged(metaclass=MetaLogger):
 		t.Fatalf("ParsePath() error = %v, want nil", err)
 	}
 
-	logged := assertBucketItemByName(t, got, "classes", "Logged")
-	assertStringFieldValue(t, logged, "metaclass", "MetaLogger")
+	logged := parsertest.AssertBucketItemByName(t, got, "classes", "Logged")
+	parsertest.AssertStringFieldValue(t, logged, "metaclass", "MetaLogger")
 }
 
 func TestDefaultEngineParsePathPythonLambdaAssignmentEmitsNamedFunction(t *testing.T) {
@@ -64,8 +66,8 @@ add = lambda x, y: x + y
 		t.Fatalf("ParsePath() error = %v, want nil", err)
 	}
 
-	doubleFn := assertFunctionByName(t, got, "double")
-	assertStringFieldValue(t, doubleFn, "semantic_kind", "lambda")
+	doubleFn := parsertest.AssertBucketItemByName(t, got, "functions", "double")
+	parsertest.AssertStringFieldValue(t, doubleFn, "semantic_kind", "lambda")
 	args, ok := doubleFn["args"].([]string)
 	if !ok {
 		t.Fatalf(`functions["double"]["args"] = %T, want []string`, doubleFn["args"])
@@ -74,8 +76,8 @@ add = lambda x, y: x + y
 		t.Fatalf(`functions["double"]["args"] = %#v, want []string{"x"}`, args)
 	}
 
-	addFn := assertFunctionByName(t, got, "add")
-	assertStringFieldValue(t, addFn, "semantic_kind", "lambda")
+	addFn := parsertest.AssertBucketItemByName(t, got, "functions", "add")
+	parsertest.AssertStringFieldValue(t, addFn, "semantic_kind", "lambda")
 	addArgs, ok := addFn["args"].([]string)
 	if !ok {
 		t.Fatalf(`functions["add"]["args"] = %T, want []string`, addFn["args"])

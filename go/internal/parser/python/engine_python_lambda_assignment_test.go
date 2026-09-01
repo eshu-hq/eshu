@@ -10,6 +10,8 @@ import (
 	"testing"
 
 	"github.com/eshu-hq/eshu/go/internal/parser"
+
+	"github.com/eshu-hq/eshu/go/internal/parser/parsertest"
 )
 
 func TestDefaultEngineParsePathPythonLambdaAttributeAssignmentEmitsNamedFunction(t *testing.T) {
@@ -35,8 +37,8 @@ service.another = lambda value, flag: value if flag else value
 		t.Fatalf("ParsePath() error = %v, want nil", err)
 	}
 
-	handlerFn := assertFunctionByName(t, got, "service.handler")
-	assertStringFieldValue(t, handlerFn, "semantic_kind", "lambda")
+	handlerFn := parsertest.AssertBucketItemByName(t, got, "functions", "service.handler")
+	parsertest.AssertStringFieldValue(t, handlerFn, "semantic_kind", "lambda")
 	args, ok := handlerFn["args"].([]string)
 	if !ok {
 		t.Fatalf(`functions["service.handler"]["args"] = %T, want []string`, handlerFn["args"])
@@ -45,8 +47,8 @@ service.another = lambda value, flag: value if flag else value
 		t.Fatalf(`functions["service.handler"]["args"] = %#v, want []string{"request"}`, args)
 	}
 
-	anotherFn := assertFunctionByName(t, got, "service.another")
-	assertStringFieldValue(t, anotherFn, "semantic_kind", "lambda")
+	anotherFn := parsertest.AssertBucketItemByName(t, got, "functions", "service.another")
+	parsertest.AssertStringFieldValue(t, anotherFn, "semantic_kind", "lambda")
 	anotherArgs, ok := anotherFn["args"].([]string)
 	if !ok {
 		t.Fatalf(`functions["service.another"]["args"] = %T, want []string`, anotherFn["args"])
@@ -86,7 +88,7 @@ func TestDefaultEngineParsePathPythonAnonymousLambdaPromotesSyntheticFunction(
 		name, _ := item["name"].(string)
 		if strings.HasPrefix(name, "lambda@") {
 			found = true
-			assertStringFieldValue(t, item, "semantic_kind", "lambda")
+			parsertest.AssertStringFieldValue(t, item, "semantic_kind", "lambda")
 			args, ok := item["args"].([]string)
 			if !ok {
 				t.Fatalf(`functions[%q]["args"] = %T, want []string`, name, item["args"])
