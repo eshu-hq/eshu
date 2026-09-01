@@ -192,8 +192,9 @@ names 1376 -> 1378, compared as a SET with `comm` in BOTH directions rather than
 totals, since a matching total is also what a swap looks like. Zero names lost.
 Two gained -- `CollectorKind` and `reducerWriterNow`, the latter because it is now
 a one-line forwarder. The hoist is a prerequisite rather than a cleanup: a trial
-move measured the eshu_search family (8 non-test files) as blocked on exactly
-these two symbols and nothing else.
+move measured the eshu_search family (8 non-test files) as blocked on six
+symbols, of which these two were the only ones without a leaf owner already; the
+other four resolve to `contract` and `payloadcore`.
 
 No-Observability-Change: neither function emits a metric, span, or log, and
 neither performs I/O. They compute a UTC timestamp and a normalized column value
