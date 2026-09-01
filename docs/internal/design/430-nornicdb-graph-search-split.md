@@ -258,9 +258,9 @@ Recommended child slices:
    or MCP contracts. The projection contract lives in `go/internal/searchdocs`
    and `docs/public/reference/search-document-projection.md`. The reducer
    read-model now persists curated documents as generation-scoped derived facts
-   (`reducer_eshu_search_document`): `reducer.ProjectSearchDocuments` curates the
-   bounded source set, `reducer.EshuSearchDocumentHandler` drives one intent,
-   `reducer.PostgresEshuSearchDocumentWriter` upserts idempotently and retires
+   (`reducer_eshu_search_document`): `eshusearch.ProjectSearchDocuments` curates the
+   bounded source set, `eshusearch.EshuSearchDocumentHandler` drives one intent,
+   `eshusearch.PostgresEshuSearchDocumentWriter` upserts idempotently and retires
    stale documents, and `postgres.EshuSearchDocumentStore` reads back only the
    active generation. The `eshu_search_document` reducer domain is registered and
    its handler is wired; a decoupled periodic sweeper

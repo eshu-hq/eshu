@@ -3,6 +3,8 @@
 
 package reducer
 
+import "github.com/eshu-hq/eshu/go/internal/reducer/eshusearch"
+
 // appendCorrelationCoreAdditiveDomains registers the source-neutral correlation
 // and evidence domains that depend on the fact loader plus a single dedicated
 // writer: config-state drift, the eshu search document, package-source and
@@ -29,7 +31,7 @@ func appendCorrelationCoreAdditiveDomains(definitions []DomainDefinition, handle
 	}
 	if handlers.EshuSearchDocumentSourceLoader != nil && handlers.EshuSearchDocumentWriter != nil {
 		searchDocument := eshuSearchDocumentDomainDefinition()
-		searchDocument.Handler = EshuSearchDocumentHandler{
+		searchDocument.Handler = eshusearch.EshuSearchDocumentHandler{
 			Loader:      handlers.EshuSearchDocumentSourceLoader,
 			Writer:      handlers.EshuSearchDocumentWriter,
 			Instruments: handlers.Instruments,

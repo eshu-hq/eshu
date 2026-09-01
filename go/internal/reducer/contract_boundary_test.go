@@ -9,6 +9,7 @@ import (
 	"testing"
 
 	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
+	"github.com/eshu-hq/eshu/go/internal/reducer/eshusearch"
 )
 
 func TestReducerContractAliasesPreserveTypeIdentity(t *testing.T) {
@@ -74,7 +75,7 @@ func TestRegistrableReducerDomainsCharacterization(t *testing.T) {
 		DomainEC2InstanceNodeMaterialization,
 		DomainEC2InternetExposureMaterialization,
 		DomainEC2UsesProfileMaterialization,
-		DomainEshuSearchDocument,
+		eshusearch.DomainEshuSearchDocument,
 		DomainGCPRelationshipMaterialization,
 		DomainGCPResourceMaterialization,
 		DomainIAMCanAssumeMaterialization,
@@ -193,7 +194,7 @@ func TestAllDomainsUnionCharacterization(t *testing.T) {
 		DomainEC2InstanceNodeMaterialization,
 		DomainEC2InternetExposureMaterialization,
 		DomainEC2UsesProfileMaterialization,
-		DomainEshuSearchDocument,
+		eshusearch.DomainEshuSearchDocument,
 		DomainGCPRelationshipMaterialization,
 		DomainGCPResourceMaterialization,
 		DomainGovernance,

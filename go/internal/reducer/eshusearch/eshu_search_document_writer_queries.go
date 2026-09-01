@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package reducer
+package eshusearch
 
 // eshuSearchDocumentRetireQuery removes search-document facts in one generation
 // that are not in the freshly written set, so a source row dropped within a

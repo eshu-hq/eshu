@@ -8,7 +8,7 @@ import (
 	"log/slog"
 	"time"
 
-	"github.com/eshu-hq/eshu/go/internal/reducer"
+	"github.com/eshu-hq/eshu/go/internal/reducer/eshusearch"
 	log "github.com/eshu-hq/eshu/go/pkg/log"
 )
 
@@ -103,7 +103,7 @@ func (s SearchDocumentProjectionSweeper) RunOnce(ctx context.Context) (int, erro
 		intents = append(intents, ReducerIntent{
 			ScopeID:      pending.ScopeID,
 			GenerationID: pending.GenerationID,
-			Domain:       reducer.DomainEshuSearchDocument,
+			Domain:       eshusearch.DomainEshuSearchDocument,
 			EntityKey:    "eshu_search_document:" + pending.ScopeID,
 			Reason:       "search lane projection catch-up sweep",
 			SourceSystem: pending.SourceSystem,
@@ -126,7 +126,7 @@ func (s SearchDocumentProjectionSweeper) logSweep(ctx context.Context, pending i
 		slog.Int("pending_scopes", pending),
 		slog.Int("enqueued_intents", enqueued),
 		slog.Float64("duration_seconds", time.Since(startedAt).Seconds()),
-		log.Domain(string(reducer.DomainEshuSearchDocument)),
+		log.Domain(string(eshusearch.DomainEshuSearchDocument)),
 	)
 }
 

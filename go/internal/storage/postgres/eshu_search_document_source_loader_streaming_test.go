@@ -11,7 +11,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/eshu-hq/eshu/go/internal/reducer"
+	"github.com/eshu-hq/eshu/go/internal/reducer/eshusearch"
 )
 
 // pagingQueryer is a test double that records every query and its args so the
@@ -239,7 +239,7 @@ func TestStreamSearchDocumentSourcesPaginatesEntitiesWithLimit(t *testing.T) {
 
 	var got []string
 	err := loader.StreamSearchDocumentSources(context.Background(), "scope-1", "gen-1",
-		func(page reducer.SearchDocumentProjectionInput) error {
+		func(page eshusearch.SearchDocumentProjectionInput) error {
 			for _, e := range page.ContentEntities {
 				got = append(got, e.EntityID)
 			}
@@ -307,7 +307,7 @@ func TestStreamSearchDocumentSourcesPaginatesFilesWithLimit(t *testing.T) {
 
 	var got []string
 	err := loader.StreamSearchDocumentSources(context.Background(), "scope-1", "gen-1",
-		func(page reducer.SearchDocumentProjectionInput) error {
+		func(page eshusearch.SearchDocumentProjectionInput) error {
 			for _, f := range page.ContentFiles {
 				got = append(got, f.RelativePath)
 			}
