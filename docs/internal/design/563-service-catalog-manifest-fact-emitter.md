@@ -19,8 +19,10 @@ shipped:
   (`service_catalog.entity`, `.ownership`, `.repository_link`, `.dependency`,
   `.api_link`, `.operational_link`, `.scorecard_definition`,
   `.scorecard_result`, `.warning`; `ServiceCatalogSchemaVersionV1 = "1.0.0"`).
-- Projector intent wiring: `go/internal/projector/service_catalog_correlation_intents.go`
-  (`buildServiceCatalogCorrelationReducerIntent`, `validateServiceCatalogSchemaVersion`).
+- Projector intent wiring: `go/internal/projector/servicecatalog/correlation_intents.go`
+  (`BuildServiceCatalogCorrelationReducerIntent`); root
+  `go/internal/projector/schema_version_admission.go` rejects unsupported
+  service-catalog schema versions before the builder runs.
 - Reducer handler and writer: `go/internal/reducer/service_catalog_correlation.go`,
   `service_catalog_correlation_index.go`, `service_catalog_correlation_writer.go`
   (#561), writing the provenance-only `reducer_service_catalog_correlation`

@@ -73,6 +73,7 @@ live in the repository today.
 | `go/internal/projector/rds/` | RDS posture-materialization reducer-intent family builder |
 | `go/internal/projector/s3/` | S3 LOGS_TO, external-principal-grant, and internet-exposure reducer-intent family builders |
 | `go/internal/projector/security/` | security-alert reconciliation and AWS security-group reducer-intent family builders |
+| `go/internal/projector/servicecatalog/` | service-catalog-correlation reducer-intent family builder |
 | `go/internal/projector/workloadcloud/` | workload-cloud-relationship reducer-intent family builder |
 | `go/internal/query/` | HTTP query/admin handlers plus OpenAPI support |
 | `go/internal/query/querycontract/` | dependency-neutral query profiles, envelopes, capability registry, and read ports |
