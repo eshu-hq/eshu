@@ -133,13 +133,19 @@ keep_marker_refusal() {
 # reap a guard created moments earlier, which is precisely the race the guard
 # exists to prevent. A non-numeric inherited value would also abort this
 # `set -u` caller inside the arithmetic. Production therefore has one fixed
-# value that no caller and no CI runner can influence.
+# value that nothing in the ENVIRONMENT can influence: exporting this name, or
+# any name, changes nothing here.
 #
-# The lock's own tests raise it by assigning this variable AFTER sourcing this
-# file, which is in-process and cannot arrive from the environment. They need
-# to because the gate compares wall clock against the guard's birth epoch:
-# try_acquire retries 50 times with sleeps, so on a loaded host a guard stamped
-# "now" can age past the window DURING the case that asserts it stays fresh.
+# An in-process caller that has already sourced this file can still assign the
+# variable, and exactly one does: the lock's own test raises it, passing the
+# value as an argument to the child shell it spawns. That is the point rather
+# than a gap -- a test lives inside the process it is testing, while an
+# environment arrives from outside it and from anywhere.
+#
+# The test needs to because this gate compares wall clock against the guard's
+# birth epoch, and try_acquire retries 50 times with sleeps: on a loaded host a
+# guard stamped "now" can age past the window DURING the case asserting it
+# stays fresh.
 eshu_live_gate_reap_age_seconds=60
 
 claim_lock_link() {
