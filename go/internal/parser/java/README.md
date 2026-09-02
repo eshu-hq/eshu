@@ -23,8 +23,8 @@ Spring/JAX-RS/Micronaut route entries, framework, serialization, Gradle and Ant
 dead-code roots, method-reference targets, literal reflection references, and
 static metadata class references. `java_spring_route_semantics_test.go` holds
 only the Java half of the former `java_kotlin_spring_route_semantics_test.go`;
-the two Kotlin route tests stayed in the parent as
-`kotlin_spring_route_semantics_test.go`. `java_test_helpers_test.go` holds only
+the two Kotlin route tests live in
+`go/internal/parser/kotlin/kotlin_spring_route_semantics_test.go`. `java_test_helpers_test.go` holds only
 what `internal/parser/parsertest` lacks: the `javaFixturePath` resolver and
 `writeJavaTestFile`, which creates parent directories before delegating the
 write to `parsertest.WriteFile`. The `call_kind`-keyed lookups in

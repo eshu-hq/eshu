@@ -4,7 +4,7 @@
 package example
 
 // #5361 route query-proof matrix: cribs the Spring MVC controller shape
-// proven by internal/parser/kotlin_spring_route_semantics_test.go.
+// proven by internal/parser/kotlin/kotlin_spring_route_semantics_test.go.
 import org.springframework.web.bind.annotation.GetMapping
 import org.springframework.web.bind.annotation.PostMapping
 import org.springframework.web.bind.annotation.RequestMapping

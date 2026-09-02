@@ -31,7 +31,8 @@ grammar is `github.com/tree-sitter-grammars/tree-sitter-kotlin v1.1.0`.
 
 `Parse` must preserve the parent engine behavior and payload shape: the
 `map[string]any` keys and value shapes are the contract proven by the
-`engine_kotlin_*` tests, `kotlin_dead_code_roots_test.go`, the
+`engine_kotlin_*` tests, the relocated `kotlin_dead_code_roots_test.go` and
+`kotlin_spring_route_semantics_test.go` in this package, the
 `kotlin_comprehensive` golden fixture path, and the reducer Kotlin
 code-call tests. `PreScan` must keep deriving names from the same `Parse` path
 so collection pre-scan and full parsing agree.
