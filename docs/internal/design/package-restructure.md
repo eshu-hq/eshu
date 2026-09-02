@@ -865,6 +865,27 @@ code-function-summary family). The root dispatcher wiring test stays at root
 in `code_interproc_evidence_projection_test.go`, and the marker case proving
 BOTH value-flow retraction domains enqueue stays in
 `code_taint_evidence_projection_test.go`.
+The AWS cloud-image builder moved into `internal/projector/awscloudimage`.
+It triggers on `aws_resource` fact presence — the #5450 retraction-safety
+trigger, deliberately NOT `lambda_function_uses_image` relationship presence,
+so a generation whose image relationship disappeared still runs the reducer
+handler's retract-first pass — anchors to the earliest `aws_resource` fact
+via `FirstOfKind`, shares the `aws_resource_materialization:<scope>` entity
+key with the AWS node builders for the canonical-nodes readiness gate, and
+carries no decode seam. Its source-system call was the root
+`awsCloudRuntimeDriftSourceSystem` helper, compared body-for-body against
+`projectorintent.SourceSystem`: both are the identical two tiers (trimmed
+`SourceRef.SourceSystem`, else trimmed `CollectorKind`) with no third
+literal fallback, so the substitution is behavior-identical and the child
+pins both tiers; the root helper stays at root for its four remaining
+callers (AWS cloud runtime drift, AWS resource, IAM instance-profile-role,
+and observability-coverage materialization). The root dispatcher tests stay
+at root under their pre-extraction file name
+`aws_cloud_image_materialization_intents_test.go` — not the
+`*_projection_test.go` rename the interproc extraction used — because
+`go/internal/reducer/aws_cloud_image_materialization_test.go` cites that
+file and its retraction-safety test by name as the enqueue-side half of the
+#5450 proof, and the reducer side is out of scope for a projector move.
 Coordinator `_scheduler.go` halves extract cleanly
 (they implement a root Planner interface); the `_service.go` halves are
 methods on the shared `Service` struct and stay until Service is

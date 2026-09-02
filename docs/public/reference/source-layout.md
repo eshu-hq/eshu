@@ -66,6 +66,7 @@ live in the repository today.
 | `go/internal/mcp/visualization/` | visualization-packet MCP registration plus pure family membership and dependency-neutral route selection |
 | `go/internal/parser/` | native parser registry, language adapters, and SCIP support |
 | `go/internal/projector/` | source-local projection stages and failure classification |
+| `go/internal/projector/awscloudimage/` | AWS cloud-image edge reducer-intent family builder |
 | `go/internal/projector/awsrelationship/` | AWS relationship-edge reducer-intent family builder |
 | `go/internal/projector/azure/` | Azure resource and relationship reducer-intent family builders |
 | `go/internal/projector/cloudinventory/` | cloud-inventory-admission reducer-intent family builder |
