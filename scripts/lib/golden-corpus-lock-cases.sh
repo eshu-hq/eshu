@@ -99,8 +99,18 @@ fi
 # is a banned discovery primitive repo-wide, and a directory's mtime resets on
 # every claim_lock_link probe anyway (see the guard_status==2 branch).
 # Pin the POLARITY, not the flag: inverting this to reap guards YOUNGER than
-# the budget reinstates the bug while keeping the "> 60" substring.
-require_lock "age-gate polarity" '(( $(date +%s) - guard_born > 60 ))'
+# the budget reinstates the bug while keeping the threshold substring.
+# The threshold is a variable so the fresh-guard case below can raise it and
+# stop asserting freshness against how long that case itself takes to run; the
+# production default is pinned separately, right after this.
+require_lock "age-gate polarity" '(( $(date +%s) - guard_born > eshu_live_gate_reap_age_seconds ))'
+# The production value must stay a fixed 60 assigned in-process, never read
+# from the environment: an inherited value could LOWER the window, and because
+# the gate reaps only when age > threshold, a lower threshold reaps sooner --
+# up to reaping a guard a racer created moments ago. Raising it only delays
+# reaping, which is the conservative direction and is what the fresh-guard
+# case below does, in-process, after sourcing.
+require_lock "reap age is fixed in-process" 'eshu_live_gate_reap_age_seconds=60'
 if rg -v '^[[:space:]]*#' "${lock_lib}" | rg -- 'find ' >/dev/null; then
 	fail "live-gate-lock.sh reverted to using find - it is a banned discovery primitive repo-wide"
 fi
@@ -140,7 +150,11 @@ trap drop_lock_home EXIT
 # racing acquirer observes a genuinely LIVE holder rather than a pid that has
 # already exited.
 #
-# An optional third arg is a shared critical-section token path. When given,
+# try_acquire takes (hold_seconds, token_path, reap_age_override). They are
+# POSITIONAL, so each may be empty but a later one cannot be reached without
+# placeholders for the earlier ones -- the fresh-guard case below passes
+# `0 "" 86400` for exactly that reason, not because it wants a token.
+# The token path is the SECOND arg; it is a shared critical-section token. When given,
 # entry is claimed with `set -o noclobber` (create-or-fail) immediately after
 # acquiring the lock: a second racer that is ALSO inside the critical section
 # at the same instant reports OVERLAP instead of ACQUIRED. This is the mutual-
@@ -153,11 +167,26 @@ trap drop_lock_home EXIT
 # "got 8" under scheduler load - not a mutex bug, an test invariant that
 # was already provably violated by the code as designed. Overlap (never two
 # holders AT ONCE) is what must be asserted; sequential winners are correct.
+# The third arg optionally overrides the orphan-reap age INSIDE the child, assigned after
+# the lib is sourced. It is passed as an argument and never as an environment
+# variable on purpose: an env-readable threshold would let any process that
+# exports the name shrink the production window, and because the gate reaps only
+# when age > threshold, a smaller value reaps SOONER -- far enough to reap a
+# guard a racer created moments ago. Raising it, as the fresh-guard case does,
+# only delays reaping, which is the conservative direction.
 try_acquire() {
-	local hold="${1:-0}" token="${2:-}"
+	local hold="${1:-0}" token="${2:-}" reap_age="${3:-}"
 	ESHU_LIVE_GATE_LOCK_DIR="${lock_home}" bash -c '
 		set -euo pipefail
 		. "$1"
+		# Validated before assignment: the child runs set -euo pipefail, and a
+		# non-integer would surface as an opaque arithmetic failure inside the
+		# age gate rather than as a bad argument from the case that passed it.
+		if [[ -n "$4" ]]; then
+			[[ "$4" =~ ^[0-9]+$ ]] ||
+				{ printf "try_acquire: reap age override must be an integer, got: %s\n" "$4" >&2; exit 2; }
+			eshu_live_gate_reap_age_seconds="$4"
+		fi
 		acquire_live_gate_lock
 		token="$3"
 		if [[ -n "${token}" ]] && ! ( set -o noclobber; : >"${token}" ) 2>/dev/null; then
@@ -167,7 +196,7 @@ try_acquire() {
 		fi
 		[[ "$2" == "0" ]] || sleep "$2"
 		[[ -z "${token}" ]] || rm -f "${token}"
-	' _ "${lock_lib}" "${hold}" "${token}" 2>&1
+	' _ "${lock_lib}" "${hold}" "${token}" "${reap_age}" 2>&1
 }
 
 # A free lock is acquired.
@@ -298,8 +327,16 @@ else
 	rm -f "${lock_file}"
 	ln -s "${dead_pid}:/nonexistent/dead-worktree" "${lock_file}"
 	ln -s "${dead_pid}:$(date +%s)" "${lock_file}.reclaim"
+	# Pin the reap age far above any plausible runtime of this case. The gate
+	# compares wall clock against the guard's birth epoch, and try_acquire
+	# retries 50 times with sleeps and per-attempt process probes, so on a
+	# loaded machine the call can outlast the production 60s threshold. The
+	# guard stamped "now" then ages out DURING the assertion, gets reaped, and
+	# this case fails describing a freshness violation the code never committed.
+	# Observed intermittently on unmodified main at roughly 1 run in 4. The
+	# case is about the age GATE, not about how slow the host is.
 	set +e
-	fresh_guard_out="$(try_acquire)"
+	fresh_guard_out="$(try_acquire 0 "" 86400)"
 	fresh_guard_status=$?
 	set -e
 	[[ "${fresh_guard_status}" -ne 0 ]] \

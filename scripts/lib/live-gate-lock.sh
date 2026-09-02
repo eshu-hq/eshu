@@ -123,6 +123,31 @@ keep_marker_refusal() {
 # mutex would silently stop excluding anything. Verify the link actually landed
 # at the lock path carrying our payload before trusting the claim.
 # Returns: 0 claimed, 1 name already taken, 2 a non-symlink is in the way.
+# Orphan-guard reap age, in seconds. A guard younger than this belongs to a
+# reclaimer that may still be working, and reaping it would let two runs into
+# the same reclaim section.
+#
+# Deliberately a plain shell assignment, NOT `: "${VAR:=60}"`. Reading it from
+# the environment would let any process that exports the name shrink or zero
+# the window for a real run -- a transient `ps -p` false negative could then
+# reap a guard created moments earlier, which is precisely the race the guard
+# exists to prevent. A non-numeric inherited value would also abort this
+# `set -u` caller inside the arithmetic. Production therefore has one fixed
+# value that nothing in the ENVIRONMENT can influence: exporting this name, or
+# any name, changes nothing here.
+#
+# An in-process caller that has already sourced this file can still assign the
+# variable, and exactly one does: the lock's own test raises it, passing the
+# value as an argument to the child shell it spawns. That is the point rather
+# than a gap -- a test lives inside the process it is testing, while an
+# environment arrives from outside it and from anywhere.
+#
+# The test needs to because this gate compares wall clock against the guard's
+# birth epoch, and try_acquire retries 50 times with sleeps: on a loaded host a
+# guard stamped "now" can age past the window DURING the case asserting it
+# stays fresh.
+eshu_live_gate_reap_age_seconds=60
+
 claim_lock_link() {
 	local payload="$1" candidate="$2"
 	ln -s "${payload}" "${candidate}" 2>/dev/null || return 1
@@ -409,7 +434,8 @@ acquire_live_gate_lock() {
 				guard_pid="${guard_payload%%:*}"
 				guard_born="${guard_payload#*:}"
 				if [[ "${guard_pid}" =~ ^[0-9]+$ ]] && ! process_is_alive "${guard_pid}" &&
-					[[ "${guard_born}" =~ ^[0-9]+$ ]] && (( $(date +%s) - guard_born > 60 )); then
+					[[ "${guard_born}" =~ ^[0-9]+$ ]] &&
+					(( $(date +%s) - guard_born > eshu_live_gate_reap_age_seconds )); then
 					# The age and liveness decisions were both taken before this
 					# point, and neither can see a guard recreated since. Destroy
 					# only the value that was actually judged - the guard must be
