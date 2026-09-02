@@ -14,6 +14,7 @@ import (
 	"net/http/httptest"
 	"net/url"
 
+	codequalitytools "github.com/eshu-hq/eshu/go/internal/mcp/codequality"
 	deadcodetools "github.com/eshu-hq/eshu/go/internal/mcp/deadcode"
 	"github.com/eshu-hq/eshu/go/internal/mcp/routecontract"
 )
@@ -172,6 +173,9 @@ func resolveRoute(toolName string, args map[string]any) (*route, error) {
 	if route, ok := deadCodeRoute(toolName, args); ok {
 		return route, nil
 	}
+	if route, ok := codeQualityRoute(toolName, args); ok {
+		return route, nil
+	}
 	if route, ok, err := codeRelationshipRoute(toolName, args); ok {
 		return route, err
 	}
@@ -293,32 +297,6 @@ func resolveRoute(toolName string, args map[string]any) (*route, error) {
 		return &route{method: "POST", path: "/api/v0/replatforming/rollups", body: replatformingRollupsBody(args)}, nil
 	case "find_unmanaged_resource_owners":
 		return &route{method: "POST", path: "/api/v0/replatforming/ownership-packets", body: replatformingOwnershipBody(args)}, nil
-	case "calculate_cyclomatic_complexity":
-		body := map[string]any{
-			"function_name": str(args, "function_name"),
-			"repo_id":       str(args, "repo_id"),
-		}
-		if entityID := str(args, "entity_id"); entityID != "" {
-			body["entity_id"] = entityID
-		}
-		return &route{method: "POST", path: "/api/v0/code/complexity", body: body}, nil
-	case "find_most_complex_functions":
-		return &route{method: "POST", path: "/api/v0/code/complexity", body: map[string]any{
-			"repo_id": str(args, "repo_id"), "limit": intOr(args, "limit", 10),
-		}}, nil
-	case "inspect_code_quality":
-		return &route{method: "POST", path: "/api/v0/code/quality/inspect", body: map[string]any{
-			"check":          str(args, "check"),
-			"repo_id":        str(args, "repo_id"),
-			"language":       str(args, "language"),
-			"entity_id":      str(args, "entity_id"),
-			"function_name":  str(args, "function_name"),
-			"min_complexity": intOr(args, "min_complexity", 0),
-			"min_lines":      intOr(args, "min_lines", 0),
-			"min_arguments":  intOr(args, "min_arguments", 0),
-			"limit":          intOr(args, "limit", 10),
-			"offset":         intOr(args, "offset", 0),
-		}}, nil
 	case "execute_language_query":
 		return &route{method: "POST", path: "/api/v0/code/language-query", body: map[string]any{
 			"language": str(args, "language"), "entity_type": str(args, "entity_type"),
@@ -485,6 +463,27 @@ func resolveRoute(toolName string, args map[string]any) (*route, error) {
 // its dirgate pin.
 func deadCodeRoute(toolName string, args map[string]any) (*route, bool) {
 	request, handled := deadcodetools.Route(toolName, routecontract.Arguments(args))
+	if !handled {
+		return nil, false
+	}
+	return &route{
+		method: request.Method,
+		path:   request.Path,
+		body:   request.Body,
+		query:  request.Query,
+	}, true
+}
+
+// codeQualityRoute adapts the child package's complexity/quality request
+// selection into the root dispatcher's transport route. The family's three
+// arms lived in this file's own switch before the extraction; the delegation
+// sits with the other route delegations ahead of the switch, which changes
+// nothing a caller can observe because every arm in the chain claims tool
+// names exactly and no other arm claims these three. The adapter lives here
+// rather than in a new dispatch file so the root non-test file set stays at
+// its dirgate pin.
+func codeQualityRoute(toolName string, args map[string]any) (*route, bool) {
+	request, handled := codequalitytools.Route(toolName, routecontract.Arguments(args))
 	if !handled {
 		return nil, false
 	}

@@ -1530,22 +1530,70 @@ string in `dispatch.go`; the consumer-existence comment and gate doc now
 name the child selector and adapter, the way the impact extraction
 re-documented its two labels.
 
+The complexity/quality trio is the fifteenth Wave 2 MCP extraction and the
+second to lift case arms out of `dispatch.go`'s own switch. Its three tools —
+`calculate_cyclomatic_complexity`, `find_most_complex_functions`, and
+`inspect_code_quality` — were three inline arms whose first two share the
+`POST /api/v0/code/complexity` path and handler; family membership and the
+three request builders now live under `internal/mcp/codequality`, and the
+thin `codeQualityRoute` adapter lives in `dispatch.go` itself, beside
+`deadCodeRoute`, for the same dirgate reason. The delegation is consulted
+with the other route delegations ahead of the switch, which no caller can
+observe because every arm in the chain claims tool names exactly:
+`resolveRoute` goes from 22 delegations and 46 cases to 23 delegations and
+43 cases, with all 162 tools answered identically on both sides. Root keeps
+the three definitions (`tools_codebase.go`, `tools_code_quality.go`), global
+fanout, dispatch, authorization, timeouts, response budgets, envelopes,
+summaries, and telemetry, and the root non-test file set holds its dirgate
+pin of 106. Neither name is a language-parity read-surface label, so the
+consumer-existence backing map and gate doc are untouched — the first switch
+extraction with no label repointing at all.
+
+What makes this family worth reading is its two deliberate absences.
+`calculate_cyclomatic_complexity` carries `entity_id` only when the caller
+supplied a non-empty string — absent, empty, and wrong-typed values leave
+the key out entirely, and the tests pin the key's absence, not an empty
+value — and it sends no `limit` key at all, so a call with both selectors
+blank falls through to the handler's list mode at the handler's own default
+page of 10; its schema also advertises `path` and `scope`, which neither the
+builder selects nor the handler decodes. On `inspect_code_quality`, `limit`
+10 matches both handlers' substitute-then-clamp bounds (≤0 → 10, >100 →
+100) so no limit value can 400, but `offset`'s two bounds act in opposite
+directions in the same normalize function — negatives floor to 0, anything
+above 10000 rejects with HTTP 400 — and the three `min_*` thresholds travel
+as 0 precisely so the handler can resolve check-specific defaults
+(`min_complexity` resolves to 1 for the complexity check and 10 otherwise).
+A dispatcher-side positive default on any of them would silently pin one
+check's threshold onto every other check.
+
 The rest of the codeintel cluster stays in `dispatch.go`'s switch and moves
-family by family, not as one package: the complexity/quality trio
-(`calculate_cyclomatic_complexity` with its conditional `entity_id` key,
-`find_most_complex_functions`, `inspect_code_quality`), the discovery group
-(`find_code` with its outlier `limit` 10, `find_symbol`,
-`inspect_code_inventory`, `investigate_code_topic`,
-`execute_language_query`), the call-graph group
-(`inspect_call_graph_metrics`, `trace_route_callers`,
-`find_function_call_chain`), the single-tool secrets arm
-(`investigate_hardcoded_secrets`), and the graph passthrough pair
-(`execute_cypher_query`, `visualize_graph_query`) plus
-`search_registry_bundles`. Two of those names (`execute_language_query`,
-`trace_route_callers`) are language-parity read-surface labels documented as
-literal case strings in `dispatch.go`'s own switch, so whichever family
-moves them must update the consumer-existence comments and gate doc the way
-the impact and dead-code extractions did.
+family by family, not as one package. Four groups remain, in suggested
+landing order by coupling: (1) the call-graph group
+(`inspect_call_graph_metrics` in `tools_call_graph_metrics.go`,
+`trace_route_callers` in `tools_route_to_caller.go`,
+`find_function_call_chain` in `tools_codebase.go`), which repoints the
+`trace_route_callers` parity label; (2) the discovery group (`find_code`
+with its outlier `limit` 10, `find_symbol`, `inspect_code_inventory` in
+`tools_structural_inventory.go`, `investigate_code_topic` in
+`tools_code_topic.go`, `execute_language_query`), which repoints the
+`execute_language_query` parity label; (3) the single-tool arms —
+`investigate_import_dependencies` (`tools_import_dependencies.go`; the
+earlier enumeration here omitted it, but the research's cluster listing
+names import_dependencies and its arm sits in the same switch) and
+`investigate_hardcoded_secrets` (`tools_security.go`; distinct from the
+`secretsiam` posture child — its path lives under `/api/v0/code/security/`)
+— which can ride with a neighbouring group's PR or land alone; and (4) the
+graph passthrough pair (`execute_cypher_query`, `visualize_graph_query`)
+plus `search_registry_bundles`, all trivial two-to-four-key bodies. Every
+remaining arm consumes only the generic `str`/`intOr`/`boolOr`/`stringSlice`
+helpers that `routecontract.Arguments` already mirrors — no family-specific
+builder, no cross-family symbol, no root arm calling another family's
+handler — so each group's export budget is exactly one `Route` symbol. The
+two language-parity read-surface labels (`execute_language_query`,
+`trace_route_callers`) are documented as literal case strings in
+`dispatch.go`'s own switch, so the call-graph and discovery moves must
+update the consumer-existence comments and gate doc the way the impact and
+dead-code extractions did.
 
 **cmd/eshu (233):** `package main` — subdirectories are impossible by
 language rule. The lever is extracting business logic to new
