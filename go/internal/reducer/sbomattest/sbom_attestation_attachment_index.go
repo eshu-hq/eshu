@@ -4,9 +4,6 @@
 package sbomattest
 
 import (
-	"fmt"
-	"strings"
-
 	"github.com/eshu-hq/eshu/go/internal/facts"
 	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
 	"github.com/eshu-hq/eshu/go/internal/reducer/factdecode"
@@ -448,35 +445,12 @@ func sbomAttachmentImageAnchorFromEnvelope(envelope facts.Envelope) sbomAttachme
 // supporting helpers live in sbom_attestation_attachment_classify.go (split
 // out to keep this file under the 500-line cap).
 
-// PayloadStrings collects the trimmed, deduplicated, sorted union of
-// payload[scalarKey] (as a single value) and payload[sliceKey] (as a
-// []string or []any). Exported because it predates this family and the
-// reducer root's secrets/IAM, security-alert-reconciliation, and
-// supply-chain-impact call sites reuse it verbatim for unrelated payload
-// shapes; it stayed here rather than moving to payloadcore alongside this
-// migration to keep this PR's diff scoped to the sbom_attestation family.
+// PayloadStrings forwards to [payloadcore.PayloadStrings].
+//
+// The body lives in payloadcore because it is a generic payload accessor, not
+// SBOM logic: the reducer root's secrets/IAM, security-alert-reconciliation and
+// supply-chain-impact call sites use it for unrelated payload shapes, and none
+// of them should depend on this family to reach it.
 func PayloadStrings(payload map[string]any, scalarKey string, sliceKey string) []string {
-	var values []string
-	if value := payloadcore.PayloadString(payload, scalarKey); value != "" {
-		values = append(values, value)
-	}
-	raw, ok := payload[sliceKey]
-	if !ok {
-		return payloadcore.UniqueSortedStrings(values)
-	}
-	switch typed := raw.(type) {
-	case []string:
-		for _, value := range typed {
-			if strings.TrimSpace(value) != "" {
-				values = append(values, strings.TrimSpace(value))
-			}
-		}
-	case []any:
-		for _, value := range typed {
-			if text := strings.TrimSpace(fmt.Sprint(value)); text != "" {
-				values = append(values, text)
-			}
-		}
-	}
-	return payloadcore.UniqueSortedStrings(values)
+	return payloadcore.PayloadStrings(payload, scalarKey, sliceKey)
 }

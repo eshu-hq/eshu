@@ -5,6 +5,7 @@ package reducer
 
 import (
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/reducer/payloadcore"
 	"github.com/eshu-hq/eshu/go/internal/reducer/sbomattest"
 )
 
@@ -99,9 +100,12 @@ func normalizedVerificationStatus(raw string) string {
 	return sbomattest.NormalizedVerificationStatus(raw)
 }
 
-// payloadStrings forwards to [sbomattest.PayloadStrings].
+// payloadStrings forwards to [payloadcore.PayloadStrings]. It reaches the
+// shared helper directly rather than through sbomattest: the root callers are
+// secrets/IAM, security-alert-reconciliation and supply-chain-impact, none of
+// which have anything to do with the SBOM family.
 func payloadStrings(payload map[string]any, scalarKey string, sliceKey string) []string {
-	return sbomattest.PayloadStrings(payload, scalarKey, sliceKey)
+	return payloadcore.PayloadStrings(payload, scalarKey, sliceKey)
 }
 
 // sbomAttestationAttachmentFactKind lives in intent.go, aliased directly from
