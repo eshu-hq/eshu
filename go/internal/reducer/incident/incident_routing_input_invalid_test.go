@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package reducer
+package incident
 
 import (
 	"context"
@@ -9,6 +9,7 @@ import (
 	"testing"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/reducer/schemadecode"
 	"github.com/eshu-hq/eshu/sdk/go/factschema"
 	incidentv1 "github.com/eshu-hq/eshu/sdk/go/factschema/incident/v1"
 )
@@ -181,7 +182,7 @@ func TestIncidentRoutingMissingRequiredFieldDecodeError(t *testing.T) {
 			"redaction_state":         "none",
 		},
 	}
-	_, err := decodeIncidentRoutingAppliedPagerDutyResource(env)
+	_, err := schemadecode.DecodeIncidentRoutingAppliedPagerDutyResource(env)
 	if err == nil {
 		t.Fatal("decode missing resource_class: error = nil, want a classified decode error")
 	}

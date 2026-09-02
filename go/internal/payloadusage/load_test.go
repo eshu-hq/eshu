@@ -160,6 +160,36 @@ func TestLoadAgainstRealReducer(t *testing.T) {
 	}
 }
 
+// TestLoadManifestHasUniqueFactKinds proves the manifest's one-entry-per-fact-kind
+// invariant directly, rather than only through a total-count assertion. A
+// count-only check (as TestLoadAgainstRealReducer's len(manifest.Kinds) == 125
+// and TestGateAgainstRealReducerAndSchemas' len(manifest.Kinds) == 125 both
+// are) goes green for the wrong reason the moment 125 legitimately changes —
+// it cannot distinguish "a kind was added" from "a kind was double-counted".
+// This test instead asserts the actual duplicate condition: every FactKind in
+// the generated manifest is distinct. It regresses #6061's incident-family
+// move, which broke mergeSeams' exact-FuncName cross-surface dedup for four
+// incident kinds (see mergeSeamsByIdentity's doc comment) and produced two
+// manifest entries — one per surviving FuncName — for each.
+func TestLoadManifestHasUniqueFactKinds(t *testing.T) {
+	t.Parallel()
+
+	manifest, err := Load(Paths{RepoRoot: repoRoot(t)})
+	if err != nil {
+		t.Fatalf("Load() error = %v", err)
+	}
+
+	seen := map[string][]string{} // FactKind -> DecodeFunc(s) that produced it
+	for _, k := range manifest.Kinds {
+		seen[k.FactKind] = append(seen[k.FactKind], k.DecodeFunc)
+	}
+	for factKind, decodeFuncs := range seen {
+		if len(decodeFuncs) > 1 {
+			t.Errorf("fact kind %s appears %d times in the manifest (decode funcs %v), want exactly once — the manifest is double-counting this fact kind instead of merging its cross-surface decode seams into one entry", factKind, len(decodeFuncs), decodeFuncs)
+		}
+	}
+}
+
 // TestGateAgainstRealReducerAndSchemas proves the actual end-to-end gate (not
 // just BuildManifest) is currently clean against the real checked-in schemas:
 // every field a real AWS/IAM/security-group handler reads is declared by its

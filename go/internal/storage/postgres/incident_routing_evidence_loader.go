@@ -11,7 +11,7 @@ import (
 	"strings"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
-	"github.com/eshu-hq/eshu/go/internal/reducer"
+	"github.com/eshu-hq/eshu/go/internal/reducer/incident"
 )
 
 const listIncidentRoutingDeclaredEvidenceQuery = `
@@ -29,7 +29,7 @@ WHERE entity_type = 'PagerDutyDeclaration'
 ORDER BY repo_id ASC, relative_path ASC, start_line ASC, entity_id ASC
 `
 
-// LoadIncidentRoutingRawEvidence implements reducer.IncidentRoutingEvidenceLoader
+// LoadIncidentRoutingRawEvidence implements incident.IncidentRoutingEvidenceLoader
 // for PagerDuty incident-routing graph materialization. It returns the RAW
 // incident-context and incident-routing fact envelopes (payloads undecoded, for
 // the reducer to decode through the typed contracts seam) plus the declared
@@ -47,11 +47,11 @@ func (s FactStore) LoadIncidentRoutingRawEvidence(
 	ctx context.Context,
 	scopeID string,
 	generationID string,
-) (reducer.IncidentRoutingRawEvidence, error) {
+) (incident.IncidentRoutingRawEvidence, error) {
 	factKinds := append([]string{facts.IncidentRecordFactKind}, facts.IncidentRoutingFactKinds()...)
 	envelopes, err := s.ListFactsByKind(ctx, scopeID, generationID, factKinds)
 	if err != nil {
-		return reducer.IncidentRoutingRawEvidence{}, err
+		return incident.IncidentRoutingRawEvidence{}, err
 	}
 
 	serviceNames := incidentRoutingServiceNameAllowlistFromEnvelopes(envelopes)
@@ -59,15 +59,15 @@ func (s FactStore) LoadIncidentRoutingRawEvidence(
 		// No incident.record anchor with a service name: no declared read. The
 		// reducer builds no packets without an incident anchor, so return the
 		// (possibly non-empty) envelopes without the declaration round trip.
-		return reducer.IncidentRoutingRawEvidence{Facts: envelopes}, nil
+		return incident.IncidentRoutingRawEvidence{Facts: envelopes}, nil
 	}
 
 	declared, err := s.loadIncidentRoutingDeclaredEvidence(ctx, serviceNames)
 	if err != nil {
-		return reducer.IncidentRoutingRawEvidence{}, err
+		return incident.IncidentRoutingRawEvidence{}, err
 	}
 
-	return reducer.IncidentRoutingRawEvidence{
+	return incident.IncidentRoutingRawEvidence{
 		Facts:    envelopes,
 		Declared: declared,
 	}, nil
@@ -76,7 +76,7 @@ func (s FactStore) LoadIncidentRoutingRawEvidence(
 func (s FactStore) loadIncidentRoutingDeclaredEvidence(
 	ctx context.Context,
 	serviceNames []string,
-) ([]reducer.IncidentRoutingDeclaredEvidence, error) {
+) ([]incident.IncidentRoutingDeclaredEvidence, error) {
 	if len(serviceNames) == 0 {
 		return nil, nil
 	}
@@ -90,9 +90,9 @@ func (s FactStore) loadIncidentRoutingDeclaredEvidence(
 	}
 	defer func() { _ = rows.Close() }()
 
-	out := make([]reducer.IncidentRoutingDeclaredEvidence, 0)
+	out := make([]incident.IncidentRoutingDeclaredEvidence, 0)
 	for rows.Next() {
-		var item reducer.IncidentRoutingDeclaredEvidence
+		var item incident.IncidentRoutingDeclaredEvidence
 		var metadataBytes []byte
 		if err := rows.Scan(
 			&item.EntityID,

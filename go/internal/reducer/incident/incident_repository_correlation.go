@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package reducer
+package incident
 
 import (
 	"context"
@@ -10,6 +10,7 @@ import (
 
 	"go.opentelemetry.io/otel/metric"
 
+	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
 )
 
@@ -210,23 +211,25 @@ type IncidentRepositoryCorrelationHandler struct {
 }
 
 // Handle executes one incident-repository correlation reducer intent.
-func (h IncidentRepositoryCorrelationHandler) Handle(ctx context.Context, intent Intent) (Result, error) {
-	if intent.Domain != DomainIncidentRepositoryCorrelation {
-		return Result{}, fmt.Errorf(
+func (h IncidentRepositoryCorrelationHandler) Handle(
+	ctx context.Context, intent reducercontract.Intent,
+) (reducercontract.Result, error) {
+	if intent.Domain != reducercontract.DomainIncidentRepositoryCorrelation {
+		return reducercontract.Result{}, fmt.Errorf(
 			"incident_repository_correlation handler does not accept domain %q",
 			intent.Domain,
 		)
 	}
 	if h.Loader == nil {
-		return Result{}, fmt.Errorf("incident repository correlation loader is required")
+		return reducercontract.Result{}, fmt.Errorf("incident repository correlation loader is required")
 	}
 	if h.Writer == nil {
-		return Result{}, fmt.Errorf("incident repository correlation writer is required")
+		return reducercontract.Result{}, fmt.Errorf("incident repository correlation writer is required")
 	}
 
 	rows, err := h.Loader.LoadAppliedPagerDutyServiceRouting(ctx, intent.ScopeID, intent.GenerationID)
 	if err != nil {
-		return Result{}, fmt.Errorf("load applied pagerduty service routing: %w", err)
+		return reducercontract.Result{}, fmt.Errorf("load applied pagerduty service routing: %w", err)
 	}
 	provider := strings.TrimSpace(h.Provider)
 	if provider == "" {
@@ -234,7 +237,7 @@ func (h IncidentRepositoryCorrelationHandler) Handle(ctx context.Context, intent
 	}
 	decisions, err := BuildIncidentRepositoryCorrelations(ctx, provider, rows, h.Resolver)
 	if err != nil {
-		return Result{}, fmt.Errorf("build incident repository correlations: %w", err)
+		return reducercontract.Result{}, fmt.Errorf("build incident repository correlations: %w", err)
 	}
 	counts := incidentRepositoryCorrelationCounts(decisions)
 	writeResult, err := h.Writer.WriteIncidentRepositoryCorrelations(ctx, IncidentRepositoryCorrelationWrite{
@@ -246,14 +249,14 @@ func (h IncidentRepositoryCorrelationHandler) Handle(ctx context.Context, intent
 		Decisions:    decisions,
 	})
 	if err != nil {
-		return Result{}, fmt.Errorf("write incident repository correlations: %w", err)
+		return reducercontract.Result{}, fmt.Errorf("write incident repository correlations: %w", err)
 	}
 	h.emitCounters(ctx, counts)
 
-	return Result{
+	return reducercontract.Result{
 		IntentID:        intent.IntentID,
-		Domain:          DomainIncidentRepositoryCorrelation,
-		Status:          ResultStatusSucceeded,
+		Domain:          reducercontract.DomainIncidentRepositoryCorrelation,
+		Status:          reducercontract.ResultStatusSucceeded,
 		EvidenceSummary: incidentRepositoryCorrelationSummary(len(decisions), counts, writeResult.FactsWritten),
 		CanonicalWrites: writeResult.FactsWritten,
 	}, nil
@@ -273,7 +276,7 @@ func (h IncidentRepositoryCorrelationHandler) emitCounters(
 			continue
 		}
 		h.Instruments.IncidentRepositoryCorrelations.Add(ctx, int64(counts[outcome]), metric.WithAttributes(
-			telemetry.AttrDomain(string(DomainIncidentRepositoryCorrelation)),
+			telemetry.AttrDomain(string(reducercontract.DomainIncidentRepositoryCorrelation)),
 			telemetry.AttrOutcome(string(outcome)),
 		))
 	}

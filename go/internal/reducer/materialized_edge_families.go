@@ -176,19 +176,37 @@ var directMaterializedEdgeFamilyByPort = map[string]string{
 // family that writes none. A port in neither table that writes no edge falls
 // through silently — which is deliberate, not an oversight.
 //
-// The scan classifies 87 ports, and 44 are in neither table. One of those is
+// The scan classifies 88 ports, and 45 are in neither table. One of those is
 // WriteEdges, the shared-projection port, which DOES write edges and is
 // exempted by its own explicit branch rather than by writing none —
 // sharedProjectionEdgeWritePort below calls it the one graph-write port
-// belonging to neither table. Of the remaining 43 undeclared ports, all but
-// one are retract, sweep, execute or read ports. The exception is
-// FailureClass, which is not a graph-write port at all: it is declared on
-// reducerClassifiedFailure in service_heartbeat.go, an error-taxonomy
-// interface, and reaches this scan only because scanReducerInterfacePorts
-// harvests every method on every reducer interface and classifyCypherPorts
-// matches by bare name.
+// belonging to neither table. Of the remaining 44 undeclared ports, all but
+// two are retract, sweep, execute or read ports. One of the read ports is
+// HasCanonicalCodeTargets, declared on CanonicalNodeChecker in
+// code_call_materialization.go: it answers a question about the graph and
+// writes nothing, so it fits the bulk claim rather than standing outside it.
 //
-// Failing that set would fail the build on those 43 undeclared ports, which
+// The two exceptions are not graph-write ports at all, and each reaches this
+// scan only because scanReducerInterfacePorts harvests every method on every
+// reducer interface (including its subpackages, as of #6061) and
+// classifyCypherPorts matches by bare name:
+//
+//   - FailureClass is declared on reducerClassifiedFailure in
+//     service_heartbeat.go, an error-taxonomy interface.
+//   - Retryable is declared on RetryableError in reducer/contract/intent.go,
+//     also an error-taxonomy interface: it reports whether a failure should
+//     re-enter the durable queue, not whether anything was written or read
+//     from the graph.
+//
+// The counts moved from an earlier revision of this comment (87 classified,
+// 44 in neither table, 43 undeclared, with FailureClass the only exception)
+// because #6061 moved the incident family into a subpackage and the scan
+// that backs these counts started following the reducer package into its
+// subpackages to keep seeing it. That widened reach counted Retryable, on an
+// interface in reducer/contract, for the first time — the numbers changed
+// because the scan's reach changed, not because ports were added.
+//
+// Failing that set would fail the build on those 44 undeclared ports, which
 // were never meant to be declared. An earlier revision of this comment put 43
 // on the neither-table line and called every one of those a retract, sweep,
 // execute or read port; both halves were wrong, and this is the file that

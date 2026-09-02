@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package reducer
+package incident
 
 import (
 	"crypto/sha256"
@@ -69,8 +69,8 @@ func ExtractIncidentRoutingEvidenceRows(
 		tally.materialized[incidentRoutingTruthExact]++
 	}
 	sort.Slice(rows, func(a, b int) bool {
-		left := anyToString(rows[a]["slot"]) + ":" + anyToString(rows[a]["uid"])
-		right := anyToString(rows[b]["slot"]) + ":" + anyToString(rows[b]["uid"])
+		left := payloadcore.AnyToString(rows[a]["slot"]) + ":" + payloadcore.AnyToString(rows[a]["uid"])
+		right := payloadcore.AnyToString(rows[b]["slot"]) + ":" + payloadcore.AnyToString(rows[b]["uid"])
 		return left < right
 	})
 	return rows, tally

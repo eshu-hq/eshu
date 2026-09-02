@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package reducer
+package incident
 
 import (
 	"context"
@@ -11,29 +11,11 @@ import (
 
 	"go.opentelemetry.io/otel/metric"
 
+	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
+	"github.com/eshu-hq/eshu/go/internal/reducer/factdecode"
 	"github.com/eshu-hq/eshu/go/internal/reducer/payloadcore"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
-	"github.com/eshu-hq/eshu/go/internal/truth"
 )
-
-func incidentRoutingMaterializationDomainDefinition() DomainDefinition {
-	return DomainDefinition{
-		Domain:  DomainIncidentRoutingMaterialization,
-		Summary: "project exact PagerDuty incident-routing evidence into canonical graph evidence nodes",
-		Ownership: OwnershipShape{
-			CrossSource:    true,
-			CrossScope:     true,
-			CanonicalWrite: true,
-		},
-		TruthContract: truth.Contract{
-			CanonicalKind: "incident_routing_materialization",
-			SourceLayers: []truth.Layer{
-				truth.LayerSourceDeclaration,
-				truth.LayerObservedResource,
-			},
-		},
-	}
-}
 
 const incidentRoutingEvidenceSource = "reducer/incident-routing"
 
@@ -64,30 +46,32 @@ type IncidentRoutingEvidenceWriter interface {
 type IncidentRoutingMaterializationHandler struct {
 	Loader               IncidentRoutingEvidenceLoader
 	Writer               IncidentRoutingEvidenceWriter
-	PriorGenerationCheck PriorGenerationCheck
+	PriorGenerationCheck reducercontract.PriorGenerationCheck
 	Instruments          *telemetry.Instruments
 }
 
 // Handle executes one incident-routing materialization intent.
-func (h IncidentRoutingMaterializationHandler) Handle(ctx context.Context, intent Intent) (Result, error) {
+func (h IncidentRoutingMaterializationHandler) Handle(
+	ctx context.Context, intent reducercontract.Intent,
+) (reducercontract.Result, error) {
 	totalStart := time.Now()
-	if intent.Domain != DomainIncidentRoutingMaterialization {
-		return Result{}, fmt.Errorf(
+	if intent.Domain != reducercontract.DomainIncidentRoutingMaterialization {
+		return reducercontract.Result{}, fmt.Errorf(
 			"incident routing materialization handler does not accept domain %q",
 			intent.Domain,
 		)
 	}
 	if h.Loader == nil {
-		return Result{}, fmt.Errorf("incident routing materialization loader is required")
+		return reducercontract.Result{}, fmt.Errorf("incident routing materialization loader is required")
 	}
 	if h.Writer == nil {
-		return Result{}, fmt.Errorf("incident routing materialization writer is required")
+		return reducercontract.Result{}, fmt.Errorf("incident routing materialization writer is required")
 	}
 
 	loadStart := time.Now()
 	raw, err := h.Loader.LoadIncidentRoutingRawEvidence(ctx, intent.ScopeID, intent.GenerationID)
 	if err != nil {
-		return Result{}, fmt.Errorf("load incident routing evidence: %w", err)
+		return reducercontract.Result{}, fmt.Errorf("load incident routing evidence: %w", err)
 	}
 	loadDuration := time.Since(loadStart)
 
@@ -97,7 +81,7 @@ func (h IncidentRoutingMaterializationHandler) Handle(ctx context.Context, inten
 	// fatal and aborts the intent for durable triage.
 	inputs, quarantined, err := buildIncidentRoutingEvidenceInputs(raw)
 	if err != nil {
-		return Result{}, fmt.Errorf("decode incident routing evidence: %w", err)
+		return reducercontract.Result{}, fmt.Errorf("decode incident routing evidence: %w", err)
 	}
 
 	extractStart := time.Now()
@@ -106,7 +90,7 @@ func (h IncidentRoutingMaterializationHandler) Handle(ctx context.Context, inten
 
 	skipRetract, err := h.shouldSkipRetract(ctx, intent)
 	if err != nil {
-		return Result{}, err
+		return reducercontract.Result{}, err
 	}
 	var retractDuration time.Duration
 	if !skipRetract {
@@ -117,7 +101,7 @@ func (h IncidentRoutingMaterializationHandler) Handle(ctx context.Context, inten
 			intent.GenerationID,
 			incidentRoutingEvidenceSource,
 		); err != nil {
-			return Result{}, fmt.Errorf("retract incident routing graph evidence: %w", err)
+			return reducercontract.Result{}, fmt.Errorf("retract incident routing graph evidence: %w", err)
 		}
 		retractDuration = time.Since(retractStart)
 	}
@@ -132,7 +116,7 @@ func (h IncidentRoutingMaterializationHandler) Handle(ctx context.Context, inten
 			intent.GenerationID,
 			incidentRoutingEvidenceSource,
 		); err != nil {
-			return Result{}, fmt.Errorf("write incident routing graph evidence: %w", err)
+			return reducercontract.Result{}, fmt.Errorf("write incident routing graph evidence: %w", err)
 		}
 		writeDuration = time.Since(writeStart)
 	}
@@ -140,8 +124,8 @@ func (h IncidentRoutingMaterializationHandler) Handle(ctx context.Context, inten
 	h.recordEvidenceCounter(ctx, rows, tally)
 	// Emit the visible per-fact dead-letter for every quarantined malformed fact
 	// (metric + structured log), and surface the count on the per-intent signal.
-	inputInvalidCount := recordQuarantinedFacts(
-		ctx, h.Instruments, DomainIncidentRoutingMaterialization, intent.ScopeID, intent.GenerationID, quarantined,
+	inputInvalidCount := factdecode.RecordQuarantinedFacts(
+		ctx, h.Instruments, reducercontract.DomainIncidentRoutingMaterialization, intent.ScopeID, intent.GenerationID, quarantined,
 	)
 	slog.Info(
 		"incident routing materialization completed",
@@ -160,13 +144,13 @@ func (h IncidentRoutingMaterializationHandler) Handle(ctx context.Context, inten
 		"total_duration_s", time.Since(totalStart).Seconds(),
 	)
 
-	return Result{
+	return reducercontract.Result{
 		IntentID:        intent.IntentID,
-		Domain:          DomainIncidentRoutingMaterialization,
-		Status:          ResultStatusSucceeded,
+		Domain:          reducercontract.DomainIncidentRoutingMaterialization,
+		Status:          reducercontract.ResultStatusSucceeded,
 		EvidenceSummary: fmt.Sprintf("materialized %d incident-routing graph evidence row(s) from %d incident packet(s)", len(rows), len(inputs)),
 		CanonicalWrites: len(rows),
-		SubSignals:      inputInvalidSubSignals(inputInvalidCount),
+		SubSignals:      factdecode.InputInvalidSubSignals(inputInvalidCount),
 	}, nil
 }
 
@@ -205,8 +189,8 @@ func (h IncidentRoutingMaterializationHandler) recordEvidenceCounter(
 	for _, row := range rows {
 		counts[key{
 			outcome: incidentRoutingTruthExact,
-			source:  payloadcore.FirstNonBlank(anyToString(row["source_class"]), "unknown"),
-			kind:    payloadcore.FirstNonBlank(anyToString(row["slot"]), "routing"),
+			source:  payloadcore.FirstNonBlank(payloadcore.AnyToString(row["source_class"]), "unknown"),
+			kind:    payloadcore.FirstNonBlank(payloadcore.AnyToString(row["slot"]), "routing"),
 		}]++
 	}
 	for outcome, count := range tally.skipped {
@@ -217,7 +201,7 @@ func (h IncidentRoutingMaterializationHandler) recordEvidenceCounter(
 	}
 	for key, count := range counts {
 		h.Instruments.IncidentRoutingEvidence.Add(ctx, int64(count), metric.WithAttributes(
-			telemetry.AttrDomain(string(DomainIncidentRoutingMaterialization)),
+			telemetry.AttrDomain(string(reducercontract.DomainIncidentRoutingMaterialization)),
 			telemetry.AttrOutcome(key.outcome),
 			telemetry.AttrSource(key.source),
 			telemetry.AttrKind(key.kind),
@@ -227,7 +211,7 @@ func (h IncidentRoutingMaterializationHandler) recordEvidenceCounter(
 
 func (h IncidentRoutingMaterializationHandler) shouldSkipRetract(
 	ctx context.Context,
-	intent Intent,
+	intent reducercontract.Intent,
 ) (bool, error) {
 	if h.PriorGenerationCheck == nil || intent.AttemptCount > 1 {
 		return false, nil

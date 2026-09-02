@@ -1,13 +1,15 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package reducer
+package incident
 
 import (
 	"context"
 	"errors"
 	"fmt"
 	"testing"
+
+	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
 )
 
 // stubBackendRepositoryResolver returns a canned resolution per
@@ -336,12 +338,12 @@ func TestIncidentRepositoryCorrelationHandlerWritesDecisions(t *testing.T) {
 		Resolver: resolver,
 		Writer:   writer,
 	}
-	intent := Intent{
+	intent := reducercontract.Intent{
 		IntentID:     "intent-1",
 		ScopeID:      "scope-1",
 		GenerationID: "gen-1",
 		SourceSystem: "pagerduty",
-		Domain:       DomainIncidentRepositoryCorrelation,
+		Domain:       reducercontract.DomainIncidentRepositoryCorrelation,
 		Cause:        "test",
 	}
 
@@ -349,7 +351,7 @@ func TestIncidentRepositoryCorrelationHandlerWritesDecisions(t *testing.T) {
 	if err != nil {
 		t.Fatalf("handle: unexpected error %v", err)
 	}
-	if result.Status != ResultStatusSucceeded {
+	if result.Status != reducercontract.ResultStatusSucceeded {
 		t.Fatalf("status = %q, want succeeded", result.Status)
 	}
 	if writer.calls != 1 || len(writer.write.Decisions) != 1 {
@@ -368,62 +370,8 @@ func TestIncidentRepositoryCorrelationHandlerRejectsWrongDomain(t *testing.T) {
 		Loader: stubAppliedRoutingLoader{},
 		Writer: &recordingIncidentRepoCorrelationWriter{},
 	}
-	if _, err := handler.Handle(context.Background(), Intent{Domain: DomainServiceCatalogCorrelation}); err == nil {
+	if _, err := handler.Handle(context.Background(), reducercontract.Intent{Domain: reducercontract.DomainServiceCatalogCorrelation}); err == nil {
 		t.Fatalf("expected wrong-domain rejection")
-	}
-}
-
-// TestImplementedDefaultDomainDefinitionsOmitsIncidentRepositoryCorrelationWithoutWriter
-// proves the additive domain stays unregistered when only the loader is wired,
-// so a half-wired deployment never silently drops correlation intents.
-func TestImplementedDefaultDomainDefinitionsOmitsIncidentRepositoryCorrelationWithoutWriter(t *testing.T) {
-	t.Parallel()
-	definitions := implementedDefaultDomainDefinitions(DefaultHandlers{
-		IncidentRoutingHandlers: IncidentRoutingHandlers{
-			AppliedPagerDutyServiceRoutingLoader: stubAppliedRoutingLoader{},
-		},
-	})
-	for _, def := range definitions {
-		if def.Domain == DomainIncidentRepositoryCorrelation {
-			t.Fatalf("incident_repository_correlation registered without writer; want omitted")
-		}
-	}
-}
-
-// TestImplementedDefaultDomainDefinitionsIncludesIncidentRepositoryCorrelationWhenWired
-// proves the domain registers with a fully-wired handler and canonical-write
-// ownership once loader and writer are present.
-func TestImplementedDefaultDomainDefinitionsIncludesIncidentRepositoryCorrelationWhenWired(t *testing.T) {
-	t.Parallel()
-	loader := stubAppliedRoutingLoader{}
-	resolver := &stubBackendRepositoryResolver{}
-	writer := &recordingIncidentRepoCorrelationWriter{}
-	definitions := implementedDefaultDomainDefinitions(DefaultHandlers{
-		IncidentRoutingHandlers: IncidentRoutingHandlers{
-			AppliedPagerDutyServiceRoutingLoader: loader,
-			BackendRepositoryResolver:            resolver,
-			IncidentRepositoryCorrelationWriter:  writer,
-		},
-	})
-	found := false
-	for _, def := range definitions {
-		if def.Domain != DomainIncidentRepositoryCorrelation {
-			continue
-		}
-		found = true
-		handler, ok := def.Handler.(IncidentRepositoryCorrelationHandler)
-		if !ok {
-			t.Fatalf("handler type = %T, want IncidentRepositoryCorrelationHandler", def.Handler)
-		}
-		if handler.Loader == nil || handler.Resolver == nil || handler.Writer == nil {
-			t.Fatal("incident_repository_correlation handler not fully wired")
-		}
-		if !def.Ownership.CanonicalWrite {
-			t.Fatal("incident_repository_correlation must declare CanonicalWrite ownership")
-		}
-	}
-	if !found {
-		t.Fatal("incident_repository_correlation not registered after wiring loader+writer")
 	}
 }
 

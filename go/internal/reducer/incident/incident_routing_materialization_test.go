@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package reducer
+package incident
 
 import (
 	"context"
@@ -9,6 +9,8 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
+	"github.com/eshu-hq/eshu/go/internal/reducer/payloadcore"
 	"github.com/eshu-hq/eshu/sdk/go/factschema"
 	incidentv1 "github.com/eshu-hq/eshu/sdk/go/factschema/incident/v1"
 )
@@ -67,13 +69,13 @@ func (l stubIncidentRoutingEvidenceLoader) LoadIncidentRoutingRawEvidence(
 	return l.raw, nil
 }
 
-func incidentRoutingMaterializationIntent() Intent {
+func incidentRoutingMaterializationIntent() reducercontract.Intent {
 	now := time.Now()
-	return Intent{
+	return reducercontract.Intent{
 		IntentID:     "intent-pagerduty-routing-1",
 		ScopeID:      "scope-pagerduty",
 		GenerationID: "gen-pagerduty",
-		Domain:       DomainIncidentRoutingMaterialization,
+		Domain:       reducercontract.DomainIncidentRoutingMaterialization,
 		EnqueuedAt:   now,
 		AvailableAt:  now,
 	}
@@ -231,20 +233,20 @@ func TestExtractIncidentRoutingEvidenceRowsProjectsExactSlots(t *testing.T) {
 		if !ok {
 			t.Fatalf("missing materialized slot %q in rows %#v", slot, rows)
 		}
-		if anyToString(row["uid"]) == "" || anyToString(row["incident_uid"]) == "" {
+		if payloadcore.AnyToString(row["uid"]) == "" || payloadcore.AnyToString(row["incident_uid"]) == "" {
 			t.Fatalf("slot %q missing deterministic uids: %#v", slot, row)
 		}
-		if got := anyToString(row["truth_label"]); got != "exact" {
+		if got := payloadcore.AnyToString(row["truth_label"]); got != "exact" {
 			t.Fatalf("slot %q truth_label = %q, want exact", slot, got)
 		}
 	}
-	if got := anyToString(indexed["intended_routing"]["source_class"]); got != "declared" {
+	if got := payloadcore.AnyToString(indexed["intended_routing"]["source_class"]); got != "declared" {
 		t.Fatalf("intended source_class = %q, want declared", got)
 	}
-	if got := anyToString(indexed["applied_routing"]["source_class"]); got != "applied" {
+	if got := payloadcore.AnyToString(indexed["applied_routing"]["source_class"]); got != "applied" {
 		t.Fatalf("applied source_class = %q, want applied", got)
 	}
-	if got := anyToString(indexed["live_routing"]["source_class"]); got != "observed" {
+	if got := payloadcore.AnyToString(indexed["live_routing"]["source_class"]); got != "observed" {
 		t.Fatalf("live source_class = %q, want observed", got)
 	}
 	for _, row := range rows {
@@ -277,10 +279,10 @@ func TestExtractIncidentRoutingEvidenceRowsProjectsLiveOnlyNoIaC(t *testing.T) {
 		t.Fatalf("rows = %d, want one live-only PagerDuty routing evidence row", len(rows))
 	}
 	row := rows[0]
-	if got := anyToString(row["slot"]); got != "live_routing" {
+	if got := payloadcore.AnyToString(row["slot"]); got != "live_routing" {
 		t.Fatalf("slot = %q, want live_routing", got)
 	}
-	if got := anyToString(row["source_class"]); got != "observed" {
+	if got := payloadcore.AnyToString(row["source_class"]); got != "observed" {
 		t.Fatalf("source_class = %q, want observed", got)
 	}
 	if tally.skipped["missing"] != 2 {
@@ -451,7 +453,7 @@ func TestIncidentRoutingMaterializationHandlerWritesAndRetracts(t *testing.T) {
 	if result.SubSignals["input_invalid_facts"] != 0 {
 		t.Fatalf("SubSignals[input_invalid_facts] = %v, want 0 for all-valid facts", result.SubSignals["input_invalid_facts"])
 	}
-	if result.Status != ResultStatusSucceeded {
+	if result.Status != reducercontract.ResultStatusSucceeded {
 		t.Fatalf("status = %q, want succeeded", result.Status)
 	}
 	if writer.retractCalls != 1 {
@@ -478,7 +480,7 @@ func TestIncidentRoutingMaterializationHandlerWritesAndRetracts(t *testing.T) {
 func indexIncidentRoutingRows(rows []map[string]any) map[string]map[string]any {
 	indexed := make(map[string]map[string]any, len(rows))
 	for _, row := range rows {
-		indexed[anyToString(row["slot"])] = row
+		indexed[payloadcore.AnyToString(row["slot"])] = row
 	}
 	return indexed
 }

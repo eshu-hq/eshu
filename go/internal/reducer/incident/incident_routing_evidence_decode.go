@@ -1,14 +1,16 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package reducer
+package incident
 
 import (
 	"strings"
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/reducer/factdecode"
 	"github.com/eshu-hq/eshu/go/internal/reducer/payloadcore"
+	"github.com/eshu-hq/eshu/go/internal/reducer/schemadecode"
 	incidentv1 "github.com/eshu-hq/eshu/sdk/go/factschema/incident/v1"
 )
 
@@ -21,9 +23,9 @@ import (
 // The split is deliberate (Contract System v1 §3.2): the fact-payload half stays
 // raw so the reducer — not the storage layer — decodes it through the typed
 // contracts seam, routing a missing required field to a per-fact input_invalid
-// quarantine via partitionDecodeFailures. The declared half is content-entity
-// metadata, not a fact payload, so it is outside the payload contract boundary
-// and stays decoded by the storage layer.
+// quarantine via factdecode.PartitionDecodeFailures. The declared half is
+// content-entity metadata, not a fact payload, so it is outside the payload
+// contract boundary and stays decoded by the storage layer.
 type IncidentRoutingRawEvidence struct {
 	// Facts are the incident.record and incident_routing.* fact envelopes for the
 	// scope generation, in the storage layer's stable order. The reducer decodes
@@ -40,13 +42,14 @@ type IncidentRoutingRawEvidence struct {
 // per successfully decoded incident.record fact, and returns any facts it
 // quarantined because their payload was missing a required field.
 //
-// Every decode routes through partitionDecodeFailures: an input_invalid decode
-// error (a missing/null required field) quarantines that one fact and skips it
-// while every valid fact still projects; any other error is fatal and aborts the
-// whole intent, so a transient or programming error is never silently swallowed
-// as a per-fact skip. This is the per-fact fault-isolation contract the AWS/IAM
-// family established, applied to the incident-routing fact-payload reads that
-// previously lived as raw payloadString map lookups in the storage loader.
+// Every decode routes through factdecode.PartitionDecodeFailures: an
+// input_invalid decode error (a missing/null required field) quarantines that
+// one fact and skips it while every valid fact still projects; any other error
+// is fatal and aborts the whole intent, so a transient or programming error is
+// never silently swallowed as a per-fact skip. This is the per-fact
+// fault-isolation contract the AWS/IAM family established, applied to the
+// incident-routing fact-payload reads that previously lived as raw
+// payloadString map lookups in the storage loader.
 //
 // The declared evidence, the applied/observed/warning slices, and the warnings
 // are shared across every incident packet exactly as the pre-typing loader built
@@ -56,8 +59,8 @@ type IncidentRoutingRawEvidence struct {
 // produced.
 func buildIncidentRoutingEvidenceInputs(
 	raw IncidentRoutingRawEvidence,
-) ([]IncidentRoutingEvidenceInput, []quarantinedFact, error) {
-	var quarantined []quarantinedFact
+) ([]IncidentRoutingEvidenceInput, []factdecode.QuarantinedFact, error) {
+	var quarantined []factdecode.QuarantinedFact
 
 	incidents := make([]IncidentRoutingIncident, 0)
 	applied := make([]IncidentRoutingAppliedEvidence, 0)
@@ -70,9 +73,9 @@ func buildIncidentRoutingEvidenceInputs(
 		}
 		switch env.FactKind {
 		case facts.IncidentRecordFactKind:
-			record, err := decodeIncidentRecord(env)
+			record, err := schemadecode.DecodeIncidentRecord(env)
 			if err != nil {
-				q, ok, fatal := partitionDecodeFailures(env, err)
+				q, ok, fatal := factdecode.PartitionDecodeFailures(env, err)
 				if fatal != nil {
 					return nil, nil, fatal
 				}
@@ -85,9 +88,9 @@ func buildIncidentRoutingEvidenceInputs(
 				incidents = append(incidents, incident)
 			}
 		case facts.IncidentRoutingAppliedPagerDutyResourceFactKind:
-			resource, err := decodeIncidentRoutingAppliedPagerDutyResource(env)
+			resource, err := schemadecode.DecodeIncidentRoutingAppliedPagerDutyResource(env)
 			if err != nil {
-				q, ok, fatal := partitionDecodeFailures(env, err)
+				q, ok, fatal := factdecode.PartitionDecodeFailures(env, err)
 				if fatal != nil {
 					return nil, nil, fatal
 				}
@@ -108,9 +111,9 @@ func buildIncidentRoutingEvidenceInputs(
 			}
 			applied = append(applied, incidentRoutingAppliedFromDecoded(env, resource))
 		case facts.IncidentRoutingObservedPagerDutyServiceFactKind:
-			service, err := decodeIncidentRoutingObservedPagerDutyService(env)
+			service, err := schemadecode.DecodeIncidentRoutingObservedPagerDutyService(env)
 			if err != nil {
-				q, ok, fatal := partitionDecodeFailures(env, err)
+				q, ok, fatal := factdecode.PartitionDecodeFailures(env, err)
 				if fatal != nil {
 					return nil, nil, fatal
 				}
@@ -121,9 +124,9 @@ func buildIncidentRoutingEvidenceInputs(
 			}
 			observed = append(observed, incidentRoutingObservedFromDecoded(env, service))
 		case facts.IncidentRoutingCoverageWarningFactKind:
-			warning, err := decodeIncidentRoutingCoverageWarning(env)
+			warning, err := schemadecode.DecodeIncidentRoutingCoverageWarning(env)
 			if err != nil {
-				q, ok, fatal := partitionDecodeFailures(env, err)
+				q, ok, fatal := factdecode.PartitionDecodeFailures(env, err)
 				if fatal != nil {
 					return nil, nil, fatal
 				}
@@ -165,14 +168,14 @@ func incidentRoutingIncidentFromDecoded(
 	env facts.Envelope,
 	record incidentv1.IncidentRecord,
 ) IncidentRoutingIncident {
-	serviceID := strings.TrimSpace(derefString(record.ServiceID))
+	serviceID := strings.TrimSpace(payloadcore.DerefString(record.ServiceID))
 	if serviceID == "" && record.Service != nil {
-		serviceID = strings.TrimSpace(derefString(record.Service.ID))
+		serviceID = strings.TrimSpace(payloadcore.DerefString(record.Service.ID))
 	}
 	var serviceName, serviceURL string
 	if record.Service != nil {
-		serviceName = strings.TrimSpace(derefString(record.Service.Summary))
-		serviceURL = strings.TrimSpace(derefString(record.Service.URL))
+		serviceName = strings.TrimSpace(payloadcore.DerefString(record.Service.Summary))
+		serviceURL = strings.TrimSpace(payloadcore.DerefString(record.Service.URL))
 	}
 	return IncidentRoutingIncident{
 		Provider:           payloadcore.FirstNonBlank(strings.TrimSpace(record.Provider), "pagerduty"),
@@ -182,7 +185,7 @@ func incidentRoutingIncidentFromDecoded(
 		ServiceName:        serviceName,
 		ServiceURL:         serviceURL,
 		EvidenceFactID:     env.FactID,
-		SourceURL:          payloadcore.FirstNonBlank(strings.TrimSpace(derefString(record.SourceURL)), env.SourceRef.SourceURI),
+		SourceURL:          payloadcore.FirstNonBlank(strings.TrimSpace(payloadcore.DerefString(record.SourceURL)), env.SourceRef.SourceURI),
 		SourceConfidence:   env.SourceConfidence,
 		ObservedAt:         incidentRoutingFormatEnvelopeTime(env.ObservedAt),
 	}
@@ -202,9 +205,9 @@ func incidentRoutingAppliedFromDecoded(
 		SourceKind:                strings.TrimSpace(resource.SourceKind),
 		Outcome:                   strings.TrimSpace(resource.Outcome),
 		ResourceClass:             strings.TrimSpace(resource.ResourceClass),
-		ProviderObjectID:          strings.TrimSpace(derefString(resource.ProviderObjectID)),
-		NameFingerprint:           strings.TrimSpace(derefString(resource.NameFingerprint)),
-		EscalationPolicyReference: strings.TrimSpace(derefString(resource.EscalationPolicyReference)),
+		ProviderObjectID:          strings.TrimSpace(payloadcore.DerefString(resource.ProviderObjectID)),
+		NameFingerprint:           strings.TrimSpace(payloadcore.DerefString(resource.NameFingerprint)),
+		EscalationPolicyReference: strings.TrimSpace(payloadcore.DerefString(resource.EscalationPolicyReference)),
 		TerraformStateAddress:     strings.TrimSpace(resource.TerraformStateAddress),
 		ProviderAddress:           strings.TrimSpace(resource.ProviderAddress),
 		ModuleAddress:             strings.TrimSpace(resource.ModuleAddress),
@@ -231,16 +234,16 @@ func incidentRoutingObservedFromDecoded(
 		Outcome:                   strings.TrimSpace(service.Outcome),
 		ServiceID:                 strings.TrimSpace(service.ServiceID),
 		ProviderObjectID:          strings.TrimSpace(service.ProviderObjectID),
-		NameFingerprint:           strings.TrimSpace(derefString(service.NameFingerprint)),
-		Status:                    strings.TrimSpace(derefString(service.Status)),
-		EscalationPolicyReference: strings.TrimSpace(derefString(service.EscalationPolicyReference)),
+		NameFingerprint:           strings.TrimSpace(payloadcore.DerefString(service.NameFingerprint)),
+		Status:                    strings.TrimSpace(payloadcore.DerefString(service.Status)),
+		EscalationPolicyReference: strings.TrimSpace(payloadcore.DerefString(service.EscalationPolicyReference)),
 		DeclaredMatchState:        strings.TrimSpace(service.DeclaredMatchState),
-		DriftCandidateReason:      strings.TrimSpace(derefString(service.DriftCandidateReason)),
+		DriftCandidateReason:      strings.TrimSpace(payloadcore.DerefString(service.DriftCandidateReason)),
 		RedactionState:            strings.TrimSpace(service.RedactionState),
-		SourceURL:                 payloadcore.FirstNonBlank(strings.TrimSpace(derefString(service.SourceURL)), env.SourceRef.SourceURI),
-		Disabled:                  derefBool(service.Disabled),
-		Deleted:                   derefBool(service.Deleted),
-		ManuallyCreated:           derefBool(service.ManuallyCreated),
+		SourceURL:                 payloadcore.FirstNonBlank(strings.TrimSpace(payloadcore.DerefString(service.SourceURL)), env.SourceRef.SourceURI),
+		Disabled:                  payloadcore.DerefBool(service.Disabled),
+		Deleted:                   payloadcore.DerefBool(service.Deleted),
+		ManuallyCreated:           payloadcore.DerefBool(service.ManuallyCreated),
 		ObservedAt:                incidentRoutingFormatEnvelopeTime(env.ObservedAt),
 	}
 }
@@ -257,15 +260,10 @@ func incidentRoutingWarningFromDecoded(
 		SourceClass:      strings.TrimSpace(warning.SourceClass),
 		SourceKind:       strings.TrimSpace(warning.SourceKind),
 		Reason:           strings.TrimSpace(warning.Reason),
-		ResourceClass:    strings.TrimSpace(derefString(warning.ResourceClass)),
-		ProviderObjectID: strings.TrimSpace(derefString(warning.ProviderObjectID)),
+		ResourceClass:    strings.TrimSpace(payloadcore.DerefString(warning.ResourceClass)),
+		ProviderObjectID: strings.TrimSpace(payloadcore.DerefString(warning.ProviderObjectID)),
 		ObservedAt:       incidentRoutingFormatEnvelopeTime(env.ObservedAt),
 	}
-}
-
-// derefBool forwards to [payloadcore.DerefBool].
-func derefBool(value *bool) bool {
-	return payloadcore.DerefBool(value)
 }
 
 // incidentRoutingFormatEnvelopeTime renders an envelope observed-at timestamp as

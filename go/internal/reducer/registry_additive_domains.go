@@ -375,6 +375,60 @@ func observabilityCoverageCorrelationDomainDefinition() DomainDefinition {
 	}
 }
 
+// incidentRoutingMaterializationDomainDefinition returns the additive
+// definition for PagerDuty incident-routing graph materialization. It moved
+// here from incident_routing_materialization.go (now internal/reducer/incident,
+// issue #6061): every additive family's DomainDefinition builder stays in the
+// root registry regardless of where its handler lives, matching
+// configStateDriftDomainDefinition and eshuSearchDocumentDomainDefinition
+// above.
+func incidentRoutingMaterializationDomainDefinition() DomainDefinition {
+	return DomainDefinition{
+		Domain:  DomainIncidentRoutingMaterialization,
+		Summary: "project exact PagerDuty incident-routing evidence into canonical graph evidence nodes",
+		Ownership: OwnershipShape{
+			CrossSource:    true,
+			CrossScope:     true,
+			CanonicalWrite: true,
+		},
+		TruthContract: truth.Contract{
+			CanonicalKind: "incident_routing_materialization",
+			SourceLayers: []truth.Layer{
+				truth.LayerSourceDeclaration,
+				truth.LayerObservedResource,
+			},
+		},
+	}
+}
+
+// incidentRepositoryCorrelationDomainDefinition returns the additive
+// incident-repository correlation domain definition. It moved here from
+// incident_repository_correlation_writer.go (now internal/reducer/incident,
+// issue #6061); see incidentRoutingMaterializationDomainDefinition above for
+// why the builder stays in the root registry. Its truth contract spans the
+// source declaration layer (the applied routing fact) and the
+// observed-resource layer (the resolved owning repository), matching the two
+// layers an edge-bearing decision carries; provenance-only decisions stay
+// declaration-layer only.
+func incidentRepositoryCorrelationDomainDefinition() DomainDefinition {
+	return DomainDefinition{
+		Domain:  DomainIncidentRepositoryCorrelation,
+		Summary: "correlate applied PagerDuty incident routing to its owning repository through the durable Terraform backend-locator join",
+		Ownership: OwnershipShape{
+			CrossSource:    true,
+			CrossScope:     true,
+			CanonicalWrite: true,
+		},
+		TruthContract: truth.Contract{
+			CanonicalKind: "incident_repository_correlation",
+			SourceLayers: []truth.Layer{
+				truth.LayerSourceDeclaration,
+				truth.LayerObservedResource,
+			},
+		},
+	}
+}
+
 // kubernetesCorrelationDomainDefinition returns the additive definition for
 // live Kubernetes correlation. It is additive (not part of
 // DefaultDomainDefinitions) because the handler requires an explicitly wired

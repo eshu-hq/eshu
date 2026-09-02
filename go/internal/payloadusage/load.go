@@ -384,7 +384,15 @@ func Load(p Paths) (Manifest, error) {
 	}
 	usage := mergeUsageSets(usages...)
 
-	manifest := BuildManifest(seams, shapes, usage)
+	// mergeSeamsByIdentity runs after usage scanning (which needs every raw
+	// seam's FuncName to recognize every call shape across every scanned
+	// surface) and before BuildManifest (which must emit exactly one entry
+	// per fact kind): see mergeSeamsByIdentity's doc comment for why a
+	// same-fact-kind collision under two different FuncNames is not caught
+	// by mergeSeams' earlier exact-FuncName dedup.
+	mergedSeams, mergedUsage := mergeSeamsByIdentity(seams, usage)
+
+	manifest := BuildManifest(mergedSeams, shapes, mergedUsage)
 	if err := verifyEverySeamProduced(seams, manifest); err != nil {
 		return Manifest{}, err
 	}
@@ -396,14 +404,23 @@ func Load(p Paths) (Manifest, error) {
 // function was added but its struct lives in a directory Load was not told
 // to parse). Without this check BuildManifest's silent skip would let a
 // newly migrated kind vanish from the manifest without any signal.
+//
+// seams is the RAW, pre-mergeSeamsByIdentity list, so more than one seam can
+// legitimately share one manifest entry (see mergeSeamsByIdentity). Coverage
+// is therefore checked by seamIdentity (fact kind + qualified struct), not by
+// exact FuncName: a seam whose FuncName lost the identity-merge tie-break is
+// still "produced" through the surviving representative entry, and checking
+// FuncName directly against manifest.Kinds would flag it as missing even
+// though its usage was folded into that entry.
 func verifyEverySeamProduced(seams []DecodeSeam, manifest Manifest) error {
-	produced := make(map[string]struct{}, len(manifest.Kinds))
+	produced := make(map[seamIdentity]struct{}, len(manifest.Kinds))
 	for _, k := range manifest.Kinds {
-		produced[k.DecodeFunc] = struct{}{}
+		produced[seamIdentity{factKind: k.FactKind, qualifiedStruct: k.StructType}] = struct{}{}
 	}
 	var missing []string
 	for _, s := range seams {
-		if _, ok := produced[s.FuncName]; !ok {
+		id := seamIdentity{factKind: s.FactKindConst, qualifiedStruct: s.QualifiedStruct()}
+		if _, ok := produced[id]; !ok {
 			missing = append(missing, fmt.Sprintf("%s (struct %s)", s.FuncName, s.QualifiedStruct()))
 		}
 	}

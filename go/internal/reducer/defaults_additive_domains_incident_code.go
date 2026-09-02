@@ -3,7 +3,10 @@
 
 package reducer
 
-import "github.com/eshu-hq/eshu/go/internal/truth"
+import (
+	"github.com/eshu-hq/eshu/go/internal/reducer/incident"
+	"github.com/eshu-hq/eshu/go/internal/truth"
+)
 
 // appendIncidentAndCodeEvidenceAdditiveDomains registers the incident-routing,
 // code-evidence, and deployable-unit correlation domains: incident routing,
@@ -16,7 +19,7 @@ import "github.com/eshu-hq/eshu/go/internal/truth"
 func appendIncidentAndCodeEvidenceAdditiveDomains(definitions []DomainDefinition, handlers DefaultHandlers) []DomainDefinition {
 	if handlers.IncidentRoutingEvidenceLoader != nil && handlers.IncidentRoutingEvidenceWriter != nil {
 		incidentRouting := incidentRoutingMaterializationDomainDefinition()
-		incidentRouting.Handler = IncidentRoutingMaterializationHandler{
+		incidentRouting.Handler = incident.IncidentRoutingMaterializationHandler{
 			Loader:               handlers.IncidentRoutingEvidenceLoader,
 			Writer:               handlers.IncidentRoutingEvidenceWriter,
 			PriorGenerationCheck: handlers.PriorGenerationCheck,
@@ -62,7 +65,7 @@ func appendIncidentAndCodeEvidenceAdditiveDomains(definitions []DomainDefinition
 	}
 	if handlers.AppliedPagerDutyServiceRoutingLoader != nil && handlers.IncidentRepositoryCorrelationWriter != nil {
 		incidentRepoCorrelation := incidentRepositoryCorrelationDomainDefinition()
-		incidentRepoCorrelation.Handler = IncidentRepositoryCorrelationHandler{
+		incidentRepoCorrelation.Handler = incident.IncidentRepositoryCorrelationHandler{
 			Loader:      handlers.AppliedPagerDutyServiceRoutingLoader,
 			Resolver:    handlers.BackendRepositoryResolver,
 			Writer:      handlers.IncidentRepositoryCorrelationWriter,

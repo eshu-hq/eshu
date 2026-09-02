@@ -160,6 +160,107 @@ func TestCheckManifestFallsBackToOwnDeclaredFields(t *testing.T) {
 	}
 }
 
+// TestMergeSeamsByIdentityCollapsesCrossSurfaceDuplicate reproduces #6061's
+// incident-family regression directly: two DecodeSeam values with different
+// FuncNames but the SAME FactKindConst and QualifiedStruct (a reducer-side
+// seam reached via the schemadecode-qualified name, and an unrelated
+// query-layer seam reached via its own local, differently-named wrapper)
+// must collapse into ONE seam, with the higher-usage-count FuncName kept as
+// the manifest's DecodeFunc and the usage from BOTH FuncNames unioned under
+// it. Before mergeSeamsByIdentity existed, mergeSeams' exact-FuncName dedup
+// left both seams standing and BuildManifest emitted two manifest entries
+// for the one fact kind (the mechanism behind #6061's 129-vs-125 CI
+// failure).
+func TestMergeSeamsByIdentityCollapsesCrossSurfaceDuplicate(t *testing.T) {
+	t.Parallel()
+
+	seams := []DecodeSeam{
+		{
+			FuncName:      "DecodeIncidentRecord",
+			FactKindConst: "FactKindIncidentRecord",
+			StructPackage: "incidentv1",
+			StructName:    "IncidentRecord",
+		},
+		{
+			FuncName:      "decodeIncidentRecord",
+			FactKindConst: "FactKindIncidentRecord",
+			StructPackage: "incidentv1",
+			StructName:    "IncidentRecord",
+		},
+	}
+	usage := map[string][]FieldUsage{
+		// The reducer-side qualified call's field reads happen through a
+		// helper function the scanner does not trace into, mirroring
+		// incident_routing_evidence_decode.go's real shape: zero usage.
+		"DecodeIncidentRecord": nil,
+		// The query-layer seam's own local wrapper reads fields inline.
+		"decodeIncidentRecord": {
+			{File: "incident_context_decode.go", GoFieldName: "ProviderIncidentID"},
+			{File: "incident_context_decode.go", GoFieldName: "Status"},
+		},
+	}
+
+	merged, mergedUsage := mergeSeamsByIdentity(seams, usage)
+	if len(merged) != 1 {
+		t.Fatalf("len(merged) = %d, want 1 (both seams decode the same fact kind into the same struct)", len(merged))
+	}
+	if merged[0].FuncName != "decodeIncidentRecord" {
+		t.Errorf("merged[0].FuncName = %q, want %q (the seam with recorded usage)", merged[0].FuncName, "decodeIncidentRecord")
+	}
+	if got := len(mergedUsage["decodeIncidentRecord"]); got != 2 {
+		t.Errorf("len(mergedUsage[%q]) = %d, want 2 (the union of both FuncNames' usage)", "decodeIncidentRecord", got)
+	}
+	if _, ok := mergedUsage["DecodeIncidentRecord"]; ok {
+		t.Errorf("mergedUsage retained the losing FuncName %q as a separate key; it must fold into the canonical entry", "DecodeIncidentRecord")
+	}
+
+	// End to end: BuildManifest must now produce exactly one KindManifest for
+	// this fact kind, not two.
+	shapes := map[string]StructShape{
+		"incidentv1.IncidentRecord": {
+			Qualified: "incidentv1.IncidentRecord",
+			Fields: []StructField{
+				{GoName: "ProviderIncidentID", JSONName: "provider_incident_id", Required: true},
+				{GoName: "Status", JSONName: "status", Required: false},
+			},
+		},
+	}
+	manifest := BuildManifest(merged, shapes, mergedUsage)
+	if len(manifest.Kinds) != 1 {
+		t.Fatalf("len(manifest.Kinds) = %d, want 1", len(manifest.Kinds))
+	}
+	if len(manifest.Kinds[0].UsedFields) != 2 {
+		t.Errorf("len(UsedFields) = %d, want 2 (provider_incident_id, status)", len(manifest.Kinds[0].UsedFields))
+	}
+}
+
+// TestMergeSeamsByIdentityLeavesDistinctFactKindsAlone proves the merge is
+// scoped to genuine identity collisions: seams for different fact kinds (the
+// common case — 124 of the real manifest's 125 kinds today) pass through
+// unmerged and keep their own usage.
+func TestMergeSeamsByIdentityLeavesDistinctFactKindsAlone(t *testing.T) {
+	t.Parallel()
+
+	seams := []DecodeSeam{fixtureSeam(), {
+		FuncName:      "decodeIncidentRecord",
+		FactKindConst: "FactKindIncidentRecord",
+		StructPackage: "incidentv1",
+		StructName:    "IncidentRecord",
+	}}
+	usage := map[string][]FieldUsage{
+		"decodeAWSResource":    {{File: "x.go", GoFieldName: "AccountID"}},
+		"decodeIncidentRecord": {{File: "y.go", GoFieldName: "Status"}},
+	}
+
+	merged, mergedUsage := mergeSeamsByIdentity(seams, usage)
+	if len(merged) != 2 {
+		t.Fatalf("len(merged) = %d, want 2 (distinct fact kinds must not merge)", len(merged))
+	}
+	if len(mergedUsage["decodeAWSResource"]) != 1 || len(mergedUsage["decodeIncidentRecord"]) != 1 {
+		t.Errorf("mergedUsage = %+v, want each FuncName's own single-entry usage preserved", mergedUsage)
+	}
+}
+
 // TestMergeRegistryPayloadSchemaFieldsIsAdditive proves the registry-ref
 // merge widens rather than narrows the declared set, per #4573's "treat
 // registry refs as an ADDITIVE optional input" scope boundary (issue #4570
