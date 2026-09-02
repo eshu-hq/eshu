@@ -42,8 +42,22 @@ type allScopesSplitShape struct {
 	admits func(scopedRouteClass) bool
 }
 
+// splitAdmitsEveryClass is the expectation for the four caller shapes whose
+// admission the #6450 class split does not touch: the grant-bearing scoped
+// bearer (a), the all-scope session under the permissive policy (c), the
+// restricted browser session (d), and the shared key (e). Shapes (a) and (d)
+// carry a real grant for the handler to bind, (c) has the operator's explicit
+// opt-in, and (e) never reaches browserSessionRouteAllowed at all. Every
+// ledger route admits them, which is what keeps the change a split rather
+// than a blanket refusal.
 func splitAdmitsEveryClass(scopedRouteClass) bool { return true }
 
+// splitAdmitsByClass is the expectation for the only two shapes that vary by
+// class: the all-scope session under the fail-closed policy (b), and the
+// tenantless all-scope session even under the permissive one (f), which
+// tenantBoundAllScopesBrowserSession rejects. Both reach a route only when
+// its class needs no caller grant, so this function is where the split is
+// actually asserted.
 func splitAdmitsByClass(c scopedRouteClass) bool {
 	return c.admitsAllScopesSessionWithoutPolicy()
 }

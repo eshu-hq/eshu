@@ -127,11 +127,11 @@ Session cookies are server-managed:
   unrecognized non-empty modes keep those routes fail-closed with `403`.
   The same mode rule now covers most of the scoped-route allowlist. An
   all-scopes browser session skips the mode check only on the identity and
-  admin routes under `/api/v0/auth/` and on the static catalog routes, which
-  hold no tenant data for a repository grant to filter. Grant-filtered data
-  routes, deployment status routes, and `POST /api/v0/ask` follow the same
-  fail-closed mode rule, because an all-scopes caller makes the handler's own
-  repository filter inert.
+  admin routes under `/api/v0/auth/`, and on the static catalog and
+  request-reshape routes, which hold no tenant data for a repository grant to
+  filter. Grant-filtered data routes, deployment status routes, and
+  `POST /api/v0/ask` follow the same fail-closed mode rule, because an
+  all-scopes caller makes the handler's own repository filter inert.
   Restricted browser sessions and scoped bearer tokens remain limited to the
   existing scoped-route allowlist; live-data routes on that list apply their
   allowed repository/scope ids before counts, limits, and truncation, while

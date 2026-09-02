@@ -80,7 +80,7 @@ the command as `cmd > log 2>&1; ec=$?`, never after a pipe.
 The command run at each of the three steps:
 
 ```
-cd /Users/linuxdynasty/repos/eshu-wt-6450/go && go test ./internal/query -count=1 \
+cd go && go test ./internal/query -count=1 \
   -run 'TestAuthMiddlewareAllScopesBrowserSessionRefusedOnGrantBoundRouteUnderFailClosedPolicy|TestScopedRouteClassLedgerAgreesWithPredicate|TestAuthMiddlewareWithBrowserSessions|TestAuthMiddlewareAllScopesBrowserSessionSplitAcrossLedger'
 ```
 
@@ -147,9 +147,43 @@ dashboard, alert, or log parser sees a new shape.
 
 ## Scope
 
-Out of scope and tracked separately: the scoped-bearer branch of
-`authMiddlewareWithRoutePolicy` for all-scope OIDC bearer tokens, and the Ask
-runner's shared-key fallback for cookie callers.
+This change fixes one thing: an all-scope browser session no longer gets a
+whole-graph read on a grant-bound allowlisted route. It is not a claim that
+the identity-bound population is airtight for such a session. Five known
+residuals stay open and are tracked separately, none of them fixed here.
+
+1. **All-scope OIDC bearer tokens.** The scoped-bearer branch of
+   `authMiddlewareWithRoutePolicy` takes no equivalent class split; an
+   all-scope bearer still clears the allowlist on membership alone.
+2. **Ask's shared-key fallback for cookie callers** (`internal/askwiring`,
+   `internal/ask/engine`), which can re-enter inner routes on a credential
+   the cookie caller did not present.
+3. **Status-family Mode-only redaction.** `deployment_scoped` routes redact by
+   auth `Mode` in `status_scoped.go` and take no grant at all. They are
+   grouped with `grant_bound` here so the policy check still applies, but the
+   redaction itself is untouched.
+4. **Tenant switch via `PATCH /api/v0/auth/browser-session/context`.** The
+   route is `identity_bound`, so an all-scope session reaches it without the
+   policy check, and it takes the target tenant and workspace from the request
+   body. `switchBrowserSessionWorkspaceQuery`
+   (`storage/postgres/browser_sessions_schema.go`) gates on
+   `sess.all_scopes = true` and on the target tenant and workspace being
+   active, but binds nothing about the session's subject to that tenant. An
+   all-scope session can therefore rebind itself to another tenant and read
+   the new one. Tracked as #6450 item 4.
+5. **Tenantless token-scope fallback.** `localIdentityAPITokenScope`
+   (`local_identity_api_tokens.go`) falls back to a body-supplied tenant and
+   workspace when `AuthContext` carries neither, and `selfServiceTokenOwner`
+   (`local_identity_api_tokens_selfservice.go`) returns an empty owner hash
+   for any all-scope caller, dropping the ownership predicate. The tenantless
+   all-scope session that this change still admits to identity-bound routes
+   (caller shape (f) in the split table) is thus admitted without being fully
+   contained by them. Tracked as #6450 item 2 of the auth-slice findings.
+
+Residuals 4 and 5 are why the `scopedRouteClass` doc comment says an
+identity-bound handler answers from the tenant the session is *currently*
+bound to, rather than the stronger and false claim that such a session can
+never reach another tenant's data.
 
 Layout note for review: the class model lives in
 `auth_browser_session_route_policy.go` beside the admission function rather

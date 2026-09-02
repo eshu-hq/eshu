@@ -16,7 +16,9 @@ import (
 // caller -- the grant-bound, deployment-scoped, and transitive classes in
 // scopedTokenAdvertisedRoutes. Identity-bound and tenant-data-free
 // allowlisted routes hold no caller grant to make inert and are admitted
-// without consulting this policy. Its zero value is fail-closed.
+// without consulting this policy, confined to the tenant the session is
+// currently bound to; see scopedRouteClass below for the two residuals that
+// qualification is protecting against. Its zero value is fail-closed.
 type BrowserSessionRoutePolicy struct {
 	// AllowTenantBoundAllScopes opens both populations above to a browser
 	// session that is all-scopes AND bound to one concrete tenant and
@@ -94,9 +96,11 @@ func AuthMiddlewareWithBrowserSessionsScopedTokensGovernanceAuditRoutePolicyAndE
 //
 // The all-scope fallback is a deliberate tightening as well as a loosening: a
 // malformed tenantless all-scope session, which used to be admitted to every
-// allowlisted route, is now refused on the grant-bound ones too, matching
-// tenantBoundAllScopesBrowserSession's contract everywhere instead of only
-// off the allowlist.
+// allowlisted route, is now refused on the grant-bound, deployment-scoped and
+// transitive ones as well as off the allowlist, which is where
+// tenantBoundAllScopesBrowserSession's contract now holds. It is still
+// admitted on the 48 identity-bound and tenant-data-free routes, so this
+// closes the whole-graph read, not every path a tenantless session has.
 func browserSessionRouteAllowed(
 	r *http.Request,
 	auth AuthContext,
@@ -146,9 +150,38 @@ func tenantBoundAllScopesBrowserSession(auth AuthContext) bool {
 // whose Scoped() is false), so the same handler answers from the whole graph,
 // and no data-plane table carries a tenant column to fall back on. An
 // identity-bound or tenant-data-free handler has no caller grant to make
-// inert in the first place, so an all-scope session on it is not a
-// cross-tenant read. browserSessionRouteAllowed, above, admits on exactly
-// that split.
+// inert in the first place, so admitting an all-scope session to it does not
+// widen a read the way it does on a grant-bound route: the handler answers
+// from the tenant and workspace the session is CURRENTLY bound to.
+// browserSessionRouteAllowed, above, admits on exactly that split.
+//
+// "Currently bound to" is doing real work in that sentence, and two known
+// residuals are the reason it is not the stronger claim that an all-scope
+// session on these routes can never reach another tenant's data. Both are
+// tracked on #6450 and neither is fixed here.
+//
+//  1. PATCH /api/v0/auth/browser-session/context is itself identity-bound,
+//     and it takes the target tenant and workspace from the request body.
+//     switchBrowserSessionWorkspaceQuery
+//     (storage/postgres/browser_sessions_schema.go) gates the update on
+//     sess.all_scopes = true and on the target being active, but binds
+//     nothing about the session's SUBJECT to that tenant, so an all-scope
+//     session can change which tenant it is bound to and then read the new
+//     one through these same routes. (#6450 item 4.)
+//  2. localIdentityAPITokenScope (local_identity_api_tokens.go) falls back to
+//     a body-supplied tenant and workspace when AuthContext carries neither,
+//     and selfServiceTokenOwner (local_identity_api_tokens_selfservice.go)
+//     returns an empty owner hash for any all-scope caller, dropping the
+//     ownership predicate. A tenantless all-scope session -- the malformed
+//     shape browserSessionRouteAllowed still admits here, caller shape (f) in
+//     the split table -- is therefore admitted to identity-bound routes
+//     without being fully contained by them. (#6450 item 2 of the auth-slice
+//     findings.)
+//
+// The class split is still the right admission rule: it removes the
+// whole-graph grant-bound read, which was the reported defect. It does not
+// by itself make the identity-bound population airtight, and this comment
+// should not be read as claiming that it does.
 //
 // A route added to the allowlist without an explicit class gets the zero
 // value, scopedRouteGrantBound, which keeps it behind the

@@ -76,6 +76,19 @@ func TestScopedRouteClassLedgerAgreesWithPredicate(t *testing.T) {
 // surface-inventory name to ledger. They have no class, so an all-scope
 // browser session on them must fall through to the
 // BrowserSessionRoutePolicy check rather than being waved past it.
+//
+// Known residual: these two names are hardcoded, because nothing in the
+// package enumerates "clears scopedHTTPRouteSupportsTenantFilter but is
+// absent from implementedAPIRouteSurfaces". That set cannot be derived from
+// the surface inventory, since being absent from the inventory is what
+// defines it, and scopedHTTPRouteSupportsTenantFilter is a predicate over
+// requests rather than a list that can be walked. So a future allowlisted
+// route that is likewise not inventoried would not be caught here. That is
+// survivable in one direction and not the other: left alone it lands on the
+// grant_bound fail-closed default, which is the safe answer, and the only way
+// it becomes an opening is if someone also wires it into
+// scopedRouteNeedsNoCallerGrant -- an edit to that closed union, where the
+// reviewer is looking straight at the admission decision.
 func TestScopedRouteClassUnledgeredTransportRoutesNeedCallerGrant(t *testing.T) {
 	t.Parallel()
 
