@@ -44,6 +44,51 @@
 - Do not move lookup construction, assembly, queue writes, retries, graph
   writes, or telemetry into this package.
 
+## Common changes
+
+- **Admitting another provider fact kind.** Add it to the trigger set alongside
+  `facts.AWSResourceFactKind`, `facts.AzureCloudResourceFactKind`, and
+  `facts.GCPCloudResourceFactKind`, then add the matching `routeReadEvidence`
+  marker to `go/internal/mcp/route_serves_data_registry_routes.go` for
+  `GET /api/v0/cloud/inventory`. The registry reads this file by path and
+  greps for the marker, so a new kind that is not registered there serves a
+  domain the registry cannot prove.
+- **Changing the intent's reason or entity key.** Both are asserted verbatim by
+  the package tests and read by reducer projection; change them together.
+
+## Failure modes
+
+- **The registry stops resolving this file.** It cites
+  `go/internal/projector/cloudinventory/admission_intents.go` by path. Renaming
+  or splitting this file breaks `TestRouteServesDataRegistryHonestStateGreen`
+  from a distance, in `internal/mcp`, with a `read ...: no such file` error that
+  does not name this package.
+- **A provider fact with no source-system label.** `SourceSystem` resolves
+  through the two-tier `projectorintent.SourceSystem`; a fact carrying neither
+  `SourceRef.SourceSystem` nor `CollectorKind` yields an empty label rather than
+  a defaulted one. That is intended here, unlike families that carry a literal
+  third fallback.
+
+## Anti-patterns
+
+- Do not reintroduce a package-local `sourceSystem` forwarder. The root helper
+  this package replaced was a bare one-line call to
+  `projectorintent.SourceSystem`; re-adding it only hides the seam.
+- Do not import the root `projector` package. Root imports this package to
+  dispatch, and the reverse direction is an import cycle.
+- Do not widen the export surface past `BuildCloudInventoryAdmissionReducerIntent`.
+  Every sibling family in this series exports exactly one builder and no types.
+
+## Changes needing ADR review
+
+- Adding a decode seam. This family triggers on fact presence alone and carries
+  no typed-payload decode; families that need one keep a local decode call
+  against `sdk/go/factschema` rather than importing root's wrapper, and that
+  split is a design decision rather than a local call.
+- Changing `reducer.DomainCloudInventoryAdmission` or the set of provider
+  domains this route is documented to serve. Both are contract surface the
+  route-serves-data registry asserts against.
+
 ## Verification
 
 Use TDD. Run the focused child test, the root ordered fan-out parity and

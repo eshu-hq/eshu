@@ -75,7 +75,10 @@ func TestProjectEnforcesCentralSchemaVersionForPreviouslyUngatedFamily(t *testin
 		}
 	}
 
-	supportedVersion, _ := facts.SchemaVersion(kind)
+	supportedVersion, registered := facts.SchemaVersion(kind)
+	if !registered {
+		t.Fatalf("facts.SchemaVersion(%q) is not registered; the supported-version case would otherwise assert against an empty version and pass for the wrong reason", kind)
+	}
 	if _, err := buildProjection(scopeValue, generation, []facts.Envelope{
 		envelope("fact-current", supportedVersion),
 	}); err != nil {
