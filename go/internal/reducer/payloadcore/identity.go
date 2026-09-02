@@ -67,3 +67,20 @@ func CloudResourceUID(accountID, region, resourceType, resourceID string) string
 		"resource_type": resourceType,
 	})
 }
+
+// NormalizedEntityKey reduces one reducer entity key to its bare identity: the
+// value is lowercased and trimmed, and a prefixed key ("repo:acme/web",
+// "platform:eks-prod") collapses to the segment after its last colon. A key
+// with no colon, or one whose colon is the final character, is returned as-is
+// after normalization. It is the shared spelling used to compare entity keys
+// that different collectors prefix differently.
+func NormalizedEntityKey(key string) string {
+	key = strings.ToLower(strings.TrimSpace(key))
+	if key == "" {
+		return ""
+	}
+	if idx := strings.LastIndex(key, ":"); idx >= 0 && idx < len(key)-1 {
+		return strings.TrimSpace(key[idx+1:])
+	}
+	return key
+}

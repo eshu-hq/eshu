@@ -37,12 +37,20 @@ func implementedDefaultDomainDefinitions(handlers DefaultHandlers) []DomainDefin
 					Instruments:       handlers.Instruments,
 				}
 			}
-			def.Handler = PlatformMaterializationHandler{
+			platformHandler := PlatformMaterializationHandler{
 				Writer:                          handlers.PlatformMaterializationWriter,
-				CrossRepoResolver:               crossRepoResolver,
 				WorkloadMaterializationReplayer: handlers.WorkloadMaterializationReplayer,
 				PhasePublisher:                  handlers.GraphProjectionPhasePublisher,
 			}
+			// CrossRepoResolver is an interface (#6061), so assigning a nil
+			// *CrossRepoRelationshipHandler into it would produce a non-nil
+			// interface holding a nil pointer, and the handler's
+			// "CrossRepoResolver != nil" guard would dereference it. Assign only
+			// when the cross-repo dependencies were actually wired.
+			if crossRepoResolver != nil {
+				platformHandler.CrossRepoResolver = crossRepoResolver
+			}
+			def.Handler = platformHandler
 		case DomainWorkloadMaterialization:
 			def.Handler = WorkloadMaterializationHandler{
 				FactLoader:                   handlers.FactLoader,

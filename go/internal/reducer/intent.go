@@ -388,6 +388,24 @@ const (
 	// sbom_attestation_attachment family itself moved to
 	// internal/reducer/sbomattest (#6061) and imports contract directly.
 	sbomAttestationAttachmentFactKind = reducercontract.SBOMAttestationAttachmentFactKind
+	// platformMaterializationFactKind aliases the exported contract constant so
+	// the supply-chain-impact index, its active-fact-kind filter and its runtime
+	// evidence walk keep their unqualified spelling. The deployment_mapping
+	// writer that publishes the kind moved to internal/reducer/platformfam
+	// (#6061) and names the contract constant directly.
+	platformMaterializationFactKind = reducercontract.PlatformMaterializationFactKind
+)
+
+const (
+	// IntentActionUpsert aliases [reducercontract.IntentActionUpsert] so every
+	// unqualified shared-projection intent builder in this package (code-call,
+	// inheritance, rationale, SQL, documentation, CODEOWNERS, submodule-pin and
+	// python-metaclass) keeps its current spelling. The constant moved out of the
+	// reducer root with the platform family (#6061) and now lives in contract,
+	// the shared vocabulary tier, because none of its callers are platform code.
+	IntentActionUpsert = reducercontract.IntentActionUpsert
+	// IntentActionRetract aliases [reducercontract.IntentActionRetract].
+	IntentActionRetract = reducercontract.IntentActionRetract
 )
 
 // IsRetryable reports whether the supplied error explicitly opts into bounded

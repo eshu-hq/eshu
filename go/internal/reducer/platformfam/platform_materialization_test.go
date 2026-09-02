@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package reducer
+package platformfam
 
 import (
 	"context"
@@ -9,7 +9,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/eshu-hq/eshu/go/internal/relationships"
+	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
+	"github.com/eshu-hq/eshu/go/internal/reducer/gpphase"
 )
 
 func TestPlatformMaterializationHandlerBuildsCanonicalWriteRequest(t *testing.T) {
@@ -24,12 +25,12 @@ func TestPlatformMaterializationHandlerBuildsCanonicalWriteRequest(t *testing.T)
 	}
 	handler := PlatformMaterializationHandler{Writer: writer}
 
-	result, err := handler.Handle(context.Background(), Intent{
+	result, err := handler.Handle(context.Background(), reducercontract.Intent{
 		IntentID:     "intent-pm-1",
 		ScopeID:      "scope-123",
 		GenerationID: "generation-456",
 		SourceSystem: "git",
-		Domain:       DomainDeploymentMapping,
+		Domain:       reducercontract.DomainDeploymentMapping,
 		Cause:        "platform binding discovered",
 		EntityKeys: []string{
 			"platform:kubernetes:aws:prod-cluster:production:us-east-1",
@@ -43,7 +44,7 @@ func TestPlatformMaterializationHandlerBuildsCanonicalWriteRequest(t *testing.T)
 		},
 		EnqueuedAt:  time.Date(2026, time.April, 13, 12, 0, 0, 0, time.UTC),
 		AvailableAt: time.Date(2026, time.April, 13, 12, 0, 0, 0, time.UTC),
-		Status:      IntentStatusClaimed,
+		Status:      reducercontract.IntentStatusClaimed,
 	})
 	if err != nil {
 		t.Fatalf("Handle() error = %v, want nil", err)
@@ -89,10 +90,10 @@ func TestPlatformMaterializationHandlerBuildsCanonicalWriteRequest(t *testing.T)
 	if got, want := result.IntentID, "intent-pm-1"; got != want {
 		t.Fatalf("result.IntentID = %q, want %q", got, want)
 	}
-	if got, want := result.Domain, DomainDeploymentMapping; got != want {
+	if got, want := result.Domain, reducercontract.DomainDeploymentMapping; got != want {
 		t.Fatalf("result.Domain = %q, want %q", got, want)
 	}
-	if got, want := result.Status, ResultStatusSucceeded; got != want {
+	if got, want := result.Status, reducercontract.ResultStatusSucceeded; got != want {
 		t.Fatalf("result.Status = %q, want %q", got, want)
 	}
 	if got, want := result.CanonicalWrites, 2; got != want {
@@ -113,18 +114,18 @@ func TestPlatformMaterializationHandlerDefaultEvidenceSummary(t *testing.T) {
 	}
 	handler := PlatformMaterializationHandler{Writer: writer}
 
-	result, err := handler.Handle(context.Background(), Intent{
+	result, err := handler.Handle(context.Background(), reducercontract.Intent{
 		IntentID:        "intent-pm-2",
 		ScopeID:         "scope-1",
 		GenerationID:    "gen-1",
 		SourceSystem:    "git",
-		Domain:          DomainDeploymentMapping,
+		Domain:          reducercontract.DomainDeploymentMapping,
 		Cause:           "platform discovered",
 		EntityKeys:      []string{"platform:ecs:aws:payments-cluster"},
 		RelatedScopeIDs: []string{"scope-1"},
 		EnqueuedAt:      time.Date(2026, time.April, 13, 12, 0, 0, 0, time.UTC),
 		AvailableAt:     time.Date(2026, time.April, 13, 12, 0, 0, 0, time.UTC),
-		Status:          IntentStatusClaimed,
+		Status:          reducercontract.IntentStatusClaimed,
 	})
 	if err != nil {
 		t.Fatalf("Handle() error = %v, want nil", err)
@@ -147,18 +148,18 @@ func TestPlatformMaterializationHandlerPublishesDeploymentMappingPhase(t *testin
 		PhasePublisher: publisher,
 	}
 
-	_, err := handler.Handle(context.Background(), Intent{
+	_, err := handler.Handle(context.Background(), reducercontract.Intent{
 		IntentID:        "intent-pm-phase",
 		ScopeID:         "scope-1",
 		GenerationID:    "gen-1",
 		SourceSystem:    "git",
-		Domain:          DomainDeploymentMapping,
+		Domain:          reducercontract.DomainDeploymentMapping,
 		Cause:           "platform discovered",
 		EntityKeys:      []string{"workload:service-edge-api"},
 		RelatedScopeIDs: []string{"scope-1"},
 		EnqueuedAt:      time.Date(2026, time.April, 13, 12, 0, 0, 0, time.UTC),
 		AvailableAt:     time.Date(2026, time.April, 13, 12, 0, 0, 0, time.UTC),
-		Status:          IntentStatusClaimed,
+		Status:          reducercontract.IntentStatusClaimed,
 	})
 	if err != nil {
 		t.Fatalf("Handle() error = %v, want nil", err)
@@ -166,10 +167,10 @@ func TestPlatformMaterializationHandlerPublishesDeploymentMappingPhase(t *testin
 	if got, want := len(publisher.calls), 1; got != want {
 		t.Fatalf("publisher call count = %d, want %d", got, want)
 	}
-	if got, want := publisher.calls[0][0].Key.Keyspace, GraphProjectionKeyspaceServiceUID; got != want {
+	if got, want := publisher.calls[0][0].Key.Keyspace, gpphase.KeyspaceServiceUID; got != want {
 		t.Fatalf("published keyspace = %q, want %q", got, want)
 	}
-	if got, want := publisher.calls[0][0].Phase, GraphProjectionPhaseDeploymentMapping; got != want {
+	if got, want := publisher.calls[0][0].Phase, gpphase.PhaseDeploymentMapping; got != want {
 		t.Fatalf("published phase = %q, want %q", got, want)
 	}
 }
@@ -180,17 +181,17 @@ func TestPlatformMaterializationHandlerRejectsMissingEntityKeys(t *testing.T) {
 	writer := &recordingPlatformMaterializationWriter{}
 	handler := PlatformMaterializationHandler{Writer: writer}
 
-	_, err := handler.Handle(context.Background(), Intent{
+	_, err := handler.Handle(context.Background(), reducercontract.Intent{
 		IntentID:        "intent-pm-3",
 		ScopeID:         "scope-123",
 		GenerationID:    "generation-456",
 		SourceSystem:    "git",
-		Domain:          DomainDeploymentMapping,
+		Domain:          reducercontract.DomainDeploymentMapping,
 		Cause:           "platform binding discovered",
 		RelatedScopeIDs: []string{"scope-123"},
 		EnqueuedAt:      time.Date(2026, time.April, 13, 12, 0, 0, 0, time.UTC),
 		AvailableAt:     time.Date(2026, time.April, 13, 12, 0, 0, 0, time.UTC),
-		Status:          IntentStatusClaimed,
+		Status:          reducercontract.IntentStatusClaimed,
 	})
 	if err == nil {
 		t.Fatal("Handle() error = nil, want non-nil")
@@ -205,18 +206,18 @@ func TestPlatformMaterializationHandlerRequiresCanonicalWriter(t *testing.T) {
 
 	handler := PlatformMaterializationHandler{}
 
-	_, err := handler.Handle(context.Background(), Intent{
+	_, err := handler.Handle(context.Background(), reducercontract.Intent{
 		IntentID:        "intent-pm-4",
 		ScopeID:         "scope-123",
 		GenerationID:    "generation-456",
 		SourceSystem:    "git",
-		Domain:          DomainDeploymentMapping,
+		Domain:          reducercontract.DomainDeploymentMapping,
 		Cause:           "platform binding discovered",
 		EntityKeys:      []string{"platform:kubernetes:aws:prod-cluster"},
 		RelatedScopeIDs: []string{"scope-123"},
 		EnqueuedAt:      time.Date(2026, time.April, 13, 12, 0, 0, 0, time.UTC),
 		AvailableAt:     time.Date(2026, time.April, 13, 12, 0, 0, 0, time.UTC),
-		Status:          IntentStatusClaimed,
+		Status:          reducercontract.IntentStatusClaimed,
 	})
 	if err == nil {
 		t.Fatal("Handle() error = nil, want non-nil")
@@ -232,9 +233,9 @@ func TestPlatformMaterializationHandlerRejectsMismatchedDomain(t *testing.T) {
 	writer := &recordingPlatformMaterializationWriter{}
 	handler := PlatformMaterializationHandler{Writer: writer}
 
-	_, err := handler.Handle(context.Background(), Intent{
+	_, err := handler.Handle(context.Background(), reducercontract.Intent{
 		IntentID: "intent-pm-5",
-		Domain:   DomainWorkloadIdentity,
+		Domain:   reducercontract.DomainWorkloadIdentity,
 	})
 	if err == nil {
 		t.Fatal("Handle() error = nil, want non-nil")
@@ -250,40 +251,26 @@ func TestPlatformMaterializationHandlerCallsCrossRepoResolver(t *testing.T) {
 		},
 	}
 
-	intentWriter := &recordingRepoDependencyIntentWriter{}
+	resolver := &recordingCrossRepoRelationshipResolver{writes: 1}
 	replayer := &recordingWorkloadMaterializationReplayer{}
 	handler := PlatformMaterializationHandler{
 		Writer:                          writer,
 		WorkloadMaterializationReplayer: replayer,
-		CrossRepoResolver: &CrossRepoRelationshipHandler{
-			EvidenceLoader: &fakeEvidenceFactLoader{
-				facts: []relationships.EvidenceFact{
-					{
-						EvidenceKind:     relationships.EvidenceKindTerraformAppRepo,
-						RelationshipType: relationships.RelProvisionsDependencyFor,
-						SourceRepoID:     "infra-repo",
-						TargetRepoID:     "app-repo",
-						Confidence:       0.99,
-						Rationale:        "Terraform app_repo reference",
-					},
-				},
-			},
-			IntentWriter: intentWriter,
-		},
+		CrossRepoResolver:               resolver,
 	}
 
-	result, err := handler.Handle(context.Background(), Intent{
+	result, err := handler.Handle(context.Background(), reducercontract.Intent{
 		IntentID:        "intent-pm-cross",
 		ScopeID:         "scope-1",
 		GenerationID:    "gen-1",
 		SourceSystem:    "git",
-		Domain:          DomainDeploymentMapping,
+		Domain:          reducercontract.DomainDeploymentMapping,
 		Cause:           "platform discovered",
 		EntityKeys:      []string{"platform:kubernetes:aws:prod-cluster", "repo:service-edge-api"},
 		RelatedScopeIDs: []string{"scope-1"},
 		EnqueuedAt:      time.Date(2026, time.April, 13, 12, 0, 0, 0, time.UTC),
 		AvailableAt:     time.Date(2026, time.April, 13, 12, 0, 0, 0, time.UTC),
-		Status:          IntentStatusClaimed,
+		Status:          reducercontract.IntentStatusClaimed,
 	})
 	if err != nil {
 		t.Fatalf("Handle() error = %v, want nil", err)
@@ -294,8 +281,14 @@ func TestPlatformMaterializationHandlerCallsCrossRepoResolver(t *testing.T) {
 		t.Fatalf("result.CanonicalWrites = %d, want %d", got, want)
 	}
 
-	if len(intentWriter.rows) != 1 {
-		t.Fatalf("expected 1 repo dependency intent write, got %d", len(intentWriter.rows))
+	if got, want := len(resolver.calls), 1; got != want {
+		t.Fatalf("cross-repo resolver calls = %d, want %d", got, want)
+	}
+	if got, want := resolver.calls[0].scopeID, "scope-1"; got != want {
+		t.Fatalf("cross-repo resolver scope_id = %q, want %q", got, want)
+	}
+	if got, want := resolver.calls[0].generationID, "gen-1"; got != want {
+		t.Fatalf("cross-repo resolver generation_id = %q, want %q", got, want)
 	}
 	if got, want := len(replayer.calls), 1; got != want {
 		t.Fatalf("replayer calls = %d, want %d", got, want)
@@ -322,18 +315,18 @@ func TestPlatformMaterializationHandlerSkipsCrossRepoWhenNilResolver(t *testing.
 		CrossRepoResolver: nil,
 	}
 
-	result, err := handler.Handle(context.Background(), Intent{
+	result, err := handler.Handle(context.Background(), reducercontract.Intent{
 		IntentID:        "intent-pm-no-cross",
 		ScopeID:         "scope-1",
 		GenerationID:    "gen-1",
 		SourceSystem:    "git",
-		Domain:          DomainDeploymentMapping,
+		Domain:          reducercontract.DomainDeploymentMapping,
 		Cause:           "platform discovered",
 		EntityKeys:      []string{"platform:ecs:aws:cluster"},
 		RelatedScopeIDs: []string{"scope-1"},
 		EnqueuedAt:      time.Date(2026, time.April, 13, 12, 0, 0, 0, time.UTC),
 		AvailableAt:     time.Date(2026, time.April, 13, 12, 0, 0, 0, time.UTC),
-		Status:          IntentStatusClaimed,
+		Status:          reducercontract.IntentStatusClaimed,
 	})
 	if err != nil {
 		t.Fatalf("Handle() error = %v, want nil", err)
@@ -353,24 +346,21 @@ func TestPlatformMaterializationHandlerDoesNotReplayWithoutCrossRepoWrites(t *te
 	handler := PlatformMaterializationHandler{
 		Writer:                          writer,
 		WorkloadMaterializationReplayer: replayer,
-		CrossRepoResolver: &CrossRepoRelationshipHandler{
-			EvidenceLoader: &fakeEvidenceFactLoader{},
-			IntentWriter:   &recordingRepoDependencyIntentWriter{},
-		},
+		CrossRepoResolver:               &recordingCrossRepoRelationshipResolver{},
 	}
 
-	_, err := handler.Handle(context.Background(), Intent{
+	_, err := handler.Handle(context.Background(), reducercontract.Intent{
 		IntentID:        "intent-pm-no-replay",
 		ScopeID:         "scope-1",
 		GenerationID:    "gen-1",
 		SourceSystem:    "git",
-		Domain:          DomainDeploymentMapping,
+		Domain:          reducercontract.DomainDeploymentMapping,
 		Cause:           "platform discovered",
 		EntityKeys:      []string{"platform:ecs:aws:cluster"},
 		RelatedScopeIDs: []string{"scope-1"},
 		EnqueuedAt:      time.Date(2026, time.April, 13, 12, 0, 0, 0, time.UTC),
 		AvailableAt:     time.Date(2026, time.April, 13, 12, 0, 0, 0, time.UTC),
-		Status:          IntentStatusClaimed,
+		Status:          reducercontract.IntentStatusClaimed,
 	})
 	if err != nil {
 		t.Fatalf("Handle() error = %v, want nil", err)
@@ -386,40 +376,25 @@ func TestPlatformMaterializationHandlerReplaysWorkloadMaterializationAcrossRelat
 	writer := &recordingPlatformMaterializationWriter{
 		result: PlatformMaterializationWriteResult{CanonicalWrites: 1},
 	}
-	intentWriter := &recordingRepoDependencyIntentWriter{}
 	replayer := &recordingWorkloadMaterializationReplayer{}
 	handler := PlatformMaterializationHandler{
 		Writer:                          writer,
 		WorkloadMaterializationReplayer: replayer,
-		CrossRepoResolver: &CrossRepoRelationshipHandler{
-			EvidenceLoader: &fakeEvidenceFactLoader{
-				facts: []relationships.EvidenceFact{
-					{
-						EvidenceKind:     relationships.EvidenceKindKustomizeResource,
-						RelationshipType: relationships.RelDeploysFrom,
-						SourceRepoID:     "deployment-kustomize",
-						TargetRepoID:     "service-edge-api",
-						Confidence:       0.99,
-						Rationale:        "kustomize overlay references the application repo",
-					},
-				},
-			},
-			IntentWriter: intentWriter,
-		},
+		CrossRepoResolver:               &recordingCrossRepoRelationshipResolver{writes: 1},
 	}
 
-	_, err := handler.Handle(context.Background(), Intent{
+	_, err := handler.Handle(context.Background(), reducercontract.Intent{
 		IntentID:        "intent-pm-related-replay",
 		ScopeID:         "scope-delivery",
 		GenerationID:    "gen-1",
 		SourceSystem:    "git",
-		Domain:          DomainDeploymentMapping,
+		Domain:          reducercontract.DomainDeploymentMapping,
 		Cause:           "cross-repo deployment evidence resolved",
 		EntityKeys:      []string{"platform:kubernetes:aws:modern-cluster:modern:us-east-1", "repo:service-edge-api"},
 		RelatedScopeIDs: []string{"scope-app", "scope-delivery", "scope-app"},
 		EnqueuedAt:      time.Date(2026, time.April, 19, 12, 0, 0, 0, time.UTC),
 		AvailableAt:     time.Date(2026, time.April, 19, 12, 0, 0, 0, time.UTC),
-		Status:          IntentStatusClaimed,
+		Status:          reducercontract.IntentStatusClaimed,
 	})
 	if err != nil {
 		t.Fatalf("Handle() error = %v, want nil", err)
@@ -447,7 +422,7 @@ func TestPlatformMaterializationHandlerReplaysWorkloadMaterializationAcrossRelat
 func TestWorkloadMaterializationReplayEntityKeyPrefersRepositoryKey(t *testing.T) {
 	t.Parallel()
 
-	intent := Intent{
+	intent := reducercontract.Intent{
 		EntityKeys: []string{
 			"platform:kubernetes:aws:modern-cluster:modern:us-east-1",
 			"repo:service-edge-api",
@@ -498,4 +473,47 @@ func (r *recordingWorkloadMaterializationReplayer) ReplayWorkloadMaterialization
 		entityKey:    entityKey,
 	})
 	return true, r.err
+}
+
+// recordingCrossRepoRelationshipResolver is the family-local double for the
+// reducer root's CrossRepoRelationshipHandler. The handler's contract with the
+// resolver is exactly the CrossRepoRelationshipResolver interface -- the scope
+// generation it is asked about and the canonical edge count it reports -- so
+// the double records the former and returns the latter. The root's own tests
+// cover how CrossRepoRelationshipHandler derives that count from evidence.
+type recordingCrossRepoRelationshipResolver struct {
+	calls  []crossRepoResolveCall
+	writes int
+	err    error
+}
+
+type crossRepoResolveCall struct {
+	scopeID      string
+	generationID string
+}
+
+func (r *recordingCrossRepoRelationshipResolver) Resolve(
+	_ context.Context,
+	scopeID string,
+	generationID string,
+) (int, error) {
+	r.calls = append(r.calls, crossRepoResolveCall{scopeID: scopeID, generationID: generationID})
+	return r.writes, r.err
+}
+
+// recordingGraphProjectionPhasePublisher captures the readiness publications the
+// handler emits so a test can assert the keyspace and phase it published.
+type recordingGraphProjectionPhasePublisher struct {
+	calls [][]gpphase.PhaseState
+	err   error
+}
+
+func (r *recordingGraphProjectionPhasePublisher) PublishGraphProjectionPhases(
+	_ context.Context,
+	rows []gpphase.PhaseState,
+) error {
+	cloned := make([]gpphase.PhaseState, len(rows))
+	copy(cloned, rows)
+	r.calls = append(r.calls, cloned)
+	return r.err
 }
