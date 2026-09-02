@@ -22,15 +22,15 @@ func TestAcceptanceUnitIDPrefersTheFirstNonBlankEntityKey(t *testing.T) {
 	}
 }
 
-// TestPhaseKeyForIntentBuildsAValidatableKey proves the built key passes
+// TestKeyFromScopeBuildsAValidatableKey proves the built key passes
 // PhaseKey.Validate, so a family that gates on it reads readiness under the same
 // identity the publisher writes.
-func TestPhaseKeyForIntentBuildsAValidatableKey(t *testing.T) {
+func TestKeyFromScopeBuildsAValidatableKey(t *testing.T) {
 	t.Parallel()
 
-	key, ok := PhaseKeyForIntent("scope-1", "gen-1", []string{"unit-a"}, KeyspaceCloudResourceUID)
+	key, ok := KeyFromScope("scope-1", "gen-1", []string{"unit-a"}, KeyspaceCloudResourceUID)
 	if !ok {
-		t.Fatal("PhaseKeyForIntent() ok = false, want true")
+		t.Fatal("KeyFromScope() ok = false, want true")
 	}
 	if err := key.Validate(); err != nil {
 		t.Fatalf("Validate() error = %v, want nil", err)
@@ -43,14 +43,14 @@ func TestPhaseKeyForIntentBuildsAValidatableKey(t *testing.T) {
 		Keyspace:         KeyspaceCloudResourceUID,
 	}
 	if key != want {
-		t.Fatalf("PhaseKeyForIntent() = %+v, want %+v", key, want)
+		t.Fatalf("KeyFromScope() = %+v, want %+v", key, want)
 	}
 }
 
-// TestPhaseKeyForIntentReportsFalseRatherThanABlankKey proves the gate closes on
+// TestKeyFromScopeReportsFalseRatherThanABlankKey proves the gate closes on
 // an intent that cannot name a bounded slice, instead of handing back a key
 // Validate would reject.
-func TestPhaseKeyForIntentReportsFalseRatherThanABlankKey(t *testing.T) {
+func TestKeyFromScopeReportsFalseRatherThanABlankKey(t *testing.T) {
 	t.Parallel()
 
 	for name, args := range map[string]struct {
@@ -69,12 +69,12 @@ func TestPhaseKeyForIntentReportsFalseRatherThanABlankKey(t *testing.T) {
 		name, args := name, args
 		t.Run(name, func(t *testing.T) {
 			t.Parallel()
-			key, ok := PhaseKeyForIntent(args.scopeID, args.generationID, args.entityKeys, KeyspaceCloudResourceUID)
+			key, ok := KeyFromScope(args.scopeID, args.generationID, args.entityKeys, KeyspaceCloudResourceUID)
 			if ok {
-				t.Fatalf("PhaseKeyForIntent() ok = true, want false (key %+v)", key)
+				t.Fatalf("KeyFromScope() ok = true, want false (key %+v)", key)
 			}
 			if key != (PhaseKey{}) {
-				t.Fatalf("PhaseKeyForIntent() key = %+v, want zero value", key)
+				t.Fatalf("KeyFromScope() key = %+v, want zero value", key)
 			}
 		})
 	}

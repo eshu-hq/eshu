@@ -8,7 +8,8 @@ import "strings"
 // KeyFromScope builds the bounded readiness identity for one scope
 // generation and keyspace. The acceptance unit id is the first non-blank
 // entry in entityKeys, falling back to scopeID when every entity key is
-// blank — the same acceptance-unit derivation every domain family uses
+// blank. That derivation is [AcceptanceUnitID], the one the reducer root and
+// every domain family share,
 // before publishing or reading a readiness phase, so a family's lookup key
 // always matches the key the publishing family constructed. It returns
 // (key, false) when scopeID or generationID is blank.
@@ -18,13 +19,7 @@ func KeyFromScope(scopeID, generationID string, entityKeys []string, keyspace Ke
 	if scopeID == "" || generationID == "" {
 		return PhaseKey{}, false
 	}
-	acceptanceUnitID := scopeID
-	for _, entityKey := range entityKeys {
-		if trimmed := strings.TrimSpace(entityKey); trimmed != "" {
-			acceptanceUnitID = trimmed
-			break
-		}
-	}
+	acceptanceUnitID := AcceptanceUnitID(scopeID, entityKeys)
 	return PhaseKey{
 		ScopeID:          scopeID,
 		AcceptanceUnitID: acceptanceUnitID,

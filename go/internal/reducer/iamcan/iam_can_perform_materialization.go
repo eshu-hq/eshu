@@ -251,7 +251,7 @@ func (h IAMCanPerformMaterializationHandler) firstNotReadyKeyspace(intent reduce
 		return ""
 	}
 	for _, keyspace := range iamCanPerformGateKeyspaces {
-		key, ok := gpphase.PhaseKeyForIntent(intent.ScopeID, intent.GenerationID, intent.EntityKeys, keyspace)
+		key, ok := gpphase.KeyFromScope(intent.ScopeID, intent.GenerationID, intent.EntityKeys, keyspace)
 		if !ok {
 			return keyspace
 		}

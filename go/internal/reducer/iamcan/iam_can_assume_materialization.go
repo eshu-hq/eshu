@@ -246,7 +246,7 @@ func (h IAMCanAssumeMaterializationHandler) canonicalNodesReady(intent reducerco
 	if h.ReadinessLookup == nil {
 		return true
 	}
-	key, ok := gpphase.PhaseKeyForIntent(
+	key, ok := gpphase.KeyFromScope(
 		intent.ScopeID,
 		intent.GenerationID,
 		intent.EntityKeys,

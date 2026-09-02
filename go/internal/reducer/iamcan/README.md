@@ -51,10 +51,13 @@ consumers on both sides of the boundary and neither side may import the other:
 - `reducer/iampolicy` — the IAM statement/grant/target vocabulary, also used by
   the IAM privilege-escalation slice at the root.
 
-`gpphase.PhaseKeyForIntent` was added for the same reason: both handlers gate on
+`gpphase.KeyFromScope` was extracted for the same reason: both handlers gate on
 the canonical-nodes-committed readiness phase, and the key derivation used to
-exist only at the root inside `graphProjectionPhaseStateForIntent`. The root now
-calls the same function, so the family and the publisher cannot drift.
+exist only at the root inside `graphProjectionPhaseStateForIntent`. There is one
+such function, not two agreeing ones -- the root publisher and both handlers all
+call `gpphase.KeyFromScope`, and it derives the acceptance unit through the
+single `gpphase.AcceptanceUnitID` helper -- so the family and the publisher
+cannot read different keys.
 
 ## Telemetry
 
@@ -82,8 +85,8 @@ already owned them (`payloadcore` for the deref/tally/payload helpers,
 consumers on both sides moved to `cloudjoin` and `iampolicy` with their bodies
 untouched. The one behavioral seam is the readiness gate: both handlers used to
 build a full phase *state* and read `.Key` off it, and now call
-`gpphase.PhaseKeyForIntent` directly. The key is byte-identical -- the state
-constructor did nothing else to it, and the root's own constructor now calls the
+`gpphase.KeyFromScope` directly. The key is byte-identical -- the state
+constructor did nothing else to it, and the root's own constructor calls that
 same function -- and the discarded half was two timestamps the gate never read.
 A Go import change adds no indirection at runtime. Measured on this branch:
 `go build ./...` exits 0, `go vet ./internal/reducer/...` exits 0, and `go test

@@ -288,7 +288,7 @@ func predicatesSatisfied(predicates []SinkPredicate, props map[string]string) bo
 // catalog. The well-formedness test fails when the catalog changes without a
 // deliberate update to this constant, implementing the taintModelVersion
 // discipline: a curated edit trips downstream re-evaluation.
-const sinkCatalogVersionGolden = "1e6fb5ee59b81b38610afe33d1680fdbaf2b5d1540b4a4a97534575f922d14f9"
+const sinkCatalogVersionGolden = "3ebe4ee581a2fc22bbe109589bbc0c9f678442e7e7d7d21b7787784d4a84c070"
 
 // SinkCatalogVersion returns a deterministic content hash over the curated
 // cloud-sink catalog. Any change to the catalog (added, removed, or edited spec)
