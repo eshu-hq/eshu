@@ -81,7 +81,13 @@ func (h *FreshnessHandler) listChangedSince(w http.ResponseWriter, r *http.Reque
 	// pulled another tenant's delta into the process, and onto whatever logs
 	// and spans that path emits.
 	if !changedSinceSelectorWithinGrant(r.Context(), filter) {
-		WriteError(w, http.StatusForbidden, "scope_id or repository is outside this token's grant")
+		// Not-found, not forbidden: queryselector.ResolveExactForAccess returns
+		// NotFoundError for an ungranted repository (selector.go:77-79), making
+		// "not yours" indistinguishable from "does not exist". A 403 here would
+		// tell a scoped caller that a repository it cannot read nonetheless
+		// exists, which is an existence oracle the rest of this surface
+		// deliberately withholds.
+		WriteError(w, http.StatusNotFound, "scope_id or repository not found")
 		return
 	}
 

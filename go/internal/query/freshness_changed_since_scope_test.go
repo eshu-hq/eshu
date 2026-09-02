@@ -60,6 +60,9 @@ func TestChangedSinceRejectsRepositoryOutsideGrant(t *testing.T) {
 	w := httptest.NewRecorder()
 	mux.ServeHTTP(w, req)
 
+	if w.Code != http.StatusNotFound {
+		t.Fatalf("an ungranted selector must be indistinguishable from a missing one (404), matching queryselector.ResolveExactForAccess; got %d: %s", w.Code, w.Body.String())
+	}
 	if w.Code == http.StatusOK {
 		t.Fatalf("a scoped caller granted only repo-a must not read changed-since for repo-b; got 200: %s", w.Body.String())
 	}

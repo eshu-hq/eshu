@@ -107,7 +107,10 @@ func (h *FreshnessHandler) listGenerationLifecycle(w http.ResponseWriter, r *htt
 	// checked before the read so an ungranted repository's generation
 	// lifecycle never enters the process.
 	if !freshnessSelectorWithinGrant(r.Context(), filter.Repository, filter.ScopeID) {
-		WriteError(w, http.StatusForbidden, "scope_id or repository is outside this token's grant")
+		// See the note in freshness_changed_since.go: not-found rather than
+		// forbidden, so this route does not become an existence oracle for
+		// repositories outside the caller's grant.
+		WriteError(w, http.StatusNotFound, "scope_id or repository not found")
 		return
 	}
 
