@@ -15,10 +15,16 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/truth"
 )
 
-const (
-	containerImageIdentityFactKind       = "reducer_container_image_identity"
-	containerImageIdentityFormatImageRef = "image_ref_v2"
-)
+// containerImageIdentityFormatImageRef is the identity_format payload value
+// this writer stamps on every published fact, marking it as the current
+// image-ref encoding. Readers such as
+// supply_chain_impact_anchor_consensus.go compare identity_format against
+// this constant to prefer a v2 row over a legacy row sharing the same logical
+// key. The fact-kind constant this writer also emits,
+// containerImageIdentityFactKind, no longer lives in this file — it is now a
+// const alias in intent.go pointing at contract.ContainerImageIdentityFactKind
+// (#6061).
+const containerImageIdentityFormatImageRef = "image_ref_v2"
 
 // ContainerImageIdentityTransaction is the narrow atomic write surface used by
 // the identity writer for outcome-independent publications followed by cleanup

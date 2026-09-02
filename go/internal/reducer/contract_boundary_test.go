@@ -32,7 +32,28 @@ func TestReducerContractAliasesPreserveTypeIdentity(t *testing.T) {
 		{name: "DomainDefinition", root: DomainDefinition{}, contract: reducercontract.DomainDefinition{}},
 		{name: "Handler", root: (*Handler)(nil), contract: (*reducercontract.Handler)(nil)},
 		{name: "HandlerFunc", root: HandlerFunc(nil), contract: reducercontract.HandlerFunc(nil)},
+		{name: "ContainerImageIdentityOutcome", root: ContainerImageIdentityOutcome(""), contract: reducercontract.ContainerImageIdentityOutcome("")},
 	}
+
+	// The fact-kind name is a durable wire value: it is written into stored
+	// facts, so changing the string silently orphans every fact already
+	// persisted under the old name. Type identity cannot catch that -- both
+	// sides stay the same type while the value changes -- so pin the value
+	// itself, on both the root alias and the contract constant it points at.
+	t.Run("ContainerImageIdentityFactKind", func(t *testing.T) {
+		t.Parallel()
+		const want = "reducer_container_image_identity"
+		if containerImageIdentityFactKind != want {
+			t.Errorf("root containerImageIdentityFactKind = %q, want %q", containerImageIdentityFactKind, want)
+		}
+		if reducercontract.ContainerImageIdentityFactKind != want {
+			t.Errorf("contract ContainerImageIdentityFactKind = %q, want %q", reducercontract.ContainerImageIdentityFactKind, want)
+		}
+		if containerImageIdentityFactKind != reducercontract.ContainerImageIdentityFactKind {
+			t.Errorf("root alias %q and contract constant %q have diverged",
+				containerImageIdentityFactKind, reducercontract.ContainerImageIdentityFactKind)
+		}
+	})
 
 	for _, alias := range aliases {
 		alias := alias
