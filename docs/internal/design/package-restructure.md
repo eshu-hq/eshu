@@ -806,6 +806,17 @@ unchanged; the builder needs no scope value beyond the IDs, so it takes
 callers. The unsupported-schema-version regression test stays at root in
 `schema_version_admission_test.go` because it asserts root's
 `validateFactSchemaVersion`, not the builder.
+The SBOM-attestation-attachment builder moved into
+`internal/projector/sbomattestation`. It triggers on a subject anchor — an
+`sbom.document`, `attestation.statement`, or OCI referrer fact — anchoring
+with `FirstAcrossKinds` on the earliest such fact in input order, and carries
+no decode seam. Its private `sbomAttestationAttachmentSourceSystem` helper had
+no other root caller and was body-identical to `projectorintent.SourceSystem`
+(two tiers, no scope fallback), so it was dropped rather than moved, the
+`packagesource` way rather than the `servicecatalog` way. The root
+`firstAcrossKinds` forwarder stays for its four remaining root callers
+(crossplane, container-image-identity, multi-cloud runtime drift, and
+supply-chain impact).
 Coordinator `_scheduler.go` halves extract cleanly
 (they implement a root Planner interface); the `_service.go` halves are
 methods on the shared `Service` struct and stay until Service is

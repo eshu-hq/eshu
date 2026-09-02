@@ -15,6 +15,7 @@ import (
 	projectorpackagesource "github.com/eshu-hq/eshu/go/internal/projector/packagesource"
 	projectorrds "github.com/eshu-hq/eshu/go/internal/projector/rds"
 	projectors3 "github.com/eshu-hq/eshu/go/internal/projector/s3"
+	projectorsbomattestation "github.com/eshu-hq/eshu/go/internal/projector/sbomattestation"
 	projectorsecretsiam "github.com/eshu-hq/eshu/go/internal/projector/secretsiam"
 	projectorsecurity "github.com/eshu-hq/eshu/go/internal/projector/security"
 	projectorservicecatalog "github.com/eshu-hq/eshu/go/internal/projector/servicecatalog"
@@ -138,7 +139,7 @@ func appendScopeGenerationReducerIntents(
 	if intent, ok := buildCICDRunCorrelationReducerIntent(scopeValue, generation, index); ok {
 		intents = append(intents, intent)
 	}
-	if intent, ok := buildSBOMAttestationAttachmentReducerIntent(scopeValue, generation, index); ok {
+	if intent, ok := projectorsbomattestation.BuildSBOMAttestationAttachmentReducerIntent(scopeValue.ScopeID, generation.GenerationID, index.lookup); ok {
 		intents = append(intents, intent)
 	}
 	if intent, ok := projectorservicecatalog.BuildServiceCatalogCorrelationReducerIntent(scopeValue, generation, index.lookup); ok {
