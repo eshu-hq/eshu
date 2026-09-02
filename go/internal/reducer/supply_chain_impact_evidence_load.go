@@ -318,7 +318,7 @@ func (h SupplyChainImpactHandler) crossScopeProducerDeferralAfterLoad(
 }
 
 // supplyChainImpactProducerFactKindByDomain maps each producer domain
-// crossScopeDependencyCatalog declares for supply_chain_impact to the fact kind
+// crossscope.dependencyCatalog declares for supply_chain_impact to the fact kind
 // that producer writes.
 //
 // The floor needs this because supply_chain_impact's cross-scope read is the

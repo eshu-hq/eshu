@@ -22,18 +22,18 @@ wrong**, and all three reviewers caught it independently (#6028 review).
 The error is worth naming because it is the same one twice over: I grepped the
 struct field `CrossScopeDependencies`, found only `Validate()`, and concluded
 absence. The fanout consumes `CrossScopeCompletionEdges()` — a different
-accessor over the *same* `crossScopeDependencyCatalog()`. I verified a name and
+accessor over the *same* `crossscope.dependencyCatalog()`. I verified a name and
 concluded a fact.
 
 | Piece | State on `origin/main` | Evidence |
 | --- | --- | --- |
 | Contract on `DomainDefinition` | **Exists** | `go/internal/reducer/registry.go` |
-| Catalog of consumer → producers | **Exists** | `crossScopeDependencyCatalog()` |
+| Catalog of consumer → producers | **Exists** | `crossscope.dependencyCatalog()` |
 | Registered **consumers** | `ci_cd_run_correlation`, `supply_chain_impact` | `registry_additive_domains.go:184,259` |
 | Registered **producers** | `container_image_identity`, `ci_cd_run_correlation` | same catalog |
 | Activation-driven re-enqueue (design point 2) | **EXISTS and is wired in production** | `CrossScopeCompletionEdges()` derives edges from the catalog; reducer ACK inserts `cross_scope_completion_events` (`reducer_queue_batch.go:254`); `CrossScopeCompletionRunner` + `NewCrossScopeCompletionStore` are wired at `cmd/reducer/main.go:453`; the golden-corpus gate asserts the ledger drains |
-| Readiness-defer error type + class | **Exists**, enrolled non-counting | `cross_scope_readiness.go`, `reducer_queue_readiness_sql.go:41` |
-| Any handler that RETURNS the readiness error | **Both catalog consumers**: `ci_cd_run_correlation` since the readiness floor landed, `supply_chain_impact` since it was wired. It was NONE when this table was first written, which is what the rest of this doc reasons from | `cross_scope_readiness_floor.go` for the shared helpers, `supply_chain_impact_evidence_load.go` for the second consumer's producer-owned counting rule |
+| Readiness-defer error type + class | **Exists**, enrolled non-counting | `go/internal/reducer/crossscope/readiness.go` (moved from `cross_scope_readiness.go`, #6061), `reducer_queue_readiness_sql.go:41` |
+| Any handler that RETURNS the readiness error | **Both catalog consumers**: `ci_cd_run_correlation` since the readiness floor landed, `supply_chain_impact` since it was wired. It was NONE when this table was first written, which is what the rest of this doc reasons from | `go/internal/reducer/crossscope/readiness_floor.go` (moved from `cross_scope_readiness_floor.go`, #6061) for the shared helpers, `supply_chain_impact_evidence_load.go` for the second consumer's producer-owned counting rule |
 
 So **design point 2 is built**, not missing. The remaining gap was narrower and
 more specific than the issue or my first draft implied: only the readiness-defer

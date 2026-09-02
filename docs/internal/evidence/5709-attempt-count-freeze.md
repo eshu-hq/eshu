@@ -47,7 +47,8 @@ When this proof was written the enrollment was inert — nothing returned
 `crossScopeProducerNotReadyError`. That is no longer true, and the freeze
 measured here is now load-bearing rather than hypothetical:
 `ci_cd_run_correlation` produces the class through its readiness floor
-(`go/internal/reducer/cross_scope_readiness_floor.go`), which defers when the
+(`go/internal/reducer/crossscope/readiness_floor.go`, moved from
+`cross_scope_readiness_floor.go` by #6061), which defers when the
 cross-scope identity load resolved nothing and the declared producer scopes have
 not activated. Because the class never counts against the retry budget, that
 floor carries its own elapsed-time bound so a producer scope that never activates

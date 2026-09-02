@@ -170,7 +170,7 @@ func (h CICDRunCorrelationHandler) Handle(ctx context.Context, intent Intent) (R
 	}
 	// Returned unwrapped so the queue reads the non-counting failure class off
 	// it (#5709).
-	resolvedByProducer := singleProducerResolvedCounts(readinessSignal.producerDomains, len(active))
+	resolvedByProducer := singleProducerResolvedCounts(readinessSignal.ProducerDomains, len(active))
 	if unready := crossScopeUnreadyProducers(readinessSignal, resolvedByProducer); len(unready) > 0 {
 		logCrossScopeProducerNotReadyDefer(ctx, h.Logger, intent, readinessSampledAt, unready)
 		return Result{}, newCrossScopeProducerNotReadyError(

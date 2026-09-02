@@ -104,7 +104,7 @@ const awsCloudRuntimeDriftStatePendingMaxWait = 30 * time.Minute
 // be a retry-count bound), never an incorrect verdict.
 //
 // This is deliberately its OWN mechanism rather than an entry in
-// crossScopeDependencyCatalog (cross_scope_dependencies.go): that catalog's
+// crossscope.dependencyCatalog (crossscope/dependencies.go): that catalog's
 // CrossScopeDependency.ProducerDomains names REDUCER DOMAINS, and the producer
 // here is raw Terraform-state collector evidence in ANY state_snapshot:* scope
 // -- not a reducer domain's canonical output. Generalizing the catalog to

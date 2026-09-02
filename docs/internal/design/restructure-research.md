@@ -455,7 +455,7 @@ and the child import root, which Go rejects. See the acyclic-boundary prerequisi
 the design doc; the families below stay measured-clean, but they are not movable until
 that boundary exists.
 
-**Move order:** 1) Do nothing to the shared-core file group (domain.go, intent.go, registry.go, registry_additive_domains.go, defaults\*.go including defaults_additive_domains\*.go, cross_scope_dependencies.go, runtime.go, service.go, reducer_fact_batch_insert\*.go, materialized_edge_families.go, doc.go/README.md/AGENTS.md) and the shared_projection\*.go harness (26 files) — these stay in the reducer package root permanently; every subpackage will import root, root imports nothing family-specific. 2) Extract the verified-clean, zero-inbound-coupling families first, in ascending risk order: iam_can_perform, secrets_iam_trust, secrets_iam_graph, sbom_attestation_attachment, aws_cloud_runtime, terraform_config_sta  […truncated at source]
+**Move order:** 1) Do nothing to the shared-core file group (domain.go, intent.go, registry.go, registry_additive_domains.go, defaults\*.go including defaults_additive_domains\*.go, runtime.go, service.go, reducer_fact_batch_insert\*.go, materialized_edge_families.go, doc.go/README.md/AGENTS.md) and the shared_projection\*.go harness (26 files) — these stay in the reducer package root permanently; every subpackage will import root, root imports nothing family-specific. (cross_scope_dependencies.go was originally listed here too; it moved to go/internal/reducer/crossscope/dependencies.go instead, #6061 — see the row below.) 2) Extract the verified-clean, zero-inbound-coupling families first, in ascending risk order: iam_can_perform, secrets_iam_trust, secrets_iam_graph, sbom_attestation_attachment, aws_cloud_runtime, terraform_config_sta  […truncated at source]
 
 > **Correction, landed with #6061.** `reducer_fact_batch_insert*.go` did not stay in the root — it moved into `internal/reducer/factwrite`. See the correction note at the end of this file.
 
@@ -483,7 +483,7 @@ that boundary exists.
   awscloudruntime <- aws_cloud_runtime [5/7 (12 total)] clean
   tfconfigstate <- terraform_config_state [4/7 (11 total)] clean
   stays in root (reducer package) — this IS the shared core <- defaults_additive_domains (+ registry.go, registry_additive_ [11/0 additive-domains files, ~2000+ comb] shared-core
-  stays in root <- domain.go / intent.go / cross_scope_dependencies.go [3 files, 655 combined lines] shared-core
+  stays in root <- domain.go / intent.go [2 files] shared-core; cross_scope_dependencies.go moved to go/internal/reducer/crossscope/dependencies.go (#6061), it did not stay in root
   stays in root, or a tiny leaf subpackage (e.g. projshared) both projection subpackages import <- shared_projection (worker/runner/partition/batch/unroutable) [11/15 (26 total)] shared-core
   semanticentity <- semantic_entity_materialization [2/8 (10 total)] clean
   crossrepo <- cross_repo_resolution + cross_repo_evidence + cross_repo_int [2/8 + 2/5 + ~2 (roughly 19 total under c] clean

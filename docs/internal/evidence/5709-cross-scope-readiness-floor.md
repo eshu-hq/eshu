@@ -156,7 +156,8 @@ cannot tell an operator how close the intent is to converging.
 Five places claimed no handler ever produces `cross_scope_producer_not_ready`.
 One does now, so all five are corrected: the telemetry-coverage row, the
 enrolment comment in `reducer_queue_readiness_sql.go`, the class doc in
-`cross_scope_readiness.go`, the verdict in
+`go/internal/reducer/crossscope/readiness.go` (moved from
+`cross_scope_readiness.go` by #6061), the verdict in
 `docs/internal/evidence/5709-attempt-count-freeze.md`, and the
 handler-call-sites row in
 `docs/internal/design/5709-cross-scope-dependency-contract.md`.

@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package reducer
+package crossscope
 
 import (
 	"context"
@@ -9,16 +9,18 @@ import (
 	"strings"
 	"time"
 
+	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
+	"github.com/eshu-hq/eshu/go/internal/reducer/factload"
 	log "github.com/eshu-hq/eshu/go/pkg/log"
 )
 
-// crossScopeProducerReadinessMaxWait bounds the deferral by ELAPSED TIME since
-// the current repair cycle began, so a consumer converges instead of waiting
+// ProducerReadinessMaxWait bounds the deferral by ELAPSED TIME since the
+// current repair cycle began, so a consumer converges instead of waiting
 // forever on a producer scope that never activates.
 //
 // The bound is not optional and it MUST NOT be a retry-count comparison.
-// CrossScopeProducerNotReadyFailureClass is enrolled in
-// nonCountingReducerRetryFailureClasses (reducer_queue_readiness_sql.go), which
+// ProducerNotReadyFailureClass is enrolled in nonCountingReducerRetryFailureClasses
+// (reducer_queue_readiness_sql.go), which
 // FREEZES fact_work_items.attempt_count for exactly this class -- by design, so
 // a waiting consumer is never dead-lettered. That freeze means Intent.AttemptCount
 // stops advancing after the first defer and reads identically on every later
@@ -35,11 +37,11 @@ import (
 // generous enough that ordinary asynchronous producer ingestion never reaches
 // it, short enough that a genuinely stuck producer converges to a terminal
 // answer inside an operator's normal triage window.
-const crossScopeProducerReadinessMaxWait = 30 * time.Minute
+const ProducerReadinessMaxWait = 30 * time.Minute
 
-// CrossScopeProducerReadiness answers whether the producer scopes a consumer
-// depends on have finished publishing: their generation is active and their
-// projector work has drained.
+// ProducerReadiness answers whether the producer scopes a consumer depends on
+// have finished publishing: their generation is active and their projector
+// work has drained.
 //
 // This is the correctness floor for the cross-scope dependency contract
 // (#5709), and it closes one specific window. The consumer that was ALREADY
@@ -70,7 +72,7 @@ const crossScopeProducerReadinessMaxWait = 30 * time.Minute
 // Deliberately an interface consumed here rather than a concrete store: the
 // reducer package already takes its readiness seams this way (see
 // GraphProjectionReadinessLookup), and it keeps this package free of SQL.
-type CrossScopeProducerReadiness interface {
+type ProducerReadiness interface {
 	// CrossScopeProducersReady reports, PER DECLARED PRODUCER, whether that
 	// producer's scopes are quiescent-active, so an empty cross-scope join is
 	// the true answer rather than a timing artefact.
@@ -80,14 +82,14 @@ type CrossScopeProducerReadiness interface {
 	// answered, which is NOT a readiness miss and must not be reported as one.
 	CrossScopeProducersReady(
 		ctx context.Context,
-		consumer Domain,
+		consumer reducercontract.Domain,
 		scopeID string,
 		generationID string,
-	) (CrossScopeProducerReadinessByDomain, error)
+	) (ProducerReadinessByDomain, error)
 }
 
-// CrossScopeProducerReadinessByDomain answers readiness for each producer
-// domain separately.
+// ProducerReadinessByDomain answers readiness for each producer domain
+// separately.
 //
 // Per producer, and not one bool for the set, because the consumer's resolved
 // evidence is also per producer and the two are compared pairwise. A single
@@ -98,16 +100,16 @@ type CrossScopeProducerReadiness interface {
 // ci_cd_run_correlation, which had published nothing.
 //
 // An implementation MUST carry an entry for every producer domain the consumer
-// declares in crossScopeDependencyCatalog. A missing entry reads as NOT ready,
+// declares in the dependency catalog. A missing entry reads as NOT ready,
 // which is the safe direction — the consumer defers, bounded by
-// crossScopeProducerReadinessMaxWait, rather than committing an answer for a
+// ProducerReadinessMaxWait, rather than committing an answer for a
 // producer nobody asked about.
-type CrossScopeProducerReadinessByDomain map[Domain]bool
+type ProducerReadinessByDomain map[reducercontract.Domain]bool
 
-// crossScopeProducerReadinessSignal is the floor's answer, captured BEFORE the
-// consumer's cross-scope load runs. See
-// checkCrossScopeProducerReadinessBeforeLoad for why the ordering matters.
-type crossScopeProducerReadinessSignal struct {
+// ProducerReadinessSignal is the floor's answer, captured BEFORE the
+// consumer's cross-scope load runs. See CheckProducerReadinessBeforeLoad for
+// why the ordering matters.
+type ProducerReadinessSignal struct {
 	// gateDisabled is true when there is nothing to gate on: an unwired seam,
 	// a domain outside the cross-scope catalog, a pass with nothing to look
 	// up, or an elapsed bound already reached. When true the handler must
@@ -115,17 +117,22 @@ type crossScopeProducerReadinessSignal struct {
 	gateDisabled bool
 	// readyByProducer is the readiness store's per-producer answer, captured
 	// before the load. Meaningless when gateDisabled is true.
-	readyByProducer CrossScopeProducerReadinessByDomain
-	// producerDomains is the bounded producer set, in catalog order. Every one
+	readyByProducer ProducerReadinessByDomain
+	// ProducerDomains is the bounded producer set, in catalog order. Every one
 	// of them is evaluated on its own; the deferral error names the subset
 	// actually holding the pass back. Empty when gateDisabled is true.
-	producerDomains []Domain
+	//
+	// Exported so the reducer root can read the batch-wide producer set back
+	// off the signal it just captured, to build its own resolved-count map
+	// (see ci_cd_run_correlation.go). See the Compatibility section of
+	// README.md.
+	ProducerDomains []reducercontract.Domain
 }
 
-// checkCrossScopeProducerReadinessBeforeLoad captures the readiness signal the
-// handler must use for its defer decision. It MUST be called BEFORE the
-// consumer's cross-scope load, never after (#5875 P1 caught the same ordering
-// bug on the sibling AWS gate).
+// CheckProducerReadinessBeforeLoad captures the readiness signal the handler
+// must use for its defer decision. It MUST be called BEFORE the consumer's
+// cross-scope load, never after (#5875 P1 caught the same ordering bug on the
+// sibling AWS gate).
 //
 // Sampling readiness after the load reintroduces the very bug the floor
 // prevents, through a narrower window: a producer generation that activates
@@ -144,36 +151,36 @@ type crossScopeProducerReadinessSignal struct {
 // crossScopeLookupPlanned reports whether this pass will actually ask the
 // cross-scope loader anything. It is false when the consumer has no filter
 // values to look up or no loader implementing the cross-scope seam, and it
-// disables the gate: see crossScopeProducerDeferral for why an unasked question
-// must not be answered with a deferral.
+// disables the gate: see UnreadyProducers for why an unasked question must not
+// be answered with a deferral.
 //
 // now must be the SAME clock reading the handler uses for the rest of the pass,
 // passed in rather than read again here, so a slow load cannot itself push the
 // intent past the elapsed bound.
-func checkCrossScopeProducerReadinessBeforeLoad(
+func CheckProducerReadinessBeforeLoad(
 	ctx context.Context,
-	readiness CrossScopeProducerReadiness,
-	intent Intent,
+	readiness ProducerReadiness,
+	intent reducercontract.Intent,
 	now time.Time,
 	crossScopeLookupPlanned bool,
-) (crossScopeProducerReadinessSignal, error) {
+) (ProducerReadinessSignal, error) {
 	if readiness == nil {
 		// Unwired means "no floor", not "not ready". Defaulting to defer would
 		// strand every consumer in a deployment that has not adopted the seam.
-		return crossScopeProducerReadinessSignal{gateDisabled: true}, nil
+		return ProducerReadinessSignal{gateDisabled: true}, nil
 	}
 	if !crossScopeLookupPlanned {
-		return crossScopeProducerReadinessSignal{gateDisabled: true}, nil
+		return ProducerReadinessSignal{gateDisabled: true}, nil
 	}
-	dependencies := crossScopeDependenciesForRegistration(intent.Domain)
+	dependencies := DependenciesForRegistration(intent.Domain)
 	if len(dependencies) == 0 {
 		// Not a registered cross-scope consumer. A domain absent from the
 		// catalog must behave exactly as it did before this floor existed.
-		return crossScopeProducerReadinessSignal{gateDisabled: true}, nil
+		return ProducerReadinessSignal{gateDisabled: true}, nil
 	}
-	if anchor := crossScopeReadinessCycleAnchor(intent); !anchor.IsZero() &&
-		now.Sub(anchor) >= crossScopeProducerReadinessMaxWait {
-		return crossScopeProducerReadinessSignal{gateDisabled: true}, nil
+	if anchor := ReadinessCycleAnchor(intent); !anchor.IsZero() &&
+		now.Sub(anchor) >= ProducerReadinessMaxWait {
+		return ProducerReadinessSignal{gateDisabled: true}, nil
 	}
 	readyByProducer, err := readiness.CrossScopeProducersReady(
 		ctx, intent.Domain, intent.ScopeID, intent.GenerationID,
@@ -185,7 +192,7 @@ func checkCrossScopeProducerReadinessBeforeLoad(
 		// could retry forever without surfacing.
 		//
 		// It does go through the same transient classifier the consumer's own
-		// cross-scope load uses. classifyFactLoadError promotes a torn database
+		// cross-scope load uses. ClassifyFactLoadError promotes a torn database
 		// stream ("unexpected EOF") to the retryable fact_load_transient class.
 		// Retryable is a weaker property than non-counting: fact_load_transient
 		// is deliberately absent from nonCountingReducerRetryFailureClasses, so
@@ -197,20 +204,20 @@ func checkCrossScopeProducerReadinessBeforeLoad(
 		// retryable at all and fails the row outright, where the identical fault
 		// one call later would retry -- the probe runs against the same
 		// Postgres, in the same handler pass, over the same connection pool.
-		// classifyFactLoadError returns every other error unchanged, so nothing
+		// ClassifyFactLoadError returns every other error unchanged, so nothing
 		// else about the classification moves.
-		return crossScopeProducerReadinessSignal{}, classifyFactLoadError(err)
+		return ProducerReadinessSignal{}, factload.ClassifyFactLoadError(err)
 	}
-	return crossScopeProducerReadinessSignal{
+	return ProducerReadinessSignal{
 		readyByProducer: readyByProducer,
-		producerDomains: dependencies[0].ProducerDomains,
+		ProducerDomains: dependencies[0].ProducerDomains,
 	}, nil
 }
 
-// crossScopeUnreadyProducers is the floor's decision rule: it returns the
-// declared producers that are BOTH unready in the pre-load signal AND absent
-// from the post-load resolved evidence, in catalog order. An empty result means
-// this pass may commit.
+// UnreadyProducers is the floor's decision rule: it returns the declared
+// producers that are BOTH unready in the pre-load signal AND absent from the
+// post-load resolved evidence, in catalog order. An empty result means this
+// pass may commit.
 //
 // Pairwise, per producer. The readiness answer and the resolved count are both
 // keyed by producer domain and compared one producer at a time, because an
@@ -255,15 +262,15 @@ func checkCrossScopeProducerReadinessBeforeLoad(
 // residual window. Splitting the count per producer narrows the OTHER axis of
 // the same gap -- which producer the evidence came from -- and leaves this one
 // exactly where it was.
-func crossScopeUnreadyProducers(
-	signal crossScopeProducerReadinessSignal,
-	resolvedByProducer map[Domain]int,
-) []Domain {
+func UnreadyProducers(
+	signal ProducerReadinessSignal,
+	resolvedByProducer map[reducercontract.Domain]int,
+) []reducercontract.Domain {
 	if signal.gateDisabled {
 		return nil
 	}
-	unready := make([]Domain, 0, len(signal.producerDomains))
-	for _, producer := range signal.producerDomains {
+	unready := make([]reducercontract.Domain, 0, len(signal.ProducerDomains))
+	for _, producer := range signal.ProducerDomains {
 		if signal.readyByProducer[producer] {
 			continue
 		}
@@ -278,7 +285,7 @@ func crossScopeUnreadyProducers(
 	return unready
 }
 
-// singleProducerResolvedCounts credits one whole-batch resolved count to the
+// SingleProducerResolvedCounts credits one whole-batch resolved count to the
 // consumer's single declared producer.
 //
 // It is the adapter for a consumer whose cross-scope load asks a DEDICATED
@@ -293,15 +300,18 @@ func crossScopeUnreadyProducers(
 // a bounded deferral instead of the aggregate-count defect this whole rule
 // exists to remove. TestCICDRunCorrelationDeclaresExactlyOneProducer fails first
 // if that day comes.
-func singleProducerResolvedCounts(producers []Domain, resolved int) map[Domain]int {
+func SingleProducerResolvedCounts(
+	producers []reducercontract.Domain,
+	resolved int,
+) map[reducercontract.Domain]int {
 	if len(producers) != 1 || resolved <= 0 {
 		return nil
 	}
-	return map[Domain]int{producers[0]: resolved}
+	return map[reducercontract.Domain]int{producers[0]: resolved}
 }
 
-// crossScopeReadinessCycleAnchor returns intent.CycleStartedAt when set,
-// falling back to intent.EnqueuedAt.
+// ReadinessCycleAnchor returns intent.CycleStartedAt when set, falling back to
+// intent.EnqueuedAt.
 //
 // CycleStartedAt is COALESCE(reopened_at, created_at) from the claim query, so
 // it is the only one of the two that gets a fresh value when a maintenance
@@ -316,19 +326,18 @@ func singleProducerResolvedCounts(producers []Domain, resolved int) map[Domain]i
 // the terminal fallback on the very first defer. Returning zero here keeps the
 // caller deferring, which costs a bounded delay; the other direction commits a
 // possibly-wrong answer for a reason unrelated to elapsed time.
-func crossScopeReadinessCycleAnchor(intent Intent) time.Time {
+func ReadinessCycleAnchor(intent reducercontract.Intent) time.Time {
 	if !intent.CycleStartedAt.IsZero() {
 		return intent.CycleStartedAt
 	}
 	return intent.EnqueuedAt
 }
 
-// logCrossScopeProducerNotReadyDefer records a floor deferral as its own
-// structured log line, distinct from a normal correlation pass and from a
-// handler error.
+// LogProducerNotReadyDefer records a floor deferral as its own structured log
+// line, distinct from a normal correlation pass and from a handler error.
 //
 // It logs elapsed time against the bound, never attempt_count. This defer's own
-// failure class freezes attempt_count (see crossScopeProducerReadinessMaxWait),
+// failure class freezes attempt_count (see ProducerReadinessMaxWait),
 // so attempt_count reads as the same constant on every occurrence and tells an
 // operator nothing about how close the intent is to its terminal fallback.
 // elapsed_since_cycle_start against max_wait is the only pair that answers
@@ -336,12 +345,12 @@ func crossScopeReadinessCycleAnchor(intent Intent) time.Time {
 //
 // producer_domains comes from the bounded cross-scope catalog, so it is a small
 // closed set, not a high-cardinality label.
-func logCrossScopeProducerNotReadyDefer(
+func LogProducerNotReadyDefer(
 	ctx context.Context,
 	logger *slog.Logger,
-	intent Intent,
+	intent reducercontract.Intent,
 	now time.Time,
-	producerDomains []Domain,
+	producerDomains []reducercontract.Domain,
 ) {
 	if logger == nil {
 		return
@@ -355,9 +364,9 @@ func logCrossScopeProducerNotReadyDefer(
 		log.ScopeID(intent.ScopeID),
 		log.GenerationID(intent.GenerationID),
 		slog.String("producer_domains", strings.Join(producers, ",")),
-		slog.Duration("max_wait", crossScopeProducerReadinessMaxWait),
+		slog.Duration("max_wait", ProducerReadinessMaxWait),
 	}
-	if anchor := crossScopeReadinessCycleAnchor(intent); !anchor.IsZero() {
+	if anchor := ReadinessCycleAnchor(intent); !anchor.IsZero() {
 		attrs = append(attrs, slog.Duration("elapsed_since_cycle_start", now.Sub(anchor)))
 	}
 	logger.LogAttrs(

@@ -7,8 +7,10 @@ that turns a routine retryable handler error into a fatal process exit.
 ## The chain
 
 1. A cross-scope consumer whose declared producer has not activated returns an
-   error. Routine, expected, retryable — `cross_scope_readiness_floor.go:365`
-   logs it at INFO and the deferral has a 30-minute `max_wait`.
+   error. Routine, expected, retryable —
+   `go/internal/reducer/crossscope/readiness_floor.go:372` (moved from
+   `cross_scope_readiness_floor.go:365` by #6061) logs it at INFO and the
+   deferral has a 30-minute `max_wait`.
 2. `executeAndReport` calls `WorkSink.Fail(...)` and returns
    `Result{Status: ResultStatusFailed}, nil`.
 3. `Fail` → `failIntent` → `retryReducerWorkQuery`

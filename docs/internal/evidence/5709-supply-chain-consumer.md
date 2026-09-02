@@ -20,7 +20,8 @@ failure class (`cross_scope_producer_not_ready`) bounded at 30 minutes of
 elapsed time, so it never dead-letters and never waits forever.
 
 **It was wired to one of the two registered consumers.**
-`crossScopeDependencyCatalog` (`go/internal/reducer/cross_scope_dependencies.go`)
+`crossscope.dependencyCatalog` (`go/internal/reducer/crossscope/dependencies.go`,
+moved from `cross_scope_dependencies.go` by #6061)
 declares two: `ci_cd_run_correlation`, which got the floor, and
 `supply_chain_impact`, which did not. The merged evidence doc says so under
 "what a reviewer should push on".
@@ -41,7 +42,7 @@ that moves:
 
 | claim | status on `435c76f63` |
 | --- | --- |
-| catalog registers two consumers | true — `crossScopeDependencyCatalog` returns `ci_cd_run_correlation` and `supply_chain_impact` |
+| catalog registers two consumers | true — `crossscope.dependencyCatalog` returns `ci_cd_run_correlation` and `supply_chain_impact` |
 | `supply_chain_impact` declares both producers | true — `container_image_identity`, `ci_cd_run_correlation` |
 | `SupplyChainImpactHandler` is ungated | true — no `ProducerReadiness` field, no call to the floor helpers |
 | the readiness store already resolves this consumer | true — `crossScopeProducerCollectorKindByDomain` maps both producer domains, so no store change was needed |

@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package reducer
+package crossscope
 
 import (
 	"slices"
@@ -9,20 +9,8 @@ import (
 	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
 )
 
-// CrossScopeDependency declares that a consumer reducer domain reads canonical
-// facts a producer domain writes in a DIFFERENT ingestion scope. The consumer's
-// cross-scope active-fact load can run before the producer has committed its
-// latest output, so producer completion must schedule the canonical consumer
-// again.
-//
-// The durable producer-completion runner consumes this declaration to schedule
-// current-generation consumers after a producer ACK. It does not gate reducer
-// admission: cross-scope producer readiness is not available when these intents
-// are first enqueued, so convergence comes from ordered replay instead.
-type CrossScopeDependency = reducercontract.CrossScopeDependency
-
-// crossScopeDependencyCatalog is the single source of truth for which consumer
-// reducer domains depend, across scopes, on which producer domains. The durable
+// dependencyCatalog is the single source of truth for which consumer reducer
+// domains depend, across scopes, on which producer domains. The durable
 // completion fanout derives its SQL inputs from this catalog, so registration
 // and runtime scheduling cannot drift.
 //
@@ -40,21 +28,21 @@ type CrossScopeDependency = reducercontract.CrossScopeDependency
 // canonical consumer again. Identity remains in deferred maintenance because
 // its raw OCI producer has no reducer ACK; its successful replay starts this
 // reducer-owned completion chain.
-func crossScopeDependencyCatalog() map[Domain]CrossScopeDependency {
-	return map[Domain]CrossScopeDependency{
-		DomainCICDRunCorrelation: {
-			ProducerDomains: []Domain{DomainContainerImageIdentity},
+func dependencyCatalog() map[reducercontract.Domain]reducercontract.CrossScopeDependency {
+	return map[reducercontract.Domain]reducercontract.CrossScopeDependency{
+		reducercontract.DomainCICDRunCorrelation: {
+			ProducerDomains: []reducercontract.Domain{reducercontract.DomainContainerImageIdentity},
 		},
-		DomainSupplyChainImpact: {
-			ProducerDomains: []Domain{
-				DomainContainerImageIdentity,
-				DomainCICDRunCorrelation,
+		reducercontract.DomainSupplyChainImpact: {
+			ProducerDomains: []reducercontract.Domain{
+				reducercontract.DomainContainerImageIdentity,
+				reducercontract.DomainCICDRunCorrelation,
 			},
 		},
 	}
 }
 
-// CrossScopeConsumerDomains returns every reducer domain that crossScopeDependencyCatalog
+// ConsumerDomains returns every reducer domain that the dependency catalog
 // declares as a CONSUMER of another domain's canonical output, sorted so the
 // result does not depend on map iteration order.
 //
@@ -67,9 +55,9 @@ func crossScopeDependencyCatalog() map[Domain]CrossScopeDependency {
 // implementedDefaultDomainDefinitions with real handlers, so the default
 // definitions expose zero CrossScopeDependencies and would report an empty
 // consumer set.
-func CrossScopeConsumerDomains() []Domain {
-	catalog := crossScopeDependencyCatalog()
-	consumers := make([]Domain, 0, len(catalog))
+func ConsumerDomains() []reducercontract.Domain {
+	catalog := dependencyCatalog()
+	consumers := make([]reducercontract.Domain, 0, len(catalog))
 	for consumer := range catalog {
 		consumers = append(consumers, consumer)
 	}
@@ -78,27 +66,27 @@ func CrossScopeConsumerDomains() []Domain {
 	return consumers
 }
 
-// CrossScopeCompletionEdge is one producer-to-consumer fanout edge derived
-// from the cross-scope dependency catalog.
-type CrossScopeCompletionEdge struct {
-	Producer Domain
-	Consumer Domain
+// CompletionEdge is one producer-to-consumer fanout edge derived from the
+// cross-scope dependency catalog.
+type CompletionEdge struct {
+	Producer reducercontract.Domain
+	Consumer reducercontract.Domain
 }
 
-// CrossScopeCompletionEdges returns every producer-to-consumer completion edge
-// in deterministic producer, then consumer, order.
-func CrossScopeCompletionEdges() []CrossScopeCompletionEdge {
-	catalog := crossScopeDependencyCatalog()
-	edges := make([]CrossScopeCompletionEdge, 0, len(catalog)*2)
+// CompletionEdges returns every producer-to-consumer completion edge in
+// deterministic producer, then consumer, order.
+func CompletionEdges() []CompletionEdge {
+	catalog := dependencyCatalog()
+	edges := make([]CompletionEdge, 0, len(catalog)*2)
 	for consumer, dependency := range catalog {
 		for _, producer := range dependency.ProducerDomains {
-			edges = append(edges, CrossScopeCompletionEdge{
+			edges = append(edges, CompletionEdge{
 				Producer: producer,
 				Consumer: consumer,
 			})
 		}
 	}
-	slices.SortFunc(edges, func(left, right CrossScopeCompletionEdge) int {
+	slices.SortFunc(edges, func(left, right CompletionEdge) int {
 		if byProducer := string(left.Producer) < string(right.Producer); byProducer {
 			return -1
 		}
@@ -116,16 +104,16 @@ func CrossScopeCompletionEdges() []CrossScopeCompletionEdge {
 	return edges
 }
 
-// crossScopeDependenciesForRegistration returns the DomainDefinition
+// DependenciesForRegistration returns the DomainDefinition
 // CrossScopeDependencies a consumer domain should register, populated from the
 // single-source catalog. A domain with no catalog entry registers nil. Domain
 // definition constructors call this so the registered DomainDefinition and the
 // completion fanout share one declaration rather than parallel hard-coded
 // dependency lists.
-func crossScopeDependenciesForRegistration(domain Domain) []CrossScopeDependency {
-	dependency, ok := crossScopeDependencyCatalog()[domain]
+func DependenciesForRegistration(domain reducercontract.Domain) []reducercontract.CrossScopeDependency {
+	dependency, ok := dependencyCatalog()[domain]
 	if !ok {
 		return nil
 	}
-	return []CrossScopeDependency{dependency}
+	return []reducercontract.CrossScopeDependency{dependency}
 }

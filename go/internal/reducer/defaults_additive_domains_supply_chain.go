@@ -46,7 +46,7 @@ func appendSupplyChainCorrelationAdditiveDomains(definitions []DomainDefinition,
 			Writer:      handlers.SupplyChainImpactWriter,
 			Instruments: handlers.Instruments,
 			// #5709: supply_chain_impact is the second registered cross-scope
-			// consumer. Being in crossScopeDependencyCatalog does not gate a
+			// consumer. Being in crossscope.dependencyCatalog does not gate a
 			// handler -- these two lines are what do, and
 			// TestSupplyChainImpactRegistrationCarriesTheReadinessSeam fails if
 			// either is dropped, because a nil seam means "no floor" and would

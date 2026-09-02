@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package reducer
+package crossscope
 
 import (
 	"context"
@@ -12,27 +12,27 @@ import (
 	"testing"
 	"time"
 
-	"github.com/eshu-hq/eshu/go/internal/facts"
+	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
 )
 
-// fixedCrossScopeReadiness answers the readiness question with a canned result
+// fixedProducerReadiness answers the readiness question with a canned result
 // and counts calls, so a test can prove the lookup was consulted — or skipped.
-type fixedCrossScopeReadiness struct {
+type fixedProducerReadiness struct {
 	ready bool
 	// readyByProducer overrides ready for the named producer domains, so a test
 	// can express the shape the aggregate bool could not: one producer ready
 	// while another is still inside its activation window.
-	readyByProducer map[Domain]bool
+	readyByProducer map[reducercontract.Domain]bool
 	err             error
 	calls           int
 }
 
-func (r *fixedCrossScopeReadiness) CrossScopeProducersReady(
+func (r *fixedProducerReadiness) CrossScopeProducersReady(
 	_ context.Context,
-	consumer Domain,
+	consumer reducercontract.Domain,
 	_ string,
 	_ string,
-) (CrossScopeProducerReadinessByDomain, error) {
+) (ProducerReadinessByDomain, error) {
 	r.calls++
 	if r.err != nil {
 		return nil, r.err
@@ -40,8 +40,8 @@ func (r *fixedCrossScopeReadiness) CrossScopeProducersReady(
 	// Built from the real catalog, so a canned answer always covers exactly the
 	// producers the floor is about to ask about — the same contract the
 	// production store owes.
-	readiness := CrossScopeProducerReadinessByDomain{}
-	for _, dependency := range crossScopeDependenciesForRegistration(consumer) {
+	readiness := ProducerReadinessByDomain{}
+	for _, dependency := range DependenciesForRegistration(consumer) {
 		for _, producer := range dependency.ProducerDomains {
 			ready := r.ready
 			if override, named := r.readyByProducer[producer]; named {
@@ -53,39 +53,14 @@ func (r *fixedCrossScopeReadiness) CrossScopeProducersReady(
 	return readiness, nil
 }
 
-// scopeOnlyCICDRunFactLoader implements the base FactLoader and the by-kind
-// load the handler needs, but NOT activeCICDRunCorrelationFactLoader. It stands
-// in for a deployment or an alternative adapter with no cross-scope identity
-// seam at all.
-type scopeOnlyCICDRunFactLoader struct {
-	scopeFacts []facts.Envelope
-}
-
-func (s *scopeOnlyCICDRunFactLoader) ListFacts(
-	context.Context,
-	string,
-	string,
-) ([]facts.Envelope, error) {
-	return append([]facts.Envelope(nil), s.scopeFacts...), nil
-}
-
-func (s *scopeOnlyCICDRunFactLoader) ListFactsByKind(
-	context.Context,
-	string,
-	string,
-	[]string,
-) ([]facts.Envelope, error) {
-	return append([]facts.Envelope(nil), s.scopeFacts...), nil
-}
-
 // testCrossScopeNow is a fixed clock reading so the elapsed-time bound is
 // exercised deterministically rather than against the wall clock.
 var testCrossScopeNow = time.Date(2026, 8, 12, 12, 0, 0, 0, time.UTC)
 
 // freshCrossScopeIntent builds an intent whose repair cycle just began, so the
 // elapsed bound is nowhere near reached and the readiness lookup governs.
-func freshCrossScopeIntent(domain Domain) Intent {
-	return Intent{
+func freshCrossScopeIntent(domain reducercontract.Domain) reducercontract.Intent {
+	return reducercontract.Intent{
 		Domain:         domain,
 		ScopeID:        "scope:ci",
 		GenerationID:   "gen:ci",
@@ -100,27 +75,27 @@ func freshCrossScopeIntent(domain Domain) Intent {
 // them can pass against a re-implementation of the logic.
 func runCrossScopeFloor(
 	t *testing.T,
-	readiness CrossScopeProducerReadiness,
-	intent Intent,
+	readiness ProducerReadiness,
+	intent reducercontract.Intent,
 	now time.Time,
 	lookupPlanned bool,
 	resolved int,
 ) error {
 	t.Helper()
 
-	signal, err := checkCrossScopeProducerReadinessBeforeLoad(
+	signal, err := CheckProducerReadinessBeforeLoad(
 		context.Background(), readiness, intent, now, lookupPlanned,
 	)
 	if err != nil {
 		return err
 	}
-	unready := crossScopeUnreadyProducers(
-		signal, singleProducerResolvedCounts(signal.producerDomains, resolved),
+	unready := UnreadyProducers(
+		signal, SingleProducerResolvedCounts(signal.ProducerDomains, resolved),
 	)
 	if len(unready) == 0 {
 		return nil
 	}
-	return newCrossScopeProducerNotReadyError(intent.Domain, intent.ScopeID, intent.GenerationID, unready)
+	return NewProducerNotReadyError(intent.Domain, intent.ScopeID, intent.GenerationID, unready)
 }
 
 // TestReadinessFloorDefersConsumerWhoseProducerScopesHaveNotActivated is the
@@ -136,9 +111,9 @@ func runCrossScopeFloor(
 func TestReadinessFloorDefersConsumerWhoseProducerScopesHaveNotActivated(t *testing.T) {
 	t.Parallel()
 
-	readiness := &fixedCrossScopeReadiness{ready: false}
+	readiness := &fixedProducerReadiness{ready: false}
 	err := runCrossScopeFloor(
-		t, readiness, freshCrossScopeIntent(DomainCICDRunCorrelation), testCrossScopeNow, true, 0,
+		t, readiness, freshCrossScopeIntent(reducercontract.DomainCICDRunCorrelation), testCrossScopeNow, true, 0,
 	)
 	if err == nil {
 		t.Fatal("want a readiness error: an empty cross-scope join under unactivated producer scopes must not stand as an answer")
@@ -147,12 +122,12 @@ func TestReadinessFloorDefersConsumerWhoseProducerScopesHaveNotActivated(t *test
 		t.Fatalf("readiness lookup calls = %d, want 1", readiness.calls)
 	}
 
-	var notReady crossScopeProducerNotReadyError
+	var notReady ProducerNotReadyError
 	if !errors.As(err, &notReady) {
-		t.Fatalf("err = %#v, want crossScopeProducerNotReadyError", err)
+		t.Fatalf("err = %#v, want ProducerNotReadyError", err)
 	}
-	if got := notReady.FailureClass(); got != CrossScopeProducerNotReadyFailureClass {
-		t.Fatalf("FailureClass() = %q, want %q", got, CrossScopeProducerNotReadyFailureClass)
+	if got := notReady.FailureClass(); got != ProducerNotReadyFailureClass {
+		t.Fatalf("FailureClass() = %q, want %q", got, ProducerNotReadyFailureClass)
 	}
 	// Retryable is what keeps the queue re-running the consumer instead of
 	// dead-lettering it, and the class is enrolled non-counting so the deferral
@@ -162,7 +137,7 @@ func TestReadinessFloorDefersConsumerWhoseProducerScopesHaveNotActivated(t *test
 	}
 	// The message names the bounded producer set, never a uid — a uid could be
 	// a redacted identifier.
-	if got := notReady.Error(); !strings.Contains(got, string(DomainContainerImageIdentity)) {
+	if got := notReady.Error(); !strings.Contains(got, string(reducercontract.DomainContainerImageIdentity)) {
 		t.Fatalf("Error() = %q, want it to name the declared producer domain", got)
 	}
 }
@@ -173,9 +148,9 @@ func TestReadinessFloorDefersConsumerWhoseProducerScopesHaveNotActivated(t *test
 func TestReadinessFloorLeavesResolvedConsumersAlone(t *testing.T) {
 	t.Parallel()
 
-	readiness := &fixedCrossScopeReadiness{ready: false}
+	readiness := &fixedProducerReadiness{ready: false}
 	if err := runCrossScopeFloor(
-		t, readiness, freshCrossScopeIntent(DomainCICDRunCorrelation), testCrossScopeNow, true, 3,
+		t, readiness, freshCrossScopeIntent(reducercontract.DomainCICDRunCorrelation), testCrossScopeNow, true, 3,
 	); err != nil {
 		t.Fatalf("err = %v, want nil: a consumer with evidence must not defer", err)
 	}
@@ -193,9 +168,9 @@ func TestReadinessFloorLeavesResolvedConsumersAlone(t *testing.T) {
 func TestReadinessFloorDoesNotApplyWhenThereWasNothingToLookUp(t *testing.T) {
 	t.Parallel()
 
-	readiness := &fixedCrossScopeReadiness{ready: false}
+	readiness := &fixedProducerReadiness{ready: false}
 	if err := runCrossScopeFloor(
-		t, readiness, freshCrossScopeIntent(DomainCICDRunCorrelation), testCrossScopeNow, false, 0,
+		t, readiness, freshCrossScopeIntent(reducercontract.DomainCICDRunCorrelation), testCrossScopeNow, false, 0,
 	); err != nil {
 		t.Fatalf("err = %v, want nil: a pass with nothing to look up must not defer", err)
 	}
@@ -211,9 +186,9 @@ func TestReadinessFloorDoesNotApplyWhenThereWasNothingToLookUp(t *testing.T) {
 func TestReadinessFloorConvergesOnceProducerScopesAreQuiescent(t *testing.T) {
 	t.Parallel()
 
-	readiness := &fixedCrossScopeReadiness{ready: true}
+	readiness := &fixedProducerReadiness{ready: true}
 	if err := runCrossScopeFloor(
-		t, readiness, freshCrossScopeIntent(DomainCICDRunCorrelation), testCrossScopeNow, true, 0,
+		t, readiness, freshCrossScopeIntent(reducercontract.DomainCICDRunCorrelation), testCrossScopeNow, true, 0,
 	); err != nil {
 		t.Fatalf("err = %v, want nil: a genuinely empty join under quiescent producers is a real answer", err)
 	}
@@ -224,11 +199,11 @@ func TestReadinessFloorConvergesOnceProducerScopesAreQuiescent(t *testing.T) {
 func TestReadinessFloorIgnoresDomainsOutsideTheCatalog(t *testing.T) {
 	t.Parallel()
 
-	readiness := &fixedCrossScopeReadiness{ready: false}
+	readiness := &fixedProducerReadiness{ready: false}
 	// DomainContainerImageIdentity is a PRODUCER in the catalog, not a
 	// consumer, so it declares no dependency and must not defer.
 	if err := runCrossScopeFloor(
-		t, readiness, freshCrossScopeIntent(DomainContainerImageIdentity), testCrossScopeNow, true, 0,
+		t, readiness, freshCrossScopeIntent(reducercontract.DomainContainerImageIdentity), testCrossScopeNow, true, 0,
 	); err != nil {
 		t.Fatalf("err = %v, want nil for a domain with no declared dependency", err)
 	}
@@ -244,7 +219,7 @@ func TestReadinessFloorWithoutASeamDoesNotDefer(t *testing.T) {
 	t.Parallel()
 
 	if err := runCrossScopeFloor(
-		t, nil, freshCrossScopeIntent(DomainCICDRunCorrelation), testCrossScopeNow, true, 0,
+		t, nil, freshCrossScopeIntent(reducercontract.DomainCICDRunCorrelation), testCrossScopeNow, true, 0,
 	); err != nil {
 		t.Fatalf("err = %v, want nil when no readiness seam is wired", err)
 	}
@@ -262,16 +237,16 @@ func TestReadinessFloorSurfacesLookupErrorsAsThemselves(t *testing.T) {
 	sentinel := errors.New("readiness store unavailable")
 	err := runCrossScopeFloor(
 		t,
-		&fixedCrossScopeReadiness{err: sentinel},
-		freshCrossScopeIntent(DomainCICDRunCorrelation), testCrossScopeNow, true, 0,
+		&fixedProducerReadiness{err: sentinel},
+		freshCrossScopeIntent(reducercontract.DomainCICDRunCorrelation), testCrossScopeNow, true, 0,
 	)
-	// Identity, not errors.Is: classifyFactLoadError returns every non-EOF error
+	// Identity, not errors.Is: ClassifyFactLoadError returns every non-EOF error
 	// verbatim, and errors.Is would pass just as happily if the floor started
 	// wrapping the store failure in a class of its own.
 	if err != sentinel {
 		t.Fatalf("err = %#v, want the lookup error returned verbatim", err)
 	}
-	var notReady crossScopeProducerNotReadyError
+	var notReady ProducerNotReadyError
 	if errors.As(err, &notReady) {
 		t.Fatal("a readiness-store failure must not be reported as a readiness miss: that class never counts against the retry budget")
 	}
@@ -281,7 +256,7 @@ func TestReadinessFloorSurfacesLookupErrorsAsThemselves(t *testing.T) {
 // retry accounting matching the cross-scope load that runs immediately after it.
 //
 // Both talk to the same Postgres over the same pool inside one handler pass, and
-// the load routes its errors through classifyFactLoadError, which promotes a
+// the load routes its errors through ClassifyFactLoadError, which promotes a
 // torn database stream to the retryable fact_load_transient class. That class
 // still counts against the retry budget -- it is not enrolled in
 // nonCountingReducerRetryFailureClasses. Left raw, a connection reset during the
@@ -293,8 +268,8 @@ func TestReadinessFloorClassifiesATornStreamAsTransient(t *testing.T) {
 	torn := fmt.Errorf("query producer scope quiescence: %w", io.ErrUnexpectedEOF)
 	err := runCrossScopeFloor(
 		t,
-		&fixedCrossScopeReadiness{err: torn},
-		freshCrossScopeIntent(DomainCICDRunCorrelation), testCrossScopeNow, true, 0,
+		&fixedProducerReadiness{err: torn},
+		freshCrossScopeIntent(reducercontract.DomainCICDRunCorrelation), testCrossScopeNow, true, 0,
 	)
 	if !errors.Is(err, io.ErrUnexpectedEOF) {
 		t.Fatalf("err = %#v, want the torn-stream cause preserved", err)
@@ -308,7 +283,7 @@ func TestReadinessFloorClassifiesATornStreamAsTransient(t *testing.T) {
 	}
 	// Still not a readiness miss: that class never counts against the retry
 	// budget at all, which is a different and much stronger exemption.
-	var notReady crossScopeProducerNotReadyError
+	var notReady ProducerNotReadyError
 	if errors.As(err, &notReady) {
 		t.Fatal("a transient store fault must not be reported as a readiness miss")
 	}
@@ -317,17 +292,17 @@ func TestReadinessFloorClassifiesATornStreamAsTransient(t *testing.T) {
 // TestReadinessFloorConvergesOnceTheElapsedBoundIsReached is the terminal
 // fallback, and it is not optional.
 //
-// CrossScopeProducerNotReadyFailureClass is enrolled non-counting, so the queue
-// freezes attempt_count and never dead-letters a row in this class. A producer
-// scope that is permanently absent or permanently stuck would therefore leave
-// its consumers deferring silently forever. That is worse than the durable
-// empty answer this floor prevents — an empty answer is visible and repairable.
+// ProducerNotReadyFailureClass is enrolled non-counting, so the queue freezes
+// attempt_count and never dead-letters a row in this class. A producer scope
+// that is permanently absent or permanently stuck would therefore leave its
+// consumers deferring silently forever. That is worse than the durable empty
+// answer this floor prevents — an empty answer is visible and repairable.
 func TestReadinessFloorConvergesOnceTheElapsedBoundIsReached(t *testing.T) {
 	t.Parallel()
 
-	readiness := &fixedCrossScopeReadiness{ready: false}
-	intent := freshCrossScopeIntent(DomainCICDRunCorrelation)
-	intent.CycleStartedAt = testCrossScopeNow.Add(-crossScopeProducerReadinessMaxWait)
+	readiness := &fixedProducerReadiness{ready: false}
+	intent := freshCrossScopeIntent(reducercontract.DomainCICDRunCorrelation)
+	intent.CycleStartedAt = testCrossScopeNow.Add(-ProducerReadinessMaxWait)
 	intent.EnqueuedAt = intent.CycleStartedAt
 
 	if err := runCrossScopeFloor(t, readiness, intent, testCrossScopeNow, true, 0); err != nil {
@@ -345,14 +320,14 @@ func TestReadinessFloorConvergesOnceTheElapsedBoundIsReached(t *testing.T) {
 func TestReadinessFloorBoundIsNotDrivenByAttemptCount(t *testing.T) {
 	t.Parallel()
 
-	intent := freshCrossScopeIntent(DomainCICDRunCorrelation)
+	intent := freshCrossScopeIntent(reducercontract.DomainCICDRunCorrelation)
 	// The frozen value a retrying row in a non-counting class reports forever.
 	intent.AttemptCount = 1
 
 	err := runCrossScopeFloor(
-		t, &fixedCrossScopeReadiness{ready: false}, intent, testCrossScopeNow, true, 0,
+		t, &fixedProducerReadiness{ready: false}, intent, testCrossScopeNow, true, 0,
 	)
-	var notReady crossScopeProducerNotReadyError
+	var notReady ProducerNotReadyError
 	if !errors.As(err, &notReady) {
 		t.Fatalf("err = %#v, want a deferral: a high attempt count must not substitute for elapsed time", err)
 	}
@@ -368,14 +343,14 @@ func TestReadinessFloorBoundIsNotDrivenByAttemptCount(t *testing.T) {
 func TestReadinessFloorGivesAReopenedRowAFreshWindow(t *testing.T) {
 	t.Parallel()
 
-	readiness := &fixedCrossScopeReadiness{ready: false}
-	intent := freshCrossScopeIntent(DomainCICDRunCorrelation)
+	readiness := &fixedProducerReadiness{ready: false}
+	intent := freshCrossScopeIntent(reducercontract.DomainCICDRunCorrelation)
 	// Originally enqueued days ago; reopened one minute ago.
 	intent.EnqueuedAt = testCrossScopeNow.Add(-72 * time.Hour)
 	intent.CycleStartedAt = testCrossScopeNow.Add(-time.Minute)
 
 	err := runCrossScopeFloor(t, readiness, intent, testCrossScopeNow, true, 0)
-	var notReady crossScopeProducerNotReadyError
+	var notReady ProducerNotReadyError
 	if !errors.As(err, &notReady) {
 		t.Fatalf("err = %#v, want a deferral: a reopened row gets a fresh window", err)
 	}
@@ -390,11 +365,13 @@ func TestReadinessFloorGivesAReopenedRowAFreshWindow(t *testing.T) {
 func TestReadinessFloorTreatsAZeroAnchorAsUnknownNotInfinite(t *testing.T) {
 	t.Parallel()
 
-	intent := Intent{Domain: DomainCICDRunCorrelation, ScopeID: "scope:ci", GenerationID: "gen:ci"}
+	intent := reducercontract.Intent{
+		Domain: reducercontract.DomainCICDRunCorrelation, ScopeID: "scope:ci", GenerationID: "gen:ci",
+	}
 	err := runCrossScopeFloor(
-		t, &fixedCrossScopeReadiness{ready: false}, intent, testCrossScopeNow, true, 0,
+		t, &fixedProducerReadiness{ready: false}, intent, testCrossScopeNow, true, 0,
 	)
-	var notReady crossScopeProducerNotReadyError
+	var notReady ProducerNotReadyError
 	if !errors.As(err, &notReady) {
 		t.Fatalf("err = %#v, want a deferral: an unknown anchor must not read as infinitely elapsed", err)
 	}
