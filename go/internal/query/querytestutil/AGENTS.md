@@ -16,6 +16,16 @@
 3. No production behavior. If production code needs it, it belongs in
    `querycontract`.
 
+Invariants 2 and 3 are checked, not just asserted. `internal/queryplan`'s
+`DiscoverQueryCallsites` omits this package from the production query-callsite
+inventory, and that omission is only sound while the package is test-only, so
+the walk proves it before skipping: a non-standard-library import here, a `Run`
+or `RunSingle` call anywhere but a fake's own `Run`/`RunSingle` delegating to
+its receiver, a non-test file under `internal/query` importing this package, or
+this directory holding no non-test Go file at all each fail
+`TestHotCypherManifestCoversEveryProductionQueryCall`. A helper that genuinely
+needs one of those does not belong here.
+
 ## Current state: one consumer, on purpose
 
 `MustMapField` and `FakeGraphReader` each have exactly one consuming package

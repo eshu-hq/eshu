@@ -26,6 +26,16 @@
   a typed `non_hot` class with a production source digest and applicable bounds.
   `non_hot_reason` remains source-digest-frozen legacy migration debt and must
   not be added or changed without converting the entry to the typed form.
+- The single directory outside that inventory is `internal/query/querytestutil`,
+  whose non-test files hold test doubles. `DiscoverQueryCallsites` skips that one
+  exact path -- not every directory that happens to carry the name -- and fails
+  unless the package still earns the skip: it holds at least one non-test Go
+  file, imports the standard library only, reaches `Run` or `RunSingle` only
+  from a fake's own `Run`/`RunSingle` delegating to its receiver, and no non-test
+  file under `internal/query` imports it. The skip and its proof are the same
+  code path, so an inventory that omits the package cannot be produced without
+  it. Widening the exclusion means widening that proof, not relaxing a name
+  match.
 - Editing the production source of a symbol registered in
   `grandfatheredNonHotSourceDigests` must convert that symbol's inventory entry
   to the typed `non_hot` form in the same change. This covers a doc-comment-only

@@ -74,12 +74,25 @@ a `_test.go` file makes it unreachable from every other package's tests and
 silently undoes the split — the compiler reports it as an ordinary undefined
 symbol in the consuming package, not as a packaging mistake.
 
-This package is intended for tests only, and nothing outside a test imports it
-today (`rg -l 'query/querytestutil' --glob '*.go' --glob '!*_test.go'` returns
-nothing). While that holds, the linker drops it from production binaries. That
+This package is intended for tests only, and most of that is enforced rather
+than observed. `internal/queryplan` leaves this package out of the production
+query-callsite inventory, and `DiscoverQueryCallsites` refuses to produce that
+inventory unless the package still earns the omission — standard-library imports
+only, `Run`/`RunSingle` reached only by a fake's own `Run`/`RunSingle`
+delegating to its receiver, and no non-test file under `internal/query`
+importing this one. Each of those fails
+`TestHotCypherManifestCoversEveryProductionQueryCall` with the offending file
+named.
+
+Note the scope of that last one. It is the tree the inventory walks, which is
+where an importer would realistically appear, but this package sits under
+`go/internal`, so anything under `go/` could import it and only convention stops
+a package outside `internal/query` from doing so.
+
+While that holds, the linker drops this package from production binaries. That
 is a consequence of the invariant rather than a guarantee on its own: a
-production import would quietly pull `testing` into a shipped binary, so treat
-one as a defect to fix, not as a fact to document.
+production import would quietly pull `testing` into a shipped binary, so it is
+a defect to fix, not a fact to document.
 
 ## Related docs
 
