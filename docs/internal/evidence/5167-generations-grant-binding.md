@@ -3,12 +3,20 @@
 Root-Cause Evidence: `GET /api/v0/freshness/generations` accepts `scope_id`,
 `repository`, `collector_kind`, `source_system`, `generation_id` and `status`.
 A first attempt at #5167 F-6 guarded only the two selector fields in the
-handler. Review (codex P1 on PR #6434) showed the bypass: a scoped caller
+handler. Review (codex P1 on PR #6434) showed the guard was defective: a caller
 leaves `scope_id` and `repository` empty, passes another tenant's
 `generation_id`, and the guard returns true because both checked fields are
 blank. `listGenerationLifecycleQuery` then filters on that generation alone and
-returns its scope, queue counts and latest failure message. Reproduced as a
-regression test that asserts the grant reaches the filter for a
+returns its scope, queue counts and latest failure message.
+
+To be exact about what that did and did not mean: no scoped caller reaches this
+handler today. The route is listed in
+`go/internal/query/auth_scoped_routes_pending_row_filtering.go`, so the auth
+middleware answers a scoped token with 403 before dispatch. The defective guard
+was therefore not a live cross-tenant read; it was the mechanism intended to
+make the route safe to allowlist, and it would not have held. That is why the
+check moved into the query rather than being repaired in the handler.
+Reproduced as a regression test asserting the grant reaches the filter for a
 `generation_id`-only query.
 
 No-Regression Evidence: the change adds one predicate to an existing
