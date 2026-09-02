@@ -23,6 +23,7 @@
   | `../infrasearch` | 1 |
   | `../impact` | 9 |
   | `../codeflow` | 4 |
+  | `../codeintel` | 8 |
   | `../deadcode` | 3 |
   | `../codequality` | 3 |
   | `../entityresolution` | 3 |
