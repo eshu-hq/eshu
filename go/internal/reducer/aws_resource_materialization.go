@@ -11,7 +11,6 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
-	"github.com/eshu-hq/eshu/go/internal/reducer/payloadcore"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
 	"github.com/eshu-hq/eshu/go/internal/truth"
 	log "github.com/eshu-hq/eshu/go/pkg/log"
@@ -354,11 +353,6 @@ func cloudResourceUIDForResource(resource awsv1.Resource) (string, bool) {
 		return "", false
 	}
 	return cloudResourceUID(resource.AccountID, resource.Region, resource.ResourceType, resourceID), true
-}
-
-// cloudResourceUID forwards to [payloadcore.CloudResourceUID].
-func cloudResourceUID(accountID, region, resourceType, resourceID string) string {
-	return payloadcore.CloudResourceUID(accountID, region, resourceType, resourceID)
 }
 
 // awsResourceMaterializationTiming groups stage durations so the completion log
