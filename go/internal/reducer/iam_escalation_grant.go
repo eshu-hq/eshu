@@ -3,6 +3,8 @@
 
 package reducer
 
+import "github.com/eshu-hq/eshu/go/internal/reducer/iampolicy"
+
 // iamPrimitiveArmStatus is the outcome of evaluating whether a principal holds a
 // primitive: armed, blocked by a Deny, or simply not granted.
 type iamPrimitiveArmStatus int
@@ -57,18 +59,16 @@ func buildIAMPrincipalGrant(statements []iamPermissionStatement, tally *iamEscal
 	deferredCounted := false
 
 	for _, statement := range statements {
-		actions := statement.Permission.Actions
-		hasConditions := boolPtrValue(statement.Permission.HasConditions)
-		hasNotActions := len(statement.Permission.NotActions) > 0
-		hasNotResources := len(statement.Permission.NotResources) > 0
+		shape := iampolicy.Classify(statement)
+		actions := shape.Actions
 
-		if statement.Permission.Effect == "Deny" {
+		if shape.Effect == iampolicy.EffectDeny {
 			for _, action := range actions {
 				grant.DenyActions[action] = struct{}{}
 			}
 			continue
 		}
-		if statement.Permission.Effect != "Allow" {
+		if shape.Effect != iampolicy.EffectAllow {
 			continue
 		}
 
@@ -79,12 +79,12 @@ func buildIAMPrincipalGrant(statements []iamPermissionStatement, tally *iamEscal
 			deferredCounted = true
 		}
 
-		if hasConditions || hasNotActions || hasNotResources {
+		if !shape.Trustable() {
 			// Cannot be conservatively trusted. If it carries a catalog action, count
 			// the precise reason so the skip is visible rather than silent. It does not
 			// contribute to trustedActions.
 			if statementTouchesCatalog(actions, catalogActions) {
-				if hasConditions {
+				if shape.HasConditions {
 					tally.skippedConditioned++
 				} else {
 					tally.skippedNotActionResource++

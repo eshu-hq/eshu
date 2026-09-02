@@ -5,7 +5,6 @@ package iamcan
 
 import (
 	"github.com/eshu-hq/eshu/go/internal/reducer/iampolicy"
-	"github.com/eshu-hq/eshu/go/internal/reducer/payloadcore"
 )
 
 // buildIAMCanPerformGrant folds a principal's identity-policy statements into its
@@ -33,31 +32,29 @@ func buildIAMCanPerformGrant(statements []iampolicy.Statement, tally *iamCanPerf
 	catalogActions := iamCanPerformCatalogActions()
 
 	for _, statement := range statements {
-		if !iamCanPerformIdentityPolicySource(statement.Permission.PolicySource) {
+		shape := iampolicy.Classify(statement)
+		if !iamCanPerformIdentityPolicySource(shape.PolicySource) {
 			continue
 		}
-		actions := statement.Permission.Actions
-		hasConditions := payloadcore.DerefBool(statement.Permission.HasConditions)
-		hasNotActions := len(statement.Permission.NotActions) > 0
-		hasNotResources := len(statement.Permission.NotResources) > 0
+		actions := shape.Actions
 
-		if statement.Permission.Effect == "Deny" {
+		if shape.Effect == iampolicy.EffectDeny {
 			for _, action := range actions {
 				grant.DenyActions[action] = struct{}{}
 			}
 			continue
 		}
-		if statement.Permission.Effect != "Allow" {
+		if shape.Effect != iampolicy.EffectAllow {
 			continue
 		}
 
-		if hasConditions || hasNotActions || hasNotResources {
+		if !shape.Trustable() {
 			// Cannot be conservatively trusted. If it carries a catalog action, count
 			// the precise reason so the skip is visible rather than silent. Conditions
 			// win the label when both are present (a conditioned NotAction statement is
 			// reported skipped_conditioned) to match the escalation slice's precedence.
 			if iampolicy.StatementTouchesCatalog(actions, catalogActions) {
-				if hasConditions {
+				if shape.HasConditions {
 					tally.recordSkip(iamCanPerformSkipConditioned)
 				} else {
 					tally.recordSkip(iamCanPerformSkipNotActionResource)

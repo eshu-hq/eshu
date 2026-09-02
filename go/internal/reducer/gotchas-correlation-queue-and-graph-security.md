@@ -191,7 +191,7 @@ and the resource `CloudResource` node a catalogued sensitive action applies to.
 identity statements, intersects them with attached permissions-boundary managed
 policy statements when present, and evaluates exact resource-policy grantees
 against the CLOSED catalog in
-`iam_can_perform_catalog.go` (documented in
+`iamcan/iam_can_perform_catalog.go` (documented in
 `docs/internal/design/1134-iam-can-perform.md`). An edge is written only when a
 catalogued action is granted (Allow, unconditioned, no `NotAction`/`NotResource`,
 not Deny-blocked) AND the target resolves to EXACTLY ONE scanned `CloudResource`

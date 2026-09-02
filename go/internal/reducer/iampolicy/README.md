@@ -13,6 +13,8 @@ owns no domain, performs no I/O, and holds only plain data and pure functions.
 | piece | file | what it does |
 |---|---|---|
 | `Statement` | `grant.go` | a decoded permission statement paired with its source `FactID` for dedup |
+| `Classify` / `StatementShape` | `statement_shape.go` | the single read site for a wrapped statement's trust-relevant fields |
+| `StatementShape.Trustable` | `statement_shape.go` | Allow, unconditioned, no NotAction/NotResource — the only foldable shape |
 | `PrincipalGrant` | `grant.go` | one principal's conservatively-trusted effective grant |
 | `PrincipalGrant.Allows` / `.Denied` | `grant.go` | wildcard-aware membership over the trusted and deny action sets |
 | `PrincipalGrant.StatementsCovering` | `grant.go` | resolves a carrier action back to every statement that grants it |
@@ -27,6 +29,14 @@ Only the two unambiguous wildcard shapes are honoured: `*` and `service:*`. A
 partial wildcard such as `iam:Create*` is deliberately not expanded. Expanding
 it would over-approximate the grant, and an over-approximated grant becomes a
 graph edge asserting access that may not exist.
+
+`Classify` exists for two reasons. It removes an extraction both grant folds
+duplicated verbatim, and it keeps the reads of the wrapped `iamv1.Permission` in
+the same package as the wrapper struct — which is what the payloadusage
+wrapper-attribution gate (#4668) needs in order to see `actions` and
+`not_actions` as used fields at all. The decisions those fields drive stay at
+each caller, because the two folds count into different tallies and check
+against different catalogs.
 
 `GlobMatch` is an iterative matcher rather than a compiled regexp: it avoids a
 per-call compile and the catastrophic backtracking of a naive recursive matcher
@@ -68,7 +78,12 @@ No-Regression Evidence: #6061 relocates this code from `iam_escalation.go`,
 `iam_escalation_grant.go` and `iam_escalation_target.go` without changing it.
 The bodies are unchanged; the diff is the package clause, the identifiers and
 struct fields becoming exported, and root aliases and forwarders replacing the
-original declarations. Behavior stays covered by the existing root escalation
+original declarations. The one added declaration is `Classify`, which lifts an
+extraction both grant folds performed inline and identically -- same fields,
+same nil-pointer default, same `Allow`/`Deny` comparison -- so each fold now
+reads a `StatementShape` instead of six selector expressions. The reducer suites
+that cover both folds pass unchanged, and the payloadusage manifest again
+attributes `actions` and `not_actions` to a wrapper-mediated read. Behavior stays covered by the existing root escalation
 suites (`iam_escalation_test.go`, `iam_escalation_skips_test.go`,
 `iam_escalation_materialization_test.go`) and by `internal/reducer/iamcan`.
 Measured on this branch: `go build ./...` exits 0, `go vet

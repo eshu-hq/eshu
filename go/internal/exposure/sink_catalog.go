@@ -118,7 +118,7 @@ var sinkCatalog = []SinkSpec{
 		TargetLabel:      "CloudResource",
 		BaselineSeverity: SeverityHigh,
 		GraphBacked:      true,
-		Provenance:       "reducer/iam_can_perform_materialization.go (principal :CloudResource -[:CAN_PERFORM]-> resource :CloudResource)",
+		Provenance:       "reducer/iamcan/iam_can_perform_materialization.go (principal :CloudResource -[:CAN_PERFORM]-> resource :CloudResource)",
 	},
 	{
 		Kind:             SinkIAMPrivilegedAction,
@@ -136,7 +136,7 @@ var sinkCatalog = []SinkSpec{
 		TargetLabel:      "CloudResource",
 		BaselineSeverity: SeverityHigh,
 		GraphBacked:      true,
-		Provenance:       "reducer/iam_can_assume_edge_rows.go (principal -[:CAN_ASSUME]-> role/user :CloudResource)",
+		Provenance:       "reducer/iamcan/iam_can_assume_edge_rows.go (principal -[:CAN_ASSUME]-> role/user :CloudResource)",
 	},
 	// Secret-reference sink: a node granted read on a secret metadata path.
 	{

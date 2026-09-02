@@ -110,9 +110,10 @@ func TestLoadAgainstRealReducer(t *testing.T) {
 	}
 
 	// #4668: aws_iam_permission and aws_iam_principal read their fields ONLY
-	// through wrapper structs — iamPermissionStatement.permission
-	// (iam_can_perform_grant.go / iam_escalation_grant.go /
-	// iam_escalation_target.go) and secretsIAMPrincipal.decoded
+	// through wrapper structs — iampolicy.Statement.Permission
+	// (iampolicy/grant.go and iampolicy/statement_shape.go, which the reducer
+	// root's escalation fold and the iamcan family's CAN_PERFORM fold both read
+	// through since #6061) and secretsIAMPrincipal.decoded
 	// (secrets_iam_trust_chain_iam_role.go). Before wrapper-mediated
 	// attribution those reads were invisible to the scanner, so
 	// aws_iam_permission undercounted and aws_iam_principal's UsedFields was

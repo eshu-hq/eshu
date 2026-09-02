@@ -39,6 +39,16 @@ in a customer account. Widening it is a security change.
   is not the same as none. They are counted under different skip reasons;
   collapsing them hides which half of the resolution ladder failed.
 
+## Keep the wrapper reads in this package
+
+`Classify` in `statement_shape.go` is the only place a wrapped
+`iamv1.Permission`'s trust fields are read. That is load-bearing beyond tidiness:
+`internal/payloadusage` derives wrapper-mediated field attribution per package
+directory, so a read of `statement.Permission.Actions` from another package is
+invisible to it and `actions` silently drops out of the used-field manifest. If
+you need another field off a wrapped statement from outside this package, add it
+to `StatementShape` rather than reaching through `Statement.Permission` there.
+
 ## Adding to this package
 
 A symbol belongs here only when it has consumers on **both** sides of the family
