@@ -271,7 +271,6 @@ LINE docs/internal/design/4786-contract-integration-matrix.md go/internal/projec
 LINE docs/internal/design/4786-contract-integration-matrix.md go/internal/projector/stage_workloads.go:37
 LINE docs/internal/design/4786-contract-integration-matrix.md go/internal/projector/tfstate_canonical.go:1
 LINE docs/internal/design/4786-contract-integration-matrix.md go/internal/query/ci_cd_run_correlation_aggregates.go:115
-LINE docs/internal/design/4786-contract-integration-matrix.md go/internal/query/ci_cd_run_correlation_aggregates.go:115
 LINE docs/internal/design/4786-contract-integration-matrix.md go/internal/query/cloud_inventory_readback.go:18
 LINE docs/internal/design/4786-contract-integration-matrix.md go/internal/query/cloud_inventory_readback.go:18
 LINE docs/internal/design/4786-contract-integration-matrix.md go/internal/query/cloud_inventory_readback.go:18
@@ -333,7 +332,6 @@ LINE docs/internal/design/4786-contract-integration-matrix.md go/internal/reduce
 LINE docs/internal/design/4786-contract-integration-matrix.md go/internal/reducer/candidate_loader.go:42
 LINE docs/internal/design/4786-contract-integration-matrix.md go/internal/reducer/candidate_loader.go:42
 LINE docs/internal/design/4786-contract-integration-matrix.md go/internal/reducer/candidate_loader.go:42
-LINE docs/internal/design/4786-contract-integration-matrix.md go/internal/reducer/ci_cd_run_correlation_writer.go:17
 LINE docs/internal/design/4786-contract-integration-matrix.md go/internal/reducer/cloud_asset_resolution_writer.go:45
 LINE docs/internal/design/4786-contract-integration-matrix.md go/internal/reducer/cloud_inventory_admission_writer.go:18
 LINE docs/internal/design/4786-contract-integration-matrix.md go/internal/reducer/code_call_projection_work.go:376
@@ -423,7 +421,6 @@ LINE docs/internal/design/4786-contract-integration-matrix.md go/internal/storag
 LINE docs/internal/design/4786-contract-integration-matrix.md go/internal/storage/postgres/multi_cloud_runtime_drift_evidence_sql.go:27
 LINE docs/internal/design/4786-contract-integration-matrix.md go/internal/storage/postgres/multi_cloud_runtime_drift_evidence_sql.go:28
 LINE docs/internal/design/4786-contract-integration-matrix.md go/internal/storage/postgres/multi_cloud_runtime_drift_evidence_sql.go:99
-LINE docs/internal/design/4786-contract-integration-matrix.md go/internal/storage/postgres/schema_fact_records.go:142
 LINE docs/internal/design/4786-contract-integration-matrix.md go/internal/storage/postgres/schema_fact_records.go:142
 LINE docs/internal/design/4786-contract-integration-matrix.md go/internal/storage/postgres/schema_fact_records.go:170
 LINE docs/internal/design/4786-contract-integration-matrix.md go/internal/storage/postgres/schema_fact_records.go:170
@@ -725,7 +722,6 @@ LINE docs/public/observability/telemetry-coverage.md go/internal/query/setup_han
 LINE docs/public/observability/telemetry-coverage.md go/internal/query/sign_in_policy_mutations.go:159
 LINE docs/public/observability/telemetry-coverage.md go/internal/query/tag_history.go:102
 LINE docs/public/observability/telemetry-coverage.md go/internal/reducer/accepted_generation_active_gate.go:52
-LINE docs/public/observability/telemetry-coverage.md go/internal/reducer/ci_cd_run_correlation.go:160
 LINE docs/public/observability/telemetry-coverage.md go/internal/reducer/cloud_inventory_admission.go:413
 LINE docs/public/observability/telemetry-coverage.md go/internal/reducer/container_image_derived_from_edges.go:283
 LINE docs/public/observability/telemetry-coverage.md go/internal/reducer/container_image_identity.go:191
