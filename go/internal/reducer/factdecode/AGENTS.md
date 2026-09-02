@@ -13,11 +13,10 @@
   reducer package or a family subpackage. Its budget is `internal/facts`,
   `internal/telemetry`, `internal/reducer/contract`, `pkg/log`,
   `go.opentelemetry.io/otel/metric`, the `factschema` SDK, and the standard
-  library, plus the tracked `sdk/go/factschema/aws/v1` exception that
-  `decode_error.go` needs for `QuarantinedAttributeShapeFact` and
-  `AttributeShapeAsFactDecodeError` — relocated coupling, not new, and flagged
-  in the README's Gotchas as something to extract later. Do not remove that
-  import to satisfy this budget. It does not currently import `payloadcore`;
+  library. A per-family schema package (for example `sdk/go/factschema/aws/v1`)
+  is NOT in the budget: the attribute-shape adapters match the
+  `AttributeShapeField() string` error contract with `errors.As` and never name
+  a family's concrete error type. It does not currently import `payloadcore`;
   adding that is fine, but anything beyond this list is not.
 - Mechanism only. A per-fact-kind `Decode*` function belongs to the family that
   owns the fact kind, not here, however many families happen to call it.
