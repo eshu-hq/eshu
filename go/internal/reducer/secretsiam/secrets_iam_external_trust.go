@@ -1,12 +1,13 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package reducer
+package secretsiam
 
 import (
 	"strings"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/reducer/payloadcore"
 )
 
 // secretsIAMExternalTrustRiskType is the privilege posture risk type for a role
@@ -46,13 +47,13 @@ func secretsIAMExternalTrustObservations(
 	for roleARN, envelopes := range trusts {
 		roleAccount := awsAccountFromARN(roleARN)
 		for _, envelope := range envelopes {
-			if payloadString(envelope.Payload, "effect") != "Allow" {
+			if payloadcore.PayloadString(envelope.Payload, "effect") != "Allow" {
 				continue
 			}
-			if !actionsAllowAssumeRole(payloadStrings(envelope.Payload, "", "actions")) {
+			if !actionsAllowAssumeRole(payloadcore.PayloadStrings(envelope.Payload, "", "actions")) {
 				continue
 			}
-			conditionKeys := payloadStrings(envelope.Payload, "", "condition_keys")
+			conditionKeys := payloadcore.PayloadStrings(envelope.Payload, "", "condition_keys")
 			if secretsIAMContainsLower(conditionKeys, "sts:externalid") {
 				continue
 			}
@@ -60,7 +61,7 @@ func secretsIAMExternalTrustObservations(
 				continue
 			}
 			external, wildcard := externalAssumePrincipals(
-				payloadStrings(envelope.Payload, "", "assume_principals"),
+				payloadcore.PayloadStrings(envelope.Payload, "", "assume_principals"),
 				roleAccount,
 			)
 			if !external {

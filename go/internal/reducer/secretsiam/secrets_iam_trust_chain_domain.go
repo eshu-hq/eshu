@@ -1,19 +1,22 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package reducer
+package secretsiam
 
-import "github.com/eshu-hq/eshu/go/internal/truth"
+import (
+	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
+	"github.com/eshu-hq/eshu/go/internal/truth"
+)
 
-// secretsIAMTrustChainDomainDefinition returns the additive definition for the
+// TrustChainDomainDefinition returns the additive definition for the
 // secrets/IAM trust-chain read model. The domain writes durable reducer facts
 // for exact, partial, stale, permission-hidden, and unsupported outcomes but
 // deliberately does not declare graph writes or schema DDL.
-func secretsIAMTrustChainDomainDefinition() DomainDefinition {
-	return DomainDefinition{
-		Domain:  DomainSecretsIAMTrustChain,
+func TrustChainDomainDefinition() reducercontract.DomainDefinition {
+	return reducercontract.DomainDefinition{
+		Domain:  reducercontract.DomainSecretsIAMTrustChain,
 		Summary: "publish reducer-owned secrets/IAM trust-chain read models with explicit partial and unsupported states",
-		Ownership: OwnershipShape{
+		Ownership: reducercontract.OwnershipShape{
 			CrossSource:    true,
 			CrossScope:     true,
 			CanonicalWrite: true,

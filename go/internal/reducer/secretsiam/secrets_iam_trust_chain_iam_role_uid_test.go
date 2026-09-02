@@ -1,12 +1,14 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package reducer
+package secretsiam
 
 import (
 	"testing"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/reducer/factdecode"
+	"github.com/eshu-hq/eshu/go/internal/reducer/payloadcore"
 	"github.com/eshu-hq/eshu/sdk/go/factschema"
 )
 
@@ -81,7 +83,7 @@ func TestBuildSecretsIAMTrustChainReadModelsResolvesIAMRoleCloudResourceUID(t *t
 		t.Fatalf("IdentityTrustChains len = %d, want %d", got, want)
 	}
 	chain := models.IdentityTrustChains[0]
-	wantUID := cloudResourceUID(accountID, region, "aws_iam_role", roleARN)
+	wantUID := payloadcore.CloudResourceUID(accountID, region, "aws_iam_role", roleARN)
 	if chain.IAMRoleCloudResourceUID != wantUID {
 		t.Fatalf("chain.IAMRoleCloudResourceUID = %q, want %q", chain.IAMRoleCloudResourceUID, wantUID)
 	}
@@ -146,7 +148,7 @@ func TestBuildSecretsIAMTrustChainReadModelsResolvesPodIdentityAssumeMode(t *tes
 		t.Fatalf("IdentityTrustChains len = %d, want %d", got, want)
 	}
 	chain := models.IdentityTrustChains[0]
-	if chain.IAMRoleCloudResourceUID != cloudResourceUID(accountID, region, "aws_iam_role", roleARN) {
+	if chain.IAMRoleCloudResourceUID != payloadcore.CloudResourceUID(accountID, region, "aws_iam_role", roleARN) {
 		t.Fatalf("pod-identity chain did not resolve the IAM-role uid: %q", chain.IAMRoleCloudResourceUID)
 	}
 	if chain.IAMRoleAssumeMode != secretsIAMAssumeModePodIdentity {
@@ -169,7 +171,7 @@ func secretsIAMHasGap(models SecretsIAMTrustChainReadModels, gapType string) boo
 // the aws_iam_principal regression test mirroring the flagship, updated to the
 // per-fact isolation contract every migrated reducer kind now follows. A
 // principal fact whose required account_id key is ABSENT is QUARANTINED as an
-// input_invalid per-fact dead-letter (returned in the []quarantinedFact slice)
+// input_invalid per-fact dead-letter (returned in the []factdecode.QuarantinedFact slice)
 // rather than aborting the whole trust-chain work item. Because the malformed
 // principal never enters the index, the role has no valid principal, so the
 // build emits a missing_iam_principal posture gap for it (its existing
@@ -247,7 +249,7 @@ func TestBuildSecretsIAMTrustChainReadModelsIsolatesMalformedPrincipalFromValidC
 	}
 
 	// Exactly the valid chain projects; the malformed role forms none.
-	wantGoodUID := cloudResourceUID(accountID, region, "aws_iam_role", goodRoleARN)
+	wantGoodUID := payloadcore.CloudResourceUID(accountID, region, "aws_iam_role", goodRoleARN)
 	goodFingerprint := secretsIAMFingerprint("iam_role", goodRoleARN)
 	badFingerprint := secretsIAMFingerprint("iam_role", badRoleARN)
 	var sawGood bool
@@ -305,34 +307,34 @@ func TestBuildSecretsIAMTrustChainReadModelsLeavesIAMRoleUIDBlankWithEmptyAccoun
 // contract the aws_iam_principal branch in buildSecretsIAMIndex relies on. The
 // secrets trust-chain build is the ONE decode call site whose extractor
 // (buildSecretsIAMIndex) could not originally propagate a decode error, so its
-// branch must return the fatal partitionDecodeFailures reports rather than
+// branch must return the fatal factdecode.PartitionDecodeFailures reports rather than
 // swallow it. Today every factschema decode error is classified input_invalid
 // (so the fatal branch is defensive/unreachable through the production seam),
 // but if the seam ever adds a non-input_invalid classification, the branch's
 // `return secretsIAMIndex{}, nil, fatal` must fire — this test proves the exact
-// mechanism it depends on: a *factDecodeError whose classification is NOT
-// input_invalid is returned FATAL by partitionDecodeFailures, not quarantined.
+// mechanism it depends on: a *factdecode.FactDecodeError whose classification is NOT
+// input_invalid is returned FATAL by factdecode.PartitionDecodeFailures, not quarantined.
 // TestPartitionDecodeFailures covers the classifier generically; this co-located
 // test documents the contract for the 16 families that copy the secrets pattern.
 func TestSecretsIAMPrincipalDecodeFatalStaysFatal(t *testing.T) {
 	t.Parallel()
 
 	principalEnv := facts.Envelope{FactID: "principal-bad", FactKind: facts.AWSIAMPrincipalFactKind}
-	// A *factDecodeError classified as something OTHER than input_invalid — the
+	// A *factdecode.FactDecodeError classified as something OTHER than input_invalid — the
 	// class the secrets branch must treat as fatal, not quarantine.
-	fatalDecode := newFactDecodeError(factschema.FactKindAWSIAMPrincipal, &factschema.DecodeError{
+	fatalDecode := factdecode.NewFactDecodeError(factschema.FactKindAWSIAMPrincipal, &factschema.DecodeError{
 		FactKind:       factschema.FactKindAWSIAMPrincipal,
 		Classification: "schema_mismatch",
 	})
 
-	q, ok, fatal := partitionDecodeFailures(principalEnv, fatalDecode)
+	q, ok, fatal := factdecode.PartitionDecodeFailures(principalEnv, fatalDecode)
 	if ok {
 		t.Fatal("ok = true; a non-input_invalid principal decode error must NOT be quarantined by the secrets branch")
 	}
 	if fatal == nil {
 		t.Fatal("fatal = nil; a non-input_invalid principal decode error must stay fatal so the trust-chain work item fails")
 	}
-	if (q != quarantinedFact{}) {
-		t.Fatalf("quarantinedFact = %+v, want zero value for a fatal principal error", q)
+	if (q != factdecode.QuarantinedFact{}) {
+		t.Fatalf("factdecode.QuarantinedFact = %+v, want zero value for a fatal principal error", q)
 	}
 }

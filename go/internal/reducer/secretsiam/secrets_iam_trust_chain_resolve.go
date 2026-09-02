@@ -1,10 +1,11 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package reducer
+package secretsiam
 
 import (
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/reducer/payloadcore"
 )
 
 // secretsIAMExactChains walks the pre-decoded secretsIAMIndex (built by
@@ -109,13 +110,13 @@ func exactIAMRoleTrust(roleEvidence secretsIAMIRSA, trusts []facts.Envelope) (fa
 
 func exactPodIdentityTrust(trusts []facts.Envelope) (facts.Envelope, bool) {
 	for _, trust := range trusts {
-		if payloadString(trust.Payload, "effect") != "Allow" {
+		if payloadcore.PayloadString(trust.Payload, "effect") != "Allow" {
 			continue
 		}
-		if !secretsIAMContainsLower(payloadStrings(trust.Payload, "", "actions"), "sts:assumerole") {
+		if !secretsIAMContainsLower(payloadcore.PayloadStrings(trust.Payload, "", "actions"), "sts:assumerole") {
 			continue
 		}
-		if secretsIAMContainsString(payloadStrings(trust.Payload, "", "assume_principals"), "pods.eks.amazonaws.com") {
+		if secretsIAMContainsString(payloadcore.PayloadStrings(trust.Payload, "", "assume_principals"), "pods.eks.amazonaws.com") {
 			return trust, true
 		}
 	}
@@ -128,16 +129,16 @@ func exactWebIdentityTrust(roleEvidence secretsIAMIRSA, trusts []facts.Envelope)
 		return facts.Envelope{}, false
 	}
 	for _, trust := range trusts {
-		if payloadBool(trust.Payload, "web_identity_subject_wildcard") {
+		if payloadcore.PayloadBool(trust.Payload, "web_identity_subject_wildcard") {
 			continue
 		}
-		if payloadString(trust.Payload, "effect") != "Allow" {
+		if payloadcore.PayloadString(trust.Payload, "effect") != "Allow" {
 			continue
 		}
-		if !secretsIAMContainsLower(payloadStrings(trust.Payload, "", "actions"), "sts:assumerolewithwebidentity") {
+		if !secretsIAMContainsLower(payloadcore.PayloadStrings(trust.Payload, "", "actions"), "sts:assumerolewithwebidentity") {
 			continue
 		}
-		if secretsIAMContainsString(payloadStrings(trust.Payload, "", "web_identity_subject_fingerprints"), subject) {
+		if secretsIAMContainsString(payloadcore.PayloadStrings(trust.Payload, "", "web_identity_subject_fingerprints"), subject) {
 			return trust, true
 		}
 	}
@@ -169,9 +170,9 @@ func secretsIAMChain(
 		VaultRoleJoinKey:        vaultRole.decoded.RoleJoinKey,
 		VaultMountJoinKey:       stringOrEmpty(vaultRole.decoded.MountJoinKey),
 		VaultPolicyJoinKeys:     policyKeys,
-		EvidenceFactIDs:         uniqueSortedStrings(evidence),
-		SourceScopes:            uniqueSortedStrings([]string{workload.env.ScopeID, roleEvidence.env.ScopeID, trust.ScopeID, vaultRole.env.ScopeID}),
-		SourceGenerations:       uniqueSortedStrings([]string{workload.env.GenerationID, roleEvidence.env.GenerationID, trust.GenerationID, vaultRole.env.GenerationID}),
+		EvidenceFactIDs:         payloadcore.UniqueSortedStrings(evidence),
+		SourceScopes:            payloadcore.UniqueSortedStrings([]string{workload.env.ScopeID, roleEvidence.env.ScopeID, trust.ScopeID, vaultRole.env.ScopeID}),
+		SourceGenerations:       payloadcore.UniqueSortedStrings([]string{workload.env.GenerationID, roleEvidence.env.GenerationID, trust.GenerationID, vaultRole.env.GenerationID}),
 	}
 }
 
@@ -223,7 +224,7 @@ func secretsIAMVaultPaths(
 						KVPathFingerprint:  rule.pathFingerprint,
 						VaultMountJoinKey:  metadata.decoded.MountJoinKey,
 						VaultPolicyJoinKey: policyKey,
-						Capabilities:       uniqueSortedStrings(rule.capabilities),
+						Capabilities:       payloadcore.UniqueSortedStrings(rule.capabilities),
 						EvidenceFactIDs:    secretsIAMPathEvidence(chain, vaultRole, policy, metadata),
 					})
 				}
@@ -241,13 +242,13 @@ func secretsIAMPathEvidence(
 ) []string {
 	evidence := append([]string{}, chain.EvidenceFactIDs...)
 	evidence = append(evidence, vaultRole.env.FactID, policy.env.FactID, metadata.env.FactID)
-	return uniqueSortedStrings(evidence)
+	return payloadcore.UniqueSortedStrings(evidence)
 }
 
 func secretsIAMCoverageGaps(envelopes []facts.Envelope) []SecretsIAMPostureGap {
 	gaps := make([]SecretsIAMPostureGap, 0, len(envelopes))
 	for _, envelope := range envelopes {
-		state := secretsIAMStateFromSourceState(payloadString(envelope.Payload, "source_state"))
+		state := secretsIAMStateFromSourceState(payloadcore.PayloadString(envelope.Payload, "source_state"))
 		gapType := "partial_source_coverage"
 		if state == SecretsIAMTrustChainStateUnsupported {
 			gapType = "unsupported_policy_layer"
@@ -255,11 +256,11 @@ func secretsIAMCoverageGaps(envelopes []facts.Envelope) []SecretsIAMPostureGap {
 		gaps = append(gaps, secretsIAMGap(
 			gapType,
 			state,
-			payloadString(envelope.Payload, "warning_kind"),
+			payloadcore.PayloadString(envelope.Payload, "warning_kind"),
 			"",
 			[]string{envelope.FactID},
 			nil,
-			[]string{payloadString(envelope.Payload, "resource_scope")},
+			[]string{payloadcore.PayloadString(envelope.Payload, "resource_scope")},
 		))
 	}
 	return gaps

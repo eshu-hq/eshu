@@ -1,13 +1,14 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package reducer
+package secretsiam
 
 import (
 	"sort"
 	"strings"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/reducer/payloadcore"
 )
 
 // GCP IAM grant posture risk types, the bounded classifications the GCP IAM
@@ -64,7 +65,7 @@ func secretsIAMGCPGrantObservations(index secretsIAMIndex) []SecretsIAMPrivilege
 					"privilege_posture_observation",
 					riskType,
 					fingerprint,
-					payloadString(grant.Payload, "role"),
+					payloadcore.PayloadString(grant.Payload, "role"),
 					grant.FactID,
 				),
 				RiskType:           riskType,
@@ -73,7 +74,7 @@ func secretsIAMGCPGrantObservations(index secretsIAMIndex) []SecretsIAMPrivilege
 				Confidence:         "exact",
 				SubjectFingerprint: fingerprint,
 				Reason:             gcpGrantReason(riskType),
-				EvidenceFactIDs:    uniqueSortedStrings([]string{principalFactID, grant.FactID}),
+				EvidenceFactIDs:    payloadcore.UniqueSortedStrings([]string{principalFactID, grant.FactID}),
 			})
 		}
 	}
@@ -88,7 +89,7 @@ func secretsIAMGCPExactChainsForServiceAccount(
 	// index.gcpK8sBindings holds decoded k8s_gcp_workload_identity_binding
 	// facts (secretsIAMGCPBinding): this K8S-lane kind IS in scope for Wave
 	// 4d. Only the downstream join against gcp_iam_trust_policy stays on raw
-	// payloadString reads below -- deferred: gcp_iam lane, Wave 4d types
+	// payloadcore.PayloadString reads below -- deferred: gcp_iam lane, Wave 4d types
 	// vault/k8s only.
 	bindings := index.gcpK8sBindings[serviceAccountKey]
 	if len(bindings) == 0 {
@@ -117,7 +118,7 @@ func secretsIAMGCPExactChainsForServiceAccount(
 		}
 		for _, trust := range trusts {
 			// deferred: gcp_iam lane, Wave 4d types vault/k8s only.
-			targetFingerprint := payloadString(trust.Payload, "target_principal_fingerprint")
+			targetFingerprint := payloadcore.PayloadString(trust.Payload, "target_principal_fingerprint")
 			principals := index.gcpPrincipals[targetFingerprint]
 			if len(principals) == 0 {
 				gaps = append(gaps, secretsIAMGap(
@@ -153,16 +154,16 @@ func exactGCPWorkloadIdentityTrusts(
 	}
 	var out []facts.Envelope
 	for _, trust := range trusts {
-		if payloadString(trust.Payload, "target_service_account_email_digest") != emailDigest {
+		if payloadcore.PayloadString(trust.Payload, "target_service_account_email_digest") != emailDigest {
 			continue
 		}
-		if payloadString(trust.Payload, "gcp_workload_identity_subject_fingerprint") != subjectFingerprint {
+		if payloadcore.PayloadString(trust.Payload, "gcp_workload_identity_subject_fingerprint") != subjectFingerprint {
 			continue
 		}
-		if payloadString(trust.Payload, "impersonation_mode") != "workload_identity" {
+		if payloadcore.PayloadString(trust.Payload, "impersonation_mode") != "workload_identity" {
 			continue
 		}
-		if payloadString(trust.Payload, "role") != "roles/iam.workloadIdentityUser" {
+		if payloadcore.PayloadString(trust.Payload, "role") != "roles/iam.workloadIdentityUser" {
 			continue
 		}
 		out = append(out, trust)
@@ -177,7 +178,7 @@ func secretsIAMGCPChain(
 	trust facts.Envelope,
 	principal facts.Envelope,
 ) SecretsIAMIdentityTrustChain {
-	targetFingerprint := payloadString(trust.Payload, "target_principal_fingerprint")
+	targetFingerprint := payloadcore.PayloadString(trust.Payload, "target_principal_fingerprint")
 	workloadObjectID := stringOrEmpty(workload.decoded.WorkloadObjectID)
 	evidence := []string{workload.env.FactID, binding.env.FactID, trust.FactID, principal.FactID}
 	return SecretsIAMIdentityTrustChain{
@@ -195,11 +196,11 @@ func secretsIAMGCPChain(
 		WorkloadObjectID:                  workloadObjectID,
 		WorkloadKind:                      stringOrEmpty(workload.decoded.WorkloadKind),
 		GCPServiceAccountFingerprint:      targetFingerprint,
-		GCPServiceAccountCloudResourceUID: payloadString(trust.Payload, "target_service_account_cloud_resource_uid"),
-		GCPServiceAccountAssumeMode:       payloadString(trust.Payload, "impersonation_mode"),
-		EvidenceFactIDs:                   uniqueSortedStrings(evidence),
-		SourceScopes:                      uniqueSortedStrings([]string{workload.env.ScopeID, binding.env.ScopeID, trust.ScopeID, principal.ScopeID}),
-		SourceGenerations:                 uniqueSortedStrings([]string{workload.env.GenerationID, binding.env.GenerationID, trust.GenerationID, principal.GenerationID}),
+		GCPServiceAccountCloudResourceUID: payloadcore.PayloadString(trust.Payload, "target_service_account_cloud_resource_uid"),
+		GCPServiceAccountAssumeMode:       payloadcore.PayloadString(trust.Payload, "impersonation_mode"),
+		EvidenceFactIDs:                   payloadcore.UniqueSortedStrings(evidence),
+		SourceScopes:                      payloadcore.UniqueSortedStrings([]string{workload.env.ScopeID, binding.env.ScopeID, trust.ScopeID, principal.ScopeID}),
+		SourceGenerations:                 payloadcore.UniqueSortedStrings([]string{workload.env.GenerationID, binding.env.GenerationID, trust.GenerationID, principal.GenerationID}),
 	}
 }
 
@@ -209,14 +210,14 @@ func secretsIAMGCPSecretAccessPaths(
 ) []SecretsIAMSecretAccessPath {
 	var paths []SecretsIAMSecretAccessPath
 	for _, permission := range permissions {
-		if !payloadBool(permission.Payload, "resource_is_secret") {
+		if !payloadcore.PayloadBool(permission.Payload, "resource_is_secret") {
 			continue
 		}
 		capabilities := gcpSecretAccessCapabilities(permission)
 		if len(capabilities) == 0 {
 			continue
 		}
-		resource := payloadString(permission.Payload, "resource_full_resource_name")
+		resource := payloadcore.PayloadString(permission.Payload, "resource_full_resource_name")
 		resourceFingerprint := secretsIAMFingerprint("gcp_secret_resource", resource)
 		if resourceFingerprint == "" {
 			continue
@@ -229,7 +230,7 @@ func secretsIAMGCPSecretAccessPaths(
 				"gcp",
 				chain.ChainID,
 				resourceFingerprint,
-				payloadString(permission.Payload, "role"),
+				payloadcore.PayloadString(permission.Payload, "role"),
 			),
 			ChainID:                        chain.ChainID,
 			State:                          SecretsIAMTrustChainStateExact,
@@ -237,14 +238,14 @@ func secretsIAMGCPSecretAccessPaths(
 			CloudProvider:                  "gcp",
 			CloudSecretResourceFingerprint: resourceFingerprint,
 			Capabilities:                   capabilities,
-			EvidenceFactIDs:                uniqueSortedStrings(evidence),
+			EvidenceFactIDs:                payloadcore.UniqueSortedStrings(evidence),
 		})
 	}
 	return paths
 }
 
 func gcpSecretAccessCapabilities(permission facts.Envelope) []string {
-	role := strings.TrimSpace(payloadString(permission.Payload, "role"))
+	role := strings.TrimSpace(payloadcore.PayloadString(permission.Payload, "role"))
 	switch role {
 	case "roles/owner", "roles/secretmanager.admin", "roles/secretmanager.secretAccessor":
 		return []string{"secretmanager.versions.access"}
@@ -257,10 +258,10 @@ func gcpSecretAccessCapabilities(permission facts.Envelope) []string {
 // risk type, preferring the secret-access classification when a broad role is
 // also granted directly on a secret resource.
 func gcpGrantRiskType(grant facts.Envelope) (string, bool) {
-	if payloadBool(grant.Payload, "resource_is_secret") {
+	if payloadcore.PayloadBool(grant.Payload, "resource_is_secret") {
 		return gcpRiskSecretAccessGrant, true
 	}
-	if payloadBool(grant.Payload, "broad_role") {
+	if payloadcore.PayloadBool(grant.Payload, "broad_role") {
 		return gcpRiskBroadRoleGrant, true
 	}
 	return "", false

@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package reducer
+package secretsiam
 
 import (
 	"testing"
@@ -21,14 +21,14 @@ import (
 // whole-intent failure).
 //
 // Before the migration this behavior was impossible: buildSecretsIAMIndex
-// read role_join_key with a raw payloadString/payloadStrings lookup, which
+// read role_join_key with a raw payloadcore.PayloadString/payloadcore.PayloadStrings lookup, which
 // returns "" for an absent key, and addByKey's own blank-key guard silently
 // dropped the malformed vault_auth_role from index.vaultRoles with no
 // operator-visible signal -- not even a gap.
 //
 // After the migration buildSecretsIAMIndex decodes each vault_auth_role fact
 // through factschema.DecodeVaultAuthRole; the malformed fact yields a
-// classified *factDecodeError that partitionDecodeFailures routes to a
+// classified *factdecode.FactDecodeError that factdecode.PartitionDecodeFailures routes to a
 // per-fact quarantine, and the valid sibling's exact chain still resolves.
 func TestBuildSecretsIAMTrustChainReadModelsQuarantinesVaultAuthRoleMissingRoleJoinKey(t *testing.T) {
 	t.Parallel()

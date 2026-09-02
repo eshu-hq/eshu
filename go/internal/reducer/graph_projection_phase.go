@@ -115,11 +115,8 @@ type EndpointPresenceWriter interface {
 }
 
 // EndpointPresenceLookup answers the uid-exact cross-scope readiness question
-// for the secrets/IAM graph projection gate (issue #1380). MissingUIDs returns
-// the subset of uids that have no presence row for the keyspace, computed with
-// ONE bounded query (WHERE keyspace=$1 AND uid = ANY($2)) and an in-memory
-// set-difference — never an N+1 per-uid probe, which the §performance contract
-// forbids. An empty input yields an empty result and no query.
-type EndpointPresenceLookup interface {
-	MissingUIDs(ctx context.Context, keyspace GraphProjectionKeyspace, uids []string) ([]string, error)
-}
+// for the secrets/IAM graph projection gate (issue #1380). It moved to
+// [gpphase] in issue #6061 so the secretsiam family can name it without
+// importing this package; see [gpphase.EndpointPresenceLookup] for the bounded
+// query contract MissingUIDs must honour.
+type EndpointPresenceLookup = gpphase.EndpointPresenceLookup

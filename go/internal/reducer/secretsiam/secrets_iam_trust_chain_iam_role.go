@@ -1,10 +1,11 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package reducer
+package secretsiam
 
 import (
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/reducer/payloadcore"
 	awsv1 "github.com/eshu-hq/eshu/sdk/go/factschema/aws/v1"
 )
 
@@ -19,7 +20,7 @@ const iamRoleCloudResourceType = awsv1.ResourceTypeIAMRole
 // CloudResource-joinable identity.
 //
 // The canonical IAM-role CloudResource uid is
-// cloudResourceUID(account_id, region, "aws_iam_role", role_arn) where the AWS
+// payloadcore.CloudResourceUID(account_id, region, "aws_iam_role", role_arn) where the AWS
 // resource collector sets resource_id = role_arn (services/iam roleObservation).
 // The only inputs not in the role ARN are the AWS scan boundary's account_id and
 // region. Those are carried by the aws_iam_principal source fact this chain
@@ -27,7 +28,7 @@ const iamRoleCloudResourceType = awsv1.ResourceTypeIAMRole
 // so resolving the uid here adds no new collector, source field, or cross-source
 // join: it reuses a fact already in hand at the existing build site.
 //
-// The raw ARN never leaves this function; cloudResourceUID hashes it into the
+// The raw ARN never leaves this function; payloadcore.CloudResourceUID hashes it into the
 // one-way node uid, the same value the AWS resource projection and the
 // iam_can_assume edge slice compute. When the principal fact omits account_id or
 // region the uid stays blank and the graph edge remains skipped+counted (ADR
@@ -48,7 +49,7 @@ func secretsIAMRoleCloudResourceUID(roleARN string, principals []secretsIAMPrinc
 		if principal.decoded.AccountID == "" || principal.decoded.Region == "" {
 			continue
 		}
-		return cloudResourceUID(principal.decoded.AccountID, principal.decoded.Region, iamRoleCloudResourceType, roleARN)
+		return payloadcore.CloudResourceUID(principal.decoded.AccountID, principal.decoded.Region, iamRoleCloudResourceType, roleARN)
 	}
 	return ""
 }

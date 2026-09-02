@@ -1,13 +1,14 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package reducer
+package secretsiam
 
 import (
 	"sort"
 	"strings"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/reducer/payloadcore"
 )
 
 func sortSecretsIAMReadModels(models *SecretsIAMTrustChainReadModels) {
@@ -129,7 +130,7 @@ func addVaultKVByKey(index map[string][]secretsIAMVaultKV, key string, kv secret
 // stringOrEmpty dereferences an optional *string payload field, returning ""
 // for a nil pointer. It centralizes the pointer-to-value conversion the
 // trust-chain build needs for every optional typed field it reads, matching
-// the tolerant zero-value behavior the pre-typing payloadString(...) lookup
+// the tolerant zero-value behavior the pre-typing payloadcore.PayloadString(...) lookup
 // had for an absent key.
 func stringOrEmpty(value *string) string {
 	if value == nil {
@@ -139,7 +140,7 @@ func stringOrEmpty(value *string) string {
 }
 
 // boolOrFalse dereferences an optional *bool payload field, returning false
-// for a nil pointer, matching the pre-typing payloadBool(...) zero-value
+// for a nil pointer, matching the pre-typing payloadcore.PayloadBool(...) zero-value
 // behavior for an absent key.
 func boolOrFalse(value *bool) bool {
 	if value == nil {
@@ -158,7 +159,7 @@ func serviceAccountFactIDs(accounts []secretsIAMServiceAccount) []string {
 	for _, account := range accounts {
 		out = append(out, account.env.FactID)
 	}
-	return uniqueSortedStrings(out)
+	return payloadcore.UniqueSortedStrings(out)
 }
 
 func secretsIAMContainsString(values []string, target string) bool {

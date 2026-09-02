@@ -1,12 +1,15 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package reducer
+package secretsiam
 
 import (
 	"context"
 	"fmt"
 	"sort"
+
+	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
+	"github.com/eshu-hq/eshu/go/internal/reducer/gpphase"
 )
 
 // SecretsIAMEndpointNotReadyFailureClass identifies a cross-scope endpoint
@@ -22,7 +25,7 @@ const SecretsIAMEndpointNotReadyFailureClass = "secrets_iam_endpoint_not_ready"
 // silently drop those edges. A nil PresenceLookup disables gating (the writer
 // no-ops a missing endpoint anyway); an empty endpoint set is trivially ready.
 func (h SecretsIAMGraphProjectionHandler) checkEndpointReadiness(
-	ctx context.Context, intent Intent, rows SecretsIAMGraphRows,
+	ctx context.Context, intent reducercontract.Intent, rows SecretsIAMGraphRows,
 ) error {
 	if h.PresenceLookup == nil {
 		return nil
@@ -32,11 +35,11 @@ func (h SecretsIAMGraphProjectionHandler) checkEndpointReadiness(
 	cloudResourceUIDs := distinctEdgeEndpointUIDs(rows.AssumesIAMRoleEdges, "cloud_resource_uid")
 
 	for _, check := range []struct {
-		keyspace GraphProjectionKeyspace
+		keyspace gpphase.Keyspace
 		uids     []string
 	}{
-		{GraphProjectionKeyspaceKubernetesWorkloadUID, workloadUIDs},
-		{GraphProjectionKeyspaceCloudResourceUID, cloudResourceUIDs},
+		{gpphase.KeyspaceKubernetesWorkloadUID, workloadUIDs},
+		{gpphase.KeyspaceCloudResourceUID, cloudResourceUIDs},
 	} {
 		if len(check.uids) == 0 {
 			continue

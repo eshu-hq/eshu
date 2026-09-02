@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package reducer
+package secretsiam
 
 import (
 	"context"
@@ -13,6 +13,9 @@ import (
 	"go.opentelemetry.io/otel/metric"
 	"go.opentelemetry.io/otel/trace"
 
+	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
+	"github.com/eshu-hq/eshu/go/internal/reducer/factload"
+	"github.com/eshu-hq/eshu/go/internal/reducer/gpphase"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
 	"github.com/eshu-hq/eshu/go/internal/truth"
 	log "github.com/eshu-hq/eshu/go/pkg/log"
@@ -37,16 +40,16 @@ type SecretsIAMGraphWriter interface {
 	RetractScope(ctx context.Context, scopeIDs []string, evidenceSource string) error
 }
 
-// secretsIAMGraphProjectionDomainDefinition returns the additive definition for
+// GraphProjectionDomainDefinition returns the additive definition for
 // the secrets/IAM graph projection. It is additive (not part of
 // DefaultDomainDefinitions) because the handler requires an explicitly wired
 // SecretsIAMGraphWriter and FactLoader; registering it without them would
 // silently drop every projection intent.
-func secretsIAMGraphProjectionDomainDefinition() DomainDefinition {
-	return DomainDefinition{
-		Domain:  DomainSecretsIAMGraphProjection,
+func GraphProjectionDomainDefinition() reducercontract.DomainDefinition {
+	return reducercontract.DomainDefinition{
+		Domain:  reducercontract.DomainSecretsIAMGraphProjection,
 		Summary: "project exact reducer secrets/IAM trust-chain read-model rows into SecretsIAM* nodes and the five resolvable SECRETS_IAM_* edges",
-		Ownership: OwnershipShape{
+		Ownership: reducercontract.OwnershipShape{
 			CrossSource:    true,
 			CrossScope:     true,
 			CanonicalWrite: true,
@@ -75,31 +78,31 @@ func secretsIAMGraphProjectionDomainDefinition() DomainDefinition {
 // any is missing it returns a retryable not-ready error so the intent re-enqueues
 // instead of silently dropping edges to not-yet-committed endpoints.
 type SecretsIAMGraphProjectionHandler struct {
-	FactLoader FactLoader
+	FactLoader factload.FactLoader
 	Writer     SecretsIAMGraphWriter
 	// PriorGenerationCheck reports whether the scope has any prior generation.
 	// Nil keeps retract conservative (always retract before write).
-	PriorGenerationCheck PriorGenerationCheck
+	PriorGenerationCheck reducercontract.PriorGenerationCheck
 	// PresenceLookup answers uid-exact cross-scope endpoint readiness. Nil
 	// disables gating (the projection writes whatever resolves, leaving any
 	// not-yet-committed endpoint edge as a writer no-op). It is wired only when
 	// the secrets/IAM graph projection feature is enabled.
-	PresenceLookup EndpointPresenceLookup
+	PresenceLookup gpphase.EndpointPresenceLookup
 	Tracer         trace.Tracer
 	Instruments    *telemetry.Instruments
 }
 
 // Handle executes one secrets/IAM graph projection intent.
-func (h SecretsIAMGraphProjectionHandler) Handle(ctx context.Context, intent Intent) (Result, error) {
+func (h SecretsIAMGraphProjectionHandler) Handle(ctx context.Context, intent reducercontract.Intent) (reducercontract.Result, error) {
 	totalStart := time.Now()
-	if intent.Domain != DomainSecretsIAMGraphProjection {
-		return Result{}, fmt.Errorf("secrets/iam graph projection handler does not accept domain %q", intent.Domain)
+	if intent.Domain != reducercontract.DomainSecretsIAMGraphProjection {
+		return reducercontract.Result{}, fmt.Errorf("secrets/iam graph projection handler does not accept domain %q", intent.Domain)
 	}
 	if h.FactLoader == nil {
-		return Result{}, fmt.Errorf("secrets/iam graph projection fact loader is required")
+		return reducercontract.Result{}, fmt.Errorf("secrets/iam graph projection fact loader is required")
 	}
 	if h.Writer == nil {
-		return Result{}, fmt.Errorf("secrets/iam graph projection writer is required")
+		return reducercontract.Result{}, fmt.Errorf("secrets/iam graph projection writer is required")
 	}
 
 	if h.Tracer != nil {
@@ -115,12 +118,12 @@ func (h SecretsIAMGraphProjectionHandler) Handle(ctx context.Context, intent Int
 	}
 
 	loadStart := time.Now()
-	envelopes, err := loadFactsForKinds(ctx, h.FactLoader, intent.ScopeID, intent.GenerationID, []string{
+	envelopes, err := factload.LoadFactsForKinds(ctx, h.FactLoader, intent.ScopeID, intent.GenerationID, []string{
 		secretsIAMIdentityTrustChainFactKind,
 		secretsIAMSecretAccessPathFactKind,
 	})
 	if err != nil {
-		return Result{}, fmt.Errorf("load facts for secrets/iam graph projection: %w", err)
+		return reducercontract.Result{}, fmt.Errorf("load facts for secrets/iam graph projection: %w", err)
 	}
 	loadDuration := time.Since(loadStart)
 
@@ -134,25 +137,25 @@ func (h SecretsIAMGraphProjectionHandler) Handle(ctx context.Context, intent Int
 	// projection that would silently drop those edges. Returning before retract
 	// leaves the prior generation's edges intact until the endpoints land.
 	if err := h.checkEndpointReadiness(ctx, intent, rows); err != nil {
-		return Result{}, err
+		return reducercontract.Result{}, err
 	}
 
 	skipRetract, err := h.shouldSkipRetract(ctx, intent)
 	if err != nil {
-		return Result{}, err
+		return reducercontract.Result{}, err
 	}
 	var retractDuration time.Duration
 	if !skipRetract {
 		retractStart := time.Now()
 		if err := h.Writer.RetractScope(ctx, []string{intent.ScopeID}, SecretsIAMGraphEvidenceSource); err != nil {
-			return Result{}, fmt.Errorf("retract secrets/iam graph projection: %w", err)
+			return reducercontract.Result{}, fmt.Errorf("retract secrets/iam graph projection: %w", err)
 		}
 		retractDuration = time.Since(retractStart)
 	}
 
 	writeStart := time.Now()
 	if err := h.writeRows(ctx, rows); err != nil {
-		return Result{}, err
+		return reducercontract.Result{}, err
 	}
 	writeDuration := time.Since(writeStart)
 
@@ -162,10 +165,10 @@ func (h SecretsIAMGraphProjectionHandler) Handle(ctx context.Context, intent Int
 	h.logCompleted(ctx, intent, nodeCount, edgeCount, rows.Tally, skipRetract,
 		loadDuration, extractDuration, retractDuration, writeDuration, time.Since(totalStart))
 
-	return Result{
+	return reducercontract.Result{
 		IntentID: intent.IntentID,
-		Domain:   DomainSecretsIAMGraphProjection,
-		Status:   ResultStatusSucceeded,
+		Domain:   reducercontract.DomainSecretsIAMGraphProjection,
+		Status:   reducercontract.ResultStatusSucceeded,
 		EvidenceSummary: fmt.Sprintf(
 			"projected %d secrets/iam node(s) and %d edge(s) from exact read-model rows; %d skipped",
 			nodeCount, edgeCount, totalTally(rows.Tally.SkippedByReason),
@@ -209,7 +212,7 @@ func (h SecretsIAMGraphProjectionHandler) writeRows(ctx context.Context, rows Se
 	return nil
 }
 
-func (h SecretsIAMGraphProjectionHandler) shouldSkipRetract(ctx context.Context, intent Intent) (bool, error) {
+func (h SecretsIAMGraphProjectionHandler) shouldSkipRetract(ctx context.Context, intent reducercontract.Intent) (bool, error) {
 	if h.PriorGenerationCheck == nil || intent.AttemptCount > 1 {
 		return false, nil
 	}
@@ -242,7 +245,7 @@ func (h SecretsIAMGraphProjectionHandler) recordTally(ctx context.Context, tally
 }
 
 func (h SecretsIAMGraphProjectionHandler) logCompleted(
-	ctx context.Context, intent Intent, nodeCount, edgeCount int, tally SecretsIAMGraphTally, skipRetract bool,
+	ctx context.Context, intent reducercontract.Intent, nodeCount, edgeCount int, tally SecretsIAMGraphTally, skipRetract bool,
 	load, extract, retract, write, total time.Duration,
 ) {
 	slog.InfoContext(

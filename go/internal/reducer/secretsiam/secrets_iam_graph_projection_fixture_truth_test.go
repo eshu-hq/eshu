@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package reducer
+package secretsiam
 
 import (
 	"context"
@@ -181,7 +181,7 @@ func TestGraphProjectionFixtureTruthFullExactChainAndPath(t *testing.T) {
 	if grantsEdges[0]["secret_path_uid"] != spUID {
 		t.Fatalf("grants edge secret_path_uid = %v, want %q (must match the node uid)", grantsEdges[0]["secret_path_uid"], spUID)
 	}
-	// capabilities are normalized to a unique-sorted set by payloadStrings, so
+	// capabilities are normalized to a unique-sorted set by payloadcore.PayloadStrings, so
 	// the input {"read","list"} surfaces as the sorted {"list","read"}.
 	assertStringSlice(t, grantsEdges[0], "capabilities", []string{"list", "read"})
 

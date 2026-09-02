@@ -4,19 +4,77 @@
 package reducer
 
 import (
+	"context"
 	"testing"
 
+	"github.com/eshu-hq/eshu/go/internal/facts"
 	"github.com/eshu-hq/eshu/go/internal/truth"
 )
 
-// hasDomain reports whether the definition slice registers the given domain.
-func hasDomain(defs []DomainDefinition, domain Domain) (DomainDefinition, bool) {
+// secretsIAMWiringDomain reports whether the definition slice registers the
+// given domain.
+func secretsIAMWiringDomain(defs []DomainDefinition, domain Domain) (DomainDefinition, bool) {
 	for _, d := range defs {
 		if d.Domain == domain {
 			return d, true
 		}
 	}
 	return DomainDefinition{}, false
+}
+
+// secretsIAMWiringFactLoader is a non-nil FactLoader; these tests assert only
+// which domains registration produces, never what a load returns.
+type secretsIAMWiringFactLoader struct{}
+
+func (secretsIAMWiringFactLoader) ListFacts(context.Context, string, string) ([]facts.Envelope, error) {
+	return nil, nil
+}
+
+// secretsIAMWiringGraphWriter is a non-nil SecretsIAMGraphWriter. It records
+// nothing: this file proves the registration gate, and the family's own tests
+// in internal/reducer/secretsiam prove what the handler writes. A duplicate of
+// that package's recording double cannot be shared across the package boundary
+// because Go test files do not export unexported symbols.
+type secretsIAMWiringGraphWriter struct{}
+
+func (secretsIAMWiringGraphWriter) WriteServiceAccountNodes(context.Context, []map[string]any) error {
+	return nil
+}
+
+func (secretsIAMWiringGraphWriter) WriteVaultAuthRoleNodes(context.Context, []map[string]any) error {
+	return nil
+}
+
+func (secretsIAMWiringGraphWriter) WriteVaultPolicyNodes(context.Context, []map[string]any) error {
+	return nil
+}
+
+func (secretsIAMWiringGraphWriter) WriteSecretMetadataPathNodes(context.Context, []map[string]any) error {
+	return nil
+}
+
+func (secretsIAMWiringGraphWriter) WriteUsesServiceAccountEdges(context.Context, []map[string]any) error {
+	return nil
+}
+
+func (secretsIAMWiringGraphWriter) WriteAssumesIAMRoleEdges(context.Context, []map[string]any) error {
+	return nil
+}
+
+func (secretsIAMWiringGraphWriter) WriteAuthenticatesVaultRoleEdges(context.Context, []map[string]any) error {
+	return nil
+}
+
+func (secretsIAMWiringGraphWriter) WriteUsesVaultPolicyEdges(context.Context, []map[string]any) error {
+	return nil
+}
+
+func (secretsIAMWiringGraphWriter) WriteGrantsSecretReadEdges(context.Context, []map[string]any) error {
+	return nil
+}
+
+func (secretsIAMWiringGraphWriter) RetractScope(context.Context, []string, string) error {
+	return nil
 }
 
 // TestAppendAdditiveDomainsWiresSecretsIAMGraphProjection proves the
@@ -27,8 +85,8 @@ func hasDomain(defs []DomainDefinition, domain Domain) (DomainDefinition, bool) 
 func TestAppendAdditiveDomainsWiresSecretsIAMGraphProjection(t *testing.T) {
 	t.Parallel()
 
-	loader := fakeFactLoader{}
-	writer := &recordingGraphWriter{}
+	loader := secretsIAMWiringFactLoader{}
+	writer := secretsIAMWiringGraphWriter{}
 
 	withWriter := appendAdditiveDomainDefinitions(nil, DefaultHandlers{
 		FactLoader: loader,
@@ -36,7 +94,7 @@ func TestAppendAdditiveDomainsWiresSecretsIAMGraphProjection(t *testing.T) {
 			SecretsIAMGraphWriter: writer,
 		},
 	})
-	def, ok := hasDomain(withWriter, DomainSecretsIAMGraphProjection)
+	def, ok := secretsIAMWiringDomain(withWriter, DomainSecretsIAMGraphProjection)
 	if !ok {
 		t.Fatal("secrets_iam_graph_projection not registered when FactLoader and writer are wired")
 	}
@@ -59,9 +117,9 @@ func TestNewDefaultRegistryRegistersSecretsIAMGraphProjection(t *testing.T) {
 	t.Parallel()
 
 	_, err := NewDefaultRegistry(DefaultHandlers{
-		FactLoader: fakeFactLoader{},
+		FactLoader: secretsIAMWiringFactLoader{},
 		SupplyChainSecurityHandlers: SupplyChainSecurityHandlers{
-			SecretsIAMGraphWriter: &recordingGraphWriter{},
+			SecretsIAMGraphWriter: secretsIAMWiringGraphWriter{},
 		},
 	})
 	if err != nil {
@@ -78,9 +136,9 @@ func TestAppendAdditiveDomainsSkipsSecretsIAMGraphProjectionWithoutWriter(t *tes
 	t.Parallel()
 
 	defs := appendAdditiveDomainDefinitions(nil, DefaultHandlers{
-		FactLoader: fakeFactLoader{},
+		FactLoader: secretsIAMWiringFactLoader{},
 	})
-	if _, ok := hasDomain(defs, DomainSecretsIAMGraphProjection); ok {
+	if _, ok := secretsIAMWiringDomain(defs, DomainSecretsIAMGraphProjection); ok {
 		t.Fatal("secrets_iam_graph_projection registered without a wired writer")
 	}
 }

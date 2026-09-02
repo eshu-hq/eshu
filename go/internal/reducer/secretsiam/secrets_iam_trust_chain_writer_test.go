@@ -1,19 +1,49 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package reducer
+package secretsiam
 
 import (
 	"context"
+	"database/sql"
 	"testing"
 	"time"
 )
+
+// fakeSecretsIAMExecer records every single-row insert the writer issues. It is
+// a local copy of the reducer root's workload-identity exec double: Go test
+// files do not export unexported symbols across a package boundary, so the
+// family cannot reuse the root's.
+type fakeSecretsIAMExecer struct {
+	execs []fakeSecretsIAMExecCall
+}
+
+// fakeSecretsIAMExecCall is one recorded ExecContext call.
+type fakeSecretsIAMExecCall struct {
+	query string
+	args  []any
+}
+
+func (f *fakeSecretsIAMExecer) ExecContext(
+	_ context.Context,
+	query string,
+	args ...any,
+) (sql.Result, error) {
+	f.execs = append(f.execs, fakeSecretsIAMExecCall{query: query, args: args})
+	return fakeSecretsIAMResult{}, nil
+}
+
+// fakeSecretsIAMResult is the minimal sql.Result the double returns.
+type fakeSecretsIAMResult struct{}
+
+func (fakeSecretsIAMResult) LastInsertId() (int64, error) { return 0, nil }
+func (fakeSecretsIAMResult) RowsAffected() (int64, error) { return 1, nil }
 
 func TestPostgresSecretsIAMTrustChainWriterKeysFactsByScopeGeneration(t *testing.T) {
 	t.Parallel()
 
 	now := time.Date(2026, time.June, 2, 12, 0, 0, 0, time.UTC)
-	db := &fakeWorkloadIdentityExecer{}
+	db := &fakeSecretsIAMExecer{}
 	writer := PostgresSecretsIAMTrustChainWriter{
 		DB:  db,
 		Now: func() time.Time { return now },
