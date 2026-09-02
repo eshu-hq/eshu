@@ -10,6 +10,7 @@ const openAPIPathsFreshnessGenerations = `
         "summary": "Drill into scope generation lifecycle history",
         "description": "Returns a bounded, ordered page of scope generation lifecycle rows joined with their owning scope identity, the per-generation fact_work_items queue status, and the latest per-generation failure. Filter by scope id, repository, collector kind, source system, generation id, or status. A named scope/repository/generation selector that matches nothing returns an explicit not-found instead of an empty list. Generation lifecycle is durable persisted truth, not graph-materialized correlation.",
         "operationId": "listGenerationLifecycle",
+        "x-scoped-token-support": true,
         "parameters": [
           {"name": "scope_id", "in": "query", "schema": {"type": "string"}, "description": "Optional exact ingestion scope id."},
           {"name": "repository", "in": "query", "schema": {"type": "string"}, "description": "Optional canonical repository id (matches repository-kind scopes by source_key)."},

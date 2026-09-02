@@ -27,6 +27,17 @@ func scopedHTTPRouteSupportsTenantFilter(r *http.Request) bool {
 	if r.Method == http.MethodGet && r.URL.Path == "/api/v0/repositories" {
 		return true
 	}
+	// #5167 F-6: the generation lifecycle drilldown binds the caller's grant in
+	// SQL rather than checking it against a selector, because the route also
+	// filters on generation_id, collector_kind, source_system and status -- a
+	// caller supplying only generation_id would otherwise reach any tenant's
+	// generation. An empty grant matches no row, and a row outside the grant is
+	// reported as not-found rather than forbidden, so the route is not an
+	// existence oracle. Boundary proved by
+	// TestGenerationLifecycleTwoTenantGrantBoundary.
+	if r.Method == http.MethodGet && r.URL.Path == "/api/v0/freshness/generations" {
+		return true
+	}
 	// #5419 Phase 4b: GET /api/v0/codeowners/ownership now gates both its read
 	// paths (the DECLARES_CODEOWNER graph and the service-catalog correlation
 	// store used by resolveEffectiveRepositoryOwner) on the caller's grant --

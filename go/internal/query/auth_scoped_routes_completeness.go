@@ -117,6 +117,7 @@ var scopedTokenAdvertisedRoutes = map[string]struct{}{
 	"GET /api/v0/evidence/relationships/{resolved_id}":                              {},
 	"GET /api/v0/fact-schema-versions":                                              {},
 	"GET /api/v0/fact-schema-versions/{fact_kind}":                                  {},
+	"GET /api/v0/freshness/generations":                                             {},
 	"GET /api/v0/iac/resources":                                                     {},
 	"GET /api/v0/incidents/{incident_id}/context":                                   {},
 	"POST /api/v0/compare/environments":                                             {},
