@@ -83,7 +83,7 @@ var _ = querytestutil.FakeGraphReader{}
 	if err == nil {
 		t.Fatal("DiscoverQueryCallsites() error = nil, want a rejected production import of the helper package")
 	}
-	for _, want := range []string{"handler.go", "querycontract", "_test.go"} {
+	for _, want := range []string{"handler.go", "github.com/eshu-hq/eshu/go/internal/query/querytestutil", "querycontract", "_test.go"} {
 		if !strings.Contains(err.Error(), want) {
 			t.Fatalf("DiscoverQueryCallsites() error = %v, want it to name %q", err, want)
 		}
