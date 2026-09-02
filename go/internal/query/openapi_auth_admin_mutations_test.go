@@ -7,6 +7,8 @@ import (
 	"encoding/json"
 	"strings"
 	"testing"
+
+	"github.com/eshu-hq/eshu/go/internal/query/querytestutil"
 )
 
 // TestOpenAPIAuthAdminMutationPaths verifies the admin identity mutation
@@ -21,7 +23,7 @@ func TestOpenAPIAuthAdminMutationPaths(t *testing.T) {
 	if err := json.Unmarshal([]byte(OpenAPISpec()), &spec); err != nil {
 		t.Fatalf("invalid JSON: %v", err)
 	}
-	paths := mustMapField(t, spec, "paths")
+	paths := querytestutil.MustMapField(t, spec, "paths")
 
 	// Each mutation route keyed by the operation method it must expose.
 	mutations := []struct {
@@ -39,7 +41,7 @@ func TestOpenAPIAuthAdminMutationPaths(t *testing.T) {
 		if !ok {
 			t.Fatalf("OpenAPI mutation path %q missing", m.path)
 		}
-		op := mustMapField(t, entry, m.method)
+		op := querytestutil.MustMapField(t, entry, m.method)
 		description, ok := op["description"].(string)
 		if !ok || !strings.Contains(description, "All-scopes admin route") {
 			t.Fatalf("mutation %s %q missing all-scopes admin contract: %v", m.method, m.path, op["description"])
@@ -68,7 +70,7 @@ func TestOpenAPIAuthAdminMutationPaths(t *testing.T) {
 	// The create-mapping POST documents external_group as a write-only raw input
 	// that is hashed server-side and never returned, and returns only the opaque
 	// mapping_ref.
-	createMapping := mustMapField(t, mustMapField(t, paths, "/api/v0/auth/admin/idp-group-mappings"), "post")
+	createMapping := querytestutil.MustMapField(t, querytestutil.MustMapField(t, paths, "/api/v0/auth/admin/idp-group-mappings"), "post")
 	createRaw, _ := json.Marshal(createMapping)
 	if !strings.Contains(string(createRaw), "mapping_ref") {
 		t.Fatalf("create mapping must return mapping_ref: %s", string(createRaw))

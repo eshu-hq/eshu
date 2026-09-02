@@ -6,6 +6,8 @@ package query
 import (
 	"encoding/json"
 	"testing"
+
+	"github.com/eshu-hq/eshu/go/internal/query/querytestutil"
 )
 
 func TestOpenAPISpecIncludesHardcodedSecretInvestigation(t *testing.T) {
@@ -15,14 +17,14 @@ func TestOpenAPISpecIncludesHardcodedSecretInvestigation(t *testing.T) {
 	if err := json.Unmarshal([]byte(OpenAPISpec()), &spec); err != nil {
 		t.Fatalf("json.Unmarshal() error = %v, want nil", err)
 	}
-	paths := mustMapField(t, spec, "paths")
-	path := mustMapField(t, paths, "/api/v0/code/security/secrets/investigate")
-	post := mustMapField(t, path, "post")
-	body := mustMapField(t, post, "requestBody")
-	content := mustMapField(t, body, "content")
-	jsonContent := mustMapField(t, content, "application/json")
-	schema := mustMapField(t, jsonContent, "schema")
-	properties := mustMapField(t, schema, "properties")
+	paths := querytestutil.MustMapField(t, spec, "paths")
+	path := querytestutil.MustMapField(t, paths, "/api/v0/code/security/secrets/investigate")
+	post := querytestutil.MustMapField(t, path, "post")
+	body := querytestutil.MustMapField(t, post, "requestBody")
+	content := querytestutil.MustMapField(t, body, "content")
+	jsonContent := querytestutil.MustMapField(t, content, "application/json")
+	schema := querytestutil.MustMapField(t, jsonContent, "schema")
+	properties := querytestutil.MustMapField(t, schema, "properties")
 	if _, ok := properties["finding_kinds"]; !ok {
 		t.Fatal("hardcoded secret request schema missing finding_kinds")
 	}

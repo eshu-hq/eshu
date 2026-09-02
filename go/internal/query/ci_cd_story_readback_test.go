@@ -7,6 +7,8 @@ import (
 	"context"
 	"fmt"
 	"testing"
+
+	"github.com/eshu-hq/eshu/go/internal/query/querytestutil"
 )
 
 func TestLoadRepositoryScopedCICDEvidenceUsesBoundedRepositoryScope(t *testing.T) {
@@ -39,7 +41,7 @@ func TestLoadRepositoryScopedCICDEvidenceUsesBoundedRepositoryScope(t *testing.T
 	if got, want := store.lastFilter.Limit, cicdStoryRunCorrelationLimit+1; got != want {
 		t.Fatalf("Limit = %d, want %d", got, want)
 	}
-	live := mustMapField(t, summary, "live_run_correlations")
+	live := querytestutil.MustMapField(t, summary, "live_run_correlations")
 	if got, want := live["count"], cicdStoryRunCorrelationLimit; got != want {
 		t.Fatalf("live_run_correlations.count = %#v, want %#v", got, want)
 	}
@@ -76,7 +78,7 @@ func TestLoadRepositoryScopedCICDEvidenceResolvesByCanonicalRepositoryID(t *test
 	if err != nil {
 		t.Fatalf("loadRepositoryScopedCICDEvidence(canonical) error = %v, want nil", err)
 	}
-	live := mustMapField(t, summary, "live_run_correlations")
+	live := querytestutil.MustMapField(t, summary, "live_run_correlations")
 	if got, want := live["count"], 1; got != want {
 		t.Fatalf("live_run_correlations.count = %#v, want 1 (canonical repo id must resolve)", got)
 	}
@@ -92,7 +94,7 @@ func TestLoadRepositoryScopedCICDEvidenceResolvesByCanonicalRepositoryID(t *test
 	if err != nil {
 		t.Fatalf("loadRepositoryScopedCICDEvidence(raw) error = %v, want nil", err)
 	}
-	liveRaw := mustMapField(t, summaryRaw, "live_run_correlations")
+	liveRaw := querytestutil.MustMapField(t, summaryRaw, "live_run_correlations")
 	if got, want := liveRaw["count"], 0; got != want {
 		t.Fatalf("live_run_correlations.count = %#v, want 0 (raw provider id must not cross-join into canonical namespace)", got)
 	}

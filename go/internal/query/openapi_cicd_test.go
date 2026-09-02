@@ -6,6 +6,8 @@ package query
 import (
 	"encoding/json"
 	"testing"
+
+	"github.com/eshu-hq/eshu/go/internal/query/querytestutil"
 )
 
 func TestOpenAPISpecIncludesCICDRunCorrelations(t *testing.T) {
@@ -14,42 +16,42 @@ func TestOpenAPISpecIncludesCICDRunCorrelations(t *testing.T) {
 		t.Fatalf("json.Unmarshal(OpenAPISpec()) error = %v, want nil", err)
 	}
 
-	paths := mustMapField(t, spec, "paths")
-	path := mustMapField(t, paths, "/api/v0/ci-cd/run-correlations")
-	get := mustMapField(t, path, "get")
+	paths := querytestutil.MustMapField(t, spec, "paths")
+	path := querytestutil.MustMapField(t, paths, "/api/v0/ci-cd/run-correlations")
+	get := querytestutil.MustMapField(t, path, "get")
 	if got, want := get["operationId"], "listCICDRunCorrelations"; got != want {
 		t.Fatalf("operationId = %#v, want %#v", got, want)
 	}
-	responses := mustMapField(t, get, "responses")
-	okResponse := mustMapField(t, responses, "200")
-	content := mustMapField(t, mustMapField(t, okResponse, "content"), "application/json")
-	schema := mustMapField(t, content, "schema")
-	properties := mustMapField(t, schema, "properties")
-	correlations := mustMapField(t, properties, "correlations")
-	items := mustMapField(t, correlations, "items")
-	itemProperties := mustMapField(t, items, "properties")
-	if got, want := mustMapField(t, itemProperties, "provenance_only")["type"], "boolean"; got != want {
+	responses := querytestutil.MustMapField(t, get, "responses")
+	okResponse := querytestutil.MustMapField(t, responses, "200")
+	content := querytestutil.MustMapField(t, querytestutil.MustMapField(t, okResponse, "content"), "application/json")
+	schema := querytestutil.MustMapField(t, content, "schema")
+	properties := querytestutil.MustMapField(t, schema, "properties")
+	correlations := querytestutil.MustMapField(t, properties, "correlations")
+	items := querytestutil.MustMapField(t, correlations, "items")
+	itemProperties := querytestutil.MustMapField(t, items, "properties")
+	if got, want := querytestutil.MustMapField(t, itemProperties, "provenance_only")["type"], "boolean"; got != want {
 		t.Fatalf("provenance_only type = %#v, want %#v", got, want)
 	}
-	evidenceSummary := mustMapField(t, properties, "evidence_summary")
-	evidenceProperties := mustMapField(t, evidenceSummary, "properties")
-	missingEvidence := mustMapField(t, evidenceProperties, "missing_evidence")
+	evidenceSummary := querytestutil.MustMapField(t, properties, "evidence_summary")
+	evidenceProperties := querytestutil.MustMapField(t, evidenceSummary, "properties")
+	missingEvidence := querytestutil.MustMapField(t, evidenceProperties, "missing_evidence")
 	if got, want := missingEvidence["type"], "array"; got != want {
 		t.Fatalf("missing_evidence type = %#v, want %#v", got, want)
 	}
-	staticWorkflow := mustMapField(t, evidenceProperties, "static_workflow_artifacts")
-	staticProperties := mustMapField(t, staticWorkflow, "properties")
-	if got, want := mustMapField(t, staticProperties, "paths")["type"], "array"; got != want {
+	staticWorkflow := querytestutil.MustMapField(t, evidenceProperties, "static_workflow_artifacts")
+	staticProperties := querytestutil.MustMapField(t, staticWorkflow, "properties")
+	if got, want := querytestutil.MustMapField(t, staticProperties, "paths")["type"], "array"; got != want {
 		t.Fatalf("static_workflow_artifacts.paths type = %#v, want %#v", got, want)
 	}
-	liveRuns := mustMapField(t, evidenceProperties, "live_run_correlations")
-	liveProperties := mustMapField(t, liveRuns, "properties")
-	if got, want := mustMapField(t, liveProperties, "state")["type"], "string"; got != want {
+	liveRuns := querytestutil.MustMapField(t, evidenceProperties, "live_run_correlations")
+	liveProperties := querytestutil.MustMapField(t, liveRuns, "properties")
+	if got, want := querytestutil.MustMapField(t, liveProperties, "state")["type"], "string"; got != want {
 		t.Fatalf("live_run_correlations.state type = %#v, want %#v", got, want)
 	}
-	runArtifact := mustMapField(t, evidenceProperties, "run_artifact_evidence")
-	runArtifactProperties := mustMapField(t, runArtifact, "properties")
-	if got, want := mustMapField(t, runArtifactProperties, "artifact_digest_count")["type"], "integer"; got != want {
+	runArtifact := querytestutil.MustMapField(t, evidenceProperties, "run_artifact_evidence")
+	runArtifactProperties := querytestutil.MustMapField(t, runArtifact, "properties")
+	if got, want := querytestutil.MustMapField(t, runArtifactProperties, "artifact_digest_count")["type"], "integer"; got != want {
 		t.Fatalf("run_artifact_evidence.artifact_digest_count type = %#v, want %#v", got, want)
 	}
 }

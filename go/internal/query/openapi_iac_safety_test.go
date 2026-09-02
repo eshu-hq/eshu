@@ -6,6 +6,8 @@ package query
 import (
 	"encoding/json"
 	"testing"
+
+	"github.com/eshu-hq/eshu/go/internal/query/querytestutil"
 )
 
 func TestOpenAPIIaCManagementSafetyGateFields(t *testing.T) {
@@ -15,43 +17,43 @@ func TestOpenAPIIaCManagementSafetyGateFields(t *testing.T) {
 	if err := json.Unmarshal([]byte(OpenAPISpec()), &spec); err != nil {
 		t.Fatalf("json.Unmarshal(OpenAPISpec()) error = %v, want nil", err)
 	}
-	paths := mustMapField(t, spec, "paths")
+	paths := querytestutil.MustMapField(t, spec, "paths")
 
-	unmanagedPath := mustMapField(t, paths, "/api/v0/iac/unmanaged-resources")
-	unmanagedPost := mustMapField(t, unmanagedPath, "post")
-	unmanagedOK := mustMapField(t, mustMapField(t, unmanagedPost, "responses"), "200")
-	unmanagedProps := mustMapField(
+	unmanagedPath := querytestutil.MustMapField(t, paths, "/api/v0/iac/unmanaged-resources")
+	unmanagedPost := querytestutil.MustMapField(t, unmanagedPath, "post")
+	unmanagedOK := querytestutil.MustMapField(t, querytestutil.MustMapField(t, unmanagedPost, "responses"), "200")
+	unmanagedProps := querytestutil.MustMapField(
 		t,
-		mustMapField(t, mustMapField(t, mustMapField(t, unmanagedOK, "content"), "application/json"), "schema"),
+		querytestutil.MustMapField(t, querytestutil.MustMapField(t, querytestutil.MustMapField(t, unmanagedOK, "content"), "application/json"), "schema"),
 		"properties",
 	)
 	if _, ok := unmanagedProps["safety_summary"]; !ok {
 		t.Fatal("iac/unmanaged-resources response schema missing safety_summary")
 	}
-	findings := mustMapField(t, unmanagedProps, "findings")
-	findingProps := mustMapField(t, mustMapField(t, findings, "items"), "properties")
+	findings := querytestutil.MustMapField(t, unmanagedProps, "findings")
+	findingProps := querytestutil.MustMapField(t, querytestutil.MustMapField(t, findings, "items"), "properties")
 	if _, ok := findingProps["safety_gate"]; !ok {
 		t.Fatal("iac/unmanaged-resources finding schema missing safety_gate")
 	}
 
-	statusPath := mustMapField(t, paths, "/api/v0/iac/management-status")
-	statusPost := mustMapField(t, statusPath, "post")
-	statusOK := mustMapField(t, mustMapField(t, statusPost, "responses"), "200")
-	statusProps := mustMapField(
+	statusPath := querytestutil.MustMapField(t, paths, "/api/v0/iac/management-status")
+	statusPost := querytestutil.MustMapField(t, statusPath, "post")
+	statusOK := querytestutil.MustMapField(t, querytestutil.MustMapField(t, statusPost, "responses"), "200")
+	statusProps := querytestutil.MustMapField(
 		t,
-		mustMapField(t, mustMapField(t, mustMapField(t, statusOK, "content"), "application/json"), "schema"),
+		querytestutil.MustMapField(t, querytestutil.MustMapField(t, querytestutil.MustMapField(t, statusOK, "content"), "application/json"), "schema"),
 		"properties",
 	)
 	if _, ok := statusProps["safety_gate"]; !ok {
 		t.Fatal("iac/management-status response schema missing safety_gate")
 	}
 
-	explainPath := mustMapField(t, paths, "/api/v0/iac/management-status/explain")
-	explainPost := mustMapField(t, explainPath, "post")
-	explainOK := mustMapField(t, mustMapField(t, explainPost, "responses"), "200")
-	explainProps := mustMapField(
+	explainPath := querytestutil.MustMapField(t, paths, "/api/v0/iac/management-status/explain")
+	explainPost := querytestutil.MustMapField(t, explainPath, "post")
+	explainOK := querytestutil.MustMapField(t, querytestutil.MustMapField(t, explainPost, "responses"), "200")
+	explainProps := querytestutil.MustMapField(
 		t,
-		mustMapField(t, mustMapField(t, mustMapField(t, explainOK, "content"), "application/json"), "schema"),
+		querytestutil.MustMapField(t, querytestutil.MustMapField(t, querytestutil.MustMapField(t, explainOK, "content"), "application/json"), "schema"),
 		"properties",
 	)
 	if _, ok := explainProps["safety_gate"]; !ok {

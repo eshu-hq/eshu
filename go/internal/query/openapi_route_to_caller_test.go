@@ -6,6 +6,8 @@ package query
 import (
 	"encoding/json"
 	"testing"
+
+	"github.com/eshu-hq/eshu/go/internal/query/querytestutil"
 )
 
 func TestOpenAPIRouteToCallerExposesExactRouteTraceContract(t *testing.T) {
@@ -15,26 +17,26 @@ func TestOpenAPIRouteToCallerExposesExactRouteTraceContract(t *testing.T) {
 	if err := json.Unmarshal([]byte(OpenAPISpec()), &spec); err != nil {
 		t.Fatalf("json.Unmarshal(OpenAPISpec()) error = %v, want nil", err)
 	}
-	paths := mustMapField(t, spec, "paths")
-	routePath := mustMapField(t, paths, "/api/v0/code/routes/callers")
-	post := mustMapField(t, routePath, "post")
+	paths := querytestutil.MustMapField(t, spec, "paths")
+	routePath := querytestutil.MustMapField(t, paths, "/api/v0/code/routes/callers")
+	post := querytestutil.MustMapField(t, routePath, "post")
 	if got, want := post["operationId"], "traceRouteCallers"; got != want {
 		t.Fatalf("operationId = %#v, want %#v", got, want)
 	}
 
-	body := mustMapField(t, mustMapField(t, post, "requestBody"), "content")
-	jsonBody := mustMapField(t, body, "application/json")
-	request := mustMapField(t, mustMapField(t, jsonBody, "schema"), "properties")
+	body := querytestutil.MustMapField(t, querytestutil.MustMapField(t, post, "requestBody"), "content")
+	jsonBody := querytestutil.MustMapField(t, body, "application/json")
+	request := querytestutil.MustMapField(t, querytestutil.MustMapField(t, jsonBody, "schema"), "properties")
 	for _, field := range []string{"repo_id", "service_id", "service_name", "method", "path", "max_depth", "limit"} {
 		if _, ok := request[field]; !ok {
 			t.Fatalf("route-to-caller request schema missing %s", field)
 		}
 	}
 
-	responses := mustMapField(t, post, "responses")
-	okResp := mustMapField(t, responses, "200")
-	content := mustMapField(t, mustMapField(t, okResp, "content"), "application/json")
-	response := mustMapField(t, mustMapField(t, content, "schema"), "properties")
+	responses := querytestutil.MustMapField(t, post, "responses")
+	okResp := querytestutil.MustMapField(t, responses, "200")
+	content := querytestutil.MustMapField(t, querytestutil.MustMapField(t, okResp, "content"), "application/json")
+	response := querytestutil.MustMapField(t, querytestutil.MustMapField(t, content, "schema"), "properties")
 	for _, field := range []string{"status", "truncated", "unsupported", "route", "handler", "callers", "callees", "impact", "truth_source"} {
 		if _, ok := response[field]; !ok {
 			t.Fatalf("route-to-caller response schema missing %s", field)

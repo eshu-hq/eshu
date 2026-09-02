@@ -9,6 +9,8 @@ import (
 	"net/http/httptest"
 	"strings"
 	"testing"
+
+	"github.com/eshu-hq/eshu/go/internal/query/querytestutil"
 )
 
 // TestSemanticSearchLanguagesOpenAPIDescriptionMatchesHandler binds the wire
@@ -66,15 +68,15 @@ func semanticSearchLanguagesOpenAPIDescription(t *testing.T) string {
 	if err := json.Unmarshal([]byte(OpenAPISpec()), &spec); err != nil {
 		t.Fatalf("json.Unmarshal(OpenAPISpec()) error = %v, want nil", err)
 	}
-	paths := mustMapField(t, spec, "paths")
-	item := mustMapField(t, paths, "/api/v0/search/semantic")
-	post := mustMapField(t, item, "post")
-	requestBody := mustMapField(t, post, "requestBody")
-	content := mustMapField(t, requestBody, "content")
-	jsonContent := mustMapField(t, content, "application/json")
-	schema := mustMapField(t, jsonContent, "schema")
-	properties := mustMapField(t, schema, "properties")
-	languages := mustMapField(t, properties, "languages")
+	paths := querytestutil.MustMapField(t, spec, "paths")
+	item := querytestutil.MustMapField(t, paths, "/api/v0/search/semantic")
+	post := querytestutil.MustMapField(t, item, "post")
+	requestBody := querytestutil.MustMapField(t, post, "requestBody")
+	content := querytestutil.MustMapField(t, requestBody, "content")
+	jsonContent := querytestutil.MustMapField(t, content, "application/json")
+	schema := querytestutil.MustMapField(t, jsonContent, "schema")
+	properties := querytestutil.MustMapField(t, schema, "properties")
+	languages := querytestutil.MustMapField(t, properties, "languages")
 	description, ok := languages["description"].(string)
 	if !ok {
 		t.Fatalf("languages description is %T, want string", languages["description"])

@@ -10,6 +10,8 @@ import (
 	"net/http/httptest"
 	"strings"
 	"testing"
+
+	"github.com/eshu-hq/eshu/go/internal/query/querytestutil"
 )
 
 // TestHandleLanguageQueryMapsGraphReadAvailabilityErrors is the #5761
@@ -229,10 +231,10 @@ func TestOpenAPILanguageQueryDocuments501(t *testing.T) {
 		t.Fatalf("json.Unmarshal(OpenAPISpec()) error = %v, want nil", err)
 	}
 
-	paths := mustMapField(t, spec, "paths")
-	languageQueryPath := mustMapField(t, paths, "/api/v0/code/language-query")
-	languageQueryPost := mustMapField(t, languageQueryPath, "post")
-	responses := mustMapField(t, languageQueryPost, "responses")
+	paths := querytestutil.MustMapField(t, spec, "paths")
+	languageQueryPath := querytestutil.MustMapField(t, paths, "/api/v0/code/language-query")
+	languageQueryPost := querytestutil.MustMapField(t, languageQueryPath, "post")
+	responses := querytestutil.MustMapField(t, languageQueryPost, "responses")
 	for _, status := range []string{"400", "500", "501", "503", "504"} {
 		if _, ok := responses[status]; !ok {
 			t.Fatalf("language-query responses missing status %s", status)
@@ -265,9 +267,9 @@ func TestOpenAPILanguageQueryResponseDocumentsSourceBackend(t *testing.T) {
 		t.Fatalf("json.Unmarshal(OpenAPISpec()) error = %v, want nil", err)
 	}
 
-	schemas := mustMapField(t, mustMapField(t, spec, "components"), "schemas")
-	languageQueryResponse := mustMapField(t, schemas, "LanguageQueryResponse")
-	properties := mustMapField(t, languageQueryResponse, "properties")
+	schemas := querytestutil.MustMapField(t, querytestutil.MustMapField(t, spec, "components"), "schemas")
+	languageQueryResponse := querytestutil.MustMapField(t, schemas, "LanguageQueryResponse")
+	properties := querytestutil.MustMapField(t, languageQueryResponse, "properties")
 	sourceBackend, ok := properties["source_backend"].(map[string]any)
 	if !ok {
 		t.Fatalf("LanguageQueryResponse.properties.source_backend missing or wrong type: %#v", properties["source_backend"])

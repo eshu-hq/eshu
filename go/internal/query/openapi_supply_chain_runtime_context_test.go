@@ -8,6 +8,8 @@ import (
 	"reflect"
 	"strings"
 	"testing"
+
+	"github.com/eshu-hq/eshu/go/internal/query/querytestutil"
 )
 
 func TestOpenAPISpecDocumentsSupplyChainRuntimeContextRoutes(t *testing.T) {
@@ -18,31 +20,31 @@ func TestOpenAPISpecDocumentsSupplyChainRuntimeContextRoutes(t *testing.T) {
 		t.Fatalf("json.Unmarshal(OpenAPISpec()) error = %v, want nil", err)
 	}
 
-	paths := mustMapField(t, spec, "paths")
-	path := mustMapField(t, paths, "/api/v0/supply-chain/impact/findings")
-	get := mustMapField(t, path, "get")
-	responses := mustMapField(t, get, "responses")
-	twoHundred := mustMapField(t, responses, "200")
-	content := mustMapField(t, twoHundred, "content")
-	appJSON := mustMapField(t, content, "application/json")
-	schema := mustMapField(t, appJSON, "schema")
-	properties := mustMapField(t, schema, "properties")
-	findings := mustMapField(t, properties, "findings")
-	items := mustMapField(t, findings, "items")
-	itemProperties := mustMapField(t, items, "properties")
-	runtimeContext := mustMapField(t, itemProperties, "runtime_context")
-	runtimeContextProperties := mustMapField(t, runtimeContext, "properties")
-	environmentEvidence := mustMapField(t, runtimeContextProperties, "environment_evidence")
-	additionalProperties := mustMapField(t, environmentEvidence, "additionalProperties")
+	paths := querytestutil.MustMapField(t, spec, "paths")
+	path := querytestutil.MustMapField(t, paths, "/api/v0/supply-chain/impact/findings")
+	get := querytestutil.MustMapField(t, path, "get")
+	responses := querytestutil.MustMapField(t, get, "responses")
+	twoHundred := querytestutil.MustMapField(t, responses, "200")
+	content := querytestutil.MustMapField(t, twoHundred, "content")
+	appJSON := querytestutil.MustMapField(t, content, "application/json")
+	schema := querytestutil.MustMapField(t, appJSON, "schema")
+	properties := querytestutil.MustMapField(t, schema, "properties")
+	findings := querytestutil.MustMapField(t, properties, "findings")
+	items := querytestutil.MustMapField(t, findings, "items")
+	itemProperties := querytestutil.MustMapField(t, items, "properties")
+	runtimeContext := querytestutil.MustMapField(t, itemProperties, "runtime_context")
+	runtimeContextProperties := querytestutil.MustMapField(t, runtimeContext, "properties")
+	environmentEvidence := querytestutil.MustMapField(t, runtimeContextProperties, "environment_evidence")
+	additionalProperties := querytestutil.MustMapField(t, environmentEvidence, "additionalProperties")
 	if got, want := additionalProperties["enum"], []any{"deploy_event", "declared"}; !reflect.DeepEqual(got, want) {
 		t.Fatalf("runtime_context.environment_evidence enum = %#v, want %#v", got, want)
 	}
-	probe := mustMapField(t, runtimeContextProperties, "environment_evidence_probe")
-	probeProperties := mustMapField(t, probe, "properties")
-	if got := mustMapField(t, probeProperties, "candidate_limit")["maximum"]; got != float64(200) {
+	probe := querytestutil.MustMapField(t, runtimeContextProperties, "environment_evidence_probe")
+	probeProperties := querytestutil.MustMapField(t, probe, "properties")
+	if got := querytestutil.MustMapField(t, probeProperties, "candidate_limit")["maximum"]; got != float64(200) {
 		t.Fatalf("environment_evidence_probe.candidate_limit maximum = %#v, want 200", got)
 	}
-	if got := mustMapField(t, probeProperties, "candidates_truncated")["type"]; got != "boolean" {
+	if got := querytestutil.MustMapField(t, probeProperties, "candidates_truncated")["type"]; got != "boolean" {
 		t.Fatalf("environment_evidence_probe.candidates_truncated type = %#v, want boolean", got)
 	}
 
@@ -51,17 +53,17 @@ func TestOpenAPISpecDocumentsSupplyChainRuntimeContextRoutes(t *testing.T) {
 		t.Fatalf("runtime_context.description = %#v, want %#v", got, wantDescription)
 	}
 
-	explainPath := mustMapField(t, paths, "/api/v0/supply-chain/impact/explain")
-	explainGet := mustMapField(t, explainPath, "get")
-	explainResponses := mustMapField(t, explainGet, "responses")
-	explainOK := mustMapField(t, explainResponses, "200")
-	explainContent := mustMapField(t, explainOK, "content")
-	explainJSON := mustMapField(t, explainContent, "application/json")
-	explainSchema := mustMapField(t, explainJSON, "schema")
-	explainProperties := mustMapField(t, explainSchema, "properties")
-	explainFinding := mustMapField(t, explainProperties, "finding")
-	explainFindingProperties := mustMapField(t, explainFinding, "properties")
-	explainRuntimeContext := mustMapField(t, explainFindingProperties, "runtime_context")
+	explainPath := querytestutil.MustMapField(t, paths, "/api/v0/supply-chain/impact/explain")
+	explainGet := querytestutil.MustMapField(t, explainPath, "get")
+	explainResponses := querytestutil.MustMapField(t, explainGet, "responses")
+	explainOK := querytestutil.MustMapField(t, explainResponses, "200")
+	explainContent := querytestutil.MustMapField(t, explainOK, "content")
+	explainJSON := querytestutil.MustMapField(t, explainContent, "application/json")
+	explainSchema := querytestutil.MustMapField(t, explainJSON, "schema")
+	explainProperties := querytestutil.MustMapField(t, explainSchema, "properties")
+	explainFinding := querytestutil.MustMapField(t, explainProperties, "finding")
+	explainFindingProperties := querytestutil.MustMapField(t, explainFinding, "properties")
+	explainRuntimeContext := querytestutil.MustMapField(t, explainFindingProperties, "runtime_context")
 	if !reflect.DeepEqual(explainRuntimeContext, runtimeContext) {
 		t.Fatalf("explain runtime_context = %#v, want list runtime_context %#v", explainRuntimeContext, runtimeContext)
 	}
@@ -74,28 +76,28 @@ func TestOpenAPISpecDistinguishesDigestBoundKubernetesRefsFromRuntimeContext(t *
 	if err := json.Unmarshal([]byte(OpenAPISpec()), &spec); err != nil {
 		t.Fatalf("json.Unmarshal(OpenAPISpec()) error = %v, want nil", err)
 	}
-	paths := mustMapField(t, spec, "paths")
-	path := mustMapField(t, paths, "/api/v0/supply-chain/impact/findings")
-	get := mustMapField(t, path, "get")
-	responses := mustMapField(t, get, "responses")
-	twoHundred := mustMapField(t, responses, "200")
-	content := mustMapField(t, twoHundred, "content")
-	appJSON := mustMapField(t, content, "application/json")
-	schema := mustMapField(t, appJSON, "schema")
-	properties := mustMapField(t, schema, "properties")
-	findings := mustMapField(t, properties, "findings")
-	items := mustMapField(t, findings, "items")
-	itemProperties := mustMapField(t, items, "properties")
+	paths := querytestutil.MustMapField(t, spec, "paths")
+	path := querytestutil.MustMapField(t, paths, "/api/v0/supply-chain/impact/findings")
+	get := querytestutil.MustMapField(t, path, "get")
+	responses := querytestutil.MustMapField(t, get, "responses")
+	twoHundred := querytestutil.MustMapField(t, responses, "200")
+	content := querytestutil.MustMapField(t, twoHundred, "content")
+	appJSON := querytestutil.MustMapField(t, content, "application/json")
+	schema := querytestutil.MustMapField(t, appJSON, "schema")
+	properties := querytestutil.MustMapField(t, schema, "properties")
+	findings := querytestutil.MustMapField(t, properties, "findings")
+	items := querytestutil.MustMapField(t, findings, "items")
+	itemProperties := querytestutil.MustMapField(t, items, "properties")
 
-	refs := mustMapField(t, itemProperties, "kubernetes_runtime_workload_refs")
+	refs := querytestutil.MustMapField(t, itemProperties, "kubernetes_runtime_workload_refs")
 	description, _ := refs["description"].(string)
 	for _, want := range []string{"exact digest", "independently current and authorized", "runtime_context.workload_ids"} {
 		if !strings.Contains(description, want) {
 			t.Fatalf("kubernetes runtime refs description missing %q: %q", want, description)
 		}
 	}
-	refItems := mustMapField(t, refs, "items")
-	refProperties := mustMapField(t, refItems, "properties")
+	refItems := querytestutil.MustMapField(t, refs, "items")
+	refProperties := querytestutil.MustMapField(t, refItems, "properties")
 	for _, want := range []string{"workload_uid", "cluster_id", "namespace", "name"} {
 		if _, ok := refProperties[want]; !ok {
 			t.Fatalf("kubernetes runtime workload ref missing %q", want)
@@ -104,40 +106,40 @@ func TestOpenAPISpecDistinguishesDigestBoundKubernetesRefsFromRuntimeContext(t *
 	if _, duplicatesParentIdentity := refProperties["subject_digest"]; duplicatesParentIdentity {
 		t.Fatal("nested kubernetes runtime workload ref must not repeat parent subject_digest")
 	}
-	probe := mustMapField(t, itemProperties, "kubernetes_runtime_probe")
+	probe := querytestutil.MustMapField(t, itemProperties, "kubernetes_runtime_probe")
 	probeDescription, _ := probe["description"].(string)
 	for _, want := range []string{"per-digest", "serialized-page cap", "repeated findings", "scoped callers", "authorized current refs", "raw graph query"} {
 		if !strings.Contains(probeDescription, want) {
 			t.Fatalf("kubernetes runtime probe description missing %q: %q", want, probeDescription)
 		}
 	}
-	probeProperties := mustMapField(t, probe, "properties")
+	probeProperties := querytestutil.MustMapField(t, probe, "properties")
 	if _, ok := probeProperties["candidate_limit"]; !ok {
 		t.Fatal("kubernetes runtime probe missing candidate_limit")
 	}
-	truncated := mustMapField(t, probeProperties, "workload_refs_truncated")
+	truncated := querytestutil.MustMapField(t, probeProperties, "workload_refs_truncated")
 	if got, want := truncated["type"], "boolean"; got != want || truncated["nullable"] != true {
 		t.Fatalf("workload_refs_truncated schema = %#v, want nullable boolean", truncated)
 	}
-	corroboration := mustMapField(t, itemProperties, "version_resolution_corroboration")
-	corroborationItems := mustMapField(t, corroboration, "items")
-	corroborationProperties := mustMapField(t, corroborationItems, "properties")
-	evidenceKind := mustMapField(t, corroborationProperties, "evidence_kind")
+	corroboration := querytestutil.MustMapField(t, itemProperties, "version_resolution_corroboration")
+	corroborationItems := querytestutil.MustMapField(t, corroboration, "items")
+	corroborationProperties := querytestutil.MustMapField(t, corroborationItems, "properties")
+	evidenceKind := querytestutil.MustMapField(t, corroborationProperties, "evidence_kind")
 	if got := mustStringSliceField(t, evidenceKind, "enum"); containsOpenAPIEnumString(got, "kubernetes_runtime_probe") {
 		t.Fatalf("version-resolution corroboration evidence kinds = %#v, must omit winner-only kubernetes runtime source", got)
 	}
 
-	explainPath := mustMapField(t, paths, "/api/v0/supply-chain/impact/explain")
-	explainGet := mustMapField(t, explainPath, "get")
-	explainResponses := mustMapField(t, explainGet, "responses")
-	explainOK := mustMapField(t, explainResponses, "200")
-	explainContent := mustMapField(t, explainOK, "content")
-	explainJSON := mustMapField(t, explainContent, "application/json")
-	explainSchema := mustMapField(t, explainJSON, "schema")
-	explainProperties := mustMapField(t, explainSchema, "properties")
-	explainFinding := mustMapField(t, explainProperties, "finding")
-	explainFindingProperties := mustMapField(t, explainFinding, "properties")
-	explainProbe := mustMapField(t, explainFindingProperties, "kubernetes_runtime_probe")
+	explainPath := querytestutil.MustMapField(t, paths, "/api/v0/supply-chain/impact/explain")
+	explainGet := querytestutil.MustMapField(t, explainPath, "get")
+	explainResponses := querytestutil.MustMapField(t, explainGet, "responses")
+	explainOK := querytestutil.MustMapField(t, explainResponses, "200")
+	explainContent := querytestutil.MustMapField(t, explainOK, "content")
+	explainJSON := querytestutil.MustMapField(t, explainContent, "application/json")
+	explainSchema := querytestutil.MustMapField(t, explainJSON, "schema")
+	explainProperties := querytestutil.MustMapField(t, explainSchema, "properties")
+	explainFinding := querytestutil.MustMapField(t, explainProperties, "finding")
+	explainFindingProperties := querytestutil.MustMapField(t, explainFinding, "properties")
+	explainProbe := querytestutil.MustMapField(t, explainFindingProperties, "kubernetes_runtime_probe")
 	if got := mustStringSliceField(t, explainProbe, "required"); !containsOpenAPIEnumString(got, "candidate_limit") || !containsOpenAPIEnumString(got, "workload_refs_truncated") {
 		t.Fatalf("explain kubernetes runtime probe required fields = %#v", got)
 	}

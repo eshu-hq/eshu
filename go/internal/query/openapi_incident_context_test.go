@@ -6,6 +6,8 @@ package query
 import (
 	"encoding/json"
 	"testing"
+
+	"github.com/eshu-hq/eshu/go/internal/query/querytestutil"
 )
 
 func TestOpenAPISpecIncidentContextExposesEvidenceSlots(t *testing.T) {
@@ -15,18 +17,18 @@ func TestOpenAPISpecIncidentContextExposesEvidenceSlots(t *testing.T) {
 	if err := json.Unmarshal([]byte(OpenAPISpec()), &spec); err != nil {
 		t.Fatalf("json.Unmarshal(OpenAPISpec()) error = %v", err)
 	}
-	paths := mustMapField(t, spec, "paths")
-	path := mustMapField(t, paths, "/api/v0/incidents/{incident_id}/context")
-	get := mustMapField(t, path, "get")
+	paths := querytestutil.MustMapField(t, spec, "paths")
+	path := querytestutil.MustMapField(t, paths, "/api/v0/incidents/{incident_id}/context")
+	get := querytestutil.MustMapField(t, path, "get")
 	if got, want := get["operationId"], "getIncidentContext"; got != want {
 		t.Fatalf("operationId = %q, want %q", got, want)
 	}
-	responses := mustMapField(t, get, "responses")
-	ok := mustMapField(t, responses, "200")
-	content := mustMapField(t, ok, "content")
-	jsonContent := mustMapField(t, content, "application/json")
-	schema := mustMapField(t, jsonContent, "schema")
-	properties := mustMapField(t, schema, "properties")
+	responses := querytestutil.MustMapField(t, get, "responses")
+	ok := querytestutil.MustMapField(t, responses, "200")
+	content := querytestutil.MustMapField(t, ok, "content")
+	jsonContent := querytestutil.MustMapField(t, content, "application/json")
+	schema := querytestutil.MustMapField(t, jsonContent, "schema")
+	properties := querytestutil.MustMapField(t, schema, "properties")
 	for _, field := range []string{
 		"incident",
 		"timeline",

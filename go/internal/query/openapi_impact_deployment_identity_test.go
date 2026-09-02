@@ -9,6 +9,8 @@ import (
 	"reflect"
 	"strings"
 	"testing"
+
+	"github.com/eshu-hq/eshu/go/internal/query/querytestutil"
 )
 
 func TestOpenAPIImpactDeploymentTraceDocumentsCanonicalPlatformIdentity(t *testing.T) {
@@ -19,16 +21,16 @@ func TestOpenAPIImpactDeploymentTraceDocumentsCanonicalPlatformIdentity(t *testi
 	if err := json.Unmarshal(recorder.Body.Bytes(), &spec); err != nil {
 		t.Fatalf("decode OpenAPI document: %v", err)
 	}
-	paths := mustMapField(t, spec, "paths")
-	tracePath := mustMapField(t, paths, "/api/v0/impact/trace-deployment-chain")
-	tracePost := mustMapField(t, tracePath, "post")
-	responses := mustMapField(t, tracePost, "responses")
-	okResponse := mustMapField(t, responses, "200")
-	content := mustMapField(t, okResponse, "content")
-	jsonContent := mustMapField(t, content, "application/json")
-	schema := mustMapField(t, jsonContent, "schema")
-	properties := mustMapField(t, schema, "properties")
-	uncorrelatedCloudResources := mustMapField(t, properties, "uncorrelated_cloud_resources")
+	paths := querytestutil.MustMapField(t, spec, "paths")
+	tracePath := querytestutil.MustMapField(t, paths, "/api/v0/impact/trace-deployment-chain")
+	tracePost := querytestutil.MustMapField(t, tracePath, "post")
+	responses := querytestutil.MustMapField(t, tracePost, "responses")
+	okResponse := querytestutil.MustMapField(t, responses, "200")
+	content := querytestutil.MustMapField(t, okResponse, "content")
+	jsonContent := querytestutil.MustMapField(t, content, "application/json")
+	schema := querytestutil.MustMapField(t, jsonContent, "schema")
+	properties := querytestutil.MustMapField(t, schema, "properties")
+	uncorrelatedCloudResources := querytestutil.MustMapField(t, properties, "uncorrelated_cloud_resources")
 	uncorrelatedDescription, _ := uncorrelatedCloudResources["description"].(string)
 	for _, required := range []string{
 		"candidate_status",
@@ -44,7 +46,7 @@ func TestOpenAPIImpactDeploymentTraceDocumentsCanonicalPlatformIdentity(t *testi
 			t.Fatalf("uncorrelated_cloud_resources description missing %q: %q", required, uncorrelatedDescription)
 		}
 	}
-	uncorrelatedCloudResourcesTruncated := mustMapField(t, properties, "uncorrelated_cloud_resources_truncated")
+	uncorrelatedCloudResourcesTruncated := querytestutil.MustMapField(t, properties, "uncorrelated_cloud_resources_truncated")
 	truncationDescription, _ := uncorrelatedCloudResourcesTruncated["description"].(string)
 	for _, required := range []string{
 		"candidate discovery was incomplete",
@@ -57,64 +59,64 @@ func TestOpenAPIImpactDeploymentTraceDocumentsCanonicalPlatformIdentity(t *testi
 			t.Fatalf("uncorrelated_cloud_resources_truncated description missing %q: %q", required, truncationDescription)
 		}
 	}
-	instances := mustMapField(t, properties, "instances")
-	instanceItems := mustMapField(t, instances, "items")
-	instanceProperties := mustMapField(t, instanceItems, "properties")
-	platforms := mustMapField(t, instanceProperties, "platforms")
-	platformItems := mustMapField(t, platforms, "items")
-	platformProperties := mustMapField(t, platformItems, "properties")
+	instances := querytestutil.MustMapField(t, properties, "instances")
+	instanceItems := querytestutil.MustMapField(t, instances, "items")
+	instanceProperties := querytestutil.MustMapField(t, instanceItems, "properties")
+	platforms := querytestutil.MustMapField(t, instanceProperties, "platforms")
+	platformItems := querytestutil.MustMapField(t, platforms, "items")
+	platformProperties := querytestutil.MustMapField(t, platformItems, "properties")
 	assertRequiredProperty(t, platformItems, "topology_basis", "impact trace instances[].platforms[]")
 	if _, ok := platformProperties["platform_id"]; !ok {
 		t.Fatal("impact trace instances[].platforms[] schema missing platform_id")
 	}
-	topologyBasis := mustMapField(t, platformProperties, "topology_basis")
+	topologyBasis := querytestutil.MustMapField(t, platformProperties, "topology_basis")
 	if got, want := topologyBasis["enum"], []any{"direct_runtime"}; !reflect.DeepEqual(got, want) {
 		t.Fatalf("impact trace topology_basis enum = %#v, want %#v", got, want)
 	}
-	topologyEdges := mustMapField(t, platformProperties, "topology_edges")
-	topologyEdgeItems := mustMapField(t, topologyEdges, "items")
-	topologyEdgeProperties := mustMapField(t, topologyEdgeItems, "properties")
-	relationshipType := mustMapField(t, topologyEdgeProperties, "relationship_type")
+	topologyEdges := querytestutil.MustMapField(t, platformProperties, "topology_edges")
+	topologyEdgeItems := querytestutil.MustMapField(t, topologyEdges, "items")
+	topologyEdgeProperties := querytestutil.MustMapField(t, topologyEdgeItems, "properties")
+	relationshipType := querytestutil.MustMapField(t, topologyEdgeProperties, "relationship_type")
 	if got, want := relationshipType["enum"], []any{"RUNS_ON"}; !reflect.DeepEqual(got, want) {
 		t.Fatalf("instance platform relationship enum = %#v, want %#v", got, want)
 	}
 	if _, ok := topologyEdgeProperties["properties"]; !ok {
 		t.Fatal("impact trace instances[].platforms[].topology_edges[] schema missing properties")
 	}
-	topology := mustMapField(t, properties, "topology_edges")
-	topologyItems := mustMapField(t, topology, "items")
-	topologyProperties := mustMapField(t, topologyItems, "properties")
-	topologyRelationshipType := mustMapField(t, topologyProperties, "relationship_type")
+	topology := querytestutil.MustMapField(t, properties, "topology_edges")
+	topologyItems := querytestutil.MustMapField(t, topology, "items")
+	topologyProperties := querytestutil.MustMapField(t, topologyItems, "properties")
+	topologyRelationshipType := querytestutil.MustMapField(t, topologyProperties, "relationship_type")
 	if got, want := topologyRelationshipType["enum"], []any{"DEFINES", "INSTANCE_OF"}; !reflect.DeepEqual(got, want) {
 		t.Fatalf("top-level topology relationship enum = %#v, want %#v", got, want)
 	}
-	provisioned := mustMapField(t, properties, "provisioned_platforms")
-	provisionedItems := mustMapField(t, provisioned, "items")
-	provisionedProperties := mustMapField(t, provisionedItems, "properties")
+	provisioned := querytestutil.MustMapField(t, properties, "provisioned_platforms")
+	provisionedItems := querytestutil.MustMapField(t, provisioned, "items")
+	provisionedProperties := querytestutil.MustMapField(t, provisionedItems, "properties")
 	assertRequiredProperty(t, provisionedItems, "topology_basis", "impact trace provisioned_platforms[]")
 	if _, ok := provisionedProperties["topology_edges"]; !ok {
 		t.Fatal("impact trace provisioned_platforms[] schema missing topology_edges")
 	}
 	assertProvisioningFallbackTopologyBasis(t, provisionedProperties, "impact trace provisioned_platforms[]")
 	assertProvisionedPlatformSchema(t, provisionedProperties, "impact trace provisioned_platforms[]")
-	components := mustMapField(t, spec, "components")
-	schemas := mustMapField(t, components, "schemas")
-	workloadSession := mustMapField(t, schemas, "WorkloadContext")
-	workloadSessionProperties := mustMapField(t, workloadSession, "properties")
-	workloadInstances := mustMapField(t, workloadSessionProperties, "instances")
-	workloadInstanceItems := mustMapField(t, workloadInstances, "items")
-	workloadInstanceProperties := mustMapField(t, workloadInstanceItems, "properties")
-	workloadPlatforms := mustMapField(t, workloadInstanceProperties, "platforms")
-	workloadPlatformItems := mustMapField(t, workloadPlatforms, "items")
-	workloadPlatformProperties := mustMapField(t, workloadPlatformItems, "properties")
+	components := querytestutil.MustMapField(t, spec, "components")
+	schemas := querytestutil.MustMapField(t, components, "schemas")
+	workloadSession := querytestutil.MustMapField(t, schemas, "WorkloadContext")
+	workloadSessionProperties := querytestutil.MustMapField(t, workloadSession, "properties")
+	workloadInstances := querytestutil.MustMapField(t, workloadSessionProperties, "instances")
+	workloadInstanceItems := querytestutil.MustMapField(t, workloadInstances, "items")
+	workloadInstanceProperties := querytestutil.MustMapField(t, workloadInstanceItems, "properties")
+	workloadPlatforms := querytestutil.MustMapField(t, workloadInstanceProperties, "platforms")
+	workloadPlatformItems := querytestutil.MustMapField(t, workloadPlatforms, "items")
+	workloadPlatformProperties := querytestutil.MustMapField(t, workloadPlatformItems, "properties")
 	assertRequiredProperty(t, workloadPlatformItems, "topology_basis", "WorkloadContext instances[].platforms[]")
-	workloadTopologyBasis := mustMapField(t, workloadPlatformProperties, "topology_basis")
+	workloadTopologyBasis := querytestutil.MustMapField(t, workloadPlatformProperties, "topology_basis")
 	if got, want := workloadTopologyBasis["enum"], []any{"direct_runtime"}; !reflect.DeepEqual(got, want) {
 		t.Fatalf("WorkloadContext direct topology_basis enum = %#v, want %#v", got, want)
 	}
-	workloadProvisioned := mustMapField(t, workloadSessionProperties, "provisioned_platforms")
-	workloadProvisionedItems := mustMapField(t, workloadProvisioned, "items")
-	workloadProvisionedProperties := mustMapField(t, workloadProvisionedItems, "properties")
+	workloadProvisioned := querytestutil.MustMapField(t, workloadSessionProperties, "provisioned_platforms")
+	workloadProvisionedItems := querytestutil.MustMapField(t, workloadProvisioned, "items")
+	workloadProvisionedProperties := querytestutil.MustMapField(t, workloadProvisionedItems, "properties")
 	assertRequiredProperty(t, workloadProvisionedItems, "topology_basis", "WorkloadContext provisioned_platforms[]")
 	assertProvisioningFallbackTopologyBasis(
 		t,
@@ -127,11 +129,11 @@ func TestOpenAPIImpactDeploymentTraceDocumentsCanonicalPlatformIdentity(t *testi
 			t.Fatalf("impact trace schema missing %s", limitsField)
 		}
 	}
-	runtimeTopologyLimits := mustMapField(t, properties, "runtime_topology_limits")
-	runtimeTopologyProperties := mustMapField(t, runtimeTopologyLimits, "properties")
+	runtimeTopologyLimits := querytestutil.MustMapField(t, properties, "runtime_topology_limits")
+	runtimeTopologyProperties := querytestutil.MustMapField(t, runtimeTopologyLimits, "properties")
 	for _, collection := range []string{"instances", "platform_edges", "provisioned_platforms"} {
-		collectionLimits := mustMapField(t, runtimeTopologyProperties, collection)
-		collectionLimitProperties := mustMapField(t, collectionLimits, "properties")
+		collectionLimits := querytestutil.MustMapField(t, runtimeTopologyProperties, collection)
+		collectionLimitProperties := querytestutil.MustMapField(t, collectionLimits, "properties")
 		collectionFields := []string{
 			"limit",
 			"query_sentinel_limit",
@@ -148,8 +150,8 @@ func TestOpenAPIImpactDeploymentTraceDocumentsCanonicalPlatformIdentity(t *testi
 		}
 		assertRequiredProperties(t, collectionLimits, collectionFields, "impact trace runtime_topology_limits."+collection)
 	}
-	cloudResourceLimits := mustMapField(t, properties, "cloud_resource_limits")
-	cloudResourceLimitProperties := mustMapField(t, cloudResourceLimits, "properties")
+	cloudResourceLimits := querytestutil.MustMapField(t, properties, "cloud_resource_limits")
+	cloudResourceLimitProperties := querytestutil.MustMapField(t, cloudResourceLimits, "properties")
 	cloudResourceFields := []string{
 		"limit",
 		"query_sentinel_limit",
@@ -169,8 +171,8 @@ func TestOpenAPIImpactDeploymentTraceDocumentsCanonicalPlatformIdentity(t *testi
 		}
 	}
 	assertRequiredProperties(t, cloudResourceLimits, cloudResourceFields, "impact trace cloud_resource_limits")
-	k8sResourceLimits := mustMapField(t, properties, "k8s_resource_limits")
-	k8sResourceLimitProperties := mustMapField(t, k8sResourceLimits, "properties")
+	k8sResourceLimits := querytestutil.MustMapField(t, properties, "k8s_resource_limits")
+	k8sResourceLimitProperties := querytestutil.MustMapField(t, k8sResourceLimits, "properties")
 	k8sRequiredFields := []string{
 		"limit",
 		"query_sentinel_limit",
@@ -212,16 +214,16 @@ func TestOpenAPIImpactDeploymentTraceDocumentsCanonicalPlatformIdentity(t *testi
 			t.Fatalf("impact trace instances[].platforms[].topology_edges[] schema missing %s", field)
 		}
 	}
-	deploymentSources := mustMapField(t, properties, "deployment_sources")
-	deploymentSourceItems := mustMapField(t, deploymentSources, "items")
-	deploymentSourceProperties := mustMapField(t, deploymentSourceItems, "properties")
+	deploymentSources := querytestutil.MustMapField(t, properties, "deployment_sources")
+	deploymentSourceItems := querytestutil.MustMapField(t, deploymentSources, "items")
+	deploymentSourceProperties := querytestutil.MustMapField(t, deploymentSourceItems, "properties")
 	for _, field := range []string{"relationship_type", "source_id", "target_id"} {
 		if _, ok := deploymentSourceProperties[field]; !ok {
 			t.Fatalf("impact trace deployment_sources[] schema missing %s", field)
 		}
 	}
-	deploymentSourceLimits := mustMapField(t, properties, "deployment_source_limits")
-	deploymentSourceLimitProperties := mustMapField(t, deploymentSourceLimits, "properties")
+	deploymentSourceLimits := querytestutil.MustMapField(t, properties, "deployment_source_limits")
+	deploymentSourceLimitProperties := querytestutil.MustMapField(t, deploymentSourceLimits, "properties")
 	deploymentSourceFields := []string{
 		"limit",
 		"query_sentinel_limit",
@@ -279,13 +281,13 @@ func assertProvisionedPlatformSchema(t *testing.T, properties map[string]any, co
 			t.Fatalf("%s schema missing %s", context, field)
 		}
 	}
-	edges := mustMapField(t, properties, "topology_edges")
-	edgeItems := mustMapField(t, edges, "items")
+	edges := querytestutil.MustMapField(t, properties, "topology_edges")
+	edgeItems := querytestutil.MustMapField(t, edges, "items")
 	for _, field := range []string{"relationship_type", "source_id", "target_id", "properties"} {
 		assertRequiredProperty(t, edgeItems, field, context+".topology_edges[]")
 	}
-	edgeProperties := mustMapField(t, edgeItems, "properties")
-	relationshipType := mustMapField(t, edgeProperties, "relationship_type")
+	edgeProperties := querytestutil.MustMapField(t, edgeItems, "properties")
+	relationshipType := querytestutil.MustMapField(t, edgeProperties, "relationship_type")
 	if got, want := relationshipType["enum"], []any{"PROVISIONS_DEPENDENCY_FOR", "PROVISIONS_PLATFORM"}; !reflect.DeepEqual(got, want) {
 		t.Fatalf("%s topology relationship enum = %#v, want %#v", context, got, want)
 	}
@@ -313,7 +315,7 @@ func assertProvisioningFallbackTopologyBasis(
 	context string,
 ) {
 	t.Helper()
-	topologyBasis := mustMapField(t, properties, "topology_basis")
+	topologyBasis := querytestutil.MustMapField(t, properties, "topology_basis")
 	if got, want := topologyBasis["enum"], []any{"provisioning_fallback"}; !reflect.DeepEqual(got, want) {
 		t.Fatalf("%s topology_basis enum = %#v, want %#v", context, got, want)
 	}

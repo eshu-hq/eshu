@@ -6,6 +6,8 @@ package query
 import (
 	"encoding/json"
 	"testing"
+
+	"github.com/eshu-hq/eshu/go/internal/query/querytestutil"
 )
 
 func TestOpenAPICallGraphMetrics(t *testing.T) {
@@ -15,28 +17,28 @@ func TestOpenAPICallGraphMetrics(t *testing.T) {
 	if err := json.Unmarshal([]byte(OpenAPISpec()), &spec); err != nil {
 		t.Fatalf("json.Unmarshal(OpenAPISpec()) error = %v, want nil", err)
 	}
-	paths := mustMapField(t, spec, "paths")
-	metricsPath := mustMapField(t, paths, "/api/v0/code/call-graph/metrics")
-	metricsPost := mustMapField(t, metricsPath, "post")
-	metricsBody := mustMapField(t, mustMapField(t, metricsPost, "requestBody"), "content")
-	metricsJSON := mustMapField(t, metricsBody, "application/json")
-	metricsRequest := mustMapField(t, mustMapField(t, metricsJSON, "schema"), "properties")
+	paths := querytestutil.MustMapField(t, spec, "paths")
+	metricsPath := querytestutil.MustMapField(t, paths, "/api/v0/code/call-graph/metrics")
+	metricsPost := querytestutil.MustMapField(t, metricsPath, "post")
+	metricsBody := querytestutil.MustMapField(t, querytestutil.MustMapField(t, metricsPost, "requestBody"), "content")
+	metricsJSON := querytestutil.MustMapField(t, metricsBody, "application/json")
+	metricsRequest := querytestutil.MustMapField(t, querytestutil.MustMapField(t, metricsJSON, "schema"), "properties")
 	for _, field := range []string{"metric_type", "repo_id", "language", "limit", "offset"} {
 		if _, ok := metricsRequest[field]; !ok {
 			t.Fatalf("code/call-graph/metrics request schema missing %s", field)
 		}
 	}
-	limit := mustMapField(t, metricsRequest, "limit")
+	limit := querytestutil.MustMapField(t, metricsRequest, "limit")
 	if got, want := limit["minimum"], float64(1); got != want {
 		t.Fatalf("limit minimum = %#v, want %#v", got, want)
 	}
-	metricsResponses := mustMapField(t, metricsPost, "responses")
+	metricsResponses := querytestutil.MustMapField(t, metricsPost, "responses")
 	if _, ok := metricsResponses["422"]; !ok {
 		t.Fatal("code/call-graph/metrics responses missing exact-scope overflow status 422")
 	}
-	metricsOK := mustMapField(t, metricsResponses, "200")
-	metricsContent := mustMapField(t, mustMapField(t, metricsOK, "content"), "application/json")
-	metricsResponse := mustMapField(t, mustMapField(t, metricsContent, "schema"), "properties")
+	metricsOK := querytestutil.MustMapField(t, metricsResponses, "200")
+	metricsContent := querytestutil.MustMapField(t, querytestutil.MustMapField(t, metricsOK, "content"), "application/json")
+	metricsResponse := querytestutil.MustMapField(t, querytestutil.MustMapField(t, metricsContent, "schema"), "properties")
 	for _, field := range []string{"functions", "truncated", "next_offset", "source_backend", "coverage"} {
 		if _, ok := metricsResponse[field]; !ok {
 			t.Fatalf("code/call-graph/metrics response schema missing %s", field)

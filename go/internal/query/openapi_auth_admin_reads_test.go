@@ -7,6 +7,8 @@ import (
 	"encoding/json"
 	"strings"
 	"testing"
+
+	"github.com/eshu-hq/eshu/go/internal/query/querytestutil"
 )
 
 // TestOpenAPIAuthAdminReadPaths verifies the admin identity read endpoints are
@@ -19,7 +21,7 @@ func TestOpenAPIAuthAdminReadPaths(t *testing.T) {
 	if err := json.Unmarshal([]byte(OpenAPISpec()), &spec); err != nil {
 		t.Fatalf("invalid JSON: %v", err)
 	}
-	paths := mustMapField(t, spec, "paths")
+	paths := querytestutil.MustMapField(t, spec, "paths")
 
 	adminPaths := []string{
 		"/api/v0/auth/local/invitations",
@@ -36,7 +38,7 @@ func TestOpenAPIAuthAdminReadPaths(t *testing.T) {
 		if !ok {
 			t.Fatalf("OpenAPI admin path %q missing", path)
 		}
-		get := mustMapField(t, entry, "get")
+		get := querytestutil.MustMapField(t, entry, "get")
 		description, ok := get["description"].(string)
 		if !ok || !strings.Contains(description, "All-scopes admin route") {
 			t.Fatalf("admin path %q missing all-scopes admin contract: %v", path, get["description"])
@@ -45,7 +47,7 @@ func TestOpenAPIAuthAdminReadPaths(t *testing.T) {
 
 	// The provider list must document that issuer/metadata/entity/client hashes
 	// and credential handles are never returned.
-	providers := mustMapField(t, mustMapField(t, paths, "/api/v0/auth/admin/idp-providers"), "get")
+	providers := querytestutil.MustMapField(t, querytestutil.MustMapField(t, paths, "/api/v0/auth/admin/idp-providers"), "get")
 	providerDescription, _ := providers["description"].(string)
 	if !strings.Contains(providerDescription, "credential handles") {
 		t.Fatalf("idp-providers description missing no-secret contract: %v", providers["description"])
@@ -53,7 +55,7 @@ func TestOpenAPIAuthAdminReadPaths(t *testing.T) {
 
 	// The group mappings list must document that external_group_hash is never
 	// returned.
-	mappings := mustMapField(t, mustMapField(t, paths, "/api/v0/auth/admin/idp-group-mappings"), "get")
+	mappings := querytestutil.MustMapField(t, querytestutil.MustMapField(t, paths, "/api/v0/auth/admin/idp-group-mappings"), "get")
 	mappingDescription, _ := mappings["description"].(string)
 	if !strings.Contains(mappingDescription, "external group hash") {
 		t.Fatalf("idp-group-mappings description missing no-secret contract: %v", mappings["description"])
@@ -65,7 +67,7 @@ func TestOpenAPIAuthAdminReadPaths(t *testing.T) {
 	// one-time invite_code), which is out of scope for these read endpoints.
 	for _, path := range adminPaths {
 		entry, _ := paths[path].(map[string]any)
-		get := mustMapField(t, entry, "get")
+		get := querytestutil.MustMapField(t, entry, "get")
 		raw, err := json.Marshal(get)
 		if err != nil {
 			t.Fatalf("marshal admin path %q get: %v", path, err)

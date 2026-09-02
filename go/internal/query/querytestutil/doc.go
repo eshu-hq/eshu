@@ -1,0 +1,16 @@
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2025-2026 eshu-hq
+
+// Package querytestutil holds test helpers shared by internal/query and its
+// handler-family subpackages.
+//
+// The helpers live in ordinary (non-_test.go) files on purpose. A symbol
+// declared in a _test.go file is not part of the importable package, so no
+// export, alias, or forwarder can reach it from another package's tests. That
+// constraint is what forces this package to exist: as internal/query splits
+// into handler-family subpackages (#6060), each family's tests need the same
+// helpers, and they cannot reach root's _test.go declarations at all.
+//
+// Nothing outside a test imports this package, so the linker drops it from
+// production binaries.
+package querytestutil

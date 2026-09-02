@@ -6,6 +6,8 @@ package query
 import (
 	"encoding/json"
 	"testing"
+
+	"github.com/eshu-hq/eshu/go/internal/query/querytestutil"
 )
 
 func TestOpenAPISpecIncludesAdmissionDecisions(t *testing.T) {
@@ -16,9 +18,9 @@ func TestOpenAPISpecIncludesAdmissionDecisions(t *testing.T) {
 		t.Fatalf("json.Unmarshal(OpenAPISpec()) error = %v, want nil", err)
 	}
 
-	paths := mustMapField(t, spec, "paths")
-	path := mustMapField(t, paths, "/api/v0/evidence/admission-decisions")
-	get := mustMapField(t, path, "get")
+	paths := querytestutil.MustMapField(t, spec, "paths")
+	path := querytestutil.MustMapField(t, paths, "/api/v0/evidence/admission-decisions")
+	get := querytestutil.MustMapField(t, path, "get")
 	if got, want := get["operationId"], "listAdmissionDecisions"; got != want {
 		t.Fatalf("operationId = %#v, want %#v", got, want)
 	}
@@ -28,26 +30,26 @@ func TestOpenAPISpecIncludesAdmissionDecisions(t *testing.T) {
 			t.Fatalf("parameters missing %q: %#v", name, parameters)
 		}
 	}
-	responses := mustMapField(t, get, "responses")
+	responses := querytestutil.MustMapField(t, get, "responses")
 	if _, ok := responses["501"]; !ok {
 		t.Fatalf("responses missing 501 unsupported-capability response: %#v", responses)
 	}
-	schema := mustMapField(
+	schema := querytestutil.MustMapField(
 		t,
-		mustMapField(
+		querytestutil.MustMapField(
 			t,
-			mustMapField(
+			querytestutil.MustMapField(
 				t,
-				mustMapField(t, responses["200"].(map[string]any), "content"),
+				querytestutil.MustMapField(t, responses["200"].(map[string]any), "content"),
 				"application/json",
 			),
 			"schema",
 		),
 		"properties",
 	)
-	decisions := mustMapField(t, schema, "decisions")
-	items := mustMapField(t, decisions, "items")
-	itemProps := mustMapField(t, items, "properties")
+	decisions := querytestutil.MustMapField(t, schema, "decisions")
+	items := querytestutil.MustMapField(t, decisions, "items")
+	itemProps := querytestutil.MustMapField(t, items, "properties")
 	for _, name := range []string{"evidence", "evidence_limit", "evidence_truncated"} {
 		if _, present := itemProps[name]; !present {
 			t.Fatalf("admission decision item schema missing %q: %#v", name, itemProps)

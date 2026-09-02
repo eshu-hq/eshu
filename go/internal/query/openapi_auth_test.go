@@ -7,6 +7,8 @@ import (
 	"encoding/json"
 	"strings"
 	"testing"
+
+	"github.com/eshu-hq/eshu/go/internal/query/querytestutil"
 )
 
 func TestOpenAPIIncludesBrowserSessionRoutes(t *testing.T) {
@@ -15,9 +17,9 @@ func TestOpenAPIIncludesBrowserSessionRoutes(t *testing.T) {
 		t.Fatalf("invalid JSON: %v", err)
 	}
 
-	paths := mustMapField(t, spec, "paths")
-	loginPath := mustMapField(t, paths, "/api/v0/auth/oidc/login")
-	login := mustMapField(t, loginPath, "get")
+	paths := querytestutil.MustMapField(t, spec, "paths")
+	loginPath := querytestutil.MustMapField(t, paths, "/api/v0/auth/oidc/login")
+	login := querytestutil.MustMapField(t, loginPath, "get")
 	loginDescription, ok := login["description"].(string)
 	if !ok {
 		t.Fatal("OIDC login GET description missing")
@@ -34,8 +36,8 @@ func TestOpenAPIIncludesBrowserSessionRoutes(t *testing.T) {
 		}
 	}
 
-	callbackPath := mustMapField(t, paths, "/api/v0/auth/oidc/callback")
-	callback := mustMapField(t, callbackPath, "get")
+	callbackPath := querytestutil.MustMapField(t, paths, "/api/v0/auth/oidc/callback")
+	callback := querytestutil.MustMapField(t, callbackPath, "get")
 	callbackDescription, ok := callback["description"].(string)
 	if !ok {
 		t.Fatal("OIDC callback GET description missing")
@@ -51,8 +53,8 @@ func TestOpenAPIIncludesBrowserSessionRoutes(t *testing.T) {
 		}
 	}
 
-	sessionPath := mustMapField(t, paths, "/api/v0/auth/browser-session")
-	create := mustMapField(t, sessionPath, "post")
+	sessionPath := querytestutil.MustMapField(t, paths, "/api/v0/auth/browser-session")
+	create := querytestutil.MustMapField(t, sessionPath, "post")
 	createDescription, ok := create["description"].(string)
 	if !ok {
 		t.Fatal("browser session POST description missing")
@@ -70,8 +72,8 @@ func TestOpenAPIIncludesBrowserSessionRoutes(t *testing.T) {
 		}
 	}
 
-	contextPath := mustMapField(t, paths, "/api/v0/auth/browser-session/context")
-	switchRoute := mustMapField(t, contextPath, "patch")
+	contextPath := querytestutil.MustMapField(t, paths, "/api/v0/auth/browser-session/context")
+	switchRoute := querytestutil.MustMapField(t, contextPath, "patch")
 	switchDescription, ok := switchRoute["description"].(string)
 	if !ok {
 		t.Fatal("browser session context PATCH description missing")
@@ -80,13 +82,13 @@ func TestOpenAPIIncludesBrowserSessionRoutes(t *testing.T) {
 		t.Fatalf("browser session switch description missing CSRF header: %s", switchDescription)
 	}
 
-	components := mustMapField(t, spec, "components")
-	schemas := mustMapField(t, components, "schemas")
+	components := querytestutil.MustMapField(t, spec, "components")
+	schemas := querytestutil.MustMapField(t, components, "schemas")
 	if _, ok := schemas["BrowserSessionResponse"]; !ok {
 		t.Fatal("BrowserSessionResponse schema missing")
 	}
-	sessionAuth := mustMapField(t, schemas, "BrowserSessionAuth")
-	sessionAuthProperties := mustMapField(t, sessionAuth, "properties")
+	sessionAuth := querytestutil.MustMapField(t, schemas, "BrowserSessionAuth")
+	sessionAuthProperties := querytestutil.MustMapField(t, sessionAuth, "properties")
 	if _, ok := sessionAuthProperties["role_ids"]; !ok {
 		t.Fatal("BrowserSessionAuth role_ids schema missing")
 	}
@@ -96,7 +98,7 @@ func TestOpenAPIIncludesBrowserSessionRoutes(t *testing.T) {
 	if _, ok := sessionAuthProperties["allowed_permission_features"]; !ok {
 		t.Fatal("BrowserSessionAuth allowed_permission_features schema missing")
 	}
-	responses := mustMapField(t, components, "responses")
+	responses := querytestutil.MustMapField(t, components, "responses")
 	if _, ok := responses["Unauthorized"]; !ok {
 		t.Fatal("Unauthorized response component missing")
 	}
@@ -143,7 +145,7 @@ func TestOpenAPIIncludesLocalIdentityRoutes(t *testing.T) {
 		t.Fatalf("invalid JSON: %v", err)
 	}
 
-	paths := mustMapField(t, spec, "paths")
+	paths := querytestutil.MustMapField(t, spec, "paths")
 	for _, path := range []string{
 		"/api/v0/auth/local/bootstrap",
 		"/api/v0/auth/local/login",
@@ -164,39 +166,39 @@ func TestOpenAPIIncludesLocalIdentityRoutes(t *testing.T) {
 		}
 	}
 
-	bootstrap := mustMapField(t, mustMapField(t, paths, "/api/v0/auth/local/bootstrap"), "post")
+	bootstrap := querytestutil.MustMapField(t, querytestutil.MustMapField(t, paths, "/api/v0/auth/local/bootstrap"), "post")
 	bootstrapDescription, ok := bootstrap["description"].(string)
 	if !ok || !strings.Contains(bootstrapDescription, "requires the shared operator bearer token") ||
 		!strings.Contains(bootstrapDescription, "MFA") {
 		t.Fatalf("bootstrap description missing operator/MFA contract: %v", bootstrap["description"])
 	}
-	login := mustMapField(t, mustMapField(t, paths, "/api/v0/auth/local/login"), "post")
+	login := querytestutil.MustMapField(t, querytestutil.MustMapField(t, paths, "/api/v0/auth/local/login"), "post")
 	loginDescription, ok := login["description"].(string)
 	if !ok || !strings.Contains(loginDescription, "Public local-login route") ||
 		!strings.Contains(loginDescription, "lockout") {
 		t.Fatalf("login description missing public/lockout contract: %v", login["description"])
 	}
-	breakGlass := mustMapField(t, mustMapField(t, paths, "/api/v0/auth/local/break-glass"), "post")
+	breakGlass := querytestutil.MustMapField(t, querytestutil.MustMapField(t, paths, "/api/v0/auth/local/break-glass"), "post")
 	breakGlassDescription, ok := breakGlass["description"].(string)
 	if !ok || !strings.Contains(breakGlassDescription, "disabled by default") ||
 		!strings.Contains(breakGlassDescription, "stores only a break-glass code hash") {
 		t.Fatalf("break-glass description missing safety contract: %v", breakGlass["description"])
 	}
-	apiTokens := mustMapField(t, mustMapField(t, paths, "/api/v0/auth/local/api-tokens"), "post")
+	apiTokens := querytestutil.MustMapField(t, querytestutil.MustMapField(t, paths, "/api/v0/auth/local/api-tokens"), "post")
 	apiTokenDescription, ok := apiTokens["description"].(string)
 	if !ok || !strings.Contains(apiTokenDescription, "returned once") ||
 		!strings.Contains(apiTokenDescription, "storage persists only token_hash") {
 		t.Fatalf("api token description missing one-time/hash-only contract: %v", apiTokens["description"])
 	}
-	rotate := mustMapField(t, mustMapField(t, paths, "/api/v0/auth/local/password/rotate"), "post")
+	rotate := querytestutil.MustMapField(t, querytestutil.MustMapField(t, paths, "/api/v0/auth/local/password/rotate"), "post")
 	rotateDescription, ok := rotate["description"].(string)
 	if !ok || !strings.Contains(rotateDescription, "Public pre-session route") ||
 		!strings.Contains(rotateDescription, "must_change_password") {
 		t.Fatalf("rotate description missing public/must_change_password contract: %v", rotate["description"])
 	}
 
-	components := mustMapField(t, spec, "components")
-	schemas := mustMapField(t, components, "schemas")
+	components := querytestutil.MustMapField(t, spec, "components")
+	schemas := querytestutil.MustMapField(t, components, "schemas")
 	for _, schema := range []string{
 		"LocalIdentityBootstrapRequest",
 		"LocalIdentityLoginRequest",
@@ -219,9 +221,9 @@ func TestOpenAPIIncludesAuthProvidersRoute(t *testing.T) {
 		t.Fatalf("invalid JSON: %v", err)
 	}
 
-	paths := mustMapField(t, spec, "paths")
-	providerPath := mustMapField(t, paths, "/api/v0/auth/providers")
-	get := mustMapField(t, providerPath, "get")
+	paths := querytestutil.MustMapField(t, spec, "paths")
+	providerPath := querytestutil.MustMapField(t, paths, "/api/v0/auth/providers")
+	get := querytestutil.MustMapField(t, providerPath, "get")
 
 	description, ok := get["description"].(string)
 	if !ok {
@@ -250,12 +252,12 @@ func TestOpenAPIIncludesAuthProvidersRoute(t *testing.T) {
 	}
 
 	// Response schema must include providers array with the three safe fields.
-	responses := mustMapField(t, get, "responses")
-	ok200 := mustMapField(t, responses, "200")
-	content := mustMapField(t, ok200, "content")
-	appJSON := mustMapField(t, content, "application/json")
-	schema := mustMapField(t, appJSON, "schema")
-	properties := mustMapField(t, schema, "properties")
+	responses := querytestutil.MustMapField(t, get, "responses")
+	ok200 := querytestutil.MustMapField(t, responses, "200")
+	content := querytestutil.MustMapField(t, ok200, "content")
+	appJSON := querytestutil.MustMapField(t, content, "application/json")
+	schema := querytestutil.MustMapField(t, appJSON, "schema")
+	properties := querytestutil.MustMapField(t, schema, "properties")
 	providersArray, ok := properties["providers"].(map[string]any)
 	if !ok {
 		t.Fatal("providers array schema missing")
@@ -264,7 +266,7 @@ func TestOpenAPIIncludesAuthProvidersRoute(t *testing.T) {
 	if !ok {
 		t.Fatal("providers items schema missing")
 	}
-	itemProps := mustMapField(t, items, "properties")
+	itemProps := querytestutil.MustMapField(t, items, "properties")
 	for _, field := range []string{"provider_config_id", "display_label", "provider_kind"} {
 		if _, ok := itemProps[field]; !ok {
 			t.Errorf("providers item schema missing field %q", field)
@@ -278,9 +280,9 @@ func TestOpenAPIIncludesSAMLRoutes(t *testing.T) {
 		t.Fatalf("invalid JSON: %v", err)
 	}
 
-	paths := mustMapField(t, spec, "paths")
-	metadataPath := mustMapField(t, paths, "/api/v0/auth/saml/providers/{provider_id}/metadata")
-	metadata := mustMapField(t, metadataPath, "get")
+	paths := querytestutil.MustMapField(t, spec, "paths")
+	metadataPath := querytestutil.MustMapField(t, paths, "/api/v0/auth/saml/providers/{provider_id}/metadata")
+	metadata := querytestutil.MustMapField(t, metadataPath, "get")
 	metadataDescription, ok := metadata["description"].(string)
 	if !ok {
 		t.Fatal("SAML metadata description missing")
@@ -295,8 +297,8 @@ func TestOpenAPIIncludesSAMLRoutes(t *testing.T) {
 		}
 	}
 
-	loginPath := mustMapField(t, paths, "/api/v0/auth/saml/providers/{provider_id}/login")
-	login := mustMapField(t, loginPath, "get")
+	loginPath := querytestutil.MustMapField(t, paths, "/api/v0/auth/saml/providers/{provider_id}/login")
+	login := querytestutil.MustMapField(t, loginPath, "get")
 	loginDescription, ok := login["description"].(string)
 	if !ok {
 		t.Fatal("SAML login description missing")
@@ -311,8 +313,8 @@ func TestOpenAPIIncludesSAMLRoutes(t *testing.T) {
 		}
 	}
 
-	acsPath := mustMapField(t, paths, "/api/v0/auth/saml/providers/{provider_id}/acs")
-	acs := mustMapField(t, acsPath, "post")
+	acsPath := querytestutil.MustMapField(t, paths, "/api/v0/auth/saml/providers/{provider_id}/acs")
+	acs := querytestutil.MustMapField(t, acsPath, "post")
 	acsDescription, ok := acs["description"].(string)
 	if !ok {
 		t.Fatal("SAML ACS description missing")

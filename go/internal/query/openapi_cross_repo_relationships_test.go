@@ -6,6 +6,8 @@ package query
 import (
 	"encoding/json"
 	"testing"
+
+	"github.com/eshu-hq/eshu/go/internal/query/querytestutil"
 )
 
 func TestOpenAPIDocumentsCrossRepoRelationshipFields(t *testing.T) {
@@ -16,21 +18,21 @@ func TestOpenAPIDocumentsCrossRepoRelationshipFields(t *testing.T) {
 		t.Fatalf("json.Unmarshal(OpenAPISpec()) error = %v", err)
 	}
 
-	paths := mustMapField(t, spec, "paths")
-	relationshipStoryPath := mustMapField(t, paths, "/api/v0/code/relationships/story")
-	relationshipStoryPost := mustMapField(t, relationshipStoryPath, "post")
-	relationshipStoryBody := mustMapField(t, mustMapField(t, relationshipStoryPost, "requestBody"), "content")
-	relationshipStoryJSON := mustMapField(t, relationshipStoryBody, "application/json")
-	relationshipStoryProperties := mustMapField(t, mustMapField(t, relationshipStoryJSON, "schema"), "properties")
+	paths := querytestutil.MustMapField(t, spec, "paths")
+	relationshipStoryPath := querytestutil.MustMapField(t, paths, "/api/v0/code/relationships/story")
+	relationshipStoryPost := querytestutil.MustMapField(t, relationshipStoryPath, "post")
+	relationshipStoryBody := querytestutil.MustMapField(t, querytestutil.MustMapField(t, relationshipStoryPost, "requestBody"), "content")
+	relationshipStoryJSON := querytestutil.MustMapField(t, relationshipStoryBody, "application/json")
+	relationshipStoryProperties := querytestutil.MustMapField(t, querytestutil.MustMapField(t, relationshipStoryJSON, "schema"), "properties")
 	if _, ok := relationshipStoryProperties["cross_repo"]; !ok {
 		t.Fatal("code/relationships/story request schema missing cross_repo")
 	}
 
-	callChainPath := mustMapField(t, paths, "/api/v0/code/call-chain")
-	callChainPost := mustMapField(t, callChainPath, "post")
-	callChainBody := mustMapField(t, mustMapField(t, callChainPost, "requestBody"), "content")
-	callChainJSON := mustMapField(t, callChainBody, "application/json")
-	callChainProperties := mustMapField(t, mustMapField(t, callChainJSON, "schema"), "properties")
+	callChainPath := querytestutil.MustMapField(t, paths, "/api/v0/code/call-chain")
+	callChainPost := querytestutil.MustMapField(t, callChainPath, "post")
+	callChainBody := querytestutil.MustMapField(t, querytestutil.MustMapField(t, callChainPost, "requestBody"), "content")
+	callChainJSON := querytestutil.MustMapField(t, callChainBody, "application/json")
+	callChainProperties := querytestutil.MustMapField(t, querytestutil.MustMapField(t, callChainJSON, "schema"), "properties")
 	for _, field := range []string{"cross_repo", "start_repo_id", "end_repo_id"} {
 		if _, ok := callChainProperties[field]; !ok {
 			t.Fatalf("code/call-chain request schema missing %s", field)

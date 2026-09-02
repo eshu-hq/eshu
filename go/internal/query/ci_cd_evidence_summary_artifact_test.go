@@ -8,6 +8,8 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"testing"
+
+	"github.com/eshu-hq/eshu/go/internal/query/querytestutil"
 )
 
 func TestCICDListRunCorrelationsExplainsWorkflowArtifactDigestEvidence(t *testing.T) {
@@ -22,7 +24,7 @@ func TestCICDListRunCorrelationsExplainsWorkflowArtifactDigestEvidence(t *testin
 		ArtifactDigest: "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
 	}})
 
-	bridge := mustMapField(t, mustMapField(t, resp, "evidence_summary"), "run_artifact_evidence")
+	bridge := querytestutil.MustMapField(t, querytestutil.MustMapField(t, resp, "evidence_summary"), "run_artifact_evidence")
 	if got, want := bridge["state"], "present"; got != want {
 		t.Fatalf("run_artifact_evidence.state = %#v, want %#v", got, want)
 	}
@@ -49,7 +51,7 @@ func TestCICDListRunCorrelationsExplainsWorkflowImageRefEvidence(t *testing.T) {
 		ImageRef:      "registry.example.com/team/api:prod",
 	}})
 
-	bridge := mustMapField(t, mustMapField(t, resp, "evidence_summary"), "run_artifact_evidence")
+	bridge := querytestutil.MustMapField(t, querytestutil.MustMapField(t, resp, "evidence_summary"), "run_artifact_evidence")
 	if got, want := bridge["state"], "present"; got != want {
 		t.Fatalf("run_artifact_evidence.state = %#v, want %#v", got, want)
 	}
@@ -77,7 +79,7 @@ func TestCICDListRunCorrelationsExplainsAmbiguousArtifactEvidence(t *testing.T) 
 		Reason:         "artifact digest matches more than one candidate image identity",
 	}})
 
-	bridge := mustMapField(t, mustMapField(t, resp, "evidence_summary"), "run_artifact_evidence")
+	bridge := querytestutil.MustMapField(t, querytestutil.MustMapField(t, resp, "evidence_summary"), "run_artifact_evidence")
 	if got, want := bridge["state"], "ambiguous"; got != want {
 		t.Fatalf("run_artifact_evidence.state = %#v, want %#v", got, want)
 	}
@@ -106,18 +108,18 @@ jobs:
 `,
 	}})
 
-	static := mustMapField(t, mustMapField(t, resp, "evidence_summary"), "static_workflow_artifacts")
+	static := querytestutil.MustMapField(t, querytestutil.MustMapField(t, resp, "evidence_summary"), "static_workflow_artifacts")
 	if got, want := static["image_ref_count"], float64(1); got != want {
 		t.Fatalf("static_workflow_artifacts.image_ref_count = %#v, want %#v", got, want)
 	}
 	if got, want := static["evidence_class"], "workflow_image_ref"; got != want {
 		t.Fatalf("static_workflow_artifacts.evidence_class = %#v, want %#v", got, want)
 	}
-	bridge := mustMapField(t, mustMapField(t, resp, "evidence_summary"), "run_artifact_evidence")
+	bridge := querytestutil.MustMapField(t, querytestutil.MustMapField(t, resp, "evidence_summary"), "run_artifact_evidence")
 	if got, want := bridge["reason"], "workflow_image_ref_static_only"; got != want {
 		t.Fatalf("run_artifact_evidence.reason = %#v, want %#v", got, want)
 	}
-	missing := stringSliceField(t, mustMapField(t, resp, "evidence_summary"), "missing_evidence")
+	missing := stringSliceField(t, querytestutil.MustMapField(t, resp, "evidence_summary"), "missing_evidence")
 	assertStringSet(t, missing, []string{
 		"ci_run_to_image_artifact_evidence_missing",
 		"source_to_ci_run_evidence_missing",
@@ -140,7 +142,7 @@ jobs:
 `,
 	}})
 
-	static := mustMapField(t, mustMapField(t, resp, "evidence_summary"), "static_workflow_artifacts")
+	static := querytestutil.MustMapField(t, querytestutil.MustMapField(t, resp, "evidence_summary"), "static_workflow_artifacts")
 	if got, want := static["unresolved_count"], float64(1); got != want {
 		t.Fatalf("static_workflow_artifacts.unresolved_count = %#v, want %#v", got, want)
 	}

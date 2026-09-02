@@ -6,6 +6,8 @@ package query
 import (
 	"encoding/json"
 	"testing"
+
+	"github.com/eshu-hq/eshu/go/internal/query/querytestutil"
 )
 
 func TestOpenAPISpecStatusPathsMatchCurrentContract(t *testing.T) {
@@ -16,18 +18,18 @@ func TestOpenAPISpecStatusPathsMatchCurrentContract(t *testing.T) {
 		t.Fatalf("json.Unmarshal(OpenAPISpec()) error = %v, want nil", err)
 	}
 
-	paths := mustMapField(t, spec, "paths")
+	paths := querytestutil.MustMapField(t, spec, "paths")
 	if _, ok := paths["/api/v0/index-status"]; !ok {
 		t.Fatal("OpenAPI paths missing /api/v0/index-status")
 	}
-	readinessPath := mustMapField(t, paths, "/api/v0/status/hosted-readiness")
-	readinessGet := mustMapField(t, readinessPath, "get")
-	readinessResponses := mustMapField(t, readinessGet, "responses")
-	readinessOK := mustMapField(t, readinessResponses, "200")
-	readinessContent := mustMapField(t, readinessOK, "content")
-	readinessJSON := mustMapField(t, readinessContent, "application/json")
-	readinessSchema := mustMapField(t, readinessJSON, "schema")
-	readinessProperties := mustMapField(t, readinessSchema, "properties")
+	readinessPath := querytestutil.MustMapField(t, paths, "/api/v0/status/hosted-readiness")
+	readinessGet := querytestutil.MustMapField(t, readinessPath, "get")
+	readinessResponses := querytestutil.MustMapField(t, readinessGet, "responses")
+	readinessOK := querytestutil.MustMapField(t, readinessResponses, "200")
+	readinessContent := querytestutil.MustMapField(t, readinessOK, "content")
+	readinessJSON := querytestutil.MustMapField(t, readinessContent, "application/json")
+	readinessSchema := querytestutil.MustMapField(t, readinessJSON, "schema")
+	readinessProperties := querytestutil.MustMapField(t, readinessSchema, "properties")
 	for _, want := range []string{
 		"state",
 		"ready",
@@ -43,17 +45,17 @@ func TestOpenAPISpecStatusPathsMatchCurrentContract(t *testing.T) {
 	if _, ok := paths["/api/v0/collector-readiness"]; !ok {
 		t.Fatal("OpenAPI paths missing /api/v0/collector-readiness alias")
 	}
-	collectorReadinessPath := mustMapField(t, paths, "/api/v0/status/collector-readiness")
-	collectorReadinessGet := mustMapField(t, collectorReadinessPath, "get")
-	collectorReadinessResponses := mustMapField(t, collectorReadinessGet, "responses")
-	collectorReadinessOK := mustMapField(t, collectorReadinessResponses, "200")
-	collectorReadinessContent := mustMapField(t, collectorReadinessOK, "content")
-	collectorReadinessJSON := mustMapField(t, collectorReadinessContent, "application/json")
-	collectorReadinessSchema := mustMapField(t, collectorReadinessJSON, "schema")
-	collectorReadinessProperties := mustMapField(t, collectorReadinessSchema, "properties")
-	readinessItems := mustMapField(t, collectorReadinessProperties, "readiness")
-	readinessItemSchema := mustMapField(t, readinessItems, "items")
-	readinessItemProperties := mustMapField(t, readinessItemSchema, "properties")
+	collectorReadinessPath := querytestutil.MustMapField(t, paths, "/api/v0/status/collector-readiness")
+	collectorReadinessGet := querytestutil.MustMapField(t, collectorReadinessPath, "get")
+	collectorReadinessResponses := querytestutil.MustMapField(t, collectorReadinessGet, "responses")
+	collectorReadinessOK := querytestutil.MustMapField(t, collectorReadinessResponses, "200")
+	collectorReadinessContent := querytestutil.MustMapField(t, collectorReadinessOK, "content")
+	collectorReadinessJSON := querytestutil.MustMapField(t, collectorReadinessContent, "application/json")
+	collectorReadinessSchema := querytestutil.MustMapField(t, collectorReadinessJSON, "schema")
+	collectorReadinessProperties := querytestutil.MustMapField(t, collectorReadinessSchema, "properties")
+	readinessItems := querytestutil.MustMapField(t, collectorReadinessProperties, "readiness")
+	readinessItemSchema := querytestutil.MustMapField(t, readinessItems, "items")
+	readinessItemProperties := querytestutil.MustMapField(t, readinessItemSchema, "properties")
 	for _, want := range []string{
 		"collector_kind",
 		"promotion_state",
@@ -65,14 +67,14 @@ func TestOpenAPISpecStatusPathsMatchCurrentContract(t *testing.T) {
 		}
 	}
 
-	operatorPath := mustMapField(t, paths, "/api/v0/status/operator-control-plane")
-	operatorGet := mustMapField(t, operatorPath, "get")
-	operatorResponses := mustMapField(t, operatorGet, "responses")
-	operatorOK := mustMapField(t, operatorResponses, "200")
-	operatorContent := mustMapField(t, operatorOK, "content")
-	operatorJSON := mustMapField(t, operatorContent, "application/json")
-	operatorSchema := mustMapField(t, operatorJSON, "schema")
-	operatorProperties := mustMapField(t, operatorSchema, "properties")
+	operatorPath := querytestutil.MustMapField(t, paths, "/api/v0/status/operator-control-plane")
+	operatorGet := querytestutil.MustMapField(t, operatorPath, "get")
+	operatorResponses := querytestutil.MustMapField(t, operatorGet, "responses")
+	operatorOK := querytestutil.MustMapField(t, operatorResponses, "200")
+	operatorContent := querytestutil.MustMapField(t, operatorOK, "content")
+	operatorJSON := querytestutil.MustMapField(t, operatorContent, "application/json")
+	operatorSchema := querytestutil.MustMapField(t, operatorJSON, "schema")
+	operatorProperties := querytestutil.MustMapField(t, operatorSchema, "properties")
 	for _, want := range []string{
 		"queue",
 		"reducer_domains",
@@ -86,28 +88,28 @@ func TestOpenAPISpecStatusPathsMatchCurrentContract(t *testing.T) {
 		}
 	}
 
-	freshnessPath := mustMapField(t, paths, "/api/v0/status/freshness-causality")
-	freshnessGet := mustMapField(t, freshnessPath, "get")
-	freshnessResponses := mustMapField(t, freshnessGet, "responses")
-	freshnessOK := mustMapField(t, freshnessResponses, "200")
-	freshnessContent := mustMapField(t, freshnessOK, "content")
-	freshnessJSON := mustMapField(t, freshnessContent, "application/json")
-	freshnessSchema := mustMapField(t, freshnessJSON, "schema")
-	freshnessProperties := mustMapField(t, freshnessSchema, "properties")
+	freshnessPath := querytestutil.MustMapField(t, paths, "/api/v0/status/freshness-causality")
+	freshnessGet := querytestutil.MustMapField(t, freshnessPath, "get")
+	freshnessResponses := querytestutil.MustMapField(t, freshnessGet, "responses")
+	freshnessOK := querytestutil.MustMapField(t, freshnessResponses, "200")
+	freshnessContent := querytestutil.MustMapField(t, freshnessOK, "content")
+	freshnessJSON := querytestutil.MustMapField(t, freshnessContent, "application/json")
+	freshnessSchema := querytestutil.MustMapField(t, freshnessJSON, "schema")
+	freshnessProperties := querytestutil.MustMapField(t, freshnessSchema, "properties")
 	for _, want := range []string{"state", "causes", "generations", "pending_projection", "recent_transitions", "scoped"} {
 		if _, ok := freshnessProperties[want]; !ok {
 			t.Fatalf("/api/v0/status/freshness-causality response schema missing %q", want)
 		}
 	}
 
-	semanticPath := mustMapField(t, paths, "/api/v0/status/semantic-extraction")
-	semanticGet := mustMapField(t, semanticPath, "get")
-	semanticResponses := mustMapField(t, semanticGet, "responses")
-	semanticOK := mustMapField(t, semanticResponses, "200")
-	semanticContent := mustMapField(t, semanticOK, "content")
-	semanticJSON := mustMapField(t, semanticContent, "application/json")
-	semanticSchema := mustMapField(t, semanticJSON, "schema")
-	semanticProperties := mustMapField(t, semanticSchema, "properties")
+	semanticPath := querytestutil.MustMapField(t, paths, "/api/v0/status/semantic-extraction")
+	semanticGet := querytestutil.MustMapField(t, semanticPath, "get")
+	semanticResponses := querytestutil.MustMapField(t, semanticGet, "responses")
+	semanticOK := querytestutil.MustMapField(t, semanticResponses, "200")
+	semanticContent := querytestutil.MustMapField(t, semanticOK, "content")
+	semanticJSON := querytestutil.MustMapField(t, semanticContent, "application/json")
+	semanticSchema := querytestutil.MustMapField(t, semanticJSON, "schema")
+	semanticProperties := querytestutil.MustMapField(t, semanticSchema, "properties")
 	for _, want := range []string{
 		"state",
 		"reason",
@@ -123,26 +125,26 @@ func TestOpenAPISpecStatusPathsMatchCurrentContract(t *testing.T) {
 			t.Fatalf("/api/v0/status/semantic-extraction response schema missing %q", want)
 		}
 	}
-	providerProfiles := mustMapField(t, semanticProperties, "provider_profiles")
-	providerProfileItems := mustMapField(t, providerProfiles, "items")
-	providerProfileProperties := mustMapField(t, providerProfileItems, "properties")
+	providerProfiles := querytestutil.MustMapField(t, semanticProperties, "provider_profiles")
+	providerProfileItems := querytestutil.MustMapField(t, providerProfiles, "items")
+	providerProfileProperties := querytestutil.MustMapField(t, providerProfileItems, "properties")
 	if _, ok := providerProfileProperties["embedding_dimensions"]; !ok {
 		t.Fatal("semantic-extraction provider profile schema missing embedding_dimensions")
 	}
-	sourceClasses := mustMapField(t, providerProfileProperties, "source_classes")
-	sourceClassItems := mustMapField(t, sourceClasses, "items")
+	sourceClasses := querytestutil.MustMapField(t, providerProfileProperties, "source_classes")
+	sourceClassItems := querytestutil.MustMapField(t, sourceClasses, "items")
 	sourceClassEnums := mustStringSliceField(t, sourceClassItems, "enum")
 	if !containsString(sourceClassEnums, "search_documents") {
 		t.Fatalf("semantic-extraction source_classes enum = %#v, want search_documents", sourceClassEnums)
 	}
-	answerNarrationPath := mustMapField(t, paths, "/api/v0/status/answer-narration")
-	answerNarrationGet := mustMapField(t, answerNarrationPath, "get")
-	answerNarrationResponses := mustMapField(t, answerNarrationGet, "responses")
-	answerNarrationOK := mustMapField(t, answerNarrationResponses, "200")
-	answerNarrationContent := mustMapField(t, answerNarrationOK, "content")
-	answerNarrationJSON := mustMapField(t, answerNarrationContent, "application/json")
-	answerNarrationSchema := mustMapField(t, answerNarrationJSON, "schema")
-	answerNarrationProperties := mustMapField(t, answerNarrationSchema, "properties")
+	answerNarrationPath := querytestutil.MustMapField(t, paths, "/api/v0/status/answer-narration")
+	answerNarrationGet := querytestutil.MustMapField(t, answerNarrationPath, "get")
+	answerNarrationResponses := querytestutil.MustMapField(t, answerNarrationGet, "responses")
+	answerNarrationOK := querytestutil.MustMapField(t, answerNarrationResponses, "200")
+	answerNarrationContent := querytestutil.MustMapField(t, answerNarrationOK, "content")
+	answerNarrationJSON := querytestutil.MustMapField(t, answerNarrationContent, "application/json")
+	answerNarrationSchema := querytestutil.MustMapField(t, answerNarrationJSON, "schema")
+	answerNarrationProperties := querytestutil.MustMapField(t, answerNarrationSchema, "properties")
 	for _, want := range []string{
 		"state",
 		"reason",
@@ -157,14 +159,14 @@ func TestOpenAPISpecStatusPathsMatchCurrentContract(t *testing.T) {
 			t.Fatalf("/api/v0/status/answer-narration response schema missing %q", want)
 		}
 	}
-	governancePath := mustMapField(t, paths, "/api/v0/status/governance")
-	governanceGet := mustMapField(t, governancePath, "get")
-	governanceResponses := mustMapField(t, governanceGet, "responses")
-	governanceOK := mustMapField(t, governanceResponses, "200")
-	governanceContent := mustMapField(t, governanceOK, "content")
-	governanceJSON := mustMapField(t, governanceContent, "application/json")
-	governanceSchema := mustMapField(t, governanceJSON, "schema")
-	governanceProperties := mustMapField(t, governanceSchema, "properties")
+	governancePath := querytestutil.MustMapField(t, paths, "/api/v0/status/governance")
+	governanceGet := querytestutil.MustMapField(t, governancePath, "get")
+	governanceResponses := querytestutil.MustMapField(t, governanceGet, "responses")
+	governanceOK := querytestutil.MustMapField(t, governanceResponses, "200")
+	governanceContent := querytestutil.MustMapField(t, governanceOK, "content")
+	governanceJSON := querytestutil.MustMapField(t, governanceContent, "application/json")
+	governanceSchema := querytestutil.MustMapField(t, governanceJSON, "schema")
+	governanceProperties := querytestutil.MustMapField(t, governanceSchema, "properties")
 	for _, want := range []string{
 		"mode",
 		"state",
@@ -191,22 +193,22 @@ func TestOpenAPISpecStatusPathsMatchCurrentContract(t *testing.T) {
 	if _, ok := paths["/api/v0/ingesters/{ingester}"]; !ok {
 		t.Fatal("OpenAPI paths missing /api/v0/ingesters/{ingester}")
 	}
-	collectorsPath := mustMapField(t, paths, "/api/v0/status/collectors")
-	collectorsGet := mustMapField(t, collectorsPath, "get")
-	collectorsResponses := mustMapField(t, collectorsGet, "responses")
-	collectorsOK := mustMapField(t, collectorsResponses, "200")
-	collectorsContent := mustMapField(t, collectorsOK, "content")
-	collectorsJSON := mustMapField(t, collectorsContent, "application/json")
-	collectorsSchema := mustMapField(t, collectorsJSON, "schema")
-	collectorsProperties := mustMapField(t, collectorsSchema, "properties")
+	collectorsPath := querytestutil.MustMapField(t, paths, "/api/v0/status/collectors")
+	collectorsGet := querytestutil.MustMapField(t, collectorsPath, "get")
+	collectorsResponses := querytestutil.MustMapField(t, collectorsGet, "responses")
+	collectorsOK := querytestutil.MustMapField(t, collectorsResponses, "200")
+	collectorsContent := querytestutil.MustMapField(t, collectorsOK, "content")
+	collectorsJSON := querytestutil.MustMapField(t, collectorsContent, "application/json")
+	collectorsSchema := querytestutil.MustMapField(t, collectorsJSON, "schema")
+	collectorsProperties := querytestutil.MustMapField(t, collectorsSchema, "properties")
 	for _, want := range []string{"version", "updated_at", "collectors", "count", "classification_basis"} {
 		if _, ok := collectorsProperties[want]; !ok {
 			t.Fatalf("/api/v0/status/collectors response schema missing %q", want)
 		}
 	}
-	collectorsList := mustMapField(t, collectorsProperties, "collectors")
-	collectorItems := mustMapField(t, collectorsList, "items")
-	collectorItemProperties := mustMapField(t, collectorItems, "properties")
+	collectorsList := querytestutil.MustMapField(t, collectorsProperties, "collectors")
+	collectorItems := querytestutil.MustMapField(t, collectorsList, "items")
+	collectorItemProperties := querytestutil.MustMapField(t, collectorItems, "properties")
 	if _, ok := collectorItemProperties["observation_count"]; !ok {
 		t.Fatal("/api/v0/status/collectors collector item schema missing observation_count")
 	}

@@ -6,6 +6,8 @@ package query
 import (
 	"encoding/json"
 	"testing"
+
+	"github.com/eshu-hq/eshu/go/internal/query/querytestutil"
 )
 
 func TestOpenAPISpecContentSearchDocumentsDeferredIndexUnavailable(t *testing.T) {
@@ -15,7 +17,7 @@ func TestOpenAPISpecContentSearchDocumentsDeferredIndexUnavailable(t *testing.T)
 	if err := json.Unmarshal([]byte(OpenAPISpec()), &spec); err != nil {
 		t.Fatalf("json.Unmarshal(OpenAPISpec()) error = %v, want nil", err)
 	}
-	paths := mustMapField(t, spec, "paths")
+	paths := querytestutil.MustMapField(t, spec, "paths")
 	for _, endpoint := range []struct {
 		route  string
 		method string
@@ -32,9 +34,9 @@ func TestOpenAPISpecContentSearchDocumentsDeferredIndexUnavailable(t *testing.T)
 		{route: "/api/v0/services/{service_name}/story", method: "get"},
 		{route: "/api/v0/investigations/services/{service_name}", method: "get"},
 	} {
-		searchPath := mustMapField(t, paths, endpoint.route)
-		operation := mustMapField(t, searchPath, endpoint.method)
-		responses := mustMapField(t, operation, "responses")
+		searchPath := querytestutil.MustMapField(t, paths, endpoint.route)
+		operation := querytestutil.MustMapField(t, searchPath, endpoint.method)
+		responses := querytestutil.MustMapField(t, operation, "responses")
 		if _, ok := responses["503"]; !ok {
 			t.Fatalf("%s responses missing deferred-index 503", endpoint.route)
 		}

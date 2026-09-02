@@ -6,6 +6,8 @@ package query
 import (
 	"encoding/json"
 	"testing"
+
+	"github.com/eshu-hq/eshu/go/internal/query/querytestutil"
 )
 
 // TestOpenAPISpecDocumentsEvidenceBoundariesOnBoundaryRoutes proves the
@@ -33,12 +35,12 @@ func TestOpenAPISpecDocumentsEvidenceBoundariesOnBoundaryRoutes(t *testing.T) {
 		t.Run(tc.path, func(t *testing.T) {
 			t.Parallel()
 			properties := openAPIResponseProperties(t, spec, tc.path, tc.method)
-			boundaries := mustMapField(t, properties, "evidence_boundaries")
+			boundaries := querytestutil.MustMapField(t, properties, "evidence_boundaries")
 			if got, want := boundaries["type"], "array"; got != want {
 				t.Fatalf("evidence_boundaries type = %#v, want %#v", got, want)
 			}
-			items := mustMapField(t, boundaries, "items")
-			itemProperties := mustMapField(t, items, "properties")
+			items := querytestutil.MustMapField(t, boundaries, "items")
+			itemProperties := querytestutil.MustMapField(t, items, "properties")
 			for _, field := range []string{"domain", "read_surface", "reason"} {
 				if _, ok := itemProperties[field]; !ok {
 					t.Fatalf("%s evidence_boundaries[].%s missing from schema", tc.path, field)
