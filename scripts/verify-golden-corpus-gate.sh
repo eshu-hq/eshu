@@ -160,7 +160,8 @@ bg_pids=()
 
 log() { printf '\n=== %s ===\n' "$*"; }
 die() { printf 'verify-golden-corpus-gate: %s\n' "$*" >&2; exit 1; }
-
+# shellcheck source=scripts/lib/golden-corpus-gate-integrity.sh
+. "${repo_root}/scripts/lib/golden-corpus-gate-integrity.sh"; golden_corpus_require_gate_tools die "${use_compose}"
 . "${repo_root}/scripts/lib/live-gate-lock.sh"
 acquire_live_gate_lock
 
@@ -239,6 +240,7 @@ log "stage minimal corpus (${#corpus_fixtures[@]} repos)"
 # shellcheck source=scripts/lib/golden-corpus-stage.sh
 . "${repo_root}/scripts/lib/golden-corpus-stage.sh"
 stage_minimal_corpus
+golden_corpus_assert_pinned_fixtures "${corpus_dir}" die
 
 log "build host binaries"
 build_bin bootstrap-index

@@ -32,6 +32,24 @@ golden_changed_since_require_count() {
 	[[ "${value}" =~ ^[0-9]+$ ]] || die "${context} must be one non-negative integer, got: ${value:-<empty>}"
 }
 
+# golden_changed_since_count_marker prints how many lines of file match
+# marker via `rg -Fxc` and dies (via die) on any rg failure OTHER than rg's
+# own genuine "no match" exit code (1) -- notably exit 127 ("command not
+# found" when rg is missing from PATH). Before this, `rg -Fxc ... || true`
+# folded EVERY rg failure into an empty/zero count indistinguishably from a
+# real zero match, so a missing rg silently produced a misleading
+# "(old=0, new=0)" precondition failure instead of naming the actual missing
+# tool (#6401).
+golden_changed_since_count_marker() {
+	local marker="$1" file="$2" count status
+	count="$(rg -Fxc -- "${marker}" "${file}")" && status=0 || status=$?
+	case "${status}" in
+		0) printf '%s\n' "${count}" ;;
+		1) printf '0\n' ;;
+		*) die "changed-since marker count failed (rg exited ${status} on ${file}); rg is a required tool -- confirm it is installed and on PATH" ;;
+	esac
+}
+
 golden_changed_since_capture_prior() {
 	local generation
 	generation="$(pg "
@@ -47,10 +65,10 @@ golden_changed_since_mutate_fixture() {
 	local fixture_path="${corpus_dir}/supply-chain-demo-db/config/freshness.cfg"
 	local old_count new_count temporary
 	[[ -f "${fixture_path}" ]] || die "repository changed-since fixture is missing"
-	old_count="$(rg -Fxc "${golden_changed_since_old_marker}" "${fixture_path}" || true)"
-	new_count="$(rg -Fxc "${golden_changed_since_new_marker}" "${fixture_path}" || true)"
-	[[ "${old_count:-0}" == "1" && "${new_count:-0}" == "0" ]] ||
-		die "repository changed-since marker precondition failed (old=${old_count:-0}, new=${new_count:-0})"
+	old_count="$(golden_changed_since_count_marker "${golden_changed_since_old_marker}" "${fixture_path}")"
+	new_count="$(golden_changed_since_count_marker "${golden_changed_since_new_marker}" "${fixture_path}")"
+	[[ "${old_count}" == "1" && "${new_count}" == "0" ]] ||
+		die "repository changed-since marker precondition failed (old=${old_count}, new=${new_count})"
 	temporary="$(mktemp "${fixture_path}.tmp.XXXXXX")" || die "failed to create fixture temporary file"
 	sed "s|^${golden_changed_since_old_marker}$|${golden_changed_since_new_marker}|" \
 		"${fixture_path}" >"${temporary}" || {
@@ -58,7 +76,7 @@ golden_changed_since_mutate_fixture() {
 		die "failed to rewrite staged freshness fixture"
 	}
 	mv "${temporary}" "${fixture_path}" || die "failed to install staged freshness fixture"
-	[[ "$(rg -Fxc "${golden_changed_since_new_marker}" "${fixture_path}" || true)" == "1" ]] ||
+	[[ "$(golden_changed_since_count_marker "${golden_changed_since_new_marker}" "${fixture_path}")" == "1" ]] ||
 		die "repository changed-since fixture mutation did not land exactly once"
 }
 
