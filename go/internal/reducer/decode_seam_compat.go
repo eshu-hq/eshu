@@ -31,11 +31,7 @@ var (
 	decodeAzureCloudResource                   = schemadecode.DecodeAzureCloudResource
 	decodeAzureImageReference                  = schemadecode.DecodeAzureImageReference
 	decodeCICDArtifact                         = schemadecode.DecodeCICDArtifact
-	decodeCICDDeploymentEvent                  = schemadecode.DecodeCICDDeploymentEvent
-	decodeCICDEnvironmentObservation           = schemadecode.DecodeCICDEnvironmentObservation
 	decodeCICDRun                              = schemadecode.DecodeCICDRun
-	decodeCICDStep                             = schemadecode.DecodeCICDStep
-	decodeCICDTriggerEdge                      = schemadecode.DecodeCICDTriggerEdge
 	decodeCICDWorkflowImageEvidence            = schemadecode.DecodeCICDWorkflowImageEvidence
 	decodeCodeFunctionSource                   = schemadecode.DecodeCodeFunctionSource
 	decodeCodeFunctionSummary                  = schemadecode.DecodeCodeFunctionSummary

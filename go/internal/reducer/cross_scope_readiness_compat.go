@@ -97,12 +97,6 @@ func crossScopeUnreadyProducers(
 	return crossscope.UnreadyProducers(signal, resolvedByProducer)
 }
 
-// singleProducerResolvedCounts forwards to
-// [crossscope.SingleProducerResolvedCounts].
-func singleProducerResolvedCounts(producers []Domain, resolved int) map[Domain]int {
-	return crossscope.SingleProducerResolvedCounts(producers, resolved)
-}
-
 // logCrossScopeProducerNotReadyDefer forwards to
 // [crossscope.LogProducerNotReadyDefer].
 func logCrossScopeProducerNotReadyDefer(

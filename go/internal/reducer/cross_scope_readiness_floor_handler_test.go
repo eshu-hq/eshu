@@ -59,6 +59,90 @@ func (r *fixedCrossScopeReadiness) CrossScopeProducersReady(
 	return readiness, nil
 }
 
+// testCICDDigest anchors the container-image identity most of this file's
+// fixtures resolve to. It mirrors the equivalent constant in the
+// ci_cd_run_correlation family's own test suite
+// (go/internal/reducer/cicdrun/ci_cd_run_correlation_test.go): the two cannot
+// share one package-private fixture across the root/cicdrun seam (issue
+// #6061), so each keeps its own copy of the trivial fixtures below.
+const testCICDDigest = "sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc"
+
+// stubCICDRunCorrelationFactLoader implements the base FactLoader, the by-kind
+// load, and the cross-scope active-identity load CICDRunCorrelationHandler.Handle
+// needs, so this file can drive Handle end to end without a real store.
+type stubCICDRunCorrelationFactLoader struct {
+	scopeFacts []facts.Envelope
+	active     []facts.Envelope
+	activeCall int
+	// onActiveLoad runs inside the cross-scope load, so a test can simulate a
+	// producer scope activating DURING that load -- the race the #5709 P1-3
+	// pre-load readiness sample exists to lose safely.
+	onActiveLoad func()
+}
+
+func (s *stubCICDRunCorrelationFactLoader) ListFacts(
+	context.Context,
+	string,
+	string,
+) ([]facts.Envelope, error) {
+	return append([]facts.Envelope(nil), s.scopeFacts...), nil
+}
+
+func (s *stubCICDRunCorrelationFactLoader) ListFactsByKind(
+	context.Context,
+	string,
+	string,
+	[]string,
+) ([]facts.Envelope, error) {
+	return append([]facts.Envelope(nil), s.scopeFacts...), nil
+}
+
+func (s *stubCICDRunCorrelationFactLoader) ListActiveCICDRunCorrelationFacts(
+	context.Context,
+	[]string,
+	[]string,
+) ([]facts.Envelope, error) {
+	s.activeCall++
+	if s.onActiveLoad != nil {
+		s.onActiveLoad()
+	}
+	return append([]facts.Envelope(nil), s.active...), nil
+}
+
+// recordingCICDRunCorrelationWriter records the last WriteCICDRunCorrelations
+// call and how many times it was called, so a test can assert a deferral wrote
+// nothing durable.
+type recordingCICDRunCorrelationWriter struct {
+	write CICDRunCorrelationWrite
+	calls int
+}
+
+func (w *recordingCICDRunCorrelationWriter) WriteCICDRunCorrelations(
+	_ context.Context,
+	write CICDRunCorrelationWrite,
+) (CICDRunCorrelationWriteResult, error) {
+	w.calls++
+	w.write = write
+	canonicalWrites := 0
+	for _, decision := range write.Decisions {
+		canonicalWrites += decision.CanonicalWrites
+	}
+	return CICDRunCorrelationWriteResult{
+		CanonicalWrites: canonicalWrites,
+		FactsWritten:    len(write.Decisions),
+	}, nil
+}
+
+// cicdDecisionsByRun keys a batch of decisions by provider:run_id:run_attempt,
+// so a test asserting on one run's outcome does not depend on batch order.
+func cicdDecisionsByRun(decisions []CICDRunCorrelationDecision) map[string]CICDRunCorrelationDecision {
+	out := make(map[string]CICDRunCorrelationDecision, len(decisions))
+	for _, decision := range decisions {
+		out[decision.Provider+":"+decision.RunID+":"+decision.RunAttempt] = decision
+	}
+	return out
+}
+
 // scopeOnlyCICDRunFactLoader implements the base FactLoader and the by-kind
 // load the handler needs, but NOT activeCICDRunCorrelationFactLoader. It stands
 // in for a deployment or an alternative adapter with no cross-scope identity

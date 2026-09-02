@@ -53,7 +53,7 @@ func TestProvenanceEdgeCounterRecordsSubmittedRowsAfterSuccessfulWrites(t *testi
 		ProvenanceEdgeWriter: workflowWriter,
 		Instruments:          instruments,
 	}
-	if err := workflowHandler.projectCICDWorkflowImageBuiltFromEdges(
+	if err := workflowHandler.ProjectCICDWorkflowImageBuiltFromEdges(
 		context.Background(),
 		intent,
 		[]CICDRunCorrelationDecision{{
@@ -65,7 +65,7 @@ func TestProvenanceEdgeCounterRecordsSubmittedRowsAfterSuccessfulWrites(t *testi
 			CorrelationKind: "workflow_image",
 		}},
 	); err != nil {
-		t.Fatalf("projectCICDWorkflowImageBuiltFromEdges() error = %v", err)
+		t.Fatalf("ProjectCICDWorkflowImageBuiltFromEdges() error = %v", err)
 	}
 
 	derivedFromWriter := &recordingContainerImageDerivedFromEdgeWriter{}
@@ -153,7 +153,7 @@ func TestProvenanceEdgeCounterSkipsUnacceptedRows(t *testing.T) {
 			run: func(instruments *telemetry.Instruments) error {
 				writer := &recordingContainerImageProvenanceEdgeWriter{writeErr: errors.New("write failed")}
 				return (CICDRunCorrelationHandler{ProvenanceEdgeWriter: writer, Instruments: instruments}).
-					projectCICDWorkflowImageBuiltFromEdges(
+					ProjectCICDWorkflowImageBuiltFromEdges(
 						context.Background(),
 						Intent{ScopeID: "scope-1", GenerationID: "generation-1"},
 						[]CICDRunCorrelationDecision{{
@@ -199,7 +199,7 @@ func TestProvenanceEdgeCounterSkipsUnacceptedRows(t *testing.T) {
 			run: func(instruments *telemetry.Instruments) error {
 				writer := &recordingContainerImageProvenanceEdgeWriter{retractErr: errors.New("retract failed")}
 				return (CICDRunCorrelationHandler{ProvenanceEdgeWriter: writer, Instruments: instruments}).
-					projectCICDWorkflowImageBuiltFromEdges(
+					ProjectCICDWorkflowImageBuiltFromEdges(
 						context.Background(),
 						Intent{ScopeID: "scope-1", GenerationID: "generation-1"},
 						nil,
@@ -223,7 +223,7 @@ func TestProvenanceEdgeCounterSkipsUnacceptedRows(t *testing.T) {
 			run: func(instruments *telemetry.Instruments) error {
 				writer := &recordingContainerImageProvenanceEdgeWriter{}
 				return (CICDRunCorrelationHandler{ProvenanceEdgeWriter: writer, Instruments: instruments}).
-					projectCICDWorkflowImageBuiltFromEdges(
+					ProjectCICDWorkflowImageBuiltFromEdges(
 						context.Background(),
 						Intent{ScopeID: "scope-1", GenerationID: "generation-1"},
 						nil,
@@ -247,7 +247,7 @@ func TestProvenanceEdgeCounterSkipsUnacceptedRows(t *testing.T) {
 		{
 			name: "unwired workflow image projection",
 			run: func(instruments *telemetry.Instruments) error {
-				return (CICDRunCorrelationHandler{Instruments: instruments}).projectCICDWorkflowImageBuiltFromEdges(
+				return (CICDRunCorrelationHandler{Instruments: instruments}).ProjectCICDWorkflowImageBuiltFromEdges(
 					context.Background(),
 					Intent{ScopeID: "scope-1", GenerationID: "generation-1"},
 					[]CICDRunCorrelationDecision{{
