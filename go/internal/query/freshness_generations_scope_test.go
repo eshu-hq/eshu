@@ -84,6 +84,9 @@ func TestGenerationLifecycleLeavesSharedKeyUnbounded(t *testing.T) {
 	w := httptest.NewRecorder()
 	mux.ServeHTTP(w, req)
 
+	if !reader.called {
+		t.Fatalf("the shared-key case must exercise the production path; the store was never called, so a false Scoped would only be the zero value (status %d, body %s)", w.Code, w.Body.String())
+	}
 	if reader.filter.Scoped {
 		t.Fatalf("a shared-key caller must not be bound by a scoped grant; filter = %+v", reader.filter)
 	}

@@ -343,10 +343,15 @@ func TestLatestQueueFailureQueryIgnoresInFlightRows(t *testing.T) {
 type fakeQueryer struct {
 	responses []fakeRows
 	queries   []string
+	// args records each call's bind arguments so a test can prove the store
+	// actually passes a value through to the query, not merely that a caller
+	// set a struct field (#5167 review).
+	args [][]any
 }
 
-func (q *fakeQueryer) QueryContext(_ context.Context, query string, _ ...any) (Rows, error) {
+func (q *fakeQueryer) QueryContext(_ context.Context, query string, args ...any) (Rows, error) {
 	q.queries = append(q.queries, query)
+	q.args = append(q.args, args)
 	if len(q.responses) == 0 {
 		if isWorkflowCoordinatorStatusQuery(query) {
 			return &fakeRows{}, nil

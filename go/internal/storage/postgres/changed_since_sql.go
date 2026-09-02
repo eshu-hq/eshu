@@ -15,6 +15,9 @@ package postgres
 //
 //	$1 scope_id     (empty bypasses)
 //	$2 repository   (empty bypasses; matches source_key for repository scopes)
+//	$3 scoped       (false bypasses the grant predicate entirely)
+//	$4 allowed repository ids (grant; matched against source_key)
+//	$5 allowed scope ids      (grant; matched against scope_id)
 const resolveChangedSinceScopeQuery = `
 	SELECT
 	    scope.scope_id,
