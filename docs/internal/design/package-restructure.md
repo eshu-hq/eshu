@@ -886,6 +886,36 @@ at root under their pre-extraction file name
 `go/internal/reducer/aws_cloud_image_materialization_test.go` cites that
 file and its retraction-safety test by name as the enqueue-side half of the
 #5450 proof, and the reducer side is out of scope for a projector move.
+The observability-coverage-correlation builder moved into
+`internal/projector/observabilitycoverage`. It triggers on any fact kind the
+`facts.ObservabilitySchemaVersion` registry recognizes except
+`observability_source.instance`, or on an `aws_resource` fact whose decoded
+`resource_type` is in the AWS-native observability closed set, anchoring with
+`FirstMatchingKindPredicate` on the earliest such fact in input order. The
+AWS branch carries a decode seam: the package decodes `aws_resource` through
+its own `factschema_decode_aws.go` (the `ec2` pattern) because sharing root's
+classified wrapper would cycle, and the sole caller discards the error, so
+the substitution is behavior-identical for the trigger check. The
+`observabilityResourceTypes` closed set is deliberately duplicated rather
+than shared: root's materialization trigger keeps its own copy for its own
+AWS branch, both already mirror the reducer's
+`observabilityResourceSignals`, and the set is now a documented three-way
+mirror rather than a new shared seam. The once-recorded `decodeAWSResource`
+pairing with the IAM instance-profile-role family dissolved instead of
+blocking the move: root's wrapper stays for its two remaining root callers
+(the observability-coverage materialization trigger via
+`awsResourceTypeForEnvelope`, and IAM instance-profile-role), and this family
+no longer touches it. Its private `observabilitySourceSystem` helper was
+checked body-for-body against `projectorintent.SourceSystem` and was not
+identical: it carries a literal third fallback to `observability` where the
+shared helper returns an empty string, so it moved with the family unchanged,
+the `secretsiam` way, and a child test pins the third tier against the
+substitution. The root `firstMatchingKindPredicate` forwarder was removed —
+this family was its last root caller — and its per-distinct-kind evaluation
+proof relocated to `intent/fact_lookup_test.go` against the seam directly.
+The unsupported-schema-version regression test stays at root in
+`schema_version_admission_test.go` because it asserts root's
+`validateFactSchemaVersion`, not the builder.
 Coordinator `_scheduler.go` halves extract cleanly
 (they implement a root Planner interface); the `_service.go` halves are
 methods on the shared `Service` struct and stay until Service is

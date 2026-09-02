@@ -98,6 +98,45 @@ func TestProjectEnforcesCentralSchemaVersionForPreviouslyUngatedFamily(t *testin
 	}
 }
 
+// TestBuildProjectionRejectsUnsupportedObservabilitySchemaVersion pins the
+// root schema-version gate for the observability family: an unsupported
+// observability source-fact schema_version fails projection before the
+// observabilitycoverage builder ever sees the generation. It lives at root
+// because validateFactSchemaVersion is root behavior, not the child
+// builder's. Relocated from the pre-extraction
+// observability_coverage_correlation_intents_test.go.
+func TestBuildProjectionRejectsUnsupportedObservabilitySchemaVersion(t *testing.T) {
+	t.Parallel()
+
+	scopeValue := scope.IngestionScope{
+		ScopeID:      "aws:123456789012:us-east-1:lambda",
+		ScopeKind:    scope.ScopeKind("aws_cloud"),
+		SourceSystem: "aws",
+	}
+	generation := scope.ScopeGeneration{
+		ScopeID:      scopeValue.ScopeID,
+		GenerationID: "aws-generation-1",
+	}
+	_, err := buildProjection(scopeValue, generation, []facts.Envelope{
+		{
+			FactID:        "observability-dashboard-1",
+			ScopeID:       scopeValue.ScopeID,
+			GenerationID:  generation.GenerationID,
+			FactKind:      facts.ObservabilityDeclaredDashboardFactKind,
+			SchemaVersion: "0.0.0",
+			CollectorKind: "git",
+			Payload: map[string]any{
+				"provider":      "grafana",
+				"source_class":  "declared",
+				"dashboard_uid": "checkout-latency",
+			},
+		},
+	})
+	if err == nil {
+		t.Fatal("buildProjection() error = nil, want unsupported observability schema version")
+	}
+}
+
 // TestBuildProjectionRejectsUnsupportedSecretsIAMSchemaVersion pins the root
 // schema-version gate for the secrets/IAM posture family: an unsupported
 // k8s_service_account schema_version fails projection before the secretsiam

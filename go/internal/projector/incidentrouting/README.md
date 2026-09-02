@@ -73,7 +73,8 @@ its trigger, value, or fan-out position. The reducer intent domain, entity
 key, reason, anchor selection, and source-system derivation are identical to
 the base commit, and the dispatcher's ordered fan-out is unchanged at 44
 builder probes with this probe still running immediately after
-`buildObservabilityCoverageCorrelationReducerIntent` and immediately before
+the observability-coverage-correlation probe (now
+`observabilitycoverage.BuildObservabilityCoverageCorrelationReducerIntent`) and immediately before
 the code-taint-evidence probe (now
 `codetaintevidence.BuildCodeTaintEvidenceReducerIntent`). `incidentRoutingMaterializationSourceSystem`
 was compared body-for-body against its `projectorintent.SourceSystem`

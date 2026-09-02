@@ -240,14 +240,14 @@ projection, so sharing one read-only index across all 44 probes is
 concurrency-safe. Probes that pick their anchor fact from more than one
 candidate kind (e.g. `buildSupplyChainImpactReducerIntent`,
 `buildContainerImageIdentityReducerIntent`) use the index's
-`firstAcrossKinds`/`firstMatchingKindPredicate` helpers, which preserve the
+`firstAcrossKinds` helper or the seam's `FirstMatchingKindPredicate`, which preserve the
 exact same "earliest fact in original `inputFacts` order" anchor selection the
 old full scan made — not "earliest fact of the first-checked kind" — so anchor
 `FactID`, `Reason`, and `SourceSystem` stay byte-identical.
 Root assembly constructs one concrete `intent.FactLookup` per generation and
 retains a compatibility wrapper for unmoved family builders. The extracted
 `internal/projector/azure`, `internal/projector/ec2`, `internal/projector/gcp`,
-`internal/projector/kubernetes`, `internal/projector/rds`, `internal/projector/s3`, `internal/projector/security`, `internal/projector/workloadcloud`, `internal/projector/incidentrouting`, `internal/projector/awsrelationship`, `internal/projector/awscloudimage`, `internal/projector/iamcanassume`, `internal/projector/packagesource`, `internal/projector/cloudinventory`, `internal/projector/codetaintevidence`, `internal/projector/codeinterprocevidence`, `internal/projector/sbomattestation`, `internal/projector/servicecatalog`, and `internal/projector/secretsiam`
+`internal/projector/kubernetes`, `internal/projector/rds`, `internal/projector/s3`, `internal/projector/security`, `internal/projector/workloadcloud`, `internal/projector/incidentrouting`, `internal/projector/awsrelationship`, `internal/projector/awscloudimage`, `internal/projector/iamcanassume`, `internal/projector/packagesource`, `internal/projector/cloudinventory`, `internal/projector/codetaintevidence`, `internal/projector/codeinterprocevidence`, `internal/projector/sbomattestation`, `internal/projector/servicecatalog`, `internal/projector/secretsiam`, and `internal/projector/observabilitycoverage`
 families import that neutral lookup without importing root projector assembly;
 remaining root builders keep using the private forwarders until they move.
 `ReducerIntent` in the root package is a type alias, so existing writer and
@@ -329,7 +329,7 @@ service, runtime, image, commit, pull-request, Jira, or root-cause graph truth.
 
 Observability coverage follows the same reducer-owned boundary. When a
 generation contains an AWS observability resource or Grafana-stack source fact,
-`buildObservabilityCoverageCorrelationReducerIntent` emits one
+`observabilitycoverage.BuildObservabilityCoverageCorrelationReducerIntent` ([architecture](observabilitycoverage/README.md)) emits one
 `observability_coverage_correlation` reducer intent for the scope/generation.
 The projector validates observability schema versions and identifies the trigger
 fact only; it does not compare declared, applied, or observed source classes,
