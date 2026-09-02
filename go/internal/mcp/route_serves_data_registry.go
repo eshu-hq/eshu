@@ -75,7 +75,7 @@ var domainDataSignatures = map[string]domainDataSignature{
 	"documentation_materialization": {Markers: []string{"facts.DocumentationSourceFactKind", "facts.DocumentationDocumentFactKind"}},
 
 	// The three provider inventory domains converge into ONE reducer-owned
-	// canonical kind: projector/cloud_inventory_admission_intents.go admits
+	// canonical kind: projector/cloudinventory/admission_intents.go admits
 	// exactly {aws_resource, gcp_cloud_resource, azure_cloud_resource} and
 	// reducer/cloud_inventory_admission_writer.go persists
 	// reducer_cloud_resource_identity, which is what the /cloud/inventory
