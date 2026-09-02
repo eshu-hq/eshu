@@ -592,7 +592,6 @@ LINE docs/internal/design/package-restructure.md go/internal/payloadusage/load.g
 LINE docs/internal/design/package-restructure.md go/internal/reducer/intent.go:9
 LINE docs/internal/design/restructure-research.md go/internal/cigates/pathfilter.go:273
 LINE docs/internal/design/restructure-research.md go/internal/payloadusage/paths.go:99
-LINE docs/internal/design/restructure-research.md go/internal/reducer/cross_repo_resolution.go:4
 LINE docs/internal/evidence/4591-awscloud-extractor-registry.md go/internal/collector/awscloud/awsruntime/source.go:177
 LINE docs/internal/evidence/4591-awscloud-extractor-registry.md go/internal/collector/git_source_processing.go:217
 LINE docs/internal/evidence/5238-account-alias-rollout-gap-signal.md go/internal/query/contract.go:261
@@ -720,9 +719,6 @@ LINE docs/public/observability/telemetry-coverage.md go/internal/reducer/contain
 LINE docs/public/observability/telemetry-coverage.md go/internal/reducer/container_image_identity.go:191
 LINE docs/public/observability/telemetry-coverage.md go/internal/reducer/container_image_identity.go:212
 LINE docs/public/observability/telemetry-coverage.md go/internal/reducer/container_image_provenance_edges.go:198
-LINE docs/public/observability/telemetry-coverage.md go/internal/reducer/cross_repo_intent_row.go:15
-LINE docs/public/observability/telemetry-coverage.md go/internal/reducer/cross_repo_resolution.go:178
-LINE docs/public/observability/telemetry-coverage.md go/internal/reducer/cross_repo_resolution.go:270
 LINE docs/public/observability/telemetry-coverage.md go/internal/reducer/ec2_instance_node_materialization.go:184
 LINE docs/public/observability/telemetry-coverage.md go/internal/reducer/factdecode/quarantine_record.go:64
 LINE docs/public/observability/telemetry-coverage.md go/internal/reducer/gcp_materialization_observability.go:22
@@ -850,7 +846,6 @@ LINE docs/public/observability/telemetry-coverage.md go/internal/telemetry/loggi
 LINE docs/public/reference/collector-performance-envelope.md go/internal/collector/emit_bench_test.go:88
 LINE docs/public/reference/collector-performance-envelope.md go/internal/collector/emit_bench_test.go:88
 LINE docs/public/reference/collector-performance-envelope.md go/internal/scope/scope.go:130
-LINE docs/public/reference/edge-source-tool-provenance.md go/internal/reducer/cross_repo_evidence_type.go:12
 LINE docs/public/reference/edge-source-tool-provenance.md go/internal/reducer/deployable_unit_correlation.go:306
 LINE docs/public/reference/edge-source-tool-provenance.md go/internal/relationships/models.go:20
 LINE docs/public/reference/environment-alias-contract.md go/internal/storage/cypher/workload_cloud_relationship_writer.go:22

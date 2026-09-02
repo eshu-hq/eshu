@@ -32,7 +32,7 @@ func TestCommittedRegistrySelfTestHarnessInputsAreCovered(t *testing.T) {
 			"specs/ci-gates.v1.yaml",
 		},
 		"edge-source-tool-coverage": {
-			"go/internal/reducer/cross_repo_evidence_type.go",
+			"go/internal/reducer/crossrepo/cross_repo_evidence_type.go",
 		},
 		"scale-corpus-suite": {
 			"scripts/lib/test-verify-scale-corpus-suite-missing-pathological.yaml",

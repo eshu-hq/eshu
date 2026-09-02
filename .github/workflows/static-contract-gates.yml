@@ -94,7 +94,7 @@ jobs:
               - 'specs/ci-gates.v1.yaml'
               - 'go/internal/relationships/**'
               - 'go/internal/collector/**'
-              - 'go/internal/reducer/cross_repo_evidence_type.go'
+              - 'go/internal/reducer/crossrepo/cross_repo_evidence_type.go'
               - 'specs/surface-inventory.v1.yaml'
               - 'scripts/*verify-edge-source-tool-coverage*.sh'
             evidence:

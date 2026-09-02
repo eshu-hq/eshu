@@ -239,7 +239,7 @@ func isGitHubActionsArtifactPath(entity EntityContent) bool {
 // itself is not dropped, though: it is exposed as a normalized pin signal
 // (ref_value + ref_pinned) on the deployment-evidence artifact surface
 // instead (repository_deployment_evidence_read_model.go,
-// go/internal/reducer/cross_repo_evidence_artifacts.go), and, for the
+// go/internal/reducer/crossrepo/cross_repo_evidence_artifacts.go), and, for the
 // specific case of an unpinned third-party action, on the repository
 // workflow-artifact rollup's unpinned_action_refs
 // (repository_workflow_artifacts.go). Version truth lives on those artifact

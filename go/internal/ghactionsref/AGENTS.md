@@ -84,7 +84,7 @@
   caller defaulted a missing ref instead of omitting the field. `Parse`
   returns an empty `refValue` for that shape; the omission must happen at the
   call site (see the citation-field omission pattern in
-  `go/internal/reducer/cross_repo_evidence_artifacts.go`).
+  `go/internal/reducer/crossrepo/cross_repo_evidence_artifacts.go`).
 - Symptom: `go/internal/content/shape` materializes (or fails to purge) a
   content entity for a path `go/internal/query` would reject as a GitHub
   Actions artifact, or vice versa -- one of the two callers stopped routing

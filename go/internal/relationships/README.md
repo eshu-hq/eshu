@@ -474,7 +474,7 @@ behavior-preserving: every existing evidence `Details` key this package
 populates (`first_party_ref_path`, `first_party_ref_version`,
 `action_ref_name`, `workflow_ref_name`, ...) is unchanged.
 
-The reducer (`go/internal/reducer/cross_repo_evidence_artifacts.go`) reads
+The reducer (`go/internal/reducer/crossrepo/cross_repo_evidence_artifacts.go`) reads
 those `Details` keys and projects `ref_value`/`ref_pinned` onto the graph
 `EvidenceArtifact` node, scoped strictly to `GITHUB_ACTIONS_*` evidence kinds
 -- `first_party_ref_version` is also populated by unrelated evidence families

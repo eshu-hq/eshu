@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package reducer
+package crossrepo
 
 import (
 	"fmt"
@@ -115,8 +115,8 @@ func snapshotPath(t *testing.T) string {
 	if !ok {
 		t.Fatal("runtime.Caller failed")
 	}
-	// This file lives at <repoRoot>/go/internal/reducer/.
-	repoRoot := filepath.Join(filepath.Dir(thisFile), "..", "..", "..")
+	// This file lives at <repoRoot>/go/internal/reducer/crossrepo/.
+	repoRoot := filepath.Join(filepath.Dir(thisFile), "..", "..", "..", "..")
 	return filepath.Join(repoRoot, "testdata", "golden", "e2e-20repo-snapshot.json")
 }
 

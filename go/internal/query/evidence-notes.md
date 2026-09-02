@@ -1125,7 +1125,7 @@ Postgres preview `Details` for the read-model path -- scoped to
 `GITHUB_ACTIONS_*` evidence kinds, since `first_party_ref_version` is also
 populated by unrelated evidence families. `ref_pinned` uses
 `go/internal/ghactionsref`'s `Pinned`, the same classifier
-`go/internal/reducer/cross_repo_evidence_artifacts.go` uses on the write side,
+`go/internal/reducer/crossrepo/cross_repo_evidence_artifacts.go` uses on the write side,
 so graph node, read-model row, and reducer artifact map all agree. Both
 fields are omitted together when no ref exists (a local `./` reusable
 workflow, a Docker action): `ref_pinned` is never defaulted to `true` for a

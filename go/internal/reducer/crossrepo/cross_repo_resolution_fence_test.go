@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package reducer
+package crossrepo
 
 import (
 	"bytes"
@@ -10,6 +10,7 @@ import (
 	"log/slog"
 	"testing"
 
+	"github.com/eshu-hq/eshu/go/internal/reducer/sharedintent"
 	"github.com/eshu-hq/eshu/go/internal/relationships"
 )
 
@@ -48,20 +49,20 @@ func (p *orderRecordingPersister) ActivateResolutionGeneration(_ context.Context
 type orderRecordingIntentWriter struct {
 	seq       *int
 	upsertAt  []int
-	rows      [][]SharedProjectionIntentRow
+	rows      [][]sharedintent.Row
 	failTimes int
 	failErr   error
 	calls     int
 }
 
-func (w *orderRecordingIntentWriter) UpsertIntents(_ context.Context, rows []SharedProjectionIntentRow) error {
+func (w *orderRecordingIntentWriter) UpsertIntents(_ context.Context, rows []sharedintent.Row) error {
 	w.calls++
 	if w.calls <= w.failTimes {
 		return w.failErr
 	}
 	*w.seq++
 	w.upsertAt = append(w.upsertAt, *w.seq)
-	w.rows = append(w.rows, append([]SharedProjectionIntentRow(nil), rows...))
+	w.rows = append(w.rows, append([]sharedintent.Row(nil), rows...))
 	return nil
 }
 

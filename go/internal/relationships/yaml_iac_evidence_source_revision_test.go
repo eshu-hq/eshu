@@ -117,7 +117,7 @@ spec:
 //	    buildResolvedEdgeIntentRows, two catalog-matched sources with
 //	    different revisions -- by
 //	    TestBuildResolvedEdgeIntentRowsPerSourceRevisionForMultiSourceApplication
-//	    in go/internal/reducer/cross_repo_intent_row_argocd_multisource_test.go.
+//	    in go/internal/reducer/crossrepo/cross_repo_intent_row_argocd_multisource_test.go.
 //	    Falsified there: hoisting the revision computation out of the
 //	    per-source loop makes that test fail with the exact leak Codex
 //	    reported; reverting restores a clean diff. That is the real guard.

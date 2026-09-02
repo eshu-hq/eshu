@@ -1,13 +1,14 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package reducer
+package crossrepo
 
 import (
 	"testing"
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/reducer/sharedintent"
 	"github.com/eshu-hq/eshu/go/internal/relationships"
 )
 
@@ -17,7 +18,7 @@ import (
 // ResolvedRelationship), then buildResolvedEdgeIntentRows (the #5441
 // chokepoint). Returns rows keyed by target repo ID so a test can assert
 // each DEPLOYS_FROM edge's own source_revision independently of row order.
-func discoverArgoCDMultiSourceIntentRows(t *testing.T, content string, catalog []relationships.CatalogEntry) map[string]SharedProjectionIntentRow {
+func discoverArgoCDMultiSourceIntentRows(t *testing.T, content string, catalog []relationships.CatalogEntry) map[string]sharedintent.Row {
 	t.Helper()
 
 	envelopes := []facts.Envelope{{
@@ -34,7 +35,7 @@ func discoverArgoCDMultiSourceIntentRows(t *testing.T, content string, catalog [
 
 	rows, _ := buildResolvedEdgeIntentRows(resolved, "scope-1", "source-run-1", "gen-1", time.Now().UTC())
 
-	byTarget := make(map[string]SharedProjectionIntentRow, len(rows))
+	byTarget := make(map[string]sharedintent.Row, len(rows))
 	for _, row := range rows {
 		targetRepoID := stringValue(row.Payload["target_repo_id"])
 		byTarget[targetRepoID] = row

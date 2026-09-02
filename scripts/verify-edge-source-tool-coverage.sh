@@ -2,7 +2,7 @@
 #
 # verify-edge-source-tool-coverage.sh — fail when an EvidenceKind constant in
 # go/internal/relationships/models.go is not classified to a real source_tool
-# by the reducer's classifier (go/internal/reducer/cross_repo_evidence_type.go),
+# by the reducer's classifier (go/internal/reducer/crossrepo/cross_repo_evidence_type.go),
 # so it would silently fall to "unknown" at write time.
 #
 # This is the X2 static-analysis gate for edge source_tool provenance coverage
@@ -35,7 +35,7 @@ if [ -z "$repo_root" ]; then
 fi
 
 models_file="${ESHU_SOURCE_TOOL_MODELS_FILE:-${repo_root}/go/internal/relationships/models.go}"
-classifier_file="${ESHU_SOURCE_TOOL_CLASSIFIER_FILE:-${repo_root}/go/internal/reducer/cross_repo_evidence_type.go}"
+classifier_file="${ESHU_SOURCE_TOOL_CLASSIFIER_FILE:-${repo_root}/go/internal/reducer/crossrepo/cross_repo_evidence_type.go}"
 
 contract_doc="docs/public/reference/edge-source-tool-provenance.md"
 

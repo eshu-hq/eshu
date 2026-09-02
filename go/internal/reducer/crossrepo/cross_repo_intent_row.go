@@ -1,13 +1,16 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package reducer
+package crossrepo
 
 import (
 	"fmt"
 	"strings"
 	"time"
 
+	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
+	"github.com/eshu-hq/eshu/go/internal/reducer/payloadcore"
+	"github.com/eshu-hq/eshu/go/internal/reducer/sharedintent"
 	"github.com/eshu-hq/eshu/go/internal/relationships"
 )
 
@@ -19,8 +22,8 @@ func buildResolvedEdgeIntentRows(
 	sourceRunID string,
 	generationID string,
 	createdAt time.Time,
-) ([]SharedProjectionIntentRow, map[string]int) {
-	rows := make([]SharedProjectionIntentRow, 0, len(resolved))
+) ([]sharedintent.Row, map[string]int) {
+	rows := make([]sharedintent.Row, 0, len(resolved))
 	routeCounts := make(map[string]int)
 
 	for i, r := range resolved {
@@ -53,9 +56,9 @@ func buildResolvedEdgeIntentRow(
 	generationID string,
 	ordinal int,
 	createdAt time.Time,
-) (SharedProjectionIntentRow, string, bool) {
+) (sharedintent.Row, string, bool) {
 	if r.SourceRepoID == "" {
-		return SharedProjectionIntentRow{}, "", false
+		return sharedintent.Row{}, "", false
 	}
 
 	payload := map[string]any{
@@ -65,7 +68,7 @@ func buildResolvedEdgeIntentRow(
 		"generation_id":     generationID,
 		"confidence":        r.Confidence,
 		"evidence_count":    r.EvidenceCount,
-		"evidence_kinds":    toStringSlice(r.Details["evidence_kinds"]),
+		"evidence_kinds":    payloadcore.ToStringSlice(r.Details["evidence_kinds"]),
 		"rationale":         r.Rationale,
 		"resolution_source": string(r.ResolutionSource),
 	}
@@ -108,29 +111,29 @@ func buildResolvedEdgeIntentRow(
 	switch r.RelationshipType {
 	case relationships.RelRunsOn:
 		if r.TargetEntityID == "" {
-			return SharedProjectionIntentRow{}, "", false
+			return sharedintent.Row{}, "", false
 		}
 		payload["platform_id"] = r.TargetEntityID
 		payload["relationship_type"] = string(r.RelationshipType)
 		partitionKey = fmt.Sprintf("runs_on:%s->%s", r.SourceRepoID, r.TargetEntityID)
 	case relationships.RelDeploysFrom, relationships.RelDiscoversConfigIn, relationships.RelProvisionsDependencyFor:
 		if r.TargetRepoID == "" {
-			return SharedProjectionIntentRow{}, "", false
+			return sharedintent.Row{}, "", false
 		}
 		payload["target_repo_id"] = r.TargetRepoID
 		payload["relationship_type"] = string(r.RelationshipType)
 		partitionKey = fmt.Sprintf("repo:%s->%s|%s", r.SourceRepoID, r.TargetRepoID, r.RelationshipType)
 	default:
 		if r.TargetRepoID == "" {
-			return SharedProjectionIntentRow{}, "", false
+			return sharedintent.Row{}, "", false
 		}
 		payload["target_repo_id"] = r.TargetRepoID
 		payload["relationship_type"] = string(r.RelationshipType)
 		partitionKey = fmt.Sprintf("repo:%s->%s|%s", r.SourceRepoID, r.TargetRepoID, r.RelationshipType)
 	}
 
-	return BuildSharedProjectionIntent(SharedProjectionIntentInput{
-		ProjectionDomain: DomainRepoDependency,
+	return sharedintent.Build(sharedintent.Input{
+		ProjectionDomain: reducercontract.DomainRepoDependency,
 		PartitionKey:     partitionKey,
 		ScopeID:          scopeID,
 		AcceptanceUnitID: r.SourceRepoID,
@@ -163,6 +166,6 @@ func ExtractRepoDependencyIntentRows(
 	sourceRunID string,
 	generationID string,
 	createdAt time.Time,
-) ([]SharedProjectionIntentRow, map[string]int) {
+) ([]sharedintent.Row, map[string]int) {
 	return buildResolvedEdgeIntentRows(resolved, scopeID, sourceRunID, generationID, createdAt)
 }

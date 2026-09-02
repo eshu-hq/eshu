@@ -279,7 +279,7 @@ ifa_deployable_unit_live_assert_empty_before_maintenance() {
 # reducer log from the POST-maintenance drain and confirms
 # CrossRepoRelationshipHandler.Resolve actually ran the readiness-gated
 # branch open, rather than inferring it from a downstream edge count alone.
-# The two source log lines (go/internal/reducer/cross_repo_resolution.go)
+# The two source log lines (go/internal/reducer/crossrepo/cross_repo_resolution.go)
 # are "cross-repo relationship resolution started" (always logged on entry)
 # and "cross-repo resolution gated" (logged only when the readiness check
 # fails and the handler returns early without resolving anything). Before

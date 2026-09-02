@@ -1,12 +1,13 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package reducer
+package crossrepo
 
 import (
 	"context"
 	"testing"
 
+	"github.com/eshu-hq/eshu/go/internal/reducer/sharedintent"
 	"github.com/eshu-hq/eshu/go/internal/relationships"
 )
 
@@ -99,7 +100,7 @@ func TestCrossRepoResolutionPreservesTypedRelationshipFamilies(t *testing.T) {
 		}
 	}
 
-	var runsOnRow SharedProjectionIntentRow
+	var runsOnRow sharedintent.Row
 	for _, row := range rows {
 		if stringValue(row.Payload["relationship_type"]) == string(relationships.RelRunsOn) {
 			runsOnRow = row

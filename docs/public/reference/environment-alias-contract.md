@@ -106,7 +106,7 @@ not invent environment truth.
 | `canonicalEnvironmentName` (query/compare_evidence.go) | Inline alias loop | `environment.Canonical()` | Output-preserving |
 | `environmentAliases` (query/service_hostname_evidence.go) | Package-level var | `environment.Aliases()` | Output-preserving |
 | `canonicalEnvironmentAlias` (query/service_contract_helpers.go) | Calls `detectEnvironmentAliases` | Same logic, shared data | Output-preserving |
-| `isKnownEnvironmentToken` (reducer/cross_repo_evidence_artifacts.go) | Inline switch | `environment.IsKnownToken()` | Output-preserving |
+| `isKnownEnvironmentToken` (reducer/crossrepo/cross_repo_evidence_artifacts.go) | Inline switch | `environment.IsKnownToken()` | Output-preserving |
 | `isDeploymentEnvironmentToken` (query/repository_deployment_evidence_read_model.go) | Inline switch | `environment.IsKnownToken()` | Output-preserving |
 | `namespaceEnvironmentFallback` (reducer/projection_helpers.go) | Original-case return | `environment.Canonical()` return | Expected-delta: canonical case |
 | `ExtractOverlayEnvironments` (reducer/projection.go) | Raw capture | `environment.Canonical(captured)` | Expected-delta: alias→canonical |

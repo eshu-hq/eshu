@@ -545,14 +545,14 @@ gates:
     triggers:
       - "go/internal/relationships/**"
       - "go/internal/collector/**"
-      - "go/internal/reducer/cross_repo_evidence_type.go"
+      - "go/internal/reducer/crossrepo/cross_repo_evidence_type.go"
       - "specs/surface-inventory.v1.yaml"
       - "scripts/test-verify-edge-source-tool-coverage.sh"
       - "scripts/verify-edge-source-tool-coverage.sh"
     self_test_triggers:
       - "scripts/test-verify-edge-source-tool-coverage.sh"
       - "scripts/verify-edge-source-tool-coverage.sh"
-      - "go/internal/reducer/cross_repo_evidence_type.go"
+      - "go/internal/reducer/crossrepo/cross_repo_evidence_type.go"
     local:
       command: "bash scripts/verify-edge-source-tool-coverage.sh"
       test_command: "bash scripts/test-verify-edge-source-tool-coverage.sh"

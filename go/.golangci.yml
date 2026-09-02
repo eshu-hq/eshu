@@ -472,7 +472,7 @@ linters:
       - path: 'internal/reducer/code_call_projection_selection\.go'
         linters:
           - funlen
-      - path: 'internal/reducer/cross_repo_resolution\.go'
+      - path: 'internal/reducer/crossrepo/cross_repo_resolution\.go'
         linters:
           - funlen
       - path: 'internal/reducer/projection\.go'

@@ -229,7 +229,7 @@ the writer:
   domain (`reducer/shared_projection.go:16`), not one of the seventeen reducer
   materialization domains the table above splits.
 - Its intents are emitted by the cross-repo resolver
-  (`reducer/cross_repo_intent_row.go:133` sets
+  (`buildResolvedEdgeIntentRow` in `reducer/crossrepo/cross_repo_intent_row.go` sets
   `ProjectionDomain: DomainRepoDependency`), which runs under the
   `deployment_mapping` reducer domain — a domain in the **left** column, one that
   did produce work.
@@ -709,7 +709,7 @@ if len(preview) < 5 {
 ```
 
 `resolvedRelationshipEvidenceArtifacts`
-(`reducer/cross_repo_evidence_artifacts.go:26`) then builds the entire artifact
+(`resolvedRelationshipEvidenceArtifacts` in `reducer/crossrepo/cross_repo_evidence_artifacts.go`) then builds the entire artifact
 set from that preview and returns early when it is empty. So for any candidate
 with more than five evidence facts, **which artifacts exist at all is decided by
 fact arrival order**, and each survivor's `path` and `matched_value` feed the id
