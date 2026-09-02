@@ -992,10 +992,13 @@ routers: ecosystem summaries and change planning remain in
 `dispatch_ecosystem.go`; repository reads remain in
 `dispatch_repositories.go`, and package-registry reads moved to
 `internal/mcp/packageregistry` in the first Wave 2 extraction below;
-infrastructure reads remain in `dispatch.go` and
-`dispatch_infra_search.go`; impact reads remain in `dispatch_impact.go`; and
-environment comparison remains in `compareRoute`. The move uses
-`internal/mcp/toolcontract` and leaves the 162-tool order unchanged.
+infrastructure reads remain in `dispatch.go`, and infrastructure-search
+selection moved to `internal/mcp/infrasearch` in the eleventh Wave 2
+extraction below; impact reads remain in `dispatch_impact.go`; and
+environment comparison remains in `compareRoute`. That move uses
+`internal/mcp/routecontract`, not `toolcontract`: route-selection extractions
+take the routecontract seam, while `toolcontract` is what an ecosystem tool
+*registration* move uses. It leaves the 162-tool order unchanged.
 
 The package-registry route family is the first Wave 2 MCP extraction, and the
 first that moves route selection without moving a registration. Its six tools
@@ -1318,6 +1321,47 @@ keys and the `limit` coercion table individually, and the dispatch-level test
 asserts the ten keys against literal expectations rather than against the
 child selector; dropping `drift_kind` from the builder fails three child
 tests and one root test.
+
+The infrastructure-search route family is the eleventh Wave 2 MCP extraction
+and lifts an arm out of `resolveRoute`'s own switch rather than out of a split
+router. One tool, `find_infra_resources`, one arm under the switch's Infra
+group, one request builder alone in `dispatch_infra_search.go` with no private
+helper beside it. Family membership and the builder now live under
+`internal/mcp/infrasearch`, and `dispatch_infra_search.go` keeps only the thin
+`infraResourceSearchRoute` adapter. Root keeps global fanout order, dispatch,
+authorization, transport, timeouts, response budgets, envelopes, summaries, and
+telemetry; the `ecosystem` child keeps the advertised definition and its
+assembly position. Because the arm sat in the switch that runs after every
+delegation, the adapter is consulted as the twentieth and last delegation,
+directly ahead of the switch, so every earlier family keeps its position and
+the one name is claimed at the same point in the chain it was claimed before.
+`resolveRoute` goes from 19 delegations and 50 cases to 20 and 49 -- 69
+ordered arms on both sides -- and the 162-tool order, the advertised schema,
+the `limit` default of 50, and the selected method, path, and body keys remain
+unchanged. The root file set is unchanged too, so `internal/mcp` holds its
+dirgate pin of 106 with the same digest and no re-pin.
+
+What makes this family worth reading is that its `limit` bound is the opposite
+shape from the Kubernetes one above, and calling it a 1..200 bound would
+mislead in the same way the admission-decisions wording once did. The handler
+substitutes 50 for any `limit` at or below zero and clamps anything above 200
+down to 200; nothing is rejected, so 0 and -1 mean a 50-row page, 500 means
+200 rows, and the dispatcher's default of 50 is indistinguishable at the
+handler from an omitted field. That also changes what a dropped key costs. The
+seven scope keys -- `query`, `category`, `kind`, `provider`, `environment`,
+`resource_service`, and `resource_category` -- are required as a group, so
+losing one 400s only the caller whose sole scope it was with `query or
+structured filter is required` and silently widens everyone else's page.
+Losing `limit` fails nothing at all: every caller gets 50 rows, so a caller
+who asked for 5 or for 200 sees a different page with no error. The body is
+JSON, so `limit` travels as a Go `int`, and a stringified `"25"` collapses to
+the 50-row default through `routecontract.Arguments.IntOr` rather than
+reaching the handler as a string its `int` field would reject with 400. The
+child tests pin each of the seven string keys and the `limit` coercion table
+individually, and the dispatch-level test asserts the eight keys against
+literal expectations rather than against the child selector; dropping
+`resource_category` from the builder fails four child tests and one root
+test.
 
 **cmd/eshu (233):** `package main` — subdirectories are impossible by
 language rule. The lever is extracting business logic to new

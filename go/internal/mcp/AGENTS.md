@@ -20,8 +20,9 @@
    `go/internal/mcp/dispatch_container_image.go`,
    `go/internal/mcp/dispatch_supply_chain_impact.go`,
    `go/internal/mcp/dispatch_security_alert.go`,
-   `go/internal/mcp/dispatch_admission_decisions.go`, and
-   `go/internal/mcp/dispatch_kubernetes.go` — `dispatchTool`,
+   `go/internal/mcp/dispatch_admission_decisions.go`,
+   `go/internal/mcp/dispatch_kubernetes.go`, and
+   `go/internal/mcp/dispatch_infra_search.go` — `dispatchTool`,
    deadline handling, `resolveRoute`, the child route adapters, and argument
    helpers; understand `parseCanonicalEnvelope` before touching response
    shaping.
@@ -35,8 +36,9 @@
    selection in `go/internal/mcp/supplychainimpact`, security-alert
    reconciliation request selection in `go/internal/mcp/securityalert`,
    admission-decisions request selection in
-   `go/internal/mcp/admissiondecisions`, and Kubernetes-correlation request
-   selection in `go/internal/mcp/kubernetes`
+   `go/internal/mcp/admissiondecisions`, Kubernetes-correlation request
+   selection in `go/internal/mcp/kubernetes`, and infrastructure-search
+   request selection in `go/internal/mcp/infrasearch`
 4. `go/internal/mcp/types.go` — `ToolDefinition` and `ReadOnlyTools`; this is
    the tool registry entry point
 5. `go/internal/query/` — the `http.Handler` that backs every tool call;
@@ -136,7 +138,8 @@
   `dispatch_service_selector.go`.
   Ecosystem registration is one 23-definition group, but routing remains split
   across `dispatch_ecosystem.go`, `dispatch_repositories.go`, `dispatch.go`,
-  `dispatch_infra_search.go`, and `dispatch_impact.go`.
+  the `dispatch_infra_search.go` adapter over `infrasearch`, and
+  `dispatch_impact.go`.
 
 - **Extract a domain route** → express its family membership decision, decoded
   arguments, and selected HTTP request through `routecontract`; keep the root
