@@ -480,9 +480,11 @@ func resolveRoute(toolName string, args map[string]any) (*route, error) {
 		}}, nil
 
 	default:
-		// Impact tools are dispatched from dispatch_impact.go to keep this
-		// file within the 500-line cap.
-		if r, ok, _ := impactRoute(toolName, args); ok {
+		// Impact-analysis request selection lives in internal/mcp/impact and
+		// reaches dispatch through the impactRoute adapter in
+		// dispatch_impact.go, consulted here in the default case — the same
+		// point in the chain the family answered from before the extraction.
+		if r, ok := impactRoute(toolName, args); ok {
 			return r, nil
 		}
 		return nil, fmt.Errorf("unknown tool: %s", toolName)

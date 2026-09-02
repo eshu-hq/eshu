@@ -10,10 +10,17 @@
 // their registration definitions without importing this parent package. The
 // ask, relationships, and visualization children own pure dependency-neutral
 // family route selectors alongside their definitions, and the
-// admissiondecisions, cicd, codeowners, containerimage, infrasearch,
+// admissiondecisions, cicd, codeowners, containerimage, impact, infrasearch,
 // kubernetes, observabilitycoverage, packageregistry, secretsiam,
 // securityalert, and supplychainimpact children own such a selector
 // without owning a registration.
+// The nine impact-analysis selections (trace_deployment_chain through
+// trace_exposure_path) live in the impact child and reach dispatch through
+// the impactRoute adapter, consulted in resolveRoute's default case — the
+// same point in the chain the family's own switch answered from before the
+// extraction; every POST /api/v0/impact/ path, body key, and dispatcher-side
+// default is unchanged, and the advertised definitions stay with the
+// ecosystem child and the root reachability registration.
 // ReadOnlyTools remains the sole ordered assembler; global route membership,
 // family adapters, dispatch,
 // transport, authorization, timeouts,
