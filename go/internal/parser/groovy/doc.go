@@ -14,4 +14,10 @@
 // evidence for shared libraries, pipeline calls, shell commands, Ansible
 // playbooks, entry points, and configd/pre-deploy flags. Metadata.Map preserves
 // the parent parser payload shape used by query and relationship callers.
+//
+// The engine-level payload contract is pinned by groovy_language_test.go and
+// groovy_jenkins_golden_fixture_test.go in this directory, which compile as
+// the external package groovy_test and drive parser.DefaultEngine().ParsePath
+// the way a caller would. Only that external test package imports the parent
+// parser; production code and the in-package tests never do.
 package groovy

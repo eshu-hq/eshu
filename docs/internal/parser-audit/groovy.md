@@ -62,13 +62,15 @@ because the Groovy grammar has no node types for Jenkins-DSL conventions.
 - PreScan sorted unique metadata names:
   `parse_test.go:TestPreScanReturnsSortedUniqueMetadataNames` (line 321)
 - Engine-level dispatch via DefaultEngine.ParsePath:
-  `groovy_language_test.go:TestDefaultEngineParsePathGroovyJenkinsfile` (line 11)
+  `groovy/groovy_language_test.go:TestDefaultEngineParsePathGroovyJenkinsfile` (line 14)
 - Engine-level Ansible hints:
-  `groovy_language_test.go:TestDefaultEngineParsePathGroovyJenkinsfileAnsibleHints` (line 74)
+  `groovy/groovy_language_test.go:TestDefaultEngineParsePathGroovyJenkinsfileAnsibleHints` (line 77)
 - Engine-level library step with PreScan:
-  `groovy_language_test.go:TestDefaultEngineParsePathGroovyJenkinsfileLibraryStep` (line 103)
+  `groovy/groovy_language_test.go:TestDefaultEngineParsePathGroovyJenkinsfileLibraryStep` (line 106)
 - Engine-level PreScan:
-  `groovy_language_test.go:TestDefaultEnginePreScanPathsGroovyJenkinsfile` (line 138)
+  `groovy/groovy_language_test.go:TestDefaultEnginePreScanPathsGroovyJenkinsfile` (line 141)
+- Cyclomatic complexity asserted on a Groovy function item (value 8):
+  `groovy/groovy_language_test.go:TestDefaultEngineParsePathGroovyCyclomaticComplexity` (line 233)
 - Cyclomatic complexity (straight-line and branchy):
   `engine_cyclomatic_complexity_test.go:TestCyclomaticComplexityPerLanguage` (Groovy cases at line 214)
 - Grammar loading via Runtime.Parser:
@@ -82,10 +84,10 @@ because the Groovy grammar has no node types for Jenkins-DSL conventions.
   on the `imports` bucket with specific import names. Existing tests verify the
   bucket is empty or set but not its content.
 - **Cyclomatic complexity** on Groovy methods: the shared McCabe walker is
-  tested by `engine_cyclomatic_complexity_test.go` with Groovy fixtures, but
-  no subdirectory test verifies `groovyCyclomaticComplexity` directly or
-  asserts the `cyclomatic_complexity` field on individual Groovy function
-  items.
+  tested by `engine_cyclomatic_complexity_test.go` with Groovy fixtures and
+  `groovy/groovy_language_test.go:TestDefaultEngineParsePathGroovyCyclomaticComplexity`
+  asserts the `cyclomatic_complexity` field on a Groovy function item, but no
+  test verifies `groovyCyclomaticComplexity` directly.
 - **`hasGroovyRoot` helper** (`entities.go:45-54`): used in parser.go for
   deduplication but never tested directly.
 - **`stringSlice` / `intValue` helpers** (`entities.go:56-81`): tested
@@ -144,8 +146,13 @@ because the Groovy grammar has no node types for Jenkins-DSL conventions.
 **moderate**
 
 The Groovy parser has focused test coverage for its two delivery-evidence
-boundaries (tree-sitter syntax and Jenkins-DSL regex) with 15 tests across 3
-files plus engine-level integration tests. However, import extraction, error
+boundaries (tree-sitter syntax and Jenkins-DSL regex). All coverage now lives
+in `go/internal/parser/groovy`: 18 in-package tests across 4 `package groovy`
+files and 7 engine-level tests across 3 external `package groovy_test` files
+(derived with `rg -l '^package groovy$' *_test.go`,
+`rg -l '^package groovy_test$' *_test.go`, and
+`rg --no-filename -o '^func Test' <files> | wc -l` in that directory; #6062
+relocated the engine tests from the parent). However, import extraction, error
 paths, keyword suppression, and PreScanWithParser are untested, and the test
 suite focuses on happy-path Jenkinsfile scenarios without negative/syntax-error
 edge cases.
@@ -161,5 +168,3 @@ edge cases.
 4. Add tests for error paths: nil parser, nil tree, unreadable file.
 5. Add a test for empty/syntax-error Groovy files to prove deterministic empty
    buckets are returned.
-6. Add a test verifying `cyclomatic_complexity` field appears on Groovy function
-   items with the expected value.

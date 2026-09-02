@@ -37,6 +37,31 @@ This package imports `internal/parser/shared`, `go-tree-sitter`, and the Groovy
 tree-sitter grammar binding. It must not import the parent parser package,
 collector packages, graph storage, or reducer code.
 
+## Engine test surface
+
+`groovy_language_test.go` and `groovy_jenkins_golden_fixture_test.go` (external
+package `groovy_test`, relocated from the parent by #6062) drive
+`parser.DefaultEngine().ParsePath` and `PreScanPaths` against Jenkinsfile and
+golden-corpus fixtures: 7 test functions, from
+`rg --no-filename -o '^func Test' groovy_language_test.go groovy_jenkins_golden_fixture_test.go | wc -l`.
+They may import `internal/parser` because Go compiles them only for tests; keep
+that exception limited to black-box tests of the public parent engine. Shared
+assertions come from `go/internal/parser/parsertest`;
+`groovy_test_helpers_test.go` holds only `groovyFixturePath`,
+`writeGroovyTestFile` (creates parent directories before delegating to
+`parsertest.WriteFile` for the nested `src/` fixture), and a local
+`assertEmptyNamedBucket` copy because parsertest has no empty-bucket assertion.
+The 4 `package groovy` `*_test.go` files (18 test functions, from
+`rg --no-filename -o '^func Test' parse_test.go metadata_test.go pipeline_metadata_gate_test.go equivalence_dump_test.go | wc -l`)
+stay white-box and must not import the parent.
+
+Run the engine tests from the `go/` module root with
+`go test ./internal/parser/groovy -count=1`; pin a subset with
+`../scripts/go-test-run-guard.sh 5 TestDefaultEngineParsePathGroovy -- ./internal/parser/groovy -count=1`,
+which runs from the `go/` module root and fails closed if fewer than 5 tests
+match (minimum derived from
+`go test -list 'TestDefaultEngineParsePathGroovy' ./internal/parser/groovy`).
+
 ## Telemetry
 
 This package emits no telemetry. Parse timing remains owned by the parent
