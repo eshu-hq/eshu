@@ -13,7 +13,10 @@
 2. Leaf packages only — never root `internal/query`, never a handler family,
    never a graph driver. The root/family half is enforced by the compiler: root
    imports the families for its aliases, so importing either from here is an
-   import cycle and the package will not build. Leaf dependencies such as
+   import cycle and `internal/query`'s tests stop building. The package itself
+   still compiles -- the cycle only materializes in the test binary of a package
+   whose tests import this one, so a newly split family with no such test yet
+   would compile clean and break later. Leaf dependencies such as
    `internal/status`, `internal/governanceaudit`, or `queryauth` are fine.
 3. No production behavior. If production code needs it, it belongs in
    `querycontract`.

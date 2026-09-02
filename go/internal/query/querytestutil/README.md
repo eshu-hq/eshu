@@ -28,8 +28,9 @@ See `doc.go` for the godoc contract.
   `RunIncomingFn`, the dead-code scanner's paged candidate probe is answered
   with no rows, everything else goes to `RunFn`. The zero value is usable.
 
-`Run` and `RunSingle` both route through an unexported `rows` helper rather than
-`RunSingle` calling `Run`. That keeps the package free of any `Run`/`RunSingle`
+`Run` routes through an unexported `rows` helper, and `RunSingle` falls back to
+that same helper rather than calling `Run` (it still prefers `RunSingleFn` when
+one is set). That keeps the package free of any `Run`/`RunSingle`
 call expression, which is what lets `internal/queryplan`'s callsite inventory
 walk this directory instead of skipping it — see the invariants below.
 
