@@ -52,7 +52,8 @@ var collectorContracts = map[scope.CollectorKind]CollectorContract{
 				PhaseName: reducer.GraphProjectionPhaseDeploymentMapping,
 				Required:  true,
 				// DomainDeploymentMapping is the sole reducer domain that
-				// publishes this phase (platform_materialization.go), so a
+				// publishes this phase (reducer/platformfam/platform_materialization.go),
+				// so a
 				// terminal dead-letter for it can be attributed directly
 				// (#4459).
 				DeadLetterDomain: reducer.DomainDeploymentMapping,

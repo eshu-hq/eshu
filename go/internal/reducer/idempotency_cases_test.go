@@ -33,8 +33,9 @@ var idempotencyExemptDomains = map[Domain]string{
 	// deployment_mapping (PlatformMaterializationHandler) emits only after the
 	// cross-repo resolver + readiness lookups admit work; its reprojection
 	// idempotency is covered by cross_repo_resolution_*_test.go and
-	// platform_materialization_test.go. No constructible single-fixture emit path.
-	DomainDeploymentMapping: "requires cross-repo resolver + readiness graph read-back; idempotency covered by cross_repo_resolution_*_test.go and platform_materialization_test.go",
+	// platformfam/platform_materialization_test.go. No constructible
+	// single-fixture emit path.
+	DomainDeploymentMapping: "requires cross-repo resolver + readiness graph read-back; idempotency covered by cross_repo_resolution_*_test.go and platformfam/platform_materialization_test.go",
 	// workload_materialization needs a materializer, multiple loaders, an
 	// infrastructure-platform lookup, a repair queue, and an endpoint-presence
 	// writer wired before it emits; its reprojection idempotency is covered by

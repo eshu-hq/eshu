@@ -97,10 +97,17 @@ and returns those stages again in `Result.SubDurations` (`platform_write`,
 `input_ready` and `written_rows` in `Result.SubSignals`. The reducer service
 layer emits them as `sub_duration_<key>_seconds` and `sub_signal_<key>`.
 
-No-Regression Evidence: behavior-preserving relocation. The family's own tests
-moved with it and pass unchanged except for the cross-repo double, and the
-reducer root suite is green; no hot path gained an allocation or an indirection
-beyond the resolver interface the handler already dispatched through.
+No-Regression Evidence: behavior-preserving relocation, proven by
+`go test ./internal/reducer/... -count=1` (clean) and `go vet ./...` (clean) on
+this branch. The family's own tests moved with it and assert the same behaviour;
+only the cross-repo double changed, from the root's concrete handler to a
+resolver that records the scope generation it was asked about. One call path did
+change shape: `CrossRepoResolver` is now an interface, so the handler dispatches
+dynamically instead of through a concrete `*CrossRepoRelationshipHandler`. That
+call happens at most once per `deployment_mapping` intent and follows a Postgres
+canonical write, so it is not on a hot path. Every other relocated symbol keeps
+its body unchanged, and every reducer-root caller reaches it through a type
+alias or a one-line forwarder.
 
 ## Tests
 
