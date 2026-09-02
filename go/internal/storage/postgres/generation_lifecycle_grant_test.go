@@ -6,6 +6,7 @@ package postgres
 import (
 	"context"
 	"reflect"
+	"strings"
 	"testing"
 
 	statuspkg "github.com/eshu-hq/eshu/go/internal/status"
@@ -134,4 +135,55 @@ func TestResolveChangedSinceScopePassesGrantToQuery(t *testing.T) {
 		wantRepos:  []string{"repo-a"},
 		wantScopes: []string{"scope-a"},
 	})
+}
+
+// TestFreshnessGrantPredicatesArePresentInTheShippedSQL is the guard the two
+// bind-argument tests above cannot be. Both of those drive a fake queryer, so
+// the query text is never executed and never parsed: delete the grant predicate
+// from either statement and every other test in this change still passes. That
+// was verified, not assumed -- removing both predicates left
+// `go test ./internal/query -run 'Scope|Grant|Freshness'` green.
+//
+// So this asserts the predicate against the shipped constant itself rather than
+// a hand-frozen copy of the whole statement, which would only trade a
+// false-green for drift. It pins the three things the predicate cannot lose
+// without going inert: the scoped-flag short circuit, the repository-grant
+// branch keyed on scope_kind, and the scope-id branch.
+func TestFreshnessGrantPredicatesArePresentInTheShippedSQL(t *testing.T) {
+	t.Parallel()
+
+	for _, tc := range []struct {
+		name     string
+		query    string
+		fragment []string
+	}{
+		{
+			name:  "generations",
+			query: listGenerationLifecycleQuery,
+			fragment: []string{
+				"$8::boolean = false",
+				"scope.scope_kind = 'repository' AND scope.source_key = ANY($9)",
+				"generation.scope_id = ANY($10)",
+			},
+		},
+		{
+			name:  "changed-since",
+			query: resolveChangedSinceScopeQuery,
+			fragment: []string{
+				"$3::boolean = false",
+				"scope.scope_kind = 'repository' AND scope.source_key = ANY($4)",
+				"scope.scope_id = ANY($5)",
+			},
+		},
+	} {
+		tc := tc
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			for _, want := range tc.fragment {
+				if !strings.Contains(tc.query, want) {
+					t.Fatalf("%s query is missing %q; without it a scoped caller's grant is bound but never applied", tc.name, want)
+				}
+			}
+		})
+	}
 }
