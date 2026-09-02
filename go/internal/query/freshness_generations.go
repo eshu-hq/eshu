@@ -103,6 +103,14 @@ func (h *FreshnessHandler) listGenerationLifecycle(w http.ResponseWriter, r *htt
 		return
 	}
 
+	// #5167 F-6: same single-selector shape as changed-since -- the grant is
+	// checked before the read so an ungranted repository's generation
+	// lifecycle never enters the process.
+	if !freshnessSelectorWithinGrant(r.Context(), filter.Repository, filter.ScopeID) {
+		WriteError(w, http.StatusForbidden, "scope_id or repository is outside this token's grant")
+		return
+	}
+
 	page, err := h.Generations.ListGenerationLifecycle(r.Context(), filter)
 	if err != nil {
 		WriteError(w, http.StatusInternalServerError, fmt.Sprintf("list generation lifecycle: %v", err))
