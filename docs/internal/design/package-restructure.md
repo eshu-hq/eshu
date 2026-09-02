@@ -942,6 +942,22 @@ fan-out fixture's profile-typed `aws_resource` helper
 `scope_generation_intents_fanout_test.go`, which keeps asserting the
 dispatcher enqueue path for this domain alongside the ordered fan-out parity
 fixture.
+The CI/CD run-correlation builder moved into
+`internal/projector/cicdruncorrelation`. It triggers on a `ci.run` fact, else
+a `ci.artifact` fact — two independent `FirstOfKind` probes, with the run
+outranking the artifact whenever both are present in the same generation
+regardless of input order (#5710) — and carries no decode seam. Its private
+`cicdRunCorrelationSourceSystem` helper was checked body-for-body against
+`projectorintent.SourceSystem` and found identical (trim
+`SourceRef.SourceSystem`, else trim `CollectorKind`, no third tier), so the
+substitution is behavior-identical by construction and the child pins both
+tiers. The root test file mixed builder-level assertions with
+`buildProjection` dispatcher assertions; all four cases actually exercise
+`buildProjection`, so the whole file stayed at root, renamed
+`ci_cd_run_correlation_projection_test.go`, and a new
+`cicdruncorrelation/correlation_intents_test.go` pins the builder directly
+(no-fact, empty-generation, run-anchor, artifact-only-anchor, run-over-artifact
+precedence, and the two-tier source-system fallback).
 Coordinator `_scheduler.go` halves extract cleanly
 (they implement a root Planner interface); the `_service.go` halves are
 methods on the shared `Service` struct and stay until Service is

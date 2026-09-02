@@ -171,6 +171,18 @@
   builders for the canonical-nodes readiness gate. The root fan-out fixture's
   profile-typed `aws_resource` helper (`iamInstanceProfileResourceFact`) moved
   into `scope_generation_intents_fanout_test.go` with the extraction.
+- **CI/CD run-correlation family (#6057)** — the `ci_cd_run_correlation`
+  builder lives in `cicdruncorrelation/` and consumes the lookup like the
+  families above. It carries no decode seam: it triggers on a `ci.run` fact,
+  else a `ci.artifact` fact — two independent `FirstOfKind` probes, with the
+  run outranking the artifact whenever both are present in the same
+  generation regardless of input order (#5710). The pre-extraction root
+  `cicdRunCorrelationSourceSystem` helper had the identical two-tier body as
+  `projectorintent.SourceSystem`, so it was dropped rather than moved. The
+  root test file mixed builder-level assertions with `buildProjection`
+  dispatcher assertions; all four cases actually exercise `buildProjection`,
+  so the whole file stayed at root, renamed
+  `ci_cd_run_correlation_projection_test.go`.
 - **CanonicalWriter interface boundary** — no caller in this package calls a Neo4j
   or NornicDB driver directly. All canonical writes go through `CanonicalWriter`.
   Backend-specific logic belongs in `internal/storage/cypher` adapters.
