@@ -3,7 +3,28 @@
 
 package reducer
 
-import "testing"
+import (
+	"context"
+	"testing"
+)
+
+// recordingIAMCanAssumeEdgeWriter is a local no-op IAMCanAssumeEdgeWriter. This
+// test only proves the additive registration gate wires the writer through, so
+// it needs an implementation of the interface and nothing else; the behavioral
+// coverage lives in internal/reducer/iamcan.
+type recordingIAMCanAssumeEdgeWriter struct{}
+
+func (w *recordingIAMCanAssumeEdgeWriter) WriteIAMCanAssumeEdges(
+	context.Context, []map[string]any, string, string, string,
+) error {
+	return nil
+}
+
+func (w *recordingIAMCanAssumeEdgeWriter) RetractIAMCanAssumeEdges(
+	context.Context, []string, string, string,
+) error {
+	return nil
+}
 
 // TestImplementedDefaultDomainDefinitionsOmitsIAMCanAssumeMaterializationWithoutEdgeWriter
 // proves the additive registration gate: with a FactLoader but no CAN_ASSUME edge

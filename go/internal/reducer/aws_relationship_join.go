@@ -35,121 +35,20 @@ const (
 	joinModeUnresolved = "unresolved"
 )
 
-// cloudResourceJoinIndex resolves an AWS relationship endpoint identity to the
-// uid of a materialized CloudResource node. It is built once per scope
-// generation from the aws_resource facts so target resolution is O(1) per edge
-// — no per-edge graph round trip and no N+1 Cypher (design §5.1).
-//
-// All three maps key into the same uid space, so a hit in any map yields a real
-// node uid. The index never fabricates a uid from a relationship fact alone:
-// because each entry is derived from an aws_resource fact that carried its own
-// account_id and region, a cross-account or cross-region ARN target resolves
-// only if that account+region resource was scanned in the same scope (the
-// trust-boundary rule, design §10.3).
-type cloudResourceJoinIndex struct {
-	byARN        map[string]string
-	byUID        map[string]string
-	byResourceID map[string]string
-	byAnchor     map[string]string
-}
-
-// buildCloudResourceJoinIndex builds the bounded in-memory join index from the
-// scope generation's aws_resource fact envelopes. It decodes each aws_resource
-// payload through the factschema seam (decodeAWSResource) — the single decode
-// site for this kind. A payload missing a required identity field (account_id,
-// region, resource_type, resource_id) is QUARANTINED per-fact via
-// partitionDecodeFailures: that one fact is skipped and returned in the
-// quarantined slice (so the handler dead-letters it visibly), while every valid
-// resource is still indexed. A non-decode error is returned fatally. This
-// per-fact isolation means one malformed resource fact never drops the whole
-// scope's join index (which would stall every edge domain gating on the
-// canonical-nodes-committed readiness phase).
-//
-// arn is optional (a resource may be identified only by a bare resource_id), so
-// resource_id falls back to the ARN the same way it did before typing; the
-// typed struct's ResourceID already carries the emitter's arn-or-resource_id
-// default, with ARN holding the raw value when present.
-func buildCloudResourceJoinIndex(envelopes []facts.Envelope) (cloudResourceJoinIndex, []quarantinedFact, error) {
-	index := cloudResourceJoinIndex{
-		byARN:        make(map[string]string, len(envelopes)),
-		byUID:        make(map[string]string, len(envelopes)),
-		byResourceID: make(map[string]string, len(envelopes)),
-		byAnchor:     make(map[string]string, len(envelopes)),
-	}
-	var quarantined []quarantinedFact
-	for _, env := range envelopes {
-		if env.FactKind != facts.AWSResourceFactKind {
-			continue
-		}
-		resource, err := decodeAWSResource(env)
-		if err != nil {
-			q, ok, fatal := partitionDecodeFailures(env, err)
-			if fatal != nil {
-				return cloudResourceJoinIndex{}, nil, fatal
-			}
-			if ok {
-				quarantined = append(quarantined, q)
-			}
-			continue
-		}
-		arn := ""
-		if resource.ARN != nil {
-			arn = *resource.ARN
-		}
-		resourceID := resource.ResourceID
-		if resourceID == "" {
-			resourceID = arn
-		}
-		if resource.ResourceType == "" || resourceID == "" {
-			// Mirrors cloudResourceNodeRow: an incomplete identity is not a
-			// materializable node, so it is not a join target either. This is a
-			// present-but-empty value (a valid decode), distinct from an absent
-			// required key, which quarantines above.
-			continue
-		}
-
-		uid := cloudResourceUID(resource.AccountID, resource.Region, resource.ResourceType, resourceID)
-		if arn != "" {
-			index.byARN[arn] = uid
-			index.byUID[uid] = arn
-		}
-		index.byResourceID[resourceID] = uid
-		// uniqueSortedStrings preserves the pre-typing byte-identical resolution:
-		// the old payloadStrings(env.Payload, "", "correlation_anchors") trimmed
-		// and dropped empty anchors, so an untrimmed or empty anchor never became
-		// a lookup key. The typed decode returns the anchors raw.
-		for _, anchor := range uniqueSortedStrings(resource.CorrelationAnchors) {
-			// First writer wins for an anchor so a later collision cannot
-			// silently re-point a name to a different node. ARN and resource_id
-			// already cover the precise identities; anchors are the name-only
-			// fallback.
-			if _, exists := index.byAnchor[anchor]; !exists {
-				index.byAnchor[anchor] = uid
-			}
-		}
-	}
-	return index, quarantined, nil
-}
-
-func (i cloudResourceJoinIndex) arnForUID(uid string) (string, bool) {
-	arn, ok := i.byUID[uid]
-	return arn, ok
-}
-
 // resolveSource resolves the relationship source endpoint to a uid. The scanner
 // sets source_resource_id to the ARN or the bare id consistently, so source
 // resolution tries the ARN index first, then the resource-id index.
-func (i cloudResourceJoinIndex) resolveSource(sourceARN, sourceResourceID string) (string, bool) {
+func resolveCloudResourceSource(i cloudResourceJoinIndex, sourceARN, sourceResourceID string) (string, bool) {
 	if sourceARN != "" {
-		if uid, ok := i.byARN[sourceARN]; ok {
+		if uid, ok := i.ByARN[sourceARN]; ok {
 			return uid, true
 		}
 	}
 	if sourceResourceID != "" {
-		if uid, ok := i.byARN[sourceResourceID]; ok {
+		if uid, ok := i.ByARN[sourceResourceID]; ok {
 			return uid, true
 		}
-		if uid, ok := i.byResourceID[sourceResourceID]; ok {
+		if uid, ok := i.ByResourceID[sourceResourceID]; ok {
 			return uid, true
 		}
 	}
@@ -161,25 +60,25 @@ func (i cloudResourceJoinIndex) resolveSource(sourceARN, sourceResourceID string
 // the ARN index (when target_arn is set or target_resource_id is ARN-shaped),
 // then the bare-id index, then the correlation-anchor index. The first hit
 // wins.
-func (i cloudResourceJoinIndex) resolveTarget(targetARN, targetResourceID string) (string, string, bool) {
+func resolveCloudResourceTarget(i cloudResourceJoinIndex, targetARN, targetResourceID string) (string, string, bool) {
 	if targetARN != "" {
-		if uid, ok := i.byARN[targetARN]; ok {
+		if uid, ok := i.ByARN[targetARN]; ok {
 			return uid, joinModeARN, true
 		}
 	}
 	if targetResourceID != "" {
 		if looksLikeARN(targetResourceID) {
-			if uid, ok := i.byARN[targetResourceID]; ok {
+			if uid, ok := i.ByARN[targetResourceID]; ok {
 				return uid, joinModeARN, true
 			}
 		}
-		if uid, ok := i.byResourceID[targetResourceID]; ok {
+		if uid, ok := i.ByResourceID[targetResourceID]; ok {
 			if looksLikeARN(targetResourceID) {
 				return uid, joinModeARN, true
 			}
 			return uid, joinModeBareID, true
 		}
-		if uid, ok := i.byAnchor[targetResourceID]; ok {
+		if uid, ok := i.ByAnchor[targetResourceID]; ok {
 			return uid, joinModeCorrelationAnchor, true
 		}
 	}
@@ -301,14 +200,14 @@ func ExtractAWSRelationshipEdgeRows(
 			continue
 		}
 
-		sourceUID, sourceOK := index.resolveSource(sourceARN, sourceResourceID)
+		sourceUID, sourceOK := resolveCloudResourceSource(index, sourceARN, sourceResourceID)
 		if !sourceOK {
 			tally.unresolvedSource[targetType]++
 			tally.byRelTypeMode[relTypeMode{relationshipType, joinModeUnresolved}]++
 			continue
 		}
 
-		targetUID, mode, targetOK := index.resolveTarget(targetARN, targetResourceID)
+		targetUID, mode, targetOK := resolveCloudResourceTarget(index, targetARN, targetResourceID)
 		if !targetOK {
 			tally.unresolved[targetType]++
 			tally.byRelTypeMode[relTypeMode{relationshipType, joinModeUnresolved}]++

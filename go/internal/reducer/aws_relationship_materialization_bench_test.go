@@ -81,8 +81,8 @@ func BenchmarkBuildCloudResourceJoinIndex(b *testing.B) {
 		if err != nil {
 			b.Fatalf("buildCloudResourceJoinIndex() error = %v, want nil", err)
 		}
-		if len(index.byARN) != resourceCount*2 {
-			b.Fatalf("len(byARN) = %d, want %d", len(index.byARN), resourceCount*2)
+		if len(index.ByARN) != resourceCount*2 {
+			b.Fatalf("len(byARN) = %d, want %d", len(index.ByARN), resourceCount*2)
 		}
 	}
 }

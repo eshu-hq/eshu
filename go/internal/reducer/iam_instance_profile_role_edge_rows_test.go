@@ -49,6 +49,17 @@ func iamRoleUID(accountID, roleName string) string {
 	return cloudResourceUID(accountID, "aws-global", "aws_iam_role", arn)
 }
 
+// iamRoleEnvelope builds the aws_resource node fact an IAM role resolves
+// through the shared join index. IAM is a global service: region is
+// "aws-global" and resource_id == arn, matching the iam scanner's
+// roleObservation. It used to live beside the CAN_ASSUME edge-row tests, which
+// moved to internal/reducer/iamcan in #6061; Go test files cannot share
+// unexported symbols across a package boundary, so this copy stays here for the
+// USES_PROFILE tests that still need it.
+func iamRoleEnvelope(accountID, arn string) facts.Envelope {
+	return resourceEnvelope(accountID, "aws-global", "aws_iam_role", arn, arn, arn)
+}
+
 func TestExtractIAMInstanceProfileRoleEdgeRowsResolvesRoles(t *testing.T) {
 	t.Parallel()
 

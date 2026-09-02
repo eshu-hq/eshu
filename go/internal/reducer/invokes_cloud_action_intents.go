@@ -10,6 +10,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/codeprovenance"
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/reducer/iamcan"
 )
 
 // invokesCloudActionEvidenceSource labels INVOKES_CLOUD_ACTION edges so the
@@ -90,7 +91,7 @@ var cloudActionByServiceMethod = map[cloudActionServiceMethod]string{
 func resolveCloudAction(
 	service string,
 	method string,
-	catalog map[string]iamCanPerformAction,
+	catalog map[string]iamcan.Action,
 ) (string, bool) {
 	service = strings.TrimSpace(service)
 	method = strings.TrimSpace(method)
@@ -138,7 +139,7 @@ func buildInvokesCloudActionIntentRows(
 	if evidenceSource == "" {
 		evidenceSource = invokesCloudActionEvidenceSource
 	}
-	catalog := iamCanPerformCatalogByAction()
+	catalog := iamcan.CatalogByAction()
 
 	intents := make([]SharedProjectionIntentRow, 0)
 	seen := make(map[string]struct{})

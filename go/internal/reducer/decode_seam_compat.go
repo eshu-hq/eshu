@@ -22,7 +22,6 @@ var (
 	decodeAWSImageReference                    = schemadecode.DecodeAWSImageReference
 	decodeAWSRelationship                      = schemadecode.DecodeAWSRelationship
 	decodeAWSResource                          = schemadecode.DecodeAWSResource
-	decodeAWSResourcePolicyPermission          = schemadecode.DecodeAWSResourcePolicyPermission
 	decodeAWSSecurityGroupRule                 = schemadecode.DecodeAWSSecurityGroupRule
 	decodeAttestationSLSAProvenance            = schemadecode.DecodeAttestationSLSAProvenance
 	decodeAttestationSignatureVerification     = schemadecode.DecodeAttestationSignatureVerification

@@ -231,7 +231,7 @@ func resolveSecurityGroupNode(index cloudResourceJoinIndex, accountID, region, g
 		return "", false
 	}
 	uid := cloudResourceUID(accountID, region, securityGroupRuleResourceType, groupID)
-	if _, ok := index.byResourceID[groupID]; ok {
+	if _, ok := index.ByResourceID[groupID]; ok {
 		// The bare group id is the resource_id the EC2 scanner emits, so a hit
 		// confirms the node committed. The recomputed uid is byte-identical to the
 		// indexed uid (same account/region/type/id inputs), so either is the node.

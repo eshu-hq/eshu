@@ -8,19 +8,6 @@ import (
 	"strings"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
-	awsv1 "github.com/eshu-hq/eshu/sdk/go/factschema/aws/v1"
-)
-
-// IAM resource_type tokens the escalation target resolver keys on. They mirror
-// the awscloud collector's ResourceTypeIAM* constants (the reducer must not
-// import the collector package, so the tokens are duplicated here on purpose, the
-// same way security_group_reachability.go duplicates the SG resource type).
-// iamResourceTypeUser and iamResourceTypeRole are owned by the sibling
-// iam_can_assume_edge_rows.go in this package (same string values); they are
-// shared here rather than redeclared to avoid a duplicate-const build error.
-const (
-	iamResourceTypePolicy = awsv1.ResourceTypeIAMPolicy
-	iamResourceTypeGroup  = awsv1.ResourceTypeIAMGroup
 )
 
 // Skip / deferral reason labels for the escalation skipped counter. They are the
@@ -72,15 +59,6 @@ type IAMEscalationResult struct {
 	Quarantined []quarantinedFact
 }
 
-// iamPrincipalStatements groups one principal's decoded permission statements
-// with its resolved CloudResource node uid so primitive evaluation runs per
-// principal. Each statement carries its FactID for the grant's dedup path; the
-// grant builders read only the decoded permission's typed fields.
-type iamPrincipalStatements struct {
-	principalUID string
-	permissions  []iamPermissionStatement
-}
-
 // ExtractIAMEscalationEdges resolves each IAM principal's privilege-escalation
 // primitives against an in-memory CloudResource join index built from the scope
 // generation's aws_resource facts. It promotes a primitive to a CAN_ESCALATE_TO
@@ -119,10 +97,10 @@ func ExtractIAMEscalationEdges(
 	primitivesByEdge := make(map[edgeKey]map[string]struct{})
 
 	for _, principal := range principals {
-		grant := buildIAMPrincipalGrant(principal.permissions, &result.Tally)
+		grant := buildIAMPrincipalGrant(principal.Permissions, &result.Tally)
 
 		for _, primitive := range iamEscalationCatalog {
-			switch grant.armStatus(primitive) {
+			switch grantArmStatus(grant, primitive) {
 			case iamPrimitiveDenied:
 				result.Tally.skippedDeny++
 				continue
@@ -133,12 +111,12 @@ func ExtractIAMEscalationEdges(
 			targetUID, status := resolveIAMEscalationTarget(index, grant, primitive)
 			switch status {
 			case iamTargetResolved:
-				if targetUID == principal.principalUID {
+				if targetUID == principal.PrincipalUID {
 					// A self-escalation (e.g. CreateAccessKey on self) carries no
 					// escalation truth; drop without counting it as a skip.
 					continue
 				}
-				key := edgeKey{principalUID: principal.principalUID, targetUID: targetUID}
+				key := edgeKey{PrincipalUID: principal.PrincipalUID, TargetUID: targetUID}
 				if primitivesByEdge[key] == nil {
 					primitivesByEdge[key] = make(map[string]struct{})
 				}
@@ -189,22 +167,22 @@ func groupIAMPermissionsByPrincipal(
 		if _, seen := byPrincipalARN[permission.PrincipalARN]; !seen {
 			order = append(order, permission.PrincipalARN)
 		}
-		byPrincipalARN[permission.PrincipalARN] = append(byPrincipalARN[permission.PrincipalARN], iamPermissionStatement{factID: env.FactID, permission: permission})
+		byPrincipalARN[permission.PrincipalARN] = append(byPrincipalARN[permission.PrincipalARN], iamPermissionStatement{FactID: env.FactID, Permission: permission})
 	}
 
 	principals := make([]iamPrincipalStatements, 0, len(order))
 	for _, principalARN := range order {
-		uid, ok := index.byARN[principalARN]
+		uid, ok := index.ByARN[principalARN]
 		if !ok {
 			// The principal itself was not scanned: no anchor node exists, so none of
 			// its primitives can become an edge. Count once and skip the principal.
 			tally.skippedUnresolved++
 			continue
 		}
-		principals = append(principals, iamPrincipalStatements{principalUID: uid, permissions: byPrincipalARN[principalARN]})
+		principals = append(principals, iamPrincipalStatements{PrincipalUID: uid, Permissions: byPrincipalARN[principalARN]})
 	}
 	sort.Slice(principals, func(a, b int) bool {
-		return principals[a].principalUID < principals[b].principalUID
+		return principals[a].PrincipalUID < principals[b].PrincipalUID
 	})
 	return principals, quarantined, nil
 }
@@ -221,8 +199,8 @@ func buildIAMEscalationEdgeRows(primitivesByEdge map[edgeKey]map[string]struct{}
 	for key, tokens := range primitivesByEdge {
 		primitives := sortedPrimitiveTokens(tokens)
 		rows = append(rows, map[string]any{
-			"principal_uid":   key.principalUID,
-			"target_uid":      key.targetUID,
+			"principal_uid":   key.PrincipalUID,
+			"target_uid":      key.TargetUID,
 			"primitives":      primitives,
 			"primitive_count": len(primitives),
 		})
@@ -233,14 +211,6 @@ func buildIAMEscalationEdgeRows(primitivesByEdge map[edgeKey]map[string]struct{}
 		return left < right
 	})
 	return rows
-}
-
-// edgeKey is the deduplication identity for a CAN_ESCALATE_TO edge: its two
-// endpoint uids. The primitive set is an attribute of this identity, not part of
-// it, so two primitives between the same pair converge on one idempotent edge.
-type edgeKey struct {
-	principalUID string
-	targetUID    string
 }
 
 // payloadStringSlice reads a string slice payload field, tolerating both the

@@ -9,6 +9,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/codeprovenance"
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/reducer/iamcan"
 )
 
 // invokesCloudActionRepoEnvelope anchors the projection context for a repo so
@@ -257,7 +258,7 @@ func TestBuildInvokesCloudActionIntentRowsDeduplicatesSameFunctionAction(t *test
 func TestInvokesCloudActionMappingNeverProducesNonCatalogAction(t *testing.T) {
 	t.Parallel()
 
-	catalog := iamCanPerformCatalogByAction()
+	catalog := iamcan.CatalogByAction()
 	for key, action := range cloudActionByServiceMethod {
 		if _, ok := catalog[action]; !ok {
 			t.Errorf("mapping %+v produces action %q which is not in the closed CAN_PERFORM catalog", key, action)

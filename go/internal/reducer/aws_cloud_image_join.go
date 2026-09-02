@@ -176,7 +176,7 @@ func ExtractAWSCloudImageEdgeRows(
 
 		sourceARN := derefString(relationship.SourceARN)
 		sourceResourceID := relationship.SourceResourceID
-		sourceUID, sourceOK := index.resolveSource(sourceARN, sourceResourceID)
+		sourceUID, sourceOK := resolveCloudResourceSource(index, sourceARN, sourceResourceID)
 		if !sourceOK {
 			tally.skipped[awsCloudImageSkipSourceUnresolved]++
 			continue
