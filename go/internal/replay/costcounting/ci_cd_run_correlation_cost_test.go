@@ -30,7 +30,8 @@ const ciCDRunCorrelationCostIntentID = "intent-ci-cd-run-correlation-cost"
 // ciCDRunCorrelationFixtureDecisions is the deterministic input for the
 // positive and N+1 scenarios: two exact-outcome decisions for distinct CI/CD
 // runs in one scope. WriteCICDRunCorrelations persists every decision
-// regardless of outcome (go/internal/reducer/ci_cd_run_correlation_writer.go),
+// regardless of outcome
+// (go/internal/reducer/cicdrun/ci_cd_run_correlation_writer.go),
 // so both rows are written.
 func ciCDRunCorrelationFixtureDecisions() []reducer.CICDRunCorrelationDecision {
 	row := func(runID string) reducer.CICDRunCorrelationDecision {

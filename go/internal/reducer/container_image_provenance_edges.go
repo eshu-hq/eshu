@@ -10,6 +10,7 @@ import (
 
 	"go.opentelemetry.io/otel/metric"
 
+	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
 )
 
@@ -22,17 +23,12 @@ import (
 // (docs/internal/design/5472-graph-projection-policy.md).
 const containerImageBuiltFromProvenanceEvidenceSource = "reducer/container-image-identity"
 
-// ContainerImageProvenanceEdgeWriter persists and retracts canonical
-// BUILT_FROM edges between a ContainerImage and the Repository its identity
-// decision resolved as build source. Implementations MUST be idempotent by
-// (image digest, BUILT_FROM, repository id, scope_id, evidence_source) so
-// reducer retries and re-projected generations converge on one assertion, and
-// MUST NOT fabricate an endpoint node: a row whose image or repository node is
-// absent is a no-op.
-type ContainerImageProvenanceEdgeWriter interface {
-	WriteBuiltFromEdges(ctx context.Context, rows []map[string]any, scopeID, generationID, evidenceSource string) error
-	RetractBuiltFromEdges(ctx context.Context, scopeID, generationID, evidenceSource string) error
-}
+// ContainerImageProvenanceEdgeWriter forwards to
+// [reducercontract.ContainerImageProvenanceEdgeWriter]. This file is a
+// transitional compatibility surface: the interface moved there so families
+// below the reducer root (cicdrun, issue #6061) can name it without importing
+// the reducer root package.
+type ContainerImageProvenanceEdgeWriter = reducercontract.ContainerImageProvenanceEdgeWriter
 
 // containerImageBuiltFromRows builds BUILT_FROM edge rows from exact_digest
 // container-image-identity decisions with at least one build-provenance

@@ -11,7 +11,7 @@ package v1
 // the provider's own run identifier
 // (go/internal/collector/cicdrun/github_actions_fixture.go:190-223). Together
 // with RunAttempt they form the reducer's own join key
-// (cicdRunKey/go/internal/reducer/ci_cd_run_correlation.go:428-435) that keys
+// (CICDRunKeyFromParts/go/internal/reducer/cicdrun/ci_cd_run_correlation_decode.go:363-377) that keys
 // every other ci_cd_run kind's evidence back to its owning run; a fact
 // missing either segment could never join to its run, so a decode-time
 // guarantee here replaces the pre-typing empty-string join-key collapse.
@@ -61,7 +61,8 @@ type Run struct {
 
 	// CommitSHA is the run's head commit SHA. Optional: the reducer's
 	// classifyCICDRunEvidence marks a run UNRESOLVED when this is absent
-	// alongside RepositoryID (go/internal/reducer/ci_cd_run_correlation.go:363-367),
+	// alongside RepositoryID
+	// (go/internal/reducer/cicdrun/ci_cd_run_correlation_classify.go:60-64),
 	// a matcher-level completeness gate, not a decode-time requirement — a
 	// run fact with no commit anchor is still a valid, if unresolved,
 	// observation.
@@ -115,8 +116,8 @@ type Run struct {
 // Provider and RunID are required for the same run-join-key reason as Run
 // above: artifactEnvelope always sets both via sharedPayload, and the
 // reducer's classifyCICDRunEvidence/ciArtifactDigests join every artifact
-// fact back to its run through cicdRunKey. A fact missing either segment
-// could never join to its owning run.
+// fact back to its run through CICDRunKeyFromParts. A fact missing either
+// segment could never join to its owning run.
 type Artifact struct {
 	// Provider identifies the CI/CD provider that reported this artifact.
 	// Required — half of the reducer's run join key.
@@ -147,9 +148,9 @@ type Artifact struct {
 	// ArtifactDigest is the artifact's content digest (for example
 	// "sha256:..."). Optional: the reducer's classifyCICDRunEvidence only
 	// attempts an image-identity join when this is present
-	// (go/internal/reducer/ci_cd_run_correlation.go:377-411); an absent
-	// digest is a valid "no digest evidence" observation, not malformed
-	// input.
+	// (go/internal/reducer/cicdrun/ci_cd_run_correlation_classify.go:74-113);
+	// an absent digest is a valid "no digest evidence" observation, not
+	// malformed input.
 	ArtifactDigest *string `json:"artifact_digest,omitempty"`
 
 	// SizeBytes is the artifact's size in bytes. Optional.

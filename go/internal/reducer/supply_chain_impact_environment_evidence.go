@@ -3,9 +3,15 @@
 
 package reducer
 
-import "strings"
+import (
+	"strings"
+
+	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
+)
 
 // supplyChainEnvironmentEvidenceDeployEvent and supplyChainEnvironmentEvidenceDeclared
+// forward to [reducercontract.CICDRunCorrelationEnvironmentEvidenceDeployEvent]
+// and [reducercontract.CICDRunCorrelationEnvironmentEvidenceDeclared]. They
 // name the two states #5425 publishes on a reducer_ci_cd_run_correlation
 // payload's environment_evidence field: deploy_event means a ci.deployment_event
 // observed at the run's commit supplied the environment, declared means it
@@ -16,10 +22,13 @@ import "strings"
 // supplyChainImpactFactKinds() in supply_chain_impact.go), and these two
 // states are exactly the corroboration signal issue #5426 was redefined to
 // consume after its original terraform-tag and reducer-side
-// cloud/kubernetes-join sources proved to be dead ends (#5452/PR #5790).
+// cloud/kubernetes-join sources proved to be dead ends (#5452/PR #5790). The
+// vocabulary itself moved to [reducercontract] (issue #6061) so the
+// ci_cd_run_correlation family that publishes it can name it without
+// importing the reducer root.
 const (
-	supplyChainEnvironmentEvidenceDeployEvent = "deploy_event"
-	supplyChainEnvironmentEvidenceDeclared    = "declared"
+	supplyChainEnvironmentEvidenceDeployEvent = reducercontract.CICDRunCorrelationEnvironmentEvidenceDeployEvent
+	supplyChainEnvironmentEvidenceDeclared    = reducercontract.CICDRunCorrelationEnvironmentEvidenceDeclared
 )
 
 // normalizeSupplyChainEnvironmentEvidence maps a raw

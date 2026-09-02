@@ -18,25 +18,27 @@ of the public `github.com/eshu-hq/eshu/sdk/go/factschema` Go module
 | `ci.workflow_image_evidence` | `WorkflowImageEvidence` | `repository_id` |
 
 `ci.deployment_event` is consumed by the reducer through a decode seam
-(`decodeCICDDeploymentEvent`,
+(`DecodeCICDDeploymentEvent`,
 `go/internal/reducer/schemadecode/factschema_decode_cicdrun.go`) and a `ci_cd_run_correlation`
 attach step (`attachDeploymentEventsToRuns`,
-`go/internal/reducer/ci_cd_run_correlation_deploy_events.go`), but on a
+`go/internal/reducer/cicdrun/ci_cd_run_correlation_deploy_events.go` — issue
+#6061 moved this domain out of the flat reducer root into the `cicdrun`
+family subpackage), but on a
 different join key than the five `provider`+`run_id` kinds
 (`WorkflowImageEvidence` joins on `repository_id`): a deployment carries no
 `run_id`, so it joins by `sha` against each run's `CommitSHA` instead of the
 `provider`+`run_id` key below. The winning event per run
 (`classifyCICDDeploymentEventEnvironment`,
-`go/internal/reducer/ci_cd_run_correlation.go`) supplies the run
-correlation's `environment` (canonicalized via `environment.Canonical`) and
-stamps `environment_evidence=deploy_event`.
+`go/internal/reducer/cicdrun/ci_cd_run_correlation_deploy_events.go`) supplies
+the run correlation's `environment` (canonicalized via `environment.Canonical`)
+and stamps `environment_evidence=deploy_event`.
 
 Every required field on the five `provider`+`run_id`-keyed kinds above (`WorkflowImageEvidence` joins on `repository_id`) is a
 reducer join-key segment: `provider` + `run_id` (+ `run_attempt`, which
 defaults to `"1"` and stays optional) key the reducer's `cicdRunEvidence` map
-(`go/internal/reducer/ci_cd_run_correlation.go:cicdRunKey`), and
-`repository_id` is the sole key `attachWorkflowImagesToRuns`
-(`go/internal/reducer/ci_cd_run_correlation_workflow_image.go`) uses to attach
+(`go/internal/reducer/cicdrun/ci_cd_run_correlation_decode.go:CICDRunKeyFromParts`),
+and `repository_id` is the sole key `attachWorkflowImagesToRuns`
+(`go/internal/reducer/cicdrun/ci_cd_run_correlation_workflow_image.go`) uses to attach
 workflow image evidence to a run. A fact missing its required field could
 never join correctly under the pre-typing raw-map read, so the typed decode
 seam now dead-letters it as a per-fact `input_invalid` quarantine instead of
@@ -49,7 +51,9 @@ is this kind's own reducer join key — see `DeploymentEvent`'s own godoc.
 
 `ci.job`, `ci.pipeline_definition`, and `ci.warning` are emitted by the
 collector (`go/internal/facts.CICDRunFactKinds()`) but have no reducer or
-storage decode call today — `cicdRunCorrelationFactKinds()` does not even load
+storage decode call today —
+`go/internal/reducer/cicdrun/ci_cd_run_correlation.go`'s
+`cicdRunCorrelationFactKinds()` does not even load
 `ci.job`/`ci.pipeline_definition`. They are intentionally NOT typed here,
 matching how other families (sbom_attestation, vulnerability_intelligence)
 leave an emitted-but-unread kind typed only when its consumer lands.
@@ -58,7 +62,9 @@ leave an emitted-but-unread kind typed only when its consumer lands.
 
 `Run`, `Artifact`, `EnvironmentObservation`, `TriggerEdge`, and `Step` are
 emitted by the `ci_cd_run` collector's GitHub Actions provider path
-(`go/internal/collector/cicdrun`). `WorkflowImageEvidence` is emitted by a
+(`go/internal/collector/cicdrun`) and consumed by the reducer's
+`ci_cd_run_correlation` domain (`go/internal/reducer/cicdrun`, issue #6061).
+`WorkflowImageEvidence` is emitted by a
 DIFFERENT collector — the git collector's static workflow-file scanner
 (`go/internal/collector/gitrepo/workflowimage/git_workflow_image_facts.go`) — but shares the
 `ci.workflow_image_evidence` fact kind and `ci_cd_run` schema version

@@ -11,7 +11,8 @@ package v1
 // Provider and RunID are required for the same run-join-key reason as
 // Run/Artifact: environmentEnvelope always sets both via sharedPayload, and
 // the reducer joins every environment fact back to its run through
-// cicdRunKey (go/internal/reducer/ci_cd_run_correlation.go:189-193).
+// CICDRunKeyFromParts
+// (go/internal/reducer/cicdrun/ci_cd_run_correlation_decode.go:103).
 type EnvironmentObservation struct {
 	// Provider identifies the CI/CD provider that reported this observation.
 	// Required — half of the reducer's run join key.
@@ -51,7 +52,8 @@ type EnvironmentObservation struct {
 // Provider and RunID are required for the same run-join-key reason as the
 // other kinds in this file: triggerEnvelope always sets both via
 // sharedPayload, and the reducer joins every trigger fact back to its run
-// through cicdRunKey (go/internal/reducer/ci_cd_run_correlation.go:194-198).
+// through CICDRunKeyFromParts
+// (go/internal/reducer/cicdrun/ci_cd_run_correlation_decode.go:138).
 type TriggerEdge struct {
 	// Provider identifies the CI/CD provider that reported this trigger
 	// edge. Required — half of the reducer's run join key.
@@ -89,8 +91,8 @@ type TriggerEdge struct {
 // Provider and RunID are required for the same run-join-key reason as the
 // other kinds in this file: stepEnvelope always sets both via sharedPayload,
 // and the reducer's classifyCICDRunEvidence joins a step fact back to its run
-// through cicdRunKey specifically to read DeploymentHintSource
-// (go/internal/reducer/ci_cd_run_correlation.go:199-203) — the ONLY step
+// through CICDRunKeyFromParts specifically to read DeploymentHintSource
+// (go/internal/reducer/cicdrun/ci_cd_run_correlation_decode.go:150-152) — the ONLY step
 // field the reducer's typed decode path consumes today (a shell-only
 // deployment hint suppresses a run's correlation to CICDRunCorrelationRejected
 // rather than trusting shell text as deployment truth). Every other step

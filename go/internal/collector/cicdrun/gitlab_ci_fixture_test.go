@@ -220,7 +220,8 @@ var sharedCICDFactKinds = []string{
 // comparison. For every kind both providers emit (sharedCICDFactKinds), it
 // also proves FactKind/SchemaVersion equality and join-key shape parity
 // (provider, run_id, run_attempt, plus the reducer's join key -- see
-// go/internal/reducer/ci_cd_run_correlation.go's cicdRunKey), and that the
+// go/internal/reducer/cicdrun/ci_cd_run_correlation_decode.go's
+// CICDRunKeyFromParts), and that the
 // join key stays disjoint per-provider even when the raw provider-native
 // run/pipeline IDs collide numerically, because Provider participates in
 // every StableFactKey.
