@@ -4,9 +4,9 @@
 package reducer
 
 // Handler-level proof for the #5709 cross-scope readiness floor. The helper
-// tests live in cross_scope_readiness_floor_test.go, along with the shared
-// stubs both files use; these drive CICDRunCorrelationHandler.Handle end to
-// end, because a floor that is correct in isolation and never called by the
+// tests for the floor itself moved to crossscope/readiness_floor_test.go
+// (issue #6061); these drive CICDRunCorrelationHandler.Handle end to end,
+// because a floor that is correct in isolation and never called by the
 // handler is exactly the state #5709 found the codebase in.
 
 import (
@@ -20,6 +20,69 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
 )
+
+// fixedCrossScopeReadiness answers the readiness question with a canned result
+// and counts calls, so a test can prove the lookup was consulted — or skipped.
+type fixedCrossScopeReadiness struct {
+	ready bool
+	// readyByProducer overrides ready for the named producer domains, so a test
+	// can express the shape the aggregate bool could not: one producer ready
+	// while another is still inside its activation window.
+	readyByProducer map[Domain]bool
+	err             error
+	calls           int
+}
+
+func (r *fixedCrossScopeReadiness) CrossScopeProducersReady(
+	_ context.Context,
+	consumer Domain,
+	_ string,
+	_ string,
+) (CrossScopeProducerReadinessByDomain, error) {
+	r.calls++
+	if r.err != nil {
+		return nil, r.err
+	}
+	// Built from the real catalog, so a canned answer always covers exactly the
+	// producers the floor is about to ask about — the same contract the
+	// production store owes.
+	readiness := CrossScopeProducerReadinessByDomain{}
+	for _, dependency := range crossScopeDependenciesForRegistration(consumer) {
+		for _, producer := range dependency.ProducerDomains {
+			ready := r.ready
+			if override, named := r.readyByProducer[producer]; named {
+				ready = override
+			}
+			readiness[producer] = ready
+		}
+	}
+	return readiness, nil
+}
+
+// scopeOnlyCICDRunFactLoader implements the base FactLoader and the by-kind
+// load the handler needs, but NOT activeCICDRunCorrelationFactLoader. It stands
+// in for a deployment or an alternative adapter with no cross-scope identity
+// seam at all.
+type scopeOnlyCICDRunFactLoader struct {
+	scopeFacts []facts.Envelope
+}
+
+func (s *scopeOnlyCICDRunFactLoader) ListFacts(
+	context.Context,
+	string,
+	string,
+) ([]facts.Envelope, error) {
+	return append([]facts.Envelope(nil), s.scopeFacts...), nil
+}
+
+func (s *scopeOnlyCICDRunFactLoader) ListFactsByKind(
+	context.Context,
+	string,
+	string,
+	[]string,
+) ([]facts.Envelope, error) {
+	return append([]facts.Envelope(nil), s.scopeFacts...), nil
+}
 
 // TestCICDRunCorrelationDefersWhenIdentityProducerScopeHasNotActivated proves
 // the floor at the HANDLER, not just in the helper. A unit test of the helper

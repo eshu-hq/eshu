@@ -3,137 +3,17 @@
 
 package reducer
 
+// The cross-scope dependency catalog itself moved to [crossscope] (issue
+// #6061); its own tests moved with it into crossscope/dependencies_test.go.
+// What remains here is registry-wiring proof: that the catalog is actually
+// reachable from a registered DomainDefinition, not just present in the
+// standalone package, which only the reducer root can assert since it alone
+// constructs domain definitions.
+
 import (
 	"slices"
 	"testing"
 )
-
-func TestCrossScopeDependencyValidate(t *testing.T) {
-	t.Parallel()
-
-	t.Run("empty producer set is rejected", func(t *testing.T) {
-		t.Parallel()
-		if err := (CrossScopeDependency{}).Validate(); err == nil {
-			t.Fatal("empty cross-scope dependency must be rejected")
-		}
-	})
-
-	t.Run("unregistered producer domain is rejected", func(t *testing.T) {
-		t.Parallel()
-		dep := CrossScopeDependency{ProducerDomains: []Domain{Domain("not_a_real_domain")}}
-		if err := dep.Validate(); err == nil {
-			t.Fatal("cross-scope dependency naming an unregistered producer must be rejected")
-		}
-	})
-
-	t.Run("registered producer domain is accepted", func(t *testing.T) {
-		t.Parallel()
-		dep := CrossScopeDependency{ProducerDomains: []Domain{DomainContainerImageIdentity}}
-		if err := dep.Validate(); err != nil {
-			t.Fatalf("valid cross-scope dependency rejected: %v", err)
-		}
-	})
-}
-
-// TestCrossScopeDependencyCatalogIsValid asserts every entry in the single
-// source of truth names a registered consumer and only registered producers, so
-// a typo in the catalog fails here rather than silently disabling completion
-// replay.
-func TestCrossScopeDependencyCatalogIsValid(t *testing.T) {
-	t.Parallel()
-
-	catalog := crossScopeDependencyCatalog()
-	if len(catalog) == 0 {
-		t.Fatal("cross-scope dependency catalog must not be empty")
-	}
-	for consumer, dependency := range catalog {
-		if err := consumer.Validate(); err != nil {
-			t.Errorf("catalog consumer %q is not a registered domain: %v", consumer, err)
-		}
-		if err := dependency.Validate(); err != nil {
-			t.Errorf("catalog entry for consumer %q is invalid: %v", consumer, err)
-		}
-	}
-}
-
-func TestCrossScopeCompletionEdgesExposeCatalogExactly(t *testing.T) {
-	t.Parallel()
-	want := []CrossScopeCompletionEdge{
-		{Producer: DomainCICDRunCorrelation, Consumer: DomainSupplyChainImpact},
-		{Producer: DomainContainerImageIdentity, Consumer: DomainCICDRunCorrelation},
-		{Producer: DomainContainerImageIdentity, Consumer: DomainSupplyChainImpact},
-	}
-	if got := CrossScopeCompletionEdges(); !slices.Equal(got, want) {
-		t.Fatalf("CrossScopeCompletionEdges() = %v, want %v", got, want)
-	}
-}
-
-func TestCrossScopeCompletionEdgesFormUniqueDAG(t *testing.T) {
-	t.Parallel()
-	edges := CrossScopeCompletionEdges()
-	seen := make(map[CrossScopeCompletionEdge]struct{}, len(edges))
-	adjacency := make(map[Domain][]Domain)
-	for _, edge := range edges {
-		if edge.Producer == edge.Consumer {
-			t.Fatalf("completion dependency contains self-edge %v", edge)
-		}
-		if _, duplicate := seen[edge]; duplicate {
-			t.Fatalf("completion dependency contains duplicate edge %v", edge)
-		}
-		seen[edge] = struct{}{}
-		adjacency[edge.Producer] = append(adjacency[edge.Producer], edge.Consumer)
-	}
-	visiting := make(map[Domain]bool)
-	visited := make(map[Domain]bool)
-	var visit func(Domain) bool
-	visit = func(domain Domain) bool {
-		if visiting[domain] {
-			return false
-		}
-		if visited[domain] {
-			return true
-		}
-		visiting[domain] = true
-		for _, consumer := range adjacency[domain] {
-			if !visit(consumer) {
-				return false
-			}
-		}
-		visiting[domain] = false
-		visited[domain] = true
-		return true
-	}
-	for producer := range adjacency {
-		if !visit(producer) {
-			t.Fatalf("completion dependency catalog contains a cycle through %s", producer)
-		}
-	}
-}
-
-// TestCrossScopeConsumerDomainsExposesEveryCatalogConsumer proves the exported
-// accessor reports exactly the catalog's consumer keys, in a stable order. The
-// accessor exists so a consumer of this package -- the storage layer's
-// cross-scope correlation reopen list -- can assert its own coverage against
-// the catalog instead of restating the same constants and comparing them to
-// themselves. If the accessor silently dropped or reordered a key, that
-// downstream coverage assertion would go quietly false-green again.
-func TestCrossScopeConsumerDomainsExposesEveryCatalogConsumer(t *testing.T) {
-	t.Parallel()
-
-	catalog := crossScopeDependencyCatalog()
-	got := CrossScopeConsumerDomains()
-	if len(got) != len(catalog) {
-		t.Fatalf("CrossScopeConsumerDomains() = %v (%d domains), want the %d catalog consumers", got, len(got), len(catalog))
-	}
-	for consumer := range catalog {
-		if !slices.Contains(got, consumer) {
-			t.Errorf("CrossScopeConsumerDomains() = %v, missing catalog consumer %q", got, consumer)
-		}
-	}
-	if !slices.IsSorted(got) {
-		t.Errorf("CrossScopeConsumerDomains() = %v, want a sorted (map-iteration-independent) order", got)
-	}
-}
 
 // TestDomainDefinitionValidatesCrossScopeDependencies proves DomainDefinition
 // registration rejects an otherwise-valid registered definition once an invalid

@@ -397,13 +397,13 @@ func TestSupplyChainImpactDefersWhenOnlyOneProducerResolved(t *testing.T) {
 	// The error and the log name the producer that is actually holding this
 	// pass back, and not the one that already answered. An operator reading
 	// either has to be able to tell which upstream to go look at.
-	if !slices.Contains(notReady.producerDomains, DomainCICDRunCorrelation) {
-		t.Fatalf("producerDomains = %v, want the unresolved ci_cd_run_correlation producer", notReady.producerDomains)
+	if !slices.Contains(notReady.ProducerDomains, DomainCICDRunCorrelation) {
+		t.Fatalf("producerDomains = %v, want the unresolved ci_cd_run_correlation producer", notReady.ProducerDomains)
 	}
-	if slices.Contains(notReady.producerDomains, DomainContainerImageIdentity) {
+	if slices.Contains(notReady.ProducerDomains, DomainContainerImageIdentity) {
 		t.Fatalf(
 			"producerDomains = %v, want container_image_identity omitted: it resolved output on this pass",
-			notReady.producerDomains,
+			notReady.ProducerDomains,
 		)
 	}
 	if got := logs.String(); !strings.Contains(got, string(DomainCICDRunCorrelation)) ||
