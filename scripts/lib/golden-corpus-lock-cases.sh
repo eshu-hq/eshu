@@ -150,7 +150,8 @@ trap drop_lock_home EXIT
 # racing acquirer observes a genuinely LIVE holder rather than a pid that has
 # already exited.
 #
-# An optional third arg is a shared critical-section token path. When given,
+# try_acquire takes (hold_seconds, token_path, reap_age_override), all optional.
+# The token path is the SECOND arg; it is a shared critical-section token. When given,
 # entry is claimed with `set -o noclobber` (create-or-fail) immediately after
 # acquiring the lock: a second racer that is ALSO inside the critical section
 # at the same instant reports OVERLAP instead of ACQUIRED. This is the mutual-
@@ -163,7 +164,7 @@ trap drop_lock_home EXIT
 # "got 8" under scheduler load - not a mutex bug, an test invariant that
 # was already provably violated by the code as designed. Overlap (never two
 # holders AT ONCE) is what must be asserted; sequential winners are correct.
-# $3 optionally overrides the orphan-reap age INSIDE the child, assigned after
+# The third arg optionally overrides the orphan-reap age INSIDE the child, assigned after
 # the lib is sourced. It is passed as an argument and never as an environment
 # variable on purpose: an env-readable threshold would let any process that
 # exports the name shrink the production window, and because the gate reaps only
@@ -175,7 +176,14 @@ try_acquire() {
 	ESHU_LIVE_GATE_LOCK_DIR="${lock_home}" bash -c '
 		set -euo pipefail
 		. "$1"
-		[[ -z "$4" ]] || eshu_live_gate_reap_age_seconds="$4"
+		# Validated before assignment: the child runs set -euo pipefail, and a
+		# non-integer would surface as an opaque arithmetic failure inside the
+		# age gate rather than as a bad argument from the case that passed it.
+		if [[ -n "$4" ]]; then
+			[[ "$4" =~ ^[0-9]+$ ]] ||
+				{ printf "try_acquire: reap age override must be an integer, got: %s\n" "$4" >&2; exit 2; }
+			eshu_live_gate_reap_age_seconds="$4"
+		fi
 		acquire_live_gate_lock
 		token="$3"
 		if [[ -n "${token}" ]] && ! ( set -o noclobber; : >"${token}" ) 2>/dev/null; then
