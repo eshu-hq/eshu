@@ -1410,7 +1410,7 @@
           "list_ci_cd_run_correlations"
         ],
         "proof_gates": [
-          "cd go \u0026\u0026 go test ./cmd/collector-cicd-run ./internal/collector/cicdrun ./internal/reducer ./internal/query ./internal/mcp -count=1"
+          "cd go \u0026\u0026 go test ./cmd/collector-cicd-run ./internal/collector/cicdrun ./internal/reducer/... ./internal/query ./internal/mcp -count=1"
         ],
         "fixture_refs": [
           "docs/public/reference/collector-reducer-readiness.md",

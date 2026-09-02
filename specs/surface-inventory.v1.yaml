@@ -252,7 +252,7 @@ surfaces:
       fact_kinds: [ci.artifact, ci.deployment_event, ci.environment_observation, ci.job, ci.pipeline_definition, ci.run, ci.step, ci.trigger_edge, ci.warning, ci.workflow_image_evidence]
       projection_surfaces: [ci_cd_run_correlation, container_image_identity, supply_chain_impact]
       read_surfaces: [GET /api/v0/ci-cd/run-correlations, GET /api/v0/ci-cd/run-correlations/count, GET /api/v0/ci-cd/run-correlations/inventory, list_ci_cd_run_correlations, count_ci_cd_run_correlations, get_ci_cd_run_correlation_inventory]
-      proof_gates: [cd go && go test ./cmd/collector-cicd-run ./internal/collector/cicdrun ./internal/reducer ./internal/query ./internal/mcp -count=1]
+      proof_gates: [cd go && go test ./cmd/collector-cicd-run ./internal/collector/cicdrun ./internal/reducer/... ./internal/query ./internal/mcp -count=1]
       fixture_refs: [go/internal/collector/cicdrun/testdata, docs/public/reference/collector-reducer-readiness.md]
       truth_profile: fixture_gated
   - category: collector
