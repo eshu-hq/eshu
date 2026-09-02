@@ -55,8 +55,12 @@ API request duration and error metrics (`request_metrics.go` in
   (`deadCodeDefaultLimit` and `deadCodeMaxLimit` in query's
   `code_dead_code.go`), so the dispatcher's default is indistinguishable from
   an omitted limit at the handler and no limit value can 400. `offset`
-  defaults to 0; the investigate handler floors negatives and caps it at
-  2000.
+  defaults to 0, and unlike `limit` the investigate handler REJECTS rather than
+  clamps it: `normalizeDeadCodeInvestigationRequest` returns an error for a
+  negative offset and for one above `deadCodeInvestigationMaxOffset`, so either
+  surfaces to the caller as HTTP 400. The two parameters are deliberately
+  asymmetric — an out-of-range limit is silently corrected, an out-of-range
+  offset is refused.
 - `exclude_decorated_with` travels as a nil `[]any` (JSON `null`) when absent
   or malformed and as a non-nil empty `[]any` (JSON `[]`) when the caller
   sent an empty list. `consumer_repo_ids` is always a non-nil `[]string`
