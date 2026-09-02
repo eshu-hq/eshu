@@ -1475,11 +1475,46 @@ suppress the ambiguity signal for callers who set no line. Only a blank
 `file_path`, or `line` silently widens the page, which is why both test
 files pin the six keys individually as well as by exact request.
 
+The dead-code route family is the fourteenth Wave 2 MCP extraction and the
+first to lift case arms out of `dispatch.go`'s own switch rather than an
+already-isolated delegation or fallback. Its three tools — `find_dead_code`,
+`investigate_dead_code`, and `find_cross_repo_dead_code` — were three inline
+arms sharing the `exclude_decorated_with` vocabulary and the `limit` 100
+default; family membership and the three request builders now live under
+`internal/mcp/deadcode`, and the thin `deadCodeRoute` adapter lives in
+`dispatch.go` itself — a new adapter file would have grown the root non-test
+file set past its dirgate pin of 106, which every extraction so far has held.
+The delegation is consulted with the other route delegations ahead of the
+switch instead of at the arms' old positions inside it, which no caller can
+observe because every arm in the chain claims tool names exactly and no
+other arm claims these three: `resolveRoute` goes from 20 delegations and 49
+cases to 21 delegations and 46 cases, with all 162 tools answered
+identically on both sides. Root keeps the three definitions
+(`tools_codebase.go`, `tools_dead_code.go`, `tools_cross_repo_dead_code.go`),
+global fanout, dispatch, authorization, timeouts, response budgets,
+envelopes, summaries, and telemetry.
+
+What makes this family worth reading is that its two list arguments keep
+opposite absent shapes on the wire, inherited from the two different root
+helpers the arms used. `exclude_decorated_with` came through `stringSlice`:
+absent or malformed input is a nil `[]any` that serializes as `null`, while
+a present empty list stays non-nil and serializes as `[]`.
+`consumer_repo_ids` came through `stringValues`, which always returns a
+non-nil `[]string` and drops empty-string and non-string members, so an
+absent argument serializes as `[]`. The handlers decode both into the same
+empty `[]string`, but the bytes differ, and nil and empty are both length
+zero, so the child and root tests pin nil-ness directly rather than
+comparing lengths — the class of check a `len(a) != len(b)` guard cannot
+perform. `routecontract` gained nothing: `StringSlice` already matched the
+root helper, and the `[]string`-narrowing `stringValues` lives unexported in
+the child because no second family needs it yet. `find_dead_code` is a
+language-parity read-surface label formerly documented as a literal case
+string in `dispatch.go`; the consumer-existence comment and gate doc now
+name the child selector and adapter, the way the impact extraction
+re-documented its two labels.
+
 The rest of the codeintel cluster stays in `dispatch.go`'s switch and moves
-family by family, not as one package: the dead-code trio (`find_dead_code`,
-`investigate_dead_code`, `find_cross_repo_dead_code`, sharing the
-`exclude_decorated_with` vocabulary and needing a child equivalent of the
-root `stringValues` helper), the complexity/quality trio
+family by family, not as one package: the complexity/quality trio
 (`calculate_cyclomatic_complexity` with its conditional `entity_id` key,
 `find_most_complex_functions`, `inspect_code_quality`), the discovery group
 (`find_code` with its outlier `limit` 10, `find_symbol`,
@@ -1489,11 +1524,11 @@ root `stringValues` helper), the complexity/quality trio
 `find_function_call_chain`), the single-tool secrets arm
 (`investigate_hardcoded_secrets`), and the graph passthrough pair
 (`execute_cypher_query`, `visualize_graph_query`) plus
-`search_registry_bundles`. Three of those names
-(`execute_language_query`, `find_dead_code`, `trace_route_callers`) are
-language-parity read-surface labels documented as literal case strings in
-`dispatch.go`'s own switch, so whichever family moves them must update the
-consumer-existence comments and gate doc the way the impact extraction did.
+`search_registry_bundles`. Two of those names (`execute_language_query`,
+`trace_route_callers`) are language-parity read-surface labels documented as
+literal case strings in `dispatch.go`'s own switch, so whichever family
+moves them must update the consumer-existence comments and gate doc the way
+the impact and dead-code extractions did.
 
 **cmd/eshu (233):** `package main` — subdirectories are impossible by
 language rule. The lever is extracting business logic to new
