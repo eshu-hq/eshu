@@ -22,7 +22,7 @@
 // # Why every struct carries the full candidate-key union
 //
 // The family's single reducer payload consumer is the coverage-metadata
-// classifier (go/internal/reducer/observability_coverage_metadata.go,
+// classifier (go/internal/reducer/obscoverage/observability_coverage_metadata.go,
 // observabilityMetadataEvidenceFromEnvelope). It reads a bounded union of named
 // keys — a 20-entry object-ref fallback chain plus the
 // provider/backend_kind/source_kind/source_class/resource_class/outcome/

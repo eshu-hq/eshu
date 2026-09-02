@@ -37,7 +37,7 @@ import (
 // go/internal/reducer/secrets_iam_trust_chain_build.go's
 // `case facts.SecretsIAMCoverageWarningFactKind:` and
 // facts.ObservabilitySourceInstanceFactKind in
-// go/internal/reducer/observability_coverage_metadata.go's
+// go/internal/reducer/obscoverage/observability_coverage_metadata.go's
 // `envelope.FactKind == facts.ObservabilitySourceInstanceFactKind` are the
 // concrete cases that motivated this) without ever calling a typed
 // factschema.Decode<Kind> function.
