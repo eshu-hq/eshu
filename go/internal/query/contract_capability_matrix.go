@@ -3,7 +3,10 @@
 
 package query
 
-import "github.com/eshu-hq/eshu/go/internal/query/querycontract"
+import (
+	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
+	"github.com/eshu-hq/eshu/go/internal/query/semanticsearch"
+)
 
 // This file holds the capability support matrix extracted from contract.go to
 // keep that file under the repo line cap. The matrix maps each capability to its
@@ -31,13 +34,11 @@ var baseCapabilityMatrix = map[string]capabilitySupport{
 		ProductionMax:         &truthExact,
 		RequiredProfile:       ProfileLocalLightweight,
 	},
-	semanticSearchCapability: {
-		LocalLightweightMax:   nil,
-		LocalAuthoritativeMax: &truthDerived,
-		LocalFullStackMax:     &truthDerived,
-		ProductionMax:         &truthDerived,
-		RequiredProfile:       ProfileLocalAuthoritative,
-	},
+	// Declared by the family that implements the route (#6060), not copied
+	// here. Two copies of a support row drift silently: nothing fails when one
+	// side changes, and the route then serves a profile the matrix no longer
+	// describes.
+	semanticSearchCapability: semanticsearch.Support(),
 	"code_search.exact_symbol": {
 		LocalLightweightMax:   &truthExact,
 		LocalAuthoritativeMax: &truthExact,

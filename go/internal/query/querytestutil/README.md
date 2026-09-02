@@ -2,12 +2,11 @@
 
 ## Purpose
 
-Test helpers reachable from `internal/query` and, once they exist, its
-handler-family subpackages. Split out during the #6060 family moves.
+Test helpers reachable from `internal/query` and its handler-family
+subpackages. Split out during the #6060 family moves.
 
-Today there is exactly one consuming package, root `query`'s tests. See
-`AGENTS.md` for why a single-consumer helper lives here and why that is not
-precedent for the next one.
+Two packages consume it: root `query`'s tests and
+`internal/query/semanticsearch`'s, the first family to move out (#6060).
 
 ## Ownership boundary
 
@@ -36,6 +35,19 @@ See `doc.go` for the godoc contract.
 - `FakeWorkloadGraphReader` — the same dispatch shape for `getWorkloadContext`
   tests, deliberately without the single-entry fallback. See "Two near-duplicate
   fakes, not one type" below before touching either.
+- `ScriptedRows` — canned rows satisfying the `pgstatus.Rows` surface a
+  Postgres-backed store scans. `Scan` fails on an arity or type mismatch rather
+  than leaving destinations zeroed, so a drifted SELECT reads as a code problem
+  instead of a data problem. Not safe for concurrent use: it is a cursor.
+- `WithPackageMetricReader` — installs a process-global manual-reader meter
+  provider for one test and returns the reader, burning the OTel global
+  delegate-once on a throwaway provider first so a handler that wrongly caches
+  its meter fails deterministically instead of passing by test-file ordering.
+  Callers must not call `t.Parallel()`.
+- `SemanticSearchDocumentFixture` and `SemanticSearchHTTPRequest` — the curated
+  search-document fixture and the envelope-Accept request builder the
+  semantic-search family's tests and root's session-permission and OpenAPI
+  wire-contract tests both use.
 
 `FakeGraphReader`'s `Run` routes through an unexported `rows` helper, and its
 `RunSingle` falls back to that same helper rather than calling `Run` (it still

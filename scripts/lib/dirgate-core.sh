@@ -300,7 +300,7 @@ dirgate_evaluate_dir() {
 		# Mirrors evaluateCapViolation's caller in grandfather_eval.go: a cap
 		# nolint sits on the directory's representative file and suppresses the
 		# cap for EVERY file in that directory, indefinitely. One marker on
-		# internal/query's doc.go would un-gate 867 files for good, and "split it
+		# internal/query's doc.go would un-gate 854 files for good, and "split it
 		# into a subpackage" does not compile for query, reducer, projector or
 		# mcp until the acyclic boundary lands. A grandfathered directory's only
 		# exit is a reviewed pin bump in dirgate-grandfather.tsv, which a

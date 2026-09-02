@@ -13,13 +13,19 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/query/querytestutil"
 )
 
+// This test stays in package query rather than moving with the handler family
+// (#6060): it binds this package's generated OpenAPI spec to the route's
+// behavior, and OpenAPISpec() lives here. It drives the handler through Mount
+// and a real mux, which is what the deployed API does, so a route that stopped
+// being registered fails here instead of passing.
+//
 // TestSemanticSearchLanguagesOpenAPIDescriptionMatchesHandler binds the wire
 // description of the `languages` filter to what the handler actually does
 // (#6271).
 //
 // The runtime contract is open-pass: semanticSearchLanguages
-// (semantic_search_params.go) lowercases and trims each token and returns no
-// error, so there is no code path that rejects a language value. An unmatched
+// (semanticsearch/semantic_search_params.go) lowercases and trims each token
+// and returns no error, so there is no code path that rejects a language value. An unmatched
 // language reaches the index and comes back as a 200 with an empty result set.
 // The public reference documents that. The generated OpenAPI path text
 // contradicted it, telling callers unknown values are rejected with HTTP 400 —
@@ -35,11 +41,13 @@ import (
 func TestSemanticSearchLanguagesOpenAPIDescriptionMatchesHandler(t *testing.T) {
 	t.Parallel()
 
-	index := &fakeSemanticSearchIndexStore{
-		result: semanticSearchIndexResult{IndexedDocumentCount: 0},
+	index := &stubSemanticSearchIndex{
+		result: SemanticSearchIndexResult{IndexedDocumentCount: 0},
 	}
 	handler := &SemanticSearchHandler{Index: index, Profile: ProfileProduction}
-	req := semanticSearchHTTPRequest(t, map[string]any{
+	mux := http.NewServeMux()
+	handler.Mount(mux)
+	req := querytestutil.SemanticSearchHTTPRequest(t, map[string]any{
 		"repo_id":    "repo-1",
 		"query":      "service",
 		"mode":       "keyword",
@@ -48,7 +56,7 @@ func TestSemanticSearchLanguagesOpenAPIDescriptionMatchesHandler(t *testing.T) {
 		"languages":  []string{"not_a_real_language_xyz"},
 	})
 	rec := httptest.NewRecorder()
-	handler.search(rec, req)
+	mux.ServeHTTP(rec, req)
 
 	if got, want := rec.Code, http.StatusOK; got != want {
 		t.Fatalf("unknown language status = %d, want %d; body = %s", got, want, rec.Body.String())

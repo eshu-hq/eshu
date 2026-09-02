@@ -420,7 +420,7 @@ func TestEvaluateDirectoryMissingDirReturnsError(t *testing.T) {
 // TestEvaluateDirectoryGrandfatheredCapNolintIsRefused pins the rule that a cap
 // nolint cannot buy off a grandfathered directory. The marker goes on the
 // directory's representative file and would suppress the cap for every file in
-// it, indefinitely — one marker on internal/query's doc.go un-gates 867 files.
+// it, indefinitely — one marker on internal/query's doc.go un-gates 854 files.
 // The "split it into a subpackage" alternative does not compile for query,
 // reducer, projector or mcp until the acyclic boundary lands, so refusing the
 // hatch here leaves the reviewed pin bump as the only exit, and a pin bump is a

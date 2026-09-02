@@ -5,8 +5,8 @@
 // facet computed over the post-filter result set. Mirrors the
 // relationshipsCatalog.ts client/envelope pattern: client.post +
 // EshuEnvelopeError, snake_case wire records normalized to camelCase view
-// types. See go/internal/query/semantic_search.go for the wire contract
-// (semanticSearchRequest / semanticSearchResponse).
+// types. See go/internal/query/semanticsearch/semantic_search.go for the
+// wire contract (semanticSearchRequest / semanticSearchResponse).
 import type { EshuApiClient } from "./client";
 import { EshuEnvelopeError } from "./envelope";
 

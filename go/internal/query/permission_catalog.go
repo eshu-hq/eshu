@@ -6,53 +6,33 @@ package query
 import (
 	"context"
 	"net/http"
+
+	"github.com/eshu-hq/eshu/go/internal/query/queryauth"
 )
 
 const (
-	permissionFeatureAskSearch     = "ask_search"
+	// permissionFeatureAskSearch is the ask/semantic-search feature family.
+	// The value lives in queryauth so the semantic-search family, which moved
+	// to internal/query/semanticsearch for #6060, authorizes against the same
+	// name this package's ask handler does.
+	permissionFeatureAskSearch     = queryauth.PermissionFeatureAskSearch
 	permissionFeatureAuditExport   = "audit_export"
 	permissionFeatureIdentityAdmin = "identity_admin"
 	permissionFeatureRolesGrants   = "roles_grants"
 	permissionFeatureTokens        = "tokens"
 )
 
-var permissionDataClassesAskSearch = []string{
-	"ask_reasoning",
-	"source_content",
-	"documentation_semantic",
-}
+// permissionDataClassesAskSearch is the data-class set the ask_search family
+// requires. queryauth owns the list for the same reason it owns the feature
+// name.
+var permissionDataClassesAskSearch = queryauth.PermissionDataClassesAskSearch()
 
 func authContextAllowsPermissionFeature(ctx context.Context, feature string) bool {
-	auth, ok := AuthContextFromContext(ctx)
-	if !ok || !auth.PermissionCatalogEnforced || auth.Mode == AuthModeShared {
-		return true
-	}
-	for _, allowed := range auth.AllowedPermissionFeatures {
-		if allowed == feature || allowed == "*" {
-			return true
-		}
-	}
-	return false
+	return queryauth.AllowsPermissionFeature(ctx, feature)
 }
 
 func authContextAllowsPermissionDataClasses(ctx context.Context, dataClasses ...string) bool {
-	auth, ok := AuthContextFromContext(ctx)
-	if !ok || !auth.PermissionCatalogEnforced || auth.Mode == AuthModeShared {
-		return true
-	}
-	allowed := make(map[string]struct{}, len(auth.AllowedPermissionDataClasses))
-	for _, dataClass := range auth.AllowedPermissionDataClasses {
-		allowed[dataClass] = struct{}{}
-	}
-	if _, ok := allowed["*"]; ok {
-		return true
-	}
-	for _, dataClass := range dataClasses {
-		if _, ok := allowed[dataClass]; !ok {
-			return false
-		}
-	}
-	return true
+	return queryauth.AllowsPermissionDataClasses(ctx, dataClasses...)
 }
 
 func requirePermissionFeature(w http.ResponseWriter, r *http.Request, capability string, feature string) bool {

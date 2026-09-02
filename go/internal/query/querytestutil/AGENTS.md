@@ -85,24 +85,35 @@ the whitelist it came bundled with let a genuine graph read pass the gate in
 silence, so long as it wore the self-delegation shape. Dropping the skip
 retired both. Do not reintroduce either.
 
-## Current state: one consumer, on purpose
+## Two consumers, as designed
 
-`MustMapField`, `FakeGraphReader`, `FakeRepoGraphReader`, and
-`FakeWorkloadGraphReader` each have exactly one consuming package today —
-root `query`'s own tests. That is a real exception to the two-consumer rule
-below, and it is worth understanding before you apply any of them.
+Root `query`'s tests and `internal/query/semanticsearch`'s both import this
+package. The first family move (#6060) landed, so the earlier
+"one consumer, on purpose" exception is spent — apply the two-consumer rule
+below as written.
 
-The rule exists to stop helpers migrating here for tidiness. This helper is here
-for a different reason: it is a precursor to the #6060 family split, and the
-split cannot happen without it. A helper declared in a `_test.go` file is not
-part of the importable package, so the first family subpackage to move its tests
-would fail to compile on a missing symbol that has nothing to do with the code
-being moved. Landing the move separately keeps that mechanical 67-file rename
-out of the diff that actually splits a family.
+`MustMapField` and `FakeGraphReader` still have only root as a consumer. That
+is fine: they were landed as precursors to the split, not as precedent for
+moving a single-consumer helper here for tidiness.
 
-Once the first family lands, the second consumer exists and this note stops
-being an exception. Until then, do not cite this package as precedent for moving
-a single-consumer helper.
+## A fixture that names a family type cannot live here
+
+This is the practical consequence of invariant 2's first case above, stated as
+a decision rule. Where that case applies, a fixture whose type signature names
+a family type cannot be shared at all, and the consuming package declares its
+own double instead.
+
+That is why the semantic-search move promoted `SemanticSearchDocumentFixture`
+and `SemanticSearchHTTPRequest` — which name only `internal/searchdocs` and
+`querycontract` — but left the index-store fake behind: it implements
+`semanticsearch.SemanticSearchIndexStore`. Root declares
+`stubSemanticSearchIndex` in its own `_test.go` for the three tests that drive
+that route, matching the `packagereg` precedent
+(`package_registry_family_test_doubles_test.go`, #6399).
+
+Check this before promising a promotion: the split is decided by whether the
+fixture's signature can avoid the family's types, not by how much duplication
+you would like to remove.
 
 ## Adapting a fake without churning its callers
 

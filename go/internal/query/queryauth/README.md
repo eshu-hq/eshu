@@ -5,19 +5,23 @@
 The request-scoped authorization bounds a query handler enforces: which mode
 authenticated the caller, which tenant and workspace they belong to, and which
 scope and repository ids they may read. Plus the context slot those bounds
-travel in.
+travel in, and the permission-catalog predicates a handler asks before serving.
 
 ## Ownership boundary
 
-This package owns the `AuthContext` shape and its context key. It does not
-authenticate anyone. Middleware, token resolution, session handling, and CSRF
+This package owns the `AuthContext` shape, its context key, and the
+permission-catalog feature and data-class predicates. It does not authenticate
+anyone. Middleware, token resolution, session handling, and CSRF
 enforcement stay in the root query package; this holds only what a handler needs
 to read once a request is already authenticated.
 
 ## Exported surface
 
 `AuthContext`, `AuthMode` and its three constants, `AuthContextFromContext`,
-`ContextWithAuthContext`, and `CleanedStrings`. See [doc.go](doc.go).
+`ContextWithAuthContext`, and `CleanedStrings`. Plus the permission-catalog
+surface: `AllowsPermissionFeature`, `AllowsPermissionDataClasses`,
+`PermissionFeatureAskSearch`, and `PermissionDataClassesAskSearch`. See
+[doc.go](doc.go).
 
 ## Dependencies
 
@@ -48,6 +52,20 @@ root alias them so `internal/oidcbearer`, `internal/scopedtoken`, and
 `internal/ask/engine` keep naming `query.AuthContext` unchanged. Adding an
 unexported method to either would break those callers, because a type alias
 cannot reach unexported methods across a package boundary.
+
+**The permission predicates fail open on three pre-catalog cases**: no auth
+context, `PermissionCatalogEnforced` false, and `AuthModeShared`. That is
+deliberate — the catalog gates callers carrying a derived grant snapshot, and
+failing closed would deny every deployment that has not enabled it. Any change
+that narrows those exits denies live traffic; any change that widens them grants
+it. `AllowsPermissionDataClasses` requires **every** requested class, not any.
+
+`PermissionFeatureAskSearch` and `PermissionDataClassesAskSearch` live here
+rather than beside a handler because the two handlers that authorize against
+them no longer share a package: the semantic-search family moved to
+`internal/query/semanticsearch` for #6060 while the ask handler stayed in root.
+Two copies of the strings would authorize against two different names, and a
+caller granted one would be denied by the other.
 
 `CleanedStrings` preserves order while trimming, dropping empties, and
 de-duplicating. Allow-list comparisons depend on it, so a change to its

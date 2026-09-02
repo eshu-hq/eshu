@@ -298,9 +298,9 @@ downgrades the `POST /api/v0/search/semantic` truth envelope with the closed
 published or is older than a 2-minute freshness window (matching the
 `SearchVectorBuildRunner` ~30s default poll cadence with headroom); the
 `applySearchVectorFreshness` mapping lives in
-`go/internal/query/semantic_search_freshness.go`. The downgrade is gated to
+`go/internal/query/semanticsearch/semantic_search_freshness.go`. The downgrade is gated to
 vector-backed modes (`semantic`/`hybrid`, via `searchVectorBackedMode` in
-`go/internal/query/semantic_search.go`) — an explicit `mode:"keyword"`
+`go/internal/query/semanticsearch/semantic_search.go`) — an explicit `mode:"keyword"`
 request is served entirely by the deterministic lexical index and is never
 downgraded by a pending search-vector build.
 
@@ -327,11 +327,11 @@ production batch fast path. `TestSearchVectorReadyWatermarkIsIdentityScopedLive`
 on `ESHU_SEARCH_VECTOR_READY_LIVE=1` + `ESHU_POSTGRES_DSN`) proves the
 identity-keyed watermark against a live Postgres: a publish for identity A
 does not create a row satisfying identity B. `TestApplySearchVectorFreshness*`
-(`go/internal/query/semantic_search_freshness_test.go`) prove the
+(`go/internal/query/semanticsearch/semantic_search_freshness_test.go`) prove the
 watermark→envelope mapping including the probe-error-is-unavailable case;
 `TestSemanticSearchHandlerKeywordModeIgnoresPendingSearchVector` and
 `TestSemanticSearchHandlerHybridModeAppliesPendingSearchVector`
-(`go/internal/query/semantic_search_vector_freshness_mode_test.go`) prove the
+(`go/internal/query/semanticsearch/semantic_search_vector_freshness_mode_test.go`) prove the
 mode gate. No-Regression Evidence: the post-build re-check and publish are a
 single bounded (`Limit: 1`) re-query plus one idempotent identity-keyed
 upsert, gated strictly after the existing `logResult`/`recordPhaseMetrics`

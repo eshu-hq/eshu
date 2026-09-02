@@ -17,6 +17,16 @@ and treat every change here as a security change.
   failure; the boolean is the guard.
 - `CleanedStrings` MUST keep preserving order and dropping blanks. Allow-list
   membership is compared against its output.
+- `AllowsPermissionFeature` and `AllowsPermissionDataClasses` MUST keep failing
+  open on all three pre-catalog cases: no auth context, `PermissionCatalogEnforced`
+  false, and `AuthModeShared`. Narrowing any of them denies live traffic on
+  deployments that have not enabled the catalog. `AllowsPermissionDataClasses`
+  MUST keep requiring EVERY requested class — switching it to any-of would let a
+  handler answer from a class the caller was never granted.
+- The ask_search feature name and data-class list MUST have exactly one
+  definition, here. Root package `query` and `internal/query/semanticsearch`
+  both authorize against them and no longer share a package (#6060); a second
+  literal makes a caller granted by one surface denied by the other.
 
 ## Common changes
 
@@ -30,5 +40,6 @@ denial.
 From `go/`:
 `go test ./internal/query/... ./internal/oidcbearer ./internal/scopedtoken -count=1`.
 The last two are external consumers of the aliased type and are what prove the
-alias still holds. Confirm the auth suite ran a real case count rather than
+alias still holds. `./internal/query/...` covers both permission-predicate
+consumers: root's ask handler and the semantic-search family. Confirm the auth suite ran a real case count rather than
 matching zero.

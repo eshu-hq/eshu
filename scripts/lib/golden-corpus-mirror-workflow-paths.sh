@@ -197,12 +197,12 @@ require_workflow_path "GitHub Actions ref classification (#5538)" "go/internal/g
 # query shape.
 require_workflow_path "GitHub Actions workflow image evidence (#5538 correction)" "go/internal/workflowimage/**"
 
-# The search/semantic family: internal/query/semantic_search.go imports
+# The search/semantic family: internal/query/semanticsearch/semantic_search.go imports
 # searchbench, searchdocs, and searchretrieval directly, and the
 # search_semantic_context MCP tool shape (14 required_response_fields) is
 # asserted live in the B-12 snapshot. searchbench also imports searchdecay
 # directly. searchhybrid/searchrerank/searchembed/searchembedruntime feed
-# internal/query/semantic_search_hybrid.go, semantic_search_rerank.go, and
+# internal/query/semanticsearch/semantic_search_hybrid.go, semantic_search_rerank.go, and
 # semantic_search_persisted_vector.go (the same MCP tool's response), plus
 # cmd/api and cmd/mcp-server wiring; searchvector feeds
 # cmd/reducer/search_vector_build_wiring.go; semanticqueue/semanticpolicy/
