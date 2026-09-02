@@ -361,8 +361,16 @@ func TestRouteAppliesImpactDefaultsForAbsentArguments(t *testing.T) {
 		if !ok {
 			t.Fatalf("Route(explain_dependency_path, %s) body type = %T, want map[string]any", tt.name, request.Body)
 		}
-		if len(body) != len(tt.args) {
+		// DeepEqual rather than a length check: a nil map and an empty map are
+		// both length zero but serialize differently on the wire (null versus
+		// {}), and this route forwards the argument map itself, so that
+		// distinction is the contract. A length-only assertion would pass if a
+		// regression defaulted an absent map into an empty one.
+		if !reflect.DeepEqual(body, map[string]any(tt.args)) {
 			t.Fatalf("Route(explain_dependency_path, %s) body = %#v, want the argument map unchanged", tt.name, body)
+		}
+		if (body == nil) != (tt.args == nil) {
+			t.Fatalf("Route(explain_dependency_path, %s) body nil = %t, want %t; an absent map must stay nil rather than becoming an empty map", tt.name, body == nil, tt.args == nil)
 		}
 	}
 }
