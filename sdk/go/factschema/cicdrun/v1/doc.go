@@ -7,8 +7,9 @@
 // factschema package's kind-keyed seam (decode.go, decode_cicdrun.go).
 //
 // Seven fact kinds live here. All seven are consumed by the reducer's
-// ci_cd_run_correlation domain (go/internal/reducer/ci_cd_run_correlation.go,
-// ci_cd_run_correlation_workflow_image.go):
+// ci_cd_run_correlation domain (go/internal/reducer/cicdrun/ci_cd_run_correlation.go,
+// ci_cd_run_correlation_workflow_image.go — issue #6061 moved the domain out
+// of the flat reducer root into this family subpackage):
 //
 //   - Run (ci.run): one provider CI/CD run execution.
 //   - Artifact (ci.artifact): one artifact emitted by a provider run.
@@ -26,18 +27,20 @@
 // The seventh, DeploymentEvent (ci.deployment_event), models a provider
 // deployment or deployment-status event (GitHub's Deployments API shape). It
 // is also consumed by the reducer's ci_cd_run_correlation domain:
-// decodeCICDDeploymentEvent (factschema_decode_cicdrun.go) decodes it, and
+// DecodeCICDDeploymentEvent (factschema_decode_cicdrun.go) decodes it, and
 // ci_cd_run_correlation_deploy_events.go's attachDeploymentEventsToRuns joins
 // each decoded event onto every run whose CommitSHA matches the event's SHA
 // — the join key, since a deployment carries no run_id — before
-// classifyCICDDeploymentEventEnvironment (ci_cd_run_correlation.go) selects a
-// winner and canonicalizes its Environment onto the correlation.
+// classifyCICDDeploymentEventEnvironment (also
+// ci_cd_run_correlation_deploy_events.go) selects a winner and canonicalizes
+// its Environment onto the correlation.
 //
 // Two emitted-but-unread-by-the-reducer kinds (ci.job, ci.pipeline_definition)
 // and one warning kind (ci.warning) are intentionally NOT modeled here: no
 // reducer or storage read path decodes their payload today
-// (go/internal/reducer/ci_cd_run_correlation.go's cicdRunCorrelationFactKinds
-// does not load ci.job or ci.pipeline_definition at all, and ci.warning is
+// (go/internal/reducer/cicdrun/ci_cd_run_correlation.go's
+// cicdRunCorrelationFactKinds does not load ci.job or ci.pipeline_definition
+// at all, and ci.warning is
 // collected only as fixture provenance). Adding them is future follow-up work
 // when a consumer needs them, matching how the sbom_attestation family left
 // sbom.dependency_relationship/sbom.external_reference typed-but-deferred

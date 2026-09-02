@@ -240,9 +240,9 @@ func incidentCICDRunCorrelationsFromRows(
 // decodeIncidentCICDRunCorrelation decodes one reducer_ci_cd_run_correlation
 // fact row into the read model's incidentCICDRunCorrelation via raw payload
 // lookups. reducer_ci_cd_run_correlation is a REDUCER-DERIVED fact
-// (go/internal/reducer/ci_cd_run_correlation_writer.go writes it directly, not
-// through sdk/go/factschema) — it has no factschema.FactKind* constant and no
-// Decode* seam, so it is out of scope for the #4794 W2a typed-decode
+// (go/internal/reducer/cicdrun/ci_cd_run_correlation_writer.go writes it
+// directly, not through sdk/go/factschema) — it has no factschema.FactKind*
+// constant and no Decode* seam, so it is out of scope for the #4794 W2a typed-decode
 // conversion (which only converts collector-emitted fact kinds that already
 // have a contracts-module seam). Converting reducer-derived reducer_* kinds to
 // a typed contract is tracked separately (see the reducer-derived fact

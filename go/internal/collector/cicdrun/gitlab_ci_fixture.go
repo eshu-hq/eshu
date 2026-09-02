@@ -18,7 +18,8 @@ import (
 // SECOND provider on the EXISTING ci.* fact contract GitHub Actions already
 // populates: both emit the same FactKind/SchemaVersion constants and the same
 // reducer join-key shape (provider, run_id, run_attempt --
-// go/internal/reducer/ci_cd_run_correlation.go's cicdRunKey) -- see
+// go/internal/reducer/cicdrun/ci_cd_run_correlation_decode.go's
+// CICDRunKeyFromParts) -- see
 // TestGitLabCIFixtureSharesFactKindsAndJoinKeyShapeWithGitHubActions.
 //
 // Scope is intentionally narrower than GitHub Actions:

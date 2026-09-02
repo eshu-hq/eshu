@@ -36,12 +36,57 @@ needs it, so it was not ported from the root's equivalent
 `DecodeBatchedFactCalls`'s shape, if a future family subpackage needs to
 assert on a versioned batched write.
 
+## Exported surface
+
+| symbol | what it is |
+|---|---|
+| `FakeExecer` / `ExecCall` | a `factwrite.Execer` that records every `ExecContext` call (query + positional args) instead of executing it |
+| `BatchedFactRow` | one row recovered from a decoded `factwrite.BatchInsertQuery` call |
+| `DecodeBatchedFactCalls` | flattens every recorded `FakeExecer` call into `BatchedFactRow`s, failing the test if any call did not use `factwrite.BatchInsertQuery` |
+| `ExpectedBatchedExecCount` | `ceil(rowCount/factwrite.BatchSize)`, the number of `ExecContext` calls a batched writer must issue for `rowCount` rows |
+
 ## Dependencies
 
 `internal/reducer/factwrite` (the query/row/batch-size constants this
 package decodes against) and the standard library (`context`,
 `database/sql`, `testing`, `time`). No dependency on the reducer root or any
 family subpackage.
+
+## Telemetry
+
+None. Test-only support code with no production call path — see
+No-Observability-Change below.
+
+## Gotchas / invariants
+
+- **`decodeBatchedFactCall`'s 16-column decode is positional, not
+  field-name-bound, and it must track `factwrite.ChunkArgs`'s column order
+  exactly.** `DecodeBatchedFactCalls` reads `call.Args[0]` through
+  `call.Args[15]` by index (`fact_id`, `scope_id`, `generation_id`,
+  `fact_kind`, `stable_fact_key`, `collector_kind`, `source_confidence`,
+  `source_system`, `source_fact_key`, `source_uri`, `source_record_id`,
+  `observed_at`, `ingested_at`, `is_tombstone`, `payload`, `fencing_token`,
+  in that order) and assembles each `BatchedFactRow` from those slices by
+  common index `i`. If `factwrite.ChunkArgs` adds, removes, or reorders a
+  column without a matching change here, this package does not fail loudly:
+  it silently misattributes one column's values onto the wrong
+  `BatchedFactRow` field (a `[]string` decodes fine into any other
+  string-typed column), so a caller's assertions can pass against
+  corrupted data. Only a type mismatch (e.g. a column becoming `[]int64`
+  where a `[]string` was expected) trips the `t.Fatalf` in `stringArg`
+  et al.; a same-type reorder does not.
+- `DecodeBatchedFactCalls` fails the test (via `testing.TB.Fatalf`) if any
+  recorded call did not use `factwrite.BatchInsertQuery` — a regression to a
+  per-row insert statement is caught here, not silently accepted.
+- This package is test support, not production code, and has no production
+  call path — import it only from a `_test.go` file.
+- The reducer root's own equivalent
+  (`reducer_fact_batch_insert_test_helpers_test.go`,
+  `fakeWorkloadIdentityExecer`/`decodeBatchedFactCalls`) is a SEPARATE,
+  untouched copy, not a forwarder to this package. Do not consolidate the two
+  without first confirming every one of the root copy's ~30 callers compiles
+  against the change — that migration was deliberately left out of scope for
+  issue #6061's `cicdrun` split.
 
 ## Usage
 
@@ -54,9 +99,8 @@ if _, err := writer.WriteSomething(ctx, someWrite); err != nil {
 rows := factwritetest.DecodeBatchedFactCalls(t, db.Execs)
 ```
 
-`DecodeBatchedFactCalls` fails the test (via `testing.TB.Fatalf`) if any
-recorded call did not use `factwrite.BatchInsertQuery` — a regression to a
-per-row insert statement is caught here, not silently accepted.
+See Gotchas / invariants above for `DecodeBatchedFactCalls`'s failure
+behavior and the positional-decode invariant it depends on.
 
 ## Related docs
 

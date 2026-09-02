@@ -22,10 +22,14 @@ workflow-image and deployment-event evidence bridges, and the exact
 workflow-image `BUILT_FROM` provenance-edge projection.
 
 **Does not own:** the container-image identity domain itself
-(`ContainerImageIdentityHandler`, its writer, and
-`ContainerImageProvenanceEdgeWriter`, all still in the reducer root) — this
-package only reads its published `reducer_container_image_identity` facts
-across scopes, behind the `crossscope` readiness floor. Also does not own the
+(`ContainerImageIdentityHandler` and its writer, still in the reducer root)
+— this package only reads its published `reducer_container_image_identity`
+facts across scopes, behind the `crossscope` readiness floor. The
+`ContainerImageProvenanceEdgeWriter` port itself is shared, not
+root-owned: its canonical definition now lives in
+`internal/reducer/contract/provenance_edges.go`, with the reducer root
+keeping only a type-alias forwarder (`container_image_provenance_edges.go`)
+for backward compatibility — see Dependencies below. Also does not own the
 `supply_chain_impact` domain that reads this package's canonical
 `reducer_ci_cd_run_correlation` facts, or the cross-scope
 producer-readiness floor and dependency catalog themselves (`crossscope`,

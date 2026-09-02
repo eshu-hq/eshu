@@ -15,14 +15,16 @@ package v1
 // directly).
 //
 // The reducer's ci_cd_run_correlation domain decodes and consumes this kind:
-// decodeCICDDeploymentEvent (go/internal/reducer/schemadecode/factschema_decode_cicdrun.go)
+// DecodeCICDDeploymentEvent
+// (go/internal/reducer/schemadecode/factschema_decode_cicdrun.go:66)
 // decodes the envelope, attachDeploymentEventsToRuns
-// (go/internal/reducer/ci_cd_run_correlation_deploy_events.go) joins it onto
-// every run whose CommitSHA equals this struct's SHA — the deployment carries
-// no run_id, which is exactly why the join is by sha — and
-// classifyCICDDeploymentEventEnvironment
-// (go/internal/reducer/ci_cd_run_correlation.go) selects the winning event
-// per run and canonicalizes its Environment through environment.Canonical
+// (go/internal/reducer/cicdrun/ci_cd_run_correlation_deploy_events.go:42)
+// joins it onto every run whose CommitSHA equals this struct's SHA — the
+// deployment carries no run_id, which is exactly why the join is by sha —
+// and classifyCICDDeploymentEventEnvironment
+// (go/internal/reducer/cicdrun/ci_cd_run_correlation_deploy_events.go:179)
+// selects the winning event per run and canonicalizes its Environment
+// through environment.Canonical
 // (for example "production" -> "prod") to produce the correlation's
 // environment, stamped environment_evidence="deploy_event" on the
 // run-correlation read model. The collector emitter is

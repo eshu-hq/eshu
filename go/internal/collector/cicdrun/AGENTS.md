@@ -45,5 +45,6 @@
 - Add or change live API collection only in `ghactionsruntime` or another
   runtime subpackage with credentials, request budgets, redaction proof,
   health/readiness, metrics, and status.
-- If payload shape changes, check `go/internal/reducer/ci_cd_run_correlation.go`
-  so reducer anchors stay aligned.
+- If payload shape changes, check `go/internal/reducer/cicdrun/ci_cd_run_correlation.go`
+  (issue #6061 moved this domain out of the flat reducer root into the
+  `cicdrun` family subpackage) so reducer anchors stay aligned.

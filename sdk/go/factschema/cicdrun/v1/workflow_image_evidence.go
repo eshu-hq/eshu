@@ -14,7 +14,7 @@ package v1
 // workflowImageEvidenceFactEnvelope always sets it from the scanned
 // repository, and it is the reducer's own join key
 // (attachWorkflowImagesToRuns,
-// go/internal/reducer/ci_cd_run_correlation_workflow_image.go:8-24) that
+// go/internal/reducer/cicdrun/ci_cd_run_correlation_workflow_image.go:8-22) that
 // attaches workflow image evidence to every run sharing the same
 // RepositoryID. A fact whose repository_id is absent could never join to any
 // run, so a decode-time guarantee here replaces the pre-typing empty-string
@@ -52,10 +52,10 @@ type WorkflowImageEvidence struct {
 	// "workflow_image_ambiguous" (multiple candidate refs). Optional: the
 	// reducer's classifyCICDWorkflowImageEvidence only attempts an
 	// image-identity join when this equals "workflow_image_ref"
-	// (go/internal/reducer/ci_cd_run_correlation_workflow_image.go:31-38,
-	// ci_cd_run_correlation.go:290), so any other value (or an absent one)
-	// is a valid "not a resolvable single ref" observation, not malformed
-	// input.
+	// (go/internal/reducer/cicdrun/ci_cd_run_correlation_workflow_image.go:102-136,
+	// ci_cd_run_correlation_decode.go:234), so any other value (or an absent
+	// one) is a valid "not a resolvable single ref" observation, not
+	// malformed input.
 	EvidenceClass *string `json:"evidence_class,omitempty"`
 
 	// JobName is the workflow job name the evidence was extracted from.

@@ -13,8 +13,10 @@ Eshu internals.
 Three emitted fact kinds (`ci.job`, `ci.pipeline_definition`, `ci.warning`) are
 intentionally NOT typed here — no reducer or storage decode call reads them
 today (`cicdRunCorrelationFactKinds()` in
-`go/internal/reducer/ci_cd_run_correlation.go` does not even load `ci.job` or
-`ci.pipeline_definition`). Do NOT add structs, schemas, or `Decode` functions
+`go/internal/reducer/cicdrun/ci_cd_run_correlation.go` — issue #6061 moved
+this domain out of the flat reducer root into the `cicdrun` family
+subpackage — does not even load `ci.job` or `ci.pipeline_definition`). Do NOT
+add structs, schemas, or `Decode` functions
 for those three until the change that converts their read-side consumer; they
 migrate WITH that surface (Contract System v1 §7).
 
@@ -53,14 +55,15 @@ migrate WITH that surface (Contract System v1 §7).
   because the reducer/collector both default an absent value to `"1"`) are the
   reducer's ENTIRE run join key across `Run`, `Artifact`,
   `EnvironmentObservation`, `TriggerEdge`, and `Step`
-  (`cicdRunKey`/`go/internal/reducer/ci_cd_run_correlation.go`). Do not make
+  (`CICDRunKeyFromParts`/`go/internal/reducer/cicdrun/ci_cd_run_correlation_decode.go`).
+  Do not make
   any other field on those five structs required without first checking
   whether the reducer's read path treats an absent value as a valid "no
   evidence" observation (most do — see each struct's own field-level
   godoc) rather than a malformed fact.
 - `WorkflowImageEvidence.RepositoryID` is the ONLY required field on that
   struct: it is the sole join key `attachWorkflowImagesToRuns`
-  (`go/internal/reducer/ci_cd_run_correlation_workflow_image.go`) uses. Do not
+  (`go/internal/reducer/cicdrun/ci_cd_run_correlation_workflow_image.go`) uses. Do not
   make `EvidenceClass` or `ImageRef` required — the reducer's own read path
   already treats any `EvidenceClass` other than `"workflow_image_ref"` (or an
   absent one) as "not a resolvable single ref," a valid observation, not
@@ -96,14 +99,14 @@ migrate WITH that surface (Contract System v1 §7).
   five either.) A
   deployment carries no `run_id` at all — GitHub's Deployments API has no run
   identity — so `attachDeploymentEventsToRuns`
-  (`go/internal/reducer/ci_cd_run_correlation_deploy_events.go`) fans each
-  decoded event (`decodeCICDDeploymentEvent`,
+  (`go/internal/reducer/cicdrun/ci_cd_run_correlation_deploy_events.go`) fans
+  each decoded event (`DecodeCICDDeploymentEvent`,
   `go/internal/reducer/schemadecode/factschema_decode_cicdrun.go`) out to every run whose
   `CommitSHA` equals the event's `SHA`, rather than bucketing it under a run
   key during decode the way the run-scoped kinds above are. The winning event
-  per run (`classifyCICDDeploymentEventEnvironment`,
-  `go/internal/reducer/ci_cd_run_correlation.go`) supplies the run
-  correlation's environment. Its required fields (`provider`, `deployment_id`,
+  per run (`classifyCICDDeploymentEventEnvironment`, also
+  `go/internal/reducer/cicdrun/ci_cd_run_correlation_deploy_events.go`)
+  supplies the run correlation's environment. Its required fields (`provider`, `deployment_id`,
   `environment`, `sha`) are required because GitHub's Deployments API always
   returns all four AND because `sha` is this kind's own join key — both
   reasons hold at once.
