@@ -1,13 +1,15 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package parser
+package python_test
 
 import (
 	"path/filepath"
 	"reflect"
 	"strings"
 	"testing"
+
+	"github.com/eshu-hq/eshu/go/internal/parser"
 )
 
 // pythonDataflowFixture exercises both an intraprocedural flow (request.GET into
@@ -32,12 +34,12 @@ func TestPythonDataflowOffIsByteIdentical(t *testing.T) {
 	filePath := filepath.Join(repoRoot, "views.py")
 	writeTestFile(t, filePath, pythonDataflowFixture)
 
-	engine, err := DefaultEngine()
+	engine, err := parser.DefaultEngine()
 	if err != nil {
-		t.Fatalf("DefaultEngine() error = %v", err)
+		t.Fatalf("parser.DefaultEngine() error = %v", err)
 	}
 
-	off, err := engine.ParsePath(repoRoot, filePath, false, Options{})
+	off, err := engine.ParsePath(repoRoot, filePath, false, parser.Options{})
 	if err != nil {
 		t.Fatalf("ParsePath (off) error = %v", err)
 	}
@@ -47,7 +49,7 @@ func TestPythonDataflowOffIsByteIdentical(t *testing.T) {
 		}
 	}
 
-	on, err := engine.ParsePath(repoRoot, filePath, false, Options{EmitDataflow: true})
+	on, err := engine.ParsePath(repoRoot, filePath, false, parser.Options{EmitDataflow: true})
 	if err != nil {
 		t.Fatalf("ParsePath (on) error = %v", err)
 	}
@@ -104,7 +106,7 @@ func TestPythonInterprocFindingAcrossFunctions(t *testing.T) {
 // identities carry stable repository identity when emitted for durable summary
 // persistence.
 func TestPythonInterprocFunctionIDsIncludeRepositoryID(t *testing.T) {
-	got := parsePythonDataflowFixtureWithOptions(t, pythonDataflowFixture, Options{EmitDataflow: true, RepositoryID: "repo-alpha"})
+	got := parsePythonDataflowFixtureWithOptions(t, pythonDataflowFixture, parser.Options{EmitDataflow: true, RepositoryID: "repo-alpha"})
 	rows, ok := got["interproc_findings"].([]map[string]any)
 	if !ok {
 		t.Fatalf("interproc_findings bucket missing or wrong type: %T", got["interproc_findings"])
@@ -122,18 +124,18 @@ func TestPythonInterprocFunctionIDsIncludeRepositoryID(t *testing.T) {
 // value-flow gate enabled.
 func parsePythonDataflowFixture(t *testing.T, src string) map[string]any {
 	t.Helper()
-	return parsePythonDataflowFixtureWithOptions(t, src, Options{EmitDataflow: true})
+	return parsePythonDataflowFixtureWithOptions(t, src, parser.Options{EmitDataflow: true})
 }
 
-func parsePythonDataflowFixtureWithOptions(t *testing.T, src string, options Options) map[string]any {
+func parsePythonDataflowFixtureWithOptions(t *testing.T, src string, options parser.Options) map[string]any {
 	t.Helper()
 	repoRoot := t.TempDir()
 	filePath := filepath.Join(repoRoot, "views.py")
 	writeTestFile(t, filePath, src)
 
-	engine, err := DefaultEngine()
+	engine, err := parser.DefaultEngine()
 	if err != nil {
-		t.Fatalf("DefaultEngine() error = %v", err)
+		t.Fatalf("parser.DefaultEngine() error = %v", err)
 	}
 	got, err := engine.ParsePath(repoRoot, filePath, false, options)
 	if err != nil {

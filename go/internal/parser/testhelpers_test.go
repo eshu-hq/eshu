@@ -52,7 +52,7 @@ func assertStringSliceFieldValue(
 
 // assertFunctionByName returns the functions-bucket item matching name. It
 // lives here rather than in a language-specific test file because C#, Go,
-// Groovy, Java, JavaScript, Kotlin, PHP, Python, and SQL engine test files all
+// Groovy, Java, JavaScript, Kotlin, PHP, and SQL engine test files all
 // look up functions by name alone.
 func assertFunctionByName(t *testing.T, payload map[string]any, name string) map[string]any {
 	t.Helper()

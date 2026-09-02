@@ -58,14 +58,14 @@ List constructs verified by tests, with file:function references.
 3. **FastAPI semantics** — `python/engine_python_semantics_test.go` (FastAPIBindsDefHandler, FastAPISemantics)
 4. **Flask semantics** — `python/engine_python_semantics_test.go` (FlaskBindsDefHandler, FlaskSemantics)
 5. **ORM mappings** — `python/engine_python_semantics_test.go` (ORMMappings, UnknownRouteDecoratorRemainsUnclassified)
-6. **Dead-code root kinds (FastAPI/Flask/Celery decorators)** — `python_dead_code_roots_test.go:11-87` (`TestDefaultEngineParsePathPythonEmitsDeadCodeRootKinds`)
-7. **CLI root kinds (click, typer)** — `python_dead_code_roots_test.go:91-157` (`TestDefaultEngineParsePathPythonEmitsDeadCodeCLIRootKinds`)
-8. **Script main guard root** — `python_dead_code_roots_test.go:159-232` (`TestDefaultEngineParsePathPythonEmitsScriptMainGuardRoot`, `ReversedScriptMainGuardRoot`, `ScriptMainGuardSkipsElseAndNestedDefinitions`)
-9. **Dunder method root evidence** — `python_dead_code_roots_test.go:292-337` (`DunderAssignmentEvidenceIsEnclosingScopeScoped`)
-10. **AWS Lambda handler root** — `python_dead_code_roots_test.go:340-387` (`EmitsSAMHandlerDeadCodeRootKind`)
-11. **Public API roots (all_export, init_export, class member, base)** — `python_dead_code_roots_test.go:408-479` (`TestDefaultEngineParsePathPythonEmitsPublicAPIRootKinds`)
-12. **Concatenated `__all__` exports** — `python_dead_code_roots_test.go:491-536` (`ConcatenatedAllExportsAreRoots`)
-13. **Unknown decorators not marked** — `python_dead_code_roots_test.go:539-557` (`DoesNotMarkUnknownDecoratorsAsDeadCodeRoots`)
+6. **Dead-code root kinds (FastAPI/Flask/Celery decorators)** — `python/python_dead_code_roots_test.go:14-90` (`TestDefaultEngineParsePathPythonEmitsDeadCodeRootKinds`)
+7. **CLI root kinds (click, typer)** — `python/python_dead_code_roots_test.go:94-160` (`TestDefaultEngineParsePathPythonEmitsDeadCodeCLIRootKinds`)
+8. **Script main guard root** — `python/python_dead_code_roots_test.go:162-235` (`TestDefaultEngineParsePathPythonEmitsScriptMainGuardRoot`, `ReversedScriptMainGuardRoot`, `ScriptMainGuardSkipsElseAndNestedDefinitions`)
+9. **Dunder method root evidence** — `python/python_dead_code_roots_test.go:295-340` (`DunderAssignmentEvidenceIsEnclosingScopeScoped`)
+10. **AWS Lambda handler root** — `python/python_dead_code_roots_test.go:343-390` (`EmitsSAMHandlerDeadCodeRootKind`)
+11. **Public API roots (all_export, init_export, class member, base)** — `python/python_dead_code_roots_test.go:411-482` (`TestDefaultEngineParsePathPythonEmitsPublicAPIRootKinds`)
+12. **Concatenated `__all__` exports** — `python/python_dead_code_roots_test.go:494-539` (`ConcatenatedAllExportsAreRoots`)
+13. **Unknown decorators not marked** — `python/python_dead_code_roots_test.go:542-560` (`DoesNotMarkUnknownDecoratorsAsDeadCodeRoots`)
 14. **Embedded shell commands** — `embedded_shell_test.go:12-64` (`TestDefaultEngineParsePathPythonEmbeddedShellCommands`), `python/engine_python_ast_parity_test.go:140-201` (`EmbeddedShellRichParity`)
 15. **Generator semantic kind** — `python/engine_python_generator_test.go:15-41` (`TestDefaultEngineParsePathPythonGeneratorFunctionsEmitSemanticKind`)
 16. **Dotted call metadata** — `python/engine_python_call_semantics_test.go:15-44` (`TestDefaultEngineParsePathPythonEmitsDottedCallMetadata`)
@@ -77,8 +77,8 @@ List constructs verified by tests, with file:function references.
 22. **Anonymous lambda** — `python/engine_python_lambda_assignment_test.go:61-105` (`AnonymousLambdaPromotesSyntheticFunction`)
 23. **Annotated assignments** — `python/engine_python_annotation_assignment_test.go:14-65` (`EmitsAnnotatedAssignmentTypeAnnotations`)
 24. **Rationale comments** — `python/engine_python_rationale_test.go:14-48` (`EmitsRationaleComments`)
-25. **Value-flow taint findings** — `python_cfg_dataflow_test.go:30-99` (`DataflowOffIsByteIdentical`, `TaintSourceToSQLSink`)
-26. **Interproc findings** — `python_cfg_dataflow_test.go:83-119` (`InterprocFindingAcrossFunctions`, `FunctionIDsIncludeRepositoryID`)
+25. **Value-flow taint findings** — `python/python_cfg_dataflow_test.go:32-101` (`DataflowOffIsByteIdentical`, `TaintSourceToSQLSink`)
+26. **Interproc findings** — `python/python_cfg_dataflow_test.go:85-121` (`InterprocFindingAcrossFunctions`, `FunctionIDsIncludeRepositoryID`)
 27. **Cyclomatic complexity** — `engine_cyclomatic_complexity_test.go:43-57` (2 test cases)
 28. **Golden audit accuracy** — `goldenaudit/accuracy_test.go:114-168`
 
@@ -95,17 +95,17 @@ List constructs claimed but not covered by any test.
 ## Edge Cases Considered
 List edge cases the tests actually cover with test references.
 
-- **Reversed script main guard** (`"__main__" == __name__`) — `python_dead_code_roots_test.go:199-232`
-- **Script guard skips else branches and nested definitions** — `python_dead_code_roots_test.go:239-288`
-- **Dunder method assignment via `type(x).__reduce__ = __reduce__`** — `python_dead_code_roots_test.go:292-337`
-- **Concatenated `__all__` literals** — `python_dead_code_roots_test.go:491-536`
+- **Reversed script main guard** (`"__main__" == __name__`) — `python/python_dead_code_roots_test.go:202-235`
+- **Script guard skips else branches and nested definitions** — `python/python_dead_code_roots_test.go:242-291`
+- **Dunder method assignment via `type(x).__reduce__ = __reduce__`** — `python/python_dead_code_roots_test.go:295-340`
+- **Concatenated `__all__` literals** — `python/python_dead_code_roots_test.go:494-539`
 - **Multiline class header** — `python/engine_python_ast_parity_test.go:21-65`
 - **Orphaned route decorator** (no following def) — tested via correlation-truth contract (#2788), not emitting fabricated handler
 - **Splat typed parameters** — `python/engine_python_ast_parity_test.go:70-134`
 - **Embedded shell alias shadowing** — `python/engine_python_ast_parity_test.go:140-201`
 - **Module-level call skip for embedded shell** — `python/engine_python_ast_parity_test.go:140-201`
 - **Lambda assignment promotes synthetic function** — `python/engine_python_lambda_assignment_test.go:17-59`
-- **Value-flow gate off is byte-identical** — `python_cfg_dataflow_test.go:30-64`
+- **Value-flow gate off is byte-identical** — `python/python_cfg_dataflow_test.go:32-66`
 - **Duplicate method reference in `__all__` and `package_init_export`** — deduplication tested in public API root tests
 - **Generator yield in nested function is inner-only** — `python/engine_python_generator_test.go:43-81`
 - **Empty constructor caller (`no args`)** — not explicitly tested (minor)
