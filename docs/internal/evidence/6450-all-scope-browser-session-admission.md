@@ -153,15 +153,29 @@ the route IS enabled, and a restricted session still enters it and gets
 grant-bound results. An operator who saw `scoped_route_not_enabled` here would
 go looking for a missing allowlist entry that is present, when the actual
 remedy is a narrower credential or an explicit `BrowserSessionRoutePolicy`
-opt-in. The two codes are now distinct so a denial can be triaged from the
-audit row alone.
+opt-in. The two codes are distinct so a denial can be triaged from the audit
+row alone.
+
+A third code, `scoped_route_denied_unspecified`, exists only as a defensive
+fallback: `recordScopedRouteAuthorizationDeniedWithReason` substitutes it when
+a caller hands it a blank or whitespace-only reason. It is unreachable from
+the production path, because `browserSessionRouteDenialReason` returns the
+empty string only for an ADMITTED request and an admitted request records no
+denial, so an operator should never see it in
+`governance_audit_events`. If one ever does, it means a new caller passed an
+empty code, which is exactly why the fallback is its own value rather than a
+reuse of `scoped_route_not_enabled`: a caller's bug filed under a real code is
+the same triage failure this change fixed one level up.
+`TestRecordScopedRouteAuthorizationDeniedBlankReasonFallsBackToUnspecified`
+pins that identity by calling the helper directly, so a refactor that collapses
+the fallback into one of the real codes fails.
 
 The scoped-bearer branch of `authMiddlewareWithRoutePolicy` keeps the old
 helper and the old code, which stays true there by construction: a scoped
 bearer is refused only when the route is off the allowlist.
 
 `TestAuthMiddlewareAllScopesBrowserSessionRefusedOnGrantBoundRouteUnderFailClosedPolicy`
-asserts all of it: the grant-bound refusal emits
+asserts the reachable codes: the grant-bound refusal emits
 `scoped_route_all_scope_grant_required`; a never-allowlisted route
 (`GET /api/v0/graph/entities`) and a shared-key-only route
 (`POST /api/v0/supply-chain/impact/suppressions`) under the same session both

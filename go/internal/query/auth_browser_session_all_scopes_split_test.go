@@ -267,3 +267,79 @@ func TestAuthMiddlewareAllScopesBrowserSessionRefusedOnGrantBoundRouteUnderFailC
 		})
 	}
 }
+
+// TestRecordScopedRouteAuthorizationDeniedBlankReasonFallsBackToUnspecified
+// pins the identity of scopedRouteDeniedUnspecifiedReason, the defensive
+// fallback recordScopedRouteAuthorizationDeniedWithReason substitutes when a
+// caller hands it a blank or whitespace-only reason code.
+//
+// This one calls the helper directly rather than driving a request through
+// the middleware, which is the honest shape here: the production path cannot
+// reach the fallback at all. browserSessionRouteDenialReason returns "" only
+// for an ADMITTED request, and an admitted request never records a denial, so
+// every refusal that reaches the helper today carries one of the two real
+// codes. There is no request to construct that would exercise this branch,
+// and a test that pretended otherwise would be asserting against a shape the
+// product does not have.
+//
+// The branch is still worth pinning. Its whole value is being distinct: a
+// refactor that "simplifies" the fallback back to scopedRouteNotEnabledReason
+// would file a future caller's bug under a real code, which is the same
+// triage failure #6450 fixed one level up in the admission path, and nothing
+// else in the suite would notice. This test notices.
+func TestRecordScopedRouteAuthorizationDeniedBlankReasonFallsBackToUnspecified(t *testing.T) {
+	t.Parallel()
+
+	auth := AuthContext{
+		Mode:               AuthModeBrowserSession,
+		TenantID:           "tenant-a",
+		WorkspaceID:        "workspace-a",
+		SubjectClass:       "local_user",
+		SubjectIDHash:      "sha256:abcdef12",
+		PolicyRevisionHash: "sha256:01234567",
+		AllScopes:          true,
+	}
+
+	for _, tc := range []struct {
+		name       string
+		reasonCode string
+	}{
+		{name: "empty", reasonCode: ""},
+		{name: "whitespace only", reasonCode: "  "},
+	} {
+		tc := tc
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			audit := &fakeGovernanceAuditAppender{}
+			req := httptest.NewRequest(http.MethodGet, "/api/v0/repositories", nil)
+			recordScopedRouteAuthorizationDeniedWithReason(req, audit, auth, tc.reasonCode)
+
+			if len(audit.events) != 1 {
+				t.Fatalf("len(audit.events) = %d, want 1: %#v", len(audit.events), audit.events)
+			}
+			event := audit.events[0]
+			if got, want := event.ReasonCode, "scoped_route_denied_unspecified"; got != want {
+				t.Fatalf("event.ReasonCode = %q, want %q -- the blank-reason fallback must stay distinct from the two real codes", got, want)
+			}
+			if got, want := event.Type, governanceaudit.EventTypeReadAuthorization; got != want {
+				t.Fatalf("event.Type = %q, want %q", got, want)
+			}
+			if got, want := event.Decision, governanceaudit.DecisionDenied; got != want {
+				t.Fatalf("event.Decision = %q, want %q", got, want)
+			}
+			if got, want := event.ActorClass, governanceaudit.ActorClassScopedToken; got != want {
+				t.Fatalf("event.ActorClass = %q, want %q", got, want)
+			}
+			if got, want := event.ActorIDHash, "sha256:abcdef12"; got != want {
+				t.Fatalf("event.ActorIDHash = %q, want %q", got, want)
+			}
+			if got, want := event.PolicyRevisionHash, "sha256:01234567"; got != want {
+				t.Fatalf("event.PolicyRevisionHash = %q, want %q", got, want)
+			}
+			if _, err := governanceaudit.NormalizeEvent(event); err != nil {
+				t.Fatalf("governanceaudit.NormalizeEvent() error = %v, want nil -- a blank code must not produce an event the durable store rejects", err)
+			}
+		})
+	}
+}
