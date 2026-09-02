@@ -32,7 +32,7 @@ Two consequences:
    and accept third-party collectors through the SDK. An implicit contract
    held together by string literals duplicated across packages (see the
    intentional duplication comments in
-   `go/internal/reducer/iam_can_assume_edge_rows.go`,
+   `go/internal/reducer/iamcan/iam_can_assume_edge_rows.go`,
    `ec2_uses_profile_edge_rows.go`, `s3_logs_to_edge_rows.go`, and siblings)
    cannot survive independent release cadences.
 

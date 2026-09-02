@@ -222,15 +222,15 @@ performance-impact declaration, and the proof gates run.
 
 ### 12.1 Realized scope
 
-- New reducer extractor `ExtractIAMCanPerformEdges` (`go/internal/reducer/iam_can_perform.go`)
+- New reducer extractor `ExtractIAMCanPerformEdges` (`go/internal/reducer/iamcan/iam_can_perform.go`)
   evaluates each scanned IAM principal's trusted-Allow identity statements against
-  the closed catalog (`go/internal/reducer/iam_can_perform_catalog.go`) and emits
+  the closed catalog (`go/internal/reducer/iamcan/iam_can_perform_catalog.go`) and emits
   one `(:CloudResource {principal}) -[:CAN_PERFORM]-> (:CloudResource {resource})`
   edge per resolved `(principal, resource)` pair, with the granted action set as a
   sorted/deduped edge property `rel.actions` (never in the MERGE key),
   `rel.action_count`, and `rel.evaluation_scope = 'identity_policy_only'`.
 - New handler `IAMCanPerformMaterializationHandler`
-  (`go/internal/reducer/iam_can_perform_materialization.go`) gates on the existing
+  (`go/internal/reducer/iamcan/iam_can_perform_materialization.go`) gates on the existing
   `cloud_resource_uid` / `canonical_nodes_committed` phase, loads the scope
   generation's `aws_resource` + `aws_iam_permission` facts, retracts the prior
   generation's `evidence_source = 'reducer/iam-can-perform'` edges, writes the
@@ -336,7 +336,7 @@ without changing the `CAN_PERFORM` relationship identity.
 
 ### 13.2 Performance and observability
 
-No-Regression Evidence: `go test ./internal/reducer -run 'IAMCanPerform'
+No-Regression Evidence: `go test ./internal/reducer/iamcan -run 'IAMCanPerform'
 -count=1` proves identity-only, resource-only, both-source merge,
 public/unscanned principal skips, conditioned/NotResource/Deny skips,
 wrong-resource-pattern refusal, readiness, and idempotent reprojection behavior.
@@ -465,7 +465,7 @@ Benchmark Evidence: `go test ./internal/storage/cypher -run '^$' -bench
 No-Regression Evidence: `go test ./internal/reducer -run
 'IAMCanPerform(Catalog|PR4e|ResourceTypeOfARN|UncataloguedAction)' -count=1`
 failed before the PR4e catalog and Lambda base-function ARN classifier were
-added, then passed. `go test ./internal/reducer -run 'IAMCanPerform' -count=1`
+added, then passed. `go test ./internal/reducer/iamcan -run 'IAMCanPerform' -count=1`
 keeps the broader exact, single-glob, ambiguous, wildcard, unresolved, deny,
 conditioned, NotAction/NotResource, duplicate, resource-policy, permission
 boundary, self-loop, and handler cases green.
