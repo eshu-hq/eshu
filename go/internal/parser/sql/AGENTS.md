@@ -16,7 +16,14 @@
 ## Invariants this package enforces
 
 - Dependency direction stays one way: parent parser code may import this
-  package, but this package must not import `internal/parser`.
+  package, but this package must not import `internal/parser`. The one
+  exception is the external `sql_test` package (`engine_sql_test.go`,
+  `sql_parity_test.go`, `sql_core_parity_test.go`, `sql_test_helpers_test.go`,
+  relocated from the parent by #6062): it compiles separately from
+  `internal/parser`, so it may import the parent engine and
+  `internal/parser/parsertest` for black-box coverage of
+  `parser.DefaultEngine().ParsePath`. Production code and the in-package
+  `package sql` tests never import the parent.
 - `Parse` returns the same payload shape and ordering the parent SQL adapter
   emitted before the package split.
 - SQL entity and relationship rows are deduplicated before sorting.

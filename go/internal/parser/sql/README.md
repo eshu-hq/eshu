@@ -25,6 +25,36 @@ This package imports the Go standard library and `internal/parser/shared` for
 not import the parent `internal/parser` package, collector packages, graph
 storage, projector, query, or reducer code.
 
+## Engine test surface
+
+`engine_sql_test.go`, `sql_parity_test.go`, and `sql_core_parity_test.go`
+(external package `sql_test`, relocated from the parent by #6062) drive
+`parser.DefaultEngine().ParsePath` against inline and
+`tests/fixtures/ecosystems/sql_comprehensive` SQL fixtures: 11 test functions,
+from
+`rg --no-filename -o '^func Test' engine_sql_test.go sql_parity_test.go sql_core_parity_test.go | wc -l`
+run in this directory. They may import `internal/parser` because they sit in
+the external `sql_test` package: an external test package is compiled
+separately from `internal/parser` itself, so the import does not close the
+cycle that `parsertest` would otherwise create. Keep that exception limited to
+black-box tests of the public parent engine. Shared assertions come from
+`go/internal/parser/parsertest`; `sql_test_helpers_test.go` holds only
+`sqlFixturePath` (the external tests sit one level below `internal/parser`,
+out of reach of the parent's fixture helper) and `writeSQLTestFile` (creates
+parent directories before delegating to `parsertest.WriteFile` for the nested
+`prisma/migrations/` and `migrations/` fixtures). The SQL-only
+`assertSQLRelationship` and `assertSQLRelationshipMissing` assertions live in
+`engine_sql_test.go` because no other language asserts on the
+`sql_relationships` bucket. The 8 `package sql` test files stay white-box and
+must not import the parent.
+
+Run the engine tests from the `go/` module root with
+`go test ./internal/parser/sql -count=1`; pin a subset with
+`../scripts/go-test-run-guard.sh 11 TestDefaultEngineParsePathSQL -- ./internal/parser/sql -count=1`,
+which runs from the `go/` module root and fails closed if fewer than 11 tests
+match (minimum derived from
+`go test -list 'TestDefaultEngineParsePathSQL' ./internal/parser/sql`).
+
 ## Telemetry
 
 This package emits no metrics or spans; parse timing remains owned by the

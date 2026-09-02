@@ -12,7 +12,7 @@ full matrix, see [Parser Feature Matrix](feature-matrix.md) and
 | Parser | `DefaultEngine (sql)` |
 | Entrypoint | `go/internal/parser/sql_language.go` |
 | Fixture repo | `tests/fixtures/ecosystems/sql_comprehensive/` |
-| Main parser tests | `go/internal/parser/engine_sql_test.go`, `go/internal/parser/sql_core_parity_test.go`, `go/internal/parser/sql_parity_test.go` |
+| Main parser tests | `go/internal/parser/sql/engine_sql_test.go`, `go/internal/parser/sql/sql_core_parity_test.go`, `go/internal/parser/sql/sql_parity_test.go` |
 | Runtime validation | Compose-backed fixture verification; see [Local Testing](../reference/local-testing.md) |
 
 ## Supported Surfaces

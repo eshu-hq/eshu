@@ -1,11 +1,14 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package parser
+package sql_test
 
 import (
 	"path/filepath"
 	"testing"
+
+	"github.com/eshu-hq/eshu/go/internal/parser"
+	"github.com/eshu-hq/eshu/go/internal/parser/parsertest"
 )
 
 func TestDefaultEngineParsePathSQLSchemaObjectsAndRelationships(t *testing.T) {
@@ -13,7 +16,7 @@ func TestDefaultEngineParsePathSQLSchemaObjectsAndRelationships(t *testing.T) {
 
 	repoRoot := t.TempDir()
 	filePath := filepath.Join(repoRoot, "schema.sql")
-	writeTestFile(
+	parsertest.WriteFile(
 		t,
 		filePath,
 		`CREATE TABLE public.orgs (
@@ -46,12 +49,12 @@ CREATE INDEX idx_users_org_id ON public.users (org_id);
 `,
 	)
 
-	engine, err := DefaultEngine()
+	engine, err := parser.DefaultEngine()
 	if err != nil {
 		t.Fatalf("DefaultEngine() error = %v, want nil", err)
 	}
 
-	got, err := engine.ParsePath(repoRoot, filePath, false, Options{})
+	got, err := engine.ParsePath(repoRoot, filePath, false, parser.Options{})
 	if err != nil {
 		t.Fatalf("ParsePath() error = %v, want nil", err)
 	}
@@ -66,17 +69,17 @@ CREATE INDEX idx_users_org_id ON public.users (org_id);
 		t.Fatalf("is_dependency = %#v, want %#v", got["is_dependency"], false)
 	}
 
-	assertNamedBucketContains(t, got, "sql_tables", "public.orgs")
-	assertNamedBucketContains(t, got, "sql_tables", "public.users")
-	assertNamedBucketContains(t, got, "sql_views", "public.active_users")
-	assertNamedBucketContains(t, got, "sql_functions", "public.touch_updated_at")
-	assertNamedBucketContains(t, got, "sql_triggers", "users_touch")
-	assertNamedBucketContains(t, got, "sql_indexes", "idx_users_org_id")
+	parsertest.AssertNamedBucketContains(t, got, "sql_tables", "public.orgs")
+	parsertest.AssertNamedBucketContains(t, got, "sql_tables", "public.users")
+	parsertest.AssertNamedBucketContains(t, got, "sql_views", "public.active_users")
+	parsertest.AssertNamedBucketContains(t, got, "sql_functions", "public.touch_updated_at")
+	parsertest.AssertNamedBucketContains(t, got, "sql_triggers", "users_touch")
+	parsertest.AssertNamedBucketContains(t, got, "sql_indexes", "idx_users_org_id")
 
-	assertNamedBucketContains(t, got, "sql_columns", "public.orgs.id")
-	assertNamedBucketContains(t, got, "sql_columns", "public.users.id")
-	assertNamedBucketContains(t, got, "sql_columns", "public.users.org_id")
-	assertNamedBucketContains(t, got, "sql_columns", "public.users.email")
+	parsertest.AssertNamedBucketContains(t, got, "sql_columns", "public.orgs.id")
+	parsertest.AssertNamedBucketContains(t, got, "sql_columns", "public.users.id")
+	parsertest.AssertNamedBucketContains(t, got, "sql_columns", "public.users.org_id")
+	parsertest.AssertNamedBucketContains(t, got, "sql_columns", "public.users.email")
 
 	assertSQLRelationship(t, got, "HAS_COLUMN", "public.users", "public.users.org_id")
 	assertSQLRelationship(t, got, "REFERENCES_TABLE", "public.users", "public.orgs")
@@ -97,7 +100,7 @@ func TestDefaultEngineParsePathSQLMigrationMetadata(t *testing.T) {
 		"20260411_add_users",
 		"migration.sql",
 	)
-	writeTestFile(
+	writeSQLTestFile(
 		t,
 		filePath,
 		`CREATE TABLE public.users (
@@ -108,12 +111,12 @@ ALTER TABLE public.users ADD COLUMN email TEXT;
 `,
 	)
 
-	engine, err := DefaultEngine()
+	engine, err := parser.DefaultEngine()
 	if err != nil {
 		t.Fatalf("DefaultEngine() error = %v, want nil", err)
 	}
 
-	got, err := engine.ParsePath(repoRoot, filePath, false, Options{})
+	got, err := engine.ParsePath(repoRoot, filePath, false, parser.Options{})
 	if err != nil {
 		t.Fatalf("ParsePath() error = %v, want nil", err)
 	}
@@ -163,7 +166,7 @@ func TestDefaultEngineParsePathSQLCreateOrReplaceView(t *testing.T) {
 
 	repoRoot := t.TempDir()
 	filePath := filepath.Join(repoRoot, "views.sql")
-	writeTestFile(
+	parsertest.WriteFile(
 		t,
 		filePath,
 		`CREATE OR REPLACE VIEW public.active_users AS
@@ -173,17 +176,17 @@ JOIN public.orgs o ON o.id = u.org_id;
 `,
 	)
 
-	engine, err := DefaultEngine()
+	engine, err := parser.DefaultEngine()
 	if err != nil {
 		t.Fatalf("DefaultEngine() error = %v, want nil", err)
 	}
 
-	got, err := engine.ParsePath(repoRoot, filePath, false, Options{})
+	got, err := engine.ParsePath(repoRoot, filePath, false, parser.Options{})
 	if err != nil {
 		t.Fatalf("ParsePath() error = %v, want nil", err)
 	}
 
-	assertNamedBucketContains(t, got, "sql_views", "public.active_users")
+	parsertest.AssertNamedBucketContains(t, got, "sql_views", "public.active_users")
 	assertSQLRelationship(t, got, "READS_FROM", "public.active_users", "public.users")
 }
 
@@ -192,7 +195,7 @@ func TestDefaultEngineParsePathSQLAlterTableAddColumnMaterializesColumn(t *testi
 
 	repoRoot := t.TempDir()
 	filePath := filepath.Join(repoRoot, "migrations", "V2__add_email.sql")
-	writeTestFile(
+	writeSQLTestFile(
 		t,
 		filePath,
 		`CREATE TABLE public.users (
@@ -203,17 +206,17 @@ ALTER TABLE public.users ADD COLUMN email TEXT;
 `,
 	)
 
-	engine, err := DefaultEngine()
+	engine, err := parser.DefaultEngine()
 	if err != nil {
 		t.Fatalf("DefaultEngine() error = %v, want nil", err)
 	}
 
-	got, err := engine.ParsePath(repoRoot, filePath, false, Options{})
+	got, err := engine.ParsePath(repoRoot, filePath, false, parser.Options{})
 	if err != nil {
 		t.Fatalf("ParsePath() error = %v, want nil", err)
 	}
 
-	assertNamedBucketContains(t, got, "sql_columns", "public.users.email")
+	parsertest.AssertNamedBucketContains(t, got, "sql_columns", "public.users.email")
 	assertSQLRelationship(t, got, "HAS_COLUMN", "public.users", "public.users.email")
 }
 
@@ -222,7 +225,7 @@ func TestDefaultEngineParsePathSQLAlterTableNormalizesMultipleAddColumnClauses(t
 
 	repoRoot := t.TempDir()
 	filePath := filepath.Join(repoRoot, "migrations", "V3__expand_users.sql")
-	writeTestFile(
+	writeSQLTestFile(
 		t,
 		filePath,
 		`CREATE TABLE public.users (
@@ -235,18 +238,18 @@ ALTER TABLE public.users
 `,
 	)
 
-	engine, err := DefaultEngine()
+	engine, err := parser.DefaultEngine()
 	if err != nil {
 		t.Fatalf("DefaultEngine() error = %v, want nil", err)
 	}
 
-	got, err := engine.ParsePath(repoRoot, filePath, false, Options{})
+	got, err := engine.ParsePath(repoRoot, filePath, false, parser.Options{})
 	if err != nil {
 		t.Fatalf("ParsePath() error = %v, want nil", err)
 	}
 
-	assertNamedBucketContains(t, got, "sql_columns", "public.users.email")
-	assertNamedBucketContains(t, got, "sql_columns", "public.users.created_at")
+	parsertest.AssertNamedBucketContains(t, got, "sql_columns", "public.users.email")
+	parsertest.AssertNamedBucketContains(t, got, "sql_columns", "public.users.created_at")
 	assertSQLRelationship(t, got, "HAS_COLUMN", "public.users", "public.users.email")
 	assertSQLRelationship(t, got, "HAS_COLUMN", "public.users", "public.users.created_at")
 }
@@ -256,7 +259,7 @@ func TestDefaultEngineParsePathSQLMaterializedViewsAndProcedures(t *testing.T) {
 
 	repoRoot := t.TempDir()
 	filePath := filepath.Join(repoRoot, "analytics.sql")
-	writeTestFile(
+	parsertest.WriteFile(
 		t,
 		filePath,
 		`CREATE MATERIALIZED VIEW public.active_users AS
@@ -274,22 +277,22 @@ $$;
 `,
 	)
 
-	engine, err := DefaultEngine()
+	engine, err := parser.DefaultEngine()
 	if err != nil {
 		t.Fatalf("DefaultEngine() error = %v, want nil", err)
 	}
 
-	got, err := engine.ParsePath(repoRoot, filePath, false, Options{})
+	got, err := engine.ParsePath(repoRoot, filePath, false, parser.Options{})
 	if err != nil {
 		t.Fatalf("ParsePath() error = %v, want nil", err)
 	}
 
-	view := assertBucketItemByName(t, got, "sql_views", "public.active_users")
-	assertStringFieldValue(t, view, "view_kind", "materialized")
+	view := parsertest.AssertBucketItemByName(t, got, "sql_views", "public.active_users")
+	parsertest.AssertStringFieldValue(t, view, "view_kind", "materialized")
 	assertSQLRelationship(t, got, "READS_FROM", "public.active_users", "public.users")
 
-	procedure := assertBucketItemByName(t, got, "sql_functions", "public.refresh_users")
-	assertStringFieldValue(t, procedure, "routine_kind", "procedure")
+	procedure := parsertest.AssertBucketItemByName(t, got, "sql_functions", "public.refresh_users")
+	parsertest.AssertStringFieldValue(t, procedure, "routine_kind", "procedure")
 	// refresh_users' only statement is UPDATE public.users — a write, not a
 	// read. The generic relation-read walk tags the UPDATE target as "select"
 	// at the same offset it is recorded as a write; that spurious read is
@@ -303,7 +306,7 @@ func TestDefaultEngineParsePathSQLPartialRecovery(t *testing.T) {
 
 	repoRoot := t.TempDir()
 	filePath := filepath.Join(repoRoot, "broken.sql")
-	writeTestFile(
+	parsertest.WriteFile(
 		t,
 		filePath,
 		`CREATE TABLE public.users (
@@ -315,18 +318,18 @@ SELECT id FROM public.users;
 `,
 	)
 
-	engine, err := DefaultEngine()
+	engine, err := parser.DefaultEngine()
 	if err != nil {
 		t.Fatalf("DefaultEngine() error = %v, want nil", err)
 	}
 
-	got, err := engine.ParsePath(repoRoot, filePath, false, Options{})
+	got, err := engine.ParsePath(repoRoot, filePath, false, parser.Options{})
 	if err != nil {
 		t.Fatalf("ParsePath() error = %v, want nil", err)
 	}
 
-	assertNamedBucketContains(t, got, "sql_tables", "public.users")
-	assertNamedBucketContains(t, got, "sql_views", "public.active_users")
+	parsertest.AssertNamedBucketContains(t, got, "sql_tables", "public.users")
+	parsertest.AssertNamedBucketContains(t, got, "sql_views", "public.active_users")
 	assertSQLRelationship(t, got, "READS_FROM", "public.active_users", "public.users")
 }
 

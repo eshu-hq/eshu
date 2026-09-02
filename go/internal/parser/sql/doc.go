@@ -28,4 +28,11 @@
 // if it is still oversized, the tree-sitter parse is skipped for that segment
 // entirely. Either bound is recorded in payload["sql_parse_bounded"] and
 // logged, never silently dropped.
+//
+// The engine-level payload contract is pinned by engine_sql_test.go,
+// sql_parity_test.go, and sql_core_parity_test.go in this directory, which
+// compile as the external package sql_test and drive
+// parser.DefaultEngine().ParsePath the way a caller would. Only that external
+// test package imports the parent parser; production code and the in-package
+// tests never do.
 package sql
