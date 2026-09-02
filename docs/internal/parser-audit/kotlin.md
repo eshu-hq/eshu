@@ -127,8 +127,19 @@ actual AST dispatch in `ast_walk.go:walkNode`.
 
 ## Verified-by-Test Constructs
 
-All Kotlin engine regressions now live in `go/internal/parser/kotlin/` as the
-external `kotlin_test` package. They use `parser.DefaultEngine()` →
+The Kotlin-only engine regressions live in `go/internal/parser/kotlin/` as the
+external `kotlin_test` package, but they are NOT all of the Kotlin coverage.
+Three Kotlin-specific tests deliberately remain in the parent package and are
+not reached by `go test ./internal/parser/kotlin`:
+
+- `engine_long_tail_test.go:154` `TestDefaultEngineParsePathKotlinFixtures`
+- `engine_managed_oo_test.go:297` `TestDefaultEngineParsePathKotlinSecondaryConstructors`
+- `engine_managed_oo_test.go:330` `TestDefaultEngineParsePathKotlinImportMetadata`
+
+They live in cross-language parent suites alongside the other languages' cases,
+so relocating them would fragment those suites rather than tidy them. Run
+`go test ./internal/parser/... ` to cover Kotlin fully; the child package alone
+is not sufficient. They use `parser.DefaultEngine()` →
 `ParsePath()` with the registered Kotlin definition and exercise the full AST
 walk from outside the implementation package; `kotlin_dead_code_roots_test.go`
 and `kotlin_spring_route_semantics_test.go` relocated there with #6062 — both
