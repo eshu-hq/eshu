@@ -22,12 +22,21 @@
      `internal/query`'s tests stop building. This package still compiles on
      its own -- `go build ./internal/query/querytestutil` succeeds -- so a
      `go build` will not tell you.
-   - **A handler family is NOT caught.** Importing `packagereg` from here
-     compiles fine: root and this package merely share that dependency, which
-     is not a cycle. The cycle appears only once that family's own tests also
-     import this package -- so a newly split family builds clean today and
-     breaks whoever adds the first such test later, in a file they did not
-     write.
+   - **A handler family is NOT caught**, and is caught even less often than
+     it first appears. Importing `packagereg` from here compiles fine: root
+     and this package merely share that dependency, which is not a cycle. A
+     cycle needs that family's tests to import this package back, and only
+     the INTERNAL test package triggers it. Measured, all three legs planted:
+
+     | plant | result |
+     | --- | --- |
+     | this package imports `packagereg` | exit 0, no cycle |
+     | plus `package packagereg` (internal) importing this one | exit 1, `import cycle not allowed in test` |
+     | plus `package packagereg_test` (external) importing this one | exit 0, no cycle |
+
+     The external form is the house convention here -- `graphreader_test.go`
+     is `package querytestutil_test` -- so a family following it never trips
+     the cycle at all. Do not rely on this ban being enforced.
    - **A graph driver is NOT caught.** It was, transitively, while the
      stdlib-only import rule stood; that rule is gone. `countQueryCalls`
      matches the selector names `Run` and `RunSingle` only, so a real read
