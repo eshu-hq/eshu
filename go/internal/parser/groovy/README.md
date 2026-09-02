@@ -44,8 +44,11 @@ package `groovy_test`, relocated from the parent by #6062) drive
 `parser.DefaultEngine().ParsePath` and `PreScanPaths` against Jenkinsfile and
 golden-corpus fixtures: 7 test functions, from
 `rg --no-filename -o '^func Test' groovy_language_test.go groovy_jenkins_golden_fixture_test.go | wc -l`.
-They may import `internal/parser` because Go compiles them only for tests; keep
-that exception limited to black-box tests of the public parent engine. Shared
+They may import `internal/parser` because they sit in the external `groovy_test`
+package: an external test package is compiled separately from `internal/parser`
+itself, so the import does not close the cycle that `parsertest` would otherwise
+create. Keep that exception limited to black-box tests of the public parent
+engine. Shared
 assertions come from `go/internal/parser/parsertest`;
 `groovy_test_helpers_test.go` holds only `groovyFixturePath`,
 `writeGroovyTestFile` (creates parent directories before delegating to

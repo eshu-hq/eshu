@@ -146,8 +146,12 @@ because the Groovy grammar has no node types for Jenkins-DSL conventions.
 **moderate**
 
 The Groovy parser has focused test coverage for its two delivery-evidence
-boundaries (tree-sitter syntax and Jenkins-DSL regex). All coverage now lives
-in `go/internal/parser/groovy`: 18 in-package tests across 4 `package groovy`
+boundaries (tree-sitter syntax and Jenkins-DSL regex). The engine-specific
+coverage now lives in `go/internal/parser/groovy`. Groovy cases that belong to
+cross-language parent suites stay where they are — `runtime_test.go`'s
+`TestRuntimeParserLoadsGroovyGrammar` and the `groovy_*` cases in
+`engine_cyclomatic_complexity_test.go` are parameterised over every language and
+are not Groovy-only files to relocate. The relocated set is: 18 in-package tests across 4 `package groovy`
 files and 7 engine-level tests across 3 external `package groovy_test` files
 (derived with `rg -l '^package groovy$' *_test.go`,
 `rg -l '^package groovy_test$' *_test.go`, and
