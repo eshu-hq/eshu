@@ -196,9 +196,14 @@ func loadRealConsumerEvidence(repoRoot string) (realConsumerEvidence, error) {
 		return realConsumerEvidence{}, err
 	}
 
+	scanDirs, err := realConsumerScanDirs(repoRoot)
+	if err != nil {
+		return realConsumerEvidence{}, err
+	}
+
 	seamKinds := map[string]bool{}
-	for _, dir := range realConsumerDecodeSeamDirs {
-		glob := filepath.Join(repoRoot, dir, "factschema_decode*.go")
+	for _, dir := range scanDirs {
+		glob := filepath.Join(dir, "factschema_decode*.go")
 		seams, err := payloadusage.ParseDecodeSeamsGlob(glob)
 		if err != nil {
 			return realConsumerEvidence{}, fmt.Errorf("kind_real_consumer: parse decode seams %s: %w", glob, err)
@@ -219,11 +224,7 @@ func loadRealConsumerEvidence(repoRoot string) (realConsumerEvidence, error) {
 	if err != nil {
 		return realConsumerEvidence{}, err
 	}
-	directCallDirs := make([]string, len(realConsumerDecodeSeamDirs))
-	for i, dir := range realConsumerDecodeSeamDirs {
-		directCallDirs[i] = filepath.Join(repoRoot, dir)
-	}
-	directDecodeKinds, err := directFactschemaDecodeCalls(directCallDirs, directDecodeFuncKinds)
+	directDecodeKinds, err := directFactschemaDecodeCalls(scanDirs, directDecodeFuncKinds)
 	if err != nil {
 		return realConsumerEvidence{}, err
 	}
@@ -259,7 +260,11 @@ func loadRealConsumerEvidence(repoRoot string) (realConsumerEvidence, error) {
 		}
 	}
 
-	dispatchKinds, err := factsDispatchedKinds([]string{filepath.Join(repoRoot, "go/internal/reducer")}, factsConstValues)
+	reducerDirs, err := reducerTreeDirs(repoRoot)
+	if err != nil {
+		return realConsumerEvidence{}, err
+	}
+	dispatchKinds, err := factsDispatchedKinds(reducerDirs, factsConstValues)
 	if err != nil {
 		return realConsumerEvidence{}, err
 	}

@@ -8,7 +8,9 @@ import (
 	"go/ast"
 	"go/parser"
 	"go/token"
+	"os"
 	"path/filepath"
+	"strings"
 )
 
 // factsDispatchedKinds scans every non-test .go file under each dir in dirs
@@ -126,4 +128,66 @@ func factsSelectorWireKind(expr ast.Expr, factsConstValues map[string]string) (s
 	}
 	wire, ok := factsConstValues[sel.Sel.Name]
 	return wire, ok
+}
+
+// reducerSeamDir is the one entry in realConsumerDecodeSeamDirs that names a
+// package tree rather than a single package. Issue #6061 moved the reducer's
+// domain families into subpackages, so a dispatch or decode seam now lives in
+// a directory like go/internal/reducer/obscoverage while remaining reducer
+// code. Scanning only the root stops seeing it, and the kind it consumes then
+// reports as having no consumer anywhere in the repository.
+const reducerSeamDir = "go/internal/reducer"
+
+// reducerTreeDirs returns the reducer package directory and every package
+// directory beneath it.
+func reducerTreeDirs(repoRoot string) ([]string, error) {
+	root := filepath.Join(repoRoot, reducerSeamDir)
+	subs, err := packageDirsUnder(root)
+	if err != nil {
+		return nil, err
+	}
+	return append([]string{root}, subs...), nil
+}
+
+// realConsumerScanDirs resolves the seam dirs to absolute paths, expanding the
+// reducer tree into its family subpackages and leaving every other root as
+// itself.
+func realConsumerScanDirs(repoRoot string) ([]string, error) {
+	dirs := make([]string, 0, len(realConsumerDecodeSeamDirs))
+	for _, dir := range realConsumerDecodeSeamDirs {
+		if dir == reducerSeamDir {
+			reducerDirs, err := reducerTreeDirs(repoRoot)
+			if err != nil {
+				return nil, err
+			}
+			dirs = append(dirs, reducerDirs...)
+			continue
+		}
+		dirs = append(dirs, filepath.Join(repoRoot, dir))
+	}
+	return dirs, nil
+}
+
+// packageDirsUnder returns every directory beneath root, skipping testdata and
+// dot-directories at any depth. An oversized family may land pre-split into
+// nested subdirectories, so this recurses rather than reading one level.
+func packageDirsUnder(root string) ([]string, error) {
+	entries, err := os.ReadDir(root)
+	if err != nil {
+		return nil, fmt.Errorf("kind_real_consumer: read %s: %w", root, err)
+	}
+	var dirs []string
+	for _, entry := range entries {
+		if !entry.IsDir() || strings.HasPrefix(entry.Name(), ".") || entry.Name() == "testdata" {
+			continue
+		}
+		child := filepath.Join(root, entry.Name())
+		nested, err := packageDirsUnder(child)
+		if err != nil {
+			return nil, err
+		}
+		dirs = append(dirs, child)
+		dirs = append(dirs, nested...)
+	}
+	return dirs, nil
 }

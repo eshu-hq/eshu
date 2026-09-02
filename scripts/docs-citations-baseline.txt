@@ -61,8 +61,6 @@ LINE docs/internal/audit/2026-06-09-repo-technical-audit.md go/internal/storage/
 LINE docs/internal/audit/2026-06-09-repo-technical-audit.md go/internal/storage/postgres/workflow_control_sql.go:52
 LINE docs/internal/design/1146-ec2-instance-node.md go/internal/collector/awscloud/services/ec2/scanner.go:13
 LINE docs/internal/design/1146-ec2-instance-node.md go/internal/graph/schema.go:131
-LINE docs/internal/design/1146-ec2-instance-node.md go/internal/reducer/aws_resource_materialization.go:247
-LINE docs/internal/design/1146-ec2-instance-node.md go/internal/reducer/observability_coverage_correlation_test.go:29
 LINE docs/internal/design/1146-ec2-instance-node.md go/internal/storage/postgres/graph_projection_phase_state.go:43
 LINE docs/internal/design/3155-typed-parser-artifact-contract.md go/internal/content/shape/materialize.go:54
 LINE docs/internal/design/3155-typed-parser-artifact-contract.md go/internal/facts/models.go:34
@@ -115,7 +113,6 @@ LINE docs/internal/design/4784-reducer-derived-fact-governance.md go/internal/qu
 LINE docs/internal/design/4784-reducer-derived-fact-governance.md go/internal/query/incident_context_runtime_sql.go:30
 LINE docs/internal/design/4784-reducer-derived-fact-governance.md go/internal/query/incident_context_runtime_sql.go:50
 LINE docs/internal/design/4784-reducer-derived-fact-governance.md go/internal/query/kubernetes_correlations.go:13
-LINE docs/internal/design/4784-reducer-derived-fact-governance.md go/internal/query/observability_coverage_correlations.go:13
 LINE docs/internal/design/4784-reducer-derived-fact-governance.md go/internal/query/openapi_paths_supply_chain_impact_findings.go:78
 LINE docs/internal/design/4784-reducer-derived-fact-governance.md go/internal/query/package_registry_correlations.go:16
 LINE docs/internal/design/4784-reducer-derived-fact-governance.md go/internal/query/package_registry_correlations.go:16
@@ -143,7 +140,6 @@ LINE docs/internal/design/4784-reducer-derived-fact-governance.md go/internal/re
 LINE docs/internal/design/4784-reducer-derived-fact-governance.md go/internal/reducer/incident/incident_repository_correlation_writer.go:20
 LINE docs/internal/design/4784-reducer-derived-fact-governance.md go/internal/reducer/kubernetes_correlation_writer.go:17
 LINE docs/internal/design/4784-reducer-derived-fact-governance.md go/internal/reducer/multi_cloud_runtime_drift_writer.go:20
-LINE docs/internal/design/4784-reducer-derived-fact-governance.md go/internal/reducer/observability_coverage_correlation_writer.go:17
 LINE docs/internal/design/4784-reducer-derived-fact-governance.md go/internal/reducer/package_correlation_writer.go:18
 LINE docs/internal/design/4784-reducer-derived-fact-governance.md go/internal/reducer/package_correlation_writer.go:18
 LINE docs/internal/design/4784-reducer-derived-fact-governance.md go/internal/reducer/package_correlation_writer.go:20
@@ -262,7 +258,6 @@ LINE docs/internal/design/4786-contract-integration-matrix.md go/internal/projec
 LINE docs/internal/design/4786-contract-integration-matrix.md go/internal/projector/iamcanassume/materialization_intents.go:39
 LINE docs/internal/design/4786-contract-integration-matrix.md go/internal/projector/observability_coverage_materialization_intents.go:70
 LINE docs/internal/design/4786-contract-integration-matrix.md go/internal/projector/observability_coverage_materialization_intents.go:70
-LINE docs/internal/design/4786-contract-integration-matrix.md go/internal/projector/observability_coverage_materialization_intents.go:70
 LINE docs/internal/design/4786-contract-integration-matrix.md go/internal/projector/runtime.go:302
 LINE docs/internal/design/4786-contract-integration-matrix.md go/internal/projector/semantic_entity_intents.go:30
 LINE docs/internal/design/4786-contract-integration-matrix.md go/internal/projector/semantic_entity_intents.go:30
@@ -294,7 +289,6 @@ LINE docs/internal/design/4786-contract-integration-matrix.md go/internal/query/
 LINE docs/internal/design/4786-contract-integration-matrix.md go/internal/query/incident_context_routing_store.go:179
 LINE docs/internal/design/4786-contract-integration-matrix.md go/internal/query/incident_context_routing_store.go:179
 LINE docs/internal/design/4786-contract-integration-matrix.md go/internal/query/incident_context_runtime.go:144
-LINE docs/internal/design/4786-contract-integration-matrix.md go/internal/query/incident_context_runtime.go:220
 LINE docs/internal/design/4786-contract-integration-matrix.md go/internal/query/incident_context_runtime.go:296
 LINE docs/internal/design/4786-contract-integration-matrix.md go/internal/query/incident_context_runtime_store.go:236
 LINE docs/internal/design/4786-contract-integration-matrix.md go/internal/query/incident_context_store.go:36
@@ -349,7 +343,6 @@ LINE docs/internal/design/4786-contract-integration-matrix.md go/internal/reduce
 LINE docs/internal/design/4786-contract-integration-matrix.md go/internal/reducer/invokes_cloud_action_intents.go:149
 LINE docs/internal/design/4786-contract-integration-matrix.md go/internal/reducer/kubernetes_correlation_writer.go:17
 LINE docs/internal/design/4786-contract-integration-matrix.md go/internal/reducer/multi_cloud_runtime_drift_writer.go:20
-LINE docs/internal/design/4786-contract-integration-matrix.md go/internal/reducer/observability_coverage_correlation_writer.go:17
 LINE docs/internal/design/4786-contract-integration-matrix.md go/internal/reducer/package_correlation_writer.go:137
 LINE docs/internal/design/4786-contract-integration-matrix.md go/internal/reducer/package_correlation_writer.go:137
 LINE docs/internal/design/4786-contract-integration-matrix.md go/internal/reducer/package_correlation_writer.go:137
