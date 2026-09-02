@@ -11,7 +11,7 @@ This package owns decoded argument access and the selected request value. It
 does not own tool names, family membership, or route-selection policy. Family
 packages such as `internal/mcp/admissiondecisions`, `internal/mcp/ask`,
 `internal/mcp/cicd`, `internal/mcp/codeflow`, `internal/mcp/codeowners`,
-`internal/mcp/containerimage`,
+`internal/mcp/containerimage`, `internal/mcp/deadcode`,
 `internal/mcp/impact`, `internal/mcp/infrasearch`, `internal/mcp/kubernetes`,
 `internal/mcp/observabilitycoverage`, `internal/mcp/packageregistry`,
 `internal/mcp/relationships`, `internal/mcp/secretsiam`,
@@ -61,6 +61,7 @@ transport and API request telemetry.
 - [MCP code-flow route selection](../codeflow/README.md)
 - [MCP CODEOWNERS ownership route selection](../codeowners/README.md)
 - [MCP container-image identity route selection](../containerimage/README.md)
+- [MCP dead-code route selection](../deadcode/README.md)
 - [MCP impact-analysis route selection](../impact/README.md)
 - [MCP infrastructure-search route selection](../infrasearch/README.md)
 - [MCP Kubernetes-correlation route selection](../kubernetes/README.md)

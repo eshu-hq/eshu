@@ -60,8 +60,10 @@ type readSurfaceBacking struct {
 // this map, and fails for any label whose Ref is not confirmed live.
 //
 // Seven labels equal a registered tool name directly, so Ref equals the
-// label: three are literal case strings in dispatch.go's own switch
-// (execute_language_query, find_dead_code, trace_route_callers);
+// label: two are literal case strings in dispatch.go's own switch
+// (execute_language_query, trace_route_callers); "find_dead_code" is claimed
+// and selected by deadcodetools.Route (deadcode/routes.go), copied by the
+// thin deadCodeRoute adapter in dispatch.go;
 // "trace_deployment_chain" and "trace_resource_to_code" are claimed and
 // selected by impacttools.Route (impact/routes.go), copied by the thin root
 // adapter in dispatch_impact.go; and "get_code_relationship_story" and

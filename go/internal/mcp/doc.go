@@ -10,8 +10,8 @@
 // their registration definitions without importing this parent package. The
 // ask, relationships, and visualization children own pure dependency-neutral
 // family route selectors alongside their definitions, and the
-// admissiondecisions, cicd, codeflow, codeowners, containerimage, impact,
-// infrasearch, kubernetes, observabilitycoverage, packageregistry,
+// admissiondecisions, cicd, codeflow, codeowners, containerimage, deadcode,
+// impact, infrasearch, kubernetes, observabilitycoverage, packageregistry,
 // secretsiam, securityalert, and supplychainimpact children own such a
 // selector without owning a registration.
 // The nine impact-analysis selections (trace_deployment_chain through
@@ -29,6 +29,17 @@
 // shared six-key body, and the limit 25 and line 0 defaults are unchanged,
 // and the four advertised definitions stay at this root in
 // tools_code_flow.go.
+// The three dead-code selections (find_dead_code, investigate_dead_code,
+// find_cross_repo_dead_code) live in the deadcode child and reach dispatch
+// through the deadCodeRoute adapter defined in dispatch.go itself — the file
+// whose switch held the three arms before the extraction; the delegation is
+// consulted with the other route delegations ahead of the switch, which no
+// caller can observe because every arm claims tool names exactly. The three
+// POST /api/v0/code/dead-code paths, every body key, the limit 100 and
+// offset 0 defaults, and the null-versus-[] absent shapes of
+// exclude_decorated_with and consumer_repo_ids are unchanged, and the three
+// advertised definitions stay at this root in tools_codebase.go,
+// tools_dead_code.go, and tools_cross_repo_dead_code.go.
 // ReadOnlyTools remains the sole ordered assembler; global route membership,
 // family adapters, dispatch,
 // transport, authorization, timeouts,

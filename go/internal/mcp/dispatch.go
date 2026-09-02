@@ -13,6 +13,9 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"net/url"
+
+	deadcodetools "github.com/eshu-hq/eshu/go/internal/mcp/deadcode"
+	"github.com/eshu-hq/eshu/go/internal/mcp/routecontract"
 )
 
 // dispatchTool routes an MCP tool call to the appropriate internal HTTP endpoint.
@@ -166,6 +169,9 @@ func resolveRoute(toolName string, args map[string]any) (*route, error) {
 	if route, ok := codeFlowRoute(toolName, args); ok {
 		return route, nil
 	}
+	if route, ok := deadCodeRoute(toolName, args); ok {
+		return route, nil
+	}
 	if route, ok, err := codeRelationshipRoute(toolName, args); ok {
 		return route, err
 	}
@@ -252,28 +258,6 @@ func resolveRoute(toolName string, args map[string]any) (*route, error) {
 			"include_suppressed": boolOr(args, "include_suppressed", false),
 			"limit":              intOr(args, "limit", 25),
 			"offset":             intOr(args, "offset", 0),
-		}}, nil
-	case "find_dead_code":
-		return &route{method: "POST", path: "/api/v0/code/dead-code", body: map[string]any{
-			"repo_id":                str(args, "repo_id"),
-			"limit":                  intOr(args, "limit", 100),
-			"exclude_decorated_with": stringSlice(args, "exclude_decorated_with"),
-		}}, nil
-	case "investigate_dead_code":
-		return &route{method: "POST", path: "/api/v0/code/dead-code/investigate", body: map[string]any{
-			"repo_id":                str(args, "repo_id"),
-			"language":               str(args, "language"),
-			"limit":                  intOr(args, "limit", 100),
-			"offset":                 intOr(args, "offset", 0),
-			"exclude_decorated_with": stringSlice(args, "exclude_decorated_with"),
-		}}, nil
-	case "find_cross_repo_dead_code":
-		return &route{method: "POST", path: "/api/v0/code/dead-code/cross-repo", body: map[string]any{
-			"repo_id":                str(args, "repo_id"),
-			"consumer_repo_ids":      stringValues(args, "consumer_repo_ids"),
-			"language":               str(args, "language"),
-			"limit":                  intOr(args, "limit", 100),
-			"exclude_decorated_with": stringSlice(args, "exclude_decorated_with"),
 		}}, nil
 	case "find_dead_iac":
 		return &route{method: "POST", path: "/api/v0/iac/dead", body: map[string]any{
@@ -489,4 +473,25 @@ func resolveRoute(toolName string, args map[string]any) (*route, error) {
 		}
 		return nil, fmt.Errorf("unknown tool: %s", toolName)
 	}
+}
+
+// deadCodeRoute adapts the child package's dead-code request selection into
+// the root dispatcher's transport route. The family's three arms lived in
+// this file's own switch before the extraction; the delegation now sits with
+// the other route delegations ahead of the switch, which changes nothing a
+// caller can observe because every arm in the chain claims tool names
+// exactly and no other arm claims these three. The adapter lives here rather
+// than in a new dispatch_dead_code.go so the root non-test file set stays at
+// its dirgate pin.
+func deadCodeRoute(toolName string, args map[string]any) (*route, bool) {
+	request, handled := deadcodetools.Route(toolName, routecontract.Arguments(args))
+	if !handled {
+		return nil, false
+	}
+	return &route{
+		method: request.Method,
+		path:   request.Path,
+		body:   request.Body,
+		query:  request.Query,
+	}, true
 }

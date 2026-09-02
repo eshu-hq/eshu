@@ -28,13 +28,16 @@ label to a live artifact:
 
 - **`mcp_tool`** — the label (or its alias) must be a `tool.Name` in
   `ReadOnlyTools()`. Seven of the nine labels equal their tool name directly,
-  so the ref equals the label. Three of those are literal case strings in
-  `dispatch.go`'s own switch (`execute_language_query`, `find_dead_code`,
-  `trace_route_callers`). `trace_deployment_chain` and
+  so the ref equals the label. Two of those are literal case strings in
+  `dispatch.go`'s own switch (`execute_language_query`,
+  `trace_route_callers`). `find_dead_code` is claimed and selected by
+  `deadcodetools.Route` (`go/internal/mcp/deadcode`),
+  `trace_deployment_chain` and
   `trace_resource_to_code` are claimed and selected by `impacttools.Route`
   (`go/internal/mcp/impact`), and `get_code_relationship_story` and
   `list_relationship_edges` by `relationshiptools`; in each case a thin root
-  adapter (`dispatch_impact.go`, `dispatch_relationship_edges.go`, or
+  adapter (the `deadCodeRoute` function in `dispatch.go`,
+  `dispatch_impact.go`, `dispatch_relationship_edges.go`, or
   `dispatch_relationships.go`) copies the child's request into the global
   dispatch fanout rather than using the shared case-string switch.
   `entity_context` aliases to the `get_entity_context` tool.
