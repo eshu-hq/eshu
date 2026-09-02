@@ -67,9 +67,10 @@ golden_corpus_pinned_commit_sha() {
 
 # golden_corpus_assert_staged_pin dies (via fail_fn) unless the staged
 # fixture's HEAD equals the cassette's pinned commit for run_id. The failure
-# names the fixture, both SHAs, the usual cause, and lists the staged tree so
-# the reader sees the culprit directly instead of re-deriving it from an
-# unrelated failure much later in the run.
+# names the fixture, both SHAs, the two possible causes (an extra file in the
+# staged tree, or an inherited commit identity/date), and lists the staged
+# tree so the reader can rule one in or out directly instead of re-deriving it
+# from an unrelated failure much later in the run.
 golden_corpus_assert_staged_pin() {
 	local fixture="$1" staged_repo="$2" scope_id="$3" run_id="$4" fail_fn="$5"
 	local staged_head expected
@@ -90,7 +91,8 @@ golden_corpus_assert_staged_pin() {
 	{
 		printf 'golden-corpus-gate-integrity: %s staged HEAD %s does not match the run %s pinned commit %s\n' \
 			"${fixture}" "${staged_head}" "${run_id}" "${expected}"
-		printf 'golden-corpus-gate-integrity: usual cause is an extra file staged into the fixture directory (e.g. a git-ignored file such as .DS_Store copied by cp -R)\n'
+		printf 'golden-corpus-gate-integrity: a commit SHA mismatch can come from an extra file in the staged tree (e.g. a git-ignored .DS_Store copied by cp -R -- check the ls-tree listing below) or from a different commit identity/date (GIT_AUTHOR_NAME, GIT_AUTHOR_EMAIL, GIT_COMMITTER_NAME, GIT_COMMITTER_EMAIL, GIT_AUTHOR_DATE, or GIT_COMMITTER_DATE exported in this shell overrides the inline values staging sets)\n'
+		printf 'golden-corpus-gate-integrity: run env | rg "^GIT_(AUTHOR|COMMITTER)_" to check for an inherited identity before assuming the tree is at fault\n'
 		printf 'golden-corpus-gate-integrity: offending staged tree entries (git -C %s ls-tree -r HEAD --name-only):\n' "${staged_repo}"
 		git -C "${staged_repo}" ls-tree -r HEAD --name-only
 	} >&2

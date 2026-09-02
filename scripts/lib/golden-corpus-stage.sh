@@ -85,7 +85,21 @@ stage_deterministic_git_fixture() {
 	git -C "${fixture_path}" config core.autocrlf false >/dev/null 2>&1
 	git -C "${fixture_path}" config core.excludesfile /dev/null >/dev/null 2>&1
 	git -C "${fixture_path}" add -A >/dev/null 2>&1
-	GIT_AUTHOR_DATE="2026-08-04T12:00:00Z" \
+	# Identity is set inline, NOT left to the `git config user.*` above.
+	#
+	# git prefers GIT_AUTHOR_* and GIT_COMMITTER_* from the environment over
+	# config, so a shell that exports any of the four produces a different
+	# author or committer -- and therefore a different commit SHA -- from
+	# byte-identical fixture content. The tree hash is unchanged; only the
+	# commit metadata moves. That presents as fixture drift and is not, which
+	# cost one investigation a wrong diagnosis and a wrongly-edited cassette
+	# pin before the cause was found. The dates below were always immune for
+	# exactly this reason; the identity fields now are too.
+	GIT_AUTHOR_NAME="Golden Gate" \
+		GIT_AUTHOR_EMAIL="gate@eshu.local" \
+		GIT_COMMITTER_NAME="Golden Gate" \
+		GIT_COMMITTER_EMAIL="gate@eshu.local" \
+		GIT_AUTHOR_DATE="2026-08-04T12:00:00Z" \
 		GIT_COMMITTER_DATE="2026-08-04T12:00:00Z" \
 		git -C "${fixture_path}" commit -m "initial" >/dev/null 2>&1
 }
@@ -122,7 +136,14 @@ stage_minimal_corpus() {
 			git -C "${corpus_dir}/${fixture}" add -A >/dev/null 2>&1
 			git -C "${corpus_dir}/${fixture}" update-index --add --cacheinfo \
 				160000,5420542054205420542054205420542054205420,vendor/deployable-source >/dev/null 2>&1
-			git -C "${corpus_dir}/${fixture}" commit -m "initial" >/dev/null 2>&1
+			# Inline identity for the same reason as
+			# stage_deterministic_git_fixture: environment variables
+			# outrank the `git config user.*` set above.
+			GIT_AUTHOR_NAME="Golden Gate" \
+				GIT_AUTHOR_EMAIL="gate@eshu.local" \
+				GIT_COMMITTER_NAME="Golden Gate" \
+				GIT_COMMITTER_EMAIL="gate@eshu.local" \
+				git -C "${corpus_dir}/${fixture}" commit -m "initial" >/dev/null 2>&1
 			# Annotated tag for peeled-SHA coverage.
 			git -C "${corpus_dir}/${fixture}" tag -a v1.0.0-annotated -m "annotated tag" HEAD >/dev/null 2>&1
 			# Lightweight tag.

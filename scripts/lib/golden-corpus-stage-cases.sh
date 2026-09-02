@@ -54,5 +54,46 @@ stage_case_deployable_head="$(git -C "${stage_case_deployable_repo}" rev-parse H
 [[ "${#stage_case_deployable_head}" -eq 40 ]] ||
 	fail "deployable-config staged HEAD must use SHA-1, got ${#stage_case_deployable_head} characters"
 
+# Staging must be hermetic against an inherited Git identity.
+#
+# git reads GIT_AUTHOR_NAME, GIT_AUTHOR_EMAIL, GIT_COMMITTER_NAME and
+# GIT_COMMITTER_EMAIL from the environment, and those OUTRANK the `git config
+# user.*` that stage_deterministic_git_fixture sets. A developer shell that
+# exports any of them therefore produces a different author or committer, hence
+# a different commit SHA, from byte-identical fixture content -- the tree hash
+# is unchanged, only the commit metadata differs.
+#
+# That reads as fixture drift and is not. It cost one investigation a wrong
+# diagnosis, a wrongly-edited cassette pin, and several hours: the staged SHA
+# was reproduced by hand in the same contaminated shell, which agreed with the
+# gate and looked like corroboration when it was one fault counted twice.
+#
+# The cases above cannot catch it. They stage in the ambient environment, and CI
+# runners export none of these, so the pins match there whether or not staging is
+# hermetic. This case contaminates all four variables deliberately and requires
+# the pins to hold anyway.
+stage_case_hostile_corpus="${stage_case_dir}/hostile"
+mkdir -p "${stage_case_hostile_corpus}"
+(
+	export GIT_CONFIG_GLOBAL="${stage_case_git_config}"
+	export GIT_AUTHOR_NAME="Contaminating Author"
+	export GIT_AUTHOR_EMAIL="contaminating-author@example.invalid"
+	export GIT_COMMITTER_NAME="Contaminating Committer"
+	export GIT_COMMITTER_EMAIL="contaminating-committer@example.invalid"
+	corpus_dir="${stage_case_hostile_corpus}"
+	corpus_fixtures=(container-ci-lineage github_actions_workflows)
+	die() { printf 'golden-corpus-stage-case: %s\n' "$*" >&2; exit 1; }
+	# shellcheck source=scripts/lib/golden-corpus-stage.sh
+	. "${repo_root}/scripts/lib/golden-corpus-stage.sh"
+	stage_minimal_corpus >/dev/null
+)
+
+golden_corpus_assert_staged_pin "container-ci-lineage" \
+	"${stage_case_hostile_corpus}/container-ci-lineage" \
+	"ci_cd_run:github_actions:acme:container-ci-lineage" "9100" fail
+golden_corpus_assert_staged_pin "github_actions_workflows" \
+	"${stage_case_hostile_corpus}/github_actions_workflows" \
+	"ci_cd_run:github_actions:acme:github_actions_workflows" "9200" fail
+
 rm -rf "${stage_case_dir}"
 stage_cases_completed=1
