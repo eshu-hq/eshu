@@ -103,11 +103,11 @@ each has exactly one implementation before and after. The only renames are
 `ProjectionContext.acceptanceUnitID` to `ResolveAcceptanceUnitID` (a Go struct
 cannot carry a field and a method under one name) and the family's own exported
 identifiers, which lost their now-redundant `Inheritance` prefix. A Go import
-change and a type alias add no indirection at runtime. Measured on this branch
-against baseline `origin/main` at `630115dc5`: `go build ./...` exits 0,
-`go vet ./internal/reducer/... ./internal/ifa/... ./internal/storage/cypher/...`
-exits 0, and `go test ./internal/reducer/... -count=1` passes including this
-package. Binary output was not compared and no such claim is made here.
+change and a type alias add no indirection at runtime. Verified on this branch against
+`630115dc5`, its merge-base with `origin/main`: `go build ./...` exits 0,
+`go vet ./...` exits 0, and `go test ./internal/reducer/... ./internal/ifa/...
+./internal/storage/cypher/... ./internal/replay/... -count=1` passes, including
+this package. Binary output was not compared and no such claim is made here.
 
 No-Observability-Change: #6061 adds no queue domain, worker, lease, graph or
 Postgres operation, runtime setting, metric instrument, metric label, span, or

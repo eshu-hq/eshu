@@ -16,7 +16,7 @@ import (
 // TestExtractInheritanceRowsPopulatesChildPathFromRelativePath is the #5996
 // regression test. It builds content_entity envelopes shaped exactly like
 // production: contentEntityFactEnvelope
-// (go/internal/collector/gitrepo/git_content_fact_envelopes.go:80) emits
+// (contentEntityFactEnvelope in go/internal/collector/gitrepo/git_content_fact_envelopes.go) emits
 // "relative_path" and never a top-level "path" key. Before the fix,
 // declaredInheritanceRow's childPath argument read "path" -- a key absent from
 // this fixture, matching every real content_entity fact -- so child_path was
@@ -56,7 +56,7 @@ func TestExtractInheritanceRowsPopulatesChildPathFromRelativePath(t *testing.T) 
 	}
 	if got, want := rows[0]["child_path"], "src/child.py"; got != want {
 		t.Fatalf("child_path = %#v, want %#v (production content_entity facts carry"+
-			" \"relative_path\", never \"path\" -- see git_content_fact_envelopes.go:80)", got, want)
+			" \"relative_path\", never \"path\" -- see contentEntityFactEnvelope in git_content_fact_envelopes.go)", got, want)
 	}
 }
 
