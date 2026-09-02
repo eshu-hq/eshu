@@ -1,13 +1,14 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package reducer
+package sbomattest
 
 import (
 	"slices"
 	"testing"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
 )
 
 func TestBuildSBOMAttestationAttachmentDecisionsCarriesImageAnchors(t *testing.T) {
@@ -21,7 +22,7 @@ func TestBuildSBOMAttestationAttachmentDecisionsCarriesImageAnchors(t *testing.T
 			[]string{"repo://example/api"},
 			[]string{"workload:example-api"},
 			[]string{"service:example-api"},
-			string(ContainerImageIdentityTagResolved),
+			string(reducercontract.ContainerImageIdentityTagResolved),
 		),
 	})
 
@@ -51,7 +52,7 @@ func TestBuildSBOMAttestationAttachmentDecisionsKeepsMissingImageHopExplicit(t *
 			nil,
 			nil,
 			nil,
-			string(ContainerImageIdentityAmbiguousTag),
+			string(reducercontract.ContainerImageIdentityAmbiguousTag),
 		),
 	})
 
@@ -89,7 +90,7 @@ func containerImageIdentityAnchorFact(
 	}
 	return facts.Envelope{
 		FactID:   factID,
-		FactKind: containerImageIdentityFactKind,
+		FactKind: reducercontract.ContainerImageIdentityFactKind,
 		Payload:  values,
 	}
 }

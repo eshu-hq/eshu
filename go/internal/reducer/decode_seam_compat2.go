@@ -40,11 +40,6 @@ var (
 	decodeReducerPackagePublicationCorrelation = schemadecode.DecodeReducerPackagePublicationCorrelation
 	decodeS3BucketPosture                      = schemadecode.DecodeS3BucketPosture
 	decodeS3ExternalPrincipalGrant             = schemadecode.DecodeS3ExternalPrincipalGrant
-	decodeSBOMComponent                        = schemadecode.DecodeSBOMComponent
-	decodeSBOMDependencyRelationship           = schemadecode.DecodeSBOMDependencyRelationship
-	decodeSBOMDocument                         = schemadecode.DecodeSBOMDocument
-	decodeSBOMExternalReference                = schemadecode.DecodeSBOMExternalReference
-	decodeSBOMWarning                          = schemadecode.DecodeSBOMWarning
 	decodeScannerWorkerAnalysis                = schemadecode.DecodeScannerWorkerAnalysis
 	decodeSecurityAlertRepositoryAlert         = schemadecode.DecodeSecurityAlertRepositoryAlert
 	decodeServiceCatalogEntity                 = schemadecode.DecodeServiceCatalogEntity

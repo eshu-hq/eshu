@@ -1,15 +1,24 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package reducer
+package sbomattest
 
 import (
 	"fmt"
 	"sort"
 
 	"github.com/eshu-hq/eshu/go/internal/boundedset"
+	"github.com/eshu-hq/eshu/go/internal/reducer/payloadcore"
 	sbomv1 "github.com/eshu-hq/eshu/sdk/go/factschema/sbom/v1"
 )
+
+// derefString forwards to [payloadcore.DerefString]. Declared once here
+// rather than at each of this family's ~30 call sites, mirroring the
+// reducer root's own one-line forwarder convention (see
+// aws_relationship_join.go there).
+func derefString(value *string) string {
+	return payloadcore.DerefString(value)
+}
 
 const (
 	// maxSBOMAttachmentComponentEvidenceRows bounds the number of sbom.component

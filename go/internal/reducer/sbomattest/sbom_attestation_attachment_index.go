@@ -1,14 +1,17 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package reducer
+package sbomattest
 
 import (
 	"fmt"
 	"strings"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
+	"github.com/eshu-hq/eshu/go/internal/reducer/factdecode"
 	"github.com/eshu-hq/eshu/go/internal/reducer/payloadcore"
+	"github.com/eshu-hq/eshu/go/internal/reducer/schemadecode"
 	sbomv1 "github.com/eshu-hq/eshu/sdk/go/factschema/sbom/v1"
 )
 
@@ -157,7 +160,7 @@ type sbomAttachmentIndex struct {
 // one this function types; the reducer decode wrapper for
 // oci_registry.image_referrer lives in the projector package for its own
 // canonical extractor, not here.
-func buildSBOMAttachmentIndex(envelopes []facts.Envelope) (sbomAttachmentIndex, []quarantinedFact, error) {
+func buildSBOMAttachmentIndex(envelopes []facts.Envelope) (sbomAttachmentIndex, []factdecode.QuarantinedFact, error) {
 	index := sbomAttachmentIndex{
 		documents:          map[string]sbomAttachmentDocument{},
 		components:         map[string][]sbomAttachmentComponentEvidence{},
@@ -169,13 +172,13 @@ func buildSBOMAttachmentIndex(envelopes []facts.Envelope) (sbomAttachmentIndex, 
 		externalReferences: map[string][]sbomAttachmentExternalReferenceEvidence{},
 		slsaProvenance:     map[string]sbomAttachmentSLSAProvenanceEvidence{},
 	}
-	var quarantined []quarantinedFact
+	var quarantined []factdecode.QuarantinedFact
 	for _, envelope := range envelopes {
 		switch envelope.FactKind {
 		case facts.SBOMDocumentFactKind:
 			doc, err := sbomDocumentFromEnvelope(envelope)
 			if err != nil {
-				q, isQuarantine, fatal := partitionDecodeFailures(envelope, err)
+				q, isQuarantine, fatal := factdecode.PartitionDecodeFailures(envelope, err)
 				if fatal != nil {
 					return sbomAttachmentIndex{}, nil, fatal
 				}
@@ -190,7 +193,7 @@ func buildSBOMAttachmentIndex(envelopes []facts.Envelope) (sbomAttachmentIndex, 
 		case facts.AttestationStatementFactKind:
 			doc, err := attestationDocumentFromEnvelope(envelope)
 			if err != nil {
-				q, isQuarantine, fatal := partitionDecodeFailures(envelope, err)
+				q, isQuarantine, fatal := factdecode.PartitionDecodeFailures(envelope, err)
 				if fatal != nil {
 					return sbomAttachmentIndex{}, nil, fatal
 				}
@@ -203,9 +206,9 @@ func buildSBOMAttachmentIndex(envelopes []facts.Envelope) (sbomAttachmentIndex, 
 				index.documents[doc.documentID] = doc
 			}
 		case facts.SBOMComponentFactKind:
-			component, err := decodeSBOMComponent(envelope)
+			component, err := schemadecode.DecodeSBOMComponent(envelope)
 			if err != nil {
-				q, isQuarantine, fatal := partitionDecodeFailures(envelope, err)
+				q, isQuarantine, fatal := factdecode.PartitionDecodeFailures(envelope, err)
 				if fatal != nil {
 					return sbomAttachmentIndex{}, nil, fatal
 				}
@@ -234,15 +237,15 @@ func buildSBOMAttachmentIndex(envelopes []facts.Envelope) (sbomAttachmentIndex, 
 			if referrer.referrerDigest != "" {
 				index.referrers[referrer.referrerDigest] = append(index.referrers[referrer.referrerDigest], referrer)
 			}
-		case containerImageIdentityFactKind:
+		case reducercontract.ContainerImageIdentityFactKind:
 			image := sbomAttachmentImageAnchorFromEnvelope(envelope)
 			if image.digest != "" {
 				index.images[image.digest] = append(index.images[image.digest], image)
 			}
 		case facts.AttestationSignatureVerificationFactKind:
-			verification, err := decodeAttestationSignatureVerification(envelope)
+			verification, err := schemadecode.DecodeAttestationSignatureVerification(envelope)
 			if err != nil {
-				q, isQuarantine, fatal := partitionDecodeFailures(envelope, err)
+				q, isQuarantine, fatal := factdecode.PartitionDecodeFailures(envelope, err)
 				if fatal != nil {
 					return sbomAttachmentIndex{}, nil, fatal
 				}
@@ -269,9 +272,9 @@ func buildSBOMAttachmentIndex(envelopes []facts.Envelope) (sbomAttachmentIndex, 
 				quarantined = append(quarantined, q)
 			}
 		case facts.SBOMWarningFactKind:
-			warning, err := decodeSBOMWarning(envelope)
+			warning, err := schemadecode.DecodeSBOMWarning(envelope)
 			if err != nil {
-				q, isQuarantine, fatal := partitionDecodeFailures(envelope, err)
+				q, isQuarantine, fatal := factdecode.PartitionDecodeFailures(envelope, err)
 				if fatal != nil {
 					return sbomAttachmentIndex{}, nil, fatal
 				}
@@ -319,10 +322,10 @@ func buildSBOMAttachmentIndex(envelopes []facts.Envelope) (sbomAttachmentIndex, 
 func indexSBOMDependencyRelationship(
 	index sbomAttachmentIndex,
 	envelope facts.Envelope,
-) (quarantinedFact, bool, error) {
-	relationship, err := decodeSBOMDependencyRelationship(envelope)
+) (factdecode.QuarantinedFact, bool, error) {
+	relationship, err := schemadecode.DecodeSBOMDependencyRelationship(envelope)
 	if err != nil {
-		return partitionDecodeFailures(envelope, err)
+		return factdecode.PartitionDecodeFailures(envelope, err)
 	}
 	if relationship.DocumentID != "" {
 		index.dependencies[relationship.DocumentID] = append(index.dependencies[relationship.DocumentID], sbomAttachmentDependencyEvidence{
@@ -333,7 +336,7 @@ func indexSBOMDependencyRelationship(
 			relationshipOrigin: derefString(relationship.RelationshipOrigin),
 		})
 	}
-	return quarantinedFact{}, false, nil
+	return factdecode.QuarantinedFact{}, false, nil
 }
 
 // indexSBOMExternalReference mirrors indexSBOMDependencyRelationship for
@@ -341,10 +344,10 @@ func indexSBOMDependencyRelationship(
 func indexSBOMExternalReference(
 	index sbomAttachmentIndex,
 	envelope facts.Envelope,
-) (quarantinedFact, bool, error) {
-	reference, err := decodeSBOMExternalReference(envelope)
+) (factdecode.QuarantinedFact, bool, error) {
+	reference, err := schemadecode.DecodeSBOMExternalReference(envelope)
 	if err != nil {
-		return partitionDecodeFailures(envelope, err)
+		return factdecode.PartitionDecodeFailures(envelope, err)
 	}
 	if reference.DocumentID != "" {
 		index.externalReferences[reference.DocumentID] = append(index.externalReferences[reference.DocumentID], sbomAttachmentExternalReferenceEvidence{
@@ -355,7 +358,7 @@ func indexSBOMExternalReference(
 			referenceLocator: derefString(reference.ReferenceLocator),
 		})
 	}
-	return quarantinedFact{}, false, nil
+	return factdecode.QuarantinedFact{}, false, nil
 }
 
 // indexAttestationSLSAProvenance, indexSLSAProvenanceEvidence, and the
@@ -368,7 +371,7 @@ func indexSBOMExternalReference(
 // returning a classified decode error when the required document_id field is
 // absent.
 func sbomDocumentFromEnvelope(envelope facts.Envelope) (sbomAttachmentDocument, error) {
-	document, err := decodeSBOMDocument(envelope)
+	document, err := schemadecode.DecodeSBOMDocument(envelope)
 	if err != nil {
 		return sbomAttachmentDocument{}, err
 	}
@@ -379,7 +382,7 @@ func sbomDocumentFromEnvelope(envelope facts.Envelope) (sbomAttachmentDocument, 
 		documentDigest:     derefString(document.DocumentDigest),
 		subjectDigest:      derefString(document.SubjectDigest),
 		parseStatus:        defaultStatus(derefString(document.ParseStatus), "parsed"),
-		verificationStatus: normalizedVerificationStatus(derefString(document.VerificationStatus)),
+		verificationStatus: NormalizedVerificationStatus(derefString(document.VerificationStatus)),
 		verificationPolicy: derefString(document.VerificationPolicy),
 		artifactKind:       "sbom",
 		format:             derefString(document.Format),
@@ -392,12 +395,12 @@ func sbomDocumentFromEnvelope(envelope facts.Envelope) (sbomAttachmentDocument, 
 // sbomAttachmentDocument shape, returning a classified decode error when the
 // required statement_id field is absent.
 func attestationDocumentFromEnvelope(envelope facts.Envelope) (sbomAttachmentDocument, error) {
-	statement, err := decodeAttestationStatement(envelope)
+	statement, err := schemadecode.DecodeAttestationStatement(envelope)
 	if err != nil {
 		return sbomAttachmentDocument{}, err
 	}
 	statementID := payloadcore.FirstNonBlank(statement.StatementID, envelope.FactID)
-	subjectDigests := uniqueSortedStrings(append(
+	subjectDigests := payloadcore.UniqueSortedStrings(append(
 		[]string{derefString(statement.SubjectDigest)},
 		statement.SubjectDigests...,
 	))
@@ -412,7 +415,7 @@ func attestationDocumentFromEnvelope(envelope facts.Envelope) (sbomAttachmentDoc
 		documentDigest:     payloadcore.FirstNonBlank(derefString(statement.StatementDigest), derefString(statement.PayloadDigest)),
 		subjectDigest:      subjectDigest,
 		parseStatus:        defaultStatus(derefString(statement.ParseStatus), "parsed"),
-		verificationStatus: normalizedVerificationStatus(derefString(statement.VerificationStatus)),
+		verificationStatus: NormalizedVerificationStatus(derefString(statement.VerificationStatus)),
 		verificationPolicy: derefString(statement.VerificationPolicy),
 		artifactKind:       "attestation",
 		format:             payloadcore.FirstNonBlank(derefString(statement.AttestationFormat), "in-toto"),
@@ -424,20 +427,20 @@ func attestationDocumentFromEnvelope(envelope facts.Envelope) (sbomAttachmentDoc
 func sbomReferrerFromEnvelope(envelope facts.Envelope) sbomAttachmentReferrer {
 	return sbomAttachmentReferrer{
 		factID:         envelope.FactID,
-		subjectDigest:  payloadString(envelope.Payload, "subject_digest"),
-		referrerDigest: payloadString(envelope.Payload, "referrer_digest"),
+		subjectDigest:  payloadcore.PayloadString(envelope.Payload, "subject_digest"),
+		referrerDigest: payloadcore.PayloadString(envelope.Payload, "referrer_digest"),
 	}
 }
 
 func sbomAttachmentImageAnchorFromEnvelope(envelope facts.Envelope) sbomAttachmentImageAnchor {
 	return sbomAttachmentImageAnchor{
 		factID:       envelope.FactID,
-		digest:       payloadString(envelope.Payload, "digest"),
-		outcome:      payloadString(envelope.Payload, "outcome"),
-		writes:       supplyChainInt(envelope.Payload, "canonical_writes"),
-		repositories: payloadStrings(envelope.Payload, "source_repository_id", "source_repository_ids"),
-		workloads:    payloadStrings(envelope.Payload, "workload_id", "workload_ids"),
-		services:     payloadStrings(envelope.Payload, "service_id", "service_ids"),
+		digest:       payloadcore.PayloadString(envelope.Payload, "digest"),
+		outcome:      payloadcore.PayloadString(envelope.Payload, "outcome"),
+		writes:       payloadcore.PayloadInt(envelope.Payload, "canonical_writes"),
+		repositories: PayloadStrings(envelope.Payload, "source_repository_id", "source_repository_ids"),
+		workloads:    PayloadStrings(envelope.Payload, "workload_id", "workload_ids"),
+		services:     PayloadStrings(envelope.Payload, "service_id", "service_ids"),
 	}
 }
 
@@ -445,14 +448,21 @@ func sbomAttachmentImageAnchorFromEnvelope(envelope facts.Envelope) sbomAttachme
 // supporting helpers live in sbom_attestation_attachment_classify.go (split
 // out to keep this file under the 500-line cap).
 
-func payloadStrings(payload map[string]any, scalarKey string, sliceKey string) []string {
+// PayloadStrings collects the trimmed, deduplicated, sorted union of
+// payload[scalarKey] (as a single value) and payload[sliceKey] (as a
+// []string or []any). Exported because it predates this family and the
+// reducer root's secrets/IAM, security-alert-reconciliation, and
+// supply-chain-impact call sites reuse it verbatim for unrelated payload
+// shapes; it stayed here rather than moving to payloadcore alongside this
+// migration to keep this PR's diff scoped to the sbom_attestation family.
+func PayloadStrings(payload map[string]any, scalarKey string, sliceKey string) []string {
 	var values []string
-	if value := payloadString(payload, scalarKey); value != "" {
+	if value := payloadcore.PayloadString(payload, scalarKey); value != "" {
 		values = append(values, value)
 	}
 	raw, ok := payload[sliceKey]
 	if !ok {
-		return uniqueSortedStrings(values)
+		return payloadcore.UniqueSortedStrings(values)
 	}
 	switch typed := raw.(type) {
 	case []string:
@@ -468,5 +478,5 @@ func payloadStrings(payload map[string]any, scalarKey string, sliceKey string) [
 			}
 		}
 	}
-	return uniqueSortedStrings(values)
+	return payloadcore.UniqueSortedStrings(values)
 }

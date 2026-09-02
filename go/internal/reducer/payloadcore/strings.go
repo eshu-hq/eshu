@@ -86,6 +86,28 @@ func CleanFactFilterValues(values []string) []string {
 	return cleaned
 }
 
+// MissingStrings returns the values in current that are not present in
+// initial, preserving current's order, or nil when current is empty. Unlike
+// CleanFactFilterValues it does no trimming or deduplication of its own — it
+// is a plain set difference over whatever current already holds.
+func MissingStrings(current []string, initial []string) []string {
+	if len(current) == 0 {
+		return nil
+	}
+	seen := make(map[string]struct{}, len(initial))
+	for _, value := range initial {
+		seen[value] = struct{}{}
+	}
+	missing := make([]string, 0, len(current))
+	for _, value := range current {
+		if _, ok := seen[value]; ok {
+			continue
+		}
+		missing = append(missing, value)
+	}
+	return missing
+}
+
 // NonNilStrings returns values, substituting an empty slice for nil so an
 // encoded payload carries [] rather than null.
 func NonNilStrings(values []string) []string {

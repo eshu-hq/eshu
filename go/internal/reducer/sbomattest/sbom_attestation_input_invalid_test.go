@@ -1,13 +1,14 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package reducer
+package sbomattest
 
 import (
 	"context"
 	"testing"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
 )
 
 // TestSBOMAttestationAttachmentQuarantinesMissingDocumentID is the flagship
@@ -58,12 +59,12 @@ func TestSBOMAttestationAttachmentQuarantinesMissingDocumentID(t *testing.T) {
 		Writer:     writer,
 	}
 
-	result, err := handler.Handle(context.Background(), Intent{
+	result, err := handler.Handle(context.Background(), reducercontract.Intent{
 		IntentID:     "intent-sbom-quarantine",
 		ScopeID:      "sbom://oci/" + testSBOMSubjectDigest,
 		GenerationID: "generation-sbom",
 		SourceSystem: "sbom_attestation",
-		Domain:       DomainSBOMAttestationAttachment,
+		Domain:       reducercontract.DomainSBOMAttestationAttachment,
 		Cause:        "sbom attachment observed",
 	})
 	// Per-fact isolation: the malformed fact does NOT fail the whole intent.
@@ -126,12 +127,12 @@ func TestSBOMAttestationAttachmentComponentQuarantinesMissingDocumentID(t *testi
 		Writer:     writer,
 	}
 
-	result, err := handler.Handle(context.Background(), Intent{
+	result, err := handler.Handle(context.Background(), reducercontract.Intent{
 		IntentID:     "intent-sbom-component-quarantine",
 		ScopeID:      "sbom://oci/" + testSBOMSubjectDigest,
 		GenerationID: "generation-sbom",
 		SourceSystem: "sbom_attestation",
-		Domain:       DomainSBOMAttestationAttachment,
+		Domain:       reducercontract.DomainSBOMAttestationAttachment,
 		Cause:        "sbom attachment observed",
 	})
 	if err != nil {
@@ -182,16 +183,16 @@ func TestSBOMAttestationAttachmentQuarantineReplayIsIdempotent(t *testing.T) {
 	}
 	valid := sbomDocumentFact("doc-verified", "doc-verified", testSBOMSubjectDigest, "sha256:1111111111111111111111111111111111111111111111111111111111111111", "parsed", "verified")
 
-	intent := Intent{
+	intent := reducercontract.Intent{
 		IntentID:     "intent-sbom-replay",
 		ScopeID:      "sbom://oci/" + testSBOMSubjectDigest,
 		GenerationID: "generation-sbom",
 		SourceSystem: "sbom_attestation",
-		Domain:       DomainSBOMAttestationAttachment,
+		Domain:       reducercontract.DomainSBOMAttestationAttachment,
 		Cause:        "sbom attachment observed",
 	}
 
-	var results []Result
+	var results []reducercontract.Result
 	for i := 0; i < 2; i++ {
 		writer := &recordingSBOMAttestationAttachmentWriter{}
 		handler := SBOMAttestationAttachmentHandler{
@@ -215,7 +216,7 @@ func TestSBOMAttestationAttachmentQuarantineReplayIsIdempotent(t *testing.T) {
 	if results[0].CanonicalWrites != results[1].CanonicalWrites {
 		t.Fatalf("CanonicalWrites differs across replays: %d vs %d", results[0].CanonicalWrites, results[1].CanonicalWrites)
 	}
-	if results[0].Status != ResultStatusSucceeded || results[1].Status != ResultStatusSucceeded {
+	if results[0].Status != reducercontract.ResultStatusSucceeded || results[1].Status != reducercontract.ResultStatusSucceeded {
 		t.Fatalf("both replays must succeed despite the quarantined fact: got %v and %v", results[0].Status, results[1].Status)
 	}
 }

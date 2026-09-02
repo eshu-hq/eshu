@@ -4,7 +4,6 @@
 package reducer
 
 import (
-	"strconv"
 	"strings"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
@@ -48,9 +47,10 @@ func supplyChainConsumptionFromEnvelope(envelope facts.Envelope) (supplyChainPac
 
 // supplyChainSBOMComponentFromEnvelope reads sbom.component raw
 // (payloadStr), NOT through the sdk/go/factschema typed decode seam
-// (decodeSBOMComponent, factschema_decode_sbom.go): this is the
-// supply_chain_impact domain's own read of the sbom_attestation family's
-// wire kind, and that domain carries zero existing quarantine plumbing
+// (schemadecode.DecodeSBOMComponent, used by the sbom_attestation family in
+// internal/reducer/sbomattest): this is the supply_chain_impact domain's own
+// read of the sbom_attestation family's wire kind, and that domain carries
+// zero existing quarantine plumbing
 // across ANY of its many vulnerability/OS-package/deployment-context kinds
 // today. Converting only this one field-read in isolation would be a hollow,
 // half-typed contract rather than a real accuracy fix; it is deferred to the
@@ -368,13 +368,9 @@ func payloadBoolPointer(payload map[string]any, key string) *bool {
 	return &value
 }
 
+// supplyChainInt forwards to [payloadcore.PayloadInt].
 func supplyChainInt(payload map[string]any, key string) int {
-	value := payloadStr(payload, key)
-	if value == "" {
-		return 0
-	}
-	parsed, _ := strconv.Atoi(value)
-	return parsed
+	return payloadcore.PayloadInt(payload, key)
 }
 
 // derefFloat64 returns the pointed-to float64, or 0 for a nil pointer. The

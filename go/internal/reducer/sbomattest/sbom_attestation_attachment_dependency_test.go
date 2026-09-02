@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package reducer
+package sbomattest
 
 import (
 	"context"
@@ -9,6 +9,7 @@ import (
 	"testing"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
 )
 
 func dependencyRelationshipFact(factID, documentID, from, to, relType, origin string) facts.Envelope {
@@ -245,12 +246,12 @@ func TestSBOMAttestationAttachmentHandlerLoadsActiveDependencyAndExternalReferen
 		Writer:     writer,
 	}
 
-	result, err := handler.Handle(context.Background(), Intent{
+	result, err := handler.Handle(context.Background(), reducercontract.Intent{
 		IntentID:     "intent-sbom-dep-ext",
 		ScopeID:      "oci-registry://registry.example.com/team/api",
 		GenerationID: "generation-oci",
 		SourceSystem: "oci_registry",
-		Domain:       DomainSBOMAttestationAttachment,
+		Domain:       reducercontract.DomainSBOMAttestationAttachment,
 		Cause:        "OCI referrer subject evidence observed",
 	})
 	if err != nil {

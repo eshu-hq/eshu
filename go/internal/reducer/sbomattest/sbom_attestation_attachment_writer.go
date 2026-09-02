@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package reducer
+package sbomattest
 
 import (
 	"context"
@@ -11,15 +11,22 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
+	"github.com/eshu-hq/eshu/go/internal/reducer/factwrite"
+	"github.com/eshu-hq/eshu/go/internal/reducer/payloadcore"
 	"github.com/eshu-hq/eshu/go/internal/truth"
 )
 
-const sbomAttestationAttachmentFactKind = "reducer_sbom_attestation_attachment"
+// SBOMAttestationAttachmentFactKind is the fact kind this family writes its
+// attachment decisions under. Exported because the reducer root's
+// supply_chain_impact family (staying in root) joins against it directly, in
+// its EvidencePath construction and its active-fact-kind switches.
+const SBOMAttestationAttachmentFactKind = "reducer_sbom_attestation_attachment"
 
 // PostgresSBOMAttestationAttachmentWriter stores reducer-owned SBOM and
 // attestation attachment decisions in the shared fact store.
 type PostgresSBOMAttestationAttachmentWriter struct {
-	DB  workloadIdentityExecer
+	DB  factwrite.Execer
 	Now func() time.Time
 }
 
@@ -33,19 +40,19 @@ func (w PostgresSBOMAttestationAttachmentWriter) WriteSBOMAttestationAttachments
 	if w.DB == nil {
 		return SBOMAttestationAttachmentWriteResult{}, fmt.Errorf("sbom attestation attachment database is required")
 	}
-	now := reducerWriterNow(w.Now)
-	collectorKind := reducerFactCollectorKind(write.SourceSystem)
-	rows := make([]reducerFactRow, 0, len(write.Decisions))
+	now := factwrite.Now(w.Now)
+	collectorKind := factwrite.CollectorKind(write.SourceSystem)
+	rows := make([]factwrite.Row, 0, len(write.Decisions))
 	for _, decision := range write.Decisions {
 		payloadJSON, err := json.Marshal(sbomAttestationAttachmentPayload(write, decision))
 		if err != nil {
 			return SBOMAttestationAttachmentWriteResult{}, fmt.Errorf("marshal sbom attestation attachment payload: %w", err)
 		}
-		rows = append(rows, reducerFactRow{
+		rows = append(rows, factwrite.Row{
 			FactID:           sbomAttestationAttachmentFactID(write, decision),
 			ScopeID:          write.ScopeID,
 			GenerationID:     write.GenerationID,
-			FactKind:         sbomAttestationAttachmentFactKind,
+			FactKind:         SBOMAttestationAttachmentFactKind,
 			StableFactKey:    sbomAttestationAttachmentStableFactKey(write, decision),
 			CollectorKind:    collectorKind,
 			SourceConfidence: facts.SourceConfidenceInferred,
@@ -58,7 +65,7 @@ func (w PostgresSBOMAttestationAttachmentWriter) WriteSBOMAttestationAttachments
 	}
 	// Bounded chunked bulk insert: every attachment status is upserted in
 	// O(N/batchSize) round-trips instead of one ExecContext per decision.
-	if err := reducerBatchInsertFacts(ctx, w.DB, rows); err != nil {
+	if err := factwrite.BatchInsertFacts(ctx, w.DB, rows); err != nil {
 		return SBOMAttestationAttachmentWriteResult{}, fmt.Errorf("write sbom attestation attachment fact: %w", err)
 	}
 	canonicalWrites := sbomAttestationAttachmentCanonicalWrites(write.Decisions)
@@ -73,8 +80,8 @@ func sbomAttestationAttachmentFactID(
 	write SBOMAttestationAttachmentWrite,
 	decision SBOMAttestationAttachmentDecision,
 ) string {
-	return sbomAttestationAttachmentFactKind + ":" + facts.StableID(
-		sbomAttestationAttachmentFactKind,
+	return SBOMAttestationAttachmentFactKind + ":" + facts.StableID(
+		SBOMAttestationAttachmentFactKind,
 		sbomAttestationAttachmentIdentity(write, decision),
 	)
 }
@@ -108,7 +115,7 @@ func sbomAttestationAttachmentPayload(
 	decision SBOMAttestationAttachmentDecision,
 ) map[string]any {
 	return map[string]any{
-		"reducer_domain":                            string(DomainSBOMAttestationAttachment),
+		"reducer_domain":                            string(reducercontract.DomainSBOMAttestationAttachment),
 		"intent_id":                                 write.IntentID,
 		"scope_id":                                  write.ScopeID,
 		"generation_id":                             write.GenerationID,
@@ -141,20 +148,20 @@ func sbomAttestationAttachmentPayload(
 		"slsa_provenance_config_source_uri":         decision.SLSAProvenanceConfigSourceURI,
 		"slsa_provenance_config_source_entry_point": decision.SLSAProvenanceConfigSourceEntryPoint,
 		"slsa_provenance_config_source_digest":      decision.SLSAProvenanceConfigSourceDigest,
-		"repository_ids":                            uniqueSortedStrings(decision.RepositoryIDs),
-		"workload_ids":                              uniqueSortedStrings(decision.WorkloadIDs),
-		"service_ids":                               uniqueSortedStrings(decision.ServiceIDs),
-		"warning_summaries":                         uniqueSortedStrings(decision.WarningSummaries),
+		"repository_ids":                            payloadcore.UniqueSortedStrings(decision.RepositoryIDs),
+		"workload_ids":                              payloadcore.UniqueSortedStrings(decision.WorkloadIDs),
+		"service_ids":                               payloadcore.UniqueSortedStrings(decision.ServiceIDs),
+		"warning_summaries":                         payloadcore.UniqueSortedStrings(decision.WarningSummaries),
 		"warning_summary_count":                     decision.WarningSummaryCount,
-		"evidence_fact_ids":                         uniqueSortedStrings(decision.EvidenceFactIDs),
+		"evidence_fact_ids":                         payloadcore.UniqueSortedStrings(decision.EvidenceFactIDs),
 		"missing_evidence":                          sbomAttestationAttachmentStrings(decision.MissingEvidence),
-		"source_layer_kinds":                        uniqueSortedStrings(decision.SourceLayerKinds),
+		"source_layer_kinds":                        payloadcore.UniqueSortedStrings(decision.SourceLayerKinds),
 		"source_layers":                             sbomAttestationAttachmentSourceLayers(decision),
 	}
 }
 
 func sbomAttestationAttachmentStrings(values []string) []string {
-	out := uniqueSortedStrings(values)
+	out := payloadcore.UniqueSortedStrings(values)
 	if out == nil {
 		return []string{}
 	}
@@ -171,5 +178,5 @@ func sbomAttestationAttachmentSourceLayers(decision SBOMAttestationAttachmentDec
 	if decision.CanonicalWrites > 0 {
 		layers = append(layers, string(truth.LayerObservedResource))
 	}
-	return uniqueSortedStrings(layers)
+	return payloadcore.UniqueSortedStrings(layers)
 }

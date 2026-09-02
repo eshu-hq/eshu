@@ -456,3 +456,27 @@ func securityAlertRepositoryAlertImpactFact(
 		},
 	}
 }
+
+// ociImageReferrerFact is a local copy of the sbom_attestation family's test
+// fixture helper (see sbom_attestation_attachment_test.go in
+// internal/reducer/sbomattest). It carries no sbom_attestation-specific logic
+// and Go test files cannot share unexported symbols across package
+// boundaries, so it is duplicated here rather than exported cross-package for
+// test-only use.
+func ociImageReferrerFact(
+	factID string,
+	subjectDigest string,
+	referrerDigest string,
+	artifactType string,
+) facts.Envelope {
+	return facts.Envelope{
+		FactID:   factID,
+		FactKind: facts.OCIImageReferrerFactKind,
+		Payload: map[string]any{
+			"subject_digest":      subjectDigest,
+			"referrer_digest":     referrerDigest,
+			"referrer_media_type": artifactType,
+			"artifact_type":       artifactType,
+		},
+	}
+}

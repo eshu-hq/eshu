@@ -1,10 +1,12 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package reducer
+package sbomattest
 
 import (
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/reducer/factdecode"
+	"github.com/eshu-hq/eshu/go/internal/reducer/schemadecode"
 	sbomv1 "github.com/eshu-hq/eshu/sdk/go/factschema/sbom/v1"
 )
 
@@ -14,19 +16,19 @@ import (
 // switch (sbom_attestation_attachment_index.go) to keep that function under
 // the package's function-length limit, mirroring
 // indexSBOMDependencyRelationship and indexSBOMExternalReference. Returns the
-// same (quarantinedFact, isQuarantine, fatal) triple as
-// partitionDecodeFailures for the caller to fold into its own quarantine
-// slice and fatal-error short-circuit.
+// same (factdecode.QuarantinedFact, isQuarantine, fatal) triple as
+// factdecode.PartitionDecodeFailures for the caller to fold into its own
+// quarantine slice and fatal-error short-circuit.
 func indexAttestationSLSAProvenance(
 	index sbomAttachmentIndex,
 	envelope facts.Envelope,
-) (quarantinedFact, bool, error) {
-	provenance, err := decodeAttestationSLSAProvenance(envelope)
+) (factdecode.QuarantinedFact, bool, error) {
+	provenance, err := schemadecode.DecodeAttestationSLSAProvenance(envelope)
 	if err != nil {
-		return partitionDecodeFailures(envelope, err)
+		return factdecode.PartitionDecodeFailures(envelope, err)
 	}
 	indexSLSAProvenanceEvidence(index, provenance, envelope.FactID)
-	return quarantinedFact{}, false, nil
+	return factdecode.QuarantinedFact{}, false, nil
 }
 
 // indexSLSAProvenanceEvidence records one decoded attestation.slsa_provenance

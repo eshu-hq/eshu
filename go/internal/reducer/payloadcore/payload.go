@@ -5,6 +5,7 @@ package payloadcore
 
 import (
 	"fmt"
+	"strconv"
 	"strings"
 )
 
@@ -21,6 +22,18 @@ func PayloadStr(payload map[string]any, key string) string {
 		return ""
 	}
 	return s
+}
+
+// PayloadInt parses payload[key] (via PayloadStr) as a base-10 integer,
+// returning 0 for an absent key, a blank value, or a value that fails to
+// parse.
+func PayloadInt(payload map[string]any, key string) int {
+	value := PayloadStr(payload, key)
+	if value == "" {
+		return 0
+	}
+	parsed, _ := strconv.Atoi(value)
+	return parsed
 }
 
 // PayloadString renders payload[key] as a trimmed string, returning "" for an
