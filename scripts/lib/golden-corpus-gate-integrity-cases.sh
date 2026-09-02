@@ -227,4 +227,55 @@ gate_integrity_quote_add="${repo_root}/tests/fixtures/ecosystems/container-ci-li
 )
 rm -rf "${gate_integrity_quote_dir}"
 
+# ---------------------------------------------------------------------------
+# BITES (1d): a hostile GLOBAL commit.gpgsign, core.excludesfile, and
+# i18n.commitEncoding must not perturb deployable-config's staged HEAD or
+# annotated tag. Without the matching pins in stage.sh's deployable-config
+# block, commit.gpgsign=true kills the commit silently (no diagnostic, since
+# every call is `>/dev/null 2>&1`), a core.excludesfile matching
+# catalog-info.yaml (a tracked file this fixture actually commits) drops it
+# from the tree, and i18n.commitEncoding writes an `encoding` header into the
+# commit object -- each changes the SHA from byte-identical fixture content,
+# or aborts staging outright.
+gate_integrity_hostile_config_dir="$(mktemp -d -t golden-corpus-gate-integrity-hostileconfig.XXXXXX)"
+gate_integrity_hostile_clean_corpus="${gate_integrity_hostile_config_dir}/clean"
+gate_integrity_hostile_corpus="${gate_integrity_hostile_config_dir}/hostile"
+mkdir -p "${gate_integrity_hostile_clean_corpus}" "${gate_integrity_hostile_corpus}"
+(
+	corpus_dir="${gate_integrity_hostile_clean_corpus}"
+	corpus_fixtures=(deployable-config)
+	die() { fail "$*"; }
+	# shellcheck source=scripts/lib/golden-corpus-stage.sh
+	. "${repo_root}/scripts/lib/golden-corpus-stage.sh"
+	stage_minimal_corpus >/dev/null
+)
+gate_integrity_hostile_clean_head="$(git -C "${gate_integrity_hostile_clean_corpus}/deployable-config" rev-parse HEAD)"
+gate_integrity_hostile_clean_tag="$(git -C "${gate_integrity_hostile_clean_corpus}/deployable-config" rev-parse v1.0.0-annotated)"
+
+gate_integrity_hostile_excludes="${gate_integrity_hostile_config_dir}/globalignore"
+printf 'catalog-info.yaml\n' >"${gate_integrity_hostile_excludes}"
+(
+	export GIT_CONFIG_GLOBAL="${gate_integrity_hostile_config_dir}/gitconfig"
+	git config --file "${GIT_CONFIG_GLOBAL}" commit.gpgsign true
+	git config --file "${GIT_CONFIG_GLOBAL}" core.excludesfile "${gate_integrity_hostile_excludes}"
+	git config --file "${GIT_CONFIG_GLOBAL}" i18n.commitEncoding ISO-8859-1
+	corpus_dir="${gate_integrity_hostile_corpus}"
+	corpus_fixtures=(deployable-config)
+	die() { fail "$*"; }
+	# shellcheck source=scripts/lib/golden-corpus-stage.sh
+	. "${repo_root}/scripts/lib/golden-corpus-stage.sh"
+	stage_minimal_corpus >/dev/null
+) || fail "deployable-config staging must succeed under a hostile global gpgsign/excludesfile/commitEncoding config"
+[[ -d "${gate_integrity_hostile_corpus}/deployable-config/.git" ]] ||
+	fail "deployable-config must produce a Git repository under a hostile global config"
+gate_integrity_hostile_head="$(git -C "${gate_integrity_hostile_corpus}/deployable-config" rev-parse HEAD 2>&1)" ||
+	fail "deployable-config staged HEAD must exist under a hostile global config, got: ${gate_integrity_hostile_head}"
+[[ "${gate_integrity_hostile_head}" == "${gate_integrity_hostile_clean_head}" ]] ||
+	fail "deployable-config staged HEAD under a hostile global gpgsign/excludesfile/commitEncoding config (${gate_integrity_hostile_head}) must match the clean staged HEAD (${gate_integrity_hostile_clean_head})"
+gate_integrity_hostile_tag="$(git -C "${gate_integrity_hostile_corpus}/deployable-config" rev-parse v1.0.0-annotated 2>&1)" ||
+	fail "deployable-config staged annotated tag must exist under a hostile global config, got: ${gate_integrity_hostile_tag}"
+[[ "${gate_integrity_hostile_tag}" == "${gate_integrity_hostile_clean_tag}" ]] ||
+	fail "deployable-config annotated tag under a hostile global config (${gate_integrity_hostile_tag}) must match the clean annotated tag (${gate_integrity_hostile_clean_tag})"
+rm -rf "${gate_integrity_hostile_config_dir}"
+
 gate_integrity_cases_completed=1

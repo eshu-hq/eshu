@@ -67,13 +67,15 @@ golden_corpus_pinned_commit_sha() {
 
 # golden_corpus_assert_staged_pin dies (via fail_fn) unless the staged
 # fixture's HEAD equals the cassette's pinned commit for run_id. The failure
-# names the fixture, both SHAs, the two possible causes (an extra file in the
-# staged tree, or a staging commit site that does not pin identity/date
-# inline -- an inline GIT_AUTHOR_*/GIT_COMMITTER_* prefix always outranks the
+# names the fixture, both SHAs, the possible causes (an extra file in the
+# staged tree; a staging commit site that does not pin identity/date inline --
+# an inline GIT_AUTHOR_*/GIT_COMMITTER_* prefix always outranks the
 # environment, so an inherited identity alone cannot do this to a commit that
-# already pins inline), and lists the staged tree so the reader can rule one
-# in or out directly instead of re-deriving it from an unrelated failure much
-# later in the run.
+# already pins inline; or an intentional change to the fixture's tracked
+# content, which needs the cassette pin regenerated rather than either of the
+# above chased), and lists the staged tree so the reader can rule each in or
+# out directly instead of re-deriving it from an unrelated failure much later
+# in the run.
 golden_corpus_assert_staged_pin() {
 	local fixture="$1" staged_repo="$2" scope_id="$3" run_id="$4" fail_fn="$5"
 	local staged_head expected
@@ -103,6 +105,8 @@ golden_corpus_assert_staged_pin() {
 		printf 'golden-corpus-gate-integrity: shell alone cannot cause this on a commit that already pins inline\n'
 		printf 'golden-corpus-gate-integrity: run env | rg "^GIT_(AUTHOR|COMMITTER)_" to check for an inherited\n'
 		printf 'golden-corpus-gate-integrity: identity, then find which staging commit site lacks its inline pin\n'
+		printf 'golden-corpus-gate-integrity: or, if the fixture'"'"'s tracked content was intentionally changed,\n'
+		printf 'golden-corpus-gate-integrity: regenerate the cassette pin instead of chasing either cause above\n'
 		printf 'golden-corpus-gate-integrity: offending staged tree entries (git -C %s ls-tree -r HEAD --name-only):\n' "${staged_repo}"
 		git -C "${staged_repo}" ls-tree -r HEAD --name-only
 	} >&2

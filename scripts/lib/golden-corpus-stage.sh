@@ -84,6 +84,8 @@ stage_deterministic_git_fixture() {
 	git -C "${fixture_path}" config commit.gpgsign false >/dev/null 2>&1
 	git -C "${fixture_path}" config core.autocrlf false >/dev/null 2>&1
 	git -C "${fixture_path}" config core.excludesfile /dev/null >/dev/null 2>&1
+	git -C "${fixture_path}" config core.hooksPath /dev/null >/dev/null 2>&1
+	git -C "${fixture_path}" config i18n.commitEncoding utf-8 >/dev/null 2>&1
 	git -C "${fixture_path}" add -A >/dev/null 2>&1
 	# Identity is set inline, NOT left to the `git config user.*` above.
 	#
@@ -117,17 +119,24 @@ stage_minimal_corpus() {
 			git -C "${corpus_dir}/${fixture}" -c init.defaultBranch=main init --object-format=sha1 >/dev/null 2>&1
 			git -C "${corpus_dir}/${fixture}" config user.email "gate@eshu.local" >/dev/null 2>&1
 			git -C "${corpus_dir}/${fixture}" config user.name "Golden Gate" >/dev/null 2>&1
-			# Same three knobs as stage_deterministic_git_fixture above, and for
-			# the same reason: this repo still reads commit.gpgsign, core.autocrlf
-			# and core.excludesfile from the developer's ~/.gitconfig otherwise. A
-			# global commit.gpgsign=true makes every git call below exit 128 with
-			# no diagnostic (they are all >/dev/null 2>&1), aborting the live gate
-			# under `set -euo pipefail` with nothing attributable; a global
-			# core.excludesfile matching this fixture's tracked files silently
-			# drops them from the commit and changes its HEAD.
+			# Same knobs as stage_deterministic_git_fixture above, and for the
+			# same reason: this repo still reads commit.gpgsign, core.autocrlf,
+			# core.excludesfile, core.hooksPath and i18n.commitEncoding from the
+			# developer's ~/.gitconfig otherwise. A global commit.gpgsign=true
+			# makes the `commit` call below exit 128 with no diagnostic (it is
+			# `>/dev/null 2>&1`), aborting the live gate under `set -euo
+			# pipefail` with nothing attributable; a global core.excludesfile
+			# matching this fixture's tracked files silently drops them from the
+			# commit and changes its HEAD; a global core.hooksPath pointing at a
+			# rejecting pre-commit hook kills the commit the same way gpgsign
+			# does; a global i18n.commitEncoding other than UTF-8 writes an
+			# `encoding` header into the commit object, changing its SHA from
+			# byte-identical tree content.
 			git -C "${corpus_dir}/${fixture}" config commit.gpgsign false >/dev/null 2>&1
 			git -C "${corpus_dir}/${fixture}" config core.autocrlf false >/dev/null 2>&1
 			git -C "${corpus_dir}/${fixture}" config core.excludesfile /dev/null >/dev/null 2>&1
+			git -C "${corpus_dir}/${fixture}" config core.hooksPath /dev/null >/dev/null 2>&1
+			git -C "${corpus_dir}/${fixture}" config i18n.commitEncoding utf-8 >/dev/null 2>&1
 			# submodule PINS_SUBMODULE non-vacuous coverage (issue #5420 Phase 5): a
 			# pinned submodule SHA is a git gitlink (tree mode 160000), which only
 			# exists in a real git tree -- unlike CODEOWNERS, a plain file copy is not
