@@ -39,8 +39,8 @@ type FakeGraphReader struct {
 	RunSingleFn func(context.Context, string, map[string]any) (map[string]any, error)
 }
 
-// Run dispatches on the query text, because one fake stands in for reads a
-// handler issues for different purposes.
+// Run answers a multi-row read, dispatching on the query text because one fake
+// stands in for reads a handler issues for different purposes.
 //
 // An incoming-edge traversal goes to RunIncomingFn, and reports no rows when
 // that is nil rather than falling through to RunFn -- falling through would
@@ -51,6 +51,35 @@ type FakeGraphReader struct {
 // no rows, so a test asserting on some other query is not handed those rows by
 // accident. Everything else goes to RunFn.
 func (f FakeGraphReader) Run(ctx context.Context, cypher string, params map[string]any) ([]map[string]any, error) {
+	return f.rows(ctx, cypher, params)
+}
+
+// RunSingle answers a single-row read. It prefers RunSingleFn so a caller can
+// give the two reads different answers, and otherwise takes the first row the
+// multi-row dispatch produces. That error propagates rather than surfacing as
+// an empty row: tests covering a graph-read failure path depend on seeing it.
+func (f FakeGraphReader) RunSingle(ctx context.Context, cypher string, params map[string]any) (map[string]any, error) {
+	if f.RunSingleFn != nil {
+		return f.RunSingleFn(ctx, cypher, params)
+	}
+	rows, err := f.rows(ctx, cypher, params)
+	if err != nil || len(rows) == 0 {
+		return nil, err
+	}
+	return rows[0], nil
+}
+
+// rows holds the query-text dispatch both exported methods answer from. Run
+// documents the rules; this is where they live.
+//
+// The indirection is load-bearing. RunSingle used to fall back by calling Run,
+// and routing both through here instead leaves the package with no Run or
+// RunSingle call expression at all. That is what lets internal/queryplan's
+// production query-callsite inventory walk this directory like any other
+// instead of skipping it -- a skip it could only grant by whitelisting the
+// exact self-delegation shape, which left a real graph read wearing that shape
+// invisible to the gate (#6060, epic #6053). Do not reintroduce the call.
+func (f FakeGraphReader) rows(ctx context.Context, cypher string, params map[string]any) ([]map[string]any, error) {
 	if strings.Contains(cypher, "incoming_entity_id") {
 		if f.RunIncomingFn != nil {
 			return f.RunIncomingFn(ctx, cypher, params)
@@ -64,21 +93,6 @@ func (f FakeGraphReader) Run(ctx context.Context, cypher string, params map[stri
 		return nil, nil
 	}
 	return f.RunFn(ctx, cypher, params)
-}
-
-// RunSingle answers a single-row read. It prefers RunSingleFn so a caller can
-// give the two reads different answers, and otherwise takes the first row Run
-// produces. A Run error propagates rather than surfacing as an empty row: tests
-// covering a graph-read failure path depend on seeing it.
-func (f FakeGraphReader) RunSingle(ctx context.Context, cypher string, params map[string]any) (map[string]any, error) {
-	if f.RunSingleFn != nil {
-		return f.RunSingleFn(ctx, cypher, params)
-	}
-	rows, err := f.Run(ctx, cypher, params)
-	if err != nil || len(rows) == 0 {
-		return nil, err
-	}
-	return rows[0], nil
 }
 
 // isDeadCodeNonFunctionCandidateQuery reports whether cypher is the dead-code
