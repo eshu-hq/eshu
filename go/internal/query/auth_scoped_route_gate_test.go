@@ -479,6 +479,14 @@ func TestAuthMiddlewareWithScopedTokensAuditsUnsupportedScopedRoute(t *testing.T
 	if got, want := event.ReasonCode, "scoped_route_not_enabled"; got != want {
 		t.Fatalf("event.ReasonCode = %q, want %q", got, want)
 	}
+	// The bearer path shares the same denial helper, so it has to keep the tenant
+	// attribution a tenant admin filters its audit reads on.
+	if got, want := event.TenantID, "tenant_a"; got != want {
+		t.Fatalf("event.TenantID = %q, want %q", got, want)
+	}
+	if got, want := event.WorkspaceID, "workspace_a"; got != want {
+		t.Fatalf("event.WorkspaceID = %q, want %q", got, want)
+	}
 	if _, err := governanceaudit.NormalizeEvent(event); err != nil {
 		t.Fatalf("governanceaudit.NormalizeEvent() error = %v, want nil", err)
 	}

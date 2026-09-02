@@ -126,9 +126,9 @@ Run after the last edit, exit codes captured directly.
 | `go vet ./internal/query ./cmd/api ./internal/mcp` | 0 |
 | `go test ./internal/query -count=1` | 0 |
 | `go test ./cmd/api ./internal/mcp -count=1` | 0 |
-| `scripts/dev/precommit-go.sh fmt <the 10 changed .go files>` | 0 |
-| `scripts/dev/precommit-go.sh lint <the 10 changed .go files>` | 0 (run reported `1 package(s) from 10 path(s)`, 0 issues) |
-| `scripts/dev/precommit-go.sh filecap <the 10 changed .go files>` | 0 |
+| `scripts/dev/precommit-go.sh fmt <the 11 changed .go files>` | 0 |
+| `scripts/dev/precommit-go.sh lint <the 11 changed .go files>` | 0 (run reported `1 package(s) from 11 path(s)`, 0 issues) |
+| `scripts/dev/precommit-go.sh filecap <the 11 changed .go files>` | 0 |
 | `scripts/verify-package-docs.sh` | 0 |
 | `scripts/verify-root-cause-evidence.sh` | 0 |
 | `scripts/verify-markdown-line-cap.sh --all` | 0 |
@@ -200,6 +200,27 @@ normalized `AuthContext`, the way `recordScopedReadAuthorized` already did, and
 both regression tests assert the two fields. The scoped-bearer path through
 `recordScopedRouteAuthorizationDenied` shares the helper and gains the same
 fields for the same reason.
+
+That fix was written red first. Both assertions went in ahead of the helper
+change, and this run failed in both tests with
+`event.TenantID = "", want "tenant-a"`, exit 1:
+
+```
+cd go && go test ./internal/query -count=1 \
+  -run 'TestAuthMiddlewareAllScopesBrowserSessionRefusedOnGrantBoundRouteUnderFailClosedPolicy|TestRecordScopedRouteAuthorizationDeniedBlankReasonFallsBackToUnspecified'
+```
+
+After the helper set `TenantID` and `WorkspaceID`, the same command exited 0.
+`TestAuthMiddlewareWithScopedTokensAuditsUnsupportedScopedRoute` now asserts
+the same two fields on the scoped-bearer path, so the shared helper cannot drop
+the attribution on either caller:
+
+```
+cd go && go test ./internal/query -count=1 \
+  -run 'TestAuthMiddlewareWithScopedTokensAuditsUnsupportedScopedRoute'
+```
+
+exit 0.
 
 `governanceaudit.validReasonCode` (`audit.go`) is a FORMAT check --
 lowercase, digits and underscore, 64 chars max -- not a closed vocabulary, so
