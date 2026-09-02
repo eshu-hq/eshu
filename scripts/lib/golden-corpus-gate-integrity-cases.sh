@@ -19,7 +19,7 @@
 # self-test -- this is the #6401 gap itself. The staged-pin assertion already
 # existed in golden-corpus-stage-cases.sh, which only the self-test runs; the
 # live gate never asserted it and never checked for its required tools.
-require "tool preflight wired into the live gate" "golden_corpus_require_tools"
+require "tool preflight wired into the live gate" "golden_corpus_require_gate_tools"
 require "staged-pin assertion wired into the live gate" "golden_corpus_assert_pinned_fixtures"
 
 # ---------------------------------------------------------------------------
@@ -128,5 +128,38 @@ fi
 rg --fixed-strings --quiet -- "rg" "${gate_integrity_changed_since_capture}" ||
 	fail "changed-since missing-tool failure must name rg"
 rm -rf "${gate_integrity_empty_path}" "${gate_integrity_changed_since_dir}"
+
+# ---------------------------------------------------------------------------
+# BITES (3c): the preflight must demand docker ONLY in compose mode. Every
+# docker call in this gate is guarded by use_compose
+# (golden-corpus-host-helpers.sh pg(), golden-corpus-cleanup.sh teardown), so
+# requiring it under --no-compose would fail a supported mode on a machine that
+# legitimately has none. Both directions are asserted: a missing docker must be
+# fatal at use_compose=1 and tolerated at use_compose=0.
+gate_integrity_nodocker_dir="$(mktemp -d -t golden-corpus-gate-integrity-nodocker.XXXXXX)"
+mkdir -p "${gate_integrity_nodocker_dir}/bin"
+for gate_integrity_shim in rg jq; do
+	command -v "${gate_integrity_shim}" >/dev/null 2>&1 &&
+		ln -s "$(command -v "${gate_integrity_shim}")" "${gate_integrity_nodocker_dir}/bin/${gate_integrity_shim}"
+done
+(
+	PATH="${gate_integrity_nodocker_dir}/bin"
+	fail_capture() { printf '%s\n' "$*"; exit 1; }
+	golden_corpus_require_gate_tools fail_capture 0
+) >"${gate_integrity_nodocker_dir}/nocompose.log" 2>&1
+gate_integrity_nodocker_status=$?
+[[ "${gate_integrity_nodocker_status}" -eq 0 ]] ||
+	fail "preflight must NOT require docker under --no-compose (use_compose=0), got: $(cat "${gate_integrity_nodocker_dir}/nocompose.log")"
+(
+	PATH="${gate_integrity_nodocker_dir}/bin"
+	fail_capture() { printf '%s\n' "$*"; exit 1; }
+	golden_corpus_require_gate_tools fail_capture 1
+) >"${gate_integrity_nodocker_dir}/compose.log" 2>&1
+gate_integrity_compose_status=$?
+[[ "${gate_integrity_compose_status}" -ne 0 ]] ||
+	fail "preflight must require docker under compose mode (use_compose=1)"
+rg --fixed-strings --quiet -- "docker" "${gate_integrity_nodocker_dir}/compose.log" ||
+	fail "compose-mode preflight failure must name the missing tool: docker"
+rm -rf "${gate_integrity_nodocker_dir}"
 
 gate_integrity_cases_completed=1

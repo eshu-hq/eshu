@@ -34,6 +34,23 @@ golden_corpus_require_tools() {
 	done
 }
 
+# golden_corpus_require_gate_tools applies the preflight the LIVE gate needs
+# for the mode it was actually invoked in. rg and jq are used in both modes.
+# docker is required ONLY under compose mode: every docker call in this gate is
+# already guarded by use_compose (golden-corpus-host-helpers.sh's pg() and
+# golden-corpus-cleanup.sh's teardown), so demanding it under --no-compose --
+# where CI brings the backends up separately and the host talks to Postgres
+# through psql -- would fail a supported mode on a machine that legitimately
+# has no docker.
+golden_corpus_require_gate_tools() {
+	local fail_fn="$1" use_compose="$2"
+	golden_corpus_require_tools "${fail_fn}" rg jq
+	if [[ "${use_compose}" -eq 1 ]]; then
+		golden_corpus_require_tools "${fail_fn}" docker
+	fi
+	return 0
+}
+
 # golden_corpus_pinned_commit_sha prints the commit_sha the cicdrun cassette
 # pins for one ci.run scope_id + run_id (e.g. run 9100 of
 # ci_cd_run:github_actions:acme:container-ci-lineage).
