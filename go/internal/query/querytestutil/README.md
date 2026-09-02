@@ -27,6 +27,15 @@ See `doc.go` for the godoc contract.
   handlers depend on. Dispatches on query text: incoming-edge traversals go to
   `RunIncomingFn`, the dead-code scanner's paged candidate probe is answered
   with no rows, everything else goes to `RunFn`. The zero value is usable.
+- `FakeRepoGraphReader` — a graph-read double for `getRepositoryContext`
+  tests. Dispatches on the longest matching Cypher fragment in `RunByMatch` /
+  `RunSingleByMatch`; `RunFn` / `RunSingleFn` override that entirely.
+  `RunSingle` has a single-entry fallback: an unmatched narrow
+  single-repository lookup (`MATCH (r:Repository {id: $repo_id})`) returns the
+  sole registered row when exactly one is registered.
+- `FakeWorkloadGraphReader` — the same dispatch shape for `getWorkloadContext`
+  tests, deliberately without the single-entry fallback. See "Two near-duplicate
+  fakes, not one type" below before touching either.
 
 `Run` routes through an unexported `rows` helper, and `RunSingle` falls back to
 that same helper rather than calling `Run` (it still prefers `RunSingleFn` when
@@ -62,6 +71,38 @@ the dependent set.
 
 Prefer this shape for the remaining shared fakes. Renaming fields across every
 consumer is the alternative, and it buys nothing the adapter does not.
+
+### Two near-duplicate fakes, not one type
+
+`FakeRepoGraphReader` and `FakeWorkloadGraphReader` were promoted the same
+way, from `repository_context_test.go` and `workload_context_test.go`. Root
+keeps the same kind of unexported adapter (`fakeRepoGraphReader`,
+`fakeWorkloadGraphReader`) for each, so their 43 and 30 consuming test files
+are untouched.
+
+The two fakes look alike -- same fields, same longest-fragment dispatch -- but
+they are separate types on purpose. `FakeRepoGraphReader.RunSingle` falls back
+to a sole registered row when the narrow single-repository lookup
+(`MATCH (r:Repository {id: $repo_id})`) does not match anything registered.
+`FakeWorkloadGraphReader.RunSingle` has no such fallback: `getWorkloadContext`
+has no equivalent single-entity lookup, and adding one would hand a workload
+test a row it never registered. Unifying the two behind a shared type -- even
+one gated by a flag -- would give every workload test the repository
+fallback's behavior. Workload tests would keep compiling, and most would keep
+passing, because their `RunSingleByMatch` maps happen to have more than one
+entry or their fragments happen to match. The fallback would misfire silently
+for the ones that do not.
+
+Both delegations are proven the same way `FakeGraphReader`'s is: break the
+rule in querytestutil, run the whole root suite, restore, confirm green again.
+
+- Deleting `FakeRepoGraphReader`'s single-entry fallback fails **16** root
+  tests.
+- Short-circuiting `FakeWorkloadGraphReader.RunSingle`'s `RunSingleByMatch`
+  dispatch to `nil, nil` fails **40** root tests.
+
+Both measured against the same 6539-test, 0-failure baseline as
+`FakeGraphReader`'s proof.
 
 ## Dependencies
 
