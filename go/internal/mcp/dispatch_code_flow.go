@@ -3,29 +3,24 @@
 
 package mcp
 
-import "net/http"
+import (
+	codeflowtools "github.com/eshu-hq/eshu/go/internal/mcp/codeflow"
+	"github.com/eshu-hq/eshu/go/internal/mcp/routecontract"
+)
 
+// codeFlowRoute adapts the child package's code-flow request selection into
+// the root dispatcher's transport route. It occupies the same delegation
+// position in resolveRoute that the family's own selector occupied before the
+// extraction.
 func codeFlowRoute(toolName string, args map[string]any) (*route, bool) {
-	paths := map[string]string{
-		"dispatch_taint_path":   "/api/v0/code/flow/taint-path",
-		"dispatch_reaching_def": "/api/v0/code/flow/reaching-def",
-		"dispatch_cfg_summary":  "/api/v0/code/flow/cfg-summary",
-		"dispatch_pdg_summary":  "/api/v0/code/flow/pdg-summary",
-	}
-	path, ok := paths[toolName]
-	if !ok {
+	request, handled := codeflowtools.Route(toolName, routecontract.Arguments(args))
+	if !handled {
 		return nil, false
 	}
 	return &route{
-		method: http.MethodPost,
-		path:   path,
-		body: map[string]any{
-			"repo_id":   str(args, "repo_id"),
-			"language":  str(args, "language"),
-			"symbol":    str(args, "symbol"),
-			"file_path": str(args, "file_path"),
-			"line":      intOr(args, "line", 0),
-			"limit":     intOr(args, "limit", 25),
-		},
+		method: request.Method,
+		path:   request.Path,
+		body:   request.Body,
+		query:  request.Query,
 	}, true
 }

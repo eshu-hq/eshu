@@ -483,7 +483,7 @@ func resolveRoute(toolName string, args map[string]any) (*route, error) {
 		// Impact-analysis request selection lives in internal/mcp/impact and
 		// reaches dispatch through the impactRoute adapter in
 		// dispatch_impact.go, consulted here in the default case — the same
-		// point in the chain the family answered from before the extraction.
+		// point in the chain that the family occupied before the extraction.
 		if r, ok := impactRoute(toolName, args); ok {
 			return r, nil
 		}

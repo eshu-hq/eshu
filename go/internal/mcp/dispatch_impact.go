@@ -11,7 +11,7 @@ import (
 // impactRoute adapts the child package's impact-analysis request selection
 // into the root dispatcher's transport route. It is consulted from
 // resolveRoute's default case, the same point in the chain the family's own
-// switch answered from before the extraction.
+// switch occupied before the extraction.
 func impactRoute(toolName string, args map[string]any) (*route, bool) {
 	request, handled := impacttools.Route(toolName, routecontract.Arguments(args))
 	if !handled {
