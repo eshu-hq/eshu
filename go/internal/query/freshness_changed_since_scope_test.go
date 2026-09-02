@@ -28,13 +28,13 @@ func (r *recordingChangedSince) ComputeChangedSinceDelta(
 	return status.ChangedSinceSummary{}, nil
 }
 
-// TestChangedSinceRejectsRepositoryOutsideGrant is the #5167 F-6 proof for
-// GET /api/v0/freshness/changed-since. The route takes ONE repository or scope
-// selector straight from the query string, so the tenant question is not "which
-// rows may this caller see" but "may this caller name this selector at all".
-// Without a grant check a scoped token reads any repository in the deployment
-// by asking for it.
-func TestChangedSinceRejectsRepositoryOutsideGrant(t *testing.T) {
+// TestChangedSinceBindsGrantIntoFilter proves the grant reaches the store,
+// where it binds the scope row. It is asserted at the filter rather than by
+// status code on purpose: an ungranted scope resolves to no row and returns the
+// route's ordinary scope-not-found contract error, which is byte-identical to
+// what a caller sees for a scope that does not exist. A status assertion
+// therefore cannot tell "bound correctly" from "not bound at all".
+func TestChangedSinceBindsGrantIntoFilter(t *testing.T) {
 	t.Parallel()
 
 	reader := &recordingChangedSince{}
@@ -48,7 +48,6 @@ func TestChangedSinceRejectsRepositoryOutsideGrant(t *testing.T) {
 		nil,
 	)
 	req.Header.Set("Accept", EnvelopeMIMEType)
-	// Granted repo-a only; asking for repo-b.
 	req = req.WithContext(ContextWithAuthContext(req.Context(), AuthContext{
 		Mode:                 AuthModeScoped,
 		TenantID:             "tenant-a",
@@ -60,16 +59,36 @@ func TestChangedSinceRejectsRepositoryOutsideGrant(t *testing.T) {
 	w := httptest.NewRecorder()
 	mux.ServeHTTP(w, req)
 
-	if w.Code != http.StatusNotFound {
-		t.Fatalf("an ungranted selector must be indistinguishable from a missing one (404), matching queryselector.ResolveExactForAccess; got %d: %s", w.Code, w.Body.String())
+	if !reader.filter.Scoped {
+		t.Fatalf("a scoped caller must reach the store with Scoped set so the query can bind the grant; filter = %+v", reader.filter)
 	}
-	if w.Code == http.StatusOK {
-		t.Fatalf("a scoped caller granted only repo-a must not read changed-since for repo-b; got 200: %s", w.Body.String())
+	if len(reader.filter.AllowedRepositoryIDs) == 0 && len(reader.filter.AllowedScopeIDs) == 0 {
+		t.Fatalf("the grant must travel into the filter; filter = %+v", reader.filter)
 	}
-	// The stronger half: the store must not be consulted for an ungranted
-	// selector. Refusing after the read still exposes the row set to the
-	// process and any logging or telemetry on that path.
-	if reader.called {
-		t.Fatalf("store was queried for an ungranted repository selector %q; the grant must be checked before the read", reader.filter.Repository)
+}
+
+// TestChangedSinceLeavesSharedKeyUnbounded guards the other direction: an
+// operator using the shared key must not have their view silently narrowed.
+func TestChangedSinceLeavesSharedKeyUnbounded(t *testing.T) {
+	t.Parallel()
+
+	reader := &recordingChangedSince{}
+	handler := &FreshnessHandler{ChangedSince: reader, Profile: ProfileLocalAuthoritative}
+	mux := http.NewServeMux()
+	handler.Mount(mux)
+
+	req := httptest.NewRequest(
+		http.MethodGet,
+		"/api/v0/freshness/changed-since?repository=repo-b&since_generation_id=gen-prior",
+		nil,
+	)
+	req.Header.Set("Accept", EnvelopeMIMEType)
+	req = req.WithContext(ContextWithAuthContext(req.Context(), AuthContext{Mode: AuthModeShared}))
+
+	w := httptest.NewRecorder()
+	mux.ServeHTTP(w, req)
+
+	if reader.filter.Scoped {
+		t.Fatalf("a shared-key caller must not be bound by a scoped grant; filter = %+v", reader.filter)
 	}
 }

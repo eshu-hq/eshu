@@ -7,7 +7,6 @@ import (
 	"context"
 	"fmt"
 	"net/http"
-	"strings"
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/status"
@@ -74,22 +73,17 @@ func (h *FreshnessHandler) listChangedSince(w http.ResponseWriter, r *http.Reque
 		return
 	}
 
-	// #5167 F-6: this route names ONE repository or scope selector, taken
-	// straight from the query string, so the tenant question is not which rows
-	// the caller may see but whether it may name this selector at all. The
-	// grant is checked BEFORE the read: refusing afterwards would already have
-	// pulled another tenant's delta into the process, and onto whatever logs
-	// and spans that path emits.
-	if !changedSinceSelectorWithinGrant(r.Context(), filter) {
-		// Not-found, not forbidden: queryselector.ResolveExactForAccess returns
-		// NotFoundError for an ungranted repository (selector.go:77-79), making
-		// "not yours" indistinguishable from "does not exist". A 403 here would
-		// tell a scoped caller that a repository it cannot read nonetheless
-		// exists, which is an existence oracle the rest of this surface
-		// deliberately withholds.
-		WriteError(w, http.StatusNotFound, "scope_id or repository not found")
-		return
-	}
+	// #5167 F-6. The grant binds the SCOPE ROW in the query rather than the
+	// selector the caller typed: a repository grant authorizes a
+	// repository-kind scope through source_key, and the raw scope_id normally
+	// differs from that key, so a string comparison here would deny a
+	// repository-granted token its own scope. An ungranted scope resolves to
+	// no row and falls into the not-found path below, which is byte-identical
+	// to what a caller sees for a scope that does not exist.
+	access := repositoryAccessFilterFromContext(r.Context())
+	filter.Scoped = access.Scoped()
+	filter.AllowedRepositoryIDs = access.GrantedRepositoryIDs()
+	filter.AllowedScopeIDs = access.GrantedScopeIDs()
 
 	summary, err := h.ChangedSince.ComputeChangedSinceDelta(r.Context(), filter)
 	if err != nil {
@@ -260,37 +254,4 @@ func changedSinceSpanAttributes(summary status.ChangedSinceSummary) []attribute.
 		attribute.Int(telemetry.SpanAttrChangedSinceChangedCount, changed),
 		attribute.Bool(telemetry.SpanAttrChangedSinceUnavailable, summary.Unavailable),
 	}
-}
-
-// changedSinceSelectorWithinGrant reports whether the caller may name the
-// selector this filter carries. A shared-key or all-scopes caller always may.
-// A scoped caller may only name a repository or scope its grant lists, and an
-// empty grant may name nothing -- the same fail-closed posture the operations
-// reader takes rather than passing empty grants down to a store.
-func changedSinceSelectorWithinGrant(ctx context.Context, filter status.ChangedSinceFilter) bool {
-	return freshnessSelectorWithinGrant(ctx, filter.Repository, filter.ScopeID)
-}
-
-// freshnessSelectorWithinGrant reports whether the caller may name this
-// repository/scope pair. Shared by every freshness route that takes a single
-// selector from the query string rather than returning a row set to intersect.
-func freshnessSelectorWithinGrant(ctx context.Context, repository, scopeID string) bool {
-	access := repositoryAccessFilterFromContext(ctx)
-	if !access.Scoped() {
-		return true
-	}
-	if access.Empty() {
-		return false
-	}
-	if repo := strings.TrimSpace(repository); repo != "" {
-		if !containsAuthString(access.GrantedRepositoryIDs(), repo) {
-			return false
-		}
-	}
-	if scope := strings.TrimSpace(scopeID); scope != "" {
-		if !containsAuthString(access.GrantedScopeIDs(), scope) {
-			return false
-		}
-	}
-	return true
 }

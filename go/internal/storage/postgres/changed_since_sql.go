@@ -36,6 +36,16 @@ LEFT JOIN scope_generations AS active_generation
     ON active_generation.generation_id = scope.active_generation_id
 WHERE ($1 = '' OR scope.scope_id = $1)
   AND ($2 = '' OR (scope.scope_kind = 'repository' AND scope.source_key = $2))
+  -- Grant binding (#5167), on the scope row rather than on the selector the
+  -- caller typed. A repository grant authorizes a repository-kind scope via
+  -- source_key, and the raw scope_id normally differs from that key, so a
+  -- handler-side string comparison would deny a repository-granted token its
+  -- own scope. Resolving to no row makes an ungranted scope indistinguishable
+  -- from a missing one, which is what the caller already sees for a bad
+  -- selector.
+  AND ($3::boolean = false
+       OR (scope.scope_kind = 'repository' AND scope.source_key = ANY($4))
+       OR scope.scope_id = ANY($5))
 ORDER BY scope.observed_at DESC, scope.scope_id ASC
 LIMIT 1
 `

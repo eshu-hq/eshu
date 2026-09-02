@@ -139,6 +139,14 @@ type ChangedSinceFilter struct {
 	SinceGenerationID string
 	SinceObservedAt   time.Time
 	SampleLimit       int
+
+	// Scoped reports a scoped grant rather than the shared key;
+	// AllowedRepositoryIDs and AllowedScopeIDs carry it. Bound on the scope
+	// row in SQL, because a repository grant authorizes a repository-kind
+	// scope through source_key and the raw scope_id normally differs from it.
+	Scoped               bool
+	AllowedRepositoryIDs []string
+	AllowedScopeIDs      []string
 }
 
 // Normalize trims selector whitespace and clamps SampleLimit into the supported
