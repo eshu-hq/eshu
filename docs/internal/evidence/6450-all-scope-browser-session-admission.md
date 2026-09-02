@@ -195,7 +195,7 @@ outcomes, not scoped-route refusals.
 
 This change fixes one thing: an all-scope browser session no longer gets a
 whole-graph read on a grant-bound allowlisted route. It is not a claim that
-the identity-bound population is airtight for such a session. Five known
+the identity-bound population is airtight for such a session. Six known
 residuals stay open and are tracked separately, none of them fixed here.
 
 1. **All-scope OIDC bearer tokens.** The scoped-bearer branch of
@@ -237,6 +237,15 @@ residuals stay open and are tracked separately, none of them fixed here.
    session if one can exist, not as a known-live production shape. Resolving
    that reachability question is out of scope here. Tracked as #6450 item 2
    of the auth-slice findings.
+6. **`actor_class` on the new audit code.** A
+   `scoped_route_all_scope_grant_required` row can only be produced by a
+   browser-session caller, but
+   `recordScopedRouteAuthorizationDeniedWithReason` (`auth_audit.go`) stamps
+   `actor_class = scoped_token` on it, because that is the closest member of
+   the closed `governanceaudit.ActorClass` enum that `NormalizeEvent`
+   validates against, and widening a validated enum is outside this change.
+   An operator filtering by `actor_class` should therefore read `scoped_token`
+   here as "identity-resolved caller", not "bearer token".
 
 Residual 4 is why the `scopedRouteClass` doc comment says an identity-bound
 handler answers from the tenant the session is *currently* bound to, rather
