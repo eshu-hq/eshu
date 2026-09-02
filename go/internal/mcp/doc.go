@@ -10,10 +10,11 @@
 // their registration definitions without importing this parent package. The
 // ask, relationships, and visualization children own pure dependency-neutral
 // family route selectors alongside their definitions, and the
-// admissiondecisions, cicd, codeflow, codeowners, containerimage, deadcode,
-// impact, infrasearch, kubernetes, observabilitycoverage, packageregistry,
-// secretsiam, securityalert, and supplychainimpact children own such a
-// selector without owning a registration.
+// admissiondecisions, cicd, codeflow, codeowners, codequality,
+// containerimage, deadcode, impact, infrasearch, kubernetes,
+// observabilitycoverage, packageregistry, secretsiam, securityalert, and
+// supplychainimpact children own such a selector without owning a
+// registration.
 // The nine impact-analysis selections (trace_deployment_chain through
 // trace_exposure_path) live in the impact child and reach dispatch through
 // the impactRoute adapter, consulted in resolveRoute's default case — the
@@ -40,6 +41,16 @@
 // exclude_decorated_with and consumer_repo_ids are unchanged, and the three
 // advertised definitions stay at this root in tools_codebase.go,
 // tools_dead_code.go, and tools_cross_repo_dead_code.go.
+// The three complexity/quality selections (calculate_cyclomatic_complexity,
+// find_most_complex_functions, inspect_code_quality) live in the codequality
+// child and reach dispatch through the codeQualityRoute adapter defined in
+// dispatch.go itself, consulted with the other route delegations ahead of
+// the switch that held the three arms. The shared POST
+// /api/v0/code/complexity path, the POST /api/v0/code/quality/inspect path,
+// every body key, the limit 10 and offset 0 defaults, the conditional
+// entity_id, and the absent limit on calculate_cyclomatic_complexity are
+// unchanged, and the three advertised definitions stay at this root in
+// tools_codebase.go and tools_code_quality.go.
 // ReadOnlyTools remains the sole ordered assembler; global route membership,
 // family adapters, dispatch,
 // transport, authorization, timeouts,

@@ -16,10 +16,20 @@
 
 - Keep this package registration-only. Routing and argument mapping stay in the
   parent MCP package, except where a family has been extracted to its own route
-  selector: the infrastructure-search tool routes through `../infrasearch` and
-  the nine impact-analysis tools route through `../impact`, each reached from a
-  thin adapter arm the parent still owns. Validation and reads stay in
-  `internal/query`.
+  selector, each reached from a thin adapter arm the parent still owns:
+
+  | Selector | Tools |
+  | --- | --- |
+  | `../infrasearch` | 1 |
+  | `../impact` | 9 |
+  | `../codeflow` | 4 |
+  | `../deadcode` | 3 |
+  | `../codequality` | 3 |
+
+  Counts are derived from each selector's own route table, not from the tool
+  registration list here. Add a row when a family is extracted -- this list went
+  stale by three extractions once, and a contributor following it edits the
+  wrong package. Validation and reads stay in `internal/query`.
 - Keep the package clause as `package ecosystemtools`; the root imports it with
   an explicit alias.
 - Preserve all 23 tool names, descriptions, schemas, and their local order.
