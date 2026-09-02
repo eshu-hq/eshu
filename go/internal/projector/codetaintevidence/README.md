@@ -15,8 +15,10 @@ root `internal/projector` package validates scope-generation boundaries,
 constructs and owns the immutable fact lookup, preserves family order, and
 owns projection lifecycle, queue writes, retries, and telemetry. The reducer's
 `DomainCodeTaintEvidence` handler owns typed payload decode, quarantine of
-malformed findings, CodeTaintEvidence node and TAINT_FLOWS_TO edge writes, and
-stale-evidence retraction; none of that happens here.
+malformed findings, CodeTaintEvidence node and HAS_TAINT_EVIDENCE edge writes,
+and stale-evidence retraction; none of that happens here. TAINT_FLOWS_TO edges
+between Function nodes belong to a different handler,
+`DomainCodeInterprocEvidence`, and are not this family's to reason about.
 
 ## Exported surface
 
