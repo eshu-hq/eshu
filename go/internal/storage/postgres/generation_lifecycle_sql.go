@@ -32,6 +32,14 @@ package postgres
 //	$5 generation_id    (empty bypasses)
 //	$6 status           (empty bypasses)
 //	$7 limit            (row cap; handler passes page limit + 1)
+//	$8 scoped           (false bypasses the grant predicate entirely)
+//	$9 allowed repository ids (grant; matched against source_key)
+//	$10 allowed scope ids     (grant; matched against generation.scope_id)
+//
+// The grant positions are contract: TestListGenerationLifecyclePassesGrantToQuery
+// asserts each by index and TestFreshnessGrantPredicatesArePresentInTheShippedSQL
+// asserts the predicate text, so renumbering without updating both fails loudly
+// rather than silently binding the grant to the wrong argument.
 const listGenerationLifecycleQuery = `
 SELECT
     generation.scope_id,
