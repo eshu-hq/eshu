@@ -10,18 +10,7 @@ import (
 func scopedHTTPRouteSupportsTenantFilter(r *http.Request) bool {
 	// Only add routes here after the handler filters counts, limits,
 	// truncation, ambiguity, and not-found metadata from AuthContext.
-	//
-	// Self-service TOTP MFA enrollment (issue #4986, PR #5065 review): these
-	// are auth mutations, not tenant-filtered reads, but they require an
-	// authenticated identity and this allowlist is what AuthMiddleware checks
-	// before admitting a browser-session (and scoped-token) request. The
-	// handlers resolve the acting user from the AuthContext session subject and
-	// never accept a body-supplied target user, so a caller with no resolvable
-	// local identity is rejected in the handler. Without this, AuthMiddleware
-	// rejects the profile-page enrollment before the handler runs.
-	if r.Method == http.MethodPost &&
-		(r.URL.Path == "/api/v0/auth/local/mfa/totp/begin" ||
-			r.URL.Path == "/api/v0/auth/local/mfa/totp/confirm") {
+	if scopedTOTPEnrollmentRoute(r) {
 		return true
 	}
 	if r.Method == http.MethodGet && r.URL.Path == "/api/v0/repositories" {
@@ -74,10 +63,7 @@ func scopedHTTPRouteSupportsTenantFilter(r *http.Request) bool {
 	if r.Method == http.MethodPost && r.URL.Path == "/api/v0/code/routes/callers" {
 		return true
 	}
-	// #5167 task 4: VisualizationHandler holds no graph/content/store
-	// reference (visualization_packet_handler.go) -- it only reshapes the
-	// caller-supplied source_response, so there is no tenant data to filter.
-	if r.Method == http.MethodPost && r.URL.Path == "/api/v0/visualizations/derive" {
+	if scopedVisualizationDeriveRoute(r) {
 		return true
 	}
 	// POST /api/v0/ask orchestrates other read routes through the in-process MCP
@@ -290,4 +276,18 @@ func scopedHTTPRouteSupportsTenantFilter(r *http.Request) bool {
 	default:
 		return false
 	}
+}
+
+// scopedVisualizationDeriveRoute matches POST /api/v0/visualizations/derive.
+// #5167 task 4: VisualizationHandler holds no graph/content/store reference
+// (visualization_packet_handler.go) -- it only reshapes the caller-supplied
+// source_response, so there is no tenant data to filter.
+//
+// Both scopedHTTPRouteSupportsTenantFilter above and
+// scopedRouteNeedsNoCallerGrant (auth_browser_session_route_policy.go) call
+// this, exactly as they share scopedTOTPEnrollmentRoute, so the allowlist and
+// the all-scope admission split can never disagree about the route.
+func scopedVisualizationDeriveRoute(r *http.Request) bool {
+	return r.Method == http.MethodPost &&
+		r.URL.Path == "/api/v0/visualizations/derive"
 }

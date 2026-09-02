@@ -145,17 +145,64 @@ func recordReadAuthorizationUnavailable(
 	_ = audit.Append(ctx, []governanceaudit.Event{event})
 }
 
+// recordScopedRouteAuthorizationDenied records a scoped-route refusal under
+// the pre-#6450 reason code, scopedRouteNotEnabledReason. The scoped-bearer
+// branch of authMiddlewareWithRoutePolicy is its remaining caller: a scoped
+// bearer is refused only when the route is off the allowlist, so that code is
+// still true there by construction.
 func recordScopedRouteAuthorizationDenied(
 	r *http.Request,
 	audit GovernanceAuditAppender,
 	auth AuthContext,
 ) {
+	recordScopedRouteAuthorizationDeniedWithReason(r, audit, auth, scopedRouteNotEnabledReason)
+}
+
+// recordScopedRouteAuthorizationDeniedWithReason is the reason-carrying form,
+// mirroring recordReadAuthorizationDeniedWithReason above. The browser-session
+// path uses it because, since #6450, a cookie caller is refused for two
+// genuinely different causes and an operator has to be able to tell them
+// apart; see the reason-code constants in
+// auth_browser_session_route_policy.go. A blank or whitespace-only code falls
+// back to scopedRouteDeniedUnspecifiedReason rather than emitting an event
+// NormalizeEvent would reject: the durable GovernanceAuditStore.Append
+// normalizes all-or-nothing and returns before any INSERT, and the async
+// appender's per-event fallback (#5170) isolates the bad event from its batch
+// siblings, so the cost of emitting one would be a single lost event rather
+// than its whole batch. The fallback is distinct from both real codes on
+// purpose, so a caller that passes a blank code is visible in the audit
+// instead of being mislabelled as one of them.
+//
+// The event carries the caller's tenant and workspace, matching
+// recordScopedReadAuthorized below: a tenant admin's governance-audit read is
+// filtered by tenant_id, so a denial recorded without one is a denial only the
+// shared operator can ever see.
+func recordScopedRouteAuthorizationDeniedWithReason(
+	r *http.Request,
+	audit GovernanceAuditAppender,
+	auth AuthContext,
+	reasonCode string,
+) {
 	if audit == nil {
 		return
 	}
+	// The closed governanceaudit.ActorClass enum (governanceaudit/audit.go)
+	// has no browser-session member, so a cookie-session denial -- including
+	// scoped_route_all_scope_grant_required, which only a browser session can
+	// produce -- is stamped scoped_token on purpose. Read it as
+	// "identity-resolved caller", not "bearer token". Do not "correct" it to
+	// ActorClassOperator: that member means a human operator carrying no
+	// direct identifier, and this helper is shared with the scoped-bearer
+	// denial path (recordScopedRouteAuthorizationDenied), where scoped_token
+	// is literally right. Widening the enum with a browser-session member is
+	// tracked in #6459.
 	actorClass := governanceaudit.ActorClassScopedToken
 	if auth.SubjectIDHash == "" {
 		actorClass = governanceaudit.ActorClassAnonymous
+	}
+	reasonCode = strings.TrimSpace(reasonCode)
+	if reasonCode == "" {
+		reasonCode = scopedRouteDeniedUnspecifiedReason
 	}
 	event := governanceaudit.Event{
 		Type:               governanceaudit.EventTypeReadAuthorization,
@@ -163,10 +210,12 @@ func recordScopedRouteAuthorizationDenied(
 		ActorIDHash:        auth.SubjectIDHash,
 		ScopeClass:         governanceaudit.ScopeClassAdmin,
 		Decision:           governanceaudit.DecisionDenied,
-		ReasonCode:         "scoped_route_not_enabled",
+		ReasonCode:         reasonCode,
 		CorrelationID:      safeAuditCorrelationID(documentationCorrelationID(r)),
 		PolicyRevisionHash: auth.PolicyRevisionHash,
 		OccurredAt:         time.Now().UTC(),
+		TenantID:           auth.TenantID,
+		WorkspaceID:        auth.WorkspaceID,
 	}
 	ctx, cancel := context.WithTimeout(r.Context(), governanceAuditAppendTimeout)
 	defer cancel()
