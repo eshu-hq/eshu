@@ -150,7 +150,10 @@ trap drop_lock_home EXIT
 # racing acquirer observes a genuinely LIVE holder rather than a pid that has
 # already exited.
 #
-# try_acquire takes (hold_seconds, token_path, reap_age_override), all optional.
+# try_acquire takes (hold_seconds, token_path, reap_age_override). They are
+# POSITIONAL, so each may be empty but a later one cannot be reached without
+# placeholders for the earlier ones -- the fresh-guard case below passes
+# `0 "" 86400` for exactly that reason, not because it wants a token.
 # The token path is the SECOND arg; it is a shared critical-section token. When given,
 # entry is claimed with `set -o noclobber` (create-or-fail) immediately after
 # acquiring the lock: a second racer that is ALSO inside the critical section
