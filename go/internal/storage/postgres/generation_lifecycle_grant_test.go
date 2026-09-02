@@ -57,3 +57,42 @@ func TestListGenerationLifecyclePassesGrantToQuery(t *testing.T) {
 		t.Fatalf("expected the grant arrays to be bound as additional arguments; got %d args: %#v", len(args), args)
 	}
 }
+
+// TestResolveChangedSinceScopePassesGrantToQuery is the same proof for
+// changed-since. Its scope resolution is where the grant binds, so a future
+// change that drops these arguments reopens the cross-tenant selector read
+// while every handler-level test keeps passing.
+func TestResolveChangedSinceScopePassesGrantToQuery(t *testing.T) {
+	t.Parallel()
+
+	queryer := &fakeQueryer{responses: []fakeRows{{}}}
+	store := StatusStore{queryer: queryer}
+
+	_, err := store.ComputeChangedSinceDelta(context.Background(), statuspkg.ChangedSinceFilter{
+		Repository:           "repo-b",
+		SinceGenerationID:    "gen-prior",
+		Scoped:               true,
+		AllowedRepositoryIDs: []string{"repo-a"},
+		AllowedScopeIDs:      []string{"scope-a"},
+	})
+	if err != nil {
+		t.Fatalf("ComputeChangedSinceDelta: %v", err)
+	}
+	if len(queryer.args) == 0 {
+		t.Fatalf("expected the scope resolution query to run")
+	}
+
+	args := queryer.args[0]
+	var sawScoped bool
+	for _, a := range args {
+		if b, ok := a.(bool); ok && b {
+			sawScoped = true
+		}
+	}
+	if !sawScoped {
+		t.Fatalf("the scoped flag must reach the scope query, or the grant predicate is inert; args = %#v", args)
+	}
+	if len(args) < 5 {
+		t.Fatalf("expected the grant arrays bound as additional arguments; got %d: %#v", len(args), args)
+	}
+}
