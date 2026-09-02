@@ -38,6 +38,39 @@ func iamTrustPermissionEnvelope(factID, scopeID, generationID, policySource stri
 	}
 }
 
+// iamInstanceProfileResourceFact returns one aws_resource fact typed as an IAM
+// instance profile carrying the given role_arns. It lived beside the
+// iam_instance_profile_role builder's root tests until that family moved into
+// internal/projector/iaminstanceprofile; the root fan-out fixture still needs
+// it to prove the dispatcher anchors this domain to the profile-typed resource
+// rather than a generic aws_resource fact.
+func iamInstanceProfileResourceFact(factID, scopeID, generationID string, roleARNs ...string) facts.Envelope {
+	roles := make([]any, 0, len(roleARNs))
+	for _, arn := range roleARNs {
+		roles = append(roles, arn)
+	}
+	return facts.Envelope{
+		FactID:        factID,
+		ScopeID:       scopeID,
+		GenerationID:  generationID,
+		FactKind:      facts.AWSResourceFactKind,
+		SchemaVersion: facts.AWSResourceSchemaVersion,
+		CollectorKind: "aws_cloud",
+		ObservedAt:    time.Date(2026, 6, 2, 10, 0, 0, 0, time.UTC),
+		SourceRef: facts.Ref{
+			SourceSystem: "aws",
+		},
+		Payload: map[string]any{
+			"account_id":    "123456789012",
+			"region":        "aws-global",
+			"resource_type": "aws_iam_instance_profile",
+			"resource_id":   "arn:aws:iam::123456789012:instance-profile/app",
+			"arn":           "arn:aws:iam::123456789012:instance-profile/app",
+			"role_arns":     roles,
+		},
+	}
+}
+
 // packageIdentityEnvelope returns one package_registry.package identity fact.
 // It lived beside the package_source_correlation builder's root tests until
 // that family moved into internal/projector/packagesource; the root fan-out

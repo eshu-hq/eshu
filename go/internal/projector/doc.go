@@ -21,9 +21,10 @@
 // The neutral internal/projector/intent contract is the boundary for extracted
 // reducer-intent family packages. Azure, EC2, GCP, Kubernetes, RDS, S3,
 // security, workload-cloud-relationship, incident-routing, AWS-relationship,
-// AWS-cloud-image, IAM CAN_ASSUME, package-source-correlation,
-// cloud-inventory-admission, code-taint-evidence, code-interproc-evidence,
-// SBOM-attestation-attachment, service-catalog-correlation, and
+// AWS-cloud-image, IAM CAN_ASSUME, IAM instance-profile-role,
+// package-source-correlation, cloud-inventory-admission, code-taint-evidence,
+// code-interproc-evidence, SBOM-attestation-attachment,
+// service-catalog-correlation, and
 // secrets-IAM-trust-chain builders live in their internal/projector child
 // packages; this root package owns lookup construction and lifetime, family
 // assembly, and enqueue.

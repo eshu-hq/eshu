@@ -916,6 +916,32 @@ proof relocated to `intent/fact_lookup_test.go` against the seam directly.
 The unsupported-schema-version regression test stays at root in
 `schema_version_admission_test.go` because it asserts root's
 `validateFactSchemaVersion`, not the builder.
+The IAM instance-profile-role builder moved into
+`internal/projector/iaminstanceprofile`. It triggers on an `aws_resource`
+fact whose decoded `resource_type` is `aws_iam_instance_profile`, anchored to
+the earliest such fact via `FirstOfKindMatching` — a no-role profile (empty
+`role_arns`) still triggers so the reducer handler's retract pass runs
+(#1299 stale-edge retraction) — shares the
+`aws_resource_materialization:<scope>` entity key with the AWS node builders
+for the canonical-nodes readiness gate, and carries a decode seam: the child
+keeps its own `factschema_decode_aws.go` against `sdk/go/factschema` (the
+`ec2`/`observabilitycoverage` pattern) instead of importing root's classified
+`decodeAWSResource` wrapper, which stays at root for its remaining
+observability-coverage materialization caller. Its source-system call was the
+root `awsCloudRuntimeDriftSourceSystem` helper, compared body-for-body
+against `projectorintent.SourceSystem`: both are the identical two tiers
+(trimmed `SourceRef.SourceSystem`, else trimmed `CollectorKind`) with no
+third literal fallback, so the substitution is behavior-identical and the
+child pins both tiers; the root helper stays at root for its three remaining
+callers (AWS cloud runtime drift, AWS resource, and observability-coverage
+materialization). The family's root tests moved with the builder and were
+rewritten as child builder unit tests — no reducer-side citation pins the old
+test file name, unlike the AWS cloud-image case above — while the root
+fan-out fixture's profile-typed `aws_resource` helper
+(`iamInstanceProfileResourceFact`) relocated into
+`scope_generation_intents_fanout_test.go`, which keeps asserting the
+dispatcher enqueue path for this domain alongside the ordered fan-out parity
+fixture.
 Coordinator `_scheduler.go` halves extract cleanly
 (they implement a root Planner interface); the `_service.go` halves are
 methods on the shared `Service` struct and stay until Service is
