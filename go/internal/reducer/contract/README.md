@@ -69,10 +69,13 @@ this package and leaves type aliases behind, so every one of the 92 root callers
 plus `cmd/reducer` and `internal/storage/postgres`, compiles against the identical
 type. A Go type alias is the same type, not a conversion or a wrapper, so there is
 no new indirection on any call path and nothing to measure: the declarations carry
-no function bodies at all. Baseline `origin/main` at `0a0700ab1` and the branch
-build the same binaries; `go build ./...`, `go vet ./...` (which also compiles
-test files), `go test ./internal/reducer/... -count=1` (15 packages), and
-`go test ./cmd/reducer ./internal/storage/postgres -count=1` each exited 0.
+no function bodies at all. Measured against baseline `origin/main` at
+`0a0700ab1`: `go build ./...`, `go vet ./...` (which also compiles test files,
+so it catches a moved fixture breaking a sibling package),
+`go test ./internal/reducer/... -count=1` (15 packages), and
+`go test ./cmd/reducer ./internal/storage/postgres -count=1` each exited 0 on
+the branch. Binary output was not compared and no such claim is made here;
+that would need pinned reproducible-build flags and a controlled environment.
 
 No-Observability-Change: #6061 adds no queue domain, worker, lease, graph or
 Postgres operation, runtime setting, metric instrument, metric label, span, log
