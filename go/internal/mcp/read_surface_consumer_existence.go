@@ -29,8 +29,9 @@ const languageParityReadSurfaceNone = "none"
 
 const (
 	// readSurfaceBackingMCPTool means Ref is an exact tool.Name entry in
-	// ReadOnlyTools() (and, for the six labels that are literal MCP dispatch
-	// case strings, also the case string in dispatch.go/dispatch_impact.go).
+	// ReadOnlyTools() (and, for the labels that are literal MCP dispatch
+	// case strings, also the case string in dispatch.go or a family child's
+	// route selector, e.g. impact/routes.go).
 	readSurfaceBackingMCPTool readSurfaceBackingKind = "mcp_tool"
 	// readSurfaceBackingGoSymbol means Ref is a "<file>.go:<symbol>" pointer
 	// into query.ReadSurfaceGoSymbolBackings, itself kept honest by a
@@ -59,12 +60,14 @@ type readSurfaceBacking struct {
 // this map, and fails for any label whose Ref is not confirmed live.
 //
 // Seven labels equal a registered tool name directly, so Ref equals the
-// label: six are literal MCP dispatch case strings (dispatch.go,
-// dispatch_impact.go), and "list_relationship_edges" (#5369) is claimed and
-// selected by relationshiptools.EdgeRoute, then copied by the thin root adapter
-// in dispatch_relationship_edges.go rather than the shared case-string switch.
-// Its label still equals its tool name. Two labels are aliases the label text
-// does not name directly:
+// label: three are literal case strings in dispatch.go's own switch
+// (execute_language_query, find_dead_code, trace_route_callers);
+// "trace_deployment_chain" and "trace_resource_to_code" are claimed and
+// selected by impacttools.Route (impact/routes.go), copied by the thin root
+// adapter in dispatch_impact.go; and "get_code_relationship_story" and
+// "list_relationship_edges" (#5369) are claimed by relationshiptools, copied
+// by their thin root adapters. Every label still equals its tool name. Two
+// labels are aliases the label text does not name directly:
 // "entity_context" is served by the get_entity_context MCP tool, and
 // "content_relationships" is served by the unexported
 // query.buildContentRelationshipSet Go symbol (there is no MCP tool wrapping

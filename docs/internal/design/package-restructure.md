@@ -1020,7 +1020,9 @@ routers: ecosystem summaries and change planning remain in
 `internal/mcp/packageregistry` in the first Wave 2 extraction below;
 infrastructure reads remain in `dispatch.go`, and infrastructure-search
 selection moved to `internal/mcp/infrasearch` in the eleventh Wave 2
-extraction below; impact reads remain in `dispatch_impact.go`; and
+extraction below; impact-analysis selection moved to `internal/mcp/impact` in
+the twelfth Wave 2 extraction below, with `dispatch_impact.go` keeping the
+thin adapter; and
 environment comparison remains in `compareRoute`. That move uses
 `internal/mcp/routecontract`, not `toolcontract`: route-selection extractions
 take the routecontract seam, while `toolcontract` is what an ecosystem tool
@@ -1388,6 +1390,44 @@ individually, and the dispatch-level test asserts the eight keys against
 literal expectations rather than against the child selector; dropping
 `resource_category` from the builder fails four child tests and one root
 test.
+
+The impact-analysis route family is the twelfth Wave 2 MCP extraction and
+the first to lift a fallback selector rather than a delegation or a switch
+arm. Nine tools -- `trace_deployment_chain`, `investigate_deployment_config`,
+`find_blast_radius`, `find_change_surface`, `investigate_contract_impact`,
+`investigate_change_surface`, `trace_resource_to_code`,
+`explain_dependency_path`, and `trace_exposure_path` -- were answered by
+`impactRoute`'s own switch in `dispatch_impact.go`, consulted from
+`resolveRoute`'s default case (originally split out to keep `dispatch.go`
+under the 500-line cap). Family membership and the nine request builders now
+live under `internal/mcp/impact`, and `dispatch_impact.go` keeps only the
+thin `impactRoute` adapter, still consulted from the default case. Because
+the family already resolved after every delegation and every switch arm, no
+delegation is added and none moves: `resolveRoute` keeps 20 delegations and
+49 cases -- 69 ordered arms -- on both sides, and the nine names keep their
+claim point at the end of the chain. The 162-tool order, every POST
+`/api/v0/impact/` path, every body key, and every dispatcher-side default
+are unchanged, and the root file set is unchanged, so `internal/mcp` holds
+its dirgate pin of 106 with no re-pin. Registration does not move either:
+eight definitions stay with the `ecosystem` child and `trace_exposure_path`
+stays in the root reachability group.
+
+What makes this family worth reading is its two deliberate asymmetries. First,
+`explain_dependency_path` forwards the caller's decoded argument map itself as
+the body -- no key selection, no defaults, no coercion, and the returned body
+aliases the caller's map -- so wrapping it in a selecting builder would
+silently drop every argument its handler reads that the builder did not name;
+the child and root tests pin the pass-through, including the aliasing. Second,
+`trace_deployment_chain` forwards `max_depth` 0 when the caller omits it, so
+the handler resolves its own operator-safe default
+(`boundedTraceEnrichmentLimit(0)` = 25); forwarding 8 instead once widened the
+resolved search limit to 80 for callers who changed nothing, and the handler
+clamps `max_depth` into [0, 1000] rather than rejecting, so no selected value
+can 400. The remaining defaults -- `limit` 25 or 50 and `max_depth` 4, 8, or
+5 per route, `direct_only` true -- are part of the wire contract and are
+pinned per key in both test files, because a dropped defaulted key fails
+silently at the handler while a dropped selector key silently widens or
+narrows results.
 
 **cmd/eshu (233):** `package main` — subdirectories are impossible by
 language rule. The lever is extracting business logic to new

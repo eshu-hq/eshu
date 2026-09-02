@@ -7,14 +7,19 @@
 3. `../types.go` for the ordered assembly position.
 4. `../dispatch_ecosystem.go`, `../dispatch_repositories.go`,
    `../dispatch.go`, `../dispatch_infra_search.go` (the adapter over
-   `../infrasearch`), and `../dispatch_impact.go` for split route ownership.
+   `../infrasearch`), and `../dispatch_impact.go` (the adapter over
+   `../impact`) for split route ownership.
 5. `../toolcontract/README.md` for the dependency-neutral definition contract.
 6. `../../query/AGENTS.md` before changing ecosystem query behavior.
 
 ## Invariants
 
 - Keep this package registration-only. Routing and argument mapping stay in the
-  parent MCP package; validation and reads stay in `internal/query`.
+  parent MCP package, except where a family has been extracted to its own route
+  selector: the infrastructure-search tool routes through `../infrasearch` and
+  the nine impact-analysis tools route through `../impact`, each reached from a
+  thin adapter arm the parent still owns. Validation and reads stay in
+  `internal/query`.
 - Keep the package clause as `package ecosystemtools`; the root imports it with
   an explicit alias.
 - Preserve all 23 tool names, descriptions, schemas, and their local order.
