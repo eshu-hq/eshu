@@ -37,7 +37,7 @@ From `doc.go`, `README.md`, `language.go`:
 - `engine_kubernetes_semantics_test.go`: Kubernetes qualified_name and container image rows
 - `TestParseMultiDocumentYAMLWithAnchorsAndMergeKeys` (`language_test.go:95`): multi-document decoding plus anchor, alias, and merge-key resolution
 - `TestDecodeDocumentsPreservesQuotedMergeKey`, `TestDecodeDocumentsRejectsInvalidMergeValue`, and `TestDecodeDocumentsRejectsRecursiveAlias` (`language_test.go:146`, `language_test.go:176`, `language_test.go:193`): quoted merge keys and invalid or recursive alias failures
-- Parent-level: `engine_infra_test.go` and `engine_yaml_cloudformation_lines_test.go` are among the parent tests that still drive YAML through the parent engine. The Engine tests listed above moved into this package in issue #6062; they run as external `yaml_test`.
+- Parent-level: `engine_infra_test.go` is among the parent tests that still drive YAML through the parent engine. The Engine tests listed above moved into this package in issue #6062; they run as external `yaml_test`. The CloudFormation real-line tests that used to sit beside it at the parser root moved to `go/internal/parser/cloudformation/engine_yaml_cloudformation_lines_test.go` (issue #6062); they run as external `cloudformation_test` and still drive the YAML adapter through the parent engine.
 
 ## Unverified / Claimed-but-Untested Constructs
 - **Helm values.yaml non-Grafana observability**: Prometheus Operator scrape/rule resources, Loki gateway values not explicitly listed in test file names

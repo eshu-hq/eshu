@@ -1,7 +1,7 @@
 # CloudFormation Parser Audit
 
 ## Overview
-Parses CloudFormation and SAM template evidence from already-decoded YAML/JSON documents. This is a **declarative data** parser — it receives an already-decoded map from the JSON or YAML parent adapter, evaluates bounded condition expressions (Ref, Equals, literal comparison), and extracts resource, parameter, output, condition, import, and export buckets. 5 src files, 4 test files.
+Parses CloudFormation and SAM template evidence from already-decoded YAML/JSON documents. This is a **declarative data** parser — it receives an already-decoded map from the JSON or YAML parent adapter, evaluates bounded condition expressions (Ref, Equals, literal comparison), and extracts resource, parameter, output, condition, import, and export buckets. 5 src files, 5 test files: 10 in-package tests plus 6 engine-level tests in `engine_yaml_cloudformation_lines_test.go`, relocated from the parser root in issue #6062, which run as external `cloudformation_test` and drive the public parser engine (from `go/internal/parser/cloudformation`: `rg --no-filename -o '^func Test' conditions_test.go imports_test.go parser_test.go positions_test.go engine_yaml_cloudformation_lines_test.go | wc -l` = 16).
 
 ## Claimed Constructs
 From `doc.go`, `README.md`, `parser.go`:
@@ -24,6 +24,13 @@ From `doc.go`, `README.md`, `parser.go`:
 - `TestIsTemplateDetectsSAMResourceTypeWithoutTransform` (`imports_test.go:8`): SAM resource-type recognition without a Transform field
 - `TestParseCollectsCrossStackImports` (`imports_test.go:24`): cross-stack `Fn::ImportValue` collection
 - `positions_test.go`: source-position attachment for parameters, resources, outputs, and exports
+- `TestDefaultEngineParsePathYAMLCloudFormationVpcFixtureRealLines` (`engine_yaml_cloudformation_lines_test.go:68`): real, distinct per-entity line_number/end_line for YAML templates against the vpc.yaml fixture (#5328)
+- `TestDefaultEngineParsePathYAMLCloudFormationLambdaFixtureImports` (`engine_yaml_cloudformation_lines_test.go:120`): Fn::ImportValue collection from lambda.yaml, pinned to the document-root fallback line with no end_line (imports have no per-entity positions yet)
+- `TestDefaultEngineParsePathYAMLCloudFormationAnchorMergeKey` (`engine_yaml_cloudformation_lines_test.go:169`): `<<: *anchor` merge-key entities attributed to the anchor definition's physical line
+- `TestDefaultEngineParsePathYAMLCloudFormationMultiDocumentStream` (`engine_yaml_cloudformation_lines_test.go:211`): file-absolute line attribution across a multi-document `---` stream
+- `TestDefaultEngineParsePathYAMLCloudFormationNestedSameNameKey` (`engine_yaml_cloudformation_lines_test.go:249`): a nested key literally named `Resources` is never mistaken for the template's top-level section
+- `TestDefaultEngineParsePathJSONCloudFormationStackFixtureRealLines` (`engine_yaml_cloudformation_lines_test.go:307`): real per-entity lines for JSON templates against stack.json, with JSON's closing-brace end_line convention (#5348)
+- The six engine-level tests above relocated from the parser root in issue #6062; they run as external `cloudformation_test` and drive the public parser engine end to end
 - Parent-level: `engine_infra_test.go` verifies JSON attachment; YAML attachment is
   verified by `go/internal/parser/yaml/engine_yaml_semantics_test.go`, which moved into
   the yaml package in issue #6062
@@ -49,7 +56,6 @@ From `doc.go`, `README.md`, `parser.go`:
 - Multiple-depths of nested condition evaluation (e.g., Fn::And, Fn::Or, Fn::Not)
 - Custom resource types (non-AWS prefix)
 - Non-string parameter types (Number, List<Number>, etc.)
-- Path vs line_number in multi-document YAML
 - Intrinsic functions: Fn::Sub, Fn::Join, Fn::Select, Fn::FindInMap for property extraction
 
 ## Verdict

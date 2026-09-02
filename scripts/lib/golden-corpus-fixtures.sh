@@ -9,8 +9,9 @@
 # github.com/acme/lib-common, and ESHU_GITHUB_ORG=acme makes both fixtures'
 # synthesized remotes match that org.
 #
-# cloudformation_comprehensive (#5954) existed on disk for the YAML parser's
-# unit tests (go/internal/parser/engine_yaml_cloudformation_lines_test.go) but
+# cloudformation_comprehensive (#5954) existed on disk for the CloudFormation
+# line-truth tests (go/internal/parser/cloudformation/engine_yaml_cloudformation_lines_test.go,
+# relocated from the parser root in #6062) but
 # was never staged here, so the live gate had zero real coverage for any
 # CloudFormation node label -- Resource, Parameter, Output, Condition, Import,
 # and Export alike. Staging it gives CloudFormationCondition/Import/Export

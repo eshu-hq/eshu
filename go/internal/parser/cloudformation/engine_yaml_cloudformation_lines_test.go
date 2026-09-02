@@ -1,12 +1,32 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package parser
+package cloudformation_test
 
 import (
 	"path/filepath"
+	"runtime"
 	"testing"
+
+	"github.com/eshu-hq/eshu/go/internal/parser"
+	"github.com/eshu-hq/eshu/go/internal/parser/parsertest"
 )
+
+// cfnFixtureDir resolves the shared cloudformation_comprehensive fixture
+// corpus. The parent package's repoFixturePath cannot be reused here: it is
+// unexported and declared in internal/parser's own testhelpers_test.go, and
+// test files are never importable across packages, so cloudformation_test
+// could not call it from any location. runtime.Caller anchors the resolution
+// to this source file instead of the test binary's working directory.
+func cfnFixtureDir(t *testing.T) string {
+	t.Helper()
+
+	_, sourceFile, _, ok := runtime.Caller(0)
+	if !ok || sourceFile == "" {
+		t.Fatal("runtime.Caller(0) could not locate the CloudFormation test source file")
+	}
+	return filepath.Join(filepath.Dir(sourceFile), "..", "..", "..", "..", "tests", "fixtures", "ecosystems", "cloudformation_comprehensive")
+}
 
 // cfnRow returns the row named wantName from payload[bucket], or fails the
 // test. Shared by every CloudFormation real-line-number test below.
@@ -48,17 +68,14 @@ func assertCFNLines(t *testing.T, row map[string]any, wantLine int, wantEndLine 
 func TestDefaultEngineParsePathYAMLCloudFormationVpcFixtureRealLines(t *testing.T) {
 	t.Parallel()
 
-	fixtureDir, err := filepath.Abs(filepath.Join("..", "..", "..", "tests", "fixtures", "ecosystems", "cloudformation_comprehensive"))
-	if err != nil {
-		t.Fatalf("filepath.Abs() error = %v, want nil", err)
-	}
+	fixtureDir := cfnFixtureDir(t)
 	filePath := filepath.Join(fixtureDir, "vpc.yaml")
 
-	engine, err := DefaultEngine()
+	engine, err := parser.DefaultEngine()
 	if err != nil {
-		t.Fatalf("DefaultEngine() error = %v, want nil", err)
+		t.Fatalf("parser.DefaultEngine() error = %v, want nil", err)
 	}
-	got, err := engine.ParsePath(fixtureDir, filePath, false, Options{})
+	got, err := engine.ParsePath(fixtureDir, filePath, false, parser.Options{})
 	if err != nil {
 		t.Fatalf("ParsePath() error = %v, want nil", err)
 	}
@@ -103,17 +120,14 @@ func TestDefaultEngineParsePathYAMLCloudFormationVpcFixtureRealLines(t *testing.
 func TestDefaultEngineParsePathYAMLCloudFormationLambdaFixtureImports(t *testing.T) {
 	t.Parallel()
 
-	fixtureDir, err := filepath.Abs(filepath.Join("..", "..", "..", "tests", "fixtures", "ecosystems", "cloudformation_comprehensive"))
-	if err != nil {
-		t.Fatalf("filepath.Abs() error = %v, want nil", err)
-	}
+	fixtureDir := cfnFixtureDir(t)
 	filePath := filepath.Join(fixtureDir, "lambda.yaml")
 
-	engine, err := DefaultEngine()
+	engine, err := parser.DefaultEngine()
 	if err != nil {
-		t.Fatalf("DefaultEngine() error = %v, want nil", err)
+		t.Fatalf("parser.DefaultEngine() error = %v, want nil", err)
 	}
-	got, err := engine.ParsePath(fixtureDir, filePath, false, Options{})
+	got, err := engine.ParsePath(fixtureDir, filePath, false, parser.Options{})
 	if err != nil {
 		t.Fatalf("ParsePath() error = %v, want nil", err)
 	}
@@ -157,7 +171,7 @@ func TestDefaultEngineParsePathYAMLCloudFormationAnchorMergeKey(t *testing.T) {
 
 	repoRoot := t.TempDir()
 	filePath := filepath.Join(repoRoot, "merge-stack.yaml")
-	writeTestFile(
+	parsertest.WriteFile(
 		t,
 		filePath,
 		`AWSTemplateFormatVersion: "2010-09-09"
@@ -175,11 +189,11 @@ Resources:
 `,
 	)
 
-	engine, err := DefaultEngine()
+	engine, err := parser.DefaultEngine()
 	if err != nil {
-		t.Fatalf("DefaultEngine() error = %v, want nil", err)
+		t.Fatalf("parser.DefaultEngine() error = %v, want nil", err)
 	}
-	got, err := engine.ParsePath(repoRoot, filePath, false, Options{})
+	got, err := engine.ParsePath(repoRoot, filePath, false, parser.Options{})
 	if err != nil {
 		t.Fatalf("ParsePath() error = %v, want nil", err)
 	}
@@ -199,7 +213,7 @@ func TestDefaultEngineParsePathYAMLCloudFormationMultiDocumentStream(t *testing.
 
 	repoRoot := t.TempDir()
 	filePath := filepath.Join(repoRoot, "multi-doc.yaml")
-	writeTestFile(
+	parsertest.WriteFile(
 		t,
 		filePath,
 		`---
@@ -214,11 +228,11 @@ Resources:
 `,
 	)
 
-	engine, err := DefaultEngine()
+	engine, err := parser.DefaultEngine()
 	if err != nil {
-		t.Fatalf("DefaultEngine() error = %v, want nil", err)
+		t.Fatalf("parser.DefaultEngine() error = %v, want nil", err)
 	}
-	got, err := engine.ParsePath(repoRoot, filePath, false, Options{})
+	got, err := engine.ParsePath(repoRoot, filePath, false, parser.Options{})
 	if err != nil {
 		t.Fatalf("ParsePath() error = %v, want nil", err)
 	}
@@ -237,7 +251,7 @@ func TestDefaultEngineParsePathYAMLCloudFormationNestedSameNameKey(t *testing.T)
 
 	repoRoot := t.TempDir()
 	filePath := filepath.Join(repoRoot, "nested-stack.yaml")
-	writeTestFile(
+	parsertest.WriteFile(
 		t,
 		filePath,
 		`AWSTemplateFormatVersion: "2010-09-09"
@@ -257,11 +271,11 @@ Outputs:
 `,
 	)
 
-	engine, err := DefaultEngine()
+	engine, err := parser.DefaultEngine()
 	if err != nil {
-		t.Fatalf("DefaultEngine() error = %v, want nil", err)
+		t.Fatalf("parser.DefaultEngine() error = %v, want nil", err)
 	}
-	got, err := engine.ParsePath(repoRoot, filePath, false, Options{})
+	got, err := engine.ParsePath(repoRoot, filePath, false, parser.Options{})
 	if err != nil {
 		t.Fatalf("ParsePath() error = %v, want nil", err)
 	}
@@ -293,17 +307,14 @@ Outputs:
 func TestDefaultEngineParsePathJSONCloudFormationStackFixtureRealLines(t *testing.T) {
 	t.Parallel()
 
-	fixtureDir, err := filepath.Abs(filepath.Join("..", "..", "..", "tests", "fixtures", "ecosystems", "cloudformation_comprehensive"))
-	if err != nil {
-		t.Fatalf("filepath.Abs() error = %v, want nil", err)
-	}
+	fixtureDir := cfnFixtureDir(t)
 	filePath := filepath.Join(fixtureDir, "stack.json")
 
-	engine, err := DefaultEngine()
+	engine, err := parser.DefaultEngine()
 	if err != nil {
-		t.Fatalf("DefaultEngine() error = %v, want nil", err)
+		t.Fatalf("parser.DefaultEngine() error = %v, want nil", err)
 	}
-	got, err := engine.ParsePath(fixtureDir, filePath, false, Options{})
+	got, err := engine.ParsePath(fixtureDir, filePath, false, parser.Options{})
 	if err != nil {
 		t.Fatalf("ParsePath() error = %v, want nil", err)
 	}
