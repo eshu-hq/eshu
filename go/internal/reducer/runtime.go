@@ -16,6 +16,16 @@ import (
 // Result captures the bounded terminal outcome of one reducer execution.
 type Result = reducercontract.Result
 
+// GenerationFreshnessCheck reports whether the given generation is still
+// the active generation for the scope. Returns (true, nil) if current,
+// (false, nil) if superseded, or (false, err) on lookup failure.
+type GenerationFreshnessCheck = reducercontract.GenerationFreshnessCheck
+
+// PriorGenerationCheck reports whether the scope has any generation before the
+// given generation. Retract paths use it to skip no-op cleanup on first writes
+// while preserving cleanup on refreshes and retries.
+type PriorGenerationCheck = reducercontract.PriorGenerationCheck
+
 // RunReport summarizes one bounded reducer drain.
 type RunReport struct {
 	StartedAt  time.Time
