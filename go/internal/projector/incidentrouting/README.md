@@ -74,7 +74,8 @@ key, reason, anchor selection, and source-system derivation are identical to
 the base commit, and the dispatcher's ordered fan-out is unchanged at 44
 builder probes with this probe still running immediately after
 `buildObservabilityCoverageCorrelationReducerIntent` and immediately before
-`buildCodeTaintEvidenceReducerIntent`. `incidentRoutingMaterializationSourceSystem`
+the code-taint-evidence probe (now
+`codetaintevidence.BuildCodeTaintEvidenceReducerIntent`). `incidentRoutingMaterializationSourceSystem`
 was compared body-for-body against its `projectorintent.SourceSystem`
 replacement (both trim `SourceRef.SourceSystem` and fall back to a trimmed
 `CollectorKind`), and the root `firstAcrossKinds` forwarder it called was a
