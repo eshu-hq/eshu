@@ -12,15 +12,26 @@ React component detection with hooks, Hapi/Express/Fastify/Next.js route
 evidence, dead-code root modeling (20+ root kinds), embedded shell commands,
 TypeScript type parameters and declaration merging, and opt-in value-flow
 analysis. A parent-lookup optimization eliminated per-node cgo crossings
-(#3586). The test suite is the largest of any parser: 17
-parent-level tests plus 27 subdirectory tests and jsdataflow tests. The
+(#3586). The test suite is the largest of any parser. The
 `engine_javascript_*_test.go` files that used to be counted as parent-level
 relocated into `go/internal/parser/javascript` as external `javascript_test`
-black-box coverage (#6062), matching the earlier Elixir relocation (#6335); the
-parent package retains cross-language sweeps (`engine_test.go`,
-`engine_cyclomatic_complexity_arms_test.go`, `engine_long_tail_test.go`) that
-happen to include JavaScript rows, plus `engine_tsx_*` and
-`engine_typescript_*` files that stay out of scope for this move.
+black-box coverage (#6062), matching the earlier Elixir relocation (#6335). A
+second relocation under the same issue moved the parent-level
+`javascript_dead_code_*_test.go` files, `javascript_cfg_dataflow_test.go`,
+`javascript_compat_test.go`, and `js_parent_lookup_bench_test.go` into
+`go/internal/parser/javascript` the same way; `javascript_dead_code_roots_test.go`
+split into two files (`javascript_dead_code_roots_test.go` and
+`javascript_dead_code_roots_nextjs_migration_test.go`) to stay under the
+500-line cap, and the pre-existing subdirectory file named
+`javascript_dead_code_typescript_import_exports_test.go` kept its name, so the
+relocated parent file of the same name is now
+`engine_javascript_dead_code_typescript_import_exports_test.go`. The parent
+package retains `engine_test.go` for core JS/TS PreScan and payload-construction
+coverage, plus `engine_tsx_*` and `engine_typescript_*` files that stay out of
+scope for both moves. `engine_cyclomatic_complexity_arms_test.go` and
+`engine_long_tail_test.go` were audited for JavaScript-specific rows during the
+second relocation and hold none; an earlier version of this doc claimed
+otherwise.
 
 ## Claimed Constructs
 - **Functions**: from function_declaration, generator_function_declaration,
@@ -145,7 +156,8 @@ engine_javascript_route_handler_test.go)**:
 - AWS client symbol constructor only:
   `TestDefaultEngineParsePathAWSClientSymbolConstructorOnly`
 
-**Dead-code roots (javascript_dead_code_*_test.go — 12+ files)**:
+**Dead-code roots (javascript_dead_code_*_test.go under
+`go/internal/parser/javascript` — 12+ files)**:
 - Node package entrypoints:
   `javascript_dead_code_node_entrypoints_test.go` (2 tests)
 - Package script roots:
@@ -161,9 +173,17 @@ engine_javascript_route_handler_test.go)**:
   `javascript_dead_code_node_roots_test.go` (5 tests)
 - Express server symbols:
   `javascript_dead_code_roots_test.go:TestJavaScriptExpressServerSymbols`
+- Next.js app-router and TypeScript migration/module-contract roots:
+  `javascript_dead_code_roots_nextjs_migration_test.go` (split out of
+  `javascript_dead_code_roots_test.go` to stay under the 500-line cap)
 - TS public surface and re-exports:
   `javascript_dead_code_typescript_surface_test.go`,
-  `javascript_dead_code_typescript_import_exports_test.go`,
+  `engine_javascript_dead_code_typescript_import_exports_test.go` (relocated
+  parent-level TypeScript public-surface marking, renamed to avoid colliding
+  with the pre-existing subdirectory file below),
+  `javascript_dead_code_typescript_import_exports_test.go` (pre-existing
+  subdirectory file exercising the AST re-export helpers directly — see the
+  Subdirectory unit tests entry below),
   `javascript_dead_code_typescript_surface_reexport_test.go`
 
 **TypeScript (engine_javascript_tsconfig_baseurl_test.go,

@@ -1,11 +1,13 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package parser
+package javascript_test
 
 import (
 	"path/filepath"
 	"testing"
+
+	"github.com/eshu-hq/eshu/go/internal/parser"
 )
 
 func TestDefaultEngineParsePathJavaScriptPackageScriptRoots(t *testing.T) {
@@ -34,15 +36,15 @@ main();
 run();
 `)
 
-	engine, err := DefaultEngine()
+	engine, err := parser.DefaultEngine()
 	if err != nil {
-		t.Fatalf("DefaultEngine() error = %v, want nil", err)
+		t.Fatalf("parser.DefaultEngine() error = %v, want nil", err)
 	}
-	jsPayload, err := engine.ParsePath(repoRoot, jsPath, false, Options{})
+	jsPayload, err := engine.ParsePath(repoRoot, jsPath, false, parser.Options{})
 	if err != nil {
 		t.Fatalf("ParsePath(js) error = %v, want nil", err)
 	}
-	tsPayload, err := engine.ParsePath(repoRoot, tsPath, false, Options{})
+	tsPayload, err := engine.ParsePath(repoRoot, tsPath, false, parser.Options{})
 	if err != nil {
 		t.Fatalf("ParsePath(ts) error = %v, want nil", err)
 	}

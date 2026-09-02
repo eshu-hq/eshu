@@ -1,11 +1,13 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package parser
+package javascript_test
 
 import (
 	"path/filepath"
 	"testing"
+
+	"github.com/eshu-hq/eshu/go/internal/parser"
 )
 
 func TestDefaultEngineParsePathTypeScriptHapiHandlerExportAssignmentRoots(t *testing.T) {
@@ -42,11 +44,11 @@ export = {
 `,
 	)
 
-	engine, err := DefaultEngine()
+	engine, err := parser.DefaultEngine()
 	if err != nil {
-		t.Fatalf("DefaultEngine() error = %v, want nil", err)
+		t.Fatalf("parser.DefaultEngine() error = %v, want nil", err)
 	}
-	payload, err := engine.ParsePath(repoRoot, handlerPath, false, Options{})
+	payload, err := engine.ParsePath(repoRoot, handlerPath, false, parser.Options{})
 	if err != nil {
 		t.Fatalf("ParsePath(handler) error = %v, want nil", err)
 	}
@@ -88,11 +90,11 @@ export default {
 `,
 	)
 
-	engine, err := DefaultEngine()
+	engine, err := parser.DefaultEngine()
 	if err != nil {
-		t.Fatalf("DefaultEngine() error = %v, want nil", err)
+		t.Fatalf("parser.DefaultEngine() error = %v, want nil", err)
 	}
-	payload, err := engine.ParsePath(repoRoot, pluginPath, false, Options{})
+	payload, err := engine.ParsePath(repoRoot, pluginPath, false, parser.Options{})
 	if err != nil {
 		t.Fatalf("ParsePath(plugin) error = %v, want nil", err)
 	}

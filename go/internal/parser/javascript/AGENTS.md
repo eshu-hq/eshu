@@ -27,7 +27,13 @@
 13. engine_typescript_implements_test.go - external-package regression for
     implemented-interface metadata through the public parent engine
 14. engine_javascript_test_helpers_test.go - shared helpers for the relocated
-    `engine_javascript_*_test.go` external-package suites (issue #6062)
+    `engine_javascript_*_test.go`, `javascript_dead_code_*_test.go`,
+    `javascript_cfg_dataflow_test.go`, and `js_parent_lookup_bench_test.go`
+    external-package suites (issue #6062)
+15. javascript_dead_code_roots_test.go and
+    javascript_dead_code_roots_nextjs_migration_test.go - the latter split out
+    at the 500-line cap and carries the Next.js app-router and TypeScript
+    migration/module-contract dead-code root cases
 
 ## Invariants this package enforces
 

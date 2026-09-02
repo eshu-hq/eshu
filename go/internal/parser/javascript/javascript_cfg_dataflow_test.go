@@ -1,13 +1,15 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package parser
+package javascript_test
 
 import (
 	"path/filepath"
 	"reflect"
 	"strings"
 	"testing"
+
+	"github.com/eshu-hq/eshu/go/internal/parser"
 )
 
 // jsDataflowFixture exercises both an intraprocedural flow (req.body into
@@ -34,12 +36,12 @@ func TestJSDataflowOffIsByteIdentical(t *testing.T) {
 	filePath := filepath.Join(repoRoot, "views.ts")
 	writeTestFile(t, filePath, jsDataflowFixture)
 
-	engine, err := DefaultEngine()
+	engine, err := parser.DefaultEngine()
 	if err != nil {
-		t.Fatalf("DefaultEngine() error = %v", err)
+		t.Fatalf("parser.DefaultEngine() error = %v", err)
 	}
 
-	off, err := engine.ParsePath(repoRoot, filePath, false, Options{})
+	off, err := engine.ParsePath(repoRoot, filePath, false, parser.Options{})
 	if err != nil {
 		t.Fatalf("ParsePath (off) error = %v", err)
 	}
@@ -49,7 +51,7 @@ func TestJSDataflowOffIsByteIdentical(t *testing.T) {
 		}
 	}
 
-	on, err := engine.ParsePath(repoRoot, filePath, false, Options{EmitDataflow: true})
+	on, err := engine.ParsePath(repoRoot, filePath, false, parser.Options{EmitDataflow: true})
 	if err != nil {
 		t.Fatalf("ParsePath (on) error = %v", err)
 	}
@@ -116,7 +118,7 @@ func TestJSInterprocFindingAcrossFunctions(t *testing.T) {
 // identities carry stable repository identity when emitted for durable summary
 // persistence.
 func TestJSInterprocFunctionIDsIncludeRepositoryID(t *testing.T) {
-	got := parseJSDataflowFixtureWithOptions(t, jsDataflowFixture, Options{EmitDataflow: true, RepositoryID: "repo-alpha"})
+	got := parseJSDataflowFixtureWithOptions(t, jsDataflowFixture, parser.Options{EmitDataflow: true, RepositoryID: "repo-alpha"})
 	rows, ok := got["interproc_findings"].([]map[string]any)
 	if !ok {
 		t.Fatalf("interproc_findings bucket missing or wrong type: %T", got["interproc_findings"])
@@ -161,18 +163,18 @@ func TestJSTaintInClassMethod(t *testing.T) {
 // value-flow gate enabled.
 func parseJSDataflowFixture(t *testing.T, src string) map[string]any {
 	t.Helper()
-	return parseJSDataflowFixtureWithOptions(t, src, Options{EmitDataflow: true})
+	return parseJSDataflowFixtureWithOptions(t, src, parser.Options{EmitDataflow: true})
 }
 
-func parseJSDataflowFixtureWithOptions(t *testing.T, src string, options Options) map[string]any {
+func parseJSDataflowFixtureWithOptions(t *testing.T, src string, options parser.Options) map[string]any {
 	t.Helper()
 	repoRoot := t.TempDir()
 	filePath := filepath.Join(repoRoot, "views.ts")
 	writeTestFile(t, filePath, src)
 
-	engine, err := DefaultEngine()
+	engine, err := parser.DefaultEngine()
 	if err != nil {
-		t.Fatalf("DefaultEngine() error = %v", err)
+		t.Fatalf("parser.DefaultEngine() error = %v", err)
 	}
 	got, err := engine.ParsePath(repoRoot, filePath, false, options)
 	if err != nil {

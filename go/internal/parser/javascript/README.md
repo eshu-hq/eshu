@@ -144,13 +144,20 @@ returns the exact node `x.Parent()` returns, so every helper's boolean and
 string results are unchanged. This is a mechanism optimization, not a behavior
 change.
 
-Benchmark Evidence: `go test ./internal/parser
+Benchmark Evidence: `go test ./internal/parser/javascript
 -run 'TestJavaScriptParentLookupEliminatesCgoCrossings' -count=1 -v` proves the
 old cgo-Parent walk and the Go-lookup walk return identical is-exported results
 for every declaration node, and that the lookup makes 0 cgo `Parent()` crossings
 where the old mechanism made 720 over 240 method nodes (Apple M5 Max, commit on
-branch `perf/3586-js-parser-cgo-parent`). `go test ./internal/parser -bench
-'BenchmarkParsePathTypeScriptExportHeavy' -benchmem -count=5` over a synthetic
+branch `perf/3586-js-parser-cgo-parent`). Both commands target
+`./internal/parser/javascript`, not the parent `./internal/parser`: the
+regression test has lived in this package since before issue #6062, and the
+benchmark relocated here as part of #6062's `js_parent_lookup_bench_test.go`
+move (a bare `./internal/parser` target now matches zero tests and exits 0 --
+the "no tests to run" false green documented in
+docs/internal/agent-guide.md#test-filters-fail-silently). `go test
+./internal/parser/javascript -bench 'BenchmarkParsePathTypeScriptExportHeavy'
+-benchmem -count=5` over a synthetic
 heavy TS file dropped allocations from 2,722,954 to 2,476,010 per parse (~9%
 fewer) by eliminating the `*Node` the cgo binding allocates per `ts_node_parent`
 call; wall time on this M-series shape is roughly flat (the synthetic fixture's
@@ -356,6 +363,35 @@ not have (`writeTestFile`, `assertStringFieldValue`,
 `assertNoFrameworkOrNoRoutes`, and others) for the relocated suites; the
 parent package keeps its own copies of the handful still used by tests that
 stay at root (`engine_test.go`, `engine_framework_test_helpers_test.go`).
+
+A second relocation under the same issue moved the parent-level dead-code,
+value-flow, and parent-lookup benchmark suites the same way:
+`javascript_cfg_dataflow_test.go`, `javascript_compat_test.go`,
+`javascript_dead_code_commonjs_class_test.go`,
+`javascript_dead_code_framework_routes_test.go`,
+`javascript_dead_code_hapi_alias_test.go`,
+`javascript_dead_code_hapi_typescript_test.go`,
+`javascript_dead_code_node_entrypoints_test.go`,
+`javascript_dead_code_node_roots_test.go`,
+`javascript_dead_code_node_typescript_fixture_test.go`,
+`javascript_dead_code_package_scripts_test.go`,
+`javascript_dead_code_roots_test.go`,
+`javascript_dead_code_typescript_surface_test.go`, and
+`js_parent_lookup_bench_test.go`. `javascript_dead_code_roots_test.go` split
+into two files at the 500-line cap
+(`javascript_dead_code_roots_nextjs_migration_test.go` carries the Next.js
+app-router and TypeScript migration/module-contract cases). The relocated
+parent file `javascript_dead_code_typescript_import_exports_test.go` collided
+with a pre-existing subdirectory file of the same name (which parses TypeScript
+re-export clauses directly against the AST in `package javascript`), so it was
+renamed to `engine_javascript_dead_code_typescript_import_exports_test.go`.
+`engine_javascript_test_helpers_test.go` gained `assertFunctionByNameAndClass`,
+`assertParserStringSliceFieldValue`, and `repoFixturePath` to cover these
+suites; `javascript_compat_test.go` keeps its parent-package name for
+`javaScriptExpressServerSymbols`, a thin wrapper over the exported
+`ExpressServerSymbols` that `javascript_dead_code_roots_test.go` calls, even
+though the wrapper could now call `ExpressServerSymbols` directly since both
+files sit in the same package.
 
 The external test package may import `internal/parser`; the non-test package
 must not. Go compiles `javascript_test` separately, so this keeps the
