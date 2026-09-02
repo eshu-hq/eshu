@@ -8,23 +8,29 @@ domains: value-flow taint findings attached to their Function as
 projected as `TAINT_FLOWS_TO` edges between Function nodes (issue #6061).
 
 It bundles both families into one package instead of two siblings
-(`codetaint`/`codeinterproc`) because they are genuinely coupled, not merely
-co-located: the taint handler's typed decode
-(`code_taint_evidence_typed_decode.go`) decodes BOTH
-`code_taint_evidence` and `code_interproc_evidence` envelopes through one
-shared file (`ExtractCodeTaintEvidenceRowsWithQuarantine` and
-`ExtractCodeInterprocEvidenceRowsWithQuarantine` live side by side), and the
-reducer root's value-flow fixpoint solver
-(`value_flow_fixpoint_evidence_loader.go`, which stays in root — it is a
-different family, not this one) composes `CodeInterprocEvidenceInput` and
-`ExtractCodeInterprocFixpointEvidenceRows` from the interproc half directly.
-Moving `code_taint_evidence` alone would have left it needing
-`CodeInterprocEvidenceInput`/`ExtractCodeInterprocEvidenceRows` from a
-package it could not import without a cycle; moving `code_interproc_evidence`
-alone would have left `code_value_flow_stale_cleanup_runner.go` (root, a
-third family) reaching back into `CodeTaintEvidenceProjectedNodeLedger`,
-`CodeTaintEvidenceWriter`, and `codeTaintEvidenceSource`. Bundling both
-internalizes those edges instead of relocating the cycle.
+(`codetaint`/`codeinterproc`) because the two subjects are interleaved at the
+file level, not the dependency level, so a clean split does not exist yet.
+There is no true import cycle between the families: no
+`code_interproc_*.go` file references any `CodeTaintEvidence*` symbol (the
+only hit is a doc comment cross-reference in
+`code_interproc_evidence_materialization.go`), and the reducer root's
+value-flow fixpoint solver (`value_flow_fixpoint_evidence_loader.go`, which
+stays in root — it is a different family, not this one) and
+`code_value_flow_stale_cleanup_runner.go` (also root) reaching into this
+package's exported symbols is a normal root-imports-leaf relationship, not a
+leaf-to-leaf cycle. The real obstacle is that
+`code_taint_evidence_typed_decode.go` — a taint-prefixed file — implements
+the decode/quarantine functions for BOTH fact kinds:
+`DecodeCodeInterprocEvidenceInput` and
+`ExtractCodeInterprocEvidenceRowsWithQuarantine` are interproc functions that
+live in that file, and `code_interproc_evidence_materialization.go` (the
+would-be `codeinterproc` handler) calls
+`ExtractCodeInterprocEvidenceRowsWithQuarantine` from it. Splitting the two
+families into separate packages today would require first splitting
+`code_taint_evidence_typed_decode.go` so each family's decode/quarantine
+logic lives under its own name; bundling both here instead keeps the move
+mechanical. A later split is possible once someone separates those
+functions out of that one file.
 
 ## Ownership boundary
 

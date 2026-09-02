@@ -8,9 +8,9 @@ The `code_taint_evidence` and `code_interproc_evidence` reducer intent
 handlers, their typed-decode + quarantine seam, row/edge projection, and
 projected-node/-edge ledgers plus startup backfillers (issue #6061). Moved
 out of the reducer root as ONE package, not two siblings, because the two
-families are genuinely coupled — see the README's Purpose section for the
-exact cross-references that made splitting them impossible without
-relocating an import cycle.
+families are interleaved at the file level — see the README's Purpose
+section for the exact symbol usage that makes `code_taint_evidence_typed_decode.go`
+need splitting before the families could separate.
 
 ## Read first
 

@@ -15,12 +15,13 @@ import (
 // seam (ExtractCodeTaintEvidenceRowsWithQuarantine) so a fact missing its
 // required function_uid dead-letters as an input_invalid quarantine instead of
 // being silently dropped. Keeping the raw envelope fetch here (and the typed
-// decode + quarantine in internal/reducer/codetaint, where
-// factdecode.PartitionDecodeFailures / factdecode.RecordQuarantinedFacts
-// live) matches the code-graph-core (Wave 4f S1) and
-// documentation (Wave 4e) precedent: the storage adapter owns the SQL fetch,
-// the reducer owns the typed decode. Tombstones are filtered by the decode
-// seam, not here, so the handler sees every fact it must quarantine over.
+// decode + quarantine in internal/reducer/codetaint, which calls
+// factdecode.PartitionDecodeFailures / factdecode.RecordQuarantinedFacts —
+// those live in internal/reducer/factdecode) matches the code-graph-core
+// (Wave 4f S1) and documentation (Wave 4e) precedent: the storage adapter
+// owns the SQL fetch, the reducer owns the typed decode. Tombstones are
+// filtered by the decode seam, not here, so the handler sees every fact it
+// must quarantine over.
 func (s FactStore) LoadCodeTaintEvidence(
 	ctx context.Context,
 	scopeID string,
