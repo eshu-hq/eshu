@@ -27,6 +27,18 @@
   duplicated copy of the prefix in another package can silently drift and
   produce a predicate that references params nobody binds.
 
+- `RelationshipConfidenceBasis` checks `resolution_source == "assertion"`
+  BEFORE it looks at `evidence_count`, and that order is the contract, not an
+  accident of how the branches were written. An assertion is a stronger claim
+  than any number of inferred observations, so an asserted row reports
+  `assertion_override` even when it also carries enough evidence to aggregate.
+  Reordering the branches relabels every asserted correlation as inferred, and
+  nothing errors: callers compare `confidence_basis` across responses and would
+  simply read the wrong basis.
+- A row with no positive confidence reports `""`. Do not give it a default.
+  Naming a basis for a score that does not exist tells a caller the field was
+  computed when it was not.
+
 ## Verification
 
 Run focused `querycontract` and root `query` tests, then whole-module build and
