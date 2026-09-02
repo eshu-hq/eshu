@@ -318,10 +318,12 @@ func tryBrowserSessionAuth(
 		return true
 	}
 	auth = normalizeBrowserSessionAuthContext(auth)
-	if auth.Mode == AuthModeBrowserSession && !browserSessionRouteAllowed(r, auth, policy) {
-		recordScopedRouteAuthorizationDenied(r, audit, auth)
-		scopedRouteDeniedResponse(w, r)
-		return true
+	if auth.Mode == AuthModeBrowserSession {
+		if reason := browserSessionRouteDenialReason(r, auth, policy); reason != "" {
+			recordScopedRouteAuthorizationDeniedWithReason(r, audit, auth, reason)
+			scopedRouteDeniedResponse(w, r)
+			return true
+		}
 	}
 	next.ServeHTTP(w, r.WithContext(ContextWithAuthContext(r.Context(), auth)))
 	return true

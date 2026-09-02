@@ -4,7 +4,8 @@ Issue #6450. Branch `claude/6450-allscope-grant-split`.
 
 ## What was wrong
 
-`browserSessionRouteAllowed` asked one question and answered a different one.
+`browserSessionRouteAllowed` (since renamed `browserSessionRouteDenialReason`)
+asked one question and answered a different one.
 It returned `true` as soon as `scopedHTTPRouteSupportsTenantFilter(r)` did,
 before `policy.AllowTenantBoundAllScopes && tenantBoundAllScopesBrowserSession(auth)`
 ever ran. Membership of that allowlist means "a tenant-filtered caller may
@@ -137,13 +138,44 @@ and the branch number additionally carries roughly 1050 new subtests. That
 bounds the cost rather than isolating it, which is all a test-wall-time proxy
 can honestly claim here; the structural argument above is the substantive one.
 
-No-Observability-Change: the new denial path emits nothing new. It reuses the
-existing `recordScopedRouteAuthorizationDenied` governance-audit event and the
-existing `scopedRouteDeniedResponse` 403 writer, both already called from
-`tryBrowserSessionAuth` for the off-allowlist refusal. A route that now denies
-where it previously admitted produces the same audit event and the same
-response body it would have produced had it never been allowlisted, so no
-dashboard, alert, or log parser sees a new shape.
+Observability Evidence: the new refusal gets its own governance-audit reason
+code, `scoped_route_all_scope_grant_required`, on the existing
+`read_authorization` event type with `decision = denied`. It is emitted by
+`recordScopedRouteAuthorizationDeniedWithReason` (`auth_audit.go`), the
+reason-carrying sibling of `recordScopedRouteAuthorizationDenied`, from
+`tryBrowserSessionAuth`; the 403 body is unchanged and still written by
+`scopedRouteDeniedResponse`.
+
+Reusing the old `scoped_route_not_enabled` code was the first draft and was
+wrong. That code means the route has no scoped authorization at all, which
+was true by construction before this change. It is false for the new refusal:
+the route IS enabled, and a restricted session still enters it and gets
+grant-bound results. An operator who saw `scoped_route_not_enabled` here would
+go looking for a missing allowlist entry that is present, when the actual
+remedy is a narrower credential or an explicit `BrowserSessionRoutePolicy`
+opt-in. The two codes are now distinct so a denial can be triaged from the
+audit row alone.
+
+The scoped-bearer branch of `authMiddlewareWithRoutePolicy` keeps the old
+helper and the old code, which stays true there by construction: a scoped
+bearer is refused only when the route is off the allowlist.
+
+`TestAuthMiddlewareAllScopesBrowserSessionRefusedOnGrantBoundRouteUnderFailClosedPolicy`
+asserts all of it: the grant-bound refusal emits
+`scoped_route_all_scope_grant_required`; a never-allowlisted route
+(`GET /api/v0/graph/entities`) and a shared-key-only route
+(`POST /api/v0/supply-chain/impact/suppressions`) under the same session both
+still emit `scoped_route_not_enabled`; admitted requests emit no event at all;
+and every emitted event carries the `ActorClass`, `ActorIDHash` and
+`PolicyRevisionHash` the helper sets and passes
+`governanceaudit.NormalizeEvent`.
+
+`governanceaudit.validReasonCode` (`audit.go`) is a FORMAT check --
+lowercase, digits and underscore, 64 chars max -- not a closed vocabulary, so
+the new code needed no registry entry. Nothing else in `go/` or `docs/`
+enumerates governance-audit reason codes; `auditableBearerDenialReasons`
+(`auth_audit.go`) is a closed set, but it governs bearer-resolver denial
+outcomes, not scoped-route refusals.
 
 ## Scope
 
@@ -175,15 +207,28 @@ residuals stay open and are tracked separately, none of them fixed here.
    (`local_identity_api_tokens.go`) falls back to a body-supplied tenant and
    workspace when `AuthContext` carries neither, and `selfServiceTokenOwner`
    (`local_identity_api_tokens_selfservice.go`) returns an empty owner hash
-   for any all-scope caller, dropping the ownership predicate. The tenantless
-   all-scope session that this change still admits to identity-bound routes
-   (caller shape (f) in the split table) is thus admitted without being fully
-   contained by them. Tracked as #6450 item 2 of the auth-slice findings.
+   for any all-scope caller, dropping the ownership predicate. The
+   demonstrated exposure is token minting for any tenant-less credential, a
+   shared key being the example the auth-slice finding names. It is **not**
+   established that a tenantless all-scope *browser session* exists: the OIDC
+   upgrade path rejects a blank tenant or workspace
+   (`browser_session_handler.go`, "tenant_id and workspace_id are required to
+   create a browser session"), SAML's `createSession` does the same
+   (`saml_handler.go`), but `issueLocalSessionCookies`
+   (`local_identity_handler_helpers.go`), shared by local login, break-glass
+   and the setup wizard, copies `auth.TenantID` and `auth.WorkspaceID`
+   through with no non-blank guard, and the `CreateBrowserSession` choke
+   point validates neither. Caller shape (f) in the split table is carried as
+   a **defensive** shape, pinning what admission does with a malformed
+   session if one can exist, not as a known-live production shape. Resolving
+   that reachability question is out of scope here. Tracked as #6450 item 2
+   of the auth-slice findings.
 
-Residuals 4 and 5 are why the `scopedRouteClass` doc comment says an
-identity-bound handler answers from the tenant the session is *currently*
-bound to, rather than the stronger and false claim that such a session can
-never reach another tenant's data.
+Residual 4 is why the `scopedRouteClass` doc comment says an identity-bound
+handler answers from the tenant the session is *currently* bound to, rather
+than the stronger and false claim that such a session can never reach another
+tenant's data. Residual 5 is why that comment does not go further and treat a
+tenantless session as a live browser-session shape.
 
 Layout note for review: the class model lives in
 `auth_browser_session_route_policy.go` beside the admission function rather

@@ -3,9 +3,11 @@
 //
 // Adapted evidence source (coordinator decision, no product change): denial-
 // side governance_audit reason_codes DO NOT EXIST — go/internal/query's audit
-// only emits an ALLOWED read event (F-9 part 1) and a single static
-// scoped_route_not_enabled denial reason, neither of which distinguishes the
-// bearer-validation failure classes. So distinct denials are proven from the
+// only emits an ALLOWED read event (F-9 part 1) and two static scoped-route
+// denial reasons: scoped_route_not_enabled, and (since #6450)
+// scoped_route_all_scope_grant_required, which fires only on the
+// browser-session path. Neither distinguishes the bearer-validation failure
+// classes. So distinct denials are proven from the
 // TWO observables the product already emits:
 //
 //   1. The oidcbearer resolver's structured log outcome

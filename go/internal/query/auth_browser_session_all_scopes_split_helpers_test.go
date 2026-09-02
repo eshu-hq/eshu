@@ -47,7 +47,7 @@ type allScopesSplitShape struct {
 // bearer (a), the all-scope session under the permissive policy (c), the
 // restricted browser session (d), and the shared key (e). Shapes (a) and (d)
 // carry a real grant for the handler to bind, (c) has the operator's explicit
-// opt-in, and (e) never reaches browserSessionRouteAllowed at all. Every
+// opt-in, and (e) never reaches browserSessionRouteDenialReason at all. Every
 // ledger route admits them, which is what keeps the change a split rather
 // than a blanket refusal.
 func splitAdmitsEveryClass(scopedRouteClass) bool { return true }
@@ -123,7 +123,7 @@ func allScopesSplitShapes() []allScopesSplitShape {
 }
 
 // runAllScopesSplitCase drives one "METHOD /path" surface name through the
-// production constructor cmd/api wires (not a direct browserSessionRouteAllowed
+// production constructor cmd/api wires (not a direct browserSessionRouteDenialReason
 // call) under one caller shape, and asserts the shape's expected admission for
 // the route's class.
 func runAllScopesSplitCase(t *testing.T, shape allScopesSplitShape, surfaceName string, class scopedRouteClass) {

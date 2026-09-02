@@ -145,10 +145,33 @@ func recordReadAuthorizationUnavailable(
 	_ = audit.Append(ctx, []governanceaudit.Event{event})
 }
 
+// recordScopedRouteAuthorizationDenied records a scoped-route refusal under
+// the pre-#6450 reason code, scopedRouteNotEnabledReason. The scoped-bearer
+// branch of authMiddlewareWithRoutePolicy is its remaining caller: a scoped
+// bearer is refused only when the route is off the allowlist, so that code is
+// still true there by construction.
 func recordScopedRouteAuthorizationDenied(
 	r *http.Request,
 	audit GovernanceAuditAppender,
 	auth AuthContext,
+) {
+	recordScopedRouteAuthorizationDeniedWithReason(r, audit, auth, scopedRouteNotEnabledReason)
+}
+
+// recordScopedRouteAuthorizationDeniedWithReason is the reason-carrying form,
+// mirroring recordReadAuthorizationDeniedWithReason above. The browser-session
+// path uses it because, since #6450, a cookie caller is refused for two
+// genuinely different causes and an operator has to be able to tell them
+// apart; see the reason-code constants in
+// auth_browser_session_route_policy.go. A blank or whitespace-only code falls
+// back to scopedRouteNotEnabledReason rather than emitting an event that
+// NormalizeEvent would reject, which would take its whole flush batch down
+// with it in the async appender's drain.
+func recordScopedRouteAuthorizationDeniedWithReason(
+	r *http.Request,
+	audit GovernanceAuditAppender,
+	auth AuthContext,
+	reasonCode string,
 ) {
 	if audit == nil {
 		return
@@ -157,13 +180,17 @@ func recordScopedRouteAuthorizationDenied(
 	if auth.SubjectIDHash == "" {
 		actorClass = governanceaudit.ActorClassAnonymous
 	}
+	reasonCode = strings.TrimSpace(reasonCode)
+	if reasonCode == "" {
+		reasonCode = scopedRouteNotEnabledReason
+	}
 	event := governanceaudit.Event{
 		Type:               governanceaudit.EventTypeReadAuthorization,
 		ActorClass:         actorClass,
 		ActorIDHash:        auth.SubjectIDHash,
 		ScopeClass:         governanceaudit.ScopeClassAdmin,
 		Decision:           governanceaudit.DecisionDenied,
-		ReasonCode:         "scoped_route_not_enabled",
+		ReasonCode:         reasonCode,
 		CorrelationID:      safeAuditCorrelationID(documentationCorrelationID(r)),
 		PolicyRevisionHash: auth.PolicyRevisionHash,
 		OccurredAt:         time.Now().UTC(),

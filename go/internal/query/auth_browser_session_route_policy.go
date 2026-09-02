@@ -70,8 +70,33 @@ func AuthMiddlewareWithBrowserSessionsScopedTokensGovernanceAuditRoutePolicyAndE
 	return authMiddlewareWithRoutePolicy(token, resolver, sessionResolver, next, audit, policy, authEnforcementConfigured, nil, nil)
 }
 
-// browserSessionRouteAllowed decides whether a browser-session request may
-// reach the handler. It has three outcomes.
+// Governance-audit reason codes for the two ways a browser session is refused
+// a route. They are separate because an operator reading
+// governance_audit_events has to act on them differently, and because after
+// #6450 the older code would otherwise be wrong for half the refusals it
+// covered.
+const (
+	// scopedRouteNotEnabledReason is the pre-#6450 code, and still means what
+	// it always meant: the route has no scoped authorization for this caller
+	// at all. Either it is shared-key-only, or it is absent from the
+	// scoped-token allowlist. The remedy is to wire the route up, or to stop
+	// pointing a cookie session at it.
+	scopedRouteNotEnabledReason = "scoped_route_not_enabled"
+	// scopedRouteAllScopeGrantRequiredReason is the #6450 code. The route IS
+	// enabled -- a restricted session with a real repository/scope grant
+	// enters it and gets grant-bound results -- but this caller is all-scope,
+	// so the handler's own predicate would go inert and answer from the whole
+	// graph. The remedy is a narrower credential, or an explicit
+	// BrowserSessionRoutePolicy opt-in on a deployment where whole-graph
+	// reads are acceptable. Emitting scopedRouteNotEnabledReason here would
+	// send an operator to look for a missing allowlist entry that is present.
+	scopedRouteAllScopeGrantRequiredReason = "scoped_route_all_scope_grant_required"
+)
+
+// browserSessionRouteDenialReason decides whether a browser-session request
+// may reach the handler, and says why when it may not: it returns "" for an
+// admitted request, and otherwise the governance-audit reason code for the
+// refusal. There are three outcomes.
 //
 // A shared-key-only route (POST /api/v0/code/cypher and friends, which run
 // caller-supplied Cypher with no selector to intersect against a grant) is
@@ -101,26 +126,38 @@ func AuthMiddlewareWithBrowserSessionsScopedTokensGovernanceAuditRoutePolicyAndE
 // tenantBoundAllScopesBrowserSession's contract now holds. It is still
 // admitted on the 48 identity-bound and tenant-data-free routes, so this
 // closes the whole-graph read, not every path a tenantless session has.
-func browserSessionRouteAllowed(
+//
+// The decision and its reason are one function on purpose. They were briefly
+// two -- a boolean admission test plus a reason lookup -- and that shape lets
+// them disagree, which is the worst possible failure here: a request admitted
+// while an audit row says it was denied, or the reverse. One return value
+// cannot drift from itself.
+func browserSessionRouteDenialReason(
 	r *http.Request,
 	auth AuthContext,
 	policy BrowserSessionRoutePolicy,
-) bool {
+) string {
 	if IsSharedKeyOnlyRoute(r) {
-		return false
+		return scopedRouteNotEnabledReason
 	}
 	if !scopedHTTPRouteSupportsTenantFilter(r) {
-		return policy.AllowTenantBoundAllScopes && tenantBoundAllScopesBrowserSession(auth)
+		if policy.AllowTenantBoundAllScopes && tenantBoundAllScopesBrowserSession(auth) {
+			return ""
+		}
+		return scopedRouteNotEnabledReason
 	}
 	if !auth.AllScopes {
 		// The handler binds this session's own repository/scope grant.
-		return true
+		return ""
 	}
 	if scopedRouteNeedsNoCallerGrant(r) {
 		// Identity-bound or tenant-data-free: no caller grant to make inert.
-		return true
+		return ""
 	}
-	return policy.AllowTenantBoundAllScopes && tenantBoundAllScopesBrowserSession(auth)
+	if policy.AllowTenantBoundAllScopes && tenantBoundAllScopesBrowserSession(auth) {
+		return ""
+	}
+	return scopedRouteAllScopeGrantRequiredReason
 }
 
 // tenantBoundAllScopesBrowserSession reports whether the server-resolved
@@ -153,7 +190,7 @@ func tenantBoundAllScopesBrowserSession(auth AuthContext) bool {
 // inert in the first place, so admitting an all-scope session to it does not
 // widen a read the way it does on a grant-bound route: the handler answers
 // from the tenant and workspace the session is CURRENTLY bound to.
-// browserSessionRouteAllowed, above, admits on exactly that split.
+// browserSessionRouteDenialReason, above, admits on exactly that split.
 //
 // "Currently bound to" is doing real work in that sentence, and two known
 // residuals are the reason it is not the stronger claim that an all-scope
@@ -172,11 +209,22 @@ func tenantBoundAllScopesBrowserSession(auth AuthContext) bool {
 //     a body-supplied tenant and workspace when AuthContext carries neither,
 //     and selfServiceTokenOwner (local_identity_api_tokens_selfservice.go)
 //     returns an empty owner hash for any all-scope caller, dropping the
-//     ownership predicate. A tenantless all-scope session -- the malformed
-//     shape browserSessionRouteAllowed still admits here, caller shape (f) in
-//     the split table -- is therefore admitted to identity-bound routes
-//     without being fully contained by them. (#6450 item 2 of the auth-slice
-//     findings.)
+//     ownership predicate. The demonstrated exposure there is token minting
+//     for any tenant-less credential, a shared key being the example the
+//     auth-slice finding names -- not a browser session. Whether a TENANTLESS
+//     all-scope browser session can exist at all is NOT established: the OIDC
+//     upgrade path rejects a blank tenant or workspace
+//     (browser_session_handler.go, "tenant_id and workspace_id are required
+//     to create a browser session") and SAML does the same (saml_handler.go's
+//     createSession), but issueLocalSessionCookies
+//     (local_identity_handler_helpers.go), shared by local login, break-glass
+//     and the setup wizard, copies auth.TenantID and auth.WorkspaceID through
+//     with no non-blank guard, and the CreateBrowserSession choke point
+//     validates neither. Caller shape (f) in the split table is therefore a
+//     DEFENSIVE shape -- it pins what admission does with a malformed session
+//     if one ever exists -- not a known-live one, and resolving the
+//     reachability question is deliberately left to #6450 item 2 of the
+//     auth-slice findings rather than guessed at here.
 //
 // The class split is still the right admission rule: it removes the
 // whole-graph grant-bound read, which was the reported defect. It does not

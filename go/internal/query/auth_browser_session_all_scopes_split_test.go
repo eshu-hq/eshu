@@ -7,6 +7,8 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"testing"
+
+	"github.com/eshu-hq/eshu/go/internal/governanceaudit"
 )
 
 // TestAuthMiddlewareAllScopesBrowserSessionSplitAcrossLedger drives every
@@ -83,7 +85,7 @@ func TestAuthMiddlewareAllScopesBrowserSessionSplitOnUnledgeredTransportRoutes(t
 
 // TestAuthMiddlewareAllScopesBrowserSessionRefusedOnGrantBoundRouteUnderFailClosedPolicy
 // is the named regression test for issue #6450 in its reported shape. Before
-// the split, browserSessionRouteAllowed returned true as soon as
+// the split, browserSessionRouteDenialReason's predecessor returned true as soon as
 // scopedHTTPRouteSupportsTenantFilter(r) did, so an all-scope console session
 // reached GET /api/v0/repositories in a hosted_multi_tenant deployment that
 // had deliberately left BrowserSessionRoutePolicy at its fail-closed zero
@@ -91,41 +93,60 @@ func TestAuthMiddlewareAllScopesBrowserSessionSplitOnUnledgeredTransportRoutes(t
 // caller's RepositoryAccessFilterFromContext is not Scoped(), and no
 // data-plane table carries a tenant column, so the read crossed tenants.
 //
-// The three cases together are the whole fix: the all-scope session is
-// refused under the fail-closed policy, the same session is admitted when the
+// The first three cases are the whole fix: the all-scope session is refused
+// under the fail-closed policy, the same session is admitted when the
 // operator explicitly opts in, and a restricted session -- whose grant the
 // handler can actually bind -- is unaffected.
+//
+// The last two cases pin the governance-audit reason code apart from the two
+// refusals that predate this change. An operator reading
+// governance_audit_events has to be able to tell "this route has no scoped
+// authorization at all" from "this route has it, and a restricted session
+// still enters it, but an all-scope caller's grant is inert here", because
+// the remedies differ: the first is a route to wire up, the second is a
+// policy or a credential to narrow. Emitting scoped_route_not_enabled for
+// both would make the new refusal undiagnosable at 3 AM.
 func TestAuthMiddlewareAllScopesBrowserSessionRefusedOnGrantBoundRouteUnderFailClosedPolicy(t *testing.T) {
 	t.Parallel()
 
-	const path = "/api/v0/repositories"
-
 	allScopes := AuthContext{
-		Mode:        AuthModeBrowserSession,
-		TenantID:    "tenant-a",
-		WorkspaceID: "workspace-a",
-		AllScopes:   true,
+		Mode:               AuthModeBrowserSession,
+		TenantID:           "tenant-a",
+		WorkspaceID:        "workspace-a",
+		SubjectClass:       "local_user",
+		SubjectIDHash:      "sha256:abcdef12",
+		PolicyRevisionHash: "sha256:01234567",
+		AllScopes:          true,
 	}
 	restricted := AuthContext{
 		Mode:                 AuthModeBrowserSession,
 		TenantID:             "tenant-a",
 		WorkspaceID:          "workspace-a",
+		SubjectClass:         "local_user",
+		SubjectIDHash:        "sha256:abcdef12",
+		PolicyRevisionHash:   "sha256:01234567",
 		AllowedRepositoryIDs: []string{"repo-a"},
 	}
 
 	for _, tc := range []struct {
-		name       string
-		session    AuthContext
-		policy     BrowserSessionRoutePolicy
-		wantStatus int
-		wantCalled bool
+		name string
+		// method and path default to GET /api/v0/repositories, the reported
+		// grant-bound route, unless a case overrides them.
+		method         string
+		path           string
+		session        AuthContext
+		policy         BrowserSessionRoutePolicy
+		wantStatus     int
+		wantCalled     bool
+		wantReasonCode string
 	}{
 		{
-			name:       "all scopes under fail-closed policy is refused",
-			session:    allScopes,
-			policy:     BrowserSessionRoutePolicy{},
-			wantStatus: http.StatusForbidden,
-			wantCalled: false,
+			name:           "all scopes under fail-closed policy is refused",
+			session:        allScopes,
+			policy:         BrowserSessionRoutePolicy{},
+			wantStatus:     http.StatusForbidden,
+			wantCalled:     false,
+			wantReasonCode: "scoped_route_all_scope_grant_required",
 		},
 		{
 			name:       "all scopes under permissive policy is admitted",
@@ -141,11 +162,45 @@ func TestAuthMiddlewareAllScopesBrowserSessionRefusedOnGrantBoundRouteUnderFailC
 			wantStatus: http.StatusOK,
 			wantCalled: true,
 		},
+		{
+			// Never on the allowlist, so the route genuinely has no scoped
+			// authorization. The pre-existing reason code is the right one and
+			// must not drift to the new one.
+			name:           "never-allowlisted route keeps the old reason code",
+			path:           "/api/v0/graph/entities",
+			session:        allScopes,
+			policy:         BrowserSessionRoutePolicy{},
+			wantStatus:     http.StatusForbidden,
+			wantCalled:     false,
+			wantReasonCode: "scoped_route_not_enabled",
+		},
+		{
+			// IsSharedKeyOnlyRoute refuses ahead of everything, including the
+			// permissive policy, and keeps the old reason code.
+			name:           "shared-key-only route keeps the old reason code",
+			method:         http.MethodPost,
+			path:           "/api/v0/supply-chain/impact/suppressions",
+			session:        allScopes,
+			policy:         BrowserSessionRoutePolicy{AllowTenantBoundAllScopes: true},
+			wantStatus:     http.StatusForbidden,
+			wantCalled:     false,
+			wantReasonCode: "scoped_route_not_enabled",
+		},
 	} {
 		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
+			method := tc.method
+			if method == "" {
+				method = http.MethodGet
+			}
+			path := tc.path
+			if path == "" {
+				path = "/api/v0/repositories"
+			}
+
+			audit := &fakeGovernanceAuditAppender{}
 			called := false
 			handler := AuthMiddlewareWithBrowserSessionsScopedTokensGovernanceAuditRoutePolicyAndEnforcement(
 				splitTestSharedToken,
@@ -155,13 +210,16 @@ func TestAuthMiddlewareAllScopesBrowserSessionRefusedOnGrantBoundRouteUnderFailC
 					called = true
 					_, _ = w.Write([]byte(splitTestHandlerPayload))
 				}),
-				nil,
+				audit,
 				tc.policy,
 				true,
 			)
 
-			req := httptest.NewRequest(http.MethodGet, path, nil)
+			req := httptest.NewRequest(method, path, nil)
 			req.AddCookie(&http.Cookie{Name: BrowserSessionCookieName, Value: "session-secret"})
+			if browserSessionRequiresCSRF(method) {
+				req.Header.Set(BrowserSessionCSRFHeaderName, "csrf-secret")
+			}
 			rec := httptest.NewRecorder()
 			handler.ServeHTTP(rec, req)
 
@@ -173,6 +231,38 @@ func TestAuthMiddlewareAllScopesBrowserSessionRefusedOnGrantBoundRouteUnderFailC
 			}
 			if !tc.wantCalled && rec.Body.String() == splitTestHandlerPayload {
 				t.Fatalf("denied response exposed handler data: %s", rec.Body.String())
+			}
+
+			if tc.wantReasonCode == "" {
+				if len(audit.events) != 0 {
+					t.Fatalf("admitted request emitted %d governance-audit event(s), want 0: %#v", len(audit.events), audit.events)
+				}
+				return
+			}
+			if len(audit.events) != 1 {
+				t.Fatalf("len(audit.events) = %d, want 1: %#v", len(audit.events), audit.events)
+			}
+			event := audit.events[0]
+			if got, want := event.ReasonCode, tc.wantReasonCode; got != want {
+				t.Fatalf("event.ReasonCode = %q, want %q", got, want)
+			}
+			if got, want := event.Type, governanceaudit.EventTypeReadAuthorization; got != want {
+				t.Fatalf("event.Type = %q, want %q", got, want)
+			}
+			if got, want := event.Decision, governanceaudit.DecisionDenied; got != want {
+				t.Fatalf("event.Decision = %q, want %q", got, want)
+			}
+			if got, want := event.ActorClass, governanceaudit.ActorClassScopedToken; got != want {
+				t.Fatalf("event.ActorClass = %q, want %q", got, want)
+			}
+			if got, want := event.ActorIDHash, "sha256:abcdef12"; got != want {
+				t.Fatalf("event.ActorIDHash = %q, want %q", got, want)
+			}
+			if got, want := event.PolicyRevisionHash, "sha256:01234567"; got != want {
+				t.Fatalf("event.PolicyRevisionHash = %q, want %q", got, want)
+			}
+			if _, err := governanceaudit.NormalizeEvent(event); err != nil {
+				t.Fatalf("governanceaudit.NormalizeEvent() error = %v, want nil", err)
 			}
 		})
 	}

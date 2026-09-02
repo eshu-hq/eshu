@@ -33,7 +33,7 @@ import (
 // /api/v0/status/pipeline (openapi_paths_status.go). AuthMiddleware always
 // rejects a scoped-bearer-token caller before this handler runs. A
 // browser-session caller's admission is policy-dependent, not a flat reject:
-// browserSessionRouteAllowed (auth_browser_session_route_policy.go) admits a
+// browserSessionRouteDenialReason (auth_browser_session_route_policy.go) admits a
 // tenant-bound all-scopes browser session -- the normal single-tenant/local
 // owner console session -- whenever BrowserSessionRoutePolicy
 // .AllowTenantBoundAllScopes is set, which cmd/api's browserSessionRoutePolicy

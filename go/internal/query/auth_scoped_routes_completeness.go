@@ -77,7 +77,7 @@ package query
 //
 // Each entry also records WHY that route is on the allowlist, as a
 // scopedRouteClass (auth_browser_session_route_policy.go). The class is what
-// browserSessionRouteAllowed consults once an all-scope browser session
+// browserSessionRouteDenialReason consults once an all-scope browser session
 // arrives: a route whose handler binds the caller's repository or scope
 // grant has nothing left to bind for an all-scope caller, so it stays behind
 // the BrowserSessionRoutePolicy mode check, while an identity-bound or

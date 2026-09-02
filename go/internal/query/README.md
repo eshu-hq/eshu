@@ -219,12 +219,12 @@ is absent from `scopedHTTPRouteSupportsTenantFilter`, the same posture as its
 two stack-wide source routes; a scoped-bearer-token caller is always rejected
 by `AuthMiddleware` before the handler runs. A browser-session caller's
 admission is policy-dependent, not a flat reject: off the allowlist, as
-here, `browserSessionRouteAllowed` admits only a tenant-bound all-scopes
-session under `BrowserSessionRoutePolicy.AllowTenantBoundAllScopes`, which
-`cmd/api` sets for the default, `local_no_policy`, and
-`hosted_single_tenant` modes, and rejects a restricted-scope session. On
-the allowlist it splits by `scopedRouteClass` (#6450): an all-scope session
-still needs that policy unless the route needs no caller grant.
+here, `browserSessionRouteDenialReason` admits only a tenant-bound
+all-scopes session under
+`BrowserSessionRoutePolicy.AllowTenantBoundAllScopes`, which `cmd/api` sets
+for the default, `local_no_policy`, and `hosted_single_tenant` modes, and
+rejects a restricted-scope session. On the allowlist it splits by
+`scopedRouteClass` (#6450) unless the route needs no caller grant.
 
 Performance Evidence: the route adds no new query shape -- it composes three
 existing bounded, single-row-or-small-fixed-cardinality reads
