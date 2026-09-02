@@ -190,6 +190,17 @@ and every emitted event carries the `ActorClass`, `ActorIDHash` and
 `PolicyRevisionHash` the helper sets and passes
 `governanceaudit.NormalizeEvent`.
 
+The denial event also carries the caller's tenant and workspace. Review by
+Codex on #6457 caught that it did not: a tenant admin reads
+`governance_audit_events` through a `tenant_id` filter
+(`governance_audit_store_helpers.go`), so a denial recorded without one was a
+denial only the shared operator could ever see, even for a caller that plainly
+belonged to a tenant. The helper now sets `TenantID` and `WorkspaceID` from the
+normalized `AuthContext`, the way `recordScopedReadAuthorized` already did, and
+both regression tests assert the two fields. The scoped-bearer path through
+`recordScopedRouteAuthorizationDenied` shares the helper and gains the same
+fields for the same reason.
+
 `governanceaudit.validReasonCode` (`audit.go`) is a FORMAT check --
 lowercase, digits and underscore, 64 chars max -- not a closed vocabulary, so
 the new code needed no registry entry. Nothing else in `go/` or `docs/`

@@ -262,6 +262,12 @@ func TestAuthMiddlewareAllScopesBrowserSessionRefusedOnGrantBoundRouteUnderFailC
 			if got, want := event.PolicyRevisionHash, "sha256:01234567"; got != want {
 				t.Fatalf("event.PolicyRevisionHash = %q, want %q", got, want)
 			}
+			if got, want := event.TenantID, "tenant-a"; got != want {
+				t.Fatalf("event.TenantID = %q, want %q -- a tenant admin filters its audit reads by tenant_id, so a denial with no tenant is one it cannot see", got, want)
+			}
+			if got, want := event.WorkspaceID, "workspace-a"; got != want {
+				t.Fatalf("event.WorkspaceID = %q, want %q", got, want)
+			}
 			if _, err := governanceaudit.NormalizeEvent(event); err != nil {
 				t.Fatalf("governanceaudit.NormalizeEvent() error = %v, want nil", err)
 			}
@@ -337,6 +343,12 @@ func TestRecordScopedRouteAuthorizationDeniedBlankReasonFallsBackToUnspecified(t
 			}
 			if got, want := event.PolicyRevisionHash, "sha256:01234567"; got != want {
 				t.Fatalf("event.PolicyRevisionHash = %q, want %q", got, want)
+			}
+			if got, want := event.TenantID, "tenant-a"; got != want {
+				t.Fatalf("event.TenantID = %q, want %q -- the fallback path carries the caller tenant like every other denial", got, want)
+			}
+			if got, want := event.WorkspaceID, "workspace-a"; got != want {
+				t.Fatalf("event.WorkspaceID = %q, want %q", got, want)
 			}
 			if _, err := governanceaudit.NormalizeEvent(event); err != nil {
 				t.Fatalf("governanceaudit.NormalizeEvent() error = %v, want nil -- a blank code must not produce an event the durable store rejects", err)

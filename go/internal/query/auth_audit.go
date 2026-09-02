@@ -172,6 +172,11 @@ func recordScopedRouteAuthorizationDenied(
 // than its whole batch. The fallback is distinct from both real codes on
 // purpose, so a caller that passes a blank code is visible in the audit
 // instead of being mislabelled as one of them.
+//
+// The event carries the caller's tenant and workspace, matching
+// recordScopedReadAuthorized below: a tenant admin's governance-audit read is
+// filtered by tenant_id, so a denial recorded without one is a denial only the
+// shared operator can ever see.
 func recordScopedRouteAuthorizationDeniedWithReason(
 	r *http.Request,
 	audit GovernanceAuditAppender,
@@ -209,6 +214,8 @@ func recordScopedRouteAuthorizationDeniedWithReason(
 		CorrelationID:      safeAuditCorrelationID(documentationCorrelationID(r)),
 		PolicyRevisionHash: auth.PolicyRevisionHash,
 		OccurredAt:         time.Now().UTC(),
+		TenantID:           auth.TenantID,
+		WorkspaceID:        auth.WorkspaceID,
 	}
 	ctx, cancel := context.WithTimeout(r.Context(), governanceAuditAppendTimeout)
 	defer cancel()
