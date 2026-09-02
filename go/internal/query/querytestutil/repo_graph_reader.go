@@ -41,7 +41,10 @@ type FakeRepoGraphReader struct {
 // Run dispatches to RunFn when set, and otherwise returns the rows for the
 // longest RunByMatch fragment contained in cypher. The longest match wins so a
 // test can register both a general and a more specific fragment without the
-// general one shadowing the specific one.
+// general one shadowing the specific one. Two matching fragments of EQUAL
+// length are unspecified: the comparison is strictly greater-than, so the
+// winner is whichever Go's randomized map iteration reaches first. Register
+// fragments of distinct lengths rather than relying on that order.
 func (f FakeRepoGraphReader) Run(ctx context.Context, cypher string, params map[string]any) ([]map[string]any, error) {
 	if f.RunFn != nil {
 		return f.RunFn(ctx, cypher, params)

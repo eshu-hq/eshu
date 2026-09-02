@@ -86,7 +86,7 @@ retired both. Do not reintroduce either.
 `MustMapField`, `FakeGraphReader`, `FakeRepoGraphReader`, and
 `FakeWorkloadGraphReader` each have exactly one consuming package today —
 root `query`'s own tests. That is a real exception to the two-consumer rule
-below, and it is worth understanding before you apply either.
+below, and it is worth understanding before you apply any of them.
 
 The rule exists to stop helpers migrating here for tidiness. This helper is here
 for a different reason: it is a precursor to the #6060 family split, and the

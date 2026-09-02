@@ -77,8 +77,8 @@ consumer is the alternative, and it buys nothing the adapter does not.
 `FakeRepoGraphReader` and `FakeWorkloadGraphReader` were promoted the same
 way, from `repository_context_test.go` and `workload_context_test.go`. Root
 keeps the same kind of unexported adapter (`fakeRepoGraphReader`,
-`fakeWorkloadGraphReader`) for each, so their 43 and 30 consuming test files
-are untouched.
+`fakeWorkloadGraphReader`) for each. Only the file that used to declare each
+fake changed; the other 43 and 29 consuming test files are untouched.
 
 The two fakes look alike -- same fields, same longest-fragment dispatch -- but
 they are separate types on purpose. `FakeRepoGraphReader.RunSingle` falls back
