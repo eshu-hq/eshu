@@ -1,12 +1,13 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package reducer
+package obscoverage
 
 import (
 	"strings"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/reducer/factdecode"
 	"github.com/eshu-hq/eshu/go/internal/reducer/payloadcore"
 )
 
@@ -36,13 +37,13 @@ type observabilityMetadataEvidence struct {
 // to the intent.
 func classifyObservabilityMetadataEvidence(
 	envelopes []facts.Envelope,
-) ([]ObservabilityCoverageCorrelationDecision, []quarantinedFact, error) {
+) ([]ObservabilityCoverageCorrelationDecision, []factdecode.QuarantinedFact, error) {
 	groups := make(map[string][]observabilityMetadataEvidence)
-	var quarantined []quarantinedFact
+	var quarantined []factdecode.QuarantinedFact
 	for _, envelope := range envelopes {
 		evidence, ok, err := observabilityMetadataEvidenceFromEnvelope(envelope)
 		if err != nil {
-			q, isQuarantine, fatal := partitionDecodeFailures(envelope, err)
+			q, isQuarantine, fatal := factdecode.PartitionDecodeFailures(envelope, err)
 			if fatal != nil {
 				return nil, nil, fatal
 			}
@@ -146,13 +147,13 @@ func classifyObservabilityMetadataGroup(
 		state = worseObservabilityOutcome(state, metadataOutcome(item))
 	}
 
-	decision.SourceClasses = uniqueSortedStrings(sourceClasses)
+	decision.SourceClasses = payloadcore.UniqueSortedStrings(sourceClasses)
 	decision.SourceClass = collapsedObservabilityValue(decision.SourceClasses)
-	decision.SourceKinds = uniqueSortedStrings(sourceKinds)
+	decision.SourceKinds = payloadcore.UniqueSortedStrings(sourceKinds)
 	decision.SourceKind = collapsedObservabilityValue(decision.SourceKinds)
-	decision.SourceOutcomes = uniqueSortedStrings(sourceOutcomes)
+	decision.SourceOutcomes = payloadcore.UniqueSortedStrings(sourceOutcomes)
 	decision.SourceOutcome = collapsedObservabilityValue(decision.SourceOutcomes)
-	decision.EvidenceFactIDs = uniqueSortedStrings(evidenceFactIDs)
+	decision.EvidenceFactIDs = payloadcore.UniqueSortedStrings(evidenceFactIDs)
 	decision.TargetServiceRef = targetService
 	decision.ResourceClass = resourceClass
 	decision.FreshnessState = freshness

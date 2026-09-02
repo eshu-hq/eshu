@@ -6,8 +6,9 @@ package reducer
 import (
 	"context"
 	"fmt"
-	"strings"
 	"time"
+
+	"github.com/eshu-hq/eshu/go/internal/reducer/gpphase"
 )
 
 func publishIntentGraphPhase(
@@ -74,20 +75,18 @@ func publishGraphProjectionPhaseStatesWithRepair(
 	return nil
 }
 
+// graphProjectionPhaseStateForIntent builds one durable readiness publication
+// for the given intent, keyspace, and phase. The key is [gpphase.KeyFromScope]
+// (issue #6061); a family that only needs the key to read readiness (not to
+// publish a state) can call that directly instead of importing the root.
 func graphProjectionPhaseStateForIntent(
 	intent Intent,
 	keyspace GraphProjectionKeyspace,
 	phase GraphProjectionPhase,
 	observedAt time.Time,
 ) (GraphProjectionPhaseState, bool) {
-	scopeID := strings.TrimSpace(intent.ScopeID)
-	generationID := strings.TrimSpace(intent.GenerationID)
-	if scopeID == "" || generationID == "" {
-		return GraphProjectionPhaseState{}, false
-	}
-
-	acceptanceUnitID := graphPhaseAcceptanceUnitID(intent)
-	if acceptanceUnitID == "" {
+	key, ok := gpphase.KeyFromScope(intent.ScopeID, intent.GenerationID, intent.EntityKeys, keyspace)
+	if !ok {
 		return GraphProjectionPhaseState{}, false
 	}
 
@@ -97,24 +96,9 @@ func graphProjectionPhaseStateForIntent(
 	observedAt = observedAt.UTC()
 
 	return GraphProjectionPhaseState{
-		Key: GraphProjectionPhaseKey{
-			ScopeID:          scopeID,
-			AcceptanceUnitID: acceptanceUnitID,
-			SourceRunID:      generationID,
-			GenerationID:     generationID,
-			Keyspace:         keyspace,
-		},
+		Key:         key,
 		Phase:       phase,
 		CommittedAt: observedAt,
 		UpdatedAt:   observedAt,
 	}, true
-}
-
-func graphPhaseAcceptanceUnitID(intent Intent) string {
-	for _, entityKey := range intent.EntityKeys {
-		if trimmed := strings.TrimSpace(entityKey); trimmed != "" {
-			return trimmed
-		}
-	}
-	return strings.TrimSpace(intent.ScopeID)
 }

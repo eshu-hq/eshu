@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package reducer
+package obscoverage
 
 import observabilityv1 "github.com/eshu-hq/eshu/sdk/go/factschema/observability/v1"
 

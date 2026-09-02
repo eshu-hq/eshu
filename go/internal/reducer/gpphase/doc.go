@@ -4,9 +4,10 @@
 // Package gpphase owns the identity vocabulary for graph-projection
 // readiness: which conflict domain a write belongs to ([Keyspace]), which
 // durable milestone it has reached ([Phase]), the bounded slice identity that
-// names one readiness fact ([PhaseKey] and its [PhaseKey.Validate]), and the
-// two function shapes a domain family uses to read readiness
-// ([ReadinessLookup], [ReadinessPrefetch]).
+// names one readiness fact ([PhaseKey] and its [PhaseKey.Validate]), the
+// standard construction of that identity from a scope generation and entity
+// keys ([KeyFromScope]), and the two function shapes a domain family uses to
+// read readiness ([ReadinessLookup], [ReadinessPrefetch]).
 //
 // # Why this is a leaf
 //
@@ -42,6 +43,13 @@
 // EndpointPresenceRow/Writer/Lookup trio also stays at the root — it is a
 // distinct uid-exact, cross-scope presence primitive (issue #1380), not a
 // same-scope/same-generation readiness fact, and no family needs it to move.
+//
+// [KeyFromScope] is the exception: the observability-coverage materialization
+// family (issue #6061) only reads readiness — it calls [ReadinessLookup] with
+// a key, never [GraphProjectionPhasePublisher] — so it needs the identity the
+// root's graphProjectionPhaseStateForIntent constructs without the publish
+// state that wraps it. [KeyFromScope] is that construction extracted to this
+// leaf; the root helper now calls it too, so the two call sites cannot drift.
 //
 // The root keeps aliases under the original names — GraphProjectionKeyspace,
 // GraphProjectionPhase, GraphProjectionPhaseKey, GraphProjectionReadinessLookup,

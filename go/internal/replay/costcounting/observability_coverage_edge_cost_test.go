@@ -36,8 +36,8 @@ const (
 // positive and N+1 scenarios: two COVERS edge rows sharing the SAME
 // coverage_signal ("alarm") but distinct (observability_uid, target_uid)
 // pairs, shaped EXACTLY like the current production row contract
-// (go/internal/reducer/observability_coverage_edge_rows.go
-// ExtractObservabilityCoverageEdgeRows, lines 92-97: observability_uid,
+// (go/internal/reducer/obscoverage/observability_coverage_edge_rows.go
+// ExtractObservabilityCoverageEdgeRows: observability_uid,
 // target_uid, coverage_signal, resolution_mode). scope_id, generation_id, and
 // evidence_source are NOT fixture fields — WriteObservabilityCoverageEdges
 // stamps those itself (cloud clones the row and injects them), mirroring the

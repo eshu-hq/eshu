@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package reducer
+package obscoverage
 
 import (
 	"context"
@@ -15,23 +15,28 @@ import (
 	"go.opentelemetry.io/otel/metric"
 	"go.opentelemetry.io/otel/trace"
 
+	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
+	"github.com/eshu-hq/eshu/go/internal/reducer/factdecode"
+	"github.com/eshu-hq/eshu/go/internal/reducer/factload"
+	"github.com/eshu-hq/eshu/go/internal/reducer/gpphase"
+	"github.com/eshu-hq/eshu/go/internal/reducer/payloadcore"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
 	"github.com/eshu-hq/eshu/go/internal/truth"
 	log "github.com/eshu-hq/eshu/go/pkg/log"
 )
 
-// observabilityCoverageMaterializationDomainDefinition returns the additive
-// definition for observability COVERS edge projection. It is additive (not part
-// of DefaultDomainDefinitions) because the handler requires an explicitly wired
+// MaterializationDomainDefinition returns the additive definition for
+// observability COVERS edge projection. It is additive (not part of
+// DefaultDomainDefinitions) because the handler requires an explicitly wired
 // ObservabilityCoverageEdgeWriter and FactLoader; registering it without them
 // would silently drop every intent. It mirrors
 // awsRelationshipMaterializationDomainDefinition (#805 PR2). See issue #391 PR3
 // and docs/internal/design/391-observability-coverage-correlation.md §6.
-func observabilityCoverageMaterializationDomainDefinition() DomainDefinition {
-	return DomainDefinition{
-		Domain:  DomainObservabilityCoverageMaterialization,
+func MaterializationDomainDefinition() reducercontract.DomainDefinition {
+	return reducercontract.DomainDefinition{
+		Domain:  reducercontract.DomainObservabilityCoverageMaterialization,
 		Summary: "project exact observability coverage decisions into canonical COVERS graph edges",
-		Ownership: OwnershipShape{
+		Ownership: reducercontract.OwnershipShape{
 			CrossSource:    true,
 			CrossScope:     true,
 			CanonicalWrite: true,
@@ -89,21 +94,21 @@ type ObservabilityCoverageEdgeWriter interface {
 // See issue #391 PR3 and
 // docs/internal/design/391-observability-coverage-correlation.md §6.
 type ObservabilityCoverageMaterializationHandler struct {
-	FactLoader FactLoader
+	FactLoader factload.FactLoader
 	EdgeWriter ObservabilityCoverageEdgeWriter
 	// ReadinessLookup reports whether the canonical-nodes-committed phase has
 	// been published for the intent's scope generation. A nil lookup keeps the
 	// gate open (test wiring); production wires the durable Postgres lookup.
-	ReadinessLookup GraphProjectionReadinessLookup
+	ReadinessLookup gpphase.ReadinessLookup
 	// PriorGenerationCheck reports whether the scope has any prior generation.
 	// Nil keeps retract behavior conservative (always retract before write).
-	PriorGenerationCheck PriorGenerationCheck
+	PriorGenerationCheck reducercontract.PriorGenerationCheck
 	// Ledger records and enumerates source (observability) CloudResource uids
 	// of projected COVERS edges so retraction can enumerate uids from the
 	// ledger and use anchored-delete instead of scanning the whole
 	// :CloudResource label. Nil preserves the pre-ledger whole-scope retract
 	// (RetractObservabilityCoverageEdges).
-	Ledger      ProjectedSourceLedger
+	Ledger      reducercontract.ProjectedSourceLedger
 	Tracer      trace.Tracer
 	Instruments *telemetry.Instruments
 }
@@ -111,20 +116,20 @@ type ObservabilityCoverageMaterializationHandler struct {
 // Handle executes one observability coverage materialization intent.
 func (h ObservabilityCoverageMaterializationHandler) Handle(
 	ctx context.Context,
-	intent Intent,
-) (Result, error) {
+	intent reducercontract.Intent,
+) (reducercontract.Result, error) {
 	totalStart := time.Now()
-	if intent.Domain != DomainObservabilityCoverageMaterialization {
-		return Result{}, fmt.Errorf(
+	if intent.Domain != reducercontract.DomainObservabilityCoverageMaterialization {
+		return reducercontract.Result{}, fmt.Errorf(
 			"observability coverage materialization handler does not accept domain %q",
 			intent.Domain,
 		)
 	}
 	if h.FactLoader == nil {
-		return Result{}, fmt.Errorf("observability coverage materialization fact loader is required")
+		return reducercontract.Result{}, fmt.Errorf("observability coverage materialization fact loader is required")
 	}
 	if h.EdgeWriter == nil {
-		return Result{}, fmt.Errorf("observability coverage materialization edge writer is required")
+		return reducercontract.Result{}, fmt.Errorf("observability coverage materialization edge writer is required")
 	}
 
 	if h.Tracer != nil {
@@ -144,14 +149,14 @@ func (h ObservabilityCoverageMaterializationHandler) Handle(
 	// published, the intent re-enters the durable queue (retryable) rather than
 	// writing edges against a node set that does not exist yet.
 	if !h.canonicalNodesReady(intent) {
-		return Result{}, observabilityCoverageNodesNotReadyError{
+		return reducercontract.Result{}, observabilityCoverageNodesNotReadyError{
 			scopeID:      intent.ScopeID,
 			generationID: intent.GenerationID,
 		}
 	}
 
 	loadStart := time.Now()
-	envelopes, err := loadFactsForKinds(
+	envelopes, err := factload.LoadFactsForKinds(
 		ctx,
 		h.FactLoader,
 		intent.ScopeID,
@@ -159,7 +164,7 @@ func (h ObservabilityCoverageMaterializationHandler) Handle(
 		observabilityCoverageCorrelationFactKinds(),
 	)
 	if err != nil {
-		return Result{}, fmt.Errorf("load facts for observability coverage materialization: %w", err)
+		return reducercontract.Result{}, fmt.Errorf("load facts for observability coverage materialization: %w", err)
 	}
 	loadDuration := time.Since(loadStart)
 
@@ -169,18 +174,18 @@ func (h ObservabilityCoverageMaterializationHandler) Handle(
 		// A non-decode error (transient fact-load or other fatal condition
 		// partitionDecodeFailures did NOT quarantine) fails the whole intent so
 		// the durable queue triages it correctly.
-		return Result{}, err
+		return reducercontract.Result{}, err
 	}
 	// Per-fact isolation: a malformed aws_resource/aws_relationship fact (a
 	// missing required identity field) is quarantined as a visible input_invalid
 	// dead-letter — counter + structured error log — while coverage still
 	// classifies from every valid fact.
-	inputInvalidCount := recordQuarantinedFacts(ctx, h.Instruments, DomainObservabilityCoverageMaterialization, intent.ScopeID, intent.GenerationID, quarantined)
+	inputInvalidCount := factdecode.RecordQuarantinedFacts(ctx, h.Instruments, reducercontract.DomainObservabilityCoverageMaterialization, intent.ScopeID, intent.GenerationID, quarantined)
 	extractDuration := time.Since(extractStart)
 
 	skipRetract, err := h.shouldSkipRetract(ctx, intent)
 	if err != nil {
-		return Result{}, err
+		return reducercontract.Result{}, err
 	}
 	var retractDuration time.Duration
 	if !skipRetract {
@@ -188,15 +193,15 @@ func (h ObservabilityCoverageMaterializationHandler) Handle(
 		if h.Ledger != nil {
 			uids, err := h.Ledger.ListSourceUIDsForScopes(ctx, observabilityCoverageEvidenceSource, []string{intent.ScopeID})
 			if err != nil {
-				return Result{}, fmt.Errorf("list source uids for observability coverage retract: %w", err)
+				return reducercontract.Result{}, fmt.Errorf("list source uids for observability coverage retract: %w", err)
 			}
 			if err := h.EdgeWriter.RetractObservabilityCoverageEdgesByUIDs(
 				ctx, uids, []string{intent.ScopeID}, observabilityCoverageEvidenceSource,
 			); err != nil {
-				return Result{}, fmt.Errorf("retract canonical observability coverage edges by uids: %w", err)
+				return reducercontract.Result{}, fmt.Errorf("retract canonical observability coverage edges by uids: %w", err)
 			}
 			if err := h.Ledger.PruneForScopes(ctx, observabilityCoverageEvidenceSource, []string{intent.ScopeID}); err != nil {
-				return Result{}, fmt.Errorf("prune observability coverage projected sources: %w", err)
+				return reducercontract.Result{}, fmt.Errorf("prune observability coverage projected sources: %w", err)
 			}
 		} else if err := h.EdgeWriter.RetractObservabilityCoverageEdges(
 			ctx,
@@ -204,7 +209,7 @@ func (h ObservabilityCoverageMaterializationHandler) Handle(
 			intent.GenerationID,
 			observabilityCoverageEvidenceSource,
 		); err != nil {
-			return Result{}, fmt.Errorf("retract canonical observability coverage edges: %w", err)
+			return reducercontract.Result{}, fmt.Errorf("retract canonical observability coverage edges: %w", err)
 		}
 		retractDuration = time.Since(retractStart)
 	}
@@ -212,12 +217,12 @@ func (h ObservabilityCoverageMaterializationHandler) Handle(
 	var writeDuration time.Duration
 	if len(rows) > 0 {
 		if h.Ledger != nil {
-			uids := sourceUIDsFromRowsByKey(rows, "observability_uid")
+			uids := payloadcore.SourceUIDsFromRowsByKey(rows, "observability_uid")
 			if len(uids) > 0 {
 				if err := h.Ledger.RecordProjectedSources(
 					ctx, observabilityCoverageEvidenceSource, intent.ScopeID, intent.GenerationID, uids, time.Now(),
 				); err != nil {
-					return Result{}, fmt.Errorf("record observability coverage projected sources: %w", err)
+					return reducercontract.Result{}, fmt.Errorf("record observability coverage projected sources: %w", err)
 				}
 			}
 		}
@@ -229,7 +234,7 @@ func (h ObservabilityCoverageMaterializationHandler) Handle(
 			intent.GenerationID,
 			observabilityCoverageEvidenceSource,
 		); err != nil {
-			return Result{}, fmt.Errorf("write canonical observability coverage edges: %w", err)
+			return reducercontract.Result{}, fmt.Errorf("write canonical observability coverage edges: %w", err)
 		}
 		writeDuration = time.Since(writeStart)
 	}
@@ -249,10 +254,10 @@ func (h ObservabilityCoverageMaterializationHandler) Handle(
 		totalDuration:   time.Since(totalStart),
 	})
 
-	return Result{
+	return reducercontract.Result{
 		IntentID: intent.IntentID,
-		Domain:   DomainObservabilityCoverageMaterialization,
-		Status:   ResultStatusSucceeded,
+		Domain:   reducercontract.DomainObservabilityCoverageMaterialization,
+		Status:   reducercontract.ResultStatusSucceeded,
 		EvidenceSummary: fmt.Sprintf(
 			"materialized %d observability COVERS edge(s) from %d fact(s); %d derived coverage(s) had no target node; %d input_invalid fact(s) quarantined",
 			len(rows),
@@ -261,29 +266,24 @@ func (h ObservabilityCoverageMaterializationHandler) Handle(
 			inputInvalidCount,
 		),
 		CanonicalWrites: len(rows),
-		SubSignals:      inputInvalidSubSignals(inputInvalidCount),
+		SubSignals:      factdecode.InputInvalidSubSignals(inputInvalidCount),
 	}, nil
 }
 
 // canonicalNodesReady reports whether the #805 PR1 canonical-nodes-committed
 // phase is published for this intent's scope generation. The phase key is
-// derived the same way DomainAWSResourceMaterialization publishes it, so the
-// lookup matches the published row. A nil lookup keeps the gate open for test
-// wiring.
-func (h ObservabilityCoverageMaterializationHandler) canonicalNodesReady(intent Intent) bool {
+// derived the same way DomainAWSResourceMaterialization publishes it (see
+// [gpphase.KeyFromScope]), so the lookup matches the published row. A nil
+// lookup keeps the gate open for test wiring.
+func (h ObservabilityCoverageMaterializationHandler) canonicalNodesReady(intent reducercontract.Intent) bool {
 	if h.ReadinessLookup == nil {
 		return true
 	}
-	state, ok := graphProjectionPhaseStateForIntent(
-		intent,
-		GraphProjectionKeyspaceCloudResourceUID,
-		GraphProjectionPhaseCanonicalNodesCommitted,
-		time.Now().UTC(),
-	)
+	key, ok := gpphase.KeyFromScope(intent.ScopeID, intent.GenerationID, intent.EntityKeys, gpphase.KeyspaceCloudResourceUID)
 	if !ok {
 		return false
 	}
-	ready, found := h.ReadinessLookup(state.Key, GraphProjectionPhaseCanonicalNodesCommitted)
+	ready, found := h.ReadinessLookup(key, gpphase.PhaseCanonicalNodesCommitted)
 	return found && ready
 }
 
@@ -291,7 +291,7 @@ func (h ObservabilityCoverageMaterializationHandler) canonicalNodesReady(intent 
 // retract on the very first generation for a scope (no prior edges to remove)
 // and only on the first attempt, so a retried attempt still cleans up a partial
 // prior write.
-func (h ObservabilityCoverageMaterializationHandler) shouldSkipRetract(ctx context.Context, intent Intent) (bool, error) {
+func (h ObservabilityCoverageMaterializationHandler) shouldSkipRetract(ctx context.Context, intent reducercontract.Intent) (bool, error) {
 	if h.PriorGenerationCheck == nil || intent.AttemptCount > 1 {
 		return false, nil
 	}
@@ -321,7 +321,7 @@ func (h ObservabilityCoverageMaterializationHandler) recordEdgeCounter(
 	}
 	counts := make(map[signalMode]int, len(rows))
 	for _, row := range rows {
-		counts[signalMode{anyToString(row["coverage_signal"]), anyToString(row["resolution_mode"])}]++
+		counts[signalMode{payloadcore.AnyToString(row["coverage_signal"]), payloadcore.AnyToString(row["resolution_mode"])}]++
 	}
 	for key, count := range counts {
 		h.Instruments.ObservabilityCoverageEdges.Add(ctx, int64(count), metric.WithAttributes(
@@ -381,7 +381,7 @@ func (observabilityCoverageNodesNotReadyError) FailureClass() string {
 // edge tally so the completion log identifies fact-load, classify, retract, and
 // graph-write time, plus which coverage signals materialized or were skipped.
 type observabilityCoverageMaterializationTiming struct {
-	intent          Intent
+	intent          reducercontract.Intent
 	factCount       int
 	edgeCount       int
 	materialized    map[string]int

@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/reducer/payloadcore"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
 	"github.com/eshu-hq/eshu/go/internal/truth"
 	log "github.com/eshu-hq/eshu/go/pkg/log"
@@ -355,17 +356,9 @@ func cloudResourceUIDForResource(resource awsv1.Resource) (string, bool) {
 	return cloudResourceUID(resource.AccountID, resource.Region, resource.ResourceType, resourceID), true
 }
 
-// cloudResourceUID computes the stable CloudResource node identity. The identity
-// inputs match the aws_resource fact's StableFactKey inputs so the AWS
-// relationship edge projection (issue #805) can recompute the same uid from a
-// relationship fact's resolved target identity.
+// cloudResourceUID forwards to [payloadcore.CloudResourceUID].
 func cloudResourceUID(accountID, region, resourceType, resourceID string) string {
-	return facts.StableID("CloudResource", map[string]any{
-		"account_id":    accountID,
-		"region":        region,
-		"resource_id":   resourceID,
-		"resource_type": resourceType,
-	})
+	return payloadcore.CloudResourceUID(accountID, region, resourceType, resourceID)
 }
 
 // awsResourceMaterializationTiming groups stage durations so the completion log

@@ -66,7 +66,7 @@ dead-letter a valid declared fact whose manifest lacks that exact key.
 ## Why every struct carries the full candidate-key union
 
 The family's single reducer payload consumer
-(`go/internal/reducer/observability_coverage_metadata.go`) reads a bounded union
+(`go/internal/reducer/obscoverage/observability_coverage_metadata.go`) reads a bounded union
 of named keys — a 20-entry object-ref fallback chain plus the
 provider/class/outcome/freshness/service reads — via `firstNonBlank` and
 `switch`, the SAME union regardless of fact kind. Each struct models that full

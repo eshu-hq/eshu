@@ -33,6 +33,10 @@ const (
 	reducerFactBatchSize           = factwrite.BatchSize
 
 	reducerFactBatchInsertVersionedQuery = factwrite.BatchInsertVersionedQuery
+
+	// canonicalReducerFactInsertQuery is the canonical single-row upsert every
+	// reducer-owned fact writer uses. See [factwrite.SingleInsertQuery].
+	canonicalReducerFactInsertQuery = factwrite.SingleInsertQuery
 )
 
 // reducerBatchInsertFacts forwards to [factwrite.BatchInsertFacts].

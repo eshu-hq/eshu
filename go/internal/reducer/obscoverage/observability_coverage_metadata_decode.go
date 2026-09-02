@@ -1,10 +1,11 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package reducer
+package obscoverage
 
 import (
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/reducer/schemadecode"
 )
 
 // observabilityMetadataView is the flat, typed read view the coverage-metadata
@@ -107,103 +108,103 @@ func (v observabilityMetadataView) objectRefCandidates() []string {
 func decodeObservabilityMetadataView(env facts.Envelope) (observabilityMetadataView, error) {
 	switch env.FactKind {
 	case facts.ObservabilityDeclaredFolderFactKind:
-		s, err := decodeObservabilityDeclaredFolder(env)
+		s, err := schemadecode.DecodeObservabilityDeclaredFolder(env)
 		if err != nil {
 			return observabilityMetadataView{}, err
 		}
 		return viewFromDeclaredFolder(s), nil
 	case facts.ObservabilityDeclaredDashboardFactKind:
-		s, err := decodeObservabilityDeclaredDashboard(env)
+		s, err := schemadecode.DecodeObservabilityDeclaredDashboard(env)
 		if err != nil {
 			return observabilityMetadataView{}, err
 		}
 		return viewFromDeclaredDashboard(s), nil
 	case facts.ObservabilityDeclaredDatasourceFactKind:
-		s, err := decodeObservabilityDeclaredDatasource(env)
+		s, err := schemadecode.DecodeObservabilityDeclaredDatasource(env)
 		if err != nil {
 			return observabilityMetadataView{}, err
 		}
 		return viewFromDeclaredDatasource(s), nil
 	case facts.ObservabilityDeclaredAlertRuleFactKind:
-		s, err := decodeObservabilityDeclaredAlertRule(env)
+		s, err := schemadecode.DecodeObservabilityDeclaredAlertRule(env)
 		if err != nil {
 			return observabilityMetadataView{}, err
 		}
 		return viewFromDeclaredAlertRule(s), nil
 	case facts.ObservabilityDeclaredScrapeConfigFactKind:
-		s, err := decodeObservabilityDeclaredScrapeConfig(env)
+		s, err := schemadecode.DecodeObservabilityDeclaredScrapeConfig(env)
 		if err != nil {
 			return observabilityMetadataView{}, err
 		}
 		return viewFromDeclaredScrapeConfig(s), nil
 	case facts.ObservabilityDeclaredMetricRuleFactKind:
-		s, err := decodeObservabilityDeclaredMetricRule(env)
+		s, err := schemadecode.DecodeObservabilityDeclaredMetricRule(env)
 		if err != nil {
 			return observabilityMetadataView{}, err
 		}
 		return viewFromDeclaredMetricRule(s), nil
 	case facts.ObservabilityDeclaredMetricRouteFactKind:
-		s, err := decodeObservabilityDeclaredMetricRoute(env)
+		s, err := schemadecode.DecodeObservabilityDeclaredMetricRoute(env)
 		if err != nil {
 			return observabilityMetadataView{}, err
 		}
 		return viewFromDeclaredMetricRoute(s), nil
 	case facts.ObservabilityDeclaredLogRouteFactKind:
-		s, err := decodeObservabilityDeclaredLogRoute(env)
+		s, err := schemadecode.DecodeObservabilityDeclaredLogRoute(env)
 		if err != nil {
 			return observabilityMetadataView{}, err
 		}
 		return viewFromDeclaredLogRoute(s), nil
 	case facts.ObservabilityDeclaredTraceRouteFactKind:
-		s, err := decodeObservabilityDeclaredTraceRoute(env)
+		s, err := schemadecode.DecodeObservabilityDeclaredTraceRoute(env)
 		if err != nil {
 			return observabilityMetadataView{}, err
 		}
 		return viewFromDeclaredTraceRoute(s), nil
 	case facts.ObservabilityAppliedResourceFactKind:
-		s, err := decodeObservabilityAppliedResource(env)
+		s, err := schemadecode.DecodeObservabilityAppliedResource(env)
 		if err != nil {
 			return observabilityMetadataView{}, err
 		}
 		return viewFromAppliedResource(s), nil
 	case facts.ObservabilityAppliedSyncStateFactKind:
-		s, err := decodeObservabilityAppliedSyncState(env)
+		s, err := schemadecode.DecodeObservabilityAppliedSyncState(env)
 		if err != nil {
 			return observabilityMetadataView{}, err
 		}
 		return viewFromAppliedSyncState(s), nil
 	case facts.ObservabilityObservedDashboardFactKind:
-		s, err := decodeObservabilityObservedDashboard(env)
+		s, err := schemadecode.DecodeObservabilityObservedDashboard(env)
 		if err != nil {
 			return observabilityMetadataView{}, err
 		}
 		return viewFromObservedDashboard(s), nil
 	case facts.ObservabilityObservedTargetFactKind:
-		s, err := decodeObservabilityObservedTarget(env)
+		s, err := schemadecode.DecodeObservabilityObservedTarget(env)
 		if err != nil {
 			return observabilityMetadataView{}, err
 		}
 		return viewFromObservedTarget(s), nil
 	case facts.ObservabilityObservedRuleFactKind:
-		s, err := decodeObservabilityObservedRule(env)
+		s, err := schemadecode.DecodeObservabilityObservedRule(env)
 		if err != nil {
 			return observabilityMetadataView{}, err
 		}
 		return viewFromObservedRule(s), nil
 	case facts.ObservabilityObservedLogSignalFactKind:
-		s, err := decodeObservabilityObservedLogSignal(env)
+		s, err := schemadecode.DecodeObservabilityObservedLogSignal(env)
 		if err != nil {
 			return observabilityMetadataView{}, err
 		}
 		return viewFromObservedLogSignal(s), nil
 	case facts.ObservabilityObservedTraceSignalFactKind:
-		s, err := decodeObservabilityObservedTraceSignal(env)
+		s, err := schemadecode.DecodeObservabilityObservedTraceSignal(env)
 		if err != nil {
 			return observabilityMetadataView{}, err
 		}
 		return viewFromObservedTraceSignal(s), nil
 	case facts.ObservabilityCoverageWarningFactKind:
-		s, err := decodeObservabilityCoverageWarning(env)
+		s, err := schemadecode.DecodeObservabilityCoverageWarning(env)
 		if err != nil {
 			return observabilityMetadataView{}, err
 		}

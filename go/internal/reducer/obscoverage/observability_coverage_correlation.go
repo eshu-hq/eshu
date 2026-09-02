@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package reducer
+package obscoverage
 
 import (
 	"context"
@@ -10,6 +10,9 @@ import (
 	"go.opentelemetry.io/otel/metric"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
+	"github.com/eshu-hq/eshu/go/internal/reducer/factdecode"
+	"github.com/eshu-hq/eshu/go/internal/reducer/factload"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
 )
 
@@ -113,7 +116,7 @@ type ObservabilityCoverageCorrelationWriter interface {
 // writes no graph edges; the separate materialization domain projects exact AWS
 // COVERS edges after canonical node readiness.
 type ObservabilityCoverageCorrelationHandler struct {
-	FactLoader  FactLoader
+	FactLoader  factload.FactLoader
 	Writer      ObservabilityCoverageCorrelationWriter
 	Instruments *telemetry.Instruments
 }
@@ -123,20 +126,20 @@ type ObservabilityCoverageCorrelationHandler struct {
 // bounded in-memory coverage index, classifies each observability object or
 // metadata identity into a bounded outcome plus gap findings for uncovered
 // targets, and writes durable provenance-only facts.
-func (h ObservabilityCoverageCorrelationHandler) Handle(ctx context.Context, intent Intent) (Result, error) {
-	if intent.Domain != DomainObservabilityCoverageCorrelation {
-		return Result{}, fmt.Errorf("observability_coverage_correlation handler does not accept domain %q", intent.Domain)
+func (h ObservabilityCoverageCorrelationHandler) Handle(ctx context.Context, intent reducercontract.Intent) (reducercontract.Result, error) {
+	if intent.Domain != reducercontract.DomainObservabilityCoverageCorrelation {
+		return reducercontract.Result{}, fmt.Errorf("observability_coverage_correlation handler does not accept domain %q", intent.Domain)
 	}
 	if h.FactLoader == nil {
-		return Result{}, fmt.Errorf("observability coverage correlation fact loader is required")
+		return reducercontract.Result{}, fmt.Errorf("observability coverage correlation fact loader is required")
 	}
 	if h.Writer == nil {
-		return Result{}, fmt.Errorf("observability coverage correlation writer is required")
+		return reducercontract.Result{}, fmt.Errorf("observability coverage correlation writer is required")
 	}
 
-	envelopes, err := loadFactsForKinds(ctx, h.FactLoader, intent.ScopeID, intent.GenerationID, observabilityCoverageCorrelationFactKinds())
+	envelopes, err := factload.LoadFactsForKinds(ctx, h.FactLoader, intent.ScopeID, intent.GenerationID, observabilityCoverageCorrelationFactKinds())
 	if err != nil {
-		return Result{}, fmt.Errorf("load observability coverage correlation facts: %w", err)
+		return reducercontract.Result{}, fmt.Errorf("load observability coverage correlation facts: %w", err)
 	}
 
 	decisions, quarantined, err := BuildObservabilityCoverageDecisions(envelopes)
@@ -144,13 +147,13 @@ func (h ObservabilityCoverageCorrelationHandler) Handle(ctx context.Context, int
 		// A non-decode error (transient fact-load or other fatal condition
 		// partitionDecodeFailures did NOT quarantine) fails the whole intent so
 		// the durable queue triages it correctly.
-		return Result{}, err
+		return reducercontract.Result{}, err
 	}
 	// Per-fact isolation: a malformed aws_resource/aws_relationship fact (a
 	// missing required identity field) is quarantined as a visible input_invalid
 	// dead-letter — counter + structured error log — while coverage still
 	// classifies from every valid fact.
-	inputInvalidCount := recordQuarantinedFacts(ctx, h.Instruments, DomainObservabilityCoverageCorrelation, intent.ScopeID, intent.GenerationID, quarantined)
+	inputInvalidCount := factdecode.RecordQuarantinedFacts(ctx, h.Instruments, reducercontract.DomainObservabilityCoverageCorrelation, intent.ScopeID, intent.GenerationID, quarantined)
 	counts := observabilityCoverageCounts(decisions)
 	writeResult, err := h.Writer.WriteObservabilityCoverageCorrelations(ctx, ObservabilityCoverageCorrelationWrite{
 		IntentID:     intent.IntentID,
@@ -161,17 +164,17 @@ func (h ObservabilityCoverageCorrelationHandler) Handle(ctx context.Context, int
 		Decisions:    decisions,
 	})
 	if err != nil {
-		return Result{}, fmt.Errorf("write observability coverage correlations: %w", err)
+		return reducercontract.Result{}, fmt.Errorf("write observability coverage correlations: %w", err)
 	}
 	h.emitCounters(ctx, decisions)
 
-	return Result{
+	return reducercontract.Result{
 		IntentID:        intent.IntentID,
-		Domain:          DomainObservabilityCoverageCorrelation,
-		Status:          ResultStatusSucceeded,
+		Domain:          reducercontract.DomainObservabilityCoverageCorrelation,
+		Status:          reducercontract.ResultStatusSucceeded,
 		EvidenceSummary: observabilityCoverageSummary(len(decisions), counts, writeResult.FactsWritten),
 		CanonicalWrites: writeResult.FactsWritten,
-		SubSignals:      inputInvalidSubSignals(inputInvalidCount),
+		SubSignals:      factdecode.InputInvalidSubSignals(inputInvalidCount),
 	}, nil
 }
 
@@ -195,7 +198,7 @@ func (h ObservabilityCoverageCorrelationHandler) emitCounters(
 	}
 	for key, count := range counts {
 		h.Instruments.ObservabilityCoverageCorrelations.Add(ctx, int64(count), metric.WithAttributes(
-			telemetry.AttrDomain(string(DomainObservabilityCoverageCorrelation)),
+			telemetry.AttrDomain(string(reducercontract.DomainObservabilityCoverageCorrelation)),
 			telemetry.AttrOutcome(string(key.outcome)),
 			telemetry.AttrCoverageSignal(key.signal),
 		))
@@ -206,11 +209,11 @@ func (h ObservabilityCoverageCorrelationHandler) emitCounters(
 // fabricating a covered edge from name coincidence or a metric-name-only signal.
 // It is a pure function over fact envelopes (no I/O) so the outcome contract is
 // table-test friendly. An aws_resource or aws_relationship fact missing a
-// required identity field is skipped and returned in the []quarantinedFact slice
+// required identity field is skipped and returned in the []factdecode.QuarantinedFact slice
 // (a per-fact input_invalid dead-letter) so the caller records it visibly while
 // still classifying coverage from every valid fact, rather than aborting the
 // whole intent or classifying against an empty-string node identity.
-func BuildObservabilityCoverageDecisions(envelopes []facts.Envelope) ([]ObservabilityCoverageCorrelationDecision, []quarantinedFact, error) {
+func BuildObservabilityCoverageDecisions(envelopes []facts.Envelope) ([]ObservabilityCoverageCorrelationDecision, []factdecode.QuarantinedFact, error) {
 	index, quarantined, err := buildObservabilityCoverageIndex(envelopes)
 	if err != nil {
 		return nil, nil, err

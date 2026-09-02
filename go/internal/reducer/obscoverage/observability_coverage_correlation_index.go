@@ -1,14 +1,17 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package reducer
+package obscoverage
 
 import (
 	"sort"
 	"strings"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
+	"github.com/eshu-hq/eshu/go/internal/reducer/factdecode"
 	"github.com/eshu-hq/eshu/go/internal/reducer/payloadcore"
+	"github.com/eshu-hq/eshu/go/internal/reducer/schemadecode"
 	awsv1 "github.com/eshu-hq/eshu/sdk/go/factschema/aws/v1"
 )
 
@@ -46,9 +49,9 @@ const (
 // fact records which identity path matched: a target's ARN, its bare resource
 // id, or one of its published correlation anchors.
 const (
-	coverageResolutionARN               = joinModeARN
-	coverageResolutionBareID            = joinModeBareID
-	coverageResolutionCorrelationAnchor = joinModeCorrelationAnchor
+	coverageResolutionARN               = reducercontract.JoinModeARN
+	coverageResolutionBareID            = reducercontract.JoinModeBareID
+	coverageResolutionCorrelationAnchor = reducercontract.JoinModeCorrelationAnchor
 )
 
 // observabilityTargetIndex resolves a monitored resource identity to the uid(s)
@@ -108,19 +111,19 @@ type observabilityCoverageIndex struct {
 // seam, so a payload missing a required identity field dead-letters
 // (input_invalid); verb-specific and service-specific fields are read from the
 // decoded struct's Attributes pass-through, never the raw envelope payload.
-func buildObservabilityCoverageIndex(envelopes []facts.Envelope) (observabilityCoverageIndex, []quarantinedFact, error) {
+func buildObservabilityCoverageIndex(envelopes []facts.Envelope) (observabilityCoverageIndex, []factdecode.QuarantinedFact, error) {
 	index := observabilityCoverageIndex{
 		targets:      observabilityTargetIndex{byKey: make(map[string]map[string]targetResource)},
 		objectsByRef: make(map[string]observabilityObject),
 		relsBySource: make(map[string][]coverageRelationship),
 	}
-	var quarantined []quarantinedFact
+	var quarantined []factdecode.QuarantinedFact
 	for _, env := range envelopes {
 		switch env.FactKind {
 		case facts.AWSResourceFactKind:
-			resource, err := decodeAWSResource(env)
+			resource, err := schemadecode.DecodeAWSResource(env)
 			if err != nil {
-				q, isQuarantine, fatal := partitionDecodeFailures(env, err)
+				q, isQuarantine, fatal := factdecode.PartitionDecodeFailures(env, err)
 				if fatal != nil {
 					return observabilityCoverageIndex{}, nil, fatal
 				}
@@ -131,9 +134,9 @@ func buildObservabilityCoverageIndex(envelopes []facts.Envelope) (observabilityC
 			}
 			index.ingestResource(resource, env.FactID, env.IsTombstone)
 		case facts.AWSRelationshipFactKind:
-			relationship, err := decodeAWSRelationship(env)
+			relationship, err := schemadecode.DecodeAWSRelationship(env)
 			if err != nil {
-				q, isQuarantine, fatal := partitionDecodeFailures(env, err)
+				q, isQuarantine, fatal := factdecode.PartitionDecodeFailures(env, err)
 				if fatal != nil {
 					return observabilityCoverageIndex{}, nil, fatal
 				}
@@ -143,7 +146,7 @@ func buildObservabilityCoverageIndex(envelopes []facts.Envelope) (observabilityC
 				continue
 			}
 			if attrErr := index.ingestRelationship(relationship, env.FactID); attrErr != nil {
-				quarantined = append(quarantined, quarantinedAttributeShapeFact(env, attrErr))
+				quarantined = append(quarantined, factdecode.QuarantinedAttributeShapeFact(env, attrErr))
 			}
 		}
 	}
@@ -171,13 +174,13 @@ func (index *observabilityCoverageIndex) ingestResource(resource awsv1.Resource,
 }
 
 func (index *observabilityCoverageIndex) ingestObservabilityObject(resource awsv1.Resource, factID, signal string) {
-	arn := derefString(resource.ARN)
+	arn := payloadcore.DerefString(resource.ARN)
 	resourceID := resource.ResourceID
 	ref := payloadcore.FirstNonBlank(arn, resourceID)
 	if ref == "" {
 		return
 	}
-	uid := cloudResourceUID(
+	uid := payloadcore.CloudResourceUID(
 		resource.AccountID,
 		resource.Region,
 		resource.ResourceType,
@@ -196,7 +199,7 @@ func (index *observabilityCoverageIndex) ingestObservabilityObject(resource awsv
 }
 
 func (index *observabilityCoverageIndex) ingestTargetResource(resource awsv1.Resource, tombstone bool) {
-	arn := derefString(resource.ARN)
+	arn := payloadcore.DerefString(resource.ARN)
 	resourceID := resource.ResourceID
 	if resourceID == "" {
 		resourceID = arn
@@ -204,7 +207,7 @@ func (index *observabilityCoverageIndex) ingestTargetResource(resource awsv1.Res
 	if resourceID == "" {
 		return
 	}
-	uid := cloudResourceUID(resource.AccountID, resource.Region, resource.ResourceType, resourceID)
+	uid := payloadcore.CloudResourceUID(resource.AccountID, resource.Region, resource.ResourceType, resourceID)
 	for _, ident := range targetIdentityKeys(arn, resourceID, resource.CorrelationAnchors) {
 		index.targets.add(ident.key, targetResource{
 			uid:            uid,
@@ -289,7 +292,7 @@ func coverageResolutionRank(mode string) int {
 // silently indexing it with a missing dimension/service-name signal, which
 // would understate coverage rather than surface the bad fact.
 func (index *observabilityCoverageIndex) ingestRelationship(relationship awsv1.Relationship, factID string) error {
-	source := payloadcore.FirstNonBlank(derefString(relationship.SourceARN), relationship.SourceResourceID)
+	source := payloadcore.FirstNonBlank(payloadcore.DerefString(relationship.SourceARN), relationship.SourceResourceID)
 	if source == "" {
 		return nil
 	}

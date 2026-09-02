@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package reducer
+package obscoverage
 
 import (
 	"context"
@@ -10,6 +10,8 @@ import (
 	"testing"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
+	"github.com/eshu-hq/eshu/go/internal/reducer/payloadcore"
 )
 
 // TestBuildObservabilityCoverageDecisionsExactAlarmCoverage proves an alarm
@@ -32,7 +34,7 @@ func TestBuildObservabilityCoverageDecisionsExactAlarmCoverage(t *testing.T) {
 	}
 
 	byKey := observabilityCoverageDecisions(decisions)
-	want := cloudResourceUID(testCoverageAccount, testCoverageRegion, "aws_ec2_instance", instanceID)
+	want := payloadcore.CloudResourceUID(testCoverageAccount, testCoverageRegion, "aws_ec2_instance", instanceID)
 	decision := byKey["alarm|"+alarmARN+"|"+want]
 	assertCoverageOutcome(t, decision, ObservabilityCoverageExact, "covered")
 	if decision.ProvenanceOnly {
@@ -66,7 +68,7 @@ func TestBuildObservabilityCoverageDecisionsResolutionModeARN(t *testing.T) {
 		t.Fatalf("BuildObservabilityCoverageDecisions() error = %v, want nil", err)
 	}
 
-	want := cloudResourceUID(testCoverageAccount, testCoverageRegion, "aws_ec2_instance", instanceID)
+	want := payloadcore.CloudResourceUID(testCoverageAccount, testCoverageRegion, "aws_ec2_instance", instanceID)
 	decision := observabilityCoverageDecisions(decisions)["alarm|"+alarmARN+"|"+want]
 	assertCoverageOutcome(t, decision, ObservabilityCoverageExact, "covered")
 	if decision.ResolutionMode != "arn" {
@@ -96,7 +98,7 @@ func TestBuildObservabilityCoverageDecisionsResolutionModeCorrelationAnchor(t *t
 		t.Fatalf("BuildObservabilityCoverageDecisions() error = %v, want nil", err)
 	}
 
-	want := cloudResourceUID(testCoverageAccount, testCoverageRegion, "aws_ec2_instance", instanceID)
+	want := payloadcore.CloudResourceUID(testCoverageAccount, testCoverageRegion, "aws_ec2_instance", instanceID)
 	decision := observabilityCoverageDecisions(decisions)["alarm|"+alarmARN+"|"+want]
 	assertCoverageOutcome(t, decision, ObservabilityCoverageExact, "covered")
 	if decision.ResolutionMode != "correlation_anchor" {
@@ -123,7 +125,7 @@ func TestBuildObservabilityCoverageDecisionsTombstonedObjectNeverCovers(t *testi
 		t.Fatalf("BuildObservabilityCoverageDecisions() error = %v, want nil", err)
 	}
 
-	targetUID := cloudResourceUID(testCoverageAccount, testCoverageRegion, "aws_ec2_instance", instanceID)
+	targetUID := payloadcore.CloudResourceUID(testCoverageAccount, testCoverageRegion, "aws_ec2_instance", instanceID)
 	for _, decision := range decisions {
 		if decision.ObservabilityObjectRef == alarmARN {
 			t.Fatalf("tombstoned alarm produced a coverage decision: %+v", decision)
@@ -155,7 +157,7 @@ func TestBuildObservabilityCoverageDecisionsGapForUncoveredResource(t *testing.T
 		t.Fatalf("BuildObservabilityCoverageDecisions() error = %v, want nil", err)
 	}
 
-	uncoveredUID := cloudResourceUID(testCoverageAccount, testCoverageRegion, "aws_ec2_instance", uncoveredID)
+	uncoveredUID := payloadcore.CloudResourceUID(testCoverageAccount, testCoverageRegion, "aws_ec2_instance", uncoveredID)
 	var gap *ObservabilityCoverageCorrelationDecision
 	for i := range decisions {
 		if decisions[i].TargetUID == uncoveredUID && decisions[i].Outcome == ObservabilityCoverageUnresolved {
@@ -377,11 +379,11 @@ func TestObservabilityCoverageCorrelationHandlerLoadsFactsAndWrites(t *testing.T
 	writer := &recordingObservabilityCoverageCorrelationWriter{}
 	handler := ObservabilityCoverageCorrelationHandler{FactLoader: loader, Writer: writer}
 
-	result, err := handler.Handle(context.Background(), Intent{
+	result, err := handler.Handle(context.Background(), reducercontract.Intent{
 		IntentID:     "intent-observability",
 		ScopeID:      "aws://111122223333/us-east-1",
 		GenerationID: "generation-observability",
-		Domain:       DomainObservabilityCoverageCorrelation,
+		Domain:       reducercontract.DomainObservabilityCoverageCorrelation,
 		SourceSystem: "aws_cloud",
 		Cause:        "observability facts observed",
 	})
@@ -394,7 +396,7 @@ func TestObservabilityCoverageCorrelationHandlerLoadsFactsAndWrites(t *testing.T
 	if got, want := loader.kindCalls[0], observabilityCoverageCorrelationFactKinds(); !slices.Equal(got, want) {
 		t.Fatalf("ListFactsByKind() kinds = %q, want %q", got, want)
 	}
-	if got, want := result.Domain, DomainObservabilityCoverageCorrelation; got != want {
+	if got, want := result.Domain, reducercontract.DomainObservabilityCoverageCorrelation; got != want {
 		t.Fatalf("result.Domain = %q, want %q", got, want)
 	}
 	if result.CanonicalWrites == 0 {
@@ -414,7 +416,7 @@ func TestObservabilityCoverageCorrelationHandlerRejectsWrongDomain(t *testing.T)
 		FactLoader: &stubObservabilityCoverageCorrelationFactLoader{},
 		Writer:     &recordingObservabilityCoverageCorrelationWriter{},
 	}
-	if _, err := handler.Handle(context.Background(), Intent{Domain: DomainServiceCatalogCorrelation}); err == nil {
+	if _, err := handler.Handle(context.Background(), reducercontract.Intent{Domain: reducercontract.DomainServiceCatalogCorrelation}); err == nil {
 		t.Fatal("Handle() error = nil, want domain mismatch error")
 	}
 }

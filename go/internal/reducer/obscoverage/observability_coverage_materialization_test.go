@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package reducer
+package obscoverage
 
 import (
 	"context"
@@ -9,6 +9,8 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
+	"github.com/eshu-hq/eshu/go/internal/reducer/payloadcore"
 )
 
 // recordingObservabilityCoverageEdgeWriter captures COVERS edge writes and
@@ -73,12 +75,12 @@ func (w *recordingObservabilityCoverageEdgeWriter) RetractObservabilityCoverageE
 	return w.retractByUIDsErr
 }
 
-func observabilityCoverageMaterializationIntent() Intent {
-	return Intent{
+func observabilityCoverageMaterializationIntent() reducercontract.Intent {
+	return reducercontract.Intent{
 		IntentID:     "intent-covers-1",
 		ScopeID:      "scope-1",
 		GenerationID: "gen-1",
-		Domain:       DomainObservabilityCoverageMaterialization,
+		Domain:       reducercontract.DomainObservabilityCoverageMaterialization,
 		EntityKeys:   []string{"aws_resource_materialization:scope-1"},
 		EnqueuedAt:   time.Now(),
 		AvailableAt:  time.Now(),
@@ -95,7 +97,7 @@ func TestObservabilityCoverageMaterializationRejectsMismatchedDomain(t *testing.
 	}
 
 	intent := observabilityCoverageMaterializationIntent()
-	intent.Domain = DomainObservabilityCoverageCorrelation
+	intent.Domain = reducercontract.DomainObservabilityCoverageCorrelation
 	if _, err := handler.Handle(context.Background(), intent); err == nil {
 		t.Fatal("expected error for mismatched domain")
 	}
@@ -139,7 +141,7 @@ func TestObservabilityCoverageMaterializationGatesOnCanonicalNodesPhase(t *testi
 	if err == nil {
 		t.Fatal("expected a retryable error while canonical nodes phase is not ready")
 	}
-	if !IsRetryable(err) {
+	if !reducercontract.IsRetryable(err) {
 		t.Fatalf("error must be retryable so the intent re-enters the queue, got %v", err)
 	}
 	if writer.writeCalls != 0 || writer.retractCalls != 0 {
@@ -162,7 +164,7 @@ func TestObservabilityCoverageMaterializationProjectsExactCoverageEdge(t *testin
 	if err != nil {
 		t.Fatalf("Handle returned error: %v", err)
 	}
-	if result.Status != ResultStatusSucceeded {
+	if result.Status != reducercontract.ResultStatusSucceeded {
 		t.Fatalf("status = %q, want succeeded", result.Status)
 	}
 	if writer.writeCalls != 1 {
@@ -207,15 +209,15 @@ func TestObservabilityCoverageMaterializationGapNotWritten(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Handle returned error: %v", err)
 	}
-	if result.Status != ResultStatusSucceeded {
+	if result.Status != reducercontract.ResultStatusSucceeded {
 		t.Fatalf("status = %q, want succeeded", result.Status)
 	}
 	if len(writer.writtenRows) != 1 {
 		t.Fatalf("written COVERS rows = %d, want 1 (only the covered EC2, never the gap)", len(writer.writtenRows))
 	}
-	rdsUID := cloudResourceUID(testCoverageAccount, testCoverageRegion, "aws_db_instance", "db-prod")
+	rdsUID := payloadcore.CloudResourceUID(testCoverageAccount, testCoverageRegion, "aws_db_instance", "db-prod")
 	for _, row := range writer.writtenRows {
-		if anyToString(row["target_uid"]) == rdsUID {
+		if payloadcore.AnyToString(row["target_uid"]) == rdsUID {
 			t.Fatalf("gap target %q must not be materialized as a COVERS edge", rdsUID)
 		}
 	}
@@ -236,7 +238,7 @@ func TestObservabilityCoverageMaterializationEmptyGenerationNoWrite(t *testing.T
 	if err != nil {
 		t.Fatalf("Handle returned error: %v", err)
 	}
-	if result.Status != ResultStatusSucceeded {
+	if result.Status != reducercontract.ResultStatusSucceeded {
 		t.Fatalf("status = %q, want succeeded", result.Status)
 	}
 	if writer.writeCalls != 0 {

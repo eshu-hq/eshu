@@ -1,20 +1,21 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package reducer
+package obscoverage
 
 import (
 	"testing"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/reducer/payloadcore"
 )
 
 // coverageEdgeRowKey indexes extracted COVERS rows by their logical edge
 // identity so assertions do not depend on slice order.
 func coverageEdgeRowKey(row map[string]any) string {
-	return anyToString(row["observability_uid"]) + "|" +
-		anyToString(row["coverage_signal"]) + "|" +
-		anyToString(row["target_uid"])
+	return payloadcore.AnyToString(row["observability_uid"]) + "|" +
+		payloadcore.AnyToString(row["coverage_signal"]) + "|" +
+		payloadcore.AnyToString(row["target_uid"])
 }
 
 func indexCoverageEdgeRows(rows []map[string]any) map[string]map[string]any {
@@ -50,20 +51,20 @@ func TestExtractObservabilityCoverageEdgeRowsEmitsExactEdge(t *testing.T) {
 	if len(rows) != 1 {
 		t.Fatalf("edge rows = %d, want 1 exact COVERS edge", len(rows))
 	}
-	instanceUID := cloudResourceUID(testCoverageAccount, testCoverageRegion, "aws_ec2_instance", "i-0123456789abcdef0")
-	alarmUID := cloudResourceUID(testCoverageAccount, testCoverageRegion, "aws_cloudwatch_alarm",
+	instanceUID := payloadcore.CloudResourceUID(testCoverageAccount, testCoverageRegion, "aws_ec2_instance", "i-0123456789abcdef0")
+	alarmUID := payloadcore.CloudResourceUID(testCoverageAccount, testCoverageRegion, "aws_cloudwatch_alarm",
 		"arn:aws:cloudwatch:us-east-1:111122223333:alarm:cpu-high")
 	row := rows[0]
-	if got := anyToString(row["observability_uid"]); got != alarmUID {
+	if got := payloadcore.AnyToString(row["observability_uid"]); got != alarmUID {
 		t.Fatalf("observability_uid = %q, want alarm uid %q", got, alarmUID)
 	}
-	if got := anyToString(row["target_uid"]); got != instanceUID {
+	if got := payloadcore.AnyToString(row["target_uid"]); got != instanceUID {
 		t.Fatalf("target_uid = %q, want instance uid %q", got, instanceUID)
 	}
-	if got := anyToString(row["coverage_signal"]); got != coverageSignalAlarm {
+	if got := payloadcore.AnyToString(row["coverage_signal"]); got != coverageSignalAlarm {
 		t.Fatalf("coverage_signal = %q, want %q", got, coverageSignalAlarm)
 	}
-	if got := anyToString(row["resolution_mode"]); got != coverageResolutionBareID {
+	if got := payloadcore.AnyToString(row["resolution_mode"]); got != coverageResolutionBareID {
 		t.Fatalf("resolution_mode = %q, want %q", got, coverageResolutionBareID)
 	}
 	if tally.materialized[coverageSignalAlarm] != 1 {
@@ -85,9 +86,9 @@ func TestExtractObservabilityCoverageEdgeRowsGapEmitsNoEdge(t *testing.T) {
 	if err != nil {
 		t.Fatalf("ExtractObservabilityCoverageEdgeRows() error = %v, want nil", err)
 	}
-	rdsUID := cloudResourceUID(testCoverageAccount, testCoverageRegion, "aws_db_instance", "db-prod")
+	rdsUID := payloadcore.CloudResourceUID(testCoverageAccount, testCoverageRegion, "aws_db_instance", "db-prod")
 	for _, row := range rows {
-		if anyToString(row["target_uid"]) == rdsUID {
+		if payloadcore.AnyToString(row["target_uid"]) == rdsUID {
 			t.Fatalf("gap target %q must not produce a COVERS edge: %v", rdsUID, row)
 		}
 	}

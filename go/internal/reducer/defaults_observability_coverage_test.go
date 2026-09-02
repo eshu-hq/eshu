@@ -3,7 +3,24 @@
 
 package reducer
 
-import "testing"
+import (
+	"context"
+	"testing"
+)
+
+// recordingObservabilityCoverageCorrelationWriter is a minimal
+// [ObservabilityCoverageCorrelationWriter] double for wiring tests: it only
+// needs to satisfy the interface for a pointer-identity check, never called
+// here. Package-local copy of the obscoverage test package's fuller recorder
+// of the same name (issue #6061) -- that one is unexported and cannot cross
+// the package boundary.
+type recordingObservabilityCoverageCorrelationWriter struct{}
+
+func (*recordingObservabilityCoverageCorrelationWriter) WriteObservabilityCoverageCorrelations(
+	context.Context, ObservabilityCoverageCorrelationWrite,
+) (ObservabilityCoverageCorrelationWriteResult, error) {
+	return ObservabilityCoverageCorrelationWriteResult{}, nil
+}
 
 func TestImplementedDefaultDomainDefinitionsOmitsObservabilityCoverageWithoutAdapters(t *testing.T) {
 	t.Parallel()

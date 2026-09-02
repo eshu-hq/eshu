@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package reducer
+package obscoverage
 
 import (
 	"context"
@@ -9,6 +9,7 @@ import (
 	"testing"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/reducer/payloadcore"
 )
 
 // ec2Alarm2CoverageFixture builds a second, independent alarm/instance
@@ -47,7 +48,7 @@ func TestObservabilityCoverageMaterializationLedgerRecordsBeforeWrite(t *testing
 	if ledger.recordCalls != 1 {
 		t.Fatalf("record calls = %d, want 1", ledger.recordCalls)
 	}
-	alarmUID := cloudResourceUID(testCoverageAccount, testCoverageRegion, "aws_cloudwatch_alarm",
+	alarmUID := payloadcore.CloudResourceUID(testCoverageAccount, testCoverageRegion, "aws_cloudwatch_alarm",
 		"arn:aws:cloudwatch:us-east-1:111122223333:alarm:cpu-high")
 	if len(ledger.recordedUIDs) != 1 || ledger.recordedUIDs[0] != alarmUID {
 		t.Fatalf("recorded uids = %v, want [%s] (the observability/alarm uid, not the target)", ledger.recordedUIDs, alarmUID)
@@ -156,9 +157,9 @@ func TestObservabilityCoverageMaterializationLedgerLeakSafetyAcrossGenerations(t
 		t.Fatalf("gen2 Handle returned error: %v", err)
 	}
 
-	alarm1UID := cloudResourceUID(testCoverageAccount, testCoverageRegion, "aws_cloudwatch_alarm",
+	alarm1UID := payloadcore.CloudResourceUID(testCoverageAccount, testCoverageRegion, "aws_cloudwatch_alarm",
 		"arn:aws:cloudwatch:us-east-1:111122223333:alarm:cpu-high")
-	alarm2UID := cloudResourceUID(testCoverageAccount, testCoverageRegion, "aws_cloudwatch_alarm",
+	alarm2UID := payloadcore.CloudResourceUID(testCoverageAccount, testCoverageRegion, "aws_cloudwatch_alarm",
 		"arn:aws:cloudwatch:us-east-1:111122223333:alarm:cpu-high-2")
 
 	if writer.retractByUIDsCalls != 1 {

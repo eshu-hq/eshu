@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package reducer
+package obscoverage
 
 import (
 	"strings"
@@ -115,29 +115,29 @@ func BenchmarkObservabilityMetadataRawMap(b *testing.B) {
 func rawMetadataEvidenceForBench(env facts.Envelope) (observabilityMetadataEvidence, bool) {
 	p := env.Payload
 	view := observabilityMetadataView{
-		providerObjectUID: payloadString(p, "provider_object_uid"),
-		dashboardUID:      payloadString(p, "dashboard_uid"),
-		datasourceUID:     payloadString(p, "datasource_uid"),
-		alertRuleUID:      payloadString(p, "alert_rule_uid"),
-		folderUID:         payloadString(p, "folder_uid"),
-		resourceIdentity:  payloadString(p, "resource_identity"),
-		resourceName:      payloadString(p, "resource_name"),
-		pipelineName:      payloadString(p, "pipeline_name"),
-		ruleGroup:         payloadString(p, "rule_group"),
-		ruleName:          payloadString(p, "rule_name"),
-		tagName:           payloadString(p, "tag_name"),
-		seriesFingerprint: payloadString(p, "series_fingerprint"),
-		appName:           payloadString(p, "app_name"),
-		provider:          payloadString(p, "provider"),
-		backendKind:       payloadString(p, "backend_kind"),
-		sourceKind:        payloadString(p, "source_kind"),
-		sourceClass:       payloadString(p, "source_class"),
-		resourceClass:     payloadString(p, "resource_class"),
-		outcome:           payloadString(p, "outcome"),
-		freshnessState:    payloadString(p, "freshness_state"),
-		warningKind:       payloadString(p, "warning_kind"),
-		serviceHints:      payloadString(p, "service_hints"),
-		serviceRef:        payloadString(p, "service_ref"),
+		providerObjectUID: payloadcore.PayloadString(p, "provider_object_uid"),
+		dashboardUID:      payloadcore.PayloadString(p, "dashboard_uid"),
+		datasourceUID:     payloadcore.PayloadString(p, "datasource_uid"),
+		alertRuleUID:      payloadcore.PayloadString(p, "alert_rule_uid"),
+		folderUID:         payloadcore.PayloadString(p, "folder_uid"),
+		resourceIdentity:  payloadcore.PayloadString(p, "resource_identity"),
+		resourceName:      payloadcore.PayloadString(p, "resource_name"),
+		pipelineName:      payloadcore.PayloadString(p, "pipeline_name"),
+		ruleGroup:         payloadcore.PayloadString(p, "rule_group"),
+		ruleName:          payloadcore.PayloadString(p, "rule_name"),
+		tagName:           payloadcore.PayloadString(p, "tag_name"),
+		seriesFingerprint: payloadcore.PayloadString(p, "series_fingerprint"),
+		appName:           payloadcore.PayloadString(p, "app_name"),
+		provider:          payloadcore.PayloadString(p, "provider"),
+		backendKind:       payloadcore.PayloadString(p, "backend_kind"),
+		sourceKind:        payloadcore.PayloadString(p, "source_kind"),
+		sourceClass:       payloadcore.PayloadString(p, "source_class"),
+		resourceClass:     payloadcore.PayloadString(p, "resource_class"),
+		outcome:           payloadcore.PayloadString(p, "outcome"),
+		freshnessState:    payloadcore.PayloadString(p, "freshness_state"),
+		warningKind:       payloadcore.PayloadString(p, "warning_kind"),
+		serviceHints:      payloadcore.PayloadString(p, "service_hints"),
+		serviceRef:        payloadcore.PayloadString(p, "service_ref"),
 	}
 	provider := observabilityMetadataProvider(env.FactKind, view)
 	signal := observabilityMetadataCoverageSignal(env.FactKind, view)
