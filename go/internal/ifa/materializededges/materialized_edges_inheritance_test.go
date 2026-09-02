@@ -16,13 +16,13 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
 	"github.com/eshu-hq/eshu/go/internal/ifa"
-	"github.com/eshu-hq/eshu/go/internal/reducer"
+	"github.com/eshu-hq/eshu/go/internal/reducer/inheritance"
 	"github.com/eshu-hq/eshu/go/internal/replay/cassette"
 	"github.com/eshu-hq/eshu/go/internal/replaycoverage"
 )
 
 // TestInheritanceFamilyOduResolvesItsExpectedEdgeSet proves the EXTRACTOR:
-// reducer.ExtractInheritanceRows, over the cataloged Odù, reproduces the
+// inheritance.ExtractRows, over the cataloged Odù, reproduces the
 // hand-derived edge set exactly (#5996).
 //
 // Deliberately not called coverage: this cannot catch a live writer break by
@@ -130,7 +130,7 @@ func TestInheritanceFamilyExpectedSetRejectsAnExtraEdge(t *testing.T) {
 // TestInheritanceFamilyRejectsAnExtraParentlessRepository proves the guard
 // binds the fixture to its exact repository scope, not only its edge set. The
 // production inheritance handler emits one refresh/retract intent for every
-// repository returned by ExtractInheritanceRows, including a repository whose
+// repository returned by inheritance.ExtractRows, including a repository whose
 // entities declare no parent and therefore add no edge.
 func TestInheritanceFamilyRejectsAnExtraParentlessRepository(t *testing.T) {
 	t.Parallel()
@@ -165,12 +165,12 @@ func TestInheritanceFamilyRejectsAnExtraParentlessRepository(t *testing.T) {
 		},
 	})
 
-	repoIDs, rows := reducer.ExtractInheritanceRows(odu.Facts)
+	repoIDs, rows := inheritance.ExtractRows(odu.Facts)
 	if len(repoIDs) != 2 || repoIDs[0] != ifa.InheritanceFamilyRepoID || repoIDs[1] != "repository:r_extra_parentless" {
-		t.Fatalf("ExtractInheritanceRows repository scopes = %v, want exactly [%s repository:r_extra_parentless]", repoIDs, ifa.InheritanceFamilyRepoID)
+		t.Fatalf("inheritance.ExtractRows repository scopes = %v, want exactly [%s repository:r_extra_parentless]", repoIDs, ifa.InheritanceFamilyRepoID)
 	}
 	if len(rows) != 5 {
-		t.Fatalf("ExtractInheritanceRows edge rows = %d, want unchanged five-edge set", len(rows))
+		t.Fatalf("inheritance.ExtractRows edge rows = %d, want unchanged five-edge set", len(rows))
 	}
 
 	ok, detail := resolveInheritanceMaterializedEdges(odu, inheritanceFamilyExpectedEdgesPath(repoRoot))
@@ -346,14 +346,14 @@ func TestInheritanceFamilyOduCarriesTheFollowupFact(t *testing.T) {
 	t.Fatal("inheritance Odù carries no shared_followup fact; the live gate could not enqueue this domain's reducer work item")
 }
 
-// TestExtractInheritanceRowsProducesNoRowsWithoutTheOdu is a small direct
+// TestExtractRowsProducesNoRowsWithoutTheOdu is a small direct
 // sanity check on the production seam this whole guard depends on: nil input
 // yields nil output rather than panicking or fabricating rows.
-func TestExtractInheritanceRowsProducesNoRowsWithoutTheOdu(t *testing.T) {
+func TestExtractRowsProducesNoRowsWithoutTheOdu(t *testing.T) {
 	t.Parallel()
-	repoIDs, rows := reducer.ExtractInheritanceRows(nil)
+	repoIDs, rows := inheritance.ExtractRows(nil)
 	if repoIDs != nil || rows != nil {
-		t.Fatalf("ExtractInheritanceRows(nil) = (%v, %v), want (nil, nil)", repoIDs, rows)
+		t.Fatalf("inheritance.ExtractRows(nil) = (%v, %v), want (nil, nil)", repoIDs, rows)
 	}
 }
 

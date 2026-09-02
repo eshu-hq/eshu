@@ -3,6 +3,10 @@
 
 package reducer
 
+import (
+	"github.com/eshu-hq/eshu/go/internal/reducer/inheritance"
+)
+
 // implementedDefaultDomainDefinitions binds the reducer-owned handlers to the
 // default domain catalog. It attaches the graph-projection and materialization
 // handlers that are always present, then delegates to
@@ -100,7 +104,7 @@ func implementedDefaultDomainDefinitions(handlers DefaultHandlers) []DomainDefin
 				IntentWriter: handlers.ShellExecIntentWriter,
 			}
 		case DomainInheritanceMaterialization:
-			def.Handler = InheritanceMaterializationHandler{
+			def.Handler = inheritance.MaterializationHandler{
 				FactLoader:   handlers.FactLoader,
 				IntentWriter: handlers.InheritanceIntentWriter,
 			}

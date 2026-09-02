@@ -5,9 +5,9 @@
 # schema and every array declaration this file assigns into.
 
 # Non-vacuous, unlike the shape codeowners inherited: this handler really does
-# write shared-projection intents -- InheritanceIntentWriter is a declared
-# dependency (go/internal/reducer/inheritance_materialization.go:58) and Handle
-# calls UpsertIntents on it (:171), so a lock on shared_projection_intents
+# write shared-projection intents -- inheritance.IntentWriter is a declared
+# dependency (go/internal/reducer/inheritance/materialization.go:62) and Handle
+# calls UpsertIntents on it (:175), so a lock on shared_projection_intents
 # blocks a write this family actually performs.
 IFA_FAMILY_BLOCKER_KIND[inheritance_edges]="shared_intent_lock"
 IFA_FAMILY_WAIT_STAGE[inheritance_edges]="handler"
@@ -50,6 +50,6 @@ IFA_FAMILY_RETRY_BASELINE_VAR[inheritance_edges]="baseline_inheritance_retried"
 # through DRIVE_FN/CASSETTE_VAR above.
 IFA_FAMILY_FAULT_SHARED_DRIVE[inheritance_edges]="0"
 
-IFA_FAMILY_HANDLER_GO_FILE[inheritance_edges]="go/internal/reducer/inheritance_materialization.go"
+IFA_FAMILY_HANDLER_GO_FILE[inheritance_edges]="go/internal/reducer/inheritance/materialization.go"
 
 IFA_FAMILY_NAMES+=(inheritance_edges)

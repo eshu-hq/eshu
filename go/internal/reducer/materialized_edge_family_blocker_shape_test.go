@@ -117,8 +117,8 @@ var materializedEdgeFamilyBlockerExpectations = map[string]familyBlockerExpectat
 	// shell_exec_intents.go:58,106 tag rows ProjectionDomain: DomainShellExec;
 	// shell_exec_materialization.go writes them via h.IntentWriter.UpsertIntents.
 	DomainShellExec: {routedDomain: DomainShellExecMaterialization},
-	// inheritance_intents.go:99,152 tag rows ProjectionDomain: DomainInheritanceEdges;
-	// inheritance_materialization.go writes them via h.IntentWriter.UpsertIntents.
+	// inheritance/intents.go:99,152 tag rows ProjectionDomain: DomainInheritanceEdges;
+	// inheritance/materialization.go writes them via h.IntentWriter.UpsertIntents.
 	DomainInheritanceEdges: {routedDomain: DomainInheritanceMaterialization},
 	// rationale_edge_intents.go:104,164 tag rows ProjectionDomain: DomainRationaleEdges;
 	// rationale_edge_materialization.go:98 writes them via h.IntentWriter.UpsertIntents.

@@ -1,13 +1,16 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package reducer
+package inheritance
 
 import (
 	"testing"
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/reducer/factload"
+	"github.com/eshu-hq/eshu/go/internal/reducer/payloadcore"
+	"github.com/eshu-hq/eshu/go/internal/reducer/sharedintent"
 )
 
 // TestExtractInheritanceRowsPopulatesChildPathFromRelativePath is the #5996
@@ -23,7 +26,7 @@ func TestExtractInheritanceRowsPopulatesChildPathFromRelativePath(t *testing.T) 
 
 	envelopes := []facts.Envelope{
 		{
-			FactKind: factKindContentEntity,
+			FactKind: factload.FactKindContentEntity,
 			Payload: map[string]any{
 				"repo_id":       "repo-1",
 				"entity_id":     "content-entity:e_parent",
@@ -33,7 +36,7 @@ func TestExtractInheritanceRowsPopulatesChildPathFromRelativePath(t *testing.T) 
 			},
 		},
 		{
-			FactKind: factKindContentEntity,
+			FactKind: factload.FactKindContentEntity,
 			Payload: map[string]any{
 				"repo_id":       "repo-1",
 				"entity_id":     "content-entity:e_child",
@@ -47,7 +50,7 @@ func TestExtractInheritanceRowsPopulatesChildPathFromRelativePath(t *testing.T) 
 		},
 	}
 
-	_, rows := ExtractInheritanceRows(envelopes)
+	_, rows := ExtractRows(envelopes)
 	if len(rows) != 1 {
 		t.Fatalf("len(rows) = %d, want 1", len(rows))
 	}
@@ -68,7 +71,7 @@ func TestExtractInheritanceRowsMethodAliasChildPathFromRelativePath(t *testing.T
 
 	envelopes := []facts.Envelope{
 		{
-			FactKind: factKindContentEntity,
+			FactKind: factload.FactKindContentEntity,
 			Payload: map[string]any{
 				"repo_id":       "repo-1",
 				"entity_id":     "content-entity:e_logger_trait",
@@ -78,7 +81,7 @@ func TestExtractInheritanceRowsMethodAliasChildPathFromRelativePath(t *testing.T
 			},
 		},
 		{
-			FactKind: factKindContentEntity,
+			FactKind: factload.FactKindContentEntity,
 			Payload: map[string]any{
 				"repo_id":       "repo-1",
 				"entity_id":     "content-entity:e_logger_log",
@@ -91,7 +94,7 @@ func TestExtractInheritanceRowsMethodAliasChildPathFromRelativePath(t *testing.T
 			},
 		},
 		{
-			FactKind: factKindContentEntity,
+			FactKind: factload.FactKindContentEntity,
 			Payload: map[string]any{
 				"repo_id":       "repo-1",
 				"entity_id":     "content-entity:e_worker",
@@ -104,7 +107,7 @@ func TestExtractInheritanceRowsMethodAliasChildPathFromRelativePath(t *testing.T
 			},
 		},
 		{
-			FactKind: factKindContentEntity,
+			FactKind: factload.FactKindContentEntity,
 			Payload: map[string]any{
 				"repo_id":       "repo-1",
 				"entity_id":     "content-entity:e_worker_debug_log",
@@ -118,7 +121,7 @@ func TestExtractInheritanceRowsMethodAliasChildPathFromRelativePath(t *testing.T
 		},
 	}
 
-	_, rows := ExtractInheritanceRows(envelopes)
+	_, rows := ExtractRows(envelopes)
 
 	var aliasRow map[string]any
 	for _, row := range rows {
@@ -159,7 +162,7 @@ func TestInheritanceFilePartitionKeyChangesWithProductionChildPath(t *testing.T)
 
 	envelopes := []facts.Envelope{
 		{
-			FactKind: factKindRepository,
+			FactKind: factload.FactKindRepository,
 			ScopeID:  "scope-1",
 			Payload: map[string]any{
 				"repo_id":       "repo-1",
@@ -168,7 +171,7 @@ func TestInheritanceFilePartitionKeyChangesWithProductionChildPath(t *testing.T)
 			},
 		},
 		{
-			FactKind: factKindContentEntity,
+			FactKind: factload.FactKindContentEntity,
 			ScopeID:  "scope-1",
 			Payload: map[string]any{
 				"repo_id":       "repo-1",
@@ -179,7 +182,7 @@ func TestInheritanceFilePartitionKeyChangesWithProductionChildPath(t *testing.T)
 			},
 		},
 		{
-			FactKind: factKindContentEntity,
+			FactKind: factload.FactKindContentEntity,
 			ScopeID:  "scope-1",
 			Payload: map[string]any{
 				"repo_id":       "repo-1",
@@ -193,7 +196,7 @@ func TestInheritanceFilePartitionKeyChangesWithProductionChildPath(t *testing.T)
 			},
 		},
 		{
-			FactKind: factKindContentEntity,
+			FactKind: factload.FactKindContentEntity,
 			ScopeID:  "scope-1",
 			Payload: map[string]any{
 				"repo_id":       "repo-1",
@@ -208,22 +211,22 @@ func TestInheritanceFilePartitionKeyChangesWithProductionChildPath(t *testing.T)
 		},
 	}
 
-	repoIDs, rows := ExtractInheritanceRows(envelopes)
+	repoIDs, rows := ExtractRows(envelopes)
 	if len(rows) != 2 {
 		t.Fatalf("len(rows) = %d, want 2", len(rows))
 	}
-	deltaScope := buildInheritanceDeltaScope(envelopes)
-	contextByRepoID := buildCodeCallProjectionContexts(envelopes, "gen-1")
+	deltaScope := BuildDeltaScope(envelopes)
+	contextByRepoID := sharedintent.BuildProjectionContexts(envelopes, "gen-1")
 	now := time.Date(2026, time.June, 18, 21, 0, 0, 0, time.UTC)
 
-	intents := buildInheritanceSharedIntentRows(rows, deltaScope, repoIDs, contextByRepoID, now)
+	intents := BuildSharedIntentRows(rows, deltaScope, repoIDs, contextByRepoID, now)
 
-	perEdge := make(map[string]SharedProjectionIntentRow)
+	perEdge := make(map[string]sharedintent.Row)
 	for _, intent := range intents {
 		if isRepoRefreshRow(intent) {
 			continue
 		}
-		perEdge[anyToString(intent.Payload["child_entity_id"])] = intent
+		perEdge[payloadcore.AnyToString(intent.Payload["child_entity_id"])] = intent
 	}
 	if len(perEdge) != 2 {
 		t.Fatalf("per-edge intents = %d, want 2", len(perEdge))
@@ -280,7 +283,7 @@ func TestInheritanceFilePartitionKeyChangesWithProductionChildPath(t *testing.T)
 // and neither -- while keeping every entity_id/base/bases identical. If the
 // retraction target consumed child_path (derived from a content_entity fact),
 // these three runs would diverge once child_path started resolving instead of
-// staying blank. They do not: buildInheritanceDeltaScope (the function whose
+// staying blank. They do not: BuildDeltaScope (the function whose
 // output becomes the refresh intent's delta_file_paths, which is the only
 // thing BuildRetractInheritanceEdgeStatementsByFilePath's $file_paths
 // parameter is built from -- see inheritance_delta_scope.go and
@@ -291,7 +294,7 @@ func TestInheritanceFilePartitionKeyChangesWithProductionChildPath(t *testing.T)
 // of asserting a false dependency, and a full-repo grep
 // (`rg -n '"child_path"' --type go`, run 2026-08-18) confirms the only
 // producer/consumer pair for the child_path payload key in the whole tree is
-// declaredInheritanceRow (writes it) and buildInheritanceSharedIntentRows'
+// declaredInheritanceRow (writes it) and BuildSharedIntentRows'
 // inheritanceFilePartitionKey call (reads it) -- covered by the test above.
 // No retraction code path reads it, so a test asserting retraction now
 // "targets the right file because child_path is populated" would not be
@@ -302,7 +305,7 @@ func TestInheritanceDeltaRetractTargetIgnoresContentEntityChildPath(t *testing.T
 	buildDeltaFilePaths := func(t *testing.T, childPathKeys ...string) []string {
 		t.Helper()
 		repository := facts.Envelope{
-			FactKind: factKindRepository,
+			FactKind: factload.FactKindRepository,
 			ScopeID:  "scope-1",
 			Payload: map[string]any{
 				"repo_id":              "repo-1",
@@ -327,7 +330,7 @@ func TestInheritanceDeltaRetractTargetIgnoresContentEntityChildPath(t *testing.T
 		envelopes := []facts.Envelope{
 			repository,
 			{
-				FactKind: factKindContentEntity,
+				FactKind: factload.FactKindContentEntity,
 				ScopeID:  "scope-1",
 				Payload: map[string]any{
 					"repo_id":     "repo-1",
@@ -336,16 +339,16 @@ func TestInheritanceDeltaRetractTargetIgnoresContentEntityChildPath(t *testing.T
 					"entity_name": "ParentClass",
 				},
 			},
-			{FactKind: factKindContentEntity, ScopeID: "scope-1", Payload: childPayload},
+			{FactKind: factload.FactKindContentEntity, ScopeID: "scope-1", Payload: childPayload},
 		}
 
-		deltaScope := buildInheritanceDeltaScope(envelopes)
-		if !deltaScope.hasDelta {
+		deltaScope := BuildDeltaScope(envelopes)
+		if !deltaScope.HasDelta {
 			t.Fatal("fixture must produce a delta scope")
 		}
-		refresh := buildInheritanceRefreshIntents(
+		refresh := BuildRefreshIntents(
 			deltaScope, []string{"repo-1"},
-			buildCodeCallProjectionContexts(envelopes, "gen-1"),
+			sharedintent.BuildProjectionContexts(envelopes, "gen-1"),
 			time.Date(2026, time.June, 18, 22, 0, 0, 0, time.UTC),
 		)
 		if len(refresh) != 1 {

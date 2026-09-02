@@ -1,7 +1,11 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package reducer
+package inheritance
+
+import (
+	"github.com/eshu-hq/eshu/go/internal/reducer/payloadcore"
+)
 
 // implementerEntityTypes are the entity types that may implement an interface.
 // Interface implementation is an explicit-keyword relationship; Go's structural
@@ -23,5 +27,5 @@ var interfaceLikeEntityTypes = map[string]struct{}{
 // implemented_interfaces metadata that flows through the content-entity snapshot
 // (issue #2229). It mirrors inheritancePayloadBases.
 func inheritancePayloadImplementedInterfaces(payload map[string]any) []string {
-	return semanticPayloadMetadataStringSlice(payload, "implemented_interfaces")
+	return payloadcore.SemanticPayloadMetadataStringSlice(payload, "implemented_interfaces")
 }

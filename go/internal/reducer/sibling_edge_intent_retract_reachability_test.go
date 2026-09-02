@@ -7,6 +7,8 @@ import (
 	"context"
 	"testing"
 	"time"
+
+	"github.com/eshu-hq/eshu/go/internal/reducer/inheritance"
 )
 
 // wholeScopeRetractReachabilityCase describes one FENCED repo-wide-retract
@@ -32,7 +34,7 @@ func wholeScopeRetractReachabilityCases() []wholeScopeRetractReachabilityCase {
 				}
 			},
 			buildRows: func(edges []map[string]any, repoIDs []string, ctxByRepo map[string]ProjectionContext, at time.Time) []SharedProjectionIntentRow {
-				return buildInheritanceSharedIntentRows(edges, inheritanceDeltaScope{}, repoIDs, ctxByRepo, at)
+				return inheritance.BuildSharedIntentRows(edges, inheritance.DeltaScope{}, repoIDs, ctxByRepo, at)
 			},
 		},
 		{

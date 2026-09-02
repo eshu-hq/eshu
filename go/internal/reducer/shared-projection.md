@@ -56,14 +56,14 @@ Configuration via `LoadSharedProjectionConfig` reads
 
 ## SQL and inheritance domains
 
-`InheritanceMaterializationHandler` and `SQLRelationshipMaterializationHandler`
+`inheritance.MaterializationHandler` and `SQLRelationshipMaterializationHandler`
 load only the `content_entity` rows whose `entity_type` can participate in
 their domains. The filters are correctness filters, not sampling: every allowed
 type is still processed, and unsupported types stay invisible to those domain
 reducers.
 
-`InheritanceMaterializationHandler` no longer writes canonical edges directly.
-It emits durable shared-projection intents (`inheritance_intents.go`): one
+`inheritance.MaterializationHandler` no longer writes canonical edges directly.
+It emits durable shared-projection intents (`inheritance/intents.go`): one
 whole-scope per-repo refresh intent that owns the single retract, plus one
 write-only per-edge intent per inheritance edge under a file-scoped,
 edge-unique partition key. The generic partitioned worker projects them and the

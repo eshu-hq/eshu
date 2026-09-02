@@ -15,7 +15,7 @@ import (
 
 // The inheritance_edges family Odù (#5996, under the #5543 umbrella).
 //
-// reducer.ExtractInheritanceRows (inheritance_materialization.go) derives
+// reducer/inheritance.ExtractRows (materialization.go) derives
 // INHERITS from a Class/Struct/Enum/Trait/Protocol/Interface entity's
 // entity_metadata.bases, IMPLEMENTS from a Class/Struct/Enum entity's
 // entity_metadata.implemented_interfaces naming an Interface/Protocol entity,
@@ -157,7 +157,7 @@ func inheritanceFamilyOdu() CatalogOdu {
 		Odu: Odu{Name: InheritanceFamilyOduName, Facts: factsForOdu},
 		Detail: "one typed repository, seven typed Python files, and nine valid content entities " +
 			"deriving one INHERITS, one IMPLEMENTS, one OVERRIDES, and two ALIASES edges " +
-			"(class-to-trait and method-to-method) across all five ExtractInheritanceRows derivation paths",
+			"(class-to-trait and method-to-method) across all five inheritance.ExtractRows derivation paths",
 	}
 }
 
@@ -235,7 +235,7 @@ func inheritanceFamilyFileFact(relativePath string) facts.Envelope {
 }
 
 // inheritanceFamilyParsedFile builds a minimal-but-schema-complete
-// parsed_file_data map. ExtractInheritanceRows reads content_entity facts
+// parsed_file_data map. inheritance.ExtractRows reads content_entity facts
 // directly, not parsed_file_data, so this exists solely to satisfy the File
 // payload schema and the Gotcha-1 file/content_entity relative_path match --
 // its classes/functions arrays intentionally stay empty.

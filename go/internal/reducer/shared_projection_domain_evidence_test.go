@@ -3,7 +3,11 @@
 
 package reducer
 
-import "testing"
+import (
+	"testing"
+
+	"github.com/eshu-hq/eshu/go/internal/reducer/inheritance"
+)
 
 // TestSharedProjectionDomainEvidenceSource pins that a promoted edge domain keeps
 // its dedicated handler's evidence source so an upgrade's retract matches the edges
@@ -17,7 +21,7 @@ func TestSharedProjectionDomainEvidenceSource(t *testing.T) {
 		domain string
 		want   string
 	}{
-		{DomainInheritanceEdges, inheritanceEvidenceSource},
+		{DomainInheritanceEdges, inheritance.EvidenceSource},
 		{DomainRationaleEdges, rationaleEvidenceSource},
 		{DomainHandlesRoute, fallback},
 		{DomainRunsIn, fallback},
@@ -32,7 +36,7 @@ func TestSharedProjectionDomainEvidenceSource(t *testing.T) {
 			}
 		})
 	}
-	if inheritanceEvidenceSource == fallback || rationaleEvidenceSource == fallback {
+	if inheritance.EvidenceSource == fallback || rationaleEvidenceSource == fallback {
 		t.Fatal("dedicated evidence sources must differ from the runner global to exercise the fix")
 	}
 }

@@ -1,12 +1,13 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package reducer
+package inheritance
 
 import (
 	"testing"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/reducer/factload"
 )
 
 // TestCountInheritanceFactInputs locks the rc-12 diagnostic counters: every
@@ -29,7 +30,7 @@ func TestCountInheritanceFactInputs(t *testing.T) {
 	}
 
 	envelopes := []facts.Envelope{
-		{FactKind: factKindRepository, Payload: map[string]any{"repo_id": "repo-1"}},
+		{FactKind: factload.FactKindRepository, Payload: map[string]any{"repo_id": "repo-1"}},
 		classWithBase("Class", "ParentClass"),   // inheritable + declares parent -> counted
 		classWithBase("Interface", "BaseIface"), // inheritable + declares parent -> counted
 		{FactKind: "content_entity", Payload: map[string]any{ // parentless Class -> NOT counted

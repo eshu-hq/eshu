@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package reducer
+package inheritance
 
 import (
 	"testing"
@@ -44,7 +44,7 @@ func TestExtractInheritanceRowsEmitsImplementsEdge(t *testing.T) {
 		},
 	}
 
-	_, rows := ExtractInheritanceRows(envelopes)
+	_, rows := ExtractRows(envelopes)
 	var implements map[string]any
 	for _, row := range rows {
 		if row["relationship_type"] == "IMPLEMENTS" {
@@ -93,7 +93,7 @@ func TestExtractInheritanceRowsImplementsRequiresKnownInterface(t *testing.T) {
 		},
 	}
 
-	_, rows := ExtractInheritanceRows(envelopes)
+	_, rows := ExtractRows(envelopes)
 	for _, row := range rows {
 		if row["relationship_type"] == "IMPLEMENTS" {
 			t.Fatalf("unexpected IMPLEMENTS row for unresolved interface: %#v", row)

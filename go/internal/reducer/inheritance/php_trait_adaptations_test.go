@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package reducer
+package inheritance
 
 import (
 	"testing"
@@ -133,7 +133,7 @@ func TestExtractInheritanceRowsMaterializesPHPTraitAdaptationOverrides(t *testin
 		},
 	}
 
-	repoIDs, rows := ExtractInheritanceRows(envelopes)
+	repoIDs, rows := ExtractRows(envelopes)
 	if len(repoIDs) != 1 || repoIDs[0] != "repo-php" {
 		t.Fatalf("repoIDs = %v, want [repo-php]", repoIDs)
 	}

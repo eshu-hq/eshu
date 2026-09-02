@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/reducer/inheritance"
 )
 
 func TestInheritanceMaterializationHandlerUsesPayloadFilteredContentEntities(t *testing.T) {
@@ -28,7 +29,7 @@ func TestInheritanceMaterializationHandlerUsesPayloadFilteredContentEntities(t *
 		}},
 	}
 	writer := &recordingInheritanceIntentWriter{}
-	handler := InheritanceMaterializationHandler{
+	handler := inheritance.MaterializationHandler{
 		FactLoader:   loader,
 		IntentWriter: writer,
 	}

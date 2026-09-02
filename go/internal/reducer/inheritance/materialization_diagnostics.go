@@ -1,12 +1,13 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package reducer
+package inheritance
 
 import (
 	"sort"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/reducer/payloadcore"
 )
 
 // inheritanceEntityPathKey is the payload key every content_entity fact
@@ -51,7 +52,7 @@ func countInheritanceFactInputs(envelopes []facts.Envelope) (contentEntities, wi
 		}
 		contentEntities++
 		payload := envelopes[i].Payload
-		if _, ok := inheritableEntityTypes[semanticPayloadString(payload, "entity_type")]; !ok {
+		if _, ok := inheritableEntityTypes[payloadcore.SemanticPayloadString(payload, "entity_type")]; !ok {
 			continue
 		}
 		if len(inheritancePayloadBases(payload)) > 0 ||
@@ -72,7 +73,7 @@ func collectInheritanceRepoIDs(envelopes []facts.Envelope) []string {
 		if env.FactKind != "content_entity" {
 			continue
 		}
-		repoID := semanticPayloadString(env.Payload, "repo_id")
+		repoID := payloadcore.SemanticPayloadString(env.Payload, "repo_id")
 		if repoID == "" {
 			continue
 		}
@@ -89,5 +90,5 @@ func collectInheritanceRepoIDs(envelopes []facts.Envelope) []string {
 // inheritancePayloadBases extracts the bases string slice from the entity
 // metadata in a content_entity fact payload.
 func inheritancePayloadBases(payload map[string]any) []string {
-	return semanticPayloadMetadataStringSlice(payload, "bases")
+	return payloadcore.SemanticPayloadMetadataStringSlice(payload, "bases")
 }

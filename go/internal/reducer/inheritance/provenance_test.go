@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package reducer
+package inheritance
 
 import (
 	"testing"
@@ -13,7 +13,7 @@ import (
 func TestExtractInheritanceRowsStampsDeclaredResolutionMethod(t *testing.T) {
 	t.Parallel()
 
-	_, rows := ExtractInheritanceRows(inheritanceEntityFacts())
+	_, rows := ExtractRows(inheritanceEntityFacts())
 	if len(rows) != 1 {
 		t.Fatalf("len(rows) = %d, want 1", len(rows))
 	}
@@ -49,7 +49,7 @@ func TestExtractInheritanceRowsStampsDeclaredResolutionMethodForImplements(t *te
 		},
 	}
 
-	_, rows := ExtractInheritanceRows(envelopes)
+	_, rows := ExtractRows(envelopes)
 	if len(rows) != 1 {
 		t.Fatalf("len(rows) = %d, want 1", len(rows))
 	}

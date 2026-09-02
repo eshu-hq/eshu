@@ -10,7 +10,7 @@ import (
 	"strings"
 
 	"github.com/eshu-hq/eshu/go/internal/ifa"
-	"github.com/eshu-hq/eshu/go/internal/reducer"
+	"github.com/eshu-hq/eshu/go/internal/reducer/inheritance"
 )
 
 // inheritanceExpectedEdgesRelPath is the repo-root-relative path to the
@@ -29,7 +29,7 @@ func inheritanceFamilyExpectedEdgesPath(repoRoot string) string {
 	return filepath.Join(repoRoot, inheritanceExpectedEdgesRelPath)
 }
 
-// inheritanceRowsToExpectedEdges adapts reducer.ExtractInheritanceRows' row
+// inheritanceRowsToExpectedEdges adapts inheritance.ExtractRows' row
 // shape onto the exported ExpectedEdge identity triple. inheritance_edges
 // declares an empty relationship-MERGE identity
 // (cypher.materializedEdgeIdentityByFamily["inheritance_edges"] = {} --
@@ -102,7 +102,7 @@ func compareInheritanceExpectedSets(label string, expected, actual []ExpectedEdg
 
 	if len(missing) == 0 && len(extra) == 0 {
 		if len(actual) != len(expected) {
-			return fmt.Sprintf("odù %q: extractor produced %d row(s) for %d distinct expected edge(s); ExtractInheritanceRows' own seenEdges dedup should have collapsed them",
+			return fmt.Sprintf("odù %q: extractor produced %d row(s) for %d distinct expected edge(s); inheritance.ExtractRows' own seenEdges dedup should have collapsed them",
 				label, len(actual), len(expected))
 		}
 		return ""
@@ -128,7 +128,7 @@ func inheritanceEdgeLabel(e ExpectedEdge) string {
 // hand-derived expected-edge-set file exists, names at least one edge of
 // EVERY registry relationship type (the exhaustiveness half), and running
 // odu's own facts through the pure, backend-free
-// reducer.ExtractInheritanceRows seam reproduces that expected set EXACTLY
+// inheritance.ExtractRows seam reproduces that expected set EXACTLY
 // from the family's one intended repository scope (the vacuity half) -- a
 // fixture that merely looks right (a bound Odù name) but whose facts don't
 // actually derive the claimed edges cannot pass. Exact repository identity is
@@ -148,10 +148,10 @@ func resolveInheritanceMaterializedEdges(odu ifa.Odu, expectedEdgesPath string) 
 		return false, fmt.Sprintf("odù %q: expected-edge-set %s does not cover every registry edge type, missing: %v", odu.Name, expectedEdgesPath, missing)
 	}
 
-	repoIDs, rows := reducer.ExtractInheritanceRows(odu.Facts)
+	repoIDs, rows := inheritance.ExtractRows(odu.Facts)
 	if len(repoIDs) != 1 || repoIDs[0] != ifa.InheritanceFamilyRepoID {
 		return false, fmt.Sprintf(
-			"odù %q: ExtractInheritanceRows reports repository scope %v, want exactly [%s]",
+			"odù %q: inheritance.ExtractRows reports repository scope %v, want exactly [%s]",
 			odu.Name,
 			repoIDs,
 			ifa.InheritanceFamilyRepoID,
@@ -162,5 +162,5 @@ func resolveInheritanceMaterializedEdges(odu ifa.Odu, expectedEdgesPath string) 
 		return false, mismatch
 	}
 
-	return true, fmt.Sprintf("odù %q: ExtractInheritanceRows reproduces the expected %d-edge set exactly, covering all %d registry types", odu.Name, len(expected), len(registry))
+	return true, fmt.Sprintf("odù %q: inheritance.ExtractRows reproduces the expected %d-edge set exactly, covering all %d registry types", odu.Name, len(expected), len(registry))
 }
