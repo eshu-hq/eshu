@@ -52,9 +52,9 @@ type EntityNameSearch struct {
 //
 // This type, EntityNameSearch, and the two sentinel errors below moved here
 // from root package query's content_reader_entity_names.go (#6060) so the
-// CodeHandler family (internal/query/code) can assert *ContentReader against
-// this interface and share the identical sentinel error values with root's
-// EntityHandler, without either package importing the other -- root cannot
+// planned CodeHandler family can assert *ContentReader against this interface
+// and share the identical sentinel error values with root's EntityHandler,
+// without either package importing the other -- root cannot
 // import a family package's own root-facing aliases back, and a family
 // package cannot import root without an import cycle. ContentReader's
 // implementation of this interface, and the Postgres query it runs, stay in

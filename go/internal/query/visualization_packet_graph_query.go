@@ -66,11 +66,17 @@ func BuildGraphQueryVisualizationPacket(rows []map[string]any, truth *TruthEnvel
 // This is defence in depth, not the only thing holding the packet stable. The
 // builder already converges a node reached through two columns without regard
 // to which arrived first: mergeVisualizationNodePresentation resolves a
-// duplicate by role priority, tie-broken by presentation key, and Finalize
-// sorts nodes and edges by ID. Sorting here keeps that convergence from being
-// the sole guarantee, so a later projector carrying order-sensitive fields
-// (scope keys and evidence handles both merge first-wins) inherits a stable
-// column sequence rather than having to rediscover the need for one.
+// duplicate by role priority, tie-broken by presentation key; scope keys and
+// evidence handles each dedup into a map and are then sorted, so the winner is
+// the smallest key rather than the first arrival; and Finalize sorts nodes and
+// edges by ID.
+//
+// One field escapes that. mergeVisualizationEvidenceHandles keys its dedup map
+// on every handle field except Confidence, so two handles for the same citation
+// with different confidences collide and the later write keeps its Confidence.
+// That is the one place arrival order still decides a value, which is why
+// sorting the column keys here is worth its cost even though nothing else in
+// this projector depends on it.
 func sortedRowKeys(row map[string]any) []string {
 	keys := make([]string, 0, len(row))
 	for key := range row {

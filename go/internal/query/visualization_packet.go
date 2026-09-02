@@ -6,20 +6,23 @@ package query
 import "github.com/eshu-hq/eshu/go/internal/query/querycontract"
 
 // The visualization-packet builder implementation moved to querycontract for
-// #6060 so a handler-family subpackage -- currently internal/query/code's
-// graph-query visualization route -- can build a VisualizationPacket without
-// importing this package, which it cannot do without an import cycle through
-// root's compatibility aliases. What follows are plain type aliases and thin
-// function forwarders.
+// #6060 so a future handler-family subpackage can build a VisualizationPacket
+// without importing this package, which it cannot do without an import cycle
+// through root's compatibility aliases. No such package exists yet -- the
+// graph-query visualization route that will move first is still in root at
+// visualization_packet_graph_query.go, and nothing here depends on that split
+// landing. What follows are plain type aliases and thin function forwarders.
 //
 // A type alias carries the type but not access to its unexported fields or
 // methods, so the three root files that drive the builder directly had to be
-// updated. visualization_packet_evidence.go and visualization_packet_story.go
-// needed only the method renames addNode/addEdge/finalize ->
-// AddNode/AddEdge/Finalize. visualization_packet_graph_query.go needed more
-// than renames: it read builder.nodes and builder.edges and assigned
-// builder.truth directly, none of which a caller outside querycontract can do
-// now, so those became the Empty, EdgeCount and SetTruth accessors.
+// updated, and none of them got away with a pure rename. All three --
+// visualization_packet_evidence.go (two sites), visualization_packet_story.go,
+// and visualization_packet_graph_query.go -- assigned the unexported
+// builder.truth field, which is now another package's, so every one of them
+// took SetTruth alongside the addNode/addEdge/finalize -> AddNode/AddEdge/
+// Finalize renames. visualization_packet_graph_query.go needed two more: it
+// read builder.nodes and builder.edges to decide whether the result was empty
+// and whether any edge survived, which became Empty and EdgeCount.
 //
 // Every other root caller compiles unchanged. Where a root file in this diff
 // changed for some other reason -- content_reader_entity_names.go,
