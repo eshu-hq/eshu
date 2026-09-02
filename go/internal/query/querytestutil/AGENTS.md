@@ -11,13 +11,30 @@
    `_test.go` file here is unreachable from other packages' tests, which
    defeats the package's only purpose.
 2. Leaf packages only — never root `internal/query`, never a handler family,
-   never a graph driver. The root/family half is enforced by the compiler: root
-   imports the families for its aliases, so importing either from here is an
-   import cycle and `internal/query`'s tests stop building. The package itself
-   still compiles -- the cycle only materializes in the test binary of a package
-   whose tests import this one, so a newly split family with no such test yet
-   would compile clean and break later. Leaf dependencies such as
-   `internal/status`, `internal/governanceaudit`, or `queryauth` are fine.
+   never a graph driver. Leaf dependencies such as `internal/status`,
+   `internal/governanceaudit`, or `queryauth` are fine.
+
+   Only ONE of those three bans has a compiler backstop, and knowing which
+   matters more than the rule itself:
+
+   - **Root** is caught, but only in a test binary. Root's own tests import
+     this package, so importing root from here is a cycle and
+     `internal/query`'s tests stop building. This package still compiles on
+     its own -- `go build ./internal/query/querytestutil` succeeds -- so a
+     `go build` will not tell you.
+   - **A handler family is NOT caught.** Importing `packagereg` from here
+     compiles fine: root and this package merely share that dependency, which
+     is not a cycle. The cycle appears only once that family's own tests also
+     import this package -- so a newly split family builds clean today and
+     breaks whoever adds the first such test later, in a file they did not
+     write.
+   - **A graph driver is NOT caught.** It was, transitively, while the
+     stdlib-only import rule stood; that rule is gone. `countQueryCalls`
+     matches the selector names `Run` and `RunSingle` only, so a real read
+     issued through a differently-named method is invisible to it.
+
+   Two of the three are enforced by review, not by tooling. Treat them as
+   rules you have to hold yourself to.
 3. No production behavior. If production code needs it, it belongs in
    `querycontract`.
 4. No `Run` or `RunSingle` call in a non-test file. `internal/queryplan`'s
