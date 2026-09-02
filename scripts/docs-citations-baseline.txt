@@ -727,9 +727,6 @@ LINE docs/public/observability/telemetry-coverage.md go/internal/reducer/package
 LINE docs/public/observability/telemetry-coverage.md go/internal/reducer/poison_liveness_runner.go:165
 LINE docs/public/observability/telemetry-coverage.md go/internal/reducer/repo_dependency_projection_runner.go:149
 LINE docs/public/observability/telemetry-coverage.md go/internal/reducer/search_vector_build_runner.go:235
-LINE docs/public/observability/telemetry-coverage.md go/internal/reducer/secrets_iam_graph_projection.go:232
-LINE docs/public/observability/telemetry-coverage.md go/internal/reducer/secrets_iam_trust_chain.go:223
-LINE docs/public/observability/telemetry-coverage.md go/internal/reducer/secrets_iam_trust_chain_observations.go:76
 LINE docs/public/observability/telemetry-coverage.md go/internal/reducer/service.go:189
 LINE docs/public/observability/telemetry-coverage.md go/internal/reducer/service.go:358
 LINE docs/public/observability/telemetry-coverage.md go/internal/reducer/service_catalog_correlation_guardrails.go:134

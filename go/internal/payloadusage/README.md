@@ -105,7 +105,7 @@ now recognizes that `iamPermissionStatement.permission` is typed
 `iamv1.Permission`, binds the range value to that wrapper, and attributes the
 seam field. `aws_iam_principal` works the same way:
 `secretsIAMRoleCloudResourceUID`
-(`go/internal/reducer/secrets_iam_trust_chain_iam_role.go`) reads
+(`go/internal/reducer/secretsiam/secrets_iam_trust_chain_iam_role.go`) reads
 `principal.decoded.AccountID` / `.Region` through the `secretsIAMPrincipal`
 wrapper, so `account_id` and `region` are attributed instead of the kind
 reporting an empty `UsedFields`.

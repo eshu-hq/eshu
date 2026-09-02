@@ -11,7 +11,7 @@
    impact probe.
 5. `../schema_version_admission.go` for the root gate that rejects an
    unsupported secrets/IAM schema version before this builder runs.
-6. `go/internal/reducer/secrets_iam_trust_chain.go` for what the reducer does
+6. `go/internal/reducer/secretsiam/secrets_iam_trust_chain.go` for what the reducer does
    with the intent this package enqueues.
 
 ## Invariants

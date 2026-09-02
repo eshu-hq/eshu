@@ -28,7 +28,7 @@ var secretsIAMGraphBudgetRelPath = filepath.Join(
 
 // secretsIAMGraphCostEvidence mirrors the evidence-source shape the
 // production secrets/IAM graph projection handler stamps
-// (go/internal/reducer/secrets_iam_graph_projection.go).
+// (go/internal/reducer/secretsiam/secrets_iam_graph_projection.go).
 const secretsIAMGraphCostEvidence = "reducer/secrets-iam-graph"
 
 // secretsIAMServiceAccountFixtureRows is the deterministic input for both the

@@ -160,7 +160,7 @@ require_workflow_path "deployable-unit + drift correlation (#5538 correction)" "
 # table in docs/internal/agent-guide.md) imported directly by dozens of
 # internal/reducer materialization writers -- including
 # kubernetes_namespace_materialization.go, azure_resource_materialization.go,
-# and secrets_iam_graph_projection.go -- plus doctruth, relationships, and
+# and secretsiam/secrets_iam_graph_projection.go -- plus doctruth, relationships, and
 # internal/query. KubernetesNamespace node counts, fed by
 # kubernetes_namespace_materialization.go, are asserted in the B-12 snapshot's
 # node_counts.

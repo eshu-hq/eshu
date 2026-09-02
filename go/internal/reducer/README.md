@@ -413,6 +413,7 @@ logic stays with the family even when it calls into `factwrite` to publish.
 - `go/internal/reducer/iampolicy/README.md`
 - `go/internal/reducer/iamcan/README.md`
 - `go/internal/reducer/codeintel/README.md`
+- `go/internal/reducer/secretsiam/README.md`
 - `go/internal/reducer/dsl/README.md`
 - `go/internal/reducer/tags/README.md`
 - `go/internal/reducer/tfstate/README.md`
