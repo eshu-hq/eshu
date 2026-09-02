@@ -96,6 +96,16 @@ WHERE ($1 = '' OR generation.scope_id = $1)
   AND ($4 = '' OR scope.source_system = $4)
   AND ($5 = '' OR generation.generation_id = $5)
   AND ($6 = '' OR generation.status = $6)
+  -- Grant binding (#5167). Applied to the ROW, not to a selector, because this
+  -- route also filters on generation_id, collector_kind, source_system and
+  -- status: a caller that supplies only generation_id would otherwise reach any
+  -- tenant's generation. A repository grant authorizes a repository-kind scope
+  -- through source_key, mirroring the dead-letter and invalid-facts readers --
+  -- the raw scope_id normally differs from that key, so comparing scope_id
+  -- alone would also deny a token its own scope.
+  AND ($8::boolean = false
+       OR (scope.scope_kind = 'repository' AND scope.source_key = ANY($9))
+       OR generation.scope_id = ANY($10))
 ORDER BY generation.observed_at DESC, generation.generation_id ASC
 LIMIT $7
 `

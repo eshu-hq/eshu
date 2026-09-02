@@ -25,11 +25,51 @@ func (r *recordingGenerations) ListGenerationLifecycle(
 	return status.GenerationLifecyclePage{}, nil
 }
 
-// TestGenerationLifecycleRejectsRepositoryOutsideGrant is the #5167 F-6 proof
-// for GET /api/v0/freshness/generations. Like changed-since it names one
-// repository or scope selector taken from the query string, so a scoped caller
-// without this check reads any repository's generation lifecycle by asking.
-func TestGenerationLifecycleRejectsRepositoryOutsideGrant(t *testing.T) {
+// TestGenerationLifecycleBindsGrantForGenerationIDOnlyQuery is the #5167
+// regression for the bypass review found in the first attempt at this fix. A
+// guard that inspected only the repository and scope selector fields let a
+// scoped caller leave both blank, pass another tenant's generation_id, and
+// receive that generation's scope, queue counts and latest failure message.
+//
+// The grant now travels into the filter, so it binds the row regardless of
+// which other fields the caller supplied.
+func TestGenerationLifecycleBindsGrantForGenerationIDOnlyQuery(t *testing.T) {
+	t.Parallel()
+
+	reader := &recordingGenerations{}
+	handler := &FreshnessHandler{Generations: reader, Profile: ProfileLocalAuthoritative}
+	mux := http.NewServeMux()
+	handler.Mount(mux)
+
+	req := httptest.NewRequest(
+		http.MethodGet,
+		"/api/v0/freshness/generations?generation_id=someone-elses-generation",
+		nil,
+	)
+	req.Header.Set("Accept", EnvelopeMIMEType)
+	req = req.WithContext(ContextWithAuthContext(req.Context(), AuthContext{
+		Mode:                 AuthModeScoped,
+		TenantID:             "tenant-a",
+		WorkspaceID:          "workspace-a",
+		AllowedRepositoryIDs: []string{"repo-a"},
+		AllowedScopeIDs:      []string{"scope-a"},
+	}))
+
+	w := httptest.NewRecorder()
+	mux.ServeHTTP(w, req)
+
+	if !reader.filter.Scoped {
+		t.Fatalf("a scoped caller must reach the store with Scoped set, so the query can bind the grant; filter = %+v", reader.filter)
+	}
+	if len(reader.filter.AllowedRepositoryIDs) == 0 && len(reader.filter.AllowedScopeIDs) == 0 {
+		t.Fatalf("the grant must travel into the filter for a generation_id-only query, or the query cannot bound the row; filter = %+v", reader.filter)
+	}
+}
+
+// TestGenerationLifecycleLeavesSharedKeyUnbounded proves the binding is not
+// applied to a shared-key caller, which would silently narrow an operator's
+// deployment-wide view.
+func TestGenerationLifecycleLeavesSharedKeyUnbounded(t *testing.T) {
 	t.Parallel()
 
 	reader := &recordingGenerations{}
@@ -39,53 +79,12 @@ func TestGenerationLifecycleRejectsRepositoryOutsideGrant(t *testing.T) {
 
 	req := httptest.NewRequest(http.MethodGet, "/api/v0/freshness/generations?repository=repo-b", nil)
 	req.Header.Set("Accept", EnvelopeMIMEType)
-	req = req.WithContext(ContextWithAuthContext(req.Context(), AuthContext{
-		Mode:                 AuthModeScoped,
-		TenantID:             "tenant-a",
-		WorkspaceID:          "workspace-a",
-		AllowedRepositoryIDs: []string{"repo-a"},
-		AllowedScopeIDs:      []string{"scope-a"},
-	}))
+	req = req.WithContext(ContextWithAuthContext(req.Context(), AuthContext{Mode: AuthModeShared}))
 
 	w := httptest.NewRecorder()
 	mux.ServeHTTP(w, req)
 
-	if w.Code != http.StatusNotFound {
-		t.Fatalf("an ungranted selector must be indistinguishable from a missing one (404), matching queryselector.ResolveExactForAccess; got %d: %s", w.Code, w.Body.String())
-	}
-	if w.Code == http.StatusOK {
-		t.Fatalf("a scoped caller granted only repo-a must not list generations for repo-b; got 200: %s", w.Body.String())
-	}
-	if reader.called {
-		t.Fatalf("store was queried for an ungranted repository selector %q; the grant must be checked before the read", reader.filter.Repository)
-	}
-}
-
-// TestGenerationLifecycleAllowsGrantedRepository is the other half: the guard
-// must not turn a legitimate scoped caller away, which a status-code-only
-// assertion on the negative case would never catch.
-func TestGenerationLifecycleAllowsGrantedRepository(t *testing.T) {
-	t.Parallel()
-
-	reader := &recordingGenerations{}
-	handler := &FreshnessHandler{Generations: reader, Profile: ProfileLocalAuthoritative}
-	mux := http.NewServeMux()
-	handler.Mount(mux)
-
-	req := httptest.NewRequest(http.MethodGet, "/api/v0/freshness/generations?repository=repo-a", nil)
-	req.Header.Set("Accept", EnvelopeMIMEType)
-	req = req.WithContext(ContextWithAuthContext(req.Context(), AuthContext{
-		Mode:                 AuthModeScoped,
-		TenantID:             "tenant-a",
-		WorkspaceID:          "workspace-a",
-		AllowedRepositoryIDs: []string{"repo-a"},
-		AllowedScopeIDs:      []string{"scope-a"},
-	}))
-
-	w := httptest.NewRecorder()
-	mux.ServeHTTP(w, req)
-
-	if !reader.called {
-		t.Fatalf("a granted repository must still reach the store; got status %d body %s", w.Code, w.Body.String())
+	if reader.filter.Scoped {
+		t.Fatalf("a shared-key caller must not be bound by a scoped grant; filter = %+v", reader.filter)
 	}
 }
