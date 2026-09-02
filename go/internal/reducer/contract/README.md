@@ -17,8 +17,10 @@ queue execution, adapters, retries, telemetry, and graph writes.
 The exported surface is `Domain`, the reducer and shared-projection domain
 constants, `KnownDomains`, `ParseDomain`, lifecycle statuses, `FailureRecord`,
 `RetryableError`, `Intent`, `Result`,
-`OwnershipShape`, `CrossScopeDependency`, `DomainDefinition`, `Handler`, and
-`HandlerFunc`. See [doc.go](doc.go) for the package contract.
+`OwnershipShape`, `CrossScopeDependency`, `DomainDefinition`, `Handler`,
+`HandlerFunc`, `ContainerImageIdentityOutcome` and its five outcome
+constants, and `ContainerImageIdentityFactKind`. See [doc.go](doc.go) for the
+package contract.
 
 ## Dependencies
 
@@ -81,6 +83,36 @@ No-Observability-Change: #6061 adds no queue domain, worker, lease, graph or
 Postgres operation, runtime setting, metric instrument, metric label, span, log
 field, or status surface. The types name a callback shape that the runtime already
 invoked; the handlers holding those callbacks and their telemetry are untouched.
+
+No-Regression Evidence: #6061 moves the `ContainerImageIdentityOutcome` type,
+its five outcome constants, and the `ContainerImageIdentityFactKind` fact-kind
+constant (previously the unexported `containerImageIdentityFactKind` in
+`container_image_identity_writer.go`) out of the reducer root into this
+package, leaving type/const aliases behind in `intent.go`, so every existing
+root caller compiles against the identical type and value. The container
+image identity data records (`ContainerImageIdentityDecision`,
+`ContainerImageIdentityWrite`, `ContainerImageIdentityWriteResult`) and the
+unexported `containerImageSourceRevision*` constants stayed in the reducer
+root: `ContainerImageIdentityWriteResult.effectiveSupports` is typed
+`[]containerImageIdentitySupport`, an unexported reducer-root type that cannot
+cross a package boundary, so that file is a mixed vocabulary/records file, not
+a whole-file move. A Go type/const alias is the same type and value, not a
+conversion or a wrapper, so there is no new indirection on any call path and
+nothing to measure: the moved declarations carry no function bodies at all.
+Measured on branch `feat/6061-containerimage-identity-vocab` against baseline
+`origin/main` at `a02b553a5`: `go build ./...`, `go vet ./...` (which also
+compiles test files, so it catches a moved fixture breaking a sibling
+package), `go test ./internal/reducer/... -count=1` (15 packages),
+`go test ./cmd/reducer ./internal/storage/postgres ./internal/query -count=1`,
+and `go test ./internal/ifa/materializededges/... -count=1` each exited 0 on
+the branch. Binary output was not compared and no such claim is made here;
+that would need pinned reproducible-build flags and a controlled environment.
+
+No-Observability-Change: #6061 adds no queue domain, worker, lease, graph or
+Postgres operation, runtime setting, metric instrument, metric label, span,
+log field, or status surface. The moved outcome type and fact-kind constant
+name values the reducer already produced and wrote; the writer, handler, and
+their existing telemetry are untouched.
 
 ## Related docs
 

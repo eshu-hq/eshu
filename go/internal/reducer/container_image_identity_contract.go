@@ -5,10 +5,10 @@ package reducer
 
 import "time"
 
-// The container_image_identity DATA CONTRACT: the outcome vocabulary and the
-// decision/write/result records the handler, the writer, and every consumer of
-// this domain exchange. The handler, its evidence loaders, and the counters
-// live in container_image_identity.go; the durable write and the fencing-token
+// The container_image_identity DATA CONTRACT: the decision/write/result
+// records the handler, the writer, and every consumer of this domain
+// exchange. The handler, its evidence loaders, and the counters live in
+// container_image_identity.go; the durable write and the fencing-token
 // helpers live in container_image_identity_writer.go.
 //
 // They are split because container_image_identity.go passed the repository's
@@ -16,28 +16,16 @@ import "time"
 // reason from the handler: a field added here ripples out to the payload, the
 // query surface, and the golden snapshot, while a change to how the handler
 // loads its evidence does not.
-
-// ContainerImageIdentityOutcome names the reducer decision for one image
-// reference seen in Git or runtime evidence.
-type ContainerImageIdentityOutcome string
-
-const (
-	// ContainerImageIdentityExactDigest means the source reference already
-	// named a digest also observed in registry facts.
-	ContainerImageIdentityExactDigest ContainerImageIdentityOutcome = "exact_digest"
-	// ContainerImageIdentityTagResolved means one registry tag observation
-	// resolved the source tag to exactly one digest.
-	ContainerImageIdentityTagResolved ContainerImageIdentityOutcome = "tag_resolved"
-	// ContainerImageIdentityAmbiguousTag means tag observations for the same
-	// image reference point at multiple digests.
-	ContainerImageIdentityAmbiguousTag ContainerImageIdentityOutcome = "ambiguous_tag"
-	// ContainerImageIdentityUnresolved means no registry digest observation
-	// matched the source image reference.
-	ContainerImageIdentityUnresolved ContainerImageIdentityOutcome = "unresolved"
-	// ContainerImageIdentityStaleTag means runtime evidence resolved a tag to
-	// a digest that registry facts report as the previous digest.
-	ContainerImageIdentityStaleTag ContainerImageIdentityOutcome = "stale_tag"
-)
+//
+// ContainerImageIdentityOutcome and its constants are pure vocabulary (no
+// reducer-root-only type dependency) and live in
+// go/internal/reducer/contract/container_image_identity.go so families below
+// the reducer root can reach them without importing the root; intent.go holds
+// this file's unqualified root aliases alongside DomainContainerImageIdentity.
+// The records below stay here because ContainerImageIdentityWriteResult
+// embeds containerImageIdentitySupport, a reducer-root-only unexported type
+// (container_image_identity_support_set.go) that cannot cross the package
+// boundary.
 
 const (
 	// containerImageSourceRevisionOCIConfigLabel marks a SourceRevision drawn

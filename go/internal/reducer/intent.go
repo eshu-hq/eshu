@@ -352,6 +352,36 @@ type FailureRecord = reducercontract.FailureRecord
 // queue instead of becoming terminal on the first failure.
 type RetryableError = reducercontract.RetryableError
 
+// ContainerImageIdentityOutcome names the reducer decision for one image
+// reference seen in Git or runtime evidence. The type and its constants are
+// aliased from contract so every existing unqualified use in this package
+// (container_image_identity_contract.go and its callers) keeps compiling
+// unchanged; see that file's header for why the vocabulary moved but the
+// decision/write/result records that embed a reducer-root-only type did not.
+type ContainerImageIdentityOutcome = reducercontract.ContainerImageIdentityOutcome
+
+const (
+	// ContainerImageIdentityExactDigest means the source reference already
+	// named a digest also observed in registry facts.
+	ContainerImageIdentityExactDigest = reducercontract.ContainerImageIdentityExactDigest
+	// ContainerImageIdentityTagResolved means one registry tag observation
+	// resolved the source tag to exactly one digest.
+	ContainerImageIdentityTagResolved = reducercontract.ContainerImageIdentityTagResolved
+	// ContainerImageIdentityAmbiguousTag means tag observations for the same
+	// image reference point at multiple digests.
+	ContainerImageIdentityAmbiguousTag = reducercontract.ContainerImageIdentityAmbiguousTag
+	// ContainerImageIdentityUnresolved means no registry digest observation
+	// matched the source image reference.
+	ContainerImageIdentityUnresolved = reducercontract.ContainerImageIdentityUnresolved
+	// ContainerImageIdentityStaleTag means runtime evidence resolved a tag to
+	// a digest that registry facts report as the previous digest.
+	ContainerImageIdentityStaleTag = reducercontract.ContainerImageIdentityStaleTag
+	// containerImageIdentityFactKind aliases the exported contract constant so
+	// every existing unqualified use in this package (writer.go and its
+	// callers) keeps compiling unchanged.
+	containerImageIdentityFactKind = reducercontract.ContainerImageIdentityFactKind
+)
+
 // IsRetryable reports whether the supplied error explicitly opts into bounded
 // retry behavior.
 func IsRetryable(err error) bool {

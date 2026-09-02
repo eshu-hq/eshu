@@ -15,10 +15,9 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/truth"
 )
 
-const (
-	containerImageIdentityFactKind       = "reducer_container_image_identity"
-	containerImageIdentityFormatImageRef = "image_ref_v2"
-)
+// containerImageIdentityFactKind aliases the exported contract constant so
+// no caller in this package has to change; see intent.go.
+const containerImageIdentityFormatImageRef = "image_ref_v2"
 
 // ContainerImageIdentityTransaction is the narrow atomic write surface used by
 // the identity writer for outcome-independent publications followed by cleanup

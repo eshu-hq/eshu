@@ -32,6 +32,7 @@ func TestReducerContractAliasesPreserveTypeIdentity(t *testing.T) {
 		{name: "DomainDefinition", root: DomainDefinition{}, contract: reducercontract.DomainDefinition{}},
 		{name: "Handler", root: (*Handler)(nil), contract: (*reducercontract.Handler)(nil)},
 		{name: "HandlerFunc", root: HandlerFunc(nil), contract: reducercontract.HandlerFunc(nil)},
+		{name: "ContainerImageIdentityOutcome", root: ContainerImageIdentityOutcome(""), contract: reducercontract.ContainerImageIdentityOutcome("")},
 	}
 
 	for _, alias := range aliases {
