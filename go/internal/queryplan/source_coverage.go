@@ -66,9 +66,25 @@ type NonHotDisposition struct {
 	Operation    string `yaml:"operation,omitempty"`
 }
 
+// testOnlyHelperPackage is the directory under internal/query holding test
+// doubles that must live in ordinary .go files.
+//
+// A symbol declared in a _test.go file is not part of the importable package,
+// so the fakes a handler family needs cannot be declared that way once the
+// family moves to its own package (#6060, epic #6053). A graph fake has Run and
+// RunSingle methods and its RunSingle answers by calling Run, which is
+// indistinguishable here from a production graph read.
+//
+// It is excluded rather than registered because the manifest has nowhere honest
+// to put it: every entry there asserts a hotness disposition about a real
+// backend read. The package carries a matching invariant in its own AGENTS.md --
+// no production behavior, and no production file imports it.
+const testOnlyHelperPackage = "querytestutil"
+
 // DiscoverQueryCallsites returns every direct Run or RunSingle selector call
 // in non-test Go files recursively beneath queryDir. Testdata plus hidden and
-// underscore-prefixed directories are excluded from the inventory.
+// underscore-prefixed directories are excluded from the inventory, as is
+// the test-only helper package named by testOnlyHelperPackage.
 func DiscoverQueryCallsites(queryDir string) ([]SourceCoverage, error) {
 	coverage := make([]SourceCoverage, 0)
 	err := filepath.WalkDir(queryDir, func(path string, dirEntry fs.DirEntry, walkErr error) error {
@@ -77,7 +93,8 @@ func DiscoverQueryCallsites(queryDir string) ([]SourceCoverage, error) {
 		}
 		if dirEntry.IsDir() {
 			name := dirEntry.Name()
-			if path != queryDir && (name == "testdata" || strings.HasPrefix(name, ".") || strings.HasPrefix(name, "_")) {
+			if path != queryDir && (name == "testdata" || name == testOnlyHelperPackage ||
+				strings.HasPrefix(name, ".") || strings.HasPrefix(name, "_")) {
 				return filepath.SkipDir
 			}
 			return nil
