@@ -12,8 +12,13 @@
 
 ## Invariants this package enforces
 
-- Do not import the parent `internal/parser` package. JSON and YAML adapters
-  depend on this package, not the other way around.
+- Do not import the parent `internal/parser` package from production code or
+  in-package tests. JSON and YAML adapters depend on this package, not the
+  other way around. The one exception is
+  `engine_yaml_cloudformation_lines_test.go`: it is external
+  `package cloudformation_test` (relocated from the parser root by #6062), so
+  it may drive the public parser engine and use `internal/parser/parsertest`
+  — a same-package test importing the parent would be an import cycle.
 - Preserve the bucket field names used by parent JSON and YAML payloads.
 - Keep row order deterministic by sorting map keys and final row slices.
 - Do not treat unresolved CloudFormation expressions as evaluated truth.

@@ -42,7 +42,7 @@ language_features:
     partial_features: [intrinsic-function-semantic-resolution]
     derived_features: []
     source_files: [go/internal/parser/cloudformation/parser.go, go/internal/parser/cloudformation/positions.go, go/internal/parser/yaml/language.go, go/internal/parser/yaml/cloudformation_positions.go, go/internal/parser/json/language.go, go/internal/parser/json/cloudformation_positions.go]
-    test_files: [go/internal/parser/cloudformation/parser_test.go, go/internal/parser/cloudformation/conditions_test.go, go/internal/parser/cloudformation/positions_test.go, go/internal/parser/engine_yaml_cloudformation_lines_test.go, go/internal/parser/json/cloudformation_positions_test.go, go/internal/content/shape/materialize_cloudformation_lines_test.go]
+    test_files: [go/internal/parser/cloudformation/parser_test.go, go/internal/parser/cloudformation/conditions_test.go, go/internal/parser/cloudformation/positions_test.go, go/internal/parser/cloudformation/engine_yaml_cloudformation_lines_test.go, go/internal/parser/json/cloudformation_positions_test.go, go/internal/content/shape/materialize_cloudformation_lines_test.go]
     docs: [docs/public/languages/cloudformation.md]
     read_surfaces: [entity_context, content_relationships]
     tracking_issues: [4048]
