@@ -95,6 +95,10 @@ below as written.
 Every helper here has exactly one consuming package today — root `query`'s own
 tests. That is a real exception to the two-consumer rule below, and it is worth
 understanding before you apply any of them.
+`MustMapField`, `FakeGraphReader`, and the content-reader SQL driver each have
+exactly one consuming package today — root `query`'s own tests. That is a real
+exception to the two-consumer rule below, and it is worth understanding before
+you apply any of them.
 
 `MustMapField` and `FakeGraphReader` still have only root as a consumer. That
 is fine: they were landed as precursors to the split, not as precedent for
@@ -150,6 +154,20 @@ into the delegate would introduce the concurrent write the mutex prevents.
 Reading state through a lock is the one thing an adapter cannot hand back as a
 field. Three root files now say `resolver.called()` where they said
 `resolver.called`. That is the whole consumer cost of both promotions.
+`fakeScopedTokenResolver` 50.
+
+The content-reader SQL driver (`OpenContentReaderTestDB`,
+`ContentReaderQueryResult`, and the column helpers) came across the same way,
+with one wrinkle worth copying. Its entry point takes a **slice** of the result
+struct, and 81 root test files build those elements with keyed literals over
+lowercase field names. So root keeps its own unexported struct with the original
+names and converts the slice element by element before delegating. Nothing else
+moved into root: the queue, the default answers, and the assertions live only
+here, because two copies of a fake's dispatch drift and the drifted one keeps
+passing.
+
+If you find yourself editing consuming test files while moving a fake, the shape
+is wrong. Go back to the adapter.
 
 An adapter is only worth having if it actually delegates. Prove it by breaking
 the rule here and confirming a consuming test in the OTHER package fails. The

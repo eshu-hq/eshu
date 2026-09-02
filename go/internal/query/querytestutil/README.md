@@ -8,6 +8,10 @@ subpackages. Split out during the #6060 family moves.
 Two packages consume it: root `query`'s tests and
 `internal/query/semanticsearch`'s, the first family to move out (#6060).
 
+The content-reader SQL driver is the second helper to move (#6060). It is the
+largest one: `openContentReaderTestDB` has 85 consuming test files and
+`contentReaderQueryResult` 81, across roughly 12 handler families.
+
 ## Ownership boundary
 
 Owns helpers used by more than one package's tests. A helper used by exactly
@@ -59,6 +63,34 @@ See `doc.go` for the godoc contract.
   `Context`, `OK`, and `Err`, and records the presented credential behind
   `Called` and `Token`. `ResolveAnswering` is the same recording with the answer
   supplied per call; root's adapter is its only caller.
+- `OpenContentReaderTestDB` / `ContentReaderQueryResult` — the shared fake
+  `database/sql` driver. A test queues results; each query takes the head of the
+  queue, runs that result's SQL-text and bind-value assertions, and answers with
+  its rows.
+- `ContentReaderQueryContainsInOrder` / `ContentReaderCheckArgs` — the same two
+  assertions, callable directly for a test that holds a recorded query string
+  rather than a queued result.
+- `ContentReaderRelationshipReadModelColumns`,
+  `ContentReaderDeploymentEvidenceColumns`,
+  `ContentReaderRelationshipEvidenceColumns`,
+  `ContentReaderDeadCodeCandidateColumns` — the column sets of four relational
+  read models, used on both sides: a test declares one to say which read it is
+  answering, and the driver answers that same read with the same helper when no
+  result was queued.
+
+### The content-reader driver's two-tier answer
+
+The fake answers most queries from the queue, but a handler issues incidental
+reads on the way to the query under test — a readiness probe, a language rollup,
+a relationship count. Those are answered with an empty row set of the right
+shape and leave the queue untouched; consuming the queue for them would misalign
+every later expectation.
+
+A test that genuinely asserts on one of those reads queues a result declaring
+that read's own columns, and the queued rows then win. Matching on the column
+set rather than the SQL text keeps the choice in the test's hands. An empty
+queue with no matching default is an error, not an empty answer, so a handler
+issuing a read nobody declared fails instead of passing.
 
 `FakeGraphReader`'s `Run` routes through an unexported `rows` helper, and its
 `RunSingle` falls back to that same helper rather than calling `Run` (it still
@@ -174,6 +206,28 @@ call would be the concurrent write the mutex exists to prevent. The 50 root
 files that build the adapter with keyed literals are untouched; the three that
 read the recorded call gained parentheses, `resolver.called` becoming
 `resolver.called()`, because reading it takes the same lock the recording does.
+### The same shape, applied to the content-reader driver
+
+`ContentReaderQueryResult` needed one extra step. Callers pass a **slice** of it
+to `openContentReaderTestDB`, and 81 root test files build those elements with
+keyed literals over lowercase field names. A type alias cannot help there
+either: the shared fields have to be exported to be settable from another
+package, so an alias would rename every one of those literals.
+
+Root keeps its own unexported `contentReaderQueryResult` with the original field
+names, converts the slice element by element, and delegates. No consuming test
+file changed. The dispatch — the default answers, the queue, the assertions —
+lives only here.
+
+Proven the same way: deleting the default-answer dispatch from this package
+fails **16** root tests; keeping the defaults but not consuming the queue head
+fails **26**. Both measured with a full `go test ./internal/query/ -count=1 -v`,
+6538 tests run, against a baseline of 0 failures.
+
+That 6538 is one lower than main's 6539 for a reason worth stating, because a
+bare 6538 next to a remembered 6539 reads as a miscount: this change moves
+`TestContentReaderCheckArgsComparesByteSliceBindArgsWithoutPanicking` out of
+package `query` and into this package, which is exactly the one test.
 
 ## Dependencies
 

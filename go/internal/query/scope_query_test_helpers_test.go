@@ -19,8 +19,8 @@ import (
 // kubernetesCorrelationQueryer, observabilityCoverageCorrelationQueryer)
 // demand a concrete *sql.Rows return, which cannot be constructed without a
 // real database/sql round trip. It mirrors the narrower
-// contentReaderDriver/recordingContentReaderConn pattern
-// (content_reader_driver_test.go, content_reader_cross_repo_test.go) but is
+// querytestutil.OpenContentReaderTestDB/recordingContentReaderConn pattern
+// (internal/query/querytestutil, content_reader_cross_repo_test.go) but is
 // not tied to ContentReader, so it is reusable across any QueryContext-based
 // store in this package.
 
