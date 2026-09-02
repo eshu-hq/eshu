@@ -34,6 +34,37 @@ check() {
 	fi
 }
 
+# Case 0: neither this mirror nor the script under test may feed a loop or a
+# filter with a bash here-string. Homebrew bash 5.3.15 deadlocks on any
+# here-string whose payload passes the pipe buffer -- measured on
+# darwin/arm64: 89 bytes completes, 539 bytes hangs forever, at 0% CPU with no
+# children and no output. The compiled package list this gate builds is far
+# past that, so on an affected machine the gate did not fail, it stopped
+# responding, and `make pre-pr` sat dead for hours looking like a slow lane.
+#
+# Process substitution keeps the loop body in the current shell exactly the way
+# a here-string does, so the rewrite preserves behavior; the script already used
+# that idiom for its mapfile call. Keep the printf format quoted: unquoted, bash
+# reads the backslash as an escape, passes a literal "n", and the loop silently
+# sees one giant line instead of many.
+#
+# This runs before every case that executes the script, and it has to. A
+# static check placed after them never reports: the first case to run the
+# gate deadlocks, and the suite hangs rather than failing. The pattern is a
+# regex rather than the token itself so this case does not match its own
+# source.
+case_no_here_strings() {
+	local offender=0 f
+	for f in "${script}" "${BASH_SOURCE[0]}"; do
+		if rg --quiet -- '<{3}' "${f}"; then
+			printf 'here-string found in %s\n' "${f}" >&2
+			offender=1
+		fi
+	done
+	[[ "${offender}" -eq 0 ]]
+}
+check case_no_here_strings
+
 # Case 1: the script forbids `go build` / docker -- this is a `go list` only,
 # credential-free gate. A regression here would silently make every PR pay
 # for a full build just to check path coverage.
@@ -52,7 +83,7 @@ case_exclusions_well_formed() {
 		[[ -n "${line}" && "${line}" != '#'* ]] || continue
 		pkg=""
 		reason=""
-		read -r pkg reason <<<"${line}"
+		read -r pkg reason < <(printf '%s\n' "${line}")
 		if [[ -z "${pkg}" || -z "${reason}" ]]; then
 			bad=$((bad + 1))
 		fi
@@ -71,7 +102,7 @@ case_exclusions_no_globs() {
 		[[ -n "${line}" && "${line}" != '#'* ]] || continue
 		pkg=""
 		reason=""
-		read -r pkg reason <<<"${line}"
+		read -r pkg reason < <(printf '%s\n' "${line}")
 		[[ -n "${pkg}" ]] || continue
 		if [[ "${pkg}" != go/internal/* && "${pkg}" != go/cmd/* ]] || [[ "${pkg}" == *'*'* ]]; then
 			bad=$((bad + 1))
@@ -87,7 +118,7 @@ check case_exclusions_no_globs
 case_real_state_passes() {
 	local out
 	out="$(bash "${script}" 2>&1)" || return 1
-	rg --fixed-strings --quiet -- '0 uncovered' <<<"${out}"
+	printf '%s\n' "${out}" | rg --fixed-strings --quiet -- '0 uncovered'
 }
 check case_real_state_passes
 
@@ -116,7 +147,7 @@ case_missing_exclusion_fails_naming_it() {
 	status=$?
 	rm -f "${scratch}"
 	[[ "${status}" -ne 0 ]] || return 1
-	rg --fixed-strings --quiet -- 'go/internal/webhook' <<<"${out}"
+	printf '%s\n' "${out}" | rg --fixed-strings --quiet -- 'go/internal/webhook'
 }
 check case_missing_exclusion_fails_naming_it
 
@@ -133,7 +164,7 @@ case_missing_workflow_path_fails_naming_it() {
 	status=$?
 	rm -f "${scratch}"
 	[[ "${status}" -ne 0 ]] || return 1
-	rg --fixed-strings --quiet -- 'go/internal/status' <<<"${out}"
+	printf '%s\n' "${out}" | rg --fixed-strings --quiet -- 'go/internal/status'
 }
 check case_missing_workflow_path_fails_naming_it
 
@@ -144,7 +175,7 @@ case_missing_exclusions_file_fails_clearly() {
 	out="$(GOLDEN_CORPUS_FILTER_EXCLUSIONS="${repo_root}/scripts/lib/does-not-exist-5538.txt" bash "${script}" 2>&1)"
 	status=$?
 	[[ "${status}" -ne 0 ]] || return 1
-	rg --fixed-strings --quiet -- 'missing exclusions file' <<<"${out}"
+	printf '%s\n' "${out}" | rg --fixed-strings --quiet -- 'missing exclusions file'
 }
 check case_missing_exclusions_file_fails_clearly
 
@@ -176,12 +207,12 @@ case_not_reachable_becomes_reachable_fails() {
 	rm -f "${backup}"
 
 	[[ "${status}" -ne 0 ]] || return 1
-	rg --fixed-strings --quiet -- 'go/internal/searchbenchrun' <<<"${out}" || return 1
+	printf '%s\n' "${out}" | rg --fixed-strings --quiet -- 'go/internal/searchbenchrun' || return 1
 
 	# Confirm the revert actually restored a clean, passing state -- proves
 	# reachability (not some other side effect of the edit) drove the failure.
 	out="$(bash "${script}" 2>&1)" || return 1
-	rg --fixed-strings --quiet -- '0 uncovered' <<<"${out}"
+	printf '%s\n' "${out}" | rg --fixed-strings --quiet -- '0 uncovered'
 }
 check case_not_reachable_becomes_reachable_fails
 
