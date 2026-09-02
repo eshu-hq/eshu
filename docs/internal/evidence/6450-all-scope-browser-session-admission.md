@@ -120,9 +120,9 @@ Run after the last edit, exit codes captured directly.
 | `go vet ./internal/query ./cmd/api ./internal/mcp` | 0 |
 | `go test ./internal/query -count=1` | 0 |
 | `go test ./cmd/api ./internal/mcp -count=1` | 0 |
-| `scripts/dev/precommit-go.sh fmt <8 changed .go files>` | 0 |
-| `scripts/dev/precommit-go.sh lint <8 changed .go files>` | 0 (1 package, 0 issues) |
-| `scripts/dev/precommit-go.sh filecap <8 changed .go files>` | 0 |
+| `scripts/dev/precommit-go.sh fmt <the 10 changed .go files>` | 0 |
+| `scripts/dev/precommit-go.sh lint <the 10 changed .go files>` | 0 (run reported `1 package(s) from 10 path(s)`, 0 issues) |
+| `scripts/dev/precommit-go.sh filecap <the 10 changed .go files>` | 0 |
 | `scripts/verify-package-docs.sh` | 0 |
 | `scripts/verify-root-cause-evidence.sh` | 0 |
 | `scripts/verify-markdown-line-cap.sh --all` | 0 |

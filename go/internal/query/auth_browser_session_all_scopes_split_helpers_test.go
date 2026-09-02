@@ -62,6 +62,14 @@ func splitAdmitsByClass(c scopedRouteClass) bool {
 	return c.admitsAllScopesSessionWithoutPolicy()
 }
 
+// allScopesSplitShapes returns the six caller shapes the split table drives
+// over every ledger route: (a) a grant-bearing scoped bearer token, (b) a
+// tenant-bound all-scope console session under the fail-closed policy, (c)
+// the same session under the permissive policy, (d) a restricted browser
+// session carrying a repository grant, (e) the shared operator key, and (f) a
+// tenantless all-scope session under the permissive policy. Only (b) and (f)
+// vary by route class; the other four admit every class, which is what makes
+// #6450 a split rather than a blanket refusal.
 func allScopesSplitShapes() []allScopesSplitShape {
 	tenantBoundAllScopes := &AuthContext{
 		Mode:        AuthModeBrowserSession,

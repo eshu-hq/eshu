@@ -241,9 +241,9 @@ func scopedBrowserSessionAuthRoute(r *http.Request) bool {
 // profile-page enrollment before the handler runs.
 //
 // Both scopedHTTPRouteSupportsTenantFilter (auth_scoped_routes.go) and
-// scopedRouteNeedsNoCallerGrant (auth_browser_session_route_policy.go) call this, so
-// the allowlist and the all-scope admission split can never disagree about
-// which paths count as enrollment.
+// scopedRouteNeedsNoCallerGrant (auth_browser_session_route_policy.go) call
+// this, so the allowlist and the all-scope admission split can never disagree
+// about which paths count as enrollment.
 func scopedTOTPEnrollmentRoute(r *http.Request) bool {
 	return r.Method == http.MethodPost &&
 		(r.URL.Path == "/api/v0/auth/local/mfa/totp/begin" ||

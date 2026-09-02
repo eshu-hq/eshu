@@ -331,11 +331,7 @@ func scopedRouteNeedsNoCallerGrant(r *http.Request) bool {
 		return true
 	case scopedCollectorExtractionReadinessRoute(r):
 		return true
-	// POST /api/v0/visualizations/derive has no named matcher of its own in
-	// scopedHTTPRouteSupportsTenantFilter: VisualizationHandler holds no
-	// graph, content, or store reference and only reshapes the caller's own
-	// source_response (#5167 task 4), so it is tenant-data-free.
-	case r.Method == http.MethodPost && r.URL.Path == "/api/v0/visualizations/derive":
+	case scopedVisualizationDeriveRoute(r):
 		return true
 	default:
 		// The break-it-to-prove-it run recorded in

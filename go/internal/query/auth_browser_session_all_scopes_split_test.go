@@ -6,6 +6,7 @@ package query
 import (
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 
 	"github.com/eshu-hq/eshu/go/internal/governanceaudit"
@@ -229,7 +230,7 @@ func TestAuthMiddlewareAllScopesBrowserSessionRefusedOnGrantBoundRouteUnderFailC
 			if rec.Code != tc.wantStatus {
 				t.Fatalf("status = %d, want %d; body = %s", rec.Code, tc.wantStatus, rec.Body.String())
 			}
-			if !tc.wantCalled && rec.Body.String() == splitTestHandlerPayload {
+			if !tc.wantCalled && strings.Contains(rec.Body.String(), splitTestHandlerPayload) {
 				t.Fatalf("denied response exposed handler data: %s", rec.Body.String())
 			}
 

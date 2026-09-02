@@ -131,7 +131,11 @@ Session cookies are server-managed:
   request-reshape routes, which hold no tenant data for a repository grant to
   filter. Grant-filtered data routes, deployment status routes, and
   `POST /api/v0/ask` follow the same fail-closed mode rule, because an
-  all-scopes caller makes the handler's own repository filter inert.
+  all-scopes caller makes the handler's own repository filter inert. The two
+  MCP transport paths, `GET /sse` and `POST /mcp/message`, clear the
+  allowlist without a ledger entry, so they take the grant-bound default and
+  follow the same fail-closed mode rule; the API server does not mount them
+  today.
   Restricted browser sessions and scoped bearer tokens remain limited to the
   existing scoped-route allowlist; live-data routes on that list apply their
   allowed repository/scope ids before counts, limits, and truncation, while

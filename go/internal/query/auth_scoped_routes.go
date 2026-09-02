@@ -63,10 +63,7 @@ func scopedHTTPRouteSupportsTenantFilter(r *http.Request) bool {
 	if r.Method == http.MethodPost && r.URL.Path == "/api/v0/code/routes/callers" {
 		return true
 	}
-	// #5167 task 4: VisualizationHandler holds no graph/content/store
-	// reference (visualization_packet_handler.go) -- it only reshapes the
-	// caller-supplied source_response, so there is no tenant data to filter.
-	if r.Method == http.MethodPost && r.URL.Path == "/api/v0/visualizations/derive" {
+	if scopedVisualizationDeriveRoute(r) {
 		return true
 	}
 	// POST /api/v0/ask orchestrates other read routes through the in-process MCP
@@ -279,4 +276,18 @@ func scopedHTTPRouteSupportsTenantFilter(r *http.Request) bool {
 	default:
 		return false
 	}
+}
+
+// scopedVisualizationDeriveRoute matches POST /api/v0/visualizations/derive.
+// #5167 task 4: VisualizationHandler holds no graph/content/store reference
+// (visualization_packet_handler.go) -- it only reshapes the caller-supplied
+// source_response, so there is no tenant data to filter.
+//
+// Both scopedHTTPRouteSupportsTenantFilter above and
+// scopedRouteNeedsNoCallerGrant (auth_browser_session_route_policy.go) call
+// this, exactly as they share scopedTOTPEnrollmentRoute, so the allowlist and
+// the all-scope admission split can never disagree about the route.
+func scopedVisualizationDeriveRoute(r *http.Request) bool {
+	return r.Method == http.MethodPost &&
+		r.URL.Path == "/api/v0/visualizations/derive"
 }
