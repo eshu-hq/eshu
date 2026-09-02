@@ -146,7 +146,7 @@ language_features:
     partial_features: []
     derived_features: []
     source_files: [go/internal/parser/groovy_language.go, go/internal/parser/groovy/parser.go]
-    test_files: [go/internal/parser/groovy_language_test.go, go/internal/parser/groovy/metadata_test.go]
+    test_files: [go/internal/parser/groovy/groovy_language_test.go, go/internal/parser/groovy/metadata_test.go]
     docs: [docs/public/languages/groovy.md]
     read_surfaces: [content_relationships]
   - language: haskell

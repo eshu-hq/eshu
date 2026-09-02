@@ -8,11 +8,22 @@
    methods, imports, and calls
 4. metadata.go - Jenkins/Groovy regex extraction and payload compatibility map
 5. metadata_test.go - behavior coverage for delivery metadata and map shape
+6. groovy_language_test.go and groovy_jenkins_golden_fixture_test.go - the
+   external-package (`groovy_test`) engine tests relocated from the parent by
+   #6062; they pin the DefaultEngine().ParsePath and PreScanPaths payload for
+   Jenkinsfile and golden-corpus fixtures
+7. groovy_test_helpers_test.go - `groovyFixturePath`, `writeGroovyTestFile`
+   (creates parent directories before delegating to `parsertest.WriteFile`),
+   and a local `assertEmptyNamedBucket` copy; cross-file assertions come from
+   `../parsertest`
 
 ## Invariants this package enforces
 
 - Dependency direction stays one way: parent parser code may import this
-  package, but this package must not import internal/parser.
+  package, but production files and same-package tests here must not import
+  internal/parser. External `groovy_test` files may import the parent only for
+  black-box coverage of the public Engine; they use `../parsertest` assertions,
+  which a root-internal `package parser` test cannot (import cycle).
 - Class, method, import, and call entities come from the Groovy tree-sitter
   grammar. Jenkins delivery metadata remains bounded lexical evidence.
 - PipelineMetadata returns typed evidence; Metadata.Map is the compatibility

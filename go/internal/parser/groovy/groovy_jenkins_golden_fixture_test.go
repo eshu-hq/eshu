@@ -1,11 +1,14 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package parser
+package groovy_test
 
 import (
 	"path/filepath"
 	"testing"
+
+	"github.com/eshu-hq/eshu/go/internal/parser"
+	"github.com/eshu-hq/eshu/go/internal/parser/parsertest"
 )
 
 // TestJenkinsGroovyGoldenFixtureDiscriminatesPipeline pins the
@@ -22,32 +25,32 @@ import (
 func TestJenkinsGroovyGoldenFixtureDiscriminatesPipeline(t *testing.T) {
 	t.Parallel()
 
-	repoRoot := repoFixturePath("ecosystems", "jenkins-ci-pipelines")
-	engine, err := DefaultEngine()
+	repoRoot := groovyFixturePath(t, "ecosystems", "jenkins-ci-pipelines")
+	engine, err := parser.DefaultEngine()
 	if err != nil {
-		t.Fatalf("DefaultEngine() error = %v, want nil", err)
+		t.Fatalf("parser.DefaultEngine() error = %v, want nil", err)
 	}
 
 	jenkinsfilePath := filepath.Join(repoRoot, "Jenkinsfile")
-	jenkinsfilePayload, err := engine.ParsePath(repoRoot, jenkinsfilePath, false, Options{})
+	jenkinsfilePayload, err := engine.ParsePath(repoRoot, jenkinsfilePath, false, parser.Options{})
 	if err != nil {
 		t.Fatalf("ParsePath(%q) error = %v, want nil", jenkinsfilePath, err)
 	}
 	// POSITIVE: the Jenkins artifact yields the rooted synthetic entrypoint.
-	assertParserStringSliceContains(
+	parsertest.AssertStringSliceContains(
 		t,
-		assertFunctionByName(t, jenkinsfilePayload, "Jenkinsfile"),
+		parsertest.AssertBucketItemByName(t, jenkinsfilePayload, "functions", "Jenkinsfile"),
 		"dead_code_root_kinds",
 		"groovy.jenkins_pipeline_entrypoint",
 	)
 
 	foilPath := filepath.Join(repoRoot, "src", "DeployHelper.groovy")
-	foilPayload, err := engine.ParsePath(repoRoot, foilPath, false, Options{})
+	foilPayload, err := engine.ParsePath(repoRoot, foilPath, false, parser.Options{})
 	if err != nil {
 		t.Fatalf("ParsePath(%q) error = %v, want nil", foilPath, err)
 	}
 	// FOIL: the ordinary source method is not rooted...
-	if foil := assertFunctionByName(t, foilPayload, "deployApp"); foil["dead_code_root_kinds"] != nil {
+	if foil := parsertest.AssertBucketItemByName(t, foilPayload, "functions", "deployApp"); foil["dead_code_root_kinds"] != nil {
 		t.Fatalf("deployApp dead_code_root_kinds = %#v, want nil (src/*.groovy is not a Jenkins artifact)", foil["dead_code_root_kinds"])
 	}
 	// ...and the Jenkins PipelineMetadata evidence is withheld for a non-artifact.
@@ -55,5 +58,5 @@ func TestJenkinsGroovyGoldenFixtureDiscriminatesPipeline(t *testing.T) {
 		t.Fatalf("pipeline_calls present for src/*.groovy foil, want absent: %#v", foilPayload["pipeline_calls"])
 	}
 	// ...while the genuine AST call still survives in function_calls.
-	assertNamedBucketContains(t, foilPayload, "function_calls", "pipelineDeploy")
+	parsertest.AssertNamedBucketContains(t, foilPayload, "function_calls", "pipelineDeploy")
 }

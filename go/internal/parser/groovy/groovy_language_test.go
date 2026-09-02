@@ -1,11 +1,14 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package parser
+package groovy_test
 
 import (
 	"path/filepath"
 	"testing"
+
+	"github.com/eshu-hq/eshu/go/internal/parser"
+	"github.com/eshu-hq/eshu/go/internal/parser/parsertest"
 )
 
 func TestDefaultEngineParsePathGroovyJenkinsfile(t *testing.T) {
@@ -13,7 +16,7 @@ func TestDefaultEngineParsePathGroovyJenkinsfile(t *testing.T) {
 
 	repoRoot := t.TempDir()
 	filePath := filepath.Join(repoRoot, "Jenkinsfile")
-	writeTestFile(
+	writeGroovyTestFile(
 		t,
 		filePath,
 		`@Library('pipelines') _
@@ -28,12 +31,12 @@ pipelinePM2(
 `,
 	)
 
-	engine, err := DefaultEngine()
+	engine, err := parser.DefaultEngine()
 	if err != nil {
-		t.Fatalf("DefaultEngine() error = %v, want nil", err)
+		t.Fatalf("parser.DefaultEngine() error = %v, want nil", err)
 	}
 
-	got, err := engine.ParsePath(repoRoot, filePath, true, Options{IndexSource: true})
+	got, err := engine.ParsePath(repoRoot, filePath, true, parser.Options{IndexSource: true})
 	if err != nil {
 		t.Fatalf("ParsePath() error = %v, want nil", err)
 	}
@@ -54,20 +57,20 @@ pipelinePM2(
 	assertEmptyNamedBucket(t, got, "functions")
 	assertEmptyNamedBucket(t, got, "classes")
 	assertEmptyNamedBucket(t, got, "imports")
-	assertBucketContainsFieldValue(t, got, "function_calls", "name", "pipelinePM2")
+	parsertest.AssertBucketContainsFieldValue(t, got, "function_calls", "name", "pipelinePM2")
 	assertEmptyNamedBucket(t, got, "variables")
 	assertEmptyNamedBucket(t, got, "modules")
 	assertEmptyNamedBucket(t, got, "module_inclusions")
-	assertStringSliceContains(t, got["shared_libraries"], "pipelines")
-	assertStringSliceContains(t, got["pipeline_calls"], "pipelinePM2")
-	assertStringSliceContains(t, got["entry_points"], "dist/svc-notify.js")
+	parsertest.AssertStringSliceContains(t, got, "shared_libraries", "pipelines")
+	parsertest.AssertStringSliceContains(t, got, "pipeline_calls", "pipelinePM2")
+	parsertest.AssertStringSliceContains(t, got, "entry_points", "dist/svc-notify.js")
 	if got["use_configd"] != true {
 		t.Fatalf("use_configd = %#v, want %#v", got["use_configd"], true)
 	}
 	if got["has_pre_deploy"] != true {
 		t.Fatalf("has_pre_deploy = %#v, want %#v", got["has_pre_deploy"], true)
 	}
-	assertStringSliceContains(t, got["shell_commands"], "echo migrate")
+	parsertest.AssertStringSliceContains(t, got, "shell_commands", "echo migrate")
 	assertEmptyNamedBucket(t, got, "ansible_playbook_hints")
 }
 
@@ -76,7 +79,7 @@ func TestDefaultEngineParsePathGroovyJenkinsfileAnsibleHints(t *testing.T) {
 
 	repoRoot := t.TempDir()
 	filePath := filepath.Join(repoRoot, "Jenkinsfile")
-	writeTestFile(
+	writeGroovyTestFile(
 		t,
 		filePath,
 		`@Library('pipelines') _
@@ -85,19 +88,19 @@ sh 'ansible-playbook deploy.yml -i inventory/dynamic_hosts.py --limit prod'
 `,
 	)
 
-	engine, err := DefaultEngine()
+	engine, err := parser.DefaultEngine()
 	if err != nil {
-		t.Fatalf("DefaultEngine() error = %v, want nil", err)
+		t.Fatalf("parser.DefaultEngine() error = %v, want nil", err)
 	}
 
-	got, err := engine.ParsePath(repoRoot, filePath, false, Options{})
+	got, err := engine.ParsePath(repoRoot, filePath, false, parser.Options{})
 	if err != nil {
 		t.Fatalf("ParsePath() error = %v, want nil", err)
 	}
 
-	assertStringSliceContains(t, got["pipeline_calls"], "pipelineDeploy")
-	assertStringSliceContains(t, got["shell_commands"], "ansible-playbook deploy.yml -i inventory/dynamic_hosts.py --limit prod")
-	assertBucketContainsFieldValue(t, got, "ansible_playbook_hints", "playbook", "deploy.yml")
+	parsertest.AssertStringSliceContains(t, got, "pipeline_calls", "pipelineDeploy")
+	parsertest.AssertStringSliceContains(t, got, "shell_commands", "ansible-playbook deploy.yml -i inventory/dynamic_hosts.py --limit prod")
+	parsertest.AssertBucketContainsFieldValue(t, got, "ansible_playbook_hints", "playbook", "deploy.yml")
 }
 
 func TestDefaultEngineParsePathGroovyJenkinsfileLibraryStep(t *testing.T) {
@@ -105,7 +108,7 @@ func TestDefaultEngineParsePathGroovyJenkinsfileLibraryStep(t *testing.T) {
 
 	repoRoot := t.TempDir()
 	filePath := filepath.Join(repoRoot, "Jenkinsfile")
-	writeTestFile(
+	writeGroovyTestFile(
 		t,
 		filePath,
 		`def libs = []
@@ -114,25 +117,25 @@ library('shared-controllers@main')
 `,
 	)
 
-	engine, err := DefaultEngine()
+	engine, err := parser.DefaultEngine()
 	if err != nil {
-		t.Fatalf("DefaultEngine() error = %v, want nil", err)
+		t.Fatalf("parser.DefaultEngine() error = %v, want nil", err)
 	}
 
-	got, err := engine.ParsePath(repoRoot, filePath, false, Options{})
+	got, err := engine.ParsePath(repoRoot, filePath, false, parser.Options{})
 	if err != nil {
 		t.Fatalf("ParsePath() error = %v, want nil", err)
 	}
 
-	assertStringSliceContains(t, got["shared_libraries"], "pipelines")
-	assertStringSliceContains(t, got["shared_libraries"], "shared-controllers")
+	parsertest.AssertStringSliceContains(t, got, "shared_libraries", "pipelines")
+	parsertest.AssertStringSliceContains(t, got, "shared_libraries", "shared-controllers")
 
 	prescanned, err := engine.PreScanPaths([]string{filePath})
 	if err != nil {
 		t.Fatalf("PreScanPaths() error = %v, want nil", err)
 	}
-	assertPrescanContains(t, prescanned, "pipelines", filePath)
-	assertPrescanContains(t, prescanned, "shared-controllers", filePath)
+	parsertest.AssertPrescanContains(t, prescanned, "pipelines", filePath)
+	parsertest.AssertPrescanContains(t, prescanned, "shared-controllers", filePath)
 }
 
 func TestDefaultEnginePreScanPathsGroovyJenkinsfile(t *testing.T) {
@@ -140,7 +143,7 @@ func TestDefaultEnginePreScanPathsGroovyJenkinsfile(t *testing.T) {
 
 	repoRoot := t.TempDir()
 	filePath := filepath.Join(repoRoot, "Jenkinsfile")
-	writeTestFile(
+	writeGroovyTestFile(
 		t,
 		filePath,
 		`@Library('pipelines') _
@@ -148,18 +151,18 @@ pipelineDeploy(entry_point: 'deploy.sh')
 `,
 	)
 
-	engine, err := DefaultEngine()
+	engine, err := parser.DefaultEngine()
 	if err != nil {
-		t.Fatalf("DefaultEngine() error = %v, want nil", err)
+		t.Fatalf("parser.DefaultEngine() error = %v, want nil", err)
 	}
 
 	got, err := engine.PreScanPaths([]string{filePath})
 	if err != nil {
 		t.Fatalf("PreScanPaths() error = %v, want nil", err)
 	}
-	assertPrescanContains(t, got, "pipelines", filePath)
-	assertPrescanContains(t, got, "pipelineDeploy", filePath)
-	assertPrescanContains(t, got, "deploy.sh", filePath)
+	parsertest.AssertPrescanContains(t, got, "pipelines", filePath)
+	parsertest.AssertPrescanContains(t, got, "pipelineDeploy", filePath)
+	parsertest.AssertPrescanContains(t, got, "deploy.sh", filePath)
 }
 
 func TestDefaultEngineParsePathGroovySuppressesIgnoredCalls(t *testing.T) {
@@ -167,7 +170,7 @@ func TestDefaultEngineParsePathGroovySuppressesIgnoredCalls(t *testing.T) {
 
 	repoRoot := t.TempDir()
 	filePath := filepath.Join(repoRoot, "Jenkinsfile")
-	writeTestFile(
+	writeGroovyTestFile(
 		t,
 		filePath,
 		`@Library('pipelines') _
@@ -198,12 +201,12 @@ pipeline {
 `,
 	)
 
-	engine, err := DefaultEngine()
+	engine, err := parser.DefaultEngine()
 	if err != nil {
-		t.Fatalf("DefaultEngine() error = %v, want nil", err)
+		t.Fatalf("parser.DefaultEngine() error = %v, want nil", err)
 	}
 
-	got, err := engine.ParsePath(repoRoot, filePath, false, Options{})
+	got, err := engine.ParsePath(repoRoot, filePath, false, parser.Options{})
 	if err != nil {
 		t.Fatalf("ParsePath() error = %v, want nil", err)
 	}
@@ -224,7 +227,7 @@ pipeline {
 		}
 	}
 
-	assertBucketContainsFieldValue(t, got, "function_calls", "name", "pipelineDeploy")
+	parsertest.AssertBucketContainsFieldValue(t, got, "function_calls", "name", "pipelineDeploy")
 }
 
 func TestDefaultEngineParsePathGroovyCyclomaticComplexity(t *testing.T) {
@@ -232,7 +235,7 @@ func TestDefaultEngineParsePathGroovyCyclomaticComplexity(t *testing.T) {
 
 	repoRoot := t.TempDir()
 	filePath := filepath.Join(repoRoot, "src", "BranchHelper.groovy")
-	writeTestFile(
+	writeGroovyTestFile(
 		t,
 		filePath,
 		`class BranchHelper {
@@ -258,36 +261,21 @@ func TestDefaultEngineParsePathGroovyCyclomaticComplexity(t *testing.T) {
 `,
 	)
 
-	engine, err := DefaultEngine()
+	engine, err := parser.DefaultEngine()
 	if err != nil {
-		t.Fatalf("DefaultEngine() error = %v, want nil", err)
+		t.Fatalf("parser.DefaultEngine() error = %v, want nil", err)
 	}
 
-	got, err := engine.ParsePath(repoRoot, filePath, false, Options{})
+	got, err := engine.ParsePath(repoRoot, filePath, false, parser.Options{})
 	if err != nil {
 		t.Fatalf("ParsePath() error = %v, want nil", err)
 	}
 
-	item := assertBucketItemByName(t, got, "functions", "complexMethod")
+	item := parsertest.AssertBucketItemByName(t, got, "functions", "complexMethod")
 	complexity, _ := item["cyclomatic_complexity"].(int)
 	// base 1 + if 1 + && 1 + for 1 + while 1 + switch case 1 +
 	// ternary 1 + catch 1 = 8. The switch default is excluded.
 	if complexity != 8 {
 		t.Fatalf("cyclomatic_complexity = %d, want 8", complexity)
 	}
-}
-
-func assertStringSliceContains(t *testing.T, raw any, want string) {
-	t.Helper()
-
-	items, ok := raw.([]string)
-	if !ok {
-		t.Fatalf("value = %T, want []string", raw)
-	}
-	for _, item := range items {
-		if item == want {
-			return
-		}
-	}
-	t.Fatalf("[]string missing %q in %#v", want, items)
 }
