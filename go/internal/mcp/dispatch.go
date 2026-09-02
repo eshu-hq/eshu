@@ -16,6 +16,7 @@ import (
 
 	codequalitytools "github.com/eshu-hq/eshu/go/internal/mcp/codequality"
 	deadcodetools "github.com/eshu-hq/eshu/go/internal/mcp/deadcode"
+	entityresolutiontools "github.com/eshu-hq/eshu/go/internal/mcp/entityresolution"
 	"github.com/eshu-hq/eshu/go/internal/mcp/routecontract"
 )
 
@@ -176,6 +177,9 @@ func resolveRoute(toolName string, args map[string]any) (*route, error) {
 	if route, ok := codeQualityRoute(toolName, args); ok {
 		return route, nil
 	}
+	if route, ok := entityResolutionRoute(toolName, args); ok {
+		return route, nil
+	}
 	if route, ok, err := codeRelationshipRoute(toolName, args); ok {
 		return route, err
 	}
@@ -334,14 +338,6 @@ func resolveRoute(toolName string, args map[string]any) (*route, error) {
 		}}, nil
 
 	// ── Entities ──
-	case "resolve_entity":
-		return &route{method: "POST", path: "/api/v0/entities/resolve", body: resolveEntityBody(args)}, nil
-	case "get_entity_context":
-		q := map[string]string{}
-		if env := str(args, "environment"); env != "" {
-			q["environment"] = env
-		}
-		return &route{method: "GET", path: "/api/v0/entities/" + url.PathEscape(str(args, "entity_id")) + "/context", query: q}, nil
 	case "get_workload_context":
 		q := map[string]string{}
 		if env := str(args, "environment"); env != "" {
@@ -406,10 +402,6 @@ func resolveRoute(toolName string, args map[string]any) (*route, error) {
 		}}, nil
 	case "get_file_lines":
 		return &route{method: "POST", path: "/api/v0/content/files/lines", body: args}, nil
-	case "get_entity_content":
-		return &route{method: "POST", path: "/api/v0/content/entities/read", body: map[string]any{
-			"entity_id": str(args, "entity_id"),
-		}}, nil
 	case "build_evidence_citation_packet":
 		return &route{method: "POST", path: "/api/v0/evidence/citations", body: map[string]any{
 			"subject":  args["subject"],
@@ -462,16 +454,7 @@ func resolveRoute(toolName string, args map[string]any) (*route, error) {
 // than in a new dispatch_dead_code.go so the root non-test file set stays at
 // its dirgate pin.
 func deadCodeRoute(toolName string, args map[string]any) (*route, bool) {
-	request, handled := deadcodetools.Route(toolName, routecontract.Arguments(args))
-	if !handled {
-		return nil, false
-	}
-	return &route{
-		method: request.Method,
-		path:   request.Path,
-		body:   request.Body,
-		query:  request.Query,
-	}, true
+	return adaptChildRoute(deadcodetools.Route(toolName, routecontract.Arguments(args)))
 }
 
 // codeQualityRoute adapts the child package's complexity/quality request
@@ -483,7 +466,26 @@ func deadCodeRoute(toolName string, args map[string]any) (*route, bool) {
 // rather than in a new dispatch file so the root non-test file set stays at
 // its dirgate pin.
 func codeQualityRoute(toolName string, args map[string]any) (*route, bool) {
-	request, handled := codequalitytools.Route(toolName, routecontract.Arguments(args))
+	return adaptChildRoute(codequalitytools.Route(toolName, routecontract.Arguments(args)))
+}
+
+// entityResolutionRoute adapts the child package's entity-resolution request
+// selection into the root dispatcher's transport route, exactly as
+// deadCodeRoute and codeQualityRoute above adapt theirs: same former-switch
+// arms, same delegation position, same dirgate reason for living in this
+// file. search_entity_content stays in the switch below — its body comes
+// entirely from contentSearchBody, shared with search_file_content, and that
+// pair's wire shape keeps one root owner until the content family moves
+// together.
+func entityResolutionRoute(toolName string, args map[string]any) (*route, bool) {
+	return adaptChildRoute(entityresolutiontools.Route(toolName, routecontract.Arguments(args)))
+}
+
+// adaptChildRoute converts a child selector's dependency-neutral request and
+// handled flag into the root dispatcher's transport route, copying method,
+// path, body, and query verbatim so the three in-file adapters above cannot
+// drift from one another.
+func adaptChildRoute(request routecontract.Request, handled bool) (*route, bool) {
 	if !handled {
 		return nil, false
 	}

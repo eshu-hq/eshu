@@ -11,10 +11,10 @@
 // ask, relationships, and visualization children own pure dependency-neutral
 // family route selectors alongside their definitions, and the
 // admissiondecisions, cicd, codeflow, codeowners, codequality,
-// containerimage, deadcode, impact, infrasearch, kubernetes,
-// observabilitycoverage, packageregistry, secretsiam, securityalert, and
-// supplychainimpact children own such a selector without owning a
-// registration.
+// containerimage, deadcode, entityresolution, impact, infrasearch,
+// kubernetes, observabilitycoverage, packageregistry, secretsiam,
+// securityalert, and supplychainimpact children own such a selector without
+// owning a registration.
 // The nine impact-analysis selections (trace_deployment_chain through
 // trace_exposure_path) live in the impact child and reach dispatch through
 // the impactRoute adapter, consulted in resolveRoute's default case — the
@@ -51,6 +51,19 @@
 // entity_id, and the absent limit on calculate_cyclomatic_complexity are
 // unchanged, and the three advertised definitions stay at this root in
 // tools_codebase.go and tools_code_quality.go.
+// The three entity-resolution selections (resolve_entity,
+// get_entity_context, get_entity_content) live in the entityresolution child
+// and reach dispatch through the entityResolutionRoute adapter defined in
+// dispatch.go itself, consulted with the other route delegations ahead of
+// the switch that held the three arms. The POST /api/v0/entities/resolve
+// body with its conditional name, type, and repo_id keys and limit 10
+// default, the path-escaped GET /api/v0/entities/{entity_id}/context with
+// its conditional environment query parameter, and the POST
+// /api/v0/content/entities/read entity_id body are unchanged, and the three
+// advertised definitions stay at this root in tools_context.go and
+// tools_content.go. search_entity_content deliberately stays in the switch:
+// its body comes entirely from contentSearchBody, shared with
+// search_file_content, so the pair's wire shape keeps one root owner.
 // ReadOnlyTools remains the sole ordered assembler; global route membership,
 // family adapters, dispatch,
 // transport, authorization, timeouts,

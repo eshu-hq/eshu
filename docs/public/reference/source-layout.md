@@ -47,6 +47,7 @@ live in the repository today.
 | `go/internal/mcp/deadcode/` | dead-code MCP family membership and dependency-neutral route selection |
 | `go/internal/mcp/documentation/` | documentation-family MCP tool registration definitions |
 | `go/internal/mcp/ecosystem/` | ecosystem, repository-context, infrastructure-impact, and change-planning MCP tool registration definitions |
+| `go/internal/mcp/entityresolution/` | entity-resolution MCP family membership and dependency-neutral route selection |
 | `go/internal/mcp/freshness/` | generation, repository, and service freshness MCP tool registration definitions |
 | `go/internal/mcp/impact/` | impact-analysis MCP family membership and dependency-neutral route selection |
 | `go/internal/mcp/infrasearch/` | infrastructure-search MCP family membership and dependency-neutral route selection |
@@ -168,6 +169,8 @@ Read and operator surfaces live under:
   and pure dependency-neutral request selection
 - `go/internal/mcp/deadcode/`: dead-code family membership and pure
   dependency-neutral request selection
+- `go/internal/mcp/entityresolution/`: entity-resolution family membership
+  and pure dependency-neutral request selection
 - `go/internal/mcp/impact/`: impact-analysis family membership and pure
   dependency-neutral request selection
 - `go/internal/mcp/infrasearch/`: infrastructure-search family membership and

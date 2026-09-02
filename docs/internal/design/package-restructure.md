@@ -1605,6 +1605,48 @@ as 0 precisely so the handler can resolve check-specific defaults
 A dispatcher-side positive default on any of them would silently pin one
 check's threshold onto every other check.
 
+The entity-resolution trio is the sixteenth Wave 2 MCP extraction and the
+third to lift case arms out of `dispatch.go`'s own switch. Its three tools —
+`resolve_entity`, `get_entity_context`, and `get_entity_content` — were
+inline arms in the Entities and Content sections of the switch; family
+membership and the request builders now live under
+`internal/mcp/entityresolution`, and the thin `entityResolutionRoute`
+adapter lives in `dispatch.go` itself, beside `deadCodeRoute` and
+`codeQualityRoute`, for the same dirgate reason. `resolveRoute` goes from 23
+delegations and 43 cases to 24 delegations and 40 cases, with all 162 tools
+answered identically on both sides. Root keeps the three definitions
+(`tools_context.go`, `tools_content.go`), global fanout, dispatch,
+authorization, timeouts, response budgets, envelopes, summaries, and
+telemetry, and the root non-test file set holds its dirgate pin of 106.
+None of the three names is a language-parity read-surface label — the
+`entity_context` label resolves to `get_entity_context` through
+`ReadOnlyTools()`, which stays at root — so the consumer-existence backing
+map and gate doc are untouched.
+
+Two things distinguish this family. First, its planned fourth member did not
+move: `search_entity_content`'s whole body comes from `contentSearchBody`,
+the root builder it shares with `search_file_content`, so moving it alone
+would either duplicate a deliberately shared wire shape (letting the two
+search tools drift) or export a root helper across the boundary. It stays in
+the switch until the content family (`get_file_content`, `get_file_lines`,
+`search_file_content`, and it) moves together — the first switch family
+whose name-based grouping and export-budget grouping disagree, which is why
+the "every remaining arm consumes only the generic helpers" claim in the
+next paragraph is scoped to the codeintel groups it lists and not to the
+whole switch. Second, `resolve_entity` had the switch's one family-specific
+root builder, `resolveEntityBody` (formerly in `dispatch_values.go`, now
+deleted there): every key except `limit` is conditional — `name` maps from
+the advertised `query` argument only when the deprecated `name` alias is
+blank and stays absent when both are blank, so the handler's own HTTP 400
+"name is required" stays the visible failure; `type` falls back to the first
+element of the deprecated `types` array, including to an explicit empty
+string for a non-string first element; `repo_id` travels only when
+non-empty. `limit` 10 matches the handler's substitute-then-cap bounds (≤0 →
+10, >100 → 100), so no limit value can 400. `get_entity_context` forwards
+`environment` only when non-empty, in an always-non-nil query map, while the
+handler decodes no query parameter at all — an advertised-versus-decoded
+asymmetry, not a dropped field.
+
 The rest of the codeintel cluster stays in `dispatch.go`'s switch and moves
 family by family, not as one package. Four groups remain, in suggested
 landing order by coupling: (1) the call-graph group
