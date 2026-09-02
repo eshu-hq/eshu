@@ -14,6 +14,7 @@ import (
 	projectorec2 "github.com/eshu-hq/eshu/go/internal/projector/ec2"
 	projectorgcp "github.com/eshu-hq/eshu/go/internal/projector/gcp"
 	projectoriamcanassume "github.com/eshu-hq/eshu/go/internal/projector/iamcanassume"
+	projectoriaminstanceprofile "github.com/eshu-hq/eshu/go/internal/projector/iaminstanceprofile"
 	projectorincidentrouting "github.com/eshu-hq/eshu/go/internal/projector/incidentrouting"
 	projectorkubernetes "github.com/eshu-hq/eshu/go/internal/projector/kubernetes"
 	projectorobservabilitycoverage "github.com/eshu-hq/eshu/go/internal/projector/observabilitycoverage"
@@ -126,7 +127,7 @@ func appendScopeGenerationReducerIntents(
 	if intent, ok := projectorec2.BuildUsesProfileMaterializationReducerIntent(scopeValue.ScopeID, generation.GenerationID, index.lookup); ok {
 		intents = append(intents, intent)
 	}
-	if intent, ok := buildIAMInstanceProfileRoleMaterializationReducerIntent(scopeValue, generation, index); ok {
+	if intent, ok := projectoriaminstanceprofile.BuildIAMInstanceProfileRoleMaterializationReducerIntent(scopeValue.ScopeID, generation.GenerationID, index.lookup); ok {
 		intents = append(intents, intent)
 	}
 	if intent, ok := projectorec2.BuildInternetExposureMaterializationReducerIntent(scopeValue.ScopeID, generation.GenerationID, index.lookup); ok {

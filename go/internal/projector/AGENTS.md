@@ -157,6 +157,20 @@
   `firstOfKind`, `firstOfKindMatching`, and `firstAcrossKinds`, and the
   seam's per-distinct-kind evaluation proof now lives in
   `intent/fact_lookup_test.go`.
+- **IAM instance-profile-role family (#6057)** — the
+  `iam_instance_profile_role_materialization` builder lives in
+  `iaminstanceprofile/` and consumes the lookup like the families above. It is
+  a decode-seam-bearing family: its trigger predicate decodes
+  `aws_resource.resource_type` through its own `factschema_decode_aws.go`
+  against `sdk/go/factschema` (the `ec2` pattern) and matches
+  `aws_iam_instance_profile`, so root's classified `decodeAWSResource` wrapper
+  keeps observability-coverage materialization as its remaining root caller.
+  A no-role instance profile still triggers — the reducer's retract pass must
+  run in a generation whose profile dropped its roles — and the intent shares
+  the `aws_resource_materialization:<scope>` entity key with the AWS node
+  builders for the canonical-nodes readiness gate. The root fan-out fixture's
+  profile-typed `aws_resource` helper (`iamInstanceProfileResourceFact`) moved
+  into `scope_generation_intents_fanout_test.go` with the extraction.
 - **CanonicalWriter interface boundary** — no caller in this package calls a Neo4j
   or NornicDB driver directly. All canonical writes go through `CanonicalWriter`.
   Backend-specific logic belongs in `internal/storage/cypher` adapters.
