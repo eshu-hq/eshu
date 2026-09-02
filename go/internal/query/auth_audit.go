@@ -181,6 +181,16 @@ func recordScopedRouteAuthorizationDeniedWithReason(
 	if audit == nil {
 		return
 	}
+	// The closed governanceaudit.ActorClass enum (governanceaudit/audit.go)
+	// has no browser-session member, so a cookie-session denial -- including
+	// scoped_route_all_scope_grant_required, which only a browser session can
+	// produce -- is stamped scoped_token on purpose. Read it as
+	// "identity-resolved caller", not "bearer token". Do not "correct" it to
+	// ActorClassOperator: that member means a human operator carrying no
+	// direct identifier, and this helper is shared with the scoped-bearer
+	// denial path (recordScopedRouteAuthorizationDenied), where scoped_token
+	// is literally right. Widening the enum with a browser-session member is
+	// tracked in #6459.
 	actorClass := governanceaudit.ActorClassScopedToken
 	if auth.SubjectIDHash == "" {
 		actorClass = governanceaudit.ActorClassAnonymous

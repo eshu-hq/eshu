@@ -100,7 +100,7 @@ var scopedTokenAdvertisedRoutes = map[string]scopedRouteClass{
 	"GET /api/v0/auth/admin/role-assignments":                                       scopedRouteIdentityBound,
 	"GET /api/v0/auth/admin/roles":                                                  scopedRouteIdentityBound,
 	"GET /api/v0/auth/admin/sign-in-policy":                                         scopedRouteIdentityBound,
-	"GET /api/v0/auth/browser-session":                                              scopedRouteTenantDataFree,
+	"GET /api/v0/auth/browser-session":                                              scopedRouteIdentityBound,
 	"GET /api/v0/auth/local/api-tokens":                                             scopedRouteIdentityBound,
 	"GET /api/v0/auth/local/invitations":                                            scopedRouteIdentityBound,
 	"GET /api/v0/auth/profile":                                                      scopedRouteIdentityBound,

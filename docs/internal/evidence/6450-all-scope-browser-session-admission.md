@@ -45,8 +45,8 @@ allowlist, and admission splits on that class instead of on membership alone.
 | Class | Count | All-scope session admitted without the policy check |
 | --- | --- | --- |
 | `grant_bound` | 113 | no |
-| `identity_bound` | 35 | yes |
-| `tenant_data_free` | 13 | yes |
+| `identity_bound` | 36 | yes |
+| `tenant_data_free` | 12 | yes |
 | `deployment_scoped` | 13 | no |
 | `transitive` | 1 | no |
 | total | 175 | |
@@ -55,6 +55,12 @@ allowlist, and admission splits on that class instead of on membership alone.
 fails closed. `deployment_scoped` and `transitive` are grouped with
 `grant_bound` on purpose: Mode-based redaction in `status_scoped.go` and the
 transitive re-dispatch behind `POST /api/v0/ask` are not caller-grant binding.
+
+`GET /api/v0/auth/browser-session` was reclassified from `tenant_data_free`
+to `identity_bound` in review, because it returns the caller's own session
+identity (tenant, workspace, all-scopes flag, role ids, subject hashes)
+rather than a static in-binary artifact. Both classes are admitted without
+the policy check, so admission behavior is unchanged.
 
 `scopedRouteNeedsNoCallerGrant` is the runtime half, written as a closed union
 of the allowlist's existing matchers rather than an `/api/v0/auth/` prefix
@@ -245,7 +251,10 @@ residuals stay open and are tracked separately, none of them fixed here.
    the closed `governanceaudit.ActorClass` enum that `NormalizeEvent`
    validates against, and widening a validated enum is outside this change.
    An operator filtering by `actor_class` should therefore read `scoped_token`
-   here as "identity-resolved caller", not "bearer token".
+   here as "identity-resolved caller", not "bearer token". The mapping is
+   marked at the assignment in `auth_audit.go` so it is not "corrected" by a
+   later reader, and adding a browser-session member to the enum is tracked
+   in #6459.
 
 Residual 4 is why the `scopedRouteClass` doc comment says an identity-bound
 handler answers from the tenant the session is *currently* bound to, rather
