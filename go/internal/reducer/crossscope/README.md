@@ -93,7 +93,7 @@ level, with the same field names, as before the move: `log.Domain`,
 constants are untouched by this move), plus `producer_domains`, `max_wait`, and
 `elapsed_since_cycle_start`, on the message `"cross-scope consumer deferred:
 producer scopes have not activated"`. No metric instrument, counter, span, or
-Postgres operation is associated with this floor; `cmd/golden-corpus-gate/drains.go`
+Postgres operation is associated with this floor; `go/cmd/golden-corpus-gate/drains.go`
 matches the literal string `"cross_scope_producer_not_ready"`, and that string
 value (`ProducerNotReadyFailureClass`) is copied verbatim, unchanged.
 
@@ -150,7 +150,7 @@ one log line this floor emits (`LogProducerNotReadyDefer`) keeps its exact
 message text, level, and field names (`log.Domain`, `log.ScopeID`,
 `log.GenerationID`, `producer_domains`, `max_wait`,
 `elapsed_since_cycle_start`); the `ProducerNotReadyFailureClass` string value
-`cross_scope_producer_not_ready` that `cmd/golden-corpus-gate/drains.go` and
+`cross_scope_producer_not_ready` that `go/cmd/golden-corpus-gate/drains.go` and
 `internal/storage/postgres/reducer_queue_readiness_sql.go` depend on is
 copied verbatim, unchanged.
 

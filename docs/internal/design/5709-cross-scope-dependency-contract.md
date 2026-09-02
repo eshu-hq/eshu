@@ -22,13 +22,13 @@ wrong**, and all three reviewers caught it independently (#6028 review).
 The error is worth naming because it is the same one twice over: I grepped the
 struct field `CrossScopeDependencies`, found only `Validate()`, and concluded
 absence. The fanout consumes `CrossScopeCompletionEdges()` — a different
-accessor over the *same* `crossScopeDependencyCatalog()`. I verified a name and
+accessor over the *same* `crossscope.dependencyCatalog()`. I verified a name and
 concluded a fact.
 
 | Piece | State on `origin/main` | Evidence |
 | --- | --- | --- |
 | Contract on `DomainDefinition` | **Exists** | `go/internal/reducer/registry.go` |
-| Catalog of consumer → producers | **Exists** | `crossScopeDependencyCatalog()` |
+| Catalog of consumer → producers | **Exists** | `crossscope.dependencyCatalog()` |
 | Registered **consumers** | `ci_cd_run_correlation`, `supply_chain_impact` | `registry_additive_domains.go:184,259` |
 | Registered **producers** | `container_image_identity`, `ci_cd_run_correlation` | same catalog |
 | Activation-driven re-enqueue (design point 2) | **EXISTS and is wired in production** | `CrossScopeCompletionEdges()` derives edges from the catalog; reducer ACK inserts `cross_scope_completion_events` (`reducer_queue_batch.go:254`); `CrossScopeCompletionRunner` + `NewCrossScopeCompletionStore` are wired at `cmd/reducer/main.go:453`; the golden-corpus gate asserts the ledger drains |

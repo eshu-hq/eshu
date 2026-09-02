@@ -372,7 +372,7 @@ func TestSupplyChainImpactIgnoresProducerFactsAlreadyInItsOwnScope(t *testing.T)
 //
 // The producer fact kinds this consumer counts are hand-mapped from the producer
 // DOMAINS the cross-scope catalog declares. Adding a third producer to
-// crossScopeDependencyCatalog without adding its fact kind here would leave that
+// crossscope.dependencyCatalog without adding its fact kind here would leave that
 // producer's output uncounted, so a pass that resolved only that producer would
 // defer to the full 30-minute bound with its answer already in hand.
 func TestSupplyChainImpactProducerFactKindsCoverEveryDeclaredProducer(t *testing.T) {

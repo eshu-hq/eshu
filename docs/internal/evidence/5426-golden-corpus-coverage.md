@@ -250,7 +250,7 @@ correlation in another scope later improves. The correlation itself lands
 committed yet — and reaches `exact` only on a maintenance replay, which
 `bootstrap-index` already performs for `container_image_identity` and
 `ci_cd_run_correlation`. `supply_chain_impact` is the third link in that chain,
-and `crossScopeDependencyCatalog`'s own doc already said so
+and `crossscope.dependencyCatalog`'s own doc already said so
 ("supply_chain_impact reads the correlation output for its deployment context,
 one hop further along the same chain") — it was simply never replayed, so a
 finding classified against a provenance-only correlation kept that verdict for
@@ -496,7 +496,7 @@ floor fails in ordinary CI rather than skipping. Closing the end-to-end gap
 still needs the gate change. The durable fix for the
 underlying dependency remains #5709's readiness-defer and activation-driven
 re-enqueue, which replaces blanket replay with a real dependency gate;
-`crossScopeDependencyCatalog` already declares the chain for it.
+`crossscope.dependencyCatalog` already declares the chain for it.
 
 Replay stays idempotent (each domain upserts its decision on a stable fact key),
 and slice order still sequences nothing — convergence comes from maintenance

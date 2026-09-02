@@ -23,7 +23,7 @@
   anchored via `ReadinessCycleAnchor`. It must NEVER be rebuilt as an
   attempt-count comparison: `ProducerNotReadyFailureClass` freezes
   `fact_work_items.attempt_count` (see
-  `internal/storage/postgres/reducer_queue_readiness_sql.go`'s
+  `go/internal/storage/postgres/reducer_queue_readiness_sql.go`'s
   `nonCountingReducerRetryFailureClasses`), so a count-based bound reads the
   same frozen value forever and can never fire. The sibling AWS gate shipped
   that mistake first.

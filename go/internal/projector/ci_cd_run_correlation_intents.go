@@ -38,7 +38,7 @@ import (
 // The correlation also reads reducer_container_image_identity rows across
 // scopes (the CI scope's run/artifact evidence joins against the OCI/cloud
 // scope's identity decision — see cross_scope_dependencies.go's
-// crossScopeDependencyCatalog). That cross-scope read races the identity
+// crossscope.dependencyCatalog). That cross-scope read races the identity
 // generation's activation exactly the way #5423 documented for
 // container_image_identity's own OCI-manifest join.
 // go/cmd/bootstrap-index/bootstrap_pipeline.go's maintenance-pass reopen
