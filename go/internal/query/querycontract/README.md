@@ -76,12 +76,19 @@ functions with no instrumentation, before the move and after it.
 
 ## Performance
 
-Moving the row-value decoders here put a forwarding wrapper in front of four
+Moving the row-value decoders here put a forwarding wrapper in front of five
 functions the query read paths call constantly. Counted by walking the AST for
 call expressions, so a name appearing in a comment does not inflate the figure,
-`StringVal` is called from 202 of the 880 non-test root files, `IntVal` from
-89, `StringSliceVal` from 74, and `BoolVal` from 43. The question that raises
-is whether the extra call frame costs anything on a hot row-decode loop.
+`StringVal` was called from 202 of the 880 non-test root files when the first
+four moved, `IntVal` from 89, `StringSliceVal` from 74, and `BoolVal` from 43.
+`FloatVal` arrived later and is the small one: 11 call sites across 8 root
+files, every one of them reaching it through the unexported
+`relationshipFloatVal` rather than an exported wrapper. Those first four counts
+are the snapshot from when they moved and are deliberately not refreshed; the
+comment in `rowvalue.go` carries the same StringVal metric measured later
+(195 of 866), and the gap between the two is families leaving root, which is
+what this epic is for. The question that
+raises is whether the extra call frame costs anything on a hot row-decode loop.
 
 It does not: the compiler removes it entirely.
 
@@ -95,7 +102,13 @@ time, so a decode site emits the same code it did before the move. No benchmark
 is cited because there is no runtime delta to measure -- the indirection does not
 survive compilation.
 
-No-Observability-Change: the four decoders emit no metric, span, or log, before
+The same run covers `FloatVal`: `can inline relationshipFloatVal`, then both
+`inlining call to relationshipFloatVal` and `inlining call to
+querycontract.FloatVal` at all 11 call sites (`service_story_limits.go:60`
+shows each hop twice, once per call on that line). The two-hop shape is
+identical to the other four, and it collapses the same way.
+
+No-Observability-Change: the five decoders emit no metric, span, or log, before
 this move and after it -- they are pure functions over a map. The handlers that
 call them keep their existing `eshu_dp_api_request_duration_seconds` timing and
 their `query.*` spans, and because both wrapper hops inline away, no span

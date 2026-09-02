@@ -6,7 +6,7 @@ package querycontract
 import "fmt"
 
 // Graph drivers hand a row back as map[string]any, so every read path has to
-// assert each column's type before using it. These four helpers do that
+// assert each column's type before using it. These helpers do that
 // assertion once and never panic. A missing key or a nil always yields the
 // zero value. An unexpected type yields the zero value too, except in
 // StringVal, which renders it with %v -- see that function's own comment for
@@ -18,11 +18,14 @@ import "fmt"
 // (#6060) moves each handler family in go/internal/query into its own
 // subpackage, and a subpackage cannot import the root package back without an
 // import cycle, because root names family symbols in its compatibility
-// aliases. StringVal alone is called from 202 of the 880 non-test root files
-// (322 counting the 1042 test files), so leaving these in root would block
-// every family move. Package query keeps forwarding wrappers under the
-// original names, so its own callers and the 28 files outside the package that
-// call these four functions -- 5 non-test and 23 test -- all compile unchanged.
+// aliases. A call to StringVal alone appeared in 195 of the 866 non-test root
+// files when this comment was written, so leaving these in root would block
+// every family move. Package query keeps forwarding wrappers under the original
+// names, so its own callers and the 28 files outside it that call StringVal,
+// BoolVal, IntVal or StringSliceVal -- 5 non-test and 23 test -- all compile
+// unchanged. FloatVal is newer and has no exported forwarder of its own:
+// package query reaches it through the unexported relationshipFloatVal, which
+// eleven call sites in eight root files already named.
 
 // StringVal safely extracts a string from a map value. A missing key or a nil
 // yields "". A present value of some other type is rendered with %v rather
