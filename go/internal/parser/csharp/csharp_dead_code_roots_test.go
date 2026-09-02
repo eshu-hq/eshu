@@ -1,12 +1,15 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package parser
+package csharp_test
 
 import (
 	"path/filepath"
 	"strings"
 	"testing"
+
+	"github.com/eshu-hq/eshu/go/internal/parser"
+	"github.com/eshu-hq/eshu/go/internal/parser/parsertest"
 )
 
 func TestDefaultEngineParsePathCSharpEmitsDeadCodeRootKinds(t *testing.T) {
@@ -14,7 +17,7 @@ func TestDefaultEngineParsePathCSharpEmitsDeadCodeRootKinds(t *testing.T) {
 
 	repoRoot := t.TempDir()
 	sourcePath := filepath.Join(repoRoot, "Service.cs")
-	writeTestFile(
+	parsertest.WriteFile(
 		t,
 		sourcePath,
 		`using System.Runtime.Serialization;
@@ -127,33 +130,33 @@ namespace PlainNamespace {
 `,
 	)
 
-	engine, err := DefaultEngine()
+	engine, err := parser.DefaultEngine()
 	if err != nil {
 		t.Fatalf("DefaultEngine() error = %v, want nil", err)
 	}
 
-	got, err := engine.ParsePath(repoRoot, sourcePath, false, Options{IndexSource: true})
+	got, err := engine.ParsePath(repoRoot, sourcePath, false, parser.Options{IndexSource: true})
 	if err != nil {
 		t.Fatalf("ParsePath(%s) error = %v, want nil", sourcePath, err)
 	}
 
-	assertParserStringSliceContains(t, assertFunctionByNameAndClass(t, got, "Run", "IJob"), "dead_code_root_kinds", "csharp.interface_method")
-	assertParserStringSliceContains(t, assertFunctionByNameAndClass(t, got, "ReportJob", "ReportJob"), "dead_code_root_kinds", "csharp.constructor")
-	assertParserStringSliceContains(t, assertFunctionByNameAndClass(t, got, "Run", "ReportJob"), "dead_code_root_kinds", "csharp.interface_implementation_method")
-	assertParserStringSliceContains(t, assertFunctionByNameAndClass(t, got, "Execute", "ScheduledJob"), "dead_code_root_kinds", "csharp.override_method")
-	assertParserStringSliceContains(t, assertFunctionByNameAndClass(t, got, "Get", "OrdersController"), "dead_code_root_kinds", "csharp.aspnet_controller_action")
-	assertParserStringSliceContains(t, assertFunctionByNameAndClass(t, got, "ExecuteAsync", "Worker"), "dead_code_root_kinds", "csharp.hosted_service_entrypoint")
-	assertParserStringSliceContains(t, assertFunctionByNameAndClass(t, got, "RunsFromTestRunner", "ServiceTests"), "dead_code_root_kinds", "csharp.test_method")
-	assertParserStringSliceContains(t, assertFunctionByNameAndClass(t, got, "RunsFromMultipleAttributes", "ServiceTests"), "dead_code_root_kinds", "csharp.test_method")
-	assertParserStringSliceContains(t, assertFunctionByNameAndClass(t, got, "Restore", "SerializedState"), "dead_code_root_kinds", "csharp.serialization_callback")
-	assertParserStringSliceContains(t, assertFunctionByNameAndClass(t, got, "Main", "Program"), "dead_code_root_kinds", "csharp.main_method")
-	assertParserStringSliceContains(t, assertFunctionByNameAndClass(t, got, "Main", "AsyncProgram"), "dead_code_root_kinds", "csharp.main_method")
-	assertParserStringSliceContains(t, assertFunctionBySourceContains(t, got, "System.Threading.Tasks.Task Main"), "dead_code_root_kinds", "csharp.main_method")
-	assertParserStringSliceContains(t, assertFunctionBySourceContains(t, got, "return Task.CompletedTask;"), "dead_code_root_kinds", "csharp.hosted_service_entrypoint")
-	if helper := assertFunctionByNameAndClass(t, got, "Helper", "ReportJob"); helper["dead_code_root_kinds"] != nil {
+	parsertest.AssertStringSliceContains(t, parsertest.AssertFunctionByNameAndClass(t, got, "Run", "IJob"), "dead_code_root_kinds", "csharp.interface_method")
+	parsertest.AssertStringSliceContains(t, parsertest.AssertFunctionByNameAndClass(t, got, "ReportJob", "ReportJob"), "dead_code_root_kinds", "csharp.constructor")
+	parsertest.AssertStringSliceContains(t, parsertest.AssertFunctionByNameAndClass(t, got, "Run", "ReportJob"), "dead_code_root_kinds", "csharp.interface_implementation_method")
+	parsertest.AssertStringSliceContains(t, parsertest.AssertFunctionByNameAndClass(t, got, "Execute", "ScheduledJob"), "dead_code_root_kinds", "csharp.override_method")
+	parsertest.AssertStringSliceContains(t, parsertest.AssertFunctionByNameAndClass(t, got, "Get", "OrdersController"), "dead_code_root_kinds", "csharp.aspnet_controller_action")
+	parsertest.AssertStringSliceContains(t, parsertest.AssertFunctionByNameAndClass(t, got, "ExecuteAsync", "Worker"), "dead_code_root_kinds", "csharp.hosted_service_entrypoint")
+	parsertest.AssertStringSliceContains(t, parsertest.AssertFunctionByNameAndClass(t, got, "RunsFromTestRunner", "ServiceTests"), "dead_code_root_kinds", "csharp.test_method")
+	parsertest.AssertStringSliceContains(t, parsertest.AssertFunctionByNameAndClass(t, got, "RunsFromMultipleAttributes", "ServiceTests"), "dead_code_root_kinds", "csharp.test_method")
+	parsertest.AssertStringSliceContains(t, parsertest.AssertFunctionByNameAndClass(t, got, "Restore", "SerializedState"), "dead_code_root_kinds", "csharp.serialization_callback")
+	parsertest.AssertStringSliceContains(t, parsertest.AssertFunctionByNameAndClass(t, got, "Main", "Program"), "dead_code_root_kinds", "csharp.main_method")
+	parsertest.AssertStringSliceContains(t, parsertest.AssertFunctionByNameAndClass(t, got, "Main", "AsyncProgram"), "dead_code_root_kinds", "csharp.main_method")
+	parsertest.AssertStringSliceContains(t, assertFunctionBySourceContains(t, got, "System.Threading.Tasks.Task Main"), "dead_code_root_kinds", "csharp.main_method")
+	parsertest.AssertStringSliceContains(t, assertFunctionBySourceContains(t, got, "return Task.CompletedTask;"), "dead_code_root_kinds", "csharp.hosted_service_entrypoint")
+	if helper := parsertest.AssertFunctionByNameAndClass(t, got, "Helper", "ReportJob"); helper["dead_code_root_kinds"] != nil {
 		t.Fatalf("ReportJob.Helper dead_code_root_kinds = %#v, want nil", helper["dead_code_root_kinds"])
 	}
-	if helper := assertFunctionByNameAndClass(t, got, "Helper", "OrdersController"); helper["dead_code_root_kinds"] != nil {
+	if helper := parsertest.AssertFunctionByNameAndClass(t, got, "Helper", "OrdersController"); helper["dead_code_root_kinds"] != nil {
 		t.Fatalf("OrdersController.Helper dead_code_root_kinds = %#v, want nil", helper["dead_code_root_kinds"])
 	}
 	for _, tc := range []struct {
@@ -171,7 +174,7 @@ namespace PlainNamespace {
 		{name: "Run", classContext: "ReportJob", sourceContains: "Run(int retries)"},
 		{name: "ExecuteAsync", classContext: "Worker", sourceContains: "not hosted"},
 	} {
-		function := assertFunctionByNameAndClass(t, got, tc.name, tc.classContext)
+		function := parsertest.AssertFunctionByNameAndClass(t, got, tc.name, tc.classContext)
 		if tc.sourceContains != "" {
 			function = assertFunctionBySourceContains(t, got, tc.sourceContains)
 		}
@@ -184,30 +187,30 @@ namespace PlainNamespace {
 func TestDefaultEngineParsePathCSharpDeadCodeFixtureExpectedRoots(t *testing.T) {
 	t.Parallel()
 
-	repoRoot := repoFixturePath("deadcode", "csharp")
-	sourcePath := repoFixturePath("deadcode", "csharp", "Fixture.cs")
+	repoRoot := csharpFixturePath(t, "deadcode", "csharp")
+	sourcePath := csharpFixturePath(t, "deadcode", "csharp", "Fixture.cs")
 
-	engine, err := DefaultEngine()
+	engine, err := parser.DefaultEngine()
 	if err != nil {
 		t.Fatalf("DefaultEngine() error = %v, want nil", err)
 	}
 
-	got, err := engine.ParsePath(repoRoot, sourcePath, false, Options{})
+	got, err := engine.ParsePath(repoRoot, sourcePath, false, parser.Options{})
 	if err != nil {
 		t.Fatalf("ParsePath(%s) error = %v, want nil", sourcePath, err)
 	}
 
-	assertParserStringSliceContains(t, assertFunctionByNameAndClass(t, got, "Main", "Program"), "dead_code_root_kinds", "csharp.main_method")
-	assertParserStringSliceContains(t, assertFunctionByNameAndClass(t, got, "Get", "PublicController"), "dead_code_root_kinds", "csharp.aspnet_controller_action")
-	assertParserStringSliceContains(t, assertFunctionByNameAndClass(t, got, "ExecuteAsync", "Worker"), "dead_code_root_kinds", "csharp.hosted_service_entrypoint")
-	assertParserStringSliceContains(t, assertFunctionByNameAndClass(t, got, "Run", "IJob"), "dead_code_root_kinds", "csharp.interface_method")
-	assertParserStringSliceContains(t, assertFunctionByNameAndClass(t, got, "Run", "ReportJob"), "dead_code_root_kinds", "csharp.interface_implementation_method")
-	assertParserStringSliceContains(t, assertFunctionByNameAndClass(t, got, "ExercisedByTestRunner", "FixtureTests"), "dead_code_root_kinds", "csharp.test_method")
-	assertParserStringSliceContains(t, assertFunctionByNameAndClass(t, got, "Restore", "SerializationHooks"), "dead_code_root_kinds", "csharp.serialization_callback")
-	if helper := assertFunctionByName(t, got, "UnusedCleanupCandidate"); helper["dead_code_root_kinds"] != nil {
+	parsertest.AssertStringSliceContains(t, parsertest.AssertFunctionByNameAndClass(t, got, "Main", "Program"), "dead_code_root_kinds", "csharp.main_method")
+	parsertest.AssertStringSliceContains(t, parsertest.AssertFunctionByNameAndClass(t, got, "Get", "PublicController"), "dead_code_root_kinds", "csharp.aspnet_controller_action")
+	parsertest.AssertStringSliceContains(t, parsertest.AssertFunctionByNameAndClass(t, got, "ExecuteAsync", "Worker"), "dead_code_root_kinds", "csharp.hosted_service_entrypoint")
+	parsertest.AssertStringSliceContains(t, parsertest.AssertFunctionByNameAndClass(t, got, "Run", "IJob"), "dead_code_root_kinds", "csharp.interface_method")
+	parsertest.AssertStringSliceContains(t, parsertest.AssertFunctionByNameAndClass(t, got, "Run", "ReportJob"), "dead_code_root_kinds", "csharp.interface_implementation_method")
+	parsertest.AssertStringSliceContains(t, parsertest.AssertFunctionByNameAndClass(t, got, "ExercisedByTestRunner", "FixtureTests"), "dead_code_root_kinds", "csharp.test_method")
+	parsertest.AssertStringSliceContains(t, parsertest.AssertFunctionByNameAndClass(t, got, "Restore", "SerializationHooks"), "dead_code_root_kinds", "csharp.serialization_callback")
+	if helper := parsertest.AssertBucketItemByName(t, got, "functions", "UnusedCleanupCandidate"); helper["dead_code_root_kinds"] != nil {
 		t.Fatalf("UnusedCleanupCandidate dead_code_root_kinds = %#v, want nil", helper["dead_code_root_kinds"])
 	}
-	if helper := assertFunctionByNameAndClass(t, got, "InternalHelper", "PublicController"); helper["dead_code_root_kinds"] != nil {
+	if helper := parsertest.AssertFunctionByNameAndClass(t, got, "InternalHelper", "PublicController"); helper["dead_code_root_kinds"] != nil {
 		t.Fatalf("PublicController.InternalHelper dead_code_root_kinds = %#v, want nil", helper["dead_code_root_kinds"])
 	}
 }

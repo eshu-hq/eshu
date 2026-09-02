@@ -1,12 +1,15 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package parser
+package csharp_test
 
 import (
 	"path/filepath"
 	"reflect"
 	"testing"
+
+	"github.com/eshu-hq/eshu/go/internal/parser"
+	"github.com/eshu-hq/eshu/go/internal/parser/parsertest"
 )
 
 const csharpDataflowFixture = `using Microsoft.AspNetCore.Mvc;
@@ -27,14 +30,14 @@ namespace Demo {
 func TestCSharpDataflowOffIsByteIdentical(t *testing.T) {
 	repoRoot := t.TempDir()
 	filePath := filepath.Join(repoRoot, "SearchController.cs")
-	writeTestFile(t, filePath, csharpDataflowFixture)
+	parsertest.WriteFile(t, filePath, csharpDataflowFixture)
 
-	engine, err := DefaultEngine()
+	engine, err := parser.DefaultEngine()
 	if err != nil {
 		t.Fatalf("DefaultEngine() error = %v", err)
 	}
 
-	off, err := engine.ParsePath(repoRoot, filePath, false, Options{})
+	off, err := engine.ParsePath(repoRoot, filePath, false, parser.Options{})
 	if err != nil {
 		t.Fatalf("ParsePath (off) error = %v", err)
 	}
@@ -51,7 +54,7 @@ func TestCSharpDataflowOffIsByteIdentical(t *testing.T) {
 		}
 	}
 
-	on, err := engine.ParsePath(repoRoot, filePath, false, Options{EmitDataflow: true})
+	on, err := engine.ParsePath(repoRoot, filePath, false, parser.Options{EmitDataflow: true})
 	if err != nil {
 		t.Fatalf("ParsePath (on) error = %v", err)
 	}
@@ -145,7 +148,7 @@ namespace App {
   }
 }
 `
-	got := parseCSharpDataflowFixtureWithOptions(t, src, Options{EmitDataflow: true, RepositoryID: "repo-alpha"})
+	got := parseCSharpDataflowFixtureWithOptions(t, src, parser.Options{EmitDataflow: true, RepositoryID: "repo-alpha"})
 
 	summaryRows, ok := got["dataflow_summaries"].([]map[string]any)
 	if !ok {
@@ -174,16 +177,16 @@ namespace App {
 
 func parseCSharpDataflowFixture(t *testing.T, src string) map[string]any {
 	t.Helper()
-	return parseCSharpDataflowFixtureWithOptions(t, src, Options{EmitDataflow: true})
+	return parseCSharpDataflowFixtureWithOptions(t, src, parser.Options{EmitDataflow: true})
 }
 
-func parseCSharpDataflowFixtureWithOptions(t *testing.T, src string, options Options) map[string]any {
+func parseCSharpDataflowFixtureWithOptions(t *testing.T, src string, options parser.Options) map[string]any {
 	t.Helper()
 	repoRoot := t.TempDir()
 	filePath := filepath.Join(repoRoot, "SearchController.cs")
-	writeTestFile(t, filePath, src)
+	parsertest.WriteFile(t, filePath, src)
 
-	engine, err := DefaultEngine()
+	engine, err := parser.DefaultEngine()
 	if err != nil {
 		t.Fatalf("DefaultEngine() error = %v", err)
 	}

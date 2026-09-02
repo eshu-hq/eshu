@@ -27,4 +27,11 @@
 // not matched, preferring honesty over a same-name false positive. The gate is
 // off by default and a non-dataflow parse is byte-identical to a build without
 // the feature. No sanitizers are catalogued in v1.
+//
+// The engine-level payload contract is pinned by csharp_cfg_dataflow_test.go,
+// csharp_dead_code_roots_test.go, csharp_route_semantics_test.go, and
+// engine_csharp_taint_test.go in this directory, which compile as the external
+// package csharp_test and drive parser.DefaultEngine().ParsePath the way a
+// caller would. Only that external test package imports the parent parser;
+// production code and the in-package tests never do.
 package csharp

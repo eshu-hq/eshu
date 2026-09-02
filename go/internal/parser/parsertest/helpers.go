@@ -217,8 +217,14 @@ func functionByNameAndClass(payload map[string]any, name string, classContext st
 		return nil, fmt.Errorf("functions = %T, want []map[string]any", payload["functions"])
 	}
 	for _, function := range functions {
-		functionName, _ := function["name"].(string)
-		functionClassContext, _ := function["class_context"].(string)
+		functionName, isString := function["name"].(string)
+		if raw, present := function["name"]; present && !isString {
+			return nil, fmt.Errorf("functions item has name = %#v (%T), want string; a present-but-malformed field must not be silently treated as the empty string", raw, raw)
+		}
+		functionClassContext, isString := function["class_context"].(string)
+		if raw, present := function["class_context"]; present && !isString {
+			return nil, fmt.Errorf("functions item has class_context = %#v (%T), want string; a present-but-malformed field must not be silently treated as the empty string", raw, raw)
+		}
 		if functionName == name && functionClassContext == classContext {
 			return function, nil
 		}

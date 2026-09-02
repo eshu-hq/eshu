@@ -1,11 +1,14 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package parser
+package csharp_test
 
 import (
 	"path/filepath"
 	"testing"
+
+	"github.com/eshu-hq/eshu/go/internal/parser"
+	"github.com/eshu-hq/eshu/go/internal/parser/parsertest"
 )
 
 func TestCSharpTaintFromBody(t *testing.T) {
@@ -217,7 +220,7 @@ func TestCSharpDeadCodeRootTestAttributes(t *testing.T) {
 
 	repoRoot := t.TempDir()
 	sourcePath := filepath.Join(repoRoot, "TestAttributes.cs")
-	writeTestFile(t, sourcePath, `using Xunit;
+	parsertest.WriteFile(t, sourcePath, `using Xunit;
 using NUnit.Framework;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 
@@ -248,12 +251,12 @@ public sealed class TestClass {
 }
 `)
 
-	engine, err := DefaultEngine()
+	engine, err := parser.DefaultEngine()
 	if err != nil {
 		t.Fatalf("DefaultEngine() error = %v", err)
 	}
 
-	got, err := engine.ParsePath(repoRoot, sourcePath, false, Options{})
+	got, err := engine.ParsePath(repoRoot, sourcePath, false, parser.Options{})
 	if err != nil {
 		t.Fatalf("ParsePath error = %v", err)
 	}
@@ -268,7 +271,7 @@ public sealed class TestClass {
 		{"NUnitOneTimeSetUp", "TestClass"},
 		{"NUnitOneTimeTearDown", "TestClass"},
 	} {
-		assertParserStringSliceContains(t, assertFunctionByNameAndClass(t, got, tc.name, tc.class), "dead_code_root_kinds", "csharp.test_method")
+		parsertest.AssertStringSliceContains(t, parsertest.AssertFunctionByNameAndClass(t, got, tc.name, tc.class), "dead_code_root_kinds", "csharp.test_method")
 	}
 }
 
@@ -277,7 +280,7 @@ func TestCSharpDeadCodeRootSerializationCallbacks(t *testing.T) {
 
 	repoRoot := t.TempDir()
 	sourcePath := filepath.Join(repoRoot, "SerializationCallbacks.cs")
-	writeTestFile(t, sourcePath, `using System.Runtime.Serialization;
+	parsertest.WriteFile(t, sourcePath, `using System.Runtime.Serialization;
 
 public sealed class SerializedState {
     [OnSerializing]
@@ -294,12 +297,12 @@ public sealed class SerializedState {
 }
 `)
 
-	engine, err := DefaultEngine()
+	engine, err := parser.DefaultEngine()
 	if err != nil {
 		t.Fatalf("DefaultEngine() error = %v", err)
 	}
 
-	got, err := engine.ParsePath(repoRoot, sourcePath, false, Options{})
+	got, err := engine.ParsePath(repoRoot, sourcePath, false, parser.Options{})
 	if err != nil {
 		t.Fatalf("ParsePath error = %v", err)
 	}
@@ -310,6 +313,6 @@ public sealed class SerializedState {
 		{"OnDeserializingCallback", "SerializedState"},
 		{"OnDeserializedCallback", "SerializedState"},
 	} {
-		assertParserStringSliceContains(t, assertFunctionByNameAndClass(t, got, tc.name, tc.class), "dead_code_root_kinds", "csharp.serialization_callback")
+		parsertest.AssertStringSliceContains(t, parsertest.AssertFunctionByNameAndClass(t, got, tc.name, tc.class), "dead_code_root_kinds", "csharp.serialization_callback")
 	}
 }

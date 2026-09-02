@@ -3,7 +3,14 @@
 Read `language.go` first for payload flow, then `dead_code_roots.go` for
 C# reachability evidence. Keep this package parent-independent: use
 `internal/parser/shared` for payload, source, sorting, and tree-sitter node
-helpers. Do not import `internal/parser`.
+helpers. Do not import `internal/parser`. The one exception is the external
+`csharp_test` package (`csharp_cfg_dataflow_test.go`,
+`csharp_dead_code_roots_test.go`, `csharp_route_semantics_test.go`,
+`engine_csharp_taint_test.go`, `csharp_test_helpers_test.go`, relocated from
+the parent by #6062): it compiles separately from `internal/parser`, so it may
+import the parent engine and `internal/parser/parsertest` for black-box
+coverage of `parser.DefaultEngine().ParsePath`. Production code and the
+in-package `package csharp` tests never import the parent.
 
 Preserve existing payload keys and sorting unless a parser contract change is
 covered by tests and downstream materialization updates.
