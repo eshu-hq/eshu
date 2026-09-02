@@ -13,8 +13,12 @@ import (
 )
 
 // sqlFixturePath resolves a path under tests/fixtures relative to this
-// package directory. The external SQL engine tests live one level below
-// internal/parser, so they cannot reuse the parent package's fixture helper.
+// package directory. The parent's equivalent, repoFixturePath, is unexported
+// and declared in internal/parser's own testhelpers_test.go, so it is not
+// reachable from package sql_test: test files are not importable across
+// packages, and the identifier is unexported besides. Directory depth has
+// nothing to do with it -- this helper would still be needed if the package
+// sat alongside the parent.
 func sqlFixturePath(t *testing.T, pathParts ...string) string {
 	t.Helper()
 

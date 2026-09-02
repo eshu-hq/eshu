@@ -39,8 +39,9 @@ separately from `internal/parser` itself, so the import does not close the
 cycle that `parsertest` would otherwise create. Keep that exception limited to
 black-box tests of the public parent engine. Shared assertions come from
 `go/internal/parser/parsertest`; `sql_test_helpers_test.go` holds only
-`sqlFixturePath` (the external tests sit one level below `internal/parser`,
-out of reach of the parent's fixture helper) and `writeSQLTestFile` (creates
+`sqlFixturePath` (the parent's `repoFixturePath` is unexported and lives in
+`internal/parser`'s own `testhelpers_test.go`, so `package sql_test` cannot
+reach it -- a visibility constraint, not a directory-depth one) and `writeSQLTestFile` (creates
 parent directories before delegating to `parsertest.WriteFile` for the nested
 `prisma/migrations/` and `migrations/` fixtures). The SQL-only
 `assertSQLRelationship` and `assertSQLRelationshipMissing` assertions live in
