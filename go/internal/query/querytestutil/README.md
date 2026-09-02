@@ -2,8 +2,12 @@
 
 ## Purpose
 
-Test helpers shared between `internal/query` and its handler-family
-subpackages. Split out during the #6060 family moves.
+Test helpers reachable from `internal/query` and, once they exist, its
+handler-family subpackages. Split out during the #6060 family moves.
+
+Today there is exactly one consuming package, root `query`'s tests. See
+`AGENTS.md` for why a single-consumer helper lives here and why that is not
+precedent for the next one.
 
 ## Ownership boundary
 
@@ -37,8 +41,12 @@ a `_test.go` file makes it unreachable from every other package's tests and
 silently undoes the split — the compiler reports it as an ordinary undefined
 symbol in the consuming package, not as a packaging mistake.
 
-Nothing outside a test imports this package, so it is dropped from production
-binaries by the linker.
+This package is intended for tests only, and nothing outside a test imports it
+today (`rg -l 'query/querytestutil' --glob '*.go' --glob '!*_test.go'` returns
+nothing). While that holds, the linker drops it from production binaries. That
+is a consequence of the invariant rather than a guarantee on its own: a
+production import would quietly pull `testing` into a shipped binary, so treat
+one as a defect to fix, not as a fact to document.
 
 ## Related docs
 

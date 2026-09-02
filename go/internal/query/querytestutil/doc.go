@@ -11,6 +11,9 @@
 // into handler-family subpackages (#6060), each family's tests need the same
 // helpers, and they cannot reach root's _test.go declarations at all.
 //
-// Nothing outside a test imports this package, so the linker drops it from
-// production binaries.
+// This package is intended for tests only. No production file imports it today,
+// and while that holds the linker drops it from production binaries — a
+// consequence of the invariant, not a guarantee independent of it. A production
+// import would pull testing into a shipped binary and should be treated as a
+// defect rather than documented as behavior.
 package querytestutil
