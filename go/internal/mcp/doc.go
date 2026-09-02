@@ -17,15 +17,15 @@
 // The nine impact-analysis selections (trace_deployment_chain through
 // trace_exposure_path) live in the impact child and reach dispatch through
 // the impactRoute adapter, consulted in resolveRoute's default case — the
-// same point in the chain the family's own switch answered from before the
+// same point in the chain that the family's own switch occupied before the
 // extraction; every POST /api/v0/impact/ path, body key, and dispatcher-side
 // default is unchanged, and the advertised definitions stay with the
 // ecosystem child and the root reachability registration.
 // The four code-flow selections (dispatch_taint_path, dispatch_reaching_def,
 // dispatch_cfg_summary, dispatch_pdg_summary) live in the codeflow child and
 // reach dispatch through the codeFlowRoute adapter, consulted at the same
-// delegation position in resolveRoute the family's own selector answered
-// from before the extraction; the four POST /api/v0/code/flow/ paths, the
+// delegation position in resolveRoute that the family's own selector occupied
+// before the extraction; the four POST /api/v0/code/flow/ paths, the
 // shared six-key body, and the limit 25 and line 0 defaults are unchanged,
 // and the four advertised definitions stay at this root in
 // tools_code_flow.go.

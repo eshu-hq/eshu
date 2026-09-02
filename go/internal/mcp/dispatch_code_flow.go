@@ -9,9 +9,9 @@ import (
 )
 
 // codeFlowRoute adapts the child package's code-flow request selection into
-// the root dispatcher's transport route. It keeps the same delegation
-// position in resolveRoute the family's own selector answered from before
-// the extraction.
+// the root dispatcher's transport route. It occupies the same delegation
+// position in resolveRoute that the family's own selector occupied before the
+// extraction.
 func codeFlowRoute(toolName string, args map[string]any) (*route, bool) {
 	request, handled := codeflowtools.Route(toolName, routecontract.Arguments(args))
 	if !handled {
