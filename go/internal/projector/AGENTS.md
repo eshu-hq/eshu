@@ -126,8 +126,7 @@
   The intent package owns the immutable fact-lookup implementation. Root
   remains the sole one-per-generation constructor and lifetime owner; Azure,
   EC2, GCP, Kubernetes, RDS, S3, security, workload-cloud-relationship,
-  incident-routing, AWS-relationship, IAM CAN_ASSUME, package-source-correlation, service-catalog-correlation, and secrets-IAM-trust-chain family builders consume the lookup. Root owns ordered family assembly and the public `ReducerIntent`
-  incident-routing, AWS-relationship, IAM CAN_ASSUME, package-source-correlation, SBOM-attestation-attachment, and service-catalog-correlation family builders consume the lookup. Root owns ordered family assembly and the public `ReducerIntent`
+  incident-routing, AWS-relationship, IAM CAN_ASSUME, package-source-correlation, SBOM-attestation-attachment, service-catalog-correlation, and secrets-IAM-trust-chain family builders consume the lookup. Root owns ordered family assembly and the public `ReducerIntent`
   alias for callers. A family that needs a typed-payload decode (EC2's
   `USES_PROFILE` builder was the first; S3's `LOGS_TO` builder is the second;
   the IAM CAN_ASSUME builder in `iamcanassume/` is the third, and it took the
@@ -137,12 +136,9 @@
   importing root's classified decode wrapper, matching how `internal/reducer`
   already keeps its own independent decode copies per package. The RDS,
   workload-cloud-relationship, incident-routing, AWS-relationship,
-  package-source-correlation, service-catalog-correlation, and
-  secrets-IAM-trust-chain builders trigger on fact presence alone and carry no
-  decode seam.
-  package-source-correlation, SBOM-attestation-attachment, and
-  service-catalog-correlation builders trigger
-  on fact presence alone and carry no decode seam.
+  package-source-correlation, SBOM-attestation-attachment,
+  service-catalog-correlation, and secrets-IAM-trust-chain builders trigger on
+  fact presence alone and carry no decode seam.
 - **CanonicalWriter interface boundary** — no caller in this package calls a Neo4j
   or NornicDB driver directly. All canonical writes go through `CanonicalWriter`.
   Backend-specific logic belongs in `internal/storage/cypher` adapters.
