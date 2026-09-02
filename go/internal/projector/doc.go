@@ -22,7 +22,8 @@
 // reducer-intent family packages. Azure, EC2, GCP, Kubernetes, RDS, S3,
 // security, workload-cloud-relationship, incident-routing, AWS-relationship,
 // IAM CAN_ASSUME, package-source-correlation, cloud-inventory-admission,
-// SBOM-attestation-attachment, service-catalog-correlation, and
+// code-taint-evidence, SBOM-attestation-attachment,
+// service-catalog-correlation, and
 // secrets-IAM-trust-chain builders live in their internal/projector child
 // packages; this root package owns lookup construction and lifetime, family
 // assembly, and enqueue.

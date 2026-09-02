@@ -830,6 +830,23 @@ caller (observability-coverage correlation). The central schema-version
 regression test (`TestProjectEnforcesCentralSchemaVersionForPreviouslyUngatedFamily`)
 stays at root in `schema_version_admission_test.go` because it asserts root's
 `validateFactSchemaVersion`, not the builder.
+The code-taint-evidence builder moved into
+`internal/projector/codetaintevidence`. It triggers on a `code_taint_evidence`
+finding, else on the `code_dataflow_scanned` marker — the #2919
+retraction-reconcile fallback — with the finding outranking the marker
+regardless of input order (two independent `FirstOfKind` probes, deliberately
+no cross-kind original-order merge), and carries no decode seam. The family
+never had a private source-system helper: the moved body keeps its original
+single-tier `strings.TrimSpace(trigger.CollectorKind)` label verbatim, because
+the two-tier `projectorintent.SourceSystem` would prefer a `SourceRef`
+identity when set and silently relabel the intent; a child test pins the
+single-tier behavior against that substitution. The root `firstOfKind`
+forwarder stays for its remaining root callers (AWS resource and cloud-image
+materialization, AWS cloud runtime drift, CI/CD run correlation, and the
+code-interproc and code-function-summary families). The root dispatcher tests
+that go through `buildProjection` — including the marker case proving BOTH the
+taint and interproc retraction domains enqueue — stay at root in
+`code_taint_evidence_projection_test.go`.
 Coordinator `_scheduler.go` halves extract cleanly
 (they implement a root Planner interface); the `_service.go` halves are
 methods on the shared `Service` struct and stay until Service is

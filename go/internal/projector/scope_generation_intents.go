@@ -8,6 +8,7 @@ import (
 	projectorawsrelationship "github.com/eshu-hq/eshu/go/internal/projector/awsrelationship"
 	projectorazure "github.com/eshu-hq/eshu/go/internal/projector/azure"
 	projectorcloudinventory "github.com/eshu-hq/eshu/go/internal/projector/cloudinventory"
+	projectorcodetaintevidence "github.com/eshu-hq/eshu/go/internal/projector/codetaintevidence"
 	projectorec2 "github.com/eshu-hq/eshu/go/internal/projector/ec2"
 	projectorgcp "github.com/eshu-hq/eshu/go/internal/projector/gcp"
 	projectoriamcanassume "github.com/eshu-hq/eshu/go/internal/projector/iamcanassume"
@@ -95,7 +96,7 @@ func appendScopeGenerationReducerIntents(
 	if intent, ok := projectorincidentrouting.BuildIncidentRoutingMaterializationReducerIntent(scopeValue.ScopeID, generation.GenerationID, index.lookup); ok {
 		intents = append(intents, intent)
 	}
-	if intent, ok := buildCodeTaintEvidenceReducerIntent(scopeValue, generation, index); ok {
+	if intent, ok := projectorcodetaintevidence.BuildCodeTaintEvidenceReducerIntent(scopeValue.ScopeID, generation.GenerationID, index.lookup); ok {
 		intents = append(intents, intent)
 	}
 	if intent, ok := buildCodeInterprocEvidenceReducerIntent(scopeValue, generation, index); ok {
