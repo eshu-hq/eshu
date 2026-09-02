@@ -84,7 +84,8 @@ derivation are identical to the base commit, and the dispatcher's ordered
 fan-out is unchanged at 44 builder probes with this probe still running
 immediately after
 `incidentrouting.BuildIncidentRoutingMaterializationReducerIntent` and
-immediately before `buildCodeInterprocEvidenceReducerIntent`. The family
+immediately before the code-interproc-evidence probe (now
+`codeinterprocevidence.BuildCodeInterprocEvidenceReducerIntent`). The family
 carried no private source-system helper: the moved body keeps its original
 single-tier `strings.TrimSpace(trigger.CollectorKind)` expression verbatim
 rather than substituting the two-tier `projectorintent.SourceSystem`, and the

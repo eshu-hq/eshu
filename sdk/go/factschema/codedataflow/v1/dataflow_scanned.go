@@ -15,7 +15,7 @@ package v1
 // purpose is to let the projector's reducer-intent builders
 // (go/internal/projector/code_function_summary_intents.go,
 // go/internal/projector/codetaintevidence/evidence_intents.go,
-// go/internal/projector/code_interproc_evidence_intents.go) trigger
+// go/internal/projector/codeinterprocevidence/evidence_intents.go) trigger
 // their reconciliation domains even on a generation whose finding set is
 // empty, so stale evidence from a prior generation is retracted rather than
 // left stranded.
