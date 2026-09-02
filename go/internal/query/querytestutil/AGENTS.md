@@ -83,7 +83,8 @@ needs `internal/status`, `fakeGovernanceAuditAppender` needs
 `internal/governanceaudit`, `fakeScopedTokenResolver` needs `queryauth` — while
 the whitelist it came bundled with let a genuine graph read pass the gate in
 silence, so long as it wore the self-delegation shape. Dropping the skip
-retired both. Do not reintroduce either.
+retired both. Do not reintroduce either. The latter two fakes landed here as
+soon as it did, and their imports are the proof the rule was the blocker.
 
 ## Two consumers, as designed
 
@@ -91,6 +92,9 @@ Root `query`'s tests and `internal/query/semanticsearch`'s both import this
 package. The first family move (#6060) landed, so the earlier
 "one consumer, on purpose" exception is spent — apply the two-consumer rule
 below as written.
+Every helper here has exactly one consuming package today — root `query`'s own
+tests. That is a real exception to the two-consumer rule below, and it is worth
+understanding before you apply any of them.
 
 `MustMapField` and `FakeGraphReader` still have only root as a consumer. That
 is fine: they were landed as precursors to the split, not as precedent for
@@ -131,8 +135,21 @@ It did not. Root keeps an unexported adapter with the original field names and
 delegates its methods here, so the callers are untouched and the dispatch rules
 exist once. Use that shape for the remaining shared fakes, and note the size of
 what is waiting: `fakePortContentStore` has 125 consuming test files,
-`openContentReaderTestDB` 85, `contentReaderQueryResult` 81,
-`fakeScopedTokenResolver` 50.
+`openContentReaderTestDB` 85, `contentReaderQueryResult` 81.
+
+`fakeGovernanceAuditAppender` (18 consuming files) and `fakeScopedTokenResolver`
+(50) followed the same shape, with one wrinkle each. Both hold state between
+calls, where `FakeGraphReader` holds none, so neither adapter can be rebuilt
+from its fields on every call the way `fakeGraphReader` is. The appender copies
+its slice into the delegate and takes back what was recorded. The resolver
+cannot copy at all — a mutex guards the call it records — so it holds a
+`FakeScopedTokenResolver` and passes its answer to `ResolveAnswering` per call.
+That entry point exists for exactly this: an adapter that assigned the answer
+into the delegate would introduce the concurrent write the mutex prevents.
+
+Reading state through a lock is the one thing an adapter cannot hand back as a
+field. Three root files now say `resolver.called()` where they said
+`resolver.called`. That is the whole consumer cost of both promotions.
 
 An adapter is only worth having if it actually delegates. Prove it by breaking
 the rule here and confirming a consuming test in the OTHER package fails. The

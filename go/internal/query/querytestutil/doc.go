@@ -31,4 +31,17 @@
 // FakeRepoGraphReader and FakeWorkloadGraphReader inline their dispatch in each
 // method. Either is fine. What a new fake must not do is have one of the two
 // methods call the other, or ask for an exemption (#6060, epic #6053).
+// callsite and fails the gate. FakeGraphReader satisfies both methods by
+// routing each through an unexported helper instead of having one call the
+// other; give a new fake the same shape rather than asking for an exemption
+// (#6060, epic #6053).
+//
+// Fakes here may depend on the leaf packages whose types they stand in for --
+// FakeGovernanceAuditAppender on internal/governanceaudit and
+// FakeScopedTokenResolver on queryauth. Root internal/query and the handler
+// families are off limits: root imports the families for its compatibility
+// aliases, so importing either from here is an import cycle in the test binary
+// of any package whose tests import this one. This package still compiles on
+// its own, which is why the rule is worth stating rather than left to the
+// compiler.
 package querytestutil

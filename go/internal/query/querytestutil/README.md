@@ -51,6 +51,14 @@ See `doc.go` for the godoc contract.
 - `FakeStatusReader` — a `status.Reader` double. Returns `Err` when set,
   otherwise `Snapshot`; `ReadStatusSnapshotFiltered` ignores the selection and
   delegates to `ReadStatusSnapshot`. The zero value is usable.
+- `FakeGovernanceAuditAppender` — an audit-sink double satisfying the
+  single-method appender port. Records every event of every batch in call order
+  into `Events`, accumulating across calls, and always reports success. A test
+  covering the audit-write failure path needs its own failing double.
+- `FakeScopedTokenResolver` — a scoped-token resolver double. Answers from
+  `Context`, `OK`, and `Err`, and records the presented credential behind
+  `Called` and `Token`. `ResolveAnswering` is the same recording with the answer
+  supplied per call; root's adapter is its only caller.
 
 `FakeGraphReader`'s `Run` routes through an unexported `rows` helper, and its
 `RunSingle` falls back to that same helper rather than calling `Run` (it still
@@ -147,6 +155,25 @@ suite grew as families moved and other fakes were promoted, so more tests now
 reach this one. Neither number is a portable constant: re-measure both sides on
 the branch you are on rather than carrying either forward, which is the same
 rule the two graph-read fakes above state for their own counts.
+### Adapting a fake that holds state
+
+`FakeGraphReader` is adapted by rebuilding it from the adapter's funcs on each
+call, which works because it holds nothing between calls. The other two do hold
+state, and each needs a different answer.
+
+`fakeGovernanceAuditAppender` keeps its `events` slice — 18 root test files read
+it by that name across roughly 117 assertions — and its `Append` copies the
+slice into the shared double, delegates, and takes back what was recorded. The
+adapter decides nothing about which events land or whether the write succeeds.
+
+`fakeScopedTokenResolver` cannot copy: its recorded call sits behind a mutex,
+and one resolver instance is shared across parallel subtests. So the adapter
+holds a `FakeScopedTokenResolver` and routes through `ResolveAnswering`, passing
+its own `context`/`ok`/`err` as arguments. Writing them into the delegate per
+call would be the concurrent write the mutex exists to prevent. The 50 root
+files that build the adapter with keyed literals are untouched; the three that
+read the recorded call gained parentheses, `resolver.called` becoming
+`resolver.called()`, because reading it takes the same lock the recording does.
 
 ## Dependencies
 

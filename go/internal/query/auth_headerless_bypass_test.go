@@ -47,7 +47,7 @@ func TestAuthMiddlewareEnforcementConstructorDeniesHeaderlessWhenEnforced(t *tes
 	if got, want := rec.Code, http.StatusUnauthorized; got != want {
 		t.Fatalf("status = %d, want %d; body = %s", got, want, rec.Body.String())
 	}
-	if resolver.called {
+	if resolver.called() {
 		t.Fatal("scoped token resolver was called for a headerless request; it must be denied before resolution")
 	}
 	if got, want := len(audit.events), 1; got != want {
@@ -178,7 +178,7 @@ func TestAuthMiddlewareEnforcementConstructorPublicRouteAlwaysOpen(t *testing.T)
 	if got, want := rec.Code, http.StatusOK; got != want {
 		t.Fatalf("status = %d, want %d", got, want)
 	}
-	if resolver.called {
+	if resolver.called() {
 		t.Fatal("resolver called for public route")
 	}
 }
