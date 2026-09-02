@@ -35,26 +35,6 @@ func boolOr(args map[string]any, key string, def bool) bool {
 	return v
 }
 
-func resolveEntityBody(args map[string]any) map[string]any {
-	body := map[string]any{"limit": intOr(args, "limit", 10)}
-
-	if name := str(args, "name"); name != "" {
-		body["name"] = name
-	} else if query := str(args, "query"); query != "" {
-		body["name"] = query
-	}
-	if kind := str(args, "type"); kind != "" {
-		body["type"] = kind
-	} else if kinds := stringSlice(args, "types"); len(kinds) > 0 {
-		body["type"] = firstString(kinds)
-	}
-	if repoID := str(args, "repo_id"); repoID != "" {
-		body["repo_id"] = repoID
-	}
-
-	return body
-}
-
 func contentSearchBody(args map[string]any) map[string]any {
 	body := map[string]any{
 		"query":  str(args, "query"),
