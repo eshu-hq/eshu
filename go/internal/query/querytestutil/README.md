@@ -48,6 +48,9 @@ See `doc.go` for the godoc contract.
   search-document fixture and the envelope-Accept request builder the
   semantic-search family's tests and root's session-permission and OpenAPI
   wire-contract tests both use.
+- `FakeStatusReader` — a `status.Reader` double. Returns `Err` when set,
+  otherwise `Snapshot`; `ReadStatusSnapshotFiltered` ignores the selection and
+  delegates to `ReadStatusSnapshot`. The zero value is usable.
 
 `FakeGraphReader`'s `Run` routes through an unexported `rows` helper, and its
 `RunSingle` falls back to that same helper rather than calling `Run` (it still
@@ -126,6 +129,17 @@ Both measured at this branch's HEAD against a 7792-run, 0-failure baseline.
 That is not the 6539 cited for `FakeGraphReader`'s earlier proof above: this
 branch was rebased onto a later `origin/main` and the suite grew. Neither number
 is a portable constant -- re-measure rather than carrying one forward.
+### FakeStatusReader follows the same shape
+
+Root keeps an unexported `fakeStatusReader` adapter with the original lowercase
+`snapshot`/`err` field names 19 test files already build with keyed literals,
+and both of its methods delegate to `FakeStatusReader`. None of those 19 files
+changed.
+
+The delegation is proven the same way: replacing `ReadStatusSnapshot`'s
+delegation with an unconditional zero-value return fails **20** root tests;
+restoring it returns to 0 failures. Both measured against the same 6539-test
+run of `go test ./internal/query/`, never `-run`.
 
 ## Dependencies
 

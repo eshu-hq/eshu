@@ -11,27 +11,31 @@ import (
 	"testing"
 	"time"
 
+	"github.com/eshu-hq/eshu/go/internal/query/querytestutil"
 	statuspkg "github.com/eshu-hq/eshu/go/internal/status"
 )
 
+// fakeStatusReader is an unexported adapter over querytestutil.FakeStatusReader
+// that keeps the original lowercase field names 19 test files across this
+// package already build with keyed literals. It holds no dispatch logic of its
+// own -- both methods delegate to querytestutil.FakeStatusReader, which is the
+// only place that logic lives. See querytestutil's AGENTS.md for why the
+// promoted fake is shaped this way and how its delegation is proven.
 type fakeStatusReader struct {
 	snapshot statuspkg.RawSnapshot
 	err      error
 }
 
-func (f fakeStatusReader) ReadStatusSnapshot(_ context.Context, _ time.Time) (statuspkg.RawSnapshot, error) {
-	if f.err != nil {
-		return statuspkg.RawSnapshot{}, f.err
-	}
-	return f.snapshot, nil
+func (f fakeStatusReader) ReadStatusSnapshot(ctx context.Context, asOf time.Time) (statuspkg.RawSnapshot, error) {
+	return querytestutil.FakeStatusReader{Snapshot: f.snapshot, Err: f.err}.ReadStatusSnapshot(ctx, asOf)
 }
 
 func (f fakeStatusReader) ReadStatusSnapshotFiltered(
 	ctx context.Context,
 	asOf time.Time,
-	_ statuspkg.SnapshotSelection,
+	sel statuspkg.SnapshotSelection,
 ) (statuspkg.RawSnapshot, error) {
-	return f.ReadStatusSnapshot(ctx, asOf)
+	return querytestutil.FakeStatusReader{Snapshot: f.snapshot, Err: f.err}.ReadStatusSnapshotFiltered(ctx, asOf, sel)
 }
 
 func TestStatusHandlerLegacyIndexStatusAlias(t *testing.T) {
