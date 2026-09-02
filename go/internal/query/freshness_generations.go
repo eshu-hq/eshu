@@ -103,6 +103,17 @@ func (h *FreshnessHandler) listGenerationLifecycle(w http.ResponseWriter, r *htt
 		return
 	}
 
+	// #5167 F-6. The grant is bound in the query rather than checked against
+	// the selector fields: this route also filters on generation_id,
+	// collector_kind, source_system and status, so a caller supplying only
+	// generation_id would reach any tenant's generation while both selector
+	// fields sat empty. An empty grant selects nothing, which is the
+	// fail-closed half.
+	access := repositoryAccessFilterFromContext(r.Context())
+	filter.Scoped = access.Scoped()
+	filter.AllowedRepositoryIDs = access.GrantedRepositoryIDs()
+	filter.AllowedScopeIDs = access.GrantedScopeIDs()
+
 	page, err := h.Generations.ListGenerationLifecycle(r.Context(), filter)
 	if err != nil {
 		WriteError(w, http.StatusInternalServerError, fmt.Sprintf("list generation lifecycle: %v", err))

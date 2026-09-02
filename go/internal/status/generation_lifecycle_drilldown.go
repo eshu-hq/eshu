@@ -34,6 +34,14 @@ type GenerationLifecycleFilter struct {
 	GenerationID  string
 	Status        string
 	Limit         int
+
+	// Scoped reports that the caller holds a scoped grant rather than the
+	// shared key. AllowedRepositoryIDs and AllowedScopeIDs carry that grant.
+	// They are bound in the query rather than checked against a selector: this
+	// filter has five other fields that reach rows on their own.
+	Scoped               bool
+	AllowedRepositoryIDs []string
+	AllowedScopeIDs      []string
 }
 
 // Normalize trims selector whitespace and clamps Limit into the supported

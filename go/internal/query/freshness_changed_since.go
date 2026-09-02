@@ -73,6 +73,18 @@ func (h *FreshnessHandler) listChangedSince(w http.ResponseWriter, r *http.Reque
 		return
 	}
 
+	// #5167 F-6. The grant binds the SCOPE ROW in the query rather than the
+	// selector the caller typed: a repository grant authorizes a
+	// repository-kind scope through source_key, and the raw scope_id normally
+	// differs from that key, so a string comparison here would deny a
+	// repository-granted token its own scope. An ungranted scope resolves to
+	// no row and falls into the not-found path below, which is byte-identical
+	// to what a caller sees for a scope that does not exist.
+	access := repositoryAccessFilterFromContext(r.Context())
+	filter.Scoped = access.Scoped()
+	filter.AllowedRepositoryIDs = access.GrantedRepositoryIDs()
+	filter.AllowedScopeIDs = access.GrantedScopeIDs()
+
 	summary, err := h.ChangedSince.ComputeChangedSinceDelta(r.Context(), filter)
 	if err != nil {
 		WriteError(w, http.StatusInternalServerError, fmt.Sprintf("compute changed-since delta: %v", err))
