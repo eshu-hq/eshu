@@ -52,6 +52,7 @@ var neitherTablePortsWithoutARetractShapedName = map[string]string{
 	reducer.SharedProjectionEdgeWritePort(): "the shared-projection port: it writes edges, but its family travels as a runtime domain argument, so it is exempted by its own branch rather than by writing none",
 	"HasCanonicalCodeTargets":               "a read port: it answers a question about the graph and writes nothing",
 	"FailureClass":                          "not a graph-write port at all: it is declared on reducerClassifiedFailure in service_heartbeat.go, an error-taxonomy interface, and reaches the scan only because the scan harvests every method on every reducer interface and matches by bare name",
+	"Retryable":                             "not a graph-write port at all: it is declared on RetryableError in reducer/contract/intent.go, an error-taxonomy interface, and reaches the scan only because the scan now follows the reducer package into its contract subpackage and matches by bare name",
 }
 
 // portClassificationCensus is the count of reducer graph-write ports the Cypher

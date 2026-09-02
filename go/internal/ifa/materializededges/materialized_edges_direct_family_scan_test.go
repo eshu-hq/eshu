@@ -61,7 +61,7 @@ func scanReducerInterfacePorts(t *testing.T, reducerDir string) map[string]struc
 	t.Helper()
 
 	out := map[string]struct{}{}
-	forEachGoFile(t, reducerDir, func(_ string, file *ast.File) {
+	forEachReducerGoFile(t, reducerDir, func(_ string, file *ast.File) {
 		ast.Inspect(file, func(n ast.Node) bool {
 			iface, ok := n.(*ast.InterfaceType)
 			if !ok || iface.Methods == nil {
@@ -194,6 +194,42 @@ func (s *cypherPackageSource) reachesRelationshipMerge(key string) (string, bool
 // it cannot be mistaken for a declaration. A regex over raw source would need
 // exclusion logic to tell the two apart, and that logic is where such a scan
 // goes quietly wrong.
+// forEachReducerGoFile visits dir and, one level down, every subpackage of it.
+//
+// The reducer used to be one flat directory, so scanning it non-recursively saw
+// every port. Issue #6061 moves domain families into subpackages such as
+// internal/reducer/incident, and a non-recursive scan silently stops seeing the
+// interfaces they take with them. Silently is the problem: the port keeps
+// writing edges from internal/storage/cypher, but the drift guard no longer
+// knows the port exists, so a declared edge family reads as stale and an
+// undeclared edge-writing port stops being caught at all. Every family move
+// would quietly shrink this guard.
+//
+// One level is deliberate rather than a full walk: family packages are direct
+// children of internal/reducer, and going deeper would pull in unrelated
+// fixture trees.
+func forEachReducerGoFile(t *testing.T, dir string, fn func(name string, file *ast.File)) {
+	t.Helper()
+
+	forEachGoFile(t, dir, fn)
+
+	entries, err := os.ReadDir(dir)
+	if err != nil {
+		t.Fatalf("read %s: %v", dir, err)
+	}
+	subpackages := 0
+	for _, entry := range entries {
+		if !entry.IsDir() || strings.HasPrefix(entry.Name(), ".") || entry.Name() == "testdata" {
+			continue
+		}
+		subpackages++
+		forEachGoFile(t, filepath.Join(dir, entry.Name()), fn)
+	}
+	if subpackages == 0 {
+		t.Fatalf("scanned %s and found no family subpackages; the recursive scan went vacuous", dir)
+	}
+}
+
 func forEachGoFile(t *testing.T, dir string, fn func(name string, file *ast.File)) {
 	t.Helper()
 
