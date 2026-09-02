@@ -43,6 +43,58 @@ func TestBuildProjectionRejectsUnsupportedServiceCatalogSchemaVersion(t *testing
 	}
 }
 
+// TestProjectEnforcesCentralSchemaVersionForPreviouslyUngatedFamily proves the
+// central admission gate validates schema versions for a fact family that had no
+// per-family projector validator before #3211. azure_cloud_resource is admitted
+// at its supported version and rejected for an older major, a future major, and
+// a blank version. It lives at root because validateFactSchemaVersion is root
+// behavior, not the cloudinventory child builder's.
+func TestProjectEnforcesCentralSchemaVersionForPreviouslyUngatedFamily(t *testing.T) {
+	t.Parallel()
+
+	scopeValue := scope.IngestionScope{
+		ScopeID:      "azure:acct:demo",
+		ScopeKind:    scope.ScopeKind("azure_cloud"),
+		SourceSystem: "azure",
+	}
+	generation := scope.ScopeGeneration{
+		ScopeID:      scopeValue.ScopeID,
+		GenerationID: "azure-generation-1",
+		Status:       scope.GenerationStatusPending,
+	}
+	kind := facts.AzureCloudResourceFactKind
+	envelope := func(factID, schemaVersion string) facts.Envelope {
+		return facts.Envelope{
+			FactID:        factID,
+			ScopeID:       scopeValue.ScopeID,
+			GenerationID:  generation.GenerationID,
+			FactKind:      kind,
+			SchemaVersion: schemaVersion,
+			CollectorKind: "azure",
+			SourceRef:     facts.Ref{SourceSystem: "azure"},
+		}
+	}
+
+	supportedVersion, _ := facts.SchemaVersion(kind)
+	if _, err := buildProjection(scopeValue, generation, []facts.Envelope{
+		envelope("fact-current", supportedVersion),
+	}); err != nil {
+		t.Fatalf("current schema version rejected: %v", err)
+	}
+
+	for _, tc := range []struct{ name, version string }{
+		{"older major", "0.9.0"},
+		{"future major", "2.0.0"},
+		{"blank", ""},
+	} {
+		if _, err := buildProjection(scopeValue, generation, []facts.Envelope{
+			envelope("fact-bad", tc.version),
+		}); err == nil {
+			t.Fatalf("%s schema version %q admitted for previously-ungated family, want rejected", tc.name, tc.version)
+		}
+	}
+}
+
 // TestBuildProjectionRejectsUnsupportedSecretsIAMSchemaVersion pins the root
 // schema-version gate for the secrets/IAM posture family: an unsupported
 // k8s_service_account schema_version fails projection before the secretsiam
