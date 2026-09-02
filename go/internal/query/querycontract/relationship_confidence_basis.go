@@ -22,6 +22,17 @@ func AddRelationshipConfidenceBasis(row map[string]any) {
 	}
 }
 
+// RelationshipConfidenceBasis names what a correlation row's confidence rests
+// on, so two rows with the same score can still be told apart. It reports "" for
+// a row with no positive confidence, because a basis for a score that does not
+// exist would read as evidence the caller does not have.
+//
+// Precedence is deliberate. An explicit assertion outranks accumulated
+// evidence: a human or policy that asserted the relationship is a stronger claim
+// than any number of inferred observations, so a row whose resolution_source is
+// "assertion" reports assertion_override even when evidence is also present.
+// Below that, more than one observation is an aggregate; a single observation,
+// or an evidence type or kind list with no count, is a constant.
 func RelationshipConfidenceBasis(row map[string]any) string {
 	if FloatVal(row, "confidence") <= 0 {
 		return ""
