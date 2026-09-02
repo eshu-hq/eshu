@@ -22,8 +22,9 @@
    `go/internal/mcp/dispatch_security_alert.go`,
    `go/internal/mcp/dispatch_admission_decisions.go`,
    `go/internal/mcp/dispatch_kubernetes.go`,
-   `go/internal/mcp/dispatch_infra_search.go`, and
-   `go/internal/mcp/dispatch_impact.go` — `dispatchTool`,
+   `go/internal/mcp/dispatch_infra_search.go`,
+   `go/internal/mcp/dispatch_impact.go`, and
+   `go/internal/mcp/dispatch_code_flow.go` — `dispatchTool`,
    deadline handling, `resolveRoute`, the child route adapters, and argument
    helpers; understand `parseCanonicalEnvelope` before touching response
    shaping.
@@ -39,8 +40,9 @@
    admission-decisions request selection in
    `go/internal/mcp/admissiondecisions`, Kubernetes-correlation request
    selection in `go/internal/mcp/kubernetes`, infrastructure-search
-   request selection in `go/internal/mcp/infrasearch`, and impact-analysis
-   request selection in `go/internal/mcp/impact`
+   request selection in `go/internal/mcp/infrasearch`, impact-analysis
+   request selection in `go/internal/mcp/impact`, and code-flow request
+   selection in `go/internal/mcp/codeflow`
 4. `go/internal/mcp/types.go` — `ToolDefinition` and `ReadOnlyTools`; this is
    the tool registry entry point
 5. `go/internal/query/` — the `http.Handler` that backs every tool call;

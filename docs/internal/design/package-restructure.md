@@ -1429,6 +1429,59 @@ pinned per key in both test files, because a dropped defaulted key fails
 silently at the handler while a dropped selector key silently widens or
 narrows results.
 
+The code-flow route family is the thirteenth Wave 2 MCP extraction and the
+first taken out of the codeintel cluster the research left unitemized. Its
+four tools -- `dispatch_taint_path`, `dispatch_reaching_def`,
+`dispatch_cfg_summary`, and `dispatch_pdg_summary` -- were answered by
+`codeFlowRoute` in `dispatch_code_flow.go`, already an isolated delegation
+consulted from `resolveRoute` ahead of the code-relationship delegation and
+the main switch. Family membership and the shared six-key request builder now
+live under `internal/mcp/codeflow`, and `dispatch_code_flow.go` keeps only
+the thin `codeFlowRoute` adapter at the same delegation position, so
+`resolveRoute` keeps 20 delegations and 49 cases -- 69 ordered arms -- on
+both sides and no other family's resolution order changes. Root keeps the
+four tool definitions in `tools_code_flow.go`, global fanout order, dispatch,
+authorization, transport, timeouts, response budgets, envelopes, summaries,
+and telemetry. The four POST `/api/v0/code/flow/` paths, the six body keys,
+and the `limit` 25 and `line` 0 defaults are unchanged, and the root file set
+is unchanged, so `internal/mcp` holds its dirgate pin of 106 with no re-pin.
+The swap from the root `str`/`intOr` helpers to `routecontract.Arguments` is
+coercion-identical: both accept `int`, `int64`, and `float64` and fall back
+for every other type.
+
+What makes this family worth reading is that its two integer defaults do
+opposite jobs. `limit` 25 is the same value the handler substitutes for a
+nonpositive limit before clamping anything above 100, so the dispatcher's
+default is indistinguishable from an omitted limit and no value can 400 --
+the advertised schema's 1..100 range describes the handler's clamp, not a
+dispatcher check. `line` 0 is not a filter value at all: the handler floors
+negatives to 0, treats 0 as "no line filter", and reports symbol ambiguity
+only when `line` is 0, so forwarding a positive default would silently
+suppress the ambiguity signal for callers who set no line. Only a blank
+`repo_id` rejects (`repo_id is required`); a dropped `language`, `symbol`,
+`file_path`, or `line` silently widens the page, which is why both test
+files pin the six keys individually as well as by exact request.
+
+The rest of the codeintel cluster stays in `dispatch.go`'s switch and moves
+family by family, not as one package: the dead-code trio (`find_dead_code`,
+`investigate_dead_code`, `find_cross_repo_dead_code`, sharing the
+`exclude_decorated_with` vocabulary and needing a child equivalent of the
+root `stringValues` helper), the complexity/quality trio
+(`calculate_cyclomatic_complexity` with its conditional `entity_id` key,
+`find_most_complex_functions`, `inspect_code_quality`), the discovery group
+(`find_code` with its outlier `limit` 10, `find_symbol`,
+`inspect_code_inventory`, `investigate_code_topic`,
+`execute_language_query`), the call-graph group
+(`inspect_call_graph_metrics`, `trace_route_callers`,
+`find_function_call_chain`), the single-tool secrets arm
+(`investigate_hardcoded_secrets`), and the graph passthrough pair
+(`execute_cypher_query`, `visualize_graph_query`) plus
+`search_registry_bundles`. Three of those names
+(`execute_language_query`, `find_dead_code`, `trace_route_callers`) are
+language-parity read-surface labels documented as literal case strings in
+`dispatch.go`'s own switch, so whichever family moves them must update the
+consumer-existence comments and gate doc the way the impact extraction did.
+
 **cmd/eshu (233):** `package main` — subdirectories are impossible by
 language rule. The lever is extracting business logic to new
 `internal/cli/<family>` packages, leaving thin cobra RunE wrappers —
