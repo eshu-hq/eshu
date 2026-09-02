@@ -6,14 +6,17 @@ package query
 import (
 	"encoding/json"
 	"testing"
+
+	"github.com/eshu-hq/eshu/go/internal/query/querytestutil"
 )
 
 // TestOpenAPISpecIncludesSecurityAlertReconciliations and
 // TestOpenAPISpecIncludesContainerImageIdentities were split out of
 // openapi_supply_chain_test.go to keep that file under the repo's 500-line
-// cap; they share its mustMapField/mustStringSliceField/stringSliceContains
-// helpers, which remain defined in openapi_supply_chain_test.go and
-// openapi_test.go/code_dead_code_scan_test.go respectively.
+// cap. MustMapField now lives in querytestutil so the handler-family
+// subpackages' tests can reach it (#6060); mustStringSliceField and
+// stringSliceContains remain in openapi_supply_chain_test.go and
+// code_dead_code_scan_test.go respectively.
 
 func TestOpenAPISpecIncludesSecurityAlertReconciliations(t *testing.T) {
 	t.Parallel()
@@ -23,27 +26,27 @@ func TestOpenAPISpecIncludesSecurityAlertReconciliations(t *testing.T) {
 		t.Fatalf("json.Unmarshal(OpenAPISpec()) error = %v, want nil", err)
 	}
 
-	paths := mustMapField(t, spec, "paths")
-	path := mustMapField(t, paths, "/api/v0/supply-chain/security-alerts/reconciliations")
-	get := mustMapField(t, path, "get")
+	paths := querytestutil.MustMapField(t, spec, "paths")
+	path := querytestutil.MustMapField(t, paths, "/api/v0/supply-chain/security-alerts/reconciliations")
+	get := querytestutil.MustMapField(t, path, "get")
 	if got, want := get["operationId"], "listSecurityAlertReconciliations"; got != want {
 		t.Fatalf("operationId = %#v, want %#v", got, want)
 	}
-	responses := mustMapField(t, get, "responses")
-	twoHundred := mustMapField(t, responses, "200")
-	content := mustMapField(t, twoHundred, "content")
-	appJSON := mustMapField(t, content, "application/json")
-	schema := mustMapField(t, appJSON, "schema")
-	properties := mustMapField(t, schema, "properties")
-	reconciliations := mustMapField(t, properties, "reconciliations")
-	items := mustMapField(t, reconciliations, "items")
-	rowProps := mustMapField(t, items, "properties")
-	providerAlert := mustMapField(t, rowProps, "provider_alert")
-	eshuPackage := mustMapField(t, rowProps, "eshu_package")
-	eshuImpact := mustMapField(t, rowProps, "eshu_impact")
-	providerProps := mustMapField(t, providerAlert, "properties")
-	packageProps := mustMapField(t, eshuPackage, "properties")
-	impactProps := mustMapField(t, eshuImpact, "properties")
+	responses := querytestutil.MustMapField(t, get, "responses")
+	twoHundred := querytestutil.MustMapField(t, responses, "200")
+	content := querytestutil.MustMapField(t, twoHundred, "content")
+	appJSON := querytestutil.MustMapField(t, content, "application/json")
+	schema := querytestutil.MustMapField(t, appJSON, "schema")
+	properties := querytestutil.MustMapField(t, schema, "properties")
+	reconciliations := querytestutil.MustMapField(t, properties, "reconciliations")
+	items := querytestutil.MustMapField(t, reconciliations, "items")
+	rowProps := querytestutil.MustMapField(t, items, "properties")
+	providerAlert := querytestutil.MustMapField(t, rowProps, "provider_alert")
+	eshuPackage := querytestutil.MustMapField(t, rowProps, "eshu_package")
+	eshuImpact := querytestutil.MustMapField(t, rowProps, "eshu_impact")
+	providerProps := querytestutil.MustMapField(t, providerAlert, "properties")
+	packageProps := querytestutil.MustMapField(t, eshuPackage, "properties")
+	impactProps := querytestutil.MustMapField(t, eshuImpact, "properties")
 	for _, key := range []string{"provider_alert_id", "provider_state", "package_id", "cve_ids", "ghsa_ids"} {
 		if _, ok := providerProps[key]; !ok {
 			t.Fatalf("provider_alert.properties missing %q", key)
@@ -57,7 +60,7 @@ func TestOpenAPISpecIncludesSecurityAlertReconciliations(t *testing.T) {
 	if _, ok := impactProps["impact_status"]; !ok {
 		t.Fatalf("eshu_impact.properties missing impact_status")
 	}
-	status := mustMapField(t, rowProps, "reconciliation_status")
+	status := querytestutil.MustMapField(t, rowProps, "reconciliation_status")
 	statusEnum := mustStringSliceField(t, status, "enum")
 	for _, want := range []string{"unsupported", "ambiguous"} {
 		if !stringSliceContains(statusEnum, want) {
@@ -79,9 +82,9 @@ func TestOpenAPISpecIncludesContainerImageIdentities(t *testing.T) {
 		t.Fatalf("json.Unmarshal(OpenAPISpec()) error = %v, want nil", err)
 	}
 
-	paths := mustMapField(t, spec, "paths")
-	path := mustMapField(t, paths, "/api/v0/supply-chain/container-images/identities")
-	get := mustMapField(t, path, "get")
+	paths := querytestutil.MustMapField(t, spec, "paths")
+	path := querytestutil.MustMapField(t, paths, "/api/v0/supply-chain/container-images/identities")
+	get := querytestutil.MustMapField(t, path, "get")
 	if got, want := get["operationId"], "listContainerImageIdentities"; got != want {
 		t.Fatalf("operationId = %#v, want %#v", got, want)
 	}

@@ -6,6 +6,8 @@ package query
 import (
 	"encoding/json"
 	"testing"
+
+	"github.com/eshu-hq/eshu/go/internal/query/querytestutil"
 )
 
 func TestOpenAPICloudInventoryDocumentsIdentityPolicyEvidence(t *testing.T) {
@@ -22,8 +24,8 @@ func TestOpenAPICloudInventoryDocumentsIdentityPolicyEvidence(t *testing.T) {
 	if _, present := resourceProps["identity_policy_evidence_truncated"]; !present {
 		t.Fatal("cloud inventory resource schema missing identity_policy_evidence_truncated")
 	}
-	identityEvidence := mustMapField(t, resourceProps, "identity_policy_evidence")
-	identityProps := mustMapField(t, mustMapField(t, identityEvidence, "items"), "properties")
+	identityEvidence := querytestutil.MustMapField(t, resourceProps, "identity_policy_evidence")
+	identityProps := querytestutil.MustMapField(t, querytestutil.MustMapField(t, identityEvidence, "items"), "properties")
 	for _, field := range []string{
 		"evidence_key",
 		"identity_type",
@@ -47,11 +49,11 @@ func TestOpenAPICloudInventoryDocumentsResourceChangeFreshness(t *testing.T) {
 		t.Fatalf("json.Unmarshal(OpenAPISpec()) error = %v, want nil", err)
 	}
 	resourceProps := cloudInventoryOpenAPIResourceProperties(t, spec)
-	freshness := mustMapField(t, resourceProps, "resource_change_freshness")
+	freshness := querytestutil.MustMapField(t, resourceProps, "resource_change_freshness")
 	if got, want := freshness["description"], "Optional sanitized Azure Resource Graph change evidence attached to an already-admitted canonical resource. Delete rows are tombstone candidates only."; got != want {
 		t.Fatalf("resource_change_freshness description = %q, want %q", got, want)
 	}
-	freshnessProps := mustMapField(t, mustMapField(t, freshness, "items"), "properties")
+	freshnessProps := querytestutil.MustMapField(t, querytestutil.MustMapField(t, freshness, "items"), "properties")
 	for _, field := range []string{
 		"evidence_key",
 		"change_type",
@@ -68,7 +70,7 @@ func TestOpenAPICloudInventoryDocumentsResourceChangeFreshness(t *testing.T) {
 			t.Fatalf("resource_change_freshness schema missing %q", field)
 		}
 	}
-	truncated := mustMapField(t, resourceProps, "resource_change_freshness_truncated")
+	truncated := querytestutil.MustMapField(t, resourceProps, "resource_change_freshness_truncated")
 	if got, want := truncated["type"], "boolean"; got != want {
 		t.Fatalf("resource_change_freshness_truncated type = %q, want %q", got, want)
 	}
@@ -87,15 +89,15 @@ func TestOpenAPICloudInventoryDocumentsCodeSHA256Correlation(t *testing.T) {
 		t.Fatalf("json.Unmarshal(OpenAPISpec()) error = %v, want nil", err)
 	}
 	resourceProps := cloudInventoryOpenAPIResourceProperties(t, spec)
-	correlation := mustMapField(t, resourceProps, cloudInventoryCodeCorrelationKey)
-	props := mustMapField(t, correlation, "properties")
+	correlation := querytestutil.MustMapField(t, resourceProps, cloudInventoryCodeCorrelationKey)
+	props := querytestutil.MustMapField(t, correlation, "properties")
 	wantEnums := map[string]string{
 		"status":             cloudInventoryCodeCorrelationStatusUncorrelated,
 		"truth_basis":        cloudInventoryCodeCorrelationTruthBasisDisplayOnly,
 		"unsupported_reason": cloudInventoryZipCodeSHA256UnsupportedReason,
 	}
 	for field, wantValue := range wantEnums {
-		fieldSchema := mustMapField(t, props, field)
+		fieldSchema := querytestutil.MustMapField(t, props, field)
 		enum, ok := fieldSchema["enum"].([]any)
 		if !ok || len(enum) != 1 || enum[0] != wantValue {
 			t.Fatalf("%s.%s enum = %#v, want [%q]", cloudInventoryCodeCorrelationKey, field, fieldSchema["enum"], wantValue)
@@ -106,21 +108,21 @@ func TestOpenAPICloudInventoryDocumentsCodeSHA256Correlation(t *testing.T) {
 func cloudInventoryOpenAPIResourceProperties(t *testing.T, spec map[string]any) map[string]any {
 	t.Helper()
 
-	paths := mustMapField(t, spec, "paths")
-	path := mustMapField(t, paths, "/api/v0/cloud/inventory")
-	get := mustMapField(t, path, "get")
+	paths := querytestutil.MustMapField(t, spec, "paths")
+	path := querytestutil.MustMapField(t, paths, "/api/v0/cloud/inventory")
+	get := querytestutil.MustMapField(t, path, "get")
 	if got, want := get["operationId"], "listCloudResourceInventory"; got != want {
 		t.Fatalf("operationId = %q, want %q", got, want)
 	}
-	okResponse := mustMapField(t, mustMapField(t, get, "responses"), "200")
-	schema := mustMapField(
+	okResponse := querytestutil.MustMapField(t, querytestutil.MustMapField(t, get, "responses"), "200")
+	schema := querytestutil.MustMapField(
 		t,
-		mustMapField(t, mustMapField(t, okResponse, "content"), "application/json"),
+		querytestutil.MustMapField(t, querytestutil.MustMapField(t, okResponse, "content"), "application/json"),
 		"schema",
 	)
-	return mustMapField(
+	return querytestutil.MustMapField(
 		t,
-		mustMapField(t, mustMapField(t, mustMapField(t, schema, "properties"), "resources"), "items"),
+		querytestutil.MustMapField(t, querytestutil.MustMapField(t, querytestutil.MustMapField(t, schema, "properties"), "resources"), "items"),
 		"properties",
 	)
 }

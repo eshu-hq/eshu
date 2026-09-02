@@ -6,6 +6,8 @@ package query
 import (
 	"encoding/json"
 	"testing"
+
+	"github.com/eshu-hq/eshu/go/internal/query/querytestutil"
 )
 
 // TestOpenAPISpecIncludesLiveEvidenceBundle proves GET /api/v0/evidence/bundle
@@ -21,9 +23,9 @@ func TestOpenAPISpecIncludesLiveEvidenceBundle(t *testing.T) {
 		t.Fatalf("json.Unmarshal(OpenAPISpec()) error = %v, want nil", err)
 	}
 
-	paths := mustMapField(t, spec, "paths")
-	path := mustMapField(t, paths, "/api/v0/evidence/bundle")
-	get := mustMapField(t, path, "get")
+	paths := querytestutil.MustMapField(t, spec, "paths")
+	path := querytestutil.MustMapField(t, paths, "/api/v0/evidence/bundle")
+	get := querytestutil.MustMapField(t, path, "get")
 	if got, want := get["operationId"], "getLiveEvidenceBundle"; got != want {
 		t.Fatalf("operationId = %#v, want %#v", got, want)
 	}
@@ -33,17 +35,17 @@ func TestOpenAPISpecIncludesLiveEvidenceBundle(t *testing.T) {
 	if _, marked := get["x-browser-session-only"]; marked {
 		t.Fatal(`get carries "x-browser-session-only", but the bundle is not a browser-session identity route`)
 	}
-	responses := mustMapField(t, get, "responses")
-	schema := mustMapField(
+	responses := querytestutil.MustMapField(t, get, "responses")
+	schema := querytestutil.MustMapField(
 		t,
-		mustMapField(
+		querytestutil.MustMapField(
 			t,
-			mustMapField(t, responses["200"].(map[string]any), "content"),
+			querytestutil.MustMapField(t, responses["200"].(map[string]any), "content"),
 			"application/json",
 		),
 		"schema",
 	)
-	properties := mustMapField(t, schema, "properties")
+	properties := querytestutil.MustMapField(t, schema, "properties")
 	for _, name := range []string{"schema_version", "bundle_id", "identity", "contents", "reproduce", "validation"} {
 		if _, present := properties[name]; !present {
 			t.Fatalf("live evidence bundle schema missing %q: %#v", name, properties)

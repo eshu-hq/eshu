@@ -9,6 +9,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/eshu-hq/eshu/go/internal/query/querytestutil"
 	"github.com/eshu-hq/eshu/go/internal/searchdocs"
 	"github.com/eshu-hq/eshu/go/internal/searchretrieval"
 )
@@ -59,8 +60,8 @@ func TestSemanticSearchHandlerLanguageFilterNarrowsResults(t *testing.T) {
 	data := semanticSearchEnvelopeData(t, rec)
 
 	// Facets must be present and contain the go language count.
-	facets := mustMapField(t, data, "facets")
-	langs := mustMapField(t, facets, "languages")
+	facets := querytestutil.MustMapField(t, data, "facets")
+	langs := querytestutil.MustMapField(t, facets, "languages")
 	if got, ok := langs["go"]; !ok || got != float64(1) {
 		t.Fatalf("facets.languages[go] = %v (ok=%v), want 1", got, ok)
 	}

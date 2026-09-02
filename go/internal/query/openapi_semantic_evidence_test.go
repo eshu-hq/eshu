@@ -6,6 +6,8 @@ package query
 import (
 	"encoding/json"
 	"testing"
+
+	"github.com/eshu-hq/eshu/go/internal/query/querytestutil"
 )
 
 func TestOpenAPISpecIncludesSemanticEvidenceRoutes(t *testing.T) {
@@ -15,13 +17,13 @@ func TestOpenAPISpecIncludesSemanticEvidenceRoutes(t *testing.T) {
 	if err := json.Unmarshal([]byte(OpenAPISpec()), &spec); err != nil {
 		t.Fatalf("json.Unmarshal(OpenAPISpec()) error = %v, want nil", err)
 	}
-	paths := mustMapField(t, spec, "paths")
+	paths := querytestutil.MustMapField(t, spec, "paths")
 	for _, path := range []string{
 		"/api/v0/semantic/documentation-observations",
 		"/api/v0/semantic/code-hints",
 	} {
-		item := mustMapField(t, paths, path)
-		get := mustMapField(t, item, "get")
+		item := querytestutil.MustMapField(t, paths, path)
+		get := querytestutil.MustMapField(t, item, "get")
 		parameters := mustSliceField(t, get, "parameters")
 		for _, want := range []string{
 			"provider_profile_id",
@@ -43,10 +45,10 @@ func TestOpenAPISpecIncludesSemanticEvidenceRoutes(t *testing.T) {
 		}
 	}
 
-	components := mustMapField(t, spec, "components")
-	schemas := mustMapField(t, components, "schemas")
-	rowSchema := mustMapField(t, schemas, "SemanticEvidenceRow")
-	properties := mustMapField(t, rowSchema, "properties")
+	components := querytestutil.MustMapField(t, spec, "components")
+	schemas := querytestutil.MustMapField(t, components, "schemas")
+	rowSchema := querytestutil.MustMapField(t, schemas, "SemanticEvidenceRow")
+	properties := querytestutil.MustMapField(t, rowSchema, "properties")
 	for _, want := range []string{
 		"truth_basis",
 		"provider_profile_id",

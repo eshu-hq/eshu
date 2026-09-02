@@ -10,6 +10,8 @@ import (
 	"net/http/httptest"
 	"strings"
 	"testing"
+
+	"github.com/eshu-hq/eshu/go/internal/query/querytestutil"
 )
 
 type recordingAdvisoryCatalogStore struct {
@@ -273,9 +275,9 @@ func TestOpenAPISpecIncludesAdvisoryCatalog(t *testing.T) {
 	if err := json.Unmarshal([]byte(OpenAPISpec()), &spec); err != nil {
 		t.Fatalf("json.Unmarshal(OpenAPISpec()) error = %v, want nil", err)
 	}
-	paths := mustMapField(t, spec, "paths")
-	path := mustMapField(t, paths, "/api/v0/supply-chain/advisories")
-	get := mustMapField(t, path, "get")
+	paths := querytestutil.MustMapField(t, spec, "paths")
+	path := querytestutil.MustMapField(t, paths, "/api/v0/supply-chain/advisories")
+	get := querytestutil.MustMapField(t, path, "get")
 	if got, want := get["operationId"], "listAdvisoryCatalog"; got != want {
 		t.Fatalf("operationId = %#v, want %#v", got, want)
 	}
@@ -296,15 +298,15 @@ func TestOpenAPISpecIncludesAdvisoryCatalog(t *testing.T) {
 			t.Fatalf("catalog parameters missing %q", want)
 		}
 	}
-	responses := mustMapField(t, get, "responses")
-	twoHundred := mustMapField(t, responses, "200")
-	content := mustMapField(t, twoHundred, "content")
-	appJSON := mustMapField(t, content, "application/json")
-	schema := mustMapField(t, appJSON, "schema")
-	properties := mustMapField(t, schema, "properties")
-	advisories := mustMapField(t, properties, "advisories")
-	items := mustMapField(t, advisories, "items")
-	itemProperties := mustMapField(t, items, "properties")
+	responses := querytestutil.MustMapField(t, get, "responses")
+	twoHundred := querytestutil.MustMapField(t, responses, "200")
+	content := querytestutil.MustMapField(t, twoHundred, "content")
+	appJSON := querytestutil.MustMapField(t, content, "application/json")
+	schema := querytestutil.MustMapField(t, appJSON, "schema")
+	properties := querytestutil.MustMapField(t, schema, "properties")
+	advisories := querytestutil.MustMapField(t, properties, "advisories")
+	items := querytestutil.MustMapField(t, advisories, "items")
+	itemProperties := querytestutil.MustMapField(t, items, "properties")
 	for _, want := range []string{"advisory_key", "canonical_id", "severity_label", "cvss_score", "kev", "ecosystems", "package_ids"} {
 		if _, ok := itemProperties[want]; !ok {
 			t.Fatalf("catalog advisory schema missing %q", want)

@@ -6,6 +6,8 @@ package query
 import (
 	"encoding/json"
 	"testing"
+
+	"github.com/eshu-hq/eshu/go/internal/query/querytestutil"
 )
 
 func TestOpenAPIRelationshipStoryRestrictsTargetlessOverrides(t *testing.T) {
@@ -16,19 +18,19 @@ func TestOpenAPIRelationshipStoryRestrictsTargetlessOverrides(t *testing.T) {
 		t.Fatalf("json.Unmarshal(OpenAPISpec()) error = %v", err)
 	}
 
-	paths := mustMapField(t, spec, "paths")
-	relationshipStoryPath := mustMapField(t, paths, "/api/v0/code/relationships/story")
-	relationshipStoryPost := mustMapField(t, relationshipStoryPath, "post")
-	relationshipStoryBody := mustMapField(t, mustMapField(t, relationshipStoryPost, "requestBody"), "content")
-	relationshipStoryJSON := mustMapField(t, relationshipStoryBody, "application/json")
-	relationshipStoryRequestSchema := mustMapField(t, relationshipStoryJSON, "schema")
+	paths := querytestutil.MustMapField(t, spec, "paths")
+	relationshipStoryPath := querytestutil.MustMapField(t, paths, "/api/v0/code/relationships/story")
+	relationshipStoryPost := querytestutil.MustMapField(t, relationshipStoryPath, "post")
+	relationshipStoryBody := querytestutil.MustMapField(t, querytestutil.MustMapField(t, relationshipStoryPost, "requestBody"), "content")
+	relationshipStoryJSON := querytestutil.MustMapField(t, relationshipStoryBody, "application/json")
+	relationshipStoryRequestSchema := querytestutil.MustMapField(t, relationshipStoryJSON, "schema")
 	anyOf, ok := relationshipStoryRequestSchema["anyOf"].([]any)
 	if !ok || len(anyOf) != 3 {
 		t.Fatalf("code/relationships/story anyOf = %#v, want three request branches", relationshipStoryRequestSchema["anyOf"])
 	}
 	overrideBranch := anyOf[2].(map[string]any)
-	overrideProperties := mustMapField(t, overrideBranch, "properties")
-	overrideQueryType := mustMapField(t, overrideProperties, "query_type")
+	overrideProperties := querytestutil.MustMapField(t, overrideBranch, "properties")
+	overrideQueryType := querytestutil.MustMapField(t, overrideProperties, "query_type")
 	if !containsValue(overrideQueryType["enum"].([]any), "overrides") {
 		t.Fatalf("targetless query_type+repo_id branch enum = %#v, want overrides only", overrideQueryType["enum"])
 	}
@@ -42,13 +44,13 @@ func TestOpenAPIRelationshipStoryDocumentsMinConfidence(t *testing.T) {
 		t.Fatalf("json.Unmarshal(OpenAPISpec()) error = %v", err)
 	}
 
-	paths := mustMapField(t, spec, "paths")
-	relationshipStoryPath := mustMapField(t, paths, "/api/v0/code/relationships/story")
-	relationshipStoryPost := mustMapField(t, relationshipStoryPath, "post")
-	relationshipStoryBody := mustMapField(t, mustMapField(t, relationshipStoryPost, "requestBody"), "content")
-	relationshipStoryJSON := mustMapField(t, relationshipStoryBody, "application/json")
-	relationshipStoryProperties := mustMapField(t, mustMapField(t, relationshipStoryJSON, "schema"), "properties")
-	minConfidenceSchema := mustMapField(t, relationshipStoryProperties, "min_confidence")
+	paths := querytestutil.MustMapField(t, spec, "paths")
+	relationshipStoryPath := querytestutil.MustMapField(t, paths, "/api/v0/code/relationships/story")
+	relationshipStoryPost := querytestutil.MustMapField(t, relationshipStoryPath, "post")
+	relationshipStoryBody := querytestutil.MustMapField(t, querytestutil.MustMapField(t, relationshipStoryPost, "requestBody"), "content")
+	relationshipStoryJSON := querytestutil.MustMapField(t, relationshipStoryBody, "application/json")
+	relationshipStoryProperties := querytestutil.MustMapField(t, querytestutil.MustMapField(t, relationshipStoryJSON, "schema"), "properties")
+	minConfidenceSchema := querytestutil.MustMapField(t, relationshipStoryProperties, "min_confidence")
 	if got, want := minConfidenceSchema["type"], "number"; got != want {
 		t.Fatalf("min_confidence type = %#v, want %#v", got, want)
 	}
@@ -68,12 +70,12 @@ func TestOpenAPIRelationshipSchemaDocumentsProvenanceBlock(t *testing.T) {
 		t.Fatalf("json.Unmarshal(OpenAPISpec()) error = %v", err)
 	}
 
-	components := mustMapField(t, spec, "components")
-	schemas := mustMapField(t, components, "schemas")
-	relationship := mustMapField(t, schemas, "Relationship")
-	properties := mustMapField(t, relationship, "properties")
-	provenance := mustMapField(t, properties, "provenance")
-	provenanceProperties := mustMapField(t, provenance, "properties")
+	components := querytestutil.MustMapField(t, spec, "components")
+	schemas := querytestutil.MustMapField(t, components, "schemas")
+	relationship := querytestutil.MustMapField(t, schemas, "Relationship")
+	properties := querytestutil.MustMapField(t, relationship, "properties")
+	provenance := querytestutil.MustMapField(t, properties, "provenance")
+	provenanceProperties := querytestutil.MustMapField(t, provenance, "properties")
 	for _, field := range []string{
 		"confidence",
 		"confidence_state",

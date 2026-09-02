@@ -7,6 +7,8 @@ import (
 	"encoding/json"
 	"strings"
 	"testing"
+
+	"github.com/eshu-hq/eshu/go/internal/query/querytestutil"
 )
 
 func TestOpenAPISpecNamesHexPackageRegistryEcosystemScope(t *testing.T) {
@@ -17,9 +19,9 @@ func TestOpenAPISpecNamesHexPackageRegistryEcosystemScope(t *testing.T) {
 		t.Fatalf("json.Unmarshal(OpenAPISpec()) error = %v, want nil", err)
 	}
 
-	paths := mustMapField(t, spec, "paths")
-	path := mustMapField(t, paths, "/api/v0/package-registry/packages")
-	get := mustMapField(t, path, "get")
+	paths := querytestutil.MustMapField(t, spec, "paths")
+	path := querytestutil.MustMapField(t, paths, "/api/v0/package-registry/packages")
+	get := querytestutil.MustMapField(t, path, "get")
 	parameters := get["parameters"].([]any)
 	for _, parameter := range parameters {
 		parameterMap := parameter.(map[string]any)
@@ -43,21 +45,21 @@ func TestOpenAPISpecIncludesPackageRegistryCorrelations(t *testing.T) {
 		t.Fatalf("json.Unmarshal(OpenAPISpec()) error = %v, want nil", err)
 	}
 
-	paths := mustMapField(t, spec, "paths")
-	path := mustMapField(t, paths, "/api/v0/package-registry/correlations")
-	get := mustMapField(t, path, "get")
+	paths := querytestutil.MustMapField(t, spec, "paths")
+	path := querytestutil.MustMapField(t, paths, "/api/v0/package-registry/correlations")
+	get := querytestutil.MustMapField(t, path, "get")
 	if got, want := get["operationId"], "listPackageRegistryCorrelations"; got != want {
 		t.Fatalf("operationId = %#v, want %#v", got, want)
 	}
-	responses := mustMapField(t, get, "responses")
-	okResponse := mustMapField(t, responses, "200")
-	content := mustMapField(t, mustMapField(t, okResponse, "content"), "application/json")
-	schema := mustMapField(t, content, "schema")
-	properties := mustMapField(t, schema, "properties")
-	correlations := mustMapField(t, properties, "correlations")
-	items := mustMapField(t, correlations, "items")
-	itemProperties := mustMapField(t, items, "properties")
-	if got, want := mustMapField(t, itemProperties, "provenance_only")["type"], "boolean"; got != want {
+	responses := querytestutil.MustMapField(t, get, "responses")
+	okResponse := querytestutil.MustMapField(t, responses, "200")
+	content := querytestutil.MustMapField(t, querytestutil.MustMapField(t, okResponse, "content"), "application/json")
+	schema := querytestutil.MustMapField(t, content, "schema")
+	properties := querytestutil.MustMapField(t, schema, "properties")
+	correlations := querytestutil.MustMapField(t, properties, "correlations")
+	items := querytestutil.MustMapField(t, correlations, "items")
+	itemProperties := querytestutil.MustMapField(t, items, "properties")
+	if got, want := querytestutil.MustMapField(t, itemProperties, "provenance_only")["type"], "boolean"; got != want {
 		t.Fatalf("provenance_only type = %#v, want %#v", got, want)
 	}
 }
@@ -70,27 +72,27 @@ func TestOpenAPISpecIncludesPackageRegistryDependencyChains(t *testing.T) {
 		t.Fatalf("json.Unmarshal(OpenAPISpec()) error = %v, want nil", err)
 	}
 
-	paths := mustMapField(t, spec, "paths")
-	path := mustMapField(t, paths, "/api/v0/package-registry/dependency-chains")
-	get := mustMapField(t, path, "get")
+	paths := querytestutil.MustMapField(t, spec, "paths")
+	path := querytestutil.MustMapField(t, paths, "/api/v0/package-registry/dependency-chains")
+	get := querytestutil.MustMapField(t, path, "get")
 	if got, want := get["operationId"], "listPackageRegistryDependencyChains"; got != want {
 		t.Fatalf("operationId = %#v, want %#v", got, want)
 	}
-	responses := mustMapField(t, get, "responses")
-	okResponse := mustMapField(t, responses, "200")
-	content := mustMapField(t, mustMapField(t, okResponse, "content"), "application/json")
-	schema := mustMapField(t, content, "schema")
-	properties := mustMapField(t, schema, "properties")
-	chains := mustMapField(t, properties, "chains")
-	items := mustMapField(t, chains, "items")
-	itemProperties := mustMapField(t, items, "properties")
-	publishers := mustMapField(t, itemProperties, "publishers")
-	publisherItems := mustMapField(t, publishers, "items")
-	publisherProperties := mustMapField(t, publisherItems, "properties")
-	if got, want := mustMapField(t, publisherProperties, "provenance_only")["type"], "boolean"; got != want {
+	responses := querytestutil.MustMapField(t, get, "responses")
+	okResponse := querytestutil.MustMapField(t, responses, "200")
+	content := querytestutil.MustMapField(t, querytestutil.MustMapField(t, okResponse, "content"), "application/json")
+	schema := querytestutil.MustMapField(t, content, "schema")
+	properties := querytestutil.MustMapField(t, schema, "properties")
+	chains := querytestutil.MustMapField(t, properties, "chains")
+	items := querytestutil.MustMapField(t, chains, "items")
+	itemProperties := querytestutil.MustMapField(t, items, "properties")
+	publishers := querytestutil.MustMapField(t, itemProperties, "publishers")
+	publisherItems := querytestutil.MustMapField(t, publishers, "items")
+	publisherProperties := querytestutil.MustMapField(t, publisherItems, "properties")
+	if got, want := querytestutil.MustMapField(t, publisherProperties, "provenance_only")["type"], "boolean"; got != want {
 		t.Fatalf("publisher provenance_only type = %#v, want %#v", got, want)
 	}
-	if got, want := mustMapField(t, properties, "publishers_truncated")["type"], "boolean"; got != want {
+	if got, want := querytestutil.MustMapField(t, properties, "publishers_truncated")["type"], "boolean"; got != want {
 		t.Fatalf("publishers_truncated type = %#v, want %#v", got, want)
 	}
 	required := schema["required"].([]any)
@@ -107,21 +109,21 @@ func TestOpenAPISpecIncludesPackageRegistryIdentityIssues(t *testing.T) {
 		t.Fatalf("json.Unmarshal(OpenAPISpec()) error = %v, want nil", err)
 	}
 
-	paths := mustMapField(t, spec, "paths")
-	path := mustMapField(t, paths, "/api/v0/package-registry/packages")
-	get := mustMapField(t, path, "get")
-	responses := mustMapField(t, get, "responses")
-	okResponse := mustMapField(t, responses, "200")
-	content := mustMapField(t, mustMapField(t, okResponse, "content"), "application/json")
-	schema := mustMapField(t, content, "schema")
-	properties := mustMapField(t, schema, "properties")
+	paths := querytestutil.MustMapField(t, spec, "paths")
+	path := querytestutil.MustMapField(t, paths, "/api/v0/package-registry/packages")
+	get := querytestutil.MustMapField(t, path, "get")
+	responses := querytestutil.MustMapField(t, get, "responses")
+	okResponse := querytestutil.MustMapField(t, responses, "200")
+	content := querytestutil.MustMapField(t, querytestutil.MustMapField(t, okResponse, "content"), "application/json")
+	schema := querytestutil.MustMapField(t, content, "schema")
+	properties := querytestutil.MustMapField(t, schema, "properties")
 	required := schema["required"].([]any)
 	if !openAPISliceContains(required, "identity_issues") {
 		t.Fatalf("response required = %#v, want identity_issues", required)
 	}
-	identityIssues := mustMapField(t, properties, "identity_issues")
-	items := mustMapField(t, identityIssues, "items")
-	itemProperties := mustMapField(t, items, "properties")
+	identityIssues := querytestutil.MustMapField(t, properties, "identity_issues")
+	items := querytestutil.MustMapField(t, identityIssues, "items")
+	itemProperties := querytestutil.MustMapField(t, items, "properties")
 	itemRequired := items["required"].([]any)
 	if !openAPISliceContains(itemRequired, "missing_evidence") {
 		t.Fatalf("identity_issues required = %#v, want missing_evidence", itemRequired)

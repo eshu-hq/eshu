@@ -9,6 +9,8 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"testing"
+
+	"github.com/eshu-hq/eshu/go/internal/query/querytestutil"
 )
 
 func TestVisualizationDeriveRouteBuildsServiceStoryPacket(t *testing.T) {
@@ -150,28 +152,28 @@ func TestOpenAPISpecIncludesVisualizationDeriveRoute(t *testing.T) {
 	if err := json.Unmarshal([]byte(OpenAPISpec()), &spec); err != nil {
 		t.Fatalf("json.Unmarshal(OpenAPISpec()) error = %v", err)
 	}
-	paths := mustMapField(t, spec, "paths")
-	path := mustMapField(t, paths, "/api/v0/visualizations/derive")
-	post := mustMapField(t, path, "post")
+	paths := querytestutil.MustMapField(t, spec, "paths")
+	path := querytestutil.MustMapField(t, paths, "/api/v0/visualizations/derive")
+	post := querytestutil.MustMapField(t, path, "post")
 	if got, want := post["operationId"], "deriveVisualizationPacket"; got != want {
 		t.Fatalf("operationId = %q, want %q", got, want)
 	}
-	requestBody := mustMapField(t, post, "requestBody")
-	content := mustMapField(t, requestBody, "content")
-	jsonContent := mustMapField(t, content, "application/json")
-	schema := mustMapField(t, jsonContent, "schema")
-	properties := mustMapField(t, schema, "properties")
+	requestBody := querytestutil.MustMapField(t, post, "requestBody")
+	content := querytestutil.MustMapField(t, requestBody, "content")
+	jsonContent := querytestutil.MustMapField(t, content, "application/json")
+	schema := querytestutil.MustMapField(t, jsonContent, "schema")
+	properties := querytestutil.MustMapField(t, schema, "properties")
 	for _, field := range []string{"view", "source_response", "source_truth"} {
 		if _, ok := properties[field]; !ok {
 			t.Fatalf("request schema missing %s", field)
 		}
 	}
-	responses := mustMapField(t, post, "responses")
-	okResponse := mustMapField(t, responses, "200")
-	okContent := mustMapField(t, okResponse, "content")
-	okJSON := mustMapField(t, okContent, "application/json")
-	okSchema := mustMapField(t, okJSON, "schema")
-	okProperties := mustMapField(t, okSchema, "properties")
+	responses := querytestutil.MustMapField(t, post, "responses")
+	okResponse := querytestutil.MustMapField(t, responses, "200")
+	okContent := querytestutil.MustMapField(t, okResponse, "content")
+	okJSON := querytestutil.MustMapField(t, okContent, "application/json")
+	okSchema := querytestutil.MustMapField(t, okJSON, "schema")
+	okProperties := querytestutil.MustMapField(t, okSchema, "properties")
 	if _, ok := okProperties["visualization_packet"]; !ok {
 		t.Fatalf("response schema missing visualization_packet")
 	}

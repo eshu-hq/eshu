@@ -6,6 +6,8 @@ package query
 import (
 	"encoding/json"
 	"testing"
+
+	"github.com/eshu-hq/eshu/go/internal/query/querytestutil"
 )
 
 func TestOpenAPISpecIncludesAWSRuntimeDriftFindings(t *testing.T) {
@@ -15,18 +17,18 @@ func TestOpenAPISpecIncludesAWSRuntimeDriftFindings(t *testing.T) {
 	if err := json.Unmarshal([]byte(OpenAPISpec()), &spec); err != nil {
 		t.Fatalf("json.Unmarshal(OpenAPISpec()) error = %v, want nil", err)
 	}
-	paths := mustMapField(t, spec, "paths")
-	path := mustMapField(t, paths, "/api/v0/aws/runtime-drift/findings")
-	post := mustMapField(t, path, "post")
+	paths := querytestutil.MustMapField(t, spec, "paths")
+	path := querytestutil.MustMapField(t, paths, "/api/v0/aws/runtime-drift/findings")
+	post := querytestutil.MustMapField(t, path, "post")
 	if got, want := post["operationId"], "listAWSRuntimeDriftFindings"; got != want {
 		t.Fatalf("operationId = %q, want %q", got, want)
 	}
-	responses := mustMapField(t, post, "responses")
-	ok := mustMapField(t, responses, "200")
-	content := mustMapField(t, ok, "content")
-	jsonContent := mustMapField(t, content, "application/json")
-	schema := mustMapField(t, jsonContent, "schema")
-	properties := mustMapField(t, schema, "properties")
+	responses := querytestutil.MustMapField(t, post, "responses")
+	ok := querytestutil.MustMapField(t, responses, "200")
+	content := querytestutil.MustMapField(t, ok, "content")
+	jsonContent := querytestutil.MustMapField(t, content, "application/json")
+	schema := querytestutil.MustMapField(t, jsonContent, "schema")
+	properties := querytestutil.MustMapField(t, schema, "properties")
 	if _, ok := properties["drift_findings"]; !ok {
 		t.Fatal("aws runtime drift response schema missing drift_findings")
 	}

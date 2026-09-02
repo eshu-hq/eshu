@@ -8,6 +8,8 @@ import (
 	"sort"
 	"strings"
 	"testing"
+
+	"github.com/eshu-hq/eshu/go/internal/query/querytestutil"
 )
 
 // TestProviderConfigKindOpenAPIEnumsStayInLockstep is the guard that would
@@ -73,12 +75,12 @@ func TestProviderConfigKindOpenAPIEnumsStayInLockstep(t *testing.T) {
 	if err := json.Unmarshal([]byte(OpenAPISpec()), &spec); err != nil {
 		t.Fatalf("json.Unmarshal(OpenAPISpec()) error = %v, want nil", err)
 	}
-	schemas := mustMapField(t, mustMapField(t, spec, "components"), "schemas")
+	schemas := querytestutil.MustMapField(t, querytestutil.MustMapField(t, spec, "components"), "schemas")
 
 	// Write-request enum must equal the accepted-kind set exactly.
-	writeReq := mustMapField(t, schemas, "AdminProviderConfigWriteRequest")
-	writeProps := mustMapField(t, writeReq, "properties")
-	writeEnum := enumStrings(t, mustMapField(t, writeProps, "provider_kind"), "AdminProviderConfigWriteRequest.provider_kind")
+	writeReq := querytestutil.MustMapField(t, schemas, "AdminProviderConfigWriteRequest")
+	writeProps := querytestutil.MustMapField(t, writeReq, "properties")
+	writeEnum := enumStrings(t, querytestutil.MustMapField(t, writeProps, "provider_kind"), "AdminProviderConfigWriteRequest.provider_kind")
 	assertSetEqual(t, "AdminProviderConfigWriteRequest.provider_kind enum", writeEnum, writeKindGroups)
 
 	// The github field group's properties must be documented on the write
@@ -92,8 +94,8 @@ func TestProviderConfigKindOpenAPIEnumsStayInLockstep(t *testing.T) {
 	}
 
 	// Read-view enum must equal the stored external_<kind> forms exactly.
-	readView := mustMapField(t, schemas, "AdminProviderConfig")
-	readEnum := enumStrings(t, mustMapField(t, mustMapField(t, readView, "properties"), "provider_kind"), "AdminProviderConfig.provider_kind")
+	readView := querytestutil.MustMapField(t, schemas, "AdminProviderConfig")
+	readEnum := enumStrings(t, querytestutil.MustMapField(t, querytestutil.MustMapField(t, readView, "properties"), "provider_kind"), "AdminProviderConfig.provider_kind")
 	storedKinds := make([]string, 0, len(writeKindGroups))
 	for _, kind := range writeKindGroups {
 		storedKinds = append(storedKinds, "external_"+kind)

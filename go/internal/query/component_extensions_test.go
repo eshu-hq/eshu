@@ -14,6 +14,7 @@ import (
 	"testing"
 
 	"github.com/eshu-hq/eshu/go/internal/component"
+	"github.com/eshu-hq/eshu/go/internal/query/querytestutil"
 )
 
 func TestComponentExtensionsHandlerReturnsUnavailableWhenComponentHomeUnset(t *testing.T) {
@@ -302,7 +303,7 @@ func TestOpenAPISpecIncludesComponentExtensionRoutes(t *testing.T) {
 	if err := json.Unmarshal([]byte(OpenAPISpec()), &spec); err != nil {
 		t.Fatalf("json.Unmarshal(OpenAPISpec()) error = %v, want nil", err)
 	}
-	paths := mustMapField(t, spec, "paths")
+	paths := querytestutil.MustMapField(t, spec, "paths")
 	for _, path := range []string{
 		"/api/v0/component-extensions",
 		"/api/v0/component-extensions/{component_id}/diagnostics",
@@ -311,17 +312,17 @@ func TestOpenAPISpecIncludesComponentExtensionRoutes(t *testing.T) {
 			t.Fatalf("OpenAPI paths missing %s", path)
 		}
 	}
-	inventory := mustMapField(t, paths, "/api/v0/component-extensions")
-	get := mustMapField(t, inventory, "get")
-	responses := mustMapField(t, get, "responses")
-	okResponse := mustMapField(t, responses, "200")
-	content := mustMapField(t, okResponse, "content")
-	jsonContent := mustMapField(t, content, "application/json")
-	schema := mustMapField(t, jsonContent, "schema")
-	properties := mustMapField(t, schema, "properties")
-	components := mustMapField(t, properties, "components")
-	items := mustMapField(t, components, "items")
-	componentProperties := mustMapField(t, items, "properties")
+	inventory := querytestutil.MustMapField(t, paths, "/api/v0/component-extensions")
+	get := querytestutil.MustMapField(t, inventory, "get")
+	responses := querytestutil.MustMapField(t, get, "responses")
+	okResponse := querytestutil.MustMapField(t, responses, "200")
+	content := querytestutil.MustMapField(t, okResponse, "content")
+	jsonContent := querytestutil.MustMapField(t, content, "application/json")
+	schema := querytestutil.MustMapField(t, jsonContent, "schema")
+	properties := querytestutil.MustMapField(t, schema, "properties")
+	components := querytestutil.MustMapField(t, properties, "components")
+	items := querytestutil.MustMapField(t, components, "items")
+	componentProperties := querytestutil.MustMapField(t, items, "properties")
 	for _, field := range []string{
 		"trust_decision",
 		"policy_gate",

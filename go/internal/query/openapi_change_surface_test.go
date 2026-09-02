@@ -6,6 +6,8 @@ package query
 import (
 	"encoding/json"
 	"testing"
+
+	"github.com/eshu-hq/eshu/go/internal/query/querytestutil"
 )
 
 func TestOpenAPIChangeSurfaceInvestigationDocumentsInputFamilies(t *testing.T) {
@@ -16,13 +18,13 @@ func TestOpenAPIChangeSurfaceInvestigationDocumentsInputFamilies(t *testing.T) {
 		t.Fatalf("json.Unmarshal(OpenAPISpec()) error = %v, want nil", err)
 	}
 
-	paths := mustMapField(t, spec, "paths")
-	changeSurfacePath := mustMapField(t, paths, "/api/v0/impact/change-surface/investigate")
-	post := mustMapField(t, changeSurfacePath, "post")
-	requestBody := mustMapField(t, post, "requestBody")
-	content := mustMapField(t, requestBody, "content")
-	mediaType := mustMapField(t, content, "application/json")
-	schema := mustMapField(t, mediaType, "schema")
+	paths := querytestutil.MustMapField(t, spec, "paths")
+	changeSurfacePath := querytestutil.MustMapField(t, paths, "/api/v0/impact/change-surface/investigate")
+	post := querytestutil.MustMapField(t, changeSurfacePath, "post")
+	requestBody := querytestutil.MustMapField(t, post, "requestBody")
+	content := querytestutil.MustMapField(t, requestBody, "content")
+	mediaType := querytestutil.MustMapField(t, content, "application/json")
+	schema := querytestutil.MustMapField(t, mediaType, "schema")
 
 	description, ok := schema["description"].(string)
 	if !ok || description == "" {
@@ -54,16 +56,16 @@ func TestOpenAPIPreChangeImpactDocumentsWorkflow(t *testing.T) {
 		t.Fatalf("json.Unmarshal(OpenAPISpec()) error = %v, want nil", err)
 	}
 
-	paths := mustMapField(t, spec, "paths")
-	preChangePath := mustMapField(t, paths, "/api/v0/impact/pre-change")
-	post := mustMapField(t, preChangePath, "post")
+	paths := querytestutil.MustMapField(t, spec, "paths")
+	preChangePath := querytestutil.MustMapField(t, paths, "/api/v0/impact/pre-change")
+	post := querytestutil.MustMapField(t, preChangePath, "post")
 	if got, want := post["operationId"], "analyzePreChangeImpact"; got != want {
 		t.Fatalf("operationId = %#v, want %#v", got, want)
 	}
-	requestBody := mustMapField(t, post, "requestBody")
-	content := mustMapField(t, requestBody, "content")
-	mediaType := mustMapField(t, content, "application/json")
-	schema := mustMapField(t, mediaType, "schema")
+	requestBody := querytestutil.MustMapField(t, post, "requestBody")
+	content := querytestutil.MustMapField(t, requestBody, "content")
+	mediaType := querytestutil.MustMapField(t, content, "application/json")
+	schema := querytestutil.MustMapField(t, mediaType, "schema")
 	anyOf, ok := schema["anyOf"].([]any)
 	if !ok {
 		t.Fatalf("pre-change request anyOf type = %T, want []any", schema["anyOf"])
@@ -71,26 +73,26 @@ func TestOpenAPIPreChangeImpactDocumentsWorkflow(t *testing.T) {
 	if openAPIAnyOfRequires(anyOf, "base_ref") || openAPIAnyOfRequires(anyOf, "head_ref") {
 		t.Fatal("pre-change request anyOf must not accept refs without changed input")
 	}
-	properties := mustMapField(t, schema, "properties")
+	properties := querytestutil.MustMapField(t, schema, "properties")
 	for _, key := range []string{"repo_id", "base_ref", "head_ref", "changed_paths", "changes"} {
 		if _, ok := properties[key]; !ok {
 			t.Fatalf("pre-change request schema missing %q", key)
 		}
 	}
-	changes := mustMapField(t, properties, "changes")
-	items := mustMapField(t, changes, "items")
-	changeProperties := mustMapField(t, items, "properties")
+	changes := querytestutil.MustMapField(t, properties, "changes")
+	items := querytestutil.MustMapField(t, changes, "items")
+	changeProperties := querytestutil.MustMapField(t, items, "properties")
 	for _, key := range []string{"path", "old_path", "status"} {
 		if _, ok := changeProperties[key]; !ok {
 			t.Fatalf("pre-change changes item schema missing %q", key)
 		}
 	}
-	responses := mustMapField(t, post, "responses")
-	okResponse := mustMapField(t, responses, "200")
-	okContent := mustMapField(t, okResponse, "content")
-	okMediaType := mustMapField(t, okContent, "application/json")
-	okSchema := mustMapField(t, okMediaType, "schema")
-	okProperties := mustMapField(t, okSchema, "properties")
+	responses := querytestutil.MustMapField(t, post, "responses")
+	okResponse := querytestutil.MustMapField(t, responses, "200")
+	okContent := querytestutil.MustMapField(t, okResponse, "content")
+	okMediaType := querytestutil.MustMapField(t, okContent, "application/json")
+	okSchema := querytestutil.MustMapField(t, okMediaType, "schema")
+	okProperties := querytestutil.MustMapField(t, okSchema, "properties")
 	for _, key := range []string{"answer_packet", "answer_metadata", "missing_evidence", "recommended_next_calls"} {
 		if _, ok := okProperties[key]; !ok {
 			t.Fatalf("pre-change response schema missing %q", key)
@@ -112,16 +114,16 @@ func TestOpenAPIDeveloperChangePlanDocumentsWorkflow(t *testing.T) {
 		t.Fatalf("json.Unmarshal(OpenAPISpec()) error = %v, want nil", err)
 	}
 
-	paths := mustMapField(t, spec, "paths")
-	planPath := mustMapField(t, paths, "/api/v0/impact/developer-change-plan")
-	post := mustMapField(t, planPath, "post")
+	paths := querytestutil.MustMapField(t, spec, "paths")
+	planPath := querytestutil.MustMapField(t, paths, "/api/v0/impact/developer-change-plan")
+	post := querytestutil.MustMapField(t, planPath, "post")
 	if got, want := post["operationId"], "planDeveloperChange"; got != want {
 		t.Fatalf("operationId = %#v, want %#v", got, want)
 	}
-	requestBody := mustMapField(t, post, "requestBody")
-	content := mustMapField(t, requestBody, "content")
-	mediaType := mustMapField(t, content, "application/json")
-	schema := mustMapField(t, mediaType, "schema")
+	requestBody := querytestutil.MustMapField(t, post, "requestBody")
+	content := querytestutil.MustMapField(t, requestBody, "content")
+	mediaType := querytestutil.MustMapField(t, content, "application/json")
+	schema := querytestutil.MustMapField(t, mediaType, "schema")
 	anyOf, ok := schema["anyOf"].([]any)
 	if !ok {
 		t.Fatalf("developer change plan request anyOf type = %T, want []any", schema["anyOf"])
@@ -129,24 +131,24 @@ func TestOpenAPIDeveloperChangePlanDocumentsWorkflow(t *testing.T) {
 	if !openAPIAnyOfRequires(anyOf, "changes", "repo_id") {
 		t.Fatal("developer change plan request anyOf missing changes + repo_id requirement")
 	}
-	properties := mustMapField(t, schema, "properties")
+	properties := querytestutil.MustMapField(t, schema, "properties")
 	for _, key := range []string{"repo_id", "base_ref", "head_ref", "developer_intent", "changed_paths", "changes"} {
 		if _, ok := properties[key]; !ok {
 			t.Fatalf("developer change plan request schema missing %q", key)
 		}
 	}
-	responses := mustMapField(t, post, "responses")
-	okResponse := mustMapField(t, responses, "200")
-	okContent := mustMapField(t, okResponse, "content")
-	okMediaType := mustMapField(t, okContent, "application/json")
-	okSchema := mustMapField(t, okMediaType, "schema")
-	okProperties := mustMapField(t, okSchema, "properties")
+	responses := querytestutil.MustMapField(t, post, "responses")
+	okResponse := querytestutil.MustMapField(t, responses, "200")
+	okContent := querytestutil.MustMapField(t, okResponse, "content")
+	okMediaType := querytestutil.MustMapField(t, okContent, "application/json")
+	okSchema := querytestutil.MustMapField(t, okMediaType, "schema")
+	okProperties := querytestutil.MustMapField(t, okSchema, "properties")
 	for _, key := range []string{"schema_version", "read_only", "actions", "patch_guidance", "answer_packet"} {
 		if _, ok := okProperties[key]; !ok {
 			t.Fatalf("developer change plan response schema missing %q", key)
 		}
 	}
-	ref := mustMapField(t, okProperties, "pre_change_impact_ref")
+	ref := querytestutil.MustMapField(t, okProperties, "pre_change_impact_ref")
 	if got, want := ref["type"], "string"; got != want {
 		t.Fatalf("pre_change_impact_ref type = %#v, want %#v", got, want)
 	}

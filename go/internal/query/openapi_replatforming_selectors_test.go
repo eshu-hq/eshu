@@ -6,6 +6,8 @@ package query
 import (
 	"encoding/json"
 	"testing"
+
+	"github.com/eshu-hq/eshu/go/internal/query/querytestutil"
 )
 
 func TestOpenAPISpecIncludesReplatformingSelectors(t *testing.T) {
@@ -15,9 +17,9 @@ func TestOpenAPISpecIncludesReplatformingSelectors(t *testing.T) {
 	if err := json.Unmarshal([]byte(OpenAPISpec()), &spec); err != nil {
 		t.Fatalf("json.Unmarshal(OpenAPISpec()) error = %v, want nil", err)
 	}
-	paths := mustMapField(t, spec, "paths")
-	path := mustMapField(t, paths, "/api/v0/replatforming/selectors")
-	get := mustMapField(t, path, "get")
+	paths := querytestutil.MustMapField(t, spec, "paths")
+	path := querytestutil.MustMapField(t, paths, "/api/v0/replatforming/selectors")
+	get := querytestutil.MustMapField(t, path, "get")
 	if got, want := get["operationId"], "listReplatformingSelectors"; got != want {
 		t.Fatalf("operationId = %q, want %q", got, want)
 	}
@@ -28,12 +30,12 @@ func TestOpenAPISpecIncludesReplatformingSelectors(t *testing.T) {
 	if !ok || len(parameters) != 1 {
 		t.Fatalf("parameters = %#v, want one bounded limit parameter", get["parameters"])
 	}
-	responses := mustMapField(t, get, "responses")
-	okResponse := mustMapField(t, responses, "200")
-	content := mustMapField(t, okResponse, "content")
-	jsonContent := mustMapField(t, content, "application/json")
-	schema := mustMapField(t, jsonContent, "schema")
-	properties := mustMapField(t, schema, "properties")
+	responses := querytestutil.MustMapField(t, get, "responses")
+	okResponse := querytestutil.MustMapField(t, responses, "200")
+	content := querytestutil.MustMapField(t, okResponse, "content")
+	jsonContent := querytestutil.MustMapField(t, content, "application/json")
+	schema := querytestutil.MustMapField(t, jsonContent, "schema")
+	properties := querytestutil.MustMapField(t, schema, "properties")
 	for _, field := range []string{
 		"scopes",
 		"count",

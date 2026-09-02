@@ -6,6 +6,8 @@ package query
 import (
 	"encoding/json"
 	"testing"
+
+	"github.com/eshu-hq/eshu/go/internal/query/querytestutil"
 )
 
 func TestOpenAPISpecAdminPathsMatchMountedContract(t *testing.T) {
@@ -16,7 +18,7 @@ func TestOpenAPISpecAdminPathsMatchMountedContract(t *testing.T) {
 		t.Fatalf("json.Unmarshal(OpenAPISpec()) error = %v, want nil", err)
 	}
 
-	paths := mustMapField(t, spec, "paths")
+	paths := querytestutil.MustMapField(t, spec, "paths")
 	expectedPaths := []string{
 		"/api/v0/admin/refinalize",
 		"/api/v0/admin/reindex",

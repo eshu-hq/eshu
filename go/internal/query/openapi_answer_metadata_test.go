@@ -6,6 +6,8 @@ package query
 import (
 	"encoding/json"
 	"testing"
+
+	"github.com/eshu-hq/eshu/go/internal/query/querytestutil"
 )
 
 func TestOpenAPISpecDocumentsAnswerMetadataOnAnswerRoutes(t *testing.T) {
@@ -29,7 +31,7 @@ func TestOpenAPISpecDocumentsAnswerMetadataOnAnswerRoutes(t *testing.T) {
 		t.Run(tc.path, func(t *testing.T) {
 			t.Parallel()
 			properties := openAPIResponseProperties(t, spec, tc.path, tc.method)
-			metadata := mustMapField(t, properties, "answer_metadata")
+			metadata := querytestutil.MustMapField(t, properties, "answer_metadata")
 			if got, want := metadata["type"], "object"; got != want {
 				t.Fatalf("answer_metadata type = %#v, want %#v", got, want)
 			}
@@ -45,13 +47,13 @@ func openAPIResponseProperties(
 ) map[string]any {
 	t.Helper()
 
-	paths := mustMapField(t, spec, "paths")
-	route := mustMapField(t, paths, path)
-	operation := mustMapField(t, route, method)
-	responses := mustMapField(t, operation, "responses")
-	okResponse := mustMapField(t, responses, "200")
-	content := mustMapField(t, okResponse, "content")
-	jsonContent := mustMapField(t, content, "application/json")
-	schema := mustMapField(t, jsonContent, "schema")
-	return mustMapField(t, schema, "properties")
+	paths := querytestutil.MustMapField(t, spec, "paths")
+	route := querytestutil.MustMapField(t, paths, path)
+	operation := querytestutil.MustMapField(t, route, method)
+	responses := querytestutil.MustMapField(t, operation, "responses")
+	okResponse := querytestutil.MustMapField(t, responses, "200")
+	content := querytestutil.MustMapField(t, okResponse, "content")
+	jsonContent := querytestutil.MustMapField(t, content, "application/json")
+	schema := querytestutil.MustMapField(t, jsonContent, "schema")
+	return querytestutil.MustMapField(t, schema, "properties")
 }

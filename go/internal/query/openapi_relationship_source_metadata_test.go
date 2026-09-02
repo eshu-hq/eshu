@@ -6,6 +6,8 @@ package query
 import (
 	"encoding/json"
 	"testing"
+
+	"github.com/eshu-hq/eshu/go/internal/query/querytestutil"
 )
 
 func TestOpenAPIRelationshipDocumentsSourceMetadata(t *testing.T) {
@@ -14,8 +16,8 @@ func TestOpenAPIRelationshipDocumentsSourceMetadata(t *testing.T) {
 		t.Fatalf("json.Unmarshal(OpenAPISpec()) error = %v, want nil", err)
 	}
 
-	relationship := mustMapField(t, mustMapField(t, mustMapField(t, spec, "components"), "schemas"), "Relationship")
-	properties := mustMapField(t, relationship, "properties")
+	relationship := querytestutil.MustMapField(t, querytestutil.MustMapField(t, querytestutil.MustMapField(t, spec, "components"), "schemas"), "Relationship")
+	properties := querytestutil.MustMapField(t, relationship, "properties")
 	for _, field := range []string{
 		"source_repo_id",
 		"source_repo_name",
@@ -48,13 +50,13 @@ func TestOpenAPIRelationshipEvidenceDocumentsConfidenceBasis(t *testing.T) {
 		t.Fatalf("json.Unmarshal(OpenAPISpec()) error = %v, want nil", err)
 	}
 
-	paths := mustMapField(t, spec, "paths")
-	route := mustMapField(t, paths, "/api/v0/evidence/relationships/{resolved_id}")
-	get := mustMapField(t, route, "get")
-	responses := mustMapField(t, get, "responses")
-	okResponse := mustMapField(t, responses, "200")
-	content := mustMapField(t, mustMapField(t, okResponse, "content"), "application/json")
-	properties := mustMapField(t, mustMapField(t, content, "schema"), "properties")
+	paths := querytestutil.MustMapField(t, spec, "paths")
+	route := querytestutil.MustMapField(t, paths, "/api/v0/evidence/relationships/{resolved_id}")
+	get := querytestutil.MustMapField(t, route, "get")
+	responses := querytestutil.MustMapField(t, get, "responses")
+	okResponse := querytestutil.MustMapField(t, responses, "200")
+	content := querytestutil.MustMapField(t, querytestutil.MustMapField(t, okResponse, "content"), "application/json")
+	properties := querytestutil.MustMapField(t, querytestutil.MustMapField(t, content, "schema"), "properties")
 	if _, ok := properties["confidence_basis"]; !ok {
 		t.Fatal("relationship evidence schema missing confidence_basis")
 	}

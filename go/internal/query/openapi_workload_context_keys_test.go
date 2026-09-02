@@ -10,6 +10,8 @@ import (
 	"sort"
 	"strings"
 	"testing"
+
+	"github.com/eshu-hq/eshu/go/internal/query/querytestutil"
 )
 
 // fetchWorkloadContextResultKeys is the reviewed key list for
@@ -228,8 +230,8 @@ func workloadContextSchemaProperties(t *testing.T) map[string]any {
 		t.Fatalf("json.Unmarshal(OpenAPISpec()) error = %v, want nil", err)
 	}
 
-	components := mustMapField(t, spec, "components")
-	schemas := mustMapField(t, components, "schemas")
-	workloadContext := mustMapField(t, schemas, "WorkloadContext")
-	return mustMapField(t, workloadContext, "properties")
+	components := querytestutil.MustMapField(t, spec, "components")
+	schemas := querytestutil.MustMapField(t, components, "schemas")
+	workloadContext := querytestutil.MustMapField(t, schemas, "WorkloadContext")
+	return querytestutil.MustMapField(t, workloadContext, "properties")
 }
