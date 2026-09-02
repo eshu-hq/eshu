@@ -239,30 +239,6 @@ reducer_drain:
 # (C-14), not exempted away. Add an entry only when a surface genuinely has nothing
 # for the required axis to bound.
 exemptions:
-  - surface: projection:config_state_drift
-    scenario_type: cost
-    reason: >-
-      config_state_drift (the terraform_state fact family, projection_hook
-      terraform_relationship_projection) has no CANONICAL GRAPH write for the
-      cost axis to bound; graph projection follows per design doc §10 and is
-      not yet implemented. registry_additive_domains.go sets
-      Ownership{CanonicalWrite: false, CounterEmit: true}, where CanonicalWrite
-      means a canonical GRAPH write specifically -- it is not a durability flag.
-      CORRECTION (#6061): this rationale previously said the handler "has no
-      Writer field" and performs "zero Postgres writes". Both were false.
-      TerraformConfigStateDriftHandler has a Writer field
-      (go/internal/reducer/tfconfigstate/terraform_config_state_drift.go:80-86,
-      used at :232), the default wiring sets it
-      (go/cmd/reducer/wiring_handlers.go:70), and
-      PostgresTerraformConfigStateDriftWriter runs
-      factwrite.BatchInsertVersionedFacts -- one durable Postgres fact per
-      admitted finding, with a bounded-cost test already covering that path
-      (terraform_config_state_drift_writer_test.go:274). Whether a
-      Postgres-only write path should be cost-exempt at all is therefore an
-      open question tracked in #6416. This exemption stands only until that is
-      decided; it must not be read as evidence the write path is uncovered by
-      design. The Postgres access in storage/postgres/drift_enqueue.go remains
-      a QueryContext read that enqueues intents, not a domain-output write.
   - surface: retractable_node:TerraformStateResource
     scenario_type: delta_tombstone
     reason: >-

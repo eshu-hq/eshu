@@ -39,14 +39,18 @@ graph writer:
 | `incident_repository_correlation` | `incident_repository_correlation_cost_test.go` | `reducer.PostgresIncidentRepositoryCorrelationWriter` (per-row, exact budget) | `eshu_dp_postgres_query_duration_seconds` (observation count) |
 | `package_source_correlation` | `package_source_correlation_cost_test.go` | `reducer.PostgresPackageCorrelationWriter` (per-row, exact budget) | `eshu_dp_postgres_query_duration_seconds` (observation count) |
 | `reducer_derived_findings` | `multi_cloud_runtime_drift_cost_test.go` | `reducer.PostgresMultiCloudRuntimeDriftWriter` (per-row, exact budget) | `eshu_dp_postgres_query_duration_seconds` (observation count) |
+| `config_state_drift` | `terraform_config_state_drift_cost_test.go` | `reducer/tfconfigstate.PostgresTerraformConfigStateDriftWriter` (one insert chunk + one retire, budget 2) | `eshu_dp_postgres_query_duration_seconds` (observation count) |
 
 The Postgres per-row writers commit an exact-equality budget encoding their
 known per-row write amplification; the follow-on migration to the batched
 `reducerBatchInsertFacts` insert path (which will let their budgets ratchet to 1
 with a standard N+1 control) is tracked as a separate issue.
-`projection:config_state_drift` is exempted in
-`specs/replay-depth-requirements.v1.yaml` (a counter-only terraform domain with
-no reducer write instrument to bound).
+`projection:config_state_drift` was exempted in
+`specs/replay-depth-requirements.v1.yaml` until issue #6416; the exemption is
+removed now that this scenario bounds the domain's Postgres write path
+(one durable fact per admitted finding plus the generation-authoritative
+retire). `CanonicalWrite` stays false because that field means a canonical
+GRAPH write; it is not the durability flag.
 
 `code_graph_projection` reuses the existing nested-directory-tree scenario: the
 "code" family's `file`/`repository` kinds project through

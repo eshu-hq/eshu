@@ -16,19 +16,19 @@ Every non-exempt required surface maps to a committed scenario and the named pro
 | Read surfaces (API/MCP) | 25 | 25 | 100.00% | 0 | 1 |
 | Parsers | 4 | 4 | 100.00% | 0 | 0 |
 | Product claims | 11 | 11 | 100.00% | 0 | 0 |
-| Projections (cost/ordering) | 29 | 29 | 100.00% | 0 | 1 |
+| Projections (cost/ordering) | 29 | 29 | 100.00% | 0 | 0 |
 | Reducer drain (crash) | 1 | 1 | 100.00% | 0 | 0 |
 | Retractable edge types (delta) | 64 | 64 | 100.00% | 0 | 1 |
 | Retractable node types (delta) | 100 | 100 | 100.00% | 0 | 1 |
 | Collectors | 34 | 34 | 100.00% | 0 | 8 |
-| **Total** | **437** | **437** | **100.00%** | **0** | **12** |
+| **Total** | **437** | **437** | **100.00%** | **0** | **11** |
 
 ## Coverage by scenario type
 
 | Scenario type | Satisfied | Total | % | Uncovered | Exempt |
 | --- | ---: | ---: | ---: | ---: | ---: |
 | baseline | 222 | 222 | 100.00% | 0 | 5 |
-| cost | 28 | 28 | 100.00% | 0 | 1 |
+| cost | 28 | 28 | 100.00% | 0 | 0 |
 | crash | 2 | 2 | 100.00% | 0 | 0 |
 | delta_tombstone | 165 | 165 | 100.00% | 0 | 2 |
 | fault | 17 | 17 | 100.00% | 0 | 4 |
@@ -265,7 +265,7 @@ None. Every non-exempt required surface has a replay scenario; exemptions carry 
 | `projection:cloud_asset_resolution` | cost | go_test | go-test-race | `go/internal/replay/costcounting/cloud_asset_resolution_cost_test.go` |
 | `projection:code_graph_projection` | cost | go_test | go-test-race | `go/internal/replay/costcounting/cost_counting_test.go` |
 | `projection:codeowners_ownership` | cost | go_test | go-test-race | `go/internal/replay/costcounting/codeowners_ownership_cost_test.go` |
-| `projection:config_state_drift` | cost | exempt | — | config_state_drift (the terraform_state fact family, projection_hook terraform_relationship_projection) has no CANONICAL GRAPH write for the cost axis to bound; graph projection follows per design doc §10 and is not yet implemented. registry_additive_domains.go sets Ownership{CanonicalWrite: false, CounterEmit: true}, where CanonicalWrite means a canonical GRAPH write specifically -- it is not a durability flag. CORRECTION (#6061): this rationale previously said the handler "has no Writer field" and performs "zero Postgres writes". Both were false. TerraformConfigStateDriftHandler has a Writer field (go/internal/reducer/tfconfigstate/terraform_config_state_drift.go:80-86, used at :232), the default wiring sets it (go/cmd/reducer/wiring_handlers.go:70), and PostgresTerraformConfigStateDriftWriter runs factwrite.BatchInsertVersionedFacts -- one durable Postgres fact per admitted finding, with a bounded-cost test already covering that path (terraform_config_state_drift_writer_test.go:274). Whether a Postgres-only write path should be cost-exempt at all is therefore an open question tracked in #6416. This exemption stands only until that is decided; it must not be read as evidence the write path is uncovered by design. The Postgres access in storage/postgres/drift_enqueue.go remains a QueryContext read that enqueues intents, not a domain-output write. |
+| `projection:config_state_drift` | cost | go_test | go-test-race | `go/internal/replay/costcounting/terraform_config_state_drift_cost_test.go` |
 | `projection:container_image_identity` | cost | go_test | go-test-race | `go/internal/replay/costcounting/container_image_identity_cost_test.go` |
 | `projection:documentation_materialization` | cost | go_test | go-test-race | `go/internal/replay/costcounting/documentation_edges_cost_test.go` |
 | `projection:ec2_instance_node_materialization` | cost | go_test | go-test-race | `go/internal/replay/costcounting/ec2_instance_node_cost_test.go` |
