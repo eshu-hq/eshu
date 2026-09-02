@@ -787,7 +787,22 @@ helper was checked body-for-body against `projectorintent.SourceSystem` and
 was not identical: it carries a third fallback to the ingestion scope's
 `SourceSystem`, so it moved with the family unchanged and the child builder
 takes the scope value the way the `kubernetes` builders already do. The root
-`firstMatchingKindPredicate` forwarder stays for its three remaining root
+`firstMatchingKindPredicate` forwarder stayed at that point for its three
+remaining root callers; the secrets/IAM extraction below took it to two. The unsupported-schema-version regression test stays at root in
+`schema_version_admission_test.go` because it asserts root's
+`validateFactSchemaVersion`, not the builder.
+The secrets/IAM trust-chain builder moved into
+`internal/projector/secretsiam`. It triggers on any fact kind the
+`facts.SecretsIAMSchemaVersion` registry recognizes, anchoring with
+`FirstMatchingKindPredicate` on the earliest such fact in input order, and
+carries no decode seam. Its private source-system helper (`secretsIAMSourceSystem`
+at root, `sourceSystem` in the child) was
+checked body-for-body against `projectorintent.SourceSystem` and was not
+identical: it carries a literal third fallback to `secrets_iam_posture`
+where the shared helper returns an empty string, so it moved with the family
+unchanged; the builder needs no scope value beyond the IDs, so it takes
+`scopeID`/`generationID` strings the way `packagesource` does. The root
+`firstMatchingKindPredicate` forwarder stays for its two remaining root
 callers. The unsupported-schema-version regression test stays at root in
 `schema_version_admission_test.go` because it asserts root's
 `validateFactSchemaVersion`, not the builder.

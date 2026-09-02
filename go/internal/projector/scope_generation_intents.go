@@ -15,6 +15,7 @@ import (
 	projectorpackagesource "github.com/eshu-hq/eshu/go/internal/projector/packagesource"
 	projectorrds "github.com/eshu-hq/eshu/go/internal/projector/rds"
 	projectors3 "github.com/eshu-hq/eshu/go/internal/projector/s3"
+	projectorsecretsiam "github.com/eshu-hq/eshu/go/internal/projector/secretsiam"
 	projectorsecurity "github.com/eshu-hq/eshu/go/internal/projector/security"
 	projectorservicecatalog "github.com/eshu-hq/eshu/go/internal/projector/servicecatalog"
 	projectorworkloadcloud "github.com/eshu-hq/eshu/go/internal/projector/workloadcloud"
@@ -143,7 +144,7 @@ func appendScopeGenerationReducerIntents(
 	if intent, ok := projectorservicecatalog.BuildServiceCatalogCorrelationReducerIntent(scopeValue, generation, index.lookup); ok {
 		intents = append(intents, intent)
 	}
-	if intent, ok := buildSecretsIAMTrustChainReducerIntent(scopeValue, generation, index); ok {
+	if intent, ok := projectorsecretsiam.BuildSecretsIAMTrustChainReducerIntent(scopeValue.ScopeID, generation.GenerationID, index.lookup); ok {
 		intents = append(intents, intent)
 	}
 	if intent, ok := buildSupplyChainImpactReducerIntent(scopeValue, generation, index); ok {
