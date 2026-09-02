@@ -377,8 +377,8 @@ const (
 	// a digest that registry facts report as the previous digest.
 	ContainerImageIdentityStaleTag = reducercontract.ContainerImageIdentityStaleTag
 	// containerImageIdentityFactKind aliases the exported contract constant so
-	// every existing unqualified use in this package (writer.go and its
-	// callers) keeps compiling unchanged.
+	// every existing unqualified use in this package keeps compiling unchanged --
+	// container_image_identity_writer.go and its callers.
 	containerImageIdentityFactKind = reducercontract.ContainerImageIdentityFactKind
 )
 
