@@ -219,6 +219,17 @@ func TestImpactDispatchKeepsEveryBodyKey(t *testing.T) {
 	if !reflect.DeepEqual(passBody, args) {
 		t.Fatalf("explain_dependency_path body = %#v, want the argument map unchanged", passBody)
 	}
+	// DeepEqual alone would still pass if the adapter started copying the map.
+	// routes.go, the package README, and AGENTS.md all state that this route's
+	// body ALIASES the caller's map rather than copying it, so pin the aliasing
+	// itself: a write through the returned body must be visible in the caller's
+	// map. Mutate and restore so the surrounding assertions stay unaffected.
+	const aliasProbeKey = "__alias_probe__"
+	passBody[aliasProbeKey] = struct{}{}
+	if _, aliased := args[aliasProbeKey]; !aliased {
+		t.Fatalf("explain_dependency_path body does not alias the caller's map; a write through the body was not visible in args, but routes.go and the package docs promise aliasing")
+	}
+	delete(passBody, aliasProbeKey)
 }
 
 // TestResolveRouteStillOwnsItsArmsAfterImpactExtraction proves the adapter
