@@ -1,13 +1,14 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package reducer
+package codetaint
 
 import (
 	"encoding/json"
 	"sort"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/reducer/payloadcore"
 )
 
 // CodeInterprocEvidenceInput is one resolved cross-function value-flow finding
@@ -71,7 +72,7 @@ func extractCodeInterprocEvidenceRows(inputs []CodeInterprocEvidenceInput, uidFo
 		rows = append(rows, row)
 	}
 	sort.Slice(rows, func(a, b int) bool {
-		return anyToString(rows[a]["uid"]) < anyToString(rows[b]["uid"])
+		return payloadcore.AnyToString(rows[a]["uid"]) < payloadcore.AnyToString(rows[b]["uid"])
 	})
 	return rows
 }

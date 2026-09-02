@@ -15,7 +15,7 @@ package v1
 // function did not materialize as an entity. The reducer's postgres loader
 // (go/internal/storage/postgres/code_taint_evidence_loader.go) projects this
 // struct into a CodeTaintEvidenceInput row
-// (go/internal/reducer/code_taint_evidence_materialization.go), which the
+// (go/internal/reducer/codetaint/code_taint_evidence_materialization.go), which the
 // materialization handler writes as a graph evidence node attached to that
 // Function node — evidence, never canonical truth.
 //

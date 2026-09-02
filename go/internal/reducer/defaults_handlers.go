@@ -6,6 +6,7 @@ package reducer
 import (
 	"log/slog"
 
+	"github.com/eshu-hq/eshu/go/internal/reducer/codetaint"
 	"github.com/eshu-hq/eshu/go/internal/reducer/eshusearch"
 	"github.com/eshu-hq/eshu/go/internal/reducer/incident"
 	"github.com/eshu-hq/eshu/go/internal/reducer/tfconfigstate"
@@ -286,21 +287,21 @@ type CodeEvidenceHandlers struct {
 	// code_taint_evidence facts. It must be non-nil alongside
 	// CodeTaintEvidenceWriter to register DomainCodeTaintEvidence; missing either
 	// drops every taint-evidence intent before it reaches graph truth.
-	CodeTaintEvidenceLoader CodeTaintEvidenceLoader
+	CodeTaintEvidenceLoader codetaint.CodeTaintEvidenceLoader
 
 	// CodeTaintEvidenceWriter projects taint findings into CodeTaintEvidence graph
 	// nodes attached to their Function.
-	CodeTaintEvidenceWriter CodeTaintEvidenceWriter
+	CodeTaintEvidenceWriter codetaint.CodeTaintEvidenceWriter
 
 	// CodeInterprocEvidenceLoader loads the raw code_interproc_evidence fact
 	// envelopes; the handler decodes + quarantines them (Contract System v1
 	// Wave 4f S2). Non-nil alongside the writer to register
 	// DomainCodeInterprocEvidence.
-	CodeInterprocEvidenceLoader CodeInterprocEvidenceFactLoader
+	CodeInterprocEvidenceLoader codetaint.CodeInterprocEvidenceFactLoader
 
 	// CodeInterprocEvidenceWriter projects cross-function findings into
 	// TAINT_FLOWS_TO edges between Function nodes.
-	CodeInterprocEvidenceWriter CodeInterprocEvidenceWriter
+	CodeInterprocEvidenceWriter codetaint.CodeInterprocEvidenceWriter
 
 	// CodeFunctionSummaryLoader loads value-flow Effects from
 	// code_function_summary facts. Non-nil alongside the writer to register
@@ -335,9 +336,9 @@ type CodeEvidenceHandlers struct {
 
 	// CodeInterprocProjectedEdgeLedger records and enumerates source Function uids
 	// of projected TAINT_FLOWS_TO edges for anchored-delete retraction.
-	CodeInterprocProjectedEdgeLedger CodeInterprocProjectedEdgeLedger
+	CodeInterprocProjectedEdgeLedger codetaint.CodeInterprocProjectedEdgeLedger
 
 	// CodeTaintEvidenceProjectedNodeLedger records and enumerates node uids of
 	// projected CodeTaintEvidence nodes for anchored-delete retraction.
-	CodeTaintEvidenceProjectedNodeLedger CodeTaintEvidenceProjectedNodeLedger
+	CodeTaintEvidenceProjectedNodeLedger codetaint.CodeTaintEvidenceProjectedNodeLedger
 }

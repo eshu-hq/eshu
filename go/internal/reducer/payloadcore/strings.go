@@ -127,6 +127,25 @@ func DerefBool(value *bool) bool {
 	return value != nil && *value
 }
 
+// DerefInt returns the pointed-to int, or 0 when the pointer is nil.
+func DerefInt(value *int) int {
+	if value == nil {
+		return 0
+	}
+	return *value
+}
+
+// DerefStringTrimmed dereferences a *string and trims it, returning "" for
+// nil. Mirrors DerefString plus a universal TrimSpace for callers decoding an
+// optional string field through a typed contracts seam, where a padded value
+// must not flow through untrimmed.
+func DerefStringTrimmed(value *string) string {
+	if value == nil {
+		return ""
+	}
+	return strings.TrimSpace(*value)
+}
+
 // SortedKeys returns the keys of a set in ascending order, or nil when empty.
 func SortedKeys(m map[string]struct{}) []string {
 	if len(m) == 0 {

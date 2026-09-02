@@ -9,6 +9,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/facts"
 	"github.com/eshu-hq/eshu/go/internal/parser/interproc"
 	"github.com/eshu-hq/eshu/go/internal/parser/summary"
+	"github.com/eshu-hq/eshu/go/internal/reducer/payloadcore"
 )
 
 // codeFunctionSummaryEffects decodes one code_function_summary envelope
@@ -69,7 +70,7 @@ func codeFunctionGraphID(envelope facts.Envelope) (summary.FunctionID, string, b
 	if functionID == "" {
 		return "", "", false, nil
 	}
-	return summary.FunctionID(functionID), derefStringTrimmed(typed.GraphUID), true, nil
+	return summary.FunctionID(functionID), payloadcore.DerefStringTrimmed(typed.GraphUID), true, nil
 }
 
 // codeFunctionSource decodes one code_function_source envelope into an
@@ -92,7 +93,7 @@ func codeFunctionSource(envelope facts.Envelope) (interproc.Source, bool, error)
 	return interproc.Source{
 		Port: interproc.Port{
 			Func: interproc.FunctionID(functionID),
-			Slot: interproc.Slot{Kind: interproc.SlotParam, Index: derefInt(typed.ParamIndex)},
+			Slot: interproc.Slot{Kind: interproc.SlotParam, Index: payloadcore.DerefInt(typed.ParamIndex)},
 		},
 		Kind: kind,
 	}, true, nil

@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/reducer/codetaint"
 )
 
 // benchmarkCodeTaintEvidenceCorpus builds a synthetic corpus of count
@@ -51,7 +52,7 @@ func BenchmarkDecodeCodeTaintEvidenceInput(b *testing.B) {
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
 		for _, env := range envelopes {
-			_, _ = decodeCodeTaintEvidenceInput(env)
+			_, _ = codetaint.DecodeCodeTaintEvidenceInput(env)
 		}
 	}
 }
@@ -94,7 +95,7 @@ func BenchmarkDecodeCodeInterprocEvidenceInput(b *testing.B) {
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
 		for _, env := range envelopes {
-			_, _ = decodeCodeInterprocEvidenceInput(env)
+			_, _ = codetaint.DecodeCodeInterprocEvidenceInput(env)
 		}
 	}
 }
@@ -107,7 +108,7 @@ func BenchmarkExtractCodeTaintEvidenceRows(b *testing.B) {
 	b.ReportAllocs()
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		_, _, _ = ExtractCodeTaintEvidenceRowsWithQuarantine(envelopes)
+		_, _, _ = codetaint.ExtractCodeTaintEvidenceRowsWithQuarantine(envelopes)
 	}
 }
 
@@ -119,7 +120,7 @@ func BenchmarkExtractCodeInterprocEvidenceRows(b *testing.B) {
 	b.ReportAllocs()
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		_, _, _ = ExtractCodeInterprocEvidenceRowsWithQuarantine(envelopes)
+		_, _, _ = codetaint.ExtractCodeInterprocEvidenceRowsWithQuarantine(envelopes)
 	}
 }
 

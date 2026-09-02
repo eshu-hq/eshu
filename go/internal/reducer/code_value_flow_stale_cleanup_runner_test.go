@@ -9,6 +9,8 @@ import (
 	"sync"
 	"testing"
 	"time"
+
+	"github.com/eshu-hq/eshu/go/internal/reducer/codetaint"
 )
 
 func TestCodeValueFlowStaleCleanupRunnerSweepsBothEvidenceFamilies(t *testing.T) {
@@ -61,13 +63,13 @@ func TestCodeValueFlowStaleCleanupRunnerSweepsBothEvidenceFamilies(t *testing.T)
 	}
 	if call := taint.calls[0]; call.scopeID != "scope-a" ||
 		call.generationID != "gen-current-a" ||
-		call.evidenceSource != codeTaintEvidenceSource ||
+		call.evidenceSource != codetaint.CodeTaintEvidenceSource() ||
 		call.limit != 50 {
 		t.Fatalf("first taint call = %+v, want current scope/generation/source/limit", call)
 	}
 	if call := interproc.calls[1]; call.scopeID != "scope-b" ||
 		call.generationID != "gen-current-b" ||
-		call.evidenceSource != codeInterprocEvidenceSource ||
+		call.evidenceSource != codetaint.CodeInterprocEvidenceSource() ||
 		call.limit != 50 {
 		t.Fatalf("second interproc call = %+v, want current scope/generation/source/limit", call)
 	}

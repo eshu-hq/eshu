@@ -15,7 +15,7 @@ package v1
 // finding whose either endpoint did not resolve. The reducer's postgres
 // loader (go/internal/storage/postgres/code_interproc_evidence_loader.go)
 // projects this struct into a CodeInterprocEvidenceInput row
-// (go/internal/reducer/code_interproc_evidence_materialization.go,
+// (go/internal/reducer/codetaint/code_interproc_evidence_materialization.go,
 // code_interproc_evidence_rows.go), which the materialization handler writes
 // as a TAINT_FLOWS_TO edge between the two Function nodes — evidence, never
 // canonical truth.

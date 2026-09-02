@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/reducer/codetaint"
 )
 
 // TestCodeTaintEvidenceHandlerQuarantinesMalformedFact is the coordinator-
@@ -33,7 +34,7 @@ func TestCodeTaintEvidenceHandlerQuarantinesMalformedFact(t *testing.T) {
 	valid := codeTaintEvidenceEnvelope(sampleCodeTaintInput())
 
 	writer := &recordingCodeTaintEvidenceWriter{}
-	handler := CodeTaintEvidenceMaterializationHandler{
+	handler := codetaint.CodeTaintEvidenceMaterializationHandler{
 		Loader:               stubCodeTaintEvidenceLoader{envelopes: []facts.Envelope{malformed, valid}},
 		Writer:               writer,
 		PriorGenerationCheck: func(context.Context, string, string) (bool, error) { return true, nil },
@@ -68,7 +69,7 @@ func TestCodeInterprocEvidenceHandlerQuarantinesMalformedFact(t *testing.T) {
 	valid := codeInterprocEvidenceEnvelope(sampleCodeInterprocInput())
 
 	writer := &recordingCodeInterprocEvidenceWriter{}
-	handler := CodeInterprocEvidenceMaterializationHandler{
+	handler := codetaint.CodeInterprocEvidenceMaterializationHandler{
 		Loader:               stubInterprocFactLoader{envelopes: []facts.Envelope{malformed, valid}},
 		Writer:               writer,
 		PriorGenerationCheck: func(context.Context, string, string) (bool, error) { return true, nil },

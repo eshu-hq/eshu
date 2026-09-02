@@ -1,12 +1,14 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package reducer
+package codetaint
 
 import (
 	"context"
 	"testing"
 	"time"
+
+	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
 )
 
 // fakeCodeInterprocProjectedEdgeLedger records calls for test assertions.
@@ -117,7 +119,7 @@ func TestCodeInterprocEvidenceHandlerLedgerRecordsBeforeWrite(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Handle returned error: %v", err)
 	}
-	if result.Status != ResultStatusSucceeded {
+	if result.Status != reducercontract.ResultStatusSucceeded {
 		t.Fatalf("status = %v, want succeeded", result.Status)
 	}
 	// Assert call order: retract (list+prune) → record → write

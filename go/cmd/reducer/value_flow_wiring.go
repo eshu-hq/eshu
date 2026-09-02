@@ -7,6 +7,7 @@ import (
 	"log/slog"
 
 	"github.com/eshu-hq/eshu/go/internal/reducer"
+	"github.com/eshu-hq/eshu/go/internal/reducer/codetaint"
 )
 
 func newValueFlowFixpointProjector(
@@ -15,7 +16,7 @@ func newValueFlowFixpointProjector(
 	graphIDLoader reducer.FunctionGraphIDSnapshotLoader,
 	componentStore reducer.ValueFlowFixpointComponentStore,
 	graphReader reducer.GraphQueryRunner,
-	writer reducer.CodeInterprocEvidenceWriter,
+	writer codetaint.CodeInterprocEvidenceWriter,
 	logger *slog.Logger,
 ) reducer.ValueFlowFixpointEvidenceProjector {
 	return reducer.ValueFlowFixpointEvidenceProjector{

@@ -1,13 +1,15 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package reducer
+package codetaint
 
 import (
 	"context"
 	"fmt"
 	"log/slog"
 	"time"
+
+	"github.com/eshu-hq/eshu/go/internal/reducer/payloadcore"
 )
 
 // ProjectedTaintEdgeRow is one enumerated TAINT_FLOWS_TO edge from the
@@ -108,10 +110,10 @@ RETURN s.uid AS source_function_uid,
 	}
 	var out []ProjectedTaintEdgeRow
 	for _, row := range rows {
-		sourceUID := anyToString(row["source_function_uid"])
-		scopeID := anyToString(row["scope_id"])
-		genID := anyToString(row["generation_id"])
-		evSrc := anyToString(row["evidence_source"])
+		sourceUID := payloadcore.AnyToString(row["source_function_uid"])
+		scopeID := payloadcore.AnyToString(row["scope_id"])
+		genID := payloadcore.AnyToString(row["generation_id"])
+		evSrc := payloadcore.AnyToString(row["evidence_source"])
 		if sourceUID == "" || scopeID == "" || genID == "" || evSrc == "" {
 			continue
 		}

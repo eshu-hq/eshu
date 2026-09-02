@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package reducer
+package codetaint
 
 import (
 	"context"
@@ -10,6 +10,8 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
+	"github.com/eshu-hq/eshu/go/internal/reducer/factdecode"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
 	"github.com/eshu-hq/eshu/go/internal/truth"
 )
@@ -22,11 +24,15 @@ const codeTaintEvidenceSource = "reducer/code-taint"
 // code-taint evidence nodes.
 func CodeTaintEvidenceSource() string { return codeTaintEvidenceSource }
 
-func codeTaintEvidenceDomainDefinition() DomainDefinition {
-	return DomainDefinition{
-		Domain:  DomainCodeTaintEvidence,
+// CodeTaintEvidenceDomainDefinition returns the DomainDefinition for
+// DomainCodeTaintEvidence. Exported for the reducer root's additive-domain
+// registration (defaults_additive_domains_incident_code.go), which composes
+// this package's handler into the runtime's domain registry.
+func CodeTaintEvidenceDomainDefinition() reducercontract.DomainDefinition {
+	return reducercontract.DomainDefinition{
+		Domain:  reducercontract.DomainCodeTaintEvidence,
 		Summary: "project value-flow taint findings into graph evidence nodes attached to their Function",
-		Ownership: OwnershipShape{
+		Ownership: reducercontract.OwnershipShape{
 			CrossSource:    true,
 			CrossScope:     true,
 			CanonicalWrite: true,
@@ -46,7 +52,7 @@ func codeTaintEvidenceDomainDefinition() DomainDefinition {
 // dead-letters as an input_invalid quarantine rather than being silently
 // dropped by the loader (Contract System v1 Wave 4f S2, issue #4754). The
 // loader stays a pure envelope fetch: the typed decode + quarantine belongs in
-// the reducer package where partitionDecodeFailures and recordQuarantinedFacts
+// the reducer package where factdecode.PartitionDecodeFailures and factdecode.RecordQuarantinedFacts
 // live, not in a storage adapter.
 type CodeTaintEvidenceLoader interface {
 	LoadCodeTaintEvidence(
@@ -71,57 +77,57 @@ type CodeTaintEvidenceMaterializationHandler struct {
 	Loader               CodeTaintEvidenceLoader
 	Writer               CodeTaintEvidenceWriter
 	Ledger               CodeTaintEvidenceProjectedNodeLedger
-	PriorGenerationCheck PriorGenerationCheck
+	PriorGenerationCheck reducercontract.PriorGenerationCheck
 	Instruments          *telemetry.Instruments
 }
 
 // Handle executes one taint-evidence materialization intent: load the resolved
 // findings, project them to rows, retract the prior generation's nodes (unless
 // this is the first generation for the scope), and write the new rows.
-func (h CodeTaintEvidenceMaterializationHandler) Handle(ctx context.Context, intent Intent) (Result, error) {
-	if intent.Domain != DomainCodeTaintEvidence {
-		return Result{}, fmt.Errorf("code taint evidence handler does not accept domain %q", intent.Domain)
+func (h CodeTaintEvidenceMaterializationHandler) Handle(ctx context.Context, intent reducercontract.Intent) (reducercontract.Result, error) {
+	if intent.Domain != reducercontract.DomainCodeTaintEvidence {
+		return reducercontract.Result{}, fmt.Errorf("code taint evidence handler does not accept domain %q", intent.Domain)
 	}
 	if h.Loader == nil {
-		return Result{}, fmt.Errorf("code taint evidence loader is required")
+		return reducercontract.Result{}, fmt.Errorf("code taint evidence loader is required")
 	}
 	if h.Writer == nil {
-		return Result{}, fmt.Errorf("code taint evidence writer is required")
+		return reducercontract.Result{}, fmt.Errorf("code taint evidence writer is required")
 	}
 
 	envelopes, err := h.Loader.LoadCodeTaintEvidence(ctx, intent.ScopeID, intent.GenerationID)
 	if err != nil {
-		return Result{}, fmt.Errorf("load code taint evidence: %w", err)
+		return reducercontract.Result{}, fmt.Errorf("load code taint evidence: %w", err)
 	}
 	rows, quarantined, err := ExtractCodeTaintEvidenceRowsWithQuarantine(envelopes)
 	if err != nil {
-		return Result{}, fmt.Errorf("decode code taint evidence: %w", err)
+		return reducercontract.Result{}, fmt.Errorf("decode code taint evidence: %w", err)
 	}
-	inputInvalidCount := recordQuarantinedFacts(ctx, h.Instruments, DomainCodeTaintEvidence, intent.ScopeID, intent.GenerationID, quarantined)
+	inputInvalidCount := factdecode.RecordQuarantinedFacts(ctx, h.Instruments, reducercontract.DomainCodeTaintEvidence, intent.ScopeID, intent.GenerationID, quarantined)
 
 	skipRetract, err := h.shouldSkipRetract(ctx, intent)
 	if err != nil {
-		return Result{}, err
+		return reducercontract.Result{}, err
 	}
 	if !skipRetract {
 		if h.Ledger != nil {
 			uids, err := h.Ledger.ListNodeUIDsForScopes(ctx, codeTaintEvidenceSource, []string{intent.ScopeID})
 			if err != nil {
-				return Result{}, fmt.Errorf("list node uids for retract: %w", err)
+				return reducercontract.Result{}, fmt.Errorf("list node uids for retract: %w", err)
 			}
 			if err := h.Writer.RetractCodeTaintEvidenceByUIDs(
 				ctx, uids, []string{intent.ScopeID}, codeTaintEvidenceSource,
 			); err != nil {
-				return Result{}, fmt.Errorf("retract code taint evidence by uids: %w", err)
+				return reducercontract.Result{}, fmt.Errorf("retract code taint evidence by uids: %w", err)
 			}
 			if err := h.Ledger.PruneForScopes(ctx, codeTaintEvidenceSource, []string{intent.ScopeID}); err != nil {
-				return Result{}, fmt.Errorf("prune code taint evidence projected nodes: %w", err)
+				return reducercontract.Result{}, fmt.Errorf("prune code taint evidence projected nodes: %w", err)
 			}
 		} else {
 			if err := h.Writer.RetractCodeTaintEvidence(
 				ctx, []string{intent.ScopeID}, intent.GenerationID, codeTaintEvidenceSource,
 			); err != nil {
-				return Result{}, fmt.Errorf("retract code taint evidence: %w", err)
+				return reducercontract.Result{}, fmt.Errorf("retract code taint evidence: %w", err)
 			}
 		}
 	}
@@ -133,14 +139,14 @@ func (h CodeTaintEvidenceMaterializationHandler) Handle(ctx context.Context, int
 					ctx, codeTaintEvidenceSource, intent.ScopeID, intent.GenerationID,
 					uids, time.Now(),
 				); err != nil {
-					return Result{}, fmt.Errorf("record projected nodes: %w", err)
+					return reducercontract.Result{}, fmt.Errorf("record projected nodes: %w", err)
 				}
 			}
 		}
 		if err := h.Writer.WriteCodeTaintEvidence(
 			ctx, rows, intent.ScopeID, intent.GenerationID, codeTaintEvidenceSource,
 		); err != nil {
-			return Result{}, fmt.Errorf("write code taint evidence: %w", err)
+			return reducercontract.Result{}, fmt.Errorf("write code taint evidence: %w", err)
 		}
 	}
 
@@ -154,20 +160,20 @@ func (h CodeTaintEvidenceMaterializationHandler) Handle(ctx context.Context, int
 		"skip_retract", skipRetract,
 	)
 
-	return Result{
+	return reducercontract.Result{
 		IntentID:        intent.IntentID,
-		Domain:          DomainCodeTaintEvidence,
-		Status:          ResultStatusSucceeded,
+		Domain:          reducercontract.DomainCodeTaintEvidence,
+		Status:          reducercontract.ResultStatusSucceeded,
 		EvidenceSummary: fmt.Sprintf("materialized %d taint evidence row(s) from %d fact(s)", len(rows), len(envelopes)),
 		CanonicalWrites: len(rows),
-		SubSignals:      inputInvalidSubSignals(inputInvalidCount),
+		SubSignals:      factdecode.InputInvalidSubSignals(inputInvalidCount),
 	}, nil
 }
 
 // shouldSkipRetract reports whether the pre-write retraction must be skipped:
 // on the first attempt of the first generation for a scope there is nothing to
 // retract, so the sweep is avoided.
-func (h CodeTaintEvidenceMaterializationHandler) shouldSkipRetract(ctx context.Context, intent Intent) (bool, error) {
+func (h CodeTaintEvidenceMaterializationHandler) shouldSkipRetract(ctx context.Context, intent reducercontract.Intent) (bool, error) {
 	if h.PriorGenerationCheck == nil || intent.AttemptCount > 1 {
 		return false, nil
 	}
