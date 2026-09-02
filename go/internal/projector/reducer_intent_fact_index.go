@@ -41,13 +41,6 @@ func (idx *reducerIntentFactIndex) firstAcrossKinds(
 	return idx.lookup.FirstAcrossKinds(accept, kinds...)
 }
 
-func (idx *reducerIntentFactIndex) firstMatchingKindPredicate(
-	kindPredicate func(string) bool,
-	accept func(facts.Envelope) bool,
-) (facts.Envelope, bool) {
-	return idx.lookup.FirstMatchingKindPredicate(kindPredicate, accept)
-}
-
 // documentedReducerIntentProbeCount is the number of distinct reducer-intent
 // builder probes appendScopeGenerationReducerIntents calls, cited in README.md.
 // TestReducerIntentProbeCountMatchesDocumentedCount parses the dispatcher with

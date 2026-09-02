@@ -141,6 +141,22 @@
   code-interproc-evidence, SBOM-attestation-attachment,
   service-catalog-correlation, and secrets-IAM-trust-chain builders trigger on
   fact presence alone and carry no decode seam.
+- **Observability-coverage-correlation family (#6057)** — the
+  `observability_coverage_correlation` builder lives in `observabilitycoverage/`
+  and consumes the lookup like the families above. It is a decode-seam-bearing
+  family: its AWS branch decodes `aws_resource.resource_type` through its own
+  `factschema_decode_aws.go` against `sdk/go/factschema` (the `ec2` pattern).
+  Its `observabilityResourceTypes` set is a three-way mirror with root's
+  materialization trigger
+  (`observability_coverage_materialization_intents.go`) and the reducer's
+  `observabilityResourceSignals`
+  (`go/internal/reducer/observability_coverage_correlation_index.go`); a
+  resource type added to one copy must be added to all three. The root
+  `firstMatchingKindPredicate` forwarder was removed with this extraction —
+  this family was its last root caller; remaining root builders use
+  `firstOfKind`, `firstOfKindMatching`, and `firstAcrossKinds`, and the
+  seam's per-distinct-kind evaluation proof now lives in
+  `intent/fact_lookup_test.go`.
 - **CanonicalWriter interface boundary** — no caller in this package calls a Neo4j
   or NornicDB driver directly. All canonical writes go through `CanonicalWriter`.
   Backend-specific logic belongs in `internal/storage/cypher` adapters.
