@@ -47,9 +47,21 @@ stage_strip_ignored_files() {
 	# The exit status is captured rather than piped: a process substitution would
 	# hide a git failure (an unreadable or damaged index), and the loop would then
 	# succeed having removed nothing, silently staging an unfiltered copy.
+	# `if !` rather than `cmd; status=$?`: this file is sourced by a script under
+	# `set -e`, where a failing git aborts the shell BEFORE the status line runs,
+	# so the die below and the temp-file cleanup would never execute and the
+	# fail-closed behaviour this block exists for would be inert.
+	# `|| ignored_status=$?` rather than a bare command followed by `$?`: this
+	# file is sourced under `set -e`, where a failing git aborts the shell before
+	# the status line runs, so the die below and the temp-file cleanup would
+	# never execute and this fail-closed block would be inert. The `||` form also
+	# keeps git's REAL exit code -- inside an `if !` branch `$?` is the
+	# negation's status (always 0), which would print "exit 0" in a message whose
+	# only job is to report why git failed.
+	ignored_status=0
 	git -C "${repo_root}" -c core.excludesfile=/dev/null \
-		ls-files -z --others --ignored --exclude-standard -- "${src_rel}" >"${ignored_list}"
-	ignored_status=$?
+		ls-files -z --others --ignored --exclude-standard -- "${src_rel}" \
+		>"${ignored_list}" || ignored_status=$?
 	if [[ "${ignored_status}" -ne 0 ]]; then
 		rm -f "${ignored_list}"
 		die "stage_strip_ignored_files: git ls-files failed for ${src_rel} (exit ${ignored_status}); refusing to stage an unfiltered copy"
