@@ -229,3 +229,23 @@ func scopedBrowserSessionAuthRoute(r *http.Request) bool {
 		return false
 	}
 }
+
+// scopedTOTPEnrollmentRoute matches the two self-service TOTP MFA enrollment
+// mutations (issue #4986, PR #5065 review). These are auth mutations, not
+// tenant-filtered reads, but they require an authenticated identity and the
+// scoped-route allowlist is what AuthMiddleware checks before admitting a
+// browser-session (or scoped-token) request. The handlers resolve the acting
+// user from the AuthContext session subject and never accept a body-supplied
+// target user, so a caller with no resolvable local identity is rejected in
+// the handler. Without the allowlist entry, AuthMiddleware rejects the
+// profile-page enrollment before the handler runs.
+//
+// Both scopedHTTPRouteSupportsTenantFilter (auth_scoped_routes.go) and
+// scopedRouteNeedsNoCallerGrant (auth_browser_session_route_policy.go) call this, so
+// the allowlist and the all-scope admission split can never disagree about
+// which paths count as enrollment.
+func scopedTOTPEnrollmentRoute(r *http.Request) bool {
+	return r.Method == http.MethodPost &&
+		(r.URL.Path == "/api/v0/auth/local/mfa/totp/begin" ||
+			r.URL.Path == "/api/v0/auth/local/mfa/totp/confirm")
+}
