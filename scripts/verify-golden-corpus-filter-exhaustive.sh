@@ -97,7 +97,7 @@ is_covered() {
 	while IFS= read -r pattern; do
 		[[ -n "${pattern}" ]] || continue
 		path_covers "${pkg}" "${pattern}" && return 0
-	done <<<"${workflow_paths}"
+	done < <(printf '%s\n' "${workflow_paths}")
 	return 1
 }
 
@@ -117,7 +117,7 @@ while IFS= read -r line; do
 	[[ -n "${line}" && "${line}" != '#'* ]] || continue
 	excl_pkg=""
 	excl_reason=""
-	read -r excl_pkg excl_reason <<<"${line}"
+	read -r excl_pkg excl_reason < <(printf '%s\n' "${line}")
 	[[ -n "${excl_pkg}" ]] || continue
 	[[ -n "${excl_reason}" ]] || fail "exclusion entry for ${excl_pkg} carries no reason: ${exclusions}"
 	excluded_reason["${excl_pkg}"]="${excl_reason}"
@@ -135,7 +135,7 @@ declare -A compiled_set=()
 while IFS= read -r pkg; do
 	[[ -n "${pkg}" ]] || continue
 	compiled_set["${pkg}"]=1
-done <<<"${compiled_pkgs}"
+done < <(printf '%s\n' "${compiled_pkgs}")
 
 now_reachable=()
 for pkg in "${!not_reachable_pkgs[@]}"; do
@@ -171,7 +171,7 @@ while IFS= read -r pkg; do
 		continue
 	fi
 	uncovered+=("${pkg}")
-done <<<"${compiled_pkgs}"
+done < <(printf '%s\n' "${compiled_pkgs}")
 
 if [[ "${#uncovered[@]}" -gt 0 ]]; then
 	{
@@ -183,6 +183,6 @@ if [[ "${#uncovered[@]}" -gt 0 ]]; then
 	exit 1
 fi
 
-compiled_count="$(wc -l <<<"${compiled_pkgs}" | tr -d '[:space:]')"
+compiled_count="$(printf '%s\n' "${compiled_pkgs}" | wc -l | tr -d '[:space:]')"
 printf 'PASS: golden-corpus filter exhaustiveness: %s compiled package(s), %s covered by the workflow filter, %s explicitly excluded, 0 uncovered\n' \
 	"${compiled_count}" "${covered_count}" "${excluded_count}"
