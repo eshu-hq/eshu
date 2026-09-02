@@ -12,50 +12,42 @@ import (
 	"regexp"
 	"strings"
 	"testing"
+
+	"github.com/eshu-hq/eshu/go/internal/query/querytestutil"
 )
 
+// fakeGraphReader adapts querytestutil.FakeGraphReader to the field names this
+// package's tests already use. 155 test files in package query build it with
+// keyed literals, so the field names stay lowercase and those files are
+// untouched.
+//
+// The dispatch rules themselves are NOT duplicated here. They live in
+// querytestutil, which is where a handler family's tests reach them once the
+// family moves out of this package for #6060 -- a symbol declared in a _test.go
+// file cannot be imported across a package boundary, so a moved family could
+// not otherwise use this fake. Two copies of the rules would drift, and a fake
+// that no longer matches the real port keeps passing while guarding nothing.
 type fakeGraphReader struct {
 	run         func(context.Context, string, map[string]any) ([]map[string]any, error)
 	runIncoming func(context.Context, string, map[string]any) ([]map[string]any, error)
 	runSingle   func(context.Context, string, map[string]any) (map[string]any, error)
 }
 
-func (f fakeGraphReader) Run(ctx context.Context, cypher string, params map[string]any) ([]map[string]any, error) {
-	if strings.Contains(cypher, "incoming_entity_id") {
-		if f.runIncoming != nil {
-			return f.runIncoming(ctx, cypher, params)
-		}
-		return nil, nil
+// delegate builds the shared fake from this adapter's fields.
+func (f fakeGraphReader) delegate() querytestutil.FakeGraphReader {
+	return querytestutil.FakeGraphReader{
+		RunFn:         f.run,
+		RunIncomingFn: f.runIncoming,
+		RunSingleFn:   f.runSingle,
 	}
-	if isFakeDeadCodeNonFunctionCandidateQuery(cypher) {
-		return nil, nil
-	}
-	if f.run == nil {
-		return nil, nil
-	}
-	return f.run(ctx, cypher, params)
 }
 
-func isFakeDeadCodeNonFunctionCandidateQuery(cypher string) bool {
-	if !strings.Contains(cypher, "RETURN coalesce(e.uid, e.id) as entity_id") ||
-		!strings.Contains(cypher, "SKIP $skip") ||
-		!strings.Contains(cypher, "LIMIT $limit") {
-		return false
-	}
-	return strings.Contains(cypher, "e:Class") ||
-		strings.Contains(cypher, "e:Struct") ||
-		strings.Contains(cypher, "e:Interface")
+func (f fakeGraphReader) Run(ctx context.Context, cypher string, params map[string]any) ([]map[string]any, error) {
+	return f.delegate().Run(ctx, cypher, params)
 }
 
 func (f fakeGraphReader) RunSingle(ctx context.Context, cypher string, params map[string]any) (map[string]any, error) {
-	if f.runSingle != nil {
-		return f.runSingle(ctx, cypher, params)
-	}
-	rows, err := f.Run(ctx, cypher, params)
-	if err != nil || len(rows) == 0 {
-		return nil, err
-	}
-	return rows[0], nil
+	return f.delegate().RunSingle(ctx, cypher, params)
 }
 
 func TestHandleRelationshipsMatchesGraphEntityByExactName(t *testing.T) {
