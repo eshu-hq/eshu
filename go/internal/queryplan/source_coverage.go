@@ -66,10 +66,42 @@ type NonHotDisposition struct {
 	Operation    string `yaml:"operation,omitempty"`
 }
 
+// testOnlyHelperPackage is the directory under internal/query holding test
+// doubles that must live in ordinary .go files.
+//
+// A symbol declared in a _test.go file is not part of the importable package,
+// so the fakes a handler family needs cannot be declared that way once the
+// family moves to its own package (#6060, epic #6053). A graph fake has Run and
+// RunSingle methods and its RunSingle answers by calling Run, which is
+// indistinguishable here from a production graph read.
+//
+// It is excluded rather than registered because the manifest has nowhere honest
+// to put it: every entry there asserts a hotness disposition about a real
+// backend read. The package carries a matching invariant in its own AGENTS.md --
+// no production behavior, and no production file imports it.
+//
+// The exclusion is one exact directory, queryDir/querytestutil, and not every
+// directory that happens to carry the name. It is also conditional: the walk
+// fails unless validateTestOnlyHelperExclusion can still prove the package is
+// test-only, so the skip cannot quietly start swallowing production reads.
+const testOnlyHelperPackage = "querytestutil"
+
 // DiscoverQueryCallsites returns every direct Run or RunSingle selector call
 // in non-test Go files recursively beneath queryDir. Testdata plus hidden and
-// underscore-prefixed directories are excluded from the inventory.
+// underscore-prefixed directories are excluded from the inventory, as is the
+// single test-only helper package at queryDir/testOnlyHelperPackage.
+//
+// The walk fails rather than under-reporting. It rejects a helper package that
+// no longer proves itself test-only, and it rejects a non-test file anywhere
+// beneath queryDir that imports that package: an excluded subtree production
+// code can reach is not excludable. The proof and the skip are the same code
+// path on purpose, so an inventory that skips the package cannot be produced
+// without it.
 func DiscoverQueryCallsites(queryDir string) ([]SourceCoverage, error) {
+	helperDir := filepath.Join(queryDir, testOnlyHelperPackage)
+	if err := validateTestOnlyHelperExclusion(helperDir); err != nil {
+		return nil, fmt.Errorf("test-only helper package exclusion: %w", err)
+	}
 	coverage := make([]SourceCoverage, 0)
 	err := filepath.WalkDir(queryDir, func(path string, dirEntry fs.DirEntry, walkErr error) error {
 		if walkErr != nil {
@@ -77,13 +109,20 @@ func DiscoverQueryCallsites(queryDir string) ([]SourceCoverage, error) {
 		}
 		if dirEntry.IsDir() {
 			name := dirEntry.Name()
-			if path != queryDir && (name == "testdata" || strings.HasPrefix(name, ".") || strings.HasPrefix(name, "_")) {
+			if path != queryDir && (name == "testdata" ||
+				strings.HasPrefix(name, ".") || strings.HasPrefix(name, "_")) {
+				return filepath.SkipDir
+			}
+			if filepath.Clean(path) == filepath.Clean(helperDir) {
 				return filepath.SkipDir
 			}
 			return nil
 		}
 		if filepath.Ext(path) != ".go" || strings.HasSuffix(path, "_test.go") {
 			return nil
+		}
+		if err := rejectTestOnlyHelperImport(path); err != nil {
+			return err
 		}
 		calls, err := discoverFileQueryCallsites(path)
 		if err != nil {

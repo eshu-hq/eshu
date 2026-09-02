@@ -23,6 +23,39 @@ See `doc.go` for the godoc contract.
 
 - `MustMapField` — walks a decoded JSON/OpenAPI document one key at a time,
   failing with the offending key name.
+- `FakeGraphReader` — a graph-read double satisfying the two-method read port
+  handlers depend on. Dispatches on query text: incoming-edge traversals go to
+  `RunIncomingFn`, the dead-code scanner's paged candidate probe is answered
+  with no rows, everything else goes to `RunFn`. The zero value is usable.
+
+### Why FakeGraphReader's fields are exported
+
+An unexported field cannot be set from another package, so a type alias would
+carry the type without the ability to fill it in. The `Fn` suffix keeps the
+fields from colliding with the `Run` and `RunSingle` methods.
+
+### How root uses it without touching 155 files
+
+Root keeps an unexported `fakeGraphReader` adapter whose fields have the old
+lowercase names, and whose methods delegate to `FakeGraphReader`. 155 test files
+in package `query` build it with keyed literals and none of them changed.
+
+The dispatch rules are not duplicated in that adapter, and that is the point.
+Two copies drift, and a fake that no longer matches the real port keeps passing
+while guarding nothing.
+
+The delegation is proven rather than assumed. Deleting the incoming-edge
+dispatch from this package fails **10** root tests; a narrower mutation that
+keeps the branch but ignores `RunIncomingFn` fails 5. Both measured by running
+the whole root suite, 6539 tests, against a baseline of 0 failures.
+
+Measure that set with a full `go test ./internal/query/`, never with `-run`
+naming the tests you expect. `-run` measures your own filter: the first attempt
+here named four tests, saw four failures, and reported four as though it were
+the dependent set.
+
+Prefer this shape for the remaining shared fakes. Renaming fields across every
+consumer is the alternative, and it buys nothing the adapter does not.
 
 ## Dependencies
 
@@ -41,12 +74,25 @@ a `_test.go` file makes it unreachable from every other package's tests and
 silently undoes the split — the compiler reports it as an ordinary undefined
 symbol in the consuming package, not as a packaging mistake.
 
-This package is intended for tests only, and nothing outside a test imports it
-today (`rg -l 'query/querytestutil' --glob '*.go' --glob '!*_test.go'` returns
-nothing). While that holds, the linker drops it from production binaries. That
+This package is intended for tests only, and most of that is enforced rather
+than observed. `internal/queryplan` leaves this package out of the production
+query-callsite inventory, and `DiscoverQueryCallsites` refuses to produce that
+inventory unless the package still earns the omission — standard-library imports
+only, `Run`/`RunSingle` reached only by a fake's own `Run`/`RunSingle`
+delegating to its receiver, and no non-test file under `internal/query`
+importing this one. Each of those fails
+`TestHotCypherManifestCoversEveryProductionQueryCall` with the offending file
+named.
+
+Note the scope of that last one. It is the tree the inventory walks, which is
+where an importer would realistically appear, but this package sits under
+`go/internal`, so anything under `go/` could import it and only convention stops
+a package outside `internal/query` from doing so.
+
+While that holds, the linker drops this package from production binaries. That
 is a consequence of the invariant rather than a guarantee on its own: a
-production import would quietly pull `testing` into a shipped binary, so treat
-one as a defect to fix, not as a fact to document.
+production import would quietly pull `testing` into a shipped binary, so it is
+a defect to fix, not a fact to document.
 
 ## Related docs
 
