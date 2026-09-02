@@ -361,7 +361,7 @@ log now includes `resource_policy_permission_fact_count`.
 
 ### 13.3 PR4c permission-boundary intersection
 
-No-Regression Evidence: `go test ./internal/reducer -run
+No-Regression Evidence: `go test ./internal/reducer/iamcan -run
 'PermissionBoundary|NoPermissionBoundary|TestIAMCanPerformHandlerLoadsPermissionBoundaryFacts'
 -count=1` proves identity grants are emitted only when an attached boundary
 allows them, boundary Deny/conditioned/NotResource/missing-doc cases suppress the
@@ -369,7 +369,7 @@ edge, duplicate boundary evidence converges, and boundary statements without an
 attachment do not grant. `go test ./internal/collector/awscloud/services/iam/awssdk
 -run 'PermissionBoundary|BoundedManagedPolicyStatements' -count=1` proves the
 SDK helper fetches one boundary managed-policy document and preserves the
-existing attached-policy fan-out cap. `go test ./internal/reducer -run
+existing attached-policy fan-out cap. `go test ./internal/reducer/iamcan -run
 'IAMCanPerform' -count=1` keeps the broader CAN_PERFORM extractor/handler suite
 green. This slice adds in-memory boundary evaluation after the existing
 principal/resource join; it does not change the static `CAN_PERFORM` MERGE key,
@@ -412,7 +412,7 @@ No-Regression Evidence: `go test ./internal/collector/awscloud/services/iam/awss
 -count=1`, `go test ./internal/collector/awscloud/services/s3/awssdk
 ./internal/collector/awscloud/services/kms/awssdk -run
 'Derive.*ResourcePermissionStatements|ClientListKeysDerivesResourcePolicyStatements'
--count=1`, and `go test ./internal/reducer -run
+-count=1`, and `go test ./internal/reducer/iamcan -run
 'Conditioned.*Provenance|ConditionedGrantRecordsProvenanceOnlyMetric' -count=1`
 cover operator/key redaction, unknown operators, resource-policy source facts,
 withheld conditioned graph edges, and the new bounded condition-confidence
@@ -462,7 +462,7 @@ Benchmark Evidence: `go test ./internal/storage/cypher -run '^$' -bench
 -benchtime=100x -count=3` keeps the unchanged CAN_PERFORM writer at about
 `1.25-1.33 ms/op`, `1.97 MB/op`, and `25,068 allocs/op` for 5,000 rows.
 
-No-Regression Evidence: `go test ./internal/reducer -run
+No-Regression Evidence: `go test ./internal/reducer/iamcan -run
 'IAMCanPerform(Catalog|PR4e|ResourceTypeOfARN|UncataloguedAction)' -count=1`
 failed before the PR4e catalog and Lambda base-function ARN classifier were
 added, then passed. `go test ./internal/reducer/iamcan -run 'IAMCanPerform' -count=1`
