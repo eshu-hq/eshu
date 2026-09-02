@@ -54,6 +54,34 @@ The `dataflow_*.go` files own the opt-in value-flow/taint subsystem, gated on
   express the `ESHU_EMIT_DATAFLOW` gate, so the capability is registered as
   gated.
 
+## Engine test surface
+
+`csharp_cfg_dataflow_test.go`, `csharp_dead_code_roots_test.go`,
+`csharp_route_semantics_test.go`, and `engine_csharp_taint_test.go` (external
+package `csharp_test`, relocated from the parent by #6062) drive
+`parser.DefaultEngine().ParsePath` against inline and `tests/fixtures/deadcode`
+C# fixtures: 19 test functions, from
+`rg --no-filename -o '^func Test' csharp_cfg_dataflow_test.go csharp_dead_code_roots_test.go csharp_route_semantics_test.go engine_csharp_taint_test.go | wc -l`.
+They may import `internal/parser` because they sit in the external
+`csharp_test` package: an external test package is compiled separately from
+`internal/parser` itself, so the import does not close the cycle that
+`parsertest` would otherwise create. Keep that exception limited to black-box
+tests of the public parent engine. Shared assertions come from
+`go/internal/parser/parsertest`; `csharp_test_helpers_test.go` holds only
+`csharpFixturePath` (the external tests sit one level below `internal/parser`,
+out of reach of the parent's fixture helper) and `writeCSharpTestFile` (creates
+parent directories before delegating to `parsertest.WriteFile` for the nested
+`Controllers/` fixture). The 1 `package csharp` test file
+(`equivalence_dump_test.go`, the guarded `CS_PARSE_DUMP` differential) stays
+white-box and must not import the parent.
+
+Run the engine tests from the `go/` module root with
+`go test ./internal/parser/csharp -count=1`; pin a subset with
+`../scripts/go-test-run-guard.sh 4 TestDefaultEngineParsePathCSharp -- ./internal/parser/csharp -count=1`,
+which runs from the `go/` module root and fails closed if fewer than 4 tests
+match (minimum derived from
+`go test -list 'TestDefaultEngineParsePathCSharp' ./internal/parser/csharp`).
+
 Exports:
 
 - `Parse` extracts C# declarations, imports, calls, inheritance metadata, and

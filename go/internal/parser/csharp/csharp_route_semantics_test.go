@@ -1,11 +1,14 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package parser
+package csharp_test
 
 import (
 	"path/filepath"
 	"testing"
+
+	"github.com/eshu-hq/eshu/go/internal/parser"
+	"github.com/eshu-hq/eshu/go/internal/parser/parsertest"
 )
 
 func TestDefaultEngineParsePathCSharpASPNetAttributeRouteEntries(t *testing.T) {
@@ -13,7 +16,7 @@ func TestDefaultEngineParsePathCSharpASPNetAttributeRouteEntries(t *testing.T) {
 
 	repoRoot := t.TempDir()
 	filePath := filepath.Join(repoRoot, "Controllers", "OrdersController.cs")
-	writeTestFile(
+	writeCSharpTestFile(
 		t,
 		filePath,
 		`using Microsoft.AspNetCore.Mvc;
@@ -52,20 +55,20 @@ public sealed class HealthProbe {
 `,
 	)
 
-	engine, err := DefaultEngine()
+	engine, err := parser.DefaultEngine()
 	if err != nil {
 		t.Fatalf("DefaultEngine() error = %v, want nil", err)
 	}
 
-	got, err := engine.ParsePath(repoRoot, filePath, false, Options{})
+	got, err := engine.ParsePath(repoRoot, filePath, false, parser.Options{})
 	if err != nil {
 		t.Fatalf("ParsePath() error = %v, want nil", err)
 	}
 
-	assertFrameworksEqual(t, got, "aspnet")
-	assertNestedStringSliceEqual(t, got, "aspnet", "route_methods", []string{"GET", "POST", "DELETE"})
-	assertNestedStringSliceEqual(t, got, "aspnet", "route_paths", []string{"/api/orders/{id}", "/api/orders/search", "/api/orders"})
-	assertNestedRouteEntriesEqual(t, got, "aspnet", []map[string]string{
+	parsertest.AssertFrameworksEqual(t, got, "aspnet")
+	parsertest.AssertNestedStringSliceEqual(t, got, "aspnet", "route_methods", []string{"GET", "POST", "DELETE"})
+	parsertest.AssertNestedStringSliceEqual(t, got, "aspnet", "route_paths", []string{"/api/orders/{id}", "/api/orders/search", "/api/orders"})
+	parsertest.AssertNestedRouteEntriesEqual(t, got, "aspnet", []map[string]string{
 		{"method": "GET", "path": "/api/orders/{id}", "handler": "OrdersController.Get"},
 		{"method": "POST", "path": "/api/orders/search", "handler": "OrdersController.Search"},
 		{"method": "DELETE", "path": "/api/orders", "handler": "OrdersController.Delete"},
@@ -78,7 +81,7 @@ func TestDefaultEngineParsePathCSharpASPNetMinimalAPIRouteEntries(t *testing.T) 
 
 	repoRoot := t.TempDir()
 	filePath := filepath.Join(repoRoot, "Program.cs")
-	writeTestFile(
+	writeCSharpTestFile(
 		t,
 		filePath,
 		`using Microsoft.AspNetCore.Builder;
@@ -98,20 +101,20 @@ static string Dynamic() => "skip";
 `,
 	)
 
-	engine, err := DefaultEngine()
+	engine, err := parser.DefaultEngine()
 	if err != nil {
 		t.Fatalf("DefaultEngine() error = %v, want nil", err)
 	}
 
-	got, err := engine.ParsePath(repoRoot, filePath, false, Options{})
+	got, err := engine.ParsePath(repoRoot, filePath, false, parser.Options{})
 	if err != nil {
 		t.Fatalf("ParsePath() error = %v, want nil", err)
 	}
 
-	assertFrameworksEqual(t, got, "aspnet_minimal_api")
-	assertNestedStringSliceEqual(t, got, "aspnet_minimal_api", "route_methods", []string{"GET", "POST", "PUT", "PATCH"})
-	assertNestedStringSliceEqual(t, got, "aspnet_minimal_api", "route_paths", []string{"/health", "/orders", "/sync"})
-	assertNestedRouteEntriesEqual(t, got, "aspnet_minimal_api", []map[string]string{
+	parsertest.AssertFrameworksEqual(t, got, "aspnet_minimal_api")
+	parsertest.AssertNestedStringSliceEqual(t, got, "aspnet_minimal_api", "route_methods", []string{"GET", "POST", "PUT", "PATCH"})
+	parsertest.AssertNestedStringSliceEqual(t, got, "aspnet_minimal_api", "route_paths", []string{"/health", "/orders", "/sync"})
+	parsertest.AssertNestedRouteEntriesEqual(t, got, "aspnet_minimal_api", []map[string]string{
 		{"method": "GET", "path": "/health", "handler": "Health"},
 		{"method": "POST", "path": "/orders", "handler": "CreateOrder"},
 		{"method": "PUT", "path": "/sync", "handler": "Sync"},
