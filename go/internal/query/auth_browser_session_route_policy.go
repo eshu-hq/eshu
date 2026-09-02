@@ -91,6 +91,12 @@ const (
 	// reads are acceptable. Emitting scopedRouteNotEnabledReason here would
 	// send an operator to look for a missing allowlist entry that is present.
 	scopedRouteAllScopeGrantRequiredReason = "scoped_route_all_scope_grant_required"
+	// scopedRouteDeniedUnspecifiedReason is the defensive fallback for a
+	// blank reason code. It is unreachable from browserSessionRouteDenialReason,
+	// which never returns blank for a refusal; seeing it in the audit means a
+	// new caller passed an empty code, and it is deliberately distinct so that
+	// shows up rather than hiding inside one of the two real codes.
+	scopedRouteDeniedUnspecifiedReason = "scoped_route_denied_unspecified"
 )
 
 // browserSessionRouteDenialReason decides whether a browser-session request

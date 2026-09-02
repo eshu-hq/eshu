@@ -164,9 +164,14 @@ func recordScopedRouteAuthorizationDenied(
 // genuinely different causes and an operator has to be able to tell them
 // apart; see the reason-code constants in
 // auth_browser_session_route_policy.go. A blank or whitespace-only code falls
-// back to scopedRouteNotEnabledReason rather than emitting an event that
-// NormalizeEvent would reject, which would take its whole flush batch down
-// with it in the async appender's drain.
+// back to scopedRouteDeniedUnspecifiedReason rather than emitting an event
+// NormalizeEvent would reject: the durable GovernanceAuditStore.Append
+// normalizes all-or-nothing and returns before any INSERT, and the async
+// appender's per-event fallback (#5170) isolates the bad event from its batch
+// siblings, so the cost of emitting one would be a single lost event rather
+// than its whole batch. The fallback is distinct from both real codes on
+// purpose, so a caller that passes a blank code is visible in the audit
+// instead of being mislabelled as one of them.
 func recordScopedRouteAuthorizationDeniedWithReason(
 	r *http.Request,
 	audit GovernanceAuditAppender,
@@ -182,7 +187,7 @@ func recordScopedRouteAuthorizationDeniedWithReason(
 	}
 	reasonCode = strings.TrimSpace(reasonCode)
 	if reasonCode == "" {
-		reasonCode = scopedRouteNotEnabledReason
+		reasonCode = scopedRouteDeniedUnspecifiedReason
 	}
 	event := governanceaudit.Event{
 		Type:               governanceaudit.EventTypeReadAuthorization,
