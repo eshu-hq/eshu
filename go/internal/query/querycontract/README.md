@@ -83,7 +83,11 @@ call expressions, so a name appearing in a comment does not inflate the figure,
 four moved, `IntVal` from 89, `StringSliceVal` from 74, and `BoolVal` from 43.
 `FloatVal` arrived later and is the small one: 11 call sites across 8 root
 files, every one of them reaching it through the unexported
-`relationshipFloatVal` rather than an exported wrapper. The question that
+`relationshipFloatVal` rather than an exported wrapper. Those first four counts
+are the snapshot from when they moved and are deliberately not refreshed; the
+comment in `rowvalue.go` carries the same StringVal metric measured later
+(195 of 866), and the gap between the two is families leaving root, which is
+what this epic is for. The question that
 raises is whether the extra call frame costs anything on a hot row-decode loop.
 
 It does not: the compiler removes it entirely.
