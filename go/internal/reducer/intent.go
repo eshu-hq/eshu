@@ -380,6 +380,14 @@ const (
 	// every existing unqualified use in this package keeps compiling unchanged --
 	// container_image_identity_writer.go and its callers.
 	containerImageIdentityFactKind = reducercontract.ContainerImageIdentityFactKind
+	// sbomAttestationAttachmentFactKind aliases the exported contract constant
+	// so every existing unqualified use in this package keeps compiling
+	// unchanged -- the supply_chain_impact family's EvidencePath construction
+	// and active-fact-kind switches. See
+	// [reducercontract.SBOMAttestationAttachmentFactKind]: the
+	// sbom_attestation_attachment family itself moved to
+	// internal/reducer/sbomattest (#6061) and imports contract directly.
+	sbomAttestationAttachmentFactKind = reducercontract.SBOMAttestationAttachmentFactKind
 )
 
 // IsRetryable reports whether the supplied error explicitly opts into bounded

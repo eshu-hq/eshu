@@ -104,6 +104,8 @@ func payloadStrings(payload map[string]any, scalarKey string, sliceKey string) [
 	return sbomattest.PayloadStrings(payload, scalarKey, sliceKey)
 }
 
-// sbomAttestationAttachmentFactKind forwards to
-// [sbomattest.SBOMAttestationAttachmentFactKind].
-const sbomAttestationAttachmentFactKind = sbomattest.SBOMAttestationAttachmentFactKind
+// sbomAttestationAttachmentFactKind lives in intent.go, aliased directly from
+// [reducercontract.SBOMAttestationAttachmentFactKind] rather than forwarded
+// through sbomattest -- see that file's alias block, mirroring
+// containerImageIdentityFactKind's identical shape for the same reason
+// (#6431).

@@ -17,11 +17,14 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/truth"
 )
 
-// SBOMAttestationAttachmentFactKind is the fact kind this family writes its
-// attachment decisions under. Exported because the reducer root's
-// supply_chain_impact family (staying in root) joins against it directly, in
-// its EvidencePath construction and its active-fact-kind switches.
-const SBOMAttestationAttachmentFactKind = "reducer_sbom_attestation_attachment"
+// SBOMAttestationAttachmentFactKind aliases the fact kind this family writes
+// its attachment decisions under. See
+// [reducercontract.SBOMAttestationAttachmentFactKind]: it is declared in
+// contract, not here, because the reducer root's supply_chain_impact family
+// (staying in root) joins against it directly too, in its EvidencePath
+// construction and its active-fact-kind switches, and a family package must
+// not import the reducer root to reach a root-declared constant.
+const SBOMAttestationAttachmentFactKind = reducercontract.SBOMAttestationAttachmentFactKind
 
 // PostgresSBOMAttestationAttachmentWriter stores reducer-owned SBOM and
 // attestation attachment decisions in the shared fact store.
