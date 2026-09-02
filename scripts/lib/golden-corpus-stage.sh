@@ -34,12 +34,34 @@
 # --ignored --exclude-standard` reports neither of those categories.
 stage_strip_ignored_files() {
 	local fixture="$1" dest="$2" src_rel="tests/fixtures/ecosystems/${1}"
-	local ignored_path rel
-	while IFS= read -r ignored_path; do
+	local ignored_list ignored_status ignored_path rel
+	ignored_list="$(mktemp -t golden-corpus-ignored.XXXXXX)" ||
+		die "stage_strip_ignored_files: failed to create temporary file"
+	# -z: git C-quotes pathnames containing non-ASCII bytes, backslashes,
+	# newlines or control characters unless asked for NUL-delimited output, and a
+	# quoted name would make the rm below target a rendered string rather than the
+	# copied file -- leaving exactly the ignored file this function exists to drop.
+	# core.excludesfile=/dev/null: --exclude-standard otherwise consults the
+	# developer's GLOBAL excludes, which would strip an untracked fixture addition
+	# this function promises to keep. Repository ignore rules only.
+	# The exit status is captured rather than piped: a process substitution would
+	# hide a git failure (an unreadable or damaged index), and the loop would then
+	# succeed having removed nothing, silently staging an unfiltered copy.
+	git -C "${repo_root}" -c core.excludesfile=/dev/null \
+		ls-files -z --others --ignored --exclude-standard -- "${src_rel}" >"${ignored_list}"
+	ignored_status=$?
+	if [[ "${ignored_status}" -ne 0 ]]; then
+		rm -f "${ignored_list}"
+		die "stage_strip_ignored_files: git ls-files failed for ${src_rel} (exit ${ignored_status}); refusing to stage an unfiltered copy"
+	fi
+	while IFS= read -r -d '' ignored_path; do
 		[[ -n "${ignored_path}" ]] || continue
 		rel="${ignored_path#"${src_rel}"/}"
+		[[ "${rel}" != "${ignored_path}" ]] || continue
+		[[ "${rel}" != /* && "${rel}" != *..* ]] || continue
 		rm -rf -- "${dest:?stage_strip_ignored_files: dest must not be empty}/${rel}"
-	done < <(git -C "${repo_root}" ls-files --others --ignored --exclude-standard -- "${src_rel}")
+	done <"${ignored_list}"
+	rm -f "${ignored_list}"
 }
 
 stage_deterministic_git_fixture() {

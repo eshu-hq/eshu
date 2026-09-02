@@ -279,6 +279,7 @@ bash -n "${stage_lib}" || fail "corpus staging lib has a syntax error"
 . "${repo_root}/scripts/lib/golden-corpus-stage-cases.sh"
 [[ "${stage_cases_completed:-0}" -eq 1 ]] ||
 	fail "golden-corpus-stage-cases.sh did not run to completion (gutted, or returned early)"
+# shellcheck source=scripts/lib/golden-corpus-gate-integrity-cases.sh
 . "${repo_root}/scripts/lib/golden-corpus-gate-integrity-cases.sh"
 [[ "${gate_integrity_cases_completed:-0}" -eq 1 ]] || fail "golden-corpus-gate-integrity-cases.sh did not run to completion"
 maintenance_lib="${repo_root}/scripts/lib/golden-corpus-maintenance-drains.sh"

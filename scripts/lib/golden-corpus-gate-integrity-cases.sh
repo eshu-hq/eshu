@@ -169,4 +169,62 @@ rg --fixed-strings --quiet -- "docker" "${gate_integrity_nodocker_dir}/compose.l
 	fail "compose-mode preflight failure must name the missing tool: docker"
 rm -rf "${gate_integrity_nodocker_dir}"
 
+# ---------------------------------------------------------------------------
+# BITES (1b): a GLOBAL gitignore must not strip an untracked fixture addition.
+# --exclude-standard consults core.excludesfile, so without pinning it the gate
+# would silently drop a developer's in-progress fixture file whose name happens
+# to match a pattern in their personal global ignore -- contradicting the
+# guarantee that only repository ignore rules apply.
+gate_integrity_global_dir="$(mktemp -d -t golden-corpus-gate-integrity-global.XXXXXX)"
+printf 'scratch-*\n' >"${gate_integrity_global_dir}/globalignore"
+gate_integrity_global_add="${repo_root}/tests/fixtures/ecosystems/container-ci-lineage/scratch-wip.txt"
+[[ -e "${gate_integrity_global_add}" ]] &&
+	fail "test harness: unexpected pre-existing scratch-wip.txt in the fixture source"
+(
+	trap 'rm -f "${gate_integrity_global_add}"' EXIT
+	printf 'work in progress\n' >"${gate_integrity_global_add}"
+	gate_integrity_global_corpus="${gate_integrity_global_dir}/corpus"
+	mkdir -p "${gate_integrity_global_corpus}"
+	(
+		export GIT_CONFIG_GLOBAL="${gate_integrity_global_dir}/gitconfig"
+		git config --file "${GIT_CONFIG_GLOBAL}" core.excludesfile "${gate_integrity_global_dir}/globalignore"
+		corpus_dir="${gate_integrity_global_corpus}"
+		corpus_fixtures=(container-ci-lineage)
+		die() { fail "$*"; }
+		# shellcheck source=scripts/lib/golden-corpus-stage.sh
+		. "${repo_root}/scripts/lib/golden-corpus-stage.sh"
+		stage_minimal_corpus >/dev/null
+	)
+	[[ -f "${gate_integrity_global_corpus}/container-ci-lineage/scratch-wip.txt" ]] ||
+		fail "a globally-ignored (not repo-ignored) untracked fixture addition must still stage; only repository ignore rules may strip"
+)
+rm -rf "${gate_integrity_global_dir}"
+
+# BITES (1c): an ignored filename carrying a character git would C-quote must
+# still be removed. Without -z, git renders such a name as a quoted string and
+# the rm targets that rendering rather than the file, so the ignored file
+# survives -- the exact defect this staging step exists to prevent.
+gate_integrity_quote_dir="$(mktemp -d -t golden-corpus-gate-integrity-quote.XXXXXX)"
+gate_integrity_quote_add="${repo_root}/tests/fixtures/ecosystems/container-ci-lineage/naughty"$'	'"name.swp"
+(
+	trap 'rm -f "${gate_integrity_quote_add}"' EXIT
+	printf 'editor swap\n' >"${gate_integrity_quote_add}"
+	git -C "${repo_root}" check-ignore --quiet -- "${gate_integrity_quote_add}" ||
+		fail "test harness: planted swap file is not git-ignored; this BITES proves nothing"
+	gate_integrity_quote_corpus="${gate_integrity_quote_dir}/corpus"
+	mkdir -p "${gate_integrity_quote_corpus}"
+	(
+		corpus_dir="${gate_integrity_quote_corpus}"
+		corpus_fixtures=(container-ci-lineage)
+		die() { fail "$*"; }
+		# shellcheck source=scripts/lib/golden-corpus-stage.sh
+		. "${repo_root}/scripts/lib/golden-corpus-stage.sh"
+		stage_minimal_corpus >/dev/null
+	)
+	golden_corpus_assert_staged_pin "container-ci-lineage" \
+		"${gate_integrity_quote_corpus}/container-ci-lineage" \
+		"ci_cd_run:github_actions:acme:container-ci-lineage" "9100" fail
+)
+rm -rf "${gate_integrity_quote_dir}"
+
 gate_integrity_cases_completed=1
