@@ -3,7 +3,36 @@
 
 package reducer
 
-import "testing"
+import (
+	"context"
+	"testing"
+)
+
+// recordingObservabilityCoverageEdgeWriter is a minimal
+// [ObservabilityCoverageEdgeWriter] double for wiring tests: it only needs to
+// satisfy the interface for a pointer-identity check, never called here.
+// Package-local copy of the obscoverage test package's fuller recorder of the
+// same name (issue #6061) -- that one is unexported and cannot cross the
+// package boundary.
+type recordingObservabilityCoverageEdgeWriter struct{}
+
+func (*recordingObservabilityCoverageEdgeWriter) WriteObservabilityCoverageEdges(
+	context.Context, []map[string]any, string, string, string,
+) error {
+	return nil
+}
+
+func (*recordingObservabilityCoverageEdgeWriter) RetractObservabilityCoverageEdges(
+	context.Context, []string, string, string,
+) error {
+	return nil
+}
+
+func (*recordingObservabilityCoverageEdgeWriter) RetractObservabilityCoverageEdgesByUIDs(
+	context.Context, []string, []string, string,
+) error {
+	return nil
+}
 
 // TestImplementedDefaultDomainDefinitionsOmitsObservabilityCoverageMaterializationWithoutEdgeWriter
 // proves the additive registration gate: with a FactLoader but no coverage edge

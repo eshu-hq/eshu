@@ -1,9 +1,13 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package reducer
+package obscoverage
 
-import "sort"
+import (
+	"sort"
+
+	"github.com/eshu-hq/eshu/go/internal/reducer/payloadcore"
+)
 
 // classifyObservabilityCoverage turns the bounded coverage index into one
 // decision per observability coverage candidate plus one gap finding per
@@ -83,7 +87,7 @@ func classifyCoverageRelationship(
 	index observabilityCoverageIndex,
 ) (ObservabilityCoverageCorrelationDecision, string) {
 	base := baseCoverageDecision(object)
-	base.EvidenceFactIDs = compactStringSlice(object.factID, rel.factID)
+	base.EvidenceFactIDs = payloadcore.CompactStringSlice(object.factID, rel.factID)
 
 	// X-Ray service coverage resolves by service name, not a CloudResource uid;
 	// it is real coverage but inferred, so it stays derived/provenance-only until
@@ -214,7 +218,7 @@ func baseCoverageDecision(object observabilityObject) ObservabilityCoverageCorre
 		SourceKinds:            []string{"aws"},
 		ResourceClass:          object.resourceType,
 		FreshnessState:         "current",
-		EvidenceFactIDs:        compactStringSlice(object.factID),
+		EvidenceFactIDs:        payloadcore.CompactStringSlice(object.factID),
 	}
 }
 

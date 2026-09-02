@@ -8,24 +8,28 @@ import (
 	"strings"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
 	"github.com/eshu-hq/eshu/go/internal/reducer/payloadcore"
 )
 
 // Join modes for the AWS relationship edge projection (issue #805). These are
 // the closed enum the design doc §5.2 documents and the join_mode metric
 // dimension carries. They are bounded and stable so operators can group the
-// edge-projection counter by mode.
+// edge-projection counter by mode. joinModeARN, joinModeBareID, and
+// joinModeCorrelationAnchor are shared with observability coverage correlation
+// (issue #391), so their definitions live in [reducercontract]; these are
+// compatibility aliases for existing root call sites (issue #6061).
 const (
 	// joinModeARN resolves a target whose identity is an ARN (or ARN-shaped
 	// resource_id), the common case for IAM/S3/KMS/MQ targets.
-	joinModeARN = "arn"
+	joinModeARN = reducercontract.JoinModeARN
 	// joinModeBareID resolves a target whose identity is a bare AWS id such as
 	// vpc-…, subnet-…, sg-…, igw-….
-	joinModeBareID = "bare_id"
+	joinModeBareID = reducercontract.JoinModeBareID
 	// joinModeCorrelationAnchor resolves a name-only target (SageMaker
 	// endpoint->config, MQ shared-configuration fallback, CloudFormation
 	// stack-by-name) via the resource's published correlation anchors.
-	joinModeCorrelationAnchor = "correlation_anchor"
+	joinModeCorrelationAnchor = reducercontract.JoinModeCorrelationAnchor
 	// joinModeUnresolved labels relationship facts whose endpoint could not be
 	// resolved to a materialized CloudResource node in this scope generation.
 	joinModeUnresolved = "unresolved"

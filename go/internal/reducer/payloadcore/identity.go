@@ -3,7 +3,11 @@
 
 package payloadcore
 
-import "strings"
+import (
+	"strings"
+
+	"github.com/eshu-hq/eshu/go/internal/facts"
+)
 
 // RepositoryIDFromReducerScope extracts the repository identity from a reducer
 // scope ID, accepting an already-canonical "repository:" scope or a
@@ -48,4 +52,18 @@ func OCIRepositoryID(payload map[string]any) string {
 		return ""
 	}
 	return "oci-registry://" + registry + "/" + repository
+}
+
+// CloudResourceUID computes the stable CloudResource node identity shared by
+// every cloud-provider materialization and edge-projection family (AWS,
+// Azure, GCP, security-group, and observability-coverage). The identity
+// inputs match the aws_resource fact's StableFactKey inputs so a relationship
+// or coverage fact's resolved target identity recomputes the same uid.
+func CloudResourceUID(accountID, region, resourceType, resourceID string) string {
+	return facts.StableID("CloudResource", map[string]any{
+		"account_id":    accountID,
+		"region":        region,
+		"resource_id":   resourceID,
+		"resource_type": resourceType,
+	})
 }

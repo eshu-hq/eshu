@@ -1,12 +1,14 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package reducer
+package obscoverage
 
 import (
 	"sort"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/reducer/factdecode"
+	"github.com/eshu-hq/eshu/go/internal/reducer/payloadcore"
 )
 
 // observabilityCoverageEdgeTally is the bounded, honest accounting surface for
@@ -50,7 +52,7 @@ func newObservabilityCoverageEdgeTally() observabilityCoverageEdgeTally {
 // reprojections.
 func ExtractObservabilityCoverageEdgeRows(
 	envelopes []facts.Envelope,
-) ([]map[string]any, observabilityCoverageEdgeTally, []quarantinedFact, error) {
+) ([]map[string]any, observabilityCoverageEdgeTally, []factdecode.QuarantinedFact, error) {
 	tally := newObservabilityCoverageEdgeTally()
 	decisions, quarantined, err := BuildObservabilityCoverageDecisions(envelopes)
 	if err != nil {
@@ -102,12 +104,12 @@ func ExtractObservabilityCoverageEdgeRows(
 	}
 
 	sort.Slice(rows, func(a, b int) bool {
-		left := anyToString(rows[a]["coverage_signal"]) + ":" +
-			anyToString(rows[a]["observability_uid"]) + "->" +
-			anyToString(rows[a]["target_uid"])
-		right := anyToString(rows[b]["coverage_signal"]) + ":" +
-			anyToString(rows[b]["observability_uid"]) + "->" +
-			anyToString(rows[b]["target_uid"])
+		left := payloadcore.AnyToString(rows[a]["coverage_signal"]) + ":" +
+			payloadcore.AnyToString(rows[a]["observability_uid"]) + "->" +
+			payloadcore.AnyToString(rows[a]["target_uid"])
+		right := payloadcore.AnyToString(rows[b]["coverage_signal"]) + ":" +
+			payloadcore.AnyToString(rows[b]["observability_uid"]) + "->" +
+			payloadcore.AnyToString(rows[b]["target_uid"])
 		return left < right
 	})
 	return rows, tally, quarantined, nil

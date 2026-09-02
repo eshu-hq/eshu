@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package reducer
+package obscoverage
 
 import (
 	"context"
@@ -11,6 +11,9 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
+	"github.com/eshu-hq/eshu/go/internal/reducer/factwrite"
+	"github.com/eshu-hq/eshu/go/internal/reducer/payloadcore"
 	"github.com/eshu-hq/eshu/go/internal/truth"
 )
 
@@ -21,7 +24,7 @@ const observabilityCoverageCorrelationFactKind = "reducer_observability_coverage
 // writes through the canonical reducer fact insert path with a stable,
 // retry-idempotent identity — no new table and no schema DDL.
 type PostgresObservabilityCoverageCorrelationWriter struct {
-	DB  workloadIdentityExecer
+	DB  factwrite.Execer
 	Now func() time.Time
 }
 
@@ -36,7 +39,7 @@ func (w PostgresObservabilityCoverageCorrelationWriter) WriteObservabilityCovera
 	if w.DB == nil {
 		return ObservabilityCoverageCorrelationWriteResult{}, fmt.Errorf("observability coverage correlation database is required")
 	}
-	now := reducerWriterNow(w.Now)
+	now := factwrite.Now(w.Now)
 	for _, decision := range write.Decisions {
 		payload := observabilityCoverageCorrelationPayload(write, decision)
 		payloadJSON, err := json.Marshal(payload)
@@ -45,13 +48,13 @@ func (w PostgresObservabilityCoverageCorrelationWriter) WriteObservabilityCovera
 		}
 		if _, err := w.DB.ExecContext(
 			ctx,
-			canonicalReducerFactInsertQuery,
+			factwrite.SingleInsertQuery,
 			observabilityCoverageCorrelationFactID(write, decision),
 			write.ScopeID,
 			write.GenerationID,
 			observabilityCoverageCorrelationFactKind,
 			observabilityCoverageCorrelationStableFactKey(write, decision),
-			reducerFactCollectorKind(write.SourceSystem),
+			factwrite.CollectorKind(write.SourceSystem),
 			facts.SourceConfidenceInferred,
 			write.SourceSystem,
 			write.IntentID,
@@ -125,7 +128,7 @@ func observabilityCoverageCorrelationPayload(
 	decision ObservabilityCoverageCorrelationDecision,
 ) map[string]any {
 	return map[string]any{
-		"reducer_domain":             string(DomainObservabilityCoverageCorrelation),
+		"reducer_domain":             string(reducercontract.DomainObservabilityCoverageCorrelation),
 		"intent_id":                  write.IntentID,
 		"scope_id":                   write.ScopeID,
 		"generation_id":              write.GenerationID,
@@ -143,15 +146,15 @@ func observabilityCoverageCorrelationPayload(
 		"provenance_only":            decision.ProvenanceOnly,
 		"resolution_mode":            decision.ResolutionMode,
 		"source_class":               decision.SourceClass,
-		"source_classes":             uniqueSortedStrings(decision.SourceClasses),
+		"source_classes":             payloadcore.UniqueSortedStrings(decision.SourceClasses),
 		"source_kind":                decision.SourceKind,
-		"source_kinds":               uniqueSortedStrings(decision.SourceKinds),
+		"source_kinds":               payloadcore.UniqueSortedStrings(decision.SourceKinds),
 		"source_outcome":             decision.SourceOutcome,
-		"source_outcomes":            uniqueSortedStrings(decision.SourceOutcomes),
+		"source_outcomes":            payloadcore.UniqueSortedStrings(decision.SourceOutcomes),
 		"resource_class":             decision.ResourceClass,
 		"freshness_state":            decision.FreshnessState,
-		"candidate_target_uids":      uniqueSortedStrings(decision.CandidateTargetUIDs),
-		"evidence_fact_ids":          uniqueSortedStrings(decision.EvidenceFactIDs),
+		"candidate_target_uids":      payloadcore.UniqueSortedStrings(decision.CandidateTargetUIDs),
+		"evidence_fact_ids":          payloadcore.UniqueSortedStrings(decision.EvidenceFactIDs),
 		"source_layers":              observabilityCoverageSourceLayers(decision),
 	}
 }
@@ -175,5 +178,5 @@ func observabilityCoverageSourceLayers(decision ObservabilityCoverageCorrelation
 	if len(layers) == 0 {
 		layers = append(layers, string(truth.LayerObservedResource))
 	}
-	return uniqueSortedStrings(layers)
+	return payloadcore.UniqueSortedStrings(layers)
 }
