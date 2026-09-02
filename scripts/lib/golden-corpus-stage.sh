@@ -136,16 +136,32 @@ stage_minimal_corpus() {
 			git -C "${corpus_dir}/${fixture}" add -A >/dev/null 2>&1
 			git -C "${corpus_dir}/${fixture}" update-index --add --cacheinfo \
 				160000,5420542054205420542054205420542054205420,vendor/deployable-source >/dev/null 2>&1
-			# Inline identity for the same reason as
+			# Inline identity AND dates for the same reason as
 			# stage_deterministic_git_fixture: environment variables
 			# outrank the `git config user.*` set above.
+			#
+			# The dates matter here even though this fixture's HEAD is not
+			# pin-asserted today -- only its SHA-1 length is checked. Leaving
+			# one commit in the staging path reading GIT_AUTHOR_DATE from the
+			# caller's shell would make "staging is hermetic" true of some
+			# commits and not others, which is the kind of partial guarantee
+			# nobody remembers the shape of when this fixture does get pinned.
 			GIT_AUTHOR_NAME="Golden Gate" \
 				GIT_AUTHOR_EMAIL="gate@eshu.local" \
 				GIT_COMMITTER_NAME="Golden Gate" \
 				GIT_COMMITTER_EMAIL="gate@eshu.local" \
+				GIT_AUTHOR_DATE="2026-08-04T12:00:00Z" \
+				GIT_COMMITTER_DATE="2026-08-04T12:00:00Z" \
 				git -C "${corpus_dir}/${fixture}" commit -m "initial" >/dev/null 2>&1
 			# Annotated tag for peeled-SHA coverage.
-			git -C "${corpus_dir}/${fixture}" tag -a v1.0.0-annotated -m "annotated tag" HEAD >/dev/null 2>&1
+			#
+			# A tag object records a tagger name, email and date, all read from
+			# GIT_COMMITTER_*, so an annotated tag is no more hermetic than a
+			# commit until those are pinned too.
+			GIT_COMMITTER_NAME="Golden Gate" \
+				GIT_COMMITTER_EMAIL="gate@eshu.local" \
+				GIT_COMMITTER_DATE="2026-08-04T12:00:00Z" \
+				git -C "${corpus_dir}/${fixture}" tag -a v1.0.0-annotated -m "annotated tag" HEAD >/dev/null 2>&1
 			# Lightweight tag.
 			git -C "${corpus_dir}/${fixture}" tag lightweight HEAD >/dev/null 2>&1
 		fi
