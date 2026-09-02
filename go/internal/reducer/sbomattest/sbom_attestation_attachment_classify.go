@@ -1,11 +1,12 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package reducer
+package sbomattest
 
 import (
 	"strings"
 
+	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
 	"github.com/eshu-hq/eshu/go/internal/reducer/payloadcore"
 	sbomv1 "github.com/eshu-hq/eshu/sdk/go/factschema/sbom/v1"
 )
@@ -18,7 +19,7 @@ func classifySBOMAttachmentDocument(
 	policy := doc.verificationPolicy
 	evidence := []string{doc.factID}
 	if verifyFact, ok := index.verifications[doc.documentID]; ok {
-		verification = normalizedVerificationStatus(payloadcore.FirstNonBlank(
+		verification = NormalizedVerificationStatus(payloadcore.FirstNonBlank(
 			verifyFact.verificationResult,
 			verifyFact.verificationStatus,
 		))
@@ -110,8 +111,8 @@ func sbomAttachmentDecision(
 		ServiceIDs:                           anchors.services,
 		WarningSummaries:                     warnings.summaries,
 		WarningSummaryCount:                  warnings.count,
-		EvidenceFactIDs:                      uniqueSortedStrings(append(evidence, anchors.evidenceFactIDs...)),
-		MissingEvidence:                      uniqueSortedStrings(append(missing, anchors.missingEvidence...)),
+		EvidenceFactIDs:                      payloadcore.UniqueSortedStrings(append(evidence, anchors.evidenceFactIDs...)),
+		MissingEvidence:                      payloadcore.UniqueSortedStrings(append(missing, anchors.missingEvidence...)),
 		SourceLayerKinds:                     sbomAttachmentSourceLayerKinds(hasImageReferrer, anchors.hasUsableAnchor()),
 	}
 }
@@ -222,10 +223,10 @@ func sbomAttachmentAnchorsForDocument(
 		out.workloads = append(out.workloads, image.workloads...)
 		out.services = append(out.services, image.services...)
 	}
-	out.repositories = uniqueSortedStrings(out.repositories)
-	out.workloads = uniqueSortedStrings(out.workloads)
-	out.services = uniqueSortedStrings(out.services)
-	out.evidenceFactIDs = uniqueSortedStrings(out.evidenceFactIDs)
+	out.repositories = payloadcore.UniqueSortedStrings(out.repositories)
+	out.workloads = payloadcore.UniqueSortedStrings(out.workloads)
+	out.services = payloadcore.UniqueSortedStrings(out.services)
+	out.evidenceFactIDs = payloadcore.UniqueSortedStrings(out.evidenceFactIDs)
 	if len(images) > 0 && usable == 0 {
 		out.missingEvidence = []string{"repository_to_image_evidence_missing"}
 	}
@@ -241,7 +242,7 @@ func sbomAttachmentImageAnchorUsable(image sbomAttachmentImageAnchor) bool {
 		return false
 	}
 	switch image.outcome {
-	case string(ContainerImageIdentityExactDigest), string(ContainerImageIdentityTagResolved):
+	case string(reducercontract.ContainerImageIdentityExactDigest), string(reducercontract.ContainerImageIdentityTagResolved):
 		return true
 	default:
 		return false
@@ -264,7 +265,7 @@ func warningSummaryRollup(warnings []sbomAttachmentWarningEvidence) warningSumma
 		count += warning.occurrenceCount
 	}
 	return warningSummarySet{
-		summaries: uniqueSortedStrings(out),
+		summaries: payloadcore.UniqueSortedStrings(out),
 		count:     count,
 	}
 }
@@ -295,4 +296,26 @@ func defaultStatus(value string, fallback string) string {
 		return fallback
 	}
 	return value
+}
+
+// NormalizedVerificationStatus canonicalizes a raw verification status
+// string reported by an sbom.document, attestation.statement, or
+// attestation.signature_verification fact into one of "passed", "failed",
+// or the lowercased/trimmed original value. Exported because the reducer
+// root's container image identity SLSA join (container_image_identity_slsa.go)
+// reuses the exact same vocabulary normalization for its own
+// attestation.signature_verification join, rather than maintaining a second,
+// independently-drifting copy. Moved here from
+// sbom_attestation_attachment.go to keep that file under the package's
+// 500-line cap.
+func NormalizedVerificationStatus(raw string) string {
+	status := strings.ToLower(strings.TrimSpace(raw))
+	switch status {
+	case "verified", "success", "succeeded", "pass":
+		return "passed"
+	case "failure", "rejected", "error":
+		return "failed"
+	default:
+		return status
+	}
 }

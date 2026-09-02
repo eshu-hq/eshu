@@ -458,3 +458,85 @@ func TestApplySLSADigestRevisionUnverifiedDoesNotConferBuildProvenance(t *testin
 		t.Fatalf("containerImageBuiltFromRows = %#v, want no BUILT_FROM row for unverified SLSA-only attribution", rows)
 	}
 }
+
+// attestationSLSAProvenanceFactWithMaterials, attestationStatementFact, and
+// attestationSignatureVerificationFact are local copies of the
+// sbom_attestation family's test fixture helpers (see
+// sbom_attestation_attachment_test.go and sbom_attestation_attachment_slsa_test.go
+// in internal/reducer/sbomattest). They carry no sbom_attestation-specific
+// logic and Go test files cannot share unexported symbols across package
+// boundaries, so they are duplicated here rather than exported cross-package
+// for test-only use.
+
+// attestationSLSAProvenanceFactWithMaterials extends attestationSLSAProvenanceFact
+// with the #5456 materials/config_source fields, using the same raw wire-shape
+// keys the SBOM runtime collector emits (go/internal/collector/sbomruntime/attestation.go).
+func attestationSLSAProvenanceFactWithMaterials(
+	factID string,
+	statementID string,
+	predicateType string,
+	builderID string,
+	materials []map[string]any,
+	configSource map[string]any,
+) facts.Envelope {
+	payload := map[string]any{
+		"statement_id":   statementID,
+		"predicate_type": predicateType,
+	}
+	if builderID != "" {
+		payload["builder_id"] = builderID
+	}
+	if len(materials) > 0 {
+		payload["materials"] = materials
+	}
+	if configSource != nil {
+		payload["config_source"] = configSource
+	}
+	return facts.Envelope{
+		FactID:   factID,
+		FactKind: facts.AttestationSLSAProvenanceFactKind,
+		Payload:  payload,
+	}
+}
+
+func attestationStatementFact(
+	factID string,
+	statementID string,
+	subjectDigest string,
+	statementDigest string,
+	parseStatus string,
+	verificationStatus string,
+) facts.Envelope {
+	return facts.Envelope{
+		FactID:   factID,
+		FactKind: facts.AttestationStatementFactKind,
+		Payload: map[string]any{
+			"statement_id":        statementID,
+			"statement_digest":    statementDigest,
+			"subject_digests":     []any{subjectDigest},
+			"parse_status":        parseStatus,
+			"verification_status": verificationStatus,
+			"predicate_type":      "https://slsa.dev/provenance/v1",
+			"attestation_format":  "in-toto",
+			"attestation_version": "1.0",
+		},
+	}
+}
+
+func attestationSignatureVerificationFact(
+	factID string,
+	statementID string,
+	result string,
+	policy string,
+) facts.Envelope {
+	return facts.Envelope{
+		FactID:   factID,
+		FactKind: facts.AttestationSignatureVerificationFactKind,
+		Payload: map[string]any{
+			"statement_id":        statementID,
+			"verification_result": result,
+			"verification_policy": policy,
+			"verification_status": result,
+		},
+	}
+}

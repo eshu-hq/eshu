@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package reducer
+package sbomattest
 
 import (
 	"context"
@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
 )
 
 const (
@@ -136,12 +137,12 @@ func TestSBOMAttestationAttachmentHandlerLoadsActiveSubjectEvidence(t *testing.T
 		Writer:     writer,
 	}
 
-	result, err := handler.Handle(context.Background(), Intent{
+	result, err := handler.Handle(context.Background(), reducercontract.Intent{
 		IntentID:     "intent-sbom",
 		ScopeID:      "sbom://oci/" + testSBOMSubjectDigest,
 		GenerationID: "generation-sbom",
 		SourceSystem: "sbom_attestation",
-		Domain:       DomainSBOMAttestationAttachment,
+		Domain:       reducercontract.DomainSBOMAttestationAttachment,
 		Cause:        "sbom attachment observed",
 	})
 	if err != nil {
@@ -186,12 +187,12 @@ func TestSBOMAttestationAttachmentHandlerLoadsActiveDocumentEvidenceForReferrer(
 		Writer:     writer,
 	}
 
-	result, err := handler.Handle(context.Background(), Intent{
+	result, err := handler.Handle(context.Background(), reducercontract.Intent{
 		IntentID:     "intent-sbom-referrer",
 		ScopeID:      "oci-registry://registry.example.com/team/api",
 		GenerationID: "generation-oci",
 		SourceSystem: "oci_registry",
-		Domain:       DomainSBOMAttestationAttachment,
+		Domain:       reducercontract.DomainSBOMAttestationAttachment,
 		Cause:        "OCI referrer subject evidence observed",
 	})
 	if err != nil {
@@ -280,7 +281,7 @@ func TestPostgresSBOMAttestationAttachmentWriterPersistsAllStatuses(t *testing.T
 	if len(rows) != 2 {
 		t.Fatalf("decoded rows = %d, want 2", len(rows))
 	}
-	if got, want := rows[0].FactKind, sbomAttestationAttachmentFactKind; got != want {
+	if got, want := rows[0].FactKind, SBOMAttestationAttachmentFactKind; got != want {
 		t.Fatalf("fact_kind = %#v, want %#v", got, want)
 	}
 	payload := unmarshalSBOMAttestationAttachmentPayload(t, rows[0].Payload)
@@ -486,4 +487,19 @@ func ociImageReferrerFact(
 			"artifact_type":       artifactType,
 		},
 	}
+}
+
+// assertContainsString is a local copy of the reducer root's generic
+// case-insensitive containment assertion (see
+// supply_chain_impact_version_match_helpers_test.go there); it carries no
+// sbom_attestation-specific logic, so it is duplicated here rather than
+// exported cross-package for a single test-only helper.
+func assertContainsString(t *testing.T, values []string, want string) {
+	t.Helper()
+	for _, value := range values {
+		if strings.EqualFold(value, want) {
+			return
+		}
+	}
+	t.Fatalf("%#v does not contain %q", values, want)
 }

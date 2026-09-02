@@ -5,6 +5,7 @@ package payloadcore
 
 import (
 	"fmt"
+	"strconv"
 	"strings"
 )
 
@@ -21,6 +22,18 @@ func PayloadStr(payload map[string]any, key string) string {
 		return ""
 	}
 	return s
+}
+
+// PayloadInt parses payload[key] (via PayloadStr) as a base-10 integer,
+// returning 0 for an absent key, a blank value, or a value that fails to
+// parse.
+func PayloadInt(payload map[string]any, key string) int {
+	value := PayloadStr(payload, key)
+	if value == "" {
+		return 0
+	}
+	parsed, _ := strconv.Atoi(value)
+	return parsed
 }
 
 // PayloadString renders payload[key] as a trimmed string, returning "" for an
@@ -253,4 +266,37 @@ func AnyToString(v any) string {
 		return s
 	}
 	return fmt.Sprintf("%v", v)
+}
+
+// PayloadStrings collects the trimmed, deduplicated, sorted union of
+// payload[scalarKey] (as a single value) and payload[sliceKey] (as a
+// []string or []any). Exported because it predates this family and the
+// reducer root's secrets/IAM, security-alert-reconciliation, and
+// supply-chain-impact call sites reuse it verbatim for unrelated payload
+// shapes; it stayed here rather than moving to payloadcore alongside this
+// migration to keep this PR's diff scoped to the sbom_attestation family.
+func PayloadStrings(payload map[string]any, scalarKey string, sliceKey string) []string {
+	var values []string
+	if value := PayloadString(payload, scalarKey); value != "" {
+		values = append(values, value)
+	}
+	raw, ok := payload[sliceKey]
+	if !ok {
+		return UniqueSortedStrings(values)
+	}
+	switch typed := raw.(type) {
+	case []string:
+		for _, value := range typed {
+			if strings.TrimSpace(value) != "" {
+				values = append(values, strings.TrimSpace(value))
+			}
+		}
+	case []any:
+		for _, value := range typed {
+			if text := strings.TrimSpace(fmt.Sprint(value)); text != "" {
+				values = append(values, text)
+			}
+		}
+	}
+	return UniqueSortedStrings(values)
 }

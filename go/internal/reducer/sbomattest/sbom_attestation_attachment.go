@@ -1,17 +1,20 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package reducer
+package sbomattest
 
 import (
 	"context"
 	"fmt"
 	"sort"
-	"strings"
 
 	"go.opentelemetry.io/otel/metric"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
+	"github.com/eshu-hq/eshu/go/internal/reducer/factdecode"
+	"github.com/eshu-hq/eshu/go/internal/reducer/factload"
+	"github.com/eshu-hq/eshu/go/internal/reducer/payloadcore"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
 )
 
@@ -152,24 +155,24 @@ type activeSBOMAttestationAttachmentFactLoader interface {
 // SBOMAttestationAttachmentHandler attaches SBOM and attestation documents to
 // image digests only when subject evidence is explicit.
 type SBOMAttestationAttachmentHandler struct {
-	FactLoader  FactLoader
+	FactLoader  factload.FactLoader
 	Writer      SBOMAttestationAttachmentWriter
 	Instruments *telemetry.Instruments
 }
 
 // Handle executes one SBOM/attestation attachment reducer intent.
-func (h SBOMAttestationAttachmentHandler) Handle(ctx context.Context, intent Intent) (Result, error) {
-	if intent.Domain != DomainSBOMAttestationAttachment {
-		return Result{}, fmt.Errorf("sbom_attestation_attachment handler does not accept domain %q", intent.Domain)
+func (h SBOMAttestationAttachmentHandler) Handle(ctx context.Context, intent reducercontract.Intent) (reducercontract.Result, error) {
+	if intent.Domain != reducercontract.DomainSBOMAttestationAttachment {
+		return reducercontract.Result{}, fmt.Errorf("sbom_attestation_attachment handler does not accept domain %q", intent.Domain)
 	}
 	if h.FactLoader == nil {
-		return Result{}, fmt.Errorf("sbom attestation attachment fact loader is required")
+		return reducercontract.Result{}, fmt.Errorf("sbom attestation attachment fact loader is required")
 	}
 	if h.Writer == nil {
-		return Result{}, fmt.Errorf("sbom attestation attachment writer is required")
+		return reducercontract.Result{}, fmt.Errorf("sbom attestation attachment writer is required")
 	}
 
-	envelopes, err := loadFactsForKinds(
+	envelopes, err := factload.LoadFactsForKinds(
 		ctx,
 		h.FactLoader,
 		intent.ScopeID,
@@ -177,11 +180,11 @@ func (h SBOMAttestationAttachmentHandler) Handle(ctx context.Context, intent Int
 		sbomAttestationAttachmentFactKinds(),
 	)
 	if err != nil {
-		return Result{}, fmt.Errorf("load sbom attestation attachment facts: %w", err)
+		return reducercontract.Result{}, fmt.Errorf("load sbom attestation attachment facts: %w", err)
 	}
 	envelopes, err = h.loadActiveSBOMAttestationAttachmentFactsUntilStable(ctx, envelopes)
 	if err != nil {
-		return Result{}, fmt.Errorf("load active sbom attachment evidence facts: %w", err)
+		return reducercontract.Result{}, fmt.Errorf("load active sbom attachment evidence facts: %w", err)
 	}
 
 	decisions, quarantinedFacts, err := buildSBOMAttestationAttachmentDecisionsWithQuarantine(envelopes)
@@ -189,14 +192,14 @@ func (h SBOMAttestationAttachmentHandler) Handle(ctx context.Context, intent Int
 		// A non-decode error (a fatal condition partitionDecodeFailures did
 		// NOT quarantine) fails the whole intent so the durable queue
 		// triages it correctly.
-		return Result{}, fmt.Errorf("build sbom attestation attachment decisions: %w", err)
+		return reducercontract.Result{}, fmt.Errorf("build sbom attestation attachment decisions: %w", err)
 	}
 	// Per-fact isolation: a malformed sbom/attestation fact (a missing
 	// required document_id/statement_id identity field) is quarantined as a
 	// visible input_invalid dead-letter — counter + structured error log —
 	// while every valid document/statement still produces an attachment
 	// decision below.
-	inputInvalidCount := recordQuarantinedFacts(ctx, h.Instruments, DomainSBOMAttestationAttachment, intent.ScopeID, intent.GenerationID, quarantinedFacts)
+	inputInvalidCount := factdecode.RecordQuarantinedFacts(ctx, h.Instruments, reducercontract.DomainSBOMAttestationAttachment, intent.ScopeID, intent.GenerationID, quarantinedFacts)
 	counts := sbomAttestationAttachmentCounts(decisions)
 	writeResult, err := h.Writer.WriteSBOMAttestationAttachments(ctx, SBOMAttestationAttachmentWrite{
 		IntentID:     intent.IntentID,
@@ -207,17 +210,17 @@ func (h SBOMAttestationAttachmentHandler) Handle(ctx context.Context, intent Int
 		Decisions:    decisions,
 	})
 	if err != nil {
-		return Result{}, fmt.Errorf("write sbom attestation attachments: %w", err)
+		return reducercontract.Result{}, fmt.Errorf("write sbom attestation attachments: %w", err)
 	}
 	h.emitCounters(ctx, counts)
 
-	return Result{
+	return reducercontract.Result{
 		IntentID:        intent.IntentID,
-		Domain:          DomainSBOMAttestationAttachment,
-		Status:          ResultStatusSucceeded,
+		Domain:          reducercontract.DomainSBOMAttestationAttachment,
+		Status:          reducercontract.ResultStatusSucceeded,
 		EvidenceSummary: sbomAttestationAttachmentSummary(len(decisions), counts, writeResult.CanonicalWrites),
 		CanonicalWrites: writeResult.CanonicalWrites,
-		SubSignals:      inputInvalidSubSignals(inputInvalidCount),
+		SubSignals:      factdecode.InputInvalidSubSignals(inputInvalidCount),
 	}, nil
 }
 
@@ -231,7 +234,7 @@ func (h SBOMAttestationAttachmentHandler) loadActiveSBOMAttestationAttachmentFac
 	}
 	envelopes, err := loader.ListActiveSBOMAttestationAttachmentFacts(ctx, digests)
 	if err != nil {
-		return nil, classifyFactLoadError(err)
+		return nil, factload.ClassifyFactLoadError(err)
 	}
 	return envelopes, nil
 }
@@ -255,9 +258,9 @@ func (h SBOMAttestationAttachmentHandler) loadActiveSBOMAttestationAttachmentFac
 		if err != nil {
 			return nil, err
 		}
-		requested = uniqueSortedStrings(append(requested, next...))
+		requested = payloadcore.UniqueSortedStrings(append(requested, next...))
 		envelopes = appendUniqueFactEnvelopes(envelopes, active...)
-		next = missingStringValues(sbomAttachmentActiveKeys(envelopes), requested)
+		next = payloadcore.MissingStrings(sbomAttachmentActiveKeys(envelopes), requested)
 	}
 	return envelopes, nil
 }
@@ -274,7 +277,7 @@ func (h SBOMAttestationAttachmentHandler) emitCounters(
 			continue
 		}
 		h.Instruments.SBOMAttestationAttachments.Add(ctx, int64(counts[status]), metric.WithAttributes(
-			telemetry.AttrDomain(string(DomainSBOMAttestationAttachment)),
+			telemetry.AttrDomain(string(reducercontract.DomainSBOMAttestationAttachment)),
 			telemetry.AttrOutcome(string(status)),
 		))
 	}
@@ -311,7 +314,7 @@ func BuildSBOMAttestationAttachmentDecisions(envelopes []facts.Envelope) []SBOMA
 // buildSBOMAttestationAttachmentDecisionsWithQuarantine is the
 // quarantine-aware variant Handle calls directly: it returns the same
 // decisions BuildSBOMAttestationAttachmentDecisions does, plus the
-// []quarantinedFact any malformed sbom/attestation fact produced, so the
+// []factdecode.QuarantinedFact any malformed sbom/attestation fact produced, so the
 // reducer intent path can record each as a visible input_invalid dead-letter.
 // A non-decode fatal error (never expected on the production path — every
 // buildSBOMAttachmentIndex branch either quarantines a classified decode
@@ -319,7 +322,7 @@ func BuildSBOMAttestationAttachmentDecisions(envelopes []facts.Envelope) []SBOMA
 // intent for durable triage rather than silently degrading.
 func buildSBOMAttestationAttachmentDecisionsWithQuarantine(
 	envelopes []facts.Envelope,
-) ([]SBOMAttestationAttachmentDecision, []quarantinedFact, error) {
+) ([]SBOMAttestationAttachmentDecision, []factdecode.QuarantinedFact, error) {
 	index, quarantined, err := buildSBOMAttachmentIndex(envelopes)
 	if err != nil {
 		return nil, nil, err
@@ -345,7 +348,7 @@ func sbomAttestationAttachmentFactKinds() []string {
 		facts.AttestationSignatureVerificationFactKind,
 		facts.SBOMWarningFactKind,
 		facts.OCIImageReferrerFactKind,
-		containerImageIdentityFactKind,
+		reducercontract.ContainerImageIdentityFactKind,
 	}
 }
 
@@ -407,49 +410,49 @@ func sbomAttachmentActiveKeys(envelopes []facts.Envelope) []string {
 		case facts.SBOMDocumentFactKind:
 			keys = append(
 				keys,
-				payloadString(envelope.Payload, "subject_digest"),
-				payloadString(envelope.Payload, "document_digest"),
-				payloadString(envelope.Payload, "document_id"),
+				payloadcore.PayloadString(envelope.Payload, "subject_digest"),
+				payloadcore.PayloadString(envelope.Payload, "document_digest"),
+				payloadcore.PayloadString(envelope.Payload, "document_id"),
 			)
 		case facts.SBOMComponentFactKind:
-			keys = append(keys, payloadString(envelope.Payload, "document_id"))
+			keys = append(keys, payloadcore.PayloadString(envelope.Payload, "document_id"))
 		case facts.SBOMDependencyRelationshipFactKind:
-			keys = append(keys, payloadString(envelope.Payload, "document_id"))
+			keys = append(keys, payloadcore.PayloadString(envelope.Payload, "document_id"))
 		case facts.SBOMExternalReferenceFactKind:
-			keys = append(keys, payloadString(envelope.Payload, "document_id"))
+			keys = append(keys, payloadcore.PayloadString(envelope.Payload, "document_id"))
 		case facts.AttestationStatementFactKind:
-			keys = append(keys, payloadStrings(envelope.Payload, "subject_digest", "subject_digests")...)
+			keys = append(keys, PayloadStrings(envelope.Payload, "subject_digest", "subject_digests")...)
 			keys = append(
 				keys,
-				payloadString(envelope.Payload, "statement_digest"),
-				payloadString(envelope.Payload, "payload_digest"),
-				payloadString(envelope.Payload, "statement_id"),
+				payloadcore.PayloadString(envelope.Payload, "statement_digest"),
+				payloadcore.PayloadString(envelope.Payload, "payload_digest"),
+				payloadcore.PayloadString(envelope.Payload, "statement_id"),
 			)
 		case facts.AttestationSignatureVerificationFactKind:
 			keys = append(
 				keys,
-				payloadString(envelope.Payload, "statement_id"),
-				payloadString(envelope.Payload, "document_id"),
+				payloadcore.PayloadString(envelope.Payload, "statement_id"),
+				payloadcore.PayloadString(envelope.Payload, "document_id"),
 			)
 		case facts.AttestationSLSAProvenanceFactKind:
-			keys = append(keys, payloadString(envelope.Payload, "statement_id"))
+			keys = append(keys, payloadcore.PayloadString(envelope.Payload, "statement_id"))
 		case facts.SBOMWarningFactKind:
 			keys = append(
 				keys,
-				payloadString(envelope.Payload, "document_id"),
-				payloadString(envelope.Payload, "statement_id"),
+				payloadcore.PayloadString(envelope.Payload, "document_id"),
+				payloadcore.PayloadString(envelope.Payload, "statement_id"),
 			)
 		case facts.OCIImageReferrerFactKind:
 			keys = append(
 				keys,
-				payloadString(envelope.Payload, "subject_digest"),
-				payloadString(envelope.Payload, "referrer_digest"),
+				payloadcore.PayloadString(envelope.Payload, "subject_digest"),
+				payloadcore.PayloadString(envelope.Payload, "referrer_digest"),
 			)
-		case containerImageIdentityFactKind:
-			keys = append(keys, payloadString(envelope.Payload, "digest"))
+		case reducercontract.ContainerImageIdentityFactKind:
+			keys = append(keys, payloadcore.PayloadString(envelope.Payload, "digest"))
 		}
 	}
-	return uniqueSortedStrings(keys)
+	return payloadcore.UniqueSortedStrings(keys)
 }
 
 func appendUniqueFactEnvelopes(envelopes []facts.Envelope, active ...facts.Envelope) []facts.Envelope {
@@ -477,14 +480,6 @@ func appendUniqueFactEnvelopes(envelopes []facts.Envelope, active ...facts.Envel
 	return envelopes
 }
 
-func normalizedVerificationStatus(raw string) string {
-	status := strings.ToLower(strings.TrimSpace(raw))
-	switch status {
-	case "verified", "success", "succeeded", "pass":
-		return "passed"
-	case "failure", "rejected", "error":
-		return "failed"
-	default:
-		return status
-	}
-}
+// NormalizedVerificationStatus lives in
+// sbom_attestation_attachment_classify.go (moved out to keep this file under
+// the package's 500-line cap).

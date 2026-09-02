@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package reducer_test
+package sbomattest_test
 
 import (
 	"context"
@@ -11,7 +11,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/collector/sbomruntime"
 	"github.com/eshu-hq/eshu/go/internal/facts"
-	"github.com/eshu-hq/eshu/go/internal/reducer"
+	"github.com/eshu-hq/eshu/go/internal/reducer/sbomattest"
 	"github.com/eshu-hq/eshu/go/internal/scope"
 	"github.com/eshu-hq/eshu/go/internal/workflow"
 )
@@ -28,14 +28,14 @@ func TestRuntimeSBOMFactsAttachToOCIReferrerSubjectTruth(t *testing.T) {
 	doc := firstFactKind(t, runtimeFacts, facts.SBOMDocumentFactKind)
 	documentDigest := payloadString(doc.Payload, "document_digest")
 
-	decisions := reducer.BuildSBOMAttestationAttachmentDecisions(append(
+	decisions := sbomattest.BuildSBOMAttestationAttachmentDecisions(append(
 		runtimeFacts,
 		ociImageReferrerFact("referrer-runtime", runtimeSubjectDigest, documentDigest, "application/vnd.cyclonedx+json"),
 	))
 	if len(decisions) != 1 {
 		t.Fatalf("decisions = %d, want 1: %#v", len(decisions), decisions)
 	}
-	assertRuntimeAttachmentDecision(t, decisions[0], reducer.SBOMAttachmentAttachedParseOnly, 1)
+	assertRuntimeAttachmentDecision(t, decisions[0], sbomattest.SBOMAttachmentAttachedParseOnly, 1)
 	if got, want := decisions[0].VerificationStatus, "not_configured"; got != want {
 		t.Fatalf("VerificationStatus = %q, want %q", got, want)
 	}
@@ -51,20 +51,20 @@ func TestRuntimeSBOMFactsPreserveSubjectMismatchEvidence(t *testing.T) {
 	doc := firstFactKind(t, runtimeFacts, facts.SBOMDocumentFactKind)
 	documentDigest := payloadString(doc.Payload, "document_digest")
 
-	decisions := reducer.BuildSBOMAttestationAttachmentDecisions(append(
+	decisions := sbomattest.BuildSBOMAttestationAttachmentDecisions(append(
 		runtimeFacts,
 		ociImageReferrerFact("referrer-runtime-mismatch", runtimeOtherDigest, documentDigest, "application/vnd.cyclonedx+json"),
 	))
 	if len(decisions) != 1 {
 		t.Fatalf("decisions = %d, want 1: %#v", len(decisions), decisions)
 	}
-	assertRuntimeAttachmentDecision(t, decisions[0], reducer.SBOMAttachmentSubjectMismatch, 0)
+	assertRuntimeAttachmentDecision(t, decisions[0], sbomattest.SBOMAttachmentSubjectMismatch, 0)
 }
 
 func runtimeSBOMFacts(t *testing.T) []facts.Envelope {
 	t.Helper()
 
-	raw, err := os.ReadFile("../collector/sbomdocument/testdata/cyclonedx_image_subject.json")
+	raw, err := os.ReadFile("../../collector/sbomdocument/testdata/cyclonedx_image_subject.json")
 	if err != nil {
 		t.Fatalf("read fixture: %v", err)
 	}
@@ -125,8 +125,8 @@ func firstFactKind(t *testing.T, envs []facts.Envelope, kind string) facts.Envel
 
 func assertRuntimeAttachmentDecision(
 	t *testing.T,
-	decision reducer.SBOMAttestationAttachmentDecision,
-	status reducer.SBOMAttachmentStatus,
+	decision sbomattest.SBOMAttestationAttachmentDecision,
+	status sbomattest.SBOMAttachmentStatus,
 	canonicalWrites int,
 ) {
 	t.Helper()

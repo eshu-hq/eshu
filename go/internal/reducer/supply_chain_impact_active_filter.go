@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/reducer/payloadcore"
 )
 
 func appendUniqueSupplyChainImpactFacts(envelopes []facts.Envelope, active ...facts.Envelope) []facts.Envelope {
@@ -80,22 +81,9 @@ func mergeSupplyChainImpactFactFilters(filters ...SupplyChainImpactFactFilter) S
 	}
 }
 
+// missingStringValues forwards to [payloadcore.MissingStrings].
 func missingStringValues(current []string, initial []string) []string {
-	if len(current) == 0 {
-		return nil
-	}
-	seen := make(map[string]struct{}, len(initial))
-	for _, value := range initial {
-		seen[value] = struct{}{}
-	}
-	missing := make([]string, 0, len(current))
-	for _, value := range current {
-		if _, ok := seen[value]; ok {
-			continue
-		}
-		missing = append(missing, value)
-	}
-	return missing
+	return payloadcore.MissingStrings(current, initial)
 }
 
 func supplyChainImpactFilter(envelopes []facts.Envelope) SupplyChainImpactFactFilter {

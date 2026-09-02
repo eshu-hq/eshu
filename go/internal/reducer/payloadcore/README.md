@@ -28,10 +28,11 @@ do not belong here even when more than one family reads them.
 - Payload access: `PayloadStr`, `PayloadString`, `SemanticPayloadString`,
   `PayloadMap`, `PayloadOrderedStrings`, `SemanticPayloadStringSlice`,
   `PayloadBool`, `PayloadBoolPointerValue`, `BoolPayload`, `CopyPayload`,
-  `MapSlice`, `ToStringSlice`, `AnyToString`.
+  `MapSlice`, `ToStringSlice`, `AnyToString`, `PayloadInt`, `PayloadStrings`.
 - String normalization: `UniqueSortedStrings`, `AppendUniqueString`,
   `CompactStringSlice`, `CleanFactFilterValues`, `NonNilStrings`,
-  `FirstNonBlank`, `DerefString`, `DerefBool`, `SortedKeys`, `FormatTally`.
+  `FirstNonBlank`, `DerefString`, `DerefBool`, `SortedKeys`, `FormatTally`,
+  `MissingStrings`.
 - Identity derivation: `RepositoryIDFromReducerScope`,
   `SupplyChainWorkloadIDsFromPayload`, `OCIRepositoryID`.
 - Source ordering: `SourceOrderKey`, `PreferMaxSourceOrderKey`,

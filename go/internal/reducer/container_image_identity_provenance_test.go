@@ -191,3 +191,52 @@ func containerImageIdentityReducerFact(factID string, digest string, repositoryI
 		},
 	}
 }
+
+// sbomDocumentFact, sbomAttachmentDecisionsByDocument, and stringsToAny are
+// local copies of the sbom_attestation family's test fixture helpers (see
+// sbom_attestation_attachment_test.go and sbom_attestation_attachment_anchors_test.go
+// in internal/reducer/sbomattest). They carry no sbom_attestation-specific
+// logic and Go test files cannot share unexported symbols across package
+// boundaries, so they are duplicated here rather than exported cross-package
+// for test-only use.
+
+func sbomDocumentFact(
+	factID string,
+	documentID string,
+	subjectDigest string,
+	documentDigest string,
+	parseStatus string,
+	verificationStatus string,
+) facts.Envelope {
+	return facts.Envelope{
+		FactID:   factID,
+		FactKind: facts.SBOMDocumentFactKind,
+		Payload: map[string]any{
+			"document_id":         documentID,
+			"document_digest":     documentDigest,
+			"subject_digest":      subjectDigest,
+			"parse_status":        parseStatus,
+			"verification_status": verificationStatus,
+			"format":              "cyclonedx",
+			"spec_version":        "1.6",
+		},
+	}
+}
+
+func sbomAttachmentDecisionsByDocument(
+	decisions []SBOMAttestationAttachmentDecision,
+) map[string]SBOMAttestationAttachmentDecision {
+	out := make(map[string]SBOMAttestationAttachmentDecision, len(decisions))
+	for _, decision := range decisions {
+		out[decision.DocumentID] = decision
+	}
+	return out
+}
+
+func stringsToAny(values []string) []any {
+	out := make([]any, 0, len(values))
+	for _, value := range values {
+		out = append(out, value)
+	}
+	return out
+}
