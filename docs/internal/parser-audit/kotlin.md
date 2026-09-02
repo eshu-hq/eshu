@@ -8,14 +8,14 @@ five payload buckets — `functions`, `classes`, `interfaces`, `variables`,
 `imports`, `function_calls` — plus cyclomatic complexity, dead-code root
 classification, smart-cast flow, scope-function transparency, receiver/type
 inference, and package-bounded sibling return-type lookups. The 14 source files
-are exercised by 18 test files in `go/internal/parser/kotlin/`
-(54 test functions): 16 `engine_kotlin_*_test.go` files in the external
-`kotlin_test` package, plus two in-package tests (`walk_count_test.go` and
-`equivalence_dump_test.go`). Two files (`kotlin_dead_code_roots_test.go`,
-`kotlin_spring_route_semantics_test.go`) stay in `go/internal/parser/` as
-unrelocated residual. Both are Kotlin-only: every test in them is a
-`...ParsePathKotlin...` case, and the route file became Kotlin-only when the
-Java relocation split its Java cases into
+are exercised by 20 test files in `go/internal/parser/kotlin/`
+(59 test functions): 18 files in the external `kotlin_test` package (16
+`engine_kotlin_*_test.go` files plus the relocated
+`kotlin_dead_code_roots_test.go` and `kotlin_spring_route_semantics_test.go`),
+plus two in-package tests (`walk_count_test.go` and
+`equivalence_dump_test.go`). The two relocated files are Kotlin-only: every
+test in them is a `...ParsePathKotlin...` case, and the route file became
+Kotlin-only when the Java relocation split its Java cases into
 `java/java_spring_route_semantics_test.go`.
 Coverage is broad and intentional.
 
@@ -127,12 +127,23 @@ actual AST dispatch in `ast_walk.go:walkNode`.
 
 ## Verified-by-Test Constructs
 
-Most Kotlin engine regressions now live in `go/internal/parser/kotlin/` as the
-external `kotlin_test` package. They use `parser.DefaultEngine()` →
+The Kotlin-only engine regressions live in `go/internal/parser/kotlin/` as the
+external `kotlin_test` package, but they are NOT all of the Kotlin coverage.
+Three Kotlin-specific tests deliberately remain in the parent package and are
+not reached by `go test ./internal/parser/kotlin`:
+
+- `engine_long_tail_test.go:154` `TestDefaultEngineParsePathKotlinFixtures`
+- `engine_managed_oo_test.go:297` `TestDefaultEngineParsePathKotlinSecondaryConstructors`
+- `engine_managed_oo_test.go:330` `TestDefaultEngineParsePathKotlinImportMetadata`
+
+They live in cross-language parent suites alongside the other languages' cases,
+so relocating them would fragment those suites rather than tidy them. Run
+`go test ./internal/parser/... ` to cover Kotlin fully; the child package alone
+is not sufficient. They use `parser.DefaultEngine()` →
 `ParsePath()` with the registered Kotlin definition and exercise the full AST
-walk from outside the implementation package. `kotlin_dead_code_roots_test.go` and `kotlin_spring_route_semantics_test.go`
-stay in `go/internal/parser/` because they have not been relocated yet, not
-because they span languages — both hold only Kotlin cases. The Swift golden-fixture gate
+walk from outside the implementation package; `kotlin_dead_code_roots_test.go`
+and `kotlin_spring_route_semantics_test.go` relocated there with #6062 — both
+hold only Kotlin cases. The Swift golden-fixture gate
 that used to share a file with the Kotlin one now lives on its own at
 `go/internal/parser/engine_swift_symbol_gate_test.go`. The `kotlin/` package
 also keeps same-package tests for package-owned equivalence and walk-count
@@ -152,7 +163,7 @@ behavior.
 | Function `suspend` flag (true/false) | `kotlin/engine_kotlin_suspend_test.go:14` |
 | Extension function `class_context` = Receiver | `kotlin/engine_kotlin_call_metadata_test.go:123-125` |
 | Function `line_number`, `end_line` | `kotlin/engine_kotlin_treesitter_test.go:54-55` |
-| Secondary constructor `constructor_kind` and `class_context` | `kotlin_dead_code_roots_test.go:101` |
+| Secondary constructor `constructor_kind` and `class_context` | `kotlin/kotlin_dead_code_roots_test.go:104` |
 | Interface method `class_context` = Interface name | `kotlin/engine_kotlin_interface_test.go:52` |
 
 ### Classes bucket
@@ -257,10 +268,10 @@ behavior.
 
 | Test | File |
 |---|---|
-| All 16 of 19 root kinds verified | `kotlin_dead_code_roots_test.go:11` |
-| Non-root functions do not get kinds | `kotlin_dead_code_roots_test.go:116-132` |
-| Deadcode fixture expected roots | `kotlin_dead_code_roots_test.go:135` |
-| Multiline annotations still classify correctly | `kotlin_dead_code_roots_test.go:164` |
+| All 16 of 19 root kinds verified | `kotlin/kotlin_dead_code_roots_test.go:14` |
+| Non-root functions do not get kinds | `kotlin/kotlin_dead_code_roots_test.go:119-135` |
+| Deadcode fixture expected roots | `kotlin/kotlin_dead_code_roots_test.go:138` |
+| Multiline annotations still classify correctly | `kotlin/kotlin_dead_code_roots_test.go:167` |
 
 ### Repository boundary
 
@@ -297,7 +308,7 @@ tests:
 - **`decorators` field** — always initialized to an empty `[]string{}` slice
   (`ast_functions.go:33`). No test populates it with actual decorator values.
 - **`IndexSource` path** — `ast_functions.go:69-71` stores `firstLineText` when
-  `options.IndexSource` is true. Only `kotlin_dead_code_roots_test.go:94` passes
+  `options.IndexSource` is true. Only `kotlin/kotlin_dead_code_roots_test.go:97` passes
   `IndexSource: true` but does not assert the `source` field value.
 - **`Schedules` annotation** — listed alongside `Scheduled` in
   `dead_code_roots.go:94` (`kotlinHasAnyAnnotation(annotations, "Scheduled",
@@ -328,14 +339,14 @@ tests:
 | Ambiguous sibling return types (conflicting types) discarded | `repository_returns.go:79-83` (exercised by multi-package tests with conflicts) |
 | RepoRoot boundary prevents scanning outside repository | `kotlin/engine_kotlin_repo_boundary_test.go:15,52` |
 | Multiline class declarations with wrapped constructor parameters | `kotlin/engine_kotlin_treesitter_test.go:14` |
-| Multiline annotations for dead-code root classification | `kotlin_dead_code_roots_test.go:164` |
+| Multiline annotations for dead-code root classification | `kotlin/kotlin_dead_code_roots_test.go:167` |
 | Nullable types (`?`) stripped during canonicalization | `type_reference.go:8-14`, `kotlin/engine_kotlin_function_return_alias_test.go:112` |
 | Generic type parameter substitution (`T` → concrete type) | `type_reference.go:69-97`, `kotlin/engine_kotlin_smart_cast_test.go:120` |
 | Parenthesized receiver chain normalization | `kotlin/engine_kotlin_function_return_alias_test.go:373,857` |
 | Delegated property (`by lazy`) type inference and `call_kind` | `kotlin/engine_kotlin_lazy_property_test.go:14` |
 | Cast receiver types via `as` expression (variable and inline) | `kotlin/engine_kotlin_call_metadata_test.go:127,174` |
-| Interface method set aggregation for override/implementation classification | `kotlin_dead_code_roots_test.go:11` |
-| `@Scheduled` double-count prevention (single `Scheduled` also matched by `Schedules` or-query) | `kotlin_dead_code_roots_test.go:111` |
+| Interface method set aggregation for override/implementation classification | `kotlin/kotlin_dead_code_roots_test.go:14` |
+| `@Scheduled` double-count prevention (single `Scheduled` also matched by `Schedules` or-query) | `kotlin/kotlin_dead_code_roots_test.go:114` |
 
 ## Edge Cases NOT Considered
 
@@ -418,7 +429,7 @@ constructs (enums, try/catch, lambdas, type aliases).
 5. **Add a general lambda test** — beyond `by lazy` delegates, test that calls
    inside standalone lambdas are extracted.
 
-6. **Add an `IndexSource` assertion** — the `kotlin_dead_code_roots_test.go:94`
+6. **Add an `IndexSource` assertion** — the `kotlin/kotlin_dead_code_roots_test.go:97`
    test passes `IndexSource: true` but does not assert the `source` field.
    Add an explicit assertion.
 

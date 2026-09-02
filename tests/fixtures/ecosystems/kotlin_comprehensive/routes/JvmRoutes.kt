@@ -4,7 +4,7 @@
 package example
 
 // #5395 route query-proof matrix: cribs the JAX-RS/Micronaut/Ktor shape proven
-// by internal/parser/kotlin_spring_route_semantics_test.go's
+// by internal/parser/kotlin/kotlin_spring_route_semantics_test.go's
 // TestDefaultEngineParsePathKotlinJVMRouteSemantics fixture, so the parser
 // output this file produces is guaranteed to emit exact route_entries for all
 // three frameworks in one combined walk.

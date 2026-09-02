@@ -4,7 +4,6 @@
 package parser
 
 import (
-	"reflect"
 	"testing"
 )
 
@@ -15,89 +14,15 @@ import (
 // package keeps its own copy in engine_javascript_test_helpers_test.go.
 
 // frameworkSemanticsMap, nestedSemanticsSection, assertFrameworksEqual,
-// assertNestedStringSliceEqual, assertNestedRouteEntriesEqual,
-// findNamedBucketItem, and findAllNamedBucketItems used to live in
-// engine_javascript_semantics_test.go. That file relocated to
-// internal/parser/javascript as part of #6062, but Python, Java, C#, PHP, Go,
-// TypeScript, and TSX engine tests across this package still call them, so
-// this shared, uncontended helper file keeps its own copy for the parent
-// package. The relocated javascript_test package keeps an independent copy in
-// engine_javascript_semantics_test.go, which is where those seven helpers
-// landed — not in engine_javascript_test_helpers_test.go.
-
-func frameworkSemanticsMap(t *testing.T, payload map[string]any) map[string]any {
-	t.Helper()
-
-	semantics, ok := payload["framework_semantics"].(map[string]any)
-	if !ok {
-		t.Fatalf("framework_semantics = %T, want map[string]any", payload["framework_semantics"])
-	}
-	return semantics
-}
-
-func nestedSemanticsSection(t *testing.T, payload map[string]any, section string) map[string]any {
-	t.Helper()
-
-	semantics := frameworkSemanticsMap(t, payload)
-	nested, ok := semantics[section].(map[string]any)
-	if !ok {
-		t.Fatalf("framework_semantics.%s = %T, want map[string]any", section, semantics[section])
-	}
-	return nested
-}
-
-func assertFrameworksEqual(t *testing.T, payload map[string]any, want ...string) {
-	t.Helper()
-
-	semantics := frameworkSemanticsMap(t, payload)
-	got, ok := semantics["frameworks"].([]string)
-	if !ok {
-		t.Fatalf("framework_semantics.frameworks = %T, want []string", semantics["frameworks"])
-	}
-	if want == nil {
-		want = []string{}
-	}
-	if !reflect.DeepEqual(got, want) {
-		t.Fatalf("frameworks = %#v, want %#v", got, want)
-	}
-}
-
-func assertNestedStringSliceEqual(
-	t *testing.T,
-	payload map[string]any,
-	section string,
-	key string,
-	want []string,
-) {
-	t.Helper()
-
-	nested := nestedSemanticsSection(t, payload, section)
-	got, ok := nested[key].([]string)
-	if !ok {
-		t.Fatalf("framework_semantics.%s.%s = %T, want []string", section, key, nested[key])
-	}
-	if !reflect.DeepEqual(got, want) {
-		t.Fatalf("framework_semantics.%s.%s = %#v, want %#v", section, key, got, want)
-	}
-}
-
-func assertNestedRouteEntriesEqual(
-	t *testing.T,
-	payload map[string]any,
-	section string,
-	want []map[string]string,
-) {
-	t.Helper()
-
-	nested := nestedSemanticsSection(t, payload, section)
-	raw, ok := nested["route_entries"].([]map[string]string)
-	if !ok {
-		t.Fatalf("framework_semantics.%s.route_entries = %T, want []map[string]string", section, nested["route_entries"])
-	}
-	if !reflect.DeepEqual(raw, want) {
-		t.Fatalf("framework_semantics.%s.route_entries = %#v, want %#v", section, raw, want)
-	}
-}
+// assertNestedStringSliceEqual, and assertNestedRouteEntriesEqual also used
+// to live here (they arrived from engine_javascript_semantics_test.go when
+// that file relocated to internal/parser/javascript). Their last parent-side
+// caller, kotlin_spring_route_semantics_test.go, relocated to
+// internal/parser/kotlin as part of #6062, and the relocated kotlin_test
+// package uses the parsertest copies (AssertFrameworksEqual,
+// AssertNestedStringSliceEqual, AssertNestedRouteEntriesEqual) instead, so
+// this file keeps only the two bucket lookups the infra, TypeScript, and TSX
+// engine tests still call.
 
 func findNamedBucketItem(t *testing.T, payload map[string]any, key string, name string) map[string]any {
 	t.Helper()

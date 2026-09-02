@@ -74,6 +74,15 @@ See doc.go for the godoc contract.
   exercise them, while a helper still shared with tests that stay at the
   parent keeps its own local copy here instead of exporting a parent-private
   helper.
+- `kotlin_dead_code_roots_test.go` / `kotlin_spring_route_semantics_test.go`
+  — the dead-code root classification and Spring/JAX-RS/Micronaut/Ktor route
+  semantics regressions, relocated from `go/internal/parser` in the #6062
+  tail. Also external-package `kotlin_test` files driving the same exported
+  `DefaultEngine`/`ParsePath` API; their bucket, slice, function, and
+  framework-semantics assertions come from `parsertest` (top-level functions
+  are looked up with `AssertFunctionByNameAndClass` and an empty
+  `class_context`), and their fixture writes go through
+  `writeKotlinTestFile`/`kotlinFixturePath`.
 
 ## Dependencies
 
