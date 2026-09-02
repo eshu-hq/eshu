@@ -225,6 +225,21 @@ var factKindSchemaFile = map[string]string{ // #nosec G101 -- fact-kind identifi
 	"FactKindEKSIRSAAnnotation":                    "eks_irsa_annotation.v1.schema.json",
 	"FactKindEKSPodIdentityAssociation":            "eks_pod_identity_association.v1.schema.json",
 	"FactKindKubernetesGCPWorkloadIdentityBinding": "k8s_gcp_workload_identity_binding.v1.schema.json",
+	// trust-chain anchor kinds (#6392): the loader's trust-chain anchor
+	// decoder (go/internal/storage/postgres) reads these eight kinds directly
+	// through the SDK, and each now has a reducer decode seam wrapper in
+	// factschema_decode_secretsiam.go that the manifest attributes those
+	// reads to. Mapping them here brings those reads under the gate: deleting
+	// a field the anchor reads from any of these schemas now fails
+	// TestPayloadUsageManifest instead of staying green.
+	"FactKindAWSIAMTrustPolicy":                    "aws_iam_trust_policy.v1.schema.json",
+	"FactKindAWSIAMPermissionPolicy":               "aws_iam_permission_policy.v1.schema.json",
+	"FactKindAWSIAMPolicyAttachment":               "aws_iam_policy_attachment.v1.schema.json",
+	"FactKindAWSIAMPermissionBoundary":             "aws_iam_permission_boundary.v1.schema.json",
+	"FactKindGCPIAMPrincipal":                      "gcp_iam_principal.v1.schema.json",
+	"FactKindGCPIAMTrustPolicy":                    "gcp_iam_trust_policy.v1.schema.json",
+	"FactKindGCPIAMPermissionPolicy":               "gcp_iam_permission_policy.v1.schema.json",
+	"FactKindKubernetesServiceAccountTokenPosture": "k8s_service_account_token_posture.v1.schema.json",
 	// work_item family (Wave 4d): the eight kinds a QUERY-side decode seam
 	// wrapper actually decodes (go/internal/query/factschema_decode_workitem.go).
 	// work_item is read straight from Postgres by the query evidence read model —

@@ -131,3 +131,117 @@ func DecodeKubernetesGCPWorkloadIdentityBinding(env facts.Envelope) (secretsiamv
 	}
 	return binding, nil
 }
+
+// DecodeAWSIAMTrustPolicy decodes one aws_iam_trust_policy envelope into the
+// typed secretsiamv1.AWSIAMTrustPolicy struct through the contracts seam,
+// returning a self-classifying *factDecodeError on malformed input. The live
+// decode site is the loader: go/internal/storage/postgres's trust-chain
+// anchor decoder calls factschema.DecodeAWSIAMTrustPolicy directly, so this
+// wrapper is the payload-usage manifest's attribution identity for those
+// reads (#6392), not an additional runtime call path.
+func DecodeAWSIAMTrustPolicy(env facts.Envelope) (secretsiamv1.AWSIAMTrustPolicy, error) {
+	policy, err := factschema.DecodeAWSIAMTrustPolicy(FactschemaEnvelope(env))
+	if err != nil {
+		return secretsiamv1.AWSIAMTrustPolicy{}, factdecode.NewFactDecodeError(factschema.FactKindAWSIAMTrustPolicy, err)
+	}
+	return policy, nil
+}
+
+// DecodeAWSIAMPermissionPolicy decodes one aws_iam_permission_policy envelope
+// into the typed secretsiamv1.AWSIAMPermissionPolicy struct through the
+// contracts seam, returning a self-classifying *factDecodeError on malformed
+// input. The live decode site is the loader's trust-chain anchor decoder,
+// which calls the SDK directly; this wrapper is the manifest's attribution
+// identity for those reads (#6392).
+func DecodeAWSIAMPermissionPolicy(env facts.Envelope) (secretsiamv1.AWSIAMPermissionPolicy, error) {
+	policy, err := factschema.DecodeAWSIAMPermissionPolicy(FactschemaEnvelope(env))
+	if err != nil {
+		return secretsiamv1.AWSIAMPermissionPolicy{}, factdecode.NewFactDecodeError(factschema.FactKindAWSIAMPermissionPolicy, err)
+	}
+	return policy, nil
+}
+
+// DecodeAWSIAMPolicyAttachment decodes one aws_iam_policy_attachment envelope
+// into the typed secretsiamv1.AWSIAMPolicyAttachment struct through the
+// contracts seam, returning a self-classifying *factDecodeError on malformed
+// input. The live decode site is the loader's trust-chain anchor decoder,
+// which calls the SDK directly; this wrapper is the manifest's attribution
+// identity for those reads (#6392).
+func DecodeAWSIAMPolicyAttachment(env facts.Envelope) (secretsiamv1.AWSIAMPolicyAttachment, error) {
+	attachment, err := factschema.DecodeAWSIAMPolicyAttachment(FactschemaEnvelope(env))
+	if err != nil {
+		return secretsiamv1.AWSIAMPolicyAttachment{}, factdecode.NewFactDecodeError(factschema.FactKindAWSIAMPolicyAttachment, err)
+	}
+	return attachment, nil
+}
+
+// DecodeAWSIAMPermissionBoundary decodes one aws_iam_permission_boundary
+// envelope into the typed secretsiamv1.AWSIAMPermissionBoundary struct
+// through the contracts seam, returning a self-classifying *factDecodeError
+// on malformed input. The live decode site is the loader's trust-chain
+// anchor decoder, which calls the SDK directly; this wrapper is the
+// manifest's attribution identity for those reads (#6392).
+func DecodeAWSIAMPermissionBoundary(env facts.Envelope) (secretsiamv1.AWSIAMPermissionBoundary, error) {
+	boundary, err := factschema.DecodeAWSIAMPermissionBoundary(FactschemaEnvelope(env))
+	if err != nil {
+		return secretsiamv1.AWSIAMPermissionBoundary{}, factdecode.NewFactDecodeError(factschema.FactKindAWSIAMPermissionBoundary, err)
+	}
+	return boundary, nil
+}
+
+// DecodeGCPIAMPrincipal decodes one gcp_iam_principal envelope into the typed
+// secretsiamv1.GCPIAMPrincipal struct through the contracts seam, returning a
+// self-classifying *factDecodeError on malformed input. The live decode site
+// is the loader's trust-chain anchor decoder, which calls the SDK directly;
+// this wrapper is the manifest's attribution identity for those reads
+// (#6392).
+func DecodeGCPIAMPrincipal(env facts.Envelope) (secretsiamv1.GCPIAMPrincipal, error) {
+	principal, err := factschema.DecodeGCPIAMPrincipal(FactschemaEnvelope(env))
+	if err != nil {
+		return secretsiamv1.GCPIAMPrincipal{}, factdecode.NewFactDecodeError(factschema.FactKindGCPIAMPrincipal, err)
+	}
+	return principal, nil
+}
+
+// DecodeGCPIAMTrustPolicy decodes one gcp_iam_trust_policy envelope into the
+// typed secretsiamv1.GCPIAMTrustPolicy struct through the contracts seam,
+// returning a self-classifying *factDecodeError on malformed input. The live
+// decode site is the loader's trust-chain anchor decoder, which calls the SDK
+// directly; this wrapper is the manifest's attribution identity for those
+// reads (#6392).
+func DecodeGCPIAMTrustPolicy(env facts.Envelope) (secretsiamv1.GCPIAMTrustPolicy, error) {
+	policy, err := factschema.DecodeGCPIAMTrustPolicy(FactschemaEnvelope(env))
+	if err != nil {
+		return secretsiamv1.GCPIAMTrustPolicy{}, factdecode.NewFactDecodeError(factschema.FactKindGCPIAMTrustPolicy, err)
+	}
+	return policy, nil
+}
+
+// DecodeGCPIAMPermissionPolicy decodes one gcp_iam_permission_policy envelope
+// into the typed secretsiamv1.GCPIAMPermissionPolicy struct through the
+// contracts seam, returning a self-classifying *factDecodeError on malformed
+// input. The live decode site is the loader's trust-chain anchor decoder,
+// which calls the SDK directly; this wrapper is the manifest's attribution
+// identity for those reads (#6392).
+func DecodeGCPIAMPermissionPolicy(env facts.Envelope) (secretsiamv1.GCPIAMPermissionPolicy, error) {
+	policy, err := factschema.DecodeGCPIAMPermissionPolicy(FactschemaEnvelope(env))
+	if err != nil {
+		return secretsiamv1.GCPIAMPermissionPolicy{}, factdecode.NewFactDecodeError(factschema.FactKindGCPIAMPermissionPolicy, err)
+	}
+	return policy, nil
+}
+
+// DecodeKubernetesServiceAccountTokenPosture decodes one
+// k8s_service_account_token_posture envelope into the typed
+// secretsiamv1.KubernetesServiceAccountTokenPosture struct through the
+// contracts seam, returning a self-classifying *factDecodeError on malformed
+// input. The live decode site is the loader's trust-chain anchor decoder,
+// which calls the SDK directly; this wrapper is the manifest's attribution
+// identity for those reads (#6392).
+func DecodeKubernetesServiceAccountTokenPosture(env facts.Envelope) (secretsiamv1.KubernetesServiceAccountTokenPosture, error) {
+	posture, err := factschema.DecodeKubernetesServiceAccountTokenPosture(FactschemaEnvelope(env))
+	if err != nil {
+		return secretsiamv1.KubernetesServiceAccountTokenPosture{}, factdecode.NewFactDecodeError(factschema.FactKindKubernetesServiceAccountTokenPosture, err)
+	}
+	return posture, nil
+}
