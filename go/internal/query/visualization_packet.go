@@ -6,16 +6,30 @@ package query
 import "github.com/eshu-hq/eshu/go/internal/query/querycontract"
 
 // The visualization-packet builder implementation moved to querycontract for
-// #6060 so a handler-family subpackage -- currently internal/query/code's
-// graph-query visualization route -- can build a VisualizationPacket without
-// importing this package, which it cannot do without an import cycle through
-// root's compatibility aliases. These are plain type aliases and thin
-// function forwarders; every existing root caller (the service-story,
-// evidence-citation, and incident-context view builders) keeps compiling
-// unchanged, except for the two builder methods a type alias cannot carry
-// across packages -- see visualization_packet_evidence.go and
-// visualization_packet_story.go, whose addNode/addEdge/finalize calls became
-// AddNode/AddEdge/Finalize.
+// #6060 so a future handler-family subpackage can build a VisualizationPacket
+// without importing this package, which it cannot do without an import cycle
+// through root's compatibility aliases. No such package exists yet -- the
+// graph-query visualization route that will move first is still in root at
+// visualization_packet_graph_query.go, and nothing here depends on that split
+// landing. What follows are plain type aliases and thin function forwarders.
+//
+// A type alias carries the type but not access to its unexported fields or
+// methods, so the three root files that drive the builder directly had to be
+// updated, and none of them got away with a pure rename. All three --
+// visualization_packet_evidence.go (two sites), visualization_packet_story.go,
+// and visualization_packet_graph_query.go -- assigned the unexported
+// builder.truth field, which is now another package's, so every one of them
+// took SetTruth alongside the addNode/addEdge/finalize -> AddNode/AddEdge/
+// Finalize renames. visualization_packet_graph_query.go needed two more: it
+// read builder.nodes and builder.edges to decide whether the result was empty
+// and whether any edge survived, which became Empty and EdgeCount.
+//
+// Every other root caller compiles unchanged. Where a root file in this diff
+// changed for some other reason -- content_reader_entity_names.go,
+// content_reader_index_readiness.go, entity_resolve_identity.go,
+// evidence_citation.go, language_registry.go, repository_coverage.go -- it is
+// naming the leaf package for a different promoted symbol, not touching the
+// builder.
 
 const (
 	// VisualizationMaxNodes bounds the number of nodes a visualization packet

@@ -233,10 +233,11 @@ func NewVisualizationBuilder(view VisualizationView, title string) *Visualizatio
 // SetTruth attaches the source response's TruthEnvelope to the packet this
 // builder will finalize. It is a setter rather than an exported field because
 // VisualizationBuilder's fields must stay unexported for AddNode/AddEdge's
-// dedup invariants; callers (root package query's story/evidence view
-// builders and internal/query/code's graph-query view) used to set the
-// unexported truth field directly when the builder lived in their own
-// package (#6060).
+// dedup invariants. All three root callers -- the story, evidence-citation and
+// graph-query view builders -- set the unexported truth field directly while
+// the builder lived in their own package, so each of them takes SetTruth now
+// (#6060). The graph-query builder additionally read the node and edge maps to
+// decide emptiness, which is what Empty and EdgeCount below replace.
 func (b *VisualizationBuilder) SetTruth(truth *TruthEnvelope) {
 	b.truth = truth
 }

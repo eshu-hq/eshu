@@ -9,10 +9,11 @@ package querycontract
 //
 // This type moved here from root package query's evidence_citation.go
 // (#6060) alongside the visualization-packet builder (visualization_packet.go
-// in this package), so a handler-family subpackage -- currently
-// internal/query/code's graph-query visualization route -- can build a
+// in this package), so a future handler-family subpackage can build a
 // VisualizationPacket without importing root, which it cannot do without an
-// import cycle through root's compatibility aliases. Root keeps a plain type
+// import cycle through root's compatibility aliases. The graph-query
+// visualization route that will move first is still in root at
+// visualization_packet_graph_query.go. Root keeps a plain type
 // alias to this type; every field stays exported and unchanged, so every
 // existing root caller compiles unchanged.
 type EvidenceCitationHandle struct {

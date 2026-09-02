@@ -15,6 +15,31 @@ ports, and the scoped-token repository-access authorization seam
 handler orchestration, whole graph queries, or Postgres implementations. Those
 remain in the root query package or a family package.
 
+It also owns several handler seams promoted from root so a handler-family
+subpackage can call the same logic without an import cycle (#6060):
+
+| Promoted seam | File here | What root keeps |
+| --- | --- | --- |
+| `#6408` projection-placeholder scrubber | `entity_repo_identity.go` | unexported function forwarder |
+| Visualization packet, builder and merge | `visualization_packet.go`, `visualization_packet_merge.go` | exported type and const aliases, function forwarders |
+| Entity-name search | `entity_name_search.go` | exported type aliases, unexported const and sentinel-error aliases |
+| Content-index readiness | `content_index_readiness.go` | exported error alias, function forwarder |
+| Evidence-citation handles | `evidence_citation_handle.go` | unexported type aliases in `evidence_citation.go`, plus the exported `EvidenceCitationHandle` alias root already published in `evidence_citation_public.go` |
+| Language alias table and coverage maps | `language_registry.go` | unexported function forwarders |
+
+Root's compatibility shape is not uniform, and the difference matters when
+adding to this list. A sentinel error compared with `errors.Is` has to be the
+same value re-exported, never a re-declared one, or the comparison silently
+goes false and a caller takes its fallback path with nothing failing. A type
+alias carries the type but not access to unexported fields, so a root caller
+that reached into builder internals needs an accessor rather than an alias.
+
+Two related symbols deliberately did not move. `hydrateResolvedEntityRepoIdentity`
+stays in root because it carries a complete `MATCH`/`RETURN` statement, which
+`AGENTS.md` keeps out of this leaf; only the pure scrubber it calls moved.
+`supportedLanguages`, the accepted-language set, stays in root's
+`language_registry.go` and is still the file to edit when adding a language.
+
 The authorization seam emits Cypher *fragments* -- `WHERE` predicate text a
 caller splices into its own query -- and that is the one carve-out to the
 no-Cypher rule, recorded the same way in `AGENTS.md`. The bounds and the

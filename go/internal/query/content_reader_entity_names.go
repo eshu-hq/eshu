@@ -23,12 +23,12 @@ const (
 
 // errEntityNameSearchUnavailable and errGlobalGraphEntitySearchUnsupported
 // alias querycontract's sentinel errors rather than declaring their own
-// errors.New value: root's EntityHandler (entity.go) and the CodeHandler
-// family (internal/query/code) both compare a returned error against these
-// with errors.Is, so both sides must resolve to the exact same instance
-// (#6060). The values moved to querycontract, the one leaf package both root
-// and the family already import, so this stays a plain alias rather than a
-// forwarder.
+// errors.New value. Root's EntityHandler (entity.go) compares a returned
+// error against these with errors.Is today, and the planned #6060 code family
+// will do the same once CodeHandler leaves root's code.go, so both sides have
+// to resolve to the exact same instance. The values moved to querycontract,
+// the leaf package root already imports and a family package will be able to,
+// so this stays a plain alias rather than a forwarder.
 var (
 	errEntityNameSearchUnavailable        = querycontract.ErrEntityNameSearchUnavailable
 	errGlobalGraphEntitySearchUnsupported = querycontract.ErrGlobalGraphEntitySearchUnsupported

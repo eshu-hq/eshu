@@ -59,9 +59,23 @@ func BuildGraphQueryVisualizationPacket(rows []map[string]any, truth *TruthEnvel
 	return packet
 }
 
-// sortedRowKeys returns the column keys of a result row in deterministic order
-// so projection (and therefore the first-record-wins dedup in the builder) does
-// not depend on Go map iteration order.
+// sortedRowKeys returns the column keys of a result row in deterministic order,
+// so two runs over the same row project their columns in the same sequence
+// instead of following Go's randomized map iteration.
+//
+// This is defence in depth. Nothing in this projector currently depends on it:
+// mergeVisualizationNodePresentation resolves a duplicate node by role priority
+// then presentation key rather than by arrival, and Finalize sorts nodes and
+// edges by ID, so the packet comes out the same either way.
+//
+// Where arrival order does still decide something is inside the dedup maps.
+// mergeVisualizationStrings and mergeVisualizationEvidenceHandles both collapse
+// duplicates into a map and sort the result, which fixes the output order and
+// therefore which element lands at index 0. Sorting cannot recover a value the
+// map already discarded, though: the evidence-handle dedup key covers every
+// field except Confidence, so two handles for the same citation with different
+// confidences collide and the later write is the one kept. Sorting the column
+// keys here is what stops that from depending on Go's map iteration.
 func sortedRowKeys(row map[string]any) []string {
 	keys := make([]string, 0, len(row))
 	for key := range row {
