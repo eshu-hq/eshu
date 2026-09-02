@@ -176,3 +176,21 @@ a defect to fix, not a fact to document.
 ## Related docs
 
 `go/internal/query/README.md` for the family-split contract.
+
+## Performance and observability
+
+No-Regression Evidence: this package is a test double and runs only inside test
+binaries -- `internal/queryplan`'s callsite inventory walks it and records zero
+`Run`/`RunSingle` call expressions, so nothing here is on a production query or
+graph path. `FakeRepoGraphReader` and `FakeWorkloadGraphReader` trip the
+perf-evidence gate on the word "Cypher" in their doc comments, which describe
+which Cypher FRAGMENT a caller registers, not a query this code issues. The
+promotion is a move: the dispatch bodies came across from
+`repository_context_test.go` and `workload_context_test.go` unchanged, so the
+work per call is identical to before. Root suite before and after: 7792
+`=== RUN`, 0 `--- FAIL` (base `origin/main` at the time of measurement; that
+count is not a portable constant -- it moves as main gains tests).
+
+No-Observability-Change: no metric, span, log, or status surface is touched.
+Fakes deliberately emit no telemetry; a test double that produced spans would
+pollute the traces of whatever it stands in for.
