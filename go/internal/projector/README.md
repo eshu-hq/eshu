@@ -247,7 +247,7 @@ old full scan made — not "earliest fact of the first-checked kind" — so anch
 Root assembly constructs one concrete `intent.FactLookup` per generation and
 retains a compatibility wrapper for unmoved family builders. The extracted
 `internal/projector/azure`, `internal/projector/ec2`, `internal/projector/gcp`,
-`internal/projector/kubernetes`, `internal/projector/rds`, `internal/projector/s3`, `internal/projector/security`, `internal/projector/workloadcloud`, `internal/projector/incidentrouting`, `internal/projector/awsrelationship`, `internal/projector/iamcanassume`, `internal/projector/packagesource`, `internal/projector/sbomattestation`, `internal/projector/servicecatalog`, and `internal/projector/secretsiam`
+`internal/projector/kubernetes`, `internal/projector/rds`, `internal/projector/s3`, `internal/projector/security`, `internal/projector/workloadcloud`, `internal/projector/incidentrouting`, `internal/projector/awsrelationship`, `internal/projector/iamcanassume`, `internal/projector/packagesource`, `internal/projector/cloudinventory`, `internal/projector/sbomattestation`, `internal/projector/servicecatalog`, and `internal/projector/secretsiam`
 families import that neutral lookup without importing root projector assembly;
 remaining root builders keep using the private forwarders until they move.
 `ReducerIntent` in the root package is a type alias, so existing writer and
@@ -616,7 +616,7 @@ projector stage logs, `canonical.write` spans, phase-publish logs, and content
 write result logs still diagnose the projection.
 
 No-Regression Evidence: cloud-inventory admission intent scheduling (#2209) is
-covered by `go test ./internal/projector -run 'CloudInventoryAdmission|TestBuildProjectionQueuesSingleAWSCloudRuntimeDriftIntent' -count=1`.
+covered by `../scripts/go-test-run-guard.sh 1 'TestBuildCloudInventoryAdmissionReducerIntent' -- ./internal/projector/cloudinventory -count=1`, run from the `go/` module root (the guard rather than a bare `go test -run`, which exits 0 when the pattern matches nothing after a rename).
 Baseline: the `cloud_inventory_admission` reducer domain was registered and wired
 but received no intent, so `reducer_cloud_resource_identity` rows were never
 written and `GET /api/v0/cloud/inventory` returned zero rows. After: the

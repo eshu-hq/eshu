@@ -55,7 +55,7 @@ var routeServesDataRegistryPart1 = map[string]routeServesDataSource{
 	// (go/internal/query/cloud_inventory_read_model.go:22,88). That kind is
 	// written by reducer/cloud_inventory_admission_writer.go from the closed
 	// provider source set {aws_resource, gcp_cloud_resource,
-	// azure_cloud_resource} (projector/cloud_inventory_admission_intents.go:18-21),
+	// azure_cloud_resource} (projector/cloudinventory/admission_intents.go:18-21),
 	// which is how all three provider domains are served here.
 	"GET /api/v0/cloud/inventory": {
 		RegistrationFile: "go/internal/query/cloud_inventory_readback.go",
@@ -72,21 +72,21 @@ var routeServesDataRegistryPart1 = map[string]routeServesDataSource{
 				Domain: "aws_cloud_runtime_drift",
 				Evidence: []routeReadEvidence{
 					{File: "go/internal/query/cloud_inventory_read_model.go", Marker: "reducer_cloud_resource_identity"},
-					{File: "go/internal/projector/cloud_inventory_admission_intents.go", Marker: "facts.AWSResourceFactKind"},
+					{File: "go/internal/projector/cloudinventory/admission_intents.go", Marker: "facts.AWSResourceFactKind"},
 				},
 			},
 			{
 				Domain: "azure_resource_materialization",
 				Evidence: []routeReadEvidence{
 					{File: "go/internal/query/cloud_inventory_read_model.go", Marker: "reducer_cloud_resource_identity"},
-					{File: "go/internal/projector/cloud_inventory_admission_intents.go", Marker: "facts.AzureCloudResourceFactKind"},
+					{File: "go/internal/projector/cloudinventory/admission_intents.go", Marker: "facts.AzureCloudResourceFactKind"},
 				},
 			},
 			{
 				Domain: "gcp_resource_materialization",
 				Evidence: []routeReadEvidence{
 					{File: "go/internal/query/cloud_inventory_read_model.go", Marker: "reducer_cloud_resource_identity"},
-					{File: "go/internal/projector/cloud_inventory_admission_intents.go", Marker: "facts.GCPCloudResourceFactKind"},
+					{File: "go/internal/projector/cloudinventory/admission_intents.go", Marker: "facts.GCPCloudResourceFactKind"},
 				},
 			},
 		},

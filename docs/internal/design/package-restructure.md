@@ -817,6 +817,19 @@ no other root caller and was body-identical to `projectorintent.SourceSystem`
 `firstAcrossKinds` forwarder stays for its four remaining root callers
 (crossplane, container-image-identity, multi-cloud runtime drift, and
 supply-chain impact).
+The cloud-inventory-admission builder moved into
+`internal/projector/cloudinventory`. It triggers on any provider
+cloud-inventory source fact (`aws_resource`, `gcp_cloud_resource`, or
+`azure_cloud_resource`), anchoring with `FirstMatchingKindPredicate` on the
+earliest such fact in input order, and carries no decode seam. Its private
+`cloudInventoryAdmissionSourceSystem` helper had no other caller and was a
+pure delegation to `projectorintent.SourceSystem` — its entire body was that
+call — so it was dropped rather than moved, the `packagesource` way. The root
+`firstMatchingKindPredicate` forwarder stays for its one remaining root
+caller (observability-coverage correlation). The central schema-version
+regression test (`TestProjectEnforcesCentralSchemaVersionForPreviouslyUngatedFamily`)
+stays at root in `schema_version_admission_test.go` because it asserts root's
+`validateFactSchemaVersion`, not the builder.
 Coordinator `_scheduler.go` halves extract cleanly
 (they implement a root Planner interface); the `_service.go` halves are
 methods on the shared `Service` struct and stay until Service is

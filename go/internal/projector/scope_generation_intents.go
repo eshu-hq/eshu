@@ -7,6 +7,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/facts"
 	projectorawsrelationship "github.com/eshu-hq/eshu/go/internal/projector/awsrelationship"
 	projectorazure "github.com/eshu-hq/eshu/go/internal/projector/azure"
+	projectorcloudinventory "github.com/eshu-hq/eshu/go/internal/projector/cloudinventory"
 	projectorec2 "github.com/eshu-hq/eshu/go/internal/projector/ec2"
 	projectorgcp "github.com/eshu-hq/eshu/go/internal/projector/gcp"
 	projectoriamcanassume "github.com/eshu-hq/eshu/go/internal/projector/iamcanassume"
@@ -70,7 +71,7 @@ func appendScopeGenerationReducerIntents(
 	if intent, ok := projectorazure.BuildRelationshipMaterializationReducerIntent(scopeValue.ScopeID, generation.GenerationID, index.lookup); ok {
 		intents = append(intents, intent)
 	}
-	if intent, ok := buildCloudInventoryAdmissionReducerIntent(scopeValue, generation, index); ok {
+	if intent, ok := projectorcloudinventory.BuildCloudInventoryAdmissionReducerIntent(scopeValue.ScopeID, generation.GenerationID, index.lookup); ok {
 		intents = append(intents, intent)
 	}
 	if intent, ok := projectorworkloadcloud.BuildWorkloadCloudRelationshipMaterializationReducerIntent(scopeValue.ScopeID, generation.GenerationID, index.lookup); ok {
