@@ -46,8 +46,10 @@ func Route(toolName string, args routecontract.Arguments) (routecontract.Request
 // (deadCodeDefaultLimit and deadCodeMaxLimit in query's code_dead_code.go),
 // so an omitted limit and the dispatcher's default are indistinguishable at
 // the handler and no selected value can reject. offset defaults to 0, the
-// first page; the investigate handler floors negatives to 0 and caps the
-// offset at 2000. Only the cross-repo route rejects a blank repo_id
+// first page, and unlike limit the investigate handler REJECTS rather than
+// clamps it: normalizeDeadCodeInvestigationRequest returns an error for a
+// negative offset and for one above deadCodeInvestigationMaxOffset (2000), so
+// either surfaces as HTTP 400. Only the cross-repo route rejects a blank repo_id
 // ("repo_id is required"); the scan and investigate routes accept one and
 // widen to every repository the caller's scope grants, which is why repo_id
 // still travels as an explicit empty string rather than being dropped.
