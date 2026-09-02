@@ -194,7 +194,8 @@ func (s *cypherPackageSource) reachesRelationshipMerge(key string) (string, bool
 // it cannot be mistaken for a declaration. A regex over raw source would need
 // exclusion logic to tell the two apart, and that logic is where such a scan
 // goes quietly wrong.
-// forEachReducerGoFile visits dir and, one level down, every subpackage of it.
+// forEachReducerGoFile visits dir and, recursively, every subpackage nested
+// beneath it at any depth.
 //
 // The reducer used to be one flat directory, so scanning it non-recursively saw
 // every port. Issue #6061 moves domain families into subpackages such as
@@ -205,28 +206,42 @@ func (s *cypherPackageSource) reachesRelationshipMerge(key string) (string, bool
 // undeclared edge-writing port stops being caught at all. Every family move
 // would quietly shrink this guard.
 //
-// One level is deliberate rather than a full walk: family packages are direct
-// children of internal/reducer, and going deeper would pull in unrelated
-// fixture trees.
+// The walk goes to full depth rather than stopping one level down.
+// docs/internal/design/package-restructure.md:73-80 commits the reducer to
+// the opposite of "family packages are direct children of internal/reducer":
+// an oversized family (reducer/supply_chain_impact, 63 files, over the
+// dirgate cap) lands pre-split into NESTED subdirectories in the same move
+// PR, the shape the collector plan already uses (gitrepo/snapshot,
+// gitrepo/selection). A scan that stopped one level down would go blind the
+// moment such a family lands nested two levels under internal/reducer --
+// exactly the drift this helper exists to catch, one level deeper than the
+// one-level scan could see. testdata and dot-prefixed directories are
+// excluded at every depth, not only at the top, so a fixture tree nested
+// under a family package cannot be mistaken for one either.
 func forEachReducerGoFile(t *testing.T, dir string, fn func(name string, file *ast.File)) {
 	t.Helper()
 
-	forEachGoFile(t, dir, fn)
-
-	entries, err := os.ReadDir(dir)
-	if err != nil {
-		t.Fatalf("read %s: %v", dir, err)
-	}
 	subpackages := 0
-	for _, entry := range entries {
-		if !entry.IsDir() || strings.HasPrefix(entry.Name(), ".") || entry.Name() == "testdata" {
-			continue
+	var walk func(current string, isRoot bool)
+	walk = func(current string, isRoot bool) {
+		forEachGoFile(t, current, fn)
+		if !isRoot {
+			subpackages++
 		}
-		subpackages++
-		forEachGoFile(t, filepath.Join(dir, entry.Name()), fn)
+		entries, err := os.ReadDir(current)
+		if err != nil {
+			t.Fatalf("read %s: %v", current, err)
+		}
+		for _, entry := range entries {
+			if !entry.IsDir() || strings.HasPrefix(entry.Name(), ".") || entry.Name() == "testdata" {
+				continue
+			}
+			walk(filepath.Join(current, entry.Name()), false)
+		}
 	}
+	walk(dir, true)
 	if subpackages == 0 {
-		t.Fatalf("scanned %s and found no family subpackages; the recursive scan went vacuous", dir)
+		t.Fatalf("scanned %s recursively and found no family subpackages; the recursive scan went vacuous", dir)
 	}
 }
 

@@ -140,7 +140,7 @@ unions written as whole values —
 `evidence_fact_ids: uniqueSortedStrings(...)`
 (`go/internal/reducer/service_catalog_correlation_writer.go:134`,
 `go/internal/reducer/secrets_iam_trust_chain_writer.go:168-220`,
-`go/internal/reducer/incident/incident_repository_correlation_writer.go`,
+`go/internal/reducer/incident/incident_repository_correlation_writer.go:150`,
 `go/internal/reducer/ci_cd_run_correlation_writer.go:123`) and
 `related_scope_ids`/`entity_keys` unions
 (`go/internal/reducer/workload_identity_writer.go:164-165`, `:200-201`).

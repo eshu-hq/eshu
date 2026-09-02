@@ -141,11 +141,16 @@ byte-identical except for qualifying the now-external `payloadcore`,
 `reducercontract`, `factdecode`, `schemadecode`, and `factwrite` symbols the
 root previously exposed as unqualified forwarders or aliases. A pure
 package-boundary move with unchanged bodies cannot regress runtime behavior.
-`go build ./...`, `go vet ./...`, `go test ./internal/reducer/... -count=1`,
-and `go test ./cmd/reducer ./internal/storage/postgres ./internal/query
--count=1` all exited 0 against the moved code, and the existing handler,
-builder, and writer test suites (`TestIncidentRoutingMaterializationHandler
-WritesAndRetracts`, `TestBuildIncidentRepositoryCorrelations*`,
+All of the following exited 0 against the moved code:
+
+- `go build ./...`
+- `go vet ./...`
+- `go test ./internal/reducer/... -count=1`
+- `go test ./cmd/reducer ./internal/storage/postgres ./internal/query -count=1`
+
+The existing handler, builder, and writer test suites
+(`TestIncidentRoutingMaterializationHandlerWritesAndRetracts`,
+`TestBuildIncidentRepositoryCorrelations*`,
 `TestPostgresIncidentRepositoryCorrelationWriterPersistsBatchedFacts`, and
 the input-invalid quarantine regressions) moved with the code unmodified and
 still pass.
