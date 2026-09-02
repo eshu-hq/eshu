@@ -24,7 +24,7 @@ subpackage can call the same logic without an import cycle (#6060):
 | Visualization packet, builder and merge | `visualization_packet.go`, `visualization_packet_merge.go` | exported type and const aliases, function forwarders |
 | Entity-name search | `entity_name_search.go` | exported type aliases, unexported const and sentinel-error aliases |
 | Content-index readiness | `content_index_readiness.go` | exported error alias, function forwarder |
-| Evidence-citation handles | `evidence_citation_handle.go` | unexported type aliases |
+| Evidence-citation handles | `evidence_citation_handle.go` | unexported type aliases in `evidence_citation.go`, plus the exported `EvidenceCitationHandle` alias root already published in `evidence_citation_public.go` |
 | Language alias table and coverage maps | `language_registry.go` | unexported function forwarders |
 
 Root's compatibility shape is not uniform, and the difference matters when

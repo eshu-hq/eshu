@@ -63,20 +63,19 @@ func BuildGraphQueryVisualizationPacket(rows []map[string]any, truth *TruthEnvel
 // so two runs over the same row project their columns in the same sequence
 // instead of following Go's randomized map iteration.
 //
-// This is defence in depth, not the only thing holding the packet stable. The
-// builder already converges a node reached through two columns without regard
-// to which arrived first: mergeVisualizationNodePresentation resolves a
-// duplicate by role priority, tie-broken by presentation key; scope keys and
-// evidence handles each dedup into a map and are then sorted, so the winner is
-// the smallest key rather than the first arrival; and Finalize sorts nodes and
-// edges by ID.
+// This is defence in depth. Nothing in this projector currently depends on it:
+// mergeVisualizationNodePresentation resolves a duplicate node by role priority
+// then presentation key rather than by arrival, and Finalize sorts nodes and
+// edges by ID, so the packet comes out the same either way.
 //
-// One field escapes that. mergeVisualizationEvidenceHandles keys its dedup map
-// on every handle field except Confidence, so two handles for the same citation
-// with different confidences collide and the later write keeps its Confidence.
-// That is the one place arrival order still decides a value, which is why
-// sorting the column keys here is worth its cost even though nothing else in
-// this projector depends on it.
+// Where arrival order does still decide something is inside the dedup maps.
+// mergeVisualizationStrings and mergeVisualizationEvidenceHandles both collapse
+// duplicates into a map and sort the result, which fixes the output order and
+// therefore which element lands at index 0. Sorting cannot recover a value the
+// map already discarded, though: the evidence-handle dedup key covers every
+// field except Confidence, so two handles for the same citation with different
+// confidences collide and the later write is the one kept. Sorting the column
+// keys here is what stops that from depending on Go's map iteration.
 func sortedRowKeys(row map[string]any) []string {
 	keys := make([]string, 0, len(row))
 	for key := range row {

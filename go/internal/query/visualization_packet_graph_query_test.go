@@ -241,13 +241,55 @@ func TestBuildGraphQueryVisualizationPacketIsOrderStable(t *testing.T) {
 	assertSameGraphQueryPacketShape(t, first, second)
 }
 
-// The load-bearing half of the ordering contract. A node reached through two
-// columns in the same row must resolve to one packet node whose presentation
-// does not depend on which column the driver handed over first: the builder
-// picks by role priority and then by presentation key, never by arrival. Sorting
-// the row keys alone would not prove this, because Finalize re-sorts the output
-// by ID and would hide an arrival-order-dependent Label behind a stable slice
-// order.
+// sortedRowKeys is asserted directly, because nothing downstream can prove it.
+// Two Go map literals listing the same keys in a different written order are the
+// same map, and map iteration is randomized per range, so no packet-level test
+// can hand the projector two known-different column orders. Comparing two
+// packets therefore exercises the builder's merge rule, not this sort. The only
+// honest guard is the helper's own return value.
+func TestSortedRowKeysReturnsColumnsInLexicalOrder(t *testing.T) {
+	t.Parallel()
+
+	row := map[string]any{"z": 1, "a": 2, "m": 3, "B": 4, "": 5}
+
+	got := sortedRowKeys(row)
+
+	want := []string{"", "B", "a", "m", "z"}
+	if len(got) != len(want) {
+		t.Fatalf("key count = %d, want %d (%v)", len(got), len(want), got)
+	}
+	for i := range want {
+		if got[i] != want[i] {
+			t.Fatalf("key %d = %q, want %q (full order %v)", i, got[i], want[i], got)
+		}
+	}
+}
+
+// Every column of the row must survive the sort. A projector that silently
+// dropped a key would lose whole graph entities from the packet.
+func TestSortedRowKeysKeepsEveryColumn(t *testing.T) {
+	t.Parallel()
+
+	row := map[string]any{"n": nil, "r": nil, "path": nil}
+
+	got := sortedRowKeys(row)
+
+	if len(got) != len(row) {
+		t.Fatalf("returned %d keys for a %d-column row: %v", len(got), len(row), got)
+	}
+	for _, key := range got {
+		if _, ok := row[key]; !ok {
+			t.Fatalf("returned key %q is not a column of the row", key)
+		}
+	}
+}
+
+// A node reached through two columns in the same row must resolve to one packet
+// node whose presentation does not depend on which column the builder saw
+// first. This guards mergeVisualizationNodePresentation's role-priority and
+// presentation-key tie-break, not sortedRowKeys: the two rows below are the same
+// map, so the difference between them is which value each key carries, and the
+// merge must reach the same answer either way.
 func TestBuildGraphQueryVisualizationPacketMergesDuplicateNodeIndependentOfColumnOrder(t *testing.T) {
 	t.Parallel()
 
