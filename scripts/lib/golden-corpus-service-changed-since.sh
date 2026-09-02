@@ -69,7 +69,16 @@ golden_service_changed_since_mutate_owner() {
 	git -C "${fixture_repo}" diff --check -- catalog-info.yaml >/dev/null ||
 		die "service changed-since catalog mutation failed diff validation"
 	git -C "${fixture_repo}" add -- catalog-info.yaml || die "failed to stage changed catalog owner"
-	GIT_AUTHOR_DATE="2026-08-04T12:01:00Z" \
+	# Identity pinned inline, matching stage_deterministic_git_fixture
+	# (scripts/lib/golden-corpus-stage.sh): git prefers GIT_AUTHOR_*/
+	# GIT_COMMITTER_* from the environment over `git config user.*`, so an
+	# inherited identity would otherwise move this commit's SHA without
+	# touching its tree.
+	GIT_AUTHOR_NAME="Golden Gate" \
+		GIT_AUTHOR_EMAIL="gate@eshu.local" \
+		GIT_COMMITTER_NAME="Golden Gate" \
+		GIT_COMMITTER_EMAIL="gate@eshu.local" \
+		GIT_AUTHOR_DATE="2026-08-04T12:01:00Z" \
 		GIT_COMMITTER_DATE="2026-08-04T12:01:00Z" \
 		git -C "${fixture_repo}" commit -m "change deployable owner" >/dev/null ||
 		die "failed to commit changed catalog owner in temporary corpus"

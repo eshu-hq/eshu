@@ -117,6 +117,17 @@ stage_minimal_corpus() {
 			git -C "${corpus_dir}/${fixture}" -c init.defaultBranch=main init --object-format=sha1 >/dev/null 2>&1
 			git -C "${corpus_dir}/${fixture}" config user.email "gate@eshu.local" >/dev/null 2>&1
 			git -C "${corpus_dir}/${fixture}" config user.name "Golden Gate" >/dev/null 2>&1
+			# Same three knobs as stage_deterministic_git_fixture above, and for
+			# the same reason: this repo still reads commit.gpgsign, core.autocrlf
+			# and core.excludesfile from the developer's ~/.gitconfig otherwise. A
+			# global commit.gpgsign=true makes every git call below exit 128 with
+			# no diagnostic (they are all >/dev/null 2>&1), aborting the live gate
+			# under `set -euo pipefail` with nothing attributable; a global
+			# core.excludesfile matching this fixture's tracked files silently
+			# drops them from the commit and changes its HEAD.
+			git -C "${corpus_dir}/${fixture}" config commit.gpgsign false >/dev/null 2>&1
+			git -C "${corpus_dir}/${fixture}" config core.autocrlf false >/dev/null 2>&1
+			git -C "${corpus_dir}/${fixture}" config core.excludesfile /dev/null >/dev/null 2>&1
 			# submodule PINS_SUBMODULE non-vacuous coverage (issue #5420 Phase 5): a
 			# pinned submodule SHA is a git gitlink (tree mode 160000), which only
 			# exists in a real git tree -- unlike CODEOWNERS, a plain file copy is not
