@@ -33,7 +33,7 @@ var graphQueryNodeLabelKeys = []string{"name", "title", "path", "relative_path",
 // graph access.
 func BuildGraphQueryVisualizationPacket(rows []map[string]any, truth *TruthEnvelope) VisualizationPacket {
 	builder := newVisualizationBuilder(VisualizationViewGraphQuery, "graph query result")
-	builder.truth = truth
+	builder.SetTruth(truth)
 
 	for _, row := range rows {
 		for _, key := range sortedRowKeys(row) {
@@ -41,7 +41,7 @@ func BuildGraphQueryVisualizationPacket(rows []map[string]any, truth *TruthEnvel
 		}
 	}
 
-	if len(builder.nodes) == 0 && len(builder.edges) == 0 {
+	if builder.Empty() {
 		return unsupportedVisualizationPacket(
 			VisualizationViewGraphQuery,
 			truth,
@@ -50,8 +50,9 @@ func BuildGraphQueryVisualizationPacket(rows []map[string]any, truth *TruthEnvel
 		)
 	}
 
-	packet := builder.finalize()
-	if len(builder.edges) == 0 {
+	edgeCountBeforeFinalize := builder.EdgeCount()
+	packet := builder.Finalize()
+	if edgeCountBeforeFinalize == 0 {
 		packet.Limitations = appendReason(packet.Limitations,
 			"query returned graph nodes but no relationships; the subgraph has no edges")
 	}
@@ -110,7 +111,7 @@ func addGraphQueryNode(builder *visualizationBuilder, node neo4jdriver.Node) str
 		return ""
 	}
 	nodeID := visualizationNodeID("graph", elementID)
-	builder.addNode(VisualizationNode{
+	builder.AddNode(VisualizationNode{
 		ID:       nodeID,
 		Type:     graphQueryNodeType(node.Labels),
 		Label:    graphQueryNodeLabel(node),
@@ -129,7 +130,7 @@ func addGraphQueryRelationship(builder *visualizationBuilder, rel neo4jdriver.Re
 	if start == "" || end == "" {
 		return
 	}
-	builder.addEdge(VisualizationEdge{
+	builder.AddEdge(VisualizationEdge{
 		Source:       visualizationNodeID("graph", start),
 		Target:       visualizationNodeID("graph", end),
 		Relationship: firstNonEmptyString(strings.TrimSpace(rel.Type), "RELATED"),

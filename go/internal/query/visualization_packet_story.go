@@ -33,14 +33,14 @@ func BuildServiceStoryVisualizationPacket(response map[string]any, truth *TruthE
 	}
 
 	builder := newVisualizationBuilder(VisualizationViewServiceStory, serviceStoryTitle(identity))
-	builder.truth = truth
+	builder.SetTruth(truth)
 
 	serviceNodeID := addServiceStoryServiceNode(builder, identity)
 	addServiceStoryEvidenceGraph(builder, evidenceGraph, identity, serviceNodeID)
 	addServiceStoryUpstreamEdges(builder, upstream, serviceNodeID)
 	addServiceStoryDownstream(builder, downstream, serviceNodeID)
 
-	packet := builder.finalize()
+	packet := builder.Finalize()
 	if BoolVal(evidenceGraph, "truncated") || serviceStoryDownstreamTruncated(downstream) {
 		packet.Truncation.Truncated = true
 		if sourceEdgeCount := IntVal(evidenceGraph, "edge_count"); sourceEdgeCount > len(mapSliceValue(evidenceGraph, "edges")) {
@@ -82,7 +82,7 @@ func addServiceStoryServiceNode(builder *visualizationBuilder, identity map[stri
 	if repoID != "" {
 		node.EvidenceHandle = &evidenceCitationHandle{Kind: "entity", RepoID: repoID, EntityID: serviceID}
 	}
-	builder.addNode(node)
+	builder.AddNode(node)
 	return nodeID
 }
 
@@ -122,7 +122,7 @@ func addServiceStoryEvidenceGraph(
 			nodeIDOverrides[rawID] = nodeID
 		}
 		handle := serviceStoryEvidenceHandle(kind, rawID, StringVal(node, "repo_id"))
-		builder.addNode(VisualizationNode{
+		builder.AddNode(VisualizationNode{
 			ID:             nodeID,
 			Type:           kind,
 			Label:          firstNonEmptyString(StringVal(node, "label"), rawID),
@@ -153,7 +153,7 @@ func addServiceStoryEvidenceGraph(
 		if serviceNodeID != "" && source == serviceID {
 			sourceNodeID = serviceNodeID
 		}
-		builder.addEdge(VisualizationEdge{
+		builder.AddEdge(VisualizationEdge{
 			Source:       sourceNodeID,
 			Target:       targetNodeID,
 			Relationship: firstNonEmptyString(StringVal(edge, "relationship_type"), "RELATED"),
@@ -175,7 +175,7 @@ func addServiceStoryUpstreamEdges(builder *visualizationBuilder, upstream []map[
 		canonicalKey := strings.TrimSpace(StringVal(row, "source_repo_canonical_id"))
 		sourceNodeID := serviceStoryVisualizationNodeID("repository", sourceID, canonicalKey)
 		handle := serviceStoryRepoHandle("repository", sourceID)
-		builder.addNode(VisualizationNode{
+		builder.AddNode(VisualizationNode{
 			ID:             sourceNodeID,
 			Type:           "repository",
 			Label:          firstNonEmptyString(StringVal(row, "source"), sourceID),
@@ -189,7 +189,7 @@ func addServiceStoryUpstreamEdges(builder *visualizationBuilder, upstream []map[
 		if targetNodeID == "" {
 			continue
 		}
-		builder.addEdge(VisualizationEdge{
+		builder.AddEdge(VisualizationEdge{
 			Source:       sourceNodeID,
 			Target:       targetNodeID,
 			Relationship: firstNonEmptyString(StringVal(row, "relationship_type"), "DEPENDS_ON"),
@@ -213,7 +213,7 @@ func addServiceStoryDownstream(builder *visualizationBuilder, downstream map[str
 			continue
 		}
 		nodeID := visualizationNodeID("repository", repoID)
-		builder.addNode(VisualizationNode{
+		builder.AddNode(VisualizationNode{
 			ID:             nodeID,
 			Type:           "repository",
 			Label:          firstNonEmptyString(StringVal(row, "repository"), repoID),
@@ -221,7 +221,7 @@ func addServiceStoryDownstream(builder *visualizationBuilder, downstream map[str
 			Role:           "downstream_consumer",
 			EvidenceHandle: serviceStoryRepoHandle("repository", repoID),
 		})
-		builder.addEdge(VisualizationEdge{
+		builder.AddEdge(VisualizationEdge{
 			Source:       serviceNodeID,
 			Target:       nodeID,
 			Relationship: "CONSUMED_BY",

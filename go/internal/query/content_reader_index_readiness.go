@@ -8,12 +8,14 @@ import (
 	"net/http"
 	"strings"
 
+	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
 	"github.com/jackc/pgx/v5/pgconn"
 )
 
-// ErrContentSubstringIndexesNotReady means an all-repository substring read
-// was refused until the exact content trigram indexes finish finalizing.
-var ErrContentSubstringIndexesNotReady = errors.New("content substring indexes are not ready")
+// ErrContentSubstringIndexesNotReady aliases querycontract's error of the
+// same name, which this value moved to (#6060) so a handler-family
+// subpackage can compare against the exact same instance with errors.Is.
+var ErrContentSubstringIndexesNotReady = querycontract.ErrContentSubstringIndexesNotReady
 
 func contentSubstringIndexReadError(err error) error {
 	var pgErr *pgconn.PgError
@@ -25,9 +27,5 @@ func contentSubstringIndexReadError(err error) error {
 }
 
 func writeContentSubstringIndexUnavailable(w http.ResponseWriter, err error) bool {
-	if !errors.Is(err, ErrContentSubstringIndexesNotReady) {
-		return false
-	}
-	WriteError(w, http.StatusServiceUnavailable, err.Error())
-	return true
+	return querycontract.WriteContentSubstringIndexUnavailable(w, err)
 }

@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package query
+package querycontract
 
 import (
 	"fmt"
@@ -29,7 +29,7 @@ func mergeVisualizationNodePresentation(left, right VisualizationNode) Visualiza
 		left.Type = right.Type
 		left.Category = right.Category
 		left.Role = right.Role
-		left.CanonicalKey = firstNonEmptyString(right.CanonicalKey, left.CanonicalKey)
+		left.CanonicalKey = firstNonEmptyVisualizationString(right.CanonicalKey, left.CanonicalKey)
 	}
 	return left
 }
@@ -111,21 +111,34 @@ func firstVisualizationString(values []string) string {
 	return values[0]
 }
 
+// firstNonEmptyVisualizationString is a small, self-contained copy of root
+// package query's firstNonEmptyString (service_story_dossier.go). See
+// visualization_packet.go's cloneTruthEnvelope/appendVisualizationReason
+// comment for why this is a duplicate rather than an alias.
+func firstNonEmptyVisualizationString(values ...string) string {
+	for _, value := range values {
+		if strings.TrimSpace(value) != "" {
+			return strings.TrimSpace(value)
+		}
+	}
+	return ""
+}
+
 func mergeVisualizationEvidenceHandles(
-	left []evidenceCitationHandle,
-	right []evidenceCitationHandle,
-	extra ...*evidenceCitationHandle,
-) []evidenceCitationHandle {
-	merged := make(map[evidenceCitationHandleKey]evidenceCitationHandle, len(left)+len(right)+len(extra))
-	for _, handle := range append(append([]evidenceCitationHandle{}, left...), right...) {
-		merged[handle.evidenceCitationHandleKey()] = handle
+	left []EvidenceCitationHandle,
+	right []EvidenceCitationHandle,
+	extra ...*EvidenceCitationHandle,
+) []EvidenceCitationHandle {
+	merged := make(map[EvidenceCitationHandleKey]EvidenceCitationHandle, len(left)+len(right)+len(extra))
+	for _, handle := range append(append([]EvidenceCitationHandle{}, left...), right...) {
+		merged[handle.EvidenceCitationHandleKey()] = handle
 	}
 	for _, handle := range extra {
 		if handle != nil {
-			merged[handle.evidenceCitationHandleKey()] = *handle
+			merged[handle.EvidenceCitationHandleKey()] = *handle
 		}
 	}
-	result := make([]evidenceCitationHandle, 0, len(merged))
+	result := make([]EvidenceCitationHandle, 0, len(merged))
 	for _, handle := range merged {
 		result = append(result, handle)
 	}
@@ -135,7 +148,7 @@ func mergeVisualizationEvidenceHandles(
 	return result
 }
 
-func visualizationEvidenceHandleSortKey(handle evidenceCitationHandle) string {
+func visualizationEvidenceHandleSortKey(handle EvidenceCitationHandle) string {
 	return strings.Join([]string{
 		handle.Kind,
 		handle.RepoID,

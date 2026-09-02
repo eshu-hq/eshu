@@ -12,6 +12,7 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
 )
 
@@ -30,17 +31,11 @@ type evidenceCitationRequest struct {
 	Limit    int                      `json:"limit,omitempty"`
 }
 
-type evidenceCitationHandle struct {
-	Kind           string  `json:"kind,omitempty"`
-	RepoID         string  `json:"repo_id,omitempty"`
-	RelativePath   string  `json:"relative_path,omitempty"`
-	EntityID       string  `json:"entity_id,omitempty"`
-	EvidenceFamily string  `json:"evidence_family,omitempty"`
-	Reason         string  `json:"reason,omitempty"`
-	StartLine      int     `json:"start_line,omitempty"`
-	EndLine        int     `json:"end_line,omitempty"`
-	Confidence     float64 `json:"confidence,omitempty"`
-}
+// evidenceCitationHandle aliases querycontract.EvidenceCitationHandle, which
+// this type moved to (#6060) alongside the visualization-packet builder, so a
+// handler-family subpackage can build a VisualizationPacket without importing
+// this package. Every field stays exported and unchanged.
+type evidenceCitationHandle = querycontract.EvidenceCitationHandle
 
 type evidenceCitationResponse struct {
 	Subject              map[string]any           `json:"subject,omitempty"`
@@ -95,16 +90,9 @@ type evidenceCitationFileKey struct {
 	relativePath string
 }
 
-type evidenceCitationHandleKey struct {
-	kind           string
-	repoID         string
-	relativePath   string
-	entityID       string
-	evidenceFamily string
-	reason         string
-	startLine      int
-	endLine        int
-}
+// evidenceCitationHandleKey aliases querycontract.EvidenceCitationHandleKey,
+// which moved alongside evidenceCitationHandle (#6060).
+type evidenceCitationHandleKey = querycontract.EvidenceCitationHandleKey
 
 type evidenceCitationFileStore interface {
 	EvidenceCitationFiles(context.Context, []evidenceCitationFileLookup) (map[evidenceCitationFileKey]FileContent, error)
@@ -213,7 +201,7 @@ func normalizeEvidenceCitationRequest(
 		if !ok {
 			return nil, limit, false, fmt.Errorf("each handle must include either repo_id plus relative_path or entity_id")
 		}
-		key := normalized.evidenceCitationHandleKey()
+		key := normalized.EvidenceCitationHandleKey()
 		if _, exists := seen[key]; exists {
 			continue
 		}
@@ -250,19 +238,6 @@ func normalizeEvidenceCitationHandle(handle evidenceCitationHandle) (evidenceCit
 		return handle, handle.EntityID != ""
 	default:
 		return evidenceCitationHandle{}, false
-	}
-}
-
-func (handle evidenceCitationHandle) evidenceCitationHandleKey() evidenceCitationHandleKey {
-	return evidenceCitationHandleKey{
-		kind:           handle.Kind,
-		repoID:         handle.RepoID,
-		relativePath:   handle.RelativePath,
-		entityID:       handle.EntityID,
-		evidenceFamily: handle.EvidenceFamily,
-		reason:         handle.Reason,
-		startLine:      handle.StartLine,
-		endLine:        handle.EndLine,
 	}
 }
 

@@ -7,6 +7,8 @@ import (
 	"context"
 	"fmt"
 	"strings"
+
+	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
 )
 
 func hydrateResolvedEntityRepoIdentity(
@@ -186,27 +188,14 @@ func workloadEntityIDsNeedingRepoBackfill(entities []map[string]any) []string {
 	return entityIDs
 }
 
+// clearResolvedEntityRepoProjectionPlaceholders forwards to
+// querycontract.ClearResolvedEntityRepoProjectionPlaceholders. The four
+// expression shapes it matches guard an open backend bug (#6408), so they are
+// single-sourced there rather than duplicated per package: a second copy would
+// keep the old shapes after the fix lands and keep passing a fabricated
+// repository id through, with nothing failing.
 func clearResolvedEntityRepoProjectionPlaceholders(entity map[string]any) {
-	if resolvedEntityRepoProjectionPlaceholder(entityString(entity, "repo_id"), "id") {
-		entity["repo_id"] = ""
-	}
-	if resolvedEntityRepoProjectionPlaceholder(entityString(entity, "repo_name"), "name") {
-		entity["repo_name"] = ""
-	}
-}
-
-func resolvedEntityRepoProjectionPlaceholder(value string, property string) bool {
-	value = strings.TrimSpace(value)
-	property = strings.TrimSpace(property)
-	switch value {
-	case "r." + property,
-		"repo." + property,
-		"repoViaInstance." + property,
-		"coalesce(repo." + property + ", repoViaInstance." + property + ")":
-		return true
-	default:
-		return false
-	}
+	querycontract.ClearResolvedEntityRepoProjectionPlaceholders(entity)
 }
 
 func resolvedEntityIsRepository(entity map[string]any) bool {

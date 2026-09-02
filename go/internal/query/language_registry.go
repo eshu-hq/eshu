@@ -3,12 +3,7 @@
 
 package query
 
-import "strings"
-
-var languageAliases = map[string]string{
-	"jsx": "javascript",
-	"tsx": "typescript",
-}
+import "github.com/eshu-hq/eshu/go/internal/query/querycontract"
 
 // supportedLanguages lists every language name accepted by language-query.
 var supportedLanguages = map[string]bool{
@@ -46,20 +41,9 @@ var languageFileExtensions = map[string][]string{
 }
 
 func canonicalLanguage(language string) string {
-	normalized := strings.ToLower(strings.TrimSpace(language))
-	if canonical, ok := languageAliases[normalized]; ok {
-		return canonical
-	}
-	return normalized
+	return querycontract.CanonicalLanguage(language)
 }
 
 func normalizedLanguageVariants(language string) []string {
-	switch canonicalLanguage(language) {
-	case "javascript":
-		return []string{"javascript", "jsx"}
-	case "typescript":
-		return []string{"typescript", "tsx"}
-	default:
-		return []string{canonicalLanguage(language)}
-	}
+	return querycontract.NormalizedLanguageVariants(language)
 }
