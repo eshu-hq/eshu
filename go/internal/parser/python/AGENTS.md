@@ -100,7 +100,7 @@ No-Regression Evidence: `go test ./internal/parser/... -count=1` stays green
 `internal/parser/python/semantics_test.go`). The pre-existing engine parity
 suites still pass byte-for-byte:
 `go test ./internal/parser/python -run 'TestDefaultEngineParsePathPython(FastAPISemantics|FlaskSemantics|ORMMappings|UnknownRouteDecoratorRemainsUnclassified|FastAPIBindsDefHandler|FlaskBindsDefHandler)' -count=1` and
-`go test ./internal/parser -run 'TestDefaultEngineParsePathPython(EmitsScriptMainGuardRoot|EmitsReversedScriptMainGuardRoot|DunderAssignmentEvidenceIsEnclosingScopeScoped|EmitsPublicAPIRootKinds)' -count=1` (the first six moved into `internal/parser/python` with the #6062 relocation; the dead-code-root cases stay at the parent).
+`go test ./internal/parser/python -run 'TestDefaultEngineParsePathPython(EmitsScriptMainGuardRoot|EmitsReversedScriptMainGuardRoot|DunderAssignmentEvidenceIsEnclosingScopeScoped|EmitsPublicAPIRootKinds)' -count=1` (both suites now live in `internal/parser/python`: the first six moved with the earlier #6062 relocation, the dead-code-root cases with this one).
 The orphan route (`@app.post("/orphan")` with no following def) still emits the
 route with no handler because tree-sitter parks the bare decorator under an
 ERROR node whose parent is not a `decorated_definition`, preserving the #2788
@@ -114,7 +114,7 @@ literals from each `list`/`tuple`/`set` operand. Before the fix the helper
 returned no names for the split form and the exported symbols lost their
 `python.module_all_export` roots, surfacing as dead-code candidates; the old
 regex RHS scan had captured them.
-`go test ./internal/parser -run 'TestDefaultEngineParsePathPythonConcatenatedAllExportsAreRoots' -count=1`
+`go test ./internal/parser/python -run 'TestDefaultEngineParsePathPythonConcatenatedAllExportsAreRoots' -count=1`
 and `go test ./internal/parser/python -run TestPythonModuleAllNamesAcceptsConcatenatedLiterals -count=1`
 fail before the fix and pass after, while the plain list/tuple `__all__` and
 `TestDefaultEngineParsePathPythonEmitsPublicAPIRootKinds` suites stay green. The
