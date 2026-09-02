@@ -38,3 +38,38 @@ func scopedIngesterStatusRoute(r *http.Request) bool {
 	ingester := strings.TrimPrefix(r.URL.Path, prefix)
 	return ingester != r.URL.Path && ingester != "" && !strings.Contains(ingester, "/")
 }
+
+// scopedFreshnessDeltaRoute allows scoped tokens to reach the two freshness
+// delta reads: GET /api/v0/freshness/changed-since and
+// GET /api/v0/freshness/generations. Both were #5167 Group B entries in
+// pendingRowFilteringRoutes until their handlers gained the #5137 pattern, and
+// both now bind the caller's grant in the shipped SQL rather than in the
+// handler:
+//
+//   - changed_since_sql.go:49-51 -- resolveChangedSinceScopeQuery's
+//     ($3::boolean = false OR (scope.scope_kind = 'repository' AND
+//     scope.source_key = ANY($4)) OR scope.scope_id = ANY($5)).
+//   - generation_lifecycle_sql.go:114-116 -- listGenerationLifecycleQuery's
+//     ($8::boolean = false OR (scope.scope_kind = 'repository' AND
+//     scope.source_key = ANY($9)) OR generation.scope_id = ANY($10)).
+//
+// The binding is on the resolved ROW, not on the selector the caller typed,
+// because a repository grant authorizes a repository-kind scope through
+// source_key and the raw scope_id normally differs from that key. An ungranted
+// selector therefore resolves to no row and is served as the route's ordinary
+// not-found, byte-identical to a selector that names nothing at all, so the
+// route is not an existence oracle for another tenant's scopes or generations
+// (TestChangedSinceTwoTenantGrantBoundary,
+// TestGenerationLifecycleTwoTenantGrantBoundary).
+//
+// Both routes are classified scopedRouteGrantBound in
+// scopedTokenAdvertisedRoutes: an all-scope caller has no grant for those
+// predicates to bind, so an all-scope browser session stays behind the
+// BrowserSessionRoutePolicy mode check (#6450).
+func scopedFreshnessDeltaRoute(r *http.Request) bool {
+	if r.Method != http.MethodGet {
+		return false
+	}
+	return r.URL.Path == "/api/v0/freshness/changed-since" ||
+		r.URL.Path == "/api/v0/freshness/generations"
+}

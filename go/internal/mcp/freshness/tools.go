@@ -11,7 +11,7 @@ func Tools() []toolcontract.ToolDefinition {
 	return []toolcontract.ToolDefinition{
 		{
 			Name:        "get_generation_lifecycle",
-			Description: "Inspect bounded scope generation lifecycle history (active, pending, superseded, completed, failed) for a scope, repository, collector, source system, generation, or status. Each row carries the current active generation, trigger kind, freshness hint, observed/activated/superseded timestamps, the per-generation queue status, and the latest failure when present. Unknown scope/repository/generation selectors return an explicit not-found, never a confident empty list.",
+			Description: "Inspect bounded scope generation lifecycle history (active, pending, superseded, completed, failed) for a scope, repository, collector, source system, generation, or status. Each row carries the current active generation, trigger kind, freshness hint, observed/activated/superseded timestamps, the per-generation queue status, and the latest failure when present. Unknown scope/repository/generation selectors return an explicit not-found, never a confident empty list. Scoped tokens receive only granted repositories and scopes; an ungranted selector returns not-found.",
 			InputSchema: map[string]any{
 				"type": "object",
 				"properties": map[string]any{
@@ -52,7 +52,7 @@ func Tools() []toolcontract.ToolDefinition {
 		},
 		{
 			Name:        "get_changed_since",
-			Description: "Summarize what changed in a repository scope since a prior generation or instant. Exactly one mutually exclusive scope selector is required: scope_id or repository. Diffs the prior generation's fact set against the current active generation's fact set, keyed by stable fact key, into per-category counts (files, content entities, facts) for added, updated, unchanged, retired, and superseded keys plus bounded sample handles. Supply since_generation_id for an exact prior generation or since_observed_at (RFC3339) for the generation observed at or before that instant. Unknown scope/repository returns not-found; a scope with no current active generation returns an explicit unavailable diff rather than zero deltas. Retired and superseded are never collapsed into unchanged.",
+			Description: "Summarize what changed in a repository scope since a prior generation or instant. Exactly one mutually exclusive scope selector is required: scope_id or repository. Diffs the prior generation's fact set against the current active generation's fact set, keyed by stable fact key, into per-category counts (files, content entities, facts) for added, updated, unchanged, retired, and superseded keys plus bounded sample handles. Supply since_generation_id for an exact prior generation or since_observed_at (RFC3339) for the generation observed at or before that instant. Unknown scope/repository returns not-found; a scope with no current active generation returns an explicit unavailable diff rather than zero deltas. Retired and superseded are never collapsed into unchanged. Scoped tokens receive only granted repositories and scopes; an ungranted selector returns not-found.",
 			InputSchema: map[string]any{
 				"type": "object",
 				"properties": map[string]any{
