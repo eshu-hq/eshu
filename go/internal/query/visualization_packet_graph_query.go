@@ -59,9 +59,18 @@ func BuildGraphQueryVisualizationPacket(rows []map[string]any, truth *TruthEnvel
 	return packet
 }
 
-// sortedRowKeys returns the column keys of a result row in deterministic order
-// so projection (and therefore the first-record-wins dedup in the builder) does
-// not depend on Go map iteration order.
+// sortedRowKeys returns the column keys of a result row in deterministic order,
+// so two runs over the same row project their columns in the same sequence
+// instead of following Go's randomized map iteration.
+//
+// This is defence in depth, not the only thing holding the packet stable. The
+// builder already converges a node reached through two columns without regard
+// to which arrived first: mergeVisualizationNodePresentation resolves a
+// duplicate by role priority, tie-broken by presentation key, and Finalize
+// sorts nodes and edges by ID. Sorting here keeps that convergence from being
+// the sole guarantee, so a later projector carrying order-sensitive fields
+// (scope keys and evidence handles both merge first-wins) inherits a stable
+// column sequence rather than having to rediscover the need for one.
 func sortedRowKeys(row map[string]any) []string {
 	keys := make([]string, 0, len(row))
 	for key := range row {
