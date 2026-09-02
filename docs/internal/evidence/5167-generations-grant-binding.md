@@ -53,3 +53,26 @@ PR #5252 / issue #4630.
 
 Binding the grant to the row in SQL fixes both at once, and matches the shape
 the dead-letter and invalid-facts readers already use.
+
+## Follow-up: naming the grant bind positions
+
+Root-Cause Evidence: review of PR #6434 noted that the grant predicate added
+`$8`-`$10` to `listGenerationLifecycleQuery` while the parameter-order comment
+above the constant still stopped at `$7`. Two tests treat those positions as
+contract -- `TestListGenerationLifecyclePassesGrantToQuery` asserts each by
+index, `TestFreshnessGrantPredicatesArePresentInTheShippedSQL` asserts the
+predicate text -- so a renumbering would bind the grant to the wrong argument
+with nothing in the file to contradict it. `resolveChangedSinceScopeQuery`
+already documented `$3`-`$5`, so only the generations constant was missing them.
+
+No-Regression Evidence: the change is eight Go doc-comment lines above the
+constant. No SQL string is touched, so the query text on the wire, its plan
+cache key, and every bind argument are byte-identical to the merged
+`d11c88dac`. An in-SQL comment block was written first and reverted for exactly
+this reason: those lines live inside the raw-string constant and would have been
+shipped in the query text on every call for no runtime benefit.
+`go test ./internal/storage/postgres -run 'PassesGrantToQuery|PresentInTheShippedSQL' -count=1`
+passes (exit 0) before and after.
+
+Observability Evidence: no signal is added or removed. A comment above a
+constant emits nothing at runtime.
