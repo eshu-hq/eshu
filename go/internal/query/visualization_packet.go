@@ -9,13 +9,24 @@ import "github.com/eshu-hq/eshu/go/internal/query/querycontract"
 // #6060 so a handler-family subpackage -- currently internal/query/code's
 // graph-query visualization route -- can build a VisualizationPacket without
 // importing this package, which it cannot do without an import cycle through
-// root's compatibility aliases. These are plain type aliases and thin
-// function forwarders; every existing root caller (the service-story,
-// evidence-citation, and incident-context view builders) keeps compiling
-// unchanged, except for the two builder methods a type alias cannot carry
-// across packages -- see visualization_packet_evidence.go and
-// visualization_packet_story.go, whose addNode/addEdge/finalize calls became
-// AddNode/AddEdge/Finalize.
+// root's compatibility aliases. What follows are plain type aliases and thin
+// function forwarders.
+//
+// A type alias carries the type but not access to its unexported fields or
+// methods, so the three root files that drive the builder directly had to be
+// updated. visualization_packet_evidence.go and visualization_packet_story.go
+// needed only the method renames addNode/addEdge/finalize ->
+// AddNode/AddEdge/Finalize. visualization_packet_graph_query.go needed more
+// than renames: it read builder.nodes and builder.edges and assigned
+// builder.truth directly, none of which a caller outside querycontract can do
+// now, so those became the Empty, EdgeCount and SetTruth accessors.
+//
+// Every other root caller compiles unchanged. Where a root file in this diff
+// changed for some other reason -- content_reader_entity_names.go,
+// content_reader_index_readiness.go, entity_resolve_identity.go,
+// evidence_citation.go, language_registry.go, repository_coverage.go -- it is
+// naming the leaf package for a different promoted symbol, not touching the
+// builder.
 
 const (
 	// VisualizationMaxNodes bounds the number of nodes a visualization packet

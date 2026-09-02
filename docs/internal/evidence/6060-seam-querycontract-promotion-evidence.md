@@ -79,10 +79,38 @@ eventual fix for #6408 has one place to land. Two copies would have guaranteed
 the fix reached one of them while the other kept matching the old four shapes
 and kept passing a fabricated repository ID through, with nothing failing.
 
-The queryplan source-coverage manifest entry moves with the symbol. It is a
-typed `non_hot` entry (`class: keyed_support`), not a re-freeze of a
-`grandfatheredNonHotSourceDigests` row — the practice `queryplan/README.md`
-forbids and #6409 tracks an instance of. Its digest changes because the symbol
-relocated and was exported; the parity proof above is what says the
-`keyed_support` / `max_keys: 101` classification still describes the same
-statement.
+The queryplan source-coverage manifest does not change in this branch, and that
+is the expected outcome rather than an omission. The manifest tracks
+`hydrateResolvedEntityRepoIdentity` under `entity_resolve_identity.go` as a typed
+`non_hot` entry (`class: keyed_support`, `max_keys: 101`). That function is the
+one that stayed in root. The diff to its file adds an import and replaces the
+scrubber body with a forwarder without touching the tracked function, so the
+recorded `source_sha256` still describes the code it names. An earlier revision
+of this branch did move the function and did re-key that manifest entry; the
+revert took both back together, which is why the net diff carries neither.
+
+The scrubber that did move carries no Cypher and has no manifest entry of its
+own, so promoting it adds nothing to track. Nothing here re-freezes a
+`grandfatheredNonHotSourceDigests` row, the practice `queryplan/README.md`
+forbids and #6409 tracks an instance of.
+
+An earlier draft of this note claimed the manifest entry moved with the symbol
+and that its digest changed as a result. Both were wrong. Checked against the
+merged commit rather than asserted:
+
+```
+$ git show --stat a181476b6 -- go/internal/queryplan/testdata/query-source-coverage.yaml
+(no file entry: the merge did not touch the manifest)
+
+$ git show origin/main:go/internal/queryplan/testdata/query-source-coverage.yaml \
+    | rg -A4 'file: entity_resolve_identity.go'
+  - file: entity_resolve_identity.go
+    calls:
+      - symbol: "hydrateResolvedEntityRepoIdentity"
+        count: 1
+        non_hot:
+
+$ cd go && go test ./internal/queryplan/... -count=1; echo $?
+ok  github.com/eshu-hq/eshu/go/internal/queryplan  0.362s
+0
+```

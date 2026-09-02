@@ -212,7 +212,9 @@ When adding or promoting language-query support:
    adding or removing an accepted language. The alias table behind the `jsx`
    and `tsx` normalizations above, and the coverage maps, live separately in
    `go/internal/query/querycontract/language_registry.go` so the handler-family
-   subpackages can reach them; the root file re-exports those.
+   subpackages can reach them. The root file does not re-export them: it calls
+   `querycontract` through unexported forwarders, so root-package callers reach
+   the helpers as `canonicalLanguage` and `normalizedLanguageVariants`.
 2. Add focused HTTP or MCP coverage for the accepted value, unsupported-value
    error behavior, limit handling, and deterministic result shape.
 3. State whether the entity type is graph-backed, graph-first with content
