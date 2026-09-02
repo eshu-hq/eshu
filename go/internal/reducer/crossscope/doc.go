@@ -20,6 +20,6 @@
 // This package imports internal/reducer/contract (the dependency-neutral
 // domain/intent vocabulary) and internal/reducer/factload (for the fact-load
 // error classifier the readiness probe reuses), and nothing else outside the
-// standard library and internal/eshu-hq/go/pkg/log. It must never import the
+// standard library and github.com/eshu-hq/eshu/go/pkg/log. It must never import the
 // parent reducer package or a domain-family subpackage — see AGENTS.md.
 package crossscope

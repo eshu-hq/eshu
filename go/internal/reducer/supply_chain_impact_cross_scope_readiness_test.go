@@ -398,11 +398,11 @@ func TestSupplyChainImpactDefersWhenOnlyOneProducerResolved(t *testing.T) {
 	// pass back, and not the one that already answered. An operator reading
 	// either has to be able to tell which upstream to go look at.
 	if !slices.Contains(notReady.ProducerDomains, DomainCICDRunCorrelation) {
-		t.Fatalf("producerDomains = %v, want the unresolved ci_cd_run_correlation producer", notReady.ProducerDomains)
+		t.Fatalf("ProducerDomains = %v, want the unresolved ci_cd_run_correlation producer", notReady.ProducerDomains)
 	}
 	if slices.Contains(notReady.ProducerDomains, DomainContainerImageIdentity) {
 		t.Fatalf(
-			"producerDomains = %v, want container_image_identity omitted: it resolved output on this pass",
+			"ProducerDomains = %v, want container_image_identity omitted: it resolved output on this pass",
 			notReady.ProducerDomains,
 		)
 	}

@@ -39,8 +39,8 @@ execution, and the two handlers that call this floor
 ## Why this is a shared tier, not a family helper
 
 The catalog and the floor were moved together, as one package, because
-`checkCrossScopeProducerReadinessBeforeLoad` calls
-`crossScopeDependenciesForRegistration` directly; splitting the catalog into
+`CheckProducerReadinessBeforeLoad` calls
+`DependenciesForRegistration` directly; splitting the catalog into
 the reducer root while the floor moved out would recreate the same import
 cycle the move exists to avoid (the root already needs to import this package
 for the compatibility forwarders it keeps).
