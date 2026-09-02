@@ -37,20 +37,20 @@ List every construct the parser claims to extract, with source references.
 ## Verified-by-Test Constructs
 List constructs verified by tests, with file:function references.
 
-1. **Tables, views, functions, triggers, indexes** — `engine_sql_test.go:11-87` (`TestDefaultEngineParsePathSQLSchemaObjectsAndRelationships`)
-2. **Columns** — `engine_sql_test.go:76-79` (id, org_id, email columns)
-3. **HAS_COLUMN relationship** — `engine_sql_test.go:81`
-4. **REFERENCES_TABLE relationship** — `engine_sql_test.go:82`
-5. **READS_FROM relationship** — `engine_sql_test.go:83`
-6. **TRIGGERS_ON relationship** — `engine_sql_test.go:84`
-7. **EXECUTES relationship** — `engine_sql_test.go:85`
-8. **INDEXES relationship** — `engine_sql_test.go:86`
-9. **Prisma migration metadata** — `engine_sql_test.go:89-136` (`TestDefaultEngineParsePathSQLMigrationMetadata`)
-10. **CREATE OR REPLACE VIEW** — `engine_sql_test.go:139-166` (`TestDefaultEngineParsePathSQLCreateOrReplaceView`)
-11. **ALTER TABLE ADD COLUMN** — `engine_sql_test.go:168-196` (`TestDefaultEngineParsePathSQLAlterTableAddColumnMaterializesColumn`)
-12. **Multiple ADD COLUMN clauses** — `engine_sql_test.go:198-230` (`TestDefaultEngineParsePathSQLAlterTableNormalizesMultipleAddColumnClauses`)
-13. **Materialized views and procedures** — `engine_sql_test.go:232-272` (`TestDefaultEngineParsePathSQLMaterializedViewsAndProcedures`)
-14. **Partial recovery from malformed SQL** — `engine_sql_test.go:274-306` (`TestDefaultEngineParsePathSQLPartialRecovery`)
+1. **Tables, views, functions, triggers, indexes** — `sql/engine_sql_test.go:14-90` (`TestDefaultEngineParsePathSQLSchemaObjectsAndRelationships`)
+2. **Columns** — `sql/engine_sql_test.go:79-82` (id, org_id, email columns)
+3. **HAS_COLUMN relationship** — `sql/engine_sql_test.go:84`
+4. **REFERENCES_TABLE relationship** — `sql/engine_sql_test.go:85`
+5. **READS_FROM relationship** — `sql/engine_sql_test.go:86`
+6. **TRIGGERS_ON relationship** — `sql/engine_sql_test.go:87`
+7. **EXECUTES relationship** — `sql/engine_sql_test.go:88`
+8. **INDEXES relationship** — `sql/engine_sql_test.go:89`
+9. **Prisma migration metadata** — `sql/engine_sql_test.go:92-162` (`TestDefaultEngineParsePathSQLMigrationMetadata`)
+10. **CREATE OR REPLACE VIEW** — `sql/engine_sql_test.go:164-191` (`TestDefaultEngineParsePathSQLCreateOrReplaceView`)
+11. **ALTER TABLE ADD COLUMN** — `sql/engine_sql_test.go:193-221` (`TestDefaultEngineParsePathSQLAlterTableAddColumnMaterializesColumn`)
+12. **Multiple ADD COLUMN clauses** — `sql/engine_sql_test.go:223-255` (`TestDefaultEngineParsePathSQLAlterTableNormalizesMultipleAddColumnClauses`)
+13. **Materialized views and procedures** — `sql/engine_sql_test.go:257-302` (`TestDefaultEngineParsePathSQLMaterializedViewsAndProcedures`)
+14. **Partial recovery from malformed SQL** — `sql/engine_sql_test.go:304-334` (`TestDefaultEngineParsePathSQLPartialRecovery`)
 15. **Table constraints NOT materialized as columns** — `sql/language_test.go:27-48` (`TestParseDoesNotMaterializeTableConstraintsAsColumns`)
 16. **CREATE OR REPLACE PROCEDURE parsing, routine reads, and routine writes** — `sql/language_test.go` (`TestParseRoutineViewAndMigrationReferences`)
 17. **Procedure IndexSource preserves original text** — `sql/language_test.go:102-126` (`TestParseProcedureIndexedSourceIsOriginalText`)
@@ -78,12 +78,12 @@ List edge cases the tests actually cover with test references.
 - **Procedure IndexSource preserves original `PROCEDURE` text (not synthetic `FUNCTION` rewrite)** — `sql/language_test.go:102-126`
 - **ALTER TABLE migration target via table mention** — `sql/language_test.go:131-142`
 - **REFERENCES (foreign key) migration target via `ALTER TABLE ... ADD CONSTRAINT`** — `sql/language_test.go:143-153`
-- **Partial recovery from malformed statement** — `engine_sql_test.go:274-306` (broken CREATE TABLE, valid VIEW still parsed)
-- **CREATE OR REPLACE VIEW** — `engine_sql_test.go:139-166`
-- **Materialized views** — `engine_sql_test.go:232-272`
-- **Multiple ALTER TABLE ADD COLUMN clauses** — `engine_sql_test.go:198-230`
-- **Inline column REFERENCES emitting REFERENCES_TABLE** — `entities.go:118-122`, tested via `engine_sql_test.go:24-27,82`
-- **Routine INSERT/UPDATE/DELETE targets emit WRITES_TO, never READS_FROM** — `sql/language_test.go` and `engine_sql_test.go`
+- **Partial recovery from malformed statement** — `sql/engine_sql_test.go:304-334` (broken CREATE TABLE, valid VIEW still parsed)
+- **CREATE OR REPLACE VIEW** — `sql/engine_sql_test.go:164-191`
+- **Materialized views** — `sql/engine_sql_test.go:257-302`
+- **Multiple ALTER TABLE ADD COLUMN clauses** — `sql/engine_sql_test.go:223-255`
+- **Inline column REFERENCES emitting REFERENCES_TABLE** — `entities.go:118-122`, tested via `sql/engine_sql_test.go:28-30,85`
+- **Routine INSERT/UPDATE/DELETE targets emit WRITES_TO, never READS_FROM** — `sql/language_test.go` and `sql/engine_sql_test.go`
 - **MySQL backtick and MSSQL bracket identifiers** — `sql/language_test.go`
 - **Migration INSERT/UPDATE/DELETE targets** — `sql/migration_metadata_test.go`
 - **Deduplication of entities and relationships** — tested at scale via comprehensive fixture test

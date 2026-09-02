@@ -320,7 +320,7 @@ language_features:
     partial_features: [dynamic-sql, dialect-specific-routines, broad-dbt-macros]
     derived_features: [dead-code-roots]
     source_files: [go/internal/parser/sql_language.go, go/internal/parser/sql/language.go]
-    test_files: [go/internal/parser/engine_sql_test.go, go/internal/parser/sql_parity_test.go]
+    test_files: [go/internal/parser/sql/engine_sql_test.go, go/internal/parser/sql/sql_core_parity_test.go, go/internal/parser/sql/sql_parity_test.go]
     docs: [docs/public/languages/sql.md]
     read_surfaces: [execute_language_query, entity_context]
   - language: swift
