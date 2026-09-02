@@ -181,6 +181,32 @@ func TestBuildObservabilityCoverageCorrelationReducerIntentSkipsUndecodableAWSRe
 // projectorintent.SourceSystem returns an empty string for that envelope, so
 // substituting it would silently relabel the intent — this test fails under
 // that substitution.
+// TestObservabilitySourceSystemDoesNotTrimEarlierTiers pins the SECOND way this
+// helper differs from projectorintent.SourceSystem. The obvious difference is the
+// third tier, the literal "observability", and that is already covered. The
+// subtler one is that this helper does NOT strings.TrimSpace tiers 1 and 2 while
+// the shared helper trims both, so a whitespace-only SourceSystem is returned
+// verbatim here and would become "" under the shared helper.
+//
+// Without this, a cleanup that "harmonises" the two by adding TrimSpace, or that
+// substitutes the shared helper outright, still passes the third-tier test while
+// silently changing what this family emits.
+func TestObservabilitySourceSystemDoesNotTrimEarlierTiers(t *testing.T) {
+	t.Parallel()
+
+	if got := observabilitySourceSystem(facts.Envelope{
+		SourceRef: facts.Ref{SourceSystem: "  "},
+	}); got != "  " {
+		t.Fatalf("SourceRef tier = %q, want the untrimmed \"  \"; trimming tier 1 diverges from the pre-extraction behaviour", got)
+	}
+
+	if got := observabilitySourceSystem(facts.Envelope{
+		CollectorKind: " \t",
+	}); got != " \t" {
+		t.Fatalf("CollectorKind tier = %q, want the untrimmed \" \\t\"; trimming tier 2 diverges from the pre-extraction behaviour", got)
+	}
+}
+
 func TestObservabilitySourceSystemThirdTierFallback(t *testing.T) {
 	t.Parallel()
 
