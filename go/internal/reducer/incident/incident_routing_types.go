@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package reducer
+package incident
 
 // IncidentRoutingEvidenceInput is one reducer-ready incident-routing evidence
 // packet. Storage adapters build it from incident.record facts, Terraform-source

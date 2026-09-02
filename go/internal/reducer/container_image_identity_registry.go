@@ -260,7 +260,7 @@ func ociTagObservation(envelope facts.Envelope) (containerImageTagObservation, b
 		digest:         digest,
 		previousDigest: derefString(observation.PreviousDigest),
 		repositoryID:   repositoryID,
-		mutated:        derefBool(observation.Mutated),
+		mutated:        payloadcore.DerefBool(observation.Mutated),
 		factID:         envelope.FactID,
 	}, true
 }

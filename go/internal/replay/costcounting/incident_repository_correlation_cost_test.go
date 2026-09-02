@@ -11,7 +11,7 @@ import (
 
 	"go.opentelemetry.io/otel/sdk/metric/metricdata"
 
-	"github.com/eshu-hq/eshu/go/internal/reducer"
+	"github.com/eshu-hq/eshu/go/internal/reducer/incident"
 )
 
 // incidentRepositoryCorrelationBudgetRelPath is the committed cost budget for
@@ -29,22 +29,22 @@ const incidentRepositoryCorrelationCostIntentID = "intent-incident-repository-co
 // incidentRepositoryCorrelationFixtureDecisions is the deterministic input
 // for this scenario: two exact-outcome decisions for distinct provider
 // services in one scope. WriteIncidentRepositoryCorrelations
-// (go/internal/reducer/incident_repository_correlation_writer.go) now calls
-// the shared reducerBatchInsertFacts bounded chunked bulk insert (issue
-// #5317), so two decisions fit in one 1000-row chunk and cost exactly one
-// ExecContext round-trip.
-func incidentRepositoryCorrelationFixtureDecisions() []reducer.IncidentRepositoryCorrelationDecision {
-	row := func(id string) reducer.IncidentRepositoryCorrelationDecision {
-		return reducer.IncidentRepositoryCorrelationDecision{
+// (go/internal/reducer/incident/incident_repository_correlation_writer.go) now
+// calls the shared factwrite.BatchInsertFacts bounded chunked bulk insert
+// (issue #5317), so two decisions fit in one 1000-row chunk and cost exactly
+// one ExecContext round-trip.
+func incidentRepositoryCorrelationFixtureDecisions() []incident.IncidentRepositoryCorrelationDecision {
+	row := func(id string) incident.IncidentRepositoryCorrelationDecision {
+		return incident.IncidentRepositoryCorrelationDecision{
 			Provider:          "pagerduty",
 			ProviderServiceID: "service-" + id,
 			BackendKind:       "s3",
 			LocatorHash:       "locator-" + id,
 			RepositoryID:      "repo:team-api-" + id,
-			Outcome:           reducer.IncidentRepositoryCorrelationExact,
+			Outcome:           incident.IncidentRepositoryCorrelationExact,
 		}
 	}
-	return []reducer.IncidentRepositoryCorrelationDecision{row("a"), row("b")}
+	return []incident.IncidentRepositoryCorrelationDecision{row("a"), row("b")}
 }
 
 // TestCostBudget_IncidentRepositoryCorrelation is the positive cost-counting
@@ -57,7 +57,7 @@ func incidentRepositoryCorrelationFixtureDecisions() []reducer.IncidentRepositor
 // count is within the committed budget.
 //
 // WriteIncidentRepositoryCorrelations now calls the shared
-// reducerBatchInsertFacts bounded chunked bulk insert (issue #5317) instead of
+// factwrite.BatchInsertFacts bounded chunked bulk insert (issue #5317) instead of
 // one ExecContext per decision, so two decisions fit one chunk and this
 // scenario asserts exactly one write observation. The companion N+1 negative
 // control below
@@ -69,12 +69,12 @@ func TestCostBudget_IncidentRepositoryCorrelation(t *testing.T) {
 	budget := loadBudgetFrom(t, incidentRepositoryCorrelationBudgetRelPath)
 	fake := &countingExecQueryer{}
 	db, reader := newInstrumentedReducerDB(t, fake)
-	writer := reducer.PostgresIncidentRepositoryCorrelationWriter{
+	writer := incident.PostgresIncidentRepositoryCorrelationWriter{
 		DB:  db,
 		Now: func() time.Time { return time.Date(2026, time.July, 12, 12, 0, 0, 0, time.UTC) },
 	}
 
-	result, err := writer.WriteIncidentRepositoryCorrelations(context.Background(), reducer.IncidentRepositoryCorrelationWrite{
+	result, err := writer.WriteIncidentRepositoryCorrelations(context.Background(), incident.IncidentRepositoryCorrelationWrite{
 		IntentID:     incidentRepositoryCorrelationCostIntentID,
 		ScopeID:      "state_snapshot:s3:team-api",
 		GenerationID: "generation-incident-repository-correlation-cost",
@@ -150,19 +150,19 @@ func TestCostBudget_IncidentRepositoryCorrelation_N1_ExceedsBudget(t *testing.T)
 
 	fake := &countingExecQueryer{}
 	db, reader := newInstrumentedReducerDB(t, fake)
-	writer := reducer.PostgresIncidentRepositoryCorrelationWriter{
+	writer := incident.PostgresIncidentRepositoryCorrelationWriter{
 		DB:  db,
 		Now: func() time.Time { return time.Date(2026, time.July, 12, 12, 0, 0, 0, time.UTC) },
 	}
 
 	for _, decision := range decisions {
-		if _, err := writer.WriteIncidentRepositoryCorrelations(context.Background(), reducer.IncidentRepositoryCorrelationWrite{
+		if _, err := writer.WriteIncidentRepositoryCorrelations(context.Background(), incident.IncidentRepositoryCorrelationWrite{
 			IntentID:     incidentRepositoryCorrelationCostIntentID,
 			ScopeID:      "state_snapshot:s3:team-api",
 			GenerationID: "generation-incident-repository-correlation-cost",
 			SourceSystem: "pagerduty",
 			Cause:        "reducer/incident_repository_correlation",
-			Decisions:    []reducer.IncidentRepositoryCorrelationDecision{decision},
+			Decisions:    []incident.IncidentRepositoryCorrelationDecision{decision},
 		}); err != nil {
 			t.Fatalf("N+1 WriteIncidentRepositoryCorrelations() error = %v", err)
 		}

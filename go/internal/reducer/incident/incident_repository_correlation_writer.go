@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package reducer
+package incident
 
 import (
 	"context"
@@ -11,34 +11,13 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
+	"github.com/eshu-hq/eshu/go/internal/reducer/factwrite"
+	"github.com/eshu-hq/eshu/go/internal/reducer/payloadcore"
 	"github.com/eshu-hq/eshu/go/internal/truth"
 )
 
 const incidentRepositoryCorrelationFactKind = "reducer_incident_repository_correlation"
-
-// incidentRepositoryCorrelationDomainDefinition declares the additive
-// incident-repository correlation domain. Its truth contract spans the source
-// declaration layer (the applied routing fact) and the observed-resource layer
-// (the resolved owning repository), matching the two layers an edge-bearing
-// decision carries; provenance-only decisions stay declaration-layer only.
-func incidentRepositoryCorrelationDomainDefinition() DomainDefinition {
-	return DomainDefinition{
-		Domain:  DomainIncidentRepositoryCorrelation,
-		Summary: "correlate applied PagerDuty incident routing to its owning repository through the durable Terraform backend-locator join",
-		Ownership: OwnershipShape{
-			CrossSource:    true,
-			CrossScope:     true,
-			CanonicalWrite: true,
-		},
-		TruthContract: truth.Contract{
-			CanonicalKind: "incident_repository_correlation",
-			SourceLayers: []truth.Layer{
-				truth.LayerSourceDeclaration,
-				truth.LayerObservedResource,
-			},
-		},
-	}
-}
 
 // PostgresIncidentRepositoryCorrelationWriter stores reducer-owned incident
 // repository correlation decisions in the shared fact store. Every outcome is
@@ -48,7 +27,7 @@ func incidentRepositoryCorrelationDomainDefinition() DomainDefinition {
 // retries and concurrent workers converge on one row via the
 // ON CONFLICT (fact_id) DO UPDATE idempotency of canonicalReducerFactInsertQuery.
 type PostgresIncidentRepositoryCorrelationWriter struct {
-	DB  workloadIdentityExecer
+	DB  factwrite.Execer
 	Now func() time.Time
 }
 
@@ -64,21 +43,21 @@ func (w PostgresIncidentRepositoryCorrelationWriter) WriteIncidentRepositoryCorr
 	if w.DB == nil {
 		return IncidentRepositoryCorrelationWriteResult{}, fmt.Errorf("incident repository correlation database is required")
 	}
-	now := reducerWriterNow(w.Now)
-	rows := make([]reducerFactRow, 0, len(write.Decisions))
+	now := factwrite.Now(w.Now)
+	rows := make([]factwrite.Row, 0, len(write.Decisions))
 	for _, decision := range write.Decisions {
 		payload := incidentRepositoryCorrelationPayload(write, decision)
 		payloadJSON, err := json.Marshal(payload)
 		if err != nil {
 			return IncidentRepositoryCorrelationWriteResult{}, fmt.Errorf("marshal incident repository correlation payload: %w", err)
 		}
-		rows = append(rows, reducerFactRow{
+		rows = append(rows, factwrite.Row{
 			FactID:           incidentRepositoryCorrelationFactID(write, decision),
 			ScopeID:          write.ScopeID,
 			GenerationID:     write.GenerationID,
 			FactKind:         incidentRepositoryCorrelationFactKind,
 			StableFactKey:    incidentRepositoryCorrelationStableFactKey(write, decision),
-			CollectorKind:    reducerFactCollectorKind(write.SourceSystem),
+			CollectorKind:    factwrite.CollectorKind(write.SourceSystem),
 			SourceConfidence: facts.SourceConfidenceInferred,
 			SourceSystem:     write.SourceSystem,
 			SourceFactKey:    write.IntentID,
@@ -89,7 +68,7 @@ func (w PostgresIncidentRepositoryCorrelationWriter) WriteIncidentRepositoryCorr
 	}
 	// Bounded chunked bulk insert: decisions are upserted in O(N/batchSize)
 	// round-trips rather than one ExecContext per decision.
-	if err := reducerBatchInsertFacts(ctx, w.DB, rows); err != nil {
+	if err := factwrite.BatchInsertFacts(ctx, w.DB, rows); err != nil {
 		return IncidentRepositoryCorrelationWriteResult{}, fmt.Errorf("write incident repository correlation fact: %w", err)
 	}
 	return IncidentRepositoryCorrelationWriteResult{
@@ -153,7 +132,7 @@ func incidentRepositoryCorrelationPayload(
 	decision IncidentRepositoryCorrelationDecision,
 ) map[string]any {
 	return map[string]any{
-		"reducer_domain":           string(DomainIncidentRepositoryCorrelation),
+		"reducer_domain":           string(reducercontract.DomainIncidentRepositoryCorrelation),
 		"intent_id":                write.IntentID,
 		"scope_id":                 write.ScopeID,
 		"generation_id":            write.GenerationID,
@@ -167,8 +146,8 @@ func incidentRepositoryCorrelationPayload(
 		"outcome":                  string(decision.Outcome),
 		"reason":                   decision.Reason,
 		"provenance_only":          decision.ProvenanceOnly,
-		"candidate_repository_ids": uniqueSortedStrings(decision.CandidateRepositoryIDs),
-		"evidence_fact_ids":        uniqueSortedStrings(decision.EvidenceFactIDs),
+		"candidate_repository_ids": payloadcore.UniqueSortedStrings(decision.CandidateRepositoryIDs),
+		"evidence_fact_ids":        payloadcore.UniqueSortedStrings(decision.EvidenceFactIDs),
 		"source_layers":            incidentRepositoryCorrelationSourceLayers(decision),
 	}
 }
@@ -186,5 +165,5 @@ func incidentRepositoryCorrelationSourceLayers(
 	if !decision.ProvenanceOnly && strings.TrimSpace(decision.RepositoryID) != "" {
 		layers = append(layers, string(truth.LayerObservedResource))
 	}
-	return uniqueSortedStrings(layers)
+	return payloadcore.UniqueSortedStrings(layers)
 }

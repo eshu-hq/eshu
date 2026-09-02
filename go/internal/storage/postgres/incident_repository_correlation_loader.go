@@ -10,7 +10,7 @@ import (
 	"strings"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
-	"github.com/eshu-hq/eshu/go/internal/reducer"
+	"github.com/eshu-hq/eshu/go/internal/reducer/incident"
 	"github.com/eshu-hq/eshu/go/internal/relationships/tfstatebackend"
 )
 
@@ -67,7 +67,7 @@ type PostgresAppliedPagerDutyServiceRoutingLoader struct {
 }
 
 // LoadAppliedPagerDutyServiceRouting implements
-// reducer.AppliedPagerDutyServiceRoutingLoader. Rows without a provider service
+// incident.AppliedPagerDutyServiceRoutingLoader. Rows without a provider service
 // id are still returned (their ProviderObjectID is blank) so the builder can
 // record them as provenance-only rejected decisions rather than the loader
 // silently hiding partial coverage.
@@ -75,7 +75,7 @@ func (l PostgresAppliedPagerDutyServiceRoutingLoader) LoadAppliedPagerDutyServic
 	ctx context.Context,
 	scopeID string,
 	generationID string,
-) ([]reducer.AppliedPagerDutyServiceRouting, error) {
+) ([]incident.AppliedPagerDutyServiceRouting, error) {
 	if l.DB == nil {
 		return nil, fmt.Errorf("applied pagerduty service routing database is required")
 	}
@@ -91,7 +91,7 @@ func (l PostgresAppliedPagerDutyServiceRoutingLoader) LoadAppliedPagerDutyServic
 	}
 	defer func() { _ = rows.Close() }()
 
-	out := make([]reducer.AppliedPagerDutyServiceRouting, 0)
+	out := make([]incident.AppliedPagerDutyServiceRouting, 0)
 	for rows.Next() {
 		var (
 			factID           string
@@ -107,7 +107,7 @@ func (l PostgresAppliedPagerDutyServiceRoutingLoader) LoadAppliedPagerDutyServic
 			return nil, fmt.Errorf("scan applied pagerduty service routing: %w", err)
 		}
 		providerID := derefTrim(providerObjectID)
-		out = append(out, reducer.AppliedPagerDutyServiceRouting{
+		out = append(out, incident.AppliedPagerDutyServiceRouting{
 			FactID:           strings.TrimSpace(factID),
 			StableFactKey:    strings.TrimSpace(stableFactKey),
 			ProviderObjectID: providerID,
@@ -135,7 +135,7 @@ func derefTrim(value *string) string {
 }
 
 // BackendRepositoryResolverAdapter bridges the tfstatebackend resolver to the
-// reducer.BackendRepositoryResolver contract. It translates the resolver's
+// incident.BackendRepositoryResolver contract. It translates the resolver's
 // sentinel errors into the data-only BackendRepositoryResolution the pure
 // correlation builder classifies: no owner becomes a blank resolution
 // (unresolved), an ambiguous owner becomes Ambiguous=true, and a single owner
@@ -144,27 +144,27 @@ type BackendRepositoryResolverAdapter struct {
 	Resolver *tfstatebackend.Resolver
 }
 
-// ResolveBackendRepository implements reducer.BackendRepositoryResolver.
+// ResolveBackendRepository implements incident.BackendRepositoryResolver.
 func (a BackendRepositoryResolverAdapter) ResolveBackendRepository(
 	ctx context.Context,
 	backendKind string,
 	locatorHash string,
-) (reducer.BackendRepositoryResolution, error) {
+) (incident.BackendRepositoryResolution, error) {
 	if a.Resolver == nil {
-		return reducer.BackendRepositoryResolution{}, nil
+		return incident.BackendRepositoryResolution{}, nil
 	}
 	anchor, err := a.Resolver.ResolveConfigCommitForBackend(ctx, backendKind, locatorHash)
 	switch {
 	case errors.Is(err, tfstatebackend.ErrNoConfigRepoOwnsBackend):
-		return reducer.BackendRepositoryResolution{}, nil
+		return incident.BackendRepositoryResolution{}, nil
 	case errors.Is(err, tfstatebackend.ErrAmbiguousBackendOwner):
-		return reducer.BackendRepositoryResolution{Ambiguous: true}, nil
+		return incident.BackendRepositoryResolution{Ambiguous: true}, nil
 	case err != nil:
-		return reducer.BackendRepositoryResolution{}, fmt.Errorf(
+		return incident.BackendRepositoryResolution{}, fmt.Errorf(
 			"resolve config commit for backend %s/%s: %w", backendKind, locatorHash, err,
 		)
 	}
-	return reducer.BackendRepositoryResolution{RepositoryID: strings.TrimSpace(anchor.RepoID)}, nil
+	return incident.BackendRepositoryResolution{RepositoryID: strings.TrimSpace(anchor.RepoID)}, nil
 }
 
 // ensure the applied-routing fact kind constant referenced by the query stays in

@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/reducer/payloadcore"
 )
 
 // decodeCodeTaintEvidenceInput decodes one code_taint_evidence envelope
@@ -70,9 +71,9 @@ func decodeCodeInterprocEvidenceInput(envelope facts.Envelope) (CodeInterprocEvi
 		SinkKind:           derefStringTrimmed(evidence.SinkKind),
 		SourceKind:         derefStringTrimmed(evidence.SourceKind),
 		Confidence:         derefFloat64(evidence.Confidence),
-		Cloud:              derefBool(evidence.Cloud),
+		Cloud:              payloadcore.DerefBool(evidence.Cloud),
 		WhyTrail:           evidence.WhyTrail,
-		WhyTrailTruncated:  derefBool(evidence.WhyTrailTruncated),
+		WhyTrailTruncated:  payloadcore.DerefBool(evidence.WhyTrailTruncated),
 	}, nil
 }
 

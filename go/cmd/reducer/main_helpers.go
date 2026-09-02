@@ -17,6 +17,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/query"
 	"github.com/eshu-hq/eshu/go/internal/reducer"
 	"github.com/eshu-hq/eshu/go/internal/reducer/codeintel"
+	"github.com/eshu-hq/eshu/go/internal/reducer/incident"
 	"github.com/eshu-hq/eshu/go/internal/relationships/tfstatebackend"
 	runtimecfg "github.com/eshu-hq/eshu/go/internal/runtime"
 	sourcecypher "github.com/eshu-hq/eshu/go/internal/storage/cypher"
@@ -228,9 +229,9 @@ func reducerDomainStrings(domains []reducer.Domain) []string {
 // provenance-only and fail-closed. It is extracted from the entrypoint so the
 // reducer command stays within the repo file-size budget.
 func incidentRepositoryCorrelationWiring(database postgres.ExecQueryer) (
-	reducer.AppliedPagerDutyServiceRoutingLoader,
-	reducer.BackendRepositoryResolver,
-	reducer.IncidentRepositoryCorrelationWriter,
+	incident.AppliedPagerDutyServiceRoutingLoader,
+	incident.BackendRepositoryResolver,
+	incident.IncidentRepositoryCorrelationWriter,
 ) {
 	loader := postgres.PostgresAppliedPagerDutyServiceRoutingLoader{DB: database}
 	resolver := postgres.BackendRepositoryResolverAdapter{
@@ -238,7 +239,7 @@ func incidentRepositoryCorrelationWiring(database postgres.ExecQueryer) (
 			postgres.PostgresTerraformBackendQuery{DB: database},
 		),
 	}
-	writer := reducer.PostgresIncidentRepositoryCorrelationWriter{DB: database}
+	writer := incident.PostgresIncidentRepositoryCorrelationWriter{DB: database}
 	return loader, resolver, writer
 }
 

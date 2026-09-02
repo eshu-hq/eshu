@@ -3,7 +3,41 @@
 
 package reducer
 
-import "testing"
+import (
+	"context"
+	"testing"
+
+	"github.com/eshu-hq/eshu/go/internal/reducer/incident"
+)
+
+// stubIncidentRoutingEvidenceLoader is a no-op IncidentRoutingEvidenceLoader
+// used only to satisfy the non-nil gate in implementedDefaultDomainDefinitions;
+// it is a local copy scoped to this registration-gate test (issue #6061), not
+// the incident package's own richer test double.
+type stubIncidentRoutingEvidenceLoader struct{}
+
+func (stubIncidentRoutingEvidenceLoader) LoadIncidentRoutingRawEvidence(
+	context.Context, string, string,
+) (incident.IncidentRoutingRawEvidence, error) {
+	return incident.IncidentRoutingRawEvidence{}, nil
+}
+
+// recordingIncidentRoutingEvidenceWriter is a no-op
+// IncidentRoutingEvidenceWriter used only to satisfy the non-nil gate in
+// implementedDefaultDomainDefinitions.
+type recordingIncidentRoutingEvidenceWriter struct{}
+
+func (recordingIncidentRoutingEvidenceWriter) WriteIncidentRoutingEvidence(
+	context.Context, []map[string]any, string, string, string,
+) error {
+	return nil
+}
+
+func (recordingIncidentRoutingEvidenceWriter) RetractIncidentRoutingEvidence(
+	context.Context, []string, string, string,
+) error {
+	return nil
+}
 
 func TestImplementedDefaultDomainDefinitionsOmitsIncidentRoutingWithoutWriter(t *testing.T) {
 	t.Parallel()
@@ -24,7 +58,7 @@ func TestImplementedDefaultDomainDefinitionsIncludesIncidentRoutingWhenWired(t *
 	t.Parallel()
 
 	loader := stubIncidentRoutingEvidenceLoader{}
-	writer := &recordingIncidentRoutingEvidenceWriter{}
+	writer := recordingIncidentRoutingEvidenceWriter{}
 	definitions := implementedDefaultDomainDefinitions(DefaultHandlers{
 		IncidentRoutingHandlers: IncidentRoutingHandlers{
 			IncidentRoutingEvidenceLoader: loader,
@@ -38,9 +72,9 @@ func TestImplementedDefaultDomainDefinitionsIncludesIncidentRoutingWhenWired(t *
 			continue
 		}
 		found = true
-		handler, ok := def.Handler.(IncidentRoutingMaterializationHandler)
+		handler, ok := def.Handler.(incident.IncidentRoutingMaterializationHandler)
 		if !ok {
-			t.Fatalf("incident_routing_materialization handler type = %T, want IncidentRoutingMaterializationHandler", def.Handler)
+			t.Fatalf("incident_routing_materialization handler type = %T, want incident.IncidentRoutingMaterializationHandler", def.Handler)
 		}
 		if handler.Loader == nil {
 			t.Fatal("incident_routing_materialization handler Loader was not wired")

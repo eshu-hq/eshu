@@ -7,6 +7,7 @@ import (
 	"log/slog"
 
 	"github.com/eshu-hq/eshu/go/internal/reducer/eshusearch"
+	"github.com/eshu-hq/eshu/go/internal/reducer/incident"
 	"github.com/eshu-hq/eshu/go/internal/reducer/tfconfigstate"
 	"github.com/eshu-hq/eshu/go/internal/relationships/tfstatebackend"
 )
@@ -251,11 +252,11 @@ type IncidentRoutingHandlers struct {
 	// It must be non-nil alongside IncidentRoutingEvidenceWriter to register
 	// DomainIncidentRoutingMaterialization; missing either one would drop every
 	// incident-routing graph materialization intent before it reaches graph truth.
-	IncidentRoutingEvidenceLoader IncidentRoutingEvidenceLoader
+	IncidentRoutingEvidenceLoader incident.IncidentRoutingEvidenceLoader
 
 	// IncidentRoutingEvidenceWriter projects exact PagerDuty routing evidence into
 	// canonical IncidentRoutingEvidence graph nodes and evidence relationships.
-	IncidentRoutingEvidenceWriter IncidentRoutingEvidenceWriter
+	IncidentRoutingEvidenceWriter incident.IncidentRoutingEvidenceWriter
 
 	// AppliedPagerDutyServiceRoutingLoader loads applied PagerDuty service
 	// routing facts (provider service id + Terraform backend locator) for the
@@ -263,19 +264,19 @@ type IncidentRoutingHandlers struct {
 	// IncidentRepositoryCorrelationWriter to register
 	// DomainIncidentRepositoryCorrelation; the BackendRepositoryResolver is also
 	// required so the durable backend-locator-to-repository join can run.
-	AppliedPagerDutyServiceRoutingLoader AppliedPagerDutyServiceRoutingLoader
+	AppliedPagerDutyServiceRoutingLoader incident.AppliedPagerDutyServiceRoutingLoader
 
 	// BackendRepositoryResolver resolves a Terraform backend locator to its
 	// single owning config repository for the incident-repository correlation
 	// domain. A nil resolver leaves every correlation unresolved (no durable
 	// edge), so it must be wired for the domain to emit edges.
-	BackendRepositoryResolver BackendRepositoryResolver
+	BackendRepositoryResolver incident.BackendRepositoryResolver
 
 	// IncidentRepositoryCorrelationWriter persists durable
 	// incident-routing-to-repository correlation decisions. It must be non-nil
 	// alongside AppliedPagerDutyServiceRoutingLoader to register
 	// DomainIncidentRepositoryCorrelation.
-	IncidentRepositoryCorrelationWriter IncidentRepositoryCorrelationWriter
+	IncidentRepositoryCorrelationWriter incident.IncidentRepositoryCorrelationWriter
 }
 
 // CodeEvidenceHandlers groups the value-flow taint, cross-function interproc,

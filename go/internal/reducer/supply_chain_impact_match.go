@@ -41,8 +41,8 @@ func supplyChainConsumptionFromEnvelope(envelope facts.Envelope) (supplyChainPac
 		versionEvidence:           strings.TrimSpace(derefString(correlation.VersionEvidence)),
 		unresolvedMSBuildProperty: strings.TrimSpace(derefString(correlation.UnresolvedMSBuildProperty)),
 		ambiguousMSBuildProperty:  strings.TrimSpace(derefString(correlation.AmbiguousMSBuildProperty)),
-		partialEvidence:           derefBool(correlation.PartialEvidence),
-		lockfile:                  derefBool(correlation.Lockfile),
+		partialEvidence:           payloadcore.DerefBool(correlation.PartialEvidence),
+		lockfile:                  payloadcore.DerefBool(correlation.Lockfile),
 	}, nil
 }
 

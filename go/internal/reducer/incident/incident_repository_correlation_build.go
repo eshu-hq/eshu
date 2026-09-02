@@ -1,13 +1,15 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package reducer
+package incident
 
 import (
 	"context"
 	"fmt"
 	"sort"
 	"strings"
+
+	"github.com/eshu-hq/eshu/go/internal/reducer/payloadcore"
 )
 
 // providerServiceCandidate groups all applied routing rows that share one
@@ -185,7 +187,7 @@ func classifyProviderServiceCandidate(
 		ProviderServiceID: candidate.providerID,
 		BackendKind:       candidate.backendKind,
 		LocatorHash:       candidate.locatorHash,
-		EvidenceFactIDs:   uniqueSortedStrings(candidate.factIDs),
+		EvidenceFactIDs:   payloadcore.UniqueSortedStrings(candidate.factIDs),
 		ProvenanceOnly:    true,
 	}
 	if candidate.backendKind == "" || candidate.locatorHash == "" {
@@ -198,7 +200,7 @@ func classifyProviderServiceCandidate(
 		base.Outcome = IncidentRepositoryCorrelationAmbiguous
 		base.Reason = "more than one config repository owns the applied Terraform backend locator"
 		if resolution.Ambiguous && strings.TrimSpace(resolution.RepositoryID) != "" {
-			base.CandidateRepositoryIDs = uniqueSortedStrings([]string{resolution.RepositoryID})
+			base.CandidateRepositoryIDs = payloadcore.UniqueSortedStrings([]string{resolution.RepositoryID})
 		}
 		return base
 	}

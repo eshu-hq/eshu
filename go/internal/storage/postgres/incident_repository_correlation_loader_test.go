@@ -9,7 +9,7 @@ import (
 	"fmt"
 	"testing"
 
-	"github.com/eshu-hq/eshu/go/internal/reducer"
+	"github.com/eshu-hq/eshu/go/internal/reducer/incident"
 	"github.com/eshu-hq/eshu/go/internal/relationships/tfstatebackend"
 )
 
@@ -179,6 +179,6 @@ func TestBackendRepositoryResolverAdapterNoOwner(t *testing.T) {
 
 // compile-time assertions that the adapters satisfy the reducer ports.
 var (
-	_ reducer.AppliedPagerDutyServiceRoutingLoader = PostgresAppliedPagerDutyServiceRoutingLoader{}
-	_ reducer.BackendRepositoryResolver            = BackendRepositoryResolverAdapter{}
+	_ incident.AppliedPagerDutyServiceRoutingLoader = PostgresAppliedPagerDutyServiceRoutingLoader{}
+	_ incident.BackendRepositoryResolver            = BackendRepositoryResolverAdapter{}
 )
