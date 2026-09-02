@@ -20,7 +20,8 @@ failure class (`cross_scope_producer_not_ready`) bounded at 30 minutes of
 elapsed time, so it never dead-letters and never waits forever.
 
 **It was wired to one of the two registered consumers.**
-`crossScopeDependencyCatalog` (`go/internal/reducer/cross_scope_dependencies.go`)
+`crossScopeDependencyCatalog` (`go/internal/reducer/crossscope/dependencies.go`,
+moved from `cross_scope_dependencies.go` by #6061)
 declares two: `ci_cd_run_correlation`, which got the floor, and
 `supply_chain_impact`, which did not. The merged evidence doc says so under
 "what a reviewer should push on".
