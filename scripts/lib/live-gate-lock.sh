@@ -123,16 +123,24 @@ keep_marker_refusal() {
 # mutex would silently stop excluding anything. Verify the link actually landed
 # at the lock path carrying our payload before trusting the claim.
 # Returns: 0 claimed, 1 name already taken, 2 a non-symlink is in the way.
-# Orphan-guard reap age, in seconds. Production keeps 60: a guard younger than
-# that belongs to a reclaimer that may still be working, and reaping it would
-# let two runs into the same reclaim. It is overridable ONLY so the lock's own
-# tests can assert "a fresh guard is not reaped" without that assertion
-# depending on how long the test itself takes to run. The check compares wall
-# clock against the guard's birth epoch, so a try_acquire that is slow enough --
-# 50 attempts with sleeps, on a loaded machine -- can push a guard stamped
-# "now" past a 60s threshold DURING the test, reap it, and fail an assertion
-# about freshness that the code under test never actually violated.
-: "${ESHU_LIVE_GATE_REAP_AGE_SECONDS:=60}"
+# Orphan-guard reap age, in seconds. A guard younger than this belongs to a
+# reclaimer that may still be working, and reaping it would let two runs into
+# the same reclaim section.
+#
+# Deliberately a plain shell assignment, NOT `: "${VAR:=60}"`. Reading it from
+# the environment would let any process that exports the name shrink or zero
+# the window for a real run -- a transient `ps -p` false negative could then
+# reap a guard created moments earlier, which is precisely the race the guard
+# exists to prevent. A non-numeric inherited value would also abort this
+# `set -u` caller inside the arithmetic. Production therefore has one fixed
+# value that no caller and no CI runner can influence.
+#
+# The lock's own tests raise it by assigning this variable AFTER sourcing this
+# file, which is in-process and cannot arrive from the environment. They need
+# to because the gate compares wall clock against the guard's birth epoch:
+# try_acquire retries 50 times with sleeps, so on a loaded host a guard stamped
+# "now" can age past the window DURING the case that asserts it stays fresh.
+eshu_live_gate_reap_age_seconds=60
 
 claim_lock_link() {
 	local payload="$1" candidate="$2"
@@ -421,7 +429,7 @@ acquire_live_gate_lock() {
 				guard_born="${guard_payload#*:}"
 				if [[ "${guard_pid}" =~ ^[0-9]+$ ]] && ! process_is_alive "${guard_pid}" &&
 					[[ "${guard_born}" =~ ^[0-9]+$ ]] &&
-					(( $(date +%s) - guard_born > ESHU_LIVE_GATE_REAP_AGE_SECONDS )); then
+					(( $(date +%s) - guard_born > eshu_live_gate_reap_age_seconds )); then
 					# The age and liveness decisions were both taken before this
 					# point, and neither can see a guard recreated since. Destroy
 					# only the value that was actually judged - the guard must be

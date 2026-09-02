@@ -103,11 +103,14 @@ fi
 # The threshold is a variable so the fresh-guard case below can raise it and
 # stop asserting freshness against how long that case itself takes to run; the
 # production default is pinned separately, right after this.
-require_lock "age-gate polarity" '(( $(date +%s) - guard_born > ESHU_LIVE_GATE_REAP_AGE_SECONDS ))'
-# The default must stay 60: a test may raise it, but an unset or widened
-# production value would let a run reap a guard a racer created moments ago,
-# which is the race the guard exists to prevent.
-require_lock "reap age default" ': "${ESHU_LIVE_GATE_REAP_AGE_SECONDS:=60}"'
+require_lock "age-gate polarity" '(( $(date +%s) - guard_born > eshu_live_gate_reap_age_seconds ))'
+# The production value must stay a fixed 60 assigned in-process, never read
+# from the environment: an inherited value could LOWER the window, and because
+# the gate reaps only when age > threshold, a lower threshold reaps sooner --
+# up to reaping a guard a racer created moments ago. Raising it only delays
+# reaping, which is the conservative direction and is what the fresh-guard
+# case below does, in-process, after sourcing.
+require_lock "reap age is fixed in-process" 'eshu_live_gate_reap_age_seconds=60'
 if rg -v '^[[:space:]]*#' "${lock_lib}" | rg -- 'find ' >/dev/null; then
 	fail "live-gate-lock.sh reverted to using find - it is a banned discovery primitive repo-wide"
 fi
@@ -160,11 +163,19 @@ trap drop_lock_home EXIT
 # "got 8" under scheduler load - not a mutex bug, an test invariant that
 # was already provably violated by the code as designed. Overlap (never two
 # holders AT ONCE) is what must be asserted; sequential winners are correct.
+# $3 optionally overrides the orphan-reap age INSIDE the child, assigned after
+# the lib is sourced. It is passed as an argument and never as an environment
+# variable on purpose: an env-readable threshold would let any process that
+# exports the name shrink the production window, and because the gate reaps only
+# when age > threshold, a smaller value reaps SOONER -- far enough to reap a
+# guard a racer created moments ago. Raising it, as the fresh-guard case does,
+# only delays reaping, which is the conservative direction.
 try_acquire() {
-	local hold="${1:-0}" token="${2:-}"
+	local hold="${1:-0}" token="${2:-}" reap_age="${3:-}"
 	ESHU_LIVE_GATE_LOCK_DIR="${lock_home}" bash -c '
 		set -euo pipefail
 		. "$1"
+		[[ -z "$4" ]] || eshu_live_gate_reap_age_seconds="$4"
 		acquire_live_gate_lock
 		token="$3"
 		if [[ -n "${token}" ]] && ! ( set -o noclobber; : >"${token}" ) 2>/dev/null; then
@@ -174,7 +185,7 @@ try_acquire() {
 		fi
 		[[ "$2" == "0" ]] || sleep "$2"
 		[[ -z "${token}" ]] || rm -f "${token}"
-	' _ "${lock_lib}" "${hold}" "${token}" 2>&1
+	' _ "${lock_lib}" "${hold}" "${token}" "${reap_age}" 2>&1
 }
 
 # A free lock is acquired.
@@ -314,7 +325,7 @@ else
 	# Observed intermittently on unmodified main at roughly 1 run in 4. The
 	# case is about the age GATE, not about how slow the host is.
 	set +e
-	fresh_guard_out="$(ESHU_LIVE_GATE_REAP_AGE_SECONDS=86400 try_acquire)"
+	fresh_guard_out="$(try_acquire 0 "" 86400)"
 	fresh_guard_status=$?
 	set -e
 	[[ "${fresh_guard_status}" -ne 0 ]] \
