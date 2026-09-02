@@ -8,9 +8,11 @@ and handle work without importing the parent `internal/reducer` package.
 ## Ownership boundary
 
 This package owns the `Domain` catalog and validation set, durable `Intent` and
-`Result` values, handler interfaces, ownership validation, and domain
-definitions. The parent reducer package owns registry composition, runtime and
-queue execution, adapters, retries, telemetry, and graph writes.
+`Result` values, handler interfaces, ownership validation, domain definitions,
+and the `ContainerImageIdentityOutcome` type with its five outcome constants
+and `ContainerImageIdentityFactKind`. The parent reducer package owns registry
+composition, runtime and queue execution, adapters, retries, telemetry, and
+graph writes.
 
 ## Exported surface
 
