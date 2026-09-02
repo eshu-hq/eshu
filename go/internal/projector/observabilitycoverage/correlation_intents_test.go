@@ -175,12 +175,6 @@ func TestBuildObservabilityCoverageCorrelationReducerIntentSkipsUndecodableAWSRe
 	}
 }
 
-// TestObservabilitySourceSystemThirdTierFallback pins the family's literal
-// third source-system tier: a trigger fact with a blank source ref AND blank
-// collector kind labels the intent "observability". The shared two-tier
-// projectorintent.SourceSystem returns an empty string for that envelope, so
-// substituting it would silently relabel the intent — this test fails under
-// that substitution.
 // TestObservabilitySourceSystemDoesNotTrimEarlierTiers pins the SECOND way this
 // helper differs from projectorintent.SourceSystem. The obvious difference is the
 // third tier, the literal "observability", and that is already covered. The
@@ -207,6 +201,12 @@ func TestObservabilitySourceSystemDoesNotTrimEarlierTiers(t *testing.T) {
 	}
 }
 
+// TestObservabilitySourceSystemThirdTierFallback pins the family's literal
+// third source-system tier: a trigger fact with a blank source ref AND blank
+// collector kind labels the intent "observability". The shared two-tier
+// projectorintent.SourceSystem returns an empty string for that envelope, so
+// substituting it would silently relabel the intent — this test fails under
+// that substitution.
 func TestObservabilitySourceSystemThirdTierFallback(t *testing.T) {
 	t.Parallel()
 
