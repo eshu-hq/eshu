@@ -13,7 +13,8 @@
 # proves that baseline is not stale (byte-identical to a fresh regeneration,
 # via ESHU_DOC_CITATIONS_BASELINE_PATH redirecting only the write target), and
 # 14 asserts the real-tree scan meets a citation floor so a regex/glob
-# regression that silently zeroes the scan cannot pass unnoticed.
+# regression that silently zeroes the scan cannot pass unnoticed. Case 15
+# proves the LINE ledger preserves occurrences instead of only unique pairs.
 set -euo pipefail
 
 repo_root="$(cd "$(dirname "$0")/.." && pwd)"
@@ -345,8 +346,14 @@ test_real_tree_passes_with_committed_baseline() {
 # scripts/docs-citations-baseline.txt.
 test_real_baseline_matches_fresh_regeneration() {
   local regenerated="${tmp_root}/case13-regenerated-baseline.txt" out="${tmp_root}/case13.out"
-  ESHU_DOC_CITATIONS_BASELINE_PATH="${regenerated}" "${BASH:-bash}" "${verifier}" -update \
-    >"${out}" 2>&1
+  cp "${repo_root}/scripts/docs-citations-baseline.txt" "${regenerated}"
+  if ! ESHU_DOC_CITATIONS_BASELINE_PATH="${regenerated}" "${BASH:-bash}" "${verifier}" -update \
+    >"${out}" 2>&1; then
+    record_fail "case13: fresh baseline regeneration command completes"
+    sed -n '1,20p' "${out}" >&2
+    return
+  fi
+  record_pass "case13: fresh baseline regeneration command completes"
   local committed="${repo_root}/scripts/docs-citations-baseline.txt"
   if [[ -f "${committed}" ]] && cmp -s "${regenerated}" "${committed}"; then
     record_pass "case13: committed baseline matches a fresh regeneration"
@@ -368,10 +375,14 @@ test_real_baseline_matches_fresh_regeneration() {
 # `verify-doc-citations: OK: N test citation(s) checked (... M fixture
 # citation(s) checked ...` summary is the parse target.
 test_real_tree_meets_citation_floor() {
-  local out="${tmp_root}/case14.out"
+  local out="${tmp_root}/case12.out"
   local test_floor=200 fixture_floor=50
-  if ! "${BASH:-bash}" "${verifier}" >"${out}" 2>&1; then
-    record_fail "case14: real tree must pass before the floor can be checked"
+  if [[ ! -f "${out}" ]]; then
+    record_fail "case14: case12 verifier output is required before the floor can be checked"
+    return
+  fi
+  if ! rg -q --fixed-strings 'verify-doc-citations: OK' "${out}"; then
+    record_fail "case14: case12 real-tree proof must pass before the floor can be checked"
     cat "${out}" >&2
     return
   fi
@@ -397,6 +408,55 @@ test_real_tree_meets_citation_floor() {
   fi
 }
 
+test_real_tree_result_is_reused_for_floor() {
+  local real_verifier="${verifier}"
+  local wrapper="${tmp_root}/count-real-tree-verifier.sh"
+  local count_file="${tmp_root}/real-tree-verifier.count" count
+  {
+    printf '%s\n' '#!/usr/bin/env bash'
+    printf '%s\n' 'printf x >>"${REAL_TREE_VERIFIER_COUNT:?}"'
+    printf '%s\n' 'exec "${REAL_TREE_VERIFIER:?}" "$@"'
+  } >"${wrapper}"
+  export REAL_TREE_VERIFIER="${real_verifier}"
+  export REAL_TREE_VERIFIER_COUNT="${count_file}"
+  verifier="${wrapper}"
+  test_real_tree_passes_with_committed_baseline
+  test_real_tree_meets_citation_floor
+  verifier="${real_verifier}"
+  unset REAL_TREE_VERIFIER REAL_TREE_VERIFIER_COUNT
+
+  count="$(wc -c <"${count_file}" | tr -d ' ')"
+  if [[ "${count}" -eq 1 ]]; then
+    record_pass "case14: citation floor reuses the proven case12 verifier output"
+  else
+    record_fail "case14: citation floor reuses the proven case12 verifier output (got ${count} verifier runs)"
+  fi
+}
+
+test_real_line_ledger_preserves_multiplicity() {
+  local baseline="${repo_root}/scripts/docs-citations-baseline.txt"
+  local occurrences unique_pairs
+  occurrences="$(rg -c '^LINE ' "${baseline}")"
+  unique_pairs="$(rg '^LINE ' "${baseline}" | LC_ALL=C sort -u | wc -l | tr -d ' ')"
+  if [[ "${unique_pairs}" -ge 1 && "${occurrences}" -gt "${unique_pairs}" ]]; then
+    record_pass "case15: real LINE ledger preserves ${occurrences} occurrences across ${unique_pairs} unique source/target pairs"
+  else
+    record_fail "case15: LINE ledger collapsed multiplicity (${occurrences} occurrences, ${unique_pairs} unique pairs)"
+  fi
+}
+
+# Keep the hostile raw file-and-line cases in a separate file so this test
+# entrypoint stays below the repository's 500-line cap.
+# shellcheck source=scripts/lib/test-verify-doc-citations-line-cases.sh
+source "${repo_root}/scripts/lib/test-verify-doc-citations-line-cases.sh"
+# shellcheck source=scripts/lib/test-verify-doc-citations-review-cases.sh
+source "${repo_root}/scripts/lib/test-verify-doc-citations-review-cases.sh"
+# shellcheck source=scripts/lib/test-verify-doc-citations-binary-cases.sh
+source "${repo_root}/scripts/lib/test-verify-doc-citations-binary-cases.sh"
+# shellcheck source=scripts/lib/test-verify-doc-citations-preparation-cases.sh
+source "${repo_root}/scripts/lib/test-verify-doc-citations-preparation-cases.sh"
+
+test_update_is_idempotent
 test_existing_test_citation_passes
 test_phantom_test_citation_fails
 test_missing_file_citation_fails
@@ -406,11 +466,14 @@ test_used_fixture_citation_passes
 test_unused_fixture_citation_fails
 test_missing_fixture_citation_fails
 test_baselined_unused_fixture_shared_across_docs_passes
-test_update_is_idempotent
 test_fails_closed_on_bad_baseline
-test_real_tree_passes_with_committed_baseline
+test_real_tree_result_is_reused_for_floor
 test_real_baseline_matches_fresh_regeneration
-test_real_tree_meets_citation_floor
+test_real_line_ledger_preserves_multiplicity
+run_line_citation_cases
+run_line_citation_review_cases
+run_line_citation_binary_cases
+run_line_citation_preparation_cases
 
 if [[ "${FAIL}" -ne 0 ]]; then
   printf 'test-verify-doc-citations FAILED: %d/%d\n' "${FAIL}" "$((PASS + FAIL))" >&2

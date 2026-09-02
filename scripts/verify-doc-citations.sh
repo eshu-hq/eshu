@@ -13,7 +13,7 @@
 # that TRIGGERS the gate is always a page the gate actually SCANS) plus
 # docs/public/reference/parity-closure-matrix.md.
 #
-# Two independent citation kinds are scanned, each with its own resolution
+# Three independent citation kinds are scanned, each with its own resolution
 # rule:
 #
 #   1. TEST citations: `<path>.go::TestName` naming a specific Go test
@@ -45,6 +45,11 @@
 #      that passes (a) but fails (b) is UNUSED (decorative: it exists on
 #      disk, nothing exercises it, and it needs a human to either wire it
 #      into a test or delete it). Both are baseline-able.
+#   3. LINE citations: a raw `go/internal/**/*.go:<line>` pointer anywhere
+#      under go/ or docs/. Existing source/target pairs are burn-down debt.
+#      New pairs fail even when the target line exists because range validity
+#      cannot prove that line supports the surrounding claim. Use a symbol or
+#      file anchor. Historical evidence may use a full-SHA `#L<line>` link.
 #
 # LIMITATION (also see the issue that motivated this note, #5398's
 # kubernetes_live route): existence-checking cannot catch a citation that is
@@ -57,10 +62,11 @@
 # proves what the doc says it proves". That remains a human review
 # responsibility.
 #
-# Burn-down baseline: scripts/docs-citations-baseline.txt. Two record shapes
+# Burn-down baseline: scripts/docs-citations-baseline.txt. Three record shapes
 # (see the header written by cmd_update / baseline_header):
 #   TEST <doc-relpath> <cited-file>::<TestName>
 #   FIXTURE <fixture-path>
+#   LINE <source-relpath> <cited-file>:<line> (one row per occurrence)
 # A TEST record is keyed per (doc, citation) pair, mirroring
 # scripts/docs-refs-baseline.txt. A FIXTURE record is keyed by VALUE ONLY,
 # deduplicated across every citing doc: whether a fixture is wired into a
@@ -81,7 +87,7 @@ set -euo pipefail
 repo_root="${ESHU_DOC_CITATIONS_REPO_ROOT:-$(cd "$(dirname "$0")/.." && pwd)}"
 docs_root="${repo_root}/docs/public"
 baseline_path="${ESHU_DOC_CITATIONS_BASELINE_PATH:-${repo_root}/scripts/docs-citations-baseline.txt}"
-
+script_dir="$(cd "$(dirname "$0")" && pwd)"
 tmp_dir="$(mktemp -d)"
 trap 'rm -rf "${tmp_dir}"' EXIT
 
@@ -89,10 +95,15 @@ log() {
   printf 'verify-doc-citations: %s\n' "$*" >&2
 }
 
+# shellcheck source=scripts/lib/gate-diff-base.sh
+source "${script_dir}/lib/gate-diff-base.sh"
+# shellcheck source=scripts/lib/doc-citation-lines.sh
+source "${script_dir}/lib/doc-citation-lines.sh"
+
 usage() {
   printf 'usage: %s [-update]\n' "${0##*/}"
-  printf '  (no args)  check doc test/fixture citations against %s\n' "${baseline_path}"
-  printf '  -update    regenerate the baseline from the current tree\n'
+  printf '  (no args)  check doc test/fixture and raw Go line citations against %s\n' "${baseline_path}"
+  printf '  -update    reconcile base debt; cannot add branch-authored LINE occurrences\n'
 }
 
 command -v rg >/dev/null 2>&1 || {
@@ -239,8 +250,8 @@ dead_fixture_citations() {
 }
 
 # validate_baseline fails closed: a baseline that exists but is unreadable,
-# or that contains a non-comment/non-blank line not matching either record
-# shape ("TEST <rel> <citation>" or "FIXTURE <path>"), is a registry bug.
+# or that contains a non-comment/non-blank line not matching a record shape,
+# is a registry bug.
 validate_baseline() {
   local path="$1"
   [[ -e "${path}" ]] || return 0
@@ -248,34 +259,33 @@ validate_baseline() {
     log "baseline not readable: ${path}"
     return 1
   fi
-  local lineno=0 line nf kind
-  while IFS= read -r line || [[ -n "${line}" ]]; do
-    lineno=$((lineno + 1))
-    [[ -z "${line}" ]] && continue
-    case "${line}" in
-      '#'*) continue ;;
-    esac
-    kind="$(printf '%s\n' "${line}" | awk '{ print $1 }')"
-    nf="$(printf '%s\n' "${line}" | awk '{ print NF }')"
-    case "${kind}" in
-      TEST)
-        if [[ "${nf}" -ne 3 ]]; then
-          log "baseline malformed at line ${lineno}: expected \"TEST <doc-relpath> <citation>\", got: ${line}"
-          return 1
-        fi
-        ;;
-      FIXTURE)
-        if [[ "${nf}" -ne 2 ]]; then
-          log "baseline malformed at line ${lineno}: expected \"FIXTURE <fixture-path>\", got: ${line}"
-          return 1
-        fi
-        ;;
-      *)
-        log "baseline malformed at line ${lineno}: unknown record kind, got: ${line}"
-        return 1
-        ;;
-    esac
-  done <"${path}"
+  # Validate the whole ledger in one process. The ledger is large enough that
+  # launching two awk processes per record makes this gate scale with process
+  # startup rather than with parsing work.
+  if ! LC_ALL=C awk '
+    function malformed(expected) {
+      printf "verify-doc-citations: baseline malformed at line %d: %s, got: %s\n", NR, expected, $0 > "/dev/stderr"
+      exit 1
+    }
+
+    $0 == "" || substr($0, 1, 1) == "#" { next }
+
+    $1 == "TEST" {
+      if (NF != 3) malformed("expected \"TEST <doc-relpath> <citation>\"")
+      next
+    }
+    $1 == "FIXTURE" {
+      if (NF != 2) malformed("expected \"FIXTURE <fixture-path>\"")
+      next
+    }
+    $1 == "LINE" {
+      if (NF != 3) malformed("expected \"LINE <source-relpath> <citation>\"")
+      next
+    }
+    { malformed("unknown record kind") }
+  ' "${path}"; then
+    return 1
+  fi
   return 0
 }
 
@@ -299,13 +309,15 @@ baseline_fixture_values() {
 baseline_header() {
   printf '%s\n' '# scripts/docs-citations-baseline.txt'
   printf '%s\n' '#'
-  printf '%s\n' '# Burn-down baseline for scripts/verify-doc-citations.sh (#5406).'
+  printf '%s\n' '# Burn-down baseline for scripts/verify-doc-citations.sh (#5406/#6383).'
   printf '%s\n' '# Every docs/public/languages/*.md page (which already covers'
   printf '%s\n' '# feature-matrix.md and support-maturity.md) plus'
   printf '%s\n' '# docs/public/reference/parity-closure-matrix.md is scanned for'
   printf '%s\n' '# `<file>.go::TestName` and `tests/fixtures/...`/`testdata/...` citations.'
+  printf '%s\n' '# The full go/ and docs/ trees are also scanned for raw'
+  printf '%s\n' '# `go/internal/**/*.go:<line>` citations.'
   printf '%s\n' '#'
-  printf '%s\n' '# Two record shapes, one per line:'
+  printf '%s\n' '# Three record shapes, one per line:'
   printf '%s\n' '#   TEST <doc-relpath> <cited-file>::<TestName>   - dead/renamed/moved test'
   printf '%s\n' '#   FIXTURE <fixture-path>                        - fixture that exists but'
   printf '%s\n' '#                                                   is not referenced by any'
@@ -314,17 +326,33 @@ baseline_header() {
   printf '%s\n' '#                                                   every citing doc, since'
   printf '%s\n' '#                                                   fixing the fixture fixes'
   printf '%s\n' '#                                                   every citing page at once)'
+  printf '%s\n' '#   LINE <source-relpath> <cited-file>:<line>       - raw line recurrence debt;'
+  printf '%s\n' '#                                                   one row per occurrence'
   printf '%s\n' '#'
   printf '%s\n' '# A subtest-form TEST citation (`TestName/subtest_case`) is NEVER written'
   printf '%s\n' '# here — it always fails the gate; cite the parent test function instead.'
+  printf '%s\n' '# The updater reconciles immutable-base LINE debt and otherwise only removes rows.'
+  printf '%s\n' '# Authority binds exact containing-line bytes at the immutable branch base;'
+  printf '%s\n' '# byte-identical lines may move within a source, but rewording is new debt.'
+  printf '%s\n' '# Prefer a symbol or file anchor; use a full-SHA #L permalink for historical'
+  printf '%s\n' '# evidence. Duplicate LINE rows are intentional multiplicity records.'
   printf '%s\n' '#'
   printf '%s\n' '# Regenerate with:'
   printf '%s\n' '#   bash scripts/verify-doc-citations.sh -update'
 }
 
 cmd_update() {
+  validate_baseline "${baseline_path}" || exit 1
+  check_line_permalink_contract || exit 1
   scan_test_citations >"${tmp_dir}/test-citations.txt"
   scan_fixture_citations >"${tmp_dir}/fixture-citations.txt"
+  scan_line_citations >"${tmp_dir}/line-citations.txt" || exit 1
+  enforce_immutable_line_authority "${tmp_dir}/line-current-authority.txt" update || return 1
+  baseline_line_pairs "${baseline_path}" >"${tmp_dir}/line-baseline.txt"
+  if [[ "${line_authority_active}" -eq 0 ]] && ! reject_line_debt_growth "${tmp_dir}/line-citations.txt" "${tmp_dir}/line-baseline.txt"; then
+    log "refusing -update: LINE debt may only decrease; baseline left unchanged"
+    return 1
+  fi
   classify_test_citations "${tmp_dir}/test-citations.txt" \
     "${tmp_dir}/test-ok.txt" "${tmp_dir}/test-format-errors.txt"
 
@@ -356,25 +384,39 @@ cmd_update() {
         [ -z "${path}" ] && continue
         printf 'FIXTURE %s\n' "${path}"
       done
+    printf '%s\n' '# --- LINE records ---'
+    write_line_baseline_records "${tmp_dir}/line-citations.txt"
   } >"${tmp}"
   mkdir -p "$(dirname "${baseline_path}")"
   cp "${tmp}" "${baseline_path}"
 
-  local test_n fixture_n
+  local test_n fixture_n line_n
   test_n="$(rg -c '^TEST ' "${baseline_path}" 2>/dev/null || printf '0')"
   fixture_n="$(rg -c '^FIXTURE ' "${baseline_path}" 2>/dev/null || printf '0')"
-  log "baseline updated: ${test_n} TEST record(s), ${fixture_n} FIXTURE record(s) at ${baseline_path}"
+  line_n="$(rg -c '^LINE ' "${baseline_path}" 2>/dev/null || printf '0')"
+  log "baseline updated: ${test_n} TEST record(s), ${fixture_n} FIXTURE record(s), ${line_n} LINE occurrence record(s) at ${baseline_path}"
 }
 
 cmd_check() {
   validate_baseline "${baseline_path}" || exit 1
+  check_line_permalink_contract || exit 1
 
   scan_test_citations >"${tmp_dir}/test-citations.txt"
   scan_fixture_citations >"${tmp_dir}/fixture-citations.txt"
+  scan_line_citations >"${tmp_dir}/line-citations.txt" || exit 1
   classify_test_citations "${tmp_dir}/test-citations.txt" \
     "${tmp_dir}/test-ok.txt" "${tmp_dir}/test-format-errors.txt"
 
   local failed=0
+
+  if ! enforce_immutable_line_authority "${tmp_dir}/line-current-authority.txt" check; then
+    failed=1
+  fi
+
+  baseline_line_pairs "${baseline_path}" >"${tmp_dir}/line-baseline.txt"
+  if ! check_line_citations "${tmp_dir}/line-citations.txt" "${tmp_dir}/line-baseline.txt"; then
+    failed=1
+  fi
 
   local format_err_count
   format_err_count="$(awk 'NF' "${tmp_dir}/test-format-errors.txt" | wc -l | tr -d ' ')"
@@ -423,12 +465,13 @@ cmd_check() {
     return 1
   fi
 
-  local test_count fixture_count test_baselined fixture_baselined
+  local test_count fixture_count line_count test_baselined fixture_baselined
   test_count="$(awk 'NF' "${tmp_dir}/test-citations.txt" | wc -l | tr -d ' ')"
   fixture_count="$(awk 'NF' "${tmp_dir}/fixture-citations.txt" | wc -l | tr -d ' ')"
+  line_count="$(awk 'NF' "${tmp_dir}/line-citations.txt" | wc -l | tr -d ' ')"
   test_baselined="$(awk 'NF' "${tmp_dir}/test-baseline.txt" | wc -l | tr -d ' ')"
   fixture_baselined="$(awk 'NF' "${tmp_dir}/fixture-baseline.txt" | wc -l | tr -d ' ')"
-  log "OK: ${test_count} test citation(s) checked (${test_baselined} baselined dead), ${fixture_count} fixture citation(s) checked (${fixture_baselined} baselined unresolved)"
+  log "OK: ${test_count} test citation(s) checked (${test_baselined} baselined dead), ${fixture_count} fixture citation(s) checked (${fixture_baselined} baselined unresolved), ${line_count} raw line citation occurrence(s) tracked"
   return 0
 }
 
