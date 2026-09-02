@@ -58,6 +58,16 @@ func assertParserStringSliceFieldValue(t *testing.T, item map[string]any, field 
 	}
 }
 
+// assertFunctionByName requires payload["functions"] to contain an item whose
+// name field equals name. The relocated dead-code-roots tests look functions
+// up by name alone, and the parent package's helper of the same name is an
+// unexported test declaration, so it is not importable from here.
+func assertFunctionByName(t *testing.T, payload map[string]any, name string) map[string]any {
+	t.Helper()
+
+	return parsertest.AssertBucketItemByName(t, payload, "functions", name)
+}
+
 // assertBucketItemByFieldValue returns the payload[bucket] item whose field
 // equals want. Python call-semantics and dead-code-semantics assertions key
 // function_calls entries by full_name or call_kind rather than by name, so
