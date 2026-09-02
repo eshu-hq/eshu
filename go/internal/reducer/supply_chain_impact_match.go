@@ -35,7 +35,7 @@ func supplyChainConsumptionFromEnvelope(envelope facts.Envelope) (supplyChainPac
 		requestedRange:            strings.TrimSpace(derefString(correlation.RequestedRange)),
 		installedVersion:          strings.TrimSpace(derefString(correlation.InstalledVersion)),
 		dependencyPath:            orderedStrings(correlation.DependencyPath),
-		dependencyDepth:           derefInt(correlation.DependencyDepth),
+		dependencyDepth:           payloadcore.DerefInt(correlation.DependencyDepth),
 		directDependency:          correlation.DirectDependency,
 		dependencyScope:           supplyChainDependencyScopeFromCorrelation(correlation.DependencyScope, correlation.ManifestSection),
 		versionEvidence:           strings.TrimSpace(derefString(correlation.VersionEvidence)),

@@ -1,13 +1,15 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package reducer
+package codetaint
 
 import (
 	"context"
 	"fmt"
 	"log/slog"
 	"time"
+
+	"github.com/eshu-hq/eshu/go/internal/reducer/payloadcore"
 )
 
 // ProjectedTaintNodeRow is one enumerated CodeTaintEvidence node from the graph,
@@ -104,10 +106,10 @@ RETURN n.uid AS node_uid,
 	}
 	var out []ProjectedTaintNodeRow
 	for _, row := range rows {
-		nodeUID := anyToString(row["node_uid"])
-		scopeID := anyToString(row["scope_id"])
-		genID := anyToString(row["generation_id"])
-		evSrc := anyToString(row["evidence_source"])
+		nodeUID := payloadcore.AnyToString(row["node_uid"])
+		scopeID := payloadcore.AnyToString(row["scope_id"])
+		genID := payloadcore.AnyToString(row["generation_id"])
+		evSrc := payloadcore.AnyToString(row["evidence_source"])
 		if nodeUID == "" || scopeID == "" || genID == "" || evSrc == "" {
 			continue
 		}

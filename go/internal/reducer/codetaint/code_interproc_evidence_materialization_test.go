@@ -1,13 +1,14 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package reducer
+package codetaint
 
 import (
 	"context"
 	"testing"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
 )
 
 type recordingCodeInterprocEvidenceWriter struct {
@@ -138,12 +139,12 @@ func codeInterprocEvidenceEnvelope(in CodeInterprocEvidenceInput) facts.Envelope
 	}
 }
 
-func codeInterprocEvidenceIntent() Intent {
-	return Intent{
+func codeInterprocEvidenceIntent() reducercontract.Intent {
+	return reducercontract.Intent{
 		IntentID:     "intent-interproc-1",
 		ScopeID:      "scope-1",
 		GenerationID: "gen-1",
-		Domain:       DomainCodeInterprocEvidence,
+		Domain:       reducercontract.DomainCodeInterprocEvidence,
 	}
 }
 
@@ -182,7 +183,7 @@ func TestCodeInterprocEvidenceHandlerRetractsThenWrites(t *testing.T) {
 	if row["source_function_uid"] != "func-source" || row["sink_function_uid"] != "func-sink" || row["uid"] == "" {
 		t.Fatalf("row not projected with source/sink uid + edge uid: %+v", row)
 	}
-	if result.CanonicalWrites != 1 || result.Status != ResultStatusSucceeded {
+	if result.CanonicalWrites != 1 || result.Status != reducercontract.ResultStatusSucceeded {
 		t.Fatalf("result = %+v, want 1 canonical write succeeded", result)
 	}
 }
@@ -219,7 +220,7 @@ func TestCodeInterprocEvidenceHandlerRejectsWrongDomain(t *testing.T) {
 		Writer: &recordingCodeInterprocEvidenceWriter{},
 	}
 	intent := codeInterprocEvidenceIntent()
-	intent.Domain = DomainDataLineage
+	intent.Domain = reducercontract.DomainDataLineage
 	if _, err := handler.Handle(context.Background(), intent); err == nil {
 		t.Fatal("Handle accepted a non-interproc domain")
 	}

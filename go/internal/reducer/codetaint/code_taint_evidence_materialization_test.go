@@ -1,13 +1,14 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package reducer
+package codetaint
 
 import (
 	"context"
 	"testing"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
 )
 
 type recordingCodeTaintEvidenceWriter struct {
@@ -86,12 +87,12 @@ func codeTaintEvidenceEnvelope(in CodeTaintEvidenceInput) facts.Envelope {
 	}
 }
 
-func codeTaintEvidenceIntent() Intent {
-	return Intent{
+func codeTaintEvidenceIntent() reducercontract.Intent {
+	return reducercontract.Intent{
 		IntentID:     "intent-taint-1",
 		ScopeID:      "scope-1",
 		GenerationID: "gen-1",
-		Domain:       DomainCodeTaintEvidence,
+		Domain:       reducercontract.DomainCodeTaintEvidence,
 	}
 }
 
@@ -131,7 +132,7 @@ func TestCodeTaintEvidenceHandlerRetractsThenWrites(t *testing.T) {
 	if writer.writtenRows[0]["guard_reason"] != "allowed" {
 		t.Fatalf("guard reason not projected: %+v", writer.writtenRows[0])
 	}
-	if result.CanonicalWrites != 1 || result.Status != ResultStatusSucceeded {
+	if result.CanonicalWrites != 1 || result.Status != reducercontract.ResultStatusSucceeded {
 		t.Fatalf("result = %+v, want 1 canonical write succeeded", result)
 	}
 }
@@ -168,7 +169,7 @@ func TestCodeTaintEvidenceHandlerRejectsWrongDomain(t *testing.T) {
 		Writer: &recordingCodeTaintEvidenceWriter{},
 	}
 	intent := codeTaintEvidenceIntent()
-	intent.Domain = DomainDataLineage
+	intent.Domain = reducercontract.DomainDataLineage
 	if _, err := handler.Handle(context.Background(), intent); err == nil {
 		t.Fatal("Handle accepted a non-taint domain")
 	}

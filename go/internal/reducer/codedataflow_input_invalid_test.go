@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/reducer/codetaint"
 )
 
 // TestDecodeCodeTaintEvidenceQuarantinesMissingFunctionUID is the flagship
@@ -75,12 +76,12 @@ func TestDecodeCodeTaintEvidenceQuarantinesMissingFunctionUID(t *testing.T) {
 	if evidence.FunctionUID != "uid:handle-fn" {
 		t.Fatalf("decodeCodeTaintEvidence FunctionUID = %q, want uid:handle-fn", evidence.FunctionUID)
 	}
-	rows, _, err := ExtractCodeTaintEvidenceRowsWithQuarantine([]facts.Envelope{valid})
+	rows, _, err := codetaint.ExtractCodeTaintEvidenceRowsWithQuarantine([]facts.Envelope{valid})
 	if err != nil {
-		t.Fatalf("ExtractCodeTaintEvidenceRowsWithQuarantine(valid sibling) error = %v, want nil", err)
+		t.Fatalf("codetaint.ExtractCodeTaintEvidenceRowsWithQuarantine(valid sibling) error = %v, want nil", err)
 	}
 	if len(rows) != 1 || rows[0]["function_uid"] != "uid:handle-fn" {
-		t.Fatalf("ExtractCodeTaintEvidenceRowsWithQuarantine(valid sibling) rows = %#v, want one row keyed on uid:handle-fn", rows)
+		t.Fatalf("codetaint.ExtractCodeTaintEvidenceRowsWithQuarantine(valid sibling) rows = %#v, want one row keyed on uid:handle-fn", rows)
 	}
 }
 
@@ -136,12 +137,12 @@ func TestDecodeCodeInterprocEvidenceQuarantinesMissingEndpoint(t *testing.T) {
 	if err != nil {
 		t.Fatalf("decodeCodeInterprocEvidence(valid sibling) error = %v, want nil", err)
 	}
-	rows, _, extractErr := ExtractCodeInterprocEvidenceRowsWithQuarantine([]facts.Envelope{valid})
+	rows, _, extractErr := codetaint.ExtractCodeInterprocEvidenceRowsWithQuarantine([]facts.Envelope{valid})
 	if extractErr != nil {
-		t.Fatalf("ExtractCodeInterprocEvidenceRowsWithQuarantine(valid sibling) error = %v, want nil", extractErr)
+		t.Fatalf("codetaint.ExtractCodeInterprocEvidenceRowsWithQuarantine(valid sibling) error = %v, want nil", extractErr)
 	}
 	if len(rows) != 1 || rows[0]["source_function_uid"] != evidence.SourceFunctionUID {
-		t.Fatalf("ExtractCodeInterprocEvidenceRowsWithQuarantine(valid sibling) rows = %#v, want one edge row for the valid sibling", rows)
+		t.Fatalf("codetaint.ExtractCodeInterprocEvidenceRowsWithQuarantine(valid sibling) rows = %#v, want one edge row for the valid sibling", rows)
 	}
 }
 
@@ -365,12 +366,12 @@ func TestDecodeCodeDataflowFamilyTreatsPersistedZeroVersionAsLatestMajor(t *test
 		if evidence.FunctionUID != "uid:persisted-fn" {
 			t.Fatalf("decodeCodeTaintEvidence FunctionUID = %q, want uid:persisted-fn", evidence.FunctionUID)
 		}
-		rows, _, extractErr := ExtractCodeTaintEvidenceRowsWithQuarantine([]facts.Envelope{env})
+		rows, _, extractErr := codetaint.ExtractCodeTaintEvidenceRowsWithQuarantine([]facts.Envelope{env})
 		if extractErr != nil {
-			t.Fatalf("ExtractCodeTaintEvidenceRowsWithQuarantine(persisted 0.0.0 version) error = %v, want nil", extractErr)
+			t.Fatalf("codetaint.ExtractCodeTaintEvidenceRowsWithQuarantine(persisted 0.0.0 version) error = %v, want nil", extractErr)
 		}
 		if len(rows) != 1 {
-			t.Fatalf("ExtractCodeTaintEvidenceRowsWithQuarantine(persisted 0.0.0 version) rows = %#v, want one row, not a dropped/empty graph", rows)
+			t.Fatalf("codetaint.ExtractCodeTaintEvidenceRowsWithQuarantine(persisted 0.0.0 version) rows = %#v, want one row, not a dropped/empty graph", rows)
 		}
 	})
 
@@ -390,12 +391,12 @@ func TestDecodeCodeDataflowFamilyTreatsPersistedZeroVersionAsLatestMajor(t *test
 		if err != nil {
 			t.Fatalf("decodeCodeInterprocEvidence(SchemaVersion=%q) error = %v, want nil", persistedZeroVersion, err)
 		}
-		rows, _, extractErr := ExtractCodeInterprocEvidenceRowsWithQuarantine([]facts.Envelope{env})
+		rows, _, extractErr := codetaint.ExtractCodeInterprocEvidenceRowsWithQuarantine([]facts.Envelope{env})
 		if extractErr != nil {
-			t.Fatalf("ExtractCodeInterprocEvidenceRowsWithQuarantine(persisted 0.0.0 version) error = %v, want nil", extractErr)
+			t.Fatalf("codetaint.ExtractCodeInterprocEvidenceRowsWithQuarantine(persisted 0.0.0 version) error = %v, want nil", extractErr)
 		}
 		if len(rows) != 1 || rows[0]["source_function_uid"] != evidence.SourceFunctionUID {
-			t.Fatalf("ExtractCodeInterprocEvidenceRowsWithQuarantine(persisted 0.0.0 version) rows = %#v, want one edge row, not a dropped/empty graph", rows)
+			t.Fatalf("codetaint.ExtractCodeInterprocEvidenceRowsWithQuarantine(persisted 0.0.0 version) rows = %#v, want one edge row, not a dropped/empty graph", rows)
 		}
 	})
 }

@@ -10,6 +10,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/graphowner"
 	"github.com/eshu-hq/eshu/go/internal/query"
 	"github.com/eshu-hq/eshu/go/internal/reducer"
+	"github.com/eshu-hq/eshu/go/internal/reducer/codetaint"
 	sourcecypher "github.com/eshu-hq/eshu/go/internal/storage/cypher"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres"
 )
@@ -153,24 +154,24 @@ func newCanonicalGraphWriters(exec sourcecypher.Executor, reader sourcecypher.Po
 // request-scoped deadline the caller may be operating under.
 func seedReducerProjectedSourceLedgers(database postgres.ExecQueryer, graphReader query.GraphQuery) (postgres.ProjectedSourceEdgeStore, error) {
 	backfillStateMarker := postgres.NewCodeValueFlowBackfillStateStore(database)
-	backfiller := reducer.CodeInterprocProjectedEdgeBackfiller{
-		Reader:      reducer.CodeInterprocProjectedEdgeBackfillReader{Graph: graphReader},
+	backfiller := codetaint.CodeInterprocProjectedEdgeBackfiller{
+		Reader:      codetaint.CodeInterprocProjectedEdgeBackfillReader{Graph: graphReader},
 		Ledger:      postgres.NewCodeInterprocProjectedEdgeStore(database),
 		StateMarker: backfillStateMarker,
 		EvidenceSources: []string{
-			reducer.CodeInterprocEvidenceSource(),
-			reducer.CodeInterprocFixpointEvidenceSource(),
+			codetaint.CodeInterprocEvidenceSource(),
+			codetaint.CodeInterprocFixpointEvidenceSource(),
 		},
 	}
 	if err := backfiller.Run(context.Background()); err != nil {
 		return postgres.ProjectedSourceEdgeStore{}, fmt.Errorf("code interproc projected edge backfill: %w", err)
 	}
-	taintNodeBackfiller := reducer.CodeTaintEvidenceProjectedNodeBackfiller{
-		Reader:      reducer.CodeTaintEvidenceProjectedNodeBackfillReader{Graph: graphReader},
+	taintNodeBackfiller := codetaint.CodeTaintEvidenceProjectedNodeBackfiller{
+		Reader:      codetaint.CodeTaintEvidenceProjectedNodeBackfillReader{Graph: graphReader},
 		Ledger:      postgres.NewCodeTaintEvidenceProjectedNodeStore(database),
 		StateMarker: backfillStateMarker,
 		EvidenceSources: []string{
-			reducer.CodeTaintEvidenceSource(),
+			codetaint.CodeTaintEvidenceSource(),
 		},
 	}
 	if err := taintNodeBackfiller.Run(context.Background()); err != nil {

@@ -1,12 +1,13 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package reducer
+package codetaint
 
 import (
 	"sort"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/reducer/payloadcore"
 )
 
 // CodeTaintEvidenceInput is one resolved value-flow taint finding loaded for a
@@ -60,7 +61,7 @@ func ExtractCodeTaintEvidenceRows(inputs []CodeTaintEvidenceInput) []map[string]
 		})
 	}
 	sort.Slice(rows, func(a, b int) bool {
-		return anyToString(rows[a]["uid"]) < anyToString(rows[b]["uid"])
+		return payloadcore.AnyToString(rows[a]["uid"]) < payloadcore.AnyToString(rows[b]["uid"])
 	})
 	return rows
 }

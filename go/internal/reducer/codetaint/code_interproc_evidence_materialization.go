@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package reducer
+package codetaint
 
 import (
 	"context"
@@ -10,6 +10,8 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
+	"github.com/eshu-hq/eshu/go/internal/reducer/factdecode"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
 	"github.com/eshu-hq/eshu/go/internal/truth"
 )
@@ -29,11 +31,14 @@ func CodeInterprocEvidenceSource() string { return codeInterprocEvidenceSource }
 // fixpoint-projected code-interproc edges.
 func CodeInterprocFixpointEvidenceSource() string { return codeInterprocFixpointEvidenceSource }
 
-func codeInterprocEvidenceDomainDefinition() DomainDefinition {
-	return DomainDefinition{
-		Domain:  DomainCodeInterprocEvidence,
+// CodeInterprocEvidenceDomainDefinition returns the DomainDefinition for
+// DomainCodeInterprocEvidence. Exported for the same reason as
+// CodeTaintEvidenceDomainDefinition.
+func CodeInterprocEvidenceDomainDefinition() reducercontract.DomainDefinition {
+	return reducercontract.DomainDefinition{
+		Domain:  reducercontract.DomainCodeInterprocEvidence,
 		Summary: "project cross-function value-flow findings into TAINT_FLOWS_TO edges between Function nodes",
-		Ownership: OwnershipShape{
+		Ownership: reducercontract.OwnershipShape{
 			CrossSource:    true,
 			CrossScope:     true,
 			CanonicalWrite: true,
@@ -92,8 +97,10 @@ type CodeInterprocEvidenceWriter interface {
 	RetractStaleCodeInterprocEvidenceByUIDs(ctx context.Context, sourceUIDs []string, scopeID, generationID, evidenceSource string) error
 }
 
-// sourceUIDsFromRows extracts distinct source_function_uid values from edge rows.
-func sourceUIDsFromRows(rows []map[string]any) []string {
+// SourceUIDsFromRows extracts distinct source_function_uid values from edge
+// rows. Exported for the value-flow fixpoint loader (reducer root), which
+// records the same ledger uids for its own global fixpoint solve.
+func SourceUIDsFromRows(rows []map[string]any) []string {
 	seen := make(map[string]struct{}, len(rows))
 	for _, row := range rows {
 		if uid, ok := row["source_function_uid"].(string); ok && uid != "" {
@@ -113,7 +120,7 @@ type CodeInterprocEvidenceMaterializationHandler struct {
 	Loader               CodeInterprocEvidenceFactLoader
 	Writer               CodeInterprocEvidenceWriter
 	Ledger               CodeInterprocProjectedEdgeLedger
-	PriorGenerationCheck PriorGenerationCheck
+	PriorGenerationCheck reducercontract.PriorGenerationCheck
 	Instruments          *telemetry.Instruments
 }
 
@@ -123,69 +130,69 @@ type CodeInterprocEvidenceMaterializationHandler struct {
 // When a Ledger is present, retraction enumerates source Function uids from the
 // ledger and uses anchored-delete; the ledger is recorded before the graph edge
 // write so it is always a superset of graph edges.
-func (h CodeInterprocEvidenceMaterializationHandler) Handle(ctx context.Context, intent Intent) (Result, error) {
-	if intent.Domain != DomainCodeInterprocEvidence {
-		return Result{}, fmt.Errorf("code interproc evidence handler does not accept domain %q", intent.Domain)
+func (h CodeInterprocEvidenceMaterializationHandler) Handle(ctx context.Context, intent reducercontract.Intent) (reducercontract.Result, error) {
+	if intent.Domain != reducercontract.DomainCodeInterprocEvidence {
+		return reducercontract.Result{}, fmt.Errorf("code interproc evidence handler does not accept domain %q", intent.Domain)
 	}
 	if h.Loader == nil {
-		return Result{}, fmt.Errorf("code interproc evidence loader is required")
+		return reducercontract.Result{}, fmt.Errorf("code interproc evidence loader is required")
 	}
 	if h.Writer == nil {
-		return Result{}, fmt.Errorf("code interproc evidence writer is required")
+		return reducercontract.Result{}, fmt.Errorf("code interproc evidence writer is required")
 	}
 
 	envelopes, err := h.Loader.LoadCodeInterprocEvidenceFacts(ctx, intent.ScopeID, intent.GenerationID)
 	if err != nil {
-		return Result{}, fmt.Errorf("load code interproc evidence: %w", err)
+		return reducercontract.Result{}, fmt.Errorf("load code interproc evidence: %w", err)
 	}
 	rows, quarantined, err := ExtractCodeInterprocEvidenceRowsWithQuarantine(envelopes)
 	if err != nil {
-		return Result{}, fmt.Errorf("decode code interproc evidence: %w", err)
+		return reducercontract.Result{}, fmt.Errorf("decode code interproc evidence: %w", err)
 	}
-	inputInvalidCount := recordQuarantinedFacts(ctx, h.Instruments, DomainCodeInterprocEvidence, intent.ScopeID, intent.GenerationID, quarantined)
+	inputInvalidCount := factdecode.RecordQuarantinedFacts(ctx, h.Instruments, reducercontract.DomainCodeInterprocEvidence, intent.ScopeID, intent.GenerationID, quarantined)
 
 	skipRetract, err := h.shouldSkipRetract(ctx, intent)
 	if err != nil {
-		return Result{}, err
+		return reducercontract.Result{}, err
 	}
 	if !skipRetract {
 		if h.Ledger != nil {
 			uids, err := h.Ledger.ListSourceUIDsForScopes(ctx, codeInterprocEvidenceSource, []string{intent.ScopeID})
 			if err != nil {
-				return Result{}, fmt.Errorf("list source uids for retract: %w", err)
+				return reducercontract.Result{}, fmt.Errorf("list source uids for retract: %w", err)
 			}
 			if err := h.Writer.RetractCodeInterprocEvidenceByUIDs(
 				ctx, uids, []string{intent.ScopeID}, codeInterprocEvidenceSource,
 			); err != nil {
-				return Result{}, fmt.Errorf("retract code interproc evidence by uids: %w", err)
+				return reducercontract.Result{}, fmt.Errorf("retract code interproc evidence by uids: %w", err)
 			}
 			if err := h.Ledger.PruneForScopes(ctx, codeInterprocEvidenceSource, []string{intent.ScopeID}); err != nil {
-				return Result{}, fmt.Errorf("prune code interproc projected edges: %w", err)
+				return reducercontract.Result{}, fmt.Errorf("prune code interproc projected edges: %w", err)
 			}
 		} else {
 			if err := h.Writer.RetractCodeInterprocEvidence(
 				ctx, []string{intent.ScopeID}, intent.GenerationID, codeInterprocEvidenceSource,
 			); err != nil {
-				return Result{}, fmt.Errorf("retract code interproc evidence: %w", err)
+				return reducercontract.Result{}, fmt.Errorf("retract code interproc evidence: %w", err)
 			}
 		}
 	}
 	if len(rows) > 0 {
 		if h.Ledger != nil {
-			uids := sourceUIDsFromRows(rows)
+			uids := SourceUIDsFromRows(rows)
 			if len(uids) > 0 {
 				if err := h.Ledger.RecordProjectedEdges(
 					ctx, codeInterprocEvidenceSource, intent.ScopeID, intent.GenerationID,
 					uids, time.Now(),
 				); err != nil {
-					return Result{}, fmt.Errorf("record projected edges: %w", err)
+					return reducercontract.Result{}, fmt.Errorf("record projected edges: %w", err)
 				}
 			}
 		}
 		if err := h.Writer.WriteCodeInterprocEvidence(
 			ctx, rows, intent.ScopeID, intent.GenerationID, codeInterprocEvidenceSource,
 		); err != nil {
-			return Result{}, fmt.Errorf("write code interproc evidence: %w", err)
+			return reducercontract.Result{}, fmt.Errorf("write code interproc evidence: %w", err)
 		}
 	}
 
@@ -199,24 +206,24 @@ func (h CodeInterprocEvidenceMaterializationHandler) Handle(ctx context.Context,
 		"skip_retract", skipRetract,
 	)
 
-	return Result{
+	return reducercontract.Result{
 		IntentID: intent.IntentID,
-		Domain:   DomainCodeInterprocEvidence,
-		Status:   ResultStatusSucceeded,
+		Domain:   reducercontract.DomainCodeInterprocEvidence,
+		Status:   reducercontract.ResultStatusSucceeded,
 		EvidenceSummary: fmt.Sprintf(
 			"materialized %d cross-function taint edge(s) from %d fact(s)",
 			len(rows),
 			len(envelopes),
 		),
 		CanonicalWrites: len(rows),
-		SubSignals:      inputInvalidSubSignals(inputInvalidCount),
+		SubSignals:      factdecode.InputInvalidSubSignals(inputInvalidCount),
 	}, nil
 }
 
 // shouldSkipRetract reports whether the pre-write retraction must be skipped: on
 // the first attempt of the first generation for a scope there is nothing to
 // retract.
-func (h CodeInterprocEvidenceMaterializationHandler) shouldSkipRetract(ctx context.Context, intent Intent) (bool, error) {
+func (h CodeInterprocEvidenceMaterializationHandler) shouldSkipRetract(ctx context.Context, intent reducercontract.Intent) (bool, error) {
 	if h.PriorGenerationCheck == nil || intent.AttemptCount > 1 {
 		return false, nil
 	}
@@ -227,7 +234,11 @@ func (h CodeInterprocEvidenceMaterializationHandler) shouldSkipRetract(ctx conte
 	return !hasPrior, nil
 }
 
-func unresolvedCodeInterprocEndpointCount(inputs []CodeInterprocEvidenceInput) int {
+// UnresolvedCodeInterprocEndpointCount counts findings missing either a
+// resolved source or sink Function uid. Exported for the value-flow fixpoint
+// loader (reducer root, a different family that composes this package's
+// evidence rows into its own structured log and result fields).
+func UnresolvedCodeInterprocEndpointCount(inputs []CodeInterprocEvidenceInput) int {
 	count := 0
 	for _, input := range inputs {
 		if input.SourceFunctionUID == "" || input.SinkFunctionUID == "" {

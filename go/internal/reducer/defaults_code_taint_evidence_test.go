@@ -3,7 +3,11 @@
 
 package reducer
 
-import "testing"
+import (
+	"testing"
+
+	"github.com/eshu-hq/eshu/go/internal/reducer/codetaint"
+)
 
 func TestImplementedDefaultDomainDefinitionsOmitsCodeTaintWithoutWriter(t *testing.T) {
 	t.Parallel()
@@ -38,9 +42,9 @@ func TestImplementedDefaultDomainDefinitionsIncludesCodeTaintWhenWired(t *testin
 			continue
 		}
 		found = true
-		handler, ok := def.Handler.(CodeTaintEvidenceMaterializationHandler)
+		handler, ok := def.Handler.(codetaint.CodeTaintEvidenceMaterializationHandler)
 		if !ok {
-			t.Fatalf("code_taint_evidence handler type = %T, want CodeTaintEvidenceMaterializationHandler", def.Handler)
+			t.Fatalf("code_taint_evidence handler type = %T, want codetaint.CodeTaintEvidenceMaterializationHandler", def.Handler)
 		}
 		if handler.Loader == nil || handler.Writer != writer {
 			t.Fatal("code_taint_evidence handler Loader/Writer not wired")

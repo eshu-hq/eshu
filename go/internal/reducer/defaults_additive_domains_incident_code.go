@@ -4,6 +4,7 @@
 package reducer
 
 import (
+	"github.com/eshu-hq/eshu/go/internal/reducer/codetaint"
 	"github.com/eshu-hq/eshu/go/internal/reducer/incident"
 	"github.com/eshu-hq/eshu/go/internal/truth"
 )
@@ -28,8 +29,8 @@ func appendIncidentAndCodeEvidenceAdditiveDomains(definitions []DomainDefinition
 		definitions = append(definitions, incidentRouting)
 	}
 	if handlers.CodeTaintEvidenceLoader != nil && handlers.CodeTaintEvidenceWriter != nil {
-		codeTaint := codeTaintEvidenceDomainDefinition()
-		codeTaint.Handler = CodeTaintEvidenceMaterializationHandler{
+		codeTaint := codetaint.CodeTaintEvidenceDomainDefinition()
+		codeTaint.Handler = codetaint.CodeTaintEvidenceMaterializationHandler{
 			Loader:               handlers.CodeTaintEvidenceLoader,
 			Writer:               handlers.CodeTaintEvidenceWriter,
 			Ledger:               handlers.CodeTaintEvidenceProjectedNodeLedger,
@@ -39,8 +40,8 @@ func appendIncidentAndCodeEvidenceAdditiveDomains(definitions []DomainDefinition
 		definitions = append(definitions, codeTaint)
 	}
 	if handlers.CodeInterprocEvidenceLoader != nil && handlers.CodeInterprocEvidenceWriter != nil {
-		codeInterproc := codeInterprocEvidenceDomainDefinition()
-		codeInterproc.Handler = CodeInterprocEvidenceMaterializationHandler{
+		codeInterproc := codetaint.CodeInterprocEvidenceDomainDefinition()
+		codeInterproc.Handler = codetaint.CodeInterprocEvidenceMaterializationHandler{
 			Loader:               handlers.CodeInterprocEvidenceLoader,
 			Writer:               handlers.CodeInterprocEvidenceWriter,
 			Ledger:               handlers.CodeInterprocProjectedEdgeLedger,

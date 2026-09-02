@@ -11,6 +11,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/eshu-hq/eshu/go/internal/reducer/codetaint"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
 	log "github.com/eshu-hq/eshu/go/pkg/log"
 )
@@ -129,11 +130,11 @@ type CodeValueFlowStaleCleanupResult struct {
 type CodeValueFlowStaleCleanupRunner struct {
 	CurrentGenerations CodeValueFlowCurrentGenerationReader
 	TaintEvidence      CodeTaintStaleEvidenceRetractor
-	TaintWriter        CodeTaintEvidenceWriter
-	TaintLedger        CodeTaintEvidenceProjectedNodeLedger
+	TaintWriter        codetaint.CodeTaintEvidenceWriter
+	TaintLedger        codetaint.CodeTaintEvidenceProjectedNodeLedger
 	InterprocEvidence  CodeInterprocStaleEvidenceRetractor
-	InterprocWriter    CodeInterprocEvidenceWriter
-	InterprocLedger    CodeInterprocProjectedEdgeLedger
+	InterprocWriter    codetaint.CodeInterprocEvidenceWriter
+	InterprocLedger    codetaint.CodeInterprocProjectedEdgeLedger
 	LeaseManager       PartitionLeaseManager
 	Config             CodeValueFlowStaleCleanupRunnerConfig
 	Wait               func(context.Context, time.Duration) error
@@ -235,19 +236,19 @@ func (r *CodeValueFlowStaleCleanupRunner) RunOnce(ctx context.Context) (CodeValu
 		}
 		if r.TaintLedger != nil && r.TaintWriter != nil {
 			uids, err := r.TaintLedger.ListStaleNodeUIDs(
-				ctx, codeTaintEvidenceSource, scopeID, generationID, deleteLimit,
+				ctx, codetaint.CodeTaintEvidenceSource(), scopeID, generationID, deleteLimit,
 			)
 			if err != nil {
 				return CodeValueFlowStaleCleanupResult{}, fmt.Errorf("list stale taint node uids: %w", err)
 			}
 			if err := r.TaintWriter.RetractStaleCodeTaintEvidenceByUIDs(
-				ctx, uids, scopeID, generationID, codeTaintEvidenceSource,
+				ctx, uids, scopeID, generationID, codetaint.CodeTaintEvidenceSource(),
 			); err != nil {
 				return CodeValueFlowStaleCleanupResult{}, fmt.Errorf("retract stale code taint evidence by uids: %w", err)
 			}
 			if len(uids) > 0 {
 				if err := r.TaintLedger.PruneStaleForUIDs(
-					ctx, codeTaintEvidenceSource, scopeID, generationID, uids,
+					ctx, codetaint.CodeTaintEvidenceSource(), scopeID, generationID, uids,
 				); err != nil {
 					return CodeValueFlowStaleCleanupResult{}, fmt.Errorf("prune stale taint projected nodes for uids: %w", err)
 				}
@@ -257,7 +258,7 @@ func (r *CodeValueFlowStaleCleanupRunner) RunOnce(ctx context.Context) (CodeValu
 				ctx,
 				scopeID,
 				generationID,
-				codeTaintEvidenceSource,
+				codetaint.CodeTaintEvidenceSource(),
 				deleteLimit,
 			); err != nil {
 				return CodeValueFlowStaleCleanupResult{}, fmt.Errorf("retract stale code taint evidence: %w", err)
@@ -266,19 +267,19 @@ func (r *CodeValueFlowStaleCleanupRunner) RunOnce(ctx context.Context) (CodeValu
 		result.TaintSweeps++
 		if r.InterprocLedger != nil && r.InterprocWriter != nil {
 			uids, err := r.InterprocLedger.ListStaleSourceUIDs(
-				ctx, codeInterprocEvidenceSource, scopeID, generationID, deleteLimit,
+				ctx, codetaint.CodeInterprocEvidenceSource(), scopeID, generationID, deleteLimit,
 			)
 			if err != nil {
 				return CodeValueFlowStaleCleanupResult{}, fmt.Errorf("list stale interproc source uids: %w", err)
 			}
 			if err := r.InterprocWriter.RetractStaleCodeInterprocEvidenceByUIDs(
-				ctx, uids, scopeID, generationID, codeInterprocEvidenceSource,
+				ctx, uids, scopeID, generationID, codetaint.CodeInterprocEvidenceSource(),
 			); err != nil {
 				return CodeValueFlowStaleCleanupResult{}, fmt.Errorf("retract stale code interproc evidence by uids: %w", err)
 			}
 			if len(uids) > 0 {
 				if err := r.InterprocLedger.PruneStaleForUIDs(
-					ctx, codeInterprocEvidenceSource, scopeID, generationID, uids,
+					ctx, codetaint.CodeInterprocEvidenceSource(), scopeID, generationID, uids,
 				); err != nil {
 					return CodeValueFlowStaleCleanupResult{}, fmt.Errorf("prune stale interproc projected edges for uids: %w", err)
 				}
@@ -288,7 +289,7 @@ func (r *CodeValueFlowStaleCleanupRunner) RunOnce(ctx context.Context) (CodeValu
 				ctx,
 				scopeID,
 				generationID,
-				codeInterprocEvidenceSource,
+				codetaint.CodeInterprocEvidenceSource(),
 				deleteLimit,
 			); err != nil {
 				return CodeValueFlowStaleCleanupResult{}, fmt.Errorf("retract stale code interproc evidence: %w", err)
