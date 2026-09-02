@@ -15,7 +15,11 @@
 ## Invariants
 
 - Keep this package registration-only. Routing and argument mapping stay in the
-  parent MCP package; validation and reads stay in `internal/query`.
+  parent MCP package, except where a family has been extracted to its own route
+  selector: the infrastructure-search tool routes through `../infrasearch` and
+  the nine impact-analysis tools route through `../impact`, each reached from a
+  thin adapter arm the parent still owns. Validation and reads stay in
+  `internal/query`.
 - Keep the package clause as `package ecosystemtools`; the root imports it with
   an explicit alias.
 - Preserve all 23 tool names, descriptions, schemas, and their local order.

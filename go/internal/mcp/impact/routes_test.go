@@ -239,8 +239,19 @@ func TestRouteOwnsExactlyTheImpactAnalysisFamily(t *testing.T) {
 			t.Errorf("Route(%s) query = %#v, want nil", tt.tool, request.Query)
 		}
 	}
-	if _, handled := Route("explain_dependency_path", routecontract.Arguments{}); !handled {
+	// explain_dependency_path is excluded from populatedRouteCases because it
+	// forwards the argument map rather than a populated body, but its transport
+	// contract is the same as the other eight and must be pinned here too --
+	// asserting only `handled` would let a method or query-string change pass.
+	if request, handled := Route("explain_dependency_path", routecontract.Arguments{}); !handled {
 		t.Error("Route(explain_dependency_path) handled = false, want true")
+	} else {
+		if request.Method != "POST" {
+			t.Errorf("Route(explain_dependency_path) method = %q, want POST", request.Method)
+		}
+		if request.Query != nil {
+			t.Errorf("Route(explain_dependency_path) query = %#v, want nil", request.Query)
+		}
 	}
 
 	// Neighbours registered in the same ecosystem group, other extracted
