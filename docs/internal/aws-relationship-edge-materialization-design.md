@@ -518,8 +518,8 @@ sibling ci_cd_run_correlation/container_image_identity/package domains:
   contract §5.3/§6 already establish.
 
   **Retraction-safety fix (issue #5450 follow-up review).** The projector
-  intent builder (`buildAWSCloudImageMaterializationReducerIntent`,
-  `go/internal/projector/aws_cloud_image_materialization_intents.go`)
+  intent builder (`awscloudimage.BuildAWSCloudImageMaterializationReducerIntent`,
+  `go/internal/projector/awscloudimage/materialization_intents.go`)
   originally triggered ONLY when a `lambda_function_uses_image`
   `aws_relationship` fact was present in the generation. That meant a
   generation where a Lambda function switched from an Image package to Zip

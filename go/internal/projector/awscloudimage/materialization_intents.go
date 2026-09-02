@@ -1,15 +1,15 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package projector
+package awscloudimage
 
 import (
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	projectorintent "github.com/eshu-hq/eshu/go/internal/projector/intent"
 	"github.com/eshu-hq/eshu/go/internal/reducer"
-	"github.com/eshu-hq/eshu/go/internal/scope"
 )
 
-// buildAWSCloudImageMaterializationReducerIntent enqueues one reducer intent
+// BuildAWSCloudImageMaterializationReducerIntent enqueues one reducer intent
 // that projects the scope generation's lambda_function_uses_image
 // aws_relationship facts into a canonical CloudResource -> ContainerImage
 // graph edge (issue #5450).
@@ -54,22 +54,22 @@ import (
 // image is a graceful two-MATCH-MERGE no-op inside the handler rather than a
 // second readiness gate here (matching every other AWS edge domain's
 // forward-looking-target handling).
-func buildAWSCloudImageMaterializationReducerIntent(
-	scopeValue scope.IngestionScope,
-	generation scope.ScopeGeneration,
-	index *reducerIntentFactIndex,
-) (ReducerIntent, bool) {
-	envelope, ok := index.firstOfKind(facts.AWSResourceFactKind)
+func BuildAWSCloudImageMaterializationReducerIntent(
+	scopeID string,
+	generationID string,
+	lookup projectorintent.FactLookup,
+) (projectorintent.ReducerIntent, bool) {
+	envelope, ok := lookup.FirstOfKind(facts.AWSResourceFactKind)
 	if !ok {
-		return ReducerIntent{}, false
+		return projectorintent.ReducerIntent{}, false
 	}
-	return ReducerIntent{
-		ScopeID:      scopeValue.ScopeID,
-		GenerationID: generation.GenerationID,
+	return projectorintent.ReducerIntent{
+		ScopeID:      scopeID,
+		GenerationID: generationID,
 		Domain:       reducer.DomainAWSCloudImageMaterialization,
-		EntityKey:    "aws_resource_materialization:" + scopeValue.ScopeID,
+		EntityKey:    "aws_resource_materialization:" + scopeID,
 		Reason:       "aws runtime resource facts observed",
 		FactID:       envelope.FactID,
-		SourceSystem: awsCloudRuntimeDriftSourceSystem(envelope),
+		SourceSystem: projectorintent.SourceSystem(envelope),
 	}, true
 }
