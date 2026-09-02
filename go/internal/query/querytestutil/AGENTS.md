@@ -34,9 +34,23 @@
      | plus `package packagereg` (internal) importing this one | exit 1, `import cycle not allowed in test` |
      | plus `package packagereg_test` (external) importing this one | exit 0, no cycle |
 
-     The external form is the house convention here -- `graphreader_test.go`
-     is `package querytestutil_test` -- so a family following it never trips
-     the cycle at all. Do not rely on this ban being enforced.
+     So whether the ban bites depends on how the family writes its tests, and
+     on whether they use this package at all:
+
+     - Family tests are INTERNAL and import this package -> caught. This is
+       the normal case for a family that needs the shared fakes, which is the
+       reason this package exists. The `semanticsearch` move hit exactly this:
+       its in-package tests import `querytestutil`, so promoting its
+       index-store fake here was rejected by the compiler, not by review.
+     - Family tests are INTERNAL and do not import this package -> not
+       caught. `packagereg` is in this state today: 22 of 22 test files are
+       `package packagereg`, none importing this one.
+     - Family tests are EXTERNAL (`package packagereg_test`) -> never caught,
+       even when they do import this package.
+
+     Do not read the first case as the rule. Two of the three shapes compile
+     clean, and the one that catches you does so only because a family
+     happened to need a fake from here.
    - **A graph driver is NOT caught.** It was, transitively, while the
      stdlib-only import rule stood; that rule is gone. `countQueryCalls`
      matches the selector names `Run` and `RunSingle` only, so a real read
