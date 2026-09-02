@@ -99,8 +99,15 @@ fi
 # is a banned discovery primitive repo-wide, and a directory's mtime resets on
 # every claim_lock_link probe anyway (see the guard_status==2 branch).
 # Pin the POLARITY, not the flag: inverting this to reap guards YOUNGER than
-# the budget reinstates the bug while keeping the "> 60" substring.
-require_lock "age-gate polarity" '(( $(date +%s) - guard_born > 60 ))'
+# the budget reinstates the bug while keeping the threshold substring.
+# The threshold is a variable so the fresh-guard case below can raise it and
+# stop asserting freshness against how long that case itself takes to run; the
+# production default is pinned separately, right after this.
+require_lock "age-gate polarity" '(( $(date +%s) - guard_born > ESHU_LIVE_GATE_REAP_AGE_SECONDS ))'
+# The default must stay 60: a test may raise it, but an unset or widened
+# production value would let a run reap a guard a racer created moments ago,
+# which is the race the guard exists to prevent.
+require_lock "reap age default" ': "${ESHU_LIVE_GATE_REAP_AGE_SECONDS:=60}"'
 if rg -v '^[[:space:]]*#' "${lock_lib}" | rg -- 'find ' >/dev/null; then
 	fail "live-gate-lock.sh reverted to using find - it is a banned discovery primitive repo-wide"
 fi
@@ -298,8 +305,16 @@ else
 	rm -f "${lock_file}"
 	ln -s "${dead_pid}:/nonexistent/dead-worktree" "${lock_file}"
 	ln -s "${dead_pid}:$(date +%s)" "${lock_file}.reclaim"
+	# Pin the reap age far above any plausible runtime of this case. The gate
+	# compares wall clock against the guard's birth epoch, and try_acquire
+	# retries 50 times with sleeps and per-attempt process probes, so on a
+	# loaded machine the call can outlast the production 60s threshold. The
+	# guard stamped "now" then ages out DURING the assertion, gets reaped, and
+	# this case fails describing a freshness violation the code never committed.
+	# Observed intermittently on unmodified main at roughly 1 run in 4. The
+	# case is about the age GATE, not about how slow the host is.
 	set +e
-	fresh_guard_out="$(try_acquire)"
+	fresh_guard_out="$(ESHU_LIVE_GATE_REAP_AGE_SECONDS=86400 try_acquire)"
 	fresh_guard_status=$?
 	set -e
 	[[ "${fresh_guard_status}" -ne 0 ]] \
