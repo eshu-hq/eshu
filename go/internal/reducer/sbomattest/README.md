@@ -27,10 +27,13 @@ document that does not apply and one that applies but could not be verified.
 ## Package boundary
 
 Imports point strictly downward. This package reaches `reducer/contract`,
-`reducer/factdecode`, `reducer/factload`, `reducer/payloadcore` and
-`internal/telemetry`, and it never imports the parent `internal/reducer`
-package. The dependency runs the other way: the root keeps compatibility aliases
-in `sbom_attestation_attachment_compat.go` so its own callers compile unchanged.
+`reducer/factdecode`, `reducer/factload`, `reducer/factwrite`,
+`reducer/payloadcore`, `reducer/schemadecode`, `internal/boundedset`,
+`internal/facts`, `internal/telemetry` and `internal/truth`, and it never
+imports the parent `internal/reducer` package. The dependency runs the other
+way: the root keeps compatibility aliases in `sbom_attestation_attachment_compat.go`
+(plus `intent.go` for the fact-kind constant) so its own callers compile
+unchanged.
 
 `SBOMAttestationAttachmentFactKind` is the one name shared in both directions.
 It is declared in `reducer/contract` and aliased here, because the reducer
@@ -41,23 +44,37 @@ the same treatment the container-image identity vocabulary got in #6431.
 
 ## Telemetry
 
-The family registers no instrument of its own.
+Handle emits `eshu_dp_sbom_attestation_attachments_total` (labeled by domain
+and outcome) once per non-empty attachment status after building a batch of
+decisions.
 
 Documents rejected for a malformed payload increment the shared
-`eshu_dp_reducer_input_invalid_facts_total` counter, which is where an operator
-should look first when attachments silently stop appearing. The reducer
-executions that run this handler remain covered by
+`eshu_dp_reducer_input_invalid_facts_total` counter instead, which is where an
+operator should look first when attachments silently stop appearing. The
+reducer executions that run this handler remain covered by
 `eshu_dp_reducer_executions_total` and `eshu_dp_reducer_run_duration_seconds`.
 
-No-Regression Evidence: #6061 relocates this family without changing a line of
-its logic. Every hunk inside the moved files is package-clause and import
-requalification: symbols the reducer root used to supply as one-line forwarders
-are now imported from the leaf that already owned them (`payloadcore` for the
-payload and slice helpers, `contract` for the fact-kind name). A Go import
-change adds no indirection at runtime. Measured against baseline `origin/main`
-at `348bae817`: `go build ./...` and `go vet ./...` both exit 0 on the branch,
-and `go test ./internal/reducer/... -count=1` passes. Binary output was not
-compared and no such claim is made here.
+No-Regression Evidence: #6061 relocates this family's production logic without
+changing it. Almost every hunk inside the moved production files is
+package-clause and import requalification: symbols the reducer root used to
+supply as one-line forwarders are now imported from the leaf that already
+owned them (`payloadcore` for the payload/slice/int helpers, `contract` for
+the fact-kind name and container-image-identity vocabulary, `factload`/
+`factdecode`/`factwrite`/`schemadecode` for the rest). The one exception is
+`NormalizedVerificationStatus`, relocated from `sbom_attestation_attachment.go`
+to `sbom_attestation_attachment_classify.go` to keep the former under the
+package's 500-line cap -- a declaration move, not a logic change. Moved test
+files additionally gained local copies of a handful of fixture-builder helpers
+and a batch-insert test double/decoder that other reducer-root test files also
+use (Go test files cannot share unexported symbols across package boundaries),
+and one fixture path (`sbom_attestation_runtime_attachment_test.go`) was
+corrected from `../collector/...` to `../../collector/...` after the file
+moved one directory deeper -- a real fix to a path that broke on the move, not
+a production-code change. A Go import change adds no indirection at runtime.
+Measured against baseline `origin/main` at `348bae817`: `go build ./...` and
+`go vet ./...` both exit 0 on the branch, and `go test ./internal/reducer/...
+-count=1` passes, including this package. Binary output was not compared and
+no such claim is made here.
 
 No-Observability-Change: #6061 adds no queue domain, worker, lease, graph or
 Postgres operation, runtime setting, metric instrument, metric label, span, or

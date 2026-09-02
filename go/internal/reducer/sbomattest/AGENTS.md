@@ -10,9 +10,10 @@ Imports point strictly downward:
     reducer root  ->  family packages  ->  shared-core tiers  ->  contract
 
 This package is a family. It may import `reducer/contract`,
-`reducer/factdecode`, `reducer/factload`, `reducer/payloadcore` and
-`internal/telemetry`. It must **never** import the parent `internal/reducer`
-package, directly or transitively.
+`reducer/factdecode`, `reducer/factload`, `reducer/factwrite`,
+`reducer/payloadcore`, `reducer/schemadecode`, `internal/boundedset`,
+`internal/facts`, `internal/telemetry` and `internal/truth`. It must **never**
+import the parent `internal/reducer` package, directly or transitively.
 
 If you find yourself needing a symbol that the reducer root defines, that is a
 signal about where the symbol belongs, not a reason to reach upward:

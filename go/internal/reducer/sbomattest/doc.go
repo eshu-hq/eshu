@@ -21,17 +21,19 @@
 // # Package boundary
 //
 // Imports point strictly downward: this package reaches
-// [reducercontract], [factdecode], [factload], [payloadcore] and
-// [telemetry], and never the parent internal/reducer package. The reducer root
-// keeps compatibility aliases so its own callers compile unchanged; that
+// [reducercontract], [factdecode], [factload], [factwrite], [payloadcore],
+// [schemadecode], internal/boundedset, internal/facts, internal/telemetry, and
+// internal/truth, and never the parent internal/reducer package. The reducer
+// root keeps compatibility aliases so its own callers compile unchanged; that
 // direction is root importing this family, never the reverse. See AGENTS.md in
 // this directory before adding an import.
 //
 // # Observability
 //
-// The family registers no instrument of its own. Documents rejected for
-// malformed payloads increment the shared
-// eshu_dp_reducer_input_invalid_facts_total counter, and the reducer executions
-// that run this handler stay covered by eshu_dp_reducer_executions_total and
-// eshu_dp_reducer_run_duration_seconds.
+// Handle emits eshu_dp_sbom_attestation_attachments_total (labeled by domain
+// and outcome) once per non-empty attachment status after building a batch of
+// decisions. Documents rejected for malformed payloads increment the shared
+// eshu_dp_reducer_input_invalid_facts_total counter instead, and the reducer
+// executions that run this handler stay covered by
+// eshu_dp_reducer_executions_total and eshu_dp_reducer_run_duration_seconds.
 package sbomattest
