@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package projector
+package semanticentity
 
 import (
 	"testing"
@@ -13,7 +13,7 @@ import (
 func TestBuildSemanticEntityReducerIntentQueuesTSXFunctionFragmentSemanticEntities(t *testing.T) {
 	t.Parallel()
 
-	intent, ok := buildSemanticEntityReducerIntent(facts.Envelope{
+	intent, ok := BuildSemanticEntityReducerIntent(facts.Envelope{
 		FactID:       "fact-tsx-1",
 		ScopeID:      "scope-123",
 		GenerationID: "generation-456",
@@ -29,7 +29,7 @@ func TestBuildSemanticEntityReducerIntentQueuesTSXFunctionFragmentSemanticEntiti
 		},
 	})
 	if !ok {
-		t.Fatal("buildSemanticEntityReducerIntent() ok = false, want true")
+		t.Fatal("BuildSemanticEntityReducerIntent() ok = false, want true")
 	}
 	if got, want := intent.Domain, reducer.DomainSemanticEntityMaterialization; got != want {
 		t.Fatalf("intent.Domain = %q, want %q", got, want)
@@ -42,7 +42,7 @@ func TestBuildSemanticEntityReducerIntentQueuesTSXFunctionFragmentSemanticEntiti
 func TestBuildSemanticEntityReducerIntentQueuesTSXVariableComponentTypeSemanticEntities(t *testing.T) {
 	t.Parallel()
 
-	intent, ok := buildSemanticEntityReducerIntent(facts.Envelope{
+	intent, ok := BuildSemanticEntityReducerIntent(facts.Envelope{
 		FactID:       "fact-tsx-2",
 		ScopeID:      "scope-123",
 		GenerationID: "generation-456",
@@ -58,7 +58,7 @@ func TestBuildSemanticEntityReducerIntentQueuesTSXVariableComponentTypeSemanticE
 		},
 	})
 	if !ok {
-		t.Fatal("buildSemanticEntityReducerIntent() ok = false, want true")
+		t.Fatal("BuildSemanticEntityReducerIntent() ok = false, want true")
 	}
 	if got, want := intent.Domain, reducer.DomainSemanticEntityMaterialization; got != want {
 		t.Fatalf("intent.Domain = %q, want %q", got, want)

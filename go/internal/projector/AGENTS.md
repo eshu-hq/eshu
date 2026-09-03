@@ -289,6 +289,24 @@
   entity key, both source-system tiers, the negative case) rather than any of
   the moved `buildProjection` cases, since `buildProjection` is a root-only
   function the child package cannot call.
+- **Semantic-entity family (#6057)** — the
+  `semantic_entity_materialization` builder lives in `semanticentity/` and is
+  the one extracted family that is NOT a scope-generation probe. Root calls
+  `projectorsemanticentity.BuildSemanticEntityReducerIntent` once per input
+  fact from `buildProjection`'s loop in `runtime.go`, so it takes a
+  `facts.Envelope` rather than an `intent.FactLookup` and can return an
+  intent for many facts in one generation; they share the `repo:<repo_id>`
+  entity key and collapse on the reducer's per-key claim. It is therefore
+  absent from `appendScopeGenerationReducerIntents` and from the root fan-out
+  parity fixture — that fixture never covered this domain, so nothing was
+  lost by the move. Its source-system label is the raw
+  `fact.SourceRef.SourceSystem`, NOT `projectorintent.SourceSystem`: unlike
+  the other families' dropped helpers, this one was never a two-tier
+  fallback, so substituting the seam here would be a behavior change. All
+  four topic-split test files were builder-only and moved into the child;
+  the `Runtime.Project` and `buildProjection` cases that also assert this
+  domain stayed at root in `runtime_test.go` and
+  `runtime_clone_removal_test.go`.
 - **CanonicalWriter interface boundary** — no caller in this package calls a Neo4j
   or NornicDB driver directly. All canonical writes go through `CanonicalWriter`.
   Backend-specific logic belongs in `internal/storage/cypher` adapters.
@@ -320,8 +338,9 @@
 
 - **Add a new reducer domain intent** → add the domain constant in
   `internal/reducer`, add intent construction in `buildReducerIntent` or a
-  new `build*ReducerIntent` helper in `runtime.go` or `semantic_entity_intents.go`,
-  add a test in `stage_relationships_test.go` or the semantic intents test files.
+  new `build*ReducerIntent` helper in `runtime.go` (or, for the semantic-entity
+  family, `semanticentity/entity_intents.go`), add a test in
+  `stage_relationships_test.go` or that family package's own test files.
   Why: intent domain values must be parseable by `reducer.ParseDomain`.
 
 - **Add a new typed canonical family** → besides wiring it into

@@ -17,6 +17,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/content"
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	projectorsemanticentity "github.com/eshu-hq/eshu/go/internal/projector/semanticentity"
 	"github.com/eshu-hq/eshu/go/internal/reducer"
 	"github.com/eshu-hq/eshu/go/internal/scope"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
@@ -839,7 +840,7 @@ func TestBuildReducerIntentSkipsNonSemanticContentEntities(t *testing.T) {
 func TestBuildReducerIntentQueuesJavaScriptCallableSemanticEntities(t *testing.T) {
 	t.Parallel()
 
-	intent, ok := buildSemanticEntityReducerIntent(facts.Envelope{
+	intent, ok := projectorsemanticentity.BuildSemanticEntityReducerIntent(facts.Envelope{
 		FactID:       "fact-1",
 		ScopeID:      "scope-123",
 		GenerationID: "generation-456",
@@ -856,7 +857,7 @@ func TestBuildReducerIntentQueuesJavaScriptCallableSemanticEntities(t *testing.T
 		},
 	})
 	if !ok {
-		t.Fatal("buildSemanticEntityReducerIntent() ok = false for JavaScript Function, want true")
+		t.Fatal("projectorsemanticentity.BuildSemanticEntityReducerIntent() ok = false for JavaScript Function, want true")
 	}
 	if got, want := intent.Domain, reducer.DomainSemanticEntityMaterialization; got != want {
 		t.Fatalf("intent.Domain = %q, want %q", got, want)

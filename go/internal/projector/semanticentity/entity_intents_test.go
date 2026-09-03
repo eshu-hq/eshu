@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package projector
+package semanticentity
 
 import (
 	"testing"
@@ -13,7 +13,7 @@ import (
 func TestBuildSemanticEntityReducerIntentQueuesRustImplBlockSemanticEntities(t *testing.T) {
 	t.Parallel()
 
-	intent, ok := buildSemanticEntityReducerIntent(facts.Envelope{
+	intent, ok := BuildSemanticEntityReducerIntent(facts.Envelope{
 		FactID:       "fact-1",
 		ScopeID:      "scope-123",
 		GenerationID: "generation-456",
@@ -31,7 +31,7 @@ func TestBuildSemanticEntityReducerIntentQueuesRustImplBlockSemanticEntities(t *
 		},
 	})
 	if !ok {
-		t.Fatal("buildSemanticEntityReducerIntent() ok = false, want true")
+		t.Fatal("BuildSemanticEntityReducerIntent() ok = false, want true")
 	}
 	if got, want := intent.Domain, reducer.DomainSemanticEntityMaterialization; got != want {
 		t.Fatalf("intent.Domain = %q, want %q", got, want)
@@ -47,7 +47,7 @@ func TestBuildSemanticEntityReducerIntentQueuesRustImplBlockSemanticEntities(t *
 func TestBuildSemanticEntityReducerIntentQueuesPythonFunctionSemanticEntities(t *testing.T) {
 	t.Parallel()
 
-	intent, ok := buildSemanticEntityReducerIntent(facts.Envelope{
+	intent, ok := BuildSemanticEntityReducerIntent(facts.Envelope{
 		FactID:       "fact-2",
 		ScopeID:      "scope-123",
 		GenerationID: "generation-456",
@@ -64,7 +64,7 @@ func TestBuildSemanticEntityReducerIntentQueuesPythonFunctionSemanticEntities(t 
 		},
 	})
 	if !ok {
-		t.Fatal("buildSemanticEntityReducerIntent() ok = false, want true")
+		t.Fatal("BuildSemanticEntityReducerIntent() ok = false, want true")
 	}
 	if got, want := intent.Domain, reducer.DomainSemanticEntityMaterialization; got != want {
 		t.Fatalf("intent.Domain = %q, want %q", got, want)
@@ -77,7 +77,7 @@ func TestBuildSemanticEntityReducerIntentQueuesPythonFunctionSemanticEntities(t 
 func TestBuildSemanticEntityReducerIntentQueuesElixirGuardSemanticEntities(t *testing.T) {
 	t.Parallel()
 
-	intent, ok := buildSemanticEntityReducerIntent(facts.Envelope{
+	intent, ok := BuildSemanticEntityReducerIntent(facts.Envelope{
 		FactID:       "fact-3",
 		ScopeID:      "scope-123",
 		GenerationID: "generation-456",
@@ -93,7 +93,7 @@ func TestBuildSemanticEntityReducerIntentQueuesElixirGuardSemanticEntities(t *te
 		},
 	})
 	if !ok {
-		t.Fatal("buildSemanticEntityReducerIntent() ok = false, want true")
+		t.Fatal("BuildSemanticEntityReducerIntent() ok = false, want true")
 	}
 	if got, want := intent.Domain, reducer.DomainSemanticEntityMaterialization; got != want {
 		t.Fatalf("intent.Domain = %q, want %q", got, want)
@@ -146,7 +146,7 @@ func TestBuildSemanticEntityReducerIntentQueuesTypeScriptModuleSemanticEntities(
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			intent, ok := buildSemanticEntityReducerIntent(facts.Envelope{
+			intent, ok := BuildSemanticEntityReducerIntent(facts.Envelope{
 				FactID:       "fact-module",
 				ScopeID:      "scope-123",
 				GenerationID: "generation-456",
@@ -154,7 +154,7 @@ func TestBuildSemanticEntityReducerIntentQueuesTypeScriptModuleSemanticEntities(
 				Payload:      tt.payload,
 			})
 			if !ok {
-				t.Fatal("buildSemanticEntityReducerIntent() ok = false, want true")
+				t.Fatal("BuildSemanticEntityReducerIntent() ok = false, want true")
 			}
 			if got, want := intent.Domain, reducer.DomainSemanticEntityMaterialization; got != want {
 				t.Fatalf("intent.Domain = %q, want %q", got, want)

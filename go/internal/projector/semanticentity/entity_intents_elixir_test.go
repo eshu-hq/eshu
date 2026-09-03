@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package projector
+package semanticentity
 
 import (
 	"testing"
@@ -26,14 +26,14 @@ func TestBuildSemanticEntityReducerIntentAcceptsElixirProtocolEntities(t *testin
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			intent, ok := buildSemanticEntityReducerIntent(testElixirSemanticEntityFact(
+			intent, ok := BuildSemanticEntityReducerIntent(testElixirSemanticEntityFact(
 				tt.entityType,
 				tt.entityName,
 				"elixir",
 				map[string]any{"module_kind": "protocol"},
 			))
 			if !ok {
-				t.Fatalf("buildSemanticEntityReducerIntent() ok = false, want true")
+				t.Fatalf("BuildSemanticEntityReducerIntent() ok = false, want true")
 			}
 			if got, want := intent.Domain, reducer.DomainSemanticEntityMaterialization; got != want {
 				t.Fatalf("intent.Domain = %q, want %q", got, want)
@@ -45,7 +45,7 @@ func TestBuildSemanticEntityReducerIntentAcceptsElixirProtocolEntities(t *testin
 func TestBuildSemanticEntityReducerIntentAcceptsElixirModuleAttributeEntities(t *testing.T) {
 	t.Parallel()
 
-	intent, ok := buildSemanticEntityReducerIntent(testElixirSemanticEntityFact(
+	intent, ok := BuildSemanticEntityReducerIntent(testElixirSemanticEntityFact(
 		"Variable",
 		"@timeout",
 		"elixir",
@@ -55,7 +55,7 @@ func TestBuildSemanticEntityReducerIntentAcceptsElixirModuleAttributeEntities(t 
 		},
 	))
 	if !ok {
-		t.Fatalf("buildSemanticEntityReducerIntent() ok = false, want true")
+		t.Fatalf("BuildSemanticEntityReducerIntent() ok = false, want true")
 	}
 	if got, want := intent.Domain, reducer.DomainSemanticEntityMaterialization; got != want {
 		t.Fatalf("intent.Domain = %q, want %q", got, want)
