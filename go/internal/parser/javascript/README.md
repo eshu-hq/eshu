@@ -410,11 +410,19 @@ only `parser.DefaultEngine`, `ParsePath`, and `Options`, so they run as
 `javascript_test` like their siblings. They reuse this package's existing
 helpers rather than adding near-duplicates, take `assertIntFieldValue` from
 `parsertest`, and contributed `assertBoolFieldValue` to
-`engine_javascript_test_helpers_test.go` -- `parsertest` has no bool variant,
-and the parent package keeps its own copy for the NuGet dependency tests that
-stay at root. Relocating them left `assertStringSliceFieldValue`,
-`assertBucketItemByFieldValue`, and `findAllNamedBucketItems` with no
-parent-side caller, so those parent copies were deleted in the same change.
+`engine_javascript_test_helpers_test.go` -- `parsertest` has no bool variant, so
+each package that needs one carries its own. Relocating them left
+`assertStringSliceFieldValue`, `assertBucketItemByFieldValue`, and
+`findAllNamedBucketItems` with no parent-side caller, so those parent copies
+were deleted in the same change.
+
+The parent's `assertBoolFieldValue` outlived that sweep because the NuGet
+dependency tests were still at root and still called it. #6503 then gave the
+NuGet project parser its own package, with its own copy in
+`nuget/test_helpers_test.go`, which took the parent's last caller away. Neither
+change is wrong alone and neither conflicts with the other in git, so the
+orphan reached `main` and `golangci-lint`'s `unused` check failed there until
+the parent copy was deleted too.
 
 The external test package may import `internal/parser`; the non-test package
 must not. Go compiles `javascript_test` separately, so this keeps the
