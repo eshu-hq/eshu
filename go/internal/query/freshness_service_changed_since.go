@@ -144,7 +144,7 @@ func (h *FreshnessHandler) listServiceChangedSince(w http.ResponseWriter, r *htt
 // Splitting the lineage needs a scope column on those tables; until that
 // lands, a contested id is refused.
 //
-// Three deliberate fail-closed cases:
+// Three deliberate fail-closed cases, and one gap that is not closed:
 //
 //   - A generation can outlive its correlation fact. The correlation read
 //     requires the fact's generation to still be its scope's active one, so
@@ -160,6 +160,23 @@ func (h *FreshnessHandler) listServiceChangedSince(w http.ResponseWriter, r *htt
 //     Returning the shared lineage would hand the caller another tenant's
 //     counts and evidence keys, and returning a filtered one is impossible:
 //     the lineage carries nothing to filter on.
+//
+// The gap, stated because the contract sentence on this route is bounded to
+// match it (#6475): both correlation reads join ingestion_scopes on the
+// scope's active generation and require generation.status = 'active', so a
+// correlation that has aged out -- the component removed from the other
+// tenant's catalog, that scope deactivated, the tenant offboarded -- is
+// invisible to the exclusivity probe. Its lineage generation, meanwhile, stays
+// the active one for the id, because nothing prunes
+// service_materialization_generations. The id then stops looking contested and
+// the caller is admitted onto that lineage. The writing scope cannot be
+// recovered to close this here: source_intent_id is nullable, carries no
+// foreign key, and points at shared_projection_intents rows that generation
+// retention deletes (deleteSharedProjectionIntentsForGenerationsQuery), whose
+// scope_id can be empty on legacy rows. Closing it needs the scope column on
+// the lineage tables and a (scope, service_id) writer key, which is #6475.
+// TestServiceChangedSinceSharedServiceIDIsRefused pins the behaviour so the
+// contract sentence and the code cannot drift apart.
 //
 // Every refusal is recorded on the handler span before it returns
 // (refuseServiceChangedSinceGrant), because the caller-facing body cannot say

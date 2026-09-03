@@ -311,8 +311,8 @@ on the `get_service_changed_since` tool description, the route's section of
 `docs/public/reference/mcp-tool-contract-matrix.md` row.
 `TestToolsPreserveFreshnessRegistrationContract` pins a SHA-256 over the
 marshalled freshness tool definitions, so that sentence moves the pin from
-`dd7c7265...` to `197bfde6...`, and the round-3 rewording below moves it again
-to `8affbc82...`. That pin exists to make a tool-contract change
+`dd7c7265...` to `197bfde6...`, and the later rewordings move it again, last
+to `d1349562...`. That pin exists to make a tool-contract change
 deliberate; this one is. No cassette and no B-12 snapshot entry carries tool or
 operation description text, so nothing is regenerated.
 

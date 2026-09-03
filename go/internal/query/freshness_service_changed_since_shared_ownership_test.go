@@ -120,6 +120,43 @@ func TestServiceChangedSinceSharedServiceIDIsRefused(t *testing.T) {
 		}
 	})
 
+	t.Run("an aged-out out-of-grant correlation no longer contests the id", func(t *testing.T) {
+		t.Parallel()
+
+		// This pins the known residual, not a desired outcome (#6475). Both
+		// correlation reads join ingestion_scopes on the scope's active
+		// generation and require generation.status = 'active', so a
+		// correlation that has aged out of its scope's active generation --
+		// the component removed from the other tenant's catalog, that scope
+		// deactivated, the tenant offboarded -- is invisible to the
+		// exclusivity probe, while the lineage generation that tenant wrote
+		// stays the active one for the id (nothing prunes
+		// service_materialization_generations). The id stops looking
+		// contested and the caller is admitted onto that lineage.
+		//
+		// Closing it needs the scope column and the (scope, service_id)
+		// writer key tracked in #6475; the writing scope is not recoverable
+		// from source_intent_id, which is nullable, carries no foreign key,
+		// and points at shared_projection_intents rows that generation
+		// retention deletes. The caller-facing contract is bounded to
+		// "currently active" for exactly this reason, and this case is what
+		// keeps that sentence honest: if a future change makes the probe see
+		// aged-out correlations, this test fails and the sentence must be
+		// widened again.
+		ownership := &grantMirroringServiceOwnership{rows: agedOutSharedServiceCorrelations()}
+		rec, reader := serveServiceChangedSinceOwnership(
+			t, serviceChangedSinceGrantShared, scopedServiceChangedSinceTenantA(), ownership,
+		)
+
+		if rec.Code != http.StatusOK {
+			t.Fatalf("status = %d, want %d; an aged-out correlation is invisible to the probe, so the read is admitted; body = %s",
+				rec.Code, http.StatusOK, rec.Body.String())
+		}
+		if !reader.touched {
+			t.Fatal("lineage reader was never called; the aged-out case is admitted, not refused")
+		}
+	})
+
 	t.Run("an exclusivity probe failure is a 500, not a silent not-found", func(t *testing.T) {
 		t.Parallel()
 
@@ -139,4 +176,19 @@ func TestServiceChangedSinceSharedServiceIDIsRefused(t *testing.T) {
 			t.Fatal("lineage reader was called after the ownership store failed")
 		}
 	})
+}
+
+// agedOutSharedServiceCorrelations is the two-tenant fixture with the other
+// tenant's correlation for the contested id no longer in its scope's active
+// generation. Its own lineage generation is untouched, which is the shape the
+// tables actually produce: correlation facts age out with their scope
+// generation, service materialization generations never do.
+func agedOutSharedServiceCorrelations() []mirroredServiceCorrelation {
+	rows := twoTenantServiceCorrelations()
+	for idx := range rows {
+		if rows[idx].serviceID == serviceChangedSinceGrantShared && rows[idx].repositoryID == "repo-b" {
+			rows[idx].inactive = true
+		}
+	}
+	return rows
 }

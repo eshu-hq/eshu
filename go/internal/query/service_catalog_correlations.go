@@ -254,12 +254,18 @@ LIMIT $12
 // TestServiceCatalogCorrelationsOutsideGrantQueryInvertsOnlyTheGrantClause pins
 // the two in lockstep.
 //
-// Each disjunct is COALESCEd to FALSE because a payload without a
-// repository_id, or without a candidate_repository_ids array, compares to NULL:
-// NOT NULL is NULL, which would drop exactly the rows whose ownership cannot be
-// read -- the ones this statement most needs to report. The empty-arrays arm of
-// the ordinary clause is absent on purpose; its negation would match every row,
-// and the store refuses that filter before it gets here.
+// Two of the three disjuncts are COALESCEd to FALSE, because a payload without
+// a repository_id, or without a candidate_repository_ids array, compares to
+// NULL: NOT NULL is NULL, which would drop exactly the rows whose ownership
+// cannot be read -- the ones this statement most needs to report. The third,
+// fact.scope_id = ANY($14), needs no guard for one specific reason: the
+// statement INNER JOINs ingestion_scopes ON scope.scope_id = fact.scope_id, so
+// no row with a NULL scope_id reaches this WHERE and that comparison cannot
+// evaluate to NULL. A disjunct added here on a nullable column would need the
+// COALESCE; do not read the third one as evidence that the pattern is
+// optional. The empty-arrays arm of the ordinary clause is absent on purpose;
+// its negation would match every row, and the store refuses that filter before
+// it gets here.
 const listServiceCatalogCorrelationsOutsideGrantQuery = `
 SELECT fact.fact_id, fact.payload
 FROM fact_records AS fact

@@ -44,6 +44,11 @@ type mirroredServiceCorrelation struct {
 	repositoryID           string
 	candidateRepositoryIDs []string
 	scopeID                string
+	// inactive marks a correlation that is no longer in its scope's active
+	// generation. Both statements join ingestion_scopes on
+	// active_generation_id and require generation.status = 'active', so such a
+	// row is invisible to either direction of the read (#6475).
+	inactive bool
 }
 
 // grantMirroringServiceOwnership is the #5167 two-tenant ownership fixture, in
@@ -85,6 +90,11 @@ func (g *grantMirroringServiceOwnership) ListServiceCatalogCorrelations(
 
 	out := make([]ServiceCatalogCorrelationRow, 0, len(g.rows))
 	for _, row := range g.rows {
+		// The active-generation joins, which bound both statements to
+		// correlations that are still live in their scope's active generation.
+		if row.inactive {
+			continue
+		}
 		// The service selector arm: ($6 = '' OR payload->>'service_id' = $6).
 		if filter.ServiceID != "" && filter.ServiceID != row.serviceID {
 			continue
