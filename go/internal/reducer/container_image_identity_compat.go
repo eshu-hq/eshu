@@ -172,3 +172,23 @@ func containerImageIdentityPayload(
 ) map[string]any {
 	return containerimage.ContainerImageIdentityPayload(write, decision, canonicalID)
 }
+
+// containerimage re-declares the root GraphQueryRunner locally rather than
+// importing it, because a family package must not import the reducer root and
+// Go interfaces are satisfied structurally. That arrangement is only safe while
+// the two method sets stay identical, and nothing about it is checked at the
+// declaration sites -- a change to either interface would go unnoticed until
+// some distant wiring site failed to compile, with an error pointing at the
+// wiring rather than at the divergence.
+//
+// These two assignments pin it in both directions, so the method sets must
+// match exactly. Either interface gaining, losing, or re-signing a method fails
+// the build here, naming the real problem.
+//
+// containerimage.activeRepositoryFactLoader is deliberately NOT pinned: it is
+// unexported, so no assertion can reach it from this package. Anyone widening
+// that interface has to re-check its root counterpart by hand.
+var (
+	_ containerimage.GraphQueryRunner = GraphQueryRunner(nil)
+	_ GraphQueryRunner                = containerimage.GraphQueryRunner(nil)
+)

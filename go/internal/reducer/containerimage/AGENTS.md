@@ -60,7 +60,7 @@ build. This bit two things during the #6061 move:
   exported functions/methods in non-`_test.go` files
   (`container_image_identity_replay_export.go`,
   `container_image_identity_root_compat_exports.go`) rather than through a
-  `_test.go` export. None of them are called by production code — grep for
+  `_test.go` export. None of them are called by production code — `rg` for
   `ForReplayTest`/`ForTest` suffixes to find them.
 
 ## Root test files needed their own local copies
