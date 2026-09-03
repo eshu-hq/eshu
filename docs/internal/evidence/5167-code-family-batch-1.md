@@ -110,14 +110,12 @@ picks it up — the selector, `codeContentGrantScope`, the dead-code candidate
 scan, quality, complexity, and the entity searches all take it from there. The
 routes where `repo_id` is mandatory are fixed by the selector alone.
 
-The resolution only ever adds ids, and that is deliberate. Resolving in place —
-replacing the scope ids with what they decode to — would empty the id list for a
-caller whose grants are all non-repository scopes, and an empty list is exactly
-the fail-open the section above exists to close. Growing the list cannot reach
-that state. A repository-ref scope (`...@<ref>`) resolves to nothing rather than
-to the repository, because it names one ref and the rows a read returns carry no
-ref to check it against; that caller reads nothing, which is the fail-closed
-side.
+The resolution only ever adds ids, deliberately: resolving in place would empty
+the id list for a caller whose grants are all non-repository scopes, which is
+exactly the fail-open the section above exists to close, and growing a list
+cannot reach that state. A repository-ref scope (`...@<ref>`) resolves to
+nothing rather than to the repository — it names one ref and the rows carry no
+ref to check it against — so that caller reads nothing, the fail-closed side.
 
 ## The Complexity List Branch Needed A New Query, Not A New Predicate
 
@@ -222,8 +220,7 @@ repositories that call it — and `buildDeadCodeIncomingBatchProbeCypher` accept
 a source from any repository at all. So a candidate in a granted repository
 vanished from the answer when a repository the caller was never granted called
 it. Wrong twice: the caller is told a symbol is reachable on evidence they may
-not read, and the gap the candidate left in the page is itself a readable signal
-that a hidden consumer exists.
+not read, and the gap left in the page says a hidden consumer exists.
 
 Both reads now take the caller's grant, and neither drops a row for it. The SQL
 projects `(row.repository_id = ANY($n)) AS consumer_in_grant` rather than
@@ -243,10 +240,6 @@ the candidate is kept, classified `ambiguous`, and carries
 `permission_hidden_consumer` — the same reason the cross-repo route already
 answers with. Never live, never dead. An unscoped caller runs one statement, the
 unchanged one, and gets the unchanged answer.
-
-The incoming-edge family moved from `code_dead_code_scan.go` to
-`code_dead_code_candidate_entity.go` to stay under the 500-line cap, for the
-same ledger reason recorded at the end of this document.
 
 ## Cross-Repo Consumer Evidence
 
@@ -442,7 +435,18 @@ one. The cross-repo consumer read runs one extra statement per scoped request,
 on a route that already issues a paged candidate scan plus per-entity probes.
 That statement is the ungranted read this route shipped before the grant landed,
 unchanged and capped at the same 1001 rows, and it is measured rather than
-asserted — see "Two Bounded Reads, Not An Unbounded Complement". Nothing here
+asserted — see "Two Bounded Reads, Not An Unbounded Complement".
+
+The round-7 incoming-edge probe adds a third such shape, and this one is
+declared without a measurement. A scoped caller now runs two graph statements
+where it ran one: the grant-bound probe, which adds a
+`CONTAINS`/`REPO_CONTAINS` hop from the source to its repository, and the
+unrestricted probe unchanged. Both are the same bounded `UNWIND $entity_ids`
+shape over one candidate page. The SQL half adds no scan at all — the grant is a
+projected boolean over `code_reachability_rows.repository_id`, a column the
+statement already returns, not a new predicate — so only the graph half carries
+a cost, it falls only on scoped callers, who could not reach these routes before
+this PR, and it is bounded rather than measured. Nothing here
 puts a filter in a `WITH`-attached `WHERE` (not evaluated as a filter on
 NornicDB) or guards a disjunct with `$param <> ''` (poisons the enclosing `OR`
 on NornicDB) — see
