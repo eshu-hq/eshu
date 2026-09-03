@@ -28,14 +28,14 @@
 // rewrites against symbols that already had a leaf home; this package is
 // what had none.
 //
-// This package therefore holds only plain data, constants, and one pure
+// This package therefore holds only plain data, constants, pure builders, and one pure
 // validation method. It imports nothing but the standard library, and it must
 // never import the reducer root.
 //
 // # What deliberately stays at the root
 //
 // PhaseState (one durable readiness publication) and the
-// GraphProjectionPhasePublisher interface that persists it stay in
+// publication itself stays in
 // `graph_projection_phase.go` at the root: they are read and written by the
 // phase-publish and phase-repair machinery across roughly two dozen files,
 // none of which need to become a leaf subpackage today, and PhaseState adds

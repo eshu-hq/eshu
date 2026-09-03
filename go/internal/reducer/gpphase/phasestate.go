@@ -5,7 +5,6 @@ package gpphase
 
 import (
 	"context"
-	"fmt"
 	"strings"
 	"time"
 )
@@ -86,28 +85,4 @@ func StateForIntent(
 		CommittedAt: observedAt,
 		UpdatedAt:   observedAt,
 	}, true
-}
-
-// PublishIntentPhase publishes the readiness milestone for one intent anchor.
-// A nil publisher and an anchor that cannot name a bounded slice are both
-// no-ops, so a handler wired without readiness publication still runs.
-func PublishIntentPhase(
-	ctx context.Context,
-	publisher PhasePublisher,
-	anchor IntentAnchor,
-	keyspace Keyspace,
-	phase Phase,
-	observedAt time.Time,
-) error {
-	if publisher == nil {
-		return nil
-	}
-	state, ok := StateForIntent(anchor, keyspace, phase, observedAt)
-	if !ok {
-		return nil
-	}
-	if err := publisher.PublishGraphProjectionPhases(ctx, []PhaseState{state}); err != nil {
-		return fmt.Errorf("publish %s phase: %w", phase, err)
-	}
-	return nil
 }

@@ -166,7 +166,7 @@ func (h PlatformMaterializationHandler) Handle(
 		)
 	}
 	phaseStarted := time.Now()
-	if err := gpphase.PublishIntentPhase(
+	if err := publishIntentPhase(
 		ctx,
 		h.PhasePublisher,
 		gpphase.IntentAnchor{
@@ -310,4 +310,33 @@ func isNonRepositoryReplayKey(entityKey string) bool {
 		strings.HasPrefix(lower, "aws:") ||
 		strings.HasPrefix(lower, "tfstate:") ||
 		strings.HasPrefix(lower, "cloud:")
+}
+
+// publishIntentPhase publishes the readiness milestone for one intent anchor.
+// A nil publisher and an anchor that cannot name a bounded slice are both
+// no-ops, so a handler wired without readiness publication still runs.
+//
+// This lives beside its caller rather than in gpphase: that package is the leaf
+// the reducer root and every family import, and its contract is plain data,
+// constants, and pure validation. Building the state is pure and stays there as
+// [gpphase.StateForIntent]; the write belongs to whoever holds the publisher.
+func publishIntentPhase(
+	ctx context.Context,
+	publisher gpphase.PhasePublisher,
+	anchor gpphase.IntentAnchor,
+	keyspace gpphase.Keyspace,
+	phase gpphase.Phase,
+	observedAt time.Time,
+) error {
+	if publisher == nil {
+		return nil
+	}
+	state, ok := gpphase.StateForIntent(anchor, keyspace, phase, observedAt)
+	if !ok {
+		return nil
+	}
+	if err := publisher.PublishGraphProjectionPhases(ctx, []gpphase.PhaseState{state}); err != nil {
+		return fmt.Errorf("publish %s phase: %w", phase, err)
+	}
+	return nil
 }
