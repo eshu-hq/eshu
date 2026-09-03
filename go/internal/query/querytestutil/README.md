@@ -187,13 +187,33 @@ unexported port declared in package `query`, so had the assertion gone false
 across the new package boundary, the handlers would have taken their fallback
 path and every one of them would still have passed.
 
-One mutation found a gap rather than proving anything. Dropping the
-`entity_type` filter from `ListRepoEntitiesByType` fails no root test: the tests
-that cover that predicate build their own doubles
-(`boundedK8sFakeContentStore`, `truncationFakeContentStore`,
-`entityContextFakeContentStore`) rather than this one. The behavior is still
-worth keeping, since a family that adopts this double will depend on it, but no
-test guards it today.
+One mutation found a gap rather than proving anything, which is the only kind
+of evidence that finds an unguarded predicate. Dropping the `entity_type`
+filter from `ListRepoEntitiesByType` failed no root test: the tests covering
+that predicate build their own doubles (`boundedK8sFakeContentStore`,
+`truncationFakeContentStore`, `entityContextFakeContentStore`) rather than this
+one.
+
+That gap is closed. `portcontentstore_test.go` now pins both halves of the
+predicate, and each half has a bite control:
+
+| mutation | test that goes red |
+| --- | --- |
+| drop the `entity_type` filter | `…ListRepoEntitiesByTypeFiltersBeforeLimit` (returns `Service` rows) |
+| apply `LIMIT` to the input before filtering | same test (returns 0 rows) |
+| drop the repo filter | `…ListRepoEntitiesByTypeScopesToRepo` (leaks `repo-2`) |
+
+The ordering half is worth keeping separate from the filtering half. A double
+that limited first would spend its budget on rows of the wrong type and report
+truncation the database would not produce, so a caller sizing a limit against
+it would draw the wrong conclusion while every type in its result still looked
+correct.
+
+Beware a mutation that only looks like it changes the order. Moving the
+`len(filtered) >= limit` break above the type check is semantically identical,
+because that counter still only counts rows that passed the filter — it stays
+green, and it should. The mutation that actually tests the ordering truncates
+the input slice before filtering.
 
 Measure that set with a full `go test ./internal/query/`, never with `-run`
 naming the tests you expect. `-run` measures your own filter: the first attempt
