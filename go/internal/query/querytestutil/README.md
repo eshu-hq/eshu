@@ -37,9 +37,12 @@ See `doc.go` for the godoc contract.
   tests, deliberately without the single-entry fallback. See "Two near-duplicate
   fakes, not one type" below before touching either.
 
-`Run` routes through an unexported `rows` helper, and `RunSingle` falls back to
-that same helper rather than calling `Run` (it still prefers `RunSingleFn` when
-one is set). That keeps the package free of any `Run`/`RunSingle`
+`FakeGraphReader`'s `Run` routes through an unexported `rows` helper, and its
+`RunSingle` falls back to that same helper rather than calling `Run` (it still
+prefers `RunSingleFn` when one is set). `FakeRepoGraphReader` and
+`FakeWorkloadGraphReader` reach the same end differently, by inlining their
+dispatch in each method; neither has a `rows` helper. What matters is the
+result, not the shape: the package stays free of any `Run`/`RunSingle`
 call expression, which is what lets `internal/queryplan`'s callsite inventory
 walk this directory instead of skipping it — see the invariants below.
 
@@ -78,7 +81,13 @@ consumer is the alternative, and it buys nothing the adapter does not.
 way, from `repository_context_test.go` and `workload_context_test.go`. Root
 keeps the same kind of unexported adapter (`fakeRepoGraphReader`,
 `fakeWorkloadGraphReader`) for each. Only the file that used to declare each
-fake changed; the other 43 and 29 consuming test files are untouched.
+fake changed; the other 42 and 29 consuming test files are untouched.
+
+Both counts are measured on the BASE tree, `.go` files only. Measuring them on
+the post-diff tree gives 43, and the extra file is a phantom: this change adds
+the words `fakeRepoGraphReader` to two new doc comments in
+`workload_context_test.go`, so the diff invents a consumer of the fake it is
+not a consumer of. That mistake has been made twice on this branch.
 
 The two fakes look alike -- same fields, same longest-fragment dispatch -- but
 they are separate types on purpose. `FakeRepoGraphReader.RunSingle` falls back
@@ -101,8 +110,10 @@ rule in querytestutil, run the whole root suite, restore, confirm green again.
 - Short-circuiting `FakeWorkloadGraphReader.RunSingle`'s `RunSingleByMatch`
   dispatch to `nil, nil` fails **40** root tests.
 
-Both measured against the same 6539-test, 0-failure baseline as
-`FakeGraphReader`'s proof.
+Both measured at this branch's HEAD against a 7792-run, 0-failure baseline.
+That is not the 6539 cited for `FakeGraphReader`'s earlier proof above: this
+branch was rebased onto a later `origin/main` and the suite grew. Neither number
+is a portable constant -- re-measure rather than carrying one forward.
 
 ## Dependencies
 
@@ -187,7 +198,8 @@ perf-evidence gate on the word "Cypher" in their doc comments, which describe
 which Cypher FRAGMENT a caller registers, not a query this code issues. The
 promotion is a move: the dispatch bodies came across from
 `repository_context_test.go` and `workload_context_test.go` unchanged, so the
-work per call is identical to before. Root suite before and after: 7792
+dispatch work per call is identical; the adapter adds one struct construction
+per call, in test binaries only. Root suite before and after: 7792
 `=== RUN`, 0 `--- FAIL` (base `origin/main` at the time of measurement; that
 count is not a portable constant -- it moves as main gains tests).
 

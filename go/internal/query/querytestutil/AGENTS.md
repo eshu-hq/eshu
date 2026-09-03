@@ -162,8 +162,9 @@ again.
 - Deleting the `RunSingleByMatch` dispatch from `FakeWorkloadGraphReader`'s
   `RunSingle` (short-circuiting to `nil, nil`) fails **40** root tests.
 
-Both measured against the same baseline as `FakeGraphReader`'s proof: 6539
-tests run, 0 failing. Restore the file and re-run the baseline before trusting
+Both measured at this branch's HEAD: 7792 tests run, 0 failing. That is not the
+6539 of `FakeGraphReader`'s earlier proof -- the rebase moved it, and neither
+number is portable. Restore the file and re-run the baseline before trusting
 either number — a proof that leaves the break in place is not a proof of
 anything else in the suite.
 
