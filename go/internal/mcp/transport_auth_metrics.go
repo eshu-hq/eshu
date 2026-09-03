@@ -9,7 +9,6 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
 	"go.opentelemetry.io/otel"
-	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/metric"
 )
 
@@ -50,12 +49,11 @@ func mcpTransportAuthDeniedCounter() metric.Int64Counter {
 // bounded JSON-RPC method (or "sse") and the bounded reason
 // (mcpAuthDenyReason* constants).
 //
-// The reason attribute is built from
-// telemetry.MetricDimensionMCPTransportAuthDenyReason rather than the shared
-// telemetry.AttrReason helper. Both emit the same "reason" wire label, but the
-// named constant is where this counter's closed vocabulary is documented for
-// operators, and going through it means a grep for the constant finds the
-// producer.
+// The reason attribute is built with telemetry.AttrMCPTransportAuthDenyReason
+// rather than the shared telemetry.AttrReason helper. Both emit the same
+// "reason" wire label, but the named helper is anchored to the constant where
+// this counter's closed vocabulary is documented for operators, so a reader who
+// follows either one lands on the producer.
 func recordMCPTransportAuthDenied(ctx context.Context, method, reason string) {
 	counter := mcpTransportAuthDeniedCounter()
 	if counter == nil {
@@ -63,6 +61,6 @@ func recordMCPTransportAuthDenied(ctx context.Context, method, reason string) {
 	}
 	counter.Add(ctx, 1, metric.WithAttributes(
 		telemetry.AttrMCPMethod(method),
-		attribute.String(telemetry.MetricDimensionMCPTransportAuthDenyReason, reason),
+		telemetry.AttrMCPTransportAuthDenyReason(reason),
 	))
 }

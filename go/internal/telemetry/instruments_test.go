@@ -445,6 +445,16 @@ func TestAttrHelpers(t *testing.T) {
 			attrFunc: func(v string) string { return string(AttrBudgetReason(v).Key) },
 			wantKey:  MetricDimensionBudgetReason,
 		},
+		{
+			name:     "AttrMCPTransportAuthDenyReason",
+			attrFunc: func(v string) string { return string(AttrMCPTransportAuthDenyReason(v).Key) },
+			wantKey:  MetricDimensionMCPTransportAuthDenyReason,
+		},
+		{
+			name:     "AttrMCPMethod",
+			attrFunc: func(v string) string { return string(AttrMCPMethod(v).Key) },
+			wantKey:  MetricDimensionMCPMethod,
+		},
 	}
 
 	for _, tt := range tests {
