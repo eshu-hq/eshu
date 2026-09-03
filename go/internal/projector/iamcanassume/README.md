@@ -96,7 +96,7 @@ wrapper without changing the trigger, value, or fan-out position. The reducer
 intent domain, entity key, reason, anchor selection, decode-skip behavior, and
 source-system derivation are identical to the base commit, and the
 dispatcher's ordered fan-out is unchanged at 44 builder probes with this probe
-still running immediately after `buildCodeFunctionSummaryReducerIntent` and
+still running immediately after `codefunctionsummary.BuildCodeFunctionSummaryReducerIntent` and
 immediately before `s3.BuildLogsToMaterializationReducerIntent`. The root
 `awsCloudRuntimeDriftSourceSystem` helper it called was compared body-for-body
 against its `projectorintent.SourceSystem` replacement (both trim

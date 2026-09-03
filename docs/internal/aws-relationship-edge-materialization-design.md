@@ -28,10 +28,10 @@ A deep read of the pipeline established two facts that shape the whole design:
    nodes or edges. Confirmed: no AWS node label or edge route exists in
    `go/internal/storage/cypher/`.
 
-2. **`aws_resource` facts have no graph node materialization either.** The only
-   consumer of `aws_resource` in `go/internal/projector` is
-   `buildAWSCloudRuntimeDriftReducerIntent`, which merely *triggers* the drift
-   reducer when AWS resource facts appear. There is no `CloudResource` /
+2. **`aws_resource` facts have no graph node materialization either.** Its
+   consumers in `go/internal/projector` — eight at the time of writing, including
+   `awscloudruntimedrift.BuildAWSCloudRuntimeDriftReducerIntent` — merely
+   *trigger* their reducers when AWS resource facts appear. There is no `CloudResource` /
    `AwsResource` node label, uniqueness constraint, or uid index in
    `go/internal/graph/schema.go`. The query layer references a `CloudResource`
    label speculatively (`internal/query/impact_resource_investigation.go`,

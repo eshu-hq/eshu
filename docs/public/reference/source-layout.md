@@ -72,6 +72,7 @@ live in the repository today.
 | `go/internal/projector/azure/` | Azure resource and relationship reducer-intent family builders |
 | `go/internal/projector/cicdruncorrelation/` | CI/CD run-correlation reducer-intent family builder |
 | `go/internal/projector/cloudinventory/` | cloud-inventory-admission reducer-intent family builder |
+| `go/internal/projector/codefunctionsummary/` | code-function-summary reducer-intent family builder and its code_function_summary/code_dataflow_scanned decode wrappers |
 | `go/internal/projector/codeinterprocevidence/` | code-interproc-evidence reducer-intent family builder |
 | `go/internal/projector/codetaintevidence/` | code-taint-evidence reducer-intent family builder |
 | `go/internal/projector/containerimageidentity/` | container-image-identity reducer-intent family builder |

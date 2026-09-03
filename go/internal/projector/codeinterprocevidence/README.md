@@ -93,7 +93,7 @@ derivation are identical to the base commit, and the dispatcher's ordered
 fan-out is unchanged at 44 builder probes with this probe still running
 immediately after
 `codetaintevidence.BuildCodeTaintEvidenceReducerIntent` and immediately
-before `buildCodeFunctionSummaryReducerIntent`. The family carried no private
+before `codefunctionsummary.BuildCodeFunctionSummaryReducerIntent`. The family carried no private
 source-system helper: the moved body keeps its original single-tier
 `strings.TrimSpace(trigger.CollectorKind)` expression verbatim rather than
 substituting the two-tier `projectorintent.SourceSystem` (mutation-tested:
