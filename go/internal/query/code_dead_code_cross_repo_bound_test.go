@@ -56,6 +56,22 @@ func TestCrossRepoDeadCodeHiddenConsumerCountIsBounded(t *testing.T) {
 	if got, want := len(recorder.args[1]), 3; got != want {
 		t.Fatalf("len(args) = %d, want %d (producer repo, entity-id array, grant array)", got, want)
 	}
+	// The presence of the per-arm cap is not enough on its own. A statement-wide
+	// LIMIT added after the LATERAL would be spent on the first entity ids of
+	// the page and hand a later producer a hidden count of zero, which is the
+	// wrong-answer shape this bound exists to prevent. The per-arm cap must
+	// therefore be the only LIMIT in the statement, and nothing may follow the
+	// closing of the LATERAL arm.
+	if got := strings.Count(hidden, "LIMIT"); got != 1 {
+		t.Fatalf("statement has %d LIMIT clauses, want exactly 1 (the per-entity cap inside the LATERAL):\n%s", got, hidden)
+	}
+	closing := strings.Index(hidden, ") AS capped_rows")
+	if closing < 0 {
+		t.Fatalf("the LATERAL arm's capped_rows subquery is gone:\n%s", hidden)
+	}
+	if strings.Contains(hidden[closing:], "LIMIT") {
+		t.Fatalf("a LIMIT follows the LATERAL arm, so the bound is statement-wide rather than per producer entity:\n%s", hidden)
+	}
 }
 
 // crossRepoDeadCodeSaturatedHiddenStore answers the consumer read the way the
