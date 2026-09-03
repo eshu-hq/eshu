@@ -8,22 +8,34 @@
 # shared with the live gate so this self-test and the live gate can never
 # silently diverge on what "matches the pin" means.
 
-# Every git command in the staging path must route through golden_corpus_git
-# (scripts/lib/golden-corpus-git.sh). A bare `git` call there reintroduces the
-# developer's global configuration, and it would be invisible to every case
+# Every git command that MUTATES a fixture repository must route through
+# golden_corpus_git (scripts/lib/golden-corpus-git.sh). A bare one reintroduces
+# the developer's global configuration, and it would be invisible to every case
 # below: those stage under a planted hostile config, so a call that escapes the
 # planting still produces the right SHA on a machine whose real global config
-# is empty -- which is every CI runner and most laptops. The failure only
-# appears for the one developer who has the offending setting, as fixture drift
-# in a checkout that has none.
+# is empty -- which is every CI runner and most laptops. The failure appears
+# only for the developer who has the offending setting, as fixture drift in a
+# checkout that has none.
 #
 # So this is a source check, not a behavior check, on purpose. It is the only
 # assertion here that can fail on a machine where the behavior looks fine.
-stage_case_bare_git="$(rg -n '^[[:space:]]*git ' \
-	"${repo_root}/scripts/lib/golden-corpus-stage.sh" \
-	"${repo_root}/scripts/lib/golden-corpus-service-changed-since.sh" || true)"
+#
+# Scoped to the mutating verbs rather than to `git` outright, because reads
+# (rev-parse, ls-tree, cat-file, check-ignore) cannot be perturbed into a wrong
+# SHA by config, and the cases files must be free to call `git config --file`
+# to PLANT the hostile config a case depends on. Comment lines are skipped so
+# prose naming a command does not trip it.
+# The verb must be git's own SUBCOMMAND, so the pattern walks only over `-C`
+# and `-c` option pairs to reach it. An earlier version allowed any text in
+# between and matched a fail() message that happened to contain both "git" and
+# "tag" -- a guard that cries wolf gets deleted, which loses the guard.
+stage_case_mutating_git='(^|[^_[:alnum:]])git([[:space:]]+-[Cc][[:space:]]+("[^"]*"|[^[:space:]]+))*[[:space:]]+(init|add|commit|tag|update-index)([[:space:]]|$)'
+stage_case_bare_git="$(rg -n --no-filename "${stage_case_mutating_git}" \
+	"${repo_root}"/scripts/lib/golden-corpus-*.sh \
+	"${repo_root}/scripts/verify-golden-corpus-gate.sh" |
+	rg -v '^[0-9]+:[[:space:]]*#' || true)"
 [[ -z "${stage_case_bare_git}" ]] ||
-	fail "the staging path must call golden_corpus_git, never git directly, or a developer's global config reaches a fixture commit; found: ${stage_case_bare_git}"
+	fail "these golden-corpus git calls mutate a repository without routing through golden_corpus_git, so a developer's global config reaches a fixture commit: ${stage_case_bare_git}"
 
 stage_case_dir="$(mktemp -d -t golden-corpus-stage-case.XXXXXX)"
 stage_case_corpus="${stage_case_dir}/corpus"

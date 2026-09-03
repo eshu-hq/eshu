@@ -54,6 +54,12 @@ gate_integrity_ignored_source="${repo_root}/tests/fixtures/ecosystems/container-
 	rm -rf "${gate_integrity_stage_dir}"
 )
 
+# golden_corpus_git is used below to build fixture repositories. Sourced here
+# explicitly: golden-corpus-stage-cases.sh sources it only inside a subshell,
+# so its definition does not survive into this file.
+# shellcheck source=scripts/lib/golden-corpus-git.sh
+. "${repo_root}/scripts/lib/golden-corpus-git.sh"
+
 # ---------------------------------------------------------------------------
 # BITES (2): a genuine staged-pin mismatch must fail fast (no Docker) and name
 # the fixture, both SHAs, and the offending tree entry.
@@ -61,12 +67,21 @@ gate_integrity_mismatch_dir="$(mktemp -d -t golden-corpus-gate-integrity-mismatc
 gate_integrity_mismatch_repo="${gate_integrity_mismatch_dir}/container-ci-lineage"
 mkdir -p "${gate_integrity_mismatch_repo}"
 printf 'unexpected drift\n' >"${gate_integrity_mismatch_repo}/drift-marker.txt"
-git -C "${gate_integrity_mismatch_repo}" -c init.defaultBranch=main init --object-format=sha1 >/dev/null 2>&1
-git -C "${gate_integrity_mismatch_repo}" config user.email "gate@eshu.local" >/dev/null 2>&1
-git -C "${gate_integrity_mismatch_repo}" config user.name "Golden Gate" >/dev/null 2>&1
-git -C "${gate_integrity_mismatch_repo}" add -A >/dev/null 2>&1
-GIT_AUTHOR_DATE="2026-08-04T12:00:00Z" GIT_COMMITTER_DATE="2026-08-04T12:00:00Z" \
-	git -C "${gate_integrity_mismatch_repo}" commit -m "drift" >/dev/null 2>&1
+# Built through golden_corpus_git for the same reason staging is, even though
+# this repo only has to DIFFER from the pin rather than match it. Every command
+# here is silenced, so a developer whose global config carries commit.gpgsign
+# or a rejecting core.hooksPath gets a commit that fails invisibly and a
+# rev-parse below that then has no HEAD to read -- the case breaks on their
+# machine and nowhere else. Identity is pinned inline alongside the dates for
+# the same reason, so nothing here depends on the ambient environment.
+golden_corpus_git -C "${gate_integrity_mismatch_repo}" -c init.defaultBranch=main -c init.templateDir= init --object-format=sha1 >/dev/null 2>&1
+golden_corpus_git -C "${gate_integrity_mismatch_repo}" config user.email "gate@eshu.local" >/dev/null 2>&1
+golden_corpus_git -C "${gate_integrity_mismatch_repo}" config user.name "Golden Gate" >/dev/null 2>&1
+golden_corpus_git -C "${gate_integrity_mismatch_repo}" add -A >/dev/null 2>&1
+GIT_AUTHOR_NAME="Golden Gate" GIT_AUTHOR_EMAIL="gate@eshu.local" \
+	GIT_COMMITTER_NAME="Golden Gate" GIT_COMMITTER_EMAIL="gate@eshu.local" \
+	GIT_AUTHOR_DATE="2026-08-04T12:00:00Z" GIT_COMMITTER_DATE="2026-08-04T12:00:00Z" \
+	golden_corpus_git -C "${gate_integrity_mismatch_repo}" commit -m "drift" >/dev/null 2>&1
 
 gate_integrity_mismatch_expected="$(golden_corpus_pinned_commit_sha \
 	"ci_cd_run:github_actions:acme:container-ci-lineage" "9100")"
