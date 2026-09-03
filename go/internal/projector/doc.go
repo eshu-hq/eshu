@@ -25,9 +25,10 @@
 // package-source-correlation, cloud-inventory-admission, code-taint-evidence,
 // code-interproc-evidence, SBOM-attestation-attachment,
 // service-catalog-correlation, secrets-IAM-trust-chain, CI/CD
-// run-correlation, and container-image-identity builders live in their
-// internal/projector child packages; this root package owns lookup
-// construction and lifetime, family assembly, and enqueue.
+// run-correlation, container-image-identity, and supply-chain-impact
+// builders live in their internal/projector child packages; this root
+// package owns lookup construction and lifetime, family assembly, and
+// enqueue.
 // OCI registry projection keeps digest-addressed manifests, indexes, and
 // descriptors as canonical identity while treating tags as mutable weak
 // observations that can enrich queries but do not mint image identity.
@@ -76,12 +77,16 @@
 // aws_iam_permission decode wrapper live in the internal/projector/iamcanassume
 // child package; the reducer owns principal resolution, the canonical-nodes
 // readiness gate, and trust-edge projection.
-// Package-registry identity emits package source-correlation and supply-chain
-// impact reducer intents so manifest-backed consumption and vulnerability
-// findings can catch up when package evidence arrives after source intelligence.
-// The package-source-correlation reducer-intent builder lives in the
-// internal/projector/packagesource child package; the reducer owns hint
-// classification and consumption admission.
+// Package-registry identity emits package source-correlation and
+// supply_chain_impact reducer intents so manifest-backed consumption and
+// vulnerability findings can catch up when package evidence arrives after
+// source intelligence. The package-source-correlation reducer-intent builder
+// lives in the internal/projector/packagesource child package; the reducer
+// owns hint classification and consumption admission. The
+// supply-chain-impact reducer-intent builder lives in the
+// internal/projector/supplychainimpact child package via
+// supplychainimpact.BuildSupplyChainImpactReducerIntent; the reducer owns the
+// cross-source vulnerability-to-package-to-deployment join.
 // When a Postgres-backed runtime configures PackageRegistryIdentityLocker,
 // package-registry canonical writes also take transaction-scoped package UID
 // advisory locks before calling the graph writer. This coordinates ingester,

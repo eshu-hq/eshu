@@ -84,7 +84,7 @@ posture kinds, and three-tier source-system derivation are identical to the
 base commit, and the dispatcher's ordered fan-out is unchanged at 44 builder
 probes with this probe still running immediately after
 `servicecatalog.BuildServiceCatalogCorrelationReducerIntent` and before
-`buildSupplyChainImpactReducerIntent`. The private `sourceSystem`
+`supplychainimpact.BuildSupplyChainImpactReducerIntent`. The private `sourceSystem`
 helper the root file owned was compared body-for-body against
 `projectorintent.SourceSystem` and found to carry a literal third fallback
 (`secrets_iam_posture`) the shared helper lacks, so it moved with the family

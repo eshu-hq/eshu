@@ -244,7 +244,7 @@ while the finding for the SAME digest still reported `environments=[]` and
 `result item missing required field "environment_evidence"`.
 
 `supply_chain_impact` is triggered by its own vulnerability scope's facts
-(`projector/supply_chain_impact_intents.go`), and nothing re-triggers it when a
+(`projector/supplychainimpact/impact_intents.go`), and nothing re-triggers it when a
 correlation in another scope later improves. The correlation itself lands
 `derived` on its first execution — the identity rows it joins against have not
 committed yet — and reaches `exact` only on a maintenance replay, which
