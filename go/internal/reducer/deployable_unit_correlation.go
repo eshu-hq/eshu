@@ -13,6 +13,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/correlation/engine"
 	correlationmodel "github.com/eshu-hq/eshu/go/internal/correlation/model"
 	"github.com/eshu-hq/eshu/go/internal/correlation/rules"
+	"github.com/eshu-hq/eshu/go/internal/reducer/payloadcore"
 	"github.com/eshu-hq/eshu/go/internal/relationships"
 )
 
@@ -220,15 +221,11 @@ func candidateIdentityKeys(candidate WorkloadCandidate) []string {
 	return keys
 }
 
+// normalizedEntityKey forwards to [payloadcore.NormalizedEntityKey]. The helper
+// moved to the shared tier with the platform family (#6061), which compares the
+// same entity keys when it picks a workload-replay anchor.
 func normalizedEntityKey(key string) string {
-	key = strings.ToLower(strings.TrimSpace(key))
-	if key == "" {
-		return ""
-	}
-	if idx := strings.LastIndex(key, ":"); idx >= 0 && idx < len(key)-1 {
-		return strings.TrimSpace(key[idx+1:])
-	}
-	return key
+	return payloadcore.NormalizedEntityKey(key)
 }
 
 func evaluateDeployableUnitCandidates(

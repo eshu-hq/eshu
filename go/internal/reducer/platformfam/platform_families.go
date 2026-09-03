@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package reducer
+package platformfam
 
 import (
 	"strings"
@@ -224,6 +224,36 @@ func matchesAnyPattern(value string, patterns []string) bool {
 	for _, pattern := range patterns {
 		if strings.Contains(value, pattern) || strings.Contains(pattern, value) {
 			return true
+		}
+	}
+	return false
+}
+
+// IsClusterResourceType reports whether a Terraform resource type is a
+// registered platform cluster resource, not merely a sibling service
+// dependency. The comparison is exact: callers normalize the resource type
+// before asking.
+func IsClusterResourceType(resourceType string) bool {
+	for _, family := range runtimeFamilies {
+		for _, clusterType := range family.ClusterResourceTypes {
+			if resourceType == clusterType {
+				return true
+			}
+		}
+	}
+	return false
+}
+
+// IsClusterModuleSource reports whether a module source names a registered
+// cluster module whose name can safely label a platform. The comparison is a
+// substring match, because a module source carries a registry or Git prefix
+// around the registered pattern.
+func IsClusterModuleSource(source string) bool {
+	for _, family := range runtimeFamilies {
+		for _, pattern := range family.ClusterModulePatterns {
+			if strings.Contains(source, pattern) {
+				return true
+			}
 		}
 	}
 	return false

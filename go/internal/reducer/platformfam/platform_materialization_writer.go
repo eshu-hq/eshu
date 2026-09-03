@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package reducer
+package platformfam
 
 import (
 	"context"
@@ -11,14 +11,15 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
+	"github.com/eshu-hq/eshu/go/internal/reducer/factwrite"
+	"github.com/eshu-hq/eshu/go/internal/reducer/payloadcore"
 )
-
-const platformMaterializationFactKind = "reducer_platform_materialization"
 
 // PostgresPlatformMaterializationWriter persists one platform-materialization
 // reducer reconciliation into the shared fact store.
 type PostgresPlatformMaterializationWriter struct {
-	DB  workloadIdentityExecer
+	DB  factwrite.Execer
 	Now func() time.Time
 }
 
@@ -32,7 +33,7 @@ func (w PostgresPlatformMaterializationWriter) WritePlatformMaterialization(
 		return PlatformMaterializationWriteResult{}, fmt.Errorf("platform materialization database is required")
 	}
 
-	now := reducerWriterNow(w.Now)
+	now := factwrite.Now(w.Now)
 	canonicalID := canonicalPlatformMaterializationID(write)
 	payloadJSON, err := json.Marshal(platformMaterializationPayload(write, canonicalID))
 	if err != nil {
@@ -41,13 +42,13 @@ func (w PostgresPlatformMaterializationWriter) WritePlatformMaterialization(
 
 	if _, err := w.DB.ExecContext(
 		ctx,
-		canonicalReducerFactInsertQuery,
+		factwrite.SingleInsertQuery,
 		write.IntentID,
 		write.ScopeID,
 		write.GenerationID,
-		platformMaterializationFactKind,
+		reducercontract.PlatformMaterializationFactKind,
 		platformMaterializationStableFactKey(write),
-		reducerFactCollectorKind(write.SourceSystem),
+		factwrite.CollectorKind(write.SourceSystem),
 		facts.SourceConfidenceInferred,
 		write.SourceSystem,
 		write.IntentID,
@@ -72,8 +73,8 @@ func (w PostgresPlatformMaterializationWriter) WritePlatformMaterialization(
 }
 
 func platformMaterializationStableFactKey(write PlatformMaterializationWrite) string {
-	entityKeys := uniqueSortedStrings(write.EntityKeys)
-	relatedScopeIDs := uniqueSortedStrings(write.RelatedScopeIDs)
+	entityKeys := payloadcore.UniqueSortedStrings(write.EntityKeys)
+	relatedScopeIDs := payloadcore.UniqueSortedStrings(write.RelatedScopeIDs)
 	parts := []string{
 		"platform_materialization",
 		strings.TrimSpace(write.ScopeID),
@@ -86,8 +87,8 @@ func platformMaterializationStableFactKey(write PlatformMaterializationWrite) st
 }
 
 func canonicalPlatformMaterializationID(write PlatformMaterializationWrite) string {
-	entityKeys := uniqueSortedStrings(write.EntityKeys)
-	relatedScopeIDs := uniqueSortedStrings(write.RelatedScopeIDs)
+	entityKeys := payloadcore.UniqueSortedStrings(write.EntityKeys)
+	relatedScopeIDs := payloadcore.UniqueSortedStrings(write.RelatedScopeIDs)
 	parts := []string{
 		"platform_materialization",
 		strings.TrimSpace(write.ScopeID),
@@ -105,14 +106,14 @@ func platformMaterializationPayload(
 	canonicalID string,
 ) map[string]any {
 	return map[string]any{
-		"reducer_domain":    string(DomainDeploymentMapping),
+		"reducer_domain":    string(reducercontract.DomainDeploymentMapping),
 		"intent_id":         write.IntentID,
 		"scope_id":          write.ScopeID,
 		"generation_id":     write.GenerationID,
 		"source_system":     write.SourceSystem,
 		"cause":             write.Cause,
-		"entity_keys":       uniqueSortedStrings(write.EntityKeys),
-		"related_scope_ids": uniqueSortedStrings(write.RelatedScopeIDs),
+		"entity_keys":       payloadcore.UniqueSortedStrings(write.EntityKeys),
+		"related_scope_ids": payloadcore.UniqueSortedStrings(write.RelatedScopeIDs),
 		"canonical_id":      canonicalID,
 	}
 }

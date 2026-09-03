@@ -366,12 +366,44 @@ func TestNewDefaultRegistryWiresCrossRepoReadinessDependencies(t *testing.T) {
 	if handler.CrossRepoResolver == nil {
 		t.Fatal("CrossRepoResolver = nil, want non-nil")
 	}
-	if handler.CrossRepoResolver.ReadinessLookup == nil {
+	// CrossRepoResolver is the interface seam the platform family declares
+	// (#6061); the reducer root is what wires the concrete handler into it, so
+	// this assertion has to name the concrete type to reach its fields.
+	resolver, ok := handler.CrossRepoResolver.(*CrossRepoRelationshipHandler)
+	if !ok {
+		t.Fatalf("CrossRepoResolver type = %T, want *CrossRepoRelationshipHandler", handler.CrossRepoResolver)
+	}
+	if resolver.ReadinessLookup == nil {
 		t.Fatal("ReadinessLookup = nil, want non-nil")
 	}
-	if handler.CrossRepoResolver.ReadinessPrefetch == nil {
+	if resolver.ReadinessPrefetch == nil {
 		t.Fatal("ReadinessPrefetch = nil, want non-nil")
 	}
+}
+
+// TestImplementedDefaultDomainDefinitionsLeavesCrossRepoResolverNilWithoutAdapters
+// pins the typed-nil hazard the interface seam introduces: assigning a nil
+// *CrossRepoRelationshipHandler into the interface field would produce a
+// non-nil interface value, and the handler's "resolver != nil" guard would then
+// dereference it on every deployment_mapping intent.
+func TestImplementedDefaultDomainDefinitionsLeavesCrossRepoResolverNilWithoutAdapters(t *testing.T) {
+	t.Parallel()
+
+	definitions := implementedDefaultDomainDefinitions(DefaultHandlers{})
+	for _, def := range definitions {
+		if def.Domain != DomainDeploymentMapping {
+			continue
+		}
+		handler, ok := def.Handler.(PlatformMaterializationHandler)
+		if !ok {
+			t.Fatalf("deployment mapping handler type = %T, want PlatformMaterializationHandler", def.Handler)
+		}
+		if handler.CrossRepoResolver != nil {
+			t.Fatalf("CrossRepoResolver = %#v, want nil", handler.CrossRepoResolver)
+		}
+		return
+	}
+	t.Fatal("deployment mapping definition missing")
 }
 
 func TestImplementedDefaultDomainDefinitionsOmitsConfigStateDriftWithoutAdapters(t *testing.T) {

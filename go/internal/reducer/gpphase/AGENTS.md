@@ -18,10 +18,10 @@ cycle is exactly what blocked the crossrepo family in issue #6061.
 ## Hard rules
 
 **Never import the reducer root**, directly or transitively. If you find
-yourself wanting a type from `internal/reducer` — `PhaseState`,
-`GraphProjectionPhasePublisher`, `EndpointPresenceRow`/`Writer`/`Lookup` — the
-answer is either to move that type here too, or that the code you are writing
-does not belong in this package.
+yourself wanting a type from `internal/reducer` — `EndpointPresenceRow`/`Writer`/
+`Lookup`, say — the answer is either to move that type here too, or that the code
+you are writing does not belong in this package. `PhaseState` and
+`PhasePublisher` took the first route and now live here; the root aliases them.
 
 **Keep it plain data, constants, and pure validation.** No queue handle, no
 graph handle, no worker, no lease, no I/O. The current dependency set is the

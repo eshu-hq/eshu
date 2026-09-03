@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package reducer
+package platformfam
 
 import (
 	"context"
@@ -10,6 +10,9 @@ import (
 	"strings"
 	"time"
 
+	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
+	"github.com/eshu-hq/eshu/go/internal/reducer/gpphase"
+	"github.com/eshu-hq/eshu/go/internal/reducer/payloadcore"
 	log "github.com/eshu-hq/eshu/go/pkg/log"
 )
 
@@ -48,6 +51,15 @@ type PlatformGraphLocker interface {
 	WithPlatformLocks(ctx context.Context, platformIDs []string, fn func(context.Context) error) error
 }
 
+// CrossRepoRelationshipResolver resolves cross-repo dependency edges from
+// persisted evidence facts for one scope generation and reports how many
+// canonical edges it wrote. The reducer root's CrossRepoRelationshipHandler is
+// the production implementation; the family names the behaviour it needs rather
+// than the root type, because a family subpackage must never import the root.
+type CrossRepoRelationshipResolver interface {
+	Resolve(ctx context.Context, scopeID, generationID string) (int, error)
+}
+
 // WorkloadMaterializationReplayer requeues workload materialization after
 // stronger deployment evidence becomes available for the same scope generation.
 type WorkloadMaterializationReplayer interface {
@@ -62,9 +74,9 @@ type WorkloadMaterializationReplayer interface {
 // persisted evidence facts after platform materialization completes.
 type PlatformMaterializationHandler struct {
 	Writer                          PlatformMaterializationWriter
-	CrossRepoResolver               *CrossRepoRelationshipHandler
+	CrossRepoResolver               CrossRepoRelationshipResolver
 	WorkloadMaterializationReplayer WorkloadMaterializationReplayer
-	PhasePublisher                  GraphProjectionPhasePublisher
+	PhasePublisher                  gpphase.PhasePublisher
 }
 
 // platformMaterializationTiming records success-path stage timings for the
@@ -80,31 +92,31 @@ type platformMaterializationTiming struct {
 // Handle executes the platform materialization reduction path.
 func (h PlatformMaterializationHandler) Handle(
 	ctx context.Context,
-	intent Intent,
-) (Result, error) {
+	intent reducercontract.Intent,
+) (reducercontract.Result, error) {
 	totalStarted := time.Now()
 	var timing platformMaterializationTiming
 
-	if intent.Domain != DomainDeploymentMapping {
-		return Result{}, fmt.Errorf(
+	if intent.Domain != reducercontract.DomainDeploymentMapping {
+		return reducercontract.Result{}, fmt.Errorf(
 			"platform materialization handler does not accept domain %q",
 			intent.Domain,
 		)
 	}
 	if h.Writer == nil {
-		return Result{}, fmt.Errorf("platform materialization writer is required")
+		return reducercontract.Result{}, fmt.Errorf("platform materialization writer is required")
 	}
 
 	request, err := platformMaterializationWriteFromIntent(intent)
 	if err != nil {
-		return Result{}, err
+		return reducercontract.Result{}, err
 	}
 
 	platformWriteStarted := time.Now()
 	writeResult, err := h.Writer.WritePlatformMaterialization(ctx, request)
 	timing.platformWriteDuration = time.Since(platformWriteStarted)
 	if err != nil {
-		return Result{}, err
+		return reducercontract.Result{}, err
 	}
 
 	// PROVISIONS_PLATFORM (Repository-[:PROVISIONS_PLATFORM]->Platform) edges from
@@ -123,7 +135,7 @@ func (h PlatformMaterializationHandler) Handle(
 		resolvedCrossRepoWrites, err := h.CrossRepoResolver.Resolve(ctx, intent.ScopeID, intent.GenerationID)
 		timing.crossRepoResolutionDuration = time.Since(crossRepoStarted)
 		if err != nil {
-			return Result{}, fmt.Errorf("cross-repo relationship resolution: %w", err)
+			return reducercontract.Result{}, fmt.Errorf("cross-repo relationship resolution: %w", err)
 		}
 		crossRepoWrites = resolvedCrossRepoWrites
 		canonicalWrites += crossRepoWrites
@@ -137,7 +149,7 @@ func (h PlatformMaterializationHandler) Handle(
 					intent.GenerationID,
 					replayEntityKey,
 				); err != nil {
-					return Result{}, fmt.Errorf("replay workload materialization: %w", err)
+					return reducercontract.Result{}, fmt.Errorf("replay workload materialization: %w", err)
 				}
 				workloadReplayCount++
 			}
@@ -154,15 +166,19 @@ func (h PlatformMaterializationHandler) Handle(
 		)
 	}
 	phaseStarted := time.Now()
-	if err := publishIntentGraphPhase(
+	if err := publishIntentPhase(
 		ctx,
 		h.PhasePublisher,
-		intent,
-		GraphProjectionKeyspaceServiceUID,
-		GraphProjectionPhaseDeploymentMapping,
+		gpphase.IntentAnchor{
+			ScopeID:      intent.ScopeID,
+			GenerationID: intent.GenerationID,
+			EntityKeys:   intent.EntityKeys,
+		},
+		gpphase.KeyspaceServiceUID,
+		gpphase.PhaseDeploymentMapping,
 		time.Now().UTC(),
 	); err != nil {
-		return Result{}, err
+		return reducercontract.Result{}, err
 	}
 	timing.phasePublishDuration = time.Since(phaseStarted)
 	timing.totalDuration = time.Since(totalStarted)
@@ -182,14 +198,14 @@ func (h PlatformMaterializationHandler) Handle(
 	// it must materialize (validated in platformMaterializationWriteFromIntent),
 	// so input is present whenever the request has entity keys.
 	inputReady := len(request.EntityKeys) > 0
-	return Result{
+	return reducercontract.Result{
 		IntentID:        intent.IntentID,
-		Domain:          DomainDeploymentMapping,
-		Status:          ResultStatusSucceeded,
+		Domain:          reducercontract.DomainDeploymentMapping,
+		Status:          reducercontract.ResultStatusSucceeded,
 		EvidenceSummary: evidenceSummary,
 		CanonicalWrites: canonicalWrites,
 		SubDurations:    platformMaterializationSubDurations(timing),
-		SubSignals:      materializationDiagnosticSignals(inputReady, canonicalWrites),
+		SubSignals:      reducercontract.MaterializationDiagnosticSignals(inputReady, canonicalWrites),
 	}, nil
 }
 
@@ -212,7 +228,7 @@ func platformMaterializationSubDurations(t platformMaterializationTiming) map[st
 
 func logPlatformMaterializationCompleted(
 	ctx context.Context,
-	intent Intent,
+	intent reducercontract.Intent,
 	request PlatformMaterializationWrite,
 	canonicalWrites int,
 	crossRepoWrites int,
@@ -223,7 +239,7 @@ func logPlatformMaterializationCompleted(
 		ctx, "deployment mapping materialization completed",
 		log.ScopeID(intent.ScopeID),
 		log.GenerationID(intent.GenerationID),
-		log.Domain(string(DomainDeploymentMapping)),
+		log.Domain(string(reducercontract.DomainDeploymentMapping)),
 		slog.Int("entity_key_count", len(request.EntityKeys)),
 		slog.Int("related_scope_count", len(request.RelatedScopeIDs)),
 		slog.Int("canonical_write_count", canonicalWrites),
@@ -237,8 +253,8 @@ func logPlatformMaterializationCompleted(
 	)
 }
 
-func platformMaterializationWriteFromIntent(intent Intent) (PlatformMaterializationWrite, error) {
-	entityKeys := uniqueSortedStrings(intent.EntityKeys)
+func platformMaterializationWriteFromIntent(intent reducercontract.Intent) (PlatformMaterializationWrite, error) {
+	entityKeys := payloadcore.UniqueSortedStrings(intent.EntityKeys)
 	if len(entityKeys) == 0 {
 		return PlatformMaterializationWrite{}, fmt.Errorf(
 			"platform materialization intent %q must include at least one entity key",
@@ -246,7 +262,7 @@ func platformMaterializationWriteFromIntent(intent Intent) (PlatformMaterializat
 		)
 	}
 
-	relatedScopeIDs := uniqueSortedStrings(append(intent.RelatedScopeIDs, intent.ScopeID))
+	relatedScopeIDs := payloadcore.UniqueSortedStrings(append(intent.RelatedScopeIDs, intent.ScopeID))
 	if len(relatedScopeIDs) == 0 {
 		return PlatformMaterializationWrite{}, fmt.Errorf(
 			"platform materialization intent %q must include at least one related scope id",
@@ -265,7 +281,7 @@ func platformMaterializationWriteFromIntent(intent Intent) (PlatformMaterializat
 	}, nil
 }
 
-func workloadMaterializationReplayEntityKey(intent Intent) string {
+func workloadMaterializationReplayEntityKey(intent reducercontract.Intent) string {
 	for _, entityKey := range intent.EntityKeys {
 		entityKey = strings.TrimSpace(entityKey)
 		if strings.HasPrefix(strings.ToLower(entityKey), "repo:") {
@@ -277,15 +293,15 @@ func workloadMaterializationReplayEntityKey(intent Intent) string {
 		if entityKey == "" || isNonRepositoryReplayKey(entityKey) {
 			continue
 		}
-		if alias := normalizedEntityKey(entityKey); alias != "" {
+		if alias := payloadcore.NormalizedEntityKey(entityKey); alias != "" {
 			return "repo:" + alias
 		}
 	}
 	return "repo:" + strings.TrimSpace(intent.ScopeID)
 }
 
-func workloadMaterializationReplayScopes(intent Intent) []string {
-	return uniqueSortedStrings(append(intent.RelatedScopeIDs, intent.ScopeID))
+func workloadMaterializationReplayScopes(intent reducercontract.Intent) []string {
+	return payloadcore.UniqueSortedStrings(append(intent.RelatedScopeIDs, intent.ScopeID))
 }
 
 func isNonRepositoryReplayKey(entityKey string) bool {
@@ -294,4 +310,33 @@ func isNonRepositoryReplayKey(entityKey string) bool {
 		strings.HasPrefix(lower, "aws:") ||
 		strings.HasPrefix(lower, "tfstate:") ||
 		strings.HasPrefix(lower, "cloud:")
+}
+
+// publishIntentPhase publishes the readiness milestone for one intent anchor.
+// A nil publisher and an anchor that cannot name a bounded slice are both
+// no-ops, so a handler wired without readiness publication still runs.
+//
+// This lives beside its caller rather than in gpphase: that package is the leaf
+// the reducer root and every family import, and its contract is plain data,
+// constants, and pure validation. Building the state is pure and stays there as
+// [gpphase.StateForIntent]; the write belongs to whoever holds the publisher.
+func publishIntentPhase(
+	ctx context.Context,
+	publisher gpphase.PhasePublisher,
+	anchor gpphase.IntentAnchor,
+	keyspace gpphase.Keyspace,
+	phase gpphase.Phase,
+	observedAt time.Time,
+) error {
+	if publisher == nil {
+		return nil
+	}
+	state, ok := gpphase.StateForIntent(anchor, keyspace, phase, observedAt)
+	if !ok {
+		return nil
+	}
+	if err := publisher.PublishGraphProjectionPhases(ctx, []gpphase.PhaseState{state}); err != nil {
+		return fmt.Errorf("publish %s phase: %w", phase, err)
+	}
+	return nil
 }

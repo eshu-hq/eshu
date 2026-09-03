@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package reducer
+package platformfam
 
 import (
 	"bytes"
@@ -10,6 +10,8 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
 )
 
 func TestPlatformMaterializationHandlerLogsStageTiming(t *testing.T) {
@@ -27,18 +29,18 @@ func TestPlatformMaterializationHandlerLogsStageTiming(t *testing.T) {
 		},
 	}
 
-	_, err := handler.Handle(context.Background(), Intent{
+	_, err := handler.Handle(context.Background(), reducercontract.Intent{
 		IntentID:        "intent-pm-observe",
 		ScopeID:         "scope-1",
 		GenerationID:    "gen-1",
 		SourceSystem:    "git",
-		Domain:          DomainDeploymentMapping,
+		Domain:          reducercontract.DomainDeploymentMapping,
 		Cause:           "platform discovered",
 		EntityKeys:      []string{"platform:kubernetes:aws:prod-cluster", "repo:service-edge-api"},
 		RelatedScopeIDs: []string{"scope-1"},
 		EnqueuedAt:      time.Date(2026, time.April, 28, 12, 0, 0, 0, time.UTC),
 		AvailableAt:     time.Date(2026, time.April, 28, 12, 0, 0, 0, time.UTC),
-		Status:          IntentStatusClaimed,
+		Status:          reducercontract.IntentStatusClaimed,
 	})
 	if err != nil {
 		t.Fatalf("Handle() error = %v, want nil", err)

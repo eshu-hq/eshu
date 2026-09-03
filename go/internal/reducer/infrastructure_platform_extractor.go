@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/reducer/platformfam"
 )
 
 // terraformRepoSignals aggregates Terraform signal data per repository scope.
@@ -160,27 +161,13 @@ func extractTerraformModuleSignals(payload map[string]any, signals *terraformRep
 // isPlatformClusterResourceType reports whether a Terraform resource type is a
 // registered platform resource, not merely a sibling service dependency.
 func isPlatformClusterResourceType(resourceType string) bool {
-	for _, family := range runtimeFamilies {
-		for _, clusterType := range family.ClusterResourceTypes {
-			if resourceType == clusterType {
-				return true
-			}
-		}
-	}
-	return false
+	return platformfam.IsClusterResourceType(resourceType)
 }
 
 // isPlatformClusterModuleSource reports whether a module source is a registered
 // cluster module whose name can safely label a platform.
 func isPlatformClusterModuleSource(source string) bool {
-	for _, family := range runtimeFamilies {
-		for _, pattern := range family.ClusterModulePatterns {
-			if strings.Contains(source, pattern) {
-				return true
-			}
-		}
-	}
-	return false
+	return platformfam.IsClusterModuleSource(source)
 }
 
 func extractTerraformDataSourceSignals(payload map[string]any, signals *terraformRepoSignals) {

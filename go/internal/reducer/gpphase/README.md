@@ -38,12 +38,14 @@ identity struct and its validation, and the `ReadinessLookup` /
 `ReadinessPrefetch` function types a family uses to ask "has this slice
 reached that phase yet."
 
-**Does not own:** anything that publishes or repairs readiness. `PhaseState`
-(one durable readiness publication) and the `GraphProjectionPhasePublisher`
-interface that persists it stay at the root in `graph_projection_phase.go` —
-they are read and written by phase-publish and phase-repair machinery across
-roughly two dozen files, and add no identity concept beyond what `PhaseKey`
-and `Phase` already carry. The `EndpointPresenceRow`/`Writer`/`Lookup` trio
+**Does not own:** anything that publishes or repairs readiness. The
+phase-publish and phase-repair machinery stays at the root in
+`graph_projection_phase.go`, spread across roughly two dozen files, and the
+write itself belongs to whoever holds the publisher rather than to a package
+every family imports. `PhaseState` and `PhasePublisher` do live here, because a
+family has to name them to accept a publisher without importing the root, and
+the root aliases both; `StateForIntent` builds a state and reports false rather
+than writing one. The `EndpointPresenceRow`/`Writer`/`Lookup` trio
 also stays at the root: it is a distinct uid-exact, cross-scope presence
 primitive (issue #1380), not a same-scope/same-generation readiness fact, and
 no family needs it to move.
@@ -108,6 +110,6 @@ spellings are live call sites.
 ## Related docs
 
 - `go/internal/reducer/README.md` — the root package and its subpackage inventory
-- `go/internal/reducer/graph_projection_phase.go` — the root aliases, `PhaseState`, and `GraphProjectionPhasePublisher`
+- `go/internal/reducer/graph_projection_phase.go` — the root aliases for `PhaseState` and `PhasePublisher`, and the phase-publish machinery
 - `docs/internal/design/package-restructure.md` — the #6061 restructure and this hoist's no-regression evidence
 - `docs/public/observability/telemetry-coverage.md` — the coverage row for this package

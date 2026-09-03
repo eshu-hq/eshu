@@ -53,13 +53,11 @@ const (
 // GraphProjectionPhaseKey identifies one bounded graph-write readiness slice.
 type GraphProjectionPhaseKey = gpphase.PhaseKey
 
-// GraphProjectionPhaseState captures one durable readiness publication.
-type GraphProjectionPhaseState struct {
-	Key         GraphProjectionPhaseKey
-	Phase       GraphProjectionPhase
-	CommittedAt time.Time
-	UpdatedAt   time.Time
-}
+// GraphProjectionPhaseState captures one durable readiness publication. It is
+// aliased from [gpphase.PhaseState] so the family subpackages that publish a
+// readiness milestone (issue #6061) and every existing reducer-root caller name
+// the same struct.
+type GraphProjectionPhaseState = gpphase.PhaseState
 
 // GraphProjectionReadinessLookup reports whether a bounded readiness slice
 // has reached the requested phase. It returns (ready, found).
@@ -69,10 +67,10 @@ type GraphProjectionReadinessLookup = gpphase.ReadinessLookup
 // keys and returns an in-memory lookup closure for the current cycle.
 type GraphProjectionReadinessPrefetch = gpphase.ReadinessPrefetch
 
-// GraphProjectionPhasePublisher persists graph-readiness publications.
-type GraphProjectionPhasePublisher interface {
-	PublishGraphProjectionPhases(context.Context, []GraphProjectionPhaseState) error
-}
+// GraphProjectionPhasePublisher persists graph-readiness publications. It is
+// aliased from [gpphase.PhasePublisher] so a family subpackage can accept the
+// same publisher the reducer root wires.
+type GraphProjectionPhasePublisher = gpphase.PhasePublisher
 
 // EndpointPresenceRow records that one endpoint node uid is committed in the
 // canonical graph, keyed by its bounded keyspace. It is the uid-exact,

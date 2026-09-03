@@ -28,18 +28,22 @@
 // rewrites against symbols that already had a leaf home; this package is
 // what had none.
 //
-// This package therefore holds only plain data, constants, and one pure
+// This package therefore holds only plain data, constants, pure builders, and one pure
 // validation method. It imports nothing but the standard library, and it must
 // never import the reducer root.
 //
 // # What deliberately stays at the root
 //
-// PhaseState (one durable readiness publication) and the
-// GraphProjectionPhasePublisher interface that persists it stay in
-// `graph_projection_phase.go` at the root: they are read and written by the
-// phase-publish and phase-repair machinery across roughly two dozen files,
-// none of which need to become a leaf subpackage today, and PhaseState adds
-// no identity concept beyond what [PhaseKey] and [Phase] already carry. The
+// The publication itself stays in `graph_projection_phase.go` at the root: the
+// phase-publish and phase-repair machinery spans roughly two dozen files, none
+// of which need to become a leaf subpackage today, and the write belongs with
+// whoever holds the publisher rather than in a package every family imports.
+//
+// [PhaseState] is no longer among them. It moved here for the same reason
+// [KeyFromScope] did — a family subpackage has to name the type to accept a
+// publisher without importing the reducer root, and the root now aliases it as
+// GraphProjectionPhaseState. It stays plain data: [StateForIntent] builds one
+// and reports false rather than writing anything. The
 // EndpointPresenceRow/Writer/Lookup trio also stays at the root — it is a
 // distinct uid-exact, cross-scope presence primitive (issue #1380), not a
 // same-scope/same-generation readiness fact, and no family needs it to move.
