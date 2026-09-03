@@ -425,16 +425,36 @@ argument, join, or index is touched; the ownership resolution reuses
 text are byte-identical to `origin/main`. The added cost is one bounded
 `SELECT ... LIMIT 1` on `fact_records`, served by the partial index
 `fact_records_service_catalog_correlations_service_idx`
-(`schema/data-plane/postgres/003_service_catalog_fact_record_indexes.sql:23`),
-whose leading column is `(payload->>'service_id')` under
-`WHERE fact_kind = 'reducer_service_catalog_correlation' AND is_tombstone =
-FALSE` -- the exact predicate this read issues. It runs only on the scoped path:
-an unscoped caller adds nothing (`shared key never consults the ownership
-store` pins that), and a scoped caller with no grant adds nothing (`empty grant
-touches neither store` pins that). No before/after wall-clock claim is made:
-there is no measured hot path here to compare, and a package test time is not
-one. `go test ./internal/query -count=1` took 4.887s green after the last edit,
-recorded as a smoke figure rather than as a delta.
+(`schema/data-plane/postgres/003_service_catalog_fact_record_indexes.sql:23`).
+It runs only on the scoped path: an unscoped caller adds nothing (`shared key
+never consults the ownership store` pins that), and a scoped caller with no
+grant adds nothing (`empty grant touches neither store` pins that).
+
+Performance Evidence: `EXPLAIN (ANALYZE, BUFFERS)` on the shipped statement in a
+throwaway PostgreSQL 16 container, data-plane schema applied from
+`schema/data-plane/postgres` in filename order, synthetic rows only.
+
+At 10,000 correlation rows the in-grant call plans as `Index Scan using
+fact_records_service_catalog_correlations_service_idx`, `Index Cond` on
+`payload->>'service_id'` and `generation_id = scope.active_generation_id`,
+execution 0.233 ms, `shared hit=11` for the query (planning 5.974 ms on the
+session's first plan). The out-of-grant call takes the same index, returns 0
+rows, `shared hit=8`. At N=6 the planner picks a seq scan, its correct choice at
+one heap page rather than evidence the index is unusable.
+
+Planning dominates execution here -- 1.2-6.0 ms planning against 0.02-0.23 ms
+execution -- so the ownership check costs roughly 1 ms per scoped request,
+bounded and not growing with corpus size. The `Index Cond` does not use the
+index's second column: the scoped call binds `RepositoryID` as `''`, leaving
+`payload->>'repository_id'` unconstrained, so `generation_id` (the fourth key)
+is applied as a non-boundary condition and the leading `service_id` equality is
+the selective key.
+
+One hazard, recorded rather than hidden: under `force_generic_plan` the
+statement falls back to `fact_records_collector_status_active_idx` with 5,006
+rows removed by filter, `shared hit=1559`, 8.45 ms execution. It does not fire
+in practice -- `plan_cache_mode=auto` keeps the custom plan because the generic
+estimate is ~20x the custom one.
 
 Observability Evidence: this route gains two span attributes on
 `query.freshness_service_changed_since`, declared in
@@ -445,34 +465,28 @@ Observability Evidence: this route gains two span attributes on
 - `eshu.service_changed_since.grant_refused_reason` (string), from the closed
   vocabulary `empty_grant` | `not_granted` | `ownership_unwired`.
 
-They exist because the three new refusal branches are otherwise invisible. The
-response body is deliberately byte-identical to an unknown service's, which is
-what keeps the route from working as an existence oracle, and the middleware
-has already ADMITTED the request by then, so no governance-audit deny event
-fires for a handler-level refusal either. An earlier draft of this document
-claimed the scoped-route allow and deny audit events covered these refusals.
-They do not: `governanceaudit.DecisionDenied` is emitted by
-`recordScopedRouteAuthorizationDeniedWithReason` on the admission path only,
-and `internal/query` emits `DecisionAllowed` from the identity-mutation
-handlers, never from a scoped-route read. Without the span attributes an
-operator paged with "tenant A's token gets not-found for a service it owns"
-cannot separate a grant refusal from missing lineage from an unwired ownership
-store.
+They exist because the three new refusal branches are otherwise invisible: the
+response body is byte-identical to an unknown service's, which is what keeps the
+route from working as an existence oracle, and the middleware has already
+ADMITTED the request, so no governance-audit deny event fires for a
+handler-level refusal either. An earlier draft of this document claimed the
+scoped-route allow and deny audit events covered these refusals. They do not --
+`governanceaudit.DecisionDenied` comes from
+`recordScopedRouteAuthorizationDeniedWithReason` on the admission path only, and
+`internal/query` emits `DecisionAllowed` from the identity-mutation handlers,
+never from a scoped-route read.
 
 Both attributes are server-side, so they add no oracle for the caller, and the
 reason vocabulary is closed and low-cardinality: it never carries a service id,
 tenant, workspace, repository, or scope. No metric and no log key is added, so
-no `docs/public/observability/telemetry-coverage.md` row is owed --
-`scripts/verify-telemetry-coverage.sh` stays green.
+no `docs/public/observability/telemetry-coverage.md` row is owed.
 
 `TestServiceChangedSinceGrantRefusalIsRecordedOnTheSpan`
 (`internal/query/freshness_service_changed_since_telemetry_test.go`) drives the
-production handler under a recording tracer and asserts the attribute and its
-reason on all three refusal branches, and their absence on the granted and
-shared-key cases.
-`TestServiceChangedSinceGrantRefusalReasonsAreAClosedVocabulary` pins the two
-attribute names and the three reason strings, because an operator alert keys
-off those literals.
+production handler under a recording tracer and asserts the attribute and reason
+on all three refusal branches, and their absence on the granted and shared-key
+cases. `TestServiceChangedSinceGrantRefusalReasonsAreAClosedVocabulary` pins the
+two attribute names and three reason strings an operator alert keys off.
 
 What is unchanged: the span's name and its existing five summary attributes,
 and the middleware's own audit behaviour. As in commit 1 the reason code an
