@@ -6,6 +6,7 @@ package projector
 import (
 	"github.com/eshu-hq/eshu/go/internal/facts"
 	projectorawscloudimage "github.com/eshu-hq/eshu/go/internal/projector/awscloudimage"
+	projectorawscloudruntimedrift "github.com/eshu-hq/eshu/go/internal/projector/awscloudruntimedrift"
 	projectorawsrelationship "github.com/eshu-hq/eshu/go/internal/projector/awsrelationship"
 	projectorazure "github.com/eshu-hq/eshu/go/internal/projector/azure"
 	projectorcicdruncorrelation "github.com/eshu-hq/eshu/go/internal/projector/cicdruncorrelation"
@@ -60,7 +61,7 @@ func appendScopeGenerationReducerIntents(
 	if intent, ok := projectorpackagesource.BuildPackageSourceCorrelationReducerIntent(scopeValue.ScopeID, generation.GenerationID, index.lookup); ok {
 		intents = append(intents, intent)
 	}
-	if intent, ok := buildAWSCloudRuntimeDriftReducerIntent(scopeValue, generation, index); ok {
+	if intent, ok := projectorawscloudruntimedrift.BuildAWSCloudRuntimeDriftReducerIntent(scopeValue.ScopeID, generation.GenerationID, index.lookup); ok {
 		intents = append(intents, intent)
 	}
 	if intent, ok := projectormulticloudruntimedrift.BuildMultiCloudRuntimeDriftReducerIntent(scopeValue.ScopeID, generation.GenerationID, index.lookup); ok {

@@ -25,8 +25,9 @@
 // package-source-correlation, cloud-inventory-admission, code-taint-evidence,
 // code-interproc-evidence, SBOM-attestation-attachment,
 // service-catalog-correlation, secrets-IAM-trust-chain, CI/CD
-// run-correlation, container-image-identity, and supply-chain-impact
-// builders live in their internal/projector child packages; this root
+// run-correlation, container-image-identity, supply-chain-impact, and
+// AWS-cloud-runtime-drift builders live in their internal/projector child
+// packages; this root
 // package owns lookup construction and lifetime, family assembly, and
 // enqueue.
 // OCI registry projection keeps digest-addressed manifests, indexes, and
@@ -37,9 +38,11 @@
 // intent per scope generation via
 // containerimageidentity.BuildContainerImageIdentityReducerIntent; the
 // reducer owns the cross-source join.
-// AWS resource observations stay source-local until buildAWSCloudRuntimeDriftReducerIntent
-// emits one aws_cloud_runtime_drift reducer intent for the AWS scope
-// generation; the reducer owns ARN joins and unmanaged/orphan admission.
+// AWS resource observations stay source-local until
+// awscloudruntimedrift.BuildAWSCloudRuntimeDriftReducerIntent emits one
+// aws_cloud_runtime_drift reducer intent for the AWS scope generation; the
+// reducer owns ARN joins and unmanaged/orphan admission. That reducer-intent
+// builder lives in the internal/projector/awscloudruntimedrift child package.
 // GCP and Azure cloud resource observations emit one multi_cloud_runtime_drift
 // reducer intent via
 // multicloudruntimedrift.BuildMultiCloudRuntimeDriftReducerIntent (issue
