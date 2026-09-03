@@ -232,6 +232,15 @@
   add a test in `stage_relationships_test.go` or the semantic intents test files.
   Why: intent domain values must be parseable by `reducer.ParseDomain`.
 
+- **Add a new typed canonical family** → besides wiring it into
+  `buildCanonicalMaterialization`, add its fact-kind prefix to
+  `quarantinedFactStagePrefixes` in `factschema_quarantine.go`. Why: a family
+  with no matching prefix falls through to the `unknown_canonical` stage label,
+  so its dead letters are reported under a placeholder instead of the owning
+  stage and an operator cannot see that family's input_invalid rate at all. The
+  table is ordered longest-prefix-first; the reasoning behind both the ordering
+  and the distinct fallback label is on the symbols themselves.
+
 ## Failure modes and how to debug
 
 - Symptom: `eshu_dp_projections_completed_total{status="failed"}` rising →
