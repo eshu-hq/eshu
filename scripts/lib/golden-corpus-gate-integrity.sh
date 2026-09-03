@@ -67,15 +67,15 @@ golden_corpus_pinned_commit_sha() {
 
 # golden_corpus_assert_staged_pin dies (via fail_fn) unless the staged
 # fixture's HEAD equals the cassette's pinned commit for run_id. The failure
-# names the fixture, both SHAs, the possible causes (an extra file in the
-# staged tree; a staging commit site that does not pin identity/date inline --
-# an inline GIT_AUTHOR_*/GIT_COMMITTER_* prefix always outranks the
-# environment, so an inherited identity alone cannot do this to a commit that
-# already pins inline; or an intentional change to the fixture's tracked
-# content, which needs the cassette pin regenerated rather than either of the
-# above chased), and lists the staged tree so the reader can rule each in or
-# out directly instead of re-deriving it from an unrelated failure much later
-# in the run.
+# names the fixture, both SHAs, and some common causes -- an extra file in the
+# staged tree; a staging commit site that does not pin identity/date inline; a
+# git config knob injected above the staged repo's own config; or an
+# intentional change to the fixture's tracked content, which needs the cassette
+# pin regenerated rather than the others chased. That list is deliberately not
+# claimed to be complete: anything that reaches the commit object can land
+# here. The staged tree is listed as evidence so the reader can rule the named
+# causes in or out directly instead of re-deriving them from an unrelated
+# failure much later in the run.
 golden_corpus_assert_staged_pin() {
 	local fixture="$1" staged_repo="$2" scope_id="$3" run_id="$4" fail_fn="$5"
 	local staged_head expected
@@ -96,18 +96,26 @@ golden_corpus_assert_staged_pin() {
 	{
 		printf 'golden-corpus-gate-integrity: %s staged HEAD %s does not match the run %s pinned commit %s\n' \
 			"${fixture}" "${staged_head}" "${run_id}" "${expected}"
-		printf 'golden-corpus-gate-integrity: this can come from an extra file in the staged tree (e.g. a\n'
-		printf 'golden-corpus-gate-integrity: git-ignored .DS_Store copied by cp -R -- check the ls-tree listing\n'
-		printf 'golden-corpus-gate-integrity: below), or from a staging commit site that does not pin\n'
-		printf 'golden-corpus-gate-integrity: GIT_AUTHOR_NAME, GIT_AUTHOR_EMAIL, GIT_COMMITTER_NAME,\n'
-		printf 'golden-corpus-gate-integrity: GIT_COMMITTER_EMAIL, GIT_AUTHOR_DATE and GIT_COMMITTER_DATE inline --\n'
-		printf 'golden-corpus-gate-integrity: an inline prefix always outranks the environment, so a contaminated\n'
-		printf 'golden-corpus-gate-integrity: shell alone cannot cause this on a commit that already pins inline\n'
-		printf 'golden-corpus-gate-integrity: run env | rg "^GIT_(AUTHOR|COMMITTER)_" to check for an inherited\n'
-		printf 'golden-corpus-gate-integrity: identity, then find which staging commit site lacks its inline pin\n'
-		printf 'golden-corpus-gate-integrity: or, if the fixture'"'"'s tracked content was intentionally changed,\n'
-		printf 'golden-corpus-gate-integrity: regenerate the cassette pin instead of chasing either cause above\n'
-		printf 'golden-corpus-gate-integrity: offending staged tree entries (git -C %s ls-tree -r HEAD --name-only):\n' "${staged_repo}"
+		printf 'golden-corpus-gate-integrity: some common causes (not a complete set -- anything that\n'
+		printf 'golden-corpus-gate-integrity: reaches the commit object can land here):\n'
+		printf 'golden-corpus-gate-integrity:  1. an extra file in the staged tree, e.g. a git-ignored\n'
+		printf 'golden-corpus-gate-integrity:     .DS_Store copied by cp -R -- check the tree listing below\n'
+		printf 'golden-corpus-gate-integrity:  2. a staging commit site that does not pin GIT_AUTHOR_NAME,\n'
+		printf 'golden-corpus-gate-integrity:     GIT_AUTHOR_EMAIL, GIT_COMMITTER_NAME, GIT_COMMITTER_EMAIL,\n'
+		printf 'golden-corpus-gate-integrity:     GIT_AUTHOR_DATE and GIT_COMMITTER_DATE inline\n'
+		printf 'golden-corpus-gate-integrity:     run: env | rg "^GIT_(AUTHOR|COMMITTER)_"\n'
+		printf 'golden-corpus-gate-integrity:  3. a git config knob injected above the staged repo config. An\n'
+		printf 'golden-corpus-gate-integrity:     inline GIT_AUTHOR_*/GIT_COMMITTER_* prefix does outrank both\n'
+		printf 'golden-corpus-gate-integrity:     the ambient environment and git config for identity and date,\n'
+		printf 'golden-corpus-gate-integrity:     but GIT_CONFIG_COUNT/GIT_CONFIG_KEY_n apply above the repo\n'
+		printf 'golden-corpus-gate-integrity:     local config, so a knob with no inline override --\n'
+		printf 'golden-corpus-gate-integrity:     i18n.commitEncoding, core.autocrlf -- still moves this SHA\n'
+		printf 'golden-corpus-gate-integrity:     from byte-identical content. Inline pins do not rule it out.\n'
+		printf 'golden-corpus-gate-integrity:     run: env | rg "^GIT_CONFIG_"\n'
+		printf 'golden-corpus-gate-integrity:  4. an intentional change to the fixture'"'"'s tracked content, which\n'
+		printf 'golden-corpus-gate-integrity:     needs the cassette pin regenerated rather than 1-3 chased\n'
+		printf 'golden-corpus-gate-integrity: staged tree entries, listed as evidence for the above\n'
+		printf 'golden-corpus-gate-integrity: (git -C %s ls-tree -r HEAD --name-only):\n' "${staged_repo}"
 		git -C "${staged_repo}" ls-tree -r HEAD --name-only
 	} >&2
 	"${fail_fn}" "${fixture} staged HEAD ${staged_head} must match the run ${run_id} pinned commit ${expected}"

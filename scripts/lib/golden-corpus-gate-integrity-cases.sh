@@ -228,54 +228,109 @@ gate_integrity_quote_add="${repo_root}/tests/fixtures/ecosystems/container-ci-li
 rm -rf "${gate_integrity_quote_dir}"
 
 # ---------------------------------------------------------------------------
-# BITES (1d): a hostile GLOBAL commit.gpgsign, core.excludesfile, and
-# i18n.commitEncoding must not perturb deployable-config's staged HEAD or
-# annotated tag. Without the matching pins in stage.sh's deployable-config
-# block, commit.gpgsign=true kills the commit silently (no diagnostic, since
-# every call is `>/dev/null 2>&1`), a core.excludesfile matching
-# catalog-info.yaml (a tracked file this fixture actually commits) drops it
-# from the tree, and i18n.commitEncoding writes an `encoding` header into the
-# commit object -- each changes the SHA from byte-identical fixture content,
-# or aborts staging outright.
+# BITES (1d): a hostile GLOBAL git config must not perturb deployable-config's
+# staged HEAD or annotated tag. Every knob below was measured on git 2.55.0
+# against this fixture with its own pin removed from stage.sh's
+# deployable-config block, so each one here is a real failure held shut rather
+# than plumbing exercised:
+#
+#   commit.gpgsign=true        kills the commit silently -- every call in the
+#                              staging block is `>/dev/null 2>&1`
+#   tag.gpgSign=true           makes `git tag -a` exit 128 and create NO tag,
+#                              equally silently. localGitRefs needs that
+#                              annotated tag's peeled SHA for the B-12
+#                              query_shapes.http branches assertion, so the
+#                              staged corpus goes on to fail much later and
+#                              unattributably
+#   core.hooksPath=<rejecting pre-commit>
+#                              kills the commit the same way, leaving no HEAD
+#   core.excludesfile matching catalog-info.yaml (a tracked file this fixture
+#                              actually commits) drops it from the tree
+#   i18n.commitEncoding=ISO-8859-1
+#                              writes an `encoding` header into the commit
+#   core.autocrlf=true         strips CR bytes from every text file on
+#                              `git add`, changing those blobs and the tree --
+#                              but only reachable here via the planted file
+#                              described below
+#
+# core.autocrlf is the one knob that cannot bite on this fixture's committed
+# content as it stands: no tracked file in deployable-config carries a CR byte,
+# so the conversion is an identity transform and the pin would be untestable.
+# This case therefore plants a CR-bearing (and deliberately NOT git-ignored)
+# file in the fixture SOURCE for its duration -- the same trap-guarded plant
+# BITES (1), (1b) and (1c) use -- and stages BOTH the clean and the hostile
+# corpus with it present. The comparison stays honest either way: both trees
+# contain the planted file, so only a CR-stripping filter can make them differ.
 gate_integrity_hostile_config_dir="$(mktemp -d -t golden-corpus-gate-integrity-hostileconfig.XXXXXX)"
 gate_integrity_hostile_clean_corpus="${gate_integrity_hostile_config_dir}/clean"
 gate_integrity_hostile_corpus="${gate_integrity_hostile_config_dir}/hostile"
 mkdir -p "${gate_integrity_hostile_clean_corpus}" "${gate_integrity_hostile_corpus}"
-(
-	corpus_dir="${gate_integrity_hostile_clean_corpus}"
-	corpus_fixtures=(deployable-config)
-	die() { fail "$*"; }
-	# shellcheck source=scripts/lib/golden-corpus-stage.sh
-	. "${repo_root}/scripts/lib/golden-corpus-stage.sh"
-	stage_minimal_corpus >/dev/null
-)
-gate_integrity_hostile_clean_head="$(git -C "${gate_integrity_hostile_clean_corpus}/deployable-config" rev-parse HEAD)"
-gate_integrity_hostile_clean_tag="$(git -C "${gate_integrity_hostile_clean_corpus}/deployable-config" rev-parse v1.0.0-annotated)"
 
 gate_integrity_hostile_excludes="${gate_integrity_hostile_config_dir}/globalignore"
 printf 'catalog-info.yaml\n' >"${gate_integrity_hostile_excludes}"
+gate_integrity_hostile_hooks="${gate_integrity_hostile_config_dir}/hooks"
+mkdir -p "${gate_integrity_hostile_hooks}"
+printf '#!/bin/sh\nprintf "hostile pre-commit hook rejects\\n" >&2\nexit 1\n' \
+	>"${gate_integrity_hostile_hooks}/pre-commit"
+chmod +x "${gate_integrity_hostile_hooks}/pre-commit"
+
+gate_integrity_crlf_plant="${repo_root}/tests/fixtures/ecosystems/deployable-config/autocrlf-probe.txt"
+[[ -e "${gate_integrity_crlf_plant}" ]] &&
+	fail "test harness: unexpected pre-existing autocrlf-probe.txt in the deployable-config fixture source"
 (
-	export GIT_CONFIG_GLOBAL="${gate_integrity_hostile_config_dir}/gitconfig"
-	git config --file "${GIT_CONFIG_GLOBAL}" commit.gpgsign true
-	git config --file "${GIT_CONFIG_GLOBAL}" core.excludesfile "${gate_integrity_hostile_excludes}"
-	git config --file "${GIT_CONFIG_GLOBAL}" i18n.commitEncoding ISO-8859-1
-	corpus_dir="${gate_integrity_hostile_corpus}"
-	corpus_fixtures=(deployable-config)
-	die() { fail "$*"; }
-	# shellcheck source=scripts/lib/golden-corpus-stage.sh
-	. "${repo_root}/scripts/lib/golden-corpus-stage.sh"
-	stage_minimal_corpus >/dev/null
-) || fail "deployable-config staging must succeed under a hostile global gpgsign/excludesfile/commitEncoding config"
-[[ -d "${gate_integrity_hostile_corpus}/deployable-config/.git" ]] ||
-	fail "deployable-config must produce a Git repository under a hostile global config"
-gate_integrity_hostile_head="$(git -C "${gate_integrity_hostile_corpus}/deployable-config" rev-parse HEAD 2>&1)" ||
-	fail "deployable-config staged HEAD must exist under a hostile global config, got: ${gate_integrity_hostile_head}"
-[[ "${gate_integrity_hostile_head}" == "${gate_integrity_hostile_clean_head}" ]] ||
-	fail "deployable-config staged HEAD under a hostile global gpgsign/excludesfile/commitEncoding config (${gate_integrity_hostile_head}) must match the clean staged HEAD (${gate_integrity_hostile_clean_head})"
-gate_integrity_hostile_tag="$(git -C "${gate_integrity_hostile_corpus}/deployable-config" rev-parse v1.0.0-annotated 2>&1)" ||
-	fail "deployable-config staged annotated tag must exist under a hostile global config, got: ${gate_integrity_hostile_tag}"
-[[ "${gate_integrity_hostile_tag}" == "${gate_integrity_hostile_clean_tag}" ]] ||
-	fail "deployable-config annotated tag under a hostile global config (${gate_integrity_hostile_tag}) must match the clean annotated tag (${gate_integrity_hostile_clean_tag})"
+	trap 'rm -f "${gate_integrity_crlf_plant}"' EXIT
+	printf 'alpha\r\nbeta\r\n' >"${gate_integrity_crlf_plant}"
+	if git -C "${repo_root}" check-ignore --quiet -- "${gate_integrity_crlf_plant}"; then
+		fail "test harness: the planted CR-bearing file is git-ignored, so staging strips it before any commit and the core.autocrlf pin below would prove nothing"
+	fi
+
+	(
+		corpus_dir="${gate_integrity_hostile_clean_corpus}"
+		corpus_fixtures=(deployable-config)
+		die() { fail "$*"; }
+		# shellcheck source=scripts/lib/golden-corpus-stage.sh
+		. "${repo_root}/scripts/lib/golden-corpus-stage.sh"
+		stage_minimal_corpus >/dev/null
+	)
+	gate_integrity_hostile_clean_head="$(git -C "${gate_integrity_hostile_clean_corpus}/deployable-config" rev-parse HEAD)"
+	gate_integrity_hostile_clean_tag="$(git -C "${gate_integrity_hostile_clean_corpus}/deployable-config" rev-parse v1.0.0-annotated)"
+
+	# The plant must reach the clean commit with its CR bytes intact, or there
+	# is nothing for a hostile core.autocrlf to strip and that pin is vacuous.
+	# Byte counts, not a CR search: the committed blob is one byte shorter per
+	# CR the filter removed, which is exactly the difference under test.
+	gate_integrity_crlf_disk_bytes="$(wc -c <"${gate_integrity_crlf_plant}" | tr -d '[:space:]')"
+	gate_integrity_crlf_blob_bytes="$(git -C "${gate_integrity_hostile_clean_corpus}/deployable-config" cat-file -s "HEAD:autocrlf-probe.txt" 2>&1)" ||
+		fail "test harness: the planted CR-bearing file must be committed by the clean stage, got: ${gate_integrity_crlf_blob_bytes}"
+	[[ "${gate_integrity_crlf_blob_bytes}" == "${gate_integrity_crlf_disk_bytes}" ]] ||
+		fail "test harness: the clean stage committed the planted file at ${gate_integrity_crlf_blob_bytes} bytes, not its ${gate_integrity_crlf_disk_bytes} on-disk bytes -- its CRs were already filtered, so the core.autocrlf pin below would prove nothing"
+
+	(
+		export GIT_CONFIG_GLOBAL="${gate_integrity_hostile_config_dir}/gitconfig"
+		git config --file "${GIT_CONFIG_GLOBAL}" commit.gpgsign true
+		git config --file "${GIT_CONFIG_GLOBAL}" tag.gpgSign true
+		git config --file "${GIT_CONFIG_GLOBAL}" core.autocrlf true
+		git config --file "${GIT_CONFIG_GLOBAL}" core.excludesfile "${gate_integrity_hostile_excludes}"
+		git config --file "${GIT_CONFIG_GLOBAL}" core.hooksPath "${gate_integrity_hostile_hooks}"
+		git config --file "${GIT_CONFIG_GLOBAL}" i18n.commitEncoding ISO-8859-1
+		corpus_dir="${gate_integrity_hostile_corpus}"
+		corpus_fixtures=(deployable-config)
+		die() { fail "$*"; }
+		# shellcheck source=scripts/lib/golden-corpus-stage.sh
+		. "${repo_root}/scripts/lib/golden-corpus-stage.sh"
+		stage_minimal_corpus >/dev/null
+	) || fail "deployable-config staging must succeed under a hostile global commit.gpgsign / tag.gpgSign / core.autocrlf / core.excludesfile / core.hooksPath / i18n.commitEncoding config"
+	[[ -d "${gate_integrity_hostile_corpus}/deployable-config/.git" ]] ||
+		fail "deployable-config must produce a Git repository under a hostile global config"
+	gate_integrity_hostile_head="$(git -C "${gate_integrity_hostile_corpus}/deployable-config" rev-parse HEAD 2>&1)" ||
+		fail "deployable-config staged HEAD must exist under a hostile global config, got: ${gate_integrity_hostile_head}"
+	[[ "${gate_integrity_hostile_head}" == "${gate_integrity_hostile_clean_head}" ]] ||
+		fail "deployable-config staged HEAD under a hostile global config (${gate_integrity_hostile_head}) must match the clean staged HEAD (${gate_integrity_hostile_clean_head})"
+	gate_integrity_hostile_tag="$(git -C "${gate_integrity_hostile_corpus}/deployable-config" rev-parse v1.0.0-annotated 2>&1)" ||
+		fail "deployable-config staged annotated tag must exist under a hostile global config, got: ${gate_integrity_hostile_tag}"
+	[[ "${gate_integrity_hostile_tag}" == "${gate_integrity_hostile_clean_tag}" ]] ||
+		fail "deployable-config annotated tag under a hostile global config (${gate_integrity_hostile_tag}) must match the clean annotated tag (${gate_integrity_hostile_clean_tag})"
+)
 rm -rf "${gate_integrity_hostile_config_dir}"
 
 gate_integrity_cases_completed=1

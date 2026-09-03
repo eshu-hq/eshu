@@ -86,6 +86,15 @@ stage_deterministic_git_fixture() {
 	git -C "${fixture_path}" config core.excludesfile /dev/null >/dev/null 2>&1
 	git -C "${fixture_path}" config core.hooksPath /dev/null >/dev/null 2>&1
 	git -C "${fixture_path}" config i18n.commitEncoding utf-8 >/dev/null 2>&1
+	# tag.gpgSign is pinned here for one reason only: to keep this knob set and
+	# the deployable-config block's below byte-identical, so "same knobs as
+	# stage_deterministic_git_fixture" stays a true claim rather than one that
+	# drifts apart. No fixture staged through THIS function creates a tag today,
+	# so unlike the five knobs above this line has no reachable failure to
+	# demonstrate here; the tag.gpgSign proof lives on the deployable-config
+	# site, which does tag (BITES (1d) in
+	# scripts/lib/golden-corpus-gate-integrity-cases.sh).
+	git -C "${fixture_path}" config tag.gpgSign false >/dev/null 2>&1
 	git -C "${fixture_path}" add -A >/dev/null 2>&1
 	# Identity is set inline, NOT left to the `git config user.*` above.
 	#
@@ -121,8 +130,8 @@ stage_minimal_corpus() {
 			git -C "${corpus_dir}/${fixture}" config user.name "Golden Gate" >/dev/null 2>&1
 			# Same knobs as stage_deterministic_git_fixture above, and for the
 			# same reason: this repo still reads commit.gpgsign, core.autocrlf,
-			# core.excludesfile, core.hooksPath and i18n.commitEncoding from the
-			# developer's ~/.gitconfig otherwise. A global commit.gpgsign=true
+			# core.excludesfile, core.hooksPath, i18n.commitEncoding and tag.gpgSign
+			# from the developer's ~/.gitconfig otherwise. A global commit.gpgsign=true
 			# makes the `commit` call below exit 128 with no diagnostic (it is
 			# `>/dev/null 2>&1`), aborting the live gate under `set -euo
 			# pipefail` with nothing attributable; a global core.excludesfile
@@ -131,12 +140,19 @@ stage_minimal_corpus() {
 			# rejecting pre-commit hook kills the commit the same way gpgsign
 			# does; a global i18n.commitEncoding other than UTF-8 writes an
 			# `encoding` header into the commit object, changing its SHA from
-			# byte-identical tree content.
+			# byte-identical tree content; a global core.autocrlf of true or
+			# input strips CR bytes from every text file on `git add`, changing
+			# those blobs and the tree with them; and a global tag.gpgSign=true
+			# makes the `git tag -a` call below exit 128 and create NO tag --
+			# silent for the same `>/dev/null 2>&1` reason, and it costs
+			# localGitRefs the peeled SHA the B-12 query_shapes.http branches
+			# assertion reads. Measured on git 2.55.0.
 			git -C "${corpus_dir}/${fixture}" config commit.gpgsign false >/dev/null 2>&1
 			git -C "${corpus_dir}/${fixture}" config core.autocrlf false >/dev/null 2>&1
 			git -C "${corpus_dir}/${fixture}" config core.excludesfile /dev/null >/dev/null 2>&1
 			git -C "${corpus_dir}/${fixture}" config core.hooksPath /dev/null >/dev/null 2>&1
 			git -C "${corpus_dir}/${fixture}" config i18n.commitEncoding utf-8 >/dev/null 2>&1
+			git -C "${corpus_dir}/${fixture}" config tag.gpgSign false >/dev/null 2>&1
 			# submodule PINS_SUBMODULE non-vacuous coverage (issue #5420 Phase 5): a
 			# pinned submodule SHA is a git gitlink (tree mode 160000), which only
 			# exists in a real git tree -- unlike CODEOWNERS, a plain file copy is not
