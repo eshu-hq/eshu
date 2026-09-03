@@ -47,7 +47,6 @@ var pendingRowFilteringRoutes = map[string]struct{}{
 	"GET /api/v0/freshness/services/changed-since": {},
 	"POST /api/v0/code/bundles":                    {},
 	"POST /api/v0/code/call-chain":                 {},
-	"POST /api/v0/code/call-graph/metrics":         {},
 	"POST /api/v0/code/complexity":                 {},
 	"POST /api/v0/code/imports/investigate":        {},
 	"POST /api/v0/code/language-query":             {},

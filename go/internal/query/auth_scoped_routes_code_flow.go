@@ -82,6 +82,12 @@ func scopedCodeContentGrantRoute(r *http.Request) bool {
 //     every probe downstream is keyed on entity ids that read already returned.
 //     cross-repo additionally keeps its consumer-side post-filter,
 //     filterCrossRepoDeadCodeEvidence.
+//   - POST /api/v0/code/call-graph/metrics -- callGraphMetricsEdgesCypher
+//     (code_call_graph_metrics.go) carries the grant on both CALLS endpoints.
+//     repo_id is mandatory on this route and the selector already resolves it
+//     through the grant, so the predicate is defense in depth and provably
+//     row-set-neutral; the empty-grant refusal in callGraphMetricsData is the
+//     part that bites when the read is reached without the selector.
 func scopedCodeGraphGrantRoute(r *http.Request) bool {
 	if r.Method != http.MethodPost {
 		return false
@@ -89,7 +95,8 @@ func scopedCodeGraphGrantRoute(r *http.Request) bool {
 	switch r.URL.Path {
 	case "/api/v0/code/dead-code",
 		"/api/v0/code/dead-code/investigate",
-		"/api/v0/code/dead-code/cross-repo":
+		"/api/v0/code/dead-code/cross-repo",
+		"/api/v0/code/call-graph/metrics":
 		return true
 	default:
 		return false
