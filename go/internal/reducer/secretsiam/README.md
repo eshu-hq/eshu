@@ -100,7 +100,7 @@ name them:
   The AWS and Azure resource materializers and this family's IAM-role resolver
   must all produce the same uid, or the `SECRETS_IAM_ASSUMES_IAM_ROLE` edge
   points at a node nothing else writes.
-- `factwrite.CanonicalInsertQuery` — the shared single-row fact upsert this
+- `factwrite.SingleInsertQuery` — the shared single-row fact upsert this
   family's writer issues.
 - `gpphase.EndpointPresenceLookup` — the read half of the endpoint-presence
   primitive. The write half (`EndpointPresenceRow`, `EndpointPresenceWriter`)
@@ -134,7 +134,7 @@ forwarders are now imported from the leaf that already owned them
 (`payloadcore` for the payload and string helpers, `contract` for the domain
 and result vocabulary, `factdecode`/`factload`/`factwrite`/`schemadecode`/
 `gpphase` for the rest). Three symbols were hoisted rather than requalified —
-`payloadcore.CloudResourceUID`, `factwrite.CanonicalInsertQuery` and
+`payloadcore.CloudResourceUID`, `factwrite.SingleInsertQuery` and
 `gpphase.EndpointPresenceLookup` — each moved whole, with a root forwarder or
 alias left behind, so no root call site changed. The two domain-definition
 constructors were exported (`TrustChainDomainDefinition`,

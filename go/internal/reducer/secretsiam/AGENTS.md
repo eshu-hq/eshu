@@ -98,5 +98,7 @@ tell." Only `exact` rows may be projected into the graph.
 - Do not treat a nil `PresenceLookup` as "endpoints are ready". It means the
   cross-scope gate is off, which is an opt-out a deployment makes deliberately.
 - Do not admit a blank or whitespace-only join key. A chain keyed on the empty
-  string joins everything to everything; quarantine the fact through
-  `factdecode` instead.
+  string joins everything to everything, so the `add*ByKey` helpers trim the key
+  and skip the fact. Do not quarantine it: a present-but-whitespace value is a
+  valid decode, not `input_invalid`, and `secrets_iam_blank_key_test.go` asserts
+  nothing is quarantined for it.
