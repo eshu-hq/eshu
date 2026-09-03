@@ -152,6 +152,10 @@ The rule reaches bearer tokens and browser sessions alike, with one difference:
 it never widens a token's reach. A route absent from the scoped-token allowlist
 refuses every bearer in every mode, while the modes above do admit an
 owner console session there.
+On the MCP transport — `mcp-server`'s `GET /sse` and `POST /mcp/message` — the
+refusal lands on the handshake, so an all-scope bearer loses the whole MCP
+session rather than the tools that read tenant data; see
+[Hosted Governance](../operate/hosted-governance.md).
 
 When `ESHU_AUTH_RESOURCE_URI` and at least one OIDC bearer provider are
 configured, `cmd/mcp-server` also publishes an
