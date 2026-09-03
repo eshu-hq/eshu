@@ -35,6 +35,12 @@ import (
 // scoped caller and the other tenant's delta.
 type grantMirroringChangedSince struct {
 	scopes []mirroredChangedSinceScope
+	// lastFilter is what the handler actually asked for. The empty-grant case
+	// asserts against it because a status code alone cannot tell "the grant
+	// was bound and matched nothing" from "the grant was never bound at all"
+	// (#5167 review, round 2).
+	lastFilter status.ChangedSinceFilter
+	called     bool
 }
 
 // mirroredChangedSinceScope is one ingestion_scopes row reduced to the three
@@ -50,6 +56,9 @@ type mirroredChangedSinceScope struct {
 func (g *grantMirroringChangedSince) ComputeChangedSinceDelta(
 	_ context.Context, filter status.ChangedSinceFilter,
 ) (status.ChangedSinceSummary, error) {
+	g.lastFilter = filter
+	g.called = true
+
 	for _, scope := range g.scopes {
 		// The selector arms of the shipped query: ($1 = '' OR scope_id = $1)
 		// AND ($2 = '' OR (scope_kind = 'repository' AND source_key = $2)).
@@ -127,8 +136,20 @@ func changedSinceTwoTenantRequest(repository string, auth AuthContext) *http.Req
 func serveChangedSinceTwoTenant(t *testing.T, req *http.Request) *httptest.ResponseRecorder {
 	t.Helper()
 
+	rec, _ := serveChangedSinceTwoTenantWithReader(t, req)
+	return rec
+}
+
+// serveChangedSinceTwoTenantWithReader also hands back the fake, so a case can
+// assert on the filter the handler bound and not only on the response.
+func serveChangedSinceTwoTenantWithReader(
+	t *testing.T, req *http.Request,
+) (*httptest.ResponseRecorder, *grantMirroringChangedSince) {
+	t.Helper()
+
+	reader := &grantMirroringChangedSince{scopes: twoTenantChangedSinceScopes()}
 	handler := &FreshnessHandler{
-		ChangedSince: &grantMirroringChangedSince{scopes: twoTenantChangedSinceScopes()},
+		ChangedSince: reader,
 		Profile:      ProfileLocalAuthoritative,
 	}
 	mux := http.NewServeMux()
@@ -136,7 +157,7 @@ func serveChangedSinceTwoTenant(t *testing.T, req *http.Request) *httptest.Respo
 
 	rec := httptest.NewRecorder()
 	mux.ServeHTTP(rec, req)
-	return rec
+	return rec, reader
 }
 
 func scopedChangedSinceTenantA() AuthContext {
@@ -169,8 +190,8 @@ func decodeChangedSinceEnvelope(t *testing.T, rec *httptest.ResponseRecorder) (m
 // GET /api/v0/freshness/changed-since may leave the pending row-filtering
 // ledger and join the scoped-token allowlist: one scoped caller must get its
 // own delta, must not get another tenant's, and must not be able to learn that
-// the other tenant's scope exists at all. The shared-key operator view must
-// stay whole.
+// the other tenant's scope exists at all. A scoped caller carrying no grant at
+// all must read nothing. The shared-key operator view must stay whole.
 func TestChangedSinceTwoTenantGrantBoundary(t *testing.T) {
 	t.Parallel()
 
@@ -239,6 +260,54 @@ func TestChangedSinceTwoTenantGrantBoundary(t *testing.T) {
 		if absent.Code != rec.Code || absentShape != ungrantedShape {
 			t.Fatalf("an ungranted repository is distinguishable from an absent one:\n ungranted: %d %s\n absent:    %d %s",
 				rec.Code, ungrantedShape, absent.Code, absentShape)
+		}
+	})
+
+	t.Run("empty grant reads nothing", func(t *testing.T) {
+		t.Parallel()
+
+		// The fail-closed half. A scoped caller carrying no repository and no
+		// scope grant must still bind, because the shipped predicate is
+		// restrictive on empty arrays: `= ANY('{}')` is false, so the caller
+		// resolves nothing rather than everything.
+		rec, reader := serveChangedSinceTwoTenantWithReader(t, changedSinceTwoTenantRequest(
+			"repo-a",
+			AuthContext{Mode: AuthModeScoped, TenantID: "tenant-a", WorkspaceID: "workspace-a"},
+		))
+
+		if rec.Code != http.StatusNotFound {
+			t.Fatalf("status = %d, want %d; an empty grant must resolve nothing; body = %s",
+				rec.Code, http.StatusNotFound, rec.Body.String())
+		}
+		_, errEnvelope := decodeChangedSinceEnvelope(t, rec)
+		// The refusal must be the same ordinary scope-not-found the ungranted
+		// case gets, or an unprovisioned token learns it is unprovisioned by
+		// the shape of the error.
+		if got, want := errEnvelope["code"], string(ErrorCodeScopeNotFound); got != want {
+			t.Fatalf("error.code = %v, want %q; the refusal must be the ordinary scope-not-found", got, want)
+		}
+		for _, leak := range []string{"scope-a", "scope-b", "gen-current-repo-a", "gen-current-repo-b"} {
+			if strings.Contains(rec.Body.String(), leak) {
+				t.Fatalf("not-found body leaks a scope identity %q: %s", leak, rec.Body.String())
+			}
+		}
+
+		// Mutation-sensitive: the half a status code cannot show. Drop
+		// `filter.Scoped = access.Scoped()` and the query runs unbounded, so
+		// this caller gets repo-a's delta; leave the assignment but skip the
+		// reader entirely and the 404 would still be green while the grant
+		// never reached the query at all.
+		if !reader.called {
+			t.Fatal("the changed-since reader was never called; the grant is bound in the query, so the query must run")
+		}
+		if !reader.lastFilter.Scoped {
+			t.Fatal("filter.Scoped = false for a scoped caller; an empty grant must bind, not fall through to unbounded")
+		}
+		if got := len(reader.lastFilter.AllowedRepositoryIDs); got != 0 {
+			t.Fatalf("filter.AllowedRepositoryIDs has %d entries, want 0; an empty grant must reach the query empty", got)
+		}
+		if got := len(reader.lastFilter.AllowedScopeIDs); got != 0 {
+			t.Fatalf("filter.AllowedScopeIDs has %d entries, want 0; an empty grant must reach the query empty", got)
 		}
 	})
 

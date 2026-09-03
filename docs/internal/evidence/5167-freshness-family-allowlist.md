@@ -18,9 +18,8 @@ covers both commits that empty that family:
 ## Commit 1: what moved
 
 - `scopedFreshnessDeltaRoute` (`auth_scoped_routes_status.go`) matches exactly
-  the two `GET` paths and is wired into
-  `scopedHTTPRouteSupportsTenantFilter` next to
-  `scopedFreshnessCausalityRoute`.
+  the two `GET` paths and is wired into `scopedHTTPRouteSupportsTenantFilter`
+  next to `scopedFreshnessCausalityRoute`.
 - Both routes move from `pendingRowFilteringRoutes` into
   `scopedTokenAdvertisedRoutes` with the explicit class
   `scopedRouteGrantBound`.
@@ -61,13 +60,12 @@ from working as an existence oracle for another tenant's scopes or generations.
 
 The class is `scopedRouteGrantBound`, not identity-bound or tenant-data-free.
 That keeps an all-scope browser session behind the `BrowserSessionRoutePolicy`
-mode check (#6450): an all-scope caller's
-`RepositoryAccessFilterFromContext` is not `Scoped()`, so these predicates go
-inert for it, and the hosted multi-tenant posture must refuse rather than answer
-from the whole graph. A restricted session, whose grant the queries can bind,
-is admitted. That covers the browser-session caller shape and only that one;
-[Residual](#residual-all-scope-bearers-6450-item-1) below states the shape it
-does not cover.
+mode check (#6450): an all-scope caller's `RepositoryAccessFilterFromContext`
+is not `Scoped()`, so these predicates go inert for it and the hosted
+multi-tenant posture must refuse rather than answer from the whole graph. A
+restricted session, whose grant the queries can bind, is admitted. That covers
+the browser-session shape and only that one;
+[Residual](#residual-all-scope-bearers-6450-item-1) names the shape it misses.
 
 ## Commit 1: tests run
 
@@ -88,9 +86,11 @@ the production handler against a fake reader that applies the same intersection
 `resolveChangedSinceScopeQuery` applies, over two repository-kind scopes owned
 by different tenants: the granted repository returns its delta, the ungranted
 one returns a not-found byte-identical to an absent repository once the caller's
-own echoed selector is normalized, and a shared-key caller still sees both.
-It mirrors `TestGenerationLifecycleTwoTenantGrantBoundary`, the equivalent proof
-for the sibling route.
+own echoed selector is normalized, a scoped caller with no grant at all reads
+nothing, and a shared-key caller still sees both. The fake records the filter,
+so the empty-grant case asserts the grant reached the query empty rather than
+not at all. It carries the same four caller shapes as
+`TestGenerationLifecycleTwoTenantGrantBoundary`, the sibling route's proof.
 
 The new test passes on arrival, so its value rests on failing when the
 production path is broken rather than on a first red run. Both directions were
@@ -98,7 +98,7 @@ exercised by mutating `listChangedSince`'s single grant assignment:
 
 | Mutation in `freshness_changed_since.go` | Result | Exit |
 | --- | --- | --- |
-| `filter.Scoped = false` (grant never bound) | `out of grant is not found` fails: status 200 with `scope-b`'s delta | 1 |
+| `filter.Scoped = false` (grant never bound) | `out of grant is not found` fails: 200 with `scope-b`'s delta; `empty grant reads nothing` fails: 200 with `scope-a`'s | 1 |
 | `filter.Scoped = true` (bound for every caller) | `all scope shared key sees both tenants` fails: 404 for both repositories | 1 |
 | `filter.Scoped = access.Scoped()` (shipped) | pass | 0 |
 
@@ -173,20 +173,19 @@ is no measured hot path here to compare, and a package test time is not one.
 recorded as a smoke figure rather than as a delta.
 
 No-Observability-Change: no span, metric, or log key is added or removed. The
-two handler spans keep their existing names and attributes,
+two handler spans keep their names and attributes,
 `query.freshness_changed_since` and `query.freshness_generation_lifecycle`. A
-refusal on these routes continues to emit the governance-audit event the
-scoped-route admission path already emits --
-`governanceaudit.EventTypeReadAuthorization` with
-`governanceaudit.DecisionDenied` -- and the reason code an operator reads for it
-changes meaning rather than appearing: before this change a scoped or
+refusal on these routes still emits the governance-audit event the scoped-route
+admission path already emits -- `governanceaudit.EventTypeReadAuthorization`
+with `governanceaudit.DecisionDenied` -- and the reason code an operator reads
+for it changes meaning rather than appearing: before this change a scoped or
 browser-session caller on either route was refused with
-`scoped_route_not_enabled` (the route had no scoped authorization at all);
-after it, a grant-bearing caller is admitted and only an all-scope browser
-session under a fail-closed `BrowserSessionRoutePolicy` is refused, with
+`scoped_route_not_enabled` (the route had no scoped authorization); after it, a
+grant-bearing caller is admitted and only an all-scope browser session under a
+fail-closed `BrowserSessionRoutePolicy` is refused, with
 `scoped_route_all_scope_grant_required`. That is the #6450 code, already
-defined and already asserted by the split table; this change adds two routes to
-the population that can emit it.
+defined and asserted by the split table; this change adds two routes to the
+population that can emit it.
 
 ## Residual: all-scope bearers (#6450 item 1)
 
@@ -315,11 +314,10 @@ operation description text, so nothing is regenerated.
 
 `cmd/mcp-server/wiring_test.go` gains an explicit
 `router.Freshness.ServiceOwnership == nil` assertion. The reflective sweeps
-(`TestNewRouterWiresEveryFieldOrDocumentsWhyNot` and its mcp-server twin)
-already catch a nil interface field one level inside a wired handler, so a
-half-wired entrypoint fails on both binaries; the named assertion is there
-because a nil resolver would present as "this tenant has no services" rather
-than as a wiring bug.
+(`TestNewRouterWiresEveryFieldOrDocumentsWhyNot` and its mcp-server twin) catch
+a nil interface field one level inside a wired handler, so a half-wired
+entrypoint fails on both binaries; the named assertion is there because a nil
+resolver would read as "this tenant has no services" rather than a wiring bug.
 
 ### The service route: red, then green
 
@@ -379,10 +377,10 @@ reverted. Exit codes captured directly.
 | `Limit: 1` dropped to `Limit: 0` | `in grant returns the delta` and `out of grant is not found before the lineage read`: 500, `resolve service ownership: limit must be between 1 and 200` | 1 |
 | Shipped code | pass | 0 |
 
-The `Limit` row is new in round 1 (review P2-2). The ownership fake mirrored the
-shipped query's WHERE arms but not the shipped store's argument validation, so
-it answered a `Limit` of 0 or a filter with no scope with rows. That kept this
-file green while production returned 500 to every scoped caller on the route.
+The `Limit` row landed in round 2, from round 1's finding P2-2. The ownership
+fake mirrored the shipped query's WHERE arms but not the store's argument
+validation, so it answered a `Limit` of 0 or a filter with no scope with rows.
+That kept this file green while production returned 500 to every scoped caller.
 The fake now returns the same two errors
 `PostgresServiceCatalogCorrelationStore.ListServiceCatalogCorrelations` returns
 (`service_catalog_correlations.go`), and a new subtest,
@@ -466,15 +464,15 @@ Observability Evidence: this route gains two span attributes on
   vocabulary `empty_grant` | `not_granted` | `ownership_unwired`.
 
 They exist because the three new refusal branches are otherwise invisible: the
-response body is byte-identical to an unknown service's, which is what keeps the
-route from working as an existence oracle, and the middleware has already
-ADMITTED the request, so no governance-audit deny event fires for a
-handler-level refusal either. An earlier draft of this document claimed the
-scoped-route allow and deny audit events covered these refusals. They do not --
-`governanceaudit.DecisionDenied` comes from
-`recordScopedRouteAuthorizationDeniedWithReason` on the admission path only, and
-`internal/query` emits `DecisionAllowed` from the identity-mutation handlers,
-never from a scoped-route read.
+response body is byte-identical to an unknown service's, which keeps the route
+from working as an existence oracle, and the governance audit cannot name the
+refusal either. It covers admission only: `recordScopedReadAuthorized`
+(`auth_audit.go`, from `auth.go`) writes a `DecisionAllowed` read-authorization
+event, reason `scoped_read_allowed`, for every admitted scoped-token or
+OIDC-bearer read -- on the mcp-server transport, the one caller that wires
+`allowedAudit` -- and `recordScopedRouteAuthorizationDeniedWithReason` writes
+`DecisionDenied` only at admission. Both land before the handler runs, so
+neither can say which of the three refusals fired; the span attributes can.
 
 Both attributes are server-side, so they add no oracle for the caller, and the
 reason vocabulary is closed and low-cardinality: it never carries a service id,
