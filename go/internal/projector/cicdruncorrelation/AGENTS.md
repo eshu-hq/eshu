@@ -30,8 +30,10 @@
   lost from the correlation snapshot.
 - Keep the `Reason` string and the `ci_cd_run_correlation:<scope>` entity key
   byte-identical. The reducer claims one intent per scope generation and
-  reloads the generation's facts itself; the root fan-out parity fixture
-  pins these values.
+  reloads the generation's facts itself; this package's own tests pin these
+  values. The root fan-out parity fixture carries no `ci.run` or
+  `ci.artifact` fact, so it never exercises this domain -- do not rely on it
+  as a safety net for a change here.
 - `SourceSystem` is the shared two-tier `projectorintent.SourceSystem`
   (trimmed `SourceRef.SourceSystem`, else trimmed `CollectorKind`). The
   pre-extraction root helper (`cicdRunCorrelationSourceSystem`) had the
@@ -47,9 +49,11 @@
 ## Common changes
 
 - **Changing the reason string or the entity key.** Both are asserted
-  verbatim by the package tests and by the root fan-out parity fixture
-  (`../scope_generation_intents_fanout_parity_test.go`); change them
-  together.
+  verbatim by this package's own tests. The root fan-out parity fixture
+  (`../scope_generation_intents_fanout_parity_test.go`) does NOT cover this
+  domain -- it has no `ci.run` fact -- so the package tests are the only
+  thing standing between a reason/entity-key edit and a silent contract
+  change.
 - **Adding a trigger kind.** Decide explicitly whether it joins the run tier
   or the artifact tier, keep the run-over-artifact rule, and update the
   child tests plus the root dispatcher tests in
@@ -102,7 +106,7 @@
   than a local call.
 - Changing `reducer.DomainCICDRunCorrelation`, the run-over-artifact rule, or
   the two-tier source-system label. All three are contract surface the
-  reducer handler and the fan-out parity fixture assert against.
+  reducer handler consumes, and this package's tests are what assert them.
 
 ## Verification
 

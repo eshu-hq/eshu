@@ -121,3 +121,27 @@ func TestBuildCICDRunCorrelationReducerIntentSourceSystemFallsBackToCollectorKin
 		t.Fatalf("intent.SourceSystem = %q, want the trimmed CollectorKind fallback", intent.SourceSystem)
 	}
 }
+
+// TestBuildCICDRunCorrelationReducerIntentSourceSystemPrefersSourceRef pins the
+// tier ORDER, which the fallback test above cannot: it sets SourceRef.SourceSystem
+// and CollectorKind to different values, so a regression that swapped the two
+// tiers would change the result. A test where both tiers carry the same value
+// passes either way and proves only that a label was produced.
+func TestBuildCICDRunCorrelationReducerIntentSourceSystemPrefersSourceRef(t *testing.T) {
+	t.Parallel()
+
+	lookup := projectorintent.NewFactLookup([]facts.Envelope{{
+		FactKind:      facts.CICDRunFactKind,
+		FactID:        "run-fact-4",
+		CollectorKind: "gitlab_ci",
+		SourceRef:     facts.Ref{SourceSystem: "  github_actions  "},
+	}})
+	intent, ok := BuildCICDRunCorrelationReducerIntent("scope-1", "gen-1", lookup)
+	if !ok {
+		t.Fatal("no intent queued for a ci.run fact")
+	}
+	if intent.SourceSystem != "github_actions" {
+		t.Fatalf("intent.SourceSystem = %q, want the trimmed SourceRef.SourceSystem to win over CollectorKind %q",
+			intent.SourceSystem, "gitlab_ci")
+	}
+}

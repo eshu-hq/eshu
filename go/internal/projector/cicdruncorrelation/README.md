@@ -78,9 +78,9 @@ log boundary.
   repository-scoped, and environment, trigger, and step evidence do not
   provide the artifact arrival signal #5770 addresses.
 - The `Reason` string (`ci/cd run-scoped evidence observed`) and the
-  `ci_cd_run_correlation:<scope>` entity key are pinned byte-identical by the
-  package tests and the root fan-out parity fixture; one intent per scope
-  generation either way.
+  `ci_cd_run_correlation:<scope>` entity key are pinned byte-identical by this
+  package's tests; one intent per scope generation. The root fan-out parity
+  fixture holds no `ci.run` fact and does not cover this domain.
 - `SourceSystem` is the shared two-tier `projectorintent.SourceSystem`: a
   trimmed `SourceRef.SourceSystem`, falling back to a trimmed
   `CollectorKind`. The pre-extraction root helper
