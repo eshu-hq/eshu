@@ -71,6 +71,22 @@
      `plannercontract.ValidateSafePlanKey`. As with `ociregistry`, the
      `TerraformStatePlanner` interface itself stays in `service.go` — issue
      #6057 scopes this move to the `_scheduler.go` half only
+   - `go/internal/coordinator/awsfreshnessplanner/planner.go` and
+     `service_aws_freshness.go` — the extracted AWS freshness planner and root
+     seam; preserve trigger coalescing by freshness key, sorted target order,
+     the per-account `FairnessKey`, and the rule that an unauthorized target
+     fails the batch instead of being dropped. Unlike `ociregistry`'s
+     `firstNonBlank`, the shared `target_scopes` parsing is exported rather
+     than copied: `ParseTargetScopes` and `TargetAuthorized` are ~80 lines of
+     decoding plus the authorization predicate, and root's
+     `findAWSFreshnessInstance` filter and the planner's rejection are two
+     halves of one decision. `aws_scheduled_scheduler.go` — a different,
+     unextracted AWS family — calls the same `ParseTargetScopes` and plans
+     from `[]awsfreshnessplanner.TargetScope`, while keeping its own
+     `awsScheduledScanEnabled` decode for the sibling `scheduled_scan_enabled`
+     flag. The package is not named `awsfreshness` because that name is
+     already the repo-wide import alias for
+     `internal/collector/awscloud/freshness`
    - `go/internal/coordinator/componentextensionplanner/planner.go` and
      `component_extension_service.go` — the extracted generic
      component-extension planner and root seam; preserve activation-scoped
@@ -118,6 +134,14 @@
   root `firstNonBlank` helper (`owned_package_target_helpers.go`) remains with
   its package-registry and vulnerability-intelligence consumers; the extracted
   `ociregistry` child keeps its own identical copy rather than importing root.
+  Terraform-state keeps its separate validator. The root `firstNonBlank`
+  helper (`owned_package_target_helpers.go`) remains with its package-registry
+  and vulnerability-intelligence consumers; the extracted `ociregistry` child
+  keeps its own identical copy rather than importing root. AWS target-scope
+  parsing goes the other way: `awsfreshnessplanner.ParseTargetScopes` and
+  `TargetAuthorized` are the single definition, and `service_aws_freshness.go`
+  and `aws_scheduled_scheduler.go` both call them rather than keeping a root
+  copy that could drift from the planner's own authorization decision.
 
 ## Common changes and how to scope them
 

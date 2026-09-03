@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package coordinator
+package awsfreshnessplanner
 
 import (
 	"context"
@@ -35,7 +35,7 @@ func TestAWSFreshnessWorkPlannerPlansTargetedAWSClaims(t *testing.T) {
 	}
 	instance := testAWSCollectorInstance(observedAt)
 
-	run, items, err := AWSFreshnessWorkPlanner{}.PlanAWSFreshnessWork(context.Background(), AWSFreshnessPlanRequest{
+	run, items, err := WorkPlanner{}.PlanAWSFreshnessWork(context.Background(), PlanRequest{
 		Instance:   instance,
 		Triggers:   []freshness.StoredTrigger{trigger},
 		ObservedAt: observedAt,
@@ -85,7 +85,7 @@ func TestAWSFreshnessWorkPlannerCoalescesDuplicateTargetTriggers(t *testing.T) {
 		t.Fatalf("NewStoredTrigger(second) error = %v, want nil", err)
 	}
 
-	_, items, err := AWSFreshnessWorkPlanner{}.PlanAWSFreshnessWork(context.Background(), AWSFreshnessPlanRequest{
+	_, items, err := WorkPlanner{}.PlanAWSFreshnessWork(context.Background(), PlanRequest{
 		Instance:   testAWSCollectorInstance(observedAt),
 		Triggers:   []freshness.StoredTrigger{first, second},
 		ObservedAt: observedAt,
@@ -115,7 +115,7 @@ func TestAWSFreshnessWorkPlannerRejectsUnauthorizedTarget(t *testing.T) {
 		t.Fatalf("NewStoredTrigger() error = %v, want nil", err)
 	}
 
-	_, _, err = AWSFreshnessWorkPlanner{}.PlanAWSFreshnessWork(context.Background(), AWSFreshnessPlanRequest{
+	_, _, err = WorkPlanner{}.PlanAWSFreshnessWork(context.Background(), PlanRequest{
 		Instance:   testAWSCollectorInstance(observedAt),
 		Triggers:   []freshness.StoredTrigger{trigger},
 		ObservedAt: observedAt,

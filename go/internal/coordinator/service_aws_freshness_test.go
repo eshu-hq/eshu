@@ -14,6 +14,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/collector/awscloud"
 	"github.com/eshu-hq/eshu/go/internal/collector/awscloud/freshness"
+	"github.com/eshu-hq/eshu/go/internal/coordinator/awsfreshnessplanner"
 	"github.com/eshu-hq/eshu/go/internal/scope"
 	"github.com/eshu-hq/eshu/go/internal/workflow"
 	"go.opentelemetry.io/otel/metric"
@@ -159,7 +160,7 @@ func TestServiceRunActiveModeHandsOffAWSFreshnessTriggers(t *testing.T) {
 		},
 		Store:                store,
 		AWSFreshnessTriggers: freshnessStore,
-		AWSFreshnessPlanner:  AWSFreshnessWorkPlanner{},
+		AWSFreshnessPlanner:  awsfreshnessplanner.WorkPlanner{},
 		AWSFreshnessEvents:   counter,
 		Clock:                func() time.Time { return now },
 	}
@@ -234,7 +235,7 @@ func TestServiceRunActiveModeSkipsAWSFreshnessWhenPriorTargetIsOpen(t *testing.T
 		},
 		Store:                store,
 		AWSFreshnessTriggers: freshnessStore,
-		AWSFreshnessPlanner:  AWSFreshnessWorkPlanner{},
+		AWSFreshnessPlanner:  awsfreshnessplanner.WorkPlanner{},
 		AWSFreshnessEvents:   counter,
 		Clock:                func() time.Time { return now },
 	}
@@ -288,7 +289,7 @@ func TestRunAWSFreshnessHandoffUsesDurableInstancesBetweenReconciles(t *testing.
 		},
 		Store:                store,
 		AWSFreshnessTriggers: freshnessStore,
-		AWSFreshnessPlanner:  AWSFreshnessWorkPlanner{},
+		AWSFreshnessPlanner:  awsfreshnessplanner.WorkPlanner{},
 		Clock:                func() time.Time { return now },
 	}
 
