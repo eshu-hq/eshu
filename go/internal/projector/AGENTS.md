@@ -111,10 +111,11 @@
   `package_source_correlation` domain via raw map access, a separate reducer
   family this projector wave did not convert.
 - **AWS runtime drift stays reducer-owned** —
-  `aws_cloud_runtime_drift_intents.go` may enqueue one reducer intent when an
-  AWS generation contains `aws_resource` facts, but the projector must not join
-  AWS resources to Terraform state or config. ARN matching, backend ownership,
-  and orphan/unmanaged admission belong in `internal/reducer` and
+  `awscloudruntimedrift.BuildAWSCloudRuntimeDriftReducerIntent` may enqueue one
+  reducer intent when an AWS generation contains `aws_resource` facts, but the
+  projector must not join AWS resources to Terraform state or config. ARN
+  matching, backend ownership, and orphan/unmanaged admission belong in
+  `internal/reducer` and
   `internal/storage/postgres`.
 - **Directory sort order** — `buildDirectoryChain` sorts by `Depth` ascending so
   parent directories exist before children during graph writes
@@ -238,6 +239,40 @@
   package's exported builder (with the two source-system tiers still set to
   different values) and moved into the child's own test file, since the
   private helper they exercised no longer exists.
+- **AWS-cloud-runtime-drift family (#6057)** — the
+  `aws_cloud_runtime_drift` builder lives in `awscloudruntimedrift/` and
+  consumes the lookup like the families above. It carries no decode seam: it
+  triggers on the earliest `aws_resource` fact in original input order. The
+  root `awsCloudRuntimeDriftSourceSystem` helper was byte-identical to
+  `projectorintent.SourceSystem`, but unlike the CI/CD and container-image
+  precedents it could not simply be dropped: two OTHER root builders
+  (`aws_resource_materialization_intents.go` and
+  `observability_coverage_materialization_intents.go`) still called it, so
+  both call sites were repointed to `projectorintent.SourceSystem` directly in
+  this same change before the helper's definition moved out. This family IS
+  covered by the root fan-out parity fixture —
+  `reducer.DomainAWSCloudRuntimeDrift` appears in both
+  `fanOutParityExpectations` and `fanOutParityExpectedOrder` in
+  `scope_generation_intents_fanout_parity_test.go`. The pre-extraction root
+  test file was NOT single-family: alongside `buildProjection` dispatch
+  assertions for `aws_cloud_runtime_drift`, it also carried the only dispatch
+  coverage for the unrelated `aws_resource_materialization` builder (which is
+  not extracted and stays at root), and it defined two cross-family test
+  fixtures — `intentForDomain` and `awsResourceEnvelope` — that 14 and 4 other
+  root test files respectively depend on. Moving the file wholesale would have
+  silently deleted that coverage and broken every dependent file. It split
+  three ways instead: the `aws_cloud_runtime_drift`-specific `buildProjection`
+  cases moved into the new root file
+  `aws_cloud_runtime_drift_projection_test.go`; the
+  `aws_resource_materialization` cases moved into a new root file matching
+  its builder's name, `aws_resource_materialization_intents_test.go` (which
+  previously had no dedicated test file); and the two shared fixtures moved
+  into a new root file, `reducer_intent_test_helpers_test.go`. The child
+  package's own test file (`reducer_intent_test.go`) carries fresh
+  builder-level unit tests in the `awscloudimage` style (anchor selection,
+  entity key, both source-system tiers, the negative case) rather than any of
+  the moved `buildProjection` cases, since `buildProjection` is a root-only
+  function the child package cannot call.
 - **CanonicalWriter interface boundary** — no caller in this package calls a Neo4j
   or NornicDB driver directly. All canonical writes go through `CanonicalWriter`.
   Backend-specific logic belongs in `internal/storage/cypher` adapters.

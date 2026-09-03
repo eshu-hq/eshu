@@ -5,6 +5,7 @@ package projector
 
 import (
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	projectorintent "github.com/eshu-hq/eshu/go/internal/projector/intent"
 	"github.com/eshu-hq/eshu/go/internal/reducer"
 	"github.com/eshu-hq/eshu/go/internal/scope"
 )
@@ -31,6 +32,6 @@ func buildAWSResourceMaterializationReducerIntent(
 		EntityKey:    "aws_resource_materialization:" + scopeValue.ScopeID,
 		Reason:       "aws runtime resource facts observed",
 		FactID:       envelope.FactID,
-		SourceSystem: awsCloudRuntimeDriftSourceSystem(envelope),
+		SourceSystem: projectorintent.SourceSystem(envelope),
 	}, true
 }
