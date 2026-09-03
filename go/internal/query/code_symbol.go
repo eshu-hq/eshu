@@ -44,6 +44,13 @@ type symbolSearchRequest struct {
 	MatchMode   string   `json:"match_mode"`
 	Limit       int      `json:"limit"`
 	Offset      int      `json:"offset"`
+	// AllowedRepositoryIDs, when set, restricts a corpus-wide (RepoID == "")
+	// read to the caller's granted repositories at the SQL WHERE, before the
+	// LIMIT/OFFSET page boundary (#5167 filter-before-limit). It is never
+	// populated from the request body: the handler fills it from the caller's
+	// AuthContext grant through codeContentGrantScope. Empty leaves the read
+	// unrestricted, which is what an unscoped caller wants.
+	AllowedRepositoryIDs []string `json:"-"`
 }
 
 type symbolContentSearcher interface {
@@ -147,8 +154,17 @@ func (h *CodeHandler) symbolSearchResults(
 	req symbolSearchRequest,
 ) ([]map[string]any, string, TruthBasis, error) {
 	matchMode := req.mustMatchMode()
+	// #5167 code family: symbolSearchFilters only anchored an explicit repo_id,
+	// so a scoped caller who omitted one searched every tenant's symbols. Both
+	// content paths below are bound from the same resolved grant; the graph path
+	// already refuses an empty grant in searchGraphEntitiesWithExact.
+	allowedRepositoryIDs, blocked := codeContentGrantScope(ctx, req.RepoID)
+	if blocked {
+		return []map[string]any{}, symbolSourceBackendContentStore, TruthBasisContentIndex, nil
+	}
 	probeReq := req
 	probeReq.Limit = req.normalizedLimit() + 1
+	probeReq.AllowedRepositoryIDs = allowedRepositoryIDs
 
 	if h != nil && h.Content != nil {
 		if searcher, ok := h.Content.(symbolContentSearcher); ok {
@@ -166,9 +182,9 @@ func (h *CodeHandler) symbolSearchResults(
 			// say so rather than claim the batched path's source_backend (#6060
 			// interface-export audit: a caller reading the truth envelope had no
 			// way to tell which query actually answered).
-			entities, err := h.Content.SearchEntitiesByName(ctx, req.RepoID, firstEntityType(req), req.symbol(), probeReq.Limit)
+			entities, err := h.symbolNameFallbackEntities(ctx, req, allowedRepositoryIDs, probeReq.Limit)
 			if err != nil {
-				return nil, "", "", fmt.Errorf("search symbols: %w", err)
+				return nil, "", "", err
 			}
 			return symbolEntityResults(entities, matchMode, symbolSourceBackendNameFallback), symbolSourceBackendNameFallback, TruthBasisContentIndex, nil
 		}
@@ -192,6 +208,39 @@ func (h *CodeHandler) symbolSearchResults(
 		return nil, "", "", err
 	}
 	return normalizeSymbolGraphResults(graphResults, matchMode), "graph", TruthBasisAuthoritativeGraph, nil
+}
+
+// symbolNameFallbackEntities runs the plain name lookup used when h.Content
+// does not satisfy symbolContentSearcher. SearchEntitiesByName takes a single
+// repository, so a corpus-wide scoped search queries the caller's granted
+// repositories one at a time and never calls the all-repository content
+// method -- the same shape searchEntityContentWithExact (code.go) already uses
+// for POST /api/v0/code/search.
+func (h *CodeHandler) symbolNameFallbackEntities(
+	ctx context.Context,
+	req symbolSearchRequest,
+	allowedRepositoryIDs []string,
+	limit int,
+) ([]EntityContent, error) {
+	if req.RepoID != "" || len(allowedRepositoryIDs) == 0 {
+		entities, err := h.Content.SearchEntitiesByName(ctx, req.RepoID, firstEntityType(req), req.symbol(), limit)
+		if err != nil {
+			return nil, fmt.Errorf("search symbols: %w", err)
+		}
+		return entities, nil
+	}
+	entities := make([]EntityContent, 0, limit)
+	for _, repoID := range allowedRepositoryIDs {
+		if len(entities) >= limit {
+			break
+		}
+		rows, err := h.Content.SearchEntitiesByName(ctx, repoID, firstEntityType(req), req.symbol(), limit-len(entities))
+		if err != nil {
+			return nil, fmt.Errorf("search symbols: %w", err)
+		}
+		entities = append(entities, rows...)
+	}
+	return entities, nil
 }
 
 func (r symbolSearchRequest) symbol() string {

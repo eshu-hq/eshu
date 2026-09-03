@@ -51,7 +51,7 @@ func codebaseTools() []ToolDefinition {
 		},
 		{
 			Name:        "find_symbol",
-			Description: "Find exact or fuzzy symbol definitions with bounded, paged results and source handles.",
+			Description: "Find exact or fuzzy symbol definitions with bounded, paged results and source handles. Scoped tokens receive only granted repositories; an ungranted selector returns not-found.",
 			InputSchema: map[string]any{
 				"type": "object",
 				"properties": map[string]any{

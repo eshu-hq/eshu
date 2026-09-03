@@ -8,8 +8,9 @@ const openAPIPathsCodeSymbols = `
       "post": {
         "tags": ["code"],
         "summary": "Find symbol definitions",
-        "description": "Finds exact or fuzzy symbol definitions using bounded, paged content-index lookups.",
+        "description": "Finds exact or fuzzy symbol definitions using bounded, paged content-index lookups. Scoped tokens receive only granted repositories; an ungranted selector returns not-found.",
         "operationId": "findSymbolDefinitions",
+        "x-scoped-token-support": true,
         "requestBody": {
           "required": true,
           "content": {
@@ -55,8 +56,9 @@ const openAPIPathsCodeSymbols = `
       "post": {
         "tags": ["code"],
         "summary": "Inspect structural code inventory",
-        "description": "Returns bounded content-index structural inventory for functions, classes, top-level file elements, dataclasses, documented functions, decorated methods, classes with a method, super calls, and function counts per file. Requests must include at least one scope filter: repo_id, file_path, language, entity_kind, or symbol.",
+        "description": "Returns bounded content-index structural inventory for functions, classes, top-level file elements, dataclasses, documented functions, decorated methods, classes with a method, super calls, and function counts per file. Requests must include at least one scope filter: repo_id, file_path, language, entity_kind, or symbol. Scoped tokens receive only granted repositories; an ungranted selector returns not-found.",
         "operationId": "inspectCodeInventory",
+        "x-scoped-token-support": true,
         "requestBody": {
           "required": true,
           "content": {

@@ -127,6 +127,8 @@ func hardcodedSecretFilters(req hardcodedSecretInvestigationRequest) ([]string, 
 		filters = append(filters, fmt.Sprintf("repo_id = $%d", nextArg))
 		args = append(args, strings.TrimSpace(req.RepoID))
 		nextArg++
+	} else {
+		filters, args, nextArg = appendRepositoryGrantFilter(filters, args, nextArg, req.AllowedRepositoryIDs)
 	}
 	if strings.TrimSpace(req.Language) != "" {
 		filters = append(filters, fmt.Sprintf("coalesce(language, '') = $%d", nextArg))

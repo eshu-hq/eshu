@@ -37,12 +37,29 @@ func scopedCodeFlowRoute(r *http.Request) bool {
 //   - POST /api/v0/code/topics/investigate -- codeTopicFilters'
 //     `repo_id = ANY($n)` branch (content_reader_code_topic.go), reached from
 //     CodeHandler.codeTopicRows.
+//   - POST /api/v0/code/security/secrets/investigate -- hardcodedSecretFilters'
+//     grant branch (content_reader_security_secrets.go), reached from
+//     CodeHandler.hardcodedSecretRows.
+//   - POST /api/v0/code/symbols/search -- symbolSearchFilters' grant branch
+//     (content_reader_symbol_search.go) on the batched path, and
+//     CodeHandler.symbolNameFallbackEntities querying granted repositories one
+//     at a time on the name-lookup fallback. The graph path was already gated
+//     by searchGraphEntitiesWithExact (code.go).
+//   - POST /api/v0/code/structure/inventory -- structuralInventoryWhere's grant
+//     branch (content_reader_structural_inventory.go), covering both the entity
+//     read and the per-file function count.
+//
+// All four share one predicate builder, appendRepositoryGrantFilter
+// (content_reader_code_topic.go), so the SQL text cannot drift apart per route.
 func scopedCodeContentGrantRoute(r *http.Request) bool {
 	if r.Method != http.MethodPost {
 		return false
 	}
 	switch r.URL.Path {
-	case "/api/v0/code/topics/investigate":
+	case "/api/v0/code/topics/investigate",
+		"/api/v0/code/security/secrets/investigate",
+		"/api/v0/code/symbols/search",
+		"/api/v0/code/structure/inventory":
 		return true
 	default:
 		return false
