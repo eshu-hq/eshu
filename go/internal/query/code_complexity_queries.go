@@ -99,10 +99,45 @@ func complexityCandidateProjection() string {
 ` + graphSemanticMetadataProjection()
 }
 
+// complexityListAnchor picks the clause that binds the Repository side of the
+// complexity list scan.
+//
+// An unscoped caller keeps the long-standing shape: a bare MATCH (e:Function)
+// with the File/Repository hops in an OPTIONAL MATCH, so a function the graph
+// has not attributed to a repository still appears with null repository
+// columns. That text is unchanged by #5167.
+//
+// A scoped caller gets the hops as a required MATCH instead, because the
+// alternative does not filter. In Cypher a WHERE attached to an OPTIONAL MATCH
+// constrains the optional pattern, not the driving row set, so appending a
+// grant predicate there returns every Function in the corpus with only the
+// repository columns nulled -- name, language, line span, complexity and the
+// semantic metadata all still reach the caller. That was measured against
+// NornicDB v1.2.3, where the same shape additionally projected the literal text
+// "repo.id" into the repo_id column; both results are recorded in
+// docs/internal/evidence/5167-code-family-batch-1.md. With a required MATCH the
+// grant predicate sits in a MATCH-attached WHERE ahead of the ORDER BY and
+// LIMIT, so the page is drawn from the granted set, and a function with no
+// repository path at all is dropped -- the fail-closed answer for a row whose
+// tenant cannot be determined.
+func complexityListAnchor(access repositoryAccessFilter) string {
+	if access.Scoped() {
+		return `
+		MATCH (e:Function)<-[:CONTAINS]-(f:File)<-[:REPO_CONTAINS]-(repo:Repository)
+		WHERE coalesce(e.cyclomatic_complexity, 0) > 0
+	`
+	}
+	return `
+		MATCH (e:Function)
+		OPTIONAL MATCH (e)<-[:CONTAINS]-(f:File)<-[:REPO_CONTAINS]-(repo:Repository)
+		WHERE coalesce(e.cyclomatic_complexity, 0) > 0
+	`
+}
+
 // listMostComplexFunctions ranks the most complex functions in scope. The
-// Repository anchor is an OPTIONAL MATCH, so a scoped caller's grant predicate
-// also drops any function this graph cannot attribute to a repository at all --
-// the fail-closed answer for a row whose tenant is unknown.
+// caller's grant, and any repo_id it supplied, land in the WHERE attached to
+// the clause complexityListAnchor chose -- required for a scoped caller,
+// optional for an unscoped one.
 func (h *CodeHandler) listMostComplexFunctions(
 	ctx context.Context,
 	repoID string,
@@ -110,11 +145,7 @@ func (h *CodeHandler) listMostComplexFunctions(
 	access repositoryAccessFilter,
 ) ([]map[string]any, int, bool, error) {
 	limit = normalizeComplexityListLimit(limit)
-	cypher := `
-		MATCH (e:Function)
-		OPTIONAL MATCH (e)<-[:CONTAINS]-(f:File)<-[:REPO_CONTAINS]-(repo:Repository)
-		WHERE coalesce(e.cyclomatic_complexity, 0) > 0
-	`
+	cypher := complexityListAnchor(access)
 	params := map[string]any{"limit": limit + 1}
 	if repoID != "" {
 		cypher += " AND repo.id = $repo_id"
