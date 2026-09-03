@@ -111,12 +111,7 @@ func BuildCloudResourceJoinIndex(envelopes []facts.Envelope) (CloudResourceJoinI
 // relationship edge projection (issue #805) can recompute the same uid from a
 // relationship fact's resolved target identity.
 func CloudResourceUID(accountID, region, resourceType, resourceID string) string {
-	return facts.StableID("CloudResource", map[string]any{
-		"account_id":    accountID,
-		"region":        region,
-		"resource_id":   resourceID,
-		"resource_type": resourceType,
-	})
+	return payloadcore.CloudResourceUID(accountID, region, resourceType, resourceID)
 }
 
 // ARNForUID reverses the uid index back to the ARN the scanned node was keyed

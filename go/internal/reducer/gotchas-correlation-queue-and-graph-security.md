@@ -233,7 +233,7 @@ Observability Evidence: the new `eshu_dp_iam_can_perform_edges_total` (`resoluti
 
 No-Regression Evidence: PR4c intersects identity-policy CAN_PERFORM grants with
 permissions-boundary policy evidence without changing the writer MERGE identity,
-queue gate, graph schema, or row shape. `go test ./internal/reducer -run
+queue gate, graph schema, or row shape. `go test ./internal/reducer/iamcan -run
 'PermissionBoundary|NoPermissionBoundary|TestIAMCanPerformHandlerLoadsPermissionBoundaryFacts'
 -count=1` covers boundary allow, missing allow, explicit Deny, missing document,
 conditioned allow, NotResource, duplicate evidence, boundary statement without
@@ -246,7 +246,7 @@ SDK fact normalization only.
 
 No-Regression Evidence: PR4b reducer follow-up adds `aws_resource_policy_permission`
 fact loading and exact resource-policy grant extraction without changing the
-relationship MERGE identity. `go test ./internal/reducer -run 'IAMCanPerform'
+relationship MERGE identity. `go test ./internal/reducer/iamcan -run 'IAMCanPerform'
 -count=1` proves identity-only, resource-only, both-source merge, public/unscanned
 principal skips, conditioned/NotResource/Deny skips, wrong-resource-pattern
 refusal, readiness, and idempotent reprojection behavior. `go test
@@ -265,7 +265,7 @@ baseline remains the CAN_PERFORM benchmark above: 5,000 edge rows at batch 500,
 static `CAN_PERFORM` relationship MERGE, CloudResource uid endpoint MATCHes, and
 bounded in-memory ARN lookup. The after measurement for this fix is focused
 unit proof, not a new graph benchmark, because no writer, queue, Cypher, batch
-size, readiness gate, or graph row shape changed: `go test ./internal/reducer -run 'TestBuildIAMCanPerformGrantCountsUncataloguedActions|TestIAMCanPerformUncatalogued' -count=1` and `go test ./internal/reducer -count=1` pass. The new regression
+size, readiness gate, or graph row shape changed: `go test ./internal/reducer/iamcan -run 'TestBuildIAMCanPerformGrantCountsUncataloguedActions|TestIAMCanPerformUncatalogued' -count=1` and `go test ./internal/reducer -count=1` pass. The new regression
 proves an uncatalogued `cloudwatch:getmetricdata` action is refused and counted,
 and the mixed `s3:listbucket` plus `s3:getobject` fixture still writes only the
 catalogued action while counting the uncatalogued one.
@@ -291,10 +291,10 @@ No-Regression Evidence: PR4e expands the reviewed CAN_PERFORM catalog from 9 to
 `secretsmanager:putsecretvalue`, `ssm:getparameters`, `dynamodb:query`,
 `dynamodb:scan`, `dynamodb:putitem`, `dynamodb:updateitem`,
 `dynamodb:deleteitem`, `ec2:stopinstances`, `rds:stopdbinstance`, and
-`lambda:invokefunction`. `go test ./internal/reducer -run
+`lambda:invokefunction`. `go test ./internal/reducer/iamcan -run
 'IAMCanPerform(Catalog|PR4e|ResourceTypeOfARN|UncataloguedAction)' -count=1`
 failed before the new catalog entries and Lambda base-function classifier, then
-passed. `go test ./internal/reducer -run 'IAMCanPerform' -count=1` keeps the
+passed. `go test ./internal/reducer/iamcan -run 'IAMCanPerform' -count=1` keeps the
 broader skip taxonomy, duplicate merge, resource-policy, permission-boundary,
 conditioned provenance-only, and handler coverage green.
 
