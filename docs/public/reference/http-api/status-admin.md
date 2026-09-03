@@ -527,9 +527,10 @@ state) rather than zero deltas. The capability key is
 `freshness.service_changed_since`. The MCP equivalent is
 `get_service_changed_since` and the CLI helper is `eshu freshness
 service-changed-since`. Scoped tokens receive a service only when every
-repository with a currently active catalog correlation for it is in the grant;
-an ungranted `service_id`, or one also correlated outside the grant, returns
-the same not-found an unknown one returns. A correlation that has aged out of
+repository with a currently active catalog correlation for it is in the grant,
+including every candidate repository of a correlation that matched more than
+one; an ungranted `service_id`, or one also correlated outside the grant,
+returns the same not-found an unknown one returns. A correlation that has aged out of
 its scope's active generation no longer contests the id (#6475).
 
 The incidents family's production loader is held behind a durable

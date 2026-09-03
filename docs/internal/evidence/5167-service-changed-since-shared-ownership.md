@@ -67,8 +67,11 @@ deliberately out of scope for this PR and tracked as
 `ServiceCatalogCorrelationFilter`
 (`go/internal/query/service_catalog_correlations.go`) gains one field,
 `OutsideGrant`, which selects
-`listServiceCatalogCorrelationsOutsideGrantQuery`: the same statement with the
-grant disjunction negated.
+`listServiceCatalogCorrelationsOutsideGrantQuery`: the same statement with a
+stricter negation in place of the grant clause. The two are deliberately not
+complements -- see
+[5167-service-changed-since-ambiguous-candidates.md](5167-service-changed-since-ambiguous-candidates.md),
+which is where that clause's current shape and proof live.
 
 Three properties are deliberate:
 
@@ -79,7 +82,7 @@ Three properties are deliberate:
   differ anywhere but the grant clause, and
   `TestPostgresServiceCatalogCorrelationsSelectTheStatementByOutsideGrant` pins
   which filter shape sends which text.
-- Each negated disjunct is wrapped in `COALESCE(..., FALSE)`. A payload with no
+- Every membership test is wrapped in `COALESCE(..., FALSE)`. A payload with no
   `repository_id`, or no `candidate_repository_ids` array, compares to NULL;
   `NOT NULL` is NULL, which would drop exactly the rows whose ownership cannot
   be read -- the ones the probe most needs to report.
@@ -161,8 +164,8 @@ is new. The two-tenant fixture in
 `freshness_service_changed_since_grant_test.go` gains a second owner for one
 id, `component:default/api`, and a single lineage for it -- the shape the
 tables actually produce. The ownership fake mirrors the new contract the way it
-already mirrored the old one: it answers the complement of the same predicate
-when `OutsideGrant` is set, and returns the shipped sentinel for a grantless
+already mirrored the old one: it applies whichever of the two shipped grant
+arms `OutsideGrant` selects, and returns the shipped sentinel for a grantless
 outside-grant read.
 
 Written first, with the store contract in place but no exclusivity check in the

@@ -160,6 +160,15 @@ func (h *FreshnessHandler) listServiceChangedSince(w http.ResponseWriter, r *htt
 //     Returning the shared lineage would hand the caller another tenant's
 //     counts and evidence keys, and returning a filtered one is impossible:
 //     the lineage carries nothing to filter on.
+//   - One correlation is enough to contest the id when it could not resolve to
+//     a single repository. The reducer's ambiguous branches leave
+//     repository_id empty and list every match in candidate_repository_ids,
+//     and those decisions are still materialized, so a row naming one
+//     repository the caller owns and one it does not reaches the same lineage.
+//     The outside-grant statement reports such a row rather than treating the
+//     one granted candidate as covering it (#6472 review, P1-B). This is why
+//     the two statements are not complements: admission asks whether the
+//     caller has SOME claim, exclusivity asks whether anyone else has ANY.
 //
 // The gap, stated because the contract sentence on this route is bounded to
 // match it (#6475): both correlation reads join ingestion_scopes on the
