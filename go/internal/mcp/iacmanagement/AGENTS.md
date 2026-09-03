@@ -50,8 +50,9 @@
   not interchangeable across tools.
 - Return the zero request and `handled=false` for unrelated tools, including
   `compose_replatforming_plan`, `list_aws_runtime_drift_findings`, and
-  `get_replatforming_rollups`, which stay in the root switch because each
-  builds its body from its own root helper this package does not share.
+  `get_replatforming_rollups`. Each builds its body from a helper this
+  package does not share; the first and third now select from
+  `internal/mcp/replatforming`, the second from the root switch.
 - Selection stays pure: no HTTP call, no query, no clock, no environment
   read.
 
@@ -76,8 +77,8 @@
   handler decides whether an empty string 400s or widens the result. The
   per-key assertions in `routes_test.go` exist because a request-level
   comparison alone hides which key was lost.
-- Claiming a name the root also answers makes resolution depend on which
-  check runs first — this is why `compose_replatforming_plan`,
+- Claiming a name another selector also answers makes resolution depend on
+  which check runs first — this is why `compose_replatforming_plan`,
   `list_aws_runtime_drift_findings`, and `get_replatforming_rollups` are
   deliberately excluded from `Route`'s switch.
 - Executing a request here would split authorization, timeout,
@@ -99,7 +100,8 @@
   membership is an explicit list of names.
 - Do not pull `compose_replatforming_plan`, `list_aws_runtime_drift_findings`,
   or `get_replatforming_rollups` into this family to "complete" the IaC set;
-  each owns a body shape this package does not share.
+  each owns a body shape this package does not share, and the first and third
+  are owned by `internal/mcp/replatforming`.
 
 ## Changes needing ADR review
 

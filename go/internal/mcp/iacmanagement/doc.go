@@ -25,8 +25,9 @@
 // renders the result. The sibling replatforming tools
 // (compose_replatforming_plan, list_aws_runtime_drift_findings, and
 // get_replatforming_rollups) are deliberately excluded from this family:
-// each builds its body from its own root helper that no tool in this
-// package shares.
+// each builds its body from a helper no tool in this package shares.
+// compose_replatforming_plan and get_replatforming_rollups are selected by
+// internal/mcp/replatforming; list_aws_runtime_drift_findings by the root.
 //
 // Numeric coercion follows routecontract.Arguments: int, int64, and float64
 // are honoured, a float64 truncates toward zero, and every other type falls

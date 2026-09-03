@@ -28,11 +28,12 @@ The three sibling replatforming tools — `compose_replatforming_plan`,
 `list_aws_runtime_drift_findings`, and `get_replatforming_rollups` — are not
 part of this family even though `find_unmanaged_resource_owners` shares their
 `/api/v0/replatforming/...` and `/api/v0/aws/...` namespace and all four used
-to live together in the root `dispatch_iac.go` body-helper file. Each of
-those three builds its body from its own root helper
-(`replatformingPlanBody`, `awsRuntimeDriftFindingsBody`,
-`replatformingRollupsBody`) that no tool in this package shares, so moving
+to live together in the root `dispatch_iac.go` body-helper file. Each builds
+its body from a helper no tool in this package shares, so moving
 `find_unmanaged_resource_owners` here orphans no shared helper.
+`compose_replatforming_plan` and `get_replatforming_rollups` have since moved
+to `internal/mcp/replatforming`; `list_aws_runtime_drift_findings` still
+selects from the root switch against `awsRuntimeDriftFindingsBody`.
 
 ## Exported surface
 

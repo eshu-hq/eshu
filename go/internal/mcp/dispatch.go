@@ -200,6 +200,9 @@ func resolveRoute(toolName string, args map[string]any) (*route, error) {
 	if route, ok, err := serviceContextRoute(toolName, args); ok {
 		return route, err
 	}
+	if route, ok := replatformingRoute(toolName, args); ok {
+		return route, nil
+	}
 	switch toolName {
 	// ── Code ──
 	case "investigate_import_dependencies":
@@ -223,12 +226,8 @@ func resolveRoute(toolName string, args map[string]any) (*route, error) {
 			"limit":              intOr(args, "limit", 25),
 			"offset":             intOr(args, "offset", 0),
 		}}, nil
-	case "compose_replatforming_plan":
-		return &route{method: "POST", path: "/api/v0/replatforming/plans", body: replatformingPlanBody(args)}, nil
 	case "list_aws_runtime_drift_findings":
 		return &route{method: "POST", path: "/api/v0/aws/runtime-drift/findings", body: awsRuntimeDriftFindingsBody(args)}, nil
-	case "get_replatforming_rollups":
-		return &route{method: "POST", path: "/api/v0/replatforming/rollups", body: replatformingRollupsBody(args)}, nil
 	case "execute_cypher_query":
 		return &route{method: "POST", path: "/api/v0/code/cypher", body: map[string]any{
 			"cypher_query": str(args, "cypher_query"),
@@ -368,11 +367,12 @@ func codeIntelRoute(toolName string, args map[string]any) (*route, bool) {
 // selection into the root dispatcher's transport route, exactly as
 // deadCodeRoute, codeQualityRoute, entityResolutionRoute, and codeIntelRoute
 // above adapt theirs: same former-switch arms, same delegation position,
-// same dirgate reason for living in this file. compose_replatforming_plan,
-// list_aws_runtime_drift_findings, and get_replatforming_rollups stay in the
-// switch below rather than joining this family — each builds its body from
-// its own root helper in dispatch_iac.go that no tool in the child package
-// shares.
+// same dirgate reason for living in this file. compose_replatforming_plan
+// and get_replatforming_rollups moved to the sibling replatforming child,
+// reached through the replatformingRoute adapter in dispatch_iac.go.
+// list_aws_runtime_drift_findings stays in the switch below rather than
+// joining either family — it builds its body from its own root helper in
+// dispatch_iac.go that no tool in either child package shares.
 func iacManagementRoute(toolName string, args map[string]any) (*route, bool) {
 	return adaptChildRoute(iacmanagementtools.Route(toolName, routecontract.Arguments(args)))
 }
