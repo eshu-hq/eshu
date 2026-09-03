@@ -106,21 +106,3 @@ func writeBenchFile(b *testing.B, path, contents string) {
 		b.Fatalf("write %s: %v", path, err)
 	}
 }
-
-// assertBoolFieldValue requires item[field] to hold the bool want. It was
-// declared in engine_tsx_advanced_semantics_test.go until that file moved to
-// internal/parser/javascript; the NuGet dependency tests still at root are its
-// remaining parent-package callers, so the definition lives here with the other
-// cross-language helpers. parsertest has no bool variant, so the external
-// <lang>_test children carry their own copies rather than sharing this one.
-func assertBoolFieldValue(t *testing.T, item map[string]any, field string, want bool) {
-	t.Helper()
-
-	got, ok := item[field].(bool)
-	if !ok {
-		t.Fatalf("%s = %T, want bool", field, item[field])
-	}
-	if got != want {
-		t.Fatalf("%s = %#v, want %#v", field, got, want)
-	}
-}
