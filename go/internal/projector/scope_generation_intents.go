@@ -13,6 +13,7 @@ import (
 	projectorcodeinterprocevidence "github.com/eshu-hq/eshu/go/internal/projector/codeinterprocevidence"
 	projectorcodetaintevidence "github.com/eshu-hq/eshu/go/internal/projector/codetaintevidence"
 	projectorcontainerimageidentity "github.com/eshu-hq/eshu/go/internal/projector/containerimageidentity"
+	projectorcrossplanesatisfiedby "github.com/eshu-hq/eshu/go/internal/projector/crossplanesatisfiedby"
 	projectorec2 "github.com/eshu-hq/eshu/go/internal/projector/ec2"
 	projectorgcp "github.com/eshu-hq/eshu/go/internal/projector/gcp"
 	projectoriamcanassume "github.com/eshu-hq/eshu/go/internal/projector/iamcanassume"
@@ -175,7 +176,7 @@ func appendScopeGenerationReducerIntents(
 	if intent, ok := projectorkubernetes.BuildCorrelationMaterializationReducerIntent(scopeValue.ScopeID, generation.GenerationID, index.lookup); ok {
 		intents = append(intents, intent)
 	}
-	if intent, ok := buildCrossplaneSatisfiedByMaterializationReducerIntent(scopeValue, generation, index); ok {
+	if intent, ok := projectorcrossplanesatisfiedby.BuildCrossplaneSatisfiedByMaterializationReducerIntent(scopeValue.ScopeID, generation.GenerationID, index.lookup); ok {
 		intents = append(intents, intent)
 	}
 	if intent, ok := projectorsecurity.BuildSecurityGroupEndpointMaterializationReducerIntent(scopeValue.ScopeID, generation.GenerationID, index.lookup); ok {
