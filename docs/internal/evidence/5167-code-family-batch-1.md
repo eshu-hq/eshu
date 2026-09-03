@@ -70,13 +70,30 @@ predicate all four content builders emit.
 
 ## The Empty-Grant Trap
 
-An empty id list reads as *unrestricted* to every `repo_id = ANY($n)` and
-`id IN $allowed_repository_ids` predicate in this package, so a grantless scoped
-caller would have seen the whole corpus through the very predicate meant to
-protect it. `codeContentGrantScope` returns `blocked` for that caller and each
-route returns its own empty page — an empty list, a not-found, zero
-candidates — without touching a backend, so an empty grant is indistinguishable
-from an empty index.
+An empty grant is a fail-open on the SQL half of this package and a fail-closed
+on the Cypher half. Both get the same gate for different reasons, and the
+difference is worth writing down because it is easy to state backwards.
+
+On the SQL side `appendRepositoryGrantFilter`
+(`go/internal/query/content_reader_code_topic.go`) returns early for an empty id
+list and never appends `repo_id = ANY($n)` at all, so a grantless scoped caller's
+statement carries no repository restriction and reads the whole corpus. The
+fail-open is the builder's *omission*, not the predicate's semantics:
+`repo_id = ANY('{}')` is false for every row.
+
+On the Cypher side there is no such hole. `GraphPredicate` and `GraphCondition`
+(`go/internal/query/querycontract/repository_authz.go`) gate on `Scoped()` alone
+and never on emptiness, so the same caller renders
+`(repo.id IN $allowed_repository_ids OR repo.id IN $allowed_scope_ids)` against
+two empty arrays, which matches nothing. Every scoped graph builder here follows
+that shape.
+
+`codeContentGrantScope` returns `blocked` ahead of both, and each route returns
+its own empty page — an empty list, a not-found, zero candidates — without
+touching a backend. On the four content routes that gate closes the corpus-wide
+read. On the graph routes it is defense in depth that still earns its place: the
+request never reaches the backend, and an empty grant stays indistinguishable
+from an empty index, so index existence cannot be probed.
 
 ## The Complexity List Branch Needed A New Query, Not A New Predicate
 
@@ -121,18 +138,25 @@ repo_id returns only its own functions" and "an ungranted repo_id is rejected
 with 400 and never reaches the edge scan", rather than a corpus-wide leak
 assertion.
 
-The three graph-backed routes are driven by `evaluatingRepositoryGraph` and
-`evaluatingCallGraphEdges`
-(`go/internal/query/code_graph_grant_evaluating_fake_test.go`,
-`go/internal/query/auth_scoped_code_graph_rows_grant_test.go`). Those fakes read
-the emitted statement far enough to answer two questions — is the Repository
-binding optional, and which repository predicates govern it — then apply
-Cypher's clause semantics to seeded rows. That is what lets them fail on clause
-attachment, which no substring assertion can see.
-`TestEvaluatingRepositoryGraphKeepsOptionalMatchRows` feeds the fake the exact
+The three graph-backed routes are driven by two fakes, and they are not equally
+strong. `evaluatingRepositoryGraph`
+(`go/internal/query/code_graph_grant_evaluating_fake_test.go`) backs complexity
+and quality. It reads the emitted statement far enough to answer two questions —
+is the Repository binding optional, and which repository predicates govern it —
+then applies Cypher's clause semantics to seeded rows. That is what lets it fail
+on clause attachment, which no substring assertion can see.
+`TestEvaluatingRepositoryGraphKeepsOptionalMatchRows` feeds it the exact
 statement shape this change replaced and asserts the out-of-grant row survives
 with null repository columns, so a fake that quietly dropped every non-matching
 row could not pass.
+
+`evaluatingCallGraphEdges`
+(`go/internal/query/auth_scoped_code_graph_rows_grant_test.go`) backs call-graph
+metrics and is weaker: it matches the grant predicate's text and then filters
+seeded edges, without judging attachment. Nothing turns on that — the query it
+judges is a single `MATCH … WHERE … RETURN … LIMIT` with nowhere else to put a
+predicate — but it does not carry its sibling's clause-attachment property and
+should not be described as if it did.
 
 | Test | Red | Green |
 | --- | --- | --- |
@@ -171,17 +195,42 @@ The graph half of this change is a clause-attachment question, and clause
 attachment is backend behaviour, not a text property. Reusing the
 `relationshipStoryRepoPredicates` predicate string is an argument about the
 string, not about where the string sits, and trusting it is what let the first
-version of the complexity list branch look proven while filtering nothing.
+version of the complexity list branch look proven while filtering nothing. Two
+things close that gap: the live NornicDB v1.2.3 run executes the real route
+against a real backend, red before the change and green after, and the
+evaluating fakes then keep it closed in the credential-free suite by failing
+when a grant predicate moves back onto an optional pattern.
 
-Two things close that gap. The live NornicDB v1.2.3 run executes the real route
-against a real backend, red before the change and green after. The evaluating
-fakes then keep it closed in the credential-free suite, because they fail when a
-grant predicate moves back onto an optional pattern. The other four graph
-builders (`buildDeadCodeGraphCypherForLabel`, `buildCodeQualityCypher`,
-`lookupComplexityRowByName`, `lookupComplexityRowByID`) are single-clause
-`MATCH … WHERE … RETURN` reads whose grant already sits in the `MATCH`-attached
-`WHERE`; `TestBuildDeadCodeGraphCypherKeepsTheScopedVariantSimple` and the
-evaluating-fake route tests assert that shape instead of assuming it.
+The other four graph builders do not need the same backend run, but not because
+they are all single-clause reads — three are not. The load-bearing property is
+narrower: in all four the grant sits in the *anchoring* `MATCH`'s own `WHERE`, so
+which rows exist is decided at the anchor. A later clause can change what a
+surviving row projects; it cannot re-admit a row the anchor excluded.
+
+| Builder | Between anchor and `RETURN` | Grant sits in |
+| --- | --- | --- |
+| `buildDeadCodeGraphCypherForLabel` | nothing — `MATCH … WHERE … RETURN … SKIP/LIMIT` | anchoring `MATCH`'s `WHERE` |
+| `buildCodeQualityCypher` | one `WITH` plus a `WITH`-attached `WHERE` | anchoring `MATCH`'s `WHERE` |
+| `lookupComplexityRowByName` | two `OPTIONAL MATCH` clauses, then `count(DISTINCT …)` aggregates | anchoring `MATCH`'s `WHERE` |
+| `lookupComplexityRowByID` | the same two `OPTIONAL MATCH` clauses and aggregates | anchoring `MATCH`'s `WHERE` |
+
+Only `buildDeadCodeGraphCypherForLabel` is genuinely single-clause, and it is the
+only one asserted to be, by
+`TestBuildDeadCodeGraphCypherKeepsTheScopedVariantSimple`. The `WITH`-attached
+`WHERE` in the quality builder is the pre-existing `codeQualityMetricFilter`,
+which filters on complexity, line count and argument count, never on a
+repository; the two `OPTIONAL MATCH` clauses in both complexity lookups come from
+the pre-existing `complexityCandidateProjection`, which counts incoming and
+outgoing relationships. This change adds no clause to any of the four and moves
+no predicate out of an anchor — those shapes are on `origin/main` unchanged.
+
+Both are shapes `nornicdb-query-pitfalls.md` records as risky on this backend
+family, and the risk is to projected *values*, not to row membership. Membership
+is the tenancy question, and the anchor settles it. The pre-existing projection
+risk is real and out of scope here, named so a later reader does not inherit the
+impression that these four were audited clean end to end. The evaluating-fake
+route tests check clause attachment of the Repository binding, not the absence
+of intervening clauses; the table above is why they do not need to.
 
 ```bash
 docker run -d --name nornic-5167-p0 -e NORNICDB_EMBEDDING_ENABLED=false \
@@ -208,10 +257,10 @@ The grant is now in the statement (`crossRepoDeadCodeConsumerScan`, rendering
 `AND row.repository_id = ANY($n)`), ahead of the `LIMIT`. Filtering there alone
 would have destroyed the signal the handler needs: a symbol whose only consumers
 are out of grant must stay `unknown_needs_evidence` with reason
-`permission_hidden_consumer`, not become `dead`. A second bounded statement
-(`buildCrossRepoDeadCodeHiddenConsumerQuery`) returns the count of excluded
-consumers per producer entity and nothing else — no id, name, or citation. It
-runs only for a scoped caller. `filterCrossRepoDeadCodeEvidence`
+`permission_hidden_consumer`, not become `dead`. A second statement
+(`buildCrossRepoDeadCodeHiddenConsumerQuery`) carries that signal: per producer
+entity, how many active consumers the grant excluded, and nothing else — no id,
+name, or citation. It runs only for a scoped caller. `filterCrossRepoDeadCodeEvidence`
 (`go/internal/query/code_dead_code_cross_repo_filter.go`) stays as the Go-side
 check for the repository-boundary fallback, which is not grant-bound, and for a
 content store that does not bind the grant itself.
@@ -221,6 +270,59 @@ still lose: an entity left with zero rows is marked
 `consumer_evidence_truncated` by
 `markCrossRepoDeadCodeConsumerEvidenceTruncated`, so a short page reads as
 "unknown", never as "dead".
+
+### Bounding The Hidden-Consumer Count
+
+The first version of that second statement was a plain `GROUP BY row.entity_id`
+with no `LIMIT`. It reads the *complement* of the evidence page — the rows the
+grant excluded — and read all of them on every scoped request, while the sibling
+it accompanies stops at 1001 rows precisely because this join can return many.
+
+The cap has to be per producer entity. One statement-wide `LIMIT` ordered by
+entity id would be spent on the first entity ids of the page, so a later producer
+would come back with a hidden count of zero and its candidate would be classified
+`dead` instead of `unknown_needs_evidence` — a tenancy-visible wrong answer, not
+a bound. The shipped statement is one `LATERAL` arm per producer entity over
+`unnest($2::text[])`, each stopping at
+`maxCrossRepoDeadCodeHiddenConsumerRowsPerEntity` (100) rows, so it reads at
+most `len(entityIDs) × 100` — 50,100 at the largest page allowed. A
+producer with more excluded consumers reports the cap: only the magnitude
+saturates, and the handler branches on "greater than zero", which stays exact.
+`hidden_consumer_evidence_count` is in no OpenAPI schema or public reference, so
+the saturation changes no documented wire contract.
+
+Performance Evidence: `EXPLAIN (ANALYZE, BUFFERS)` on the old and the shipped
+statement in a throwaway PostgreSQL 16.15 container, data-plane schema applied
+from `schema/data-plane/postgres` (`001_ingestion_scopes.sql`,
+`002_scope_generations.sql`, `027_code_reachability.sql`) in filename order,
+synthetic rows only, `VACUUM ANALYZE` after seeding, `SET jit = off` on both,
+warm (second) run reported. Host: MacBook Pro, arm64, macOS. 1,320,180
+`code_reachability_rows`; one active scope and generation; a 50-entity producer
+page; 2,000 out-of-grant consumer rows per page entity across 200 ungranted
+repositories, 3 granted rows each, 1.2M rows on entity ids not on the page.
+
+| Metric | Before (uncapped `GROUP BY`) | After (per-entity `LATERAL` cap) |
+| --- | ---: | ---: |
+| Execution time | 127.916 ms | 2.093 ms |
+| Rows aggregated | 100,000 | 5,000 |
+| Shared buffers | hit=3182, temp read=170 written=171 | hit=562 |
+| Driving access | Parallel Bitmap Heap Scan, bitmap over 100,150 index rows | Index Scan, `rows=100 loops=50` |
+
+The old plan sorted 100,000 rows through a `Gather Merge` and spilled to temp
+files; at a smaller 420,180-row table it planned a Parallel *Seq* Scan. Neither
+matches the "indexed `GROUP BY` over the same joined rows the first statement
+already scans" this document previously claimed — the sets are complements, and
+the access path was never a bounded index seek. The shipped statement seeks
+`code_reachability_entity_lookup_idx` once per producer entity and its `Limit`
+node stops each arm at exactly 100 rows, so rows read scale with the page.
+
+Two guards keep it that way, both proved to bite.
+`TestCrossRepoDeadCodeHiddenConsumerCountIsBounded` asserts the `LATERAL`, the
+per-entity predicate, the complement grant clause and the `LIMIT` in the SQL the
+real reader emits; restoring the uncapped `GROUP BY` fails it, exit `1`.
+`TestCrossRepoDeadCodeHiddenConsumerSignalSurvivesTheCap` drives the route with a
+saturated count; narrowing `crossRepoDeadCodeUnknownReasons` to
+`hiddenCount < cap` classifies that symbol `dead` and fails it, exit `1`.
 
 ## Query-Plan Source Coverage
 
@@ -304,7 +406,7 @@ cd go && go test ./internal/query ./internal/mcp ./cmd/api -count=1   # 0
 cd go && go test ./internal/queryplan -count=1                        # 0
 cd go && go vet ./internal/query ./internal/mcp                       # 0
 scripts/dev/precommit-go.sh fmt   <changed .go>                       # 0
-scripts/dev/precommit-go.sh lint  <changed .go>                       # 0 (2 packages, 0 issues)
+scripts/dev/precommit-go.sh lint  <changed .go>                       # 0 (3 packages from 65 paths, 0 issues)
 scripts/dev/precommit-go.sh filecap <changed .go>                     # 0
 scripts/verify-package-docs.sh                                        # 0
 scripts/verify-openapi.sh                                             # 0 (255 routes, 255 path entries)
@@ -312,6 +414,10 @@ scripts/verify-doc-citations.sh                                       # 0
 scripts/verify-markdown-line-cap.sh --all                             # 0
 git diff --check                                                      # 0
 ```
+
+The lint list is the full three-dot changed `.go` set, so the queryplan
+re-audit this PR leans on (`grandfathered_non_hot.go`) is inside the gate it
+cites. An earlier draft said two packages; the rerun above is what it prints.
 
 On origin/main `code_dead_code.go` was 496 lines and `code_dead_code_scan.go`
 was 468; this change pushed both over the 500-line cap, and
@@ -338,10 +444,13 @@ Two shapes do change for scoped callers, and both are declared.
 `listMostComplexFunctions` swaps its `OPTIONAL MATCH` for a required `MATCH`
 over the same `CONTAINS`/`REPO_CONTAINS` path, which removes a clause between
 the anchor and the `RETURN` rather than adding one. The cross-repo consumer read
-gains one extra bounded statement per scoped request: an indexed `GROUP BY` over
-the same joined rows the first statement already scans, capped by the same
-entity-id list, on a route that already issues a paged candidate scan plus
-per-entity probes. Nothing here puts a filter in a `WITH`-attached `WHERE` (not
+gains one extra statement per scoped request, on a route that already issues a
+paged candidate scan plus per-entity probes. That statement reads the rows the
+grant excluded — the complement of the page, not the same rows — and its bound
+is one `LATERAL` index seek per producer entity capped at 100 rows each, so it
+reads at most `len(entityIDs) × 100`. It is measured, not asserted: see
+"Bounding The Hidden-Consumer Count" for the before/after plans. Nothing here
+puts a filter in a `WITH`-attached `WHERE` (not
 evaluated as a filter on NornicDB) or guards a disjunct with `$param <> ''`
 (poisons the enclosing `OR` on NornicDB) — see
 [NornicDB Query-Shape Pitfalls](../../public/reference/nornicdb-query-pitfalls.md).
