@@ -27,8 +27,9 @@ File layout:
   entries) and extension naming.
 - `helpers.go` — pure dead-code root classification and short-name helpers.
 - `engine_swift_ast_migration_test.go`, `engine_swift_extension_test.go`,
-  `engine_swift_semantics_test.go`, `engine_swift_vapor_routes_test.go`,
-  `swift_dead_code_roots_test.go`, `swift_vapor_golden_fixture_test.go` —
+  `engine_swift_semantics_test.go`, `engine_swift_symbol_gate_test.go`,
+  `engine_swift_vapor_routes_test.go`, `swift_dead_code_roots_test.go`,
+  `swift_vapor_golden_fixture_test.go` —
   package `swift_test` Engine-level black-box coverage relocated from
   `go/internal/parser` by #6062. `engine_swift_test_helpers_test.go` carries
   the assertion helpers these files need that `internal/parser/parsertest`

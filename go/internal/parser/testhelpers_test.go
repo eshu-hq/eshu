@@ -150,37 +150,6 @@ func assertBucketItemByFieldValue(
 	return nil
 }
 
-// assertFunctionByNameAndClass returns the functions-bucket item matching both
-// name and class_context. It lives here rather than in a language-specific
-// test file because the C#, Java, JavaScript, Kotlin, and Swift engine tests
-// all reuse method names across classes. The external internal/parser/golang
-// tests use parsertest.AssertFunctionByNameAndClass instead; this copy cannot
-// be replaced by that shared one for the import-cycle reason given on
-// assertBucketItemByFieldValue.
-func assertFunctionByNameAndClass(t *testing.T, payload map[string]any, name string, classContext string) map[string]any {
-	t.Helper()
-
-	functions, ok := payload["functions"].([]map[string]any)
-	if !ok {
-		t.Fatalf("functions = %T, want []map[string]any", payload["functions"])
-	}
-	for _, function := range functions {
-		functionName, isString := function["name"].(string)
-		if raw, present := function["name"]; present && !isString {
-			t.Fatalf("functions item has name = %#v (%T), want string; a present-but-malformed field must not be silently treated as the empty string", raw, raw)
-		}
-		functionClassContext, isString := function["class_context"].(string)
-		if raw, present := function["class_context"]; present && !isString {
-			t.Fatalf("functions item has class_context = %#v (%T), want string; a present-but-malformed field must not be silently treated as the empty string", raw, raw)
-		}
-		if functionName == name && functionClassContext == classContext {
-			return function
-		}
-	}
-	t.Fatalf("functions missing name %q with class_context %q in %#v", name, classContext, functions)
-	return nil
-}
-
 // writeBenchFile writes contents to path and fails the benchmark if the write
 // fails. It lives here rather than in a language-specific benchmark file
 // because the content-metadata and JavaScript parent-lookup benchmarks share it.
