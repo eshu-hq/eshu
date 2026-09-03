@@ -72,7 +72,7 @@ func inheritanceWorkEnvelopes() []facts.Envelope {
 // inheritanceContextOnlyEnvelopes returns ONLY a repository fact carrying
 // source_run_id so buildCodeCallProjectionContexts yields a non-empty
 // projection context, but NO inheritance Class content_entity rows, so
-// ExtractInheritanceRows returns empty repoIDs. This exercises the
+// inheritance.ExtractRows returns empty repoIDs. This exercises the
 // context-present/no-entities branch: genuine empty work (input_ready=1,
 // written_rows=0), distinct from an ordering stall (no context at all).
 func inheritanceContextOnlyEnvelopes() []facts.Envelope {

@@ -100,7 +100,7 @@ func buildHandlesRouteIntentRows(
 				ProjectionDomain: DomainHandlesRoute,
 				PartitionKey:     functionID + "->" + repositoryID + ":" + routePath,
 				ScopeID:          context.ScopeID,
-				AcceptanceUnitID: context.acceptanceUnitID(repositoryID),
+				AcceptanceUnitID: context.ResolveAcceptanceUnitID(repositoryID),
 				RepositoryID:     repositoryID,
 				SourceRunID:      context.SourceRunID,
 				GenerationID:     context.GenerationID,

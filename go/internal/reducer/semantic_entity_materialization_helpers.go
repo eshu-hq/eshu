@@ -83,18 +83,16 @@ func semanticPayloadString(payload map[string]any, key string) string {
 	return payloadcore.SemanticPayloadString(payload, key)
 }
 
+// semanticPayloadMetadataString forwards to
+// [payloadcore.SemanticPayloadMetadataString].
 func semanticPayloadMetadataString(payload map[string]any, key string) string {
-	if value := semanticPayloadString(payload, key); value != "" {
-		return value
-	}
-	return semanticPayloadString(payloadMap(payload, "entity_metadata"), key)
+	return payloadcore.SemanticPayloadMetadataString(payload, key)
 }
 
+// semanticPayloadMetadataStringSlice forwards to
+// [payloadcore.SemanticPayloadMetadataStringSlice].
 func semanticPayloadMetadataStringSlice(payload map[string]any, key string) []string {
-	if values := semanticPayloadStringSlice(payload, key); len(values) > 0 {
-		return values
-	}
-	return semanticPayloadStringSlice(payloadMap(payload, "entity_metadata"), key)
+	return payloadcore.SemanticPayloadMetadataStringSlice(payload, key)
 }
 
 func semanticPayloadMetadataBool(payload map[string]any, key string) bool {
@@ -382,28 +380,4 @@ func collectSemanticRepoIDs(envelopes []facts.Envelope) []string {
 
 	sort.Strings(repoIDs)
 	return repoIDs
-}
-
-func dedupeNonEmptyStrings(values []string) []string {
-	if len(values) == 0 {
-		return nil
-	}
-
-	seen := make(map[string]struct{}, len(values))
-	deduped := make([]string, 0, len(values))
-	for _, value := range values {
-		value = strings.TrimSpace(value)
-		if value == "" {
-			continue
-		}
-		if _, ok := seen[value]; ok {
-			continue
-		}
-		seen[value] = struct{}{}
-		deduped = append(deduped, value)
-	}
-	if len(deduped) == 0 {
-		return nil
-	}
-	return deduped
 }

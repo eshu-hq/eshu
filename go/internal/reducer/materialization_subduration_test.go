@@ -35,6 +35,8 @@ package reducer
 import (
 	"testing"
 	"time"
+
+	"github.com/eshu-hq/eshu/go/internal/reducer/inheritance"
 )
 
 // ---------------------------------------------------------------------------
@@ -138,7 +140,7 @@ func TestWorkloadIdentityHandlerSubDurationsGenuineEmpty(t *testing.T) {
 }
 
 // ---------------------------------------------------------------------------
-// inheritance_materialization (InheritanceMaterializationHandler)
+// inheritance_materialization (inheritance.MaterializationHandler)
 // ---------------------------------------------------------------------------
 
 // TestInheritanceMaterializationHandlerSubDurationsWorkHappened asserts the
@@ -147,7 +149,7 @@ func TestWorkloadIdentityHandlerSubDurationsGenuineEmpty(t *testing.T) {
 func TestInheritanceMaterializationHandlerSubDurationsWorkHappened(t *testing.T) {
 	t.Parallel()
 
-	handler := InheritanceMaterializationHandler{
+	handler := inheritance.MaterializationHandler{
 		FactLoader:   &stubFactLoader{envelopes: inheritanceWorkEnvelopes()},
 		IntentWriter: &recordingInheritanceIntentWriter{},
 	}
@@ -164,13 +166,13 @@ func TestInheritanceMaterializationHandlerSubDurationsWorkHappened(t *testing.T)
 // TestInheritanceMaterializationHandlerSubDurationsContextPresentNoEntities
 // asserts the genuine-empty state: a repository fact with source_run_id builds a
 // projection context (input present) but the facts carry no inheritance Class
-// content_entity rows, so ExtractInheritanceRows returns empty repoIDs. This
+// content_entity rows, so inheritance.ExtractRows returns empty repoIDs. This
 // reaches the context-present/no-entities branch → input_ready==1,
 // written_rows==0, succeeded — genuine empty work, NOT an ordering stall.
 func TestInheritanceMaterializationHandlerSubDurationsContextPresentNoEntities(t *testing.T) {
 	t.Parallel()
 
-	handler := InheritanceMaterializationHandler{
+	handler := inheritance.MaterializationHandler{
 		FactLoader:   &stubFactLoader{envelopes: inheritanceContextOnlyEnvelopes()},
 		IntentWriter: &recordingInheritanceIntentWriter{},
 	}
@@ -192,7 +194,7 @@ func TestInheritanceMaterializationHandlerSubDurationsContextPresentNoEntities(t
 func TestInheritanceMaterializationHandlerSubDurationsStall(t *testing.T) {
 	t.Parallel()
 
-	handler := InheritanceMaterializationHandler{
+	handler := inheritance.MaterializationHandler{
 		FactLoader:   &stubFactLoader{envelopes: nil},
 		IntentWriter: &recordingInheritanceIntentWriter{},
 	}

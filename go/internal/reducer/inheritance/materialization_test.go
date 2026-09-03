@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package reducer
+package inheritance
 
 import (
 	"context"
@@ -9,21 +9,23 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
+	"github.com/eshu-hq/eshu/go/internal/reducer/factload"
 )
 
 func TestInheritanceMaterializationHandlerRejectsMismatchedDomain(t *testing.T) {
 	t.Parallel()
 
-	handler := InheritanceMaterializationHandler{
+	handler := MaterializationHandler{
 		FactLoader:   &stubFactLoader{},
 		IntentWriter: &recordingInheritanceIntentWriter{},
 	}
 
-	_, err := handler.Handle(context.Background(), Intent{
+	_, err := handler.Handle(context.Background(), reducercontract.Intent{
 		IntentID:     "intent-1",
 		ScopeID:      "scope-1",
 		GenerationID: "gen-1",
-		Domain:       DomainCodeCallMaterialization,
+		Domain:       reducercontract.DomainCodeCallMaterialization,
 		EnqueuedAt:   time.Now(),
 		AvailableAt:  time.Now(),
 	})
@@ -35,15 +37,15 @@ func TestInheritanceMaterializationHandlerRejectsMismatchedDomain(t *testing.T) 
 func TestInheritanceMaterializationHandlerRequiresFactLoader(t *testing.T) {
 	t.Parallel()
 
-	handler := InheritanceMaterializationHandler{
+	handler := MaterializationHandler{
 		IntentWriter: &recordingInheritanceIntentWriter{},
 	}
 
-	_, err := handler.Handle(context.Background(), Intent{
+	_, err := handler.Handle(context.Background(), reducercontract.Intent{
 		IntentID:     "intent-1",
 		ScopeID:      "scope-1",
 		GenerationID: "gen-1",
-		Domain:       DomainInheritanceMaterialization,
+		Domain:       reducercontract.DomainInheritanceMaterialization,
 		EnqueuedAt:   time.Now(),
 		AvailableAt:  time.Now(),
 	})
@@ -55,15 +57,15 @@ func TestInheritanceMaterializationHandlerRequiresFactLoader(t *testing.T) {
 func TestInheritanceMaterializationHandlerRequiresIntentWriter(t *testing.T) {
 	t.Parallel()
 
-	handler := InheritanceMaterializationHandler{
+	handler := MaterializationHandler{
 		FactLoader: &stubFactLoader{},
 	}
 
-	_, err := handler.Handle(context.Background(), Intent{
+	_, err := handler.Handle(context.Background(), reducercontract.Intent{
 		IntentID:     "intent-1",
 		ScopeID:      "scope-1",
 		GenerationID: "gen-1",
-		Domain:       DomainInheritanceMaterialization,
+		Domain:       reducercontract.DomainInheritanceMaterialization,
 		EnqueuedAt:   time.Now(),
 		AvailableAt:  time.Now(),
 	})
@@ -75,7 +77,7 @@ func TestInheritanceMaterializationHandlerRequiresIntentWriter(t *testing.T) {
 func TestExtractInheritanceRowsEmptyInputReturnsNil(t *testing.T) {
 	t.Parallel()
 
-	repoIDs, rows := ExtractInheritanceRows(nil)
+	repoIDs, rows := ExtractRows(nil)
 	if repoIDs != nil {
 		t.Fatalf("repoIDs = %v, want nil", repoIDs)
 	}
@@ -106,7 +108,7 @@ func TestExtractInheritanceRowsNoBasesReturnsEmpty(t *testing.T) {
 		},
 	}
 
-	repoIDs, rows := ExtractInheritanceRows(envelopes)
+	repoIDs, rows := ExtractRows(envelopes)
 	if len(repoIDs) != 1 || repoIDs[0] != "repo-1" {
 		t.Fatalf("repoIDs = %v, want [repo-1]", repoIDs)
 	}
@@ -150,7 +152,7 @@ func TestExtractInheritanceRowsFromClassWithBases(t *testing.T) {
 		},
 	}
 
-	repoIDs, rows := ExtractInheritanceRows(envelopes)
+	repoIDs, rows := ExtractRows(envelopes)
 	if len(repoIDs) != 1 || repoIDs[0] != "repo-1" {
 		t.Fatalf("repoIDs = %v, want [repo-1]", repoIDs)
 	}
@@ -212,7 +214,7 @@ func TestExtractInheritanceRowsFromInterfaceWithBases(t *testing.T) {
 		},
 	}
 
-	_, rows := ExtractInheritanceRows(envelopes)
+	_, rows := ExtractRows(envelopes)
 	if len(rows) != 1 {
 		t.Fatalf("len(rows) = %d, want 1", len(rows))
 	}
@@ -280,7 +282,7 @@ func TestExtractInheritanceRowsDeduplicates(t *testing.T) {
 		},
 	}
 
-	_, rows := ExtractInheritanceRows(envelopes)
+	_, rows := ExtractRows(envelopes)
 	if len(rows) != 2 {
 		t.Fatalf("len(rows) = %d, want 2 (one per child)", len(rows))
 	}
@@ -318,7 +320,7 @@ func TestExtractInheritanceRowsSkipsUnresolvedBases(t *testing.T) {
 		},
 	}
 
-	_, rows := ExtractInheritanceRows(envelopes)
+	_, rows := ExtractRows(envelopes)
 	if len(rows) != 0 {
 		t.Fatalf("len(rows) = %d, want 0 for unresolved base", len(rows))
 	}
@@ -329,31 +331,31 @@ func TestInheritanceMaterializationHandlerEmitsIntents(t *testing.T) {
 
 	now := time.Date(2026, time.April, 15, 12, 0, 0, 0, time.UTC)
 	writer := &recordingInheritanceIntentWriter{}
-	handler := InheritanceMaterializationHandler{
+	handler := MaterializationHandler{
 		FactLoader:   &stubFactLoader{envelopes: inheritanceEntityFacts()},
 		IntentWriter: writer,
 	}
 
-	intent := Intent{
+	intent := reducercontract.Intent{
 		IntentID:        "intent-inheritance-1",
 		ScopeID:         "scope-1",
 		GenerationID:    "gen-1",
 		SourceSystem:    "git",
-		Domain:          DomainInheritanceMaterialization,
+		Domain:          reducercontract.DomainInheritanceMaterialization,
 		Cause:           "inheritance materialization follow-up",
 		EntityKeys:      []string{"repo-1"},
 		RelatedScopeIDs: []string{"scope-1"},
 		EnqueuedAt:      now,
 		AvailableAt:     now,
-		Status:          IntentStatusPending,
+		Status:          reducercontract.IntentStatusPending,
 	}
 
 	result, err := handler.Handle(context.Background(), intent)
 	if err != nil {
 		t.Fatalf("Handle() error = %v", err)
 	}
-	if result.Status != ResultStatusSucceeded {
-		t.Fatalf("result.Status = %q, want %q", result.Status, ResultStatusSucceeded)
+	if result.Status != reducercontract.ResultStatusSucceeded {
+		t.Fatalf("result.Status = %q, want %q", result.Status, reducercontract.ResultStatusSucceeded)
 	}
 	// One refresh intent + one per-edge intent.
 	if result.CanonicalWrites != 2 {
@@ -364,7 +366,7 @@ func TestInheritanceMaterializationHandlerEmitsIntents(t *testing.T) {
 	if len(refresh) != 1 {
 		t.Fatalf("refresh intents = %d, want 1", len(refresh))
 	}
-	if refresh[0].PartitionKey != inheritanceWholeScopePartitionKey("repo-1") {
+	if refresh[0].PartitionKey != WholeScopePartitionKey("repo-1") {
 		t.Fatalf("refresh partition key = %q, want whole-scope fence key", refresh[0].PartitionKey)
 	}
 	if refresh[0].SourceRunID != "run-1" {
@@ -398,24 +400,24 @@ func TestInheritanceMaterializationHandlerNoEntitiesSucceeds(t *testing.T) {
 
 	now := time.Date(2026, time.April, 15, 12, 0, 0, 0, time.UTC)
 	writer := &recordingInheritanceIntentWriter{}
-	handler := InheritanceMaterializationHandler{
+	handler := MaterializationHandler{
 		FactLoader:   &stubFactLoader{envelopes: []facts.Envelope{}},
 		IntentWriter: writer,
 	}
 
-	result, err := handler.Handle(context.Background(), Intent{
+	result, err := handler.Handle(context.Background(), reducercontract.Intent{
 		IntentID:     "intent-1",
 		ScopeID:      "scope-1",
 		GenerationID: "gen-1",
-		Domain:       DomainInheritanceMaterialization,
+		Domain:       reducercontract.DomainInheritanceMaterialization,
 		EnqueuedAt:   now,
 		AvailableAt:  now,
 	})
 	if err != nil {
 		t.Fatalf("Handle() error = %v", err)
 	}
-	if result.Status != ResultStatusSucceeded {
-		t.Fatalf("result.Status = %q, want %q", result.Status, ResultStatusSucceeded)
+	if result.Status != reducercontract.ResultStatusSucceeded {
+		t.Fatalf("result.Status = %q, want %q", result.Status, reducercontract.ResultStatusSucceeded)
 	}
 	if result.CanonicalWrites != 0 {
 		t.Fatalf("result.CanonicalWrites = %d, want 0", result.CanonicalWrites)
@@ -430,7 +432,7 @@ func TestInheritanceMaterializationHandlerNoEntitiesSucceeds(t *testing.T) {
 func inheritanceEntityFacts() []facts.Envelope {
 	return []facts.Envelope{
 		{
-			FactKind: factKindRepository,
+			FactKind: factload.FactKindRepository,
 			ScopeID:  "scope-1",
 			Payload: map[string]any{
 				"repo_id":       "repo-1",
@@ -447,7 +449,8 @@ func inheritanceEntityFacts() []facts.Envelope {
 				"entity_type": "Class",
 				"entity_name": "ParentClass",
 				// "relative_path" is the key contentEntityFactEnvelope actually
-				// emits (git_content_fact_envelopes.go:80); production carries no
+				// emits (contentEntityFactEnvelope in git_content_fact_envelopes.go);
+				// production carries no
 				// top-level "path" key (#5996).
 				"relative_path": "/repo/parent.py",
 			},

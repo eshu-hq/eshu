@@ -9,13 +9,13 @@
 # citations inline; it is never sourced, generated, or read back out of the
 # registry row.
 
-# go/internal/reducer/inheritance_materialization.go:58 embeds
-# `IntentWriter InheritanceIntentWriter` as a struct field, and Handle calls
-# h.IntentWriter.UpsertIntents(ctx, intentRows) at :171. So this handler really
+# go/internal/reducer/inheritance/materialization.go:62 embeds
+# `IntentWriter IntentWriter` as a struct field, and Handle calls
+# h.IntentWriter.UpsertIntents(ctx, intentRows) at :175. So this handler really
 # does write shared_projection_intents, and a lock on that table blocks a write
 # it performs -- the non-vacuity condition checkFamilyBlockerLockstep
 # (go/internal/reducer/materialized_edge_family_blocker_shape_test.go) enforces
-# for this kind. Handler stage: the guard at :79 rejects any intent whose
+# for this kind. Handler stage: the guard at :83 rejects any intent whose
 # Domain is not DomainInheritanceMaterialization, so the work this family's kill
 # cell must catch in flight is a fact_work_items row in that domain.
 IFA_FAMILY_PIN_BLOCKER_KIND="shared_intent_lock"

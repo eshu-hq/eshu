@@ -9,6 +9,7 @@ import (
 
 	"go.opentelemetry.io/otel/trace"
 
+	"github.com/eshu-hq/eshu/go/internal/reducer/inheritance"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
 )
 
@@ -64,11 +65,11 @@ type DefaultHandlers struct {
 	CodeCallIntentWriter CodeCallIntentWriter
 
 	// InheritanceIntentWriter persists durable shared-intent rows for inheritance
-	// edge materialization (#2867). The promoted InheritanceMaterializationHandler
+	// edge materialization (#2867). The promoted inheritance.MaterializationHandler
 	// emits file-scoped per-edge intents plus a per-repo refresh intent instead of
 	// writing canonical edges directly, so the partitioned runner and the #2898
 	// refresh fence project them.
-	InheritanceIntentWriter InheritanceIntentWriter
+	InheritanceIntentWriter inheritance.IntentWriter
 
 	// SQLRelationshipIntentWriter persists durable shared-intent rows for SQL
 	// relationship edge materialization (#2868). The promoted

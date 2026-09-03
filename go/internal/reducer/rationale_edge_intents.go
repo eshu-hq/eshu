@@ -13,7 +13,7 @@ import (
 
 // rationalePartitionKeyVersion namespaces every rationale_edges partition key so
 // a future key-shape change can run alongside the old one without colliding. It
-// mirrors inheritancePartitionKeyVersion and sqlRelationshipPartitionKeyVersion
+// mirrors inheritance.PartitionKeyVersion and sqlRelationshipPartitionKeyVersion
 // (#2869).
 const rationalePartitionKeyVersion = "rationale-edges:v1"
 
@@ -105,7 +105,7 @@ func buildRationaleSharedIntentRows(
 			PartitionKey:     rationaleFilePartitionKey(repoID, targetPath, edgeIdentity),
 			IdentityKey:      edgeIdentity,
 			ScopeID:          context.ScopeID,
-			AcceptanceUnitID: context.acceptanceUnitID(repoID),
+			AcceptanceUnitID: context.ResolveAcceptanceUnitID(repoID),
 			RepositoryID:     repoID,
 			SourceRunID:      context.SourceRunID,
 			GenerationID:     context.GenerationID,
@@ -159,7 +159,7 @@ func buildRationaleRefreshIntents(
 			ProjectionDomain: DomainRationaleEdges,
 			PartitionKey:     rationaleWholeScopePartitionKey(repoID),
 			ScopeID:          context.ScopeID,
-			AcceptanceUnitID: context.acceptanceUnitID(repoID),
+			AcceptanceUnitID: context.ResolveAcceptanceUnitID(repoID),
 			RepositoryID:     repoID,
 			SourceRunID:      context.SourceRunID,
 			GenerationID:     context.GenerationID,

@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package reducer
+package inheritance
 
 import (
 	"context"
@@ -12,10 +12,15 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/codeprovenance"
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
+	"github.com/eshu-hq/eshu/go/internal/reducer/factload"
+	"github.com/eshu-hq/eshu/go/internal/reducer/payloadcore"
+	"github.com/eshu-hq/eshu/go/internal/reducer/schemadecode"
+	"github.com/eshu-hq/eshu/go/internal/reducer/sharedintent"
 	log "github.com/eshu-hq/eshu/go/pkg/log"
 )
 
-const inheritanceEvidenceSource = "reducer/inheritance"
+const EvidenceSource = "reducer/inheritance"
 
 // inheritableEntityTypes lists the entity types that can participate in
 // inheritance relationships.
@@ -38,24 +43,24 @@ var inheritanceContentEntityTypes = []string{
 	"Function",
 }
 
-// InheritanceIntentWriter persists durable shared-projection intents for
+// IntentWriter persists durable shared-projection intents for
 // inheritance edge materialization (#2867). The promoted handler emits intents
 // instead of writing edges directly so the #2755 partitioned runner projects
 // them under file-scoped partition keys and the #2898 refresh fence owns the
 // single per-repo retract.
-type InheritanceIntentWriter interface {
-	UpsertIntents(ctx context.Context, rows []SharedProjectionIntentRow) error
+type IntentWriter interface {
+	UpsertIntents(ctx context.Context, rows []sharedintent.Row) error
 }
 
-// InheritanceMaterializationHandler reduces one inheritance follow-up into
+// MaterializationHandler reduces one inheritance follow-up into
 // durable shared-projection intent emission for INHERITS, IMPLEMENTS, OVERRIDES,
 // and ALIASES edges using parser entity bases and PHP trait adaptation metadata.
 // Each repository gets one whole-scope refresh intent that owns the retract, and
 // each edge gets a write-only per-edge intent under a file-scoped partition key
 // fenced behind that refresh (#2867).
-type InheritanceMaterializationHandler struct {
-	FactLoader   FactLoader
-	IntentWriter InheritanceIntentWriter
+type MaterializationHandler struct {
+	FactLoader   factload.FactLoader
+	IntentWriter IntentWriter
 }
 
 // inheritanceMaterializationTiming records success-path stage timings for the
@@ -69,24 +74,24 @@ type inheritanceMaterializationTiming struct {
 }
 
 // Handle executes the inheritance materialization path.
-func (h InheritanceMaterializationHandler) Handle(
+func (h MaterializationHandler) Handle(
 	ctx context.Context,
-	intent Intent,
-) (Result, error) {
+	intent reducercontract.Intent,
+) (reducercontract.Result, error) {
 	totalStarted := time.Now()
 	var timing inheritanceMaterializationTiming
 
-	if intent.Domain != DomainInheritanceMaterialization {
-		return Result{}, fmt.Errorf(
+	if intent.Domain != reducercontract.DomainInheritanceMaterialization {
+		return reducercontract.Result{}, fmt.Errorf(
 			"inheritance materialization handler does not accept domain %q",
 			intent.Domain,
 		)
 	}
 	if h.FactLoader == nil {
-		return Result{}, fmt.Errorf("inheritance materialization fact loader is required")
+		return reducercontract.Result{}, fmt.Errorf("inheritance materialization fact loader is required")
 	}
 	if h.IntentWriter == nil {
-		return Result{}, fmt.Errorf("inheritance materialization intent writer is required")
+		return reducercontract.Result{}, fmt.Errorf("inheritance materialization intent writer is required")
 	}
 
 	slog.InfoContext(
@@ -100,13 +105,13 @@ func (h InheritanceMaterializationHandler) Handle(
 	envelopes, err := loadInheritanceMaterializationFacts(ctx, h.FactLoader, intent.ScopeID, intent.GenerationID)
 	timing.loadFactsDuration = time.Since(loadStarted)
 	if err != nil {
-		return Result{}, fmt.Errorf("load facts for inheritance materialization: %w", err)
+		return reducercontract.Result{}, fmt.Errorf("load facts for inheritance materialization: %w", err)
 	}
 
-	deltaScope := buildInheritanceDeltaScope(envelopes)
-	repoIDs, rows := ExtractInheritanceRows(envelopes)
-	repoIDs = mergeInheritanceRepositoryIDs(repoIDs, deltaScope.repositoryIDs)
-	contextByRepoID := buildCodeCallProjectionContexts(envelopes, intent.GenerationID)
+	deltaScope := BuildDeltaScope(envelopes)
+	repoIDs, rows := ExtractRows(envelopes)
+	repoIDs = mergeInheritanceRepositoryIDs(repoIDs, deltaScope.RepositoryIDs)
+	contextByRepoID := schemadecode.BuildProjectionContexts(envelopes, intent.GenerationID)
 
 	// Diagnostic inputs for the rc-12 (INHERITS) gate flake: an intermittent
 	// rc-12=0 on loaded CI must be root-caused from logs alone (it does not
@@ -133,13 +138,13 @@ func (h InheritanceMaterializationHandler) Handle(
 		// No projection context built from the loaded facts: the handler ran
 		// before its upstream repository/content facts existed — an ordering
 		// stall, signaled by input_ready=0.
-		return Result{
+		return reducercontract.Result{
 			IntentID:        intent.IntentID,
-			Domain:          DomainInheritanceMaterialization,
-			Status:          ResultStatusSucceeded,
+			Domain:          reducercontract.DomainInheritanceMaterialization,
+			Status:          reducercontract.ResultStatusSucceeded,
 			EvidenceSummary: "no projection context available for inheritance materialization",
 			SubDurations:    inheritanceMaterializationSubDurations(timing),
-			SubSignals:      materializationDiagnosticSignals(false, 0),
+			SubSignals:      reducercontract.MaterializationDiagnosticSignals(false, 0),
 		}, nil
 	}
 	if len(repoIDs) == 0 {
@@ -147,13 +152,13 @@ func (h InheritanceMaterializationHandler) Handle(
 		// Projection context exists but the loaded facts carried no inheritance
 		// content entities: the input was ready and the work was genuinely empty
 		// (input_ready=1, written_rows=0), not an upstream ordering stall.
-		return Result{
+		return reducercontract.Result{
 			IntentID:        intent.IntentID,
-			Domain:          DomainInheritanceMaterialization,
-			Status:          ResultStatusSucceeded,
+			Domain:          reducercontract.DomainInheritanceMaterialization,
+			Status:          reducercontract.ResultStatusSucceeded,
 			EvidenceSummary: "no inheritance entities for inheritance materialization",
 			SubDurations:    inheritanceMaterializationSubDurations(timing),
-			SubSignals:      materializationDiagnosticSignals(true, 0),
+			SubSignals:      reducercontract.MaterializationDiagnosticSignals(true, 0),
 		}, nil
 	}
 
@@ -163,13 +168,13 @@ func (h InheritanceMaterializationHandler) Handle(
 	}
 
 	buildStarted := time.Now()
-	intentRows := buildInheritanceSharedIntentRows(rows, deltaScope, repoIDs, contextByRepoID, createdAt)
+	intentRows := BuildSharedIntentRows(rows, deltaScope, repoIDs, contextByRepoID, createdAt)
 	timing.buildIntentsDuration = time.Since(buildStarted)
 
 	if len(intentRows) > 0 {
 		upsertStarted := time.Now()
 		if err := h.IntentWriter.UpsertIntents(ctx, intentRows); err != nil {
-			return Result{}, fmt.Errorf("write inheritance intents: %w", err)
+			return reducercontract.Result{}, fmt.Errorf("write inheritance intents: %w", err)
 		}
 		timing.upsertDuration = time.Since(upsertStarted)
 	}
@@ -188,10 +193,10 @@ func (h InheritanceMaterializationHandler) Handle(
 		slog.Float64("total_duration_seconds", timing.totalDuration.Seconds()),
 	)
 
-	return Result{
+	return reducercontract.Result{
 		IntentID: intent.IntentID,
-		Domain:   DomainInheritanceMaterialization,
-		Status:   ResultStatusSucceeded,
+		Domain:   reducercontract.DomainInheritanceMaterialization,
+		Status:   reducercontract.ResultStatusSucceeded,
 		EvidenceSummary: fmt.Sprintf(
 			"emitted %d durable inheritance intents across %d repositories",
 			len(intentRows),
@@ -202,7 +207,7 @@ func (h InheritanceMaterializationHandler) Handle(
 		// Projection context was built (input present), so input_ready=1. The
 		// refresh-intent emission always yields >=1 row per repo with context,
 		// so written_rows tracks the durable intent count.
-		SubSignals: materializationDiagnosticSignals(true, len(intentRows)),
+		SubSignals: reducercontract.MaterializationDiagnosticSignals(true, len(intentRows)),
 	}, nil
 }
 
@@ -220,10 +225,10 @@ func inheritanceMaterializationSubDurations(t inheritanceMaterializationTiming) 
 	}
 }
 
-// ExtractInheritanceRows builds canonical child/parent edge rows from content
+// ExtractRows builds canonical child/parent edge rows from content
 // entity facts that carry bases or trait adaptation metadata. It performs
 // intra-repo name matching only; cross-repo inheritance is out of scope.
-func ExtractInheritanceRows(envelopes []facts.Envelope) ([]string, []map[string]any) {
+func ExtractRows(envelopes []facts.Envelope) ([]string, []map[string]any) {
 	if len(envelopes) == 0 {
 		return nil, nil
 	}
@@ -245,13 +250,13 @@ func ExtractInheritanceRows(envelopes []facts.Envelope) ([]string, []map[string]
 			continue
 		}
 
-		entityType := semanticPayloadString(env.Payload, "entity_type")
+		entityType := payloadcore.SemanticPayloadString(env.Payload, "entity_type")
 		if _, ok := inheritableEntityTypes[entityType]; !ok {
 			continue
 		}
 
-		repoID := semanticPayloadString(env.Payload, "repo_id")
-		childEntityID := semanticPayloadString(env.Payload, "entity_id")
+		repoID := payloadcore.SemanticPayloadString(env.Payload, "repo_id")
+		childEntityID := payloadcore.SemanticPayloadString(env.Payload, "entity_id")
 		if repoID == "" || childEntityID == "" {
 			continue
 		}
@@ -275,7 +280,7 @@ func ExtractInheritanceRows(envelopes []facts.Envelope) ([]string, []map[string]
 			}
 			seenEdges[edgeKey] = struct{}{}
 
-			rows = append(rows, declaredInheritanceRow(childEntityID, entityType, semanticPayloadString(env.Payload, inheritanceEntityPathKey), parent, repoID, "INHERITS"))
+			rows = append(rows, declaredInheritanceRow(childEntityID, entityType, payloadcore.SemanticPayloadString(env.Payload, inheritanceEntityPathKey), parent, repoID, "INHERITS"))
 		}
 
 		if _, implementer := implementerEntityTypes[entityType]; implementer {
@@ -294,7 +299,7 @@ func ExtractInheritanceRows(envelopes []facts.Envelope) ([]string, []map[string]
 				}
 				seenEdges[edgeKey] = struct{}{}
 
-				rows = append(rows, declaredInheritanceRow(childEntityID, entityType, semanticPayloadString(env.Payload, inheritanceEntityPathKey), parent, repoID, "IMPLEMENTS"))
+				rows = append(rows, declaredInheritanceRow(childEntityID, entityType, payloadcore.SemanticPayloadString(env.Payload, inheritanceEntityPathKey), parent, repoID, "IMPLEMENTS"))
 			}
 		}
 
@@ -315,7 +320,7 @@ func ExtractInheritanceRows(envelopes []facts.Envelope) ([]string, []map[string]
 				}
 				seenEdges[edgeKey] = struct{}{}
 
-				rows = append(rows, declaredInheritanceRow(childEntityID, entityType, semanticPayloadString(env.Payload, inheritanceEntityPathKey), parent, repoID, "OVERRIDES"))
+				rows = append(rows, declaredInheritanceRow(childEntityID, entityType, payloadcore.SemanticPayloadString(env.Payload, inheritanceEntityPathKey), parent, repoID, "OVERRIDES"))
 			}
 
 			for _, aliasedTrait := range inheritanceTraitAliasTargets(adaptation) {
@@ -330,7 +335,7 @@ func ExtractInheritanceRows(envelopes []facts.Envelope) ([]string, []map[string]
 				}
 				seenEdges[edgeKey] = struct{}{}
 
-				rows = append(rows, declaredInheritanceRow(childEntityID, entityType, semanticPayloadString(env.Payload, inheritanceEntityPathKey), parent, repoID, "ALIASES"))
+				rows = append(rows, declaredInheritanceRow(childEntityID, entityType, payloadcore.SemanticPayloadString(env.Payload, inheritanceEntityPathKey), parent, repoID, "ALIASES"))
 			}
 
 			aliasMapping, ok := inheritanceTraitAliasMapping(adaptation)
@@ -340,7 +345,7 @@ func ExtractInheritanceRows(envelopes []facts.Envelope) ([]string, []map[string]
 
 			childMethod, childOK := methodIndex[inheritanceMethodIndexKey{
 				repoID:       repoID,
-				classContext: semanticPayloadString(env.Payload, "entity_name"),
+				classContext: payloadcore.SemanticPayloadString(env.Payload, "entity_name"),
 				name:         aliasMapping.AliasMethodName,
 			}]
 			parentMethod, parentOK := methodIndex[inheritanceMethodIndexKey{
@@ -363,10 +368,10 @@ func ExtractInheritanceRows(envelopes []facts.Envelope) ([]string, []map[string]
 	}
 
 	sort.Slice(rows, func(i, j int) bool {
-		left := anyToString(rows[i]["child_entity_id"]) + "->" + anyToString(rows[i]["parent_entity_id"])
-		right := anyToString(rows[j]["child_entity_id"]) + "->" + anyToString(rows[j]["parent_entity_id"])
+		left := payloadcore.AnyToString(rows[i]["child_entity_id"]) + "->" + payloadcore.AnyToString(rows[i]["parent_entity_id"])
+		right := payloadcore.AnyToString(rows[j]["child_entity_id"]) + "->" + payloadcore.AnyToString(rows[j]["parent_entity_id"])
 		if left == right {
-			return anyToString(rows[i]["repo_id"]) < anyToString(rows[j]["repo_id"])
+			return payloadcore.AnyToString(rows[i]["repo_id"]) < payloadcore.AnyToString(rows[j]["repo_id"])
 		}
 		return left < right
 	})
@@ -424,13 +429,13 @@ func buildInheritanceEntityIndex(envelopes []facts.Envelope) map[inheritanceInde
 		if env.FactKind != "content_entity" {
 			continue
 		}
-		entityType := semanticPayloadString(env.Payload, "entity_type")
+		entityType := payloadcore.SemanticPayloadString(env.Payload, "entity_type")
 		if _, ok := inheritableEntityTypes[entityType]; !ok {
 			continue
 		}
-		repoID := semanticPayloadString(env.Payload, "repo_id")
-		entityName := semanticPayloadString(env.Payload, "entity_name")
-		entityID := semanticPayloadString(env.Payload, "entity_id")
+		repoID := payloadcore.SemanticPayloadString(env.Payload, "repo_id")
+		entityName := payloadcore.SemanticPayloadString(env.Payload, "entity_name")
+		entityID := payloadcore.SemanticPayloadString(env.Payload, "entity_id")
 		if repoID == "" || entityName == "" || entityID == "" {
 			continue
 		}
@@ -440,7 +445,7 @@ func buildInheritanceEntityIndex(envelopes []facts.Envelope) map[inheritanceInde
 			index[key] = inheritanceEntityRef{
 				id:         entityID,
 				entityType: entityType,
-				path:       semanticPayloadString(env.Payload, inheritanceEntityPathKey),
+				path:       payloadcore.SemanticPayloadString(env.Payload, inheritanceEntityPathKey),
 			}
 		}
 	}
@@ -453,13 +458,13 @@ func buildInheritanceMethodIndex(envelopes []facts.Envelope) map[inheritanceMeth
 		if env.FactKind != "content_entity" {
 			continue
 		}
-		if semanticPayloadString(env.Payload, "entity_type") != "Function" {
+		if payloadcore.SemanticPayloadString(env.Payload, "entity_type") != "Function" {
 			continue
 		}
-		repoID := semanticPayloadString(env.Payload, "repo_id")
-		classContext := semanticPayloadMetadataString(env.Payload, "class_context")
-		entityName := semanticPayloadString(env.Payload, "entity_name")
-		entityID := semanticPayloadString(env.Payload, "entity_id")
+		repoID := payloadcore.SemanticPayloadString(env.Payload, "repo_id")
+		classContext := payloadcore.SemanticPayloadMetadataString(env.Payload, "class_context")
+		entityName := payloadcore.SemanticPayloadString(env.Payload, "entity_name")
+		entityID := payloadcore.SemanticPayloadString(env.Payload, "entity_id")
 		if repoID == "" || classContext == "" || entityName == "" || entityID == "" {
 			continue
 		}
@@ -472,7 +477,7 @@ func buildInheritanceMethodIndex(envelopes []facts.Envelope) map[inheritanceMeth
 			index[key] = inheritanceEntityRef{
 				id:         entityID,
 				entityType: "Function",
-				path:       semanticPayloadString(env.Payload, inheritanceEntityPathKey),
+				path:       payloadcore.SemanticPayloadString(env.Payload, inheritanceEntityPathKey),
 			}
 		}
 	}

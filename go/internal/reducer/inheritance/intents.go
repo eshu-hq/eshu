@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package reducer
+package inheritance
 
 import (
 	"crypto/sha256"
@@ -9,12 +9,16 @@ import (
 	"sort"
 	"strings"
 	"time"
+
+	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
+	"github.com/eshu-hq/eshu/go/internal/reducer/payloadcore"
+	"github.com/eshu-hq/eshu/go/internal/reducer/sharedintent"
 )
 
-// inheritancePartitionKeyVersion namespaces every inheritance_edges partition
+// PartitionKeyVersion namespaces every inheritance_edges partition
 // key so a future key-shape change can run alongside the old one without
 // colliding. It mirrors codeCallPartitionKeyVersion (#2867).
-const inheritancePartitionKeyVersion = "inheritance-edges:v1"
+const PartitionKeyVersion = "inheritance-edges:v1"
 
 // inheritanceFilePartitionKey returns the file-scoped partition key for a single
 // inheritance edge. It is unique per edge, not merely per file: the generic
@@ -36,10 +40,10 @@ func inheritanceFilePartitionKey(repoID, childPath, edgeIdentity string) string 
 	hash.Write([]byte{0})
 	hash.Write([]byte(strings.TrimSpace(edgeIdentity)))
 	digest := hash.Sum(nil)
-	return inheritancePartitionKeyVersion + ":files:" + repoID + ":" + hex.EncodeToString(digest)
+	return PartitionKeyVersion + ":files:" + repoID + ":" + hex.EncodeToString(digest)
 }
 
-// inheritanceWholeScopePartitionKey returns the whole-scope partition key the
+// WholeScopePartitionKey returns the whole-scope partition key the
 // per-repo refresh intent is emitted under. It MUST equal the key the #2898
 // refresh fence reconstructs (repoWideRetractRefreshPartitionKey), because the
 // fence reads a per-edge row's repo and rebuilds this exact key to check whether
@@ -48,11 +52,11 @@ func inheritanceFilePartitionKey(repoID, childPath, edgeIdentity string) string 
 // this delegates to the shared helper rather than minting an inheritance-only key
 // (#2867/#2898). A whole-scope key hashes to exactly one partition, so the repo's
 // single retract is owned by one partition lease and cannot race itself.
-func inheritanceWholeScopePartitionKey(repoID string) string {
-	return repoWideRetractRefreshPartitionKey(DomainInheritanceEdges, repoID)
+func WholeScopePartitionKey(repoID string) string {
+	return sharedintent.RepoWideRetractRefreshPartitionKey(reducercontract.DomainInheritanceEdges, repoID)
 }
 
-// buildInheritanceSharedIntentRows promotes extracted inheritance edge rows to
+// BuildSharedIntentRows promotes extracted inheritance edge rows to
 // durable shared-projection intents with file-scoped partition keys, reusing the
 // #2898 refresh-fence mechanism (#2867).
 //
@@ -69,38 +73,38 @@ func inheritanceWholeScopePartitionKey(repoID string) string {
 // an IdentityKey (child->parent:relationship_type) so each intent ID stays
 // distinct. Rows whose repo has no projection context are skipped: without an
 // acceptance identity they cannot be fenced or freshness-gated.
-func buildInheritanceSharedIntentRows(
+func BuildSharedIntentRows(
 	edgeRows []map[string]any,
-	deltaScope inheritanceDeltaScope,
+	deltaScope DeltaScope,
 	repoIDs []string,
-	contextByRepoID map[string]ProjectionContext,
+	contextByRepoID map[string]sharedintent.ProjectionContext,
 	createdAt time.Time,
-) []SharedProjectionIntentRow {
+) []sharedintent.Row {
 	if len(repoIDs) == 0 {
 		return nil
 	}
 
-	intents := make([]SharedProjectionIntentRow, 0, len(repoIDs)+len(edgeRows))
-	intents = append(intents, buildInheritanceRefreshIntents(deltaScope, repoIDs, contextByRepoID, createdAt)...)
+	intents := make([]sharedintent.Row, 0, len(repoIDs)+len(edgeRows))
+	intents = append(intents, BuildRefreshIntents(deltaScope, repoIDs, contextByRepoID, createdAt)...)
 
 	for _, row := range edgeRows {
-		repoID := anyToString(row["repo_id"])
+		repoID := payloadcore.AnyToString(row["repo_id"])
 		context, ok := contextByRepoID[repoID]
 		if !ok {
 			continue
 		}
-		childPath := anyToString(row["child_path"])
+		childPath := payloadcore.AnyToString(row["child_path"])
 		edgeIdentity := inheritanceEdgeIdentityKey(row)
-		payload := copyPayload(row)
+		payload := payloadcore.CopyPayload(row)
 		payload["action"] = "upsert"
-		payload[retractViaRefreshKey] = true
+		payload[sharedintent.RetractViaRefreshKey] = true
 
-		intents = append(intents, BuildSharedProjectionIntent(SharedProjectionIntentInput{
-			ProjectionDomain: DomainInheritanceEdges,
+		intents = append(intents, sharedintent.Build(sharedintent.Input{
+			ProjectionDomain: reducercontract.DomainInheritanceEdges,
 			PartitionKey:     inheritanceFilePartitionKey(repoID, childPath, edgeIdentity),
 			IdentityKey:      edgeIdentity,
 			ScopeID:          context.ScopeID,
-			AcceptanceUnitID: context.acceptanceUnitID(repoID),
+			AcceptanceUnitID: context.ResolveAcceptanceUnitID(repoID),
 			RepositoryID:     repoID,
 			SourceRunID:      context.SourceRunID,
 			GenerationID:     context.GenerationID,
@@ -118,22 +122,22 @@ func buildInheritanceSharedIntentRows(
 	return intents
 }
 
-// buildInheritanceRefreshIntents emits one whole-scope refresh intent per
+// BuildRefreshIntents emits one whole-scope refresh intent per
 // repository that has a projection context. A repository on a DELTA generation
 // carries the delta scope so the worker issues the file-scoped retract; one on
 // a full generation carries none, so the worker issues the repo-wide retract. Repos are sorted so
 // emission is deterministic (#2867/#2898).
-func buildInheritanceRefreshIntents(
-	deltaScope inheritanceDeltaScope,
+func BuildRefreshIntents(
+	deltaScope DeltaScope,
 	repoIDs []string,
-	contextByRepoID map[string]ProjectionContext,
+	contextByRepoID map[string]sharedintent.ProjectionContext,
 	createdAt time.Time,
-) []SharedProjectionIntentRow {
+) []sharedintent.Row {
 	sorted := append([]string(nil), repoIDs...)
 	sort.Strings(sorted)
 
-	deltaRepositoryIDs := deltaScopeRepositorySet(deltaScope.repositoryIDs)
-	intents := make([]SharedProjectionIntentRow, 0, len(sorted))
+	deltaRepositoryIDs := sharedintent.DeltaScopeRepositorySet(deltaScope.RepositoryIDs)
+	intents := make([]sharedintent.Row, 0, len(sorted))
 	for _, repoID := range sorted {
 		context, ok := contextByRepoID[repoID]
 		if !ok {
@@ -141,20 +145,20 @@ func buildInheritanceRefreshIntents(
 		}
 		payload := map[string]any{
 			"repo_id":         repoID,
-			"intent_type":     RepoRefreshIntentType,
-			"action":          repoRefreshAction,
-			"evidence_source": inheritanceEvidenceSource,
+			"intent_type":     sharedintent.RepoRefreshIntentType,
+			"action":          sharedintent.RepoRefreshAction,
+			"evidence_source": EvidenceSource,
 		}
 		// Delta scoping is per repository and fails closed on an unusable
 		// delta; applyRepoRefreshDeltaScope (semantic_entity_delta_scope.go)
 		// carries the full rule and why the two obvious alternatives lose
 		// edges (#6216).
-		applyRepoRefreshDeltaScope(payload, repoID, deltaRepositoryIDs, deltaScope.filePathsByRepoID)
-		intents = append(intents, BuildSharedProjectionIntent(SharedProjectionIntentInput{
-			ProjectionDomain: DomainInheritanceEdges,
-			PartitionKey:     inheritanceWholeScopePartitionKey(repoID),
+		sharedintent.ApplyRepoRefreshDeltaScope(payload, repoID, deltaRepositoryIDs, deltaScope.FilePathsByRepoID)
+		intents = append(intents, sharedintent.Build(sharedintent.Input{
+			ProjectionDomain: reducercontract.DomainInheritanceEdges,
+			PartitionKey:     WholeScopePartitionKey(repoID),
 			ScopeID:          context.ScopeID,
-			AcceptanceUnitID: context.acceptanceUnitID(repoID),
+			AcceptanceUnitID: context.ResolveAcceptanceUnitID(repoID),
 			RepositoryID:     repoID,
 			SourceRunID:      context.SourceRunID,
 			GenerationID:     context.GenerationID,
@@ -171,7 +175,7 @@ func buildInheritanceRefreshIntents(
 // relationship type), so two distinct relationship types between the same pair
 // stay separate intents (#2867).
 func inheritanceEdgeIdentityKey(row map[string]any) string {
-	return anyToString(row["child_entity_id"]) + "->" +
-		anyToString(row["parent_entity_id"]) + ":" +
-		anyToString(row["relationship_type"])
+	return payloadcore.AnyToString(row["child_entity_id"]) + "->" +
+		payloadcore.AnyToString(row["parent_entity_id"]) + ":" +
+		payloadcore.AnyToString(row["relationship_type"])
 }

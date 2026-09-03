@@ -883,9 +883,6 @@ LINE go/internal/ifa/materializededges/materialized_edges_symbol_runtime_shared.
 LINE go/internal/ifa/symbol_runtime_family_odu.go go/internal/reducer/correlated_workload_projection_input_loader.go:71
 LINE go/internal/ifa/testdata/codecalls/ifa-code-call-family-expected-edges.json go/internal/content/writer.go:196
 LINE go/internal/ifa/testdata/codecalls/ifa-code-call-family-expected-edges.json go/internal/projector/canonical_entity_identity.go:12
-LINE go/internal/ifa/testdata/inheritance/ifa-inheritance-family-expected-edges.json go/internal/content/writer.go:196
-LINE go/internal/ifa/testdata/inheritance/ifa-inheritance-family-expected-edges.json go/internal/projector/canonical_entity_identity.go:12
-LINE go/internal/ifa/testdata/inheritance/ifa-inheritance-family-expected-edges.json go/internal/reducer/inheritance_materialization.go:226
 LINE go/internal/mcp/kind_consumer_existence_test.go go/internal/projector/tfstate_canonical.go:113
 LINE go/internal/mcp/kind_consumer_existence_test.go go/internal/reducer/package_source_correlation.go:98
 LINE go/internal/mcp/kind_disclosure_ledger.go go/internal/projector/tfstate_canonical.go:113
@@ -918,8 +915,6 @@ LINE go/internal/query/impact_trace_deployment_live_evidence.go go/internal/quer
 LINE go/internal/query/impact_trace_deployment_live_evidence_store.go go/internal/query/kubernetes_correlations.go:168
 LINE go/internal/reducer/codedataflow_input_invalid_test.go go/internal/storage/postgres/facts_streaming.go:123
 LINE go/internal/reducer/deployable_unit_correlation_cassette_entity_key_regression_test.go go/internal/projector/runtime_reducer_intent.go:24
-LINE go/internal/reducer/inheritance_materialization_diagnostics.go go/internal/collector/gitrepo/git_content_fact_envelopes.go:80
-LINE go/internal/reducer/inheritance_relative_path_test.go go/internal/collector/gitrepo/git_content_fact_envelopes.go:80
 LINE go/internal/reducer/tfconfigstate/terraform_config_state_drift.go go/internal/scope/tfstate.go:33
 LINE go/internal/relationships/evidence-5445-streaming-shape-accuracy-fix.md go/internal/collector/git_fact_builder.go:480
 LINE go/internal/relationships/evidence-5445-streaming-shape-accuracy-fix.md go/internal/parser/shared/shared.go:340

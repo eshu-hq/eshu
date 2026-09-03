@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/reducer/inheritance"
 )
 
 func TestSQLRelationshipHandlerUsesKindFilteredFactLoader(t *testing.T) {
@@ -388,7 +389,7 @@ func TestInheritanceMaterializationHandlerUsesKindFilteredFactLoader(t *testing.
 		},
 	}
 	writer := &recordingInheritanceIntentWriter{}
-	handler := InheritanceMaterializationHandler{
+	handler := inheritance.MaterializationHandler{
 		FactLoader:   loader,
 		IntentWriter: writer,
 	}

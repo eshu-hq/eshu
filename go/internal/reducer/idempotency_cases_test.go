@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/reducer/inheritance"
 )
 
 // idempotencyReplayFencingToken is the single fencing token stamped on every
@@ -228,7 +229,7 @@ func inheritanceReplayCase() idempotencyReplayCase {
 		run: func(t *testing.T) []idempotencyRow {
 			t.Helper()
 			writer := &recordingInheritanceIntentWriter{}
-			handler := InheritanceMaterializationHandler{
+			handler := inheritance.MaterializationHandler{
 				FactLoader:   &stubFactLoader{envelopes: fencedFacts(inheritanceEntityFacts())},
 				IntentWriter: writer,
 			}

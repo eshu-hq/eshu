@@ -8,7 +8,7 @@ import "github.com/eshu-hq/eshu/go/internal/reducer"
 // wholeScopeRefreshRetractPayload builds the production payload shape of a
 // whole-scope retract row for a FENCED repo-wide-retract domain: inheritance,
 // rationale, SQL relationships, shell exec. That row is the per-repo refresh
-// intent the domain's materializer emits -- buildInheritanceRefreshIntents,
+// intent the domain's materializer emits -- inheritance.BuildRefreshIntents,
 // buildRationaleRefreshIntents, buildSQLRelationshipRefreshIntents and
 // buildShellExecRefreshIntents, each in go/internal/reducer/*_intents.go, all
 // of which stamp intent_type unconditionally -- and the refresh intent_type is

@@ -11,12 +11,13 @@ import (
 	"strings"
 
 	"github.com/eshu-hq/eshu/go/internal/reducer/payloadcore"
+	"github.com/eshu-hq/eshu/go/internal/reducer/sharedintent"
 	log "github.com/eshu-hq/eshu/go/pkg/log"
 )
 
 // RepoRefreshIntentType marks a shared-projection intent whose only job is to
 // issue the single repo-wide retract for a repo-wide-retract domain. Five
-// emitters reference this constant: inheritance_intents.go,
+// emitters reference this constant: inheritance/intents.go,
 // rationale_edge_intents.go, shell_exec_intents.go,
 // sql_relationship_intents.go and symbol_runtime_refresh_intents.go. The
 // rationale one is what the graph-write side below keys on. It carries no edge
@@ -42,15 +43,12 @@ import (
 // predicate and the five emitters above is what keeps that from being possible
 // (#5998); the four literal sites noted above are the remaining exception.
 const (
-	RepoRefreshIntentType = "repo_refresh"
-	repoRefreshAction     = "refresh"
-	// retractViaRefreshKey marks a per-edge row that was emitted WITH a paired
-	// repo refresh intent, so the worker may safely fence it behind that refresh.
-	// Per-edge rows without the marker predate the #2898 emission (no paired
-	// refresh exists for their source run), so the worker keeps them on the legacy
-	// per-partition retract path rather than deferring them forever. Such in-flight
-	// rows drain normally and are superseded by the next re-ingest's marked rows.
-	retractViaRefreshKey = "retract_via_refresh"
+	// RepoRefreshIntentType aliases [sharedintent.RepoRefreshIntentType].
+	RepoRefreshIntentType = sharedintent.RepoRefreshIntentType
+	// repoRefreshAction aliases [sharedintent.RepoRefreshAction].
+	repoRefreshAction = sharedintent.RepoRefreshAction
+	// retractViaRefreshKey aliases [sharedintent.RetractViaRefreshKey].
+	retractViaRefreshKey = sharedintent.RetractViaRefreshKey
 )
 
 // domainHasRepoWideRetract reports whether a domain owns its retract at the
@@ -114,7 +112,7 @@ func RepoWideRetractDomains() []string {
 // itself. Emission (buildRepoWideRetractRefreshIntents) and the fence
 // (perEdgeRowFenced) MUST build the key identically, so they share this helper.
 func repoWideRetractRefreshPartitionKey(domain, repoID string) string {
-	return domain + ":refresh:v1:whole:" + strings.TrimSpace(repoID)
+	return sharedintent.RepoWideRetractRefreshPartitionKey(domain, repoID)
 }
 
 // isRepoRefreshRow reports whether a row is a per-repo refresh intent.

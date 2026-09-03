@@ -113,7 +113,7 @@ func buildRunsInIntentRows(
 				ProjectionDomain: DomainRunsIn,
 				PartitionKey:     functionID + "->" + repositoryID,
 				ScopeID:          context.ScopeID,
-				AcceptanceUnitID: context.acceptanceUnitID(repositoryID),
+				AcceptanceUnitID: context.ResolveAcceptanceUnitID(repositoryID),
 				RepositoryID:     repositoryID,
 				SourceRunID:      context.SourceRunID,
 				GenerationID:     context.GenerationID,

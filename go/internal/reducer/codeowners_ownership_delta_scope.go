@@ -11,8 +11,8 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/facts"
 )
 
-// codeownersOwnershipDeltaScope mirrors inheritanceDeltaScope
-// (inheritance_delta_scope.go): a CODEOWNERS file is repo-scoped just like a
+// codeownersOwnershipDeltaScope mirrors inheritance.DeltaScope
+// (inheritance/delta_scope.go): a CODEOWNERS file is repo-scoped just like a
 // source file, so a changed or deleted CODEOWNERS source_path retracts the
 // prior generation's DECLARES_CODEOWNER edges scoped to that path rather than
 // sweeping the whole repository.
@@ -41,7 +41,7 @@ func loadCodeownersOwnershipMaterializationFacts(
 	)
 }
 
-// buildCodeownersOwnershipDeltaScope mirrors buildInheritanceDeltaScope: it scans
+// buildCodeownersOwnershipDeltaScope mirrors inheritance.BuildDeltaScope: it scans
 // repository facts flagged delta_generation and collects every changed/deleted
 // relative path per repository. The retract Cypher filters
 // `rel.source_path IN $delta_file_paths`, so passing every changed path
@@ -143,7 +143,7 @@ func codeownersOwnershipDeltaTouchesCandidate(filePaths []string) bool {
 
 // buildCodeownersOwnershipRetractRows builds the shared-projection retract rows
 // for the given repositories. Outside a delta generation, every row requests a
-// whole-repository retract, matching buildInheritanceRetractRows. Inside a
+// whole-repository retract, matching inheritance.BuildRetractRows. Inside a
 // delta generation, each repository gets either a whole-repository retract
 // row (when its delta touched a CODEOWNERS candidate location — see
 // buildCodeownersOwnershipDeltaAwareRetractRows) or a row scoped to its

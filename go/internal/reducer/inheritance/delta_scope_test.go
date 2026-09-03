@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package reducer
+package inheritance
 
 import (
 	"context"
@@ -10,26 +10,29 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
+	"github.com/eshu-hq/eshu/go/internal/reducer/factload"
+	"github.com/eshu-hq/eshu/go/internal/reducer/payloadcore"
 )
 
 func TestInheritanceMaterializationHandlerScopesDeltaRetractToFiles(t *testing.T) {
 	t.Parallel()
 
 	writer := &recordingInheritanceIntentWriter{}
-	handler := InheritanceMaterializationHandler{
+	handler := MaterializationHandler{
 		FactLoader:   &stubFactLoader{envelopes: inheritanceDeltaEntityFacts()},
 		IntentWriter: writer,
 	}
 
-	_, err := handler.Handle(context.Background(), Intent{
+	_, err := handler.Handle(context.Background(), reducercontract.Intent{
 		IntentID:     "intent-inheritance-delta",
 		ScopeID:      "scope-code",
 		GenerationID: "gen-2",
 		SourceSystem: "git",
-		Domain:       DomainInheritanceMaterialization,
+		Domain:       reducercontract.DomainInheritanceMaterialization,
 		EnqueuedAt:   time.Date(2026, time.June, 13, 9, 5, 0, 0, time.UTC),
 		AvailableAt:  time.Date(2026, time.June, 13, 9, 5, 0, 0, time.UTC),
-		Status:       IntentStatusPending,
+		Status:       reducercontract.IntentStatusPending,
 	})
 	if err != nil {
 		t.Fatalf("Handle() error = %v, want nil", err)
@@ -59,10 +62,10 @@ func TestInheritanceMaterializationHandlerDeletedOnlyDeltaRetractsWithoutWrites(
 	t.Parallel()
 
 	writer := &recordingInheritanceIntentWriter{}
-	handler := InheritanceMaterializationHandler{
+	handler := MaterializationHandler{
 		FactLoader: &stubFactLoader{envelopes: []facts.Envelope{
 			{
-				FactKind: factKindRepository,
+				FactKind: factload.FactKindRepository,
 				ScopeID:  "scope-code",
 				Payload: map[string]any{
 					"repo_id":                      "repo-123",
@@ -77,15 +80,15 @@ func TestInheritanceMaterializationHandlerDeletedOnlyDeltaRetractsWithoutWrites(
 		IntentWriter: writer,
 	}
 
-	result, err := handler.Handle(context.Background(), Intent{
+	result, err := handler.Handle(context.Background(), reducercontract.Intent{
 		IntentID:     "intent-inheritance-deleted",
 		ScopeID:      "scope-code",
 		GenerationID: "gen-2",
 		SourceSystem: "git",
-		Domain:       DomainInheritanceMaterialization,
+		Domain:       reducercontract.DomainInheritanceMaterialization,
 		EnqueuedAt:   time.Date(2026, time.June, 13, 9, 10, 0, 0, time.UTC),
 		AvailableAt:  time.Date(2026, time.June, 13, 9, 10, 0, 0, time.UTC),
-		Status:       IntentStatusPending,
+		Status:       reducercontract.IntentStatusPending,
 	})
 	if err != nil {
 		t.Fatalf("Handle() error = %v, want nil", err)
@@ -114,9 +117,9 @@ func TestInheritanceMaterializationHandlerDeletedOnlyDeltaRetractsWithoutWrites(
 func TestBuildInheritanceRetractRowsKeepsMalformedDeltaScoped(t *testing.T) {
 	t.Parallel()
 
-	rows := buildInheritanceRetractRows([]string{"repo-123"}, inheritanceDeltaScope{
-		repositoryIDs: []string{"repo-123"},
-		hasDelta:      true,
+	rows := BuildRetractRows([]string{"repo-123"}, DeltaScope{
+		RepositoryIDs: []string{"repo-123"},
+		HasDelta:      true,
 	})
 	if len(rows) != 1 {
 		t.Fatalf("retract rows len = %d, want 1", len(rows))
@@ -125,7 +128,7 @@ func TestBuildInheritanceRetractRowsKeepsMalformedDeltaScoped(t *testing.T) {
 	if got, ok := payload["delta_projection"].(bool); !ok || !got {
 		t.Fatalf("delta_projection = %#v, want true", payload["delta_projection"])
 	}
-	if gotPaths := semanticPayloadStringSlice(payload, "delta_file_paths"); len(gotPaths) != 0 {
+	if gotPaths := payloadcore.SemanticPayloadStringSlice(payload, "delta_file_paths"); len(gotPaths) != 0 {
 		t.Fatalf("delta_file_paths = %#v, want empty malformed delta scope", gotPaths)
 	}
 }
@@ -133,7 +136,7 @@ func TestBuildInheritanceRetractRowsKeepsMalformedDeltaScoped(t *testing.T) {
 func inheritanceDeltaEntityFacts() []facts.Envelope {
 	return []facts.Envelope{
 		{
-			FactKind: factKindRepository,
+			FactKind: factload.FactKindRepository,
 			ScopeID:  "scope-code",
 			Payload: map[string]any{
 				"repo_id":                      "repo-123",
@@ -146,7 +149,7 @@ func inheritanceDeltaEntityFacts() []facts.Envelope {
 			},
 		},
 		{
-			FactKind: factKindContentEntity,
+			FactKind: factload.FactKindContentEntity,
 			ScopeID:  "scope-code",
 			Payload: map[string]any{
 				"repo_id":     "repo-123",
@@ -157,7 +160,7 @@ func inheritanceDeltaEntityFacts() []facts.Envelope {
 			},
 		},
 		{
-			FactKind: factKindContentEntity,
+			FactKind: factload.FactKindContentEntity,
 			ScopeID:  "scope-code",
 			Payload: map[string]any{
 				"repo_id":     "repo-123",

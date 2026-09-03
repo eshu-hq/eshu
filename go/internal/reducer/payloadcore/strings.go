@@ -198,3 +198,33 @@ func FormatTally(counts map[string]int) string {
 	}
 	return strings.Join(parts, ",")
 }
+
+// DedupeNonEmptyStrings returns the trimmed, non-empty values with duplicates
+// removed, preserving first-seen order. It differs from UniqueSortedStrings
+// only in that it does NOT sort: callers that derive a deterministic key from
+// the result must sort it themselves, and callers that need the producer's
+// order (an inheritance trait-adaptation list, for instance) depend on it being
+// preserved here.
+func DedupeNonEmptyStrings(values []string) []string {
+	if len(values) == 0 {
+		return nil
+	}
+
+	seen := make(map[string]struct{}, len(values))
+	deduped := make([]string, 0, len(values))
+	for _, value := range values {
+		value = strings.TrimSpace(value)
+		if value == "" {
+			continue
+		}
+		if _, ok := seen[value]; ok {
+			continue
+		}
+		seen[value] = struct{}{}
+		deduped = append(deduped, value)
+	}
+	if len(deduped) == 0 {
+		return nil
+	}
+	return deduped
+}

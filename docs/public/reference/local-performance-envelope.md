@@ -289,7 +289,7 @@ No-Regression Evidence: #2751 is an audit and documentation deliverable. It adds
 no reducer conflict key, intent emit, queue SQL, graph write, Cypher, worker,
 lease, batch, runtime knob, schema DDL, metric, span, log field, status field,
 API/MCP route, collector runtime, or provider call. The classification is backed
-by the existing delta-scope retract proofs (`inheritance_delta_scope_test.go`,
+by the existing delta-scope retract proofs (`inheritance/delta_scope_test.go`,
 `sql_relationship_delta_scope_test.go`) and the direct-write handler call sites.
 
 No-Observability-Change: the audit records which durable anchors and convergence
@@ -715,7 +715,7 @@ operator-facing surface.
 
 ### Inheritance Edges File-Scoped Partition Promotion (#2867)
 
-`InheritanceMaterializationHandler` wrote INHERITS/IMPLEMENTS/OVERRIDES/ALIASES
+`inheritance.MaterializationHandler` wrote INHERITS/IMPLEMENTS/OVERRIDES/ALIASES
 edges **directly** (synchronous `EdgeWriter.RetractEdges`/`WriteEdges` in the
 materialization handler). #2867 promotes it onto the #2755 indexed partitioned
 runner: the handler now emits durable shared-projection intents via
@@ -732,7 +732,7 @@ the fence reconstructs it exactly.
 
 No-Regression Evidence: the promoted path is proven byte-identical to the direct
 path by state-modeling convergence tests in
-`go/internal/reducer/inheritance_materialization_partition_test.go`:
+`go/internal/reducer/inherits_edge_partition_convergence_test.go`:
 `TestInheritancePartitionConvergesFullReprojection` (repo-wide retract + write
 across 3 child files / 4 edges, seeded from a non-empty prior graph) and
 `TestInheritancePartitionConvergesDelta` (a changed-file retract replaces only the

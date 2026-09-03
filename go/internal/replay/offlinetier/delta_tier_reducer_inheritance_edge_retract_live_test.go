@@ -137,7 +137,7 @@ func TestReducerInheritanceEdgeRetractGraphTruth(t *testing.T) {
 		{
 			IntentID:     "retract",
 			RepositoryID: inheritEdgeInScopeRepoID,
-			// The per-repo refresh payload buildInheritanceRefreshIntents
+			// The per-repo refresh payload inheritance.BuildRefreshIntents
 			// emits (#6166). inheritance_edges binds
 			// collectWholeScopeRefreshRepoIDs on its non-delta branch, so a
 			// row without the refresh intent_type builds no statement at all

@@ -1,9 +1,13 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package reducer
+package inheritance
 
-import "strings"
+import (
+	"strings"
+
+	"github.com/eshu-hq/eshu/go/internal/reducer/payloadcore"
+)
 
 type inheritanceTraitAlias struct {
 	TraitName        string
@@ -12,7 +16,7 @@ type inheritanceTraitAlias struct {
 }
 
 func inheritancePayloadTraitAdaptations(payload map[string]any) []string {
-	return semanticPayloadMetadataStringSlice(payload, "trait_adaptations")
+	return payloadcore.SemanticPayloadMetadataStringSlice(payload, "trait_adaptations")
 }
 
 func inheritanceTraitOverrideTargets(adaptation string) []string {
@@ -40,7 +44,7 @@ func inheritanceTraitOverrideTargets(adaptation string) []string {
 			targets = append(targets, target)
 		}
 	}
-	return dedupeNonEmptyStrings(targets)
+	return payloadcore.DedupeNonEmptyStrings(targets)
 }
 
 func inheritanceTraitAliasTargets(adaptation string) []string {

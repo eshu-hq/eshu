@@ -13,7 +13,7 @@ import (
 
 // sqlRelationshipPartitionKeyVersion namespaces every sql_relationships partition
 // key so a future key-shape change can run alongside the old one without
-// colliding. It mirrors inheritancePartitionKeyVersion (#2868).
+// colliding. It mirrors inheritance.PartitionKeyVersion (#2868).
 const sqlRelationshipPartitionKeyVersion = "sql-relationships:v1"
 
 // sqlRelationshipFilePartitionKey returns the file-scoped partition key for a
@@ -102,7 +102,7 @@ func buildSQLRelationshipSharedIntentRows(
 			PartitionKey:     sqlRelationshipFilePartitionKey(repoID, sourcePath, edgeIdentity),
 			IdentityKey:      edgeIdentity,
 			ScopeID:          context.ScopeID,
-			AcceptanceUnitID: context.acceptanceUnitID(repoID),
+			AcceptanceUnitID: context.ResolveAcceptanceUnitID(repoID),
 			RepositoryID:     repoID,
 			SourceRunID:      context.SourceRunID,
 			GenerationID:     context.GenerationID,
@@ -156,7 +156,7 @@ func buildSQLRelationshipRefreshIntents(
 			ProjectionDomain: DomainSQLRelationships,
 			PartitionKey:     sqlRelationshipWholeScopePartitionKey(repoID),
 			ScopeID:          context.ScopeID,
-			AcceptanceUnitID: context.acceptanceUnitID(repoID),
+			AcceptanceUnitID: context.ResolveAcceptanceUnitID(repoID),
 			RepositoryID:     repoID,
 			SourceRunID:      context.SourceRunID,
 			GenerationID:     context.GenerationID,

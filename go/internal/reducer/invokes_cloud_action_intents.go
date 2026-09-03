@@ -208,7 +208,7 @@ func buildInvokesCloudActionIntentRows(
 				ProjectionDomain: DomainInvokesCloudAction,
 				PartitionKey:     functionID + "->" + action,
 				ScopeID:          context.ScopeID,
-				AcceptanceUnitID: context.acceptanceUnitID(repositoryID),
+				AcceptanceUnitID: context.ResolveAcceptanceUnitID(repositoryID),
 				RepositoryID:     repositoryID,
 				SourceRunID:      context.SourceRunID,
 				GenerationID:     context.GenerationID,

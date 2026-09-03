@@ -11,11 +11,17 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
+	"github.com/eshu-hq/eshu/go/internal/reducer/factload"
+	"github.com/eshu-hq/eshu/go/internal/reducer/inheritance"
+	"github.com/eshu-hq/eshu/go/internal/reducer/payloadcore"
+	"github.com/eshu-hq/eshu/go/internal/reducer/schemadecode"
+	"github.com/eshu-hq/eshu/go/internal/reducer/sharedintent"
 )
 
 // inheritanceStateModelingEdgeWriter models the canonical inheritance edge STATE
 // the way the real edge writer dispatch does (edge_writer_retract.go,
-// DomainInheritanceEdges branch):
+// reducercontract.DomainInheritanceEdges branch):
 //
 //   - RetractEdges: if ANY row carries delta_projection=true, delete only the
 //     edges whose child_path is in the union of those rows' delta_file_paths
@@ -42,7 +48,7 @@ func newInheritanceStateModelingEdgeWriter() *inheritanceStateModelingEdgeWriter
 func (w *inheritanceStateModelingEdgeWriter) RetractEdges(
 	_ context.Context,
 	_ string,
-	rows []SharedProjectionIntentRow,
+	rows []sharedintent.Row,
 	_ string,
 ) error {
 	deltaPaths, hasDelta := inheritanceTestDeltaFilePaths(rows)
@@ -65,7 +71,7 @@ func (w *inheritanceStateModelingEdgeWriter) RetractEdges(
 func (w *inheritanceStateModelingEdgeWriter) WriteEdges(
 	_ context.Context,
 	_ string,
-	rows []SharedProjectionIntentRow,
+	rows []sharedintent.Row,
 	_ string,
 ) (SharedProjectionWriteReport, error) {
 	for _, row := range rows {
@@ -78,7 +84,7 @@ func (w *inheritanceStateModelingEdgeWriter) WriteEdges(
 			edges = make(map[string]string)
 			w.edgesByRepo[repoID] = edges
 		}
-		edges[inheritanceTestEdgeKey(row.Payload)] = anyToString(row.Payload["child_path"])
+		edges[inheritanceTestEdgeKey(row.Payload)] = payloadcore.AnyToString(row.Payload["child_path"])
 	}
 	return SharedProjectionWriteReport{}, nil
 }
@@ -93,15 +99,15 @@ func (w *inheritanceStateModelingEdgeWriter) edgeKeys(repoID string) []string {
 }
 
 func inheritanceTestEdgeKey(payload map[string]any) string {
-	return anyToString(payload["child_entity_id"]) + "->" +
-		anyToString(payload["parent_entity_id"]) + ":" +
-		anyToString(payload["relationship_type"])
+	return payloadcore.AnyToString(payload["child_entity_id"]) + "->" +
+		payloadcore.AnyToString(payload["parent_entity_id"]) + ":" +
+		payloadcore.AnyToString(payload["relationship_type"])
 }
 
 // inheritanceTestDeltaFilePaths mirrors collectDeltaFilePaths: a delta retract is
 // active when any row carries delta_projection=true, and the file set is the
 // union of every such row's delta_file_paths.
-func inheritanceTestDeltaFilePaths(rows []SharedProjectionIntentRow) (map[string]struct{}, bool) {
+func inheritanceTestDeltaFilePaths(rows []sharedintent.Row) (map[string]struct{}, bool) {
 	paths := make(map[string]struct{})
 	hasDelta := false
 	for _, row := range rows {
@@ -120,7 +126,7 @@ func inheritanceTestDeltaFilePaths(rows []SharedProjectionIntentRow) (map[string
 	return paths, hasDelta
 }
 
-func inheritanceTestRepoIDs(rows []SharedProjectionIntentRow) []string {
+func inheritanceTestRepoIDs(rows []sharedintent.Row) []string {
 	seen := make(map[string]struct{}, len(rows))
 	var out []string
 	for _, row := range rows {
@@ -139,13 +145,13 @@ func inheritanceTestRepoIDs(rows []SharedProjectionIntentRow) []string {
 
 func inheritanceFenceConfig(partitionID, partitionCount int) PartitionProcessorConfig {
 	return PartitionProcessorConfig{
-		Domain:         DomainInheritanceEdges,
+		Domain:         reducercontract.DomainInheritanceEdges,
 		PartitionID:    partitionID,
 		PartitionCount: partitionCount,
 		LeaseOwner:     "worker-1",
 		LeaseTTL:       30 * time.Second,
 		BatchLimit:     100,
-		EvidenceSource: inheritanceEvidenceSource,
+		EvidenceSource: inheritance.EvidenceSource,
 	}
 }
 
@@ -158,7 +164,7 @@ func inheritanceConvergenceFixture(repoID, repoPath string, delta bool, changedR
 	const scopeID = "scope-inh"
 	parentEnt := func(name, id, relPath string) facts.Envelope {
 		return facts.Envelope{
-			FactKind: factKindContentEntity,
+			FactKind: factload.FactKindContentEntity,
 			ScopeID:  scopeID,
 			Payload: map[string]any{
 				"repo_id":     repoID,
@@ -171,7 +177,7 @@ func inheritanceConvergenceFixture(repoID, repoPath string, delta bool, changedR
 	}
 	childEnt := func(name, id, relPath, base string) facts.Envelope {
 		return facts.Envelope{
-			FactKind: factKindContentEntity,
+			FactKind: factload.FactKindContentEntity,
 			ScopeID:  scopeID,
 			Payload: map[string]any{
 				"repo_id":     repoID,
@@ -198,7 +204,7 @@ func inheritanceConvergenceFixture(repoID, repoPath string, delta bool, changedR
 	}
 
 	repository := facts.Envelope{
-		FactKind: factKindRepository,
+		FactKind: factload.FactKindRepository,
 		ScopeID:  scopeID,
 		Payload: map[string]any{
 			"repo_id":       repoID,
@@ -218,21 +224,21 @@ func inheritanceConvergenceFixture(repoID, repoPath string, delta bool, changedR
 // returns the seeded edge writer.
 func seedPriorInheritanceEdges(rows []map[string]any) *inheritanceStateModelingEdgeWriter {
 	edges := newInheritanceStateModelingEdgeWriter()
-	_, _ = edges.WriteEdges(context.Background(), DomainInheritanceEdges, inheritanceDirectWriteRows(rows), inheritanceEvidenceSource)
+	_, _ = edges.WriteEdges(context.Background(), reducercontract.DomainInheritanceEdges, inheritanceDirectWriteRows(rows), inheritance.EvidenceSource)
 	return edges
 }
 
 // inheritanceDirectWriteRows builds the DIRECT-path write set: one
-// SharedProjectionIntentRow per extracted edge carrying the full payload
+// sharedintent.Row per extracted edge carrying the full payload
 // (including child_path), matching what the legacy direct EdgeWriter.WriteEdges
 // received. It is the reference write set the promoted path must reproduce.
-func inheritanceDirectWriteRows(rows []map[string]any) []SharedProjectionIntentRow {
-	intents := make([]SharedProjectionIntentRow, 0, len(rows))
+func inheritanceDirectWriteRows(rows []map[string]any) []sharedintent.Row {
+	intents := make([]sharedintent.Row, 0, len(rows))
 	for _, row := range rows {
-		intents = append(intents, SharedProjectionIntentRow{
-			ProjectionDomain: DomainInheritanceEdges,
-			RepositoryID:     anyToString(row["repo_id"]),
-			Payload:          copyPayload(row),
+		intents = append(intents, sharedintent.Row{
+			ProjectionDomain: reducercontract.DomainInheritanceEdges,
+			RepositoryID:     payloadcore.AnyToString(row["repo_id"]),
+			Payload:          payloadcore.CopyPayload(row),
 		})
 	}
 	return intents
@@ -250,27 +256,27 @@ func TestInheritancePartitionConvergesFullReprojection(t *testing.T) {
 	const repoPath = "/repo"
 
 	envelopes := inheritanceConvergenceFixture(repoID, repoPath, false, nil)
-	repoIDs, rows := ExtractInheritanceRows(envelopes)
-	deltaScope := buildInheritanceDeltaScope(envelopes)
-	contextByRepoID := buildCodeCallProjectionContexts(envelopes, "gen-1")
+	repoIDs, rows := inheritance.ExtractRows(envelopes)
+	deltaScope := inheritance.BuildDeltaScope(envelopes)
+	contextByRepoID := schemadecode.BuildProjectionContexts(envelopes, "gen-1")
 
 	// DIRECT path: seed prior edges, then retract + write.
 	direct := seedPriorInheritanceEdges(rows)
 	if err := direct.RetractEdges(
-		context.Background(), DomainInheritanceEdges,
-		buildInheritanceRetractRows(repoIDs, deltaScope), inheritanceEvidenceSource,
+		context.Background(), reducercontract.DomainInheritanceEdges,
+		inheritance.BuildRetractRows(repoIDs, deltaScope), inheritance.EvidenceSource,
 	); err != nil {
 		t.Fatalf("direct retract: %v", err)
 	}
 	if _, err := direct.WriteEdges(
-		context.Background(), DomainInheritanceEdges,
-		inheritanceDirectWriteRows(rows), inheritanceEvidenceSource,
+		context.Background(), reducercontract.DomainInheritanceEdges,
+		inheritanceDirectWriteRows(rows), inheritance.EvidenceSource,
 	); err != nil {
 		t.Fatalf("direct write: %v", err)
 	}
 
 	// PARTITIONED path: seed the SAME prior edges, emit shared intents, drain.
-	intents := buildInheritanceSharedIntentRows(rows, deltaScope, repoIDs, contextByRepoID, now.Add(-time.Minute))
+	intents := inheritance.BuildSharedIntentRows(rows, deltaScope, repoIDs, contextByRepoID, now.Add(-time.Minute))
 	assertInheritanceIntentKeyShapes(t, intents)
 
 	partitioned := seedPriorInheritanceEdges(rows)
@@ -297,30 +303,30 @@ func TestInheritancePartitionConvergesDelta(t *testing.T) {
 	// Changed files: a.py and b.py. c.py is unchanged, so GammaA's prior edge
 	// must survive in both paths.
 	envelopes := inheritanceConvergenceFixture(repoID, repoPath, true, []string{"a.py", "b.py"})
-	repoIDs, rows := ExtractInheritanceRows(envelopes)
-	deltaScope := buildInheritanceDeltaScope(envelopes)
-	contextByRepoID := buildCodeCallProjectionContexts(envelopes, "gen-1")
-	if !deltaScope.hasDelta {
+	repoIDs, rows := inheritance.ExtractRows(envelopes)
+	deltaScope := inheritance.BuildDeltaScope(envelopes)
+	contextByRepoID := schemadecode.BuildProjectionContexts(envelopes, "gen-1")
+	if !deltaScope.HasDelta {
 		t.Fatal("fixture must produce a delta scope")
 	}
 
 	// DIRECT path.
 	direct := seedPriorInheritanceEdges(rows)
 	if err := direct.RetractEdges(
-		context.Background(), DomainInheritanceEdges,
-		buildInheritanceRetractRows(repoIDs, deltaScope), inheritanceEvidenceSource,
+		context.Background(), reducercontract.DomainInheritanceEdges,
+		inheritance.BuildRetractRows(repoIDs, deltaScope), inheritance.EvidenceSource,
 	); err != nil {
 		t.Fatalf("direct retract: %v", err)
 	}
 	if _, err := direct.WriteEdges(
-		context.Background(), DomainInheritanceEdges,
-		inheritanceDirectWriteRows(rows), inheritanceEvidenceSource,
+		context.Background(), reducercontract.DomainInheritanceEdges,
+		inheritanceDirectWriteRows(rows), inheritance.EvidenceSource,
 	); err != nil {
 		t.Fatalf("direct write: %v", err)
 	}
 
 	// PARTITIONED path.
-	intents := buildInheritanceSharedIntentRows(rows, deltaScope, repoIDs, contextByRepoID, now.Add(-time.Minute))
+	intents := inheritance.BuildSharedIntentRows(rows, deltaScope, repoIDs, contextByRepoID, now.Add(-time.Minute))
 	assertInheritanceIntentKeyShapes(t, intents)
 	partitioned := seedPriorInheritanceEdges(rows)
 	partitioned = drainInheritanceInto(t, partitioned, intents, partitionCount, now)
@@ -342,7 +348,7 @@ func TestInheritancePartitionConvergesDelta(t *testing.T) {
 func drainInheritanceInto(
 	t *testing.T,
 	edges *inheritanceStateModelingEdgeWriter,
-	intents []SharedProjectionIntentRow,
+	intents []sharedintent.Row,
 	partitionCount int,
 	now time.Time,
 ) *inheritanceStateModelingEdgeWriter {
@@ -383,7 +389,7 @@ func drainInheritanceInto(
 // partition keys and the refresh intent carries the whole-scope key, the keyspace
 // invariant that lets edges spread across partitions while one refresh owns the
 // repo-wide retract.
-func assertInheritanceIntentKeyShapes(t *testing.T, intents []SharedProjectionIntentRow) {
+func assertInheritanceIntentKeyShapes(t *testing.T, intents []sharedintent.Row) {
 	t.Helper()
 
 	sawRefresh := false
@@ -391,13 +397,13 @@ func assertInheritanceIntentKeyShapes(t *testing.T, intents []SharedProjectionIn
 	for _, intent := range intents {
 		if isRepoRefreshRow(intent) {
 			sawRefresh = true
-			if intent.PartitionKey != inheritanceWholeScopePartitionKey(intent.RepositoryID) {
+			if intent.PartitionKey != inheritance.WholeScopePartitionKey(intent.RepositoryID) {
 				t.Fatalf("refresh intent partition key %q is not the whole-scope fence key", intent.PartitionKey)
 			}
 			continue
 		}
 		sawPerEdge = true
-		if !strings.HasPrefix(intent.PartitionKey, inheritancePartitionKeyVersion+":files:") {
+		if !strings.HasPrefix(intent.PartitionKey, inheritance.PartitionKeyVersion+":files:") {
 			t.Fatalf("per-edge intent partition key %q lacks file-scoped prefix", intent.PartitionKey)
 		}
 		if !rowUsesRefreshFence(intent) {

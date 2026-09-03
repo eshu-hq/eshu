@@ -146,7 +146,7 @@ func buildRepoWideRetractRefreshIntents(
 			ProjectionDomain: domain,
 			PartitionKey:     repoWideRetractRefreshPartitionKey(domain, repoID),
 			ScopeID:          context.ScopeID,
-			AcceptanceUnitID: context.acceptanceUnitID(repoID),
+			AcceptanceUnitID: context.ResolveAcceptanceUnitID(repoID),
 			RepositoryID:     repoID,
 			SourceRunID:      context.SourceRunID,
 			GenerationID:     context.GenerationID,
