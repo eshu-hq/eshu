@@ -12,7 +12,9 @@
 // Typedef, TypeAlias, Component, Module, ImplBlock, Protocol,
 // ProtocolImplementation), then per-language predicates that admit callables
 // and language-specific shapes carrying real metadata, so a plain Go func or
-// a bare ES module produces no intent. A fact with a blank repo_id is
+// a bare ES module is admitted unconditionally, because Module is in the
+// closed semanticEntityReducerTypes set and the per-language predicates run
+// only for types outside it. A fact with a blank repo_id is
 // rejected because the entity key is the repository acceptance unit. The
 // intent's source-system label is the raw SourceRef.SourceSystem, not the
 // two-tier projectorintent.SourceSystem fallback the scope-generation

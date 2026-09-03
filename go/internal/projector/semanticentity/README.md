@@ -9,9 +9,12 @@ entity type first — `Annotation`, `Typedef`, `TypeAlias`, `Component`,
 `Module`, `ImplBlock`, `Protocol`, `ProtocolImplementation` are semantic on
 their own — then a set of per-language predicates that admit callables and
 language-specific shapes carrying real metadata. A plain Go `func` with no
-docstring, receiver, decorator or type parameter produces no intent; so does
-a bare TypeScript ES module that is neither a namespace nor part of a
-declaration merge.
+docstring, receiver, decorator or type parameter produces no intent. A bare
+TypeScript ES module does not behave that way: `Module` is in the closed
+`semanticEntityReducerTypes` set, and the per-language predicates run only for
+types absent from that set (`entity_intents.go:61`), so a module short-circuits
+past `isTypeScriptModuleSemanticEntity` and is admitted unconditionally. That
+is the preserved pre-extraction behaviour.
 
 ## Ownership boundary
 
@@ -71,7 +74,10 @@ queue, storage, graph, span, metric, or log boundary.
   return an intent for many facts in the same generation. They all share the
   `repo:<repo_id>` entity key, so root's deterministic sort and the
   reducer's per-key claim collapse them into one unit of work — but
-  `result.Intents.Count` does count each one.
+  `result.Intents.Count` does NOT count each one: it is the enqueue
+    INSERT's `RowsAffected`, not `len(intents)` (`../runtime.go:59`, #5593).
+    Accepted facts sharing a repository yield the same work-item ID, so
+    `ON CONFLICT DO NOTHING` collapses them and the count is normally one.
 - `SourceSystem` is the raw `fact.SourceRef.SourceSystem`, **not** the
   two-tier trimmed `projectorintent.SourceSystem` fallback the
   scope-generation families use. That difference is the preserved
