@@ -56,14 +56,20 @@
 # pin. A cap `//nolint:dirgate` is refused here (grandfather_eval.go and
 # dirgate-core.sh both enforce this): the marker sits on the directory's
 # representative file and would suppress the cap for every file in it forever,
-# so one marker on internal/query's doc.go would un-gate 853 files silently.
+# so one marker on internal/query's doc.go would un-gate 854 files silently --
+# the 853 its row below pins, plus the one whose addition tripped the cap. That
+# is why this number is one more than the row, and it is the only copy of it:
+# dirgate-core.sh, grandfather_eval.go, its test and the dirgate README used to
+# each carry their own and all four drifted.
 # A bump is one line in this file that a reviewer sees and can argue with.
 #
-# Splitting the directory is the better exit, and for query, reducer, projector
-# and mcp it now compiles: the acyclic boundary landed, and each of those four
-# has since moved at least one family into a subpackage. A split re-pins the
-# row DOWN, which is the outcome this ledger is trying to reach -- see
-# docs/internal/design/package-restructure.md.
+# Splitting the directory is the better exit. For query, reducer, projector and
+# mcp it does not compile as written -- see the acyclic-boundary prerequisite in
+# docs/internal/design/package-restructure.md -- but it does once the family's
+# shared contracts are hoisted into a leaf package below both root and the
+# family, which is the first exit that section names. Each of those four has now
+# moved at least one family that way, and a split re-pins the row DOWN, which is
+# the outcome this ledger is trying to reach.
 #
 # `scripts/dev/precommit-go.sh dirgate-digest <dir>` prints the count and
 # digest for a directory so you can update or drop a row honestly.
