@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package coordinator
+package ociregistry
 
 import (
 	"context"
@@ -25,16 +25,17 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/workflow"
 )
 
-// OCIRegistryPlanRequest carries one OCI registry collector planning request.
-type OCIRegistryPlanRequest struct {
+// PlanRequest carries one OCI registry collector planning request.
+type PlanRequest struct {
 	Instance   workflow.CollectorInstance
 	ObservedAt time.Time
 	PlanKey    string
 }
 
-// OCIRegistryWorkPlanner plans workflow rows for configured OCI registry
-// repository targets without opening any registry connection.
-type OCIRegistryWorkPlanner struct{}
+// WorkPlanner plans workflow rows for configured OCI registry repository
+// targets without opening any registry connection. It implements the parent
+// coordinator's OCIRegistryPlanner interface.
+type WorkPlanner struct{}
 
 type ociRegistryRuntimeConfiguration struct {
 	Targets []ociRegistryTargetConfiguration `json:"targets"`
@@ -55,11 +56,11 @@ type ociRegistryTargetConfiguration struct {
 
 // PlanOCIRegistryWork returns one run and one work item per configured OCI
 // registry repository target.
-func (p OCIRegistryWorkPlanner) PlanOCIRegistryWork(
+func (p WorkPlanner) PlanOCIRegistryWork(
 	_ context.Context,
-	request OCIRegistryPlanRequest,
+	request PlanRequest,
 ) (workflow.Run, []workflow.WorkItem, error) {
-	if err := validateOCIRegistryPlanRequest(request); err != nil {
+	if err := validatePlanRequest(request); err != nil {
 		return workflow.Run{}, nil, err
 	}
 	targets, err := parseOCIRegistryRuntimeTargets(request.Instance.Configuration)
@@ -94,7 +95,7 @@ func (p OCIRegistryWorkPlanner) PlanOCIRegistryWork(
 	return run, items, nil
 }
 
-func validateOCIRegistryPlanRequest(request OCIRegistryPlanRequest) error {
+func validatePlanRequest(request PlanRequest) error {
 	if err := request.Instance.Validate(); err != nil {
 		return fmt.Errorf("OCI registry plan request: %w", err)
 	}
@@ -304,6 +305,11 @@ func ociRegistryTargetIdentity(target ociRegistryTargetConfiguration) (ociregist
 	return ociregistry.NormalizeRepositoryIdentity(identity)
 }
 
+// firstNonBlank is a package-local copy of a tiny string helper. The parent
+// coordinator package keeps its own identical helper because its
+// package-registry and vulnerability-intelligence planners (not extracted
+// here) still depend on it; do not try to unify the two into a shared
+// export for a five-line pure function.
 func firstNonBlank(values ...string) string {
 	for _, value := range values {
 		if strings.TrimSpace(value) != "" {

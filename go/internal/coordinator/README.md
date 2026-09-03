@@ -24,10 +24,10 @@ telemetry.
 The `tempoplanner` child owns the Tempo trace-signal planning request and pure
 planner; root retains scheduling order, tenant and egress filtering, the
 plan-key clock, durable admission, retries, and telemetry.
-The `lokiplanner` and `prometheusmimir` children own pure planning for Loki and
-Prometheus/Mimir observability targets; root retains scheduling order, tenant
-and egress filtering, the plan-key clock, durable admission, retries, and
-telemetry.
+The `lokiplanner`, `prometheusmimir`, and `ociregistry` children own pure
+planning for Loki, Prometheus/Mimir, and OCI registry targets; root retains
+scheduling order, tenant and egress filtering, the plan-key clock, durable
+admission, retries, and telemetry.
 
 ## Where this fits in the pipeline
 
@@ -119,9 +119,11 @@ one enabled bounded scope; invalid configurations fail validation.
   resolved discovery candidates. `BackendFacts` returns both Terraform backend
   block candidates and Terragrunt remote_state candidates resolved into their
   underlying backend kind, so the planner stays on one scheduler shape.
-- `OCIRegistryWorkPlanner` — plans OCI registry collection runs from configured
-  repository targets without opening registry connections. Each target becomes
-  one claimable work item keyed by the normalized registry repository scope.
+- `OCIRegistryPlanner` — the root interface implemented by
+  `ociregistry.WorkPlanner`, which plans OCI registry collection runs from
+  configured repository targets without opening registry connections. Each
+  target becomes one claimable work item keyed by the normalized registry
+  repository scope.
 - `PackageRegistryWorkPlanner` — plans package-registry collection runs from
   configured package/feed targets and optional active owned package evidence
   without opening registry connections. Each configured or derived target
@@ -231,7 +233,7 @@ one enabled bounded scope; invalid configurations fail validation.
 - `internal/coordinator/jiraplanner` — Jira membership, privacy, and planning.
 - `internal/coordinator/vaultlive` — Vault metadata plan request and
   deterministic planner implementation.
-- `internal/coordinator/tempoplanner`, `lokiplanner`, `prometheusmimir`, `grafanaplanner`, `gcpplanner`, `componentextensionplanner` — planners;
+- `internal/coordinator/tempoplanner`, `lokiplanner`, `prometheusmimir`, `grafanaplanner`, `gcpplanner`, `ociregistry`, `componentextensionplanner` — planners;
   `componentactivation` — dependency-neutral activation config.
 - `internal/workflow` — `DesiredCollectorInstance`, `CollectorInstance`,
   `Claim`, and default accessors; used throughout `Store` and `Config`.
@@ -239,8 +241,6 @@ one enabled bounded scope; invalid configurations fail validation.
   `DesiredCollectorInstance`.
 - `internal/telemetry` — `MetricDimensionOutcome` attribute key used in
   `otelMetrics`.
-- `internal/collector/ociregistry` — OCI repository identity normalization used
-  by the claim planner.
 - `internal/collector/awscloud/freshness` — normalized AWS freshness trigger
   and target identity used by the AWS freshness planner.
 - `internal/webhook` — normalized PagerDuty and Jira incident freshness

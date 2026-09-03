@@ -48,6 +48,18 @@
      and `config.go` call `gcpplanner.EnabledScopes` and
      `gcpplanner.ValidateClaimSchedulerConfiguration` instead of reaching into
      the child's private configuration types
+   - `go/internal/coordinator/ociregistry/planner.go` and
+     `oci_registry_service.go` — the extracted OCI registry planner and root
+     seam; preserve per-provider identity resolution across Docker Hub, GHCR,
+     ECR, Google Artifact Registry, Azure Container Registry, JFrog, and
+     Harbor, and duplicate normalized-target rejection. The child keeps its
+     own copy of the tiny `firstNonBlank` helper rather than importing root's
+     copy, which still serves package-registry and vulnerability-intelligence
+     planning that remain unextracted at root. Unlike every other extraction
+     in this list, the `OCIRegistryPlanner` interface itself stays in
+     `service.go` rather than moving into `oci_registry_service.go` — issue
+     #6057 scopes this move to the `_scheduler.go` half only and treats
+     decomposing `Service`'s interface block as a separate design decision
    - `go/internal/coordinator/componentextensionplanner/planner.go` and
      `component_extension_service.go` — the extracted generic
      component-extension planner and root seam; preserve activation-scoped
@@ -90,8 +102,10 @@
   `s.Store == nil`. Do not add fallback behavior here.
 - **Shared plan-key validation stays dependency-neutral** — schedulers and
   extension egress parsing call `plannercontract.ValidateSafePlanKey` directly.
-  Terraform-state keeps its separate validator, and the root `firstNonBlank`
-  helper remains with its existing OCI/package/vulnerability consumers.
+  Terraform-state keeps its separate validator. The root `firstNonBlank`
+  helper (`owned_package_target_helpers.go`) remains with its package-registry
+  and vulnerability-intelligence consumers; the extracted `ociregistry` child
+  keeps its own identical copy rather than importing root.
 
 ## Common changes and how to scope them
 

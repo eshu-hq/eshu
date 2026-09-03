@@ -8,12 +8,13 @@ import (
 	"testing"
 	"time"
 
+	"github.com/eshu-hq/eshu/go/internal/coordinator/ociregistry"
 	"github.com/eshu-hq/eshu/go/internal/scope"
 	"github.com/eshu-hq/eshu/go/internal/workflow"
 )
 
 type fakeOCIRegistryPlanner struct {
-	requests []OCIRegistryPlanRequest
+	requests []ociregistry.PlanRequest
 	run      workflow.Run
 	items    []workflow.WorkItem
 	err      error
@@ -21,7 +22,7 @@ type fakeOCIRegistryPlanner struct {
 
 func (f *fakeOCIRegistryPlanner) PlanOCIRegistryWork(
 	_ context.Context,
-	request OCIRegistryPlanRequest,
+	request ociregistry.PlanRequest,
 ) (workflow.Run, []workflow.WorkItem, error) {
 	f.requests = append(f.requests, request)
 	if f.err != nil {

@@ -25,6 +25,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/coordinator/grafanaplanner"
 	"github.com/eshu-hq/eshu/go/internal/coordinator/jiraplanner"
 	"github.com/eshu-hq/eshu/go/internal/coordinator/lokiplanner"
+	"github.com/eshu-hq/eshu/go/internal/coordinator/ociregistry"
 	"github.com/eshu-hq/eshu/go/internal/coordinator/pagerdutyplanner"
 	"github.com/eshu-hq/eshu/go/internal/coordinator/prometheusmimir"
 	"github.com/eshu-hq/eshu/go/internal/coordinator/sbomattestation"
@@ -180,7 +181,7 @@ func run(parent context.Context) error {
 			GitReadiness: postgres.TerraformStateGitReadinessChecker{DB: postgres.SQLQueryer{DB: db}},
 			BackendFacts: postgres.TerraformStateBackendFactReader{DB: postgres.SQLQueryer{DB: db}},
 		},
-		OCIRegistryPlanner:                coordinator.OCIRegistryWorkPlanner{},
+		OCIRegistryPlanner:                ociregistry.WorkPlanner{},
 		PackageRegistryPlanner:            coordinator.PackageRegistryWorkPlanner{},
 		VulnerabilityIntelligencePlanner:  coordinator.VulnerabilityIntelligenceWorkPlanner{},
 		SBOMAttestationPlanner:            sbomattestation.WorkPlanner{},

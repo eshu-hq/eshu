@@ -18,8 +18,8 @@
 // or call Google Cloud APIs.
 //
 // TerraformStateWorkPlanner plans Terraform-state collection runs from resolved
-// discovery candidates. OCIRegistryWorkPlanner, PackageRegistryWorkPlanner,
-// and VulnerabilityIntelligenceWorkPlanner each plan bounded work items without
+// discovery candidates. PackageRegistryWorkPlanner and
+// VulnerabilityIntelligenceWorkPlanner each plan bounded work items without
 // opening provider connections. Package and
 // vulnerability planners preserve direct and owned target priority ahead of
 // broad fanout and report aggregate skipped-target evidence when an
@@ -65,6 +65,13 @@
 // fairness metadata, and returns a populated run for valid empty selections.
 // The coordinator retains collector-egress filtering, tenant-grant authorization,
 // and Postgres open-target admission, which prevents overlapping scheduled work.
+// The root OCIRegistryPlanner interface accepts the child
+// ociregistry.PlanRequest; the child plans one bounded claimable work item per
+// configured repository target across Docker Hub, GHCR, ECR, Google Artifact
+// Registry, Azure Container Registry, JFrog, and Harbor, resolving each into a
+// shared normalized repository identity and rejecting duplicate normalized
+// targets before any work item is built. The root retains scheduling order,
+// the plan-key clock, durable admission, retries, and telemetry.
 // The root GCPPlanner interface accepts the child gcpplanner.PlanRequest; the
 // child plans one bounded Cloud Asset Inventory work item per enabled GCP
 // scope after explicit live opt-in and exposes EnabledScopes and

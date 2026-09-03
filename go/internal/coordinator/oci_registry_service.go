@@ -9,6 +9,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/eshu-hq/eshu/go/internal/coordinator/ociregistry"
 	"github.com/eshu-hq/eshu/go/internal/scope"
 	"github.com/eshu-hq/eshu/go/internal/workflow"
 )
@@ -28,7 +29,7 @@ func (s Service) scheduleOCIRegistryWork(
 		if s.OCIRegistryPlanner == nil {
 			return fmt.Errorf("OCI registry planner is required for active oci_registry collectors")
 		}
-		run, items, err := s.OCIRegistryPlanner.PlanOCIRegistryWork(ctx, OCIRegistryPlanRequest{
+		run, items, err := s.OCIRegistryPlanner.PlanOCIRegistryWork(ctx, ociregistry.PlanRequest{
 			Instance:   instance,
 			ObservedAt: observedAt,
 			PlanKey:    s.ociRegistryPlanKey(instance, observedAt),
