@@ -411,7 +411,7 @@ func iacManagementRoute(toolName string, args map[string]any) (*route, bool) {
 
 // adaptChildRoute converts a child selector's dependency-neutral request and
 // handled flag into the root dispatcher's transport route, copying method,
-// path, body, and query verbatim so the four in-file adapters above cannot
+// path, body, and query verbatim so the in-file adapters above cannot
 // drift from one another.
 func adaptChildRoute(request routecontract.Request, handled bool) (*route, bool) {
 	if !handled {
