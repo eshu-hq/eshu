@@ -63,13 +63,13 @@
 # each carry their own and all four drifted.
 # A bump is one line in this file that a reviewer sees and can argue with.
 #
-# Splitting the directory is the better exit. For query, reducer, projector and
-# mcp it does not compile as written -- see the acyclic-boundary prerequisite in
-# docs/internal/design/package-restructure.md -- but it does once the family's
-# shared contracts are hoisted into a leaf package below both root and the
-# family, which is the first exit that section names. Each of those four has now
-# moved at least one family that way, and a split re-pins the row DOWN, which is
-# the outcome this ledger is trying to reach.
+# Splitting the directory is the better exit, and for query, reducer, projector
+# and mcp it now compiles: the acyclic boundary those four needed landed in
+# #6100, and each has since moved at least one family on top of it. Hoisting the
+# specific contracts a family needs into a leaf package below both root and the
+# family is still per-family work, so a row does not become splittable for free.
+# A split re-pins the row DOWN, which is the outcome this ledger is trying to
+# reach -- see docs/internal/design/package-restructure.md.
 #
 # `scripts/dev/precommit-go.sh dirgate-digest <dir>` prints the count and
 # digest for a directory so you can update or drop a row honestly.
