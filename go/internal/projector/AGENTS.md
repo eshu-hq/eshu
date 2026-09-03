@@ -197,6 +197,24 @@
   topic-split root test files kept one builder-only case (the dockerfile
   tombstone-removal trigger test), which moved into the child's own test
   file; every other case stayed at root, renamed `_projection_test.go`.
+- **Crossplane-satisfied-by family (#6057)** — the
+  `crossplane_satisfied_by_materialization` builder lives in
+  `crossplanesatisfiedby/` and consumes the lookup like the families above.
+  It carries no decode seam: it triggers on the earliest `content_entity`
+  fact whose `entity_type` (falling back to `entity_kind`) is `K8sResource`
+  or `CrossplaneXRD`. The root `crossplaneSatisfiedBySourceSystem` helper was
+  byte-identical to `projectorintent.SourceSystem` and was dropped rather
+  than moved. **This family is NOT covered by the root fan-out parity
+  fixture** — `reducer.DomainCrossplaneSatisfiedByMaterialization` appears in
+  neither `fanOutParityExpectations` nor `fanOutParityExpectedOrder` in
+  `scope_generation_intents_fanout_parity_test.go`, and the shared fixture in
+  `scope_generation_intents_fanout_test.go` carries no
+  `K8sResource`/`CrossplaneXRD` content-entity fact, so the child package's
+  own tests are the only coverage for its reason string, entity key, and
+  source-system derivation. The root test file mixed builder-level
+  assertions with `buildProjection` dispatcher assertions; all three cases
+  actually exercise `buildProjection`, so the whole file stayed at root,
+  renamed `crossplane_satisfied_by_materialization_projection_test.go`.
 - **CanonicalWriter interface boundary** — no caller in this package calls a Neo4j
   or NornicDB driver directly. All canonical writes go through `CanonicalWriter`.
   Backend-specific logic belongs in `internal/storage/cypher` adapters.
