@@ -45,7 +45,7 @@
   not interchangeable across tools.
 - Return the zero request and `handled=false` for unrelated tools, including
   `search_entity_content` and `search_file_content`, which stay in the root
-  switch because they share the `contentSearchBody` helper.
+  `content` child, which now owns the `contentSearchBody` helper.
 - Selection stays pure: no HTTP call, no query, no clock, no environment
   read.
 

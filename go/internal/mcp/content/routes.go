@@ -53,8 +53,11 @@ func Route(toolName string, args routecontract.Arguments) (routecontract.Request
 // to pattern when query is blank; repo scope collapses to a single repo_id
 // key when zero or one repo selector is supplied and to repo_ids only when
 // more than one is supplied, matching the handler's single/multi-repo
-// contract. limit defaults to 10 and offset to 0, the same values the
-// content-search handlers substitute for an absent argument.
+// contract. limit defaults to 10 and offset to 0. These are this selector's
+// own defaults and are deliberately NOT the handler's: query/content_handler.go
+// substitutes 50 for a call that bypasses this selector or supplies a
+// nonpositive limit. The two are independent, so changing one does not change
+// the other.
 func contentSearchBody(args routecontract.Arguments) map[string]any {
 	body := map[string]any{
 		"query":  args.String("query"),

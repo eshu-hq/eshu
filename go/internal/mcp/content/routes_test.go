@@ -159,7 +159,7 @@ func TestRouteAppliesContentDefaultsForAbsentArguments(t *testing.T) {
 			t.Fatalf("Route(%s) body type = %T, want map[string]any", tool, request.Body)
 		}
 		if got := body["limit"]; got != 10 {
-			t.Errorf("%s absent limit -> %#v, want the handler-matching default 10", tool, got)
+			t.Errorf("%s absent limit -> %#v, want this selector's own default 10 (the handler substitutes 50 independently)", tool, got)
 		}
 		if got := body["offset"]; got != 0 {
 			t.Errorf("%s absent offset -> %#v, want 0, the first page", tool, got)
@@ -178,7 +178,7 @@ func TestRouteAppliesContentDefaultsForAbsentArguments(t *testing.T) {
 	}
 	packetBody := packet.Body.(map[string]any)
 	if got := packetBody["limit"]; got != 10 {
-		t.Errorf("absent limit -> %#v, want the handler-matching default 10", got)
+		t.Errorf("absent limit -> %#v, want this selector's own default 10 (the handler substitutes 50 independently)", got)
 	}
 	if got := packetBody["subject"]; got != nil {
 		t.Errorf("absent subject -> %#v, want nil", got)

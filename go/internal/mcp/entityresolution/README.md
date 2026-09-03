@@ -79,10 +79,10 @@ degraded-read metrics on `EntityHandler.Instruments`.
   and `float64` are honoured, a `float64` truncates toward zero, and every
   other type — including a stringified `"17"` — falls back to the default.
 - Family membership is an explicit name switch, never a prefix match:
-  `search_entity_content` shares the entity spelling but stays in the root
-  switch, because its whole body comes from `contentSearchBody`, the builder
-  it shares with `search_file_content`, and that pair's shared wire shape
-  keeps one owner until the content family moves together.
+    `search_entity_content` shares the entity spelling but is not part of this
+    family. Its whole body comes from `contentSearchBody`, the builder it
+    shares with `search_file_content`, and that pair moved together into the
+    `content` child, which now owns both the helper and the routes.
 
 No-Observability-Change: this extraction moves only pure entity-resolution
 route selection. The root adapter still feeds the same global fanout,
