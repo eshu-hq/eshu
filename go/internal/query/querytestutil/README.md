@@ -460,6 +460,28 @@ The promotion is a move: the append and resolve bodies came across from
 delegates rather than reimplements, so the work per call is identical to before
 and every consumer call site is untouched.
 
+No-Regression Evidence: the flagged hot file is `go/internal/query/catalog.go`,
+which does issue a real Cypher `MATCH` against the graph. This change does not
+touch that query. The only edit there turns `CatalogWorkloadIdentityEntry` from
+a struct declaration into a type ALIAS onto `querycontract`, so the shared
+`FakePortContentStore` can name it from outside the root package. An alias
+preserves type identity, so no conversion, copy, or extra allocation is
+introduced on the row-decoding path; the query text, its parameters, and the
+decode loop are byte-identical. The same shape applies to the other read models
+promoted to `querycontract` in this change.
+
+`FakePortContentStore` itself is a test double and runs only inside test
+binaries, so it sits on no production path at all. Its promotion is a move: the
+method bodies came across from `ports_test.go` unchanged and the root package
+keeps an unexported adapter that delegates rather than reimplements, so the work
+per call is identical.
+
+Measured rather than asserted: 126 files under `internal/query` name
+`fakePortContentStore`, and this change touches 4 of them -- `ports_test.go`
+plus the two files its method bodies were split into, and one delegating method
+in `service_story_target_support_test.go`. Those are the fake's DEFINITION
+sites. The remaining 122, which are the call sites, are untouched.
+
 No-Observability-Change: no metric, span, log, or status surface is touched. A
 test double deliberately emits no telemetry -- one that produced spans would
 pollute the traces of whatever it stands in for.
