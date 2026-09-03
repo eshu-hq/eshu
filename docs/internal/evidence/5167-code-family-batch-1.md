@@ -274,10 +274,18 @@ mutation was restored and its guard rerun at exit `0`.
 | 8 | `symbolNameFallbackEntities` always takes the single-lookup branch (`if true`), so it asks for repository `""` | `go test ./internal/query -run TestSymbolNameFallback -count=1` | `1` (`repositories = []string{""}`) |
 | 9 | `complexityListAnchor` returns the `OPTIONAL MATCH` form for every caller (`if false`) | `go test ./internal/query -run TestComplexityListDoesNotLeakUngrantedFunctions -count=1` | `1` |
 | 10 | `crossRepoDeadCodeConsumerScan` emits `AND true /* $n */` instead of `AND row.repository_id = ANY($n)` | `go test ./internal/query -run TestCrossRepoDeadCode -count=1` | `1` |
+| 11 | the same mutation as #9, run against the live backend instead of the fake | `ESHU_NEO4J_URI=bolt://localhost:17787 go test ./internal/query -tags live_nornicdb_complexity_grant -run TestLiveNornicDBComplexityListFiltersUngrantedFunctions -count=1` | `1` (leaked `LiveUngrantedComplexityProbe` and `LiveOrphanComplexityProbe`) |
 
 An earlier attempt at #1 deleted the whole helper body and failed as an unused
 import rather than an assertion, which proves nothing. The mutations above keep
 the package compiling so the failure is the assertion's.
+
+Rows 9 and 11 are the same one-token mutation judged by two different guards.
+Row 9 is the credential-free guard that runs in CI; row 11 is the live NornicDB
+one, and it is the only row in this table that settles clause attachment against
+a real backend. A second engineer reran both directions of row 11 on a fresh
+container from the same pinned digest (NornicDB self-reporting 1.2.2, bolt on
+port 17787): mutated exit `1` with the leak body quoted above, restored exit `0`.
 
 ## Verification
 
