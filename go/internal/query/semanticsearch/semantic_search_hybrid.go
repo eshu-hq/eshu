@@ -1,0 +1,157 @@
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2025-2026 eshu-hq
+
+package semanticsearch
+
+import (
+	"context"
+	"fmt"
+	"strings"
+
+	"github.com/eshu-hq/eshu/go/internal/searchbench"
+	"github.com/eshu-hq/eshu/go/internal/searchdocs"
+	"github.com/eshu-hq/eshu/go/internal/searchembed"
+	"github.com/eshu-hq/eshu/go/internal/searchhybrid"
+	"github.com/eshu-hq/eshu/go/internal/searchretrieval"
+)
+
+const semanticSearchLocalHybridCorpusLimit = 500
+
+// SemanticSearchHybridStore searches active curated documents with a configured
+// local hybrid backend.
+type SemanticSearchHybridStore interface {
+	Search(context.Context, SemanticSearchIndexQuery) (SemanticSearchIndexResult, error)
+}
+
+// SemanticSearchDocumentStore loads active curated search documents for the
+// request-time local hybrid adapter.
+type SemanticSearchDocumentStore interface {
+	ListActiveDocuments(context.Context, semanticSearchDocumentQuery) ([]semanticSearchDocumentRow, error)
+}
+
+type semanticSearchDocumentQuery struct {
+	ScopeID     string
+	RepoID      string
+	SourceKinds []searchdocs.SourceKind
+	// Languages restricts the candidate set to documents whose Labels include
+	// "language:<lang>" for one of the listed values. Empty means no filter.
+	Languages []string
+	Limit     int
+}
+
+type semanticSearchDocumentRow struct {
+	Document searchdocs.Document
+}
+
+// LocalSemanticSearchHybrid builds a deterministic no-network hybrid index for
+// one bounded request.
+type LocalSemanticSearchHybrid struct {
+	Documents SemanticSearchDocumentStore
+}
+
+// NewLocalSemanticSearchHybrid creates a request-time local hybrid retrieval
+// adapter over active curated search documents.
+func NewLocalSemanticSearchHybrid(documents SemanticSearchDocumentStore) *LocalSemanticSearchHybrid {
+	return &LocalSemanticSearchHybrid{Documents: documents}
+}
+
+// Search loads active documents for one repository scope and runs the pure-Go
+// hybrid backend with the deterministic hash embedder.
+func (h *LocalSemanticSearchHybrid) Search(
+	ctx context.Context,
+	query SemanticSearchIndexQuery,
+) (SemanticSearchIndexResult, error) {
+	if h == nil || h.Documents == nil {
+		return SemanticSearchIndexResult{}, fmt.Errorf("local semantic search hybrid document store is required")
+	}
+	rows, err := h.Documents.ListActiveDocuments(ctx, semanticSearchDocumentQuery{
+		ScopeID:     query.ScopeID,
+		RepoID:      query.RepoID,
+		SourceKinds: query.SourceKinds,
+		Languages:   query.Languages,
+		Limit:       semanticSearchLocalHybridCorpusLimit,
+	})
+	if err != nil {
+		return SemanticSearchIndexResult{}, err
+	}
+	docs := make([]searchdocs.Document, 0, len(rows))
+	for _, row := range rows {
+		if !semanticSearchDocumentMatchesLanguages(row.Document, query.Languages) {
+			continue
+		}
+		docs = append(docs, row.Document)
+	}
+	embedder, err := searchembed.NewHashEmbedder(searchembed.DefaultDimensions)
+	if err != nil {
+		return SemanticSearchIndexResult{}, err
+	}
+	index, err := searchhybrid.NewIndex(docs, searchhybrid.Options{
+		MaxDocuments: semanticSearchLocalHybridCorpusLimit,
+		Embedder:     embedder,
+	})
+	if err != nil {
+		return SemanticSearchIndexResult{}, err
+	}
+	candidates, err := (searchhybrid.Backend{Index: index}).Search(ctx, query.Request)
+	if err != nil {
+		return SemanticSearchIndexResult{}, err
+	}
+	return SemanticSearchIndexResult{
+		Candidates:           candidates,
+		IndexedDocumentCount: index.Size(),
+		CorpusLimit:          semanticSearchLocalHybridCorpusLimit,
+		CorpusMayBeTruncated: index.Overflow() > 0 || len(rows) >= semanticSearchLocalHybridCorpusLimit,
+		RetrievalState:       semanticSearchActiveRetrievalState(query.Request.Mode, candidates),
+	}, nil
+}
+
+// semanticSearchDocumentMatchesLanguages reports whether doc carries at least
+// one "language:<lang>" label matching a value in langs. When langs is empty
+// the document always matches (no filter).
+func semanticSearchDocumentMatchesLanguages(doc searchdocs.Document, langs []string) bool {
+	if len(langs) == 0 {
+		return true
+	}
+	want := make(map[string]struct{}, len(langs))
+	for _, l := range langs {
+		want[l] = struct{}{}
+	}
+	for _, label := range doc.Labels {
+		if lang, ok := strings.CutPrefix(label, "language:"); ok {
+			if _, match := want[lang]; match {
+				return true
+			}
+		}
+	}
+	return false
+}
+
+func defaultSemanticSearchRetrievalState(mode searchbench.Mode) string {
+	switch mode {
+	case searchbench.ModeSemantic:
+		return "semantic_unavailable"
+	case searchbench.ModeHybrid:
+		return "hybrid_degraded"
+	default:
+		return "keyword_only"
+	}
+}
+
+func semanticSearchActiveRetrievalState(
+	mode searchbench.Mode,
+	candidates []searchretrieval.Candidate,
+) string {
+	switch mode {
+	case searchbench.ModeSemantic:
+		return "semantic_active"
+	case searchbench.ModeHybrid:
+		for _, candidate := range candidates {
+			if candidate.Metadata["search_method"] == "rrf_hybrid" {
+				return "hybrid_active"
+			}
+		}
+		return "hybrid_degraded"
+	default:
+		return "keyword_only"
+	}
+}

@@ -13,7 +13,7 @@ import (
 //
 // `search_semantic_context` forwards to POST /api/v0/search/semantic, and that
 // handler does not validate language values at all: semanticSearchLanguages
-// (go/internal/query/semantic_search_params.go) lowercases and trims each token
+// (go/internal/query/semanticsearch/semantic_search_params.go) lowercases and trims each token
 // and returns no error, so an unmatched language comes back as a 200 with an
 // empty result set. The tool description told callers the opposite — that
 // unknown values are rejected with HTTP 400 — which is a promise the server has

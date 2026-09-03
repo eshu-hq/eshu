@@ -1875,8 +1875,8 @@ with its own Mount(). Phase 0 decision needed first: 284 external files
 (86 in mcp dispatch) reference `query.<Type>`; the research recommends
 root type aliases (`type SupplyChainHandler = supplychain.Handler`) so
 external code compiles unchanged, burned down later. That alias alone does
-not compile — see the acyclic-boundary prerequisite below, which has to land
-first. Then clean families first: supplychain(~183), code(~172),
+not compile on its own — see the acyclic-boundary prerequisite below, which
+landed in #6100. Then clean families first: supplychain(~183), code(~172),
 contentread(42), packagereg(32).
 Tangled families (impact ← repository/service/deployment_trace call its
 unexported helpers) need the helper seam exported before their move. Root
@@ -1902,9 +1902,20 @@ family-specific types — whole-module grep before each family move.
 
 ### Prerequisite for four packages: an acyclic boundary
 
+**Status: landed in #6100 (closed 2026-08-23).** The analysis below is kept as
+written, because it is still the reason the boundary packages exist and the
+check to repeat for any family this plan did not itemize. What has changed is
+the tense: the four cycles it describes are resolved, by the first of the two
+remedies. For query the hoisted contracts live in `querycontract` (envelopes,
+error codes, profiles, capability registry, read ports), `queryauth`
+(request-scoped authorization bounds), `queryspan` (the per-route span),
+`querydecode` and `queryselector`. Each of the four packages has since moved at
+least one family on top of that boundary, so "does not compile as written" below
+should be read as the state before #6100, not as a live blocker.
+
 A reviewer caught this in query and reducer, and applying the same check to the
-rest of Part 3 found it in projector and mcp too. It is the one thing in this
-plan that does not compile as written.
+rest of Part 3 found it in projector and mcp too. It was the one thing in this
+plan that did not compile as written.
 
 The shape is always the same. Root calls into a symbol that is scheduled to move
 out, and the moved symbol needs a type that stays in root. Either edge alone is
@@ -1940,12 +1951,15 @@ Two ways out, and they are not interchangeable:
   it has to stay in root or the 284 external `query.<Type>` references stop
   compiling, which is the whole reason the alias exists.
 
-Until this lands, read `clean` in the family tables as what it measures: zero
-coupling to other families. It does not mean ready to move.
+Before #6100 landed, `clean` in the family tables meant only what it measures:
+zero coupling to other families, not ready to move. With the boundary in place a
+`clean` family is movable once the specific contracts it needs are reachable
+from a leaf package -- which is per-family work, so the distinction still
+matters when planning a move.
 
-This also breaks Part 4's order below, which moves projector and mcp well before
-query and reducer. Either the boundary lands first for every affected package, or
-those moves wait.
+This also blocked Part 4's order below, which moves projector and mcp well
+before query and reducer. That ordering constraint is discharged: #6100 landed
+one boundary PR per package before any family move.
 
 ## Part 4: execution model
 

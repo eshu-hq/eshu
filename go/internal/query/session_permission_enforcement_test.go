@@ -4,23 +4,55 @@
 package query
 
 import (
+	"context"
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
 	"testing"
 
+	"github.com/eshu-hq/eshu/go/internal/query/querytestutil"
 	"github.com/eshu-hq/eshu/go/internal/searchretrieval"
 )
 
+// stubSemanticSearchIndex is this package's own SemanticSearchIndexStore double
+// for the session-permission sweep. The handler family moved to
+// internal/query/semanticsearch for #6060 and has a double of its own; Go never
+// compiles a package's _test.go files into anything another package can import,
+// so no export level shares one, on either side of the move.
+//
+// These tests are not semantic-search tests: they use the handler as the
+// vehicle for asserting that a browser session and a scoped token authorize
+// identically, so they belong to root's cross-cutting auth sweep and stay here
+// rather than moving with the family.
+//
+// calls is the load-bearing field. Each test asserts on it to prove the denial
+// happened before retrieval rather than after, which a status code alone cannot
+// show: a handler that searched and then rejected the results would return the
+// same 403.
+type stubSemanticSearchIndex struct {
+	result SemanticSearchIndexResult
+	calls  int
+}
+
+func (s *stubSemanticSearchIndex) Search(
+	_ context.Context,
+	_ SemanticSearchIndexQuery,
+) (SemanticSearchIndexResult, error) {
+	s.calls++
+	result := s.result
+	result.Candidates = append([]searchretrieval.Candidate(nil), result.Candidates...)
+	return result, nil
+}
+
 // askSearchEntitledSemanticIndex returns an index store wired to succeed so an
 // entitled caller reaches a 200 with one bounded result.
-func askSearchEntitledSemanticIndex() *fakeSemanticSearchIndexStore {
-	return &fakeSemanticSearchIndexStore{
-		result: semanticSearchIndexResult{
+func askSearchEntitledSemanticIndex() *stubSemanticSearchIndex {
+	return &stubSemanticSearchIndex{
+		result: SemanticSearchIndexResult{
 			IndexedDocumentCount: 1,
 			Candidates: []searchretrieval.Candidate{
 				{
-					Document: semanticSearchDocumentFixture(
+					Document: querytestutil.SemanticSearchDocumentFixture(
 						"searchdoc:payments",
 						"repo-payments",
 						"Payments runbook",
@@ -38,7 +70,7 @@ func askSearchEntitledSemanticIndex() *fakeSemanticSearchIndexStore {
 // repository.
 func askSearchRequest(t *testing.T) *http.Request {
 	t.Helper()
-	return semanticSearchHTTPRequest(t, map[string]any{
+	return querytestutil.SemanticSearchHTTPRequest(t, map[string]any{
 		"repo_id":    "repo-payments",
 		"query":      "payment runbook",
 		"mode":       "keyword",
@@ -76,14 +108,22 @@ func unentitledAskSearchAuth(mode AuthMode) AuthContext {
 	}
 }
 
-func runSemanticSearch(t *testing.T, auth AuthContext) (*httptest.ResponseRecorder, *fakeSemanticSearchIndexStore) {
+// runSemanticSearch drives the semantic-search route end to end under auth.
+//
+// It goes through Mount and a real mux rather than calling the handler method
+// directly: the method is unexported and now lives in another package, and
+// routing through the mux is what the deployed API actually does, so a route
+// that stopped being registered would fail here instead of passing.
+func runSemanticSearch(t *testing.T, auth AuthContext) (*httptest.ResponseRecorder, *stubSemanticSearchIndex) {
 	t.Helper()
 	index := askSearchEntitledSemanticIndex()
 	handler := &SemanticSearchHandler{Index: index, Profile: ProfileProduction}
+	mux := http.NewServeMux()
+	handler.Mount(mux)
 	req := askSearchRequest(t)
 	req = req.WithContext(ContextWithAuthContext(req.Context(), auth))
 	rec := httptest.NewRecorder()
-	handler.search(rec, req)
+	mux.ServeHTTP(rec, req)
 	return rec, index
 }
 

@@ -13,9 +13,11 @@
 # ---------------------------------------------------------------------------
 # A cap nolint sits on the directory's representative file and would suppress the
 # cap for the whole directory forever. On a grandfathered directory that is the
-# hollow-out path: one marker on internal/query's doc.go un-gates 867 files, and
-# "split it into a subpackage" does not compile for query/reducer/projector/mcp
-# until the acyclic boundary lands. So the hatch must be refused there.
+# hollow-out path: one marker on internal/query's doc.go un-gates every file that
+# directory's ledger row counts. "Split it into a subpackage" is the better exit
+# and works now that the acyclic boundary landed (#6100), but it needs the
+# family's shared contracts hoisted into a leaf package first, so short of that
+# work the hatch must still be refused there.
 test_grandfathered_cap_nolint_is_refused() {
 	local repo tsv digest
 	repo="$(new_scratch_repo)"

@@ -149,14 +149,20 @@ query-specific and an unready build is never inserted into the cache.
 
 ```bash
 cd go
-GOCACHE=/tmp/eshu-5274-gocache go test -race ./internal/query \
+GOCACHE=/tmp/eshu-5274-gocache go test -race ./internal/query/semanticsearch \
   -run 'TestSemanticSearchIndexCache|TestPersistedSemanticSearch|TestPostgresSemanticSearchSnapshot|TestSemanticSearchSnapshot' \
-  -count=1
+  -count=1 -v | rg -c '^=== RUN'
 
 ESHU_SEMANTIC_SEARCH_CACHE_LIVE=1 ESHU_POSTGRES_DSN='<local retained DSN>' \
-  GOCACHE=/tmp/eshu-5274-gocache go test ./internal/query \
+  GOCACHE=/tmp/eshu-5274-gocache go test ./internal/query/semanticsearch \
   -run '^TestSemanticSearchIndexCachePGXLive$' -count=5 -v
 ```
+
+The first command prints `23` and exits 0. Check that count rather than the
+exit status: these tests moved to the `semanticsearch` child package in #6060,
+and `-run` exits 0 when its pattern matches nothing, so the pre-move path
+`./internal/query` still prints `ok` and `no tests to run` while executing none
+of this evidence.
 
 The DSN is supplied from local retained-stack configuration and is never
 printed or committed.

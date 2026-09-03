@@ -300,11 +300,12 @@ dirgate_evaluate_dir() {
 		# Mirrors evaluateCapViolation's caller in grandfather_eval.go: a cap
 		# nolint sits on the directory's representative file and suppresses the
 		# cap for EVERY file in that directory, indefinitely. One marker on
-		# internal/query's doc.go would un-gate 867 files for good, and "split it
-		# into a subpackage" does not compile for query, reducer, projector or
-		# mcp until the acyclic boundary lands. A grandfathered directory's only
-		# exit is a reviewed pin bump in dirgate-grandfather.tsv, which a
-		# reviewer can see as a one-line diff.
+		# internal/query's doc.go would un-gate every file its ledger row
+		# counts, for good. "Split it into a subpackage" is the better exit and
+		# now works for query, reducer, projector and mcp once the family's
+		# shared contracts are hoisted into a leaf package first. Short of that,
+		# a grandfathered directory's only exit is a reviewed pin bump in
+		# dirgate-grandfather.tsv, which a reviewer can see as a one-line diff.
 		if [[ -n "${pinned_count}" ]]; then
 			local msg="package directory ${dirkey} has ${count} non-test .go files, exceeding the ${DIRGATE_MAX_FILES}-file cap"
 			[[ -n "${cap_note}" ]] && msg="${msg} (${cap_note})"

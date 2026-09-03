@@ -96,13 +96,15 @@ func evaluateDirectory(key, dir string, grandfather map[string]grandfatherEntry)
 		// A cap nolint goes on the directory's representative file and would
 		// suppress the cap for EVERY file in that directory, indefinitely. On a
 		// grandfathered directory that is catastrophic: one marker on
-		// internal/query's doc.go un-gates 867 files for good, and the "split it
-		// into a subpackage" exit does not even compile for query, reducer,
-		// projector or mcp until the acyclic boundary lands (see the Part 3
-		// prerequisite in docs/internal/design/package-restructure.md). So the
-		// escape hatch is refused here: a grandfathered directory's only exit is
-		// a reviewed pin bump, which shows up as a one-line TSV diff a reviewer
-		// can see and argue with.
+		// internal/query's doc.go un-gates every file its ledger row counts,
+		// for good. The "split it into a subpackage" exit is the better one and
+		// now works for query, reducer, projector and mcp, but only once the
+		// family's shared contracts are hoisted into a leaf package below both
+		// root and the family (see the Part 3 prerequisite in
+		// docs/internal/design/package-restructure.md). So the escape hatch is
+		// refused here: short of a split, a grandfathered directory's only exit
+		// is a reviewed pin bump, which shows up as a one-line TSV diff a
+		// reviewer can see and argue with.
 		if grandfathered {
 			out = append(out, finding{File: rep, Message: capMessage(key, count, capNote, true)})
 		} else if _, justified := nolintJustification(filepath.Join(dir, rep), gateName); !justified {

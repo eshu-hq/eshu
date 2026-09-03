@@ -39,14 +39,16 @@ the anchor by hand rather than through Go; the limits are listed under
 The fix landed on `main` in **#6076** (`bdfccfa96`), which squash-merged the
 three commits of branch `5052-bm25`. The production change is
 `semanticSearchCanonicalAnchorRequest` in
-`go/internal/query/semantic_search_scope_resolution.go`, which rebinds the
-anchor to the resolved canonical repository id before retrieval runs, plus a
+`go/internal/query/semanticsearch/semantic_search_scope_resolution.go`, which
+rebinds the anchor to the resolved canonical repository id before retrieval
+runs, plus a
 fail-closed guard in `resolveScope` that stops a scope-prefixed id surviving as
 `repositoryID`.
 
 That guarantee holds for a handler that has a `ScopeResolver`. Without one,
 `resolveScope` returns at its first statement and hands the requested id back
-unchanged as `repositoryID` (`semantic_search_scope_resolution.go:51-53`), so a
+unchanged as `repositoryID`
+(`semanticsearch/semantic_search_scope_resolution.go:52-53`), so a
 scope-prefixed id still reaches the anchor and the rebinding helper has nothing
 to rebind it to — with no resolver there is no mapping. Only local, test, or
 custom wiring takes that path: both services build the handler with a resolver
@@ -67,7 +69,7 @@ A regression test that still passes with the fix removed guards nothing, so both
 guards were mutated and watched go red.
 
 Baseline, all six tests in
-`go/internal/query/semantic_search_scope_anchor_test.go`:
+`go/internal/query/semanticsearch/semantic_search_scope_anchor_test.go`:
 
 ```
 $ cd go && go test ./internal/query/ \
@@ -75,6 +77,21 @@ $ cd go && go test ./internal/query/ \
 ok  	github.com/eshu-hq/eshu/go/internal/query	1.151s
 BASELINE_EXIT=0
 ```
+
+The transcript above is the original run at `4ed13e70e`, when these tests were
+in root package `query`. They moved to the `semanticsearch` child package in
+#6060, so that exact command no longer reaches them. Re-run it today as:
+
+```bash
+cd go && go test ./internal/query/semanticsearch \
+    -run 'TestSemanticSearchKeyword|TestSemanticSearchScopeIDWithService|TestSemanticSearchResolveScope' \
+    -count=1 -v | rg -c '^=== RUN'
+```
+
+That prints `8` — the six tests plus two subtests — and exits 0. Check the
+count rather than the exit status: `-run` exits 0 when its pattern matches
+nothing, so the pre-move command still prints `ok` and `no tests to run`, which
+would report this evidence green while executing none of it.
 
 ### Mutation 1 — remove the anchor rebinding
 

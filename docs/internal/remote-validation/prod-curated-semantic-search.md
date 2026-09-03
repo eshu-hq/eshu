@@ -31,7 +31,7 @@ promoted to canonical graph truth).
 ## Committed reproducible evidence
 
 **Handler contract, bounds, and scoped-token gating** —
-`go/internal/query/semantic_search_test.go`:
+`go/internal/query/semanticsearch/semantic_search_test.go`:
 `TestSemanticSearchHandlerReturnsBoundedTruthLabeledResults`,
 `TestSemanticSearchHandlerRejectsUnboundedRequestsBeforeRead`,
 `TestSemanticSearchHandlerScopedEmptyGrantReturnsEmptyWithoutRead`, and
@@ -39,19 +39,38 @@ promoted to canonical graph truth).
 Reproduce:
 
 ```bash
-cd go && go test ./internal/query -run TestSemanticSearchHandler -count=1
+cd go && go test ./internal/query/semanticsearch \
+    -run TestSemanticSearchHandler -count=1 -v | rg -c '^=== RUN'
 ```
 
+That prints `49` and exits 0. Check the count, not just the exit status: `-run`
+exits 0 when its pattern matches nothing, printing `no tests to run` and `ok`,
+so a stale package path here reports this capability green without executing a
+single handler test. The handlers live in the `semanticsearch` child package as
+of #6060, and `go help packages` is explicit that only a path containing `...`
+descends into child packages — `./internal/query` alone does not reach them.
+
 **Hybrid/local-embedder degradation honesty** —
-`go/internal/query/semantic_search_hybrid_test.go`:
+`go/internal/query/semanticsearch/semantic_search_hybrid_test.go`:
 `TestSemanticSearchHandlerConfiguredHybridReportsHybridParticipation` and
 `TestSemanticSearchHandlerHybridWithoutLocalEmbedderReportsDegradedKeywordState`
 (reports `bm25` rather than silently claiming vector search when no local
-embedder is configured, matching the production-profile note).
+embedder is configured, matching the production-profile note). Both are covered
+by the command above.
 
-**Route authorization** —
-`go/internal/query/semantic_search_test.go`:
-`TestAuthMiddlewareWithScopedTokensAllowsSemanticSearchRoute`.
+**Route authorization** — this one stays in root package `query`, because it
+asserts on root's middleware and mux rather than on the handler:
+`go/internal/query/semantic_search_route_auth_test.go`:
+`TestAuthMiddlewareWithScopedTokensAllowsSemanticSearchRoute`. Reproduce
+separately:
+
+```bash
+cd go && go test ./internal/query \
+    -run TestAuthMiddlewareWithScopedTokensAllowsSemanticSearchRoute \
+    -count=1 -v | rg -c '^=== RUN'
+```
+
+That prints `1` and exits 0.
 
 ## Notes
 

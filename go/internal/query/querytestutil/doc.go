@@ -19,6 +19,11 @@
 // direction: a non-test file under internal/query importing this package fails
 // the production query-callsite inventory.
 //
+// A fixture whose signature names a handler-family type cannot live here: this
+// package must not import a family, and a family's in-package tests import this
+// package, so that direction cycles. The consuming package declares its own
+// double for those. See AGENTS.md.
+//
 // A fake here must not call Run or RunSingle. That inventory walks this
 // directory like any other, so such a call is an unregistered production query
 // callsite and fails the gate. There is more than one way to satisfy that:

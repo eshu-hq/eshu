@@ -7,6 +7,7 @@ import (
 	"net/http"
 
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
+	"github.com/eshu-hq/eshu/go/internal/query/semanticsearch"
 )
 
 // Root contract identifiers preserve the stable envelope and playbook names.
@@ -15,7 +16,10 @@ const (
 	EnvelopeMIMEType = querycontract.EnvelopeMIMEType
 	// CapabilityQueryPlaybooks identifies deterministic playbook catalog reads.
 	CapabilityQueryPlaybooks = "query.playbooks"
-	semanticSearchCapability = "semantic_search.curated_retrieval"
+	// semanticSearchCapability is read from the family that implements the
+	// route (#6060) so this package's capability matrix and that handler's
+	// profile gate and envelopes cannot name two different capabilities.
+	semanticSearchCapability = semanticsearch.Capability
 )
 
 // QueryProfile names one supported query runtime profile.

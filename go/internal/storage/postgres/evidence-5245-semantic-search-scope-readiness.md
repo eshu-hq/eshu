@@ -148,6 +148,13 @@ have durably completed.
 
 ## Commands run
 
+The two `./internal/query` commands below ran before #6060 moved the
+semantic-search family to the `semanticsearch` child package. They are kept as
+run; to reproduce them today, read `./internal/query` as
+`./internal/query/semanticsearch` in both, and check the `=== RUN` count rather
+than the exit status -- `-run` exits 0 when its pattern matches nothing, so the
+pre-move path reports `ok` while executing none of them.
+
 ```bash
 GOCACHE=/tmp/eshu-5245-gocache go test ./internal/query \
   -run 'Test(SemanticSearchHandler.*Scope|PostgresSemanticSearchScopeResolver)' \

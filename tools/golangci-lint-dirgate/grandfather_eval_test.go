@@ -420,11 +420,11 @@ func TestEvaluateDirectoryMissingDirReturnsError(t *testing.T) {
 // TestEvaluateDirectoryGrandfatheredCapNolintIsRefused pins the rule that a cap
 // nolint cannot buy off a grandfathered directory. The marker goes on the
 // directory's representative file and would suppress the cap for every file in
-// it, indefinitely — one marker on internal/query's doc.go un-gates 867 files.
-// The "split it into a subpackage" alternative does not compile for query,
-// reducer, projector or mcp until the acyclic boundary lands, so refusing the
-// hatch here leaves the reviewed pin bump as the only exit, and a pin bump is a
-// one-line ledger diff a reviewer can see.
+// it, indefinitely — one marker on internal/query's doc.go un-gates every file
+// its ledger row counts. The "split it into a subpackage" alternative needs the
+// family's shared contracts hoisted into a leaf package first, so short of that
+// work the reviewed pin bump is the only exit, and a pin bump is a one-line
+// ledger diff a reviewer can see.
 func TestEvaluateDirectoryGrandfatheredCapNolintIsRefused(t *testing.T) {
 	dir := t.TempDir()
 	files := numberedFiles(maxDirFiles + 6)
