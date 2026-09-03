@@ -14,6 +14,7 @@ import (
 	"net/http/httptest"
 	"net/url"
 
+	codeinteltools "github.com/eshu-hq/eshu/go/internal/mcp/codeintel"
 	codequalitytools "github.com/eshu-hq/eshu/go/internal/mcp/codequality"
 	deadcodetools "github.com/eshu-hq/eshu/go/internal/mcp/deadcode"
 	entityresolutiontools "github.com/eshu-hq/eshu/go/internal/mcp/entityresolution"
@@ -171,6 +172,9 @@ func resolveRoute(toolName string, args map[string]any) (*route, error) {
 	if route, ok := codeFlowRoute(toolName, args); ok {
 		return route, nil
 	}
+	if route, ok := codeIntelRoute(toolName, args); ok {
+		return route, nil
+	}
 	if route, ok := deadCodeRoute(toolName, args); ok {
 		return route, nil
 	}
@@ -188,37 +192,6 @@ func resolveRoute(toolName string, args map[string]any) (*route, error) {
 	}
 	switch toolName {
 	// ── Code ──
-	case "find_code":
-		return &route{method: "POST", path: "/api/v0/code/search", body: map[string]any{
-			"query": str(args, "query"), "repo_id": str(args, "repo_id"),
-			"language": str(args, "language"), "limit": intOr(args, "limit", 10),
-			"exact": boolOr(args, "exact", false),
-		}}, nil
-	case "find_symbol":
-		return &route{method: "POST", path: "/api/v0/code/symbols/search", body: map[string]any{
-			"symbol":       str(args, "symbol"),
-			"match_mode":   str(args, "match_mode"),
-			"repo_id":      str(args, "repo_id"),
-			"language":     str(args, "language"),
-			"entity_type":  str(args, "entity_type"),
-			"entity_types": stringSlice(args, "entity_types"),
-			"limit":        intOr(args, "limit", 25),
-			"offset":       intOr(args, "offset", 0),
-		}}, nil
-	case "inspect_code_inventory":
-		return &route{method: "POST", path: "/api/v0/code/structure/inventory", body: map[string]any{
-			"repo_id":        str(args, "repo_id"),
-			"language":       str(args, "language"),
-			"inventory_kind": str(args, "inventory_kind"),
-			"entity_kind":    str(args, "entity_kind"),
-			"file_path":      str(args, "file_path"),
-			"symbol":         str(args, "symbol"),
-			"decorator":      str(args, "decorator"),
-			"method_name":    str(args, "method_name"),
-			"class_name":     str(args, "class_name"),
-			"limit":          intOr(args, "limit", 25),
-			"offset":         intOr(args, "offset", 0),
-		}}, nil
 	case "investigate_import_dependencies":
 		return &route{method: "POST", path: "/api/v0/code/imports/investigate", body: map[string]any{
 			"query_type":    str(args, "query_type"),
@@ -230,33 +203,6 @@ func resolveRoute(toolName string, args map[string]any) (*route, error) {
 			"target_module": str(args, "target_module"),
 			"limit":         intOr(args, "limit", 25),
 			"offset":        intOr(args, "offset", 0),
-		}}, nil
-	case "inspect_call_graph_metrics":
-		return &route{method: "POST", path: "/api/v0/code/call-graph/metrics", body: map[string]any{
-			"metric_type": str(args, "metric_type"),
-			"repo_id":     str(args, "repo_id"),
-			"language":    str(args, "language"),
-			"limit":       intOr(args, "limit", 25),
-			"offset":      intOr(args, "offset", 0),
-		}}, nil
-	case "trace_route_callers":
-		return &route{method: "POST", path: "/api/v0/code/routes/callers", body: map[string]any{
-			"repo_id":      str(args, "repo_id"),
-			"service_id":   str(args, "service_id"),
-			"service_name": str(args, "service_name"),
-			"method":       str(args, "method"),
-			"path":         str(args, "path"),
-			"max_depth":    intOr(args, "max_depth", 2),
-			"limit":        intOr(args, "limit", 25),
-		}}, nil
-	case "investigate_code_topic":
-		return &route{method: "POST", path: "/api/v0/code/topics/investigate", body: map[string]any{
-			"topic":    str(args, "topic"),
-			"intent":   str(args, "intent"),
-			"repo_id":  str(args, "repo_id"),
-			"language": str(args, "language"),
-			"limit":    intOr(args, "limit", 25),
-			"offset":   intOr(args, "offset", 0),
 		}}, nil
 	case "investigate_hardcoded_secrets":
 		return &route{method: "POST", path: "/api/v0/code/security/secrets/investigate", body: map[string]any{
@@ -301,24 +247,6 @@ func resolveRoute(toolName string, args map[string]any) (*route, error) {
 		return &route{method: "POST", path: "/api/v0/replatforming/rollups", body: replatformingRollupsBody(args)}, nil
 	case "find_unmanaged_resource_owners":
 		return &route{method: "POST", path: "/api/v0/replatforming/ownership-packets", body: replatformingOwnershipBody(args)}, nil
-	case "execute_language_query":
-		return &route{method: "POST", path: "/api/v0/code/language-query", body: map[string]any{
-			"language": str(args, "language"), "entity_type": str(args, "entity_type"),
-			"query": str(args, "query"), "repo_id": str(args, "repo_id"),
-			"limit": intOr(args, "limit", 50),
-		}}, nil
-	case "find_function_call_chain":
-		return &route{method: "POST", path: "/api/v0/code/call-chain", body: map[string]any{
-			"start":           str(args, "start"),
-			"end":             str(args, "end"),
-			"repo_id":         str(args, "repo_id"),
-			"cross_repo":      boolOr(args, "cross_repo", false),
-			"start_repo_id":   str(args, "start_repo_id"),
-			"end_repo_id":     str(args, "end_repo_id"),
-			"start_entity_id": str(args, "start_entity_id"),
-			"end_entity_id":   str(args, "end_entity_id"),
-			"max_depth":       intOr(args, "max_depth", 5),
-		}}, nil
 	case "execute_cypher_query":
 		return &route{method: "POST", path: "/api/v0/code/cypher", body: map[string]any{
 			"cypher_query": str(args, "cypher_query"),
@@ -481,9 +409,20 @@ func entityResolutionRoute(toolName string, args map[string]any) (*route, bool) 
 	return adaptChildRoute(entityresolutiontools.Route(toolName, routecontract.Arguments(args)))
 }
 
+// codeIntelRoute adapts the child package's code-intelligence request
+// selection into the root dispatcher's transport route, exactly as
+// deadCodeRoute, codeQualityRoute, and entityResolutionRoute above adapt
+// theirs: same former-switch arms, same delegation position, same dirgate
+// reason for living in this file. search_entity_content stays in the switch
+// below rather than joining this family; see the codeintel package doc for
+// why.
+func codeIntelRoute(toolName string, args map[string]any) (*route, bool) {
+	return adaptChildRoute(codeinteltools.Route(toolName, routecontract.Arguments(args)))
+}
+
 // adaptChildRoute converts a child selector's dependency-neutral request and
 // handled flag into the root dispatcher's transport route, copying method,
-// path, body, and query verbatim so the three in-file adapters above cannot
+// path, body, and query verbatim so the four in-file adapters above cannot
 // drift from one another.
 func adaptChildRoute(request routecontract.Request, handled bool) (*route, bool) {
 	if !handled {
