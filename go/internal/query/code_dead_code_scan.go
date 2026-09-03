@@ -238,9 +238,13 @@ func (h *CodeHandler) filterDeadCodeResultsWithoutIncomingEdges(
 // Only edges inside the caller's grant carry confidence. An edge from a
 // repository the caller was not granted arrives with HiddenConsumer set and no
 // confidence at all, so it can neither filter the candidate out nor be reported
-// as evidence; it keeps the candidate and marks it unknown. Dropping such a
-// candidate would answer "reachable" on data the caller may not read, and the
-// gap it left in the page would itself say a hidden consumer exists.
+// as evidence. It keeps the candidate and marks it unknown in every case the
+// strong-edge rule above has not already settled -- that is, whenever the merged
+// confidence stays weak, since a granted edge above the weakest tier is a
+// consumer the caller may read and alone proves the symbol used. Dropping the
+// candidate on the hidden edge instead would answer "reachable" on data the
+// caller may not read, and the gap it left in the page would itself say a
+// hidden consumer exists.
 func applyDeadCodeIncomingEdges(
 	results []map[string]any,
 	contentIncoming map[string]deadCodeIncomingEdge,
@@ -284,8 +288,10 @@ func strongestDeadCodeIncomingEdge(
 		found = true
 	}
 	// Hidden is a union across the two probes, not a property of whichever edge
-	// happened to be strongest; either probe seeing an out-of-grant source is
-	// enough to make the answer unknown.
+	// happened to be strongest, so an out-of-grant source either probe saw
+	// reaches the caller. Whether it makes the answer unknown is the caller's
+	// call, against the merged confidence: unknown while that stays weak,
+	// reachable once a granted edge clears the weakest tier.
 	best.HiddenConsumer = hidden
 	return best, found
 }

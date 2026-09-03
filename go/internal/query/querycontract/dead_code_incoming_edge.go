@@ -22,7 +22,8 @@ type DeadCodeIncomingEdge struct {
 	// HiddenConsumer reports that at least one incoming edge came from a
 	// repository outside the caller's grant. It is deliberately not a
 	// confidence: an edge the caller may not see is not evidence, so it never
-	// keeps a symbol alive and never makes one dead -- it makes the answer
-	// unknown.
+	// keeps a symbol alive and never makes one dead. It makes the answer
+	// unknown only while the confidence beside it stays weak; a granted edge
+	// above the weakest tier settles the candidate as reachable first.
 	HiddenConsumer bool
 }

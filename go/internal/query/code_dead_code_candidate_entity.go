@@ -169,8 +169,10 @@ func missingDeadCodeIncomingEntityIDs(
 
 // mergeStrongestDeadCodeIncomingEdge keeps the highest-confidence edge seen for
 // an entity, and unions the hidden-consumer marker across every edge rather than
-// letting the strongest one decide it: one out-of-grant source is enough to make
-// the answer unknown, however strong the edges beside it are.
+// letting the strongest one decide it, so a stronger edge merged in later cannot
+// drop a marker an earlier one set. The confidence and the marker are then read
+// together: one out-of-grant source makes the answer unknown while the strongest
+// edge beside it is weak, and a stronger one settles the candidate as reachable.
 func mergeStrongestDeadCodeIncomingEdge(
 	incoming map[string]deadCodeIncomingEdge,
 	entityID string,
