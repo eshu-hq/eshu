@@ -158,3 +158,62 @@ func TestCallGraphMetricsUnscopedCypherIsUnchanged(t *testing.T) {
 		t.Fatalf("unscoped params = %#v, want no grant arrays", params)
 	}
 }
+
+// TestGraphSummaryHotEntitiesRunTheGrantBoundEdgePass covers the second caller
+// of callGraphMetricsEdgesCypher. POST /api/v0/ecosystem/graph-summary reuses
+// the shared edge pass, so making that builder grant-aware changes the text
+// that route emits for a scoped caller too. The route 404s an out-of-grant
+// repo_id before the read, which makes the predicate row-set-neutral there, but
+// nothing pinned the text it actually sends -- and the queryplan manifest pins
+// only the unscoped form.
+func TestGraphSummaryHotEntitiesRunTheGrantBoundEdgePass(t *testing.T) {
+	t.Parallel()
+
+	for _, tc := range []struct {
+		name  string
+		auth  *AuthContext
+		grant bool
+	}{
+		{name: "scoped", auth: ptrToCodeGrantAuthContext(codeGrantScopedAuthContext([]string{codeGrantGrantedRepo})), grant: true},
+		{name: "shared_key", auth: nil, grant: false},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			var edgePass string
+			handler := &InfraHandler{
+				Profile: ProfileProduction,
+				Neo4j: fakeGraphReader{
+					run: func(_ context.Context, cypher string, _ map[string]any) ([]map[string]any, error) {
+						if strings.Contains(cypher, "[call:CALLS]->") {
+							edgePass = cypher
+						}
+						return nil, nil
+					},
+				},
+			}
+			mux := http.NewServeMux()
+			handler.Mount(mux)
+
+			body := map[string]any{"repo_id": codeGrantGrantedRepo, "limit": 5}
+			req := newCodeGrantRouteRequest(t, "/api/v0/ecosystem/graph-summary", body, tc.auth)
+			rec := httptest.NewRecorder()
+			mux.ServeHTTP(rec, req)
+
+			if got, want := rec.Code, http.StatusOK; got != want {
+				t.Fatalf("status = %d, want %d; body = %s", got, want, rec.Body.String())
+			}
+			if edgePass == "" {
+				t.Fatal("no edge pass was captured; the hot-entity read did not run")
+			}
+			for _, alias := range []string{"source", "target"} {
+				want := "(" + alias + ".repo_id IN $allowed_repository_ids OR " + alias + ".repo_id IN $allowed_scope_ids)"
+				if got := strings.Contains(edgePass, want); got != tc.grant {
+					t.Fatalf("edge pass contains %q = %t, want %t:\n%s", want, got, tc.grant, edgePass)
+				}
+			}
+		})
+	}
+}
+
+func ptrToCodeGrantAuthContext(auth AuthContext) *AuthContext { return &auth }

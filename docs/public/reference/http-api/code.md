@@ -326,6 +326,13 @@ description, not in this route map.
 single function. Without a single selector, it returns a bounded deterministic
 `results` list with `limit` and `truncated`.
 
+A `repo_id` sent alongside `entity_id` now anchors that lookup. Before this
+change the entity-id branch carried no repository predicate, so an entity id
+alone returned that entity from whichever repository held it and a supplied
+`repo_id` was ignored. Asking for an entity id that lives in a different
+repository than the `repo_id` you named returns `404 entity not found`. Drop
+`repo_id` to look the entity up wherever it lives.
+
 `POST /api/v0/code/quality/inspect` supports `complexity`, `function_length`,
 `argument_count`, and `refactoring_candidates`, with threshold fields and
 recommended next calls in the response.

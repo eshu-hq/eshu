@@ -8,7 +8,7 @@ const openAPIPathsCodeDeadCodeInvestigation = `
       "post": {
         "tags": ["code"],
         "summary": "Investigate dead-code candidates",
-        "description": "Returns a bounded dead-code investigation packet with repository coverage, language maturity, exactness blockers, cleanup-ready and ambiguous candidate buckets, suppressed modeled roots, source handles, and recommended drill-down calls. JavaScript and TypeScript candidates remain ambiguous until corpus precision evidence proves cleanup safety. Scoped tokens receive only granted repositories; an ungranted selector returns not-found.",
+        "description": "Returns a bounded dead-code investigation packet with repository coverage, language maturity, exactness blockers, cleanup-ready and ambiguous candidate buckets, suppressed modeled roots, source handles, and recommended drill-down calls. JavaScript and TypeScript candidates remain ambiguous until corpus precision evidence proves cleanup safety. Scoped tokens receive only granted repositories; an ungranted repository selector is rejected with HTTP 400.",
         "operationId": "investigateDeadCode",
         "x-scoped-token-support": true,
         "requestBody": {
@@ -81,7 +81,7 @@ const openAPIPathsCodeCrossRepoDeadCode = `
       "post": {
         "tags": ["code"],
         "summary": "Find cross-repo dead-code candidates",
-        "description": "Classifies producer repository dead-code candidates against deterministic consumer evidence. Symbols or routes kept live by another repository are returned as live_by_consumer. Ambiguous ownership, stale generations, missing read-model coverage, and scoped-token-hidden consumers are returned as unknown_needs_evidence rather than dead. Scoped tokens receive only granted repositories; an ungranted selector returns not-found.",
+        "description": "Classifies producer repository dead-code candidates against deterministic consumer evidence. Symbols or routes kept live by another repository are returned as live_by_consumer. Ambiguous ownership, stale generations, missing read-model coverage, and scoped-token-hidden consumers are returned as unknown_needs_evidence rather than dead. Scoped tokens receive only granted repositories; an ungranted repository selector is rejected with HTTP 400.",
         "operationId": "findCrossRepoDeadCode",
         "x-scoped-token-support": true,
         "requestBody": {

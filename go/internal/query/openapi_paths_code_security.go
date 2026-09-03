@@ -8,7 +8,7 @@ const openAPIPathsCodeSecurity = `
       "post": {
         "tags": ["code", "security"],
         "summary": "Investigate hardcoded secret candidates",
-        "description": "Scans indexed content for hardcoded password, token, key, and risky literal candidates. Findings are redacted before they leave the API. Scoped tokens receive only granted repositories; an ungranted selector returns not-found.",
+        "description": "Scans indexed content for hardcoded password, token, key, and risky literal candidates. Findings are redacted before they leave the API. Scoped tokens receive only granted repositories; an ungranted repository selector is rejected with HTTP 400.",
         "operationId": "investigateHardcodedSecrets",
         "x-scoped-token-support": true,
         "requestBody": {

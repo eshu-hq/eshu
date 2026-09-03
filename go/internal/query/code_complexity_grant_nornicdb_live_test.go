@@ -53,7 +53,7 @@ func TestLiveNornicDBComplexityListFiltersUngrantedFunctions(t *testing.T) {
 	defer func() { _ = driver.Close(context.Background()) }()
 	seedLiveComplexityGrantGraph(ctx, t, driver)
 
-	rec := runLiveComplexityListRequest(t, driver, ptrToAuthContext(codeGrantScopedAuthContext([]string{codeGrantGrantedRepo})))
+	rec := runLiveComplexityListRequest(t, driver, ptrToCodeGrantAuthContext(codeGrantScopedAuthContext([]string{codeGrantGrantedRepo})))
 	if got, want := rec.Code, http.StatusOK; got != want {
 		t.Fatalf("status = %d, want %d; body = %s", got, want, rec.Body.String())
 	}
@@ -89,8 +89,6 @@ func TestLiveNornicDBComplexityListKeepsTheUnscopedAnswer(t *testing.T) {
 		}
 	}
 }
-
-func ptrToAuthContext(auth AuthContext) *AuthContext { return &auth }
 
 func runLiveComplexityListRequest(
 	t *testing.T,
