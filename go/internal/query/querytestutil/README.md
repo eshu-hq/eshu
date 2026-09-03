@@ -69,9 +69,18 @@ consumer is the alternative, and it buys nothing the adapter does not.
 `internal/status`, `internal/governanceaudit`, or `queryauth` are allowed when a
 fake genuinely needs the types it stands in for.
 
-Root `internal/query` and the handler families are not, and that one is not a
-convention: root imports every family for its compatibility aliases, so
-importing either from here is an import cycle and the package stops building.
+Root `internal/query` and the handler families are not. Both bans are real,
+but they are not enforced the same way and neither stops `go build`:
+
+- Root cycles as soon as root's own tests build, because root's tests import
+  this package. `go build ./internal/query/querytestutil` still succeeds on
+  its own, so a green build proves nothing here.
+- A handler family compiles clean. A cycle appears only if that family's
+  INTERNAL test package imports this one back; an external `_test` package
+  never cycles at all.
+
+`AGENTS.md` invariant 2 has the measured breakdown of all three shapes. Do
+not settle the question with a green build.
 
 A graph driver has no business here either. A fake answers from funcs a test
 installs; if it needs a driver it is not a fake.
