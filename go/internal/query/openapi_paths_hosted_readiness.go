@@ -21,6 +21,7 @@ const openAPIPathsHostedReadiness = `
           }
         ],
         "responses": {
+          "403": {"$ref": "#/components/responses/Forbidden"},
           "200": {
             "description": "Hosted readiness report",
             "content": {

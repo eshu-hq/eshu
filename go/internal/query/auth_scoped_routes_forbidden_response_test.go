@@ -10,33 +10,37 @@ import (
 	"testing"
 )
 
-// TestGrantBoundRoutesDeclareForbiddenResponse holds the published contract to
-// what the middleware actually does to an all-scope caller.
+// TestPolicyGatedRoutesDeclareForbiddenResponse holds the published contract
+// to what the middleware actually does to an all-scope caller.
 //
 // scopedBearerRouteDenialReason (auth.go) refuses a tenant-bound all-scope
-// bearer with 403 on EVERY route the ledger classes scopedRouteGrantBound
-// under hosted_multi_tenant or an unrecognized governance mode, and the cookie
-// branch has been able to return the same 403 since #6457. The OpenAPI
-// document said so on the freshness operations alone: GET
-// /api/v0/repositories, to take the route the codex PR #6497 review named,
-// declared 200/500/503/504 and no Forbidden, so a generated client had no
-// case for a status the server returns on a routine deployment posture.
+// bearer with 403 under hosted_multi_tenant or an unrecognized governance
+// mode, and the cookie branch has been able to return the same 403 since
+// #6457. Neither branch asks whether the route is grant-bound specifically:
+// both consult scopedRouteClass.admitsAllScopesSessionWithoutPolicy, which is
+// true for the identity-bound and tenant-data-free populations alone. A
+// deployment-scoped status read and the transitive POST /api/v0/ask are
+// refused exactly like a grant-bound repository read, so this gate covers
+// every class the predicate answers false for, not the grant-bound class
+// alone. The earlier grant-bound-only condition passed while operations such
+// as GET /api/v0/status/governance still omitted 403.
 //
-// The gate is deliberately class-driven rather than a hand-typed list: the
-// next route added to the ledger as grant-bound fails here until its operation
-// declares the 403, the same way TestScopedTokenAllowlistCompleteness makes a
-// new scoped route declare its marker. Identity-bound, tenant-data-free,
-// deployment-scoped, and transitive routes are exempt because the policy check
-// never refuses them; several declare a 403 anyway for their own
-// authorization reasons, which this test neither requires nor forbids.
-func TestGrantBoundRoutesDeclareForbiddenResponse(t *testing.T) {
+// The gate is deliberately predicate-driven rather than a hand-typed list or
+// a hand-typed set of classes: a class added to scopedRouteClass, or an
+// existing class moved to the refused side of the predicate, pulls its routes
+// in here without a test edit, the same way TestScopedTokenAllowlistCompleteness
+// makes a new scoped route declare its marker. Identity-bound and
+// tenant-data-free routes are exempt because the policy check never refuses
+// them; several declare a 403 anyway for their own authorization reasons,
+// which this test neither requires nor forbids.
+func TestPolicyGatedRoutesDeclareForbiddenResponse(t *testing.T) {
 	t.Parallel()
 
 	declared := openAPIOperationResponseCodes(t)
 
 	var missing, unmapped []string
 	for name, class := range scopedTokenAdvertisedRoutes {
-		if class != scopedRouteGrantBound {
+		if class.admitsAllScopesSessionWithoutPolicy() {
 			continue
 		}
 		codes, ok := declared[name]
@@ -52,11 +56,11 @@ func TestGrantBoundRoutesDeclareForbiddenResponse(t *testing.T) {
 	sort.Strings(unmapped)
 
 	if len(unmapped) > 0 {
-		t.Errorf("grant-bound ledger routes with no OpenAPI operation (%d):\n  %s",
+		t.Errorf("policy-gated ledger routes with no OpenAPI operation (%d):\n  %s",
 			len(unmapped), strings.Join(unmapped, "\n  "))
 	}
 	if len(missing) > 0 {
-		t.Errorf("grant-bound routes whose OpenAPI operation declares no 403 (%d) -- an all-scope caller is refused here under hosted_multi_tenant, so the operation must declare \"403\": {\"$ref\": \"#/components/responses/Forbidden\"}:\n  %s",
+		t.Errorf("policy-gated routes whose OpenAPI operation declares no 403 (%d) -- an all-scope caller is refused here under hosted_multi_tenant, so the operation must declare \"403\": {\"$ref\": \"#/components/responses/Forbidden\"}:\n  %s",
 			len(missing), strings.Join(missing, "\n  "))
 	}
 }

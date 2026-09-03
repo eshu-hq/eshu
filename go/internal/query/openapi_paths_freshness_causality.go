@@ -17,6 +17,7 @@ const openAPIPathsFreshnessCausality = `
         "operationId": "getFreshnessCausality",
         "x-scoped-token-support": true,
         "responses": {
+          "403": {"$ref": "#/components/responses/Forbidden"},
           "200": {
             "description": "Freshness causality read model",
             "content": {

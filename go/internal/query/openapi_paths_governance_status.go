@@ -12,6 +12,7 @@ const openAPIPathsGovernanceStatus = `
         "operationId": "getHostedGovernanceStatus",
         "x-scoped-token-support": true,
         "responses": {
+          "403": {"$ref": "#/components/responses/Forbidden"},
           "200": {
             "description": "Hosted governance status",
             "content": {
