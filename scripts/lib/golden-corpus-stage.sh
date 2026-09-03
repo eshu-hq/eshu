@@ -78,7 +78,15 @@ stage_strip_ignored_files() {
 
 stage_deterministic_git_fixture() {
 	local fixture_path="$1"
-	git -C "${fixture_path}" -c init.defaultBranch=main init --object-format=sha1 >/dev/null 2>&1
+	# -c init.templateDir= : a global init.templateDir is copied into the new
+	# .git at init time, and a template carrying info/exclude installs an
+	# exclude source that `git add` always consults. core.excludesfile
+	# /dev/null does NOT cover it -- they are separate sources -- so a
+	# developer with that global config silently commits a tree missing a
+	# tracked fixture file. Measured on git 2.55.0: it drops Dockerfile from
+	# container-ci-lineage and moves HEAD off the cassette pin
+	# (fe05491e -> 247638a7). The empty value selects no template at all.
+	git -C "${fixture_path}" -c init.defaultBranch=main -c init.templateDir= init --object-format=sha1 >/dev/null 2>&1
 	git -C "${fixture_path}" config user.email "gate@eshu.local" >/dev/null 2>&1
 	git -C "${fixture_path}" config user.name "Golden Gate" >/dev/null 2>&1
 	git -C "${fixture_path}" config commit.gpgsign false >/dev/null 2>&1
@@ -86,14 +94,30 @@ stage_deterministic_git_fixture() {
 	git -C "${fixture_path}" config core.excludesfile /dev/null >/dev/null 2>&1
 	git -C "${fixture_path}" config core.hooksPath /dev/null >/dev/null 2>&1
 	git -C "${fixture_path}" config i18n.commitEncoding utf-8 >/dev/null 2>&1
-	# tag.gpgSign is pinned here for one reason only: to keep this knob set and
-	# the deployable-config block's below byte-identical, so "same knobs as
-	# stage_deterministic_git_fixture" stays a true claim rather than one that
-	# drifts apart. No fixture staged through THIS function creates a tag today,
-	# so unlike the five knobs above this line has no reachable failure to
-	# demonstrate here; the tag.gpgSign proof lives on the deployable-config
-	# site, which does tag (BITES (1d) in
-	# scripts/lib/golden-corpus-gate-integrity-cases.sh).
+	# What BITES (1d) (scripts/lib/golden-corpus-gate-integrity-cases.sh) can and
+	# cannot demonstrate about THIS function's pins, stated so nobody mistakes
+	# an untested line for a tested one:
+	#
+	# Covered -- removing any one of these reddens the suite, because (1d)
+	# stages container-ci-lineage under a hostile global config and asserts its
+	# cassette pin: init.templateDir, commit.gpgsign, core.excludesfile,
+	# core.hooksPath, i18n.commitEncoding.
+	#
+	# NOT covered, and neither can be without changing what the fixture is:
+	#   tag.gpgSign   -- no fixture staged through this function creates a tag,
+	#                    so there is no failure to trigger. Its proof lives on
+	#                    the deployable-config site, which does tag.
+	#   core.autocrlf -- the filter only alters a file containing a CR byte, and
+	#                    no tracked file here has one. (1d) covers the
+	#                    deployable-config site by planting a CR-bearing file in
+	#                    that fixture's source; the same trick is impossible
+	#                    here, because container-ci-lineage's HEAD IS the
+	#                    cassette pin and any planted file moves it.
+	#
+	# Both are kept anyway so this knob set and the deployable-config block's
+	# stay identical -- "same knobs as stage_deterministic_git_fixture" has to
+	# remain a true claim, and a knob-set asymmetry between these two blocks is
+	# the defect this whole area exists to prevent.
 	git -C "${fixture_path}" config tag.gpgSign false >/dev/null 2>&1
 	git -C "${fixture_path}" add -A >/dev/null 2>&1
 	# Identity is set inline, NOT left to the `git config user.*` above.
@@ -125,7 +149,12 @@ stage_minimal_corpus() {
 		# deployable-config needs a git repo so localGitRefs can discover tags
 		# for the B-12 query_shape.http branches endpoint assertion.
 		if [[ "${fixture}" = "deployable-config" ]]; then
-			git -C "${corpus_dir}/${fixture}" -c init.defaultBranch=main init --object-format=sha1 >/dev/null 2>&1
+			# -c init.templateDir= for the same reason as
+			# stage_deterministic_git_fixture above: a template carrying
+			# info/exclude installs an exclude source core.excludesfile does
+			# not cover, dropping catalog-info.yaml here and moving HEAD from
+			# de21f0c2 to 4d955077 on git 2.55.0.
+			git -C "${corpus_dir}/${fixture}" -c init.defaultBranch=main -c init.templateDir= init --object-format=sha1 >/dev/null 2>&1
 			git -C "${corpus_dir}/${fixture}" config user.email "gate@eshu.local" >/dev/null 2>&1
 			git -C "${corpus_dir}/${fixture}" config user.name "Golden Gate" >/dev/null 2>&1
 			# Same knobs as stage_deterministic_git_fixture above, and for the

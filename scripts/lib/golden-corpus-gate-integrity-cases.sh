@@ -252,6 +252,23 @@ rm -rf "${gate_integrity_quote_dir}"
 #                              `git add`, changing those blobs and the tree --
 #                              but only reachable here via the planted file
 #                              described below
+#   init.templateDir=<dir with info/exclude>
+#                              is copied into the new .git at init time, and
+#                              .git/info/exclude is an exclude source `git add`
+#                              always consults. core.excludesfile /dev/null does
+#                              NOT cover it. It drops catalog-info.yaml from
+#                              deployable-config (de21f0c2 -> 4d955077) and
+#                              Dockerfile from container-ci-lineage
+#                              (fe05491e -> 247638a7, straight off the cassette
+#                              pin) -- and the file goes MISSING, which the
+#                              mismatch diagnostic used to render only as "an
+#                              extra file staged", the opposite of the truth
+#
+# The hostile corpus stages container-ci-lineage alongside deployable-config so
+# stage_deterministic_git_fixture's copy of these pins is covered too, not just
+# the deployable-config block's. Its assertion is against the cassette pin
+# rather than a clean-stage comparison, which is the stronger check and needs no
+# second clean stage.
 #
 # core.autocrlf is the one knob that cannot bite on this fixture's committed
 # content as it stands: no tracked file in deployable-config carries a CR byte,
@@ -267,7 +284,14 @@ gate_integrity_hostile_corpus="${gate_integrity_hostile_config_dir}/hostile"
 mkdir -p "${gate_integrity_hostile_clean_corpus}" "${gate_integrity_hostile_corpus}"
 
 gate_integrity_hostile_excludes="${gate_integrity_hostile_config_dir}/globalignore"
-printf 'catalog-info.yaml\n' >"${gate_integrity_hostile_excludes}"
+printf 'catalog-info.yaml\nDockerfile\n' >"${gate_integrity_hostile_excludes}"
+# The template's info/exclude names the same two tracked files, so the
+# init.templateDir pin is proven against the SAME targets as core.excludesfile.
+# That is the point: these are two independent exclude sources, and pinning one
+# does nothing for the other.
+gate_integrity_hostile_template="${gate_integrity_hostile_config_dir}/template"
+mkdir -p "${gate_integrity_hostile_template}/info"
+printf 'catalog-info.yaml\nDockerfile\n' >"${gate_integrity_hostile_template}/info/exclude"
 gate_integrity_hostile_hooks="${gate_integrity_hostile_config_dir}/hooks"
 mkdir -p "${gate_integrity_hostile_hooks}"
 printf '#!/bin/sh\nprintf "hostile pre-commit hook rejects\\n" >&2\nexit 1\n' \
@@ -321,13 +345,21 @@ gate_integrity_crlf_plant="${repo_root}/tests/fixtures/ecosystems/deployable-con
 		git config --file "${GIT_CONFIG_GLOBAL}" core.excludesfile "${gate_integrity_hostile_excludes}"
 		git config --file "${GIT_CONFIG_GLOBAL}" core.hooksPath "${gate_integrity_hostile_hooks}"
 		git config --file "${GIT_CONFIG_GLOBAL}" i18n.commitEncoding ISO-8859-1
+		git config --file "${GIT_CONFIG_GLOBAL}" init.templateDir "${gate_integrity_hostile_template}"
 		corpus_dir="${gate_integrity_hostile_corpus}"
-		corpus_fixtures=(deployable-config)
+		corpus_fixtures=(deployable-config container-ci-lineage)
 		die() { fail "$*"; }
 		# shellcheck source=scripts/lib/golden-corpus-stage.sh
 		. "${repo_root}/scripts/lib/golden-corpus-stage.sh"
 		stage_minimal_corpus >/dev/null
-	) || fail "deployable-config staging must succeed under a hostile global commit.gpgsign / tag.gpgSign / core.autocrlf / core.excludesfile / core.hooksPath / i18n.commitEncoding config"
+	) || fail "staging must succeed under a hostile global commit.gpgsign / tag.gpgSign / core.autocrlf / core.excludesfile / core.hooksPath / i18n.commitEncoding / init.templateDir config"
+	# container-ci-lineage goes through stage_deterministic_git_fixture, whose
+	# copy of these pins had no hostile-config coverage at all until now. The
+	# cassette pin is the assertion, so a dropped Dockerfile or a moved commit
+	# fails here by the same rule the live gate uses.
+	golden_corpus_assert_staged_pin "container-ci-lineage" \
+		"${gate_integrity_hostile_corpus}/container-ci-lineage" \
+		"ci_cd_run:github_actions:acme:container-ci-lineage" "9100" fail
 	[[ -d "${gate_integrity_hostile_corpus}/deployable-config/.git" ]] ||
 		fail "deployable-config must produce a Git repository under a hostile global config"
 	gate_integrity_hostile_head="$(git -C "${gate_integrity_hostile_corpus}/deployable-config" rev-parse HEAD 2>&1)" ||
