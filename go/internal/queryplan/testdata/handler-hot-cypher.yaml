@@ -219,7 +219,7 @@ entries:
     domain: code
     backend: nornicdb_neo4j
     query_kind: cypher
-    source: {file: go/internal/query/code_call_graph_metrics.go, symbol: callGraphMetricsEdgesCypher, source_sha256: 5d3940f0fd09f05d543a8dd540806f8620a8aa513de9c5fa634d5f18a7ef8dcf}
+    source: {file: go/internal/query/code_call_graph_metrics.go, symbol: callGraphMetricsEdgesCypher, source_sha256: 1f4bf3bb817d91cdb6ce0951f45f41dc5b8d63767964ea31e3ab1414d5bb84e1}
     query_fragment: 'MATCH (source:Function {repo_id: $repo_id})-[call:CALLS]->(target:Function {repo_id: $repo_id})'
     cypher_sha256: 4053f45d441ab8834abc365c7dff349069701d7f3eeda0685b09703aad22e375
     required_anchors: [{label: Function, property: repo_id}]
@@ -232,7 +232,7 @@ entries:
     domain: code
     backend: nornicdb_neo4j
     query_kind: cypher
-    source: {file: go/internal/query/code_call_graph_metrics.go, symbol: callGraphMetricsEdgesCypher, source_sha256: 5d3940f0fd09f05d543a8dd540806f8620a8aa513de9c5fa634d5f18a7ef8dcf}
+    source: {file: go/internal/query/code_call_graph_metrics.go, symbol: callGraphMetricsEdgesCypher, source_sha256: 1f4bf3bb817d91cdb6ce0951f45f41dc5b8d63767964ea31e3ab1414d5bb84e1}
     query_fragment: 'MATCH (source:Function {repo_id: $repo_id})-[call:CALLS]->(target:Function {repo_id: $repo_id})'
     cypher_sha256: 4053f45d441ab8834abc365c7dff349069701d7f3eeda0685b09703aad22e375
     required_anchors: [{label: Function, property: repo_id}]

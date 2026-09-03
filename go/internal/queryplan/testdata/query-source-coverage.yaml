@@ -48,7 +48,7 @@ source_coverage:
       - {symbol: "(*CodeHandler).callChainCandidateOneHopRows", count: 1, non_hot_reason: "inventory-only support or bounded read; promote to entry_ids when designated hot"}
   - file: code_call_graph_metrics.go
     calls:
-      - {symbol: "(*CodeHandler).callGraphMetricsData", count: 1, source_sha256: 7a7387e74dd0c8f4b3ddc882719bdec8358df439f5414dc58a4aeaf2fa7798a3, entry_ids: [QP-CALL-GRAPH-HUBS, QP-CALL-GRAPH-RECURSIVE]}
+      - {symbol: "(*CodeHandler).callGraphMetricsData", count: 1, source_sha256: b7dd5b91ebffa286a36d53e74eea639d9549b03e86caa6bca6e66617d367e0cf, entry_ids: [QP-CALL-GRAPH-HUBS, QP-CALL-GRAPH-RECURSIVE]}
   - file: code_complexity_queries.go
     calls:
       - symbol: "(*CodeHandler).listMostComplexFunctions"
@@ -331,7 +331,7 @@ source_coverage:
         count: 1
         non_hot:
           class: keyed_support
-          source_sha256: efb8996cc1cdbef3712ba51ad6de2771465a533345fe115a845a0a85f30807b9
+          source_sha256: a8d1a33bb7b4894075e92a59be97133165a836fd3a6d5cb62aa7786e0c6943f9
           key_bound: single_key
           max_results: 50001
       - {symbol: "(*InfraHandler).graphSummaryRelationshipCounts", count: 1, non_hot_reason: "inventory-only support or bounded read; promote to entry_ids when designated hot"}

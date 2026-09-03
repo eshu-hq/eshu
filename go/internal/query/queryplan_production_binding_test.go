@@ -142,6 +142,6 @@ func handlerQueryplanProductionCypher() map[string]string {
 }
 
 func mustCallGraphMetricsEdgesCypher(repoID string) string {
-	cypher, _ := callGraphMetricsEdgesCypher(repoID, repositoryAccessFilter{AllScopes: true})
+	cypher, _ := callGraphMetricsEdgesCypher(repoID)
 	return cypher
 }

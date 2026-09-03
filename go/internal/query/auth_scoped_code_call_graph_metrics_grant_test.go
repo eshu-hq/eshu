@@ -7,28 +7,25 @@ import (
 	"context"
 	"net/http"
 	"net/http/httptest"
-	"slices"
 	"strings"
 	"testing"
 )
 
 // #5167 code-family batch 1, step 4: POST /api/v0/code/call-graph/metrics.
 //
-// This route is the one in the set that was not exploitable: repo_id is
-// mandatory (callGraphMetricsRequest.validate) and the selector resolves it
-// through the caller's grant, so a scoped caller could never reach an
-// ungranted repository. What it lacked was the grant in the query text itself,
-// which is what the allowlist asks for -- so the predicate here is
-// defense-in-depth against a future caller that reaches the read without the
-// selector, not a fix for a live leak.
+// This route is the one in the set that was never exploitable, and it is bound
+// to the caller's grant without a predicate of its own. repo_id is mandatory
+// (callGraphMetricsRequest.validate) and applyRepositorySelectorForCapability
+// resolves it through the grant before the read, rejecting an ungranted one
+// with 400 -- the same shape the impact family relies on. A grant predicate in
+// the edge Cypher on top of that would be redundant by construction (both
+// endpoints already match the grant-resolved $repo_id) while creating a second
+// hot-path query shape with no NornicDB plan behind it.
 //
-// Because $repo_id is already grant-resolved, the added predicate is
-// provably row-set-neutral: source.repo_id = $repo_id and $repo_id is in the
-// grant, so source.repo_id IN $allowed_repository_ids cannot exclude a row the
-// anchor admitted. TestCallGraphMetricsUnscopedCypherIsUnchanged pins the other
-// half -- an unscoped caller's query text is byte-identical to before, which is
-// what keeps the queryplan manifest's pinned cypher_sha256 and its accepted
-// plan claim valid.
+// So the edge Cypher carries no grant and every caller runs the same text.
+// TestCallGraphMetricsCypherIsTheSameForEveryCaller pins that, which is what
+// keeps the queryplan manifest's cypher_sha256 and its accepted plan claim
+// describing the query every caller actually emits.
 
 func captureCallGraphMetricsCypher(t *testing.T, auth *AuthContext, body map[string]any) (string, map[string]any, int) {
 	t.Helper()
@@ -62,29 +59,50 @@ func callGraphMetricsGrantBody() map[string]any {
 	return map[string]any{"repo_id": codeGrantGrantedRepo, "metric_type": "hub_functions"}
 }
 
-func TestCallGraphMetricsBindsTheGrantOnBothCallEndpoints(t *testing.T) {
+func TestCallGraphMetricsCypherIsTheSameForEveryCaller(t *testing.T) {
 	t.Parallel()
 
 	auth := codeGrantScopedAuthContext([]string{codeGrantGrantedRepo})
-	captured, params, status := captureCallGraphMetricsCypher(t, &auth, callGraphMetricsGrantBody())
+	scoped, scopedParams, scopedStatus := captureCallGraphMetricsCypher(t, &auth, callGraphMetricsGrantBody())
+	shared, sharedParams, sharedStatus := captureCallGraphMetricsCypher(t, nil, callGraphMetricsGrantBody())
 
-	if got, want := status, http.StatusOK; got != want {
-		t.Fatalf("status = %d, want %d", got, want)
-	}
-	if captured == "" {
-		t.Fatal("no call-graph Cypher was captured; the edge scan did not run")
-	}
-	for _, alias := range []string{"source", "target"} {
-		want := "(" + alias + ".repo_id IN $allowed_repository_ids OR " + alias + ".repo_id IN $allowed_scope_ids)"
-		if !strings.Contains(captured, want) {
-			t.Fatalf("call-graph Cypher is missing %q on the %s endpoint:\n%s", want, alias, captured)
+	for name, status := range map[string]int{"scoped": scopedStatus, "shared_key": sharedStatus} {
+		if status != http.StatusOK {
+			t.Fatalf("%s status = %d, want %d", name, status, http.StatusOK)
 		}
 	}
-	if got, ok := params["allowed_repository_ids"].([]string); !ok || !slices.Equal(got, []string{codeGrantGrantedRepo}) {
-		t.Fatalf("params[allowed_repository_ids] = %#v, want [%q]; the predicate references a parameter that is never bound", params["allowed_repository_ids"], codeGrantGrantedRepo)
+	if scoped == "" {
+		t.Fatal("no call-graph Cypher was captured; the edge scan did not run")
 	}
-	if _, ok := params["allowed_scope_ids"]; !ok {
-		t.Fatalf("params = %#v, want an allowed_scope_ids binding for the predicate's second disjunct", params)
+	if scoped != shared {
+		t.Fatalf("a scoped caller runs a different edge shape than the one the plan fixture pins:\nscoped:\n%s\nshared key:\n%s", scoped, shared)
+	}
+	if strings.Contains(scoped, "allowed_repository_ids") || strings.Contains(scoped, "WHERE") {
+		t.Fatalf("the edge Cypher gained a grant predicate; the route is bound by the mandatory repo_id selector, not by this query:\n%s", scoped)
+	}
+	for name, params := range map[string]map[string]any{"scoped": scopedParams, "shared_key": sharedParams} {
+		if _, ok := params["allowed_repository_ids"]; ok {
+			t.Fatalf("%s params = %#v, want no grant arrays", name, params)
+		}
+	}
+}
+
+// TestCallGraphMetricsRejectsAnUngrantedRepository is the binding this route
+// actually has. The Cypher carries no grant, so the selector is the whole
+// guard: an ungranted repo_id must be refused before the edge scan runs.
+func TestCallGraphMetricsRejectsAnUngrantedRepository(t *testing.T) {
+	t.Parallel()
+
+	auth := codeGrantScopedAuthContext([]string{codeGrantGrantedRepo})
+	captured, _, status := captureCallGraphMetricsCypher(t, &auth, map[string]any{
+		"repo_id":     codeGrantOtherRepo,
+		"metric_type": "hub_functions",
+	})
+	if got, want := status, http.StatusBadRequest; got != want {
+		t.Fatalf("status = %d, want %d for a repo_id outside the caller's grant", got, want)
+	}
+	if captured != "" {
+		t.Fatalf("an ungranted repo_id reached the edge scan:\n%s", captured)
 	}
 }
 
@@ -136,11 +154,11 @@ func TestCallGraphMetricsEmptyGrantSkipsTheEdgeScan(t *testing.T) {
 	})
 }
 
-// TestCallGraphMetricsUnscopedCypherIsUnchanged is the counterweight to the
-// grant test: the shared-key query text must stay exactly what the queryplan
-// manifest pinned (QP-CALL-GRAPH-HUBS / QP-CALL-GRAPH-RECURSIVE,
-// internal/queryplan/testdata/handler-hot-cypher.yaml), so the accepted plan
-// evidence for this hot read still describes the query production emits.
+// TestCallGraphMetricsUnscopedCypherIsUnchanged pins the shared-key query text
+// as exactly what the queryplan manifest recorded (QP-CALL-GRAPH-HUBS /
+// QP-CALL-GRAPH-RECURSIVE, internal/queryplan/testdata/handler-hot-cypher.yaml),
+// so the accepted plan evidence for this hot read still describes the query
+// production emits.
 func TestCallGraphMetricsUnscopedCypherIsUnchanged(t *testing.T) {
 	t.Parallel()
 
@@ -159,61 +177,62 @@ func TestCallGraphMetricsUnscopedCypherIsUnchanged(t *testing.T) {
 	}
 }
 
-// TestGraphSummaryHotEntitiesRunTheGrantBoundEdgePass covers the second caller
-// of callGraphMetricsEdgesCypher. POST /api/v0/ecosystem/graph-summary reuses
-// the shared edge pass, so making that builder grant-aware changes the text
-// that route emits for a scoped caller too. The route 404s an out-of-grant
-// repo_id before the read, which makes the predicate row-set-neutral there, but
-// nothing pinned the text it actually sends -- and the queryplan manifest pins
-// only the unscoped form.
-func TestGraphSummaryHotEntitiesRunTheGrantBoundEdgePass(t *testing.T) {
+// TestGraphSummaryHotEntitiesEdgePassIsUnchanged covers the second caller of
+// callGraphMetricsEdgesCypher. POST /api/v0/ecosystem/graph-summary reuses the
+// shared edge pass, so anything that made that builder grant-aware would change
+// the text this route emits for a scoped caller too -- and the queryplan
+// manifest pins one text, not two. This asserts the scoped caller's edge pass is
+// the shared-key one, and that this route's own grant check, the not-found it
+// answers for an out-of-grant repo_id, keeps that repository away from the read.
+func TestGraphSummaryHotEntitiesEdgePassIsUnchanged(t *testing.T) {
 	t.Parallel()
 
-	for _, tc := range []struct {
-		name  string
-		auth  *AuthContext
-		grant bool
-	}{
-		{name: "scoped", auth: ptrToCodeGrantAuthContext(codeGrantScopedAuthContext([]string{codeGrantGrantedRepo})), grant: true},
-		{name: "shared_key", auth: nil, grant: false},
-	} {
-		t.Run(tc.name, func(t *testing.T) {
-			t.Parallel()
+	captureEdgePass := func(t *testing.T, auth *AuthContext, repoID string) (string, int) {
+		t.Helper()
 
-			var edgePass string
-			handler := &InfraHandler{
-				Profile: ProfileProduction,
-				Neo4j: fakeGraphReader{
-					run: func(_ context.Context, cypher string, _ map[string]any) ([]map[string]any, error) {
-						if strings.Contains(cypher, "[call:CALLS]->") {
-							edgePass = cypher
-						}
-						return nil, nil
-					},
+		var edgePass string
+		handler := &InfraHandler{
+			Profile: ProfileProduction,
+			Neo4j: fakeGraphReader{
+				run: func(_ context.Context, cypher string, _ map[string]any) ([]map[string]any, error) {
+					if strings.Contains(cypher, "[call:CALLS]->") {
+						edgePass = cypher
+					}
+					return nil, nil
 				},
-			}
-			mux := http.NewServeMux()
-			handler.Mount(mux)
+			},
+		}
+		mux := http.NewServeMux()
+		handler.Mount(mux)
 
-			body := map[string]any{"repo_id": codeGrantGrantedRepo, "limit": 5}
-			req := newCodeGrantRouteRequest(t, "/api/v0/ecosystem/graph-summary", body, tc.auth)
-			rec := httptest.NewRecorder()
-			mux.ServeHTTP(rec, req)
+		body := map[string]any{"repo_id": repoID, "limit": 5}
+		req := newCodeGrantRouteRequest(t, "/api/v0/ecosystem/graph-summary", body, auth)
+		rec := httptest.NewRecorder()
+		mux.ServeHTTP(rec, req)
+		return edgePass, rec.Code
+	}
 
-			if got, want := rec.Code, http.StatusOK; got != want {
-				t.Fatalf("status = %d, want %d; body = %s", got, want, rec.Body.String())
-			}
-			if edgePass == "" {
-				t.Fatal("no edge pass was captured; the hot-entity read did not run")
-			}
-			for _, alias := range []string{"source", "target"} {
-				want := "(" + alias + ".repo_id IN $allowed_repository_ids OR " + alias + ".repo_id IN $allowed_scope_ids)"
-				if got := strings.Contains(edgePass, want); got != tc.grant {
-					t.Fatalf("edge pass contains %q = %t, want %t:\n%s", want, got, tc.grant, edgePass)
-				}
-			}
-		})
+	scopedAuth := codeGrantScopedAuthContext([]string{codeGrantGrantedRepo})
+	scoped, scopedStatus := captureEdgePass(t, &scopedAuth, codeGrantGrantedRepo)
+	shared, sharedStatus := captureEdgePass(t, nil, codeGrantGrantedRepo)
+
+	for name, status := range map[string]int{"scoped": scopedStatus, "shared_key": sharedStatus} {
+		if status != http.StatusOK {
+			t.Fatalf("%s status = %d, want %d", name, status, http.StatusOK)
+		}
+	}
+	if shared == "" {
+		t.Fatal("no edge pass was captured; the hot-entity read did not run")
+	}
+	if scoped != shared {
+		t.Fatalf("the scoped edge pass drifted from the text the plan fixture pins:\nscoped:\n%s\nshared key:\n%s", scoped, shared)
+	}
+
+	ungranted, ungrantedStatus := captureEdgePass(t, &scopedAuth, codeGrantOtherRepo)
+	if got, want := ungrantedStatus, http.StatusNotFound; got != want {
+		t.Fatalf("status = %d, want %d for a repo_id outside the caller's grant", got, want)
+	}
+	if ungranted != "" {
+		t.Fatalf("an out-of-grant repo_id reached the edge pass:\n%s", ungranted)
 	}
 }
-
-func ptrToCodeGrantAuthContext(auth AuthContext) *AuthContext { return &auth }

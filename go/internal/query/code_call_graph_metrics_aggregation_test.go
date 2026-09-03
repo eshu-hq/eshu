@@ -17,7 +17,7 @@ import (
 func TestCallGraphMetricsEdgesCypherUsesOneRepoIndexedEdgePass(t *testing.T) {
 	t.Parallel()
 
-	cypher, params := callGraphMetricsEdgesCypher(" repo-1 ", repositoryAccessFilter{AllScopes: true})
+	cypher, params := callGraphMetricsEdgesCypher(" repo-1 ")
 	if got, want := params["repo_id"], "repo-1"; got != want {
 		t.Fatalf("params[repo_id] = %#v, want %#v", got, want)
 	}

@@ -170,14 +170,16 @@ func (h *CodeHandler) callGraphMetricsData(ctx context.Context, req callGraphMet
 		attribute.String("eshu.query.call_graph.metric_type", req.metricType()),
 		attribute.Int("eshu.query.call_graph.edge_scan_limit", callGraphMetricsEdgeScanLimit),
 	)
-	// #5167 code family: repo_id is mandatory here and the selector already
-	// resolved it through the caller's grant, so this is defense in depth --
-	// but a grantless scoped caller must still never reach the edge scan.
-	access := repositoryAccessFilterFromContext(ctx)
-	if access.Empty() {
+	// #5167 code family: this route is grant-bound by its mandatory repo_id.
+	// applyRepositorySelectorForCapability resolves that selector against the
+	// caller's grant and rejects an ungranted one with 400 before the handler
+	// body runs, so the edge Cypher needs no predicate of its own. The one case
+	// the selector cannot answer is a caller that reaches this read without it:
+	// a grantless scoped caller must never touch the graph.
+	if repositoryAccessFilterFromContext(ctx).Empty() {
 		return callGraphMetricsResponse(req, nil), nil
 	}
-	cypher, params := callGraphMetricsEdgesCypher(req.RepoID, access)
+	cypher, params := callGraphMetricsEdgesCypher(req.RepoID)
 	edges, err := h.Neo4j.Run(ctx, cypher, params)
 	if err != nil {
 		return nil, err
@@ -206,18 +208,19 @@ func (h *CodeHandler) callGraphMetricsData(ctx context.Context, req callGraphMet
 }
 
 // callGraphMetricsEdgesCypher builds the single indexed edge pass behind the
-// hub-function and recursive-function metrics.
+// hub-function and recursive-function metrics, and behind the graph-summary
+// packet's hot-entity ranking.
 //
-// access pushes the caller's grant onto both CALLS endpoints. The predicate is
-// row-set-neutral by construction -- both endpoints already match the
-// grant-resolved $repo_id, so a granted row cannot be excluded -- and it is
-// empty for an unscoped caller, which keeps the query text byte-identical to
-// the one the queryplan manifest pinned for QP-CALL-GRAPH-HUBS and
-// QP-CALL-GRAPH-RECURSIVE, plan claim included.
-func callGraphMetricsEdgesCypher(repoID string, access repositoryAccessFilter) (string, map[string]any) {
-	grant := access.GraphWhereClauseOnProperty("source", "repo_id") +
-		access.GraphPredicateOnProperty("target", "repo_id")
-	return `MATCH (source:Function {repo_id: $repo_id})-[call:CALLS]->(target:Function {repo_id: $repo_id})` + grant + `
+// Every caller runs this exact text. Both of its routes are bound to the
+// caller's grant before the read -- call-graph metrics by its mandatory,
+// selector-resolved repo_id, graph-summary by the not-found it answers for an
+// out-of-grant repo_id -- so a grant predicate here would be redundant by
+// construction and would give this hot read a second shape with no plan behind
+// it. One text is what keeps the queryplan manifest's cypher_sha256 for
+// QP-CALL-GRAPH-HUBS and QP-CALL-GRAPH-RECURSIVE, plan claim included,
+// describing what production emits.
+func callGraphMetricsEdgesCypher(repoID string) (string, map[string]any) {
+	return `MATCH (source:Function {repo_id: $repo_id})-[call:CALLS]->(target:Function {repo_id: $repo_id})
 RETURN source.uid AS source_uid,
        coalesce(source.id, source.uid) AS source_id,
        source.relative_path AS source_path,
@@ -232,8 +235,8 @@ RETURN source.uid AS source_uid,
        target.name AS target_name,
        target.start_line AS target_start_line,
        target.end_line AS target_end_line
-LIMIT $edge_scan_limit`, access.GraphParams(map[string]any{
+LIMIT $edge_scan_limit`, map[string]any{
 			"edge_scan_limit": callGraphMetricsEdgeScanLimit + 1,
 			"repo_id":         strings.TrimSpace(repoID),
-		})
+		}
 }
