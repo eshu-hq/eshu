@@ -13,7 +13,7 @@ import (
 
 // crossplaneSatisfiedByCandidateFactKinds is the single fact kind
 // crossplaneSatisfiedByTriggerFact ever inspects, mirroring
-// containerImageIdentityCandidateFactKinds's closed-list shape.
+// the containerimageidentity package's candidateFactKinds closed-list shape.
 var crossplaneSatisfiedByCandidateFactKinds = []string{FactKindParsedEntityObserved}
 
 // buildCrossplaneSatisfiedByMaterializationReducerIntent enqueues one

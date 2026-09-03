@@ -412,7 +412,7 @@ all-or-nothing behavior so it stays a known property rather than a discovery.
 **The collector-kind mapping is under-inclusive, on purpose.**
 `container_image_identity` intents are also enqueued in `aws`, `azure`, `gcp`,
 `git`, and `sbom_attestation` scopes — see
-`containerImageIdentityCandidateFactKinds` in
+`candidateFactKinds` (in `internal/projector/containerimageidentity`) in
 `internal/projector/containerimageidentity/identity_intents.go`. Identity output can
 therefore be published by a scope this mapping does not name, and the floor does
 not wait for those. A digest whose identity comes from an ECR scope is still

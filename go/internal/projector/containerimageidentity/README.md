@@ -48,9 +48,10 @@ This family carries one decode seam: `factschema_decode_aws.go` decodes an
 to read the optional `TargetType` field. Root's own classified wrapper of the
 same seam had this trigger as its only caller, so it moved out entirely
 (the `iamcanassume` extraction precedent) rather than staying as dead code;
-the payload-usage manifest gate requires a unique function name per
-`factschema_decode*.go` file, so this package's copy carries a
-family-prefixed name instead of root's original one. Every other
+this package's copy carries a family-prefixed name, matching the `ec2` and
+`observabilitycoverage` extractions. The payload-usage manifest gate does
+enforce a unique function name per decode-seam file set, but root's wrapper
+went away in the same commit, so the plain name would not collide today. Every other
 trigger branch reads only envelope-level fields (`FactKind`, `FactID`,
 `SourceRef`, `CollectorKind`, `IsTombstone`) or raw payload keys through a
 package-local `payloadString` copy (`payload.go`, mirroring root's

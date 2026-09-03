@@ -29,9 +29,11 @@ import (
 // so it was removed rather than kept as dead code — the way root's
 // decodeAWSIAMPermission wrapper moved out entirely when iamcanassume/ was
 // extracted. This package recreates the call under a family-prefixed name
-// (the payload-usage manifest gate requires a unique function name across
-// every factschema_decode*.go file, so the wrapper cannot keep root's exact
-// name) rather than importing a root wrapper, because root imports this
+// (matching the family-prefixed naming the ec2 and observabilitycoverage
+// extractions use; the payload-usage manifest gate does enforce a unique
+// function name per decode-seam file set, though root's wrapper was deleted
+// in this same commit so the plain name would not collide today) rather than
+// importing a root wrapper, because root imports this
 // package to dispatch to it and the reverse direction would cycle. The sole
 // caller here (awsRelationshipTargetsContainerImage) discards the error
 // entirely, so this direct call is behavior-identical to the classified
