@@ -39,10 +39,10 @@ import (
 //
 // What this mapping does NOT capture: container_image_identity intents are also
 // enqueued in aws, azure, gcp, git, and sbom_attestation scopes (see
-// containerImageIdentityCandidateFactKinds in
-// internal/projector/container_image_identity_intents.go), so identity output
-// can be published by a scope this map does not name. The floor does not wait
-// for those.
+// candidateFactKinds in
+// internal/projector/containerimageidentity/identity_intents.go), so identity
+// output can be published by a scope this map does not name. The floor does
+// not wait for those.
 //
 // The map stays narrow for two reasons, and neither is "a busy cloud scope
 // would block everything". CrossScopeProducersReady asks for AT LEAST ONE

@@ -183,6 +183,20 @@
   dispatcher assertions; all four cases actually exercise `buildProjection`,
   so the whole file stayed at root, renamed
   `ci_cd_run_correlation_projection_test.go`.
+- **Container-image-identity family (#6057)** — the
+  `container_image_identity` builder lives in `containerimageidentity/` and
+  consumes the lookup like the families above. It is decode-seam-bearing:
+  its `aws_relationship` branch decodes optional `TargetType` through its own
+  `factschema_decode_aws.go`, triggering only on `"container_image"`; every
+  other branch reads only envelope fields or a local `payloadString` copy.
+  Root's `decodeAWSRelationship` wrapper had this trigger as its only caller
+  and moved out entirely (the `iamcanassume` precedent), unlike
+  `ec2`/`observabilitycoverage` where root keeps other callers. The root
+  `containerImageIdentitySourceSystem` helper was byte-identical to
+  `projectorintent.SourceSystem` and was dropped rather than moved. The four
+  topic-split root test files kept one builder-only case (the dockerfile
+  tombstone-removal trigger test), which moved into the child's own test
+  file; every other case stayed at root, renamed `_projection_test.go`.
 - **CanonicalWriter interface boundary** — no caller in this package calls a Neo4j
   or NornicDB driver directly. All canonical writes go through `CanonicalWriter`.
   Backend-specific logic belongs in `internal/storage/cypher` adapters.

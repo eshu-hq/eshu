@@ -20,11 +20,3 @@ func decodeAWSResource(env facts.Envelope) (awsv1.Resource, error) {
 	}
 	return resource, nil
 }
-
-func decodeAWSRelationship(env facts.Envelope) (awsv1.Relationship, error) {
-	relationship, err := factschema.DecodeAWSRelationship(factschemaEnvelope(env))
-	if err != nil {
-		return awsv1.Relationship{}, newProjectorDecodeError(factschema.FactKindAWSRelationship, err)
-	}
-	return relationship, nil
-}

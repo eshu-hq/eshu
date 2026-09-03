@@ -72,7 +72,8 @@ func TestReducerIntentFactIndexFirstOfKindMatchingSkipsRejected(t *testing.T) {
 // TestReducerIntentFactIndexFirstAcrossKindsPreservesOriginalOrder is the
 // correctness-critical case for the merge helper: several reducer-intent builder
 // probes (e.g. buildSupplyChainImpactReducerIntent,
-// buildContainerImageIdentityReducerIntent) choose their anchor fact as
+// containerimageidentity.BuildContainerImageIdentityReducerIntent) choose
+// their anchor fact as
 // "whichever accepted-kind fact appears earliest in inputFacts", not
 // "earliest fact of the first-listed kind". A naive per-kind-priority lookup
 // would pick kind_b's fact here even though a kind_a fact appears earlier in

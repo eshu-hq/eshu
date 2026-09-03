@@ -7,8 +7,9 @@
    the rule that the projector never makes cross-source admission decisions.
 3. `../intent/AGENTS.md` for the neutral builder contract.
 4. `../scope_generation_intents.go` for root-owned assembly order; this probe
-   runs after `buildContainerImageIdentityReducerIntent` and before the
-   `sbomattestation.BuildSBOMAttestationAttachmentReducerIntent` probe.
+   runs after `containerimageidentity.BuildContainerImageIdentityReducerIntent`
+   and before the `sbomattestation.BuildSBOMAttestationAttachmentReducerIntent`
+   probe.
 5. `go/internal/reducer/cicdrun/ci_cd_run_correlation.go` for what the
    reducer does with the intent this package enqueues: the full-snapshot and
    bounded artifact-only patch correlation, the cross-scope

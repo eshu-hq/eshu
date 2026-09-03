@@ -124,18 +124,3 @@ func TestBuildProjectionDoesNotQueueContainerImageIdentityForNonDockerfileFile(t
 		}
 	}
 }
-
-// TestContainerImageIdentityTriggerFactDockerfileRemoval covers the removal path.
-// A deleted Dockerfile must still trigger the domain so the retract-first pass
-// clears the stale DERIVED_FROM edge; a tombstoned file fact can arrive with no
-// parsed_file_data at all, so the trigger recognizes a Dockerfile by name too.
-func TestContainerImageIdentityTriggerFactDockerfileRemoval(t *testing.T) {
-	t.Parallel()
-
-	tombstone := dockerfileFileEnvelope("fact-dockerfile-tombstone", "repo://github.com/example/lineage-app", "gen-2", nil)
-	tombstone.IsTombstone = true
-
-	if !containerImageIdentityTriggerFact(tombstone) {
-		t.Fatal("a tombstoned Dockerfile file fact must trigger the container image identity domain so the stale DERIVED_FROM edge is retracted")
-	}
-}
