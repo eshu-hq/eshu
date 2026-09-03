@@ -65,7 +65,7 @@ func TestDispatchToolServiceAndWorkloadContextAllowsScopedRoutes(t *testing.T) {
 				},
 				ok: true,
 			}
-			handler := query.AuthMiddlewareWithScopedTokens("", resolver, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			handler := query.AuthMiddlewareWithScopedTokensAndRoutePolicy("", resolver, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 				if got := r.Method; got != tt.method {
 					t.Fatalf("method = %q, want %q", got, tt.method)
 				}
@@ -86,7 +86,15 @@ func TestDispatchToolServiceAndWorkloadContextAllowsScopedRoutes(t *testing.T) {
 					query.TruthBasisHybrid,
 					"resolved from bounded service context graph read",
 				))
-			}))
+			}),
+				// The permissive route policy is what a local_no_policy or
+				// hosted_single_tenant deployment wires (see
+				// query.ScopedRoutePolicyForGovernanceMode). It is required here
+				// because the resolver above returns an all-scope context, which
+				// since #6450's residual item 1 closed is refused on a grant-bound
+				// route under a fail-closed policy. This test is about MCP tool
+				// dispatch reaching the right route, not about admission.
+				query.BrowserSessionRoutePolicy{AllowTenantBoundAllScopes: true})
 
 			result, err := dispatchTool(
 				context.Background(),

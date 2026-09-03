@@ -318,7 +318,7 @@ func TestAuthMiddlewareWithScopedTokensAllowsEntityContextRoute(t *testing.T) {
 		},
 		ok: true,
 	}
-	handler := AuthMiddlewareWithScopedTokens("", resolver, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	handler := AuthMiddlewareWithScopedTokensAndRoutePolicy("", resolver, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		auth, ok := AuthContextFromContext(r.Context())
 		if !ok {
 			t.Fatal("AuthContextFromContext() ok = false, want true")
@@ -327,7 +327,14 @@ func TestAuthMiddlewareWithScopedTokensAllowsEntityContextRoute(t *testing.T) {
 			t.Fatalf("auth.AllScopes = false, want true")
 		}
 		w.WriteHeader(http.StatusOK)
-	}))
+	}),
+		// The permissive route policy is what an unset, local_no_policy or
+		// hosted_single_tenant deployment derives. It is required because the
+		// resolver returns an all-scope context, which since #6450's residual
+		// item 1 closed is refused on a grant-bound route under a fail-closed
+		// policy. What this test is for is the route being on the allowlist,
+		// not which deployments open it -- that is the split table's job.
+		BrowserSessionRoutePolicy{AllowTenantBoundAllScopes: true})
 
 	req := httptest.NewRequest(http.MethodGet, "/api/v0/entities/service:payments/context", nil)
 	req.Header.Set("Authorization", "Bearer scoped-token")
@@ -385,12 +392,19 @@ func TestAuthMiddlewareWithScopedTokensAllowsServiceAndWorkloadContextRoutes(t *
 				},
 				ok: true,
 			}
-			handler := AuthMiddlewareWithScopedTokens("", resolver, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			handler := AuthMiddlewareWithScopedTokensAndRoutePolicy("", resolver, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 				if _, ok := AuthContextFromContext(r.Context()); !ok {
 					t.Fatal("AuthContextFromContext() ok = false, want true")
 				}
 				w.WriteHeader(http.StatusOK)
-			}))
+			}),
+				// The permissive route policy is what an unset, local_no_policy or
+				// hosted_single_tenant deployment derives. It is required because the
+				// resolver returns an all-scope context, which since #6450's residual
+				// item 1 closed is refused on a grant-bound route under a fail-closed
+				// policy. What this test is for is the route being on the allowlist,
+				// not which deployments open it -- that is the split table's job.
+				BrowserSessionRoutePolicy{AllowTenantBoundAllScopes: true})
 
 			req := httptest.NewRequest(http.MethodGet, route, nil)
 			req.Header.Set("Authorization", "Bearer scoped-token")
@@ -416,12 +430,19 @@ func TestAuthMiddlewareWithScopedTokensAllowsServiceInvestigationRoute(t *testin
 		},
 		ok: true,
 	}
-	handler := AuthMiddlewareWithScopedTokens("", resolver, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	handler := AuthMiddlewareWithScopedTokensAndRoutePolicy("", resolver, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if _, ok := AuthContextFromContext(r.Context()); !ok {
 			t.Fatal("AuthContextFromContext() ok = false, want true")
 		}
 		w.WriteHeader(http.StatusOK)
-	}))
+	}),
+		// The permissive route policy is what an unset, local_no_policy or
+		// hosted_single_tenant deployment derives. It is required because the
+		// resolver returns an all-scope context, which since #6450's residual
+		// item 1 closed is refused on a grant-bound route under a fail-closed
+		// policy. What this test is for is the route being on the allowlist,
+		// not which deployments open it -- that is the split table's job.
+		BrowserSessionRoutePolicy{AllowTenantBoundAllScopes: true})
 
 	req := httptest.NewRequest(http.MethodGet, "/api/v0/investigations/services/payments", nil)
 	req.Header.Set("Authorization", "Bearer scoped-token")

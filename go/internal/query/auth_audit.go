@@ -145,25 +145,15 @@ func recordReadAuthorizationUnavailable(
 	_ = audit.Append(ctx, []governanceaudit.Event{event})
 }
 
-// recordScopedRouteAuthorizationDenied records a scoped-route refusal under
-// the pre-#6450 reason code, scopedRouteNotEnabledReason. The scoped-bearer
-// branch of authMiddlewareWithRoutePolicy is its remaining caller: a scoped
-// bearer is refused only when the route is off the allowlist, so that code is
-// still true there by construction.
-func recordScopedRouteAuthorizationDenied(
-	r *http.Request,
-	audit GovernanceAuditAppender,
-	auth AuthContext,
-) {
-	recordScopedRouteAuthorizationDeniedWithReason(r, audit, auth, scopedRouteNotEnabledReason)
-}
-
-// recordScopedRouteAuthorizationDeniedWithReason is the reason-carrying form,
-// mirroring recordReadAuthorizationDeniedWithReason above. The browser-session
-// path uses it because, since #6450, a cookie caller is refused for two
-// genuinely different causes and an operator has to be able to tell them
-// apart; see the reason-code constants in
-// auth_browser_session_route_policy.go. A blank or whitespace-only code falls
+// recordScopedRouteAuthorizationDeniedWithReason is the only scoped-route
+// denial recorder, mirroring recordReadAuthorizationDeniedWithReason above.
+// Both admission paths use it because, since #6450, a cookie caller is refused
+// for two genuinely different causes and an operator has to be able to tell
+// them apart; the scoped-bearer path joined them when #6450's residual item 1
+// closed and scopedBearerRouteDenialReason started producing both codes too.
+// See the reason-code constants in auth_browser_session_route_policy.go. It
+// replaced a fixed-code wrapper, recordScopedRouteAuthorizationDenied, which
+// lost its last caller in that change. A blank or whitespace-only code falls
 // back to scopedRouteDeniedUnspecifiedReason rather than emitting an event
 // NormalizeEvent would reject: the durable GovernanceAuditStore.Append
 // normalizes all-or-nothing and returns before any INSERT, and the async
@@ -187,15 +177,16 @@ func recordScopedRouteAuthorizationDeniedWithReason(
 		return
 	}
 	// The closed governanceaudit.ActorClass enum (governanceaudit/audit.go)
-	// has no browser-session member, so a cookie-session denial -- including
-	// scoped_route_all_scope_grant_required, which only a browser session can
-	// produce -- is stamped scoped_token on purpose. Read it as
-	// "identity-resolved caller", not "bearer token". Do not "correct" it to
-	// ActorClassOperator: that member means a human operator carrying no
-	// direct identifier, and this helper is shared with the scoped-bearer
-	// denial path (recordScopedRouteAuthorizationDenied), where scoped_token
-	// is literally right. Widening the enum with a browser-session member is
-	// tracked in #6459.
+	// has no browser-session member, so a cookie-session denial is stamped
+	// scoped_token on purpose. Read it as "identity-resolved caller", not
+	// "bearer token". Do not "correct" it to ActorClassOperator: that member
+	// means a human operator carrying no direct identifier, and this helper is
+	// shared with the scoped-bearer denial path in
+	// authMiddlewareWithRoutePolicy, where scoped_token is literally right --
+	// including for scoped_route_all_scope_grant_required, which since #6450's
+	// residual item 1 closed is emitted for an all-scope bearer as well as an
+	// all-scope cookie session. Widening the enum with a browser-session
+	// member is tracked in #6459.
 	actorClass := governanceaudit.ActorClassScopedToken
 	if auth.SubjectIDHash == "" {
 		actorClass = governanceaudit.ActorClassAnonymous
@@ -225,7 +216,7 @@ func recordScopedRouteAuthorizationDeniedWithReason(
 // recordScopedReadAuthorized records the F-9 (#5170) allowed-read
 // governance-audit event for a resolver-success scoped-token or OIDC-bearer
 // MCP/API read, mirroring the ALLOWED counterpart of
-// recordScopedRouteAuthorizationDenied above. It is a sibling of the denial
+// recordScopedRouteAuthorizationDeniedWithReason above. It is a sibling of the denial
 // helpers, but deliberately does NOT wrap the append in the
 // governanceAuditAppendTimeout context used by the synchronous denial
 // helpers: allowedAudit is a governanceauditasync.AsyncAppender in
@@ -242,7 +233,7 @@ func recordScopedReadAuthorized(r *http.Request, allowedAudit GovernanceAuditApp
 	if allowedAudit == nil {
 		return
 	}
-	// Mirror recordScopedRouteAuthorizationDenied's empty-hash guard exactly:
+	// Mirror the denial helper's empty-hash guard exactly:
 	// a scoped token can resolve ok=true with an empty SubjectIDHash
 	// (scopedtoken/registry.go's validOptionalAuditHash accepts empty, and
 	// normalizeAuthContext never fills it). ActorClassScopedToken with an

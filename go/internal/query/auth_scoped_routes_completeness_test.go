@@ -213,10 +213,19 @@ func TestScopedTokenAdvertisedRoutesReachHandlerThroughRealAuthMiddleware(t *tes
 				ok: true,
 			}
 			called := false
-			handler := AuthMiddlewareWithScopedTokens("", resolver, http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+			// The permissive route policy is what this table asserts under.
+			// The caller is all-scope, and since #6450's residual item 1
+			// closed, an all-scope bearer enters a grant-bound allowlisted
+			// route only where the deployment opted in. Under the fail-closed
+			// policy this table would assert the opposite of what it is for --
+			// it exists to prove every ADVERTISED route is reachable by the
+			// caller its marker advertises, not to re-litigate admission,
+			// which auth_browser_session_all_scopes_split_test.go drives over
+			// this same ledger under all nine caller shapes.
+			handler := AuthMiddlewareWithScopedTokensAndRoutePolicy("", resolver, http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 				called = true
 				w.WriteHeader(http.StatusOK)
-			}))
+			}), BrowserSessionRoutePolicy{AllowTenantBoundAllScopes: true})
 
 			req := surfaceNameToRequest(t, name)
 			req.Header.Set("Authorization", "Bearer scoped-token")
@@ -224,7 +233,7 @@ func TestScopedTokenAdvertisedRoutesReachHandlerThroughRealAuthMiddleware(t *tes
 			handler.ServeHTTP(rec, req)
 
 			if !called {
-				t.Fatalf("next handler not called; AuthMiddlewareWithScopedTokens rejected a marker-advertised scoped route with status %d, body = %s", rec.Code, rec.Body.String())
+				t.Fatalf("next handler not called; the scoped-token middleware rejected a marker-advertised scoped route with status %d, body = %s", rec.Code, rec.Body.String())
 			}
 			if got, want := rec.Code, http.StatusOK; got != want {
 				t.Fatalf("status = %d, want %d; body = %s", got, want, rec.Body.String())

@@ -33,8 +33,14 @@ func TestAuthMiddleware_AllowedScopedReadEmitsExactlyOneEvent(t *testing.T) {
 		ok: true,
 	}
 	allowedAudit := &fakeGovernanceAuditAppender{}
-	handler := AuthMiddlewareWithScopedTokensGovernanceAuditEnforcementOAuthChallengeAndAllowedReadAudit(
+	// The permissive route policy is required, not incidental: since #6450's
+	// residual item 1 closed, an all-scope bearer on a grant-bound route is
+	// refused before the ALLOWED emission site unless the deployment opted in,
+	// and this test is about what a successful read emits. cmd/mcp-server
+	// derives the same policy from ESHU_GOVERNANCE_MODE.
+	handler := AuthMiddlewareWithScopedTokensGovernanceAuditEnforcementOAuthChallengeAllowedReadAuditAndRoutePolicy(
 		"", resolver, mockHandler(), nil, false, nil, allowedAudit,
+		BrowserSessionRoutePolicy{AllowTenantBoundAllScopes: true},
 	)
 
 	req := httptest.NewRequest("GET", "/api/v0/repositories", nil)
@@ -102,17 +108,24 @@ func TestAuthMiddleware_AllowedScopedReadEmptySubjectHashNormalizes(t *testing.T
 
 	resolver := &fakeScopedTokenResolver{
 		context: AuthContext{
-			Mode:      AuthModeScoped,
-			TenantID:  "tenant_a",
-			AllScopes: true,
+			Mode:        AuthModeScoped,
+			TenantID:    "tenant_a",
+			WorkspaceID: "workspace_a",
+			AllScopes:   true,
 			// SubjectIDHash deliberately empty: a scoped token registry entry
-			// with no subject_id_hash resolves ok=true here.
+			// with no subject_id_hash resolves ok=true here. The workspace is
+			// NOT incidental: an all-scope bearer reaches a grant-bound route
+			// only when it is bound to a tenant AND a workspace, which
+			// scopedtoken.Entry.normalize requires of every registry entry, so
+			// a context missing one could not carry an empty subject hash into
+			// this branch in the first place.
 		},
 		ok: true,
 	}
 	allowedAudit := &fakeGovernanceAuditAppender{}
-	handler := AuthMiddlewareWithScopedTokensGovernanceAuditEnforcementOAuthChallengeAndAllowedReadAudit(
+	handler := AuthMiddlewareWithScopedTokensGovernanceAuditEnforcementOAuthChallengeAllowedReadAuditAndRoutePolicy(
 		"", resolver, mockHandler(), nil, false, nil, allowedAudit,
+		BrowserSessionRoutePolicy{AllowTenantBoundAllScopes: true},
 	)
 
 	req := httptest.NewRequest("GET", "/api/v0/repositories", nil)
@@ -274,7 +287,13 @@ func TestAuthMiddleware_NilAllowedAuditKeepsBehaviorByteIdentical(t *testing.T) 
 		context: AuthContext{
 			Mode:          AuthModeScoped,
 			SubjectIDHash: "sha256:0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcd",
-			AllScopes:     true,
+			// Deliberately NOT all-scope. This test's subject is the nil
+			// allowedAudit sink, and the constructor under test carries no
+			// route policy, so an all-scope context would be refused by
+			// scopedBearerRouteDenialReason before the read it is asserting on
+			// ever happened -- a green test measuring the wrong thing. The
+			// all-scope emission path is covered above, under the policy the
+			// production wiring actually threads.
 		},
 		ok: true,
 	}

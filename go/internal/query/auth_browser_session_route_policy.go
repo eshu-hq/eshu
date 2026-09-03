@@ -8,22 +8,34 @@ import (
 	"strings"
 )
 
-// BrowserSessionRoutePolicy controls whether a tenant-bound all-scopes
-// browser session may enter a route whose repository/scope filtering cannot
-// bind it. That is two populations, not one: a route with no tenant filtering
-// at all (absent from the scoped-token allowlist), and, since #6450, an
-// allowlisted route whose own grant predicate goes inert for an all-scope
-// caller -- the grant-bound, deployment-scoped, and transitive classes in
+// BrowserSessionRoutePolicy controls whether a tenant-bound all-scopes caller
+// may enter a route whose repository/scope filtering cannot bind it. That is
+// two populations, not one: a route with no tenant filtering at all (absent
+// from the scoped-token allowlist), and, since #6450, an allowlisted route
+// whose own grant predicate goes inert for an all-scope caller -- the
+// grant-bound, deployment-scoped, and transitive classes in
 // scopedTokenAdvertisedRoutes. Identity-bound and tenant-data-free
 // allowlisted routes hold no caller grant to make inert and are admitted
-// without consulting this policy, confined to the tenant the session is
+// without consulting this policy, confined to the tenant the caller is
 // currently bound to; see scopedRouteClass below for the two residuals that
 // qualification is protecting against. Its zero value is fail-closed.
+//
+// The name is narrower than the reach. It was introduced for the cookie
+// console session and now governs the all-scope BEARER population too --
+// #6450's residual item 1, closed by scopedBearerRouteDenialReason below --
+// because an all-scope OIDC or registry bearer makes the same grant
+// predicates inert on the same routes, and answering it from the whole corpus
+// in a hosted multi-tenant deployment is the same defect with a different
+// credential. The type keeps its name so the ~50 call sites and the committed
+// #6450 evidence that cite it by symbol stay true; read it as "the policy for
+// all-scope callers on grant-bound routes".
 type BrowserSessionRoutePolicy struct {
-	// AllowTenantBoundAllScopes opens both populations above to a browser
-	// session that is all-scopes AND bound to one concrete tenant and
-	// workspace (tenantBoundAllScopesBrowserSession). Leave it false unless
-	// the runtime is provably local or single-tenant.
+	// AllowTenantBoundAllScopes opens both populations above to a caller that
+	// is all-scopes AND bound to one concrete tenant and workspace
+	// (tenantBoundAllScopes). For a bearer it opens only the second
+	// population: a bearer never reaches a route off the scoped-token
+	// allowlist whatever this field says. Leave it false unless the runtime
+	// is provably local or single-tenant.
 	AllowTenantBoundAllScopes bool
 }
 
@@ -176,10 +188,87 @@ func browserSessionRouteDenialReason(
 // require handler-level scope predicates before enabling a shared graph across
 // tenants; see docs/internal/design/1902-tenant-workspace-isolation.md.
 func tenantBoundAllScopesBrowserSession(auth AuthContext) bool {
-	return auth.Mode == AuthModeBrowserSession &&
-		auth.AllScopes &&
+	return auth.Mode == AuthModeBrowserSession && tenantBoundAllScopes(auth)
+}
+
+// tenantBoundAllScopes is the mode-neutral half of the test above: an
+// all-scope caller bound to one concrete tenant and workspace. Both admission
+// paths need it -- the cookie session through the wrapper above, and the
+// scoped bearer through scopedBearerRouteDenialReason -- and they must agree
+// on what "tenant-bound" means, so it is one function rather than two
+// copies that can drift apart on a blank-string check.
+//
+// The blank checks are not defensive padding on the bearer path either, even
+// though scopedtoken.Entry.normalize rejects an entry with no tenant_id or
+// workspace_id and oidcbearer.Resolver copies both from the provider config.
+// The AuthContext this sees came through a ScopedTokenResolver interface, and
+// nothing in the type system says every implementation of that interface
+// enforces what those two do.
+func tenantBoundAllScopes(auth AuthContext) bool {
+	return auth.AllScopes &&
 		strings.TrimSpace(auth.TenantID) != "" &&
 		strings.TrimSpace(auth.WorkspaceID) != ""
+}
+
+// scopedBearerRouteDenialReason is browserSessionRouteDenialReason's sibling
+// for a scoped bearer token -- an ESHU_SCOPED_TOKENS_FILE registry entry or an
+// OIDC bearer resolved to AuthModeScoped. It returns "" for an admitted
+// request and otherwise the governance-audit reason code for the refusal, in
+// the same single-return-value shape and for the same reason: an admission
+// decision and the audit row explaining it must not be able to disagree.
+//
+// It closes #6450's residual item 1. Before it, the whole bearer gate was
+// scopedHTTPRouteSupportsTenantFilter -- allowlist membership alone -- so a
+// bearer carrying AllScopes entered every grant-bound allowlisted route with
+// its grant predicate inert (querycontract.RepositoryAccessFilterFromContext
+// returns AllScopes:true, whose Scoped() is false) and read every tenant's
+// rows, in hosted_multi_tenant as readily as on a laptop.
+//
+// It differs from the browser-session function in exactly two ways, and both
+// are deliberate.
+//
+// It has no policy escape off the allowlist. A bearer on a route with no
+// tenant filtering at all is refused whatever the policy says, which is the
+// pre-existing bearer behaviour and stays that way: the routes still on
+// pendingRowFilteringRoutes (GET /api/v0/freshness/services/changed-since
+// among them) answer a bearer with a 403 in every deployment, and this change
+// must not quietly promote them. The console session's off-allowlist opening
+// is a dashboard affordance, not a token one.
+//
+// It needs no IsSharedKeyOnlyRoute branch. A shared-key-only route is by
+// definition absent from the allowlist, so the first check already refuses it
+// with the same scoped_route_not_enabled code the browser-session path emits
+// there.
+//
+// A restricted bearer -- one carrying real repository or scope ids -- is
+// untouched: the handler binds its grant, so it is admitted on every
+// allowlisted route exactly as before.
+func scopedBearerRouteDenialReason(
+	r *http.Request,
+	auth AuthContext,
+	policy BrowserSessionRoutePolicy,
+) string {
+	if !scopedHTTPRouteSupportsTenantFilter(r) {
+		return scopedRouteNotEnabledReason
+	}
+	if !auth.AllScopes {
+		// The handler binds this token's own repository/scope grant.
+		return ""
+	}
+	if scopedRouteNeedsNoCallerGrant(r) {
+		// Identity-bound or tenant-data-free: no caller grant to make inert.
+		return ""
+	}
+	if policy.AllowTenantBoundAllScopes && tenantBoundAllScopes(auth) {
+		return ""
+	}
+	// The break-it-to-prove-it run recorded in
+	// docs/internal/evidence/5167-freshness-family-allowlist.md flips the
+	// literal below to "", which restores the unconditional admission an
+	// all-scope bearer had before this function existed, and must turn the
+	// hosted_multi_tenant refusal cases red. The trailing marker is what that run seds on, so keep
+	// it on the same line as the literal.
+	return scopedRouteAllScopeGrantRequiredReason // bites-6450-bearer-neuter-anchor
 }
 
 // scopedRouteClass records WHY a route is on the scoped-token allowlist
@@ -196,7 +285,9 @@ func tenantBoundAllScopesBrowserSession(auth AuthContext) bool {
 // inert in the first place, so admitting an all-scope session to it does not
 // widen a read the way it does on a grant-bound route: the handler answers
 // from the tenant and workspace the session is CURRENTLY bound to.
-// browserSessionRouteDenialReason, above, admits on exactly that split.
+// browserSessionRouteDenialReason and scopedBearerRouteDenialReason, above,
+// both admit on exactly that split -- the same class, read by both credential
+// kinds, since #6450's residual item 1 closed.
 //
 // "Currently bound to" is doing real work in that sentence, and two known
 // residuals are the reason it is not the stronger claim that an all-scope
@@ -239,8 +330,9 @@ func tenantBoundAllScopesBrowserSession(auth AuthContext) bool {
 //
 // A route added to the allowlist without an explicit class gets the zero
 // value, scopedRouteGrantBound, which keeps it behind the
-// BrowserSessionRoutePolicy mode check. That is deliberate: a contributor who
-// forgets the class gets the fail-closed answer, not an all-scope opening.
+// BrowserSessionRoutePolicy mode check for both credential kinds. That is
+// deliberate: a contributor who forgets the class gets the fail-closed
+// answer, not an all-scope opening.
 //
 // This class is NOT an OpenAPI marker, and deliberately so. The markers
 // ("x-scoped-token-support", "x-browser-session-only", "x-shared-key-only")
@@ -276,12 +368,12 @@ const (
 	scopedRouteTransitive
 )
 
-// admitsAllScopesSessionWithoutPolicy reports whether an all-scope browser
-// session may enter a route of this class regardless of
-// BrowserSessionRoutePolicy. Only identity-bound and tenant-data-free routes
-// qualify: they hold no caller grant that all-scope access could render
-// inert. Grant-bound, deployment-scoped, and transitive routes all stay
-// behind the policy's mode check.
+// admitsAllScopesSessionWithoutPolicy reports whether an all-scope caller --
+// cookie session or bearer token -- may enter a route of this class
+// regardless of BrowserSessionRoutePolicy. Only identity-bound and
+// tenant-data-free routes qualify: they hold no caller grant that all-scope
+// access could render inert. Grant-bound, deployment-scoped, and transitive
+// routes all stay behind the policy's mode check.
 func (c scopedRouteClass) admitsAllScopesSessionWithoutPolicy() bool {
 	return c == scopedRouteIdentityBound || c == scopedRouteTenantDataFree
 }
@@ -296,8 +388,8 @@ func (c scopedRouteClass) admitsAllScopesSessionWithoutPolicy() bool {
 // out to read tenant data, and it would miss the static catalog routes that
 // live elsewhere in the path space. Every route that is not in this union --
 // including the non-ledger MCP transport paths (GET /sse, POST /mcp/message)
-// -- is policy-gated for all-scope sessions, which is the fail-closed
-// default.
+// -- is policy-gated for all-scope callers of either kind, which is the
+// fail-closed default.
 //
 // TestScopedRouteClassLedgerAgreesWithPredicate keeps this function and the
 // scopedTokenAdvertisedRoutes classes in lockstep: adding a matcher here

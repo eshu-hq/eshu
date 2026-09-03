@@ -60,85 +60,175 @@ func TestScopedTokenReachesFreshnessDeltaPairOnly(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
-			assertBearerFreshnessDeltaRoute(t, auth, tc.path, tc.wantStatus)
+			// A restricted token carries a grant the handler binds, so it is
+			// decided by allowlist membership alone and the route policy never
+			// enters into it. Driving it under the fail-closed policy is the
+			// point: the #6450 residual-item-1 fix must not have moved this
+			// population.
+			wantReason := ""
+			if tc.wantStatus == http.StatusForbidden {
+				wantReason = scopedRouteNotEnabledReason
+			}
+			assertBearerFreshnessDeltaRoute(
+				t, auth, BrowserSessionRoutePolicy{}, tc.path, tc.wantStatus, wantReason,
+			)
 		})
 	}
 }
 
-// TestAllScopeBearerTokenReachesFreshnessDeltaPairOnly pins the bearer shape
-// the route's four caller-facing surfaces name when they say scoped tokens are
-// refused "all-scope bearer tokens included": a token whose grant set carries
-// AllScopes and no repository or scope ids, which is what
-// scopedtoken.Registry's admin-equivalent entry and an OIDC provider's
-// all-scopes grant set both resolve to.
+// TestAllScopeBearerOnFreshnessDeltaRoutesPerGovernanceMode pins what an
+// all-scope bearer gets on the two routes this change promotes, per
+// ESHU_GOVERNANCE_MODE. "All-scope bearer" is the shape scopedtoken.Registry's
+// admin-equivalent entry and an OIDC provider's all-scopes grant set both
+// resolve to: AuthModeScoped, AllScopes set, no repository or scope ids.
 //
-// Neither resolver varies Mode with AllScopes -- both build the context with
-// AuthModeScoped -- and the middleware's scoped branch keys on Mode alone, so
-// the pending service route refuses this token in every deployment while the
-// two promoted pair routes hand it to the handler.
+// This table used to assert the opposite. Until #6450's residual item 1
+// closed, allowlist membership was the whole bearer gate, so promoting these
+// two routes handed such a token a 200 in every deployment -- and because
+// RepositoryAccessFilter.Scoped() is false for it, $3 in
+// resolveChangedSinceScopeQuery and $8 in listGenerationLifecycleQuery
+// short-circuit and the read runs across the whole corpus. The promotion was
+// therefore turning a middleware 403 into a cross-tenant read for exactly the
+// caller a hosted multi-tenant deployment most needs bounded.
 //
-// That asymmetry is the assertion. The tenant-bound all-scope BROWSER SESSION
-// in the table below IS admitted on the same pending route wherever the policy
-// sets AllowTenantBoundAllScopes, so "all-scope" alone does not decide the
-// route: the credential kind does. #6450's residual rests on that split, which
-// is why it gets a case of its own rather than being read off the
-// browser-session table.
-func TestAllScopeBearerTokenReachesFreshnessDeltaPairOnly(t *testing.T) {
+// Now the bearer takes the same rule the console session already took: on a
+// grant-bound allowlisted route it is admitted only where the operator has
+// opted in AND it is bound to one concrete tenant and workspace. The pending
+// service route is unchanged and refused in every mode, which is the assertion
+// that keeps the promotion honest -- the fix must not have quietly promoted
+// the route #6475 is still holding.
+func TestAllScopeBearerOnFreshnessDeltaRoutesPerGovernanceMode(t *testing.T) {
 	t.Parallel()
 
-	cases := []struct {
-		name       string
-		path       string
-		wantStatus int
-	}{
-		{
-			name:       "changed_since_promoted",
-			path:       "/api/v0/freshness/changed-since",
-			wantStatus: http.StatusOK,
-		},
-		{
-			name:       "generations_promoted",
-			path:       "/api/v0/freshness/generations",
-			wantStatus: http.StatusOK,
-		},
-		{
-			name:       "service_changed_since_still_pending",
-			path:       "/api/v0/freshness/services/changed-since",
-			wantStatus: http.StatusForbidden,
-		},
-	}
+	const (
+		changedSince   = "/api/v0/freshness/changed-since"
+		generations    = "/api/v0/freshness/generations"
+		servicePending = "/api/v0/freshness/services/changed-since"
+	)
 
-	auth := AuthContext{
+	tenantBound := AuthContext{
 		Mode:        AuthModeScoped,
 		TenantID:    "tenant_a",
 		WorkspaceID: "workspace_a",
 		AllScopes:   true,
 	}
-	for _, tc := range cases {
+	// A registry entry cannot carry a blank tenant or workspace
+	// (scopedtoken.Entry.normalize rejects it) and an OIDC bearer takes both
+	// from the provider config, so this shape is defensive: it pins what
+	// admission does if some future ScopedTokenResolver hands one over, not a
+	// credential an operator can mint today.
+	tenantless := AuthContext{Mode: AuthModeScoped, AllScopes: true}
+
+	for _, tc := range []struct {
+		name string
+		// mode is the raw ESHU_GOVERNANCE_MODE value, read through the same
+		// ScopedRoutePolicyForGovernanceMode both commands wire, so this table
+		// cannot drift from the deployment posture it claims to describe.
+		mode       string
+		auth       AuthContext
+		path       string
+		wantStatus int
+		wantReason string
+	}{
+		{name: "unset mode admits the tenant-bound token on changed-since", mode: "", auth: tenantBound, path: changedSince, wantStatus: http.StatusOK},
+		{name: "unset mode admits the tenant-bound token on generations", mode: "", auth: tenantBound, path: generations, wantStatus: http.StatusOK},
+		{name: "local_no_policy admits the tenant-bound token on changed-since", mode: "local_no_policy", auth: tenantBound, path: changedSince, wantStatus: http.StatusOK},
+		{name: "local_no_policy admits the tenant-bound token on generations", mode: "local_no_policy", auth: tenantBound, path: generations, wantStatus: http.StatusOK},
+		{name: "hosted_single_tenant admits the tenant-bound token on changed-since", mode: "hosted_single_tenant", auth: tenantBound, path: changedSince, wantStatus: http.StatusOK},
+		{name: "hosted_single_tenant admits the tenant-bound token on generations", mode: "hosted_single_tenant", auth: tenantBound, path: generations, wantStatus: http.StatusOK},
+
+		// The defect this closes, in its reported shape.
+		{
+			name: "hosted_multi_tenant refuses the tenant-bound token on changed-since",
+			mode: "hosted_multi_tenant", auth: tenantBound, path: changedSince,
+			wantStatus: http.StatusForbidden, wantReason: scopedRouteAllScopeGrantRequiredReason,
+		},
+		{
+			name: "hosted_multi_tenant refuses the tenant-bound token on generations",
+			mode: "hosted_multi_tenant", auth: tenantBound, path: generations,
+			wantStatus: http.StatusForbidden, wantReason: scopedRouteAllScopeGrantRequiredReason,
+		},
+		// An unrecognized mode is fail-closed, so a typo in the deployment's
+		// environment cannot silently open the corpus.
+		{
+			name: "an unrecognized mode is fail-closed on changed-since",
+			mode: "hosted-multi-tenant", auth: tenantBound, path: changedSince,
+			wantStatus: http.StatusForbidden, wantReason: scopedRouteAllScopeGrantRequiredReason,
+		},
+
+		// Tenant-boundness is required on top of the opt-in, not instead of it.
+		{
+			name: "a tenantless token is refused even where the policy is open",
+			mode: "local_no_policy", auth: tenantless, path: changedSince,
+			wantStatus: http.StatusForbidden, wantReason: scopedRouteAllScopeGrantRequiredReason,
+		},
+		{
+			name: "a tenantless token is refused under the fail-closed policy too",
+			mode: "hosted_multi_tenant", auth: tenantless, path: generations,
+			wantStatus: http.StatusForbidden, wantReason: scopedRouteAllScopeGrantRequiredReason,
+		},
+
+		// The pending route is off the allowlist, so no policy reaches it and
+		// the reason code stays the pre-#6450 one: the route genuinely has no
+		// scoped authorization, which is a different thing for an operator to
+		// act on than an inert grant.
+		{
+			name: "the pending service route refuses the tenant-bound token where the policy is open",
+			mode: "local_no_policy", auth: tenantBound, path: servicePending,
+			wantStatus: http.StatusForbidden, wantReason: scopedRouteNotEnabledReason,
+		},
+		{
+			name: "the pending service route refuses the tenant-bound token under hosted_multi_tenant",
+			mode: "hosted_multi_tenant", auth: tenantBound, path: servicePending,
+			wantStatus: http.StatusForbidden, wantReason: scopedRouteNotEnabledReason,
+		},
+	} {
 		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
-			assertBearerFreshnessDeltaRoute(t, auth, tc.path, tc.wantStatus)
+			policy := ScopedRoutePolicyForGovernanceMode(GovernanceStatusConfig{Mode: tc.mode})
+			assertBearerFreshnessDeltaRoute(t, tc.auth, policy, tc.path, tc.wantStatus, tc.wantReason)
 		})
 	}
 }
 
 // assertBearerFreshnessDeltaRoute drives one bearer read of a freshness delta
-// route through the scoped-token middleware and asserts the status, whether
-// the next handler ran, and -- on a refusal -- that the envelope carries the
-// scoped-route permission-denied code. The two bearer tables above share it so
-// the all-scope row and the grant-carrying row are proven against the same
-// code path rather than against two hand-copied ones.
-func assertBearerFreshnessDeltaRoute(t *testing.T, auth AuthContext, path string, wantStatus int) {
+// route through the scoped-token middleware under one route policy, and
+// asserts the status, whether the next handler ran, and -- on a refusal --
+// that the envelope carries the scoped-route permission-denied code and that
+// the governance audit recorded the expected reason. The two bearer tables
+// above share it so the all-scope rows and the grant-carrying rows are proven
+// against the same code path rather than against two hand-copied ones.
+//
+// The reason assertion is not decoration. Both refusals return the same 403
+// with the same body, so the audit row is the only thing that tells an
+// operator whether to wire a route up or to narrow a credential, and a
+// status-only test cannot see the two drifting into one code.
+func assertBearerFreshnessDeltaRoute(
+	t *testing.T,
+	auth AuthContext,
+	policy BrowserSessionRoutePolicy,
+	path string,
+	wantStatus int,
+	wantReason string,
+) {
 	t.Helper()
 
 	resolver := &fakeScopedTokenResolver{context: auth, ok: true}
+	audit := &fakeGovernanceAuditAppender{}
 	called := false
-	handler := AuthMiddlewareWithScopedTokens("", resolver, http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
-		called = true
-		w.WriteHeader(http.StatusOK)
-	}))
+	handler := AuthMiddlewareWithBrowserSessionsScopedTokensGovernanceAuditAndRoutePolicy(
+		"",
+		resolver,
+		nil,
+		http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+			called = true
+			w.WriteHeader(http.StatusOK)
+		}),
+		audit,
+		policy,
+	)
 
 	req := httptest.NewRequest(http.MethodGet, path, nil)
 	req.Header.Set("Accept", EnvelopeMIMEType)
@@ -154,6 +244,9 @@ func assertBearerFreshnessDeltaRoute(t *testing.T, auth AuthContext, path string
 		t.Fatalf("next handler called = %t, want %t", called, want)
 	}
 	if wantStatus != http.StatusForbidden {
+		if len(audit.events) != 0 {
+			t.Fatalf("admitted request emitted %d governance-audit event(s), want 0: %#v", len(audit.events), audit.events)
+		}
 		return
 	}
 	var envelope ResponseEnvelope
@@ -165,6 +258,12 @@ func assertBearerFreshnessDeltaRoute(t *testing.T, auth AuthContext, path string
 	}
 	if got, want := envelope.Error.Code, ErrorCodePermissionDenied; got != want {
 		t.Fatalf("error code = %q, want %q", got, want)
+	}
+	if len(audit.events) != 1 {
+		t.Fatalf("len(audit.events) = %d, want 1: %#v", len(audit.events), audit.events)
+	}
+	if got := audit.events[0].ReasonCode; got != wantReason {
+		t.Fatalf("governance-audit reason = %q, want %q", got, wantReason)
 	}
 }
 
@@ -202,7 +301,7 @@ func TestServiceChangedSinceStaysOnPendingLedger(t *testing.T) {
 // scopedTokenAdvertisedRoutes, so browserSessionRouteDenialReason decides it on
 // the same branch it uses for every route outside that allowlist: a session
 // that is all-scope AND bound to one tenant and workspace is admitted wherever
-// cmd/api's browserSessionRoutePolicy sets AllowTenantBoundAllScopes -- the
+// ScopedRoutePolicyForGovernanceMode sets AllowTenantBoundAllScopes -- the
 // local_no_policy, hosted_single_tenant, and unset modes -- and every other
 // shape is refused with a 403.
 //

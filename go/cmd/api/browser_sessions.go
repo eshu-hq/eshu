@@ -9,7 +9,6 @@ import (
 	"errors"
 	"log/slog"
 	"net/http"
-	"strings"
 	"time"
 
 	"go.opentelemetry.io/otel"
@@ -134,25 +133,9 @@ func wrapAPIAuth(
 		sessionResolver,
 		next,
 		audit,
-		browserSessionRoutePolicy(governanceStatus),
+		query.ScopedRoutePolicyForGovernanceMode(governanceStatus),
 		authEnforcementConfigured,
 	)
-}
-
-// browserSessionRoutePolicy opts the API into whole-dashboard owner-session
-// admission only where one graph belongs to one local or hosted tenant. An
-// empty mode is the established local_no_policy default. Unrecognized
-// non-empty and hosted-multi-tenant modes stay fail-closed because those graph
-// handlers do not yet apply repository grants before counts and limits.
-func browserSessionRoutePolicy(
-	governanceStatus query.GovernanceStatusConfig,
-) query.BrowserSessionRoutePolicy {
-	switch strings.TrimSpace(governanceStatus.Mode) {
-	case "", "local_no_policy", "hosted_single_tenant":
-		return query.BrowserSessionRoutePolicy{AllowTenantBoundAllScopes: true}
-	default:
-		return query.BrowserSessionRoutePolicy{}
-	}
 }
 
 // CreateBrowserSession persists one dashboard session. It is the single

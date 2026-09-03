@@ -25,8 +25,9 @@ const (
 // allScopesSplitShape is one caller shape driven over every ledger route. The
 // shapes are the populations #6450 has to keep apart: a grant-bearing scoped
 // bearer, an all-scope console session with and without the permissive
-// policy, a restricted console session, the shared key, and the malformed
-// tenantless all-scope session.
+// policy, a restricted console session, the shared key, the malformed
+// tenantless all-scope session, and -- since residual item 1 closed -- the
+// all-scope BEARER in the same three variations the session has.
 type allScopesSplitShape struct {
 	name   string
 	policy BrowserSessionRoutePolicy
@@ -42,37 +43,56 @@ type allScopesSplitShape struct {
 	admits func(scopedRouteClass) bool
 }
 
-// splitAdmitsEveryClass is the expectation for the four caller shapes whose
+// splitAdmitsEveryClass is the expectation for the five caller shapes whose
 // admission the #6450 class split does not touch: the grant-bearing scoped
 // bearer (a), the all-scope session under the permissive policy (c), the
-// restricted browser session (d), and the shared key (e). Shapes (a) and (d)
-// carry a real grant for the handler to bind, (c) has the operator's explicit
-// opt-in, and (e) never reaches browserSessionRouteDenialReason at all. Every
-// ledger route admits them, which is what keeps the change a split rather
-// than a blanket refusal.
+// restricted browser session (d), the shared key (e), and the all-scope
+// bearer under the permissive policy (h). Shapes (a) and (d) carry a real
+// grant for the handler to bind, (c) and (h) have the operator's explicit
+// opt-in, and (e) reaches neither denial function at all. Every ledger route
+// admits them, which is what keeps the change a split rather than a blanket
+// refusal.
 func splitAdmitsEveryClass(scopedRouteClass) bool { return true }
 
-// splitAdmitsByClass is the expectation for the only two shapes that vary by
-// class: the all-scope session under the fail-closed policy (b), and the
-// tenantless all-scope session even under the permissive one (f), which
-// tenantBoundAllScopesBrowserSession rejects. Both reach a route only when
+// splitAdmitsByClass is the expectation for the four shapes that vary by
+// class: the all-scope session under the fail-closed policy (b), the
+// tenantless all-scope session even under the permissive one (f), and the two
+// bearer equivalents (g) and (i). Every one of them reaches a route only when
 // its class needs no caller grant, so this function is where the split is
-// actually asserted.
+// actually asserted -- and that it is now ONE function for both credential
+// kinds is the point of #6450's residual item 1: a bearer and a cookie
+// session that are equally unbound must be equally refused.
 func splitAdmitsByClass(c scopedRouteClass) bool {
 	return c.admitsAllScopesSessionWithoutPolicy()
 }
 
-// allScopesSplitShapes returns the six caller shapes the split table drives
+// allScopesSplitShapes returns the nine caller shapes the split table drives
 // over every ledger route: (a) a grant-bearing scoped bearer token, (b) a
 // tenant-bound all-scope console session under the fail-closed policy, (c)
 // the same session under the permissive policy, (d) a restricted browser
-// session carrying a repository grant, (e) the shared operator key, and (f) a
-// tenantless all-scope session under the permissive policy. Only (b) and (f)
-// vary by route class; the other four admit every class, which is what makes
-// #6450 a split rather than a blanket refusal.
+// session carrying a repository grant, (e) the shared operator key, (f) a
+// tenantless all-scope session under the permissive policy, (g) a
+// tenant-bound all-scope BEARER under the fail-closed policy, (h) the same
+// bearer under the permissive policy, and (i) a tenantless all-scope bearer
+// under the permissive policy.
+//
+// (g), (h) and (i) are the bearer mirror of (b), (c) and (f), added when
+// #6450's residual item 1 closed. They are deliberately the same three
+// variations rather than a hand-picked sample: the defect was that the two
+// credential kinds took different paths to the same routes, so the table has
+// to be able to show that they now do not.
+//
+// (b), (f), (g) and (i) vary by route class; the other five admit every
+// class, which is what makes #6450 a split rather than a blanket refusal.
 func allScopesSplitShapes() []allScopesSplitShape {
 	tenantBoundAllScopes := &AuthContext{
 		Mode:        AuthModeBrowserSession,
+		TenantID:    "tenant-a",
+		WorkspaceID: "workspace-a",
+		AllScopes:   true,
+	}
+	tenantBoundAllScopesBearer := &AuthContext{
+		Mode:        AuthModeScoped,
 		TenantID:    "tenant-a",
 		WorkspaceID: "workspace-a",
 		AllScopes:   true,
@@ -123,6 +143,31 @@ func allScopesSplitShapes() []allScopesSplitShape {
 			policy: BrowserSessionRoutePolicy{AllowTenantBoundAllScopes: true},
 			session: &AuthContext{
 				Mode:      AuthModeBrowserSession,
+				AllScopes: true,
+			},
+			admits: splitAdmitsByClass,
+		},
+		{
+			name:   "g_all_scope_bearer_fail_closed_policy",
+			policy: BrowserSessionRoutePolicy{},
+			bearer: tenantBoundAllScopesBearer,
+			admits: splitAdmitsByClass,
+		},
+		{
+			name:   "h_all_scope_bearer_permissive_policy",
+			policy: BrowserSessionRoutePolicy{AllowTenantBoundAllScopes: true},
+			bearer: tenantBoundAllScopesBearer,
+			admits: splitAdmitsEveryClass,
+		},
+		{
+			// Defensive, like shape (f): scopedtoken.Entry.normalize rejects a
+			// registry entry with no tenant or workspace and oidcbearer takes
+			// both from the provider config, so this is what admission does
+			// with a malformed context, not a credential an operator can mint.
+			name:   "i_tenantless_all_scope_bearer_permissive_policy",
+			policy: BrowserSessionRoutePolicy{AllowTenantBoundAllScopes: true},
+			bearer: &AuthContext{
+				Mode:      AuthModeScoped,
 				AllScopes: true,
 			},
 			admits: splitAdmitsByClass,

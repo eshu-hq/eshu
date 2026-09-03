@@ -275,7 +275,10 @@ func wireAPI(
 	// §2/§6), and tools/call dispatches internally through the same
 	// credential chain as the transport middleware below, so wiring it here
 	// too would double-emit one logical MCP read.
-	authedHandler := buildTransportAuthMiddleware(apiKey, scopedTokenResolver, governanceAudit, authSourceConfigured, oauthChallengePolicy, nil)(instrumentedMux)
+	authedHandler := buildTransportAuthMiddleware(
+		apiKey, scopedTokenResolver, governanceAudit, authSourceConfigured, oauthChallengePolicy, nil,
+		query.ScopedRoutePolicyForGovernanceMode(governanceStatus),
+	)(instrumentedMux)
 
 	adminMux, err := mountRuntimeSurface("mcp-server", statusReader, prometheusHandler, db, driver)
 	if err != nil {
@@ -315,7 +318,10 @@ func wireAPI(
 	// initialize/tools/list/ping/SSE-establishment request instead of serving
 	// it open.
 	authWiring := mcpAuthWiring{
-		transportAuth:              buildTransportAuthMiddleware(apiKey, scopedTokenResolver, governanceAudit, authSourceConfigured, oauthChallengePolicy, allowedReadAudit),
+		transportAuth: buildTransportAuthMiddleware(
+			apiKey, scopedTokenResolver, governanceAudit, authSourceConfigured, oauthChallengePolicy, allowedReadAudit,
+			query.ScopedRoutePolicyForGovernanceMode(governanceStatus),
+		),
 		credentialSourceConfigured: authSourceConfigured,
 	}
 
@@ -334,6 +340,14 @@ func wireAPI(
 // only for mcpAuthWiring.transportAuth, so only the MCP transport emits
 // allowed-read events (see wiring.go's two call sites for the rationale). A
 // nil allowedAudit is a safe no-op, byte-identical to before F-9.
+//
+// routePolicy decides whether an all-scope bearer may enter a grant-bound
+// allowlisted route (#6450 residual item 1). It has to be threaded, not
+// defaulted: query.BrowserSessionRoutePolicy's zero value is fail-closed, so
+// leaving it out would refuse every all-scope token on every grant-bound MCP
+// route on a laptop as readily as in a hosted multi-tenant deployment. wireAPI
+// derives it from the same ESHU_GOVERNANCE_MODE reading cmd/api uses, via
+// query.ScopedRoutePolicyForGovernanceMode.
 func buildTransportAuthMiddleware(
 	apiKey string,
 	scopedTokenResolver query.ScopedTokenResolver,
@@ -341,10 +355,12 @@ func buildTransportAuthMiddleware(
 	authSourceConfigured bool,
 	oauthChallenge query.OAuthChallengePolicy,
 	allowedAudit query.GovernanceAuditAppender,
+	routePolicy query.BrowserSessionRoutePolicy,
 ) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
-		return query.AuthMiddlewareWithScopedTokensGovernanceAuditEnforcementOAuthChallengeAndAllowedReadAudit(
+		return query.AuthMiddlewareWithScopedTokensGovernanceAuditEnforcementOAuthChallengeAllowedReadAuditAndRoutePolicy(
 			apiKey, scopedTokenResolver, next, governanceAudit, authSourceConfigured, oauthChallenge, allowedAudit,
+			routePolicy,
 		)
 	}
 }
