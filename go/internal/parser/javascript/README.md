@@ -399,6 +399,23 @@ while `ExpressServerSymbols` is declared in the non-test `javascript` package
 qualifier. Deleting the wrapper on the assumption that the two sit in one
 package would break `javascript_dead_code_roots_test.go`.
 
+A third relocation under the same issue moved the last three parent-level files
+named for this family: `engine_typescript_advanced_semantics_test.go` (7 tests
+on namespace/conditional/mapped type semantics, declaration merging, generic
+interface type parameters, and type reference/assertion metadata),
+`engine_tsx_advanced_semantics_test.go` (4 tests on fragment shorthand and
+`ComponentType` assertion), and `engine_tsx_component_wrapper_test.go` (6 tests
+on `React.FC`/`memo`/`forwardRef`/`lazy` wrapper resolution). All three needed
+only `parser.DefaultEngine`, `ParsePath`, and `Options`, so they run as
+`javascript_test` like their siblings. They reuse this package's existing
+helpers rather than adding near-duplicates, take `assertIntFieldValue` from
+`parsertest`, and contributed `assertBoolFieldValue` to
+`engine_javascript_test_helpers_test.go` -- `parsertest` has no bool variant,
+and the parent package keeps its own copy for the NuGet dependency tests that
+stay at root. Relocating them left `assertStringSliceFieldValue`,
+`assertBucketItemByFieldValue`, and `findAllNamedBucketItems` with no
+parent-side caller, so those parent copies were deleted in the same change.
+
 The external test package may import `internal/parser`; the non-test package
 must not. Go compiles `javascript_test` separately, so this keeps the
 black-box coverage without making the package depend on the parent dispatcher.

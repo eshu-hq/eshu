@@ -1,11 +1,14 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package parser
+package javascript_test
 
 import (
 	"path/filepath"
 	"testing"
+
+	"github.com/eshu-hq/eshu/go/internal/parser"
+	"github.com/eshu-hq/eshu/go/internal/parser/parsertest"
 )
 
 func TestDefaultEngineParsePathTypeScriptCapturesAdvancedTypeSemantics(t *testing.T) {
@@ -28,12 +31,12 @@ func TestDefaultEngineParsePathTypeScriptCapturesAdvancedTypeSemantics(t *testin
 `,
 	)
 
-	engine, err := DefaultEngine()
+	engine, err := parser.DefaultEngine()
 	if err != nil {
 		t.Fatalf("DefaultEngine() error = %v, want nil", err)
 	}
 
-	got, err := engine.ParsePath(repoRoot, filePath, false, Options{})
+	got, err := engine.ParsePath(repoRoot, filePath, false, parser.Options{})
 	if err != nil {
 		t.Fatalf("ParsePath() error = %v, want nil", err)
 	}
@@ -78,12 +81,12 @@ export class Client {
 `,
 	)
 
-	engine, err := DefaultEngine()
+	engine, err := parser.DefaultEngine()
 	if err != nil {
 		t.Fatalf("DefaultEngine() error = %v, want nil", err)
 	}
 
-	got, err := engine.ParsePath(repoRoot, filePath, false, Options{})
+	got, err := engine.ParsePath(repoRoot, filePath, false, parser.Options{})
 	if err != nil {
 		t.Fatalf("ParsePath() error = %v, want nil", err)
 	}
@@ -117,12 +120,12 @@ export function register(server: unknown) {
 `,
 	)
 
-	engine, err := DefaultEngine()
+	engine, err := parser.DefaultEngine()
 	if err != nil {
 		t.Fatalf("DefaultEngine() error = %v, want nil", err)
 	}
 
-	got, err := engine.ParsePath(repoRoot, filePath, false, Options{})
+	got, err := engine.ParsePath(repoRoot, filePath, false, parser.Options{})
 	if err != nil {
 		t.Fatalf("ParsePath() error = %v, want nil", err)
 	}
@@ -147,12 +150,12 @@ func TestDefaultEngineParsePathTypeScriptDoesNotEmitInterfaceMethodSignaturesAsF
 `,
 	)
 
-	engine, err := DefaultEngine()
+	engine, err := parser.DefaultEngine()
 	if err != nil {
 		t.Fatalf("DefaultEngine() error = %v, want nil", err)
 	}
 
-	got, err := engine.ParsePath(repoRoot, filePath, false, Options{})
+	got, err := engine.ParsePath(repoRoot, filePath, false, parser.Options{})
 	if err != nil {
 		t.Fatalf("ParsePath() error = %v, want nil", err)
 	}
@@ -199,34 +202,34 @@ interface Response {
 `,
 	)
 
-	engine, err := DefaultEngine()
+	engine, err := parser.DefaultEngine()
 	if err != nil {
 		t.Fatalf("DefaultEngine() error = %v, want nil", err)
 	}
 
-	got, err := engine.ParsePath(repoRoot, filePath, false, Options{})
+	got, err := engine.ParsePath(repoRoot, filePath, false, parser.Options{})
 	if err != nil {
 		t.Fatalf("ParsePath() error = %v, want nil", err)
 	}
 
 	serviceClass := findNamedBucketItem(t, got, "classes", "Service")
 	assertStringFieldValue(t, serviceClass, "declaration_merge_group", "Service")
-	assertIntFieldValue(t, serviceClass, "declaration_merge_count", 2)
+	parsertest.AssertIntFieldValue(t, serviceClass, "declaration_merge_count", 2)
 	assertStringSliceFieldValue(t, serviceClass, "declaration_merge_kinds", []string{"class", "namespace"})
 
 	serviceNamespace := findNamedBucketItem(t, got, "modules", "Service")
 	assertStringFieldValue(t, serviceNamespace, "declaration_merge_group", "Service")
-	assertIntFieldValue(t, serviceNamespace, "declaration_merge_count", 2)
+	parsertest.AssertIntFieldValue(t, serviceNamespace, "declaration_merge_count", 2)
 	assertStringSliceFieldValue(t, serviceNamespace, "declaration_merge_kinds", []string{"class", "namespace"})
 
 	buildLabelFn := findNamedBucketItem(t, got, "functions", "buildLabel")
 	assertStringFieldValue(t, buildLabelFn, "declaration_merge_group", "buildLabel")
-	assertIntFieldValue(t, buildLabelFn, "declaration_merge_count", 2)
+	parsertest.AssertIntFieldValue(t, buildLabelFn, "declaration_merge_count", 2)
 	assertStringSliceFieldValue(t, buildLabelFn, "declaration_merge_kinds", []string{"function", "namespace"})
 
 	buildLabelNamespace := findNamedBucketItem(t, got, "modules", "buildLabel")
 	assertStringFieldValue(t, buildLabelNamespace, "declaration_merge_group", "buildLabel")
-	assertIntFieldValue(t, buildLabelNamespace, "declaration_merge_count", 2)
+	parsertest.AssertIntFieldValue(t, buildLabelNamespace, "declaration_merge_count", 2)
 	assertStringSliceFieldValue(t, buildLabelNamespace, "declaration_merge_kinds", []string{"function", "namespace"})
 
 	responseInterfaces := findAllNamedBucketItems(t, got, "interfaces", "Response")
@@ -235,7 +238,7 @@ interface Response {
 	}
 	for _, responseInterface := range responseInterfaces {
 		assertStringFieldValue(t, responseInterface, "declaration_merge_group", "Response")
-		assertIntFieldValue(t, responseInterface, "declaration_merge_count", 2)
+		parsertest.AssertIntFieldValue(t, responseInterface, "declaration_merge_count", 2)
 		assertStringSliceFieldValue(t, responseInterface, "declaration_merge_kinds", []string{"interface"})
 	}
 }
@@ -254,12 +257,12 @@ func TestDefaultEngineParsePathTypeScriptCapturesGenericInterfaceTypeParameters(
 `,
 	)
 
-	engine, err := DefaultEngine()
+	engine, err := parser.DefaultEngine()
 	if err != nil {
 		t.Fatalf("DefaultEngine() error = %v, want nil", err)
 	}
 
-	got, err := engine.ParsePath(repoRoot, filePath, false, Options{})
+	got, err := engine.ParsePath(repoRoot, filePath, false, parser.Options{})
 	if err != nil {
 		t.Fatalf("ParsePath() error = %v, want nil", err)
 	}
@@ -280,12 +283,12 @@ func TestDefaultEngineParsePathTypeScriptCapturesWrappedConditionalTypeSemantics
 `,
 	)
 
-	engine, err := DefaultEngine()
+	engine, err := parser.DefaultEngine()
 	if err != nil {
 		t.Fatalf("DefaultEngine() error = %v, want nil", err)
 	}
 
-	got, err := engine.ParsePath(repoRoot, filePath, false, Options{})
+	got, err := engine.ParsePath(repoRoot, filePath, false, parser.Options{})
 	if err != nil {
 		t.Fatalf("ParsePath() error = %v, want nil", err)
 	}

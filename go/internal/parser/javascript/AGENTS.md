@@ -28,8 +28,11 @@
     implemented-interface metadata through the public parent engine
 14. engine_javascript_test_helpers_test.go - shared helpers for the relocated
     `engine_javascript_*_test.go`, `javascript_dead_code_*_test.go`,
-    `javascript_cfg_dataflow_test.go`, and `js_parent_lookup_bench_test.go`
-    external-package suites (issue #6062)
+    `javascript_cfg_dataflow_test.go`, `js_parent_lookup_bench_test.go`,
+    `engine_typescript_advanced_semantics_test.go`, and `engine_tsx_*_test.go`
+    external-package suites (issue #6062). It owns `assertBoolFieldValue`
+    because `parsertest` has no bool variant; take `assertIntFieldValue` and
+    the other shared assertions from `parsertest` instead of adding copies
 15. javascript_dead_code_roots_test.go and
     javascript_dead_code_roots_nextjs_migration_test.go - the latter split out
     at the 500-line cap and carries the Next.js app-router and TypeScript
@@ -38,6 +41,12 @@
     `TestDumpJSParseCorpus`: a guarded, env-gated (`JSTS_PARSE_DUMP`) 0/0
     corpus-equivalence harness for issue #4868, exercising only the parent's
     public `DefaultEngine`/`Options`/`Engine.ParsePath` surface
+17. engine_typescript_advanced_semantics_test.go,
+    engine_tsx_advanced_semantics_test.go, and
+    engine_tsx_component_wrapper_test.go - the last three parent-level
+    `engine_typescript_*`/`engine_tsx_*` files, relocated here under #6062;
+    they cover advanced TypeScript type semantics, declaration merging, and
+    React component-wrapper/`ComponentType` resolution
 
 ## Invariants this package enforces
 
@@ -260,9 +269,8 @@ documentation; no spans, metrics, or logs are added or removed.
 
 ### #6062 residual
 
-The relocation tail is not finished. Four single-language tests remain at the
-`internal/parser` root: `engine_swift_symbol_gate_test.go` (destined for
-`swift/`), and `engine_typescript_advanced_semantics_test.go`,
-`engine_tsx_advanced_semantics_test.go` and
-`engine_tsx_component_wrapper_test.go` (all destined for `javascript/`).
+One single-language test remains at the `internal/parser` root:
+`engine_swift_symbol_gate_test.go`, destined for `swift/`. The three
+`engine_typescript_*` / `engine_tsx_*` files that were listed here moved into
+this package under #6062.
 The 27 `<lang>_language.go` Engine-method glue files stay at root by design.

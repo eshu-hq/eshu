@@ -369,3 +369,20 @@ func assertParserStringSliceFieldValue(t *testing.T, item map[string]any, field 
 
 	assertStringSliceFieldValue(t, item, field, want)
 }
+
+// assertBoolFieldValue requires item[key] to hold the bool want. The TSX
+// suites relocated here assert boolean shape flags such as
+// jsx_fragment_shorthand, and parsertest has no bool variant, so this package
+// carries its own. The parent parser package keeps a copy for the NuGet
+// tests that stay at root.
+func assertBoolFieldValue(t *testing.T, item map[string]any, key string, want bool) {
+	t.Helper()
+
+	got, ok := item[key].(bool)
+	if !ok {
+		t.Fatalf("%s = %T, want bool", key, item[key])
+	}
+	if got != want {
+		t.Fatalf("%s = %#v, want %#v", key, got, want)
+	}
+}
