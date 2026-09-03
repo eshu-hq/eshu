@@ -88,7 +88,7 @@ The usage scan attributes three shapes:
 3. **Wrapper field** — a decoded value stored in a wrapper struct whose field is
    typed as the seam struct, read one hop deeper (`#4668`).
 
-The IAM handlers are the concrete wrapper case. `iam_can_perform.go` stores a
+The IAM handlers are the concrete wrapper case. `iamcan/iam_can_perform.go` stores a
 decoded `iamv1.Permission` in a wrapper and collects the wrappers into a slice:
 
 ```go

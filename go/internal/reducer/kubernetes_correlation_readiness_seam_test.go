@@ -17,7 +17,7 @@ import (
 // on the SAME GraphProjectionPhaseKey the workload handler actually published —
 // not a stubbed readyLookup(true,true) that ignores the key. The lookup keys on
 // the comparable GraphProjectionPhaseKey struct, so a drift in the
-// graphPhaseAcceptanceUnitID derivation on either side changes the key and the
+// gpphase.AcceptanceUnitID derivation on either side changes the key and the
 // lookup misses.
 func readinessLookupFromStates(states []GraphProjectionPhaseState) GraphProjectionReadinessLookup {
 	return func(key GraphProjectionPhaseKey, phase GraphProjectionPhase) (bool, bool) {
@@ -34,7 +34,7 @@ func readinessLookupFromStates(states []GraphProjectionPhaseState) GraphProjecti
 // publish its canonical-nodes-committed phase under workloadEntityKey, then drives
 // the REAL edge handler whose readiness gate looks the phase up by the key it
 // derives from the edge intent. Both sides run the production
-// graphProjectionPhaseStateForIntent / graphPhaseAcceptanceUnitID derivation; only
+// graphProjectionPhaseStateForIntent / gpphase.AcceptanceUnitID derivation; only
 // the published key set is shared, so the seam is exercised end to end with no
 // stubbed readiness lookup. It returns the edge handler's write count and error so
 // the positive and negative cases assert against one code path.
@@ -82,7 +82,7 @@ func runKubernetesCorrelationSeam(t *testing.T, workloadEntityKey string) (int, 
 // publishes its phase under the SAME acceptance unit the projector emits for both
 // intents ("kubernetes_workload_materialization:<scope>"), the edge handler's real
 // readiness lookup matches and the RUNS_IMAGE edge materializes. The phase key is
-// not stubbed — it is whatever graphPhaseAcceptanceUnitID derives from the
+// not stubbed — it is whatever gpphase.AcceptanceUnitID derives from the
 // workload intent.
 func TestKubernetesCorrelationMaterializationSeamRealReadinessKeyOpensGate(t *testing.T) {
 	t.Parallel()
@@ -100,7 +100,7 @@ func TestKubernetesCorrelationMaterializationSeamRealReadinessKeyOpensGate(t *te
 // negative half of the seam: when the workload intent publishes under a DIFFERENT
 // acceptance unit than the edge intent derives, the keys differ and the edge gate
 // stays closed (retryable, no writes). This is what makes the seam test
-// load-bearing — if graphPhaseAcceptanceUnitID stopped honoring EntityKeys (e.g.
+// load-bearing — if gpphase.AcceptanceUnitID stopped honoring EntityKeys (e.g.
 // always returned ScopeID), both intents would derive the same key, the gate would
 // wrongly open, and THIS test would fail. So a regression in the derivation breaks
 // a unit test rather than only the compose B-7 gate.

@@ -20,7 +20,8 @@ import (
 // collector package: the reducer package does not depend on collector
 // packages (package-boundary rule), and every other AWS relationship_type
 // value the reducer reads already flows through as an opaque fact string
-// (aws_relationship_join.go's resolveTarget never imports awscloud either).
+// (aws_relationship_join.go's resolveCloudResourceTarget never imports
+// awscloud either).
 const (
 	lambdaFunctionUsesImageRelationshipType    = "lambda_function_uses_image"
 	ecsTaskDefinitionUsesImageRelationshipType = "ecs_task_definition_uses_image"
@@ -176,7 +177,7 @@ func ExtractAWSCloudImageEdgeRows(
 
 		sourceARN := derefString(relationship.SourceARN)
 		sourceResourceID := relationship.SourceResourceID
-		sourceUID, sourceOK := index.resolveSource(sourceARN, sourceResourceID)
+		sourceUID, sourceOK := resolveCloudResourceSource(index, sourceARN, sourceResourceID)
 		if !sourceOK {
 			tally.skipped[awsCloudImageSkipSourceUnresolved]++
 			continue

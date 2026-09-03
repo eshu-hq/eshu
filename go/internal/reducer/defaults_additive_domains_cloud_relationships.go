@@ -3,6 +3,8 @@
 
 package reducer
 
+import "github.com/eshu-hq/eshu/go/internal/reducer/iamcan"
+
 // appendCloudRelationshipAdditiveDomains registers the cloud-relationship edge
 // and posture-node domains that read back committed graph state through the
 // readiness lookup and prior-generation check: AWS relationships, workload-cloud
@@ -64,7 +66,7 @@ func appendCloudRelationshipAdditiveDomains(definitions []DomainDefinition, hand
 		definitions = append(definitions, coverageEdges)
 	}
 	if handlers.FactLoader != nil && handlers.IAMCanAssumeEdgeWriter != nil {
-		iamCanAssume := iamCanAssumeMaterializationDomainDefinition()
+		iamCanAssume := iamcan.AssumeMaterializationDomainDefinition()
 		iamCanAssume.Handler = IAMCanAssumeMaterializationHandler{
 			FactLoader:           handlers.FactLoader,
 			EdgeWriter:           handlers.IAMCanAssumeEdgeWriter,

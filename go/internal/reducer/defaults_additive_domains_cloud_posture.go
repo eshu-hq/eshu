@@ -3,6 +3,8 @@
 
 package reducer
 
+import "github.com/eshu-hq/eshu/go/internal/reducer/iamcan"
+
 // appendCloudPostureEdgeAdditiveDomains registers the remaining cloud posture
 // and IAM-action edge/node domains that read back committed graph state through
 // the readiness lookup and prior-generation check: EC2 uses-profile edges, IAM
@@ -99,7 +101,7 @@ func appendCloudPostureEdgeAdditiveDomains(definitions []DomainDefinition, handl
 		definitions = append(definitions, iamEscalation)
 	}
 	if handlers.FactLoader != nil && handlers.IAMCanPerformEdgeWriter != nil {
-		iamCanPerform := iamCanPerformMaterializationDomainDefinition()
+		iamCanPerform := iamcan.PerformMaterializationDomainDefinition()
 		iamCanPerform.Handler = IAMCanPerformMaterializationHandler{
 			FactLoader:           handlers.FactLoader,
 			Writer:               handlers.IAMCanPerformEdgeWriter,
