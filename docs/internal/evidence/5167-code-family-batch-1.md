@@ -378,11 +378,9 @@ above.
 ## Proof Ledger
 
 The route-by-route red/green runs and the BITES mutation ledger — what was
-broken on purpose, which guard judged it, and the exit code — live in a
-companion document,
-[#5167 code family batch 1 proofs](5167-code-family-batch-1-proofs.md). They
-were split out only because the two together outgrow the repository's 500-line
-Markdown cap.
+broken on purpose, which guard judged it, and the exit code — live in [#5167
+code family batch 1 proofs](5167-code-family-batch-1-proofs.md), split out
+because the two together outgrow the repository's 500-line Markdown cap.
 
 ## Verification
 
@@ -414,18 +412,18 @@ the scan budget helpers, the candidate-label predicate, the cross-repo
 consumer-evidence filter and, in the round-7 pass, the whole incoming-edge probe
 family moved to sibling files that already own those families rather than to new
 ones, because `internal/query`'s non-test file set is pinned by the dirgate
-grandfather ledger. The same cap split this document: its proofs live in
-`5167-code-family-batch-1-proofs.md`.
+grandfather ledger.
 
 No-Regression Evidence: every predicate this change adds is an indexed equality
 or an `ANY()`/`IN` membership test against the caller's grant, on a node or
 column the query already matched, and it lands ahead of the existing
 `SKIP`/`LIMIT` (Cypher) or `LIMIT`/`OFFSET` (SQL), so a scoped page is drawn
 from the granted set instead of a cross-tenant-polluted one. A scoped caller
-reads no more rows than before, and on the routes that were corpus-wide it reads
-fewer. On the SQL side the grant column is `content_entities.repo_id` /
-`content_files.repo_id`, plus `code_reachability_rows.repository_id` — the same
-columns those queries' single-repository branches already filter on.
+reads no more rows than before, save the one widened `DISTINCT` key declared
+below, and on the routes that were corpus-wide it reads fewer. On the SQL side
+the grant column is `content_entities.repo_id` / `content_files.repo_id`, plus
+`code_reachability_rows.repository_id` — the same columns those queries'
+single-repository branches already filter on.
 
 Two shapes do change, and both are declared. `listMostComplexFunctions` swaps
 its `OPTIONAL MATCH` for a required `MATCH` over the same
@@ -437,16 +435,18 @@ That statement is the ungranted read this route shipped before the grant landed,
 unchanged and capped at the same 1001 rows, and it is measured rather than
 asserted — see "Two Bounded Reads, Not An Unbounded Complement".
 
-The round-7 incoming-edge probe adds a third such shape, and this one is
-declared without a measurement. A scoped caller now runs two graph statements
-where it ran one: the grant-bound probe, which adds a
-`CONTAINS`/`REPO_CONTAINS` hop from the source to its repository, and the
-unrestricted probe unchanged. Both are the same bounded `UNWIND $entity_ids`
-shape over one candidate page. The SQL half adds no scan at all — the grant is a
-projected boolean over `code_reachability_rows.repository_id`, a column the
-statement already returns, not a new predicate — so only the graph half carries
-a cost, it falls only on scoped callers, who could not reach these routes before
-this PR, and it is bounded rather than measured. Nothing here
+The round-7 incoming-edge probe adds a third such shape, declared without a
+measurement. A scoped caller now runs two graph statements where it ran one:
+the grant-bound probe, which adds a `CONTAINS`/`REPO_CONTAINS` hop from the
+source to its repository, and the unrestricted probe unchanged. Both are the
+same bounded `UNWIND $entity_ids` shape over one candidate page. The SQL half
+adds no predicate and no scan: the grant is a projected boolean over
+`code_reachability_rows.repository_id`, a column of the table the read already
+scans, not one the statement returned before. It widens the `SELECT DISTINCT`
+key from two columns to three, so an entity and method reachable from both a
+granted and an ungranted consumer returns two rows where it returned one — at
+most 2x over one candidate page. Every one of these costs falls only on scoped
+callers, who could not reach these routes before this PR. Nothing here
 puts a filter in a `WITH`-attached `WHERE` (not evaluated as a filter on
 NornicDB) or guards a disjunct with `$param <> ''` (poisons the enclosing `OR`
 on NornicDB) — see
