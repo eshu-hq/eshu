@@ -470,10 +470,6 @@ LINE docs/internal/design/5385-workload-identity-key.md go/internal/collector/gi
 LINE docs/internal/design/5385-workload-identity-key.md go/internal/graph/mutations.go:113
 LINE docs/internal/design/5385-workload-identity-key.md go/internal/graph/schema_tables.go:122
 LINE docs/internal/design/5385-workload-identity-key.md go/internal/graph/schema_tables_indexes.go:176
-LINE docs/internal/design/5385-workload-identity-key.md go/internal/mcp/dispatch_args.go:54
-LINE docs/internal/design/5385-workload-identity-key.md go/internal/mcp/dispatch_args.go:54
-LINE docs/internal/design/5385-workload-identity-key.md go/internal/mcp/dispatch_args.go:54
-LINE docs/internal/design/5385-workload-identity-key.md go/internal/mcp/dispatch_args.go:61
 LINE docs/internal/design/5385-workload-identity-key.md go/internal/query/catalog.go:213
 LINE docs/internal/design/5385-workload-identity-key.md go/internal/query/catalog.go:213
 LINE docs/internal/design/5385-workload-identity-key.md go/internal/query/catalog.go:213
