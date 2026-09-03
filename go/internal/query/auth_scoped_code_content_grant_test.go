@@ -361,3 +361,95 @@ func TestCodeContentFiltersBindTheGrantInTheShippedSQL(t *testing.T) {
 		})
 	}
 }
+
+// symbolNameFallbackGrantStore drives the second read path behind
+// POST /api/v0/code/symbols/search. When h.Content does not satisfy
+// symbolContentSearcher, symbolSearchResults falls back to
+// SearchEntitiesByName, which takes ONE repository at a time -- so a
+// corpus-wide scoped search has to iterate the granted repositories itself. An
+// unbound fallback asks for repository "" instead, which this store answers
+// with every tenant's symbol, the same way the all-repository content query
+// does.
+type symbolNameFallbackGrantStore struct {
+	fakePortContentStore
+	askedRepoIDs []string
+}
+
+func (s *symbolNameFallbackGrantStore) SearchEntitiesByName(
+	_ context.Context,
+	repoID, _, _ string,
+	_ int,
+) ([]EntityContent, error) {
+	s.askedRepoIDs = append(s.askedRepoIDs, repoID)
+	return codeContentGrantEntities(repoID, nil), nil
+}
+
+func runSymbolNameFallbackSearch(
+	t *testing.T,
+	store *symbolNameFallbackGrantStore,
+	auth *AuthContext,
+) *httptest.ResponseRecorder {
+	t.Helper()
+
+	handler := &CodeHandler{Content: store, Profile: ProfileLocalAuthoritative}
+	mux := http.NewServeMux()
+	handler.Mount(mux)
+
+	req := newCodeGrantRouteRequest(t, "/api/v0/code/symbols/search", map[string]any{"symbol": "RefreshSession"}, auth)
+	rec := httptest.NewRecorder()
+	mux.ServeHTTP(rec, req)
+	return rec
+}
+
+func TestSymbolNameFallbackIteratesOnlyGrantedRepositories(t *testing.T) {
+	t.Parallel()
+
+	store := &symbolNameFallbackGrantStore{}
+	auth := codeGrantScopedAuthContext([]string{codeGrantGrantedRepo})
+	rec := runSymbolNameFallbackSearch(t, store, &auth)
+
+	if got, want := rec.Code, http.StatusOK; got != want {
+		t.Fatalf("status = %d, want %d; body = %s", got, want, rec.Body.String())
+	}
+	if !slices.Equal(store.askedRepoIDs, []string{codeGrantGrantedRepo}) {
+		t.Fatalf("SearchEntitiesByName repositories = %#v, want [%q]; the fallback must iterate the grant, never ask for every repository", store.askedRepoIDs, codeGrantGrantedRepo)
+	}
+	body := rec.Body.String()
+	if !strings.Contains(body, codeGrantGrantedRepo) {
+		t.Fatalf("response missing the granted repository %q: %s", codeGrantGrantedRepo, body)
+	}
+	if strings.Contains(body, codeGrantOtherRepo) {
+		t.Fatalf("the name fallback leaked the out-of-grant repository %q: %s", codeGrantOtherRepo, body)
+	}
+}
+
+func TestSymbolNameFallbackEmptyGrantSkipsTheLookup(t *testing.T) {
+	t.Parallel()
+
+	store := &symbolNameFallbackGrantStore{}
+	auth := codeGrantScopedAuthContext(nil)
+	rec := runSymbolNameFallbackSearch(t, store, &auth)
+
+	if len(store.askedRepoIDs) != 0 {
+		t.Fatalf("SearchEntitiesByName was called with %#v; a grantless scoped caller must not reach the content store", store.askedRepoIDs)
+	}
+	body := rec.Body.String()
+	if strings.Contains(body, codeGrantGrantedRepo) || strings.Contains(body, codeGrantOtherRepo) {
+		t.Fatalf("response leaked rows for an empty-grant caller: %s", body)
+	}
+}
+
+func TestSymbolNameFallbackSharedKeySearchIsUnchanged(t *testing.T) {
+	t.Parallel()
+
+	store := &symbolNameFallbackGrantStore{}
+	rec := runSymbolNameFallbackSearch(t, store, nil)
+
+	if !slices.Equal(store.askedRepoIDs, []string{""}) {
+		t.Fatalf("SearchEntitiesByName repositories = %#v, want [\"\"]; an unscoped caller keeps the all-repository lookup", store.askedRepoIDs)
+	}
+	body := rec.Body.String()
+	if !strings.Contains(body, codeGrantGrantedRepo) || !strings.Contains(body, codeGrantOtherRepo) {
+		t.Fatalf("unscoped name fallback lost rows: %s", body)
+	}
+}
