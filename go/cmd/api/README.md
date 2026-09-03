@@ -154,7 +154,27 @@ See `doc.go` for the full godoc contract.
   to local hash query embeddings. Unset allows provider-only auto-selection.
 - `ESHU_SEMANTIC_SEARCH_PROVIDER_PROFILE_ID` — optional selector when more than
   one governed `search_documents` provider profile is configured.
-- `ESHU_GOVERNANCE_MODE`, `ESHU_GOVERNANCE_STATE`,
+- `ESHU_GOVERNANCE_MODE` — default unset, which reads as `local_no_policy`.
+  Allowed values are `local_no_policy`, `hosted_single_tenant`, and
+  `hosted_multi_tenant`. **This one is not status metadata — it gates
+  admission.** Under `hosted_multi_tenant`, and under any value this binary
+  does not recognize, an all-scope credential is refused with `403
+  permission_denied` on every grant-bound, deployment-scoped, and transitive
+  route: its repository and scope grant would go inert and the read would cross
+  tenants. Both credential kinds are refused — a bearer token whose grant is
+  all-scope, and a dashboard browser session with the same grant — because
+  `wrapAPIAuth` hands the derived policy to the middleware that serves both.
+  The remedy is a credential carrying real repository or scope ids, or
+  `hosted_single_tenant` where the deployment is one tenant; it is never a
+  credential reset. Under `local_no_policy`, `hosted_single_tenant`, and unset,
+  an all-scope credential bound to one tenant and workspace is admitted and
+  reads the whole corpus, which is the intended local and single-tenant
+  posture. Credentials carrying real ids are unaffected in every mode.
+  `query.ScopedRoutePolicyForGovernanceMode` is where `wrapAPIAuth` reads it;
+  `/api/v0/status/governance` reports the resulting opening as
+  `all_scope_route_policy.grant_bound_routes`. See
+  [Hosted Governance](../../../docs/public/operate/hosted-governance.md).
+- `ESHU_GOVERNANCE_STATE`,
   `ESHU_GOVERNANCE_SOURCE_KIND`, `ESHU_GOVERNANCE_POLICY_REVISION_HASH`,
   `ESHU_GOVERNANCE_AUTH_MODE`, `ESHU_GOVERNANCE_TENANT_MODE`,
   `ESHU_GOVERNANCE_WORKSPACE_MODE`, `ESHU_GOVERNANCE_EGRESS_MODE`,
@@ -163,10 +183,11 @@ See `doc.go` for the full godoc contract.
   `ESHU_GOVERNANCE_DENIED_DECISION_COUNT`,
   `ESHU_GOVERNANCE_POLICY_SECTION_COUNT`,
   `ESHU_GOVERNANCE_STALE_SECTION_COUNT`, and `ESHU_GOVERNANCE_REASONS` —
-  optional safe metadata for `/api/v0/status/governance`. These values must be
-  mode names, hashes, counts, or reason codes only; do not put raw policy,
-  tenant, workspace, source, credential, endpoint, prompt, response, path, or
-  token values in them.
+  optional safe metadata for `/api/v0/status/governance`. Unlike
+  `ESHU_GOVERNANCE_MODE` above, these are readback only and change no admission
+  decision. Their values must be mode names, hashes, counts, or reason codes
+  only; do not put raw policy, tenant, workspace, source, credential, endpoint,
+  prompt, response, path, or token values in them.
 - `ESHU_SCOPED_TOKENS_FILE` — optional secret-mounted scoped-token registry.
   The API always tries generated identity-backed personal/service-principal
   tokens from Postgres first, then this registry when set, then the shared API

@@ -33,6 +33,16 @@
 - **Auth wraps the full mux** — `AuthMiddleware` is applied after
   `mountRuntimeSurface`, so data routes cannot be reached without auth when a
   token is configured (`wiring.go:105`).
+- **Authenticating is not being admitted** — `wrapAPIAuth` derives a
+  `query.BrowserSessionRoutePolicy` from `ESHU_GOVERNANCE_MODE` via
+  `query.ScopedRoutePolicyForGovernanceMode` and hands it to the middleware
+  that serves both bearer tokens and dashboard browser sessions. Under
+  `hosted_multi_tenant`, or a mode the binary does not recognize, an all-scope
+  credential is refused with 403 on grant-bound, deployment-scoped, and
+  transitive routes. Thread that policy through any new auth constructor here;
+  `query.BrowserSessionRoutePolicy`'s zero value is fail-closed, so a
+  constructor that drops it refuses all-scope callers on a laptop too. The env
+  var is documented for operators in `go/cmd/api/README.md`.
 - **Graceful shutdown timeout** — the shutdown goroutine calls `Shutdown` on the
   server with a configurable timeout read from `ESHU_API_SHUTDOWN_TIMEOUT`
   (default 30 s). Requests not completed within that window are interrupted.
