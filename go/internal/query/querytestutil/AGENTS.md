@@ -107,9 +107,15 @@ That is why the semantic-search move promoted `SemanticSearchDocumentFixture`
 and `SemanticSearchHTTPRequest` — which name only `internal/searchdocs` and
 `querycontract` — but left the index-store fake behind: it implements
 `semanticsearch.SemanticSearchIndexStore`. Root declares
-`stubSemanticSearchIndex` in its own `_test.go` for the three tests that drive
-that route, matching the `packagereg` precedent
-(`package_registry_family_test_doubles_test.go`, #6399).
+`stubSemanticSearchIndex` in its own `_test.go` for the five root tests that
+drive that route -- the four in the session-permission sweep
+(`session_permission_enforcement_test.go`, all reaching it through
+`runSemanticSearch`) and the OpenAPI `languages` wire-contract test
+(`semantic_search_language_wire_contract_test.go`) -- matching the `packagereg`
+precedent (`package_registry_family_test_doubles_test.go`, #6399). Count it with
+`rg -n 'stubSemanticSearchIndex|runSemanticSearch\(' go/internal/query/*_test.go`
+rather than from this sentence; the scoped-token admission test is NOT one of
+them, since it uses `fakeScopedTokenResolver` and never touches the stub.
 
 Check this before promising a promotion: the split is decided by whether the
 fixture's signature can avoid the family's types, not by how much duplication

@@ -71,8 +71,13 @@ Three tests exercise this route from root package `query` on purpose. Do not
 - `semantic_search_language_wire_contract_test.go` — binds root's generated
   `OpenAPISpec()` to this handler's open-pass `languages` behavior.
 
-They drive the handler through `Mount` and a real mux. If you change the route
-path or the request shape, these fail in root, not here.
+The session-permission sweep and the `languages` wire-contract test drive the
+handler through `Mount` and a real mux, so if you change the route path or the
+request shape, those two fail in root, not here. The scoped-token admission test
+does NOT: it wraps a bare `http.HandlerFunc` in `AuthMiddlewareWithScopedTokens`
+and the middleware consults no route table, so the route string in it is
+decorative and a route-path change leaves it green. Two route guards live in
+root, not three.
 
 ## Shared test fixtures
 

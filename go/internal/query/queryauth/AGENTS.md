@@ -24,9 +24,21 @@ and treat every change here as a security change.
   MUST keep requiring EVERY requested class — switching it to any-of would let a
   handler answer from a class the caller was never granted.
 - The ask_search feature name and data-class list MUST have exactly one
-  definition, here. Root package `query` and `internal/query/semanticsearch`
-  both authorize against them and no longer share a package (#6060); a second
-  literal makes a caller granted by one surface denied by the other.
+  definition ON THE ENFORCEMENT PATH, here. Root package `query` and
+  `internal/query/semanticsearch` both authorize against them and no longer
+  share a package (#6060); a second enforcement literal makes a caller granted
+  by one surface denied by the other.
+
+  The same family is ALSO declared as a product contract, in
+  `specs/authorization-catalog.v1.yaml` (`family: ask_search`, with the same
+  three data classes) and republished in
+  `go/internal/capabilitycatalog/data/catalog.generated.json`; the family name
+  is additionally hardcoded in `capabilitycatalog/authz.go`'s
+  `requiredPermissionFamilies`. Nothing reconciles those with this list. So a
+  change to the classes here is a change to all of them: edit this file alone
+  and enforcement demands a class the published catalog never advertises and the
+  spec never grants, which is a 403 for every catalog-enforced caller with no
+  gate to catch it.
 
 ## Common changes
 

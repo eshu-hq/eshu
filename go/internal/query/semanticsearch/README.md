@@ -34,8 +34,15 @@ the session/scoped-token permission parity sweep
 (`session_permission_enforcement_test.go`), the scoped-token middleware
 admission test (`semantic_search_route_auth_test.go`), and the OpenAPI
 `languages` wire-contract test
-(`semantic_search_language_wire_contract_test.go`). They reach the handler
-through `Mount` and a real mux, which is what the deployed API does.
+(`semantic_search_language_wire_contract_test.go`).
+
+Two of the three reach the handler through `Mount` and a real mux, which is what
+the deployed API does: the session-permission sweep and the OpenAPI `languages`
+test. The scoped-token admission test does not -- it wraps a bare
+`http.HandlerFunc` in `AuthMiddlewareWithScopedTokens`, never builds a mux and
+never names `SemanticSearchHandler`. That middleware consults no route table, so
+the route string in it is only a vehicle and changing the real route path will
+not fail it. Its own doc comment says so; do not count it as a route guard.
 
 ## Exported surface
 
@@ -89,14 +96,28 @@ This package was created by moving files out of root package `query`. No
 behavior changed, and the two assertions below are structural rather than
 promissory — each names what a reader can check.
 
-No-Regression Evidence: the move is a package relocation, not a rewrite.
-The three files the performance-evidence gate flags — this package's
-`semantic_search_index_cache.go` and `querytestutil`'s `metricreader.go` and
-`scriptedrows.go` — differ from their pre-move form only in the `package`
-clause and in the rename of `semanticSearchIndexQuery`/`semanticSearchIndexResult`
-to their exported spellings, which the exported `SemanticSearchIndexStore`
-interface requires in order to be implementable from another package at all.
-`git diff ff01b2ef8..HEAD` over the index-cache file shows no other line. The
+No-Regression Evidence: the move is a package relocation, not a rewrite. The
+performance-evidence gate flags three files, and they do not all differ from
+their pre-move form for the same reason:
+
+- `semantic_search_index_cache.go` differs only in the `package` clause and in
+  the rename of `semanticSearchIndexQuery`/`semanticSearchIndexResult` to their
+  exported spellings, which the exported `SemanticSearchIndexStore` interface
+  requires in order to be implementable from another package at all. Check it
+  with `git diff -M origin/main...HEAD --
+  go/internal/query/semanticsearch/semantic_search_index_cache.go`, and note
+  that git needs a pathspec spanning BOTH the old and new directories to pair
+  the move as a rename at all -- a destination-only pathspec reports it as a
+  new file and hides the comparison.
+- `querytestutil/metricreader.go` and `querytestutil/scriptedrows.go` are not
+  whole-file moves. They are extractions out of root `_test.go` files
+  (`metric_reader_test.go` and `admin_replay_idempotency_test.go`), so they
+  differ by the `package` clause, by the export renames the promotion needs
+  (`withPackageMetricReader` to `WithPackageMetricReader`; `scriptedRows` to
+  `ScriptedRows` with its `data` field exported to `Data`), and by added doc
+  comments. No statement changed in either.
+
+The
 cache's bounds, LRU eviction, TTL, and filter-signature keying are byte-identical,
 so its hit rate and eviction behavior under the same corpus are unchanged. The
 gate matches on content, not only on paths, so a pure move trips it — there is
