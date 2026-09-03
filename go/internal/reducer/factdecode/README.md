@@ -41,12 +41,12 @@ the reducer root until their family moves.
 | `QuarantinedFact`, `QuarantinedFactRecord` | the quarantined fact and the durable row shape written for it |
 | `QuarantinedFactWriter`, `WithQuarantineWriter` | the persistence port and the context carrier the Service stashes it on |
 | `RecordQuarantinedFacts` | the choke point: counts, logs, and best-effort persists a quarantine batch |
-| `QuarantinedAttributeShapeFact`, `AttributeShapeAsFactDecodeError` | attribute-shape adapters (see Gotchas) |
+| `QuarantinedAttributeShapeFact`, `AttributeShapeAsFactDecodeError` | attribute-shape adapters over the family-agnostic shape-field contract (see Gotchas) |
 | `InputInvalidSubSignals` | the sub-signal breakdown reported alongside the counters |
 
 ## Dependencies
 
-`context`, `errors`, `fmt`, plus `sdk/go/factschema` and `sdk/go/factschema/aws/v1`. It imports nothing from the reducer root, and nothing from a domain-family subpackage — that direction is what makes the family moves compile.
+`context`, `errors`, `fmt`, plus `sdk/go/factschema`. It imports nothing from the reducer root, nothing from a domain-family subpackage, and no per-family schema package — that direction is what makes the family moves compile.
 
 ## Telemetry
 
@@ -64,7 +64,9 @@ Rows are in `docs/public/observability/telemetry-coverage.md`. An operator seein
 ## Gotchas / invariants
 
 - **Persistence is best effort and deliberately non-fatal.** A writer error is counted and logged; it never fails the intent. A nil writer is a no-op. Both are locked by tests.
-- **The attribute-shape adapters drag in the AWS schema.** `QuarantinedAttributeShapeFact` and `AttributeShapeAsFactDecodeError` import `sdk/go/factschema/aws/v1`, which is the one place this otherwise family-agnostic package names a single family's schema. That coupling is relocated here, not introduced; extracting it is tracked rather than done in this move.
+- **The attribute-shape adapters name no family schema.** `QuarantinedAttributeShapeFact` and `AttributeShapeAsFactDecodeError` extract the field through the `AttributeShapeField() string` error contract (`sdk/go/factschema/aws/v1.AttributeShapeError` satisfies it), matched with `errors.As` — that is the one place this otherwise family-agnostic package touches a family concept, and it carries no per-family import. Do not re-add one.
+- No-Regression Evidence (#6358): the extraction keeps AWS behavior byte-identical by construction (`AttributeShapeField()` returns `e.Field`, the same field the old concrete-type match read; the `err.Error()` fallback is unchanged). Baseline vs after is locked by `decode_error_shape_contract_test.go`: a non-AWS contract fake (fails pre-fix, passes post-fix), the real `DecodeResourceEC2VolumeAttributes` rejection for AWS parity, the shared `PartitionDecodeFailures` quarantine path, and plain/wrapped fallback cases. `go test ./internal/reducer/factdecode/ -count=1` green. Cost class unchanged (one `errors.As` + string return per adapter call, same as before) on failure-path-only code that never runs per-fact hot; no graph/backend version involved (no Cypher, storage, or query surface touched), so no benchmark applies.
+- No-Observability-Change (#6358): quarantine output is identical for every current caller — same `Field` text, same `input_invalid` classification, same `eshu_dp_reducer_input_invalid_facts_total` counter and `missing_field` log surface. No metric, span, log, or status change.
 - **`FactDecodeError.factKind` stays unexported.** The exported `FactKind` field belongs to `QuarantinedFact`, a different type. Nothing serializes either, so exporting the record's fields changed no wire output.
 
 ## Related docs

@@ -7,8 +7,6 @@ import (
 	"errors"
 	"fmt"
 
-	awsv1 "github.com/eshu-hq/eshu/sdk/go/factschema/aws/v1"
-
 	"github.com/eshu-hq/eshu/go/internal/facts"
 	"github.com/eshu-hq/eshu/sdk/go/factschema"
 )
@@ -141,11 +139,36 @@ func PartitionDecodeFailures(env facts.Envelope, err error) (QuarantinedFact, bo
 	return QuarantinedFact{}, false, err
 }
 
+// attributeShapeError is the family-agnostic contract behind an
+// attribute-shape failure (issue #6358). Any family's typed-attribute Decode*
+// error earns field extraction by reporting its failing attribute path; the
+// adapters below match it with errors.As, so this package never names a
+// single family's concrete error type and carries no per-family import.
+type attributeShapeError interface {
+	error
+	AttributeShapeField() string
+}
+
+// attributeShapeField extracts the failing attribute path from err: the
+// contract's AttributeShapeField when err (or anything it wraps) implements
+// it, or err.Error() as a fallback so the field text is preserved even if a
+// future caller passes a non-contract error value.
+func attributeShapeField(err error) string {
+	field := err.Error()
+	var shapeErr attributeShapeError
+	if errors.As(err, &shapeErr) {
+		field = shapeErr.AttributeShapeField()
+	}
+	return field
+}
+
 // QuarantinedAttributeShapeFact builds a QuarantinedFact for a service-specific
-// attribute field that failed one of the bounded typed-attribute Decode*
-// functions in sdk/go/factschema/aws/v1 (issue #4631) — for example
+// attribute field that failed one of a family's bounded typed-attribute Decode*
+// functions (issue #4631) — for example
 // awsv1.DecodeResourceEC2VolumeAttributes rejecting a present-but-non-bool
-// "encrypted" value. This is distinct from PartitionDecodeFailures, which
+// "encrypted" value. Any error behind the attributeShapeError contract is
+// accepted, not only the AWS shape. This is distinct from
+// PartitionDecodeFailures, which
 // classifies a whole-envelope *FactDecodeError: an attribute-shape failure
 // happens AFTER the envelope's identity fields already decoded successfully,
 // so the envelope itself is not malformed, only one service-specific field
@@ -153,28 +176,19 @@ func PartitionDecodeFailures(env facts.Envelope, err error) (QuarantinedFact, bo
 // keeps the failure visible (counted + logged) instead of silently
 // substituting a zero/empty derived value, matching the accuracy contract a
 // missing required field already gets.
-//
-// err's message (via *awsv1.AttributeShapeError.Error(), or any other error's
-// Error() as a fallback) becomes the quarantine's field name so the field text
-// is preserved even if a future caller passes a wrapped or non-AttributeShapeError
-// value.
 func QuarantinedAttributeShapeFact(env facts.Envelope, err error) QuarantinedFact {
-	field := err.Error()
-	var shapeErr *awsv1.AttributeShapeError
-	if errors.As(err, &shapeErr) {
-		field = shapeErr.Field
-	}
 	return QuarantinedFact{
 		FactID:         env.FactID,
 		FactKind:       env.FactKind,
-		Field:          field,
+		Field:          attributeShapeField(err),
 		Classification: factschema.ClassificationInputInvalid,
 	}
 }
 
 // AttributeShapeAsFactDecodeError adapts a service-specific attribute decode
-// error (an *awsv1.AttributeShapeError from one of the bounded typed-attribute
-// Decode* functions, issue #4631) into a *FactDecodeError so a caller that
+// error (any error behind the attributeShapeError contract, e.g. an
+// *awsv1.AttributeShapeError from one of the bounded typed-attribute Decode*
+// functions, issue #4631) into a *FactDecodeError so a caller that
 // already routes its envelope decode errors through PartitionDecodeFailures
 // (for example cloudResourceNodeRow) can propagate an attribute-shape failure
 // through that same, unmodified quarantine path. The resulting
@@ -182,11 +196,7 @@ func QuarantinedAttributeShapeFact(env facts.Envelope, err error) QuarantinedFac
 // attribute field (not just the envelope) in its Field, so the quarantine's
 // operator-facing "missing_field" log carries the precise failing path.
 func AttributeShapeAsFactDecodeError(factKind string, err error) error {
-	field := err.Error()
-	var shapeErr *awsv1.AttributeShapeError
-	if errors.As(err, &shapeErr) {
-		field = shapeErr.Field
-	}
+	field := attributeShapeField(err)
 	return &FactDecodeError{
 		factKind: factKind,
 		err: &factschema.DecodeError{

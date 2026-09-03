@@ -38,6 +38,13 @@ func (e *AttributeShapeError) Error() string {
 	return fmt.Sprintf("aws attribute shape: field %q: %s", e.Field, e.Reason)
 }
 
+// AttributeShapeField reports the failing attribute path, satisfying the
+// family-agnostic shape-field contract the reducer's factdecode adapters match
+// (issue #6358) so the mechanism tier never names this family's concrete type.
+func (e *AttributeShapeError) AttributeShapeField() string {
+	return e.Field
+}
+
 func newAttributeShapeError(field, reason string) *AttributeShapeError {
 	return &AttributeShapeError{Field: field, Reason: reason}
 }
