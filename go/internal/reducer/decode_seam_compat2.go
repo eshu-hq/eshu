@@ -17,9 +17,6 @@ import (
 // into internal/reducer/secretsiam; both subpackages import schemadecode directly.
 
 var (
-	decodeOCIImageManifestForIndex             = schemadecode.DecodeOCIImageManifestForIndex
-	decodeOCIImageTagObservationForIndex       = schemadecode.DecodeOCIImageTagObservationForIndex
-	decodeOCIRegistryWarning                   = schemadecode.DecodeOCIRegistryWarning
 	decodeRDSInstancePosture                   = schemadecode.DecodeRDSInstancePosture
 	decodeReducerPackageConsumptionCorrelation = schemadecode.DecodeReducerPackageConsumptionCorrelation
 	decodeReducerPackageOwnershipCorrelation   = schemadecode.DecodeReducerPackageOwnershipCorrelation

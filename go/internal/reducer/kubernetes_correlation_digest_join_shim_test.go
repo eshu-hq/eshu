@@ -149,10 +149,10 @@ func TestDigestJoinCardinalityShim(t *testing.T) {
 		}
 
 		// Compute BEFORE/POST counts for the honest report.
-		// BEFORE: only digest-pinned refs (parsed.digest != "") with exact outcome.
+		// BEFORE: only digest-pinned refs (parsed.Digest != "") with exact outcome.
 		// POST: all exact outcomes (digest-pinned + CRI-promoted).
 		isDigestPinned := false
-		if parsed, ok := parseContainerImageRef(f.imageRef); ok && parsed.digest != "" {
+		if parsed, ok := parseContainerImageRef(f.imageRef); ok && parsed.Digest != "" {
 			isDigestPinned = true
 		}
 

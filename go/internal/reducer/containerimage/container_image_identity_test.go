@@ -1,0 +1,428 @@
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2025-2026 eshu-hq
+
+package containerimage
+
+import (
+	"context"
+	"errors"
+	"slices"
+	"strings"
+	"testing"
+	"time"
+
+	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
+
+	"go.opentelemetry.io/otel/attribute"
+	sdkmetric "go.opentelemetry.io/otel/sdk/metric"
+	"go.opentelemetry.io/otel/sdk/metric/metricdata"
+
+	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/reducer/factload"
+	"github.com/eshu-hq/eshu/go/internal/telemetry"
+)
+
+const (
+	testContainerDigest      = "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+	testOtherContainerDigest = "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+)
+
+func TestBuildContainerImageIdentityDecisionsClassifiesDigestAndTagTruth(t *testing.T) {
+	t.Parallel()
+
+	decisions := BuildContainerImageIdentityDecisions([]facts.Envelope{
+		gitImageRefFact("git-digest", "registry.example.com/team/api@"+testContainerDigest),
+		gitImageRefFact("git-tag", "registry.example.com/team/api:prod"),
+		ociManifestFact("oci-manifest", testContainerDigest),
+		ociTagFact("oci-tag", "prod", testContainerDigest, false, ""),
+	})
+
+	got := decisionsByRef(decisions)
+	assertContainerImageDecision(t, got["registry.example.com/team/api@"+testContainerDigest],
+		reducercontract.ContainerImageIdentityExactDigest, testContainerDigest, 1)
+	assertContainerImageDecision(t, got["registry.example.com/team/api:prod"],
+		reducercontract.ContainerImageIdentityTagResolved, testContainerDigest, 1)
+}
+
+func TestBuildContainerImageIdentityDecisionsReadsEntityMetadataContainerImages(t *testing.T) {
+	t.Parallel()
+
+	decisions := BuildContainerImageIdentityDecisions([]facts.Envelope{
+		gitEntityMetadataImageRefFact("git-entity-metadata", "registry.example.com/team/api:prod"),
+		ociTagFact("oci-tag", "prod", testContainerDigest, false, ""),
+	})
+
+	got := decisionsByRef(decisions)
+	assertContainerImageDecision(t, got["registry.example.com/team/api:prod"],
+		reducercontract.ContainerImageIdentityTagResolved, testContainerDigest, 1)
+}
+
+func TestBuildContainerImageIdentityDecisionsUsesWorkflowImageEvidenceAsSourceAnchor(t *testing.T) {
+	t.Parallel()
+
+	decisions := BuildContainerImageIdentityDecisions([]facts.Envelope{
+		workflowImageEvidenceFact("workflow-image", "repo-api", "registry.example.com/team/api:prod"),
+		ociTagFact("oci-tag", "prod", testContainerDigest, false, ""),
+	})
+
+	got := decisionsByRef(decisions)["registry.example.com/team/api:prod"]
+	assertContainerImageDecision(t, got, reducercontract.ContainerImageIdentityTagResolved, testContainerDigest, 1)
+	if !slices.Contains(got.SourceRepositoryIDs, "repo-api") {
+		t.Fatalf("SourceRepositoryIDs = %#v, want repo-api", got.SourceRepositoryIDs)
+	}
+	if !slices.Contains(got.EvidenceFactIDs, "workflow-image") {
+		t.Fatalf("EvidenceFactIDs = %#v, want workflow-image", got.EvidenceFactIDs)
+	}
+}
+
+func TestBuildContainerImageIdentityDecisionsRejectsWeakMissingAndAmbiguousTags(t *testing.T) {
+	t.Parallel()
+
+	decisions := BuildContainerImageIdentityDecisions([]facts.Envelope{
+		gitImageRefFact("git-missing", "registry.example.com/team/missing:prod"),
+		gitImageRefFact("git-ambiguous", "registry.example.com/team/api:prod"),
+		ociTagFact("oci-tag-1", "prod", testContainerDigest, false, ""),
+		ociTagFact("oci-tag-2", "prod", testOtherContainerDigest, false, ""),
+	})
+
+	got := decisionsByRef(decisions)
+	assertContainerImageDecision(t, got["registry.example.com/team/missing:prod"],
+		reducercontract.ContainerImageIdentityUnresolved, "", 0)
+	assertContainerImageDecision(t, got["registry.example.com/team/api:prod"],
+		reducercontract.ContainerImageIdentityAmbiguousTag, "", 0)
+}
+
+func TestBuildContainerImageIdentityDecisionsDetectsStaleRuntimeTags(t *testing.T) {
+	t.Parallel()
+
+	decisions := BuildContainerImageIdentityDecisions([]facts.Envelope{
+		awsImageRelationshipFact(
+			"aws-runtime-image",
+			"registry.example.com/team/api:prod",
+			"registry.example.com/team/api@"+testOtherContainerDigest,
+		),
+		ociTagFact("oci-tag", "prod", testContainerDigest, true, testOtherContainerDigest),
+	})
+
+	got := decisionsByRef(decisions)
+	assertContainerImageDecision(t, got["registry.example.com/team/api:prod"],
+		reducercontract.ContainerImageIdentityStaleTag, testContainerDigest, 0)
+}
+
+func TestContainerImageIdentityHandlerLoadsActiveRegistryFactsAndEmitsOutcomes(t *testing.T) {
+	t.Parallel()
+
+	reader := sdkmetric.NewManualReader()
+	provider := sdkmetric.NewMeterProvider(sdkmetric.WithReader(reader))
+	inst, err := telemetry.NewInstruments(provider.Meter("test"))
+	if err != nil {
+		t.Fatalf("NewInstruments() error = %v", err)
+	}
+	loader := &stubContainerImageIdentityFactLoader{
+		scopeFacts: []facts.Envelope{
+			gitImageRefFact("git-tag", "registry.example.com/team/api:prod"),
+		},
+		active: []facts.Envelope{
+			ociTagFact("oci-tag", "prod", testContainerDigest, false, ""),
+		},
+		warningErr: errors.New("warning loader must stay off the all-canonical path"),
+	}
+	writer := &recordingContainerImageIdentityWriter{}
+	handler := ContainerImageIdentityHandler{
+		FactLoader:  loader,
+		Writer:      writer,
+		Instruments: inst,
+	}
+
+	result, err := handler.Handle(context.Background(), reducercontract.Intent{
+		IntentID:     "intent-image-identity",
+		ScopeID:      "repo:team-api",
+		GenerationID: "generation-git",
+		SourceSystem: "git",
+		Domain:       reducercontract.DomainContainerImageIdentity,
+		Cause:        "container image references observed",
+		AttemptCount: 7,
+		ClaimEpoch:   11,
+	})
+	if err != nil {
+		t.Fatalf("Handle() error = %v, want nil", err)
+	}
+	if got, want := result.CanonicalWrites, 1; got != want {
+		t.Fatalf("CanonicalWrites = %d, want %d", got, want)
+	}
+	if writer.calls != 1 {
+		t.Fatalf("WriteContainerImageIdentityDecisions() calls = %d, want 1", writer.calls)
+	}
+	if got := writer.write.ClaimEpoch; got != 11 {
+		t.Fatalf("write ClaimEpoch = %d, want 11", got)
+	}
+	if loader.activeCall != 1 {
+		t.Fatalf("ListActiveContainerImageIdentityFacts() calls = %d, want 1", loader.activeCall)
+	}
+	if loader.warningCalls != 0 {
+		t.Fatalf(
+			"ListActiveContainerImageIdentityWarnings() calls = %d, want 0 when every decision is canonical",
+			loader.warningCalls,
+		)
+	}
+	if got, want := strings.Join(loader.kindCalls[0], ","), strings.Join(containerImageIdentityFactKinds(), ","); got != want {
+		t.Fatalf("ListFactsByKind() kinds = %q, want %q", got, want)
+	}
+	if !strings.Contains(result.EvidenceSummary, "tag_resolved=1") {
+		t.Fatalf("EvidenceSummary = %q, want tag_resolved count", result.EvidenceSummary)
+	}
+
+	var rm metricdata.ResourceMetrics
+	if err := reader.Collect(context.Background(), &rm); err != nil {
+		t.Fatalf("Collect() error = %v", err)
+	}
+	if !metricHasAttrs(rm, "eshu_dp_container_image_identity_decisions_total", map[string]string{
+		telemetry.MetricDimensionDomain:  string(reducercontract.DomainContainerImageIdentity),
+		telemetry.MetricDimensionOutcome: string(reducercontract.ContainerImageIdentityTagResolved),
+	}) {
+		t.Fatal("container image identity decision counter with tag_resolved outcome not emitted")
+	}
+}
+
+func TestContainerImageIdentityHandlerDoesNotEmitOutcomesBeforeDurableWrite(t *testing.T) {
+	t.Parallel()
+
+	reader := sdkmetric.NewManualReader()
+	provider := sdkmetric.NewMeterProvider(sdkmetric.WithReader(reader))
+	inst, err := telemetry.NewInstruments(provider.Meter("test"))
+	if err != nil {
+		t.Fatalf("NewInstruments() error = %v", err)
+	}
+	handler := ContainerImageIdentityHandler{
+		FactLoader: &stubContainerImageIdentityFactLoader{
+			scopeFacts: []facts.Envelope{
+				gitImageRefFact("git-tag", "registry.example.com/team/api:prod"),
+			},
+			active: []facts.Envelope{
+				ociTagFact("oci-tag", "prod", testContainerDigest, false, ""),
+			},
+		},
+		Writer: &recordingContainerImageIdentityWriter{
+			err: errors.New("database unavailable"),
+		},
+		Instruments: inst,
+	}
+
+	_, err = handler.Handle(context.Background(), reducercontract.Intent{
+		IntentID:     "intent-image-identity",
+		ScopeID:      "repo:team-api",
+		GenerationID: "generation-git",
+		SourceSystem: "git",
+		Domain:       reducercontract.DomainContainerImageIdentity,
+		Cause:        "container image references observed",
+	})
+	if err == nil {
+		t.Fatal("Handle() error = nil, want durable write error")
+	}
+
+	var rm metricdata.ResourceMetrics
+	if err := reader.Collect(context.Background(), &rm); err != nil {
+		t.Fatalf("Collect() error = %v", err)
+	}
+	if metricHasAttrs(rm, "eshu_dp_container_image_identity_decisions_total", map[string]string{
+		telemetry.MetricDimensionDomain:  string(reducercontract.DomainContainerImageIdentity),
+		telemetry.MetricDimensionOutcome: string(reducercontract.ContainerImageIdentityTagResolved),
+	}) {
+		t.Fatal("container image identity decision counter emitted before durable write succeeded")
+	}
+}
+
+func decisionsByRef(decisions []ContainerImageIdentityDecision) map[string]ContainerImageIdentityDecision {
+	out := make(map[string]ContainerImageIdentityDecision, len(decisions))
+	for _, decision := range decisions {
+		out[decision.ImageRef] = decision
+	}
+	return out
+}
+
+func assertContainerImageDecision(
+	t *testing.T,
+	decision ContainerImageIdentityDecision,
+	outcome reducercontract.ContainerImageIdentityOutcome,
+	digest string,
+	writes int,
+) {
+	t.Helper()
+	if decision.Outcome != outcome {
+		t.Fatalf("Outcome = %q, want %q for %#v", decision.Outcome, outcome, decision)
+	}
+	if decision.Digest != digest {
+		t.Fatalf("Digest = %q, want %q for %#v", decision.Digest, digest, decision)
+	}
+	if decision.CanonicalWrites != writes {
+		t.Fatalf("CanonicalWrites = %d, want %d for %#v", decision.CanonicalWrites, writes, decision)
+	}
+}
+
+func gitImageRefFact(factID string, imageRefs ...string) facts.Envelope {
+	return facts.Envelope{
+		FactID:           factID,
+		ScopeID:          "repo:team-api",
+		GenerationID:     "generation-git",
+		FactKind:         factload.FactKindContentEntity,
+		SchemaVersion:    "1.0.0",
+		CollectorKind:    "git",
+		SourceConfidence: facts.SourceConfidenceReported,
+		ObservedAt:       time.Date(2026, time.May, 15, 10, 0, 0, 0, time.UTC),
+		SourceRef: facts.Ref{
+			SourceSystem: "git",
+		},
+		Payload: map[string]any{
+			"uid":         "entity:deployment",
+			"entity_type": "KubernetesResource",
+			"metadata": map[string]any{
+				"container_images": imageRefs,
+			},
+		},
+	}
+}
+
+func gitEntityMetadataImageRefFact(factID string, imageRefs ...string) facts.Envelope {
+	envelope := gitImageRefFact(factID, imageRefs...)
+	envelope.Payload = map[string]any{
+		"uid":         "entity:deployment",
+		"entity_type": "KubernetesResource",
+		"entity_metadata": map[string]any{
+			"container_images": imageRefs,
+		},
+	}
+	return envelope
+}
+
+func workflowImageEvidenceFact(factID string, repositoryID string, imageRef string) facts.Envelope {
+	return facts.Envelope{
+		FactID:           factID,
+		ScopeID:          "repo:team-api",
+		GenerationID:     "generation-git",
+		FactKind:         facts.CICDWorkflowImageEvidenceFactKind,
+		SchemaVersion:    facts.CICDSchemaVersion,
+		CollectorKind:    "git",
+		SourceConfidence: facts.SourceConfidenceObserved,
+		ObservedAt:       time.Date(2026, time.May, 15, 10, 0, 0, 0, time.UTC),
+		SourceRef: facts.Ref{
+			SourceSystem: "git",
+		},
+		Payload: map[string]any{
+			"repository_id":   repositoryID,
+			"workflow_path":   ".github/workflows/deploy.yml",
+			"command_kind":    "docker_build",
+			"image_ref":       imageRef,
+			"evidence_class":  "workflow_image_ref",
+			"source_category": "static_workflow",
+		},
+	}
+}
+
+func ociManifestFact(factID string, digest string) facts.Envelope {
+	return ociImageFact(factID, facts.OCIImageManifestFactKind, digest, map[string]any{})
+}
+
+func ociTagFact(factID string, tag string, digest string, mutated bool, previousDigest string) facts.Envelope {
+	return ociImageFact(factID, facts.OCIImageTagObservationFactKind, digest, map[string]any{
+		"tag":             tag,
+		"resolved_digest": digest,
+		"mutated":         mutated,
+		"previous_digest": previousDigest,
+	})
+}
+
+func ociImageFact(factID string, kind string, digest string, extra map[string]any) facts.Envelope {
+	payload := map[string]any{
+		"registry":      "registry.example.com",
+		"repository":    "team/api",
+		"repository_id": "oci-registry://registry.example.com/team/api",
+		"digest":        digest,
+		"media_type":    "application/vnd.oci.image.manifest.v1+json",
+	}
+	for key, value := range extra {
+		payload[key] = value
+	}
+	return facts.Envelope{
+		FactID:           factID,
+		ScopeID:          "oci-registry://registry.example.com/team/api",
+		GenerationID:     "generation-oci",
+		FactKind:         kind,
+		SchemaVersion:    "1.0.0",
+		CollectorKind:    "oci_registry",
+		SourceConfidence: facts.SourceConfidenceReported,
+		ObservedAt:       time.Date(2026, time.May, 15, 10, 0, 0, 0, time.UTC),
+		SourceRef: facts.Ref{
+			SourceSystem: "oci_registry",
+		},
+		Payload: payload,
+	}
+}
+
+func awsImageRelationshipFact(factID string, imageRef string, resolvedImageRef string) facts.Envelope {
+	return facts.Envelope{
+		FactID:           factID,
+		ScopeID:          "aws:123456789012:us-east-1:lambda",
+		GenerationID:     "generation-aws",
+		FactKind:         facts.AWSRelationshipFactKind,
+		SchemaVersion:    facts.AWSRelationshipSchemaVersion,
+		CollectorKind:    "aws_cloud",
+		SourceConfidence: facts.SourceConfidenceReported,
+		ObservedAt:       time.Date(2026, time.May, 15, 10, 0, 0, 0, time.UTC),
+		SourceRef: facts.Ref{
+			SourceSystem: "aws",
+		},
+		Payload: map[string]any{
+			"relationship_type":  "lambda_function_uses_image",
+			"source_resource_id": "arn:aws:lambda:us-east-1:123456789012:function:team-api",
+			"target_resource_id": imageRef,
+			"target_type":        "container_image",
+			"attributes": map[string]any{
+				"resolved_image_uri": resolvedImageRef,
+			},
+		},
+	}
+}
+
+func metricHasAttrs(rm metricdata.ResourceMetrics, metricName string, attrs map[string]string) bool {
+	for _, scope := range rm.ScopeMetrics {
+		for _, metric := range scope.Metrics {
+			if metric.Name != metricName {
+				continue
+			}
+			sum, ok := metric.Data.(metricdata.Sum[int64])
+			if !ok {
+				continue
+			}
+			for _, point := range sum.DataPoints {
+				matches := true
+				for key, want := range attrs {
+					got, ok := point.Attributes.Value(attribute.Key(key))
+					if !ok || got.AsString() != want {
+						matches = false
+						break
+					}
+				}
+				if matches && point.Value > 0 {
+					return true
+				}
+			}
+		}
+	}
+	return false
+}
+
+func TestContainerImageIdentityCanonicalDecisionFilter(t *testing.T) {
+	t.Parallel()
+
+	decisions := containerImageIdentityCanonicalDecisions([]ContainerImageIdentityDecision{
+		{Outcome: reducercontract.ContainerImageIdentityTagResolved, CanonicalWrites: 1},
+		{Outcome: reducercontract.ContainerImageIdentityUnresolved, CanonicalWrites: 0},
+	})
+	if !slices.EqualFunc(decisions, []ContainerImageIdentityDecision{
+		{Outcome: reducercontract.ContainerImageIdentityTagResolved, CanonicalWrites: 1},
+	}, func(left, right ContainerImageIdentityDecision) bool {
+		return left.Outcome == right.Outcome && left.CanonicalWrites == right.CanonicalWrites
+	}) {
+		t.Fatalf("canonical decisions = %#v, want only writable decision", decisions)
+	}
+}

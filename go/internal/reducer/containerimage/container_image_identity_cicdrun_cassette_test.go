@@ -1,0 +1,147 @@
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2025-2026 eshu-hq
+
+// package containerimage_test (external) is deliberate here, not
+// package containerimage: internal/replay/cassette transitively imports
+// internal/reducer (root), and root imports containerimage for its
+// compatibility aliases (container_image_identity_compat.go, issue #6061).
+// An internal test file pulls that whole chain into containerimage's own
+// test build and creates an import cycle; an external test package is a
+// separate compilation unit nothing else imports, so the same transitive
+// path back to containerimage is not a cycle. This mirrors why the
+// pre-move file lived in package reducer_test at the root.
+package containerimage_test
+
+import (
+	"context"
+	"path/filepath"
+	"reflect"
+	"testing"
+
+	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/reducer/containerimage"
+	"github.com/eshu-hq/eshu/go/internal/replay/cassette"
+	"github.com/eshu-hq/eshu/sdk/go/factschema"
+)
+
+const (
+	lambdaImageDigest     = "sha256:0000000000000000000000000000000000000000000000000000000000aaaacc"
+	lambdaImageRunID      = "5152"
+	lambdaImageRepository = "repository:r_217415d9"
+	lambdaImageScope      = "ci_cd_run:github_actions:acme:deployable-config-resource-proof"
+	lambdaImageGeneration = "cassette-cicd-scd-resource-gen1"
+)
+
+func TestSupplyChainDemoCICDCassetteCarriesLambdaImageBuildEvidence(t *testing.T) {
+	t.Parallel()
+
+	envelopes := replaySupplyChainDemoCICDCassette(t)
+	var foundRunInActiveGeneration, foundArtifacts, primaryPatchRuns int
+	for _, envelope := range envelopes {
+		schemaEnvelope := factschema.Envelope{
+			FactKind: envelope.FactKind, SchemaVersion: envelope.SchemaVersion,
+			StableFactKey: envelope.StableFactKey, ScopeID: envelope.ScopeID,
+			GenerationID: envelope.GenerationID, CollectorKind: envelope.CollectorKind,
+			SourceConfidence: envelope.SourceConfidence, ObservedAt: envelope.ObservedAt,
+			IsTombstone: envelope.IsTombstone, Payload: envelope.Payload,
+		}
+		switch envelope.FactKind {
+		case facts.CICDRunFactKind:
+			run, err := factschema.DecodeCICDRun(schemaEnvelope)
+			if err != nil {
+				t.Fatalf("DecodeCICDRun(%q) error = %v", envelope.StableFactKey, err)
+			}
+			if envelope.ScopeID == "ci_cd_run:github_actions:eshu-hq:supply-chain-demo" &&
+				envelope.GenerationID == "cassette-cicd-scd-gen2-artifact" {
+				primaryPatchRuns++
+			}
+			if run.RunID == lambdaImageRunID && envelope.ScopeID == lambdaImageScope &&
+				envelope.GenerationID == lambdaImageGeneration {
+				foundRunInActiveGeneration++
+				if run.RepositoryID == nil || *run.RepositoryID != lambdaImageRepository ||
+					envelope.FencingToken != 1 {
+					t.Fatalf("Lambda image run identity/lifecycle = %#v, generation %q, fencing %d", run, envelope.GenerationID, envelope.FencingToken)
+				}
+			}
+		case facts.CICDArtifactFactKind:
+			artifact, err := factschema.DecodeCICDArtifact(schemaEnvelope)
+			if err != nil {
+				t.Fatalf("DecodeCICDArtifact(%q) error = %v", envelope.StableFactKey, err)
+			}
+			if artifact.RunID == lambdaImageRunID {
+				foundArtifacts++
+				if artifact.ArtifactType == nil || *artifact.ArtifactType != "container_image" ||
+					artifact.ArtifactDigest == nil || *artifact.ArtifactDigest != lambdaImageDigest ||
+					envelope.ScopeID != lambdaImageScope || envelope.GenerationID != lambdaImageGeneration ||
+					envelope.FencingToken != 1 {
+					t.Fatalf("Lambda image artifact identity/lifecycle = %#v, generation %q, fencing %d", artifact, envelope.GenerationID, envelope.FencingToken)
+				}
+			}
+		}
+	}
+	if foundRunInActiveGeneration != 1 || foundArtifacts != 1 {
+		t.Fatalf("active Lambda image build evidence counts = (runs %d, artifacts %d), want (1, 1)", foundRunInActiveGeneration, foundArtifacts)
+	}
+	if primaryPatchRuns != 0 {
+		t.Fatalf("primary artifact-patch generation ci.run facts = %d, want 0 so retained runs and deployment events are rebuilt", primaryPatchRuns)
+	}
+}
+
+func TestSupplyChainDemoCICDCassetteProducesLambdaImageBuiltFromRow(t *testing.T) {
+	t.Parallel()
+
+	envelopes := activeLambdaImageGeneration(replaySupplyChainDemoCICDCassette(t))
+	envelopes = append(envelopes, replayCassette(t, "ociregistry", "supply-chain-demo.json")...)
+	decisions := containerimage.BuildContainerImageIdentityDecisions(envelopes)
+	rows := containerimage.ContainerImageBuiltFromRowsForReplayTest(decisions)
+	want := map[string]any{"digest": lambdaImageDigest, "repository_id": lambdaImageRepository}
+	matches := 0
+	for _, row := range rows {
+		if reflect.DeepEqual(row, want) {
+			matches++
+		}
+	}
+	if matches != 1 {
+		t.Fatalf("Lambda image BUILT_FROM row matches = %d, want 1; rows = %#v", matches, rows)
+	}
+}
+
+func activeLambdaImageGeneration(envelopes []facts.Envelope) []facts.Envelope {
+	active := make([]facts.Envelope, 0, len(envelopes))
+	for _, envelope := range envelopes {
+		if envelope.ScopeID == lambdaImageScope && envelope.GenerationID == lambdaImageGeneration {
+			active = append(active, envelope)
+		}
+	}
+	return active
+}
+
+func replaySupplyChainDemoCICDCassette(t *testing.T) []facts.Envelope {
+	t.Helper()
+	return replayCassette(t, "cicdrun", "supply-chain-demo.json")
+}
+
+func replayCassette(t *testing.T, pathElements ...string) []facts.Envelope {
+	t.Helper()
+
+	path := filepath.Join(append([]string{"..", "..", "..", "..", "testdata", "cassettes"}, pathElements...)...)
+	source, err := cassette.NewSource(path)
+	if err != nil {
+		t.Fatalf("cassette.NewSource(%q) error = %v", path, err)
+	}
+
+	var envelopes []facts.Envelope
+	for {
+		generation, ok, nextErr := source.Next(context.Background())
+		if nextErr != nil {
+			t.Fatalf("Source.Next() error = %v", nextErr)
+		}
+		if !ok {
+			break
+		}
+		for envelope := range generation.Facts {
+			envelopes = append(envelopes, envelope)
+		}
+	}
+	return envelopes
+}

@@ -42,10 +42,10 @@ func TestProvenanceEdgeCounterRecordsSubmittedRowsAfterSuccessfulWrites(t *testi
 		ProvenanceEdgeWriter: builtFromWriter,
 		Instruments:          instruments,
 	}
-	if err := builtFromHandler.projectContainerImageBuiltFromRows(
+	if err := builtFromHandler.ProjectContainerImageBuiltFromRowsForTest(
 		context.Background(), intent, []map[string]any{{"digest": "sha256:child", "repository_id": "repository-1"}},
 	); err != nil {
-		t.Fatalf("projectContainerImageBuiltFromRows() error = %v", err)
+		t.Fatalf("ProjectContainerImageBuiltFromRowsForTest() error = %v", err)
 	}
 
 	workflowWriter := &recordingContainerImageProvenanceEdgeWriter{}
@@ -73,10 +73,10 @@ func TestProvenanceEdgeCounterRecordsSubmittedRowsAfterSuccessfulWrites(t *testi
 		DerivedFromEdgeWriter: derivedFromWriter,
 		Instruments:           instruments,
 	}
-	if err := derivedFromHandler.projectContainerImageDerivedFromRows(
+	if err := derivedFromHandler.ProjectContainerImageDerivedFromRowsForTest(
 		context.Background(), intent, []map[string]any{{"digest": "sha256:child", "base_digest": "sha256:base"}},
 	); err != nil {
-		t.Fatalf("projectContainerImageDerivedFromRows() error = %v", err)
+		t.Fatalf("ProjectContainerImageDerivedFromRowsForTest() error = %v", err)
 	}
 
 	metrics := collectProvenanceEdgeMetrics(t, reader)
@@ -140,7 +140,7 @@ func TestProvenanceEdgeCounterSkipsUnacceptedRows(t *testing.T) {
 			run: func(instruments *telemetry.Instruments) error {
 				writer := &recordingContainerImageProvenanceEdgeWriter{writeErr: errors.New("write failed")}
 				return (ContainerImageIdentityHandler{ProvenanceEdgeWriter: writer, Instruments: instruments}).
-					projectContainerImageBuiltFromRows(
+					ProjectContainerImageBuiltFromRowsForTest(
 						context.Background(),
 						Intent{ScopeID: "scope-1", GenerationID: "generation-1"},
 						[]map[string]any{{"digest": "sha256:child", "repository_id": "repository-1"}},
@@ -173,7 +173,7 @@ func TestProvenanceEdgeCounterSkipsUnacceptedRows(t *testing.T) {
 			run: func(instruments *telemetry.Instruments) error {
 				writer := &recordingContainerImageDerivedFromEdgeWriter{writeErr: errors.New("write failed")}
 				return (ContainerImageIdentityHandler{DerivedFromEdgeWriter: writer, Instruments: instruments}).
-					projectContainerImageDerivedFromRows(
+					ProjectContainerImageDerivedFromRowsForTest(
 						context.Background(),
 						Intent{ScopeID: "scope-1", GenerationID: "generation-1"},
 						[]map[string]any{{"digest": "sha256:child", "base_digest": "sha256:base"}},
@@ -186,7 +186,7 @@ func TestProvenanceEdgeCounterSkipsUnacceptedRows(t *testing.T) {
 			run: func(instruments *telemetry.Instruments) error {
 				writer := &recordingContainerImageProvenanceEdgeWriter{retractErr: errors.New("retract failed")}
 				return (ContainerImageIdentityHandler{ProvenanceEdgeWriter: writer, Instruments: instruments}).
-					projectContainerImageBuiltFromRows(
+					ProjectContainerImageBuiltFromRowsForTest(
 						context.Background(),
 						Intent{ScopeID: "scope-1", GenerationID: "generation-1"},
 						[]map[string]any{{"digest": "sha256:child", "repository_id": "repository-1"}},
@@ -211,7 +211,7 @@ func TestProvenanceEdgeCounterSkipsUnacceptedRows(t *testing.T) {
 			run: func(instruments *telemetry.Instruments) error {
 				writer := &recordingContainerImageProvenanceEdgeWriter{}
 				return (ContainerImageIdentityHandler{ProvenanceEdgeWriter: writer, Instruments: instruments}).
-					projectContainerImageBuiltFromRows(
+					ProjectContainerImageBuiltFromRowsForTest(
 						context.Background(),
 						Intent{ScopeID: "scope-1", GenerationID: "generation-1"},
 						nil,
@@ -233,7 +233,7 @@ func TestProvenanceEdgeCounterSkipsUnacceptedRows(t *testing.T) {
 		{
 			name: "unwired projection",
 			run: func(instruments *telemetry.Instruments) error {
-				return (ContainerImageIdentityHandler{Instruments: instruments}).projectContainerImageBuiltFromEdges(
+				return (ContainerImageIdentityHandler{Instruments: instruments}).ProjectContainerImageBuiltFromEdgesForTest(
 					context.Background(),
 					Intent{ScopeID: "scope-1", GenerationID: "generation-1"},
 					[]ContainerImageIdentityDecision{{

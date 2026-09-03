@@ -94,12 +94,6 @@ func ComponentEvidenceTupleEqual(a, b ComponentEvidence) bool {
 	return sbomattest.ComponentEvidenceTupleEqual(a, b)
 }
 
-// normalizedVerificationStatus forwards to
-// [sbomattest.NormalizedVerificationStatus].
-func normalizedVerificationStatus(raw string) string {
-	return sbomattest.NormalizedVerificationStatus(raw)
-}
-
 // payloadStrings forwards to [payloadcore.PayloadStrings]. It reaches the
 // shared helper directly rather than through sbomattest: the root callers are
 // secrets/IAM, security-alert-reconciliation and supply-chain-impact, none of

@@ -418,8 +418,8 @@ func countDistinctDigestIdentities(refs []string) int {
 	seen := make(map[string]struct{}, len(refs))
 	for _, ref := range refs {
 		identity := ref
-		if parsed, ok := parseContainerImageRef(ref); ok && parsed.digest != "" {
-			identity = parsed.digest
+		if parsed, ok := parseContainerImageRef(ref); ok && parsed.Digest != "" {
+			identity = parsed.Digest
 		}
 		seen[identity] = struct{}{}
 	}
