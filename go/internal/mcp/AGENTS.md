@@ -45,9 +45,10 @@
    selection in `go/internal/mcp/codeflow`, and dead-code,
    complexity/quality, and entity-resolution request selection in
    `go/internal/mcp/deadcode`, `go/internal/mcp/codequality`, and
-   `go/internal/mcp/entityresolution`, whose `deadCodeRoute`,
-   `codeQualityRoute`, and `entityResolutionRoute` adapters live in
-   `dispatch.go` itself rather than dedicated adapter files
+   `go/internal/mcp/entityresolution`, and code-intelligence request
+   selection in `go/internal/mcp/codeintel`, whose `deadCodeRoute`,
+   `codeQualityRoute`, `entityResolutionRoute`, and `codeIntelRoute`
+   adapters live in `dispatch.go` itself rather than dedicated adapter files
 4. `go/internal/mcp/types.go` — `ToolDefinition` and `ReadOnlyTools`; this is
    the tool registry entry point
 5. `go/internal/query/` — the `http.Handler` that backs every tool call;
@@ -125,11 +126,16 @@
   graph aggregation, truth metadata, canonical `functions` rows, source
   handles, and truncation.
 
-- **Change an existing tool's argument mapping** → update `resolveRoute` in
-  `dispatch.go`, update the matching `tools_*.go` `InputSchema`, and update or
-  add a test in `dispatch_test.go`. Why: the `InputSchema` is the advertised
-  contract; mismatches between schema and dispatch body produce silent wrong
-  queries.
+- **Change an existing tool's argument mapping** → first find where the tool is
+  routed. Tools still routed by an inline `case` are mapped in `resolveRoute` in
+  `dispatch.go`; tools delegated to a child selector are mapped in that child's
+  `routes.go` (for example `go/internal/mcp/codeintel/routes.go`), and
+  `dispatch.go` holds only the delegating adapter. Then update the matching
+  `tools_*.go` `InputSchema`, and update or add a test beside the mapping you
+  changed. Why: the `InputSchema` is the advertised contract; mismatches between
+  schema and the forwarded body produce silent wrong queries, and editing
+  `dispatch.go` for a tool whose mapping has moved changes nothing while looking
+  like it did.
 
 - **Move an existing registration family** → put only its definitions in a
   child package that imports `toolcontract`; retain a root wrapper and the
