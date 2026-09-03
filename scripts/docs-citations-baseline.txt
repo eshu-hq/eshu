@@ -840,7 +840,6 @@ LINE docs/public/reference/edge-source-tool-provenance.md go/internal/relationsh
 LINE docs/public/reference/environment-alias-contract.md go/internal/storage/cypher/workload_cloud_relationship_writer.go:22
 LINE docs/public/reference/read-surface-consumer-existence-gate.md go/internal/projector/tfstate_canonical.go:113
 LINE docs/public/reference/read-surface-consumer-existence-gate.md go/internal/reducer/package_source_correlation.go:98
-LINE docs/public/reference/replay-coverage.md go/internal/reducer/tfconfigstate/terraform_config_state_drift.go:80
 LINE docs/public/reference/telemetry/index.md go/internal/storage/postgres/ingestion_backfill_scoped_load.go:248
 LINE docs/public/reference/telemetry/index.md go/internal/telemetry/instruments.go:4745
 LINE docs/public/reference/telemetry/streaming-memory.md go/internal/collector/service.go:438
