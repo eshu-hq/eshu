@@ -42,13 +42,15 @@
    selection in `go/internal/mcp/kubernetes`, infrastructure-search
    request selection in `go/internal/mcp/infrasearch`, impact-analysis
    request selection in `go/internal/mcp/impact`, code-flow request
-   selection in `go/internal/mcp/codeflow`, and dead-code,
+   selection in `go/internal/mcp/codeflow`, dead-code,
    complexity/quality, and entity-resolution request selection in
    `go/internal/mcp/deadcode`, `go/internal/mcp/codequality`, and
-   `go/internal/mcp/entityresolution`, and code-intelligence request
-   selection in `go/internal/mcp/codeintel`, whose `deadCodeRoute`,
-   `codeQualityRoute`, `entityResolutionRoute`, and `codeIntelRoute`
-   adapters live in `dispatch.go` itself rather than dedicated adapter files
+   `go/internal/mcp/entityresolution`, code-intelligence request
+   selection in `go/internal/mcp/codeintel`, and IaC-management request
+   selection in `go/internal/mcp/iacmanagement`, whose `deadCodeRoute`,
+   `codeQualityRoute`, `entityResolutionRoute`, `codeIntelRoute`, and
+   `iacManagementRoute` adapters live in `dispatch.go` itself rather than
+   dedicated adapter files
 4. `go/internal/mcp/types.go` — `ToolDefinition` and `ReadOnlyTools`; this is
    the tool registry entry point
 5. `go/internal/query/` — the `http.Handler` that backs every tool call;

@@ -18,6 +18,7 @@ import (
 	codequalitytools "github.com/eshu-hq/eshu/go/internal/mcp/codequality"
 	deadcodetools "github.com/eshu-hq/eshu/go/internal/mcp/deadcode"
 	entityresolutiontools "github.com/eshu-hq/eshu/go/internal/mcp/entityresolution"
+	iacmanagementtools "github.com/eshu-hq/eshu/go/internal/mcp/iacmanagement"
 	"github.com/eshu-hq/eshu/go/internal/mcp/routecontract"
 )
 
@@ -184,6 +185,9 @@ func resolveRoute(toolName string, args map[string]any) (*route, error) {
 	if route, ok := entityResolutionRoute(toolName, args); ok {
 		return route, nil
 	}
+	if route, ok := iacManagementRoute(toolName, args); ok {
+		return route, nil
+	}
 	if route, ok, err := codeRelationshipRoute(toolName, args); ok {
 		return route, err
 	}
@@ -213,40 +217,12 @@ func resolveRoute(toolName string, args map[string]any) (*route, error) {
 			"limit":              intOr(args, "limit", 25),
 			"offset":             intOr(args, "offset", 0),
 		}}, nil
-	case "find_dead_iac":
-		return &route{method: "POST", path: "/api/v0/iac/dead", body: map[string]any{
-			"repo_id":           str(args, "repo_id"),
-			"repo_ids":          stringSlice(args, "repo_ids"),
-			"families":          stringSlice(args, "families"),
-			"include_ambiguous": boolOr(args, "include_ambiguous", false),
-			"limit":             intOr(args, "limit", 100),
-			"offset":            intOr(args, "offset", 0),
-		}}, nil
-	case "find_unmanaged_resources":
-		return &route{method: "POST", path: "/api/v0/iac/unmanaged-resources", body: map[string]any{
-			"scope_id":      str(args, "scope_id"),
-			"account_id":    str(args, "account_id"),
-			"region":        str(args, "region"),
-			"finding_kinds": stringSlice(args, "finding_kinds"),
-			"limit":         intOr(args, "limit", 100),
-			"offset":        intOr(args, "offset", 0),
-		}}, nil
-	case "get_iac_management_status":
-		return &route{method: "POST", path: "/api/v0/iac/management-status", body: iacManagementStatusBody(args)}, nil
-	case "explain_iac_management_status":
-		return &route{method: "POST", path: "/api/v0/iac/management-status/explain", body: iacManagementStatusBody(args)}, nil
-	case "propose_terraform_import_plan":
-		return &route{method: "POST", path: "/api/v0/iac/terraform-import-plan/candidates", body: terraformImportPlanBody(args)}, nil
 	case "compose_replatforming_plan":
 		return &route{method: "POST", path: "/api/v0/replatforming/plans", body: replatformingPlanBody(args)}, nil
 	case "list_aws_runtime_drift_findings":
 		return &route{method: "POST", path: "/api/v0/aws/runtime-drift/findings", body: awsRuntimeDriftFindingsBody(args)}, nil
-	case "list_terraform_config_state_drift_findings":
-		return &route{method: "POST", path: "/api/v0/terraform/config-state-drift/findings", body: terraformConfigStateDriftFindingsBody(args)}, nil
 	case "get_replatforming_rollups":
 		return &route{method: "POST", path: "/api/v0/replatforming/rollups", body: replatformingRollupsBody(args)}, nil
-	case "find_unmanaged_resource_owners":
-		return &route{method: "POST", path: "/api/v0/replatforming/ownership-packets", body: replatformingOwnershipBody(args)}, nil
 	case "execute_cypher_query":
 		return &route{method: "POST", path: "/api/v0/code/cypher", body: map[string]any{
 			"cypher_query": str(args, "cypher_query"),
@@ -418,6 +394,19 @@ func entityResolutionRoute(toolName string, args map[string]any) (*route, bool) 
 // why.
 func codeIntelRoute(toolName string, args map[string]any) (*route, bool) {
 	return adaptChildRoute(codeinteltools.Route(toolName, routecontract.Arguments(args)))
+}
+
+// iacManagementRoute adapts the child package's IaC-management request
+// selection into the root dispatcher's transport route, exactly as
+// deadCodeRoute, codeQualityRoute, entityResolutionRoute, and codeIntelRoute
+// above adapt theirs: same former-switch arms, same delegation position,
+// same dirgate reason for living in this file. compose_replatforming_plan,
+// list_aws_runtime_drift_findings, and get_replatforming_rollups stay in the
+// switch below rather than joining this family — each builds its body from
+// its own root helper in dispatch_iac.go that no tool in the child package
+// shares.
+func iacManagementRoute(toolName string, args map[string]any) (*route, bool) {
+	return adaptChildRoute(iacmanagementtools.Route(toolName, routecontract.Arguments(args)))
 }
 
 // adaptChildRoute converts a child selector's dependency-neutral request and
