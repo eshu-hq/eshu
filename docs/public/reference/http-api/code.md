@@ -333,6 +333,13 @@ alone returned that entity from whichever repository held it and a supplied
 repository than the `repo_id` you named returns `404 entity not found`. Drop
 `repo_id` to look the entity up wherever it lives.
 
+A `repo_id` sent without `entity_id` or `function_name` now restricts the ranked
+list to that repository. Before this change the list branch bound the repository
+side of its scan optionally, so a supplied `repo_id` did not filter: the answer
+ranked every function in the index and only blanked the repository columns on
+rows from elsewhere. Omit `repo_id` for a corpus-wide ranking, which also
+includes functions the graph attributes to no repository.
+
 `POST /api/v0/code/quality/inspect` supports `complexity`, `function_length`,
 `argument_count`, and `refactoring_candidates`, with threshold fields and
 recommended next calls in the response.

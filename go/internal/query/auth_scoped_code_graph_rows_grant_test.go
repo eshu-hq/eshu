@@ -160,6 +160,48 @@ func TestComplexityListUnscopedAnswerIsUnchanged(t *testing.T) {
 	}
 }
 
+// TestComplexityListUnscopedRepoIDSelectorFiltersToThatRepository is the other
+// half of the anchor decision. An unscoped shared-key, admin, or local caller
+// that names a repository is asking for that repository's ranking, and the
+// OPTIONAL MATCH form cannot give it one: the appended repo.id = $repo_id lands
+// in a WHERE attached to the optional pattern, so every Function in the corpus
+// came back with the repository columns nulled on the rows belonging to some
+// other repository.
+func TestComplexityListUnscopedRepoIDSelectorFiltersToThatRepository(t *testing.T) {
+	t.Parallel()
+
+	graph := &evaluatingRepositoryGraph{
+		seeds:             complexityListSeeds(),
+		repositoryColumns: repositoryProjectedColumns(),
+	}
+	rec := runGraphGrantRoute(
+		t,
+		graph,
+		"/api/v0/code/complexity",
+		map[string]any{"repo_id": codeGrantGrantedRepo},
+		nil,
+	)
+
+	if got, want := rec.Code, http.StatusOK; got != want {
+		t.Fatalf("status = %d, want %d; body = %s", got, want, rec.Body.String())
+	}
+	if len(graph.statements) == 0 {
+		t.Fatal("no statement reached the graph")
+	}
+	if repositoryBindingIsOptional(graph.statements[0]) {
+		t.Fatalf("a supplied repo_id sits on an optional Repository binding, so it filters nothing:\n%s", graph.statements[0])
+	}
+	body := rec.Body.String()
+	if !strings.Contains(body, codeGrantGrantedFunction) {
+		t.Fatalf("the named repository's function %q is missing: %s", codeGrantGrantedFunction, body)
+	}
+	for _, unwanted := range []string{codeGrantUngrantedFunction, codeGrantOrphanFunction, codeGrantOtherRepo} {
+		if strings.Contains(body, unwanted) {
+			t.Fatalf("complexity list for repo_id %q returned %q: %s", codeGrantGrantedRepo, unwanted, body)
+		}
+	}
+}
+
 // TestComplexityByNameDoesNotLeakUngrantedFunctions covers the name branch,
 // whose ambiguity candidate list would otherwise name the other tenant's
 // function and its repository.
