@@ -5,6 +5,7 @@ package query
 
 import (
 	"context"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"slices"
@@ -262,4 +263,70 @@ func TestDeadCodeGraphCandidateScanBindsTheGrantInTheBuiltCypher(t *testing.T) {
 	if _, ok := params["allowed_scope_ids"]; !ok {
 		t.Fatalf("params = %#v, want an allowed_scope_ids binding for the predicate's second disjunct", params)
 	}
+}
+
+// TestDeadCodeCandidateRowsBindTheGrantInTheShippedSQL is the content-backend
+// half of the guard TestDeadCodeGraphCandidateScanBindsTheGrantInTheBuiltCypher
+// provides for the graph backend. The handler tests drive a fake store, so the
+// SQL string is never built: delete the grant clause from
+// ContentReader.DeadCodeCandidateRows and every one of them still passes. This
+// drives the real reader against a recording driver and reads the statement it
+// actually sent.
+func TestDeadCodeCandidateRowsBindTheGrantInTheShippedSQL(t *testing.T) {
+	t.Parallel()
+
+	t.Run("scoped", func(t *testing.T) {
+		t.Parallel()
+
+		db, recorder := openRecordingContentReaderDB(t, []recordingContentReaderQueryResult{{
+			columns: []string{
+				"entity_id", "entity_name", "entity_type", "repo_id", "relative_path",
+				"language", "start_line", "end_line", "metadata",
+			},
+		}})
+		reader := NewContentReader(db)
+		if _, err := reader.DeadCodeCandidateRows(context.Background(), deadCodeCandidateQuery{
+			Label:                "Function",
+			Limit:                10,
+			AllowedRepositoryIDs: []string{codeGrantGrantedRepo},
+		}); err != nil {
+			t.Fatalf("DeadCodeCandidateRows() error = %v, want nil", err)
+		}
+		if len(recorder.queries) != 1 {
+			t.Fatalf("query count = %d, want 1", len(recorder.queries))
+		}
+		if want := "AND repo_id = ANY($4)"; !strings.Contains(recorder.queries[0], want) {
+			t.Fatalf("candidate SQL is missing %q; a scoped caller's grant is bound but never applied:\n%s", want, recorder.queries[0])
+		}
+		// The grant argument must land at $4, ahead of LIMIT/OFFSET, or the
+		// placeholders the statement renders point at the wrong values.
+		bound := fmt.Sprintf("%s", recorder.args[0][3])
+		if !strings.Contains(bound, codeGrantGrantedRepo) {
+			t.Fatalf("grant argument = %q, want the encoded Postgres array carrying %q", bound, codeGrantGrantedRepo)
+		}
+	})
+
+	t.Run("unscoped", func(t *testing.T) {
+		t.Parallel()
+
+		db, recorder := openRecordingContentReaderDB(t, []recordingContentReaderQueryResult{{
+			columns: []string{
+				"entity_id", "entity_name", "entity_type", "repo_id", "relative_path",
+				"language", "start_line", "end_line", "metadata",
+			},
+		}})
+		reader := NewContentReader(db)
+		if _, err := reader.DeadCodeCandidateRows(context.Background(), deadCodeCandidateQuery{
+			Label: "Function",
+			Limit: 10,
+		}); err != nil {
+			t.Fatalf("DeadCodeCandidateRows() error = %v, want nil", err)
+		}
+		if strings.Contains(recorder.queries[0], "ANY(") {
+			t.Fatalf("unscoped candidate SQL gained a grant clause:\n%s", recorder.queries[0])
+		}
+		if got, want := len(recorder.args[0]), 5; got != want {
+			t.Fatalf("argument count = %d, want %d for an unscoped scan", got, want)
+		}
+	})
 }
