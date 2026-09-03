@@ -44,8 +44,9 @@
 // This package registers no metric instrument of its own. The
 // inheritance_materialization domain runs as a standard reducer execution
 // covered by eshu_dp_reducer_executions_total and
-// eshu_dp_reducer_run_duration_seconds, under the
-// reducer.inheritance_materialization span. What the family adds is diagnostic
+// eshu_dp_reducer_run_duration_seconds, under the reducer.run span. The
+// domain is an attribute on those metrics rather than a span of its own,
+// so traces are searched by reducer.run and filtered on the domain. What the family adds is diagnostic
 // detail on the result and in the logs: [MaterializationHandler.Handle] emits
 // per-phase wall-times through Result.SubDurations (load_facts, build_intents,
 // upsert_intents, total) and the input_ready / written_rows signals through

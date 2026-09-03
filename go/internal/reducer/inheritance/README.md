@@ -75,8 +75,9 @@ root forwarder or alias:
 This package registers no metric instrument of its own. The
 `inheritance_materialization` domain runs as a standard reducer execution
 covered by `eshu_dp_reducer_executions_total` and
-`eshu_dp_reducer_run_duration_seconds`, under the
-`reducer.inheritance_materialization` span; the edges it projects are written
+`eshu_dp_reducer_run_duration_seconds`, under the `reducer.run` span — the
+domain is an attribute on those metrics, not a span of its own, so an operator
+searches traces for `reducer.run` and filters on the domain; the edges it projects are written
 through the shared edge-write path covered by
 `eshu_dp_shared_edge_write_groups_total`.
 
@@ -104,7 +105,7 @@ each has exactly one implementation before and after. The only renames are
 cannot carry a field and a method under one name) and the family's own exported
 identifiers, which lost their now-redundant `Inheritance` prefix. A Go import
 change and a type alias add no indirection at runtime. Verified on this branch against
-`630115dc5`, its merge-base with `origin/main`: `go build ./...` exits 0,
+its current merge-base with `origin/main`: `go build ./...` exits 0,
 `go vet ./...` exits 0, and `go test ./internal/reducer/... ./internal/ifa/...
 ./internal/storage/cypher/... ./internal/replay/... -count=1` passes, including
 this package. Binary output was not compared and no such claim is made here.
