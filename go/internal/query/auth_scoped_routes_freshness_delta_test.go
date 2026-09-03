@@ -49,53 +49,122 @@ func TestScopedTokenReachesFreshnessDeltaPairOnly(t *testing.T) {
 		},
 	}
 
+	auth := AuthContext{
+		Mode:                 AuthModeScoped,
+		TenantID:             "tenant_a",
+		WorkspaceID:          "workspace_a",
+		AllowedRepositoryIDs: []string{"repo_a"},
+	}
 	for _, tc := range cases {
 		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
-			resolver := &fakeScopedTokenResolver{
-				context: AuthContext{
-					Mode:                 AuthModeScoped,
-					TenantID:             "tenant_a",
-					WorkspaceID:          "workspace_a",
-					AllowedRepositoryIDs: []string{"repo_a"},
-				},
-				ok: true,
-			}
-			called := false
-			handler := AuthMiddlewareWithScopedTokens("", resolver, http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
-				called = true
-				w.WriteHeader(http.StatusOK)
-			}))
-
-			req := httptest.NewRequest(http.MethodGet, tc.path, nil)
-			req.Header.Set("Accept", EnvelopeMIMEType)
-			req.Header.Set("Authorization", "Bearer scoped-token")
-			req.Header.Set("X-Correlation-ID", "corr-freshness-delta")
-			rec := httptest.NewRecorder()
-			handler.ServeHTTP(rec, req)
-
-			if got := rec.Code; got != tc.wantStatus {
-				t.Fatalf("status = %d, want %d; body = %s", got, tc.wantStatus, rec.Body.String())
-			}
-			if want := tc.wantStatus == http.StatusOK; called != want {
-				t.Fatalf("next handler called = %t, want %t", called, want)
-			}
-			if tc.wantStatus != http.StatusForbidden {
-				return
-			}
-			var envelope ResponseEnvelope
-			if err := json.Unmarshal(rec.Body.Bytes(), &envelope); err != nil {
-				t.Fatalf("json.Unmarshal() error = %v, want nil", err)
-			}
-			if envelope.Error == nil {
-				t.Fatalf("envelope.Error = nil, want scoped-route denial; body = %s", rec.Body.String())
-			}
-			if got, want := envelope.Error.Code, ErrorCodePermissionDenied; got != want {
-				t.Fatalf("error code = %q, want %q", got, want)
-			}
+			assertBearerFreshnessDeltaRoute(t, auth, tc.path, tc.wantStatus)
 		})
+	}
+}
+
+// TestAllScopeBearerTokenReachesFreshnessDeltaPairOnly pins the bearer shape
+// the route's four caller-facing surfaces name when they say scoped tokens are
+// refused "all-scope bearer tokens included": a token whose grant set carries
+// AllScopes and no repository or scope ids, which is what
+// scopedtoken.Registry's admin-equivalent entry and an OIDC provider's
+// all-scopes grant set both resolve to.
+//
+// Neither resolver varies Mode with AllScopes -- both build the context with
+// AuthModeScoped -- and the middleware's scoped branch keys on Mode alone, so
+// the pending service route refuses this token in every deployment while the
+// two promoted pair routes hand it to the handler.
+//
+// That asymmetry is the assertion. The tenant-bound all-scope BROWSER SESSION
+// in the table below IS admitted on the same pending route wherever the policy
+// sets AllowTenantBoundAllScopes, so "all-scope" alone does not decide the
+// route: the credential kind does. #6450's residual rests on that split, which
+// is why it gets a case of its own rather than being read off the
+// browser-session table.
+func TestAllScopeBearerTokenReachesFreshnessDeltaPairOnly(t *testing.T) {
+	t.Parallel()
+
+	cases := []struct {
+		name       string
+		path       string
+		wantStatus int
+	}{
+		{
+			name:       "changed_since_promoted",
+			path:       "/api/v0/freshness/changed-since",
+			wantStatus: http.StatusOK,
+		},
+		{
+			name:       "generations_promoted",
+			path:       "/api/v0/freshness/generations",
+			wantStatus: http.StatusOK,
+		},
+		{
+			name:       "service_changed_since_still_pending",
+			path:       "/api/v0/freshness/services/changed-since",
+			wantStatus: http.StatusForbidden,
+		},
+	}
+
+	auth := AuthContext{
+		Mode:        AuthModeScoped,
+		TenantID:    "tenant_a",
+		WorkspaceID: "workspace_a",
+		AllScopes:   true,
+	}
+	for _, tc := range cases {
+		tc := tc
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			assertBearerFreshnessDeltaRoute(t, auth, tc.path, tc.wantStatus)
+		})
+	}
+}
+
+// assertBearerFreshnessDeltaRoute drives one bearer read of a freshness delta
+// route through the scoped-token middleware and asserts the status, whether
+// the next handler ran, and -- on a refusal -- that the envelope carries the
+// scoped-route permission-denied code. The two bearer tables above share it so
+// the all-scope row and the grant-carrying row are proven against the same
+// code path rather than against two hand-copied ones.
+func assertBearerFreshnessDeltaRoute(t *testing.T, auth AuthContext, path string, wantStatus int) {
+	t.Helper()
+
+	resolver := &fakeScopedTokenResolver{context: auth, ok: true}
+	called := false
+	handler := AuthMiddlewareWithScopedTokens("", resolver, http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		called = true
+		w.WriteHeader(http.StatusOK)
+	}))
+
+	req := httptest.NewRequest(http.MethodGet, path, nil)
+	req.Header.Set("Accept", EnvelopeMIMEType)
+	req.Header.Set("Authorization", "Bearer scoped-token")
+	req.Header.Set("X-Correlation-ID", "corr-freshness-delta")
+	rec := httptest.NewRecorder()
+	handler.ServeHTTP(rec, req)
+
+	if got := rec.Code; got != wantStatus {
+		t.Fatalf("status = %d, want %d; body = %s", got, wantStatus, rec.Body.String())
+	}
+	if want := wantStatus == http.StatusOK; called != want {
+		t.Fatalf("next handler called = %t, want %t", called, want)
+	}
+	if wantStatus != http.StatusForbidden {
+		return
+	}
+	var envelope ResponseEnvelope
+	if err := json.Unmarshal(rec.Body.Bytes(), &envelope); err != nil {
+		t.Fatalf("json.Unmarshal() error = %v, want nil", err)
+	}
+	if envelope.Error == nil {
+		t.Fatalf("envelope.Error = nil, want scoped-route denial; body = %s", rec.Body.String())
+	}
+	if got, want := envelope.Error.Code, ErrorCodePermissionDenied; got != want {
+		t.Fatalf("error code = %q, want %q", got, want)
 	}
 }
 
