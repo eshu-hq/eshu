@@ -317,8 +317,6 @@ per call, in test binaries only. Root suite before and after: 7792
 `=== RUN`, 0 `--- FAIL` (base `origin/main` at the time of measurement; that
 count is not a portable constant -- it moves as main gains tests).
 
-No-Observability-Change: no metric, span, log, or status surface is touched.
-Fakes deliberately emit no telemetry; a test double that produced spans would
 No-Regression Evidence: for the governance-audit and scoped-token fakes
 promoted alongside them, this package is a test double and runs only inside test
 binaries, so nothing here sits on a production query, graph, queue or HTTP path.

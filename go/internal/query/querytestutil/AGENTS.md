@@ -92,13 +92,6 @@ Root `query`'s tests and `internal/query/semanticsearch`'s both import this
 package. The first family move (#6060) landed, so the earlier
 "one consumer, on purpose" exception is spent — apply the two-consumer rule
 below as written.
-Every helper here has exactly one consuming package today — root `query`'s own
-tests. That is a real exception to the two-consumer rule below, and it is worth
-understanding before you apply any of them.
-`MustMapField`, `FakeGraphReader`, and the content-reader SQL driver each have
-exactly one consuming package today — root `query`'s own tests. That is a real
-exception to the two-consumer rule below, and it is worth understanding before
-you apply any of them.
 
 `MustMapField` and `FakeGraphReader` still have only root as a consumer. That
 is fine: they were landed as precursors to the split, not as precedent for
