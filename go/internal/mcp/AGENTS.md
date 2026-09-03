@@ -13,6 +13,7 @@
    touching protocol handling
 3. `go/internal/mcp/dispatch.go`, `go/internal/mcp/dispatch_timeout.go`,
    `go/internal/mcp/dispatch_args.go`,
+   `go/internal/mcp/dispatch_service_selector.go`,
    `go/internal/mcp/dispatch_package_registry.go`,
    `go/internal/mcp/dispatch_cicd.go`, `go/internal/mcp/dispatch_codeowners.go`,
    `go/internal/mcp/dispatch_secrets_iam.go`,
@@ -46,11 +47,16 @@
    complexity/quality, and entity-resolution request selection in
    `go/internal/mcp/deadcode`, `go/internal/mcp/codequality`, and
    `go/internal/mcp/entityresolution`, code-intelligence request
-   selection in `go/internal/mcp/codeintel`, and IaC-management request
+   selection in `go/internal/mcp/codeintel`, IaC-management request
    selection in `go/internal/mcp/iacmanagement`, whose `deadCodeRoute`,
    `codeQualityRoute`, `entityResolutionRoute`, `codeIntelRoute`, and
    `iacManagementRoute` adapters live in `dispatch.go` itself rather than
-   dedicated adapter files
+   dedicated adapter files, and service-context request selection in
+   `go/internal/mcp/servicecontext`, whose `serviceContextRoute` adapter
+   lives in `dispatch_service_selector.go` rather than inline in
+   `dispatch.go`, because (like `relationshipEdgesRoute` in
+   `dispatch_relationship_edges.go`) it must forward a selector-validation
+   error, not only a handled flag
 4. `go/internal/mcp/types.go` — `ToolDefinition` and `ReadOnlyTools`; this is
    the tool registry entry point
 5. `go/internal/query/` — the `http.Handler` that backs every tool call;
@@ -85,10 +91,12 @@
   will return the canonical envelope. Removing this header breaks envelope
   detection for all tools.
 
-- **`normalizeQualifiedIdentifier` for service paths** — uses `Cut` at
-  `dispatch_args.go:33` to split on `:` and return the tail. Service tools must
-  apply this helper; missing it produces paths like
-  `/api/v0/services/workload:name/context` which no handler matches.
+- **`normalizeQualifiedIdentifier` for service paths** — lives in
+  `servicecontext/routes.go` (moved out of `dispatch_args.go` when the
+  service-context family was extracted); uses `Cut` to split on `:` and
+  return the tail. Service tools must apply this helper; missing it produces
+  paths like `/api/v0/services/workload:name/context` which no handler
+  matches.
 
 - **SSE buffer drop / closed session is non-fatal** — `sseSession.send`
   (`server_sse.go`) returns false when the session channel is full OR the
@@ -151,8 +159,9 @@
   `dispatch_investigation_packets.go`. Service routing is deliberately split:
   catalog correlations stay in `dispatch_repositories.go` and
   `dispatch_service_catalog.go`, while context, story, investigation, and
-  intelligence-report routes stay in `dispatch.go` and
-  `dispatch_service_selector.go`.
+  intelligence-report request selection is owned by
+  `go/internal/mcp/servicecontext`, reached through the `serviceContextRoute`
+  adapter in `dispatch_service_selector.go`.
   Ecosystem registration is one 23-definition group, but routing remains split
   across `dispatch_ecosystem.go`, `dispatch_repositories.go`, `dispatch.go`,
   the `dispatch_infra_search.go` adapter over `infrasearch`, and the
@@ -197,8 +206,8 @@
 
 - Symptom: service tool (`get_service_context`, `get_service_story`) returns
   404 from the internal handler → a qualified identifier like `workload:name`
-  was not stripped; verify `PathEscape` receives the stripped value at
-  `dispatch.go:326`.
+  was not stripped; verify `PathEscape` receives the stripped value in
+  `servicecontext/routes.go`'s `serviceSelectorRoute`.
 
 - Symptom: `find_dead_iac` returns empty results with a Postgres-backed
   reachability store → the IaC reachability field may not be wired in

@@ -3,8 +3,6 @@
 
 package mcp
 
-import "strings"
-
 func stringSlice(args map[string]any, key string) []any {
 	raw, ok := args[key]
 	if !ok {
@@ -49,18 +47,4 @@ func firstString(values []any) string {
 	}
 	value, _ := values[0].(string)
 	return value
-}
-
-func normalizeQualifiedIdentifier(value string) string {
-	if head, tail, ok := strings.Cut(value, ":"); ok && head != "" && tail != "" {
-		return tail
-	}
-	return value
-}
-
-func canonicalWorkloadIdentifier(value string) string {
-	if head, tail, ok := strings.Cut(value, ":"); ok && head == "workload" && tail != "" {
-		return value
-	}
-	return ""
 }

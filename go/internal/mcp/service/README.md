@@ -12,13 +12,14 @@ This package owns registration data only. `internal/mcp` retains the tools'
 global positions, route resolution, HTTP dispatch, authorization, query
 execution, response envelopes, transport, and telemetry.
 
-Routing deliberately remains split in the parent. Service catalog correlation
-requests enter through `dispatch_repositories.go` and
+Routing deliberately remains split from this package. Service catalog
+correlation requests enter through `dispatch_repositories.go` and
 `dispatch_service_catalog.go`. Service context, story, investigation, and
-intelligence-report requests enter through `dispatch.go`, with shared selector
-handling in `dispatch_service_selector.go`. HTTP query handlers continue to own
-selector validation, tenant scope, storage and graph reads, result bounds,
-truth metadata, and response shaping.
+intelligence-report requests are selected by the `servicecontext` child
+package, reached from the parent's `serviceContextRoute` adapter in
+`dispatch_service_selector.go`. HTTP query handlers continue to own selector
+validation, tenant scope, storage and graph reads, result bounds, truth
+metadata, and response shaping.
 
 ## Exported surface
 
@@ -53,8 +54,8 @@ transport and dispatch signals, while the HTTP handlers retain
   context trio is tools 112–114; and service intelligence is tool 115. Their
   neighbors stay unchanged, and the complete registry remains 162 tools in the
   same order.
-- Service catalog routing and the service selector routes deliberately remain
-  separate in the parent package.
+- Service catalog routing (in the parent package) and the service selector
+  routes (in `../servicecontext`) deliberately remain separate.
 - Keep query execution, route mapping, authorization, transport, and telemetry
   out of this package.
 
@@ -65,6 +66,7 @@ authorization, query execution, response shaping, transport, or telemetry.
 
 - [MCP package](../README.md)
 - [MCP tool contract](../toolcontract/README.md)
+- [MCP service-context route selection](../servicecontext/README.md)
 - [Source layout](../../../../docs/public/reference/source-layout.md)
 
 ## Verification

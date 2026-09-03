@@ -28,7 +28,7 @@ here. The `visualization` child owns registration and pure request selection,
 while query derives packets. The `packageregistry`, `cicd`, `codeowners`, `secretsiam`,
 `observabilitycoverage`, `containerimage`, `supplychainimpact`, `securityalert`,
 `admissiondecisions`, `kubernetes`, `infrasearch`, `impact`, `codeflow`,
-`codeintel`, `deadcode`, `codequality`, `entityresolution`, and `iacmanagement`
+`codeintel`, `deadcode`, `codequality`, `entityresolution`, `iacmanagement`, and `servicecontext`
 children own only family membership and pure request selection; root keeps the matching `*Route` adapters and dispatch, and each family's definitions stay with their current owners. The `ecosystem`
 child owns the 23 ecosystem, repository-context, infrastructure-impact, and
 change-planning registration definitions; their split routers stay here. The `ask` child
@@ -48,8 +48,8 @@ registration definitions. Evidence routing stays in
 `dispatch_semantic_search.go`.
 The `service` child package owns five service catalog, context, investigation,
 and intelligence-report registration definitions. Catalog routing stays in
-`dispatch_repositories.go` and `dispatch_service_catalog.go`; the other service
-routes stay in `dispatch.go` and `dispatch_service_selector.go`.
+`dispatch_repositories.go` and `dispatch_service_catalog.go`; the other four
+tools' request selection is owned by `servicecontext`, reached through the `serviceContextRoute` adapter in `dispatch_service_selector.go`.
 
 ## Where this fits in the pipeline
 
@@ -575,9 +575,9 @@ The `Accept: application/eshu.envelope+json` header is always set on internal
 dispatch requests (`dispatch.go:42`). Handlers that check this header will
 return the canonical envelope shape.
 
-`normalizeQualifiedIdentifier` strips the `workload:` prefix from service
-identifiers before building path segments. If a new service tool is added,
-apply this helper when the input may include a type qualifier.
+`normalizeQualifiedIdentifier`, owned by `servicecontext`, strips the `<type>:`
+prefix from service identifiers before building path segments. If a new
+service-context tool is added, apply this helper when the input may include a type qualifier.
 `get_service_story` and `investigate_service` also forward canonical
 `workload:*` inputs as the `service_id` query parameter so target-story and
 investigation MCP readbacks do not fall back to name-only service matching.
