@@ -767,7 +767,7 @@ coverage:
   # precedent go/internal/storage/cypher/evidence-4367-iam-variable-retract.md
   # established. The scenario drives WriteServiceAccountNodes, one of the NINE
   # Write* families the projection handler can call per intent
-  # (go/internal/reducer/secrets_iam_graph_projection.go:28-36); one family is
+  # (go/internal/reducer/secretsiam/secrets_iam_graph_projection.go:28-36); one family is
   # representative because all nine have exactly one fixed-const UNWIND
   # template each and delegate to the same writeBatched helper (same batching,
   # same instrumented dispatch), so the per-family-call cost shape this budget
