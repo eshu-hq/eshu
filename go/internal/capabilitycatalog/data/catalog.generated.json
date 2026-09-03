@@ -9599,6 +9599,10 @@
           "ref": "./internal/query"
         },
         {
+          "kind": "go_test",
+          "ref": "./internal/query/semanticsearch"
+        },
+        {
           "kind": "remote_validation",
           "ref": "prod-curated-semantic-search"
         }
