@@ -544,12 +544,100 @@ test_red_missing_query_dir_fails_loudly() {
   fi
 }
 
+# Test 13 — red: a handler relocated with `git mv` must stay visible on the
+# GIT-DIFF branch. git reports a move as R, and the selection filter used to be
+# --diff-filter=AM, which drops R, so the relocated file never entered the walk
+# and the gate printed "0 routes checked, 0 uncovered" and exited 0 on exactly
+# the change its header says must fail loudly (#6060).
+#
+# Tests 5 and 6 above do not reach this. They write the moved handler as a NEW
+# uncommitted file and set no ESHU_ROUTE_COVERAGE_BASE, so they take the
+# no-base-ref fallback, whose recursive `rg --files` walk sees every file
+# regardless of git status. The defect exists only on the git-diff branch, which
+# is the branch CI takes -- the same fallback-masking this file's header warns
+# about for the testdata case.
+#
+# So this fixture commits the handler, moves it with `git mv`, commits that, and
+# pins the base to the baseline commit. The test is deliberately left BEHIND at
+# the old path, so the relocated handler genuinely has no co-located test and a
+# gate that can see it must go RED. Under --diff-filter=AM this test fails by
+# PASSING silently, which is the shape of the bug.
+test_red_git_mv_moved_handler_is_not_invisible_on_the_git_diff_branch() {
+  local dir base
+  dir="$(setup_repo "red-git-mv-moved-handler")"
+
+  cat > "${dir}/go/internal/query/renamed_handler.go" << 'GO'
+package query
+
+import "net/http"
+
+type RenamedHandler struct{}
+
+func (h *RenamedHandler) Mount(mux *http.ServeMux) {
+  mux.HandleFunc("GET /api/v0/renamed/thing", h.getRenamedThing)
+}
+
+func (h *RenamedHandler) getRenamedThing(w http.ResponseWriter, r *http.Request) {}
+GO
+
+  cat > "${dir}/go/internal/query/renamed_handler_test.go" << 'GO'
+package query
+
+import "testing"
+
+func TestGetRenamedThingReturnsData(t *testing.T) {}
+GO
+
+  git -C "$dir" add -A
+  git -C "$dir" -c user.email=eshu-test@invalid -c user.name='eshu test' \
+    commit -qm 'handler and its test at the original path'
+  base="$(git -C "$dir" rev-parse HEAD)"
+
+  # Relocate ONLY the handler, so the new directory has no test of its own.
+  mkdir -p "${dir}/go/internal/query/renamedpkg"
+  git -C "$dir" mv go/internal/query/renamed_handler.go \
+    go/internal/query/renamedpkg/renamed_handler.go
+  # Keep the file compiling as its own package, the way a real family move does.
+  sed -i.bak 's/^package query$/package renamedpkg/' \
+    "${dir}/go/internal/query/renamedpkg/renamed_handler.go"
+  rm -f "${dir}/go/internal/query/renamedpkg/renamed_handler.go.bak"
+  git -C "$dir" add -A
+  git -C "$dir" -c user.email=eshu-test@invalid -c user.name='eshu test' \
+    commit -qm 'move the handler, leaving its test behind'
+
+  # Confirm the fixture actually produces a RENAME, not an add+delete pair.
+  # If git stops pairing these the test would pass for the wrong reason.
+  if ! git -C "$dir" diff --name-status "$base" HEAD -- go/internal/query \
+       | rg --quiet '^R[0-9]*[[:space:]]+go/internal/query/renamed_handler\.go'; then
+    record_fail "red: fixture did not produce a git rename, so it cannot pin the AMR behaviour"
+    return
+  fi
+
+  export ESHU_ROUTE_COVERAGE_REPO_ROOT="$dir"
+  export ESHU_ROUTE_COVERAGE_BASE="$base"
+  if "${dir}/scripts/verify-route-coverage.sh" >/tmp/eshu-route-coverage.out 2>/tmp/eshu-route-coverage.err; then
+    if rg --fixed-strings --quiet '0 routes checked' /tmp/eshu-route-coverage.out; then
+      record_fail "red: git-mv'd handler was INVISIBLE on the git-diff branch (0 routes checked) -- the --diff-filter must include R"
+    else
+      record_fail "red: git-mv'd handler with no co-located test should fail the gate but passed"
+    fi
+  else
+    if rg --fixed-strings --quiet 'renamedpkg/renamed_handler.go' /tmp/eshu-route-coverage.out; then
+      record_pass "red: git-mv'd handler stays visible on the git-diff branch and is reported uncovered"
+    else
+      record_fail "red: gate failed, but did not name the relocated handler as uncovered"
+    fi
+  fi
+  unset ESHU_ROUTE_COVERAGE_BASE
+}
+
 test_green_handler_with_test
 test_red_handler_without_test
 test_green_handler_with_concatenated_name_test
 test_red_short_method_only_has_unrelated_sibling_test
 test_red_moved_handler_in_subdirectory_without_test
 test_green_moved_handler_with_test_in_same_subdirectory
+test_red_git_mv_moved_handler_is_not_invisible_on_the_git_diff_branch
 test_red_untested_handler_falsely_covered_by_sibling_package_test
 test_red_testdata_fixture_test_does_not_cover_a_real_handler
 test_red_nested_package_test_does_not_cover_a_real_handler

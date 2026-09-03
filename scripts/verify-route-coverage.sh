@@ -109,6 +109,15 @@ print_failure() {
   failures=$((failures + 1))
 }
 
+# The filter is AMR, not AM: a handler that MOVES is reported by git as R, and
+# an AM filter drops it, so relocating a route-registering file made this gate
+# print "0 routes checked" and exit 0 on exactly the change the header above
+# says must fail loudly (#6060). R lists the destination path under
+# --name-only, which is the file to scan. Note that rename classification is
+# pathspec-dependent: with a pathspec covering only the destination directory
+# git cannot pair the source and reports A, so a narrow-pathspec spot check
+# will wrongly suggest AM is sufficient. The pathspecs here span both.
+#
 # Both branches below exclude testdata/. The git-diff branch is the one CI
 # actually takes, so an exclusion applied only to the fallback would leave the
 # real path unguarded while a fallback-driven test still passed (#6055 review
@@ -117,11 +126,11 @@ print_failure() {
 # rather than false-green, but wrong either way.
 get_changed_files() {
   if [ -n "$base" ] && git -C "$repo_root" rev-parse --verify "$base" >/dev/null 2>&1; then
-    (git -C "$repo_root" diff --name-only --diff-filter=AM -z "$base" HEAD -- \
+    (git -C "$repo_root" diff --name-only --diff-filter=AMR -z "$base" HEAD -- \
        "$query_dir" "$api_dir" 2>/dev/null
-     git -C "$repo_root" diff --name-only --diff-filter=AM -z HEAD -- \
+     git -C "$repo_root" diff --name-only --diff-filter=AMR -z HEAD -- \
        "$query_dir" "$api_dir" 2>/dev/null
-     git -C "$repo_root" diff --name-only --diff-filter=AM -z --cached -- \
+     git -C "$repo_root" diff --name-only --diff-filter=AMR -z --cached -- \
        "$query_dir" "$api_dir" 2>/dev/null) \
     | tr '\0' '\n' | sort -u | grep -v '_test\.go$' | grep -v '/testdata/' | grep '\.go$' | \
     while IFS= read -r f; do [ -n "$f" ] && echo "${repo_root}/${f}"; done
