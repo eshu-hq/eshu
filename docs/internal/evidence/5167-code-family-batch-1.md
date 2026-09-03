@@ -29,7 +29,7 @@ the OpenAPI path, and removal from the pending list. The two matchers,
 `go/internal/query/auth_scoped_routes_code_flow.go` and wired into
 `scopedHTTPRouteSupportsTenantFilter`; the pre-existing `scopedCodeFlowRoute`
 still matches only the four `/api/v0/code/flow/*` routes. The ledger goes from
-24 pending routes to 14.
+22 pending routes to 12; it was 24 before the freshness pair left it in #6472.
 
 | Route | Binding | Symbol |
 | --- | --- | --- |
