@@ -427,12 +427,12 @@ func (s *crossRepoDeadCodeContentStore) CrossRepoDeadCodeConsumerEvidence(
 	_ string,
 	entityIDs []string,
 	_ []string,
-) (map[string][]crossRepoDeadCodeEvidence, map[string]int, error) {
+) (map[string][]crossRepoDeadCodeEvidence, map[string][]crossRepoDeadCodeEvidence, error) {
 	result := make(map[string][]crossRepoDeadCodeEvidence)
 	for _, entityID := range entityIDs {
 		result[entityID] = append([]crossRepoDeadCodeEvidence(nil), s.evidenceByEntity[entityID]...)
 	}
-	return result, map[string]int{}, nil
+	return result, map[string][]crossRepoDeadCodeEvidence{}, nil
 }
 
 func assertCrossRepoDeadCodeBucketEntity(

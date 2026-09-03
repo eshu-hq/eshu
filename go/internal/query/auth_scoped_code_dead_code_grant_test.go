@@ -338,10 +338,11 @@ const codeGrantConsumerRepo = "repo://tenant-a/consumer-service"
 
 // crossRepoDeadCodeGrantStore answers both reads POST
 // /api/v0/code/dead-code/cross-repo makes: the producer candidate scan and the
-// consumer-evidence lookup. The evidence half mirrors the shipped SQL --
-// consumers outside the grant are excluded from the returned rows and counted
-// instead -- so a handler that stops passing the grant gets the other tenant's
-// consumer back in the page.
+// consumer-evidence lookup. The evidence half mirrors both statements the
+// shipped reader runs -- the grant-bound page, which excludes the consumers the
+// caller may not see, and the ungranted signal read, which returns every
+// cross-repo consumer -- so a handler that stops passing the grant gets the
+// other tenant's consumer back in the page.
 type crossRepoDeadCodeGrantStore struct {
 	deadCodeGrantContentStore
 	boundConsumerGrant []string
@@ -352,36 +353,43 @@ func (s *crossRepoDeadCodeGrantStore) CrossRepoDeadCodeConsumerEvidence(
 	producerRepoID string,
 	entityIDs []string,
 	allowedRepositoryIDs []string,
-) (map[string][]crossRepoDeadCodeEvidence, map[string]int, error) {
+) (map[string][]crossRepoDeadCodeEvidence, map[string][]crossRepoDeadCodeEvidence, error) {
 	s.boundConsumerGrant = append([]string(nil), allowedRepositoryIDs...)
 	evidence := make(map[string][]crossRepoDeadCodeEvidence, len(entityIDs))
-	hidden := make(map[string]int, len(entityIDs))
+	signal := make(map[string][]crossRepoDeadCodeEvidence, len(entityIDs))
 	for _, entityID := range entityIDs {
 		for _, consumerRepoID := range []string{codeGrantConsumerRepo, codeGrantOtherRepo} {
 			if consumerRepoID == producerRepoID {
 				continue
 			}
-			if len(allowedRepositoryIDs) > 0 && !slices.Contains(allowedRepositoryIDs, consumerRepoID) {
-				hidden[entityID]++
-				continue
+			row := crossRepoDeadCodeGrantConsumerRow(consumerRepoID, entityID)
+			if len(allowedRepositoryIDs) > 0 {
+				signal[entityID] = append(signal[entityID], row)
+				if !slices.Contains(allowedRepositoryIDs, consumerRepoID) {
+					continue
+				}
 			}
-			evidence[entityID] = append(evidence[entityID], crossRepoDeadCodeEvidence{
-				ConsumerRepoID:   consumerRepoID,
-				ConsumerRepoName: consumerRepoID,
-				ConsumerEntityID: consumerRepoID + "#caller",
-				RelationshipType: "CALLS",
-				EvidenceFamily:   "direct_code",
-				Citation:         "code_reachability_rows:g1/" + consumerRepoID + "/caller/" + entityID,
-				Confidence:       0.95,
-				ConfidenceLabel:  "high",
-				ResolutionMethod: "bounded_lookup",
-				Depth:            1,
-				GenerationID:     "g1",
-				GenerationStatus: "active",
-			})
+			evidence[entityID] = append(evidence[entityID], row)
 		}
 	}
-	return evidence, hidden, nil
+	return evidence, signal, nil
+}
+
+func crossRepoDeadCodeGrantConsumerRow(consumerRepoID string, entityID string) crossRepoDeadCodeEvidence {
+	return crossRepoDeadCodeEvidence{
+		ConsumerRepoID:   consumerRepoID,
+		ConsumerRepoName: consumerRepoID,
+		ConsumerEntityID: consumerRepoID + "#caller",
+		RelationshipType: "CALLS",
+		EvidenceFamily:   "direct_code",
+		Citation:         "code_reachability_rows:g1/" + consumerRepoID + "/caller/" + entityID,
+		Confidence:       0.95,
+		ConfidenceLabel:  "high",
+		ResolutionMethod: "bounded_lookup",
+		Depth:            1,
+		GenerationID:     "g1",
+		GenerationStatus: "active",
+	}
 }
 
 func runCrossRepoDeadCodeGrantRequest(
@@ -480,14 +488,14 @@ func TestCrossRepoDeadCodeConsumerEvidenceBindsTheGrantInTheShippedSQL(t *testin
 			t.Fatalf("CrossRepoDeadCodeConsumerEvidence() error = %v, want nil", err)
 		}
 		if len(recorder.queries) != 2 {
-			t.Fatalf("query count = %d, want 2 (evidence page plus hidden-consumer count)", len(recorder.queries))
+			t.Fatalf("query count = %d, want 2 (grant-bound evidence page plus ungranted signal read)", len(recorder.queries))
 		}
 		want := "AND row.repository_id = ANY($3)"
 		if !strings.Contains(recorder.queries[0], want) {
 			t.Fatalf("consumer-evidence SQL is missing %q, so the LIMIT is still drawn from every tenant's rows:\n%s", want, recorder.queries[0])
 		}
-		if !strings.Contains(recorder.queries[1], "count(*)") {
-			t.Fatalf("second statement is not the hidden-consumer count:\n%s", recorder.queries[1])
+		if strings.Contains(recorder.queries[1], "ANY(") {
+			t.Fatalf("the signal read must carry no grant clause; it is what reports a consumer the caller cannot see:\n%s", recorder.queries[1])
 		}
 		bound := fmt.Sprintf("%s", recorder.args[0][2])
 		if !strings.Contains(bound, codeGrantConsumerRepo) {
@@ -511,7 +519,7 @@ func TestCrossRepoDeadCodeConsumerEvidenceBindsTheGrantInTheShippedSQL(t *testin
 			t.Fatalf("CrossRepoDeadCodeConsumerEvidence() error = %v, want nil", err)
 		}
 		if len(recorder.queries) != 1 {
-			t.Fatalf("query count = %d, want 1 -- an unscoped caller must not pay for the hidden-consumer count", len(recorder.queries))
+			t.Fatalf("query count = %d, want 1 -- an unscoped caller must not pay for the signal read", len(recorder.queries))
 		}
 		if strings.Contains(recorder.queries[0], "ANY(") {
 			t.Fatalf("unscoped consumer-evidence SQL gained a grant clause:\n%s", recorder.queries[0])

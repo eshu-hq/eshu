@@ -5,30 +5,76 @@ package query
 
 import (
 	"context"
-	"fmt"
+	"database/sql/driver"
 	"net/http"
 	"net/http/httptest"
 	"strings"
 	"testing"
+	"time"
+
+	"github.com/eshu-hq/eshu/go/internal/codeprovenance"
 )
 
-// TestCrossRepoDeadCodeHiddenConsumerCountIsBounded pins a row bound on the
-// second statement, the way code_dead_code_cross_repo_test.go already pins the
-// LIMIT on the first. The two statements read complementary sets: the evidence
-// page reads the consumers the grant admits and stops at 1001 rows, while this
-// one reads the consumers the grant excluded. Counting that complement with a
-// plain GROUP BY put no ceiling on the rows read at all.
+// POST /api/v0/code/dead-code/cross-repo runs two consumer reads for a scoped
+// caller, and the pair is what this file pins.
 //
-// The bound has to be per producer entity. One statement-wide LIMIT ordered by
-// entity id would be spent on the first entity ids of the page, so a later
-// producer would come back with a hidden count of zero and its candidate would
-// be classified dead instead of unknown_needs_evidence.
-func TestCrossRepoDeadCodeHiddenConsumerCountIsBounded(t *testing.T) {
+// The evidence page carries the grant, so the row cap falls on consumers the
+// caller may see. The signal read carries no grant and answers the other half:
+// is there a consumer this caller cannot see? Both stop at the same 1001-row
+// sentinel, so neither is an unbounded scan, and the second one's text is the
+// statement this route shipped before the grant landed.
+//
+// The count taken from the signal read is not a raw row count. The request's
+// own consumer_repo_ids selector is applied to those rows first, because a
+// consumer the caller explicitly excluded must not override the evidence of
+// one it asked about.
+
+// crossRepoDeadCodeUngrantedConsumerStatement is the signal read's text for a
+// two-entity page, pinned as a literal rather than rebuilt from the builder, so
+// this test fails if the statement drifts rather than drifting with it. It is
+// byte for byte the statement `buildCrossRepoDeadCodeConsumerEvidenceQuery`
+// emitted before the grant clause existed.
+const crossRepoDeadCodeUngrantedConsumerStatement = `
+SELECT row.entity_id,
+       row.repository_id,
+       '' AS consumer_repo_name,
+       row.root_entity_id,
+       row.depth,
+       row.state,
+       row.confidence,
+       row.min_resolution_method,
+       row.evidence,
+       row.root_kinds,
+       row.generation_id,
+       generation.status AS generation_status,
+       row.observed_at,
+       row.updated_at
+FROM code_reachability_rows AS row
+JOIN ingestion_scopes AS scope
+  ON scope.scope_id = row.scope_id
+ AND scope.active_generation_id = row.generation_id
+JOIN scope_generations AS generation
+  ON generation.generation_id = row.generation_id
+ AND generation.status = 'active'
+WHERE row.repository_id <> $1
+  AND row.entity_id IN ($2, $3)
+  AND row.depth > 0
+ORDER BY row.entity_id ASC, row.confidence DESC, row.depth ASC,
+         row.repository_id ASC, row.root_entity_id ASC
+LIMIT 1001
+`
+
+// TestCrossRepoDeadCodeSignalReadRepeatsTheUngrantedStatement pins both
+// statements a scoped request sends. The page must carry the grant ahead of its
+// LIMIT; the signal read must carry no grant at all and be the statement this
+// route already shipped, whose plan and 1001-row bound are what let it run on
+// every scoped request.
+func TestCrossRepoDeadCodeSignalReadRepeatsTheUngrantedStatement(t *testing.T) {
 	t.Parallel()
 
 	db, recorder := openRecordingContentReaderDB(t, []recordingContentReaderQueryResult{
 		{columns: crossRepoDeadCodeEvidenceColumns()},
-		{columns: []string{"entity_id", "hidden_count"}},
+		{columns: crossRepoDeadCodeEvidenceColumns()},
 	})
 	reader := NewContentReader(db)
 	if _, _, err := reader.CrossRepoDeadCodeConsumerEvidence(
@@ -40,77 +86,50 @@ func TestCrossRepoDeadCodeHiddenConsumerCountIsBounded(t *testing.T) {
 		t.Fatalf("CrossRepoDeadCodeConsumerEvidence() error = %v, want nil", err)
 	}
 	if len(recorder.queries) != 2 {
-		t.Fatalf("query count = %d, want 2 (evidence page plus hidden-consumer count)", len(recorder.queries))
+		t.Fatalf("query count = %d, want 2 (grant-bound evidence page plus ungranted signal read)", len(recorder.queries))
 	}
-	hidden := recorder.queries[1]
-	if !containsAllSubstrings(
-		hidden,
-		"unnest($2::text[]) AS ids(entity_id)",
-		"CROSS JOIN LATERAL",
-		"AND row.entity_id = ids.entity_id",
-		"AND NOT (row.repository_id = ANY($3))",
-		fmt.Sprintf("LIMIT %d", maxCrossRepoDeadCodeHiddenConsumerRowsPerEntity),
-	) {
-		t.Fatalf("hidden-consumer count is not bounded per producer entity:\n%s", hidden)
+
+	page := recorder.queries[0]
+	grant := "AND row.repository_id = ANY($4)"
+	if !strings.Contains(page, grant) {
+		t.Fatalf("evidence page is missing %q, so its LIMIT is drawn from every tenant's rows:\n%s", grant, page)
+	}
+	if strings.Index(page, grant) > strings.Index(page, "LIMIT") {
+		t.Fatalf("the grant sits after the LIMIT, so the page is still cut from a mixed set:\n%s", page)
+	}
+
+	signal := recorder.queries[1]
+	if signal != crossRepoDeadCodeUngrantedConsumerStatement {
+		t.Fatalf("signal read drifted from the statement this route already shipped:\ngot:\n%s\nwant:\n%s", signal, crossRepoDeadCodeUngrantedConsumerStatement)
 	}
 	if got, want := len(recorder.args[1]), 3; got != want {
-		t.Fatalf("len(args) = %d, want %d (producer repo, entity-id array, grant array)", got, want)
-	}
-	// The presence of the per-arm cap is not enough on its own. A statement-wide
-	// LIMIT added after the LATERAL would be spent on the first entity ids of
-	// the page and hand a later producer a hidden count of zero, which is the
-	// wrong-answer shape this bound exists to prevent. The per-arm cap must
-	// therefore be the only LIMIT in the statement, and nothing may follow the
-	// closing of the LATERAL arm.
-	if got := strings.Count(hidden, "LIMIT"); got != 1 {
-		t.Fatalf("statement has %d LIMIT clauses, want exactly 1 (the per-entity cap inside the LATERAL):\n%s", got, hidden)
-	}
-	closing := strings.Index(hidden, ") AS capped_rows")
-	if closing < 0 {
-		t.Fatalf("the LATERAL arm's capped_rows subquery is gone:\n%s", hidden)
-	}
-	if strings.Contains(hidden[closing:], "LIMIT") {
-		t.Fatalf("a LIMIT follows the LATERAL arm, so the bound is statement-wide rather than per producer entity:\n%s", hidden)
+		t.Fatalf("len(args) = %d, want %d (producer repo plus one per producer entity, no grant array)", got, want)
 	}
 }
 
-// crossRepoDeadCodeSaturatedHiddenStore answers the consumer read the way the
-// bounded statement does for a producer with more out-of-grant consumers than
-// the per-entity cap: the count saturates at the cap and no consumer row is
-// visible. It exists to prove the cap costs the magnitude and nothing else.
-type crossRepoDeadCodeSaturatedHiddenStore struct {
-	deadCodeGrantContentStore
-}
-
-func (*crossRepoDeadCodeSaturatedHiddenStore) CrossRepoDeadCodeConsumerEvidence(
-	_ context.Context,
-	_ string,
-	entityIDs []string,
-	_ []string,
-) (map[string][]crossRepoDeadCodeEvidence, map[string]int, error) {
-	hidden := make(map[string]int, len(entityIDs))
-	for _, entityID := range entityIDs {
-		hidden[entityID] = maxCrossRepoDeadCodeHiddenConsumerRowsPerEntity
-	}
-	return map[string][]crossRepoDeadCodeEvidence{}, hidden, nil
-}
-
-// TestCrossRepoDeadCodeHiddenConsumerSignalSurvivesTheCap is the other half of
-// the bound. Capping the count must not cost the signal it carries: a producer
-// whose out-of-grant consumers exceed the cap still answers
-// unknown_needs_evidence with permission_hidden_consumer, and still reports a
-// count, because the handler branches on "greater than zero" and that stays
-// exact no matter where the magnitude saturates.
-func TestCrossRepoDeadCodeHiddenConsumerSignalSurvivesTheCap(t *testing.T) {
+// TestCrossRepoDeadCodeHiddenCountHonoursTheConsumerSelector is the case the
+// count exists to get right and the one it used to get wrong.
+//
+// The caller is granted the producer and one consumer, and asks about that
+// consumer alone. An unrelated repository outside the grant also consumes the
+// symbol. That consumer is not part of the question, so it must not be counted
+// as hidden -- counting it buried the requested consumer's own strong evidence
+// under permission_hidden_consumer and answered unknown_needs_evidence for a
+// symbol the answer could prove live.
+func TestCrossRepoDeadCodeHiddenCountHonoursTheConsumerSelector(t *testing.T) {
 	t.Parallel()
 
-	handler := &CodeHandler{Content: &crossRepoDeadCodeSaturatedHiddenStore{}, Profile: ProfileLocalAuthoritative}
+	store := &crossRepoDeadCodeGrantStore{}
+	handler := &CodeHandler{Content: store, Profile: ProfileLocalAuthoritative}
 	mux := http.NewServeMux()
 	handler.Mount(mux)
 
-	auth := codeGrantScopedAuthContext([]string{codeGrantGrantedRepo})
-	body := map[string]any{"repo_id": codeGrantGrantedRepo, "language": "go"}
-	req := newCodeGrantRouteRequest(t, "/api/v0/code/dead-code/cross-repo", body, &auth)
+	auth := codeGrantScopedAuthContext([]string{codeGrantGrantedRepo, codeGrantConsumerRepo})
+	req := newCodeGrantRouteRequest(t, "/api/v0/code/dead-code/cross-repo", map[string]any{
+		"repo_id":           codeGrantGrantedRepo,
+		"language":          "go",
+		"consumer_repo_ids": []string{codeGrantConsumerRepo},
+	}, &auth)
 	rec := httptest.NewRecorder()
 	mux.ServeHTTP(rec, req)
 
@@ -118,13 +137,60 @@ func TestCrossRepoDeadCodeHiddenConsumerSignalSurvivesTheCap(t *testing.T) {
 		t.Fatalf("status = %d, want %d; body = %s", got, want, rec.Body.String())
 	}
 	answer := rec.Body.String()
-	if !strings.Contains(answer, "permission_hidden_consumer") {
-		t.Fatalf("a saturated hidden count must still keep the candidate unknown_needs_evidence: %s", answer)
+	if !strings.Contains(answer, `"classification":"live_by_consumer"`) {
+		t.Fatalf("the requested consumer's own strong evidence must answer live_by_consumer: %s", answer)
 	}
-	if !strings.Contains(answer, fmt.Sprintf(`"hidden_consumer_evidence_count":%d`, maxCrossRepoDeadCodeHiddenConsumerRowsPerEntity)) {
-		t.Fatalf("hidden consumer count did not survive the cap: %s", answer)
+	if strings.Contains(answer, "permission_hidden_consumer") {
+		t.Fatalf("a consumer outside the requested set was counted as hidden: %s", answer)
 	}
-	if strings.Contains(answer, `"classification":"dead"`) {
-		t.Fatalf("a symbol whose out-of-grant consumers exceed the cap was marked dead: %s", answer)
+	if strings.Contains(answer, "hidden_consumer_evidence_count") {
+		t.Fatalf("hidden count reported for a consumer the caller did not ask about: %s", answer)
+	}
+	if strings.Contains(answer, codeGrantOtherRepo) {
+		t.Fatalf("response leaked the out-of-grant consumer %q: %s", codeGrantOtherRepo, answer)
+	}
+}
+
+// TestCrossRepoDeadCodeSignalTruncationKeepsCandidatesUnknown covers the case
+// the second read adds to the truncation fail-safe. The signal read can reach
+// the 1001-row sentinel on its own -- it sees every tenant's consumers, so it
+// reaches it sooner than the page does -- and an entity whose evidence stops
+// there must stay unknown, never fall through to dead.
+func TestCrossRepoDeadCodeSignalTruncationKeepsCandidatesUnknown(t *testing.T) {
+	t.Parallel()
+
+	observedAt := time.Date(2026, 6, 29, 13, 0, 0, 0, time.UTC)
+	signalRows := make([][]driver.Value, 0, maxCrossRepoDeadCodeConsumerEvidenceRows+1)
+	for i := 0; i < maxCrossRepoDeadCodeConsumerEvidenceRows+1; i++ {
+		signalRows = append(signalRows, []driver.Value{
+			"producer-live", codeGrantOtherRepo, "checkout-api", "checkout-root",
+			int64(2), "reachable", 0.9, codeprovenance.MethodImportBinding,
+			[]byte(`["CALLS:checkout-root->producer-live"]`), []byte(`["go.main_function"]`),
+			"gen-a", "active", observedAt, observedAt,
+		})
+	}
+	db, _ := openRecordingContentReaderDB(t, []recordingContentReaderQueryResult{
+		{columns: crossRepoDeadCodeEvidenceColumns()},
+		{columns: crossRepoDeadCodeEvidenceColumns(), rows: signalRows},
+	})
+	reader := NewContentReader(db)
+
+	evidence, signal, err := reader.CrossRepoDeadCodeConsumerEvidence(
+		context.Background(),
+		codeGrantGrantedRepo,
+		[]string{"producer-live", "producer-missing"},
+		[]string{codeGrantConsumerRepo},
+	)
+	if err != nil {
+		t.Fatalf("CrossRepoDeadCodeConsumerEvidence() error = %v, want nil", err)
+	}
+	if got, want := len(signal["producer-live"]), maxCrossRepoDeadCodeConsumerEvidenceRows; got != want {
+		t.Fatalf("len(signal[producer-live]) = %d, want the read to stop at the sentinel (%d)", got, want)
+	}
+	for _, entityID := range []string{"producer-live", "producer-missing"} {
+		rows := evidence[entityID]
+		if len(rows) != 1 || rows[0].Reason != "consumer_evidence_truncated" || !rows[0].NeedsEvidence {
+			t.Fatalf("evidence[%s] = %#v, want the consumer_evidence_truncated marker so the candidate cannot fall through to dead", entityID, rows)
+		}
 	}
 }
