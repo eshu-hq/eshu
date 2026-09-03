@@ -88,12 +88,11 @@ and never on emptiness, so the same caller renders
 two empty arrays, which matches nothing. Every scoped graph builder here follows
 that shape.
 
-`codeContentGrantScope` returns `blocked` ahead of both, and each route returns
-its own empty page — an empty list, a not-found, zero candidates — without
-touching a backend. On the four content routes that gate closes the corpus-wide
-read. On the graph routes it is defense in depth that still earns its place: the
-request never reaches the backend, and an empty grant stays indistinguishable
-from an empty index, so index existence cannot be probed.
+`codeContentGrantScope` returns `blocked` ahead of both, and each route answers
+with its own empty page — an empty list, a not-found, zero candidates — without
+touching a backend. On the content routes that closes the corpus-wide read; on
+the graph routes it is defense in depth that keeps an empty grant
+indistinguishable from an empty index, so index existence cannot be probed.
 
 ## The Complexity List Branch Needed A New Query, Not A New Predicate
 
@@ -155,8 +154,7 @@ row could not pass.
 metrics and is weaker: it matches the grant predicate's text and then filters
 seeded edges, without judging attachment. Nothing turns on that — the query it
 judges is a single `MATCH … WHERE … RETURN … LIMIT` with nowhere else to put a
-predicate — but it does not carry its sibling's clause-attachment property and
-should not be described as if it did.
+predicate — but it does not carry its sibling's clause-attachment property.
 
 | Test | Red | Green |
 | --- | --- | --- |
@@ -193,13 +191,13 @@ a shared-key caller's query text and row set are unchanged.
 
 The graph half of this change is a clause-attachment question, and clause
 attachment is backend behaviour, not a text property. Reusing the
-`relationshipStoryRepoPredicates` predicate string is an argument about the
-string, not about where the string sits, and trusting it is what let the first
-version of the complexity list branch look proven while filtering nothing. Two
-things close that gap: the live NornicDB v1.2.3 run executes the real route
-against a real backend, red before the change and green after, and the
-evaluating fakes then keep it closed in the credential-free suite by failing
-when a grant predicate moves back onto an optional pattern.
+`relationshipStoryRepoPredicates` string is an argument about the string, not
+where it sits, and trusting it is what let the first version of the complexity
+list branch look proven while filtering nothing. Two things close that gap: the
+live NornicDB v1.2.3 run executes the real route against a real backend, red
+before the change and green after, and the evaluating fakes keep it closed in
+the credential-free suite by failing when a grant predicate moves back onto an
+optional pattern.
 
 The other four graph builders do not need the same backend run, but not because
 they are all single-clause reads — three are not. The load-bearing property is
@@ -225,12 +223,11 @@ outgoing relationships. This change adds no clause to any of the four and moves
 no predicate out of an anchor — those shapes are on `origin/main` unchanged.
 
 Both are shapes `nornicdb-query-pitfalls.md` records as risky on this backend
-family, and the risk is to projected *values*, not to row membership. Membership
-is the tenancy question, and the anchor settles it. The pre-existing projection
-risk is real and out of scope here, named so a later reader does not inherit the
-impression that these four were audited clean end to end. The evaluating-fake
-route tests check clause attachment of the Repository binding, not the absence
-of intervening clauses; the table above is why they do not need to.
+family, and the risk is to projected *values*, not row membership. Membership is
+the tenancy question and the anchor settles it. The pre-existing projection risk
+is real, out of scope, and named so a later reader does not think these four
+were audited clean end to end. The evaluating-fake route tests check clause
+attachment of the Repository binding, not intervening clauses; the table is why.
 
 ```bash
 docker run -d --name nornic-5167-p0 -e NORNICDB_EMBEDDING_ENABLED=false \
@@ -279,14 +276,13 @@ grant excluded — and read all of them on every scoped request, while the sibli
 it accompanies stops at 1001 rows precisely because this join can return many.
 
 The cap has to be per producer entity. One statement-wide `LIMIT` ordered by
-entity id would be spent on the first entity ids of the page, so a later producer
-would come back with a hidden count of zero and its candidate would be classified
-`dead` instead of `unknown_needs_evidence` — a tenancy-visible wrong answer, not
-a bound. The shipped statement is one `LATERAL` arm per producer entity over
-`unnest($2::text[])`, each stopping at
-`maxCrossRepoDeadCodeHiddenConsumerRowsPerEntity` (100) rows, so it reads at
-most `len(entityIDs) × 100` — 50,100 at the largest page allowed. A
-producer with more excluded consumers reports the cap: only the magnitude
+entity id would be spent on the first entity ids of the page, so a later
+producer would come back with a hidden count of zero and be classified `dead`
+instead of `unknown_needs_evidence` — a wrong answer, not a bound. The shipped
+statement is one `LATERAL` arm per producer entity over `unnest($2::text[])`,
+each stopping at `maxCrossRepoDeadCodeHiddenConsumerRowsPerEntity` (100) rows,
+so it reads at most `len(entityIDs) × 100` — 50,100 at the largest page allowed.
+A producer with more excluded consumers reports the cap: only the magnitude
 saturates, and the handler branches on "greater than zero", which stays exact.
 `hidden_consumer_evidence_count` is in no OpenAPI schema or public reference, so
 the saturation changes no documented wire contract.
@@ -311,18 +307,18 @@ repositories, 3 granted rows each, 1.2M rows on entity ids not on the page.
 The old plan sorted 100,000 rows through a `Gather Merge` and spilled to temp
 files; at a smaller 420,180-row table it planned a Parallel *Seq* Scan. Neither
 matches the "indexed `GROUP BY` over the same joined rows the first statement
-already scans" this document previously claimed — the sets are complements, and
-the access path was never a bounded index seek. The shipped statement seeks
-`code_reachability_entity_lookup_idx` once per producer entity and its `Limit`
-node stops each arm at exactly 100 rows, so rows read scale with the page.
+already scans" claimed here — the sets are complements and the access path was
+never a bounded seek. The shipped statement seeks
+`code_reachability_entity_lookup_idx` once per entity, its `Limit` stopping each
+arm at exactly 100 rows, so rows read scale with the page.
 
 Two guards keep it that way, both proved to bite.
 `TestCrossRepoDeadCodeHiddenConsumerCountIsBounded` asserts the `LATERAL`, the
 per-entity predicate, the complement grant clause and the `LIMIT` in the SQL the
-real reader emits; restoring the uncapped `GROUP BY` fails it, exit `1`.
-`TestCrossRepoDeadCodeHiddenConsumerSignalSurvivesTheCap` drives the route with a
-saturated count; narrowing `crossRepoDeadCodeUnknownReasons` to
-`hiddenCount < cap` classifies that symbol `dead` and fails it, exit `1`.
+reader emits; restoring the uncapped `GROUP BY` fails it, exit `1`.
+`TestCrossRepoDeadCodeHiddenConsumerSignalSurvivesTheCap` drives the route with
+a saturated count; narrowing `crossRepoDeadCodeUnknownReasons` to counts below
+the cap marks that symbol `dead` and fails it, exit `1`.
 
 ## Query-Plan Source Coverage
 
