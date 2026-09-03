@@ -28,8 +28,8 @@ here. The `visualization` child owns registration and pure request selection,
 while query derives packets. The `packageregistry`, `cicd`, `codeowners`,
 `secretsiam`, `observabilitycoverage`, `containerimage`, `supplychainimpact`,
 `supplychainevidence`, `securityalert`, `admissiondecisions`, `kubernetes`,
-`infrasearch`, `impact`, `codeflow`, `codeintel`, `deadcode`, `codequality`, `entityresolution`, `iacmanagement`, `infrainventory`, `servicecontext`, and `replatforming`
-children own only family membership and pure request selection; root keeps the matching `*Route` adapters and dispatch, and each family's definitions stay with their current owners. The `ecosystem`
+`infrasearch`, `impact`, `codeflow`, `codeintel`, `content`, `deadcode`, `codequality`, `entityresolution`, `iacmanagement`, `infrainventory`, `servicecontext`, and `replatforming`
+children own only family membership and pure request selection; root keeps the matching `*Route` adapters and dispatch, and each family's definitions stay with their current owners. `content` owns `get_file_content`, `get_file_lines`, `build_evidence_citation_packet`, `search_file_content`, and `search_entity_content`; the last two share `contentSearchBody`, and `get_entity_content`'s registration stays grouped with these five in `tools_content.go` even though its routing lives in `entityresolution`. The `ecosystem`
 child owns the 23 ecosystem, repository-context, infrastructure-impact, and
 change-planning registration definitions; their split routers stay here. The `ask` child
 owns natural-language answer registration and pure request selection; global fanout and dispatch stay here, while query executes answers.
@@ -214,7 +214,7 @@ is not broken out here).
 | `relationshipEdgesTool` | 1 | `relationships/tools.go` |
 | `repositoryFilesTool` | 1 | `tools_repository_files.go` |
 
-Representative tool-to-route mappings from `resolveRoute` (`dispatch.go:173`):
+Representative tool-to-route mappings from `resolveRoute` (`dispatch.go:207`):
 
 | Tool | HTTP method | Path |
 |---|---|---|
@@ -344,7 +344,7 @@ truth metadata, source handles, and the canonical `functions` row key.
 `build_evidence_citation_packet` keeps MCP as transport only: dispatch forwards
 the caller's bounded handle array to the HTTP evidence route. The advertised
 schema caps input at 500 handles and the query handler hydrates at most 50
-citations per packet. `derive_visualization_packet` follows the same
+citations per packet. Route selection for this tool, together with `get_file_content`, `get_file_lines`, `search_file_content`, and `search_entity_content`, lives in the `content` child package. `derive_visualization_packet` follows the same
 transport-only pattern for visualization packets: MCP forwards the caller's
 already-authorized source response and optional source truth to
 `POST /api/v0/visualizations/derive`, preserving the returned canonical

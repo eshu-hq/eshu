@@ -180,8 +180,8 @@ func TestEntityResolutionDispatchKeepsEveryWireShape(t *testing.T) {
 // TestResolveRouteStillOwnsItsArmsAfterEntityResolution proves the delegation
 // added ahead of the switch claims only this family and leaves every
 // neighbouring entity, workload, content, and code arm answered as before —
-// search_entity_content above all, which shares the entity spelling but stays
-// in the switch on the shared contentSearchBody builder.
+// search_entity_content above all, which shares the entity spelling but is
+// routed by the content child on the shared contentSearchBody builder.
 func TestResolveRouteStillOwnsItsArmsAfterEntityResolution(t *testing.T) {
 	t.Parallel()
 
@@ -225,9 +225,9 @@ func TestResolveRouteStillOwnsItsArmsAfterEntityResolution(t *testing.T) {
 		}
 	}
 
-	// search_entity_content still selects its root-owned request through the
-	// shared contentSearchBody builder, pinned here so the staying arm cannot
-	// silently ride along with a later child change.
+	// search_entity_content still resolves through the content child's
+	// shared contentSearchBody builder, pinned here so the neighbouring arm
+	// cannot silently ride along with a later entity-resolution change.
 	staying, err := resolveRoute("search_entity_content", map[string]any{
 		"pattern":  "needle",
 		"repo_ids": []any{"r1"},

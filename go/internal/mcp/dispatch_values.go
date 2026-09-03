@@ -35,33 +35,6 @@ func boolOr(args map[string]any, key string, def bool) bool {
 	return v
 }
 
-func contentSearchBody(args map[string]any) map[string]any {
-	body := map[string]any{
-		"query":  str(args, "query"),
-		"limit":  intOr(args, "limit", 10),
-		"offset": intOr(args, "offset", 0),
-	}
-	if body["query"] == "" {
-		body["query"] = str(args, "pattern")
-	}
-
-	repoIDs := stringSlice(args, "repo_ids")
-	switch len(repoIDs) {
-	case 0:
-		if repoID := str(args, "repo_id"); repoID != "" {
-			body["repo_id"] = repoID
-		}
-	case 1:
-		if repoID := firstString(repoIDs); repoID != "" {
-			body["repo_id"] = repoID
-		}
-	default:
-		body["repo_ids"] = repoIDs
-	}
-
-	return body
-}
-
 func paginationQuery(args map[string]any, defaultLimit int) map[string]string {
 	return map[string]string{
 		"limit":  strconv.Itoa(intOr(args, "limit", defaultLimit)),

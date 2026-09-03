@@ -13,10 +13,10 @@ import "github.com/eshu-hq/eshu/go/internal/mcp/routecontract"
 // membership is an explicit name switch, never a prefix match, so a future
 // tool spelled similarly cannot be silently absorbed.
 //
-// search_entity_content and search_file_content stay in the root switch
-// instead of joining this family: both build their body from the shared
-// contentSearchBody helper, and splitting one out from that pair would
-// orphan the shared helper from the family that owns it.
+// search_entity_content and search_file_content are not part of this family:
+// both build their body from the shared contentSearchBody helper and live
+// together in the content child package instead, so splitting one out from
+// that pair does not orphan the shared helper from the family that owns it.
 func Route(toolName string, args routecontract.Arguments) (routecontract.Request, bool) {
 	switch toolName {
 	case "find_code":

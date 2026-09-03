@@ -11,10 +11,11 @@
 // ask, relationships, and visualization children own pure dependency-neutral
 // family route selectors alongside their definitions, and the
 // admissiondecisions, cicd, codeflow, codeintel, codeowners, codequality,
-// containerimage, deadcode, entityresolution, iacmanagement, impact,
-// infrainventory, infrasearch, kubernetes, observabilitycoverage,
-// packageregistry, replatforming, secretsiam, securityalert, servicecontext,
-// and supplychainimpact children own such a selector without owning a
+// containerimage, content, deadcode, entityresolution, iacmanagement,
+// impact, infrainventory, infrasearch, kubernetes, observabilitycoverage,
+// packageregistry, replatforming, secretsiam, securityalert,
+// servicecontext, and
+// supplychainimpact children own such a selector without owning a
 // registration.
 // The nine impact-analysis selections (trace_deployment_chain through
 // trace_exposure_path) live in the impact child and reach dispatch through
@@ -62,9 +63,22 @@
 // its conditional environment query parameter, and the POST
 // /api/v0/content/entities/read entity_id body are unchanged, and the three
 // advertised definitions stay at this root in tools_context.go and
-// tools_content.go. search_entity_content deliberately stays in the switch:
-// its body comes entirely from contentSearchBody, shared with
-// search_file_content, so the pair's wire shape keeps one root owner.
+// tools_content.go. search_entity_content is not part of this family; see
+// the content family below for where it lives.
+// The five content selections (get_file_content, get_file_lines,
+// build_evidence_citation_packet, search_file_content, and
+// search_entity_content) live in the content child and reach dispatch
+// through the contentRoute adapter defined in dispatch.go itself, consulted
+// with the other route delegations ahead of the switch that held the five
+// arms in its former "── Content ──" section. The POST
+// /api/v0/content/files/read body, the verbatim-forwarded POST
+// /api/v0/content/files/lines body, the POST /api/v0/evidence/citations
+// body with its conditional subject and handles and limit 10 default, and
+// the shared contentSearchBody selection behind POST
+// /api/v0/content/files/search and POST /api/v0/content/entities/search are
+// unchanged, and all five advertised definitions stay at this root in
+// tools_content.go alongside get_entity_content, whose own routing stays in
+// entityresolution rather than joining this family.
 // ReadOnlyTools remains the sole ordered assembler; global route membership,
 // family adapters, dispatch,
 // transport, authorization, timeouts,

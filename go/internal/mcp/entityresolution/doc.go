@@ -39,9 +39,9 @@
 // which the handler rejects with HTTP 400.
 //
 // search_entity_content is deliberately not part of this family: its whole
-// body comes from contentSearchBody, the root builder it shares with
+// body comes from contentSearchBody, the builder it shares with
 // search_file_content, so the pair's shared wire shape keeps one owner in
-// the root switch until the content family moves together.
+// the content child package instead.
 //
 // Numeric coercion follows routecontract.Arguments: int, int64, and float64
 // are honoured, a float64 truncates toward zero, and every other type falls
