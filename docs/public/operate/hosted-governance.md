@@ -478,6 +478,20 @@ Only routes proven tenant-filtered are reachable with a scoped token; every
 other route stays fail-closed with `permission_denied`. Empty grants
 (`all_scopes` false with no allowed ids) return bounded empty/zero reads.
 
+An `all_scopes` token is the exception that needs stating, because the filter
+it is meant to pass through is the one it makes inert. On a route whose handler
+intersects reads with the caller's repository or scope grant, such a token has
+no grant to intersect, so the read would run across every tenant. Under
+`hosted_multi_tenant` — and under any unrecognized `ESHU_GOVERNANCE_MODE` —
+those routes refuse it with `403 permission_denied` and record
+`scoped_route_all_scope_grant_required` in `governance_audit_events`, which is
+a different remedy from `scoped_route_not_enabled`: narrow the credential, or
+opt the deployment in, rather than wire a missing route up. `local_no_policy`,
+`hosted_single_tenant`, and an unset mode admit it, which is the intended
+posture where one graph belongs to one tenant. The identity and admin routes
+under `/api/v0/auth/`, and the static catalog and request-reshape routes, hold
+no tenant data for a grant to filter and admit it in every mode.
+
 #### Two-Team Cross-Scope Denial Proof
 
 The scoped-token denial behavior is proven end-to-end against a live API and MCP
@@ -501,7 +515,8 @@ The driver and overlay live at
 `scripts/run-two-team-governance-proof.sh`. The live run asserts, on both the
 API and the MCP tool-dispatch path:
 
-- an admin (`all_scopes`) token enumerates every ingested repository;
+- the shared operator key (`ESHU_API_KEY`, presented before the scoped-token
+  registry is mounted) enumerates every ingested repository;
 - team-A's token lists only team-A's repository and never team-B's (and vice
   versa) — the denied cross-scope read;
 - the single-repository context selector for an out-of-grant repository fails

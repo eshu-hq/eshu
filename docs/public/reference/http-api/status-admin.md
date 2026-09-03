@@ -433,8 +433,14 @@ nothing returns an explicit `scope_not_found` or `not_found` error instead of an
 empty list. The truth envelope marks `freshness.state=building` when a returned
 scope has a pending or in-flight generation. The capability key is
 `freshness.generation_lifecycle`. The MCP equivalent is `get_generation_lifecycle`
-and the CLI helper is `eshu freshness generations`. Scoped tokens receive only
-granted repositories and scopes; an ungranted selector returns not-found.
+and the CLI helper is `eshu freshness generations`. Scoped tokens receive only granted
+repositories and scopes; an ungranted selector returns not-found. An all-scope
+bearer token carries no grant for that filter to bind, so it is refused with a
+`403` under `hosted_multi_tenant` and under any unrecognized governance mode.
+`local_no_policy`, `hosted_single_tenant`, and an unset mode (which defaults to
+`local_no_policy`) admit it when it is bound to one tenant and workspace, and it
+then reads the whole corpus, as an admin credential does on every other route
+there.
 
 No-Regression Evidence: `cd go && go test ./internal/status ./internal/storage/postgres ./internal/query ./internal/mcp ./cmd/eshu ./cmd/api -count=1` proves the generation lifecycle types, bounded Postgres read, query handler envelope/not-found behavior, MCP route, CLI envelope, and API wiring stay in sync.
 No-Observability-Change: the drilldown adds one bounded Postgres read joining `scope_generations`, `ingestion_scopes`, and `fact_work_items`, plus the existing `query.freshness_generation_lifecycle` span with low-cardinality result-count, truncated, active-count, and failure-count attributes; it adds no worker, queue, graph query, or new metric label.
@@ -481,7 +487,13 @@ points to `get_generation_lifecycle` / `GET /api/v0/freshness/generations`.
 Counts are exact; only the samples are bounded. The capability key is
 `freshness.changed_since`. The MCP equivalent is `get_changed_since` and the CLI
 helper is `eshu freshness changed-since`. Scoped tokens receive only granted
-repositories and scopes; an ungranted selector returns not-found.
+repositories and scopes; an ungranted selector returns not-found. An all-scope
+bearer token carries no grant for that filter to bind, so it is refused with a
+`403` under `hosted_multi_tenant` and under any unrecognized governance mode.
+`local_no_policy`, `hosted_single_tenant`, and an unset mode (which defaults to
+`local_no_policy`) admit it when it is bound to one tenant and workspace, and it
+then reads the whole corpus, as an admin credential does on every other route
+there.
 
 ### Service-scope changed-since
 

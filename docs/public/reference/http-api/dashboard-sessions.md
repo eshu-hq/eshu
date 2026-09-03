@@ -140,6 +140,13 @@ Session cookies are server-managed:
   existing scoped-route allowlist; live-data routes on that list apply their
   allowed repository/scope ids before counts, limits, and truncation, while
   static catalog routes read no tenant data.
+  An all-scope bearer token — a registry entry with `all_scopes` set, or an
+  OIDC bearer resolved through an admin group grant — follows the same mode
+  rule as an all-scopes browser session on every grant-filtered route, for the
+  same reason: it carries no ids for the handler's filter to apply. It differs
+  in one way. The mode rule never widens a token's reach beyond the
+  scoped-route allowlist, so a route absent from that list refuses it in every
+  mode, including the modes that admit an all-scopes browser session there.
 - Local identity routes persist only hashes or credential handles for login
   identifiers, invite codes, MFA recovery codes, break-glass codes, and browser
   session secrets. Bootstrap and break-glass enablement require the shared

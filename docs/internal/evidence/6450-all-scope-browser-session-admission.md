@@ -147,8 +147,7 @@ can honestly claim here; the structural argument above is the substantive one.
 Observability Evidence: the new refusal gets its own governance-audit reason
 code, `scoped_route_all_scope_grant_required`, on the existing
 `read_authorization` event type with `decision = denied`. It is emitted by
-`recordScopedRouteAuthorizationDeniedWithReason` (`auth_audit.go`), the
-reason-carrying sibling of `recordScopedRouteAuthorizationDenied`, from
+`recordScopedRouteAuthorizationDeniedWithReason` (`auth_audit.go`) from
 `tryBrowserSessionAuth`; the 403 body is unchanged and still written by
 `scopedRouteDeniedResponse`.
 
@@ -197,9 +196,10 @@ Codex on #6457 caught that it did not: a tenant admin reads
 denial only the shared operator could ever see, even for a caller that plainly
 belonged to a tenant. The helper now sets `TenantID` and `WorkspaceID` from the
 normalized `AuthContext`, the way `recordScopedReadAuthorized` already did, and
-both regression tests assert the two fields. The scoped-bearer path through
-`recordScopedRouteAuthorizationDenied` shares the helper and gains the same
-fields for the same reason.
+both regression tests assert the two fields. The scoped-bearer path shares the
+helper and gains the same fields for the same reason. (It shared it through a
+fixed-code wrapper, `recordScopedRouteAuthorizationDenied`, which lost its last
+caller when item 1 closed and was removed.)
 
 That fix was written red first. Both assertions went in ahead of the helper
 change, and this run failed in both tests with
@@ -233,12 +233,17 @@ outcomes, not scoped-route refusals.
 
 This change fixes one thing: an all-scope browser session no longer gets a
 whole-graph read on a grant-bound allowlisted route. It is not a claim that
-the identity-bound population is airtight for such a session. Six known
-residuals stay open and are tracked separately, none of them fixed here.
+the identity-bound population is airtight for such a session. Six residuals
+were named here; five stay open and are tracked separately, none of them fixed
+in the original change. Item numbers are kept as written, because other
+documents and issues cite them.
 
-1. **All-scope OIDC bearer tokens.** The scoped-bearer branch of
-   `authMiddlewareWithRoutePolicy` takes no equivalent class split; an
-   all-scope bearer still clears the allowlist on membership alone.
+1. **All-scope OIDC bearer tokens. CLOSED**, on `claude/5167-ledger-drain`
+   (#6472), by the commit that added `scopedBearerRouteDenialReason`. As
+   originally written: the scoped-bearer branch of
+   `authMiddlewareWithRoutePolicy` took no equivalent class split, so an
+   all-scope bearer cleared the allowlist on membership alone. See
+   [All-scope bearers](#all-scope-bearers-6450-item-1) below.
 2. **Ask's shared-key fallback for cookie callers** (`internal/askwiring`,
    `internal/ask/engine`), which can re-enter inner routes on a credential
    the cookie caller did not present.
@@ -275,18 +280,20 @@ residuals stay open and are tracked separately, none of them fixed here.
    session if one can exist, not as a known-live production shape. Resolving
    that reachability question is out of scope here. Tracked as #6450 item 2
    of the auth-slice findings.
-6. **`actor_class` on the new audit code.** A
-   `scoped_route_all_scope_grant_required` row can only be produced by a
-   browser-session caller, but
+6. **`actor_class` on the new audit code**, narrowed by item 1's closure.
    `recordScopedRouteAuthorizationDeniedWithReason` (`auth_audit.go`) stamps
-   `actor_class = scoped_token` on it, because that is the closest member of
-   the closed `governanceaudit.ActorClass` enum that `NormalizeEvent`
-   validates against, and widening a validated enum is outside this change.
-   An operator filtering by `actor_class` should therefore read `scoped_token`
-   here as "identity-resolved caller", not "bearer token". The mapping is
-   marked at the assignment in `auth_audit.go` so it is not "corrected" by a
-   later reader, and adding a browser-session member to the enum is tracked
-   in #6459.
+   `actor_class = scoped_token` on a
+   `scoped_route_all_scope_grant_required` row, because that is the closest
+   member of the closed `governanceaudit.ActorClass` enum that
+   `NormalizeEvent` validates against, and widening a validated enum is
+   outside this change. When the row came only from a browser session that was
+   a compromise; now that an all-scope bearer produces the same code, it is
+   literally right for that half of the population and remains a compromise
+   for the other. An operator filtering by `actor_class` should read
+   `scoped_token` as "identity-resolved caller", not "bearer token". The
+   mapping is marked at the assignment in `auth_audit.go` so it is not
+   "corrected" by a later reader, and adding a browser-session member to the
+   enum is tracked in #6459.
 
 Residual 4 is why the `scopedRouteClass` doc comment says an identity-bound
 handler answers from the tenant the session is *currently* bound to, rather
@@ -299,3 +306,180 @@ Layout note for review: the class model lives in
 than in a file of its own. `internal/query` is over the dirgate cap, and
 `scripts/lib/dirgate-grandfather.tsv` refuses a bump that would absorb a file
 the same change adds.
+
+## All-scope bearers (#6450 item 1)
+
+Residual item 1 above is closed on `claude/5167-ledger-drain` (#6472). This
+section is the account; the freshness-family branch that closed it carries the
+route-specific half in
+[5167-freshness-family-allowlist.md](5167-freshness-family-allowlist.md#all-scope-bearers-6450-item-1-closed-here).
+
+### Why it was closed there and not on its own
+
+#6472 promotes `GET /api/v0/freshness/changed-since` and
+`GET /api/v0/freshness/generations` onto the scoped-token allowlist. Before
+that promotion those two routes answered an all-scope bearer with a middleware
+403; after it, with the residual open, they answered with a read across every
+tenant's rows. The promotion is what opens the hole on those routes, so the
+branch that promotes them is where it gets closed, rather than shipping a
+widened cross-tenant read behind a follow-up label.
+
+### The two shapes were never symmetric
+
+`browserSessionRouteDenialReason` was reached only from the
+`auth.Mode == AuthModeBrowserSession` branch of `tryBrowserSessionAuth`. The
+scoped-bearer branch of `authMiddlewareWithRoutePolicy` tested one thing --
+`scopedHTTPRouteSupportsTenantFilter`, allowlist membership -- and never read
+`AllScopes`, the route class, or the policy. So on a grant-bound allowlisted
+route an all-scope cookie session was refused under a fail-closed policy while
+an all-scope bearer was admitted unconditionally, in `hosted_multi_tenant` as
+readily as on a laptop, with the same inert grant predicate behind it.
+
+Both minters produce that shape, and both make it tenant-bound:
+`oidcbearer.Resolver.ResolveScopedToken` copies `TenantID`/`WorkspaceID` from
+the provider config and takes `AllScopes` from the grant resolver, and
+`scopedtoken.Entry.normalize` rejects a registry entry with no `tenant_id` or
+`workspace_id`. So a tenantless all-scope bearer is not a shape an operator can
+mint; the split table carries it (shape `i`) defensively, as it carries the
+tenantless session (shape `f`).
+
+### What changed
+
+`scopedBearerRouteDenialReason` (`auth_browser_session_route_policy.go`) is
+`browserSessionRouteDenialReason`'s sibling for a bearer, and the mode-neutral
+`tenantBoundAllScopes` is the tenant-boundness test both now share. The two
+differ in one deliberate way: the bearer function has no policy escape off the
+allowlist. A route with no tenant filtering at all refuses a bearer whatever
+the policy says, which is the pre-existing bearer behaviour and keeps the
+routes still on `pendingRowFilteringRoutes` -- `GET
+/api/v0/freshness/services/changed-since` among them -- refusing every bearer
+in every deployment. The console session's off-allowlist opening is a dashboard
+affordance, not a token one.
+
+The refusal reuses `scopedRouteAllScopeGrantRequiredReason`. Its meaning was
+never browser-specific: the route IS enabled, and a restricted caller enters it
+and gets grant-bound results, but this caller's grant is inert here.
+
+### The wiring trap
+
+`cmd/mcp-server` reaches the middleware only through
+`authMiddlewareWithAllowedReadAudit`, which hardcoded the fail-closed
+`BrowserSessionRoutePolicy{}`. Nothing depended on that value, so nothing
+noticed. The moment the bearer branch started reading it, a naive fix would
+have refused every all-scope token on every grant-bound MCP route in every
+profile, `local_no_policy` included -- a real regression for local CLI and MCP
+workflows, shipped as a security fix.
+
+So the policy became a parameter, `cmd/api`'s private mode table moved to
+`query.ScopedRoutePolicyForGovernanceMode` where both commands call it, and
+`buildTransportAuthMiddleware` threads the `governanceStatus` `wireAPI` already
+computes. `TestTransportAuthMiddlewareHonoursTheGovernanceRoutePolicy`
+(`cmd/mcp-server`) drives that composition per mode.
+
+### Per-mode behaviour
+
+| Caller | unset / `local_no_policy` / `hosted_single_tenant` | `hosted_multi_tenant` or unrecognized |
+| --- | --- | --- |
+| restricted bearer, grant-bound route | admitted, grant-bound | admitted, grant-bound |
+| tenant-bound all-scope bearer, grant-bound route | admitted, whole corpus | 403 `scoped_route_all_scope_grant_required` |
+| tenantless all-scope bearer, grant-bound route | 403 | 403 |
+| any all-scope bearer, identity-bound or tenant-data-free route | admitted | admitted |
+| any bearer, route off the allowlist | 403 `scoped_route_not_enabled` | 403 `scoped_route_not_enabled` |
+
+`TestAuthMiddlewareAllScopesBrowserSessionSplitAcrossLedger` drives shapes `g`,
+`h` and `i` -- the bearer mirror of the session shapes `b`, `c` and `f` -- over
+every entry in `scopedTokenAdvertisedRoutes`, so every ledger class is asserted
+for the bearer as well as the session.
+
+### The consequence worth naming: the MCP handshake
+
+`GET /sse` and `POST /mcp/message` are on the allowlist with no ledger entry,
+so they take the grant-bound default. #6450 already refused an all-scope
+console session there under a fail-closed policy; now an all-scope bearer is
+refused too, which under `hosted_multi_tenant` means such a token cannot
+complete `initialize` or `tools/list`, not merely that its reads come back
+empty.
+
+That is the right answer and it is not a comfortable one. It is right because
+`tools/call` re-dispatches through this same middleware against the specific
+`/api/v0/...` route, so every grant-bound read the token could have made was
+already going to be refused: the handshake was the only part still working, and
+a working handshake in front of a wall of 403s is a worse operator experience
+than an honest refusal at the door. It is uncomfortable because the failure
+arrives earlier and reads as "MCP is broken" rather than "this credential is
+too broad". The governance-audit row is what distinguishes them:
+`scoped_route_all_scope_grant_required` on `GET /sse` says exactly which of the
+two it is. An operator who wants the handshake back narrows the credential, or
+runs the deployment in the mode whose isolation model the token matches.
+
+### The neutered run
+
+The break-it-to-prove-it run lives with the branch that closed this
+([5167-freshness-family-allowlist.md](5167-freshness-family-allowlist.md#all-scope-bearer-bites):
+baseline 0, neutered 1, restored 0). These are the failures the neuter
+produces, which is the part worth keeping next to the change itself:
+
+```
+--- FAIL: TestAllScopeBearerOnFreshnessDeltaRoutesPerGovernanceMode
+    both hosted_multi_tenant rows, the unrecognized-mode row, and both
+    tenantless rows: status = 200, want 403
+--- FAIL: TestAllScopeBearerTwoTenantBoundary
+    changed-since and generations, hosted_multi_tenant_never_runs_the_read:
+    200 with scope-b / gen-b in the body -- the other tenant's row, which is
+    the defect itself rather than a status code
+--- FAIL: TestAuthMiddlewareAllScopesBrowserSessionSplitAcrossLedger
+    shapes g (fail-closed bearer) and i (tenantless bearer)
+--- FAIL: TestAuthMiddlewareAllScopesBrowserSessionSplitOnUnledgeredTransportRoutes
+    g on GET /sse and POST /mcp/message: handler called = true, want false;
+    body = {"secret_cross_tenant_data":true}
+```
+
+That last body is worth reading twice. The split table's stub handler writes a
+sentinel payload, so a refusal that let the handler run shows up as data in the
+403 rather than only as a status code -- and under the neuter it does run, on
+the MCP transport paths as well as across the ledger.
+
+The pending service route's rows do NOT move under the neuter, which is
+correct: it is off the scoped-token allowlist, so the first check refuses it
+with `scoped_route_not_enabled` and this predicate never runs for it.
+
+### Why refusal, and not expanding `all_scopes` into a grant
+
+`tenant_scope_grants` and `tenant_repository_grants`
+(`schema/data-plane/postgres/006c_tenant_workspace_grants.sql`) could in
+principle resolve `all_scopes` into the caller's real scope set instead of
+refusing. That was considered and rejected for this change, on three grounds.
+
+No reader exists: the only non-test use of `tenant_scope_grants` is a
+per-item correlated `EXISTS` subquery in workflow admission
+(`storage/postgres/workflow_control_sql.go`), not a list-grants-for-a-tenant
+query, so a store method, its interface, its wiring into `internal/query`, and
+a cache with an invalidation story would all be new.
+
+It puts a database on the admission path. The middleware touches no datastore
+today. Adding a round trip -- or a cache -- to every all-scope bearer read is a
+performance-contract change, and a tenant with thousands of scopes produces an
+unbounded `ANY($4)` array per request. That is an unproven theory, and
+Prove-The-Theory-First says it needs its own `EXPLAIN ANALYZE` against a
+realistic tenant before anyone builds it.
+
+It changes what the credential means. An operator who wrote `all_scopes` asked
+for admin-equivalent reach and would silently get less. Refusal keeps the
+meaning and makes the deployment posture the thing that decides.
+
+Refusal is the right first move. Grant expansion stays a legitimate follow-up
+if operators ask for it.
+
+### Who loses access
+
+Nobody, as far as the committed proofs go.
+`scripts/run-two-team-governance-proof.sh` and
+`scripts/run-k8s-two-team-governance-proof.sh` both seed an admin `all_scopes`
+registry entry and run under `ESHU_GOVERNANCE_MODE: hosted_multi_tenant`, which
+looks fatal to the committed claim that an admin token enumerates every
+ingested repository. It is not. That assertion runs before the registry is
+mounted, where the admin token IS `ESHU_API_KEY` and resolves to
+`AuthModeShared`, which the scoped branch never touches. After the mount, only
+the two team tokens are used. The admin entry is registered and never read
+with. The hosted-governance page's bullet has been corrected to say the shared
+operator key, which is what it always meant.
