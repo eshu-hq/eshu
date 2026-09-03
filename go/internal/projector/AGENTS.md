@@ -127,7 +127,7 @@
   The intent package owns the immutable fact-lookup implementation. Root
   remains the sole one-per-generation constructor and lifetime owner; Azure,
   EC2, GCP, Kubernetes, RDS, S3, security, workload-cloud-relationship,
-  incident-routing, AWS-relationship, AWS-cloud-image, IAM CAN_ASSUME, package-source-correlation, cloud-inventory-admission, code-taint-evidence, code-interproc-evidence, SBOM-attestation-attachment, service-catalog-correlation, and secrets-IAM-trust-chain family builders consume the lookup. Root owns ordered family assembly and the public `ReducerIntent`
+  incident-routing, AWS-relationship, AWS-cloud-image, IAM CAN_ASSUME, package-source-correlation, cloud-inventory-admission, code-taint-evidence, code-interproc-evidence, code-function-summary, SBOM-attestation-attachment, service-catalog-correlation, and secrets-IAM-trust-chain family builders consume the lookup. Root owns ordered family assembly and the public `ReducerIntent`
   alias for callers. A family that needs a typed-payload decode (EC2's
   `USES_PROFILE` builder was the first; S3's `LOGS_TO` builder is the second;
   the IAM CAN_ASSUME builder in `iamcanassume/` is the third, and it took the
@@ -142,6 +142,22 @@
   code-interproc-evidence, SBOM-attestation-attachment,
   service-catalog-correlation, and secrets-IAM-trust-chain builders trigger on
   fact presence alone and carry no decode seam.
+- **Code-function-summary family (#6057)** — the `code_function_summary`
+  builder lives in `codefunctionsummary/` and consumes the lookup like the
+  families above. It is decode-seam-bearing: `codeFunctionSummaryTriggerRepoID`
+  decodes either `code_function_summary` (function_id prefix) or
+  `code_dataflow_scanned` (repo_id field) through its own
+  `factschema_decode_codedataflow.go` against `sdk/go/factschema`. Root's
+  `decodeCodeFunctionSummary` and `decodeCodeDataflowScanned` wrappers had this
+  builder as their only caller, so they moved out entirely with the
+  extraction (the `containerimageidentity` precedent) rather than staying
+  behind like the shared `aws_resource` decode siblings. The payload's
+  `repo_id` is a two-step best effort — the winning trigger's own decode
+  first, then the marker's `repo_id` as fallback when both facts are present
+  and the trigger's own resolution comes back empty — and `full_snapshot` is
+  keyed on marker presence, not on which fact won provenance; both rules are
+  pinned by the child package tests and the root fan-out parity fixture's
+  `DomainCodeFunctionSummary` payload expectation.
 - **Observability-coverage-correlation family (#6057)** — the
   `observability_coverage_correlation` builder lives in `observabilitycoverage/`
   and consumes the lookup like the families above. It is a decode-seam-bearing

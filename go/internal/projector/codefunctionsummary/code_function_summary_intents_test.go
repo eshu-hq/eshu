@@ -1,30 +1,27 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package projector
+package codefunctionsummary
 
 import (
 	"testing"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	projectorintent "github.com/eshu-hq/eshu/go/internal/projector/intent"
 	"github.com/eshu-hq/eshu/go/internal/reducer"
-	"github.com/eshu-hq/eshu/go/internal/scope"
 )
 
 func TestBuildCodeFunctionSummaryReducerIntentNoFactNoIntent(t *testing.T) {
 	t.Parallel()
-	scopeValue := scope.IngestionScope{ScopeID: "scope-1"}
-	generation := scope.ScopeGeneration{GenerationID: "gen-1"}
-	if _, ok := buildCodeFunctionSummaryReducerIntent(scopeValue, generation, newReducerIntentFactIndex([]facts.Envelope{{FactKind: "file"}})); ok {
+	lookup := projectorintent.NewFactLookup([]facts.Envelope{{FactKind: "file"}})
+	if _, ok := BuildCodeFunctionSummaryReducerIntent("scope-1", "gen-1", lookup); ok {
 		t.Fatal("queued a summary intent without any code_function_summary fact")
 	}
 }
 
 func TestBuildCodeFunctionSummaryReducerIntentFromFact(t *testing.T) {
 	t.Parallel()
-	scopeValue := scope.IngestionScope{ScopeID: "scope-1"}
-	generation := scope.ScopeGeneration{GenerationID: "gen-1"}
-	intent, ok := buildCodeFunctionSummaryReducerIntent(scopeValue, generation, newReducerIntentFactIndex([]facts.Envelope{
+	lookup := projectorintent.NewFactLookup([]facts.Envelope{
 		{FactKind: "file"},
 		{
 			FactKind:      facts.CodeFunctionSummaryFactKind,
@@ -32,7 +29,8 @@ func TestBuildCodeFunctionSummaryReducerIntentFromFact(t *testing.T) {
 			CollectorKind: "git",
 			Payload:       map[string]any{"function_id": "repo-1\x1fpkg\x1f\x1fHandle"},
 		},
-	}))
+	})
+	intent, ok := BuildCodeFunctionSummaryReducerIntent("scope-1", "gen-1", lookup)
 	if !ok {
 		t.Fatal("no intent queued for a code_function_summary fact")
 	}
@@ -52,16 +50,15 @@ func TestBuildCodeFunctionSummaryReducerIntentFromFact(t *testing.T) {
 
 func TestBuildCodeFunctionSummaryReducerIntentSkipsInvalidSummaryRepoID(t *testing.T) {
 	t.Parallel()
-	scopeValue := scope.IngestionScope{ScopeID: "scope-1"}
-	generation := scope.ScopeGeneration{GenerationID: "gen-1"}
-	intent, ok := buildCodeFunctionSummaryReducerIntent(scopeValue, generation, newReducerIntentFactIndex([]facts.Envelope{
+	lookup := projectorintent.NewFactLookup([]facts.Envelope{
 		{
 			FactKind:      facts.CodeFunctionSummaryFactKind,
 			FactID:        "summary-fact-1",
 			CollectorKind: "git",
 			Payload:       map[string]any{"repo_id": "repo-1"},
 		},
-	}))
+	})
+	intent, ok := BuildCodeFunctionSummaryReducerIntent("scope-1", "gen-1", lookup)
 	if !ok {
 		t.Fatal("no intent queued for a code_function_summary fact")
 	}
@@ -72,16 +69,15 @@ func TestBuildCodeFunctionSummaryReducerIntentSkipsInvalidSummaryRepoID(t *testi
 
 func TestBuildCodeFunctionSummaryReducerIntentFromMarkerOnly(t *testing.T) {
 	t.Parallel()
-	scopeValue := scope.IngestionScope{ScopeID: "scope-1"}
-	generation := scope.ScopeGeneration{GenerationID: "gen-1"}
-	intent, ok := buildCodeFunctionSummaryReducerIntent(scopeValue, generation, newReducerIntentFactIndex([]facts.Envelope{
+	lookup := projectorintent.NewFactLookup([]facts.Envelope{
 		{
 			FactKind:      facts.CodeDataflowScannedFactKind,
 			FactID:        "marker-1",
 			CollectorKind: "git",
 			Payload:       map[string]any{"repo_id": "repo-1"},
 		},
-	}))
+	})
+	intent, ok := BuildCodeFunctionSummaryReducerIntent("scope-1", "gen-1", lookup)
 	if !ok {
 		t.Fatal("no intent queued for marker-only full dataflow scan")
 	}

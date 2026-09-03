@@ -842,8 +842,9 @@ the two-tier `projectorintent.SourceSystem` would prefer a `SourceRef`
 identity when set and silently relabel the intent; a child test pins the
 single-tier behavior against that substitution. The root `firstOfKind`
 forwarder stays for its remaining root callers (AWS resource and cloud-image
-materialization, AWS cloud runtime drift, CI/CD run correlation, and the
-code-interproc and code-function-summary families). The root dispatcher tests
+materialization, AWS cloud runtime drift, and CI/CD run correlation — the
+code-interproc-evidence and code-function-summary families have since moved
+their own trigger lookups off this forwarder). The root dispatcher tests
 that go through `buildProjection` — including the marker case proving BOTH the
 taint and interproc retraction domains enqueue — stay at root in
 `code_taint_evidence_projection_test.go`.
@@ -860,11 +861,39 @@ the two-tier `projectorintent.SourceSystem` would prefer a `SourceRef`
 identity when set and silently relabel the intent; a child test pins the
 single-tier behavior against that substitution. The root `firstOfKind`
 forwarder stays for its remaining root callers (AWS resource and cloud-image
-materialization, AWS cloud runtime drift, CI/CD run correlation, and the
-code-function-summary family). The root dispatcher wiring test stays at root
+materialization, AWS cloud runtime drift, and CI/CD run correlation — the
+code-function-summary family has since moved its own trigger lookup off this
+forwarder). The root dispatcher wiring test stays at root
 in `code_interproc_evidence_projection_test.go`, and the marker case proving
 BOTH value-flow retraction domains enqueue stays in
 `code_taint_evidence_projection_test.go`.
+The code-function-summary builder moved into
+`internal/projector/codefunctionsummary`. It triggers on a
+`code_function_summary` finding, else on the `code_dataflow_scanned` marker,
+with the finding outranking the marker regardless of input order (two
+independent `FirstOfKind` probes, deliberately no cross-kind original-order
+merge) — the same shape as its taint and interproc siblings. Unlike those two,
+this family DOES carry a decode seam: its payload attaches a best-effort
+`repo_id`, decoded from the winning trigger first (a `code_function_summary`
+fact's `function_id` prefix, or the marker's own `repo_id` field), falling
+back to the marker's `repo_id` when the trigger's own resolution comes back
+empty and both facts are present. `full_snapshot` is set whenever the marker
+is present, independent of which fact won provenance. Root's
+`decodeCodeFunctionSummary` and `decodeCodeDataflowScanned` wrappers
+(`factschema_decode_codedataflow.go`) had this builder as their only caller,
+so both moved out entirely with the extraction — the `containerimageidentity`
+precedent — rather than staying behind like the shared `aws_resource` decode
+siblings. The family never had a private source-system helper: the moved body
+keeps its original single-tier `strings.TrimSpace(trigger.CollectorKind)`
+label verbatim, because the two-tier `projectorintent.SourceSystem` would
+prefer a `SourceRef` identity when set and silently relabel the intent; a
+child test pins the single-tier behavior against that substitution. The root
+`firstOfKind` forwarder stays for its remaining root callers (AWS resource and
+cloud-image materialization, AWS cloud runtime drift, and CI/CD run
+correlation). The root fan-out order and payload-parity fixtures
+(`scope_generation_intents_fanout_test.go`,
+`scope_generation_intents_fanout_parity_test.go`) stay at root — this domain
+is covered by both, unlike `crossplanesatisfiedby`.
 The AWS cloud-image builder moved into `internal/projector/awscloudimage`.
 It triggers on `aws_resource` fact presence — the #5450 retraction-safety
 trigger, deliberately NOT `lambda_function_uses_image` relationship presence,

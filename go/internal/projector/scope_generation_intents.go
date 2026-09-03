@@ -11,6 +11,7 @@ import (
 	projectorazure "github.com/eshu-hq/eshu/go/internal/projector/azure"
 	projectorcicdruncorrelation "github.com/eshu-hq/eshu/go/internal/projector/cicdruncorrelation"
 	projectorcloudinventory "github.com/eshu-hq/eshu/go/internal/projector/cloudinventory"
+	projectorcodefunctionsummary "github.com/eshu-hq/eshu/go/internal/projector/codefunctionsummary"
 	projectorcodeinterprocevidence "github.com/eshu-hq/eshu/go/internal/projector/codeinterprocevidence"
 	projectorcodetaintevidence "github.com/eshu-hq/eshu/go/internal/projector/codetaintevidence"
 	projectorcontainerimageidentity "github.com/eshu-hq/eshu/go/internal/projector/containerimageidentity"
@@ -112,7 +113,7 @@ func appendScopeGenerationReducerIntents(
 	if intent, ok := projectorcodeinterprocevidence.BuildCodeInterprocEvidenceReducerIntent(scopeValue.ScopeID, generation.GenerationID, index.lookup); ok {
 		intents = append(intents, intent)
 	}
-	if intent, ok := buildCodeFunctionSummaryReducerIntent(scopeValue, generation, index); ok {
+	if intent, ok := projectorcodefunctionsummary.BuildCodeFunctionSummaryReducerIntent(scopeValue.ScopeID, generation.GenerationID, index.lookup); ok {
 		intents = append(intents, intent)
 	}
 	if intent, ok := projectoriamcanassume.BuildIAMCanAssumeMaterializationReducerIntent(scopeValue.ScopeID, generation.GenerationID, index.lookup); ok {

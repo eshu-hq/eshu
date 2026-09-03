@@ -23,7 +23,7 @@
 // security, workload-cloud-relationship, incident-routing, AWS-relationship,
 // AWS-cloud-image, IAM CAN_ASSUME, IAM instance-profile-role,
 // package-source-correlation, cloud-inventory-admission, code-taint-evidence,
-// code-interproc-evidence, SBOM-attestation-attachment,
+// code-interproc-evidence, code-function-summary, SBOM-attestation-attachment,
 // service-catalog-correlation, secrets-IAM-trust-chain, CI/CD
 // run-correlation, container-image-identity, supply-chain-impact, and
 // AWS-cloud-runtime-drift builders live in their internal/projector child
@@ -51,9 +51,10 @@
 // reducer filters any AWS-provider row its shared canonical-uid evidence
 // loader also resolves before publication.
 // Direct code_interproc_evidence facts emit direct interproc reducer intents;
-// code_function_summary facts emit summary persistence intents, and the reducer
-// runs fixpoint TAINT_FLOWS_TO projection only after its durable
-// summary/source/graph-id stores are updated.
+// code_function_summary facts emit summary persistence intents via
+// internal/projector/codefunctionsummary, and the reducer runs fixpoint
+// TAINT_FLOWS_TO projection only after its durable summary/source/graph-id
+// stores are updated.
 // RDS posture observations emit one rds_posture_materialization reducer intent;
 // the reducer waits for CloudResource readiness and owns posture property
 // projection on existing RDS nodes. The RDS posture reducer-intent builder
