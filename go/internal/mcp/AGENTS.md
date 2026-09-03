@@ -61,7 +61,11 @@
    `serviceContextRoute` adapter lives in `dispatch_service_selector.go`
    rather than inline in `dispatch.go`, because (like `relationshipEdgesRoute`
    in `dispatch_relationship_edges.go`) it must forward a selector-validation
-   error, not only a handled flag
+   error, not only a handled flag, and replatforming-planning request
+   selection in `go/internal/mcp/replatforming`, whose `replatformingRoute`
+   adapter lives in `dispatch_iac.go` (reusing the file that already owned
+   the two tools' body builders, so the root non-test file count stays at
+   its dirgate pin) instead of `dispatch.go`
 4. `go/internal/mcp/types.go` — `ToolDefinition` and `ReadOnlyTools`; this is
    the tool registry entry point
 5. `go/internal/query/` — the `http.Handler` that backs every tool call;

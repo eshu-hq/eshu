@@ -13,8 +13,8 @@
 // admissiondecisions, cicd, codeflow, codeintel, codeowners, codequality,
 // containerimage, deadcode, entityresolution, iacmanagement, impact,
 // infrainventory, infrasearch, kubernetes, observabilitycoverage,
-// packageregistry, secretsiam, securityalert, servicecontext, and
-// supplychainimpact children own such a selector without owning a
+// packageregistry, replatforming, secretsiam, securityalert, servicecontext,
+// and supplychainimpact children own such a selector without owning a
 // registration.
 // The nine impact-analysis selections (trace_deployment_chain through
 // trace_exposure_path) live in the impact child and reach dispatch through
