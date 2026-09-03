@@ -503,11 +503,21 @@ the allowlist without a ledger class, so they take the grant-bound default, and
 under `hosted_multi_tenant` an all-scope bearer is refused before `initialize`
 or `tools/list` can complete, with the same
 `scoped_route_all_scope_grant_required` code — the client loses the whole MCP
-session, not just the tools that read tenant data. The remedy is a credential
-carrying real repository or scope ids (a restricted registry token, or a
-restricted console session) or `hosted_single_tenant`; the modes that admit an
-all-scope credential elsewhere admit it on the transport too, so no other mode
-changes.
+session, not just the tools that read tenant data. The remedy is a restricted
+registry token — one carrying real repository or scope ids — or
+`hosted_single_tenant`; the modes that admit an all-scope credential elsewhere
+admit it on the transport too, so no other mode changes.
+
+A console session is not a remedy here, and reaching for one costs an operator
+a debugging round. `buildTransportAuthMiddleware` builds the transport from the
+scoped-token constructor with no browser-session resolver, so `GET /sse` and
+`POST /mcp/message` authenticate bearer credentials only and never read the
+console's session cookie, however narrow that session's grant is. A cookie-only
+request to the transport is refused `401` for having no credential at all,
+which is a different failure from the `403` this section is about.
+`TestTransportAuthMiddlewareResolvesNoBrowserSession` in `go/cmd/mcp-server`
+holds that apart. On the API server, which does resolve sessions, a restricted
+console session remains a valid remedy for the same 403 on `/api/v0/` routes.
 
 #### Two-Team Cross-Scope Denial Proof
 

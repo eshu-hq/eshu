@@ -88,6 +88,46 @@ func TestTransportAuthMiddlewareHonoursTheGovernanceRoutePolicy(t *testing.T) {
 	}
 }
 
+// TestTransportAuthMiddlewareResolvesNoBrowserSession pins the credential
+// shapes the MCP transport can actually authenticate, because the operator
+// documentation names a remedy per shape and one wrong entry sends an operator
+// after a credential that cannot work.
+//
+// buildTransportAuthMiddleware passes no browser-session resolver, and the
+// constructor it calls hands nil down to authMiddlewareWithAllowedReadAudit's
+// sessionResolver parameter. So a console session cookie is never looked at on
+// GET /sse or POST /mcp/message, no matter how narrow the session's grant is:
+// the transport authenticates bearer credentials only. The mode here is
+// local_no_policy, the most permissive one, so the refusal cannot be mistaken
+// for the governance route policy doing its job -- there is simply no
+// credential.
+func TestTransportAuthMiddlewareResolvesNoBrowserSession(t *testing.T) {
+	t.Parallel()
+
+	called := false
+	inner := http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		called = true
+		w.WriteHeader(http.StatusOK)
+	})
+	transportAuth := buildTransportAuthMiddleware(
+		"", allScopeBearerResolver{}, nil, true, nil, nil,
+		query.ScopedRoutePolicyForGovernanceMode(query.GovernanceStatusConfig{Mode: "local_no_policy"}),
+	)
+
+	req := httptest.NewRequest(http.MethodGet, "/sse", nil)
+	req.AddCookie(&http.Cookie{Name: query.BrowserSessionCookieName, Value: "session-secret"})
+	rec := httptest.NewRecorder()
+	transportAuth(inner).ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusUnauthorized {
+		t.Fatalf("status = %d, want %d for a cookie-only request; body = %s",
+			rec.Code, http.StatusUnauthorized, rec.Body.String())
+	}
+	if called {
+		t.Fatal("inner handler ran for a cookie-only request -- the MCP transport resolved a browser session it has no resolver for")
+	}
+}
+
 // TestGovernanceModeEnvDerivesTheTransportRoutePolicy pins the other half of
 // the seam: the value wireAPI hands buildTransportAuthMiddleware is derived
 // from ESHU_GOVERNANCE_MODE by exactly these two calls, in this order, and a

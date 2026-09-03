@@ -157,7 +157,9 @@ refuses every bearer in every mode, while the modes above do admit an
 owner console session there.
 On the MCP transport — `mcp-server`'s `GET /sse` and `POST /mcp/message` — the
 refusal lands on the handshake, so an all-scope bearer loses the whole MCP
-session rather than the tools that read tenant data; see
+session rather than the tools that read tenant data. Only bearers reach that
+rule: the transport is wired with no browser-session resolver, so a console
+session cookie is not a credential there at all. See
 [Hosted Governance](../operate/hosted-governance.md).
 
 When `ESHU_AUTH_RESOURCE_URI` and at least one OIDC bearer provider are

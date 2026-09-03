@@ -136,8 +136,11 @@ Session cookies are server-managed:
   allowlist without a ledger entry, so they take the grant-bound default and
   follow the same fail-closed mode rule; the API server does not mount them
   today. On `mcp-server`, which does, the refusal lands on the handshake, so
-  an all-scope caller loses the whole MCP session rather than the tools that
-  read tenant data; see
+  an all-scope bearer loses the whole MCP session rather than the tools that
+  read tenant data. The rule reaches bearers there and nothing else: the MCP
+  transport is built with no browser-session resolver, so a console session
+  cookie is never read on those two paths and no session — restricted or
+  all-scope — is a credential for them. See
   [Hosted Governance](../../operate/hosted-governance.md).
   Restricted browser sessions and scoped bearer tokens remain limited to the
   existing scoped-route allowlist; live-data routes on that list apply their
