@@ -1,11 +1,13 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package parser
+package javascript_test
 
 import (
 	"path/filepath"
 	"testing"
+
+	"github.com/eshu-hq/eshu/go/internal/parser"
 )
 
 func TestDefaultEngineParsePathJavaScriptPackageDeadCodeRoots(t *testing.T) {
@@ -82,24 +84,24 @@ function privatePublicFileHelper() {
 `,
 	)
 
-	engine, err := DefaultEngine()
+	engine, err := parser.DefaultEngine()
 	if err != nil {
-		t.Fatalf("DefaultEngine() error = %v, want nil", err)
+		t.Fatalf("parser.DefaultEngine() error = %v, want nil", err)
 	}
 
-	entryPayload, err := engine.ParsePath(repoRoot, entryPath, false, Options{})
+	entryPayload, err := engine.ParsePath(repoRoot, entryPath, false, parser.Options{})
 	if err != nil {
 		t.Fatalf("ParsePath(entry) error = %v, want nil", err)
 	}
-	binPayload, err := engine.ParsePath(repoRoot, binPath, false, Options{})
+	binPayload, err := engine.ParsePath(repoRoot, binPath, false, parser.Options{})
 	if err != nil {
 		t.Fatalf("ParsePath(bin) error = %v, want nil", err)
 	}
-	publicPayload, err := engine.ParsePath(repoRoot, publicPath, false, Options{})
+	publicPayload, err := engine.ParsePath(repoRoot, publicPath, false, parser.Options{})
 	if err != nil {
 		t.Fatalf("ParsePath(public) error = %v, want nil", err)
 	}
-	privatePayload, err := engine.ParsePath(repoRoot, privatePath, false, Options{})
+	privatePayload, err := engine.ParsePath(repoRoot, privatePath, false, parser.Options{})
 	if err != nil {
 		t.Fatalf("ParsePath(private) error = %v, want nil", err)
 	}
@@ -174,16 +176,16 @@ func TestDefaultEngineParsePathJavaScriptNestedPackageDeadCodeRoots(t *testing.T
 `,
 	)
 
-	engine, err := DefaultEngine()
+	engine, err := parser.DefaultEngine()
 	if err != nil {
-		t.Fatalf("DefaultEngine() error = %v, want nil", err)
+		t.Fatalf("parser.DefaultEngine() error = %v, want nil", err)
 	}
 
-	entryPayload, err := engine.ParsePath(repoRoot, entryPath, false, Options{})
+	entryPayload, err := engine.ParsePath(repoRoot, entryPath, false, parser.Options{})
 	if err != nil {
 		t.Fatalf("ParsePath(entry) error = %v, want nil", err)
 	}
-	publicPayload, err := engine.ParsePath(repoRoot, publicPath, false, Options{})
+	publicPayload, err := engine.ParsePath(repoRoot, publicPath, false, parser.Options{})
 	if err != nil {
 		t.Fatalf("ParsePath(public) error = %v, want nil", err)
 	}
@@ -252,20 +254,20 @@ module.exports.payload = async () => ({ message: "ok" });
 `,
 	)
 
-	engine, err := DefaultEngine()
+	engine, err := parser.DefaultEngine()
 	if err != nil {
-		t.Fatalf("DefaultEngine() error = %v, want nil", err)
+		t.Fatalf("parser.DefaultEngine() error = %v, want nil", err)
 	}
 
-	esModulePayload, err := engine.ParsePath(repoRoot, esModuleHandlerPath, false, Options{})
+	esModulePayload, err := engine.ParsePath(repoRoot, esModuleHandlerPath, false, parser.Options{})
 	if err != nil {
 		t.Fatalf("ParsePath(es module handler) error = %v, want nil", err)
 	}
-	commonJSPayload, err := engine.ParsePath(repoRoot, commonJSHandlerPath, false, Options{})
+	commonJSPayload, err := engine.ParsePath(repoRoot, commonJSHandlerPath, false, parser.Options{})
 	if err != nil {
 		t.Fatalf("ParsePath(commonjs handler) error = %v, want nil", err)
 	}
-	resourcePayload, err := engine.ParsePath(repoRoot, resourcePath, false, Options{})
+	resourcePayload, err := engine.ParsePath(repoRoot, resourcePath, false, parser.Options{})
 	if err != nil {
 		t.Fatalf("ParsePath(resource) error = %v, want nil", err)
 	}
@@ -326,12 +328,12 @@ export const options = {
 `,
 	)
 
-	engine, err := DefaultEngine()
+	engine, err := parser.DefaultEngine()
 	if err != nil {
-		t.Fatalf("DefaultEngine() error = %v, want nil", err)
+		t.Fatalf("parser.DefaultEngine() error = %v, want nil", err)
 	}
 
-	got, err := engine.ParsePath(repoRoot, handlerPath, false, Options{})
+	got, err := engine.ParsePath(repoRoot, handlerPath, false, parser.Options{})
 	if err != nil {
 		t.Fatalf("ParsePath(handler) error = %v, want nil", err)
 	}
@@ -368,12 +370,12 @@ export class GeminiAdapter implements AIProvider {
 `,
 	)
 
-	engine, err := DefaultEngine()
+	engine, err := parser.DefaultEngine()
 	if err != nil {
-		t.Fatalf("DefaultEngine() error = %v, want nil", err)
+		t.Fatalf("parser.DefaultEngine() error = %v, want nil", err)
 	}
 
-	payload, err := engine.ParsePath(repoRoot, filePath, false, Options{})
+	payload, err := engine.ParsePath(repoRoot, filePath, false, parser.Options{})
 	if err != nil {
 		t.Fatalf("ParsePath() error = %v, want nil", err)
 	}
@@ -417,12 +419,12 @@ export default { plugin };
 `,
 	)
 
-	engine, err := DefaultEngine()
+	engine, err := parser.DefaultEngine()
 	if err != nil {
-		t.Fatalf("DefaultEngine() error = %v, want nil", err)
+		t.Fatalf("parser.DefaultEngine() error = %v, want nil", err)
 	}
 
-	got, err := engine.ParsePath(repoRoot, pluginPath, false, Options{})
+	got, err := engine.ParsePath(repoRoot, pluginPath, false, parser.Options{})
 	if err != nil {
 		t.Fatalf("ParsePath(plugin) error = %v, want nil", err)
 	}

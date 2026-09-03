@@ -8,6 +8,7 @@ import (
 	"os"
 	"path/filepath"
 	"reflect"
+	"runtime"
 	"testing"
 )
 
@@ -311,4 +312,60 @@ func TestNoFrameworkOrNoRoutesAcceptsAbsentAndEmpty(t *testing.T) {
 			}
 		})
 	}
+}
+
+// repoFixturePath resolves a path under tests/fixtures relative to the repo
+// root. It mirrors the parent parser package's repoFixturePath, which the
+// relocated external javascript_test package can no longer reach. The
+// javascript package sits one directory deeper than the parent, so the walk
+// up to the repo root takes four ".." elements instead of the parent's three.
+func repoFixturePath(parts ...string) string {
+	_, file, _, ok := runtime.Caller(0)
+	if !ok {
+		panic("runtime.Caller(0) failed")
+	}
+
+	root := filepath.Clean(filepath.Join(filepath.Dir(file), "..", "..", "..", ".."))
+	elements := append([]string{root, "tests", "fixtures"}, parts...)
+	return filepath.Join(elements...)
+}
+
+// assertFunctionByNameAndClass returns the functions-bucket item matching both
+// name and class_context. It mirrors the parent parser package's helper of the
+// same name, which the relocated external javascript_test package can no
+// longer reach: parsertest imports internal/parser, so an internal `package
+// parser` test importing parsertest is a cycle, and that constraint carries
+// over to why this copy exists here rather than being shared.
+func assertFunctionByNameAndClass(t *testing.T, payload map[string]any, name string, classContext string) map[string]any {
+	t.Helper()
+
+	functions, ok := payload["functions"].([]map[string]any)
+	if !ok {
+		t.Fatalf("functions = %T, want []map[string]any", payload["functions"])
+	}
+	for _, function := range functions {
+		functionName, isString := function["name"].(string)
+		if raw, present := function["name"]; present && !isString {
+			t.Fatalf("functions item has name = %#v (%T), want string; a present-but-malformed field must not be silently treated as the empty string", raw, raw)
+		}
+		functionClassContext, isString := function["class_context"].(string)
+		if raw, present := function["class_context"]; present && !isString {
+			t.Fatalf("functions item has class_context = %#v (%T), want string; a present-but-malformed field must not be silently treated as the empty string", raw, raw)
+		}
+		if functionName == name && functionClassContext == classContext {
+			return function
+		}
+	}
+	t.Fatalf("functions missing name %q with class_context %q in %#v", name, classContext, functions)
+	return nil
+}
+
+// assertParserStringSliceFieldValue is the name the javascript_dead_code_*
+// engine tests use for assertStringSliceFieldValue. It mirrors the parent
+// parser package's helper of the same name, kept as a separate name so the
+// relocated callers stay a pure move.
+func assertParserStringSliceFieldValue(t *testing.T, item map[string]any, field string, want []string) {
+	t.Helper()
+
+	assertStringSliceFieldValue(t, item, field, want)
 }

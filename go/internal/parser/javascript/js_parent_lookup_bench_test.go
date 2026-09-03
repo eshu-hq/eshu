@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package parser
+package javascript_test
 
 import (
 	"fmt"
@@ -9,6 +9,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/eshu-hq/eshu/go/internal/parser"
 	tree_sitter "github.com/tree-sitter/go-tree-sitter"
 )
 
@@ -27,13 +28,13 @@ func BenchmarkParsePathTypeScriptExportHeavy(b *testing.B) {
 	filePath := filepath.Join(repoRoot, "heavy.ts")
 	writeBenchFile(b, filePath, generateExportHeavyTypeScriptSource(120, 12))
 
-	engine, err := DefaultEngine()
+	engine, err := parser.DefaultEngine()
 	if err != nil {
-		b.Fatalf("DefaultEngine() error = %v, want nil", err)
+		b.Fatalf("parser.DefaultEngine() error = %v, want nil", err)
 	}
 
 	for b.Loop() {
-		if _, err := engine.ParsePath(repoRoot, filePath, false, Options{}); err != nil {
+		if _, err := engine.ParsePath(repoRoot, filePath, false, parser.Options{}); err != nil {
 			b.Fatalf("ParsePath() error = %v, want nil", err)
 		}
 	}
@@ -93,12 +94,12 @@ func deepExportTypeScriptSource(classCount, methodsPerClass int) string {
 // genuine syntax tree.
 func parseTypeScriptTree(tb testing.TB, source string) *tree_sitter.Node {
 	tb.Helper()
-	parser, err := NewRuntime().Parser("typescript")
+	tsParser, err := parser.NewRuntime().Parser("typescript")
 	if err != nil {
 		tb.Fatalf("Parser(typescript) error = %v, want nil", err)
 	}
-	tb.Cleanup(parser.Close)
-	tree := parser.Parse([]byte(source), nil)
+	tb.Cleanup(tsParser.Close)
+	tree := tsParser.Parse([]byte(source), nil)
 	if tree == nil {
 		tb.Fatalf("Parse returned nil tree")
 	}

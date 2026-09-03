@@ -181,37 +181,6 @@ func assertFunctionByNameAndClass(t *testing.T, payload map[string]any, name str
 	return nil
 }
 
-// assertParserStringSliceContains requires item[field] to be a string slice
-// that contains want. It lives here rather than in a language-specific test
-// file because the C#, Groovy, Java, JavaScript, and Kotlin engine tests assert
-// dead_code_root_kinds membership this way. The external internal/parser/golang
-// tests use parsertest.AssertStringSliceContains instead.
-func assertParserStringSliceContains(t *testing.T, item map[string]any, field string, want string) {
-	t.Helper()
-
-	got, ok := item[field].([]string)
-	if !ok {
-		t.Fatalf("%s = %T, want []string", field, item[field])
-	}
-	for _, value := range got {
-		if value == want {
-			return
-		}
-	}
-	t.Fatalf("%s = %#v, want to contain %#v", field, got, want)
-}
-
-// assertParserStringSliceFieldValue is the name the Java, JavaScript, and
-// Python engine tests use for assertStringSliceFieldValue. It moved here from
-// go_dead_code_roots_test.go when the Go engine tests relocated to
-// internal/parser/golang; the callers keep their name so that relocation stays
-// a pure move.
-func assertParserStringSliceFieldValue(t *testing.T, item map[string]any, field string, want []string) {
-	t.Helper()
-
-	assertStringSliceFieldValue(t, item, field, want)
-}
-
 // writeBenchFile writes contents to path and fails the benchmark if the write
 // fails. It lives here rather than in a language-specific benchmark file
 // because the content-metadata and JavaScript parent-lookup benchmarks share it.

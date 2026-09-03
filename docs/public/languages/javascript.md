@@ -70,9 +70,9 @@ Modeled roots and evidence include:
   CommonJS property require aliases, and bounded constructor receiver evidence.
 
 Focused coverage lives in
-`go/internal/parser/javascript_dead_code_node_roots_test.go`,
-`go/internal/parser/javascript_dead_code_hapi_alias_test.go`,
-`go/internal/parser/javascript_dead_code_commonjs_class_test.go`,
+`go/internal/parser/javascript/javascript_dead_code_node_roots_test.go`,
+`go/internal/parser/javascript/javascript_dead_code_hapi_alias_test.go`,
+`go/internal/parser/javascript/javascript_dead_code_commonjs_class_test.go`,
 `go/internal/query/code_dead_code_javascript_roots_test.go`, and
 `go/internal/query/code_dead_code_node_typescript_matrix_test.go`.
 

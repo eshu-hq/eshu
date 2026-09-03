@@ -1,11 +1,13 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package parser
+package javascript_test
 
 import (
 	"path/filepath"
 	"testing"
+
+	"github.com/eshu-hq/eshu/go/internal/parser"
 )
 
 func TestDefaultEngineParsePathJavaScriptNodeEntrypointsMapCompiledPackageTargetsToSourceRoot(t *testing.T) {
@@ -52,20 +54,20 @@ function localWorkerHelper() {
 }
 `)
 
-	engine, err := DefaultEngine()
+	engine, err := parser.DefaultEngine()
 	if err != nil {
-		t.Fatalf("DefaultEngine() error = %v, want nil", err)
+		t.Fatalf("parser.DefaultEngine() error = %v, want nil", err)
 	}
 
-	indexPayload, err := engine.ParsePath(repoRoot, indexPath, false, Options{})
+	indexPayload, err := engine.ParsePath(repoRoot, indexPath, false, parser.Options{})
 	if err != nil {
 		t.Fatalf("ParsePath(index) error = %v, want nil", err)
 	}
-	exportPayload, err := engine.ParsePath(repoRoot, exportPath, false, Options{})
+	exportPayload, err := engine.ParsePath(repoRoot, exportPath, false, parser.Options{})
 	if err != nil {
 		t.Fatalf("ParsePath(export) error = %v, want nil", err)
 	}
-	rootOwnedPayload, err := engine.ParsePath(repoRoot, rootOwnedPath, false, Options{})
+	rootOwnedPayload, err := engine.ParsePath(repoRoot, rootOwnedPath, false, parser.Options{})
 	if err != nil {
 		t.Fatalf("ParsePath(root-owned) error = %v, want nil", err)
 	}
@@ -121,16 +123,16 @@ function helper() {
 }
 `)
 
-	engine, err := DefaultEngine()
+	engine, err := parser.DefaultEngine()
 	if err != nil {
-		t.Fatalf("DefaultEngine() error = %v, want nil", err)
+		t.Fatalf("parser.DefaultEngine() error = %v, want nil", err)
 	}
 
-	binPayload, err := engine.ParsePath(repoRoot, binPath, false, Options{})
+	binPayload, err := engine.ParsePath(repoRoot, binPath, false, parser.Options{})
 	if err != nil {
 		t.Fatalf("ParsePath(bin) error = %v, want nil", err)
 	}
-	scriptPayload, err := engine.ParsePath(repoRoot, scriptPath, false, Options{})
+	scriptPayload, err := engine.ParsePath(repoRoot, scriptPath, false, parser.Options{})
 	if err != nil {
 		t.Fatalf("ParsePath(script) error = %v, want nil", err)
 	}
