@@ -113,7 +113,7 @@ to `../../../../tests/fixtures` for the extra directory level.
 
 ## Verified-by-Test Constructs
 The test suite is organized by feature area. After the three #6062 relocations
-`internal/parser/javascript` holds 46 test files declaring 182 tests and 5
+`internal/parser/javascript` holds 46 test files declaring 183 tests and 5
 benchmarks (`go test -list` against that package, final tree); the sibling
 `jsdataflow` package holds the value-flow suites. Key coverage categories:
 

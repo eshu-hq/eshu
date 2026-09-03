@@ -185,5 +185,5 @@ anti-pattern against adding telemetry from this package.
 One single-language test remains at the `internal/parser` root:
 `engine_swift_symbol_gate_test.go`, destined for `swift/`. The three
 `engine_typescript_*` / `engine_tsx_*` files that were listed here moved into
-this package under #6062.
+`internal/parser/javascript` under #6062, not into this package.
 The 27 `<lang>_language.go` Engine-method glue files stay at root by design.
