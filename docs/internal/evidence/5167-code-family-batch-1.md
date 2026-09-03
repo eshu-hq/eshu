@@ -275,10 +275,18 @@ mutation was restored and its guard rerun at exit `0`.
 | 9 | `complexityListAnchor` returns the `OPTIONAL MATCH` form for every caller (`if false`) | `go test ./internal/query -run TestComplexityListDoesNotLeakUngrantedFunctions -count=1` | `1` |
 | 10 | `crossRepoDeadCodeConsumerScan` emits `AND true /* $n */` instead of `AND row.repository_id = ANY($n)` | `go test ./internal/query -run TestCrossRepoDeadCode -count=1` | `1` |
 | 11 | the same mutation as #9, run against the live backend instead of the fake | `ESHU_NEO4J_URI=bolt://localhost:17787 go test ./internal/query -tags live_nornicdb_complexity_grant -run TestLiveNornicDBComplexityListFiltersUngrantedFunctions -count=1` | `1` (leaked `LiveUngrantedComplexityProbe` and `LiveOrphanComplexityProbe`) |
+| 12 | the same mutation as #6, judged by the graph-summary route's own guard | `go test ./internal/query -run TestGraphSummaryHotEntitiesRunTheGrantBoundEdgePass -count=1` | `1` (scoped edge pass lost both endpoint predicates) |
+| 13 | `applyRepositorySelectorForCapability` rejects an ungranted selector with `404` instead of `400` | `go test ./internal/query -run TestUngrantedRepositorySelectorIsRejectedWith400 -count=1` | `1` (`status = 404, want 400`) |
 
 An earlier attempt at #1 deleted the whole helper body and failed as an unused
 import rather than an assertion, which proves nothing. The mutations above keep
 the package compiling so the failure is the assertion's.
+
+Rows 6 and 12, like rows 9 and 11, are one mutation judged by two guards. Row 6
+is the call-graph route's own text guard; row 12 is the graph-summary route that
+shares the builder, and it is the row that proves the eleventh route's
+disclosure is pinned rather than asserted. Row 13 is the status code the ten
+OpenAPI operations and eleven MCP tool descriptions now name.
 
 Rows 9 and 11 are the same one-token mutation judged by two different guards.
 Row 9 is the credential-free guard that runs in CI; row 11 is the live NornicDB
