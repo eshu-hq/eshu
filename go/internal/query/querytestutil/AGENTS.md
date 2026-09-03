@@ -63,9 +63,13 @@
 4. No `Run` or `RunSingle` call in a non-test file. `internal/queryplan`'s
    `DiscoverQueryCallsites` walks this directory like every other one under
    `internal/query`, so such a call is an unregistered production query callsite
-   and fails `TestHotCypherManifestCoversEveryProductionQueryCall`. Give a fake
-   that needs both methods the `FakeGraphReader` shape: each routes through an
-   unexported helper rather than one calling the other.
+   and fails `TestHotCypherManifestCoversEveryProductionQueryCall`. The rule is
+   the absence of that call expression, not any particular shape, and the three
+   fakes here satisfy it two different ways: `FakeGraphReader` routes both
+   methods through an unexported `rows` helper, while `FakeRepoGraphReader` and
+   `FakeWorkloadGraphReader` inline their dispatch in each method. Either is
+   fine. What a new fake must not do is have one of the two methods call the
+   other.
 
 Invariants 3 and 4 are checked, not just asserted, and the same gate enforces
 the direction that keeps invariant 3 honest — a non-test file under
