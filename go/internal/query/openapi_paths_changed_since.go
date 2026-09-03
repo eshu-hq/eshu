@@ -83,6 +83,7 @@ const openAPIPathsFreshnessChangedSince = `
             }
           },
           "400": {"$ref": "#/components/responses/BadRequest"},
+          "403": {"$ref": "#/components/responses/Forbidden"},
           "404": {"$ref": "#/components/responses/NotFound"},
           "500": {"$ref": "#/components/responses/InternalError"},
           "501": {"$ref": "#/components/responses/NotImplemented"},
