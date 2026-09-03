@@ -39,12 +39,13 @@ func scopedIngesterStatusRoute(r *http.Request) bool {
 	return ingester != r.URL.Path && ingester != "" && !strings.Contains(ingester, "/")
 }
 
-// scopedFreshnessDeltaRoute allows scoped tokens to reach the two freshness
-// delta reads: GET /api/v0/freshness/changed-since and
-// GET /api/v0/freshness/generations. Both were #5167 Group B entries in
-// pendingRowFilteringRoutes until their handlers gained the #5137 pattern, and
-// both now bind the caller's grant in the shipped SQL rather than in the
-// handler:
+// scopedFreshnessDeltaRoute allows scoped tokens to reach the three freshness
+// delta reads: GET /api/v0/freshness/changed-since,
+// GET /api/v0/freshness/generations, and
+// GET /api/v0/freshness/services/changed-since. All three were #5167 Group B
+// entries in pendingRowFilteringRoutes until their handlers gained the #5137
+// pattern. The two repository-scope reads bind the caller's grant in the
+// shipped SQL rather than in the handler:
 //
 //   - changed_since_sql.go:49-51 -- resolveChangedSinceScopeQuery's
 //     ($3::boolean = false OR (scope.scope_kind = 'repository' AND
@@ -62,7 +63,17 @@ func scopedIngesterStatusRoute(r *http.Request) bool {
 // (TestChangedSinceTwoTenantGrantBoundary,
 // TestGenerationLifecycleTwoTenantGrantBoundary).
 //
-// Both routes are classified scopedRouteGrantBound in
+// The service read cannot use that shape. Its tables
+// (service_materialization_generations, service_evidence_snapshots) carry only
+// service_id, so there is no repository or scope column for a predicate to
+// bind. FreshnessHandler.serviceChangedSinceGrantAdmits instead resolves the
+// catalog service_id through the reducer_service_catalog_correlation facts --
+// written from the same decision set that produced the generation -- under the
+// caller's grant, and refuses BEFORE the lineage read. The refusal is the same
+// service-not-found an absent service gets, so the route is not an existence
+// oracle either (TestServiceChangedSinceTwoTenantGrantBoundary).
+//
+// All three routes are classified scopedRouteGrantBound in
 // scopedTokenAdvertisedRoutes: an all-scope caller has no grant for those
 // predicates to bind, so an all-scope browser session stays behind the
 // BrowserSessionRoutePolicy mode check (#6450).
@@ -71,5 +82,6 @@ func scopedFreshnessDeltaRoute(r *http.Request) bool {
 		return false
 	}
 	return r.URL.Path == "/api/v0/freshness/changed-since" ||
-		r.URL.Path == "/api/v0/freshness/generations"
+		r.URL.Path == "/api/v0/freshness/generations" ||
+		r.URL.Path == "/api/v0/freshness/services/changed-since"
 }

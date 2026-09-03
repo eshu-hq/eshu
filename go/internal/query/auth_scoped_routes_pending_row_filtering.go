@@ -36,7 +36,6 @@ import (
 // allowedScopeIDs) returns zero rows on an empty grant without querying and
 // redacts source_key/source_display/lease_owner per row.
 var pendingRowFilteringRoutes = map[string]struct{}{
-	"GET /api/v0/freshness/services/changed-since":   {},
 	"GET /api/v0/index-status":                       {},
 	"POST /api/v0/code/bundles":                      {},
 	"POST /api/v0/code/call-chain":                   {},

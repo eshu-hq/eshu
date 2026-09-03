@@ -66,6 +66,10 @@ func (h *FreshnessHandler) listServiceChangedSince(w http.ResponseWriter, r *htt
 		return
 	}
 
+	if !h.serviceChangedSinceGrantAdmits(w, r, filter.ServiceID) {
+		return
+	}
+
 	summary, err := h.ServiceChangedSince.ComputeServiceChangedSinceDelta(r.Context(), filter)
 	if err != nil {
 		WriteError(w, http.StatusInternalServerError, fmt.Sprintf("compute service changed-since delta: %v", err))
@@ -74,16 +78,7 @@ func (h *FreshnessHandler) listServiceChangedSince(w http.ResponseWriter, r *htt
 
 	// An empty resolved service means the named service matched no lineage.
 	if summary.ServiceID == "" {
-		WriteContractError(
-			w,
-			r,
-			http.StatusNotFound,
-			fmt.Sprintf("no service materialization lineage found for service_id %q", filter.ServiceID),
-			ErrorCodeServiceNotFound,
-			freshnessServiceChangedSinceCapability,
-			h.profile(),
-			requiredProfile(freshnessServiceChangedSinceCapability),
-		)
+		h.writeServiceChangedSinceNotFound(w, r, filter.ServiceID)
 		return
 	}
 
@@ -120,6 +115,100 @@ func (h *FreshnessHandler) listServiceChangedSince(w http.ResponseWriter, r *htt
 	}
 
 	WriteSuccess(w, r, http.StatusOK, body, h.serviceChangedSinceTruthEnvelope(summary))
+}
+
+// serviceChangedSinceGrantAdmits binds the caller's repository grant to the
+// requested catalog service_id and reports whether the lineage read may run
+// (#5167). It writes the refusal itself when the answer is no.
+//
+// The two sibling freshness routes bind their grant inside the shipped SQL,
+// because their tables join to ingestion_scopes and can filter on
+// scope_kind/source_key. service_materialization_generations and
+// service_evidence_snapshots carry only service_id, so there is nothing there
+// to bind; the reducer knew the owning repository when it wrote the generation
+// but discarded it. The mapping is recovered from the reducer_service_catalog_
+// correlation facts, written from the SAME decision set that produced the
+// generation, through the read model that already applies the caller's grant
+// (ListServiceCatalogCorrelations). The refusal is therefore a pre-read one,
+// and it is the route's ordinary service-not-found so an ungranted service is
+// indistinguishable from one that does not exist.
+//
+// Two deliberate fail-closed cases:
+//
+//   - A generation can outlive its correlation fact. The correlation read
+//     requires the fact's generation to still be its scope's active one, so
+//     removing a catalog entity leaves a scoped caller with not-found for a
+//     service whose lineage rows still exist. That is correct, not a bug: with
+//     the catalog entity gone there is no longer any evidence of who owns the
+//     service, and an unowned service must not be readable by a scoped caller.
+//     An unscoped operator still sees it.
+//   - A nil ServiceOwnership refuses every scoped caller. A deployment that
+//     cannot resolve ownership must not answer instead of resolving it.
+func (h *FreshnessHandler) serviceChangedSinceGrantAdmits(
+	w http.ResponseWriter,
+	r *http.Request,
+	serviceID string,
+) bool {
+	access := repositoryAccessFilterFromContext(r.Context())
+	if !access.Scoped() {
+		// Shared, admin, and local callers have no grant for the correlation
+		// filter to intersect, so the unscoped path issues no extra query.
+		return true
+	}
+	// Load-bearing: ServiceCatalogCorrelationFilter's grant clause collapses to
+	// TRUE when both grant arrays are empty, so a scoped caller with no grant
+	// would read every tenant's correlations. Refuse before the store call.
+	if access.Empty() {
+		h.writeServiceChangedSinceNotFound(w, r, serviceID)
+		return false
+	}
+	if h.ServiceOwnership == nil {
+		h.writeServiceChangedSinceNotFound(w, r, serviceID)
+		return false
+	}
+
+	rows, err := h.ServiceOwnership.ListServiceCatalogCorrelations(
+		r.Context(),
+		ServiceCatalogCorrelationFilter{
+			ServiceID:            serviceID,
+			AllowedRepositoryIDs: access.GrantedRepositoryIDs(),
+			AllowedScopeIDs:      access.GrantedScopeIDs(),
+			// One admitted row is the whole answer: the question is whether
+			// the grant covers this service at all, not which repository owns
+			// it.
+			Limit: 1,
+		},
+	)
+	if err != nil {
+		WriteError(w, http.StatusInternalServerError, fmt.Sprintf("resolve service ownership: %v", err))
+		return false
+	}
+	if len(rows) == 0 {
+		h.writeServiceChangedSinceNotFound(w, r, serviceID)
+		return false
+	}
+	return true
+}
+
+// writeServiceChangedSinceNotFound is the route's single service-not-found
+// answer. Both the unresolved-service path and the ungranted-service refusal go
+// through it so the two responses stay byte-identical and the route cannot be
+// used as an existence oracle for another tenant's services.
+func (h *FreshnessHandler) writeServiceChangedSinceNotFound(
+	w http.ResponseWriter,
+	r *http.Request,
+	serviceID string,
+) {
+	WriteContractError(
+		w,
+		r,
+		http.StatusNotFound,
+		fmt.Sprintf("no service materialization lineage found for service_id %q", serviceID),
+		ErrorCodeServiceNotFound,
+		freshnessServiceChangedSinceCapability,
+		h.profile(),
+		requiredProfile(freshnessServiceChangedSinceCapability),
+	)
 }
 
 func (h *FreshnessHandler) parseServiceChangedSinceFilter(w http.ResponseWriter, r *http.Request) (status.ServiceChangedSinceFilter, bool) {

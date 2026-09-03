@@ -286,7 +286,11 @@ func newMCPQueryRouterWithSemanticEmbedding(
 			Generations:         pgstatus.NewStatusStore(pgstatus.SQLQueryer{DB: db}),
 			ChangedSince:        pgstatus.NewStatusStore(pgstatus.SQLQueryer{DB: db}),
 			ServiceChangedSince: pgstatus.NewStatusStore(pgstatus.SQLQueryer{DB: db}),
-			Profile:             queryProfile,
+			// #5167: the service changed-since route binds a scoped caller's
+			// grant through the correlation facts, and fails that caller
+			// closed when this stays nil.
+			ServiceOwnership: query.NewPostgresServiceCatalogCorrelationStore(db),
+			Profile:          queryProfile,
 		},
 		ExtractionReadiness:    &query.CollectorExtractionReadinessHandler{Profile: queryProfile},
 		FactSchemaVersions:     &query.FactSchemaVersionHandler{Profile: queryProfile},
