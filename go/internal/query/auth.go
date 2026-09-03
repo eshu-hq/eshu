@@ -426,7 +426,16 @@ func unauthorizedResponse(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
+// scopedRouteDeniedResponse writes the route-admission 403 for both refusal
+// paths -- the scoped-bearer branch and the browser-session branch of
+// authMiddlewareWithRoutePolicy. It marks the route-denial signal first, so an
+// observer that installed one (go/internal/mcp's transport wrapper, via
+// WithScopedRouteDenialSignal) can tell this authorization refusal apart from
+// an authentication failure carrying the same status code. Marking here rather
+// than at each call site is deliberate: the mark and the response cannot then
+// disagree about what the caller received.
 func scopedRouteDeniedResponse(w http.ResponseWriter, r *http.Request) {
+	markScopedRouteDenied(r.Context())
 	const message = "scoped authorization is not yet enabled for this route"
 	if acceptsEnvelope(r) {
 		WriteJSON(w, http.StatusForbidden, ResponseEnvelope{Error: &ErrorEnvelope{

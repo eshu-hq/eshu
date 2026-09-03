@@ -558,7 +558,7 @@ through the global meter). No direct dependency on storage drivers or facts.
 This package declares one metric: `eshu_dp_mcp_transport_auth_denied_total`,
 a counter labeled by `mcp_method` (`initialize`, `tools/list`, `tools/call`,
 `ping`, `sse`, `mcp_message`, `other`, `unknown`) and `reason`
-(`unauthenticated`, `session_principal_mismatch`), registered through the
+(`unauthenticated`, `session_principal_mismatch`, and `route_policy` — a governance mode refusing an all-scope credential at the handshake, which is a configured refusal, not a credential to reset), registered through the
 global meter in `transport_auth_metrics.go` (the same self-contained pattern
 `internal/query/request_metrics.go` uses). It lets an operator see
 catalog-enumeration and session-hijack attempts. Everything else — tool
