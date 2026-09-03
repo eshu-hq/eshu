@@ -76,7 +76,7 @@ impersonation trust layer needed for GKE Workload Identity.
 
 ## Evidence
 
-No-Regression Evidence: `go test ./internal/reducer -run 'GCP.*(Grant|Trust|Secret)|GCPSecret|GCPBroad|GCPNarrow'`,
+No-Regression Evidence: `go test ./internal/reducer/... -run 'GCP.*(Grant|Trust|Secret)|GCPSecret|GCPBroad|GCPNarrow'`,
 `go test ./internal/collector/secretsiam -run GCP`, `go test
 ./internal/collector/gcpcloud -run 'GCP|ServiceAccountEmail'`, `go test
 ./internal/collector/kuberneteslive ./cmd/collector-kubernetes-live -run

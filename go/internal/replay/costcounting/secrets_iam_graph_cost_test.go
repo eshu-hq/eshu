@@ -94,7 +94,7 @@ func newInstrumentedSecretsIAMGraphWriter(t *testing.T) (
 //
 // Scoping rationale (why one of nine Write* families is representative): the
 // live projection handler (reducer.SecretsIAMGraphProjectionHandler,
-// go/internal/reducer/secrets_iam_graph_projection.go:28-36) can call nine
+// go/internal/reducer/secretsiam/secrets_iam_graph_projection.go:28-36) can call nine
 // Write* families per intent — four node families and five edge families.
 // Every one of the nine has exactly one fixed-const UNWIND Cypher template
 // (secrets_iam_graph_writer.go, ADR #1314 §5/§6: no data-driven token is ever

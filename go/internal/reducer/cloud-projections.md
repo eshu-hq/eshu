@@ -197,7 +197,7 @@ writer persists reducer facts only:
 `reducer_secrets_iam_secret_access_path`, and
 `reducer_secrets_iam_posture_gap`.
 
-No-Regression Evidence: `go test ./internal/reducer -run 'SecretsIAM|TrustChain'
+No-Regression Evidence: `go test ./internal/reducer/... -run 'SecretsIAM|TrustChain'
 -count=1` proves exact IRSA, exact EKS Pod Identity, negative name
 coincidence, wildcard/broad trust, wildcard Vault selector rejection, stale
 generation, unsupported coverage, and handler write behavior. `go test ./internal/storage/postgres -run
@@ -230,7 +230,7 @@ The full GCP workload→service-account→secret chain (graph-projected identity
 hops) depends on the GCP impersonation / Workload-Identity trust layer tracked in
 #2369; this slice delivers the principal and permission layers as posture truth.
 
-No-Regression Evidence: `go test ./internal/reducer -run 'GCP.*Grant|GCPSecret|GCPBroad|GCPNarrow'
+No-Regression Evidence: `go test ./internal/reducer/... -run 'GCP.*Grant|GCPSecret|GCPBroad|GCPNarrow'
 -count=1`, `go test ./internal/collector/secretsiam -run GCP -count=1`,
 `go test ./internal/collector/gcpcloud -run GCPSecretsIAM -count=1`, and
 `go test ./internal/facts -run SecretsIAM -count=1`. Bench
@@ -447,7 +447,7 @@ relationships between evidence nodes. This domain does not create service,
 runtime, image, commit, pull-request, Jira, blast-radius, service-health, or
 root-cause edges.
 
-No-Regression Evidence: `go test ./internal/reducer -run
+No-Regression Evidence: `go test ./internal/reducer/... -run
 'IncidentRouting|DefaultDomainDefinitions.*IncidentRouting' -count=1` proves
 exact convergence, live-only no-IaC evidence, unsafe outcome suppression, and
 default-domain registration.

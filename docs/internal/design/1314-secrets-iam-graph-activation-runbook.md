@@ -194,7 +194,7 @@ allowlist on the exact commit being deployed:
 
 ```bash
 cd go
-go test ./internal/reducer ./internal/storage/cypher ./cmd/reducer \
+go test ./internal/reducer/... ./internal/storage/cypher ./cmd/reducer \
   -run 'SecretsIAMGraph|SecretsIAM|TestExtractRowsCarryNoForbiddenProperties' \
   -count=1
 ```

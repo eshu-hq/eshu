@@ -14,7 +14,7 @@ fail() { printf 'test-verify-replay-tier: %s\n' "$*" >&2; exit 1; }
 
 has_serialized_package_command() {
 	rg --quiet \
-		'^[[:space:]]*go test -p=1 \./internal/replay/offlinetier/ \./internal/reducer/ \\$' \
+		'^[[:space:]]*go test -p=1 \./internal/replay/offlinetier/ \./internal/reducer/\.\.\. \\$' \
 		"$1"
 }
 
