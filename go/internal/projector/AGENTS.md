@@ -262,8 +262,9 @@
   root `awsCloudRuntimeDriftSourceSystem` helper was byte-identical to
   `projectorintent.SourceSystem`, but unlike the CI/CD and container-image
   precedents it could not simply be dropped: two OTHER root builders
-  (`aws_resource_materialization_intents.go` and
-  `observability_coverage_materialization_intents.go`) still called it, so
+  (`aws_resource_materialization_intents.go`, itself since extracted into
+  `awsresource/`, and `observability_coverage_materialization_intents.go`)
+  still called it, so
   both call sites were repointed to `projectorintent.SourceSystem` directly in
   this same change before the helper's definition moved out. This family IS
   covered by the root fan-out parity fixture —
@@ -272,8 +273,9 @@
   `scope_generation_intents_fanout_parity_test.go`. The pre-extraction root
   test file was NOT single-family: alongside `buildProjection` dispatch
   assertions for `aws_cloud_runtime_drift`, it also carried the only dispatch
-  coverage for the unrelated `aws_resource_materialization` builder (which is
-  not extracted and stays at root), and it defined two cross-family test
+  coverage for the unrelated `aws_resource_materialization` builder (still at
+  root at that point; extracted into `awsresource/` shortly afterwards), and
+  it defined two cross-family test
   fixtures — `intentForDomain` and `awsResourceEnvelope` — that 14 and 4 other
   root test files respectively depend on. Moving the file wholesale would have
   silently deleted that coverage and broken every dependent file. It split
@@ -281,8 +283,9 @@
   cases moved into the new root file
   `aws_cloud_runtime_drift_projection_test.go`; the
   `aws_resource_materialization` cases moved into a new root file matching
-  its builder's name, `aws_resource_materialization_intents_test.go` (which
-  previously had no dedicated test file); and the two shared fixtures moved
+  its builder's name (which previously had no dedicated test file), today
+  `aws_resource_materialization_projection_test.go`; and the two shared
+  fixtures moved
   into a new root file, `reducer_intent_test_helpers_test.go`. The child
   package's own test file (`reducer_intent_test.go`) carries fresh
   builder-level unit tests in the `awscloudimage` style (anchor selection,
@@ -307,6 +310,24 @@
   the `Runtime.Project` and `buildProjection` cases that also assert this
   domain stayed at root in `runtime_test.go` and
   `runtime_clone_removal_test.go`.
+- **AWS-resource-materialization family (#6057)** — the
+  `aws_resource_materialization` builder lives in `awsresource/` and consumes
+  the lookup like the families above. It carries no decode seam: it triggers
+  on the earliest `aws_resource` fact in original input order and never reads
+  the payload. Its `aws_resource_materialization:<scope>` entity key is the
+  shared AWS acceptance unit — eleven other reducer-intent builders emit the
+  same literal so their handlers gate on the `CloudResource` substrate this
+  domain publishes, and `internal/storage/postgres` hashes the prefix into the
+  cloud-resource-node queue conflict family — so the key is emphatically not
+  the child package's private string. This family IS covered by the root
+  fan-out parity fixture: `reducer.DomainAWSResourceMaterialization` appears in
+  both `fanOutParityExpectations` and `fanOutParityExpectedOrder`. Root keeps
+  the dispatch-level coverage in
+  `aws_resource_materialization_projection_test.go` (renamed from
+  `..._intents_test.go` when the builder moved out), because it drives
+  `buildProjection`, a root-only function; the child's own
+  `materialization_intents_test.go` carries builder-level unit tests in the
+  `awscloudruntimedrift` style.
 - **CanonicalWriter interface boundary** — no caller in this package calls a Neo4j
   or NornicDB driver directly. All canonical writes go through `CanonicalWriter`.
   Backend-specific logic belongs in `internal/storage/cypher` adapters.

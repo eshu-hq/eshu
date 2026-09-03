@@ -63,8 +63,9 @@ builder adds no queue, storage, graph, span, metric, or log boundary.
   `CollectorKind`. The pre-extraction root helper
   (`awsCloudRuntimeDriftSourceSystem`) had the identical two-tier body, and
   the child tests pin both tiers. That helper still has two other root
-  callers after this extraction (`aws_resource_materialization_intents.go`
-  and `observability_coverage_materialization_intents.go`); both were
+  callers after this extraction (`aws_resource_materialization_intents.go`,
+  since extracted into `../awsresource/materialization_intents.go`, and
+  `observability_coverage_materialization_intents.go`); both were
   repointed to `projectorintent.SourceSystem` directly rather than left
   calling a now-deleted root function.
 - Do not decode the payload, run the ARN join, or classify drift here. The

@@ -12,10 +12,18 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/scope"
 )
 
-// These cases used to live in aws_cloud_runtime_drift_intents_test.go
-// alongside the aws_cloud_runtime_drift dispatch tests; they moved into their
-// own file, matching aws_resource_materialization_intents.go's name, when
-// that unrelated family's builder was extracted into
+// These cases are the root dispatch-level coverage for the
+// aws_resource_materialization family: they assert that buildProjection reaches
+// awsresource.BuildAWSResourceMaterializationReducerIntent through
+// appendScopeGenerationReducerIntents and appends what it returns. They stayed
+// at root when that builder moved into internal/projector/awsresource (#6057),
+// because buildProjection is a root-only function the child package cannot
+// call; the builder's own unit tests live in
+// awsresource/materialization_intents_test.go.
+//
+// The cases first lived in aws_cloud_runtime_drift_intents_test.go alongside
+// the aws_cloud_runtime_drift dispatch tests, and moved into a file of their
+// own when that unrelated family was extracted into
 // internal/projector/awscloudruntimedrift (#6057).
 
 func TestBuildProjectionQueuesAWSResourceMaterializationIntent(t *testing.T) {

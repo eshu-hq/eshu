@@ -76,13 +76,16 @@
   `awscloudimage` precedent.
 - **The pre-extraction root test file also covered an unrelated family.**
   `aws_cloud_runtime_drift_intents_test.go` carried the only dispatch-level
-  test coverage for `aws_resource_materialization_intents.go` (a builder
-  that is NOT extracted and stays at root). That coverage moved into a new
-  root file matching the builder's own name,
-  `../aws_resource_materialization_intents_test.go`, which previously had no
-  dedicated test file at all.
+  test coverage for the `aws_resource_materialization` builder, which at that
+  time was still the root file `aws_resource_materialization_intents.go`. That
+  coverage moved into a new root file matching the builder's own name, and
+  survives today as `../aws_resource_materialization_projection_test.go` —
+  the builder itself was extracted into `../awsresource/` shortly afterwards,
+  also under #6057, and the root file was renamed to match the dispatch-level
+  role it kept.
 - **`awsCloudRuntimeDriftSourceSystem` had two other root callers at
-  extraction time**, not one: `aws_resource_materialization_intents.go` and
+  extraction time**, not one: `aws_resource_materialization_intents.go` (since
+  extracted into `../awsresource/materialization_intents.go`) and
   `observability_coverage_materialization_intents.go`. Both were repointed to
   `projectorintent.SourceSystem` in the same commit that moved this file, so
   the helper's definition could be dropped instead of duplicated. A future

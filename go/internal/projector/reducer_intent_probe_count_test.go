@@ -119,8 +119,8 @@ func TestReducerIntentProbeKey(t *testing.T) {
 	}{
 		{
 			name:       "root builder",
-			expression: ast.NewIdent("buildAWSResourceMaterializationReducerIntent"),
-			wantKey:    "buildAWSResourceMaterializationReducerIntent",
+			expression: ast.NewIdent("buildObservabilityCoverageMaterializationReducerIntent"),
+			wantKey:    "buildObservabilityCoverageMaterializationReducerIntent",
 			wantOK:     true,
 		},
 		{

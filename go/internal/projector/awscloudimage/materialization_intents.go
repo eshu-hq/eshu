@@ -15,7 +15,7 @@ import (
 // graph edge (issue #5450).
 //
 // The trigger is aws_resource fact presence — the SAME persistent signal
-// buildAWSResourceMaterializationReducerIntent uses — not
+// awsresource.BuildAWSResourceMaterializationReducerIntent uses — not
 // lambda_function_uses_image relationship presence. This is a deliberate
 // retraction-safety fix (issue #5450 follow-up review): AWS is scanned as a
 // whole every generation, so aws_resource facts are present whenever the

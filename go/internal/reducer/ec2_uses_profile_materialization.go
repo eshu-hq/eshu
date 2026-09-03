@@ -64,8 +64,8 @@ const ec2UsesProfileEvidenceSource = "reducer/ec2-uses-profile"
 //
 // The edge gates on BOTH, exactly like the security-group reachability edge gates
 // on three node phases (#1135). The two prefixes are kept in lockstep with the
-// projector intents that publish them (buildAWSResourceMaterializationReducerIntent
-// and buildEC2InstanceNodeMaterializationReducerIntent) and with the durable
+// projector intents that publish them (awsresource.BuildAWSResourceMaterializationReducerIntent
+// and ec2.BuildInstanceNodeMaterializationReducerIntent) and with the durable
 // Postgres claim gate.
 const (
 	ec2UsesProfileAWSResourceEntityKeyPrefix  = "aws_resource_materialization:"
