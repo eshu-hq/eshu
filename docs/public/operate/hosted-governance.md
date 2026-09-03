@@ -491,11 +491,12 @@ opt the deployment in, rather than wire a missing route up. `local_no_policy`,
 posture where one graph belongs to one tenant. The identity and admin routes
 under `/api/v0/auth/`, and the static catalog and request-reshape routes, hold
 no tenant data for a grant to filter and admit it in every mode.
-That includes the MCP transport, where the refusal lands on the connection
-rather than on a tool: `mcp-server`'s `GET /sse` and `POST /mcp/message` clear
-the allowlist without a ledger class, so they take the grant-bound default,
-and under `hosted_multi_tenant` an all-scope bearer is refused before
-`initialize` or `tools/list` can complete, with the same
+
+The MCP transport is the other way round: the refusal lands on the connection
+rather than on a tool. `mcp-server`'s `GET /sse` and `POST /mcp/message` clear
+the allowlist without a ledger class, so they take the grant-bound default, and
+under `hosted_multi_tenant` an all-scope bearer is refused before `initialize`
+or `tools/list` can complete, with the same
 `scoped_route_all_scope_grant_required` code — the client loses the whole MCP
 session, not just the tools that read tenant data. The remedy is a credential
 carrying real repository or scope ids (a restricted registry token, or a
