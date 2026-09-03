@@ -1022,14 +1022,17 @@ domain: it carries a `package-registry.package` fact ahead of a
 `factID`/`entityKey`/`reason`/`sourceSystem` for
 `reducer.DomainSupplyChainImpact`, so this family's own package docs say so
 truthfully rather than repeating the "no fixture coverage" caveat that
-applies to `cicdruncorrelation` and others. Root `AGENTS.md` had exactly one
-line of headroom left under the 500-line closed-list Markdown cap
-(`scripts/lib/markdown-line-cap-grandfather.tsv`, which refuses a new row for
-a file with none) when this family moved — too little for the usual
-narrative bullet the four families before it each received — so this
-extraction's "family (#6057)" bullet was left out of root `AGENTS.md`
-rather than forcing a same-PR trim of unrelated prior bullets; the full
-detail lives in the child's own `AGENTS.md` and `README.md` instead.
+applies to `cicdruncorrelation` and others. `go/internal/projector/AGENTS.md` had exactly one line of
+headroom left under the 500-line Markdown cap when this family moved. That
+file sits inside `go/`, so the cap gate does evaluate it, and it is absent
+from `scripts/lib/markdown-line-cap-grandfather.tsv`, a closed list that
+refuses a new row — leaving no way to grow it. (The repo-root `AGENTS.md` is
+a different file, outside the gate's `go/` scope, and is not what this
+paragraph is about.) One line was too little for the narrative bullet three
+earlier families received there, so this extraction's "family (#6057)" bullet
+was left out rather than forcing a same-PR trim of unrelated prior bullets;
+the full detail lives in the child's own `AGENTS.md` and `README.md`
+instead.
 Coordinator `_scheduler.go` halves extract cleanly
 (they implement a root Planner interface); the `_service.go` halves are
 methods on the shared `Service` struct and stay until Service is

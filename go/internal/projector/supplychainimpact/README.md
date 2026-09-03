@@ -80,7 +80,7 @@ boundary.
   "package-identity-1"`, `entityKey:
   "supply_chain_impact:mixed:fanout:demo"`, `reason: "package registry
   identity observed"`, `sourceSystem: "package_registry"` in
-  `fanOutParityExpectedIntents[reducer.DomainSupplyChainImpact]`, and this
+  `fanOutParityExpectations[reducer.DomainSupplyChainImpact]`, and this
   domain's position in `fanOutParityExpectedOrder` (immediately after
   `DomainSecretsIAMTrustChain`, immediately before
   `DomainSecurityAlertReconciliation`) — do not assume the parity fixture is
