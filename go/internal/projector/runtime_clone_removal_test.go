@@ -11,6 +11,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/content"
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	projectorsemanticentity "github.com/eshu-hq/eshu/go/internal/projector/semanticentity"
 	"github.com/eshu-hq/eshu/go/internal/scope"
 	"github.com/eshu-hq/eshu/sdk/go/factschema"
 )
@@ -19,7 +20,8 @@ import (
 // per-fact consumer buildProjection's loop calls: a repository fact (content
 // materialization gate + buildRepositoryRefs via git_refs), a content-record
 // fact (buildContentRecord), a content-entity fact that is also a semantic
-// entity (buildContentEntityRecord + buildSemanticEntityReducerIntent), a
+// entity (buildContentEntityRecord plus
+// projectorsemanticentity.BuildSemanticEntityReducerIntent), a
 // generic reducer-signal fact (buildReducerIntent), and a malformed
 // codegraph_repository fact that buildCanonicalMaterialization quarantines
 // (missing its required repo_id). It backs both the #4854 mutation-safety
@@ -143,7 +145,8 @@ func deepCopyPayload(payload map[string]any) map[string]any {
 // borrows inputFacts[i] instead of deep-cloning it (runtime.go), so every
 // consumer in that loop (validateFactBoundary, validateFactSchemaVersion,
 // buildContentRecord, buildContentEntityRecord, buildRepositoryRefs,
-// buildSemanticEntityReducerIntent, buildReducerIntent) now shares the same
+// projectorsemanticentity.BuildSemanticEntityReducerIntent,
+// buildReducerIntent) now shares the same
 // Payload map as the caller's inputFacts slice. This snapshots every input
 // fact's Payload before the call and asserts it is byte-identical after,
 // proving none of those consumers writes through the shared map.
@@ -208,7 +211,7 @@ func buildProjectionClonePathForEquivalenceTest(scopeValue scope.IngestionScope,
 				contentMaterialization.RepositoryRefs = append(contentMaterialization.RepositoryRefs, refs...)
 			}
 		}
-		if intent, ok := buildSemanticEntityReducerIntent(fact); ok {
+		if intent, ok := projectorsemanticentity.BuildSemanticEntityReducerIntent(fact); ok {
 			intents = append(intents, intent)
 		}
 		if intent, ok := buildReducerIntent(fact); ok {

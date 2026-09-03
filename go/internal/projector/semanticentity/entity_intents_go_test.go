@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package projector
+package semanticentity
 
 import (
 	"testing"
@@ -13,7 +13,7 @@ import (
 func TestBuildSemanticEntityReducerIntentSkipsPlainGoFunction(t *testing.T) {
 	t.Parallel()
 
-	_, ok := buildSemanticEntityReducerIntent(facts.Envelope{
+	_, ok := BuildSemanticEntityReducerIntent(facts.Envelope{
 		FactID:       "fact-go-plain",
 		ScopeID:      "scope-123",
 		GenerationID: "generation-456",
@@ -28,14 +28,14 @@ func TestBuildSemanticEntityReducerIntentSkipsPlainGoFunction(t *testing.T) {
 		},
 	})
 	if ok {
-		t.Fatal("buildSemanticEntityReducerIntent() ok = true, want false for plain Go function")
+		t.Fatal("BuildSemanticEntityReducerIntent() ok = true, want false for plain Go function")
 	}
 }
 
 func TestBuildSemanticEntityReducerIntentQueuesEnrichedGoFunction(t *testing.T) {
 	t.Parallel()
 
-	intent, ok := buildSemanticEntityReducerIntent(facts.Envelope{
+	intent, ok := BuildSemanticEntityReducerIntent(facts.Envelope{
 		FactID:       "fact-go-method",
 		ScopeID:      "scope-123",
 		GenerationID: "generation-456",
@@ -53,7 +53,7 @@ func TestBuildSemanticEntityReducerIntentQueuesEnrichedGoFunction(t *testing.T) 
 		},
 	})
 	if !ok {
-		t.Fatal("buildSemanticEntityReducerIntent() ok = false, want true")
+		t.Fatal("BuildSemanticEntityReducerIntent() ok = false, want true")
 	}
 	if got, want := intent.Domain, reducer.DomainSemanticEntityMaterialization; got != want {
 		t.Fatalf("intent.Domain = %q, want %q", got, want)
