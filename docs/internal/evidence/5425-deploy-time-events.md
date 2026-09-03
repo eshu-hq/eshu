@@ -18,7 +18,7 @@ environment_url, log_url, created_at, updated_at, …` with `state` one of
 This family's reducer joins on `(provider, run_id, run_attempt)`, and two paths
 drop unjoinable evidence in silence:
 
-- `projector/ci_cd_run_correlation_intents.go:70` raises a correlation intent
+- `projector/cicdruncorrelation/correlation_intents.go` raises a correlation intent
   only for a generation containing a `ci.run`. A generation of deployment events
   with no run produces no intent at all.
 - `reducer/ci_cd_run_correlation_decode.go` skips any evidence bucket whose

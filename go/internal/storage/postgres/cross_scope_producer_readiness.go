@@ -28,8 +28,8 @@ import (
 //     internal/coordinator/oci_registry_scheduler.go and projected by
 //     internal/projector/oci_registry_canonical.go.
 //   - ci_cd_run_correlation -> ci_cd_run. Its intent is triggered by ci.run
-//     evidence (internal/projector/ci_cd_run_correlation_intents.go), emitted by
-//     the hosted CI collectors under scope.CollectorCICDRun
+//     evidence (internal/projector/cicdruncorrelation/correlation_intents.go),
+//     emitted by the hosted CI collectors under scope.CollectorCICDRun
 //     (internal/collector/cicdrun/ghactionsruntime and .../gitlabciruntime).
 //
 // A producer domain absent from this map resolves to no collector kind and is

@@ -1,17 +1,15 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package projector
+package cicdruncorrelation
 
 import (
-	"strings"
-
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	projectorintent "github.com/eshu-hq/eshu/go/internal/projector/intent"
 	"github.com/eshu-hq/eshu/go/internal/reducer"
-	"github.com/eshu-hq/eshu/go/internal/scope"
 )
 
-// buildCICDRunCorrelationReducerIntent enqueues one ci_cd_run_correlation
+// BuildCICDRunCorrelationReducerIntent enqueues one ci_cd_run_correlation
 // reducer intent per scope generation that observed a CI/CD run or artifact.
 //
 // #5710: CICDRunCorrelationHandler has been registered and wired in
@@ -22,14 +20,15 @@ import (
 //
 // The trigger is deliberately narrower than the full set of fact kinds
 // CICDRunCorrelationHandler.Handle loads for one intent
-// (cicdRunCorrelationFactKinds in ci_cd_run_correlation.go: ci.run,
-// ci.artifact, ci.workflow_image_evidence, ci.environment_observation,
-// ci.trigger_edge, ci.step) — it fires on ci.run and ci.artifact only. A run
-// anchors a normal authoritative snapshot. An artifact without a co-located
-// run is a domain patch: the handler rebuilds the complete bounded latest-live
-// run snapshot from retained source evidence, applies the current artifact
-// control rows, and writes the result into the artifact generation. This keeps
-// unaffected runs visible under the active-generation read fence even if queue
+// (cicdRunCorrelationFactKinds in
+// go/internal/reducer/cicdrun/ci_cd_run_correlation.go: ci.run, ci.artifact,
+// ci.workflow_image_evidence, ci.environment_observation, ci.trigger_edge,
+// ci.step) — it fires on ci.run and ci.artifact only. A run anchors a normal
+// authoritative snapshot. An artifact without a co-located run is a domain
+// patch: the handler rebuilds the complete bounded latest-live run snapshot
+// from retained source evidence, applies the current artifact control rows,
+// and writes the result into the artifact generation. This keeps unaffected
+// runs visible under the active-generation read fence even if queue
 // supersession prevented the preceding reducer work item from publishing.
 // The other loaded kinds cannot independently establish this patch contract:
 // workflow-image evidence is repository-scoped, and environment, trigger, and
@@ -37,7 +36,8 @@ import (
 //
 // The correlation also reads reducer_container_image_identity rows across
 // scopes (the CI scope's run/artifact evidence joins against the OCI/cloud
-// scope's identity decision — see cross_scope_dependencies.go's
+// scope's identity decision — see
+// go/internal/reducer/crossscope/dependencies.go's
 // crossscope.dependencyCatalog). That cross-scope read races the identity
 // generation's activation exactly the way #5423 documented for
 // container_image_identity's own OCI-manifest join.
@@ -51,32 +51,25 @@ import (
 // does not depend on this: the domain writes a durable decision fact for
 // every outcome (exact/derived/ambiguous/unresolved/rejected), so a row
 // exists from the very first, non-reopened execution regardless.
-func buildCICDRunCorrelationReducerIntent(
-	scopeValue scope.IngestionScope,
-	generation scope.ScopeGeneration,
-	index *reducerIntentFactIndex,
-) (ReducerIntent, bool) {
-	envelope, ok := index.firstOfKind(facts.CICDRunFactKind)
+func BuildCICDRunCorrelationReducerIntent(
+	scopeID string,
+	generationID string,
+	lookup projectorintent.FactLookup,
+) (projectorintent.ReducerIntent, bool) {
+	envelope, ok := lookup.FirstOfKind(facts.CICDRunFactKind)
 	if !ok {
-		envelope, ok = index.firstOfKind(facts.CICDArtifactFactKind)
+		envelope, ok = lookup.FirstOfKind(facts.CICDArtifactFactKind)
 		if !ok {
-			return ReducerIntent{}, false
+			return projectorintent.ReducerIntent{}, false
 		}
 	}
-	return ReducerIntent{
-		ScopeID:      scopeValue.ScopeID,
-		GenerationID: generation.GenerationID,
+	return projectorintent.ReducerIntent{
+		ScopeID:      scopeID,
+		GenerationID: generationID,
 		Domain:       reducer.DomainCICDRunCorrelation,
-		EntityKey:    "ci_cd_run_correlation:" + scopeValue.ScopeID,
+		EntityKey:    "ci_cd_run_correlation:" + scopeID,
 		Reason:       "ci/cd run-scoped evidence observed",
 		FactID:       envelope.FactID,
-		SourceSystem: cicdRunCorrelationSourceSystem(envelope),
+		SourceSystem: projectorintent.SourceSystem(envelope),
 	}, true
-}
-
-func cicdRunCorrelationSourceSystem(envelope facts.Envelope) string {
-	if value := strings.TrimSpace(envelope.SourceRef.SourceSystem); value != "" {
-		return value
-	}
-	return strings.TrimSpace(envelope.CollectorKind)
 }

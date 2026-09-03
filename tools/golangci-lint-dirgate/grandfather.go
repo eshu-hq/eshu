@@ -29,7 +29,7 @@ var grandfatheredDirectories = map[string]grandfatherEntry{
 	"internal/parser":             {FileCount: 47, Digest: "dc6d2390c51ca20550859d3f746a14ec3899765ea31c9a8707532c6e709d2a09", NamingExempt: []string{"c_language.go", "cpp_language.go", "csharp_language.go", "dart_language.go", "dockerfile_language.go", "elixir_language.go", "gomod_language.go", "gradle_language.go", "groovy_language.go", "hcl_language.go", "java_language.go", "java_metadata_files.go", "javascript_language.go", "json_language.go", "kotlin_language.go", "maven_language.go", "perl_haskell_language.go", "php_language.go", "python_dep_language.go", "python_language.go", "ruby_language.go", "rust_language.go", "scala_language.go", "shared_bridge.go", "sql_language.go", "swift_language.go", "yaml_language.go"}},
 	"internal/parser/golang":      {FileCount: 42, Digest: "a27d65bfc9ffe3085e35e66aab932d0c361bea10ac34e407dd3300205379e039"},
 	"internal/parser/javascript":  {FileCount: 48, Digest: "b6aaa1628818f74382a4b7eee937f476f991d613f624a325b930fd89aa7e437c"},
-	"internal/projector":          {FileCount: 59, Digest: "689268a16b6dec30e186071fd84bead32fd3221d149c94b2a0aef4a31a7885dc"},
+	"internal/projector":          {FileCount: 58, Digest: "a02c0f9e8d88ac871c8a222fc6d3679c9883f0aa0a4968481758e57cccec9407"},
 	"internal/query":              {FileCount: 866, Digest: "ef3b8bd0ca691438e00cc283032c9aaba22a9a38946614b276a3b5e661b93497"},
 	"internal/reducer":            {FileCount: 454, Digest: "b16613fb7316dad6d163f495ccbd052a791d34569f7e50f09fdf16de6f9b8189"},
 	"internal/status":             {FileCount: 45, Digest: "c7dfe62bb4c04da7f242ba8d2a8fb744865937c103df10c5374f05df25ce9261"},

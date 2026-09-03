@@ -24,8 +24,8 @@
 // AWS-cloud-image, IAM CAN_ASSUME, IAM instance-profile-role,
 // package-source-correlation, cloud-inventory-admission, code-taint-evidence,
 // code-interproc-evidence, SBOM-attestation-attachment,
-// service-catalog-correlation, and
-// secrets-IAM-trust-chain builders live in their internal/projector child
+// service-catalog-correlation, secrets-IAM-trust-chain, and
+// CI/CD run-correlation builders live in their internal/projector child
 // packages; this root package owns lookup construction and lifetime, family
 // assembly, and enqueue.
 // OCI registry projection keeps digest-addressed manifests, indexes, and

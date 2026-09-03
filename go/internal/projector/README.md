@@ -247,7 +247,7 @@ old full scan made — not "earliest fact of the first-checked kind" — so anch
 Root assembly constructs one concrete `intent.FactLookup` per generation and
 retains a compatibility wrapper for unmoved family builders. The extracted
 `internal/projector/azure`, `internal/projector/ec2`, `internal/projector/gcp`,
-`internal/projector/kubernetes`, `internal/projector/rds`, `internal/projector/s3`, `internal/projector/security`, `internal/projector/workloadcloud`, `internal/projector/incidentrouting`, `internal/projector/awsrelationship`, `internal/projector/awscloudimage`, `internal/projector/iamcanassume`, `internal/projector/packagesource`, `internal/projector/cloudinventory`, `internal/projector/codetaintevidence`, `internal/projector/codeinterprocevidence`, `internal/projector/sbomattestation`, `internal/projector/servicecatalog`, `internal/projector/secretsiam`, `internal/projector/observabilitycoverage`, and `internal/projector/iaminstanceprofile`
+`internal/projector/kubernetes`, `internal/projector/rds`, `internal/projector/s3`, `internal/projector/security`, `internal/projector/workloadcloud`, `internal/projector/incidentrouting`, `internal/projector/awsrelationship`, `internal/projector/awscloudimage`, `internal/projector/iamcanassume`, `internal/projector/packagesource`, `internal/projector/cloudinventory`, `internal/projector/codetaintevidence`, `internal/projector/codeinterprocevidence`, `internal/projector/sbomattestation`, `internal/projector/servicecatalog`, `internal/projector/secretsiam`, `internal/projector/observabilitycoverage`, `internal/projector/iaminstanceprofile`, and `internal/projector/cicdruncorrelation`
 families import that neutral lookup without importing root projector assembly;
 remaining root builders keep using the private forwarders until they move.
 `ReducerIntent` in the root package is a type alias, so existing writer and
@@ -290,7 +290,7 @@ collector represents a deleted workflow as a generic `file` tombstone. The
 projector recognizes that tombstone only under `.github/workflows/*.yml|yaml`
 and schedules the same identity refresh so the prior image input can retract.
 CI/CD run correlation also uses a reducer-owned handoff. A generation with a
-`ci.run` or `ci.artifact` fact emits one `ci_cd_run_correlation` intent. A run
+`ci.run` or `ci.artifact` fact, `cicdruncorrelation.BuildCICDRunCorrelationReducerIntent` ([architecture](cicdruncorrelation/README.md)), emits one `ci_cd_run_correlation` intent. A run
 starts a normal full snapshot. An artifact without a run starts a bounded patch:
 the reducer rebuilds the newest older run-window snapshot from source evidence,
 unions exact current artifact routing keys, applies current-generation live and

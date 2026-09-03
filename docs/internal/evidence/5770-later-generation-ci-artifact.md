@@ -2,7 +2,7 @@
 
 ## What was broken
 
-Root-Cause Evidence: `buildCICDRunCorrelationReducerIntent` selected only
+Root-Cause Evidence: `cicdruncorrelation.BuildCICDRunCorrelationReducerIntent` selected only
 `ci.run`, while `CICDRunCorrelationHandler.Handle` loaded facts through an exact
 scope-and-generation predicate. A later artifact therefore produced no intent,
 and even a forced handler call had no earlier run anchor, so the classifier

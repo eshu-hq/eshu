@@ -8,6 +8,7 @@ import (
 	projectorawscloudimage "github.com/eshu-hq/eshu/go/internal/projector/awscloudimage"
 	projectorawsrelationship "github.com/eshu-hq/eshu/go/internal/projector/awsrelationship"
 	projectorazure "github.com/eshu-hq/eshu/go/internal/projector/azure"
+	projectorcicdruncorrelation "github.com/eshu-hq/eshu/go/internal/projector/cicdruncorrelation"
 	projectorcloudinventory "github.com/eshu-hq/eshu/go/internal/projector/cloudinventory"
 	projectorcodeinterprocevidence "github.com/eshu-hq/eshu/go/internal/projector/codeinterprocevidence"
 	projectorcodetaintevidence "github.com/eshu-hq/eshu/go/internal/projector/codetaintevidence"
@@ -142,7 +143,7 @@ func appendScopeGenerationReducerIntents(
 	if intent, ok := buildContainerImageIdentityReducerIntent(scopeValue, generation, index); ok {
 		intents = append(intents, intent)
 	}
-	if intent, ok := buildCICDRunCorrelationReducerIntent(scopeValue, generation, index); ok {
+	if intent, ok := projectorcicdruncorrelation.BuildCICDRunCorrelationReducerIntent(scopeValue.ScopeID, generation.GenerationID, index.lookup); ok {
 		intents = append(intents, intent)
 	}
 	if intent, ok := projectorsbomattestation.BuildSBOMAttestationAttachmentReducerIntent(scopeValue.ScopeID, generation.GenerationID, index.lookup); ok {
