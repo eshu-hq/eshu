@@ -156,6 +156,16 @@ func filterDuplicateDeadCodeRows(rows []map[string]any, seenEntityIDs map[string
 	return filtered
 }
 
+// deadCodeCandidateRows is the single candidate read behind
+// POST /api/v0/code/dead-code, /dead-code/investigate, and
+// /dead-code/cross-repo. Every probe downstream of it is keyed on entity ids
+// this read already returned, so the caller's repository grant is bound here,
+// once, for all three routes -- in the content read model's SQL and in the
+// graph fallback's Cypher alike (#5167).
+//
+// A scoped caller with no grants gets zero rows without either backend being
+// touched: an empty id list reads as "unrestricted" to both the SQL ANY() and
+// the Cypher IN predicate.
 func (h *CodeHandler) deadCodeCandidateRows(
 	ctx context.Context,
 	repoID string,
@@ -164,11 +174,24 @@ func (h *CodeHandler) deadCodeCandidateRows(
 	limit int,
 	offset int,
 ) ([]map[string]any, error) {
-	if content, ok := h.Content.(deadCodeCandidateContentStore); ok {
-		return content.DeadCodeCandidateRows(ctx, repoID, label, language, limit, offset)
+	allowedRepositoryIDs, blocked := codeContentGrantScope(ctx, repoID)
+	if blocked {
+		return nil, nil
 	}
-	cypher := buildDeadCodeGraphCypherForLabel(repoID != "", label, language)
-	return h.Neo4j.Run(ctx, cypher, deadCodeGraphParams(repoID, language, limit, offset))
+	query := deadCodeCandidateQuery{
+		RepoID:               repoID,
+		Label:                label,
+		Language:             language,
+		Limit:                limit,
+		Offset:               offset,
+		AllowedRepositoryIDs: allowedRepositoryIDs,
+	}
+	if content, ok := h.Content.(deadCodeCandidateContentStore); ok {
+		return content.DeadCodeCandidateRows(ctx, query)
+	}
+	access := repositoryAccessFilterFromContext(ctx)
+	cypher := buildDeadCodeGraphCypherForLabel(repoID != "", label, language, access)
+	return h.Neo4j.Run(ctx, cypher, deadCodeGraphParams(repoID, language, limit, offset, access))
 }
 
 func (h *CodeHandler) filterDeadCodeResultsWithoutIncomingEdges(
@@ -409,10 +432,6 @@ type codeReachabilityCoverage struct {
 
 type codeReachabilityCoverageStore interface {
 	CodeReachabilityCoverage(ctx context.Context, repoID string) (codeReachabilityCoverage, error)
-}
-
-type deadCodeCandidateContentStore interface {
-	DeadCodeCandidateRows(ctx context.Context, repoID string, label string, language string, limit int, offset int) ([]map[string]any, error)
 }
 
 func (h *CodeHandler) deadCodeResultsWithGraphIncomingEdges(

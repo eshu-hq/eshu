@@ -37,9 +37,14 @@ import (
 //     the store with an empty AllowedRepositoryIDs list -- which the SQL reads
 //     as "unrestricted" -- so queried flips true and the whole corpus is
 //     returned.
+//
+// The two ids are canonical repository ids (the repo:// form
+// queryselector.LooksCanonicalRepositoryID recognises), so a route that takes
+// a repository selector resolves them through the grant rather than through a
+// catalog or graph lookup the fakes do not implement.
 const (
-	codeGrantGrantedRepo = "github.com/tenant-a/granted-service"
-	codeGrantOtherRepo   = "github.com/tenant-b/other-service"
+	codeGrantGrantedRepo = "repo://tenant-a/granted-service"
+	codeGrantOtherRepo   = "repo://tenant-b/other-service"
 )
 
 type codeTopicGrantContentStore struct {

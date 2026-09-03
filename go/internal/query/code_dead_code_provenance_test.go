@@ -361,12 +361,9 @@ type investigationWeakIncomingStore struct {
 
 func (s *investigationWeakIncomingStore) DeadCodeCandidateRows(
 	_ context.Context,
-	_ string,
-	label string,
-	_ string,
-	limit int,
-	offset int,
+	query deadCodeCandidateQuery,
 ) ([]map[string]any, error) {
+	label, limit, offset := query.Label, query.Limit, query.Offset
 	if label != "Function" || offset >= len(s.rows) {
 		return nil, nil
 	}

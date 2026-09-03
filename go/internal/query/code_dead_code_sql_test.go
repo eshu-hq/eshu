@@ -355,12 +355,9 @@ type sqlCandidateDeadCodeContentStore struct {
 
 func (f *sqlCandidateDeadCodeContentStore) DeadCodeCandidateRows(
 	_ context.Context,
-	repoID string,
-	label string,
-	language string,
-	limit int,
-	offset int,
+	query deadCodeCandidateQuery,
 ) ([]map[string]any, error) {
+	repoID, label, language, limit, offset := query.RepoID, query.Label, query.Language, query.Limit, query.Offset
 	f.repoID = repoID
 	f.label = label
 	f.language = language

@@ -65,3 +65,33 @@ func scopedCodeContentGrantRoute(r *http.Request) bool {
 		return false
 	}
 }
+
+// scopedCodeGraphGrantRoute reports whether a graph-backed code route binds the
+// caller's repository grant inside its own query. Like the content routes
+// above, each resolves the grant before the read and returns an empty page for
+// a grantless scoped caller without touching a backend.
+//
+// Per route, the binding is:
+//
+//   - POST /api/v0/code/dead-code, /dead-code/investigate, and
+//     /dead-code/cross-repo -- CodeHandler.deadCodeCandidateRows
+//     (code_dead_code_scan.go), the one candidate read all three share. Its SQL
+//     backend gains `repo_id = ANY($n)` (content_reader_dead_code_candidates.go)
+//     and its graph backend gains the `r.id IN $allowed_*` predicate on the
+//     Repository anchor (buildDeadCodeGraphCypherForLabel, code_dead_code.go);
+//     every probe downstream is keyed on entity ids that read already returned.
+//     cross-repo additionally keeps its consumer-side post-filter,
+//     filterCrossRepoDeadCodeEvidence.
+func scopedCodeGraphGrantRoute(r *http.Request) bool {
+	if r.Method != http.MethodPost {
+		return false
+	}
+	switch r.URL.Path {
+	case "/api/v0/code/dead-code",
+		"/api/v0/code/dead-code/investigate",
+		"/api/v0/code/dead-code/cross-repo":
+		return true
+	default:
+		return false
+	}
+}

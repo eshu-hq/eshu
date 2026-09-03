@@ -43,12 +43,9 @@ func newSaturatedFirstLabelDeadCodeStore() *saturatedFirstLabelDeadCodeStore {
 
 func (s *saturatedFirstLabelDeadCodeStore) DeadCodeCandidateRows(
 	_ context.Context,
-	_ string,
-	label string,
-	_ string,
-	limit int,
-	offset int,
+	query deadCodeCandidateQuery,
 ) ([]map[string]any, error) {
+	label, limit, offset := query.Label, query.Limit, query.Offset
 	switch label {
 	case "Function":
 		rows := make([]map[string]any, limit)

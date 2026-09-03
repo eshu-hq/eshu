@@ -97,10 +97,23 @@ func (h *CodeHandler) handleDeadCode(w http.ResponseWriter, r *http.Request) {
 }
 
 func buildDeadCodeGraphCypher(hasRepoID bool, _ GraphBackend) string {
-	return buildDeadCodeGraphCypherForLabel(hasRepoID, "Function", "")
+	return buildDeadCodeGraphCypherForLabel(hasRepoID, "Function", "", repositoryAccessFilter{AllScopes: true})
 }
 
-func buildDeadCodeGraphCypherForLabel(hasRepoID bool, label string, language string) string {
+// buildDeadCodeGraphCypherForLabel builds the graph-fallback candidate scan for
+// one label. access pushes the caller's repository grant onto the Repository
+// anchor `r` inside the WHERE, before the SKIP/LIMIT, so a scoped caller's page
+// is taken from the granted set. The predicate is the same
+// `r.id IN $allowed_repository_ids OR r.id IN $allowed_scope_ids` shape the
+// relationship-story reads already run on both backends; it stays in the
+// MATCH-attached WHERE because a WITH-attached WHERE is not evaluated as a
+// filter on NornicDB (docs/public/reference/nornicdb-query-pitfalls.md).
+func buildDeadCodeGraphCypherForLabel(
+	hasRepoID bool,
+	label string,
+	language string,
+	access repositoryAccessFilter,
+) string {
 	if !isDeadCodeCandidateLabel(label) {
 		label = "Function"
 	}
@@ -112,9 +125,16 @@ func buildDeadCodeGraphCypherForLabel(hasRepoID bool, label string, language str
 			MATCH (r:Repository {id: $repo_id})-[:REPO_CONTAINS]->(f:File)-[:CONTAINS]->(e:` + label + `)
 		`
 	}
+	where := make([]string, 0, 2)
 	if strings.TrimSpace(language) != "" {
+		where = append(where, "toLower(coalesce(e.language, f.language, '')) = $language")
+	}
+	if access.Scoped() {
+		where = append(where, access.GraphCondition("r"))
+	}
+	if len(where) > 0 {
 		cypher += `
-		WHERE toLower(coalesce(e.language, f.language, '')) = $language
+		WHERE ` + strings.Join(where, " AND ") + `
 	`
 	}
 	cypher += `
@@ -144,38 +164,14 @@ func buildDeadCodeIncomingBatchProbeCypher(label string) string {
 	`
 }
 
-func isDeadCodeCandidateLabel(label string) bool {
-	for _, candidate := range deadCodeCandidateLabels {
-		if label == candidate {
-			return true
-		}
-	}
-	return false
-}
-
-func deadCodeCandidateQueryLimit(displayLimit int) int {
-	if displayLimit <= 0 {
-		displayLimit = deadCodeDefaultLimit
-	}
-	candidateLimit := displayLimit*deadCodeCandidateQueryMultiplier + 1
-	if candidateLimit < displayLimit+1 {
-		return displayLimit + 1
-	}
-	if candidateLimit < deadCodeCandidateQueryMin {
-		return deadCodeCandidateQueryMin
-	}
-	if candidateLimit > deadCodeCandidateQueryMax {
-		return deadCodeCandidateQueryMax
-	}
-	return candidateLimit
-}
-
-func deadCodeCandidateScanLimit(displayLimit int) int {
-	return deadCodeCandidateQueryLimit(displayLimit) * deadCodeCandidateScanMaxPages
-}
-
-func deadCodeGraphParams(repoID string, language string, limit int, skip int) map[string]any {
-	params := map[string]any{"limit": limit, "skip": skip}
+func deadCodeGraphParams(
+	repoID string,
+	language string,
+	limit int,
+	skip int,
+	access repositoryAccessFilter,
+) map[string]any {
+	params := access.GraphParams(map[string]any{"limit": limit, "skip": skip})
 	if strings.TrimSpace(repoID) != "" {
 		params["repo_id"] = strings.TrimSpace(repoID)
 	}

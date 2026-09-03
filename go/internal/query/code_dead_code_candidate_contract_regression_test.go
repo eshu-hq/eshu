@@ -46,7 +46,7 @@ func TestContentReaderDeadCodeCandidateRowsKeepsTraitTypeAndRepositoryScope(t *t
 	})
 
 	reader := NewContentReader(db)
-	rows, err := reader.DeadCodeCandidateRows(context.Background(), "repo-1", "Trait", "scala", 10, 0)
+	rows, err := reader.DeadCodeCandidateRows(context.Background(), deadCodeCandidateQuery{RepoID: "repo-1", Label: "Trait", Language: "scala", Limit: 10})
 	if err != nil {
 		t.Fatalf("DeadCodeCandidateRows() error = %v, want nil", err)
 	}
@@ -70,7 +70,7 @@ func TestContentReaderDeadCodeCandidateRowsRejectsUnknownLabelBeforeQuery(t *tes
 	db, recorder := openRecordingContentReaderDB(t, nil)
 	reader := NewContentReader(db)
 
-	rows, err := reader.DeadCodeCandidateRows(context.Background(), "repo-1", "Unknown", "", 10, 0)
+	rows, err := reader.DeadCodeCandidateRows(context.Background(), deadCodeCandidateQuery{RepoID: "repo-1", Label: "Unknown", Limit: 10})
 	if err == nil {
 		t.Fatalf("DeadCodeCandidateRows() error = nil, want unsupported label error; rows=%#v", rows)
 	}
@@ -164,12 +164,9 @@ type recordingDeadCodeKindStore struct {
 
 func (s *recordingDeadCodeKindStore) DeadCodeCandidateRows(
 	_ context.Context,
-	_ string,
-	label string,
-	_ string,
-	_ int,
-	_ int,
+	query deadCodeCandidateQuery,
 ) ([]map[string]any, error) {
+	label := query.Label
 	s.labels = append(s.labels, label)
 	return nil, nil
 }

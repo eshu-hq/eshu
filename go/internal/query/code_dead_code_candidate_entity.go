@@ -25,3 +25,16 @@ func deadCodeIsCandidateEntityType(entityType string) bool {
 		return false
 	}
 }
+
+// isDeadCodeCandidateLabel reports whether label is one of the graph node
+// labels the candidate scan may target. It guards every label-interpolated
+// candidate query, so an unrecognised label falls back to Function rather than
+// rendering caller text into Cypher.
+func isDeadCodeCandidateLabel(label string) bool {
+	for _, candidate := range deadCodeCandidateLabels {
+		if label == candidate {
+			return true
+		}
+	}
+	return false
+}
