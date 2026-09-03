@@ -285,6 +285,14 @@ gate_integrity_crlf_plant="${repo_root}/tests/fixtures/ecosystems/deployable-con
 	fi
 
 	(
+		# GIT_CONFIG_GLOBAL is exported here too, at a path deliberately never
+		# written, so the CLEAN baseline reads an EMPTY global config rather
+		# than the developer's real ~/.gitconfig. Without it the two halves of
+		# this comparison run under different global config and it is not the
+		# control it claims to be -- narrower now that six knobs are pinned
+		# locally, but a knob nobody has pinned yet would land on one side only
+		# and read as a passing case.
+		export GIT_CONFIG_GLOBAL="${gate_integrity_hostile_config_dir}/gitconfig-clean"
 		corpus_dir="${gate_integrity_hostile_clean_corpus}"
 		corpus_fixtures=(deployable-config)
 		die() { fail "$*"; }

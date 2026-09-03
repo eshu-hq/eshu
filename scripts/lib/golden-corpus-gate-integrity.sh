@@ -113,7 +113,13 @@ golden_corpus_assert_staged_pin() {
 		printf 'golden-corpus-gate-integrity:     from byte-identical content. Inline pins do not rule it out.\n'
 		printf 'golden-corpus-gate-integrity:     run: env | rg "^GIT_CONFIG_"\n'
 		printf 'golden-corpus-gate-integrity:  4. an intentional change to the fixture'"'"'s tracked content, which\n'
-		printf 'golden-corpus-gate-integrity:     needs the cassette pin regenerated rather than 1-3 chased\n'
+		printf 'golden-corpus-gate-integrity:     needs the cassette pin updated rather than 1-3 chased. The pin\n'
+		printf 'golden-corpus-gate-integrity:     is payload.commit_sha on the ci.run fact for run %s of scope\n' "${run_id}"
+		printf 'golden-corpus-gate-integrity:     %s, in\n' "${scope_id}"
+		printf 'golden-corpus-gate-integrity:     testdata/cassettes/cicdrun/supply-chain-demo.json. This scope is\n'
+		printf 'golden-corpus-gate-integrity:     synthetic, so no cassette-refresh job writes it -- edit the value\n'
+		printf 'golden-corpus-gate-integrity:     to the staged HEAD above (%s).\n' "${staged_head}"
+		printf 'golden-corpus-gate-integrity:     run: rg -n --fixed-strings %s testdata/cassettes/cicdrun/supply-chain-demo.json\n' "${expected}"
 		printf 'golden-corpus-gate-integrity: staged tree entries, listed as evidence for the above\n'
 		printf 'golden-corpus-gate-integrity: (git -C %s ls-tree -r HEAD --name-only):\n' "${staged_repo}"
 		git -C "${staged_repo}" ls-tree -r HEAD --name-only
