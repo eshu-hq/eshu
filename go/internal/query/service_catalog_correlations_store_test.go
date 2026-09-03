@@ -107,9 +107,19 @@ func TestServiceCatalogCorrelationsOutsideGrantQueryInvertsOnlyTheGrantClause(t 
     OR fact.payload->'candidate_repository_ids' ?| $13::text[]
     OR fact.scope_id = ANY($14::text[])
   )`
+	// Not the plain negation of the clause above: a row is inside only when
+	// the grant covers some of its ownership evidence AND no candidate falls
+	// outside the grant (#6472 review, P1-B). The containment test is the
+	// half that separates an ambiguous row the caller wholly owns from one
+	// that also names a repository it does not.
 	const inverseGrantClause = `  AND NOT (
-    COALESCE(fact.payload->>'repository_id' = ANY($13::text[]), FALSE)
-    OR COALESCE(fact.payload->'candidate_repository_ids' ?| $13::text[], FALSE)
+    (
+      (
+        COALESCE(fact.payload->>'repository_id' = ANY($13::text[]), FALSE)
+        OR COALESCE(fact.payload->'candidate_repository_ids' ?| $13::text[], FALSE)
+      )
+      AND COALESCE(fact.payload->'candidate_repository_ids' <@ to_jsonb($13::text[]), TRUE)
+    )
     OR fact.scope_id = ANY($14::text[])
   )`
 

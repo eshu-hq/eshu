@@ -99,10 +99,10 @@ func (g *grantMirroringServiceOwnership) ListServiceCatalogCorrelations(
 		if filter.ServiceID != "" && filter.ServiceID != row.serviceID {
 			continue
 		}
-		// listServiceCatalogCorrelationsOutsideGrantQuery is the same
-		// statement with the grant disjunction negated, so the fake answers
-		// the complement of the same predicate rather than a second one.
-		if mirroredServiceCorrelationGrantAdmits(filter, row) == filter.OutsideGrant {
+		// The two shipped statements are not complements: the inverted one
+		// also reports a row carrying any ungranted candidate (#6472 review,
+		// P1-B), so the fake mirrors each statement's own grant arm.
+		if !mirroredServiceCorrelationMatchesGrantArm(filter, row) {
 			continue
 		}
 		out = append(out, ServiceCatalogCorrelationRow{

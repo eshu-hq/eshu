@@ -246,26 +246,50 @@ LIMIT $12
 `
 
 // listServiceCatalogCorrelationsOutsideGrantQuery is
-// listServiceCatalogCorrelationsQuery with the grant disjunction negated, so it
-// returns the correlations the caller's grant does not admit. It is a separate
-// literal rather than a built string so the ordinary statement's text -- and
-// therefore its plan cache entry, shared with every other caller of this store
-// -- is untouched;
+// listServiceCatalogCorrelationsQuery with the grant clause replaced by a
+// stricter negation, so it returns the correlations the caller's grant does not
+// wholly admit. It is a separate literal rather than a built string so the
+// ordinary statement's text -- and therefore its plan cache entry, shared with
+// every other caller of this store -- is untouched;
 // TestServiceCatalogCorrelationsOutsideGrantQueryInvertsOnlyTheGrantClause pins
-// the two in lockstep.
+// that the two statements differ nowhere else.
 //
-// Two of the three disjuncts are COALESCEd to FALSE, because a payload without
-// a repository_id, or without a candidate_repository_ids array, compares to
-// NULL: NOT NULL is NULL, which would drop exactly the rows whose ownership
-// cannot be read -- the ones this statement most needs to report. The third,
-// fact.scope_id = ANY($14), needs no guard for one specific reason: the
-// statement INNER JOINs ingestion_scopes ON scope.scope_id = fact.scope_id, so
-// no row with a NULL scope_id reaches this WHERE and that comparison cannot
-// evaluate to NULL. A disjunct added here on a nullable column would need the
-// COALESCE; do not read the third one as evidence that the pattern is
-// optional. The empty-arrays arm of the ordinary clause is absent on purpose;
-// its negation would match every row, and the store refuses that filter before
-// it gets here.
+// The two clauses are deliberately NOT complements (#6472 review, P1-B). The
+// ordinary arm admits a row when ANY candidate repository is granted
+// (candidate_repository_ids ?| $13), which is right for admission: it asks
+// whether the caller has some claim on the row. Negating that arm as-is asked
+// the wrong question back, because a row naming one granted and one ungranted
+// repository matched it, and so counted as inside for the exclusivity probe
+// too. The caller was then admitted onto lineage that the ungranted candidate
+// also claims. The reducer's ambiguous branches leave repository_id empty and
+// list every match in candidate_repository_ids
+// (classifyServiceCatalogEntity, internal/reducer), and those decisions are
+// still materialized, so this is a shape the tables really produce.
+//
+// A row is therefore inside only when the grant covers SOME of its ownership
+// evidence and NO candidate falls outside the grant:
+//
+//	(repository_id granted OR some candidate granted) AND every candidate granted
+//
+// Both halves are load-bearing. Dropping the first turns "an ambiguous row
+// whose candidates are all granted" into an outside row, because the ambiguous
+// shape has no repository_id to satisfy -- which would refuse every service
+// carrying any ambiguity, for the tenant that wholly owns it.
+//
+// The NULL handling is the same discipline the arm had before. A payload
+// without a repository_id, or without a candidate_repository_ids array,
+// compares to NULL, and NOT NULL is NULL, which would drop exactly the rows
+// whose ownership cannot be read -- the ones this statement most needs to
+// report. So the two membership tests COALESCE to FALSE (absent evidence is not
+// a grant) while the containment test COALESCEs to TRUE (a row with no
+// candidate list has no ungranted candidate). fact.scope_id = ANY($14) needs no
+// guard for one specific reason: the statement INNER JOINs ingestion_scopes ON
+// scope.scope_id = fact.scope_id, so no row with a NULL scope_id reaches this
+// WHERE and that comparison cannot evaluate to NULL. A test added here on a
+// nullable column would need its own COALESCE; do not read that one as evidence
+// the pattern is optional. The empty-arrays arm of the ordinary clause is
+// absent on purpose: its negation would match every row, and the store refuses
+// that filter before it gets here.
 const listServiceCatalogCorrelationsOutsideGrantQuery = `
 SELECT fact.fact_id, fact.payload
 FROM fact_records AS fact
@@ -289,8 +313,13 @@ WHERE fact.fact_kind = $1
   AND ($10 = '' OR fact.payload->>'drift_status' = $10)
   AND ($11 = '' OR fact.fact_id > $11)
   AND NOT (
-    COALESCE(fact.payload->>'repository_id' = ANY($13::text[]), FALSE)
-    OR COALESCE(fact.payload->'candidate_repository_ids' ?| $13::text[], FALSE)
+    (
+      (
+        COALESCE(fact.payload->>'repository_id' = ANY($13::text[]), FALSE)
+        OR COALESCE(fact.payload->'candidate_repository_ids' ?| $13::text[], FALSE)
+      )
+      AND COALESCE(fact.payload->'candidate_repository_ids' <@ to_jsonb($13::text[]), TRUE)
+    )
     OR fact.scope_id = ANY($14::text[])
   )
 ORDER BY fact.fact_id ASC
