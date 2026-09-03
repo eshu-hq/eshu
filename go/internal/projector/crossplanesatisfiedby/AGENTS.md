@@ -20,7 +20,7 @@
   imports this package to dispatch, so the reverse import cycles.
 - `BuildCrossplaneSatisfiedByMaterializationReducerIntent` fires on the
   earliest `content_entity` fact whose `entity_kind` (falling back to
-  `entity_kind`) is `K8sResource` or `CrossplaneXRD`. A Crossplane Claim is
+  `entity_type`) is `K8sResource` or `CrossplaneXRD`. A Crossplane Claim is
   never parser-labeled — it is an ordinary `K8sResource` row — so the trigger
   reads the entity type directly rather than firing on any `content_entity`
   presence, which would enqueue a (cheap but unnecessary) intent for every
