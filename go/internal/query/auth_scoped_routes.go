@@ -163,6 +163,9 @@ func scopedHTTPRouteSupportsTenantFilter(r *http.Request) bool {
 	if scopedFreshnessCausalityRoute(r) {
 		return true
 	}
+	if scopedFreshnessDeltaRoute(r) {
+		return true
+	}
 	if scopedFactSchemaVersionRoute(r) {
 		return true
 	}

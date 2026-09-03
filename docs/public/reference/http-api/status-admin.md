@@ -433,7 +433,8 @@ nothing returns an explicit `scope_not_found` or `not_found` error instead of an
 empty list. The truth envelope marks `freshness.state=building` when a returned
 scope has a pending or in-flight generation. The capability key is
 `freshness.generation_lifecycle`. The MCP equivalent is `get_generation_lifecycle`
-and the CLI helper is `eshu freshness generations`.
+and the CLI helper is `eshu freshness generations`. Scoped tokens receive only
+granted repositories and scopes; an ungranted selector returns not-found.
 
 No-Regression Evidence: `cd go && go test ./internal/status ./internal/storage/postgres ./internal/query ./internal/mcp ./cmd/eshu ./cmd/api -count=1` proves the generation lifecycle types, bounded Postgres read, query handler envelope/not-found behavior, MCP route, CLI envelope, and API wiring stay in sync.
 No-Observability-Change: the drilldown adds one bounded Postgres read joining `scope_generations`, `ingestion_scopes`, and `fact_work_items`, plus the existing `query.freshness_generation_lifecycle` span with low-cardinality result-count, truncated, active-count, and failure-count attributes; it adds no worker, queue, graph query, or new metric label.
@@ -479,7 +480,8 @@ prior generation was pruned, the response keeps `unavailable=true`, sets
 points to `get_generation_lifecycle` / `GET /api/v0/freshness/generations`.
 Counts are exact; only the samples are bounded. The capability key is
 `freshness.changed_since`. The MCP equivalent is `get_changed_since` and the CLI
-helper is `eshu freshness changed-since`.
+helper is `eshu freshness changed-since`. Scoped tokens receive only granted
+repositories and scopes; an ungranted selector returns not-found.
 
 ### Service-scope changed-since
 
@@ -524,7 +526,16 @@ generation returns `unavailable=true` (and a `building`/`unavailable` freshness
 state) rather than zero deltas. The capability key is
 `freshness.service_changed_since`. The MCP equivalent is
 `get_service_changed_since` and the CLI helper is `eshu freshness
-service-changed-since`.
+service-changed-since`. This route is still on the pending
+row-filtering ledger: the service lineage tables carry no column naming the
+tenant a row belongs to, so a grant cannot be bound to them until #6475 lands.
+Scoped tokens are refused with a 403, all-scope bearer tokens included. So is
+every browser session except one that is all-scope and bound to a single tenant
+and workspace: in `local_no_policy`, `hosted_single_tenant`, and an unset mode
+(which defaults to `local_no_policy`) the browser-session route policy admits
+that console session, as it does on every route outside the scoped-token
+allowlist, and `hosted_multi_tenant` (or any other unrecognized mode) refuses
+it.
 
 The incidents family's production loader is held behind a durable
 PagerDuty-provider-to-Eshu-catalog service-id join that is a tracked #1989

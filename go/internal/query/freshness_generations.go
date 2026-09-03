@@ -27,10 +27,19 @@ type GenerationLifecycleReader interface {
 // superseded, completed, and failed generation history and diff a prior
 // generation against current truth without scraping broad status payloads.
 type FreshnessHandler struct {
-	Generations         GenerationLifecycleReader
-	ChangedSince        ChangedSinceReader
+	Generations  GenerationLifecycleReader
+	ChangedSince ChangedSinceReader
+	// ServiceChangedSince reads the per-service evidence lineage. Its tables
+	// carry only service_id, so the caller's grant cannot be bound inside its
+	// SQL the way the two repository-scope readers above bind theirs.
 	ServiceChangedSince ServiceChangedSinceReader
-	Profile             QueryProfile
+	// ServiceOwnership resolves a catalog service_id to its owning repository
+	// under the caller's grant (#5167), which is what lets
+	// listServiceChangedSince refuse an ungranted service before touching the
+	// lineage tables. Leaving it nil fails a scoped caller closed on that
+	// route; an unscoped caller never consults it.
+	ServiceOwnership ServiceCatalogCorrelationStore
+	Profile          QueryProfile
 }
 
 // Mount registers freshness drilldown routes on the given mux.

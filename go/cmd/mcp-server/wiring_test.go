@@ -202,6 +202,12 @@ func TestNewMCPQueryRouterMountsMCPBackedHandlers(t *testing.T) {
 	if router.Freshness.ServiceChangedSince == nil {
 		t.Fatal("newMCPQueryRouter().Freshness.ServiceChangedSince = nil, want service changed-since reader")
 	}
+	// #5167: a nil ownership resolver fails every scoped caller closed on
+	// get_service_changed_since, so a half-wired entrypoint would look like a
+	// tenant that simply has no services rather than like a wiring bug.
+	if router.Freshness.ServiceOwnership == nil {
+		t.Fatal("newMCPQueryRouter().Freshness.ServiceOwnership = nil, want service-catalog correlation store (scoped get_service_changed_since would fail closed)")
+	}
 	// #5143 regression: get_repository_freshness dispatched a 503 on the
 	// standalone MCP server because Repositories.Freshness stayed nil here
 	// while cmd/api/wiring_router.go wired it -- the two entrypoints

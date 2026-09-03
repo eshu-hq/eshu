@@ -171,23 +171,30 @@ func newWorkItemHandler(db *sql.DB, profile query.QueryProfile) *query.WorkItemH
 
 // newFreshnessHandler builds the freshness read handler. The generation,
 // changed-since, and service-changed-since readers are all backed by the
-// Postgres status store and remain nil when db is nil, matching the prior
-// inline behavior in newRouter.
+// Postgres status store, and the service-ownership resolver by the
+// service-catalog correlation read model; all remain nil when db is nil,
+// matching the prior inline behavior in newRouter.
 func newFreshnessHandler(db *sql.DB, profile query.QueryProfile) *query.FreshnessHandler {
 	var (
 		generationLifecycle query.GenerationLifecycleReader
 		changedSince        query.ChangedSinceReader
 		serviceChangedSince query.ServiceChangedSinceReader
+		serviceOwnership    query.ServiceCatalogCorrelationStore
 	)
 	if db != nil {
 		generationLifecycle = pgstatus.NewStatusStore(pgstatus.SQLQueryer{DB: db})
 		changedSince = pgstatus.NewStatusStore(pgstatus.SQLQueryer{DB: db})
 		serviceChangedSince = pgstatus.NewStatusStore(pgstatus.SQLQueryer{DB: db})
+		// #5167: the service changed-since route binds a scoped caller's grant
+		// through the correlation facts, and fails that caller closed when
+		// this stays nil.
+		serviceOwnership = query.NewPostgresServiceCatalogCorrelationStore(db)
 	}
 	return &query.FreshnessHandler{
 		Generations:         generationLifecycle,
 		ChangedSince:        changedSince,
 		ServiceChangedSince: serviceChangedSince,
+		ServiceOwnership:    serviceOwnership,
 		Profile:             profile,
 	}
 }
