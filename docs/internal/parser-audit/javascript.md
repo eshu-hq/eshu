@@ -31,7 +31,14 @@ coverage, plus `engine_tsx_*` and `engine_typescript_*` files that stay out of
 scope for both moves. `engine_cyclomatic_complexity_arms_test.go` and
 `engine_long_tail_test.go` were audited for JavaScript-specific rows during the
 second relocation and hold none; an earlier version of this doc claimed
-otherwise.
+otherwise. A final #6062 relocation moved the parent-level
+`equivalence_dump_test.go` (the guarded, env-gated `TestDumpJSParseCorpus`
+0/0-equivalence harness for issue #4868) into
+`go/internal/parser/javascript` as external `javascript_test` coverage; it
+only reaches the root package's exported `DefaultEngine`/`Options`/
+`Engine.ParsePath` surface, so it needed no package-local helper, and its
+default `JSTS_PARSE_CORPUS` fixture root moved from `../../../tests/fixtures`
+to `../../../../tests/fixtures` for the extra directory level.
 
 ## Claimed Constructs
 - **Functions**: from function_declaration, generator_function_declaration,

@@ -403,6 +403,18 @@ The external test package may import `internal/parser`; the non-test package
 must not. Go compiles `javascript_test` separately, so this keeps the
 black-box coverage without making the package depend on the parent dispatcher.
 
+A final #6062 relocation moved the parent-level `equivalence_dump_test.go`
+here as external `javascript_test` coverage. `TestDumpJSParseCorpus` is a
+guarded, env-gated 0/0-equivalence harness for issue #4868 (JS/TS in-file
+multi-walk consolidation): it is a no-op skip unless `JSTS_PARSE_DUMP` names
+an output file, in which case it parses every `.ts`/`.tsx`/`.js`/`.jsx` file
+under `JSTS_PARSE_CORPUS` (default `../../../../tests/fixtures`, one level
+deeper than its old parent-package default of `../../../tests/fixtures`)
+through `parser.DefaultEngine().ParsePath` and writes a sorted digest line
+per file per `Options` variant. It reaches only the parent's exported
+`DefaultEngine`/`Options`/`Engine.ParsePath` surface, so it needed no
+package-local helper.
+
 ## Related docs
 
 - docs/public/languages/support-maturity.md

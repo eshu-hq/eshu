@@ -46,6 +46,11 @@
     fixture writer. Cross-file assertions come from `../parsertest`; helpers
     that stay file-local (taint and dataflow row lookups, dogfood corpus
     pickers, the `*testing.B` writer) live beside the tests that use them
+17. `engine_data_carriage_return_test.go` - the last of the two single-language
+    relocations closing out #6062, external package `golang_test`. Pins the Go
+    raw-string carriage-return case (issue #6306) via
+    `parsertest.MustParsePath`/`parsertest.WriteFile`, since it needs only the
+    parent's exported `DefaultEngine`/`Options`/`Engine.ParsePath` surface
 
 ## Invariants this package enforces
 

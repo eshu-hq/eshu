@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package parser
+package javascript_test
 
 import (
 	"crypto/sha256"
@@ -13,6 +13,8 @@ import (
 	"sort"
 	"strings"
 	"testing"
+
+	"github.com/eshu-hq/eshu/go/internal/parser"
 )
 
 // TestDumpJSParseCorpus is a guarded 0/0-equivalence harness for issue #4868
@@ -21,7 +23,7 @@ import (
 // CI or `go test ./...` invocations.
 //
 // When JSTS_PARSE_DUMP=<out-file> is set, this test parses every .ts, .tsx,
-// .js, and .jsx file under JSTS_PARSE_CORPUS (default "../../../tests/fixtures"
+// .js, and .jsx file under JSTS_PARSE_CORPUS (default "../../../../tests/fixtures"
 // relative to this package) through the real Engine.ParsePath entrypoint --
 // the same dispatch every production caller uses, so runtimeLanguage and
 // outputLanguage are resolved exactly as the collector resolves them -- under
@@ -41,7 +43,7 @@ func TestDumpJSParseCorpus(t *testing.T) {
 
 	corpusRoot := strings.TrimSpace(os.Getenv("JSTS_PARSE_CORPUS"))
 	if corpusRoot == "" {
-		corpusRoot = "../../../tests/fixtures"
+		corpusRoot = "../../../../tests/fixtures"
 	}
 	absCorpusRoot, err := filepath.Abs(corpusRoot)
 	if err != nil {
@@ -53,17 +55,17 @@ func TestDumpJSParseCorpus(t *testing.T) {
 		t.Fatalf("no .ts/.tsx/.js/.jsx files found under %q", absCorpusRoot)
 	}
 
-	engine, err := DefaultEngine()
+	engine, err := parser.DefaultEngine()
 	if err != nil {
 		t.Fatalf("DefaultEngine() error = %v, want nil", err)
 	}
 
 	variants := []struct {
 		name    string
-		options Options
+		options parser.Options
 	}{
-		{name: "default", options: Options{}},
-		{name: "index_source", options: Options{IndexSource: true}},
+		{name: "default", options: parser.Options{}},
+		{name: "index_source", options: parser.Options{IndexSource: true}},
 	}
 
 	lines := make([]string, 0, len(paths)*len(variants))

@@ -34,6 +34,10 @@
     javascript_dead_code_roots_nextjs_migration_test.go - the latter split out
     at the 500-line cap and carries the Next.js app-router and TypeScript
     migration/module-contract dead-code root cases
+16. equivalence_dump_test.go - the last #6062 relocation, external-package
+    `TestDumpJSParseCorpus`: a guarded, env-gated (`JSTS_PARSE_DUMP`) 0/0
+    corpus-equivalence harness for issue #4868, exercising only the parent's
+    public `DefaultEngine`/`Options`/`Engine.ParsePath` surface
 
 ## Invariants this package enforces
 
