@@ -13,8 +13,10 @@
 // The aws_resource_materialization:<scope> entity key it emits is shared with
 // the other AWS families that gate readiness on the CloudResource substrate,
 // and internal/storage/postgres derives the cloud-resource-node queue conflict
-// key from that prefix. Callers must not treat the key as private to this
-// package.
+// key from that prefix only for a domain whose resource-conflict policy is
+// marked safe (today this domain alone); the sibling families sharing the key
+// group by resource_scope or the default. Callers must not treat the key as
+// private to this package.
 //
 // The package consumes the neutral internal/projector/intent contract and must
 // not import the root projector package; root imports it to dispatch.

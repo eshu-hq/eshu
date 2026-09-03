@@ -317,9 +317,12 @@
   the payload. Its `aws_resource_materialization:<scope>` entity key is the
   shared AWS acceptance unit — eleven other reducer-intent builders emit the
   same literal so their handlers gate on the `CloudResource` substrate this
-  domain publishes, and `internal/storage/postgres` hashes the prefix into the
-  cloud-resource-node queue conflict family — so the key is emphatically not
-  the child package's private string. This family IS covered by the root
+  domain publishes. `internal/storage/postgres` hashes the prefix into the
+  cloud-resource-node queue conflict family only for a domain whose
+  resource-conflict policy is marked safe (today this domain alone); the
+  sibling families group by `resource_scope` or the default — so the key is
+  emphatically not the child package's private string. This family IS covered
+  by the root
   fan-out parity fixture: `reducer.DomainAWSResourceMaterialization` appears in
   both `fanOutParityExpectations` and `fanOutParityExpectedOrder`. Root keeps
   the dispatch-level coverage in
