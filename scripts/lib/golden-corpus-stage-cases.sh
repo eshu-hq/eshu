@@ -8,40 +8,102 @@
 # shared with the live gate so this self-test and the live gate can never
 # silently diverge on what "matches the pin" means.
 
-# Every git command that mutates a fixture repository must route through
+# Every git command that reaches a fixture repository must route through
 # golden_corpus_git (scripts/lib/golden-corpus-git.sh). A bare one reintroduces
-# the developer's global configuration, and it would be invisible to every case
-# below: those stage under a PLANTED hostile config, so a call that escapes the
-# planting still produces the right SHA on a machine whose real global config is
-# empty -- every CI runner, and most laptops. The failure appears only for the
-# developer who has the offending setting, as fixture drift in a checkout that
-# has none. This is a source check, not a behavior check, on purpose: it is the
-# only assertion here that can fail on a machine where the behavior looks fine.
+# the developer's global configuration and environment, and it would be
+# invisible to every case below: those stage under a PLANTED hostile config, so
+# a call that escapes the planting still produces the right SHA on a machine
+# whose real config is empty -- every CI runner, and most laptops. The failure
+# appears only for the developer who has the offending setting, as fixture drift
+# in a checkout that has none. This is a source check, not a behavior check, on
+# purpose: it is the only assertion here that can fail on a machine where the
+# behavior looks fine.
 #
-# The allowlist is of SAFE calls, not of dangerous ones. Listing the dangerous
-# verbs is the same mistake as listing the dangerous config keys -- the defect
-# this whole change exists to remove -- and it measurably failed: a verb list of
-# init/add/commit/tag/update-index missed `reset`, `rm`, `checkout`,
-# `update-ref`, `symbolic-ref`, `apply`, `cherry-pick` and `--git-dir=` forms.
-# The read-only set below is closed and small, so anything outside it is a
-# violation whether or not anyone thought of it in advance.
+# The allowlist is of SAFE calls, not of dangerous ones. Enumerating the
+# dangerous ones is the same mistake as enumerating the dangerous config keys --
+# the defect this whole change exists to remove -- and it measurably failed
+# twice here: a verb list of init/add/commit/tag/update-index missed reset, rm,
+# checkout, update-ref, symbolic-ref, apply and cherry-pick, and a
+# command-position anchor without the prefix run below missed every env-prefixed
+# call, which is the shape of every commit site in these files.
 #
-# `config --file` is safe because it writes to an explicit file rather than into
-# a fixture repository. golden-corpus-git.sh is excluded because it DEFINES the
-# wrapper and is the one place a bare git call belongs.
+# Safe means "cannot be perturbed into reporting the wrong thing": rev-parse,
+# rev-list, cat-file and ls-tree read committed objects and refs, and
+# `config --file` writes to an explicit file rather than into a fixture.
 #
-# Matching is anchored to command position -- line start, after $( , after a
-# shell operator, or after if/while/until -- rather than to the bare word, so
-# prose in a comment or a fail() message naming a git command does not trip it.
-# A guard that cries wolf gets deleted, which loses the guard.
-stage_case_git_cmdpos='(^[[:space:]]*(if[[:space:]]+|while[[:space:]]+|until[[:space:]]+|![[:space:]]*)*|\$\([[:space:]]*|(\|\||&&|;|\|)[[:space:]]*)git[[:space:]]'
-stage_case_git_readonly='git([[:space:]]+-[Cc][[:space:]]+("[^"]*"|[^[:space:]]+))*[[:space:]]+(rev-parse|rev-list|status|check-ignore|ls-tree|ls-files|cat-file|diff|show|log|config[[:space:]]+--file)'
-stage_case_bare_git="$(rg -n --no-filename "${stage_case_git_cmdpos}" \
-	-g '*golden-corpus*.sh' -g '!golden-corpus-git.sh' "${repo_root}/scripts" |
-	rg -v '^[0-9]+:[[:space:]]*#' |
-	rg -v "${stage_case_git_readonly}" || true)"
+# status, diff, check-ignore and ls-files are deliberately NOT safe. They
+# compare the working tree against the index or consult exclude rules, so a
+# clean filter or an excludesfile changes their OUTPUT while the commit is
+# untouched. Measured on git 2.55.0 under a hostile core.attributesFile: bare
+# `git status --short` on a clean fixture prints ` M catalog-info.yaml`, because
+# the index blob was written filter-free while the worktree comparison applies
+# the filter. That one difference aborted golden_service_changed_since_mutate_owner
+# with "mutation touched an unexpected path", so treating reads as automatically
+# safe was wrong, not merely imprecise.
+#
+# golden-corpus-git.sh is excluded from the scan: it DEFINES the wrapper and is
+# the one place a bare git call belongs.
+stage_case_sq="'"
+stage_case_git_pre="((command|exec|env|time|then|else|elif|do|if|while|until)[[:space:]]+|![[:space:]]*|[A-Za-z_][A-Za-z0-9_]*=(\"[^\"]*\"|${stage_case_sq}[^${stage_case_sq}]*${stage_case_sq}|[^[:space:]]*)[[:space:]]+)*"
+stage_case_git_cmdpos="(^[[:space:]]*|\\\$\\([[:space:]]*|\`[[:space:]]*|[(){};|&][[:space:]]*)${stage_case_git_pre}git[[:space:]]"
+stage_case_git_readonly='git([^|;&]*[[:space:]])?(rev-parse|rev-list|cat-file|ls-tree)([[:space:]]|$)|git([^|;&]*[[:space:]])?config[[:space:]]+--file'
+
+# Scan the given paths and print every offending line. rg exits 0 with matches,
+# 1 with none, and >1 on a real error; collapsing that into "no matches" is
+# exactly how a guard stops guarding without anyone noticing, so a bad exit is
+# a failure rather than a pass.
+golden_corpus_scan_bare_git() {
+	local out rc
+	out="$(rg -n --no-filename "${stage_case_git_cmdpos}" "$@" 2>/dev/null)"
+	rc=$?
+	[[ "${rc}" -le 1 ]] ||
+		fail "bare-git guard could not scan $* (rg exit ${rc}); a scan that fails to run is not a scan that found nothing"
+	[[ -n "${out}" ]] || return 0
+	printf '%s\n' "${out}" | rg -v '^[0-9]+:[[:space:]]*#' | rg -v "${stage_case_git_readonly}" || true
+}
+
+# Prove the guard can fire before trusting that it did not.
+#
+# Without this, a wrong regex, a glob matching no files, or an unset repo_root
+# all produce silence, and silence is what a passing guard looks like. Each line
+# below is a real shape a future author writes; the env-prefixed one is the
+# shape of every commit site in these files, and it evaded an earlier version of
+# this guard.
+stage_case_guard_probe="$(mktemp -t golden-corpus-guard-probe.XXXXXX)"
+# The probe lines are BUILT rather than written literally, because the real scan
+# below globs *golden-corpus*.sh and this file matches that glob: a literal
+# `git -C ...` example here is found by the scan it is meant to test, and the
+# suite fails on its own sample data. Substituting the command name keeps the
+# examples out of the scanned text.
+stage_case_guard_g="git"
+{
+	printf '\t%s -C "$r" commit -m x\n' "${stage_case_guard_g}"
+	printf '\tGIT_AUTHOR_DATE="2026-08-04T12:00:00Z" %s -C "$r" commit -m initial\n' "${stage_case_guard_g}"
+	printf '\t%s -C "$r" \\\n' "${stage_case_guard_g}"
+	printf '\t%s --git-dir="$d" add -A\n' "${stage_case_guard_g}"
+	printf '\t%s -c '"'"'user.name=A B'"'"' -C "$r" commit -m x\n' "${stage_case_guard_g}"
+	printf '\tcommand %s -C "$r" add -A\n' "${stage_case_guard_g}"
+	printf '\texec %s -C "$r" reset --hard\n' "${stage_case_guard_g}"
+	printf '\tenv FOO=1 %s -C "$r" add -A\n' "${stage_case_guard_g}"
+	printf '\tout="$(%s -C "$r" update-ref refs/heads/m HEAD)"\n' "${stage_case_guard_g}"
+	printf '\t( %s -C "$r" checkout -- . )\n' "${stage_case_guard_g}"
+	printf '\tif %s -C "$r" apply p; then echo y; fi\n' "${stage_case_guard_g}"
+	printf '\tthen %s -C "$r" rm --cached f\n' "${stage_case_guard_g}"
+	printf '\tdo %s -C "$r" clean -fd\n' "${stage_case_guard_g}"
+	printf '\ttrue && %s -C "$r" stash\n' "${stage_case_guard_g}"
+	printf '\ttrue ; %s -C "$r" symbolic-ref HEAD refs/heads/m\n' "${stage_case_guard_g}"
+	printf '\t%s -C "$r" status --short\n' "${stage_case_guard_g}"
+} >"${stage_case_guard_probe}"
+stage_case_guard_expected="$(grep -c . "${stage_case_guard_probe}")"
+stage_case_guard_found="$(golden_corpus_scan_bare_git "${stage_case_guard_probe}" | grep -c . || true)"
+[[ "${stage_case_guard_found}" == "${stage_case_guard_expected}" ]] ||
+	fail "the bare-git guard caught ${stage_case_guard_found} of ${stage_case_guard_expected} planted violations, so it cannot be trusted to report zero in the real scan"
+rm -f "${stage_case_guard_probe}"
+
+stage_case_bare_git="$(golden_corpus_scan_bare_git \
+	-g '*golden-corpus*.sh' -g '!golden-corpus-git.sh' "${repo_root}/scripts")"
 [[ -z "${stage_case_bare_git}" ]] ||
-	fail "these golden-corpus git calls reach a repository without routing through golden_corpus_git, so a developer's global config can change what gets committed: ${stage_case_bare_git}"
+	fail "these golden-corpus git calls reach a repository without routing through golden_corpus_git, so a developer's config or environment can change what gets committed: ${stage_case_bare_git}"
 
 stage_case_dir="$(mktemp -d -t golden-corpus-stage-case.XXXXXX)"
 stage_case_corpus="${stage_case_dir}/corpus"
@@ -50,6 +112,33 @@ stage_case_git_attributes="${stage_case_dir}/gitattributes"
 stage_case_git_excludes="${stage_case_dir}/gitexcludes"
 mkdir -p "${stage_case_corpus}"
 printf 'Dockerfile\n' >"${stage_case_git_excludes}"
+# init.defaultObjectFormat is planted as a config knob, and GIT_DEFAULT_HASH is
+# exported into each staging subshell below. They select the object format by
+# two different routes -- config file and environment -- and golden_corpus_git
+# closes both.
+#
+# The three `[[ "${#...head}" -eq 40 ]]` assertions further down are NOT teeth
+# for either one, and saying otherwise here would be the kind of tested-looking
+# claim this file keeps having to correct. Measured on git 2.55.0, deleting one
+# thing at a time and running the whole suite:
+#
+#   -u GIT_DEFAULT_HASH removed from the wrapper   -> suite green
+#     (`--object-format=sha1` at each init site outranks the variable)
+#   --object-format=sha1 removed from stage.sh     -> suite green
+#     (the wrapper drops GIT_DEFAULT_HASH, so git falls back to its own
+#      default, which is SHA-1)
+#
+# Each covers for the other, so no single deletion can move a staged HEAD to 64
+# characters and no assertion can fire. Removing BOTH aborts the suite before
+# any assertion is reached (exit 129, no output), so even that does not
+# demonstrate them. Treat the three length checks as belt-and-braces that would
+# only ever catch a future change removing both layers at once, not as coverage
+# of either line.
+#
+# The plants stay because they are real hostile inputs the wrapper is supposed
+# to neutralize, and because the staged pin assertions immediately below WOULD
+# fail on a SHA-256 fixture -- a 64-character HEAD cannot match a 40-character
+# cassette pin. That is where the actual protection is measured.
 git config --file "${stage_case_git_config}" init.defaultObjectFormat sha256
 
 # A clean filter reached through core.attributesFile is the reason staging
@@ -75,6 +164,7 @@ git config --file "${stage_case_git_config}" filter.golden-corpus-mangle.clean "
 
 (
 	export GIT_CONFIG_GLOBAL="${stage_case_git_config}"
+	export GIT_DEFAULT_HASH=sha256
 	corpus_dir="${stage_case_corpus}"
 	corpus_fixtures=(container-ci-lineage github_actions_workflows deployable-config deployable-source)
 	die() { printf 'golden-corpus-stage-case: %s\n' "$*" >&2; exit 1; }
@@ -89,7 +179,7 @@ git config --file "${stage_case_git_config}" filter.golden-corpus-mangle.clean "
 stage_case_repo="${stage_case_corpus}/container-ci-lineage"
 [[ -d "${stage_case_repo}/.git" ]] ||
 	fail "container-ci-lineage staging must create deterministic Git history"
-[[ -z "$(git -C "${stage_case_repo}" status --porcelain)" ]] ||
+[[ -z "$(golden_corpus_git -C "${stage_case_repo}" status --porcelain)" ]] ||
 	fail "container-ci-lineage staged Git history must include its complete working tree"
 stage_case_head="$(git -C "${stage_case_repo}" rev-parse HEAD)"
 [[ "${#stage_case_head}" -eq 40 ]] ||
@@ -100,7 +190,7 @@ golden_corpus_assert_staged_pin "container-ci-lineage" "${stage_case_repo}" \
 stage_case_input_repo="${stage_case_corpus}/github_actions_workflows"
 [[ -d "${stage_case_input_repo}/.git" ]] ||
 	fail "github_actions_workflows staging must create deterministic Git history"
-[[ -z "$(git -C "${stage_case_input_repo}" status --porcelain)" ]] ||
+[[ -z "$(golden_corpus_git -C "${stage_case_input_repo}" status --porcelain)" ]] ||
 	fail "github_actions_workflows staged Git history must include its complete working tree"
 stage_case_input_head="$(git -C "${stage_case_input_repo}" rev-parse HEAD)"
 [[ "${#stage_case_input_head}" -eq 40 ]] ||
@@ -143,6 +233,7 @@ mkdir -p "${stage_case_hostile_corpus}"
 # shellcheck disable=SC2030,SC2031
 (
 	export GIT_CONFIG_GLOBAL="${stage_case_git_config}"
+	export GIT_DEFAULT_HASH=sha256
 	# The GIT_CONFIG_COUNT family is a separate vector from the config FILES,
 	# and it outranks every one of them: git applies these pairs at
 	# command-line precedence, above even the fixture's own .git/config. So

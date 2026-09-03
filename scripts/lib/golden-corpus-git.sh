@@ -55,6 +55,17 @@
 #   GIT_ATTR_NOSYSTEM=1           skips the system gitattributes file, which is
 #                                 a compiled-in path and therefore not
 #                                 reachable by any config setting.
+#   -u GIT_DIR, GIT_WORK_TREE,    location overrides, which are not config at
+#      GIT_INDEX_FILE,            all: with GIT_DIR exported, a
+#      GIT_COMMON_DIR,            `golden_corpus_git -C <fixture> init` creates
+#      GIT_OBJECT_DIRECTORY,      the repository at $GIT_DIR and leaves the
+#      GIT_ALTERNATE_OBJECT_DIRECTORIES
+#                                 fixture without one -- measured on git 2.55.0.
+#                                 Four `git_in` helpers already in this repo
+#                                 (scripts/test-verify-docs-build-changed.sh and
+#                                 siblings) unset the first four for the same
+#                                 reason; this matches them and adds the two
+#                                 object-store overrides.
 #   -c core.attributesFile=/dev/null
 #                                 with global config gone, core.attributesFile
 #                                 falls back to its DEFAULT path,
@@ -62,6 +73,31 @@
 #                                 a config key, so disabling config does not
 #                                 disable it. Pointing it at /dev/null does.
 #
+#   -u GIT_TEMPLATE_DIR           the template directory, and it OUTRANKS the
+#                                 `-c init.templateDir=` pin that staging
+#                                 passes: git resolves --template first, then
+#                                 GIT_TEMPLATE_DIR, then init.templateDir. A
+#                                 template carrying info/exclude therefore still
+#                                 installs an exclude source. Measured on git
+#                                 2.55.0 with a template excluding Dockerfile:
+#                                 the file is dropped from the staged tree and
+#                                 HEAD moves off the pin -- the same
+#                                 fe05491e -> 247638a7 failure the config pin
+#                                 closes, reached by the environment instead.
+#   -u GIT_ATTR_SOURCE            selects the tree attributes are read from.
+#   -u GIT_NAMESPACE              scopes ref reads and writes, so HEAD after a
+#                                 commit may not be the ref anything else reads.
+#   -u GIT_CEILING_DIRECTORIES    stops the repository-discovery walk, which can
+#                                 make -C land outside the fixture.
+#   -u GIT_DEFAULT_HASH           selects the object format for a new
+#                                 repository, and it is an environment
+#                                 variable, so neither disabling config nor the
+#                                 `--object-format=sha1` flag at some init sites
+#                                 covers the sites that lack the flag. A
+#                                 developer exporting it would stage SHA-256
+#                                 fixtures whose HEADs cannot match a
+#                                 40-character pin.
+
 # Identity and dates are NOT set here. They are pinned inline at each commit
 # and tag site, because those sites do not all share one date, and a caller
 # reading this file should see the pinned value next to the commit it produces.
@@ -107,6 +143,10 @@
 #   GIT_AUTHOR_NAME="Golden Gate" ... golden_corpus_git -C "${repo}" commit ...
 golden_corpus_git() {
 	env -u GIT_CONFIG_COUNT -u GIT_CONFIG_PARAMETERS \
+		-u GIT_DIR -u GIT_WORK_TREE -u GIT_INDEX_FILE -u GIT_COMMON_DIR \
+		-u GIT_OBJECT_DIRECTORY -u GIT_ALTERNATE_OBJECT_DIRECTORIES \
+		-u GIT_DEFAULT_HASH -u GIT_TEMPLATE_DIR -u GIT_ATTR_SOURCE \
+		-u GIT_NAMESPACE -u GIT_CEILING_DIRECTORIES \
 		GIT_CONFIG_GLOBAL=/dev/null \
 		GIT_CONFIG_SYSTEM=/dev/null \
 		GIT_ATTR_NOSYSTEM=1 \

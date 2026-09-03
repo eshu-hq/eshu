@@ -165,10 +165,16 @@ stage_minimal_corpus() {
 			golden_corpus_git -C "${corpus_dir}/${fixture}" -c init.defaultBranch=main -c init.templateDir= init --object-format=sha1 >/dev/null 2>&1
 			golden_corpus_git -C "${corpus_dir}/${fixture}" config user.email "gate@eshu.local" >/dev/null 2>&1
 			golden_corpus_git -C "${corpus_dir}/${fixture}" config user.name "Golden Gate" >/dev/null 2>&1
-			# Same knobs as stage_deterministic_git_fixture above, and for the
-			# same reason: this repo still reads commit.gpgsign, core.autocrlf,
-			# core.excludesfile, core.hooksPath, i18n.commitEncoding and tag.gpgSign
-			# from the developer's ~/.gitconfig otherwise. A global commit.gpgsign=true
+			# Same knobs as stage_deterministic_git_fixture above, kept in lockstep
+			# with it, and a second layer rather than the mechanism: these calls
+			# route through golden_corpus_git, so the developer's ~/.gitconfig is
+			# already switched off before any of them is read. What they still cover
+			# is a later command that reaches this fixture WITHOUT the wrapper.
+			#
+			# The list below is what each knob did back when global config was read,
+			# measured then and kept because it is the catalogue of what the wrapper
+			# now prevents -- not a set of individually-tested pins. A global
+			# commit.gpgsign=true
 			# makes the `commit` call below exit 128 with no diagnostic (it is
 			# `>/dev/null 2>&1`), aborting the live gate under `set -euo
 			# pipefail` with nothing attributable; a global core.excludesfile

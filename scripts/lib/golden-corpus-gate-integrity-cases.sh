@@ -19,6 +19,12 @@
 # self-test -- this is the #6401 gap itself. The staged-pin assertion already
 # existed in golden-corpus-stage-cases.sh, which only the self-test runs; the
 # live gate never asserted it and never checked for its required tools.
+# golden_corpus_git is used below to build fixture repositories. Sourced here
+# explicitly: golden-corpus-stage-cases.sh sources it only inside a subshell,
+# so its definition does not survive into this file.
+# shellcheck source=scripts/lib/golden-corpus-git.sh
+. "${repo_root}/scripts/lib/golden-corpus-git.sh"
+
 require "tool preflight wired into the live gate" "golden_corpus_require_gate_tools"
 require "staged-pin assertion wired into the live gate" "golden_corpus_assert_pinned_fixtures"
 
@@ -33,7 +39,7 @@ gate_integrity_ignored_source="${repo_root}/tests/fixtures/ecosystems/container-
 (
 	trap 'rm -f "${gate_integrity_ignored_source}"' EXIT
 	printf 'macOS Finder metadata (test fixture)\n' >"${gate_integrity_ignored_source}"
-	git -C "${repo_root}" check-ignore --quiet -- \
+	golden_corpus_git -C "${repo_root}" check-ignore --quiet -- \
 		"tests/fixtures/ecosystems/container-ci-lineage/.DS_Store" ||
 		fail "test harness: planted .DS_Store is not actually git-ignored; this BITES proves nothing"
 
@@ -53,12 +59,6 @@ gate_integrity_ignored_source="${repo_root}/tests/fixtures/ecosystems/container-
 		"ci_cd_run:github_actions:acme:container-ci-lineage" "9100" fail
 	rm -rf "${gate_integrity_stage_dir}"
 )
-
-# golden_corpus_git is used below to build fixture repositories. Sourced here
-# explicitly: golden-corpus-stage-cases.sh sources it only inside a subshell,
-# so its definition does not survive into this file.
-# shellcheck source=scripts/lib/golden-corpus-git.sh
-. "${repo_root}/scripts/lib/golden-corpus-git.sh"
 
 # ---------------------------------------------------------------------------
 # BITES (2): a genuine staged-pin mismatch must fail fast (no Docker) and name
@@ -224,7 +224,7 @@ gate_integrity_quote_add="${repo_root}/tests/fixtures/ecosystems/container-ci-li
 (
 	trap 'rm -f "${gate_integrity_quote_add}"' EXIT
 	printf 'editor swap\n' >"${gate_integrity_quote_add}"
-	git -C "${repo_root}" check-ignore --quiet -- "${gate_integrity_quote_add}" ||
+	golden_corpus_git -C "${repo_root}" check-ignore --quiet -- "${gate_integrity_quote_add}" ||
 		fail "test harness: planted swap file is not git-ignored; this BITES proves nothing"
 	gate_integrity_quote_corpus="${gate_integrity_quote_dir}/corpus"
 	mkdir -p "${gate_integrity_quote_corpus}"
@@ -244,10 +244,18 @@ rm -rf "${gate_integrity_quote_dir}"
 
 # ---------------------------------------------------------------------------
 # BITES (1d): a hostile GLOBAL git config must not perturb deployable-config's
-# staged HEAD or annotated tag. Every knob below was measured on git 2.55.0
-# against this fixture with its own pin removed from stage.sh's
-# deployable-config block, so each one here is a real failure held shut rather
-# than plumbing exercised:
+# staged HEAD or annotated tag.
+#
+# What holds these shut has changed. Each knob below was originally measured on
+# git 2.55.0 with its matching per-knob pin removed from stage.sh's
+# deployable-config block, and each one did move the SHA -- that is why they are
+# listed. They are now ALL held shut by one line instead: golden_corpus_git
+# switches the global config layer off, so none of them is read at all. The
+# per-knob pins in stage.sh remain, but they are a second layer for calls that
+# do not route through the wrapper, not the mechanism this case proves.
+#
+# Read the list as the catalogue of failures this case would see without the
+# wrapper, then, not as a set of individually-tested pins:
 #
 #   commit.gpgsign=true        kills the commit silently -- every call in the
 #                              staging block is `>/dev/null 2>&1`
@@ -319,7 +327,7 @@ gate_integrity_crlf_plant="${repo_root}/tests/fixtures/ecosystems/deployable-con
 (
 	trap 'rm -f "${gate_integrity_crlf_plant}"' EXIT
 	printf 'alpha\r\nbeta\r\n' >"${gate_integrity_crlf_plant}"
-	if git -C "${repo_root}" check-ignore --quiet -- "${gate_integrity_crlf_plant}"; then
+	if golden_corpus_git -C "${repo_root}" check-ignore --quiet -- "${gate_integrity_crlf_plant}"; then
 		fail "test harness: the planted CR-bearing file is git-ignored, so staging strips it before any commit and the core.autocrlf pin below would prove nothing"
 	fi
 

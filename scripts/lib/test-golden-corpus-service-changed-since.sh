@@ -33,7 +33,7 @@ GIT_AUTHOR_NAME="Golden Gate" GIT_AUTHOR_EMAIL="gate@eshu.local" \
 	GIT_COMMITTER_NAME="Golden Gate" GIT_COMMITTER_EMAIL="gate@eshu.local" \
 	GIT_AUTHOR_DATE="2026-08-04T12:00:00Z" GIT_COMMITTER_DATE="2026-08-04T12:00:00Z" \
 	golden_corpus_git -C "${fixture_repo}" commit -m initial >/dev/null
-[[ "$(git -C "${fixture_repo}" status --short --untracked-files=no)" == " D vendor/deployable-source" ]] ||
+[[ "$(golden_corpus_git -C "${fixture_repo}" status --short --untracked-files=no)" == " D vendor/deployable-source" ]] ||
 	fail "test fixture must mirror the intentionally unpopulated deployable-source gitlink"
 
 mock_active_generation="service-gen:prior"
@@ -66,7 +66,7 @@ while IFS= read -r fixture_line; do
 done <"${fixture_repo}/catalog-info.yaml"
 [[ "${owner_mutation_present}" == "true" ]] || fail "owner mutation missing"
 [[ "$(golden_corpus_git -C "${fixture_repo}" rev-list --count HEAD)" == "2" ]] || fail "owner mutation did not create exactly one new commit"
-[[ "$(git -C "${fixture_repo}" status --short --untracked-files=no)" == " D vendor/deployable-source" ]] ||
+[[ "$(golden_corpus_git -C "${fixture_repo}" status --short --untracked-files=no)" == " D vendor/deployable-source" ]] ||
 	fail "owner mutation changed the pre-existing gitlink status"
 
 mock_active_generation="service-gen:current"

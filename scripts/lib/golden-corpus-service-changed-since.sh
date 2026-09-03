@@ -46,7 +46,7 @@ golden_service_changed_since_mutate_owner() {
 	local baseline_state catalog_change_count old_count new_count staged_state staged_without_catalog status_line temporary
 	[[ -f "${catalog_path}" ]] || die "service changed-since catalog fixture is missing"
 	[[ -d "${fixture_repo}/.git" ]] || die "service changed-since fixture is not a staged Git repository"
-	baseline_state="$(git -C "${fixture_repo}" status --short --untracked-files=no)"
+	baseline_state="$(golden_corpus_git -C "${fixture_repo}" status --short --untracked-files=no)"
 
 	old_count=0
 	new_count=0
@@ -61,7 +61,7 @@ golden_service_changed_since_mutate_owner() {
 	sed "s|^  owner: ${golden_service_changed_since_old_owner}$|  owner: ${golden_service_changed_since_new_owner}|" \
 		"${catalog_path}" >"${temporary}" || die "failed to rewrite staged catalog owner"
 	mv "${temporary}" "${catalog_path}" || die "failed to install staged catalog owner"
-	staged_state="$(git -C "${fixture_repo}" status --short --untracked-files=no)"
+	staged_state="$(golden_corpus_git -C "${fixture_repo}" status --short --untracked-files=no)"
 	catalog_change_count=0
 	staged_without_catalog=""
 	while IFS= read -r status_line; do
@@ -89,7 +89,7 @@ golden_service_changed_since_mutate_owner() {
 		GIT_COMMITTER_DATE="2026-08-04T12:01:00Z" \
 		golden_corpus_git -C "${fixture_repo}" commit -m "change deployable owner" >/dev/null ||
 		die "failed to commit changed catalog owner in temporary corpus"
-	[[ "$(git -C "${fixture_repo}" status --short --untracked-files=no)" == "${baseline_state}" ]] ||
+	[[ "$(golden_corpus_git -C "${fixture_repo}" status --short --untracked-files=no)" == "${baseline_state}" ]] ||
 		die "service changed-since temporary fixture changed pre-existing status after commit"
 }
 
