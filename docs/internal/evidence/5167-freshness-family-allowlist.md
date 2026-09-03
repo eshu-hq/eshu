@@ -45,12 +45,14 @@ covers both commits that empty that family:
 The grant is bound in the shipped SQL, on the resolved row rather than on the
 selector the caller typed:
 
-- `go/internal/storage/postgres/changed_since_sql.go:49-51` --
-  `($3::boolean = false OR (scope.scope_kind = 'repository' AND
-  scope.source_key = ANY($4)) OR scope.scope_id = ANY($5))`.
-- `go/internal/storage/postgres/generation_lifecycle_sql.go:114-116` --
-  `($8::boolean = false OR (scope.scope_kind = 'repository' AND
-  scope.source_key = ANY($9)) OR generation.scope_id = ANY($10))`.
+- `resolveChangedSinceScopeQuery` in
+  `go/internal/storage/postgres/changed_since_sql.go` -- `($3::boolean = false
+  OR (scope.scope_kind = 'repository' AND scope.source_key = ANY($4)) OR
+  scope.scope_id = ANY($5))`.
+- `listGenerationLifecycleQuery` in
+  `go/internal/storage/postgres/generation_lifecycle_sql.go` -- `($8::boolean =
+  false OR (scope.scope_kind = 'repository' AND scope.source_key = ANY($9)) OR
+  generation.scope_id = ANY($10))`.
 
 `TestFreshnessGrantPredicatesArePresentInTheShippedSQL`
 (`internal/storage/postgres`) pins both predicate texts, so a rewrite that drops
@@ -202,8 +204,9 @@ and this document should not be read as saying it does.
   it at all.
 
 Two bearers carry `AllScopes`. An OIDC bearer resolved with an admin group
-grant gets it from `go/internal/oidcbearer/resolver.go:223`, and a file-backed
-registry token can carry `all_scopes` (`go/internal/scopedtoken/registry.go`).
+grant gets it from `Resolver.ResolveScopedToken`
+(`go/internal/oidcbearer/resolver.go`), and a file-backed registry token can
+carry `all_scopes` (`go/internal/scopedtoken/registry.go`).
 For either, `RepositoryAccessFilter.Scoped()` is false, so `$3` and `$8`
 short-circuit the two SQL predicates and `serviceChangedSinceGrantAdmits`
 returns true at its first branch: the read runs across the whole corpus. Before
@@ -243,7 +246,7 @@ reducer wrote as `decision.ServiceID` -- for example
 and reusing it would have been a binding in name only.
 
 The reducer did know the owning repository when it wrote the generation
-(`serviceRepositoryIndex`, `service_catalog_correlation.go:333-346`) but
+(`serviceRepositoryIndex`, `service_catalog_correlation.go`) but
 discards it. The same decision set also writes the
 `reducer_service_catalog_correlation` facts, whose payload carries
 `repository_id`, `service_id`, and `candidate_repository_ids` on one row, and
@@ -260,9 +263,8 @@ ServiceCatalogCorrelationStore`, wired at both construction sites
 the store both entrypoints already build for other handlers. No new store, no
 new SQL, no new join.
 
-`FreshnessHandler.serviceChangedSinceGrantAdmits`
-(`freshness_service_changed_since.go`) runs between the nil-reader guard and
-the lineage read:
+`serviceChangedSinceGrantAdmits` (`freshness_service_changed_since.go`) runs
+between the nil-reader guard and the lineage read:
 
 - Unscoped caller (shared key, admin, local): returns immediately. No extra
   query, no behaviour change.
@@ -271,17 +273,17 @@ the lineage read:
   `listServiceCatalogCorrelationsQuery`'s grant clause is
   `(cardinality($13)=0 AND cardinality($14)=0) OR ...`, so an empty grant makes
   the whole disjunction TRUE and the store would hand back every tenant's row.
-  `service_catalog.go:111-113` treats it the same way.
+  `ServiceCatalogHandler.listCorrelations` (`service_catalog.go`) treats it
+  the same way.
 - Scoped caller with a grant: one `ListServiceCatalogCorrelations` call with
   the service id and the caller's two grant arrays, `Limit: 1`. Zero rows
   refuses. One row admits.
 - Scoped caller with `ServiceOwnership` nil: refuses. A deployment that cannot
   resolve ownership must not answer instead of resolving it.
 
-Every refusal goes through `writeServiceChangedSinceNotFound`, the existing
+Every refusal goes through `writeServiceChangedSinceNotFound`, the
 unknown-service block factored into a helper, so the ungranted answer is
-byte-identical to the unknown-service answer and the route is not an existence
-oracle.
+byte-identical to the unknown-service one and the route is no existence oracle.
 
 Two consequences are deliberate and documented on the handler:
 
@@ -295,7 +297,7 @@ Two consequences are deliberate and documented on the handler:
   `provenance_only`, or `ambiguous` decision) is admitted only through
   `candidate_repository_ids ?|` or `scope_id = ANY(...)`. If neither matches,
   the scoped caller is denied, which matches the deny-by-default rule for an
-  unbindable row in `impact_access_filter.go:28-35`.
+  unbindable row in `impactRepoIDAllowed` (`impact_access_filter.go`).
 
 ### The ledger move
 
@@ -393,9 +395,8 @@ still answers 200 for a shared key here, and only the `touched` flag catches
 that the unscoped path grew a query it does not need -- and that an unscoped
 operator would lose any service whose catalog entity has since been removed.
 
-Removing the third path from `scopedFreshnessDeltaRoute` while leaving the
-ledger row and the OpenAPI marker reproduces the #5150 advertised-but-unwired
-shape:
+Removing the third path from `scopedFreshnessDeltaRoute` but leaving the ledger
+row and OpenAPI marker reproduces the #5150 advertised-but-unwired shape:
 
 ```
 $ go test ./internal/query \
@@ -441,12 +442,11 @@ rows, `shared hit=8`. At N=6 the planner picks a seq scan, its correct choice at
 one heap page rather than evidence the index is unusable.
 
 Planning dominates execution here -- 1.2-6.0 ms planning against 0.02-0.23 ms
-execution -- so the ownership check costs roughly 1 ms per scoped request,
-bounded and not growing with corpus size. The `Index Cond` does not use the
-index's second column: the scoped call binds `RepositoryID` as `''`, leaving
-`payload->>'repository_id'` unconstrained, so `generation_id` (the fourth key)
-is applied as a non-boundary condition and the leading `service_id` equality is
-the selective key.
+execution -- so the ownership check costs ~1 ms per scoped request, bounded and
+flat in corpus size. The `Index Cond` skips the index's second column: the
+scoped call binds `RepositoryID` as `''`, leaving `payload->>'repository_id'`
+unconstrained, so `generation_id` (the fourth key) becomes a non-boundary
+condition and the leading `service_id` equality is the selective key.
 
 One hazard, recorded rather than hidden: under `force_generic_plan` the
 statement falls back to `fact_records_collector_status_active_idx` with 5,006

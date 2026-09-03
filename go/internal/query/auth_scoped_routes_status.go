@@ -47,10 +47,10 @@ func scopedIngesterStatusRoute(r *http.Request) bool {
 // pattern. The two repository-scope reads bind the caller's grant in the
 // shipped SQL rather than in the handler:
 //
-//   - changed_since_sql.go:49-51 -- resolveChangedSinceScopeQuery's
+//   - resolveChangedSinceScopeQuery (changed_since_sql.go) --
 //     ($3::boolean = false OR (scope.scope_kind = 'repository' AND
 //     scope.source_key = ANY($4)) OR scope.scope_id = ANY($5)).
-//   - generation_lifecycle_sql.go:114-116 -- listGenerationLifecycleQuery's
+//   - listGenerationLifecycleQuery (generation_lifecycle_sql.go) --
 //     ($8::boolean = false OR (scope.scope_kind = 'repository' AND
 //     scope.source_key = ANY($9)) OR generation.scope_id = ANY($10)).
 //

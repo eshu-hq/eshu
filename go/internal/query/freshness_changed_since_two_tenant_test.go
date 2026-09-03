@@ -22,8 +22,8 @@ import (
 // binding the caller grant resolves the other tenant's scope here exactly as it
 // would in Postgres, and the assertions below fail.
 //
-// The mirrored predicate is the shipped one in
-// go/internal/storage/postgres/changed_since_sql.go:49-51:
+// The mirrored predicate is the shipped one in resolveChangedSinceScopeQuery
+// (go/internal/storage/postgres/changed_since_sql.go):
 //
 //	$3::boolean = false                                             -> unbounded
 //	scope.scope_kind = 'repository' AND scope.source_key = ANY($4)  -> repository grant
