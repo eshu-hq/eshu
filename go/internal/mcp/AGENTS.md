@@ -15,6 +15,7 @@
    `go/internal/mcp/dispatch_args.go`,
    `go/internal/mcp/dispatch_service_selector.go`,
    `go/internal/mcp/dispatch_package_registry.go`,
+   `go/internal/mcp/dispatch_supply_chain.go`,
    `go/internal/mcp/dispatch_cicd.go`, `go/internal/mcp/dispatch_codeowners.go`,
    `go/internal/mcp/dispatch_secrets_iam.go`,
    `go/internal/mcp/dispatch_observability_coverage.go`,
@@ -37,8 +38,13 @@
    `go/internal/mcp/secretsiam`, observability-coverage request selection in
    `go/internal/mcp/observabilitycoverage`, container-image identity request
    selection in `go/internal/mcp/containerimage`, supply-chain-impact request
-   selection in `go/internal/mcp/supplychainimpact`, security-alert
-   reconciliation request selection in `go/internal/mcp/securityalert`,
+   selection in `go/internal/mcp/supplychainimpact`, supply-chain evidence
+   (vulnerability-scanner read contract, advisory-evidence, and
+   SBOM/attestation attachment) request selection in
+   `go/internal/mcp/supplychainevidence`, whose `supplyChainEvidenceRoute`
+   adapter reuses the `dispatch_supply_chain.go` filename rather than adding a
+   new one, security-alert reconciliation request selection in
+   `go/internal/mcp/securityalert`,
    admission-decisions request selection in
    `go/internal/mcp/admissiondecisions`, Kubernetes-correlation request
    selection in `go/internal/mcp/kubernetes`, infrastructure-search
