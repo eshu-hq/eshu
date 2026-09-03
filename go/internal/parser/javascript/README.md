@@ -153,9 +153,12 @@ branch `perf/3586-js-parser-cgo-parent`). Both commands target
 `./internal/parser/javascript`, not the parent `./internal/parser`: the
 regression test has lived in this package since before issue #6062, and the
 benchmark relocated here as part of #6062's `js_parent_lookup_bench_test.go`
-move (a bare `./internal/parser` target now matches zero tests and exits 0 --
-the "no tests to run" false green documented in
-docs/internal/agent-guide.md#test-filters-fail-silently). `go test
+move. Pointing either filter at the parent is what goes wrong: the parent
+package still runs its own remaining tests, so `go test ./internal/parser` is
+not empty, but `-run 'TestJavaScriptParentLookupEliminatesCgoCrossings'` there
+matches zero tests and `-bench 'BenchmarkParsePathTypeScriptExportHeavy'`
+matches zero benchmarks -- each exits 0, the "no tests to run" false green
+documented in docs/internal/agent-guide.md#test-filters-fail-silently. `go test
 ./internal/parser/javascript -bench 'BenchmarkParsePathTypeScriptExportHeavy'
 -benchmem -count=5` over a synthetic
 heavy TS file dropped allocations from 2,722,954 to 2,476,010 per parse (~9%

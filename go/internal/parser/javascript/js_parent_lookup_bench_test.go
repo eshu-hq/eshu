@@ -94,12 +94,12 @@ func deepExportTypeScriptSource(classCount, methodsPerClass int) string {
 // genuine syntax tree.
 func parseTypeScriptTree(tb testing.TB, source string) *tree_sitter.Node {
 	tb.Helper()
-	parser, err := parser.NewRuntime().Parser("typescript")
+	tsParser, err := parser.NewRuntime().Parser("typescript")
 	if err != nil {
 		tb.Fatalf("Parser(typescript) error = %v, want nil", err)
 	}
-	tb.Cleanup(parser.Close)
-	tree := parser.Parse([]byte(source), nil)
+	tb.Cleanup(tsParser.Close)
+	tree := tsParser.Parse([]byte(source), nil)
 	if tree == nil {
 		tb.Fatalf("Parse returned nil tree")
 	}

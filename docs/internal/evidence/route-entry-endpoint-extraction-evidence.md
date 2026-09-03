@@ -17,9 +17,10 @@ extracted one parser file with 100 exact `route_entries` in 39.0us/op,
 terminal queue, graph rows, or database rows because the extractor is a pure
 in-memory reducer helper.
 
-No-Regression Evidence: `go test ./internal/parser -run
-'TestDefaultEngineParsePathGo(EmitsDeadCodeRegistrationRoots|EmitsMixedCaseServeMuxRouteEntry|IgnoresUnknownHandleFuncReceivers)|TestDefaultEngineParsePathNextJS'
--count=1` proves Go `net/http` route entries still emit exact handlers,
+No-Regression Evidence: `go test ./internal/parser/golang -run
+'TestDefaultEngineParsePathGo(EmitsDeadCodeRegistrationRoots|EmitsMixedCaseServeMuxRouteEntry|IgnoresUnknownHandleFuncReceivers)'
+-count=1` and `go test ./internal/parser/javascript -run
+'TestDefaultEngineParsePathNextJS' -count=1` prove Go `net/http` route entries still emit exact handlers,
 including mixed-case `ServeMux` local variables, and JavaScript-family Next.js
 route entries emit only for exact app-router handler exports or named
 `pages/api` defaults. `go test ./internal/reducer -run

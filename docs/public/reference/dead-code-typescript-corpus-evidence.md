@@ -100,7 +100,7 @@ reducer regression commands were:
 
 ```bash
 cd go
-go test ./internal/parser -run 'TestDefaultEngineParsePathTypeScriptFastifyRouteObjectHandler' -count=1
+go test ./internal/parser/javascript -run 'TestDefaultEngineParsePathTypeScriptFastifyRouteObjectHandler' -count=1
 go test ./internal/reducer -run 'TestExtractCodeCallRowsResolvesFastifyRouteObjectHandlerReference|TestExtractCodeCallRowsResolvesConstructorFunctionValueReference' -count=1
 ```
 
