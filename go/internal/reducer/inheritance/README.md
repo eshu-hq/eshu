@@ -64,7 +64,7 @@ root forwarder or alias:
 - `payloadcore` gained `SemanticPayloadMetadataString`,
   `SemanticPayloadMetadataStringSlice`, `DedupeNonEmptyStrings`,
   `DeltaPayloadBool` and `QualifyDeltaPath`;
-- `sharedintent` gained `ProjectionContext`, `BuildProjectionContexts`, the
+- `schemadecode` gained `ProjectionContext`, `BuildProjectionContexts`, the
   repo-refresh vocabulary, `RepoWideRetractRefreshPartitionKey`,
   `DeltaScopeRepositorySet` and `ApplyRepoRefreshDeltaScope`;
 - `contract` gained `MaterializationDiagnosticSignals` and its two SubSignals

@@ -17,10 +17,12 @@ import (
 // repository. A repository fact whose payload is missing a required identity
 // field is skipped for context building -- dropped by returning early from the
 // decoder's error, matching this function's pre-existing "skip and continue"
-// shape for an absent identity; batch-wide quarantine visibility for this read
-// site is provided by the callers' own file-fact quarantine, which is the
-// accuracy hole issue #4749 targets (repo_id/relative_path used to silently
-// collapse to an empty-string graph identity on "file" facts).
+// shape for an absent identity. That skip is silent: it increments no counter,
+// because eshu_dp_reducer_input_invalid_facts_total is raised at the callers'
+// file-fact quarantine and not at this repository-fact read site, so the only
+// operator-visible trace is a handler reporting success with input_ready=0.
+// Closing that gap is what issue #4749 targets (repo_id/relative_path used to
+// silently collapse to an empty-string graph identity on "file" facts).
 //
 // SourceRunID stays required here: not every repository fact carries one, and an
 // absent source run id is a legitimate reason to skip context building, not a
