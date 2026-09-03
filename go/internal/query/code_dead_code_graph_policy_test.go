@@ -36,10 +36,11 @@ func TestBuildDeadCodeGraphCypherKeepsCandidateReadSimple(t *testing.T) {
 
 // TestBuildDeadCodeGraphCypherKeepsTheScopedVariantSimple runs the same
 // NornicDB-safety policy over the shape a scoped caller actually gets.
-// buildDeadCodeGraphCypher hard-codes an unscoped filter, so the test above
-// never sees the grant predicate; this one adds it and checks that it lands in
-// the MATCH-attached WHERE with no extra clause between the anchor and the
-// RETURN, which is the shape the pinned build evaluates faithfully.
+// The test-only buildDeadCodeGraphCypher helper hard-codes an unscoped filter,
+// so the test above never sees the grant predicate; this one adds it and checks
+// that it lands in the MATCH-attached WHERE with no extra clause between the
+// anchor and the RETURN, which is the shape the pinned build evaluates
+// faithfully.
 func TestBuildDeadCodeGraphCypherKeepsTheScopedVariantSimple(t *testing.T) {
 	t.Parallel()
 

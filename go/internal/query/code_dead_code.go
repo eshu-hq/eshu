@@ -96,10 +96,6 @@ func (h *CodeHandler) handleDeadCode(w http.ResponseWriter, r *http.Request) {
 	}, BuildTruthEnvelope(h.profile(), "code_quality.dead_code", TruthBasisHybrid, "resolved from graph-backed dead-code candidates with partial root modeling"))
 }
 
-func buildDeadCodeGraphCypher(hasRepoID bool, _ GraphBackend) string {
-	return buildDeadCodeGraphCypherForLabel(hasRepoID, "Function", "", repositoryAccessFilter{AllScopes: true})
-}
-
 // buildDeadCodeGraphCypherForLabel builds the graph-fallback candidate scan for
 // one label. access pushes the caller's repository grant onto the Repository
 // anchor `r` inside the WHERE, before the SKIP/LIMIT, so a scoped caller's page
