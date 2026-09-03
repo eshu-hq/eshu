@@ -392,9 +392,12 @@ renamed to `engine_javascript_dead_code_typescript_import_exports_test.go`.
 `assertParserStringSliceFieldValue`, and `repoFixturePath` to cover these
 suites; `javascript_compat_test.go` keeps its parent-package name for
 `javaScriptExpressServerSymbols`, a thin wrapper over the exported
-`ExpressServerSymbols` that `javascript_dead_code_roots_test.go` calls, even
-though the wrapper could now call `ExpressServerSymbols` directly since both
-files sit in the same package.
+`ExpressServerSymbols` that `javascript_dead_code_roots_test.go` calls. The
+wrapper is not redundant: it lives in the external `javascript_test` package
+while `ExpressServerSymbols` is declared in the non-test `javascript` package
+(`javascript_dead_code_roots.go`), so the call still needs the `jsparser.`
+qualifier. Deleting the wrapper on the assumption that the two sit in one
+package would break `javascript_dead_code_roots_test.go`.
 
 The external test package may import `internal/parser`; the non-test package
 must not. Go compiles `javascript_test` separately, so this keeps the
