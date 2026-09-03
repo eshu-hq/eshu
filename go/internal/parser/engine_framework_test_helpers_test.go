@@ -20,9 +20,14 @@ import (
 // caller, kotlin_spring_route_semantics_test.go, relocated to
 // internal/parser/kotlin as part of #6062, and the relocated kotlin_test
 // package uses the parsertest copies (AssertFrameworksEqual,
-// AssertNestedStringSliceEqual, AssertNestedRouteEntriesEqual) instead, so
-// this file keeps only the two bucket lookups the infra, TypeScript, and TSX
-// engine tests still call.
+// AssertNestedStringSliceEqual, AssertNestedRouteEntriesEqual) instead.
+
+// findAllNamedBucketItems used to live here too. Its last parent-side caller,
+// engine_typescript_advanced_semantics_test.go, relocated to
+// internal/parser/javascript as part of #6062, and the relocated
+// javascript_test package uses the copy in engine_javascript_semantics_test.go.
+// This file now keeps only findNamedBucketItem, whose remaining caller is
+// engine_infra_test.go.
 
 func findNamedBucketItem(t *testing.T, payload map[string]any, key string, name string) map[string]any {
 	t.Helper()
@@ -39,21 +44,4 @@ func findNamedBucketItem(t *testing.T, payload map[string]any, key string, name 
 	}
 	t.Fatalf("%s missing item with name %q", key, name)
 	return nil
-}
-
-func findAllNamedBucketItems(t *testing.T, payload map[string]any, key string, name string) []map[string]any {
-	t.Helper()
-
-	items, ok := payload[key].([]map[string]any)
-	if !ok {
-		t.Fatalf("%s = %T, want []map[string]any", key, payload[key])
-	}
-	matches := make([]map[string]any, 0)
-	for _, item := range items {
-		itemName, _ := item["name"].(string)
-		if itemName == name {
-			matches = append(matches, item)
-		}
-	}
-	return matches
 }

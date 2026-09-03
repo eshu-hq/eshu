@@ -10,7 +10,7 @@ This page describes the current Go parser and query contract for TSX.
 | Parser | `DefaultEngine (tsx)` |
 | Entrypoint | `go/internal/parser/javascript_language.go` |
 | Fixture repo | `tests/fixtures/ecosystems/tsx_comprehensive/` (loaded and exercised by `go/internal/parser/prescan_derive_test.go::TestDerivePreScanNamesMatchesLegacyPreScan`) |
-| Main parser tests | `go/internal/parser/javascript/engine_javascript_semantics_test.go`, `go/internal/parser/engine_tsx_advanced_semantics_test.go`, `go/internal/parser/engine_tsx_component_wrapper_test.go` |
+| Main parser tests | `go/internal/parser/javascript/engine_javascript_semantics_test.go`, `go/internal/parser/javascript/engine_tsx_advanced_semantics_test.go`, `go/internal/parser/javascript/engine_tsx_component_wrapper_test.go` |
 | Runtime validation | Compose-backed fixture verification; see [Local Testing](../reference/local-testing.md) |
 
 ## Supported Surfaces

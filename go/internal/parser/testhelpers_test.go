@@ -6,7 +6,6 @@ package parser
 import (
 	"os"
 	"path/filepath"
-	"reflect"
 	"runtime"
 	"testing"
 )
@@ -28,26 +27,6 @@ func repoFixturePath(parts ...string) string {
 	root := filepath.Clean(filepath.Join(filepath.Dir(file), "..", "..", ".."))
 	elements := append([]string{root, "tests", "fixtures"}, parts...)
 	return filepath.Join(elements...)
-}
-
-// assertStringSliceFieldValue requires item[field] to equal want in order. It
-// lives here rather than in a language-specific test file because several
-// engine test files assert ordered string-slice payload fields.
-func assertStringSliceFieldValue(
-	t *testing.T,
-	item map[string]any,
-	field string,
-	want []string,
-) {
-	t.Helper()
-
-	got, ok := item[field].([]string)
-	if !ok {
-		t.Fatalf("%s = %T, want []string", field, item[field])
-	}
-	if !reflect.DeepEqual(got, want) {
-		t.Fatalf("%s = %#v, want %#v", field, got, want)
-	}
 }
 
 // assertFunctionByName returns the functions-bucket item matching name. It
@@ -118,38 +97,6 @@ func assertIntFieldValue(t *testing.T, item map[string]any, field string, want i
 	}
 }
 
-// assertBucketItemByFieldValue returns the payload[bucket] item whose string
-// field equals want. It lives here rather than in a language-specific test
-// file because the Go, Java, JavaScript, and TypeScript engine tests key
-// function_calls rows by full_name or call_kind rather than by name. The
-// external internal/parser/php tests use parsertest.AssertBucketItemByFieldValue
-// instead. This copy cannot be replaced by that shared one: parsertest imports
-// this package, so an internal `package parser` test importing parsertest is an
-// import cycle. Only the external <lang>_test child packages can take the
-// shared helper.
-func assertBucketItemByFieldValue(
-	t *testing.T,
-	payload map[string]any,
-	bucket string,
-	field string,
-	want string,
-) map[string]any {
-	t.Helper()
-
-	items, ok := payload[bucket].([]map[string]any)
-	if !ok {
-		t.Fatalf("%s = %T, want []map[string]any", bucket, payload[bucket])
-	}
-	for _, item := range items {
-		value, _ := item[field].(string)
-		if value == want {
-			return item
-		}
-	}
-	t.Fatalf("%s missing %s=%q in %#v", bucket, field, want, items)
-	return nil
-}
-
 // writeBenchFile writes contents to path and fails the benchmark if the write
 // fails. It lives here rather than in a language-specific benchmark file
 // because the content-metadata and JavaScript parent-lookup benchmarks share it.
@@ -157,5 +104,23 @@ func writeBenchFile(b *testing.B, path, contents string) {
 	b.Helper()
 	if err := os.WriteFile(path, []byte(contents), 0o644); err != nil {
 		b.Fatalf("write %s: %v", path, err)
+	}
+}
+
+// assertBoolFieldValue requires item[field] to hold the bool want. It was
+// declared in engine_tsx_advanced_semantics_test.go until that file moved to
+// internal/parser/javascript; the NuGet dependency tests still at root are its
+// remaining parent-package callers, so the definition lives here with the other
+// cross-language helpers. parsertest has no bool variant, so the external
+// <lang>_test children carry their own copies rather than sharing this one.
+func assertBoolFieldValue(t *testing.T, item map[string]any, field string, want bool) {
+	t.Helper()
+
+	got, ok := item[field].(bool)
+	if !ok {
+		t.Fatalf("%s = %T, want bool", field, item[field])
+	}
+	if got != want {
+		t.Fatalf("%s = %#v, want %#v", field, got, want)
 	}
 }

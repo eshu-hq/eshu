@@ -25,10 +25,13 @@ split into two files (`javascript_dead_code_roots_test.go` and
 500-line cap, and the pre-existing subdirectory file named
 `javascript_dead_code_typescript_import_exports_test.go` kept its name, so the
 relocated parent file of the same name is now
-`engine_javascript_dead_code_typescript_import_exports_test.go`. The parent
-package retains `engine_test.go` for core JS/TS PreScan and payload-construction
-coverage, plus `engine_tsx_*` and `engine_typescript_*` files that stay out of
-scope for both moves. `engine_cyclomatic_complexity_arms_test.go` and
+`engine_javascript_dead_code_typescript_import_exports_test.go`. A third
+relocation under the same issue moved the last three parent-level files named
+for this family -- `engine_typescript_advanced_semantics_test.go`,
+`engine_tsx_advanced_semantics_test.go`, and
+`engine_tsx_component_wrapper_test.go` -- so no `engine_typescript_*` or
+`engine_tsx_*` file remains in `internal/parser`. The parent package retains
+`engine_test.go` for core JS/TS PreScan and payload-construction coverage. `engine_cyclomatic_complexity_arms_test.go` and
 `engine_long_tail_test.go` were audited for JavaScript-specific rows during the
 second relocation and hold none; an earlier version of this doc claimed
 otherwise. A final #6062 relocation moved the parent-level
@@ -109,8 +112,10 @@ to `../../../../tests/fixtures` for the extra directory level.
 - **PreScan**: declaration names (`javascript_language.go`)
 
 ## Verified-by-Test Constructs
-The test suite is organized by feature area with approximately 17 parent-level
-engine tests and 27+ subdirectory tests. Key coverage categories:
+The test suite is organized by feature area. After the three #6062 relocations
+`internal/parser/javascript` holds 46 test files declaring 183 tests and 5
+benchmarks (`go test -list` against that package, final tree); the sibling
+`jsdataflow` package holds the value-flow suites. Key coverage categories:
 
 **Core parsing (engine_test.go, engine_managed_oo_test.go)**:
 - Basic JS/TS/TSX payload construction: `TestDefaultEngineParsePathJavaScript`
@@ -194,9 +199,23 @@ engine_javascript_route_handler_test.go)**:
   `javascript_dead_code_typescript_surface_reexport_test.go`
 
 **TypeScript (engine_javascript_tsconfig_baseurl_test.go,
-engine_javascript_type_parameters_test.go)**:
+engine_javascript_type_parameters_test.go,
+engine_typescript_advanced_semantics_test.go)**:
 - tsconfig baseUrl resolution
 - Type parameters
+- Namespace/conditional/mapped type semantics, declaration merging, generic
+  interface type parameters, type-reference and type-assertion metadata, and
+  the rule that interface method signatures are not emitted as functions:
+  `engine_typescript_advanced_semantics_test.go` (7 tests)
+
+**TSX (engine_tsx_advanced_semantics_test.go,
+engine_tsx_component_wrapper_test.go)**:
+- Fragment shorthand and `ComponentType` assertion, including the qualified,
+  parenthesized-qualified, and aliased-import forms:
+  `engine_tsx_advanced_semantics_test.go` (4 tests)
+- React component wrapper resolution -- `React.FC`, `React.FunctionComponent`,
+  `memo`, `forwardRef`, `lazy`, aliased `memo`, and the parenthesized
+  wrapper/annotation pair: `engine_tsx_component_wrapper_test.go` (6 tests)
 
 **Embedded shell**:
   `embedded_shell_test.go:TestDefaultEngineParsePathJavaScriptEmbeddedShellCommands`

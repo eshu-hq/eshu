@@ -182,9 +182,8 @@ anti-pattern against adding telemetry from this package.
 
 ### #6062 residual
 
-The relocation tail is not finished. Four single-language tests remain at the
-`internal/parser` root: `engine_swift_symbol_gate_test.go` (destined for
-`swift/`), and `engine_typescript_advanced_semantics_test.go`,
-`engine_tsx_advanced_semantics_test.go` and
-`engine_tsx_component_wrapper_test.go` (all destined for `javascript/`).
+One single-language test remains at the `internal/parser` root:
+`engine_swift_symbol_gate_test.go`, destined for `swift/`. The three
+`engine_typescript_*` / `engine_tsx_*` files that were listed here moved into
+`internal/parser/javascript` under #6062, not into this package.
 The 27 `<lang>_language.go` Engine-method glue files stay at root by design.
