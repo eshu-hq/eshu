@@ -131,6 +131,24 @@
 #
 # The fixture's own committed .gitattributes, if it ever gains one, is fixture
 # content and is meant to apply. That is the intended behavior, not a leak.
+#
+# safe.directory stops working, and that is a real requirement this imposes
+# rather than an oversight. git honours safe.directory ONLY from global and
+# system config -- it deliberately ignores the entry in a repository's own
+# config, because a repository an attacker controls could otherwise declare
+# itself safe. Switching global config off therefore switches that entry off
+# too, and stage_strip_ignored_files runs one call against the Eshu checkout
+# itself rather than a fixture.
+#
+# So on a machine where the checkout has dubious ownership -- cloned by another
+# user, or a shared runner -- that call now fails where it used to succeed. It
+# fails loudly: the caller checks the exit status and dies naming the command,
+# rather than staging an unfiltered copy. A wrong answer was the thing worth
+# preventing, and this is not one.
+#
+# The alternative, keeping global config on for that single call, would reopen
+# core.excludesfile on exactly the call whose job is to read ignore rules, which
+# is worse than requiring an owned checkout.
 
 # golden_corpus_git runs one git command with the developer's global and system
 # configuration switched off. Use it for every git invocation that reads or
