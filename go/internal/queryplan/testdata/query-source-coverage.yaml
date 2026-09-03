@@ -331,7 +331,7 @@ source_coverage:
         count: 1
         non_hot:
           class: keyed_support
-          source_sha256: 6046b6fb3f5b6f3ecd72657fca1c797dd313d06eb7a220c8eb36d0d2d741c930
+          source_sha256: efb8996cc1cdbef3712ba51ad6de2771465a533345fe115a845a0a85f30807b9
           key_bound: single_key
           max_results: 50001
       - {symbol: "(*InfraHandler).graphSummaryRelationshipCounts", count: 1, non_hot_reason: "inventory-only support or bounded read; promote to entry_ids when designated hot"}

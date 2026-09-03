@@ -202,7 +202,7 @@ func (h *InfraHandler) graphSummaryRepoPacket(ctx context.Context, req graphSumm
 // corruption while retaining exact incoming, outgoing, and total degree.
 func (h *InfraHandler) graphSummaryHotEntities(ctx context.Context, repoID string, limit int) ([]map[string]any, bool, error) {
 	// The repo-scoped branch already 404s a scoped caller whose repo_id is
-	// outside its grant (handleGraphSummary above), so passing the filter here
+	// outside its grant (getGraphSummaryPacket above), so passing the filter here
 	// is row-set-neutral; it keeps the shared edge pass grant-bound in its own
 	// text for both of its callers (#5167).
 	cypher, params := callGraphMetricsEdgesCypher(repoID, repositoryAccessFilterFromContext(ctx))
