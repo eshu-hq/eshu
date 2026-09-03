@@ -68,9 +68,18 @@ func assertGrantBinds(t *testing.T, args []any, want grantBindPositions) {
 //
 // This asserts the values actually arrive as bind arguments, at the positions
 // the SQL reads them from. It deliberately does NOT claim to validate the SQL
-// predicate itself: that needs a real database with in-grant and out-of-grant
-// rows, which this hermetic suite has no engine for, and which must land before
-// either route leaves the pending ledger.
+// predicate itself: this hermetic suite has no engine to execute the query text
+// against.
+//
+// That gap is covered elsewhere, and not by a live database. #5167's AC4
+// reconciliation settled the tier at the hermetic W4 shape
+// (go/internal/query/auth_scoped_iac_replatforming_grant_test.go): a two-tenant
+// test driving the production handler against a fake that mirrors this
+// predicate -- TestGenerationLifecycleTwoTenantGrantBoundary in internal/query
+// -- paired with TestFreshnessGrantPredicatesArePresentInTheShippedSQL in this
+// package, which pins the predicate text so a rewrite that drops an arm fails
+// before it reaches a caller. Those two halves are what let the route leave the
+// pending row-filtering ledger; no live DSN is required.
 func TestListGenerationLifecyclePassesGrantToQuery(t *testing.T) {
 	t.Parallel()
 

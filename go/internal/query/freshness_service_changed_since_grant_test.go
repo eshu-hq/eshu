@@ -6,6 +6,7 @@ package query
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
@@ -46,6 +47,14 @@ type mirroredServiceCorrelation struct {
 // (service_catalog_correlations.go, the $6 and $13/$14 arms), so a handler that
 // stops passing the caller's grant resolves the other tenant's service here
 // exactly as it would in Postgres, and the assertions below fail.
+//
+// It also mirrors the shipped store's argument validation, not only its WHERE
+// arms (#5167 review, P2-2). PostgresServiceCatalogCorrelationStore rejects a
+// filter that fails hasScope() and a Limit outside 1..serviceCatalogCorrelation
+// MaxLimit+1 before it reaches SQL, so a fake that answered those with rows
+// would keep every assertion in this file green while production returned 500
+// to every scoped caller on the route -- exactly the false green a dropped
+// `Limit: 1` or an empty ServiceID would produce.
 type grantMirroringServiceOwnership struct {
 	rows    []mirroredServiceCorrelation
 	touched bool
@@ -55,6 +64,15 @@ func (g *grantMirroringServiceOwnership) ListServiceCatalogCorrelations(
 	_ context.Context, filter ServiceCatalogCorrelationFilter,
 ) ([]ServiceCatalogCorrelationRow, error) {
 	g.touched = true
+
+	// service_catalog_correlations.go: the same two guards, in the same order,
+	// with the same messages the shipped store returns.
+	if !filter.hasScope() {
+		return nil, fmt.Errorf("scope_id, entity_ref, repository_id, service_id, workload_id, or owner_ref is required")
+	}
+	if filter.Limit <= 0 || filter.Limit > serviceCatalogCorrelationMaxLimit+1 {
+		return nil, fmt.Errorf("limit must be between 1 and %d", serviceCatalogCorrelationMaxLimit)
+	}
 
 	out := make([]ServiceCatalogCorrelationRow, 0, len(g.rows))
 	for _, row := range g.rows {
@@ -99,6 +117,19 @@ func mirroredServiceCorrelationGrantAdmits(
 		}
 	}
 	return containsAuthString(filter.AllowedScopeIDs, row.scopeID)
+}
+
+// failingServiceOwnership is the deployment in which ownership resolution
+// itself fails -- the shape the shipped store's own argument validation
+// produces when the handler hands it a Limit of 0 or a filter with no scope.
+type failingServiceOwnership struct {
+	err error
+}
+
+func (f *failingServiceOwnership) ListServiceCatalogCorrelations(
+	_ context.Context, _ ServiceCatalogCorrelationFilter,
+) ([]ServiceCatalogCorrelationRow, error) {
+	return nil, f.err
 }
 
 // touchRecordingServiceChangedSince is the lineage reader with a touched flag.
@@ -374,6 +405,32 @@ func TestServiceChangedSinceTwoTenantGrantBoundary(t *testing.T) {
 					t.Fatalf("data[service_id] = %v, want %q", got, serviceID)
 				}
 			})
+		}
+	})
+
+	t.Run("an ownership store error is a 500, not a silent not-found", func(t *testing.T) {
+		t.Parallel()
+
+		rec, reader := serveServiceChangedSinceOwnership(
+			t, serviceChangedSinceGrantServiceA, scopedServiceChangedSinceTenantA(),
+			&failingServiceOwnership{err: fmt.Errorf("limit must be between 1 and %d", serviceCatalogCorrelationMaxLimit)},
+		)
+
+		// This is the production shape the mirrored validation above now
+		// reproduces (#5167 review, P2-2). Drop `Limit: 1` from
+		// serviceChangedSinceGrantAdmits, or reach the store with an empty
+		// ServiceID, and the shipped
+		// PostgresServiceCatalogCorrelationStore.ListServiceCatalogCorrelations
+		// returns an error rather than rows -- every scoped caller on the route
+		// gets a 500. Folding that into the not-found would hide a broken
+		// deployment behind an answer that looks like ordinary tenant
+		// isolation.
+		if rec.Code != http.StatusInternalServerError {
+			t.Fatalf("status = %d, want %d; an ownership resolution failure must surface, not read as not-found; body = %s",
+				rec.Code, http.StatusInternalServerError, rec.Body.String())
+		}
+		if reader.touched {
+			t.Fatal("lineage reader was called after the ownership store failed; an unresolved grant must not read lineage")
 		}
 	})
 

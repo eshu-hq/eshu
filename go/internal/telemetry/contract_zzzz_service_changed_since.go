@@ -27,6 +27,38 @@ const (
 	// SpanAttrServiceChangedSinceUnavailable records whether the diff could not be
 	// computed because the service had no current active generation.
 	SpanAttrServiceChangedSinceUnavailable = "eshu.service_changed_since.unavailable"
+	// SpanAttrServiceChangedSinceGrantRefused records that the caller's
+	// repository grant refused the lineage read before it ran (#5167). The
+	// route answers a refusal with the same body an unknown service gets, so
+	// this attribute is the only thing that tells an operator the two apart.
+	// It is set only on a refusal; its absence on a served request is the
+	// other half of the signal.
+	SpanAttrServiceChangedSinceGrantRefused = "eshu.service_changed_since.grant_refused"
+	// SpanAttrServiceChangedSinceGrantRefusedReason records which refusal
+	// applied, drawn from the closed ServiceChangedSinceGrantRefusal*
+	// vocabulary below. It never carries a service id, tenant, workspace,
+	// repository, or scope value, so the attribute stays low-cardinality and
+	// non-identifying.
+	SpanAttrServiceChangedSinceGrantRefusedReason = "eshu.service_changed_since.grant_refused_reason"
+)
+
+// The closed vocabulary for SpanAttrServiceChangedSinceGrantRefusedReason.
+// Operators alert on these strings, so adding a value is a deliberate contract
+// change rather than an implementation detail.
+const (
+	// ServiceChangedSinceGrantRefusalEmptyGrant marks a scoped caller whose
+	// grant names no repository and no scope. The refusal happens before any
+	// store call, because the correlation read's grant clause is permissive on
+	// two empty arrays.
+	ServiceChangedSinceGrantRefusalEmptyGrant = "empty_grant"
+	// ServiceChangedSinceGrantRefusalNotGranted marks a scoped caller whose
+	// grant resolved no service-catalog correlation for the requested service:
+	// either another tenant owns it, or its catalog entity is gone.
+	ServiceChangedSinceGrantRefusalNotGranted = "not_granted"
+	// ServiceChangedSinceGrantRefusalOwnershipUnwired marks a deployment with
+	// no service-ownership store wired. It fails closed for every scoped
+	// caller, so a run of these means a wiring bug, not a tenant boundary.
+	ServiceChangedSinceGrantRefusalOwnershipUnwired = "ownership_unwired"
 )
 
 func init() {

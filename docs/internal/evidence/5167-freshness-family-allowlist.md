@@ -65,7 +65,9 @@ mode check (#6450): an all-scope caller's
 `RepositoryAccessFilterFromContext` is not `Scoped()`, so these predicates go
 inert for it, and the hosted multi-tenant posture must refuse rather than answer
 from the whole graph. A restricted session, whose grant the queries can bind,
-is admitted.
+is admitted. That covers the browser-session caller shape and only that one;
+[Residual](#residual-all-scope-bearers-6450-item-1) below states the shape it
+does not cover.
 
 ## Commit 1: tests run
 
@@ -99,6 +101,23 @@ exercised by mutating `listChangedSince`'s single grant assignment:
 | `filter.Scoped = false` (grant never bound) | `out of grant is not found` fails: status 200 with `scope-b`'s delta | 1 |
 | `filter.Scoped = true` (bound for every caller) | `all scope shared key sees both tenants` fails: 404 for both repositories | 1 |
 | `filter.Scoped = access.Scoped()` (shipped) | pass | 0 |
+
+`TestGenerationLifecycleTwoTenantGrantBoundary` carried only the in-grant and
+out-of-grant cases, so it did not actually mirror its sibling and the
+"shared key sees both" half of the claim rested on one test rather than two
+(round-1 review, P2-1). It now carries the same four caller shapes: in grant,
+out of grant, empty grant, and a shared key on each tenant's generation. The
+fake also records the filter it was handed, so the empty-grant case can assert
+the grant reached the query empty rather than not at all.
+
+| Mutation in `freshness_generations.go` | Result | Exit |
+| --- | --- | --- |
+| `filter.Scoped = true` (bound for every caller) | both `shared key` cases fail: 404 for `gen-a` and `gen-b` | 1 |
+| `filter.Scoped = access.Scoped()` (shipped) | pass | 0 |
+
+Before the new cases that same mutation shipped green: the two remaining
+subtests are both scoped, and the plain fakes in `freshness_generations_test.go`
+ignore `Scoped` entirely.
 
 ## Commit 1 BITES: the allowlist wiring
 
@@ -168,6 +187,36 @@ session under a fail-closed `BrowserSessionRoutePolicy` is refused, with
 `scoped_route_all_scope_grant_required`. That is the #6450 code, already
 defined and already asserted by the split table; this change adds two routes to
 the population that can emit it.
+
+## Residual: all-scope bearers (#6450 item 1)
+
+The `scopedRouteGrantBound` class check does not cover every all-scope caller,
+and this document should not be read as saying it does.
+
+`browserSessionRouteDenialReason` is the only reader of the class, and
+`go/internal/query/auth.go` reaches it inside the
+`auth.Mode == AuthModeBrowserSession` branch. So:
+
+- an all-scope **browser session** hits the class check and is refused by a
+  fail-closed `BrowserSessionRoutePolicy`;
+- an all-scope **bearer** never enters that branch, so no class check runs for
+  it at all.
+
+Two bearers carry `AllScopes`. An OIDC bearer resolved with an admin group
+grant gets it from `go/internal/oidcbearer/resolver.go:223`, and a file-backed
+registry token can carry `all_scopes` (`go/internal/scopedtoken/registry.go`).
+For either, `RepositoryAccessFilter.Scoped()` is false, so `$3` and `$8`
+short-circuit the two SQL predicates and `serviceChangedSinceGrantAdmits`
+returns true at its first branch: the read runs across the whole corpus. Before
+this change those three routes answered such a caller with a middleware 403.
+
+This is #6450's residual item 1, quoted there as "All-scope bearer tokens skip
+the policy entirely". It is pre-existing and holds for every
+`scopedRouteGrantBound` entry in `scopedTokenAdvertisedRoutes` (175 advertised
+routes at `origin/main`, 178 after this change), not only these three, so
+closing it belongs to #6450 rather than to this family. It is named here, and in
+`scopedFreshnessDeltaRoute`'s doc comment, so the next reader of either does not
+conclude that "grant-bound" means every all-scope caller is refused.
 
 ---
 
@@ -327,7 +376,19 @@ reverted. Exit codes captured directly.
 | `access.Empty()` short circuit dropped | `empty grant touches neither store`: 200 with tenant A's delta, because the store's grant clause is TRUE on empty arrays | 1 |
 | `!access.Scoped()` early return dropped (bind unconditionally) | `shared key never consults the ownership store`: the store is consulted for an unscoped caller on both services | 1 |
 | `ServiceOwnership == nil` opens instead of refusing | `scoped caller fails closed when ownership is unwired`: 200 | 1 |
+| `Limit: 1` dropped to `Limit: 0` | `in grant returns the delta` and `out of grant is not found before the lineage read`: 500, `resolve service ownership: limit must be between 1 and 200` | 1 |
 | Shipped code | pass | 0 |
+
+The `Limit` row is new in round 1 (review P2-2). The ownership fake mirrored the
+shipped query's WHERE arms but not the shipped store's argument validation, so
+it answered a `Limit` of 0 or a filter with no scope with rows. That kept this
+file green while production returned 500 to every scoped caller on the route.
+The fake now returns the same two errors
+`PostgresServiceCatalogCorrelationStore.ListServiceCatalogCorrelations` returns
+(`service_catalog_correlations.go`), and a new subtest,
+`an ownership store error is a 500, not a silent not-found`, pins that the
+handler surfaces an ownership failure instead of folding it into the refusal --
+a broken deployment must not read as ordinary tenant isolation.
 
 The third row is the one a deny-only test cannot see: binding unconditionally
 still answers 200 for a shared key here, and only the `touched` flag catches
@@ -362,8 +423,12 @@ No-Regression Evidence: no existing query shape changed. No SQL string, bind
 argument, join, or index is touched; the ownership resolution reuses
 `listServiceCatalogCorrelationsQuery` verbatim, so its plan cache key and wire
 text are byte-identical to `origin/main`. The added cost is one bounded
-`SELECT ... LIMIT 1` on `fact_records`, anchored by the `service_id` payload
-predicate and the caller's grant arrays, and it runs only on the scoped path:
+`SELECT ... LIMIT 1` on `fact_records`, served by the partial index
+`fact_records_service_catalog_correlations_service_idx`
+(`schema/data-plane/postgres/003_service_catalog_fact_record_indexes.sql:23`),
+whose leading column is `(payload->>'service_id')` under
+`WHERE fact_kind = 'reducer_service_catalog_correlation' AND is_tombstone =
+FALSE` -- the exact predicate this read issues. It runs only on the scoped path:
 an unscoped caller adds nothing (`shared key never consults the ownership
 store` pins that), and a scoped caller with no grant adds nothing (`empty grant
 touches neither store` pins that). No before/after wall-clock claim is made:
@@ -371,15 +436,49 @@ there is no measured hot path here to compare, and a package test time is not
 one. `go test ./internal/query -count=1` took 4.887s green after the last edit,
 recorded as a smoke figure rather than as a delta.
 
-No-Observability-Change: no span, metric, or log key is added or removed. The
-handler span keeps its existing name and attributes,
-`query.freshness_service_changed_since`; a pre-read refusal returns before
-`span.SetAttributes`, exactly as the existing unknown-service refusal does, so
-the attribute set on a refused request is unchanged. A refusal on this route
-continues to emit the governance-audit event the scoped-route admission path
-already emits -- `governanceaudit.EventTypeReadAuthorization` with
-`governanceaudit.DecisionDenied`. As in commit 1 the reason code an operator
-reads changes meaning rather than appearing: `scoped_route_not_enabled` before,
-and after this change a grant-bearing caller is admitted while only an
-all-scope browser session under a fail-closed `BrowserSessionRoutePolicy` is
-refused, with the existing #6450 `scoped_route_all_scope_grant_required`.
+Observability Evidence: this route gains two span attributes on
+`query.freshness_service_changed_since`, declared in
+`go/internal/telemetry/contract_zzzz_service_changed_since.go`:
+
+- `eshu.service_changed_since.grant_refused` (bool), set only when the handler
+  refuses a scoped caller;
+- `eshu.service_changed_since.grant_refused_reason` (string), from the closed
+  vocabulary `empty_grant` | `not_granted` | `ownership_unwired`.
+
+They exist because the three new refusal branches are otherwise invisible. The
+response body is deliberately byte-identical to an unknown service's, which is
+what keeps the route from working as an existence oracle, and the middleware
+has already ADMITTED the request by then, so no governance-audit deny event
+fires for a handler-level refusal either. An earlier draft of this document
+claimed the scoped-route allow and deny audit events covered these refusals.
+They do not: `governanceaudit.DecisionDenied` is emitted by
+`recordScopedRouteAuthorizationDeniedWithReason` on the admission path only,
+and `internal/query` emits `DecisionAllowed` from the identity-mutation
+handlers, never from a scoped-route read. Without the span attributes an
+operator paged with "tenant A's token gets not-found for a service it owns"
+cannot separate a grant refusal from missing lineage from an unwired ownership
+store.
+
+Both attributes are server-side, so they add no oracle for the caller, and the
+reason vocabulary is closed and low-cardinality: it never carries a service id,
+tenant, workspace, repository, or scope. No metric and no log key is added, so
+no `docs/public/observability/telemetry-coverage.md` row is owed --
+`scripts/verify-telemetry-coverage.sh` stays green.
+
+`TestServiceChangedSinceGrantRefusalIsRecordedOnTheSpan`
+(`internal/query/freshness_service_changed_since_telemetry_test.go`) drives the
+production handler under a recording tracer and asserts the attribute and its
+reason on all three refusal branches, and their absence on the granted and
+shared-key cases.
+`TestServiceChangedSinceGrantRefusalReasonsAreAClosedVocabulary` pins the two
+attribute names and the three reason strings, because an operator alert keys
+off those literals.
+
+What is unchanged: the span's name and its existing five summary attributes,
+and the middleware's own audit behaviour. As in commit 1 the reason code an
+operator reads there changes meaning rather than appearing:
+`scoped_route_not_enabled` before, and after this change a grant-bearing caller
+is admitted while only an all-scope browser session under a fail-closed
+`BrowserSessionRoutePolicy` is refused, with the existing #6450
+`scoped_route_all_scope_grant_required`. An all-scope bearer is refused by
+neither -- see [Residual](#residual-all-scope-bearers-6450-item-1).

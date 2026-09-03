@@ -32,6 +32,12 @@ import (
 // cross-tenant read.
 type grantMirroringGenerations struct {
 	rows []mirroredGenerationRow
+	// lastFilter is what the handler actually asked for. The shared-key and
+	// empty-grant cases assert against it because a status code alone cannot
+	// tell "the grant was bound and matched nothing" from "the grant was never
+	// bound at all" (#5167 review, P2-1).
+	lastFilter status.GenerationLifecycleFilter
+	called     bool
 }
 
 type mirroredGenerationRow struct {
@@ -44,6 +50,9 @@ type mirroredGenerationRow struct {
 func (g *grantMirroringGenerations) ListGenerationLifecycle(
 	_ context.Context, filter status.GenerationLifecycleFilter,
 ) (status.GenerationLifecyclePage, error) {
+	g.lastFilter = filter
+	g.called = true
+
 	var out []status.GenerationLifecycleRecord
 	for _, row := range g.rows {
 		if filter.GenerationID != "" && filter.GenerationID != row.generationID {
@@ -85,7 +94,7 @@ func twoTenantGenerationRows() []mirroredGenerationRow {
 	}
 }
 
-func scopedGenerationsRequest(t *testing.T, generationID string) *http.Request {
+func generationsRequest(t *testing.T, generationID string, auth AuthContext) *http.Request {
 	t.Helper()
 	req := httptest.NewRequest(
 		http.MethodGet,
@@ -93,46 +102,124 @@ func scopedGenerationsRequest(t *testing.T, generationID string) *http.Request {
 		nil,
 	)
 	req.Header.Set("Accept", EnvelopeMIMEType)
-	return req.WithContext(ContextWithAuthContext(req.Context(), AuthContext{
+	return req.WithContext(ContextWithAuthContext(req.Context(), auth))
+}
+
+// scopedGenerationsTenantA is the grant-bearing caller: repo-a and scope-a,
+// which the fixture's first row carries and its second does not.
+func scopedGenerationsTenantA() AuthContext {
+	return AuthContext{
 		Mode:                 AuthModeScoped,
 		TenantID:             "tenant-a",
 		WorkspaceID:          "workspace-a",
 		AllowedRepositoryIDs: []string{"repo-a"},
 		AllowedScopeIDs:      []string{"scope-a"},
-	}))
+	}
 }
 
 // TestGenerationLifecycleTwoTenantGrantBoundary is the proof #5167 requires
 // before this route may leave the pending row-filtering ledger: the same
 // scoped caller must see its own generation and must not be able to learn that
 // another tenant's generation exists.
+//
+// It carries the same four caller shapes its sibling
+// TestChangedSinceTwoTenantGrantBoundary carries (#5167 review, P2-1). The
+// shared-key rows are the ones a deny-only test cannot see: bind the grant
+// unconditionally (`filter.Scoped = true` in freshness_generations.go) and the
+// two scoped rows still pass while an unscoped operator silently loses every
+// generation, because an unscoped caller carries no allowed ids for the
+// predicate to match.
 func TestGenerationLifecycleTwoTenantGrantBoundary(t *testing.T) {
 	t.Parallel()
 
 	for _, tc := range []struct {
 		name         string
 		generationID string
+		auth         AuthContext
 		wantStatus   int
+		// wantScoped is what the handler must have put on the filter, which
+		// is the half of the binding a status code cannot show.
+		wantScoped bool
+		// wantEmptyGrant asserts the filter reached the store carrying no
+		// allowed repository and no allowed scope, so the query it stands for
+		// can match nothing.
+		wantEmptyGrant bool
 	}{
-		{name: "in grant returns the row", generationID: "gen-a", wantStatus: http.StatusOK},
-		{name: "out of grant is not found", generationID: "gen-b", wantStatus: http.StatusNotFound},
+		{
+			name:         "in grant returns the row",
+			generationID: "gen-a",
+			auth:         scopedGenerationsTenantA(),
+			wantStatus:   http.StatusOK,
+			wantScoped:   true,
+		},
+		{
+			name:         "out of grant is not found",
+			generationID: "gen-b",
+			auth:         scopedGenerationsTenantA(),
+			wantStatus:   http.StatusNotFound,
+			wantScoped:   true,
+		},
+		{
+			// The fail-closed half. An empty grant must still bind, because
+			// unlike the service-catalog correlation filter this predicate is
+			// restrictive on empty arrays: `= ANY('{}')` is false, so the
+			// caller resolves nothing rather than everything.
+			name:           "empty grant binds and matches nothing",
+			generationID:   "gen-a",
+			auth:           AuthContext{Mode: AuthModeScoped, TenantID: "tenant-a", WorkspaceID: "workspace-a"},
+			wantStatus:     http.StatusNotFound,
+			wantScoped:     true,
+			wantEmptyGrant: true,
+		},
+		{
+			name:         "shared key sees its own tenant",
+			generationID: "gen-a",
+			auth:         AuthContext{Mode: AuthModeShared},
+			wantStatus:   http.StatusOK,
+		},
+		{
+			name:         "shared key sees the other tenant",
+			generationID: "gen-b",
+			auth:         AuthContext{Mode: AuthModeShared},
+			wantStatus:   http.StatusOK,
+		},
 	} {
 		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
+			reader := &grantMirroringGenerations{rows: twoTenantGenerationRows()}
 			handler := &FreshnessHandler{
-				Generations: &grantMirroringGenerations{rows: twoTenantGenerationRows()},
+				Generations: reader,
 				Profile:     ProfileLocalAuthoritative,
 			}
 			mux := http.NewServeMux()
 			handler.Mount(mux)
 
 			w := httptest.NewRecorder()
-			mux.ServeHTTP(w, scopedGenerationsRequest(t, tc.generationID))
+			mux.ServeHTTP(w, generationsRequest(t, tc.generationID, tc.auth))
 
 			if w.Code != tc.wantStatus {
 				t.Fatalf("status = %d, want %d; body = %s", w.Code, tc.wantStatus, w.Body.String())
+			}
+			if !reader.called {
+				t.Fatal("the lifecycle reader was never called; this route binds its grant in the query, so the query must run")
+			}
+			// Mutation-sensitive: `filter.Scoped = true` for every caller
+			// fails the shared-key rows here as well as on their status code,
+			// and `filter.Scoped = false` fails the scoped rows, so neither
+			// direction can ship green.
+			if got := reader.lastFilter.Scoped; got != tc.wantScoped {
+				t.Fatalf("filter.Scoped = %t, want %t; the grant binding is what makes this route safe to allowlist",
+					got, tc.wantScoped)
+			}
+			if tc.wantEmptyGrant {
+				if got := len(reader.lastFilter.AllowedRepositoryIDs); got != 0 {
+					t.Fatalf("filter.AllowedRepositoryIDs has %d entries, want 0; an empty grant must reach the query empty", got)
+				}
+				if got := len(reader.lastFilter.AllowedScopeIDs); got != 0 {
+					t.Fatalf("filter.AllowedScopeIDs has %d entries, want 0; an empty grant must reach the query empty", got)
+				}
 			}
 			// The refusal must be shape-identical to a missing generation: a
 			// distinct code here would turn the route into an existence oracle

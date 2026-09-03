@@ -74,9 +74,27 @@ func scopedIngesterStatusRoute(r *http.Request) bool {
 // oracle either (TestServiceChangedSinceTwoTenantGrantBoundary).
 //
 // All three routes are classified scopedRouteGrantBound in
-// scopedTokenAdvertisedRoutes: an all-scope caller has no grant for those
-// predicates to bind, so an all-scope browser session stays behind the
-// BrowserSessionRoutePolicy mode check (#6450).
+// scopedTokenAdvertisedRoutes. That class check covers one caller shape and
+// not the other, and the difference matters here:
+//
+//   - An all-scope BROWSER SESSION is covered. browserSessionRouteDenialReason
+//     reads the class, and auth.go reaches it under the
+//     `auth.Mode == AuthModeBrowserSession` branch, so a hosted fail-closed
+//     BrowserSessionRoutePolicy refuses it (#6450). A restricted session is
+//     admitted and its grant binds normally.
+//   - An all-scope BEARER is NOT covered. It never enters that branch, so no
+//     class check runs for it. An OIDC bearer resolved with an admin group
+//     grant carries AllScopes onto its AuthContext
+//     (internal/oidcbearer/resolver.go), and a file-backed registry token can
+//     carry the same flag (internal/scopedtoken/registry.go). For such a
+//     caller RepositoryAccessFilter.Scoped() is false, so $3/$8 short-circuit
+//     the two SQL predicates above and serviceChangedSinceGrantAdmits returns
+//     true at its first branch: the read is served across the whole corpus.
+//
+// That second shape is #6450 residual 1. It is pre-existing and applies to
+// every grant-bound allowlisted route, not only these three, so closing it is
+// #6450's job rather than this matcher's -- but it is stated here so nobody
+// reads "grant-bound" as "every all-scope caller is refused".
 func scopedFreshnessDeltaRoute(r *http.Request) bool {
 	if r.Method != http.MethodGet {
 		return false

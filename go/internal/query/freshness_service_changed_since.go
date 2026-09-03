@@ -11,6 +11,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/status"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
 	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/trace"
 )
 
 const freshnessServiceChangedSinceRoute = "GET /api/v0/freshness/services/changed-since"
@@ -144,6 +145,10 @@ func (h *FreshnessHandler) listServiceChangedSince(w http.ResponseWriter, r *htt
 //     An unscoped operator still sees it.
 //   - A nil ServiceOwnership refuses every scoped caller. A deployment that
 //     cannot resolve ownership must not answer instead of resolving it.
+//
+// Every refusal is recorded on the handler span before it returns
+// (refuseServiceChangedSinceGrant), because the caller-facing body cannot say
+// which one fired without turning the route back into an existence oracle.
 func (h *FreshnessHandler) serviceChangedSinceGrantAdmits(
 	w http.ResponseWriter,
 	r *http.Request,
@@ -159,11 +164,11 @@ func (h *FreshnessHandler) serviceChangedSinceGrantAdmits(
 	// TRUE when both grant arrays are empty, so a scoped caller with no grant
 	// would read every tenant's correlations. Refuse before the store call.
 	if access.Empty() {
-		h.writeServiceChangedSinceNotFound(w, r, serviceID)
+		h.refuseServiceChangedSinceGrant(w, r, serviceID, telemetry.ServiceChangedSinceGrantRefusalEmptyGrant)
 		return false
 	}
 	if h.ServiceOwnership == nil {
-		h.writeServiceChangedSinceNotFound(w, r, serviceID)
+		h.refuseServiceChangedSinceGrant(w, r, serviceID, telemetry.ServiceChangedSinceGrantRefusalOwnershipUnwired)
 		return false
 	}
 
@@ -184,10 +189,39 @@ func (h *FreshnessHandler) serviceChangedSinceGrantAdmits(
 		return false
 	}
 	if len(rows) == 0 {
-		h.writeServiceChangedSinceNotFound(w, r, serviceID)
+		h.refuseServiceChangedSinceGrant(w, r, serviceID, telemetry.ServiceChangedSinceGrantRefusalNotGranted)
 		return false
 	}
 	return true
+}
+
+// refuseServiceChangedSinceGrant records the grant refusal on the handler span
+// and then writes the route's ordinary service-not-found (#5167 review, P1-2).
+//
+// The span is the only place the refusal is visible. The response body is
+// deliberately byte-identical to an unknown service's, and the middleware has
+// already ADMITTED the request, so the scoped-route deny audit event does not
+// fire for a handler-level refusal either. Without these attributes an operator
+// paged with "tenant A's token gets not-found for a service it owns" cannot
+// separate a grant refusal from missing lineage from an unwired ownership
+// store.
+//
+// Both attributes are server-side, so they add no oracle for the caller. The
+// reason comes from the closed telemetry.ServiceChangedSinceGrantRefusal*
+// vocabulary and never carries the service id, tenant, workspace, repository,
+// or scope: a per-tenant identifier here would leak into every trace backend
+// that samples the route.
+func (h *FreshnessHandler) refuseServiceChangedSinceGrant(
+	w http.ResponseWriter,
+	r *http.Request,
+	serviceID string,
+	reason string,
+) {
+	trace.SpanFromContext(r.Context()).SetAttributes(
+		attribute.Bool(telemetry.SpanAttrServiceChangedSinceGrantRefused, true),
+		attribute.String(telemetry.SpanAttrServiceChangedSinceGrantRefusedReason, reason),
+	)
+	h.writeServiceChangedSinceNotFound(w, r, serviceID)
 }
 
 // writeServiceChangedSinceNotFound is the route's single service-not-found
