@@ -126,7 +126,7 @@ while guarding nothing.
 The delegation is proven rather than assumed. Deleting the incoming-edge
 dispatch from this package fails **10** root tests; a narrower mutation that
 keeps the branch but ignores `RunIncomingFn` fails 5. Both measured by running
-the whole root suite, 7755 tests, against a baseline of 0 failures.
+the whole root suite, 8324 tests, against a baseline of 0 failures.
 
 Those two mutations are close enough to be worth distinguishing. Deleting the
 branch lets an incoming-edge query fall through to `RunFn`; keeping the branch
@@ -136,11 +136,21 @@ and reports 5 rather than 10 -- two mutations that are secretly one mutation
 read as corroboration and are not.
 
 Every failure count in this file counts TOP-LEVEL test functions
-(`rg -c '^--- FAIL'`), while the 7755 baseline counts `=== RUN` lines, which
+(`rg -c '^--- FAIL'`), while the 8324 baseline counts `=== RUN` lines, which
 include subtests. The two units differ and the gap is not small: the workload
 mutation below is 40 top-level failures and 50 once failing subtests are
 counted. Re-derive a failure count with the anchored pattern or it will look
 like the number drifted.
+
+The two kinds of number age differently, which is worth knowing before you
+re-measure anything here. The failure counts are stable: all seven survived a
+rebase that added roughly 569 tests to the root suite, because they measure the
+set of tests that depend on the fake, and that set did not change. The TOTAL is
+volatile and moves on almost every rebase. So the totals here are pinned to a
+named `origin/main` commit rather than to "this branch's HEAD" -- a sentence
+anchored to a moving ref is only true at the moment it is written, and it
+falsifies itself on the next rebase, which is how three different totals ended
+up in this file at once.
 
 Measure that set with a full `go test ./internal/query/`, never with `-run`
 naming the tests you expect. `-run` measures your own filter: the first attempt
@@ -186,8 +196,8 @@ rule in querytestutil, run the whole root suite, restore, confirm green again.
 - Short-circuiting `FakeWorkloadGraphReader.RunSingle`'s `RunSingleByMatch`
   dispatch to `nil, nil` fails **40** root tests.
 
-Both measured at this branch's HEAD against the same 7755-run, 0-failure
-baseline as every other proof in this file. That total is not a portable
+Both measured against the same 8324-run, 0-failure baseline as every
+other proof in this file, on this branch rebased onto `origin/main` 94197f893. That total is not a portable
 constant: it grows as tests are added and shrinks when a family moves out of
 root, as `semanticsearch` did. Re-measure rather than carrying one forward --
 the counts in this file were carried forward three separate times before anyone
@@ -204,7 +214,7 @@ adapter itself lives, so it changes by definition; measure with
 
 The delegation is proven the same way: replacing `ReadStatusSnapshot`'s
 delegation with an unconditional zero-value return fails **35** root tests;
-restoring it returns to 0 failures. Both measured against the same 7755-test
+restoring it returns to 0 failures. Both measured against the same 8324-test
 run of `go test ./internal/query/ -count=1 -v`, never `-run`, with the mutation
 applied through `go test -overlay=` so no tracked file changed. The mutation is
 built before it is run, so the failures are the guard reacting rather than a
@@ -256,7 +266,7 @@ lives only here.
 Proven the same way: deleting the default-answer dispatch from this package
 fails **16** root tests; keeping the defaults but not consuming the queue head
 fails **26**. Both measured with a full `go test ./internal/query/ -count=1 -v`,
-7755 tests run, against a baseline of 0 failures -- the same 7755-test run the
+8324 tests run, against a baseline of 0 failures -- the same 8324-test run the
 `FakeStatusReader` proof above cites, so every count in this file comes from one
 base rather than from whichever base its section was written on.
 
@@ -349,9 +359,9 @@ which Cypher FRAGMENT a caller registers, not a query this code issues. The
 promotion is a move: the dispatch bodies came across from
 `repository_context_test.go` and `workload_context_test.go` unchanged, so the
 dispatch work per call is identical; the adapter adds one struct construction
-per call, in test binaries only. Root suite: 7756 `=== RUN` at the merge-base
-and 7755 at this branch's HEAD, 0 `--- FAIL` on both, each measured rather than
-inferred (the base side from a throwaway worktree checked out at the
+per call, in test binaries only. Root suite: 8324 `=== RUN` on this
+branch and one more at `origin/main` 94197f893, 0 `--- FAIL` on both, each measured
+rather than inferred (the base side from a throwaway worktree checked out at the
 merge-base). The one-test delta is
 `TestContentReaderCheckArgsComparesByteSliceBindArgsWithoutPanicking` moving
 into this package with the function it covers, as above. That total is not a

@@ -190,7 +190,7 @@ you expect to break. Two ways that goes wrong, both hit here:
 - `-run` with real names measures your filter rather than the dependency. The
   first attempt at this proof named four tests, saw four failures, and wrote
   "four root tests" into the commit and these docs. The real number is 10
-  (7755 tests run, 0 failing at baseline).
+  (8324 tests run, 0 failing at baseline).
 
 `fakePortContentStore` needs more than an adapter. Its fields are typed with
 unexported root read models (`repositoryEntryPointReadModel`,
@@ -227,8 +227,8 @@ again.
 - Deleting the `RunSingleByMatch` dispatch from `FakeWorkloadGraphReader`'s
   `RunSingle` (short-circuiting to `nil, nil`) fails **40** root tests.
 
-Both measured at this branch's HEAD: 7755 tests run, 0 failing, the same
-baseline every other proof in this package's docs now cites. That total is not
+Both measured on this branch rebased onto `origin/main` 94197f893: 8324 tests
+run, 0 failing, the same baseline every other proof in this package's docs cites. That total is not
 portable -- it moves in both directions as tests are added and as families move
 out of root. Restore the file and re-run the baseline before trusting
 either number — a proof that leaves the break in place is not a proof of
