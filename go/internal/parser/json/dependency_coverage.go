@@ -288,7 +288,7 @@ func DependencyCoverage() []DependencyCoverageEntry {
 			CapturesVersionRange:    true,
 			CapturesScope:           true,
 			CapturesDevRuntimeSplit: true,
-			SourceReference:         "go/internal/parser/nuget_project_language.go",
+			SourceReference:         "go/internal/parser/nuget/parser.go",
 			Notes:                   "PackageReference rows preserve requested versions, resolved MSBuild properties, unresolved-property partial evidence, and PrivateAssets dev/test signals.",
 		},
 		{

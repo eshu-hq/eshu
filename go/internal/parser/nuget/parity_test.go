@@ -1,11 +1,13 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package parser
+package nuget_test
 
 import (
 	"path/filepath"
 	"testing"
+
+	"github.com/eshu-hq/eshu/go/internal/parser/parsertest"
 )
 
 func TestParseNuGetProjectKeepsAmbiguousMSBuildPropertyPartial(t *testing.T) {
@@ -25,19 +27,12 @@ func TestParseNuGetProjectKeepsAmbiguousMSBuildPropertyPartial(t *testing.T) {
   </ItemGroup>
 </Project>`)
 
-	engine, err := DefaultEngine()
-	if err != nil {
-		t.Fatalf("DefaultEngine() error = %v", err)
-	}
-	payload, err := engine.ParsePath(repoRoot, path, false, Options{})
-	if err != nil {
-		t.Fatalf("ParsePath() error = %v, want nil", err)
-	}
+	payload := parsertest.MustParsePath(t, repoRoot, path)
 
-	dependency := assertBucketItemByName(t, payload, "variables", "Newtonsoft.Json")
-	assertStringFieldValue(t, dependency, "value", "$(NewtonsoftJsonVersion)")
-	assertStringFieldValue(t, dependency, "requested_version", "$(NewtonsoftJsonVersion)")
-	assertStringFieldValue(t, dependency, "ambiguous_msbuild_property", "NewtonsoftJsonVersion")
-	assertStringFieldValue(t, dependency, "version_evidence", "ambiguous_msbuild_property")
+	dependency := parsertest.AssertBucketItemByName(t, payload, "variables", "Newtonsoft.Json")
+	parsertest.AssertStringFieldValue(t, dependency, "value", "$(NewtonsoftJsonVersion)")
+	parsertest.AssertStringFieldValue(t, dependency, "requested_version", "$(NewtonsoftJsonVersion)")
+	parsertest.AssertStringFieldValue(t, dependency, "ambiguous_msbuild_property", "NewtonsoftJsonVersion")
+	parsertest.AssertStringFieldValue(t, dependency, "version_evidence", "ambiguous_msbuild_property")
 	assertBoolFieldValue(t, dependency, "partial_evidence", true)
 }

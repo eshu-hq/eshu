@@ -283,10 +283,12 @@ func TestParsePathReadsRawTextSourceExactlyOnce(t *testing.T) {
 	}
 }
 
-// TestParsePathReadsNuGetProjectSourceExactlyOnce covers nuget_project, the
-// third engine-local readSource consumer alongside raw_text: parseNuGetProject
-// calls readSource for the XML decode, then ParsePath's content-metadata
-// inference used to read the same .csproj bytes a second time.
+// TestParsePathReadsNuGetProjectSourceExactlyOnce covers nuget_project:
+// nuget.Parse calls shared.ReadSource for the XML decode, then ParsePath's
+// content-metadata inference used to read the same .csproj bytes a second
+// time. The read count is asserted from the engine, not from the nuget
+// package, because the priming that collapses the two reads into one lives in
+// ParsePath.
 //
 // Not t.Parallel(): see TestParsePathReadsSourceExactlyOnce.
 func TestParsePathReadsNuGetProjectSourceExactlyOnce(t *testing.T) {

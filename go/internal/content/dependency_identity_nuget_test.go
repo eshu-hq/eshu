@@ -6,7 +6,7 @@ package content
 import "testing"
 
 // nugetProjectDependencyMetadata builds the entity_metadata a .csproj
-// PackageReference row (parser/nuget_project_language.go) contributes. Every
+// PackageReference row (parser/nuget/parser.go) contributes. Every
 // in-scope row's "section" is the fixed literal "PackageReference" regardless
 // of which ItemGroup it came from — see nugetProjectDependencyRow.
 func nugetProjectDependencyMetadata(condition string) map[string]any {
