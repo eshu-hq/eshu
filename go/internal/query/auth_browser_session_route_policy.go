@@ -97,6 +97,20 @@ const (
 	// new caller passed an empty code, and it is deliberately distinct so that
 	// shows up rather than hiding inside one of the two real codes.
 	scopedRouteDeniedUnspecifiedReason = "scoped_route_denied_unspecified"
+	// scopedRouteAllScopeBearerGrantRequiredReason is the bearer-token sibling
+	// of scopedRouteAllScopeGrantRequiredReason (#6472 review finding 1,
+	// #6450 residual 1): the route IS on the scoped-token allowlist, but this
+	// caller is an all-scope bearer -- a scoped-token-registry or OIDC bearer
+	// resolved with AllScopes -- and the route's SQL binds the caller's grant
+	// directly rather than through a handler-level predicate a policy could
+	// gate. Unlike the browser-session code above, there is no policy opt-in
+	// for this one: a caller that needs a genuine whole-graph read has
+	// AuthModeShared available, so an AuthModeScoped bearer never gets this
+	// route's data unscoped, in every deployment mode. Currently emitted only
+	// by scopedFreshnessDeltaRouteRefusesAllScopeBearer; the same residual is
+	// still open, and still #6450's job, for every other grant-bound route's
+	// bearer path.
+	scopedRouteAllScopeBearerGrantRequiredReason = "scoped_route_all_scope_bearer_grant_required"
 )
 
 // browserSessionRouteDenialReason decides whether a browser-session request

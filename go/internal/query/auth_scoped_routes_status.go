@@ -87,23 +87,45 @@ func scopedIngesterStatusRoute(r *http.Request) bool {
 //     `auth.Mode == AuthModeBrowserSession` branch, so a hosted fail-closed
 //     BrowserSessionRoutePolicy refuses it (#6450). A restricted session is
 //     admitted and its grant binds normally.
-//   - An all-scope BEARER is NOT covered. It never enters that branch, so no
-//     class check runs for it. An OIDC bearer resolved with an admin group
-//     grant carries AllScopes onto its AuthContext
-//     (internal/oidcbearer/resolver.go), and a file-backed registry token can
-//     carry the same flag (internal/scopedtoken/registry.go). For such a
-//     caller RepositoryAccessFilter.Scoped() is false, so $3/$8 short-circuit
-//     the two SQL predicates above: the read is served across the whole
+//   - An all-scope BEARER used to slip past that class check entirely: it
+//     never entered the browser-session branch, so no class check ran for it.
+//     An OIDC bearer resolved with an admin group grant carries AllScopes
+//     onto its AuthContext (internal/oidcbearer/resolver.go), and a
+//     file-backed registry token can carry the same flag
+//     (internal/scopedtoken/registry.go). For such a caller
+//     RepositoryAccessFilter.Scoped() is false, so $3/$8 would short-circuit
+//     the two SQL predicates above and serve the read across the whole
 //     corpus.
 //
-// That second shape is #6450 residual 1. It is pre-existing and applies to
-// every grant-bound allowlisted route, not only these two, so closing it is
-// #6450's job rather than this matcher's -- but it is stated here so nobody
-// reads "grant-bound" as "every all-scope caller is refused".
+// That second shape was #6450 residual 1 for these two routes, and PR #6472
+// review finding 1 treated it as a tenant-isolation leak to close now rather
+// than defer: authMiddlewareWithRoutePolicy's AuthModeScoped branch (auth.go)
+// now calls scopedFreshnessDeltaRouteRefusesAllScopeBearer right after the
+// allowlist check and refuses an all-scope bearer with
+// scopedRouteAllScopeBearerGrantRequiredReason, in every deployment mode --
+// unlike the browser-session case, there is no policy opt-in, because a
+// caller that needs a genuine whole-graph read has AuthModeShared available.
+// The residual is pre-existing and applies to every OTHER grant-bound
+// allowlisted route, so closing it there remains #6450's job, not this
+// matcher's.
 func scopedFreshnessDeltaRoute(r *http.Request) bool {
 	if r.Method != http.MethodGet {
 		return false
 	}
 	return r.URL.Path == "/api/v0/freshness/changed-since" ||
 		r.URL.Path == "/api/v0/freshness/generations"
+}
+
+// scopedFreshnessDeltaRouteRefusesAllScopeBearer reports whether a scoped
+// bearer request (a scoped-token-registry token or an OIDC bearer, both
+// resolved with AuthMode == AuthModeScoped regardless of AllScopes) must be
+// refused on one of the two promoted freshness delta routes because it
+// carries AllScopes. See scopedFreshnessDeltaRoute's doc comment:
+// RepositoryAccessFilterFromContext treats AllScopes as unscoped, which would
+// otherwise short-circuit both routes' $3/$8 SQL binding predicates and
+// return every tenant's rows -- the #6472 review finding 1 / #6450 residual 1
+// leak. A bearer carrying a real repository or scope grant (AllScopes false)
+// is unaffected: its grant binds normally and this returns false.
+func scopedFreshnessDeltaRouteRefusesAllScopeBearer(r *http.Request, auth AuthContext) bool {
+	return auth.AllScopes && scopedFreshnessDeltaRoute(r)
 }

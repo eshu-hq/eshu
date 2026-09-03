@@ -73,16 +73,24 @@ func TestScopedTokenReachesFreshnessDeltaPairOnly(t *testing.T) {
 // all-scopes grant set both resolve to.
 //
 // Neither resolver varies Mode with AllScopes -- both build the context with
-// AuthModeScoped -- and the middleware's scoped branch keys on Mode alone, so
-// the pending service route refuses this token in every deployment while the
-// two promoted pair routes hand it to the handler.
+// AuthModeScoped -- so the middleware cannot key on Mode alone to catch this
+// shape the way it does for the pending service route. It refuses this token
+// on all three routes: scopedFreshnessDeltaRouteRefusesAllScopeBearer closes
+// #6450 residual 1 for the two promoted pair routes specifically (PR #6472
+// review finding 1 -- an all-scope bearer resolved as AuthModeScoped used to
+// reach RepositoryAccessFilterFromContext, which treats AllScopes as
+// unscoped, short-circuiting both routes' $3/$8 SQL binding predicates and
+// returning every tenant's rows).
 //
-// That asymmetry is the assertion. The tenant-bound all-scope BROWSER SESSION
-// in the table below IS admitted on the same pending route wherever the policy
-// sets AllowTenantBoundAllScopes, so "all-scope" alone does not decide the
-// route: the credential kind does. #6450's residual rests on that split, which
-// is why it gets a case of its own rather than being read off the
-// browser-session table.
+// Unlike the browser-session case below, there is no policy escape hatch
+// here: a caller that legitimately needs a whole-graph freshness read has
+// AuthModeShared (the legacy shared bearer) available, so an AuthModeScoped
+// bearer never gets it, in every deployment mode. The tenant-bound all-scope
+// BROWSER SESSION in TestServiceChangedSincePendingRouteAdmitsOnlyTheAllScopeConsoleSession
+// IS admitted on the pending service route wherever the policy sets
+// AllowTenantBoundAllScopes -- that split is what #6450's residual (still
+// open for every OTHER grant-bound route's bearer path) rests on, so
+// "all-scope" alone does not decide a route: the credential kind does.
 func TestAllScopeBearerTokenReachesFreshnessDeltaPairOnly(t *testing.T) {
 	t.Parallel()
 
@@ -94,12 +102,12 @@ func TestAllScopeBearerTokenReachesFreshnessDeltaPairOnly(t *testing.T) {
 		{
 			name:       "changed_since_promoted",
 			path:       "/api/v0/freshness/changed-since",
-			wantStatus: http.StatusOK,
+			wantStatus: http.StatusForbidden,
 		},
 		{
 			name:       "generations_promoted",
 			path:       "/api/v0/freshness/generations",
-			wantStatus: http.StatusOK,
+			wantStatus: http.StatusForbidden,
 		},
 		{
 			name:       "service_changed_since_still_pending",

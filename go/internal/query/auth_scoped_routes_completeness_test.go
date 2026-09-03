@@ -191,6 +191,20 @@ func TestPendingRowFilteringRoutesDisjointFromScopedAndSharedKey(t *testing.T) {
 // design -- see openAPIBrowserSessionOnlyRoutes) but must NOT get a 2xx from
 // the handler. TestScopedBearerTokenRejectedByBrowserSessionOnlyRoutes
 // proves that inverse.
+//
+// It also deliberately skips the two routes in
+// scopedTokenAllScopeBearerRefusedRoutes: GET /api/v0/freshness/changed-since
+// and GET /api/v0/freshness/generations are marker-advertised and DO clear
+// the middleware for a scoped bearer carrying a real repository or scope
+// grant, but this test's fixture is an all-scopes token, and PR #6472 review
+// finding 1 closed the #6450 residual specifically for these two --
+// scopedFreshnessDeltaRouteRefusesAllScopeBearer refuses an all-scope bearer
+// here in every deployment mode, unlike the rest of this test's routes, which
+// still admit one (the #6450 residual, open elsewhere).
+// TestAllScopeBearerTokenReachesFreshnessDeltaPairOnly
+// (auth_scoped_routes_freshness_delta_test.go) is this pair's inverse: it
+// proves the 403 and its reason code against the same real middleware, plus
+// the ordinary-grant bearer's 200 (TestScopedTokenReachesFreshnessDeltaPairOnly).
 func TestScopedTokenAdvertisedRoutesReachHandlerThroughRealAuthMiddleware(t *testing.T) {
 	advertised := openAPIScopedTokenSupportRoutes(t)
 	names := make([]string, 0, len(advertised))
@@ -200,6 +214,9 @@ func TestScopedTokenAdvertisedRoutesReachHandlerThroughRealAuthMiddleware(t *tes
 	sort.Strings(names)
 
 	for _, name := range names {
+		if scopedTokenAllScopeBearerRefusedRoutes[name] {
+			continue
+		}
 		t.Run(name, func(t *testing.T) {
 			t.Parallel()
 
@@ -230,6 +247,32 @@ func TestScopedTokenAdvertisedRoutesReachHandlerThroughRealAuthMiddleware(t *tes
 				t.Fatalf("status = %d, want %d; body = %s", got, want, rec.Body.String())
 			}
 		})
+	}
+}
+
+// scopedTokenAllScopeBearerRefusedRoutes names the marker-advertised routes
+// TestScopedTokenAdvertisedRoutesReachHandlerThroughRealAuthMiddleware
+// excludes from its otherwise-universal all-scopes-bearer fixture; see that
+// test's doc comment for why. TestScopedTokenAllScopeBearerRefusedRoutesAreAdvertised
+// keeps this map from going stale if a listed route ever loses its
+// "x-scoped-token-support" marker.
+var scopedTokenAllScopeBearerRefusedRoutes = map[string]bool{
+	"GET /api/v0/freshness/changed-since": true,
+	"GET /api/v0/freshness/generations":   true,
+}
+
+// TestScopedTokenAllScopeBearerRefusedRoutesAreAdvertised fails if
+// scopedTokenAllScopeBearerRefusedRoutes ever names a route the marker union
+// no longer advertises: an unmatched `continue` in
+// TestScopedTokenAdvertisedRoutesReachHandlerThroughRealAuthMiddleware would
+// otherwise silently stop excluding anything, and the map would look correct
+// while covering nothing.
+func TestScopedTokenAllScopeBearerRefusedRoutesAreAdvertised(t *testing.T) {
+	advertised := openAPIScopedTokenSupportRoutes(t)
+	for name := range scopedTokenAllScopeBearerRefusedRoutes {
+		if _, ok := advertised[name]; !ok {
+			t.Errorf("%s: in scopedTokenAllScopeBearerRefusedRoutes but not in openAPIScopedTokenSupportRoutes(t) -- the exclusion in TestScopedTokenAdvertisedRoutesReachHandlerThroughRealAuthMiddleware is now a no-op; fix the surface name or remove the stale entry", name)
+		}
 	}
 }
 

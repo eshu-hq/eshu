@@ -147,9 +147,12 @@ func recordReadAuthorizationUnavailable(
 
 // recordScopedRouteAuthorizationDenied records a scoped-route refusal under
 // the pre-#6450 reason code, scopedRouteNotEnabledReason. The scoped-bearer
-// branch of authMiddlewareWithRoutePolicy is its remaining caller: a scoped
-// bearer is refused only when the route is off the allowlist, so that code is
-// still true there by construction.
+// branch of authMiddlewareWithRoutePolicy calls this one only when the route
+// is off the allowlist entirely, so that code is still true there by
+// construction; a scoped bearer refused for carrying AllScopes on an
+// allowlisted route (scopedFreshnessDeltaRouteRefusesAllScopeBearer) instead
+// calls recordScopedRouteAuthorizationDeniedWithReason directly with
+// scopedRouteAllScopeBearerGrantRequiredReason.
 func recordScopedRouteAuthorizationDenied(
 	r *http.Request,
 	audit GovernanceAuditAppender,

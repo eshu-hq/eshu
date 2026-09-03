@@ -247,10 +247,26 @@ func authMiddlewareWithRoutePolicy(
 			}
 			if ok {
 				auth = normalizeAuthContext(auth)
-				if auth.Mode == AuthModeScoped && !scopedHTTPRouteSupportsTenantFilter(r) {
-					recordScopedRouteAuthorizationDenied(r, audit, auth)
-					scopedRouteDeniedResponse(w, r)
-					return
+				if auth.Mode == AuthModeScoped {
+					if !scopedHTTPRouteSupportsTenantFilter(r) {
+						recordScopedRouteAuthorizationDenied(r, audit, auth)
+						scopedRouteDeniedResponse(w, r)
+						return
+					}
+					// #6472 review finding 1 / #6450 residual 1, closed for
+					// these two routes only: an all-scope bearer clears the
+					// allowlist check above like any other scoped caller, but
+					// RepositoryAccessFilterFromContext treats AllScopes as
+					// unscoped, which would short-circuit both routes' $3/$8
+					// SQL binding predicates and return every tenant's rows.
+					// See scopedFreshnessDeltaRouteRefusesAllScopeBearer.
+					if scopedFreshnessDeltaRouteRefusesAllScopeBearer(r, auth) {
+						recordScopedRouteAuthorizationDeniedWithReason(
+							r, audit, auth, scopedRouteAllScopeBearerGrantRequiredReason,
+						)
+						scopedRouteDeniedResponse(w, r)
+						return
+					}
 				}
 				// F-9 (#5170): record the ALLOWED decision for this scoped-token
 				// or OIDC-bearer read, immediately before dispatch, mirroring the
