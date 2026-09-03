@@ -711,10 +711,6 @@ LINE docs/public/observability/telemetry-coverage.md go/internal/query/sign_in_p
 LINE docs/public/observability/telemetry-coverage.md go/internal/query/tag_history.go:102
 LINE docs/public/observability/telemetry-coverage.md go/internal/reducer/accepted_generation_active_gate.go:52
 LINE docs/public/observability/telemetry-coverage.md go/internal/reducer/cloud_inventory_admission.go:413
-LINE docs/public/observability/telemetry-coverage.md go/internal/reducer/container_image_derived_from_edges.go:283
-LINE docs/public/observability/telemetry-coverage.md go/internal/reducer/container_image_identity.go:191
-LINE docs/public/observability/telemetry-coverage.md go/internal/reducer/container_image_identity.go:212
-LINE docs/public/observability/telemetry-coverage.md go/internal/reducer/container_image_provenance_edges.go:198
 LINE docs/public/observability/telemetry-coverage.md go/internal/reducer/ec2_instance_node_materialization.go:184
 LINE docs/public/observability/telemetry-coverage.md go/internal/reducer/factdecode/quarantine_record.go:64
 LINE docs/public/observability/telemetry-coverage.md go/internal/reducer/gcp_materialization_observability.go:22
