@@ -16,6 +16,7 @@ import (
 
 	codeinteltools "github.com/eshu-hq/eshu/go/internal/mcp/codeintel"
 	codequalitytools "github.com/eshu-hq/eshu/go/internal/mcp/codequality"
+	contenttools "github.com/eshu-hq/eshu/go/internal/mcp/content"
 	deadcodetools "github.com/eshu-hq/eshu/go/internal/mcp/deadcode"
 	entityresolutiontools "github.com/eshu-hq/eshu/go/internal/mcp/entityresolution"
 	iacmanagementtools "github.com/eshu-hq/eshu/go/internal/mcp/iacmanagement"
@@ -188,6 +189,9 @@ func resolveRoute(toolName string, args map[string]any) (*route, error) {
 	if route, ok := iacManagementRoute(toolName, args); ok {
 		return route, nil
 	}
+	if route, ok := contentRoute(toolName, args); ok {
+		return route, nil
+	}
 	if route, ok, err := codeRelationshipRoute(toolName, args); ok {
 		return route, err
 	}
@@ -285,25 +289,6 @@ func resolveRoute(toolName string, args map[string]any) (*route, error) {
 			"limit":                 intString(args, "limit", 25),
 		}}, nil
 
-	// ── Content ──
-	case "get_file_content":
-		return &route{method: "POST", path: "/api/v0/content/files/read", body: map[string]any{
-			"repo_id": str(args, "repo_id"), "relative_path": str(args, "relative_path"),
-		}}, nil
-	case "get_file_lines":
-		return &route{method: "POST", path: "/api/v0/content/files/lines", body: args}, nil
-	case "build_evidence_citation_packet":
-		return &route{method: "POST", path: "/api/v0/evidence/citations", body: map[string]any{
-			"subject":  args["subject"],
-			"question": str(args, "question"),
-			"handles":  args["handles"],
-			"limit":    intOr(args, "limit", 10),
-		}}, nil
-	case "search_file_content":
-		return &route{method: "POST", path: "/api/v0/content/files/search", body: contentSearchBody(args)}, nil
-	case "search_entity_content":
-		return &route{method: "POST", path: "/api/v0/content/entities/search", body: contentSearchBody(args)}, nil
-
 	default:
 		// Impact-analysis request selection lives in internal/mcp/impact and
 		// reaches dispatch through the impactRoute adapter in
@@ -344,10 +329,10 @@ func codeQualityRoute(toolName string, args map[string]any) (*route, bool) {
 // selection into the root dispatcher's transport route, exactly as
 // deadCodeRoute and codeQualityRoute above adapt theirs: same former-switch
 // arms, same delegation position, same dirgate reason for living in this
-// file. search_entity_content stays in the switch below — its body comes
+// file. search_entity_content is not part of this family — its body comes
 // entirely from contentSearchBody, shared with search_file_content, and that
-// pair's wire shape keeps one root owner until the content family moves
-// together.
+// pair now lives together in the content child reached through
+// contentRoute below.
 func entityResolutionRoute(toolName string, args map[string]any) (*route, bool) {
 	return adaptChildRoute(entityresolutiontools.Route(toolName, routecontract.Arguments(args)))
 }
@@ -356,11 +341,26 @@ func entityResolutionRoute(toolName string, args map[string]any) (*route, bool) 
 // selection into the root dispatcher's transport route, exactly as
 // deadCodeRoute, codeQualityRoute, and entityResolutionRoute above adapt
 // theirs: same former-switch arms, same delegation position, same dirgate
-// reason for living in this file. search_entity_content stays in the switch
-// below rather than joining this family; see the codeintel package doc for
-// why.
+// reason for living in this file. search_entity_content is not part of this
+// family either; see the codeintel package doc for why, and contentRoute
+// below for where it lives now.
 func codeIntelRoute(toolName string, args map[string]any) (*route, bool) {
 	return adaptChildRoute(codeinteltools.Route(toolName, routecontract.Arguments(args)))
+}
+
+// contentRoute adapts the child package's content request selection into
+// the root dispatcher's transport route, exactly as deadCodeRoute,
+// codeQualityRoute, entityResolutionRoute, and codeIntelRoute above adapt
+// theirs: same former-switch arms (get_file_content, get_file_lines,
+// build_evidence_citation_packet, search_file_content, and
+// search_entity_content lived in this file's own "── Content ──" switch
+// section before the extraction), same delegation position, same dirgate
+// reason for living in this file. get_entity_content stays in
+// entityResolutionRoute above rather than joining this family — its
+// registration is grouped with these five in tools_content.go, but its
+// routing shares no helper with them.
+func contentRoute(toolName string, args map[string]any) (*route, bool) {
+	return adaptChildRoute(contenttools.Route(toolName, routecontract.Arguments(args)))
 }
 
 // iacManagementRoute adapts the child package's IaC-management request

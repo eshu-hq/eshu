@@ -12,10 +12,10 @@ import (
 // Route selects the internal HTTP request for an entity-resolution tool
 // without executing it. It reports handled only for the three tools this
 // package owns. Family membership is an explicit name switch, never a prefix
-// match: search_entity_content shares the entity spelling but stays in the
-// root switch because its whole body comes from contentSearchBody, the
-// builder it shares with search_file_content, and that pair's shared wire
-// shape must keep one owner.
+// match: search_entity_content shares the entity spelling but is not part of
+// this family — its whole body comes from contentSearchBody, the builder it
+// shares with search_file_content, and that pair's shared wire shape keeps
+// one owner in the content child package instead.
 func Route(toolName string, args routecontract.Arguments) (routecontract.Request, bool) {
 	switch toolName {
 	case "resolve_entity":

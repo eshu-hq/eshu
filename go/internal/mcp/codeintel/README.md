@@ -25,7 +25,7 @@ telemetry. `internal/query` owns the bounded reads behind each
 
 `search_entity_content` and `search_file_content` are not part of this
 family even though both are code-search tools. Both build their request body
-from the root `contentSearchBody` helper and stay together in `dispatch.go`'s
+from the `content` child's `contentSearchBody` helper and stay together in its
 switch; moving one into this package would orphan that shared helper from the
 pair that owns it. See the sibling entry in `dispatch.go`'s
 `entityResolutionRoute` doc comment for the same boundary from the other

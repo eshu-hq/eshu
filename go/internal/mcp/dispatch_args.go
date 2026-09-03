@@ -40,11 +40,3 @@ func objectSlice(args map[string]any, key string) []any {
 	}
 	return result
 }
-
-func firstString(values []any) string {
-	if len(values) == 0 {
-		return ""
-	}
-	value, _ := values[0].(string)
-	return value
-}

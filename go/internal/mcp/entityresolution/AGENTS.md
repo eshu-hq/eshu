@@ -50,7 +50,7 @@
   here — entity ids are already canonical.
 - Return the zero request and `handled=false` for unrelated tools, including
   `search_entity_content`, which shares the entity spelling but stays in the
-  root switch on the shared `contentSearchBody` builder.
+  `content` child, which owns the shared `contentSearchBody` builder.
 - Selection stays pure: no HTTP call, no query, no clock, no environment
   read.
 

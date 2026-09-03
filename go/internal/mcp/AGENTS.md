@@ -51,14 +51,20 @@
    request selection in `go/internal/mcp/infrasearch`, impact-analysis
    request selection in `go/internal/mcp/impact`, code-flow request
    selection in `go/internal/mcp/codeflow`, dead-code,
-   complexity/quality, and entity-resolution request selection in
-   `go/internal/mcp/deadcode`, `go/internal/mcp/codequality`, and
-   `go/internal/mcp/entityresolution`, code-intelligence request
-   selection in `go/internal/mcp/codeintel`, IaC-management request
-   selection in `go/internal/mcp/iacmanagement`, whose `deadCodeRoute`,
-   `codeQualityRoute`, `entityResolutionRoute`, `codeIntelRoute`, and
-   `iacManagementRoute` adapters live in `dispatch.go` itself rather than
-   dedicated adapter files, infrastructure-inventory request selection in
+   complexity/quality, entity-resolution, and content request selection in
+   `go/internal/mcp/deadcode`, `go/internal/mcp/codequality`,
+   `go/internal/mcp/entityresolution`, and `go/internal/mcp/content`,
+   code-intelligence request selection in `go/internal/mcp/codeintel`,
+   IaC-management request selection in `go/internal/mcp/iacmanagement`,
+   whose `deadCodeRoute`, `codeQualityRoute`, `entityResolutionRoute`,
+   `codeIntelRoute`, `iacManagementRoute`, and `contentRoute` adapters live
+   in `dispatch.go` itself rather than dedicated adapter files (the content
+   family's five tools — `get_file_content`, `get_file_lines`,
+   `build_evidence_citation_packet`, `search_file_content`, and
+   `search_entity_content` — previously lived in `dispatch.go`'s own
+   "── Content ──" switch section; `get_entity_content` stays registered
+   alongside them in `tools_content.go` but routes through
+   `entityresolution` instead), infrastructure-inventory request selection in
    `go/internal/mcp/infrainventory`, whose `infraInventoryRoute` adapter
    lives in `dispatch_infra_resource_aggregates.go` (reusing that existing
    filename rather than creating a new one, so the root non-test file count
