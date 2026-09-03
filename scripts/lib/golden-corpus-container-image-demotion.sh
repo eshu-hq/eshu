@@ -26,11 +26,16 @@ run_container_image_identity_demotion_proof() {
 	proof_json="${log_dir}/container-image-identity-demotion.json"
 	proof_stderr="${log_dir}/container-image-identity-demotion.stderr.log"
 
+	# ./internal/reducer matches one package; ./internal/reducer/... matches the
+	# tree. #6061 moves families into subpackages, and this test moved with
+	# container_image into internal/reducer/containerimage. Under the narrow
+	# form the selector matched nothing, go test exited 0 with "no tests to
+	# run", and the exactly-one-pass assertion below is what caught it.
 	log "B-7 container image identity canonical-to-demoted lifecycle proof"
 	proof_start="$(date +%s)"
 	if ! (
 		cd "${repo_root}/go"
-		ESHU_POSTGRES_TEST_DSN="${ESHU_POSTGRES_DSN}" go test ./internal/reducer -run "^${test_name}$" -count=1 -timeout=60s -json
+		ESHU_POSTGRES_TEST_DSN="${ESHU_POSTGRES_DSN}" go test ./internal/reducer/... -run "^${test_name}$" -count=1 -timeout=60s -json
 	) >"${proof_json}" 2>"${proof_stderr}"; then
 		cat "${proof_stderr}"
 		golden_corpus_render_test_output "${proof_json}"
