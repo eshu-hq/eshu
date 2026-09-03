@@ -7,6 +7,44 @@ facts. That binding is in
 document covers the hole review round 3 found in it (PR #6472, Codex P1) and
 the fix.
 
+## Withdrawn from #6472
+
+The route's promotion was pulled from PR #6472. The fence described in this
+document ships and is tested, but it is not enough on its own to move
+`GET /api/v0/freshness/services/changed-since` off `pendingRowFilteringRoutes`,
+so the route keeps its ledger row and every scoped token and browser session
+still gets a middleware 403. Ledger 24 -> 22, not 24 -> 21.
+
+The reason is [the liveness gap](#the-liveness-gap) below. Both correlation
+probes see a correlation only while it is live in its scope's active
+generation, so a tenant whose correlation ages out stops contesting the
+`service_id` while its lineage generation is still the active one -- and the
+other tenant is admitted onto that lineage. The header of
+`pendingRowFilteringRoutes` states the contract this violates: a route promoted
+onto the scoped allowlist must never turn a caller's existing 403 into a
+cross-tenant read. A fence that an aged-out correlation defeats does exactly
+that, so it does not clear the bar for promotion.
+
+Three findings settle that the lineage rows cannot be attributed to a tenant
+without a schema change, so no in-handler rework closes this:
+
+- `ownershipEvidencePayload` (`go/internal/reducer/service_materialization.go`)
+  writes `owner_ref`, `provider`, `entity_ref`, `lifecycle`, and `tier` only.
+  The evidence snapshots carry no repository, scope, or tenant.
+- `service_materialization_generations` has no scope column at all
+  (`schema/data-plane/postgres/025_service_materialization_generations.sql`),
+  and `service_materialization_generations_active_service_idx` makes the active
+  generation unique per `service_id` across every tenant.
+- `source_intent_id` is nullable and the intent it points at is deleted by
+  generation retention before the generation is, as
+  [Why it is not closed here](#why-it-is-not-closed-here) works through.
+
+#6475 -- the scope column on both lineage tables plus a `(scope, service_id)`
+writer key -- is what makes the promotion possible, and the promotion itself is
+then the ledger header's ordinary four-step move. Until it lands the fence is
+defense in depth: inert on the live route, and already proven against the two
+tenant shapes it will have to hold once callers reach it.
+
 ## The defect
 
 Admission was existential. `serviceChangedSinceGrantAdmits`
@@ -214,6 +252,24 @@ directly.
 The second row is the one the handler tests cannot see: they drive a fake, so a
 store that quietly ran the un-negated statement would keep every handler
 assertion green while production admitted every contested id.
+
+The withdrawal has its own mutation. Letting `scopedFreshnessDeltaRoute` match
+`/api/v0/freshness/services/changed-since` again -- the one-line change that
+would re-promote the route -- is caught by
+`TestScopedTokenReachesFreshnessDeltaPairOnly` and
+`TestServiceChangedSinceStaysOnPendingLedger`
+(`go/internal/query/auth_scoped_routes_freshness_delta_test.go`):
+
+| Mutation | Case that fails | Exit |
+| --- | --- | --- |
+| `scopedFreshnessDeltaRoute` matches the service path again | `TestScopedTokenReachesFreshnessDeltaPairOnly/service_changed_since_still_pending`: 200, want 403; `TestServiceChangedSinceStaysOnPendingLedger`: `ScopedHTTPRouteSupportsTenantFilter() = true, want false while the route is pending` | 1 |
+| Shipped code | pass | 0 |
+
+`TestPendingRowFilteringRoutesDisjointFromScopedAndSharedKey` stays green under
+that mutation, which is why the two tests above exist: the disjointness gate
+compares ledger map keys, and a matcher that admits a route the maps still call
+pending is invisible to it. The middleware 403 and the predicate are what pin
+the withdrawal.
 
 ## Performance Evidence
 

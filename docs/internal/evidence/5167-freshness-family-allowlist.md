@@ -1,19 +1,25 @@
-# Freshness delta family: off the pending ledger, onto the scoped allowlist
+# Freshness delta family: two routes promoted, the service route held back
 
 The three `freshness` delta routes were the last `freshness` entries in
 `pendingRowFilteringRoutes`
 (`go/internal/query/auth_scoped_routes_pending_row_filtering.go`), the #5167
 Group B ledger of MCP-reachable routes that bind no caller grant and therefore
-answer a scoped or browser-session caller with a middleware 403. This document
-covers both commits that empty that family:
+answer a scoped or browser-session caller with a middleware 403. Two of the
+three shipped off that ledger; the third did not:
 
 1. `GET /api/v0/freshness/changed-since` and `GET /api/v0/freshness/generations`
    -- both handlers already bound the grant in their shipped SQL, so the commit
    was steps 2-4 of the ledger header's own removal procedure: a matcher, the
    ledger move, and the OpenAPI marker. No handler or SQL logic was touched.
-2. `GET /api/v0/freshness/services/changed-since` -- this one needed the
-   binding built first, because its tables carry no repository or scope column
-   at all. See [The service route](#the-service-route) below.
+   Ledger 24 -> 22.
+2. `GET /api/v0/freshness/services/changed-since` -- its promotion was
+   WITHDRAWN. The handler fence built for it ships and is tested, but the
+   lineage tables still carry no column naming the tenant a row belongs to, so
+   the fence can be defeated by a correlation that ages out of its scope's
+   active generation. The route stays on the pending ledger until #6475 adds
+   that column. Sections below that describe its promotion describe the fence
+   that landed, not a route a scoped caller can reach. See
+   [The service route](#the-service-route).
 
 ## Commit 1: what moved
 
@@ -301,20 +307,15 @@ Two consequences are deliberate and documented on the handler:
 
 ### The ledger move
 
-`scopedFreshnessDeltaRoute` grows the third path and its doc comment now
-explains why this route's binding lives in the handler while its two siblings'
-live in SQL. The route moves out of `pendingRowFilteringRoutes` and into
-`scopedTokenAdvertisedRoutes` as `scopedRouteGrantBound`. The OpenAPI operation
-gains `"x-scoped-token-support": true` and one sentence; the same sentence goes
-on the `get_service_changed_since` tool description, the route's section of
-`docs/public/reference/http-api/status-admin.md`, and its
-`docs/public/reference/mcp-tool-contract-matrix.md` row.
-`TestToolsPreserveFreshnessRegistrationContract` pins a SHA-256 over the
-marshalled freshness tool definitions, so that sentence moves the pin from
-`dd7c7265...` to `197bfde6...`, and the later rewordings move it again, last
-to `d1349562...`. That pin exists to make a tool-contract change
-deliberate; this one is. No cassette and no B-12 snapshot entry carries tool or
-operation description text, so nothing is regenerated.
+The ledger move was drafted, then reversed. `scopedFreshnessDeltaRoute` matches
+the two SQL-bound paths only; the service route keeps its
+`pendingRowFilteringRoutes` row, carries no `"x-scoped-token-support"` marker,
+and its OpenAPI, MCP tool, and reference-doc prose say scoped tokens are
+refused pending #6475. The tool-definitions SHA pin
+(`TestToolsPreserveFreshnessRegistrationContract`) therefore lands on
+`dd7c7265...`, the value the two promoted descriptions alone produce. The
+withdrawal and its mechanism are in
+[5167-service-changed-since-shared-ownership.md](5167-service-changed-since-shared-ownership.md).
 
 `cmd/mcp-server/wiring_test.go` gains an explicit
 `router.Freshness.ServiceOwnership == nil` assertion. The reflective sweeps
@@ -397,26 +398,11 @@ still answers 200 for a shared key here, and only the `touched` flag catches
 that the unscoped path grew a query it does not need -- and that an unscoped
 operator would lose any service whose catalog entity has since been removed.
 
-Removing the third path from `scopedFreshnessDeltaRoute` but leaving the ledger
-row and OpenAPI marker reproduces the #5150 advertised-but-unwired shape:
-
-```
-$ go test ./internal/query \
-    -run 'TestScopedTokenAllowlistCompleteness|TestAuthMiddlewareAllScopesBrowserSessionSplitAcrossLedger' \
-    -count=1 > /tmp/bites-E.log 2>&1; echo "EXIT=$?"
-EXIT=1
---- FAIL: TestScopedTokenAllowlistCompleteness
-    GET /api/v0/freshness/services/changed-since: OpenAPI path entry carries a
-      tenant-scope marker, but scopedHTTPRouteSupportsTenantFilter(r) returns
-      false
---- FAIL: TestAuthMiddlewareAllScopesBrowserSessionSplitAcrossLedger
-    .../a_grant_bearing_scoped_bearer/GET_/api/v0/freshness/services/changed-since:
-      handler called = false, want true; status = 403
-    .../d_restricted_browser_session/GET_/api/v0/freshness/services/changed-since:
-      handler called = false, want true; status = 403
-```
-
-Restored, the same run is `EXIT=0`.
+The advertised-but-unwired BITES that ran while the promotion was drafted is
+superseded by the withdrawal: the route now carries neither the marker nor the
+ledger row, and the mutation that matters is the reverse one -- letting
+`scopedFreshnessDeltaRoute` match the service path again. That run is in
+[5167-service-changed-since-shared-ownership.md](5167-service-changed-since-shared-ownership.md).
 
 ## Commit 2: markers
 
@@ -492,8 +478,9 @@ two attribute names and the reason strings an operator alert keys off.
 What is unchanged: the span's name and its existing five summary attributes,
 and the middleware's own audit behaviour. As in commit 1 the reason code an
 operator reads there changes meaning rather than appearing:
-`scoped_route_not_enabled` before, and after this change a grant-bearing caller
-is admitted while only an all-scope browser session under a fail-closed
-`BrowserSessionRoutePolicy` is refused, with the existing #6450
-`scoped_route_all_scope_grant_required`. An all-scope bearer is refused by
-neither -- see [Residual](#residual-all-scope-bearers-6450-item-1).
+`scoped_route_not_enabled`, and it keeps that meaning on this route, because
+the withdrawal leaves the middleware refusing every scoped caller before the
+handler runs. The refusal attributes above are exercised by the fence tests,
+which build scoped contexts directly, and become caller-visible once #6475
+lands. The promoted pair reads
+[Residual](#residual-all-scope-bearers-6450-item-1) instead.
