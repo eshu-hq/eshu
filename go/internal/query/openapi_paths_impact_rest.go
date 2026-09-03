@@ -60,6 +60,7 @@ const openAPIPathsImpactRest = `
           }
         },
         "responses": {
+          "403": {"$ref": "#/components/responses/Forbidden"},
           "503": {"$ref": "#/components/responses/ServiceUnavailable"},
           "504": {"$ref": "#/components/responses/GatewayTimeout"},
           "200": {
@@ -152,6 +153,7 @@ const openAPIPathsImpactRest = `
           }
         },
         "responses": {
+          "403": {"$ref": "#/components/responses/Forbidden"},
           "503": {"$ref": "#/components/responses/ServiceUnavailable"},
           "504": {"$ref": "#/components/responses/GatewayTimeout"},
           "200": {
@@ -289,6 +291,7 @@ const openAPIPathsImpactRest = `
           }
         },
         "responses": {
+          "403": {"$ref": "#/components/responses/Forbidden"},
           "503": {"$ref": "#/components/responses/ServiceUnavailable"},
           "504": {"$ref": "#/components/responses/GatewayTimeout"},
           "200": {

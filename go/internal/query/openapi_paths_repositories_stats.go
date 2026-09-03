@@ -3,9 +3,13 @@
 
 package query
 
-// openAPIPathsRepositoriesStats documents the repository stats route. It is
-// split from openAPIPathsRepositories to keep repository OpenAPI files small.
-const openAPIPathsRepositoriesStats = `
+// openAPIPathsRepositoriesStatsAndCoverage documents the two per-repository
+// content-store coverage readbacks, GET /api/v0/repositories/{repo_id}/stats
+// and GET /api/v0/repositories/{repo_id}/coverage. Both are split from
+// openAPIPathsRepositories to keep repository OpenAPI files small; coverage
+// moved here when declaring its policy 403 pushed that file over the 500-line
+// cap.
+const openAPIPathsRepositoriesStatsAndCoverage = `
     "/api/v0/repositories/{repo_id}/stats": {
       "get": {
         "tags": ["repositories"],
@@ -17,6 +21,7 @@ const openAPIPathsRepositoriesStats = `
           {"$ref": "#/components/parameters/RepoId"}
         ],
         "responses": {
+          "403": {"$ref": "#/components/responses/Forbidden"},
           "503": {"$ref": "#/components/responses/ServiceUnavailable"},
           "200": {
             "description": "Repository statistics",
@@ -68,6 +73,59 @@ const openAPIPathsRepositoriesStats = `
               }
             }
           },
+          "500": {"$ref": "#/components/responses/InternalError"}
+        }
+      }
+    },
+    "/api/v0/repositories/{repo_id}/coverage": {
+      "get": {
+        "tags": ["repositories"],
+        "summary": "Get repository coverage",
+        "description": "Returns content store coverage metrics for the repository. Scoped tokens receive the same shape; a repository outside the caller's grant 404s like sibling repository routes.",
+        "operationId": "getRepositoryCoverage",
+        "x-scoped-token-support": true,
+        "parameters": [
+          {"$ref": "#/components/parameters/RepoId"}
+        ],
+        "responses": {
+          "403": {"$ref": "#/components/responses/Forbidden"},
+          "503": {"$ref": "#/components/responses/ServiceUnavailable"},
+          "504": {"$ref": "#/components/responses/GatewayTimeout"},
+          "200": {
+            "description": "Repository coverage",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "repo_id": {"type": "string"},
+                    "completeness_state": {"type": "string"},
+                    "graph_available": {"type": "boolean"},
+                    "server_content_available": {"type": "boolean"},
+                    "graph_gap_count": {"type": "integer"},
+                    "content_gap_count": {"type": "integer"},
+                    "file_count": {"type": "integer"},
+                    "entity_count": {"type": "integer"},
+                    "content_last_indexed_at": {"type": "string"},
+                    "last_error": {"type": "string"},
+                    "languages": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "language": {"type": "string"},
+                          "file_count": {"type": "integer"}
+                        }
+                      }
+                    },
+                    "summary": {"type": "object"}
+                  }
+                }
+              }
+            }
+          },
+          "400": {"$ref": "#/components/responses/BadRequest"},
+          "404": {"$ref": "#/components/responses/NotFound"},
           "500": {"$ref": "#/components/responses/InternalError"}
         }
       }

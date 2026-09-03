@@ -38,6 +38,7 @@ const openAPIPathsInfrastructure = `
           }
         },
         "responses": {
+          "403": {"$ref": "#/components/responses/Forbidden"},
           "503": {"$ref": "#/components/responses/ServiceUnavailable"},
           "504": {"$ref": "#/components/responses/GatewayTimeout"},
           "200": {
@@ -107,6 +108,7 @@ const openAPIPathsInfrastructure = `
           }
         },
         "responses": {
+          "403": {"$ref": "#/components/responses/Forbidden"},
           "504": {"$ref": "#/components/responses/GatewayTimeout"},
           "503": {"$ref": "#/components/responses/ServiceUnavailable"},
           "200": {
@@ -140,6 +142,7 @@ const openAPIPathsInfrastructure = `
         "operationId": "getEcosystemOverview",
         "x-scoped-token-support": true,
         "responses": {
+          "403": {"$ref": "#/components/responses/Forbidden"},
           "503": {"$ref": "#/components/responses/ServiceUnavailable"},
           "504": {"$ref": "#/components/responses/GatewayTimeout"},
           "200": {
@@ -185,6 +188,7 @@ const openAPIPathsInfrastructure = `
           }
         },
         "responses": {
+          "403": {"$ref": "#/components/responses/Forbidden"},
           "504": {"$ref": "#/components/responses/GatewayTimeout"},
           "200": {
             "description": "Graph summary packet",
@@ -287,6 +291,7 @@ const openAPIPathsInfrastructure = `
           }
         },
         "responses": {
+          "403": {"$ref": "#/components/responses/Forbidden"},
           "504": {"$ref": "#/components/responses/GatewayTimeout"},
           "200": {
             "description": "Bounded typed-edge slice for the verb",

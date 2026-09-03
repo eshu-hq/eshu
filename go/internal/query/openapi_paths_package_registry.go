@@ -18,6 +18,7 @@ const openAPIPathsPackageRegistry = `
           {"name": "limit", "in": "query", "required": true, "schema": {"type": "integer", "minimum": 1, "maximum": 200}}
         ],
         "responses": {
+          "403": {"$ref": "#/components/responses/Forbidden"},
           "504": {"$ref": "#/components/responses/GatewayTimeout"},
           "200": {
             "description": "Package registry package identities",
@@ -101,6 +102,7 @@ const openAPIPathsPackageRegistry = `
           {"name": "limit", "in": "query", "required": true, "schema": {"type": "integer", "minimum": 1, "maximum": 200}}
         ],
         "responses": {
+          "403": {"$ref": "#/components/responses/Forbidden"},
           "504": {"$ref": "#/components/responses/GatewayTimeout"},
           "200": {
             "description": "Package registry package-version identities",
@@ -161,6 +163,7 @@ const openAPIPathsPackageRegistry = `
           {"name": "limit", "in": "query", "required": true, "schema": {"type": "integer", "minimum": 1, "maximum": 200}}
         ],
         "responses": {
+          "403": {"$ref": "#/components/responses/Forbidden"},
           "504": {"$ref": "#/components/responses/GatewayTimeout"},
           "200": {
             "description": "Package registry dependency edges",
@@ -240,6 +243,7 @@ const openAPIPathsPackageRegistry = `
           {"name": "limit", "in": "query", "required": true, "schema": {"type": "integer", "minimum": 1, "maximum": 200}}
         ],
         "responses": {
+          "403": {"$ref": "#/components/responses/Forbidden"},
           "504": {"$ref": "#/components/responses/GatewayTimeout"},
           "200": {
             "description": "Package registry ownership, publication, and consumption correlations",
@@ -313,6 +317,7 @@ const openAPIPathsPackageRegistry = `
           {"name": "limit", "in": "query", "required": true, "schema": {"type": "integer", "minimum": 1, "maximum": 200}}
         ],
         "responses": {
+          "403": {"$ref": "#/components/responses/Forbidden"},
           "504": {"$ref": "#/components/responses/GatewayTimeout"},
           "200": {
             "description": "Package-evidenced repo-to-repo dependency chains for the repository",

@@ -147,6 +147,9 @@ tenant and workspace, which is the intended posture where one graph belongs to
 one tenant. Identity and admin routes under `/api/v0/auth/`, and the static
 catalog and request-reshape routes, hold no tenant data to filter and admit it
 in every mode. Credentials carrying real ids are unaffected in every mode.
+Every operation that can refuse a caller this way declares `403` in the OpenAPI
+document, so a generated client has a case for it without deploying under
+`hosted_multi_tenant` to discover the status.
 
 The rule reaches bearer tokens and browser sessions alike, with one difference:
 it never widens a token's reach. A route absent from the scoped-token allowlist

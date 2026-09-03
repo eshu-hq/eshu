@@ -159,6 +159,7 @@ const openAPIPathsAdmin = `
         "responses": {
           "200": {"description": "Bounded dead-letter page with schema_version, limit, count, truncated, and items"},
           "400": {"$ref": "#/components/responses/BadRequest"},
+          "403": {"$ref": "#/components/responses/Forbidden"},
           "504": {"description": "Dead-letter query timed out"},
           "500": {"$ref": "#/components/responses/InternalError"}
         }
@@ -192,6 +193,7 @@ const openAPIPathsAdmin = `
         "responses": {
           "200": {"description": "Bounded input_invalid quarantine page with schema_version, limit, count, truncated, and items"},
           "400": {"$ref": "#/components/responses/BadRequest"},
+          "403": {"$ref": "#/components/responses/Forbidden"},
           "504": {"description": "Input-invalid-facts query timed out"},
           "500": {"$ref": "#/components/responses/InternalError"}
         }

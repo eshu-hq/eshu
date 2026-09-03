@@ -22,6 +22,7 @@ const openAPIPathsSupplyChainImpactExplain = `
           {"name": "service_id", "in": "query", "description": "Reducer-admitted service anchor derived from workload/service evidence.", "schema": {"type": "string"}}
         ],
         "responses": {
+          "403": {"$ref": "#/components/responses/Forbidden"},
           "503": {"$ref": "#/components/responses/ServiceUnavailable"},
           "504": {"$ref": "#/components/responses/GatewayTimeout"},
           "200": {

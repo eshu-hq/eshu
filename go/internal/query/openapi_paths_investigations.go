@@ -24,6 +24,7 @@ const openAPIPathsInvestigations = `
           {"name": "max_source_facts", "in": "query", "required": false, "schema": {"type": "integer", "minimum": 1}, "description": "Optional lower cap for the packet source_facts layer."}
         ],
         "responses": {
+          "403": {"$ref": "#/components/responses/Forbidden"},
           "504": {"$ref": "#/components/responses/GatewayTimeout"},
           "200": {"description": "Investigation evidence packet", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/InvestigationEvidencePacket"}}}},
           "400": {"$ref": "#/components/responses/BadRequest"},
@@ -50,6 +51,7 @@ const openAPIPathsInvestigations = `
         "responses": {
           "200": {"description": "Investigation evidence packet", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/InvestigationEvidencePacket"}}}},
           "400": {"$ref": "#/components/responses/BadRequest"},
+          "403": {"$ref": "#/components/responses/Forbidden"},
           "501": {"$ref": "#/components/responses/NotImplemented"},
           "503": {"$ref": "#/components/responses/ServiceUnavailable"},
           "500": {"$ref": "#/components/responses/InternalError"}
@@ -75,6 +77,7 @@ const openAPIPathsInvestigations = `
         "responses": {
           "200": {"description": "Investigation evidence packet", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/InvestigationEvidencePacket"}}}},
           "400": {"$ref": "#/components/responses/BadRequest"},
+          "403": {"$ref": "#/components/responses/Forbidden"},
           "501": {"$ref": "#/components/responses/NotImplemented"},
           "500": {"$ref": "#/components/responses/InternalError"}
         }
@@ -140,6 +143,7 @@ const openAPIPathsInvestigations = `
           }
         ],
         "responses": {
+          "403": {"$ref": "#/components/responses/Forbidden"},
           "504": {"$ref": "#/components/responses/GatewayTimeout"},
           "200": {
             "description": "Service investigation packet",

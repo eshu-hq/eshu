@@ -52,6 +52,7 @@ const openAPIPathsIncidentContext = `
             }
           },
           "400": {"$ref": "#/components/responses/BadRequest"},
+          "403": {"$ref": "#/components/responses/Forbidden"},
           "404": {"$ref": "#/components/responses/NotFound"},
           "409": {"description": "Incident id matched multiple active provider scopes; retry with scope_id."},
           "503": {"description": "Postgres incident source fact read model unavailable"}

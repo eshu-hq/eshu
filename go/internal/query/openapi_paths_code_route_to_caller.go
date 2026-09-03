@@ -32,6 +32,7 @@ const openAPIPathsCodeRouteToCaller = `
           }
         },
         "responses": {
+          "403": {"$ref": "#/components/responses/Forbidden"},
           "504": {"$ref": "#/components/responses/GatewayTimeout"},
           "200": {
             "description": "Exact route-to-caller trace, or unsupported when no HANDLES_ROUTE edge exists",

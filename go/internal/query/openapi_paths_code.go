@@ -29,6 +29,7 @@ const openAPIPathsCode = `
           }
         },
         "responses": {
+          "403": {"$ref": "#/components/responses/Forbidden"},
           "504": {"$ref": "#/components/responses/GatewayTimeout"},
           "200": {
             "description": "Search results",

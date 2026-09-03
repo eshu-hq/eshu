@@ -16,6 +16,7 @@ const openAPIPathsSecretsIAM = `
           {"name": "scope_id", "in": "query", "required": true, "schema": {"type": "string"}, "description": "Reducer scope ID to summarize."}
         ],
         "responses": {
+          "403": {"$ref": "#/components/responses/Forbidden"},
           "504": {"$ref": "#/components/responses/GatewayTimeout"},
           "200": {
             "description": "Posture summary counts",
@@ -110,6 +111,7 @@ const openAPIPathsSecretsIAM = `
             }
           },
           "400": {"$ref": "#/components/responses/BadRequest"},
+          "403": {"$ref": "#/components/responses/Forbidden"},
           "500": {"$ref": "#/components/responses/InternalError"},
           "501": {"$ref": "#/components/responses/NotImplemented"},
           "503": {"$ref": "#/components/responses/ServiceUnavailable"}
@@ -151,6 +153,7 @@ const openAPIPathsSecretsIAM = `
             }, "required": ["privilege_posture_observations", "count", "limit", "truncated"]}}}
           },
           "400": {"$ref": "#/components/responses/BadRequest"},
+          "403": {"$ref": "#/components/responses/Forbidden"},
           "500": {"$ref": "#/components/responses/InternalError"},
           "501": {"$ref": "#/components/responses/NotImplemented"},
           "503": {"$ref": "#/components/responses/ServiceUnavailable"}
@@ -193,6 +196,7 @@ const openAPIPathsSecretsIAM = `
             }, "required": ["secret_access_paths", "count", "limit", "truncated"]}}}
           },
           "400": {"$ref": "#/components/responses/BadRequest"},
+          "403": {"$ref": "#/components/responses/Forbidden"},
           "500": {"$ref": "#/components/responses/InternalError"},
           "501": {"$ref": "#/components/responses/NotImplemented"},
           "503": {"$ref": "#/components/responses/ServiceUnavailable"}
@@ -234,6 +238,7 @@ const openAPIPathsSecretsIAM = `
             }, "required": ["posture_gaps", "count", "limit", "truncated"]}}}
           },
           "400": {"$ref": "#/components/responses/BadRequest"},
+          "403": {"$ref": "#/components/responses/Forbidden"},
           "500": {"$ref": "#/components/responses/InternalError"},
           "501": {"$ref": "#/components/responses/NotImplemented"},
           "503": {"$ref": "#/components/responses/ServiceUnavailable"}

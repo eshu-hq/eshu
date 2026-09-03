@@ -87,6 +87,7 @@ const openAPIPathsTerraformConfigStateDrift = `
               }
             }
           },
+          "403": {"$ref": "#/components/responses/Forbidden"},
           "501": {"description": "Terraform config-vs-state drift findings require reducer-materialized drift facts"}
         }
       }

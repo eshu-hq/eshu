@@ -35,7 +35,8 @@ const openAPIPathsDocumentationFindingAggregate = `
                 }
               }
             }
-          }
+          },
+          "403": {"$ref": "#/components/responses/Forbidden"}
         }
       }
     },
@@ -86,7 +87,8 @@ const openAPIPathsDocumentationFindingAggregate = `
                 }
               }
             }
-          }
+          },
+          "403": {"$ref": "#/components/responses/Forbidden"}
         }
       }
     },

@@ -133,6 +133,7 @@ const openAPIPathsCloudInventory = `
             }
           },
           "400": {"description": "Invalid provider, management_origin, limit, or cursor; or account_id/project_id/subscription_id supplied without provider, or with a mismatched provider (account_id requires provider=aws, project_id requires provider=gcp, subscription_id requires provider=azure)"},
+          "403": {"$ref": "#/components/responses/Forbidden"},
           "501": {"description": "Capability unsupported by the active query profile, or canonical identity read model unavailable"}
         }
       }

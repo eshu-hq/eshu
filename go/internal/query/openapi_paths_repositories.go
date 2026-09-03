@@ -62,6 +62,7 @@ const openAPIPathsRepositories = `
               }
             }
           },
+          "403": {"$ref": "#/components/responses/Forbidden"},
           "503": {"$ref": "#/components/responses/ServiceUnavailable"},
           "504": {"$ref": "#/components/responses/GatewayTimeout"},
           "500": {"$ref": "#/components/responses/InternalError"}
@@ -127,6 +128,7 @@ const openAPIPathsRepositories = `
             }
           },
           "400": {"$ref": "#/components/responses/BadRequest"},
+          "403": {"$ref": "#/components/responses/Forbidden"},
           "503": {"$ref": "#/components/responses/ServiceUnavailable"}
         }
       }
@@ -170,6 +172,7 @@ const openAPIPathsRepositories = `
               }
             }
           },
+          "403": {"$ref": "#/components/responses/Forbidden"},
           "503": {"$ref": "#/components/responses/ServiceUnavailable"}
         }
       }
@@ -237,6 +240,7 @@ const openAPIPathsRepositories = `
           {"$ref": "#/components/parameters/RepoId"}
         ],
         "responses": {
+          "403": {"$ref": "#/components/responses/Forbidden"},
           "503": {"$ref": "#/components/responses/ServiceUnavailable"},
           "504": {"$ref": "#/components/responses/GatewayTimeout"},
           "200": {
@@ -310,6 +314,7 @@ const openAPIPathsRepositories = `
           {"$ref": "#/components/parameters/RepoId"}
         ],
         "responses": {
+          "403": {"$ref": "#/components/responses/Forbidden"},
           "503": {"$ref": "#/components/responses/ServiceUnavailable"},
           "504": {"$ref": "#/components/responses/GatewayTimeout"},
           "200": {
@@ -364,6 +369,7 @@ const openAPIPathsRepositories = `
           {"name": "language", "in": "query", "required": false, "schema": {"type": "string"}, "description": "Filter the listing to files of this language/source-type (e.g. go, python, hcl, yaml). Aliases expand to a family: typescript also matches tsx; terraform also matches hcl/tfvars. A path with no matching files returns an empty listing, not 404."}
         ],
         "responses": {
+          "403": {"$ref": "#/components/responses/Forbidden"},
           "503": {"$ref": "#/components/responses/ServiceUnavailable"},
           "504": {"$ref": "#/components/responses/GatewayTimeout"},
           "200": {
@@ -437,58 +443,6 @@ const openAPIPathsRepositories = `
           },
           "400": {"$ref": "#/components/responses/BadRequest"},
           "409": {"$ref": "#/components/responses/Conflict"},
-          "404": {"$ref": "#/components/responses/NotFound"},
-          "500": {"$ref": "#/components/responses/InternalError"}
-        }
-      }
-    },
-    "/api/v0/repositories/{repo_id}/coverage": {
-      "get": {
-        "tags": ["repositories"],
-        "summary": "Get repository coverage",
-        "description": "Returns content store coverage metrics for the repository. Scoped tokens receive the same shape; a repository outside the caller's grant 404s like sibling repository routes.",
-        "operationId": "getRepositoryCoverage",
-        "x-scoped-token-support": true,
-        "parameters": [
-          {"$ref": "#/components/parameters/RepoId"}
-        ],
-        "responses": {
-          "503": {"$ref": "#/components/responses/ServiceUnavailable"},
-          "504": {"$ref": "#/components/responses/GatewayTimeout"},
-          "200": {
-            "description": "Repository coverage",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object",
-                  "properties": {
-                    "repo_id": {"type": "string"},
-                    "completeness_state": {"type": "string"},
-                    "graph_available": {"type": "boolean"},
-                    "server_content_available": {"type": "boolean"},
-                    "graph_gap_count": {"type": "integer"},
-                    "content_gap_count": {"type": "integer"},
-                    "file_count": {"type": "integer"},
-                    "entity_count": {"type": "integer"},
-                    "content_last_indexed_at": {"type": "string"},
-                    "last_error": {"type": "string"},
-                    "languages": {
-                      "type": "array",
-                      "items": {
-                        "type": "object",
-                        "properties": {
-                          "language": {"type": "string"},
-                          "file_count": {"type": "integer"}
-                        }
-                      }
-                    },
-                    "summary": {"type": "object"}
-                  }
-                }
-              }
-            }
-          },
-          "400": {"$ref": "#/components/responses/BadRequest"},
           "404": {"$ref": "#/components/responses/NotFound"},
           "500": {"$ref": "#/components/responses/InternalError"}
         }
