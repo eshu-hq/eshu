@@ -28,6 +28,12 @@ See `doc.go` for the godoc contract.
   `RunIncomingFn`, the dead-code scanner's paged candidate probe is answered
   with no rows, everything else goes to `RunFn`. The zero value is usable.
 
+`Run` routes through an unexported `rows` helper, and `RunSingle` falls back to
+that same helper rather than calling `Run` (it still prefers `RunSingleFn` when
+one is set). That keeps the package free of any `Run`/`RunSingle`
+call expression, which is what lets `internal/queryplan`'s callsite inventory
+walk this directory instead of skipping it — see the invariants below.
+
 ### Why FakeGraphReader's fields are exported
 
 An unexported field cannot be set from another package, so a type alias would
@@ -59,9 +65,29 @@ consumer is the alternative, and it buys nothing the adapter does not.
 
 ## Dependencies
 
-`testing` only. That is deliberate: a shared test helper that imports
-`internal/query` would re-create the import cycle this package exists to avoid,
-because root imports every family for its compatibility aliases.
+The standard library, plus any LEAF package a fake genuinely needs to name the
+types it stands in for -- `internal/status`, `internal/governanceaudit` and
+`queryauth` are the shape, not the list. Deliberately stated as a rule rather
+than an inventory: each fake promoted here turns another leaf from allowed into
+taken, and a sentence enumerating today's imports is stale the next time one
+lands. Run `rg -l 'eshu-hq/eshu' --glob '*.go' --glob '!*_test.go' .` if you
+want the current set; do not transcribe it here.
+
+Root `internal/query` and the handler families are not. Both bans are real,
+but they are not enforced the same way and neither stops `go build`:
+
+- Root cycles as soon as root's own tests build, because root's tests import
+  this package. `go build ./internal/query/querytestutil` still succeeds on
+  its own, so a green build proves nothing here.
+- A handler family compiles clean. A cycle appears only if that family's
+  INTERNAL test package imports this one back; an external `_test` package
+  never cycles at all.
+
+`AGENTS.md` invariant 2 has the measured breakdown of all three shapes. Do
+not settle the question with a green build.
+
+A graph driver has no business here either. A fake answers from funcs a test
+installs; if it needs a driver it is not a fake.
 
 ## Telemetry
 
@@ -74,18 +100,30 @@ a `_test.go` file makes it unreachable from every other package's tests and
 silently undoes the split — the compiler reports it as an ordinary undefined
 symbol in the consuming package, not as a packaging mistake.
 
-This package is intended for tests only, and most of that is enforced rather
-than observed. `internal/queryplan` leaves this package out of the production
-query-callsite inventory, and `DiscoverQueryCallsites` refuses to produce that
-inventory unless the package still earns the omission — standard-library imports
-only, `Run`/`RunSingle` reached only by a fake's own `Run`/`RunSingle`
-delegating to its receiver, and no non-test file under `internal/query`
-importing this one. Each of those fails
-`TestHotCypherManifestCoversEveryProductionQueryCall` with the offending file
-named.
+This package is intended for tests only, and part of that is enforced rather
+than observed. `internal/queryplan`'s `DiscoverQueryCallsites` walks this
+directory like every other one under `internal/query`, so a `Run` or `RunSingle`
+call landing in a non-test file here is an unregistered production query
+callsite and fails
+`TestHotCypherManifestCoversEveryProductionQueryCall` with the file named. The
+fakes stay clear of that by routing `Run` and `RunSingle` through an unexported
+helper, so the package holds no such call at all.
 
-Note the scope of that last one. It is the tree the inventory walks, which is
-where an importer would realistically appear, but this package sits under
+It did not always work that way. The inventory used to skip this directory,
+because a fake whose `RunSingle` answers by calling `Run` looks exactly like a
+production read to a syntactic walk. Paying for that skip meant a second set of
+rules — standard-library imports only, and `Run`/`RunSingle` reached only from a
+fake's own `Run`/`RunSingle` delegating to its receiver. Both were proxies for
+"this cannot reach a backend", and both were wrong in a way that mattered: the
+stdlib rule blocked fakes that legitimately need `internal/status`,
+`internal/governanceaudit`, or `queryauth`, while the self-delegation whitelist
+let a genuine graph read wearing that exact shape pass the gate in silence.
+Removing the call removed the need for either.
+
+The other enforced half is direction: no non-test file under `internal/query`
+may import this package, because production code must not depend on test
+doubles. Note its scope. It covers the tree the inventory walks, which is where
+an importer would realistically appear, but this package sits under
 `go/internal`, so anything under `go/` could import it and only convention stops
 a package outside `internal/query` from doing so.
 

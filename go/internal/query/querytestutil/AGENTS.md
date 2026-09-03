@@ -10,21 +10,76 @@
 1. Every helper lives in an ordinary `.go` file and is exported. A helper in a
    `_test.go` file here is unreachable from other packages' tests, which
    defeats the package's only purpose.
-2. This package imports `testing` and standard library only. It MUST NOT import
-   `internal/query` or any handler family — root imports the families for its
-   aliases, so such an import re-creates the cycle.
+2. Leaf packages only — never root `internal/query`, never a handler family,
+   never a graph driver. Leaf dependencies such as `internal/status`,
+   `internal/governanceaudit`, or `queryauth` are fine.
+
+   Only ONE of those three bans has a compiler backstop, and knowing which
+   matters more than the rule itself:
+
+   - **Root** is caught, but only in a test binary. Root's own tests import
+     this package, so importing root from here is a cycle and
+     `internal/query`'s tests stop building. This package still compiles on
+     its own -- `go build ./internal/query/querytestutil` succeeds -- so a
+     `go build` will not tell you.
+   - **A handler family is NOT caught**, and is caught even less often than
+     it first appears. Importing `packagereg` from here compiles fine: root
+     and this package merely share that dependency, which is not a cycle. A
+     cycle needs that family's tests to import this package back, and only
+     the INTERNAL test package triggers it. Measured, all three legs planted:
+
+     | plant | result |
+     | --- | --- |
+     | this package imports `packagereg` | exit 0, no cycle |
+     | plus `package packagereg` (internal) importing this one | exit 1, `import cycle not allowed in test` |
+     | plus `package packagereg_test` (external) importing this one | exit 0, no cycle |
+
+     So whether the ban bites depends on how the family writes its tests, and
+     on whether they use this package at all:
+
+     - Family tests are INTERNAL and import this package -> caught. This is
+       the normal case for a family that needs the shared fakes, which is the
+       reason this package exists. The `semanticsearch` move hit exactly this:
+       its in-package tests import `querytestutil`, so promoting its
+       index-store fake here was rejected by the compiler, not by review.
+     - Family tests are INTERNAL and do not import this package -> not
+       caught. `packagereg` is in this state today: 22 of 22 test files are
+       `package packagereg`, none importing this one.
+     - Family tests are EXTERNAL (`package packagereg_test`) -> never caught,
+       even when they do import this package.
+
+     Do not read the first case as the rule. Two of the three shapes compile
+     clean, and the one that catches you does so only because a family
+     happened to need a fake from here.
+   - **A graph driver is NOT caught.** It was, transitively, while the
+     stdlib-only import rule stood; that rule is gone. `countQueryCalls`
+     matches the selector names `Run` and `RunSingle` only, so a real read
+     issued through a differently-named method is invisible to it.
+
+   Two of the three are enforced by review, not by tooling. Treat them as
+   rules you have to hold yourself to.
 3. No production behavior. If production code needs it, it belongs in
    `querycontract`.
+4. No `Run` or `RunSingle` call in a non-test file. `internal/queryplan`'s
+   `DiscoverQueryCallsites` walks this directory like every other one under
+   `internal/query`, so such a call is an unregistered production query callsite
+   and fails `TestHotCypherManifestCoversEveryProductionQueryCall`. Give a fake
+   that needs both methods the `FakeGraphReader` shape: each routes through an
+   unexported helper rather than one calling the other.
 
-Invariants 2 and 3 are checked, not just asserted. `internal/queryplan`'s
-`DiscoverQueryCallsites` omits this package from the production query-callsite
-inventory, and that omission is only sound while the package is test-only, so
-the walk proves it before skipping: a non-standard-library import here, a `Run`
-or `RunSingle` call anywhere but a fake's own `Run`/`RunSingle` delegating to
-its receiver, a non-test file under `internal/query` importing this package, or
-this directory holding no non-test Go file at all each fail
-`TestHotCypherManifestCoversEveryProductionQueryCall`. A helper that genuinely
-needs one of those does not belong here.
+Invariants 3 and 4 are checked, not just asserted, and the same gate enforces
+the direction that keeps invariant 3 honest — a non-test file under
+`internal/query` importing this package fails it, naming the file and the two
+legal exits.
+
+Invariant 2 used to read "standard library only", enforced by the same gate,
+because the inventory skipped this directory and wanted a proxy for "nothing
+here can reach a backend". That rule was blocking real work — `fakeStatusReader`
+needs `internal/status`, `fakeGovernanceAuditAppender` needs
+`internal/governanceaudit`, `fakeScopedTokenResolver` needs `queryauth` — while
+the whitelist it came bundled with let a genuine graph read pass the gate in
+silence, so long as it wore the self-delegation shape. Dropping the skip
+retired both. Do not reintroduce either.
 
 ## Current state: one consumer, on purpose
 

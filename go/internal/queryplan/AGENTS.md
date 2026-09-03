@@ -26,16 +26,21 @@
   a typed `non_hot` class with a production source digest and applicable bounds.
   `non_hot_reason` remains source-digest-frozen legacy migration debt and must
   not be added or changed without converting the entry to the typed form.
-- The single directory outside that inventory is `internal/query/querytestutil`,
-  whose non-test files hold test doubles. `DiscoverQueryCallsites` skips that one
-  exact path -- not every directory that happens to carry the name -- and fails
-  unless the package still earns the skip: it holds at least one non-test Go
-  file, imports the standard library only, reaches `Run` or `RunSingle` only
-  from a fake's own `Run`/`RunSingle` delegating to its receiver, and no non-test
-  file under `internal/query` imports it. The skip and its proof are the same
-  code path, so an inventory that omits the package cannot be produced without
-  it. Widening the exclusion means widening that proof, not relaxing a name
-  match.
+- No directory under `internal/query` sits outside that inventory. Only
+  `testdata` and hidden or underscore-prefixed directories are skipped.
+  `internal/query/querytestutil` holds test doubles and used to be skipped too,
+  since a fake whose `RunSingle` answers by calling `Run` is indistinguishable
+  here from a production read. Granting that skip required whitelisting the
+  self-delegation shape, which let a genuine graph read wearing it pass in
+  silence, and pairing it with a standard-library-only rule that blocked fakes
+  needing `internal/status`, `internal/governanceaudit`, or `queryauth`. The
+  fake now routes both methods through an unexported helper and calls neither,
+  so the skip and both proxy rules are gone (#6060). Do not add a new exclusion
+  here: remove the call instead, the way that one was removed.
+- `rejectTestOnlyHelperImport` survives that removal on a different rationale.
+  It is a boundary rule, not an inventory one -- production code must not depend
+  on test doubles, because a fake hands a production caller whatever its zero
+  value returns, which is a silent wrong answer rather than a failure.
 - Editing the production source of a symbol registered in
   `grandfatheredNonHotSourceDigests` must convert that symbol's inventory entry
   to the typed `non_hot` form in the same change. This covers a doc-comment-only

@@ -71,37 +71,30 @@ type NonHotDisposition struct {
 //
 // A symbol declared in a _test.go file is not part of the importable package,
 // so the fakes a handler family needs cannot be declared that way once the
-// family moves to its own package (#6060, epic #6053). A graph fake has Run and
-// RunSingle methods and its RunSingle answers by calling Run, which is
-// indistinguishable here from a production graph read.
+// family moves to its own package (#6060, epic #6053).
 //
-// It is excluded rather than registered because the manifest has nowhere honest
-// to put it: every entry there asserts a hotness disposition about a real
-// backend read. The package carries a matching invariant in its own AGENTS.md --
-// no production behavior, and no production file imports it.
-//
-// The exclusion is one exact directory, queryDir/querytestutil, and not every
-// directory that happens to carry the name. It is also conditional: the walk
-// fails unless validateTestOnlyHelperExclusion can still prove the package is
-// test-only, so the skip cannot quietly start swallowing production reads.
+// The inventory walks it like any other directory. It is named here only so a
+// non-test file under internal/query can be stopped from importing it:
+// production code has no business reaching a package of test doubles.
 const testOnlyHelperPackage = "querytestutil"
 
 // DiscoverQueryCallsites returns every direct Run or RunSingle selector call
 // in non-test Go files recursively beneath queryDir. Testdata plus hidden and
-// underscore-prefixed directories are excluded from the inventory, as is the
-// single test-only helper package at queryDir/testOnlyHelperPackage.
+// underscore-prefixed directories are excluded from the inventory; no package
+// under queryDir is.
 //
-// The walk fails rather than under-reporting. It rejects a helper package that
-// no longer proves itself test-only, and it rejects a non-test file anywhere
-// beneath queryDir that imports that package: an excluded subtree production
-// code can reach is not excludable. The proof and the skip are the same code
-// path on purpose, so an inventory that skips the package cannot be produced
-// without it.
+// The walk fails rather than under-reporting. It rejects a non-test file
+// anywhere beneath queryDir that imports the test-double package, because
+// production code reaching a test double is a defect on its own.
+//
+// The inventory used to skip queryDir/querytestutil, since a graph fake whose
+// RunSingle answers by calling Run is indistinguishable here from a production
+// read. Granting that skip meant whitelisting the self-delegation shape, which
+// left a genuine graph read wearing it invisible to the gate. The fake now
+// routes both methods through an unexported helper and holds no Run or
+// RunSingle call at all, so the skip is gone and the inventory covers every
+// directory (#6060).
 func DiscoverQueryCallsites(queryDir string) ([]SourceCoverage, error) {
-	helperDir := filepath.Join(queryDir, testOnlyHelperPackage)
-	if err := validateTestOnlyHelperExclusion(helperDir); err != nil {
-		return nil, fmt.Errorf("test-only helper package exclusion: %w", err)
-	}
 	coverage := make([]SourceCoverage, 0)
 	err := filepath.WalkDir(queryDir, func(path string, dirEntry fs.DirEntry, walkErr error) error {
 		if walkErr != nil {
@@ -111,9 +104,6 @@ func DiscoverQueryCallsites(queryDir string) ([]SourceCoverage, error) {
 			name := dirEntry.Name()
 			if path != queryDir && (name == "testdata" ||
 				strings.HasPrefix(name, ".") || strings.HasPrefix(name, "_")) {
-				return filepath.SkipDir
-			}
-			if filepath.Clean(path) == filepath.Clean(helperDir) {
 				return filepath.SkipDir
 			}
 			return nil

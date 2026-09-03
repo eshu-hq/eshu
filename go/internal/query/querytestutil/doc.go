@@ -15,5 +15,14 @@
 // and while that holds the linker drops it from production binaries — a
 // consequence of the invariant, not a guarantee independent of it. A production
 // import would pull testing into a shipped binary and should be treated as a
-// defect rather than documented as behavior.
+// defect rather than documented as behavior. internal/queryplan enforces that
+// direction: a non-test file under internal/query importing this package fails
+// the production query-callsite inventory.
+//
+// A fake here must not call Run or RunSingle. That inventory walks this
+// directory like any other, so such a call is an unregistered production query
+// callsite and fails the gate. FakeGraphReader satisfies both methods by
+// routing each through an unexported helper instead of having one call the
+// other; give a new fake the same shape rather than asking for an exemption
+// (#6060, epic #6053).
 package querytestutil
