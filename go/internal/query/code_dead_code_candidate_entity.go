@@ -229,12 +229,14 @@ func (h *CodeHandler) deadCodeResultsWithGraphIncomingEdges(
 	if err != nil {
 		return nil, err
 	}
+	grantedEdges := make(map[string]struct{}, len(rows))
 	for _, row := range rows {
 		entityID := strings.TrimSpace(StringVal(row, "incoming_entity_id"))
 		if entityID == "" {
 			continue
 		}
 		method := strings.TrimSpace(StringVal(row, "resolution_method"))
+		grantedEdges[deadCodeIncomingEdgeKey(entityID, method)] = struct{}{}
 		mergeStrongestDeadCodeIncomingEdge(incoming, entityID, deadCodeIncomingEdge{
 			MaxConfidence: codeprovenance.Confidence(method),
 			Method:        method,
@@ -246,8 +248,8 @@ func (h *CodeHandler) deadCodeResultsWithGraphIncomingEdges(
 	// The signal probe is the statement an unscoped caller runs, byte for byte.
 	// It answers the one question the grant-bound probe cannot: is there an
 	// incoming edge the caller may not see. Its rows never become evidence --
-	// only the entities it reached that the grant-bound probe did not, and only
-	// as the hidden marker.
+	// only the rows the grant-bound probe did not return, and only as the
+	// hidden marker.
 	signalRows, err := h.Neo4j.Run(ctx, buildDeadCodeIncomingBatchProbeCypher(label), map[string]any{
 		"entity_ids": entityIDs,
 	})
@@ -259,12 +261,27 @@ func (h *CodeHandler) deadCodeResultsWithGraphIncomingEdges(
 		if entityID == "" {
 			continue
 		}
-		if _, granted := incoming[entityID]; granted {
+		method := strings.TrimSpace(StringVal(row, "resolution_method"))
+		if _, granted := grantedEdges[deadCodeIncomingEdgeKey(entityID, method)]; granted {
 			continue
 		}
 		mergeStrongestDeadCodeIncomingEdge(incoming, entityID, deadCodeIncomingEdge{HiddenConsumer: true})
 	}
 	return incoming, nil
+}
+
+// deadCodeIncomingEdgeKey names one probe row by the pair both probes return,
+// so the signal probe's rows are diffed against the grant-bound probe's edge by
+// edge rather than entity by entity. Diffing entities lets a granted edge hide
+// an ungranted one beside it, which is the case the SQL half already answers
+// permission_hidden_consumer; diffing rows makes both backends answer it the
+// same way. Two edges into the same entity that share a resolution method
+// collapse under the probes' own RETURN DISTINCT, so an ungranted edge whose
+// method a granted edge also carries is still missed; that is a narrower gap
+// than the entity-level one, in the same conservative direction (the candidate
+// is kept and reported ambiguous either way).
+func deadCodeIncomingEdgeKey(entityID, method string) string {
+	return entityID + "\x00" + method
 }
 
 func deadCodeResultEntityIDs(results []map[string]any) []string {
@@ -320,7 +337,7 @@ func buildDeadCodeGrantedIncomingBatchProbeCypher(label string, access repositor
 
 // buildDeadCodeIncomingBatchProbeCypher builds the unrestricted incoming-edge
 // probe. For an unscoped caller it is the only probe and its rows are evidence;
-// for a scoped one it is the signal read, and the entities it finds that the
+// for a scoped one it is the signal read, and the rows it returns that the
 // grant-bound probe did not are the hidden consumers.
 func buildDeadCodeIncomingBatchProbeCypher(label string) string {
 	if !isDeadCodeCandidateLabel(label) {

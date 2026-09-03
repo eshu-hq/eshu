@@ -338,3 +338,107 @@ func TestDeadCodeGraphProbeTreatsAnUngrantedSourceAsUnknown(t *testing.T) {
 		t.Fatalf("MaxConfidence = %v, want 0 for an edge the caller cannot see", edge.MaxConfidence)
 	}
 }
+
+// TestDeadCodeWeakGrantedEdgeBesideAnUngrantedOneReadsHiddenOnBothBackends
+// covers the candidate the caller can see one weak edge into and cannot see
+// another. The SQL half reports permission_hidden_consumer for it, because the
+// grant is decided per row. The graph half diffs two probes, so it has to diff
+// them per edge as well: diffing whole entities lets the granted edge hide the
+// ungranted one, and the same candidate then reads as a weak-evidence review
+// item on one backend and a permission question on the other.
+func TestDeadCodeWeakGrantedEdgeBesideAnUngrantedOneReadsHiddenOnBothBackends(t *testing.T) {
+	t.Parallel()
+
+	for _, backend := range []struct {
+		name     string
+		incoming func(*testing.T) (content, graph map[string]deadCodeIncomingEdge)
+	}{
+		{name: "sql", incoming: deadCodeWeakGrantedPlusUngrantedFromSQL},
+		{name: "graph", incoming: deadCodeWeakGrantedPlusUngrantedFromGraph},
+	} {
+		t.Run(backend.name, func(t *testing.T) {
+			t.Parallel()
+
+			content, graph := backend.incoming(t)
+			results := []map[string]any{{
+				"entity_id": deadCodeHiddenConsumerEntityID,
+				"repo_id":   codeGrantGrantedRepo,
+				"language":  "go",
+				"name":      "unusedHelper",
+			}}
+			kept := applyDeadCodeIncomingEdges(results, content, graph)
+			if len(kept) != 1 {
+				t.Fatalf("kept = %#v, want the candidate kept: a weak edge is not proof it is reachable", kept)
+			}
+			if got, want := kept[0]["classification"], deadCodeClassificationAmbiguous; got != want {
+				t.Fatalf("classification = %v, want %q", got, want)
+			}
+			reasons := deadCodeInvestigationAmbiguityReasons(kept[0])
+			if !slices.Contains(reasons, deadCodeHiddenConsumerReason) {
+				t.Fatalf("ambiguity_reasons = %#v, want %q: an edge the caller cannot see decides the answer even when a weak one beside it can be seen", reasons, deadCodeHiddenConsumerReason)
+			}
+		})
+	}
+}
+
+// deadCodeWeakGrantedPlusUngrantedFromSQL runs the shipped reachability read
+// over two materialized rows for one entity: a weak consumer inside the grant
+// and a stronger one outside it.
+func deadCodeWeakGrantedPlusUngrantedFromSQL(t *testing.T) (map[string]deadCodeIncomingEdge, map[string]deadCodeIncomingEdge) {
+	t.Helper()
+
+	db, _ := openRecordingContentReaderDB(t, []recordingContentReaderQueryResult{{
+		columns: []string{"entity_id", "min_resolution_method", "consumer_in_grant"},
+		rows: [][]driver.Value{
+			{deadCodeHiddenConsumerEntityID, codeprovenance.MethodRepoUniqueName, true},
+			{deadCodeHiddenConsumerEntityID, codeprovenance.MethodImportBinding, false},
+		},
+	}})
+	incoming, err := NewContentReader(db).CodeReachabilityIncomingEntityIDs(
+		context.Background(),
+		codeGrantGrantedRepo,
+		[]string{deadCodeHiddenConsumerEntityID},
+		[]string{codeGrantGrantedRepo},
+	)
+	if err != nil {
+		t.Fatalf("CodeReachabilityIncomingEntityIDs() error = %v, want nil", err)
+	}
+	return incoming, nil
+}
+
+// deadCodeWeakGrantedPlusUngrantedFromGraph runs the shipped pair of graph
+// probes over the same shape: the grant-bound probe sees only the weak edge,
+// and the unrestricted signal probe sees that edge plus the ungranted one.
+func deadCodeWeakGrantedPlusUngrantedFromGraph(t *testing.T) (map[string]deadCodeIncomingEdge, map[string]deadCodeIncomingEdge) {
+	t.Helper()
+
+	weakRow := map[string]any{
+		"incoming_entity_id": deadCodeHiddenConsumerEntityID,
+		"resolution_method":  codeprovenance.MethodRepoUniqueName,
+	}
+	probe := func(_ context.Context, cypher string, _ map[string]any) ([]map[string]any, error) {
+		if strings.Contains(cypher, "source_repo:Repository") {
+			return []map[string]any{weakRow}, nil
+		}
+		return []map[string]any{weakRow, {
+			"incoming_entity_id": deadCodeHiddenConsumerEntityID,
+			"resolution_method":  codeprovenance.MethodImportBinding,
+		}}, nil
+	}
+	handler := &CodeHandler{
+		Profile: ProfileLocalAuthoritative,
+		Neo4j:   fakeGraphReader{run: probe, runIncoming: probe},
+	}
+	auth := codeGrantScopedAuthContext([]string{codeGrantGrantedRepo})
+	ctx := ContextWithAuthContext(context.Background(), auth)
+	graph, err := handler.deadCodeResultsWithGraphIncomingEdges(ctx, []map[string]any{{
+		"entity_id": deadCodeHiddenConsumerEntityID,
+		"repo_id":   codeGrantGrantedRepo,
+		"language":  "go",
+		"labels":    []any{"Function"},
+	}}, "Function")
+	if err != nil {
+		t.Fatalf("deadCodeResultsWithGraphIncomingEdges() error = %v, want nil", err)
+	}
+	return nil, graph
+}

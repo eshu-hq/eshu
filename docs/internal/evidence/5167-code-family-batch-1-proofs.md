@@ -41,6 +41,7 @@ on that: this route's binding is its selector, not its query text.
 | `TestDeadCodeCandidateRowsBindTheGrantInTheShippedSQL` (2) | `candidate SQL is missing "AND repo_id = ANY($4)"` | `ok internal/query 1.747s` |
 | `TestCrossRepoDeadCodeConsumerEvidence*` (2), `TestCrossRepoDeadCodeKeepsTheHiddenConsumerSignal` | build failure: the reader took no grant argument and returned no signal rows | `ok internal/query 1.074s` |
 | `TestCrossRepoDeadCodeHiddenCountHonoursTheConsumerSelector` | `classification: unknown_needs_evidence`, `hidden_consumer_evidence_count: 1` for a symbol the requested consumer proves live | `ok internal/query 1.291s` |
+| `TestDeadCodeWeakGrantedEdgeBesideAnUngrantedOneReadsHiddenOnBothBackends` (2) | graph sub-test only: `ambiguity_reasons = []string{"weak_incoming_edge:repo_unique_name"}, want "permission_hidden_consumer"`; the SQL sub-test was already green | `ok internal/query 1.074s` |
 | `TestCrossRepoDeadCodeSignalReadRepeatsTheUngrantedStatement`, `*SignalTruncationKeepsCandidatesUnknown` | new coverage on the replaced statement pair, no prior red | `ok internal/query 1.291s` |
 | `TestCallGraphMetricsCypherIsTheSameForEveryCaller`, `TestGraphSummaryHotEntitiesEdgePassIsUnchanged` | `a scoped caller runs a different edge shape than the one the plan fixture pins` | `ok internal/query 1.226s` |
 | `TestCodeRoutesEmptyGrantAnswersWithArraysNotNull` (9 routes) | `"results" = <nil>, want an empty JSON array` on structural inventory, both kinds | `ok internal/query 1.078s` |
@@ -95,6 +96,7 @@ mutation was restored and its guard rerun at exit `0`.
 | 20 | the graph incoming probe runs the unrestricted text for its evidence pass too | `go test ./internal/query -run TestDeadCodeGraphProbeTreatsAnUngrantedSourceAsUnknown -count=1` | `1` (the ungranted source counted as a 0.9 edge) |
 | 21 | `applyDeadCodeIncomingEdges` skips the hidden-consumer branch (`if false &&`) | `go test ./internal/query -run 'TestDeadCodeKeepsACandidateWhoseOnlyConsumerIsOutsideTheGrant\|TestDeadCodeInvestigateReportsThePermissionHiddenConsumerReason' -count=1` | `1` (2 failures; the investigation reason fell back to `weak_incoming_edge:repo_unique_name`) |
 | 22 | `crossRepoDeadCodeConsumerRows` ignores the sentinel's entity id at the boundary | `go test ./internal/query -run TestCrossRepoDeadCodeCompletesTheEntityTheSentinelMovedPast -count=1` | `1` (a full 1,000-row page marked `consumer_evidence_truncated`) |
+| 23 | `deadCodeResultsWithGraphIncomingEdges` diffs the signal probe against the grant-bound one entity by entity instead of row by row, the shape before this pass | `go test ./internal/query -run TestDeadCodeWeakGrantedEdgeBesideAnUngrantedOneReadsHiddenOnBothBackends -count=1` | `1` (graph sub-test only; the granted weak edge hid the ungranted one and the reason fell back to `weak_incoming_edge:repo_unique_name`) |
 
 An earlier attempt at #1 deleted the whole helper body and failed as an unused
 import rather than an assertion, which proves nothing; the mutations above keep
