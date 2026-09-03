@@ -194,6 +194,9 @@ func resolveRoute(toolName string, args map[string]any) (*route, error) {
 	if route, ok := infraResourceSearchRoute(toolName, args); ok {
 		return route, nil
 	}
+	if route, ok := infraInventoryRoute(toolName, args); ok {
+		return route, nil
+	}
 	if route, ok, err := serviceContextRoute(toolName, args); ok {
 		return route, err
 	}
@@ -301,25 +304,6 @@ func resolveRoute(toolName string, args map[string]any) (*route, error) {
 		return &route{method: "POST", path: "/api/v0/content/files/search", body: contentSearchBody(args)}, nil
 	case "search_entity_content":
 		return &route{method: "POST", path: "/api/v0/content/entities/search", body: contentSearchBody(args)}, nil
-
-	// ── Infra ──
-	case "count_infra_resources":
-		return infraResourceAggregateCountRoute(args), nil
-	case "get_infra_resource_inventory":
-		return infraResourceAggregateInventoryRoute(args), nil
-	case "investigate_resource":
-		return &route{method: "POST", path: "/api/v0/impact/resource-investigation", body: map[string]any{
-			"query":         str(args, "query"),
-			"resource_id":   str(args, "resource_id"),
-			"resource_type": str(args, "resource_type"),
-			"environment":   str(args, "environment"),
-			"max_depth":     intOr(args, "max_depth", 4),
-			"limit":         intOr(args, "limit", 25),
-		}}, nil
-	case "analyze_infra_relationships":
-		return &route{method: "POST", path: "/api/v0/infra/relationships", body: map[string]any{
-			"entity_id": str(args, "target"), "relationship_type": str(args, "query_type"),
-		}}, nil
 
 	default:
 		// Impact-analysis request selection lives in internal/mcp/impact and

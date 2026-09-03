@@ -7,8 +7,13 @@
 3. `../types.go` for the ordered assembly position.
 4. `../dispatch_ecosystem.go`, `../dispatch_repositories.go`,
    `../dispatch.go`, `../dispatch_infra_search.go` (the adapter over
-   `../infrasearch`), and `../dispatch_impact.go` (the adapter over
-   `../impact`) for split route ownership.
+   `../infrasearch`), `../dispatch_infra_resource_aggregates.go` (the
+   adapter over `../infrainventory`, which owns route selection for
+   `investigate_resource` and `analyze_infra_relationships` registered
+   here plus `count_infra_resources` and `get_infra_resource_inventory`
+   registered in `../tools_infra_resource_aggregates.go`), and
+   `../dispatch_impact.go` (the adapter over `../impact`) for split route
+   ownership.
 5. `../toolcontract/README.md` for the dependency-neutral definition contract.
 6. `../../query/AGENTS.md` before changing ecosystem query behavior.
 
@@ -28,6 +33,7 @@
   | `../codequality` | 3 |
   | `../entityresolution` | 3 |
   | `../iacmanagement` | 7 |
+  | `../infrainventory` | 4 |
   | `../servicecontext` | 4 |
 
   Counts are derived from each selector's own route table, not from the tool
