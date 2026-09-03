@@ -122,6 +122,14 @@ func (h *FreshnessHandler) listServiceChangedSince(w http.ResponseWriter, r *htt
 // requested catalog service_id and reports whether the lineage read may run
 // (#5167). It writes the refusal itself when the answer is no.
 //
+// GET /api/v0/freshness/services/changed-since is STILL on the
+// pendingRowFilteringRoutes ledger, so no scoped token or browser session
+// reaches this code today -- the middleware refuses them first. This fence is
+// the first half of the route's promotion and it ships now, tested, so the
+// half that is left is only the schema work in #6475 (see the aged-out gap
+// below). Read every "scoped caller" sentence here as what happens once that
+// lands, and as defense in depth in the meantime.
+//
 // The two sibling freshness routes bind their grant inside the shipped SQL,
 // because their tables join to ingestion_scopes and can filter on
 // scope_kind/source_key. service_materialization_generations and
@@ -185,7 +193,10 @@ func (h *FreshnessHandler) listServiceChangedSince(w http.ResponseWriter, r *htt
 // scope_id can be empty on legacy rows. Closing it needs the scope column on
 // the lineage tables and a (scope, service_id) writer key, which is #6475.
 // TestServiceChangedSinceSharedServiceIDIsRefused pins the behaviour so the
-// contract sentence and the code cannot drift apart.
+// contract sentence and the code cannot drift apart. This gap is why the route
+// was withdrawn from #6472's promotion: a fence that can be defeated by an
+// aged-out correlation would turn a scoped caller's 403 into a cross-tenant
+// read, and pendingRowFilteringRoutes' header forbids exactly that.
 //
 // Every refusal is recorded on the handler span before it returns
 // (refuseServiceChangedSinceGrant), because the caller-facing body cannot say

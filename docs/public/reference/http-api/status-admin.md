@@ -526,12 +526,10 @@ generation returns `unavailable=true` (and a `building`/`unavailable` freshness
 state) rather than zero deltas. The capability key is
 `freshness.service_changed_since`. The MCP equivalent is
 `get_service_changed_since` and the CLI helper is `eshu freshness
-service-changed-since`. Scoped tokens receive a service only when every
-repository with a currently active catalog correlation for it is in the grant,
-including every candidate repository of a correlation that matched more than
-one; an ungranted `service_id`, or one also correlated outside the grant,
-returns the same not-found an unknown one returns. A correlation that has aged out of
-its scope's active generation no longer contests the id (#6475).
+service-changed-since`. This route refuses scoped tokens and browser sessions
+with a 403: it is still on the pending row-filtering ledger because the service
+lineage tables carry no column naming the tenant a row belongs to, so a grant
+cannot be bound to them until #6475 lands.
 
 The incidents family's production loader is held behind a durable
 PagerDuty-provider-to-Eshu-catalog service-id join that is a tracked #1989

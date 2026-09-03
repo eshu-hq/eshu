@@ -36,7 +36,15 @@ import (
 // allowedScopeIDs) returns zero rows on an empty grant without querying and
 // redacts source_key/source_display/lease_owner per row.
 var pendingRowFilteringRoutes = map[string]struct{}{
-	"GET /api/v0/index-status":                       {},
+	"GET /api/v0/index-status": {},
+	// #6475 service lineage ownership. The #5167 freshness workstream landed
+	// this route's handler fence (serviceChangedSinceGrantAdmits), but
+	// service_materialization_generations has no column naming the tenant a
+	// lineage row belongs to, so the fence can only probe correlations live in
+	// their own scope's active generation and an aged-out correlation stops
+	// contesting the service_id. Promote it once #6475 gives the lineage rows
+	// an ownership column the grant can bind; see scopedFreshnessDeltaRoute.
+	"GET /api/v0/freshness/services/changed-since":   {},
 	"POST /api/v0/code/bundles":                      {},
 	"POST /api/v0/code/call-chain":                   {},
 	"POST /api/v0/code/call-graph/metrics":           {},

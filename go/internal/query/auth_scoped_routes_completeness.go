@@ -131,7 +131,6 @@ var scopedTokenAdvertisedRoutes = map[string]scopedRouteClass{
 	"GET /api/v0/fact-schema-versions/{fact_kind}":                                  scopedRouteTenantDataFree,
 	"GET /api/v0/freshness/changed-since":                                           scopedRouteGrantBound,
 	"GET /api/v0/freshness/generations":                                             scopedRouteGrantBound,
-	"GET /api/v0/freshness/services/changed-since":                                  scopedRouteGrantBound,
 	"GET /api/v0/iac/resources":                                                     scopedRouteGrantBound,
 	"GET /api/v0/incidents/{incident_id}/context":                                   scopedRouteGrantBound,
 	"POST /api/v0/compare/environments":                                             scopedRouteGrantBound,

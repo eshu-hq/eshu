@@ -39,12 +39,11 @@ func scopedIngesterStatusRoute(r *http.Request) bool {
 	return ingester != r.URL.Path && ingester != "" && !strings.Contains(ingester, "/")
 }
 
-// scopedFreshnessDeltaRoute allows scoped tokens to reach the three freshness
-// delta reads: GET /api/v0/freshness/changed-since,
-// GET /api/v0/freshness/generations, and
-// GET /api/v0/freshness/services/changed-since. All three were #5167 Group B
-// entries in pendingRowFilteringRoutes until their handlers gained the #5137
-// pattern. The two repository-scope reads bind the caller's grant in the
+// scopedFreshnessDeltaRoute allows scoped tokens to reach the two freshness
+// delta reads whose rows can be bound to the caller's grant in SQL:
+// GET /api/v0/freshness/changed-since and GET /api/v0/freshness/generations.
+// Both were #5167 Group B entries in pendingRowFilteringRoutes until their
+// handlers gained the #5137 pattern. They bind the caller's grant in the
 // shipped SQL rather than in the handler:
 //
 //   - resolveChangedSinceScopeQuery (changed_since_sql.go) --
@@ -63,17 +62,23 @@ func scopedIngesterStatusRoute(r *http.Request) bool {
 // (TestChangedSinceTwoTenantGrantBoundary,
 // TestGenerationLifecycleTwoTenantGrantBoundary).
 //
-// The service read cannot use that shape. Its tables
-// (service_materialization_generations, service_evidence_snapshots) carry only
-// service_id, so there is no repository or scope column for a predicate to
-// bind. FreshnessHandler.serviceChangedSinceGrantAdmits instead resolves the
-// catalog service_id through the reducer_service_catalog_correlation facts --
-// written from the same decision set that produced the generation -- under the
-// caller's grant, and refuses BEFORE the lineage read. The refusal is the same
-// service-not-found an absent service gets, so the route is not an existence
-// oracle either (TestServiceChangedSinceTwoTenantGrantBoundary).
+// GET /api/v0/freshness/services/changed-since is deliberately NOT here. Its
+// lineage tables (service_materialization_generations,
+// service_evidence_snapshots) carry only service_id, with no column naming the
+// tenant a row belongs to, so the only available grant check is
+// FreshnessHandler.serviceChangedSinceGrantAdmits probing the
+// reducer_service_catalog_correlation facts. Those probes see a correlation
+// only while it is live in its own scope's active generation, so a tenant
+// whose correlation has aged out stops contesting the service_id even though
+// its lineage generation is still active, and the other tenant reads that
+// lineage. Promoting the route on that fence alone would turn a scoped
+// caller's 403 into a cross-tenant read, which is exactly what
+// pendingRowFilteringRoutes' header forbids, so the route stays on that ledger
+// until #6475 puts an ownership column on the lineage rows. The fence itself
+// ships and is tested (TestServiceChangedSinceTwoTenantGrantBoundary) as the
+// first half of that promotion.
 //
-// All three routes are classified scopedRouteGrantBound in
+// Both promoted routes are classified scopedRouteGrantBound in
 // scopedTokenAdvertisedRoutes. That class check covers one caller shape and
 // not the other, and the difference matters here:
 //
@@ -88,11 +93,11 @@ func scopedIngesterStatusRoute(r *http.Request) bool {
 //     (internal/oidcbearer/resolver.go), and a file-backed registry token can
 //     carry the same flag (internal/scopedtoken/registry.go). For such a
 //     caller RepositoryAccessFilter.Scoped() is false, so $3/$8 short-circuit
-//     the two SQL predicates above and serviceChangedSinceGrantAdmits returns
-//     true at its first branch: the read is served across the whole corpus.
+//     the two SQL predicates above: the read is served across the whole
+//     corpus.
 //
 // That second shape is #6450 residual 1. It is pre-existing and applies to
-// every grant-bound allowlisted route, not only these three, so closing it is
+// every grant-bound allowlisted route, not only these two, so closing it is
 // #6450's job rather than this matcher's -- but it is stated here so nobody
 // reads "grant-bound" as "every all-scope caller is refused".
 func scopedFreshnessDeltaRoute(r *http.Request) bool {
@@ -100,6 +105,5 @@ func scopedFreshnessDeltaRoute(r *http.Request) bool {
 		return false
 	}
 	return r.URL.Path == "/api/v0/freshness/changed-since" ||
-		r.URL.Path == "/api/v0/freshness/generations" ||
-		r.URL.Path == "/api/v0/freshness/services/changed-since"
+		r.URL.Path == "/api/v0/freshness/generations"
 }
