@@ -255,6 +255,57 @@ func TestCrossRepoDeadCodeSignalTruncationMarksEntitiesTheSignalNeverReached(t *
 	}
 }
 
+// TestCrossRepoDeadCodeCompletesTheEntityTheSentinelMovedPast is the exact
+// boundary case: the read returns 1,000 rows for one entity and the 1,001st row
+// -- the sentinel, which is dropped -- belongs to the next entity.
+//
+// The statement orders by entity id, so a sentinel carrying a different id is
+// proof the read moved past the first entity and returned every row it has.
+// Marking that entity consumer_evidence_truncated turns valid strong evidence
+// into unknown_needs_evidence for a page that was never short.
+func TestCrossRepoDeadCodeCompletesTheEntityTheSentinelMovedPast(t *testing.T) {
+	t.Parallel()
+
+	observedAt := time.Date(2026, 6, 29, 13, 0, 0, 0, time.UTC)
+	row := func(entityID string) []driver.Value {
+		return []driver.Value{
+			entityID, codeGrantConsumerRepo, "checkout-api", "checkout-root",
+			int64(1), "reachable", 0.95, codeprovenance.MethodImportBinding,
+			[]byte(`["CALLS:checkout-root->` + entityID + `"]`), []byte(`["go.main_function"]`),
+			"gen-a", "active", observedAt, observedAt,
+		}
+	}
+	rows := make([][]driver.Value, 0, maxCrossRepoDeadCodeConsumerEvidenceRows+1)
+	for i := 0; i < maxCrossRepoDeadCodeConsumerEvidenceRows; i++ {
+		rows = append(rows, row("producer-complete"))
+	}
+	rows = append(rows, row("producer-next"))
+
+	db, _ := openRecordingContentReaderDB(t, []recordingContentReaderQueryResult{
+		{columns: crossRepoDeadCodeEvidenceColumns(), rows: rows},
+	})
+	reader := NewContentReader(db)
+
+	evidence, _, err := reader.CrossRepoDeadCodeConsumerEvidence(
+		context.Background(),
+		codeGrantGrantedRepo,
+		[]string{"producer-complete", "producer-next"},
+		nil,
+	)
+	if err != nil {
+		t.Fatalf("CrossRepoDeadCodeConsumerEvidence() error = %v, want nil", err)
+	}
+	if crossRepoDeadCodeTruncationMarked(evidence["producer-complete"]) {
+		t.Fatalf("evidence[producer-complete] carries consumer_evidence_truncated, but the sentinel row belonged to the next entity, which proves this one was read in full")
+	}
+	if got, want := len(evidence["producer-complete"]), maxCrossRepoDeadCodeConsumerEvidenceRows; got != want {
+		t.Fatalf("len(evidence[producer-complete]) = %d, want %d", got, want)
+	}
+	if !crossRepoDeadCodeTruncationMarked(evidence["producer-next"]) {
+		t.Fatalf("evidence[producer-next] = %#v, want the marker: its rows start at the dropped sentinel", evidence["producer-next"])
+	}
+}
+
 // TestHandleCrossRepoDeadCodeTruncatedSignalOutranksStrongEvidence is the same
 // case at the route: a candidate carrying both a strong granted consumer and
 // the truncation marker answers unknown_needs_evidence, never live_by_consumer.

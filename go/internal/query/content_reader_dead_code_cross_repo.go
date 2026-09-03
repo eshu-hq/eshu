@@ -145,6 +145,7 @@ func (cr *ContentReader) crossRepoDeadCodeConsumerRows(
 	result := make(map[string][]crossRepoDeadCodeEvidence, len(entityIDs))
 	rowCount := 0
 	lastEntityID := ""
+	sentinelEntityID := ""
 	for rows.Next() {
 		entityID, evidence, err := scanCrossRepoDeadCodeEvidence(rows)
 		if err != nil {
@@ -153,6 +154,12 @@ func (cr *ContentReader) crossRepoDeadCodeConsumerRows(
 		rowCount++
 		if rowCount > maxCrossRepoDeadCodeConsumerEvidenceRows {
 			coverage.truncated = true
+			// The sentinel row is dropped, but its entity id is already
+			// scanned and it is the one boundary this process can compare
+			// against without guessing the database's collation: the statement
+			// orders by entity id, so a sentinel belonging to a different
+			// entity proves the read moved past the last entity it returned.
+			sentinelEntityID = entityID
 			continue
 		}
 		lastEntityID = entityID
@@ -163,8 +170,14 @@ func (cr *ContentReader) crossRepoDeadCodeConsumerRows(
 	}
 	if coverage.truncated {
 		coverage.complete = make(map[string]struct{}, len(result))
+		unproven := lastEntityID
+		if sentinelEntityID != "" && sentinelEntityID != lastEntityID {
+			// The read stopped between two entities, not inside one, so every
+			// entity it returned rows for was returned in full.
+			unproven = ""
+		}
 		for entityID := range result {
-			if entityID == lastEntityID {
+			if entityID == unproven {
 				continue
 			}
 			coverage.complete[entityID] = struct{}{}
