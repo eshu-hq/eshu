@@ -7,7 +7,6 @@ import (
 	"context"
 	"fmt"
 	"net/http"
-	"slices"
 	"strings"
 	"time"
 
@@ -46,12 +45,19 @@ type crossRepoDeadCodeEvidence struct {
 	Reason           string
 }
 
+// crossRepoDeadCodeEvidenceStore reads active consumer evidence for producer
+// candidates. allowedRepositoryIDs is the caller's grant on the CONSUMER side;
+// the store applies it in its own query so the row cap falls on granted
+// consumers, and reports per-entity counts of the consumers it excluded so the
+// handler can still answer "there is a consumer you cannot see" instead of
+// "dead" (#5167).
 type crossRepoDeadCodeEvidenceStore interface {
 	CrossRepoDeadCodeConsumerEvidence(
 		ctx context.Context,
 		producerRepoID string,
 		entityIDs []string,
-	) (map[string][]crossRepoDeadCodeEvidence, error)
+		allowedRepositoryIDs []string,
+	) (map[string][]crossRepoDeadCodeEvidence, map[string]int, error)
 }
 
 type crossRepoDeadCodeScan struct {
@@ -113,7 +119,7 @@ func (h *CodeHandler) handleCrossRepoDeadCode(w http.ResponseWriter, r *http.Req
 		WriteError(w, http.StatusInternalServerError, err.Error())
 		return
 	}
-	evidence, evidenceAvailable, err := h.crossRepoDeadCodeConsumerEvidence(
+	evidence, hiddenConsumers, evidenceAvailable, err := h.crossRepoDeadCodeConsumerEvidence(
 		r.Context(),
 		req.RepoID,
 		deadCodeResultEntityIDs(scan.Active),
@@ -124,7 +130,12 @@ func (h *CodeHandler) handleCrossRepoDeadCode(w http.ResponseWriter, r *http.Req
 	}
 
 	boundaryEvidence := h.crossRepoDeadCodeRepositoryBoundaryEvidence(r.Context(), req.RepoID)
-	buckets := h.bucketCrossRepoDeadCodeResults(r.Context(), req, scan, evidence, boundaryEvidence, evidenceAvailable)
+	buckets := h.bucketCrossRepoDeadCodeResults(r.Context(), req, scan, crossRepoDeadCodeConsumerEvidenceSet{
+		Evidence:        evidence,
+		HiddenConsumers: hiddenConsumers,
+		Boundary:        boundaryEvidence,
+		Available:       evidenceAvailable,
+	})
 	WriteSuccess(w, r, http.StatusOK, map[string]any{
 		"repo_id":                        req.RepoID,
 		"language":                       req.Language,
@@ -239,29 +250,51 @@ func (h *CodeHandler) scanCrossRepoDeadCodeCandidates(
 	return scan, nil
 }
 
+// crossRepoDeadCodeConsumerEvidenceSet is everything the bucketing pass needs
+// about consumers: the visible evidence per producer entity, how many consumers
+// the caller's grant excluded per entity, the repository-boundary fallback, and
+// whether the content store answered at all.
+type crossRepoDeadCodeConsumerEvidenceSet struct {
+	Evidence        map[string][]crossRepoDeadCodeEvidence
+	HiddenConsumers map[string]int
+	Boundary        []crossRepoDeadCodeEvidence
+	Available       bool
+}
+
 func (h *CodeHandler) crossRepoDeadCodeConsumerEvidence(
 	ctx context.Context,
 	producerRepoID string,
 	entityIDs []string,
-) (map[string][]crossRepoDeadCodeEvidence, bool, error) {
+) (map[string][]crossRepoDeadCodeEvidence, map[string]int, bool, error) {
 	store, ok := h.Content.(crossRepoDeadCodeEvidenceStore)
 	if !ok {
-		return map[string][]crossRepoDeadCodeEvidence{}, false, nil
+		return map[string][]crossRepoDeadCodeEvidence{}, map[string]int{}, false, nil
 	}
-	evidence, err := store.CrossRepoDeadCodeConsumerEvidence(ctx, producerRepoID, entityIDs)
+	// The consumer side takes the caller's own grant, not the producer anchor:
+	// producerRepoID is already grant-resolved by the selector, but the
+	// consumers this read returns belong to other repositories.
+	access := repositoryAccessFilterFromContext(ctx)
+	var allowedRepositoryIDs []string
+	if access.Scoped() {
+		allowedRepositoryIDs = access.RepositorySearchIDs()
+	}
+	evidence, hidden, err := store.CrossRepoDeadCodeConsumerEvidence(
+		ctx,
+		producerRepoID,
+		entityIDs,
+		allowedRepositoryIDs,
+	)
 	if err != nil {
-		return nil, true, err
+		return nil, nil, true, err
 	}
-	return evidence, true, nil
+	return evidence, hidden, true, nil
 }
 
 func (h *CodeHandler) bucketCrossRepoDeadCodeResults(
 	ctx context.Context,
 	req crossRepoDeadCodeRequest,
 	scan crossRepoDeadCodeScan,
-	evidenceByEntity map[string][]crossRepoDeadCodeEvidence,
-	boundaryEvidence []crossRepoDeadCodeEvidence,
-	evidenceAvailable bool,
+	consumers crossRepoDeadCodeConsumerEvidenceSet,
 ) map[string]any {
 	allowedConsumers := crossRepoDeadCodeConsumerSet(req.ConsumerRepoIDs)
 	access := repositoryAccessFilterFromContext(ctx)
@@ -274,18 +307,22 @@ func (h *CodeHandler) bucketCrossRepoDeadCodeResults(
 	for _, result := range scan.Active {
 		entityID := StringVal(result, "entity_id")
 		row := cloneCrossRepoDeadCodeResult(result)
-		visible, hidden := filterCrossRepoDeadCodeEvidence(evidenceByEntity[entityID], allowedConsumers, access)
-		if len(visible) == 0 && len(hidden) == 0 {
-			boundaryVisible, boundaryHidden := filterCrossRepoDeadCodeEvidence(boundaryEvidence, allowedConsumers, access)
+		visible, hidden := filterCrossRepoDeadCodeEvidence(consumers.Evidence[entityID], allowedConsumers, access)
+		// The store already dropped the consumers this caller may not see and
+		// reported how many; the Go filter stays for the boundary fallback and
+		// for a store that does not bind the grant itself.
+		hiddenCount := len(hidden) + consumers.HiddenConsumers[entityID]
+		if len(visible) == 0 && hiddenCount == 0 {
+			boundaryVisible, boundaryHidden := filterCrossRepoDeadCodeEvidence(consumers.Boundary, allowedConsumers, access)
 			visible = append(visible, boundaryVisible...)
-			hidden = append(hidden, boundaryHidden...)
+			hiddenCount += len(boundaryHidden)
 		}
 		row["consumer_evidence"] = crossRepoDeadCodeEvidenceMaps(visible)
-		if len(hidden) > 0 {
-			row["hidden_consumer_evidence_count"] = len(hidden)
+		if hiddenCount > 0 {
+			row["hidden_consumer_evidence_count"] = hiddenCount
 		}
 
-		reasons := crossRepoDeadCodeUnknownReasons(row, visible, hidden, evidenceAvailable)
+		reasons := crossRepoDeadCodeUnknownReasons(row, visible, hiddenCount, consumers.Available)
 		if len(reasons) > 0 {
 			row["classification"] = "unknown_needs_evidence"
 			row["needs_evidence_reasons"] = reasons
@@ -308,68 +345,6 @@ func (h *CodeHandler) bucketCrossRepoDeadCodeResults(
 		buckets["dead"] = append(buckets["dead"].([]any), row)
 	}
 	return buckets
-}
-
-func filterCrossRepoDeadCodeEvidence(
-	evidence []crossRepoDeadCodeEvidence,
-	allowedConsumers map[string]struct{},
-	access repositoryAccessFilter,
-) ([]crossRepoDeadCodeEvidence, []crossRepoDeadCodeEvidence) {
-	visible := make([]crossRepoDeadCodeEvidence, 0, len(evidence))
-	hidden := make([]crossRepoDeadCodeEvidence, 0)
-	for _, row := range evidence {
-		if row.NeedsEvidence && row.ConsumerRepoID == "" {
-			visible = append(visible, row)
-			continue
-		}
-		if len(allowedConsumers) > 0 {
-			if _, ok := allowedConsumers[row.ConsumerRepoID]; !ok {
-				continue
-			}
-		}
-		if !access.AllowsRepositoryID(row.ConsumerRepoID) {
-			hidden = append(hidden, row)
-			continue
-		}
-		visible = append(visible, row)
-	}
-	return visible, hidden
-}
-
-func crossRepoDeadCodeUnknownReasons(
-	row map[string]any,
-	evidence []crossRepoDeadCodeEvidence,
-	hidden []crossRepoDeadCodeEvidence,
-	evidenceAvailable bool,
-) []string {
-	reasons := make([]string, 0)
-	if !evidenceAvailable {
-		reasons = append(reasons, "cross_repo_evidence_unavailable")
-	}
-	if len(hidden) > 0 {
-		reasons = append(reasons, "permission_hidden_consumer")
-	}
-	if row["classification"] == deadCodeClassificationAmbiguous {
-		reasons = append(reasons, "candidate_ambiguous")
-	}
-	for _, item := range evidence {
-		if item.NeedsEvidence || item.Ambiguous || !strings.EqualFold(item.GenerationStatus, "active") {
-			reason := strings.TrimSpace(item.Reason)
-			if reason == "" && !strings.EqualFold(item.GenerationStatus, "active") {
-				reason = "stale_generation"
-			}
-			if reason == "" {
-				reason = "needs_evidence"
-			}
-			reasons = append(reasons, reason)
-			continue
-		}
-		if item.Confidence <= codeprovenance.Confidence(codeprovenance.MethodRepoUniqueName) {
-			reasons = append(reasons, "ambiguous_consumer_ownership")
-		}
-	}
-	slices.Sort(reasons)
-	return slices.Compact(reasons)
 }
 
 func crossRepoDeadCodeHasStrongLiveEvidence(evidence []crossRepoDeadCodeEvidence) bool {

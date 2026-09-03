@@ -151,10 +151,11 @@ func TestContentReaderCrossRepoDeadCodeEvidenceMarksMissingEntitiesUnknownWhenTr
 	}})
 	reader := NewContentReader(db)
 
-	evidence, err := reader.CrossRepoDeadCodeConsumerEvidence(
+	evidence, _, err := reader.CrossRepoDeadCodeConsumerEvidence(
 		context.Background(),
 		"repo-producer",
 		[]string{"producer-live", "producer-missing"},
+		nil,
 	)
 	if err != nil {
 		t.Fatalf("CrossRepoDeadCodeConsumerEvidence() error = %v, want nil", err)

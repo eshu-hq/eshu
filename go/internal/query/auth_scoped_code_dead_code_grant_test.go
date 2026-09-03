@@ -330,3 +330,199 @@ func TestDeadCodeCandidateRowsBindTheGrantInTheShippedSQL(t *testing.T) {
 		}
 	})
 }
+
+// codeGrantConsumerRepo is a second repository inside the caller's grant, so
+// the cross-repo consumer tests can tell "dropped because ungranted" apart
+// from "dropped because it is the producer".
+const codeGrantConsumerRepo = "repo://tenant-a/consumer-service"
+
+// crossRepoDeadCodeGrantStore answers both reads POST
+// /api/v0/code/dead-code/cross-repo makes: the producer candidate scan and the
+// consumer-evidence lookup. The evidence half mirrors the shipped SQL --
+// consumers outside the grant are excluded from the returned rows and counted
+// instead -- so a handler that stops passing the grant gets the other tenant's
+// consumer back in the page.
+type crossRepoDeadCodeGrantStore struct {
+	deadCodeGrantContentStore
+	boundConsumerGrant []string
+}
+
+func (s *crossRepoDeadCodeGrantStore) CrossRepoDeadCodeConsumerEvidence(
+	_ context.Context,
+	producerRepoID string,
+	entityIDs []string,
+	allowedRepositoryIDs []string,
+) (map[string][]crossRepoDeadCodeEvidence, map[string]int, error) {
+	s.boundConsumerGrant = append([]string(nil), allowedRepositoryIDs...)
+	evidence := make(map[string][]crossRepoDeadCodeEvidence, len(entityIDs))
+	hidden := make(map[string]int, len(entityIDs))
+	for _, entityID := range entityIDs {
+		for _, consumerRepoID := range []string{codeGrantConsumerRepo, codeGrantOtherRepo} {
+			if consumerRepoID == producerRepoID {
+				continue
+			}
+			if len(allowedRepositoryIDs) > 0 && !slices.Contains(allowedRepositoryIDs, consumerRepoID) {
+				hidden[entityID]++
+				continue
+			}
+			evidence[entityID] = append(evidence[entityID], crossRepoDeadCodeEvidence{
+				ConsumerRepoID:   consumerRepoID,
+				ConsumerRepoName: consumerRepoID,
+				ConsumerEntityID: consumerRepoID + "#caller",
+				RelationshipType: "CALLS",
+				EvidenceFamily:   "direct_code",
+				Citation:         "code_reachability_rows:g1/" + consumerRepoID + "/caller/" + entityID,
+				Confidence:       0.95,
+				ConfidenceLabel:  "high",
+				ResolutionMethod: "bounded_lookup",
+				Depth:            1,
+				GenerationID:     "g1",
+				GenerationStatus: "active",
+			})
+		}
+	}
+	return evidence, hidden, nil
+}
+
+func runCrossRepoDeadCodeGrantRequest(
+	t *testing.T,
+	store *crossRepoDeadCodeGrantStore,
+	auth *AuthContext,
+) *httptest.ResponseRecorder {
+	t.Helper()
+
+	handler := &CodeHandler{Content: store, Profile: ProfileLocalAuthoritative}
+	mux := http.NewServeMux()
+	handler.Mount(mux)
+
+	body := map[string]any{"repo_id": codeGrantGrantedRepo, "language": "go"}
+	req := newCodeGrantRouteRequest(t, "/api/v0/code/dead-code/cross-repo", body, auth)
+	rec := httptest.NewRecorder()
+	mux.ServeHTTP(rec, req)
+	return rec
+}
+
+// TestCrossRepoDeadCodeConsumerEvidenceIsGrantBound closes the last read on
+// this route that reached Postgres with no grant. The consumer rows were
+// fetched for every tenant and dropped in Go after the LIMIT, so a page could
+// be filled with another tenant's consumers and the granted ones pushed off it.
+func TestCrossRepoDeadCodeConsumerEvidenceIsGrantBound(t *testing.T) {
+	t.Parallel()
+
+	store := &crossRepoDeadCodeGrantStore{}
+	auth := codeGrantScopedAuthContext([]string{codeGrantGrantedRepo, codeGrantConsumerRepo})
+	rec := runCrossRepoDeadCodeGrantRequest(t, store, &auth)
+
+	if got, want := rec.Code, http.StatusOK; got != want {
+		t.Fatalf("status = %d, want %d; body = %s", got, want, rec.Body.String())
+	}
+	if !slices.Equal(store.boundConsumerGrant, []string{codeGrantConsumerRepo, codeGrantGrantedRepo}) {
+		t.Fatalf("consumer-evidence grant = %#v, want both granted repositories in sorted order", store.boundConsumerGrant)
+	}
+	body := rec.Body.String()
+	if !strings.Contains(body, codeGrantConsumerRepo) {
+		t.Fatalf("response lost the granted consumer %q: %s", codeGrantConsumerRepo, body)
+	}
+	if strings.Contains(body, codeGrantOtherRepo) {
+		t.Fatalf("response leaked the out-of-grant consumer %q: %s", codeGrantOtherRepo, body)
+	}
+}
+
+// TestCrossRepoDeadCodeKeepsTheHiddenConsumerSignal is the other half. Filtering
+// the ungranted consumers out in SQL must not turn a symbol that has one into
+// dead code: the reader reports how many it excluded, and the handler still
+// answers unknown_needs_evidence with permission_hidden_consumer.
+func TestCrossRepoDeadCodeKeepsTheHiddenConsumerSignal(t *testing.T) {
+	t.Parallel()
+
+	store := &crossRepoDeadCodeGrantStore{}
+	auth := codeGrantScopedAuthContext([]string{codeGrantGrantedRepo})
+	rec := runCrossRepoDeadCodeGrantRequest(t, store, &auth)
+
+	if got, want := rec.Code, http.StatusOK; got != want {
+		t.Fatalf("status = %d, want %d; body = %s", got, want, rec.Body.String())
+	}
+	body := rec.Body.String()
+	if strings.Contains(body, codeGrantOtherRepo) {
+		t.Fatalf("response leaked the out-of-grant consumer %q: %s", codeGrantOtherRepo, body)
+	}
+	if !strings.Contains(body, "permission_hidden_consumer") {
+		t.Fatalf("a candidate whose only consumer is out of grant must stay unknown_needs_evidence: %s", body)
+	}
+	if !strings.Contains(body, `"hidden_consumer_evidence_count":2`) {
+		t.Fatalf("hidden consumer count is missing from the answer; both consumers are outside this grant: %s", body)
+	}
+	if strings.Contains(body, `"classification":"dead"`) {
+		t.Fatalf("a symbol with an out-of-grant consumer was marked dead: %s", body)
+	}
+}
+
+// TestCrossRepoDeadCodeConsumerEvidenceBindsTheGrantInTheShippedSQL drives the
+// real reader against a recording driver, because the handler tests above
+// drive a fake store and never build the statement.
+func TestCrossRepoDeadCodeConsumerEvidenceBindsTheGrantInTheShippedSQL(t *testing.T) {
+	t.Parallel()
+
+	t.Run("scoped", func(t *testing.T) {
+		t.Parallel()
+
+		db, recorder := openRecordingContentReaderDB(t, []recordingContentReaderQueryResult{
+			{columns: crossRepoDeadCodeEvidenceColumns()},
+			{columns: []string{"entity_id", "hidden_count"}},
+		})
+		reader := NewContentReader(db)
+		if _, _, err := reader.CrossRepoDeadCodeConsumerEvidence(
+			context.Background(),
+			codeGrantGrantedRepo,
+			[]string{"entity-1"},
+			[]string{codeGrantConsumerRepo},
+		); err != nil {
+			t.Fatalf("CrossRepoDeadCodeConsumerEvidence() error = %v, want nil", err)
+		}
+		if len(recorder.queries) != 2 {
+			t.Fatalf("query count = %d, want 2 (evidence page plus hidden-consumer count)", len(recorder.queries))
+		}
+		want := "AND row.repository_id = ANY($3)"
+		if !strings.Contains(recorder.queries[0], want) {
+			t.Fatalf("consumer-evidence SQL is missing %q, so the LIMIT is still drawn from every tenant's rows:\n%s", want, recorder.queries[0])
+		}
+		if !strings.Contains(recorder.queries[1], "count(*)") {
+			t.Fatalf("second statement is not the hidden-consumer count:\n%s", recorder.queries[1])
+		}
+		bound := fmt.Sprintf("%s", recorder.args[0][2])
+		if !strings.Contains(bound, codeGrantConsumerRepo) {
+			t.Fatalf("grant argument = %q, want the encoded Postgres array carrying %q", bound, codeGrantConsumerRepo)
+		}
+	})
+
+	t.Run("unscoped", func(t *testing.T) {
+		t.Parallel()
+
+		db, recorder := openRecordingContentReaderDB(t, []recordingContentReaderQueryResult{
+			{columns: crossRepoDeadCodeEvidenceColumns()},
+		})
+		reader := NewContentReader(db)
+		if _, _, err := reader.CrossRepoDeadCodeConsumerEvidence(
+			context.Background(),
+			codeGrantGrantedRepo,
+			[]string{"entity-1"},
+			nil,
+		); err != nil {
+			t.Fatalf("CrossRepoDeadCodeConsumerEvidence() error = %v, want nil", err)
+		}
+		if len(recorder.queries) != 1 {
+			t.Fatalf("query count = %d, want 1 -- an unscoped caller must not pay for the hidden-consumer count", len(recorder.queries))
+		}
+		if strings.Contains(recorder.queries[0], "ANY(") {
+			t.Fatalf("unscoped consumer-evidence SQL gained a grant clause:\n%s", recorder.queries[0])
+		}
+	})
+}
+
+func crossRepoDeadCodeEvidenceColumns() []string {
+	return []string{
+		"entity_id", "repository_id", "consumer_repo_name", "root_entity_id", "depth",
+		"state", "confidence", "min_resolution_method", "evidence", "root_kinds",
+		"generation_id", "generation_status", "observed_at", "updated_at",
+	}
+}

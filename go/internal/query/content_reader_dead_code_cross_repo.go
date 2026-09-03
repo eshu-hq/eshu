@@ -12,6 +12,8 @@ import (
 
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/trace"
+
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/pgarray"
 )
 
 const maxCrossRepoDeadCodeConsumerEvidenceRows = 1000
@@ -20,15 +22,28 @@ const maxCrossRepoDeadCodeConsumerEvidenceRows = 1000
 // for producer candidates using a bounded entity-id lookup. It never performs a
 // graph traversal; ambiguous or stale coverage must remain unknown at the
 // handler layer rather than becoming dead-code truth.
+//
+// allowedRepositoryIDs is the caller's repository grant, applied to the
+// CONSUMER side (code_reachability_rows.repository_id). Binding it here rather
+// than filtering in Go is what keeps the page honest: the row cap applies to
+// the granted consumers, so another tenant's rows can no longer crowd a granted
+// consumer off the page. A grantless list is unscoped and restricts nothing.
+//
+// Filtering in SQL would lose the "this symbol has a consumer you cannot see"
+// signal, and losing it would mark a live symbol dead. The second return value
+// carries it: for each entity, how many active consumers the grant excluded.
+// The count is the only thing that crosses the boundary -- no id, name, or
+// citation from an ungranted consumer is read.
 func (cr *ContentReader) CrossRepoDeadCodeConsumerEvidence(
 	ctx context.Context,
 	producerRepoID string,
 	entityIDs []string,
-) (map[string][]crossRepoDeadCodeEvidence, error) {
+	allowedRepositoryIDs []string,
+) (map[string][]crossRepoDeadCodeEvidence, map[string]int, error) {
 	producerRepoID = strings.TrimSpace(producerRepoID)
 	entityIDs = cleanDeadCodeIncomingEntityIDs(entityIDs)
 	if cr == nil || cr.db == nil || producerRepoID == "" || len(entityIDs) == 0 {
-		return map[string][]crossRepoDeadCodeEvidence{}, nil
+		return map[string][]crossRepoDeadCodeEvidence{}, map[string]int{}, nil
 	}
 
 	ctx, span := cr.tracer.Start(
@@ -42,11 +57,11 @@ func (cr *ContentReader) CrossRepoDeadCodeConsumerEvidence(
 	)
 	defer span.End()
 
-	query, args := buildCrossRepoDeadCodeConsumerEvidenceQuery(producerRepoID, entityIDs)
+	query, args := buildCrossRepoDeadCodeConsumerEvidenceQuery(producerRepoID, entityIDs, allowedRepositoryIDs)
 	rows, err := cr.db.QueryContext(ctx, query, args...)
 	if err != nil {
 		span.RecordError(err)
-		return nil, fmt.Errorf("cross-repo dead code consumer evidence: %w", err)
+		return nil, nil, fmt.Errorf("cross-repo dead code consumer evidence: %w", err)
 	}
 	defer func() { _ = rows.Close() }()
 
@@ -57,7 +72,7 @@ func (cr *ContentReader) CrossRepoDeadCodeConsumerEvidence(
 		entityID, evidence, err := scanCrossRepoDeadCodeEvidence(rows)
 		if err != nil {
 			span.RecordError(err)
-			return nil, err
+			return nil, nil, err
 		}
 		rowCount++
 		if rowCount > maxCrossRepoDeadCodeConsumerEvidenceRows {
@@ -68,22 +83,115 @@ func (cr *ContentReader) CrossRepoDeadCodeConsumerEvidence(
 	}
 	if err := rows.Err(); err != nil {
 		span.RecordError(err)
-		return nil, err
+		return nil, nil, err
 	}
 	if truncated {
 		markCrossRepoDeadCodeConsumerEvidenceTruncated(result, entityIDs)
 	}
-	return result, nil
+	hidden, err := cr.crossRepoDeadCodeHiddenConsumerCounts(ctx, producerRepoID, entityIDs, allowedRepositoryIDs)
+	if err != nil {
+		span.RecordError(err)
+		return nil, nil, err
+	}
+	span.SetAttributes(attribute.Int("db.rows.hidden_consumer_entities", len(hidden)))
+	return result, hidden, nil
 }
 
-func buildCrossRepoDeadCodeConsumerEvidenceQuery(producerRepoID string, entityIDs []string) (string, []any) {
-	args := make([]any, 0, len(entityIDs)+1)
+// crossRepoDeadCodeHiddenConsumerCounts counts, per producer entity, the active
+// consumers the caller's grant excludes. It runs only for a scoped caller, and
+// it returns counts only -- the identities stay in the database.
+func (cr *ContentReader) crossRepoDeadCodeHiddenConsumerCounts(
+	ctx context.Context,
+	producerRepoID string,
+	entityIDs []string,
+	allowedRepositoryIDs []string,
+) (map[string]int, error) {
+	hidden := make(map[string]int, len(entityIDs))
+	if len(allowedRepositoryIDs) == 0 {
+		return hidden, nil
+	}
+	query, args := buildCrossRepoDeadCodeHiddenConsumerQuery(producerRepoID, entityIDs, allowedRepositoryIDs)
+	rows, err := cr.db.QueryContext(ctx, query, args...)
+	if err != nil {
+		return nil, fmt.Errorf("cross-repo dead code hidden consumer count: %w", err)
+	}
+	defer func() { _ = rows.Close() }()
+	for rows.Next() {
+		var (
+			entityID string
+			count    int
+		)
+		if err := rows.Scan(&entityID, &count); err != nil {
+			return nil, fmt.Errorf("scan cross-repo dead code hidden consumer count: %w", err)
+		}
+		hidden[entityID] = count
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return hidden, nil
+}
+
+// crossRepoDeadCodeConsumerScan renders the shared FROM/JOIN/WHERE both
+// consumer-evidence statements run over, plus the argument list they bind. The
+// grant clause is empty for an unscoped caller, which keeps that caller's
+// statement text unchanged.
+func crossRepoDeadCodeConsumerScan(
+	producerRepoID string,
+	entityIDs []string,
+	allowedRepositoryIDs []string,
+	grantMatches bool,
+) (string, []any) {
+	args := make([]any, 0, len(entityIDs)+2)
 	args = append(args, producerRepoID)
 	placeholders := make([]string, 0, len(entityIDs))
 	for _, entityID := range entityIDs {
 		args = append(args, entityID)
 		placeholders = append(placeholders, fmt.Sprintf("$%d", len(args)))
 	}
+	grant := ""
+	if len(allowedRepositoryIDs) > 0 {
+		args = append(args, pgarray.Array(allowedRepositoryIDs))
+		if grantMatches {
+			grant = fmt.Sprintf("\n  AND row.repository_id = ANY($%d)", len(args))
+		} else {
+			grant = fmt.Sprintf("\n  AND NOT (row.repository_id = ANY($%d))", len(args))
+		}
+	}
+	scan := `
+FROM code_reachability_rows AS row
+JOIN ingestion_scopes AS scope
+  ON scope.scope_id = row.scope_id
+ AND scope.active_generation_id = row.generation_id
+JOIN scope_generations AS generation
+  ON generation.generation_id = row.generation_id
+ AND generation.status = 'active'
+WHERE row.repository_id <> $1
+  AND row.entity_id IN (` + strings.Join(placeholders, ", ") + `)
+  AND row.depth > 0` + grant
+	return scan, args
+}
+
+// buildCrossRepoDeadCodeHiddenConsumerQuery counts the active consumers the
+// grant excludes, one row per producer entity. It reads no consumer identity.
+func buildCrossRepoDeadCodeHiddenConsumerQuery(
+	producerRepoID string,
+	entityIDs []string,
+	allowedRepositoryIDs []string,
+) (string, []any) {
+	scan, args := crossRepoDeadCodeConsumerScan(producerRepoID, entityIDs, allowedRepositoryIDs, false)
+	// #nosec G201 -- interpolates only the fixed scan text above, whose only
+	// variable parts are integer argument indices.
+	return "SELECT row.entity_id, count(*) AS hidden_count" + scan +
+		"\nGROUP BY row.entity_id\nORDER BY row.entity_id ASC\n", args
+}
+
+func buildCrossRepoDeadCodeConsumerEvidenceQuery(
+	producerRepoID string,
+	entityIDs []string,
+	allowedRepositoryIDs []string,
+) (string, []any) {
+	scan, args := crossRepoDeadCodeConsumerScan(producerRepoID, entityIDs, allowedRepositoryIDs, true)
 	query := fmt.Sprintf(`
 SELECT row.entity_id,
        row.repository_id,
@@ -98,21 +206,11 @@ SELECT row.entity_id,
        row.generation_id,
        generation.status AS generation_status,
        row.observed_at,
-       row.updated_at
-FROM code_reachability_rows AS row
-JOIN ingestion_scopes AS scope
-  ON scope.scope_id = row.scope_id
- AND scope.active_generation_id = row.generation_id
-JOIN scope_generations AS generation
-  ON generation.generation_id = row.generation_id
- AND generation.status = 'active'
-WHERE row.repository_id <> $1
-  AND row.entity_id IN (`+strings.Join(placeholders, ", ")+`)
-  AND row.depth > 0
+       row.updated_at%s
 ORDER BY row.entity_id ASC, row.confidence DESC, row.depth ASC,
          row.repository_id ASC, row.root_entity_id ASC
 LIMIT %d
-`, maxCrossRepoDeadCodeConsumerEvidenceRows+1)
+`, scan, maxCrossRepoDeadCodeConsumerEvidenceRows+1)
 	return query, args
 }
 
