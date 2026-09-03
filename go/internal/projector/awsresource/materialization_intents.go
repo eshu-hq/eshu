@@ -23,9 +23,12 @@ import (
 // family. Other AWS builders reuse the same key so their reducer handlers wait
 // on the CloudResource substrate this domain publishes, and
 // internal/storage/postgres derives the cloud-resource-node queue conflict key
-// from any intent carrying the prefix
-// (reducerCloudResourceNodeConflictKey). Changing the literal changes both
-// readiness gating and queue conflict grouping, not just this intent.
+// (reducerCloudResourceNodeConflictKey) from the prefix only for a domain
+// whose resource-conflict policy is marked safe, which today is
+// DomainAWSResourceMaterialization alone; the sibling AWS families are risky
+// or blocked and group by resource_scope or the default. Changing the literal
+// changes readiness gating for every family sharing the key, and conflict
+// grouping for this domain.
 func BuildAWSResourceMaterializationReducerIntent(
 	scopeID string,
 	generationID string,

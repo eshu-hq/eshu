@@ -25,9 +25,12 @@
   private.** Eleven other reducer-intent builders emit the identical key so
   their handlers gate on the `CloudResource` substrate this domain publishes,
   and `internal/storage/postgres`'s `reducerCloudResourceNodeConflictKey`
-  hashes any intent carrying the prefix into the shared cloud-resource-node
-  queue conflict family. Changing the literal here silently changes readiness
-  gating and queue conflict grouping across every one of those families. Grep
+  hashes the prefix into the shared cloud-resource-node queue conflict family
+  only for a domain whose resource-conflict policy is `safe` — today
+  `DomainAWSResourceMaterialization` alone; the sibling AWS families are
+  `risky` or `blocked` and group by `resource_scope` or the default. Changing
+  the literal here silently changes readiness gating across every one of those
+  families, and conflict grouping for this domain. Grep
   the repository for the literal before touching it; do not treat it as this
   package's private string.
 - `SourceSystem` is the shared two-tier `projectorintent.SourceSystem`: a

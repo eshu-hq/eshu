@@ -45,8 +45,14 @@ No-Observability-Change: this package emits no signal directly. Root intent
 enqueue remains covered by `eshu_dp_reducer_intents_enqueued_total` and
 `eshu_dp_projector_run_duration_seconds`; the reducer execution that consumes
 the intent stays covered by `eshu_dp_reducer_executions_total` and
-`eshu_dp_reducer_run_duration_seconds`, and its canonical node write by
-`eshu_dp_canonical_writes_total`. Moving the pure builder adds no queue,
+`eshu_dp_reducer_run_duration_seconds`. That reducer's CloudResource node
+write is **not** covered by `eshu_dp_canonical_writes_total`:
+`AWSResourceMaterializationHandler` returns `Result.CanonicalWrites`, but
+`Service.recordReducerResult` records only run duration, queue wait, and
+execution count and never forwards it, and the handler is not one of the five
+`CanonicalWrites.Add` call sites. The written node count and graph-write
+duration are carried by the `aws resource materialization completed`
+structured log. Moving the pure builder adds no queue,
 storage, graph, span, metric, or log boundary.
 
 ## Gotchas / invariants
@@ -64,9 +70,13 @@ storage, graph, span, metric, or log boundary.
   counting this package's own; `security` reaches it through
   `securityGroupReachabilityAcceptanceUnit`.) On top of that,
   `internal/storage/postgres`'s `reducerCloudResourceNodeConflictKey` hashes
-  any intent whose entity key carries that prefix into the shared
-  cloud-resource-node queue conflict family. Changing the literal changes
-  readiness gating and queue conflict grouping, not just this intent's value.
+  the prefix into the shared cloud-resource-node queue conflict family only
+  for a domain whose resource-conflict policy is marked `safe`, which today is
+  `DomainAWSResourceMaterialization` alone; the `awsrelationship`, IAM, `s3`,
+  `rds`, and `security` families are `risky` or `blocked` and group by
+  `resource_scope` or the default instead. Changing the literal still changes
+  readiness gating for every family that shares the key, and conflict grouping
+  for this domain.
 - `SourceSystem` is the shared two-tier `projectorintent.SourceSystem`: a
   trimmed `SourceRef.SourceSystem`, falling back to a trimmed `CollectorKind`.
   The pre-extraction root file already called that shared seam directly (the
