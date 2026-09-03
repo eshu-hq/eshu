@@ -86,7 +86,7 @@ func (w PostgresSecretsIAMTrustChainWriter) writePayload(
 	}
 	if _, err := w.DB.ExecContext(
 		ctx,
-		factwrite.CanonicalInsertQuery,
+		factwrite.SingleInsertQuery,
 		secretsIAMReadModelFactID(write, factKind, modelID),
 		write.ScopeID,
 		write.GenerationID,

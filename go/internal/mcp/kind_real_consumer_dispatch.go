@@ -36,7 +36,7 @@ import (
 // signals: several reducer handlers switch on envelope.FactKind and process
 // the envelope's payload fields directly
 // (facts.SecretsIAMCoverageWarningFactKind in
-// go/internal/reducer/secretsiam/secrets_iam_trust_chain_build.go's
+// go/internal/reducer/secrets_iam_trust_chain_build.go's
 // `case facts.SecretsIAMCoverageWarningFactKind:` and
 // facts.ObservabilitySourceInstanceFactKind in
 // go/internal/reducer/obscoverage/observability_coverage_metadata.go's
@@ -76,9 +76,9 @@ func factsDispatchedKinds(dirs []string, factsConstValues map[string]string) (ma
 	kinds := map[string]bool{}
 	fset := token.NewFileSet()
 	for _, dir := range dirs {
-		matches, err := goFilesUnder(dir)
+		matches, err := filepath.Glob(filepath.Join(dir, "*.go"))
 		if err != nil {
-			return nil, err
+			return nil, fmt.Errorf("kind_real_consumer: glob %s: %w", dir, err)
 		}
 		for _, path := range matches {
 			if isGoTestFile(path) {

@@ -44,7 +44,7 @@
 // publisher without importing the reducer root, and the root now aliases it as
 // GraphProjectionPhaseState. It stays plain data: [StateForIntent] builds one
 // and reports false rather than writing anything. The
-// EndpointPresenceRow/Writer/Lookup trio also stays at the root — it is a
+// EndpointPresenceRow`/`Writer` trio also stays at the root — it is a
 // distinct uid-exact, cross-scope presence primitive (issue #1380), not a
 // same-scope/same-generation readiness fact, and no family needs it to move.
 //
