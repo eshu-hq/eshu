@@ -42,7 +42,7 @@ func (w PostgresPlatformMaterializationWriter) WritePlatformMaterialization(
 
 	if _, err := w.DB.ExecContext(
 		ctx,
-		factwrite.CanonicalFactInsertQuery,
+		factwrite.SingleInsertQuery,
 		write.IntentID,
 		write.ScopeID,
 		write.GenerationID,
