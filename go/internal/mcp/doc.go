@@ -10,11 +10,12 @@
 // their registration definitions without importing this parent package. The
 // ask, relationships, and visualization children own pure dependency-neutral
 // family route selectors alongside their definitions, and the
-// admissiondecisions, cicd, codeflow, codeowners, codequality,
-// containerimage, deadcode, entityresolution, impact, infrasearch,
-// kubernetes, observabilitycoverage, packageregistry, secretsiam,
-// securityalert, and supplychainimpact children own such a selector without
-// owning a registration.
+// admissiondecisions, cicd, codeflow, codeintel, codeowners, codequality,
+// containerimage, deadcode, entityresolution, iacmanagement, impact,
+// infrainventory, infrasearch, kubernetes, observabilitycoverage,
+// packageregistry, secretsiam, securityalert, servicecontext, and
+// supplychainimpact children own such a selector without owning a
+// registration.
 // The nine impact-analysis selections (trace_deployment_chain through
 // trace_exposure_path) live in the impact child and reach dispatch through
 // the impactRoute adapter, consulted in resolveRoute's default case — the
