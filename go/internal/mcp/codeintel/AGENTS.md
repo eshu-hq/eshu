@@ -14,13 +14,21 @@
    at the parent's root and must keep naming the same fields this builder
    selects.
 6. `../routecontract/README.md` for the dependency-neutral request contract.
-7. `go/internal/query` handlers behind each path (for example
-   `code_search.go`, `code_symbols_search.go`,
-   `code_structure_inventory.go`, `code_call_graph_metrics.go`,
-   `code_routes_callers.go`, `code_topics_investigate.go`,
-   `code_language_query.go`, `code_call_chain.go`) for the limit/offset
-   clamps and required-field checks each route's defaults must stay
-   compatible with.
+7. The `go/internal/query` handler behind each path, for the limit/offset
+   clamps and required-field checks this package's defaults must stay
+   compatible with. The handler filenames do not mirror the tool names, so
+   they are paired here rather than guessed:
+
+   | Tool | Handler |
+   | --- | --- |
+   | `find_code` | `code.go` |
+   | `find_symbol` | `code_symbol.go` |
+   | `inspect_code_inventory` | `code_structural_inventory.go` |
+   | `inspect_call_graph_metrics` | `code_call_graph_metrics.go` |
+   | `trace_route_callers` | `code_route_to_caller.go` |
+   | `investigate_code_topic` | `code_topic.go` |
+   | `execute_language_query` | `language_queries.go` |
+   | `find_function_call_chain` | `code_call_chain.go` |
 
 ## Invariants
 
