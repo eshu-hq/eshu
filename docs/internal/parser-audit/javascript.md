@@ -250,10 +250,10 @@ engine_javascript_type_parameters_test.go)**:
 - **Express duplicate route stays unbound**: `engine_javascript_route_handler_test.go` (line 54)
 - **React hook member call parity with old regex**: `engine_javascript_ast_conversion_test.go`
 - **AWS client symbol constructor only** (not import bindings): `engine_javascript_ast_conversion_test.go`
-- **Nested package.json ownership** (workspace root doesn't claim nested): `javascript_dead_code_node_roots_test.go` (line 142)
-- **Nested Hapi handler roots**: `javascript_dead_code_node_roots_test.go` (line 299)
-- **Hapi plugin register roots via init pattern**: `javascript_dead_code_node_roots_test.go:TestDefaultEngineParsePathJavaScriptHapiPluginRegisterRoots` (line 392)
-- **CommonJS mixin export roots method**: `javascript_dead_code_commonjs_class_test.go` (line 53)
+- **Nested package.json ownership** (workspace root doesn't claim nested): `javascript_dead_code_node_roots_test.go:TestDefaultEngineParsePathJavaScriptNestedPackageDeadCodeRoots`
+- **Nested Hapi handler roots**: `javascript_dead_code_node_roots_test.go:TestDefaultEngineParsePathJavaScriptNestedHapiHandlerRoots`
+- **Hapi plugin register roots via init pattern**: `javascript_dead_code_node_roots_test.go:TestDefaultEngineParsePathJavaScriptHapiPluginRegisterRoots`
+- **CommonJS mixin export roots method**: `javascript_dead_code_commonjs_class_test.go:TestDefaultEngineParsePathJavaScriptCommonJSMixinExportRootsMethod`
 - **All 3 residual regexes with + and - cases**: `javascript_residual_regex_characterization_test.go` (17 tests)
 - **Parent lookup cgo elimination**: `parent_lookup_regression_test.go` (line 106)
 - **AST narrowing intentionally drops regex false positives** (hooks in comments, client symbols in imports): documented and tested in `engine_javascript_ast_conversion_test.go`
