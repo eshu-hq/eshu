@@ -38,12 +38,13 @@
 // own in-package tests import this package, so importing root from here is an
 // import cycle in root's test binary.
 //
-// A handler family is off limits on the same condition rather than
-// unconditionally. Importing one from here compiles on its own; the cycle
-// appears only when that family's INTERNAL tests also import this package,
-// which is the normal case for a family that needs the shared fakes. The
-// semanticsearch move hit exactly that. AGENTS.md carries the measured
-// three-row table this is drawn from. Either way the package still compiles by
-// itself, which is why the rule is worth stating rather than left to the
-// compiler.
+// A handler family is off limits unconditionally, as a rule. What is
+// conditional is only whether the compiler notices: importing one from here
+// builds fine on its own, and the cycle appears just when that family's
+// INTERNAL tests also import this package -- the normal case for a family that
+// needs the shared fakes, and what the semanticsearch move hit. A family whose
+// tests are external, or that does not use this package yet, compiles clean
+// today and turns into a cycle the moment it adopts a fake from here. Do not
+// read a green build as permission. AGENTS.md carries the measured three-row
+// table behind this.
 package querytestutil

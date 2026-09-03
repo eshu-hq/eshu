@@ -169,6 +169,15 @@ passing.
 If you find yourself editing consuming test files while moving a fake, the shape
 is wrong. Go back to the adapter.
 
+One narrow exception, and only this one: state the adapter cannot hand back as a
+plain field. `fakeScopedTokenResolver.called` became `resolver.called()` in three
+files because reading the recorded call has to take the lock that guards the
+recording, and a method is the only way to do that. The test for whether an edit
+qualifies is that no adapter shape could avoid it -- not that it was
+inconvenient. Renaming a field, changing a keyed literal, or touching a call
+site to fit a signature you chose does not qualify, and that is the churn the
+rule above exists to stop.
+
 An adapter is only worth having if it actually delegates. Prove it by breaking
 the rule here and confirming a consuming test in the OTHER package fails. The
 helper's own tests are not enough — those fail whether or not anyone delegates.

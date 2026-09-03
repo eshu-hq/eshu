@@ -28,9 +28,13 @@ type defaultRowsCase struct {
 }
 
 // defaultRowsCases returns one representative query per default branch across
-// both groups. Both tests below walk the same corpus, so a branch added to
-// either helper without a case here is visible as an absent name rather than as
-// silent under-coverage.
+// both groups. Both tests below walk this same corpus.
+//
+// Walking one corpus does NOT by itself catch a branch added without a case --
+// the tests would iterate the shorter slice and pass, which is under-coverage
+// that reads as green. TestContentReaderDefaultGroupsCoverEveryAnsweringBranch
+// is what closes that: it counts the answering branches in the source and
+// requires one case per branch per group.
 func defaultRowsCases() []defaultRowsCase {
 	return []defaultRowsCase{
 		{
