@@ -234,6 +234,13 @@ func (h *CodeHandler) filterDeadCodeResultsWithoutIncomingEdges(
 // filters the candidate out as reachable, a weak-only incoming edge keeps the
 // candidate and stamps the ambiguity marker, and no incoming edge leaves the
 // candidate unchanged.
+//
+// Only edges inside the caller's grant carry confidence. An edge from a
+// repository the caller was not granted arrives with HiddenConsumer set and no
+// confidence at all, so it can neither filter the candidate out nor be reported
+// as evidence; it keeps the candidate and marks it unknown. Dropping such a
+// candidate would answer "reachable" on data the caller may not read, and the
+// gap it left in the page would itself say a hidden consumer exists.
 func applyDeadCodeIncomingEdges(
 	results []map[string]any,
 	contentIncoming map[string]deadCodeIncomingEdge,
@@ -250,7 +257,11 @@ func applyDeadCodeIncomingEdges(
 		if !deadCodeIncomingEdgeIsWeak(edge.MaxConfidence) {
 			continue
 		}
-		markDeadCodeResultWeakIncoming(result, edge)
+		if edge.HiddenConsumer {
+			markDeadCodeResultHiddenConsumer(result)
+		} else {
+			markDeadCodeResultWeakIncoming(result, edge)
+		}
 		filtered = append(filtered, result)
 	}
 	return filtered
@@ -261,16 +272,21 @@ func strongestDeadCodeIncomingEdge(
 	graphIncoming map[string]deadCodeIncomingEdge,
 	entityID string,
 ) (deadCodeIncomingEdge, bool) {
-	best, found := deadCodeIncomingEdge{}, false
+	best, found, hidden := deadCodeIncomingEdge{}, false, false
 	if edge, ok := contentIncoming[entityID]; ok {
-		best, found = edge, true
+		best, found, hidden = edge, true, edge.HiddenConsumer
 	}
 	if edge, ok := graphIncoming[entityID]; ok {
+		hidden = hidden || edge.HiddenConsumer
 		if !found || edge.MaxConfidence > best.MaxConfidence {
 			best = edge
 		}
 		found = true
 	}
+	// Hidden is a union across the two probes, not a property of whichever edge
+	// happened to be strongest; either probe seeing an out-of-grant source is
+	// enough to make the answer unknown.
+	best.HiddenConsumer = hidden
 	return best, found
 }
 
@@ -284,6 +300,16 @@ func markDeadCodeResultWeakIncoming(result map[string]any, edge deadCodeIncoming
 	}
 	result[deadCodeWeakIncomingResultKey] = true
 	result[deadCodeWeakIncomingMethodKey] = method
+	result["classification"] = deadCodeClassificationAmbiguous
+}
+
+// markDeadCodeResultHiddenConsumer keeps a candidate whose only incoming edges
+// came from outside the caller's grant and finalizes it as ambiguous. The
+// marker names the reason without naming the repository, entity, or edge behind
+// it, so the answer says "this cannot be decided from what you may read" and
+// nothing more.
+func markDeadCodeResultHiddenConsumer(result map[string]any) {
+	result[deadCodeHiddenConsumerResultKey] = true
 	result["classification"] = deadCodeClassificationAmbiguous
 }
 
@@ -302,187 +328,6 @@ func deadCodeResultNeedsGraphIncomingProbe(result map[string]any, label string) 
 		return true
 	}
 	return primaryEntityLabel(result) == "SqlFunction"
-}
-
-func (h *CodeHandler) deadCodeIncomingEntityIDs(
-	ctx context.Context,
-	results []map[string]any,
-) (map[string]deadCodeIncomingEdge, error) {
-	content, entityIDsByRepo := h.deadCodeIncomingGroups(results)
-	if len(entityIDsByRepo) == 0 {
-		return nil, nil
-	}
-	incoming := make(map[string]deadCodeIncomingEdge)
-	for repoID, entityIDs := range entityIDsByRepo {
-		legacyEntityIDs := entityIDs
-		if reachability, ok := h.Content.(codeReachabilityContentStore); ok {
-			repoIncoming, err := reachability.CodeReachabilityIncomingEntityIDs(ctx, repoID, entityIDs)
-			if err != nil {
-				return nil, err
-			}
-			coverage := codeReachabilityCoverage{Available: false, Truncated: true}
-			if coverageStore, ok := h.Content.(codeReachabilityCoverageStore); ok {
-				coverage, err = coverageStore.CodeReachabilityCoverage(ctx, repoID)
-				if err != nil {
-					return nil, err
-				}
-			}
-			if len(repoIncoming) > 0 {
-				for entityID, edge := range repoIncoming {
-					mergeStrongestDeadCodeIncomingEdge(incoming, entityID, edge)
-				}
-			}
-			if coverage.Available && !coverage.Truncated {
-				continue
-			} else if len(repoIncoming) > 0 {
-				legacyEntityIDs = missingDeadCodeIncomingEntityIDs(entityIDs, repoIncoming)
-				if len(legacyEntityIDs) == 0 {
-					continue
-				}
-			}
-		}
-		repoIncoming, err := content.DeadCodeIncomingEntityIDs(ctx, repoID, legacyEntityIDs)
-		if err != nil {
-			return nil, err
-		}
-		for entityID, edge := range repoIncoming {
-			mergeStrongestDeadCodeIncomingEdge(incoming, entityID, edge)
-		}
-	}
-	return incoming, nil
-}
-
-func (h *CodeHandler) legacyDeadCodeIncomingEntityIDs(
-	ctx context.Context,
-	results []map[string]any,
-) (map[string]deadCodeIncomingEdge, error) {
-	content, entityIDsByRepo := h.deadCodeIncomingGroups(results)
-	if len(entityIDsByRepo) == 0 {
-		return nil, nil
-	}
-	incoming := make(map[string]deadCodeIncomingEdge)
-	for repoID, entityIDs := range entityIDsByRepo {
-		repoIncoming, err := content.DeadCodeIncomingEntityIDs(ctx, repoID, entityIDs)
-		if err != nil {
-			return nil, err
-		}
-		for entityID, edge := range repoIncoming {
-			mergeStrongestDeadCodeIncomingEdge(incoming, entityID, edge)
-		}
-	}
-	return incoming, nil
-}
-
-func (h *CodeHandler) deadCodeIncomingGroups(
-	results []map[string]any,
-) (deadCodeIncomingContentStore, map[string][]string) {
-	content, ok := h.Content.(deadCodeIncomingContentStore)
-	if !ok {
-		return nil, nil
-	}
-	entityIDsByRepo := make(map[string][]string)
-	seen := make(map[string]struct{}, len(results))
-	for _, result := range results {
-		repoID := strings.TrimSpace(StringVal(result, "repo_id"))
-		entityID := strings.TrimSpace(StringVal(result, "entity_id"))
-		if repoID == "" || entityID == "" {
-			continue
-		}
-		seenKey := repoID + "\x00" + entityID
-		if _, ok := seen[seenKey]; ok {
-			continue
-		}
-		seen[seenKey] = struct{}{}
-		entityIDsByRepo[repoID] = append(entityIDsByRepo[repoID], entityID)
-	}
-	return content, entityIDsByRepo
-}
-
-func missingDeadCodeIncomingEntityIDs(
-	entityIDs []string,
-	incoming map[string]deadCodeIncomingEdge,
-) []string {
-	missing := make([]string, 0, len(entityIDs))
-	for _, entityID := range entityIDs {
-		if _, ok := incoming[entityID]; !ok {
-			missing = append(missing, entityID)
-		}
-	}
-	return missing
-}
-
-func mergeStrongestDeadCodeIncomingEdge(
-	incoming map[string]deadCodeIncomingEdge,
-	entityID string,
-	edge deadCodeIncomingEdge,
-) {
-	if existing, ok := incoming[entityID]; !ok || edge.MaxConfidence > existing.MaxConfidence {
-		incoming[entityID] = edge
-	}
-}
-
-type deadCodeIncomingContentStore interface {
-	DeadCodeIncomingEntityIDs(ctx context.Context, repoID string, entityIDs []string) (map[string]deadCodeIncomingEdge, error)
-}
-
-type codeReachabilityContentStore interface {
-	CodeReachabilityIncomingEntityIDs(ctx context.Context, repoID string, entityIDs []string) (map[string]deadCodeIncomingEdge, error)
-}
-
-type codeReachabilityCoverage struct {
-	Available bool
-	Truncated bool
-}
-
-type codeReachabilityCoverageStore interface {
-	CodeReachabilityCoverage(ctx context.Context, repoID string) (codeReachabilityCoverage, error)
-}
-
-func (h *CodeHandler) deadCodeResultsWithGraphIncomingEdges(
-	ctx context.Context,
-	results []map[string]any,
-	label string,
-) (map[string]deadCodeIncomingEdge, error) {
-	entityIDs := deadCodeResultEntityIDs(results)
-	incoming := make(map[string]deadCodeIncomingEdge)
-	if len(entityIDs) == 0 {
-		return incoming, nil
-	}
-	rows, err := h.Neo4j.Run(ctx, buildDeadCodeIncomingBatchProbeCypher(label), map[string]any{
-		"entity_ids": entityIDs,
-	})
-	if err != nil {
-		return nil, err
-	}
-	for _, row := range rows {
-		entityID := strings.TrimSpace(StringVal(row, "incoming_entity_id"))
-		if entityID == "" {
-			continue
-		}
-		method := strings.TrimSpace(StringVal(row, "resolution_method"))
-		mergeStrongestDeadCodeIncomingEdge(incoming, entityID, deadCodeIncomingEdge{
-			MaxConfidence: codeprovenance.Confidence(method),
-			Method:        method,
-		})
-	}
-	return incoming, nil
-}
-
-func deadCodeResultEntityIDs(results []map[string]any) []string {
-	entityIDs := make([]string, 0, len(results))
-	seen := make(map[string]struct{}, len(results))
-	for _, result := range results {
-		entityID := strings.TrimSpace(StringVal(result, "entity_id"))
-		if entityID == "" {
-			continue
-		}
-		if _, ok := seen[entityID]; ok {
-			continue
-		}
-		seen[entityID] = struct{}{}
-		entityIDs = append(entityIDs, entityID)
-	}
-	return entityIDs
 }
 
 func addDeadCodePolicyStats(total *deadCodePolicyStats, next deadCodePolicyStats) {

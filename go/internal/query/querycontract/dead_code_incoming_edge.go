@@ -19,4 +19,10 @@ type DeadCodeIncomingEdge struct {
 	MaxConfidence float64
 	// Method names the resolution method behind the strongest edge.
 	Method string
+	// HiddenConsumer reports that at least one incoming edge came from a
+	// repository outside the caller's grant. It is deliberately not a
+	// confidence: an edge the caller may not see is not evidence, so it never
+	// keeps a symbol alive and never makes one dead -- it makes the answer
+	// unknown.
+	HiddenConsumer bool
 }

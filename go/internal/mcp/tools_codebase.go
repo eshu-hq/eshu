@@ -109,7 +109,7 @@ func codebaseTools() []ToolDefinition {
 	return append(tools, []ToolDefinition{
 		{
 			Name:        "find_dead_code",
-			Description: "Find potentially unused functions (dead code) across the indexed codebase, optionally scoped to a canonical repository identifier and excluding functions with specific decorators. Scoped tokens receive only granted repositories; an ungranted repository selector is rejected.",
+			Description: "Find potentially unused functions (dead code) across the indexed codebase, optionally scoped to a canonical repository identifier and excluding functions with specific decorators. Scoped tokens receive only granted repositories; an ungranted repository selector is rejected. A candidate whose only incoming edges come from repositories outside a scoped token's grant is kept and marked ambiguous with the permission_hidden_consumer reason, never reported as unused and never silently dropped.",
 			InputSchema: map[string]any{
 				"type": "object",
 				"properties": map[string]any{

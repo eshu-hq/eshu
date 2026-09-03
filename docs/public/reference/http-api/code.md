@@ -346,6 +346,18 @@ ranked every function in the index and only blanked the repository columns on
 rows from elsewhere. Omit `repo_id` for a corpus-wide ranking, which also
 includes functions the graph attributes to no repository.
 
+`POST /api/v0/code/dead-code` and `POST /api/v0/code/dead-code/investigate`
+decide whether a candidate is still called by probing its incoming edges, and
+that probe reaches across repositories on purpose — a library symbol is kept
+alive by the services that call it. For a scoped token, only edges from
+repositories in its grant count as evidence. An edge from anywhere else neither
+removes the candidate nor lets it be reported as unused: the candidate comes
+back with `permission_hidden_consumer` set, classified `ambiguous`, and
+`ambiguity_reasons` naming the same reason on the investigation route. Nothing
+identifying the hidden side — repository, entity, or citation — appears in the
+answer. A shared-key caller sees the unchanged behaviour, where a strong
+incoming edge from any repository removes the candidate.
+
 `POST /api/v0/code/quality/inspect` supports `complexity`, `function_length`,
 `argument_count`, and `refactoring_candidates`, with threshold fields and
 recommended next calls in the response.

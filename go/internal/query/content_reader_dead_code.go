@@ -11,6 +11,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/codeprovenance"
 	"github.com/eshu-hq/eshu/go/internal/rubycontroller"
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/pgarray"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/trace"
 )
@@ -116,10 +117,21 @@ func (cr *ContentReader) DeadCodeIncomingEntityIDs(
 // across active generations so a library scan can honor rows materialized from
 // a service repository that reaches the library symbol; DeadCodeIncomingEntityIDs
 // remains a compatibility fallback for stores without materialized reachability.
+//
+// Reaching across repositories is the point of this read and also its hazard:
+// the consumer row can belong to a repository the caller was not granted.
+// allowedRepositoryIDs is that caller's grant, applied to the CONSUMER side
+// (code_reachability_rows.repository_id) as a projected boolean rather than as
+// a WHERE clause. Filtering the row out would leave the symbol looking
+// unreferenced, which is a wrong answer, not a safe one; keeping it as a
+// grant-less marker lets the caller be told the question cannot be decided from
+// what they may read. An empty list is the unscoped caller, whose statement text
+// and scanned columns are unchanged.
 func (cr *ContentReader) CodeReachabilityIncomingEntityIDs(
 	ctx context.Context,
 	repoID string,
 	entityIDs []string,
+	allowedRepositoryIDs []string,
 ) (map[string]deadCodeIncomingEdge, error) {
 	repoID = strings.TrimSpace(repoID)
 	entityIDs = cleanDeadCodeIncomingEntityIDs(entityIDs)
@@ -143,9 +155,14 @@ func (cr *ContentReader) CodeReachabilityIncomingEntityIDs(
 		args = append(args, entityID)
 		placeholders = append(placeholders, fmt.Sprintf("$%d", len(args)))
 	}
+	grantColumn := ""
+	if len(allowedRepositoryIDs) > 0 {
+		args = append(args, pgarray.Array(allowedRepositoryIDs))
+		grantColumn = fmt.Sprintf(", (row.repository_id = ANY($%d)) AS consumer_in_grant", len(args))
+	}
 	// #nosec G202 -- concatenates only $N parameter placeholders (generated from len(args)) into the IN list; entity ID values are bound args, not SQL text
 	query := `
-		SELECT DISTINCT row.entity_id, row.min_resolution_method
+		SELECT DISTINCT row.entity_id, row.min_resolution_method` + grantColumn + `
 		FROM code_reachability_rows AS row
 		JOIN ingestion_scopes AS scope
 		  ON scope.scope_id = row.scope_id
@@ -167,9 +184,19 @@ func (cr *ContentReader) CodeReachabilityIncomingEntityIDs(
 	for rows.Next() {
 		var entityID string
 		var method sql.NullString
-		if err := rows.Scan(&entityID, &method); err != nil {
+		inGrant := true
+		if grantColumn == "" {
+			if err := rows.Scan(&entityID, &method); err != nil {
+				span.RecordError(err)
+				return nil, fmt.Errorf("scan code reachability incoming entity id: %w", err)
+			}
+		} else if err := rows.Scan(&entityID, &method, &inGrant); err != nil {
 			span.RecordError(err)
 			return nil, fmt.Errorf("scan code reachability incoming entity id: %w", err)
+		}
+		if !inGrant {
+			mergeStrongestDeadCodeIncomingEdge(incoming, entityID, deadCodeIncomingEdge{HiddenConsumer: true})
+			continue
 		}
 		mergeDeadCodeIncomingEdge(incoming, entityID, method.String)
 	}
@@ -309,11 +336,15 @@ func (cr *ContentReader) CodeReachabilityCoverage(
 // entityID. Confidence is derived from method via codeprovenance.Confidence, so
 // a missing or unrecorded method yields LegacyConfidence (strong) rather than a
 // silent demotion.
+// mergeDeadCodeIncomingEdge records one scanned edge for an entity. It routes
+// through mergeStrongestDeadCodeIncomingEdge so a granted edge arriving after an
+// out-of-grant one keeps the hidden marker: the caller has both a consumer they
+// can see and one they cannot, and only the second decides the answer.
 func mergeDeadCodeIncomingEdge(incoming map[string]deadCodeIncomingEdge, entityID, method string) {
-	confidence := codeprovenance.Confidence(method)
-	if existing, ok := incoming[entityID]; !ok || confidence > existing.MaxConfidence {
-		incoming[entityID] = deadCodeIncomingEdge{MaxConfidence: confidence, Method: method}
-	}
+	mergeStrongestDeadCodeIncomingEdge(incoming, entityID, deadCodeIncomingEdge{
+		MaxConfidence: codeprovenance.Confidence(method),
+		Method:        method,
+	})
 }
 
 func cleanDeadCodeIncomingEntityIDs(entityIDs []string) []string {

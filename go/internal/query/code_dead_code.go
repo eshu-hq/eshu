@@ -152,18 +152,6 @@ func buildDeadCodeGraphCypherForLabel(
 	return cypher
 }
 
-func buildDeadCodeIncomingBatchProbeCypher(label string) string {
-	if !isDeadCodeCandidateLabel(label) {
-		label = "Function"
-	}
-	return `
-		UNWIND $entity_ids AS entity_id
-		MATCH (e:` + label + ` {uid: entity_id})<-[rel:CALLS|IMPORTS|REFERENCES|INHERITS|EXECUTES]-(source)
-		RETURN DISTINCT coalesce(e.uid, e.id) as incoming_entity_id,
-		       rel.resolution_method as resolution_method
-	`
-}
-
 func deadCodeGraphParams(
 	repoID string,
 	language string,

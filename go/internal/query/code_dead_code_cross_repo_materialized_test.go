@@ -103,6 +103,7 @@ func (s *crossRepoDeadCodeMaterializedContentStore) CodeReachabilityIncomingEnti
 	_ context.Context,
 	_ string,
 	entityIDs []string,
+	_ []string,
 ) (map[string]deadCodeIncomingEdge, error) {
 	result := make(map[string]deadCodeIncomingEdge)
 	for _, entityID := range entityIDs {

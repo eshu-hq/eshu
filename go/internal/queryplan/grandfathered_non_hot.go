@@ -17,7 +17,6 @@ var grandfatheredNonHotSourceDigests = map[string]string{
 	"code_call_chain_resolution.go:(*CodeHandler).callChainCandidateOneHopRows":                "0615ce6eb551ccc62b32552d3097a3626a4fbd1d976d002d48aa53ef11d60387",
 	"code_cypher.go:(*CodeHandler).handleCypherQuery":                                          "c872eeb10ab9b5e5d01f066bffcbf5c4ee2fbe4643e78a22479a8c16d011b852",
 	"code_cypher.go:(*CodeHandler).handleVisualizeQuery":                                       "009d83eaa2394df8eb1ce6078283e43afef3564acda678985084f81ca8659632",
-	"code_dead_code_scan.go:(*CodeHandler).deadCodeResultsWithGraphIncomingEdges":              "ad0af748faabd39e7789e080c62b01933c701607468ed27b5ee63cf151c60459",
 	"code_registry_bundles.go:(*CodeHandler).handleSearchBundles":                              "70b0ca335b4a3d9ee3e34bc09e34a10d34b4704e1c9e366988eaf3408b26d76a",
 	"code_relationship_story_class.go:(*CodeHandler).relationshipStoryClassMethods":            "987936fcef128dad13ccdab80f46425ccf14bfbccce6558b7143a217d09e7f97",
 	"code_relationship_story_class.go:(*CodeHandler).relationshipStoryInheritanceDepthRows":    "c9b8bd0e2bcd713e218e8eed0f4594ec7055e5c015a0c9867bcc89d8e188bde2",

@@ -69,6 +69,16 @@ source_coverage:
     calls:
       - {symbol: "(*CodeHandler).handleCypherQuery", count: 1, non_hot_reason: "inventory-only support or bounded read; promote to entry_ids when designated hot"}
       - {symbol: "(*CodeHandler).handleVisualizeQuery", count: 1, non_hot_reason: "inventory-only support or bounded read; promote to entry_ids when designated hot"}
+  - file: code_dead_code_candidate_entity.go
+    calls:
+      - symbol: "(*CodeHandler).deadCodeResultsWithGraphIncomingEdges"
+        count: 2
+        non_hot:
+          class: keyed_support
+          source_sha256: 871355912a78ce3f43fd53f5765489864a187375c6e1be44cd791fde03b21744
+          key_bound: bounded_key_batch
+          max_keys: 250
+          max_results: 2500
   - file: code_dead_code_scan.go
     calls:
       - symbol: "(*CodeHandler).deadCodeCandidateRows"
@@ -78,7 +88,6 @@ source_coverage:
           source_sha256: c4ae4b4344097d1a8820941285a91750f5ef0bf90e5692b4ef4144b858238878
           label: "Function|Class|Struct|Interface|Trait|SqlFunction"
           max_results: 250
-      - {symbol: "(*CodeHandler).deadCodeResultsWithGraphIncomingEdges", count: 1, non_hot_reason: "inventory-only support or bounded read; promote to entry_ids when designated hot"}
   - file: code_import_dependencies_execution.go
     calls:
       - {symbol: "(*CodeHandler).crossModuleCallRows", count: 1, source_sha256: 0425f0698fd7db7d6f6da1260caf04083bf3df43ed8c26a48752b48ef7cceb04, entry_ids: [QP-CODE-IMPORT-CROSS-MODULE-CALLS]}

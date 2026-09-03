@@ -8,7 +8,7 @@ const openAPIPathsCodeDeadCodeInvestigation = `
       "post": {
         "tags": ["code"],
         "summary": "Investigate dead-code candidates",
-        "description": "Returns a bounded dead-code investigation packet with repository coverage, language maturity, exactness blockers, cleanup-ready and ambiguous candidate buckets, suppressed modeled roots, source handles, and recommended drill-down calls. JavaScript and TypeScript candidates remain ambiguous until corpus precision evidence proves cleanup safety. Scoped tokens receive only granted repositories; an ungranted repository selector is rejected with HTTP 400.",
+        "description": "Returns a bounded dead-code investigation packet with repository coverage, language maturity, exactness blockers, cleanup-ready and ambiguous candidate buckets, suppressed modeled roots, source handles, and recommended drill-down calls. JavaScript and TypeScript candidates remain ambiguous until corpus precision evidence proves cleanup safety. Scoped tokens receive only granted repositories; an ungranted repository selector is rejected with HTTP 400. A candidate whose only incoming edges come from repositories outside a scoped token's grant is kept and marked ambiguous with the permission_hidden_consumer reason, never reported as unused and never silently dropped.",
         "operationId": "investigateDeadCode",
         "x-scoped-token-support": true,
         "requestBody": {

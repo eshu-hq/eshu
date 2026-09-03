@@ -94,6 +94,7 @@ func (s *coverageReachabilityIncomingStore) CodeReachabilityIncomingEntityIDs(
 	_ context.Context,
 	repoID string,
 	entityIDs []string,
+	_ []string,
 ) (map[string]deadCodeIncomingEdge, error) {
 	s.reachabilityCalls++
 	incoming := make(map[string]deadCodeIncomingEdge)

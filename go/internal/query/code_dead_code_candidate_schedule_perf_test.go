@@ -81,6 +81,7 @@ func (s *deadCodeSaturationProbeStore) CodeReachabilityIncomingEntityIDs(
 	_ context.Context,
 	_ string,
 	entityIDs []string,
+	_ []string,
 ) (map[string]deadCodeIncomingEdge, error) {
 	return s.recordIncoming(entityIDs), nil
 }
