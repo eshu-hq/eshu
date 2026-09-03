@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2025-2026 eshu-hq
+
 // Package containerimage owns the container-image identity and provenance
 // family: resolving an image reference to a canonical identity, and projecting
 // the BUILT_FROM and DERIVED_FROM provenance edges that hang off it.
