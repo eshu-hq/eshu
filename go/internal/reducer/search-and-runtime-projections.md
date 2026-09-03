@@ -337,4 +337,8 @@ single bounded (`Limit: 1`) re-query plus one idempotent identity-keyed
 upsert, gated strictly after the existing `logResult`/`recordPhaseMetrics`
 calls with no change to build behavior, concurrency, or throughput; verified
 by `go test ./internal/reducer ./internal/storage/postgres ./internal/query
-./cmd/reducer ./internal/mcp -race -count=1`.
+./internal/query/semanticsearch ./cmd/reducer ./internal/mcp -race -count=1`.
+The `semanticsearch` path is listed explicitly because the two mode-gate tests
+cited just above moved there in #6060, and `./internal/query` does not descend
+into child packages -- without it this No-Regression run stops covering the
+tests this section names.

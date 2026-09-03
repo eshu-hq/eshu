@@ -181,7 +181,7 @@ calls, and the rerank-off default), language filter narrowing, unknown language
 open-pass (200 with empty result set), facet count accuracy, and no-filter
 no-op behaviour.
 
-Language Filter and Facet Evidence: `go test ./internal/query/ -run 'TestSemanticSearchHandler(Language|Facets|Passes)' -count=1`
+Language Filter and Facet Evidence: `go test ./internal/query/semanticsearch -run 'TestSemanticSearchHandler(Language|Facets|Passes)' -count=1`
 and `go test ./internal/storage/postgres/ -run 'TestEshuSearchIndexStore(Language|NoLanguage)' -count=1`
 verify the SQL predicate is present when languages are requested, absent when
 not, and that label values arrive as parameterised args (no interpolation).
