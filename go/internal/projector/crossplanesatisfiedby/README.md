@@ -99,3 +99,42 @@ no queue, storage, graph, span, metric, or log boundary.
 - [Projector architecture](../README.md)
 - [Intent contract](../intent/README.md)
 - [Package restructure](../../../../docs/internal/design/package-restructure.md)
+
+No-Regression Evidence: this extraction moves one builder without changing its
+trigger, value, or fan-out position. The reducer intent domain
+(`DomainCrossplaneSatisfiedByMaterialization`), the
+`crossplane_satisfied_by_materialization:<scope>` entity key, the
+`k8s_resource/crossplane_xrd content-entity facts observed` reason string, and
+the fact-id selection are identical to the base commit; only the scope and
+generation identifiers changed from struct-field reads to parameters, carrying
+the same values from the call site. The dispatcher's ordered fan-out is
+unchanged at 44 builder probes on both sides, with this probe still running
+immediately after `projectorkubernetes.BuildCorrelationMaterializationReducerIntent`
+and immediately before
+`projectorsecurity.BuildSecurityGroupEndpointMaterializationReducerIntent`.
+
+The family's private `crossplaneSatisfiedBySourceSystem` helper was compared
+body-for-body against `projectorintent.SourceSystem` and found identical -- two
+tiers, both trimmed, no third literal fallback -- so it was dropped in favour of
+the shared seam rather than moved. The package's own tier tests set the two
+tiers to different values (`kubernetes_live` against `kubelet_scanner`), so a
+regression that swapped the tier order fails them; a test giving both tiers the
+same value would pass either way and prove only that a label was produced.
+
+Unlike some sibling families, the root fan-out parity fixture does NOT cover this
+domain: `DomainCrossplaneSatisfiedByMaterialization` appears in neither
+`fanOutParityExpectations` nor `fanOutParityExpectedOrder`, and the shared fixture
+carries no `k8s_resource` or `crossplane_xrd` content-entity fact. This package's
+own tests are therefore the only thing asserting these values -- do not rely on
+the parity fixture as a safety net for a change here.
+
+No-Observability-Change: no metric, span, log, or quarantine counter is added,
+moved, or renamed by this extraction. Root assembly and
+`eshu_dp_reducer_intents_enqueued_total` are untouched, the
+`crossplane_satisfied_by_materialization` domain keeps
+`eshu_dp_reducer_executions_total` and `eshu_dp_reducer_run_duration_seconds` on
+the handler side, and the two new files under this package emit no signal of
+their own -- `payload.go` is unexported map and scalar readers that perform no
+I/O, and `satisfied_by_intents.go` is a pure trigger-and-value builder. The
+telemetry-coverage rows for both were written from what the files contain rather
+than copied from a sibling.
