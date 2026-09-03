@@ -9,6 +9,13 @@
 # This file deliberately does not orchestrate drains or write database rows.
 # shellcheck disable=SC2154
 
+# This file commits into the same staged fixture as
+# scripts/lib/golden-corpus-stage.sh, so it needs the same hermeticity: a
+# clean filter reached through the developer's global config would rewrite
+# catalog-info.yaml's bytes on `git add` and move this commit's SHA.
+# shellcheck source=scripts/lib/golden-corpus-git.sh
+. "${repo_root}/scripts/lib/golden-corpus-git.sh"
+
 golden_service_changed_since_service_id="component:default/deployable-config"
 golden_service_changed_since_old_owner="group:default/platform"
 golden_service_changed_since_new_owner="group:default/runtime-platform"
@@ -66,9 +73,9 @@ golden_service_changed_since_mutate_owner() {
 	done <<<"${staged_state}"
 	[[ "${catalog_change_count:-0}" == "1" && "${staged_without_catalog}" == "${baseline_state}" ]] ||
 		die "service changed-since mutation touched an unexpected path: ${staged_state:-<clean>}"
-	git -C "${fixture_repo}" diff --check -- catalog-info.yaml >/dev/null ||
+	golden_corpus_git -C "${fixture_repo}" diff --check -- catalog-info.yaml >/dev/null ||
 		die "service changed-since catalog mutation failed diff validation"
-	git -C "${fixture_repo}" add -- catalog-info.yaml || die "failed to stage changed catalog owner"
+	golden_corpus_git -C "${fixture_repo}" add -- catalog-info.yaml || die "failed to stage changed catalog owner"
 	# Identity pinned inline, matching stage_deterministic_git_fixture
 	# (scripts/lib/golden-corpus-stage.sh): git prefers GIT_AUTHOR_*/
 	# GIT_COMMITTER_* from the environment over `git config user.*`, so an
@@ -80,7 +87,7 @@ golden_service_changed_since_mutate_owner() {
 		GIT_COMMITTER_EMAIL="gate@eshu.local" \
 		GIT_AUTHOR_DATE="2026-08-04T12:01:00Z" \
 		GIT_COMMITTER_DATE="2026-08-04T12:01:00Z" \
-		git -C "${fixture_repo}" commit -m "change deployable owner" >/dev/null ||
+		golden_corpus_git -C "${fixture_repo}" commit -m "change deployable owner" >/dev/null ||
 		die "failed to commit changed catalog owner in temporary corpus"
 	[[ "$(git -C "${fixture_repo}" status --short --untracked-files=no)" == "${baseline_state}" ]] ||
 		die "service changed-since temporary fixture changed pre-existing status after commit"

@@ -8,11 +8,52 @@
 # shared with the live gate so this self-test and the live gate can never
 # silently diverge on what "matches the pin" means.
 
+# Every git command in the staging path must route through golden_corpus_git
+# (scripts/lib/golden-corpus-git.sh). A bare `git` call there reintroduces the
+# developer's global configuration, and it would be invisible to every case
+# below: those stage under a planted hostile config, so a call that escapes the
+# planting still produces the right SHA on a machine whose real global config
+# is empty -- which is every CI runner and most laptops. The failure only
+# appears for the one developer who has the offending setting, as fixture drift
+# in a checkout that has none.
+#
+# So this is a source check, not a behavior check, on purpose. It is the only
+# assertion here that can fail on a machine where the behavior looks fine.
+stage_case_bare_git="$(rg -n '^[[:space:]]*git ' \
+	"${repo_root}/scripts/lib/golden-corpus-stage.sh" \
+	"${repo_root}/scripts/lib/golden-corpus-service-changed-since.sh" || true)"
+[[ -z "${stage_case_bare_git}" ]] ||
+	fail "the staging path must call golden_corpus_git, never git directly, or a developer's global config reaches a fixture commit; found: ${stage_case_bare_git}"
+
 stage_case_dir="$(mktemp -d -t golden-corpus-stage-case.XXXXXX)"
 stage_case_corpus="${stage_case_dir}/corpus"
 stage_case_git_config="${stage_case_dir}/gitconfig"
+stage_case_git_attributes="${stage_case_dir}/gitattributes"
+stage_case_git_excludes="${stage_case_dir}/gitexcludes"
 mkdir -p "${stage_case_corpus}"
+printf 'Dockerfile\n' >"${stage_case_git_excludes}"
 git config --file "${stage_case_git_config}" init.defaultObjectFormat sha256
+
+# A clean filter reached through core.attributesFile is the reason staging
+# neutralizes the whole global config layer rather than enumerating keys.
+#
+# git applies a `clean` filter on `git add`, so the bytes that reach the index
+# are not the bytes on disk. The fixture content is unchanged, the tree hash
+# moves anyway, and the cassette pin no longer matches -- the gate then reports
+# fixture drift against a checkout that has none. Measured on git 2.55.0 with
+# the filter below: container-ci-lineage HEAD moved fe05491e -> f82875a3.
+#
+# core.attributesFile and filter.<name>.clean are two more keys, which is
+# exactly why they are the wrong thing to enumerate. Neither appears in any
+# `git config` line in golden-corpus-stage.sh, and no list of knobs written
+# today survives the next git release adding one. Staging instead runs every
+# fixture command through golden_corpus_git (scripts/lib/golden-corpus-git.sh),
+# which switches the global and system config off wholesale; these two keys are
+# in this file to give that decision a test that fails when it is undone.
+printf 'Dockerfile filter=golden-corpus-mangle\ncatalog-info.yaml filter=golden-corpus-mangle\n' \
+	>"${stage_case_git_attributes}"
+git config --file "${stage_case_git_config}" core.attributesFile "${stage_case_git_attributes}"
+git config --file "${stage_case_git_config}" filter.golden-corpus-mangle.clean "sed 's/^/# mangled /'"
 
 (
 	export GIT_CONFIG_GLOBAL="${stage_case_git_config}"
@@ -84,6 +125,25 @@ mkdir -p "${stage_case_hostile_corpus}"
 # shellcheck disable=SC2030,SC2031
 (
 	export GIT_CONFIG_GLOBAL="${stage_case_git_config}"
+	# The GIT_CONFIG_COUNT family is a separate vector from the config FILES,
+	# and it outranks every one of them: git applies these pairs at
+	# command-line precedence, above even the fixture's own .git/config. So
+	# GIT_CONFIG_GLOBAL=/dev/null does not stop them and neither does a local
+	# pin -- only unsetting GIT_CONFIG_COUNT does.
+	#
+	# The key planted here is core.excludesfile, NOT the core.attributesFile
+	# used in the config file above, and the difference is what makes this
+	# case worth anything. golden_corpus_git passes
+	# `-c core.attributesFile=/dev/null`, which is also command-line
+	# precedence, so an injected core.attributesFile loses to it and the case
+	# would pass with the GIT_CONFIG_COUNT unset deleted -- a test that proves
+	# nothing. Nothing overrides an injected core.excludesfile, which drops
+	# Dockerfile from the staged tree and moves HEAD off its pin. Measured on
+	# git 2.55.0: injected core.excludesfile beats a local
+	# `core.excludesfile /dev/null`.
+	export GIT_CONFIG_COUNT=1
+	export GIT_CONFIG_KEY_0="core.excludesfile"
+	export GIT_CONFIG_VALUE_0="${stage_case_git_excludes}"
 	export GIT_AUTHOR_NAME="Contaminating Author"
 	export GIT_AUTHOR_EMAIL="contaminating-author@example.invalid"
 	export GIT_COMMITTER_NAME="Contaminating Committer"
