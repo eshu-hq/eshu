@@ -1,11 +1,14 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package parser
+package nuget_test
 
 import (
 	"path/filepath"
 	"testing"
+
+	"github.com/eshu-hq/eshu/go/internal/parser"
+	"github.com/eshu-hq/eshu/go/internal/parser/parsertest"
 )
 
 func TestParseNuGetProjectPackageReferencesEmitsDependencyRows(t *testing.T) {
@@ -29,52 +32,45 @@ func TestParseNuGetProjectPackageReferencesEmitsDependencyRows(t *testing.T) {
   </ItemGroup>
 </Project>`)
 
-	engine, err := DefaultEngine()
-	if err != nil {
-		t.Fatalf("DefaultEngine() error = %v", err)
-	}
-	payload, err := engine.ParsePath(repoRoot, path, false, Options{})
-	if err != nil {
-		t.Fatalf("ParsePath() error = %v, want nil", err)
-	}
+	payload := parsertest.MustParsePath(t, repoRoot, path)
 
-	newtonsoft := assertBucketItemByName(t, payload, "variables", "Newtonsoft.Json")
-	assertStringFieldValue(t, newtonsoft, "package_manager", "nuget")
-	assertStringFieldValue(t, newtonsoft, "config_kind", "dependency")
-	assertStringFieldValue(t, newtonsoft, "section", "PackageReference")
-	assertStringFieldValue(t, newtonsoft, "value", "[13.0.3]")
-	assertStringFieldValue(t, newtonsoft, "requested_version", "[13.0.3]")
-	assertStringFieldValue(t, newtonsoft, "dependency_scope", "runtime")
+	newtonsoft := parsertest.AssertBucketItemByName(t, payload, "variables", "Newtonsoft.Json")
+	parsertest.AssertStringFieldValue(t, newtonsoft, "package_manager", "nuget")
+	parsertest.AssertStringFieldValue(t, newtonsoft, "config_kind", "dependency")
+	parsertest.AssertStringFieldValue(t, newtonsoft, "section", "PackageReference")
+	parsertest.AssertStringFieldValue(t, newtonsoft, "value", "[13.0.3]")
+	parsertest.AssertStringFieldValue(t, newtonsoft, "requested_version", "[13.0.3]")
+	parsertest.AssertStringFieldValue(t, newtonsoft, "dependency_scope", "runtime")
 
-	serilog := assertBucketItemByName(t, payload, "variables", "Serilog")
-	assertStringFieldValue(t, serilog, "value", "3.1.1")
-	assertStringFieldValue(t, serilog, "requested_version", "$(SerilogVersion)")
-	assertStringFieldValue(t, serilog, "version_property", "SerilogVersion")
-	assertStringFieldValue(t, serilog, "version_evidence", "project_property")
+	serilog := parsertest.AssertBucketItemByName(t, payload, "variables", "Serilog")
+	parsertest.AssertStringFieldValue(t, serilog, "value", "3.1.1")
+	parsertest.AssertStringFieldValue(t, serilog, "requested_version", "$(SerilogVersion)")
+	parsertest.AssertStringFieldValue(t, serilog, "version_property", "SerilogVersion")
+	parsertest.AssertStringFieldValue(t, serilog, "version_evidence", "project_property")
 
-	compound := assertBucketItemByName(t, payload, "variables", "Compound.Dependency")
-	assertStringFieldValue(t, compound, "value", "1.2.3")
-	assertStringFieldValue(t, compound, "requested_version", "$(CompoundVersionPrefix).3")
-	assertStringFieldValue(t, compound, "version_property", "CompoundVersionPrefix")
-	assertStringFieldValue(t, compound, "version_evidence", "project_property")
+	compound := parsertest.AssertBucketItemByName(t, payload, "variables", "Compound.Dependency")
+	parsertest.AssertStringFieldValue(t, compound, "value", "1.2.3")
+	parsertest.AssertStringFieldValue(t, compound, "requested_version", "$(CompoundVersionPrefix).3")
+	parsertest.AssertStringFieldValue(t, compound, "version_property", "CompoundVersionPrefix")
+	parsertest.AssertStringFieldValue(t, compound, "version_evidence", "project_property")
 
-	xunit := assertBucketItemByName(t, payload, "variables", "xunit")
-	assertStringFieldValue(t, xunit, "private_assets", "all")
-	assertStringFieldValue(t, xunit, "include_assets", "runtime; build; native; contentfiles; analyzers; buildtransitive")
+	xunit := parsertest.AssertBucketItemByName(t, payload, "variables", "xunit")
+	parsertest.AssertStringFieldValue(t, xunit, "private_assets", "all")
+	parsertest.AssertStringFieldValue(t, xunit, "include_assets", "runtime; build; native; contentfiles; analyzers; buildtransitive")
 	assertBoolFieldValue(t, xunit, "development_dependency", true)
 	assertBoolFieldValue(t, xunit, "test_dependency", true)
-	assertStringFieldValue(t, xunit, "dependency_scope", "test")
+	parsertest.AssertStringFieldValue(t, xunit, "dependency_scope", "test")
 
-	unresolved := assertBucketItemByName(t, payload, "variables", "Unresolved.Dependency")
-	assertStringFieldValue(t, unresolved, "value", "$(MissingVersion)")
-	assertStringFieldValue(t, unresolved, "requested_version", "$(MissingVersion)")
-	assertStringFieldValue(t, unresolved, "unresolved_msbuild_property", "MissingVersion")
-	assertStringFieldValue(t, unresolved, "version_evidence", "unresolved_msbuild_property")
+	unresolved := parsertest.AssertBucketItemByName(t, payload, "variables", "Unresolved.Dependency")
+	parsertest.AssertStringFieldValue(t, unresolved, "value", "$(MissingVersion)")
+	parsertest.AssertStringFieldValue(t, unresolved, "requested_version", "$(MissingVersion)")
+	parsertest.AssertStringFieldValue(t, unresolved, "unresolved_msbuild_property", "MissingVersion")
+	parsertest.AssertStringFieldValue(t, unresolved, "version_evidence", "unresolved_msbuild_property")
 	assertBoolFieldValue(t, unresolved, "partial_evidence", true)
 
-	unresolvedCompound := assertBucketItemByName(t, payload, "variables", "Unresolved.Compound")
-	assertStringFieldValue(t, unresolvedCompound, "value", "$(MissingPrefix).1")
-	assertStringFieldValue(t, unresolvedCompound, "unresolved_msbuild_property", "MissingPrefix")
+	unresolvedCompound := parsertest.AssertBucketItemByName(t, payload, "variables", "Unresolved.Compound")
+	parsertest.AssertStringFieldValue(t, unresolvedCompound, "value", "$(MissingPrefix).1")
+	parsertest.AssertStringFieldValue(t, unresolvedCompound, "unresolved_msbuild_property", "MissingPrefix")
 	assertBoolFieldValue(t, unresolvedCompound, "partial_evidence", true)
 }
 
@@ -100,14 +96,7 @@ func TestParseNuGetProjectExposesItemAndGroupConditionSeparately(t *testing.T) {
   </ItemGroup>
 </Project>`)
 
-	engine, err := DefaultEngine()
-	if err != nil {
-		t.Fatalf("DefaultEngine() error = %v", err)
-	}
-	payload, err := engine.ParsePath(repoRoot, path, false, Options{})
-	if err != nil {
-		t.Fatalf("ParsePath() error = %v, want nil", err)
-	}
+	payload := parsertest.MustParsePath(t, repoRoot, path)
 
 	rows := nugetRowsByName(t, payload, "Newtonsoft.Json")
 	if len(rows) != 2 {
@@ -124,10 +113,10 @@ func TestParseNuGetProjectExposesItemAndGroupConditionSeparately(t *testing.T) {
 	} {
 		row := nugetRowByVersion(t, rows, tc.version)
 		// The item- and group-level Conditions are now exposed separately.
-		assertStringFieldValue(t, row, "condition_item", itemCondition)
-		assertStringFieldValue(t, row, "condition_group", tc.groupCond)
+		parsertest.AssertStringFieldValue(t, row, "condition_item", itemCondition)
+		parsertest.AssertStringFieldValue(t, row, "condition_group", tc.groupCond)
 		// The pre-merged override field is preserved byte-for-byte: item wins.
-		assertStringFieldValue(t, row, "condition", itemCondition)
+		parsertest.AssertStringFieldValue(t, row, "condition", itemCondition)
 	}
 }
 
@@ -177,11 +166,11 @@ func TestParseNuGetProjectRejectsMalformedXML(t *testing.T) {
 	path := filepath.Join(repoRoot, "Broken.csproj")
 	writeTestFile(t, path, `<Project><ItemGroup><PackageReference Include="Broken" Version="1.0.0"></ItemGroup></Project>`)
 
-	engine, err := DefaultEngine()
+	engine, err := parser.DefaultEngine()
 	if err != nil {
 		t.Fatalf("DefaultEngine() error = %v", err)
 	}
-	if _, err := engine.ParsePath(repoRoot, path, false, Options{}); err == nil {
+	if _, err := engine.ParsePath(repoRoot, path, false, parser.Options{}); err == nil {
 		t.Fatal("ParsePath() error = nil, want malformed XML error")
 	}
 }

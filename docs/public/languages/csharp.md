@@ -57,8 +57,10 @@ Supported today:
   that handler to exactly one Function entity.
 - Main methods, constructors, overrides, and same-file interface methods and
   implementations are also modeled as root evidence.
-- `.csproj` PackageReference entries are parsed by the separate
-  `nuget_project` parser path into repository dependency evidence. Requested
+- `.csproj` PackageReference entries are parsed into repository dependency
+  evidence by the separate `nuget_project` parser path. That parser lives in
+  `go/internal/parser/nuget`; a thin dispatch wrapper stays in
+  `go/internal/parser` because the Engine method set must remain there. Requested
   versions, resolved MSBuild property versions, unresolved-property partial
   evidence, and PrivateAssets dev/test signals are preserved for the
   supply-chain impact reducer. Multi-targeting identity keys the same package

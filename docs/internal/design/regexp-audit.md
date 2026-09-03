@@ -125,7 +125,7 @@ The C package already migrated its `cTypedefAliasPattern` from `parser.go` to AS
 |------|---------|---------|----------------|-----------|
 | 140 | `propertyReferencePattern` | Resolve `${property}` references in Maven dependency version strings | **keep** | Runs on already-XML-decoded string values from `pom.xml`. Tree-sitter cannot help — the input is a decoded XML document tree, not Maven source. Part of the Maven permanent manifest-parser exception (see `AGENTS.md` permanent exceptions table). |
 
-### 14. go/internal/parser/nuget_project_language.go (1 site)
+### 14. go/internal/parser/nuget/parser.go (1 site)
 
 | Line | Pattern | Purpose | Classification | Rationale |
 |------|---------|---------|----------------|-----------|
@@ -351,7 +351,7 @@ These files contain regexes that are canonical for their domain. Tree-sitter mig
 | File | Category | Recommendation |
 |------|----------|----------------|
 | `maven/parser.go` | XML manifest | No migration. Property resolution operates on already-XML-decoded values. |
-| `nuget_project_language.go` | XML manifest | No migration. MSBuild property resolution on XML-decoded values. |
+| `nuget/parser.go` | XML manifest | No migration. MSBuild property resolution on XML-decoded values. |
 | `cloudformation/parser.go` | Decoded template | No migration. Operates on decoded YAML/JSON map values. |
 | `ruby/bundler_lockfile.go` | Lockfile | No migration. Line-oriented Gemfile.lock parsing. |
 | `ruby/bundler_gemfile.go` | Manifest DSL | No migration. Line-oriented Gemfile DSL parsing. |

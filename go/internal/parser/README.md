@@ -523,7 +523,7 @@ errors are surfaced in `collector snapshot stage completed` logs with
 
 `Engine.ParsePath` used to read one file's bytes twice: once inside the
 dispatched language parser (`parseDefinition` → `shared.ReadSource`, or the
-engine-local `readSource` for `nuget_project`/`raw_text`), then again for
+engine-local `readSource` for `raw_text`), then again for
 `inferContentMetadata`. `ParsePath` now reads the file once up front and primes
 a call-scoped cache (`shared.PrimeSource`/`shared.ClearSource`, keyed by
 absolute path) that both `shared.ReadSource` and the engine-local `readSource`
@@ -548,8 +548,8 @@ duplicate ~200-280KB file read per `ParsePath` call; `allocs/op` did not move
 measurably because `os.ReadFile` contributes a handful of allocations against
 hundreds of thousands from tree-sitter parsing. `raw_text` and `nuget_project`
 (no tree-sitter parse) are the languages where the eliminated read is
-proportionally largest; both dropped from reading the same file's bytes via
-`readSource` twice to once per `ParsePath` call, confirmed by
+proportionally largest; both dropped from reading the same file's bytes twice
+to once per `ParsePath` call, confirmed by
 `TestParsePathReadsRawTextSourceExactlyOnce` and
 `TestParsePathReadsNuGetProjectSourceExactlyOnce`.
 

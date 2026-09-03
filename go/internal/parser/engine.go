@@ -474,8 +474,8 @@ func (e *Engine) parseDefinition(
 // cached for this exact path during the current ParsePath call instead of
 // issuing a second physical read. It delegates to shared.ReadSource, the same
 // single-read-cache-aware helper every language sub-package under
-// go/internal/parser calls, so engine-local readers (nuget_project, raw_text)
-// and language parsers observe one physical disk read per ParsePath call.
+// go/internal/parser calls, so the engine-local raw_text reader and the
+// language parsers observe one physical disk read per ParsePath call.
 func readSource(path string) ([]byte, error) {
 	return shared.ReadSource(path)
 }
