@@ -8,34 +8,40 @@
 # shared with the live gate so this self-test and the live gate can never
 # silently diverge on what "matches the pin" means.
 
-# Every git command that MUTATES a fixture repository must route through
+# Every git command that mutates a fixture repository must route through
 # golden_corpus_git (scripts/lib/golden-corpus-git.sh). A bare one reintroduces
 # the developer's global configuration, and it would be invisible to every case
-# below: those stage under a planted hostile config, so a call that escapes the
-# planting still produces the right SHA on a machine whose real global config
-# is empty -- which is every CI runner and most laptops. The failure appears
-# only for the developer who has the offending setting, as fixture drift in a
-# checkout that has none.
+# below: those stage under a PLANTED hostile config, so a call that escapes the
+# planting still produces the right SHA on a machine whose real global config is
+# empty -- every CI runner, and most laptops. The failure appears only for the
+# developer who has the offending setting, as fixture drift in a checkout that
+# has none. This is a source check, not a behavior check, on purpose: it is the
+# only assertion here that can fail on a machine where the behavior looks fine.
 #
-# So this is a source check, not a behavior check, on purpose. It is the only
-# assertion here that can fail on a machine where the behavior looks fine.
+# The allowlist is of SAFE calls, not of dangerous ones. Listing the dangerous
+# verbs is the same mistake as listing the dangerous config keys -- the defect
+# this whole change exists to remove -- and it measurably failed: a verb list of
+# init/add/commit/tag/update-index missed `reset`, `rm`, `checkout`,
+# `update-ref`, `symbolic-ref`, `apply`, `cherry-pick` and `--git-dir=` forms.
+# The read-only set below is closed and small, so anything outside it is a
+# violation whether or not anyone thought of it in advance.
 #
-# Scoped to the mutating verbs rather than to `git` outright, because reads
-# (rev-parse, ls-tree, cat-file, check-ignore) cannot be perturbed into a wrong
-# SHA by config, and the cases files must be free to call `git config --file`
-# to PLANT the hostile config a case depends on. Comment lines are skipped so
-# prose naming a command does not trip it.
-# The verb must be git's own SUBCOMMAND, so the pattern walks only over `-C`
-# and `-c` option pairs to reach it. An earlier version allowed any text in
-# between and matched a fail() message that happened to contain both "git" and
-# "tag" -- a guard that cries wolf gets deleted, which loses the guard.
-stage_case_mutating_git='(^|[^_[:alnum:]])git([[:space:]]+-[Cc][[:space:]]+("[^"]*"|[^[:space:]]+))*[[:space:]]+(init|add|commit|tag|update-index)([[:space:]]|$)'
-stage_case_bare_git="$(rg -n --no-filename "${stage_case_mutating_git}" \
-	"${repo_root}"/scripts/lib/golden-corpus-*.sh \
-	"${repo_root}/scripts/verify-golden-corpus-gate.sh" |
-	rg -v '^[0-9]+:[[:space:]]*#' || true)"
+# `config --file` is safe because it writes to an explicit file rather than into
+# a fixture repository. golden-corpus-git.sh is excluded because it DEFINES the
+# wrapper and is the one place a bare git call belongs.
+#
+# Matching is anchored to command position -- line start, after $( , after a
+# shell operator, or after if/while/until -- rather than to the bare word, so
+# prose in a comment or a fail() message naming a git command does not trip it.
+# A guard that cries wolf gets deleted, which loses the guard.
+stage_case_git_cmdpos='(^[[:space:]]*(if[[:space:]]+|while[[:space:]]+|until[[:space:]]+|![[:space:]]*)*|\$\([[:space:]]*|(\|\||&&|;|\|)[[:space:]]*)git[[:space:]]'
+stage_case_git_readonly='git([[:space:]]+-[Cc][[:space:]]+("[^"]*"|[^[:space:]]+))*[[:space:]]+(rev-parse|rev-list|status|check-ignore|ls-tree|ls-files|cat-file|diff|show|log|config[[:space:]]+--file)'
+stage_case_bare_git="$(rg -n --no-filename "${stage_case_git_cmdpos}" \
+	-g '*golden-corpus*.sh' -g '!golden-corpus-git.sh' "${repo_root}/scripts" |
+	rg -v '^[0-9]+:[[:space:]]*#' |
+	rg -v "${stage_case_git_readonly}" || true)"
 [[ -z "${stage_case_bare_git}" ]] ||
-	fail "these golden-corpus git calls mutate a repository without routing through golden_corpus_git, so a developer's global config reaches a fixture commit: ${stage_case_bare_git}"
+	fail "these golden-corpus git calls reach a repository without routing through golden_corpus_git, so a developer's global config can change what gets committed: ${stage_case_bare_git}"
 
 stage_case_dir="$(mktemp -d -t golden-corpus-stage-case.XXXXXX)"
 stage_case_corpus="${stage_case_dir}/corpus"
