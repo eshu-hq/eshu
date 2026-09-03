@@ -59,7 +59,7 @@ measures both.
 
 The ordinary statement is untouched, so every other caller of this store keeps
 its plan cache entry.
-`TestServiceCatalogCorrelationsOutsideGrantQueryInvertsOnlyTheGrantClause`
+`TestServiceCatalogCorrelationsOutsideGrantQueryDiffersOnlyInTheGrantClause`
 still rebuilds the ordinary statement from the inverted one and fails if they
 differ anywhere but the grant clause; the pinned clause text is now the
 stricter one.
@@ -197,7 +197,7 @@ Each mutation applied alone, run, reverted. Exit codes captured directly.
 
 | Mutation | Case that fails | Exit |
 | --- | --- | --- |
-| Shipped statement reverted to the plain negation of the admission arm | `TestServiceCatalogCorrelationsOutsideGrantQueryInvertsOnlyTheGrantClause`: the pinned clause text is no longer in the statement | 1 |
+| Shipped statement reverted to the plain negation of the admission arm | `TestServiceCatalogCorrelationsOutsideGrantQueryDiffersOnlyInTheGrantClause`: the pinned clause text is no longer in the statement | 1 |
 | Ownership fake treats the two statements as complements again | `one ungranted candidate refuses the whole row`: 200 with `gen-current-shared` | 1 |
 | Fake drops the some-evidence-granted half (the naive tightening) | `an ambiguous row whose candidates are all granted still resolves`: 404 for the caller's own service | 1 |
 | Shipped code | pass | 0 |

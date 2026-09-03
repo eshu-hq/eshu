@@ -90,7 +90,7 @@ func TestServiceCatalogLocalDescriptorEvidenceQueryUsesActiveRepositoryScope(t *
 	}
 }
 
-// TestServiceCatalogCorrelationsOutsideGrantQueryInvertsOnlyTheGrantClause is
+// TestServiceCatalogCorrelationsOutsideGrantQueryDiffersOnlyInTheGrantClause is
 // the lockstep pin for the two shipped statements. The outside-grant read
 // exists to answer one question -- does anything OUTSIDE the caller's grant
 // also correlate this service id -- and it must answer it over exactly the
@@ -98,7 +98,7 @@ func TestServiceCatalogLocalDescriptorEvidenceQueryUsesActiveRepositoryScope(t *
 // arm, a missing active-generation join, a different selector) would make the
 // exclusivity check answer about a different population than the admission
 // check, which is how a fail-open slips back in.
-func TestServiceCatalogCorrelationsOutsideGrantQueryInvertsOnlyTheGrantClause(t *testing.T) {
+func TestServiceCatalogCorrelationsOutsideGrantQueryDiffersOnlyInTheGrantClause(t *testing.T) {
 	t.Parallel()
 
 	const grantClause = `  AND (

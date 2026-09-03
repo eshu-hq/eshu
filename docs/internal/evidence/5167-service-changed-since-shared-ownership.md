@@ -115,7 +115,7 @@ Three properties are deliberate:
 
 - The ordinary statement's text is untouched, so every other caller of this
   store keeps its plan cache entry.
-  `TestServiceCatalogCorrelationsOutsideGrantQueryInvertsOnlyTheGrantClause`
+  `TestServiceCatalogCorrelationsOutsideGrantQueryDiffersOnlyInTheGrantClause`
   reconstructs the ordinary statement from the inverted one and fails if they
   differ anywhere but the grant clause, and
   `TestPostgresServiceCatalogCorrelationsSelectTheStatementByOutsideGrant` pins

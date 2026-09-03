@@ -212,15 +212,20 @@ Two bearers carry `AllScopes`. An OIDC bearer resolved with an admin group
 grant gets it from `Resolver.ResolveScopedToken`
 (`go/internal/oidcbearer/resolver.go`), and a file-backed registry token can
 carry `all_scopes` (`go/internal/scopedtoken/registry.go`).
-For either, `RepositoryAccessFilter.Scoped()` is false, so `$3` and `$8`
-short-circuit the two SQL predicates and `serviceChangedSinceGrantAdmits`
-returns true at its first branch: the read runs across the whole corpus. Before
-this change those three routes answered such a caller with a middleware 403.
+For either, `RepositoryAccessFilter.Scoped()` is false, so `$3` in
+`resolveChangedSinceScopeQuery` and `$8` in `listGenerationLifecycleQuery`
+short-circuit the two SQL predicates the changed-since and generations routes
+bind: the read runs across the whole corpus. Before this change those two
+routes answered such a caller with a middleware 403. The service route is not
+part of that: it stays on the pending ledger, so the middleware refuses a
+bearer there before the handler runs, though `serviceChangedSinceGrantAdmits`
+would admit an all-scope caller at its first branch once #6475 lets the route
+be promoted.
 
 This is #6450's residual item 1, quoted there as "All-scope bearer tokens skip
 the policy entirely". It is pre-existing and holds for every
 `scopedRouteGrantBound` entry in `scopedTokenAdvertisedRoutes` (175 advertised
-routes at `origin/main`, 178 after this change), not only these three, so
+routes at `origin/main`, 177 after this change), not only these two, so
 closing it belongs to #6450 rather than to this family. It is named here, and in
 `scopedFreshnessDeltaRoute`'s doc comment, so the next reader of either does not
 conclude that "grant-bound" means every all-scope caller is refused.

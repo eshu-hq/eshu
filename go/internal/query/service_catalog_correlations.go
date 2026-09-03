@@ -251,8 +251,8 @@ LIMIT $12
 // wholly admit. It is a separate literal rather than a built string so the
 // ordinary statement's text -- and therefore its plan cache entry, shared with
 // every other caller of this store -- is untouched;
-// TestServiceCatalogCorrelationsOutsideGrantQueryInvertsOnlyTheGrantClause pins
-// that the two statements differ nowhere else.
+// TestServiceCatalogCorrelationsOutsideGrantQueryDiffersOnlyInTheGrantClause
+// pins that the two statements differ nowhere else.
 //
 // The two clauses are deliberately NOT complements (#6472 review, P1-B). The
 // ordinary arm admits a row when ANY candidate repository is granted
