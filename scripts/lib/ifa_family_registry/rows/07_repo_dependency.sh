@@ -12,6 +12,6 @@ IFA_FAMILY_CELL_KIND[repo_dependency]="custom"
 IFA_FAMILY_CASSETTE_VAR[repo_dependency]="repo_dependency_cassette"
 IFA_FAMILY_EXPECTED_VAR[repo_dependency]="repo_dependency_expected_edges"
 IFA_FAMILY_RETRY_BASELINE_VAR[repo_dependency]="baseline_deployment_mapping_retried"
-IFA_FAMILY_HANDLER_GO_FILE[repo_dependency]="go/internal/reducer/cross_repo_resolution.go"
+IFA_FAMILY_HANDLER_GO_FILE[repo_dependency]="go/internal/reducer/crossrepo/cross_repo_resolution.go"
 IFA_FAMILY_FAULT_SHARED_DRIVE[repo_dependency]="0"
 IFA_FAMILY_NAMES+=(repo_dependency)

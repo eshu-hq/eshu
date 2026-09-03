@@ -23,7 +23,7 @@ set -euo pipefail
 repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 verifier="${repo_root}/scripts/verify-edge-source-tool-coverage.sh"
 models_file="${repo_root}/go/internal/relationships/models.go"
-classifier_file="${repo_root}/go/internal/reducer/cross_repo_evidence_type.go"
+classifier_file="${repo_root}/go/internal/reducer/crossrepo/cross_repo_evidence_type.go"
 
 tmp_root="$(mktemp -d)"
 trap 'rm -rf "${tmp_root}"' EXIT

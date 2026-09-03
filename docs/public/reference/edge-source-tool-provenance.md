@@ -8,7 +8,7 @@ defines the canonical `source_tool` vocabulary the rest of
 It began as a **design baseline** (the agreed enum + classification). As of
 [#3999](https://github.com/eshu-hq/eshu/issues/3999) the normalized `source_tool`
 token is **stamped at write time** on every Tier-2 (shared-verb) cross-repo edge
-(`go/internal/reducer/cross_repo_evidence_type.go` derives it; the canonical edge
+(`go/internal/reducer/crossrepo/cross_repo_evidence_type.go` derives it; the canonical edge
 writers in `go/internal/storage/cypher` persist it). Surfacing it in the
 API/console is [#4000](https://github.com/eshu-hq/eshu/issues/4000)/[#4001](https://github.com/eshu-hq/eshu/issues/4001).
 The golden-corpus gate enforces it: each evidence-narrowed Tier-2 correlation
@@ -58,7 +58,7 @@ are easy to confuse; only the first two encode the tool.
 | Property | Holds | Shape | Set at | Tool? |
 | --- | --- | --- | --- | --- |
 | `evidence_kinds` | UPPERCASE `EvidenceKind` enum strings (e.g. `KUSTOMIZE_RESOURCE_REFERENCE`, `ARGOCD_APPLICATION_SOURCE`) | list (an edge can carry several) | resolver aggregates the set (`go/internal/relationships/resolver.go`), written to the edge in `go/internal/storage/cypher/canonical_relationships.go` | **yes** (raw form) |
-| `evidence_type` | lowercase_snake single token, derived from the *first* evidence kind (e.g. `kustomize_resource_reference`) | scalar | `go/internal/reducer/cross_repo_evidence_type.go:12-46` map; written in `canonical_relationships.go` | **yes** (sub-kind, not yet collapsed to the tool) |
+| `evidence_type` | lowercase_snake single token, derived from the *first* evidence kind (e.g. `kustomize_resource_reference`) | scalar | the `evidenceKindToType` map in `go/internal/reducer/crossrepo/cross_repo_evidence_type.go`; written in `canonical_relationships.go` | **yes** (sub-kind, not yet collapsed to the tool) |
 | `evidence_source` | the producing **STAGE** (`resolver/cross-repo`, `projector/canonical`, `finalization/workloads`, `parser/code-calls`, `reducer/runs-in`, …) | scalar | many `*EvidenceSource` consts across `go/internal/reducer/*` and `go/internal/storage/cypher/*` | **no** |
 
 `evidence_source` answers "which pipeline stage wrote this edge", not "which
@@ -148,7 +148,7 @@ addition, never by free-form values.
 
 **`unknown` rule.** An edge whose tool cannot be proven from its evidence gets
 the explicit `unknown` token, never a guess. `resolvedRelationshipSourceTool`
-(`go/internal/reducer/cross_repo_evidence_type.go`) emits `unknown` for a
+(`go/internal/reducer/crossrepo/cross_repo_evidence_type.go`) emits `unknown` for a
 present-but-unmapped primary evidence kind — so a new tool that ships an evidence
 kind without a `source_tool` classification surfaces as a visible gap (and fails
 the #4002 drift gate) rather than a silent passthrough. An edge with no evidence
@@ -247,7 +247,7 @@ these tokens with the `models.go` enum.
 
 ### Tier 2 — shared verbs; tool in `evidence_kinds`/`evidence_type`
 
-All emitted by the cross-repo resolver (`reducer/cross_repo_resolution.go:441-509`)
+All emitted by the cross-repo resolver (`reducer/crossrepo/cross_repo_resolution.go`'s `CrossRepoRelationshipHandler.Resolve`)
 and written through the canonical relationship upserts
 (`storage/cypher/canonical_relationships.go`, dispatched in
 `storage/cypher/edge_writer.go:275-320`).

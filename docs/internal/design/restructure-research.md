@@ -43,10 +43,10 @@ There are **two independent implementations of the same 500-line cap**, which mu
 **Nolint marker convention** (both implementations honor it, confirmed at `precommit-go.sh:164,169` and `:279` "honours an explicit `//nolint:filelength` marker"): a standard golangci-lint suppression comment placed **on the file's `package` declaration line**, followed by `//` and a justification stating the line count and why splitting is wrong for this file, e.g.:
 
 ```go
-package reducer //nolint:filelength // 509 lines: cross-repo resolution logic. Consolidating ...
+package crossrepo //nolint:filelength // 509 lines: cross-repo resolution logic. Consolidating ...
 ```
 
-(`go/internal/reducer/cross_repo_resolution.go:4`). There are **27 files** carrying this marker repo-wide (`rg -c "nolint:filelength" -g '*.go' go/` → 27 files, 27 markers). This is documented centrally at `go/.golangci.yml:568-572` for the largest instance (`go/internal/telemetry/instruments.go`).
+(the package clause of `go/internal/reducer/crossrepo/cross_repo_resolution.go`). There are **27 files** carrying this marker repo-wide (`rg -c "nolint:filelength" -g '*.go' go/` → 27 files, 27 markers). This is documented centrally at `go/.golangci.yml:568-572` for the largest instance (`go/internal/telemetry/instruments.go`).
 
 A directory-size gate should follow the identical pattern: a Go-plugin analyzer (or a bash script mirroring it for local/pre-pr) plus a `//nolint:<gate-name>` (or equivalent) escape hatch requiring a stated justification — not a bare suppression.
 

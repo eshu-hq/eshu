@@ -181,7 +181,7 @@ require_workflow_path "fact envelope decode adapter (#5538)" "go/internal/facten
 
 # internal/ghactionsref backs the ReusableWorkflowRepo/ActionRepo/Pinned
 # classifiers that relationships/github_actions_evidence.go and
-# reducer/cross_repo_evidence_artifacts.go call directly; the
+# reducer/crossrepo/cross_repo_evidence_artifacts.go call directly; the
 # "github_actions_action_repository" DEPENDS_ON evidence-kind reason those
 # classifiers produce is asserted live in the B-12 snapshot's
 # content-relationships query shapes.

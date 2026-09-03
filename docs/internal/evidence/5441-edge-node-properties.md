@@ -8,7 +8,7 @@ Two additive, SET-clause-only changes:
   `READS_CONFIG_FROM`) in
   `go/internal/storage/cypher/canonical_relationships.go`, fed from the
   reducer's `buildResolvedEdgeIntentRow` chokepoint
-  (`go/internal/reducer/cross_repo_intent_row.go`) and
+  (`go/internal/reducer/crossrepo/cross_repo_intent_row.go`) and
   `copyRepoRelationshipMetadata`
   (`go/internal/storage/cypher/edge_writer_row_metadata.go` as of #5441
   review round 3's file-cap split; `edge_writer_retract.go` before that). The
@@ -564,7 +564,7 @@ case above describes behavior from BEFORE this rename; the current,
 correct multi-source behavior (revisions never leak between sources) is
 proven by
 `TestBuildResolvedEdgeIntentRowsPerSourceRevisionForMultiSourceApplication`
-in `go/internal/reducer/cross_repo_intent_row_argocd_multisource_test.go`
+in `go/internal/reducer/crossrepo/cross_repo_intent_row_argocd_multisource_test.go`
 (#5441 review round 8, falsified against a pre-fix scratch revert in review
 round 10 -- see that test's doc comment).
 

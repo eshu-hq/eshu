@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package reducer //nolint:filelength // 509 lines: cross-repo resolution logic. Consolidating the cross-repo identifier hydration and resolution graph reads in one file keeps the deterministic ordering and dedup rules reviewable.
+package crossrepo //nolint:filelength // 509 lines: cross-repo resolution logic. Consolidating the cross-repo identifier hydration and resolution graph reads in one file keeps the deterministic ordering and dedup rules reviewable.
 
 import (
 	"context"
@@ -14,6 +14,8 @@ import (
 	"go.opentelemetry.io/otel/metric"
 	"go.opentelemetry.io/otel/trace"
 
+	"github.com/eshu-hq/eshu/go/internal/reducer/gpphase"
+	"github.com/eshu-hq/eshu/go/internal/reducer/sharedintent"
 	"github.com/eshu-hq/eshu/go/internal/relationships"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
 	log "github.com/eshu-hq/eshu/go/pkg/log"
@@ -51,7 +53,7 @@ type ResolutionPersister interface {
 // RepoDependencyIntentWriter persists durable repo-dependency projection
 // intents plus their authoritative acceptance rows.
 type RepoDependencyIntentWriter interface {
-	UpsertIntents(ctx context.Context, rows []SharedProjectionIntentRow) error
+	UpsertIntents(ctx context.Context, rows []sharedintent.Row) error
 }
 
 // CrossRepoRelationshipHandler resolves cross-repository relationships from
@@ -68,8 +70,8 @@ type CrossRepoRelationshipHandler struct {
 	Assertions        AssertionLoader
 	Persister         ResolutionPersister
 	IntentWriter      RepoDependencyIntentWriter
-	ReadinessLookup   GraphProjectionReadinessLookup
-	ReadinessPrefetch GraphProjectionReadinessPrefetch
+	ReadinessLookup   gpphase.ReadinessLookup
+	ReadinessPrefetch gpphase.ReadinessPrefetch
 	Tracer            trace.Tracer
 	Instruments       *telemetry.Instruments
 }
@@ -111,8 +113,8 @@ func (h *CrossRepoRelationshipHandler) Resolve(
 	if hasReadinessKey && h.ReadinessPrefetch != nil {
 		resolvedLookup, err := h.ReadinessPrefetch(
 			ctx,
-			[]GraphProjectionPhaseKey{readinessKey},
-			GraphProjectionPhaseBackwardEvidenceCommitted,
+			[]gpphase.PhaseKey{readinessKey},
+			gpphase.PhaseBackwardEvidenceCommitted,
 		)
 		if err != nil {
 			return 0, fmt.Errorf("prefetch graph projection readiness: %w", err)
@@ -124,12 +126,12 @@ func (h *CrossRepoRelationshipHandler) Resolve(
 			ctx, "cross-repo readiness lookup not configured; bypassing backward evidence gate",
 			log.ScopeID(scopeID),
 			log.GenerationID(generationID),
-			slog.String("keyspace", string(GraphProjectionKeyspaceCrossRepoEvidence)),
-			slog.String("phase", string(GraphProjectionPhaseBackwardEvidenceCommitted)),
+			slog.String("keyspace", string(gpphase.KeyspaceCrossRepoEvidence)),
+			slog.String("phase", string(gpphase.PhaseBackwardEvidenceCommitted)),
 		)
 	}
 	if hasReadinessKey && readinessLookup != nil {
-		ready, found := readinessLookup(readinessKey, GraphProjectionPhaseBackwardEvidenceCommitted)
+		ready, found := readinessLookup(readinessKey, gpphase.PhaseBackwardEvidenceCommitted)
 		if !found || !ready {
 			slog.InfoContext(
 				ctx, "cross-repo resolution gated",
@@ -353,16 +355,16 @@ func normalizeReducerRepositoryID(value string) string {
 func crossRepoBackwardEvidenceReadinessKey(
 	scopeID string,
 	generationID string,
-) (GraphProjectionPhaseKey, bool) {
-	key := GraphProjectionPhaseKey{
+) (gpphase.PhaseKey, bool) {
+	key := gpphase.PhaseKey{
 		ScopeID:          strings.TrimSpace(scopeID),
 		AcceptanceUnitID: strings.TrimSpace(scopeID),
 		SourceRunID:      strings.TrimSpace(generationID),
 		GenerationID:     strings.TrimSpace(generationID),
-		Keyspace:         GraphProjectionKeyspaceCrossRepoEvidence,
+		Keyspace:         gpphase.KeyspaceCrossRepoEvidence,
 	}
 	if err := key.Validate(); err != nil {
-		return GraphProjectionPhaseKey{}, false
+		return gpphase.PhaseKey{}, false
 	}
 	return key, true
 }

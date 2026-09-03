@@ -1850,7 +1850,7 @@ gains two `SET` lines, `artifact.ref_value = row.ref_value` and
 existing `start_line`/`end_line`/`commit_sha` properties. `repoEvidenceArtifactRowsFromIntent`
 (`edge_writer_row_metadata.go`) carries the two fields through from the reducer's
 evidence-artifact map onto the graph-write row when present; it does not
-compute them -- `go/internal/reducer/cross_repo_evidence_artifacts.go` is the
+compute them -- `go/internal/reducer/crossrepo/cross_repo_evidence_artifacts.go` is the
 sole place `ref_pinned` is classified (via `go/internal/ghactionsref`'s
 `Pinned`), scoped to `GITHUB_ACTIONS_*` evidence kinds. Both fields are
 omitted together when the row carries no `ref_value`.

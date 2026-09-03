@@ -1,6 +1,6 @@
 # Evidence: Chef evidence-kind → evidence_type mapping (rc-33)
 
-Scope: `go/internal/reducer/cross_repo_evidence_type.go` gains one entry mapping
+Scope: `go/internal/reducer/crossrepo/cross_repo_evidence_type.go` gains one entry mapping
 the new `CHEF_COOKBOOK_DEPENDENCY` evidence kind to its lowercase
 `chef_cookbook_dependency` admission-audit `evidence_type` label. The CI hot-path
 gate flags any change under `go/internal/reducer/` by location, so this file

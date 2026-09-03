@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package reducer
+package crossrepo
 
 import (
 	"fmt"
@@ -9,6 +9,8 @@ import (
 	"strings"
 	"time"
 
+	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
+	"github.com/eshu-hq/eshu/go/internal/reducer/sharedintent"
 	"github.com/eshu-hq/eshu/go/internal/relationships"
 )
 
@@ -19,7 +21,7 @@ func buildResolvedEdgeRetractionIntentRows(
 	sourceRunID string,
 	generationID string,
 	createdAt time.Time,
-) []SharedProjectionIntentRow {
+) []sharedintent.Row {
 	sourceRepoIDs := retractionSourceRepoIDs(scopeID, evidenceFacts)
 	if len(sourceRepoIDs) == 0 {
 		return nil
@@ -34,7 +36,7 @@ func buildResolvedEdgeRetractionIntentRows(
 		resolvedSources[repoID] = struct{}{}
 	}
 
-	rows := make([]SharedProjectionIntentRow, 0, len(sourceRepoIDs))
+	rows := make([]sharedintent.Row, 0, len(sourceRepoIDs))
 	for _, repoID := range sourceRepoIDs {
 		if _, ok := resolvedSources[repoID]; ok {
 			continue
@@ -56,7 +58,7 @@ func buildResolvedEdgeRetractionIntentRow(
 	sourceRunID string,
 	generationID string,
 	createdAt time.Time,
-) SharedProjectionIntentRow {
+) sharedintent.Row {
 	payload := map[string]any{
 		"repo_id":         repoID,
 		"action":          "retract",
@@ -64,8 +66,8 @@ func buildResolvedEdgeRetractionIntentRow(
 		"generation_id":   generationID,
 	}
 
-	return BuildSharedProjectionIntent(SharedProjectionIntentInput{
-		ProjectionDomain: DomainRepoDependency,
+	return sharedintent.Build(sharedintent.Input{
+		ProjectionDomain: reducercontract.DomainRepoDependency,
 		PartitionKey:     fmt.Sprintf("retract:repo:%s", repoID),
 		ScopeID:          scopeID,
 		AcceptanceUnitID: repoID,

@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package reducer //nolint:filelength // Pre-existing 841-line cross-repo resolution end-to-end coverage predates the 500-line hook (already over the cap before #5441 touched it). #5441 only adds/edits a handful of assertions and moves the buildResolvedEdgeIntentRow-focused tests out to cross_repo_intent_row_test.go; a full split of the remaining resolution-flow suite is out of scope for this change.
+package crossrepo //nolint:filelength // Pre-existing 841-line cross-repo resolution end-to-end coverage predates the 500-line hook (already over the cap before #5441 touched it). #5441 only adds/edits a handful of assertions and moves the buildResolvedEdgeIntentRow-focused tests out to cross_repo_intent_row_test.go; a full split of the remaining resolution-flow suite is out of scope for this change.
 
 import (
 	"bytes"
@@ -10,6 +10,8 @@ import (
 	"log/slog"
 	"testing"
 
+	"github.com/eshu-hq/eshu/go/internal/reducer/gpphase"
+	"github.com/eshu-hq/eshu/go/internal/reducer/sharedintent"
 	"github.com/eshu-hq/eshu/go/internal/relationships"
 )
 
@@ -57,11 +59,11 @@ func (f *fakeResolutionPersister) ActivateResolutionGeneration(_ context.Context
 }
 
 type recordingRepoDependencyIntentWriter struct {
-	rows [][]SharedProjectionIntentRow
+	rows [][]sharedintent.Row
 }
 
-func (r *recordingRepoDependencyIntentWriter) UpsertIntents(_ context.Context, rows []SharedProjectionIntentRow) error {
-	r.rows = append(r.rows, append([]SharedProjectionIntentRow(nil), rows...))
+func (r *recordingRepoDependencyIntentWriter) UpsertIntents(_ context.Context, rows []sharedintent.Row) error {
+	r.rows = append(r.rows, append([]sharedintent.Row(nil), rows...))
 	return nil
 }
 
@@ -106,7 +108,7 @@ func TestCrossRepoResolutionGatesUntilBackwardEvidenceCommitted(t *testing.T) {
 	handler := CrossRepoRelationshipHandler{
 		EvidenceLoader: evidenceLoader,
 		IntentWriter:   intentWriter,
-		ReadinessLookup: func(key GraphProjectionPhaseKey, phase GraphProjectionPhase) (bool, bool) {
+		ReadinessLookup: func(key gpphase.PhaseKey, phase gpphase.Phase) (bool, bool) {
 			if got, want := key.ScopeID, "scope-1"; got != want {
 				t.Fatalf("ScopeID = %q, want %q", got, want)
 			}
@@ -119,10 +121,10 @@ func TestCrossRepoResolutionGatesUntilBackwardEvidenceCommitted(t *testing.T) {
 			if got, want := key.GenerationID, "gen-1"; got != want {
 				t.Fatalf("GenerationID = %q, want %q", got, want)
 			}
-			if got, want := key.Keyspace, GraphProjectionKeyspaceCrossRepoEvidence; got != want {
+			if got, want := key.Keyspace, gpphase.KeyspaceCrossRepoEvidence; got != want {
 				t.Fatalf("Keyspace = %q, want %q", got, want)
 			}
-			if got, want := phase, GraphProjectionPhaseBackwardEvidenceCommitted; got != want {
+			if got, want := phase, gpphase.PhaseBackwardEvidenceCommitted; got != want {
 				t.Fatalf("phase = %q, want %q", got, want)
 			}
 			return false, false
@@ -163,13 +165,13 @@ func TestCrossRepoResolutionUsesReadinessPrefetchWhenAvailable(t *testing.T) {
 	handler := CrossRepoRelationshipHandler{
 		EvidenceLoader: evidenceLoader,
 		IntentWriter:   intentWriter,
-		ReadinessLookup: func(GraphProjectionPhaseKey, GraphProjectionPhase) (bool, bool) {
+		ReadinessLookup: func(gpphase.PhaseKey, gpphase.Phase) (bool, bool) {
 			t.Fatal("ReadinessLookup should be replaced by prefetched lookup")
 			return false, false
 		},
-		ReadinessPrefetch: func(_ context.Context, keys []GraphProjectionPhaseKey, phase GraphProjectionPhase) (GraphProjectionReadinessLookup, error) {
+		ReadinessPrefetch: func(_ context.Context, keys []gpphase.PhaseKey, phase gpphase.Phase) (gpphase.ReadinessLookup, error) {
 			prefetchCalls++
-			if got, want := phase, GraphProjectionPhaseBackwardEvidenceCommitted; got != want {
+			if got, want := phase, gpphase.PhaseBackwardEvidenceCommitted; got != want {
 				t.Fatalf("phase = %q, want %q", got, want)
 			}
 			if len(keys) != 1 {
@@ -188,10 +190,10 @@ func TestCrossRepoResolutionUsesReadinessPrefetchWhenAvailable(t *testing.T) {
 			if got, want := key.GenerationID, "gen-1"; got != want {
 				t.Fatalf("GenerationID = %q, want %q", got, want)
 			}
-			if got, want := key.Keyspace, GraphProjectionKeyspaceCrossRepoEvidence; got != want {
+			if got, want := key.Keyspace, gpphase.KeyspaceCrossRepoEvidence; got != want {
 				t.Fatalf("Keyspace = %q, want %q", got, want)
 			}
-			return func(lookupKey GraphProjectionPhaseKey, lookupPhase GraphProjectionPhase) (bool, bool) {
+			return func(lookupKey gpphase.PhaseKey, lookupPhase gpphase.Phase) (bool, bool) {
 				if lookupKey != key {
 					t.Fatalf("lookup key = %#v, want %#v", lookupKey, key)
 				}
