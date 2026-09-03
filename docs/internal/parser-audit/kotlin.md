@@ -145,7 +145,8 @@ walk from outside the implementation package; `kotlin_dead_code_roots_test.go`
 and `kotlin_spring_route_semantics_test.go` relocated there with #6062 — both
 hold only Kotlin cases. The Swift golden-fixture gate
 that used to share a file with the Kotlin one now lives on its own at
-`go/internal/parser/engine_swift_symbol_gate_test.go`. The `kotlin/` package
+`go/internal/parser/swift/engine_swift_symbol_gate_test.go`, relocated into the
+`swift/` package by #6062. The `kotlin/` package
 also keeps same-package tests for package-owned equivalence and walk-count
 behavior.
 
