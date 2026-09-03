@@ -207,8 +207,11 @@ was. Its fields and methods named unexported root read models
 more), so no adapter could have moved it; the types had to reach `querycontract`
 first, with root keeping an alias for each. Four already-exported root types
 needed the same treatment for a less obvious reason: exported is not enough when
-the only way to name them is to import package `query`, which is a cycle from
-here.
+the only way to name them is to import package `query`. That import is the one
+leg of invariant 2 the compiler actually catches, and it catches it only in a
+test binary — root's own tests import this package, so the cycle surfaces when
+`internal/query`'s tests build. `go build ./internal/query/querytestutil` still
+succeeds on its own, so a green build would not have told you.
 
 Two production symbols moved with it. `k8sSelectCandidateFromEntity` had exactly
 one caller, this fake, so it went to `querycontract` rather than being copied;

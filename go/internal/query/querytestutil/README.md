@@ -215,6 +215,24 @@ because that counter still only counts rows that passed the filter — it stays
 green, and it should. The mutation that actually tests the ordering truncates
 the input slice before filtering.
 
+### One port rests on a single test
+
+`RepositoryEntryPoints` has exactly one consuming test,
+`TestQueryRepoEntryPointsUsesContentRowsBeforeGraph`. The mutation counts above
+show the spread: 6 tests depend on `RepositoryReadModelSummary`, 4 each on
+`RepositoryRelationshipReadModel` and `DocumentationFindings`, 3 each on
+`RelationshipEvidenceByResolvedID` and `ServiceStoryTargetSupportEvidence`, and
+1 here.
+
+This is not a gap in the sense the `entity_type` one was — that predicate had no
+coverage through this double at all, and this has a real test that genuinely
+exercises the port. It is a note about what a green suite means. A regression in
+the entry-points path fails one assertion rather than a spread, so if you are
+changing that path, do not read green as broad agreement; read it as one test
+agreeing. Only a panic-style mutation hides this, which is why the mutation
+proof used sentinel returns: a panic aborts at the first failure and reports one
+either way.
+
 Measure that set with a full `go test ./internal/query/`, never with `-run`
 naming the tests you expect. `-run` measures your own filter: the first attempt
 here named four tests, saw four failures, and reported four as though it were
