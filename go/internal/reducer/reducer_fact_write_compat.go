@@ -39,12 +39,6 @@ const (
 	canonicalReducerFactInsertQuery = factwrite.SingleInsertQuery
 )
 
-// canonicalReducerFactInsertQuery aliases [factwrite.CanonicalFactInsertQuery],
-// the shared single-row canonical upsert. It moved to the shared writer tier
-// with the platform family (#6061); every reducer-root writer keeps its current
-// unqualified spelling.
-const canonicalReducerFactInsertQuery = factwrite.CanonicalFactInsertQuery
-
 // reducerBatchInsertFacts forwards to [factwrite.BatchInsertFacts].
 func reducerBatchInsertFacts(ctx context.Context, db workloadIdentityExecer, rows []reducerFactRow) error {
 	return factwrite.BatchInsertFacts(ctx, db, rows)
