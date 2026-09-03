@@ -238,11 +238,12 @@ were named here; five stay open and are tracked separately, none of them fixed
 in the original change. Item numbers are kept as written, because other
 documents and issues cite them.
 
-1. **All-scope OIDC bearer tokens. CLOSED**, on `claude/5167-ledger-drain`
-   (#6472), by the commit that added `scopedBearerRouteDenialReason`. As
-   originally written: the scoped-bearer branch of
-   `authMiddlewareWithRoutePolicy` took no equivalent class split, so an
-   all-scope bearer cleared the allowlist on membership alone. See
+1. **All-scope OIDC bearer tokens. CLOSED**, by the commit that added
+   `scopedBearerRouteDenialReason` in the follow-up PR to #6472 on
+   `claude/5167-allscope-bearer-policy`. As originally written: the
+   scoped-bearer branch of `authMiddlewareWithRoutePolicy` took no equivalent
+   class split, so an all-scope bearer cleared the allowlist on membership
+   alone. See
    [All-scope bearers](#all-scope-bearers-6450-item-1) below.
 2. **Ask's shared-key fallback for cookie callers** (`internal/askwiring`,
    `internal/ask/engine`), which can re-enter inner routes on a credential
@@ -309,20 +310,20 @@ the same change adds.
 
 ## All-scope bearers (#6450 item 1)
 
-Residual item 1 above is closed on `claude/5167-ledger-drain` (#6472). This
-section is the account; the freshness-family branch that closed it carries the
-route-specific half in
+Residual item 1 above is closed by the follow-up PR to #6472 on
+`claude/5167-allscope-bearer-policy`. This section is the account; that same
+branch's freshness-family evidence carries the route-specific half in
 [5167-freshness-family-allowlist.md](5167-freshness-family-allowlist.md#all-scope-bearers-6450-item-1-closed-here).
 
-### Why it was closed there and not on its own
+### Why it was closed with the freshness promotion and not on its own
 
 #6472 promotes `GET /api/v0/freshness/changed-since` and
 `GET /api/v0/freshness/generations` onto the scoped-token allowlist. Before
 that promotion those two routes answered an all-scope bearer with a middleware
 403; after it, with the residual open, they answered with a read across every
 tenant's rows. The promotion is what opens the hole on those routes, so the
-branch that promotes them is where it gets closed, rather than shipping a
-widened cross-tenant read behind a follow-up label.
+closure rides with it as its immediate follow-up, rather than shipping a
+widened cross-tenant read behind an open-ended follow-up label.
 
 ### The two shapes were never symmetric
 
