@@ -58,8 +58,16 @@ claim status, and the existing admission logs.
 - Run IDs are a function of instance, resolved trigger kind (schedule or
   bootstrap), and plan key. Work-item and generation IDs are a function of
   instance, plan key, and the target's normalized scope ID.
-- A blank configuration, or one with no targets, plans no work and returns a
-  zero-value run rather than an error.
+- A blank configuration, one that decodes to `{}`, and one with an empty
+  `targets` array are all validation failures, not empty plans. Two independent
+  guards reject them before the planner examines a target count:
+  `validatePlanRequest` (via the instance's own configuration validation) and
+  `parseOCIRegistryRuntimeTargets`, both surfacing
+  `OCI registry collector configuration requires targets` from
+  `internal/workflow/oci_registry_config.go`. The planner's zero-target early
+  return is therefore unreachable through this path — see
+  `TestOCIRegistryWorkPlannerRejectsBlankConfiguration`, which fails if either
+  guard stops rejecting.
 - Two configured targets that normalize to the same repository identity
   (different registry spelling, casing, or provider-specific defaulting) are
   rejected as a duplicate before any work item is built — see
@@ -77,11 +85,13 @@ claim status, and the existing admission logs.
 
 No-Regression Evidence: `go test ./internal/coordinator/ociregistry ./internal/coordinator -count=1`
 proves request validation, configured-target parsing and normalization,
-per-provider identity resolution across all seven providers, duplicate
-normalized-target rejection (asserted on the specific error text and
-colliding scope ID, not merely a non-nil error), deterministic run and
-work-item identities, and the root scheduling/admission wiring through
-`fakeOCIRegistryPlanner`. This is a same-behavior file move: no lease,
+per-provider identity resolution across all seven providers including the
+GHCR default-host and lowercase paths, duplicate normalized-target rejection
+(asserted on the specific error text and colliding scope ID, not merely a
+non-nil error), blank-configuration rejection, run, work-item, generation and
+fairness identities pinned byte-for-byte by
+`TestOCIRegistryWorkPlannerPinsExactIdentityStrings`, and the root
+scheduling/admission wiring through `fakeOCIRegistryPlanner`. This is a same-behavior file move: no lease,
 conflict-key, retry, batching, or ordering change.
 
 ## Related docs

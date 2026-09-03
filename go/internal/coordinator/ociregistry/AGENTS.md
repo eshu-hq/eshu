@@ -48,7 +48,13 @@ Adding a new OCI registry provider: add the adapter under
 Invalid instances, zero observation times, unsafe plan keys, malformed
 configuration JSON, an unsupported provider, and duplicate normalized targets
 all fail before any workflow row is returned. A blank or empty-target
-configuration returns no run and no items, not an error.
+configuration is one of those failures, not an empty plan. Both
+`validatePlanRequest` and `parseOCIRegistryRuntimeTargets` reject it
+independently, each surfacing
+`OCI registry collector configuration requires targets`. Do not "restore" an
+empty-plan path for it — the zero-target early return in `PlanOCIRegistryWork`
+is unreachable through this path, and a change that made it reachable would
+silently turn a misconfiguration into a successful no-op.
 
 ## Verification
 
