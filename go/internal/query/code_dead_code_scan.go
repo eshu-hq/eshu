@@ -164,8 +164,12 @@ func filterDuplicateDeadCodeRows(rows []map[string]any, seenEntityIDs map[string
 // graph fallback's Cypher alike (#5167).
 //
 // A scoped caller with no grants gets zero rows without either backend being
-// touched: an empty id list reads as "unrestricted" to both the SQL ANY() and
-// the Cypher IN predicate.
+// touched. That gate is load-bearing on the SQL half and defense in depth on
+// the graph half: the content builder omits its `repo_id = ANY($n)` predicate
+// entirely for an empty id list and would read the whole corpus, while the
+// Cypher builder renders its `IN $allowed_repository_ids` membership test
+// against empty arrays and matches nothing. See codeContentGrantScope
+// (code_repository_selector.go) for the two mechanisms.
 func (h *CodeHandler) deadCodeCandidateRows(
 	ctx context.Context,
 	repoID string,
