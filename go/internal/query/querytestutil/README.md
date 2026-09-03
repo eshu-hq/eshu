@@ -137,9 +137,16 @@ and both of its methods delegate to `FakeStatusReader`. None of those 19 files
 changed.
 
 The delegation is proven the same way: replacing `ReadStatusSnapshot`'s
-delegation with an unconditional zero-value return fails **20** root tests;
-restoring it returns to 0 failures. Both measured against the same 6539-test
-run of `go test ./internal/query/`, never `-run`.
+delegation with an unconditional zero-value return fails **35** root tests;
+restoring it returns to 0 failures. Both measured against the same 7864-test
+run of `go test ./internal/query/`, never `-run`, with the mutation applied
+through `go test -overlay=` so no tracked file changed.
+
+That is not the 20-failure, 6539-test pair this section carried before. The
+suite grew as families moved and other fakes were promoted, so more tests now
+reach this one. Neither number is a portable constant: re-measure both sides on
+the branch you are on rather than carrying either forward, which is the same
+rule the two graph-read fakes above state for their own counts.
 
 ## Dependencies
 
