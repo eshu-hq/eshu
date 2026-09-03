@@ -237,3 +237,48 @@ func ScopedRoutePolicyForGovernanceMode(governanceStatus GovernanceStatusConfig)
 		return BrowserSessionRoutePolicy{}
 	}
 }
+
+// The two helpers below are the governance status readback's half of the same
+// ESHU_GOVERNANCE_MODE table ScopedRoutePolicyForGovernanceMode reads above.
+// They sit here, next to it, rather than in status_governance.go, because the
+// bug they close was the two halves living apart: admission fell to the
+// fail-closed default on a mode it did not recognize while the readback
+// rewrote that same value to local_no_policy and told the operator the
+// deployment was permissive.
+
+// governanceModeUnrecognized is what the readback reports for a non-empty
+// ESHU_GOVERNANCE_MODE that is none of supported_modes. It is a readback
+// state, never a value an operator sets: the env registry still allows only
+// the three real modes.
+//
+// It exists because the readback used to fold such a value into
+// "local_no_policy", the most permissive posture, while
+// ScopedRoutePolicyForGovernanceMode was refusing every all-scope caller on a
+// grant-bound route. An operator who mistyped the mode read back the posture
+// they meant to configure and saw no sign of the refusals they were getting.
+const governanceModeUnrecognized = "unrecognized"
+
+// normalizeGovernanceMode keeps an unset mode on the documented
+// "local_no_policy" default and reports anything else it does not recognize as
+// governanceModeUnrecognized rather than rewriting it to a supported value.
+func normalizeGovernanceMode(mode string) string {
+	if strings.TrimSpace(mode) == "" {
+		return "local_no_policy"
+	}
+	return allowedOrDefault(mode, governanceModeUnrecognized,
+		"local_no_policy", "hosted_single_tenant", "hosted_multi_tenant")
+}
+
+// governanceAllScopeRoutePolicy reports whether a tenant-bound all-scope
+// credential is admitted on the routes whose handlers filter reads by the
+// caller's repository or scope grant. It asks
+// ScopedRoutePolicyForGovernanceMode, the same function cmd/api and
+// cmd/mcp-server pass the same config to, so an operator reading the status
+// route sees the decision the middleware is actually making.
+func governanceAllScopeRoutePolicy(config GovernanceStatusConfig) map[string]any {
+	state := "refused"
+	if ScopedRoutePolicyForGovernanceMode(config).AllowTenantBoundAllScopes {
+		state = "admitted"
+	}
+	return map[string]any{"grant_bound_routes": state}
+}

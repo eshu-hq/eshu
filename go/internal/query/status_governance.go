@@ -137,14 +137,18 @@ func buildGovernanceStatus(
 		"audit":                governanceAudit(normalized, semantic),
 		"aggregates":           governanceAggregates(normalized, semantic),
 		"reasons":              reasons,
-		"supported_modes":      []string{"local_no_policy", "hosted_single_tenant", "hosted_multi_tenant"},
-		"supported_states":     []string{"disabled", "partial", "enforcing", "stale", "invalid"},
+		// Derived from the caller's raw config through the same
+		// ScopedRoutePolicyForGovernanceMode both commands wire into their
+		// auth middleware, so the readback cannot claim one posture while
+		// admission applies another.
+		"all_scope_route_policy": governanceAllScopeRoutePolicy(config),
+		"supported_modes":        []string{"local_no_policy", "hosted_single_tenant", "hosted_multi_tenant"},
+		"supported_states":       []string{"disabled", "partial", "enforcing", "stale", "invalid"},
 	}
 }
 
 func normalizeGovernanceConfig(config GovernanceStatusConfig) GovernanceStatusConfig {
-	config.Mode = allowedOrDefault(config.Mode, "local_no_policy",
-		"local_no_policy", "hosted_single_tenant", "hosted_multi_tenant")
+	config.Mode = normalizeGovernanceMode(config.Mode)
 	config.State = allowedOrDefault(config.State, "disabled",
 		"disabled", "partial", "enforcing", "stale", "invalid")
 	config.SourceKind = allowedOrDefault(config.SourceKind, "unknown",
@@ -193,6 +197,9 @@ func governanceReasons(config GovernanceStatusConfig) []any {
 		reasons = append(reasons, "policy_stale")
 	case "partial":
 		reasons = append(reasons, "policy_partial")
+	}
+	if config.Mode == governanceModeUnrecognized {
+		reasons = append(reasons, "governance_mode_unrecognized")
 	}
 	if config.AuthMode == "shared_token" {
 		reasons = append(reasons, "shared_token_mode")
@@ -392,17 +399,18 @@ func nonNegative(value int) int {
 
 func uniqueAllowedReasons(reasons []string) []string {
 	allowed := map[string]struct{}{
-		"policy_not_configured":    {},
-		"policy_invalid":           {},
-		"policy_stale":             {},
-		"policy_partial":           {},
-		"shared_token_mode":        {},
-		"tenant_scope_missing":     {},
-		"subject_scope_missing":    {},
-		"egress_policy_missing":    {},
-		"redaction_policy_missing": {},
-		"retention_policy_missing": {},
-		"audit_sink_unavailable":   {},
+		"policy_not_configured":        {},
+		"policy_invalid":               {},
+		"policy_stale":                 {},
+		"policy_partial":               {},
+		"shared_token_mode":            {},
+		"governance_mode_unrecognized": {},
+		"tenant_scope_missing":         {},
+		"subject_scope_missing":        {},
+		"egress_policy_missing":        {},
+		"redaction_policy_missing":     {},
+		"retention_policy_missing":     {},
+		"audit_sink_unavailable":       {},
 	}
 	seen := map[string]struct{}{}
 	out := []string{}

@@ -110,7 +110,8 @@ The governance status report composes explicit runtime readback from
 `ESHU_GOVERNANCE_*` settings and existing semantic aggregate status. It reports
 `mode`, `state`, `source_kind`, optional `policy_revision_hash`, readiness
 booleans, `identity`, `tenancy`, `egress`, `semantic`, `extensions`,
-`redaction`, `retention`, `audit`, aggregate counts, and bounded reason codes.
+`redaction`, `retention`, `audit`, `all_scope_route_policy`, aggregate counts,
+and bounded reason codes.
 The `audit` section reports only event, denied, unavailable, event-type,
 actor-class, scope-class, reason, and ACL-state counts.
 Detailed audit event search is intentionally private until a dedicated query
@@ -121,6 +122,18 @@ document titles, provider endpoints, prompts, provider responses, credential
 handles, and tokens are not valid query or ticket fields. Detailed event bodies
 follow the hosted policy retention window in the private audit sink; status and
 MCP readbacks retain aggregate counts only.
+`all_scope_route_policy.grant_bound_routes` reports whether a tenant-bound
+all-scope credential is `admitted` or `refused` on the routes whose handlers
+filter reads by the caller's repository or scope grant. It comes from the same
+mode mapping the auth middleware applies, so the readback and the 403s an
+operator is seeing cannot describe different postures. A non-empty
+`ESHU_GOVERNANCE_MODE` that is not one of `supported_modes` reads back as
+`mode=unrecognized` with the reason code `governance_mode_unrecognized` and a
+`refused` route policy, rather than being rewritten to `local_no_policy`; the
+configured value itself is not echoed, because this route never returns an
+operator-supplied string. `unrecognized` is a readback state only — the three
+values in `supported_modes` remain the only ones an operator sets.
+
 Local development without governance config reports `local_no_policy` and
 `policy_not_configured`; hosted deployments can report `disabled`, `partial`,
 `enforcing`, `stale`, or `invalid` without exposing policy bodies. The route

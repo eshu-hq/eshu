@@ -146,7 +146,7 @@ environment keys:
 
 | Key | Safe value shape |
 | --- | --- |
-| `ESHU_GOVERNANCE_MODE` | `local_no_policy`, `hosted_single_tenant`, or `hosted_multi_tenant` |
+| `ESHU_GOVERNANCE_MODE` | `local_no_policy`, `hosted_single_tenant`, or `hosted_multi_tenant`; anything else reads back as `unrecognized` |
 | `ESHU_GOVERNANCE_STATE` | `disabled`, `partial`, `enforcing`, `stale`, or `invalid` |
 | `ESHU_GOVERNANCE_SOURCE_KIND` | `environment`, `kubernetes_secret`, `config_map`, `postgres_revision`, or `unknown` |
 | `ESHU_GOVERNANCE_POLICY_REVISION_HASH` | Opaque `sha256:` revision hash only |
@@ -486,7 +486,12 @@ no grant to intersect, so the read would run across every tenant. Under
 those routes refuse it with `403 permission_denied` and record
 `scoped_route_all_scope_grant_required` in `governance_audit_events`, which is
 a different remedy from `scoped_route_not_enabled`: narrow the credential, or
-opt the deployment in, rather than wire a missing route up. `local_no_policy`,
+opt the deployment in, rather than wire a missing route up. `GET
+/api/v0/status/governance` reports that same decision as
+`all_scope_route_policy.grant_bound_routes` (`admitted` or `refused`), read off
+the same mode mapping, and a mistyped mode reads back as `mode=unrecognized`
+with the reason `governance_mode_unrecognized` instead of the permissive
+`local_no_policy` — so the readback names the typo that is causing the 403s. `local_no_policy`,
 `hosted_single_tenant`, and an unset mode admit it, which is the intended
 posture where one graph belongs to one tenant. The identity and admin routes
 under `/api/v0/auth/`, and the static catalog and request-reshape routes, hold

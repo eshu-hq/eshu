@@ -19,7 +19,7 @@ const openAPIPathsGovernanceStatus = `
                 "schema": {
                   "type": "object",
                   "properties": {
-                    "mode": {"type": "string", "enum": ["local_no_policy", "hosted_single_tenant", "hosted_multi_tenant"]},
+                    "mode": {"type": "string", "enum": ["local_no_policy", "hosted_single_tenant", "hosted_multi_tenant", "unrecognized"], "description": "Configured governance posture. \"unrecognized\" is a readback state, not a settable value: ESHU_GOVERNANCE_MODE held something that is not one of supported_modes, and the deployment is fail-closed for all-scope callers on grant-bound routes."},
                     "state": {"type": "string", "enum": ["disabled", "partial", "enforcing", "stale", "invalid"]},
                     "source_kind": {"type": "string", "enum": ["environment", "kubernetes_secret", "config_map", "postgres_revision", "unknown"]},
                     "policy_revision_hash": {"type": "string"},
@@ -47,6 +47,13 @@ const openAPIPathsGovernanceStatus = `
                     },
                     "aggregates": {"type": "object"},
                     "reasons": {"type": "array", "items": {"type": "string"}},
+                    "all_scope_route_policy": {
+                      "type": "object",
+                      "description": "Whether a tenant-bound all-scope credential is admitted on routes whose handlers filter reads by the caller's repository or scope grant. Derived from the same mode mapping the auth middleware applies.",
+                      "properties": {
+                        "grant_bound_routes": {"type": "string", "enum": ["admitted", "refused"]}
+                      }
+                    },
                     "supported_modes": {"type": "array", "items": {"type": "string"}},
                     "supported_states": {"type": "array", "items": {"type": "string"}}
                   }

@@ -257,7 +257,12 @@ func TestGovernanceStatusConfigDropsUnsafeStatusValues(t *testing.T) {
 			t.Fatalf("governance status leaked unsafe config value %q: %s", forbidden, string(body))
 		}
 	}
-	if got, want := payload["mode"], "local_no_policy"; got != want {
+	// An unsafe mode value is dropped from the response, as every other
+	// unsafe value here is -- but it is reported as "unrecognized" rather than
+	// rewritten to the permissive "local_no_policy", which would have the
+	// readback contradict the fail-closed admission the same value produces
+	// (see TestGovernanceStatusReadbackAgreesWithAllScopeAdmission).
+	if got, want := payload["mode"], "unrecognized"; got != want {
 		t.Fatalf("mode = %#v, want %#v", got, want)
 	}
 	if got, want := payload["state"], "disabled"; got != want {
