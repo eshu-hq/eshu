@@ -4,6 +4,7 @@
 package query
 
 import (
+	"bytes"
 	"context"
 	"database/sql/driver"
 	"net/http"
@@ -193,4 +194,127 @@ func TestCrossRepoDeadCodeSignalTruncationKeepsCandidatesUnknown(t *testing.T) {
 			t.Fatalf("evidence[%s] = %#v, want the consumer_evidence_truncated marker so the candidate cannot fall through to dead", entityID, rows)
 		}
 	}
+}
+
+// TestCrossRepoDeadCodeSignalTruncationMarksEntitiesTheSignalNeverReached is
+// the half of the fail-safe a per-entity view is needed for.
+//
+// Both reads stop at the same 1001-row sentinel, and the signal read sees every
+// tenant's consumers, so one busy entity early in the page can spend the whole
+// signal budget. A later entity is then never reached by the signal read, and
+// its own granted page rows say nothing about the consumers the caller cannot
+// see. Reading those page rows as proof would answer live_by_consumer for a
+// symbol whose hidden consumer was never read, and the route's contract is that
+// a hidden consumer leaves the answer unknown_needs_evidence.
+func TestCrossRepoDeadCodeSignalTruncationMarksEntitiesTheSignalNeverReached(t *testing.T) {
+	t.Parallel()
+
+	observedAt := time.Date(2026, 6, 29, 13, 0, 0, 0, time.UTC)
+	pageRows := [][]driver.Value{{
+		"producer-late", codeGrantConsumerRepo, "checkout-api", "checkout-root",
+		int64(1), "reachable", 0.95, codeprovenance.MethodImportBinding,
+		[]byte(`["CALLS:checkout-root->producer-late"]`), []byte(`["go.main_function"]`),
+		"gen-a", "active", observedAt, observedAt,
+	}}
+	signalRows := make([][]driver.Value, 0, maxCrossRepoDeadCodeConsumerEvidenceRows+1)
+	for i := 0; i < maxCrossRepoDeadCodeConsumerEvidenceRows+1; i++ {
+		signalRows = append(signalRows, []driver.Value{
+			"producer-early", codeGrantOtherRepo, "checkout-api", "checkout-root",
+			int64(2), "reachable", 0.9, codeprovenance.MethodImportBinding,
+			[]byte(`["CALLS:checkout-root->producer-early"]`), []byte(`["go.main_function"]`),
+			"gen-a", "active", observedAt, observedAt,
+		})
+	}
+	db, _ := openRecordingContentReaderDB(t, []recordingContentReaderQueryResult{
+		{columns: crossRepoDeadCodeEvidenceColumns(), rows: pageRows},
+		{columns: crossRepoDeadCodeEvidenceColumns(), rows: signalRows},
+	})
+	reader := NewContentReader(db)
+
+	evidence, _, err := reader.CrossRepoDeadCodeConsumerEvidence(
+		context.Background(),
+		codeGrantGrantedRepo,
+		[]string{"producer-early", "producer-late"},
+		[]string{codeGrantConsumerRepo},
+	)
+	if err != nil {
+		t.Fatalf("CrossRepoDeadCodeConsumerEvidence() error = %v, want nil", err)
+	}
+	late := evidence["producer-late"]
+	if !crossRepoDeadCodeTruncationMarked(late) {
+		t.Fatalf("evidence[producer-late] = %#v, want the consumer_evidence_truncated marker: the signal read stopped before this entity", late)
+	}
+	if got, want := len(late), 2; got != want {
+		t.Fatalf("len(evidence[producer-late]) = %d, want %d (the granted page row kept, the marker added)", got, want)
+	}
+	if got, want := late[0].ConsumerRepoID, codeGrantConsumerRepo; got != want {
+		t.Fatalf("evidence[producer-late][0].ConsumerRepoID = %q, want %q; the marker must not replace the granted row", got, want)
+	}
+	if !crossRepoDeadCodeTruncationMarked(evidence["producer-early"]) {
+		t.Fatalf("evidence[producer-early] = %#v, want the marker: the read stopped inside this entity's rows", evidence["producer-early"])
+	}
+}
+
+// TestHandleCrossRepoDeadCodeTruncatedSignalOutranksStrongEvidence is the same
+// case at the route: a candidate carrying both a strong granted consumer and
+// the truncation marker answers unknown_needs_evidence, never live_by_consumer.
+func TestHandleCrossRepoDeadCodeTruncatedSignalOutranksStrongEvidence(t *testing.T) {
+	t.Parallel()
+
+	content := &crossRepoDeadCodeContentStore{
+		fakeDeadCodeContentStore: fakeDeadCodeContentStore{
+			fakePortContentStore: fakePortContentStore{
+				repositories: []RepositoryCatalogEntry{{ID: "repo-producer", Name: "payments-lib"}},
+			},
+			entities: map[string]EntityContent{
+				"producer-late": {
+					EntityID:     "producer-late",
+					RepoID:       "repo-producer",
+					RelativePath: "pkg/payments/late.go",
+					EntityType:   "Function",
+					EntityName:   "maybeLive",
+					Language:     "go",
+					SourceCache:  "func maybeLive() {}",
+				},
+			},
+		},
+		rows: []map[string]any{
+			deadCodeInvestigationRow("producer-late", "maybeLive", "go", "pkg/payments/late.go", 8, 12),
+		},
+		evidenceByEntity: map[string][]crossRepoDeadCodeEvidence{
+			"producer-late": {
+				crossRepoDeadCodeGrantConsumerRow(codeGrantConsumerRepo, "producer-late"),
+				truncatedCrossRepoDeadCodeEvidence(),
+			},
+		},
+	}
+	handler := &CodeHandler{Profile: ProfileLocalAuthoritative, Content: content, Neo4j: fakeGraphReader{}}
+	mux := http.NewServeMux()
+	handler.Mount(mux)
+
+	req := httptest.NewRequest(
+		http.MethodPost,
+		"/api/v0/code/dead-code/cross-repo",
+		bytes.NewBufferString(`{"repo_id":"repo-producer","limit":10}`),
+	)
+	req.Header.Set("Accept", EnvelopeMIMEType)
+	rec := httptest.NewRecorder()
+	mux.ServeHTTP(rec, req)
+
+	if got, want := rec.Code, http.StatusOK; got != want {
+		t.Fatalf("status = %d, want %d body=%s", got, want, rec.Body.String())
+	}
+	buckets := decodeEnvelopeData(t, rec.Body.Bytes())["candidate_buckets"].(map[string]any)
+	unknown := assertCrossRepoDeadCodeBucketEntity(t, buckets, "unknown", "producer-late")
+	assertCrossRepoDeadCodeReason(t, unknown, "consumer_evidence_truncated")
+	assertCrossRepoDeadCodeBucketMissing(t, buckets, "live_by_consumer", "producer-late")
+}
+
+func crossRepoDeadCodeTruncationMarked(rows []crossRepoDeadCodeEvidence) bool {
+	for _, row := range rows {
+		if row.NeedsEvidence && row.Reason == "consumer_evidence_truncated" {
+			return true
+		}
+	}
+	return false
 }

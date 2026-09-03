@@ -271,12 +271,16 @@ ungranted repository also consumes the symbol. Counting that consumer buried
 A's evidence under `permission_hidden_consumer`;
 `TestCrossRepoDeadCodeHiddenCountHonoursTheConsumerSelector` is the guard.
 
-The truncation fail-safe covers both reads. Either one reaching the 1001-row
-sentinel marks an entity left with zero page rows `consumer_evidence_truncated`,
-so a short page reads as "unknown", never as "dead"
-(`TestCrossRepoDeadCodeSignalTruncationKeepsCandidatesUnknown`). An entity that
-does have page rows is classified from them, and those yield either strong live
-evidence or a needs-evidence reason — never `dead`.
+The truncation fail-safe is per entity, not per request. Each read reports the
+entities it finished — the ones it returned rows for and moved past before the
+cap — and every other entity takes `consumer_evidence_truncated` and answers
+unknown, never `dead`. Page rows are not coverage: an entity with strong granted
+evidence still takes the marker when the signal read stopped before reaching it,
+because that unread half is where an ungranted consumer would be. Coverage is
+read off the returned rows rather than by ranking ids against the last one
+returned, which would need the database's collation, not Go's byte order. Both
+halves are pinned: `TestCrossRepoDeadCodeSignalTruncationKeepsCandidatesUnknown`
+and `TestCrossRepoDeadCodeSignalTruncationMarksEntitiesTheSignalNeverReached`.
 
 ### Two Bounded Reads, Not An Unbounded Complement
 
@@ -315,10 +319,9 @@ candidates — because `code_reachability_entity_lookup_idx` leads with
 `entity_id`, the `ORDER BY` leads with `entity_id`, and the `Incremental Sort`
 above therefore sorts one entity group at a time.
 
-That is why the truncation marking is load-bearing rather than defensive: a page
-whose first entity carries more than 1,001 consumer rows spends the sentinel
-there, leaving every later entity's signal unread. Those entities have no page
-rows either, so the marking catches them and they answer unknown.
+That is why the marking is load-bearing rather than defensive: a page whose
+first entity carries more than 1,001 consumer rows spends the sentinel there,
+leaving every later entity unproven whatever its own page rows say.
 `hidden_consumer_evidence_count` is in no OpenAPI schema or public reference.
 
 ## Query-Plan Source Coverage
@@ -380,6 +383,7 @@ mutation was restored and its guard rerun at exit `0`.
 | 13 | `applyRepositorySelectorForCapability` rejects an ungranted selector with `404` instead of `400` | `go test ./internal/query -run TestUngrantedRepositorySelectorIsRejectedWith400 -count=1` | `1` (`status = 404, want 400`) |
 | 14 | `complexityListAnchor` keys only on `access.Scoped()`, ignoring the supplied `repoID` | `go test ./internal/query -run TestComplexityListUnscopedRepoIDSelectorFiltersToThatRepository -count=1` | `1` |
 | 15 | `bucketCrossRepoDeadCodeResults` counts the signal rows without the request's consumer selector | `go test ./internal/query -run TestCrossRepoDeadCodeHiddenCountHonoursTheConsumerSelector -count=1` | `1` (a consumer outside the requested set was counted as hidden) |
+| 16 | `markCrossRepoDeadCodeConsumerEvidenceTruncated` skips any entity that already has page rows, the shape before this pass | `go test ./internal/query -run 'TestCrossRepoDeadCodeSignalTruncationMarksEntitiesTheSignalNeverReached\|TestContentReaderCrossRepoDeadCodeEvidenceMarksMissingEntitiesUnknownWhenTruncated' -count=1` | `1` (2 failures: the entity the signal read never reached, and the one it stopped inside) |
 
 An earlier attempt at #1 deleted the whole helper body and failed as an unused
 import rather than an assertion, which proves nothing; the mutations above keep

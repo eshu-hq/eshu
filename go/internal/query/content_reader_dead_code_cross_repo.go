@@ -42,6 +42,12 @@ const maxCrossRepoDeadCodeConsumerEvidenceRows = 1000
 // ungranted consumer's id, name, or citation is ever projected into an answer.
 // An unscoped caller runs the page read only, and its statement text is
 // unchanged.
+//
+// Either read can stop at the sentinel, and the entities it did not finish are
+// marked consumer_evidence_truncated in the first return value -- per entity,
+// not per request. An entity the signal read never reached carries that marker
+// even when its own page rows are strong: those rows are the granted consumers,
+// and the unread half is where an ungranted one would be.
 func (cr *ContentReader) CrossRepoDeadCodeConsumerEvidence(
 	ctx context.Context,
 	producerRepoID string,
@@ -65,67 +71,106 @@ func (cr *ContentReader) CrossRepoDeadCodeConsumerEvidence(
 	)
 	defer span.End()
 
-	result, truncated, err := cr.crossRepoDeadCodeConsumerRows(ctx, producerRepoID, entityIDs, allowedRepositoryIDs)
+	result, pageCoverage, err := cr.crossRepoDeadCodeConsumerRows(ctx, producerRepoID, entityIDs, allowedRepositoryIDs)
 	if err != nil {
 		span.RecordError(err)
 		return nil, nil, err
 	}
 	signal := map[string][]crossRepoDeadCodeEvidence{}
+	signalCoverage := crossRepoDeadCodeConsumerCoverage{}
 	if len(allowedRepositoryIDs) > 0 {
-		rows, signalTruncated, err := cr.crossRepoDeadCodeConsumerRows(ctx, producerRepoID, entityIDs, nil)
+		rows, coverage, err := cr.crossRepoDeadCodeConsumerRows(ctx, producerRepoID, entityIDs, nil)
 		if err != nil {
 			span.RecordError(err)
 			return nil, nil, err
 		}
 		signal = rows
-		truncated = truncated || signalTruncated
+		signalCoverage = coverage
 	}
-	// Either read reaching the sentinel means an entity may be missing rows it
-	// has, so an entity left with nothing is marked unknown rather than read as
-	// having no consumer at all.
-	if truncated {
-		markCrossRepoDeadCodeConsumerEvidenceTruncated(result, entityIDs)
-	}
+	// Coverage is per entity, not per request. Either read reaching the sentinel
+	// leaves the entities it never finished unproven, and an entity the signal
+	// read never reached is unproven however strong its own page rows look:
+	// those rows are the granted consumers, and the question the signal read
+	// answers is whether there is an ungranted one.
+	markCrossRepoDeadCodeConsumerEvidenceTruncated(result, entityIDs, pageCoverage, signalCoverage)
 	span.SetAttributes(attribute.Int("db.rows.consumer_signal_entities", len(signal)))
 	return result, signal, nil
 }
 
-// crossRepoDeadCodeConsumerRows runs one consumer-evidence statement and groups
-// its rows by producer entity. It reports whether the read reached the
-// maxCrossRepoDeadCodeConsumerEvidenceRows sentinel, which is the caller's cue
-// that an entity left with no rows may still have consumers.
+// crossRepoDeadCodeConsumerCoverage says which producer entities one bounded
+// consumer read is proven to have read in full.
+//
+// A read that stops at the sentinel proves nothing about the entities it never
+// reached, and the statement's ORDER BY is not a boundary this process can
+// compare against: it orders entity ids in the database's collation, which is
+// not Go's byte order, so an entity id ranked against the last one returned can
+// land on the wrong side. Coverage is therefore taken from the rows the read
+// actually returned. An entity is proven complete when the read returned rows
+// for it and it is not the last entity the read returned -- the read moved past
+// it before the cap. Every other entity, including one with no rows at all, is
+// unproven and takes the truncation marker.
+type crossRepoDeadCodeConsumerCoverage struct {
+	truncated bool
+	complete  map[string]struct{}
+}
+
+// covers reports whether this read is proven to have returned every row the
+// entity has. A read that never hit the sentinel covers every entity.
+func (c crossRepoDeadCodeConsumerCoverage) covers(entityID string) bool {
+	if !c.truncated {
+		return true
+	}
+	_, ok := c.complete[entityID]
+	return ok
+}
+
+// crossRepoDeadCodeConsumerRows runs one consumer-evidence statement, groups its
+// rows by producer entity, and reports which entities the read finished. Rows
+// past the maxCrossRepoDeadCodeConsumerEvidenceRows sentinel are dropped, and
+// the entity they belong to stays unproven.
 func (cr *ContentReader) crossRepoDeadCodeConsumerRows(
 	ctx context.Context,
 	producerRepoID string,
 	entityIDs []string,
 	allowedRepositoryIDs []string,
-) (map[string][]crossRepoDeadCodeEvidence, bool, error) {
+) (map[string][]crossRepoDeadCodeEvidence, crossRepoDeadCodeConsumerCoverage, error) {
 	query, args := buildCrossRepoDeadCodeConsumerEvidenceQuery(producerRepoID, entityIDs, allowedRepositoryIDs)
+	coverage := crossRepoDeadCodeConsumerCoverage{}
 	rows, err := cr.db.QueryContext(ctx, query, args...)
 	if err != nil {
-		return nil, false, fmt.Errorf("cross-repo dead code consumer evidence: %w", err)
+		return nil, coverage, fmt.Errorf("cross-repo dead code consumer evidence: %w", err)
 	}
 	defer func() { _ = rows.Close() }()
 
 	result := make(map[string][]crossRepoDeadCodeEvidence, len(entityIDs))
 	rowCount := 0
-	truncated := false
+	lastEntityID := ""
 	for rows.Next() {
 		entityID, evidence, err := scanCrossRepoDeadCodeEvidence(rows)
 		if err != nil {
-			return nil, false, err
+			return nil, coverage, err
 		}
 		rowCount++
 		if rowCount > maxCrossRepoDeadCodeConsumerEvidenceRows {
-			truncated = true
+			coverage.truncated = true
 			continue
 		}
+		lastEntityID = entityID
 		result[entityID] = append(result[entityID], evidence)
 	}
 	if err := rows.Err(); err != nil {
-		return nil, false, err
+		return nil, coverage, err
 	}
-	return result, truncated, nil
+	if coverage.truncated {
+		coverage.complete = make(map[string]struct{}, len(result))
+		for entityID := range result {
+			if entityID == lastEntityID {
+				continue
+			}
+			coverage.complete[entityID] = struct{}{}
+		}
+	}
+	return result, coverage, nil
 }
 
 // crossRepoDeadCodeGrantFilter appends the caller's grant array to args and
@@ -187,15 +232,23 @@ LIMIT %d
 	return query, args
 }
 
+// markCrossRepoDeadCodeConsumerEvidenceTruncated adds the truncation marker to
+// every entity neither read is proven to have finished. The marker carries
+// NeedsEvidence, so the handler answers unknown_needs_evidence for that entity
+// even when its page rows would otherwise read as strong live evidence: page
+// rows are the consumers inside the grant, and an unfinished signal read is
+// exactly the case where an ungranted consumer may be sitting unread.
 func markCrossRepoDeadCodeConsumerEvidenceTruncated(
 	result map[string][]crossRepoDeadCodeEvidence,
 	entityIDs []string,
+	page crossRepoDeadCodeConsumerCoverage,
+	signal crossRepoDeadCodeConsumerCoverage,
 ) {
 	for _, entityID := range entityIDs {
-		if len(result[entityID]) > 0 {
+		if page.covers(entityID) && signal.covers(entityID) {
 			continue
 		}
-		result[entityID] = []crossRepoDeadCodeEvidence{{
+		result[entityID] = append(result[entityID], crossRepoDeadCodeEvidence{
 			EvidenceFamily:   "code_reachability",
 			Citation:         "code_reachability_rows:truncated",
 			ConfidenceLabel:  "unknown",
@@ -211,7 +264,7 @@ func markCrossRepoDeadCodeConsumerEvidenceTruncated(
 			Depth:            0,
 			GenerationID:     "",
 			Ambiguous:        false,
-		}}
+		})
 	}
 }
 
