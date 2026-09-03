@@ -992,6 +992,44 @@ exercises `buildProjection` and stayed at root, each file renamed with a
 trigger directly (no-fact, empty-generation, OCI-manifest anchor, the
 two-tier source-system fallback, the AWS-relationship decode substitution
 in both directions, and the moved Dockerfile-tombstone case).
+The supply-chain-impact builder moved into
+`internal/projector/supplychainimpact`. It triggers on the earliest accepted
+fact across twelve candidate kinds — vulnerability CVE, affected-package,
+EPSS-score, known-exploited, and suppression facts, a provider
+security-alert fact, package-registry package identity, an SBOM component,
+and OCI manifest/index/tag-observation/referrer facts — via
+`FirstAcrossKinds`, matching the pre-extraction root behavior of "earliest
+fact in original order," not "earliest fact of the first-checked kind," and
+carries no decode seam. Its private `supplyChainImpactSourceSystem` helper
+was checked body-for-body against `projectorintent.SourceSystem` and found
+identical (trim `SourceRef.SourceSystem`, else trim `CollectorKind`, no
+third tier), so the substitution is behavior-identical by construction and
+the child pins both tiers with the two set to different values, the
+`cicdruncorrelation` way. Two builder-only cases existed at root: the
+family's own test file called `buildSupplyChainImpactReducerIntent` directly
+for a source-snapshot-only negative case, replaced at root with a
+`buildProjection`-level equivalent
+(`TestBuildProjectionSkipsSupplyChainImpactForSnapshotOnlyEvidence`); and
+`security_alert_reconciliation_intents_test.go` carried a second builder-only
+case (a provider-alert reason assertion) alongside its own
+`buildProjection`-level tests. Both moved into the new
+`supplychainimpact/impact_intents_test.go`; every other case in both root
+files stayed, exercising `buildProjection`. Unlike several sibling families,
+the root ordered fan-out parity fixture
+(`scope_generation_intents_fanout_parity_test.go`) genuinely covers this
+domain: it carries a `package-registry.package` fact ahead of a
+`security_alert.repository_alert` fact and pins the resulting
+`factID`/`entityKey`/`reason`/`sourceSystem` for
+`reducer.DomainSupplyChainImpact`, so this family's own package docs say so
+truthfully rather than repeating the "no fixture coverage" caveat that
+applies to `cicdruncorrelation` and others. Root `AGENTS.md` had exactly one
+line of headroom left under the 500-line closed-list Markdown cap
+(`scripts/lib/markdown-line-cap-grandfather.tsv`, which refuses a new row for
+a file with none) when this family moved — too little for the usual
+narrative bullet the four families before it each received — so this
+extraction's "family (#6057)" bullet was left out of root `AGENTS.md`
+rather than forcing a same-PR trim of unrelated prior bullets; the full
+detail lives in the child's own `AGENTS.md` and `README.md` instead.
 Coordinator `_scheduler.go` halves extract cleanly
 (they implement a root Planner interface); the `_service.go` halves are
 methods on the shared `Service` struct and stay until Service is

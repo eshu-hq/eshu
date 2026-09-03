@@ -57,25 +57,17 @@ func TestBuildProjectionQueuesSecurityAlertReconciliationForProviderAlert(t *tes
 	}
 }
 
-func TestBuildProjectionQueuesSupplyChainImpactForProviderAlert(t *testing.T) {
-	t.Parallel()
-
-	scopeValue := scope.IngestionScope{ScopeID: "repo://github/eshu-hq/eshu"}
-	generation := scope.ScopeGeneration{ScopeID: scopeValue.ScopeID, GenerationID: "generation-1"}
-	intent, ok := buildSupplyChainImpactReducerIntent(scopeValue, generation, newReducerIntentFactIndex([]facts.Envelope{{
-		FactID:        "alert-1",
-		ScopeID:       scopeValue.ScopeID,
-		GenerationID:  generation.GenerationID,
-		FactKind:      facts.SecurityAlertRepositoryAlertFactKind,
-		SchemaVersion: facts.SecurityAlertSchemaVersionV1,
-	}}))
-	if !ok {
-		t.Fatal("buildSupplyChainImpactReducerIntent() ok = false, want true for provider alert")
-	}
-	if got, want := intent.Reason, "provider security alert evidence observed"; got != want {
-		t.Fatalf("Reason = %q, want %q", got, want)
-	}
-}
+// TestBuildProjectionQueuesSupplyChainImpactForProviderAlert previously
+// called the root buildSupplyChainImpactReducerIntent directly. That builder
+// moved into internal/projector/supplychainimpact with this extraction; the
+// equivalent case (a security_alert.repository_alert fact producing the
+// "provider security alert evidence observed" reason) is now
+// TestBuildSupplyChainImpactReducerIntentReasonBySourceKind's "security
+// alert" subtest in supplychainimpact/impact_intents_test.go. The provider
+// alert fact still reaches buildProjection through
+// TestBuildProjectionQueuesSecurityAlertReconciliationForProviderAlert above,
+// which asserts the security_alert_reconciliation intent the same fact also
+// produces; that dispatcher case is unchanged by this move.
 
 func TestBuildProjectionQueuesSecurityAlertReconciliationForPackageRegistryPackage(t *testing.T) {
 	t.Parallel()

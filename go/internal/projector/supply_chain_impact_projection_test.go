@@ -186,19 +186,32 @@ func TestBuildProjectionQueuesSupplyChainImpactForOCIReferrerEvidence(t *testing
 	}
 }
 
-func TestBuildSupplyChainImpactReducerIntentSkipsSnapshotOnlyEvidence(t *testing.T) {
+// TestBuildProjectionSkipsSupplyChainImpactForSnapshotOnlyEvidence proves a
+// source-snapshot-only generation does not queue a supply_chain_impact
+// intent. The builder-level equivalent
+// (TestBuildSupplyChainImpactReducerIntentNoFactNoIntent) moved into
+// supplychainimpact/impact_intents_test.go with the extraction; this
+// dispatcher-level case stays at root because it exercises buildProjection,
+// not the builder directly.
+func TestBuildProjectionSkipsSupplyChainImpactForSnapshotOnlyEvidence(t *testing.T) {
 	t.Parallel()
 
 	scopeValue := scope.IngestionScope{ScopeID: "vuln-intel://first/epss"}
 	generation := scope.ScopeGeneration{ScopeID: scopeValue.ScopeID, GenerationID: "generation-1"}
-	_, ok := buildSupplyChainImpactReducerIntent(scopeValue, generation, newReducerIntentFactIndex([]facts.Envelope{{
-		FactID:       "snapshot",
-		ScopeID:      scopeValue.ScopeID,
-		GenerationID: generation.GenerationID,
-		FactKind:     facts.VulnerabilitySourceSnapshotFactKind,
-	}}))
-	if ok {
-		t.Fatal("buildSupplyChainImpactReducerIntent() ok = true, want false for source snapshot only")
+	projection, err := buildProjection(scopeValue, generation, []facts.Envelope{{
+		FactID:        "snapshot",
+		ScopeID:       scopeValue.ScopeID,
+		GenerationID:  generation.GenerationID,
+		FactKind:      facts.VulnerabilitySourceSnapshotFactKind,
+		SchemaVersion: facts.VulnerabilityIntelligenceSchemaVersionV1,
+	}})
+	if err != nil {
+		t.Fatalf("buildProjection() error = %v, want nil", err)
+	}
+	for _, intent := range projection.reducerIntents {
+		if intent.Domain == reducer.DomainSupplyChainImpact {
+			t.Fatalf("buildProjection() queued a supply_chain_impact intent for source snapshot only: %#v", intent)
+		}
 	}
 }
 

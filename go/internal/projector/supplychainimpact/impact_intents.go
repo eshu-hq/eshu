@@ -1,19 +1,16 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package projector
+package supplychainimpact
 
 import (
-	"strings"
-
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	projectorintent "github.com/eshu-hq/eshu/go/internal/projector/intent"
 	"github.com/eshu-hq/eshu/go/internal/reducer"
-	"github.com/eshu-hq/eshu/go/internal/scope"
 )
 
-// supplyChainImpactCandidateFactKinds are the fact kinds
-// supplyChainImpactTriggerFact accepts.
-var supplyChainImpactCandidateFactKinds = []string{
+// candidateFactKinds are the fact kinds triggerFact ever returns true for.
+var candidateFactKinds = []string{
 	facts.VulnerabilityCVEFactKind,
 	facts.VulnerabilityAffectedPackageFactKind,
 	facts.VulnerabilityEPSSScoreFactKind,
@@ -28,27 +25,34 @@ var supplyChainImpactCandidateFactKinds = []string{
 	facts.OCIImageReferrerFactKind,
 }
 
-func buildSupplyChainImpactReducerIntent(
-	scopeValue scope.IngestionScope,
-	generation scope.ScopeGeneration,
-	index *reducerIntentFactIndex,
-) (ReducerIntent, bool) {
-	envelope, ok := index.firstAcrossKinds(supplyChainImpactTriggerFact, supplyChainImpactCandidateFactKinds...)
+// BuildSupplyChainImpactReducerIntent enqueues one supply_chain_impact
+// reducer intent per scope generation that observed vulnerability
+// intelligence, a provider security alert, package-registry identity, an
+// SBOM component, or OCI manifest/index/tag/referrer evidence. The reducer
+// owns the cross-source vulnerability-to-package-to-deployment join; this
+// package only selects the trigger fact, a short human-readable reason, and
+// the source-system label.
+func BuildSupplyChainImpactReducerIntent(
+	scopeID string,
+	generationID string,
+	lookup projectorintent.FactLookup,
+) (projectorintent.ReducerIntent, bool) {
+	envelope, ok := lookup.FirstAcrossKinds(triggerFact, candidateFactKinds...)
 	if !ok {
-		return ReducerIntent{}, false
+		return projectorintent.ReducerIntent{}, false
 	}
-	return ReducerIntent{
-		ScopeID:      scopeValue.ScopeID,
-		GenerationID: generation.GenerationID,
+	return projectorintent.ReducerIntent{
+		ScopeID:      scopeID,
+		GenerationID: generationID,
 		Domain:       reducer.DomainSupplyChainImpact,
-		EntityKey:    "supply_chain_impact:" + scopeValue.ScopeID,
-		Reason:       supplyChainImpactReason(envelope),
+		EntityKey:    "supply_chain_impact:" + scopeID,
+		Reason:       reason(envelope),
 		FactID:       envelope.FactID,
-		SourceSystem: supplyChainImpactSourceSystem(envelope),
+		SourceSystem: projectorintent.SourceSystem(envelope),
 	}, true
 }
 
-func supplyChainImpactTriggerFact(envelope facts.Envelope) bool {
+func triggerFact(envelope facts.Envelope) bool {
 	switch envelope.FactKind {
 	case facts.VulnerabilityCVEFactKind,
 		facts.VulnerabilityAffectedPackageFactKind,
@@ -68,7 +72,7 @@ func supplyChainImpactTriggerFact(envelope facts.Envelope) bool {
 	}
 }
 
-func supplyChainImpactReason(envelope facts.Envelope) string {
+func reason(envelope facts.Envelope) string {
 	if envelope.FactKind == facts.SecurityAlertRepositoryAlertFactKind {
 		return "provider security alert evidence observed"
 	}
@@ -89,11 +93,4 @@ func supplyChainImpactReason(envelope facts.Envelope) string {
 		return "OCI image subject evidence observed"
 	}
 	return "supply-chain vulnerability evidence observed"
-}
-
-func supplyChainImpactSourceSystem(envelope facts.Envelope) string {
-	if value := strings.TrimSpace(envelope.SourceRef.SourceSystem); value != "" {
-		return value
-	}
-	return strings.TrimSpace(envelope.CollectorKind)
 }

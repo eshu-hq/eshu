@@ -21,7 +21,7 @@ import (
 // directly for repository anchoring and correlation output for its deployment
 // context, one hop further along the same chain: its
 // intent is triggered by its own vulnerability scope's facts
-// (projector/supply_chain_impact_intents.go), and matchingSupplyChainDeployments
+// (projector/supplychainimpact/impact_intents.go), and matchingSupplyChainDeployments
 // rejects a correlation that has not yet resolved its artifact identity, so a
 // finding classified before the CI producer commits
 // keeps an empty environments list until producer completion schedules the
