@@ -265,8 +265,13 @@ caller would. Each figure has its own command, because one does not produce
 both: 93 test functions across the `go_*` family, from
 `rg -o '^func Test' go_*_test.go engine_go_rich_semantics_test.go | wc -l`,
 and 2 benchmarks, from `rg -o '^func Benchmark' *_test.go | wc -l`. Counting
-every test file in the package rather than the `go_*` glob gives 135
-functions — `rg --no-filename -o '^func Test' *_test.go | wc -l`.
+every test file in the package rather than the `go_*` glob gives 136
+functions — `rg --no-filename -o '^func Test' *_test.go | wc -l` — because
+`engine_data_carriage_return_test.go` (the 26th external `golang_test` file,
+relocated from the parent by #6062) matches neither name pattern; it pins the
+Go raw-string carriage-return case (issue #6306) and needs no package-local
+helper, since it reaches only the root package's exported
+`DefaultEngine`/`Options`/`Engine.ParsePath` surface through `parsertest`.
 They may import `internal/parser` because Go compiles them only for tests;
 keep that exception limited to black-box tests of the public parent engine
 (`parser.DefaultEngine`, `parser.Options`, `parser.Engine`) and never reach

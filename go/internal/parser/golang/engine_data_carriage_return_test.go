@@ -1,10 +1,13 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package parser
+package golang_test
 
 import (
+	"path/filepath"
 	"testing"
+
+	"github.com/eshu-hq/eshu/go/internal/parser/parsertest"
 )
 
 // goDataCarriageReturnRouteFixture is an ordinary LF-authored Go file that
@@ -40,8 +43,10 @@ const goDataCarriageReturnRouteFixture = "package test\n" +
 // has an established LF/CRLF line convention, so every '\r' in it is left
 // exactly as the author wrote it.
 func TestParsePathPreservesDataCarriageReturnInsideGoRawString(t *testing.T) {
-	repoRoot, path := writeRepoFile(t, "routes.go", goDataCarriageReturnRouteFixture)
-	payload := mustParsePath(t, repoRoot, path)
+	repoRoot := t.TempDir()
+	path := filepath.Join(repoRoot, "routes.go")
+	parsertest.WriteFile(t, path, goDataCarriageReturnRouteFixture)
+	payload := parsertest.MustParsePath(t, repoRoot, path)
 
 	semantics, ok := payload["framework_semantics"].(map[string]any)
 	if !ok {

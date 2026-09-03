@@ -34,6 +34,10 @@
     javascript_dead_code_roots_nextjs_migration_test.go - the latter split out
     at the 500-line cap and carries the Next.js app-router and TypeScript
     migration/module-contract dead-code root cases
+16. equivalence_dump_test.go - relocated here by #6062, external-package
+    `TestDumpJSParseCorpus`: a guarded, env-gated (`JSTS_PARSE_DUMP`) 0/0
+    corpus-equivalence harness for issue #4868, exercising only the parent's
+    public `DefaultEngine`/`Options`/`Engine.ParsePath` surface
 
 ## Invariants this package enforces
 
@@ -253,3 +257,12 @@ cd go && golangci-lint run ./internal/parser/javascript/...  # no issues
 
 This package emits no telemetry by design. The audit adds only tests and
 documentation; no spans, metrics, or logs are added or removed.
+
+### #6062 residual
+
+The relocation tail is not finished. Four single-language tests remain at the
+`internal/parser` root: `engine_swift_symbol_gate_test.go` (destined for
+`swift/`), and `engine_typescript_advanced_semantics_test.go`,
+`engine_tsx_advanced_semantics_test.go` and
+`engine_tsx_component_wrapper_test.go` (all destined for `javascript/`).
+The 27 `<lang>_language.go` Engine-method glue files stay at root by design.
