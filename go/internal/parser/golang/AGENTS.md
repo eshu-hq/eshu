@@ -46,7 +46,7 @@
     fixture writer. Cross-file assertions come from `../parsertest`; helpers
     that stay file-local (taint and dataflow row lookups, dogfood corpus
     pickers, the `*testing.B` writer) live beside the tests that use them
-17. `engine_data_carriage_return_test.go` - the last of the two single-language
+17. `engine_data_carriage_return_test.go` - one of the two single-language
     relocations closing out #6062, external package `golang_test`. Pins the Go
     raw-string carriage-return case (issue #6306) via
     `parsertest.MustParsePath`/`parsertest.WriteFile`, since it needs only the
@@ -179,3 +179,12 @@ benchmark.
 No-Observability-Change: parse timing remains owned by the ingester and
 collector runtime paths that call the parent Engine, per this file's existing
 anti-pattern against adding telemetry from this package.
+
+### #6062 residual
+
+The relocation tail is not finished. Four single-language tests remain at the
+`internal/parser` root: `engine_swift_symbol_gate_test.go` (destined for
+`swift/`), and `engine_typescript_advanced_semantics_test.go`,
+`engine_tsx_advanced_semantics_test.go` and
+`engine_tsx_component_wrapper_test.go` (all destined for `javascript/`).
+The 27 `<lang>_language.go` Engine-method glue files stay at root by design.
