@@ -215,6 +215,29 @@
   assertions with `buildProjection` dispatcher assertions; all three cases
   actually exercise `buildProjection`, so the whole file stayed at root,
   renamed `crossplane_satisfied_by_materialization_projection_test.go`.
+- **Multi-cloud runtime drift family (#6057)** — the
+  `multi_cloud_runtime_drift` builder lives in `multicloudruntimedrift/` and
+  consumes the lookup like the families above. It carries no decode seam: it
+  triggers on the earliest `gcp_cloud_resource` or `azure_cloud_resource`
+  fact and deliberately excludes `aws_resource` (issue #5759 provider
+  partitioning). The root `multiCloudRuntimeDriftSourceSystem` helper was
+  byte-identical to `projectorintent.SourceSystem` and was dropped rather
+  than moved. **This family IS covered by the root fan-out parity fixture**
+  — `reducer.DomainMultiCloudRuntimeDrift` appears in both
+  `fanOutParityExpectations` and `fanOutParityExpectedOrder` in
+  `scope_generation_intents_fanout_parity_test.go`, and the shared fixture in
+  `scope_generation_intents_fanout_test.go` carries both a
+  `gcp_cloud_resource` fact (`gcp-resource-1`) and an `azure_cloud_resource`
+  fact (`azure-resource-1`) — the opposite of the crossplane-satisfied-by
+  family above; do not assume either coverage state without checking both
+  fixture files. The root test file mixed builder-level `buildProjection`
+  dispatcher assertions with two tests that called the private
+  `multiCloudRuntimeDriftSourceSystem` helper directly; the dispatcher cases
+  stayed at root, renamed `multi_cloud_runtime_drift_projection_test.go`,
+  while the two direct-helper tests were rewritten against the child
+  package's exported builder (with the two source-system tiers still set to
+  different values) and moved into the child's own test file, since the
+  private helper they exercised no longer exists.
 - **CanonicalWriter interface boundary** — no caller in this package calls a Neo4j
   or NornicDB driver directly. All canonical writes go through `CanonicalWriter`.
   Backend-specific logic belongs in `internal/storage/cypher` adapters.

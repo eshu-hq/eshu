@@ -193,7 +193,7 @@ fabricating a relationship. The projector never writes those service/cloud
 relationships itself; see [workload-cloud-relationship architecture](workloadcloud/README.md).
 Provider-neutral multi-cloud runtime drift follows a related but distinct rule
 (issue #5759). When a generation contains one or more `gcp_cloud_resource` or
-`azure_cloud_resource` facts, `buildMultiCloudRuntimeDriftReducerIntent` emits
+`azure_cloud_resource` facts, `multicloudruntimedrift.BuildMultiCloudRuntimeDriftReducerIntent` ([architecture](multicloudruntimedrift/README.md)) emits
 one `multi_cloud_runtime_drift` reducer intent for the scope/generation so the
 reducer can run the bounded `cloud_resource_uid` join shared with the AWS drift
 path. `aws_resource` facts alone do NOT trigger this intent: AWS runtime drift
@@ -247,7 +247,7 @@ old full scan made — not "earliest fact of the first-checked kind" — so anch
 Root assembly constructs one concrete `intent.FactLookup` per generation and
 retains a compatibility wrapper for unmoved family builders. The extracted
 `internal/projector/azure`, `internal/projector/ec2`, `internal/projector/gcp`,
-`internal/projector/kubernetes`, `internal/projector/rds`, `internal/projector/s3`, `internal/projector/security`, `internal/projector/workloadcloud`, `internal/projector/incidentrouting`, `internal/projector/awsrelationship`, `internal/projector/awscloudimage`, `internal/projector/iamcanassume`, `internal/projector/packagesource`, `internal/projector/cloudinventory`, `internal/projector/codetaintevidence`, `internal/projector/codeinterprocevidence`, `internal/projector/sbomattestation`, `internal/projector/servicecatalog`, `internal/projector/secretsiam`, `internal/projector/observabilitycoverage`, `internal/projector/iaminstanceprofile`, `internal/projector/cicdruncorrelation`, `internal/projector/containerimageidentity`, `internal/projector/supplychainimpact`, and `internal/projector/crossplanesatisfiedby`
+`internal/projector/kubernetes`, `internal/projector/rds`, `internal/projector/s3`, `internal/projector/security`, `internal/projector/workloadcloud`, `internal/projector/incidentrouting`, `internal/projector/awsrelationship`, `internal/projector/awscloudimage`, `internal/projector/iamcanassume`, `internal/projector/packagesource`, `internal/projector/cloudinventory`, `internal/projector/codetaintevidence`, `internal/projector/codeinterprocevidence`, `internal/projector/sbomattestation`, `internal/projector/servicecatalog`, `internal/projector/secretsiam`, `internal/projector/observabilitycoverage`, `internal/projector/iaminstanceprofile`, `internal/projector/cicdruncorrelation`, `internal/projector/containerimageidentity`, `internal/projector/supplychainimpact`, `internal/projector/crossplanesatisfiedby`, and `internal/projector/multicloudruntimedrift`
 families import that neutral lookup without importing root projector assembly;
 remaining root builders keep using the private forwarders until they move.
 `ReducerIntent` in the root package is a type alias, so existing writer and

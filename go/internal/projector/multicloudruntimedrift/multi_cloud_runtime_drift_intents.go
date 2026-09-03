@@ -1,17 +1,23 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package projector
+package multicloudruntimedrift
 
 import (
-	"strings"
-
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	projectorintent "github.com/eshu-hq/eshu/go/internal/projector/intent"
 	"github.com/eshu-hq/eshu/go/internal/reducer"
-	"github.com/eshu-hq/eshu/go/internal/scope"
 )
 
-// buildMultiCloudRuntimeDriftReducerIntent enqueues DomainMultiCloudRuntimeDrift
+// candidateFactKinds are the fact kinds triggerFact ever inspects: GCP and
+// Azure cloud-inventory facts. aws_resource is deliberately excluded; see
+// BuildMultiCloudRuntimeDriftReducerIntent for why.
+var candidateFactKinds = []string{
+	facts.GCPCloudResourceFactKind,
+	facts.AzureCloudResourceFactKind,
+}
+
+// BuildMultiCloudRuntimeDriftReducerIntent enqueues DomainMultiCloudRuntimeDrift
 // for one scope generation whenever GCP or Azure cloud-inventory facts are
 // present (issue #5759, closing the "registered but never enqueued" gap left
 // since #1997/#1998). The trigger set is deliberately {gcp_cloud_resource,
@@ -32,36 +38,28 @@ import (
 // and at publish time (which provider a resolved row belongs to) are separate
 // decisions because the trigger only sees this generation's fact kinds, not
 // which provider rows the loader's join will actually resolve.
-func buildMultiCloudRuntimeDriftReducerIntent(
-	scopeValue scope.IngestionScope,
-	generation scope.ScopeGeneration,
-	index *reducerIntentFactIndex,
-) (ReducerIntent, bool) {
-	envelope, ok := index.firstAcrossKinds(
-		func(facts.Envelope) bool { return true },
-		facts.GCPCloudResourceFactKind,
-		facts.AzureCloudResourceFactKind,
-	)
+func BuildMultiCloudRuntimeDriftReducerIntent(
+	scopeID string,
+	generationID string,
+	lookup projectorintent.FactLookup,
+) (projectorintent.ReducerIntent, bool) {
+	envelope, ok := lookup.FirstAcrossKinds(triggerFact, candidateFactKinds...)
 	if !ok {
-		return ReducerIntent{}, false
+		return projectorintent.ReducerIntent{}, false
 	}
-	return ReducerIntent{
-		ScopeID:      scopeValue.ScopeID,
-		GenerationID: generation.GenerationID,
+	return projectorintent.ReducerIntent{
+		ScopeID:      scopeID,
+		GenerationID: generationID,
 		Domain:       reducer.DomainMultiCloudRuntimeDrift,
-		EntityKey:    "multi_cloud_runtime_drift:" + scopeValue.ScopeID,
+		EntityKey:    "multi_cloud_runtime_drift:" + scopeID,
 		Reason:       "gcp or azure cloud resource facts observed",
 		FactID:       envelope.FactID,
-		SourceSystem: multiCloudRuntimeDriftSourceSystem(envelope),
+		SourceSystem: projectorintent.SourceSystem(envelope),
 	}, true
 }
 
-// multiCloudRuntimeDriftSourceSystem resolves the bounded source-system label
-// for the multi-cloud drift intent, preferring the fact's source ref and
-// falling back to its collector kind.
-func multiCloudRuntimeDriftSourceSystem(envelope facts.Envelope) string {
-	if value := strings.TrimSpace(envelope.SourceRef.SourceSystem); value != "" {
-		return value
-	}
-	return strings.TrimSpace(envelope.CollectorKind)
-}
+// triggerFact accepts every envelope FirstAcrossKinds hands it.
+// candidateFactKinds already restricts the scan to gcp_cloud_resource and
+// azure_cloud_resource, so no per-envelope filtering is needed beyond kind
+// membership.
+func triggerFact(facts.Envelope) bool { return true }
