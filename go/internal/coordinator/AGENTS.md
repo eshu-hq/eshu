@@ -60,6 +60,17 @@
      `service.go` rather than moving into `oci_registry_service.go` — issue
      #6057 scopes this move to the `_scheduler.go` half only and treats
      decomposing `Service`'s interface block as a separate design decision
+   - `go/internal/coordinator/tfstateplanner/planner.go` and `tfstate_service.go` —
+     the extracted Terraform-state planner and root seam; preserve the run,
+     work-item, and generation identity formats, the per-instance
+     `FairnessKey`, and the rule that no raw bucket, key, region, or version
+     locator reaches a durable row. Unlike every other child here the planner
+     is not pure: it carries `GitReadiness` and `BackendFacts` ports and calls
+     them while planning, which is why `main.go` constructs it with fields.
+     Its plan-key validator stays local and stricter than
+     `plannercontract.ValidateSafePlanKey`. As with `ociregistry`, the
+     `TerraformStatePlanner` interface itself stays in `service.go` — issue
+     #6057 scopes this move to the `_scheduler.go` half only
    - `go/internal/coordinator/componentextensionplanner/planner.go` and
      `component_extension_service.go` — the extracted generic
      component-extension planner and root seam; preserve activation-scoped
@@ -102,10 +113,11 @@
   `s.Store == nil`. Do not add fallback behavior here.
 - **Shared plan-key validation stays dependency-neutral** — schedulers and
   extension egress parsing call `plannercontract.ValidateSafePlanKey` directly.
-  Terraform-state keeps its separate validator. The root `firstNonBlank`
-  helper (`owned_package_target_helpers.go`) remains with its package-registry
-  and vulnerability-intelligence consumers; the extracted `ociregistry` child
-  keeps its own identical copy rather than importing root.
+  Terraform-state keeps its separate, stricter validator, which moved with the
+  planner into the `tfstateplanner` child (`tfstateplanner/planner.go`). The
+  root `firstNonBlank` helper (`owned_package_target_helpers.go`) remains with
+  its package-registry and vulnerability-intelligence consumers; the extracted
+  `ociregistry` child keeps its own identical copy rather than importing root.
 
 ## Common changes and how to scope them
 

@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package coordinator
+package tfstateplanner
 
 import (
 	"context"
@@ -22,9 +22,9 @@ func TestServiceSchedulesTerraformStateSeedWorkItems(t *testing.T) {
 
 	observedAt := time.Date(2026, time.May, 10, 11, 0, 0, 0, time.UTC)
 	instance := testTerraformStateCollectorInstance(observedAt)
-	planner := TerraformStateWorkPlanner{}
+	planner := WorkPlanner{}
 
-	run, items, err := planner.PlanTerraformStateWork(context.Background(), TerraformStatePlanRequest{
+	run, items, err := planner.PlanTerraformStateWork(context.Background(), PlanRequest{
 		Instance:   instance,
 		ObservedAt: observedAt,
 		PlanKey:    "bootstrap",
@@ -99,8 +99,8 @@ func TestTerraformStatePlannedWorkItemIsRuntimeCompatible(t *testing.T) {
 
 	observedAt := time.Date(2026, time.May, 10, 11, 5, 0, 0, time.UTC)
 	instance := testTerraformStateCollectorInstance(observedAt)
-	planner := TerraformStateWorkPlanner{}
-	_, items, err := planner.PlanTerraformStateWork(context.Background(), TerraformStatePlanRequest{
+	planner := WorkPlanner{}
+	_, items, err := planner.PlanTerraformStateWork(context.Background(), PlanRequest{
 		Instance:   instance,
 		ObservedAt: observedAt,
 		PlanKey:    "bootstrap",
@@ -161,9 +161,9 @@ func TestTerraformStatePlannerUsesPlanKeyForRecurringWorkIdentity(t *testing.T) 
 	observedAt := time.Date(2026, time.May, 10, 11, 10, 0, 0, time.UTC)
 	instance := testTerraformStateCollectorInstance(observedAt)
 	instance.Bootstrap = false
-	planner := TerraformStateWorkPlanner{}
+	planner := WorkPlanner{}
 
-	firstRun, firstItems, err := planner.PlanTerraformStateWork(context.Background(), TerraformStatePlanRequest{
+	firstRun, firstItems, err := planner.PlanTerraformStateWork(context.Background(), PlanRequest{
 		Instance:   instance,
 		ObservedAt: observedAt,
 		PlanKey:    "schedule-20260510T1100Z",
@@ -171,7 +171,7 @@ func TestTerraformStatePlannerUsesPlanKeyForRecurringWorkIdentity(t *testing.T) 
 	if err != nil {
 		t.Fatalf("PlanTerraformStateWork() first error = %v, want nil", err)
 	}
-	secondRun, secondItems, err := planner.PlanTerraformStateWork(context.Background(), TerraformStatePlanRequest{
+	secondRun, secondItems, err := planner.PlanTerraformStateWork(context.Background(), PlanRequest{
 		Instance:   instance,
 		ObservedAt: observedAt.Add(time.Hour),
 		PlanKey:    "schedule-20260510T1200Z",
@@ -197,9 +197,9 @@ func TestTerraformStatePlannerRejectsInvalidDurableConfig(t *testing.T) {
 	observedAt := time.Date(2026, time.May, 10, 11, 15, 0, 0, time.UTC)
 	instance := testTerraformStateCollectorInstance(observedAt)
 	instance.Configuration = `{"discovery":{"graph":true}}`
-	planner := TerraformStateWorkPlanner{}
+	planner := WorkPlanner{}
 
-	_, _, err := planner.PlanTerraformStateWork(context.Background(), TerraformStatePlanRequest{
+	_, _, err := planner.PlanTerraformStateWork(context.Background(), PlanRequest{
 		Instance:   instance,
 		ObservedAt: observedAt,
 		PlanKey:    "bootstrap",
@@ -214,9 +214,9 @@ func TestTerraformStatePlannerRequestedScopeSetNamesHashedCandidates(t *testing.
 
 	observedAt := time.Date(2026, time.May, 10, 11, 20, 0, 0, time.UTC)
 	instance := testTerraformStateCollectorInstance(observedAt)
-	planner := TerraformStateWorkPlanner{}
+	planner := WorkPlanner{}
 
-	run, items, err := planner.PlanTerraformStateWork(context.Background(), TerraformStatePlanRequest{
+	run, items, err := planner.PlanTerraformStateWork(context.Background(), PlanRequest{
 		Instance:   instance,
 		ObservedAt: observedAt,
 		PlanKey:    "bootstrap",
