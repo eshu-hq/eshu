@@ -131,11 +131,13 @@ fields would have meant renaming every one of them.
 It did not. Root keeps an unexported adapter with the original field names and
 delegates its methods here, so the callers are untouched and the dispatch rules
 exist once. Use that shape for the remaining shared fakes, and note the size of
-what is waiting: `fakePortContentStore` has 125 consuming test files,
-`openContentReaderTestDB` 85, `contentReaderQueryResult` 81.
+what is waiting: `fakePortContentStore` has 125 consuming test files. It is
+blocked on the `ContentStore` read models moving to `querycontract` first, which
+is a structural change rather than a fake promotion.
 
-`fakeGovernanceAuditAppender` (18 consuming files) and `fakeScopedTokenResolver`
-(50) followed the same shape, with one wrinkle each. Both hold state between
+`fakeGovernanceAuditAppender` (19 root files build it) and
+`fakeScopedTokenResolver` (52) followed the same shape, with one wrinkle each.
+Both counts include `auth_test.go`, which declares the two adapters. Both hold state between
 calls, where `FakeGraphReader` holds none, so neither adapter can be rebuilt
 from its fields on every call the way `fakeGraphReader` is. The appender copies
 its slice into the delegate and takes back what was recorded. The resolver
@@ -147,7 +149,6 @@ into the delegate would introduce the concurrent write the mutex prevents.
 Reading state through a lock is the one thing an adapter cannot hand back as a
 field. Three root files now say `resolver.called()` where they said
 `resolver.called`. That is the whole consumer cost of both promotions.
-`fakeScopedTokenResolver` 50.
 
 The content-reader SQL driver (`OpenContentReaderTestDB`,
 `ContentReaderQueryResult`, and the column helpers) came across the same way,

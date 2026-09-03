@@ -173,20 +173,25 @@ is a portable constant -- re-measure rather than carrying one forward.
 
 Root keeps an unexported `fakeStatusReader` adapter with the original lowercase
 `snapshot`/`err` field names 19 test files already build with keyed literals,
-and both of its methods delegate to `FakeStatusReader`. None of those 19 files
-changed.
+and both of its methods delegate to `FakeStatusReader`. Eighteen of those 19 are
+untouched. The nineteenth is `status_handler_test.go`, which is where the
+adapter itself lives, so it changes by definition; measure with
+`git grep -l 'fakeStatusReader{' <base> -- 'go/internal/query/*.go'`.
 
 The delegation is proven the same way: replacing `ReadStatusSnapshot`'s
 delegation with an unconditional zero-value return fails **35** root tests;
-restoring it returns to 0 failures. Both measured against the same 7864-test
-run of `go test ./internal/query/`, never `-run`, with the mutation applied
-through `go test -overlay=` so no tracked file changed.
+restoring it returns to 0 failures. Both measured against the same 7755-test
+run of `go test ./internal/query/ -count=1 -v`, never `-run`, with the mutation
+applied through `go test -overlay=` so no tracked file changed. The mutation is
+built before it is run, so the failures are the guard reacting rather than a
+tree that does not compile.
 
-That is not the 20-failure, 6539-test pair this section carried before. The
-suite grew as families moved and other fakes were promoted, so more tests now
-reach this one. Neither number is a portable constant: re-measure both sides on
-the branch you are on rather than carrying either forward, which is the same
-rule the two graph-read fakes above state for their own counts.
+Earlier drafts of this section carried a 20-failure, 6539-test pair, and the
+count has since been 7864 as well. The root suite moves in both directions --
+it grows as tests are added, and it shrinks when a family moves out of root, as
+`semanticsearch` did. Treat none of these as a portable constant: re-measure
+both sides on the branch you are on, which is the same rule the two graph-read
+fakes above state for their own counts.
 ### Adapting a fake that holds state
 
 `FakeGraphReader` is adapted by rebuilding it from the adapter's funcs on each
@@ -202,10 +207,15 @@ adapter decides nothing about which events land or whether the write succeeds.
 and one resolver instance is shared across parallel subtests. So the adapter
 holds a `FakeScopedTokenResolver` and routes through `ResolveAnswering`, passing
 its own `context`/`ok`/`err` as arguments. Writing them into the delegate per
-call would be the concurrent write the mutex exists to prevent. The 50 root
-files that build the adapter with keyed literals are untouched; the three that
-read the recorded call gained parentheses, `resolver.called` becoming
-`resolver.called()`, because reading it takes the same lock the recording does.
+call would be the concurrent write the mutex exists to prevent. On the base tree
+52 root files build the adapter with keyed literals
+(`git grep -l 'fakeScopedTokenResolver{' <base> -- 'go/internal/query/*.go'`).
+Forty-nine are untouched. The other three -- `auth_test.go`, which also declares
+the adapter, plus `auth_denial_reason_audit_test.go` and
+`auth_headerless_bypass_test.go` -- read the recorded call and gained
+parentheses, `resolver.called` becoming `resolver.called()`, because reading it
+takes the same lock the recording does. Those five call sites are the whole
+consumer cost.
 ### The same shape, applied to the content-reader driver
 
 `ContentReaderQueryResult` needed one extra step. Callers pass a **slice** of it
@@ -222,12 +232,14 @@ lives only here.
 Proven the same way: deleting the default-answer dispatch from this package
 fails **16** root tests; keeping the defaults but not consuming the queue head
 fails **26**. Both measured with a full `go test ./internal/query/ -count=1 -v`,
-6538 tests run, against a baseline of 0 failures.
+7755 tests run, against a baseline of 0 failures -- the same 7755-test run the
+`FakeStatusReader` proof above cites, so every count in this file comes from one
+base rather than from whichever base its section was written on.
 
-That 6538 is one lower than main's 6539 for a reason worth stating, because a
-bare 6538 next to a remembered 6539 reads as a miscount: this change moves
-`TestContentReaderCheckArgsComparesByteSliceBindArgsWithoutPanicking` out of
-package `query` and into this package, which is exactly the one test.
+One test leaves package `query` here rather than failing:
+`TestContentReaderCheckArgsComparesByteSliceBindArgsWithoutPanicking` moves into
+this package alongside the function it covers, so root declares one fewer test
+than it did before this change.
 
 ## Dependencies
 
