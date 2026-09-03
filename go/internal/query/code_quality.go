@@ -149,7 +149,7 @@ func (h *CodeHandler) inspectCodeQuality(ctx context.Context, req codeQualityIns
 	// #5167 code family: the only repository predicate here was the caller's
 	// own optional repo_id, so a scoped caller who omitted it inspected every
 	// tenant's functions.
-	access := repositoryAccessFilterFromContext(ctx)
+	access := codeGrantAccessFilter(ctx)
 	if access.Empty() {
 		return nil, nil
 	}

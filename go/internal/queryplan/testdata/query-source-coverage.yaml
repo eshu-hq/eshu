@@ -36,7 +36,7 @@ source_coverage:
   - file: code.go
     calls:
       - {symbol: "(*CodeHandler).runComplexityQuery", count: 1, non_hot_reason: "unlabeled complexity-by-id branch is inventoried but cannot be admitted until its production anchor is typed"}
-      - {symbol: "(*CodeHandler).searchGraphEntitiesWithExact", count: 1, source_sha256: 781e1c9e0c7e7cfbf134bc4de5bd4eb9ec8bc79eb6de9113c45fd9ab4340d88a, entry_ids: [QP-CODE-SEARCH-REPOSITORY]}
+      - {symbol: "(*CodeHandler).searchGraphEntitiesWithExact", count: 1, source_sha256: 0a12ee3ebe25198e00eb38f37b151e0ef1863d576e0a6ef90ea61d6de5f67bbf, entry_ids: [QP-CODE-SEARCH-REPOSITORY]}
   - file: code_call_chain.go
     calls:
       - {symbol: "(*CodeHandler).handleCallChain", count: 1, non_hot_reason: "inventory-only support or bounded read; promote to entry_ids when designated hot"}
@@ -75,7 +75,7 @@ source_coverage:
         count: 1
         non_hot:
           class: label_inventory
-          source_sha256: 02ce524343330aa1a8f197200268a3e86ee5e89f7b6337b2eb688b0ae538f885
+          source_sha256: c4ae4b4344097d1a8820941285a91750f5ef0bf90e5692b4ef4144b858238878
           label: "Function|Class|Struct|Interface|Trait|SqlFunction"
           max_results: 250
       - {symbol: "(*CodeHandler).deadCodeResultsWithGraphIncomingEdges", count: 1, non_hot_reason: "inventory-only support or bounded read; promote to entry_ids when designated hot"}
@@ -91,7 +91,7 @@ source_coverage:
         count: 1
         non_hot:
           class: label_inventory
-          source_sha256: c46739fe392497bf092830fa6f0bf6a7848c4bca757abf2e70f51bda89b4c508
+          source_sha256: 211ea6e1c06daa2cdb5d01128e4bf5bb01364b9b38995efbd25b3bf82d6fa48d
           label: Function
           max_results: 101
   - file: code_registry_bundles.go

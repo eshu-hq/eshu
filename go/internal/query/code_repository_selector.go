@@ -37,8 +37,29 @@ func (h *CodeHandler) resolveRepositorySelector(ctx context.Context, selector st
 		h.Neo4j,
 		h.Content,
 		selector,
-		repositoryAccessFilterFromContext(ctx),
+		codeGrantAccessFilter(ctx),
 	)
+}
+
+// codeGrantAccessFilter is the repository grant every read in the code family
+// binds, with each granted git repository ingestion scope also read back as the
+// canonical repository id it owns
+// (querycontract.RepositoryAccessFilter.WithCanonicalScopeRepositories).
+//
+// Without that step a token whose grant is a scope id
+// ("git-repository-scope:repository:r_payments") and no repository id pushes
+// the scope id into `repo_id = ANY($n)` and into
+// `r.id IN $allowed_repository_ids OR r.id IN $allowed_scope_ids`, where the
+// stored identity is the canonical `repository:r_payments`. Nothing matches and
+// the caller reads an empty page from a repository they were granted -- the
+// same scope-versus-canonical mismatch #5052 fixed in keyword search
+// (docs/internal/evidence/5052-keyword-search-scope-id.md).
+//
+// The resolution is additive, so the fail-closed cases are untouched: a grant
+// that resolves to no repository still reads nothing, and a caller with no
+// grants at all is still Empty.
+func codeGrantAccessFilter(ctx context.Context) repositoryAccessFilter {
+	return repositoryAccessFilterFromContext(ctx).WithCanonicalScopeRepositories()
 }
 
 // codeContentGrantScope resolves the caller's repository grant for a code read
@@ -77,7 +98,7 @@ func (h *CodeHandler) resolveRepositorySelector(ctx context.Context, selector st
 // grantless caller gets is the route's own empty page, identical to the answer
 // for an empty index, so index existence cannot be probed.
 func codeContentGrantScope(ctx context.Context, repoID string) (allowed []string, blocked bool) {
-	access := repositoryAccessFilterFromContext(ctx)
+	access := codeGrantAccessFilter(ctx)
 	if access.Empty() {
 		return nil, true
 	}

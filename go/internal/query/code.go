@@ -208,7 +208,7 @@ func (h *CodeHandler) searchGraphEntitiesWithExact(ctx context.Context, repoID, 
 	if h == nil || h.Neo4j == nil {
 		return h.searchEntityContentWithExact(ctx, repoID, query, language, limit, exact)
 	}
-	access := repositoryAccessFilterFromContext(ctx)
+	access := codeGrantAccessFilter(ctx)
 	if access.Empty() || (repoID != "" && !access.AllowsRepositoryID(repoID)) {
 		return []map[string]any{}, nil
 	}
@@ -254,7 +254,7 @@ func (h *CodeHandler) searchEntityContentWithExact(ctx context.Context, repoID, 
 		sourceMatches []EntityContent
 		err           error
 	)
-	access := repositoryAccessFilterFromContext(ctx)
+	access := codeGrantAccessFilter(ctx)
 	if access.Empty() || (repoID != "" && !access.AllowsRepositoryID(repoID)) {
 		return []map[string]any{}, nil
 	}
@@ -370,7 +370,7 @@ func (h *CodeHandler) handleComplexity(w http.ResponseWriter, r *http.Request) {
 	// #5167 code family: the list branch's Repository anchor is optional and
 	// the entity_id branch had no repository predicate at all, so the caller's
 	// grant is resolved once here and pushed into every complexity builder.
-	access := repositoryAccessFilterFromContext(ctx)
+	access := codeGrantAccessFilter(ctx)
 	if access.Empty() {
 		writeEmptyComplexityAnswer(w, r, h.profile(), req.RepoID, req.EntityID == "" && req.FunctionName == "", req.Limit)
 		return

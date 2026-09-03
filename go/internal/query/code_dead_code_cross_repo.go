@@ -279,7 +279,7 @@ func (h *CodeHandler) crossRepoDeadCodeConsumerEvidence(
 	// The consumer side takes the caller's own grant, not the producer anchor:
 	// producerRepoID is already grant-resolved by the selector, but the
 	// consumers this read returns belong to other repositories.
-	access := repositoryAccessFilterFromContext(ctx)
+	access := codeGrantAccessFilter(ctx)
 	var allowedRepositoryIDs []string
 	if access.Scoped() {
 		allowedRepositoryIDs = access.RepositorySearchIDs()
@@ -303,7 +303,7 @@ func (h *CodeHandler) bucketCrossRepoDeadCodeResults(
 	consumers crossRepoDeadCodeConsumerEvidenceSet,
 ) map[string]any {
 	allowedConsumers := crossRepoDeadCodeConsumerSet(req.ConsumerRepoIDs)
-	access := repositoryAccessFilterFromContext(ctx)
+	access := codeGrantAccessFilter(ctx)
 	buckets := map[string]any{
 		"dead":             []any{},
 		"live_by_consumer": []any{},

@@ -193,7 +193,7 @@ func (h *CodeHandler) deadCodeCandidateRows(
 	if content, ok := h.Content.(deadCodeCandidateContentStore); ok {
 		return content.DeadCodeCandidateRows(ctx, query)
 	}
-	access := repositoryAccessFilterFromContext(ctx)
+	access := codeGrantAccessFilter(ctx)
 	cypher := buildDeadCodeGraphCypherForLabel(repoID != "", label, language, access)
 	return h.Neo4j.Run(ctx, cypher, deadCodeGraphParams(repoID, language, limit, offset, access))
 }
