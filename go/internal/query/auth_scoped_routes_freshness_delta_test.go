@@ -126,3 +126,110 @@ func TestServiceChangedSinceStaysOnPendingLedger(t *testing.T) {
 		}
 	}
 }
+
+// TestServiceChangedSincePendingRouteAdmitsOnlyTheAllScopeConsoleSession pins
+// which BROWSER SESSION shapes the pending service route actually refuses, per
+// BrowserSessionRoutePolicy mode. The route is absent from
+// scopedTokenAdvertisedRoutes, so browserSessionRouteDenialReason decides it on
+// the same branch it uses for every route outside that allowlist: a session
+// that is all-scope AND bound to one tenant and workspace is admitted wherever
+// cmd/api's browserSessionRoutePolicy sets AllowTenantBoundAllScopes -- the
+// local_no_policy, hosted_single_tenant, and unset modes -- and every other
+// shape is refused with a 403.
+//
+// The middleware-refuses-everyone reading is what the route's contract prose
+// used to claim, and it is wrong on those three modes: the admitted session
+// reaches serviceChangedSinceGrantAdmits, whose first branch returns true for
+// an unscoped caller, so it reads the lineage. That is the same whole-graph
+// posture the policy grants on every other non-allowlisted route, not a hole
+// specific to this one, but the prose has to say so.
+func TestServiceChangedSincePendingRouteAdmitsOnlyTheAllScopeConsoleSession(t *testing.T) {
+	t.Parallel()
+
+	const pendingPath = "/api/v0/freshness/services/changed-since"
+
+	cases := []struct {
+		name       string
+		auth       AuthContext
+		policy     BrowserSessionRoutePolicy
+		wantStatus int
+	}{
+		{
+			name: "all_scope_console_session_admitted_under_local_or_single_tenant",
+			auth: AuthContext{
+				Mode:        AuthModeBrowserSession,
+				TenantID:    "tenant_a",
+				WorkspaceID: "workspace_a",
+				AllScopes:   true,
+			},
+			policy:     BrowserSessionRoutePolicy{AllowTenantBoundAllScopes: true},
+			wantStatus: http.StatusOK,
+		},
+		{
+			name: "all_scope_console_session_refused_under_hosted_multi_tenant",
+			auth: AuthContext{
+				Mode:        AuthModeBrowserSession,
+				TenantID:    "tenant_a",
+				WorkspaceID: "workspace_a",
+				AllScopes:   true,
+			},
+			policy:     BrowserSessionRoutePolicy{},
+			wantStatus: http.StatusForbidden,
+		},
+		{
+			name: "restricted_session_refused_even_where_the_policy_is_open",
+			auth: AuthContext{
+				Mode:                 AuthModeBrowserSession,
+				TenantID:             "tenant_a",
+				WorkspaceID:          "workspace_a",
+				AllowedRepositoryIDs: []string{"repo_a"},
+			},
+			policy:     BrowserSessionRoutePolicy{AllowTenantBoundAllScopes: true},
+			wantStatus: http.StatusForbidden,
+		},
+		{
+			name: "tenantless_all_scope_session_refused_even_where_the_policy_is_open",
+			auth: AuthContext{
+				Mode:      AuthModeBrowserSession,
+				AllScopes: true,
+			},
+			policy:     BrowserSessionRoutePolicy{AllowTenantBoundAllScopes: true},
+			wantStatus: http.StatusForbidden,
+		},
+	}
+
+	for _, tc := range cases {
+		tc := tc
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			resolver := &fakeBrowserSessionResolver{context: tc.auth, ok: true}
+			called := false
+			handler := AuthMiddlewareWithBrowserSessionsScopedTokensGovernanceAuditAndRoutePolicy(
+				"shared-token",
+				nil,
+				resolver,
+				http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+					called = true
+					w.WriteHeader(http.StatusOK)
+				}),
+				nil,
+				tc.policy,
+			)
+
+			req := httptest.NewRequest(http.MethodGet, pendingPath, nil)
+			req.Header.Set("Accept", EnvelopeMIMEType)
+			req.Header.Set("X-Correlation-ID", "corr-service-changed-since-session")
+			req.AddCookie(&http.Cookie{Name: BrowserSessionCookieName, Value: "session-secret"})
+			rec := httptest.NewRecorder()
+			handler.ServeHTTP(rec, req)
+
+			if got := rec.Code; got != tc.wantStatus {
+				t.Fatalf("status = %d, want %d; body = %s", got, tc.wantStatus, rec.Body.String())
+			}
+			if want := tc.wantStatus == http.StatusOK; called != want {
+				t.Fatalf("next handler called = %t, want %t", called, want)
+			}
+		})
+	}
+}

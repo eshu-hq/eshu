@@ -217,10 +217,11 @@ For either, `RepositoryAccessFilter.Scoped()` is false, so `$3` in
 short-circuit the two SQL predicates the changed-since and generations routes
 bind: the read runs across the whole corpus. Before this change those two
 routes answered such a caller with a middleware 403. The service route is not
-part of that: it stays on the pending ledger, so the middleware refuses a
-bearer there before the handler runs, though `serviceChangedSinceGrantAdmits`
-would admit an all-scope caller at its first branch once #6475 lets the route
-be promoted.
+part of that: it stays on the pending ledger, so the middleware refuses every
+bearer there before the handler runs. A tenant-bound all-scope BROWSER SESSION
+does reach it wherever `AllowTenantBoundAllScopes` is set, and
+`serviceChangedSinceGrantAdmits` admits that caller at its first branch, as on
+every other route outside the allowlist.
 
 This is #6450's residual item 1, quoted there as "All-scope bearer tokens skip
 the policy entirely". It is pre-existing and holds for every
@@ -316,11 +317,13 @@ The ledger move was drafted, then reversed. `scopedFreshnessDeltaRoute` matches
 the two SQL-bound paths only; the service route keeps its
 `pendingRowFilteringRoutes` row, carries no `"x-scoped-token-support"` marker,
 and its OpenAPI, MCP tool, and reference-doc prose say scoped tokens are
-refused pending #6475. The tool-definitions SHA pin
+refused pending #6475, and that the only browser session admitted is the
+tenant-bound all-scope console session the policy already admits on every
+non-allowlisted route. The tool-definitions SHA pin
 (`TestToolsPreserveFreshnessRegistrationContract`) therefore lands on
-`ca92b326...`, the value produced once the withdrawal stripped the promoted
-wording from the service tool and the commit after it spelled out the 403
-there. The withdrawal and its mechanism are in
+`74856c94...`, the value produced once the withdrawal stripped the promoted
+wording from the service tool and the two commits after it spelled out the 403
+and who it applies to. The withdrawal and its mechanism are in
 [5167-service-changed-since-shared-ownership.md](5167-service-changed-since-shared-ownership.md).
 
 `cmd/mcp-server/wiring_test.go` gains an explicit

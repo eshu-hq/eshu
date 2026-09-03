@@ -368,21 +368,26 @@ hedging -- it named exactly the liveness the two statements enforce.
 
 The withdrawal commit deleted that sentence from all four surfaces together
 with the promotion. A route whose middleware refuses every scoped caller must
-not advertise what it would do for one. What ships instead is the refusal.
-`openAPIPathsFreshnessServiceChangedSince` now says "Scoped tokens and browser
-sessions are refused with a 403 because the service lineage tables carry no
-column naming the tenant a row belongs to, so the route stays on the pending
-row-filtering ledger until #6475", and the `get_service_changed_since`
-definition says "Scoped tokens are refused with a 403 because the service
-lineage tables carry no column naming the tenant a row belongs to (#6475)". The
-status-admin section and the contract-matrix row carry the same refusal. The
-admission sentence comes back with the promotion, once #6475 gives the lineage
-tables a column naming the tenant.
+not advertise what it would do for one. What ships instead is the refusal, and
+it names who is refused rather than saying "scoped tokens and browser
+sessions", which over-claimed: `browserSessionRouteDenialReason` admits a
+tenant-bound all-scope console session on any route outside the scoped-token
+allowlist wherever `cmd/api`'s `browserSessionRoutePolicy` sets
+`AllowTenantBoundAllScopes`, and this route is outside that allowlist.
+`openAPIPathsFreshnessServiceChangedSince` now says scoped tokens are refused
+"in every deployment, and so is every browser session except a tenant-bound
+all-scope console session", and that `local_no_policy` and
+`hosted_single_tenant` admit that console session "as it does on every route
+outside the scoped-token allowlist". The `get_service_changed_since`
+definition, the status-admin section, and the contract-matrix row say the same
+in the space each has. The admission sentence comes back with the promotion,
+once #6475 gives the lineage tables a column naming the tenant.
 
 `TestToolsPreserveFreshnessRegistrationContract` pins a SHA-256 over the
 marshalled freshness tool definitions. The admission wording moved that pin
 from `197bfde6...` to `d1349562...` while it stood; the withdrawal and the
-403 wording moved it again, and the value that ships is `ca92b326...`. Neither
+403 wording moved it to `ca92b326...`, and naming the admitted browser session
+moved it again, to `74856c94...`. Neither
 a cassette nor a B-12 snapshot entry carries tool or operation description
 text, so nothing is regenerated.
 

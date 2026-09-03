@@ -246,18 +246,20 @@ SQL.
 
 The withdrawal commit then took the whole admission sentence off all four
 surfaces along with the promotion, and what ships is the refusal.
-`openAPIPathsFreshnessServiceChangedSince` says "Scoped tokens and browser
-sessions are refused with a 403 because the service lineage tables carry no
-column naming the tenant a row belongs to, so the route stays on the pending
-row-filtering ledger until #6475", and the `get_service_changed_since`
-definition says "Scoped tokens are refused with a 403 because the service
-lineage tables carry no column naming the tenant a row belongs to (#6475)". The
-clause above comes back with the promotion once #6475 lands.
+`openAPIPathsFreshnessServiceChangedSince` says scoped tokens are refused with
+a 403 "in every deployment, and so is every browser session except a
+tenant-bound all-scope console session", because the service lineage tables
+carry no column naming the tenant a row belongs to, and that `local_no_policy`
+and `hosted_single_tenant` admit that console session "as it does on every
+route outside the scoped-token allowlist". The `get_service_changed_since`
+definition says the same in its own space. The clause above comes back with the
+promotion once #6475 lands.
 
 `TestToolsPreserveFreshnessRegistrationContract` pins a SHA-256 over the
 marshalled freshness tool definitions. The candidate clause moved that pin from
 `d1349562...` to `eb23a5e1...` while it stood; the withdrawal and the 403
-wording moved it again, and the value that ships is `ca92b326...`. Neither a
+wording moved it to `ca92b326...`, and naming the admitted browser session
+moved it again, to `74856c94...`. Neither a
 cassette (the recorded collector responses the golden-corpus gate replays) nor
 a B-12 snapshot entry carries tool or operation description text, so nothing is
 regenerated.

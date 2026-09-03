@@ -526,10 +526,15 @@ generation returns `unavailable=true` (and a `building`/`unavailable` freshness
 state) rather than zero deltas. The capability key is
 `freshness.service_changed_since`. The MCP equivalent is
 `get_service_changed_since` and the CLI helper is `eshu freshness
-service-changed-since`. This route refuses scoped tokens and browser sessions
-with a 403: it is still on the pending row-filtering ledger because the service
-lineage tables carry no column naming the tenant a row belongs to, so a grant
-cannot be bound to them until #6475 lands.
+service-changed-since`. This route is still on the pending
+row-filtering ledger: the service lineage tables carry no column naming the
+tenant a row belongs to, so a grant cannot be bound to them until #6475 lands.
+Scoped tokens are refused with a 403, all-scope bearer tokens included. So is
+every browser session except one that is all-scope and bound to a single tenant
+and workspace: in `local_no_policy` and `hosted_single_tenant` the
+browser-session route policy admits that console session, as it does on every
+route outside the scoped-token allowlist, and `hosted_multi_tenant` (or any
+unrecognized mode) refuses it.
 
 The incidents family's production loader is held behind a durable
 PagerDuty-provider-to-Eshu-catalog service-id join that is a tracked #1989

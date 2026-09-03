@@ -123,8 +123,14 @@ func (h *FreshnessHandler) listServiceChangedSince(w http.ResponseWriter, r *htt
 // (#5167). It writes the refusal itself when the answer is no.
 //
 // GET /api/v0/freshness/services/changed-since is STILL on the
-// pendingRowFilteringRoutes ledger, so no scoped token or browser session
-// reaches this code today -- the middleware refuses them first. This fence is
+// pendingRowFilteringRoutes ledger, so no scoped token reaches this code today
+// -- the middleware refuses every bearer, all-scope ones included, first. The
+// one caller shape that does reach it is the tenant-bound all-scope console
+// session browserSessionRouteDenialReason admits wherever cmd/api sets
+// BrowserSessionRoutePolicy.AllowTenantBoundAllScopes (local_no_policy,
+// hosted_single_tenant, unset); access.Scoped() is false for it, so it takes
+// the unscoped branch below and reads the lineage, exactly as it does on every
+// other route outside the scoped-token allowlist. This fence is
 // the first half of the route's promotion and it ships now, tested, so the
 // half that is left is only the schema work in #6475 (see the aged-out gap
 // below). Read every "scoped caller" sentence here as what happens once that
