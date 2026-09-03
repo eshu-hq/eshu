@@ -7,6 +7,19 @@ that does the refusing is in
 this document covers the second hole review round 3 found in it (PR #6472,
 Codex P1-B) and the fix.
 
+## Withdrawn from #6472
+
+The route's promotion was pulled from PR #6472. The clause below ships and is
+tested, but neither it nor the exclusivity fence it corrects moves
+`GET /api/v0/freshness/services/changed-since` off `pendingRowFilteringRoutes`,
+so the route keeps its ledger row and the middleware still answers every scoped
+token and browser session with a 403. The reason is the aged-out correlation
+under [What is still open](#what-is-still-open); the whole account, including
+the three findings that settle why no in-handler rework closes it, is in
+[5167-service-changed-since-shared-ownership.md](5167-service-changed-since-shared-ownership.md).
+Read the sections below as the fence that landed, not as a route a scoped
+caller can reach.
+
 ## The defect
 
 The admission arm of `listServiceCatalogCorrelationsQuery`
@@ -66,11 +79,13 @@ stricter one.
 
 ### Query count per scoped request
 
-Unchanged at **two** correlation queries for a scoped caller whose grant covers
-the service, and **one** for a caller whose grant does not. The exclusivity
-probe still runs only after the admission probe has already returned a row. The
-fix adds no statement, no join, and no round trip. It changes one WHERE arm
-inside a statement that already ran. An unscoped caller still issues zero.
+Counted against the handler, which no scoped caller reaches while the route is
+pending: unchanged at **two** correlation queries for a scoped caller whose
+grant covers the service, and **one** for a caller whose grant does not. The
+exclusivity probe still runs only after the admission probe has already
+returned a row. The fix adds no statement, no join, and no round trip. It
+changes one WHERE arm inside a statement that already ran. An unscoped caller
+still issues zero.
 
 ## Row truth
 
@@ -210,28 +225,42 @@ to the statement it mirrors.
 
 ## Contract text
 
-The admission sentence gains one clause, kept identical in all four places: the
-OpenAPI operation description
-(`go/internal/query/openapi_paths_service_changed_since.go`), the
+This section is history. Commits seven through ten put an admission sentence on
+four surfaces, and commit ten gave it the clause below, kept identical in all
+four: the OpenAPI operation description
+(`openAPIPathsFreshnessServiceChangedSince`,
+`go/internal/query/openapi_paths_service_changed_since.go`), the
 `get_service_changed_since` tool description
 (`go/internal/mcp/freshness/tools.go`),
 `docs/public/reference/http-api/status-admin.md`, and the tool's row in
-`docs/public/reference/mcp-tool-contract-matrix.md`. It now reads: scoped
-tokens receive a service only when every repository with a currently active
-catalog correlation for it is in the grant, **including every candidate
-repository of a correlation that matched more than one**.
+`docs/public/reference/mcp-tool-contract-matrix.md`. It read: scoped tokens
+receive a service only when every repository with a currently active catalog
+correlation for it is in the grant, **including every candidate repository of a
+correlation that matched more than one**.
 
 The promise itself did not change. A candidate repository was always "a
 repository with a currently active catalog correlation for it". What changed is
-that the query now keeps that promise for ambiguous rows, where before it did
-not. The added clause makes the promise checkable by a reader who has not read
-the SQL.
+that the query keeps that promise for ambiguous rows, where before it did not.
+The added clause made the promise checkable by a reader who has not read the
+SQL.
+
+The withdrawal commit then took the whole admission sentence off all four
+surfaces along with the promotion, and what ships is the refusal.
+`openAPIPathsFreshnessServiceChangedSince` says "Scoped tokens and browser
+sessions are refused with a 403 because the service lineage tables carry no
+column naming the tenant a row belongs to, so the route stays on the pending
+row-filtering ledger until #6475", and the `get_service_changed_since`
+definition says "Scoped tokens are refused with a 403 because the service
+lineage tables carry no column naming the tenant a row belongs to (#6475)". The
+clause above comes back with the promotion once #6475 lands.
 
 `TestToolsPreserveFreshnessRegistrationContract` pins a SHA-256 over the
-marshalled freshness tool definitions, so the reworded description moves that
-pin from `d1349562...` to `eb23a5e1...`. Neither a cassette (the recorded
-collector responses the golden-corpus gate replays) nor a B-12 snapshot entry
-carries tool or operation description text, so nothing is regenerated.
+marshalled freshness tool definitions. The candidate clause moved that pin from
+`d1349562...` to `eb23a5e1...` while it stood; the withdrawal and the 403
+wording moved it again, and the value that ships is `ca92b326...`. Neither a
+cassette (the recorded collector responses the golden-corpus gate replays) nor
+a B-12 snapshot entry carries tool or operation description text, so nothing is
+regenerated.
 
 ## What is still open
 

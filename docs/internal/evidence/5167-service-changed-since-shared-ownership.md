@@ -88,10 +88,13 @@ Admission is now exclusive: one correlation inside the grant **and** none
 outside it. A contested id is refused with the route's ordinary
 service-not-found and a new refusal reason, `shared_ownership`.
 
-The boundary this buys is bounded, and the caller-facing sentence says so:
-every repository with a **currently active** catalog correlation for the
-service. See [The liveness gap](#the-liveness-gap) for what that excludes and
-why it cannot be closed without #6475.
+The boundary this buys is bounded: it reaches every repository with a
+**currently active** catalog correlation for the service, and no further.
+Commits seven through ten said exactly that in the caller-facing sentences, and
+the withdrawal took those sentences back out along with the promotion, so the
+shipped surfaces now describe the 403. See
+[The liveness gap](#the-liveness-gap) for what the fence excludes and why it
+cannot be closed without #6475.
 
 Refusing is the honest answer here, not a placeholder for one. The lineage rows
 carry nothing to filter on, so a scope-aware delta needs a scope column on
@@ -191,8 +194,8 @@ query actually enforces rather than asserting a boundary it does not have.
 characterization test: the fake mirrors the active-generation joins, an
 out-of-grant correlation marked aged-out does not contest the id, and the
 caller is admitted. If a future change makes the probe see aged-out
-correlations, that test fails and the contract sentence must be widened with
-it.
+correlations, that test fails, and the admission sentence has to be widened
+with it when the promotion brings that sentence back.
 
 ## Red, then green
 
@@ -348,37 +351,59 @@ literal `shared_ownership`. No metric and no log key is added, so no
 
 ## Contract text
 
-The admission sentence changes in four places, kept identical in all of them:
-the OpenAPI operation description
-(`go/internal/query/openapi_paths_service_changed_since.go`), the
+This section is history. Commits seven through ten put an admission sentence
+on four surfaces, kept identical in all of them: the OpenAPI operation
+description (`openAPIPathsFreshnessServiceChangedSince`,
+`go/internal/query/openapi_paths_service_changed_since.go`), the
 `get_service_changed_since` tool description
 (`go/internal/mcp/freshness/tools.go`),
 `docs/public/reference/http-api/status-admin.md`, and the tool's row in
-`docs/public/reference/mcp-tool-contract-matrix.md`. It now reads: scoped
-tokens receive a service only when every repository with a currently active
-catalog correlation for it is in the grant; an ungranted `service_id`, or one
-also correlated outside the grant, returns the same not-found an unknown one
+`docs/public/reference/mcp-tool-contract-matrix.md`. It read: scoped tokens
+receive a service only when every repository with a currently active catalog
+correlation for it is in the grant; an ungranted `service_id`, or one also
+correlated outside the grant, returns the same not-found an unknown one
 returns; a correlation that has aged out of its scope's active generation no
-longer contests the id (#6475). "Currently active" is load-bearing, not
-hedging -- it is exactly the liveness the two statements enforce.
+longer contests the id (#6475). "Currently active" was load-bearing, not
+hedging -- it named exactly the liveness the two statements enforce.
+
+The withdrawal commit deleted that sentence from all four surfaces together
+with the promotion. A route whose middleware refuses every scoped caller must
+not advertise what it would do for one. What ships instead is the refusal.
+`openAPIPathsFreshnessServiceChangedSince` now says "Scoped tokens and browser
+sessions are refused with a 403 because the service lineage tables carry no
+column naming the tenant a row belongs to, so the route stays on the pending
+row-filtering ledger until #6475", and the `get_service_changed_since`
+definition says "Scoped tokens are refused with a 403 because the service
+lineage tables carry no column naming the tenant a row belongs to (#6475)". The
+status-admin section and the contract-matrix row carry the same refusal. The
+admission sentence comes back with the promotion, once #6475 gives the lineage
+tables a column naming the tenant.
 
 `TestToolsPreserveFreshnessRegistrationContract` pins a SHA-256 over the
-marshalled freshness tool definitions, so the reworded description moves that
-pin from `197bfde6...` to `d1349562...`. Neither a cassette nor a B-12 snapshot
-entry carries tool or operation description text, so nothing is regenerated.
+marshalled freshness tool definitions. The admission wording moved that pin
+from `197bfde6...` to `d1349562...` while it stood; the withdrawal and the
+403 wording moved it again, and the value that ships is `ca92b326...`. Neither
+a cassette nor a B-12 snapshot entry carries tool or operation description
+text, so nothing is regenerated.
 
 ## What a caller loses
 
-A scoped caller that legitimately owns a service whose catalog id another
-tenant also uses now gets not-found where it previously got a delta -- one that
-may well have been the other tenant's. Losing an answer that could be wrong is
-the right trade for a tenant boundary, and an unscoped operator still reads the
-service. The `shared_ownership` reason is what tells an operator this is
-happening, rather than leaving it to look like a missing service.
+Nobody loses it today. While the withdrawal stands the middleware answers
+every scoped caller with a 403 before the handler runs, so what follows is what
+the route will do for a caller once #6475 lets it be promoted, not what one
+sees now.
 
-What a caller does **not** lose, and should not be read as gaining: protection
+A scoped caller that legitimately owns a service whose catalog id another
+tenant also uses will then get not-found where it previously got a delta -- one
+that may well have been the other tenant's. Losing an answer that could be
+wrong is the right trade for a tenant boundary, and an unscoped operator still
+reads the service. The `shared_ownership` reason is what tells an operator this
+is happening, rather than leaving it to look like a missing service.
+
+What the fence does **not** buy, and should not be read as buying: protection
 from an aged-out competing correlation. That case, described in
 [The liveness gap](#the-liveness-gap), still admits the read and still hands
-over the other tenant's lineage. It is bounded in every caller-facing sentence
-on this route and tracked as #6475; it is the reason this change is a narrowing
-of the hole rather than a closing of it.
+over the other tenant's lineage. The caller-facing sentences bounded it while
+the promotion stood; they now say the route refuses scoped tokens outright, and
+the gap stays tracked as #6475. It narrows the hole rather than closing it,
+which is why the promotion was pulled.

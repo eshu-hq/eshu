@@ -318,8 +318,9 @@ the two SQL-bound paths only; the service route keeps its
 and its OpenAPI, MCP tool, and reference-doc prose say scoped tokens are
 refused pending #6475. The tool-definitions SHA pin
 (`TestToolsPreserveFreshnessRegistrationContract`) therefore lands on
-`dd7c7265...`, the value the two promoted descriptions alone produce. The
-withdrawal and its mechanism are in
+`ca92b326...`, the value produced once the withdrawal stripped the promoted
+wording from the service tool and the commit after it spelled out the 403
+there. The withdrawal and its mechanism are in
 [5167-service-changed-since-shared-ownership.md](5167-service-changed-since-shared-ownership.md).
 
 `cmd/mcp-server/wiring_test.go` gains an explicit
