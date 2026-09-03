@@ -162,7 +162,10 @@ func TestComposedMux_WellKnownUnauthenticatedWhileTransportGated(t *testing.T) {
 	}
 
 	// enforcement true, no shared token: headerless credentialed routes deny.
-	transportAuth := buildTransportAuthMiddleware("", nil, nil, true, challenge, nil)
+	transportAuth := buildTransportAuthMiddleware(
+		"", nil, nil, true, challenge, nil,
+		query.ScopedRoutePolicyForGovernanceMode(query.GovernanceStatusConfig{}),
+	)
 
 	apiMux := http.NewServeMux()
 	apiMux.HandleFunc("GET /api/v0/repositories", func(w http.ResponseWriter, _ *http.Request) {

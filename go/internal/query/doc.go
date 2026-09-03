@@ -159,7 +159,9 @@
 // private governance audit sink is wired, the route reads only its aggregate
 // summary; raw policy, tenant, workspace, source, detailed audit hashes,
 // correlation ids, credential, endpoint, prompt, response, path, and token
-// values stay out of API and MCP payloads.
+// values stay out of API and MCP payloads. An ESHU_GOVERNANCE_MODE outside the
+// supported set reads back as "unrecognized" with a refused all-scope route
+// policy, the same posture admission applies, rather than as local_no_policy.
 // Hosted readiness also treats collector generation dead letters and unresolved
 // replay requests as not-ready source-level replay work without exposing fact
 // payloads, source paths, or provider responses.

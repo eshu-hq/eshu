@@ -53,7 +53,7 @@ func OpenAPISpec() string {
 	return strings.Replace(
 		openAPISpecPrefix+
 			openAPIPathsRepositories+
-			openAPIPathsRepositoriesStats+
+			openAPIPathsRepositoriesStatsAndCoverage+
 			openAPIPathsRepositoriesBranches+
 			openAPIPathsRepositoriesFreshness+
 			openAPIPathsEntities+

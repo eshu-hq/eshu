@@ -84,6 +84,28 @@ const (
 	// "sse", "other", or "unknown"), never a raw unbounded string parsed from
 	// an unauthenticated request body.
 	MetricDimensionMCPMethod = "mcp_method"
+	// MetricDimensionMCPTransportAuthDenyReason labels
+	// eshu_dp_mcp_transport_auth_denied_total with the closed enum of why the
+	// MCP transport refused a request, which an operator has to read before
+	// deciding whether anything is wrong at all:
+	//   - unauthenticated: no credential, or one that did not resolve. This is
+	//     the series to watch for credential stuffing and catalog enumeration.
+	//   - session_principal_mismatch: a valid credential posted into an SSE
+	//     session a different principal opened.
+	//   - route_policy: a credential that authenticated and was then refused
+	//     by route admission -- an all-scope bearer on GET /sse or
+	//     POST /mcp/message under hosted_multi_tenant or an unrecognized
+	//     governance mode, where its grant predicate would go inert and the
+	//     read would cross tenants. The deployment is behaving as configured;
+	//     the remedy is a narrower credential or hosted_single_tenant, never a
+	//     credential reset.
+	// The string value is "reason" -- the same short label as
+	// MetricDimensionReason, which the metricDimensionKeys registry
+	// deduplicates on -- but the constant exists so this counter's closed
+	// vocabulary is anchored to the contract instead of living only in
+	// go/internal/mcp's unexported mcpAuthDenyReason* constants, which are the
+	// producers.
+	MetricDimensionMCPTransportAuthDenyReason = "reason"
 	// MetricDimensionAuthPath labels every eshu_dp_gcp_freshness_events_total
 	// series with a bounded four-value enum: "shared_token" or "oidc" (the
 	// webhook listener's accepted auth path that authenticated the inbound

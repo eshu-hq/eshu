@@ -32,6 +32,14 @@
 // Beyond auth/session ledgers, the runtime serves reads only; it does not own
 // repo sync, parsing, fact emission, vector builds, or queued projection work.
 //
+// ESHU_GOVERNANCE_MODE is the one ESHU_GOVERNANCE_* key that is not readback
+// metadata: wrapAPIAuth turns it into the route policy the auth middleware
+// applies to both bearer tokens and dashboard browser sessions. Unset reads as
+// local_no_policy; hosted_multi_tenant, and any value the binary does not
+// recognize, refuse an all-scope credential with 403 on grant-bound,
+// deployment-scoped, and transitive routes. See go/cmd/api/README.md for the
+// allowed values and the operator remedy.
+//
 // When ESHU_PPROF_ADDR is set, the binary also exposes an opt-in
 // net/http/pprof endpoint via runtime.NewPprofServer, bound to the loopback
 // interface for port-only inputs so the default does not reach beyond the local

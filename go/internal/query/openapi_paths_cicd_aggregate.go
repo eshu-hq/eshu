@@ -36,7 +36,8 @@ const openAPIPathsCICDRunCorrelationAggregate = `
                 }
               }
             }
-          }
+          },
+          "403": {"$ref": "#/components/responses/Forbidden"}
         }
       }
     },
@@ -88,7 +89,8 @@ const openAPIPathsCICDRunCorrelationAggregate = `
                 }
               }
             }
-          }
+          },
+          "403": {"$ref": "#/components/responses/Forbidden"}
         }
       }
     },

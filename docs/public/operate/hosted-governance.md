@@ -146,7 +146,7 @@ environment keys:
 
 | Key | Safe value shape |
 | --- | --- |
-| `ESHU_GOVERNANCE_MODE` | `local_no_policy`, `hosted_single_tenant`, or `hosted_multi_tenant` |
+| `ESHU_GOVERNANCE_MODE` | `local_no_policy`, `hosted_single_tenant`, or `hosted_multi_tenant`; anything else reads back as `unrecognized` |
 | `ESHU_GOVERNANCE_STATE` | `disabled`, `partial`, `enforcing`, `stale`, or `invalid` |
 | `ESHU_GOVERNANCE_SOURCE_KIND` | `environment`, `kubernetes_secret`, `config_map`, `postgres_revision`, or `unknown` |
 | `ESHU_GOVERNANCE_POLICY_REVISION_HASH` | Opaque `sha256:` revision hash only |
@@ -478,6 +478,47 @@ Only routes proven tenant-filtered are reachable with a scoped token; every
 other route stays fail-closed with `permission_denied`. Empty grants
 (`all_scopes` false with no allowed ids) return bounded empty/zero reads.
 
+An `all_scopes` token is the exception that needs stating, because the filter
+it is meant to pass through is the one it makes inert. On a route whose handler
+intersects reads with the caller's repository or scope grant, such a token has
+no grant to intersect, so the read would run across every tenant. Under
+`hosted_multi_tenant` — and under any unrecognized `ESHU_GOVERNANCE_MODE` —
+those routes refuse it with `403 permission_denied` and record
+`scoped_route_all_scope_grant_required` in `governance_audit_events`, which is
+a different remedy from `scoped_route_not_enabled`: narrow the credential, or
+opt the deployment in, rather than wire a missing route up. `GET
+/api/v0/status/governance` reports that same decision as
+`all_scope_route_policy.grant_bound_routes` (`admitted` or `refused`), read off
+the same mode mapping, and a mistyped mode reads back as `mode=unrecognized`
+with the reason `governance_mode_unrecognized` instead of the permissive
+`local_no_policy` — so the readback names the typo that is causing the 403s. `local_no_policy`,
+`hosted_single_tenant`, and an unset mode admit it, which is the intended
+posture where one graph belongs to one tenant. The identity and admin routes
+under `/api/v0/auth/`, and the static catalog and request-reshape routes, hold
+no tenant data for a grant to filter and admit it in every mode.
+
+The MCP transport is the other way round: the refusal lands on the connection
+rather than on a tool. `mcp-server`'s `GET /sse` and `POST /mcp/message` clear
+the allowlist without a ledger class, so they take the grant-bound default, and
+under `hosted_multi_tenant` an all-scope bearer is refused before `initialize`
+or `tools/list` can complete, with the same
+`scoped_route_all_scope_grant_required` code — the client loses the whole MCP
+session, not just the tools that read tenant data. The remedy is a restricted
+registry token — one carrying real repository or scope ids — or
+`hosted_single_tenant`; the modes that admit an all-scope credential elsewhere
+admit it on the transport too, so no other mode changes.
+
+A console session is not a remedy here, and reaching for one costs an operator
+a debugging round. `buildTransportAuthMiddleware` builds the transport from the
+scoped-token constructor with no browser-session resolver, so `GET /sse` and
+`POST /mcp/message` authenticate bearer credentials only and never read the
+console's session cookie, however narrow that session's grant is. A cookie-only
+request to the transport is refused `401` for having no credential at all,
+which is a different failure from the `403` this section is about.
+`TestTransportAuthMiddlewareResolvesNoBrowserSession` in `go/cmd/mcp-server`
+holds that apart. On the API server, which does resolve sessions, a restricted
+console session remains a valid remedy for the same 403 on `/api/v0/` routes.
+
 #### Two-Team Cross-Scope Denial Proof
 
 The scoped-token denial behavior is proven end-to-end against a live API and MCP
@@ -501,7 +542,8 @@ The driver and overlay live at
 `scripts/run-two-team-governance-proof.sh`. The live run asserts, on both the
 API and the MCP tool-dispatch path:
 
-- an admin (`all_scopes`) token enumerates every ingested repository;
+- the shared operator key (`ESHU_API_KEY`, presented before the scoped-token
+  registry is mounted) enumerates every ingested repository;
 - team-A's token lists only team-A's repository and never team-B's (and vice
   versa) — the denied cross-scope read;
 - the single-repository context selector for an out-of-grant repository fails

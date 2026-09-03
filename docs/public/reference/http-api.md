@@ -132,6 +132,36 @@ open read surface with one of those three environment variables. Both `cmd/api`
 and `cmd/mcp-server` log the resolved posture (`auth.enforcement.configured` or
 `auth.enforcement.open`) once at startup.
 
+### All-scope credentials on grant-filtered routes
+
+A credential marked all-scope — a `ESHU_SCOPED_TOKENS_FILE` entry with
+`all_scopes`, an OIDC bearer resolved through an admin group grant, or an
+owner console session — carries no repository or scope ids. On a route whose
+handler intersects its read with those ids there is nothing to intersect, so
+the read would run across every tenant. `ESHU_GOVERNANCE_MODE` decides what
+happens instead: `hosted_multi_tenant` and any unrecognized value refuse such a
+caller with `403 permission_denied` and record
+`scoped_route_all_scope_grant_required`; `local_no_policy`,
+`hosted_single_tenant`, and an unset mode admit it when it is bound to one
+tenant and workspace, which is the intended posture where one graph belongs to
+one tenant. Identity and admin routes under `/api/v0/auth/`, and the static
+catalog and request-reshape routes, hold no tenant data to filter and admit it
+in every mode. Credentials carrying real ids are unaffected in every mode.
+Every operation that can refuse a caller this way declares `403` in the OpenAPI
+document, so a generated client has a case for it without deploying under
+`hosted_multi_tenant` to discover the status.
+
+The rule reaches bearer tokens and browser sessions alike, with one difference:
+it never widens a token's reach. A route absent from the scoped-token allowlist
+refuses every bearer in every mode, while the modes above do admit an
+owner console session there.
+On the MCP transport — `mcp-server`'s `GET /sse` and `POST /mcp/message` — the
+refusal lands on the handshake, so an all-scope bearer loses the whole MCP
+session rather than the tools that read tenant data. Only bearers reach that
+rule: the transport is wired with no browser-session resolver, so a console
+session cookie is not a credential there at all. See
+[Hosted Governance](../operate/hosted-governance.md).
+
 When `ESHU_AUTH_RESOURCE_URI` and at least one OIDC bearer provider are
 configured, `cmd/mcp-server` also publishes an
 [RFC 9728](https://www.rfc-editor.org/rfc/rfc9728.html) OAuth 2.0 Protected

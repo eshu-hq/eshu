@@ -32,10 +32,29 @@ func WithTransportAuth(middleware func(http.Handler) http.Handler) ServerOption 
 }
 
 // Bounded reason labels for eshu_dp_mcp_transport_auth_denied_total. Keep
-// this set closed -- it is a metric label, not free text.
+// this set closed -- it is a metric label, not free text. The same three
+// values are documented for operators on
+// telemetry.MetricDimensionMCPTransportAuthDenyReason and in
+// docs/public/observability/telemetry-coverage.md; adding a fourth means
+// editing all three.
 const (
+	// mcpAuthDenyReasonUnauthenticated is a credential that did not
+	// authenticate: absent, malformed, or unresolvable. It is the series an
+	// operator watches for credential stuffing and catalog enumeration.
 	mcpAuthDenyReasonUnauthenticated = "unauthenticated"
+	// mcpAuthDenyReasonSessionMismatch is a POST /mcp/message carrying a
+	// valid credential into an SSE session a different principal opened.
 	mcpAuthDenyReasonSessionMismatch = "session_principal_mismatch"
+	// mcpAuthDenyReasonRoutePolicy is a credential that authenticated fine
+	// and was refused by route admission: an all-scope bearer reaching the
+	// transport under hosted_multi_tenant (or any unrecognized governance
+	// mode), where its grant predicate would go inert and the read would
+	// cross tenants. Nothing is wrong with the credential and nothing is
+	// wrong with the deployment -- the governance mode is doing its job --
+	// so this must not land in the unauthenticated series and page someone.
+	// The remedy an operator has is a narrower credential or
+	// hosted_single_tenant, never a credential reset.
+	mcpAuthDenyReasonRoutePolicy = "route_policy"
 )
 
 // denyClassification lets an inner transport handler tell
@@ -102,6 +121,12 @@ func (s *Server) authenticatedTransportHandler(staticMethod string, next http.Ha
 			method, r = peekMCPMethod(r)
 		}
 		ctx, classified := withDenyClassification(r.Context())
+		// The route-admission refusal happens inside the credential
+		// middleware, BEFORE next runs, so it can never mark the
+		// denyClassification sentinel above -- that one is for an inner
+		// handler that already counted its own denial. This second signal is
+		// read by this wrapper instead, and only to pick the reason label.
+		ctx, routePolicyDenied := query.WithScopedRouteDenialSignal(ctx)
 		r = r.WithContext(ctx)
 		rec := &authDenyStatusRecorder{ResponseWriter: w, status: http.StatusOK}
 		wrapped.ServeHTTP(rec, r)
@@ -115,7 +140,15 @@ func (s *Server) authenticatedTransportHandler(staticMethod string, next http.Ha
 			return
 		}
 		if rec.status == http.StatusUnauthorized || rec.status == http.StatusForbidden {
-			recordMCPTransportAuthDenied(r.Context(), method, mcpAuthDenyReasonUnauthenticated)
+			// A route-admission refusal authenticated successfully and was
+			// then refused on policy; labeling it "unauthenticated" would put
+			// a correctly-configured governance mode into the series an
+			// operator pages on.
+			reason := mcpAuthDenyReasonUnauthenticated
+			if routePolicyDenied() {
+				reason = mcpAuthDenyReasonRoutePolicy
+			}
+			recordMCPTransportAuthDenied(r.Context(), method, reason)
 		}
 	}
 }

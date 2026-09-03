@@ -49,7 +49,17 @@ func buildMCPTransportServer(apiKey string, fileResolver, oidcResolver query.Sco
 	)
 	authSourceConfigured := authEnforcementConfigured(apiKey, fileResolver, oidcResolver)
 	scopedTokenResolver := scopedtoken.ChainResolvers(identityResolver, oidcResolver, fileResolver)
-	transportAuth := buildTransportAuthMiddleware(apiKey, scopedTokenResolver, nil, authSourceConfigured, nil, nil)
+	// The route policy an empty governance config derives, which is what these
+	// fixtures run with: they set no ESHU_GOVERNANCE_MODE, so they get the
+	// local default. Not a detail -- writeScopedTokenFile mints an `all_scopes`
+	// registry entry, and under a fail-closed policy #6450's residual item 1
+	// refuses that token on GET /api/v0/repositories and POST /mcp/message
+	// alike, which would turn this suite's admit-the-valid-token half red for
+	// a reason that has nothing to do with headerless enforcement.
+	transportAuth := buildTransportAuthMiddleware(
+		apiKey, scopedTokenResolver, nil, authSourceConfigured, nil, nil,
+		query.ScopedRoutePolicyForGovernanceMode(query.GovernanceStatusConfig{}),
+	)
 
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /api/v0/repositories", func(w http.ResponseWriter, _ *http.Request) {

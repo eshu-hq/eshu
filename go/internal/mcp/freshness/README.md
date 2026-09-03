@@ -43,7 +43,7 @@ transport and dispatch signals, while the HTTP handlers retain
 - `Tools` returns fresh definitions. A caller may modify one result without
   changing a later result.
 - The definition hash is
-  `eaa373680ec77f5007fa6c46507485d987a53507e08df2868091cb18cc7c6c23`.
+  `47899f086bbaa8ac252f4502e442cc44cefc59b4faedfc4baefde75431143bed`.
 - The root registry keeps all four definitions after visualization and before
   context tools. The complete registry remains 162 tools in the same order.
 - Repository freshness does not use `dispatch_freshness.go`; its route remains

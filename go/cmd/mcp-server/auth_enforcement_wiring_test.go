@@ -69,15 +69,26 @@ func (r *recordingScopedResolver) ResolveScopedToken(context.Context, string) (q
 
 // buildMCPAuthHandler assembles the middleware the way cmd/mcp-server/wiring.go
 // does, from the same inputs.
+//
+// It goes through buildTransportAuthMiddleware, the same function wireAPI
+// calls, rather than reaching for a query constructor directly. It used to do
+// the latter, and the two drifted the moment wiring.go started threading a
+// route policy: this helper kept building a policy-less middleware while
+// claiming, in this comment, to assemble what production assembles. The
+// governance config is empty because these fixtures set no
+// ESHU_GOVERNANCE_MODE, which is the local default -- and that matters to what
+// they assert, because writeScopedTokenFile below mints an `all_scopes` entry,
+// the exact credential #6450's residual item 1 now holds to the mode.
 func buildMCPAuthHandler(apiKey string, fileResolver, oidcResolver query.ScopedTokenResolver) http.Handler {
 	identityResolver := scopedtoken.NewPostgresIdentityResolver(
 		pgstatus.NewScopedAPITokenStore(stubExecQueryer{}),
 	)
 	enforcement := authEnforcementConfigured(apiKey, fileResolver, oidcResolver)
 	scopedTokenResolver := scopedtoken.ChainResolvers(identityResolver, oidcResolver, fileResolver)
-	return query.AuthMiddlewareWithScopedTokensGovernanceAuditAndEnforcement(
-		apiKey, scopedTokenResolver, okHandler(), nil, enforcement,
-	)
+	return buildTransportAuthMiddleware(
+		apiKey, scopedTokenResolver, nil, enforcement, nil, nil,
+		query.ScopedRoutePolicyForGovernanceMode(query.GovernanceStatusConfig{}),
+	)(okHandler())
 }
 
 func okHandler() http.Handler {

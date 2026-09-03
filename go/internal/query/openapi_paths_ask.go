@@ -40,6 +40,7 @@ const openAPIPathsAsk = `
           }
         },
         "responses": {
+          "403": {"$ref": "#/components/responses/Forbidden"},
           "200": {
             "description": "Ask answer (JSON) or SSE stream when Accept: text/event-stream is sent. Narrated prose and rendered artifacts are returned only after runtime citation-coverage and publish-safety guardrails pass; failures suppress those fields, set partial=true, and add a bounded limitation. When the provider adapter supports streaming the SSE stream emits 'token' events only for validated narration prose after governed citation and publish-safety validation succeeds, plus 'trace' events (one per completed tool call), an 'answer' event with the full response after runtime guardrails, and a 'done' event. Raw provider text-token deltas are never emitted. On engine error an 'error' event is emitted with a bounded unavailable payload. When the adapter does not support streaming the handler falls back to a synchronous run and emits 'trace', 'answer', and 'done' with no 'token' events.",
             "content": {

@@ -372,7 +372,7 @@ not advertise what it would do for one. What ships instead is the refusal, and
 it names who is refused rather than saying "scoped tokens and browser
 sessions", which over-claimed: `browserSessionRouteDenialReason` admits a
 tenant-bound all-scope console session on any route outside the scoped-token
-allowlist wherever `cmd/api`'s `browserSessionRoutePolicy` sets
+allowlist wherever `ScopedRoutePolicyForGovernanceMode` sets
 `AllowTenantBoundAllScopes`, and this route is outside that allowlist.
 `openAPIPathsFreshnessServiceChangedSince` now says scoped tokens are refused
 "in every deployment, and so is every browser session except a tenant-bound

@@ -37,12 +37,12 @@ three shipped off that ledger; the third did not:
   `docs/public/reference/http-api/status-admin.md`.
 - `TestToolsPreserveFreshnessRegistrationContract`
   (`go/internal/mcp/freshness/tools_test.go`) pins a SHA-256 over the marshalled
-  freshness tool definitions, so the description edit moves that pin from
-  `eaa37368...` to `dd7c7265...`. The pin exists to make a tool-contract change
-  deliberate rather than accidental; this one is deliberate and is the only
-  artifact the description edit touches. No cassette, no B-12 snapshot entry,
-  and neither generated capability-catalog file carries tool or operation
-  description text (`catalog.generated.json` and
+  freshness tool definitions, so the description edits move that pin from
+  `eaa37368...` to `830b1f20...`, the value this branch ends on. The pin exists
+  to make a tool-contract change deliberate rather than accidental; these edits
+  are deliberate and the pin is the only artifact they touch. No cassette, no
+  B-12 snapshot entry, and neither generated capability-catalog file carries
+  tool or operation description text (`catalog.generated.json` and
   `surface-inventory.generated.json` record `{category, name, readiness}`
   only), so nothing is regenerated here.
 
@@ -71,9 +71,8 @@ That keeps an all-scope browser session behind the `BrowserSessionRoutePolicy`
 mode check (#6450): an all-scope caller's `RepositoryAccessFilterFromContext`
 is not `Scoped()`, so these predicates go inert for it and the hosted
 multi-tenant posture must refuse rather than answer from the whole graph. A
-restricted session, whose grant the queries can bind, is admitted. That covers
-the browser-session shape and only that one;
-[Residual](#residual-all-scope-bearers-6450-item-1) names the shape it misses.
+restricted session, whose grant the queries can bind, is admitted. The same check now covers the all-scope BEARER shape too; see
+[All-scope bearers](#all-scope-bearers-6450-item-1-closed-here).
 
 ## Commit 1: tests run
 
@@ -164,7 +163,7 @@ EXIT=0
 ok  	github.com/eshu-hq/eshu/go/internal/query	1.781s
 ```
 
-The split table covers both new ledger entries automatically, under all six
+The split table covers both new ledger entries automatically, under all nine
 caller shapes, because it iterates `scopedTokenAdvertisedRoutes`.
 
 ## Commit 1: markers
@@ -188,48 +187,51 @@ with `governanceaudit.DecisionDenied` -- and the reason code an operator reads
 for it changes meaning rather than appearing: before this change a scoped or
 browser-session caller on either route was refused with
 `scoped_route_not_enabled` (the route had no scoped authorization); after it, a
-grant-bearing caller is admitted and only an all-scope browser session under a
+grant-bearing caller is admitted and only an all-scope caller under a
 fail-closed `BrowserSessionRoutePolicy` is refused, with
 `scoped_route_all_scope_grant_required`. That is the #6450 code, already
 defined and asserted by the split table; this change adds two routes to the
-population that can emit it.
+population that can emit it, and adds the all-scope bearer to the callers that
+can produce it.
 
-## Residual: all-scope bearers (#6450 item 1)
+## All-scope bearers: #6450 item 1, closed here
 
-The `scopedRouteGrantBound` class check does not cover every all-scope caller,
-and this document should not be read as saying it does.
-
-`browserSessionRouteDenialReason` is the only reader of the class, and
-`go/internal/query/auth.go` reaches it inside the
-`auth.Mode == AuthModeBrowserSession` branch. So:
-
-- an all-scope **browser session** hits the class check and is refused by a
-  fail-closed `BrowserSessionRoutePolicy`;
-- an all-scope **bearer** never enters that branch, so no class check runs for
-  it at all.
-
-Two bearers carry `AllScopes`. An OIDC bearer resolved with an admin group
-grant gets it from `Resolver.ResolveScopedToken`
-(`go/internal/oidcbearer/resolver.go`), and a file-backed registry token can
-carry `all_scopes` (`go/internal/scopedtoken/registry.go`).
-For either, `RepositoryAccessFilter.Scoped()` is false, so `$3` in
+For one caller these two routes were a 403 turned into a whole-corpus read. An
+all-scope bearer -- an `ESHU_SCOPED_TOKENS_FILE` entry with `all_scopes`, or an
+OIDC bearer resolved through an admin group grant -- has
+`RepositoryAccessFilter.Scoped()` false, so `$3` in
 `resolveChangedSinceScopeQuery` and `$8` in `listGenerationLifecycleQuery`
-short-circuit the two SQL predicates the changed-since and generations routes
-bind: the read runs across the whole corpus. Before this change those two
-routes answered such a caller with a middleware 403. The service route is not
-part of that: it stays on the pending ledger, so the middleware refuses every
-bearer there before the handler runs. A tenant-bound all-scope BROWSER SESSION
-does reach it wherever `AllowTenantBoundAllScopes` is set, and
-`serviceChangedSinceGrantAdmits` admits that caller at its first branch, as on
-every other route outside the allowlist.
+short-circuit and the read runs across every tenant. Promotion moved that
+caller from refused to admitted, so the residual is closed in this branch
+rather than tracked forward: `scopedBearerRouteDenialReason` now holds a bearer
+to the same `BrowserSessionRoutePolicy` the console session takes. The change,
+the per-mode table, and why refusal beats expanding `all_scopes` into a real
+grant set are in
+[6450-all-scope-browser-session-admission.md](6450-all-scope-browser-session-admission.md#all-scope-bearers-6450-item-1).
 
-This is #6450's residual item 1, quoted there as "All-scope bearer tokens skip
-the policy entirely". It is pre-existing and holds for every
-`scopedRouteGrantBound` entry in `scopedTokenAdvertisedRoutes` (175 advertised
-routes at `origin/main`, 177 after this change), not only these two, so
-closing it belongs to #6450 rather than to this family. It is named here, and in
-`scopedFreshnessDeltaRoute`'s doc comment, so the next reader of either does not
-conclude that "grant-bound" means every all-scope caller is refused.
+For these two routes,
+`TestAllScopeBearerOnFreshnessDeltaRoutesPerGovernanceMode` pins the modes and
+`TestAllScopeBearerTwoTenantBoundary` proves the `hosted_multi_tenant` refusal
+is the absence of a read, not merely a status code: the changed-since and
+generation-lifecycle store fakes are never called.
+
+### All-scope bearer BITES
+
+The one predicate the refusal turns on is `scopedBearerRouteDenialReason`'s
+final return. Flipping it to `""` -- a mechanical sed on the
+`bites-6450-bearer-neuter-anchor` marker, so there is no judgement in what gets
+broken -- restores the admission an all-scope bearer had before that function
+existed, without touching a signature. Exit codes captured directly.
+
+| Step | Exit |
+| --- | --- |
+| baseline, committed tree | 0 |
+| refusal neutered via the anchor | 1 |
+| restored | 0 |
+
+The four tests that go red, and why the pending service route's rows correctly
+do not move, are in
+[6450-all-scope-browser-session-admission.md](6450-all-scope-browser-session-admission.md#the-neutered-run).
 
 ---
 
@@ -492,4 +494,4 @@ the withdrawal leaves the middleware refusing every scoped caller before the
 handler runs. The refusal attributes above are exercised by the fence tests,
 which build scoped contexts directly, and become caller-visible once #6475
 lands. The promoted pair reads
-[Residual](#residual-all-scope-bearers-6450-item-1) instead.
+[All-scope bearers](#all-scope-bearers-6450-item-1-closed-here) instead.

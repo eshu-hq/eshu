@@ -5462,6 +5462,18 @@ func AttrMCPMethod(v string) attribute.KeyValue {
 	return attribute.String(MetricDimensionMCPMethod, v)
 }
 
+// AttrMCPTransportAuthDenyReason returns the reason attribute for
+// eshu_dp_mcp_transport_auth_denied_total. It emits the same "reason" wire
+// label AttrReason does, and exists as its own helper because this counter's
+// vocabulary is closed and documented on
+// MetricDimensionMCPTransportAuthDenyReason: v must be "unauthenticated",
+// "session_principal_mismatch", or "route_policy". Going through this helper
+// rather than the general reason attribute means a reader who follows the
+// contract constant lands on the producer.
+func AttrMCPTransportAuthDenyReason(v string) attribute.KeyValue {
+	return attribute.String(MetricDimensionMCPTransportAuthDenyReason, v)
+}
+
 // AttrKind returns a kind attribute for metric recording.
 func AttrKind(v string) attribute.KeyValue {
 	return attribute.String(MetricDimensionKind, v)

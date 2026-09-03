@@ -60,6 +60,17 @@ func benchScopedResolverAlwaysOK() *fakeScopedTokenResolver {
 	}
 }
 
+// benchAllScopeRoutePolicy is the permissive route policy both sub-benchmarks
+// carry. It is not a shortcut: the resolver above returns an all-scope context,
+// which since #6450's residual item 1 closed is refused on /api/v0/repositories
+// under a fail-closed policy -- and a refused request never reaches the
+// allowed-read emission site, so the benchmark would be timing a 403 in both
+// arms and reporting a zero delta. Both arms carry the same policy, so the
+// ON-minus-OFF comparison stays honest.
+func benchAllScopeRoutePolicy() BrowserSessionRoutePolicy {
+	return BrowserSessionRoutePolicy{AllowTenantBoundAllScopes: true}
+}
+
 // BenchmarkAuthMiddlewareScopedAllowed is the F-9 (#5170) design addendum's
 // Bench A gate: middleware ON (async allowed-read audit over a null sink) vs
 // OFF (nil allowedAudit), otherwise byte-identical composition and request.
@@ -75,8 +86,8 @@ func benchScopedResolverAlwaysOK() *fakeScopedTokenResolver {
 func BenchmarkAuthMiddlewareScopedAllowed(b *testing.B) {
 	b.Run("AuditOff", func(b *testing.B) {
 		resolver := benchScopedResolverAlwaysOK()
-		handler := AuthMiddlewareWithScopedTokensGovernanceAuditEnforcementOAuthChallengeAndAllowedReadAudit(
-			"", resolver, mockHandler(), nil, false, nil, nil,
+		handler := AuthMiddlewareWithScopedTokensGovernanceAuditEnforcementOAuthChallengeAllowedReadAuditAndRoutePolicy(
+			"", resolver, mockHandler(), nil, false, nil, nil, benchAllScopeRoutePolicy(),
 		)
 		runAuthMiddlewareScopedAllowedBenchmark(b, handler)
 	})
@@ -84,8 +95,8 @@ func BenchmarkAuthMiddlewareScopedAllowed(b *testing.B) {
 		resolver := benchScopedResolverAlwaysOK()
 		appender := governanceauditasync.NewAsyncAppender(benchAllowedReadNullSink{}, governanceauditasync.Metrics{})
 		b.Cleanup(func() { _ = appender.Close() })
-		handler := AuthMiddlewareWithScopedTokensGovernanceAuditEnforcementOAuthChallengeAndAllowedReadAudit(
-			"", resolver, mockHandler(), nil, false, nil, appender,
+		handler := AuthMiddlewareWithScopedTokensGovernanceAuditEnforcementOAuthChallengeAllowedReadAuditAndRoutePolicy(
+			"", resolver, mockHandler(), nil, false, nil, appender, benchAllScopeRoutePolicy(),
 		)
 		runAuthMiddlewareScopedAllowedBenchmark(b, handler)
 	})

@@ -37,9 +37,9 @@ import (
 // admits a tenant-bound all-scopes browser session -- the normal
 // single-tenant/local owner console session -- whenever
 // BrowserSessionRoutePolicy.AllowTenantBoundAllScopes is set, which
-// cmd/api's browserSessionRoutePolicy does for the default,
-// "local_no_policy", and "hosted_single_tenant" governance modes
-// (browser_sessions.go). Only an unrecognized or
+// ScopedRoutePolicyForGovernanceMode does for the default,
+// "local_no_policy", and "hosted_single_tenant" governance modes, and which
+// cmd/api reads through it (browser_sessions.go). Only an unrecognized or
 // hosted-multi-tenant governance mode, or a restricted-scope browser session,
 // gets rejected. Either way, the caller who reaches this handler could
 // already read the three source status routes directly and derive this

@@ -79,27 +79,28 @@ func scopedIngesterStatusRoute(r *http.Request) bool {
 // first half of that promotion.
 //
 // Both promoted routes are classified scopedRouteGrantBound in
-// scopedTokenAdvertisedRoutes. That class check covers one caller shape and
-// not the other, and the difference matters here:
+// scopedTokenAdvertisedRoutes, and both all-scope caller shapes now read that
+// class through their own denial function:
 //
-//   - An all-scope BROWSER SESSION is covered. browserSessionRouteDenialReason
-//     reads the class, and auth.go reaches it under the
-//     `auth.Mode == AuthModeBrowserSession` branch, so a hosted fail-closed
-//     BrowserSessionRoutePolicy refuses it (#6450). A restricted session is
-//     admitted and its grant binds normally.
-//   - An all-scope BEARER is NOT covered. It never enters that branch, so no
-//     class check runs for it. An OIDC bearer resolved with an admin group
-//     grant carries AllScopes onto its AuthContext
-//     (internal/oidcbearer/resolver.go), and a file-backed registry token can
-//     carry the same flag (internal/scopedtoken/registry.go). For such a
-//     caller RepositoryAccessFilter.Scoped() is false, so $3/$8 short-circuit
-//     the two SQL predicates above: the read is served across the whole
-//     corpus.
+//   - An all-scope BROWSER SESSION goes through browserSessionRouteDenialReason,
+//     which auth.go reaches under the `auth.Mode == AuthModeBrowserSession`
+//     branch, so a hosted fail-closed BrowserSessionRoutePolicy refuses it
+//     (#6450).
+//   - An all-scope BEARER goes through scopedBearerRouteDenialReason, under
+//     the scoped-resolver branch, and is refused by the same policy (#6450
+//     residual item 1). Both minters produce this shape: an OIDC bearer
+//     resolved with an admin group grant carries AllScopes onto its
+//     AuthContext (internal/oidcbearer/resolver.go), and a file-backed
+//     registry token can carry the same flag (internal/scopedtoken/registry.go).
+//     Without the refusal, RepositoryAccessFilter.Scoped() is false for such a
+//     caller, so $3/$8 short-circuit the two SQL predicates above and the read
+//     is served across the whole corpus -- which is what these routes did for
+//     an all-scope bearer between their promotion and that fix, both landing
+//     in the same change.
 //
-// That second shape is #6450 residual 1. It is pre-existing and applies to
-// every grant-bound allowlisted route, not only these two, so closing it is
-// #6450's job rather than this matcher's -- but it is stated here so nobody
-// reads "grant-bound" as "every all-scope caller is refused".
+// A restricted session or token, of either kind, is admitted and its grant
+// binds normally: the refusal is for callers whose grant the predicate cannot
+// bind, not for scoped callers generally.
 func scopedFreshnessDeltaRoute(r *http.Request) bool {
 	if r.Method != http.MethodGet {
 		return false

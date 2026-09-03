@@ -20,6 +20,7 @@ const openAPIPathsComponentExtensions = `
           }
         ],
         "responses": {
+          "403": {"$ref": "#/components/responses/Forbidden"},
           "200": {
             "description": "Component extension inventory",
             "content": {
@@ -98,6 +99,7 @@ const openAPIPathsComponentExtensions = `
           }
         ],
         "responses": {
+          "403": {"$ref": "#/components/responses/Forbidden"},
           "200": {
             "description": "Component extension diagnostics",
             "content": {

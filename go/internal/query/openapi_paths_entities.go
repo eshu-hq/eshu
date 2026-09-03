@@ -29,6 +29,7 @@ const openAPIPathsEntities = `
           }
         },
         "responses": {
+          "403": {"$ref": "#/components/responses/Forbidden"},
           "504": {"$ref": "#/components/responses/GatewayTimeout"},
           "200": {
             "description": "Resolved entities",
@@ -66,6 +67,7 @@ const openAPIPathsEntities = `
           {"$ref": "#/components/parameters/EntityId"}
         ],
         "responses": {
+          "403": {"$ref": "#/components/responses/Forbidden"},
           "503": {"$ref": "#/components/responses/ServiceUnavailable"},
           "504": {"$ref": "#/components/responses/GatewayTimeout"},
           "200": {
@@ -115,6 +117,7 @@ const openAPIPathsEntities = `
           {"$ref": "#/components/parameters/WorkloadId"}
         ],
         "responses": {
+          "403": {"$ref": "#/components/responses/Forbidden"},
           "504": {"$ref": "#/components/responses/GatewayTimeout"},
           "200": {
             "description": "Workload context",
@@ -142,6 +145,7 @@ const openAPIPathsEntities = `
           {"$ref": "#/components/parameters/WorkloadId"}
         ],
         "responses": {
+          "403": {"$ref": "#/components/responses/Forbidden"},
           "504": {"$ref": "#/components/responses/GatewayTimeout"},
           "200": {
             "description": "Workload narrative",
@@ -179,6 +183,7 @@ const openAPIPathsEntities = `
           {"$ref": "#/components/parameters/ServiceName"}
         ],
         "responses": {
+          "403": {"$ref": "#/components/responses/Forbidden"},
           "504": {"$ref": "#/components/responses/GatewayTimeout"},
           "200": {
             "description": "Service context",
@@ -209,6 +214,7 @@ const openAPIPathsEntities = `
           {"name": "environment", "in": "query", "description": "Runtime environment selector used to disambiguate duplicate service names by workload instance environment.", "schema": {"type": "string"}}
         ],
         "responses": {
+          "403": {"$ref": "#/components/responses/Forbidden"},
           "503": {"$ref": "#/components/responses/ServiceUnavailable"},
           "504": {"$ref": "#/components/responses/GatewayTimeout"},
           "200": {

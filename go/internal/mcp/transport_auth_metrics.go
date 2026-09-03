@@ -37,7 +37,7 @@ func mcpTransportAuthDeniedCounter() metric.Int64Counter {
 		meter := otel.Meter(mcpAuthMeterName)
 		if counter, err := meter.Int64Counter(
 			"eshu_dp_mcp_transport_auth_denied_total",
-			metric.WithDescription("MCP transport-level authentication denials by mcp_method and reason, so an operator can see catalog-enumeration or session-hijack attempts against initialize/tools/list/tools/call/ping/SSE"),
+			metric.WithDescription("MCP transport-level denials by mcp_method and reason, so an operator can see catalog-enumeration or session-hijack attempts against initialize/tools/list/tools/call/ping/SSE, and tell those apart from a governance mode refusing an all-scope credential"),
 		); err == nil {
 			mcpAuthDeniedCounter = counter
 		}
@@ -45,9 +45,15 @@ func mcpTransportAuthDeniedCounter() metric.Int64Counter {
 	return mcpAuthDeniedCounter
 }
 
-// recordMCPTransportAuthDenied records one transport-auth denial labeled by
-// the bounded JSON-RPC method (or "sse") and the bounded reason
+// recordMCPTransportAuthDenied records one transport denial labeled by the
+// bounded JSON-RPC method (or "sse") and the bounded reason
 // (mcpAuthDenyReason* constants).
+//
+// The reason attribute is built with telemetry.AttrMCPTransportAuthDenyReason
+// rather than the shared telemetry.AttrReason helper. Both emit the same
+// "reason" wire label, but the named helper is anchored to the constant where
+// this counter's closed vocabulary is documented for operators, so a reader who
+// follows either one lands on the producer.
 func recordMCPTransportAuthDenied(ctx context.Context, method, reason string) {
 	counter := mcpTransportAuthDeniedCounter()
 	if counter == nil {
@@ -55,6 +61,6 @@ func recordMCPTransportAuthDenied(ctx context.Context, method, reason string) {
 	}
 	counter.Add(ctx, 1, metric.WithAttributes(
 		telemetry.AttrMCPMethod(method),
-		telemetry.AttrReason(reason),
+		telemetry.AttrMCPTransportAuthDenyReason(reason),
 	))
 }

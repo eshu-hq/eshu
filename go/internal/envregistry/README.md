@@ -110,3 +110,34 @@ unchanged. Verified by `go test ./internal/envregistry ./cmd/api -count=1` and
 No-Observability-Change: #5605 adds no metrics, spans, log fields, status
 payload fields, or telemetry labels; it is a documentation-only change to an
 existing env var's description plus the generated reference doc.
+
+No-Regression Evidence: #6450's residual item 1 adds one static `Entry` to
+`coreEntries` for `ESHU_GOVERNANCE_MODE` (a `VarEnum` defaulting to
+`local_no_policy`) and the one generated row it produces in
+`docs/public/reference/env-registry.md`. Both readers of the registry are
+build-time or CLI-time, not request-time: `RenderMarkdown` behind
+`scripts/generate-env-registry-doc.sh`, and `cmd/docs-cli-env-refs` behind
+`scripts/verify-docs-cli-env-refs.sh`, whose ratchet accepts a public page
+citing an `ESHU_*` name only when the registry declares it. The runtime read
+path is untouched: `cmd/api` and `cmd/mcp-server` read the environment variable
+themselves and map it through `query.ScopedRoutePolicyForGovernanceMode`, and
+`status_governance.go`'s readback reads it through its own `getenv` — none of
+them consults this package while serving a request. The admission change the
+row documents removes work rather than adding it: `scopedBearerRouteDenialReason`
+decides from the request path, the resolved `AuthContext`, and the route class
+alone, inside `authMiddlewareWithRoutePolicy` before dispatch, so a refused
+all-scope bearer never runs the Postgres or graph read it used to. No
+goroutine, channel, worker, lease, queue, or Cypher path changes, and terminal
+graph and queue row counts are unchanged. Verified by
+`go test ./internal/envregistry ./internal/query ./cmd/api ./cmd/mcp-server -count=1`,
+whose per-mode cases are `TestDefaultRegistryIncludesGovernanceMode`,
+`TestGovernanceModeEnvDerivesTheTransportRoutePolicy`,
+`TestScopedRoutePolicyAllowsOwnerConsoleOnlyOutsideHostedMultiTenant`, and
+`TestAllScopeBearerTwoTenantBoundary`.
+
+No-Observability-Change: #6450's residual item 1 adds no metric, span, log
+field, status payload field, or telemetry label. The refusal is recorded
+through the existing scoped-route denial audit event, emitted by
+`recordScopedRouteAuthorizationDeniedWithReason`, carrying the existing reason
+code `scoped_route_all_scope_grant_required` that the cookie-session path
+already produced; the bearer path now produces it too.

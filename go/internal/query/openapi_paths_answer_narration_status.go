@@ -12,6 +12,7 @@ const openAPIPathsAnswerNarrationStatus = `
         "operationId": "getAnswerNarrationStatus",
         "x-scoped-token-support": true,
         "responses": {
+          "403": {"$ref": "#/components/responses/Forbidden"},
           "200": {
             "description": "Answer narration status",
             "content": {

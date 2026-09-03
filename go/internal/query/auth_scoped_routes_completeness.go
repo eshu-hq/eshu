@@ -77,15 +77,16 @@ package query
 //
 // Each entry also records WHY that route is on the allowlist, as a
 // scopedRouteClass (auth_browser_session_route_policy.go). The class is what
-// browserSessionRouteDenialReason consults once an all-scope browser session
-// arrives: a route whose handler binds the caller's repository or scope
-// grant has nothing left to bind for an all-scope caller, so it stays behind
-// the BrowserSessionRoutePolicy mode check, while an identity-bound or
+// browserSessionRouteDenialReason and scopedBearerRouteDenialReason both
+// consult once an all-scope caller arrives, cookie session or bearer token: a
+// route whose handler binds the caller's repository or scope grant has
+// nothing left to bind for an all-scope caller, so it stays behind the
+// BrowserSessionRoutePolicy mode check, while an identity-bound or
 // tenant-data-free route has no caller grant to make inert and is admitted
 // on its own. Every entry carries its class explicitly, with no zero-value
 // shorthand, so a reviewer reads the reason on the same line as the route.
 // The zero value is scopedRouteGrantBound, so a route added here without a
-// class fails closed rather than opening itself to all-scope sessions.
+// class fails closed rather than opening itself to all-scope callers.
 var scopedTokenAdvertisedRoutes = map[string]scopedRouteClass{
 	"DELETE /api/v0/auth/admin/idp-group-mappings/{mapping_ref}":                    scopedRouteIdentityBound,
 	"DELETE /api/v0/auth/browser-session":                                           scopedRouteIdentityBound,

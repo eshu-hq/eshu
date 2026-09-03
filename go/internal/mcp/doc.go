@@ -110,7 +110,14 @@
 // metadata. Each SSE session is also bound to the credential that opened it; a
 // POST to that session whose credential resolves to a different principal is
 // rejected with 403. Denials increment eshu_dp_mcp_transport_auth_denied_total,
-// labeled by mcp_method and reason. This wrap does not by itself close the
+// labeled by mcp_method and a closed reason: unauthenticated,
+// session_principal_mismatch, or route_policy. The last one is a credential
+// that authenticated and was then refused by route admission -- an all-scope
+// bearer reaching GET /sse or POST /mcp/message under hosted_multi_tenant or
+// an unrecognized ESHU_GOVERNANCE_MODE, where its grant predicate would go
+// inert and the read would cross tenants. It is kept out of the
+// unauthenticated series on purpose: the deployment is behaving as
+// configured, and the remedy is a narrower credential or hosted_single_tenant. This wrap does not by itself close the
 // headerless bypass for a scoped-token-only or OIDC-only deployment (shared
 // ESHU_API_KEY unset): the shared credential middleware still passes a
 // headerless request through on an empty shared token, and that per-request

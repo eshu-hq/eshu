@@ -12,6 +12,7 @@ const openAPIPathsSemanticStatus = `
         "operationId": "getSemanticExtractionStatus",
         "x-scoped-token-support": true,
         "responses": {
+          "403": {"$ref": "#/components/responses/Forbidden"},
           "200": {
             "description": "Semantic extraction capability status",
             "content": {

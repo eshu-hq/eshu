@@ -9,7 +9,13 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/query"
 )
 
-func TestBrowserSessionRoutePolicyAllowsOwnerConsoleOnlyOutsideHostedMultiTenant(t *testing.T) {
+// TestScopedRoutePolicyAllowsOwnerConsoleOnlyOutsideHostedMultiTenant pins the
+// mode table cmd/api reads its all-scope opening from. The mapping itself
+// moved into internal/query when cmd/mcp-server needed the same answer
+// (#6450 residual item 1); this test stays in cmd/api because what it is
+// really asserting is which posture THIS command ships with, and wrapAPIAuth
+// is the caller that decides that.
+func TestScopedRoutePolicyAllowsOwnerConsoleOnlyOutsideHostedMultiTenant(t *testing.T) {
 	t.Parallel()
 
 	for _, tc := range []struct {
@@ -24,7 +30,7 @@ func TestBrowserSessionRoutePolicyAllowsOwnerConsoleOnlyOutsideHostedMultiTenant
 		{name: "unknown mode", mode: "future_mode", want: false},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			policy := browserSessionRoutePolicy(query.GovernanceStatusConfig{Mode: tc.mode})
+			policy := query.ScopedRoutePolicyForGovernanceMode(query.GovernanceStatusConfig{Mode: tc.mode})
 			if got := policy.AllowTenantBoundAllScopes; got != tc.want {
 				t.Fatalf("AllowTenantBoundAllScopes = %t, want %t for mode %q", got, tc.want, tc.mode)
 			}

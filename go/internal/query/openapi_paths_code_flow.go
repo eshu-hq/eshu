@@ -15,6 +15,7 @@ const openAPIPathsCodeFlow = `
         "responses": {
           "200": {"description": "Bounded taint-path evidence", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/CodeFlowResponse"}}}},
           "400": {"$ref": "#/components/responses/BadRequest"},
+          "403": {"$ref": "#/components/responses/Forbidden"},
           "501": {"description": "Unsupported capability for this profile"},
           "503": {"$ref": "#/components/responses/ServiceUnavailable"},
           "504": {"$ref": "#/components/responses/GatewayTimeout"},
@@ -33,6 +34,7 @@ const openAPIPathsCodeFlow = `
         "responses": {
           "200": {"description": "Bounded reaching-definition summaries", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/CodeFlowResponse"}}}},
           "400": {"$ref": "#/components/responses/BadRequest"},
+          "403": {"$ref": "#/components/responses/Forbidden"},
           "501": {"description": "Unsupported capability for this profile"},
           "503": {"$ref": "#/components/responses/ServiceUnavailable"},
           "504": {"$ref": "#/components/responses/GatewayTimeout"},
@@ -49,6 +51,7 @@ const openAPIPathsCodeFlow = `
         "x-scoped-token-support": true,
         "requestBody": {"required": true, "content": {"application/json": {"schema": {"$ref": "#/components/schemas/CodeFlowRequest"}}}},
         "responses": {
+          "403": {"$ref": "#/components/responses/Forbidden"},
           "504": {"$ref": "#/components/responses/GatewayTimeout"},
           "200": {"description": "Bounded CFG summaries", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/CodeFlowResponse"}}}},
           "400": {"$ref": "#/components/responses/BadRequest"},
@@ -67,6 +70,7 @@ const openAPIPathsCodeFlow = `
         "x-scoped-token-support": true,
         "requestBody": {"required": true, "content": {"application/json": {"schema": {"$ref": "#/components/schemas/CodeFlowRequest"}}}},
         "responses": {
+          "403": {"$ref": "#/components/responses/Forbidden"},
           "504": {"$ref": "#/components/responses/GatewayTimeout"},
           "200": {"description": "Bounded PDG summaries", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/CodeFlowResponse"}}}},
           "400": {"$ref": "#/components/responses/BadRequest"},

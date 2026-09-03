@@ -12,6 +12,7 @@ const openAPIPathsCollectorReadiness = `
         "operationId": "getCollectorReadiness",
         "x-scoped-token-support": true,
         "responses": {
+          "403": {"$ref": "#/components/responses/Forbidden"},
           "200": {
             "description": "Collector family readiness",
             "content": {
@@ -68,6 +69,7 @@ const openAPIPathsCollectorReadiness = `
         "operationId": "getCollectorReadinessLegacy",
         "x-scoped-token-support": true,
         "responses": {
+          "403": {"$ref": "#/components/responses/Forbidden"},
           "200": {
             "description": "Collector family readiness",
             "content": {

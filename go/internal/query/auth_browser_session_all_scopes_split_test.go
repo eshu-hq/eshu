@@ -14,18 +14,22 @@ import (
 
 // TestAuthMiddlewareAllScopesBrowserSessionSplitAcrossLedger drives every
 // scoped-route allowlist entry through the production middleware constructor
-// under all six caller shapes #6450 has to keep apart. The point is coverage
+// under all nine caller shapes #6450 has to keep apart. The point is coverage
 // of the whole ledger, not of a hand-picked sample: the defect was invisible
 // precisely because the routes that had to keep working (the /api/v0/auth/
 // admin console) and the routes that had to stop working (everything
 // grant-filtered) sat in the same allowlist with nothing distinguishing them.
 //
-// Only shapes (b) and (f) -- an all-scope session under the fail-closed
-// policy, and a malformed tenantless all-scope session even under the
-// permissive one -- vary by class. The grant-bearing bearer, the restricted
-// session, the shared key, and the all-scope session under the permissive
-// policy reach every entry, which is what keeps this a split rather than a
-// blanket refusal.
+// Only shapes (b), (f), (g) and (i) -- an all-scope session or bearer under
+// the fail-closed policy, and a malformed tenantless one of either even under
+// the permissive policy -- vary by class. The grant-bearing bearer, the
+// restricted session, the shared key, and the tenant-bound all-scope session
+// and bearer under the permissive policy reach every entry, which is what
+// keeps this a split rather than a blanket refusal.
+//
+// Every ledger class is asserted for the bearer shape as well as the session
+// shape, which is residual item 1's regression surface: before it closed,
+// shapes (g) and (i) reached every entry regardless of class or policy.
 func TestAuthMiddlewareAllScopesBrowserSessionSplitAcrossLedger(t *testing.T) {
 	t.Parallel()
 
@@ -48,9 +52,14 @@ func TestAuthMiddlewareAllScopesBrowserSessionSplitAcrossLedger(t *testing.T) {
 // TestAuthMiddlewareAllScopesBrowserSessionSplitOnUnledgeredTransportRoutes
 // covers the two allowlisted routes with no ledger entry and therefore no
 // class: the MCP transport paths. They take the fail-closed default, so an
-// all-scope session reaches them only under the permissive policy. Without
+// all-scope caller reaches them only under the permissive policy. Without
 // this, the split table would silently skip the only allowlisted routes whose
 // class is implicit rather than written down.
+//
+// The bearer shapes matter more here than anywhere else in the table: GET /sse
+// and POST /mcp/message are how an MCP client authenticates, and a bearer is
+// the credential it actually presents. This is the pair of routes where
+// cmd/mcp-server's newly threaded route policy decides admission.
 func TestAuthMiddlewareAllScopesBrowserSessionSplitOnUnledgeredTransportRoutes(t *testing.T) {
 	t.Parallel()
 
@@ -62,6 +71,8 @@ func TestAuthMiddlewareAllScopesBrowserSessionSplitOnUnledgeredTransportRoutes(t
 	for _, shapeName := range []string{
 		"b_all_scope_session_fail_closed_policy",
 		"c_all_scope_session_permissive_policy",
+		"g_all_scope_bearer_fail_closed_policy",
+		"h_all_scope_bearer_permissive_policy",
 	} {
 		shape, ok := shapes[shapeName]
 		if !ok {

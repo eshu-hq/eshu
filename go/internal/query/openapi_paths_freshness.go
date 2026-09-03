@@ -8,7 +8,7 @@ const openAPIPathsFreshnessGenerations = `
       "get": {
         "tags": ["freshness"],
         "summary": "Drill into scope generation lifecycle history",
-        "description": "Returns a bounded, ordered page of scope generation lifecycle rows joined with their owning scope identity, the per-generation fact_work_items queue status, and the latest per-generation failure. Filter by scope id, repository, collector kind, source system, generation id, or status. A named scope/repository/generation selector that matches nothing returns an explicit not-found instead of an empty list. Generation lifecycle is durable persisted truth, not graph-materialized correlation. Scoped tokens receive only granted repositories and scopes; an ungranted selector returns not-found.",
+        "description": "Returns a bounded, ordered page of scope generation lifecycle rows joined with their owning scope identity, the per-generation fact_work_items queue status, and the latest per-generation failure. Filter by scope id, repository, collector kind, source system, generation id, or status. A named scope/repository/generation selector that matches nothing returns an explicit not-found instead of an empty list. Generation lifecycle is durable persisted truth, not graph-materialized correlation. Scoped tokens receive only granted repositories and scopes; an ungranted selector returns not-found. An all-scope bearer token carries no grant for that filter to bind, so it is refused with a 403 under hosted_multi_tenant and under any unrecognized governance mode; local_no_policy, hosted_single_tenant, and an unset mode (which defaults to local_no_policy) admit it when it is bound to one tenant and workspace, and it then reads the whole corpus, as an admin credential does on every other route there.",
         "operationId": "listGenerationLifecycle",
         "x-scoped-token-support": true,
         "parameters": [
@@ -84,6 +84,7 @@ const openAPIPathsFreshnessGenerations = `
             }
           },
           "400": {"$ref": "#/components/responses/BadRequest"},
+          "403": {"$ref": "#/components/responses/Forbidden"},
           "404": {"$ref": "#/components/responses/NotFound"},
           "500": {"$ref": "#/components/responses/InternalError"},
           "501": {"$ref": "#/components/responses/NotImplemented"},

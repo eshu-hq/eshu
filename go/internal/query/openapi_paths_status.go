@@ -32,6 +32,7 @@ const openAPIPathsStatusAndCompare = `
         "operationId": "listIngesters",
         "x-scoped-token-support": true,
         "responses": {
+          "403": {"$ref": "#/components/responses/Forbidden"},
           "200": {
             "description": "List of ingesters",
             "content": {
@@ -58,6 +59,7 @@ const openAPIPathsStatusAndCompare = `
         "operationId": "listCollectors",
         "x-scoped-token-support": true,
         "responses": {
+          "403": {"$ref": "#/components/responses/Forbidden"},
           "200": {
             "description": "List of collector runtimes",
             "content": {
@@ -120,6 +122,7 @@ const openAPIPathsStatusAndCompare = `
           }
         ],
         "responses": {
+          "403": {"$ref": "#/components/responses/Forbidden"},
           "200": {
             "description": "Ingester status",
             "content": {

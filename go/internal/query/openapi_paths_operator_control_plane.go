@@ -16,6 +16,7 @@ const openAPIPathsOperatorControlPlane = `
         "operationId": "getOperatorControlPlane",
         "x-scoped-token-support": true,
         "responses": {
+          "403": {"$ref": "#/components/responses/Forbidden"},
           "200": {
             "description": "Operator control-plane read model",
             "content": {

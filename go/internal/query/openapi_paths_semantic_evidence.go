@@ -41,6 +41,7 @@ const openAPIPathsSemanticEvidence = `
         "responses": {
           "200": {"description": "Semantic documentation observation page", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/SemanticObservationList"}}}},
           "400": {"$ref": "#/components/responses/BadRequest"},
+          "403": {"$ref": "#/components/responses/Forbidden"},
           "500": {"$ref": "#/components/responses/InternalError"}
         }
       }
@@ -83,6 +84,7 @@ const openAPIPathsSemanticEvidence = `
         "responses": {
           "200": {"description": "Semantic code hint page", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/SemanticCodeHintList"}}}},
           "400": {"$ref": "#/components/responses/BadRequest"},
+          "403": {"$ref": "#/components/responses/Forbidden"},
           "500": {"$ref": "#/components/responses/InternalError"}
         }
       }

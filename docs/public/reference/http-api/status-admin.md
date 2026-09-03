@@ -110,7 +110,8 @@ The governance status report composes explicit runtime readback from
 `ESHU_GOVERNANCE_*` settings and existing semantic aggregate status. It reports
 `mode`, `state`, `source_kind`, optional `policy_revision_hash`, readiness
 booleans, `identity`, `tenancy`, `egress`, `semantic`, `extensions`,
-`redaction`, `retention`, `audit`, aggregate counts, and bounded reason codes.
+`redaction`, `retention`, `audit`, `all_scope_route_policy`, aggregate counts,
+and bounded reason codes.
 The `audit` section reports only event, denied, unavailable, event-type,
 actor-class, scope-class, reason, and ACL-state counts.
 Detailed audit event search is intentionally private until a dedicated query
@@ -121,6 +122,18 @@ document titles, provider endpoints, prompts, provider responses, credential
 handles, and tokens are not valid query or ticket fields. Detailed event bodies
 follow the hosted policy retention window in the private audit sink; status and
 MCP readbacks retain aggregate counts only.
+`all_scope_route_policy.grant_bound_routes` reports whether a tenant-bound
+all-scope credential is `admitted` or `refused` on the routes whose handlers
+filter reads by the caller's repository or scope grant. It comes from the same
+mode mapping the auth middleware applies, so the readback and the 403s an
+operator is seeing cannot describe different postures. A non-empty
+`ESHU_GOVERNANCE_MODE` that is not one of `supported_modes` reads back as
+`mode=unrecognized` with the reason code `governance_mode_unrecognized` and a
+`refused` route policy, rather than being rewritten to `local_no_policy`; the
+configured value itself is not echoed, because this route never returns an
+operator-supplied string. `unrecognized` is a readback state only — the three
+values in `supported_modes` remain the only ones an operator sets.
+
 Local development without governance config reports `local_no_policy` and
 `policy_not_configured`; hosted deployments can report `disabled`, `partial`,
 `enforcing`, `stale`, or `invalid` without exposing policy bodies. The route
@@ -433,8 +446,14 @@ nothing returns an explicit `scope_not_found` or `not_found` error instead of an
 empty list. The truth envelope marks `freshness.state=building` when a returned
 scope has a pending or in-flight generation. The capability key is
 `freshness.generation_lifecycle`. The MCP equivalent is `get_generation_lifecycle`
-and the CLI helper is `eshu freshness generations`. Scoped tokens receive only
-granted repositories and scopes; an ungranted selector returns not-found.
+and the CLI helper is `eshu freshness generations`. Scoped tokens receive only granted
+repositories and scopes; an ungranted selector returns not-found. An all-scope
+bearer token carries no grant for that filter to bind, so it is refused with a
+`403` under `hosted_multi_tenant` and under any unrecognized governance mode.
+`local_no_policy`, `hosted_single_tenant`, and an unset mode (which defaults to
+`local_no_policy`) admit it when it is bound to one tenant and workspace, and it
+then reads the whole corpus, as an admin credential does on every other route
+there.
 
 No-Regression Evidence: `cd go && go test ./internal/status ./internal/storage/postgres ./internal/query ./internal/mcp ./cmd/eshu ./cmd/api -count=1` proves the generation lifecycle types, bounded Postgres read, query handler envelope/not-found behavior, MCP route, CLI envelope, and API wiring stay in sync.
 No-Observability-Change: the drilldown adds one bounded Postgres read joining `scope_generations`, `ingestion_scopes`, and `fact_work_items`, plus the existing `query.freshness_generation_lifecycle` span with low-cardinality result-count, truncated, active-count, and failure-count attributes; it adds no worker, queue, graph query, or new metric label.
@@ -481,7 +500,13 @@ points to `get_generation_lifecycle` / `GET /api/v0/freshness/generations`.
 Counts are exact; only the samples are bounded. The capability key is
 `freshness.changed_since`. The MCP equivalent is `get_changed_since` and the CLI
 helper is `eshu freshness changed-since`. Scoped tokens receive only granted
-repositories and scopes; an ungranted selector returns not-found.
+repositories and scopes; an ungranted selector returns not-found. An all-scope
+bearer token carries no grant for that filter to bind, so it is refused with a
+`403` under `hosted_multi_tenant` and under any unrecognized governance mode.
+`local_no_policy`, `hosted_single_tenant`, and an unset mode (which defaults to
+`local_no_policy`) admit it when it is bound to one tenant and workspace, and it
+then reads the whole corpus, as an admin credential does on every other route
+there.
 
 ### Service-scope changed-since
 
