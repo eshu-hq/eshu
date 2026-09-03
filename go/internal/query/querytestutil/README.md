@@ -111,11 +111,13 @@ An unexported field cannot be set from another package, so a type alias would
 carry the type without the ability to fill it in. The `Fn` suffix keeps the
 fields from colliding with the `Run` and `RunSingle` methods.
 
-### How root uses it without touching 155 files
+### How root uses it without touching 154 files
 
 Root keeps an unexported `fakeGraphReader` adapter whose fields have the old
-lowercase names, and whose methods delegate to `FakeGraphReader`. 155 test files
-in package `query` build it with keyed literals and none of them changed.
+lowercase names, and whose methods delegate to `FakeGraphReader`. 155 root files
+build it with keyed literals; one of them,
+`code_relationships_graph_test.go`, is where the adapter is declared, so 154
+consume it and none of those 154 changed.
 
 The dispatch rules are not duplicated in that adapter, and that is the point.
 Two copies drift, and a fake that no longer matches the real port keeps passing
@@ -132,6 +134,13 @@ but dropping the `RunIncomingFn` call leaves it answering no rows. Collapsing
 the branch to `return nil, nil` is the SAME edit as the second, not the first,
 and reports 5 rather than 10 -- two mutations that are secretly one mutation
 read as corroboration and are not.
+
+Every failure count in this file counts TOP-LEVEL test functions
+(`rg -c '^--- FAIL'`), while the 7755 baseline counts `=== RUN` lines, which
+include subtests. The two units differ and the gap is not small: the workload
+mutation below is 40 top-level failures and 50 once failing subtests are
+counted. Re-derive a failure count with the anchored pattern or it will look
+like the number drifted.
 
 Measure that set with a full `go test ./internal/query/`, never with `-run`
 naming the tests you expect. `-run` measures your own filter: the first attempt
@@ -340,10 +349,14 @@ which Cypher FRAGMENT a caller registers, not a query this code issues. The
 promotion is a move: the dispatch bodies came across from
 `repository_context_test.go` and `workload_context_test.go` unchanged, so the
 dispatch work per call is identical; the adapter adds one struct construction
-per call, in test binaries only. Root suite before and after: 7755
-`=== RUN`, 0 `--- FAIL`, measured on this branch's HEAD like every other count
-here. That total is not a portable constant -- it moves in both directions as
-tests are added and as families move out of root.
+per call, in test binaries only. Root suite: 7756 `=== RUN` at the merge-base
+and 7755 at this branch's HEAD, 0 `--- FAIL` on both, each measured rather than
+inferred (the base side from a throwaway worktree checked out at the
+merge-base). The one-test delta is
+`TestContentReaderCheckArgsComparesByteSliceBindArgsWithoutPanicking` moving
+into this package with the function it covers, as above. That total is not a
+portable constant -- it moves in both directions as tests are added and as
+families move out of root.
 
 No-Regression Evidence: for the governance-audit and scoped-token fakes
 promoted alongside them, this package is a test double and runs only inside test

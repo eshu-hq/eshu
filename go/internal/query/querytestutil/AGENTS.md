@@ -65,7 +65,8 @@
    `internal/query`, so such a call is an unregistered production query callsite
    and fails `TestHotCypherManifestCoversEveryProductionQueryCall`. The rule is
    the absence of that call expression, not any particular shape, and the three
-   fakes here satisfy it two different ways: `FakeGraphReader` routes both
+   graph-read fakes here (the only ones with those two methods) satisfy it two
+   different ways: `FakeGraphReader` routes both
    methods through an unexported `rows` helper, while `FakeRepoGraphReader` and
    `FakeWorkloadGraphReader` inline their dispatch in each method. Either is
    fine. What a new fake must not do is have one of the two methods call the
@@ -125,9 +126,10 @@ you would like to remove.
 
 ## Adapting a fake without churning its callers
 
-`FakeGraphReader` arrived with 155 root test files already constructing the
-helper it replaced, using keyed literals over unexported fields. Exporting those
-fields would have meant renaming every one of them.
+`FakeGraphReader` arrived with 155 root files already constructing the helper it
+replaced, using keyed literals over unexported fields; one of the 155 declares
+the adapter, so 154 are callers. Exporting those fields would have meant
+renaming every one of them.
 
 It did not. Root keeps an unexported adapter with the original field names and
 delegates its methods here, so the callers are untouched and the dispatch rules
