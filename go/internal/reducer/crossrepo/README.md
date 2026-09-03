@@ -34,9 +34,9 @@ Imports point strictly downward. This package reaches `reducer/contract`,
 `internal/environment`, `internal/ghactionsref`, `internal/relationships`,
 `internal/telemetry` and `pkg/log`, and it never imports the parent
 `internal/reducer` package. The dependency runs the other way: the root keeps
-compatibility aliases in `cross_repo_compat.go` for the six exported names its
-own files, `cmd/reducer`, `internal/ifa/materializededges` and
-`internal/storage/cypher` still spell as `reducer.X`.
+compatibility aliases in `cross_repo_compat.go` for every name its own files,
+`cmd/reducer`, `internal/ifa/materializededges` and `internal/storage/cypher`
+still spell as `reducer.X` — seven of them today, and that file is the list.
 
 Every blocker the move surfaced was of the first kind described in `AGENTS.md`
 -- a root one-line forwarder or type alias to a leaf that had already moved out
