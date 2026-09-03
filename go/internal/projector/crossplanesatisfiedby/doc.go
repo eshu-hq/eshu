@@ -4,7 +4,7 @@
 // Package crossplanesatisfiedby builds the
 // crossplane_satisfied_by_materialization reducer intent from one immutable
 // scope generation. The trigger fires on the earliest content_entity fact
-// whose entity_type (falling back to entity_kind) is K8sResource or
+// whose entity_kind (falling back to entity_type) is K8sResource or
 // CrossplaneXRD — the two candidate types
 // reducer.ExtractCrossplaneSatisfiedByEdgeRows classifies (issue #5347). A
 // Crossplane Claim candidate is never parser-labeled: it is an ordinary

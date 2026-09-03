@@ -19,7 +19,7 @@
 - Import `internal/projector/intent`, never the root projector package. Root
   imports this package to dispatch, so the reverse import cycles.
 - `BuildCrossplaneSatisfiedByMaterializationReducerIntent` fires on the
-  earliest `content_entity` fact whose `entity_type` (falling back to
+  earliest `content_entity` fact whose `entity_kind` (falling back to
   `entity_kind`) is `K8sResource` or `CrossplaneXRD`. A Crossplane Claim is
   never parser-labeled — it is an ordinary `K8sResource` row — so the trigger
   reads the entity type directly rather than firing on any `content_entity`

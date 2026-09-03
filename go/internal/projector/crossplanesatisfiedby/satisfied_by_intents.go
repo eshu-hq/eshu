@@ -56,7 +56,7 @@ func BuildCrossplaneSatisfiedByMaterializationReducerIntent(
 }
 
 // triggerFact reports whether envelope is a content_entity row whose
-// entity_type (falling back to entity_kind, mirroring
+// entity_kind (falling back to entity_type, mirroring
 // projector.buildContentEntityRecord's dual-path read) is K8sResource or
 // CrossplaneXRD — the two candidate types
 // reducer.ExtractCrossplaneSatisfiedByEdgeRows classifies. These are the
