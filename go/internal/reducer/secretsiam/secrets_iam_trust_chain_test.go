@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package reducer
+package secretsiam
 
 import (
 	"context"
@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
 )
 
 func TestBuildSecretsIAMTrustChainReadModelsAdmitsExactWorkloadToVaultPath(t *testing.T) {
@@ -344,18 +345,18 @@ func TestSecretsIAMTrustChainHandlerLoadsEvidenceAndWritesReadModels(t *testing.
 	}
 	writer := &recordingSecretsIAMTrustChainWriter{}
 	handler := SecretsIAMTrustChainHandler{EvidenceLoader: loader, Writer: writer}
-	result, err := handler.Handle(context.Background(), Intent{
+	result, err := handler.Handle(context.Background(), reducercontract.Intent{
 		IntentID:     "intent-1",
 		ScopeID:      "aws-scope",
 		GenerationID: "aws-gen",
-		Domain:       DomainSecretsIAMTrustChain,
+		Domain:       reducercontract.DomainSecretsIAMTrustChain,
 		SourceSystem: "secrets_iam_posture",
 		Cause:        "secrets/IAM source facts observed",
 	})
 	if err != nil {
 		t.Fatalf("Handle() error = %v, want nil", err)
 	}
-	if got, want := result.Domain, DomainSecretsIAMTrustChain; got != want {
+	if got, want := result.Domain, reducercontract.DomainSecretsIAMTrustChain; got != want {
 		t.Fatalf("result.Domain = %q, want %q", got, want)
 	}
 	if got, want := writer.calls, 1; got != want {
@@ -425,12 +426,12 @@ func secretsIAMPostureGapByType(
 type recordingSecretsIAMTrustChainEvidenceLoader struct {
 	envelopes []facts.Envelope
 	stats     SecretsIAMTrustChainLoadStats
-	intent    Intent
+	intent    reducercontract.Intent
 }
 
 func (l *recordingSecretsIAMTrustChainEvidenceLoader) LoadSecretsIAMTrustChainEvidence(
 	_ context.Context,
-	intent Intent,
+	intent reducercontract.Intent,
 ) ([]facts.Envelope, SecretsIAMTrustChainLoadStats, error) {
 	l.intent = intent
 	return l.envelopes, l.stats, nil

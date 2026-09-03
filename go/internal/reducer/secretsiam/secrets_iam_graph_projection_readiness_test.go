@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package reducer
+package secretsiam
 
 import (
 	"context"
@@ -9,6 +9,7 @@ import (
 	"testing"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/reducer/gpphase"
 )
 
 // fakePresenceLookup reports either all queried uids missing or all present.
@@ -18,7 +19,7 @@ type fakePresenceLookup struct {
 	calls      int
 }
 
-func (l *fakePresenceLookup) MissingUIDs(_ context.Context, _ GraphProjectionKeyspace, uids []string) ([]string, error) {
+func (l *fakePresenceLookup) MissingUIDs(_ context.Context, _ gpphase.Keyspace, uids []string) ([]string, error) {
 	l.calls++
 	if l.err != nil {
 		return nil, l.err
@@ -29,7 +30,7 @@ func (l *fakePresenceLookup) MissingUIDs(_ context.Context, _ GraphProjectionKey
 	return nil, nil
 }
 
-func presenceProjectionHandler(loader fakeFactLoader, writer *recordingGraphWriter, lookup EndpointPresenceLookup) SecretsIAMGraphProjectionHandler {
+func presenceProjectionHandler(loader fakeFactLoader, writer *recordingGraphWriter, lookup gpphase.EndpointPresenceLookup) SecretsIAMGraphProjectionHandler {
 	return SecretsIAMGraphProjectionHandler{FactLoader: loader, Writer: writer, PresenceLookup: lookup}
 }
 

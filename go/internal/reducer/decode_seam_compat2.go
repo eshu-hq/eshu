@@ -13,7 +13,8 @@ import (
 // package, so the 45 root call sites keep their current spelling; each entry is
 // deleted once its last caller has moved into a family subpackage. The 17
 // decodeObservability* entries were removed when their only callers moved into
-// internal/reducer/obscoverage, which imports schemadecode directly.
+// internal/reducer/obscoverage, and the three Vault entries when theirs moved
+// into internal/reducer/secretsiam; both subpackages import schemadecode directly.
 
 var (
 	decodeOCIImageManifestForIndex             = schemadecode.DecodeOCIImageManifestForIndex
@@ -31,9 +32,6 @@ var (
 	decodeServiceCatalogOwnership              = schemadecode.DecodeServiceCatalogOwnership
 	decodeServiceCatalogRepositoryLink         = schemadecode.DecodeServiceCatalogRepositoryLink
 	decodeSubmodulePin                         = schemadecode.DecodeSubmodulePin
-	decodeVaultACLPolicy                       = schemadecode.DecodeVaultACLPolicy
-	decodeVaultAuthRole                        = schemadecode.DecodeVaultAuthRole
-	decodeVaultKVMetadata                      = schemadecode.DecodeVaultKVMetadata
 	decodeVulnerabilityAffectedPackage         = schemadecode.DecodeVulnerabilityAffectedPackage
 	decodeVulnerabilityAffectedProduct         = schemadecode.DecodeVulnerabilityAffectedProduct
 	decodeVulnerabilityCVE                     = schemadecode.DecodeVulnerabilityCVE

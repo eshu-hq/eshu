@@ -1,12 +1,15 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package reducer
+package secretsiam
 
 import (
 	"strings"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/reducer/factdecode"
+	"github.com/eshu-hq/eshu/go/internal/reducer/payloadcore"
+	"github.com/eshu-hq/eshu/go/internal/reducer/schemadecode"
 	iamv1 "github.com/eshu-hq/eshu/sdk/go/factschema/iam/v1"
 	secretsiamv1 "github.com/eshu-hq/eshu/sdk/go/factschema/secretsiam/v1"
 )
@@ -73,7 +76,7 @@ type secretsIAMVaultKV struct {
 // time. Unlike gcpTrusts/gcpPrincipals/gcpPermissions (the deferred gcp_iam
 // lane, read raw), this K8S-lane kind's OWN fields decode through the typed
 // seam; only its downstream join against the deferred gcp_iam_trust_policy
-// raw envelope stays on payloadString reads (see
+// raw envelope stays on payloadcore.PayloadString reads (see
 // secretsIAMGCPExactChainsForServiceAccount).
 type secretsIAMGCPBinding struct {
 	env     facts.Envelope
@@ -107,7 +110,7 @@ type secretsIAMIndex struct {
 	// gcpK8sBindings holds the K8S-lane k8s_gcp_workload_identity_binding
 	// kind decoded through the typed seam (secretsIAMGCPBinding): this kind
 	// IS in scope for Wave 4d. Only its downstream join against the deferred
-	// gcp_iam_trust_policy raw envelope stays on payloadString reads (see
+	// gcp_iam_trust_policy raw envelope stays on payloadcore.PayloadString reads (see
 	// secretsIAMGCPExactChainsForServiceAccount).
 	gcpK8sBindings map[string][]secretsIAMGCPBinding
 	gcpPermissions map[string][]facts.Envelope
@@ -120,7 +123,7 @@ type secretsIAMIndex struct {
 //
 // A malformed source fact whose payload is missing a required identity field
 // (an input_invalid decode failure) is quarantined per-fact and returned in the
-// []quarantinedFact slice: it is skipped so the valid trust chains still
+// []factdecode.QuarantinedFact slice: it is skipped so the valid trust chains still
 // project, matching the per-fact isolation contract every other migrated
 // reducer kind follows. This applies to the AWS IAM lane (aws_iam_principal,
 // already migrated in #4568), the VAULT lane (vault_auth_role,
@@ -129,13 +132,13 @@ type secretsIAMIndex struct {
 // eks_pod_identity_association, k8s_gcp_workload_identity_binding) — Wave 4d,
 // Contract System v1 #4566/#4582. The GCP IAM lane
 // (gcp_iam_principal/gcp_iam_trust_policy/gcp_iam_permission_policy) is
-// deferred and still reads raw payloadString/payloadBool.
+// deferred and still reads raw payloadcore.PayloadString/payloadcore.PayloadBool.
 //
 // Any OTHER decode error (a non-input_invalid classification the seam may add
-// later, or a non-*factDecodeError) is FATAL and returned as the error: it fails
+// later, or a non-*factdecode.FactDecodeError) is FATAL and returned as the error: it fails
 // the whole work item so the durable queue triages it, rather than being
 // swallowed as a silent success.
-func BuildSecretsIAMTrustChainReadModels(envelopes []facts.Envelope) (SecretsIAMTrustChainReadModels, []quarantinedFact, error) {
+func BuildSecretsIAMTrustChainReadModels(envelopes []facts.Envelope) (SecretsIAMTrustChainReadModels, []factdecode.QuarantinedFact, error) {
 	index, quarantined, err := buildSecretsIAMIndex(envelopes)
 	if err != nil {
 		return SecretsIAMTrustChainReadModels{}, nil, err
@@ -167,19 +170,19 @@ func BuildSecretsIAMTrustChainReadModels(envelopes []facts.Envelope) (SecretsIAM
 	return models, quarantined, nil
 }
 
-// quarantineOrFatal routes a decode error through partitionDecodeFailures and
-// either appends the resulting quarantinedFact to quarantined (returning
+// quarantineOrFatal routes a decode error through factdecode.PartitionDecodeFailures and
+// either appends the resulting factdecode.QuarantinedFact to quarantined (returning
 // ok=true to tell the caller to skip this envelope and continue the loop) or
 // signals a fatal error the caller must return immediately. It centralizes the
 // exact fatal-passthrough contract every decode call site in
 // buildSecretsIAMIndex must follow: a decode error that is NOT classified
 // input_invalid (a future schema-mismatch/unsupported-major class, or a
-// non-*factDecodeError) is terminal and must fail the whole trust-chain work
+// non-*factdecode.FactDecodeError) is terminal and must fail the whole trust-chain work
 // item so the durable queue triages it — swallowing it here would let a
 // malformed fact Ack as success, the "swallow failures" hole the redesign
 // exists to close.
-func quarantineOrFatal(envelope facts.Envelope, err error, quarantined *[]quarantinedFact) (fatal error, skip bool) {
-	q, ok, fatalErr := partitionDecodeFailures(envelope, err)
+func quarantineOrFatal(envelope facts.Envelope, err error, quarantined *[]factdecode.QuarantinedFact) (fatal error, skip bool) {
+	q, ok, fatalErr := factdecode.PartitionDecodeFailures(envelope, err)
 	if fatalErr != nil {
 		return fatalErr, false
 	}
@@ -189,7 +192,7 @@ func quarantineOrFatal(envelope facts.Envelope, err error, quarantined *[]quaran
 	return nil, true
 }
 
-func buildSecretsIAMIndex(envelopes []facts.Envelope) (secretsIAMIndex, []quarantinedFact, error) {
+func buildSecretsIAMIndex(envelopes []facts.Envelope) (secretsIAMIndex, []factdecode.QuarantinedFact, error) {
 	index := secretsIAMIndex{
 		serviceAccounts: map[string][]secretsIAMServiceAccount{},
 		workloads:       map[string][]secretsIAMWorkload{},
@@ -204,7 +207,7 @@ func buildSecretsIAMIndex(envelopes []facts.Envelope) (secretsIAMIndex, []quaran
 		gcpK8sBindings:  map[string][]secretsIAMGCPBinding{},
 		gcpPermissions:  map[string][]facts.Envelope{},
 	}
-	var quarantined []quarantinedFact
+	var quarantined []factdecode.QuarantinedFact
 	for _, envelope := range envelopes {
 		if envelope.IsTombstone {
 			continue
@@ -224,22 +227,22 @@ func buildSecretsIAMIndex(envelopes []facts.Envelope) (secretsIAMIndex, []quaran
 		case facts.AWSIAMPrincipalFactKind:
 			fatal = indexAWSIAMPrincipal(&index, envelope, &quarantined)
 		case facts.AWSIAMTrustPolicyFactKind:
-			addByKey(index.iamTrusts, payloadString(envelope.Payload, "role_arn"), envelope)
+			addByKey(index.iamTrusts, payloadcore.PayloadString(envelope.Payload, "role_arn"), envelope)
 		case facts.VaultACLPolicyFactKind:
 			fatal = indexVaultACLPolicy(&index, envelope, &quarantined)
 		case facts.VaultKVMetadataFactKind:
 			fatal = indexVaultKVMetadata(&index, envelope, &quarantined)
 		case facts.GCPIAMPrincipalFactKind:
 			// deferred: gcp_iam lane, Wave 4d types vault/k8s only.
-			addByKey(index.gcpPrincipals, payloadString(envelope.Payload, "principal_fingerprint"), envelope)
+			addByKey(index.gcpPrincipals, payloadcore.PayloadString(envelope.Payload, "principal_fingerprint"), envelope)
 		case facts.GCPIAMTrustPolicyFactKind:
 			// deferred: gcp_iam lane, Wave 4d types vault/k8s only.
-			addByKey(index.gcpTrusts, payloadString(envelope.Payload, "target_service_account_email_digest"), envelope)
+			addByKey(index.gcpTrusts, payloadcore.PayloadString(envelope.Payload, "target_service_account_email_digest"), envelope)
 		case facts.KubernetesGCPWorkloadIdentityBindingFactKind:
 			fatal = indexKubernetesGCPWorkloadIdentityBinding(&index, envelope, &quarantined)
 		case facts.GCPIAMPermissionPolicyFactKind:
 			// deferred: gcp_iam lane, Wave 4d types vault/k8s only.
-			addByKey(index.gcpPermissions, payloadString(envelope.Payload, "principal_fingerprint"), envelope)
+			addByKey(index.gcpPermissions, payloadcore.PayloadString(envelope.Payload, "principal_fingerprint"), envelope)
 		case facts.SecretsIAMCoverageWarningFactKind:
 			index.coverage = append(index.coverage, envelope)
 		}
@@ -254,8 +257,8 @@ func buildSecretsIAMIndex(envelopes []facts.Envelope) (secretsIAMIndex, []quaran
 // envelope, returning a non-nil error only when the decode failure is FATAL
 // (not classified input_invalid). A quarantinable failure is recorded onto
 // *quarantined and this returns nil so the caller's loop continues normally.
-func indexKubernetesServiceAccount(index *secretsIAMIndex, envelope facts.Envelope, quarantined *[]quarantinedFact) error {
-	decoded, err := decodeKubernetesServiceAccount(envelope)
+func indexKubernetesServiceAccount(index *secretsIAMIndex, envelope facts.Envelope, quarantined *[]factdecode.QuarantinedFact) error {
+	decoded, err := schemadecode.DecodeKubernetesServiceAccount(envelope)
 	if err != nil {
 		fatal, skip := quarantineOrFatal(envelope, err, quarantined)
 		if fatal != nil || skip {
@@ -268,8 +271,8 @@ func indexKubernetesServiceAccount(index *secretsIAMIndex, envelope facts.Envelo
 
 // indexKubernetesWorkloadIdentityUse mirrors indexKubernetesServiceAccount
 // for k8s_workload_identity_use envelopes.
-func indexKubernetesWorkloadIdentityUse(index *secretsIAMIndex, envelope facts.Envelope, quarantined *[]quarantinedFact) error {
-	decoded, err := decodeKubernetesWorkloadIdentityUse(envelope)
+func indexKubernetesWorkloadIdentityUse(index *secretsIAMIndex, envelope facts.Envelope, quarantined *[]factdecode.QuarantinedFact) error {
+	decoded, err := schemadecode.DecodeKubernetesWorkloadIdentityUse(envelope)
 	if err != nil {
 		fatal, skip := quarantineOrFatal(envelope, err, quarantined)
 		if fatal != nil || skip {
@@ -282,8 +285,8 @@ func indexKubernetesWorkloadIdentityUse(index *secretsIAMIndex, envelope facts.E
 
 // indexEKSIRSAAnnotation mirrors indexKubernetesServiceAccount for
 // eks_irsa_annotation envelopes.
-func indexEKSIRSAAnnotation(index *secretsIAMIndex, envelope facts.Envelope, quarantined *[]quarantinedFact) error {
-	decoded, err := decodeEKSIRSAAnnotation(envelope)
+func indexEKSIRSAAnnotation(index *secretsIAMIndex, envelope facts.Envelope, quarantined *[]factdecode.QuarantinedFact) error {
+	decoded, err := schemadecode.DecodeEKSIRSAAnnotation(envelope)
 	if err != nil {
 		fatal, skip := quarantineOrFatal(envelope, err, quarantined)
 		if fatal != nil || skip {
@@ -302,8 +305,8 @@ func indexEKSIRSAAnnotation(index *secretsIAMIndex, envelope facts.Envelope, qua
 // eks_pod_identity_association envelopes. EKS Pod Identity associations carry
 // no web-identity subject; exactPodIdentityTrust never reads
 // webIdentitySubjectFingerprint.
-func indexEKSPodIdentityAssociation(index *secretsIAMIndex, envelope facts.Envelope, quarantined *[]quarantinedFact) error {
-	decoded, err := decodeEKSPodIdentityAssociation(envelope)
+func indexEKSPodIdentityAssociation(index *secretsIAMIndex, envelope facts.Envelope, quarantined *[]factdecode.QuarantinedFact) error {
+	decoded, err := schemadecode.DecodeEKSPodIdentityAssociation(envelope)
 	if err != nil {
 		fatal, skip := quarantineOrFatal(envelope, err, quarantined)
 		if fatal != nil || skip {
@@ -322,8 +325,8 @@ func indexEKSPodIdentityAssociation(index *secretsIAMIndex, envelope facts.Envel
 // secretsIAMWildcardVaultAuthRoleObservations regardless of selector shape),
 // then additionally indexes it by each of its bound service-account join keys
 // unless its selector is a wildcard.
-func indexVaultAuthRole(index *secretsIAMIndex, envelope facts.Envelope, quarantined *[]quarantinedFact) error {
-	decoded, err := decodeVaultAuthRole(envelope)
+func indexVaultAuthRole(index *secretsIAMIndex, envelope facts.Envelope, quarantined *[]factdecode.QuarantinedFact) error {
+	decoded, err := schemadecode.DecodeVaultAuthRole(envelope)
 	if err != nil {
 		fatal, skip := quarantineOrFatal(envelope, err, quarantined)
 		if fatal != nil || skip {
@@ -343,18 +346,18 @@ func indexVaultAuthRole(index *secretsIAMIndex, envelope facts.Envelope, quarant
 
 // indexAWSIAMPrincipal decodes and indexes one aws_iam_principal envelope
 // (the #4568 AWS IAM lane, unchanged by this wave). MANDATORY fatal
-// passthrough: partitionDecodeFailures returns a non-nil fatal for any decode
+// passthrough: factdecode.PartitionDecodeFailures returns a non-nil fatal for any decode
 // error it did NOT classify input_invalid (a future schema-mismatch/
-// unsupported-major class, or a non-*factDecodeError). Such an error is
+// unsupported-major class, or a non-*factdecode.FactDecodeError). Such an error is
 // terminal but is NOT a per-fact quarantine — it must fail the whole
 // trust-chain work item so the durable queue triages it, exactly like every
 // other decode call site in this file. Swallowing it here (the old
 // `continue`) would let a malformed principal Ack as success — the "swallow
 // failures" hole the redesign exists to close.
-func indexAWSIAMPrincipal(index *secretsIAMIndex, envelope facts.Envelope, quarantined *[]quarantinedFact) error {
-	principal, err := decodeAWSIAMPrincipal(envelope)
+func indexAWSIAMPrincipal(index *secretsIAMIndex, envelope facts.Envelope, quarantined *[]factdecode.QuarantinedFact) error {
+	principal, err := schemadecode.DecodeAWSIAMPrincipal(envelope)
 	if err != nil {
-		q, ok, fatal := partitionDecodeFailures(envelope, err)
+		q, ok, fatal := factdecode.PartitionDecodeFailures(envelope, err)
 		if fatal != nil {
 			return fatal
 		}
@@ -363,7 +366,7 @@ func indexAWSIAMPrincipal(index *secretsIAMIndex, envelope facts.Envelope, quara
 		}
 		return nil
 	}
-	key := strings.TrimSpace(payloadString(envelope.Payload, "principal_arn"))
+	key := strings.TrimSpace(payloadcore.PayloadString(envelope.Payload, "principal_arn"))
 	if key == "" {
 		return nil
 	}
@@ -373,8 +376,8 @@ func indexAWSIAMPrincipal(index *secretsIAMIndex, envelope facts.Envelope, quara
 
 // indexVaultACLPolicy mirrors indexKubernetesServiceAccount for
 // vault_acl_policy envelopes.
-func indexVaultACLPolicy(index *secretsIAMIndex, envelope facts.Envelope, quarantined *[]quarantinedFact) error {
-	decoded, err := decodeVaultACLPolicy(envelope)
+func indexVaultACLPolicy(index *secretsIAMIndex, envelope facts.Envelope, quarantined *[]factdecode.QuarantinedFact) error {
+	decoded, err := schemadecode.DecodeVaultACLPolicy(envelope)
 	if err != nil {
 		fatal, skip := quarantineOrFatal(envelope, err, quarantined)
 		if fatal != nil || skip {
@@ -387,8 +390,8 @@ func indexVaultACLPolicy(index *secretsIAMIndex, envelope facts.Envelope, quaran
 
 // indexVaultKVMetadata mirrors indexKubernetesServiceAccount for
 // vault_kv_metadata envelopes.
-func indexVaultKVMetadata(index *secretsIAMIndex, envelope facts.Envelope, quarantined *[]quarantinedFact) error {
-	decoded, err := decodeVaultKVMetadata(envelope)
+func indexVaultKVMetadata(index *secretsIAMIndex, envelope facts.Envelope, quarantined *[]factdecode.QuarantinedFact) error {
+	decoded, err := schemadecode.DecodeVaultKVMetadata(envelope)
 	if err != nil {
 		fatal, skip := quarantineOrFatal(envelope, err, quarantined)
 		if fatal != nil || skip {
@@ -404,8 +407,8 @@ func indexVaultKVMetadata(index *secretsIAMIndex, envelope facts.Envelope, quara
 // envelopes. This K8S-lane kind decodes through the typed seam even though
 // its downstream join partner (gcp_iam_trust_policy) stays raw — deferred:
 // gcp_iam lane, Wave 4d types vault/k8s only.
-func indexKubernetesGCPWorkloadIdentityBinding(index *secretsIAMIndex, envelope facts.Envelope, quarantined *[]quarantinedFact) error {
-	decoded, err := decodeKubernetesGCPWorkloadIdentityBinding(envelope)
+func indexKubernetesGCPWorkloadIdentityBinding(index *secretsIAMIndex, envelope facts.Envelope, quarantined *[]factdecode.QuarantinedFact) error {
+	decoded, err := schemadecode.DecodeKubernetesGCPWorkloadIdentityBinding(envelope)
 	if err != nil {
 		fatal, skip := quarantineOrFatal(envelope, err, quarantined)
 		if fatal != nil || skip {

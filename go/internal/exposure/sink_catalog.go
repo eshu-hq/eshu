@@ -146,7 +146,7 @@ var sinkCatalog = []SinkSpec{
 		TargetLabel:      "SecretsIAMSecretMetadataPath",
 		BaselineSeverity: SeverityHigh,
 		GraphBacked:      true,
-		Provenance:       "reducer/secrets_iam_graph_projection_extract.go (-[:SECRETS_IAM_GRANTS_SECRET_READ]-> :SecretsIAMSecretMetadataPath)",
+		Provenance:       "reducer/secretsiam/secrets_iam_graph_projection_extract.go (-[:SECRETS_IAM_GRANTS_SECRET_READ]-> :SecretsIAMSecretMetadataPath)",
 	},
 	// SQL table sink: a function that queries a SQL table. The SQL relationship
 	// materializer promotes parser embedded-query evidence into
@@ -288,7 +288,7 @@ func predicatesSatisfied(predicates []SinkPredicate, props map[string]string) bo
 // catalog. The well-formedness test fails when the catalog changes without a
 // deliberate update to this constant, implementing the taintModelVersion
 // discipline: a curated edit trips downstream re-evaluation.
-const sinkCatalogVersionGolden = "3ebe4ee581a2fc22bbe109589bbc0c9f678442e7e7d7d21b7787784d4a84c070"
+const sinkCatalogVersionGolden = "6db744b6723ff2943dd78c5ceeb095f9479b489f921708dd7c4bfd94191a6ed3"
 
 // SinkCatalogVersion returns a deterministic content hash over the curated
 // cloud-sink catalog. Any change to the catalog (added, removed, or edited spec)

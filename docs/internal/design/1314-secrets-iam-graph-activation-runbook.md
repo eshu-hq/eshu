@@ -75,7 +75,7 @@ recorded. Cite each against its source.
   2026-06-07 in `docs/internal/design/1314-secrets-iam-graph-promotion-proof-2026-06-07.md`.
 - **§11 fixture truth proven** — reducer read-model rows drive node and edge
   rows through `SecretsIAMGraphProjectionHandler`
-  (`go/internal/reducer/secrets_iam_graph_projection_fixture_truth_test.go`).
+  (`go/internal/reducer/secretsiam/secrets_iam_graph_projection_fixture_truth_test.go`).
 - **§12 writer benchmark recorded** — `BenchmarkSecretsIAMGraphWriter` proves
   the UNWIND-batched, uid-anchored write shape with no per-edge reads
   (`go/internal/storage/cypher/secrets_iam_graph_writer_bench_test.go`).
@@ -87,7 +87,7 @@ recorded. Cite each against its source.
   scope indexes are present after bootstrap (proof snapshot).
 - **§7 redaction allowlist enforced in code** — the property allowlist is
   asserted by `TestExtractRowsCarryNoForbiddenProperties`
-  (`go/internal/reducer/secrets_iam_graph_projection_extract_test.go`); any key
+  (`go/internal/reducer/secretsiam/secrets_iam_graph_projection_extract_test.go`); any key
   outside the allowlist, or a value that looks like a raw ARN/path, fails the
   test.
 
@@ -194,7 +194,7 @@ allowlist on the exact commit being deployed:
 
 ```bash
 cd go
-go test ./internal/reducer ./internal/storage/cypher ./cmd/reducer \
+go test ./internal/reducer/... ./internal/storage/cypher ./cmd/reducer \
   -run 'SecretsIAMGraph|SecretsIAM|TestExtractRowsCarryNoForbiddenProperties' \
   -count=1
 ```

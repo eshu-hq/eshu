@@ -326,7 +326,7 @@ conformance, and schema readback proofs are attached in
 `1314-secrets-iam-graph-promotion-proof-2026-06-07.md`. The full load → extract
 → write orchestration runs through `SecretsIAMGraphProjectionHandler` against the
 recording writer in
-`go/internal/reducer/secrets_iam_graph_projection_fixture_truth_test.go`,
+`go/internal/reducer/secretsiam/secrets_iam_graph_projection_fixture_truth_test.go`,
 asserting the exact node/edge rows for all four node families and all five edge
 families plus the skip-counted cases (missing workload, missing vault hop,
 missing secret path, non-exact states, pod-identity IAM-role-unresolved) and

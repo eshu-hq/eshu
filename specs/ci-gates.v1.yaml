@@ -2300,8 +2300,8 @@ gates:
       - "specs/replay-coverage-manifest.v1.yaml"
       - "testdata/golden/e2e-20repo-snapshot.json"
     local:
-      command: "cd go && go test ./internal/ifa ./internal/ifa/materializededges ./cmd/ifa -count=1 && go test ./internal/reducer -count=1"
-      test_command: "cd go && go test ./internal/ifa ./internal/ifa/materializededges ./cmd/ifa -count=1 && go test ./internal/reducer -count=1"
+      command: "cd go && go test ./internal/ifa ./internal/ifa/materializededges ./cmd/ifa -count=1 && go test ./internal/reducer/... -count=1"
+      test_command: "cd go && go test ./internal/ifa ./internal/ifa/materializededges ./cmd/ifa -count=1 && go test ./internal/reducer/... -count=1"
     ci:
       workflow: static-contract-gates.yml
       job: "Verify Ifa contract-layer gate"
@@ -2425,19 +2425,23 @@ gates:
       - "go/internal/ifa/testdata/sqlrelationships/**"
       - "go/internal/ifa/testdata/codecalls/**"
     local:
-      # The reducer leg runs the WHOLE package rather than a -run filter.
+      # The reducer leg runs the WHOLE TREE (`./internal/reducer/...`)
+      # rather than a -run filter.
       # A hand-maintained test-name regex went stale twice here: it listed
       # TestMaterializedEdgeFamilies|TestMaterializedEdgeFamilyBlockerLockstep,
       # which silently did not select TestIfaFamilyRegistryWaitKeyIsKnownDomain
       # when that landed -- a check present in the tree and never run by the
-      # gate meant to run it. The package takes ~5s; that buys a selection
-      # that cannot rot as tests are added.
+      # gate meant to run it. The tree takes ~8s; that buys a selection
+      # that cannot rot as tests are added, and -- because the leg is
+      # recursive -- cannot rot as #6061 moves families out of the
+      # reducer root into domain subpackages either.
       #
-      # The ifa leg names materializededges explicitly for the same reason: this
-      # list is PACKAGE-EXACT, not recursive, so a package that is not named here
+      # The ifa leg names materializededges explicitly for the same reason.
+      # That leg -- not the reducer one above it -- is PACKAGE-EXACT,
+      # not recursive, so a package that is not named here
       # is not run by this gate no matter how many tests it holds.
-      command: "cd go && go test ./internal/ifa ./internal/ifa/materializededges ./cmd/ifa -count=1 && go test ./internal/reducer -count=1"
-      test_command: "cd go && go test ./internal/ifa ./internal/ifa/materializededges ./cmd/ifa -count=1 && go test ./internal/reducer -count=1"
+      command: "cd go && go test ./internal/ifa ./internal/ifa/materializededges ./cmd/ifa -count=1 && go test ./internal/reducer/... -count=1"
+      test_command: "cd go && go test ./internal/ifa ./internal/ifa/materializededges ./cmd/ifa -count=1 && go test ./internal/reducer/... -count=1"
     ci:
       workflow: static-contract-gates.yml
       job: "Verify Ifa contract-layer gate"

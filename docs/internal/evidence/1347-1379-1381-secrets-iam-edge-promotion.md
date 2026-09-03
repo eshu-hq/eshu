@@ -111,7 +111,7 @@ the proven node/edge writers and is far below the §12 ~10% regression stop
 threshold against them.
 
 No-Regression Evidence (§11): `TestGraphProjectionFixtureTruth*`
-(`go/internal/reducer/secrets_iam_graph_projection_fixture_truth_test.go`) drives
+(`go/internal/reducer/secretsiam/secrets_iam_graph_projection_fixture_truth_test.go`) drives
 the full load → extract → write orchestration through
 `SecretsIAMGraphProjectionHandler` against the in-memory recording writer and
 asserts the exact node/edge rows handed to all four node-family and all five

@@ -1325,7 +1325,7 @@
           "list_secrets_iam_identity_trust_chains"
         ],
         "proof_gates": [
-          "cd go \u0026\u0026 go test ./cmd/collector-aws-cloud ./internal/collector/awscloud ./internal/reducer ./internal/query ./internal/mcp -count=1"
+          "cd go \u0026\u0026 go test ./cmd/collector-aws-cloud ./internal/collector/awscloud ./internal/reducer/... ./internal/query ./internal/mcp -count=1"
         ],
         "fixture_refs": [
           "go/cmd/collector-aws-cloud/testdata",
@@ -1493,7 +1493,7 @@
           "get_cloud_inventory"
         ],
         "proof_gates": [
-          "cd go \u0026\u0026 go test ./cmd/collector-gcp-cloud ./internal/collector/gcpcloud ./internal/reducer ./internal/query -count=1"
+          "cd go \u0026\u0026 go test ./cmd/collector-gcp-cloud ./internal/collector/gcpcloud ./internal/reducer/... ./internal/query -count=1"
         ],
         "fixture_refs": [
           "docs/public/reference/gcp-cloud-collector-contract.md",
@@ -1675,7 +1675,7 @@
           "list_kubernetes_correlations"
         ],
         "proof_gates": [
-          "cd go \u0026\u0026 go test ./cmd/collector-kubernetes-live ./internal/collector/kuberneteslive ./internal/reducer ./internal/query -count=1"
+          "cd go \u0026\u0026 go test ./cmd/collector-kubernetes-live ./internal/collector/kuberneteslive ./internal/reducer/... ./internal/query -count=1"
         ],
         "fixture_refs": [
           "docs/internal/design/388-kubernetes-live-collector.md",
@@ -2160,7 +2160,7 @@
           "list_secrets_iam_identity_trust_chains"
         ],
         "proof_gates": [
-          "cd go \u0026\u0026 go test ./cmd/collector-vault-live ./internal/collector/vaultlive ./internal/reducer ./internal/query -count=1"
+          "cd go \u0026\u0026 go test ./cmd/collector-vault-live ./internal/collector/vaultlive ./internal/reducer/... ./internal/query -count=1"
         ],
         "fixture_refs": [
           "docs/public/reference/secrets-iam-posture-collector-contract.md",

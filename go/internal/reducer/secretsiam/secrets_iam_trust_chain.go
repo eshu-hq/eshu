@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package reducer
+package secretsiam
 
 import (
 	"context"
@@ -10,6 +10,8 @@ import (
 	"go.opentelemetry.io/otel/metric"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
+	"github.com/eshu-hq/eshu/go/internal/reducer/factdecode"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
 )
 
@@ -138,7 +140,7 @@ type SecretsIAMTrustChainLoadStats struct {
 type SecretsIAMTrustChainEvidenceLoader interface {
 	LoadSecretsIAMTrustChainEvidence(
 		context.Context,
-		Intent,
+		reducercontract.Intent,
 	) ([]facts.Envelope, SecretsIAMTrustChainLoadStats, error)
 }
 
@@ -176,19 +178,19 @@ type SecretsIAMTrustChainHandler struct {
 }
 
 // Handle executes one secrets/IAM reducer intent.
-func (h SecretsIAMTrustChainHandler) Handle(ctx context.Context, intent Intent) (Result, error) {
-	if intent.Domain != DomainSecretsIAMTrustChain {
-		return Result{}, fmt.Errorf("secrets_iam_trust_chain handler does not accept domain %q", intent.Domain)
+func (h SecretsIAMTrustChainHandler) Handle(ctx context.Context, intent reducercontract.Intent) (reducercontract.Result, error) {
+	if intent.Domain != reducercontract.DomainSecretsIAMTrustChain {
+		return reducercontract.Result{}, fmt.Errorf("secrets_iam_trust_chain handler does not accept domain %q", intent.Domain)
 	}
 	if h.EvidenceLoader == nil {
-		return Result{}, fmt.Errorf("secrets/IAM trust-chain evidence loader is required")
+		return reducercontract.Result{}, fmt.Errorf("secrets/IAM trust-chain evidence loader is required")
 	}
 	if h.Writer == nil {
-		return Result{}, fmt.Errorf("secrets/IAM trust-chain writer is required")
+		return reducercontract.Result{}, fmt.Errorf("secrets/IAM trust-chain writer is required")
 	}
 	envelopes, stats, err := h.EvidenceLoader.LoadSecretsIAMTrustChainEvidence(ctx, intent)
 	if err != nil {
-		return Result{}, fmt.Errorf("load secrets/IAM trust-chain evidence: %w", err)
+		return reducercontract.Result{}, fmt.Errorf("load secrets/IAM trust-chain evidence: %w", err)
 	}
 	// BuildSecretsIAMTrustChainReadModels decodes the aws_iam_principal facts it
 	// uses to resolve assumed-role CloudResource uids through the factschema seam.
@@ -204,9 +206,9 @@ func (h SecretsIAMTrustChainHandler) Handle(ctx context.Context, intent Intent) 
 	// stalling the scope's other providers.
 	models, quarantined, err := BuildSecretsIAMTrustChainReadModels(envelopes)
 	if err != nil {
-		return Result{}, err
+		return reducercontract.Result{}, err
 	}
-	inputInvalidCount := recordQuarantinedFacts(ctx, h.Instruments, DomainSecretsIAMTrustChain, intent.ScopeID, intent.GenerationID, quarantined)
+	inputInvalidCount := factdecode.RecordQuarantinedFacts(ctx, h.Instruments, reducercontract.DomainSecretsIAMTrustChain, intent.ScopeID, intent.GenerationID, quarantined)
 	writeResult, err := h.Writer.WriteSecretsIAMTrustChainReadModels(ctx, SecretsIAMTrustChainWrite{
 		IntentID:     intent.IntentID,
 		ScopeID:      intent.ScopeID,
@@ -217,16 +219,16 @@ func (h SecretsIAMTrustChainHandler) Handle(ctx context.Context, intent Intent) 
 		LoadStats:    stats,
 	})
 	if err != nil {
-		return Result{}, fmt.Errorf("write secrets/IAM trust-chain read models: %w", err)
+		return reducercontract.Result{}, fmt.Errorf("write secrets/IAM trust-chain read models: %w", err)
 	}
 	h.emitCounters(ctx, models)
-	return Result{
+	return reducercontract.Result{
 		IntentID:        intent.IntentID,
-		Domain:          DomainSecretsIAMTrustChain,
-		Status:          ResultStatusSucceeded,
+		Domain:          reducercontract.DomainSecretsIAMTrustChain,
+		Status:          reducercontract.ResultStatusSucceeded,
 		EvidenceSummary: secretsIAMTrustChainSummary(models, stats, writeResult.FactsWritten),
 		CanonicalWrites: writeResult.FactsWritten,
-		SubSignals:      inputInvalidSubSignals(inputInvalidCount),
+		SubSignals:      factdecode.InputInvalidSubSignals(inputInvalidCount),
 	}, nil
 }
 

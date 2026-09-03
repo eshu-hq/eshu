@@ -1,13 +1,14 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package reducer
+package secretsiam
 
 import (
 	"context"
 	"testing"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
 )
 
 // fakeFactLoader returns a fixed envelope set for any scope/generation.
@@ -99,8 +100,8 @@ func (w *recordingGraphWriter) RetractScope(_ context.Context, scopeIDs []string
 	return nil
 }
 
-func graphProjectionIntent() Intent {
-	return Intent{IntentID: "intent-1", ScopeID: "scope-1", GenerationID: "gen-1", Domain: DomainSecretsIAMGraphProjection}
+func graphProjectionIntent() reducercontract.Intent {
+	return reducercontract.Intent{IntentID: "intent-1", ScopeID: "scope-1", GenerationID: "gen-1", Domain: reducercontract.DomainSecretsIAMGraphProjection}
 }
 
 func TestGraphProjectionHandleWritesExactRowsAndRetracts(t *testing.T) {
@@ -121,7 +122,7 @@ func TestGraphProjectionHandleWritesExactRowsAndRetracts(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Handle error = %v", err)
 	}
-	if res.Status != ResultStatusSucceeded || res.Domain != DomainSecretsIAMGraphProjection {
+	if res.Status != reducercontract.ResultStatusSucceeded || res.Domain != reducercontract.DomainSecretsIAMGraphProjection {
 		t.Fatalf("result = %+v", res)
 	}
 	if len(writer.retracts) != 1 || len(writer.retracts[0]) != 1 || writer.retracts[0][0] != "scope-1" {
@@ -209,9 +210,9 @@ func TestGraphProjectionHandleValidation(t *testing.T) {
 	writer := &recordingGraphWriter{}
 	cases := map[string]struct {
 		h      SecretsIAMGraphProjectionHandler
-		intent Intent
+		intent reducercontract.Intent
 	}{
-		"wrong domain": {SecretsIAMGraphProjectionHandler{FactLoader: loader, Writer: writer}, Intent{Domain: DomainWorkloadIdentity}},
+		"wrong domain": {SecretsIAMGraphProjectionHandler{FactLoader: loader, Writer: writer}, reducercontract.Intent{Domain: reducercontract.DomainWorkloadIdentity}},
 		"nil loader":   {SecretsIAMGraphProjectionHandler{Writer: writer}, graphProjectionIntent()},
 		"nil writer":   {SecretsIAMGraphProjectionHandler{FactLoader: loader}, graphProjectionIntent()},
 	}
@@ -249,8 +250,8 @@ func TestGraphProjectionHandleSkipsRetractOnFirstGeneration(t *testing.T) {
 func TestSecretsIAMGraphProjectionDomainDefinition(t *testing.T) {
 	t.Parallel()
 
-	def := secretsIAMGraphProjectionDomainDefinition()
-	if def.Domain != DomainSecretsIAMGraphProjection {
+	def := GraphProjectionDomainDefinition()
+	if def.Domain != reducercontract.DomainSecretsIAMGraphProjection {
 		t.Fatalf("domain = %q", def.Domain)
 	}
 	if !def.Ownership.CanonicalWrite || !def.Ownership.CrossSource || !def.Ownership.CrossScope {

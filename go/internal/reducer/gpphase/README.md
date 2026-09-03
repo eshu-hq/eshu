@@ -45,7 +45,7 @@ write itself belongs to whoever holds the publisher rather than to a package
 every family imports. `PhaseState` and `PhasePublisher` do live here, because a
 family has to name them to accept a publisher without importing the root, and
 the root aliases both; `StateForIntent` builds a state and reports false rather
-than writing one. The `EndpointPresenceRow`/`Writer`/`Lookup` trio
+than writing one. The `EndpointPresenceRow`/`Writer` trio
 also stays at the root: it is a distinct uid-exact, cross-scope presence
 primitive (issue #1380), not a same-scope/same-generation readiness fact, and
 no family needs it to move.

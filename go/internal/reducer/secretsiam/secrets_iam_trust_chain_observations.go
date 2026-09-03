@@ -1,25 +1,26 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package reducer
+package secretsiam
 
 import (
 	"strings"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/reducer/payloadcore"
 )
 
 func secretsIAMWildcardTrustObservations(trusts map[string][]facts.Envelope) []SecretsIAMPrivilegePostureObservation {
 	var observations []SecretsIAMPrivilegePostureObservation
 	for roleARN, envelopes := range trusts {
 		for _, envelope := range envelopes {
-			if !payloadBool(envelope.Payload, "web_identity_subject_wildcard") {
+			if !payloadcore.PayloadBool(envelope.Payload, "web_identity_subject_wildcard") {
 				continue
 			}
-			if payloadString(envelope.Payload, "effect") != "Allow" {
+			if payloadcore.PayloadString(envelope.Payload, "effect") != "Allow" {
 				continue
 			}
-			if !secretsIAMContainsLower(payloadStrings(envelope.Payload, "", "actions"), "sts:assumerolewithwebidentity") {
+			if !secretsIAMContainsLower(payloadcore.PayloadStrings(envelope.Payload, "", "actions"), "sts:assumerolewithwebidentity") {
 				continue
 			}
 			subject := secretsIAMFingerprint("iam_role", roleARN)
@@ -77,9 +78,9 @@ func secretsIAMGap(
 		State:                 state,
 		Reason:                reason,
 		ServiceAccountJoinKey: serviceAccountKey,
-		EvidenceFactIDs:       uniqueSortedStrings(evidenceFactIDs),
-		MissingEvidence:       uniqueSortedStrings(missingEvidence),
-		UnsupportedLayers:     uniqueSortedStrings(unsupportedLayers),
+		EvidenceFactIDs:       payloadcore.UniqueSortedStrings(evidenceFactIDs),
+		MissingEvidence:       payloadcore.UniqueSortedStrings(missingEvidence),
+		UnsupportedLayers:     payloadcore.UniqueSortedStrings(unsupportedLayers),
 	}
 }
 

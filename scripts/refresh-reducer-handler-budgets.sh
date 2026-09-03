@@ -19,7 +19,7 @@
 #   REDUCER_PERF_BENCHTIME  -benchtime value    (default 100ms)
 #   REDUCER_PERF_COUNT      -count value        (default 6)
 #   REDUCER_PERF_HEADROOM   ceiling multiplier  (default 1.50)
-#   REDUCER_PERF_PACKAGE    package to bench     (default ./internal/reducer)
+#   REDUCER_PERF_PACKAGE    package to bench     (default ./internal/reducer/...)
 set -euo pipefail
 
 repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
@@ -27,7 +27,7 @@ budgets="${REDUCER_BUDGETS:-${repo_root}/testdata/benchmarks/reducer-handler-bud
 bench_time="${REDUCER_PERF_BENCHTIME:-100ms}"
 bench_count="${REDUCER_PERF_COUNT:-6}"
 headroom="${REDUCER_PERF_HEADROOM:-1.50}"
-bench_package="${REDUCER_PERF_PACKAGE:-./internal/reducer}"
+bench_package="${REDUCER_PERF_PACKAGE:-./internal/reducer/...}"
 
 die() {
 	printf 'refresh-reducer-handler-budgets: %s\n' "$*" >&2

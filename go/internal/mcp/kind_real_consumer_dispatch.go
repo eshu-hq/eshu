@@ -36,7 +36,7 @@ import (
 // signals: several reducer handlers switch on envelope.FactKind and process
 // the envelope's payload fields directly
 // (facts.SecretsIAMCoverageWarningFactKind in
-// go/internal/reducer/secrets_iam_trust_chain_build.go's
+// go/internal/reducer/secretsiam/secrets_iam_trust_chain_build.go's
 // `case facts.SecretsIAMCoverageWarningFactKind:` and
 // facts.ObservabilitySourceInstanceFactKind in
 // go/internal/reducer/obscoverage/observability_coverage_metadata.go's

@@ -48,7 +48,7 @@ impersonation trust layer needed for GKE Workload Identity.
   `SecretsIAMFactKinds()` set, so projector triggers and the evidence loader
   pick them up with no broad active-table scan.
 - Reducer: `secretsIAMGCPGrantObservations`
-  (`go/internal/reducer/secrets_iam_trust_chain_gcp.go`) emits
+  (`go/internal/reducer/secretsiam/secrets_iam_trust_chain_gcp.go`) emits
   `gcp_service_account_secret_access` and `gcp_service_account_broad_role`
   privilege-posture observations for standing Secret Manager resource grants and
   broad roles, and `secretsIAMGCPExactChainsForServiceAccount` emits exact GCP
@@ -76,7 +76,7 @@ impersonation trust layer needed for GKE Workload Identity.
 
 ## Evidence
 
-No-Regression Evidence: `go test ./internal/reducer -run 'GCP.*(Grant|Trust|Secret)|GCPSecret|GCPBroad|GCPNarrow'`,
+No-Regression Evidence: `go test ./internal/reducer/... -run 'GCP.*(Grant|Trust|Secret)|GCPSecret|GCPBroad|GCPNarrow'`,
 `go test ./internal/collector/secretsiam -run GCP`, `go test
 ./internal/collector/gcpcloud -run 'GCP|ServiceAccountEmail'`, `go test
 ./internal/collector/kuberneteslive ./cmd/collector-kubernetes-live -run

@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package reducer
+package secretsiam
 
 import (
 	"context"
@@ -11,6 +11,9 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
+	"github.com/eshu-hq/eshu/go/internal/reducer/factwrite"
+	"github.com/eshu-hq/eshu/go/internal/reducer/payloadcore"
 	"github.com/eshu-hq/eshu/go/internal/truth"
 )
 
@@ -24,7 +27,7 @@ const (
 // PostgresSecretsIAMTrustChainWriter stores secrets/IAM reducer read models in
 // the shared fact store. It adds no table, graph label, graph edge, or DDL.
 type PostgresSecretsIAMTrustChainWriter struct {
-	DB  workloadIdentityExecer
+	DB  factwrite.Execer
 	Now func() time.Time
 }
 
@@ -37,7 +40,7 @@ func (w PostgresSecretsIAMTrustChainWriter) WriteSecretsIAMTrustChainReadModels(
 	if w.DB == nil {
 		return SecretsIAMTrustChainWriteResult{}, fmt.Errorf("secrets/IAM trust-chain database is required")
 	}
-	now := reducerWriterNow(w.Now)
+	now := factwrite.Now(w.Now)
 	factsWritten := 0
 	for _, chain := range write.Models.IdentityTrustChains {
 		if err := w.writePayload(ctx, now, write, secretsIAMIdentityTrustChainFactKind, chain.ChainID, secretsIAMIdentityTrustChainPayload(write, chain)); err != nil {
@@ -83,13 +86,13 @@ func (w PostgresSecretsIAMTrustChainWriter) writePayload(
 	}
 	if _, err := w.DB.ExecContext(
 		ctx,
-		canonicalReducerFactInsertQuery,
+		factwrite.SingleInsertQuery,
 		secretsIAMReadModelFactID(write, factKind, modelID),
 		write.ScopeID,
 		write.GenerationID,
 		factKind,
 		secretsIAMReadModelStableFactKey(write, factKind, modelID),
-		reducerFactCollectorKind(write.SourceSystem),
+		factwrite.CollectorKind(write.SourceSystem),
 		facts.SourceConfidenceInferred,
 		write.SourceSystem,
 		write.IntentID,
@@ -128,7 +131,7 @@ func secretsIAMReadModelIdentity(write SecretsIAMTrustChainWrite, factKind, mode
 
 func secretsIAMBasePayload(write SecretsIAMTrustChainWrite, modelKind string) map[string]any {
 	return map[string]any{
-		"reducer_domain":    string(DomainSecretsIAMTrustChain),
+		"reducer_domain":    string(reducercontract.DomainSecretsIAMTrustChain),
 		"intent_id":         write.IntentID,
 		"scope_id":          write.ScopeID,
 		"generation_id":     write.GenerationID,
@@ -164,11 +167,11 @@ func secretsIAMIdentityTrustChainPayload(
 	payload["gcp_service_account_assume_mode"] = chain.GCPServiceAccountAssumeMode
 	payload["vault_role_join_key"] = chain.VaultRoleJoinKey
 	payload["vault_mount_join_key"] = chain.VaultMountJoinKey
-	payload["vault_policy_join_keys"] = uniqueSortedStrings(chain.VaultPolicyJoinKeys)
-	payload["evidence_fact_ids"] = uniqueSortedStrings(chain.EvidenceFactIDs)
-	payload["missing_evidence"] = uniqueSortedStrings(chain.MissingEvidence)
-	payload["source_scopes"] = uniqueSortedStrings(chain.SourceScopes)
-	payload["source_generations"] = uniqueSortedStrings(chain.SourceGenerations)
+	payload["vault_policy_join_keys"] = payloadcore.UniqueSortedStrings(chain.VaultPolicyJoinKeys)
+	payload["evidence_fact_ids"] = payloadcore.UniqueSortedStrings(chain.EvidenceFactIDs)
+	payload["missing_evidence"] = payloadcore.UniqueSortedStrings(chain.MissingEvidence)
+	payload["source_scopes"] = payloadcore.UniqueSortedStrings(chain.SourceScopes)
+	payload["source_generations"] = payloadcore.UniqueSortedStrings(chain.SourceGenerations)
 	return payload
 }
 
@@ -184,7 +187,7 @@ func secretsIAMPrivilegePostureObservationPayload(
 	payload["confidence"] = observation.Confidence
 	payload["subject_fingerprint"] = observation.SubjectFingerprint
 	payload["reason"] = observation.Reason
-	payload["evidence_fact_ids"] = uniqueSortedStrings(observation.EvidenceFactIDs)
+	payload["evidence_fact_ids"] = payloadcore.UniqueSortedStrings(observation.EvidenceFactIDs)
 	return payload
 }
 
@@ -202,8 +205,8 @@ func secretsIAMSecretAccessPathPayload(
 	payload["vault_policy_join_key"] = path.VaultPolicyJoinKey
 	payload["cloud_provider"] = path.CloudProvider
 	payload["cloud_secret_resource_fingerprint"] = path.CloudSecretResourceFingerprint
-	payload["capabilities"] = uniqueSortedStrings(path.Capabilities)
-	payload["evidence_fact_ids"] = uniqueSortedStrings(path.EvidenceFactIDs)
+	payload["capabilities"] = payloadcore.UniqueSortedStrings(path.Capabilities)
+	payload["evidence_fact_ids"] = payloadcore.UniqueSortedStrings(path.EvidenceFactIDs)
 	return payload
 }
 
@@ -217,8 +220,8 @@ func secretsIAMPostureGapPayload(
 	payload["state"] = string(gap.State)
 	payload["reason"] = gap.Reason
 	payload["service_account_join_key"] = gap.ServiceAccountJoinKey
-	payload["evidence_fact_ids"] = uniqueSortedStrings(gap.EvidenceFactIDs)
-	payload["missing_evidence"] = uniqueSortedStrings(gap.MissingEvidence)
-	payload["unsupported_layers"] = uniqueSortedStrings(gap.UnsupportedLayers)
+	payload["evidence_fact_ids"] = payloadcore.UniqueSortedStrings(gap.EvidenceFactIDs)
+	payload["missing_evidence"] = payloadcore.UniqueSortedStrings(gap.MissingEvidence)
+	payload["unsupported_layers"] = payloadcore.UniqueSortedStrings(gap.UnsupportedLayers)
 	return payload
 }

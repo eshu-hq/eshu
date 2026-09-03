@@ -1,13 +1,14 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package reducer
+package secretsiam
 
 import (
 	"sort"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
 	"github.com/eshu-hq/eshu/go/internal/graph/edgetype"
+	"github.com/eshu-hq/eshu/go/internal/reducer/payloadcore"
 )
 
 // SecretsIAMGraphEvidenceSource tags every reducer-owned Secrets/IAM graph node
@@ -149,19 +150,19 @@ func newSecretsIAMGraphRowBuilder() *secretsIAMGraphRowBuilder {
 }
 
 func (b *secretsIAMGraphRowBuilder) addIdentityTrustChain(envelope facts.Envelope) {
-	if payloadString(envelope.Payload, "state") != string(SecretsIAMTrustChainStateExact) {
+	if payloadcore.PayloadString(envelope.Payload, "state") != string(SecretsIAMTrustChainStateExact) {
 		b.tally.SkippedByReason[secretsIAMSkipNonExactState]++
 		return
 	}
-	saKey := payloadString(envelope.Payload, "service_account_join_key")
+	saKey := payloadcore.PayloadString(envelope.Payload, "service_account_join_key")
 	if saKey == "" {
 		b.tally.SkippedByReason[secretsIAMSkipMissingServiceAccount]++
 		return
 	}
-	scopeID := payloadString(envelope.Payload, "scope_id")
-	generationID := payloadString(envelope.Payload, "generation_id")
-	confidence := payloadString(envelope.Payload, "confidence")
-	evidence := payloadStrings(envelope.Payload, "", "evidence_fact_ids")
+	scopeID := payloadcore.PayloadString(envelope.Payload, "scope_id")
+	generationID := payloadcore.PayloadString(envelope.Payload, "generation_id")
+	confidence := payloadcore.PayloadString(envelope.Payload, "confidence")
+	evidence := payloadcore.PayloadStrings(envelope.Payload, "", "evidence_fact_ids")
 
 	b.putNode(b.serviceAccounts, secretsIAMLabelServiceAccount, map[string]any{
 		"uid": saKey, "scope_id": scopeID, "generation_id": generationID,
@@ -172,7 +173,7 @@ func (b *secretsIAMGraphRowBuilder) addIdentityTrustChain(envelope facts.Envelop
 	// Optional: the workload node may not be materialized; the row is emitted and
 	// the writer's MATCH skips a missing endpoint. A blank workload id is counted
 	// as a skip and the ServiceAccount subgraph still projects (ADR §5).
-	if workloadUID := payloadString(envelope.Payload, "workload_object_id"); workloadUID != "" {
+	if workloadUID := payloadcore.PayloadString(envelope.Payload, "workload_object_id"); workloadUID != "" {
 		b.putEdge(b.usesServiceAccount, secretsIAMRelUsesServiceAccount, workloadUID, saKey, map[string]any{
 			"workload_uid": workloadUID, "service_account_uid": saKey,
 			"scope_id": scopeID, "generation_id": generationID,
@@ -190,26 +191,26 @@ func (b *secretsIAMGraphRowBuilder) addIdentityTrustChain(envelope facts.Envelop
 	// resolvable, so the edge is counted and never fabricated (ADR §5.1). A blank
 	// cloud_resource_uid is endpoint-no-op-safe: the writer MATCH skips a missing
 	// node, so a stale uid cannot fabricate a CloudResource.
-	if cloudResourceUID := payloadString(envelope.Payload, "iam_role_cloud_resource_uid"); cloudResourceUID != "" {
+	if cloudResourceUID := payloadcore.PayloadString(envelope.Payload, "iam_role_cloud_resource_uid"); cloudResourceUID != "" {
 		b.putEdge(b.assumesIAMRole, secretsIAMRelAssumesIAMRole, saKey, cloudResourceUID, map[string]any{
 			"service_account_uid": saKey, "cloud_resource_uid": cloudResourceUID,
-			"assume_mode": secretsIAMAssumeMode(payloadString(envelope.Payload, "iam_role_assume_mode")),
+			"assume_mode": secretsIAMAssumeMode(payloadcore.PayloadString(envelope.Payload, "iam_role_assume_mode")),
 			"scope_id":    scopeID, "generation_id": generationID,
 			"evidence_source": SecretsIAMGraphEvidenceSource, "confidence": confidence,
 			"evidence_fact_ids": evidence,
 		})
-	} else if payloadString(envelope.Payload, "iam_role_fingerprint") != "" {
+	} else if payloadcore.PayloadString(envelope.Payload, "iam_role_fingerprint") != "" {
 		b.tally.SkippedByReason[secretsIAMSkipIAMRoleUnresolved]++
 	}
 
-	vaultRoleKey := payloadString(envelope.Payload, "vault_role_join_key")
+	vaultRoleKey := payloadcore.PayloadString(envelope.Payload, "vault_role_join_key")
 	if vaultRoleKey == "" {
 		// No Vault hop in this chain; the ServiceAccount node still stands.
 		b.tally.SkippedByReason[secretsIAMSkipMissingVaultRole]++
 		return
 	}
 	b.putNode(b.vaultAuthRoles, secretsIAMLabelVaultAuthRole, map[string]any{
-		"uid": vaultRoleKey, "vault_mount_join_key": payloadString(envelope.Payload, "vault_mount_join_key"),
+		"uid": vaultRoleKey, "vault_mount_join_key": payloadcore.PayloadString(envelope.Payload, "vault_mount_join_key"),
 		"scope_id": scopeID, "generation_id": generationID,
 		"evidence_source": SecretsIAMGraphEvidenceSource, "confidence": confidence,
 	})
@@ -220,7 +221,7 @@ func (b *secretsIAMGraphRowBuilder) addIdentityTrustChain(envelope facts.Envelop
 		"evidence_fact_ids": evidence,
 	})
 
-	for _, policyKey := range payloadStrings(envelope.Payload, "", "vault_policy_join_keys") {
+	for _, policyKey := range payloadcore.PayloadStrings(envelope.Payload, "", "vault_policy_join_keys") {
 		b.putNode(b.vaultPolicies, secretsIAMLabelVaultPolicy, map[string]any{
 			"uid": policyKey, "scope_id": scopeID, "generation_id": generationID,
 			"evidence_source": SecretsIAMGraphEvidenceSource, "confidence": confidence,
@@ -235,13 +236,13 @@ func (b *secretsIAMGraphRowBuilder) addIdentityTrustChain(envelope facts.Envelop
 }
 
 func (b *secretsIAMGraphRowBuilder) addSecretAccessPath(envelope facts.Envelope) {
-	if payloadString(envelope.Payload, "state") != string(SecretsIAMTrustChainStateExact) {
+	if payloadcore.PayloadString(envelope.Payload, "state") != string(SecretsIAMTrustChainStateExact) {
 		b.tally.SkippedByReason[secretsIAMSkipNonExactState]++
 		return
 	}
-	policyKey := payloadString(envelope.Payload, "vault_policy_join_key")
-	mountKey := payloadString(envelope.Payload, "vault_mount_join_key")
-	kvFingerprint := payloadString(envelope.Payload, "kv_path_fingerprint")
+	policyKey := payloadcore.PayloadString(envelope.Payload, "vault_policy_join_key")
+	mountKey := payloadcore.PayloadString(envelope.Payload, "vault_mount_join_key")
+	kvFingerprint := payloadcore.PayloadString(envelope.Payload, "kv_path_fingerprint")
 	// A blank mount join key would collapse the SecretMetadataPath uid to
 	// kv_path_fingerprint alone, colliding unrelated paths across mounts/clusters
 	// into one node. Treat it as missing secret-path identity: skip and count.
@@ -249,10 +250,10 @@ func (b *secretsIAMGraphRowBuilder) addSecretAccessPath(envelope facts.Envelope)
 		b.tally.SkippedByReason[secretsIAMSkipMissingSecretPath]++
 		return
 	}
-	scopeID := payloadString(envelope.Payload, "scope_id")
-	generationID := payloadString(envelope.Payload, "generation_id")
-	confidence := payloadString(envelope.Payload, "confidence")
-	evidence := payloadStrings(envelope.Payload, "", "evidence_fact_ids")
+	scopeID := payloadcore.PayloadString(envelope.Payload, "scope_id")
+	generationID := payloadcore.PayloadString(envelope.Payload, "generation_id")
+	confidence := payloadcore.PayloadString(envelope.Payload, "confidence")
+	evidence := payloadcore.PayloadStrings(envelope.Payload, "", "evidence_fact_ids")
 
 	pathUID := facts.StableID(secretsIAMLabelSecretMetadataPath, map[string]any{
 		"vault_mount_join_key": mountKey,
@@ -270,7 +271,7 @@ func (b *secretsIAMGraphRowBuilder) addSecretAccessPath(envelope facts.Envelope)
 	})
 	b.putEdge(b.grantsSecretRead, secretsIAMRelGrantsSecretRead, policyKey, pathUID, map[string]any{
 		"vault_policy_uid": policyKey, "secret_path_uid": pathUID,
-		"capabilities": payloadStrings(envelope.Payload, "", "capabilities"),
+		"capabilities": payloadcore.PayloadStrings(envelope.Payload, "", "capabilities"),
 		"scope_id":     scopeID, "generation_id": generationID,
 		"evidence_source": SecretsIAMGraphEvidenceSource, "confidence": confidence,
 		"evidence_fact_ids": evidence,

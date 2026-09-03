@@ -28,7 +28,7 @@
 # Tunables (env):
 #   REDUCER_BUDGETS         budget file       (default testdata/benchmarks/reducer-handler-budgets.txt)
 #   REDUCER_PERF_RESULTS    pin a results file (skip running benchmarks; for the mirror)
-#   REDUCER_PERF_PACKAGE    package to bench   (default ./internal/reducer)
+#   REDUCER_PERF_PACKAGE    package to bench   (default ./internal/reducer/...)
 #   REDUCER_PERF_BENCHTIME  -benchtime value   (default 100ms)
 #   REDUCER_PERF_COUNT      -count value       (default 6)
 #   REDUCER_PERF_TIMEOUT    go test -timeout   (default 20m)
@@ -38,7 +38,12 @@ set -euo pipefail
 repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 budgets="${REDUCER_BUDGETS:-${repo_root}/testdata/benchmarks/reducer-handler-budgets.txt}"
 results_pinned="${REDUCER_PERF_RESULTS:-}"
-bench_package="${REDUCER_PERF_PACKAGE:-./internal/reducer}"
+# The reducer root is being split into domain subpackages (#6061), so a budgeted
+# benchmark can move out of the root without being renamed. `./internal/reducer`
+# matches one package, `./internal/reducer/...` matches the tree: with the narrow
+# form the gate reports "no samples found" the first time a budgeted benchmark
+# moves down a level, which is how it went red on the secrets_iam move.
+bench_package="${REDUCER_PERF_PACKAGE:-./internal/reducer/...}"
 bench_time="${REDUCER_PERF_BENCHTIME:-100ms}"
 bench_count="${REDUCER_PERF_COUNT:-6}"
 bench_timeout="${REDUCER_PERF_TIMEOUT:-20m}"
