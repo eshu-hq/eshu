@@ -13,11 +13,21 @@ import (
 	"net/http/httptest"
 	"strings"
 	"testing"
+
+	"github.com/eshu-hq/eshu/go/internal/query/querytestutil"
 )
 
-// fakeRepoGraphReader dispatches Neo4j queries to per-query stubs based on
-// Cypher content matching. This lets each test control the data for every
-// query in getRepositoryContext independently.
+// fakeRepoGraphReader adapts querytestutil.FakeRepoGraphReader to the field
+// names this package's tests already use. Keeping the lowercase names means
+// none of the tests below needed to change when the dispatch logic moved out
+// to querytestutil for the #6060 family split -- a symbol declared in this
+// _test.go file cannot be imported across a package boundary, so a moved
+// family could not otherwise reach the fake its tests depend on.
+//
+// The dispatch rules, including the single-entry RunSingle fallback, are NOT
+// duplicated here. They live once in querytestutil.FakeRepoGraphReader; a
+// second copy would drift from the real port and keep passing while guarding
+// nothing.
 type fakeRepoGraphReader struct {
 	// runSingleByMatch maps a Cypher fragment to the result row.
 	runSingleByMatch map[string]map[string]any
@@ -27,43 +37,22 @@ type fakeRepoGraphReader struct {
 	runSingle  func(context.Context, string, map[string]any) (map[string]any, error)
 }
 
+// delegate builds the shared fake from this adapter's fields.
+func (f fakeRepoGraphReader) delegate() querytestutil.FakeRepoGraphReader {
+	return querytestutil.FakeRepoGraphReader{
+		RunSingleByMatch: f.runSingleByMatch,
+		RunByMatch:       f.runByMatch,
+		RunFn:            f.run,
+		RunSingleFn:      f.runSingle,
+	}
+}
+
 func (f fakeRepoGraphReader) Run(ctx context.Context, cypher string, params map[string]any) ([]map[string]any, error) {
-	if f.run != nil {
-		return f.run(ctx, cypher, params)
-	}
-	var (
-		bestRows []map[string]any
-		bestLen  int
-	)
-	for fragment, rows := range f.runByMatch {
-		if strings.Contains(cypher, fragment) && len(fragment) > bestLen {
-			bestRows = rows
-			bestLen = len(fragment)
-		}
-	}
-	return bestRows, nil
+	return f.delegate().Run(ctx, cypher, params)
 }
 
 func (f fakeRepoGraphReader) RunSingle(ctx context.Context, cypher string, params map[string]any) (map[string]any, error) {
-	if f.runSingle != nil {
-		return f.runSingle(ctx, cypher, params)
-	}
-	var (
-		bestRow map[string]any
-		bestLen int
-	)
-	for fragment, row := range f.runSingleByMatch {
-		if strings.Contains(cypher, fragment) && len(fragment) > bestLen {
-			bestRow = row
-			bestLen = len(fragment)
-		}
-	}
-	if bestRow == nil && strings.Contains(cypher, "MATCH (r:Repository {id: $repo_id})") && len(f.runSingleByMatch) == 1 {
-		for _, row := range f.runSingleByMatch {
-			return row, nil
-		}
-	}
-	return bestRow, nil
+	return f.delegate().RunSingle(ctx, cypher, params)
 }
 
 func TestGetRepositoryContextUsesNarrowRepositoryLookupAndLogsStages(t *testing.T) {

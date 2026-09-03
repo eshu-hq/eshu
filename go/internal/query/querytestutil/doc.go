@@ -21,8 +21,9 @@
 //
 // A fake here must not call Run or RunSingle. That inventory walks this
 // directory like any other, so such a call is an unregistered production query
-// callsite and fails the gate. FakeGraphReader satisfies both methods by
-// routing each through an unexported helper instead of having one call the
-// other; give a new fake the same shape rather than asking for an exemption
-// (#6060, epic #6053).
+// callsite and fails the gate. There is more than one way to satisfy that:
+// FakeGraphReader routes both methods through an unexported helper, while
+// FakeRepoGraphReader and FakeWorkloadGraphReader inline their dispatch in each
+// method. Either is fine. What a new fake must not do is have one of the two
+// methods call the other, or ask for an exemption (#6060, epic #6053).
 package querytestutil

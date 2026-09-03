@@ -12,9 +12,19 @@ import (
 	"net/http/httptest"
 	"strings"
 	"testing"
+
+	"github.com/eshu-hq/eshu/go/internal/query/querytestutil"
 )
 
-// fakeWorkloadGraphReader dispatches Cypher queries based on content matching.
+// fakeWorkloadGraphReader adapts querytestutil.FakeWorkloadGraphReader to the
+// field names this package's tests already use, the same shape
+// fakeRepoGraphReader uses in repository_context_test.go. The dispatch rules
+// live once in querytestutil.FakeWorkloadGraphReader and are not duplicated
+// here.
+//
+// FakeWorkloadGraphReader is a distinct type from FakeRepoGraphReader, not an
+// alias for it: it has no single-entry RunSingle fallback, and this adapter
+// must not grow one just because fakeRepoGraphReader's sibling has it.
 type fakeWorkloadGraphReader struct {
 	runSingleByMatch map[string]map[string]any
 	runByMatch       map[string][]map[string]any
@@ -22,38 +32,22 @@ type fakeWorkloadGraphReader struct {
 	runSingle        func(context.Context, string, map[string]any) (map[string]any, error)
 }
 
+// delegate builds the shared fake from this adapter's fields.
+func (f fakeWorkloadGraphReader) delegate() querytestutil.FakeWorkloadGraphReader {
+	return querytestutil.FakeWorkloadGraphReader{
+		RunSingleByMatch: f.runSingleByMatch,
+		RunByMatch:       f.runByMatch,
+		RunFn:            f.run,
+		RunSingleFn:      f.runSingle,
+	}
+}
+
 func (f fakeWorkloadGraphReader) Run(ctx context.Context, cypher string, params map[string]any) ([]map[string]any, error) {
-	if f.run != nil {
-		return f.run(ctx, cypher, params)
-	}
-	var (
-		bestRows []map[string]any
-		bestLen  int
-	)
-	for fragment, rows := range f.runByMatch {
-		if strings.Contains(cypher, fragment) && len(fragment) > bestLen {
-			bestRows = rows
-			bestLen = len(fragment)
-		}
-	}
-	return bestRows, nil
+	return f.delegate().Run(ctx, cypher, params)
 }
 
 func (f fakeWorkloadGraphReader) RunSingle(ctx context.Context, cypher string, params map[string]any) (map[string]any, error) {
-	if f.runSingle != nil {
-		return f.runSingle(ctx, cypher, params)
-	}
-	var (
-		bestRow map[string]any
-		bestLen int
-	)
-	for fragment, row := range f.runSingleByMatch {
-		if strings.Contains(cypher, fragment) && len(fragment) > bestLen {
-			bestRow = row
-			bestLen = len(fragment)
-		}
-	}
-	return bestRow, nil
+	return f.delegate().RunSingle(ctx, cypher, params)
 }
 
 func TestGetWorkloadContextReturnsEnrichedResponse(t *testing.T) {

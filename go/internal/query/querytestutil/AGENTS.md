@@ -63,9 +63,13 @@
 4. No `Run` or `RunSingle` call in a non-test file. `internal/queryplan`'s
    `DiscoverQueryCallsites` walks this directory like every other one under
    `internal/query`, so such a call is an unregistered production query callsite
-   and fails `TestHotCypherManifestCoversEveryProductionQueryCall`. Give a fake
-   that needs both methods the `FakeGraphReader` shape: each routes through an
-   unexported helper rather than one calling the other.
+   and fails `TestHotCypherManifestCoversEveryProductionQueryCall`. The rule is
+   the absence of that call expression, not any particular shape, and the three
+   fakes here satisfy it two different ways: `FakeGraphReader` routes both
+   methods through an unexported `rows` helper, while `FakeRepoGraphReader` and
+   `FakeWorkloadGraphReader` inline their dispatch in each method. Either is
+   fine. What a new fake must not do is have one of the two methods call the
+   other.
 
 Invariants 3 and 4 are checked, not just asserted, and the same gate enforces
 the direction that keeps invariant 3 honest — a non-test file under
@@ -83,9 +87,10 @@ retired both. Do not reintroduce either.
 
 ## Current state: one consumer, on purpose
 
-`MustMapField` and `FakeGraphReader` each have exactly one consuming package
-today — root `query`'s own tests. That is a real exception to the two-consumer
-rule below, and it is worth understanding before you apply either.
+`MustMapField`, `FakeGraphReader`, `FakeRepoGraphReader`, and
+`FakeWorkloadGraphReader` each have exactly one consuming package today —
+root `query`'s own tests. That is a real exception to the two-consumer rule
+below, and it is worth understanding before you apply any of them.
 
 The rule exists to stop helpers migrating here for tidiness. This helper is here
 for a different reason: it is a precursor to the #6060 family split, and the
@@ -131,6 +136,42 @@ unexported root read models (`repositoryEntryPointReadModel`,
 `documentationFindingListReadModel`, and others), and those types have to reach a
 neutral package before the fake can follow.
 
+## Near-duplicate fakes are not one type
+
+`FakeRepoGraphReader` and `FakeWorkloadGraphReader` promoted the same way
+`FakeGraphReader` did, from `repository_context_test.go` and
+`workload_context_test.go`. They dispatch the same way — longest matching
+Cypher fragment wins in `RunByMatch`/`RunSingleByMatch`, `RunFn`/`RunSingleFn`
+override everything — and it is tempting to fold them into one type, maybe
+with a bool field for the difference.
+
+Do not. `FakeRepoGraphReader.RunSingle` has a fallback the workload fake does
+not: when no fragment matches, the cypher is the narrow single-repository
+lookup (`MATCH (r:Repository {id: $repo_id})`), and exactly one row is
+registered, it returns that row. `FakeWorkloadGraphReader.RunSingle` returns
+nil in the same situation, on purpose — `getWorkloadContext` has no
+single-entity lookup for a fallback to stand in for. Unifying the two types
+would give every workload test the repository fallback too. Workload tests
+would keep compiling, and most would keep passing, because most workload
+`RunSingleByMatch` maps have more than one entry or their fragments actually
+match — the fallback would only misfire for the ones that do not, silently
+handing back an unregistered row instead of nil.
+
+Both delegations are proven the same way `FakeGraphReader`'s was: break the
+rule in querytestutil, run the whole root suite, restore it, confirm green
+again.
+
+- Deleting the single-entry `RunSingle` fallback from `FakeRepoGraphReader`
+  fails **16** root tests.
+- Deleting the `RunSingleByMatch` dispatch from `FakeWorkloadGraphReader`'s
+  `RunSingle` (short-circuiting to `nil, nil`) fails **40** root tests.
+
+Both measured at this branch's HEAD: 7792 tests run, 0 failing. That is not the
+6539 of `FakeGraphReader`'s earlier proof -- the rebase moved it, and neither
+number is portable. Restore the file and re-run the baseline before trusting
+either number — a proof that leaves the break in place is not a proof of
+anything else in the suite.
+
 ## Common changes
 
 Adding a helper: confirm it is used by at least two packages' tests, OR that it
@@ -142,3 +183,7 @@ neither belongs in its consumer's own `_test.go`.
 - Moving a helper here "for tidiness" when only one package uses it and no
   family move is waiting on it.
 - Adding a dependency on a handler family to make one helper more convenient.
+- Merging two near-identical fakes into one type with a flag for the
+  difference. If you find yourself doing this to `FakeRepoGraphReader` and
+  `FakeWorkloadGraphReader`, stop — see "Near-duplicate fakes are not one
+  type" above.
