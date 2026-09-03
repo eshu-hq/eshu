@@ -194,6 +194,12 @@ exact source and would defeat the image override.
 Leave `NORNICDB_PLATFORM` unset for normal local runs so the build uses the host
 architecture.
 
+`NORNICDB_HEADLESS=true` skips the pinned backend's UI stage via the upstream
+`Dockerfile.cpu-bge` `HEADLESS` build arg (the default `false` keeps the full
+UI build for development). CI-only callers set it because the pinned source's
+UI stage currently fails `tsc` (TS2882, #6505) and no Eshu gate serves the
+NornicDB UI; local runs leave it unset.
+
 Normal `docker compose up --build` builds the pinned backend and Eshu services.
 To cache the backend first, build the stack once and then start without
 rebuilding either image:

@@ -77,6 +77,26 @@ func TestNornicDBComposeDoesNotForceAmd64Platform(t *testing.T) {
 	}
 }
 
+// TestNornicDBComposeHeadlessBuildArgDefaultsFalse pins the #6505 fix:
+// docker-compose.yaml must thread the upstream Dockerfile.cpu-bge HEADLESS
+// build arg through, defaulting to false so local runs keep the full UI
+// build, while CI-only callers opt into the headless backend image via
+// NORNICDB_HEADLESS=true (the pinned source's UI stage fails tsc).
+func TestNornicDBComposeHeadlessBuildArgDefaultsFalse(t *testing.T) {
+	t.Parallel()
+
+	content := readRepositoryFile(t, "../../..", "docker-compose.yaml")
+	want := "HEADLESS: ${NORNICDB_HEADLESS:-false}"
+	if !strings.Contains(content, want) {
+		t.Fatalf("docker-compose.yaml must default the NornicDB UI build to full (local dev), want %q", want)
+	}
+
+	docs := readRepositoryFile(t, "../../..", "docs/public/run-locally/docker-compose.md")
+	if !strings.Contains(docs, "NORNICDB_HEADLESS") {
+		t.Fatal("docker compose docs must document the NORNICDB_HEADLESS CI knob")
+	}
+}
+
 func TestNornicDBComposeDisablesSearchIndexPersistence(t *testing.T) {
 	t.Parallel()
 
