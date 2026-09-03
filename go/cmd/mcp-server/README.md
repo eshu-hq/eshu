@@ -142,7 +142,8 @@ satisfies `query.GraphQuery` and `query.ContentReader` satisfies
 | `ESHU_SEMANTIC_EXTRACTION_POLICY_JSON` | unset | Optional hosted semantic extraction and search-embedding allowlist by provider profile id, source class, source scope, source selector, limit, redaction mode, and retention posture. Without it, source policy remains disabled. |
 | `ESHU_SEMANTIC_SEARCH_LOCAL_EMBEDDER` | unset | Optional deterministic no-network or auto-local semantic-search selector for `search_semantic_context`. `hash` and `local_hash` force ready persisted local vector rows; `auto_hash` selects one governed `search_documents` provider profile when configured and otherwise falls back to local hash query embeddings. Unset allows provider-only auto-selection. |
 | `ESHU_SEMANTIC_SEARCH_PROVIDER_PROFILE_ID` | unset | Optional selector when more than one governed `search_documents` provider profile is configured. |
-| `ESHU_GOVERNANCE_*` | unset | Optional safe metadata for `get_hosted_governance_status`, including governance mode, state, source kind, revision hash, auth mode, tenancy/workspace mode, egress, redaction, retention, audit, extension posture, aggregate counts, and reason codes. Do not put raw policy, tenant, workspace, source, credential, endpoint, prompt, response, path, or token values in these keys. |
+| `ESHU_GOVERNANCE_MODE` | unset (reads as `local_no_policy`) | **Not status metadata — it gates MCP admission.** `local_no_policy`, `hosted_single_tenant`, `hosted_multi_tenant`. Under `hosted_multi_tenant`, and under any value this binary does not recognize, an all-scope bearer is refused with `403 permission_denied` at `GET /sse` and `POST /mcp/message`, so the client never reaches `initialize` or `tools/list` and gets no MCP session at all. The remedy is a credential carrying real repository or scope ids, or `hosted_single_tenant` where the deployment is one tenant. Under `local_no_policy`, `hosted_single_tenant`, and unset, an all-scope bearer bound to one tenant and workspace is admitted and reads the whole corpus, which is the intended local and single-tenant posture. Credentials carrying real ids are unaffected in every mode. `query.ScopedRoutePolicyForGovernanceMode` is where `wireAPI` reads it; see [Hosted Governance](../../../docs/public/operate/hosted-governance.md). |
+| other `ESHU_GOVERNANCE_*` keys | unset | Optional safe metadata for `get_hosted_governance_status`, including state, source kind, revision hash, auth mode, tenancy/workspace mode, egress, redaction, retention, audit, extension posture, aggregate counts, and reason codes. These are readback only and change no admission decision. Do not put raw policy, tenant, workspace, source, credential, endpoint, prompt, response, path, or token values in these keys. |
 | `ESHU_COMPONENT_HOME` | unset | Optional local component registry readback for `list_component_extensions` and `get_component_extension_diagnostics`; unset returns unavailable. |
 | `ESHU_COMPONENT_TRUST_MODE`, `ESHU_COMPONENT_ALLOW_IDS`, `ESHU_COMPONENT_ALLOW_PUBLISHERS`, `ESHU_COMPONENT_REVOKE_IDS`, `ESHU_COMPONENT_REVOKE_PUBLISHERS`, `ESHU_COMPONENT_CORE_VERSION`, `ESHU_COMPONENT_PROVENANCE_CERTIFICATE_IDENTITY`, `ESHU_COMPONENT_PROVENANCE_OIDC_ISSUER`, `ESHU_COMPONENT_PROVENANCE_PREDICATE_TYPE`, `ESHU_COMPONENT_COSIGN_BINARY` | unset | Optional read-only policy diagnostics for component-extension MCP tools. Strict mode uses the provenance and Cosign settings to verify signed digest-pinned artifacts. |
 | `DEFAULT_DATABASE` | `neo4j` | Neo4j database name |
@@ -177,6 +178,15 @@ or spans beyond the startup/connection events.
   hardening (under #5161). Denials increment
   `eshu_dp_mcp_transport_auth_denied_total` (labeled by `mcp_method` and
   `reason`).
+- Authenticating is not the same as being admitted. `ESHU_GOVERNANCE_MODE`
+  decides whether an all-scope bearer may enter the transport at all: under
+  `hosted_multi_tenant` (or an unrecognized mode) it is refused with a 403 at
+  the handshake, before `initialize` or `tools/list`, because its repository
+  and scope grant would go inert and the read would cross tenants. That
+  refusal counts as `reason="route_policy"`, deliberately kept out of the
+  `unauthenticated` series an operator watches for credential stuffing — a
+  spike there means the governance mode is doing its job, and the fix is a
+  narrower credential or `hosted_single_tenant`, never a credential reset.
 - `loadGraphBackend` with an empty `ESHU_GRAPH_BACKEND` defaults to
   `query.GraphBackendNornicDB`.
 

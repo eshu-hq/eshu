@@ -34,7 +34,13 @@
 // for loopback/dev use. A headerless request is refused only when a shared
 // ESHU_API_KEY is set; a scoped-token-only or OIDC-only deployment still lets a
 // headerless request through until the companion auth-headerless-bypass
-// hardening (under #5161) lands. The stdio transport keeps its
+// hardening (under #5161) lands. ESHU_GOVERNANCE_MODE is more than status
+// metadata here: wireAPI derives a route-admission policy from it
+// (query.ScopedRoutePolicyForGovernanceMode), and under hosted_multi_tenant or
+// an unrecognized mode an all-scope bearer is refused with a 403 at /sse and
+// /mcp/message before initialize or tools/list, because its repository and
+// scope grant would go inert and the read would cross tenants. An unset mode
+// reads as local_no_policy, which admits it. The stdio transport keeps its
 // process/filesystem trust boundary and is never gated.
 // SIGINT and SIGTERM trigger context cancellation and clean shutdown.
 //

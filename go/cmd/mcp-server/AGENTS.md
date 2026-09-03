@@ -37,6 +37,16 @@
   unless `ESHU_MCP_ALLOW_UNAUTHENTICATED=true`. Do not weaken this by counting
   the always-wired Postgres identity resolver as a credential source. stdio is
   never gated.
+- **Governance mode gates transport admission, not just status readback** —
+  `wireAPI` derives `query.ScopedRoutePolicyForGovernanceMode` from
+  `ESHU_GOVERNANCE_MODE` and threads it into `buildTransportAuthMiddleware`.
+  Under `hosted_multi_tenant`, or any mode the mapping does not recognize, an
+  all-scope bearer is refused with a 403 at `GET /sse` and `POST /mcp/message`
+  before `initialize` or `tools/list`. Do not default that argument: the zero
+  value of `query.BrowserSessionRoutePolicy` is fail-closed, so leaving it out
+  refuses every all-scope token on a laptop as readily as in a hosted
+  deployment. The refusal is counted as `reason="route_policy"` on
+  `eshu_dp_mcp_transport_auth_denied_total`, never as `unauthenticated`.
 - **MCP read tools must have matching query handlers** —
   `newMCPQueryRouterWithSemanticEmbedding` (`wiring_router.go`) wires
   `CICDHandler` and `SupplyChainHandler` to their Postgres read models so
