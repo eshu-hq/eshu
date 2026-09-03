@@ -104,7 +104,7 @@ and the fact-id selection are identical to the base commit; only the scope
 and generation identifiers changed from struct-field reads to parameters,
 carrying the same values from the call site. The dispatcher's ordered fan-out
 is unchanged at 44 builder probes on both sides, with this probe still
-running immediately after `buildAWSCloudRuntimeDriftReducerIntent` and
+running immediately after `awscloudruntimedrift.BuildAWSCloudRuntimeDriftReducerIntent` and
 immediately before `buildAWSResourceMaterializationReducerIntent`.
 
 The family's private `multiCloudRuntimeDriftSourceSystem` helper was compared

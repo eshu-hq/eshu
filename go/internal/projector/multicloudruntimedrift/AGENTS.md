@@ -7,7 +7,7 @@
    the rule that the projector never makes cross-source admission decisions.
 3. `../intent/AGENTS.md` for the neutral builder contract.
 4. `../scope_generation_intents.go` for root-owned assembly order; this probe
-   runs after `buildAWSCloudRuntimeDriftReducerIntent` and before
+   runs after `awscloudruntimedrift.BuildAWSCloudRuntimeDriftReducerIntent` and before
    `buildAWSResourceMaterializationReducerIntent`.
 5. `go/internal/reducer/multi-cloud-runtime-drift.md` and
    `go/internal/reducer/multi_cloud_runtime_drift.go`: what the reducer does
