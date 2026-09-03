@@ -88,6 +88,14 @@ func scopedCodeContentGrantRoute(r *http.Request) bool {
 //     through the grant, so the predicate is defense in depth and provably
 //     row-set-neutral; the empty-grant refusal in callGraphMetricsData is the
 //     part that bites when the read is reached without the selector.
+//   - POST /api/v0/code/quality/inspect -- buildCodeQualityCypher
+//     (code_quality.go) appends the grant to the same MATCH-attached WHERE its
+//     optional filters use, so it lands before the SKIP/LIMIT.
+//   - POST /api/v0/code/complexity -- all three builders in
+//     code_complexity_queries.go: the ranked list, the by-name lookup (whose
+//     ambiguity candidate list would otherwise name ungranted repositories),
+//     and the by-entity-id lookup, which previously carried no repository
+//     predicate at all and ignored even a repo_id the caller supplied.
 func scopedCodeGraphGrantRoute(r *http.Request) bool {
 	if r.Method != http.MethodPost {
 		return false
@@ -96,7 +104,9 @@ func scopedCodeGraphGrantRoute(r *http.Request) bool {
 	case "/api/v0/code/dead-code",
 		"/api/v0/code/dead-code/investigate",
 		"/api/v0/code/dead-code/cross-repo",
-		"/api/v0/code/call-graph/metrics":
+		"/api/v0/code/call-graph/metrics",
+		"/api/v0/code/quality/inspect",
+		"/api/v0/code/complexity":
 		return true
 	default:
 		return false

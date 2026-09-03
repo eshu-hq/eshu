@@ -5,13 +5,24 @@ package query
 
 import "context"
 
-func (h *CodeHandler) lookupComplexityRowByName(ctx context.Context, functionName, repoID string) (map[string]any, error) {
+// lookupComplexityRowByName resolves a complexity row by function name. access
+// appends the caller's grant to the Repository anchor's WHERE, so a scoped
+// caller can neither read nor be told about a function in an ungranted
+// repository -- including through the ambiguity candidate list this returns
+// when the name matches more than one entity.
+func (h *CodeHandler) lookupComplexityRowByName(
+	ctx context.Context,
+	functionName, repoID string,
+	access repositoryAccessFilter,
+) (map[string]any, error) {
 	params := map[string]any{"entity_name": functionName, "limit": complexityNameCandidateLimit + 1}
-	cypher := "\n\t\tMATCH (repo:Repository)-[:REPO_CONTAINS]->(f:File)-[:CONTAINS]->(e)\n\t\tWHERE e.name = $entity_name\n"
+	cypher := "\n\t\tMATCH (repo:Repository)-[:REPO_CONTAINS]->(f:File)-[:CONTAINS]->(e)\n\t\tWHERE e.name = $entity_name"
 	if repoID != "" {
-		cypher = "\n\t\tMATCH (repo:Repository {id: $repo_id})-[:REPO_CONTAINS]->(f:File)-[:CONTAINS]->(e)\n\t\tWHERE e.name = $entity_name AND repo.id = $repo_id\n"
+		cypher = "\n\t\tMATCH (repo:Repository {id: $repo_id})-[:REPO_CONTAINS]->(f:File)-[:CONTAINS]->(e)\n\t\tWHERE e.name = $entity_name AND repo.id = $repo_id"
 		params["repo_id"] = repoID
 	}
+	cypher += access.GraphPredicate("repo") + "\n"
+	params = access.GraphParams(params)
 	cypher += complexityCandidateProjection() + `
 		ORDER BY file_path, start_line, id
 		LIMIT $limit
@@ -38,12 +49,36 @@ func (h *CodeHandler) lookupComplexityRowByName(ctx context.Context, functionNam
 	return rows[0], nil
 }
 
-func (h *CodeHandler) lookupComplexityRowByID(ctx context.Context, entityID string) (map[string]any, error) {
+// lookupComplexityRowByID resolves a complexity row by entity id.
+//
+// This branch previously carried no repository predicate at all: it ignored
+// even a repo_id the caller supplied, so an entity id alone returned that
+// entity's repository, path, and metrics from any repository in the index. It
+// now anchors on the supplied repository when there is one, and always appends
+// the caller's grant (#5167).
+func (h *CodeHandler) lookupComplexityRowByID(
+	ctx context.Context,
+	entityID, repoID string,
+	access repositoryAccessFilter,
+) (map[string]any, error) {
+	params := map[string]any{"entity_id": entityID}
+	where := ""
+	if repoID != "" {
+		where = "\n\t\tWHERE repo.id = $repo_id"
+		params["repo_id"] = repoID
+	}
+	if predicate := access.GraphCondition("repo"); access.Scoped() {
+		if where == "" {
+			where = "\n\t\tWHERE " + predicate
+		} else {
+			where += " AND " + predicate
+		}
+	}
 	row, err := h.runComplexityQuery(ctx, `
-		MATCH (repo:Repository)-[:REPO_CONTAINS]->(f:File)-[:CONTAINS]->(e {id: $entity_id})
+		MATCH (repo:Repository)-[:REPO_CONTAINS]->(f:File)-[:CONTAINS]->(e {id: $entity_id})`+where+`
 `+complexityCandidateProjection()+`
 		LIMIT 1
-	`, map[string]any{"entity_id": entityID})
+	`, access.GraphParams(params))
 	return row, err
 }
 
@@ -64,7 +99,16 @@ func complexityCandidateProjection() string {
 ` + graphSemanticMetadataProjection()
 }
 
-func (h *CodeHandler) listMostComplexFunctions(ctx context.Context, repoID string, limit int) ([]map[string]any, int, bool, error) {
+// listMostComplexFunctions ranks the most complex functions in scope. The
+// Repository anchor is an OPTIONAL MATCH, so a scoped caller's grant predicate
+// also drops any function this graph cannot attribute to a repository at all --
+// the fail-closed answer for a row whose tenant is unknown.
+func (h *CodeHandler) listMostComplexFunctions(
+	ctx context.Context,
+	repoID string,
+	limit int,
+	access repositoryAccessFilter,
+) ([]map[string]any, int, bool, error) {
 	limit = normalizeComplexityListLimit(limit)
 	cypher := `
 		MATCH (e:Function)
@@ -76,6 +120,8 @@ func (h *CodeHandler) listMostComplexFunctions(ctx context.Context, repoID strin
 		cypher += " AND repo.id = $repo_id"
 		params["repo_id"] = repoID
 	}
+	cypher += access.GraphPredicate("repo")
+	params = access.GraphParams(params)
 	cypher += `
 		RETURN e.id as id, e.name as name, labels(e) as labels,
 		       f.relative_path as file_path,

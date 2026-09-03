@@ -8,8 +8,9 @@ const openAPIPathsCodeQuality = `
       "post": {
         "tags": ["code"],
         "summary": "Inspect code quality metrics",
-        "description": "Returns bounded function quality metrics for complexity, function length, argument count, or combined refactoring candidates.",
+        "description": "Returns bounded function quality metrics for complexity, function length, argument count, or combined refactoring candidates. Scoped tokens receive only granted repositories; an ungranted selector returns not-found.",
         "operationId": "inspectCodeQuality",
+        "x-scoped-token-support": true,
         "requestBody": {
           "required": true,
           "content": {

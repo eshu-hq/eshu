@@ -49,6 +49,7 @@ func TestLookupComplexityByNameUsesConnectedAnchorBeforeDegreeReads(t *testing.T
 
 	row, err := handler.lookupComplexityRowByName(
 		context.Background(), "GoldenDataflowHandler", "repository:r_fixture",
+		repositoryAccessFilter{AllScopes: true},
 	)
 	if err != nil {
 		t.Fatalf("lookupComplexityRowByName() error = %v", err)

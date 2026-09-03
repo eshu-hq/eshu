@@ -340,8 +340,9 @@ const openAPIPathsCode = `
       "post": {
         "tags": ["code"],
         "summary": "Get complexity metrics",
-        "description": "Returns relationship-based complexity metrics for an entity or a bounded list of the most complex functions.",
+        "description": "Returns relationship-based complexity metrics for an entity or a bounded list of the most complex functions. Scoped tokens receive only granted repositories; an ungranted selector returns not-found.",
         "operationId": "getComplexity",
+        "x-scoped-token-support": true,
         "requestBody": {
           "required": true,
           "content": {

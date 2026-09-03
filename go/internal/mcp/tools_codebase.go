@@ -225,7 +225,7 @@ func codebaseTools() []ToolDefinition {
 		replatformingOwnershipTool(),
 		{
 			Name:        "calculate_cyclomatic_complexity",
-			Description: "Calculate the cyclomatic complexity of a specific function to measure its complexity.",
+			Description: "Calculate the cyclomatic complexity of a specific function to measure its complexity. Scoped tokens receive only granted repositories; an ungranted selector returns not-found.",
 			InputSchema: map[string]any{
 				"type": "object",
 				"properties": map[string]any{
@@ -256,7 +256,7 @@ func codebaseTools() []ToolDefinition {
 		},
 		{
 			Name:        "find_most_complex_functions",
-			Description: "Find the most complex functions in the codebase based on cyclomatic complexity.",
+			Description: "Find the most complex functions in the codebase based on cyclomatic complexity. Scoped tokens receive only granted repositories; an ungranted selector returns not-found.",
 			InputSchema: map[string]any{
 				"type": "object",
 				"properties": map[string]any{
