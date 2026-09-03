@@ -56,6 +56,9 @@ func repositoryRoute(toolName string, args map[string]any) (*route, bool, error)
 	if route, ok := supplyChainImpactRoute(toolName, args); ok {
 		return route, true, nil
 	}
+	if route, ok := supplyChainEvidenceRoute(toolName, args); ok {
+		return route, true, nil
+	}
 	if route, ok := securityAlertRoute(toolName, args); ok {
 		return route, true, nil
 	}
@@ -94,16 +97,6 @@ func repositoryRoute(toolName string, args map[string]any) (*route, bool, error)
 		return &route{method: "GET", path: "/api/v0/evidence/relationships/" + url.PathEscape(str(args, "resolved_id"))}, true, nil
 	case "list_service_catalog_correlations":
 		return serviceCatalogCorrelationsRoute(args), true, nil
-	case "list_advisory_evidence":
-		return advisoryEvidenceRoute(args), true, nil
-	case "get_vulnerability_scanner_read_contract":
-		return vulnerabilityScannerReadContractRoute(args), true, nil
-	case "list_sbom_attestation_attachments":
-		return sbomAttestationAttachmentsRoute(args), true, nil
-	case "count_sbom_attestation_attachments":
-		return sbomAttestationAttachmentAggregateCountRoute(args), true, nil
-	case "get_sbom_attestation_attachment_inventory":
-		return sbomAttestationAttachmentAggregateInventoryRoute(args), true, nil
 	case "get_repo_story":
 		return &route{method: "GET", path: "/api/v0/repositories/" + url.PathEscape(str(args, "repo_id")) + "/story"}, true, nil
 	case "get_repo_summary":

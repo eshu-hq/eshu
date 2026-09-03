@@ -137,8 +137,7 @@
 // Package-registry and supply-chain tools follow the same rule, so bounded
 // package, version, dependency, correlation, source-only advisory evidence,
 // vulnerability finding, explanation, SBOM, and attestation attachment
-// requests stay thin. The remaining supply-chain route builders live in
-// dedicated dispatch files here, while the package-registry selector lives in
+// requests stay thin. The package-registry selector lives in
 // the packageregistry child and reaches dispatch through the
 // packageRegistryRoute adapter, the four container-image identity, tag
 // history, and aggregate selectors live in the containerimage child and reach
@@ -152,10 +151,15 @@
 // answers, lives in the admissiondecisions child and reaches dispatch through
 // the admissionDecisionsRoute adapter, and the one Kubernetes-correlation
 // listing selector, answered by that router too, lives in the kubernetes
-// child and reaches dispatch through the kubernetesCorrelationsRoute adapter;
-// SBOM attachment tools forward repository_id to the query layer so repository
-// scope returns reducer-owned image/SBOM missing evidence instead of becoming
-// an unscoped aggregate.
+// child and reaches dispatch through the kubernetesCorrelationsRoute adapter.
+// The remaining five supply-chain evidence selectors -- the
+// vulnerability-scanner read contract, the advisory-evidence listing, and the
+// SBOM/attestation attachment listing, count, and inventory -- live in the
+// supplychainevidence child and reach dispatch through the
+// supplyChainEvidenceRoute adapter, which reuses dispatch_supply_chain.go's
+// filename rather than adding a new one; SBOM attachment tools forward
+// repository_id to the query layer so repository scope returns reducer-owned
+// image/SBOM missing evidence instead of becoming an unscoped aggregate.
 // repository, service, and workload advisory scopes are forwarded to HTTP so
 // the query layer can derive advisory anchors from reducer-owned impact
 // findings without promoting provider-alert-only evidence;

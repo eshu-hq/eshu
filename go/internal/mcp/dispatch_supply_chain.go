@@ -3,40 +3,20 @@
 
 package mcp
 
-import "strconv"
+import (
+	"github.com/eshu-hq/eshu/go/internal/mcp/routecontract"
+	supplychainevidencetools "github.com/eshu-hq/eshu/go/internal/mcp/supplychainevidence"
+)
 
-func vulnerabilityScannerReadContractRoute(args map[string]any) *route {
-	return &route{method: "GET", path: "/api/v0/supply-chain/vulnerability-scanner/contract", query: map[string]string{
-		"route": str(args, "route"),
-	}}
-}
-
-func advisoryEvidenceRoute(args map[string]any) *route {
-	return &route{method: "GET", path: "/api/v0/supply-chain/advisories/evidence", query: map[string]string{
-		"advisory_id":        str(args, "advisory_id"),
-		"after_advisory_key": str(args, "after_advisory_key"),
-		"cve_id":             str(args, "cve_id"),
-		"limit":              strconv.Itoa(intOr(args, "limit", 50)),
-		"package_id":         str(args, "package_id"),
-		"repository_id":      str(args, "repository_id"),
-		"service_id":         str(args, "service_id"),
-		"source":             str(args, "source"),
-		"workload_id":        str(args, "workload_id"),
-	}}
-}
-
-func sbomAttestationAttachmentsRoute(args map[string]any) *route {
-	return &route{method: "GET", path: "/api/v0/supply-chain/sbom-attestations/attachments", query: map[string]string{
-		"after_attachment_id": str(args, "after_attachment_id"),
-		"artifact_kind":       str(args, "artifact_kind"),
-		"attachment_status":   str(args, "attachment_status"),
-		"digest":              str(args, "digest"),
-		"document_digest":     str(args, "document_digest"),
-		"document_id":         str(args, "document_id"),
-		"limit":               strconv.Itoa(intOr(args, "limit", 50)),
-		"repository_id":       str(args, "repository_id"),
-		"service_id":          str(args, "service_id"),
-		"subject_digest":      str(args, "subject_digest"),
-		"workload_id":         str(args, "workload_id"),
-	}}
+// supplyChainEvidenceRoute adapts the child package's supply-chain evidence
+// request into the root dispatcher's transport route. The family's five arms
+// (the vulnerability-scanner read contract, the advisory-evidence listing,
+// and the SBOM/attestation attachment listing, count, and inventory) lived in
+// this file and dispatch_sbom_attachment_aggregates.go before the extraction;
+// this file's name is reused as the adapter's home, and
+// dispatch_sbom_attachment_aggregates.go is removed, rather than adding a new
+// dispatch file, so the root non-test file count moves by exactly the one
+// file this extraction actually removes.
+func supplyChainEvidenceRoute(toolName string, args map[string]any) (*route, bool) {
+	return adaptChildRoute(supplychainevidencetools.Route(toolName, routecontract.Arguments(args)))
 }
