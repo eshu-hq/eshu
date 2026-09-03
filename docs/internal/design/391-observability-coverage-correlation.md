@@ -246,7 +246,7 @@ uncovered resource so gaps are stable and de-duplicated across retries.
 ### 4.2 Queue work kind / intent emission
 
 The projector enqueues the intent when observability `aws_resource` facts appear
-for a scope generation, mirroring `buildAWSCloudRuntimeDriftReducerIntent` (the
+for a scope generation, mirroring `awscloudruntimedrift.BuildAWSCloudRuntimeDriftReducerIntent` (the
 existing `aws_resource` → reducer trigger). Because the coverage correlation must
 read `CloudResource` nodes that #805 Stage A materializes, the **graph-edge phase
 of this domain gates on `GraphProjectionPhaseCanonicalNodesCommitted`** on the
