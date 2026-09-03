@@ -175,8 +175,8 @@ all four still hold. The fifth is new and belongs to this consumer.
 
 **The collector-kind map is under-inclusive, on purpose.**
 `container_image_identity` intents are also enqueued in `aws`, `azure`, `gcp`,
-`git`, and `sbom_attestation` scopes (`containerImageIdentityCandidateFactKinds`,
-`internal/projector/container_image_identity_intents.go`), so identity output can
+`git`, and `sbom_attestation` scopes (`candidateFactKinds` in `internal/projector/containerimageidentity`,
+`internal/projector/containerimageidentity/identity_intents.go`), so identity output can
 be published by a scope `crossScopeProducerCollectorKindByDomain` does not name.
 The floor does not wait for those. A finding whose identity comes from an ECR
 scope is still answered early.

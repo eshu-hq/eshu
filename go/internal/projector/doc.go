@@ -24,16 +24,18 @@
 // AWS-cloud-image, IAM CAN_ASSUME, IAM instance-profile-role,
 // package-source-correlation, cloud-inventory-admission, code-taint-evidence,
 // code-interproc-evidence, SBOM-attestation-attachment,
-// service-catalog-correlation, secrets-IAM-trust-chain, and
-// CI/CD run-correlation builders live in their internal/projector child
-// packages; this root package owns lookup construction and lifetime, family
-// assembly, and enqueue.
+// service-catalog-correlation, secrets-IAM-trust-chain, CI/CD
+// run-correlation, and container-image-identity builders live in their
+// internal/projector child packages; this root package owns lookup
+// construction and lifetime, family assembly, and enqueue.
 // OCI registry projection keeps digest-addressed manifests, indexes, and
 // descriptors as canonical identity while treating tags as mutable weak
 // observations that can enrich queries but do not mint image identity.
-// OCI, Git (including static workflow-image evidence), AWS, Azure, and GCP image-reference evidence emits one
-// container_image_identity reducer intent per scope generation; the reducer
-// owns the cross-source join.
+// OCI, Git (including static workflow-image evidence), AWS, Azure, and GCP
+// image-reference evidence emits one container_image_identity reducer
+// intent per scope generation via
+// containerimageidentity.BuildContainerImageIdentityReducerIntent; the
+// reducer owns the cross-source join.
 // AWS resource observations stay source-local until buildAWSCloudRuntimeDriftReducerIntent
 // emits one aws_cloud_runtime_drift reducer intent for the AWS scope
 // generation; the reducer owns ARN joins and unmanaged/orphan admission.

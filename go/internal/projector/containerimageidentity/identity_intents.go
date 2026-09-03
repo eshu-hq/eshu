@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package projector
+package containerimageidentity
 
 import (
 	"fmt"
@@ -9,16 +9,22 @@ import (
 	"strings"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	projectorintent "github.com/eshu-hq/eshu/go/internal/projector/intent"
 	"github.com/eshu-hq/eshu/go/internal/reducer"
-	"github.com/eshu-hq/eshu/go/internal/scope"
 )
 
-// containerImageIdentityCandidateFactKinds are the fact kinds
-// containerImageIdentityTriggerFact ever returns true for. Kept as an
-// explicit list (rather than discovered per generation like the open-registry
-// probes) because it names concrete, closed fact-kind constants — the same
-// set containerImageIdentityTriggerFact's switch already enumerates.
-var containerImageIdentityCandidateFactKinds = []string{
+// containerImageIdentityFileFactKind mirrors root's FactKindFileObserved
+// ("file", declared in go/internal/projector/stage_facts.go) exactly. This
+// package cannot import root — root imports this package to dispatch, so the
+// reverse direction cycles — so the shared literal is duplicated here rather
+// than referenced.
+const containerImageIdentityFileFactKind = "file"
+
+// candidateFactKinds are the fact kinds triggerFact ever returns true for.
+// Kept as an explicit list (rather than discovered per generation like the
+// open-registry probes) because it names concrete, closed fact-kind
+// constants — the same set triggerFact's switch already enumerates.
+var candidateFactKinds = []string{
 	facts.OCIImageManifestFactKind,
 	facts.OCIImageIndexFactKind,
 	facts.OCIImageTagObservationFactKind,
@@ -30,32 +36,41 @@ var containerImageIdentityCandidateFactKinds = []string{
 	facts.CICDArtifactFactKind,
 	facts.CICDWorkflowImageEvidenceFactKind,
 	"content_entity",
-	FactKindFileObserved,
+	containerImageIdentityFileFactKind,
 	facts.AttestationSLSAProvenanceFactKind,
 	facts.AttestationSignatureVerificationFactKind,
 }
 
-func buildContainerImageIdentityReducerIntent(
-	scopeValue scope.IngestionScope,
-	generation scope.ScopeGeneration,
-	index *reducerIntentFactIndex,
-) (ReducerIntent, bool) {
-	envelope, ok := index.firstAcrossKinds(containerImageIdentityTriggerFact, containerImageIdentityCandidateFactKinds...)
+// BuildContainerImageIdentityReducerIntent enqueues one
+// container_image_identity reducer intent per scope generation that observed
+// OCI digest/tag/referrer facts, AWS/Azure/GCP image-reference facts, an
+// AWS container-image relationship, a CI/CD container-image artifact, static
+// CI/CD workflow-image evidence, a Git content-entity image reference, a
+// Dockerfile (add/edit or tombstoned removal), a signed SLSA provenance
+// statement, or a signature-verification result. The reducer owns the
+// cross-source digest-first join; this package only selects the trigger
+// fact and its source-system label.
+func BuildContainerImageIdentityReducerIntent(
+	scopeID string,
+	generationID string,
+	lookup projectorintent.FactLookup,
+) (projectorintent.ReducerIntent, bool) {
+	envelope, ok := lookup.FirstAcrossKinds(triggerFact, candidateFactKinds...)
 	if !ok {
-		return ReducerIntent{}, false
+		return projectorintent.ReducerIntent{}, false
 	}
-	return ReducerIntent{
-		ScopeID:      scopeValue.ScopeID,
-		GenerationID: generation.GenerationID,
+	return projectorintent.ReducerIntent{
+		ScopeID:      scopeID,
+		GenerationID: generationID,
 		Domain:       reducer.DomainContainerImageIdentity,
-		EntityKey:    "container_image_identity:" + scopeValue.ScopeID,
+		EntityKey:    "container_image_identity:" + scopeID,
 		Reason:       "container image identity evidence observed",
 		FactID:       envelope.FactID,
-		SourceSystem: containerImageIdentitySourceSystem(envelope),
+		SourceSystem: projectorintent.SourceSystem(envelope),
 	}, true
 }
 
-func containerImageIdentityTriggerFact(envelope facts.Envelope) bool {
+func triggerFact(envelope facts.Envelope) bool {
 	switch envelope.FactKind {
 	case facts.OCIImageManifestFactKind,
 		facts.OCIImageIndexFactKind,
@@ -69,11 +84,7 @@ func containerImageIdentityTriggerFact(envelope facts.Envelope) bool {
 	case facts.GCPImageReferenceFactKind:
 		return true
 	case facts.AWSRelationshipFactKind:
-		relationship, err := decodeAWSRelationship(envelope)
-		if err != nil {
-			return false
-		}
-		return codegraphDerefString(relationship.TargetType) == "container_image"
+		return awsRelationshipTargetsContainerImage(envelope)
 	case facts.CICDArtifactFactKind:
 		// A container-image artifact carries the digest that joins its run's
 		// commit to an OCI manifest. Triggering the identity intent for the CI
@@ -93,7 +104,7 @@ func containerImageIdentityTriggerFact(envelope facts.Envelope) bool {
 		return true
 	case "content_entity":
 		return len(containerImageRefsFromEntityMetadata(envelope.Payload)) > 0
-	case FactKindFileObserved:
+	case containerImageIdentityFileFactKind:
 		// A Dockerfile's FROM base images live on the repository's `file` fact
 		// (parsed_file_data.dockerfile_stages), never on a content_entity, and
 		// the reducer only extracts them inside a container_image_identity
@@ -196,13 +207,6 @@ func pathBaseName(value string) string {
 		return value[idx+1:]
 	}
 	return value
-}
-
-func containerImageIdentitySourceSystem(envelope facts.Envelope) string {
-	if value := strings.TrimSpace(envelope.SourceRef.SourceSystem); value != "" {
-		return value
-	}
-	return strings.TrimSpace(envelope.CollectorKind)
 }
 
 func containerImageRefsFromEntityMetadata(payload map[string]any) []string {

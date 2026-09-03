@@ -74,6 +74,7 @@ live in the repository today.
 | `go/internal/projector/cloudinventory/` | cloud-inventory-admission reducer-intent family builder |
 | `go/internal/projector/codeinterprocevidence/` | code-interproc-evidence reducer-intent family builder |
 | `go/internal/projector/codetaintevidence/` | code-taint-evidence reducer-intent family builder |
+| `go/internal/projector/containerimageidentity/` | container-image-identity reducer-intent family builder |
 | `go/internal/projector/ec2/` | EC2 instance-posture reducer-intent family builders |
 | `go/internal/projector/gcp/` | GCP resource and relationship reducer-intent family builders |
 | `go/internal/projector/iamcanassume/` | IAM CAN_ASSUME trust-edge reducer-intent family builder and its aws_iam_permission decode wrapper |

@@ -958,6 +958,40 @@ tiers. The root test file mixed builder-level assertions with
 `cicdruncorrelation/correlation_intents_test.go` pins the builder directly
 (no-fact, empty-generation, run-anchor, artifact-only-anchor, run-over-artifact
 precedence, and the two-tier source-system fallback).
+The container-image-identity builder moved into
+`internal/projector/containerimageidentity`. It triggers on the earliest
+accepted fact across a closed set of candidate kinds — OCI
+manifest/index/tag/referrer, AWS/Azure/GCP image-reference, an
+`aws_relationship` whose decoded `TargetType` is `container_image`, a
+`ci.artifact` whose `artifact_type` is `container_image`, static
+`ci.workflow_image_evidence`, a Git content-entity carrying image
+references, a repository `file` fact recognized as a Dockerfile or a
+tombstoned GitHub Actions workflow, `attestation.slsa_provenance`, and
+`attestation.signature_verification` — via `FirstAcrossKinds`, matching the
+pre-extraction root behavior of "earliest fact in original order," not
+"earliest fact of the first-checked kind." This is a decode-seam-bearing
+family: the `aws_relationship` branch decodes the optional `TargetType`
+field through its own `factschema_decode_aws.go`
+(`decodeContainerImageIdentityAWSRelationship`) against `sdk/go/factschema`.
+Root's own `decodeAWSRelationship` wrapper of the same seam had this trigger
+as its only caller, so it moved out entirely (the `iamcanassume` precedent)
+rather than staying as dead code, unlike `ec2`/`observabilitycoverage`
+where root's classified wrapper keeps other callers; the sole caller here
+discards the decode error, so the two calls are behavior-identical. Its private `containerImageIdentitySourceSystem` helper
+was checked body-for-body against `projectorintent.SourceSystem` and found
+identical (trim `SourceRef.SourceSystem`, else trim `CollectorKind`, no
+third tier), so the substitution is behavior-identical by construction and
+the child pins both tiers. The four root test files split by topic
+(general, dockerfile, CI/CD, SLSA) mixed exactly one builder-only case: the
+dockerfile file's tombstone-removal test called the unexported
+`containerImageIdentityTriggerFact` directly, so it moved into the child
+package's own test file (renamed `triggerFact` there); every other case
+exercises `buildProjection` and stayed at root, each file renamed with a
+`_projection_test.go` suffix. A new
+`containerimageidentity/identity_intents_test.go` pins the builder and
+trigger directly (no-fact, empty-generation, OCI-manifest anchor, the
+two-tier source-system fallback, the AWS-relationship decode substitution
+in both directions, and the moved Dockerfile-tombstone case).
 Coordinator `_scheduler.go` halves extract cleanly
 (they implement a root Planner interface); the `_service.go` halves are
 methods on the shared `Service` struct and stay until Service is

@@ -12,6 +12,7 @@ import (
 	projectorcloudinventory "github.com/eshu-hq/eshu/go/internal/projector/cloudinventory"
 	projectorcodeinterprocevidence "github.com/eshu-hq/eshu/go/internal/projector/codeinterprocevidence"
 	projectorcodetaintevidence "github.com/eshu-hq/eshu/go/internal/projector/codetaintevidence"
+	projectorcontainerimageidentity "github.com/eshu-hq/eshu/go/internal/projector/containerimageidentity"
 	projectorec2 "github.com/eshu-hq/eshu/go/internal/projector/ec2"
 	projectorgcp "github.com/eshu-hq/eshu/go/internal/projector/gcp"
 	projectoriamcanassume "github.com/eshu-hq/eshu/go/internal/projector/iamcanassume"
@@ -140,7 +141,7 @@ func appendScopeGenerationReducerIntents(
 	if intent, ok := projectors3.BuildInternetExposureMaterializationReducerIntent(scopeValue.ScopeID, generation.GenerationID, index.lookup); ok {
 		intents = append(intents, intent)
 	}
-	if intent, ok := buildContainerImageIdentityReducerIntent(scopeValue, generation, index); ok {
+	if intent, ok := projectorcontainerimageidentity.BuildContainerImageIdentityReducerIntent(scopeValue.ScopeID, generation.GenerationID, index.lookup); ok {
 		intents = append(intents, intent)
 	}
 	if intent, ok := projectorcicdruncorrelation.BuildCICDRunCorrelationReducerIntent(scopeValue.ScopeID, generation.GenerationID, index.lookup); ok {

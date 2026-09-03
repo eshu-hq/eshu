@@ -107,8 +107,8 @@ its trigger, value, or fan-out position. The reducer intent domain, entity
 key, reason string, run-over-artifact anchor rule, and source-system
 derivation are identical to the base commit, and the dispatcher's ordered
 fan-out is unchanged at 44 builder probes with this probe still running
-immediately after `buildContainerImageIdentityReducerIntent` and immediately
-before `sbomattestation.BuildSBOMAttestationAttachmentReducerIntent`. The
+immediately after `containerimageidentity.BuildContainerImageIdentityReducerIntent`
+and immediately before `sbomattestation.BuildSBOMAttestationAttachmentReducerIntent`. The
 family carried a private `cicdRunCorrelationSourceSystem` helper that was
 checked body-for-body against `projectorintent.SourceSystem` and found
 identical (trim `SourceRef.SourceSystem`, else trim `CollectorKind`, no
