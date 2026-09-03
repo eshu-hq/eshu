@@ -22,14 +22,14 @@ ungranted one with 400. It was never exploitable and needs no predicate.
 
 ## What Moved
 
-Each route moves by the ledger header's four steps: a matcher, an advertised
-entry classed `scopedRouteGrantBound`, the `x-scoped-token-support` marker on
-the OpenAPI path, and removal from the pending list. The two matchers,
-`scopedCodeContentGrantRoute` and `scopedCodeGraphGrantRoute`, are added here in
-`go/internal/query/auth_scoped_routes_code_flow.go` and wired into
-`scopedHTTPRouteSupportsTenantFilter`; the pre-existing `scopedCodeFlowRoute`
-still matches only the four `/api/v0/code/flow/*` routes. The ledger goes from
-22 pending routes to 12; it was 24 before the freshness pair left it in #6472.
+Each route moves by the ledger header's five steps: a matcher, an advertised
+entry classed `scopedRouteGrantBound`, the `x-scoped-token-support` marker and
+the policy `403` on the OpenAPI path, and removal from the pending list. The two
+matchers, `scopedCodeContentGrantRoute` and `scopedCodeGraphGrantRoute`, are
+added in `go/internal/query/auth_scoped_routes_code_flow.go` and wired into
+`scopedHTTPRouteSupportsTenantFilter`; `scopedCodeFlowRoute` still matches only
+the four `/api/v0/code/flow/*` routes. The ledger goes from 22 pending routes to
+12; it was 24 before the freshness pair left it in #6472.
 
 | Route | Binding | Symbol |
 | --- | --- | --- |

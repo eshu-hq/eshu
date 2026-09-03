@@ -37,6 +37,7 @@ const openAPIPathsCodeSymbols = `
           }
         },
         "responses": {
+          "403": {"$ref": "#/components/responses/Forbidden"},
           "504": {"$ref": "#/components/responses/GatewayTimeout"},
           "200": {
             "description": "Symbol definition results",
@@ -87,6 +88,7 @@ const openAPIPathsCodeSymbols = `
           }
         },
         "responses": {
+          "403": {"$ref": "#/components/responses/Forbidden"},
           "200": {
             "description": "Structural inventory results",
             "content": {
@@ -254,6 +256,7 @@ const openAPIPathsCodeSymbols = `
           }
         },
         "responses": {
+          "403": {"$ref": "#/components/responses/Forbidden"},
           "504": {"$ref": "#/components/responses/GatewayTimeout"},
           "200": {
             "description": "Call graph metric rows",
@@ -322,6 +325,7 @@ const openAPIPathsCodeSymbols = `
           }
         },
         "responses": {
+          "403": {"$ref": "#/components/responses/Forbidden"},
           "504": {"$ref": "#/components/responses/GatewayTimeout"},
           "200": {
             "description": "Ranked topic evidence and follow-up handles",
