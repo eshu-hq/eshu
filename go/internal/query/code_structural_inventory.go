@@ -154,9 +154,15 @@ func (h *CodeHandler) structuralInventoryData(
 	// #5167 code family: structuralInventoryWhere only anchored an explicit
 	// repo_id, so a scoped caller who omitted one inventoried every tenant's
 	// entities.
+	//
+	// The empty page is built, not zero-valued: the handler writes this slice
+	// straight into `results` and `matches`, both declared as arrays in the
+	// OpenAPI response, and a nil slice encodes as `null`. Every other branch
+	// here returns an allocated slice, so a grantless token was the one caller
+	// whose body a generated client could fail to decode.
 	allowedRepositoryIDs, blocked := codeContentGrantScope(ctx, req.RepoID)
 	if blocked {
-		return structuralInventoryData{}, nil
+		return structuralInventoryData{results: []map[string]any{}}, nil
 	}
 	displayLimit := req.normalizedLimit()
 	queryReq := req
