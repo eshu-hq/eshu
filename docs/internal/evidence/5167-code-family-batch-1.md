@@ -16,9 +16,9 @@ worse: `code/complexity`'s entity_id branch carried no repository predicate at
 all and ignored even a repo_id the caller supplied, and
 `code/security/secrets/investigate` returns redacted secret line text.
 
-`code/call-graph/metrics` is the one exception: `repo_id` is mandatory there and
-the selector always resolves it through the grant, so it was never exploitable.
-It gains the predicate as defense in depth.
+`code/call-graph/metrics` is the one exception: `repo_id` is mandatory there,
+and the selector resolves it against the grant before the read and rejects an
+ungranted one with 400. It was never exploitable and needs no predicate.
 
 ## What Moved
 
@@ -39,19 +39,18 @@ still matches only the four `/api/v0/code/flow/*` routes. The ledger goes from
 | `POST /api/v0/code/structure/inventory` | `repo_id = ANY($n)` | `structuralInventoryWhere` (`go/internal/query/content_reader_structural_inventory.go`) |
 | `POST /api/v0/code/dead-code` | candidate choke point, both backends | `deadCodeCandidateRows` (`go/internal/query/code_dead_code_scan.go`) |
 | `POST /api/v0/code/dead-code/investigate` | same choke point | `deadCodeCandidateRows` |
-| `POST /api/v0/code/dead-code/cross-repo` | same choke point, plus the consumer-evidence read | `deadCodeCandidateRows`, `crossRepoDeadCodeConsumerScan` (`go/internal/query/content_reader_dead_code_cross_repo.go`) |
-| `POST /api/v0/code/call-graph/metrics` | grant on both `CALLS` endpoints | `callGraphMetricsEdgesCypher` (`go/internal/query/code_call_graph_metrics.go`) |
+| `POST /api/v0/code/dead-code/cross-repo` | same choke point, plus the consumer-evidence read | `deadCodeCandidateRows`, `buildCrossRepoDeadCodeConsumerEvidenceQuery` (`go/internal/query/content_reader_dead_code_cross_repo.go`) |
+| `POST /api/v0/code/call-graph/metrics` | mandatory `repo_id` resolved against the grant before the read; Cypher unchanged | `applyRepositorySelectorForCapability` (`go/internal/query/code_repository_selector.go`) |
 | `POST /api/v0/code/quality/inspect` | grant in the MATCH-attached `WHERE` | `buildCodeQualityCypher` (`go/internal/query/code_quality.go`) |
 | `POST /api/v0/code/complexity` | grant in all three builders; the list branch also changes anchor and the entity_id branch gains the supplied-repo anchor | `listMostComplexFunctions`, `lookupComplexityRowByName`, `lookupComplexityRowByID` (`go/internal/query/code_complexity_queries.go`) |
 
-An eleventh route changes its emitted text without changing its rows.
-`POST /api/v0/ecosystem/graph-summary` calls the same
-`callGraphMetricsEdgesCypher` through `graphSummaryHotEntities`
-(`go/internal/query/infra_graph_summary_packet.go`), so a scoped caller there
-now runs the grant-bound edge pass. `getGraphSummaryPacket` already answers
-not-found for an out-of-grant `repo_id` before the read, so the predicate cannot
-change that route's row set;
-`TestGraphSummaryHotEntitiesRunTheGrantBoundEdgePass` pins the text both ways.
+`POST /api/v0/ecosystem/graph-summary` shares that edge pass through
+`graphSummaryHotEntities` (`go/internal/query/infra_graph_summary_packet.go`)
+and is bound the same way, by a check ahead of the read: `getGraphSummaryPacket`
+answers not-found for an out-of-grant `repo_id`.
+`TestGraphSummaryHotEntitiesEdgePassIsUnchanged` pins that the scoped and
+shared-key edge pass are one text, and that an out-of-grant `repo_id` never
+reaches it.
 
 The dead-code choke point's two backends: `ContentReader.DeadCodeCandidateRows`
 (SQL `AND repo_id = ANY($4)` ahead of `LIMIT`/`OFFSET`) and
@@ -150,11 +149,10 @@ attachment where no substring assertion can.
 `TestEvaluatingRepositoryGraphKeepsOptionalMatchRows` feeds it the shape this
 change replaced and asserts the out-of-grant row survives with null repository
 columns, so a fake that quietly dropped non-matching rows could not pass.
-`evaluatingCallGraphEdges` backs call-graph metrics and is weaker: it matches
-the grant predicate's text and filters seeded edges without judging attachment.
-Nothing turns on that — the query it judges is a single
-`MATCH … WHERE … RETURN … LIMIT` with nowhere else to put a predicate — but it
-does not carry its sibling's clause-attachment property.
+`evaluatingCallGraphEdges` backs call-graph metrics and is weaker: it applies
+whatever repository predicates the emitted statement carries — today only the
+inline `{repo_id: $repo_id}` anchors — without judging attachment. Nothing turns
+on that: this route's binding is its selector, not its query text.
 
 | Test | Red | Green |
 | --- | --- | --- |
@@ -166,8 +164,11 @@ does not carry its sibling's clause-attachment property.
 | `TestDeadCodeRoutes*`, `TestCrossRepoDeadCodeProducerScanCarriesTheGrant` | build failure: `undefined: deadCodeCandidateQuery` | `ok internal/query 2.074s` |
 | `TestDeadCodeGraphCandidateScanBindsTheGrantInTheBuiltCypher` | same build failure | `ok internal/query 2.074s` |
 | `TestDeadCodeCandidateRowsBindTheGrantInTheShippedSQL` (2) | `candidate SQL is missing "AND repo_id = ANY($4)"` | `ok internal/query 1.747s` |
-| `TestCrossRepoDeadCodeConsumerEvidence*` (2), `TestCrossRepoDeadCodeKeepsTheHiddenConsumerSignal` | build failure: the reader took no grant argument and returned no hidden counts | `ok internal/query 1.074s` |
-| `TestCallGraphMetricsBindsTheGrantOnBothCallEndpoints` | `missing "(source.repo_id IN $allowed_repository_ids OR ...)" on the source endpoint` | `ok internal/query 1.826s` |
+| `TestCrossRepoDeadCodeConsumerEvidence*` (2), `TestCrossRepoDeadCodeKeepsTheHiddenConsumerSignal` | build failure: the reader took no grant argument and returned no signal rows | `ok internal/query 1.074s` |
+| `TestCrossRepoDeadCodeHiddenCountHonoursTheConsumerSelector` | `classification: unknown_needs_evidence`, `hidden_consumer_evidence_count: 1` for a symbol the requested consumer proves live | `ok internal/query 1.291s` |
+| `TestCrossRepoDeadCodeSignalReadRepeatsTheUngrantedStatement`, `*SignalTruncationKeepsCandidatesUnknown` | new coverage on the replaced statement pair, no prior red | `ok internal/query 1.291s` |
+| `TestCallGraphMetricsCypherIsTheSameForEveryCaller`, `TestGraphSummaryHotEntitiesEdgePassIsUnchanged` | `a scoped caller runs a different edge shape than the one the plan fixture pins` | `ok internal/query 1.226s` |
+| `TestCodeRoutesEmptyGrantAnswersWithArraysNotNull` (9 routes) | `"results" = <nil>, want an empty JSON array` on structural inventory, both kinds | `ok internal/query 1.078s` |
 | `TestCallGraphMetricsEmptyGrantSkipsTheEdgeScan` (2) | `read` sub-test reached the graph | `ok internal/query 1.826s` |
 | `TestCallGraphMetricsBodyCarriesOnlyGrantedFunctions`, `TestUngrantedRepositorySelectorIsRejectedWith400` | new coverage, no prior red | `ok internal/query 1.225s` |
 | `TestCodeQualityAndComplexityBuildersBindTheGrant` (4) | all four builders `missing "(repo.id IN $allowed_repository_ids OR ...)"` | `ok internal/query 1.799s` |
@@ -247,78 +248,78 @@ ones in Go afterwards. No consumer identity ever left the process — hidden row
 are counted, never projected — but the cap fell on a mixed set, so another
 tenant's rows could push a granted consumer off the page.
 
-The grant is now in the statement (`crossRepoDeadCodeConsumerScan`, rendering
-`AND row.repository_id = ANY($n)`), ahead of the `LIMIT`. Filtering there alone
-would have destroyed the signal the handler needs: a symbol whose only consumers
-are out of grant must stay `unknown_needs_evidence` with reason
-`permission_hidden_consumer`, not become `dead`. A second statement
-(`buildCrossRepoDeadCodeHiddenConsumerQuery`), scoped callers only, carries that
-signal: per producer entity, how many active consumers the grant excluded, and
-nothing else — no id, name, or citation. `filterCrossRepoDeadCodeEvidence` stays
-as the Go-side check for the repository-boundary fallback, which is not
-grant-bound, and for a content store that does not bind the grant itself.
+A scoped caller now runs one statement shape twice, for two different
+questions. The evidence page binds the grant
+(`buildCrossRepoDeadCodeConsumerEvidenceQuery` rendering
+`AND row.repository_id = ANY($n)`) ahead of the `LIMIT`, so the cap falls on
+consumers the caller may see. The signal read is the same builder with no
+grant, which makes its text byte for byte the statement this route already
+shipped. `TestCrossRepoDeadCodeSignalReadRepeatsTheUngrantedStatement` pins
+both: the grant's position in the first, the exact text of the second.
 
-The truncation fail-safe is unchanged and still carries the case the cap can
-lose: `markCrossRepoDeadCodeConsumerEvidenceTruncated` marks an entity left with
-zero rows `consumer_evidence_truncated`, so a short page reads as "unknown",
-never as "dead".
+Filtering in SQL alone would destroy the signal the handler needs — a symbol
+whose only consumers are out of grant must stay `unknown_needs_evidence` with
+reason `permission_hidden_consumer`, not become `dead`. The signal read carries
+it: `filterCrossRepoDeadCodeEvidence` runs over its rows exactly as over the
+page's — the request's `consumer_repo_ids` selector first, then the grant — and
+only what is left counts. The count is all that crosses.
 
-### Bounding The Hidden-Consumer Count
+Applying that selector before counting is the correctness half, not a
+refinement. A caller granted producer P and consumer A, asking about A alone,
+must get `live_by_consumer` from A's own strong evidence even when an unrelated
+ungranted repository also consumes the symbol. Counting that consumer buried
+A's evidence under `permission_hidden_consumer`;
+`TestCrossRepoDeadCodeHiddenCountHonoursTheConsumerSelector` is the guard.
 
-The first version of that second statement was a plain `GROUP BY row.entity_id`
-with no `LIMIT`. It reads the *complement* of the evidence page — the rows the
-grant excluded — all of them on every scoped request, while the sibling it
-accompanies stops at 1001 rows precisely because this join can return many.
+The truncation fail-safe covers both reads. Either one reaching the 1001-row
+sentinel marks an entity left with zero page rows `consumer_evidence_truncated`,
+so a short page reads as "unknown", never as "dead"
+(`TestCrossRepoDeadCodeSignalTruncationKeepsCandidatesUnknown`). An entity that
+does have page rows is classified from them, and those yield either strong live
+evidence or a needs-evidence reason — never `dead`.
 
-The cap has to be per producer entity. One statement-wide `LIMIT` ordered by
-entity id would be spent on the first entity ids of the page, so a later
-producer would come back with a hidden count of zero and be classified `dead`
-instead of `unknown_needs_evidence` — a wrong answer, not a bound. The shipped
-statement is one `LATERAL` arm per producer entity over `unnest($2::text[])`,
-each stopping after `maxCrossRepoDeadCodeHiddenConsumerRowsPerEntity` (100)
-joined rows, so each arm counts at most 100 and the statement at most
-`len(entityIDs) × 100` — 50,100 at the largest page allowed.
-A producer with more excluded consumers reports the cap: only the magnitude
-saturates, and the handler branches on "greater than zero", which stays exact.
-`hidden_consumer_evidence_count` is in no OpenAPI schema or public reference,
-so saturation changes no documented wire contract.
+### Two Bounded Reads, Not An Unbounded Complement
 
-Performance Evidence: `EXPLAIN (ANALYZE, BUFFERS)` on the old and the shipped
-statement in a throwaway PostgreSQL 16.15 container, data-plane schema applied
-from `schema/data-plane/postgres` (`001_ingestion_scopes.sql`,
-`002_scope_generations.sql`, `027_code_reachability.sql`) in filename order,
-synthetic rows only, `VACUUM ANALYZE` after seeding, `SET jit = off` on both,
-warm (second) run reported. Host: MacBook Pro, arm64, macOS. 1,320,180
-`code_reachability_rows`; one active scope and generation; a 50-entity producer
-page; 2,000 out-of-grant consumer rows per page entity across 200 ungranted
-repositories, 3 granted rows each, 1.2M rows on entity ids not on the page.
+The first version of that signal was a statement of its own, counting the
+*complement* of the page with one `LATERAL` arm per producer entity, each
+capped at 100 rows. That cap bounds rows returned, not rows scanned, and it
+misses the common case: when the grant covers most consumers, every arm
+inspects all of its entity's reachability rows to prove none are outside the
+grant.
 
-| Metric | Before (uncapped `GROUP BY`) | After (per-entity `LATERAL` cap) |
+Performance Evidence: `EXPLAIN (ANALYZE, BUFFERS)` on the withdrawn `LATERAL`
+statement and on the shipped signal read, in a throwaway PostgreSQL 16.15
+container, data-plane schema applied from `schema/data-plane/postgres`
+(`001_ingestion_scopes.sql`, `002_scope_generations.sql`,
+`027_code_reachability.sql`) in filename order, synthetic rows only,
+`VACUUM ANALYZE` after seeding, `SET jit = off` on both, warm (second) run
+reported. Host: MacBook Pro, arm64, macOS. 1,300,000 `code_reachability_rows`;
+one active scope and generation; a 50-entity producer page; 2,000 consumer rows
+per page entity, all of them *inside* the grant across five granted
+repositories — the no-hidden worst case — plus 1.2M rows on entity ids off the
+page.
+
+| Metric | Withdrawn `LATERAL` complement | Shipped signal read |
 | --- | ---: | ---: |
-| Execution time | 127.916 ms | 2.093 ms |
-| Rows aggregated | 100,000 | 5,000 |
-| Shared buffers | hit=3182, temp read=170 written=171 | hit=562 |
-| Driving access | Parallel Bitmap Heap Scan, bitmap over 100,150 index rows | Index Scan, `rows=100 loops=50` |
+| Execution time | 18.962 ms | 5.958 ms |
+| Rows read under the driving scan | 100,000 | 2,001 |
+| Rows returned | 0 | 1,001 |
+| Shared buffers | hit=3558 | hit=73 |
+| Driving access | `Index Scan`, `Rows Removed by Filter: 2000`, `loops=50` | `Index Scan` under an `Incremental Sort` presorted on `entity_id`, under `Limit` |
 
-The old plan sorted 100,000 rows through a `Gather Merge` and spilled to temp
-files; at a smaller 420,180-row table it planned a Parallel *Seq* Scan. Neither
-matches the "indexed `GROUP BY` over the same joined rows the first statement
-already scans" claimed here — the sets are complements and the access path was
-never a bounded seek. The shipped statement seeks
-`code_reachability_entity_lookup_idx` once per entity, its `Limit` stopping each
-arm after exactly 100 joined rows. That `LIMIT` bounds the join, not the scan
-beneath it: an entity carrying several stale generations can have more of its
-rows touched before the join yields its hundred. This plan was taken with one
-active scope and generation, where the two coincide.
+The `LATERAL` plan says it in its own line: each of the 50 arms removed all
+2,000 of its entity's rows on the grant-complement filter and returned none, so
+the per-arm `LIMIT 100` never engaged. The shipped read does stop at its cap —
+`Limit` takes 1,001 rows and the loop beneath produces 2,001 of 100,000
+candidates — because `code_reachability_entity_lookup_idx` leads with
+`entity_id`, the `ORDER BY` leads with `entity_id`, and the `Incremental Sort`
+above therefore sorts one entity group at a time.
 
-Two guards keep it that way, both proved to bite (BITES rows 10 and 15).
-`TestCrossRepoDeadCodeHiddenConsumerCountIsBounded` asserts the `LATERAL`, the
-per-entity predicate, the complement grant clause, the per-arm `LIMIT`, and that
-it is the statement's only one, so restoring the uncapped `GROUP BY` and adding
-a statement-wide `LIMIT` after the arm both fail it, exit `1`.
-`TestCrossRepoDeadCodeHiddenConsumerSignalSurvivesTheCap` drives a saturated
-count; narrowing `crossRepoDeadCodeUnknownReasons` to counts below the cap marks
-that symbol `dead` and fails it, exit `1`.
+That is why the truncation marking is load-bearing rather than defensive: a page
+whose first entity carries more than 1,001 consumer rows spends the sentinel
+there, leaving every later entity's signal unread. Those entities have no page
+rows either, so the marking catches them and they answer unknown.
+`hidden_consumer_evidence_count` is in no OpenAPI schema or public reference.
 
 ## Query-Plan Source Coverage
 
@@ -337,15 +338,16 @@ The other four — `lookupComplexityRowByName`, `deadCodeCandidateRows`,
 `inspectCodeQuality`, `graphSummaryHotEntities` — printed the same
 grandfathered-digest line. That is the gate working as designed: a changed
 digest forces the owning callsite through a typed non-hot audit rather than
-letting a prose `non_hot_reason` carry forward. The hot callsite keeps its
-registration with a refreshed digest; `cypher_sha256` for `QP-CALL-GRAPH-HUBS`
-and `QP-CALL-GRAPH-RECURSIVE` is unchanged, so the accepted plan claim stands.
-The five grandfathered prose entries become typed dispositions carrying the
-bound each read already enforces, and leave `grandfatheredNonHotSourceDigests`.
-The round-3 pass moves two of those digests again — `listMostComplexFunctions`
-for the anchor fix, `graphSummaryHotEntities` for a corrected comment. Both
-dispositions and bounds are re-audited unchanged; the anchor fix can only narrow
-a `Function` scan, and the graph-summary text is untouched:
+letting a prose `non_hot_reason` carry forward. The five grandfathered prose
+entries become typed dispositions carrying the bound each read already enforces,
+and leave `grandfatheredNonHotSourceDigests`. Later passes move three digests
+again — `listMostComplexFunctions` for the anchor fix, `callGraphMetricsData`
+for its grantless-caller refusal, `graphSummaryHotEntities` for a corrected
+comment — each re-recorded against the production symbol with its disposition
+and bound re-audited unchanged. `handler-hot-cypher.yaml` ends this branch
+untouched: `callGraphMetricsEdgesCypher` carries no grant, so its
+`source_sha256` and the `cypher_sha256` for `QP-CALL-GRAPH-HUBS` and
+`QP-CALL-GRAPH-RECURSIVE` are the values already committed:
 
 | Callsite | Class | Bound |
 | --- | --- | --- |
@@ -368,26 +370,25 @@ mutation was restored and its guard rerun at exit `0`.
 | 3 | `buildDeadCodeGraphCypherForLabel` drops `access.GraphCondition("r")` | `go test ./internal/query -run TestDeadCodeGraphCandidateScanBindsTheGrantInTheBuiltCypher -count=1` | `1` |
 | 4 | `ContentReader.DeadCodeCandidateRows` emits `AND true /* $n */` | `go test ./internal/query -run TestDeadCodeCandidateRowsBindTheGrantInTheShippedSQL -count=1` | `1` |
 | 5 | `buildCodeQualityCypher` and all three complexity builders drop their grant | `go test ./internal/query -run TestCodeQualityAndComplexityBuildersBindTheGrant -count=1` | `1` (4 failures) |
-| 6 | `callGraphMetricsEdgesCypher` renders an empty grant clause | `go test ./internal/query -run TestCallGraphMetricsBindsTheGrantOnBothCallEndpoints -count=1` | `1` |
+| 6 | `callGraphMetricsEdgesCypher` takes the caller's grant again and appends it to both `CALLS` endpoints | `go test ./internal/query -run TestCallGraphMetricsCypherIsTheSameForEveryCaller -count=1` | `1` |
 | 7 | complexity and quality drop their `access.Empty()` refusal | `go test ./internal/query -run TestCodeQualityAndComplexityEmptyGrantSkipTheGraphRead -count=1` | `1` (4 failures) |
 | 8 | `symbolNameFallbackEntities` always takes the single-lookup branch (`if true`), so it asks for repository `""` | `go test ./internal/query -run TestSymbolNameFallback -count=1` | `1` (`repositories = []string{""}`) |
 | 9 | `complexityListAnchor` returns the `OPTIONAL MATCH` form for every caller (`if false`) | `go test ./internal/query -run TestComplexityListDoesNotLeakUngrantedFunctions -count=1` | `1` |
-| 10 | `crossRepoDeadCodeConsumerScan` emits `AND true /* $n */` instead of `AND row.repository_id = ANY($n)` | `go test ./internal/query -run TestCrossRepoDeadCode -count=1` | `1` |
+| 10 | `crossRepoDeadCodeGrantFilter` emits `AND true /* $n */` instead of `AND row.repository_id = ANY($n)` | `go test ./internal/query -run TestCrossRepoDeadCode -count=1` | `1` (3 failures) |
 | 11 | the same mutation as #9, run against the live backend instead of the fake | `ESHU_NEO4J_URI=bolt://localhost:17787 go test ./internal/query -tags live_nornicdb_complexity_grant -run TestLiveNornicDBComplexityListFiltersUngrantedFunctions -count=1` | `1` (leaked `LiveUngrantedComplexityProbe` and `LiveOrphanComplexityProbe`) |
-| 12 | the same mutation as #6, judged by the graph-summary route's own guard | `go test ./internal/query -run TestGraphSummaryHotEntitiesRunTheGrantBoundEdgePass -count=1` | `1` (scoped edge pass lost both endpoint predicates) |
+| 12 | the same mutation as #6, judged by the graph-summary route's own guard | `go test ./internal/query -run TestGraphSummaryHotEntitiesEdgePassIsUnchanged -count=1` | `1` (scoped edge pass diverged from the shared-key text) |
 | 13 | `applyRepositorySelectorForCapability` rejects an ungranted selector with `404` instead of `400` | `go test ./internal/query -run TestUngrantedRepositorySelectorIsRejectedWith400 -count=1` | `1` (`status = 404, want 400`) |
-
 | 14 | `complexityListAnchor` keys only on `access.Scoped()`, ignoring the supplied `repoID` | `go test ./internal/query -run TestComplexityListUnscopedRepoIDSelectorFiltersToThatRepository -count=1` | `1` |
-| 15 | `buildCrossRepoDeadCodeHiddenConsumerQuery` adds `LIMIT 25` after the `LATERAL` arm | `go test ./internal/query -run TestCrossRepoDeadCodeHiddenConsumerCountIsBounded -count=1` | `1` (`statement has 2 LIMIT clauses, want exactly 1`) |
+| 15 | `bucketCrossRepoDeadCodeResults` counts the signal rows without the request's consumer selector | `go test ./internal/query -run TestCrossRepoDeadCodeHiddenCountHonoursTheConsumerSelector -count=1` | `1` (a consumer outside the requested set was counted as hidden) |
 
 An earlier attempt at #1 deleted the whole helper body and failed as an unused
 import rather than an assertion, which proves nothing; the mutations above keep
 the package compiling so the failure is the assertion's.
 
 Rows 6 and 12 are one mutation judged by two guards: row 6 is the call-graph
-route's text guard, row 12 the graph-summary route that shares the builder, and
-row 12 is what makes the eleventh route's disclosure a pinned guard rather than
-an assertion. Row 13 is the status code the ten OpenAPI operations and eleven
+route's text guard, row 12 the graph-summary route that shares the builder. The
+same mutation also reddens `go test ./internal/queryplan`, exit `1`, because the
+builder's `source_sha256` moves off the manifest. Row 13 is the status code the ten OpenAPI operations and eleven
 MCP tool descriptions now name. Rows 9, 11 and 14 all mutate
 `complexityListAnchor`: row 9 is the credential-free scoped guard CI runs, row
 14 the unscoped-with-`repo_id` guard, and row 11 the live NornicDB one, the only
@@ -404,16 +405,18 @@ Run after the last edit, exit codes captured directly:
 cd go && go test ./internal/query ./internal/mcp ./cmd/api ./internal/queryplan -count=1  # 0
 cd go && go vet ./internal/query ./internal/mcp                       # 0
 scripts/dev/precommit-go.sh fmt   <changed .go>                       # 0
-scripts/dev/precommit-go.sh lint  <changed .go>                       # 0 (3 packages from 65 paths, 0 issues)
+scripts/dev/precommit-go.sh lint  <changed .go>                       # 0 (3 packages from 64 paths, 0 issues)
 scripts/dev/precommit-go.sh filecap <changed .go>                     # 0
 scripts/verify-package-docs.sh                                        # 0
 scripts/verify-openapi.sh                                             # 0 (255 routes, 255 path entries)
 scripts/verify-doc-citations.sh                                       # 0
 scripts/verify-markdown-line-cap.sh --all                             # 0
+scripts/verify-performance-evidence.sh                                # 0
+mkdocs build --strict --clean --config-file docs/mkdocs.yml            # 0
 git diff --check                                                      # 0
 ```
 
-The lint list is the full three-dot changed `.go` set (65 paths), so the
+The lint list is the full three-dot changed `.go` set (64 paths), so the
 queryplan re-audit this PR leans on is inside the gate it cites.
 
 On origin/main `code_dead_code.go` was 496 lines and `code_dead_code_scan.go`
@@ -438,15 +441,14 @@ Two shapes do change, and both are declared. `listMostComplexFunctions` swaps
 its `OPTIONAL MATCH` for a required `MATCH` over the same
 `CONTAINS`/`REPO_CONTAINS` path for a scoped caller or a supplied `repo_id`,
 which removes a clause between the anchor and the `RETURN` rather than adding
-one. The cross-repo consumer read gains one extra statement per scoped request,
-on a route that already issues a paged candidate scan plus per-entity probes. That statement reads the rows the
-grant excluded — the complement of the page, not the same rows — and its bound
-is one `LATERAL` index seek per producer entity, each stopping after 100 joined
-rows, so it counts at most `len(entityIDs) × 100`. It is measured, not asserted: see
-"Bounding The Hidden-Consumer Count" for the before/after plans. Nothing here
-puts a filter in a `WITH`-attached `WHERE` (not
-evaluated as a filter on NornicDB) or guards a disjunct with `$param <> ''`
-(poisons the enclosing `OR` on NornicDB) — see
+one. The cross-repo consumer read runs one extra statement per scoped request,
+on a route that already issues a paged candidate scan plus per-entity probes.
+That statement is the ungranted read this route shipped before the grant landed,
+unchanged and capped at the same 1001 rows, and it is measured rather than
+asserted — see "Two Bounded Reads, Not An Unbounded Complement". Nothing here
+puts a filter in a `WITH`-attached `WHERE` (not evaluated as a filter on
+NornicDB) or guards a disjunct with `$param <> ''` (poisons the enclosing `OR`
+on NornicDB) — see
 [NornicDB Query-Shape Pitfalls](../../public/reference/nornicdb-query-pitfalls.md).
 No benchmark was run and no speedup is claimed; this is a correctness change
 with no latency claim attached.
@@ -467,22 +469,18 @@ row-set fixes, documented in the route's OpenAPI description and in
 `TestComplexityListUnscopedRepoIDSelectorFiltersToThatRepository`.
 
 Byte-identity is pinned for the one hot read carrying committed plan evidence.
-`callGraphMetricsEdgesCypher`'s `cypher_sha256` for `QP-CALL-GRAPH-HUBS` and
-`QP-CALL-GRAPH-RECURSIVE`
-(`go/internal/queryplan/testdata/handler-hot-cypher.yaml`) is unchanged, so its
-accepted plan block (`NodeIndexSeek`, `Expand`; forbidden `AllNodesScan`,
-`CartesianProduct`, `UnboundedExpand`) still describes what production emits.
-Only the builder's `source_sha256` moved, and
-`TestCallGraphMetricsUnscopedCypherIsUnchanged` keeps the unscoped text from
-drifting. That plan claim covers the unscoped text only; the scoped variant has
-no fixture, and is row-set-neutral on both callers because `$repo_id` is
-mandatory and grant-resolved there, so `source.repo_id = $repo_id` already
-implies the membership test.
+`callGraphMetricsEdgesCypher` is untouched, so its whole manifest entry
+(`go/internal/queryplan/testdata/handler-hot-cypher.yaml`) holds the digests it
+already held, and its accepted plan block (`NodeIndexSeek`, `Expand`; forbidden
+`AllNodesScan`, `CartesianProduct`, `UnboundedExpand`) describes what every
+caller emits rather than only an unscoped one.
+`TestCallGraphMetricsCypherIsTheSameForEveryCaller` and
+`TestCallGraphMetricsUnscopedCypherIsUnchanged` keep it that way.
 
 No-Observability-Change: no metric instrument, metric label, span, log event,
 route, worker, queue, lease, or runtime knob is added or renamed. The cross-repo
 consumer read's existing `postgres.query` span gains one attribute,
-`db.rows.hidden_consumer_entities`. Operators keep diagnosing these ten routes
+`db.rows.consumer_signal_entities`. Operators keep diagnosing these ten routes
 through the governance-audit read-authorization events in
 `go/internal/query/auth_audit.go` — `DecisionAllowed` / `scoped_read_allowed`
 (`recordScopedReadAuthorized`) and `DecisionDenied` with the route's reason code
