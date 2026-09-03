@@ -65,9 +65,13 @@ consumer is the alternative, and it buys nothing the adapter does not.
 
 ## Dependencies
 
-`testing` and the standard library today. Leaf packages such as
-`internal/status`, `internal/governanceaudit`, or `queryauth` are allowed when a
-fake genuinely needs the types it stands in for.
+The standard library, plus any LEAF package a fake genuinely needs to name the
+types it stands in for -- `internal/status`, `internal/governanceaudit` and
+`queryauth` are the shape, not the list. Deliberately stated as a rule rather
+than an inventory: each fake promoted here turns another leaf from allowed into
+taken, and a sentence enumerating today's imports is stale the next time one
+lands. Run `rg -l 'eshu-hq/eshu' --glob '*.go' --glob '!*_test.go' .` if you
+want the current set; do not transcribe it here.
 
 Root `internal/query` and the handler families are not. Both bans are real,
 but they are not enforced the same way and neither stops `go build`:
