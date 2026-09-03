@@ -202,3 +202,17 @@ func minInt(left int, right int) int {
 	}
 	return right
 }
+
+// firstNonBlank returns the first non-blank (after trimming whitespace)
+// value, or "" if every value is blank. Package-registry and
+// vulnerability-intelligence target derivation share this helper; the
+// extracted ociregistry child package keeps its own identical copy because it
+// must not import this root package.
+func firstNonBlank(values ...string) string {
+	for _, value := range values {
+		if strings.TrimSpace(value) != "" {
+			return value
+		}
+	}
+	return ""
+}

@@ -1,17 +1,30 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package coordinator
+package ociregistry
 
 import (
 	"context"
 	"encoding/json"
+	"strings"
 	"testing"
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/scope"
 	"github.com/eshu-hq/eshu/go/internal/workflow"
 )
+
+func testOCIRegistryConfiguration() string {
+	return `{
+		"targets": [{
+			"provider": "dockerhub",
+			"registry": "registry-1.docker.io",
+			"repository": "library/busybox",
+			"references": ["latest"],
+			"tag_limit": 1
+		}]
+	}`
+}
 
 func TestOCIRegistryWorkPlannerPlansOneWorkItemPerTarget(t *testing.T) {
 	t.Parallel()
@@ -23,13 +36,13 @@ func TestOCIRegistryWorkPlannerPlansOneWorkItemPerTarget(t *testing.T) {
 		Mode:           workflow.CollectorModeContinuous,
 		Enabled:        true,
 		ClaimsEnabled:  true,
-		Configuration:  testServiceOCIRegistryConfiguration(),
+		Configuration:  testOCIRegistryConfiguration(),
 		LastObservedAt: observedAt,
 		CreatedAt:      observedAt,
 		UpdatedAt:      observedAt,
 	}
 
-	run, items, err := OCIRegistryWorkPlanner{}.PlanOCIRegistryWork(context.Background(), OCIRegistryPlanRequest{
+	run, items, err := WorkPlanner{}.PlanOCIRegistryWork(context.Background(), PlanRequest{
 		Instance:   instance,
 		ObservedAt: observedAt,
 		PlanKey:    "continuous-20260513T160000Z",
@@ -85,7 +98,7 @@ func TestOCIRegistryWorkPlannerNormalizesProviderEndpointFields(t *testing.T) {
 		UpdatedAt:      observedAt,
 	}
 
-	_, items, err := OCIRegistryWorkPlanner{}.PlanOCIRegistryWork(context.Background(), OCIRegistryPlanRequest{
+	_, items, err := WorkPlanner{}.PlanOCIRegistryWork(context.Background(), PlanRequest{
 		Instance:   instance,
 		ObservedAt: observedAt,
 		PlanKey:    "continuous-20260513T160000Z",
@@ -110,6 +123,13 @@ func TestOCIRegistryWorkPlannerNormalizesProviderEndpointFields(t *testing.T) {
 	}
 }
 
+// TestOCIRegistryWorkPlannerRejectsDuplicateNormalizedTargets pins that
+// two differently-spelled dockerhub targets which normalize to the same
+// repository identity are rejected specifically as a duplicate, not merely
+// that planning returns some error. A prior version of this test only
+// checked err != nil, which would have passed just as well for an unrelated
+// configuration-parse failure and proven nothing about the normalization
+// dedup this planner performs.
 func TestOCIRegistryWorkPlannerRejectsDuplicateNormalizedTargets(t *testing.T) {
 	t.Parallel()
 
@@ -129,12 +149,19 @@ func TestOCIRegistryWorkPlannerRejectsDuplicateNormalizedTargets(t *testing.T) {
 		UpdatedAt:      observedAt,
 	}
 
-	_, _, err := OCIRegistryWorkPlanner{}.PlanOCIRegistryWork(context.Background(), OCIRegistryPlanRequest{
+	_, _, err := WorkPlanner{}.PlanOCIRegistryWork(context.Background(), PlanRequest{
 		Instance:   instance,
 		ObservedAt: observedAt,
 		PlanKey:    "continuous-20260513T160000Z",
 	})
 	if err == nil {
 		t.Fatal("PlanOCIRegistryWork() error = nil, want duplicate target rejection")
+	}
+	if !strings.Contains(err.Error(), "duplicate OCI registry target scope_id") {
+		t.Fatalf("PlanOCIRegistryWork() error = %q, want a duplicate scope_id rejection", err)
+	}
+	const wantScopeID = "oci-registry://docker.io/library/busybox"
+	if !strings.Contains(err.Error(), wantScopeID) {
+		t.Fatalf("PlanOCIRegistryWork() error = %q, want it to name the colliding scope_id %q", err, wantScopeID)
 	}
 }
