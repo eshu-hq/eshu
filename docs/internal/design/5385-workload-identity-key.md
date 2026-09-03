@@ -736,8 +736,8 @@ cite two lines each), and an earlier revision's
 | `go/internal/reducer/supply_chain_impact_match.go:147` | Prefix parse — `supplyChainWorkloadIDsFromPayload`. |
 | `go/internal/query/supply_chain_impact_runtime_context_store.go:193` | The **query-side half of that pair**: `strings.HasPrefix(workloadID, "workload:")`, whose comment at `:184-188` says it mirrors the reducer's extraction. A re-key breaks both halves; an earlier revision listed only the reducer half. |
 | `go/internal/query/entity_map_resolver.go:62`, `:135` | Both call `canonicalWorkloadIDCandidate(from)` (defined at `impact_change_surface_resolvers.go:102`) and append a prefix-constructed resolver when it differs from the input. |
-| `go/internal/mcp/dispatch_args.go:54-59` | `normalizeQualifiedIdentifier` cuts at the **first** colon and returns the *tail*, so a three-part id becomes `<repo_id>:<name>` — a different break from a `HasPrefix` test. It **is** applied to workload selectors in production: `dispatch_service_selector.go:44,74` and `dispatch.go:411`, and `go/internal/mcp/README.md:524` describes it as stripping the `workload:` prefix. |
-| `go/internal/mcp/dispatch_args.go:61-66` | `canonicalWorkloadIdentifier` also cuts at the first colon but returns the **whole value** when the head is `workload`, so it survives a re-key intact. Listed because it sits beside the previous row and an earlier revision cited it as the truncating one. |
+| `normalizeQualifiedIdentifier` (now `go/internal/mcp/servicecontext/routes.go`) | `normalizeQualifiedIdentifier` cuts at the **first** colon and returns the *tail*, so a three-part id becomes `<repo_id>:<name>` — a different break from a `HasPrefix` test. It **is** applied to workload selectors in production: the service-context selectors in `go/internal/mcp/servicecontext/routes.go` and the `serviceContextRoute` adapter in `dispatch_service_selector.go`, and `go/internal/mcp/README.md` describes it as stripping the `workload:` prefix. |
+| `canonicalWorkloadIdentifier` (now `go/internal/mcp/servicecontext/routes.go`) | `canonicalWorkloadIdentifier` also cuts at the first colon but returns the **whole value** when the head is `workload`, so it survives a re-key intact. Listed because it sits beside the previous row and an earlier revision cited it as the truncating one. |
 | `apps/console/src/api/impactDeploymentGraph.ts:453`, `:455` | `startsWith("workload-instance:")` and `startsWith("workload:")`. Outside `go/`, which the enumeration above does not cover. |
 | `apps/console/src/api/eshuGraphDeploymentTopology.ts:298,300` | `startsWith("workload:")`, deciding a column and a node kind. |
 | `apps/console/src/pages/ExplorerPage.tsx:380` | `needle.startsWith("workload:")` short-circuits query rewriting. |
@@ -1224,7 +1224,7 @@ retracted and rebuilt rather than rewritten in place.
 5. **Update the parse sites** in section 4, with a test per site. Two deserve
    naming: `go/internal/query/catalog.go:328-333` (`catalogWorkloadKey` merges catalog rows by
    *name only*, so split siblings silently vanish from `/catalog`) and
-   `go/internal/mcp/dispatch_args.go:54-59` (`normalizeQualifiedIdentifier` cuts at the FIRST
+   `normalizeQualifiedIdentifier` (now `go/internal/mcp/servicecontext/routes.go`) (`normalizeQualifiedIdentifier` cuts at the FIRST
    colon, so a three-part id becomes `<repo>:<name>` and 404s).
 
    The loud breaks are safer and already have error types: name-selector surfaces
@@ -1325,7 +1325,7 @@ The impact resolver tries id, then a
 `workload:`-prefixed candidate, then name (`impact_change_surface_resolvers.go:80-108`),
 so a stored prefixed handle matches none of the three after a re-key and resolves
 empty. MCP's `normalizeQualifiedIdentifier` cuts at the first colon
-(`go/internal/mcp/dispatch_args.go:54-59`), turning a three-part id into `<repo_id>:<name>`.
+(`normalizeQualifiedIdentifier` (now `go/internal/mcp/servicecontext/routes.go`)), turning a three-part id into `<repo_id>:<name>`.
 Search documents persist `GraphHandles{Kind:"workload", ID}` in Postgres —
 written at `go/internal/searchdocs/project.go:283`, matched back at
 `storage/postgres/eshu_search_index.go:216,300-312` — and stay stale until

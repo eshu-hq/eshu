@@ -194,6 +194,9 @@ func resolveRoute(toolName string, args map[string]any) (*route, error) {
 	if route, ok := infraResourceSearchRoute(toolName, args); ok {
 		return route, nil
 	}
+	if route, ok, err := serviceContextRoute(toolName, args); ok {
+		return route, err
+	}
 	switch toolName {
 	// ── Code ──
 	case "investigate_import_dependencies":
@@ -254,25 +257,6 @@ func resolveRoute(toolName string, args map[string]any) (*route, error) {
 			q["environment"] = env
 		}
 		return &route{method: "GET", path: "/api/v0/workloads/" + url.PathEscape(str(args, "workload_id")) + "/story", query: q}, nil
-	case "get_service_context":
-		return serviceContextRoute(args)
-	case "get_service_story":
-		return serviceStoryRoute(args)
-	case "get_service_intelligence_report":
-		return serviceIntelligenceReportRoute(args)
-	case "investigate_service":
-		q := map[string]string{
-			"environment": str(args, "environment"),
-			"intent":      str(args, "intent"),
-			"question":    str(args, "question"),
-		}
-		if serviceID := canonicalWorkloadIdentifier(str(args, "service_name")); serviceID != "" {
-			q["service_id"] = serviceID
-		}
-		if repo := serviceStoryRepositorySelector(args); repo != "" {
-			q["repo"] = repo
-		}
-		return &route{method: "GET", path: "/api/v0/investigations/services/" + url.PathEscape(normalizeQualifiedIdentifier(str(args, "service_name"))), query: q}, nil
 	case "get_incident_context":
 		incidentID := str(args, "provider_incident_id")
 		if incidentID == "" {

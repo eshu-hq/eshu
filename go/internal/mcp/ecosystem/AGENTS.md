@@ -28,6 +28,7 @@
   | `../codequality` | 3 |
   | `../entityresolution` | 3 |
   | `../iacmanagement` | 7 |
+  | `../servicecontext` | 4 |
 
   Counts are derived from each selector's own route table, not from the tool
   registration list here. Add a row when a family is extracted -- this list went
