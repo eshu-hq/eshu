@@ -15,6 +15,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/reducer/factload"
 	"github.com/eshu-hq/eshu/go/internal/reducer/inheritance"
 	"github.com/eshu-hq/eshu/go/internal/reducer/payloadcore"
+	"github.com/eshu-hq/eshu/go/internal/reducer/schemadecode"
 	"github.com/eshu-hq/eshu/go/internal/reducer/sharedintent"
 )
 
@@ -257,7 +258,7 @@ func TestInheritancePartitionConvergesFullReprojection(t *testing.T) {
 	envelopes := inheritanceConvergenceFixture(repoID, repoPath, false, nil)
 	repoIDs, rows := inheritance.ExtractRows(envelopes)
 	deltaScope := inheritance.BuildDeltaScope(envelopes)
-	contextByRepoID := sharedintent.BuildProjectionContexts(envelopes, "gen-1")
+	contextByRepoID := schemadecode.BuildProjectionContexts(envelopes, "gen-1")
 
 	// DIRECT path: seed prior edges, then retract + write.
 	direct := seedPriorInheritanceEdges(rows)
@@ -304,7 +305,7 @@ func TestInheritancePartitionConvergesDelta(t *testing.T) {
 	envelopes := inheritanceConvergenceFixture(repoID, repoPath, true, []string{"a.py", "b.py"})
 	repoIDs, rows := inheritance.ExtractRows(envelopes)
 	deltaScope := inheritance.BuildDeltaScope(envelopes)
-	contextByRepoID := sharedintent.BuildProjectionContexts(envelopes, "gen-1")
+	contextByRepoID := schemadecode.BuildProjectionContexts(envelopes, "gen-1")
 	if !deltaScope.HasDelta {
 		t.Fatal("fixture must produce a delta scope")
 	}

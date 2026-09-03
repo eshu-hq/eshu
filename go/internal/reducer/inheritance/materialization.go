@@ -15,6 +15,7 @@ import (
 	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
 	"github.com/eshu-hq/eshu/go/internal/reducer/factload"
 	"github.com/eshu-hq/eshu/go/internal/reducer/payloadcore"
+	"github.com/eshu-hq/eshu/go/internal/reducer/schemadecode"
 	"github.com/eshu-hq/eshu/go/internal/reducer/sharedintent"
 	log "github.com/eshu-hq/eshu/go/pkg/log"
 )
@@ -110,7 +111,7 @@ func (h MaterializationHandler) Handle(
 	deltaScope := BuildDeltaScope(envelopes)
 	repoIDs, rows := ExtractRows(envelopes)
 	repoIDs = mergeInheritanceRepositoryIDs(repoIDs, deltaScope.RepositoryIDs)
-	contextByRepoID := sharedintent.BuildProjectionContexts(envelopes, intent.GenerationID)
+	contextByRepoID := schemadecode.BuildProjectionContexts(envelopes, intent.GenerationID)
 
 	// Diagnostic inputs for the rc-12 (INHERITS) gate flake: an intermittent
 	// rc-12=0 on loaded CI must be root-caused from logs alone (it does not

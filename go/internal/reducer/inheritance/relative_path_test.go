@@ -10,6 +10,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/facts"
 	"github.com/eshu-hq/eshu/go/internal/reducer/factload"
 	"github.com/eshu-hq/eshu/go/internal/reducer/payloadcore"
+	"github.com/eshu-hq/eshu/go/internal/reducer/schemadecode"
 	"github.com/eshu-hq/eshu/go/internal/reducer/sharedintent"
 )
 
@@ -216,7 +217,7 @@ func TestInheritanceFilePartitionKeyChangesWithProductionChildPath(t *testing.T)
 		t.Fatalf("len(rows) = %d, want 2", len(rows))
 	}
 	deltaScope := BuildDeltaScope(envelopes)
-	contextByRepoID := sharedintent.BuildProjectionContexts(envelopes, "gen-1")
+	contextByRepoID := schemadecode.BuildProjectionContexts(envelopes, "gen-1")
 	now := time.Date(2026, time.June, 18, 21, 0, 0, 0, time.UTC)
 
 	intents := BuildSharedIntentRows(rows, deltaScope, repoIDs, contextByRepoID, now)
@@ -348,7 +349,7 @@ func TestInheritanceDeltaRetractTargetIgnoresContentEntityChildPath(t *testing.T
 		}
 		refresh := BuildRefreshIntents(
 			deltaScope, []string{"repo-1"},
-			sharedintent.BuildProjectionContexts(envelopes, "gen-1"),
+			schemadecode.BuildProjectionContexts(envelopes, "gen-1"),
 			time.Date(2026, time.June, 18, 22, 0, 0, 0, time.UTC),
 		)
 		if len(refresh) != 1 {

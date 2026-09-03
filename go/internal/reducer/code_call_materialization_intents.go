@@ -12,7 +12,7 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
-	"github.com/eshu-hq/eshu/go/internal/reducer/sharedintent"
+	"github.com/eshu-hq/eshu/go/internal/reducer/schemadecode"
 	codegraphv1 "github.com/eshu-hq/eshu/sdk/go/factschema/codegraph/v1"
 )
 
@@ -24,10 +24,10 @@ type codeCallDeltaFileScope struct {
 }
 
 // buildCodeCallProjectionContexts forwards to
-// [sharedintent.BuildProjectionContexts], which carries the decode-seam and
+// [schemadecode.BuildProjectionContexts], which carries the decode-seam and
 // skip-and-continue contract.
 func buildCodeCallProjectionContexts(envelopes []facts.Envelope, generationID string) map[string]ProjectionContext {
-	return sharedintent.BuildProjectionContexts(envelopes, generationID)
+	return schemadecode.BuildProjectionContexts(envelopes, generationID)
 }
 
 func buildCodeCallSharedIntentRows(

@@ -76,8 +76,9 @@ This package registers no metric instrument of its own. The
 `inheritance_materialization` domain runs as a standard reducer execution
 covered by `eshu_dp_reducer_executions_total` and
 `eshu_dp_reducer_run_duration_seconds`, under the `reducer.run` span — the
-domain is an attribute on those metrics, not a span of its own, so an operator
-searches traces for `reducer.run` and filters on the domain; the edges it projects are written
+domain is an attribute on those metrics, not a span of its own, and the span
+carries no domain attribute either, so isolate this family through the
+domain-tagged metrics and the structured logs rather than by filtering traces; the edges it projects are written
 through the shared edge-write path covered by
 `eshu_dp_shared_edge_write_groups_total`.
 
