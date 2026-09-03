@@ -32,6 +32,35 @@ func TestDefaultRegistryIncludesScopedTokenRegistryFile(t *testing.T) {
 	}
 }
 
+// TestDefaultRegistryIncludesGovernanceMode covers the one governance variable
+// that changes enforcement instead of only status readback: cmd/api and
+// cmd/mcp-server both derive the all-scope route opening from it, and public
+// documentation cites it by name, which the docs-cli-env-refs ratchet accepts
+// only for a registered variable.
+func TestDefaultRegistryIncludesGovernanceMode(t *testing.T) {
+	t.Parallel()
+	r := Default()
+
+	entry, ok := r.Lookup("ESHU_GOVERNANCE_MODE")
+	if !ok {
+		t.Fatal("ESHU_GOVERNANCE_MODE missing from default registry")
+	}
+	if entry.Type != VarEnum {
+		t.Fatalf("ESHU_GOVERNANCE_MODE type = %q, want %q", entry.Type, VarEnum)
+	}
+	if entry.Subsystem != "api" {
+		t.Fatalf("ESHU_GOVERNANCE_MODE subsystem = %q, want api", entry.Subsystem)
+	}
+	if entry.Default != "local_no_policy" {
+		t.Fatalf("ESHU_GOVERNANCE_MODE default = %q, want local_no_policy", entry.Default)
+	}
+	gotAllowed := strings.Join(entry.Allowed, ",")
+	wantAllowed := "local_no_policy,hosted_single_tenant,hosted_multi_tenant"
+	if gotAllowed != wantAllowed {
+		t.Fatalf("ESHU_GOVERNANCE_MODE allowed = %q, want %q", gotAllowed, wantAllowed)
+	}
+}
+
 func TestRenderMarkdownEndsWithSingleTrailingNewline(t *testing.T) {
 	t.Parallel()
 
