@@ -34,7 +34,7 @@ func TestToolsPreserveFreshnessRegistrationContract(t *testing.T) {
 	if err != nil {
 		t.Fatalf("marshal freshness tools: %v", err)
 	}
-	const wantDefinitionsHash = "197bfde64103268a5928b80f80656f891eedc86ca69412f664678e57b856d011"
+	const wantDefinitionsHash = "8affbc824000a35c94c9b6f139e840bbc5684dd4fca5bdb5a546b0e93a6011a5"
 	if got := fmt.Sprintf("%x", sha256.Sum256(encoded)); got != wantDefinitionsHash {
 		t.Fatalf("freshness tool definitions hash = %s, want %s", got, wantDefinitionsHash)
 	}

@@ -52,7 +52,7 @@ func recordServiceChangedSinceSpan(
 // existence oracle for another tenant's services -- but it also left the
 // operator with nothing. The middleware already ADMITTED the request, so no
 // governance-audit deny event fires for a handler-level refusal, and before
-// this change all three refusal branches returned ahead of every
+// this change every refusal branch returned ahead of every
 // span.SetAttributes call. An operator paged with "tenant A's token gets
 // not-found for a service it owns" could not tell a grant refusal from missing
 // lineage from an unwired ownership store.
@@ -80,6 +80,16 @@ func TestServiceChangedSinceGrantRefusalIsRecordedOnTheSpan(t *testing.T) {
 			auth:       scopedServiceChangedSinceTenantA(),
 			ownership:  mirroringOwnership,
 			wantReason: telemetry.ServiceChangedSinceGrantRefusalNotGranted,
+		},
+		{
+			// The #6472 review case: tenant A owns one of the two
+			// correlations for this id, so the existential check admitted it
+			// and served tenant B's lineage.
+			name:       "shared service id records shared_ownership",
+			serviceID:  serviceChangedSinceGrantShared,
+			auth:       scopedServiceChangedSinceTenantA(),
+			ownership:  mirroringOwnership,
+			wantReason: telemetry.ServiceChangedSinceGrantRefusalSharedOwnership,
 		},
 		{
 			name:       "empty grant records empty_grant",
@@ -134,7 +144,7 @@ func TestServiceChangedSinceGrantRefusalIsRecordedOnTheSpan(t *testing.T) {
 				t.Fatalf("%s = %#v, want true", telemetry.SpanAttrServiceChangedSinceGrantRefused, refused)
 			}
 			if !reasonSet {
-				t.Fatalf("span is missing %s; the operator cannot tell which of the three refusals fired",
+				t.Fatalf("span is missing %s; the operator cannot tell which refusal fired",
 					telemetry.SpanAttrServiceChangedSinceGrantRefusedReason)
 			}
 			if reason != tc.wantReason {
@@ -149,6 +159,7 @@ func TestServiceChangedSinceGrantRefusalIsRecordedOnTheSpan(t *testing.T) {
 			for _, identifier := range []string{
 				serviceChangedSinceGrantServiceA,
 				serviceChangedSinceGrantServiceB,
+				serviceChangedSinceGrantShared,
 				"tenant-a",
 				"workspace-a",
 				"repo-a",
@@ -164,7 +175,7 @@ func TestServiceChangedSinceGrantRefusalIsRecordedOnTheSpan(t *testing.T) {
 }
 
 // TestServiceChangedSinceGrantRefusalReasonsAreAClosedVocabulary pins the two
-// attribute names and the three reason strings the handler may emit. An
+// attribute names and the four reason strings the handler may emit. An
 // operator alert keys off these literals, so a rename is a contract change and
 // must fail here first rather than silently in a dashboard.
 func TestServiceChangedSinceGrantRefusalReasonsAreAClosedVocabulary(t *testing.T) {
@@ -178,6 +189,7 @@ func TestServiceChangedSinceGrantRefusalReasonsAreAClosedVocabulary(t *testing.T
 		{got: telemetry.SpanAttrServiceChangedSinceGrantRefusedReason, want: "eshu.service_changed_since.grant_refused_reason"},
 		{got: telemetry.ServiceChangedSinceGrantRefusalEmptyGrant, want: "empty_grant"},
 		{got: telemetry.ServiceChangedSinceGrantRefusalNotGranted, want: "not_granted"},
+		{got: telemetry.ServiceChangedSinceGrantRefusalSharedOwnership, want: "shared_ownership"},
 		{got: telemetry.ServiceChangedSinceGrantRefusalOwnershipUnwired, want: "ownership_unwired"},
 	} {
 		if tc.got != tc.want {

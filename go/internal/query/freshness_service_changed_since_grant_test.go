@@ -26,6 +26,12 @@ const (
 	serviceChangedSinceGrantServiceB = "component:default/tenant-b"
 	serviceChangedSinceGrantAbsent   = "component:default/nowhere"
 	serviceChangedSinceGrantPriorGen = "gen-prior"
+	// The collision the exclusivity check exists for. A catalog entity ref is
+	// relative to the catalog that declared it, never tenant-qualified
+	// (serviceCatalogAdmittedServiceID, internal/reducer), so two tenants that
+	// both run a service called `api` write the same service_id -- and
+	// service_materialization_generations keys on that id alone.
+	serviceChangedSinceGrantShared = "component:default/api"
 )
 
 // mirroredServiceCorrelation is one reducer_service_catalog_correlation fact
@@ -73,6 +79,9 @@ func (g *grantMirroringServiceOwnership) ListServiceCatalogCorrelations(
 	if filter.Limit <= 0 || filter.Limit > serviceCatalogCorrelationMaxLimit+1 {
 		return nil, fmt.Errorf("limit must be between 1 and %d", serviceCatalogCorrelationMaxLimit)
 	}
+	if filter.OutsideGrant && len(filter.AllowedRepositoryIDs) == 0 && len(filter.AllowedScopeIDs) == 0 {
+		return nil, errServiceCatalogOutsideGrantNeedsAGrant
+	}
 
 	out := make([]ServiceCatalogCorrelationRow, 0, len(g.rows))
 	for _, row := range g.rows {
@@ -80,7 +89,10 @@ func (g *grantMirroringServiceOwnership) ListServiceCatalogCorrelations(
 		if filter.ServiceID != "" && filter.ServiceID != row.serviceID {
 			continue
 		}
-		if !mirroredServiceCorrelationGrantAdmits(filter, row) {
+		// listServiceCatalogCorrelationsOutsideGrantQuery is the same
+		// statement with the grant disjunction negated, so the fake answers
+		// the complement of the same predicate rather than a second one.
+		if mirroredServiceCorrelationGrantAdmits(filter, row) == filter.OutsideGrant {
 			continue
 		}
 		out = append(out, ServiceCatalogCorrelationRow{
@@ -168,6 +180,10 @@ func twoTenantServiceCorrelations() []mirroredServiceCorrelation {
 	return []mirroredServiceCorrelation{
 		{serviceID: serviceChangedSinceGrantServiceA, repositoryID: "repo-a", scopeID: "scope-a"},
 		{serviceID: serviceChangedSinceGrantServiceB, repositoryID: "repo-b", scopeID: "scope-b"},
+		// One service id, two owners, one per tenant. Tenant A's row admits
+		// the request; tenant B's row is what makes the answer ambiguous.
+		{serviceID: serviceChangedSinceGrantShared, repositoryID: "repo-a", scopeID: "scope-a"},
+		{serviceID: serviceChangedSinceGrantShared, repositoryID: "repo-b", scopeID: "scope-b"},
 	}
 }
 
@@ -175,6 +191,10 @@ func twoTenantServiceLineage() map[string]string {
 	return map[string]string{
 		serviceChangedSinceGrantServiceA: "gen-current-repo-a",
 		serviceChangedSinceGrantServiceB: "gen-current-repo-b",
+		// One lineage for the shared id, because the table has one row set per
+		// service_id and no column to split it by tenant. Whichever tenant
+		// materialized last is what both tenants would read.
+		serviceChangedSinceGrantShared: "gen-current-shared",
 	}
 }
 
@@ -372,7 +392,11 @@ func TestServiceChangedSinceTwoTenantGrantBoundary(t *testing.T) {
 	t.Run("shared key never consults the ownership store", func(t *testing.T) {
 		t.Parallel()
 
-		for _, serviceID := range []string{serviceChangedSinceGrantServiceA, serviceChangedSinceGrantServiceB} {
+		for _, serviceID := range []string{
+			serviceChangedSinceGrantServiceA,
+			serviceChangedSinceGrantServiceB,
+			serviceChangedSinceGrantShared,
+		} {
 			serviceID := serviceID
 			t.Run(serviceID, func(t *testing.T) {
 				t.Parallel()

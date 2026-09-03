@@ -134,7 +134,17 @@ func (h *FreshnessHandler) listServiceChangedSince(w http.ResponseWriter, r *htt
 // and it is the route's ordinary service-not-found so an ungranted service is
 // indistinguishable from one that does not exist.
 //
-// Two deliberate fail-closed cases:
+// Admission is exclusive, not existential: it takes one correlation inside the
+// grant AND none outside it. A catalog service id is relative to the catalog
+// that declared it and is never tenant-qualified, so two tenants that both run
+// a service called `api` write the same service_id -- and the lineage tables
+// key on that id alone, with the reducer's writer conflicting on it, so there
+// is one generation lineage for the id and nothing recording whose. Admitting
+// on one granted correlation would serve whichever tenant materialized last.
+// Splitting the lineage needs a scope column on those tables; until that
+// lands, a contested id is refused.
+//
+// Three deliberate fail-closed cases:
 //
 //   - A generation can outlive its correlation fact. The correlation read
 //     requires the fact's generation to still be its scope's active one, so
@@ -145,6 +155,11 @@ func (h *FreshnessHandler) listServiceChangedSince(w http.ResponseWriter, r *htt
 //     An unscoped operator still sees it.
 //   - A nil ServiceOwnership refuses every scoped caller. A deployment that
 //     cannot resolve ownership must not answer instead of resolving it.
+//   - A service id correlated from outside the grant as well as inside it is
+//     refused even though the caller genuinely owns one of the correlations.
+//     Returning the shared lineage would hand the caller another tenant's
+//     counts and evidence keys, and returning a filtered one is impossible:
+//     the lineage carries nothing to filter on.
 //
 // Every refusal is recorded on the handler span before it returns
 // (refuseServiceChangedSinceGrant), because the caller-facing body cannot say
@@ -172,24 +187,43 @@ func (h *FreshnessHandler) serviceChangedSinceGrantAdmits(
 		return false
 	}
 
-	rows, err := h.ServiceOwnership.ListServiceCatalogCorrelations(
-		r.Context(),
-		ServiceCatalogCorrelationFilter{
-			ServiceID:            serviceID,
-			AllowedRepositoryIDs: access.GrantedRepositoryIDs(),
-			AllowedScopeIDs:      access.GrantedScopeIDs(),
-			// One admitted row is the whole answer: the question is whether
-			// the grant covers this service at all, not which repository owns
-			// it.
-			Limit: 1,
-		},
-	)
+	// One row is the whole answer on both probes: the questions are whether
+	// the grant covers this service at all, and whether anything outside the
+	// grant also claims the id -- never which repository owns it.
+	probe := ServiceCatalogCorrelationFilter{
+		ServiceID:            serviceID,
+		AllowedRepositoryIDs: access.GrantedRepositoryIDs(),
+		AllowedScopeIDs:      access.GrantedScopeIDs(),
+		Limit:                1,
+	}
+
+	granted, err := h.ServiceOwnership.ListServiceCatalogCorrelations(r.Context(), probe)
 	if err != nil {
 		WriteError(w, http.StatusInternalServerError, fmt.Sprintf("resolve service ownership: %v", err))
 		return false
 	}
-	if len(rows) == 0 {
+	if len(granted) == 0 {
 		h.refuseServiceChangedSinceGrant(w, r, serviceID, telemetry.ServiceChangedSinceGrantRefusalNotGranted)
+		return false
+	}
+
+	// The exclusivity half. It runs only once the grant already covers the
+	// service, so an ungranted caller still pays for one query rather than two.
+	//
+	// The two probes are separate statements, so a correlation written between
+	// them is not seen. That window is inherent to checking before the read
+	// rather than to using two statements -- one combined query would leave
+	// the same gap between itself and the lineage read -- and it is bounded by
+	// how long the reducer takes to publish a new catalog generation, which is
+	// far longer than the gap.
+	probe.OutsideGrant = true
+	contested, err := h.ServiceOwnership.ListServiceCatalogCorrelations(r.Context(), probe)
+	if err != nil {
+		WriteError(w, http.StatusInternalServerError, fmt.Sprintf("resolve service ownership: %v", err))
+		return false
+	}
+	if len(contested) > 0 {
+		h.refuseServiceChangedSinceGrant(w, r, serviceID, telemetry.ServiceChangedSinceGrantRefusalSharedOwnership)
 		return false
 	}
 	return true

@@ -526,9 +526,10 @@ generation returns `unavailable=true` (and a `building`/`unavailable` freshness
 state) rather than zero deltas. The capability key is
 `freshness.service_changed_since`. The MCP equivalent is
 `get_service_changed_since` and the CLI helper is `eshu freshness
-service-changed-since`. Scoped tokens receive only services whose catalog
-correlation names a granted repository or scope; an ungranted `service_id`
-returns the same not-found an unknown one returns.
+service-changed-since`. Scoped tokens receive a service only when every
+repository correlated to the service is in the grant; an ungranted
+`service_id`, or one also correlated outside the grant, returns the same
+not-found an unknown one returns.
 
 The incidents family's production loader is held behind a durable
 PagerDuty-provider-to-Eshu-catalog service-id join that is a tracked #1989

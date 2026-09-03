@@ -169,10 +169,9 @@ queries are byte-identical to `origin/main`. On the admission path the change
 adds one method comparison plus at most two string comparisons per request, in
 a function that already performs dozens of the same shape before reaching the
 freshness clause, and only for requests that get past the shared-key-only and
-allowlist checks ahead of it. No before/after wall-clock claim is made: there
-is no measured hot path here to compare, and a package test time is not one.
-`go test ./internal/query -count=1` took 4.788s green after the last edit,
-recorded as a smoke figure rather than as a delta.
+allowlist checks ahead of it. No before/after wall-clock claim is made:
+there is no measured hot path here to compare. `go test ./internal/query
+-count=1` took 4.788s green after the last edit, a smoke figure, not a delta.
 
 No-Observability-Change: no span, metric, or log key is added or removed. The
 two handler spans keep their names and attributes,
@@ -275,9 +274,10 @@ between the nil-reader guard and the lineage read:
   the whole disjunction TRUE and the store would hand back every tenant's row.
   `ServiceCatalogHandler.listCorrelations` (`service_catalog.go`) treats it
   the same way.
-- Scoped caller with a grant: one `ListServiceCatalogCorrelations` call with
-  the service id and the caller's two grant arrays, `Limit: 1`. Zero rows
-  refuses. One row admits.
+- Scoped caller with a grant: two bounded `ListServiceCatalogCorrelations`
+  probes, `Limit: 1` each. Zero rows in the grant refuses; one row outside it
+  refuses as well. The second probe and the collision it closes are in
+  [5167-service-changed-since-shared-ownership.md](5167-service-changed-since-shared-ownership.md).
 - Scoped caller with `ServiceOwnership` nil: refuses. A deployment that cannot
   resolve ownership must not answer instead of resolving it.
 
@@ -306,11 +306,13 @@ explains why this route's binding lives in the handler while its two siblings'
 live in SQL. The route moves out of `pendingRowFilteringRoutes` and into
 `scopedTokenAdvertisedRoutes` as `scopedRouteGrantBound`. The OpenAPI operation
 gains `"x-scoped-token-support": true` and one sentence; the same sentence goes
-on the `get_service_changed_since` tool description and the route's section of
-`docs/public/reference/http-api/status-admin.md`.
+on the `get_service_changed_since` tool description, the route's section of
+`docs/public/reference/http-api/status-admin.md`, and its
+`docs/public/reference/mcp-tool-contract-matrix.md` row.
 `TestToolsPreserveFreshnessRegistrationContract` pins a SHA-256 over the
 marshalled freshness tool definitions, so that sentence moves the pin from
-`dd7c7265...` to `197bfde6...`. That pin exists to make a tool-contract change
+`dd7c7265...` to `197bfde6...`, and the round-3 rewording below moves it again
+to `8affbc82...`. That pin exists to make a tool-contract change
 deliberate; this one is. No cassette and no B-12 snapshot entry carries tool or
 operation description text, so nothing is regenerated.
 
@@ -422,9 +424,9 @@ No-Regression Evidence: no existing query shape changed. No SQL string, bind
 argument, join, or index is touched; the ownership resolution reuses
 `listServiceCatalogCorrelationsQuery` verbatim, so its plan cache key and wire
 text are byte-identical to `origin/main`. The added cost is one bounded
-`SELECT ... LIMIT 1` on `fact_records`, served by the partial index
-`fact_records_service_catalog_correlations_service_idx`
-(`schema/data-plane/postgres/003_service_catalog_fact_record_indexes.sql:23`).
+`SELECT ... LIMIT 1` on `fact_records` (two after round 3), served by the
+partial index `fact_records_service_catalog_correlations_service_idx`
+(`schema/data-plane/postgres/003_service_catalog_fact_record_indexes.sql`).
 It runs only on the scoped path: an unscoped caller adds nothing (`shared key
 never consults the ownership store` pins that), and a scoped caller with no
 grant adds nothing (`empty grant touches neither store` pins that).
@@ -461,9 +463,10 @@ Observability Evidence: this route gains two span attributes on
 - `eshu.service_changed_since.grant_refused` (bool), set only when the handler
   refuses a scoped caller;
 - `eshu.service_changed_since.grant_refused_reason` (string), from the closed
-  vocabulary `empty_grant` | `not_granted` | `ownership_unwired`.
+  vocabulary `empty_grant` | `not_granted` | `shared_ownership` (added in round
+  3) | `ownership_unwired`.
 
-They exist because the three new refusal branches are otherwise invisible: the
+They exist because the new refusal branches are otherwise invisible: the
 response body is byte-identical to an unknown service's, which keeps the route
 from working as an existence oracle, and the governance audit cannot name the
 refusal either. It covers admission only: `recordScopedReadAuthorized`
@@ -472,7 +475,7 @@ event, reason `scoped_read_allowed`, for every admitted scoped-token or
 OIDC-bearer read -- on the mcp-server transport, the one caller that wires
 `allowedAudit` -- and `recordScopedRouteAuthorizationDeniedWithReason` writes
 `DecisionDenied` only at admission. Both land before the handler runs, so
-neither can say which of the three refusals fired; the span attributes can.
+neither can say which refusal fired; the span attributes can.
 
 Both attributes are server-side, so they add no oracle for the caller, and the
 reason vocabulary is closed and low-cardinality: it never carries a service id,
@@ -482,9 +485,9 @@ no `docs/public/observability/telemetry-coverage.md` row is owed.
 `TestServiceChangedSinceGrantRefusalIsRecordedOnTheSpan`
 (`internal/query/freshness_service_changed_since_telemetry_test.go`) drives the
 production handler under a recording tracer and asserts the attribute and reason
-on all three refusal branches, and their absence on the granted and shared-key
+on every refusal branch, and their absence on the granted and shared-key
 cases. `TestServiceChangedSinceGrantRefusalReasonsAreAClosedVocabulary` pins the
-two attribute names and three reason strings an operator alert keys off.
+two attribute names and the reason strings an operator alert keys off.
 
 What is unchanged: the span's name and its existing five summary attributes,
 and the middleware's own audit behaviour. As in commit 1 the reason code an

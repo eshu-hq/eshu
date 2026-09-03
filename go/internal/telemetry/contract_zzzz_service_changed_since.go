@@ -55,6 +55,14 @@ const (
 	// grant resolved no service-catalog correlation for the requested service:
 	// either another tenant owns it, or its catalog entity is gone.
 	ServiceChangedSinceGrantRefusalNotGranted = "not_granted"
+	// ServiceChangedSinceGrantRefusalSharedOwnership marks a scoped caller
+	// whose grant covers some, but not all, of the service-catalog
+	// correlations for the requested service id. Catalog service ids are
+	// catalog-relative rather than tenant-qualified, and the lineage tables
+	// carry no scope column, so a contested id has one lineage and no way to
+	// say whose. A run of these is a genuine id collision across tenants, not
+	// a misconfigured grant.
+	ServiceChangedSinceGrantRefusalSharedOwnership = "shared_ownership"
 	// ServiceChangedSinceGrantRefusalOwnershipUnwired marks a deployment with
 	// no service-ownership store wired. It fails closed for every scoped
 	// caller, so a run of these means a wiring bug, not a tenant boundary.

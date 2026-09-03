@@ -7,6 +7,7 @@ import (
 	"context"
 	"database/sql"
 	"encoding/json"
+	"errors"
 	"fmt"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
@@ -14,6 +15,16 @@ import (
 )
 
 const serviceCatalogCorrelationFactKind = "reducer_service_catalog_correlation"
+
+// errServiceCatalogOutsideGrantNeedsAGrant refuses an outside-grant read that
+// carries no grant at all. The ordinary grant clause is permissive on two empty
+// arrays, so its negation matches every row: a caller that lost its grant on
+// the way here would silently see every service as contested rather than as
+// its own. That failure reads exactly like ordinary tenant isolation, so the
+// store fails loudly instead of answering.
+var errServiceCatalogOutsideGrantNeedsAGrant = errors.New(
+	"outside-grant reads require an allowed repository or scope grant",
+)
 
 // ServiceCatalogCorrelationStore reads reducer-owned service catalog correlations.
 type ServiceCatalogCorrelationStore interface {
@@ -35,7 +46,14 @@ type ServiceCatalogCorrelationFilter struct {
 	AfterCorrelationID   string
 	AllowedRepositoryIDs []string
 	AllowedScopeIDs      []string
-	Limit                int
+	// OutsideGrant inverts the grant clause: the read returns the rows the
+	// caller's grant does NOT admit, rather than the rows it does. It answers
+	// "does anything outside my grant also claim this selector", which is what
+	// a caller needs before it may act on a shared identifier whose downstream
+	// tables carry no scope column of their own. The two grant arrays are
+	// required in this mode -- see errServiceCatalogOutsideGrantNeedsAGrant.
+	OutsideGrant bool
+	Limit        int
 }
 
 // ServiceCatalogCorrelationRow is one durable service-catalog correlation fact.
@@ -94,10 +112,18 @@ func (s PostgresServiceCatalogCorrelationStore) ListServiceCatalogCorrelations(
 	if filter.Limit <= 0 || filter.Limit > serviceCatalogCorrelationMaxLimit+1 {
 		return nil, fmt.Errorf("limit must be between 1 and %d", serviceCatalogCorrelationMaxLimit)
 	}
+	if filter.OutsideGrant && len(filter.AllowedRepositoryIDs) == 0 && len(filter.AllowedScopeIDs) == 0 {
+		return nil, errServiceCatalogOutsideGrantNeedsAGrant
+	}
+
+	statement := listServiceCatalogCorrelationsQuery
+	if filter.OutsideGrant {
+		statement = listServiceCatalogCorrelationsOutsideGrantQuery
+	}
 
 	rows, err := s.DB.QueryContext(
 		ctx,
-		listServiceCatalogCorrelationsQuery,
+		statement,
 		serviceCatalogCorrelationFactKind,
 		filter.ScopeID,
 		filter.Provider,
@@ -213,6 +239,52 @@ WHERE fact.fact_kind = $1
     (COALESCE(cardinality($13::text[]), 0) = 0 AND COALESCE(cardinality($14::text[]), 0) = 0)
     OR fact.payload->>'repository_id' = ANY($13::text[])
     OR fact.payload->'candidate_repository_ids' ?| $13::text[]
+    OR fact.scope_id = ANY($14::text[])
+  )
+ORDER BY fact.fact_id ASC
+LIMIT $12
+`
+
+// listServiceCatalogCorrelationsOutsideGrantQuery is
+// listServiceCatalogCorrelationsQuery with the grant disjunction negated, so it
+// returns the correlations the caller's grant does not admit. It is a separate
+// literal rather than a built string so the ordinary statement's text -- and
+// therefore its plan cache entry, shared with every other caller of this store
+// -- is untouched;
+// TestServiceCatalogCorrelationsOutsideGrantQueryInvertsOnlyTheGrantClause pins
+// the two in lockstep.
+//
+// Each disjunct is COALESCEd to FALSE because a payload without a
+// repository_id, or without a candidate_repository_ids array, compares to NULL:
+// NOT NULL is NULL, which would drop exactly the rows whose ownership cannot be
+// read -- the ones this statement most needs to report. The empty-arrays arm of
+// the ordinary clause is absent on purpose; its negation would match every row,
+// and the store refuses that filter before it gets here.
+const listServiceCatalogCorrelationsOutsideGrantQuery = `
+SELECT fact.fact_id, fact.payload
+FROM fact_records AS fact
+JOIN ingestion_scopes AS scope
+  ON scope.scope_id = fact.scope_id
+ AND scope.active_generation_id = fact.generation_id
+JOIN scope_generations AS generation
+  ON generation.scope_id = fact.scope_id
+ AND generation.generation_id = fact.generation_id
+WHERE fact.fact_kind = $1
+  AND fact.is_tombstone = FALSE
+  AND generation.status = 'active'
+  AND ($2 = '' OR fact.scope_id = $2)
+  AND ($3 = '' OR fact.payload->>'provider' = $3)
+  AND ($4 = '' OR fact.payload->>'entity_ref' = $4)
+  AND ($5 = '' OR fact.payload->>'repository_id' = $5 OR fact.payload->'candidate_repository_ids' ? $5)
+  AND ($6 = '' OR fact.payload->>'service_id' = $6)
+  AND ($7 = '' OR fact.payload->>'workload_id' = $7)
+  AND ($8 = '' OR fact.payload->>'owner_ref' = $8)
+  AND ($9 = '' OR fact.payload->>'outcome' = $9)
+  AND ($10 = '' OR fact.payload->>'drift_status' = $10)
+  AND ($11 = '' OR fact.fact_id > $11)
+  AND NOT (
+    COALESCE(fact.payload->>'repository_id' = ANY($13::text[]), FALSE)
+    OR COALESCE(fact.payload->'candidate_repository_ids' ?| $13::text[], FALSE)
     OR fact.scope_id = ANY($14::text[])
   )
 ORDER BY fact.fact_id ASC
