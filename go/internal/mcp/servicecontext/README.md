@@ -79,8 +79,11 @@ the shared API request duration and error metrics (`request_metrics.go` in
 - `get_service_context` requires `workload_id`; a `service_name` argument is
   rejected before dispatch to avoid a ServeMux redirect on a mismatched
   selector shape, matching the pre-extraction root switch.
-- `get_service_story`, `get_service_intelligence_report`, and
-  `investigate_service` accept `workload_id` or `service_name`, and forward a
+- `get_service_story` and `get_service_intelligence_report` accept
+  `workload_id` or `service_name`. `investigate_service` reads only
+  `service_name` -- its registered schema exposes no `workload_id`, and the
+  route ignores one if a caller supplies it, so advertising both here would
+  send callers down a selector that is silently dropped. These forward a
   repository selector (`repo`, `repository_id`, or `repo_id`, checked in that
   order) as the `repo` query parameter when the caller starts from
   repository-scoped context.

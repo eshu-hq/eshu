@@ -61,10 +61,13 @@
 - Change a route only with the exact child request tests, the root adapter
   parity test (`TestEveryRegisteredToolHasDispatchRoute` in `tools_test.go`),
   the shared HTTP contract, and applicable golden-corpus proof.
-- Change a selector-validation error message only against
-  `dispatch_service_story_test.go` and
-  `dispatch_service_investigation_authz_test.go` in the parent package, which
-  assert the exact wording.
+- Change a selector-validation error message only against this package's own
+  `routes_test.go`, which asserts both messages by exact equality, and
+  `dispatch_service_story_test.go` in the parent package, which pins the
+  `get_service_context` message through the full dispatch chain.
+  `dispatch_service_investigation_authz_test.go` does NOT assert any message --
+  it exercises a valid investigation only -- so it will not catch a reworded
+  error.
 - Add a tool here only after confirming the root `resolveRoute` does not
   also answer it, so the two never both claim a name.
 
