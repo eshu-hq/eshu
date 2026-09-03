@@ -8,9 +8,13 @@ subpackages. Split out during the #6060 family moves.
 Two packages consume it: root `query`'s tests and
 `internal/query/semanticsearch`'s, the first family to move out (#6060).
 
-The content-reader SQL driver is the second helper to move (#6060). It is the
-largest one: `openContentReaderTestDB` has 85 consuming test files and
-`contentReaderQueryResult` 81, across roughly 12 handler families.
+The content-reader SQL driver is the largest helper promoted so far (#6060).
+Measured on the base tree with
+`git grep -l '<name>' <base> -- 'go/internal/query/*.go'`, 85 root files name
+`openContentReaderTestDB` and 81 name `contentReaderQueryResult`. One file in
+each set is `content_reader_driver_test.go`, which declares them, so the
+consumers are 84 and 80. Counts elsewhere in this file follow the same rule:
+they say whether the declaring file is included.
 
 ## Ownership boundary
 
@@ -120,7 +124,14 @@ while guarding nothing.
 The delegation is proven rather than assumed. Deleting the incoming-edge
 dispatch from this package fails **10** root tests; a narrower mutation that
 keeps the branch but ignores `RunIncomingFn` fails 5. Both measured by running
-the whole root suite, 6539 tests, against a baseline of 0 failures.
+the whole root suite, 7755 tests, against a baseline of 0 failures.
+
+Those two mutations are close enough to be worth distinguishing. Deleting the
+branch lets an incoming-edge query fall through to `RunFn`; keeping the branch
+but dropping the `RunIncomingFn` call leaves it answering no rows. Collapsing
+the branch to `return nil, nil` is the SAME edit as the second, not the first,
+and reports 5 rather than 10 -- two mutations that are secretly one mutation
+read as corroboration and are not.
 
 Measure that set with a full `go test ./internal/query/`, never with `-run`
 naming the tests you expect. `-run` measures your own filter: the first attempt
@@ -138,11 +149,12 @@ keeps the same kind of unexported adapter (`fakeRepoGraphReader`,
 `fakeWorkloadGraphReader`) for each. Only the file that used to declare each
 fake changed; the other 42 and 29 consuming test files are untouched.
 
-Both counts are measured on the BASE tree, `.go` files only. Measuring them on
-the post-diff tree gives 43, and the extra file is a phantom: this change adds
-the words `fakeRepoGraphReader` to two new doc comments in
-`workload_context_test.go`, so the diff invents a consumer of the fake it is
-not a consumer of. That mistake has been made twice on this branch.
+Both counts are measured on `.go` files only, and with the `{` of a composite
+literal rather than the bare name. That distinction is worth keeping: a bare
+`rg fakeRepoGraphReader` returns 44 where `fakeRepoGraphReader{` returns 43,
+because `workload_context_test.go` names the fake in two doc comments without
+ever building one. Counting mentions instead of constructions invents a
+consumer, which has produced a wrong number here more than once.
 
 The two fakes look alike -- same fields, same longest-fragment dispatch -- but
 they are separate types on purpose. `FakeRepoGraphReader.RunSingle` falls back
@@ -165,10 +177,13 @@ rule in querytestutil, run the whole root suite, restore, confirm green again.
 - Short-circuiting `FakeWorkloadGraphReader.RunSingle`'s `RunSingleByMatch`
   dispatch to `nil, nil` fails **40** root tests.
 
-Both measured at this branch's HEAD against a 7792-run, 0-failure baseline.
-That is not the 6539 cited for `FakeGraphReader`'s earlier proof above: this
-branch was rebased onto a later `origin/main` and the suite grew. Neither number
-is a portable constant -- re-measure rather than carrying one forward.
+Both measured at this branch's HEAD against the same 7755-run, 0-failure
+baseline as every other proof in this file. That total is not a portable
+constant: it grows as tests are added and shrinks when a family moves out of
+root, as `semanticsearch` did. Re-measure rather than carrying one forward --
+the counts in this file were carried forward three separate times before anyone
+noticed the sections disagreed.
+
 ### FakeStatusReader follows the same shape
 
 Root keeps an unexported `fakeStatusReader` adapter with the original lowercase
@@ -186,20 +201,19 @@ applied through `go test -overlay=` so no tracked file changed. The mutation is
 built before it is run, so the failures are the guard reacting rather than a
 tree that does not compile.
 
-Earlier drafts of this section carried a 20-failure, 6539-test pair, and the
-count has since been 7864 as well. The root suite moves in both directions --
-it grows as tests are added, and it shrinks when a family moves out of root, as
-`semanticsearch` did. Treat none of these as a portable constant: re-measure
-both sides on the branch you are on, which is the same rule the two graph-read
-fakes above state for their own counts.
+Earlier drafts of this section carried a 20-failure, 6539-test pair, and later a
+7864-test one. Both are gone: every count in this file is now measured on the
+same run, and the rule the graph-read fakes above state applies here too.
+
 ### Adapting a fake that holds state
 
 `FakeGraphReader` is adapted by rebuilding it from the adapter's funcs on each
 call, which works because it holds nothing between calls. The other two do hold
 state, and each needs a different answer.
 
-`fakeGovernanceAuditAppender` keeps its `events` slice — 18 root test files read
-it by that name across roughly 117 assertions — and its `Append` copies the
+`fakeGovernanceAuditAppender` keeps its `events` slice, which root tests read by
+that name (`git grep -c '\.events' <base> -- 'go/internal/query/*.go'` sums to
+182 occurrences), and its `Append` copies the
 slice into the shared double, delegates, and takes back what was recorded. The
 adapter decides nothing about which events land or whether the write succeeds.
 
@@ -216,10 +230,11 @@ the adapter, plus `auth_denial_reason_audit_test.go` and
 parentheses, `resolver.called` becoming `resolver.called()`, because reading it
 takes the same lock the recording does. Those five call sites are the whole
 consumer cost.
+
 ### The same shape, applied to the content-reader driver
 
 `ContentReaderQueryResult` needed one extra step. Callers pass a **slice** of it
-to `openContentReaderTestDB`, and 81 root test files build those elements with
+to `openContentReaderTestDB`, and 80 root test files build those elements with
 keyed literals over lowercase field names. A type alias cannot help there
 either: the shared fields have to be exported to be settable from another
 package, so an alias would rename every one of those literals.
@@ -325,9 +340,10 @@ which Cypher FRAGMENT a caller registers, not a query this code issues. The
 promotion is a move: the dispatch bodies came across from
 `repository_context_test.go` and `workload_context_test.go` unchanged, so the
 dispatch work per call is identical; the adapter adds one struct construction
-per call, in test binaries only. Root suite before and after: 7792
-`=== RUN`, 0 `--- FAIL` (base `origin/main` at the time of measurement; that
-count is not a portable constant -- it moves as main gains tests).
+per call, in test binaries only. Root suite before and after: 7755
+`=== RUN`, 0 `--- FAIL`, measured on this branch's HEAD like every other count
+here. That total is not a portable constant -- it moves in both directions as
+tests are added and as families move out of root.
 
 No-Regression Evidence: for the governance-audit and scoped-token fakes
 promoted alongside them, this package is a test double and runs only inside test

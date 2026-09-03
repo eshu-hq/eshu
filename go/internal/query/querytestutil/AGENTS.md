@@ -93,9 +93,10 @@ package. The first family move (#6060) landed, so the earlier
 "one consumer, on purpose" exception is spent — apply the two-consumer rule
 below as written.
 
-`MustMapField` and `FakeGraphReader` still have only root as a consumer. That
-is fine: they were landed as precursors to the split, not as precedent for
-moving a single-consumer helper here for tidiness.
+`MustMapField` now has both consumers -- `semanticsearch`'s
+`semantic_search_language_test.go` calls it. `FakeGraphReader` still has only
+root. That is fine: it was landed as a precursor to the split, not as precedent
+for moving a single-consumer helper here for tidiness.
 
 ## A fixture that names a family type cannot live here
 
@@ -131,9 +132,12 @@ fields would have meant renaming every one of them.
 It did not. Root keeps an unexported adapter with the original field names and
 delegates its methods here, so the callers are untouched and the dispatch rules
 exist once. Use that shape for the remaining shared fakes, and note the size of
-what is waiting: `fakePortContentStore` has 125 consuming test files. It is
-blocked on the `ContentStore` read models moving to `querycontract` first, which
-is a structural change rather than a fake promotion.
+what is waiting: 126 root files name `fakePortContentStore` and one of them
+declares it, so 125 consume it -- the same "declarer excluded" convention
+README.md uses for its 84 and 80. Only 93 build one with a composite literal;
+count constructions, not mentions. It is blocked on the `ContentStore` read
+models moving to `querycontract` first, which is a structural change rather
+than a fake promotion.
 
 `fakeGovernanceAuditAppender` (19 root files build it) and
 `fakeScopedTokenResolver` (52) followed the same shape, with one wrinkle each.
@@ -153,7 +157,7 @@ field. Three root files now say `resolver.called()` where they said
 The content-reader SQL driver (`OpenContentReaderTestDB`,
 `ContentReaderQueryResult`, and the column helpers) came across the same way,
 with one wrinkle worth copying. Its entry point takes a **slice** of the result
-struct, and 81 root test files build those elements with keyed literals over
+struct, and 80 root test files build those elements with keyed literals over
 lowercase field names. So root keeps its own unexported struct with the original
 names and converts the slice element by element before delegating. Nothing else
 moved into root: the queue, the default answers, and the assertions live only
@@ -175,7 +179,7 @@ you expect to break. Two ways that goes wrong, both hit here:
 - `-run` with real names measures your filter rather than the dependency. The
   first attempt at this proof named four tests, saw four failures, and wrote
   "four root tests" into the commit and these docs. The real number is 10
-  (6539 tests run, 0 failing at baseline).
+  (7755 tests run, 0 failing at baseline).
 
 `fakePortContentStore` needs more than an adapter. Its fields are typed with
 unexported root read models (`repositoryEntryPointReadModel`,
@@ -212,9 +216,10 @@ again.
 - Deleting the `RunSingleByMatch` dispatch from `FakeWorkloadGraphReader`'s
   `RunSingle` (short-circuiting to `nil, nil`) fails **40** root tests.
 
-Both measured at this branch's HEAD: 7792 tests run, 0 failing. That is not the
-6539 of `FakeGraphReader`'s earlier proof -- the rebase moved it, and neither
-number is portable. Restore the file and re-run the baseline before trusting
+Both measured at this branch's HEAD: 7755 tests run, 0 failing, the same
+baseline every other proof in this package's docs now cites. That total is not
+portable -- it moves in both directions as tests are added and as families move
+out of root. Restore the file and re-run the baseline before trusting
 either number — a proof that leaves the break in place is not a proof of
 anything else in the suite.
 

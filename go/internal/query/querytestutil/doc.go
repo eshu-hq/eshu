@@ -34,10 +34,16 @@
 //
 // Fakes here may depend on the leaf packages whose types they stand in for --
 // FakeGovernanceAuditAppender on internal/governanceaudit and
-// FakeScopedTokenResolver on queryauth. Root internal/query and the handler
-// families are off limits: root imports the families for its compatibility
-// aliases, so importing either from here is an import cycle in the test binary
-// of any package whose tests import this one. This package still compiles on
-// its own, which is why the rule is worth stating rather than left to the
+// FakeScopedTokenResolver on queryauth. Root internal/query is off limits: its
+// own in-package tests import this package, so importing root from here is an
+// import cycle in root's test binary.
+//
+// A handler family is off limits on the same condition rather than
+// unconditionally. Importing one from here compiles on its own; the cycle
+// appears only when that family's INTERNAL tests also import this package,
+// which is the normal case for a family that needs the shared fakes. The
+// semanticsearch move hit exactly that. AGENTS.md carries the measured
+// three-row table this is drawn from. Either way the package still compiles by
+// itself, which is why the rule is worth stating rather than left to the
 // compiler.
 package querytestutil
