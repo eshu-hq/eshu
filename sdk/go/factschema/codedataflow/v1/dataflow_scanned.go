@@ -13,7 +13,7 @@ package v1
 // (ESHU_EMIT_DATAFLOW) ran for a repository, regardless of whether the scan
 // produced any taint/interproc findings. It carries no findings; its sole
 // purpose is to let the projector's reducer-intent builders
-// (go/internal/projector/code_function_summary_intents.go,
+// (go/internal/projector/codefunctionsummary/code_function_summary_intents.go,
 // go/internal/projector/codetaintevidence/evidence_intents.go,
 // go/internal/projector/codeinterprocevidence/evidence_intents.go) trigger
 // their reconciliation domains even on a generation whose finding set is
