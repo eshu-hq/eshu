@@ -32,6 +32,12 @@
 # untracked-but-not-ignored file (a fixture addition still in progress) and an
 # uncommitted edit to a tracked file both survive -- `git ls-files --others
 # --ignored --exclude-standard` reports neither of those categories.
+# Every git command below runs through golden_corpus_git, which switches the
+# developer's global and system git configuration off. A bare `git` call here
+# is a hermeticity hole -- see that file's header for the measured failure.
+# shellcheck source=scripts/lib/golden-corpus-git.sh
+. "${repo_root}/scripts/lib/golden-corpus-git.sh"
+
 stage_strip_ignored_files() {
 	local fixture="$1" dest="$2" src_rel="tests/fixtures/ecosystems/${1}"
 	local ignored_list ignored_status ignored_path rel
@@ -59,7 +65,7 @@ stage_strip_ignored_files() {
 	# negation's status (always 0), which would print "exit 0" in a message whose
 	# only job is to report why git failed.
 	ignored_status=0
-	git -C "${repo_root}" -c core.excludesfile=/dev/null \
+	golden_corpus_git -C "${repo_root}" -c core.excludesfile=/dev/null \
 		ls-files -z --others --ignored --exclude-standard -- "${src_rel}" \
 		>"${ignored_list}" || ignored_status=$?
 	if [[ "${ignored_status}" -ne 0 ]]; then
@@ -78,16 +84,67 @@ stage_strip_ignored_files() {
 
 stage_deterministic_git_fixture() {
 	local fixture_path="$1"
-	git -C "${fixture_path}" -c init.defaultBranch=main init --object-format=sha1 >/dev/null 2>&1
-	git -C "${fixture_path}" config user.email "gate@eshu.local" >/dev/null 2>&1
-	git -C "${fixture_path}" config user.name "Golden Gate" >/dev/null 2>&1
-	git -C "${fixture_path}" config commit.gpgsign false >/dev/null 2>&1
-	git -C "${fixture_path}" config core.autocrlf false >/dev/null 2>&1
-	git -C "${fixture_path}" config core.excludesfile /dev/null >/dev/null 2>&1
-	git -C "${fixture_path}" add -A >/dev/null 2>&1
-	GIT_AUTHOR_DATE="2026-08-04T12:00:00Z" \
+	# -c init.templateDir= : a global init.templateDir is copied into the new
+	# .git at init time, and a template carrying info/exclude installs an
+	# exclude source that `git add` always consults. core.excludesfile
+	# /dev/null does NOT cover it -- they are separate sources -- so a
+	# developer with that global config silently commits a tree missing a
+	# tracked fixture file. Measured on git 2.55.0: it drops Dockerfile from
+	# container-ci-lineage and moves HEAD off the cassette pin
+	# (fe05491e -> 247638a7). The empty value selects no template at all.
+	golden_corpus_git -C "${fixture_path}" -c init.defaultBranch=main -c init.templateDir= init --object-format=sha1 >/dev/null 2>&1
+	golden_corpus_git -C "${fixture_path}" config user.email "gate@eshu.local" >/dev/null 2>&1
+	golden_corpus_git -C "${fixture_path}" config user.name "Golden Gate" >/dev/null 2>&1
+	golden_corpus_git -C "${fixture_path}" config commit.gpgsign false >/dev/null 2>&1
+	golden_corpus_git -C "${fixture_path}" config core.autocrlf false >/dev/null 2>&1
+	golden_corpus_git -C "${fixture_path}" config core.excludesfile /dev/null >/dev/null 2>&1
+	golden_corpus_git -C "${fixture_path}" config core.hooksPath /dev/null >/dev/null 2>&1
+	golden_corpus_git -C "${fixture_path}" config i18n.commitEncoding utf-8 >/dev/null 2>&1
+	# These local pins are NOT what makes the hostile-config cases pass any
+	# more, and reading them as a tested list is the mistake this comment now
+	# exists to prevent.
+	#
+	# golden_corpus_git switches the whole global config layer off, which
+	# neutralizes every knob (1d) (scripts/lib/golden-corpus-gate-integrity-cases.sh)
+	# plants -- commit.gpgsign, tag.gpgSign, core.autocrlf, core.excludesfile,
+	# core.hooksPath, i18n.commitEncoding, init.templateDir -- in one line,
+	# before any of them is read. Measured on git 2.55.0: deleting the
+	# core.excludesfile pin above now leaves the entire suite green. Before
+	# golden_corpus_git existed, the same deletion reddened it.
+	#
+	# They are kept because they are a different layer with a different reach.
+	# Local config is what a command that does NOT route through
+	# golden_corpus_git reads -- the collector walking the staged fixture,
+	# localGitRefs discovering tags, a gate step someone adds later without
+	# noticing this file. Local config also outranks global, which is why the
+	# two layers are mutually redundant against (1d), and why neither shows up
+	# as load-bearing when it is tested on its own. golden-corpus-git.sh
+	# records the same redundancy for its own lines rather than claiming each
+	# is separately proven.
+	#
+	# Keep this knob set and the deployable-config block's identical. "Same
+	# knobs as stage_deterministic_git_fixture" has to stay a true claim, and
+	# an asymmetry between the two blocks is the defect this area exists to
+	# prevent.
+	golden_corpus_git -C "${fixture_path}" config tag.gpgSign false >/dev/null 2>&1
+	golden_corpus_git -C "${fixture_path}" add -A >/dev/null 2>&1
+	# Identity is set inline, NOT left to the `git config user.*` above.
+	#
+	# git prefers GIT_AUTHOR_* and GIT_COMMITTER_* from the environment over
+	# config, so a shell that exports any of the four produces a different
+	# author or committer -- and therefore a different commit SHA -- from
+	# byte-identical fixture content. The tree hash is unchanged; only the
+	# commit metadata moves. That presents as fixture drift and is not, which
+	# cost one investigation a wrong diagnosis and a wrongly-edited cassette
+	# pin before the cause was found. The dates below were always immune for
+	# exactly this reason; the identity fields now are too.
+	GIT_AUTHOR_NAME="Golden Gate" \
+		GIT_AUTHOR_EMAIL="gate@eshu.local" \
+		GIT_COMMITTER_NAME="Golden Gate" \
+		GIT_COMMITTER_EMAIL="gate@eshu.local" \
+		GIT_AUTHOR_DATE="2026-08-04T12:00:00Z" \
 		GIT_COMMITTER_DATE="2026-08-04T12:00:00Z" \
-		git -C "${fixture_path}" commit -m "initial" >/dev/null 2>&1
+		golden_corpus_git -C "${fixture_path}" commit -m "initial" >/dev/null 2>&1
 }
 
 stage_minimal_corpus() {
@@ -100,9 +157,45 @@ stage_minimal_corpus() {
 		# deployable-config needs a git repo so localGitRefs can discover tags
 		# for the B-12 query_shape.http branches endpoint assertion.
 		if [[ "${fixture}" = "deployable-config" ]]; then
-			git -C "${corpus_dir}/${fixture}" -c init.defaultBranch=main init --object-format=sha1 >/dev/null 2>&1
-			git -C "${corpus_dir}/${fixture}" config user.email "gate@eshu.local" >/dev/null 2>&1
-			git -C "${corpus_dir}/${fixture}" config user.name "Golden Gate" >/dev/null 2>&1
+			# -c init.templateDir= for the same reason as
+			# stage_deterministic_git_fixture above: a template carrying
+			# info/exclude installs an exclude source core.excludesfile does
+			# not cover, dropping catalog-info.yaml here and moving HEAD from
+			# de21f0c2 to 4d955077 on git 2.55.0.
+			golden_corpus_git -C "${corpus_dir}/${fixture}" -c init.defaultBranch=main -c init.templateDir= init --object-format=sha1 >/dev/null 2>&1
+			golden_corpus_git -C "${corpus_dir}/${fixture}" config user.email "gate@eshu.local" >/dev/null 2>&1
+			golden_corpus_git -C "${corpus_dir}/${fixture}" config user.name "Golden Gate" >/dev/null 2>&1
+			# Same knobs as stage_deterministic_git_fixture above, kept in lockstep
+			# with it, and a second layer rather than the mechanism: these calls
+			# route through golden_corpus_git, so the developer's ~/.gitconfig is
+			# already switched off before any of them is read. What they still cover
+			# is a later command that reaches this fixture WITHOUT the wrapper.
+			#
+			# The list below is what each knob did back when global config was read,
+			# measured then and kept because it is the catalogue of what the wrapper
+			# now prevents -- not a set of individually-tested pins. A global
+			# commit.gpgsign=true
+			# makes the `commit` call below exit 128 with no diagnostic (it is
+			# `>/dev/null 2>&1`), aborting the live gate under `set -euo
+			# pipefail` with nothing attributable; a global core.excludesfile
+			# matching this fixture's tracked files silently drops them from the
+			# commit and changes its HEAD; a global core.hooksPath pointing at a
+			# rejecting pre-commit hook kills the commit the same way gpgsign
+			# does; a global i18n.commitEncoding other than UTF-8 writes an
+			# `encoding` header into the commit object, changing its SHA from
+			# byte-identical tree content; a global core.autocrlf of true or
+			# input strips CR bytes from every text file on `git add`, changing
+			# those blobs and the tree with them; and a global tag.gpgSign=true
+			# makes the `git tag -a` call below exit 128 and create NO tag --
+			# silent for the same `>/dev/null 2>&1` reason, and it costs
+			# localGitRefs the peeled SHA the B-12 query_shapes.http branches
+			# assertion reads. Measured on git 2.55.0.
+			golden_corpus_git -C "${corpus_dir}/${fixture}" config commit.gpgsign false >/dev/null 2>&1
+			golden_corpus_git -C "${corpus_dir}/${fixture}" config core.autocrlf false >/dev/null 2>&1
+			golden_corpus_git -C "${corpus_dir}/${fixture}" config core.excludesfile /dev/null >/dev/null 2>&1
+			golden_corpus_git -C "${corpus_dir}/${fixture}" config core.hooksPath /dev/null >/dev/null 2>&1
+			golden_corpus_git -C "${corpus_dir}/${fixture}" config i18n.commitEncoding utf-8 >/dev/null 2>&1
+			golden_corpus_git -C "${corpus_dir}/${fixture}" config tag.gpgSign false >/dev/null 2>&1
 			# submodule PINS_SUBMODULE non-vacuous coverage (issue #5420 Phase 5): a
 			# pinned submodule SHA is a git gitlink (tree mode 160000), which only
 			# exists in a real git tree -- unlike CODEOWNERS, a plain file copy is not
@@ -119,14 +212,37 @@ stage_minimal_corpus() {
 			# needed for the pin to resolve.
 			printf '[submodule "vendor/deployable-source"]\n\tpath = vendor/deployable-source\n\turl = https://github.com/acme/deployable-source.git\n' \
 				>"${corpus_dir}/${fixture}/.gitmodules"
-			git -C "${corpus_dir}/${fixture}" add -A >/dev/null 2>&1
-			git -C "${corpus_dir}/${fixture}" update-index --add --cacheinfo \
+			golden_corpus_git -C "${corpus_dir}/${fixture}" add -A >/dev/null 2>&1
+			golden_corpus_git -C "${corpus_dir}/${fixture}" update-index --add --cacheinfo \
 				160000,5420542054205420542054205420542054205420,vendor/deployable-source >/dev/null 2>&1
-			git -C "${corpus_dir}/${fixture}" commit -m "initial" >/dev/null 2>&1
+			# Inline identity AND dates for the same reason as
+			# stage_deterministic_git_fixture: environment variables
+			# outrank the `git config user.*` set above.
+			#
+			# The dates matter here even though this fixture's HEAD is not
+			# pin-asserted today -- only its SHA-1 length is checked. Leaving
+			# one commit in the staging path reading GIT_AUTHOR_DATE from the
+			# caller's shell would make "staging is hermetic" true of some
+			# commits and not others, which is the kind of partial guarantee
+			# nobody remembers the shape of when this fixture does get pinned.
+			GIT_AUTHOR_NAME="Golden Gate" \
+				GIT_AUTHOR_EMAIL="gate@eshu.local" \
+				GIT_COMMITTER_NAME="Golden Gate" \
+				GIT_COMMITTER_EMAIL="gate@eshu.local" \
+				GIT_AUTHOR_DATE="2026-08-04T12:00:00Z" \
+				GIT_COMMITTER_DATE="2026-08-04T12:00:00Z" \
+				golden_corpus_git -C "${corpus_dir}/${fixture}" commit -m "initial" >/dev/null 2>&1
 			# Annotated tag for peeled-SHA coverage.
-			git -C "${corpus_dir}/${fixture}" tag -a v1.0.0-annotated -m "annotated tag" HEAD >/dev/null 2>&1
+			#
+			# A tag object records a tagger name, email and date, all read from
+			# GIT_COMMITTER_*, so an annotated tag is no more hermetic than a
+			# commit until those are pinned too.
+			GIT_COMMITTER_NAME="Golden Gate" \
+				GIT_COMMITTER_EMAIL="gate@eshu.local" \
+				GIT_COMMITTER_DATE="2026-08-04T12:00:00Z" \
+				golden_corpus_git -C "${corpus_dir}/${fixture}" tag -a v1.0.0-annotated -m "annotated tag" HEAD >/dev/null 2>&1
 			# Lightweight tag.
-			git -C "${corpus_dir}/${fixture}" tag lightweight HEAD >/dev/null 2>&1
+			golden_corpus_git -C "${corpus_dir}/${fixture}" tag lightweight HEAD >/dev/null 2>&1
 		fi
 		if [[ "${fixture}" = "container-ci-lineage" ]]; then
 			stage_deterministic_git_fixture "${corpus_dir}/${fixture}"

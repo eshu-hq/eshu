@@ -67,9 +67,15 @@ golden_corpus_pinned_commit_sha() {
 
 # golden_corpus_assert_staged_pin dies (via fail_fn) unless the staged
 # fixture's HEAD equals the cassette's pinned commit for run_id. The failure
-# names the fixture, both SHAs, the usual cause, and lists the staged tree so
-# the reader sees the culprit directly instead of re-deriving it from an
-# unrelated failure much later in the run.
+# names the fixture, both SHAs, and some common causes -- an extra file in the
+# staged tree; a staging commit site that does not pin identity/date inline; a
+# git config knob injected above the staged repo's own config; or an
+# intentional change to the fixture's tracked content, which needs the cassette
+# pin regenerated rather than the others chased. That list is deliberately not
+# claimed to be complete: anything that reaches the commit object can land
+# here. The staged tree is listed as evidence so the reader can rule the named
+# causes in or out directly instead of re-deriving them from an unrelated
+# failure much later in the run.
 golden_corpus_assert_staged_pin() {
 	local fixture="$1" staged_repo="$2" scope_id="$3" run_id="$4" fail_fn="$5"
 	local staged_head expected
@@ -90,8 +96,37 @@ golden_corpus_assert_staged_pin() {
 	{
 		printf 'golden-corpus-gate-integrity: %s staged HEAD %s does not match the run %s pinned commit %s\n' \
 			"${fixture}" "${staged_head}" "${run_id}" "${expected}"
-		printf 'golden-corpus-gate-integrity: usual cause is an extra file staged into the fixture directory (e.g. a git-ignored file such as .DS_Store copied by cp -R)\n'
-		printf 'golden-corpus-gate-integrity: offending staged tree entries (git -C %s ls-tree -r HEAD --name-only):\n' "${staged_repo}"
+		printf 'golden-corpus-gate-integrity: some common causes (not a complete set -- anything that\n'
+		printf 'golden-corpus-gate-integrity: reaches the commit object can land here):\n'
+		printf 'golden-corpus-gate-integrity:  1. the staged tree has a file it should not, e.g. a git-ignored\n'
+		printf 'golden-corpus-gate-integrity:     .DS_Store copied by cp -R; or it is MISSING one it should\n'
+		printf 'golden-corpus-gate-integrity:     have, which an exclude source silently dropped -- note that\n'
+		printf 'golden-corpus-gate-integrity:     .git/info/exclude (installed by a global init.templateDir) is a\n'
+		printf 'golden-corpus-gate-integrity:     separate source from core.excludesfile. Read the tree listing\n'
+		printf 'golden-corpus-gate-integrity:     below in BOTH directions before assuming an addition.\n'
+		printf 'golden-corpus-gate-integrity:  2. a staging commit site that does not pin GIT_AUTHOR_NAME,\n'
+		printf 'golden-corpus-gate-integrity:     GIT_AUTHOR_EMAIL, GIT_COMMITTER_NAME, GIT_COMMITTER_EMAIL,\n'
+		printf 'golden-corpus-gate-integrity:     GIT_AUTHOR_DATE and GIT_COMMITTER_DATE inline\n'
+		printf 'golden-corpus-gate-integrity:     run: env | rg "^GIT_(AUTHOR|COMMITTER)_"\n'
+		printf 'golden-corpus-gate-integrity:  3. a staging git call that bypasses golden_corpus_git. Staging\n'
+		printf 'golden-corpus-gate-integrity:     reads no global or system config and no GIT_CONFIG_KEY_n,\n'
+		printf 'golden-corpus-gate-integrity:     so your own git config CANNOT move this SHA through a call\n'
+		printf 'golden-corpus-gate-integrity:     that is routed. A bare `git` call is not routed, and it is\n'
+		printf 'golden-corpus-gate-integrity:     the only way a config knob reaches a fixture commit now.\n'
+		printf 'golden-corpus-gate-integrity:     Chasing your environment before ruling this out wastes the\n'
+		printf 'golden-corpus-gate-integrity:     time this message exists to save.\n'
+		printf 'golden-corpus-gate-integrity:     run: bash scripts/test-verify-golden-corpus-gate.sh\n'
+		printf 'golden-corpus-gate-integrity:          (its bare-git source check names the offending line)\n'
+		printf 'golden-corpus-gate-integrity:  4. an intentional change to the fixture'"'"'s tracked content, which\n'
+		printf 'golden-corpus-gate-integrity:     needs the cassette pin updated rather than 1-3 chased. The pin\n'
+		printf 'golden-corpus-gate-integrity:     is payload.commit_sha on the ci.run fact for run %s of scope\n' "${run_id}"
+		printf 'golden-corpus-gate-integrity:     %s, in\n' "${scope_id}"
+		printf 'golden-corpus-gate-integrity:     testdata/cassettes/cicdrun/supply-chain-demo.json. This scope is\n'
+		printf 'golden-corpus-gate-integrity:     synthetic, so no cassette-refresh job writes it -- edit the value\n'
+		printf 'golden-corpus-gate-integrity:     to the staged HEAD above (%s).\n' "${staged_head}"
+		printf 'golden-corpus-gate-integrity:     run: rg -n --fixed-strings %s testdata/cassettes/cicdrun/supply-chain-demo.json\n' "${expected}"
+		printf 'golden-corpus-gate-integrity: staged tree entries, listed as evidence for the above\n'
+		printf 'golden-corpus-gate-integrity: (git -C %s ls-tree -r HEAD --name-only):\n' "${staged_repo}"
 		git -C "${staged_repo}" ls-tree -r HEAD --name-only
 	} >&2
 	"${fail_fn}" "${fixture} staged HEAD ${staged_head} must match the run ${run_id} pinned commit ${expected}"

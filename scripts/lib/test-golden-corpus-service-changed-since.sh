@@ -18,14 +18,22 @@ corpus_dir="${case_dir}/corpus"
 fixture_repo="${corpus_dir}/deployable-config"
 mkdir -p "${fixture_repo}"
 cp "${repo_root}/tests/fixtures/ecosystems/deployable-config/catalog-info.yaml" "${fixture_repo}/catalog-info.yaml"
-git -C "${fixture_repo}" -c init.defaultBranch=main init >/dev/null
-git -C "${fixture_repo}" config user.email "gate@eshu.local"
-git -C "${fixture_repo}" config user.name "Golden Gate"
-git -C "${fixture_repo}" add -- catalog-info.yaml
-git -C "${fixture_repo}" update-index --add --cacheinfo \
+# Built through golden_corpus_git, like every other fixture repository the
+# gate creates. Without it a global core.attributesFile assigning a clean
+# filter rewrites catalog-info.yaml on `git add`, the working tree then differs
+# from the index, and the status assertion below fails -- on the machine of
+# whoever has that setting, and nowhere else.
+golden_corpus_git -C "${fixture_repo}" -c init.defaultBranch=main -c init.templateDir= init >/dev/null
+golden_corpus_git -C "${fixture_repo}" config user.email "gate@eshu.local"
+golden_corpus_git -C "${fixture_repo}" config user.name "Golden Gate"
+golden_corpus_git -C "${fixture_repo}" add -- catalog-info.yaml
+golden_corpus_git -C "${fixture_repo}" update-index --add --cacheinfo \
 	160000,5420542054205420542054205420542054205420,vendor/deployable-source
-git -C "${fixture_repo}" commit -m initial >/dev/null
-[[ "$(git -C "${fixture_repo}" status --short --untracked-files=no)" == " D vendor/deployable-source" ]] ||
+GIT_AUTHOR_NAME="Golden Gate" GIT_AUTHOR_EMAIL="gate@eshu.local" \
+	GIT_COMMITTER_NAME="Golden Gate" GIT_COMMITTER_EMAIL="gate@eshu.local" \
+	GIT_AUTHOR_DATE="2026-08-04T12:00:00Z" GIT_COMMITTER_DATE="2026-08-04T12:00:00Z" \
+	golden_corpus_git -C "${fixture_repo}" commit -m initial >/dev/null
+[[ "$(golden_corpus_git -C "${fixture_repo}" status --short --untracked-files=no)" == " D vendor/deployable-source" ]] ||
 	fail "test fixture must mirror the intentionally unpopulated deployable-source gitlink"
 
 mock_active_generation="service-gen:prior"
@@ -57,8 +65,8 @@ while IFS= read -r fixture_line; do
 	[[ "${fixture_line}" == "  owner: group:default/runtime-platform" ]] && owner_mutation_present=true
 done <"${fixture_repo}/catalog-info.yaml"
 [[ "${owner_mutation_present}" == "true" ]] || fail "owner mutation missing"
-[[ "$(git -C "${fixture_repo}" rev-list --count HEAD)" == "2" ]] || fail "owner mutation did not create exactly one new commit"
-[[ "$(git -C "${fixture_repo}" status --short --untracked-files=no)" == " D vendor/deployable-source" ]] ||
+[[ "$(golden_corpus_git -C "${fixture_repo}" rev-list --count HEAD)" == "2" ]] || fail "owner mutation did not create exactly one new commit"
+[[ "$(golden_corpus_git -C "${fixture_repo}" status --short --untracked-files=no)" == " D vendor/deployable-source" ]] ||
 	fail "owner mutation changed the pre-existing gitlink status"
 
 mock_active_generation="service-gen:current"
