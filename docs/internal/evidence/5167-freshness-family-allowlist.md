@@ -37,12 +37,12 @@ three shipped off that ledger; the third did not:
   `docs/public/reference/http-api/status-admin.md`.
 - `TestToolsPreserveFreshnessRegistrationContract`
   (`go/internal/mcp/freshness/tools_test.go`) pins a SHA-256 over the marshalled
-  freshness tool definitions, so the description edit moves that pin from
-  `eaa37368...` to `dd7c7265...`. The pin exists to make a tool-contract change
-  deliberate rather than accidental; this one is deliberate and is the only
-  artifact the description edit touches. No cassette, no B-12 snapshot entry,
-  and neither generated capability-catalog file carries tool or operation
-  description text (`catalog.generated.json` and
+  freshness tool definitions, so the description edits move that pin from
+  `eaa37368...` to `830b1f20...`, the value this branch ends on. The pin exists
+  to make a tool-contract change deliberate rather than accidental; these edits
+  are deliberate and the pin is the only artifact they touch. No cassette, no
+  B-12 snapshot entry, and neither generated capability-catalog file carries
+  tool or operation description text (`catalog.generated.json` and
   `surface-inventory.generated.json` record `{category, name, readiness}`
   only), so nothing is regenerated here.
 

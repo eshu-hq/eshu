@@ -61,7 +61,7 @@ The query-playbook definitions hash is
 The relationship-edge definition hash is
 `d3c56a788ae3818221a05c3ccb28a7a7a278c27ffdb8aa3722bcfe785e657ca3`.
 The freshness definitions hash is
-`eaa373680ec77f5007fa6c46507485d987a53507e08df2868091cb18cc7c6c23`.
+`830b1f207016d75dc592ffe8b1dc9893f64cbc2ea7e7530cdbc6028a731adee4`.
 The investigation workflow and packet definitions are 4,824 serialized bytes
 with SHA-256
 `393e7901eda034e7a18a8a043895e2cde337dc0b103f994126bcc7ae972b8a82`.
