@@ -14,8 +14,7 @@ import (
 
 // This file holds this family's decode wrapper for the aws_relationship fact
 // kind, named factschema_decode_aws.go to match the repo-wide convention
-// (root's go/internal/projector/factschema_decode_aws.go,
-// go/internal/projector/ec2/factschema_decode_aws.go,
+// (go/internal/projector/ec2/factschema_decode_aws.go,
 // go/internal/projector/observabilitycoverage/factschema_decode_aws.go) so
 // the payload-usage manifest gate (scripts/verify-payload-usage-manifest.sh,
 // issue #4573) discovers it: that gate globs factschema_decode*.go files

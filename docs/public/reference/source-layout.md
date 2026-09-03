@@ -84,6 +84,7 @@ live in the repository today.
 | `go/internal/projector/intent/` | dependency-neutral reducer-intent values, source labels, and immutable fact index for extracted projector families |
 | `go/internal/projector/kubernetes/` | Kubernetes live-workload and namespace reducer-intent family builders |
 | `go/internal/projector/observabilitycoverage/` | observability-coverage-correlation reducer-intent family builder and its aws_resource decode wrapper |
+| `go/internal/projector/observabilitycoveragematerialization/` | observability-coverage-materialization reducer-intent family builder and its aws_resource decode wrapper |
 | `go/internal/projector/packagesource/` | package-source-correlation reducer-intent family builder |
 | `go/internal/projector/rds/` | RDS posture-materialization reducer-intent family builder |
 | `go/internal/projector/s3/` | S3 LOGS_TO, external-principal-grant, and internet-exposure reducer-intent family builders |

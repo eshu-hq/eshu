@@ -14,7 +14,7 @@ import (
 
 // This file holds this family's decode wrapper for the ec2_instance_posture
 // fact kind, named factschema_decode_aws.go to match the repo-wide convention
-// (root's go/internal/projector/factschema_decode_aws.go,
+// (go/internal/projector/observabilitycoverage/factschema_decode_aws.go,
 // go/internal/reducer/factschema_decode.go) so the payload-usage manifest gate
 // (scripts/verify-payload-usage-manifest.sh, issue #4573) discovers it: that
 // gate globs factschema_decode*.go files and AST-scans each function body for
@@ -23,9 +23,10 @@ import (
 // decodeEC2InstancePosture decodes one ec2_instance_posture envelope into the
 // typed awsv1.EC2InstancePosture struct through the contracts seam. This
 // family package keeps its own decode call rather than importing root
-// projector's classified-decode wrapper (root's factschema_decode_aws.go):
-// sharing it would require this package to import root, which root already
-// imports to dispatch to this package — an import cycle. The sole caller
+// projector's classified-decode wrapper (newProjectorDecodeError in root's
+// factschema_quarantine.go): sharing it would require this package to import
+// root, which root already imports to dispatch to this package — an import
+// cycle. The sole caller
 // (BuildUsesProfileMaterializationReducerIntent) only checks err != nil and
 // discards the wrapped error's classification, so this direct
 // factschema.DecodeEC2InstancePosture call plus fact-kind-labeled wrapping is

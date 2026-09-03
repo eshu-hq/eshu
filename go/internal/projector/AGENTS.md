@@ -163,25 +163,52 @@
   and consumes the lookup like the families above. It is a decode-seam-bearing
   family: its AWS branch decodes `aws_resource.resource_type` through its own
   `factschema_decode_aws.go` against `sdk/go/factschema` (the `ec2` pattern).
-  Its `observabilityResourceTypes` set is a three-way mirror with root's
-  materialization trigger
-  (`observability_coverage_materialization_intents.go`) and the reducer's
+  Its `observabilityResourceTypes` set is a three-way mirror with the
+  materialization family's copy
+  (`observabilitycoveragematerialization/materialization_intents.go`) and the
+  reducer's
   `observabilityResourceSignals`
-  (`go/internal/reducer/observability_coverage_correlation_index.go`); a
+  (`go/internal/reducer/obscoverage/observability_coverage_correlation_index.go`); a
   resource type added to one copy must be added to all three. The root
   `firstMatchingKindPredicate` forwarder was removed with this extraction —
   this family was its last root caller; remaining root builders use
   `firstOfKind`, `firstOfKindMatching`, and `firstAcrossKinds`, and the
   seam's per-distinct-kind evaluation proof now lives in
   `intent/fact_lookup_test.go`.
+- **Observability-coverage-materialization family (#6057)** — the
+  `observability_coverage_materialization` builder lives in
+  `observabilitycoveragematerialization/` and consumes the lookup like the
+  families above. It is the narrower half of the #391 pair: unlike the sibling
+  correlation family it triggers on `aws_resource` facts ONLY, and only on
+  those whose decoded `resource_type` is in the same six-entry
+  `observabilityResourceTypes` set — an observability source fact alone never
+  produces a materialization intent, because a COVERS edge needs an AWS-native
+  observability object. It is a decode-seam-bearing family with its own
+  `factschema_decode_aws.go` (the `ec2` pattern); its wrapper is named
+  `decodeCoverageMaterializationAWSResource` because the payload-usage manifest
+  attributes field reads by wrapper name and the sibling already holds
+  `decodeObservabilityAWSResource`. Unlike the sibling, this family uses the
+  shared two-tier `projectorintent.SourceSystem` — it has no literal third
+  fallback — and its entity key is the shared
+  `aws_resource_materialization:<scope>`, not a family-distinct one, so the
+  reducer's canonical-nodes readiness gate resolves the same row the AWS node
+  builders publish. Root's `factschema_decode_aws.go` was deleted with this
+  extraction: this family was `decodeAWSResource`'s last root caller. The root
+  `buildProjection` dispatch tests and the `observabilityAWSResourceEnvelope`
+  fixture stay in `observability_coverage_materialization_intents_test.go` at
+  root — the fixture is shared with `scope_generation_intents_fanout_test.go`,
+  and one of the cases asserts BOTH observability domains are absent, so it is
+  not a single-family file.
 - **IAM instance-profile-role family (#6057)** — the
   `iam_instance_profile_role_materialization` builder lives in
   `iaminstanceprofile/` and consumes the lookup like the families above. It is
   a decode-seam-bearing family: its trigger predicate decodes
   `aws_resource.resource_type` through its own `factschema_decode_aws.go`
   against `sdk/go/factschema` (the `ec2` pattern) and matches
-  `aws_iam_instance_profile`, so root's classified `decodeAWSResource` wrapper
-  keeps observability-coverage materialization as its remaining root caller.
+  `aws_iam_instance_profile`. Root's classified `decodeAWSResource` wrapper had
+  observability-coverage materialization as its last root caller; that family
+  was extracted too, so `factschema_decode_aws.go` no longer exists at root and
+  every projector `aws_resource` decode is now package-local.
   A no-role instance profile still triggers — the reducer's retract pass must
   run in a generation whose profile dropped its roles — and the intent shares
   the `aws_resource_materialization:<scope>` entity key with the AWS node
@@ -262,8 +289,10 @@
   root `awsCloudRuntimeDriftSourceSystem` helper was byte-identical to
   `projectorintent.SourceSystem`, but unlike the CI/CD and container-image
   precedents it could not simply be dropped: two OTHER root builders
-  (`aws_resource_materialization_intents.go` and
-  `observability_coverage_materialization_intents.go`) still called it, so
+  (`aws_resource_materialization_intents.go` and the then-root
+  `observability_coverage_materialization_intents.go`, since extracted to
+  `observabilitycoveragematerialization/materialization_intents.go`) still
+  called it, so
   both call sites were repointed to `projectorintent.SourceSystem` directly in
   this same change before the helper's definition moved out. This family IS
   covered by the root fan-out parity fixture —

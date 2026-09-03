@@ -24,6 +24,7 @@ import (
 	projectorkubernetes "github.com/eshu-hq/eshu/go/internal/projector/kubernetes"
 	projectormulticloudruntimedrift "github.com/eshu-hq/eshu/go/internal/projector/multicloudruntimedrift"
 	projectorobservabilitycoverage "github.com/eshu-hq/eshu/go/internal/projector/observabilitycoverage"
+	projectorobservabilitycoveragematerialization "github.com/eshu-hq/eshu/go/internal/projector/observabilitycoveragematerialization"
 	projectorpackagesource "github.com/eshu-hq/eshu/go/internal/projector/packagesource"
 	projectorrds "github.com/eshu-hq/eshu/go/internal/projector/rds"
 	projectors3 "github.com/eshu-hq/eshu/go/internal/projector/s3"
@@ -98,7 +99,7 @@ func appendScopeGenerationReducerIntents(
 	if intent, ok := projectorawscloudimage.BuildAWSCloudImageMaterializationReducerIntent(scopeValue.ScopeID, generation.GenerationID, index.lookup); ok {
 		intents = append(intents, intent)
 	}
-	if intent, ok := buildObservabilityCoverageMaterializationReducerIntent(scopeValue, generation, index); ok {
+	if intent, ok := projectorobservabilitycoveragematerialization.BuildObservabilityCoverageMaterializationReducerIntent(scopeValue.ScopeID, generation.GenerationID, index.lookup); ok {
 		intents = append(intents, intent)
 	}
 	if intent, ok := projectorobservabilitycoverage.BuildObservabilityCoverageCorrelationReducerIntent(scopeValue.ScopeID, generation.GenerationID, index.lookup); ok {

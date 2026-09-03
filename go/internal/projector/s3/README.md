@@ -39,7 +39,7 @@ root projector package. `BuildLogsToMaterializationReducerIntent` also
 decodes the `s3_bucket_posture` payload through this package's own
 `factschema_decode_aws.go` (`sdk/go/factschema` plus `internal/factenvelope`
 directly), rather than importing root's classified decode wrapper
-(`projectorDecodeError` in root's `factschema_decode_aws.go`), because
+(`projectorDecodeError` in root's `factschema_quarantine.go`), because
 importing root would create an import cycle (root already imports this
 package to dispatch to it). The single caller here only checks `err != nil`,
 discarding the decode error's classification, so the direct

@@ -26,10 +26,11 @@
   `FirstMatchingKindPredicate` prunes kinds before per-envelope decodes, not
   to change admission.
 - `observabilityResourceTypes` is this package's copy of a three-way mirror:
-  root's materialization trigger
-  (`../observability_coverage_materialization_intents.go`) keeps the same set
+  the materialization family's trigger
+  (`../observabilitycoveragematerialization/materialization_intents.go`) keeps
+  the same set
   and both mirror the reducer's `observabilityResourceSignals`
-  (`go/internal/reducer/observability_coverage_correlation_index.go`). A
+  (`go/internal/reducer/obscoverage/observability_coverage_correlation_index.go`). A
   resource type added to one copy must be added to all three.
 - `observabilitySourceSystem` keeps the family's literal third-tier
   `"observability"` fallback. It is NOT body-identical to the two-tier
@@ -83,9 +84,11 @@
 
 - Do not substitute `projectorintent.SourceSystem` for the local
   three-tier helper; the third tier is load-bearing and pinned.
-- Do not import the root `projector` package, and do not import root's
-  `decodeAWSResource` wrapper — this package keeps its own decode call the
-  way `ec2` does.
+- Do not import the root `projector` package. Root has no `aws_resource`
+  decode wrapper left to share either — its `decodeAWSResource` was deleted
+  when the observability-coverage-materialization family, its last caller,
+  was extracted — so this package keeps its own decode call the way `ec2`
+  does.
 - Do not widen the export surface past
   `BuildObservabilityCoverageCorrelationReducerIntent`. Every sibling family
   in this series exports exactly one builder and no types.

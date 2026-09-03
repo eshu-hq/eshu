@@ -91,7 +91,8 @@ key, reason, anchor selection, and source-system derivation are identical to
 the base commit, and the dispatcher's ordered fan-out is unchanged at 44
 builder probes with this probe still running immediately after
 `awsrelationship.BuildAWSRelationshipMaterializationReducerIntent` and
-immediately before `buildObservabilityCoverageMaterializationReducerIntent`.
+immediately before
+`observabilitycoveragematerialization.BuildObservabilityCoverageMaterializationReducerIntent`.
 The root `awsCloudRuntimeDriftSourceSystem` helper it called was compared
 body-for-body against its `projectorintent.SourceSystem` replacement (both
 trim `SourceRef.SourceSystem` and fall back to a trimmed `CollectorKind`,

@@ -1,21 +1,26 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package projector
+package observabilitycoveragematerialization
 
 import (
 	"github.com/eshu-hq/eshu/go/internal/facts"
 	projectorintent "github.com/eshu-hq/eshu/go/internal/projector/intent"
 	"github.com/eshu-hq/eshu/go/internal/reducer"
-	"github.com/eshu-hq/eshu/go/internal/scope"
 )
 
 // observabilityResourceTypes is the closed set of AWS-native observability
 // object resource types (issue #391). An intent to materialize COVERS edges is
 // only worth enqueuing when at least one of these is present in the generation:
-// without an observability object there can be no coverage edge. It mirrors the
-// reducer's observabilityResourceSignals map so the trigger and the classifier
-// agree on what counts as an observability object.
+// without an observability object there can be no coverage edge. It is this
+// package's copy of a three-way mirror: the sibling correlation family keeps
+// the same set in
+// go/internal/projector/observabilitycoverage/correlation_intents.go, and both
+// mirror the reducer's observabilityResourceSignals map in
+// go/internal/reducer/obscoverage/observability_coverage_correlation_index.go,
+// so the triggers and the classifier agree on what counts as an observability
+// object.
+// A resource type added to one copy must be added to all three.
 var observabilityResourceTypes = map[string]struct{}{
 	"aws_cloudwatch_alarm":           {},
 	"aws_cloudwatch_composite_alarm": {},
@@ -25,7 +30,7 @@ var observabilityResourceTypes = map[string]struct{}{
 	"aws_xray_group":                 {},
 }
 
-// buildObservabilityCoverageMaterializationReducerIntent enqueues one reducer
+// BuildObservabilityCoverageMaterializationReducerIntent enqueues one reducer
 // intent that projects the scope generation's exact observability coverage
 // decisions into canonical COVERS graph edges (issue #391 PR3). The intent fires
 // when any observability aws_resource fact is present, since that is the only
@@ -37,35 +42,25 @@ var observabilityResourceTypes = map[string]struct{}{
 // readiness gate resolves the exact GraphProjectionPhaseCanonicalNodesCommitted
 // row that #805 PR1 publishes for the same acceptance unit — coverage edges
 // never project before the CloudResource nodes commit.
-func buildObservabilityCoverageMaterializationReducerIntent(
-	scopeValue scope.IngestionScope,
-	generation scope.ScopeGeneration,
-	index *reducerIntentFactIndex,
-) (ReducerIntent, bool) {
-	envelope, ok := index.firstOfKindMatching(facts.AWSResourceFactKind, func(envelope facts.Envelope) bool {
+func BuildObservabilityCoverageMaterializationReducerIntent(
+	scopeID string,
+	generationID string,
+	lookup projectorintent.FactLookup,
+) (projectorintent.ReducerIntent, bool) {
+	envelope, ok := lookup.FirstOfKindMatching(facts.AWSResourceFactKind, func(envelope facts.Envelope) bool {
 		_, ok := observabilityResourceTypes[awsResourceTypeForEnvelope(envelope)]
 		return ok
 	})
 	if !ok {
-		return ReducerIntent{}, false
+		return projectorintent.ReducerIntent{}, false
 	}
-	return ReducerIntent{
-		ScopeID:      scopeValue.ScopeID,
-		GenerationID: generation.GenerationID,
+	return projectorintent.ReducerIntent{
+		ScopeID:      scopeID,
+		GenerationID: generationID,
 		Domain:       reducer.DomainObservabilityCoverageMaterialization,
-		EntityKey:    "aws_resource_materialization:" + scopeValue.ScopeID,
+		EntityKey:    "aws_resource_materialization:" + scopeID,
 		Reason:       "aws observability resource facts observed",
 		FactID:       envelope.FactID,
 		SourceSystem: projectorintent.SourceSystem(envelope),
 	}, true
-}
-
-// awsResourceTypeForEnvelope returns the resource_type string from an
-// aws_resource fact payload, or empty when absent.
-func awsResourceTypeForEnvelope(envelope facts.Envelope) string {
-	resource, err := decodeAWSResource(envelope)
-	if err != nil {
-		return ""
-	}
-	return resource.ResourceType
 }

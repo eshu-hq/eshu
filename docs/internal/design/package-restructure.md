@@ -931,10 +931,11 @@ AWS branch, both already mirror the reducer's
 `observabilityResourceSignals`, and the set is now a documented three-way
 mirror rather than a new shared seam. The once-recorded `decodeAWSResource`
 pairing with the IAM instance-profile-role family dissolved instead of
-blocking the move: root's wrapper stays for its two remaining root callers
-(the observability-coverage materialization trigger via
+blocking the move: root's wrapper stayed for its two remaining root callers at
+the time (the observability-coverage materialization trigger via
 `awsResourceTypeForEnvelope`, and IAM instance-profile-role), and this family
-no longer touches it. Its private `observabilitySourceSystem` helper was
+no longer touches it. Both of those callers have since been extracted too, so
+root's `factschema_decode_aws.go` no longer exists. Its private `observabilitySourceSystem` helper was
 checked body-for-body against `projectorintent.SourceSystem` and was not
 identical: it carries a literal third fallback to `observability` where the
 shared helper returns an empty string, so it moved with the family unchanged,
@@ -945,6 +946,34 @@ proof relocated to `intent/fact_lookup_test.go` against the seam directly.
 The unsupported-schema-version regression test stays at root in
 `schema_version_admission_test.go` because it asserts root's
 `validateFactSchemaVersion`, not the builder.
+The observability-coverage-materialization builder moved into
+`internal/projector/observabilitycoveragematerialization`. The directory name
+keeps the family's `materialization` word, unlike the sibling extractions that
+drop it (`incidentrouting`, `awscloudimage`), because the base name
+`observabilitycoverage` is already taken by the correlation half of the same
+#391 pair; the name is still the file's own name with `_intents` stripped and
+underscores removed, so the landed convention is applied rather than replaced.
+It triggers on `aws_resource` facts only, and only those whose decoded
+`resource_type` is in the AWS-native observability closed set, anchoring with
+`FirstOfKindMatching` on the earliest such fact in input order. Unlike the
+correlation family it keeps the shared two-tier `projectorintent.SourceSystem`
+label it already used, and its entity key stays the shared
+`aws_resource_materialization:<scope>` so the reducer's canonical-nodes
+readiness gate resolves the row the AWS node builders publish. It carries a
+decode seam: the child keeps its own `factschema_decode_aws.go` (the `ec2`
+pattern) under the family-distinct name
+`decodeCoverageMaterializationAWSResource`, since the payload-usage manifest
+attributes field reads by wrapper name and the sibling holds
+`decodeObservabilityAWSResource`. This family was the last root caller of
+root's classified `decodeAWSResource`, so root's `factschema_decode_aws.go`
+was deleted rather than left as dead code — the disposition
+`containerimageidentity` and `iamcanassume` already applied to their root
+wrappers — and the `factschema_decode_aws.go` convention-anchor citations in
+the sibling seam files were repointed off root in the same change. The root
+`buildProjection` dispatch tests stay at root: one case asserts both
+observability domains are absent from an input-invalid generation, and the
+file's `observabilityAWSResourceEnvelope` fixture is shared with the ordered
+fan-out test.
 The IAM instance-profile-role builder moved into
 `internal/projector/iaminstanceprofile`. It triggers on an `aws_resource`
 fact whose decoded `resource_type` is `aws_iam_instance_profile`, anchored to
@@ -955,8 +984,9 @@ the earliest such fact via `FirstOfKindMatching` — a no-role profile (empty
 for the canonical-nodes readiness gate, and carries a decode seam: the child
 keeps its own `factschema_decode_aws.go` against `sdk/go/factschema` (the
 `ec2`/`observabilitycoverage` pattern) instead of importing root's classified
-`decodeAWSResource` wrapper, which stays at root for its remaining
-observability-coverage materialization caller. Its source-system call was the
+`decodeAWSResource` wrapper, which stayed at root for its remaining
+observability-coverage materialization caller until that family was extracted
+too and root's `factschema_decode_aws.go` was deleted. Its source-system call was the
 root `awsCloudRuntimeDriftSourceSystem` helper, compared body-for-body
 against `projectorintent.SourceSystem`: both are the identical two tiers
 (trimmed `SourceRef.SourceSystem`, else trimmed `CollectorKind`) with no
