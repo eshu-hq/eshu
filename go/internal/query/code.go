@@ -457,7 +457,10 @@ func (h *CodeHandler) lookupComplexityRow(
 	if err != nil {
 		return nil, err
 	}
-	if row == nil && strings.TrimSpace(functionName) != "" {
+	// The name fallback answers a stale id, and only a lookup that searched
+	// every repository can prove the id is stale. See
+	// complexityIDLookupIsRepositoryBound.
+	if row == nil && strings.TrimSpace(functionName) != "" && !complexityIDLookupIsRepositoryBound(repoID, access) {
 		return h.lookupComplexityRowByName(ctx, functionName, repoID, access)
 	}
 	return row, nil

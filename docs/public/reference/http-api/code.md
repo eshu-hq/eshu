@@ -333,6 +333,12 @@ alone returned that entity from whichever repository held it and a supplied
 repository than the `repo_id` you named returns `404 entity not found`. Drop
 `repo_id` to look the entity up wherever it lives.
 
+A `function_name` sent alongside `entity_id` is not a fallback for that 404.
+The name answers a stale entity id only when the id lookup was bound to no
+repository — no `repo_id`, and an unscoped token — because only then does an
+empty result prove the id is gone rather than held somewhere the lookup could
+not see.
+
 A `repo_id` sent without `entity_id` or `function_name` now restricts the ranked
 list to that repository. Before this change the list branch bound the repository
 side of its scan optionally, so a supplied `repo_id` did not filter: the answer

@@ -3,7 +3,10 @@
 
 package query
 
-import "context"
+import (
+	"context"
+	"strings"
+)
 
 // lookupComplexityRowByName resolves a complexity row by function name. access
 // appends the caller's grant to the Repository anchor's WHERE, so a scoped
@@ -80,6 +83,25 @@ func (h *CodeHandler) lookupComplexityRowByID(
 		LIMIT 1
 	`, access.GraphParams(params))
 	return row, err
+}
+
+// complexityIDLookupIsRepositoryBound reports whether the entity-id lookup was
+// restricted to a set of repositories, which decides whether an empty result
+// may fall back to the function name.
+//
+// The fallback exists for a stale id: a caller holding an id the graph no
+// longer has still gets the function it named. An unrestricted lookup proves
+// that case, because it searched the whole index and found nothing. A lookup
+// bound to a repository -- by a supplied repo_id, or by a scoped caller's grant
+// -- proves nothing of the sort: the id may be live in a repository the lookup
+// excluded, and answering with a same-named function from the requested
+// repository would hand an exact-id caller another entity's metrics. That
+// request is not-found, which is what the route's OpenAPI description and
+// [HTTP API — Code] promise for an entity id held by another repository.
+//
+// [HTTP API — Code]: https://github.com/eshu-hq/eshu/blob/main/docs/public/reference/http-api/code.md
+func complexityIDLookupIsRepositoryBound(repoID string, access repositoryAccessFilter) bool {
+	return strings.TrimSpace(repoID) != "" || access.Scoped()
 }
 
 func complexityCandidateProjection() string {

@@ -276,20 +276,17 @@ entities it finished — the ones it returned rows for and moved past before the
 cap — and every other entity takes `consumer_evidence_truncated` and answers
 unknown, never `dead`. Page rows are not coverage: an entity with strong granted
 evidence still takes the marker when the signal read stopped before reaching it,
-because that unread half is where an ungranted consumer would be. Coverage is
-read off the returned rows rather than by ranking ids against the last one
-returned, which would need the database's collation, not Go's byte order. Both
-halves are pinned: `TestCrossRepoDeadCodeSignalTruncationKeepsCandidatesUnknown`
-and `TestCrossRepoDeadCodeSignalTruncationMarksEntitiesTheSignalNeverReached`.
+because that unread half is where an ungranted consumer would be. Both halves
+are pinned: `TestCrossRepoDeadCodeSignalTruncationKeepsCandidatesUnknown` and
+`TestCrossRepoDeadCodeSignalTruncationMarksEntitiesTheSignalNeverReached`.
 
 ### Two Bounded Reads, Not An Unbounded Complement
 
 The first version of that signal was a statement of its own, counting the
-*complement* of the page with one `LATERAL` arm per producer entity, each
-capped at 100 rows. That cap bounds rows returned, not rows scanned, and it
-misses the common case: when the grant covers most consumers, every arm
-inspects all of its entity's reachability rows to prove none are outside the
-grant.
+*complement* of the page with one `LATERAL` arm per producer entity, each capped
+at 100 rows. That cap bounds rows returned, not rows scanned, and it misses the
+common case: when the grant covers most consumers, every arm inspects all of its
+entity's reachability rows to prove none are outside the grant.
 
 Performance Evidence: `EXPLAIN (ANALYZE, BUFFERS)` on the withdrawn `LATERAL`
 statement and on the shipped signal read, in a throwaway PostgreSQL 16.15
@@ -299,9 +296,8 @@ container, data-plane schema applied from `schema/data-plane/postgres`
 `VACUUM ANALYZE` after seeding, `SET jit = off` on both, warm (second) run
 reported. Host: MacBook Pro, arm64, macOS. 1,300,000 `code_reachability_rows`;
 one active scope and generation; a 50-entity producer page; 2,000 consumer rows
-per page entity, all of them *inside* the grant across five granted
-repositories — the no-hidden worst case — plus 1.2M rows on entity ids off the
-page.
+per page entity, all of them *inside* the grant across five granted repositories
+— the no-hidden worst case — plus 1.2M rows on entity ids off the page.
 
 | Metric | Withdrawn `LATERAL` complement | Shipped signal read |
 | --- | ---: | ---: |
@@ -384,6 +380,7 @@ mutation was restored and its guard rerun at exit `0`.
 | 14 | `complexityListAnchor` keys only on `access.Scoped()`, ignoring the supplied `repoID` | `go test ./internal/query -run TestComplexityListUnscopedRepoIDSelectorFiltersToThatRepository -count=1` | `1` |
 | 15 | `bucketCrossRepoDeadCodeResults` counts the signal rows without the request's consumer selector | `go test ./internal/query -run TestCrossRepoDeadCodeHiddenCountHonoursTheConsumerSelector -count=1` | `1` (a consumer outside the requested set was counted as hidden) |
 | 16 | `markCrossRepoDeadCodeConsumerEvidenceTruncated` skips any entity that already has page rows, the shape before this pass | `go test ./internal/query -run 'TestCrossRepoDeadCodeSignalTruncationMarksEntitiesTheSignalNeverReached\|TestContentReaderCrossRepoDeadCodeEvidenceMarksMissingEntitiesUnknownWhenTruncated' -count=1` | `1` (2 failures: the entity the signal read never reached, and the one it stopped inside) |
+| 17 | `complexityIDLookupIsRepositoryBound` answers `false` for every caller, so the name fallback runs again | `go test ./internal/query -run 'TestHandleComplexityRepoAnchoredEntityIDDoesNotFallBackToName\|TestHandleComplexityScopedEntityIDDoesNotFallBackToName' -count=1` | `1` (2 failures: the repo_id anchor and the grant anchor) |
 
 An earlier attempt at #1 deleted the whole helper body and failed as an unused
 import rather than an assertion, which proves nothing; the mutations above keep
@@ -392,11 +389,11 @@ the package compiling so the failure is the assertion's.
 Rows 6 and 12 are one mutation judged by two guards: row 6 is the call-graph
 route's text guard, row 12 the graph-summary route that shares the builder. The
 same mutation also reddens `go test ./internal/queryplan`, exit `1`, because the
-builder's `source_sha256` moves off the manifest. Row 13 is the status code the ten OpenAPI operations and eleven
-MCP tool descriptions now name. Rows 9, 11 and 14 all mutate
-`complexityListAnchor`: row 9 is the credential-free scoped guard CI runs, row
-14 the unscoped-with-`repo_id` guard, and row 11 the live NornicDB one, the only
-row that settles clause attachment against a real backend. A second engineer
+builder's `source_sha256` moves off the manifest. Row 13 is the status code the
+ten OpenAPI operations and eleven MCP tool descriptions now name. Rows 9, 11 and
+14 all mutate `complexityListAnchor`: row 9 is the credential-free scoped guard
+CI runs, row 14 the unscoped-with-`repo_id` guard, and row 11 the live NornicDB
+one, the only row that settles clause attachment against a real backend. A second engineer
 reran both directions of row 11 on a fresh container from the same pinned digest
 (self-reporting 1.2.2, bolt on port 17787): mutated exit `1` with the leak body
 quoted above, restored exit `0`.
@@ -420,8 +417,8 @@ mkdocs build --strict --clean --config-file docs/mkdocs.yml            # 0
 git diff --check                                                      # 0
 ```
 
-The lint list is the full three-dot changed `.go` set (64 paths), so the
-queryplan re-audit this PR leans on is inside the gate it cites.
+The lint list is the full three-dot changed `.go` set, so the queryplan
+re-audit this PR leans on is inside the gate it cites.
 
 On origin/main `code_dead_code.go` was 496 lines and `code_dead_code_scan.go`
 was 468; this change pushed both over the 500-line cap, and
@@ -464,7 +461,11 @@ execute is byte-identical to before — with two deliberate exceptions, both on
 and the query then ignored. `lookupComplexityRowByID` now emits
 `WHERE repo.id = $repo_id` whenever `repo_id` is supplied, so
 `{"entity_id":"X","repo_id":"A"}` used to return X's row from repository B and
-now returns not-found. `listMostComplexFunctions` takes the required Repository
+now returns not-found, and a `function_name` sent with it no longer softens
+that: the name fallback runs only for an id lookup bound to no repository, the
+one case where an empty result proves the id stale rather than held elsewhere
+(`complexityIDLookupIsRepositoryBound`). `listMostComplexFunctions` takes the
+required Repository
 anchor on the same condition, so `{"repo_id":"A"}` ranks A's functions instead
 of the whole corpus with other repositories' rows nulled. Both are user-visible
 row-set fixes, documented in the route's OpenAPI description and in
