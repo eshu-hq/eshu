@@ -62,7 +62,7 @@
   parity test (`TestEveryRegisteredToolHasDispatchRoute` in `tools_test.go`),
   the shared HTTP contract, and applicable golden-corpus proof.
 - Change a selector-validation error message only against this package's own
-  `routes_test.go`, which asserts both messages by exact equality, and
+  `routes_test.go`, which asserts all three messages by exact equality, and
   `dispatch_service_story_test.go` in the parent package, which pins the
   `get_service_context` message through the full dispatch chain.
   `dispatch_service_investigation_authz_test.go` does NOT assert any message --

@@ -181,12 +181,19 @@ func TestRouteMapsGetServiceIntelligenceReport(t *testing.T) {
 func TestRouteGetServiceIntelligenceReportRequiresSelector(t *testing.T) {
 	t.Parallel()
 
-	_, handled, err := Route("get_service_intelligence_report", routecontract.Arguments{})
+	request, handled, err := Route("get_service_intelligence_report", routecontract.Arguments{})
 	if !handled {
 		t.Fatal("Route() handled = false, want true")
 	}
-	if err == nil {
-		t.Fatal("Route() error = nil, want an error when no workload_id/service_name provided")
+	// Assert the message, not just that an error exists. This route builds its
+	// own string rather than sharing the %s-formatted one the context and story
+	// routes use, so a reword here is caught by nothing else.
+	const wantError = "get_service_intelligence_report requires workload_id or service_name"
+	if err == nil || err.Error() != wantError {
+		t.Fatalf("Route() error = %v, want %q", err, wantError)
+	}
+	if !reflect.DeepEqual(request, routecontract.Request{}) {
+		t.Fatalf("Route() request = %#v, want zero request", request)
 	}
 }
 
