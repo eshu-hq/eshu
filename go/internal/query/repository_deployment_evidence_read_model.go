@@ -14,14 +14,13 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/environment"
 	"github.com/eshu-hq/eshu/go/internal/ghactionsref"
+	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
 )
 
-type repositoryDeploymentEvidenceReadModel struct {
-	Available bool
-	Rows      []map[string]any
-	Limit     int
-	Truncated bool
-}
+// repositoryDeploymentEvidenceReadModel is the shared read model, aliased so
+// this package's call sites keep their unexported spelling while a
+// ContentStore double outside package query can still name it (#6060).
+type repositoryDeploymentEvidenceReadModel = querycontract.RepositoryDeploymentEvidenceReadModel
 
 type repositoryDeploymentEvidenceReadModelStore interface {
 	RepositoryDeploymentEvidence(context.Context, string) (repositoryDeploymentEvidenceReadModel, error)

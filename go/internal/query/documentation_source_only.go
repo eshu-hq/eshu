@@ -18,7 +18,8 @@ func (cr *ContentReader) documentationSourceOnlySummary(
 	ctx context.Context,
 	filter documentationFindingFilter,
 ) (documentationTargetCoverage, error) {
-	if cr == nil || cr.db == nil || !documentationTargetScopeFromFindingFilter(filter).hasSelector() {
+	if cr == nil || cr.db == nil ||
+		!documentationTargetScopeHasSelector(documentationTargetScopeFromFindingFilter(filter)) {
 		return documentationTargetCoverage{}, nil
 	}
 	ctx, span := cr.tracer.Start(

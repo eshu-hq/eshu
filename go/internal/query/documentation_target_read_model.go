@@ -10,33 +10,21 @@ import (
 	"strings"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/trace"
 )
 
 const documentationTargetFactPreviewLimit = 10
 
-type documentationTargetScope struct {
-	Repository string `json:"repository,omitempty"`
-	TargetKind string `json:"target_kind,omitempty"`
-	TargetID   string `json:"target_id,omitempty"`
-	ServiceID  string `json:"service_id,omitempty"`
-}
-
-type documentationTargetCoverage struct {
-	Target              documentationTargetScope `json:"target,omitempty"`
-	FindingsReturned    int                      `json:"findings_returned"`
-	TargetFactCount     int                      `json:"target_fact_count"`
-	TargetFactKinds     map[string]int           `json:"target_fact_kinds,omitempty"`
-	SourceOnlyCount     int                      `json:"source_only_count,omitempty"`
-	SourceOnlyFactKinds map[string]int           `json:"source_only_fact_kinds,omitempty"`
-	Truncated           bool                     `json:"truncated"`
-}
-
-type documentationMissingEvidence struct {
-	Reason string `json:"reason"`
-	Detail string `json:"detail,omitempty"`
-}
+// The target readback types are aliases onto querycontract, so this package's
+// call sites keep their unexported spelling while a ContentStore double
+// outside package query can still name them (#6060).
+type (
+	documentationTargetScope     = querycontract.DocumentationTargetScope
+	documentationTargetCoverage  = querycontract.DocumentationTargetCoverage
+	documentationMissingEvidence = querycontract.DocumentationMissingEvidence
+)
 
 type documentationTargetRef struct {
 	kind string
@@ -52,7 +40,7 @@ func documentationFindingsResponse(readModel documentationFindingListReadModel) 
 		"findings":    findings,
 		"next_cursor": readModel.NextCursor,
 	}
-	if !readModel.hasTargetReadback() {
+	if !documentationFindingListHasTargetReadback(readModel) {
 		return body
 	}
 	relatedFacts := readModel.RelatedFacts
@@ -69,15 +57,24 @@ func documentationFindingsResponse(readModel documentationFindingListReadModel) 
 	return body
 }
 
-func (m documentationFindingListReadModel) hasTargetReadback() bool {
-	return m.Coverage.Target.hasSelector() ||
+// documentationFindingListHasTargetReadback reports whether the read model
+// carries a target readback worth emitting. It is a function rather than a
+// method because documentationFindingListReadModel is now an alias onto
+// querycontract, and Go only allows methods in the package that declares the
+// type.
+func documentationFindingListHasTargetReadback(m documentationFindingListReadModel) bool {
+	return documentationTargetScopeHasSelector(m.Coverage.Target) ||
 		m.Coverage.TargetFactCount > 0 ||
 		m.Coverage.SourceOnlyCount > 0 ||
 		len(m.RelatedFacts) > 0 ||
 		len(m.MissingEvidence) > 0
 }
 
-func (s documentationTargetScope) hasSelector() bool {
+// documentationTargetScopeHasSelector reports whether the scope names anything
+// to anchor a readback to. TargetKind alone does not count: a kind with no id
+// selects every target of that kind, which is not an anchor. It is a function
+// for the same aliasing reason as the readback check above.
+func documentationTargetScopeHasSelector(s documentationTargetScope) bool {
 	return strings.TrimSpace(s.Repository) != "" ||
 		strings.TrimSpace(s.TargetID) != "" ||
 		strings.TrimSpace(s.ServiceID) != ""
@@ -346,7 +343,7 @@ func documentationStringAny(raw any) string {
 }
 
 func documentationMissingEvidenceForTarget(coverage documentationTargetCoverage) []documentationMissingEvidence {
-	if !coverage.Target.hasSelector() {
+	if !documentationTargetScopeHasSelector(coverage.Target) {
 		return nil
 	}
 	if coverage.FindingsReturned > 0 {
@@ -374,7 +371,8 @@ func (cr *ContentReader) documentationTargetFacts(
 	ctx context.Context,
 	filter documentationFindingFilter,
 ) ([]map[string]any, bool, error) {
-	if cr == nil || cr.db == nil || !documentationTargetScopeFromFindingFilter(filter).hasSelector() {
+	if cr == nil || cr.db == nil ||
+		!documentationTargetScopeHasSelector(documentationTargetScopeFromFindingFilter(filter)) {
 		return nil, false, nil
 	}
 	ctx, span := cr.tracer.Start(

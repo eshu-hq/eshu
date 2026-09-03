@@ -6,12 +6,14 @@ package query
 import (
 	"context"
 	"fmt"
+
+	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
 )
 
-type repositoryEntryPointReadModel struct {
-	Available bool
-	Rows      []map[string]any
-}
+// repositoryEntryPointReadModel is the shared read model, aliased so this
+// package's call sites keep their unexported spelling while a ContentStore
+// double outside package query can still name it (#6060).
+type repositoryEntryPointReadModel = querycontract.RepositoryEntryPointReadModel
 
 type repositoryEntryPointReadModelStore interface {
 	RepositoryEntryPoints(context.Context, string) (repositoryEntryPointReadModel, error)

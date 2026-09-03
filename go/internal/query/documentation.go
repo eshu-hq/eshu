@@ -12,6 +12,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
 )
 
@@ -29,51 +30,15 @@ type DocumentationHandler struct {
 	Profile    QueryProfile
 }
 
-type documentationFindingFilter struct {
-	ScopeID              string
-	GenerationID         string
-	Repository           string
-	TargetKind           string
-	TargetID             string
-	ServiceID            string
-	FindingType          string
-	SourceID             string
-	DocumentID           string
-	Status               string
-	TruthLevel           string
-	FreshnessState       string
-	UpdatedSince         *time.Time
-	Limit                int
-	Cursor               string
-	Offset               int
-	AllowedScopeIDs      []string
-	AllowedRepositoryIDs []string
-}
-
-type documentationFindingListReadModel struct {
-	Findings        []map[string]any
-	NextCursor      string
-	RelatedFacts    []map[string]any
-	Coverage        documentationTargetCoverage
-	MissingEvidence []documentationMissingEvidence
-}
-
-type documentationEvidencePacketReadModel struct {
-	Available    bool
-	Denied       bool
-	DeniedReason string
-	Packet       map[string]any
-}
-
-type documentationEvidencePacketFreshnessReadModel struct {
-	Available           bool
-	Denied              bool
-	DeniedReason        string
-	PacketID            string `json:"packet_id"`
-	PacketVersion       string `json:"packet_version"`
-	FreshnessState      string `json:"freshness_state"`
-	LatestPacketVersion string `json:"latest_packet_version"`
-}
+// The documentation read models and filters are aliases onto querycontract, so
+// this package's call sites keep their unexported spelling while a
+// ContentStore double outside package query can still name them (#6060).
+type (
+	documentationFindingFilter                    = querycontract.DocumentationFindingFilter
+	documentationFindingListReadModel             = querycontract.DocumentationFindingListReadModel
+	documentationEvidencePacketReadModel          = querycontract.DocumentationEvidencePacketReadModel
+	documentationEvidencePacketFreshnessReadModel = querycontract.DocumentationEvidencePacketFreshnessReadModel
+)
 
 type documentationReadModelStore interface {
 	DocumentationFindings(context.Context, documentationFindingFilter) (documentationFindingListReadModel, error)

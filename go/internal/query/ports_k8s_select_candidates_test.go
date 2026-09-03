@@ -6,6 +6,8 @@ package query
 import (
 	"context"
 	"sort"
+
+	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
 )
 
 // The #5363 ContentStore additions on the shared fakePortContentStore double
@@ -41,7 +43,7 @@ func (f fakePortContentStore) ListRepoEntitiesByIDs(_ context.Context, repoID st
 
 // ListRepoK8sSelectCandidates projects f.entities' K8sResource rows into the
 // narrow K8sSelectCandidate shape via the same helper the production narrow SQL
-// mirrors (k8sSelectCandidateFromEntity), preserving the comma-ok tri-state and
+// mirrors (querycontract.K8sSelectCandidateFromEntity), preserving the comma-ok tri-state and
 // the relative_path/start_line/entity_id ordering.
 func (f fakePortContentStore) ListRepoK8sSelectCandidates(_ context.Context, repoID string, limit int) ([]K8sSelectCandidate, error) {
 	filtered := make([]EntityContent, 0, len(f.entities))
@@ -57,7 +59,7 @@ func (f fakePortContentStore) ListRepoK8sSelectCandidates(_ context.Context, rep
 	sortEntityContentByLocation(filtered)
 	candidates := make([]K8sSelectCandidate, 0, len(filtered))
 	for _, entity := range filtered {
-		candidates = append(candidates, k8sSelectCandidateFromEntity(entity))
+		candidates = append(candidates, querycontract.K8sSelectCandidateFromEntity(entity))
 		if limit > 0 && len(candidates) >= limit {
 			break
 		}

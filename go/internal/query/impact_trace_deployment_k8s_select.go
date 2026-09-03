@@ -10,6 +10,7 @@ import (
 
 	"go.opentelemetry.io/otel/metric"
 
+	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
 )
 
@@ -65,7 +66,7 @@ func k8sResourceWireRow(row EntityContent) map[string]any {
 		"qualified_name":   qualifiedName,
 		"relative_path":    row.RelativePath,
 		"container_images": images,
-		"namespace":        k8sNamespace(row.Metadata),
+		"namespace":        querycontract.K8sNamespace(row.Metadata),
 		"api_version":      metadataNonEmptyStringValue(row.Metadata, "api_version"),
 	}
 	if selector, ok := row.Metadata["selector"].(string); ok {

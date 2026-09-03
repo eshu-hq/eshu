@@ -105,7 +105,7 @@ func buildStoryTargetDocumentation(
 	findings := storyTargetDocumentationFindings(filter, readModel.Findings)
 	relatedFacts := readModel.RelatedFacts
 	missingEvidence := readModel.MissingEvidence
-	if len(missingEvidence) == 0 && readModel.Coverage.Target.hasSelector() {
+	if len(missingEvidence) == 0 && documentationTargetScopeHasSelector(readModel.Coverage.Target) {
 		missingEvidence = documentationMissingEvidenceForTarget(readModel.Coverage)
 	}
 	if len(findings) == 0 && len(relatedFacts) == 0 &&
@@ -157,7 +157,7 @@ func documentationTargetCoverageMap(coverage documentationTargetCoverage) map[st
 		"target_fact_count": coverage.TargetFactCount,
 		"truncated":         coverage.Truncated,
 	}
-	if coverage.Target.hasSelector() {
+	if documentationTargetScopeHasSelector(coverage.Target) {
 		out["target"] = map[string]any{
 			"repository":  coverage.Target.Repository,
 			"target_kind": coverage.Target.TargetKind,

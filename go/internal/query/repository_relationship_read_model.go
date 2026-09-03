@@ -9,6 +9,8 @@ import (
 	"encoding/json"
 	"fmt"
 	"strings"
+
+	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
 )
 
 // RepositoryRelationshipReadModel is the Postgres read-model fast path for a
@@ -16,14 +18,12 @@ import (
 // from resolved_relationships so API reads avoid the incoming-fanout graph
 // traversal repository_context.go otherwise runs as three separate Neo4j
 // queries (queryRepoDependencies, queryRepoRelationshipOverview,
-// queryRepoConsumers). Available is false when the read model has nothing
-// for the repository, in which case callers must fall back to those graph
-// queries rather than treat a zero-value read model as authoritative.
-type RepositoryRelationshipReadModel struct {
-	Available     bool
-	Relationships []map[string]any
-	Consumers     []map[string]any
-}
+// queryRepoConsumers).
+//
+// It is an alias onto querycontract so the shared ContentStore double can
+// name it from outside this package (#6060). See the querycontract
+// declaration for the Available fallback obligation.
+type RepositoryRelationshipReadModel = querycontract.RepositoryRelationshipReadModel
 
 type repositoryRelationshipReadModelStore interface {
 	RepositoryRelationshipReadModel(context.Context, string) (RepositoryRelationshipReadModel, error)

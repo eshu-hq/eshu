@@ -8,6 +8,8 @@ import (
 	"slices"
 	"sort"
 	"strings"
+
+	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
 )
 
 func buildDeploymentSourceControllerEntity(entity EntityContent) (map[string]any, bool) {
@@ -178,7 +180,7 @@ func collectDeploymentSourceK8sResources(
 			"controller_kind":      StringVal(controller, "controller_kind"),
 			"controller_entity_id": StringVal(controller, "entity_id"),
 			"controller_path":      StringVal(controller, "relative_path"),
-			"namespace":            k8sNamespace(entity.Metadata),
+			"namespace":            querycontract.K8sNamespace(entity.Metadata),
 			// api_version is the resource's raw apiVersion string ("apps/v1",
 			// "v1", ...), captured from the parsed K8sResource content row
 			// (go/internal/parser/yaml/semantics.go:149) so query-time ArgoCD

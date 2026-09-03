@@ -8,22 +8,19 @@ import (
 	"database/sql"
 	"fmt"
 	"strings"
+
+	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
 )
 
 // RepositoryReadModelSummary is the Postgres read-model fast path for a
 // repository's workload names, deployment-platform materialization count,
 // and dependency count -- the same fields repository_context.go otherwise
 // derives from per-field Neo4j graph counts in queryRepositoryContextCounts.
-// Available is false when the read model has nothing for the repository, in
-// which case callers must fall back to the graph counts rather than treat a
-// zero-value summary as authoritative.
-type RepositoryReadModelSummary struct {
-	Available       bool
-	WorkloadNames   []string
-	PlatformCount   int
-	PlatformTypes   []string
-	DependencyCount int
-}
+//
+// It is an alias onto querycontract so the shared ContentStore double can
+// name it from outside this package (#6060). See the querycontract
+// declaration for the Available fallback obligation.
+type RepositoryReadModelSummary = querycontract.RepositoryReadModelSummary
 
 type repositoryReadModelSummaryStore interface {
 	RepositoryReadModelSummary(context.Context, string) (RepositoryReadModelSummary, error)
