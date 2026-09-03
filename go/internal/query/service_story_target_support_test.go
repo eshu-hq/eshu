@@ -390,8 +390,8 @@ func missingSupportReadModel() serviceStoryTargetSupportReadModel {
 }
 
 func (f fakePortContentStore) ServiceStoryTargetSupportEvidence(
-	context.Context,
-	serviceStoryTargetSupportFilter,
+	ctx context.Context,
+	filter serviceStoryTargetSupportFilter,
 ) (serviceStoryTargetSupportReadModel, error) {
-	return f.targetSupportModel, f.targetSupportErr
+	return f.promoted().ServiceStoryTargetSupportEvidence(ctx, filter)
 }

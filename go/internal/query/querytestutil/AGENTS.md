@@ -133,13 +133,22 @@ renaming every one of them.
 
 It did not. Root keeps an unexported adapter with the original field names and
 delegates its methods here, so the callers are untouched and the dispatch rules
-exist once. Use that shape for the remaining shared fakes, and note the size of
-what is waiting: 126 root files name `fakePortContentStore` and one of them
-declares it, so 125 consume it -- the same "declarer excluded" convention
-README.md uses for its 84 and 80. Only 93 build one with a composite literal;
-count constructions, not mentions. It is blocked on the `ContentStore` read
-models moving to `querycontract` first, which is a structural change rather
-than a fake promotion.
+exist once. Use that shape for the remaining shared fakes.
+
+`fakePortContentStore` is the one that needed the structural move first. Its
+fields were typed with read models declared unexported in root, so no adapter
+could name them from another package; those read models moved to `querycontract`
+before the fake could follow. 126 root files name it and one declares it, so 125
+consume it -- the same "declarer excluded" convention README.md uses for its 84
+and 80 -- while 93 build one with a composite literal. Count constructions, not
+mentions.
+
+Its adapter forwards through a single `promoted()` converter rather than
+mapping roughly 45 fields by hand at each call site. That is the shape to copy
+for any fake wide enough that per-field mapping would be written more than once.
+
+What is left after this: `fakeDeadCodeContentStore`, at 35 root files that build
+one.
 
 `fakeGovernanceAuditAppender` (19 root files build it) and
 `fakeScopedTokenResolver` (52) followed the same shape, with one wrinkle each.
@@ -192,10 +201,26 @@ you expect to break. Two ways that goes wrong, both hit here:
   "four root tests" into the commit and these docs. The real number is 10
   (8324 tests run, 0 failing at baseline).
 
-`fakePortContentStore` needs more than an adapter. Its fields are typed with
-unexported root read models (`repositoryEntryPointReadModel`,
-`documentationFindingListReadModel`, and others), and those types have to reach a
-neutral package before the fake can follow.
+Watch for a fake blocked by its own signatures, the way `fakePortContentStore`
+was. Its fields and methods named unexported root read models
+(`repositoryEntryPointReadModel`, `documentationFindingListReadModel`, and 14
+more), so no adapter could have moved it; the types had to reach `querycontract`
+first, with root keeping an alias for each. Four already-exported root types
+needed the same treatment for a less obvious reason: exported is not enough when
+the only way to name them is to import package `query`, which is a cycle from
+here.
+
+Two production symbols moved with it. `k8sSelectCandidateFromEntity` had exactly
+one caller, this fake, so it went to `querycontract` rather than being copied;
+`k8sNamespace` followed because that projection needs it, and a second copy of a
+trim that namespace equality gates SELECTS matching on is a drift risk, not a
+convenience.
+
+When a fake answers a narrow optional port — one package `query` reaches by
+type-asserting the store rather than through `ContentStore` — a signature that
+stops matching does not fail to compile. The assertion goes false and the
+handler takes its fallback path, so every test still passes. Mutate one of
+those methods as part of the delegation proof, not just a `ContentStore` one.
 
 ## Near-duplicate fakes are not one type
 
