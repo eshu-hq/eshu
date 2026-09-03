@@ -25,11 +25,23 @@ import (
 // after this gate lands cannot silently reach this state -- a contributor
 // must explicitly add it here (a reviewable, diffable action) or wire real
 // filtering and allowlist it properly. As each #5167 family workstream
-// (W2-W6) lands the #5137 row-filtering pattern for a route in this set, it
-// MUST be removed from here and added to scopedTokenAdvertisedRoutes plus a
-// scopedHTTPRouteSupportsTenantFilter matcher and an
-// "x-scoped-token-support" marker, exactly like every Group A route in this
-// same change. This ledger shrinking to empty is the #5167 exit criterion.
+// (W2-W6) lands the #5137 row-filtering pattern for a route in this set, the
+// route MUST make all five of these moves in the same change, exactly like
+// every Group A route in this one:
+//
+//  1. a scopedHTTPRouteSupportsTenantFilter matcher that matches it;
+//  2. a scopedTokenAdvertisedRoutes entry carrying its scopedRouteClass;
+//  3. an "x-scoped-token-support" marker on its OpenAPI operation;
+//  4. a "403": {"$ref": "#/components/responses/Forbidden"} response on that
+//     same operation. TestPolicyGatedRoutesDeclareForbiddenResponse (#6497,
+//     auth_scoped_routes_forbidden_response_test.go) requires one of every
+//     advertised route whose class answers false to
+//     scopedRouteClass.admitsAllScopesSessionWithoutPolicy -- which is every
+//     grant-bound promotion out of this ledger -- so doing steps 1-3 without
+//     this one reds the build;
+//  5. removal from this map.
+//
+// This ledger shrinking to empty is the #5167 exit criterion.
 //
 // Reference implementation for the real fix: status_operations.go (#5137) --
 // ReadLiveActivity(ctx, limit, allScopes=false, allowedRepositoryIDs,
