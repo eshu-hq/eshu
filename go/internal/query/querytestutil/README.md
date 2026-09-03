@@ -319,10 +319,9 @@ count is not a portable constant -- it moves as main gains tests).
 
 No-Observability-Change: no metric, span, log, or status surface is touched.
 Fakes deliberately emit no telemetry; a test double that produced spans would
-## Performance and observability
-
-No-Regression Evidence: this package is a test double and runs only inside test
-binaries, so nothing here sits on a production query, graph, queue or HTTP path.
+The same holds for the fakes promoted alongside them. This package is a test
+double and runs only inside test binaries, so nothing here sits on a production
+query, graph, queue or HTTP path.
 `FakeGovernanceAuditAppender` and `FakeScopedTokenResolver` trip the
 perf-evidence gate on their doc comments, which name the governance-audit and
 scoped-token surfaces they stand in for rather than any work this code performs.
