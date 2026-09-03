@@ -292,8 +292,9 @@ const openAPIPathsCodeSymbols = `
       "post": {
         "tags": ["code"],
         "summary": "Investigate a code topic",
-        "description": "Finds ranked files and symbols for a broad natural-language code topic using one bounded content-index query. Returns coverage, truncation, source handles, and exact next-call handles for source reads and relationship stories.",
+        "description": "Finds ranked files and symbols for a broad natural-language code topic using one bounded content-index query. Returns coverage, truncation, source handles, and exact next-call handles for source reads and relationship stories. Scoped tokens receive only granted repositories; an ungranted selector returns not-found.",
         "operationId": "investigateCodeTopic",
+        "x-scoped-token-support": true,
         "requestBody": {
           "required": true,
           "content": {

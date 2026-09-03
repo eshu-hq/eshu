@@ -23,3 +23,28 @@ func scopedCodeFlowRoute(r *http.Request) bool {
 		return false
 	}
 }
+
+// scopedCodeContentGrantRoute reports whether a content-index-backed code route
+// binds the caller's repository grant inside its own SQL. Each handler resolves
+// the grant through codeContentGrantScope (code_repository_selector.go) before
+// the read: an empty grant returns the route's empty page without touching the
+// content store, and a corpus-wide search (no repo_id) carries the caller's
+// granted repository ids into the statement's WHERE, so the LIMIT/OFFSET page
+// is taken from the granted set rather than a cross-tenant-polluted one.
+//
+// Per route, the binding is:
+//
+//   - POST /api/v0/code/topics/investigate -- codeTopicFilters'
+//     `repo_id = ANY($n)` branch (content_reader_code_topic.go), reached from
+//     CodeHandler.codeTopicRows.
+func scopedCodeContentGrantRoute(r *http.Request) bool {
+	if r.Method != http.MethodPost {
+		return false
+	}
+	switch r.URL.Path {
+	case "/api/v0/code/topics/investigate":
+		return true
+	default:
+		return false
+	}
+}

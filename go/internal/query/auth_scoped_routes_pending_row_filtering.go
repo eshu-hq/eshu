@@ -60,7 +60,6 @@ var pendingRowFilteringRoutes = map[string]struct{}{
 	"POST /api/v0/code/security/secrets/investigate": {},
 	"POST /api/v0/code/structure/inventory":          {},
 	"POST /api/v0/code/symbols/search":               {},
-	"POST /api/v0/code/topics/investigate":           {},
 	// #5167 W3 flagged (NOT allowlisted, still pending): each of the three
 	// routes below resolves an arbitrary graph node across many labels
 	// (impactAnchorLabelDisjunction) or an unbounded cross-repo CALLS chain,

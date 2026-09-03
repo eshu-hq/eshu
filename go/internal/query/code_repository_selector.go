@@ -6,6 +6,7 @@ package query
 import (
 	"context"
 	"net/http"
+	"strings"
 )
 
 // applyRepositorySelectorForCapability resolves *selector, and on failure
@@ -38,4 +39,39 @@ func (h *CodeHandler) resolveRepositorySelector(ctx context.Context, selector st
 		selector,
 		repositoryAccessFilterFromContext(ctx),
 	)
+}
+
+// codeContentGrantScope resolves the caller's repository grant for a code read
+// that is optionally anchored to one repository by repoID.
+//
+// It exists because applyRepositorySelectorForCapability only binds a grant to
+// a selector the caller actually supplied: queryselector.ResolveExactForAccess
+// returns "" for an empty selector without consulting the grant at all
+// (queryselector/selector.go), so every code route that treats an omitted
+// repo_id as "search everything" ran its downstream query with no grant bound.
+//
+// allowed is the granted repository id list to push into the read's own
+// predicate for a corpus-wide search -- nil when the caller is unscoped (the
+// shared/admin/local read stays unrestricted) or when the read is already
+// anchored to a single granted repository. blocked reports that the caller's
+// grant admits nothing, so the route must return its empty page WITHOUT
+// touching the store: an empty id list reads as "unrestricted" to every
+// `repo_id = ANY($n)` / `id IN $allowed_repository_ids` predicate in this
+// package, which is exactly how a grantless scoped caller would otherwise see
+// the whole corpus.
+func codeContentGrantScope(ctx context.Context, repoID string) (allowed []string, blocked bool) {
+	access := repositoryAccessFilterFromContext(ctx)
+	if access.Empty() {
+		return nil, true
+	}
+	if !access.Scoped() {
+		return nil, false
+	}
+	if repoID = strings.TrimSpace(repoID); repoID != "" {
+		// Defense in depth: the selector already resolved repoID through the
+		// grant, so a mismatch here means a caller reached the read on a
+		// selector-free path.
+		return nil, !access.AllowsRepositoryID(repoID)
+	}
+	return access.RepositorySearchIDs(), false
 }
