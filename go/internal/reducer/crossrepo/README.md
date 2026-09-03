@@ -76,9 +76,9 @@ an import line, or a requalification of a name the reducer root supplied only as
 a one-line forwarder or type alias -- the leaf that already owned each name is
 now imported directly (see the Package boundary section for the full list). No
 declaration changed body, order, or signature, and a Go import change adds no
-indirection at runtime. Measured against baseline `origin/main` at `cec2781bb` (this branch's merge-base):
+indirection at runtime. Measured against this branch's current merge-base with `origin/main`:
 `go build ./...` and `go vet ./...` both exit 0 on the branch, and `go test
-./internal/reducer/... -count=1` exits 0 with 22 packages ok and 2 carrying no test files, including this
+./internal/reducer/... -count=1` exits 0 across the 27 reducer packages — 23 with tests, 4 without — including this
 one. Moved test files additionally gained requalified `gpphase` spellings, the
 reducer root gained its own copies of two test doubles and one payload accessor
 the moved test files defined (Go test files cannot share unexported symbols
