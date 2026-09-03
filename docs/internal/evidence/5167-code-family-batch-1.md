@@ -406,7 +406,7 @@ Run after the last edit, exit codes captured directly:
 cd go && go test ./internal/query ./internal/mcp ./cmd/api ./internal/queryplan -count=1  # 0
 cd go && go vet ./internal/query ./internal/mcp                       # 0
 scripts/dev/precommit-go.sh fmt   <changed .go>                       # 0
-scripts/dev/precommit-go.sh lint  <changed .go>                       # 0 (3 packages from 64 paths, 0 issues)
+scripts/dev/precommit-go.sh lint  <changed .go>                       # 0 (3 packages from 65 paths, 0 issues)
 scripts/dev/precommit-go.sh filecap <changed .go>                     # 0
 scripts/verify-package-docs.sh                                        # 0
 scripts/verify-openapi.sh                                             # 0 (255 routes, 255 path entries)
