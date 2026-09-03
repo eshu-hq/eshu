@@ -20,6 +20,7 @@ import (
 	projectoriaminstanceprofile "github.com/eshu-hq/eshu/go/internal/projector/iaminstanceprofile"
 	projectorincidentrouting "github.com/eshu-hq/eshu/go/internal/projector/incidentrouting"
 	projectorkubernetes "github.com/eshu-hq/eshu/go/internal/projector/kubernetes"
+	projectormulticloudruntimedrift "github.com/eshu-hq/eshu/go/internal/projector/multicloudruntimedrift"
 	projectorobservabilitycoverage "github.com/eshu-hq/eshu/go/internal/projector/observabilitycoverage"
 	projectorpackagesource "github.com/eshu-hq/eshu/go/internal/projector/packagesource"
 	projectorrds "github.com/eshu-hq/eshu/go/internal/projector/rds"
@@ -62,7 +63,7 @@ func appendScopeGenerationReducerIntents(
 	if intent, ok := buildAWSCloudRuntimeDriftReducerIntent(scopeValue, generation, index); ok {
 		intents = append(intents, intent)
 	}
-	if intent, ok := buildMultiCloudRuntimeDriftReducerIntent(scopeValue, generation, index); ok {
+	if intent, ok := projectormulticloudruntimedrift.BuildMultiCloudRuntimeDriftReducerIntent(scopeValue.ScopeID, generation.GenerationID, index.lookup); ok {
 		intents = append(intents, intent)
 	}
 	if intent, ok := buildAWSResourceMaterializationReducerIntent(scopeValue, generation, index); ok {

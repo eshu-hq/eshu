@@ -100,7 +100,8 @@ for the same reason.
   `postgres.MultiCloudRuntimeDriftFindingStore` (issues #1997, #1998). The domain
   is additive: it registers only when both a `MultiCloudRuntimeDriftEvidenceLoader`
   and writer are wired, so an unwired loader leaves the domain unregistered rather
-  than dropping intents. `buildMultiCloudRuntimeDriftReducerIntent` enqueues it
+  than dropping intents.
+  `multicloudruntimedrift.BuildMultiCloudRuntimeDriftReducerIntent` enqueues it
   whenever a scope generation carries `gcp_cloud_resource` or
   `azure_cloud_resource` facts (#5759 closed the prior registered-but-never-
   enqueued gap); graph nodes stay deferred exactly like the AWS drift domain.
