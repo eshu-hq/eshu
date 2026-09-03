@@ -28,8 +28,8 @@ here. The `visualization` child owns registration and pure request selection,
 while query derives packets. The `packageregistry`, `cicd`, `codeowners`, `secretsiam`,
 `observabilitycoverage`, `containerimage`, `supplychainimpact`, `securityalert`,
 `admissiondecisions`, `kubernetes`, `infrasearch`, `impact`, `codeflow`,
-`codeintel`, `deadcode`, `codequality`, and `entityresolution` children own only family
-membership and pure request selection; root keeps the matching `*Route` adapters and dispatch, and each family's definitions stay with their current owners. The `ecosystem`
+`codeintel`, `deadcode`, `codequality`, `entityresolution`, and `iacmanagement`
+children own only family membership and pure request selection; root keeps the matching `*Route` adapters and dispatch, and each family's definitions stay with their current owners. The `ecosystem`
 child owns the 23 ecosystem, repository-context, infrastructure-impact, and
 change-planning registration definitions; their split routers stay here. The `ask` child
 owns natural-language answer registration and pure request selection; global fanout and dispatch stay here, while query executes answers.
