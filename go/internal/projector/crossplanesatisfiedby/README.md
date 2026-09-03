@@ -6,7 +6,7 @@ This package recognizes Crossplane Claim-satisfaction evidence in one scope
 generation and builds the reducer intent that asks the reducer to run its
 `crossplane_satisfied_by_materialization` join. The trigger fires on the
 earliest `content_entity` fact whose `entity_kind` (falling back to
-`entity_kind`) is `K8sResource` or `CrossplaneXRD` — the only two entity
+`entity_type`) is `K8sResource` or `CrossplaneXRD` — the only two entity
 types `reducer.ExtractCrossplaneSatisfiedByEdgeRows` classifies (issue
 #5347). A Crossplane Claim candidate is never parser-labeled: it is an
 ordinary `K8sResource` row, so the trigger reads the entity type directly

@@ -201,7 +201,7 @@
   `crossplane_satisfied_by_materialization` builder lives in
   `crossplanesatisfiedby/` and consumes the lookup like the families above.
   It carries no decode seam: it triggers on the earliest `content_entity`
-  fact whose `entity_type` (falling back to `entity_kind`) is `K8sResource`
+  fact whose `entity_kind` (falling back to `entity_type`) is `K8sResource`
   or `CrossplaneXRD`. The root `crossplaneSatisfiedBySourceSystem` helper was
   byte-identical to `projectorintent.SourceSystem` and was dropped rather
   than moved. **This family is NOT covered by the root fan-out parity
