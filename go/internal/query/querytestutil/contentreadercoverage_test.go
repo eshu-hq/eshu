@@ -58,8 +58,15 @@ func answeringBranchCounts(t *testing.T) map[string]int {
 	return counts
 }
 
-// TestContentReaderDefaultGroupsCoverEveryAnsweringBranch requires defaultRowsCases
-// to hold one case per answering branch, per group.
+// TestContentReaderDefaultGroupsCoverEveryGroupAnsweringBranch requires
+// defaultRowsCases to hold one case per answering branch, per GROUP.
+//
+// Group, not every branch in the file. contentReaderDefaultRows has its own
+// answering branches that run before it delegates to either group, and they are
+// a different tier: they answer the incidental reads both groups are indifferent
+// to, so they have no group to be disjoint from and no place in this corpus.
+// TestContentReaderCommonDispatchDoesNotPreemptGroupQueries guards the one way
+// that tier can go wrong.
 //
 // Without this, the disjointness and shape tests both walk defaultRowsCases and
 // pass no matter how short it is, so a branch added to either helper without a
@@ -68,7 +75,7 @@ func answeringBranchCounts(t *testing.T) map[string]int {
 // one group. This reads the branch count out of the source so that adding a
 // branch fails here until someone adds the case, rather than being compared
 // against a hand-maintained number that a rebase can quietly merge away.
-func TestContentReaderDefaultGroupsCoverEveryAnsweringBranch(t *testing.T) {
+func TestContentReaderDefaultGroupsCoverEveryGroupAnsweringBranch(t *testing.T) {
 	t.Parallel()
 
 	counts := answeringBranchCounts(t)
@@ -99,5 +106,58 @@ func TestContentReaderDefaultGroupsCoverEveryAnsweringBranch(t *testing.T) {
 				check.label, got, branches, check.fn,
 			)
 		}
+	}
+}
+
+// TestContentReaderCommonDispatchDoesNotPreemptGroupQueries requires the shared
+// tier in contentReaderDefaultRows to leave every group-owned query to its group.
+//
+// That tier runs first, so a branch added there whose predicate is loose enough
+// to catch a group's query wins by evaluation order alone. Nothing else notices:
+// the disjointness test calls the two group helpers directly and never goes
+// through the dispatcher, so it would keep passing while real callers silently
+// got the shared tier's answer instead of the group's.
+//
+// Checking the dispatcher against the owning group for every case in the corpus
+// catches that without a second corpus for the shared tier -- the failure mode
+// worth guarding is preemption of a known group query, not the shared branches
+// answering their own reads.
+func TestContentReaderCommonDispatchDoesNotPreemptGroupQueries(t *testing.T) {
+	t.Parallel()
+
+	for _, testCase := range defaultRowsCases() {
+		t.Run(testCase.name, func(t *testing.T) {
+			t.Parallel()
+
+			owner := contentReaderFactDefaultRows(testCase.query, nil)
+			if testCase.group == readModelGroup {
+				owner = contentReaderReadModelDefaultRows(testCase.query, nil)
+			}
+			if owner == nil {
+				t.Fatalf("owning group did not answer %q; defaultRowsCases is wrong", testCase.query)
+			}
+
+			dispatched := contentReaderDefaultRows(testCase.query, nil)
+			if dispatched == nil {
+				t.Fatalf("dispatcher answered nothing for %q while its group answered", testCase.query)
+			}
+
+			wantColumns := owner.Columns()
+			gotColumns := dispatched.Columns()
+			if len(gotColumns) != len(wantColumns) {
+				t.Fatalf(
+					"dispatcher answered %q with columns %v, group answers %v; a shared-tier branch is preempting this group query",
+					testCase.query, gotColumns, wantColumns,
+				)
+			}
+			for i := range wantColumns {
+				if gotColumns[i] != wantColumns[i] {
+					t.Fatalf(
+						"dispatcher answered %q with columns %v, group answers %v; a shared-tier branch is preempting this group query",
+						testCase.query, gotColumns, wantColumns,
+					)
+				}
+			}
+		})
 	}
 }
