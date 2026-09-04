@@ -645,6 +645,20 @@ func crossRepoDeadCodeProbeGenericStatement(
 	if _, err := db.ExecContext(ctx, "SET plan_cache_mode = force_generic_plan"); err != nil {
 		t.Fatalf("force a generic plan: %v", err)
 	}
+	// Registered before the PREPARE, not after it. The pool is pinned to one
+	// connection, so a PREPARE that fails would t.Fatalf with no cleanup
+	// registered and leave force_generic_plan set on that session for the rest
+	// of the run. The two cleanups are separate for the same reason: a
+	// DEALLOCATE of a statement the PREPARE never created is an error of its
+	// own, and cleanups run last-registered-first, so this still deallocates
+	// before it resets.
+	t.Cleanup(func() {
+		cleanupCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+		defer cancel()
+		if _, err := db.ExecContext(cleanupCtx, "RESET plan_cache_mode"); err != nil {
+			t.Errorf("reset plan_cache_mode: %v", err)
+		}
+	})
 	if _, err := db.ExecContext(
 		ctx,
 		"PREPARE "+name+"(text, text[], text[], int) AS "+crossRepoDeadCodeUngrantedConsumerProbeQuery,
@@ -657,24 +671,29 @@ func crossRepoDeadCodeProbeGenericStatement(
 		if _, err := db.ExecContext(cleanupCtx, "DEALLOCATE "+name); err != nil {
 			t.Errorf("deallocate the probe: %v", err)
 		}
-		if _, err := db.ExecContext(cleanupCtx, "RESET plan_cache_mode"); err != nil {
-			t.Errorf("reset plan_cache_mode: %v", err)
-		}
 	})
 	return fmt.Sprintf(
 		"%sEXECUTE %s(%s, %s, %s, %d)",
 		prefix,
 		name,
-		quoteLiteral(producerRepoID),
-		quoteLiteral(crossRepoDeadCodeProbeTextArray(entityIDs)),
-		quoteLiteral(crossRepoDeadCodeProbeTextArray(grantRepositoryIDs)),
+		crossRepoDeadCodeProbeQuoteLiteral(producerRepoID),
+		crossRepoDeadCodeProbeQuoteLiteral(crossRepoDeadCodeProbeTextArray(entityIDs)),
+		crossRepoDeadCodeProbeQuoteLiteral(crossRepoDeadCodeProbeTextArray(grantRepositoryIDs)),
 		len(entityIDs),
 	), nil
 }
 
-// quoteLiteral renders a SQL string literal for the EXECUTE above. The values
-// are test-owned entity and repository ids, never caller input.
-func quoteLiteral(value string) string {
+// crossRepoDeadCodeProbeQuoteLiteral renders a SQL string literal for the
+// EXECUTE above. The values are test-owned entity and repository ids, never
+// caller input.
+//
+// The name carries the probe's prefix rather than the obvious quoteLiteral
+// because this file has no build tag, so it joins every tagged build of this
+// package -- including `integration`, where
+// cloud_resource_runtime_digest_starvation_live_test.go already declares a
+// quoteLiteral. Sharing that one would couple two unrelated live proofs through
+// a build tag only one of them carries.
+func crossRepoDeadCodeProbeQuoteLiteral(value string) string {
 	return "'" + strings.ReplaceAll(value, "'", "''") + "'"
 }
 
