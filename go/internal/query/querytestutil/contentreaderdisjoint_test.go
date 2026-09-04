@@ -32,7 +32,7 @@ type defaultRowsCase struct {
 //
 // Walking one corpus does NOT by itself catch a branch added without a case --
 // the tests would iterate the shorter slice and pass, which is under-coverage
-// that reads as green. TestContentReaderDefaultGroupsCoverEveryAnsweringBranch
+// that reads as green. TestContentReaderDefaultGroupsCoverEveryGroupAnsweringBranch
 // is what closes that: it counts the answering branches in the source and
 // requires one case per branch per group.
 func defaultRowsCases() []defaultRowsCase {

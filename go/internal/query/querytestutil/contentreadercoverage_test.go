@@ -4,9 +4,13 @@
 package querytestutil
 
 import (
+	"database/sql/driver"
+	"errors"
 	"go/ast"
 	"go/parser"
 	"go/token"
+	"io"
+	"reflect"
 	"strings"
 	"testing"
 )
@@ -208,6 +212,42 @@ func TestContentReaderCommonDispatchDoesNotPreemptGroupQueries(t *testing.T) {
 					)
 				}
 			}
+
+			// Columns alone are not enough. A shared-tier branch can catch a group
+			// query and answer with the same column set but different rows, which is
+			// still preemption and still silently wrong for every real caller.
+			wantRows := drainRows(t, owner, len(wantColumns))
+			gotRows := drainRows(t, dispatched, len(gotColumns))
+			if !reflect.DeepEqual(gotRows, wantRows) {
+				t.Fatalf(
+					"dispatcher answered %q with rows %v, group answers %v; a shared-tier branch is preempting this group query",
+					testCase.query, gotRows, wantRows,
+				)
+			}
 		})
+	}
+}
+
+// drainRows reads every row out of a driver.Rows into comparable values.
+//
+// Both values handed to it are built fresh by the call under test, so consuming
+// them is safe: nothing reads them afterwards. width comes from the caller's
+// already-compared Columns() length rather than being re-derived here, so a row
+// set whose arity disagrees with its own header surfaces as a scan error instead
+// of being silently truncated to a shorter comparison.
+func drainRows(t *testing.T, rows driver.Rows, width int) [][]driver.Value {
+	t.Helper()
+
+	var drained [][]driver.Value
+	for {
+		dest := make([]driver.Value, width)
+		err := rows.Next(dest)
+		if errors.Is(err, io.EOF) {
+			return drained
+		}
+		if err != nil {
+			t.Fatalf("read row %d: %v", len(drained), err)
+		}
+		drained = append(drained, dest)
 	}
 }
