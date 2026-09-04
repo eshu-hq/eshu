@@ -171,6 +171,13 @@ func (h *LanguageQueryHandler) handleLanguageQuery(w http.ResponseWriter, r *htt
 		req.Limit = languageQueryMaxLimit
 	}
 
+	// Entity-type validity belongs to the request, not to the caller's grant,
+	// so it is answered here rather than by the dispatch tail below -- which
+	// sits after the empty-grant short-circuit. See acceptLanguageQueryEntityType.
+	if !acceptLanguageQueryEntityType(w, req.EntityType) {
+		return
+	}
+
 	// #5167 batch 2a. This route is owned by LanguageQueryHandler, not
 	// CodeHandler, so req.RepoID used to reach both backends raw: never
 	// resolved through queryselector and never checked against the caller's
@@ -276,10 +283,7 @@ func (h *LanguageQueryHandler) handleLanguageQuery(w http.ResponseWriter, r *htt
 		return
 	}
 
-	WriteError(w, http.StatusBadRequest, fmt.Sprintf(
-		"unsupported entity_type %q; supported: %s",
-		req.EntityType, joinKeys(allSupportedEntityTypes()),
-	))
+	writeLanguageQueryUnsupportedEntityType(w, req.EntityType)
 }
 
 // writeLanguageQueryUnsupportedCapability writes the 501 unsupported_capability
