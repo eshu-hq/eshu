@@ -242,9 +242,15 @@ func callChainPathHopPredicates(req callChainRequest, access repositoryAccessFil
 		predicates = append(predicates, "coalesce(node.repo_id, '') = $repo_id")
 	}
 	if access.Scoped() {
-		predicates = append(predicates,
-			"(coalesce(node.repo_id, '') IN $allowed_repository_ids"+
-				" OR coalesce(node.repo_id, '') IN $allowed_scope_ids)")
+		// Rendered by the grant contract rather than written out here, so a
+		// change to how it renders moves this predicate with the endpoint ones
+		// eight lines up instead of leaving it behind. The bare property is
+		// right: a null repo_id makes the membership test null, all() over a
+		// null yields null, and WHERE null drops the row -- so an unattributable
+		// hop still fails closed without the coalesce the request's own bound
+		// carries. Nor can a "" in the grant admit one: the id lists are cleaned
+		// at the context boundary, so neither array can contain an empty value.
+		predicates = append(predicates, access.GraphConditionOnProperty("node", "repo_id"))
 	}
 	return predicates
 }
