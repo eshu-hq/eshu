@@ -55,7 +55,18 @@
 # fact_work_items, and locking that table would block the poll too.
 ifa_iam_instance_profile_role_start_fact_records_lock() {
 	local cell="$1" pid_var="$2"
-	local app_name="ifa_iam_instance_profile_role_lock_${cell}"
+	# Short prefix deliberately: Postgres stores at most 64 bytes of
+	# application_name, and the full family-name prefix plus the 32-char
+	# kill cell name reached 67 bytes -- silently truncated, so the grant
+	# poll below (which matches the full name) would miss forever while
+	# the holder sat on its granted lock. Proven live by the sibling
+	# kubernetes family's identical failure. ifa_iam_role_lock_ keeps the
+	# longest name this family uses at 49 bytes.
+	local app_name="ifa_iam_role_lock_${cell}"
+	if ((${#app_name} > 64)); then
+		printf '%s: lock application_name is %s bytes; Postgres truncates past 64 and the grant poll would never match\n' "${cell}" "${#app_name}" >&2
+		return 1
+	fi
 	local lock_sql="SET application_name = '${app_name}'; BEGIN; LOCK TABLE fact_records IN ACCESS EXCLUSIVE MODE; SELECT pg_sleep(180); ROLLBACK;"
 	if [[ "${use_compose}" -eq 1 ]]; then
 		docker compose -p "${FAULT_COMPOSE_PROJECT}" -f "${compose_file}" exec -T postgres \

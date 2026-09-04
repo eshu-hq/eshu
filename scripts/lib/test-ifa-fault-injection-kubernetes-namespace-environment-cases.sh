@@ -108,7 +108,43 @@ test_ifa_kubernetes_namespace_environment_released_lock_holder_is_not_torn_down_
 		|| fail "teardown stopped tracking the still-owned background PID"
 )
 
+# Postgres stores at most 64 bytes of application_name: a longer lock name is
+# silently truncated, the grant poll on the full name misses forever, and
+# the release's terminate-by-name misses too. The live
+# killworkerkubernetesnamespaceenvironment cell died exactly this way with
+# an 83-char name while holding its own granted lock. The start function
+# must fail closed on an overlong name instead of polling a match that can
+# never arrive -- even when the grant query itself reports success.
+test_ifa_kubernetes_namespace_environment_overlong_lock_name_is_rejected() (
+	source "${det_lib}"
+	source "${kubernetes_namespace_environment_cells_lib}"
+
+	local lock_holder_pid rc long_cell
+	psql() { :; }
+	sleep() { :; }
+	ifa_det_pg() { printf ' 1 \n'; }
+
+	use_compose=0
+	ESHU_POSTGRES_DSN="postgresql://unused"
+	compose_file="docker-compose.yaml"
+	FAULT_COMPOSE_PROJECT="test"
+	log_dir="$(mktemp -d -t ifa-kubernetes-namespace-environment-lock.XXXXXX)"
+	trap 'rm -rf "${log_dir}"' EXIT
+
+	# 17-char ifa_k8s_env_lock_ prefix plus a cell this long exceeds
+	# Postgres's 64-byte application_name cap.
+	long_cell="killworker_kubernetes_namespace_environment_pad001"
+	((${#long_cell} > 47)) || fail "test cell name too short to exercise the 64-byte application_name guard"
+	bg_pids=()
+	lock_holder_pid=""
+	rc=0
+	ifa_kubernetes_namespace_environment_start_fact_records_lock "${long_cell}" lock_holder_pid || rc=$?
+	[[ "${rc}" -ne 0 ]] \
+		|| fail "ifa_kubernetes_namespace_environment_start_fact_records_lock accepted a lock name Postgres truncates; the grant poll would miss forever"
+)
+
 run_ifa_fault_injection_kubernetes_namespace_environment_cases() {
 	test_ifa_kubernetes_namespace_environment_intent_lock_is_fail_closed
 	test_ifa_kubernetes_namespace_environment_released_lock_holder_is_not_torn_down_twice
+	test_ifa_kubernetes_namespace_environment_overlong_lock_name_is_rejected
 }

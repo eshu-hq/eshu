@@ -108,7 +108,43 @@ test_ifa_iam_instance_profile_role_released_lock_holder_is_not_torn_down_twice()
 		|| fail "teardown stopped tracking the still-owned background PID"
 )
 
+# Postgres stores at most 64 bytes of application_name: a longer lock name is
+# silently truncated, the grant poll on the full name misses forever, and
+# the release's terminate-by-name misses too -- proven live by the sibling
+# kubernetes family's 83-char name dying while holding its own granted
+# lock. The start function must fail closed on an overlong name instead of
+# polling a match that can never arrive -- even when the grant query itself
+# reports success.
+test_ifa_iam_instance_profile_role_overlong_lock_name_is_rejected() (
+	source "${det_lib}"
+	source "${iam_instance_profile_role_cells_lib}"
+
+	local lock_holder_pid rc long_cell
+	psql() { :; }
+	sleep() { :; }
+	ifa_det_pg() { printf ' 1 \n'; }
+
+	use_compose=0
+	ESHU_POSTGRES_DSN="postgresql://unused"
+	compose_file="docker-compose.yaml"
+	FAULT_COMPOSE_PROJECT="test"
+	log_dir="$(mktemp -d -t ifa-iam-instance-profile-role-lock.XXXXXX)"
+	trap 'rm -rf "${log_dir}"' EXIT
+
+	# 17-char ifa_iam_role_lock_ prefix plus a cell this long exceeds
+	# Postgres's 64-byte application_name cap.
+	long_cell="killworker_iam_instance_profile_role_xpad0000123"
+	((${#long_cell} > 47)) || fail "test cell name too short to exercise the 64-byte application_name guard"
+	bg_pids=()
+	lock_holder_pid=""
+	rc=0
+	ifa_iam_instance_profile_role_start_fact_records_lock "${long_cell}" lock_holder_pid || rc=$?
+	[[ "${rc}" -ne 0 ]] \
+		|| fail "ifa_iam_instance_profile_role_start_fact_records_lock accepted a lock name Postgres truncates; the grant poll would miss forever"
+)
+
 run_ifa_fault_injection_iam_instance_profile_role_cases() {
 	test_ifa_iam_instance_profile_role_intent_lock_is_fail_closed
 	test_ifa_iam_instance_profile_role_released_lock_holder_is_not_torn_down_twice
+	test_ifa_iam_instance_profile_role_overlong_lock_name_is_rejected
 }
