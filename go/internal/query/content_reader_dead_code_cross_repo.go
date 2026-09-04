@@ -29,9 +29,9 @@ const maxCrossRepoDeadCodeConsumerEvidenceRows = 1000
 // the request named one consumer let a thousand rows from another granted
 // repository fill the page and push the requested consumer off it.
 //
-// SignalGrant is the caller's grant the ungranted-consumer probe takes the
-// complement of, and empty means no probe runs. The probe answers, per producer
-// entity, whether a consumer outside that grant exists; it is the half of the
+// SignalGrant is the caller's grant the ungranted-consumer probe tests each
+// consumer repository against, and empty means no probe runs. The probe
+// answers, per producer entity, whether a consumer outside that grant exists; it is the half of the
 // question the grant-bound page cannot see, and losing it would mark a live
 // symbol dead. A request that named a consumer selector leaves this empty,
 // because the only consumers the probe could report are ones that request
@@ -76,10 +76,11 @@ func (h crossRepoDeadCodeHiddenConsumers) has(entityID string) bool {
 //   - the ungranted-consumer probe, when reads.SignalGrant is set. It carries
 //     the "this symbol has a consumer you cannot see" answer, which filtering in
 //     SQL alone would lose, and losing it would mark a live symbol dead. It
-//     returns producer entity ids and nothing else -- see
-//     crossRepoDeadCodeUngrantedConsumerProbeQuery for why it is expressed as
-//     grant-complement ranges rather than as the page statement with no grant
-//     bound.
+//     returns producer entity ids and nothing else --
+//     crossRepoDeadCodeUngrantedConsumerProbeQuery walks each producer entity's
+//     distinct consumer repositories in index order and stops at the first one
+//     the grant does not contain, a loose index scan rather than the page
+//     statement re-run with no grant bound.
 //
 // The second return value is that probe's answer. A caller that asked for no
 // probe gets an empty set, and the page statement is the only one sent.

@@ -116,10 +116,26 @@ split_on() {
 # not it pulls two copies of the standard library's platform files into the same
 # package. `go vet -tags windows ./internal/eshulocal` on macOS does not compile
 # the Windows file -- it fails inside internal/goos with GOOS redeclared.
+#
+# Every name is spelled out, and none of these patterns may become a glob. The
+# GOARCH arm carried `mips*` once, which matched any tag starting with those
+# four letters: a project tag named `mipsmock` was classified platform-gated,
+# reported SKIP, and its file never compiled -- "vetted 0", exit 0, on a file
+# that did not build. A prefix here silently widens what the gate refuses to
+# look at, which is the failure class it exists to remove.
+#
+# The three lists are internal/syslist's KnownOS, KnownArch and the toolchain's
+# own meta-tags, copied whole (Go 1.27.0, $(go env GOROOT)/src/internal/syslist/
+# syslist.go). KnownArch is "past, present, and future known GOARCH values" and
+# is wider than `go tool dist list`, deliberately: a constraint may name an
+# architecture no target ships today, and it is still a platform term. When the
+# toolchain adds one, add it here.
 platform_term() {
 	case "$1" in
 	aix | android | darwin | dragonfly | freebsd | hurd | illumos | ios | js | linux | nacl | netbsd | openbsd | plan9 | solaris | wasip1 | windows | zos) return 0 ;;
-	386 | amd64 | amd64p32 | arm | arm64 | arm64be | armbe | loong64 | mips* | ppc | ppc64 | ppc64le | riscv | riscv64 | s390 | s390x | sparc | sparc64 | wasm) return 0 ;;
+	386 | amd64 | amd64p32 | arm | armbe | arm64 | arm64be | loong64) return 0 ;;
+	mips | mipsle | mips64 | mips64le | mips64p32 | mips64p32le) return 0 ;;
+	ppc | ppc64 | ppc64le | riscv | riscv64 | s390 | s390x | sparc | sparc64 | wasm) return 0 ;;
 	unix | cgo | gc | gccgo | race | msan | asan | boringcrypto) return 0 ;;
 	*) return 1 ;;
 	esac

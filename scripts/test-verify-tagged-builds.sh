@@ -240,6 +240,29 @@ if ! rg -q 'SKIP.*\[386\].*platform-gated' "${tmp_root}/gate.out"; then
 	sed -n '1,40p' "${tmp_root}/gate.out" >&2
 fi
 
+# A project tag that merely LOOKS like a GOARCH must be vetted, not skipped. The
+# platform list carried `mips*` once, so `mipsmock` matched it, was reported
+# platform-gated, and its file was never compiled -- "vetted 0", exit 0, over a
+# package that does not build. The break in the fixture is what makes this
+# assertion honest.
+archlookalike="$(init_module archlookalike \
+	"mipsmock_test.go@@mipsmock@@func Broken() int { return MissingHelper() }")"
+expect_fail "${archlookalike}" "a tag that only looks like a GOARCH" 'tags=mipsmock'
+if rg -q 'SKIP.*platform-gated' "${tmp_root}/gate.out"; then
+	fail "mipsmock was classified platform-gated; the arch list is matching a prefix"
+	sed -n '1,40p' "${tmp_root}/gate.out" >&2
+fi
+
+# The real GOARCH the lookalike shadows still skips, so the fix narrowed the
+# match rather than removing it.
+archreal="$(init_module archreal \
+	"mips64le_test.go@@mips64le@@func MipsOnly() int { return Helper() }")"
+expect_pass "${archreal}" "a real GOARCH still skips"
+if ! rg -q 'SKIP.*\[mips64le\].*platform-gated' "${tmp_root}/gate.out"; then
+	fail "expected mips64le to be reported as platform-gated"
+	sed -n '1,40p' "${tmp_root}/gate.out" >&2
+fi
+
 # A package with no tagged files at all is not a failure, but it must say so
 # rather than exiting 0 silently.
 empty="$(init_module empty)"

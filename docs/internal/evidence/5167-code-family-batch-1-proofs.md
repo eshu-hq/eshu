@@ -218,6 +218,7 @@ mutation was restored and its guard rerun at exit `0`.
 | 42 | the walk's step seeks `>=` instead of `>`, so it never advances past the repository it just found | the same command | `1` (14 sub-test failures, all `cross-repo dead code ungranted consumer probe: context deadline exceeded`) |
 | 43 | the final filter selects the granted repositories instead of the ungranted ones (`NOT EXISTS` becomes `EXISTS`) | the same command | `1` (12 sub-test failures; e.g. `hidden = []string{"ent-busy", "ent-middle", "ent-spread"}, want []string(nil)` for a grant that hides nothing) |
 | 44 | not a mutation — the gate's first catch on the branch that added it. `code_dead_code_cross_repo_ungranted_probe_live_test.go` carries no build tag, so its `quoteLiteral` joined the `integration` build alongside the one in `cloud_resource_runtime_digest_starvation_live_test.go` | `bash scripts/verify-tagged-builds.sh --all`, then `go vet -tags integration ./internal/query` | `1` and `1` (`quoteLiteral redeclared in this block`), while `go build ./...`, `go vet ./...` and `go test ./internal/query` on the same tree all stayed `0`. Renamed to `crossRepoDeadCodeProbeQuoteLiteral`; both back to `0` |
+| 45 | `platform_term`'s GOARCH arm carries the `mips*` prefix it shipped with, against a fixture whose only tagged file is `//go:build mipsmock` and does not compile | `TAGGED_BUILDS_REPO_ROOT=<fixture> bash scripts/verify-tagged-builds.sh` | `0` — `SKIP … platform-gated (mipsmock)`, "vetted 0 build configuration(s)", over a package that does not build. With the six exact `mips` GOARCH names: `1`, `FAIL … tags=mipsmock` naming the undefined helper |
 
 An earlier attempt at #1 deleted the whole helper body and failed as an unused
 import rather than an assertion, which proves nothing; the mutations above keep
@@ -245,7 +246,12 @@ Rows 32 and 33 are round-8k, and they are the reverse shape: not a mutation of
 the gate but two constraints the shipped gate answered green without compiling
 anything. Row 44 is not a mutation either: it is the gate finding a real break
 on the branch that introduced it, which is the strongest evidence in this table
-that it earns its place. Both are now `ERROR`. The module has no parenthesised and no mixed
+that it earns its place. Row 45 is the third of that shape and the sharpest:
+the platform list matched `mips*` as a prefix, so a project tag named
+`mipsmock` was classified a GOARCH, skipped, and never compiled — the gate
+answering "vetted 0", exit 0, over a package that does not build. Every GOOS,
+GOARCH and meta-tag name is spelled out now, copied from `internal/syslist`,
+and none of those patterns may become a glob again. Both are now `ERROR`. The module has no parenthesised and no mixed
 constraint, so the sweep's own output is unchanged at 29 vetted / 16 skipped /
 exit 0, which is the behaviour-preservation check for a change that only
 narrows what the gate will accept.
