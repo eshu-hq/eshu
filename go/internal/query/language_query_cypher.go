@@ -20,12 +20,20 @@ func buildLanguageCypher(language, label, query, repoID string, limit int) (stri
 
 // buildLanguageCypherWithSemanticFilter dispatches the route's four graph
 // builders. access is the caller's repository grant: each builder appends it to
-// the same MATCH-attached WHERE that already carries the optional `r.id =
-// $repo_id` anchor, so it lands ahead of every WITH, ORDER BY and LIMIT, and
-// merges the grant arrays into the params through GraphParams. The Repository
-// binding is non-optional in all four patterns, so the condition decides row
-// membership rather than nulling a projection (the OPTIONAL MATCH trap #5167
-// batch 1 hit on complexityListAnchor).
+// the WHERE of the required MATCH block that binds Repository -- the same WHERE
+// that already carries the optional `r.id = $repo_id` anchor -- so it lands
+// ahead of every WITH, ORDER BY and LIMIT, and merges the grant arrays into the
+// params through GraphParams.
+//
+// "MATCH block" rather than "the anchoring MATCH" because buildDirectoryCypher
+// is written as two MATCH clauses and hangs its WHERE on the second, while `r`
+// is bound in the first. Both are required, so the predicate constrains the
+// joined row set and `r` is genuinely filtered; the wording just has to survive
+// a reader checking it against that builder.
+//
+// The Repository binding is non-optional in all four patterns, so the condition
+// decides row membership rather than nulling a projection (the OPTIONAL MATCH
+// trap #5167 batch 1 hit on complexityListAnchor).
 func buildLanguageCypherWithSemanticFilter(
 	language,
 	label,

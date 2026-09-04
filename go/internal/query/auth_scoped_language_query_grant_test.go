@@ -392,3 +392,90 @@ func TestLanguageQueryUngrantedRepositorySelectorIsRejected(t *testing.T) {
 func unscopedLanguageQueryGrant() languageQueryGrant {
 	return languageQueryGrant{access: repositoryAccessFilter{AllScopes: true}}
 }
+
+// TestLanguageQuerySharedKeyRepoIDGoesThroughTheSelector covers the half of the
+// contract change that lands on callers who are NOT scoped tokens.
+//
+// The sibling tests above pass no repo_id at all, which is exactly the case the
+// selector never touches, so on their own they prove nothing about it. Routing
+// req.RepoID through applyRepositorySelectorForAccess changes what an unscoped
+// shared-key, admin or local caller gets for a repo_id that is not a canonical
+// id: the OpenAPI operation has always advertised the field as "canonical ID,
+// name, slug, or path", and until now this route ignored every form but the
+// first.
+//
+// The unresolvable sub-case runs on the content-backed branch, where h.Neo4j is
+// nil, on purpose. evaluatingRepositoryGraph answers the selector's own
+// MATCH (r:Repository) probe from its seeded rows, so a graph-backed handler
+// would resolve a selector that does not exist in the fixture.
+func TestLanguageQuerySharedKeyRepoIDGoesThroughTheSelector(t *testing.T) {
+	t.Parallel()
+
+	t.Run("canonical_id_anchors_the_read", func(t *testing.T) {
+		t.Parallel()
+
+		branch := languageQueryGrantBranch{name: "graph_backed", entityType: "function", graphLabel: "Function"}
+		handler, graph := newLanguageQueryGrantHandler(branch, &languageQueryPlainContentStore{})
+		body := languageQueryGrantBody("function")
+		body["repo_id"] = codeGrantGrantedRepo
+		rec := runLanguageQueryGrantRequest(t, handler, body, nil)
+
+		if got, want := rec.Code, http.StatusOK; got != want {
+			t.Fatalf("status = %d, want %d; body = %s", got, want, rec.Body.String())
+		}
+		if len(graph.statements) == 0 {
+			t.Fatal("no statement reached the graph")
+		}
+		if !strings.Contains(normalizeCypherWhitespace(graph.statements[0]), "r.id = $repo_id") {
+			t.Fatalf("a canonical repo_id no longer anchors the read:\n%s", graph.statements[0])
+		}
+		if !strings.Contains(rec.Body.String(), languageGrantGrantedEntity) {
+			t.Fatalf("the named repository's entity is missing: %s", rec.Body.String())
+		}
+		if strings.Contains(rec.Body.String(), languageGrantUngrantedEntity) {
+			t.Fatalf("a canonical repo_id returned another repository's rows: %s", rec.Body.String())
+		}
+	})
+
+	t.Run("resolvable_name_anchors_the_read", func(t *testing.T) {
+		t.Parallel()
+
+		store := &languageQueryPlainContentStore{
+			fakePortContentStore: fakePortContentStore{repositories: []RepositoryCatalogEntry{{
+				ID:   codeGrantGrantedRepo,
+				Name: "granted-service",
+			}}},
+		}
+		handler := &LanguageQueryHandler{Content: store, Profile: ProfileLocalAuthoritative}
+		body := languageQueryGrantBody("variable")
+		body["repo_id"] = "granted-service"
+		rec := runLanguageQueryGrantRequest(t, handler, body, nil)
+
+		if got, want := rec.Code, http.StatusOK; got != want {
+			t.Fatalf("status = %d, want %d; body = %s", got, want, rec.Body.String())
+		}
+		if !slices.Equal(store.askedRepoIDs, []string{codeGrantGrantedRepo}) {
+			t.Fatalf("content read repositories = %#v, want [%q]; a repository name must resolve to its canonical id before the read", store.askedRepoIDs, codeGrantGrantedRepo)
+		}
+		if strings.Contains(rec.Body.String(), languageGrantUngrantedEntity) {
+			t.Fatalf("a resolved repository name returned another repository's rows: %s", rec.Body.String())
+		}
+	})
+
+	t.Run("unresolvable_selector_is_rejected", func(t *testing.T) {
+		t.Parallel()
+
+		store := &languageQueryPlainContentStore{}
+		handler := &LanguageQueryHandler{Content: store, Profile: ProfileLocalAuthoritative}
+		body := languageQueryGrantBody("variable")
+		body["repo_id"] = "no-such-repository"
+		rec := runLanguageQueryGrantRequest(t, handler, body, nil)
+
+		if got, want := rec.Code, http.StatusBadRequest; got != want {
+			t.Fatalf("status = %d, want %d for a repo_id that resolves to nothing; body = %s", got, want, rec.Body.String())
+		}
+		if len(store.askedRepoIDs) != 0 {
+			t.Fatalf("an unresolvable repo_id reached the content store: %#v", store.askedRepoIDs)
+		}
+	})
+}

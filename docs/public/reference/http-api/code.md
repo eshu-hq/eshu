@@ -376,12 +376,18 @@ recommended next calls in the response.
 `limit` defaults to `50` and is silently clamped to `200`.
 
 A `repo_id` on this route is now a repository selector like every other code
-route's, resolved against the caller's grant before the read. It used to go into
-the query as-is, so a scoped token could name any repository; naming one outside
-the grant now returns `400`. A scoped token that omits `repo_id` reads its
-granted repositories rather than the whole index, on both the graph and the
-content-store side, and a token with no repository grants at all gets an empty
-`results` list without either backend being read.
+route's, resolved before the read. It used to go into the query as-is, so only a
+canonical id ever matched anything — a name, slug, path, or remote URL returned
+an empty page even though this operation has always advertised all four. Those
+now resolve. A `repo_id` that resolves to nothing returns `400` where it used to
+return `200` with an empty `results` list, for every caller.
+
+For a scoped token there is a second change: it could previously name any
+repository in the index, and naming one outside its grant now returns `400`. A
+scoped token that omits `repo_id` reads its granted repositories rather than the
+whole index, on both the graph and the content-store side, and one with no
+repository grants at all gets an empty `results` list without either backend
+being read.
 
 Use focused routes first when they answer the question; use language-query for
 language/entity-type contracts that do not fit symbol, relationship,

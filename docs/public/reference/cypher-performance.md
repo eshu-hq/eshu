@@ -90,9 +90,12 @@ missing schema evidence, and forbidden plan signatures fail the gate. The same
 script provisions a pinned, isolated Neo4j container and runs the build-tagged
 live proof in `go/internal/query/queryplan_profile_live_test.go`. That proof
 profiles 22 handler entries and 30 legacy entries through Neo4j `PROFILE` using
-production-owned bytes, plus 735 hash-frozen safe production variants: 787
-shapes in total. The production-variant family includes 140 distinct
-import-dependency queries mapped from all 244 valid API and MCP request shapes.
+production-owned bytes, plus 875 hash-frozen safe production variants: 927
+shapes in total. The production-variant family includes 280 distinct
+import-dependency queries mapped from all 488 valid API and MCP request shapes.
+Those shapes span both caller classes: since #5167 batch 2a every
+import-dependency builder renders the caller's repository grant, so a scoped
+caller runs different text from a shared-key one and the family profiles both.
 Cloud-resource browsing is covered separately by one UID-bounded graph
 hydration plan and 64 hash-frozen Postgres page variants: 32 filter/cursor
 combinations each for all-scope and scoped access. A label or relationship-type

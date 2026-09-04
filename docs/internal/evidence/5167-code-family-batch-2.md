@@ -44,8 +44,8 @@ routes, the other entry in that list whose grant lands in two backends.
 | Route | Binding | Symbol |
 | --- | --- | --- |
 | `POST /api/v0/code/language-query` (SQL) | `repo_id = ANY($n)` on every content read the route makes | `buildLanguageTypeEntityFilters` (`go/internal/query/content_reader_entity_search.go`) |
-| `POST /api/v0/code/language-query` (Cypher) | grant in the anchoring `MATCH`'s own `WHERE`, in all four builders | `buildRepositoryCypher`, `buildDirectoryCypher`, `buildFileCypher`, `buildEntityCypherWithSemanticFilter` (`go/internal/query/language_query_cypher.go`) |
-| `POST /api/v0/code/language-query` (selector) | `repo_id` resolved against the grant; ungranted rejected with 400 | `applyRepositorySelectorForAccess` (`go/internal/query/code_repository_selector.go`) |
+| `POST /api/v0/code/language-query` (Cypher) | grant in the `WHERE` of the required `MATCH` block that binds Repository, in all four builders | `buildRepositoryCypher`, `buildDirectoryCypher`, `buildFileCypher`, `buildEntityCypherWithSemanticFilter` (`go/internal/query/language_query_cypher.go`) |
+| `POST /api/v0/code/language-query` (selector) | `repo_id` resolved as a selector for every caller class; ungranted rejected with 400 for a scoped one | `applyRepositorySelectorForAccess` (`go/internal/query/code_repository_selector.go`) |
 | `POST /api/v0/code/imports/investigate` | grant per Repository alias in each of seven builders | `importDependencyGrantPredicates` (`go/internal/query/code_import_dependencies_queries.go`) |
 
 ## Language-Query Had Two Choke Points And Neither Was Bound
@@ -71,13 +71,21 @@ tenant's metadata into a granted row. It is bound now, and
 The Cypher half is four builders behind one dispatcher,
 `buildLanguageCypherWithSemanticFilter`. Each assembles its own `WHERE`, so the
 grant is four small edits rather than one — but all four put it in the same
-place: appended to the `WHERE` attached to the single anchoring `MATCH`, beside
-the optional `r.id = $repo_id` the builder already emitted, ahead of every
-`WITH`, `ORDER BY` and `LIMIT`.
+place: appended to the `WHERE` of the required `MATCH` block that binds
+Repository, beside the optional `r.id = $repo_id` the builder already emitted,
+ahead of every `WITH`, `ORDER BY` and `LIMIT`.
+
+"`MATCH` block" is the accurate phrase, not "the anchoring `MATCH`".
+`buildDirectoryCypher` is written as two `MATCH` clauses and hangs its `WHERE`
+on the second, while `r` is bound in the first. Both are required, so the
+predicate constrains the joined row set and `r` is genuinely filtered — but a
+reader checking the clause-attachment argument against that builder would find
+the tighter sentence false, and the argument is what the whole "no live run"
+case rests on.
 
 Clause attachment is settled by construction here, not by argument. The
-Repository binding is a required `MATCH` in all four patterns, so an entity the
-graph cannot attribute to a repository is already dropped today and the grant
+Repository binding is required in all four patterns, so an entity the graph
+cannot attribute to a repository is already dropped today and the grant
 condition decides row membership rather than nulling a projection. That is the
 opposite of the `complexityListAnchor` defect batch 1 measured, and it is why
 this route needs no live NornicDB run — see "Why No Live Run" below.
@@ -94,10 +102,33 @@ functions. One implementation of "resolve the selector, map a transient graph
 failure to the bounded-read contract, reject anything else with 400" now serves
 every route in the family, so the two handlers cannot drift apart on it.
 
-This is a user-visible change on an existing route, and it is documented in the
-route's OpenAPI description and in
-[HTTP API — Code](../../public/reference/http-api/code.md): a `repo_id` outside
-a scoped caller's grant used to be queried and now returns `400`.
+Two user-visible changes fall out of that, one per caller class, and both are
+documented in the route's OpenAPI description and in
+[HTTP API — Code](../../public/reference/http-api/code.md).
+
+For a **scoped** caller: a `repo_id` outside the grant used to be queried and
+now returns `400`. "Ungranted" is only meaningful for that caller class —
+`AllowsRepositoryID` returns true for every id when `AllScopes` is set, so an
+unscoped caller has no ungranted ids at all.
+
+For an **unscoped** shared-key, admin or local caller: `req.RepoID` now goes
+through `queryselector.ResolveExactForAccess` like every other code route's,
+and that lands differently on three cases. A canonical id (`repo://…`,
+`repo-…`, `repository:…`) passes through untouched, so nothing changes,
+including for a typo'd one. A non-canonical selector — a name, slug, path or
+remote URL — is now resolved against the catalog and the graph, so one that
+resolves returns that repository's rows where it used to return an empty page.
+One that resolves to nothing returns `400` where it used to return `200` with
+`results: []`.
+
+The mitigation is worth stating rather than leaving a reviewer to find it: the
+OpenAPI operation has advertised `repo_id` as "Optional repository selector
+(canonical ID, name, slug, or path)" all along, and a `400` response was already
+declared on it. This change makes the handler match its published contract
+rather than inventing a new one.
+`TestLanguageQuerySharedKeyRepoIDGoesThroughTheSelector` covers all three cases;
+the sibling unscoped tests pass no `repo_id` at all, which is exactly the case
+the selector never touches, so on their own they proved nothing about it.
 
 ## Imports/Investigate Had No Selector To Fix
 
@@ -178,8 +209,9 @@ Repository binding sat on an `OPTIONAL MATCH`, where a `WHERE` constrains the
 optional pattern rather than the driving row set, and no amount of reading the
 statement settles that. Neither route here has that shape:
 
-- language-query's four builders each bind Repository in a required `MATCH`
-  chain and carry one `WHERE` attached to it.
+- language-query's four builders each bind Repository in a required `MATCH` and
+  carry one `WHERE` on the block that binds it — the second of two required
+  `MATCH` clauses in `buildDirectoryCypher`, the single one in the other three.
 - imports/investigate's seven builders each emit a single anchoring `MATCH` and
   route every predicate through `writeCypherPredicates`, which can only produce
   a `WHERE` attached to that `MATCH`. There is no `OPTIONAL MATCH` and no `WITH`
@@ -212,12 +244,20 @@ The batch-1 routes' assertions are unaffected: their statements carry no
 
 ## Capability Matrix
 
-`specs/capability-matrix.v1.yaml` records `execute_language_query`'s production
-row as `experimental` because the only committed deployed proof for the sibling
-capability went through `/api/v0/code/imports/investigate`, not this route.
-Nothing in this batch changes that. This is a tenancy fix with unit-level and
-statement-level proof; it is not deployed validation, and no capability-matrix
-row is raised on the strength of it.
+`execute_language_query` is a tool, not a capability row.
+`specs/capability-matrix.v1.yaml` attaches it to five rows —
+`symbol_graph.decorators`, `symbol_graph.argument_names`,
+`symbol_graph.class_methods`, `symbol_graph.imports` and
+`symbol_graph.inheritance` — and most are already `production: supported`. Two
+are `experimental`: `symbol_graph.argument_names`, whose note records a deployed
+readback dropping module-level function parameters, and `symbol_graph.imports`,
+whose note records that its only deployed proof went through
+`/api/v0/code/imports/investigate` — the sibling capability
+`symbol_graph.import_dependencies` — rather than through this tool.
+
+Nothing in this batch changes any of them, and the file is not in the diff. This
+is a tenancy fix with unit-level and statement-level proof; it is not deployed
+validation, and no capability-matrix row is raised on the strength of it.
 
 ## Proof Ledger
 
@@ -250,9 +290,9 @@ No-Regression Evidence: this is a correctness change with no latency claim
 attached; no benchmark was run and no speedup is asserted, so the claim being
 made is no-regression, not a win. Every predicate it adds is an `IN`/`ANY()`
 membership test against the caller's grant, on a node or column the query
-already matched, and it lands in the anchoring `MATCH`'s own `WHERE` (Cypher) or
-the statement's `WHERE` (SQL) — ahead of `SKIP`/`LIMIT`, ahead of
-`LIMIT $scan_limit`, and ahead of `LIMIT`/`OFFSET`. A scoped caller therefore
+already matched, and it lands in the `WHERE` of the required `MATCH` block that
+binds Repository (Cypher) or the statement's `WHERE` (SQL) — ahead of
+`SKIP`/`LIMIT`, ahead of `LIMIT $scan_limit`, and ahead of `LIMIT`/`OFFSET`. A scoped caller therefore
 reads no more rows than before and, on these two routes, strictly fewer: both
 were corpus-wide for a caller who named no repository. The SQL grant column is
 `content_entities.repo_id`, the same column that statement's single-repository

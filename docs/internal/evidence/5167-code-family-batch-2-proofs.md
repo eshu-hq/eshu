@@ -41,6 +41,7 @@ error.
 | `TestLanguageTypeEntityFiltersBindTheGrantInTheShippedSQL` | new coverage on the changed builder, no prior red | `ok internal/query 1.092s` |
 | `TestLanguageQueryBuildersBindTheGrantInTheShippedCypher` (4) | new coverage, no prior red | `ok internal/query 1.092s` |
 | `TestLanguageQueryGrantBoundStoreTakesOneRead` | new coverage, no prior red | `ok internal/query 1.092s` |
+| `TestLanguageQuerySharedKeyRepoIDGoesThroughTheSelector` (3) | with `applyRepositorySelectorForAccess` bypassed: `content read repositories = []string{"granted-service"}, want ["repo://tenant-a/granted-service"]` and `status = 200, want 400 for a repo_id that resolves to nothing` | `ok internal/query` (3 sub-cases pass) |
 | `TestImportDependenciesFilterByRepositoryGrant` (6 query types) | `scoped <query_type> query leaked "ungranted_module"` on four, `leaked "repo://tenant-b/other-service"` on the cycle case | `ok internal/query 1.242s` |
 | `TestImportDependenciesEmptyGrantReachesNoBackend` (6) | `a grantless scoped caller reached the graph: [MATCH (repo:Repository)…]` on all six | `ok internal/query 1.242s` |
 | `TestImportDependenciesResolveAScopeOnlyGrantToItsRepository` (6) | same leak, scope-only grant | `ok internal/query 1.242s` |
@@ -48,6 +49,13 @@ error.
 | `TestImportDependencyScanBoundIsSpentOnGrantedRowsOnly` | `status = 422, want 200; an out-of-grant repository spent the scan budget` | `ok internal/query 1.242s` |
 | `TestImportDependencyBuildersBindTheGrantInTheShippedCypher` (8) | new coverage on the changed builders, no prior red | `ok internal/query 1.257s` |
 | `TestImportDependencyParamsBindTheGrantArrays` | new coverage, no prior red | `ok internal/query 1.257s` |
+
+`TestLanguageQuerySharedKeyRepoIDGoesThroughTheSelector` is the unscoped half of
+the selector change, added in review round 1 because nothing covered it. Its
+three sub-cases do not all red the same way, and the difference is the point:
+`canonical_id_anchors_the_read` passes with or without the selector, because a
+canonical id passes through `ResolveExactForAccess` untouched — it pins that
+this stays true. The other two red without it, as the table records.
 
 Unscoped counterparts pin the other direction — a shared-key caller that names
 no repository keeps its query text and its row set:
