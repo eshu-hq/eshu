@@ -33,8 +33,35 @@ returns the data object itself.
 | `language` | yes | string | — | Canonical language name. See [Supported languages](#supported-languages). |
 | `entity_type` | yes | string | — | Entity kind to search for. See [Entity types](#entity-types). |
 | `query` | no | string | empty | Optional name-substring filter applied to the entity. Empty = list all matching entities. |
-| `repo_id` | no | string | empty | Optional canonical repository id to scope the search. |
+| `repo_id` | no | string | empty | Optional repository selector narrowing the search to one repository. Resolved before either backend is read, so a name or short form is accepted and one that resolves to nothing is rejected. See [Repository scope](#repository-scope). |
 | `limit` | no | integer | 50 | Maximum number of results. Values above 200 are silently clamped to 200. |
+
+## Repository scope
+
+`repo_id` is a selector, not a raw id. It is resolved through the same
+repository-selector path the rest of the code family uses, before either backend
+is read, so a repository name resolves as readily as a canonical id -- and a
+value that resolves to no repository is rejected with `400` rather than quietly
+matching nothing.
+
+For a scoped token the resolution is bound to the caller's grant, and every read
+this route makes is bound to it as well. Three consequences are worth stating
+plainly:
+
+- A `repo_id` naming a repository the token was not granted is rejected with
+  `400`. It is not distinguishable from a repository that does not exist, and
+  neither backend is read.
+- With no `repo_id`, the search covers the granted repositories only. The graph
+  read binds the grant as a predicate and the content read binds it as an id
+  list; neither can return an entity from a repository outside it.
+- A token with no repository grants at all gets `200` and an empty `results`
+  array, answered without reading a backend. That is the route's normal success
+  shape for such a caller, not an error, and it is deliberately
+  indistinguishable from a granted search that matched nothing.
+
+A shared, admin, or local token is unscoped and searches every indexed
+repository, as before. The selector resolution applies to it too, so an
+unresolvable `repo_id` is a `400` for every caller.
 
 ## Supported languages
 
@@ -193,6 +220,7 @@ Direct HTTP response:
 | HTTP 400 `entity_type is required` | `entity_type` missing or empty. |
 | HTTP 400 `unsupported language "<x>"` | `language` not in the canonical set. |
 | HTTP 400 `unsupported entity_type "<x>"` | `entity_type` not in the enum. |
+| HTTP 400 (selector) | `repo_id` resolves to no repository the caller may read -- it names nothing, or names a repository outside a scoped token's grant. The two are not distinguished. See [Repository scope](#repository-scope). |
 | HTTP 500 `language query failed` | An unrecognized error from the graph or content read path -- one `WriteGraphReadError` does not map to a bounded sentinel (400/501/503/504). This is the route's most likely non-sentinel failure. The response body stays static on purpose; the operator log carries the unmodified cause plus a bounded `failure_class` key for triage. |
 | HTTP 501 `unsupported_capability` | Two distinct causes share this status, distinguished by the response `message`. Reachable today: `entity_type` is one of the graph-only kinds (`repository`, `directory`, `file`) and no live graph backend is configured -- `local_lightweight` and `ESHU_DISABLE_NEO4J=true` both wire a driverless `*Neo4jReader` (`cmd/api/wiring_graph.go`), which this route treats the same as no reader, and those entity types have no content-store equivalent to fall back to. Not reachable today: the running profile's capability-matrix ceiling is unset for `symbol_graph.language_entities`; every profile currently committed in `specs/capability-matrix/language-entities.v1.yaml` has a non-nil ceiling, so the profile-level gate cannot fire under the current matrix, though the handler still checks it first. |
 | HTTP 503 `backend_unavailable` | The graph backend is unavailable for this bounded read. Retry with backoff. |
