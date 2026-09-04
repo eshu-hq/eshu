@@ -12,7 +12,7 @@ import (
 // proof that the new "POST /api/v0/infra/relationships" query_shapes.http entry
 // is non-vacuous: it only passes when the response carries the exact RUNS_IMAGE
 // edge that BuildSourceImageDigestJoinIndex
-// (go/internal/reducer/kubernetes_workload_source_image_join.go) can only
+// (go/internal/reducer/kubernetescorrelation/kubernetes_workload_source_image_join.go) can only
 // produce by correlating the kuberneteslive cassette's digest-pinned
 // supply-chain-demo Deployment pod_template fact
 // (image_refs sha256:abcdef...ab) with the ociregistry cassette's
