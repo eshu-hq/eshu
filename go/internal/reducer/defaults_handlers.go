@@ -175,8 +175,8 @@ type CrossplaneHandlers struct {
 	// CrossplaneRedriveTargetLedger to only the confirmed subset (issue
 	// #5476 P1-b). Optional: nil skips the ledger write entirely rather than
 	// risk fencing an unconfirmed target (see
-	// CrossplaneSatisfiedByMaterializationHandler.EdgeExistenceReader's doc
-	// comment).
+	// crossplane.CrossplaneSatisfiedByMaterializationHandler.EdgeExistenceReader's
+	// doc comment).
 	CrossplaneSatisfiedByEdgeExistenceReader crossplane.GraphQueryRunner
 }
 
