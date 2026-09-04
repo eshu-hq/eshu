@@ -225,8 +225,9 @@ assertion.
   genuinely divergent number representation would need to prove that
   assumption again before reusing this comparator unchanged.
 - A `materialized_edges:<family>` Odù whose facts derive edges correctly under
-  the family's PURE extraction seam (e.g. `reducer.ExtractSQLRelationshipRows`)
-  can still be a silent no-op against a real graph backend if a required
+  the family's PURE extraction seam (e.g.
+  `sqlrelationship.ExtractSQLRelationshipRows`) can still be a silent no-op
+  against a real graph backend if a required
   endpoint node's containment write never fires. Proven live (#5351,
   `sql_relationship_odu.go`'s `sqlFamilySchemaFileFact`/
   `sqlFamilyGetUserFunctionEntity` doc comments) against a real

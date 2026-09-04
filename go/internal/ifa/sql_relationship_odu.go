@@ -55,18 +55,20 @@ const (
 	// parsed_file_data.functions[].uid in sqlFamilyFileWithEmbeddedQuery must
 	// use this SAME precomputed value — proven live (#5351 claim 3
 	// verification): a hand-picked "content-entity:fn-get-user" id, while
-	// perfectly valid input to the pure reducer.ExtractSQLRelationshipRows seam,
-	// does not match the graph's actual canonically-derived Function uid, so the
-	// QUERIES_TABLE edge write's MATCH silently no-ops against a real backend
-	// even though ExtractSQLRelationshipRows still (correctly) derives the row.
+	// perfectly valid input to the pure sqlrelationship.ExtractSQLRelationshipRows
+	// seam, does not match the graph's actual canonically-derived Function uid,
+	// so the QUERIES_TABLE edge write's MATCH silently no-ops against a real
+	// backend even though ExtractSQLRelationshipRows still (correctly) derives
+	// the row.
 	sqlFamilyGetUserFunctionUID = "content-entity:e_cb021b7a4238"
 )
 
 // sqlFamilyOdu carries one repository fact, a second-table-plus-six-more SQL
 // content_entity set, and one file fact with an embedded SQL query, wired so
-// reducer.ExtractSQLRelationshipRows (go/internal/reducer/sql_relationship_
-// materialization.go) derives exactly one edge of each of the nine
-// materialized SQL relationship types (cypher.SQLRelationshipMaterializedEdgeTypes,
+// sqlrelationship.ExtractSQLRelationshipRows (go/internal/reducer/
+// sqlrelationship/sql_relationship_materialization.go) derives exactly one
+// edge of each of the nine materialized SQL relationship types
+// (cypher.SQLRelationshipMaterializedEdgeTypes,
 // go/internal/storage/cypher/edge_writer_sql.go): QUERIES_TABLE, READS_FROM,
 // REFERENCES_TABLE, WRITES_TO, HAS_COLUMN, TRIGGERS, EXECUTES, INDEXES, and
 // MIGRATES.
