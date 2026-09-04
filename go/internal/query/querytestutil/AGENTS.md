@@ -138,13 +138,17 @@ exist once. Use that shape for the remaining shared fakes.
 `fakePortContentStore` is the one that needed the structural move first. Its
 fields were typed with read models declared unexported in root, so no adapter
 could name them from another package; those read models moved to `querycontract`
-before the fake could follow. 126 root files name it and one declares it, so 125
+before the fake could follow. 125 root files name it and one declares it, so 124
 consume it -- the same "declarer excluded" convention README.md uses for its 84
 and 80 -- while 93 build one with a composite literal. Count constructions, not
 mentions.
 
+Measure that root-only. A git pathspec of `go/internal/query/*.go` crosses a
+directory separator and returns 126, because `packagereg`'s own double names
+root's in a comment. That file is not a call site.
+
 Its adapter forwards through a single `promoted()` converter rather than
-mapping roughly 45 fields by hand at each call site. That is the shape to copy
+mapping its 29 fields by hand at each call site. That is the shape to copy
 for any fake wide enough that per-field mapping would be written more than once.
 
 What is left after this: `fakeDeadCodeContentStore`, at 35 root files that build
@@ -255,7 +259,7 @@ again.
 - Deleting the `RunSingleByMatch` dispatch from `FakeWorkloadGraphReader`'s
   `RunSingle` (short-circuiting to `nil, nil`) fails **40** root tests.
 
-Both measured on this branch rebased onto `origin/main` 94197f893: 8324 tests
+Both measured on this branch rebased onto `origin/main` 460c59481: 8324 tests
 run, 0 failing, the same baseline every other proof in this package's docs cites. That total is not
 portable -- it moves in both directions as tests are added and as families move
 out of root. Restore the file and re-run the baseline before trusting

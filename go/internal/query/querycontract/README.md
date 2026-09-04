@@ -26,6 +26,7 @@ subpackage can call the same logic without an import cycle (#6060):
 | Content-index readiness | `content_index_readiness.go` | exported error alias, function forwarder |
 | Evidence-citation handles | `evidence_citation_handle.go` | unexported type aliases in `evidence_citation.go`, plus the exported `EvidenceCitationHandle` alias root already published in `evidence_citation_public.go` |
 | Language alias table and coverage maps | `language_registry.go` | unexported function forwarders |
+| `ContentStore` read models (#6060) | `documentation_read_models.go`, `repository_read_models.go`, `repository_summary_read_models.go`, `k8s_select_candidate_projection.go` | 20 unexported type aliases in root, plus four exported ones |
 
 Root's compatibility shape is not uniform, and the difference matters when
 adding to this list. A sentinel error compared with `errors.Is` has to be the
@@ -196,3 +197,19 @@ the parent package instructions.
 - [Source layout](../../../../docs/public/reference/source-layout.md)
 - [HTTP API](../../../../docs/public/reference/http-api.md)
 - [Package restructure design](../../../../docs/internal/design/package-restructure.md)
+
+## Performance and observability
+
+No-Regression Evidence: the hot file this change touches is
+`go/internal/query/catalog.go`, which does issue a real Cypher `MATCH`. The query
+text, its parameters and its decode loop are byte-identical; the only edit turns
+`CatalogWorkloadIdentityEntry` from a struct declaration into a type ALIAS onto
+this package, so `querytestutil.FakePortContentStore` can name it from outside
+root. An alias preserves type identity, so no conversion, copy or extra
+allocation appears on the row-decoding path. The same shape applies to the other
+read models promoted here. Root suite on this branch: 8324 `=== RUN`, 0
+`--- FAIL`, against `origin/main` 460c59481.
+
+No-Observability-Change: no metric, span, log or status surface is added,
+removed or renamed. Moving a type declaration between packages emits nothing,
+and the aliases keep every existing call site on the same code path.

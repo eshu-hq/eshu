@@ -134,10 +134,10 @@ build it with keyed literals; one of them,
 consume it and none of those 154 changed.
 
 `FakePortContentStore` works the same way at a larger scale: root's
-`fakePortContentStore` keeps the original lowercase fields for the 126 test
-files that build it, and every method forwards through one `promoted()`
-converter. Adding a fixture field means touching that converter once rather
-than each of the ~45 methods.
+`fakePortContentStore` keeps the original lowercase fields for the 93 root files
+that build one with a composite literal, out of 125 that name it and 124 that
+consume it. Every method forwards through one `promoted()` converter. Adding a fixture field means touching that converter once rather
+than each of the 41 methods.
 
 Its move needed something `fakeGraphReader`'s did not. Twenty read models had
 to reach `querycontract` first: sixteen the fake named directly or reached
@@ -227,11 +227,12 @@ the input slice before filtering.
 ### One port rests on a single test
 
 `RepositoryEntryPoints` has exactly one consuming test,
-`TestQueryRepoEntryPointsUsesContentRowsBeforeGraph`. The mutation counts above
-show the spread: 6 tests depend on `RepositoryReadModelSummary`, 4 each on
-`RepositoryRelationshipReadModel` and `DocumentationFindings`, 3 each on
-`RelationshipEvidenceByResolvedID` and `ServiceStoryTargetSupportEvidence`, and
-1 here.
+`TestQueryRepoEntryPointsUsesContentRowsBeforeGraph` — `entryPoints:` is set in
+exactly one root file, `repository_entry_points_test.go`.
+
+An earlier draft followed that with a per-port spread introduced as "the
+mutation counts above". Only two are recorded above, so five of its six numbers
+cited evidence this file does not contain, and were removed.
 
 This is not a gap in the sense the `entity_type` one was — that predicate had no
 coverage through this double at all, and this has a real test that genuinely
@@ -287,7 +288,7 @@ rule in querytestutil, run the whole root suite, restore, confirm green again.
   dispatch to `nil, nil` fails **40** root tests.
 
 Both measured against the same 8324-run, 0-failure baseline as every
-other proof in this file, on this branch rebased onto `origin/main` 94197f893. That total is not a portable
+other proof in this file, on this branch rebased onto `origin/main` 460c59481. That total is not a portable
 constant: it grows as tests are added and shrinks when a family moves out of
 root, as `semanticsearch` did. Re-measure rather than carrying one forward --
 the counts in this file were carried forward three separate times before anyone
@@ -449,10 +450,12 @@ which Cypher FRAGMENT a caller registers, not a query this code issues. The
 promotion is a move: the dispatch bodies came across from
 `repository_context_test.go` and `workload_context_test.go` unchanged, so the
 dispatch work per call is identical; the adapter adds one struct construction
-per call, in test binaries only. Root suite: 8324 `=== RUN` on this
-branch and one more at `origin/main` 94197f893, 0 `--- FAIL` on both, each measured
-rather than inferred (the base side from a throwaway worktree checked out at the
-merge-base). The one-test delta is
+per call, in test binaries only. Root suite: 8324 `=== RUN`, 0 `--- FAIL`, on
+this branch rebased onto `origin/main` 460c59481.
+
+The base-side figure that used to sit here was measured against 94197f893, five
+commits earlier, one of which moved a test between packages. Only the
+measurement that reproduces at the stated commit is kept. The delta it described,
 `TestContentReaderCheckArgsComparesByteSliceBindArgsWithoutPanicking` moving
 into this package with the function it covers, as above. That total is not a
 portable constant -- it moves in both directions as tests are added and as
