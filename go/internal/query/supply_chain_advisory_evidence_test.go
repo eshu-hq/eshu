@@ -12,21 +12,23 @@ import (
 	"net/http/httptest"
 	"strings"
 	"testing"
+
+	"github.com/eshu-hq/eshu/go/internal/query/supplychain/advisory"
 )
 
 type recordingAdvisoryEvidenceStore struct {
-	rows       []AdvisoryEvidenceRow
-	lastFilter AdvisoryEvidenceFilter
+	rows       []advisory.AdvisoryEvidenceRow
+	lastFilter advisory.AdvisoryEvidenceFilter
 	calls      int
 }
 
 func (s *recordingAdvisoryEvidenceStore) ListAdvisoryEvidence(
 	_ context.Context,
-	filter AdvisoryEvidenceFilter,
-) ([]AdvisoryEvidenceRow, error) {
+	filter advisory.AdvisoryEvidenceFilter,
+) ([]advisory.AdvisoryEvidenceRow, error) {
 	s.calls++
 	s.lastFilter = filter
-	return append([]AdvisoryEvidenceRow(nil), s.rows...), nil
+	return append([]advisory.AdvisoryEvidenceRow(nil), s.rows...), nil
 }
 
 type unusedAdvisoryEvidenceQueryer struct{}
@@ -67,16 +69,16 @@ func TestSupplyChainListAdvisoryEvidenceRequiresScopeAndLimit(t *testing.T) {
 func TestPostgresAdvisoryEvidenceStoreReportsPaginationLimit(t *testing.T) {
 	t.Parallel()
 
-	store := NewPostgresAdvisoryEvidenceStore(unusedAdvisoryEvidenceQueryer{})
+	store := advisory.NewPostgresAdvisoryEvidenceStore(unusedAdvisoryEvidenceQueryer{})
 
-	_, err := store.ListAdvisoryEvidence(context.Background(), AdvisoryEvidenceFilter{
+	_, err := store.ListAdvisoryEvidence(context.Background(), advisory.AdvisoryEvidenceFilter{
 		CVEID: "CVE-2026-0001",
-		Limit: advisoryEvidenceMaxLimit + 2,
+		Limit: advisory.AdvisoryEvidenceMaxLimit + 2,
 	})
 	if err == nil {
 		t.Fatal("ListAdvisoryEvidence() error = nil, want limit error")
 	}
-	want := fmt.Sprintf("limit must be between 1 and %d for internal pagination", advisoryEvidenceMaxLimit+1)
+	want := fmt.Sprintf("limit must be between 1 and %d for internal pagination", advisory.AdvisoryEvidenceMaxLimit+1)
 	if !strings.Contains(err.Error(), want) {
 		t.Fatalf("error = %q, want %q", err.Error(), want)
 	}
@@ -85,7 +87,7 @@ func TestPostgresAdvisoryEvidenceStoreReportsPaginationLimit(t *testing.T) {
 func TestNormalizeAdvisoryEvidenceFilterCanonicalizesIdentityInputs(t *testing.T) {
 	t.Parallel()
 
-	got := normalizeAdvisoryEvidenceFilter(AdvisoryEvidenceFilter{
+	got := advisory.NormalizeAdvisoryEvidenceFilter(advisory.AdvisoryEvidenceFilter{
 		CVEID:            " cve-2026-0001 ",
 		AdvisoryID:       " gHsA-aaaa-bbbb-cccc ",
 		PackageID:        " pkg:npm/example ",
@@ -118,13 +120,13 @@ func TestSupplyChainListAdvisoryEvidenceUsesBoundedStore(t *testing.T) {
 	t.Parallel()
 
 	store := &recordingAdvisoryEvidenceStore{
-		rows: []AdvisoryEvidenceRow{
+		rows: []advisory.AdvisoryEvidenceRow{
 			{
 				AdvisoryKey: "CVE-2026-0001",
 				CanonicalID: "CVE-2026-0001",
 				CVEIDs:      []string{"CVE-2026-0001"},
 				GHSAIDs:     []string{"GHSA-aaaa-bbbb-cccc"},
-				Sources: []AdvisorySourceEvidence{
+				Sources: []advisory.AdvisorySourceEvidence{
 					{
 						Source:        "ghsa",
 						AdvisoryID:    "GHSA-aaaa-bbbb-cccc",
@@ -161,11 +163,11 @@ func TestSupplyChainListAdvisoryEvidenceUsesBoundedStore(t *testing.T) {
 	}
 
 	var resp struct {
-		Advisories []AdvisoryEvidenceRow `json:"advisories"`
-		Count      int                   `json:"count"`
-		Limit      int                   `json:"limit"`
-		Truncated  bool                  `json:"truncated"`
-		NextCursor map[string]string     `json:"next_cursor"`
+		Advisories []advisory.AdvisoryEvidenceRow `json:"advisories"`
+		Count      int                            `json:"count"`
+		Limit      int                            `json:"limit"`
+		Truncated  bool                           `json:"truncated"`
+		NextCursor map[string]string              `json:"next_cursor"`
 	}
 	if err := json.Unmarshal(w.Body.Bytes(), &resp); err != nil {
 		t.Fatalf("json.Unmarshal: %v", err)
@@ -187,13 +189,13 @@ func TestSupplyChainListAdvisoryEvidenceUsesBoundedStore(t *testing.T) {
 func TestPageAdvisoryEvidenceRowsNormalizesCursor(t *testing.T) {
 	t.Parallel()
 
-	rows := []AdvisoryEvidenceRow{
+	rows := []advisory.AdvisoryEvidenceRow{
 		{AdvisoryKey: "CVE-2026-0001"},
 		{AdvisoryKey: "GHSA-aaaa-bbbb-cccc"},
 		{AdvisoryKey: "OSV-2026-0001"},
 	}
 
-	got := pageAdvisoryEvidenceRows(rows, AdvisoryEvidenceFilter{
+	got := advisory.PageAdvisoryEvidenceRows(rows, advisory.AdvisoryEvidenceFilter{
 		AfterAdvisoryKey: "ghsa-AAAA-bbbb-cccc",
 		Limit:            1,
 	})
@@ -201,7 +203,7 @@ func TestPageAdvisoryEvidenceRowsNormalizesCursor(t *testing.T) {
 		t.Fatalf("page after mixed-case GHSA = %#v, want OSV row", got)
 	}
 
-	got = pageAdvisoryEvidenceRows(rows, AdvisoryEvidenceFilter{
+	got = advisory.PageAdvisoryEvidenceRows(rows, advisory.AdvisoryEvidenceFilter{
 		AfterAdvisoryKey: "cve-2026-0001",
 		Limit:            1,
 	})
@@ -213,13 +215,13 @@ func TestPageAdvisoryEvidenceRowsNormalizesCursor(t *testing.T) {
 func TestPageAdvisoryEvidenceRowsKeepsCVEAnchorScoped(t *testing.T) {
 	t.Parallel()
 
-	rows := []AdvisoryEvidenceRow{
+	rows := []advisory.AdvisoryEvidenceRow{
 		{AdvisoryKey: "CVE-2026-0002", CanonicalID: "CVE-2026-0002", CVEIDs: []string{"CVE-2026-0002"}},
 		{AdvisoryKey: "CVE-2026-0001", CanonicalID: "CVE-2026-0001", CVEIDs: []string{"CVE-2026-0001"}},
 		{AdvisoryKey: "CVE-2026-0003", CanonicalID: "CVE-2026-0003", CVEIDs: []string{"CVE-2026-0003"}},
 	}
 
-	got := pageAdvisoryEvidenceRows(rows, AdvisoryEvidenceFilter{CVEID: "CVE-2026-0001", Limit: 10})
+	got := advisory.PageAdvisoryEvidenceRows(rows, advisory.AdvisoryEvidenceFilter{CVEID: "CVE-2026-0001", Limit: 10})
 	if len(got) != 1 || got[0].CanonicalID != "CVE-2026-0001" {
 		t.Fatalf("CVE-scoped page = %#v, want only CVE-2026-0001", got)
 	}
@@ -228,31 +230,31 @@ func TestPageAdvisoryEvidenceRowsKeepsCVEAnchorScoped(t *testing.T) {
 func TestPageAdvisoryEvidenceRowsKeepsPackageAnchorBroad(t *testing.T) {
 	t.Parallel()
 
-	rows := []AdvisoryEvidenceRow{
+	rows := []advisory.AdvisoryEvidenceRow{
 		{
 			AdvisoryKey: "CVE-2026-0001",
 			CanonicalID: "CVE-2026-0001",
-			AffectedPackages: []AdvisoryAffectedPackage{
+			AffectedPackages: []advisory.AdvisoryAffectedPackage{
 				{PackageID: "pkg:npm/example"},
 			},
 		},
 		{
 			AdvisoryKey: "CVE-2026-0002",
 			CanonicalID: "CVE-2026-0002",
-			AffectedPackages: []AdvisoryAffectedPackage{
+			AffectedPackages: []advisory.AdvisoryAffectedPackage{
 				{PackageID: "pkg:npm/example"},
 			},
 		},
 		{
 			AdvisoryKey: "CVE-2026-0003",
 			CanonicalID: "CVE-2026-0003",
-			AffectedPackages: []AdvisoryAffectedPackage{
+			AffectedPackages: []advisory.AdvisoryAffectedPackage{
 				{PackageID: "pkg:npm/other"},
 			},
 		},
 	}
 
-	got := pageAdvisoryEvidenceRows(rows, AdvisoryEvidenceFilter{PackageID: "pkg:npm/example", Limit: 10})
+	got := advisory.PageAdvisoryEvidenceRows(rows, advisory.AdvisoryEvidenceFilter{PackageID: "pkg:npm/example", Limit: 10})
 	if len(got) != 2 {
 		t.Fatalf("package-scoped page length = %d, want 2: %#v", len(got), got)
 	}
@@ -261,7 +263,7 @@ func TestPageAdvisoryEvidenceRowsKeepsPackageAnchorBroad(t *testing.T) {
 func TestAdvisoryEvidenceFactCapacityUsesQueryLimit(t *testing.T) {
 	t.Parallel()
 
-	if got, want := advisoryEvidenceFactCapacity(), advisoryEvidenceMaxFactRows; got != want {
+	if got, want := advisory.AdvisoryEvidenceFactCapacity(), advisory.AdvisoryEvidenceMaxFactRows; got != want {
 		t.Fatalf("advisoryEvidenceFactCapacity() = %d, want %d", got, want)
 	}
 }
@@ -269,7 +271,7 @@ func TestAdvisoryEvidenceFactCapacityUsesQueryLimit(t *testing.T) {
 func TestBuildAdvisoryEvidenceRowsMergesSourceOnlyEvidence(t *testing.T) {
 	t.Parallel()
 
-	rows := []advisoryEvidenceFactRow{
+	rows := []advisory.AdvisoryEvidenceFactRow{
 		factRow("ghsa-cve", "vulnerability.cve", `{
 			"source": "ghsa",
 			"advisory_id": "GHSA-aaaa-bbbb-cccc",
@@ -342,7 +344,7 @@ func TestBuildAdvisoryEvidenceRowsMergesSourceOnlyEvidence(t *testing.T) {
 		}`),
 	}
 
-	got := buildAdvisoryEvidenceRows(rows)
+	got := advisory.BuildAdvisoryEvidenceRows(rows)
 	if len(got) != 1 {
 		t.Fatalf("len(rows) = %d, want 1: %#v", len(got), got)
 	}
@@ -393,7 +395,7 @@ func TestBuildAdvisoryEvidenceRowsMergesSourceOnlyEvidence(t *testing.T) {
 func TestCanonicalAdvisoryKeyNormalizesMixedCaseGHSA(t *testing.T) {
 	t.Parallel()
 
-	got := canonicalAdvisoryKey(map[string]any{"advisory_id": "gHsA-aaaa-bbbb-cccc"})
+	got := advisory.CanonicalAdvisoryKey(map[string]any{"advisory_id": "gHsA-aaaa-bbbb-cccc"})
 	if want := "GHSA-aaaa-bbbb-cccc"; got != want {
 		t.Fatalf("canonicalAdvisoryKey() = %q, want %q", got, want)
 	}
@@ -414,18 +416,18 @@ func TestAdvisoryEvidenceQueryUsesActiveSourceFactReadModel(t *testing.T) {
 		"jsonb_array_elements_text",
 		"payload->'correlation_anchors'",
 	} {
-		if !strings.Contains(listAdvisoryEvidenceQuery, want) {
-			t.Fatalf("listAdvisoryEvidenceQuery missing %q:\n%s", want, listAdvisoryEvidenceQuery)
+		if !strings.Contains(advisory.ListAdvisoryEvidenceQuery, want) {
+			t.Fatalf("listAdvisoryEvidenceQuery missing %q:\n%s", want, advisory.ListAdvisoryEvidenceQuery)
 		}
 	}
 }
 
-func factRow(factID string, factKind string, payload string) advisoryEvidenceFactRow {
+func factRow(factID string, factKind string, payload string) advisory.AdvisoryEvidenceFactRow {
 	var decoded map[string]any
 	if err := json.Unmarshal([]byte(payload), &decoded); err != nil {
 		panic(err)
 	}
-	return advisoryEvidenceFactRow{
+	return advisory.AdvisoryEvidenceFactRow{
 		FactID:           factID,
 		FactKind:         factKind,
 		SourceConfidence: "reported",
@@ -434,7 +436,7 @@ func factRow(factID string, factKind string, payload string) advisoryEvidenceFac
 	}
 }
 
-func advisoryEvidenceHasDisagreement(row AdvisoryEvidenceRow, field string) bool {
+func advisoryEvidenceHasDisagreement(row advisory.AdvisoryEvidenceRow, field string) bool {
 	for _, disagreement := range row.SourceDisagreements {
 		if disagreement.Field == field {
 			return true

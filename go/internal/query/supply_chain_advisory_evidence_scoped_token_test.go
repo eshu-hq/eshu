@@ -10,6 +10,8 @@ import (
 	"net/http/httptest"
 	"strings"
 	"testing"
+
+	"github.com/eshu-hq/eshu/go/internal/query/supplychain/advisory"
 )
 
 type failingAdvisoryEvidenceStore struct {
@@ -18,8 +20,8 @@ type failingAdvisoryEvidenceStore struct {
 
 func (s *failingAdvisoryEvidenceStore) ListAdvisoryEvidence(
 	context.Context,
-	AdvisoryEvidenceFilter,
-) ([]AdvisoryEvidenceRow, error) {
+	advisory.AdvisoryEvidenceFilter,
+) ([]advisory.AdvisoryEvidenceRow, error) {
 	s.called = true
 	return nil, errors.New("broad advisory evidence read")
 }
@@ -58,7 +60,7 @@ func TestAdvisoryEvidenceScopedTokenAllowsPublicAdvisoryByID(t *testing.T) {
 	// "Allow public advisory data": a scoped token with no repository grants
 	// may still read global advisory evidence by id; the store IS consulted.
 	store := &recordingAdvisoryEvidenceStore{
-		rows: []AdvisoryEvidenceRow{{AdvisoryKey: "CVE-2026-0001", CanonicalID: "CVE-2026-0001"}},
+		rows: []advisory.AdvisoryEvidenceRow{{AdvisoryKey: "CVE-2026-0001", CanonicalID: "CVE-2026-0001"}},
 	}
 	handler := &SupplyChainHandler{Content: repositorySelectorReadModelContentStore(), AdvisoryEvidence: store, Profile: ProfileProduction}
 	mux := http.NewServeMux()
@@ -115,7 +117,7 @@ func TestAdvisoryEvidenceScopedTokenPropagatesGrantsForRepositoryAnchor(t *testi
 	t.Parallel()
 
 	store := &recordingAdvisoryEvidenceStore{
-		rows: []AdvisoryEvidenceRow{{AdvisoryKey: "CVE-2026-0001", CanonicalID: "CVE-2026-0001"}},
+		rows: []advisory.AdvisoryEvidenceRow{{AdvisoryKey: "CVE-2026-0001", CanonicalID: "CVE-2026-0001"}},
 	}
 	handler := &SupplyChainHandler{Content: repositorySelectorReadModelContentStore(), AdvisoryEvidence: store, Profile: ProfileProduction}
 	mux := http.NewServeMux()
@@ -147,13 +149,13 @@ func TestAdvisoryEvidenceSQLBoundsImpactSelectorByGrants(t *testing.T) {
 	t.Parallel()
 
 	const predicate = "fact.payload->>'repository_id' = ANY($9::text[])"
-	if !strings.Contains(listAdvisoryEvidenceQuery, predicate) {
-		t.Fatalf("advisory evidence query missing impact-selector grant predicate %q:\n%s", predicate, listAdvisoryEvidenceQuery)
+	if !strings.Contains(advisory.ListAdvisoryEvidenceQuery, predicate) {
+		t.Fatalf("advisory evidence query missing impact-selector grant predicate %q:\n%s", predicate, advisory.ListAdvisoryEvidenceQuery)
 	}
 	// The grant predicate must apply inside the impact_candidates CTE (which
 	// derives advisory anchors from impact findings), before the advisory fact
 	// seeding in seed_candidates.
-	if strings.Index(listAdvisoryEvidenceQuery, predicate) > strings.Index(listAdvisoryEvidenceQuery, "seed_candidates AS MATERIALIZED") {
-		t.Fatalf("grant predicate must bound impact_candidates before seed_candidates:\n%s", listAdvisoryEvidenceQuery)
+	if strings.Index(advisory.ListAdvisoryEvidenceQuery, predicate) > strings.Index(advisory.ListAdvisoryEvidenceQuery, "seed_candidates AS MATERIALIZED") {
+		t.Fatalf("grant predicate must bound impact_candidates before seed_candidates:\n%s", advisory.ListAdvisoryEvidenceQuery)
 	}
 }

@@ -6,21 +6,23 @@ package query
 import (
 	"strings"
 	"testing"
+
+	"github.com/eshu-hq/eshu/go/internal/query/supplychain/advisory"
 )
 
 func TestAdvisoryEvidenceQuerySeedsFromFactRecordsNotBroadActiveSet(t *testing.T) {
 	t.Parallel()
 
-	if strings.Contains(listAdvisoryEvidenceQuery, "FROM active") {
-		t.Fatalf("advisory evidence query must not seed or return from a broad active CTE:\n%s", listAdvisoryEvidenceQuery)
+	if strings.Contains(advisory.ListAdvisoryEvidenceQuery, "FROM active") {
+		t.Fatalf("advisory evidence query must not seed or return from a broad active CTE:\n%s", advisory.ListAdvisoryEvidenceQuery)
 	}
-	seedStart := strings.Index(listAdvisoryEvidenceQuery, "seed AS (")
-	matchesStart := strings.Index(listAdvisoryEvidenceQuery, "matched_facts AS (")
+	seedStart := strings.Index(advisory.ListAdvisoryEvidenceQuery, "seed AS (")
+	matchesStart := strings.Index(advisory.ListAdvisoryEvidenceQuery, "matched_facts AS (")
 	if seedStart < 0 || matchesStart < 0 {
-		t.Fatalf("query must keep selector seed and matched facts as explicit CTEs:\n%s", listAdvisoryEvidenceQuery)
+		t.Fatalf("query must keep selector seed and matched facts as explicit CTEs:\n%s", advisory.ListAdvisoryEvidenceQuery)
 	}
 	if seedStart > matchesStart {
-		t.Fatalf("query must derive seed keys before matching facts:\n%s", listAdvisoryEvidenceQuery)
+		t.Fatalf("query must derive seed keys before matching facts:\n%s", advisory.ListAdvisoryEvidenceQuery)
 	}
 	for _, want := range []string{
 		"JOIN fact_records AS fact",
@@ -32,8 +34,8 @@ func TestAdvisoryEvidenceQuerySeedsFromFactRecordsNotBroadActiveSet(t *testing.T
 		"fact.is_tombstone = FALSE",
 		"LIMIT $5",
 	} {
-		if !strings.Contains(listAdvisoryEvidenceQuery, want) {
-			t.Fatalf("listAdvisoryEvidenceQuery missing %q:\n%s", want, listAdvisoryEvidenceQuery)
+		if !strings.Contains(advisory.ListAdvisoryEvidenceQuery, want) {
+			t.Fatalf("listAdvisoryEvidenceQuery missing %q:\n%s", want, advisory.ListAdvisoryEvidenceQuery)
 		}
 	}
 }
@@ -50,8 +52,8 @@ func TestAdvisoryEvidenceQueryUsesIndexableJSONBPredicates(t *testing.T) {
 		"fact.payload->'aliases' ? lookup.value",
 		"fact.payload->'correlation_anchors' ? lookup.value",
 	} {
-		if strings.Contains(listAdvisoryEvidenceQuery, forbidden) {
-			t.Fatalf("listAdvisoryEvidenceQuery contains unbounded predicate %q:\n%s", forbidden, listAdvisoryEvidenceQuery)
+		if strings.Contains(advisory.ListAdvisoryEvidenceQuery, forbidden) {
+			t.Fatalf("listAdvisoryEvidenceQuery contains unbounded predicate %q:\n%s", forbidden, advisory.ListAdvisoryEvidenceQuery)
 		}
 	}
 	for _, want := range []string{
@@ -65,8 +67,8 @@ func TestAdvisoryEvidenceQueryUsesIndexableJSONBPredicates(t *testing.T) {
 		"fact.payload->>'package_id' = pkg.value",
 		"fact.payload->>'purl' = pkg.value",
 	} {
-		if !strings.Contains(listAdvisoryEvidenceQuery, want) {
-			t.Fatalf("listAdvisoryEvidenceQuery missing %q:\n%s", want, listAdvisoryEvidenceQuery)
+		if !strings.Contains(advisory.ListAdvisoryEvidenceQuery, want) {
+			t.Fatalf("listAdvisoryEvidenceQuery missing %q:\n%s", want, advisory.ListAdvisoryEvidenceQuery)
 		}
 	}
 }
@@ -74,7 +76,7 @@ func TestAdvisoryEvidenceQueryUsesIndexableJSONBPredicates(t *testing.T) {
 func TestAdvisoryEvidenceLookupIDsStaySeparateFromPackageScope(t *testing.T) {
 	t.Parallel()
 
-	got := advisoryEvidenceLookupIDs(AdvisoryEvidenceFilter{
+	got := advisory.AdvisoryEvidenceLookupIDs(advisory.AdvisoryEvidenceFilter{
 		CVEID:      " cve-2026-0002 ",
 		AdvisoryID: " GHSA-aaaa-bbbb-cccc ",
 		PackageID:  "pkg:npm/example",

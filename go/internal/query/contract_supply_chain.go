@@ -3,6 +3,10 @@
 
 package query
 
+import (
+	"github.com/eshu-hq/eshu/go/internal/query/supplychain/advisory"
+)
+
 func init() {
 	capabilityMatrix[vulnerabilityScannerReadContractCapability] = capabilitySupport{
 		LocalLightweightMax:   &truthExact,
@@ -18,14 +22,14 @@ func init() {
 		ProductionMax:         &truthExact,
 		RequiredProfile:       ProfileLocalAuthoritative,
 	}
-	capabilityMatrix[advisoryEvidenceCapability] = capabilitySupport{
+	capabilityMatrix[advisory.AdvisoryEvidenceCapability] = capabilitySupport{
 		LocalLightweightMax:   nil,
 		LocalAuthoritativeMax: &truthExact,
 		LocalFullStackMax:     &truthExact,
 		ProductionMax:         &truthExact,
 		RequiredProfile:       ProfileLocalAuthoritative,
 	}
-	capabilityMatrix[advisoryCatalogCapability] = capabilitySupport{
+	capabilityMatrix[advisory.AdvisoryCatalogCapability] = capabilitySupport{
 		LocalLightweightMax:   nil,
 		LocalAuthoritativeMax: &truthExact,
 		LocalFullStackMax:     &truthExact,

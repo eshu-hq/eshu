@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"strconv"
 
+	"github.com/eshu-hq/eshu/go/internal/query/supplychain/advisory"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
 )
 
@@ -16,20 +17,20 @@ func (h *SupplyChainHandler) listAdvisoryEvidence(w http.ResponseWriter, r *http
 		r,
 		telemetry.SpanQueryAdvisoryEvidence,
 		"GET /api/v0/supply-chain/advisories/evidence",
-		advisoryEvidenceCapability,
+		advisory.AdvisoryEvidenceCapability,
 	)
 	defer span.End()
 
-	if capabilityUnsupported(h.profile(), advisoryEvidenceCapability) {
+	if capabilityUnsupported(h.profile(), advisory.AdvisoryEvidenceCapability) {
 		WriteContractError(
 			w,
 			r,
 			http.StatusNotImplemented,
 			"advisory evidence requires the Postgres vulnerability source fact read model",
 			ErrorCodeUnsupportedCapability,
-			advisoryEvidenceCapability,
+			advisory.AdvisoryEvidenceCapability,
 			h.profile(),
-			requiredProfile(advisoryEvidenceCapability),
+			requiredProfile(advisory.AdvisoryEvidenceCapability),
 		)
 		return
 	}
@@ -44,11 +45,11 @@ func (h *SupplyChainHandler) listAdvisoryEvidence(w http.ResponseWriter, r *http
 	// with the impact findings that derive advisory anchors so a scoped caller
 	// only learns advisories affecting its own repositories.
 	access := repositoryAccessFilterFromContext(r.Context())
-	repositoryID, ok := resolveRepositorySelectorForRequestWithAccess(w, r, h.Neo4j, h.Content, QueryParam(r, "repository_id"), access, advisoryEvidenceCapability)
+	repositoryID, ok := resolveRepositorySelectorForRequestWithAccess(w, r, h.Neo4j, h.Content, QueryParam(r, "repository_id"), access, advisory.AdvisoryEvidenceCapability)
 	if !ok {
 		return
 	}
-	filter := normalizeAdvisoryEvidenceFilter(AdvisoryEvidenceFilter{
+	filter := advisory.NormalizeAdvisoryEvidenceFilter(advisory.AdvisoryEvidenceFilter{
 		CVEID:                      QueryParam(r, "cve_id"),
 		AdvisoryID:                 QueryParam(r, "advisory_id"),
 		PackageID:                  QueryParam(r, "package_id"),
@@ -60,7 +61,7 @@ func (h *SupplyChainHandler) listAdvisoryEvidence(w http.ResponseWriter, r *http
 		Limit:                      limit + 1,
 		AllowedSourceRepositoryIDs: access.RepositorySearchIDs(),
 	})
-	if !filter.hasScope() {
+	if !filter.HasScope() {
 		WriteError(w, http.StatusBadRequest, "cve_id, advisory_id, package_id, repository_id, service_id, or workload_id is required")
 		return
 	}
@@ -71,9 +72,9 @@ func (h *SupplyChainHandler) listAdvisoryEvidence(w http.ResponseWriter, r *http
 			http.StatusServiceUnavailable,
 			"advisory evidence requires the Postgres vulnerability source fact read model",
 			ErrorCodeBackendUnavailable,
-			advisoryEvidenceCapability,
+			advisory.AdvisoryEvidenceCapability,
 			h.profile(),
-			requiredProfile(advisoryEvidenceCapability),
+			requiredProfile(advisory.AdvisoryEvidenceCapability),
 		)
 		return
 	}
@@ -98,14 +99,14 @@ func (h *SupplyChainHandler) listAdvisoryEvidence(w http.ResponseWriter, r *http
 	}
 	WriteSuccess(w, r, http.StatusOK, body, BuildTruthEnvelope(
 		h.profile(),
-		advisoryEvidenceCapability,
+		advisory.AdvisoryEvidenceCapability,
 		TruthBasisSemanticFacts,
 		"resolved from active vulnerability source facts; repository, service, and workload scopes use reducer-owned impact findings only as bounded advisory anchors and do not imply additional package, image, workload, or deployment impact",
 	))
 }
 
-func advisoryEvidenceResponseScope(filter AdvisoryEvidenceFilter) map[string]string {
-	filter = normalizeAdvisoryEvidenceFilter(filter)
+func advisoryEvidenceResponseScope(filter advisory.AdvisoryEvidenceFilter) map[string]string {
+	filter = advisory.NormalizeAdvisoryEvidenceFilter(filter)
 	scope := make(map[string]string, 6)
 	if filter.CVEID != "" {
 		scope["cve_id"] = filter.CVEID
@@ -135,8 +136,8 @@ func requiredAdvisoryEvidenceLimit(w http.ResponseWriter, r *http.Request) (int,
 		return 0, false
 	}
 	limit, err := strconv.Atoi(raw)
-	if err != nil || limit <= 0 || limit > advisoryEvidenceMaxLimit {
-		WriteError(w, http.StatusBadRequest, fmt.Sprintf("limit must be between 1 and %d", advisoryEvidenceMaxLimit))
+	if err != nil || limit <= 0 || limit > advisory.AdvisoryEvidenceMaxLimit {
+		WriteError(w, http.StatusBadRequest, fmt.Sprintf("limit must be between 1 and %d", advisory.AdvisoryEvidenceMaxLimit))
 		return 0, false
 	}
 	return limit, true
