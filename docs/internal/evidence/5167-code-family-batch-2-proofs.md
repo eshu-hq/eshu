@@ -134,9 +134,8 @@ both are forced by production Go passes that run after the read:
 
 ## Verification
 
-Every command below was run after the last edit, from
-`/Users/linuxdynasty/repos/eshu-wt-5167-code2` with a worktree-local `GOCACHE`.
-Exit codes were captured directly.
+Every command below was run after the last edit, from the batch-2 worktree with
+a worktree-local `GOCACHE`. Exit codes were captured directly.
 
 ```text
 cd go && go test ./internal/query ./internal/mcp ./internal/queryplan -count=1
