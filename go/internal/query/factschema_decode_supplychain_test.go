@@ -14,8 +14,11 @@ import (
 // accuracy guarantee eshu-contract-rigor names: a required payload key
 // absent (or null) from a source-fact payload must dead-letter as a
 // classified input_invalid *queryDecodeError, never a silent zero-value
-// struct. Table-driven so every #4795 W2b supply-chain decode wrapper is
-// covered by the same assertion.
+// struct. Table-driven so every #4795 W2b supply-chain decode wrapper still
+// living in this package is covered by the same assertion. The four
+// vulnerability wrappers moved with the advisory-evidence read model to
+// internal/query/supplychain/advisory (#6060 lane A); their missing-field
+// cases live in that package's supply_chain_advisory_decode_test.go.
 func TestSupplyChainDecodeWrappersClassifyMissingRequiredField(t *testing.T) {
 	t.Parallel()
 
@@ -26,46 +29,6 @@ func TestSupplyChainDecodeWrappersClassifyMissingRequiredField(t *testing.T) {
 		wantFactKind string
 		missingField string
 	}{
-		{
-			name: "vulnerability.cve missing advisory_id",
-			decode: func(in supplyChainFactDecodeInput) error {
-				_, err := decodeVulnerabilityCVE(in)
-				return err
-			},
-			payload:      map[string]any{"cve_id": "CVE-2026-0001"},
-			wantFactKind: factschema.FactKindVulnerabilityCVE,
-			missingField: "advisory_id",
-		},
-		{
-			name: "vulnerability.affected_package missing advisory_id",
-			decode: func(in supplyChainFactDecodeInput) error {
-				_, err := decodeVulnerabilityAffectedPackage(in)
-				return err
-			},
-			payload:      map[string]any{"cve_id": "CVE-2026-0001", "ecosystem": "npm"},
-			wantFactKind: factschema.FactKindVulnerabilityAffectedPackage,
-			missingField: "advisory_id",
-		},
-		{
-			name: "vulnerability.epss_score missing cve_id",
-			decode: func(in supplyChainFactDecodeInput) error {
-				_, err := decodeVulnerabilityEPSSScore(in)
-				return err
-			},
-			payload:      map[string]any{"probability": "0.5"},
-			wantFactKind: factschema.FactKindVulnerabilityEPSSScore,
-			missingField: "cve_id",
-		},
-		{
-			name: "vulnerability.known_exploited missing cve_id",
-			decode: func(in supplyChainFactDecodeInput) error {
-				_, err := decodeVulnerabilityKnownExploited(in)
-				return err
-			},
-			payload:      map[string]any{"vendor_project": "Example Corp"},
-			wantFactKind: factschema.FactKindVulnerabilityKnownExploited,
-			missingField: "cve_id",
-		},
 		{
 			name: "sbom.document missing document_id",
 			decode: func(in supplyChainFactDecodeInput) error {

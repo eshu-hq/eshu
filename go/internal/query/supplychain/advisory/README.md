@@ -87,9 +87,13 @@ the only statement-level changes are the `package` clause, the
 listed in `AGENTS.md`, the `querycontract` qualification of the value
 decoders (root forwards to the identical functions), and the family-local
 copies of the decode seam, deref helpers, and map helpers, each documented
-with its root source and verified byte-identical in behavior by the
-unchanged root test suite (`go test ./internal/query/...`), which pins the
-grouping, paging, normalization, SQL shape, and dead-letter behavior.
+with its root source and verified behavior-preserving by the
+re-qualified root test suite (`go test ./internal/query/...`), which pins
+the grouping, paging, normalization, SQL shape, and dead-letter behavior.
+The four vulnerability decode cases the root dead-letter table yielded
+moved with their wrappers into `supply_chain_advisory_decode_test.go`,
+asserting the same classification, fact kind, fact ID, and field on the
+`querydecode.Error` the wrappers return.
 
 No-Observability-Change: there is no observability to change — this
 package emits none, and the handler spans and capability strings keep
