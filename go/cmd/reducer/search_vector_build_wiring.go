@@ -9,7 +9,7 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/query"
-	"github.com/eshu-hq/eshu/go/internal/reducer"
+	reducersearchvector "github.com/eshu-hq/eshu/go/internal/reducer/searchvector"
 	"github.com/eshu-hq/eshu/go/internal/searchembedruntime"
 	"github.com/eshu-hq/eshu/go/internal/searchvector"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres"
@@ -23,7 +23,7 @@ func searchVectorBuildRunnerFor(
 	getenv func(string) string,
 	logger *slog.Logger,
 	instruments *telemetry.Instruments,
-) (*reducer.SearchVectorBuildRunner, error) {
+) (*reducersearchvector.SearchVectorBuildRunner, error) {
 	embeddingConfig, err := searchembedruntime.ConfigFromEnv(getenv, nil)
 	if err != nil {
 		return nil, err
@@ -37,7 +37,7 @@ func searchVectorBuildRunnerFor(
 	vectorConfig.EmbeddingModelID = embeddingConfig.EmbeddingModelID
 	vectorConfig.VectorIndexVersion = embeddingConfig.VectorIndexVersion
 	scopeStateStore := postgres.NewEshuSearchVectorScopeStateStore(database)
-	return &reducer.SearchVectorBuildRunner{
+	return &reducersearchvector.SearchVectorBuildRunner{
 		Pending: searchVectorScopeStatePendingAdapter{store: scopeStateStore},
 		Builder: searchVectorBuilderAdapter{builder: searchvector.Builder{
 			Documents: postgres.NewEshuSearchDocumentStore(database),
@@ -48,7 +48,7 @@ func searchVectorBuildRunnerFor(
 				return embeddingConfig.AllowsSearchDocument(row.Document.RepoID, row.Document.ID, row.Document.Path)
 			},
 		}},
-		Config: reducer.SearchVectorBuildRunnerConfig{
+		Config: reducersearchvector.SearchVectorBuildRunnerConfig{
 			PollInterval:       30 * time.Second,
 			ScopeLimit:         100,
 			DocumentLimit:      500,
@@ -70,7 +70,7 @@ type searchVectorReadyPublisherAdapter struct {
 
 func (a searchVectorReadyPublisherAdapter) PublishSearchVectorReady(
 	ctx context.Context,
-	identity reducer.SearchVectorBuildIdentity,
+	identity reducersearchvector.SearchVectorBuildIdentity,
 ) error {
 	return a.store.PublishSearchVectorReady(ctx, postgres.EshuSearchVectorBuildIdentity{
 		ProviderProfileID:  identity.ProviderProfileID,
@@ -86,8 +86,8 @@ type searchVectorBuilderAdapter struct {
 
 func (a searchVectorBuilderAdapter) BuildSearchVectors(
 	ctx context.Context,
-	req reducer.SearchVectorBuildRequest,
-) (reducer.SearchVectorBuildResult, error) {
+	req reducersearchvector.SearchVectorBuildRequest,
+) (reducersearchvector.SearchVectorBuildResult, error) {
 	result, err := a.builder.Build(ctx, searchvector.BuildRequest{
 		ScopeID:            req.ScopeID,
 		GenerationID:       req.GenerationID,
@@ -101,7 +101,7 @@ func (a searchVectorBuilderAdapter) BuildSearchVectors(
 		ProjectionRevision: req.ProjectionRevision,
 		BuildFence:         req.BuildFence,
 	})
-	return reducer.SearchVectorBuildResult{
+	return reducersearchvector.SearchVectorBuildResult{
 		DocumentCount:       result.DocumentCount,
 		VectorCount:         result.VectorCount,
 		DisabledCount:       result.DisabledCount,
@@ -115,8 +115,8 @@ func (a searchVectorBuilderAdapter) BuildSearchVectors(
 
 func (a searchVectorBuilderAdapter) BuildSearchVectorsBatch(
 	ctx context.Context,
-	reqs []reducer.SearchVectorBuildRequest,
-) (reducer.SearchVectorBuildResult, error) {
+	reqs []reducersearchvector.SearchVectorBuildRequest,
+) (reducersearchvector.SearchVectorBuildResult, error) {
 	buildReqs := make([]searchvector.BuildRequest, 0, len(reqs))
 	for _, req := range reqs {
 		buildReqs = append(buildReqs, searchvector.BuildRequest{
@@ -134,7 +134,7 @@ func (a searchVectorBuilderAdapter) BuildSearchVectorsBatch(
 		})
 	}
 	result, err := a.builder.BuildBatch(ctx, buildReqs)
-	return reducer.SearchVectorBuildResult{
+	return reducersearchvector.SearchVectorBuildResult{
 		DocumentCount:       result.DocumentCount,
 		VectorCount:         result.VectorCount,
 		DisabledCount:       result.DisabledCount,
@@ -156,8 +156,8 @@ type searchVectorScopeStatePendingAdapter struct {
 
 func (a searchVectorScopeStatePendingAdapter) ListPendingSearchVectorScopes(
 	ctx context.Context,
-	req reducer.SearchVectorBuildPendingRequest,
-) ([]reducer.SearchVectorBuildPendingScope, error) {
+	req reducersearchvector.SearchVectorBuildPendingRequest,
+) ([]reducersearchvector.SearchVectorBuildPendingScope, error) {
 	scopes, err := a.store.ListPendingSearchVectorScopes(ctx, postgres.EshuSearchVectorPendingRequest{
 		ProviderProfileID:  req.ProviderProfileID,
 		SourceClass:        req.SourceClass,
@@ -168,9 +168,9 @@ func (a searchVectorScopeStatePendingAdapter) ListPendingSearchVectorScopes(
 	if err != nil {
 		return nil, err
 	}
-	out := make([]reducer.SearchVectorBuildPendingScope, 0, len(scopes))
+	out := make([]reducersearchvector.SearchVectorBuildPendingScope, 0, len(scopes))
 	for _, scope := range scopes {
-		out = append(out, reducer.SearchVectorBuildPendingScope{
+		out = append(out, reducersearchvector.SearchVectorBuildPendingScope{
 			ScopeID:            scope.ScopeID,
 			GenerationID:       scope.GenerationID,
 			RepoID:             scope.RepoID,
@@ -181,10 +181,10 @@ func (a searchVectorScopeStatePendingAdapter) ListPendingSearchVectorScopes(
 	return out, nil
 }
 
-func adaptSearchVectorBuildScopeProgress(progress []searchvector.BuildScopeProgress) []reducer.SearchVectorBuildScopeProgress {
-	out := make([]reducer.SearchVectorBuildScopeProgress, 0, len(progress))
+func adaptSearchVectorBuildScopeProgress(progress []searchvector.BuildScopeProgress) []reducersearchvector.SearchVectorBuildScopeProgress {
+	out := make([]reducersearchvector.SearchVectorBuildScopeProgress, 0, len(progress))
 	for _, item := range progress {
-		out = append(out, reducer.SearchVectorBuildScopeProgress{
+		out = append(out, reducersearchvector.SearchVectorBuildScopeProgress{
 			ScopeID: item.ScopeID, GenerationID: item.GenerationID,
 			DocumentCount: item.DocumentCount, LastDocumentID: item.LastDocumentID,
 		})
@@ -194,7 +194,7 @@ func adaptSearchVectorBuildScopeProgress(progress []searchvector.BuildScopeProgr
 
 // searchVectorScopeStateManagerAdapter wraps EshuSearchVectorScopeStateStore
 // as the reducer's SearchVectorScopeStateManager, mapping
-// reducer.SearchVectorBuildIdentity ↔ postgres.EshuSearchVectorIdentity.
+// reducersearchvector.SearchVectorBuildIdentity ↔ postgres.EshuSearchVectorIdentity.
 type searchVectorScopeStateManagerAdapter struct {
 	store postgres.EshuSearchVectorScopeStateStore
 }
@@ -202,7 +202,7 @@ type searchVectorScopeStateManagerAdapter struct {
 func (a searchVectorScopeStateManagerAdapter) BeginBuilding(
 	ctx context.Context,
 	scopeID, generationID string,
-	identity reducer.SearchVectorBuildIdentity,
+	identity reducersearchvector.SearchVectorBuildIdentity,
 	projectionRevision int64,
 ) (int64, error) {
 	return a.store.BeginBuilding(ctx, scopeID, generationID, postgres.EshuSearchVectorIdentity{
@@ -216,7 +216,7 @@ func (a searchVectorScopeStateManagerAdapter) BeginBuilding(
 func (a searchVectorScopeStateManagerAdapter) ScopeVectorComplete(
 	ctx context.Context,
 	scopeID, generationID string,
-	identity reducer.SearchVectorBuildIdentity,
+	identity reducersearchvector.SearchVectorBuildIdentity,
 ) (bool, error) {
 	return a.store.ScopeVectorComplete(ctx, scopeID, generationID, postgres.EshuSearchVectorIdentity{
 		ProviderProfileID:  identity.ProviderProfileID,
@@ -229,7 +229,7 @@ func (a searchVectorScopeStateManagerAdapter) ScopeVectorComplete(
 func (a searchVectorScopeStateManagerAdapter) AdvanceDocumentCursor(
 	ctx context.Context,
 	scopeID, generationID string,
-	identity reducer.SearchVectorBuildIdentity,
+	identity reducersearchvector.SearchVectorBuildIdentity,
 	projectionRevision, fence int64,
 	documentID string,
 ) (bool, error) {
@@ -242,7 +242,7 @@ func (a searchVectorScopeStateManagerAdapter) AdvanceDocumentCursor(
 func (a searchVectorScopeStateManagerAdapter) ResetDocumentCursor(
 	ctx context.Context,
 	scopeID, generationID string,
-	identity reducer.SearchVectorBuildIdentity,
+	identity reducersearchvector.SearchVectorBuildIdentity,
 	projectionRevision, fence int64,
 ) (bool, error) {
 	return a.store.ResetDocumentCursor(ctx, scopeID, generationID, postgres.EshuSearchVectorIdentity{
@@ -254,7 +254,7 @@ func (a searchVectorScopeStateManagerAdapter) ResetDocumentCursor(
 func (a searchVectorScopeStateManagerAdapter) FinalizeReady(
 	ctx context.Context,
 	scopeID, generationID string,
-	identity reducer.SearchVectorBuildIdentity,
+	identity reducersearchvector.SearchVectorBuildIdentity,
 	projectionRevision, fence int64,
 ) (bool, error) {
 	return a.store.FinalizeReady(ctx, scopeID, generationID, postgres.EshuSearchVectorIdentity{

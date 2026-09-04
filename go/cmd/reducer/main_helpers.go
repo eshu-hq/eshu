@@ -18,6 +18,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/reducer"
 	"github.com/eshu-hq/eshu/go/internal/reducer/codeintel"
 	"github.com/eshu-hq/eshu/go/internal/reducer/incident"
+	"github.com/eshu-hq/eshu/go/internal/reducer/searchvector"
 	"github.com/eshu-hq/eshu/go/internal/relationships/tfstatebackend"
 	runtimecfg "github.com/eshu-hq/eshu/go/internal/runtime"
 	sourcecypher "github.com/eshu-hq/eshu/go/internal/storage/cypher"
@@ -277,7 +278,7 @@ const searchVectorSeedTimeout = 5 * time.Minute
 // provides the startup context; this function wraps it with a bounded timeout.
 func seedSearchVectorScopeState(
 	seedCtx context.Context,
-	runner *reducer.SearchVectorBuildRunner,
+	runner *searchvector.SearchVectorBuildRunner,
 	database postgres.ExecQueryer,
 	logger *slog.Logger,
 ) error {
