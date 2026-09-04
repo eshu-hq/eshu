@@ -127,8 +127,9 @@ func derefString(value *string) string {
 
 // derefFloat64 returns the value a *float64 points at, or 0 when it is nil,
 // matching the pre-typing floatVal(0) behavior for a field this migration
-// converts from a raw payload lookup to a typed pointer. Copied from root
-// package query's supplyChainDerefFloat64 for the same reason as
+// converts from a raw payload lookup to a typed pointer. Copied from the
+// former root package query helper of the same shape (deleted when the
+// advisory family moved in the #6060 lane-A PR1) for the same reason as
 // derefString.
 func derefFloat64(value *float64) float64 {
 	if value == nil {
