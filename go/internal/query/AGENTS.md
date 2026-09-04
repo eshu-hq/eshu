@@ -238,6 +238,13 @@
   evidence. Do not move those candidates into `cleanup_ready` based only on a
   missing incoming graph edge.
 
+- **The cross-repo hidden-consumer read is an existence probe** —
+  `crossRepoDeadCodeUngrantedConsumerProbeQuery` answers whether a producer
+  entity has an active consumer outside the grant and returns producer entity
+  ids only; making it return consumer rows again costs a whole fan-in group per
+  request. Its collation, lateral, empty-grant and index constraints are spelled
+  out at the constant, measured in [#5167 batch 1](../../../docs/internal/evidence/5167-code-family-batch-1.md).
+
 - **SQL routine reachability uses graph `EXECUTES` probes** —
   `CodeHandler.filterDeadCodeResultsWithoutIncomingEdges` falls through to
   `deadCodeResultsWithGraphIncomingEdges` for `SqlFunction` candidates

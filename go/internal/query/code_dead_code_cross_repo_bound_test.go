@@ -161,25 +161,56 @@ func TestCrossRepoDeadCodeProbeStatementIsSizeIndependent(t *testing.T) {
 func TestCrossRepoDeadCodeProbeRefusesAnEmptyGrant(t *testing.T) {
 	t.Parallel()
 
-	db, recorder := openRecordingContentReaderDB(t, []recordingContentReaderQueryResult{
-		{columns: crossRepoDeadCodeEvidenceColumns()},
+	t.Run("through the read plan", func(t *testing.T) {
+		t.Parallel()
+
+		db, recorder := openRecordingContentReaderDB(t, []recordingContentReaderQueryResult{
+			{columns: crossRepoDeadCodeEvidenceColumns()},
+		})
+		reader := NewContentReader(db)
+		_, hidden, err := reader.CrossRepoDeadCodeConsumerEvidence(
+			context.Background(),
+			codeGrantGrantedRepo,
+			[]string{"entity-1"},
+			crossRepoDeadCodeConsumerReads{PageRepositoryIDs: []string{codeGrantConsumerRepo}},
+		)
+		if err != nil {
+			t.Fatalf("CrossRepoDeadCodeConsumerEvidence() error = %v, want nil", err)
+		}
+		if len(hidden) != 0 {
+			t.Fatalf("hidden = %#v, want empty", hidden)
+		}
+		if len(recorder.queries) != 1 {
+			t.Fatalf("query count = %d, want 1; an empty grant must not reach the probe", len(recorder.queries))
+		}
 	})
-	reader := NewContentReader(db)
-	_, hidden, err := reader.CrossRepoDeadCodeConsumerEvidence(
-		context.Background(),
-		codeGrantGrantedRepo,
-		[]string{"entity-1"},
-		crossRepoDeadCodeConsumerReads{PageRepositoryIDs: []string{codeGrantConsumerRepo}},
-	)
-	if err != nil {
-		t.Fatalf("CrossRepoDeadCodeConsumerEvidence() error = %v, want nil", err)
-	}
-	if len(hidden) != 0 {
-		t.Fatalf("hidden = %#v, want empty", hidden)
-	}
-	if len(recorder.queries) != 1 {
-		t.Fatalf("query count = %d, want 1; an empty grant must not reach the probe", len(recorder.queries))
-	}
+
+	// The read the plan guards is one call away, so the probe refuses an empty
+	// grant itself as well. A future caller that reaches it directly gets the
+	// same refusal rather than a statement whose every range is empty.
+	t.Run("at the read itself", func(t *testing.T) {
+		t.Parallel()
+
+		db, recorder := openRecordingContentReaderDB(t, []recordingContentReaderQueryResult{
+			{columns: []string{"entity_id"}, rows: [][]driver.Value{{"entity-1"}}},
+		})
+		reader := NewContentReader(db)
+		hidden, err := reader.crossRepoDeadCodeUngrantedConsumers(
+			context.Background(),
+			codeGrantGrantedRepo,
+			[]string{"entity-1"},
+			nil,
+		)
+		if err != nil {
+			t.Fatalf("crossRepoDeadCodeUngrantedConsumers() error = %v, want nil", err)
+		}
+		if len(hidden) != 0 {
+			t.Fatalf("hidden = %#v, want empty; an empty grant hides everything, not nothing", hidden)
+		}
+		if len(recorder.queries) != 0 {
+			t.Fatalf("query count = %d, want 0; the probe must not run without a grant", len(recorder.queries))
+		}
+	})
 }
 
 // TestCrossRepoDeadCodeHiddenCountHonoursTheConsumerSelector is the case the

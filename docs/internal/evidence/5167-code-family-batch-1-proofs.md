@@ -189,7 +189,7 @@ mutation was restored and its guard rerun at exit `0`.
 | 13 | `applyRepositorySelectorForCapability` rejects an ungranted selector with `404` instead of `400` | `go test ./internal/query -run TestUngrantedRepositorySelectorIsRejectedWith400 -count=1` | `1` (`status = 404, want 400`) |
 | 14 | `complexityListAnchor` keys only on `access.Scoped()`, ignoring the supplied `repoID` | `go test ./internal/query -run TestComplexityListUnscopedRepoIDSelectorFiltersToThatRepository -count=1` | `1` |
 | 15 | `bucketCrossRepoDeadCodeResults` counts the signal rows without the request's consumer selector | `go test ./internal/query -run TestCrossRepoDeadCodeHiddenCountHonoursTheConsumerSelector -count=1` | `1` (a consumer outside the requested set was counted as hidden) |
-| 16 | `markCrossRepoDeadCodeConsumerEvidenceTruncated` skips any entity that already has page rows, the shape before this pass | `go test ./internal/query -run 'TestCrossRepoDeadCodeSignalTruncationMarksEntitiesTheSignalNeverReached\|TestContentReaderCrossRepoDeadCodeEvidenceMarksMissingEntitiesUnknownWhenTruncated' -count=1` | `1` (2 failures: the entity the signal read never reached, and the one it stopped inside) |
+| 16 | `markCrossRepoDeadCodeConsumerEvidenceTruncated` skips any entity that already has page rows, the shape before this pass | `go test ./internal/query -run 'TestCrossRepoDeadCodeSignalTruncationMarksEntitiesTheSignalNeverReached\|TestContentReaderCrossRepoDeadCodeEvidenceMarksMissingEntitiesUnknownWhenTruncated' -count=1` | `1` (2 failures: the entity the signal read never reached, and the one it stopped inside). Round 9 replaced the row-returning signal read with a probe that cannot leave an entity unreached, so the first of the two tests this row names no longer exists — rerunning this command today judges the mutation by the second one alone |
 | 17 | `complexityIDLookupIsRepositoryBound` answers `false` for every caller, so the name fallback runs again | `go test ./internal/query -run 'TestHandleComplexityRepoAnchoredEntityIDDoesNotFallBackToName\|TestHandleComplexityScopedEntityIDDoesNotFallBackToName' -count=1` | `1` (2 failures: the repo_id anchor and the grant anchor) |
 | 18 | `RepositoryAccessFilter.WithCanonicalScopeRepositories` returns the filter unchanged (`if true \|\|`), the shape before this pass | `go test ./internal/query ./internal/query/querycontract -run 'ScopeOnlyGrant\|WithCanonicalScopeRepositories' -count=1` | `1` (11 failures across the content, dead-code, complexity, quality, and call-graph-metrics routes) |
 | 19 | `CodeReachabilityIncomingEntityIDs` ignores `consumer_in_grant` (`if false && !inGrant`), so an out-of-grant consumer reads as evidence | `go test ./internal/query -run TestCodeReachabilityIncomingEntityIDsBindsTheConsumerGrant -count=1` | `1` (edge came back `MaxConfidence:0.9, HiddenConsumer:false`) |
@@ -207,6 +207,12 @@ mutation was restored and its guard rerun at exit `0`.
 | 31 | only the `\|\|` split collapses, which is exactly what a sed that writes a literal `n` would do | the same two commands | `1` both. Two `ERROR`s, both `alternation split produced 1 alternative(s)`, on `perf5854_head \|\| perf5854_main` and `aix \|\| … \|\| solaris` — the module has exactly two `\|\|` constraints. 27 vetted, 8 skipped. The self-test's two alternation cases fail |
 | 32 | restore the pre-8k parenthesis flattening, then point the gate at a fixture whose only tagged file is `!(tag_a \|\| tag_b)` and does not compile | `TAGGED_BUILDS_REPO_ROOT=<fixture> bash scripts/verify-tagged-builds.sh` | `0` — `SKIP … no selectable tags` plus `PASS … tags=tag_b`, neither of which compiled the file. With the fail-closed check: `1`, one `ERROR … uses a parenthesised group` |
 | 33 | the same, with `tag_a && (tag_b \|\| tag_c)` | the same command | `0` — a lone `SKIP … mixed && and \|\| is not expanded`, a green run over an uncompiled file on a blocking gate. With the check: `1`, one `ERROR`. The no-parentheses spelling `tag_a && tag_b \|\| tag_c` takes the other arm and reports `mixes && and \|\|` |
+| 34 | the probe's interior-gap range inverts its bounds (`> gap.hi AND < gap.lo`), so a consumer between two granted ids is never found | `ESHU_CROSS_REPO_DEAD_CODE_PROBE_LIVE=1 ESHU_POSTGRES_DSN=… go test ./internal/query -run TestCrossRepoDeadCodeUngrantedConsumerProbeLive -count=1` | `1` (2 sub-test failures; `hidden = []string{}, want []string{"ent-busy", "ent-middle", "ent-spread"}`) |
+| 35 | the probe orders the grant `DESC` in its `gap` CTE — what a grant sorted in the wrong collation looks like | the same command | `1` (2 sub-test failures, same body: the ranges stop being the complement of the grant) |
+| 36 | the above-the-largest range drops its `CROSS JOIN LATERAL … LIMIT 1` and becomes a plain correlated `EXISTS` | the same command, and `go test ./internal/query -run TestCrossRepoDeadCodeSignalReadIsTheBoundedUngrantedProbe -count=1` | `1` both. The live guard reports `probe fell back to a sequential scan over code_reachability_rows` with `Seq Scan on code_reachability_rows row_1 (cost=0.00..5714.40 rows=27779)` — the hashed subplan drops the per-entity equality; the unit guard reports the missing bound |
+| 37 | `bucketCrossRepoDeadCodeResults` ignores the probe's answer (`if false && consumers.HiddenConsumers.has(entityID)`) | `go test ./internal/query -run 'TestCrossRepoDeadCodeKeepsTheHiddenConsumerSignal\|TestCrossRepoDeadCodeHiddenConsumerOutranksStrongGrantedEvidence' -count=1` | `1` (2 failures: the candidate whose only consumer is out of grant came back `"classification":"dead"`, and the mixed one lost its `unknown` bucket entry) |
+| 38 | `crossRepoDeadCodeUngrantedConsumers` drops its empty-grant refusal | `go test ./internal/query -run TestCrossRepoDeadCodeProbeRefusesAnEmptyGrant -count=1` | `1` (`hidden = …{"entity-1":struct {}{}}, want empty`) |
+| 39 | `crossRepoDeadCodeConsumerReadPlan` sets `SignalGrant` for a request that named consumers | `go test ./internal/query -run 'TestCrossRepoDeadCodeConsumerReadPlan\|TestCrossRepoDeadCodeHiddenCountHonoursTheConsumerSelector\|TestCrossRepoDeadCodeConsumerSelectorSurvivesABusyGrantedRepository' -count=1` | `1` (3 failures; the read plan leaks the grant into the probe and the selector route sends a second statement) |
 
 An earlier attempt at #1 deleted the whole helper body and failed as an unused
 import rather than an assertion, which proves nothing; the mutations above keep
@@ -236,6 +242,22 @@ anything. Both are now `ERROR`. The module has no parenthesised and no mixed
 constraint, so the sweep's own output is unchanged at 29 vetted / 16 skipped /
 exit 0, which is the behaviour-preservation check for a change that only
 narrows what the gate will accept.
+
+Rows 32 through 37 are the round-9 pass, the one that replaced the unrestricted
+signal read with the bounded ungranted-consumer probe. Rows 32 and 33 are the
+two ways the grant-complement ranges can stop being the complement — an
+inverted interior range and a mis-ordered bound list — and both are judged
+against real Postgres, because a fake driver cannot evaluate a range. Row 34 is
+the plan property the whole rewrite rests on, and it is the only row here whose
+behavioural answer stays correct: the mutated probe returns the right entities
+and reads the whole table to do it, which is why the live guard asserts the plan
+and not only the result. Rows 35 through 37 are the three Go-side bindings: the
+handler consuming the answer, the read refusing an empty grant, and the read
+plan keeping the probe away from a request that named consumers. Row 36 was
+rewritten before it bit — the first version drove the refusal through
+`CrossRepoDeadCodeConsumerEvidence`, whose own guard shadows it, and passed
+against the mutation; the guard now calls the read directly. Each was restored
+and its guard rerun at exit `0`.
 
 Rows 6 and 12 are one mutation judged by two guards: row 6 is the call-graph
 route's text guard, row 12 the graph-summary route that shares the builder. The

@@ -333,28 +333,31 @@ ones in Go afterwards. No consumer identity ever left the process — hidden row
 are counted, never projected — but the cap fell on a mixed set, so another
 tenant's rows could push a granted consumer off the page.
 
-A scoped caller that names no consumers now runs one statement shape twice, for
-two different questions. The evidence page binds the grant
+A scoped caller that names no consumers now runs two statements for two
+different questions. The evidence page binds the grant
 (`buildCrossRepoDeadCodeConsumerEvidenceQuery` rendering
 `AND row.repository_id = ANY($n)`) ahead of the `LIMIT`, so the cap falls on
-consumers the caller may see. The signal read is the same builder with no
-grant, which makes its text byte for byte the statement this route already
-shipped. `TestCrossRepoDeadCodeSignalReadRepeatsTheUngrantedStatement` pins
-both: the grant's position in the first, the exact text of the second.
+consumers the caller may see. The second is
+`crossRepoDeadCodeUngrantedConsumerProbeQuery`, a bounded existence probe that
+returns the producer entities with a consumer outside the grant and nothing
+else. `TestCrossRepoDeadCodeSignalReadIsTheBoundedUngrantedProbe` pins both: the
+grant's position in the first, the shape of the second.
 
 Filtering in SQL alone would destroy the signal the handler needs — a symbol
 whose only consumers are out of grant must stay `unknown_needs_evidence` with
-reason `permission_hidden_consumer`, not become `dead`. The signal read carries
-it: `filterCrossRepoDeadCodeEvidence` runs over its rows exactly as over the
-page's — the request's `consumer_repo_ids` selector first, then the grant — and
-only what is left counts. The count is all that crosses.
+reason `permission_hidden_consumer`, not become `dead`. The probe carries it,
+and carries only it: the entity ids it returns are the caller's own producer
+candidates, so no ungranted consumer's repository, entity, or citation crosses
+the reader boundary at all.
 
-Applying that selector before counting is the correctness half, not a
-refinement. A caller granted producer P and consumer A, asking about A alone,
-must get `live_by_consumer` from A's own strong evidence even when an unrelated
-ungranted repository also consumes the symbol. Counting that consumer buried
-A's evidence under `permission_hidden_consumer`;
-`TestCrossRepoDeadCodeHiddenCountHonoursTheConsumerSelector` is the guard.
+Keeping a request's `consumer_repo_ids` selector out of that count is the
+correctness half, not a refinement. A caller granted producer P and consumer A,
+asking about A alone, must get `live_by_consumer` from A's own strong evidence
+even when an unrelated ungranted repository also consumes the symbol. Counting
+that consumer buried A's evidence under `permission_hidden_consumer`;
+`TestCrossRepoDeadCodeHiddenCountHonoursTheConsumerSelector` is the guard, and
+`crossRepoDeadCodeConsumerReadPlan` makes it structural by not running the probe
+at all for a request that named consumers.
 
 The selector belongs in the page read as well, not only in the Go filter after
 it. A caller granted P, A and B, asking about B alone, had the page cut from the
@@ -368,11 +371,10 @@ again on the way in, and a scoped caller left with an empty list reads nothing
 rather than rendering the unbounded statement an empty list would produce; the
 candidates then stay unknown.
 
-That request also skips the signal read entirely, which is a removal of work
-rather than a relaxation. `filterCrossRepoDeadCodeEvidence` drops every signal
-row outside the named consumers before anything is counted, and every named
-consumer the grant admits is inside the grant, so the count that read
-contributes is empty by construction.
+That request also skips the ungranted-consumer probe entirely, which is a
+removal of work rather than a relaxation. Every named consumer the grant admits
+is inside the grant, so the only consumers the probe could report are ones the
+request excluded, and those must not be counted.
 `TestCrossRepoDeadCodeConsumerSelectorSurvivesABusyGrantedRepository` drives the
 whole route over the shipped `ContentReader` against a driver that filters on
 the repository array the statement actually binds, and asserts both halves: `B`
@@ -380,14 +382,14 @@ answers `live_by_consumer`, and exactly one consumer statement was sent.
 `TestCrossRepoDeadCodeConsumerReadPlan` pins the other five shapes, including
 the two that read nothing.
 
-The truncation fail-safe is per entity, not per request. Each read reports the
+The truncation fail-safe is per entity, not per request. The page reports the
 entities it finished — the ones it returned rows for and moved past before the
 cap — and every other entity takes `consumer_evidence_truncated` and answers
-unknown, never `dead`. Page rows are not coverage: an entity with strong granted
-evidence still takes the marker when the signal read stopped before reaching it,
-because that unread half is where an ungranted consumer would be. Both halves
-are pinned: `TestCrossRepoDeadCodeSignalTruncationKeepsCandidatesUnknown` and
-`TestCrossRepoDeadCodeSignalTruncationMarksEntitiesTheSignalNeverReached`.
+unknown, never `dead`. The probe contributes no coverage gap of its own, because
+it answers for every entity it is given;
+`TestCrossRepoDeadCodeProbeLeavesNoEntityUnproven` is the guard on that, and
+`TestContentReaderCrossRepoDeadCodeEvidenceMarksMissingEntitiesUnknownWhenTruncated`
+on the page half.
 
 The boundary itself is the exception. The sentinel row is dropped, but its
 entity id is already scanned, and the statement orders by entity id — so a
@@ -401,43 +403,118 @@ row 1,001.
 
 ### Two Bounded Reads, Not An Unbounded Complement
 
-The first version of that signal was a statement of its own, counting the
-*complement* of the page with one `LATERAL` arm per producer entity, each capped
-at 100 rows. That cap bounds rows returned, not rows scanned, and it misses the
-common case: when the grant covers most consumers, every arm inspects all of its
-entity's reachability rows to prove none are outside the grant.
+The signal half went through three shapes, and the two that were withdrawn were
+withdrawn on measurements rather than taste.
 
-Performance Evidence: `EXPLAIN (ANALYZE, BUFFERS)` on the withdrawn `LATERAL`
-statement and on the shipped signal read, in a throwaway PostgreSQL 16.15
-container, data-plane schema applied from `schema/data-plane/postgres`
+The first counted the *complement* of the page with one `LATERAL` arm per
+producer entity, each capped at 100 rows. That cap bounds rows returned, not
+rows scanned, and it misses the common case: when the grant covers most
+consumers, every arm inspects all of its entity's reachability rows to prove
+none are outside the grant.
+
+The second was the shipped page statement re-run with no grant bound. Its plan
+is genuinely capped at 1,001 rows, which is what made it acceptable — but the
+cap is on rows *returned*, and its `ORDER BY entity_id, confidence DESC, ...`
+makes the `Incremental Sort` above it consume one producer entity's whole
+fan-in group before it can emit that group's first row. A producer entity with
+a million consumer rows therefore costs a million-row scan on every scoped
+request, and spends the shared 1,001-row budget where nothing later on the page
+can be proven.
+
+What ships now asks only the question the count needs. Per producer entity: is
+there one active-generation consumer row in a repository outside the grant?
+`crossRepoDeadCodeUngrantedConsumerProbeQuery` expresses "outside the grant" as
+`repository_id` ranges around the sorted grant — below the smallest granted id,
+between two consecutive ones, above the largest — so
+`code_reachability_entity_repository_idx` (migration
+`100_code_reachability_entity_repository_idx.sql`) can seek to each range and
+stop at its first row. Proving a producer entity has no ungranted consumer
+costs one seek per range instead of a scan of its group.
+
+Two details are load-bearing. The grant is ordered by Postgres, in the
+statement's own `gap` CTE, because the ranges partition the domain only when
+their bounds are sorted in the collation the index and the comparisons use, and
+Go's byte order is not that collation. And every range is probed through
+`CROSS JOIN LATERAL ... LIMIT 1`, because the `LIMIT` is what stops the
+subquery being flattened: without it the interior ranges lose both bounds from
+the `Index Cond` under a generic plan, and the two outer ones are turned into a
+hashed subplan on a short candidate page, which drops the per-entity equality
+and reads the whole table.
+
+Performance Evidence: `EXPLAIN (ANALYZE, BUFFERS)` in a throwaway PostgreSQL
+16.15 container, data-plane schema applied from `schema/data-plane/postgres`
 (`001_ingestion_scopes.sql`, `002_scope_generations.sql`,
-`027_code_reachability.sql`) in filename order, synthetic rows only,
-`VACUUM ANALYZE` after seeding, `SET jit = off` on both, warm (second) run
-reported. Host: MacBook Pro, arm64, macOS. 1,300,000 `code_reachability_rows`;
-one active scope and generation; a 50-entity producer page; 2,000 consumer rows
-per page entity, all of them *inside* the grant across five granted repositories
-— the no-hidden worst case — plus 1.2M rows on entity ids off the page.
+`027_code_reachability.sql`) in filename order plus the new index migration,
+synthetic rows only, `VACUUM ANALYZE` after seeding, `SET jit = off`
+throughout, warm runs reported, three samples each. Host: MacBook Pro, arm64,
+macOS. 2,201,196 `code_reachability_rows`; one active scope and generation; a
+250-entity producer page whose middle entity carries 1,000,000
+active-generation consumer rows across five consumer repositories, plus 1.2M
+rows on entity ids off the page. Both statements were run twice: once as
+`EXPLAIN` on a literal statement (a custom plan) and once through
+`PREPARE`/`EXECUTE` under `plan_cache_mode = force_generic_plan`, because pgx's
+statement cache puts these reads on a generic plan and a literal `EXPLAIN`
+hides that difference.
 
-| Metric | Withdrawn `LATERAL` complement | Shipped signal read |
+| Metric | Withdrawn unrestricted signal read | Shipped ungranted-consumer probe |
 | --- | ---: | ---: |
-| Execution time | 18.962 ms | 5.958 ms |
-| Rows read under the driving scan | 100,000 | 2,001 |
-| Rows returned | 0 | 1,001 |
-| Shared buffers | hit=3558 | hit=73 |
-| Driving access | `Index Scan`, `Rows Removed by Filter: 2000`, `loops=50` | `Index Scan` under an `Incremental Sort` presorted on `entity_id`, under `Limit` |
+| Execution time, custom plan | 757.6 / 756.9 / 779.5 ms | 6.90 / 6.76 / 6.70 ms |
+| Execution time, generic plan | 950.2 / 951.3 / 1021.2 ms | 6.70 / 6.78 / 6.64 ms |
+| Rows read under the driving scan | 1,000,497 | 0 |
+| Rows returned | 1,001 | 0 |
+| Shared buffers | hit=646 read=26929 | hit=7618 read=10 |
+| Driving access | `Index Scan` on `code_reachability_entity_lookup_idx` under an `Incremental Sort` presorted on `entity_id`, under `Limit` | three `Index Scan`s on `code_reachability_entity_repository_idx`, each `Index Cond` carrying `entity_id` plus its range bounds, `rows=0 loops=250` |
 
-The `LATERAL` plan says it in its own line: each of the 50 arms removed all
-2,000 of its entity's rows on the grant-complement filter and returned none, so
-the per-arm `LIMIT 100` never engaged. The shipped read does stop at its cap —
-`Limit` takes 1,001 rows and the loop beneath produces 2,001 of 100,000
-candidates — because `code_reachability_entity_lookup_idx` leads with
-`entity_id`, the `ORDER BY` leads with `entity_id`, and the `Incremental Sort`
-above therefore sorts one entity group at a time.
+That is the no-hidden-consumer case, which is the one that has to prove a
+negative. With one consumer repository taken out of the grant the probe answers
+in 4.87 / 4.75 / 4.69 ms on a custom plan and 5.10 / 4.82 / 4.70 ms on a generic
+one, `hit=5379` buffers.
 
-That is why the marking is load-bearing rather than defensive: a page whose
-first entity carries more than 1,001 consumer rows spends the sentinel there,
-leaving every later entity unproven whatever its own page rows say.
-`hidden_consumer_evidence_count` is in no OpenAPI schema or public reference.
+Two nearby shapes were measured and rejected on the same data. The index alone
+does not fix anything: with `code_reachability_entity_repository_idx` in place
+but the predicate left as `NOT (repository_id = ANY($grant))`, the planner takes
+a `Parallel Seq Scan` and removes 733,732 rows by filter, 105.1 ms. And the
+range shape without the lateral armour plans identically to the shipped one
+under a custom plan, 6.45 ms, then costs 1,399 ms under a generic plan, where
+`Nested Loop Semi Join / Join Filter: (repository_id > w.lo) AND
+(repository_id < w.hi)` replaces the `Index Cond` — worse than the read it
+replaces.
+
+Exactness: the probe returns the same producer entities as the
+`NOT (repository_id = ANY($grant))` it replaces, symmetric difference `0/0`, for
+eight grant shapes on that data — every consumer granted, a hidden consumer
+below the smallest granted id, between two of them, above the largest, a
+single-element grant, a grant wider than the corpus, a grant disjoint from every
+consumer, and a grant naming only the producer repository.
+`TestCrossRepoDeadCodeUngrantedConsumerProbeLive` runs that same differential in
+the test suite against a disposable Postgres, and adds a plan assertion that
+every range bound reaches an index condition rather than a filter.
+
+The evidence page is unchanged and still reads that group: it has to rank a
+producer entity's consumers by confidence to return the strongest, so its cost
+is what the page returns rather than an artefact. On the same seed it takes
+885 ms reading 1,000,497 rows with the whole five-repository grant bound, and
+752 ms reading 800,373 with four of the five. Halving the worst case is what
+this change buys; the page's own bound is a separate question.
+
+Two consequences are declared rather than incidental. The probe returns
+producer entity ids and nothing else, so no ungranted repository id, consumer
+entity id, or citation crosses the reader boundary at all — the count is derived
+from the caller's own producer entities. And the count it contributes is one per
+producer entity that has a hidden consumer, not one per hidden consumer:
+`hidden_consumer_evidence_count` reports `1` where it used to report the number
+of ungranted rows the capped read happened to see. Classification never used
+more than "is it above zero", the number was never a total (the read it came
+from stopped at 1,001 rows across the whole page and marked the rest truncated),
+and `hidden_consumer_evidence_count` is in no OpenAPI schema or public reference.
+
+The truncation fail-safe gets simpler and stricter at once. Only the evidence
+page can now stop short, so `markCrossRepoDeadCodeConsumerEvidenceTruncated`
+takes one coverage set instead of two. The case it used to cover — one busy
+producer entity spending the shared signal budget and leaving every later
+candidate on the page `unknown_needs_evidence` whatever its own evidence said —
+cannot happen, because the probe answers for every entity it is given.
+`TestCrossRepoDeadCodeProbeLeavesNoEntityUnproven` is the guard.
 
 ## Query-Plan Source Coverage
 
@@ -496,6 +573,9 @@ Run after the last edit, exit codes captured directly:
 ```text
 cd go && go test ./internal/query ./internal/query/querycontract \
   ./internal/mcp ./cmd/api ./internal/queryplan -count=1              # 0
+cd go && go test ./internal/storage/postgres -count=1                 # 0
+ESHU_CROSS_REPO_DEAD_CODE_PROBE_LIVE=1 ESHU_POSTGRES_DSN=... \
+  go test ./internal/query -run ...UngrantedConsumerProbeLive -count=1 # 0
 cd go && go vet ./internal/query/... ./internal/mcp ./internal/queryplan  # 0
 scripts/dev/precommit-go.sh fmt   <changed .go>                       # 0
 scripts/dev/precommit-go.sh lint  <changed .go>                       # 0 (4 packages from 75 paths, 0 issues)
@@ -538,9 +618,10 @@ its `OPTIONAL MATCH` for a required `MATCH` over the same
 which removes a clause between the anchor and the `RETURN` rather than adding
 one. The cross-repo consumer read runs one extra statement per scoped request,
 on a route that already issues a paged candidate scan plus per-entity probes.
-That statement is the ungranted read this route shipped before the grant landed,
-unchanged and capped at the same 1001 rows, and it is measured rather than
-asserted — see "Two Bounded Reads, Not An Unbounded Complement".
+That statement is a bounded per-entity existence probe backed by a new index,
+measured rather than asserted — see "Two Bounded Reads, Not An Unbounded
+Complement" for its plan, its numbers, and the two shapes withdrawn on
+measurements.
 
 The round-7 incoming-edge probe adds a third such shape, declared without a
 measurement. A scoped caller now runs two graph statements where it ran one:
@@ -592,7 +673,8 @@ caller emits rather than only an unscoped one.
 No-Observability-Change: no metric instrument, metric label, span, log event,
 route, worker, queue, lease, or runtime knob is added or renamed. The cross-repo
 consumer read's existing `postgres.query` span gains one attribute,
-`db.rows.consumer_signal_entities`. Operators keep diagnosing these ten routes
+`db.rows.consumer_signal_entities`, which counts the producer entities the
+ungranted-consumer probe flagged. Operators keep diagnosing these ten routes
 through the governance-audit read-authorization events in
 `go/internal/query/auth_audit.go` — `DecisionAllowed` / `scoped_read_allowed`
 (`recordScopedReadAuthorized`) and `DecisionDenied` with the route's reason code
