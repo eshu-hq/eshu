@@ -1,23 +1,23 @@
 # securityalert
 
+## Purpose
+
 Reconciles provider-reported repository security alerts (GitHub Dependabot
 and equivalent collectors) against Eshu-owned dependency consumption and
 supply-chain-impact evidence, and publishes a durable per-alert comparison
-verdict without itself promoting an alert into impact truth.
+verdict without itself promoting an alert into impact truth. This package
+moved out of the flat `internal/reducer` root under issue #6061 and owns the
+`security_alert_reconciliation` reducer domain.
 
-This package moved out of the flat `internal/reducer` root under issue
-#6061. It owns the `security_alert_reconciliation` reducer domain. One
-piece of its pre-move behavior -- reconciling an alert against repository
-manifest/lockfile dependency evidence -- could not move with it; see
-[The manifest-consumption seam](#the-manifest-consumption-seam) below.
+## Ownership boundary
 
-## What it owns
+**Owns:**
 
 | piece | file | what it does |
 |---|---|---|
 | `BuildSecurityAlertReconciliations` / `WithQuarantine` | `security_alert_reconciliation.go` | the entry points that build one decision per decoded provider alert |
 | `SecurityAlertReconciliationDecision` | `security_alert_reconciliation.go` | the family's canonical output row |
-| `ManifestConsumptionExtractor` | `security_alert_reconciliation.go` | the injected manifest-matching seam; see below |
+| `ManifestConsumptionExtractor` | `security_alert_reconciliation.go` | the injected manifest-matching seam; see Gotchas / invariants below |
 | classification | `security_alert_reconciliation.go` (`classifyProviderSecurityAlert`) | matched/unmatched/stale/dismissed/fixed/provider_only/unsupported/ambiguous outcome logic |
 | triage | `security_alert_reconciliation_triage.go` | unsupported-ecosystem detection and missing-evidence records |
 | observed-version resolution | `security_alert_reconciliation_observed_version.go` | resolves and validates the observed installed version against manifest evidence |
@@ -28,7 +28,79 @@ manifest/lockfile dependency evidence -- could not move with it; see
 | `SecurityAlertReconciliationStatus` and its constants | `security_alert_reconciliation_status.go` | the comparison outcome enum |
 | `ProviderSecurityAlert` / `SecurityAlertConsumption` / `SecurityAlertImpact` | `security_alert_reconciliation_types.go` | the decoded alert, dependency-consumption, and impact-evidence shapes the matching logic joins |
 
-## The manifest-consumption seam
+**Does not own:** matching a provider alert against repository
+manifest/lockfile dependency evidence. That decode and
+package-identity-normalization logic belongs to the still-in-root
+package-consumption-correlation family, and a family subpackage may never
+import the reducer root — see "The manifest-consumption seam" under
+Gotchas / invariants below.
+
+## Exported surface
+
+| symbol | what it is |
+|---|---|
+| `SecurityAlertReconciliationDecision` | the decision record |
+| `BuildSecurityAlertReconciliations` / `BuildSecurityAlertReconciliationsWithQuarantine` | the pure decision builders |
+| `ManifestConsumptionExtractor` | the injected manifest-matching function type |
+| `SecurityAlertReconciliationHandler` | the reducer handler |
+| `SecurityAlertReconciliationDomainDefinition` | the additive domain registration |
+| `SecurityAlertReconciliationWriter` / `SecurityAlertReconciliationWrite` / `WriteResult` | the writer interface and its publication I/O |
+| `PostgresSecurityAlertReconciliationWriter` | the Postgres writer implementation |
+| `SecurityAlertReconciliationStatus` and its constants | the comparison outcome enum |
+| `SecurityAlertReconciliationMissingEvidence` | the structured evidence-gap record |
+| `SecurityAlertReconciliationFactFilter` | bounds active-evidence loading for one intent |
+| `ProviderSecurityAlert` / `SecurityAlertConsumption` / `SecurityAlertImpact` | decoded evidence shapes exported for the reducer root's manifest-consumption bridge and supply_chain_impact's finding seeding |
+| `ExtractProviderSecurityAlerts` / `ExtractProviderSecurityAlertsWithQuarantine` | the lenient and strict decode entry points, exported for the reducer root's evidence-scoping fence and finding seeding |
+| `ExtractSecurityAlertConsumptions` | the non-manifest consumption extractor, exported for `supply_chain_impact`'s finding seeding |
+| `MatchSecurityAlertConsumption` / `SecurityAlertRepositoryScopeMatches` / `SecurityAlertPackageNameCandidates` / `SecurityAlertIDMatches` | matching primitives exported for the reducer root's manifest-consumption bridge and `supply_chain_impact` |
+
+See `doc.go` for the full godoc contract.
+
+## Dependencies
+
+- `internal/facts` — the fact envelope and fact-kind types the decode and
+  extraction seams read
+- `internal/packageidentity` — package-identity normalization used by triage
+  and observed-version resolution
+- `internal/reducer/contract` (aliased `reducercontract`) — the
+  `Intent`/`Result`/`Domain` shapes `SecurityAlertReconciliationHandler.Handle`
+  implements
+- `internal/reducer/factdecode` — quarantine handling
+  (`QuarantinedFact`, `PartitionDecodeFailures`, `RecordQuarantinedFacts`)
+- `internal/reducer/factload` — the scoped fact loader the handler uses to
+  pull active evidence
+- `internal/reducer/factwrite` — the batched fact-row writer
+  `PostgresSecurityAlertReconciliationWriter` is built on
+- `internal/reducer/payloadcore` — payload accessor and string-normalization
+  helpers
+- `internal/reducer/schemadecode` — the typed
+  `security_alert.repository_alert` decode seam
+  (`DecodeSecurityAlertRepositoryAlert`)
+- `internal/telemetry` — the `Instruments` the handler records quarantine and
+  execution metrics through
+- `internal/truth` — the `TruthContract`/`Layer` types the domain
+  registration declares (comparison state only; provider alert state is
+  never impact truth)
+- `sdk/go/factschema` — the `FactKindReducerPackageConsumptionCorrelation`
+  constant used to identify consumption evidence
+- `sdk/go/factschema/securityalert/v1` (aliased `securityalertv1`) — the
+  typed `RepositoryAlert` payload shape the decode seam returns
+
+No dependency on the reducer root, and none of the root's other family
+subpackages.
+
+## Telemetry
+
+Facts rejected for a malformed payload feed the shared
+`eshu_dp_reducer_input_invalid_facts_total` counter through
+`factdecode.RecordQuarantinedFacts` instead of a family-specific one, and
+the reducer executions that run this handler stay covered by
+`eshu_dp_reducer_executions_total` and `eshu_dp_reducer_run_duration_seconds`.
+This package registers no instrument of its own.
+
+## Gotchas / invariants
+
+### The manifest-consumption seam
 
 Matching a provider alert against repository manifest/lockfile dependency
 evidence depends on `extractPackageManifestDependencies` and
@@ -52,26 +124,7 @@ real matching behavior
 `security_alert_scoped_npm_test.go`) because this package cannot build a
 working extractor without importing root.
 
-## Exported surface
-
-| symbol | what it is |
-|---|---|
-| `SecurityAlertReconciliationDecision` | the decision record |
-| `BuildSecurityAlertReconciliations` / `BuildSecurityAlertReconciliationsWithQuarantine` | the pure decision builders |
-| `ManifestConsumptionExtractor` | the injected manifest-matching function type |
-| `SecurityAlertReconciliationHandler` | the reducer handler |
-| `SecurityAlertReconciliationDomainDefinition` | the additive domain registration |
-| `SecurityAlertReconciliationWriter` / `SecurityAlertReconciliationWrite` / `WriteResult` | the writer interface and its publication I/O |
-| `PostgresSecurityAlertReconciliationWriter` | the Postgres writer implementation |
-| `SecurityAlertReconciliationStatus` and its constants | the comparison outcome enum |
-| `SecurityAlertReconciliationMissingEvidence` | the structured evidence-gap record |
-| `SecurityAlertReconciliationFactFilter` | bounds active-evidence loading for one intent |
-| `ProviderSecurityAlert` / `SecurityAlertConsumption` / `SecurityAlertImpact` | decoded evidence shapes exported for the reducer root's manifest-consumption bridge and supply_chain_impact's finding seeding |
-| `ExtractProviderSecurityAlerts` / `ExtractProviderSecurityAlertsWithQuarantine` | the lenient and strict decode entry points, exported for the reducer root's evidence-scoping fence and finding seeding |
-| `ExtractSecurityAlertConsumptions` | the non-manifest consumption extractor, exported for `supply_chain_impact`'s finding seeding |
-| `MatchSecurityAlertConsumption` / `SecurityAlertRepositoryScopeMatches` / `SecurityAlertPackageNameCandidates` / `SecurityAlertIDMatches` | matching primitives exported for the reducer root's manifest-consumption bridge and `supply_chain_impact` |
-
-## Why some helpers are declared locally instead of imported
+### Why some helpers are declared locally instead of imported
 
 A handful of small, pure, reducer-root-owned functions this package's own
 logic touches are copied here verbatim rather than imported, because
@@ -104,26 +157,19 @@ or genuinely root-scoped shared state:
   `SecurityAlertConsumption` fields the logic actually reads instead of the
   root's full `supplyChainPackageConsumption` value type.
 
-## Tests
+### Tests
 
 Every test in this package that constructs a `ManifestConsumptionExtractor`
-passes `nil` and never exercises manifest-dependency matching -- see [The
-manifest-consumption seam](#the-manifest-consumption-seam) for why the tests
-that DO need real manifest matching live in the reducer root instead
+passes `nil` and never exercises manifest-dependency matching -- see "The
+manifest-consumption seam" above for why the tests that DO need real
+manifest matching live in the reducer root instead
 (`security_alert_reconciliation_lockfile_test.go`,
 `security_alert_scoped_npm_test.go`), and why
 `security_alert_reconciliation_batch_insert_test_helpers_test.go` is a local
 copy of the reducer root's generic batched-writer test infrastructure rather
 than an import (Go test files never export across packages regardless).
 
-## Telemetry
-
-Facts rejected for a malformed payload feed the shared
-`eshu_dp_reducer_input_invalid_facts_total` counter through
-`factdecode.RecordQuarantinedFacts` instead of a family-specific one, and
-the reducer executions that run this handler stay covered by
-`eshu_dp_reducer_executions_total` and `eshu_dp_reducer_run_duration_seconds`.
-This package registers no instrument of its own.
+### Evidence
 
 No-Regression Evidence: #6061 relocates this family's production logic
 without changing its behavior. Most hunks inside the moved production files
@@ -137,7 +183,7 @@ used to supply as one-line forwarders or aliases (`Intent`, `Result`,
 `partitionDecodeFailures`) are now imported from the leaf package that
 already owned them. `activeRepositoryFactLoader`/
 `activePackageManifestDependencyFactLoader` are locally redeclared, not
-imported, for the reason in AGENTS.md; `packageNameFromPURL`/
+imported, for the reason above; `packageNameFromPURL`/
 `packageNameFromPackageID`/`securityAlertDependencyScope`/
 `securityAlertPayloadBoolPointer`/`securityAlertConsumptionEvidenceKind`/
 `exactConsumptionDependencyVersion`/`exactManifestDependencyVersion`/
@@ -164,3 +210,11 @@ Postgres operation, runtime setting, metric instrument, metric label, span,
 or log field. The counter and executions pair above are the same before and
 after the move; only the file paths the telemetry-coverage rows point at
 changed.
+
+## Related docs
+
+- `docs/internal/design/package-restructure.md` (#6061 package restructure)
+- `docs/public/reference/http-api/evidence-and-supply-chain.md` (the
+  reconciliation read surface: `security_alert_reconciliation_aggregate`)
+- `docs/public/reference/security-intelligence-provider-alert-parity.md`
+  (the provider-alert parity gate this domain's comparison rows feed)
