@@ -61,7 +61,8 @@ on that: this route's binding is its selector, not its query text.
 | `TestCrossRepoDeadCodeConsumerSelectorSurvivesABusyGrantedRepository` | `consumer_evidence_truncated` in the `unknown` bucket for a symbol the requested consumer proves live, exit `1` | `ok internal/query 4.270s`, exit `0` |
 | `TestCrossRepoDeadCodeConsumerReadPlan` (6) | new coverage of the six read shapes, no prior red | `ok internal/query 4.270s`, exit `0` |
 | `TestDeadCodeIncomingEntityIDsHiddenOnlyEntryStillRunsTheLegacyProbe` | `legacy incoming calls = 0, want 1`, exit `1` | `ok internal/query 1.316s`, exit `0` |
-| every build tag in `internal/query`, vetted one tag at a time | `vet: code_complexity_grant_nornicdb_live_test.go:56:49: undefined: ptrToCodeGrantAuthContext`, exit `1` on `live_nornicdb_complexity_grant` | twelve tags, exit `0` each |
+| `scripts/verify-tagged-builds.sh`, one `go vet` per build constraint | `vet: code_complexity_grant_nornicdb_live_test.go:56:49: undefined: ptrToCodeGrantAuthContext`, exit `1` on `live_nornicdb_complexity_grant` | 12 configurations in `internal/query`, 29 module-wide, exit `0` |
+| `scripts/test-verify-tagged-builds.sh` | new coverage for the gate itself, no prior red | `test-verify-tagged-builds: OK`, exit `0` |
 | `TestLiveNornicDBComplexityList*` (2, live, run by hand) | did not compile on this branch, so it could not run at all | `ok internal/query 1.228s`, exit `0` |
 
 ### The tagged-test sweep
@@ -72,32 +73,61 @@ breaks it silently and stays broken through any number of green CI runs. That
 is what happened here: `let the call-graph routes keep one edge query for every
 caller` removed `ptrToCodeGrantAuthContext` along with the test that used it,
 and `code_complexity_grant_nornicdb_live_test.go` — the live NornicDB proof
-behind BITES row 11 — stopped compiling. Nothing reported it, because nothing in
-`.github/`, `scripts/` or the Makefile builds those tags.
+behind BITES row 11 — stopped compiling. Nothing reported it.
 
-The sweep is one `go vet` per tag, and the tag list comes from the files
-themselves rather than from memory:
+That was first answered with a paragraph telling the next person to run a loop,
+which is the same shape as the defect: true only while someone remembers. It is
+now a gate. `scripts/verify-tagged-builds.sh` runs one `go vet` per distinct
+build constraint, reading the constraints out of the files rather than from a
+list, and `scripts/dev/pre-pr.sh`'s "tagged build sweep" step runs it with
+`--all` whenever the diff touches Go. `scripts/test-verify-tagged-builds.sh` is
+its test mirror and BITES proof.
 
-```bash
-cd go
-for tag in $(rg -o --no-filename '^//go:build \S+' internal/query | sed 's|^//go:build ||' | sort -u); do
-  go vet -tags "$tag" ./internal/query || echo "BROKEN: ${tag}"
-done
+```text
+$ bash scripts/verify-tagged-builds.sh                          exit 0
+tagged-builds: vetted 12 build configuration(s), skipped 0, across 1 package path(s)
+
+$ bash scripts/verify-tagged-builds.sh --all                    exit 0
+tagged-builds: vetted 29 build configuration(s), skipped 16, across 12 package path(s)
+
+$ bash scripts/test-verify-tagged-builds.sh                     exit 0
+PASS a package whose tagged files all compile
+PASS a break behind a single-tag constraint
+PASS a break behind a compound && constraint
+PASS an || alternation vetted one alternative at a time
+PASS a GOOS-gated constraint is skipped, not forced
+PASS a package with no build constraints
+PASS a nonexistent package path is refused
 ```
 
-On this branch that is twelve tags, and all twelve exit `0`. Seven are the
-`live_*` backend proofs — `live_global_name_comparison`,
-`live_import_cycle_proof`, `live_infra_scope_shape`,
-`live_nornicdb_complexity_grant`, `live_nornicdb_dead_code_incoming`,
-`live_nornicdb_relationships_proof`, `live_story_property_proof`. The other five
-carry the same exposure and are swept for the same reason:
-`call_graph_metrics_slo_live`, `graph_entity_inventory_slo_live`, `integration`,
-`queryplan_profile_live`, `resource_selector_slo_live`. Taking the list from the
-files rather than naming the tags is the point — a tag added later is swept
-without anyone remembering to add it.
+Writing the gate found two defects in the loop the paragraph had published, and
+both are why a script beat a snippet here:
 
-Run the sweep after any rebase and after any helper deletion in this package. A
-tagged proof that does not compile is a proof nobody can rerun.
+- The snippet's `'^//go:build \S+'` captured only the first token of a
+  constraint, so a `//go:build a && b` file contributed `a`, `go vet -tags a`
+  excluded the file, and the sweep reported success on a file it never
+  compiled. Every constraint in `internal/query` is a single tag today, so this
+  was latent — and it is exactly the case the sweep exists to catch, since a
+  compound constraint added later is the one that slips through.
+- Enabling every term of an `||` alternation at once is not what the constraint
+  means. `cmd/reducer`'s `perf5854_head || perf5854_main` files each declare the
+  same symbol, so a single run with both tags fails on a redeclaration — a
+  break of the sweep's own making. The gate runs one pass per alternative.
+
+Sixteen of the module-wide configurations are reported `SKIP`, with the count
+printed so a sweep covering less than it looks like is visible. Ten are
+GOOS-gated: `-tags windows` on macOS does not compile the Windows file, it
+fails inside `internal/goos` with `GOOS redeclared`, so those files are left to
+the ordinary build on their own platform. Six are negated constraints
+(`!ifafaultinjection`), which reduce to no selectable tag because the default
+build already compiles them.
+
+CI wiring is deliberately not in this PR. Adding a matrix row to
+`static-contract-gates.yml` has to go through the ci-gates registry and its
+workflow-parity drift check, which is a contract change that deserves its own
+review rather than riding along with a query-layer diff. The local gate is what
+this branch adds, and `make pre-pr` is where a tagged compile break now fails
+before a push.
 
 Unscoped counterparts pin the other direction — a shared-key caller that names
 no repository keeps its query text and row set:
@@ -147,6 +177,7 @@ mutation was restored and its guard rerun at exit `0`.
 | 26 | `missingDeadCodeIncomingEntityIDs` counts a hidden-only entry as coverage, the shape before this pass | `go test ./internal/query -run TestDeadCodeIncomingEntityIDsHiddenOnlyEntryStillRunsTheLegacyProbe -count=1` | `1` (`legacy incoming calls = 0, want 1`) |
 | 27 | `crossRepoDeadCodeConsumerReadPlan` binds the grant for a request that named consumers, the shape before this pass | `go test ./internal/query -run TestCrossRepoDeadCodeConsumerSelectorSurvivesABusyGrantedRepository -count=1` | `1` (the requested consumer answered `unknown_needs_evidence` with `consumer_evidence_truncated`) |
 | 28 | `deadCodeIncomingProbeMaxResults` keeps the carried-forward 2,500 instead of the re-derived 5,000 | `go test ./internal/query -run TestDeadCodeIncomingProbeMaxResultsMatchesTheManifest -count=1` | `1` (`derived row bound = 5000, want 2500`) |
+| 29 | a helper call that does not exist added to `code_dead_code_incoming_probe_nornicdb_live_test.go`, the exact shape `53239cb5e` left behind | `bash scripts/verify-tagged-builds.sh --all` | `1` (`FAIL ./internal/query [live_nornicdb_dead_code_incoming]`) — and `go test ./internal/query -count=1` on the same tree still exits `0`, which is the false green the gate exists for |
 
 An earlier attempt at #1 deleted the whole helper body and failed as an unused
 import rather than an assertion, which proves nothing; the mutations above keep
@@ -164,7 +195,9 @@ is judged against the pinned backend, which is the only place the
 `RETURN DISTINCT` corruption is visible at all. Row 26 is the hidden-only
 reachability entry and row 27 the consumer selector's place in the page read.
 Each was restored and its guard rerun at exit `0`. Row 28 is the round-8 review
-follow-up: the ledger bound the merged probe outgrew.
+follow-up: the ledger bound the merged probe outgrew. Row 29 is the round-8c
+one, and it is the only mutation in this table that the default `go test` lane
+cannot see at all — which is the whole argument for the gate beside it.
 
 Rows 6 and 12 are one mutation judged by two guards: row 6 is the call-graph
 route's text guard, row 12 the graph-summary route that shares the builder. The
