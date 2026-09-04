@@ -2,10 +2,11 @@
 
 **Status:** PR1 (reducer correlation domain + durable fact writer), PR2
 (query/MCP read surface), and PR3 (readiness-gated RUNS_IMAGE graph edge)
-**LANDED** on `main` (`go/internal/reducer/kubernetes_correlation.go`,
-`go/internal/reducer/kubernetes_correlation_writer.go`, `go/internal/query/kubernetes.go`,
+**LANDED** on `main` (`go/internal/reducer/kubernetescorrelation/kubernetes_correlation.go`,
+`go/internal/reducer/kubernetescorrelation/kubernetes_correlation_writer.go`, `go/internal/query/kubernetes.go`,
 `go/internal/mcp/dispatch_kubernetes.go`,
-`go/internal/reducer/kubernetes_correlation_materialization.go`).
+`go/internal/reducer/kubernetescorrelation/kubernetes_correlation_materialization.go`; moved
+into that subpackage in issue #6061).
 **Related:** #388 (reducer Git/runtime correlation and drift read model),
 #390 service-catalog correlation, #391 observability-coverage correlation
 (the two shipped six-outcome templates this mirrors), #805 bounded-join
@@ -49,8 +50,8 @@ surface (PR2) and COVERS graph edge (PR3) out of its fact-only PR1.
 Implementation status (stated so reviewers see what landed vs what remains):
 
 - **PR1 — LANDED** on `main`: reducer correlation domain
-  (`go/internal/reducer/kubernetes_correlation.go`), durable fact writer
-  (`go/internal/reducer/kubernetes_correlation_writer.go`), and the
+  (`go/internal/reducer/kubernetescorrelation/kubernetes_correlation.go`), durable fact writer
+  (`go/internal/reducer/kubernetescorrelation/kubernetes_correlation_writer.go`), and the
   six-outcome classifier.
 - **PR2 — LANDED** on `main`: the query/MCP read surface
   (`GET /api/v0/kubernetes/correlations` in `go/internal/query/kubernetes.go`,
@@ -62,7 +63,7 @@ Implementation status (stated so reviewers see what landed vs what remains):
 - **PR3 — LANDED** on `main`: the readiness-gated canonical graph edge (a
   `RUNS_IMAGE` edge between the live workload node and its deployment-source
   identity), extracted in
-  `go/internal/reducer/kubernetes_correlation_materialization.go`
+  `go/internal/reducer/kubernetescorrelation/kubernetes_correlation_materialization.go`
   (`ExtractKubernetesCorrelationEdgeRows`), written through
   `KubernetesCorrelationEdgeWriter` (wired in
   `go/cmd/reducer/canonical_graph_writers.go`), and gated on the
@@ -227,7 +228,7 @@ graph or queue cost.
 ## PR3 — gated RUNS_IMAGE graph edge (shipped)
 
 **Status:** SHIPPED — the readiness-gated graph write landed on `main`
-(`go/internal/reducer/kubernetes_correlation_materialization.go`,
+(`go/internal/reducer/kubernetescorrelation/kubernetes_correlation_materialization.go`,
 `KubernetesCorrelationEdgeWriter` wired in
 `go/cmd/reducer/canonical_graph_writers.go`). This slice is a direct mirror of
 the shipped #805 AWS relationship edge and #391 PR3 COVERS edge. It writes the

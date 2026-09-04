@@ -201,11 +201,11 @@ proof. The in-cluster RBAC additionally requires `kubernetesLiveCollector.rbac.c
 It is still NOT added to any Compose service. Per the readiness doc, the
 claim-driven deployed lane remains deferred until the claim runtime, status
 path, and proof exist (#388 follow-ups). The reducer `kubernetes_correlation`
-domain (`go/internal/reducer/kubernetes_correlation.go`), the drift read
+domain (`go/internal/reducer/kubernetescorrelation/kubernetes_correlation.go`), the drift read
 model (`GET /api/v0/kubernetes/correlations`, `go/internal/query/kubernetes.go`),
 and the MCP tool (`list_kubernetes_correlations`) have landed, including the
 readiness-gated `RUNS_IMAGE` graph edge
-(`go/internal/reducer/kubernetes_correlation_materialization.go`). As of
+(`go/internal/reducer/kubernetescorrelation/kubernetes_correlation_materialization.go`). As of
 #5436, `RUNS_IMAGE` also has a graph read path through
 `analyze_infra_relationships` (`what_runs_image` query type) and
 `POST /api/v0/infra/relationships`, resolving a KubernetesWorkload to the
