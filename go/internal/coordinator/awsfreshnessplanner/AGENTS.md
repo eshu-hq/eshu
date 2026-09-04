@@ -7,8 +7,8 @@
    and deterministic workflow-row construction.
 3. `../service_aws_freshness.go` for the `AWSFreshnessPlanner` interface, the
    trigger claim/lease/reap loop, and root scheduling and admission.
-4. `../aws_scheduled_scheduler.go` — a DIFFERENT AWS family that shares this
-   package's `target_scopes` parsing. It is not extracted; do not move its
+4. `../awsscheduledplanner/planner.go` — a DIFFERENT AWS family that shares this
+   package's `target_scopes` parsing. It now lives in `../awsscheduledplanner`; do not move its
    symbols here and do not conflate the two.
 5. `../plannercontract/README.md` for plan-key grammar.
 

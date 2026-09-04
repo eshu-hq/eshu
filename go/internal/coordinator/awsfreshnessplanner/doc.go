@@ -13,8 +13,8 @@
 //
 // ParseTargetScopes and TargetAuthorized are exported for root coordinator
 // code that shares this decision: service_aws_freshness.go routes a claimed
-// trigger to the instance allowed to collect it, and the unextracted scheduled
-// AWS planner (aws_scheduled_scheduler.go) plans from the same target_scopes
+// trigger to the instance allowed to collect it, and the scheduled
+// AWS planner (awsscheduledplanner) plans from the same target_scopes
 // array. The parent coordinator owns scheduling order, the plan-key clock,
 // trigger claim leases, durable open-target admission, retries, and telemetry;
 // this package resolves no credentials and makes no AWS API call.

@@ -133,7 +133,7 @@ func validatePlanRequest(request PlanRequest) error {
 //
 // The root coordinator calls this for AWS freshness trigger routing
 // (service_aws_freshness.go) and for scheduled AWS planning
-// (aws_scheduled_scheduler.go), which is not extracted; both share this one
+// (awsscheduledplanner/planner.go); both share this one
 // definition rather than keeping a second copy at root.
 func ParseTargetScopes(raw string) ([]TargetScope, error) {
 	var decoded runtimeConfiguration
