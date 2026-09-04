@@ -142,12 +142,18 @@ alternative_run() {
 		if [[ "${term}" == "!"* || "${term}" == "ignore" ]]; then
 			continue
 		fi
-		if [[ ! "${term}" =~ ^[A-Za-z_][A-Za-z0-9_.]*$ ]]; then
-			printf 'ERROR:unrecognized term %s\n' "${term}"
-			return
-		fi
+		# platform_term is consulted BEFORE the identifier check, because `386`
+		# is a legal GOARCH and not a legal Go identifier. With the checks the
+		# other way round it was reported as an unrecognized term and failed the
+		# run, which is loud but wrong: it is platform-gated like every other
+		# GOARCH. No such constraint exists in the module today (reviewer's note
+		# on addendum 8e).
 		if platform_term "${term}"; then
 			printf 'SKIP:platform-gated (%s); -tags cannot select a GOOS/GOARCH\n' "${term}"
+			return
+		fi
+		if [[ ! "${term}" =~ ^[A-Za-z_][A-Za-z0-9_.]*$ ]]; then
+			printf 'ERROR:unrecognized term %s\n' "${term}"
 			return
 		fi
 		terms+=("${term}")

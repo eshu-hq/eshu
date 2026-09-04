@@ -127,9 +127,11 @@ the ordinary build on their own platform. Six are negated constraints
 (`!ifafaultinjection`), which reduce to no selectable tag because the default
 build already compiles them.
 
-The gate runs in two places. `make pre-pr`'s "tagged build sweep" step runs it
-with `--all` whenever the diff touches Go, so a tagged compile break fails
-before a push. In CI it is the `tagged-builds` entry in `specs/ci-gates.v1.yaml`
+The gate runs in two places, and reaches both through one registration.
+`make pre-pr` runs it with `--all` whenever the diff touches Go, selected by
+`run-selected-gates.sh` from its tier and category rather than from a hardcoded
+step, so a tagged compile break fails before a push. In CI it is the same
+`tagged-builds` entry in `specs/ci-gates.v1.yaml`
 and the `Verify tagged-builds gate` row of `static-contract-gates.yml`, wired
 the way every other `test-verify-*.sh` mirror is: the matrix job runs the test
 mirror and then the gate. Its trigger is `go/**`, deliberately broad — the
@@ -141,13 +143,16 @@ One more silent-PASS path came out of review. The alternation split was
 `sed 's/||/\n/g'`, and `\n` in a sed replacement is a GNU extension: on a sed
 that inserts a literal `n`, `perf5854_head || perf5854_main` collapses to the
 single token `perf5854_headnperf5854_main`, which satisfies the identifier
-check, vets trivially, and reports PASS having compiled anything at all. Both
+check, vets trivially, and reports PASS having compiled nothing at all. Both
 platforms this runs on happen to emit a real newline, so it was latent — but a
 latent false green in the gate written to remove false greens is worth
 removing. The split is pure bash now, and the count is checked: an alternation
 that yields fewer alternatives than its `||` promises is an `ERROR`, which
-fails the run. Simulating the collapse turns four real constraints from PASS
-into `alternation split produced 1 alternative(s)`.
+fails the run, as is a term that is not a legal tag identifier. Simulating the
+collapse turns the module's two `||` constraints from PASS into
+`alternation split produced 1 alternative(s)`; collapsing every separator
+reddens a third, the `&&` conjunction, through the identifier check. Mutation
+rows 30 and 31.
 
 Unscoped counterparts pin the other direction — a shared-key caller that names
 no repository keeps its query text and row set:
@@ -198,7 +203,8 @@ mutation was restored and its guard rerun at exit `0`.
 | 27 | `crossRepoDeadCodeConsumerReadPlan` binds the grant for a request that named consumers, the shape before this pass | `go test ./internal/query -run TestCrossRepoDeadCodeConsumerSelectorSurvivesABusyGrantedRepository -count=1` | `1` (the requested consumer answered `unknown_needs_evidence` with `consumer_evidence_truncated`) |
 | 28 | `deadCodeIncomingProbeMaxResults` keeps the carried-forward 2,500 instead of the re-derived 5,000 | `go test ./internal/query -run TestDeadCodeIncomingProbeMaxResultsMatchesTheManifest -count=1` | `1` (`derived row bound = 5000, want 2500`) |
 | 29 | a helper call that does not exist added to `code_dead_code_incoming_probe_nornicdb_live_test.go`, the exact shape `53239cb5e` left behind | `bash scripts/verify-tagged-builds.sh --all` | `1` (`FAIL ./internal/query [live_nornicdb_dead_code_incoming]`) — and `go test ./internal/query -count=1` on the same tree still exits `0`, which is the false green the gate exists for |
-| 30 | `split_on` returns the whole constraint instead of splitting it, the collapse a non-GNU `sed` would have produced | `bash scripts/verify-tagged-builds.sh --all` and `bash scripts/test-verify-tagged-builds.sh` | `1` both (four constraints report `alternation split produced 1 alternative(s)`; the self-test's two alternation cases fail) |
+| 30 | `split_on` returns its input unsplit for every separator | `bash scripts/verify-tagged-builds.sh --all` and `bash scripts/test-verify-tagged-builds.sh` | `1` both. Three `ERROR`s: the module's two `\|\|` constraints report `alternation split produced 1 alternative(s)`, and `perf5854_ack && perf5740_completion` reports `unrecognized term` because a collapsed conjunction hits the identifier check instead of the alternation count. 26 vetted, 8 skipped. Five self-test cases fail |
+| 31 | only the `\|\|` split collapses, which is exactly what a sed that writes a literal `n` would do | the same two commands | `1` both. Two `ERROR`s, both `alternation split produced 1 alternative(s)`, on `perf5854_head \|\| perf5854_main` and `aix \|\| … \|\| solaris` — the module has exactly two `\|\|` constraints. 27 vetted, 8 skipped. The self-test's two alternation cases fail |
 
 An earlier attempt at #1 deleted the whole helper body and failed as an unused
 import rather than an assertion, which proves nothing; the mutations above keep
@@ -218,7 +224,10 @@ reachability entry and row 27 the consumer selector's place in the page read.
 Each was restored and its guard rerun at exit `0`. Row 28 is the round-8 review
 follow-up: the ledger bound the merged probe outgrew. Row 29 is the round-8c
 one, and it is the only mutation in this table that the default `go test` lane
-cannot see at all — which is the whole argument for the gate beside it.
+cannot see at all — which is the whole argument for the gate beside it. Rows 30
+and 31 are the round-8d parser guard, run as two mutations because they are two
+different defects: 31 is the sed behaviour that was actually there, and 30 is
+the broader "the splitter is broken" case, which reddens one constraint more.
 
 Rows 6 and 12 are one mutation judged by two guards: row 6 is the call-graph
 route's text guard, row 12 the graph-summary route that shares the builder. The

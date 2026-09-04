@@ -203,6 +203,17 @@ if ! rg -q 'SKIP.*\[windows\].*platform-gated' "${tmp_root}/gate.out"; then
 	sed -n '1,40p' "${tmp_root}/gate.out" >&2
 fi
 
+# A bare GOARCH is platform-gated too, and `386` is the one that is not a legal
+# Go identifier -- so it only reaches the platform arm if that arm is consulted
+# first. It used to be reported as an unrecognized term and fail the run.
+arch="$(init_module arch \
+	"i386_test.go@@386@@func ThirtyTwoBitOnly() int { return Helper() }")"
+expect_pass "${arch}" "a bare GOARCH is skipped, not called unrecognized"
+if ! rg -q 'SKIP.*\[386\].*platform-gated' "${tmp_root}/gate.out"; then
+	fail "expected 386 to be reported as platform-gated"
+	sed -n '1,40p' "${tmp_root}/gate.out" >&2
+fi
+
 # A package with no tagged files at all is not a failure, but it must say so
 # rather than exiting 0 silently.
 empty="$(init_module empty)"

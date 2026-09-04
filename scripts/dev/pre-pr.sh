@@ -222,21 +222,6 @@ step_docs() {
 	fi
 }
 
-# step_tagged_builds compiles the Go files no other step in this gate looks at.
-# A //go:build-gated file is excluded from the default tag set, so the whole
-# lane above -- fmt, lint, build, vet, test -- walks straight past it, and a
-# helper deleted elsewhere in its package leaves it uncompilable with nothing
-# reporting it. That happened: #5167's live NornicDB complexity proof sat broken
-# through a pre-pr run, a push, a full CI run and eight review rounds. The sweep
-# is compile-only and needs no backend, so it belongs here rather than in the
-# live lane below.
-step_tagged_builds() {
-	if changed_go_files | rg -q '^go/'; then
-		"${repo_root}/scripts/verify-tagged-builds.sh" --all
-	else
-		printf 'no Go changes — skipping tagged-build sweep\n'
-	fi
-}
 
 step_exactness() {
 	local exactness_args=(
@@ -447,7 +432,12 @@ fi
 run_step "go test (changed packages)" step_test
 run_step "500-line file cap" step_filecap
 run_step "package docs" step_docs
-run_step "tagged build sweep" step_tagged_builds
+# The build-tag compile sweep (scripts/verify-tagged-builds.sh) reaches this
+# gate through step_exactness, not a step of its own: it is registered as
+# `tagged-builds` in specs/ci-gates.v1.yaml at tier pre-pr, category exactness,
+# so run-selected-gates.sh picks it for any go/** diff. It had a hardcoded step
+# here first, and keeping both ran it twice -- 58 `go vet` invocations where 29
+# would do, and two places to keep in sync.
 run_step "selected exactness + telemetry gates" step_exactness
 if [[ "${PRE_PR_FASTPATH_LANE}" != "fast" ]]; then
 	run_step "race lane (Go changes)" step_race
