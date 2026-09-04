@@ -50,6 +50,11 @@ const languageQueryCapability = "symbol_graph.language_entities"
 const (
 	reasonLanguageQueryGraphOnly   = "graph-only read served this entity type"
 	reasonLanguageQueryContentOnly = "content-store read served this entity type"
+	// reasonLanguageQueryEmptyGrant describes the empty page a scoped caller
+	// with no repository grants gets. It is the route's normal success shape,
+	// answered without reaching either backend, so index existence cannot be
+	// probed from the difference between "no grants" and "no rows".
+	reasonLanguageQueryEmptyGrant = "the caller's grant admits no repository, so no backend was read"
 )
 
 // languageQueryMaxLimit bounds the caller-supplied limit before it reaches
@@ -166,6 +171,23 @@ func (h *LanguageQueryHandler) handleLanguageQuery(w http.ResponseWriter, r *htt
 		req.Limit = languageQueryMaxLimit
 	}
 
+	// #5167 batch 2a. This route is owned by LanguageQueryHandler, not
+	// CodeHandler, so req.RepoID used to reach both backends raw: never
+	// resolved through queryselector and never checked against the caller's
+	// grant. Both halves of the family's fix apply here through free functions
+	// rather than a second copy of the plumbing -- the selector is resolved and
+	// an ungranted one rejected with 400, then the grant the remaining reads
+	// bind is resolved once for all four branches.
+	if !applyRepositorySelectorForAccess(w, r, h.Neo4j, h.Content, &req.RepoID, languageQueryCapability) {
+		return
+	}
+	grant, blocked := languageQueryGrantFor(r.Context(), req.RepoID)
+	if blocked {
+		h.writeLanguageQueryResult(w, r, req.Language, req.EntityType, req.Query, []map[string]any{},
+			TruthBasisContentIndex, reasonLanguageQueryEmptyGrant)
+		return
+	}
+
 	if req.EntityType == "guard" {
 		results, basis, err := h.queryGraphFirstContentByLanguageWithSemanticFilter(
 			r.Context(),
@@ -177,6 +199,7 @@ func (h *LanguageQueryHandler) handleLanguageQuery(w http.ResponseWriter, r *htt
 			req.Limit,
 			"semantic_kind",
 			"guard",
+			grant,
 		)
 		if err != nil {
 			if WriteGraphReadError(w, r, err, languageQueryCapability) {
@@ -193,7 +216,7 @@ func (h *LanguageQueryHandler) handleLanguageQuery(w http.ResponseWriter, r *htt
 	}
 
 	if label, ok := graphBackedEntityTypes[req.EntityType]; ok {
-		results, basis, err := h.queryByLanguage(r.Context(), req.Language, label, req.Query, req.RepoID, req.Limit)
+		results, basis, err := h.queryByLanguage(r.Context(), req.Language, label, req.Query, req.RepoID, req.Limit, grant)
 		if err != nil {
 			if errors.Is(err, errLanguageQueryGraphOnlyEntityUnavailable) {
 				h.writeLanguageQueryUnsupportedCapability(w, r,
@@ -221,6 +244,7 @@ func (h *LanguageQueryHandler) handleLanguageQuery(w http.ResponseWriter, r *htt
 			req.Query,
 			req.RepoID,
 			req.Limit,
+			grant,
 		)
 		if err != nil {
 			if WriteGraphReadError(w, r, err, languageQueryCapability) {
@@ -237,7 +261,7 @@ func (h *LanguageQueryHandler) handleLanguageQuery(w http.ResponseWriter, r *htt
 	}
 
 	if label, ok := contentBackedEntityTypes[req.EntityType]; ok {
-		results, err := h.queryContentByLanguage(r.Context(), req.Language, label, req.Query, req.RepoID, req.Limit)
+		results, err := h.queryContentByLanguage(r.Context(), req.Language, label, req.Query, req.RepoID, req.Limit, grant)
 		if err != nil {
 			if WriteGraphReadError(w, r, err, languageQueryCapability) {
 				return
@@ -314,61 +338,14 @@ func (h *LanguageQueryHandler) writeLanguageQueryResult(
 	}, BuildTruthEnvelope(h.profile(), languageQueryCapability, basis, reason))
 }
 
-func (h *LanguageQueryHandler) queryContentByLanguage(
-	ctx context.Context,
-	language, entityType, query, repoID string,
-	limit int,
-) ([]map[string]any, error) {
-	if h.Content == nil {
-		return nil, fmt.Errorf("content reader is required for %s queries", entityType)
-	}
-
-	rows, err := h.Content.SearchEntitiesByLanguageAndType(ctx, repoID, language, entityType, query, limit)
-	if err != nil {
-		return nil, err
-	}
-
-	results := make([]map[string]any, 0, len(rows))
-	for _, row := range rows {
-		result := map[string]any{
-			"entity_id":  row.EntityID,
-			"name":       row.EntityName,
-			"labels":     []string{row.EntityType},
-			"file_path":  row.RelativePath,
-			"repo_id":    row.RepoID,
-			"language":   row.Language,
-			"start_line": row.StartLine,
-			"end_line":   row.EndLine,
-			"metadata":   row.Metadata,
-		}
-		attachSemanticSummary(result)
-		results = append(results, result)
-	}
-
-	return results, nil
-}
-
-func allSupportedEntityTypes() map[string]string {
-	merged := make(map[string]string, len(graphBackedEntityTypes)+len(graphFirstContentBackedEntityTypes)+len(contentBackedEntityTypes))
-	for key, value := range graphBackedEntityTypes {
-		merged[key] = value
-	}
-	for key, value := range graphFirstContentBackedEntityTypes {
-		merged[key] = value
-	}
-	for key, value := range contentBackedEntityTypes {
-		merged[key] = value
-	}
-	return merged
-}
-
 // queryByLanguage builds and executes a language-specific Cypher query.
 func (h *LanguageQueryHandler) queryByLanguage(
 	ctx context.Context,
 	language, label, query, repoID string,
 	limit int,
+	grant languageQueryGrant,
 ) ([]map[string]any, TruthBasis, error) {
-	return h.queryByLanguageWithSemanticFilter(ctx, language, label, query, repoID, limit, "", "")
+	return h.queryByLanguageWithSemanticFilter(ctx, language, label, query, repoID, limit, "", "", grant)
 }
 
 // queryByLanguageWithSemanticFilter reports the TruthBasis it actually
@@ -387,13 +364,14 @@ func (h *LanguageQueryHandler) queryByLanguageWithSemanticFilter(
 	limit int,
 	semanticFilterKey string,
 	semanticFilterValue string,
+	grant languageQueryGrant,
 ) ([]map[string]any, TruthBasis, error) {
 	if h == nil || !querycontract.GraphConfigured(h.Neo4j) {
 		contentLabel := graphLabelToContentEntityType(label)
 		if h == nil || contentLabel == "" {
 			return nil, "", errLanguageQueryGraphOnlyEntityUnavailable
 		}
-		results, err := h.queryContentByLanguage(ctx, language, contentLabel, query, repoID, limit)
+		results, err := h.queryContentByLanguage(ctx, language, contentLabel, query, repoID, limit, grant)
 		if err != nil {
 			return nil, "", err
 		}
@@ -408,6 +386,7 @@ func (h *LanguageQueryHandler) queryByLanguageWithSemanticFilter(
 		limit,
 		semanticFilterKey,
 		semanticFilterValue,
+		grant.access,
 	)
 
 	rows, err := h.Neo4j.Run(ctx, cypher, params)
@@ -427,6 +406,7 @@ func (h *LanguageQueryHandler) queryByLanguageWithSemanticFilter(
 		query,
 		repoID,
 		limit,
+		grant,
 	)
 	if err != nil {
 		return nil, "", err
@@ -441,8 +421,9 @@ func (h *LanguageQueryHandler) queryGraphFirstContentByLanguage(
 	ctx context.Context,
 	language, label, query, repoID string,
 	limit int,
+	grant languageQueryGrant,
 ) ([]map[string]any, TruthBasis, error) {
-	return h.queryGraphFirstContentByLanguageWithSemanticFilter(ctx, language, label, label, query, repoID, limit, "", "")
+	return h.queryGraphFirstContentByLanguageWithSemanticFilter(ctx, language, label, label, query, repoID, limit, "", "", grant)
 }
 
 // queryGraphFirstContentByLanguageWithSemanticFilter reports the same real
@@ -470,6 +451,7 @@ func (h *LanguageQueryHandler) queryGraphFirstContentByLanguageWithSemanticFilte
 	limit int,
 	semanticFilterKey string,
 	semanticFilterValue string,
+	grant languageQueryGrant,
 ) ([]map[string]any, TruthBasis, error) {
 	if querycontract.GraphConfigured(h.Neo4j) {
 		results, basis, err := h.queryByLanguageWithSemanticFilter(
@@ -481,6 +463,7 @@ func (h *LanguageQueryHandler) queryGraphFirstContentByLanguageWithSemanticFilte
 			limit,
 			semanticFilterKey,
 			semanticFilterValue,
+			grant,
 		)
 		if err != nil {
 			return nil, "", err
@@ -489,7 +472,7 @@ func (h *LanguageQueryHandler) queryGraphFirstContentByLanguageWithSemanticFilte
 			return results, basis, nil
 		}
 	}
-	results, err := h.queryContentByLanguage(ctx, language, contentEntityType, query, repoID, limit)
+	results, err := h.queryContentByLanguage(ctx, language, contentEntityType, query, repoID, limit, grant)
 	if err != nil {
 		return nil, "", err
 	}

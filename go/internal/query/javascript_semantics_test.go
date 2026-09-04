@@ -134,6 +134,7 @@ func TestEnrichLanguageResultsWithContentMetadataJavaScriptMethod(t *testing.T) 
 		"getTab",
 		"repo-1",
 		10,
+		unscopedLanguageQueryGrant(),
 	)
 	if err != nil {
 		t.Fatalf("enrichLanguageResultsWithContentMetadata() error = %v, want nil", err)
@@ -264,6 +265,7 @@ func TestEnrichLanguageResultsWithContentMetadataPreservesGraphJavaScriptFields(
 		"getTab",
 		"repo-1",
 		10,
+		unscopedLanguageQueryGrant(),
 	)
 	if err != nil {
 		t.Fatalf("enrichLanguageResultsWithContentMetadata() error = %v, want nil", err)

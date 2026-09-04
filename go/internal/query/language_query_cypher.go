@@ -8,10 +8,24 @@ import (
 	"strings"
 )
 
+// buildLanguageCypher is the unscoped form of the dispatcher below. It binds an
+// explicitly all-scopes filter rather than the zero value, whose Scoped() is
+// true and would render a grant condition against unbound parameters.
 func buildLanguageCypher(language, label, query, repoID string, limit int) (string, map[string]any) {
-	return buildLanguageCypherWithSemanticFilter(language, label, query, repoID, limit, "", "")
+	return buildLanguageCypherWithSemanticFilter(
+		language, label, query, repoID, limit, "", "",
+		repositoryAccessFilter{AllScopes: true},
+	)
 }
 
+// buildLanguageCypherWithSemanticFilter dispatches the route's four graph
+// builders. access is the caller's repository grant: each builder appends it to
+// the same MATCH-attached WHERE that already carries the optional `r.id =
+// $repo_id` anchor, so it lands ahead of every WITH, ORDER BY and LIMIT, and
+// merges the grant arrays into the params through GraphParams. The Repository
+// binding is non-optional in all four patterns, so the condition decides row
+// membership rather than nulling a projection (the OPTIONAL MATCH trap #5167
+// batch 1 hit on complexityListAnchor).
 func buildLanguageCypherWithSemanticFilter(
 	language,
 	label,
@@ -20,6 +34,7 @@ func buildLanguageCypherWithSemanticFilter(
 	limit int,
 	semanticFilterKey string,
 	semanticFilterValue string,
+	access repositoryAccessFilter,
 ) (string, map[string]any) {
 	language = canonicalLanguage(language)
 	params := map[string]any{
@@ -33,11 +48,11 @@ func buildLanguageCypherWithSemanticFilter(
 
 	switch label {
 	case "Repository":
-		return buildRepositoryCypher(language, query, repoID, limit)
+		return buildRepositoryCypher(language, query, repoID, limit, access)
 	case "Directory":
-		return buildDirectoryCypher(language, extFilter, query, repoID, params)
+		return buildDirectoryCypher(language, extFilter, query, repoID, params, access)
 	case "File":
-		return buildFileCypher(language, extFilter, query, repoID, params)
+		return buildFileCypher(language, extFilter, query, repoID, params, access)
 	default:
 		return buildEntityCypherWithSemanticFilter(
 			language,
@@ -48,13 +63,14 @@ func buildLanguageCypherWithSemanticFilter(
 			params,
 			semanticFilterKey,
 			semanticFilterValue,
+			access,
 		)
 	}
 }
 
 // buildRepositoryCypher returns a query for repositories that contain files
 // in the given language.
-func buildRepositoryCypher(language, query, repoID string, limit int) (string, map[string]any) {
+func buildRepositoryCypher(language, query, repoID string, limit int, access repositoryAccessFilter) (string, map[string]any) {
 	params := map[string]any{
 		"language": language,
 		"limit":    limit,
@@ -70,6 +86,8 @@ func buildRepositoryCypher(language, query, repoID string, limit int) (string, m
 		cypher += " AND r.id = $repo_id"
 		params["repo_id"] = repoID
 	}
+	cypher += access.GraphPredicate("r")
+	params = access.GraphParams(params)
 	if query != "" {
 		cypher += " AND r.name CONTAINS $query"
 		params["query"] = query
@@ -89,7 +107,7 @@ func buildRepositoryCypher(language, query, repoID string, limit int) (string, m
 
 // buildDirectoryCypher returns a query for directories containing files in the
 // given language.
-func buildDirectoryCypher(language, extFilter, query, repoID string, params map[string]any) (string, map[string]any) {
+func buildDirectoryCypher(language, extFilter, query, repoID string, params map[string]any, access repositoryAccessFilter) (string, map[string]any) {
 	params["language_title"] = strings.Title(language) //nolint:staticcheck
 
 	cypher := `
@@ -102,6 +120,8 @@ func buildDirectoryCypher(language, extFilter, query, repoID string, params map[
 		cypher += " AND r.id = $repo_id"
 		params["repo_id"] = repoID
 	}
+	cypher += access.GraphPredicate("r")
+	params = access.GraphParams(params)
 	if query != "" {
 		cypher += " AND d.name CONTAINS $query"
 		params["query"] = query
@@ -120,7 +140,7 @@ func buildDirectoryCypher(language, extFilter, query, repoID string, params map[
 }
 
 // buildFileCypher returns a query for files in the given language.
-func buildFileCypher(language, extFilter, query, repoID string, params map[string]any) (string, map[string]any) {
+func buildFileCypher(language, extFilter, query, repoID string, params map[string]any, access repositoryAccessFilter) (string, map[string]any) {
 	params["language_title"] = strings.Title(language) //nolint:staticcheck
 
 	cypher := `
@@ -132,6 +152,8 @@ func buildFileCypher(language, extFilter, query, repoID string, params map[strin
 		cypher += " AND r.id = $repo_id"
 		params["repo_id"] = repoID
 	}
+	cypher += access.GraphPredicate("r")
+	params = access.GraphParams(params)
 	if query != "" {
 		cypher += " AND f.name CONTAINS $query"
 		params["query"] = query
@@ -153,6 +175,7 @@ func buildEntityCypherWithSemanticFilter(
 	params map[string]any,
 	semanticFilterKey string,
 	semanticFilterValue string,
+	access repositoryAccessFilter,
 ) (string, map[string]any) {
 	params["language_title"] = strings.Title(language) //nolint:staticcheck
 
@@ -171,6 +194,8 @@ func buildEntityCypherWithSemanticFilter(
 		cypher += " AND r.id = $repo_id"
 		params["repo_id"] = repoID
 	}
+	cypher += access.GraphPredicate("r")
+	params = access.GraphParams(params)
 	if query != "" {
 		cypher += " AND e.name CONTAINS $query"
 		params["query"] = query

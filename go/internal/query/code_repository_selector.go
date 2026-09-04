@@ -16,10 +16,39 @@ import (
 // through to the generic 400 branch, which would tell the client its request
 // was malformed during a purely transient backend condition.
 func (h *CodeHandler) applyRepositorySelectorForCapability(w http.ResponseWriter, r *http.Request, selector *string, capability string) bool {
+	return applyRepositorySelectorForAccess(w, r, h.Neo4j, h.Content, selector, capability)
+}
+
+// applyRepositorySelectorForAccess is the handler-independent half of the
+// resolution above, for the code-family routes whose handler type is not
+// CodeHandler.
+//
+// POST /api/v0/code/language-query is owned by LanguageQueryHandler, so none of
+// the CodeHandler selector methods were reachable from it and req.RepoID was
+// used raw: never resolved through queryselector, never checked against the
+// caller's grant, and an ungranted repository id was pushed into the query
+// instead of being refused. Extracting the body here rather than copying it
+// onto a second handler keeps one implementation of "resolve the selector, map
+// a transient graph failure to the bounded-read contract, and reject anything
+// else with 400" for every route in the family.
+func applyRepositorySelectorForAccess(
+	w http.ResponseWriter,
+	r *http.Request,
+	graph GraphQuery,
+	content ContentStore,
+	selector *string,
+	capability string,
+) bool {
 	if selector == nil {
 		return true
 	}
-	resolved, err := h.resolveRepositorySelector(r.Context(), *selector)
+	resolved, err := resolveRepositorySelectorExactForAccess(
+		r.Context(),
+		graph,
+		content,
+		*selector,
+		codeGrantAccessFilter(r.Context()),
+	)
 	if err != nil {
 		if WriteGraphReadError(w, r, err, capability) {
 			return false
@@ -112,4 +141,33 @@ func codeContentGrantScope(ctx context.Context, repoID string) (allowed []string
 		return nil, !access.AllowsRepositoryID(repoID)
 	}
 	return access.RepositorySearchIDs(), false
+}
+
+// languageQueryGrant is the caller's repository grant, resolved once per
+// request and threaded through every read the four dispatch branches make.
+//
+// The two fields are the same grant expressed for the two backends: access
+// renders the Cypher condition and binds $allowed_repository_ids /
+// $allowed_scope_ids, and allowedRepositoryIDs is the id list the SQL builder
+// binds to `repo_id = ANY($n)`. Both are empty for an unscoped caller, and a
+// grantless scoped caller never reaches a read at all -- languageQueryGrantFor
+// reports that case as blocked.
+type languageQueryGrant struct {
+	access               repositoryAccessFilter
+	allowedRepositoryIDs []string
+}
+
+// languageQueryGrantFor resolves the caller's grant for a read optionally
+// anchored to one repository by repoID. blocked reports that the grant admits
+// nothing, so the route must answer its own empty page without touching a
+// backend.
+func languageQueryGrantFor(ctx context.Context, repoID string) (grant languageQueryGrant, blocked bool) {
+	allowed, blocked := codeContentGrantScope(ctx, repoID)
+	if blocked {
+		return languageQueryGrant{}, true
+	}
+	return languageQueryGrant{
+		access:               codeGrantAccessFilter(ctx),
+		allowedRepositoryIDs: allowed,
+	}, false
 }

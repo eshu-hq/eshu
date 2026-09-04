@@ -394,3 +394,17 @@ func graphLabelToContentEntityType(label string) string {
 		return ""
 	}
 }
+
+func allSupportedEntityTypes() map[string]string {
+	merged := make(map[string]string, len(graphBackedEntityTypes)+len(graphFirstContentBackedEntityTypes)+len(contentBackedEntityTypes))
+	for key, value := range graphBackedEntityTypes {
+		merged[key] = value
+	}
+	for key, value := range graphFirstContentBackedEntityTypes {
+		merged[key] = value
+	}
+	for key, value := range contentBackedEntityTypes {
+		merged[key] = value
+	}
+	return merged
+}
