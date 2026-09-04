@@ -386,7 +386,21 @@ jobs:
 
   audit:
     name: npm audit (fail on high/critical)
-    timeout-minutes: 10
+    # 20, not 10, because this job legitimately takes ~8 minutes and 10 left it
+    # about two minutes of headroom. Measured 2026-09-04: the two runs that
+    # finished took 8m00s (6479e9747) and 7m59s (32499ce28, on main), while four
+    # consecutive runs were killed at 10m14-15s. A timed-out job reports as
+    # `cancelled` rather than `failure`, so this read as flaky infrastructure
+    # instead of a gate running out of budget.
+    #
+    # npm's audit endpoint is the variable cost: it now prints "This endpoint is
+    # being retired" and has started returning 400s and long waits, which is
+    # enough to eat a two-minute margin. Every sibling job in this file already
+    # sits at 20-60 minutes; 10 was the outlier.
+    #
+    # This changes the budget only. `npm audit --audit-level=high` below is
+    # untouched, so high and critical advisories still fail the build.
+    timeout-minutes: 20
     runs-on: ubuntu-latest
     steps:
       - name: Checkout repository
