@@ -5,15 +5,37 @@ b064f8e3e) started building upstream's `docker/Dockerfile.cpu-bge` UI stage in
 CI: `npm run build` (`tsc && vite build`) fails with TS2882 on side-effect CSS
 imports (`./Bifrost.css`, `./index.css`). Eshu owns no `ui/` or `docker/`
 tree — the failure is upstream's tree at our pin plus our default from-source
-build policy (`pull_policy: build`). Sibling workflows stay green because they
-never build this image from source.
+build policy (`pull_policy: build`).
+
+CORRECTION (follow-up): the sibling workflows do NOT stay green by immunity.
+`docker-compose.e2e.yaml` extends the same `nornicdb` service and the
+golden-corpus nornicdb leg uses the same file, so e2e, golden-corpus, and the
+frontend e2e jobs all build the identical image — they were green only via
+path-filter skips and a lucky `npm ci`. The knob is therefore threaded through
+those jobs too (see below), not just the Ifa gate.
+
+Root cause, refined: the break is intermittent, not per-pin. Upstream's UI
+stage runs `npm ci 2>/dev/null || npm install --legacy-peer-deps`: when `npm
+ci` fails (stderr hidden), the fallback resolves floating `^` ranges to newer
+versions and the tree breaks (failed Ifa run: "added 203 packages, changed 1
+package" in 16s). When `npm ci` succeeds, the lockfile tree builds clean
+(passing e2e run on the same pin: full `tsc && vite build` green). Skipping
+the UI stage removes the flake surface entirely rather than depending on
+registry luck.
 
 The fix threads upstream's own documented `HEADLESS` build arg through
 `docker-compose.yaml` (`args: HEADLESS: ${NORNICDB_HEADLESS:-false}`; local
 default `false` keeps the full UI build) and sets `NORNICDB_HEADLESS=true` on
-the three image-building jobs in `ifa-determinism-gate.yml`
-(determinism-matrix, dead-letter-matrix, fault-injection shards). The backend
-pin — including the #261/#290 fixes — is untouched.
+every CI job that builds the image: the three image-building jobs in
+`ifa-determinism-gate.yml` (determinism-matrix, dead-letter-matrix,
+fault-injection shards, step-level env), plus job-level env on the e2e `test`
+job, the golden-corpus `corpus-gate` job, and the frontend `console` job
+(which owns the auth, MCP-identity, and console e2e stacks). The backend
+pin — including the #261/#290 fixes — is untouched. A pinning test asserts
+the per-file linkage counts (3/1/1/1) so a later edit cannot silently re-arm
+the flake. Out of scope (operator-driven, no CI job): the k8s/two-team,
+remote-OCI, console-retained, and demo scripts that also `up --build`; their
+operators inherit the local default unless they export the knob.
 
 No-Regression Evidence (#6505): backend behavior is unchanged. The pin, build
 context, dockerfile, Go builder stage, and every backend flag and env are

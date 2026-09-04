@@ -97,6 +97,30 @@ func TestNornicDBComposeHeadlessBuildArgDefaultsFalse(t *testing.T) {
 	}
 }
 
+// TestNornicDBHeadlessEnvPresentInImageBuildingCIJobs pins the workflow half
+// of the #6505 fix: every CI job that builds the pinned backend from source
+// must set NORNICDB_HEADLESS, or a later edit silently re-arms the upstream
+// UI-stage flake (npm-ci-fallback TS2882). Counts are per-file: the three Ifa
+// jobs carry step-level env, the rest carry one job-level env.
+func TestNornicDBHeadlessEnvPresentInImageBuildingCIJobs(t *testing.T) {
+	t.Parallel()
+
+	for _, want := range []struct {
+		file  string
+		count int
+	}{
+		{".github/workflows/ifa-determinism-gate.yml", 3},
+		{".github/workflows/e2e-tests.yml", 1},
+		{".github/workflows/golden-corpus-gate.yml", 1},
+		{".github/workflows/frontend.yml", 1},
+	} {
+		content := readRepositoryFile(t, "../../..", want.file)
+		if got := strings.Count(content, "NORNICDB_HEADLESS"); got < want.count {
+			t.Fatalf("%s sets NORNICDB_HEADLESS %d time(s), want at least %d (image-building CI jobs must stay headless, #6505)", want.file, got, want.count)
+		}
+	}
+}
+
 func TestNornicDBComposeDisablesSearchIndexPersistence(t *testing.T) {
 	t.Parallel()
 

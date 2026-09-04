@@ -162,6 +162,11 @@ jobs:
     name: Console (apps/console)
     timeout-minutes: 20
     runs-on: ubuntu-latest
+    # Every backend here (auth e2e, MCP e2e, console e2e) builds the pinned
+    # NornicDB from source; its UI stage is skipped headless (#6505 —
+    # upstream npm-ci-fallback flake, no gate serves the UI).
+    env:
+      NORNICDB_HEADLESS: "true"
     steps:
       - name: Checkout repository
         uses: actions/checkout@v5
