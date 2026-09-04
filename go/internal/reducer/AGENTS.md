@@ -1541,7 +1541,7 @@ to every existing operator-facing signal.
 
 No-Regression Evidence (Wave 4e, security_alert family typed-payload decode,
 Contract System v1 #4566/#4582): the SINGLE decode site for the
-`security_alert.repository_alert` kind (`extractProviderSecurityAlerts`,
+`security_alert.repository_alert` kind (`ExtractProviderSecurityAlerts`,
 `security_alert_reconciliation.go`) now decodes through the `sdk/go/factschema`
 seam (`decodeSecurityAlertRepositoryAlert` in
 `factschema_decode_securityalert.go`, converting the typed
@@ -1627,7 +1627,7 @@ in-memory caller's `env.Payload` would have mutated the original payload; the
 JSONB decode path always allocated (that branch is not hit in production), so the
 clone is free in prod and keeps the decode side-effect-free for every input shape
 (`TestDecodeMapInto_TypedMapInputNotMutated` locks non-mutation of an
-already-typed input). (2) `extractProviderSecurityAlerts` — the LENIENT
+already-typed input). (2) `ExtractProviderSecurityAlerts` — the LENIENT
 pre-filter/scoping wrapper — no longer drops a `repository_id`-less alert; it
 reconstructs it best-effort from the raw payload
 (`providerSecurityAlertFromRawPayload`) so the security-alert evidence-scoping
@@ -1638,7 +1638,7 @@ package/ecosystem identity when every alert in a security-alert-triggered
 all-malformed alerts skipped scoping and unrelated active dependency/vulnerability
 facts (loaded earlier from the malformed alert's package/CVE hints) could publish
 unscoped impact findings. The DURABLE reconciliation and impact-seeding paths keep
-using the strict `extractProviderSecurityAlertsWithQuarantine`, so the malformed
+using the strict `ExtractProviderSecurityAlertsWithQuarantine`, so the malformed
 fact still dead-letters as `input_invalid`; only the non-durable scoping signal is
 preserved (`TestSupplyChainImpactSecurityAlertScopingSurvivesAllMalformedAlerts`).
 
