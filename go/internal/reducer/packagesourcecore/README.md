@@ -25,6 +25,10 @@ This package owns:
   matches for one hint's canonical source-URL key.
 - `CanonicalURLKey` — the canonical host/path key a git remote URL reduces to,
   shared with the git collector via `repositoryidentity`.
+- `ExactURLMatch` / `NormalizeExactURL` — the narrower scheme/host-lowercased,
+  order-preserving comparison that distinguishes an exact repository-remote
+  match from one that only matches after `CanonicalURLKey`'s further
+  canonicalization (issue #6061).
 
 It does not own hint extraction, correlation-outcome classification, or the
 decision types the reducer root's package-source correlation handler
@@ -49,12 +53,19 @@ symbols directly and never call that handler, each needing a different subset
 | `package_publication_correlation.go` | `Hint`, `ExtractRepositories` |
 | `container_image_identity_provenance.go` | `Hint`, `Repository`, `ExtractRepositories`, `MatchRepositories`, `CanonicalURLKey` |
 | `container_image_identity_slsa.go` | `ExtractRepositories` |
-| `service_catalog_correlation_classify.go` | `CanonicalURLKey` |
-| `service_catalog_correlation_lookup.go` | `CanonicalURLKey` |
+| `internal/reducer/servicecatalog/service_catalog_correlation_classify.go` | `CanonicalURLKey`, `ExactURLMatch` |
+| `internal/reducer/servicecatalog/service_catalog_correlation_lookup.go` | `CanonicalURLKey` |
 | `supply_chain_impact_python_reachability.go` | `RepositoryIDFromScope` |
 
 Moving the whole `packagesource` family would drag the handler's ~650 lines
-along to deliver these ~65 (issue #6379, epic #6061).
+along to deliver these ~65 (issue #6379, epic #6061). The two
+`internal/reducer/servicecatalog` files moved out of the flat root under
+issue #6061 and import this package directly rather than through a root
+forwarder; `exactPackageSourceURLMatch`/`normalizePackageSourceExactURL`
+(real `net/url` normalization logic, not a forwarder) moved from
+`package_source_correlation.go` into this package as
+`ExactURLMatch`/`NormalizeExactURL` in the same change, alongside the
+`CanonicalURLKey` canonicalizer they now sit next to.
 
 ## Compatibility
 
@@ -66,8 +77,7 @@ cap, and adding a new root `.go` file would have grown
 `internal/reducer`'s dirgate-pinned non-test file count past its grandfathered
 519 -- the ratchet only allows that row to move down or be removed, never
 up), so the root call sites across `package_consumption_correlation.go`,
-`package_publication_correlation.go`, `service_catalog_correlation_classify.go`,
-`service_catalog_correlation_lookup.go`, `container_image_identity_provenance.go`,
+`package_publication_correlation.go`, `container_image_identity_provenance.go`,
 `container_image_identity_slsa.go`, and `supply_chain_impact_python_reachability.go`
 are unchanged. Those forwarders are transitional and are deleted as their
 callers move into family subpackages.

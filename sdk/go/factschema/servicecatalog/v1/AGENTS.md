@@ -66,7 +66,7 @@ field, only on an unsupported schema major.
   `../../decode.go`), not a silent edit here.
 - `EntityRef` is the ONLY required field on `Entity`, `Ownership`, and
   `RepositoryLink` — it is the reducer correlation index's join key
-  (`go/internal/reducer/service_catalog_correlation_index.go`). Do NOT make
+  (`go/internal/reducer/servicecatalog/service_catalog_correlation_index.go`). Do NOT make
   `Provider` required: a blank provider is a legitimate single-provider
   catalog deployment's observation, matching the pre-migration
   `payloadString` read it replaces.

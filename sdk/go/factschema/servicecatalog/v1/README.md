@@ -158,6 +158,6 @@ emission path — see the module `README.md`'s no-observability-change note.
 - `docs/internal/contract-system-contributor-summary.md`
 - Parent module `README.md` (`sdk/go/factschema/README.md`) — decode seam,
   classified errors, schema generation.
-- `go/internal/reducer/service_catalog_correlation_index.go` — the
+- `go/internal/reducer/servicecatalog/service_catalog_correlation_index.go` — the
   correlation index this package's Entity/Ownership/RepositoryLink structs
   feed.

@@ -719,7 +719,6 @@ LINE docs/public/observability/telemetry-coverage.md go/internal/reducer/repo_de
 LINE docs/public/observability/telemetry-coverage.md go/internal/reducer/search_vector_build_runner.go:235
 LINE docs/public/observability/telemetry-coverage.md go/internal/reducer/service.go:189
 LINE docs/public/observability/telemetry-coverage.md go/internal/reducer/service.go:358
-LINE docs/public/observability/telemetry-coverage.md go/internal/reducer/service_catalog_correlation_guardrails.go:134
 LINE docs/public/observability/telemetry-coverage.md go/internal/reducer/service_heartbeat.go:114
 LINE docs/public/observability/telemetry-coverage.md go/internal/reducer/shared_projection_worker_lease_heartbeat.go:48
 LINE docs/public/observability/telemetry-coverage.md go/internal/reducer/supply_chain_impact_handler_helpers.go:62
