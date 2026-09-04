@@ -232,21 +232,33 @@ func loadRealConsumerEvidence(repoRoot string) (realConsumerEvidence, error) {
 		seamKinds[kind] = true
 	}
 
-	rawSQLKinds, err := rawSQLFactKindReaders(filepath.Join(repoRoot, realConsumerRawSQLDir))
+	queryDirs, err := queryTreeDirs(repoRoot)
 	if err != nil {
 		return realConsumerEvidence{}, err
+	}
+	rawSQLKinds := map[string]bool{}
+	for _, dir := range queryDirs {
+		kinds, err := rawSQLFactKindReaders(dir)
+		if err != nil {
+			return realConsumerEvidence{}, err
+		}
+		for kind := range kinds {
+			rawSQLKinds[kind] = true
+		}
 	}
 
 	factsConstValues, err := factKindConstantValues(filepath.Join(repoRoot, factsPackageConstFileGlob))
 	if err != nil {
 		return realConsumerEvidence{}, err
 	}
-	identRefKinds, err := factsPackageIdentRefKinds(filepath.Join(repoRoot, realConsumerRawSQLDir), factsConstValues)
-	if err != nil {
-		return realConsumerEvidence{}, err
-	}
-	for kind := range identRefKinds {
-		rawSQLKinds[kind] = true
+	for _, dir := range queryDirs {
+		identRefKinds, err := factsPackageIdentRefKinds(dir, factsConstValues)
+		if err != nil {
+			return realConsumerEvidence{}, err
+		}
+		for kind := range identRefKinds {
+			rawSQLKinds[kind] = true
+		}
 	}
 
 	validKinds := registryFactKinds()
@@ -277,12 +289,14 @@ func loadRealConsumerEvidence(repoRoot string) (realConsumerEvidence, error) {
 		dispatchKinds[kind] = true
 	}
 
-	pgarrayArrayKinds, err := pgarrayArraySliceFactKinds(filepath.Join(repoRoot, realConsumerRawSQLDir))
-	if err != nil {
-		return realConsumerEvidence{}, err
-	}
-	for kind := range pgarrayArrayKinds {
-		rawSQLKinds[kind] = true
+	for _, dir := range queryDirs {
+		pgarrayArrayKinds, err := pgarrayArraySliceFactKinds(dir)
+		if err != nil {
+			return realConsumerEvidence{}, err
+		}
+		for kind := range pgarrayArrayKinds {
+			rawSQLKinds[kind] = true
+		}
 	}
 
 	return realConsumerEvidence{decodeSeamKinds: seamKinds, rawSQLKinds: rawSQLKinds, dispatchKinds: dispatchKinds}, nil
