@@ -13,30 +13,28 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	supplychaincore "github.com/eshu-hq/eshu/go/internal/reducer/supplychaincore"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
 )
 
-// SupplyChainImpactStatus names the reducer decision for one vulnerability
-// impact finding.
-type SupplyChainImpactStatus string
+// SupplyChainImpactStatus is the reducer-root spelling of
+// [supplychaincore.SupplyChainImpactStatus]; the impact-status vocabulary
+// moved to the shared supply-chain leaf (#6061) so the impact-finding and
+// suppression halves of the family can split without importing each other.
+// The functions that decide status stay here and keep their unqualified use.
+type SupplyChainImpactStatus = supplychaincore.SupplyChainImpactStatus
 
 const (
-	// SupplyChainImpactAffectedExact means package identity and observed
-	// version match the affected package evidence exactly.
-	SupplyChainImpactAffectedExact SupplyChainImpactStatus = "affected_exact"
-	// SupplyChainImpactAffectedDerived means impact follows from SBOM, image,
-	// repository, or runtime joins after package identity is established.
-	SupplyChainImpactAffectedDerived SupplyChainImpactStatus = "affected_derived"
-	// SupplyChainImpactPossiblyAffected means advisory evidence exists but
-	// package identity or version precision is incomplete.
-	SupplyChainImpactPossiblyAffected SupplyChainImpactStatus = "possibly_affected"
-	// SupplyChainImpactNotAffectedKnownFixed means the observed version is at
-	// or beyond a source-reported fixed version under Eshu's conservative
-	// numeric version comparison.
-	SupplyChainImpactNotAffectedKnownFixed SupplyChainImpactStatus = "not_affected_known_fixed"
-	// SupplyChainImpactUnknown means vulnerability source truth exists but Eshu
-	// lacks enough package or runtime evidence to decide impact.
-	SupplyChainImpactUnknown SupplyChainImpactStatus = "unknown_impact"
+	// SupplyChainImpactAffectedExact aliases [supplychaincore.SupplyChainImpactAffectedExact].
+	SupplyChainImpactAffectedExact = supplychaincore.SupplyChainImpactAffectedExact
+	// SupplyChainImpactAffectedDerived aliases [supplychaincore.SupplyChainImpactAffectedDerived].
+	SupplyChainImpactAffectedDerived = supplychaincore.SupplyChainImpactAffectedDerived
+	// SupplyChainImpactPossiblyAffected aliases [supplychaincore.SupplyChainImpactPossiblyAffected].
+	SupplyChainImpactPossiblyAffected = supplychaincore.SupplyChainImpactPossiblyAffected
+	// SupplyChainImpactNotAffectedKnownFixed aliases [supplychaincore.SupplyChainImpactNotAffectedKnownFixed].
+	SupplyChainImpactNotAffectedKnownFixed = supplychaincore.SupplyChainImpactNotAffectedKnownFixed
+	// SupplyChainImpactUnknown aliases [supplychaincore.SupplyChainImpactUnknown].
+	SupplyChainImpactUnknown = supplychaincore.SupplyChainImpactUnknown
 )
 
 // SupplyChainImpactFactFilter bounds active evidence loading for one impact

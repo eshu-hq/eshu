@@ -8,6 +8,7 @@ import (
 	"strings"
 
 	"github.com/eshu-hq/eshu/go/internal/reducer/payloadcore"
+	supplychaincore "github.com/eshu-hq/eshu/go/internal/reducer/supplychaincore"
 )
 
 // supplyChainCVEGroup is the consolidated per-(cve_id) view of every
@@ -222,33 +223,16 @@ type AdvisoryProvenanceObservation struct {
 	AffectedFactID string
 }
 
-// AlternateSeverity is one source-attributed severity that was not selected
-// for the finding but is preserved so callers can see vendor/source
-// disagreement.
-type AlternateSeverity struct {
-	Source string
-	Score  float64
-	Vector string
-	Label  string
-}
+// AlternateSeverity aliases [supplychaincore.AlternateSeverity]; the
+// provenance value types moved to the shared supply-chain leaf (#6061) while
+// the selection logic below stays in this package.
+type AlternateSeverity = supplychaincore.AlternateSeverity
 
-// FixedVersionBranch records one source-attributed fixed-version branch.
-type FixedVersionBranch struct {
-	Version string
-	Source  string
-}
+// FixedVersionBranch aliases [supplychaincore.FixedVersionBranch].
+type FixedVersionBranch = supplychaincore.FixedVersionBranch
 
-// AdvisorySourceObservation is the bounded provenance row surfaced through
-// the finding payload. It carries source identity, advisory identifier,
-// update timestamp, and withdrawal timestamp so API/MCP callers can explain
-// why one severity was selected over alternates without re-reading raw
-// source facts.
-type AdvisorySourceObservation struct {
-	Source          string
-	AdvisoryID      string
-	SourceUpdatedAt string
-	WithdrawnAt     string
-}
+// AdvisorySourceObservation aliases [supplychaincore.AdvisorySourceObservation].
+type AdvisorySourceObservation = supplychaincore.AdvisorySourceObservation
 
 // advisoryProvenanceSelection is the consolidated result of applying
 // ecosystem-aware source priority to a per-(cve_id, package_id) set of

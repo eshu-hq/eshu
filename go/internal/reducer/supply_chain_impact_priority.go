@@ -9,17 +9,15 @@ import (
 	"strconv"
 	"strings"
 	"time"
+
+	supplychaincore "github.com/eshu-hq/eshu/go/internal/reducer/supplychaincore"
 )
 
-// SupplyChainImpactPriorityContribution explains one additive or subtractive
-// input to a vulnerability priority score. Contributions are triage metadata:
-// they never change impact_status or missing-evidence truth.
-type SupplyChainImpactPriorityContribution struct {
-	ReasonCode   string
-	Input        string
-	Value        string
-	Contribution int
-}
+// SupplyChainImpactPriorityContribution aliases
+// [supplychaincore.SupplyChainImpactPriorityContribution]; the value type
+// moved to the shared supply-chain leaf (#6061) while the scoring functions
+// below stay in this package.
+type SupplyChainImpactPriorityContribution = supplychaincore.SupplyChainImpactPriorityContribution
 
 func withSupplyChainImpactPriority(finding SupplyChainImpactFinding) SupplyChainImpactFinding {
 	contributions := buildSupplyChainImpactPriorityContributions(finding)
