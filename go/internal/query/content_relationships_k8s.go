@@ -174,7 +174,8 @@ func isK8sResourceKind(entity EntityContent, kind string) bool {
 	return strings.EqualFold(strings.TrimSpace(value), kind)
 }
 
-func k8sNamespace(metadata map[string]any) string {
-	value, _ := metadata["namespace"].(string)
-	return strings.TrimSpace(value)
-}
+// The namespace normalization this file used to declare moved to
+// querycontract.K8sNamespace, because K8sSelectCandidateFromEntity needs it
+// from there (#6060). Call sites in this package call it directly rather than
+// through a wrapper; a second copy would be free to drift, and namespace
+// equality gates SELECTS matching.

@@ -81,6 +81,20 @@ See `doc.go` for the godoc contract.
   read models, used on both sides: a test declares one to say which read it is
   answering, and the driver answers that same read with the same helper when no
   result was queued.
+- `FakePortContentStore` — the content-read double. Satisfies
+  `querycontract.ContentStore` plus the narrow optional ports package `query`
+  type-asserts a store against (documentation read models, repository entry
+  points and deployment evidence, relationship evidence, service-story target
+  support). It answers from fixture slices; the zero value is usable.
+- `SortEntityContentByLocation` and `FilterLanguageRepos` — the two ordering
+  and grant-filtering helpers `FakePortContentStore` shares across its reads,
+  exported because a family's own double needs the same ordering and the same
+  grant predicate to stay consistent with production.
+
+`FakePortContentStore`'s entity reads filter before they limit, matching the
+production SQL's predicate order. A double that limited first would hand a test
+rows the real query would not return, which is the failure mode a double exists
+to avoid.
 
 ### The content-reader driver's two-tier answer
 
@@ -119,6 +133,19 @@ build it with keyed literals; one of them,
 `code_relationships_graph_test.go`, is where the adapter is declared, so 154
 consume it and none of those 154 changed.
 
+`FakePortContentStore` works the same way at a larger scale: root's
+`fakePortContentStore` keeps the original lowercase fields for the 93 root files
+that build one with a composite literal, out of 125 that name it and 124 that
+consume it. Every method forwards through one `promoted()` converter. Adding a fixture field means touching that converter once rather
+than each of the 41 methods.
+
+Its move needed something `fakeGraphReader`'s did not. Twenty read models had
+to reach `querycontract` first: sixteen the fake named directly or reached
+through a struct field, plus four that were already exported from package
+`query` but still unreachable, since a double importing package `query` back is
+an import cycle against that package's own internal test files. Package `query`
+keeps an alias for each, so its call sites did not change.
+
 The dispatch rules are not duplicated in that adapter, and that is the point.
 Two copies drift, and a fake that no longer matches the real port keeps passing
 while guarding nothing.
@@ -151,6 +178,70 @@ named `origin/main` commit rather than to "this branch's HEAD" -- a sentence
 anchored to a moving ref is only true at the moment it is written, and it
 falsifies itself on the next rebase, which is how three different totals ended
 up in this file at once.
+
+`FakePortContentStore` was proven the same way. Zeroing `RepositoryCoverage`
+fails **12** root tests, and zeroing `DocumentationFindings` fails **4**.
+
+An earlier draft of this paragraph named a single test for the coverage
+mutation, `TestQueryContentStoreCoverageUsesContentStorePort`. That was measured
+before the fake reached its current consumer set; re-measured here it is 12, and
+the named test is one of them. The failures spread across repository stats,
+story, context, branches and dead-code investigation rather than clustering on
+the coverage route, which is what makes them evidence of delegation rather than
+of one handler.
+
+The `DocumentationFindings` mutation is the one worth keeping even though it is
+the smaller number: those four reach the double through a type assertion onto an
+unexported port declared in package `query`, so had the assertion gone false
+across the new package boundary, the handlers would have taken their fallback
+path and every one of them would still have passed.
+
+One mutation found a gap rather than proving anything, which is the only kind
+of evidence that finds an unguarded predicate. Dropping the `entity_type`
+filter from `ListRepoEntitiesByType` failed no root test: the tests covering
+that predicate build their own doubles (`boundedK8sFakeContentStore`,
+`truncationFakeContentStore`, `entityContextFakeContentStore`) rather than this
+one.
+
+That gap is closed. `portcontentstore_test.go` now pins both halves of the
+predicate, and each half has a bite control:
+
+| mutation | test that goes red |
+| --- | --- |
+| drop the `entity_type` filter | `…ListRepoEntitiesByTypeFiltersBeforeLimit` (returns `Service` rows) |
+| apply `LIMIT` to the input before filtering | same test (returns 0 rows) |
+| drop the repo filter | `…ListRepoEntitiesByTypeScopesToRepo` (leaks `repo-2`) |
+
+The ordering half is worth keeping separate from the filtering half. A double
+that limited first would spend its budget on rows of the wrong type and report
+truncation the database would not produce, so a caller sizing a limit against
+it would draw the wrong conclusion while every type in its result still looked
+correct.
+
+Beware a mutation that only looks like it changes the order. Moving the
+`len(filtered) >= limit` break above the type check is semantically identical,
+because that counter still only counts rows that passed the filter — it stays
+green, and it should. The mutation that actually tests the ordering truncates
+the input slice before filtering.
+
+### One port rests on a single test
+
+`RepositoryEntryPoints` has exactly one consuming test,
+`TestQueryRepoEntryPointsUsesContentRowsBeforeGraph` — `entryPoints:` is set in
+exactly one root file, `repository_entry_points_test.go`.
+
+An earlier draft followed that with a per-port spread introduced as "the
+mutation counts above". Only two are recorded above, so five of its six numbers
+cited evidence this file does not contain, and were removed.
+
+This is not a gap in the sense the `entity_type` one was — that predicate had no
+coverage through this double at all, and this has a real test that genuinely
+exercises the port. It is a note about what a green suite means. A regression in
+the entry-points path fails one assertion rather than a spread, so if you are
+changing that path, do not read green as broad agreement; read it as one test
+agreeing. Only a panic-style mutation hides this, which is why the mutation
+proof used sentinel returns: a panic aborts at the first failure and reports one
+either way.
 
 Measure that set with a full `go test ./internal/query/`, never with `-run`
 naming the tests you expect. `-run` measures your own filter: the first attempt
@@ -197,7 +288,7 @@ rule in querytestutil, run the whole root suite, restore, confirm green again.
   dispatch to `nil, nil` fails **40** root tests.
 
 Both measured against the same 8324-run, 0-failure baseline as every
-other proof in this file, on this branch rebased onto `origin/main` 94197f893. That total is not a portable
+other proof in this file, on this branch rebased onto `origin/main` 460c59481. That total is not a portable
 constant: it grows as tests are added and shrinks when a family moves out of
 root, as `semanticsearch` did. Re-measure rather than carrying one forward --
 the counts in this file were carried forward three separate times before anyone
@@ -359,10 +450,12 @@ which Cypher FRAGMENT a caller registers, not a query this code issues. The
 promotion is a move: the dispatch bodies came across from
 `repository_context_test.go` and `workload_context_test.go` unchanged, so the
 dispatch work per call is identical; the adapter adds one struct construction
-per call, in test binaries only. Root suite: 8324 `=== RUN` on this
-branch and one more at `origin/main` 94197f893, 0 `--- FAIL` on both, each measured
-rather than inferred (the base side from a throwaway worktree checked out at the
-merge-base). The one-test delta is
+per call, in test binaries only. Root suite: 8324 `=== RUN`, 0 `--- FAIL`, on
+this branch rebased onto `origin/main` 460c59481.
+
+The base-side figure that used to sit here was measured against 94197f893, five
+commits earlier, one of which moved a test between packages. Only the
+measurement that reproduces at the stated commit is kept. The delta it described,
 `TestContentReaderCheckArgsComparesByteSliceBindArgsWithoutPanicking` moving
 into this package with the function it covers, as above. That total is not a
 portable constant -- it moves in both directions as tests are added and as
@@ -378,6 +471,28 @@ The promotion is a move: the append and resolve bodies came across from
 `auth_test.go` unchanged and the root package keeps an unexported adapter that
 delegates rather than reimplements, so the work per call is identical to before
 and every consumer call site is untouched.
+
+No-Regression Evidence: the flagged hot file is `go/internal/query/catalog.go`,
+which does issue a real Cypher `MATCH` against the graph. This change does not
+touch that query. The only edit there turns `CatalogWorkloadIdentityEntry` from
+a struct declaration into a type ALIAS onto `querycontract`, so the shared
+`FakePortContentStore` can name it from outside the root package. An alias
+preserves type identity, so no conversion, copy, or extra allocation is
+introduced on the row-decoding path; the query text, its parameters, and the
+decode loop are byte-identical. The same shape applies to the other read models
+promoted to `querycontract` in this change.
+
+`FakePortContentStore` itself is a test double and runs only inside test
+binaries, so it sits on no production path at all. Its promotion is a move: the
+method bodies came across from `ports_test.go` unchanged and the root package
+keeps an unexported adapter that delegates rather than reimplements, so the work
+per call is identical.
+
+Measured rather than asserted: 126 files under `internal/query` name
+`fakePortContentStore`, and this change touches 4 of them -- `ports_test.go`
+plus the two files its method bodies were split into, and one delegating method
+in `service_story_target_support_test.go`. Those are the fake's DEFINITION
+sites. The remaining 122, which are the call sites, are untouched.
 
 No-Observability-Change: no metric, span, log, or status surface is touched. A
 test double deliberately emits no telemetry -- one that produced spans would

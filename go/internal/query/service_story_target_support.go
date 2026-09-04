@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/pgarray"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/trace"
@@ -22,17 +23,13 @@ type serviceStoryTargetSupportStore interface {
 	) (serviceStoryTargetSupportReadModel, error)
 }
 
-type serviceStoryTargetSupportFilter struct {
-	Repository string
-	TargetKind string
-	TargetID   string
-	ServiceID  string
-	Limit      int
-}
-
-type serviceStoryTargetSupportReadModel struct {
-	Support map[string]any
-}
+// The target-support filter and read model are aliases onto querycontract, so
+// this package's call sites keep their unexported spelling while a
+// ContentStore double outside package query can still name them (#6060).
+type (
+	serviceStoryTargetSupportFilter    = querycontract.ServiceStoryTargetSupportFilter
+	serviceStoryTargetSupportReadModel = querycontract.ServiceStoryTargetSupportReadModel
+)
 
 func loadServiceStoryTargetSupportForOperation(
 	ctx context.Context,
@@ -161,12 +158,12 @@ func (cr *ContentReader) ServiceStoryTargetSupportEvidence(
 		facts = facts[:limit]
 	}
 	var sourceOnlySummary serviceStoryTargetSupportSourceOnlySummary
-	if len(facts) == 0 && documentationTargetScopeFromValues(
+	if len(facts) == 0 && documentationTargetScopeHasSelector(documentationTargetScopeFromValues(
 		filter.Repository,
 		filter.TargetKind,
 		filter.TargetID,
 		filter.ServiceID,
-	).hasSelector() {
+	)) {
 		sourceOnlySummary, err = cr.serviceStoryTargetSupportSourceOnlySummary(ctx, factKinds)
 		if err != nil {
 			span.RecordError(err)
@@ -426,7 +423,9 @@ func serviceStorySupportMissingEvidence(
 			"detail": "support collector facts reference the selected target and another target, so ownership is ambiguous",
 		}}
 	}
-	if !documentationTargetScopeFromValues(filter.Repository, filter.TargetKind, filter.TargetID, filter.ServiceID).hasSelector() {
+	if !documentationTargetScopeHasSelector(
+		documentationTargetScopeFromValues(filter.Repository, filter.TargetKind, filter.TargetID, filter.ServiceID),
+	) {
 		return []map[string]any{}
 	}
 	return []map[string]any{{

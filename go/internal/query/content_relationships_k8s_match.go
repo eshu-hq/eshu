@@ -3,7 +3,11 @@
 
 package query
 
-import "strings"
+import (
+	"strings"
+
+	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
+)
 
 // Relationship reasons for the k8s Service->workload SELECTS edge. Both are
 // truth labels surfaced on the wire under relationship["reason"]; keep them
@@ -206,7 +210,7 @@ func k8sSelectMatchInputFromEntity(entity EntityContent) k8sSelectMatchInput {
 	return k8sSelectMatchInput{
 		kind:                     kind,
 		name:                     entity.EntityName,
-		namespace:                k8sNamespace(entity.Metadata),
+		namespace:                querycontract.K8sNamespace(entity.Metadata),
 		selector:                 selector,
 		selectorPresent:          selectorPresent,
 		podTemplateLabels:        podTemplateLabels,

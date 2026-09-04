@@ -3,20 +3,19 @@
 
 package query
 
-import "context"
+import (
+	"context"
 
-type documentationEvidencePacketFilter struct {
-	FindingID            string
-	AllowedRepositoryIDs []string
-	AllowedScopeIDs      []string
-}
+	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
+)
 
-type documentationEvidencePacketFreshnessFilter struct {
-	PacketID             string
-	SavedPacketVersion   string
-	AllowedRepositoryIDs []string
-	AllowedScopeIDs      []string
-}
+// The packet authorization filters are aliases onto querycontract, so this
+// package's call sites keep their unexported spelling while a ContentStore
+// double outside package query can still name them (#6060).
+type (
+	documentationEvidencePacketFilter          = querycontract.DocumentationEvidencePacketFilter
+	documentationEvidencePacketFreshnessFilter = querycontract.DocumentationEvidencePacketFreshnessFilter
+)
 
 func documentationEvidencePacketFilterWithRepositoryAccess(
 	ctx context.Context,

@@ -81,7 +81,7 @@ func (cr *ContentReader) DocumentationFindings(
 		nextCursor = strconv.Itoa(filter.Offset + limit)
 	}
 	readModel := documentationFindingListReadModel{Findings: findings, NextCursor: nextCursor}
-	if documentationTargetScopeFromFindingFilter(filter).hasSelector() {
+	if documentationTargetScopeHasSelector(documentationTargetScopeFromFindingFilter(filter)) {
 		relatedFacts, truncated, err := cr.documentationTargetFacts(ctx, filter)
 		if err != nil {
 			span.RecordError(err)

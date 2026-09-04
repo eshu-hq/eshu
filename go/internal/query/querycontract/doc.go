@@ -39,4 +39,28 @@
 // The sentinel errors are the reason several of these moved rather than being
 // copied: root compares them with errors.Is, so both sides have to resolve to
 // the same value. A re-declared error would compile and compare false.
+//
+// It also owns the ContentStore read models and their filters. ContentStore
+// itself already lived here, but the narrow optional ports package query
+// type-asserts a store against exchanged types declared in package query, and
+// those types blocked the shared content-read double from leaving root: a
+// _test.go symbol is not importable across a package boundary, and neither is
+// an unexported one. Documentation covers DocumentationFindingFilter,
+// DocumentationFindingListReadModel, DocumentationFactFilter,
+// DocumentationFactListReadModel, the packet and freshness read models and
+// their authorization filters, and the DocumentationTargetScope,
+// DocumentationTargetCoverage and DocumentationMissingEvidence readback types.
+// Repository stories cover RepositoryEntryPointReadModel,
+// RepositoryDeploymentEvidenceReadModel, RelationshipEvidenceReadModel,
+// RepositoryReadModelSummary, RepositoryRelationshipReadModel, RepositoryRef,
+// CatalogWorkloadIdentityEntry, ServiceStoryTargetSupportFilter and
+// ServiceStoryTargetSupportReadModel. K8sSelectCandidateFromEntity and
+// K8sNamespace came along because the double's candidate projection needs them
+// and a second copy of the namespace trim would be free to drift from the one
+// namespace equality gates SELECTS matching on. Root aliases every type, so its
+// call sites are unchanged.
+//
+// The Available field several of these carry is a fallback signal, not an
+// emptiness one. A caller that reads a zero-value read model as "nothing
+// found" reports a repository with real data as having none.
 package querycontract

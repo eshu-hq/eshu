@@ -9,6 +9,8 @@ import (
 	"net/http"
 	"sort"
 	"strings"
+
+	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
 )
 
 const (
@@ -63,12 +65,10 @@ type catalogWorkloadIdentityStore interface {
 	ListWorkloadIdentities(ctx context.Context, limit int) ([]CatalogWorkloadIdentityEntry, bool, error)
 }
 
-// CatalogWorkloadIdentityEntry is a repository read-model workload handle.
-type CatalogWorkloadIdentityEntry struct {
-	Name     string
-	RepoID   string
-	RepoName string
-}
+// CatalogWorkloadIdentityEntry is a repository read-model workload handle. It
+// is an alias onto querycontract so the shared ContentStore double can name it
+// from outside this package (#6060).
+type CatalogWorkloadIdentityEntry = querycontract.CatalogWorkloadIdentityEntry
 
 // listCatalog returns bounded entity handles for the console catalog.
 func (h *RepositoryHandler) listCatalog(w http.ResponseWriter, r *http.Request) {

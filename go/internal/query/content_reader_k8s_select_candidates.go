@@ -49,27 +49,12 @@ func k8sSelectMatchInputFromCandidate(c K8sSelectCandidate) k8sSelectMatchInput 
 	}
 }
 
-// k8sSelectCandidateFromEntity projects an EntityContent into the narrow
-// K8sSelectCandidate using the same comma-ok tri-state and namespace
-// normalization (k8sNamespace) as k8sSelectMatchInputFromEntity. It is the
-// in-memory equivalent of the ListRepoK8sSelectCandidates SQL projection and
-// keeps test doubles that hold EntityContent rows byte-consistent with the
-// production narrow fetch.
-func k8sSelectCandidateFromEntity(entity EntityContent) K8sSelectCandidate {
-	kind, _ := entity.Metadata["kind"].(string)
-	selector, selectorPresent := entity.Metadata["selector"].(string)
-	podTemplateLabels, podTemplateLabelsPresent := entity.Metadata["pod_template_labels"].(string)
-	return K8sSelectCandidate{
-		EntityID:                 entity.EntityID,
-		EntityName:               entity.EntityName,
-		Kind:                     kind,
-		Namespace:                k8sNamespace(entity.Metadata),
-		Selector:                 selector,
-		SelectorPresent:          selectorPresent,
-		PodTemplateLabels:        podTemplateLabels,
-		PodTemplateLabelsPresent: podTemplateLabelsPresent,
-	}
-}
+// The EntityContent -> K8sSelectCandidate projection this file used to declare
+// moved to querycontract.K8sSelectCandidateFromEntity (#6060). Its only caller
+// is the shared ContentStore double, which now lives in querytestutil and
+// cannot reach an unexported symbol here. It still uses the same comma-ok
+// tri-state and the same namespace normalization as
+// k8sSelectMatchInputFromEntity below.
 
 // ListRepoK8sSelectCandidates returns the narrow, matcher-only projection of
 // every K8sResource in repoID, up to limit rows, ordered deterministically by

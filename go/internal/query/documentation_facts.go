@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
 )
 
@@ -18,30 +19,14 @@ const (
 	documentationFactKindAliasSemanticDocumentationObservation = "semantic_documentation_observation"
 )
 
-type documentationFactFilter struct {
-	FactKind             string
-	ScopeID              string
-	GenerationID         string
-	Repository           string
-	TargetKind           string
-	TargetID             string
-	ServiceID            string
-	SourceID             string
-	DocumentID           string
-	SectionID            string
-	Query                string
-	UpdatedSince         *time.Time
-	Limit                int
-	Cursor               string
-	Offset               int
-	AllowedScopeIDs      []string
-	AllowedRepositoryIDs []string
-}
-
-type documentationFactListReadModel struct {
-	Facts      []map[string]any
-	NextCursor string
-}
+// The documentation-fact filter and read model are aliases onto
+// querycontract, so this package's call sites keep their unexported spelling
+// while a ContentStore double outside package query can still name them
+// (#6060).
+type (
+	documentationFactFilter        = querycontract.DocumentationFactFilter
+	documentationFactListReadModel = querycontract.DocumentationFactListReadModel
+)
 
 func (h *DocumentationHandler) listFacts(w http.ResponseWriter, r *http.Request) {
 	r, span := startQueryHandlerSpan(
@@ -122,7 +107,7 @@ func documentationFactRequestFilter(
 		Cursor:       page.cursor,
 		Offset:       page.offset,
 	}
-	if !filter.hasScopeOrAnchor() {
+	if !documentationFactFilterHasScopeOrAnchor(filter) {
 		writeDocumentationError(
 			w,
 			r,
@@ -136,7 +121,13 @@ func documentationFactRequestFilter(
 	return filter, true
 }
 
-func (f documentationFactFilter) hasScopeOrAnchor() bool {
+// documentationFactFilterHasScopeOrAnchor reports whether the filter names
+// something to anchor a listing to. It is a function rather than a method
+// because documentationFactFilter is now an alias onto querycontract, and Go
+// only allows methods in the package that declares the type. Keeping it here
+// keeps the internal/facts dependency out of querycontract, which stays
+// dependency-neutral.
+func documentationFactFilterHasScopeOrAnchor(f documentationFactFilter) bool {
 	if f.FactKind == facts.DocumentationSourceFactKind {
 		return true
 	}

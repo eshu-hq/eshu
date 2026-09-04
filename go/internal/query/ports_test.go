@@ -7,6 +7,8 @@ import (
 	"context"
 	"testing"
 	"time"
+
+	"github.com/eshu-hq/eshu/go/internal/query/querytestutil"
 )
 
 type fakePortGraphQuery struct{}
@@ -19,6 +21,17 @@ func (fakePortGraphQuery) RunSingle(context.Context, string, map[string]any) (ma
 	return nil, nil
 }
 
+// fakePortContentStore is this package's adapter onto
+// querytestutil.FakePortContentStore. The behavior lives there so handler families
+// moving out of package query (#6060, epic #6053) can reach it -- a _test.go
+// symbol is not importable across a package boundary. The field names stay
+// lowercase and unchanged so the 93 root files that build this double with
+// keyed literals did not have to be rewritten.
+//
+// Every method below forwards. None of them reimplement anything: a second
+// copy of the filter-then-limit logic would be free to drift from the one the
+// promoted double shares with the handler families, and both copies would keep
+// passing while they diverged.
 type fakePortContentStore struct {
 	coverage                     RepositoryContentCoverage
 	summary                      RepositoryReadModelSummary
@@ -51,206 +64,193 @@ type fakePortContentStore struct {
 	workloadIdentities           []CatalogWorkloadIdentityEntry
 }
 
-func (f fakePortContentStore) GetFileContent(_ context.Context, repoID, relativePath string) (*FileContent, error) {
-	for i := range f.repoFiles {
-		file := f.repoFiles[i]
-		if file.RepoID != "" && repoID != "" && file.RepoID != repoID {
-			continue
-		}
-		if file.RelativePath == relativePath {
-			return &file, nil
-		}
+// promoted is the single place the adapter's fixtures cross into the shared
+// double. Every method goes through it, so a field added here reaches all of
+// them at once. The types line up because each read model in this package is
+// an alias onto the querycontract declaration the promoted double names.
+func (f fakePortContentStore) promoted() querytestutil.FakePortContentStore {
+	return querytestutil.FakePortContentStore{
+		Coverage:                     f.coverage,
+		Summary:                      f.summary,
+		RelationshipReadModel:        f.relationshipReadModel,
+		EntryPoints:                  f.entryPoints,
+		DeploymentEvidence:           f.deploymentEvidence,
+		DeploymentEvidenceErr:        f.deploymentEvidenceErr,
+		RelationshipEvidence:         f.relationshipEvidence,
+		DocumentationFindingsModel:   f.documentationFindingsModel,
+		DocumentationFindingsErr:     f.documentationFindingsErr,
+		DocumentationFindingsFilter:  f.documentationFindingsFilter,
+		DocumentationFactsModel:      f.documentationFactsModel,
+		DocumentationFactsErr:        f.documentationFactsErr,
+		DocumentationFactsFilter:     f.documentationFactsFilter,
+		DocumentationPacketModel:     f.documentationPacketModel,
+		DocumentationPacketErr:       f.documentationPacketErr,
+		DocumentationPacketFilter:    f.documentationPacketFilter,
+		DocumentationFreshnessModel:  f.documentationFreshnessModel,
+		DocumentationFreshnessErr:    f.documentationFreshnessErr,
+		DocumentationFreshnessFilter: f.documentationFreshnessFilter,
+		TargetSupportModel:           f.targetSupportModel,
+		TargetSupportErr:             f.targetSupportErr,
+		Entities:                     f.entities,
+		RepoFiles:                    f.repoFiles,
+		RepositoryRefs:               f.repositoryRefs,
+		Repositories:                 f.repositories,
+		LanguageRepos:                f.languageRepos,
+		LanguageCounts:               f.languageCounts,
+		LanguageInventory:            f.languageInventory,
+		WorkloadIdentities:           f.workloadIdentities,
 	}
-	return nil, nil
 }
 
-func (f fakePortContentStore) GetFileLines(context.Context, string, string, int, int) (*FileContent, error) {
-	return nil, nil
+func (f fakePortContentStore) GetFileContent(ctx context.Context, repoID, relativePath string) (*FileContent, error) {
+	return f.promoted().GetFileContent(ctx, repoID, relativePath)
 }
 
-func (f fakePortContentStore) GetEntityContent(context.Context, string) (*EntityContent, error) {
-	return nil, nil
+func (f fakePortContentStore) GetFileLines(
+	ctx context.Context,
+	repoID, relativePath string,
+	startLine, endLine int,
+) (*FileContent, error) {
+	return f.promoted().GetFileLines(ctx, repoID, relativePath, startLine, endLine)
 }
 
-func (f fakePortContentStore) SearchFileContent(context.Context, string, string, int) ([]FileContent, error) {
-	return nil, nil
+func (f fakePortContentStore) GetEntityContent(ctx context.Context, entityID string) (*EntityContent, error) {
+	return f.promoted().GetEntityContent(ctx, entityID)
 }
 
-func (f fakePortContentStore) SearchFileContentAnyRepo(context.Context, string, int) ([]FileContent, error) {
-	return nil, nil
+func (f fakePortContentStore) SearchFileContent(
+	ctx context.Context,
+	repoID, pattern string,
+	limit int,
+) ([]FileContent, error) {
+	return f.promoted().SearchFileContent(ctx, repoID, pattern, limit)
 }
 
-func (f fakePortContentStore) SearchFileContentAnyRepoExactCase(context.Context, string, int) ([]FileContent, error) {
-	return nil, nil
+func (f fakePortContentStore) SearchFileContentAnyRepo(
+	ctx context.Context,
+	pattern string,
+	limit int,
+) ([]FileContent, error) {
+	return f.promoted().SearchFileContentAnyRepo(ctx, pattern, limit)
 }
 
-func (f fakePortContentStore) SearchEntityContent(context.Context, string, string, int) ([]EntityContent, error) {
-	return nil, nil
+func (f fakePortContentStore) SearchFileContentAnyRepoExactCase(
+	ctx context.Context,
+	pattern string,
+	limit int,
+) ([]FileContent, error) {
+	return f.promoted().SearchFileContentAnyRepoExactCase(ctx, pattern, limit)
 }
 
-func (f fakePortContentStore) SearchEntityContentAnyRepo(context.Context, string, int) ([]EntityContent, error) {
-	return nil, nil
+func (f fakePortContentStore) SearchEntityContent(
+	ctx context.Context,
+	repoID, pattern string,
+	limit int,
+) ([]EntityContent, error) {
+	return f.promoted().SearchEntityContent(ctx, repoID, pattern, limit)
 }
 
-func (f fakePortContentStore) SearchEntitiesByName(context.Context, string, string, string, int) ([]EntityContent, error) {
-	return nil, nil
+func (f fakePortContentStore) SearchEntityContentAnyRepo(
+	ctx context.Context,
+	pattern string,
+	limit int,
+) ([]EntityContent, error) {
+	return f.promoted().SearchEntityContentAnyRepo(ctx, pattern, limit)
 }
 
-func (f fakePortContentStore) SearchEntitiesByNameAnyRepo(context.Context, string, string, int) ([]EntityContent, error) {
-	return nil, nil
+func (f fakePortContentStore) SearchEntitiesByName(
+	ctx context.Context,
+	repoID, entityType, name string,
+	limit int,
+) ([]EntityContent, error) {
+	return f.promoted().SearchEntitiesByName(ctx, repoID, entityType, name, limit)
 }
 
-func (f fakePortContentStore) SearchEntitiesReferencingComponent(context.Context, string, string, int) ([]EntityContent, error) {
-	return nil, nil
+func (f fakePortContentStore) SearchEntitiesByNameAnyRepo(
+	ctx context.Context,
+	entityType, name string,
+	limit int,
+) ([]EntityContent, error) {
+	return f.promoted().SearchEntitiesByNameAnyRepo(ctx, entityType, name, limit)
 }
 
-func (f fakePortContentStore) ListRepoFiles(_ context.Context, repoID string, limit int) ([]FileContent, error) {
-	files := make([]FileContent, 0, len(f.repoFiles))
-	for _, file := range f.repoFiles {
-		if file.RepoID != "" && repoID != "" && file.RepoID != repoID {
-			continue
-		}
-		files = append(files, file)
-		if limit > 0 && len(files) >= limit {
-			break
-		}
-	}
-	return files, nil
+func (f fakePortContentStore) SearchEntitiesReferencingComponent(
+	ctx context.Context,
+	repoID, componentName string,
+	limit int,
+) ([]EntityContent, error) {
+	return f.promoted().SearchEntitiesReferencingComponent(ctx, repoID, componentName, limit)
 }
 
-func (f fakePortContentStore) ListRepositoryRefs(context.Context, string) ([]RepositoryRef, error) {
-	return append([]RepositoryRef(nil), f.repositoryRefs...), nil
+func (f fakePortContentStore) ListRepoFiles(ctx context.Context, repoID string, limit int) ([]FileContent, error) {
+	return f.promoted().ListRepoFiles(ctx, repoID, limit)
 }
 
-func (f fakePortContentStore) ListRepoEntities(_ context.Context, _ string, limit int) ([]EntityContent, error) {
-	if limit > 0 && limit < len(f.entities) {
-		return append([]EntityContent(nil), f.entities[:limit]...), nil
-	}
-	return append([]EntityContent(nil), f.entities...), nil
+func (f fakePortContentStore) ListRepositoryRefs(ctx context.Context, repoID string) ([]RepositoryRef, error) {
+	return f.promoted().ListRepositoryRefs(ctx, repoID)
 }
 
-// ListRepoEntitiesByType filters f.entities by entity_type before applying
-// limit, mirroring the production ContentReader.ListRepoEntitiesByType
-// predicate order (type filter first, then limit) so callers exercising the
-// double still see the truncation-avoidance behavior the real query provides.
-func (f fakePortContentStore) ListRepoEntitiesByType(_ context.Context, repoID, entityType string, limit int) ([]EntityContent, error) {
-	filtered := make([]EntityContent, 0, len(f.entities))
-	for _, entity := range f.entities {
-		if repoID != "" && entity.RepoID != "" && entity.RepoID != repoID {
-			continue
-		}
-		if entity.EntityType != entityType {
-			continue
-		}
-		filtered = append(filtered, entity)
-		if limit > 0 && len(filtered) >= limit {
-			break
-		}
-	}
-	return filtered, nil
+func (f fakePortContentStore) ListRepoEntities(
+	ctx context.Context,
+	repoID string,
+	limit int,
+) ([]EntityContent, error) {
+	return f.promoted().ListRepoEntities(ctx, repoID, limit)
 }
 
-// ListRepoEntitiesByTypes filters f.entities by entity_type SET membership
-// before applying limit, mirroring the production
-// ContentReader.ListRepoEntitiesByTypes predicate order (`entity_type =
-// ANY($types)` then `LIMIT`) so callers exercising the double see the same
-// type-filtered-bound behavior the real query provides (#5764 P1 review
-// follow-up).
-func (f fakePortContentStore) ListRepoEntitiesByTypes(_ context.Context, repoID string, entityTypes []string, limit int) ([]EntityContent, error) {
-	allowed := make(map[string]struct{}, len(entityTypes))
-	for _, entityType := range entityTypes {
-		allowed[entityType] = struct{}{}
-	}
-	filtered := make([]EntityContent, 0, len(f.entities))
-	for _, entity := range f.entities {
-		if repoID != "" && entity.RepoID != "" && entity.RepoID != repoID {
-			continue
-		}
-		if _, ok := allowed[entity.EntityType]; !ok {
-			continue
-		}
-		filtered = append(filtered, entity)
-		if limit > 0 && len(filtered) >= limit {
-			break
-		}
-	}
-	return filtered, nil
+func (f fakePortContentStore) ListRepoEntitiesByType(
+	ctx context.Context,
+	repoID, entityType string,
+	limit int,
+) ([]EntityContent, error) {
+	return f.promoted().ListRepoEntitiesByType(ctx, repoID, entityType, limit)
+}
+
+func (f fakePortContentStore) ListRepoEntitiesByTypes(
+	ctx context.Context,
+	repoID string,
+	entityTypes []string,
+	limit int,
+) ([]EntityContent, error) {
+	return f.promoted().ListRepoEntitiesByTypes(ctx, repoID, entityTypes, limit)
 }
 
 func (f fakePortContentStore) ListRepoEntitiesByPaths(
-	_ context.Context,
+	ctx context.Context,
 	repoID string,
 	relativePaths []string,
 	limit int,
 ) ([]EntityContent, error) {
-	pathSet := map[string]struct{}{}
-	for _, path := range relativePaths {
-		pathSet[path] = struct{}{}
-	}
-	results := make([]EntityContent, 0)
-	for _, entity := range f.entities {
-		if entity.RepoID != repoID {
-			continue
-		}
-		if _, ok := pathSet[entity.RelativePath]; !ok {
-			continue
-		}
-		results = append(results, entity)
-		if limit > 0 && len(results) >= limit {
-			break
-		}
-	}
-	return results, nil
+	return f.promoted().ListRepoEntitiesByPaths(ctx, repoID, relativePaths, limit)
 }
 
-func (f fakePortContentStore) SearchEntitiesByLanguageAndType(context.Context, string, string, string, string, int) ([]EntityContent, error) {
-	return nil, nil
+func (f fakePortContentStore) SearchEntitiesByLanguageAndType(
+	ctx context.Context,
+	repoID, language, entityType, query string,
+	limit int,
+) ([]EntityContent, error) {
+	return f.promoted().SearchEntitiesByLanguageAndType(ctx, repoID, language, entityType, query, limit)
 }
 
-func (f fakePortContentStore) ListFrameworkRoutes(context.Context, string) ([]FrameworkRouteEvidence, error) {
-	return nil, nil
+func (f fakePortContentStore) ListFrameworkRoutes(
+	ctx context.Context,
+	repoID string,
+) ([]FrameworkRouteEvidence, error) {
+	return f.promoted().ListFrameworkRoutes(ctx, repoID)
 }
 
-func (f fakePortContentStore) RepositoryCoverage(context.Context, string) (RepositoryContentCoverage, error) {
-	return f.coverage, nil
+func (f fakePortContentStore) RepositoryCoverage(
+	ctx context.Context,
+	repoID string,
+) (RepositoryContentCoverage, error) {
+	return f.promoted().RepositoryCoverage(ctx, repoID)
 }
 
-// fakePortContentStore's language-inventory and documentation-read-model
-// methods (CountRepositoriesByLanguage through
-// DocumentationEvidencePacketFreshnessWithFilter, plus the
-// fakeFilterLanguageRepos helper) live in
-// ports_test_language_documentation_test.go, split out to keep this file under
-// the repository's 500-line cap.
-
-func (f fakePortContentStore) ListRepositories(context.Context) ([]RepositoryCatalogEntry, error) {
-	return append([]RepositoryCatalogEntry(nil), f.repositories...), nil
-}
-
-func (f fakePortContentStore) ListWorkloadIdentities(
-	context.Context,
-	int,
-) ([]CatalogWorkloadIdentityEntry, bool, error) {
-	return append([]CatalogWorkloadIdentityEntry(nil), f.workloadIdentities...), false, nil
-}
-
-func (f fakePortContentStore) MatchRepositories(_ context.Context, selector string) ([]RepositoryCatalogEntry, error) {
-	matches := make([]RepositoryCatalogEntry, 0, 1)
-	for _, repo := range f.repositories {
-		switch selector {
-		case repo.ID, repo.Name, repo.Path, repo.LocalPath, repo.RemoteURL, repo.RepoSlug:
-			matches = append(matches, repo)
-		}
-	}
-	return matches, nil
-}
-
-func (f fakePortContentStore) ResolveRepository(context.Context, string) (*RepositoryCatalogEntry, error) {
-	if len(f.repositories) == 0 {
-		return nil, nil
-	}
-	repo := f.repositories[0]
-	return &repo, nil
-}
+// fakePortContentStore's language-inventory, catalog, and documentation
+// read-model forwarders live in ports_test_language_documentation_test.go, and
+// its #5363 entity-by-ID and K8s-candidate forwarders in
+// ports_k8s_select_candidates_test.go, split out to keep this file under the
+// repository's 500-line cap.
 
 var (
 	_ GraphQuery   = (*fakePortGraphQuery)(nil)

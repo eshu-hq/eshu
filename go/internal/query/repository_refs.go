@@ -6,18 +6,14 @@ package query
 import (
 	"context"
 	"strings"
-	"time"
+
+	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
 )
 
-// RepositoryRef is one source-backed repository branch/ref head.
-type RepositoryRef struct {
-	Name       string
-	Kind       string
-	HeadSHA    string
-	Default    bool
-	ObservedAt time.Time
-	IndexedAt  time.Time
-}
+// RepositoryRef is one source-backed repository branch/ref head. It is an
+// alias onto querycontract so the shared ContentStore double can name it from
+// outside this package (#6060).
+type RepositoryRef = querycontract.RepositoryRef
 
 type repositoryRefLister interface {
 	ListRepositoryRefs(context.Context, string) ([]RepositoryRef, error)
