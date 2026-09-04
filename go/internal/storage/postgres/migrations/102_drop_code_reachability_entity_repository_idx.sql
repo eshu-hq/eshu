@@ -1,7 +1,22 @@
--- Drop migration 100's (entity_id, repository_id) index (#5167). Migration 101
--- creates a four-column index whose key begins with exactly those two columns,
--- so every seek this one served is served there, and keeping both would make
--- the reducer's reachability writes maintain a redundant btree.
+-- Drop the two-column code_reachability_entity_repository_idx that #5167 batch
+-- 1 first shipped (#5167). Migration 101 creates a four-column index whose key
+-- begins with exactly those two columns, so every seek this one served is
+-- served there, and keeping both would make the reducer's reachability writes
+-- maintain a redundant btree.
+--
+-- IF EXISTS, and nothing in this directory creates that name any more, so this
+-- statement is a one-time convergence for an install that built the index from
+-- the earlier release and a no-op on every boot after it -- and on a fresh
+-- database, on every boot including the first. That matters because this
+-- directory has no applied-migration ledger: BootstrapDefinitions enumerates
+-- every file under migrations/ and ApplyDefinitions Execs all of them, in
+-- filename order, on EVERY bootstrap (schema.go, pinned by
+-- TestApplyBootstrapExecutesDefinitionsInOrder). Had the create of the
+-- two-column index been left in the tree, this drop would undo it and the next
+-- startup would build it again -- a concurrent index build over the populated
+-- table on every startup, forever. Migration
+-- 068_drop_relationship_family_candidate_index_legacy.sql is the same shape and
+-- records the same rule.
 --
 -- This is a file of its own, holding exactly ONE statement, because the
 -- migration runner Execs each file as a single simple-query string and Postgres

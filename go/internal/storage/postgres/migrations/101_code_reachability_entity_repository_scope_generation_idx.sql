@@ -1,10 +1,11 @@
 -- Let the cross-repo dead-code probe reach a producer entity's ACTIVE consumer
 -- row with a seek instead of a scan of every generation still on disk (#5167).
 --
--- Migration 100 keyed the probe's walk on (entity_id, repository_id) so a step
--- could seek the entity's next consumer repository. That bounded the walk
--- against row fan-in, which is what it was measured against: a seed with one
--- ingestion scope and one generation, where every row in an
+-- #5167 batch 1 first shipped a two-column
+-- code_reachability_entity_repository_idx, keyed (entity_id, repository_id), so
+-- a step could seek the entity's next consumer repository. That bounded the
+-- walk against row fan-in, which is what it was measured against: a seed with
+-- one ingestion scope and one generation, where every row in an
 -- (entity_id, repository_id) group belongs to the active generation and the
 -- step's LIMIT 1 therefore stops on its first row.
 --
@@ -16,7 +17,7 @@
 -- A group therefore holds one row per retained generation per root, and the
 -- active row is the newest of them -- the last one a step ordered by
 -- repository_id reaches. The step then reads the whole group, and the
--- per-repository bound migration 100 claimed does not exist.
+-- per-repository bound the two-column index claimed does not exist.
 --
 -- Measured in a throwaway PostgreSQL 16.15 container, data-plane schema applied
 -- from schema/data-plane/postgres (001, 002, 027), synthetic rows only, VACUUM
@@ -29,7 +30,7 @@
 -- generations, 516 scopes, table 161 MB. A 125-entity producer page:
 --
 --   retained generations               0          20         200
---   migration 100's walk         22.3 ms     89.2 ms    630.4 ms
+--   the two-column index's walk  22.3 ms     89.2 ms    630.4 ms
 --     buffers                     39,403     154,603   1,150,489
 --   this index's walk             5.13 ms     8.14 ms     9.78 ms
 --     buffers                      3,270       3,268       3,263
@@ -43,27 +44,47 @@
 -- rather than repositories because a repository ingested by two scopes has two
 -- active generations, and only a pair carries the scope the equality needs.
 --
--- Nothing the earlier shape bought is given back. On migration 100's own seed
--- (2,201,196 rows, one scope, one generation, a producer entity with 1,000,000
--- consumer rows across five repositories, 250-entity page) the walk reads
--- 4.18/4.01/4.13 ms at a 5-repository grant and 4.51/4.28/4.28 ms at 500,
+-- Nothing the earlier shape bought is given back. On the two-column index's own
+-- seed (2,201,196 rows, one scope, one generation, a producer entity with
+-- 1,000,000 consumer rows across five repositories, 250-entity page) the walk
+-- reads 4.18/4.01/4.13 ms at a 5-repository grant and 4.51/4.28/4.28 ms at 500,
 -- buffers hit=3,764 at both -- still flat across grant size, and below the
 -- 4.49-5.38 ms and hit=4,863-4,888 the shipped read measured there.
 --
 -- Cost. On the retention-representative seed this index is 79 MB against a
--- 7,520 kB migration-100 index and a 161 MB table; on migration 100's
--- single-generation seed it is 16 MB against that index's 17 MB, because
--- btree deduplication collapses a suffix that never varies. The reducer's
--- write path maintains one index either way: migration 102 drops
--- code_reachability_entity_repository_idx, whose key is a strict prefix of
--- this one and which no read needs once this exists. depth stays out for the
--- reason migration 100 gave -- it is a range predicate, so nothing after it
--- could be an Index Cond.
+-- 7,520 kB two-column index and a 161 MB table; on the single-generation seed
+-- it is 16 MB against that index's 17 MB, because btree deduplication collapses
+-- a suffix that never varies. The reducer's write path maintains one index
+-- either way: migration 102 drops code_reachability_entity_repository_idx,
+-- whose key is a strict prefix of this one and which no read needs once this
+-- exists. depth is deliberately absent: it is a range predicate, so nothing
+-- after it in the key could be used as an Index Cond anyway, and depth = 0 rows
+-- are the root's own row -- at most one per consumer repository per entity,
+-- which the filter discards without a measurable scan.
 --
--- CONCURRENTLY, and the lone statement in this file, for the reasons migration
--- 100 records: the schema apply path drops invalid concurrent indexes by name
--- before each definition and runs each statement outside any transaction, and
--- a multi-statement Exec is an implicit transaction that CONCURRENTLY cannot
--- run inside.
+-- Replay. This directory has no applied-migration ledger: BootstrapDefinitions
+-- enumerates every file under migrations/ and ApplyDefinitions Execs all of
+-- them, in filename order, on EVERY bootstrap (schema.go, pinned by
+-- TestApplyBootstrapExecutesDefinitionsInOrder). A migration is therefore a
+-- desired-state statement that has to be a no-op once the state it wants
+-- already holds, and a superseded index must be REMOVED from the tree rather
+-- than left as a create paired with a later drop: a create the next file drops
+-- rebuilds the index on every startup, forever. So the two-column index has no
+-- create here at all -- migration 102's drop alone converges the installs that
+-- built it from the earlier release, and once it is gone both files are
+-- no-ops. TestCodeReachabilityIndexMigrationsReapplyWithoutRebuildLive proves
+-- that on a populated store.
+--
+-- CONCURRENTLY, so building it does not block the reducer's reachability
+-- writes, and the lone statement in this file because the runner Execs each
+-- file as one simple-query string and Postgres treats a multi-statement string
+-- as an implicit transaction block, which CONCURRENTLY cannot run inside. That
+-- is also why it cannot join 027_code_reachability.sql. The usual objection to
+-- CONCURRENTLY -- that a failed build leaves an INVALID index that IF NOT
+-- EXISTS then skips forever -- does not apply: the schema apply path drops
+-- invalid concurrent indexes by name before executing each definition
+-- (SQLDB.dropInvalidConcurrentIndexes, db.go) and runs each statement outside
+-- any transaction on a dedicated bootstrap connection, which CONCURRENTLY
+-- requires.
 CREATE INDEX CONCURRENTLY IF NOT EXISTS code_reachability_entity_repository_scope_generation_idx
     ON code_reachability_rows (entity_id, repository_id, scope_id, generation_id);

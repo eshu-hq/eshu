@@ -193,13 +193,15 @@ var orderedBootstrapDefinitionNames = []string{
 	"shared_projection_unroutable_intents",
 	// migration 099 (#6154 keyset index so paging a generation seeks, not rescans).
 	"fact_records_keyset_index",
-	// migration 100 (#5167 consumer-repository index so the cross-repo dead-code
-	// ungranted-consumer probe seeks instead of reading a fan-in group).
-	"code_reachability_entity_repository_idx",
 	// migration 101 (#5167 four-column key so a walk step seeks the ACTIVE
 	// consumer row instead of scanning every retained generation of a group).
+	// There is no migration 100: it created the two-column index 101
+	// supersedes, and every file in this directory replays on every bootstrap,
+	// so a create the next file drops would rebuild that index on every
+	// startup. The create is gone; 102's drop alone converges the installs
+	// that already built it.
 	"code_reachability_entity_repository_scope_generation_idx",
-	// migration 102 (#5167) drops migration 100's index: its key is a strict
+	// migration 102 (#5167) drops that two-column index: its key is a strict
 	// prefix of 101's, so keeping it only costs reducer write amplification.
 	"drop_code_reachability_entity_repository_idx",
 }
