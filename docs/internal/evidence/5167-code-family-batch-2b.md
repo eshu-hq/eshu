@@ -141,7 +141,15 @@ under the list-membership entry this batch added, pinned as measured values by
 there is no per-hop moment to bound; the grant goes into the
 `all(node IN nodes(path) …)` predicate, which is the only clause that reaches
 the interior. `callChainPathHopPredicates` composes the grant as a
-conjunct beside the request's own bound rather than replacing it.
+conjunct beside the request's own bound rather than replacing it, rendered by
+`RepositoryAccessFilter.GraphConditionOnProperty` like every other grant
+predicate in the batch rather than written out by hand, so a change to how the
+contract renders moves it with the endpoint predicates instead of leaving it
+behind. It binds the bare `node.repo_id` and not a `coalesce`: a null property
+makes the membership test null, `all()` over a null yields null, and `WHERE null`
+drops the row, so an unattributable hop still fails closed — and the grant id
+lists are cleaned at the context boundary, so neither array can carry an empty
+value that would admit one.
 `TestCallChainNeo4jLaneBoundsInteriorHops` proves it on both anchoring shapes (a
 request with `repo_id` and one without), and
 `TestCallChainNeo4jLaneKeepsAnInGrantChain` proves it narrows rather than
@@ -297,7 +305,26 @@ benchmark was run and no speedup is asserted. Every predicate added is an
 them moves EARLIER in its statement — from a trailing `WHERE` into the anchoring
 `MATCH`'s own, or into the `all(node IN nodes(path) …)` clause that runs with the
 traversal — so filtering happens before `SKIP`/`LIMIT` rather than after. No
-statement gains a clause, a hop, or a second round trip.
+statement gains a hop or a second round trip.
+
+One statement does gain a clause, and it is the caller the interior fix was
+written for. A scoped caller of the Neo4j-compat `shortestPath` read who names
+no `repo_id` and no `cross_repo` previously rendered no
+`all(node IN nodes(path) …)` clause at all — the old code emitted it only under
+`if req.CrossRepo` / `else if req.RepoID != ""` — and now renders the whole
+clause. Item 3 below describes the case where a path predicate already existed
+and only gains a conjunct; this is the case where the clause itself is new.
+
+Not measured, and worth saying so: a predicate over `nodes(path)` that Neo4j
+cannot push into the shortest-path search makes its planner fall back to an
+exhaustive search. The risk class is not new — the same shape already shipped on
+this lane for `$repo_id` and `$traversal_repo_ids` — but the population that
+pays it widens from "named a repository" to "named a repository, or is scoped".
+No number can be produced here: there is no Neo4j gate in this repository, the
+same reason the correctness half of this lane rests on reasoning rather than a
+measurement. This is a disclosure, not a benchmark. If Neo4j becomes a gated
+lane, this and the `all(...)` correctness assertion are the two things to
+measure first.
 
 Row counts do change, and not only for scoped callers. Three shapes are
 affected, each measured rather than reasoned about:

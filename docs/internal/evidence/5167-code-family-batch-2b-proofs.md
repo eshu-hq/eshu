@@ -122,6 +122,7 @@ is a scratch script, not committed.
 | 11 | `buildCallChainCypher` drops its endpoint grant block | `-run 'TestShortestPathCallChainBuildersBindTheGrant\|TestCallChainNeo4jLaneBoundsInteriorHops'` | `1` |
 | 12 | `callChainPathHopPredicates` drops its grant conjunct — the round-1 F1 defect exactly | `-run 'TestCallChainNeo4jLaneBoundsInteriorHops\|TestShortestPathCallChainBuildersBindTheGrant'` | `1` |
 | 13 | `buildNornicDBCallChainCypher` drops its endpoint grant block | `-run TestShortestPathCallChainBuildersBindTheGrant` | `1` |
+| 14 | `callChainClausePredicates`' `"MATCH path = shortestPath"` marker is broken, so the fake cannot read the statement it is judging | `-run 'TestCallChainNeo4jLane\|TestShortestPathCallChainBuildersBindTheGrant'` | `1` |
 
 Rows 4 and 7 are the two worth reading the history of, because both passed at
 `0` on the first attempt and that was a finding about the tests, not a pass.
@@ -156,12 +157,27 @@ applies its two `WHERE` clauses separately, the endpoints from the one before
 clauses to the endpoints would have passed while the interior leaked, which is
 the same shape of false green as the substring assertions this batch replaced.
 
-One operational lesson worth recording: the first attempt at rows 11 to 13 ran
+Row 14 mutates a test helper rather than production code, which is unusual for
+this table and is the point. `callChainGrantGraph` judges the compat lane by
+reading the shipped statement, so the reader is load-bearing: if it stops
+recognising the statement it returns no predicates, and a fake that applies no
+predicates admits every row. Breaking the `"MATCH path = shortestPath"` marker
+turns six assertions red — the `parseFailures` check in all four compat route
+tests (`BoundsInteriorHops`'s two subtests, `KeepsAnInGrantChain`,
+`SharedKeyReadIsUnchanged`) and the `if !parsed` guard in both subtests of
+`TestShortestPathCallChainBuildersBindTheGrant` — instead of passing quietly.
+Round 2 asked for it here because the PR body and claim 22 both cite the result,
+and a mutation result asserted in the body belongs in the ledger that records
+mutation results.
+
+Two operational lessons worth recording. The first attempt at rows 11 to 13 ran
 against an UNCOMMITTED fix, and the driver's `git checkout HEAD --` restore
 reverted the fix along with the mutation. The exit codes it printed were real
 failures for the wrong reason. The fix was committed first and the rows re-run;
 the codes above are from that second run. A BITES driver that restores from
-`HEAD` requires the subject to be at `HEAD`.
+`HEAD` requires the subject to be at `HEAD`. Row 14 was run the other way, with
+the file copied aside and copied back, which is what to do when the subject is
+still in the working tree.
 
 ## Verification
 
