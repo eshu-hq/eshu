@@ -16,7 +16,7 @@ import (
 // ExtractProviderSecurityAlertsWithQuarantine decodes every
 // security_alert.repository_alert envelope in envelopes into a
 // ProviderSecurityAlert through the typed contracts seam
-// (decodeSecurityAlertRepositoryAlert), returning the decoded alerts alongside
+// (schemadecode.DecodeSecurityAlertRepositoryAlert), returning the decoded alerts alongside
 // the []factdecode.QuarantinedFact for any alert whose payload was missing its required
 // repository_id identity anchor.
 //
