@@ -20,8 +20,9 @@ repo-wide retract that replaces it deletes edges the generation cannot restore
 They now ask the question that actually decides the retract's scope: **is THIS
 repository on a delta generation**, i.e. is it in `deltaScope.repositoryIDs`.
 The decision lives in one place, `applyRepoRefreshDeltaScope`
-(`go/internal/reducer/semanticentity/delta_scope.go`), which all four builders
-call.
+(`go/internal/reducer/shared_payload_delta_compat.go`, forwarding to
+`sharedintent.ApplyRepoRefreshDeltaScope` in
+`go/internal/reducer/sharedintent/refresh.go`), which all four builders call.
 
 **Why an unusable delta must fail closed.** On a delta generation the collector
 replaces the discovered file set with the changed targets alone
