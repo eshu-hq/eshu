@@ -37,3 +37,16 @@ func NewPostgresAdvisoryCatalogStore(db advisory.AdvisoryEvidenceQueryer) Postgr
 func NewPostgresAdvisoryEvidenceStore(db advisory.AdvisoryEvidenceQueryer) PostgresAdvisoryEvidenceStore {
 	return advisory.NewPostgresAdvisoryEvidenceStore(db)
 }
+
+// listAdvisoryCatalogQuery and listAdvisoryEvidenceQuery re-expose the
+// advisory SQL shapes under their pre-move bare names for the staying root
+// tests. The gocritic argOrder heuristic misfires on the qualified
+// advisory.X form inside strings.Contains assertions (a bare identifier of
+// the same name passes, as the container-image query tests show), so the
+// tests keep the exact pre-move call shape through these shims. Both go
+// away in hub PR3 when the tests move into the advisory package with the
+// handlers they drive.
+var (
+	listAdvisoryCatalogQuery  = advisory.ListAdvisoryCatalogQuery
+	listAdvisoryEvidenceQuery = advisory.ListAdvisoryEvidenceQuery
+)

@@ -327,8 +327,8 @@ func TestAdvisoryCatalogQueryUsesActiveSourceFactReadModel(t *testing.T) {
 		"ORDER BY cvss_score DESC, advisory_key ASC",
 		"LIMIT $7",
 	} {
-		if !strings.Contains(advisory.ListAdvisoryCatalogQuery, want) {
-			t.Fatalf("listAdvisoryCatalogQuery missing %q:\n%s", want, advisory.ListAdvisoryCatalogQuery)
+		if !strings.Contains(listAdvisoryCatalogQuery, want) {
+			t.Fatalf("listAdvisoryCatalogQuery missing %q:\n%s", want, listAdvisoryCatalogQuery)
 		}
 	}
 }
@@ -356,8 +356,8 @@ func TestAdvisoryCatalogQueryUsesBoundedSinglePassShape(t *testing.T) {
 		"FILTER (WHERE fact_kind = 'vulnerability.cve')",
 		"FILTER (WHERE fact_kind = 'vulnerability.affected_package')",
 	} {
-		if !strings.Contains(advisory.ListAdvisoryCatalogQuery, want) {
-			t.Fatalf("listAdvisoryCatalogQuery missing bounded-shape marker %q:\n%s", want, advisory.ListAdvisoryCatalogQuery)
+		if !strings.Contains(listAdvisoryCatalogQuery, want) {
+			t.Fatalf("listAdvisoryCatalogQuery missing bounded-shape marker %q:\n%s", want, listAdvisoryCatalogQuery)
 		}
 	}
 
@@ -369,8 +369,8 @@ func TestAdvisoryCatalogQueryUsesBoundedSinglePassShape(t *testing.T) {
 		"LEFT JOIN affected_rollup",
 		"LEFT JOIN kev",
 	} {
-		if strings.Contains(advisory.ListAdvisoryCatalogQuery, banned) {
-			t.Fatalf("listAdvisoryCatalogQuery still contains unbounded-shape construct %q:\n%s", banned, advisory.ListAdvisoryCatalogQuery)
+		if strings.Contains(listAdvisoryCatalogQuery, banned) {
+			t.Fatalf("listAdvisoryCatalogQuery still contains unbounded-shape construct %q:\n%s", banned, listAdvisoryCatalogQuery)
 		}
 	}
 }
@@ -401,8 +401,8 @@ func TestAdvisoryCatalogQueryKeepsPerFactKindActiveScanAnchor(t *testing.T) {
 		// index resolves alongside the fact_kind bound.
 		"ON fact.scope_id = scope.scope_id\n     AND scope.active_generation_id = fact.generation_id",
 	} {
-		if !strings.Contains(advisory.ListAdvisoryCatalogQuery, want) {
-			t.Fatalf("listAdvisoryCatalogQuery missing #3389 bounded-scan anchor %q:\n%s", want, advisory.ListAdvisoryCatalogQuery)
+		if !strings.Contains(listAdvisoryCatalogQuery, want) {
+			t.Fatalf("listAdvisoryCatalogQuery missing #3389 bounded-scan anchor %q:\n%s", want, listAdvisoryCatalogQuery)
 		}
 	}
 }

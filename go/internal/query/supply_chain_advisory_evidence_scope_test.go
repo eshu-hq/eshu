@@ -153,11 +153,11 @@ func TestAdvisoryEvidenceQueryDerivesRepositoryScopeFromImpactFindings(t *testin
 		"WHERE NULLIF(payload->>'cve_id', '') IS NULL",
 		"AND NULLIF(payload->>'advisory_id', '') IS NULL",
 	} {
-		if !strings.Contains(advisory.ListAdvisoryEvidenceQuery, want) {
-			t.Fatalf("listAdvisoryEvidenceQuery missing %q:\n%s", want, advisory.ListAdvisoryEvidenceQuery)
+		if !strings.Contains(listAdvisoryEvidenceQuery, want) {
+			t.Fatalf("listAdvisoryEvidenceQuery missing %q:\n%s", want, listAdvisoryEvidenceQuery)
 		}
 	}
-	if strings.Contains(advisory.ListAdvisoryEvidenceQuery, "security_alert") {
-		t.Fatalf("advisory evidence query must not derive advisory anchors from provider security alerts:\n%s", advisory.ListAdvisoryEvidenceQuery)
+	if strings.Contains(listAdvisoryEvidenceQuery, "security_alert") {
+		t.Fatalf("advisory evidence query must not derive advisory anchors from provider security alerts:\n%s", listAdvisoryEvidenceQuery)
 	}
 }

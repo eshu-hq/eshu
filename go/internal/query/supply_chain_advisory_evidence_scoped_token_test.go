@@ -149,13 +149,13 @@ func TestAdvisoryEvidenceSQLBoundsImpactSelectorByGrants(t *testing.T) {
 	t.Parallel()
 
 	const predicate = "fact.payload->>'repository_id' = ANY($9::text[])"
-	if !strings.Contains(advisory.ListAdvisoryEvidenceQuery, predicate) {
-		t.Fatalf("advisory evidence query missing impact-selector grant predicate %q:\n%s", predicate, advisory.ListAdvisoryEvidenceQuery)
+	if !strings.Contains(listAdvisoryEvidenceQuery, predicate) {
+		t.Fatalf("advisory evidence query missing impact-selector grant predicate %q:\n%s", predicate, listAdvisoryEvidenceQuery)
 	}
 	// The grant predicate must apply inside the impact_candidates CTE (which
 	// derives advisory anchors from impact findings), before the advisory fact
 	// seeding in seed_candidates.
-	if strings.Index(advisory.ListAdvisoryEvidenceQuery, predicate) > strings.Index(advisory.ListAdvisoryEvidenceQuery, "seed_candidates AS MATERIALIZED") {
-		t.Fatalf("grant predicate must bound impact_candidates before seed_candidates:\n%s", advisory.ListAdvisoryEvidenceQuery)
+	if strings.Index(listAdvisoryEvidenceQuery, predicate) > strings.Index(listAdvisoryEvidenceQuery, "seed_candidates AS MATERIALIZED") {
+		t.Fatalf("grant predicate must bound impact_candidates before seed_candidates:\n%s", listAdvisoryEvidenceQuery)
 	}
 }

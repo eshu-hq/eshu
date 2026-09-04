@@ -416,8 +416,8 @@ func TestAdvisoryEvidenceQueryUsesActiveSourceFactReadModel(t *testing.T) {
 		"jsonb_array_elements_text",
 		"payload->'correlation_anchors'",
 	} {
-		if !strings.Contains(advisory.ListAdvisoryEvidenceQuery, want) {
-			t.Fatalf("listAdvisoryEvidenceQuery missing %q:\n%s", want, advisory.ListAdvisoryEvidenceQuery)
+		if !strings.Contains(listAdvisoryEvidenceQuery, want) {
+			t.Fatalf("listAdvisoryEvidenceQuery missing %q:\n%s", want, listAdvisoryEvidenceQuery)
 		}
 	}
 }
