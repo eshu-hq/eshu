@@ -17,8 +17,7 @@
 // scopes; GCP planning creates workflow rows but does not resolve credentials
 // or call Google Cloud APIs.
 //
-// TerraformStateWorkPlanner plans Terraform-state collection runs from resolved
-// discovery candidates. PackageRegistryWorkPlanner and
+// PackageRegistryWorkPlanner and
 // VulnerabilityIntelligenceWorkPlanner each plan bounded work items without
 // opening provider connections. Package and
 // vulnerability planners preserve direct and owned target priority ahead of
@@ -65,6 +64,13 @@
 // fairness metadata, and returns a populated run for valid empty selections.
 // The coordinator retains collector-egress filtering, tenant-grant authorization,
 // and Postgres open-target admission, which prevents overlapping scheduled work.
+// The root TerraformStatePlanner interface accepts the child
+// tfstateplanner.PlanRequest; the child plans one bounded claimable work item per
+// resolved Terraform-state discovery candidate, carrying candidate identity as
+// a hashed planning ID so no raw bucket, key, or version locator reaches a
+// durable row. The root retains scheduling order, the plan-key clock, durable
+// admission, the waiting-on-git-generation continue path, retries, and
+// telemetry.
 // The root OCIRegistryPlanner interface accepts the child
 // ociregistry.PlanRequest; the child plans one bounded claimable work item per
 // configured repository target across Docker Hub, GHCR, ECR, Google Artifact

@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/coordinator/ociregistry"
+	"github.com/eshu-hq/eshu/go/internal/coordinator/tfstateplanner"
 	"github.com/eshu-hq/eshu/go/internal/governanceaudit"
 	"github.com/eshu-hq/eshu/go/internal/workflow"
 )
@@ -35,9 +36,16 @@ type GovernanceAuditAppender interface {
 }
 
 // TerraformStatePlanner plans Terraform-state workflow rows from collector
-// instance configuration.
+// instance configuration. Its request type lives in the tfstate child package
+// (extracted per issue #6057); this interface itself stays here, at root,
+// alongside the other not-yet-decomposed Service planner interfaces, because
+// decomposing Service's interface block is a separate design decision.
+// The child's WorkPlanner satisfies this interface structurally — Go does not
+// require it to declare the implementation, only to match this method
+// signature exactly, which is why root needs no other change to keep
+// compiling once the scheduler half moves.
 type TerraformStatePlanner interface {
-	PlanTerraformStateWork(context.Context, TerraformStatePlanRequest) (workflow.Run, []workflow.WorkItem, error)
+	PlanTerraformStateWork(context.Context, tfstateplanner.PlanRequest) (workflow.Run, []workflow.WorkItem, error)
 }
 
 // OCIRegistryPlanner plans OCI registry workflow rows from collector instance

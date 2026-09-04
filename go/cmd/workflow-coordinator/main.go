@@ -32,6 +32,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/coordinator/scannerworker"
 	"github.com/eshu-hq/eshu/go/internal/coordinator/securityalert"
 	"github.com/eshu-hq/eshu/go/internal/coordinator/tempoplanner"
+	"github.com/eshu-hq/eshu/go/internal/coordinator/tfstateplanner"
 	coordinatorvaultlive "github.com/eshu-hq/eshu/go/internal/coordinator/vaultlive"
 	runtimecfg "github.com/eshu-hq/eshu/go/internal/runtime"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres"
@@ -177,7 +178,7 @@ func run(parent context.Context) error {
 	serviceRunner := coordinator.Service{
 		Config: cfg,
 		Store:  store,
-		TerraformStatePlanner: coordinator.TerraformStateWorkPlanner{
+		TerraformStatePlanner: tfstateplanner.WorkPlanner{
 			GitReadiness: postgres.TerraformStateGitReadinessChecker{DB: postgres.SQLQueryer{DB: db}},
 			BackendFacts: postgres.TerraformStateBackendFactReader{DB: postgres.SQLQueryer{DB: db}},
 		},

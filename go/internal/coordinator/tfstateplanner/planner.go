@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package coordinator
+package tfstateplanner
 
 import (
 	"context"
@@ -16,33 +16,34 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/workflow"
 )
 
-// TerraformStatePlanRequest carries one collector instance planning request.
-type TerraformStatePlanRequest struct {
+// PlanRequest carries one Terraform-state collector instance planning request.
+type PlanRequest struct {
 	Instance   workflow.CollectorInstance
 	ObservedAt time.Time
 	PlanKey    string
 }
 
-// TerraformStateWorkPlanner plans workflow rows for exact Terraform-state
-// candidates without opening the state source.
+// WorkPlanner plans workflow rows for exact Terraform-state candidates
+// without opening the state source. It implements the parent coordinator's
+// TerraformStatePlanner interface.
 //
 // BackendFacts returns candidates from both Terraform backend blocks and
 // Terragrunt remote_state blocks. The Terragrunt indirection is resolved by
 // the storage adapter into the underlying s3 or local backend kind, so this
 // planner never observes BackendTerragrunt and does not need a separate
 // scheduler shape to fan out Terragrunt sources.
-type TerraformStateWorkPlanner struct {
+type WorkPlanner struct {
 	GitReadiness terraformstate.GitReadinessChecker
 	BackendFacts terraformstate.BackendFactReader
 }
 
 // PlanTerraformStateWork resolves exact Terraform-state candidates and returns
 // the workflow run plus candidate-scoped work items to enqueue.
-func (p TerraformStateWorkPlanner) PlanTerraformStateWork(
+func (p WorkPlanner) PlanTerraformStateWork(
 	ctx context.Context,
-	request TerraformStatePlanRequest,
+	request PlanRequest,
 ) (workflow.Run, []workflow.WorkItem, error) {
-	if err := validateTerraformStatePlanRequest(request); err != nil {
+	if err := validatePlanRequest(request); err != nil {
 		return workflow.Run{}, nil, err
 	}
 	if err := workflow.ValidateTerraformStateCollectorConfiguration(request.Instance.Configuration); err != nil {
@@ -85,7 +86,7 @@ func (p TerraformStateWorkPlanner) PlanTerraformStateWork(
 	return run, items, nil
 }
 
-func validateTerraformStatePlanRequest(request TerraformStatePlanRequest) error {
+func validatePlanRequest(request PlanRequest) error {
 	if err := request.Instance.Validate(); err != nil {
 		return fmt.Errorf("terraform state plan request: %w", err)
 	}

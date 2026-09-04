@@ -24,10 +24,10 @@ telemetry.
 The `tempoplanner` child owns the Tempo trace-signal planning request and pure
 planner; root retains scheduling order, tenant and egress filtering, the
 plan-key clock, durable admission, retries, and telemetry.
-The `lokiplanner`, `prometheusmimir`, and `ociregistry` children own pure
-planning for Loki, Prometheus/Mimir, and OCI registry targets; root retains
-scheduling order, tenant and egress filtering, the plan-key clock, durable
-admission, retries, and telemetry.
+The `lokiplanner`, `prometheusmimir`, `ociregistry`, and `tfstateplanner`
+children own planning for Loki, Prometheus/Mimir, OCI registry, and
+Terraform-state targets; root retains scheduling order, tenant and egress
+filtering, the plan-key clock, durable admission, retries, and telemetry.
 
 ## Where this fits in the pipeline
 
@@ -115,10 +115,10 @@ one enabled bounded scope; invalid configurations fail validation.
   gauges against the `eshu_dp_workflow_coordinator_` prefix.
 - `ReconcileObservation`, `ReapObservation`, `RunReconciliationObservation` —
   value types passed to `Metrics` recording methods.
-- `TerraformStateWorkPlanner` — plans Terraform-state collection runs from
-  resolved discovery candidates. `BackendFacts` returns both Terraform backend
-  block candidates and Terragrunt remote_state candidates resolved into their
-  underlying backend kind, so the planner stays on one scheduler shape.
+- `TerraformStatePlanner` — the root interface implemented by
+  `tfstateplanner.WorkPlanner`. Its `BackendFacts` port returns Terraform
+  backend block and Terragrunt remote_state candidates already resolved into
+  their underlying backend kind, so the planner stays on one scheduler shape.
 - `OCIRegistryPlanner` — the root interface implemented by
   `ociregistry.WorkPlanner`, which plans OCI registry collection runs from
   configured repository targets without opening registry connections. Each
@@ -233,7 +233,7 @@ one enabled bounded scope; invalid configurations fail validation.
 - `internal/coordinator/jiraplanner` — Jira membership, privacy, and planning.
 - `internal/coordinator/vaultlive` — Vault metadata plan request and
   deterministic planner implementation.
-- `internal/coordinator/tempoplanner`, `lokiplanner`, `prometheusmimir`, `grafanaplanner`, `gcpplanner`, `ociregistry`, `componentextensionplanner` — planners;
+- `internal/coordinator/tempoplanner`, `lokiplanner`, `prometheusmimir`, `grafanaplanner`, `gcpplanner`, `ociregistry`, `tfstateplanner`, `componentextensionplanner` — planners;
   `componentactivation` — dependency-neutral activation config.
 - `internal/workflow` — `DesiredCollectorInstance`, `CollectorInstance`,
   `Claim`, and default accessors; used throughout `Store` and `Config`.

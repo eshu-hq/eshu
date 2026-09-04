@@ -17,8 +17,9 @@
 #       - tier2-v25-terraform-state-gen1 (enabled at startup; serves Pass 1)
 #       - tier2-v25-terraform-state-gen2 (claims_enabled=false at startup;
 #         the verifier flips this on for Pass 2 via env overlay)
-#     Two instances bypass the per-RunID idempotency at
-#     `go/internal/coordinator/tfstate_scheduler.go:129` so Pass 2 plans
+#     Two instances bypass the per-RunID idempotency built by
+#     `terraformStateRunID` in
+#     `go/internal/coordinator/tfstateplanner/planner.go` so Pass 2 plans
 #     fresh work items against the same backend candidates the gen-2
 #     collector should read.
 #   * Two minio-init one-shot services: minio-init-gen1 runs at compose

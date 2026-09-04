@@ -32,6 +32,7 @@ live in the repository today.
 | `go/internal/coordinator/securityalert/` | provider security-alert scheduler request validation and deterministic workflow planning |
 | `go/internal/coordinator/sbomattestation/` | hosted SBOM and attestation scheduler request validation and deterministic workflow planning |
 | `go/internal/coordinator/tempoplanner/` | Grafana Tempo scheduler request validation, target filtering, and deterministic workflow planning |
+| `go/internal/coordinator/tfstateplanner/` | Terraform-state scheduler request and plan-key validation, discovery-candidate resolution, locator-free requested-scope construction, and deterministic workflow planning |
 | `go/internal/coordinator/vaultlive/` | Vault metadata scheduler request validation and deterministic workflow planning |
 | `go/internal/facts/` | durable fact models and queue contracts |
 | `go/internal/graph/` | canonical graph schema and write helpers |
