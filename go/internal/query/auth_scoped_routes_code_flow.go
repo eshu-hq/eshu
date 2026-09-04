@@ -122,6 +122,16 @@ func scopedCodeContentGrantRoute(r *http.Request) bool {
 //     selector and grant helpers through the free functions
 //     applyRepositorySelectorForAccess and codeContentGrantScope
 //     (code_repository_selector.go) instead of CodeHandler methods.
+//   - POST /api/v0/code/imports/investigate -- all seven builders in
+//     code_import_dependencies_queries.go, through
+//     importDependencyGrantPredicates. Each writes its predicates via
+//     writeCypherPredicates, which attaches its WHERE to the single anchoring
+//     MATCH, so the grant lands ahead of SKIP/LIMIT on the paged builders and
+//     ahead of LIMIT $scan_limit on the three that page in Go.
+//     crossModuleCallRowsCypher binds source_repo and target_repo
+//     independently: the Go pass that drops a mismatched pair runs after the
+//     scan, so binding only the caller side would still spend the 25,000-row
+//     budget on callees the caller may not see.
 func scopedCodeGraphGrantRoute(r *http.Request) bool {
 	if r.Method != http.MethodPost {
 		return false
@@ -133,7 +143,8 @@ func scopedCodeGraphGrantRoute(r *http.Request) bool {
 		"/api/v0/code/call-graph/metrics",
 		"/api/v0/code/quality/inspect",
 		"/api/v0/code/complexity",
-		"/api/v0/code/language-query":
+		"/api/v0/code/language-query",
+		"/api/v0/code/imports/investigate":
 		return true
 	default:
 		return false

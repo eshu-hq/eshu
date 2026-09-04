@@ -92,8 +92,18 @@ source/target files, source/target modules, and line numbers when available.
 Empty cycle pages return `cycles=[]`; unavailable graph backends return a
 service-unavailable error instead of pretending the repository is acyclic.
 
-No-Regression Evidence: all 244 valid request shapes map to 140 hash-frozen
-production query texts in the query-plan gate. Exactness tests cover empty
+`repo_id` is only one of five ways to anchor this route, so a scoped token that
+anchors on a file or module instead is not naming a repository at all. Every
+one of the route's graph reads now carries that token's repository grant, in the
+same `WHERE` as the anchor and ahead of both the page limit and the 25,000-row
+internal ceiling — so an out-of-grant repository cannot spend the scan budget a
+granted one needs. Naming an ungranted `repo_id` returns `400`, and a token with
+no repository grants at all gets the query type's canonical row key as an empty
+array without a graph read.
+
+No-Regression Evidence: all 488 valid request shapes map to 280 hash-frozen
+production query texts in the query-plan gate — 244 shapes and 140 texts per
+caller class, unscoped and scoped. Exactness tests cover empty
 graphs, duplicate edges, dotted-module prefix collisions, language filters,
 paging, repository-path collisions, directionally scoped cycles, truncation,
 and overflow. Cold and immediate-repeat NornicDB timings are

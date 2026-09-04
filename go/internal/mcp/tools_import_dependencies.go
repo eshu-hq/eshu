@@ -6,7 +6,7 @@ package mcp
 func importDependencyTool() ToolDefinition {
 	return ToolDefinition{
 		Name:        "investigate_import_dependencies",
-		Description: "Investigate bounded import and module dependency questions such as imports by file, importers, package imports, circular Python file imports, and cross-module calls. Provide at least one scope filter: repo_id, source_file, target_file, source_module, or target_module. target_file applies only to cycle and cross-module queries. Candidate scans above 25,000 rows fail with an instruction to narrow scope.",
+		Description: "Investigate bounded import and module dependency questions such as imports by file, importers, package imports, circular Python file imports, and cross-module calls. Provide at least one scope filter: repo_id, source_file, target_file, source_module, or target_module. target_file applies only to cycle and cross-module queries. Candidate scans above 25,000 rows fail with an instruction to narrow scope. Scoped tokens receive only granted repositories; an ungranted repository selector is rejected.",
 		InputSchema: map[string]any{
 			"type": "object",
 			"properties": map[string]any{

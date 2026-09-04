@@ -59,7 +59,6 @@ var pendingRowFilteringRoutes = map[string]struct{}{
 	"GET /api/v0/freshness/services/changed-since": {},
 	"POST /api/v0/code/bundles":                    {},
 	"POST /api/v0/code/call-chain":                 {},
-	"POST /api/v0/code/imports/investigate":        {},
 	"POST /api/v0/code/relationships":              {},
 	"POST /api/v0/code/relationships/story":        {},
 	// #5167 W3 flagged (NOT allowlisted, still pending): each of the three
