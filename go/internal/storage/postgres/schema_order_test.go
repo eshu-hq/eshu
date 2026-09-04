@@ -196,4 +196,10 @@ var orderedBootstrapDefinitionNames = []string{
 	// migration 100 (#5167 consumer-repository index so the cross-repo dead-code
 	// ungranted-consumer probe seeks instead of reading a fan-in group).
 	"code_reachability_entity_repository_idx",
+	// migration 101 (#5167 four-column key so a walk step seeks the ACTIVE
+	// consumer row instead of scanning every retained generation of a group).
+	"code_reachability_entity_repository_scope_generation_idx",
+	// migration 102 (#5167) drops migration 100's index: its key is a strict
+	// prefix of 101's, so keeping it only costs reducer write amplification.
+	"drop_code_reachability_entity_repository_idx",
 }

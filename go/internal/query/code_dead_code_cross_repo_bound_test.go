@@ -89,17 +89,32 @@ func TestCrossRepoDeadCodeSignalReadIsTheBoundedUngrantedProbe(t *testing.T) {
 	// and the continue-condition that ends the walk.
 	for _, want := range []string{
 		"WITH RECURSIVE page AS (",
-		"AND row.repository_id > walk.repository_id",
-		"ORDER BY row.repository_id\n    LIMIT 1) AS first_consumer",
-		"AND EXISTS (SELECT 1 FROM granted WHERE granted.repository_id = walk.repository_id)",
-		"AND NOT EXISTS (SELECT 1 FROM granted WHERE granted.repository_id = walk.repository_id)",
+		"AND (row.repository_id, row.scope_id) > (walk.repository_id, walk.scope_id)",
+		"ORDER BY row.repository_id, row.scope_id\n      LIMIT 1) AS pair) AS seed",
+		"NOT EXISTS (SELECT 1 FROM granted WHERE granted.repository_id = pair.repository_id)",
+		"WHERE NOT walk.hidden",
 	} {
 		if !strings.Contains(probe, want) {
 			t.Fatalf("probe is missing %q, so it can no longer stop at the first ungranted row:\n%s", want, probe)
 		}
 	}
-	if got, want := strings.Count(probe, "ORDER BY row.repository_id"), 2; got != want {
+	if got, want := strings.Count(probe, "ORDER BY row.repository_id, row.scope_id"), 2; got != want {
 		t.Fatalf("probe has %d ordered seeks, want %d (the walk's seed and its step)", got, want)
+	}
+	// The liveness test is what makes a step independent of how many
+	// superseded generations the retention runner still keeps, and it only is
+	// that if all four key columns are equalities against the pair the walk
+	// just found. Losing any one of them leaves the generation a filter over
+	// the pair's retained rows and the answer unchanged, so nothing else here
+	// can see it.
+	for _, want := range []string{
+		"AND live_row.repository_id = pair.repository_id",
+		"AND live_row.scope_id = pair.scope_id",
+		"AND live_row.generation_id = scope.active_generation_id",
+	} {
+		if !strings.Contains(probe, want) {
+			t.Fatalf("probe is missing %q, so a step scans a pair's retained generations instead of seeking its active row:\n%s", want, probe)
+		}
 	}
 	// A bound rendered per granted repository is what this shape replaced: it
 	// cost one index probe per granted repository per producer entity, so a

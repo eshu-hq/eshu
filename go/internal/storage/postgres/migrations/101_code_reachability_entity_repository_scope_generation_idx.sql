@@ -1,0 +1,69 @@
+-- Let the cross-repo dead-code probe reach a producer entity's ACTIVE consumer
+-- row with a seek instead of a scan of every generation still on disk (#5167).
+--
+-- Migration 100 keyed the probe's walk on (entity_id, repository_id) so a step
+-- could seek the entity's next consumer repository. That bounded the walk
+-- against row fan-in, which is what it was measured against: a seed with one
+-- ingestion scope and one generation, where every row in an
+-- (entity_id, repository_id) group belongs to the active generation and the
+-- step's LIMIT 1 therefore stops on its first row.
+--
+-- Real installs do not look like that. The reducer's reachability delete is
+-- keyed (scope_id, generation_id, repository_id), so a new generation ADDS a
+-- row set and leaves the old one in place, and the only pruner is the
+-- generation-retention runner, which keeps the 24 most recent superseded
+-- generations per scope and everything superseded inside the last 7 days.
+-- A group therefore holds one row per retained generation per root, and the
+-- active row is the newest of them -- the last one a step ordered by
+-- repository_id reaches. The step then reads the whole group, and the
+-- per-repository bound migration 100 claimed does not exist.
+--
+-- Measured in a throwaway PostgreSQL 16.15 container, data-plane schema applied
+-- from schema/data-plane/postgres (001, 002, 027), synthetic rows only, VACUUM
+-- ANALYZE after seeding, SET jit = off, PREPARE/EXECUTE, warm, three runs. The
+-- seed is retention-representative: one ingestion scope per consumer
+-- repository, three groups of five consumer repositories differing only in how
+-- many superseded generations they retain (0, 20, 200), every generation
+-- carrying the same population, superseded rows written before the active one,
+-- and a 201-row producer-repository run on every page. 883,750 rows, 1,316
+-- generations, 516 scopes, table 161 MB. A 125-entity producer page:
+--
+--   retained generations               0          20         200
+--   migration 100's walk         22.3 ms     89.2 ms    630.4 ms
+--     buffers                     39,403     154,603   1,150,489
+--   this index's walk             5.13 ms     8.14 ms     9.78 ms
+--     buffers                      3,270       3,268       3,263
+--
+-- The buffer counts are the claim: they do not move with retention, because a
+-- step now seeks the active row by full equality instead of scanning the group
+-- for it. The walk steps over an entity's distinct (repository_id, scope_id)
+-- PAIRS on this index's first three columns -- one Index Only Scan row per step
+-- -- and tests liveness with an (entity_id, repository_id, scope_id,
+-- generation_id) equality whose generation comes from ingestion_scopes. Pairs
+-- rather than repositories because a repository ingested by two scopes has two
+-- active generations, and only a pair carries the scope the equality needs.
+--
+-- Nothing the earlier shape bought is given back. On migration 100's own seed
+-- (2,201,196 rows, one scope, one generation, a producer entity with 1,000,000
+-- consumer rows across five repositories, 250-entity page) the walk reads
+-- 4.18/4.01/4.13 ms at a 5-repository grant and 4.51/4.28/4.28 ms at 500,
+-- buffers hit=3,764 at both -- still flat across grant size, and below the
+-- 4.49-5.38 ms and hit=4,863-4,888 the shipped read measured there.
+--
+-- Cost. On the retention-representative seed this index is 79 MB against a
+-- 7,520 kB migration-100 index and a 161 MB table; on migration 100's
+-- single-generation seed it is 16 MB against that index's 17 MB, because
+-- btree deduplication collapses a suffix that never varies. The reducer's
+-- write path maintains one index either way: migration 102 drops
+-- code_reachability_entity_repository_idx, whose key is a strict prefix of
+-- this one and which no read needs once this exists. depth stays out for the
+-- reason migration 100 gave -- it is a range predicate, so nothing after it
+-- could be an Index Cond.
+--
+-- CONCURRENTLY, and the lone statement in this file, for the reasons migration
+-- 100 records: the schema apply path drops invalid concurrent indexes by name
+-- before each definition and runs each statement outside any transaction, and
+-- a multi-statement Exec is an implicit transaction that CONCURRENTLY cannot
+-- run inside.
+CREATE INDEX CONCURRENTLY IF NOT EXISTS code_reachability_entity_repository_scope_generation_idx
+    ON code_reachability_rows (entity_id, repository_id, scope_id, generation_id);

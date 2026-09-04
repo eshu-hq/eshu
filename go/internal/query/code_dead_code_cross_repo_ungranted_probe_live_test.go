@@ -108,10 +108,19 @@ func TestCrossRepoDeadCodeUngrantedConsumerProbeLive(t *testing.T) {
 	// grant below names, so a walk that stops at the first ungranted repository
 	// takes one step for it and a walk that does not takes 200.
 	seedCrossRepoDeadCodeProbeFanIn(ctx, t, db, "ent-fanout", crossRepoDeadCodeProbeFanOutRepositories, 1)
+	// ent-retained is the axis a single-generation fixture cannot show: the
+	// same five consumer repositories as ent-spread, but every one of them
+	// also holds a row from each of 200 superseded generations the retention
+	// runner still keeps. Its answer is ent-spread's; its cost is not, unless a
+	// step can seek the active row rather than scan the group for it.
+	seedCrossRepoDeadCodeProbeRetainedGenerations(
+		ctx, t, db, "ent-retained", crossRepoDeadCodeProbeFanInRepositories,
+		crossRepoDeadCodeProbeRetainedGenerations,
+	)
 
 	page := []string{
 		"ent-spread", "ent-middle", "ent-self", "ent-depth-zero",
-		"ent-stale", "ent-absent", "ent-busy",
+		"ent-stale", "ent-absent", "ent-busy", "ent-retained",
 	}
 	reader := NewContentReader(db)
 
@@ -124,17 +133,17 @@ func TestCrossRepoDeadCodeUngrantedConsumerProbeLive(t *testing.T) {
 		{
 			name:  "hidden consumer below the smallest granted id",
 			grant: []string{"repo-c", "repo-e", "repo-g", "repo-i"},
-			want:  []string{"ent-busy", "ent-spread"},
+			want:  []string{"ent-busy", "ent-retained", "ent-spread"},
 		},
 		{
 			name:  "hidden consumer between two granted ids",
 			grant: []string{"repo-a", "repo-c", "repo-g", "repo-i"},
-			want:  []string{"ent-busy", "ent-middle", "ent-spread"},
+			want:  []string{"ent-busy", "ent-middle", "ent-retained", "ent-spread"},
 		},
 		{
 			name:  "hidden consumer above the largest granted id",
 			grant: []string{"repo-a", "repo-c", "repo-e", "repo-g"},
-			want:  []string{"ent-busy", "ent-spread"},
+			want:  []string{"ent-busy", "ent-retained", "ent-spread"},
 		},
 		{
 			// One granted id makes both outer ranges and no interior one, and
@@ -142,7 +151,7 @@ func TestCrossRepoDeadCodeUngrantedConsumerProbeLive(t *testing.T) {
 			// while ent-spread, which has consumers on both sides of it, does not.
 			name:  "single-element grant",
 			grant: []string{"repo-e"},
-			want:  []string{"ent-busy", "ent-spread"},
+			want:  []string{"ent-busy", "ent-retained", "ent-spread"},
 		},
 		{
 			name:  "grant wider than the corpus",
@@ -151,12 +160,12 @@ func TestCrossRepoDeadCodeUngrantedConsumerProbeLive(t *testing.T) {
 		{
 			name:  "grant disjoint from every consumer",
 			grant: []string{"repo-b", "repo-d"},
-			want:  []string{"ent-busy", "ent-middle", "ent-spread"},
+			want:  []string{"ent-busy", "ent-middle", "ent-retained", "ent-spread"},
 		},
 		{
 			name:  "grant naming only the producer repository",
 			grant: []string{"repo-producer"},
-			want:  []string{"ent-busy", "ent-middle", "ent-spread"},
+			want:  []string{"ent-busy", "ent-middle", "ent-retained", "ent-spread"},
 		},
 	}
 	for _, testCase := range cases {
@@ -190,11 +199,9 @@ func TestCrossRepoDeadCodeUngrantedConsumerProbeLive(t *testing.T) {
 		// filter instead of an index condition still returns the right
 		// entities, and reads the producer entity's whole fan-in to do it.
 		//
-		// Which index the planner picks is left alone deliberately: this
-		// fixture has one scope and one generation, so its primary key serves
-		// the same seek that code_reachability_entity_repository_idx serves in
-		// a real deployment. The index's presence is asserted separately, and
-		// the plan it produces at corpus scale is measured in
+		// Which index the planner picks is left alone deliberately; the index
+		// the migrations must leave behind is asserted separately, and the plan
+		// it produces at corpus scale is measured in
 		// docs/internal/evidence/5167-code-family-batch-1.md.
 		assertCrossRepoDeadCodeProbeIndexExists(ctx, t, db)
 		// Both plan modes, because they are not the same question. pgx caches
@@ -213,14 +220,17 @@ func TestCrossRepoDeadCodeUngrantedConsumerProbeLive(t *testing.T) {
 				if strings.Contains(plan, "Seq Scan on code_reachability_rows") {
 					t.Fatalf("probe fell back to a sequential scan over code_reachability_rows:\n%s", plan)
 				}
+				// Two seeks per step, and each has to reach the index for a
+				// different reason: the pair lookup so a step does not scan
+				// the entity's remaining rows, the liveness lookup so it does
+				// not scan the pair's retained generations. A bitmap path
+				// splits the same qual across Index Cond and Recheck Cond;
+				// both mean the qual reached the index, a Filter does not.
 				stepped := false
 				for _, line := range strings.Split(plan, "\n") {
-					if !strings.Contains(line, "repository_id > walk") {
+					if !strings.Contains(line, "ROW(repository_id, scope_id) >") {
 						continue
 					}
-					// A bitmap path splits the same qual across Index Cond and
-					// Recheck Cond; both mean the bound reached the index. A
-					// Filter does not.
 					if !strings.Contains(line, "Index Cond:") && !strings.Contains(line, "Recheck Cond:") {
 						t.Fatalf("the walk's step is applied as %q rather than an index condition:\n%s", strings.TrimSpace(line), plan)
 					}
@@ -228,6 +238,13 @@ func TestCrossRepoDeadCodeUngrantedConsumerProbeLive(t *testing.T) {
 				}
 				if !stepped {
 					t.Fatalf("no plan node carries the walk's per-step seek; the probe shape has drifted:\n%s", plan)
+				}
+				// The liveness lookup has to carry all four key columns. Three
+				// of them would leave the generation a filter over the pair's
+				// retained rows, which is exactly the scan migration 101 exists
+				// to remove, and the answer would not change.
+				if !crossRepoDeadCodeProbeHasLivenessSeek(plan) {
+					t.Fatalf("no index condition carries the full (entity_id, repository_id, scope_id, generation_id) liveness seek; a step is scanning the pair's generations:\n%s", plan)
 				}
 			})
 		}
@@ -264,6 +281,38 @@ func TestCrossRepoDeadCodeUngrantedConsumerProbeLive(t *testing.T) {
 		}
 	})
 
+	t.Run("a step seeks past every retained generation", func(t *testing.T) {
+		// The bound this shape exists for, and the one no answer assertion can
+		// see: an (entity_id, repository_id) group holds one row per retained
+		// generation, and the active row is the newest of them, so a step that
+		// scans the group for it pays for retention on every step. ent-retained
+		// carries 200 retained generations in each of its five consumer
+		// repositories with every one of them granted, which is the case that
+		// walks all five.
+		//
+		// Buffers, not rows, because rows are what the two shapes agree on. The
+		// walk produces the same handful of steps either way; what changes is
+		// how many pages a step touches to find its active row.
+		//
+		// Both plan modes, for the reason the other guards give: a generic plan
+		// is what pgx's statement cache runs in production.
+		for _, mode := range crossRepoDeadCodeProbePlanModes {
+			t.Run(mode.name, func(t *testing.T) {
+				plan := crossRepoDeadCodeProbePlan(
+					ctx, t, db, mode, "EXPLAIN (ANALYZE, BUFFERS) ",
+					"repo-producer",
+					[]string{"ent-retained"},
+					crossRepoDeadCodeProbeFanInRepositories,
+				)
+				buffers := crossRepoDeadCodeProbeBuffers(t, plan)
+				if buffers > crossRepoDeadCodeProbeRetainedBufferBudget {
+					t.Fatalf("the walk touched %d buffers for one entity, want at most %d; a step is reading a retained-generation group instead of seeking past it:\n%s",
+						buffers, crossRepoDeadCodeProbeRetainedBufferBudget, plan)
+				}
+			})
+		}
+	})
+
 	// The read this walk replaced cost one index probe per granted repository
 	// per producer entity, so a caller with a broad grant paid for the grant
 	// rather than for the answer. These grants are the sizes that exposed it:
@@ -288,7 +337,7 @@ func TestCrossRepoDeadCodeUngrantedConsumerProbeLive(t *testing.T) {
 			{
 				name:  "500 granted, one consumer left out",
 				grant: append(append([]string(nil), broad[:2]...), broad[3:]...),
-				want:  []string{"ent-busy", "ent-middle", "ent-spread"},
+				want:  []string{"ent-busy", "ent-middle", "ent-retained", "ent-spread"},
 			},
 		} {
 			t.Run(testCase.name, func(t *testing.T) {
@@ -313,21 +362,29 @@ func TestCrossRepoDeadCodeUngrantedConsumerProbeLive(t *testing.T) {
 	})
 }
 
-// assertCrossRepoDeadCodeProbeIndexExists fails when the shipped migration did
-// not create the index the probe's walk seeks on at corpus scale.
+// assertCrossRepoDeadCodeProbeIndexExists fails when the shipped migrations did
+// not leave exactly the index the probe's walk seeks on at corpus scale: the
+// four-column key built, and the two-column one it supersedes gone. A build
+// that kept both would still answer correctly and would make every reachability
+// write maintain a redundant btree, which no result assertion can see.
 func assertCrossRepoDeadCodeProbeIndexExists(ctx context.Context, t *testing.T, db *sql.DB) {
 	t.Helper()
 
-	var count int
-	if err := db.QueryRowContext(
-		ctx,
-		"SELECT count(*) FROM pg_indexes WHERE schemaname = current_schema() AND indexname = $1",
-		"code_reachability_entity_repository_idx",
-	).Scan(&count); err != nil {
-		t.Fatalf("look up the probe index: %v", err)
-	}
-	if count != 1 {
-		t.Fatalf("code_reachability_entity_repository_idx count = %d, want 1", count)
+	for indexName, want := range map[string]int{
+		"code_reachability_entity_repository_scope_generation_idx": 1,
+		"code_reachability_entity_repository_idx":                  0,
+	} {
+		var count int
+		if err := db.QueryRowContext(
+			ctx,
+			"SELECT count(*) FROM pg_indexes WHERE schemaname = current_schema() AND indexname = $1",
+			indexName,
+		).Scan(&count); err != nil {
+			t.Fatalf("look up %s: %v", indexName, err)
+		}
+		if count != want {
+			t.Fatalf("%s count = %d, want %d", indexName, count, want)
+		}
 	}
 }
 
@@ -373,6 +430,127 @@ FROM generate_series(1, $3) AS i`, repositoryID, entityID, perRepositoryRows); e
 	}
 	if _, err := db.ExecContext(ctx, "ANALYZE code_reachability_rows"); err != nil {
 		t.Fatalf("analyze fan-in rows: %v", err)
+	}
+}
+
+// crossRepoDeadCodeProbeHasLivenessSeek reports whether the plan applies the
+// liveness lookup as a four-column index condition rather than leaving any of
+// its columns to a filter.
+func crossRepoDeadCodeProbeHasLivenessSeek(plan string) bool {
+	for _, line := range strings.Split(plan, "\n") {
+		if !strings.Contains(line, "Index Cond:") && !strings.Contains(line, "Recheck Cond:") {
+			continue
+		}
+		full := true
+		for _, column := range []string{"entity_id =", "repository_id =", "scope_id =", "generation_id ="} {
+			if !strings.Contains(line, column) {
+				full = false
+				break
+			}
+		}
+		if full {
+			return true
+		}
+	}
+	return false
+}
+
+// crossRepoDeadCodeProbeRetainedGenerations is how many superseded generations
+// the retained-generation fixture keeps per consumer repository. The default
+// retention policy keeps the 24 most recent superseded generations per scope
+// plus everything superseded inside the last seven days
+// (postgres.DefaultGenerationRetentionPolicy), so a scope resynced every few
+// minutes holds far more than 24; 200 is a deliberately ordinary point on that
+// range rather than a worst case.
+const crossRepoDeadCodeProbeRetainedGenerations = 200
+
+// crossRepoDeadCodeProbeRetainedBufferBudget is the most buffers the probe may
+// touch answering for one producer entity whose every consumer repository also
+// holds a row from each retained generation.
+//
+// Measured, not guessed, the way proof row 38 requires: with this fixture the
+// shipped walk touches 24 buffers and the walk it replaced -- which scanned the
+// group for its active row -- touches 5,946. 200 sits far enough above the real
+// count to survive fixture edits and far enough below the broken one to fail on
+// it.
+const crossRepoDeadCodeProbeRetainedBufferBudget = 200
+
+// crossRepoDeadCodeProbeBuffers reads the buffer count off the plan's root node.
+func crossRepoDeadCodeProbeBuffers(t *testing.T, plan string) int {
+	t.Helper()
+
+	for _, line := range strings.Split(plan, "\n") {
+		match := crossRepoDeadCodeProbeBufferLine.FindStringSubmatch(line)
+		if match == nil {
+			continue
+		}
+		total := 0
+		for _, group := range match[1:] {
+			if group == "" {
+				continue
+			}
+			count, err := strconv.Atoi(group)
+			if err != nil {
+				t.Fatalf("parse buffer count from %q: %v", strings.TrimSpace(line), err)
+			}
+			total += count
+		}
+		return total
+	}
+	t.Fatalf("no Buffers line in the plan; EXPLAIN was not asked for them:\n%s", plan)
+	return 0
+}
+
+var crossRepoDeadCodeProbeBufferLine = regexp.MustCompile(`Buffers: shared hit=(\d+)(?: read=(\d+))?`)
+
+// seedCrossRepoDeadCodeProbeRetainedGenerations gives one producer entity a row
+// in each named repository for each of retained superseded generations, and
+// then its one active-generation row.
+//
+// The superseded rows go in first on purpose. That is the order a real install
+// writes them -- the active generation is the newest -- so the active row is the
+// last heap tuple in its (entity_id, repository_id) group and the worst case for
+// a step that stops on the first row it can use.
+func seedCrossRepoDeadCodeProbeRetainedGenerations(
+	ctx context.Context,
+	t *testing.T,
+	db *sql.DB,
+	entityID string,
+	repositoryIDs []string,
+	retained int,
+) {
+	t.Helper()
+
+	if _, err := db.ExecContext(ctx, `
+INSERT INTO scope_generations (generation_id, scope_id, status)
+SELECT 'gen-retained-' || lpad(i::text, 4, '0'), 'scope-1', 'superseded'
+FROM generate_series(1, $1) AS i
+ON CONFLICT (generation_id) DO NOTHING`, retained); err != nil {
+		t.Fatalf("seed retained generations: %v", err)
+	}
+	for _, repositoryID := range repositoryIDs {
+		if _, err := db.ExecContext(ctx, `
+INSERT INTO code_reachability_rows
+  (scope_id, generation_id, repository_id, root_entity_id, entity_id, depth, state,
+   confidence, min_resolution_method, evidence, root_kinds, observed_at, updated_at)
+SELECT 'scope-1', 'gen-retained-' || lpad(i::text, 4, '0'), $1, $1 || '#caller', $2, 1,
+       'reachable', 0.95, 'symbol_exact', '["CALLS"]'::jsonb, '["Function"]'::jsonb, now(), now()
+FROM generate_series(1, $3) AS i`, repositoryID, entityID, retained); err != nil {
+			t.Fatalf("seed retained-generation rows for %s in %s: %v", entityID, repositoryID, err)
+		}
+	}
+	for _, repositoryID := range repositoryIDs {
+		if _, err := db.ExecContext(ctx, `
+INSERT INTO code_reachability_rows
+  (scope_id, generation_id, repository_id, root_entity_id, entity_id, depth, state,
+   confidence, min_resolution_method, evidence, root_kinds, observed_at, updated_at)
+VALUES ('scope-1', 'gen-active', $1, $1 || '#caller', $2, 1, 'reachable', 0.95, 'symbol_exact',
+        '["CALLS"]'::jsonb, '["Function"]'::jsonb, now(), now())`, repositoryID, entityID); err != nil {
+			t.Fatalf("seed active row for %s in %s: %v", entityID, repositoryID, err)
+		}
+	}
+	if _, err := db.ExecContext(ctx, "ANALYZE code_reachability_rows"); err != nil {
+		t.Fatalf("analyze retained-generation rows: %v", err)
 	}
 }
 
@@ -424,13 +602,28 @@ INSERT INTO scope_generations VALUES ('gen-active', 'scope-1', 'active'), ('gen-
 		t.Fatalf("create proof tables: %v", err)
 	}
 
-	migration, err := os.ReadFile("../storage/postgres/migrations/100_code_reachability_entity_repository_idx.sql")
-	if err != nil {
-		t.Fatalf("read the shipped index migration: %v", err)
+	// All three index migrations, in the order a deployment applies them, so
+	// the fixture ends where a real install ends: migration 100's two-column
+	// index built, 101's four-column key built beside it, and 102 dropping
+	// 100's again. Reading the DDL from the shipped files is what stops a
+	// proof passing against an index no deployment builds.
+	for _, name := range crossRepoDeadCodeProbeIndexMigrations {
+		migration, err := os.ReadFile("../storage/postgres/migrations/" + name)
+		if err != nil {
+			t.Fatalf("read the shipped index migration %s: %v", name, err)
+		}
+		if _, err := db.ExecContext(ctx, strings.ReplaceAll(string(migration), "CONCURRENTLY ", "")); err != nil {
+			t.Fatalf("apply the shipped index migration %s: %v", name, err)
+		}
 	}
-	if _, err := db.ExecContext(ctx, strings.ReplaceAll(string(migration), "CONCURRENTLY ", "")); err != nil {
-		t.Fatalf("apply the shipped index migration: %v", err)
-	}
+}
+
+// crossRepoDeadCodeProbeIndexMigrations are the index migrations the probe
+// depends on, in migration order.
+var crossRepoDeadCodeProbeIndexMigrations = []string{
+	"100_code_reachability_entity_repository_idx.sql",
+	"101_code_reachability_entity_repository_scope_generation_idx.sql",
+	"102_drop_code_reachability_entity_repository_idx.sql",
 }
 
 func seedCrossRepoDeadCodeProbeRows(ctx context.Context, t *testing.T, db *sql.DB, rows []crossRepoDeadCodeProbeRow) {
