@@ -417,14 +417,3 @@ func mergeCatalogEnvironments(sources ...[]string) []string {
 	sort.Strings(merged)
 	return merged
 }
-
-func compactStrings(values []string) []string {
-	compacted := make([]string, 0, len(values))
-	for _, value := range values {
-		trimmed := strings.TrimSpace(value)
-		if trimmed != "" {
-			compacted = append(compacted, trimmed)
-		}
-	}
-	return compacted
-}

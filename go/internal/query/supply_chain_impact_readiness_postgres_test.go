@@ -180,13 +180,13 @@ func TestPostgresSupplyChainImpactReadinessQueryShape(t *testing.T) {
 		"analysis.payload->>'image_reference' = $14",
 		"payload->>'image_digest' IN (SELECT digest FROM target_image_digests)",
 	} {
-		if !strings.Contains(impact.ListSupplyChainImpactReadinessQuery, want) {
-			t.Fatalf("impact.ListSupplyChainImpactReadinessQuery missing %q:\n%s", want, impact.ListSupplyChainImpactReadinessQuery)
+		if !strings.Contains(listSupplyChainImpactReadinessQuery, want) {
+			t.Fatalf("listSupplyChainImpactReadinessQuery missing %q:\n%s", want, listSupplyChainImpactReadinessQuery)
 		}
 	}
-	identityStart := strings.Index(impact.ListSupplyChainImpactReadinessQuery, "container_image_identity_active AS (")
-	identityEnd := strings.Index(impact.ListSupplyChainImpactReadinessQuery[identityStart:], "vulnerability_source_snapshot_active AS (")
-	identityBranch := impact.ListSupplyChainImpactReadinessQuery[identityStart : identityStart+identityEnd]
+	identityStart := strings.Index(listSupplyChainImpactReadinessQuery, "container_image_identity_active AS (")
+	identityEnd := strings.Index(listSupplyChainImpactReadinessQuery[identityStart:], "vulnerability_source_snapshot_active AS (")
+	identityBranch := listSupplyChainImpactReadinessQuery[identityStart : identityStart+identityEnd]
 	if strings.Contains(identityBranch, "FROM fact_records") {
 		t.Fatalf("container-image readiness must not read legacy fact_records:\n%s", identityBranch)
 	}
@@ -195,12 +195,12 @@ func TestPostgresSupplyChainImpactReadinessQueryShape(t *testing.T) {
 func TestListSupplyChainImpactReadinessQueryDoesNotCapMutableRefDigests(t *testing.T) {
 	t.Parallel()
 
-	identityStart := strings.Index(impact.ListSupplyChainImpactReadinessQuery, "container_image_identity_active AS (")
-	identityEnd := strings.Index(impact.ListSupplyChainImpactReadinessQuery[identityStart:], "vulnerability_source_snapshot_active AS (")
+	identityStart := strings.Index(listSupplyChainImpactReadinessQuery, "container_image_identity_active AS (")
+	identityEnd := strings.Index(listSupplyChainImpactReadinessQuery[identityStart:], "vulnerability_source_snapshot_active AS (")
 	if identityStart < 0 || identityEnd < 0 {
-		t.Fatalf("container-image readiness branch missing:\n%s", impact.ListSupplyChainImpactReadinessQuery)
+		t.Fatalf("container-image readiness branch missing:\n%s", listSupplyChainImpactReadinessQuery)
 	}
-	identityBranch := impact.ListSupplyChainImpactReadinessQuery[identityStart : identityStart+identityEnd]
+	identityBranch := listSupplyChainImpactReadinessQuery[identityStart : identityStart+identityEnd]
 	for _, want := range []string{
 		"FROM container_image_identity_current_supports AS support",
 		"GROUP BY support.digest",
@@ -233,11 +233,11 @@ func TestListSupplyChainImpactReadinessQueryDoesNotCapMutableRefDigests(t *testi
 func TestPostgresSupplyChainImpactReadinessOSPackageCountUsesSemiJoinNotFanOut(t *testing.T) {
 	t.Parallel()
 
-	if strings.Contains(impact.ListSupplyChainImpactReadinessQuery, "JOIN scanner_worker_analysis_active AS analysis") {
-		t.Fatalf("impact.ListSupplyChainImpactReadinessQuery joins scanner_worker_analysis_active directly into vulnerability_os_package's FROM clause, which fans out COUNT(*) whenever more than one analysis fact matches a scope+generation; use EXISTS instead:\n%s", impact.ListSupplyChainImpactReadinessQuery)
+	if strings.Contains(listSupplyChainImpactReadinessQuery, "JOIN scanner_worker_analysis_active AS analysis") {
+		t.Fatalf("listSupplyChainImpactReadinessQuery joins scanner_worker_analysis_active directly into vulnerability_os_package's FROM clause, which fans out COUNT(*) whenever more than one analysis fact matches a scope+generation; use EXISTS instead:\n%s", listSupplyChainImpactReadinessQuery)
 	}
-	if !strings.Contains(impact.ListSupplyChainImpactReadinessQuery, "FROM os_package_active AS os_package\n    WHERE EXISTS (") {
-		t.Fatalf("impact.ListSupplyChainImpactReadinessQuery does not count vulnerability.os_package via an EXISTS semi-join on scanner_worker_analysis_active:\n%s", impact.ListSupplyChainImpactReadinessQuery)
+	if !strings.Contains(listSupplyChainImpactReadinessQuery, "FROM os_package_active AS os_package\n    WHERE EXISTS (") {
+		t.Fatalf("listSupplyChainImpactReadinessQuery does not count vulnerability.os_package via an EXISTS semi-join on scanner_worker_analysis_active:\n%s", listSupplyChainImpactReadinessQuery)
 	}
 }
 
@@ -258,12 +258,12 @@ func TestPostgresSupplyChainImpactReadinessScopesSourceFreshness(t *testing.T) {
 		"target.ecosystem = NULLIF(LOWER(TRIM(snapshot.payload->>'ecosystem')), '')",
 		"target.ecosystem = NULLIF(LOWER(TRIM(state.ecosystem)), '')",
 	} {
-		if !strings.Contains(impact.ListSupplyChainImpactReadinessQuery, want) {
-			t.Fatalf("impact.ListSupplyChainImpactReadinessQuery missing scoped source freshness fragment %q:\n%s", want, impact.ListSupplyChainImpactReadinessQuery)
+		if !strings.Contains(listSupplyChainImpactReadinessQuery, want) {
+			t.Fatalf("listSupplyChainImpactReadinessQuery missing scoped source freshness fragment %q:\n%s", want, listSupplyChainImpactReadinessQuery)
 		}
 	}
-	if strings.Contains(impact.ListSupplyChainImpactReadinessQuery, "scope_id NOT LIKE 'vuln-intel://osv/%/%?version=%'") {
-		t.Fatalf("impact.ListSupplyChainImpactReadinessQuery still has unanchored source-state fallback:\n%s", impact.ListSupplyChainImpactReadinessQuery)
+	if strings.Contains(listSupplyChainImpactReadinessQuery, "scope_id NOT LIKE 'vuln-intel://osv/%/%?version=%'") {
+		t.Fatalf("listSupplyChainImpactReadinessQuery still has unanchored source-state fallback:\n%s", listSupplyChainImpactReadinessQuery)
 	}
 }
 
@@ -278,12 +278,12 @@ func TestPostgresSupplyChainImpactReadinessScopesAdvisoryFacts(t *testing.T) {
 		"payload->>'package_id' IN (SELECT package_id FROM target_advisory_packages)",
 		"($9 <> '' AND payload->>'cve_id' = $9)",
 	} {
-		if !strings.Contains(impact.ListSupplyChainImpactReadinessQuery, want) {
-			t.Fatalf("impact.ListSupplyChainImpactReadinessQuery missing advisory scope fragment %q:\n%s", want, impact.ListSupplyChainImpactReadinessQuery)
+		if !strings.Contains(listSupplyChainImpactReadinessQuery, want) {
+			t.Fatalf("listSupplyChainImpactReadinessQuery missing advisory scope fragment %q:\n%s", want, listSupplyChainImpactReadinessQuery)
 		}
 	}
-	if strings.Contains(impact.ListSupplyChainImpactReadinessQuery, "FROM advisory_active\n    WHERE ($9 = '' OR payload->>'cve_id' = $9)") {
-		t.Fatalf("impact.ListSupplyChainImpactReadinessQuery still counts unrelated advisory facts for non-CVE scopes:\n%s", impact.ListSupplyChainImpactReadinessQuery)
+	if strings.Contains(listSupplyChainImpactReadinessQuery, "FROM advisory_active\n    WHERE ($9 = '' OR payload->>'cve_id' = $9)") {
+		t.Fatalf("listSupplyChainImpactReadinessQuery still counts unrelated advisory facts for non-CVE scopes:\n%s", listSupplyChainImpactReadinessQuery)
 	}
 }
 

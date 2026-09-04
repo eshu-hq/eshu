@@ -122,3 +122,12 @@ func NewPostgresSupplyChainImpactReadinessStore(db impact.SupplyChainImpactReadi
 func NewPostgresVulnerabilitySuppressionMutationStore(db *sql.DB) *PostgresVulnerabilitySuppressionMutationStore {
 	return impact.NewPostgresVulnerabilitySuppressionMutationStore(db)
 }
+
+// listSupplyChainImpactReadinessQuery re-exposes the readiness SQL shape
+// under its pre-move bare name for the staying root tests. The gocritic
+// argOrder heuristic misfires on the qualified impact.X form inside
+// strings.Contains assertions (a bare identifier of the same name passes,
+// as the container-image query tests show), so the tests keep the exact
+// pre-move call shape through this shim. It goes away in hub PR3 when the
+// tests move into the impact package with the handlers they drive.
+var listSupplyChainImpactReadinessQuery = impact.ListSupplyChainImpactReadinessQuery
