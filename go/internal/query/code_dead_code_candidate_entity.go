@@ -308,8 +308,10 @@ func deadCodeResultEntityIDs(results []map[string]any) []string {
 // Expanding once is also the cheaper shape. Measured against the pinned
 // NornicDB v1.2.3 on one entity with 5,000 incoming edges split across two
 // repositories, four interleaved runs of 15 iterations each: this probe's
-// median was 274-303us against 497-583us for the pair, and within noise of a
-// single probe (244-297us). See
+// median was 274-303us, which is 44-50% below the 497-583us the pair cost and
+// 2-14% above what a single probe costs on its own. The overhead over one probe
+// has the same sign in all four runs, so it is real rather than noise; it is
+// the OPTIONAL MATCH the pair did not pay for. See
 // docs/internal/evidence/5167-code-family-batch-1.md.
 //
 // Two clauses of it are load-bearing on NornicDB and must not be "tidied":
@@ -321,7 +323,9 @@ func deadCodeResultEntityIDs(results []map[string]any) []string {
 //     projection's source text, so incoming_entity_id comes back as the literal
 //     string "DISTINCT coalesce(e.uid, e.id)" and nothing is deduplicated.
 //     A WITH between the OPTIONAL MATCH and the RETURN is worse: every column
-//     comes back null. See docs/public/reference/nornicdb-pitfalls.md.
+//     comes back null. See docs/public/reference/nornicdb-pitfalls.md, and run
+//     the live_nornicdb_dead_code_incoming tests by hand before changing this
+//     -- no CI job builds that tag.
 //   - the source repository is an OPTIONAL MATCH here precisely because the
 //     grant is no longer a filter. A required MATCH would drop the rows this
 //     probe exists to report -- a source in a repository the caller was not

@@ -222,3 +222,85 @@ func TestDeadCodeGraphProbeReadsEachSourceClass(t *testing.T) {
 		})
 	}
 }
+
+// deadCodeIncomingProbeMaxKeys and deadCodeIncomingProbeMaxResults are the
+// bounds go/internal/queryplan/testdata/query-source-coverage.yaml hand-declares
+// for this symbol's keyed_support disposition.
+const (
+	deadCodeIncomingProbeMaxKeys    = 250
+	deadCodeIncomingProbeMaxResults = 5000
+)
+
+// TestDeadCodeIncomingProbeMaxResultsMatchesTheManifest ties the ledger's
+// declared row bound to the grouping key the shipped statement actually uses.
+//
+// The probe carries no LIMIT of its own, so that ledger row is the only place
+// the bound is stated, and the queryplan validator only checks max_results > 0
+// (queryplan.NonHotDisposition). Nothing else catches a bound that stopped
+// matching the statement.
+//
+// The derivation, worst case for one invocation:
+//
+//	max_keys (250 candidate entity ids per page)
+//	  x 10 distinct resolution_method values a row can project
+//	  x 2  in_grant states
+//	  = 5000
+//
+// The 10 is the closed codeprovenance vocabulary -- eight classified methods
+// plus MethodUnspecified -- and one more for the null a pre-ADR-#2222 edge
+// projects when it carries no resolution_method property at all. Go folds that
+// null and the "unspecified" string onto the same LegacyConfidence, but the
+// backend groups them separately, and this bound is a row count.
+//
+// The x2 is what round 8 changed. The withdrawn pair grouped on
+// (entity, method); the shipped probe groups on (entity, method, in_grant), so
+// every key can produce twice the rows. The ledger's previous 2500 was
+// 250 x 10 and was carried forward rather than re-derived.
+//
+// If codeprovenance gains a resolver branch, its own closed-vocabulary rule
+// already forces the Method const, the confidence table and the accuracy
+// goldens to move together; this test is what adds the ledger row to that list.
+// Update deadCodeIncomingProbeMaxResults and the manifest entry in the same
+// change.
+func TestDeadCodeIncomingProbeMaxResultsMatchesTheManifest(t *testing.T) {
+	t.Parallel()
+
+	vocabulary := []codeprovenance.Method{
+		codeprovenance.MethodSCIP,
+		codeprovenance.MethodDeclared,
+		codeprovenance.MethodSameFile,
+		codeprovenance.MethodImportBinding,
+		codeprovenance.MethodTypeInferred,
+		codeprovenance.MethodScopeUniqueName,
+		codeprovenance.MethodCrossRepoExportPackage,
+		codeprovenance.MethodRepoUniqueName,
+		codeprovenance.MethodUnspecified,
+	}
+	for _, method := range vocabulary {
+		if !codeprovenance.Valid(method) {
+			t.Fatalf("codeprovenance.Valid(%q) = false; the vocabulary this bound is derived from moved", method)
+		}
+	}
+	// One more for the null a pre-ADR-#2222 edge projects.
+	methodValues := len(vocabulary) + 1
+	if got, want := deadCodeIncomingProbeMaxKeys*methodValues*2, deadCodeIncomingProbeMaxResults; got != want {
+		t.Fatalf("derived row bound = %d, want %d; update this const and query-source-coverage.yaml's max_results for deadCodeResultsWithGraphIncomingEdges in the same change", got, want)
+	}
+}
+
+// TestDeadCodeIncomingProbeHasNoLimitOfItsOwn is why the bound above has to be
+// structural. A LIMIT would clamp the row count at runtime and the ledger row
+// would be a restatement of it; without one, the grouping key is the bound.
+func TestDeadCodeIncomingProbeHasNoLimitOfItsOwn(t *testing.T) {
+	t.Parallel()
+
+	access := repositoryAccessFilter{AllowedRepositoryIDs: []string{codeGrantGrantedRepo}}
+	for _, cypher := range []string{
+		buildDeadCodeScopedIncomingBatchProbeCypher("Function", access),
+		buildDeadCodeIncomingBatchProbeCypher("Function"),
+	} {
+		if strings.Contains(cypher, "LIMIT") {
+			t.Fatalf("the probe gained a LIMIT; re-derive the manifest bound from it rather than from the grouping key:\n%s", cypher)
+		}
+	}
+}

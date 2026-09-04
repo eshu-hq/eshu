@@ -258,7 +258,9 @@ returned one identical row each, so the diff was empty. The shipped probe
 returns two groups on the same graph: `in_grant=true` with one edge, and
 `in_grant=false` with two, the out-of-grant source and the unattributed one
 together. `TestLiveNornicDBDeadCodeIncomingWithdrawnPairCollapses` keeps the
-old behaviour on record beside the new one.
+old behaviour on record beside the new one. All three live tests are
+build-tagged and were run by hand against the pinned image; no CI job builds
+that tag, so re-run them when the pin moves.
 
 Two clauses of the shipped statement are load-bearing on that backend, and both
 were chosen by measurement rather than taste:
@@ -271,8 +273,10 @@ were chosen by measurement rather than taste:
   projections behind a `WITH` is worse — every other column came back null. The
   variant table and the executor boundary are in
   [NornicDB Pitfalls](../../public/reference/nornicdb-pitfalls.md);
-  `TestLiveNornicDBDeadCodeIncomingRejectsReturnDistinct` is the negative
-  control that goes red when the pin stops corrupting it.
+  `TestLiveNornicDBDeadCodeIncomingRejectsReturnDistinct` covers every row of
+  that table. It is a manual control, not a CI one — nothing in `.github/` or
+  the Makefile builds the `live_nornicdb_dead_code_incoming` tag — so it fires
+  only when someone runs it against the pin.
 - The source repository is an `OPTIONAL MATCH` here, which is the opposite of
   the complexity list's fix above and for the opposite reason. There the grant
   was a filter, so an optional binding filtered nothing. Here the grant is a
@@ -301,8 +305,11 @@ cannot favour whichever went first. Medians:
 | 3 | 497.3 µs | 278.9 µs | 244.1 µs |
 | 4 | 583.1 µs | 303.0 µs | 297.2 µs |
 
-The merged probe costs about what a single probe costs, and 44–49% less than the
-pair — which is what one expansion instead of two should look like.
+The merged probe costs 44–50% less than the pair, and 2–14% more than a single
+probe on its own. That overhead has the same sign in all four runs, so it is not
+noise: it is the `OPTIONAL MATCH` the pair never paid for, and it buys the
+per-row grant answer the pair could not give. One expansion instead of two is
+what the 44–50% is.
 
 A first pass at this measurement said the opposite, and is recorded because the
 mistake is easy to repeat: measuring each candidate as a block of nine

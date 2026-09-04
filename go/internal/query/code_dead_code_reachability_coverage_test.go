@@ -6,7 +6,6 @@ package query
 import (
 	"context"
 	"slices"
-	"sort"
 	"testing"
 
 	"github.com/eshu-hq/eshu/go/internal/codeprovenance"
@@ -195,6 +194,5 @@ func (s *coverageReachabilityIncomingStore) DeadCodeIncomingEntityIDs(
 			incoming[entityID] = edge
 		}
 	}
-	sort.Strings(entityIDs)
 	return incoming, nil
 }

@@ -475,14 +475,19 @@ it is not the affected shape.
 ### Validation
 
 `go test ./internal/query -tags live_nornicdb_dead_code_incoming -run
-TestLiveNornicDBDeadCodeIncoming -count=1` against the pinned image proves all
-three halves: the shipped probe returns correctly grouped rows, the pair of
-statements it replaced collapses a same-method out-of-grant source, and
-`TestLiveNornicDBDeadCodeIncomingRejectsReturnDistinct` is the negative control
-that fails when the pinned backend stops corrupting `DISTINCT` here. Re-measure
-before switching the probe back if that control ever goes red. See
-`docs/internal/evidence/5167-code-family-batch-1.md` for the before/after and
-the fan-in timing.
+TestLiveNornicDBDeadCodeIncoming -count=1` against the pinned image covers every
+row of the table above, plus the shape the probe ships: correctly grouped rows
+from the `count(*)` form, the collapse in the pair of statements it replaced,
+both `DISTINCT` corruptions, the `WITH` variant's nulled columns, and the
+pattern comprehension's wrong answer.
+
+Run it by hand. No CI job builds that tag, so nothing tells you on its own when
+this backend behaviour changes — run it against the pin before changing a query
+of this shape, and again after moving the pin. If
+`TestLiveNornicDBDeadCodeIncomingRejectsReturnDistinct` fails, the executor
+boundary has moved and the shapes above need re-measuring rather than a quick
+edit. See `docs/internal/evidence/5167-code-family-batch-1.md` for the
+before/after and the fan-in timing.
 
 ## Pitfall: `OPTIONAL MATCH` + Aggregate Collapses Every Zero-Match Group Into One Row
 

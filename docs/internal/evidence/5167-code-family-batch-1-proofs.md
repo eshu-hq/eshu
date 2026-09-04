@@ -56,7 +56,8 @@ on that: this route's binding is its selector, not its query text.
 | `TestDeadCodeGraphProbeKeepsASameMethodUngrantedSource` | `HiddenConsumer:false` for a candidate whose out-of-grant source shares its resolution method with a granted one, exit `1` | `ok internal/query 4.192s`, exit `0` |
 | `TestDeadCodeGraphProbeRunsOneTraversalPerPage` | `statement count = 2, want 1`, exit `1` | `ok internal/query 4.192s`, exit `0` |
 | `TestDeadCodeGraphProbeReadsEachSourceClass` (4) | new coverage of the four source classes, green on the old shape too and kept as the no-regression guard | `ok internal/query 4.192s`, exit `0` |
-| `TestLiveNornicDBDeadCodeIncoming*` (3, live) | new coverage on the replaced statement, no prior red; the withdrawn pair's collapse and the `RETURN DISTINCT` corruption are recorded as assertions rather than prose | `ok internal/query 1.150s`, exit `0` |
+| `TestLiveNornicDBDeadCodeIncoming*` (3, live, run by hand) | new coverage on the replaced statement, no prior red; the withdrawn pair's collapse and every row of the `RETURN DISTINCT` pitfall table are recorded as assertions rather than prose | `ok internal/query 1.206s`, exit `0` |
+| `TestDeadCodeIncomingProbeMaxResultsMatchesTheManifest`, `*HasNoLimitOfItsOwn` | new coverage tying the queryplan ledger's `max_results` to the probe's grouping key, no prior red | `ok internal/query 1.048s`, exit `0` |
 | `TestCrossRepoDeadCodeConsumerSelectorSurvivesABusyGrantedRepository` | `consumer_evidence_truncated` in the `unknown` bucket for a symbol the requested consumer proves live, exit `1` | `ok internal/query 4.270s`, exit `0` |
 | `TestCrossRepoDeadCodeConsumerReadPlan` (6) | new coverage of the six read shapes, no prior red | `ok internal/query 4.270s`, exit `0` |
 | `TestDeadCodeIncomingEntityIDsHiddenOnlyEntryStillRunsTheLegacyProbe` | `legacy incoming calls = 0, want 1`, exit `1` | `ok internal/query 1.316s`, exit `0` |
@@ -108,6 +109,7 @@ mutation was restored and its guard rerun at exit `0`.
 | 25 | the scoped incoming probe groups with `RETURN DISTINCT` instead of `count(*)`, run against the live backend | `ESHU_NEO4J_URI=bolt://localhost:17987 go test ./internal/query -tags live_nornicdb_dead_code_incoming -run TestLiveNornicDBDeadCodeIncomingProbeSeparatesSameMethodSources -count=1` | `1` (3 ungrouped rows, `incoming_entity_id` came back as the literal `"DISTINCT coalesce(e.uid, e.id)"`) |
 | 26 | `missingDeadCodeIncomingEntityIDs` counts a hidden-only entry as coverage, the shape before this pass | `go test ./internal/query -run TestDeadCodeIncomingEntityIDsHiddenOnlyEntryStillRunsTheLegacyProbe -count=1` | `1` (`legacy incoming calls = 0, want 1`) |
 | 27 | `crossRepoDeadCodeConsumerReadPlan` binds the grant for a request that named consumers, the shape before this pass | `go test ./internal/query -run TestCrossRepoDeadCodeConsumerSelectorSurvivesABusyGrantedRepository -count=1` | `1` (the requested consumer answered `unknown_needs_evidence` with `consumer_evidence_truncated`) |
+| 28 | `deadCodeIncomingProbeMaxResults` keeps the carried-forward 2,500 instead of the re-derived 5,000 | `go test ./internal/query -run TestDeadCodeIncomingProbeMaxResultsMatchesTheManifest -count=1` | `1` (`derived row bound = 5000, want 2500`) |
 
 An earlier attempt at #1 deleted the whole helper body and failed as an unused
 import rather than an assertion, which proves nothing; the mutations above keep
@@ -124,7 +126,8 @@ credential-free guards CI runs; row 25 neuters the grouping clause instead and
 is judged against the pinned backend, which is the only place the
 `RETURN DISTINCT` corruption is visible at all. Row 26 is the hidden-only
 reachability entry and row 27 the consumer selector's place in the page read.
-Each was restored and its guard rerun at exit `0`.
+Each was restored and its guard rerun at exit `0`. Row 28 is the round-8 review
+follow-up: the ledger bound the merged probe outgrew.
 
 Rows 6 and 12 are one mutation judged by two guards: row 6 is the call-graph
 route's text guard, row 12 the graph-summary route that shares the builder. The

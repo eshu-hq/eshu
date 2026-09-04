@@ -125,13 +125,24 @@ func TestLiveNornicDBDeadCodeIncomingWithdrawnPairCollapses(t *testing.T) {
 }
 
 // TestLiveNornicDBDeadCodeIncomingRejectsReturnDistinct is the negative control
-// for the backend behaviour the shipped shape works around. On the pinned
-// v1.2.3, DISTINCT after a trailing OPTIONAL MATCH on the relationship-seeded
-// traversal branch is absorbed into the first projection's source text: the
-// column comes back as the literal expression and nothing is deduplicated.
-// count(*) is what groups the shipped probe instead. When the pin moves and
-// this test goes red, re-read docs/public/reference/nornicdb-pitfalls.md and
-// re-measure before switching the probe back to DISTINCT.
+// for the backend behaviour the shipped shape works around, and it covers every
+// row of the variant table in docs/public/reference/nornicdb-pitfalls.md so no
+// row of that public table rests on a one-off observation.
+//
+// On the pinned v1.2.3, DISTINCT after a trailing OPTIONAL MATCH on the
+// relationship-seeded traversal branch is absorbed into the first projection's
+// source text: the column comes back as the literal expression and nothing is
+// deduplicated. It happens to a function call and to a plain property alike.
+// Moving the projections behind a WITH is worse -- every other column comes
+// back null -- and a pattern comprehension used to avoid the OPTIONAL MATCH
+// entirely is not evaluated per row. count(*) is what groups the shipped probe
+// instead.
+//
+// No CI job builds this tag, so this control only fires when someone runs it.
+// Run it by hand against the pin before changing the probe's shape, and again
+// after moving the pin: a failure here means the backend behaviour the shipped
+// statement is built around has changed, and the shape needs re-measuring
+// rather than a quick edit.
 func TestLiveNornicDBDeadCodeIncomingRejectsReturnDistinct(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), time.Minute)
 	defer cancel()
@@ -140,21 +151,88 @@ func TestLiveNornicDBDeadCodeIncomingRejectsReturnDistinct(t *testing.T) {
 	seedLiveDeadCodeIncomingGraph(ctx, t, driver)
 
 	access := liveIncomingAccess()
-	distinct := `
+	grant := access.GraphCondition("source_repo")
+	expansion := `
 		UNWIND $entity_ids AS entity_id
 		MATCH (e:Function {uid: entity_id})<-[rel:CALLS|IMPORTS|REFERENCES|INHERITS|EXECUTES]-(source)
 		OPTIONAL MATCH (source)<-[:CONTAINS]-(:File)<-[:REPO_CONTAINS]-(source_repo:Repository)
+	`
+
+	// Each case names the column the pitfall table says is corrupted and the
+	// literal source text it comes back as instead.
+	for _, testCase := range []struct {
+		name        string
+		cypher      string
+		column      string
+		wantLiteral string
+	}{
+		{
+			name: "DISTINCT swallows a function call",
+			cypher: expansion + `
 		RETURN DISTINCT coalesce(e.uid, e.id) as incoming_entity_id,
 		       rel.resolution_method as resolution_method,
-		       (source_repo IS NOT NULL AND ` + access.GraphCondition("source_repo") + `) as in_grant
-	`
-	rows := runLiveDeadCodeIncomingStatement(ctx, t, driver, distinct)
-	if len(rows) == 0 {
-		t.Fatal("the DISTINCT variant returned nothing; re-read the pitfall before changing the shipped probe")
+		       (source_repo IS NOT NULL AND ` + grant + `) as in_grant
+	`,
+			column:      "incoming_entity_id",
+			wantLiteral: "DISTINCT coalesce(e.uid, e.id)",
+		},
+		{
+			name: "DISTINCT swallows a plain property too",
+			cypher: expansion + `
+		RETURN DISTINCT e.uid as incoming_entity_id,
+		       rel.resolution_method as resolution_method,
+		       (source_repo IS NOT NULL AND ` + grant + `) as in_grant
+	`,
+			column:      "incoming_entity_id",
+			wantLiteral: "DISTINCT e.uid",
+		},
+		{
+			name: "a WITH before the RETURN does not rescue it",
+			cypher: expansion + `
+		WITH coalesce(e.uid, e.id) as incoming_entity_id,
+		     rel.resolution_method as resolution_method,
+		     (source_repo IS NOT NULL AND ` + grant + `) as in_grant
+		RETURN DISTINCT incoming_entity_id, resolution_method, in_grant
+	`,
+			column:      "DISTINCT incoming_entity_id",
+			wantLiteral: "DISTINCT incoming_entity_id",
+		},
+	} {
+		rows := runLiveDeadCodeIncomingStatement(ctx, t, driver, testCase.cypher)
+		if len(rows) == 0 {
+			t.Fatalf("%s: returned nothing; re-read the pitfall before changing the shipped probe", testCase.name)
+		}
+		if got := StringVal(rows[0], testCase.column); got != testCase.wantLiteral {
+			t.Fatalf("%s: %s = %q, want the literal %q; the pinned backend's handling of RETURN DISTINCT after an OPTIONAL MATCH has changed, so re-measure before relying on either shape",
+				testCase.name, testCase.column, got, testCase.wantLiteral)
+		}
 	}
-	got := StringVal(rows[0], "incoming_entity_id")
-	if !strings.Contains(got, "DISTINCT") {
-		t.Fatalf("incoming_entity_id = %q; the pinned backend no longer corrupts RETURN DISTINCT after an OPTIONAL MATCH, so re-measure before relying on either shape", got)
+
+	// The WITH variant nulls every column it does not corrupt, which is why it
+	// is not the fallback either.
+	withRows := runLiveDeadCodeIncomingStatement(ctx, t, driver, expansion+`
+		WITH coalesce(e.uid, e.id) as incoming_entity_id,
+		     rel.resolution_method as resolution_method,
+		     (source_repo IS NOT NULL AND `+grant+`) as in_grant
+		RETURN DISTINCT incoming_entity_id, resolution_method, in_grant
+	`)
+	if withRows[0]["resolution_method"] != nil {
+		t.Fatalf("resolution_method = %#v, want null: the WITH variant no longer nulls the columns it does not corrupt", withRows[0]["resolution_method"])
+	}
+
+	// A pattern comprehension avoids the OPTIONAL MATCH but is not evaluated
+	// per row: on the seeded graph all three sources answered in_grant=true and
+	// DISTINCT then collapsed them to one row, hiding both hidden consumers.
+	comprehension := runLiveDeadCodeIncomingStatement(ctx, t, driver, `
+		UNWIND $entity_ids AS entity_id
+		MATCH (e:Function {uid: entity_id})<-[rel:CALLS|IMPORTS|REFERENCES|INHERITS|EXECUTES]-(source)
+		RETURN DISTINCT coalesce(e.uid, e.id) as incoming_entity_id,
+		       rel.resolution_method as resolution_method,
+		       size([(source)<-[:CONTAINS]-(:File)<-[:REPO_CONTAINS]-(r:Repository)
+		             WHERE r.id IN $allowed_repository_ids OR r.id IN $allowed_scope_ids | 1]) > 0 as in_grant
+	`)
+	if len(comprehension) != 1 || !BoolVal(comprehension[0], "in_grant") {
+		t.Fatalf("pattern comprehension returned %#v, want the single wrongly-granted row this backend produces; if it is now evaluated per row, the pitfall table needs updating", comprehension)
 	}
 }
 
