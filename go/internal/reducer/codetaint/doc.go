@@ -14,8 +14,8 @@
 // (DecodeCodeTaintEvidenceInput/DecodeCodeInterprocEvidenceInput,
 // ExtractCodeTaintEvidenceRowsWithQuarantine/
 // ExtractCodeInterprocEvidenceRowsWithQuarantine) as
-// [CodeInterprocEvidenceMaterializationHandler], and the reducer root's
-// value-flow fixpoint solver (value_flow_fixpoint_evidence_loader.go)
+// [CodeInterprocEvidenceMaterializationHandler], and the sibling valueflow
+// package's value-flow fixpoint solver (value_flow_fixpoint_evidence_loader.go)
 // composes [CodeInterprocEvidenceInput] and
 // [ExtractCodeInterprocFixpointEvidenceRows] directly. Moving either family
 // alone would just relocate a two-package import cycle back into the
