@@ -15,10 +15,12 @@
 // settle is whether that already-merged grant text filters anything at all.
 //
 // The tests named ...MustNotLeak... assert the behaviour the route needs. They
-// are expected to FAIL against the builders as shipped -- that failure IS the
-// measurement. The ...FixShape... tests run candidate rewrites against the same
-// seeded graph and are expected to pass, so the pair is the red/green the fix
-// commit inherits.
+// FAILED against the builders as shipped before batch 2b -- that failure was
+// the measurement, recorded in
+// docs/internal/evidence/5167-code-family-batch-2b-proofs.md -- and they pass
+// now that the grant sits in each statement's anchoring MATCH. The
+// ...FixShape... tests keep the candidate rewrites beside them, so a regression
+// that moves a predicate back onto an OPTIONAL MATCH reds the pair together.
 //
 //	docker run -d --name nornic-5167-e1 -e NORNICDB_EMBEDDING_ENABLED=false \
 //	  -e NORNICDB_NO_AUTH=true -p 17987:7687 \
@@ -261,6 +263,7 @@ func TestLiveNornicDBRelationshipStoryClassMethodsHaveNoRepositoryBinding(t *tes
 		storyProbeRequest(),
 		liveClauseUngrantedOwnerUID,
 		"uid",
+		liveClauseGrantedAccess(),
 	)
 	rows, err := reader.Run(ctx, cypher, params)
 	if err != nil {
@@ -288,6 +291,7 @@ func TestLiveNornicDBRelationshipStoryInheritanceDepthHasNoRepositoryBinding(t *
 		liveClauseAnchorClassUID,
 		"outgoing",
 		"uid",
+		liveClauseGrantedAccess(),
 	)
 	rows, err := reader.Run(ctx, cypher, params)
 	if err != nil {

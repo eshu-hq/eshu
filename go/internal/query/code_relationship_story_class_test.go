@@ -317,6 +317,7 @@ func TestNornicDBRelationshipStoryClassMethodsCypherUsesAnchoredClassPattern(t *
 		relationshipStoryRequest{Limit: 10, Offset: 5},
 		"class-a",
 		"uid",
+		repositoryAccessFilter{AllScopes: true},
 	)
 	for _, fragment := range []string{
 		"MATCH (class:Class {uid: $entity_id})-[:CONTAINS]->(method:Function)",
@@ -343,7 +344,7 @@ func TestRelationshipStoryOverrideRowsCypherHonorsLanguageAndOverrideNodeKinds(t
 		RepoID:   "repo-1",
 		Language: "go",
 		Limit:    25,
-	})
+	}, repositoryAccessFilter{AllScopes: true})
 	for _, fragment := range []string{
 		"MATCH (repo:Repository {id: $repo_id})",
 		"-[rel:OVERRIDES]->",
@@ -371,6 +372,7 @@ func TestNornicDBRelationshipStoryInheritanceDepthCypherBoundsTraversal(t *testi
 		"class-a",
 		"outgoing",
 		"uid",
+		repositoryAccessFilter{AllScopes: true},
 	)
 	for _, fragment := range []string{
 		"MATCH path = (anchor:Class {uid: $entity_id})-[:INHERITS*1..4]->(target:Class)",

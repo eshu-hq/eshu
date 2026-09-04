@@ -146,6 +146,7 @@ func TestNornicDBRelationshipStoryHelperCypherReturnsDirectProperties(t *testing
 		relationshipStoryRequest{Limit: 50},
 		"class-target",
 		"uid",
+		repositoryAccessFilter{AllScopes: true},
 	)
 	if strings.Contains(classCypher, "coalesce(") ||
 		!strings.Contains(classCypher, "method.id as method_legacy_id") ||
@@ -165,6 +166,7 @@ func TestNornicDBRelationshipStoryHelperCypherReturnsDirectProperties(t *testing
 			"class-target",
 			direction,
 			"uid",
+			repositoryAccessFilter{AllScopes: true},
 		)
 		if strings.Contains(inheritanceCypher, "coalesce(") ||
 			!strings.Contains(inheritanceCypher, sourceVariable+".id as source_legacy_id") ||
