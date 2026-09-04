@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package coordinator
+package awsfreshnessplanner
 
 import (
 	"context"
@@ -20,61 +20,79 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/workflow"
 )
 
-// AWSFreshnessPlanRequest carries claimed AWS freshness triggers into workflow
-// work planning.
-type AWSFreshnessPlanRequest struct {
-	Instance   workflow.CollectorInstance
-	Triggers   []freshness.StoredTrigger
+// PlanRequest carries claimed AWS freshness triggers into workflow work
+// planning. The coordinator supplies the collector instance the triggers were
+// matched to, the coalesced trigger batch, the reconcile observed time, and a
+// deterministic plan key; the planner never resolves credentials or contacts
+// AWS.
+type PlanRequest struct {
+	// Instance is the durable AWS collector instance to plan work for.
+	Instance workflow.CollectorInstance
+	// Triggers are the claimed freshness triggers to coalesce into targets.
+	Triggers []freshness.StoredTrigger
+	// ObservedAt anchors the run and work-item timestamps for this handoff.
 	ObservedAt time.Time
-	PlanKey    string
+	// PlanKey makes repeated planning for the same instance and interval
+	// idempotent.
+	PlanKey string
 }
 
-// AWSFreshnessWorkPlanner plans targeted AWS collector work from coalesced
-// freshness triggers.
-type AWSFreshnessWorkPlanner struct{}
+// WorkPlanner plans targeted AWS collector work from coalesced freshness
+// triggers. It is the concrete planner the coordinator wires for AWS
+// freshness handoffs.
+type WorkPlanner struct{}
 
-type awsFreshnessRuntimeConfiguration struct {
-	TargetScopes         []awsFreshnessTargetScopeConfiguration `json:"target_scopes"`
-	ScheduledScanEnabled bool                                   `json:"scheduled_scan_enabled"`
-}
-
-type awsFreshnessTargetScopeConfiguration struct {
-	AccountID       string   `json:"account_id"`
-	AllowedRegions  []string `json:"allowed_regions"`
+// TargetScope is one normalized entry of the AWS collector instance
+// configuration's target_scopes array: the account the collector may plan
+// work in, and the regions and service kinds authorized within it. Root
+// coordinator code obtains these through ParseTargetScopes rather than
+// decoding the configuration document itself.
+type TargetScope struct {
+	// AccountID is the 12 digit AWS account ID this scope authorizes.
+	AccountID string `json:"account_id"`
+	// AllowedRegions lists the authorized region names; wildcards are rejected.
+	AllowedRegions []string `json:"allowed_regions"`
+	// AllowedServices lists the authorized AWS service kinds; each must be a
+	// registered scanner service kind.
 	AllowedServices []string `json:"allowed_services"`
+}
+
+type runtimeConfiguration struct {
+	TargetScopes         []TargetScope `json:"target_scopes"`
+	ScheduledScanEnabled bool          `json:"scheduled_scan_enabled"`
 }
 
 // PlanAWSFreshnessWork returns one workflow run and one item per unique AWS
 // target tuple represented by the supplied triggers.
-func (p AWSFreshnessWorkPlanner) PlanAWSFreshnessWork(
+func (p WorkPlanner) PlanAWSFreshnessWork(
 	_ context.Context,
-	request AWSFreshnessPlanRequest,
+	request PlanRequest,
 ) (workflow.Run, []workflow.WorkItem, error) {
-	if err := validateAWSFreshnessPlanRequest(request); err != nil {
+	if err := validatePlanRequest(request); err != nil {
 		return workflow.Run{}, nil, err
 	}
-	scopes, err := parseAWSFreshnessTargetScopes(request.Instance.Configuration)
+	scopes, err := ParseTargetScopes(request.Instance.Configuration)
 	if err != nil {
 		return workflow.Run{}, nil, err
 	}
-	targets, err := authorizedAWSFreshnessTargets(request.Triggers, scopes)
+	targets, err := authorizedTargets(request.Triggers, scopes)
 	if err != nil {
 		return workflow.Run{}, nil, err
 	}
 
 	observedAt := request.ObservedAt.UTC()
 	run := workflow.Run{
-		RunID:              awsFreshnessRunID(request.Instance, request.PlanKey),
+		RunID:              planRunID(request.Instance, request.PlanKey),
 		TriggerKind:        workflow.TriggerKindWebhook,
 		Status:             workflow.RunStatusCollectionPending,
-		RequestedScopeSet:  awsFreshnessRequestedScopeSet(request.Instance, targets),
+		RequestedScopeSet:  requestedScopeSet(request.Instance, targets),
 		RequestedCollector: string(scope.CollectorAWS),
 		CreatedAt:          observedAt,
 		UpdatedAt:          observedAt,
 	}
 	items := make([]workflow.WorkItem, 0, len(targets))
 	for _, target := range targets {
-		item, err := awsFreshnessWorkItem(request.Instance, target, run.RunID, request.PlanKey, observedAt)
+		item, err := workItem(request.Instance, target, run.RunID, request.PlanKey, observedAt)
 		if err != nil {
 			return workflow.Run{}, nil, err
 		}
@@ -83,7 +101,7 @@ func (p AWSFreshnessWorkPlanner) PlanAWSFreshnessWork(
 	return run, items, nil
 }
 
-func validateAWSFreshnessPlanRequest(request AWSFreshnessPlanRequest) error {
+func validatePlanRequest(request PlanRequest) error {
 	if err := request.Instance.Validate(); err != nil {
 		return fmt.Errorf("AWS freshness plan request: %w", err)
 	}
@@ -108,17 +126,26 @@ func validateAWSFreshnessPlanRequest(request AWSFreshnessPlanRequest) error {
 	return nil
 }
 
-func parseAWSFreshnessTargetScopes(raw string) ([]awsFreshnessTargetScopeConfiguration, error) {
-	var decoded awsFreshnessRuntimeConfiguration
+// ParseTargetScopes decodes and normalizes the target_scopes array of an AWS
+// collector instance configuration document. It rejects a configuration with
+// no target scopes, a malformed account ID, an empty or wildcard region or
+// service entry, and any service kind no registered scanner supports.
+//
+// The root coordinator calls this for AWS freshness trigger routing
+// (service_aws_freshness.go) and for scheduled AWS planning
+// (aws_scheduled_scheduler.go), which is not extracted; both share this one
+// definition rather than keeping a second copy at root.
+func ParseTargetScopes(raw string) ([]TargetScope, error) {
+	var decoded runtimeConfiguration
 	if err := json.Unmarshal([]byte(raw), &decoded); err != nil {
 		return nil, fmt.Errorf("decode AWS collector configuration: %w", err)
 	}
 	if len(decoded.TargetScopes) == 0 {
 		return nil, fmt.Errorf("AWS collector configuration requires target_scopes")
 	}
-	scopes := make([]awsFreshnessTargetScopeConfiguration, 0, len(decoded.TargetScopes))
+	scopes := make([]TargetScope, 0, len(decoded.TargetScopes))
 	for index, target := range decoded.TargetScopes {
-		mapped, err := normalizeAWSFreshnessTargetScope(target)
+		mapped, err := normalizeTargetScope(target)
 		if err != nil {
 			return nil, fmt.Errorf("target_scopes[%d]: %w", index, err)
 		}
@@ -127,29 +154,27 @@ func parseAWSFreshnessTargetScopes(raw string) ([]awsFreshnessTargetScopeConfigu
 	return scopes, nil
 }
 
-func normalizeAWSFreshnessTargetScope(
-	target awsFreshnessTargetScopeConfiguration,
-) (awsFreshnessTargetScopeConfiguration, error) {
+func normalizeTargetScope(target TargetScope) (TargetScope, error) {
 	target.AccountID = strings.TrimSpace(target.AccountID)
-	if !isAWSFreshnessAccountID(target.AccountID) {
-		return awsFreshnessTargetScopeConfiguration{}, fmt.Errorf("account_id must be a 12 digit AWS account ID")
+	if !isAccountID(target.AccountID) {
+		return TargetScope{}, fmt.Errorf("account_id must be a 12 digit AWS account ID")
 	}
-	regions, err := normalizeAWSFreshnessList(target.AllowedRegions, "allowed_regions", nil)
+	regions, err := normalizeList(target.AllowedRegions, "allowed_regions", nil)
 	if err != nil {
-		return awsFreshnessTargetScopeConfiguration{}, err
+		return TargetScope{}, err
 	}
-	services, err := normalizeAWSFreshnessList(target.AllowedServices, "allowed_services", awsruntime.SupportsServiceKind)
+	services, err := normalizeList(target.AllowedServices, "allowed_services", awsruntime.SupportsServiceKind)
 	if err != nil {
-		return awsFreshnessTargetScopeConfiguration{}, err
+		return TargetScope{}, err
 	}
 	target.AllowedRegions = regions
 	target.AllowedServices = services
 	return target, nil
 }
 
-func authorizedAWSFreshnessTargets(
+func authorizedTargets(
 	triggers []freshness.StoredTrigger,
-	scopes []awsFreshnessTargetScopeConfiguration,
+	scopes []TargetScope,
 ) ([]freshness.Target, error) {
 	targetsByKey := make(map[string]freshness.Target, len(triggers))
 	for _, trigger := range triggers {
@@ -157,7 +182,7 @@ func authorizedAWSFreshnessTargets(
 			return nil, err
 		}
 		target := trigger.Target()
-		if !awsFreshnessTargetAuthorized(target, scopes) {
+		if !TargetAuthorized(target, scopes) {
 			return nil, fmt.Errorf("AWS freshness target %q is not authorized for collector instance", target.FreshnessKey())
 		}
 		targetsByKey[target.FreshnessKey()] = target
@@ -174,10 +199,12 @@ func authorizedAWSFreshnessTargets(
 	return targets, nil
 }
 
-func awsFreshnessTargetAuthorized(
-	target freshness.Target,
-	scopes []awsFreshnessTargetScopeConfiguration,
-) bool {
+// TargetAuthorized reports whether a freshness target's account, region, and
+// service kind are all authorized by at least one normalized target scope.
+// The root coordinator uses it to route a claimed trigger to the collector
+// instance that may collect it, so it must stay the same decision the planner
+// itself enforces.
+func TargetAuthorized(target freshness.Target, scopes []TargetScope) bool {
 	for _, candidate := range scopes {
 		if candidate.AccountID != target.AccountID {
 			continue
@@ -193,7 +220,7 @@ func awsFreshnessTargetAuthorized(
 	return false
 }
 
-func awsFreshnessRunID(instance workflow.CollectorInstance, planKey string) string {
+func planRunID(instance workflow.CollectorInstance, planKey string) string {
 	return fmt.Sprintf(
 		"%s:%s:%s:%s",
 		scope.CollectorAWS,
@@ -203,7 +230,7 @@ func awsFreshnessRunID(instance workflow.CollectorInstance, planKey string) stri
 	)
 }
 
-func awsFreshnessRequestedScopeSet(
+func requestedScopeSet(
 	instance workflow.CollectorInstance,
 	targets []freshness.Target,
 ) string {
@@ -235,7 +262,7 @@ func awsFreshnessRequestedScopeSet(
 	return string(encoded)
 }
 
-func awsFreshnessWorkItem(
+func workItem(
 	instance workflow.CollectorInstance,
 	target freshness.Target,
 	runID string,
@@ -273,7 +300,7 @@ func awsFreshnessWorkItem(
 	return item, nil
 }
 
-func normalizeAWSFreshnessList(values []string, field string, accept func(string) bool) ([]string, error) {
+func normalizeList(values []string, field string, accept func(string) bool) ([]string, error) {
 	if len(values) == 0 {
 		return nil, fmt.Errorf("%s is required", field)
 	}
@@ -294,7 +321,7 @@ func normalizeAWSFreshnessList(values []string, field string, accept func(string
 	return cleaned, nil
 }
 
-func isAWSFreshnessAccountID(value string) bool {
+func isAccountID(value string) bool {
 	if len(value) != 12 {
 		return false
 	}

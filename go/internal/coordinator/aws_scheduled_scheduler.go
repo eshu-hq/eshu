@@ -13,6 +13,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/collector/awscloud"
 	"github.com/eshu-hq/eshu/go/internal/collector/awscloud/freshness"
+	"github.com/eshu-hq/eshu/go/internal/coordinator/awsfreshnessplanner"
 	"github.com/eshu-hq/eshu/go/internal/coordinator/plannercontract"
 	"github.com/eshu-hq/eshu/go/internal/facts"
 	"github.com/eshu-hq/eshu/go/internal/scope"
@@ -46,7 +47,7 @@ func (p AWSScheduledWorkPlanner) PlanAWSScheduledWork(
 	if err := validateAWSScheduledPlanRequest(request); err != nil {
 		return workflow.Run{}, nil, err
 	}
-	scopes, err := parseAWSFreshnessTargetScopes(request.Instance.Configuration)
+	scopes, err := awsfreshnessplanner.ParseTargetScopes(request.Instance.Configuration)
 	if err != nil {
 		return workflow.Run{}, nil, err
 	}
@@ -114,7 +115,14 @@ type awsScheduledSkippedTarget struct {
 }
 
 func awsScheduledScanEnabled(raw string) (bool, error) {
-	var decoded awsFreshnessRuntimeConfiguration
+	// Decode the same AWS collector configuration document that
+	// awsfreshnessplanner owns, target_scopes included, so a type-malformed
+	// target_scopes array still fails here exactly as it did before that
+	// document's parser moved into the child package.
+	var decoded struct {
+		TargetScopes         []awsfreshnessplanner.TargetScope `json:"target_scopes"`
+		ScheduledScanEnabled bool                              `json:"scheduled_scan_enabled"`
+	}
 	normalized := strings.TrimSpace(raw)
 	if normalized == "" {
 		normalized = "{}"
@@ -125,7 +133,7 @@ func awsScheduledScanEnabled(raw string) (bool, error) {
 	return decoded.ScheduledScanEnabled, nil
 }
 
-func planAWSScheduledTargets(scopes []awsFreshnessTargetScopeConfiguration) awsScheduledTargetPlan {
+func planAWSScheduledTargets(scopes []awsfreshnessplanner.TargetScope) awsScheduledTargetPlan {
 	byKey := map[string]freshness.Target{}
 	skippedByKey := map[string]awsScheduledSkippedTarget{}
 	for _, targetScope := range scopes {

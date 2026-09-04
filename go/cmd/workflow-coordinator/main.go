@@ -19,6 +19,7 @@ import (
 	// SupportsServiceKind checks accept every service the collector ships.
 	_ "github.com/eshu-hq/eshu/go/internal/collector/awscloud/awsruntime/bindings"
 	"github.com/eshu-hq/eshu/go/internal/coordinator"
+	"github.com/eshu-hq/eshu/go/internal/coordinator/awsfreshnessplanner"
 	"github.com/eshu-hq/eshu/go/internal/coordinator/cicdrun"
 	"github.com/eshu-hq/eshu/go/internal/coordinator/componentextensionplanner"
 	"github.com/eshu-hq/eshu/go/internal/coordinator/gcpplanner"
@@ -204,7 +205,7 @@ func run(parent context.Context) error {
 		SBOMComponentAdvisoryTargetReader: factStore,
 		AWSScheduledPlanner:               coordinator.AWSScheduledWorkPlanner{},
 		AWSFreshnessTriggers:              awsFreshnessStore,
-		AWSFreshnessPlanner:               coordinator.AWSFreshnessWorkPlanner{},
+		AWSFreshnessPlanner:               awsfreshnessplanner.WorkPlanner{},
 		AWSFreshnessEvents:                instruments.AWSFreshnessEvents,
 		GCPFreshnessTriggers:              gcpFreshnessStore,
 		GCPFreshnessEvents:                instruments.GCPFreshnessEvents,

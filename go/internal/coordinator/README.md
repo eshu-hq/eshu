@@ -209,9 +209,9 @@ one enabled bounded scope; invalid configurations fail validation.
   service families (`cloudfront`, `iam`, `route53`) run only in `aws-global`.
   Invalid configured pairings are recorded in the workflow run
   `requested_scope_set.skipped_targets` payload with a stable reason.
-- `AWSFreshnessWorkPlanner` — plans targeted AWS collection runs from claimed
-  freshness triggers. Each unique `(account_id, region, service_kind)` target
-  becomes one normal AWS collector claim.
+- `AWSFreshnessPlanner` — the root interface implemented by
+  `awsfreshnessplanner.WorkPlanner`; each unique `(account_id, region,
+  service_kind)` target from claimed freshness triggers becomes one AWS claim.
 - `AWSFreshnessTriggerStore` — claim, handed-off, and failed-state operations
   for the coalesced `aws_freshness_triggers` handoff queue.
 - `IncidentFreshnessTriggerStore` — claim, handed-off, and failed-state
@@ -233,7 +233,7 @@ one enabled bounded scope; invalid configurations fail validation.
 - `internal/coordinator/jiraplanner` — Jira membership, privacy, and planning.
 - `internal/coordinator/vaultlive` — Vault metadata plan request and
   deterministic planner implementation.
-- `internal/coordinator/tempoplanner`, `lokiplanner`, `prometheusmimir`, `grafanaplanner`, `gcpplanner`, `ociregistry`, `tfstateplanner`, `componentextensionplanner` — planners;
+- `internal/coordinator/tempoplanner`, `lokiplanner`, `prometheusmimir`, `grafanaplanner`, `gcpplanner`, `ociregistry`, `tfstateplanner`, `componentextensionplanner` — planners; `awsfreshnessplanner` — AWS freshness planner that also owns the `target_scopes` parsing and `TargetAuthorized` decision root shares with the unextracted scheduled AWS planner;
   `componentactivation` — dependency-neutral activation config.
 - `internal/workflow` — `DesiredCollectorInstance`, `CollectorInstance`,
   `Claim`, and default accessors; used throughout `Store` and `Config`.

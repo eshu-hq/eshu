@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/collector/awscloud/freshness"
+	"github.com/eshu-hq/eshu/go/internal/coordinator/awsfreshnessplanner"
 	"github.com/eshu-hq/eshu/go/internal/scope"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
 	"github.com/eshu-hq/eshu/go/internal/workflow"
@@ -60,9 +61,11 @@ type AWSFreshnessTriggerStore interface {
 }
 
 // AWSFreshnessPlanner plans ordinary AWS workflow work from claimed freshness
-// triggers.
+// triggers. Its request type lives in the awsfreshnessplanner child package
+// (issue #6057); awsfreshnessplanner.WorkPlanner satisfies this interface
+// structurally.
 type AWSFreshnessPlanner interface {
-	PlanAWSFreshnessWork(context.Context, AWSFreshnessPlanRequest) (workflow.Run, []workflow.WorkItem, error)
+	PlanAWSFreshnessWork(context.Context, awsfreshnessplanner.PlanRequest) (workflow.Run, []workflow.WorkItem, error)
 }
 
 type awsFreshnessEventCounter interface {
@@ -168,11 +171,11 @@ func findAWSFreshnessInstance(
 		if !shouldScheduleAWSFreshness(instance) {
 			continue
 		}
-		scopes, err := parseAWSFreshnessTargetScopes(instance.Configuration)
+		scopes, err := awsfreshnessplanner.ParseTargetScopes(instance.Configuration)
 		if err != nil {
 			continue
 		}
-		if awsFreshnessTargetAuthorized(trigger.Target(), scopes) {
+		if awsfreshnessplanner.TargetAuthorized(trigger.Target(), scopes) {
 			return instance, true
 		}
 	}
@@ -190,7 +193,7 @@ func (s Service) handoffAWSFreshnessAssignment(
 	observedAt time.Time,
 	assignment awsFreshnessAssignment,
 ) error {
-	run, items, err := s.AWSFreshnessPlanner.PlanAWSFreshnessWork(ctx, AWSFreshnessPlanRequest{
+	run, items, err := s.AWSFreshnessPlanner.PlanAWSFreshnessWork(ctx, awsfreshnessplanner.PlanRequest{
 		Instance:   assignment.instance,
 		Triggers:   assignment.triggers,
 		ObservedAt: observedAt,
