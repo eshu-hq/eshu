@@ -795,6 +795,17 @@ coverage:
   - {surface: projection:incident_repository_correlation, scenario: go_test, scenario_type: cost, ref: go/internal/replay/costcounting/incident_repository_correlation_cost_test.go, proof_gate: go-test-race}
   - {surface: projection:package_source_correlation, scenario: go_test, scenario_type: cost, ref: go/internal/replay/costcounting/package_source_correlation_cost_test.go, proof_gate: go-test-race}
   - {surface: projection:reducer_derived_findings, scenario: go_test, scenario_type: cost, ref: go/internal/replay/costcounting/multi_cloud_runtime_drift_cost_test.go, proof_gate: go-test-race}
+  # config_state_drift (#6416): closes the coverage gap the removed cost
+  # exemption hid — TerraformConfigStateDriftHandler has a Writer field, the
+  # default production wiring sets it
+  # (go/cmd/reducer/wiring_handlers.go), and
+  # PostgresTerraformConfigStateDriftWriter runs
+  # factwrite.BatchInsertVersionedFacts (one durable Postgres fact per
+  # admitted finding) plus the generation-authoritative retire, so the cost
+  # axis bounds that write path (budget 2: one insert chunk + one retire).
+  # CanonicalWrite stays false because that field means a canonical GRAPH
+  # write; it is not the durability flag.
+  - {surface: projection:config_state_drift, scenario: go_test, scenario_type: cost, ref: go/internal/replay/costcounting/terraform_config_state_drift_cost_test.go, proof_gate: go-test-race}
 
 scenario_requirements:
   - {surface: collector:aws, scenario_types: [baseline, fault]}

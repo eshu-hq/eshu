@@ -60,15 +60,17 @@ The C-14 closeout added 15 more scenarios (5 graph writers —
 `service_catalog_correlation`, `security_alert_reconciliation`,
 `supply_chain_impact`, `incident_repository_correlation`,
 `package_source_correlation`, `reducer_derived_findings` via
-`multi_cloud_runtime_drift`), taking the C-7 dashboard to 100%. The Postgres
+`multi_cloud_runtime_drift`, `config_state_drift` via
+`terraform_config_state_drift`), taking the C-7 dashboard to 100%. The Postgres
 writers read `eshu_dp_postgres_query_duration_seconds` observation count via
 `postgres.InstrumentedDB` over a counting fake `ExecQueryer`; helpers for that
 path (`collectAttributedHistogramCount`, `countingExecQueryer`,
 `newInstrumentedReducerDB`) live in `postgres_cost_helpers_test.go`. Per-row
 Postgres writers commit an exact-equality budget encoding known per-row write
 amplification pending a batched-insert migration tracked as a follow-on issue.
-`projection:config_state_drift` is exempted (counter-only terraform domain, no
-reducer write to bound) in `specs/replay-depth-requirements.v1.yaml`.
+`projection:config_state_drift` is covered by `terraform_config_state_drift`
+(#6416; the prior exemption is removed — the domain has a real wired Postgres
+write path to bound).
 
 ## Non-negotiable invariants
 
