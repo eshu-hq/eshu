@@ -66,12 +66,15 @@ func scopedCodeContentGrantRoute(r *http.Request) bool {
 	}
 }
 
-// scopedCodeGraphGrantRoute reports whether a graph-backed code route binds the
-// caller's repository grant inside its own query. Like the content routes
-// above, each resolves the grant before the read and returns an empty page for
-// a grantless scoped caller without touching a backend.
+// scopedCodeGraphGrantRoute reports whether a graph-backed code route is bound
+// to the caller's repository grant before it reads. Like the content routes
+// above, each resolves the grant first and returns an empty page for a
+// grantless scoped caller without touching a backend.
 //
-// Per route, the binding is:
+// Most of these bind the grant inside the query itself. One does not:
+// call-graph metrics is bound by a mandatory selector the router already
+// resolved through the grant, and deliberately keeps a single query text for
+// every caller. Per route, the binding is:
 //
 //   - POST /api/v0/code/dead-code, /dead-code/investigate, and
 //     /dead-code/cross-repo -- CodeHandler.deadCodeCandidateRows
@@ -80,14 +83,26 @@ func scopedCodeContentGrantRoute(r *http.Request) bool {
 //     and its graph backend gains the `r.id IN $allowed_*` predicate on the
 //     Repository anchor (buildDeadCodeGraphCypherForLabel, code_dead_code.go);
 //     every probe downstream is keyed on entity ids that read already returned.
-//     cross-repo additionally keeps its consumer-side post-filter,
-//     filterCrossRepoDeadCodeEvidence.
-//   - POST /api/v0/code/call-graph/metrics -- callGraphMetricsEdgesCypher
-//     (code_call_graph_metrics.go) carries the grant on both CALLS endpoints.
-//     repo_id is mandatory on this route and the selector already resolves it
-//     through the grant, so the predicate is defense in depth and provably
-//     row-set-neutral; the empty-grant refusal in callGraphMetricsData is the
-//     part that bites when the read is reached without the selector.
+//     Two of those probes bind the grant again on the consumer side, because a
+//     consumer lives outside the producer's repository by definition: the
+//     incoming-edge probe projects it per row as in_grant
+//     (buildDeadCodeScopedIncomingBatchProbeCypher,
+//     code_dead_code_candidate_entity.go), and cross-repo binds it in the
+//     consumer-evidence page read ahead of that read's LIMIT
+//     (crossRepoDeadCodeConsumerReadPlan, code_dead_code_cross_repo_filter.go)
+//     on top of the Go-side filterCrossRepoDeadCodeEvidence.
+//   - POST /api/v0/code/call-graph/metrics -- bound by its mandatory repo_id,
+//     not by a predicate in its query. repo_id is required by
+//     callGraphMetricsRequest.validate, and applyRepositorySelectorForCapability
+//     resolves it against the caller's grant and rejects an ungranted one with
+//     400 before the handler body runs. callGraphMetricsEdgesCypher
+//     (code_call_graph_metrics.go) therefore carries no grant of its own: it
+//     anchors both CALLS endpoints on {repo_id: $repo_id} and nothing else, so
+//     every caller runs the one query text the plan manifest pins for
+//     QP-CALL-GRAPH-HUBS and QP-CALL-GRAPH-RECURSIVE. The empty-grant refusal in
+//     callGraphMetricsData is what bites when the read is reached without the
+//     selector: a grantless scoped caller gets the empty response without
+//     touching the graph.
 //   - POST /api/v0/code/quality/inspect -- buildCodeQualityCypher
 //     (code_quality.go) appends the grant to the same MATCH-attached WHERE its
 //     optional filters use, so it lands before the SKIP/LIMIT.

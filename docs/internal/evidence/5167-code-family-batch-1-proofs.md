@@ -61,6 +61,43 @@ on that: this route's binding is its selector, not its query text.
 | `TestCrossRepoDeadCodeConsumerSelectorSurvivesABusyGrantedRepository` | `consumer_evidence_truncated` in the `unknown` bucket for a symbol the requested consumer proves live, exit `1` | `ok internal/query 4.270s`, exit `0` |
 | `TestCrossRepoDeadCodeConsumerReadPlan` (6) | new coverage of the six read shapes, no prior red | `ok internal/query 4.270s`, exit `0` |
 | `TestDeadCodeIncomingEntityIDsHiddenOnlyEntryStillRunsTheLegacyProbe` | `legacy incoming calls = 0, want 1`, exit `1` | `ok internal/query 1.316s`, exit `0` |
+| every build tag in `internal/query`, vetted one tag at a time | `vet: code_complexity_grant_nornicdb_live_test.go:56:49: undefined: ptrToCodeGrantAuthContext`, exit `1` on `live_nornicdb_complexity_grant` | twelve tags, exit `0` each |
+| `TestLiveNornicDBComplexityList*` (2, live, run by hand) | did not compile on this branch, so it could not run at all | `ok internal/query 1.228s`, exit `0` |
+
+### The tagged-test sweep
+
+A `//go:build live_*` file is invisible to `go build`, `go vet` and `go test`
+under the default tag set, so a helper deleted somewhere else in the package
+breaks it silently and stays broken through any number of green CI runs. That
+is what happened here: `let the call-graph routes keep one edge query for every
+caller` removed `ptrToCodeGrantAuthContext` along with the test that used it,
+and `code_complexity_grant_nornicdb_live_test.go` — the live NornicDB proof
+behind BITES row 11 — stopped compiling. Nothing reported it, because nothing in
+`.github/`, `scripts/` or the Makefile builds those tags.
+
+The sweep is one `go vet` per tag, and the tag list comes from the files
+themselves rather than from memory:
+
+```bash
+cd go
+for tag in $(rg -o --no-filename '^//go:build \S+' internal/query | sed 's|^//go:build ||' | sort -u); do
+  go vet -tags "$tag" ./internal/query || echo "BROKEN: ${tag}"
+done
+```
+
+On this branch that is twelve tags, and all twelve exit `0`. Seven are the
+`live_*` backend proofs — `live_global_name_comparison`,
+`live_import_cycle_proof`, `live_infra_scope_shape`,
+`live_nornicdb_complexity_grant`, `live_nornicdb_dead_code_incoming`,
+`live_nornicdb_relationships_proof`, `live_story_property_proof`. The other five
+carry the same exposure and are swept for the same reason:
+`call_graph_metrics_slo_live`, `graph_entity_inventory_slo_live`, `integration`,
+`queryplan_profile_live`, `resource_selector_slo_live`. Taking the list from the
+files rather than naming the tags is the point — a tag added later is swept
+without anyone remembering to add it.
+
+Run the sweep after any rebase and after any helper deletion in this package. A
+tagged proof that does not compile is a proof nobody can rerun.
 
 Unscoped counterparts pin the other direction — a shared-key caller that names
 no repository keeps its query text and row set:
