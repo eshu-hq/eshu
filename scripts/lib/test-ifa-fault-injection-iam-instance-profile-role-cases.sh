@@ -37,7 +37,7 @@ test_ifa_iam_instance_profile_role_intent_lock_is_fail_closed() (
 	# 60-iteration timeout path runs instantly instead of taking 15 seconds.
 	psql() { :; }
 	sleep() { :; }
-	ifa_det_pg() { printf '%s\n' "${lock_count_output}"; }
+	ifa_det_pg() { printf '%s\n' "$*" >>"${log_dir}/queries.log"; printf '%s\n' "${lock_count_output}"; }
 
 	use_compose=0
 	ESHU_POSTGRES_DSN="postgresql://unused"
@@ -54,6 +54,8 @@ test_ifa_iam_instance_profile_role_intent_lock_is_fail_closed() (
 	ifa_iam_instance_profile_role_start_fact_records_lock nolock lock_holder_pid || rc=$?
 	[[ "${rc}" -ne 0 ]] \
 		|| fail "ifa_iam_instance_profile_role_start_fact_records_lock returned 0 with no granted lock; the kill cell would then kill an unblocked handler and its non-vacuity claim would be a race"
+	rg --quiet -- "blocker_snapshot" "${log_dir}/queries.log" \
+		|| fail "ifa_iam_instance_profile_role_start_fact_records_lock exhausted its window without snapshotting the fact_records blockers; the live killworkerkubernetesnamespaceenvironment failure named nothing"
 
 	# The lock is granted on the first poll.
 	lock_count_output=" 1 "

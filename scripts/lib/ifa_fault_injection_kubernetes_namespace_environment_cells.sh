@@ -80,6 +80,15 @@ ifa_kubernetes_namespace_environment_start_fact_records_lock() {
 		fi
 		sleep 0.25
 	done
+	# Exhausted without a grant: snapshot who holds or waits on
+	# fact_records before reporting failure, so the next reader sees the
+	# blocker instead of a bare timeout. The live
+	# killworkerkubernetesnamespaceenvironment run died here with the
+	# projector mid-sweep and named nothing.
+	printf '%s: fact_records lock blockers at acquisition failure:\n' "${cell}"
+	ifa_det_pg "${FAULT_COMPOSE_PROJECT}" "${use_compose}" "${ESHU_POSTGRES_DSN}" \
+		"SELECT 'blocker_snapshot' AS snapshot_kind, a.application_name, l.locktype, l.mode, l.granted, a.state, left(a.query, 120) AS query FROM pg_locks l JOIN pg_stat_activity a ON a.pid = l.pid WHERE l.relation = 'fact_records'::regclass ORDER BY 2, 3;" \
+		"${compose_file}" 2>/dev/null | sed 's/^/  /' || true
 	return 1
 }
 
