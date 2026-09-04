@@ -18,7 +18,7 @@ import (
 //
 // It is the single decode site for the security_alert.repository_alert kind on
 // the reducer side. Both consumers of this fact kind decode through here:
-// extractProviderSecurityAlerts (feeding the security-alert reconciliation read
+// ExtractProviderSecurityAlerts (feeding the security-alert reconciliation read
 // surface via BuildSecurityAlertReconciliations, and the supply-chain-impact
 // seeder via appendSecurityAlertImpactFindings). A missing required field is
 // routed through partitionDecodeFailures so it dead-letters as a per-fact
