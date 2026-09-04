@@ -154,17 +154,39 @@ func (h *CodeHandler) deadCodeIncomingGroups(
 	return content, entityIDsByRepo
 }
 
+// missingDeadCodeIncomingEntityIDs names the entities the materialized
+// reachability read did not answer for, so the producer-anchored legacy probe
+// still runs for them when the snapshot is unavailable or truncated.
+//
+// An entity whose only entry is the hidden-consumer marker counts as missing.
+// The marker records that a consumer sits outside the caller's grant; it is not
+// an incoming edge, and it says nothing about the granted same-repo callers the
+// legacy probe reads. Reading it as coverage skipped that probe, so a strong
+// granted edge went unread and the candidate stayed ambiguous instead of being
+// dropped as reachable. Merging the legacy edge in keeps the marker --
+// mergeStrongestDeadCodeIncomingEdge unions it -- so the answer is still
+// unknown when the hidden consumer is the only thing that can decide it.
 func missingDeadCodeIncomingEntityIDs(
 	entityIDs []string,
 	incoming map[string]deadCodeIncomingEdge,
 ) []string {
 	missing := make([]string, 0, len(entityIDs))
 	for _, entityID := range entityIDs {
-		if _, ok := incoming[entityID]; !ok {
+		edge, ok := incoming[entityID]
+		if !ok || deadCodeIncomingEdgeIsHiddenOnly(edge) {
 			missing = append(missing, entityID)
 		}
 	}
 	return missing
+}
+
+// deadCodeIncomingEdgeIsHiddenOnly reports whether an entry carries the
+// hidden-consumer marker and nothing else. The marker is built as a bare
+// deadCodeIncomingEdge{HiddenConsumer: true}, so it has no resolution method and
+// no confidence; a real edge always carries a confidence, because an edge with
+// no recorded method still resolves to codeprovenance.LegacyConfidence.
+func deadCodeIncomingEdgeIsHiddenOnly(edge deadCodeIncomingEdge) bool {
+	return edge.HiddenConsumer && edge.Method == "" && edge.MaxConfidence == 0
 }
 
 // mergeStrongestDeadCodeIncomingEdge keeps the highest-confidence edge seen for
