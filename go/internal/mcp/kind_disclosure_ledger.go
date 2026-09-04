@@ -22,7 +22,8 @@ import (
 // azure_identity_observation (go/internal/storage/postgres/cloud_identity_policy_evidence.go:85),
 // azure_resource_change (go/internal/storage/postgres/cloud_resource_change_evidence.go:90),
 // and vulnerability.source_snapshot
-// (go/internal/query/supplychain/impact/supply_chain_impact_readiness_postgres_query.go:179).
+// (go/internal/query/supplychain/impact/supply_chain_impact_readiness_postgres_query.go,
+// vulnerability_source_snapshot_active CTE).
 // All four are removed from this ledger (kind_real_consumer_dispatch.go now
 // matches token.NEQ; kind_real_consumer_postgres_reader.go and
 // kind_real_consumer_query_slice.go are the two round-2 additions that would
