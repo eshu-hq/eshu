@@ -8,8 +8,9 @@ const openAPIPathsCodeDeadCodeScan = `
       "post": {
         "tags": ["code"],
         "summary": "Find dead code",
-        "description": "Finds graph-backed dead-code candidates, applies the current default entrypoint/test/generated exclusions plus modeled language roots such as Go public-package exports, C parser-backed roots, C# parser-backed roots, Dart parser-backed roots, Haskell parser-backed roots, Kotlin parser-backed roots, Elixir parser-backed roots, Perl parser-backed roots, PHP parser-backed roots, and Groovy Jenkins roots, and classifies returned candidates without changing the derived truth envelope.",
+        "description": "Finds graph-backed dead-code candidates, applies the current default entrypoint/test/generated exclusions plus modeled language roots such as Go public-package exports, C parser-backed roots, C# parser-backed roots, Dart parser-backed roots, Haskell parser-backed roots, Kotlin parser-backed roots, Elixir parser-backed roots, Perl parser-backed roots, PHP parser-backed roots, and Groovy Jenkins roots, and classifies returned candidates without changing the derived truth envelope. Scoped tokens receive only granted repositories; an ungranted repository selector is rejected with HTTP 400. A candidate whose only incoming edges come from repositories outside a scoped token's grant is kept and marked ambiguous with the permission_hidden_consumer reason, never reported as unused and never silently dropped.",
         "operationId": "findDeadCode",
+        "x-scoped-token-support": true,
         "requestBody": {
           "required": true,
           "content": {
@@ -32,6 +33,7 @@ const openAPIPathsCodeDeadCodeScan = `
           }
         },
         "responses": {
+          "403": {"$ref": "#/components/responses/Forbidden"},
           "503": {"$ref": "#/components/responses/ServiceUnavailable"},
           "504": {"$ref": "#/components/responses/GatewayTimeout"},
           "200": {

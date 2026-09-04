@@ -12,9 +12,13 @@ import (
 // TestScopedHTTPRoute_Ask verifies the scoped-token allowlist for the Ask Eshu
 // endpoint: POST /api/v0/ask is permitted (its tenant scoping is enforced
 // transitively by re-dispatching inner tool calls through this same gate), while
-// a non-orchestration whole-graph route such as code/dead-code (still in the
+// a non-orchestration whole-graph route such as code/bundles (still in the
 // #5167 pendingRowFilteringRoutes backlog, owned by a different family
-// workstream) is not. GET /api/v0/ecosystem/overview moved off this negative
+// workstream) is not. POST /api/v0/code/dead-code was this negative example
+// until the #5167 code family bound its candidate scan to the caller's grant
+// (deadCodeCandidateRows); code/bundles replaces it because Package nodes
+// carry no repository key at all, so it has no bindable selector yet.
+// GET /api/v0/ecosystem/overview moved off this negative
 // list in the #5167 F-6 W6 cloud/aws family workstream: getEcosystemOverview
 // now restricts every count to the caller's granted repositories
 // (runEcosystemOverviewCounts), so it is a real allowlist member -- see
@@ -28,9 +32,9 @@ func TestScopedHTTPRoute_Ask(t *testing.T) {
 		want   bool
 	}{
 		{http.MethodPost, "/api/v0/ask", true},
-		{http.MethodGet, "/api/v0/ask", false},             // only POST is the ask endpoint
-		{http.MethodPost, "/api/v0/code/dead-code", false}, // whole-graph, not allowlisted
-		{http.MethodGet, "/api/v0/code/dead-code", false},  // not allowlisted under any method
+		{http.MethodGet, "/api/v0/ask", false},           // only POST is the ask endpoint
+		{http.MethodPost, "/api/v0/code/bundles", false}, // whole-graph, not allowlisted
+		{http.MethodGet, "/api/v0/code/bundles", false},  // not allowlisted under any method
 	}
 	for _, c := range cases {
 		req := httptest.NewRequest(c.method, c.path, nil)

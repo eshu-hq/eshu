@@ -105,6 +105,8 @@ func symbolSearchFilters(req symbolSearchRequest) ([]string, []any, int) {
 		filters = append(filters, fmt.Sprintf("repo_id = $%d", nextArg))
 		args = append(args, req.RepoID)
 		nextArg++
+	} else {
+		filters, args, nextArg = appendRepositoryGrantFilter(filters, args, nextArg, req.AllowedRepositoryIDs)
 	}
 	if language := strings.TrimSpace(req.Language); language != "" {
 		languageVariants := normalizedLanguageVariants(language)

@@ -34,6 +34,39 @@ func TestBuildDeadCodeGraphCypherKeepsCandidateReadSimple(t *testing.T) {
 	}
 }
 
+// TestBuildDeadCodeGraphCypherKeepsTheScopedVariantSimple runs the same
+// NornicDB-safety policy over the shape a scoped caller actually gets.
+// The test-only buildDeadCodeGraphCypher helper hard-codes an unscoped filter,
+// so the test above never sees the grant predicate; this one adds it and checks
+// that it lands in the MATCH-attached WHERE with no extra clause between the
+// anchor and the RETURN, which is the shape the pinned build evaluates
+// faithfully.
+func TestBuildDeadCodeGraphCypherKeepsTheScopedVariantSimple(t *testing.T) {
+	t.Parallel()
+
+	access := repositoryAccessFilter{AllowedRepositoryIDs: []string{"repo://tenant-a/granted-service"}}
+	for _, hasRepoID := range []bool{true, false} {
+		cypher := buildDeadCodeGraphCypherForLabel(hasRepoID, "Function", "go", access)
+		grant := "(r.id IN $allowed_repository_ids OR r.id IN $allowed_scope_ids)"
+		if !strings.Contains(cypher, grant) {
+			t.Fatalf("scoped dead-code cypher (has_repo_id=%t) is missing %q:\n%s", hasRepoID, grant, cypher)
+		}
+		where := strings.Index(cypher, "WHERE ")
+		ret := strings.Index(cypher, "RETURN ")
+		if where < 0 || ret < 0 || where > ret {
+			t.Fatalf("scoped dead-code cypher (has_repo_id=%t) has no WHERE before its RETURN:\n%s", hasRepoID, cypher)
+		}
+		if strings.Index(cypher, grant) > ret {
+			t.Fatalf("the grant predicate sits after the RETURN (has_repo_id=%t):\n%s", hasRepoID, cypher)
+		}
+		for _, notWant := range []string{"OPTIONAL MATCH", "WITH "} {
+			if strings.Contains(cypher[:ret], notWant) {
+				t.Fatalf("scoped dead-code cypher (has_repo_id=%t) puts %q between the anchor and the RETURN:\n%s", hasRepoID, notWant, cypher)
+			}
+		}
+	}
+}
+
 func TestBuildDeadCodeIncomingProbeCypherUsesBatchedExactEntityLookup(t *testing.T) {
 	t.Parallel()
 

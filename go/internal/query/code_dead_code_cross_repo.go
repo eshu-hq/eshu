@@ -7,7 +7,6 @@ import (
 	"context"
 	"fmt"
 	"net/http"
-	"slices"
 	"strings"
 	"time"
 
@@ -46,12 +45,20 @@ type crossRepoDeadCodeEvidence struct {
 	Reason           string
 }
 
+// crossRepoDeadCodeEvidenceStore reads active consumer evidence for producer
+// candidates. reads names the consumer repositories the evidence page is bound
+// to in SQL -- the row cap falls on those, not on a mixed set -- and the grant
+// the ungranted-consumer probe runs against. The second return value is that
+// probe's answer: the producer entities with a consumer outside the grant,
+// which is how the handler can still answer "there is a consumer you cannot
+// see" instead of "dead" (#5167).
 type crossRepoDeadCodeEvidenceStore interface {
 	CrossRepoDeadCodeConsumerEvidence(
 		ctx context.Context,
 		producerRepoID string,
 		entityIDs []string,
-	) (map[string][]crossRepoDeadCodeEvidence, error)
+		reads crossRepoDeadCodeConsumerReads,
+	) (map[string][]crossRepoDeadCodeEvidence, crossRepoDeadCodeHiddenConsumers, error)
 }
 
 type crossRepoDeadCodeScan struct {
@@ -113,10 +120,11 @@ func (h *CodeHandler) handleCrossRepoDeadCode(w http.ResponseWriter, r *http.Req
 		WriteError(w, http.StatusInternalServerError, err.Error())
 		return
 	}
-	evidence, evidenceAvailable, err := h.crossRepoDeadCodeConsumerEvidence(
+	evidence, hiddenConsumers, evidenceAvailable, err := h.crossRepoDeadCodeConsumerEvidence(
 		r.Context(),
 		req.RepoID,
 		deadCodeResultEntityIDs(scan.Active),
+		req.ConsumerRepoIDs,
 	)
 	if err != nil {
 		WriteError(w, http.StatusInternalServerError, err.Error())
@@ -124,7 +132,12 @@ func (h *CodeHandler) handleCrossRepoDeadCode(w http.ResponseWriter, r *http.Req
 	}
 
 	boundaryEvidence := h.crossRepoDeadCodeRepositoryBoundaryEvidence(r.Context(), req.RepoID)
-	buckets := h.bucketCrossRepoDeadCodeResults(r.Context(), req, scan, evidence, boundaryEvidence, evidenceAvailable)
+	buckets := h.bucketCrossRepoDeadCodeResults(r.Context(), req, scan, crossRepoDeadCodeConsumerEvidenceSet{
+		Evidence:        evidence,
+		HiddenConsumers: hiddenConsumers,
+		Boundary:        boundaryEvidence,
+		Available:       evidenceAvailable,
+	})
 	WriteSuccess(w, r, http.StatusOK, map[string]any{
 		"repo_id":                        req.RepoID,
 		"language":                       req.Language,
@@ -239,32 +252,70 @@ func (h *CodeHandler) scanCrossRepoDeadCodeCandidates(
 	return scan, nil
 }
 
+// crossRepoDeadCodeConsumerEvidenceSet is everything the bucketing pass needs
+// about consumers: the grant-bound evidence page per producer entity, the
+// producer entities the ungranted-consumer probe flagged, the
+// repository-boundary fallback, and whether the content store answered at all.
+//
+// HiddenConsumers carries no consumer identity and no consumer count -- only
+// which producer entities have a consumer outside the caller's grant. A
+// flagged entity adds one to that entity's hidden count, which is what turns
+// its answer into unknown_needs_evidence with permission_hidden_consumer
+// instead of dead. The count is deliberately not a total: the route needs the
+// yes/no, and a total would cost the enumeration this probe exists to avoid.
+//
+// A request that named a consumer selector gets an empty set, because the probe
+// is not run for it. That is the structural half of the rule the selector needs:
+// a consumer the caller did not ask about must not override the evidence of one
+// it did, and the probe cannot report one if it never runs.
+type crossRepoDeadCodeConsumerEvidenceSet struct {
+	Evidence        map[string][]crossRepoDeadCodeEvidence
+	HiddenConsumers crossRepoDeadCodeHiddenConsumers
+	Boundary        []crossRepoDeadCodeEvidence
+	Available       bool
+}
+
 func (h *CodeHandler) crossRepoDeadCodeConsumerEvidence(
 	ctx context.Context,
 	producerRepoID string,
 	entityIDs []string,
-) (map[string][]crossRepoDeadCodeEvidence, bool, error) {
+	consumerRepoIDs []string,
+) (map[string][]crossRepoDeadCodeEvidence, crossRepoDeadCodeHiddenConsumers, bool, error) {
 	store, ok := h.Content.(crossRepoDeadCodeEvidenceStore)
 	if !ok {
-		return map[string][]crossRepoDeadCodeEvidence{}, false, nil
+		return map[string][]crossRepoDeadCodeEvidence{}, crossRepoDeadCodeHiddenConsumers{}, false, nil
 	}
-	evidence, err := store.CrossRepoDeadCodeConsumerEvidence(ctx, producerRepoID, entityIDs)
+	// The consumer side takes the caller's own grant, not the producer anchor:
+	// producerRepoID is already grant-resolved by the selector, but the
+	// consumers this read returns belong to other repositories.
+	reads, ok := crossRepoDeadCodeConsumerReadPlan(codeGrantAccessFilter(ctx), consumerRepoIDs)
+	if !ok {
+		// Nothing this caller may read can answer the question they asked, and
+		// an unbounded read is not the fallback. Reporting the evidence as
+		// unavailable keeps every candidate at unknown_needs_evidence instead
+		// of letting an unread consumer become "dead".
+		return map[string][]crossRepoDeadCodeEvidence{}, crossRepoDeadCodeHiddenConsumers{}, false, nil
+	}
+	evidence, hidden, err := store.CrossRepoDeadCodeConsumerEvidence(
+		ctx,
+		producerRepoID,
+		entityIDs,
+		reads,
+	)
 	if err != nil {
-		return nil, true, err
+		return nil, nil, true, err
 	}
-	return evidence, true, nil
+	return evidence, hidden, true, nil
 }
 
 func (h *CodeHandler) bucketCrossRepoDeadCodeResults(
 	ctx context.Context,
 	req crossRepoDeadCodeRequest,
 	scan crossRepoDeadCodeScan,
-	evidenceByEntity map[string][]crossRepoDeadCodeEvidence,
-	boundaryEvidence []crossRepoDeadCodeEvidence,
-	evidenceAvailable bool,
+	consumers crossRepoDeadCodeConsumerEvidenceSet,
 ) map[string]any {
 	allowedConsumers := crossRepoDeadCodeConsumerSet(req.ConsumerRepoIDs)
-	access := repositoryAccessFilterFromContext(ctx)
+	access := codeGrantAccessFilter(ctx)
 	buckets := map[string]any{
 		"dead":             []any{},
 		"live_by_consumer": []any{},
@@ -274,18 +325,39 @@ func (h *CodeHandler) bucketCrossRepoDeadCodeResults(
 	for _, result := range scan.Active {
 		entityID := StringVal(result, "entity_id")
 		row := cloneCrossRepoDeadCodeResult(result)
-		visible, hidden := filterCrossRepoDeadCodeEvidence(evidenceByEntity[entityID], allowedConsumers, access)
-		if len(visible) == 0 && len(hidden) == 0 {
-			boundaryVisible, boundaryHidden := filterCrossRepoDeadCodeEvidence(boundaryEvidence, allowedConsumers, access)
+		visible, hidden := filterCrossRepoDeadCodeEvidence(consumers.Evidence[entityID], allowedConsumers, access)
+		// The probe already applied the grant in SQL and reports no consumer
+		// identity, so an entity it flagged adds exactly one to the hidden
+		// count. It runs only for a request that named no consumer selector, so
+		// a consumer the caller excluded can never be what raises this count
+		// and turn a symbol a requested consumer proves live into
+		// unknown_needs_evidence.
+		hiddenCount := len(hidden)
+		if consumers.HiddenConsumers.has(entityID) {
+			hiddenCount++
+		}
+		if len(visible) == 0 && hiddenCount == 0 {
+			boundaryVisible, boundaryHidden := filterCrossRepoDeadCodeEvidence(consumers.Boundary, allowedConsumers, access)
 			visible = append(visible, boundaryVisible...)
-			hidden = append(hidden, boundaryHidden...)
+			hiddenCount += len(boundaryHidden)
 		}
 		row["consumer_evidence"] = crossRepoDeadCodeEvidenceMaps(visible)
-		if len(hidden) > 0 {
-			row["hidden_consumer_evidence_count"] = len(hidden)
+		if hiddenCount > 0 {
+			row["hidden_consumer_evidence_count"] = hiddenCount
 		}
 
-		reasons := crossRepoDeadCodeUnknownReasons(row, visible, hidden, evidenceAvailable)
+		// A strong granted consumer outranks a hidden one, the order
+		// applyDeadCodeIncomingEdges (code_dead_code_scan.go) applies on the
+		// other two dead-code routes; the invariant is in this package's
+		// AGENTS.md. The count stays on the row, so a live answer still says a
+		// consumer is hidden. Only the count is outranked -- every other reason,
+		// consumer_evidence_truncated included, still forces unknown.
+		strongLiveEvidence := crossRepoDeadCodeHasStrongLiveEvidence(visible)
+		unknownHiddenCount := hiddenCount
+		if strongLiveEvidence {
+			unknownHiddenCount = 0
+		}
+		reasons := crossRepoDeadCodeUnknownReasons(row, visible, unknownHiddenCount, consumers.Available)
 		if len(reasons) > 0 {
 			row["classification"] = "unknown_needs_evidence"
 			row["needs_evidence_reasons"] = reasons
@@ -293,7 +365,7 @@ func (h *CodeHandler) bucketCrossRepoDeadCodeResults(
 			buckets["unknown"] = append(buckets["unknown"].([]any), row)
 			continue
 		}
-		if crossRepoDeadCodeHasStrongLiveEvidence(visible) {
+		if strongLiveEvidence {
 			row["classification"] = "live_by_consumer"
 			row["confidence_label"] = crossRepoDeadCodeStrongestConfidenceLabel(visible)
 			buckets["live_by_consumer"] = append(buckets["live_by_consumer"].([]any), row)
@@ -308,68 +380,6 @@ func (h *CodeHandler) bucketCrossRepoDeadCodeResults(
 		buckets["dead"] = append(buckets["dead"].([]any), row)
 	}
 	return buckets
-}
-
-func filterCrossRepoDeadCodeEvidence(
-	evidence []crossRepoDeadCodeEvidence,
-	allowedConsumers map[string]struct{},
-	access repositoryAccessFilter,
-) ([]crossRepoDeadCodeEvidence, []crossRepoDeadCodeEvidence) {
-	visible := make([]crossRepoDeadCodeEvidence, 0, len(evidence))
-	hidden := make([]crossRepoDeadCodeEvidence, 0)
-	for _, row := range evidence {
-		if row.NeedsEvidence && row.ConsumerRepoID == "" {
-			visible = append(visible, row)
-			continue
-		}
-		if len(allowedConsumers) > 0 {
-			if _, ok := allowedConsumers[row.ConsumerRepoID]; !ok {
-				continue
-			}
-		}
-		if !access.AllowsRepositoryID(row.ConsumerRepoID) {
-			hidden = append(hidden, row)
-			continue
-		}
-		visible = append(visible, row)
-	}
-	return visible, hidden
-}
-
-func crossRepoDeadCodeUnknownReasons(
-	row map[string]any,
-	evidence []crossRepoDeadCodeEvidence,
-	hidden []crossRepoDeadCodeEvidence,
-	evidenceAvailable bool,
-) []string {
-	reasons := make([]string, 0)
-	if !evidenceAvailable {
-		reasons = append(reasons, "cross_repo_evidence_unavailable")
-	}
-	if len(hidden) > 0 {
-		reasons = append(reasons, "permission_hidden_consumer")
-	}
-	if row["classification"] == deadCodeClassificationAmbiguous {
-		reasons = append(reasons, "candidate_ambiguous")
-	}
-	for _, item := range evidence {
-		if item.NeedsEvidence || item.Ambiguous || !strings.EqualFold(item.GenerationStatus, "active") {
-			reason := strings.TrimSpace(item.Reason)
-			if reason == "" && !strings.EqualFold(item.GenerationStatus, "active") {
-				reason = "stale_generation"
-			}
-			if reason == "" {
-				reason = "needs_evidence"
-			}
-			reasons = append(reasons, reason)
-			continue
-		}
-		if item.Confidence <= codeprovenance.Confidence(codeprovenance.MethodRepoUniqueName) {
-			reasons = append(reasons, "ambiguous_consumer_ownership")
-		}
-	}
-	slices.Sort(reasons)
-	return slices.Compact(reasons)
 }
 
 func crossRepoDeadCodeHasStrongLiveEvidence(evidence []crossRepoDeadCodeEvidence) bool {

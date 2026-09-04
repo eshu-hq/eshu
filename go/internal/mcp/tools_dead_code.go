@@ -6,7 +6,7 @@ package mcp
 func deadCodeInvestigationTool() ToolDefinition {
 	return ToolDefinition{
 		Name:        "investigate_dead_code",
-		Description: "Investigate dead-code candidates with coverage, language maturity, exactness blockers, candidate buckets, source handles, and conservative ambiguity for JavaScript/TypeScript precision risk.",
+		Description: "Investigate dead-code candidates with coverage, language maturity, exactness blockers, candidate buckets, source handles, and conservative ambiguity for JavaScript/TypeScript precision risk. Scoped tokens receive only granted repositories; an ungranted repository selector is rejected. A candidate whose only incoming edges come from repositories outside a scoped token's grant is kept and marked ambiguous with the permission_hidden_consumer reason, never reported as unused and never silently dropped.",
 		InputSchema: map[string]any{
 			"type": "object",
 			"properties": map[string]any{

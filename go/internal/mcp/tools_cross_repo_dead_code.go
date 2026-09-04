@@ -6,7 +6,7 @@ package mcp
 func crossRepoDeadCodeTool() ToolDefinition {
 	return ToolDefinition{
 		Name:        "find_cross_repo_dead_code",
-		Description: "Find dead-code candidates across an explicit producer repository and classify symbols kept live by deterministic consumer repository evidence. Ambiguous ownership or missing evidence is returned as unknown instead of dead.",
+		Description: "Find dead-code candidates across an explicit producer repository and classify symbols kept live by deterministic consumer repository evidence. Ambiguous ownership or missing evidence is returned as unknown instead of dead. Scoped tokens receive only granted repositories; an ungranted repository selector is rejected.",
 		InputSchema: map[string]any{
 			"type": "object",
 			"properties": map[string]any{

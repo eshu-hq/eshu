@@ -6,7 +6,7 @@ package mcp
 func codeTopicInvestigationTool() ToolDefinition {
 	return ToolDefinition{
 		Name:        "investigate_code_topic",
-		Description: "Investigate a broad code topic or behavior with ranked files, symbols, coverage metadata, truncation, and exact next-call handles for source reads and relationship stories.",
+		Description: "Investigate a broad code topic or behavior with ranked files, symbols, coverage metadata, truncation, and exact next-call handles for source reads and relationship stories. Scoped tokens receive only granted repositories; an ungranted repository selector is rejected.",
 		InputSchema: map[string]any{
 			"type": "object",
 			"properties": map[string]any{

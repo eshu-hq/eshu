@@ -692,6 +692,7 @@ func (s *materializedReachabilityIncomingStore) CodeReachabilityIncomingEntityID
 	_ context.Context,
 	repoID string,
 	entityIDs []string,
+	_ []string,
 ) (map[string]deadCodeIncomingEdge, error) {
 	s.reachabilityCalls++
 	incoming := make(map[string]deadCodeIncomingEdge)
@@ -722,12 +723,9 @@ func (s *materializedReachabilityIncomingStore) DeadCodeIncomingEntityIDs(
 
 func (f *contentCandidateDeadCodeStore) DeadCodeCandidateRows(
 	_ context.Context,
-	repoID string,
-	label string,
-	language string,
-	limit int,
-	offset int,
+	query deadCodeCandidateQuery,
 ) ([]map[string]any, error) {
+	repoID, label, language, limit, offset := query.RepoID, query.Label, query.Language, query.Limit, query.Offset
 	f.candidateCalls++
 	f.candidateRepoID = repoID
 	f.candidateLabels = append(f.candidateLabels, label)

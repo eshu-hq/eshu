@@ -332,6 +332,13 @@ jobs:
               - 'scripts/lib/test-verify-doc-citations-preparation-cases.sh'
               - 'scripts/lib/gate-diff-base.sh'
               - 'scripts/docs-citations-baseline.txt'
+            taggedbuilds:
+              - '.github/workflows/static-contract-gates.yml'
+              - 'specs/ci-gates.v1.yaml'
+              - 'go/**'
+              - 'scripts/verify-tagged-builds.sh'
+              - 'scripts/test-verify-tagged-builds.sh'
+              - 'scripts/dev/pre-pr.sh'
             measurementcite:
               - '.github/workflows/static-contract-gates.yml'
               - 'specs/ci-gates.v1.yaml'
@@ -441,6 +448,7 @@ jobs:
           append_gate "${{ steps.filter.outputs.maturitydrift }}" "maturitydrift" "Verify maturity-drift-guard gate" "bash scripts/test-verify-maturity-drift-guard.sh" "bash scripts/verify-maturity-drift-guard.sh"
           append_gate "${{ steps.filter.outputs.claudrules }}" "claudrules" "Verify Claude path-scoped rules gate" "bash scripts/test-claude-rules-lint.sh" "bash scripts/dev/claude-rules-lint.sh"
           append_gate "${{ steps.filter.outputs.rootcauseevidence }}" "rootcauseevidence" "Verify root-cause-evidence gate" "bash scripts/test-verify-root-cause-evidence.sh" "bash scripts/verify-root-cause-evidence.sh"
+          append_gate "${{ steps.filter.outputs.taggedbuilds }}" "taggedbuilds" "Verify tagged-builds gate" "bash scripts/test-verify-tagged-builds.sh" "bash scripts/verify-tagged-builds.sh --all"
 
           printf 'matrix={"include":[%s]}\n' "${matrix_items}" >>"${GITHUB_OUTPUT}"
           printf 'any=%s\n' "${any}" >>"${GITHUB_OUTPUT}"

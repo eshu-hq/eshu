@@ -3,7 +3,10 @@
 
 package querycontract
 
-import "sort"
+import (
+	"sort"
+	"strings"
+)
 
 // RepositoryAccessFilter is the scoped-token authorization seam every
 // repository-shaped read path filters through. It carries the caller's
@@ -214,6 +217,88 @@ func (f RepositoryAccessFilter) FilterRepositoryMaps(repos []map[string]any) []m
 		}
 	}
 	return filtered
+}
+
+// GitRepositoryScopePrefix is what the git collector puts in front of a
+// canonical repository id when it names that repository's ingestion scope
+// (gitrepo's IngestionScope.ScopeID, whose PartitionKey and source_key are the
+// bare repository id). It is the one ingestion-scope shape that names a
+// repository, and stripping it is how a scope grant is read back as the
+// repository it owns.
+const GitRepositoryScopePrefix = "git-repository-scope:"
+
+// CanonicalRepositoryIDForScopeID returns the canonical repository id a granted
+// git repository ingestion scope names, or "" for a scope that names something
+// else.
+//
+// The two id forms are not interchangeable at a read's predicate: repository
+// rows carry the canonical id in repo_id and Repository nodes carry it in id,
+// so a scope id compared against either matches nothing. #5052 is that defect
+// in keyword search, where a scope-addressed request returned an empty result
+// set beside a healthy indexed_document_count.
+//
+// The mapping is lexical because the collector builds the scope id that way,
+// and payloadcore, the reducer's supply-chain filter, and the runtime-context
+// store all decode it the same way in the other direction. A repository-ref
+// scope ("...@<ref>") names one ref rather than the repository, and the rows a
+// read would return carry no ref to check it against, so it resolves to ""
+// rather than widening the grant to every ref of that repository.
+func CanonicalRepositoryIDForScopeID(scopeID string) string {
+	rest, ok := strings.CutPrefix(strings.TrimSpace(scopeID), GitRepositoryScopePrefix)
+	if !ok {
+		return ""
+	}
+	if rest = strings.TrimSpace(rest); rest == "" || strings.Contains(rest, "@") {
+		return ""
+	}
+	return rest
+}
+
+// WithCanonicalScopeRepositories returns a copy of f whose repository grant also
+// carries the canonical repository id each granted git repository scope names,
+// so a token granted only an ingestion scope reads the repository that scope
+// owns instead of an empty page.
+//
+// It only ever adds. Resolving in place -- replacing the scope ids with what
+// they decode to -- would empty the id list for a caller whose grants are all
+// non-repository scopes, and an empty list is what the content builders read as
+// "no repository restriction" (see codeContentGrantScope). Growing the list
+// cannot reach that state, and an id that resolves to nothing is inert in every
+// predicate that binds it.
+//
+// Unscoped callers, and scoped callers with no scope grants, are returned
+// unchanged.
+func (f RepositoryAccessFilter) WithCanonicalScopeRepositories() RepositoryAccessFilter {
+	if !f.Scoped() || len(f.AllowedScopeIDs) == 0 {
+		return f
+	}
+	resolved := make([]string, 0, len(f.AllowedScopeIDs))
+	seen := make(map[string]struct{}, len(f.AllowedScopeIDs))
+	for _, scopeID := range f.AllowedScopeIDs {
+		repoID := CanonicalRepositoryIDForScopeID(scopeID)
+		if repoID == "" || ContainsAuthString(f.AllowedRepositoryIDs, repoID) {
+			continue
+		}
+		if _, dup := seen[repoID]; dup {
+			continue
+		}
+		seen[repoID] = struct{}{}
+		resolved = append(resolved, repoID)
+	}
+	if len(resolved) == 0 {
+		return f
+	}
+	widened := f
+	widened.AllowedRepositoryIDs = append(append([]string(nil), f.AllowedRepositoryIDs...), resolved...)
+	widened.AllowedScopeIDs = append([]string(nil), f.AllowedScopeIDs...)
+	widened.Allowed = make(map[string]struct{}, len(f.Allowed)+len(resolved))
+	for id := range f.Allowed {
+		widened.Allowed[id] = struct{}{}
+	}
+	for _, id := range resolved {
+		widened.Allowed[id] = struct{}{}
+	}
+	return widened
 }
 
 // RepositorySearchIDs returns the caller's combined grant set as a sorted

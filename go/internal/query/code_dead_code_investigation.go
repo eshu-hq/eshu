@@ -11,7 +11,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/eshu-hq/eshu/go/internal/codeprovenance"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
 )
 
@@ -335,6 +334,12 @@ func deadCodeInvestigationCleanupReadyAllowed(result map[string]any) bool {
 }
 
 func deadCodeInvestigationAmbiguityReasons(result map[string]any) []string {
+	// The hidden-consumer reason comes first: it says the answer could not be
+	// decided from what the caller may read, which outranks any reason derived
+	// from the rows they can.
+	if deadCodeResultHasHiddenConsumer(result) {
+		return []string{deadCodeHiddenConsumerReason}
+	}
 	if reason, ok := deadCodeWeakIncomingAmbiguityReason(result); ok {
 		return []string{reason}
 	}
@@ -352,20 +357,6 @@ func deadCodeInvestigationAmbiguityReasons(result map[string]any) []string {
 	}
 	slices.Sort(reasons)
 	return reasons
-}
-
-// deadCodeWeakIncomingAmbiguityReason returns the investigation reason string
-// for a candidate that is ambiguous because its only incoming edges were weak
-// (repo_unique_name tier), naming the resolution method that triggered it.
-func deadCodeWeakIncomingAmbiguityReason(result map[string]any) (string, bool) {
-	if !deadCodeResultHasWeakIncomingEdge(result) {
-		return "", false
-	}
-	method := strings.TrimSpace(StringVal(result, deadCodeWeakIncomingMethodKey))
-	if method == "" {
-		method = codeprovenance.MethodRepoUniqueName
-	}
-	return deadCodeWeakIncomingReasonScope + method, true
 }
 
 func attachDeadCodeSourceHandle(result map[string]any) {

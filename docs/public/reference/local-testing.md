@@ -408,6 +408,65 @@ gate's recognized evidence-file locations. See
 the added-lines requirement, the full list of recognized locations, and the
 fixture/vendor/generated exclusions.
 
+### Tagged Build Sweep
+
+`go build`, `go vet` and `go test` all skip a file whose first line is a
+`//go:build` constraint, so nothing in the ordinary lane ever compiles it. A
+helper it calls can be deleted elsewhere in the package and the file simply
+stops compiling, silently, for as long as nobody runs it with its tag on. That
+is not theoretical: a live NornicDB proof in `internal/query` lost a helper to
+an unrelated refactor and stayed uncompilable through a `make pre-pr` run, a
+push, a full CI run, and eight review rounds.
+
+`scripts/verify-tagged-builds.sh` closes that with one `go vet` per distinct
+build constraint. It reads the constraints out of the files rather than from a
+list, so a tag added later is swept without anyone remembering to add it:
+
+```bash
+bash scripts/verify-tagged-builds.sh                  # ./internal/query
+bash scripts/verify-tagged-builds.sh --all            # every tagged package
+bash scripts/verify-tagged-builds.sh ./internal/query ./cmd/reducer
+```
+
+`make pre-pr` runs `--all` whenever the diff touches Go, through the selected
+exactness gates rather than a step of its own: the gate is registered as
+`tagged-builds` at tier `pre-pr`, so `run-selected-gates.sh` picks it for any
+`go/**` diff. CI runs the same pair — mirror then gate — as the
+`Verify tagged-builds gate` row of `static-contract-gates.yml`, registered as
+`tagged-builds` in `specs/ci-gates.v1.yaml`. Its trigger is `go/**` on purpose:
+the change that breaks a tagged file is almost never a change to that file, so
+a narrower trigger would reproduce the defect. The sweep is compile-only and
+needs no backend, which is what separates it from the tagged suites themselves
+— running those usually needs a pinned container, so they stay manual.
+
+The gate accepts one term (optionally negated), terms joined only by `&&`, or
+terms joined only by `||`, with no parentheses. Anything outside that — a
+parenthesised group, a mix of `&&` and `||`, an unreadable term, or an
+alternation that splits into fewer alternatives than its `||` promises — is an
+`ERROR` that fails the run, never a skip and never a pass. A `SKIP` there would
+be a green run over a file nothing compiled, which is the failure class this
+gate exists to remove: `!(tag_a || tag_b)` used to have its parentheses
+flattened to spaces, binding the `!` to the first term only, and answered `SKIP`
+plus `PASS` without compiling the file either time.
+
+Two shapes are legitimately reported as `SKIP` rather than vetted, and the
+summary line prints the skip count so a sweep that is covering less than it
+looks like is visible:
+
+- a GOOS or GOARCH term (`windows`, `linux`). The go command takes those from
+  the build environment, and forcing one with `-tags` pulls two copies of the
+  standard library's platform files into one build. Those files are compiled by
+  the ordinary build on their own platform.
+- a constraint with no selectable tag left, which is what a negated one
+  (`!nolocalllm`) reduces to. The default build already compiles that file.
+
+The self-test builds throwaway modules and asserts both directions, including a
+break behind a `&&` constraint that a first-token-only tag reader would miss:
+
+```bash
+bash scripts/test-verify-tagged-builds.sh
+```
+
 ## Remote Collector E2E Compose Proof
 
 Use [Remote collector E2E](local-testing/remote-collector-e2e.md) when changing

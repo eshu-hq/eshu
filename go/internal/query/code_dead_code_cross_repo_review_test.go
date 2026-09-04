@@ -151,10 +151,11 @@ func TestContentReaderCrossRepoDeadCodeEvidenceMarksMissingEntitiesUnknownWhenTr
 	}})
 	reader := NewContentReader(db)
 
-	evidence, err := reader.CrossRepoDeadCodeConsumerEvidence(
+	evidence, _, err := reader.CrossRepoDeadCodeConsumerEvidence(
 		context.Background(),
 		"repo-producer",
 		[]string{"producer-live", "producer-missing"},
+		crossRepoDeadCodeConsumerReads{},
 	)
 	if err != nil {
 		t.Fatalf("CrossRepoDeadCodeConsumerEvidence() error = %v, want nil", err)
@@ -172,8 +173,17 @@ func TestContentReaderCrossRepoDeadCodeEvidenceMarksMissingEntitiesUnknownWhenTr
 	if got, want := missing[0].Citation, "code_reachability_rows:truncated"; got != want {
 		t.Fatalf("truncation citation = %q, want %q", got, want)
 	}
-	if got, want := len(evidence["producer-live"]), maxCrossRepoDeadCodeConsumerEvidenceRows; got != want {
-		t.Fatalf("len(evidence[producer-live]) = %d, want %d", got, want)
+	// The read stopped inside this entity's own rows, so it is unproven too:
+	// it keeps every row that fit and takes the marker on top of them.
+	live := evidence["producer-live"]
+	if got, want := len(live), maxCrossRepoDeadCodeConsumerEvidenceRows+1; got != want {
+		t.Fatalf("len(evidence[producer-live]) = %d, want %d (the rows that fit plus the truncation marker)", got, want)
+	}
+	if got, want := live[len(live)-1].Reason, "consumer_evidence_truncated"; got != want {
+		t.Fatalf("evidence[producer-live] last reason = %q, want %q", got, want)
+	}
+	if got, want := live[0].ConsumerRepoID, "repo-consumer"; got != want {
+		t.Fatalf("evidence[producer-live][0].ConsumerRepoID = %q, want %q; the marker must not replace the rows read", got, want)
 	}
 	if !containsAllSubstrings(recorder.queries[0], "LIMIT 1001") {
 		t.Fatalf("query missing sentinel limit:\n%s", recorder.queries[0])

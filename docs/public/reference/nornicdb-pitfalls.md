@@ -410,6 +410,85 @@ that the anti-join correctly detects a true orphan that the old `NOT
 (n)--()` predicate silently ignored, on the pinned v1.1.11 and former PR #261
 Compose images used for that proof.
 
+## Pitfall: `RETURN DISTINCT` After A Trailing `OPTIONAL MATCH` Is Not Parsed
+
+### Observed shape
+
+Measured on the pinned v1.2.3 replay image
+(`timothyswt/nornicdb-cpu-bge@sha256:4dfa887d990bf0b536693830830e34351c036716b0fe6dc957e1a3680e9f3c74`,
+self-reporting 1.2.2) through `neo4j-go-driver/v5`, while proving the #5167
+dead-code incoming-edge probe.
+
+When a primary `MATCH` binds a relationship pattern and a trailing
+`OPTIONAL MATCH` follows it, `RETURN DISTINCT` is not recognised as a modifier.
+The keyword is absorbed into the first projection's source text, and no
+deduplication happens at all:
+
+```cypher
+-- BROKEN: incoming_entity_id comes back as "DISTINCT coalesce(e.uid, e.id)"
+MATCH (e:Function {uid: $id})<-[rel:CALLS]-(source)
+OPTIONAL MATCH (source)<-[:CONTAINS]-(:File)<-[:REPO_CONTAINS]-(source_repo:Repository)
+RETURN DISTINCT coalesce(e.uid, e.id) AS incoming_entity_id,
+       rel.resolution_method AS resolution_method,
+       (source_repo IS NOT NULL AND source_repo.id IN $allowed) AS in_grant
+
+-- CORRECT: same statement with count(*) supplying the grouping
+MATCH (e:Function {uid: $id})<-[rel:CALLS]-(source)
+OPTIONAL MATCH (source)<-[:CONTAINS]-(:File)<-[:REPO_CONTAINS]-(source_repo:Repository)
+RETURN coalesce(e.uid, e.id) AS incoming_entity_id,
+       rel.resolution_method AS resolution_method,
+       (source_repo IS NOT NULL AND source_repo.id IN $allowed) AS in_grant,
+       count(*) AS edge_count
+```
+
+It is `DISTINCT` alone, not the surrounding shape. On the same statement and the
+same seeded graph:
+
+| Variant | Result |
+| --- | --- |
+| `RETURN DISTINCT coalesce(e.uid, e.id) ...` | first column is the literal `"DISTINCT coalesce(e.uid, e.id)"`, rows not deduplicated |
+| `RETURN DISTINCT e.uid ...` (a plain property) | first column is the literal `"DISTINCT e.uid"` |
+| `RETURN coalesce(e.uid, e.id) ...` (no `DISTINCT`) | every column evaluated, including the boolean and the `OPTIONAL MATCH`'s own `source_repo.id` |
+| `RETURN ..., count(*)` (no `DISTINCT`) | every column evaluated, rows grouped by the non-aggregated projections |
+| `OPTIONAL MATCH ... WITH ... RETURN DISTINCT ...` | worse: first column is the literal, every other column `null` |
+
+A pattern comprehension used to avoid the `OPTIONAL MATCH` entirely
+(`size([(source)<-[:CONTAINS]-(:File)<-[:REPO_CONTAINS]-(r:Repository) WHERE ... | 1]) > 0`)
+is also not evaluated per row: it returned `true` for every source, including
+ones with no repository path at all.
+
+### Eshu implications
+
+`buildDeadCodeScopedIncomingBatchProbeCypher`
+(`go/internal/query/code_dead_code_candidate_entity.go`) is exactly this shape:
+it expands a dead-code candidate's incoming edges, optionally matches the source
+repository, and projects the caller's grant per row. It groups with `count(*)`
+rather than `RETURN DISTINCT` for this reason, and the `count(*)` column is
+never read -- it is the grouping vehicle. Do not "simplify" it back to
+`DISTINCT`, and do not put a `WITH` between the `OPTIONAL MATCH` and the
+`RETURN`.
+
+The unrestricted probe beside it, `buildDeadCodeIncomingBatchProbeCypher`, does
+keep `RETURN DISTINCT`, and correctly: nothing follows its anchoring `MATCH`, so
+it is not the affected shape.
+
+### Validation
+
+`go test ./internal/query -tags live_nornicdb_dead_code_incoming -run
+TestLiveNornicDBDeadCodeIncoming -count=1` against the pinned image covers every
+row of the table above, plus the shape the probe ships: correctly grouped rows
+from the `count(*)` form, the collapse in the pair of statements it replaced,
+both `DISTINCT` corruptions, the `WITH` variant's nulled columns, and the
+pattern comprehension's wrong answer.
+
+Run it by hand. No CI job builds that tag, so nothing tells you on its own when
+this backend behaviour changes — run it against the pin before changing a query
+of this shape, and again after moving the pin. If
+`TestLiveNornicDBDeadCodeIncomingRejectsReturnDistinct` fails, the executor
+boundary has moved and the shapes above need re-measuring rather than a quick
+edit. See `docs/internal/evidence/5167-code-family-batch-1.md` for the
+before/after and the fan-in timing.
+
 ## Pitfall: `OPTIONAL MATCH` + Aggregate Collapses Every Zero-Match Group Into One Row
 
 ### Observed shape

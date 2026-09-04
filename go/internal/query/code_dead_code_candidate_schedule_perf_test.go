@@ -32,12 +32,9 @@ func newDeadCodeSaturationProbeStore() *deadCodeSaturationProbeStore {
 
 func (s *deadCodeSaturationProbeStore) DeadCodeCandidateRows(
 	_ context.Context,
-	_ string,
-	label string,
-	_ string,
-	limit int,
-	offset int,
+	query deadCodeCandidateQuery,
 ) ([]map[string]any, error) {
+	label, limit, offset := query.Label, query.Limit, query.Offset
 	s.candidatePages++
 	s.candidateRows += limit
 	s.labels[label] = struct{}{}
@@ -84,6 +81,7 @@ func (s *deadCodeSaturationProbeStore) CodeReachabilityIncomingEntityIDs(
 	_ context.Context,
 	_ string,
 	entityIDs []string,
+	_ []string,
 ) (map[string]deadCodeIncomingEdge, error) {
 	return s.recordIncoming(entityIDs), nil
 }

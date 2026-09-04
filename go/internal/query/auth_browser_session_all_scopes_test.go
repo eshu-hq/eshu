@@ -215,11 +215,19 @@ func TestAuthMiddlewareRestrictedCredentialsCannotEnterWholeGraphConsoleRoutes(t
 	// restricted credential is expected to reach it and receive grant-bound
 	// counts, not the whole-graph total. See
 	// TestAuthMiddlewareRestrictedCredentialsReachEcosystemOverviewRoute.
+	//
+	// POST /api/v0/code/dead-code left this table for the same reason (#5167
+	// code family): its one candidate read, deadCodeCandidateRows
+	// (code_dead_code_scan.go), now binds the caller's granted repositories in
+	// both backends, so a restricted credential is expected to reach it and
+	// receive only granted rows. The handler binding is proven by
+	// TestDeadCodeRoutesFilterByRepositoryGrant and the real-middleware round
+	// trip by TestScopedTokenAdvertisedRoutesReachHandlerThroughRealAuthMiddleware,
+	// which sources its route set from the OpenAPI marker the route now carries.
 	routes := []struct {
 		method string
 		path   string
 	}{
-		{method: http.MethodPost, path: "/api/v0/code/dead-code"},
 		{method: http.MethodGet, path: "/api/v0/graph/entities"},
 	}
 

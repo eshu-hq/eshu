@@ -149,11 +149,7 @@ func codeTopicFilters(req codeTopicInvestigationRequest) ([]string, []any, int) 
 		// cross-tenant-polluted page that could push authorized rows past the
 		// limit. Only set for a scoped caller (populated by the change-surface
 		// caller); a nil/empty list leaves the search unrestricted.
-		if len(req.AllowedRepositoryIDs) > 0 {
-			filters = append(filters, fmt.Sprintf("repo_id = ANY($%d)", nextArg))
-			args = append(args, pgarray.Array(req.AllowedRepositoryIDs))
-			nextArg++
-		}
+		filters, args, nextArg = appendRepositoryGrantFilter(filters, args, nextArg, req.AllowedRepositoryIDs)
 	}
 	if strings.TrimSpace(req.Language) != "" {
 		filters = append(filters, fmt.Sprintf("coalesce(language, '') = $%d", nextArg))
@@ -175,4 +171,33 @@ func splitCodeTopicTerms(value string) []string {
 		}
 	}
 	return terms
+}
+
+// appendRepositoryGrantFilter binds a corpus-wide content read to the caller's
+// granted repository ids at the SQL WHERE, so the statement's own LIMIT/OFFSET
+// page is taken from the granted set rather than from a cross-tenant-polluted
+// one (#5167 W3 P1 filter-before-limit). It is the single grant predicate
+// shared by codeTopicFilters, symbolSearchFilters, hardcodedSecretFilters and
+// structuralInventoryWhere -- four builders that had drifted into the same
+// `if repoID != "" { ... }`-with-no-else shape.
+//
+// An empty list is a no-op, which is correct for the unscoped shared, admin,
+// and local callers that pass one. A grantless SCOPED caller must never reach
+// here: an empty list leaves the scan unrestricted, so codeContentGrantScope
+// (code_repository_selector.go) fails that caller closed before the read.
+//
+// nextArg is the next free $N placeholder index and must equal len(args)+1.
+// The returned index is the next free one after the predicate is appended.
+func appendRepositoryGrantFilter(
+	filters []string,
+	args []any,
+	nextArg int,
+	allowedRepositoryIDs []string,
+) ([]string, []any, int) {
+	if len(allowedRepositoryIDs) == 0 {
+		return filters, args, nextArg
+	}
+	filters = append(filters, fmt.Sprintf("repo_id = ANY($%d)", nextArg))
+	args = append(args, pgarray.Array(allowedRepositoryIDs))
+	return filters, args, nextArg + 1
 }

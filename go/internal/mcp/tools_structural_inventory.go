@@ -6,7 +6,7 @@ package mcp
 func structuralInventoryTool() ToolDefinition {
 	return ToolDefinition{
 		Name:        "inspect_code_inventory",
-		Description: "Inspect bounded structural code inventory such as functions, classes, top-level file elements, dataclasses, documented functions, decorated methods, classes with a method, and super calls. Provide at least one scope filter: repo_id, file_path, language, entity_kind, or symbol.",
+		Description: "Inspect bounded structural code inventory such as functions, classes, top-level file elements, dataclasses, documented functions, decorated methods, classes with a method, and super calls. Provide at least one scope filter: repo_id, file_path, language, entity_kind, or symbol. Scoped tokens receive only granted repositories; an ungranted repository selector is rejected.",
 		InputSchema: map[string]any{
 			"type": "object",
 			"properties": map[string]any{

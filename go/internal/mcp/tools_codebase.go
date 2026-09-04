@@ -51,7 +51,7 @@ func codebaseTools() []ToolDefinition {
 		},
 		{
 			Name:        "find_symbol",
-			Description: "Find exact or fuzzy symbol definitions with bounded, paged results and source handles.",
+			Description: "Find exact or fuzzy symbol definitions with bounded, paged results and source handles. Scoped tokens receive only granted repositories; an ungranted repository selector is rejected.",
 			InputSchema: map[string]any{
 				"type": "object",
 				"properties": map[string]any{
@@ -109,7 +109,7 @@ func codebaseTools() []ToolDefinition {
 	return append(tools, []ToolDefinition{
 		{
 			Name:        "find_dead_code",
-			Description: "Find potentially unused functions (dead code) across the indexed codebase, optionally scoped to a canonical repository identifier and excluding functions with specific decorators.",
+			Description: "Find potentially unused functions (dead code) across the indexed codebase, optionally scoped to a canonical repository identifier and excluding functions with specific decorators. Scoped tokens receive only granted repositories; an ungranted repository selector is rejected. A candidate whose only incoming edges come from repositories outside a scoped token's grant is kept and marked ambiguous with the permission_hidden_consumer reason, never reported as unused and never silently dropped.",
 			InputSchema: map[string]any{
 				"type": "object",
 				"properties": map[string]any{
@@ -225,7 +225,7 @@ func codebaseTools() []ToolDefinition {
 		replatformingOwnershipTool(),
 		{
 			Name:        "calculate_cyclomatic_complexity",
-			Description: "Calculate the cyclomatic complexity of a specific function to measure its complexity.",
+			Description: "Calculate the cyclomatic complexity of a specific function to measure its complexity. Scoped tokens receive only granted repositories; an ungranted repository selector is rejected.",
 			InputSchema: map[string]any{
 				"type": "object",
 				"properties": map[string]any{
@@ -256,7 +256,7 @@ func codebaseTools() []ToolDefinition {
 		},
 		{
 			Name:        "find_most_complex_functions",
-			Description: "Find the most complex functions in the codebase based on cyclomatic complexity.",
+			Description: "Find the most complex functions in the codebase based on cyclomatic complexity. Scoped tokens receive only granted repositories; an ungranted repository selector is rejected.",
 			InputSchema: map[string]any{
 				"type": "object",
 				"properties": map[string]any{

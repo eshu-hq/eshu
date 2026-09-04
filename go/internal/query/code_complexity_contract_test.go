@@ -157,6 +157,12 @@ func TestHandleComplexityRejectsAmbiguousFunctionNameInEnvelope(t *testing.T) {
 	}
 }
 
+// TestHandleComplexityFallsBackToFunctionNameAfterStaleEntityID pins the case
+// the fallback exists for: an unrestricted id lookup that searched every
+// repository and found nothing has proved the id stale, so the function name
+// the caller also sent answers instead. A request that binds the lookup to a
+// repository proves no such thing and gets not-found; see
+// TestHandleComplexityRepoAnchoredEntityIDDoesNotFallBackToName.
 func TestHandleComplexityFallsBackToFunctionNameAfterStaleEntityID(t *testing.T) {
 	t.Parallel()
 
@@ -175,8 +181,8 @@ func TestHandleComplexityFallsBackToFunctionNameAfterStaleEntityID(t *testing.T)
 				if got, want := params["entity_name"], "handler"; got != want {
 					t.Fatalf("params[entity_name] = %#v, want %#v", got, want)
 				}
-				if got, want := params["repo_id"], "repo-1"; got != want {
-					t.Fatalf("params[repo_id] = %#v, want %#v", got, want)
+				if _, ok := params["repo_id"]; ok {
+					t.Fatalf("params = %#v, want no repo_id: the fallback only runs when the caller bound the lookup to no repository", params)
 				}
 				return []map[string]any{{
 					"id":        "function:handler",
@@ -192,7 +198,7 @@ func TestHandleComplexityFallsBackToFunctionNameAfterStaleEntityID(t *testing.T)
 	req := httptest.NewRequest(
 		http.MethodPost,
 		"/api/v0/code/complexity",
-		bytes.NewBufferString(`{"entity_id":"function:stale","function_name":"handler","repo_id":"repo-1"}`),
+		bytes.NewBufferString(`{"entity_id":"function:stale","function_name":"handler"}`),
 	)
 	rec := httptest.NewRecorder()
 
@@ -243,5 +249,73 @@ func TestHandleComplexityDoesNotTreatStaleEntityIDAsFunctionName(t *testing.T) {
 	}
 	if got, want := idCalls, 1; got != want {
 		t.Fatalf("ID lookup calls = %d, want %d", got, want)
+	}
+}
+
+// TestHandleComplexityRepoAnchoredEntityIDDoesNotFallBackToName is the case a
+// name fallback must not answer. The caller names an entity id, a function
+// name, and a repository. The id belongs to a different repository, so the
+// repository-anchored lookup returns nothing -- and the route's contract for
+// that request is 404, not a same-named function from the repository asked
+// about. Falling back would hand an exact-id caller another entity's metrics.
+func TestHandleComplexityRepoAnchoredEntityIDDoesNotFallBackToName(t *testing.T) {
+	t.Parallel()
+
+	var idCalls int
+	handler := &CodeHandler{
+		Neo4j: fakeGraphReader{
+			runSingle: func(_ context.Context, _ string, params map[string]any) (map[string]any, error) {
+				idCalls++
+				if got, want := params["repo_id"], "repo-a"; got != want {
+					t.Fatalf("params[repo_id] = %#v, want %#v", got, want)
+				}
+				return nil, nil
+			},
+			run: func(_ context.Context, _ string, params map[string]any) ([]map[string]any, error) {
+				t.Fatalf("name lookup ran for a repository-anchored entity id: %#v", params)
+				return nil, nil
+			},
+		},
+		Profile: ProfileLocalAuthoritative,
+	}
+	req := httptest.NewRequest(
+		http.MethodPost,
+		"/api/v0/code/complexity",
+		bytes.NewBufferString(`{"entity_id":"function:in-repo-b","function_name":"handler","repo_id":"repo-a"}`),
+	)
+	rec := httptest.NewRecorder()
+
+	handler.handleComplexity(rec, req)
+
+	if got, want := rec.Code, http.StatusNotFound; got != want {
+		t.Fatalf("status = %d, want %d body=%s", got, want, rec.Body.String())
+	}
+	if got, want := idCalls, 1; got != want {
+		t.Fatalf("ID lookup calls = %d, want %d", got, want)
+	}
+	if strings.Contains(rec.Body.String(), "complexity") {
+		t.Fatalf("a not-found answer carried metrics: %s", rec.Body.String())
+	}
+}
+
+// TestHandleComplexityScopedEntityIDDoesNotFallBackToName is the same rule for
+// the other repository binding. A scoped caller's grant filters the id lookup
+// exactly as a supplied repo_id does, so an empty result is again ambiguous
+// between "stale id" and "id held elsewhere", and the answer stays not-found.
+func TestHandleComplexityScopedEntityIDDoesNotFallBackToName(t *testing.T) {
+	t.Parallel()
+
+	auth := codeGrantScopedAuthContext([]string{codeGrantGrantedRepo})
+	captured, status := captureCodeQualityCypher(
+		t,
+		"/api/v0/code/complexity",
+		map[string]any{"entity_id": "function:in-another-tenant", "function_name": "handler"},
+		&auth,
+	)
+	if got, want := status, http.StatusNotFound; got != want {
+		t.Fatalf("status = %d, want %d", got, want)
+	}
+	if statement, _, ok := captured.matching("$entity_name"); ok {
+		t.Fatalf("name lookup ran for a grant-filtered entity id:\n%s", statement)
 	}
 }
