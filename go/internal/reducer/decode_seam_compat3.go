@@ -17,9 +17,8 @@ import (
 // deleted once its last caller has moved into a family subpackage.
 
 var (
-	serviceCatalogDecodeQuarantine = schemadecode.ServiceCatalogDecodeQuarantine
-	decodeCodeDataflowFunction     = schemadecode.DecodeCodeDataflowFunction
-	decodeCodeDataflowScanned      = schemadecode.DecodeCodeDataflowScanned
+	decodeCodeDataflowFunction = schemadecode.DecodeCodeDataflowFunction
+	decodeCodeDataflowScanned  = schemadecode.DecodeCodeDataflowScanned
 )
 
 // factschemaEnvelope forwards to [schemadecode.FactschemaEnvelope]. It is a func

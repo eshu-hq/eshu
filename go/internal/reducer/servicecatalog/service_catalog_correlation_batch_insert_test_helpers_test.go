@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package containerimage
+package servicecatalog
 
 import (
 	"context"
@@ -18,7 +18,7 @@ import (
 // package boundary, and fakeWorkloadIdentityExecer plus the batched-call
 // decoders are unexported test doubles several still-in-root families
 // (cloud_inventory_admission, security_alert_reconciliation) also depend on
-// from their own root copy, and [servicecatalog] keeps another, so root keeps
+// from their own root copy, and [containerimage] keeps another, so root keeps
 // its original and this package needs its own (issue #6061, mirrors
 // internal/reducer/secretsiam's writer test gaining a local exec double for
 // the same reason).
