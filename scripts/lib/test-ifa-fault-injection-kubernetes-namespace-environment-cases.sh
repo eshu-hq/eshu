@@ -143,8 +143,43 @@ test_ifa_kubernetes_namespace_environment_overlong_lock_name_is_rejected() (
 		|| fail "ifa_kubernetes_namespace_environment_start_fact_records_lock accepted a lock name Postgres truncates; the grant poll would miss forever"
 )
 
+# The start function takes the lock under one application_name and the release
+# function terminates it by name: if the two literals disagree, release
+# terminates nothing, the holder leaks through its whole pg_sleep, and the
+# replacement reducer's fact reads stay blocked for minutes while the cell
+# still reports green. Surname-level typo bait after any rename, so pin the
+# agreement behaviorally: capture both names off the stubbed query log and
+# require them equal.
+test_ifa_kubernetes_namespace_environment_lock_start_and_release_agree_on_name() (
+	source "${det_lib}"
+	source "${kubernetes_namespace_environment_cells_lib}"
+
+	local lock_holder_pid start_name release_name
+	psql() { :; }
+	sleep() { :; }
+	ifa_det_pg() { printf '%s\n' "$*" >>"${log_dir}/queries.log"; printf ' 1 \n'; }
+
+	use_compose=0
+	ESHU_POSTGRES_DSN="postgresql://unused"
+	compose_file="docker-compose.yaml"
+	FAULT_COMPOSE_PROJECT="test"
+	log_dir="$(mktemp -d -t ifa-kubernetes-namespace-environment-lock.XXXXXX)"
+	trap 'rm -rf "${log_dir}"' EXIT
+
+	bg_pids=()
+	lock_holder_pid=""
+	ifa_kubernetes_namespace_environment_start_fact_records_lock samecell lock_holder_pid \
+		|| fail "ifa_kubernetes_namespace_environment_start_fact_records_lock rejected a granted lock"
+	ifa_kubernetes_namespace_environment_release_fact_records_lock samecell "${lock_holder_pid}"
+	start_name="$(rg -o -- "application_name = '[^']*'" "${log_dir}/queries.log" | head -n 1)"
+	release_name="$(rg -- "pg_terminate_backend" "${log_dir}/queries.log" | rg -o -- "application_name = '[^']*'" | head -n 1)"
+	[[ -n "${start_name}" && "${start_name}" == "${release_name}" ]] \
+		|| fail "lock start names ${start_name:-<none>} but release terminates ${release_name:-<none>}; the holder would leak"
+)
+
 run_ifa_fault_injection_kubernetes_namespace_environment_cases() {
 	test_ifa_kubernetes_namespace_environment_intent_lock_is_fail_closed
 	test_ifa_kubernetes_namespace_environment_released_lock_holder_is_not_torn_down_twice
 	test_ifa_kubernetes_namespace_environment_overlong_lock_name_is_rejected
+	test_ifa_kubernetes_namespace_environment_lock_start_and_release_agree_on_name
 }

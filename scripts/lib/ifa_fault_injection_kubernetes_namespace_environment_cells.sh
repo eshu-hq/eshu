@@ -107,7 +107,9 @@ ifa_kubernetes_namespace_environment_start_fact_records_lock() {
 # before the replacement reducer starts.
 ifa_kubernetes_namespace_environment_release_fact_records_lock() {
 	local cell="$1" holder_pid="$2"
-	local app_name="ifa_kubernetes_namespace_environment_lock_${cell}"
+	# Same short name as the start function: it must terminate the backend
+	# the start function actually created (see its 64-byte-cap comment).
+	local app_name="ifa_k8s_env_lock_${cell}"
 	ifa_det_pg "${FAULT_COMPOSE_PROJECT}" "${use_compose}" "${ESHU_POSTGRES_DSN}" \
 		"SELECT pg_terminate_backend(pid) FROM pg_stat_activity WHERE application_name = '${app_name}';" \
 		"${compose_file}" >/dev/null

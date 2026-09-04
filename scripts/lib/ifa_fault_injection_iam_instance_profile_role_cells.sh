@@ -108,12 +108,78 @@ ifa_iam_instance_profile_role_start_fact_records_lock() {
 # before the replacement reducer starts.
 ifa_iam_instance_profile_role_release_fact_records_lock() {
 	local cell="$1" holder_pid="$2"
-	local app_name="ifa_iam_instance_profile_role_lock_${cell}"
+	# Same short name as the start function: it must terminate the backend
+	# the start function actually created (see its 64-byte-cap comment).
+	local app_name="ifa_iam_role_lock_${cell}"
 	ifa_det_pg "${FAULT_COMPOSE_PROJECT}" "${use_compose}" "${ESHU_POSTGRES_DSN}" \
 		"SELECT pg_terminate_backend(pid) FROM pg_stat_activity WHERE application_name = '${app_name}';" \
 		"${compose_file}" >/dev/null
 	wait "${holder_pid}" 2>/dev/null || true
 	ifa_det_untrack_bg_pid "${holder_pid}"
+}
+
+# ifa_iam_instance_profile_role_wait_for_readiness banks this family's claim
+# readiness BEFORE the fact_records lock is taken. Unlike the sibling
+# direct families, this domain's claim is gated
+# (go/internal/storage/postgres/reducer_queue_readiness_sql.go:
+# iam_instance_profile_role_materialization requires the
+# canonical_nodes_committed/cloud_resource_uid phase), and that phase is
+# published by the aws_resource_materialization reducer during Handle --
+# which reads fact_records. Locking first therefore deadlocks the cell by
+# design: the scoped reducer idles against a still-pending row forever
+# (proven live: 120s, zero claims, row still pending at death). So the cell
+# runs a prereq-scoped reducer first and this helper waits for exactly the
+# acceptance unit the claim gate will ask for -- resolved off the iam row's
+# own (scope, generation, entity_key-or-scope) identity, mirroring the
+# gate's COALESCE(NULLIF(payload->>'entity_key', ''), scope_id) -- before
+# the lock goes on. Fail-closed throughout: no identity row, a failed
+# query, a malformed value, or budget exhaustion all return non-zero, and a
+# non-numeric phase count is a failure, never a zero.
+ifa_iam_instance_profile_role_wait_for_readiness() {
+	local cell="$1" budget="$2"
+	if [[ ! "${budget}" =~ ^[1-9][0-9]*$ ]]; then
+		printf '%s: readiness wait: budget must be a positive integer, got %s\n' "${cell}" "${budget}" >&2
+		return 1
+	fi
+	local identity scope generation unit
+	if ! identity="$(ifa_det_pg "${FAULT_COMPOSE_PROJECT}" "${use_compose}" "${ESHU_POSTGRES_DSN}" \
+		"SELECT scope_id || '|' || generation_id || '|' || COALESCE(NULLIF(payload->>'entity_key', ''), scope_id) FROM fact_work_items WHERE stage = 'reducer' AND domain = 'iam_instance_profile_role_materialization' ORDER BY created_at ASC, work_item_id ASC LIMIT 1;" \
+		"${compose_file}")"; then
+		printf '%s: readiness wait: iam identity query failed\n' "${cell}" >&2
+		return 1
+	fi
+	identity="$(printf '%s' "${identity}" | tr -d '[:space:]')"
+	IFS='|' read -r scope generation unit <<<"${identity}"
+	if [[ -z "${scope}" || -z "${generation}" || -z "${unit}" ]]; then
+		printf '%s: readiness wait: no iam row to resolve an identity from (got %q)\n' "${cell}" "${identity}" >&2
+		return 1
+	fi
+	# Values come from our own queue rows, but they ride inside string
+	# literals one level down: double any quote rather than trusting shape.
+	scope="${scope//\'/\'\'}"
+	generation="${generation//\'/\'\'}"
+	unit="${unit//\'/\'\'}"
+	local i phase_count
+	for i in $(seq 1 "${budget}"); do
+		if ! phase_count="$(ifa_det_pg "${FAULT_COMPOSE_PROJECT}" "${use_compose}" "${ESHU_POSTGRES_DSN}" \
+			"SELECT count(*) FROM graph_projection_phase_state WHERE scope_id = '${scope}' AND acceptance_unit_id = '${unit}' AND source_run_id = '${generation}' AND generation_id = '${generation}' AND keyspace = 'cloud_resource_uid' AND phase = 'canonical_nodes_committed';" \
+			"${compose_file}")"; then
+			printf '%s: readiness wait: phase poll query failed\n' "${cell}" >&2
+			return 1
+		fi
+		phase_count="$(printf '%s' "${phase_count}" | tr -d '[:space:]')"
+		if [[ "${phase_count}" =~ ^[1-9][0-9]*$ ]]; then
+			printf '%s: readiness banked: canonical_nodes_committed/cloud_resource_uid for acceptance unit %s\n' "${cell}" "${unit}"
+			return 0
+		fi
+		if [[ "${phase_count}" != "0" ]]; then
+			printf '%s: readiness wait: phase poll returned non-numeric output %q\n' "${cell}" "${phase_count}" >&2
+			return 1
+		fi
+		sleep 1
+	done
+	printf '%s: readiness wait: no canonical_nodes_committed/cloud_resource_uid phase for acceptance unit %s within %ss\n' "${cell}" "${unit}" "${budget}" >&2
+	return 1
 }
 
 # cell_baseline_iam_instance_profile_role is this family's fault-free
@@ -163,17 +229,29 @@ cell_killworker_iam_instance_profile_role() {
 	drive_all_cassettes killworkeriaminstanceprofilerole
 	ifa_iam_instance_profile_role_drive "killworkeriaminstanceprofilerole" "${bin_dir}" "${iam_instance_profile_role_cassette}" "${drive_workers}" "${log_dir}" \
 		|| die "kill-worker-after-claim-iam-instance-profile-role: eshu-ifa drive (iam family) failed"
-	local projector_pid reducer_pid_before reducer_pid_after lock_holder_pid claimed_before
+	local projector_pid reducer_pid_prereq reducer_pid_before reducer_pid_after lock_holder_pid claimed_before
 	ifa_det_start_bg "${log_dir}" "projector-killworkeriaminstanceprofilerole" projector_pid "${bin_dir}/eshu-projector"
 	# iam_instance_profile_role_materialization's reducer intent is created by the
 	# PROJECTOR, not ingestion. Wait for the row to exist (any status) before
-	# taking the lock: locking fact_records before that intent exists risks
-	# starving the projector's OWN fact reads for this scope too, so the row
-	# could never be created for as long as the lock is held -- not merely
-	# delayed.
+	# going further: without it there is nothing to make ready and nothing
+	# to kill.
 	ifa_fault_wait_for_claimed "${FAULT_COMPOSE_PROJECT}" "${use_compose}" "${ESHU_POSTGRES_DSN}" "${compose_file}" \
 		"${CLAIMED_ROW_WAIT_TIMEOUT}" "iam_instance_profile_role_materialization" 1 >/dev/null \
 		|| die "kill-worker-after-claim-iam-instance-profile-role: iam_instance_profile_role_materialization was never enqueued by the projector"
+	# Readiness BEFORE the lock -- the shape that distinguishes this family
+	# from every sibling kill cell. This domain's claim is gated on the
+	# canonical_nodes_committed/cloud_resource_uid phase, which the
+	# aws_resource_materialization reducer publishes during Handle -- and
+	# Handle reads fact_records. A prereq-scoped reducer (aws_resource
+	# only, so the iam row can never be claimed early) runs unblocked until
+	# the exact acceptance unit the gate will ask for is banked. Only then
+	# does the lock go on. Locking first deadlocks by design: the claim
+	# gate never opens while the lock is held, so the iam-scoped reducer
+	# would idle against a still-pending row until the wait budget dies.
+	ifa_det_start_bg "${log_dir}" "reducer-killworkeriaminstanceprofilerole-prereq" reducer_pid_prereq \
+		env "ESHU_REDUCER_CLAIM_DOMAIN=aws_resource_materialization" "${bin_dir}/eshu-reducer"
+	ifa_iam_instance_profile_role_wait_for_readiness "killworkeriaminstanceprofilerole" 300 \
+		|| die "kill-worker-after-claim-iam-instance-profile-role: claim readiness never banked"
 	ifa_iam_instance_profile_role_start_fact_records_lock "killworkeriaminstanceprofilerole" lock_holder_pid \
 		|| die "kill-worker-after-claim-iam-instance-profile-role: could not acquire the deterministic fact_records read blocker"
 	# Scoped to iam_instance_profile_role_materialization only: with the lock already
@@ -182,6 +260,8 @@ cell_killworker_iam_instance_profile_role() {
 	# duration, starving this domain of a worker even though its own row
 	# already exists. ESHU_REDUCER_CLAIM_DOMAIN filters the claim SQL itself
 	# (domain = ANY(...)), so this instance never attempts another domain's row.
+	# The claim fires because readiness was banked above: the gate's phase
+	# row persists, so the lock starves nothing the claim still needs.
 	ifa_det_start_bg "${log_dir}" "reducer-killworkeriaminstanceprofilerole-before" reducer_pid_before \
 		env "ESHU_REDUCER_CLAIM_DOMAIN=iam_instance_profile_role_materialization" "${bin_dir}/eshu-reducer"
 	claimed_before="$(ifa_fault_wait_for_claimed "${FAULT_COMPOSE_PROJECT}" "${use_compose}" "${ESHU_POSTGRES_DSN}" "${compose_file}" "${CLAIMED_ROW_WAIT_TIMEOUT}" "iam_instance_profile_role_materialization")" \

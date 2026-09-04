@@ -143,8 +143,101 @@ test_ifa_iam_instance_profile_role_overlong_lock_name_is_rejected() (
 		|| fail "ifa_iam_instance_profile_role_start_fact_records_lock accepted a lock name Postgres truncates; the grant poll would miss forever"
 )
 
+# The start function takes the lock under one application_name and the release
+# function terminates it by name: if the two literals disagree, release
+# terminates nothing, the holder leaks through its whole pg_sleep, and the
+# replacement reducer's fact reads stay blocked for minutes while the cell
+# still reports green. Surname-level typo bait after any rename, so pin the
+# agreement behaviorally: capture both names off the stubbed query log and
+# require them equal.
+test_ifa_iam_instance_profile_role_lock_start_and_release_agree_on_name() (
+	source "${det_lib}"
+	source "${iam_instance_profile_role_cells_lib}"
+
+	local lock_holder_pid start_name release_name
+	psql() { :; }
+	sleep() { :; }
+	ifa_det_pg() { printf '%s\n' "$*" >>"${log_dir}/queries.log"; printf ' 1 \n'; }
+
+	use_compose=0
+	ESHU_POSTGRES_DSN="postgresql://unused"
+	compose_file="docker-compose.yaml"
+	FAULT_COMPOSE_PROJECT="test"
+	log_dir="$(mktemp -d -t ifa-iam-instance-profile-role-lock.XXXXXX)"
+	trap 'rm -rf "${log_dir}"' EXIT
+
+	bg_pids=()
+	lock_holder_pid=""
+	ifa_iam_instance_profile_role_start_fact_records_lock samecell lock_holder_pid \
+		|| fail "ifa_iam_instance_profile_role_start_fact_records_lock rejected a granted lock"
+	ifa_iam_instance_profile_role_release_fact_records_lock samecell "${lock_holder_pid}"
+	start_name="$(rg -o -- "application_name = '[^']*'" "${log_dir}/queries.log" | head -n 1)"
+	release_name="$(rg -- "pg_terminate_backend" "${log_dir}/queries.log" | rg -o -- "application_name = '[^']*'" | head -n 1)"
+	[[ -n "${start_name}" && "${start_name}" == "${release_name}" ]] \
+		|| fail "lock start names ${start_name:-<none>} but release terminates ${release_name:-<none>}; the holder would leak"
+)
+
+# ifa_iam_instance_profile_role_wait_for_readiness banks the claim
+# readiness BEFORE the fact_records lock is taken: this domain's claim is
+# gated on the canonical_nodes_committed/cloud_resource_uid phase published
+# by the aws_resource_materialization reducer, so locking first and asking
+# questions later deadlocks the cell by design (proven live: 120s of idle
+# scoped reducer against a still-pending row). The helper resolves the iam
+# row's own (scope, generation, entity_key-or-scope) identity and polls the
+# phase table for exactly the acceptance unit the claim gate will ask for.
+# Fail-closed throughout: no identity row, a failed query, or budget
+# exhaustion all return non-zero.
+test_ifa_iam_instance_profile_role_wait_for_readiness_cases() (
+	source "${det_lib}"
+	source "${iam_instance_profile_role_cells_lib}"
+
+	local rc
+	psql() { :; }
+	sleep() { :; }
+	ifa_det_pg() {
+		case "$*" in
+			*graph_projection_phase_state*) printf '%s\n' "${phase_count_output}" ;;
+			*) printf '%s\n' "${identity_output}" ;;
+		esac
+	}
+
+	use_compose=0
+	ESHU_POSTGRES_DSN="postgresql://unused"
+	compose_file="docker-compose.yaml"
+	FAULT_COMPOSE_PROJECT="test"
+	log_dir="$(mktemp -d -t ifa-iam-instance-profile-role-readiness.XXXXXX)"
+	trap 'rm -rf "${log_dir}"' EXIT
+
+	# Phase already published: returns success without consuming budget.
+	identity_output="aws:eshu-fixture-account|gen-1|entity-1"
+	phase_count_output="1"
+	rc=0
+	ifa_iam_instance_profile_role_wait_for_readiness readycell 5 || rc=$?
+	[[ "${rc}" -eq 0 ]] \
+		|| fail "ifa_iam_instance_profile_role_wait_for_readiness failed while the exact acceptance-unit phase row exists"
+
+	# Phase never appears: exhausts the budget and fails.
+	identity_output="aws:eshu-fixture-account|gen-1|entity-1"
+	phase_count_output="0"
+	rc=0
+	ifa_iam_instance_profile_role_wait_for_readiness unready 2 || rc=$?
+	[[ "${rc}" -ne 0 ]] \
+		|| fail "ifa_iam_instance_profile_role_wait_for_readiness returned success with no phase row; the kill cell would lock before readiness and deadlock"
+
+	# No iam row to resolve an identity from: fails instead of polling for
+	# a phase nobody asked for.
+	identity_output=""
+	phase_count_output="1"
+	rc=0
+	ifa_iam_instance_profile_role_wait_for_readiness norow 2 || rc=$?
+	[[ "${rc}" -ne 0 ]] \
+		|| fail "ifa_iam_instance_profile_role_wait_for_readiness returned success with no iam row to resolve"
+)
+
 run_ifa_fault_injection_iam_instance_profile_role_cases() {
 	test_ifa_iam_instance_profile_role_intent_lock_is_fail_closed
 	test_ifa_iam_instance_profile_role_released_lock_holder_is_not_torn_down_twice
 	test_ifa_iam_instance_profile_role_overlong_lock_name_is_rejected
+	test_ifa_iam_instance_profile_role_lock_start_and_release_agree_on_name
+	test_ifa_iam_instance_profile_role_wait_for_readiness_cases
 }
