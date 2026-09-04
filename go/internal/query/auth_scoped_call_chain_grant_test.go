@@ -366,3 +366,36 @@ func containsPredicate(predicates []string, want string) bool {
 	}
 	return false
 }
+
+// TestExactGraphEntityCandidatesRefuseAnUngrantedRepository covers the
+// defense-in-depth check directly, because no route reaches it with an
+// out-of-grant repository today: every caller resolves repo_id through the
+// selector first. The check exists for the path that stops doing that, and its
+// rows become an ambiguity error that names entity ids.
+func TestExactGraphEntityCandidatesRefuseAnUngrantedRepository(t *testing.T) {
+	t.Parallel()
+
+	content := &storyGrantContentStore{byName: []EntityContent{
+		{
+			EntityID: storyUngrantedEntity, EntityName: callChainUngrantedNam,
+			EntityType: "Function", RepoID: codeGrantOtherRepo,
+		},
+	}}
+	ctx := ContextWithAuthContext(t.Context(), codeGrantScopedAuthContext([]string{codeGrantGrantedRepo}))
+	rows, err := resolveExactGraphEntityCandidates(ctx, content, codeGrantOtherRepo, callChainUngrantedNam)
+	if err != nil {
+		t.Fatalf("resolveExactGraphEntityCandidates() error = %v", err)
+	}
+	if len(rows) != 0 {
+		t.Fatalf("candidates = %#v, want none for a repository outside the grant", rows)
+	}
+	if len(content.askedRepo) != 0 {
+		t.Fatalf("the content store was read for an out-of-grant repository: %v", content.askedRepo)
+	}
+	if _, err := resolveExactGraphEntityCandidates(ctx, content, codeGrantGrantedRepo, callChainUngrantedNam); err != nil {
+		t.Fatalf("resolveExactGraphEntityCandidates() error = %v", err)
+	}
+	if len(content.askedRepo) != 1 {
+		t.Fatalf("a granted repository was not read: %v", content.askedRepo)
+	}
+}
