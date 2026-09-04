@@ -180,6 +180,11 @@ jobs:
     name: corpus-gate (${{ matrix.graph_backend }})
     runs-on: ubuntu-latest
     timeout-minutes: 30
+    # The nornicdb leg builds the pinned backend from source; its UI stage is
+    # skipped headless (#6505 — upstream npm-ci-fallback flake, no gate serves
+    # the UI).
+    env:
+      NORNICDB_HEADLESS: "true"
     strategy:
       fail-fast: false
       matrix:

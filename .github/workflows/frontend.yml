@@ -130,6 +130,15 @@ concurrency:
 permissions:
   contents: read
 
+# Workflow scope (not per-job): the image-building jobs — auth-sso-e2e
+# (run-auth-e2e.sh), auth-mcp-e2e (run-auth-mcp-e2e.sh), and any future job
+# that ups the pinned NornicDB from source — all inherit this, so a new
+# backend-building job cannot silently re-arm the upstream UI-stage flake
+# (#6505: npm-ci-fallback TS2882; no gate serves the UI). Inert everywhere
+# else (lint/format/audit/marketing never read it).
+env:
+  NORNICDB_HEADLESS: "true"
+
 jobs:
   marketing-site:
     name: Marketing site (root Vite)
