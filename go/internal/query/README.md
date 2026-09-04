@@ -490,7 +490,7 @@ The final runtime implementation commit
 cd go
 GOCACHE=$PWD/../.gocache \
   ESHU_POSTGRES_TEST_DSN='postgresql://eshu:change-me@127.0.0.1:25432/eshu?sslmode=disable' \
-  go test ./internal/query \
+  go test ./internal/query/supplychain/impact \
   -run '^TestSupplyChainSuppressionPathsPerformanceLive$' -count=1 -v
 ```
 
