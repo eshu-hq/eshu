@@ -49,8 +49,9 @@ const openAPIPathsCode = `
       "post": {
         "tags": ["code"],
         "summary": "Query entities by language and type",
-        "description": "Queries graph-backed or content-backed entities for one language/entity-type pair.",
+        "description": "Queries graph-backed or content-backed entities for one language/entity-type pair. Scoped tokens receive only granted repositories; an ungranted repository selector is rejected with 400.",
         "operationId": "queryLanguageEntities",
+        "x-scoped-token-support": true,
         "requestBody": {
           "required": true,
           "content": {
@@ -105,6 +106,7 @@ const openAPIPathsCode = `
           }
         },
         "responses": {
+          "403": {"$ref": "#/components/responses/Forbidden"},
           "200": {
             "description": "Language query results",
             "content": {

@@ -364,6 +364,15 @@ recommended next calls in the response.
 
 `POST /api/v0/code/language-query` requires `language` and `entity_type`.
 `limit` defaults to `50` and is silently clamped to `200`.
+
+A `repo_id` on this route is now a repository selector like every other code
+route's, resolved against the caller's grant before the read. It used to go into
+the query as-is, so a scoped token could name any repository; naming one outside
+the grant now returns `400`. A scoped token that omits `repo_id` reads its
+granted repositories rather than the whole index, on both the graph and the
+content-store side, and a token with no repository grants at all gets an empty
+`results` list without either backend being read.
+
 Use focused routes first when they answer the question; use language-query for
 language/entity-type contracts that do not fit symbol, relationship,
 inventory, dependency, or dead-code routes.
