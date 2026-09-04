@@ -24,7 +24,7 @@ its existing spelling is unchanged.
 - `AlternateSeverity`, `FixedVersionBranch`, `AdvisorySourceObservation` --
   advisory provenance rows.
 - `SupplyChainImpactPriorityContribution` -- one priority-score input.
-- `SupplyChainReachabilityState` (six constants) and `SupplyChainReachability`.
+- `SupplyChainReachabilityState` (five constants) and `SupplyChainReachability`.
 - `SupplyChainServiceWorkloadPair` -- one co-occurring (service, workload) pair.
 - `DetectionProfile` and its two tier constants.
 - `SupplyChainImpactRemediation` -- the advisory-only safe-upgrade block.
