@@ -912,7 +912,7 @@ and observability-coverage materialization). The root dispatcher tests stay
 at root under their pre-extraction file name
 `aws_cloud_image_materialization_intents_test.go` — not the
 `*_projection_test.go` rename the interproc extraction used — because
-`go/internal/reducer/aws_cloud_image_materialization_test.go` cites that
+`go/internal/reducer/awscloud/aws_cloud_image_materialization_test.go` cites that
 file and its retraction-safety test by name as the enqueue-side half of the
 #5450 proof, and the reducer side is out of scope for a projector move.
 The observability-coverage-correlation builder moved into

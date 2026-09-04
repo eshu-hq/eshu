@@ -487,7 +487,7 @@ sibling ci_cd_run_correlation/container_image_identity/package domains:
   envelope payload) is an exact `registry/repository@sha256:digest` reference —
   the same identity strength `container_image_identity`'s `exact_digest`
   outcome requires. `containerImageNodeUIDFromDigestRef`
-  (`go/internal/reducer/aws_cloud_image_join.go`) computes the `:ContainerImage`
+  (`go/internal/reducer/awscloud/aws_cloud_image_join.go`) computes the `:ContainerImage`
   node uid directly from that reference, matching the OCI registry canonical
   writer's own formula (`oci-descriptor://<registry>/<repository>@<digest>`,
   see `internal/projector.ociDescriptorUID`) — including its normalization:
@@ -509,7 +509,7 @@ sibling ci_cd_run_correlation/container_image_identity/package domains:
   removes what would otherwise be a hidden
   ECR-only-registries-happen-to-be-lowercase dependency, and a new
   additive domain, `DomainAWSCloudImageMaterialization`
-  (`go/internal/reducer/aws_cloud_image_materialization.go`), two-MATCH-MERGEs
+  (`go/internal/reducer/awscloud/aws_cloud_image_materialization.go`), two-MATCH-MERGEs
   `(:CloudResource)-[:AWS_lambda_function_uses_image]->(:ContainerImage)`
   through `CloudResourceContainerImageEdgeWriter`
   (`go/internal/storage/cypher/cloud_resource_container_image_edge_writer.go`).

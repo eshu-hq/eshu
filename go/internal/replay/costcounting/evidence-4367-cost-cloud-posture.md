@@ -81,7 +81,7 @@ constructs `reducer.PostgresAWSCloudRuntimeDriftWriter{DB: database}`, where
 `StoreName: "reducer"`). `AWSCloudRuntimeDriftHandler.Handle`
 (`go/internal/reducer/awscloud/aws_cloud_runtime_drift.go`) calls
 `h.Writer.WriteAWSCloudRuntimeDriftFindings` exactly once per intent with the
-full admitted-candidate slice (line 106), confirming the writer this scenario
+full admitted-candidate slice, confirming the writer this scenario
 drives is the real per-intent production call shape.
 
 ## Governance: secrets_iam_trust_chain (honesty rule c)
