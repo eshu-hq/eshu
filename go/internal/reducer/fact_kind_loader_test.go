@@ -13,6 +13,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
 	"github.com/eshu-hq/eshu/go/internal/reducer/inheritance"
+	"github.com/eshu-hq/eshu/go/internal/reducer/semanticentity"
 )
 
 func TestSQLRelationshipHandlerUsesKindFilteredFactLoader(t *testing.T) {
@@ -98,9 +99,9 @@ func TestSemanticEntityMaterializationHandlerUsesKindFilteredFactLoader(t *testi
 			{FactKind: "file"},
 		},
 	}
-	writer := &recordingSemanticEntityWriter{result: SemanticEntityWriteResult{CanonicalWrites: 1}}
+	writer := &recordingSemanticEntityWriter{result: semanticentity.SemanticEntityWriteResult{CanonicalWrites: 1}}
 	publisher := &recordingSemanticEntityPhasePublisher{}
-	handler := SemanticEntityMaterializationHandler{
+	handler := semanticentity.SemanticEntityMaterializationHandler{
 		FactLoader:           loader,
 		Writer:               writer,
 		PriorGenerationCheck: func(context.Context, string, string) (bool, error) { return false, nil },

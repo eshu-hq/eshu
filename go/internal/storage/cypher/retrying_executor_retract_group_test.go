@@ -11,7 +11,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/eshu-hq/eshu/go/internal/reducer"
+	"github.com/eshu-hq/eshu/go/internal/reducer/semanticentity"
 )
 
 // nornicDBCommitUniqueConflictMessage is the commit-time UNIQUE conflict a
@@ -317,10 +317,10 @@ func (c *countingGroupExecutor) ExecuteGroup(_ context.Context, stmts []Statemen
 func TestSemanticEntityWriterGroupedRetractConvergesOnCommitUniqueConflict(t *testing.T) {
 	t.Parallel()
 
-	for name, write := range map[string]reducer.SemanticEntityWrite{
+	for name, write := range map[string]semanticentity.SemanticEntityWrite{
 		"full repo retract": {
 			RepoIDs: []string{"repo:test:6176"},
-			Rows: []reducer.SemanticEntityRow{{
+			Rows: []semanticentity.SemanticEntityRow{{
 				RepoID:       "repo:test:6176",
 				EntityID:     "variable:test:1",
 				EntityType:   "Variable",
@@ -336,7 +336,7 @@ func TestSemanticEntityWriterGroupedRetractConvergesOnCommitUniqueConflict(t *te
 			RepoIDs:         []string{"repo:test:6176"},
 			DeltaProjection: true,
 			DeltaFilePaths:  []string{"/tmp/eshu-6176/lib/worker.ex"},
-			Rows: []reducer.SemanticEntityRow{{
+			Rows: []semanticentity.SemanticEntityRow{{
 				RepoID:       "repo:test:6176",
 				EntityID:     "variable:test:1",
 				EntityType:   "Variable",

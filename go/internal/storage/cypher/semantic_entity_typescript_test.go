@@ -8,7 +8,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/eshu-hq/eshu/go/internal/reducer"
+	"github.com/eshu-hq/eshu/go/internal/reducer/semanticentity"
 )
 
 func TestSemanticEntityWriterWritesTypeScriptFunctionSemanticMetadata(t *testing.T) {
@@ -17,9 +17,9 @@ func TestSemanticEntityWriterWritesTypeScriptFunctionSemanticMetadata(t *testing
 	executor := &recordingExecutor{}
 	writer := NewSemanticEntityWriter(executor, 0)
 
-	result, err := writer.WriteSemanticEntities(context.Background(), reducer.SemanticEntityWrite{
+	result, err := writer.WriteSemanticEntities(context.Background(), semanticentity.SemanticEntityWrite{
 		RepoIDs: []string{"repo-1"},
-		Rows: []reducer.SemanticEntityRow{
+		Rows: []semanticentity.SemanticEntityRow{
 			{
 				RepoID:       "repo-1",
 				EntityID:     "function-ts-1",

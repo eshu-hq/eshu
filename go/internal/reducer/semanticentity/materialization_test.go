@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package reducer
+package semanticentity
 
 import (
 	"context"
@@ -10,6 +10,8 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
+	"github.com/eshu-hq/eshu/go/internal/reducer/gpphase"
 )
 
 func TestExtractSemanticEntityRowsFiltersAnnotationTypedefTypeAliasComponentAndFunctionFacts(t *testing.T) {
@@ -514,21 +516,21 @@ func TestSemanticEntityMaterializationHandlerWritesAndRetracts(t *testing.T) {
 		Writer:     writer,
 	}
 
-	result, err := handler.Handle(context.Background(), Intent{
+	result, err := handler.Handle(context.Background(), reducercontract.Intent{
 		IntentID:     "intent-1",
 		ScopeID:      "scope-1",
 		GenerationID: "generation-1",
 		SourceSystem: "git",
-		Domain:       DomainSemanticEntityMaterialization,
+		Domain:       reducercontract.DomainSemanticEntityMaterialization,
 		Cause:        "semantic entity follow-up",
-		Status:       IntentStatusClaimed,
+		Status:       reducercontract.IntentStatusClaimed,
 		EnqueuedAt:   time.Date(2026, time.April, 14, 12, 0, 0, 0, time.UTC),
 		AvailableAt:  time.Date(2026, time.April, 14, 12, 0, 0, 0, time.UTC),
 	})
 	if err != nil {
 		t.Fatalf("Handle() error = %v, want nil", err)
 	}
-	if got, want := result.Status, ResultStatusSucceeded; got != want {
+	if got, want := result.Status, reducercontract.ResultStatusSucceeded; got != want {
 		t.Fatalf("Handle().Status = %q, want %q", got, want)
 	}
 	if got, want := len(writer.writes), 1; got != want {
@@ -581,13 +583,13 @@ func TestSemanticEntityMaterializationHandlerSkipsRetractForFirstGeneration(t *t
 		},
 	}
 
-	_, err := handler.Handle(context.Background(), Intent{
+	_, err := handler.Handle(context.Background(), reducercontract.Intent{
 		IntentID:     "intent-1",
 		ScopeID:      "scope-1",
 		GenerationID: "generation-1",
 		SourceSystem: "git",
-		Domain:       DomainSemanticEntityMaterialization,
-		Status:       IntentStatusClaimed,
+		Domain:       reducercontract.DomainSemanticEntityMaterialization,
+		Status:       reducercontract.IntentStatusClaimed,
 		AttemptCount: 1,
 		EnqueuedAt:   time.Date(2026, time.April, 14, 12, 0, 0, 0, time.UTC),
 		AvailableAt:  time.Date(2026, time.April, 14, 12, 0, 0, 0, time.UTC),
@@ -645,13 +647,13 @@ func TestSemanticEntityMaterializationHandlerRetractsWhenPriorGenerationExists(t
 					return tt.prior, nil
 				},
 			}
-			_, err := handler.Handle(context.Background(), Intent{
+			_, err := handler.Handle(context.Background(), reducercontract.Intent{
 				IntentID:     "intent-1",
 				ScopeID:      "scope-1",
 				GenerationID: "generation-1",
 				SourceSystem: "git",
-				Domain:       DomainSemanticEntityMaterialization,
-				Status:       IntentStatusClaimed,
+				Domain:       reducercontract.DomainSemanticEntityMaterialization,
+				Status:       reducercontract.IntentStatusClaimed,
 				AttemptCount: tt.attemptCount,
 				EnqueuedAt:   time.Date(2026, time.April, 14, 12, 0, 0, 0, time.UTC),
 				AvailableAt:  time.Date(2026, time.April, 14, 12, 0, 0, 0, time.UTC),
@@ -697,13 +699,13 @@ func TestSemanticEntityMaterializationHandlerRetractsForRetriedFirstGeneration(t
 			return false, nil
 		},
 	}
-	_, err := handler.Handle(context.Background(), Intent{
+	_, err := handler.Handle(context.Background(), reducercontract.Intent{
 		IntentID:     "intent-1",
 		ScopeID:      "scope-1",
 		GenerationID: "generation-1",
 		SourceSystem: "git",
-		Domain:       DomainSemanticEntityMaterialization,
-		Status:       IntentStatusClaimed,
+		Domain:       reducercontract.DomainSemanticEntityMaterialization,
+		Status:       reducercontract.IntentStatusClaimed,
 		AttemptCount: 2,
 		EnqueuedAt:   time.Date(2026, time.April, 14, 12, 0, 0, 0, time.UTC),
 		AvailableAt:  time.Date(2026, time.April, 14, 12, 0, 0, 0, time.UTC),
@@ -754,21 +756,21 @@ func TestSemanticEntityMaterializationHandlerRetractsWhenNoTargetRowsRemain(t *t
 		Writer:     writer,
 	}
 
-	result, err := handler.Handle(context.Background(), Intent{
+	result, err := handler.Handle(context.Background(), reducercontract.Intent{
 		IntentID:     "intent-2",
 		ScopeID:      "scope-1",
 		GenerationID: "generation-1",
 		SourceSystem: "git",
-		Domain:       DomainSemanticEntityMaterialization,
+		Domain:       reducercontract.DomainSemanticEntityMaterialization,
 		Cause:        "semantic entity follow-up",
-		Status:       IntentStatusClaimed,
+		Status:       reducercontract.IntentStatusClaimed,
 		EnqueuedAt:   time.Date(2026, time.April, 14, 12, 0, 0, 0, time.UTC),
 		AvailableAt:  time.Date(2026, time.April, 14, 12, 0, 0, 0, time.UTC),
 	})
 	if err != nil {
 		t.Fatalf("Handle() error = %v, want nil", err)
 	}
-	if got, want := result.Status, ResultStatusSucceeded; got != want {
+	if got, want := result.Status, reducercontract.ResultStatusSucceeded; got != want {
 		t.Fatalf("Handle().Status = %q, want %q", got, want)
 	}
 	if got, want := len(writer.writes), 1; got != want {
@@ -827,14 +829,14 @@ func TestSemanticEntityMaterializationPublishesSemanticNodesCommitted(t *testing
 		PhasePublisher: publisher,
 	}
 
-	_, err := handler.Handle(context.Background(), Intent{
+	_, err := handler.Handle(context.Background(), reducercontract.Intent{
 		IntentID:     "intent-3",
 		ScopeID:      "scope-1",
 		GenerationID: "generation-1",
 		SourceSystem: "git",
-		Domain:       DomainSemanticEntityMaterialization,
+		Domain:       reducercontract.DomainSemanticEntityMaterialization,
 		Cause:        "semantic entity follow-up",
-		Status:       IntentStatusClaimed,
+		Status:       reducercontract.IntentStatusClaimed,
 		EnqueuedAt:   time.Date(2026, time.April, 14, 12, 0, 0, 0, time.UTC),
 		AvailableAt:  time.Date(2026, time.April, 14, 12, 0, 0, 0, time.UTC),
 	})
@@ -847,7 +849,7 @@ func TestSemanticEntityMaterializationPublishesSemanticNodesCommitted(t *testing
 	if got, want := len(publisher.calls[0]), 1; got != want {
 		t.Fatalf("published rows = %d, want %d", got, want)
 	}
-	if got, want := publisher.calls[0][0].Phase, GraphProjectionPhaseSemanticNodesCommitted; got != want {
+	if got, want := publisher.calls[0][0].Phase, gpphase.PhaseSemanticNodesCommitted; got != want {
 		t.Fatalf("published phase = %q, want %q", got, want)
 	}
 	if got, want := publisher.calls[0][0].Key.SourceRunID, "run-1"; got != want {
@@ -930,15 +932,15 @@ func TestSemanticEntityMaterializationHandlerFiltersToTargetRepo(t *testing.T) {
 		PhasePublisher: publisher,
 	}
 
-	_, err := handler.Handle(context.Background(), Intent{
+	_, err := handler.Handle(context.Background(), reducercontract.Intent{
 		IntentID:     "intent-repo-1",
 		ScopeID:      "scope-1",
 		GenerationID: "generation-1",
 		SourceSystem: "git",
-		Domain:       DomainSemanticEntityMaterialization,
+		Domain:       reducercontract.DomainSemanticEntityMaterialization,
 		Cause:        "semantic entity follow-up",
 		EntityKeys:   []string{"repo:repo-1"},
-		Status:       IntentStatusClaimed,
+		Status:       reducercontract.IntentStatusClaimed,
 		EnqueuedAt:   time.Date(2026, time.April, 14, 12, 0, 0, 0, time.UTC),
 		AvailableAt:  time.Date(2026, time.April, 14, 12, 0, 0, 0, time.UTC),
 	})
@@ -1043,15 +1045,15 @@ func TestSemanticEntityMaterializationHandlerResolvesLegacyEntityKeyToTargetRepo
 		PhasePublisher: publisher,
 	}
 
-	_, err := handler.Handle(context.Background(), Intent{
+	_, err := handler.Handle(context.Background(), reducercontract.Intent{
 		IntentID:     "legacy-intent-1",
 		ScopeID:      "scope-1",
 		GenerationID: "generation-1",
 		SourceSystem: "git",
-		Domain:       DomainSemanticEntityMaterialization,
+		Domain:       reducercontract.DomainSemanticEntityMaterialization,
 		Cause:        "semantic entity follow-up",
 		EntityKeys:   []string{"annotation-1"},
-		Status:       IntentStatusClaimed,
+		Status:       reducercontract.IntentStatusClaimed,
 		EnqueuedAt:   time.Date(2026, time.April, 14, 12, 0, 0, 0, time.UTC),
 		AvailableAt:  time.Date(2026, time.April, 14, 12, 0, 0, 0, time.UTC),
 	})
@@ -1118,14 +1120,14 @@ func TestSemanticEntityMaterializationEnqueuesRepairWhenPublishFails(t *testing.
 		RepairQueue:    repairQueue,
 	}
 
-	_, err := handler.Handle(context.Background(), Intent{
+	_, err := handler.Handle(context.Background(), reducercontract.Intent{
 		IntentID:     "intent-3",
 		ScopeID:      "scope-1",
 		GenerationID: "generation-1",
 		SourceSystem: "git",
-		Domain:       DomainSemanticEntityMaterialization,
+		Domain:       reducercontract.DomainSemanticEntityMaterialization,
 		Cause:        "semantic entity follow-up",
-		Status:       IntentStatusClaimed,
+		Status:       reducercontract.IntentStatusClaimed,
 		EnqueuedAt:   time.Date(2026, time.April, 14, 12, 0, 0, 0, time.UTC),
 		AvailableAt:  time.Date(2026, time.April, 14, 12, 0, 0, 0, time.UTC),
 	})
@@ -1138,77 +1140,8 @@ func TestSemanticEntityMaterializationEnqueuesRepairWhenPublishFails(t *testing.
 	if got, want := len(repairQueue.calls[0]), 1; got != want {
 		t.Fatalf("repair rows = %d, want %d", got, want)
 	}
-	if got, want := repairQueue.calls[0][0].Phase, GraphProjectionPhaseSemanticNodesCommitted; got != want {
+	if got, want := repairQueue.calls[0][0].Phase, gpphase.PhaseSemanticNodesCommitted; got != want {
 		t.Fatalf("repair phase = %q, want %q", got, want)
-	}
-}
-
-func TestNewDefaultRuntimeRegistersSemanticEntityMaterializationWhenWriterPresent(t *testing.T) {
-	t.Parallel()
-
-	runtime, err := NewDefaultRuntime(DefaultHandlers{
-		WorkloadIdentityWriter: &recordingWorkloadIdentityWriter{
-			result: WorkloadIdentityWriteResult{CanonicalWrites: 1},
-		},
-		CloudAssetResolutionWriter: &recordingCloudAssetResolutionWriter{
-			result: CloudAssetResolutionWriteResult{CanonicalWrites: 1},
-		},
-		PlatformMaterializationWriter: &recordingPlatformMaterializationWriter{
-			result: PlatformMaterializationWriteResult{CanonicalWrites: 1},
-		},
-		SemanticEntityWriter: &recordingSemanticEntityWriter{
-			result: SemanticEntityWriteResult{CanonicalWrites: 1},
-		},
-		FactLoader: &fakeSemanticEntityFactLoader{
-			envelopes: []facts.Envelope{
-				{
-					FactKind: "repository",
-					Payload: map[string]any{
-						"repo_id": "repo-1",
-					},
-				},
-				{
-					FactKind: "content_entity",
-					SourceRef: facts.Ref{
-						SourceURI:    "/repo/src/Logged.java",
-						SourceSystem: "git",
-					},
-					Payload: map[string]any{
-						"repo_id":       "repo-1",
-						"entity_id":     "annotation-1",
-						"relative_path": "src/Logged.java",
-						"entity_type":   "Annotation",
-						"entity_name":   "Logged",
-						"language":      "java",
-						"start_line":    12,
-						"end_line":      12,
-						"entity_metadata": map[string]any{
-							"kind":        "applied",
-							"target_kind": "method_declaration",
-						},
-					},
-				},
-			},
-		},
-		CodeCallIntentWriter: &recordingCodeCallIntentWriter{},
-	})
-	if err != nil {
-		t.Fatalf("NewDefaultRuntime() error = %v, want nil", err)
-	}
-
-	_, err = runtime.Execute(context.Background(), Intent{
-		IntentID:     "intent-semantic-1",
-		ScopeID:      "scope-1",
-		GenerationID: "generation-1",
-		SourceSystem: "git",
-		Domain:       DomainSemanticEntityMaterialization,
-		Cause:        "semantic entity follow-up",
-		Status:       IntentStatusClaimed,
-		EnqueuedAt:   time.Date(2026, time.April, 14, 12, 0, 0, 0, time.UTC),
-		AvailableAt:  time.Date(2026, time.April, 14, 12, 0, 0, 0, time.UTC),
-	})
-	if err != nil {
-		t.Fatalf("runtime.Execute(semantic_entity_materialization) error = %v, want nil", err)
 	}
 }
 
@@ -1234,12 +1167,12 @@ func (w *recordingSemanticEntityWriter) WriteSemanticEntities(
 }
 
 type recordingSemanticEntityPhasePublisher struct {
-	calls [][]GraphProjectionPhaseState
+	calls [][]gpphase.PhaseState
 	err   error
 }
 
-func (p *recordingSemanticEntityPhasePublisher) PublishGraphProjectionPhases(_ context.Context, rows []GraphProjectionPhaseState) error {
-	cloned := make([]GraphProjectionPhaseState, len(rows))
+func (p *recordingSemanticEntityPhasePublisher) PublishGraphProjectionPhases(_ context.Context, rows []gpphase.PhaseState) error {
+	cloned := make([]gpphase.PhaseState, len(rows))
 	copy(cloned, rows)
 	p.calls = append(p.calls, cloned)
 	return p.err

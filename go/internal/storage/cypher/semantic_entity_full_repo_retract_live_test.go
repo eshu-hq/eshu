@@ -10,7 +10,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/eshu-hq/eshu/go/internal/reducer"
+	"github.com/eshu-hq/eshu/go/internal/reducer/semanticentity"
 	runtimecfg "github.com/eshu-hq/eshu/go/internal/runtime"
 	"github.com/eshu-hq/eshu/go/internal/storage/cypher"
 )
@@ -99,8 +99,8 @@ SET f.repo_id = $repo_id`,
 	retrying := &cypher.RetryingExecutor{Inner: exec, MaxRetries: 3, BaseDelay: 5 * time.Millisecond}
 	writer := cypher.NewSemanticEntityWriterWithCanonicalNodeRows(retrying, 100).WithLabelScopedRetract()
 
-	variableRow := func(uid, path, relative, name, value string) reducer.SemanticEntityRow {
-		return reducer.SemanticEntityRow{
+	variableRow := func(uid, path, relative, name, value string) semanticentity.SemanticEntityRow {
+		return semanticentity.SemanticEntityRow{
 			RepoID:       repoID,
 			EntityID:     uid,
 			EntityType:   "Variable",
@@ -118,9 +118,9 @@ SET f.repo_id = $repo_id`,
 	}
 
 	// gen1: both Variable nodes for the repo.
-	if _, err := writer.WriteSemanticEntities(ctx, reducer.SemanticEntityWrite{
+	if _, err := writer.WriteSemanticEntities(ctx, semanticentity.SemanticEntityWrite{
 		RepoIDs: []string{repoID},
-		Rows: []reducer.SemanticEntityRow{
+		Rows: []semanticentity.SemanticEntityRow{
 			variableRow(keptUID, keptPath, "lib/kept.ex", "@timeout", "gen1"),
 			variableRow(droppedUID, droppedPath, "lib/dropped.ex", "@retries", "gen1"),
 		},
@@ -141,9 +141,9 @@ RETURN count(n)`, map[string]any{"repo_id": repoID})
 	// gen2: the full-repo retract path. No DeltaProjection, so the group is
 	// the repo-scoped DETACH DELETE followed by the MERGE that recreates the
 	// kept uid the retract just removed, in one transaction.
-	if _, err := writer.WriteSemanticEntities(ctx, reducer.SemanticEntityWrite{
+	if _, err := writer.WriteSemanticEntities(ctx, semanticentity.SemanticEntityWrite{
 		RepoIDs: []string{repoID},
-		Rows: []reducer.SemanticEntityRow{
+		Rows: []semanticentity.SemanticEntityRow{
 			variableRow(keptUID, keptPath, "lib/kept.ex", "@timeout", "gen2"),
 		},
 	}); err != nil {

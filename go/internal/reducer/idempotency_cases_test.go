@@ -11,6 +11,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
 	"github.com/eshu-hq/eshu/go/internal/reducer/inheritance"
+	"github.com/eshu-hq/eshu/go/internal/reducer/semanticentity"
 )
 
 // idempotencyReplayFencingToken is the single fencing token stamped on every
@@ -266,8 +267,8 @@ func semanticEntityReplayCase() idempotencyReplayCase {
 		domain: DomainSemanticEntityMaterialization,
 		run: func(t *testing.T) []idempotencyRow {
 			t.Helper()
-			writer := &recordingSemanticEntityWriter{result: SemanticEntityWriteResult{CanonicalWrites: 1}}
-			handler := SemanticEntityMaterializationHandler{
+			writer := &recordingSemanticEntityWriter{result: semanticentity.SemanticEntityWriteResult{CanonicalWrites: 1}}
+			handler := semanticentity.SemanticEntityMaterializationHandler{
 				FactLoader: &stubFactLoader{envelopes: fencedFacts(semanticEntityReplayFacts())},
 				Writer:     writer,
 			}

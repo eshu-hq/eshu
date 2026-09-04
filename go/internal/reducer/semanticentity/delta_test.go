@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package reducer
+package semanticentity
 
 import (
 	"context"
@@ -10,12 +10,13 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
 )
 
 func TestSemanticEntityMaterializationHandlerScopesDeltaRetractToFiles(t *testing.T) {
 	t.Parallel()
 
-	loader := &recordingKindFactLoader{
+	loader := &stubKindFactLoader{
 		byKind: []facts.Envelope{
 			{
 				ScopeID:  "scope-1",
@@ -53,11 +54,11 @@ func TestSemanticEntityMaterializationHandlerScopesDeltaRetractToFiles(t *testin
 		PriorGenerationCheck: func(context.Context, string, string) (bool, error) { return true, nil },
 	}
 
-	_, err := handler.Handle(context.Background(), Intent{
+	_, err := handler.Handle(context.Background(), reducercontract.Intent{
 		IntentID:     "intent-delta-semantic",
 		ScopeID:      "scope-1",
 		GenerationID: "generation-2",
-		Domain:       DomainSemanticEntityMaterialization,
+		Domain:       reducercontract.DomainSemanticEntityMaterialization,
 		EntityKeys:   []string{"repo:repo-1"},
 		EnqueuedAt:   time.Now(),
 		AvailableAt:  time.Now(),
@@ -83,7 +84,7 @@ func TestSemanticEntityMaterializationHandlerScopesDeltaRetractToFiles(t *testin
 func TestSemanticEntityMaterializationHandlerScopesDeletedOnlyDeltaRetract(t *testing.T) {
 	t.Parallel()
 
-	loader := &recordingKindFactLoader{
+	loader := &stubKindFactLoader{
 		byKind: []facts.Envelope{
 			{
 				ScopeID:  "scope-1",
@@ -106,11 +107,11 @@ func TestSemanticEntityMaterializationHandlerScopesDeletedOnlyDeltaRetract(t *te
 		PriorGenerationCheck: func(context.Context, string, string) (bool, error) { return true, nil },
 	}
 
-	result, err := handler.Handle(context.Background(), Intent{
+	result, err := handler.Handle(context.Background(), reducercontract.Intent{
 		IntentID:     "intent-delta-semantic-delete",
 		ScopeID:      "scope-1",
 		GenerationID: "generation-2",
-		Domain:       DomainSemanticEntityMaterialization,
+		Domain:       reducercontract.DomainSemanticEntityMaterialization,
 		EntityKeys:   []string{"repo:repo-1"},
 		EnqueuedAt:   time.Now(),
 		AvailableAt:  time.Now(),
@@ -134,4 +135,26 @@ func TestSemanticEntityMaterializationHandlerScopesDeletedOnlyDeltaRetract(t *te
 	if got, want := len(write.Rows), 0; got != want {
 		t.Fatalf("Rows = %d, want %d", got, want)
 	}
+}
+
+// stubKindFactLoader is a minimal local copy of the reducer root's
+// recordingKindFactLoader (fact_kind_loader_test.go), scoped to this
+// package: it implements both factload.FactLoader and the optional
+// factload.FactKindLoader extension so LoadFactsForKinds exercises the
+// ListFactsByKind path the delta-scope tests above depend on.
+type stubKindFactLoader struct {
+	byKind []facts.Envelope
+}
+
+func (l *stubKindFactLoader) ListFacts(context.Context, string, string) ([]facts.Envelope, error) {
+	return nil, nil
+}
+
+func (l *stubKindFactLoader) ListFactsByKind(
+	_ context.Context,
+	_ string,
+	_ string,
+	_ []string,
+) ([]facts.Envelope, error) {
+	return append([]facts.Envelope(nil), l.byKind...), nil
 }

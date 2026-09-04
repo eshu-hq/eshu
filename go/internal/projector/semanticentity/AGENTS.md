@@ -8,7 +8,7 @@
 4. `../runtime.go` — the per-fact `buildProjection` loop that calls this
    builder. This family is dispatched from there, NOT from
    `../scope_generation_intents.go`.
-5. `go/internal/reducer/semantic_entity_materialization_helpers.go` for what
+5. `go/internal/reducer/semanticentity/materialization_helpers.go` for what
    the reducer does with the intent, including its own copies of two
    predicate names used here.
 
@@ -41,7 +41,7 @@
 - **Admitting a new entity type.** Add it to `semanticEntityReducerTypes` if
   it is semantic with no metadata check, otherwise add a language predicate.
   Then decide whether the reducer's own language gate in
-  `go/internal/reducer/semantic_entity_materialization_helpers.go` needs the
+  `go/internal/reducer/semanticentity/materialization_helpers.go` needs the
   matching addition — admitting here without admitting there enqueues work
   the handler drops.
 - **Adding a language predicate.** Add the test to the matching

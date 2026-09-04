@@ -8,7 +8,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/eshu-hq/eshu/go/internal/reducer"
+	"github.com/eshu-hq/eshu/go/internal/reducer/semanticentity"
 )
 
 func TestSemanticEntityWriterWritesRustImplBlocksAndOwnershipEdges(t *testing.T) {
@@ -17,9 +17,9 @@ func TestSemanticEntityWriterWritesRustImplBlocksAndOwnershipEdges(t *testing.T)
 	executor := &recordingExecutor{}
 	writer := NewSemanticEntityWriter(executor, 0)
 
-	result, err := writer.WriteSemanticEntities(context.Background(), reducer.SemanticEntityWrite{
+	result, err := writer.WriteSemanticEntities(context.Background(), semanticentity.SemanticEntityWrite{
 		RepoIDs: []string{"repo-rust"},
-		Rows: []reducer.SemanticEntityRow{
+		Rows: []semanticentity.SemanticEntityRow{
 			{
 				RepoID:       "repo-rust",
 				EntityID:     "impl-1",

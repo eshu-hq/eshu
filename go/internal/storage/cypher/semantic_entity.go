@@ -7,7 +7,7 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/eshu-hq/eshu/go/internal/reducer"
+	"github.com/eshu-hq/eshu/go/internal/reducer/semanticentity"
 )
 
 // SemanticEntityWriter writes Annotation, Typedef, TypeAlias, TypeAnnotation,
@@ -148,19 +148,19 @@ func (w *SemanticEntityWriter) batchSizeForLabel(label string) int {
 // back on every backend.
 func (w *SemanticEntityWriter) WriteSemanticEntities(
 	ctx context.Context,
-	write reducer.SemanticEntityWrite,
-) (reducer.SemanticEntityWriteResult, error) {
+	write semanticentity.SemanticEntityWrite,
+) (semanticentity.SemanticEntityWriteResult, error) {
 	if len(write.RepoIDs) == 0 && len(write.Rows) == 0 {
-		return reducer.SemanticEntityWriteResult{}, nil
+		return semanticentity.SemanticEntityWriteResult{}, nil
 	}
 	if w.executor == nil {
-		return reducer.SemanticEntityWriteResult{}, fmt.Errorf("semantic entity writer executor is required")
+		return semanticentity.SemanticEntityWriteResult{}, fmt.Errorf("semantic entity writer executor is required")
 	}
 
 	repoIDs := uniqueSemanticRepoIDs(write.RepoIDs)
 	deltaFilePaths := uniqueSemanticFilePaths(write.DeltaFilePaths)
 	if write.DeltaProjection && !write.SkipRetract && len(deltaFilePaths) == 0 {
-		return reducer.SemanticEntityWriteResult{}, fmt.Errorf("semantic entity delta projection requires file paths")
+		return semanticentity.SemanticEntityWriteResult{}, fmt.Errorf("semantic entity delta projection requires file paths")
 	}
 
 	// Retract statements lead the grouped statement list so retract+upsert
@@ -288,7 +288,7 @@ func (w *SemanticEntityWriter) WriteSemanticEntities(
 			writes += len(rows)
 		}
 	default:
-		return reducer.SemanticEntityWriteResult{}, fmt.Errorf("unsupported semantic entity write mode %d", w.writeMode)
+		return semanticentity.SemanticEntityWriteResult{}, fmt.Errorf("unsupported semantic entity write mode %d", w.writeMode)
 	}
 
 	batchSize := w.batchSize()
@@ -311,18 +311,18 @@ func (w *SemanticEntityWriter) WriteSemanticEntities(
 		// ExecuteOnlyExecutor, and test stubs.
 		if ge, ok := w.executor.(GroupExecutor); ok {
 			if err := ge.ExecuteGroup(ctx, stmts); err != nil {
-				return reducer.SemanticEntityWriteResult{}, fmt.Errorf("write semantic entities: %w", WrapRetryableNeo4jError(err))
+				return semanticentity.SemanticEntityWriteResult{}, fmt.Errorf("write semantic entities: %w", WrapRetryableNeo4jError(err))
 			}
 		} else {
 			for _, stmt := range stmts {
 				if err := w.executor.Execute(ctx, stmt); err != nil {
-					return reducer.SemanticEntityWriteResult{}, fmt.Errorf("write semantic entities: %w", WrapRetryableNeo4jError(err))
+					return semanticentity.SemanticEntityWriteResult{}, fmt.Errorf("write semantic entities: %w", WrapRetryableNeo4jError(err))
 				}
 			}
 		}
 	}
 
-	return reducer.SemanticEntityWriteResult{CanonicalWrites: writes}, nil
+	return semanticentity.SemanticEntityWriteResult{CanonicalWrites: writes}, nil
 }
 
 func (w *SemanticEntityWriter) semanticRetractStatements(repoIDs []string) []Statement {

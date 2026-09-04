@@ -8,7 +8,7 @@ import (
 	"fmt"
 	"testing"
 
-	"github.com/eshu-hq/eshu/go/internal/reducer"
+	"github.com/eshu-hq/eshu/go/internal/reducer/semanticentity"
 	runtimecfg "github.com/eshu-hq/eshu/go/internal/runtime"
 	sourcecypher "github.com/eshu-hq/eshu/go/internal/storage/cypher"
 )
@@ -24,11 +24,11 @@ func TestSemanticEntityWriterForGraphBackendAppliesDefaultNornicDBAnnotationCap(
 		t.Fatalf("semanticEntityWriterForGraphBackend() error = %v", err)
 	}
 
-	rows := make([]reducer.SemanticEntityRow, 0, 31)
+	rows := make([]semanticentity.SemanticEntityRow, 0, 31)
 	for i := 0; i < 31; i++ {
 		rows = append(rows, semanticAnnotationRow(fmt.Sprintf("annotation-ts-%03d", i)))
 	}
-	result, err := writer.WriteSemanticEntities(context.Background(), reducer.SemanticEntityWrite{
+	result, err := writer.WriteSemanticEntities(context.Background(), semanticentity.SemanticEntityWrite{
 		RepoIDs: []string{"repo-1"},
 		Rows:    rows,
 	})
@@ -67,11 +67,11 @@ func TestSemanticEntityWriterForGraphBackendAppliesDefaultNornicDBTypeAliasCap(t
 		t.Fatalf("semanticEntityWriterForGraphBackend() error = %v", err)
 	}
 
-	rows := make([]reducer.SemanticEntityRow, 0, 11)
+	rows := make([]semanticentity.SemanticEntityRow, 0, 11)
 	for i := 0; i < 11; i++ {
 		rows = append(rows, semanticTypeAliasRow(fmt.Sprintf("type-alias-ts-%03d", i)))
 	}
-	result, err := writer.WriteSemanticEntities(context.Background(), reducer.SemanticEntityWrite{
+	result, err := writer.WriteSemanticEntities(context.Background(), semanticentity.SemanticEntityWrite{
 		RepoIDs: []string{"repo-1"},
 		Rows:    rows,
 	})
@@ -110,11 +110,11 @@ func TestSemanticEntityWriterForGraphBackendAppliesDefaultNornicDBTypeAnnotation
 		t.Fatalf("semanticEntityWriterForGraphBackend() error = %v", err)
 	}
 
-	rows := make([]reducer.SemanticEntityRow, 0, 101)
+	rows := make([]semanticentity.SemanticEntityRow, 0, 101)
 	for i := 0; i < 101; i++ {
 		rows = append(rows, semanticTypeAnnotationRow(fmt.Sprintf("type-annotation-py-%03d", i)))
 	}
-	result, err := writer.WriteSemanticEntities(context.Background(), reducer.SemanticEntityWrite{
+	result, err := writer.WriteSemanticEntities(context.Background(), semanticentity.SemanticEntityWrite{
 		RepoIDs: []string{"repo-1"},
 		Rows:    rows,
 	})
@@ -153,11 +153,11 @@ func TestSemanticEntityWriterForGraphBackendAppliesDefaultNornicDBFunctionCap(t 
 		t.Fatalf("semanticEntityWriterForGraphBackend() error = %v", err)
 	}
 
-	rows := make([]reducer.SemanticEntityRow, 0, 11)
+	rows := make([]semanticentity.SemanticEntityRow, 0, 11)
 	for i := 0; i < 11; i++ {
 		rows = append(rows, semanticFunctionRow(fmt.Sprintf("function-go-%03d", i)))
 	}
-	result, err := writer.WriteSemanticEntities(context.Background(), reducer.SemanticEntityWrite{
+	result, err := writer.WriteSemanticEntities(context.Background(), semanticentity.SemanticEntityWrite{
 		RepoIDs: []string{"repo-1"},
 		Rows:    rows,
 	})
@@ -185,8 +185,8 @@ func TestSemanticEntityWriterForGraphBackendAppliesDefaultNornicDBFunctionCap(t 
 	}
 }
 
-func semanticAnnotationRow(id string) reducer.SemanticEntityRow {
-	return reducer.SemanticEntityRow{
+func semanticAnnotationRow(id string) semanticentity.SemanticEntityRow {
+	return semanticentity.SemanticEntityRow{
 		RepoID:       "repo-1",
 		EntityID:     id,
 		EntityType:   "Annotation",
@@ -199,8 +199,8 @@ func semanticAnnotationRow(id string) reducer.SemanticEntityRow {
 	}
 }
 
-func semanticTypeAliasRow(id string) reducer.SemanticEntityRow {
-	return reducer.SemanticEntityRow{
+func semanticTypeAliasRow(id string) semanticentity.SemanticEntityRow {
+	return semanticentity.SemanticEntityRow{
 		RepoID:       "repo-1",
 		EntityID:     id,
 		EntityType:   "TypeAlias",
@@ -213,8 +213,8 @@ func semanticTypeAliasRow(id string) reducer.SemanticEntityRow {
 	}
 }
 
-func semanticTypeAnnotationRow(id string) reducer.SemanticEntityRow {
-	return reducer.SemanticEntityRow{
+func semanticTypeAnnotationRow(id string) semanticentity.SemanticEntityRow {
+	return semanticentity.SemanticEntityRow{
 		RepoID:       "repo-1",
 		EntityID:     id,
 		EntityType:   "TypeAnnotation",

@@ -10,6 +10,7 @@ import (
 	"go.opentelemetry.io/otel/trace"
 
 	"github.com/eshu-hq/eshu/go/internal/reducer/inheritance"
+	"github.com/eshu-hq/eshu/go/internal/reducer/semanticentity"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
 )
 
@@ -27,7 +28,7 @@ type DefaultHandlers struct {
 	WorkloadMaterializer               *WorkloadMaterializer
 	InfrastructurePlatformMaterializer *InfrastructurePlatformMaterializer
 	InfrastructurePlatformLookup       InfrastructurePlatformLookup
-	SemanticEntityWriter               SemanticEntityWriter
+	SemanticEntityWriter               semanticentity.SemanticEntityWriter
 	WorkloadProjectionInputLoader      WorkloadProjectionInputLoader
 	WorkloadDependencyLookup           WorkloadDependencyGraphLookup
 	// InstanceRetractionLookup resolves superseded WorkloadInstance ids (e.g. a

@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package reducer
+package semanticentity
 
 import (
 	"bytes"
@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
 )
 
 func TestSemanticEntityMaterializationHandlerLogsStageTiming(t *testing.T) {
@@ -48,13 +49,13 @@ func TestSemanticEntityMaterializationHandlerLogsStageTiming(t *testing.T) {
 		Writer:     writer,
 	}
 
-	_, err := handler.Handle(context.Background(), Intent{
+	_, err := handler.Handle(context.Background(), reducercontract.Intent{
 		IntentID:     "intent-1",
 		ScopeID:      "scope-1",
 		GenerationID: "generation-1",
 		SourceSystem: "git",
-		Domain:       DomainSemanticEntityMaterialization,
-		Status:       IntentStatusClaimed,
+		Domain:       reducercontract.DomainSemanticEntityMaterialization,
+		Status:       reducercontract.IntentStatusClaimed,
 		EnqueuedAt:   time.Date(2026, time.April, 14, 12, 0, 0, 0, time.UTC),
 		AvailableAt:  time.Date(2026, time.April, 14, 12, 0, 0, 0, time.UTC),
 	})

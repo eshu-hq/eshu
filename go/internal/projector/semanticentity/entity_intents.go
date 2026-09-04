@@ -178,7 +178,7 @@ func isElixirCallableSemanticEntity(payload map[string]any, entityType string) b
 // isElixirModuleAttributeSemanticEntity admits an Elixir module attribute,
 // which the parser emits as a Variable with
 // attribute_kind=module_attribute. Its reducer-side twin of the same name
-// lives in go/internal/reducer/semantic_entity_materialization_helpers.go and
+// lives in go/internal/reducer/semanticentity/materialization_helpers.go and
 // gates the same rows further down the pipeline.
 func isElixirModuleAttributeSemanticEntity(payload map[string]any, entityType string) bool {
 	if entityType != "Variable" {
@@ -204,7 +204,7 @@ func isTypeScriptJSXFragmentSemanticEntity(payload map[string]any, entityType st
 
 // isTypeScriptJSXComponentTypeAssertionSemanticEntity admits a TSX Variable
 // annotated as a component type. Its reducer-side twin of the same name lives
-// in go/internal/reducer/semantic_entity_materialization_helpers.go and gates
+// in go/internal/reducer/semanticentity/materialization_helpers.go and gates
 // the same rows further down the pipeline.
 func isTypeScriptJSXComponentTypeAssertionSemanticEntity(payload map[string]any, entityType string) bool {
 	if entityType != "Variable" {

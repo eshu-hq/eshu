@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package reducer
+package semanticentity
 
 import (
 	"sort"
@@ -12,7 +12,7 @@ import (
 )
 
 func collectSemanticMetadata(payload map[string]any) map[string]any {
-	metadata := cloneAnyMap(payloadMap(payload, "entity_metadata"))
+	metadata := cloneAnyMap(payloadcore.PayloadMap(payload, "entity_metadata"))
 	if metadata == nil {
 		metadata = make(map[string]any)
 	}
@@ -73,16 +73,6 @@ func collectSemanticMetadata(payload map[string]any) map[string]any {
 	return metadata
 }
 
-// payloadMap forwards to [payloadcore.PayloadMap].
-func payloadMap(payload map[string]any, key string) map[string]any {
-	return payloadcore.PayloadMap(payload, key)
-}
-
-// semanticPayloadString forwards to [payloadcore.SemanticPayloadString].
-func semanticPayloadString(payload map[string]any, key string) string {
-	return payloadcore.SemanticPayloadString(payload, key)
-}
-
 // semanticPayloadMetadataString forwards to
 // [payloadcore.SemanticPayloadMetadataString].
 func semanticPayloadMetadataString(payload map[string]any, key string) string {
@@ -101,7 +91,7 @@ func semanticPayloadMetadataBool(payload map[string]any, key string) bool {
 			return typed
 		}
 	}
-	metadata := payloadMap(payload, "entity_metadata")
+	metadata := payloadcore.PayloadMap(payload, "entity_metadata")
 	if metadata == nil {
 		return false
 	}
@@ -163,7 +153,7 @@ func semanticPayloadMetadataInt(payload map[string]any, key string) int {
 			return int(typed)
 		}
 	}
-	metadata := payloadMap(payload, "entity_metadata")
+	metadata := payloadcore.PayloadMap(payload, "entity_metadata")
 	if metadata == nil {
 		return 0
 	}
@@ -197,11 +187,6 @@ func semanticPayloadParameterCount(payload map[string]any) int {
 	return 0
 }
 
-// semanticPayloadStringSlice forwards to [payloadcore.SemanticPayloadStringSlice].
-func semanticPayloadStringSlice(payload map[string]any, key string) []string {
-	return payloadcore.SemanticPayloadStringSlice(payload, key)
-}
-
 func isSemanticEntityType(payload map[string]any, entityType string) bool {
 	switch entityType {
 	case "Annotation", "Typedef", "TypeAlias", "TypeAnnotation", "Component", "Module", "ImplBlock", "Protocol", "ProtocolImplementation":
@@ -223,14 +208,14 @@ func isSemanticEntityType(payload map[string]any, entityType string) bool {
 }
 
 func isJavaScriptCallableSemanticEntity(payload map[string]any) bool {
-	if semanticPayloadString(payload, "language") != "javascript" {
+	if payloadcore.SemanticPayloadString(payload, "language") != "javascript" {
 		return false
 	}
 	return semanticPayloadMetadataString(payload, "docstring") != "" || semanticPayloadMetadataString(payload, "method_kind") != ""
 }
 
 func isPythonSemanticFunction(payload map[string]any) bool {
-	if semanticPayloadString(payload, "language") != "python" {
+	if payloadcore.SemanticPayloadString(payload, "language") != "python" {
 		return false
 	}
 	if semanticPayloadMetadataString(payload, "semantic_kind") == "lambda" {
@@ -250,28 +235,28 @@ func isPythonSemanticFunction(payload map[string]any) bool {
 }
 
 func isGoSemanticFunction(payload map[string]any) bool {
-	if semanticPayloadString(payload, "language") != "go" {
+	if payloadcore.SemanticPayloadString(payload, "language") != "go" {
 		return false
 	}
 	return hasSemanticFunctionMetadata(payload)
 }
 
 func isElixirSemanticFunction(payload map[string]any) bool {
-	if semanticPayloadString(payload, "language") != "elixir" {
+	if payloadcore.SemanticPayloadString(payload, "language") != "elixir" {
 		return false
 	}
 	return semanticPayloadMetadataString(payload, "semantic_kind") == "guard"
 }
 
 func isElixirModuleAttributeSemanticEntity(payload map[string]any) bool {
-	if semanticPayloadString(payload, "language") != "elixir" {
+	if payloadcore.SemanticPayloadString(payload, "language") != "elixir" {
 		return false
 	}
 	return semanticPayloadMetadataString(payload, "attribute_kind") == "module_attribute"
 }
 
 func isTypeScriptSemanticFunction(payload map[string]any) bool {
-	if semanticPayloadString(payload, "language") != "typescript" {
+	if payloadcore.SemanticPayloadString(payload, "language") != "typescript" {
 		return false
 	}
 	return len(semanticPayloadMetadataStringSlice(payload, "decorators")) > 0 ||
@@ -279,21 +264,21 @@ func isTypeScriptSemanticFunction(payload map[string]any) bool {
 }
 
 func isTypeScriptJSXFragmentSemanticEntity(payload map[string]any) bool {
-	if semanticPayloadString(payload, "language") != "tsx" {
+	if payloadcore.SemanticPayloadString(payload, "language") != "tsx" {
 		return false
 	}
 	return semanticPayloadMetadataBool(payload, "jsx_fragment_shorthand")
 }
 
 func isTypeScriptJSXComponentTypeAssertionSemanticEntity(payload map[string]any) bool {
-	if semanticPayloadString(payload, "language") != "tsx" {
+	if payloadcore.SemanticPayloadString(payload, "language") != "tsx" {
 		return false
 	}
 	return semanticPayloadMetadataString(payload, "component_type_assertion") != ""
 }
 
 func isRustSemanticFunction(payload map[string]any) bool {
-	if semanticPayloadString(payload, "language") != "rust" {
+	if payloadcore.SemanticPayloadString(payload, "language") != "rust" {
 		return false
 	}
 	return semanticPayloadMetadataString(payload, "impl_context") != "" ||
@@ -367,7 +352,7 @@ func collectSemanticRepoIDs(envelopes []facts.Envelope) []string {
 	seen := make(map[string]struct{})
 	repoIDs := make([]string, 0)
 	for _, env := range envelopes {
-		repoID := semanticPayloadString(env.Payload, "repo_id")
+		repoID := payloadcore.SemanticPayloadString(env.Payload, "repo_id")
 		if repoID == "" {
 			continue
 		}

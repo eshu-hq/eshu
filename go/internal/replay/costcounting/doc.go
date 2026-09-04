@@ -72,7 +72,7 @@
 //
 // The semantic-entity, documentation-edges, and six cloud-posture scenarios
 // have no committed cassette: their writers operate over flat reducer rows or
-// candidates (reducer.SemanticEntityRow, reducer.SharedProjectionIntentRow,
+// candidates (semanticentity.SemanticEntityRow, reducer.SharedProjectionIntentRow,
 // map[string]any node/edge rows, model.Candidate), not a
 // projector.CanonicalMaterialization, so their deterministic input is an
 // in-package Go literal fixture (the same convention semantic_entity_test.go
