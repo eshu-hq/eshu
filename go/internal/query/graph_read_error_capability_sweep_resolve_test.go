@@ -35,7 +35,15 @@ type capabilitySweep struct {
 	// called from another directory, and resolveParam resolves each caller's
 	// argument against that caller's own directory, not the callee's.
 	callSites map[string][]capabilityCallSite
-	fset      *token.FileSet
+	// fileImports maps a parsed filename to the packages it imports, keyed
+	// by the local name the importing file uses (the explicit rename, or
+	// the import path's final element). resolveQualifiedConst consults it
+	// so pkg.Name resolves only when the consuming file actually imports
+	// a package under that name -- a same-spelled local variable or struct
+	// field selector otherwise fails closed instead of resolving to the
+	// swept package's literal.
+	fileImports map[string]map[string]string
+	fset        *token.FileSet
 }
 
 // capabilityCallSite is one call expression together with the *ast.FuncDecl it
@@ -52,6 +60,7 @@ func newCapabilitySweep(fset *token.FileSet) *capabilitySweep {
 		funcDecls:    map[string]map[string]*ast.FuncDecl{},
 		packageNames: map[string]string{},
 		callSites:    map[string][]capabilityCallSite{},
+		fileImports:  map[string]map[string]string{},
 		fset:         fset,
 	}
 }
@@ -129,17 +138,6 @@ func paramIndex(fn *ast.FuncDecl, name string) (int, bool) {
 	return 0, false
 }
 
-// capabilitySweepDocumentedExceptions lists capability strings that are
-// deliberately absent from capabilityMatrix, with the reason, so the sweep
-// does not misreport a documented design choice as a gap. Adding an entry here
-// requires the same justification a reviewer would want in the source: why the
-// route bypasses the matrix's BuildTruthEnvelope panic-guard.
-var capabilitySweepDocumentedExceptions = map[string]string{
-	"repository_freshness.status": "repository_freshness.go's repositoryFreshnessTruth builds its " +
-		"TruthEnvelope directly from Postgres runtime state rather than through " +
-		"capabilityMatrix/BuildTruthEnvelope, and says so in its doc comment; not a gap.",
-}
-
 // collectDecls records every single-value string const and every function
 // declaration in file, keyed by file's own directory so later resolution can
 // look identifiers and calls up scoped to the declaring package (see the
@@ -150,6 +148,7 @@ func (s *capabilitySweep) collectDecls(file *ast.File) {
 	if file.Name != nil {
 		s.packageNames[dir] = file.Name.Name
 	}
+	s.collectFileImports(file)
 	for _, decl := range file.Decls {
 		switch d := decl.(type) {
 		case *ast.GenDecl:
@@ -298,39 +297,6 @@ func (s *capabilitySweep) resolveCapabilityArg(expr ast.Expr, enclosing *ast.Fun
 	default:
 		return nil, false
 	}
-}
-
-// resolveQualifiedConst resolves pkg.Name to the string literal the named
-// constant declares in the swept package named pkg. Every swept directory
-// declaring that package name must agree on the value: unanimity keeps the
-// directory-scoping guarantee (two same-named packages declaring different
-// values fail closed as unresolvable, exactly like an unknown name, instead
-// of resolving to whichever parsed last).
-func (s *capabilitySweep) resolveQualifiedConst(e *ast.SelectorExpr) ([]string, bool) {
-	pkgIdent, ok := e.X.(*ast.Ident)
-	if !ok || e.Sel == nil {
-		return nil, false
-	}
-	var values []string
-	for dir, pkgName := range s.packageNames {
-		if pkgName != pkgIdent.Name {
-			continue
-		}
-		lit, ok := s.constStrings[dir][e.Sel.Name]
-		if !ok {
-			continue
-		}
-		values = append(values, lit)
-	}
-	if len(values) == 0 {
-		return nil, false
-	}
-	for _, v := range values[1:] {
-		if v != values[0] {
-			return nil, false
-		}
-	}
-	return []string{values[0]}, true
 }
 
 // resolveLocalIdent collects every literal (or further-resolvable) value

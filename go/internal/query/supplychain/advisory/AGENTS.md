@@ -22,7 +22,7 @@ Read `doc.go` and `README.md` first.
 - `supplyChainDefaultSchemaMajorVersion` MUST stay `"1.0.0"` and MUST stay
   a family-local copy (packagereg precedent). It mirrors root's
   `queryDefaultSchemaMajorVersion`; if the schema major ever moves, both
-  change together — grep for both names.
+  change together — rg for both names.
 - `derefString`, `derefFloat64`, `mapVal`, `stringMapSliceVal` are
   family-local copies of trivial root helpers. They MUST stay
   behavior-identical to their root sources (named in each provenance
@@ -105,6 +105,6 @@ its doubles; never redeclare them.
   root evidence tests (grouping + SQL shape + lockstep). All four, or the
   kind is silently dropped or unpinned.
 - New response field backed by a typed struct: check the
-  struct-completeness note in `supply_chain_advisory_decode.go` first —
+  struct-completeness note in `factschema_decode_advisory.go` first —
   if the sdk struct does not declare the field, the read stays raw with a
   struct-gap comment, same as the existing ones.

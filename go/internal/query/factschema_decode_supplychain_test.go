@@ -18,7 +18,7 @@ import (
 // living in this package is covered by the same assertion. The four
 // vulnerability wrappers moved with the advisory-evidence read model to
 // internal/query/supplychain/advisory (#6060 lane A); their missing-field
-// cases live in that package's supply_chain_advisory_decode_test.go.
+// cases live in that package's factschema_decode_advisory_test.go.
 func TestSupplyChainDecodeWrappersClassifyMissingRequiredField(t *testing.T) {
 	t.Parallel()
 
