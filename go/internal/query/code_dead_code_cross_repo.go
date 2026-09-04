@@ -346,7 +346,18 @@ func (h *CodeHandler) bucketCrossRepoDeadCodeResults(
 			row["hidden_consumer_evidence_count"] = hiddenCount
 		}
 
-		reasons := crossRepoDeadCodeUnknownReasons(row, visible, hiddenCount, consumers.Available)
+		// A strong granted consumer outranks a hidden one, the order
+		// applyDeadCodeIncomingEdges (code_dead_code_scan.go) applies on the
+		// other two dead-code routes; the invariant is in this package's
+		// AGENTS.md. The count stays on the row, so a live answer still says a
+		// consumer is hidden. Only the count is outranked -- every other reason,
+		// consumer_evidence_truncated included, still forces unknown.
+		strongLiveEvidence := crossRepoDeadCodeHasStrongLiveEvidence(visible)
+		unknownHiddenCount := hiddenCount
+		if strongLiveEvidence {
+			unknownHiddenCount = 0
+		}
+		reasons := crossRepoDeadCodeUnknownReasons(row, visible, unknownHiddenCount, consumers.Available)
 		if len(reasons) > 0 {
 			row["classification"] = "unknown_needs_evidence"
 			row["needs_evidence_reasons"] = reasons
@@ -354,7 +365,7 @@ func (h *CodeHandler) bucketCrossRepoDeadCodeResults(
 			buckets["unknown"] = append(buckets["unknown"].([]any), row)
 			continue
 		}
-		if crossRepoDeadCodeHasStrongLiveEvidence(visible) {
+		if strongLiveEvidence {
 			row["classification"] = "live_by_consumer"
 			row["confidence_label"] = crossRepoDeadCodeStrongestConfidenceLabel(visible)
 			buckets["live_by_consumer"] = append(buckets["live_by_consumer"].([]any), row)

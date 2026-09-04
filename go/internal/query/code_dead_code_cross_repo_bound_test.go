@@ -331,40 +331,64 @@ func TestCrossRepoDeadCodeProbeLeavesNoEntityUnproven(t *testing.T) {
 	}
 }
 
-// TestCrossRepoDeadCodeHiddenConsumerOutranksStrongGrantedEvidence is the
-// route-level contract the probe has to keep: a producer entity with a strong
-// granted consumer AND a consumer outside the grant answers
-// unknown_needs_evidence with permission_hidden_consumer, never
-// live_by_consumer and never dead. The granted evidence is real, but it is not
-// the whole answer, and the caller is told so rather than shown a conclusion
-// drawn from half the rows.
-func TestCrossRepoDeadCodeHiddenConsumerOutranksStrongGrantedEvidence(t *testing.T) {
+// TestCrossRepoDeadCodeStrongGrantedEvidenceOutranksHiddenConsumer pins the
+// order this route shares with /dead-code and /dead-code/investigate: a
+// consumer the caller may read settles the question, and one they may not read
+// only decides it when nothing granted does.
+//
+// The route used to answer unknown_needs_evidence for a producer with both, so
+// the same mixed shape read as "reachable" on one route and "cannot tell" on
+// the other. It is one rule now. The hidden count stays on the row in every
+// case, so a caller told the symbol is live is also told a consumer exists
+// outside their grant.
+func TestCrossRepoDeadCodeStrongGrantedEvidenceOutranksHiddenConsumer(t *testing.T) {
 	t.Parallel()
 
+	weakConsumerRow := func(entityID string) crossRepoDeadCodeEvidence {
+		row := crossRepoDeadCodeGrantConsumerRow(codeGrantConsumerRepo, entityID)
+		row.Confidence = codeprovenance.Confidence(codeprovenance.MethodRepoUniqueName)
+		row.ConfidenceLabel = crossRepoDeadCodeConfidenceLabel(row.Confidence)
+		row.ResolutionMethod = codeprovenance.MethodRepoUniqueName
+		return row
+	}
+	entity := func(entityID string) EntityContent {
+		return EntityContent{
+			EntityID:     entityID,
+			RepoID:       "repo-producer",
+			RelativePath: "pkg/payments/" + entityID + ".go",
+			EntityType:   "Function",
+			EntityName:   "maybeLive",
+			Language:     "go",
+			SourceCache:  "func maybeLive() {}",
+		}
+	}
 	content := &crossRepoDeadCodeContentStore{
 		fakeDeadCodeContentStore: fakeDeadCodeContentStore{
 			fakePortContentStore: fakePortContentStore{
 				repositories: []RepositoryCatalogEntry{{ID: "repo-producer", Name: "payments-lib"}},
 			},
 			entities: map[string]EntityContent{
-				"producer-mixed": {
-					EntityID:     "producer-mixed",
-					RepoID:       "repo-producer",
-					RelativePath: "pkg/payments/mixed.go",
-					EntityType:   "Function",
-					EntityName:   "maybeLive",
-					Language:     "go",
-					SourceCache:  "func maybeLive() {}",
-				},
+				"producer-strong-plus-hidden": entity("producer-strong-plus-hidden"),
+				"producer-hidden-only":        entity("producer-hidden-only"),
+				"producer-weak-plus-hidden":   entity("producer-weak-plus-hidden"),
 			},
 		},
 		rows: []map[string]any{
-			deadCodeInvestigationRow("producer-mixed", "maybeLive", "go", "pkg/payments/mixed.go", 8, 12),
+			deadCodeInvestigationRow("producer-strong-plus-hidden", "maybeLive", "go", "pkg/payments/strong.go", 8, 12),
+			deadCodeInvestigationRow("producer-hidden-only", "maybeLive", "go", "pkg/payments/hidden.go", 8, 12),
+			deadCodeInvestigationRow("producer-weak-plus-hidden", "maybeLive", "go", "pkg/payments/weak.go", 8, 12),
 		},
 		evidenceByEntity: map[string][]crossRepoDeadCodeEvidence{
-			"producer-mixed": {crossRepoDeadCodeGrantConsumerRow(codeGrantConsumerRepo, "producer-mixed")},
+			"producer-strong-plus-hidden": {
+				crossRepoDeadCodeGrantConsumerRow(codeGrantConsumerRepo, "producer-strong-plus-hidden"),
+			},
+			"producer-weak-plus-hidden": {weakConsumerRow("producer-weak-plus-hidden")},
 		},
-		hiddenConsumers: []string{"producer-mixed"},
+		hiddenConsumers: []string{
+			"producer-strong-plus-hidden",
+			"producer-hidden-only",
+			"producer-weak-plus-hidden",
+		},
 	}
 	handler := &CodeHandler{Profile: ProfileLocalAuthoritative, Content: content, Neo4j: fakeGraphReader{}}
 	mux := http.NewServeMux()
@@ -383,12 +407,24 @@ func TestCrossRepoDeadCodeHiddenConsumerOutranksStrongGrantedEvidence(t *testing
 		t.Fatalf("status = %d, want %d body=%s", got, want, rec.Body.String())
 	}
 	buckets := decodeEnvelopeData(t, rec.Body.Bytes())["candidate_buckets"].(map[string]any)
-	unknown := assertCrossRepoDeadCodeBucketEntity(t, buckets, "unknown", "producer-mixed")
-	assertCrossRepoDeadCodeReason(t, unknown, "permission_hidden_consumer")
-	assertCrossRepoDeadCodeBucketMissing(t, buckets, "live_by_consumer", "producer-mixed")
-	assertCrossRepoDeadCodeBucketMissing(t, buckets, "dead", "producer-mixed")
-	if got, want := unknown["hidden_consumer_evidence_count"], float64(1); got != want {
-		t.Fatalf("hidden_consumer_evidence_count = %#v, want %#v (one per producer entity, not one per hidden consumer)", got, want)
+
+	// Strong granted evidence beside a hidden consumer: live, and still counted.
+	live := assertCrossRepoDeadCodeBucketEntity(t, buckets, "live_by_consumer", "producer-strong-plus-hidden")
+	assertCrossRepoDeadCodeBucketMissing(t, buckets, "unknown", "producer-strong-plus-hidden")
+	assertCrossRepoDeadCodeBucketMissing(t, buckets, "dead", "producer-strong-plus-hidden")
+	if got, want := live["hidden_consumer_evidence_count"], float64(1); got != want {
+		t.Fatalf("hidden_consumer_evidence_count = %#v, want %#v; a live answer must still say a consumer is hidden", got, want)
+	}
+
+	// Nothing granted proves use, so the hidden consumer decides the answer.
+	for _, entityID := range []string{"producer-hidden-only", "producer-weak-plus-hidden"} {
+		unknown := assertCrossRepoDeadCodeBucketEntity(t, buckets, "unknown", entityID)
+		assertCrossRepoDeadCodeReason(t, unknown, "permission_hidden_consumer")
+		assertCrossRepoDeadCodeBucketMissing(t, buckets, "live_by_consumer", entityID)
+		assertCrossRepoDeadCodeBucketMissing(t, buckets, "dead", entityID)
+		if got, want := unknown["hidden_consumer_evidence_count"], float64(1); got != want {
+			t.Fatalf("%s hidden_consumer_evidence_count = %#v, want %#v", entityID, got, want)
+		}
 	}
 }
 

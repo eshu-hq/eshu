@@ -245,6 +245,11 @@ func (h *CodeHandler) filterDeadCodeResultsWithoutIncomingEdges(
 // candidate on the hidden edge instead would answer "reachable" on data the
 // caller may not read, and the gap it left in the page would itself say a
 // hidden consumer exists.
+//
+// bucketCrossRepoDeadCodeResults (code_dead_code_cross_repo.go) applies this
+// same order on /dead-code/cross-repo, where it built its needs_evidence_reasons
+// first and answered unknown_needs_evidence for a shape this function calls
+// reachable. Change one and change the other.
 func applyDeadCodeIncomingEdges(
 	results []map[string]any,
 	contentIncoming map[string]deadCodeIncomingEdge,

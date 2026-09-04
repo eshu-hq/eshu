@@ -233,10 +233,12 @@ repository, and projects the grant per row as `in_grant`.
 An edge from outside the grant reaches the answer as
 `deadCodeIncomingEdge.HiddenConsumer` with no confidence, no repository, and no
 citation. It cannot filter the candidate out and cannot be reported as evidence:
-the candidate is kept, classified `ambiguous`, and carries
-`permission_hidden_consumer` — the same reason the cross-repo route already
-answers with. Never live, never dead. An unscoped caller runs one statement, the
-unchanged one, and gets the unchanged answer.
+when nothing granted proves the symbol used, the candidate is kept, classified
+`ambiguous`, and carries `permission_hidden_consumer` — the same reason the
+cross-repo route answers with, in the same order. A strong granted edge beside
+it still drops the candidate as reachable, because a consumer the caller may
+read has already answered the question. An unscoped caller runs one statement,
+the unchanged one, and gets the unchanged answer.
 
 ### One Probe, Because Two Could Not See A Same-Method Source
 
@@ -349,6 +351,21 @@ reason `permission_hidden_consumer`, not become `dead`. The probe carries it,
 and carries only it: the entity ids it returns are the caller's own producer
 candidates, so no ungranted consumer's repository, entity, or citation crosses
 the reader boundary at all.
+
+*Whose only consumers* is the whole of it. A hidden consumer decides the answer
+only when nothing granted proves use — hidden-only, or hidden beside weak
+granted evidence. A strong granted consumer settles the symbol `live_by_consumer`
+even with a hidden one beside it, and the row still carries
+`hidden_consumer_evidence_count`, so the caller is told both things. That is the
+order `applyDeadCodeIncomingEdges` has always applied on `/dead-code` and
+`/dead-code/investigate`; this route built its reasons before consulting
+`crossRepoDeadCodeHasStrongLiveEvidence` and so answered `unknown` where the
+other answered reachable, for the same mixed shape.
+`TestCrossRepoDeadCodeStrongGrantedEvidenceOutranksHiddenConsumer` pins all
+three cases, and `applyDeadCodeIncomingEdges`'s doc comment names its
+counterpart so the next change to either one finds the other. `consumer_evidence_truncated` is not outranked and still forces
+unknown: a page the read never finished is incomplete evidence, not evidence
+that is known and unreadable.
 
 Keeping a request's `consumer_repo_ids` selector out of that count is the
 correctness half, not a refinement. A caller granted producer P and consumer A,
