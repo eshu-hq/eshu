@@ -508,6 +508,28 @@ more than "is it above zero", the number was never a total (the read it came
 from stopped at 1,001 rows across the whole page and marked the rest truncated),
 and `hidden_consumer_evidence_count` is in no OpenAPI schema or public reference.
 
+On an existing deployment the index builds `CONCURRENTLY`, on the dedicated
+bootstrap connection the schema apply path runs each definition on, so it does
+not block the reducer's reachability writes while it builds. The usual
+objection to `CONCURRENTLY` -- that a failed build leaves an `INVALID` index
+which `IF NOT EXISTS` then skips forever -- does not apply here, because that
+path drops invalid concurrent indexes by name before executing each definition
+(`SQLDB.dropInvalidConcurrentIndexes`). That is also why the index cannot join
+`027_code_reachability.sql`: that definition is multi-statement, and a
+multi-statement `Exec` is sent as an implicit transaction, which
+`CONCURRENTLY` refuses. Migration 100 is registered in the ordered bootstrap
+list (`schema_order_test.go`) like every other definition.
+
+The full rationale lives in the migration file itself, which is where this
+repository puts it -- migrations 082, 084 and 099 do the same. It is not in
+`go/internal/storage/postgres/README.md` or that package's `AGENTS.md` because
+both are pinned by the Markdown line-cap grandfather ledger
+(`scripts/lib/markdown-line-cap-grandfather.tsv`, 3,766 and 1,172 lines), which
+lets a pinned file shrink but never grow, and refuses a raised pin. There is no
+document that lists migrations; `docs/public/reference/postgres-tuning.md` is
+operator knob guidance, and this index is not a knob. The reader-side invariant
+is in `go/internal/query/AGENTS.md`.
+
 The truncation fail-safe gets simpler and stricter at once. Only the evidence
 page can now stop short, so `markCrossRepoDeadCodeConsumerEvidenceTruncated`
 takes one coverage set instead of two. The case it used to cover — one busy
