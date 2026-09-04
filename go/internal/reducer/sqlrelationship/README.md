@@ -32,7 +32,8 @@ readiness dependencies) — that is root-owned infrastructure every domain
 family's durable intents route through, and has not moved out of the reducer
 root yet. This package's partition-convergence proof therefore stays in the
 reducer root (`sql_relationship_partition_convergence_test.go`) rather than
-here — see "Cross-family reuse" and AGENTS.md.
+here — see "Cross-family reuse" under Gotchas / invariants below, and
+AGENTS.md.
 
 ## Exported surface
 
@@ -50,22 +51,6 @@ here — see "Cross-family reuse" and AGENTS.md.
 The reducer root wires `DefaultHandlers.SQLRelationshipIntentWriter`
 (`defaults.go`) to this package's writer port and constructs the handler in
 `defaults_domain_catalog.go`.
-
-## Cross-family reuse
-
-The `shell_exec` family (`shell_exec_materialization.go`,
-`shell_exec_intents.go`), which has not moved out of the reducer root yet,
-reuses four pieces of this package's machinery rather than duplicating them:
-`BuildDeltaScope`/`DeltaScope` and `MergeRepositoryIDs` (both families derive
-the same per-repository `delta_generation`/`delta_relative_paths` shape from
-the same `repository` facts), `BuildRefreshIntents` (driven through one
-table alongside this family and `inheritance` in
-`sibling_edge_intent_delta_gate_test.go`), and
-`EmbeddedSQLFunctionIDsByNameLine`/`EmbeddedSQLFunctionKey` (both families
-resolve an embedded record's enclosing function by name+line against a
-parsed file's `functions` array). This is why those symbols are exported
-even though nothing inside this package's own `Handle` path calls them
-through the exported name.
 
 ## Dependencies
 
@@ -86,7 +71,33 @@ root yet: `codeCallInt` (a four-branch numeric type switch) and
 field union) — see the comments on `sql_relationship_aliases.go`'s
 `codeCallInt` and `codeCallDeltaRelativePathsFromRepository`.
 
-## Root-side test doubles this package's move required
+## Telemetry
+
+No metric instruments. `Handle` emits two structured log lines (`sql
+relationship materialization started`/`completed`) via `log/slog`, unchanged
+by this move. The generic partitioned worker's metrics
+(`eshu_dp_reducer_executions_total` and friends) are emitted by the reducer
+root's own worker code, not this package.
+
+## Gotchas / invariants
+
+### Cross-family reuse
+
+The `shell_exec` family (`shell_exec_materialization.go`,
+`shell_exec_intents.go`), which has not moved out of the reducer root yet,
+reuses four pieces of this package's machinery rather than duplicating them:
+`BuildDeltaScope`/`DeltaScope` and `MergeRepositoryIDs` (both families derive
+the same per-repository `delta_generation`/`delta_relative_paths` shape from
+the same `repository` facts), `BuildRefreshIntents` (driven through one
+table alongside this family and `inheritance` in
+`sibling_edge_intent_delta_gate_test.go`), and
+`EmbeddedSQLFunctionIDsByNameLine`/`EmbeddedSQLFunctionKey` (both families
+resolve an embedded record's enclosing function by name+line against a
+parsed file's `functions` array). This is why those symbols are exported
+even though nothing inside this package's own `Handle` path calls them
+through the exported name.
+
+### Root-side test doubles this package's move required
 
 Go test files cannot share unexported symbols across packages, and several
 reducer-root test suites still construct this family's repository/content-
@@ -112,15 +123,7 @@ test double: it drives the actual generic shared-projection worker
 moving here — mirroring `inherits_edge_partition_convergence_test.go`'s
 identical reasoning for the `inheritance` family.
 
-## Telemetry
-
-No metric instruments. `Handle` emits two structured log lines (`sql
-relationship materialization started`/`completed`) via `log/slog`, unchanged
-by this move. The generic partitioned worker's metrics
-(`eshu_dp_reducer_executions_total` and friends) are emitted by the reducer
-root's own worker code, not this package.
-
-## Evidence
+### Evidence
 
 No-Regression Evidence: this move is a pure relocation (issue #6061) --
 function and type bodies are unchanged apart from the package clause,
@@ -136,3 +139,10 @@ package.
 
 No-Observability-Change: see Telemetry above -- no metric, span, or log
 field was added, removed, or renamed by this move.
+
+## Related docs
+
+- [Reducer package](../README.md)
+- [Package restructure design](../../../../docs/internal/design/package-restructure.md)
+- [#5346 SQL MIGRATES edge performance evidence](../../../../docs/internal/evidence/5346-sql-migrates-performance.md)
+- [#5410 SQL FK/write relationships evidence](../../../../docs/internal/evidence/5410-sql-relationships-performance.md)
