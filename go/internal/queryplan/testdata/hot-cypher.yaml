@@ -503,9 +503,9 @@ entries:
     backend: postgres
     query_kind: sql_read_model
     source:
-      file: go/internal/query/supply_chain_impact_readiness_postgres_query.go
-      symbol: listSupplyChainImpactReadinessQuery
-      line_hint: 3
+      file: go/internal/query/supplychain/impact/supply_chain_impact_readiness_postgres_query.go
+      symbol: ListSupplyChainImpactReadinessQuery
+      line_hint: 6
     caveats:
       - Supply-chain impact readiness is reducer-owned SQL/read-model evidence, not hot Cypher; it is represented here so the gate tracks the caveat explicitly.
   - id: QP-IMPACT-CHANGE-SURFACE
