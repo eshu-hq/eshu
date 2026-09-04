@@ -16,7 +16,7 @@ sequential single-row round trips: `Values.Upsert` then `Metadata.Upsert`
 `eshu_search_vector_metadata.go`). At the issue's reported scale that is
 `2 * 185,361` to `2 * 197,715` sequential `ExecContext` round trips per sweep,
 serialized inside the per-scope loop in
-`reducer.SearchVectorBuildRunner.RunOnce`
+`searchvector.SearchVectorBuildRunner.RunOnce`
 (`go/internal/reducer/searchvector/search_vector_build_runner.go`, moved from
 the reducer root in #6061). The embedder used in a
 real corpus run without hosted provider credentials is the deterministic
@@ -38,7 +38,7 @@ one batched call per page instead of one call per document, collapsing
 `2 * ceil(document_count / req.Limit)`. `Builder.Build` also now returns split
 phase timings (`QueryLoadDuration`, `EmbedBuildDuration`,
 `WriteUpsertDuration`), propagated through
-`reducer.SearchVectorBuildResult` / `SearchVectorBuildRunnerResult`, plus a
+`searchvector.SearchVectorBuildResult` / `SearchVectorBuildRunnerResult`, plus a
 `SchedulingWaitDuration` around the pending-scope list call in `RunOnce`.
 
 ## No-Regression Evidence
@@ -120,7 +120,7 @@ Observability Evidence: added `eshu_dp_search_vector_build_phase_seconds`
 (`go/internal/telemetry/instruments.go`), a histogram with `domain` (fixed
 `search_vector_build`) and `write_phase` (`scheduling_wait`, `query_load`,
 `embed_build`, `write_upsert`) attributes, recorded once per `RunOnce` sweep
-in `reducer.SearchVectorBuildRunner.recordPhaseMetrics`. This directly answers
+in `searchvector.SearchVectorBuildRunner.recordPhaseMetrics`. This directly answers
 the issue's "split timing into query/load, embedding/hash/build, write/upsert,
 and scheduling wait" requirement without recomputing it from logs. The
 "search vector build sweep completed" structured log
