@@ -81,31 +81,33 @@ func TestCrossRepoDeadCodeSignalReadIsTheBoundedUngrantedProbe(t *testing.T) {
 	if probe != crossRepoDeadCodeUngrantedConsumerProbeQuery {
 		t.Fatalf("second statement is not the ungranted-consumer probe:\n%s", probe)
 	}
-	// The whole point of the probe is that it stops early, so the shapes that
-	// let it stop early are what this pins: the ordering of the grant happens
-	// in SQL (Go's byte order is not the database's collation), the interior
-	// ranges go through a LATERAL with its own LIMIT (without it the range
-	// leaves the Index Cond under a generic plan), and nothing orders or ranks.
+	// The whole point of the probe is that it stops early, and it stops early
+	// because it walks one producer entity's DISTINCT consumer repositories in
+	// index order and quits at the first one the grant does not contain. Each
+	// piece of that is pinned: the recursive walk, the per-step seek strictly
+	// past the last repository, the one-row limits that keep each seek a seek,
+	// and the continue-condition that ends the walk.
 	for _, want := range []string{
-		"lag(repository_id) OVER (ORDER BY repository_id)",
-		"CROSS JOIN LATERAL",
-		"AND row.repository_id > gap.lo",
-		"AND row.repository_id < gap.hi",
-		"AND row.repository_id < grant_bounds.lowest",
-		"AND row.repository_id > grant_bounds.highest",
+		"WITH RECURSIVE page AS (",
+		"AND row.repository_id > walk.repository_id",
+		"ORDER BY row.repository_id\n    LIMIT 1) AS first_consumer",
+		"AND EXISTS (SELECT 1 FROM granted WHERE granted.repository_id = walk.repository_id)",
+		"AND NOT EXISTS (SELECT 1 FROM granted WHERE granted.repository_id = walk.repository_id)",
 	} {
 		if !strings.Contains(probe, want) {
 			t.Fatalf("probe is missing %q, so it can no longer stop at the first ungranted row:\n%s", want, probe)
 		}
 	}
-	if got, want := strings.Count(probe, "CROSS JOIN LATERAL"), 3; got != want {
-		t.Fatalf("probe has %d lateral range probes, want %d; a plain correlated EXISTS is hashed on a short page and reads the whole table", got, want)
+	if got, want := strings.Count(probe, "ORDER BY row.repository_id"), 2; got != want {
+		t.Fatalf("probe has %d ordered seeks, want %d (the walk's seed and its step)", got, want)
 	}
-	if got, want := strings.Count(probe, "LIMIT 1)"), 3; got != want {
-		t.Fatalf("probe has %d one-row range limits, want %d", got, want)
-	}
-	if strings.Contains(probe, "ORDER BY row.") {
-		t.Fatalf("probe ranks rows; ranking is what made the read it replaced consume a whole fan-in group:\n%s", probe)
+	// A bound rendered per granted repository is what this shape replaced: it
+	// cost one index probe per granted repository per producer entity, so a
+	// broad grant scaled the read linearly. Nothing here may reintroduce one.
+	for _, forbidden := range []string{"gap.lo", "gap.hi", "grant_bounds", "lag(repository_id)"} {
+		if strings.Contains(probe, forbidden) {
+			t.Fatalf("probe carries %q, a per-granted-repository bound; its cost then grows with the caller's grant:\n%s", forbidden, probe)
+		}
 	}
 	if strings.Contains(probe, "row.confidence") || strings.Contains(probe, "row.evidence") {
 		t.Fatalf("probe selects consumer evidence columns; it must answer whether, never which:\n%s", probe)

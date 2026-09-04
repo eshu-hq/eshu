@@ -166,111 +166,97 @@ func crossRepoDeadCodeUnknownReasons(
 // caller's grant, $4 the page's entity count. The text does not change with the
 // page or grant size, so every request plans as the same statement.
 //
-// The out-of-grant test is three repository_id ranges around the sorted grant
-// -- below the first granted id, between two consecutive ones, above the last
-// -- because a range is something an index can seek to and stop at. The
-// complement of the grant is exactly the union of those ranges, and
-// code_reachability_entity_repository_idx (migration 100) makes each one an
-// Index Cond under an equality on entity_id, so proving a producer entity has
-// NO ungranted consumer costs one seek per range rather than a scan of its
-// whole fan-in group. The predicate this replaces --
-// NOT (repository_id = ANY($3)) -- is not seekable: measured on the same data
-// it takes a Parallel Seq Scan.
+// The shape is a loose index scan -- a skip scan -- over
+// code_reachability_entity_repository_idx (migration 100), one walk per
+// producer entity. The seed takes that entity's smallest consumer repository;
+// each recursive step seeks the smallest one strictly greater than the last;
+// and the walk stops as soon as it reaches a repository the grant does not
+// contain. So a walk visits each of the entity's DISTINCT consumer
+// repositories at most once, stops at the first ungranted one, and never looks
+// at a second row of any repository however many rows that repository has.
 //
-// Two details are load-bearing and neither is cosmetic:
+// That bound is the point. Cost per entity is one index probe per distinct
+// consumer repository the grant contains, plus one -- at most min(d, N) + 1
+// probes, where d is the entity's distinct consumer repositories and N the
+// grant size, because the walk cannot pass more granted repositories than
+// either number allows. It does not grow with the entity's row fan-in, and it
+// does not grow with N alone.
 //
-//   - the grant is ordered by Postgres, in the `gap` CTE, not by the caller.
-//     The ranges only partition the domain when their bounds are sorted in the
-//     COLLATION the index and the comparisons use, and Go's byte order is not
-//     that collation. Bounds sorted in Go can put a granted repository inside a
-//     range the probe treats as ungranted, which reports a hidden consumer that
-//     is not hidden.
-//   - every range is probed through CROSS JOIN LATERAL ... LIMIT 1, including
-//     the two that need only one bound. The LIMIT stops the subquery being
-//     flattened, which is what keeps the per-entity equality correlated and the
-//     range bound a run-time constant. Both failures were observed rather than
-//     guessed. Written as a plain correlated EXISTS, the interior ranges plan
-//     identically under a custom plan and then lose both bounds from the Index
-//     Cond under a generic plan -- which is where pgx's statement cache puts
-//     them. The outer two are worse: on a short candidate page Postgres turns a
-//     plain EXISTS into a hashed subplan, which drops row.entity_id =
-//     page.entity_id and reads the whole table once instead of seeking per
-//     entity.
+// The shape this replaced expressed the same question as repository_id ranges
+// around the sorted grant, one range per gap. That was correct but cost one
+// index probe per granted repository per entity, so it grew linearly with the
+// caller's grant: measured on the same data, a 250-entity page went from 6.8 ms
+// at a 5-repository grant to 633 ms at 500, while this walk stays at 4.6-5.2 ms
+// across the same range and 7.8 ms even for a producer entity consumed by 300
+// distinct repositories. It also needed the grant ordered in the database's
+// collation to be correct at all; membership here is an equality test against
+// the granted CTE, which Postgres hashes, so nothing depends on sort order and
+// no bound has to be rendered per granted repository.
 //
-// An empty $3 makes every range empty and the probe answer "nothing hidden" for
-// every entity, which is the opposite of the truth for a caller granted
-// nothing. crossRepoDeadCodeConsumerReadPlan refuses that caller before any
-// read, and crossRepoDeadCodeUngrantedConsumers refuses an empty grant again.
+// Two details are load-bearing:
+//
+//   - each lookup is ORDER BY row.repository_id LIMIT 1 against an index that
+//     already returns that order under an entity_id equality, so the ordering
+//     is free and the LIMIT stops the scan at its first row. It is not a rank:
+//     nothing sorts a group, which is the whole difference from the read this
+//     family started as.
+//   - the walk's continue-condition is "the value we just found IS granted".
+//     Dropping it does not change any answer -- the final NOT EXISTS still
+//     selects the same entities -- it turns a bounded walk into a full
+//     enumeration of every distinct consumer repository the entity has. Only a
+//     guard that measures work can see that, which is why one exists.
+//
+// An empty $3 makes the seed's value ungranted for every entity and the probe
+// answer "everything hidden". That happens to fail safe, but it is not an
+// answer a grantless caller should get from a read at all:
+// crossRepoDeadCodeConsumerReadPlan refuses that caller before any read, and
+// crossRepoDeadCodeUngrantedConsumers refuses an empty grant again.
 const crossRepoDeadCodeUngrantedConsumerProbeQuery = `
-WITH page AS (
+WITH RECURSIVE page AS (
   SELECT DISTINCT id AS entity_id FROM unnest($2::text[]) AS id
 ), granted AS (
   SELECT DISTINCT id AS repository_id FROM unnest($3::text[]) AS id
-), grant_bounds AS (
-  SELECT min(repository_id) AS lowest, max(repository_id) AS highest FROM granted
-), gap AS (
-  SELECT lo, hi
-  FROM (
-    SELECT lag(repository_id) OVER (ORDER BY repository_id) AS lo,
-           repository_id AS hi
-    FROM granted
-  ) AS ordered
-  WHERE lo IS NOT NULL
+), walk AS (
+  SELECT page.entity_id, first_consumer.repository_id
+  FROM page
+  CROSS JOIN LATERAL (
+    SELECT row.repository_id
+    FROM code_reachability_rows AS row
+    JOIN ingestion_scopes AS scope
+      ON scope.scope_id = row.scope_id
+     AND scope.active_generation_id = row.generation_id
+    JOIN scope_generations AS generation
+      ON generation.generation_id = row.generation_id
+     AND generation.status = 'active'
+    WHERE row.entity_id = page.entity_id
+      AND row.repository_id <> $1
+      AND row.depth > 0
+    ORDER BY row.repository_id
+    LIMIT 1) AS first_consumer
+  UNION ALL
+  SELECT walk.entity_id,
+         (SELECT row.repository_id
+          FROM code_reachability_rows AS row
+          JOIN ingestion_scopes AS scope
+            ON scope.scope_id = row.scope_id
+           AND scope.active_generation_id = row.generation_id
+          JOIN scope_generations AS generation
+            ON generation.generation_id = row.generation_id
+           AND generation.status = 'active'
+          WHERE row.entity_id = walk.entity_id
+            AND row.repository_id <> $1
+            AND row.depth > 0
+            AND row.repository_id > walk.repository_id
+          ORDER BY row.repository_id
+          LIMIT 1)
+  FROM walk
+  WHERE walk.repository_id IS NOT NULL
+    AND EXISTS (SELECT 1 FROM granted WHERE granted.repository_id = walk.repository_id)
 )
-SELECT page.entity_id
-FROM page
-WHERE EXISTS (
-        SELECT 1
-        FROM grant_bounds
-        CROSS JOIN LATERAL (
-          SELECT 1
-          FROM code_reachability_rows AS row
-          JOIN ingestion_scopes AS scope
-            ON scope.scope_id = row.scope_id
-           AND scope.active_generation_id = row.generation_id
-          JOIN scope_generations AS generation
-            ON generation.generation_id = row.generation_id
-           AND generation.status = 'active'
-          WHERE row.entity_id = page.entity_id
-            AND row.repository_id <> $1
-            AND row.depth > 0
-            AND row.repository_id < grant_bounds.lowest
-          LIMIT 1) AS below)
-   OR EXISTS (
-        SELECT 1
-        FROM grant_bounds
-        CROSS JOIN LATERAL (
-          SELECT 1
-          FROM code_reachability_rows AS row
-          JOIN ingestion_scopes AS scope
-            ON scope.scope_id = row.scope_id
-           AND scope.active_generation_id = row.generation_id
-          JOIN scope_generations AS generation
-            ON generation.generation_id = row.generation_id
-           AND generation.status = 'active'
-          WHERE row.entity_id = page.entity_id
-            AND row.repository_id <> $1
-            AND row.depth > 0
-            AND row.repository_id > grant_bounds.highest
-          LIMIT 1) AS above)
-   OR EXISTS (
-        SELECT 1
-        FROM gap
-        CROSS JOIN LATERAL (
-          SELECT 1
-          FROM code_reachability_rows AS row
-          JOIN ingestion_scopes AS scope
-            ON scope.scope_id = row.scope_id
-           AND scope.active_generation_id = row.generation_id
-          JOIN scope_generations AS generation
-            ON generation.generation_id = row.generation_id
-           AND generation.status = 'active'
-          WHERE row.entity_id = page.entity_id
-            AND row.repository_id <> $1
-            AND row.depth > 0
-            AND row.repository_id > gap.lo
-            AND row.repository_id < gap.hi
-          LIMIT 1) AS interior)
+SELECT DISTINCT walk.entity_id
+FROM walk
+WHERE walk.repository_id IS NOT NULL
+  AND NOT EXISTS (SELECT 1 FROM granted WHERE granted.repository_id = walk.repository_id)
 LIMIT $4
 `
 

@@ -8,8 +8,10 @@ import (
 	"database/sql"
 	"fmt"
 	"os"
+	"regexp"
 	"slices"
 	"sort"
+	"strconv"
 	"strings"
 	"testing"
 	"time"
@@ -101,6 +103,11 @@ func TestCrossRepoDeadCodeUngrantedConsumerProbeLive(t *testing.T) {
 	// a plan that seeks can answer it without reading the group, which is what
 	// the plan subtest below checks.
 	seedCrossRepoDeadCodeProbeFanIn(ctx, t, db, "ent-busy", crossRepoDeadCodeProbeFanInRepositories, 40000)
+	// ent-fanout is the axis the walk's stop condition governs: 200 DISTINCT
+	// consumer repositories, one row each. Its smallest is repo-x000, which no
+	// grant below names, so a walk that stops at the first ungranted repository
+	// takes one step for it and a walk that does not takes 200.
+	seedCrossRepoDeadCodeProbeFanIn(ctx, t, db, "ent-fanout", crossRepoDeadCodeProbeFanOutRepositories, 1)
 
 	page := []string{
 		"ent-spread", "ent-middle", "ent-self", "ent-depth-zero",
@@ -177,12 +184,11 @@ func TestCrossRepoDeadCodeUngrantedConsumerProbeLive(t *testing.T) {
 		})
 	}
 
-	t.Run("range bounds are index conditions, not filters", func(t *testing.T) {
-		// This is the property the rewrite rests on, and the one that decides
-		// whether a producer entity's fan-in is read or seeked past. A bound
-		// that lands in a Filter still returns the right answer, so no
-		// behavioural assertion above would catch it -- and the probe would
-		// then read the whole group it exists to avoid.
+	t.Run("the walk seeks and never scans a group", func(t *testing.T) {
+		// This is the property the shape rests on, and no behavioural
+		// assertion above can see it: a walk whose per-step lookup lands in a
+		// filter instead of an index condition still returns the right
+		// entities, and reads the producer entity's whole fan-in to do it.
 		//
 		// Which index the planner picks is left alone deliberately: this
 		// fixture has one scope and one generation, so its primary key serves
@@ -195,31 +201,99 @@ func TestCrossRepoDeadCodeUngrantedConsumerProbeLive(t *testing.T) {
 		if strings.Contains(plan, "Seq Scan on code_reachability_rows") {
 			t.Fatalf("probe fell back to a sequential scan over code_reachability_rows:\n%s", plan)
 		}
-		bounded := 0
+		stepped := false
 		for _, line := range strings.Split(plan, "\n") {
-			if !strings.Contains(line, "repository_id < ") && !strings.Contains(line, "repository_id > ") {
-				continue
-			}
-			if !strings.Contains(line, "grant_bounds") && !strings.Contains(line, "ordered.") {
+			if !strings.Contains(line, "repository_id > walk") {
 				continue
 			}
 			// A bitmap path splits the same qual across Index Cond and Recheck
 			// Cond; both mean the bound reached the index. A Filter does not.
 			if !strings.Contains(line, "Index Cond:") && !strings.Contains(line, "Recheck Cond:") {
-				t.Fatalf("a range bound is applied as %q rather than an index condition:\n%s", strings.TrimSpace(line), plan)
+				t.Fatalf("the walk's step is applied as %q rather than an index condition:\n%s", strings.TrimSpace(line), plan)
 			}
-			bounded++
+			stepped = true
 		}
-		// One per range family: below the smallest granted id, above the
-		// largest, and the interior gaps.
-		if bounded < 3 {
-			t.Fatalf("only %d range bounds reached an index condition, want at least 3:\n%s", bounded, plan)
+		if !stepped {
+			t.Fatalf("no plan node carries the walk's per-step seek; the probe shape has drifted:\n%s", plan)
+		}
+	})
+
+	t.Run("the walk stops at the first ungranted repository", func(t *testing.T) {
+		// The stop condition is a bound on work, not on the answer: dropping it
+		// leaves every entity's verdict identical and turns each walk into a
+		// full enumeration of that entity's distinct consumer repositories. No
+		// assertion on the result can see that, so this one counts the rows the
+		// recursive term actually produced.
+		//
+		// ent-fanout has 200 distinct consumer repositories and its smallest is
+		// ungranted, so its walk must be one step. With 250 page entities whose
+		// walks are a handful of steps each, the recursive CTE stays in the low
+		// hundreds of rows; without the stop condition ent-fanout alone adds
+		// about 200.
+		plan := crossRepoDeadCodeProbeExplainAnalyze(
+			ctx, t, db,
+			"repo-producer",
+			append(append([]string(nil), page...), "ent-fanout"),
+			crossRepoDeadCodeProbeFanInRepositories,
+		)
+		walkRows := crossRepoDeadCodeProbeWalkRows(t, plan)
+		if walkRows > crossRepoDeadCodeProbeWalkRowBudget {
+			t.Fatalf("the recursive walk produced %d rows, want at most %d; it is no longer stopping at the first ungranted repository:\n%s",
+				walkRows, crossRepoDeadCodeProbeWalkRowBudget, plan)
+		}
+	})
+
+	// The read this walk replaced cost one index probe per granted repository
+	// per producer entity, so a caller with a broad grant paid for the grant
+	// rather than for the answer. These grants are the sizes that exposed it:
+	// at 500 granted repositories the old shape took 633 ms on the corpus-scale
+	// seed against 5.0 ms for this one. Correctness at those sizes is what is
+	// asserted here; the timings are in the evidence doc.
+	t.Run("a broad grant changes the answer for no entity", func(t *testing.T) {
+		broad := make([]string, 0, 500)
+		broad = append(broad, crossRepoDeadCodeProbeFanInRepositories...)
+		for i := 0; len(broad) < 500; i++ {
+			candidate := fmt.Sprintf("repo-pad%04d", i)
+			if !slices.Contains(crossRepoDeadCodeProbeFanInRepositories, candidate) {
+				broad = append(broad, candidate)
+			}
+		}
+		for _, testCase := range []struct {
+			name  string
+			grant []string
+			want  []string
+		}{
+			{name: "500 granted, every consumer among them", grant: broad},
+			{
+				name:  "500 granted, one consumer left out",
+				grant: append(append([]string(nil), broad[:2]...), broad[3:]...),
+				want:  []string{"ent-busy", "ent-middle", "ent-spread"},
+			},
+		} {
+			t.Run(testCase.name, func(t *testing.T) {
+				hidden, err := reader.crossRepoDeadCodeUngrantedConsumers(ctx, "repo-producer", page, testCase.grant)
+				if err != nil {
+					t.Fatalf("crossRepoDeadCodeUngrantedConsumers() error = %v, want nil", err)
+				}
+				got := make([]string, 0, len(hidden))
+				for entityID := range hidden {
+					got = append(got, entityID)
+				}
+				sort.Strings(got)
+				if !slices.Equal(got, testCase.want) {
+					t.Fatalf("hidden = %#v, want %#v", got, testCase.want)
+				}
+				reference := crossRepoDeadCodeProbeReference(ctx, t, db, "repo-producer", page, testCase.grant)
+				if !slices.Equal(got, reference) {
+					t.Fatalf("probe = %#v, NOT IN reference = %#v", got, reference)
+				}
+			})
 		}
 	})
 }
 
 // assertCrossRepoDeadCodeProbeIndexExists fails when the shipped migration did
-// not create the index the probe depends on at corpus scale.
+// not create the index the probe's walk seeks on at corpus scale.
 func assertCrossRepoDeadCodeProbeIndexExists(ctx context.Context, t *testing.T, db *sql.DB) {
 	t.Helper()
 
@@ -237,14 +311,24 @@ func assertCrossRepoDeadCodeProbeIndexExists(ctx context.Context, t *testing.T, 
 }
 
 // crossRepoDeadCodeProbeFanInRepositories are the consumer repositories the
-// fan-in fixture spreads its rows across. They are spaced so a grant can leave
-// a hidden one below the smallest granted id, between two of them, or above the
-// largest.
+// fan-in fixture spreads its rows across.
 var crossRepoDeadCodeProbeFanInRepositories = []string{"repo-a", "repo-c", "repo-e", "repo-g", "repo-i"}
 
+// crossRepoDeadCodeProbeFanOutRepositories are 200 distinct consumer
+// repositories for one producer entity. They sort after every repository the
+// grants in this test name, so a grant can leave all of them out.
+var crossRepoDeadCodeProbeFanOutRepositories = func() []string {
+	repositories := make([]string, 0, 200)
+	for i := 0; i < 200; i++ {
+		repositories = append(repositories, fmt.Sprintf("repo-x%03d", i))
+	}
+	return repositories
+}()
+
 // seedCrossRepoDeadCodeProbeFanIn gives one producer entity perRepositoryRows
-// active-generation consumer rows in each of the named repositories, which is
-// the partition the probe has to answer without reading.
+// active-generation consumer rows in each of the named repositories. Row fan-in
+// is the axis the walk must NOT be sensitive to: it visits each distinct
+// consumer repository once and never looks at a second row of any of them.
 func seedCrossRepoDeadCodeProbeFanIn(
 	ctx context.Context,
 	t *testing.T,
@@ -401,6 +485,52 @@ ORDER BY row.entity_id`,
 	return entities
 }
 
+// crossRepoDeadCodeProbeWalkRowBudget is the most rows the probe's recursive
+// term may produce for a 251-entity page whose entities have a handful of
+// consumer repositories each and one of which has 200. It is generous on
+// purpose: the failure it has to catch multiplies the count, not nudges it.
+const crossRepoDeadCodeProbeWalkRowBudget = 900
+
+// crossRepoDeadCodeProbeWalkRows reads the row count the recursive walk term
+// actually produced out of an EXPLAIN ANALYZE plan.
+func crossRepoDeadCodeProbeWalkRows(t *testing.T, plan string) int {
+	t.Helper()
+
+	for _, line := range strings.Split(plan, "\n") {
+		if !strings.Contains(line, "Recursive Union") {
+			continue
+		}
+		match := crossRepoDeadCodeProbeActualRows.FindStringSubmatch(line)
+		if match == nil {
+			continue
+		}
+		rows, err := strconv.Atoi(match[1])
+		if err != nil {
+			t.Fatalf("parse walk row count from %q: %v", strings.TrimSpace(line), err)
+		}
+		return rows
+	}
+	t.Fatalf("no Recursive Union node in the plan; the probe shape has drifted:\n%s", plan)
+	return 0
+}
+
+var crossRepoDeadCodeProbeActualRows = regexp.MustCompile(`actual time=[0-9.]+\.\.[0-9.]+ rows=(\d+) loops=`)
+
+// crossRepoDeadCodeProbeExplainAnalyze returns the probe's plan with measured
+// row counts, which is what the work budget above is read from.
+func crossRepoDeadCodeProbeExplainAnalyze(
+	ctx context.Context,
+	t *testing.T,
+	db *sql.DB,
+	producerRepoID string,
+	entityIDs []string,
+	grantRepositoryIDs []string,
+) string {
+	t.Helper()
+
+	return crossRepoDeadCodeProbePlan(ctx, t, db, "EXPLAIN (ANALYZE) ", producerRepoID, entityIDs, grantRepositoryIDs)
+}
+
 // crossRepoDeadCodeProbeExplain returns the probe's plan text.
 func crossRepoDeadCodeProbeExplain(
 	ctx context.Context,
@@ -412,9 +542,25 @@ func crossRepoDeadCodeProbeExplain(
 ) string {
 	t.Helper()
 
+	return crossRepoDeadCodeProbePlan(ctx, t, db, "EXPLAIN ", producerRepoID, entityIDs, grantRepositoryIDs)
+}
+
+// crossRepoDeadCodeProbePlan runs the shipped probe under the given EXPLAIN
+// prefix and returns the plan as text.
+func crossRepoDeadCodeProbePlan(
+	ctx context.Context,
+	t *testing.T,
+	db *sql.DB,
+	prefix string,
+	producerRepoID string,
+	entityIDs []string,
+	grantRepositoryIDs []string,
+) string {
+	t.Helper()
+
 	rows, err := db.QueryContext(
 		ctx,
-		"EXPLAIN "+crossRepoDeadCodeUngrantedConsumerProbeQuery,
+		prefix+crossRepoDeadCodeUngrantedConsumerProbeQuery,
 		producerRepoID,
 		crossRepoDeadCodeProbeTextArray(entityIDs),
 		crossRepoDeadCodeProbeTextArray(grantRepositoryIDs),
