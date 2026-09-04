@@ -2417,6 +2417,8 @@ gates:
       - "testdata/cassettes/deployableunit/**"
       - "testdata/cassettes/documentation/**"
       - "testdata/cassettes/inheritance/**"
+      - "testdata/cassettes/iaminstanceprofilerole/**"
+      - "testdata/cassettes/kubernetesnamespaceenvironment/**"
       - "testdata/cassettes/rationale/**"
       - "testdata/cassettes/repodependency/**"
       - "testdata/cassettes/shellexec/**"
