@@ -84,7 +84,7 @@ func traceEnrichmentOptions(req traceDeploymentChainRequest) traceEnrichmentConf
 // traceDeploymentChain returns a story-first deployment trace for a service.
 // POST /api/v0/impact/trace-deployment-chain
 func (h *ImpactHandler) traceDeploymentChain(w http.ResponseWriter, r *http.Request) {
-	if capabilityUnsupported(h.ResolvedProfile(), "platform_impact.deployment_chain") {
+	if capabilityUnsupported(h.profile(), "platform_impact.deployment_chain") {
 		WriteContractError(
 			w,
 			r,
@@ -92,7 +92,7 @@ func (h *ImpactHandler) traceDeploymentChain(w http.ResponseWriter, r *http.Requ
 			"deployment-chain tracing requires authoritative platform truth",
 			"unsupported_capability",
 			"platform_impact.deployment_chain",
-			h.ResolvedProfile(),
+			h.profile(),
 			requiredProfile("platform_impact.deployment_chain"),
 		)
 		return
@@ -323,7 +323,7 @@ func (h *ImpactHandler) traceDeploymentChain(w http.ResponseWriter, r *http.Requ
 
 	response := buildDeploymentTraceResponse(req.ServiceName, ctx)
 	attachEvidenceBoundaries(response, "trace_deployment_chain")
-	WriteSuccess(w, r, http.StatusOK, response, BuildTruthEnvelope(h.ResolvedProfile(), "platform_impact.deployment_chain", TruthBasisHybrid, "resolved from deployment topology and service evidence"))
+	WriteSuccess(w, r, http.StatusOK, response, BuildTruthEnvelope(h.profile(), "platform_impact.deployment_chain", TruthBasisHybrid, "resolved from deployment topology and service evidence"))
 }
 
 func fetchServiceTraceContext(

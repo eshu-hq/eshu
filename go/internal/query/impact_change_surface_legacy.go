@@ -34,7 +34,7 @@ const (
 // parameterized depth. Both changes remove the full-node scan and the unbounded
 // 8-hop expansion that hung service-kind targets at repo scale (issue #3384).
 func (h *ImpactHandler) findChangeSurface(w http.ResponseWriter, r *http.Request) {
-	if capabilityUnsupported(h.ResolvedProfile(), "platform_impact.change_surface") {
+	if capabilityUnsupported(h.profile(), "platform_impact.change_surface") {
 		WriteContractError(
 			w,
 			r,
@@ -42,7 +42,7 @@ func (h *ImpactHandler) findChangeSurface(w http.ResponseWriter, r *http.Request
 			"change surface analysis requires authoritative platform truth",
 			"unsupported_capability",
 			"platform_impact.change_surface",
-			h.ResolvedProfile(),
+			h.profile(),
 			requiredProfile("platform_impact.change_surface"),
 		)
 		return
@@ -111,7 +111,7 @@ func (h *ImpactHandler) findChangeSurface(w http.ResponseWriter, r *http.Request
 	if req.Environment != "" {
 		resp["environment"] = req.Environment
 	}
-	WriteSuccess(w, r, http.StatusOK, resp, BuildTruthEnvelope(h.ResolvedProfile(), "platform_impact.change_surface", TruthBasisHybrid, "resolved from graph and impact relationships"))
+	WriteSuccess(w, r, http.StatusOK, resp, BuildTruthEnvelope(h.profile(), "platform_impact.change_surface", TruthBasisHybrid, "resolved from graph and impact relationships"))
 }
 
 // changeSurfaceLegacyCypher is the single-anchor-clause impact traversal for the

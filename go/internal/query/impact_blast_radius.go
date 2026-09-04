@@ -293,7 +293,7 @@ RETURN a.id AS repo_id, tier.name AS tier, tier.risk_level AS risk`
 // POST /api/v0/impact/blast-radius
 // Body: {"target": "repo-name", "target_type": "repository"}
 func (h *ImpactHandler) findBlastRadius(w http.ResponseWriter, r *http.Request) {
-	if capabilityUnsupported(h.ResolvedProfile(), "platform_impact.blast_radius") {
+	if capabilityUnsupported(h.profile(), "platform_impact.blast_radius") {
 		WriteContractError(
 			w,
 			r,
@@ -301,7 +301,7 @@ func (h *ImpactHandler) findBlastRadius(w http.ResponseWriter, r *http.Request) 
 			"blast radius analysis requires authoritative platform truth",
 			"unsupported_capability",
 			"platform_impact.blast_radius",
-			h.ResolvedProfile(),
+			h.profile(),
 			requiredProfile("platform_impact.blast_radius"),
 		)
 		return
@@ -342,7 +342,7 @@ func (h *ImpactHandler) findBlastRadius(w http.ResponseWriter, r *http.Request) 
 			"affected_count": 0,
 			"limit":          limit,
 			"truncated":      false,
-		}, BuildTruthEnvelope(h.ResolvedProfile(), "platform_impact.blast_radius", TruthBasisHybrid, "resolved from platform graph impact analysis"))
+		}, BuildTruthEnvelope(h.profile(), "platform_impact.blast_radius", TruthBasisHybrid, "resolved from platform graph impact analysis"))
 		return
 	}
 
@@ -393,7 +393,7 @@ func (h *ImpactHandler) findBlastRadius(w http.ResponseWriter, r *http.Request) 
 		"truncated":      truncated,
 		"complete":       complete,
 		"coverage":       coverage,
-	}, BuildTruthEnvelope(h.ResolvedProfile(), "platform_impact.blast_radius", TruthBasisHybrid, "resolved from platform graph impact analysis"))
+	}, BuildTruthEnvelope(h.profile(), "platform_impact.blast_radius", TruthBasisHybrid, "resolved from platform graph impact analysis"))
 }
 
 // blastRadiusAffected resolves the affected repositories (repo, repo_id, hops,

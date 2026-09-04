@@ -48,7 +48,7 @@ type exposurePathRequest struct {
 //
 // POST /api/v0/impact/trace-exposure-path
 func (h *ImpactHandler) traceExposurePath(w http.ResponseWriter, r *http.Request) {
-	if capabilityUnsupported(h.ResolvedProfile(), exposurePathCapability) {
+	if capabilityUnsupported(h.profile(), exposurePathCapability) {
 		WriteContractError(
 			w,
 			r,
@@ -56,7 +56,7 @@ func (h *ImpactHandler) traceExposurePath(w http.ResponseWriter, r *http.Request
 			"exposure-path tracing requires authoritative graph mode",
 			"unsupported_capability",
 			exposurePathCapability,
-			h.ResolvedProfile(),
+			h.profile(),
 			requiredProfile(exposurePathCapability),
 		)
 		return

@@ -60,12 +60,7 @@ func (h *ImpactHandler) Mount(mux *http.ServeMux) {
 	mux.HandleFunc("POST /api/v0/impact/trace-exposure-path", h.traceExposurePath)
 }
 
-// ResolvedProfile is the exported rename of profile, which families outside
-// the impact move set call on ImpactHandler (contract, deployment-config-
-// influence, developer-change-plan, entity, exposure-path). It is named for
-// what it returns -- the handler's configured Profile field, nil-safe and
-// normalized -- because Profile itself is taken by that field. See #6060.
-func (h *ImpactHandler) ResolvedProfile() QueryProfile {
+func (h *ImpactHandler) profile() QueryProfile {
 	if h == nil {
 		return ProfileProduction
 	}
@@ -76,7 +71,7 @@ func (h *ImpactHandler) ResolvedProfile() QueryProfile {
 // POST /api/v0/impact/trace-resource-to-code
 // Body: {"start": "entity-id", "environment": "production", "max_depth": 8}
 func (h *ImpactHandler) traceResourceToCode(w http.ResponseWriter, r *http.Request) {
-	if capabilityUnsupported(h.ResolvedProfile(), "platform_impact.resource_to_code") {
+	if capabilityUnsupported(h.profile(), "platform_impact.resource_to_code") {
 		WriteContractError(
 			w,
 			r,
@@ -84,7 +79,7 @@ func (h *ImpactHandler) traceResourceToCode(w http.ResponseWriter, r *http.Reque
 			"resource-to-code tracing requires authoritative platform truth",
 			"unsupported_capability",
 			"platform_impact.resource_to_code",
-			h.ResolvedProfile(),
+			h.profile(),
 			requiredProfile("platform_impact.resource_to_code"),
 		)
 		return
@@ -167,14 +162,14 @@ func (h *ImpactHandler) traceResourceToCode(w http.ResponseWriter, r *http.Reque
 	if req.Environment != "" {
 		resp["environment"] = req.Environment
 	}
-	WriteSuccess(w, r, http.StatusOK, resp, BuildTruthEnvelope(h.ResolvedProfile(), "platform_impact.resource_to_code", TruthBasisHybrid, "resolved from resource-to-code graph traversal"))
+	WriteSuccess(w, r, http.StatusOK, resp, BuildTruthEnvelope(h.profile(), "platform_impact.resource_to_code", TruthBasisHybrid, "resolved from resource-to-code graph traversal"))
 }
 
 // explainDependencyPath finds and explains the shortest path between two entities.
 // POST /api/v0/impact/explain-dependency-path
 // Body: {"source": "entity-id", "target": "entity-id", "environment": "production"}
 func (h *ImpactHandler) explainDependencyPath(w http.ResponseWriter, r *http.Request) {
-	if capabilityUnsupported(h.ResolvedProfile(), "platform_impact.dependency_path") {
+	if capabilityUnsupported(h.profile(), "platform_impact.dependency_path") {
 		WriteContractError(
 			w,
 			r,
@@ -182,7 +177,7 @@ func (h *ImpactHandler) explainDependencyPath(w http.ResponseWriter, r *http.Req
 			"dependency path analysis requires full dependency graph truth",
 			"unsupported_capability",
 			"platform_impact.dependency_path",
-			h.ResolvedProfile(),
+			h.profile(),
 			requiredProfile("platform_impact.dependency_path"),
 		)
 		return
@@ -306,5 +301,5 @@ RETURN length(path) AS depth, nodes(path) AS ns, relationships(path) AS rels`,
 		resp["reason"] = overallReason
 	}
 
-	WriteSuccess(w, r, http.StatusOK, resp, BuildTruthEnvelope(h.ResolvedProfile(), "platform_impact.dependency_path", TruthBasisHybrid, "resolved from shortest-path dependency traversal"))
+	WriteSuccess(w, r, http.StatusOK, resp, BuildTruthEnvelope(h.profile(), "platform_impact.dependency_path", TruthBasisHybrid, "resolved from shortest-path dependency traversal"))
 }
