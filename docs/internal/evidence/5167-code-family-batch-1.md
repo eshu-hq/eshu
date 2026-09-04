@@ -563,9 +563,11 @@ of them, above the largest, a single-element grant, a grant wider than the
 corpus, a grant disjoint from every consumer, and a grant naming only the
 producer repository), the 50-, 200- and 500-id grants in both the all-granted
 and hidden forms, and the 300-repository fan-out page in both.
-`TestCrossRepoDeadCodeUngrantedConsumerProbeLive` runs that differential in the
-test suite against a disposable Postgres, including at 500 granted repositories,
-and adds three plan assertions: that the walk's per-step seek reaches an index
+Sixteen is the count measured in the container. The differential that ships is
+narrower and its own count is ten named grant shapes:
+`TestCrossRepoDeadCodeUngrantedConsumerProbeLive` runs the eight accepted
+shapes plus both 500-id grants against a disposable Postgres, and adds three
+plan assertions: that the walk's per-step seek reaches an index
 condition rather than a filter, that the liveness lookup reaches one carrying
 all four key columns, and that the recursive term's measured row count stays
 inside a budget. The last exists because the walk's stop condition is a
@@ -665,9 +667,11 @@ across grant size, flat across row fan-in, and slightly cheaper than what it
 replaces on the seed that shape was tuned for.
 
 Exactness: symmetric difference `0/0` against the
-`NOT (repository_id = ANY($grant))` reference across 33 grant shapes — the
-eight accepted shapes on each of the three retention levels of the new seed,
-and nine on the grant-size seed including the 500-id grant.
+`NOT (repository_id = ANY($grant))` reference across 33 grant shapes measured
+in the container — the eight accepted shapes on each of the three retention
+levels of the new seed, and nine on the grant-size seed including the 500-id
+grant. The shipped differential still runs its ten named shapes, now with
+`ent-retained` on the page for every one of them.
 
 The cost is index size and it is stated rather than waved at. Migration 101's
 `code_reachability_entity_repository_scope_generation_idx` is 79 MB against

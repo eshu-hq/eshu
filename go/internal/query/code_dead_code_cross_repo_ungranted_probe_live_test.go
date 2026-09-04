@@ -19,18 +19,37 @@ import (
 	_ "github.com/jackc/pgx/v5/stdlib"
 )
 
-// TestCrossRepoDeadCodeUngrantedConsumerProbeLive proves the one thing no fake
-// driver can: that the probe's repository_id ranges really are the complement
-// of the caller's grant, in Postgres, under Postgres's own collation.
+// TestCrossRepoDeadCodeUngrantedConsumerProbeLive proves the two things no fake
+// driver can: that the probe's walk answers the same question as the
+// `NOT (repository_id = ANY($grant))` it replaces, and that it answers it
+// without reading a group.
 //
-// The probe replaces `NOT (repository_id = ANY($grant))` with three range
-// families around the sorted grant -- below the first granted id, between two
-// consecutive ones, above the last -- because a range is seekable and a NOT IN
-// is not. That rewrite is only correct if the union of those ranges is exactly
-// the set complement, which depends on the bounds being ordered the way the
-// index and the comparisons order them. This test drives the shipped statement
-// against real rows for eight grant shapes and requires it to return the same
-// producer entities as the NOT IN it replaced, every time.
+// The probe walks a producer entity's distinct (repository_id, scope_id) pairs
+// in index order, seeks each pair's active row by full key equality, and stops
+// at the first pair that is both outside the grant and live. The differential
+// drives the shipped statement against real rows for ten named grant shapes --
+// the eight in the table below plus the two 500-id grants -- and requires the
+// same producer entities back from both statements, every time.
+//
+// Three plan and work guards cover what the answers cannot see, because each of
+// the mutations they exist for leaves every entity's verdict correct:
+//
+//   - the walk's per-step seek must reach an index condition rather than a
+//     filter, or a step scans the entity's remaining rows;
+//   - the liveness seek's index condition must carry all four key columns, or a
+//     step scans the pair's retained generations for its active row;
+//   - the recursive term's measured row count must stay inside a budget, or the
+//     walk has stopped stopping at the first hidden pair.
+//
+// The retained-generation axis is the reason the second exists. A group holds
+// one row per generation the retention runner still keeps, the active row is
+// the newest of them, and ent-retained carries 200 of them in every one of its
+// consumer repositories; the guard for it reads buffers rather than rows,
+// because the two shapes agree on rows.
+//
+// Every guard runs twice, once with the values in hand and once under
+// plan_cache_mode = force_generic_plan, which is where pgx's statement cache
+// puts these reads in production.
 //
 // Run with:
 //
