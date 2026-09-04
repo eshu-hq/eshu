@@ -45,6 +45,13 @@ type callChainGrantEntity struct {
 type callChainGrantGraph struct {
 	entities   []callChainGrantEntity
 	statements []string
+	// parseFailures records a statement this fake could not read the way it
+	// expects. Without it a marker that stops matching -- a reformatted builder,
+	// a renamed clause -- would silently yield no predicates, and a fake that
+	// applies no predicates admits every row. Tests assert this is empty, so a
+	// parse miss is its own failure rather than a result that happens to be
+	// right or wrong for an unrelated reason.
+	parseFailures []string
 }
 
 func (g *callChainGrantGraph) Run(
@@ -157,7 +164,11 @@ func (g *callChainGrantGraph) oneHopRows(cypher string, params map[string]any) [
 // the hops in between. A statement that binds only the endpoints returns the
 // interior hop, which is what this fake exists to catch.
 func (g *callChainGrantGraph) shortestPathRows(cypher string, params map[string]any) []map[string]any {
-	endpointPredicates, hopPredicates := callChainClausePredicates(cypher)
+	endpointPredicates, hopPredicates, parsed := callChainClausePredicates(cypher)
+	if !parsed {
+		g.parseFailures = append(g.parseFailures, cypher)
+		return nil
+	}
 	start, ok := g.endpoint(params, "start")
 	if !ok {
 		return nil
@@ -248,11 +259,19 @@ func (g *callChainGrantGraph) shortestPath(startUID, endUID string) []callChainG
 // callChainClausePredicates splits the compat statement at its shortestPath
 // clause: endpoint predicates before, hop predicates after (unwrapped from the
 // all(...) they are written inside).
-func callChainClausePredicates(cypher string) (endpoints []string, hops []string) {
+//
+// parsed reports whether the statement had the shape this reader expects. An
+// absent all(...) clause is NOT a parse failure -- a caller with no grant and no
+// repository selector legitimately renders none -- but a statement with no
+// shortestPath clause at all, or an all(...) whose block does not terminate, is.
+// The distinction matters because an unrecognised statement yields no predicates,
+// and a fake that applies no predicates admits every row: exactly the false green
+// this batch exists to prevent.
+func callChainClausePredicates(cypher string) (endpoints []string, hops []string, parsed bool) {
 	normalized := normalizeCypherWhitespace(cypher)
 	split := strings.Index(normalized, "MATCH path = shortestPath")
 	if split < 0 {
-		return nil, nil
+		return nil, nil, false
 	}
 	head, tail := normalized[:split], normalized[split:]
 	if at := strings.Index(head, "WHERE "); at >= 0 {
@@ -261,14 +280,14 @@ func callChainClausePredicates(cypher string) (endpoints []string, hops []string
 	marker := "WHERE all(node IN nodes(path) WHERE "
 	at := strings.Index(tail, marker)
 	if at < 0 {
-		return endpoints, nil
+		return endpoints, nil, true
 	}
 	block := tail[at+len(marker):]
 	end := strings.Index(block, ") RETURN ")
 	if end < 0 {
-		return endpoints, nil
+		return endpoints, nil, false
 	}
-	return endpoints, storySplitPredicates(strings.TrimSpace(block[:end]))
+	return endpoints, storySplitPredicates(strings.TrimSpace(block[:end])), true
 }
 
 // callChainHopAdmits evaluates one hop predicate. The hop conditions are written
@@ -644,6 +663,10 @@ func TestCallChainNeo4jLaneBoundsInteriorHops(t *testing.T) {
 			if got, want := rec.Code, http.StatusOK; got != want {
 				t.Fatalf("status = %d, want %d; body = %s", got, want, rec.Body.String())
 			}
+			if len(graph.parseFailures) != 0 {
+				t.Fatalf("the fake could not read the shipped statement, so it filtered nothing:\n%s",
+					strings.Join(graph.parseFailures, "\n---\n"))
+			}
 			body := rec.Body.String()
 			if strings.Contains(body, callChainUngrantedNam) || strings.Contains(body, callChainUngrantedHop) {
 				t.Fatalf("the compat chain shipped an out-of-grant interior hop: %s", body)
@@ -674,6 +697,10 @@ func TestCallChainNeo4jLaneKeepsAnInGrantChain(t *testing.T) {
 		"end_entity_id":   callChainGrantedEnd,
 		"max_depth":       3,
 	}, &auth)
+	if len(graph.parseFailures) != 0 {
+		t.Fatalf("the fake could not read the shipped statement:\n%s",
+			strings.Join(graph.parseFailures, "\n---\n"))
+	}
 	if !strings.Contains(rec.Body.String(), callChainGrantedName) {
 		t.Fatalf("the compat chain lost an in-grant hop: %s", rec.Body.String())
 	}
@@ -690,6 +717,10 @@ func TestCallChainNeo4jLaneSharedKeyReadIsUnchanged(t *testing.T) {
 		"end_entity_id":   callChainGrantedEnd,
 		"max_depth":       3,
 	}, nil)
+	if len(graph.parseFailures) != 0 {
+		t.Fatalf("the fake could not read the shipped statement:\n%s",
+			strings.Join(graph.parseFailures, "\n---\n"))
+	}
 	if !strings.Contains(rec.Body.String(), callChainUngrantedNam) {
 		t.Fatalf("the shared-key compat chain lost its cross-repository hop: %s", rec.Body.String())
 	}
@@ -716,7 +747,10 @@ func TestShortestPathCallChainBuildersBindTheGrant(t *testing.T) {
 	t.Run("neo4j_compat_binds_endpoints_and_every_hop", func(t *testing.T) {
 		t.Parallel()
 		cypher, params := buildCallChainCypher(req, GraphBackendNeo4j, access)
-		endpoints, hops := callChainClausePredicates(cypher)
+		endpoints, hops, parsed := callChainClausePredicates(cypher)
+		if !parsed {
+			t.Fatalf("the compat statement no longer has the shape this pin reads:\n%s", cypher)
+		}
 		for _, want := range []string{
 			access.GraphConditionOnProperty("start", "repo_id"),
 			access.GraphConditionOnProperty("end", "repo_id"),
@@ -736,7 +770,10 @@ func TestShortestPathCallChainBuildersBindTheGrant(t *testing.T) {
 	t.Run("nornicdb_binds_endpoints", func(t *testing.T) {
 		t.Parallel()
 		cypher, params := buildNornicDBCallChainCypher(req, access)
-		endpoints, hops := callChainClausePredicates(cypher)
+		endpoints, hops, parsed := callChainClausePredicates(cypher)
+		if !parsed {
+			t.Fatalf("the NornicDB statement no longer has the shape this pin reads:\n%s", cypher)
+		}
 		for _, want := range []string{
 			access.GraphConditionOnProperty("start", "repo_id"),
 			access.GraphConditionOnProperty("end", "repo_id"),

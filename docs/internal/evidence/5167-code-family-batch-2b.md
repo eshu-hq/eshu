@@ -117,7 +117,11 @@ projection returns the nodes in between. Call-chain returns every node on the
 path, with id, name, labels, language, docstring and method kind, so a chain
 whose endpoints are both in grant can still carry an interior hop from a
 repository the caller was never granted. Each backend needs a different shape,
-and the difference is measured, not stylistic.
+and the two halves of that claim do not rest on the same evidence: the NornicDB
+half is measured against the pinned build, the Neo4j half is not. Which half is
+which is stated below rather than blurred, because this batch's own round-1
+defect came from carrying a measured claim into a lane it was never measured
+in.
 
 **NornicDB.** The response path is a Go-side breadth-first search over
 `nornicDBCallChainOneHopRows`, so bounding each hop as the traversal expands
@@ -136,15 +140,22 @@ under the list-membership entry this batch added, pinned as measured values by
 **Neo4j compat.** `buildCallChainCypher` issues one `shortestPath` read, so
 there is no per-hop moment to bound; the grant goes into the
 `all(node IN nodes(path) …)` predicate, which is the only clause that reaches
-the interior. That form is a defect on the pinned NornicDB build and works
-correctly on Neo4j, which is the lane this builder ships to, and the repo
-already emitted exactly that shape there for `$repo_id` and
-`$traversal_repo_ids`. `callChainPathHopPredicates` composes the grant as a
+the interior. `callChainPathHopPredicates` composes the grant as a
 conjunct beside the request's own bound rather than replacing it.
 `TestCallChainNeo4jLaneBoundsInteriorHops` proves it on both anchoring shapes (a
 request with `repo_id` and one without), and
 `TestCallChainNeo4jLaneKeepsAnInGrantChain` proves it narrows rather than
 empties.
+
+Not measured, and worth saying so: there is no live Neo4j gate in this
+repository, so "the `all(...)` form filters on Neo4j" is NOT a measurement here.
+It rests on two things — it is ordinary Cypher, and this same file already
+emitted exactly that shape on this same lane for `$repo_id` and
+`$traversal_repo_ids`, so the batch adds a conjunct to a working predicate
+rather than introducing a shape. The tests that back it drive
+`callChainGrantGraph`, which applies the statement's two `WHERE` clauses the way
+Cypher defines them; a fake cannot discover a backend quirk. If Neo4j ever
+becomes a gated lane, this is the first assertion to re-measure.
 
 Round-1 review caught that this lane had been left unbounded and untested while
 the route was promoted and documented as bounded. The NornicDB measurement is
@@ -220,10 +231,14 @@ Every caller class, scoped or not:
 
 - `repo_id` on the story route now filters. It was inert in the same clause
   position for every caller class.
-- The call-chain traversal bound now filters. It was inert too — 3 rows with
-  `$traversal_repo_ids` naming one repository, and the identical 3 rows with it
-  nil — so a shared-key caller that passes `repo_id` or `cross_repo` gets a
-  correctly narrower hop set than before.
+- The call-chain per-hop traversal bound in `nornicDBCallChainOneHopRows` now
+  filters. It was inert too — 3 rows with `$traversal_repo_ids` naming one
+  repository, and the identical 3 rows with it nil — so a shared-key caller that
+  passes `repo_id` or `cross_repo` gets a correctly narrower hop set than
+  before. (The Neo4j `shortestPath` read's whole-path bound was a different
+  defect: attached correctly, but only written when the request named a
+  repository. That gap affected scoped callers only, and round-1 review is what
+  found it.)
 - `coalesce(target.repo_id, targetRepo.id, '')` became
   `coalesce(target.repo_id, '')` in the call-chain one-hop read. `targetRepo` is
   not bound at the anchoring `MATCH`, so the fallback could not move with the
