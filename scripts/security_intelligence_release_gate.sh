@@ -272,7 +272,7 @@ run_phase_focused() {
     fi
     local pkgs=(
         ./internal/vulnerabilityparity
-        ./internal/reducer
+        ./internal/reducer/...
         ./internal/query
         ./internal/mcp/...
         ./internal/collector/vulnerabilityintelligence

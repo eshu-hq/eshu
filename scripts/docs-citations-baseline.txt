@@ -916,8 +916,6 @@ LINE go/internal/replay/concurrentreplay/factslicesource.go go/internal/ifa/odu.
 LINE go/internal/replay/concurrentreplay/factslicesource.go go/internal/storage/postgres/facts.go:96
 LINE go/internal/replay/costcounting/azure_resource_materialization_cost_test.go go/internal/reducer/azure_resource_materialization.go:196
 LINE go/internal/replay/costcounting/ec2_instance_node_cost_test.go go/internal/graphowner/gated_writer.go:110
-LINE go/internal/replay/costcounting/evidence-4367-cost-cloud-posture.md go/internal/reducer/aws_cloud_runtime_drift.go:106
-LINE go/internal/replay/costcounting/evidence-4367-cost-cloud-posture.md go/internal/reducer/aws_cloud_runtime_drift.go:77
 LINE go/internal/replay/costcounting/evidence-4367-cost-cloud-posture.md go/internal/reducer/secrets_iam_graph_projection.go:28
 LINE go/internal/replay/costcounting/evidence-4367-cost-cloud-posture.md go/internal/telemetry/instruments.go:3464
 LINE go/internal/replay/costcounting/gcp_resource_materialization_cost_test.go go/internal/reducer/gcp_resource_materialization.go:292

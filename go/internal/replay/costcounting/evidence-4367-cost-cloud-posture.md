@@ -12,7 +12,7 @@ projection domain:
   (`aws_cloud_runtime_drift_cost_test.go`) driving
   `reducer.PostgresAWSCloudRuntimeDriftWriter.WriteAWSCloudRuntimeDriftFindings`
   (the writer `reducer.AWSCloudRuntimeDriftHandler.Handle` calls,
-  `go/internal/reducer/aws_cloud_runtime_drift.go:106`, constructed at
+  `go/internal/reducer/awscloud/aws_cloud_runtime_drift.go`, constructed at
   `go/cmd/reducer/wiring_handlers.go:61`). This writer is a Postgres fact
   writer, not a Cypher graph writer, wired over
   `storage/postgres.InstrumentedDB` — the same wrapper
@@ -79,7 +79,7 @@ constructs `reducer.PostgresAWSCloudRuntimeDriftWriter{DB: database}`, where
 `instrumentedDB` `buildObservedReducerService` constructs
 (`go/cmd/reducer/observed_service_wiring.go:35-40`,
 `StoreName: "reducer"`). `AWSCloudRuntimeDriftHandler.Handle`
-(`go/internal/reducer/aws_cloud_runtime_drift.go:77-133`) calls
+(`go/internal/reducer/awscloud/aws_cloud_runtime_drift.go`) calls
 `h.Writer.WriteAWSCloudRuntimeDriftFindings` exactly once per intent with the
 full admitted-candidate slice (line 106), confirming the writer this scenario
 drives is the real per-intent production call shape.
