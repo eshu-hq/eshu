@@ -2363,11 +2363,14 @@ The two functions whose bodies moved verbatim (`PublishIntentGraphPhase`,
 `PublishEndpointPresence`) show byte-for-byte identical costs before and
 after (244->244, 122->122), which is itself evidence the move added no logic,
 not just a description of it. None of the three original root functions were
-ever inlinable (all exceed cost 80), so every one of the ~28 call sites was
-already a real function call before this PR; the root forwarder that replaces
-each of them is inlinable and is confirmed inlined away at every production
-call site (31 `inlining call to <forwarder>` lines total across the three,
-zero for any of them in a `cannot inline` report), so the call depth at each
+ever inlinable (all exceed cost 80), so every one of the 36 call sites (31
+production, 5 test -- the same split the opening paragraph measures) was
+already a real function call before this PR; the root forwarder that
+replaces each of them is inlinable and is confirmed inlined away at every
+one of the 31 production call sites (31 `inlining call to <forwarder>` lines
+total across the three, zero for any of them in a `cannot inline` report --
+test call sites are outside this specific check because `go build
+-gcflags=-m` does not compile `_test.go` files), so the call depth at each
 site is unchanged: one real call into the (relocated) implementation, in
 place of one real call into the (previously root-resident) implementation.
 This is a stricter check than confirming the three forwarders are inlinable
