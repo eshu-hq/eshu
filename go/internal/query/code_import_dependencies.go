@@ -33,6 +33,13 @@ type importDependencyRequest struct {
 	TargetModule string `json:"target_module"`
 	Limit        int    `json:"limit"`
 	Offset       int    `json:"offset"`
+
+	// access is the caller's repository grant, set by the handler from the
+	// request's AuthContext and never decoded from the body (it is unexported,
+	// so encoding/json cannot reach it). It travels on the request because all
+	// seven builders take one, so the grant reaches every one of them without a
+	// seventh parameter on each signature.
+	access repositoryAccessFilter
 }
 
 func (h *CodeHandler) handleImportDependencyInvestigation(w http.ResponseWriter, r *http.Request) {
@@ -70,6 +77,23 @@ func (h *CodeHandler) handleImportDependencyInvestigation(w http.ResponseWriter,
 		return
 	}
 	span.SetAttributes(attribute.String("eshu.import_dependencies.query_type", req.queryType()))
+
+	// repo_id is optional here -- source_file, target_file, source_module or
+	// target_module each satisfy req.validate() on their own -- so a scoped
+	// caller who omits it reaches every builder corpus-wide. codeContentGrantScope
+	// is the front gate for the grantless case; req.access is what the builders
+	// bind for everyone else.
+	if _, blocked := codeContentGrantScope(r.Context(), req.RepoID); blocked {
+		WriteSuccess(
+			w,
+			r,
+			http.StatusOK,
+			importDependencyResponse(req, nil),
+			BuildTruthEnvelope(h.profile(), importDependencyCapability, TruthBasisAuthoritativeGraph, "the caller's grant admits no repository, so no graph read was issued"),
+		)
+		return
+	}
+	req.access = codeGrantAccessFilter(r.Context())
 
 	data, err := h.importDependencyData(r.Context(), req)
 	if err != nil {
@@ -211,6 +235,7 @@ func importDependencyParams(req importDependencyRequest) map[string]any {
 	if language := req.normalizedLanguage(); language != "" {
 		params["language"] = language
 	}
+	params = req.access.GraphParams(params)
 	if sourceFile := strings.TrimSpace(req.SourceFile); sourceFile != "" {
 		params["source_file"] = sourceFile
 	}
