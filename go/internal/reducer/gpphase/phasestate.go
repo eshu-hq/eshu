@@ -7,6 +7,8 @@ import (
 	"context"
 	"strings"
 	"time"
+
+	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
 )
 
 // PhaseState captures one durable readiness publication: the bounded slice the
@@ -85,4 +87,33 @@ func StateForIntent(
 		CommittedAt: observedAt,
 		UpdatedAt:   observedAt,
 	}, true
+}
+
+// StateForIntentValue builds the readiness publication for one durable
+// reducer.Intent value (issue #6061). It adapts the intent's scope,
+// generation, and entity keys to an [IntentAnchor] and delegates to
+// [StateForIntent] rather than re-deriving the key, so a caller that already
+// holds the durable [reducercontract.Intent] (the reducer root's
+// graphProjectionPhaseStateForIntent, before this move) and a family that
+// only holds an [IntentAnchor] can never drift onto two different
+// derivations of the same key. [IntentAnchor] remains the dependency-free
+// option for a family that wants to publish without depending on
+// reducercontract; this is a convenience for a caller that already has the
+// full intent value.
+func StateForIntentValue(
+	intent reducercontract.Intent,
+	keyspace Keyspace,
+	phase Phase,
+	observedAt time.Time,
+) (PhaseState, bool) {
+	return StateForIntent(
+		IntentAnchor{
+			ScopeID:      intent.ScopeID,
+			GenerationID: intent.GenerationID,
+			EntityKeys:   intent.EntityKeys,
+		},
+		keyspace,
+		phase,
+		observedAt,
+	)
 }
