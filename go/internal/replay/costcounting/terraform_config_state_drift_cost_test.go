@@ -163,28 +163,28 @@ func TestCostBudget_TerraformConfigStateDrift(t *testing.T) {
 	if !ok {
 		t.Fatal("budget missing required key eshu_dp_postgres_query_duration_seconds")
 	}
-	if writes > uint64(maxWrites) {
-		t.Fatalf(
-			"eshu_dp_postgres_query_duration_seconds write observations = %d exceeds budget %d "+
-				"(scenario=%s): algorithmic regression detected",
-			writes, maxWrites, budget.Scenario,
-		)
-	}
 	if writes == 0 {
 		t.Fatal("eshu_dp_postgres_query_duration_seconds write observations = 0: instrument not recording (false green guard)")
+	}
+	if writes != uint64(maxWrites) {
+		t.Fatalf(
+			"eshu_dp_postgres_query_duration_seconds write observations = %d, want exactly budget %d "+
+				"(scenario=%s): every count change requires a budget refresh",
+			writes, maxWrites, budget.Scenario,
+		)
 	}
 
 	// SECONDARY assertion: raw ExecContext call count from the counting fake.
 	execs := fake.totalExecs()
 	if maxExecs, ok := budget.Budgets["statements_executed"]; ok {
-		if execs > maxExecs {
-			t.Fatalf(
-				"statements_executed = %d exceeds budget %d (scenario=%s): too many Postgres write operations",
-				execs, maxExecs, budget.Scenario,
-			)
-		}
 		if execs == 0 {
 			t.Fatal("statements_executed = 0: fake not recording (false green guard)")
+		}
+		if execs != maxExecs {
+			t.Fatalf(
+				"statements_executed = %d, want exactly budget %d (scenario=%s): every count change requires a budget refresh",
+				execs, maxExecs, budget.Scenario,
+			)
 		}
 	}
 
