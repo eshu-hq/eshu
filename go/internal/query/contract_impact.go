@@ -48,7 +48,7 @@ func (h *ImpactHandler) contractImpact(w http.ResponseWriter, r *http.Request) {
 	)
 	defer span.End()
 
-	if capabilityUnsupported(h.ResolvedProfile(), contractImpactCapability) {
+	if capabilityUnsupported(h.profile(), contractImpactCapability) {
 		WriteContractError(
 			w,
 			r,
@@ -56,7 +56,7 @@ func (h *ImpactHandler) contractImpact(w http.ResponseWriter, r *http.Request) {
 			"contract impact requires authoritative graph-backed platform truth",
 			ErrorCodeUnsupportedCapability,
 			contractImpactCapability,
-			h.ResolvedProfile(),
+			h.profile(),
 			requiredProfile(contractImpactCapability),
 		)
 		return
@@ -85,7 +85,7 @@ func (h *ImpactHandler) contractImpact(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	truth := BuildTruthEnvelope(
-		h.ResolvedProfile(),
+		h.profile(),
 		contractImpactCapability,
 		TruthBasisAuthoritativeGraph,
 		"resolved from deterministic contract registry evidence only",

@@ -22,7 +22,7 @@ type deploymentConfigInfluenceRequest struct {
 }
 
 func (h *ImpactHandler) investigateDeploymentConfigInfluence(w http.ResponseWriter, r *http.Request) {
-	if capabilityUnsupported(h.ResolvedProfile(), deploymentConfigInfluenceCapability) {
+	if capabilityUnsupported(h.profile(), deploymentConfigInfluenceCapability) {
 		WriteContractError(
 			w,
 			r,
@@ -30,7 +30,7 @@ func (h *ImpactHandler) investigateDeploymentConfigInfluence(w http.ResponseWrit
 			"deployment configuration influence requires authoritative platform truth",
 			"unsupported_capability",
 			deploymentConfigInfluenceCapability,
-			h.ResolvedProfile(),
+			h.profile(),
 			requiredProfile(deploymentConfigInfluenceCapability),
 		)
 		return
@@ -84,7 +84,7 @@ func (h *ImpactHandler) investigateDeploymentConfigInfluence(w http.ResponseWrit
 		r,
 		http.StatusOK,
 		buildDeploymentConfigInfluenceResponse(req, ctx),
-		BuildTruthEnvelope(h.ResolvedProfile(), deploymentConfigInfluenceCapability, TruthBasisHybrid, "resolved from service deployment evidence, topology, and runtime artifacts"),
+		BuildTruthEnvelope(h.profile(), deploymentConfigInfluenceCapability, TruthBasisHybrid, "resolved from service deployment evidence, topology, and runtime artifacts"),
 	)
 }
 

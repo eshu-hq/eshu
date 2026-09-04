@@ -289,3 +289,15 @@ func PreChangeImpactErrorStatus(err error) int {
 func JoinOrNone(values []string) string {
 	return joinOrNone(values)
 }
+
+// ResolvedProfile is the exported seam for (*ImpactHandler).profile, which
+// families outside the impact move set call on ImpactHandler (contract,
+// deployment-config-influence, developer-change-plan, entity,
+// exposure-path). It is named for what it returns -- the handler's
+// configured Profile field, nil-safe and normalized -- because Profile
+// itself is taken by that field. It forwards so the impact family can move
+// without touching callers or the grandfathered bodies that call profile.
+// See #6060.
+func (h *ImpactHandler) ResolvedProfile() QueryProfile {
+	return h.profile()
+}

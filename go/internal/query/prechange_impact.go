@@ -57,7 +57,7 @@ func (h *ImpactHandler) preChangeImpact(w http.ResponseWriter, r *http.Request) 
 	)
 	defer span.End()
 
-	if capabilityUnsupported(h.ResolvedProfile(), preChangeImpactCapability) {
+	if capabilityUnsupported(h.profile(), preChangeImpactCapability) {
 		WriteContractError(
 			w,
 			r,
@@ -65,7 +65,7 @@ func (h *ImpactHandler) preChangeImpact(w http.ResponseWriter, r *http.Request) 
 			"pre-change impact requires authoritative platform truth",
 			ErrorCodeUnsupportedCapability,
 			preChangeImpactCapability,
-			h.ResolvedProfile(),
+			h.profile(),
 			requiredProfile(preChangeImpactCapability),
 		)
 		return
@@ -90,7 +90,7 @@ func (h *ImpactHandler) preChangeImpact(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 	truth := BuildTruthEnvelope(
-		h.ResolvedProfile(),
+		h.profile(),
 		preChangeImpactCapability,
 		TruthBasisHybrid,
 		"resolved from normalized changed-file input and bounded change-surface evidence",

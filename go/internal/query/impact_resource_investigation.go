@@ -56,7 +56,7 @@ func (h *ImpactHandler) investigateResource(w http.ResponseWriter, r *http.Reque
 	)
 	defer span.End()
 
-	if capabilityUnsupported(h.ResolvedProfile(), resourceInvestigationCapability) {
+	if capabilityUnsupported(h.profile(), resourceInvestigationCapability) {
 		WriteContractError(
 			w,
 			r,
@@ -64,7 +64,7 @@ func (h *ImpactHandler) investigateResource(w http.ResponseWriter, r *http.Reque
 			"resource investigation requires authoritative platform truth",
 			ErrorCodeUnsupportedCapability,
 			resourceInvestigationCapability,
-			h.ResolvedProfile(),
+			h.profile(),
 			requiredProfile(resourceInvestigationCapability),
 		)
 		return
@@ -88,7 +88,7 @@ func (h *ImpactHandler) investigateResource(w http.ResponseWriter, r *http.Reque
 	if access := repositoryAccessFilterFromContext(r.Context()); access.Empty() {
 		resp := resourceInvestigationResponse(req, resourceInvestigationEmptyGrantResolution(req), nil, nil, nil, nil, false)
 		WriteSuccess(w, r, http.StatusOK, resp, BuildTruthEnvelope(
-			h.ResolvedProfile(),
+			h.profile(),
 			resourceInvestigationCapability,
 			TruthBasisHybrid,
 			"resolved resource ambiguity before graph traversal",
@@ -107,7 +107,7 @@ func (h *ImpactHandler) investigateResource(w http.ResponseWriter, r *http.Reque
 	if selected == nil {
 		resp := resourceInvestigationResponse(req, resolution, nil, nil, nil, nil, false)
 		WriteSuccess(w, r, http.StatusOK, resp, BuildTruthEnvelope(
-			h.ResolvedProfile(),
+			h.profile(),
 			resourceInvestigationCapability,
 			TruthBasisHybrid,
 			"resolved resource ambiguity before graph traversal",
@@ -129,7 +129,7 @@ func (h *ImpactHandler) investigateResource(w http.ResponseWriter, r *http.Reque
 	truncated := workloadsTruncated || incomingTruncated || outgoingTruncated
 	resp := resourceInvestigationResponse(req, resolution, selected, workloads, incomingPaths, outgoingPaths, truncated)
 	WriteSuccess(w, r, http.StatusOK, resp, BuildTruthEnvelope(
-		h.ResolvedProfile(),
+		h.profile(),
 		resourceInvestigationCapability,
 		TruthBasisHybrid,
 		"resolved from bounded resource resolution, workload usage, and repository provenance paths",
