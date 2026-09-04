@@ -429,10 +429,15 @@ grant does not contain, so its cost follows the answer rather than the entity's
 fan-in, the caller's grant size, the generations retention still keeps, or the
 number of ingestion scopes covering a repository.
 
-Performance Evidence: the walk reads about 3,000 shared buffers at every point
-measured — the same number, because it does the same work — against 626,377 for
-the range shape at a 500-id grant and 1,150,489 for the walk on the two-column
-index at 200 retained generations. Every `EXPLAIN (ANALYZE, BUFFERS)` table
+Performance Evidence: the walk's buffer count does not move along any axis
+measured. It reads `hit=4,886` at every grant size from 5 to 500 repositories,
+where the range shape climbs from `hit=7,622` to `hit=626,377`; about
+`hit=3,150` from 0 to 200 retained generations, where the walk on the
+two-column index climbs to `hit=1,150,489`; and `hit=2,255` whether one or
+fifty scopes cover a granted repository, where pair stepping read `hit=26,788`.
+Across every point measured the walk reads between 2,255 and 6,081 buffers, the
+larger figures belonging to the wider fan-out fixtures, never to the axis under
+test. Every `EXPLAIN (ANALYZE, BUFFERS)` table
 behind those numbers, the exactness differentials, and the bootstrap-replay
 proof for migrations 101 and 102 are in
 [#5167 cross-repo hidden-consumer walk](5167-cross-repo-hidden-consumer-walk.md).
