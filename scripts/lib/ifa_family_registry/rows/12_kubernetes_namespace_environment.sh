@@ -26,8 +26,8 @@
 # blocker_kind and anchor below stay hand-derived and pinned because they are
 # what scripts/lib/ifa_family_registry_pins/ holds this row to.
 
-# Hand-derived for the fault cell this family does not have yet, and
-# non-vacuous when it is written: KubernetesNamespaceMaterializationHandler embeds
+# Hand-derived for this family's fault cells, and non-vacuous now they run:
+# KubernetesNamespaceMaterializationHandler embeds
 # `FactLoader FactLoader` (go/internal/reducer/kubernetes_namespace_materialization.go:129)
 # and Handle refuses to run without it (:147) before passing it to the
 # extraction path (:157). The handler therefore reads fact_records AFTER

@@ -1,7 +1,10 @@
 #!/usr/bin/env bash
 # shellcheck disable=SC2034,SC2154
 # iam_instance_profile_role-targeted live fault cells (#6309),
-# mirroring scripts/lib/ifa_fault_injection_codeowners_cells.sh's shape exactly.
+# mirroring scripts/lib/ifa_fault_injection_codeowners_cells.sh's shape
+# except the kill cell: this domain's claim is readiness-gated (see the
+# readiness helper below), so the kill cell banks readiness through a
+# prereq-scoped reducer before the lock goes on.
 # WIRED: scripts/verify-ifa-fault-injection.sh sources this file (through
 # scripts/lib/ifa_fault_injection_sources.sh) and runs all three cells
 # (baseline_iam_instance_profile_role,
