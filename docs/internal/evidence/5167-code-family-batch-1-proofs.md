@@ -212,12 +212,12 @@ mutation was restored and its guard rerun at exit `0`.
 | 36 | the above-the-largest range drops its `CROSS JOIN LATERAL … LIMIT 1` and becomes a plain correlated `EXISTS` | the same command, and `go test ./internal/query -run TestCrossRepoDeadCodeSignalReadIsTheBoundedUngrantedProbe -count=1` | `1` both. The live guard reports `probe fell back to a sequential scan over code_reachability_rows` with `Seq Scan on code_reachability_rows row_1 (cost=0.00..5714.40 rows=27779)` — the hashed subplan drops the per-entity equality; the unit guard reports the missing bound |
 | 37 | `bucketCrossRepoDeadCodeResults` ignores the probe's answer (`if false && consumers.HiddenConsumers.has(entityID)`) | `go test ./internal/query -run 'TestCrossRepoDeadCodeKeepsTheHiddenConsumerSignal\|TestCrossRepoDeadCodeStrongGrantedEvidenceOutranksHiddenConsumer' -count=1` | `1` (2 failures: the candidate whose only consumer is out of grant came back `"classification":"dead"`, and the mixed one kept its `live_by_consumer` answer but lost the count that goes with it — `hidden_consumer_evidence_count = <nil>, want 1`) |
 | 38 | the hidden count is not outranked by strong granted evidence (`if false && strongLiveEvidence` around `unknownHiddenCount = 0`), the order this route had before the two dead-code routes were reconciled | `go test ./internal/query -run TestCrossRepoDeadCodeStrongGrantedEvidenceOutranksHiddenConsumer -count=1` | `1` (`candidate_buckets[live_by_consumer] missing entity "producer-strong-plus-hidden"` — a strong granted consumer answered `unknown_needs_evidence`) |
-| 38 | `crossRepoDeadCodeUngrantedConsumers` drops its empty-grant refusal | `go test ./internal/query -run TestCrossRepoDeadCodeProbeRefusesAnEmptyGrant -count=1` | `1` (`hidden = …{"entity-1":struct {}{}}, want empty`) |
-| 39 | `crossRepoDeadCodeConsumerReadPlan` sets `SignalGrant` for a request that named consumers | `go test ./internal/query -run 'TestCrossRepoDeadCodeConsumerReadPlan\|TestCrossRepoDeadCodeHiddenCountHonoursTheConsumerSelector\|TestCrossRepoDeadCodeConsumerSelectorSurvivesABusyGrantedRepository' -count=1` | `1` (3 failures; the read plan leaks the grant into the probe and the selector route sends a second statement) |
-| 40 | the walk drops its stop condition (`AND EXISTS (… granted …)` becomes `AND TRUE`), so it enumerates every distinct consumer repository instead of stopping at the first ungranted one | `ESHU_CROSS_REPO_DEAD_CODE_PROBE_LIVE=1 ESHU_POSTGRES_DSN=… go test ./internal/query -run TestCrossRepoDeadCodeUngrantedConsumerProbeLive -count=1` | `1` (4 sub-test failures: both guards fail under BOTH plan modes -- `the recursive walk produced 215 rows, want at most 60` under a custom plan and again under `plan_cache_mode = force_generic_plan`, and the plan guard loses the per-step seek in both). Every entity's verdict is unchanged, which is the point of the row-count guard |
-| 41 | the walk's step seeks `>=` instead of `>`, so it never advances past the repository it just found | the same command | `1` (14 sub-test failures, all `cross-repo dead code ungranted consumer probe: context deadline exceeded`) |
-| 42 | the final filter selects the granted repositories instead of the ungranted ones (`NOT EXISTS` becomes `EXISTS`) | the same command | `1` (12 sub-test failures; e.g. `hidden = []string{"ent-busy", "ent-middle", "ent-spread"}, want []string(nil)` for a grant that hides nothing) |
-| 43 | not a mutation — the gate's first catch on the branch that added it. `code_dead_code_cross_repo_ungranted_probe_live_test.go` carries no build tag, so its `quoteLiteral` joined the `integration` build alongside the one in `cloud_resource_runtime_digest_starvation_live_test.go` | `bash scripts/verify-tagged-builds.sh --all`, then `go vet -tags integration ./internal/query` | `1` and `1` (`quoteLiteral redeclared in this block`), while `go build ./...`, `go vet ./...` and `go test ./internal/query` on the same tree all stayed `0`. Renamed to `crossRepoDeadCodeProbeQuoteLiteral`; both back to `0` |
+| 39 | `crossRepoDeadCodeUngrantedConsumers` drops its empty-grant refusal | `go test ./internal/query -run TestCrossRepoDeadCodeProbeRefusesAnEmptyGrant -count=1` | `1` (`hidden = …{"entity-1":struct {}{}}, want empty`) |
+| 40 | `crossRepoDeadCodeConsumerReadPlan` sets `SignalGrant` for a request that named consumers | `go test ./internal/query -run 'TestCrossRepoDeadCodeConsumerReadPlan\|TestCrossRepoDeadCodeHiddenCountHonoursTheConsumerSelector\|TestCrossRepoDeadCodeConsumerSelectorSurvivesABusyGrantedRepository' -count=1` | `1` (3 failures; the read plan leaks the grant into the probe and the selector route sends a second statement) |
+| 41 | the walk drops its stop condition (`AND EXISTS (… granted …)` becomes `AND TRUE`), so it enumerates every distinct consumer repository instead of stopping at the first ungranted one | `ESHU_CROSS_REPO_DEAD_CODE_PROBE_LIVE=1 ESHU_POSTGRES_DSN=… go test ./internal/query -run TestCrossRepoDeadCodeUngrantedConsumerProbeLive -count=1` | `1` (4 sub-test failures: both guards fail under BOTH plan modes -- `the recursive walk produced 215 rows, want at most 60` under a custom plan and again under `plan_cache_mode = force_generic_plan`, and the plan guard loses the per-step seek in both). Every entity's verdict is unchanged, which is the point of the row-count guard |
+| 42 | the walk's step seeks `>=` instead of `>`, so it never advances past the repository it just found | the same command | `1` (14 sub-test failures, all `cross-repo dead code ungranted consumer probe: context deadline exceeded`) |
+| 43 | the final filter selects the granted repositories instead of the ungranted ones (`NOT EXISTS` becomes `EXISTS`) | the same command | `1` (12 sub-test failures; e.g. `hidden = []string{"ent-busy", "ent-middle", "ent-spread"}, want []string(nil)` for a grant that hides nothing) |
+| 44 | not a mutation — the gate's first catch on the branch that added it. `code_dead_code_cross_repo_ungranted_probe_live_test.go` carries no build tag, so its `quoteLiteral` joined the `integration` build alongside the one in `cloud_resource_runtime_digest_starvation_live_test.go` | `bash scripts/verify-tagged-builds.sh --all`, then `go vet -tags integration ./internal/query` | `1` and `1` (`quoteLiteral redeclared in this block`), while `go build ./...`, `go vet ./...` and `go test ./internal/query` on the same tree all stayed `0`. Renamed to `crossRepoDeadCodeProbeQuoteLiteral`; both back to `0` |
 
 An earlier attempt at #1 deleted the whole helper body and failed as an unused
 import rather than an assertion, which proves nothing; the mutations above keep
@@ -243,26 +243,26 @@ different defects: 31 is the sed behaviour that was actually there, and 30 is
 the broader "the splitter is broken" case, which reddens one constraint more.
 Rows 32 and 33 are round-8k, and they are the reverse shape: not a mutation of
 the gate but two constraints the shipped gate answered green without compiling
-anything. Row 43 is not a mutation either: it is the gate finding a real break
+anything. Row 44 is not a mutation either: it is the gate finding a real break
 on the branch that introduced it, which is the strongest evidence in this table
 that it earns its place. Both are now `ERROR`. The module has no parenthesised and no mixed
 constraint, so the sweep's own output is unchanged at 29 vetted / 16 skipped /
 exit 0, which is the behaviour-preservation check for a change that only
 narrows what the gate will accept.
 
-Rows 40 through 42 are the round-10 pass, which replaced the grant-complement
+Rows 41 through 43 are the round-10 pass, which replaced the grant-complement
 ranges of rows 34 through 36 with a loose index scan over each producer
-entity's distinct consumer repositories. Rows 41 and 42 are ordinary
-correctness mutations. Row 40 is not, and it is the one worth reading: dropping
+entity's distinct consumer repositories. Rows 42 and 43 are ordinary
+correctness mutations. Row 41 is not, and it is the one worth reading: dropping
 the walk's stop condition leaves every entity's verdict identical and turns a
 bounded walk into a full enumeration, so no assertion on the answer can see it.
 The guard that catches it reads the recursive term's measured row count out of
 `EXPLAIN ANALYZE`. Its budget is measured rather than chosen -- 15 rows shipped,
 215 mutated, budget 60 -- and the first budget written for it, 900, sat above
 both and passed the mutation it existed to catch. That guard was a false green
-until row 40 was run against it, which is the argument for running these at all.
+until row 41 was run against it, which is the argument for running these at all.
 
-Rows 34 through 39 are the round-9 pass, the one that replaced the unrestricted
+Rows 34 through 37, 39 and 40 are the round-9 pass, the one that replaced the unrestricted
 signal read with the bounded ungranted-consumer probe. Rows 34 and 35 are the
 two ways the grant-complement ranges can stop being the complement — an
 inverted interior range and a mis-ordered bound list — and both are judged
@@ -270,13 +270,19 @@ against real Postgres, because a fake driver cannot evaluate a range. Row 36 is
 the plan property the whole rewrite rests on, and it is the only row here whose
 behavioural answer stays correct: the mutated probe returns the right entities
 and reads the whole table to do it, which is why the live guard asserts the plan
-and not only the result. Rows 37 through 39 are the three Go-side bindings: the
+and not only the result. Rows 37, 39 and 40 are the three Go-side bindings: the
 handler consuming the answer, the read refusing an empty grant, and the read
-plan keeping the probe away from a request that named consumers. Row 38 was
+plan keeping the probe away from a request that named consumers. Row 39 was
 rewritten before it bit — the first version drove the refusal through
 `CrossRepoDeadCodeConsumerEvidence`, whose own guard shadows it, and passed
 against the mutation; the guard now calls the read directly. Each was restored
 and its guard rerun at exit `0`.
+
+Row 38 sits inside that run of numbers without belonging to it. It is the later
+pass that reconciled the two dead-code routes' order for mixed evidence, and it
+restores the order this route had before that: a hidden consumer outranking a
+strong granted one. Its guard is
+`TestCrossRepoDeadCodeStrongGrantedEvidenceOutranksHiddenConsumer`.
 
 Rows 6 and 12 are one mutation judged by two guards: row 6 is the call-graph
 route's text guard, row 12 the graph-summary route that shares the builder. The

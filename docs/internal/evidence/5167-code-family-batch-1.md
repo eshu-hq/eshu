@@ -438,6 +438,14 @@ a million consumer rows therefore costs a million-row scan on every scoped
 request, and spends the shared 1,001-row budget where nothing later on the page
 can be proven.
 
+That property belongs to the page read too, and it is not fixed here. The
+grant-bound evidence page carries the same `ORDER BY entity_id, confidence
+DESC, ...` ahead of its `LIMIT 1001`, so its scan is bounded by a producer
+entity's fan-in rather than by the limit — the shape this route shipped for
+every caller, unchanged by this PR except that the grant now narrows what it
+scans. It is tracked in #6527, filed with these measurements; the withdrawal
+below is about the signal half only.
+
 The third stopped asking for rows at all and asked only the question the count
 needs. Per producer entity: is there one active-generation consumer row in a
 repository outside the grant? It expressed "outside the grant" as
