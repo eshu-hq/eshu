@@ -207,8 +207,9 @@ const openAPIPathsCode = `
       "post": {
         "tags": ["code"],
         "summary": "Get a bounded code relationship story",
-        "description": "Resolves one target symbol or entity id, returns ambiguity candidates instead of guessing, and reads direct or bounded transitive relationships with deterministic pagination.",
+        "description": "Resolves one target symbol or entity id, returns ambiguity candidates instead of guessing, and reads direct or bounded transitive relationships with deterministic pagination. Scoped tokens receive only granted repositories, in the relationships, the class-hierarchy enrichment and the ambiguity candidate list alike; an ungranted repository selector is rejected with 400.",
         "operationId": "getCodeRelationshipStory",
+        "x-scoped-token-support": true,
         "requestBody": {
           "required": true,
           "content": {
@@ -239,6 +240,7 @@ const openAPIPathsCode = `
           }
         },
         "responses": {
+          "403": {"$ref": "#/components/responses/Forbidden"},
           "503": {"$ref": "#/components/responses/ServiceUnavailable"},
           "504": {"$ref": "#/components/responses/GatewayTimeout"},
           "200": {
@@ -274,8 +276,9 @@ const openAPIPathsCode = `
       "post": {
         "tags": ["code"],
         "summary": "Find transitive call chains",
-        "description": "Finds shortest call chains between two functions by following canonical CALLS edges.",
+        "description": "Finds shortest call chains between two functions by following canonical CALLS edges. Scoped tokens receive only chains whose every hop is in a granted repository; an ungranted repository selector is rejected with 400.",
         "operationId": "getCodeCallChain",
+        "x-scoped-token-support": true,
         "requestBody": {
           "required": true,
           "content": {
@@ -298,6 +301,7 @@ const openAPIPathsCode = `
           }
         },
         "responses": {
+          "403": {"$ref": "#/components/responses/Forbidden"},
           "503": {"$ref": "#/components/responses/ServiceUnavailable"},
           "504": {"$ref": "#/components/responses/GatewayTimeout"},
           "200": {

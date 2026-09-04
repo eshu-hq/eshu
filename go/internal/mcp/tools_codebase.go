@@ -410,7 +410,7 @@ func codebaseTools() []ToolDefinition {
 		},
 		{
 			Name:        "find_function_call_chain",
-			Description: "Find the transitive call chain between two functions by following CALLS edges in the code graph. Returns shortest paths up to a configurable depth.",
+			Description: "Find the transitive call chain between two functions by following CALLS edges in the code graph. Returns shortest paths up to a configurable depth. Scoped tokens receive only chains whose every hop is in a granted repository; an ungranted repository selector is rejected.",
 			InputSchema: map[string]any{
 				"type": "object",
 				"properties": map[string]any{
