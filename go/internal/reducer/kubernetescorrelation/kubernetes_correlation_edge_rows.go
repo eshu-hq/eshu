@@ -1,13 +1,15 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package reducer
+package kubernetescorrelation
 
 import (
 	"sort"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
 	"github.com/eshu-hq/eshu/go/internal/graph/edgetype"
+	"github.com/eshu-hq/eshu/go/internal/reducer/factdecode"
+	"github.com/eshu-hq/eshu/go/internal/reducer/payloadcore"
 )
 
 // kubernetesRunsImageRelType is the canonical relationship type for the live
@@ -89,7 +91,7 @@ func (t kubernetesCorrelationEdgeTally) totalSkipped() int {
 // and write nothing — silent edge loss.
 func ExtractKubernetesCorrelationEdgeRows(
 	envelopes []facts.Envelope,
-) ([]map[string]any, kubernetesCorrelationEdgeTally, []quarantinedFact, error) {
+) ([]map[string]any, kubernetesCorrelationEdgeTally, []factdecode.QuarantinedFact, error) {
 	tally := newKubernetesCorrelationEdgeTally()
 	decisions, quarantined, err := buildKubernetesCorrelationDecisionsWithQuarantine(envelopes)
 	if err != nil {
@@ -149,12 +151,12 @@ func ExtractKubernetesCorrelationEdgeRows(
 	}
 
 	sort.Slice(rows, func(a, b int) bool {
-		left := anyToString(rows[a]["rel_type"]) + ":" +
-			anyToString(rows[a]["workload_uid"]) + "->" +
-			anyToString(rows[a]["source_uid"])
-		right := anyToString(rows[b]["rel_type"]) + ":" +
-			anyToString(rows[b]["workload_uid"]) + "->" +
-			anyToString(rows[b]["source_uid"])
+		left := payloadcore.AnyToString(rows[a]["rel_type"]) + ":" +
+			payloadcore.AnyToString(rows[a]["workload_uid"]) + "->" +
+			payloadcore.AnyToString(rows[a]["source_uid"])
+		right := payloadcore.AnyToString(rows[b]["rel_type"]) + ":" +
+			payloadcore.AnyToString(rows[b]["workload_uid"]) + "->" +
+			payloadcore.AnyToString(rows[b]["source_uid"])
 		return left < right
 	})
 	return rows, tally, quarantined, nil

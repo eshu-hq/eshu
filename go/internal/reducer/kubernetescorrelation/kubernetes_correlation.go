@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package reducer
+package kubernetescorrelation
 
 import (
 	"context"
@@ -10,6 +10,9 @@ import (
 	"go.opentelemetry.io/otel/metric"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
+	"github.com/eshu-hq/eshu/go/internal/reducer/factdecode"
+	"github.com/eshu-hq/eshu/go/internal/reducer/factload"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
 )
 
@@ -117,7 +120,7 @@ type kubernetesCorrelationSourceFactLoader interface {
 // later PR (PR3). See issue #388 and
 // docs/internal/design/388-kubernetes-correlation-readmodel.md.
 type KubernetesCorrelationHandler struct {
-	FactLoader  FactLoader
+	FactLoader  factload.FactLoader
 	Writer      KubernetesCorrelationWriter
 	Instruments *telemetry.Instruments
 }
@@ -127,24 +130,24 @@ type KubernetesCorrelationHandler struct {
 // active deployment-source image facts, builds a bounded in-memory index,
 // classifies each live image reference and identity edge into one of the six
 // outcomes plus a drift kind, and writes durable provenance-only facts.
-func (h KubernetesCorrelationHandler) Handle(ctx context.Context, intent Intent) (Result, error) {
-	if intent.Domain != DomainKubernetesCorrelation {
-		return Result{}, fmt.Errorf("kubernetes_correlation handler does not accept domain %q", intent.Domain)
+func (h KubernetesCorrelationHandler) Handle(ctx context.Context, intent reducercontract.Intent) (reducercontract.Result, error) {
+	if intent.Domain != reducercontract.DomainKubernetesCorrelation {
+		return reducercontract.Result{}, fmt.Errorf("kubernetes_correlation handler does not accept domain %q", intent.Domain)
 	}
 	if h.FactLoader == nil {
-		return Result{}, fmt.Errorf("kubernetes correlation fact loader is required")
+		return reducercontract.Result{}, fmt.Errorf("kubernetes correlation fact loader is required")
 	}
 	if h.Writer == nil {
-		return Result{}, fmt.Errorf("kubernetes correlation writer is required")
+		return reducercontract.Result{}, fmt.Errorf("kubernetes correlation writer is required")
 	}
 
-	envelopes, err := loadFactsForKinds(ctx, h.FactLoader, intent.ScopeID, intent.GenerationID, kubernetesCorrelationFactKinds())
+	envelopes, err := factload.LoadFactsForKinds(ctx, h.FactLoader, intent.ScopeID, intent.GenerationID, kubernetesCorrelationFactKinds())
 	if err != nil {
-		return Result{}, fmt.Errorf("load kubernetes correlation facts: %w", err)
+		return reducercontract.Result{}, fmt.Errorf("load kubernetes correlation facts: %w", err)
 	}
 	sourceFacts, err := h.loadActiveSourceFacts(ctx)
 	if err != nil {
-		return Result{}, fmt.Errorf("load active kubernetes correlation source facts: %w", err)
+		return reducercontract.Result{}, fmt.Errorf("load active kubernetes correlation source facts: %w", err)
 	}
 	envelopes = append(envelopes, sourceFacts...)
 
@@ -153,14 +156,14 @@ func (h KubernetesCorrelationHandler) Handle(ctx context.Context, intent Intent)
 		// A non-decode error (transient fact-load or other fatal condition
 		// partitionDecodeFailures did NOT quarantine) fails the whole intent so
 		// the durable queue triages it correctly.
-		return Result{}, err
+		return reducercontract.Result{}, err
 	}
 	// Per-fact isolation: a malformed kubernetes_live.* fact (a missing required
 	// identity/edge/reason field) is quarantined as a visible input_invalid
 	// dead-letter — counter + structured error log — while every valid fact
 	// still contributes its correlation decision below, so one bad fact never
 	// stalls the scope generation's correlation pass.
-	inputInvalidCount := recordQuarantinedFacts(ctx, h.Instruments, DomainKubernetesCorrelation, intent.ScopeID, intent.GenerationID, quarantined)
+	inputInvalidCount := factdecode.RecordQuarantinedFacts(ctx, h.Instruments, reducercontract.DomainKubernetesCorrelation, intent.ScopeID, intent.GenerationID, quarantined)
 	counts := kubernetesCorrelationCounts(decisions)
 	writeResult, err := h.Writer.WriteKubernetesCorrelations(ctx, KubernetesCorrelationWrite{
 		IntentID:     intent.IntentID,
@@ -171,17 +174,17 @@ func (h KubernetesCorrelationHandler) Handle(ctx context.Context, intent Intent)
 		Decisions:    decisions,
 	})
 	if err != nil {
-		return Result{}, fmt.Errorf("write kubernetes correlations: %w", err)
+		return reducercontract.Result{}, fmt.Errorf("write kubernetes correlations: %w", err)
 	}
 	h.emitCounters(ctx, decisions)
 
-	return Result{
+	return reducercontract.Result{
 		IntentID:        intent.IntentID,
-		Domain:          DomainKubernetesCorrelation,
-		Status:          ResultStatusSucceeded,
+		Domain:          reducercontract.DomainKubernetesCorrelation,
+		Status:          reducercontract.ResultStatusSucceeded,
 		EvidenceSummary: kubernetesCorrelationSummary(len(decisions), counts, writeResult.FactsWritten, inputInvalidCount),
 		CanonicalWrites: writeResult.FactsWritten,
-		SubSignals:      inputInvalidSubSignals(inputInvalidCount),
+		SubSignals:      factdecode.InputInvalidSubSignals(inputInvalidCount),
 	}, nil
 }
 
@@ -192,7 +195,7 @@ func (h KubernetesCorrelationHandler) loadActiveSourceFacts(ctx context.Context)
 	}
 	envelopes, err := loader.ListActiveContainerImageIdentityFacts(ctx)
 	if err != nil {
-		return nil, classifyFactLoadError(err)
+		return nil, factload.ClassifyFactLoadError(err)
 	}
 	return envelopes, nil
 }
@@ -218,7 +221,7 @@ func (h KubernetesCorrelationHandler) emitCounters(
 	}
 	for key, count := range counts {
 		h.Instruments.KubernetesCorrelations.Add(ctx, int64(count), metric.WithAttributes(
-			telemetry.AttrDomain(string(DomainKubernetesCorrelation)),
+			telemetry.AttrDomain(string(reducercontract.DomainKubernetesCorrelation)),
 			telemetry.AttrOutcome(string(key.outcome)),
 			telemetry.AttrDriftKind(key.drift),
 		))
@@ -251,7 +254,7 @@ func BuildKubernetesCorrelationDecisions(envelopes []facts.Envelope) []Kubernete
 // input_invalid dead-letter via recordQuarantinedFacts. A non-decode error (a
 // fatal condition partitionDecodeFailures did not quarantine) is returned so
 // the caller fails the whole intent for durable triage.
-func buildKubernetesCorrelationDecisionsWithQuarantine(envelopes []facts.Envelope) ([]KubernetesCorrelationDecision, []quarantinedFact, error) {
+func buildKubernetesCorrelationDecisionsWithQuarantine(envelopes []facts.Envelope) ([]KubernetesCorrelationDecision, []factdecode.QuarantinedFact, error) {
 	index, quarantined, err := buildKubernetesCorrelationIndex(envelopes)
 	if err != nil {
 		return nil, nil, err

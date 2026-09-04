@@ -11,6 +11,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/query"
 	"github.com/eshu-hq/eshu/go/internal/reducer"
 	"github.com/eshu-hq/eshu/go/internal/reducer/eshusearch"
+	"github.com/eshu-hq/eshu/go/internal/reducer/kubernetescorrelation"
 	"github.com/eshu-hq/eshu/go/internal/reducer/tfconfigstate"
 	"github.com/eshu-hq/eshu/go/internal/relationships/tfstatebackend"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres"
@@ -141,7 +142,7 @@ func buildReducerKubernetesHandlers(
 	graphWriters canonicalGraphWriters,
 ) reducer.KubernetesHandlers {
 	return reducer.KubernetesHandlers{
-		KubernetesCorrelationWriter: reducer.PostgresKubernetesCorrelationWriter{
+		KubernetesCorrelationWriter: kubernetescorrelation.PostgresKubernetesCorrelationWriter{
 			DB: database,
 		},
 		KubernetesWorkloadNodeWriter:    graphWriters.kubernetesWorkloadNode,

@@ -15,10 +15,10 @@ import (
 // registration and handler wiring, cmd/reducer's writer construction,
 // internal/storage/postgres' identity writers and evidence loaders,
 // internal/replay/costcounting's cost test, and the sibling
-// kubernetes_correlation/aws_resource_running_image/supply_chain_impact
-// families' shared image-reference helpers. Everything else the family
-// exports is reached as containerimage.X, and each entry here is deleted once
-// its last caller has moved.
+// aws_resource_running_image/supply_chain_impact families' shared
+// image-reference helpers. Everything else the family exports is reached as
+// containerimage.X, and each entry here is deleted once its last caller has
+// moved.
 
 // ContainerImageIdentityWrite is the durable publication input one
 // container-image-identity execution submits. See
@@ -88,32 +88,11 @@ func BuildContainerImageIdentityDecisions(envelopes []facts.Envelope) []Containe
 	return containerimage.BuildContainerImageIdentityDecisions(envelopes)
 }
 
-// parseContainerImageRef forwards to [containerimage.ParseContainerImageRef].
-// internal/reducer/kubernetes_correlation_classify.go and
-// internal/reducer/kubernetes_correlation_index.go still parse image
-// references this way; that family has not moved out of root (#6061).
-func parseContainerImageRef(raw string) (parsedContainerImageRef, bool) {
-	return containerimage.ParseContainerImageRef(raw)
-}
-
-// parsedContainerImageRef aliases [containerimage.ParsedContainerImageRef] so
-// every unqualified use in kubernetes_correlation_classify.go keeps compiling
-// unchanged.
-type parsedContainerImageRef = containerimage.ParsedContainerImageRef
-
 // digestFromImageRef forwards to [containerimage.DigestFromImageRef].
 // internal/reducer/aws_resource_running_image.go still resolves a running
 // image's digest this way; that family has not moved out of root (#6061).
 func digestFromImageRef(raw string) string {
 	return containerimage.DigestFromImageRef(raw)
-}
-
-// normalizeContainerRepositoryKey forwards to
-// [containerimage.NormalizeContainerRepositoryKey].
-// internal/reducer/kubernetes_correlation_index.go still normalizes
-// repository keys this way; that family has not moved out of root (#6061).
-func normalizeContainerRepositoryKey(raw string) string {
-	return containerimage.NormalizeContainerRepositoryKey(raw)
 }
 
 // containerImageIdentityFormatImageRef forwards to
@@ -126,19 +105,11 @@ const containerImageIdentityFormatImageRef = containerimage.ContainerImageIdenti
 
 // ociRepositoryID forwards to [payloadcore.OCIRepositoryID]. It was a
 // one-line forwarder inside the container-image-identity family before that
-// family moved to [containerimage] (#6061); several still-in-root families
-// (kubernetes_correlation_index.go, supply_chain_impact_active_filter.go)
-// depend on it under this unqualified spelling.
+// family moved to [containerimage] (#6061); the still-in-root
+// supply_chain_impact_active_filter.go depends on it under this unqualified
+// spelling.
 func ociRepositoryID(payload map[string]any) string {
 	return payloadcore.OCIRepositoryID(payload)
-}
-
-// boolPayload forwards to [payloadcore.BoolPayload]. Same history as
-// [ociRepositoryID]: a pre-existing one-line forwarder that rode along in the
-// container-image-identity family's files, still used unqualified by
-// kubernetes_correlation_index.go.
-func boolPayload(payload map[string]any, key string) bool {
-	return payloadcore.BoolPayload(payload, key)
 }
 
 // containerImageBuiltFromRows forwards to

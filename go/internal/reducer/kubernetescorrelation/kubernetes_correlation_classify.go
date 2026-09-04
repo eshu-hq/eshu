@@ -1,11 +1,14 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package reducer
+package kubernetescorrelation
 
 import (
 	"slices"
 	"sort"
+
+	"github.com/eshu-hq/eshu/go/internal/reducer/containerimage"
+	"github.com/eshu-hq/eshu/go/internal/reducer/payloadcore"
 )
 
 // Drift kinds (issue #388). The drift_kind is a bounded, closed enum derived
@@ -58,7 +61,7 @@ func classifyWorkloadImages(
 	seen := make(map[string]struct{}, len(workload.imageRefs))
 	var decisions []KubernetesCorrelationDecision
 	for _, raw := range workload.imageRefs {
-		parsed, ok := parseContainerImageRef(raw)
+		parsed, ok := containerimage.ParseContainerImageRef(raw)
 		if !ok {
 			decisions = append(decisions, rejectedImageDecision(workload, raw, index, "live image reference could not be parsed into a repository"))
 			continue
@@ -77,7 +80,7 @@ func classifyWorkloadImages(
 // repository+tag precedence.
 func classifyImageRef(
 	workload kubernetesWorkload,
-	parsed parsedContainerImageRef,
+	parsed containerimage.ParsedContainerImageRef,
 	index kubernetesCorrelationIndex,
 ) KubernetesCorrelationDecision {
 	base := baseImageDecision(workload, parsed.Raw, index)
@@ -123,7 +126,7 @@ func promotableCRIRef(candidates []string, index kubernetesCorrelationIndex) str
 		return ""
 	}
 	for _, candidate := range candidates {
-		parsed, ok := parseContainerImageRef(candidate)
+		parsed, ok := containerimage.ParseContainerImageRef(candidate)
 		if !ok || parsed.Digest == "" || parsed.RepositoryKey == "" {
 			continue
 		}
@@ -161,7 +164,7 @@ func classifyConflictingCRIDigests(
 func criCandidateDigests(candidates []string) []string {
 	out := make([]string, 0, len(candidates))
 	for _, candidate := range candidates {
-		if parsed, ok := parseContainerImageRef(candidate); ok && parsed.Digest != "" {
+		if parsed, ok := containerimage.ParseContainerImageRef(candidate); ok && parsed.Digest != "" {
 			out = append(out, parsed.Digest)
 			continue
 		}
@@ -180,7 +183,7 @@ func classifyImageByCRIDigest(
 	resolvedDigest string,
 	index kubernetesCorrelationIndex,
 ) KubernetesCorrelationDecision {
-	parsed, ok := parseContainerImageRef(resolvedDigest)
+	parsed, ok := containerimage.ParseContainerImageRef(resolvedDigest)
 	if !ok || parsed.Digest == "" {
 		// The resolved digest could not be parsed (e.g. it lost its repository
 		// through normalization). Classify as unresolved — do NOT fall through
@@ -228,7 +231,7 @@ func classifyImageByCRIDigest(
 // source digest index (the strongest join).
 func classifyImageByDigest(
 	base KubernetesCorrelationDecision,
-	parsed parsedContainerImageRef,
+	parsed containerimage.ParsedContainerImageRef,
 	index kubernetesCorrelationIndex,
 ) KubernetesCorrelationDecision {
 	source, ok := index.resolveDigest(parsed.RepositoryKey, parsed.Digest)
@@ -261,7 +264,7 @@ func classifyImageByDigest(
 // ambiguous).
 func classifyImageByTag(
 	base KubernetesCorrelationDecision,
-	parsed parsedContainerImageRef,
+	parsed containerimage.ParsedContainerImageRef,
 	index kubernetesCorrelationIndex,
 ) KubernetesCorrelationDecision {
 	distinct := index.resolveTag(parsed.RepositoryKey, parsed.Tag)
@@ -319,7 +322,7 @@ func classifyIdentityEdge(
 		IdentityEdgeKey:  edge.fromObjectID + "->" + edge.toObjectID,
 		RelationshipType: edge.relationshipType,
 		Warnings:         index.warnings,
-		EvidenceFactIDs:  compactStringSlice(edge.factID),
+		EvidenceFactIDs:  payloadcore.CompactStringSlice(edge.factID),
 	}
 	switch edge.relationshipType {
 	case relKubernetesOwnerReference:
@@ -358,7 +361,7 @@ func baseImageDecision(
 		ImageRef:         imageRef,
 		ProvenanceOnly:   true,
 		Warnings:         index.warnings,
-		EvidenceFactIDs:  compactStringSlice(workload.factID),
+		EvidenceFactIDs:  payloadcore.CompactStringSlice(workload.factID),
 	}
 }
 
@@ -381,7 +384,7 @@ func rejectImage(base KubernetesCorrelationDecision, reason string) KubernetesCo
 }
 
 func appendEvidence(existing []string, more ...string) []string {
-	return uniqueSortedStrings(append(existing, more...))
+	return payloadcore.UniqueSortedStrings(append(existing, more...))
 }
 
 func sortedSourceDigests(distinct map[string]kubernetesSourceTag) []string {

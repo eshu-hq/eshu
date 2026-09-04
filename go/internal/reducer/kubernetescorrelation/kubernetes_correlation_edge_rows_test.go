@@ -1,12 +1,13 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package reducer
+package kubernetescorrelation
 
 import (
 	"testing"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/reducer/payloadcore"
 )
 
 // k8sSourceManifestWithNode builds an oci_registry.image_manifest fact that
@@ -57,16 +58,16 @@ func TestExtractKubernetesCorrelationEdgeRowsExactDigestMaterializes(t *testing.
 		t.Fatalf("rows = %d, want 1 RUNS_IMAGE edge; tally=%+v", len(rows), tally)
 	}
 	row := rows[0]
-	if got := anyToString(row["workload_uid"]); got != testCheckoutObjectID() {
+	if got := payloadcore.AnyToString(row["workload_uid"]); got != testCheckoutObjectID() {
 		t.Fatalf("workload_uid = %q, want %q (the KubernetesWorkload node uid = object_id)", got, testCheckoutObjectID())
 	}
-	if got := anyToString(row["source_uid"]); got != testCheckoutDescriptorID() {
+	if got := payloadcore.AnyToString(row["source_uid"]); got != testCheckoutDescriptorID() {
 		t.Fatalf("source_uid = %q, want %q (the resolved OCI node uid)", got, testCheckoutDescriptorID())
 	}
-	if got := anyToString(row["rel_type"]); got != kubernetesRunsImageRelType {
+	if got := payloadcore.AnyToString(row["rel_type"]); got != kubernetesRunsImageRelType {
 		t.Fatalf("rel_type = %q, want %q", got, kubernetesRunsImageRelType)
 	}
-	if got := anyToString(row["source_label"]); got != sourceImageNodeLabelManifest {
+	if got := payloadcore.AnyToString(row["source_label"]); got != sourceImageNodeLabelManifest {
 		t.Fatalf("source_label = %q, want %q", got, sourceImageNodeLabelManifest)
 	}
 	if tally.materialized[joinModeDigest] != 1 {
@@ -192,8 +193,8 @@ func TestExtractKubernetesCorrelationEdgeRowsDeduplicatesAndSorts(t *testing.T) 
 	}
 	// Deterministic order: sorted by (rel_type, workload_uid, source_uid). The
 	// alpha workload's object_id sorts before zeta's.
-	first := anyToString(rows[0]["workload_uid"])
-	second := anyToString(rows[1]["workload_uid"])
+	first := payloadcore.AnyToString(rows[0]["workload_uid"])
+	second := payloadcore.AnyToString(rows[1]["workload_uid"])
 	if first >= second {
 		t.Fatalf("rows not sorted by workload_uid: %q then %q", first, second)
 	}

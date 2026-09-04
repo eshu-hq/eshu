@@ -3,7 +3,10 @@
 
 package reducer
 
-import "github.com/eshu-hq/eshu/go/internal/reducer/iamcan"
+import (
+	"github.com/eshu-hq/eshu/go/internal/reducer/iamcan"
+	"github.com/eshu-hq/eshu/go/internal/reducer/kubernetescorrelation"
+)
 
 // appendCloudPostureEdgeAdditiveDomains registers the remaining cloud posture
 // and IAM-action edge/node domains that read back committed graph state through
@@ -77,8 +80,8 @@ func appendCloudPostureEdgeAdditiveDomains(definitions []DomainDefinition, handl
 		definitions = append(definitions, ec2Exposure)
 	}
 	if handlers.FactLoader != nil && handlers.KubernetesCorrelationEdgeWriter != nil {
-		kubernetesEdges := kubernetesCorrelationMaterializationDomainDefinition()
-		kubernetesEdges.Handler = KubernetesCorrelationMaterializationHandler{
+		kubernetesEdges := kubernetescorrelation.KubernetesCorrelationMaterializationDomainDefinition()
+		kubernetesEdges.Handler = kubernetescorrelation.KubernetesCorrelationMaterializationHandler{
 			FactLoader:           handlers.FactLoader,
 			EdgeWriter:           handlers.KubernetesCorrelationEdgeWriter,
 			ReadinessLookup:      handlers.ReadinessLookup,

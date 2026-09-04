@@ -3,6 +3,8 @@
 
 package reducer
 
+import "github.com/eshu-hq/eshu/go/internal/reducer/kubernetescorrelation"
+
 // appendSupplyChainCorrelationAdditiveDomains registers the observability,
 // kubernetes, and supply-chain correlation domains: observability coverage,
 // kubernetes correlation, SBOM attestation attachment, supply-chain impact, and
@@ -23,7 +25,7 @@ func appendSupplyChainCorrelationAdditiveDomains(definitions []DomainDefinition,
 	}
 	if handlers.FactLoader != nil && handlers.KubernetesCorrelationWriter != nil {
 		kubernetes := kubernetesCorrelationDomainDefinition()
-		kubernetes.Handler = KubernetesCorrelationHandler{
+		kubernetes.Handler = kubernetescorrelation.KubernetesCorrelationHandler{
 			FactLoader:  handlers.FactLoader,
 			Writer:      handlers.KubernetesCorrelationWriter,
 			Instruments: handlers.Instruments,

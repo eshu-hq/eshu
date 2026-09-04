@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package reducer
+package kubernetescorrelation
 
 import (
 	"context"
@@ -14,12 +14,17 @@ import (
 	"go.opentelemetry.io/otel/trace"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
+	"github.com/eshu-hq/eshu/go/internal/reducer/factdecode"
+	"github.com/eshu-hq/eshu/go/internal/reducer/factload"
+	"github.com/eshu-hq/eshu/go/internal/reducer/gpphase"
+	"github.com/eshu-hq/eshu/go/internal/reducer/payloadcore"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
 	"github.com/eshu-hq/eshu/go/internal/truth"
 	log "github.com/eshu-hq/eshu/go/pkg/log"
 )
 
-// kubernetesCorrelationMaterializationDomainDefinition returns the additive
+// KubernetesCorrelationMaterializationDomainDefinition returns the additive
 // definition for the live-workload RUNS_IMAGE edge projection. It is additive
 // (not part of DefaultDomainDefinitions) because the handler requires an
 // explicitly wired KubernetesCorrelationEdgeWriter and FactLoader; registering it
@@ -27,11 +32,11 @@ import (
 // awsRelationshipMaterializationDomainDefinition (#805 PR2) and
 // observabilityCoverageMaterializationDomainDefinition (#391 PR3). See issue #388
 // PR3 and docs/internal/design/388-kubernetes-correlation-readmodel.md.
-func kubernetesCorrelationMaterializationDomainDefinition() DomainDefinition {
-	return DomainDefinition{
-		Domain:  DomainKubernetesCorrelationMaterialization,
+func KubernetesCorrelationMaterializationDomainDefinition() reducercontract.DomainDefinition {
+	return reducercontract.DomainDefinition{
+		Domain:  reducercontract.DomainKubernetesCorrelationMaterialization,
 		Summary: "project exact live Kubernetes correlation decisions into canonical RUNS_IMAGE graph edges",
-		Ownership: OwnershipShape{
+		Ownership: reducercontract.OwnershipShape{
 			CrossSource:    true,
 			CrossScope:     true,
 			CanonicalWrite: true,
@@ -91,15 +96,15 @@ type KubernetesCorrelationEdgeWriter interface {
 // See issue #388 PR3 and
 // docs/internal/design/388-kubernetes-correlation-readmodel.md.
 type KubernetesCorrelationMaterializationHandler struct {
-	FactLoader FactLoader
+	FactLoader factload.FactLoader
 	EdgeWriter KubernetesCorrelationEdgeWriter
 	// ReadinessLookup reports whether the canonical-nodes-committed phase has been
 	// published for the intent's scope generation. A nil lookup keeps the gate open
 	// (test wiring); production wires the durable Postgres lookup.
-	ReadinessLookup GraphProjectionReadinessLookup
+	ReadinessLookup gpphase.ReadinessLookup
 	// PriorGenerationCheck reports whether the scope has any prior generation. Nil
 	// keeps retract behavior conservative (always retract before write).
-	PriorGenerationCheck PriorGenerationCheck
+	PriorGenerationCheck reducercontract.PriorGenerationCheck
 	Tracer               trace.Tracer
 	Instruments          *telemetry.Instruments
 }
@@ -107,20 +112,20 @@ type KubernetesCorrelationMaterializationHandler struct {
 // Handle executes one live-workload correlation materialization intent.
 func (h KubernetesCorrelationMaterializationHandler) Handle(
 	ctx context.Context,
-	intent Intent,
-) (Result, error) {
+	intent reducercontract.Intent,
+) (reducercontract.Result, error) {
 	totalStart := time.Now()
-	if intent.Domain != DomainKubernetesCorrelationMaterialization {
-		return Result{}, fmt.Errorf(
+	if intent.Domain != reducercontract.DomainKubernetesCorrelationMaterialization {
+		return reducercontract.Result{}, fmt.Errorf(
 			"kubernetes correlation materialization handler does not accept domain %q",
 			intent.Domain,
 		)
 	}
 	if h.FactLoader == nil {
-		return Result{}, fmt.Errorf("kubernetes correlation materialization fact loader is required")
+		return reducercontract.Result{}, fmt.Errorf("kubernetes correlation materialization fact loader is required")
 	}
 	if h.EdgeWriter == nil {
-		return Result{}, fmt.Errorf("kubernetes correlation materialization edge writer is required")
+		return reducercontract.Result{}, fmt.Errorf("kubernetes correlation materialization edge writer is required")
 	}
 
 	if h.Tracer != nil {
@@ -140,7 +145,7 @@ func (h KubernetesCorrelationMaterializationHandler) Handle(
 	// published, the intent re-enters the durable queue (retryable) rather than
 	// writing edges against a node set that does not exist yet.
 	if !h.workloadNodesReady(intent) {
-		return Result{}, kubernetesCorrelationNodesNotReadyError{
+		return reducercontract.Result{}, kubernetesCorrelationNodesNotReadyError{
 			scopeID:      intent.ScopeID,
 			generationID: intent.GenerationID,
 		}
@@ -149,7 +154,7 @@ func (h KubernetesCorrelationMaterializationHandler) Handle(
 	loadStart := time.Now()
 	envelopes, err := h.loadEdgeFacts(ctx, intent)
 	if err != nil {
-		return Result{}, err
+		return reducercontract.Result{}, err
 	}
 	loadDuration := time.Since(loadStart)
 
@@ -161,18 +166,18 @@ func (h KubernetesCorrelationMaterializationHandler) Handle(
 		// it. This return MUST precede the retract below: retracting on a fatal
 		// error would delete the prior generation's valid edges and then write
 		// nothing — silent edge loss on a transient/version-skew condition.
-		return Result{}, err
+		return reducercontract.Result{}, err
 	}
 	// Per-fact isolation: a malformed kubernetes_live.* fact (a missing required
 	// field) is quarantined as a visible input_invalid dead-letter — counter +
 	// structured error log — while every valid decision still projects its edge
 	// below, mirroring the node materialization path.
-	inputInvalidCount := recordQuarantinedFacts(ctx, h.Instruments, DomainKubernetesCorrelationMaterialization, intent.ScopeID, intent.GenerationID, quarantined)
+	inputInvalidCount := factdecode.RecordQuarantinedFacts(ctx, h.Instruments, reducercontract.DomainKubernetesCorrelationMaterialization, intent.ScopeID, intent.GenerationID, quarantined)
 	extractDuration := time.Since(extractStart)
 
 	skipRetract, err := h.shouldSkipRetract(ctx, intent)
 	if err != nil {
-		return Result{}, err
+		return reducercontract.Result{}, err
 	}
 	var retractDuration time.Duration
 	if !skipRetract {
@@ -183,7 +188,7 @@ func (h KubernetesCorrelationMaterializationHandler) Handle(
 			intent.GenerationID,
 			kubernetesCorrelationEdgeEvidenceSource,
 		); err != nil {
-			return Result{}, fmt.Errorf("retract canonical kubernetes correlation edges: %w", err)
+			return reducercontract.Result{}, fmt.Errorf("retract canonical kubernetes correlation edges: %w", err)
 		}
 		retractDuration = time.Since(retractStart)
 	}
@@ -198,7 +203,7 @@ func (h KubernetesCorrelationMaterializationHandler) Handle(
 			intent.GenerationID,
 			kubernetesCorrelationEdgeEvidenceSource,
 		); err != nil {
-			return Result{}, fmt.Errorf("write canonical kubernetes correlation edges: %w", err)
+			return reducercontract.Result{}, fmt.Errorf("write canonical kubernetes correlation edges: %w", err)
 		}
 		writeDuration = time.Since(writeStart)
 	}
@@ -217,10 +222,10 @@ func (h KubernetesCorrelationMaterializationHandler) Handle(
 		totalDuration:   time.Since(totalStart),
 	})
 
-	return Result{
+	return reducercontract.Result{
 		IntentID: intent.IntentID,
-		Domain:   DomainKubernetesCorrelationMaterialization,
-		Status:   ResultStatusSucceeded,
+		Domain:   reducercontract.DomainKubernetesCorrelationMaterialization,
+		Status:   reducercontract.ResultStatusSucceeded,
 		EvidenceSummary: fmt.Sprintf(
 			"materialized %d RUNS_IMAGE edge(s) from %d fact(s); %d exact decision(s) had no resolvable source node; %d input_invalid fact(s) quarantined",
 			len(rows),
@@ -229,7 +234,7 @@ func (h KubernetesCorrelationMaterializationHandler) Handle(
 			inputInvalidCount,
 		),
 		CanonicalWrites: len(rows),
-		SubSignals:      inputInvalidSubSignals(inputInvalidCount),
+		SubSignals:      factdecode.InputInvalidSubSignals(inputInvalidCount),
 	}, nil
 }
 
@@ -240,9 +245,9 @@ func (h KubernetesCorrelationMaterializationHandler) Handle(
 // builds the digest->uid source index from the OCI source facts.
 func (h KubernetesCorrelationMaterializationHandler) loadEdgeFacts(
 	ctx context.Context,
-	intent Intent,
+	intent reducercontract.Intent,
 ) ([]facts.Envelope, error) {
-	envelopes, err := loadFactsForKinds(
+	envelopes, err := factload.LoadFactsForKinds(
 		ctx,
 		h.FactLoader,
 		intent.ScopeID,
@@ -270,7 +275,7 @@ func (h KubernetesCorrelationMaterializationHandler) loadActiveSourceFacts(ctx c
 	}
 	envelopes, err := loader.ListActiveContainerImageIdentityFacts(ctx)
 	if err != nil {
-		return nil, classifyFactLoadError(err)
+		return nil, factload.ClassifyFactLoadError(err)
 	}
 	return envelopes, nil
 }
@@ -281,20 +286,23 @@ func (h KubernetesCorrelationMaterializationHandler) loadActiveSourceFacts(ctx c
 // DomainKubernetesWorkloadMaterialization publishes it on the
 // GraphProjectionKeyspaceKubernetesWorkloadUID keyspace, so the lookup matches the
 // published row. A nil lookup keeps the gate open for test wiring.
-func (h KubernetesCorrelationMaterializationHandler) workloadNodesReady(intent Intent) bool {
+func (h KubernetesCorrelationMaterializationHandler) workloadNodesReady(intent reducercontract.Intent) bool {
 	if h.ReadinessLookup == nil {
 		return true
 	}
-	state, ok := graphProjectionPhaseStateForIntent(
-		intent,
-		GraphProjectionKeyspaceKubernetesWorkloadUID,
-		GraphProjectionPhaseCanonicalNodesCommitted,
-		time.Now().UTC(),
+	// This family only needs the readiness key, not to publish a state, so it
+	// calls gpphase.KeyFromScope directly instead of importing the reducer root
+	// (issue #6061); see gpphase.KeyFromScope's doc comment for the escape.
+	key, ok := gpphase.KeyFromScope(
+		intent.ScopeID,
+		intent.GenerationID,
+		intent.EntityKeys,
+		gpphase.KeyspaceKubernetesWorkloadUID,
 	)
 	if !ok {
 		return false
 	}
-	ready, found := h.ReadinessLookup(state.Key, GraphProjectionPhaseCanonicalNodesCommitted)
+	ready, found := h.ReadinessLookup(key, gpphase.PhaseCanonicalNodesCommitted)
 	return found && ready
 }
 
@@ -302,7 +310,7 @@ func (h KubernetesCorrelationMaterializationHandler) workloadNodesReady(intent I
 // domains: skip the prior-edge retract on the very first generation for a scope
 // (no prior edges to remove) and only on the first attempt, so a retried attempt
 // still cleans up a partial prior write.
-func (h KubernetesCorrelationMaterializationHandler) shouldSkipRetract(ctx context.Context, intent Intent) (bool, error) {
+func (h KubernetesCorrelationMaterializationHandler) shouldSkipRetract(ctx context.Context, intent reducercontract.Intent) (bool, error) {
 	if h.PriorGenerationCheck == nil || intent.AttemptCount > 1 {
 		return false, nil
 	}
@@ -327,7 +335,7 @@ func (h KubernetesCorrelationMaterializationHandler) recordEdgeCounter(
 	}
 	counts := make(map[string]int, len(rows))
 	for _, row := range rows {
-		counts[anyToString(row["resolution_mode"])]++
+		counts[payloadcore.AnyToString(row["resolution_mode"])]++
 	}
 	for mode, count := range counts {
 		h.Instruments.KubernetesCorrelationEdges.Add(ctx, int64(count), metric.WithAttributes(
@@ -364,7 +372,7 @@ func (kubernetesCorrelationNodesNotReadyError) FailureClass() string {
 // and graph-write time, plus how many exact decisions could not anchor a source
 // node.
 type kubernetesCorrelationMaterializationTiming struct {
-	intent          Intent
+	intent          reducercontract.Intent
 	factCount       int
 	edgeCount       int
 	skipped         int

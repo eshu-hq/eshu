@@ -1,15 +1,43 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package reducer
+package kubernetescorrelation
 
 import (
 	"context"
+	"database/sql"
 	"encoding/json"
 	"testing"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
 )
+
+// fakeWorkloadIdentityExecer is this package's own copy of the root's
+// fakeWorkloadIdentityExecer test double (workload_identity_writer_test.go):
+// Go test files cannot share unexported symbols across packages, and this
+// family moved out of the reducer root in issue #6061.
+type fakeWorkloadIdentityExecer struct {
+	execs []fakeWorkloadIdentityExecCall
+}
+
+type fakeWorkloadIdentityExecCall struct {
+	query string
+	args  []any
+}
+
+func (f *fakeWorkloadIdentityExecer) ExecContext(
+	_ context.Context,
+	query string,
+	args ...any,
+) (sql.Result, error) {
+	f.execs = append(f.execs, fakeWorkloadIdentityExecCall{query: query, args: args})
+	return fakeWorkloadIdentityResult{}, nil
+}
+
+type fakeWorkloadIdentityResult struct{}
+
+func (fakeWorkloadIdentityResult) LastInsertId() (int64, error) { return 0, nil }
+func (fakeWorkloadIdentityResult) RowsAffected() (int64, error) { return 1, nil }
 
 const (
 	testK8sCluster    = "prod-us-east-1"

@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package reducer
+package kubernetescorrelation
 
 import (
 	"context"
@@ -9,7 +9,21 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
+	"github.com/eshu-hq/eshu/go/internal/reducer/gpphase"
+	"github.com/eshu-hq/eshu/go/internal/reducer/payloadcore"
 )
+
+// readyLookup builds a stubbed readiness lookup returning the same
+// (ready, found) pair for every key. This package's own copy of the root's
+// readyLookup test helper (aws_relationship_materialization_test.go): Go test
+// files cannot share unexported symbols across packages, and this family
+// moved out of the reducer root in issue #6061.
+func readyLookup(ready, found bool) gpphase.ReadinessLookup {
+	return func(_ gpphase.PhaseKey, _ gpphase.Phase) (bool, bool) {
+		return ready, found
+	}
+}
 
 // recordingKubernetesCorrelationEdgeWriter captures RUNS_IMAGE edge writes and
 // retracts so tests can assert the exact materialization request.
@@ -53,12 +67,12 @@ func (w *recordingKubernetesCorrelationEdgeWriter) RetractKubernetesCorrelationE
 	return w.retractErr
 }
 
-func kubernetesCorrelationMaterializationIntent() Intent {
-	return Intent{
+func kubernetesCorrelationMaterializationIntent() reducercontract.Intent {
+	return reducercontract.Intent{
 		IntentID:     "intent-k8s-edge-1",
 		ScopeID:      "scope-1",
 		GenerationID: "gen-1",
-		Domain:       DomainKubernetesCorrelationMaterialization,
+		Domain:       reducercontract.DomainKubernetesCorrelationMaterialization,
 		EntityKeys:   []string{"kubernetes_workload_materialization:scope-1"},
 		EnqueuedAt:   time.Now(),
 		AvailableAt:  time.Now(),
@@ -87,7 +101,7 @@ func TestKubernetesCorrelationMaterializationRejectsMismatchedDomain(t *testing.
 		ReadinessLookup: readyLookup(true, true),
 	}
 	intent := kubernetesCorrelationMaterializationIntent()
-	intent.Domain = DomainKubernetesCorrelation
+	intent.Domain = reducercontract.DomainKubernetesCorrelation
 	if _, err := handler.Handle(context.Background(), intent); err == nil {
 		t.Fatal("expected error for mismatched domain")
 	}
@@ -131,7 +145,7 @@ func TestKubernetesCorrelationMaterializationGatesOnWorkloadNodesPhase(t *testin
 	if err == nil {
 		t.Fatal("expected a retryable error while the workload nodes phase is not ready")
 	}
-	if !IsRetryable(err) {
+	if !reducercontract.IsRetryable(err) {
 		t.Fatalf("error must be retryable so the intent re-enters the queue, got %v", err)
 	}
 	if writer.writeCalls != 0 || writer.retractCalls != 0 {
@@ -154,7 +168,7 @@ func TestKubernetesCorrelationMaterializationProjectsExactImageEdge(t *testing.T
 	if err != nil {
 		t.Fatalf("Handle returned error: %v", err)
 	}
-	if result.Status != ResultStatusSucceeded {
+	if result.Status != reducercontract.ResultStatusSucceeded {
 		t.Fatalf("status = %q, want succeeded", result.Status)
 	}
 	if writer.writeCalls != 1 {
@@ -176,10 +190,10 @@ func TestKubernetesCorrelationMaterializationProjectsExactImageEdge(t *testing.T
 		t.Fatalf("CanonicalWrites = %d, want 1", result.CanonicalWrites)
 	}
 	row := writer.writtenRows[0]
-	if got := anyToString(row["workload_uid"]); got != testCheckoutObjectID() {
+	if got := payloadcore.AnyToString(row["workload_uid"]); got != testCheckoutObjectID() {
 		t.Fatalf("workload_uid = %q, want %q", got, testCheckoutObjectID())
 	}
-	if got := anyToString(row["source_uid"]); got != testCheckoutDescriptorID() {
+	if got := payloadcore.AnyToString(row["source_uid"]); got != testCheckoutDescriptorID() {
 		t.Fatalf("source_uid = %q, want %q", got, testCheckoutDescriptorID())
 	}
 }
@@ -208,7 +222,7 @@ func TestKubernetesCorrelationMaterializationProvenanceNotWritten(t *testing.T) 
 	if err != nil {
 		t.Fatalf("Handle returned error: %v", err)
 	}
-	if result.Status != ResultStatusSucceeded {
+	if result.Status != reducercontract.ResultStatusSucceeded {
 		t.Fatalf("status = %q, want succeeded", result.Status)
 	}
 	// Only the exact-digest checkout workload edges; the derived workload does not.
@@ -232,7 +246,7 @@ func TestKubernetesCorrelationMaterializationEmptyGenerationNoWrite(t *testing.T
 	if err != nil {
 		t.Fatalf("Handle returned error: %v", err)
 	}
-	if result.Status != ResultStatusSucceeded {
+	if result.Status != reducercontract.ResultStatusSucceeded {
 		t.Fatalf("status = %q, want succeeded", result.Status)
 	}
 	if writer.writeCalls != 0 {
@@ -314,7 +328,7 @@ func TestKubernetesCorrelationMaterializationReprojectionIsIdempotent(t *testing
 	if len(first.writtenRows) != 1 || len(second.writtenRows) != 1 {
 		t.Fatalf("reprojection rows: first=%d second=%d, want 1 and 1", len(first.writtenRows), len(second.writtenRows))
 	}
-	if anyToString(first.writtenRows[0]["source_uid"]) != anyToString(second.writtenRows[0]["source_uid"]) {
+	if payloadcore.AnyToString(first.writtenRows[0]["source_uid"]) != payloadcore.AnyToString(second.writtenRows[0]["source_uid"]) {
 		t.Fatal("reprojection produced a different edge source_uid; write is not deterministic")
 	}
 }

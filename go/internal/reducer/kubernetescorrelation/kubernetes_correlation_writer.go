@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package reducer
+package kubernetescorrelation
 
 import (
 	"context"
@@ -11,6 +11,9 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
+	"github.com/eshu-hq/eshu/go/internal/reducer/factwrite"
+	"github.com/eshu-hq/eshu/go/internal/reducer/payloadcore"
 	"github.com/eshu-hq/eshu/go/internal/truth"
 )
 
@@ -21,7 +24,7 @@ const kubernetesCorrelationFactKind = "reducer_kubernetes_correlation"
 // canonical reducer fact insert path with a stable, retry-idempotent identity —
 // no new table and no schema DDL.
 type PostgresKubernetesCorrelationWriter struct {
-	DB  workloadIdentityExecer
+	DB  factwrite.Execer
 	Now func() time.Time
 }
 
@@ -37,7 +40,7 @@ func (w PostgresKubernetesCorrelationWriter) WriteKubernetesCorrelations(
 	if w.DB == nil {
 		return KubernetesCorrelationWriteResult{}, fmt.Errorf("kubernetes correlation database is required")
 	}
-	now := reducerWriterNow(w.Now)
+	now := factwrite.Now(w.Now)
 	for _, decision := range write.Decisions {
 		payload := kubernetesCorrelationPayload(write, decision)
 		payloadJSON, err := json.Marshal(payload)
@@ -46,13 +49,13 @@ func (w PostgresKubernetesCorrelationWriter) WriteKubernetesCorrelations(
 		}
 		if _, err := w.DB.ExecContext(
 			ctx,
-			canonicalReducerFactInsertQuery,
+			factwrite.SingleInsertQuery,
 			kubernetesCorrelationFactID(write, decision),
 			write.ScopeID,
 			write.GenerationID,
 			kubernetesCorrelationFactKind,
 			kubernetesCorrelationStableFactKey(write, decision),
-			reducerFactCollectorKind(write.SourceSystem),
+			factwrite.CollectorKind(write.SourceSystem),
 			facts.SourceConfidenceInferred,
 			write.SourceSystem,
 			write.IntentID,
@@ -123,7 +126,7 @@ func kubernetesCorrelationPayload(
 	decision KubernetesCorrelationDecision,
 ) map[string]any {
 	return map[string]any{
-		"reducer_domain":           string(DomainKubernetesCorrelation),
+		"reducer_domain":           string(reducercontract.DomainKubernetesCorrelation),
 		"intent_id":                write.IntentID,
 		"scope_id":                 write.ScopeID,
 		"generation_id":            write.GenerationID,
@@ -144,9 +147,9 @@ func kubernetesCorrelationPayload(
 		"reason":                   decision.Reason,
 		"non_promotion":            decision.NonPromotion,
 		"provenance_only":          decision.ProvenanceOnly,
-		"candidate_source_digests": uniqueSortedStrings(decision.CandidateSourceDigests),
-		"warnings":                 uniqueSortedStrings(decision.Warnings),
-		"evidence_fact_ids":        uniqueSortedStrings(decision.EvidenceFactIDs),
+		"candidate_source_digests": payloadcore.UniqueSortedStrings(decision.CandidateSourceDigests),
+		"warnings":                 payloadcore.UniqueSortedStrings(decision.Warnings),
+		"evidence_fact_ids":        payloadcore.UniqueSortedStrings(decision.EvidenceFactIDs),
 		"source_layers":            []string{string(truth.LayerObservedResource)},
 	}
 }
