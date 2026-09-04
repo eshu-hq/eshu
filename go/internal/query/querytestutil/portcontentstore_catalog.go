@@ -10,19 +10,19 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
 )
 
-// PortContentStore's repository-catalog and language-inventory reads live
+// FakePortContentStore's repository-catalog and language-inventory reads live
 // here, split from portcontentstore.go to keep both files under the repo's
 // 500-line cap.
 
 // ListRepositories returns a copy of the fixture catalog.
-func (f PortContentStore) ListRepositories(context.Context) ([]querycontract.RepositoryCatalogEntry, error) {
+func (f FakePortContentStore) ListRepositories(context.Context) ([]querycontract.RepositoryCatalogEntry, error) {
 	return append([]querycontract.RepositoryCatalogEntry(nil), f.Repositories...), nil
 }
 
 // ListWorkloadIdentities returns a copy of the fixture workload handles and
 // never reports truncation: the double holds whatever the test installed, so
 // there is nothing beyond it that a limit could cut.
-func (f PortContentStore) ListWorkloadIdentities(
+func (f FakePortContentStore) ListWorkloadIdentities(
 	context.Context,
 	int,
 ) ([]querycontract.CatalogWorkloadIdentityEntry, bool, error) {
@@ -31,7 +31,7 @@ func (f PortContentStore) ListWorkloadIdentities(
 
 // MatchRepositories returns every fixture repository the selector names by any
 // of its identifying fields, mirroring the production selector match.
-func (f PortContentStore) MatchRepositories(
+func (f FakePortContentStore) MatchRepositories(
 	_ context.Context,
 	selector string,
 ) ([]querycontract.RepositoryCatalogEntry, error) {
@@ -48,7 +48,7 @@ func (f PortContentStore) MatchRepositories(
 // ResolveRepository returns the first fixture repository regardless of
 // selector. Callers that care which repository resolves assert through
 // MatchRepositories instead.
-func (f PortContentStore) ResolveRepository(
+func (f FakePortContentStore) ResolveRepository(
 	context.Context,
 	string,
 ) (*querycontract.RepositoryCatalogEntry, error) {
@@ -68,7 +68,7 @@ func (f PortContentStore) ResolveRepository(
 // before filtering would report repositories the caller cannot see -- the
 // cross-tenant leak the real query's row restriction exists to prevent
 // (#5167).
-func (f PortContentStore) CountRepositoriesByLanguage(
+func (f FakePortContentStore) CountRepositoriesByLanguage(
 	_ context.Context,
 	languages []string,
 	allScopes bool,
@@ -96,7 +96,7 @@ func (f PortContentStore) CountRepositoriesByLanguage(
 // ListRepositoriesByLanguage pages the language repositories a caller is
 // entitled to see, filtering before offset and limit for the same reason
 // CountRepositoriesByLanguage does.
-func (f PortContentStore) ListRepositoriesByLanguage(
+func (f FakePortContentStore) ListRepositoriesByLanguage(
 	_ context.Context,
 	_ []string,
 	limit int,
@@ -126,7 +126,7 @@ func (f PortContentStore) ListRepositoriesByLanguage(
 // these rows; reporting them all would leak, and reporting them under a scope
 // they were never checked against would be worse. Tests that need scoped
 // inventory build the scoped fixture directly.
-func (f PortContentStore) RepositoryLanguageInventory(
+func (f FakePortContentStore) RepositoryLanguageInventory(
 	_ context.Context,
 	limit int,
 	offset int,

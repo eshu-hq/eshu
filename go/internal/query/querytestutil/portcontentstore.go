@@ -10,7 +10,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
 )
 
-// PortContentStore is the shared content-read double for handler tests. It
+// FakePortContentStore is the shared content-read double for handler tests. It
 // satisfies querycontract.ContentStore plus the narrow optional ports package
 // query type-asserts a store against, answering from fixture slices a caller
 // installs instead of reaching Postgres.
@@ -35,7 +35,7 @@ import (
 // filter first, then LIMIT. A double that limited first would hand a test rows
 // the real query would not return, which is the failure mode a double exists
 // to avoid.
-type PortContentStore struct {
+type FakePortContentStore struct {
 	// Coverage answers RepositoryCoverage.
 	Coverage querycontract.RepositoryContentCoverage
 	// Summary answers RepositoryReadModelSummary.
@@ -95,12 +95,12 @@ type PortContentStore struct {
 	WorkloadIdentities []querycontract.CatalogWorkloadIdentityEntry
 }
 
-var _ querycontract.ContentStore = (*PortContentStore)(nil)
+var _ querycontract.ContentStore = (*FakePortContentStore)(nil)
 
 // GetFileContent returns the first fixture file at relativePath, repo-filtered.
 // A fixture with an empty RepoID matches any repository, so a test that does
 // not care about repo scoping can leave it unset.
-func (f PortContentStore) GetFileContent(
+func (f FakePortContentStore) GetFileContent(
 	_ context.Context,
 	repoID, relativePath string,
 ) (*querycontract.FileContent, error) {
@@ -118,7 +118,7 @@ func (f PortContentStore) GetFileContent(
 
 // GetFileLines reports no content. Callers that need line ranges assert
 // against a real reader.
-func (f PortContentStore) GetFileLines(
+func (f FakePortContentStore) GetFileLines(
 	context.Context,
 	string,
 	string,
@@ -129,12 +129,12 @@ func (f PortContentStore) GetFileLines(
 }
 
 // GetEntityContent reports no entity.
-func (f PortContentStore) GetEntityContent(context.Context, string) (*querycontract.EntityContent, error) {
+func (f FakePortContentStore) GetEntityContent(context.Context, string) (*querycontract.EntityContent, error) {
 	return nil, nil
 }
 
 // SearchFileContent reports no matches.
-func (f PortContentStore) SearchFileContent(
+func (f FakePortContentStore) SearchFileContent(
 	context.Context,
 	string,
 	string,
@@ -144,7 +144,7 @@ func (f PortContentStore) SearchFileContent(
 }
 
 // SearchFileContentAnyRepo reports no matches.
-func (f PortContentStore) SearchFileContentAnyRepo(
+func (f FakePortContentStore) SearchFileContentAnyRepo(
 	context.Context,
 	string,
 	int,
@@ -153,7 +153,7 @@ func (f PortContentStore) SearchFileContentAnyRepo(
 }
 
 // SearchFileContentAnyRepoExactCase reports no matches.
-func (f PortContentStore) SearchFileContentAnyRepoExactCase(
+func (f FakePortContentStore) SearchFileContentAnyRepoExactCase(
 	context.Context,
 	string,
 	int,
@@ -162,7 +162,7 @@ func (f PortContentStore) SearchFileContentAnyRepoExactCase(
 }
 
 // SearchEntityContent reports no matches.
-func (f PortContentStore) SearchEntityContent(
+func (f FakePortContentStore) SearchEntityContent(
 	context.Context,
 	string,
 	string,
@@ -172,7 +172,7 @@ func (f PortContentStore) SearchEntityContent(
 }
 
 // SearchEntityContentAnyRepo reports no matches.
-func (f PortContentStore) SearchEntityContentAnyRepo(
+func (f FakePortContentStore) SearchEntityContentAnyRepo(
 	context.Context,
 	string,
 	int,
@@ -181,7 +181,7 @@ func (f PortContentStore) SearchEntityContentAnyRepo(
 }
 
 // SearchEntitiesByName reports no matches.
-func (f PortContentStore) SearchEntitiesByName(
+func (f FakePortContentStore) SearchEntitiesByName(
 	context.Context,
 	string,
 	string,
@@ -192,7 +192,7 @@ func (f PortContentStore) SearchEntitiesByName(
 }
 
 // SearchEntitiesByNameAnyRepo reports no matches.
-func (f PortContentStore) SearchEntitiesByNameAnyRepo(
+func (f FakePortContentStore) SearchEntitiesByNameAnyRepo(
 	context.Context,
 	string,
 	string,
@@ -202,7 +202,7 @@ func (f PortContentStore) SearchEntitiesByNameAnyRepo(
 }
 
 // SearchEntitiesReferencingComponent reports no matches.
-func (f PortContentStore) SearchEntitiesReferencingComponent(
+func (f FakePortContentStore) SearchEntitiesReferencingComponent(
 	context.Context,
 	string,
 	string,
@@ -212,7 +212,7 @@ func (f PortContentStore) SearchEntitiesReferencingComponent(
 }
 
 // SearchEntitiesByLanguageAndType reports no matches.
-func (f PortContentStore) SearchEntitiesByLanguageAndType(
+func (f FakePortContentStore) SearchEntitiesByLanguageAndType(
 	context.Context,
 	string,
 	string,
@@ -224,7 +224,7 @@ func (f PortContentStore) SearchEntitiesByLanguageAndType(
 }
 
 // ListFrameworkRoutes reports no routes.
-func (f PortContentStore) ListFrameworkRoutes(
+func (f FakePortContentStore) ListFrameworkRoutes(
 	context.Context,
 	string,
 ) ([]querycontract.FrameworkRouteEvidence, error) {
@@ -232,7 +232,7 @@ func (f PortContentStore) ListFrameworkRoutes(
 }
 
 // ListRepoFiles returns the repo's fixture files up to limit.
-func (f PortContentStore) ListRepoFiles(
+func (f FakePortContentStore) ListRepoFiles(
 	_ context.Context,
 	repoID string,
 	limit int,
@@ -251,7 +251,7 @@ func (f PortContentStore) ListRepoFiles(
 }
 
 // ListRepositoryRefs returns a copy of the fixture refs.
-func (f PortContentStore) ListRepositoryRefs(
+func (f FakePortContentStore) ListRepositoryRefs(
 	context.Context,
 	string,
 ) ([]querycontract.RepositoryRef, error) {
@@ -260,7 +260,7 @@ func (f PortContentStore) ListRepositoryRefs(
 
 // ListRepoEntities returns the fixture entities up to limit, unfiltered by
 // repository.
-func (f PortContentStore) ListRepoEntities(
+func (f FakePortContentStore) ListRepoEntities(
 	_ context.Context,
 	_ string,
 	limit int,
@@ -275,7 +275,7 @@ func (f PortContentStore) ListRepoEntities(
 // limit, mirroring the production ContentReader.ListRepoEntitiesByType
 // predicate order (type filter first, then limit) so callers exercising the
 // double still see the truncation-avoidance behavior the real query provides.
-func (f PortContentStore) ListRepoEntitiesByType(
+func (f FakePortContentStore) ListRepoEntitiesByType(
 	_ context.Context,
 	repoID, entityType string,
 	limit int,
@@ -302,7 +302,7 @@ func (f PortContentStore) ListRepoEntitiesByType(
 // ANY($types)` then `LIMIT`) so callers exercising the double see the same
 // type-filtered-bound behavior the real query provides (#5764 P1 review
 // follow-up).
-func (f PortContentStore) ListRepoEntitiesByTypes(
+func (f FakePortContentStore) ListRepoEntitiesByTypes(
 	_ context.Context,
 	repoID string,
 	entityTypes []string,
@@ -332,7 +332,7 @@ func (f PortContentStore) ListRepoEntitiesByTypes(
 // the requested set, up to limit. Unlike the other entity reads this one
 // requires an exact repo match: a path set is only meaningful within one
 // repository.
-func (f PortContentStore) ListRepoEntitiesByPaths(
+func (f FakePortContentStore) ListRepoEntitiesByPaths(
 	_ context.Context,
 	repoID string,
 	relativePaths []string,
@@ -361,7 +361,7 @@ func (f PortContentStore) ListRepoEntitiesByPaths(
 // ListRepoEntitiesByIDs returns Entities whose entity_id is in the requested
 // set, repo-filtered, ordered deterministically by relative_path/start_line/
 // entity_id to mirror the production ContentReader.ListRepoEntitiesByIDs.
-func (f PortContentStore) ListRepoEntitiesByIDs(
+func (f FakePortContentStore) ListRepoEntitiesByIDs(
 	_ context.Context,
 	repoID string,
 	entityIDs []string,
@@ -392,7 +392,7 @@ func (f PortContentStore) ListRepoEntitiesByIDs(
 // narrow K8sSelectCandidate shape through the same helper the production
 // narrow SQL mirrors (querycontract.K8sSelectCandidateFromEntity), preserving
 // the comma-ok tri-state and the relative_path/start_line/entity_id ordering.
-func (f PortContentStore) ListRepoK8sSelectCandidates(
+func (f FakePortContentStore) ListRepoK8sSelectCandidates(
 	_ context.Context,
 	repoID string,
 	limit int,
@@ -419,7 +419,7 @@ func (f PortContentStore) ListRepoK8sSelectCandidates(
 }
 
 // RepositoryCoverage returns the fixture coverage.
-func (f PortContentStore) RepositoryCoverage(
+func (f FakePortContentStore) RepositoryCoverage(
 	context.Context,
 	string,
 ) (querycontract.RepositoryContentCoverage, error) {

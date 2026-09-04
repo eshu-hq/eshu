@@ -9,7 +9,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
 )
 
-// PortContentStore's read-model methods live here, split from
+// FakePortContentStore's read-model methods live here, split from
 // portcontentstore.go to keep both files under the repo's 500-line cap.
 //
 // None of these are part of querycontract.ContentStore. Package query reaches
@@ -20,7 +20,7 @@ import (
 // package query.
 
 // RepositoryReadModelSummary returns the fixture summary.
-func (f PortContentStore) RepositoryReadModelSummary(
+func (f FakePortContentStore) RepositoryReadModelSummary(
 	context.Context,
 	string,
 ) (querycontract.RepositoryReadModelSummary, error) {
@@ -28,7 +28,7 @@ func (f PortContentStore) RepositoryReadModelSummary(
 }
 
 // RepositoryRelationshipReadModel returns the fixture relationship read model.
-func (f PortContentStore) RepositoryRelationshipReadModel(
+func (f FakePortContentStore) RepositoryRelationshipReadModel(
 	context.Context,
 	string,
 ) (querycontract.RepositoryRelationshipReadModel, error) {
@@ -36,7 +36,7 @@ func (f PortContentStore) RepositoryRelationshipReadModel(
 }
 
 // RepositoryEntryPoints returns the fixture entry points.
-func (f PortContentStore) RepositoryEntryPoints(
+func (f FakePortContentStore) RepositoryEntryPoints(
 	context.Context,
 	string,
 ) (querycontract.RepositoryEntryPointReadModel, error) {
@@ -46,7 +46,7 @@ func (f PortContentStore) RepositoryEntryPoints(
 // RepositoryDeploymentEvidence returns the fixture deployment evidence, or the
 // installed error with a zero read model so a caller cannot mistake a failed
 // read for an empty one.
-func (f PortContentStore) RepositoryDeploymentEvidence(
+func (f FakePortContentStore) RepositoryDeploymentEvidence(
 	context.Context,
 	string,
 ) (querycontract.RepositoryDeploymentEvidenceReadModel, error) {
@@ -57,7 +57,7 @@ func (f PortContentStore) RepositoryDeploymentEvidence(
 }
 
 // RelationshipEvidenceByResolvedID returns the fixture relationship evidence.
-func (f PortContentStore) RelationshipEvidenceByResolvedID(
+func (f FakePortContentStore) RelationshipEvidenceByResolvedID(
 	context.Context,
 	string,
 ) (querycontract.RelationshipEvidenceReadModel, error) {
@@ -66,7 +66,7 @@ func (f PortContentStore) RelationshipEvidenceByResolvedID(
 
 // DocumentationFindings captures the filter it was called with when a capture
 // slot is installed, then answers from the fixture.
-func (f PortContentStore) DocumentationFindings(
+func (f FakePortContentStore) DocumentationFindings(
 	_ context.Context,
 	filter querycontract.DocumentationFindingFilter,
 ) (querycontract.DocumentationFindingListReadModel, error) {
@@ -81,7 +81,7 @@ func (f PortContentStore) DocumentationFindings(
 
 // DocumentationFacts captures the filter it was called with when a capture
 // slot is installed, then answers from the fixture.
-func (f PortContentStore) DocumentationFacts(
+func (f FakePortContentStore) DocumentationFacts(
 	_ context.Context,
 	filter querycontract.DocumentationFactFilter,
 ) (querycontract.DocumentationFactListReadModel, error) {
@@ -96,7 +96,7 @@ func (f PortContentStore) DocumentationFacts(
 
 // DocumentationEvidencePacket answers from the fixture. It takes no filter, so
 // it captures nothing.
-func (f PortContentStore) DocumentationEvidencePacket(
+func (f FakePortContentStore) DocumentationEvidencePacket(
 	context.Context,
 	string,
 ) (querycontract.DocumentationEvidencePacketReadModel, error) {
@@ -109,7 +109,7 @@ func (f PortContentStore) DocumentationEvidencePacket(
 // DocumentationEvidencePacketWithFilter captures the authorization filter when
 // a capture slot is installed, then answers from the same fixture the
 // unfiltered read uses.
-func (f PortContentStore) DocumentationEvidencePacketWithFilter(
+func (f FakePortContentStore) DocumentationEvidencePacketWithFilter(
 	_ context.Context,
 	filter querycontract.DocumentationEvidencePacketFilter,
 ) (querycontract.DocumentationEvidencePacketReadModel, error) {
@@ -123,7 +123,7 @@ func (f PortContentStore) DocumentationEvidencePacketWithFilter(
 }
 
 // DocumentationEvidencePacketFreshness answers from the fixture.
-func (f PortContentStore) DocumentationEvidencePacketFreshness(
+func (f FakePortContentStore) DocumentationEvidencePacketFreshness(
 	context.Context,
 	string,
 	string,
@@ -137,7 +137,7 @@ func (f PortContentStore) DocumentationEvidencePacketFreshness(
 // DocumentationEvidencePacketFreshnessWithFilter captures the authorization
 // filter when a capture slot is installed, then answers from the same fixture
 // the unfiltered read uses.
-func (f PortContentStore) DocumentationEvidencePacketFreshnessWithFilter(
+func (f FakePortContentStore) DocumentationEvidencePacketFreshnessWithFilter(
 	_ context.Context,
 	filter querycontract.DocumentationEvidencePacketFreshnessFilter,
 ) (querycontract.DocumentationEvidencePacketFreshnessReadModel, error) {
@@ -153,7 +153,7 @@ func (f PortContentStore) DocumentationEvidencePacketFreshnessWithFilter(
 // ServiceStoryTargetSupportEvidence returns the fixture support block and
 // error exactly as installed, so a test can cover a partial answer that
 // carries both.
-func (f PortContentStore) ServiceStoryTargetSupportEvidence(
+func (f FakePortContentStore) ServiceStoryTargetSupportEvidence(
 	context.Context,
 	querycontract.ServiceStoryTargetSupportFilter,
 ) (querycontract.ServiceStoryTargetSupportReadModel, error) {

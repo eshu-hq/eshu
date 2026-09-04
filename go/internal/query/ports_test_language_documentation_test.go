@@ -8,7 +8,7 @@ import "context"
 // This file holds fakePortContentStore's language-inventory, catalog, and
 // documentation read-model forwarders, split out of ports_test.go to keep that
 // file under the repository's 500-line cap. Each one forwards to
-// querytestutil.PortContentStore; the behavior lives there so handler families
+// querytestutil.FakePortContentStore; the behavior lives there so handler families
 // outside package query can share the same double (#6060).
 
 func (f fakePortContentStore) CountRepositoriesByLanguage(

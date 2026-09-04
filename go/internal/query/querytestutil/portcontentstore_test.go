@@ -28,7 +28,7 @@ func TestPortContentStoreListRepoEntitiesByTypeFiltersBeforeLimit(t *testing.T) 
 
 	// The two non-matching rows lead deliberately. A double that limited
 	// before filtering would consume its budget on them and return nothing.
-	store := querytestutil.PortContentStore{
+	store := querytestutil.FakePortContentStore{
 		Entities: []querycontract.EntityContent{
 			{EntityID: "svc-1", RepoID: "repo-1", EntityType: "Service"},
 			{EntityID: "svc-2", RepoID: "repo-1", EntityType: "Service"},
@@ -63,7 +63,7 @@ func TestPortContentStoreListRepoEntitiesByTypeFiltersBeforeLimit(t *testing.T) 
 func TestPortContentStoreListRepoEntitiesByTypeScopesToRepo(t *testing.T) {
 	t.Parallel()
 
-	store := querytestutil.PortContentStore{
+	store := querytestutil.FakePortContentStore{
 		Entities: []querycontract.EntityContent{
 			{EntityID: "mine", RepoID: "repo-1", EntityType: "K8sResource"},
 			{EntityID: "theirs", RepoID: "repo-2", EntityType: "K8sResource"},

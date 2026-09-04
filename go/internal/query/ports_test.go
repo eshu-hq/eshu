@@ -22,7 +22,7 @@ func (fakePortGraphQuery) RunSingle(context.Context, string, map[string]any) (ma
 }
 
 // fakePortContentStore is this package's adapter onto
-// querytestutil.PortContentStore. The behavior lives there so handler families
+// querytestutil.FakePortContentStore. The behavior lives there so handler families
 // moving out of package query (#6060, epic #6053) can reach it -- a _test.go
 // symbol is not importable across a package boundary. The field names stay
 // lowercase and unchanged so the ~126 test files that build this double with
@@ -68,8 +68,8 @@ type fakePortContentStore struct {
 // double. Every method goes through it, so a field added here reaches all of
 // them at once. The types line up because each read model in this package is
 // an alias onto the querycontract declaration the promoted double names.
-func (f fakePortContentStore) promoted() querytestutil.PortContentStore {
-	return querytestutil.PortContentStore{
+func (f fakePortContentStore) promoted() querytestutil.FakePortContentStore {
+	return querytestutil.FakePortContentStore{
 		Coverage:                     f.coverage,
 		Summary:                      f.summary,
 		RelationshipReadModel:        f.relationshipReadModel,

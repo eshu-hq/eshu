@@ -81,17 +81,17 @@ See `doc.go` for the godoc contract.
   read models, used on both sides: a test declares one to say which read it is
   answering, and the driver answers that same read with the same helper when no
   result was queued.
-- `PortContentStore` — the content-read double. Satisfies
+- `FakePortContentStore` — the content-read double. Satisfies
   `querycontract.ContentStore` plus the narrow optional ports package `query`
   type-asserts a store against (documentation read models, repository entry
   points and deployment evidence, relationship evidence, service-story target
   support). It answers from fixture slices; the zero value is usable.
 - `SortEntityContentByLocation` and `FilterLanguageRepos` — the two ordering
-  and grant-filtering helpers `PortContentStore` shares across its reads,
+  and grant-filtering helpers `FakePortContentStore` shares across its reads,
   exported because a family's own double needs the same ordering and the same
   grant predicate to stay consistent with production.
 
-`PortContentStore`'s entity reads filter before they limit, matching the
+`FakePortContentStore`'s entity reads filter before they limit, matching the
 production SQL's predicate order. A double that limited first would hand a test
 rows the real query would not return, which is the failure mode a double exists
 to avoid.
@@ -133,7 +133,7 @@ build it with keyed literals; one of them,
 `code_relationships_graph_test.go`, is where the adapter is declared, so 154
 consume it and none of those 154 changed.
 
-`PortContentStore` works the same way at a larger scale: root's
+`FakePortContentStore` works the same way at a larger scale: root's
 `fakePortContentStore` keeps the original lowercase fields for the 126 test
 files that build it, and every method forwards through one `promoted()`
 converter. Adding a fixture field means touching that converter once rather
@@ -179,7 +179,7 @@ anchored to a moving ref is only true at the moment it is written, and it
 falsifies itself on the next rebase, which is how three different totals ended
 up in this file at once.
 
-`PortContentStore` was proven the same way. Zeroing `RepositoryCoverage` fails
+`FakePortContentStore` was proven the same way. Zeroing `RepositoryCoverage` fails
 `TestQueryContentStoreCoverageUsesContentStorePort`, and zeroing
 `DocumentationFindings` fails **4** root tests. The second mutation is the one
 worth keeping: those four reach the double through a type assertion onto an
