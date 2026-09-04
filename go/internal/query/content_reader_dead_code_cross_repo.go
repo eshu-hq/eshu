@@ -18,41 +18,63 @@ import (
 
 const maxCrossRepoDeadCodeConsumerEvidenceRows = 1000
 
+// crossRepoDeadCodeConsumerReads says how one cross-repo consumer-evidence
+// lookup is bounded. The handler builds it; the reader does what it says.
+//
+// PageRepositoryIDs is the consumer-repository list the evidence page binds in
+// SQL ahead of its LIMIT: the request's own consumer selector when it named
+// one, otherwise the caller's grant, and empty only for an unscoped caller who
+// named neither -- the single case where an unbounded page is the right answer.
+// Which list goes here decides where the row cap falls. Binding the grant while
+// the request named one consumer let a thousand rows from another granted
+// repository fill the page and push the requested consumer off it.
+//
+// Signal says whether the ungranted signal read runs beside the page. It exists
+// to count consumers outside the grant, and the handler drops every signal row
+// outside the request's selector before counting, so a request that named a
+// selector can get nothing from it.
+type crossRepoDeadCodeConsumerReads struct {
+	PageRepositoryIDs []string
+	Signal            bool
+}
+
 // CrossRepoDeadCodeConsumerEvidence returns active-generation consumer evidence
 // for producer candidates using a bounded entity-id lookup. It never performs a
 // graph traversal; ambiguous or stale coverage must remain unknown at the
 // handler layer rather than becoming dead-code truth.
 //
-// allowedRepositoryIDs is the caller's repository grant, applied to the
-// CONSUMER side (code_reachability_rows.repository_id). A scoped caller gets
-// two reads of the same statement shape, each stopping at the same
+// reads says how the lookup is bounded on the CONSUMER side
+// (code_reachability_rows.repository_id). It produces up to two reads of the
+// same statement shape, each stopping at the same
 // maxCrossRepoDeadCodeConsumerEvidenceRows+1 sentinel:
 //
-//   - the evidence page, with the grant bound ahead of the LIMIT. Binding it in
-//     SQL rather than filtering in Go is what keeps the page honest: the row cap
-//     falls on the granted consumers, so another tenant's rows can no longer
-//     crowd a granted consumer off the page.
-//   - the signal read, the same statement with no grant bound -- byte for byte
-//     the statement this route shipped before the grant landed. It carries the
-//     "this symbol has a consumer you cannot see" answer, which filtering in SQL
-//     alone would lose, and losing it would mark a live symbol dead.
+//   - the evidence page, with reads.PageRepositoryIDs bound ahead of the LIMIT.
+//     Binding it in SQL rather than filtering in Go is what keeps the page
+//     honest: the row cap falls on the consumers this answer is about, so
+//     neither another tenant's rows nor a granted repository the request did
+//     not ask about can crowd a wanted consumer off the page.
+//   - the signal read, when reads.Signal is set: the same statement with
+//     nothing bound -- byte for byte the statement this route shipped before
+//     the grant landed. It carries the "this symbol has a consumer you cannot
+//     see" answer, which filtering in SQL alone would lose, and losing it would
+//     mark a live symbol dead.
 //
 // The second return value is that signal read's rows. The handler applies the
 // caller's consumer selector to them and counts the ones outside the grant; no
 // ungranted consumer's id, name, or citation is ever projected into an answer.
-// An unscoped caller runs the page read only, and its statement text is
-// unchanged.
+// A caller that asked for no signal read gets an empty map, and the page
+// statement is the only one sent.
 //
 // Either read can stop at the sentinel, and the entities it did not finish are
 // marked consumer_evidence_truncated in the first return value -- per entity,
 // not per request. An entity the signal read never reached carries that marker
-// even when its own page rows are strong: those rows are the granted consumers,
-// and the unread half is where an ungranted one would be.
+// even when its own page rows are strong: those rows are the consumers the page
+// was bound to, and the unread half is where an ungranted one would be.
 func (cr *ContentReader) CrossRepoDeadCodeConsumerEvidence(
 	ctx context.Context,
 	producerRepoID string,
 	entityIDs []string,
-	allowedRepositoryIDs []string,
+	reads crossRepoDeadCodeConsumerReads,
 ) (map[string][]crossRepoDeadCodeEvidence, map[string][]crossRepoDeadCodeEvidence, error) {
 	producerRepoID = strings.TrimSpace(producerRepoID)
 	entityIDs = cleanDeadCodeIncomingEntityIDs(entityIDs)
@@ -71,14 +93,17 @@ func (cr *ContentReader) CrossRepoDeadCodeConsumerEvidence(
 	)
 	defer span.End()
 
-	result, pageCoverage, err := cr.crossRepoDeadCodeConsumerRows(ctx, producerRepoID, entityIDs, allowedRepositoryIDs)
+	result, pageCoverage, err := cr.crossRepoDeadCodeConsumerRows(ctx, producerRepoID, entityIDs, reads.PageRepositoryIDs)
 	if err != nil {
 		span.RecordError(err)
 		return nil, nil, err
 	}
 	signal := map[string][]crossRepoDeadCodeEvidence{}
+	// A skipped signal read leaves the zero coverage, which covers every entity:
+	// the caller asked for it to be skipped because its rows could not have
+	// changed any answer, so it must not mark anything unproven.
 	signalCoverage := crossRepoDeadCodeConsumerCoverage{}
-	if len(allowedRepositoryIDs) > 0 {
+	if reads.Signal {
 		rows, coverage, err := cr.crossRepoDeadCodeConsumerRows(ctx, producerRepoID, entityIDs, nil)
 		if err != nil {
 			span.RecordError(err)
@@ -186,12 +211,13 @@ func (cr *ContentReader) crossRepoDeadCodeConsumerRows(
 	return result, coverage, nil
 }
 
-// crossRepoDeadCodeGrantFilter appends the caller's grant array to args and
+// crossRepoDeadCodeGrantFilter appends a consumer-repository array to args and
 // renders the membership test the consumer-evidence statement binds. It renders
 // nothing for an empty list, which is what lets one builder produce both reads
-// this route makes: pass the grant for the page, pass nothing for the signal
-// read and for an unscoped caller, and that statement's text is exactly the one
-// this route shipped before the grant landed.
+// this route makes: pass the page's repository list for the page, pass nothing
+// for the signal read and for an unscoped caller who named no consumers, and
+// that statement's text is exactly the one this route shipped before the grant
+// landed.
 func crossRepoDeadCodeGrantFilter(args []any, allowedRepositoryIDs []string) ([]any, string) {
 	if len(allowedRepositoryIDs) == 0 {
 		return args, ""

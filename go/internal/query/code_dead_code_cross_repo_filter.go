@@ -34,6 +34,62 @@ func (h *CodeHandler) filterCrossRepoDeadCodeResultsWithoutProducerLocalIncoming
 	return applyDeadCodeIncomingEdges(results, incoming, graphIncoming), nil
 }
 
+// crossRepoDeadCodeConsumerReadPlan decides how one request's consumer-evidence
+// lookup is bounded, and reports false when it cannot be bounded at all.
+//
+// A request that names consumers binds those, because that is where its row cap
+// belongs: with a grant of several repositories and a selector naming one, the
+// page used to be cut from the whole grant and the requested consumer could
+// fall off the end of it. consumerRepoIDs is already resolved through the grant
+// by applyRepositorySelectorForCapability; intersecting again is the belt to
+// that braces, and a scoped caller left with nothing gets no read rather than
+// the unbounded statement an empty list renders.
+//
+// Such a request also skips the signal read. That read exists to count
+// consumers outside the grant, and filterCrossRepoDeadCodeEvidence drops every
+// signal row outside the selector before counting -- while every selector entry
+// the grant admits is, by definition, inside the grant. Its contribution is
+// empty by construction, so not running it removes a whole traversal rather
+// than relaxing an answer.
+func crossRepoDeadCodeConsumerReadPlan(
+	access repositoryAccessFilter,
+	consumerRepoIDs []string,
+) (crossRepoDeadCodeConsumerReads, bool) {
+	if len(consumerRepoIDs) > 0 {
+		page := consumerRepoIDs
+		if access.Scoped() {
+			page = grantedCrossRepoDeadCodeConsumerIDs(access, consumerRepoIDs)
+			if len(page) == 0 {
+				return crossRepoDeadCodeConsumerReads{}, false
+			}
+		}
+		return crossRepoDeadCodeConsumerReads{PageRepositoryIDs: page}, true
+	}
+	if !access.Scoped() {
+		return crossRepoDeadCodeConsumerReads{}, true
+	}
+	grant := access.RepositorySearchIDs()
+	if len(grant) == 0 {
+		return crossRepoDeadCodeConsumerReads{}, false
+	}
+	return crossRepoDeadCodeConsumerReads{PageRepositoryIDs: grant, Signal: true}, true
+}
+
+// grantedCrossRepoDeadCodeConsumerIDs keeps the requested consumers the grant
+// admits, preserving the request's order so the bound array stays deterministic.
+func grantedCrossRepoDeadCodeConsumerIDs(
+	access repositoryAccessFilter,
+	consumerRepoIDs []string,
+) []string {
+	granted := make([]string, 0, len(consumerRepoIDs))
+	for _, repoID := range consumerRepoIDs {
+		if access.AllowsRepositoryID(repoID) {
+			granted = append(granted, repoID)
+		}
+	}
+	return granted
+}
+
 func filterCrossRepoDeadCodeEvidence(
 	evidence []crossRepoDeadCodeEvidence,
 	allowedConsumers map[string]struct{},

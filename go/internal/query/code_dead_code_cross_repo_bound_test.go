@@ -9,6 +9,7 @@ import (
 	"database/sql/driver"
 	"net/http"
 	"net/http/httptest"
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -16,19 +17,28 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/codeprovenance"
 )
 
-// POST /api/v0/code/dead-code/cross-repo runs two consumer reads for a scoped
-// caller, and the pair is what this file pins.
+// POST /api/v0/code/dead-code/cross-repo bounds its consumer reads by what the
+// request asked for, and that is what this file pins.
 //
-// The evidence page carries the grant, so the row cap falls on consumers the
-// caller may see. The signal read carries no grant and answers the other half:
-// is there a consumer this caller cannot see? Both stop at the same 1001-row
-// sentinel, so neither is an unbounded scan, and the second one's text is the
-// statement this route shipped before the grant landed.
+// A scoped caller that names no consumers gets two reads. The evidence page
+// carries the grant, so the row cap falls on consumers the caller may see. The
+// signal read carries nothing and answers the other half: is there a consumer
+// this caller cannot see? Both stop at the same 1001-row sentinel, so neither
+// is an unbounded scan, and the second one's text is the statement this route
+// shipped before the grant landed.
 //
-// The count taken from the signal read is not a raw row count. The request's
-// own consumer_repo_ids selector is applied to those rows first, because a
-// consumer the caller explicitly excluded must not override the evidence of
-// one it asked about.
+// A request that names consumers in consumer_repo_ids gets one read, bound to
+// those consumers. The row cap then falls where the question is: bound to the
+// whole grant instead, a thousand rows from a repository the caller did not ask
+// about filled the page and pushed the requested consumer off it, and the
+// candidate came back unknown_needs_evidence for a symbol that consumer proves
+// live. The signal read is skipped for the same request, because the selector
+// is applied to its rows before anything is counted and every selector entry
+// the grant admits is inside the grant -- there is nothing left for it to say.
+//
+// The count taken from the signal read is never a raw row count. The request's
+// own selector is applied to those rows first, because a consumer the caller
+// excluded must not override the evidence of one it asked about.
 
 // crossRepoDeadCodeUngrantedConsumerStatement is the signal read's text for a
 // two-entity page, pinned as a literal rather than rebuilt from the builder, so
@@ -82,7 +92,7 @@ func TestCrossRepoDeadCodeSignalReadRepeatsTheUngrantedStatement(t *testing.T) {
 		context.Background(),
 		codeGrantGrantedRepo,
 		[]string{"entity-1", "entity-2"},
-		[]string{codeGrantConsumerRepo},
+		crossRepoDeadCodeConsumerReads{PageRepositoryIDs: []string{codeGrantConsumerRepo}, Signal: true},
 	); err != nil {
 		t.Fatalf("CrossRepoDeadCodeConsumerEvidence() error = %v, want nil", err)
 	}
@@ -150,6 +160,14 @@ func TestCrossRepoDeadCodeHiddenCountHonoursTheConsumerSelector(t *testing.T) {
 	if strings.Contains(answer, codeGrantOtherRepo) {
 		t.Fatalf("response leaked the out-of-grant consumer %q: %s", codeGrantOtherRepo, answer)
 	}
+	// The selector is what empties the signal read's contribution, so the read
+	// itself is skipped rather than run and discarded.
+	if store.signalRead {
+		t.Fatal("signal read ran for a request whose consumer selector drops every one of its rows")
+	}
+	if !slices.Equal(store.boundConsumerGrant, []string{codeGrantConsumerRepo}) {
+		t.Fatalf("page read bound %#v, want only the requested consumer", store.boundConsumerGrant)
+	}
 }
 
 // TestCrossRepoDeadCodeSignalTruncationKeepsCandidatesUnknown covers the case
@@ -180,7 +198,7 @@ func TestCrossRepoDeadCodeSignalTruncationKeepsCandidatesUnknown(t *testing.T) {
 		context.Background(),
 		codeGrantGrantedRepo,
 		[]string{"producer-live", "producer-missing"},
-		[]string{codeGrantConsumerRepo},
+		crossRepoDeadCodeConsumerReads{PageRepositoryIDs: []string{codeGrantConsumerRepo}, Signal: true},
 	)
 	if err != nil {
 		t.Fatalf("CrossRepoDeadCodeConsumerEvidence() error = %v, want nil", err)
@@ -235,7 +253,7 @@ func TestCrossRepoDeadCodeSignalTruncationMarksEntitiesTheSignalNeverReached(t *
 		context.Background(),
 		codeGrantGrantedRepo,
 		[]string{"producer-early", "producer-late"},
-		[]string{codeGrantConsumerRepo},
+		crossRepoDeadCodeConsumerReads{PageRepositoryIDs: []string{codeGrantConsumerRepo}, Signal: true},
 	)
 	if err != nil {
 		t.Fatalf("CrossRepoDeadCodeConsumerEvidence() error = %v, want nil", err)
@@ -290,7 +308,7 @@ func TestCrossRepoDeadCodeCompletesTheEntityTheSentinelMovedPast(t *testing.T) {
 		context.Background(),
 		codeGrantGrantedRepo,
 		[]string{"producer-complete", "producer-next"},
-		nil,
+		crossRepoDeadCodeConsumerReads{},
 	)
 	if err != nil {
 		t.Fatalf("CrossRepoDeadCodeConsumerEvidence() error = %v, want nil", err)

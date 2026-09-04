@@ -155,7 +155,7 @@ func TestContentReaderCrossRepoDeadCodeEvidenceMarksMissingEntitiesUnknownWhenTr
 		context.Background(),
 		"repo-producer",
 		[]string{"producer-live", "producer-missing"},
-		nil,
+		crossRepoDeadCodeConsumerReads{},
 	)
 	if err != nil {
 		t.Fatalf("CrossRepoDeadCodeConsumerEvidence() error = %v, want nil", err)

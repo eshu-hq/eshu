@@ -346,15 +346,17 @@ const codeGrantConsumerRepo = "repo://tenant-a/consumer-service"
 type crossRepoDeadCodeGrantStore struct {
 	deadCodeGrantContentStore
 	boundConsumerGrant []string
+	signalRead         bool
 }
 
 func (s *crossRepoDeadCodeGrantStore) CrossRepoDeadCodeConsumerEvidence(
 	_ context.Context,
 	producerRepoID string,
 	entityIDs []string,
-	allowedRepositoryIDs []string,
+	reads crossRepoDeadCodeConsumerReads,
 ) (map[string][]crossRepoDeadCodeEvidence, map[string][]crossRepoDeadCodeEvidence, error) {
-	s.boundConsumerGrant = append([]string(nil), allowedRepositoryIDs...)
+	s.boundConsumerGrant = append([]string(nil), reads.PageRepositoryIDs...)
+	s.signalRead = reads.Signal
 	evidence := make(map[string][]crossRepoDeadCodeEvidence, len(entityIDs))
 	signal := make(map[string][]crossRepoDeadCodeEvidence, len(entityIDs))
 	for _, entityID := range entityIDs {
@@ -363,11 +365,11 @@ func (s *crossRepoDeadCodeGrantStore) CrossRepoDeadCodeConsumerEvidence(
 				continue
 			}
 			row := crossRepoDeadCodeGrantConsumerRow(consumerRepoID, entityID)
-			if len(allowedRepositoryIDs) > 0 {
+			if reads.Signal {
 				signal[entityID] = append(signal[entityID], row)
-				if !slices.Contains(allowedRepositoryIDs, consumerRepoID) {
-					continue
-				}
+			}
+			if len(reads.PageRepositoryIDs) > 0 && !slices.Contains(reads.PageRepositoryIDs, consumerRepoID) {
+				continue
 			}
 			evidence[entityID] = append(evidence[entityID], row)
 		}
@@ -483,7 +485,7 @@ func TestCrossRepoDeadCodeConsumerEvidenceBindsTheGrantInTheShippedSQL(t *testin
 			context.Background(),
 			codeGrantGrantedRepo,
 			[]string{"entity-1"},
-			[]string{codeGrantConsumerRepo},
+			crossRepoDeadCodeConsumerReads{PageRepositoryIDs: []string{codeGrantConsumerRepo}, Signal: true},
 		); err != nil {
 			t.Fatalf("CrossRepoDeadCodeConsumerEvidence() error = %v, want nil", err)
 		}
@@ -514,7 +516,7 @@ func TestCrossRepoDeadCodeConsumerEvidenceBindsTheGrantInTheShippedSQL(t *testin
 			context.Background(),
 			codeGrantGrantedRepo,
 			[]string{"entity-1"},
-			nil,
+			crossRepoDeadCodeConsumerReads{},
 		); err != nil {
 			t.Fatalf("CrossRepoDeadCodeConsumerEvidence() error = %v, want nil", err)
 		}

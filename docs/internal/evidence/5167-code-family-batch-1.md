@@ -250,8 +250,8 @@ ones in Go afterwards. No consumer identity ever left the process — hidden row
 are counted, never projected — but the cap fell on a mixed set, so another
 tenant's rows could push a granted consumer off the page.
 
-A scoped caller now runs one statement shape twice, for two different
-questions. The evidence page binds the grant
+A scoped caller that names no consumers now runs one statement shape twice, for
+two different questions. The evidence page binds the grant
 (`buildCrossRepoDeadCodeConsumerEvidenceQuery` rendering
 `AND row.repository_id = ANY($n)`) ahead of the `LIMIT`, so the cap falls on
 consumers the caller may see. The signal read is the same builder with no
@@ -272,6 +272,30 @@ must get `live_by_consumer` from A's own strong evidence even when an unrelated
 ungranted repository also consumes the symbol. Counting that consumer buried
 A's evidence under `permission_hidden_consumer`;
 `TestCrossRepoDeadCodeHiddenCountHonoursTheConsumerSelector` is the guard.
+
+The selector belongs in the page read as well, not only in the Go filter after
+it. A caller granted P, A and B, asking about B alone, had the page cut from the
+whole grant: a thousand rows from A filled it, B's own row fell off the end, and
+B came back `unknown_needs_evidence` with `consumer_evidence_truncated` for a
+symbol B proves live. `crossRepoDeadCodeConsumerReadPlan` now decides which list
+the page binds — the request's consumers when it named any, the grant when it
+did not, nothing only for an unscoped caller who named neither — so the row cap
+falls where the question is. The named consumers are intersected with the grant
+again on the way in, and a scoped caller left with an empty list reads nothing
+rather than rendering the unbounded statement an empty list would produce; the
+candidates then stay unknown.
+
+That request also skips the signal read entirely, which is a removal of work
+rather than a relaxation. `filterCrossRepoDeadCodeEvidence` drops every signal
+row outside the named consumers before anything is counted, and every named
+consumer the grant admits is inside the grant, so the count that read
+contributes is empty by construction.
+`TestCrossRepoDeadCodeConsumerSelectorSurvivesABusyGrantedRepository` drives the
+whole route over the shipped `ContentReader` against a driver that filters on
+the repository array the statement actually binds, and asserts both halves: `B`
+answers `live_by_consumer`, and exactly one consumer statement was sent.
+`TestCrossRepoDeadCodeConsumerReadPlan` pins the other five shapes, including
+the two that read nothing.
 
 The truncation fail-safe is per entity, not per request. Each read reports the
 entities it finished — the ones it returned rows for and moved past before the

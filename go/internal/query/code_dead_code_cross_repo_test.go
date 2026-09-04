@@ -228,7 +228,7 @@ func TestContentReaderCrossRepoDeadCodeEvidenceUsesBoundedEntityLookup(t *testin
 		context.Background(),
 		"repo-producer",
 		[]string{"producer-live", "producer-dead"},
-		nil,
+		crossRepoDeadCodeConsumerReads{},
 	)
 	if err != nil {
 		t.Fatalf("CrossRepoDeadCodeConsumerEvidence() error = %v, want nil", err)
@@ -426,7 +426,7 @@ func (s *crossRepoDeadCodeContentStore) CrossRepoDeadCodeConsumerEvidence(
 	_ context.Context,
 	_ string,
 	entityIDs []string,
-	_ []string,
+	_ crossRepoDeadCodeConsumerReads,
 ) (map[string][]crossRepoDeadCodeEvidence, map[string][]crossRepoDeadCodeEvidence, error) {
 	result := make(map[string][]crossRepoDeadCodeEvidence)
 	for _, entityID := range entityIDs {

@@ -46,17 +46,17 @@ type crossRepoDeadCodeEvidence struct {
 }
 
 // crossRepoDeadCodeEvidenceStore reads active consumer evidence for producer
-// candidates. allowedRepositoryIDs is the caller's grant on the CONSUMER side;
-// the store applies it in the query behind the first return value, so the row
-// cap falls on granted consumers instead of a mixed set. The second return
-// value is the same read with no grant bound, which is how the handler can
-// still answer "there is a consumer you cannot see" instead of "dead" (#5167).
+// candidates. reads names the consumer repositories the evidence page is bound
+// to in SQL -- the row cap falls on those, not on a mixed set -- and says
+// whether the ungranted signal read runs beside it. The second return value is
+// that signal read's rows, which is how the handler can still answer "there is
+// a consumer you cannot see" instead of "dead" (#5167).
 type crossRepoDeadCodeEvidenceStore interface {
 	CrossRepoDeadCodeConsumerEvidence(
 		ctx context.Context,
 		producerRepoID string,
 		entityIDs []string,
-		allowedRepositoryIDs []string,
+		reads crossRepoDeadCodeConsumerReads,
 	) (map[string][]crossRepoDeadCodeEvidence, map[string][]crossRepoDeadCodeEvidence, error)
 }
 
@@ -123,6 +123,7 @@ func (h *CodeHandler) handleCrossRepoDeadCode(w http.ResponseWriter, r *http.Req
 		r.Context(),
 		req.RepoID,
 		deadCodeResultEntityIDs(scan.Active),
+		req.ConsumerRepoIDs,
 	)
 	if err != nil {
 		WriteError(w, http.StatusInternalServerError, err.Error())
@@ -259,7 +260,9 @@ func (h *CodeHandler) scanCrossRepoDeadCodeCandidates(
 // granted or not, and it is only ever counted -- the request's own consumer
 // selector is applied to those rows first, then the ones outside the grant are
 // counted. Counting before the selector would let a consumer the caller did not
-// ask about override the evidence of one it did.
+// ask about override the evidence of one it did. A request that named a
+// selector gets an empty Signal, because that same filter would have emptied it
+// anyway and the read is skipped instead of paid for.
 type crossRepoDeadCodeConsumerEvidenceSet struct {
 	Evidence  map[string][]crossRepoDeadCodeEvidence
 	Signal    map[string][]crossRepoDeadCodeEvidence
@@ -271,6 +274,7 @@ func (h *CodeHandler) crossRepoDeadCodeConsumerEvidence(
 	ctx context.Context,
 	producerRepoID string,
 	entityIDs []string,
+	consumerRepoIDs []string,
 ) (map[string][]crossRepoDeadCodeEvidence, map[string][]crossRepoDeadCodeEvidence, bool, error) {
 	store, ok := h.Content.(crossRepoDeadCodeEvidenceStore)
 	if !ok {
@@ -279,16 +283,19 @@ func (h *CodeHandler) crossRepoDeadCodeConsumerEvidence(
 	// The consumer side takes the caller's own grant, not the producer anchor:
 	// producerRepoID is already grant-resolved by the selector, but the
 	// consumers this read returns belong to other repositories.
-	access := codeGrantAccessFilter(ctx)
-	var allowedRepositoryIDs []string
-	if access.Scoped() {
-		allowedRepositoryIDs = access.RepositorySearchIDs()
+	reads, ok := crossRepoDeadCodeConsumerReadPlan(codeGrantAccessFilter(ctx), consumerRepoIDs)
+	if !ok {
+		// Nothing this caller may read can answer the question they asked, and
+		// an unbounded read is not the fallback. Reporting the evidence as
+		// unavailable keeps every candidate at unknown_needs_evidence instead
+		// of letting an unread consumer become "dead".
+		return map[string][]crossRepoDeadCodeEvidence{}, map[string][]crossRepoDeadCodeEvidence{}, false, nil
 	}
 	evidence, signal, err := store.CrossRepoDeadCodeConsumerEvidence(
 		ctx,
 		producerRepoID,
 		entityIDs,
-		allowedRepositoryIDs,
+		reads,
 	)
 	if err != nil {
 		return nil, nil, true, err
