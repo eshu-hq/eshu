@@ -250,7 +250,7 @@ Rows 32 and 33 are round-8k, and they are the reverse shape: not a mutation of
 the gate but two constraints the shipped gate answered green without compiling
 anything. Row 44 is not a mutation either: it is the gate finding a real break
 on the branch that introduced it, which is the strongest evidence in this table
-that it earns its place. Row 46 is the third of that shape and the sharpest:
+that it earns its place. Row 45 is the third of that shape and the sharpest:
 the platform list matched `mips*` as a prefix, so a project tag named
 `mipsmock` was classified a GOARCH, skipped, and never compiled — the gate
 answering "vetted 0", exit 0, over a package that does not build. Every GOOS,
