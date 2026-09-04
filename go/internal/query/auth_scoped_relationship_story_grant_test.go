@@ -223,8 +223,9 @@ func TestRelationshipStoryEmptyGrantReachesNoBackend(t *testing.T) {
 	if len(graph.statements) != 0 {
 		t.Fatalf("a grantless scoped caller reached the graph: %v", graph.statements)
 	}
-	if len(content.askedRepo) != 0 || content.anyRepo {
-		t.Fatalf("a grantless scoped caller reached the content store: %v anyRepo=%v", content.askedRepo, content.anyRepo)
+	if content.reachedTheStore() {
+		t.Fatalf("a grantless scoped caller reached the content store: repos=%v entities=%v anyRepo=%v",
+			content.askedRepo, content.askedEntity, content.anyRepo)
 	}
 	body := rec.Body.String()
 	if !strings.Contains(body, `"status":"not_found"`) {

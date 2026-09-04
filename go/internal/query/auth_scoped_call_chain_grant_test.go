@@ -399,3 +399,37 @@ func TestExactGraphEntityCandidatesRefuseAnUngrantedRepository(t *testing.T) {
 		t.Fatalf("a granted repository was not read: %v", content.askedRepo)
 	}
 }
+
+// TestRelationshipMetadataAnchorBindsTheGrant covers the shared metadata lookup
+// directly. It is defense in depth on call-chain -- the one-hop read already
+// drops an out-of-grant hop, so no call-chain response changes when this
+// predicate is removed -- but it is the only repository binding on the
+// statement that resolves an endpoint by name, and it is shared with
+// POST /api/v0/code/relationships. A route-level assertion cannot judge it, so
+// the statement is judged instead.
+func TestRelationshipMetadataAnchorBindsTheGrant(t *testing.T) {
+	t.Parallel()
+
+	access := repositoryAccessFilter{AllowedRepositoryIDs: []string{codeGrantGrantedRepo}}
+	predicate, params := nornicDBRelationshipMetadataPredicate("CallChainGrantedStart", "", access)
+	cypher := nornicDBRelationshipMetadataCypher(predicate, "Function", "uid")
+	anchoring, stranded := storyClausePredicates(cypher)
+	condition := access.GraphCondition("repo")
+	if !containsPredicate(anchoring, condition) {
+		t.Fatalf("the metadata anchor does not bind the grant:\n%s", cypher)
+	}
+	if containsPredicate(stranded, condition) {
+		t.Fatalf("the metadata grant sits after an OPTIONAL MATCH:\n%s", cypher)
+	}
+	if !graphParamContains(params, "allowed_repository_ids", codeGrantGrantedRepo) {
+		t.Fatalf("params do not bind the grant array: %#v", params)
+	}
+
+	unscoped, unscopedParams := nornicDBRelationshipMetadataPredicate("CallChainGrantedStart", "", repositoryAccessFilter{AllScopes: true})
+	if strings.Contains(nornicDBRelationshipMetadataCypher(unscoped, "Function", "uid"), "$allowed_repository_ids") {
+		t.Fatalf("an unscoped caller rendered a grant condition")
+	}
+	if _, ok := unscopedParams["allowed_repository_ids"]; ok {
+		t.Fatalf("an unscoped caller bound a grant array: %#v", unscopedParams)
+	}
+}

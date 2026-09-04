@@ -199,13 +199,15 @@ func storyPredicateAdmits(predicate string, repoByAlias map[string]string, param
 // grant reached the read rather than only that the answer looked right.
 type storyGrantContentStore struct {
 	fakePortContentStore
-	entities  map[string]EntityContent
-	byName    []EntityContent
-	askedRepo []string
-	anyRepo   bool
+	entities    map[string]EntityContent
+	byName      []EntityContent
+	askedRepo   []string
+	askedEntity []string
+	anyRepo     bool
 }
 
 func (s *storyGrantContentStore) GetEntityContent(_ context.Context, entityID string) (*EntityContent, error) {
+	s.askedEntity = append(s.askedEntity, entityID)
 	entity, ok := s.entities[entityID]
 	if !ok {
 		return nil, nil
@@ -238,6 +240,12 @@ func (s *storyGrantContentStore) SearchEntitiesByLanguageAndType(
 ) ([]EntityContent, error) {
 	s.askedRepo = append(s.askedRepo, repoID)
 	return s.matches(repoID, query, limit), nil
+}
+
+// reachedTheStore reports whether any content read was issued, including the
+// entity-id lookup. An empty-grant caller must not reach any of them.
+func (s *storyGrantContentStore) reachedTheStore() bool {
+	return len(s.askedRepo) > 0 || len(s.askedEntity) > 0 || s.anyRepo
 }
 
 // matches mirrors the shipped SQL: an explicit repository anchors the scan and
