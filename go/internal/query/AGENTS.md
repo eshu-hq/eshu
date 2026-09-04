@@ -234,10 +234,10 @@
 
 - **The cross-repo hidden-consumer read is a bounded walk** —
   `crossRepoDeadCodeUngrantedConsumerProbeQuery` walks a producer entity's
-  distinct consumer repositories in index order, stops at the first outside the
-  grant, and returns producer entity ids only. Consumer rows would cost a fan-in
-  group per request, a per-repository bound a probe per granted repository; the
-  constraints sit at the constant, measured in [#5167 batch 1](../../../docs/internal/evidence/5167-code-family-batch-1.md).
+  distinct (repository, scope) pairs on migration 101's index, seeks each pair's
+  active row by full key equality, stops at the first hidden one, and returns
+  producer entity ids only. Fan-in, grant size and retained generations are all
+  off its cost; the reasons sit at the constant, measured in [#5167 batch 1](../../../docs/internal/evidence/5167-code-family-batch-1.md).
 
 - **A granted consumer outranks a hidden one on every dead-code route** — a
   strong granted edge or consumer settles a candidate reachable/live; a hidden

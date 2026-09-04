@@ -219,6 +219,10 @@ mutation was restored and its guard rerun at exit `0`.
 | 43 | the final filter selects the granted repositories instead of the ungranted ones (`NOT EXISTS` becomes `EXISTS`) | the same command | `1` (12 sub-test failures; e.g. `hidden = []string{"ent-busy", "ent-middle", "ent-spread"}, want []string(nil)` for a grant that hides nothing) |
 | 44 | not a mutation — the gate's first catch on the branch that added it. `code_dead_code_cross_repo_ungranted_probe_live_test.go` carries no build tag, so its `quoteLiteral` joined the `integration` build alongside the one in `cloud_resource_runtime_digest_starvation_live_test.go` | `bash scripts/verify-tagged-builds.sh --all`, then `go vet -tags integration ./internal/query` | `1` and `1` (`quoteLiteral redeclared in this block`), while `go build ./...`, `go vet ./...` and `go test ./internal/query` on the same tree all stayed `0`. Renamed to `crossRepoDeadCodeProbeQuoteLiteral`; both back to `0` |
 | 45 | `platform_term`'s GOARCH arm carries the `mips*` prefix it shipped with, against a fixture whose only tagged file is `//go:build mipsmock` and does not compile | `TAGGED_BUILDS_REPO_ROOT=<fixture> bash scripts/verify-tagged-builds.sh` | `0` — `SKIP … platform-gated (mipsmock)`, "vetted 0 build configuration(s)", over a package that does not build. With the six exact `mips` GOARCH names: `1`, `FAIL … tags=mipsmock` naming the undefined helper |
+| 46 | the probe statement reverts to the walk migration 100 shipped -- stop at a consumer repository's first row instead of seeking its active one | `ESHU_CROSS_REPO_DEAD_CODE_PROBE_LIVE=1 ESHU_POSTGRES_DSN=… go test ./internal/query -run TestCrossRepoDeadCodeUngrantedConsumerProbeLive -count=1`, and `go test ./internal/query -run TestCrossRepoDeadCodeSignalReadIsTheBoundedUngrantedProbe -count=1` | `1` both (6 sub-test failures, both guards under both plan modes: `the walk touched 5946 buffers for one entity, want at most 200`, and `no plan node carries the walk's per-step seek`). Every entity's answer is unchanged, including `ent-retained`'s, which is why the guard measures buffers |
+| 47 | the liveness seek drops `AND live_row.scope_id = pair.scope_id`, so its index condition stops at the pair and the generation becomes a filter over the pair's retained rows | the same live command, and `go test ./internal/query -run TestCrossRepoDeadCodeSignalReadIsTheBoundedUngrantedProbe -count=1` | `1` both (2 sub-test failures, both plan modes: `no index condition carries the full (entity_id, repository_id, scope_id, generation_id) liveness seek`; the unit guard reports the missing equality). The answer is unchanged again, and so are the buffers -- the mutated seek filters inside the index rather than fetching heap rows, which is why the plan guard and not the buffer budget is what catches this one |
+| 48 | migration 101 builds `(entity_id, repository_id)` instead of the four-column key | the same live command | `1` (2 sub-test failures, both plan modes, same liveness-seek message: with the last two key columns gone the seek cannot be an index condition at all) |
+| 49 | migration 102 stops dropping migration 100's index (`DROP INDEX …` becomes `SELECT 1`) | the same live command | `1` (`code_reachability_entity_repository_idx count = 1, want 0`) -- a build that keeps both indexes answers every question correctly and makes every reachability write maintain a redundant btree |
 
 An earlier attempt at #1 deleted the whole helper body and failed as an unused
 import rather than an assertion, which proves nothing; the mutations above keep
@@ -246,7 +250,7 @@ Rows 32 and 33 are round-8k, and they are the reverse shape: not a mutation of
 the gate but two constraints the shipped gate answered green without compiling
 anything. Row 44 is not a mutation either: it is the gate finding a real break
 on the branch that introduced it, which is the strongest evidence in this table
-that it earns its place. Row 45 is the third of that shape and the sharpest:
+that it earns its place. Row 46 is the third of that shape and the sharpest:
 the platform list matched `mips*` as a prefix, so a project tag named
 `mipsmock` was classified a GOARCH, skipped, and never compiled — the gate
 answering "vetted 0", exit 0, over a package that does not build. Every GOOS,
@@ -289,6 +293,18 @@ pass that reconciled the two dead-code routes' order for mixed evidence, and it
 restores the order this route had before that: a hidden consumer outranking a
 strong granted one. Its guard is
 `TestCrossRepoDeadCodeStrongGrantedEvidenceOutranksHiddenConsumer`.
+
+Rows 46 through 49 are the round-11 pass, the one that made a walk step
+independent of how many superseded generations the retention runner still
+keeps. Row 46 is the whole previous shape put back, and it is the row the
+buffer budget exists for: 5,946 buffers against 24 for the shipped walk, with
+every entity's answer identical either way. Rows 46 and 47 take the seek apart
+from the two sides it can break from -- the statement dropping a key column
+from the condition, and the migration dropping it from the index -- and neither
+moves the buffer count, because a mutated seek filters inside the index instead
+of fetching heap rows. That is why the plan guard asserts all four key columns
+rather than trusting the budget to notice. Row 49 is the index the migrations
+must NOT leave behind. Each was restored and its guard rerun at exit `0`.
 
 Rows 6 and 12 are one mutation judged by two guards: row 6 is the call-graph
 route's text guard, row 12 the graph-summary route that shares the builder. The

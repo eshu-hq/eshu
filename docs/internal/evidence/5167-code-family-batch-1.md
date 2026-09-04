@@ -459,11 +459,15 @@ than the read it replaced. It is also where the grant became the cost: one seek
 per range means one seek per granted repository, and the section below is about
 the size of grant that makes visible.
 
-What ships now, `crossRepoDeadCodeUngrantedConsumerProbeQuery`, walks the other
-side of the question — the producer entity's own distinct consumer
-repositories, in index order, stopping at the first one the grant does not
-contain. It uses the same index, and its cost follows the answer rather than
-either the entity's row fan-in or the caller's grant.
+The fourth walks the other side of the question — the producer entity's own
+distinct consumers, in index order, stopping at the first one the grant does
+not contain — so its cost follows the answer rather than the entity's row
+fan-in or the caller's grant. What ships now,
+`crossRepoDeadCodeUngrantedConsumerProbeQuery`, is that walk with one thing
+corrected: it steps over `(repository_id, scope_id)` pairs on migration 101's
+four-column index and seeks each pair's active row by full key equality, rather
+than stopping at a pair's first row and hoping nothing older is still on disk.
+[Retention Is An Axis Too](#retention-is-an-axis-too) is why.
 
 Performance Evidence: `EXPLAIN (ANALYZE, BUFFERS)` in a throwaway PostgreSQL
 16.15 container, data-plane schema applied from `schema/data-plane/postgres`
@@ -530,9 +534,11 @@ The shape that replaces the ranges is a loose index scan, one walk per producer
 entity: seed at that entity's smallest consumer repository, step to the smallest
 one strictly greater, and stop at the first repository the grant does not
 contain. A walk therefore visits each of the entity's DISTINCT consumer
-repositories at most once and never looks at a second row of any of them — at
-most `min(d, N) + 1` index probes for `d` distinct consumer repositories and a
-grant of `N`, where the ranges cost `N + 1` regardless of `d`.
+repositories at most once — at most `min(d, N) + 1` steps for `d` distinct
+consumer repositories and a grant of `N`, where the ranges cost `N + 1`
+regardless of `d`. What a step costs is a second question, and this seed
+answered it wrongly: it holds one generation, so a step's first row is always
+the active one. The section below is that correction.
 
 The walk has its own axis, `d`, and it was measured rather than assumed. A
 producer entity consumed by 300 distinct repositories, all granted, with a
@@ -559,9 +565,10 @@ producer repository), the 50-, 200- and 500-id grants in both the all-granted
 and hidden forms, and the 300-repository fan-out page in both.
 `TestCrossRepoDeadCodeUngrantedConsumerProbeLive` runs that differential in the
 test suite against a disposable Postgres, including at 500 granted repositories,
-and adds two plan assertions: that the walk's per-step seek reaches an index
-condition rather than a filter, and that the recursive term's measured row count
-stays inside a budget. The second exists because the walk's stop condition is a
+and adds three plan assertions: that the walk's per-step seek reaches an index
+condition rather than a filter, that the liveness lookup reaches one carrying
+all four key columns, and that the recursive term's measured row count stays
+inside a budget. The last exists because the walk's stop condition is a
 bound on work and not on the answer — remove it and every verdict is identical
 while each walk enumerates every consumer repository its entity has.
 
@@ -576,6 +583,100 @@ checks it got the plan it asked for — a generic plan leaves the producer
 repository a parameter marker where a custom plan inlines it — so a refactor
 that stopped forcing the mode fails instead of quietly asking the same question
 twice.
+
+#### Retention Is An Axis Too
+
+The grant-size seed above holds one ingestion scope and one generation, so
+every row in an `(entity_id, repository_id)` group belongs to the active
+generation and a step's `LIMIT 1` stops on its first row. Installs do not look
+like that, and Codex raised it as a P1 on the shipped statement.
+
+`ReplaceCodeReachabilityRepositoryRows` deletes by
+`(scope_id, generation_id, repository_id)` before it writes
+(`deleteCodeReachabilityRepositoryRowsSQL`), so a new generation *adds* a row
+set and leaves the previous one in place. The only pruner is the
+generation-retention runner: `generationRetentionCandidateQuery` selects
+`status = 'superseded'` generations ranked per scope, and
+`deleteScopeGenerationsForRetentionQuery` deletes them, taking the reachability
+rows with them through `ON DELETE CASCADE`. `DefaultGenerationRetentionPolicy`
+keeps the 24 most recent superseded generations per scope *and* everything
+superseded inside the last seven days, so a scope resynced every five minutes
+holds roughly two thousand. A generation in any other non-active status is
+never a candidate at all.
+
+So a group holds one row per retained generation per root, the active row is
+the newest of them, and a step ordered by `repository_id` reaches it last. The
+per-repository bound was not a bound.
+
+Performance Evidence: same container, schema, `SET jit = off`, `VACUUM ANALYZE`
+and warm three-sample method as above, on a second seed built to be
+retention-representative — one ingestion scope per consumer repository (which is
+who writes its rows), three groups of five consumer repositories differing only
+in retained superseded generations (0, 20, 200), every generation carrying the
+same population, superseded rows written before the active one, and a 201-row
+producer-repository run on every page so the only axis is consumer-side
+retention. 883,750 rows, 1,316 generations, 516 scopes, table 161 MB.
+125-entity producer page, five consumer repositories, grants
+`{a,c,e,g,i}` and `{a,c,g,i}`.
+
+| Retained generations | 0 | 20 | 200 |
+| --- | ---: | ---: | ---: |
+| Migration 100's walk, every consumer granted | 22.3 / 20.0 / 20.3 ms | 89.2 / 86.9 / 87.7 ms | 630.4 / 630.9 / 629.0 ms |
+| — shared buffers | hit=39,403 | hit=154,603 | hit=1,150,489 |
+| Shipped walk, every consumer granted | 5.13 / 4.72 / 4.70 ms | 8.14 / 7.90 / 7.34 ms | 9.78 / 8.98 / 8.87 ms |
+| — shared buffers | hit=3,270 | hit=3,268 | hit=3,263 |
+| Shipped walk, a hidden consumer | 4.67 / 4.18 / 4.19 ms | 6.51 / 6.48 / 6.08 ms | 7.68 / 6.38 / 6.44 ms |
+| — shared buffers | hit=3,142 | hit=3,140 | hit=3,138 |
+
+The buffer counts are the claim. They do not move with retention, because a
+step no longer scans a group for its active row; the residual rise in time at
+constant buffers is traversal inside pages already read. Forced-generic runs
+agree (5.08 / 5.48 ms at 0 retained, 8.88 / 8.74 ms at 200) and take the same
+index.
+
+Two changes make that hold, and the second is not optional. The walk steps over
+distinct `(repository_id, scope_id)` PAIRS rather than repositories, because
+"is this consumer live" means "does a row exist under the active generation of
+the scope that wrote it" and only the scope says which generation that is — a
+repository ingested by two scopes has two, and a walk keyed on the repository
+alone would test one and miss the other. And the liveness test is written as a
+correlated seek on the pair the walk just found, `(entity_id, repository_id,
+scope_id, generation_id)` all equalities, with the generation coming from
+`ingestion_scopes` by primary key. Left as joins on the outer row, the planner
+is free to reorder them, and on this seed it did: it drove the whole walk from
+`ingestion_scopes`/`scope_generations` and probed
+`code_reachability_rows_pkey` once per scope — 64,500 probes for the seed term
+alone, 266.5 / 263.9 / 264.9 ms and `hit=292,615` at 0 retained generations,
+where migration 100's own seed reported 4.9 ms. The documented loose index scan
+was not the plan Postgres chose as soon as the seed had more than one scope.
+
+The liveness seek sits behind the grant test rather than beside it
+(`NOT granted AND EXISTS (...)`), so it runs only for a repository outside the
+grant. A granted repository continues the walk whether it is live or not, so
+its answer is never needed. Evaluating it on every step instead measured
+8.14 / 7.87 / 8.76 ms against 4.18 / 4.01 / 4.13 on the grant-size seed.
+
+Nothing the earlier shape bought is given back. On that seed — 2,201,196 rows,
+one scope, one generation, a producer entity with 1,000,000 consumer rows —
+the shipped walk reads 4.18 / 4.01 / 4.13 ms `hit=3,764` at a five-repository
+grant and 4.51 / 4.28 / 4.28 ms `hit=3,764` at 500, against 5.12 / 4.49 / 4.49
+`hit=4,863` and 5.38 / 4.88 / 4.85 `hit=4,888` for the walk it replaces. Flat
+across grant size, flat across row fan-in, and slightly cheaper than what it
+replaces on the seed that shape was tuned for.
+
+Exactness: symmetric difference `0/0` against the
+`NOT (repository_id = ANY($grant))` reference across 33 grant shapes — the
+eight accepted shapes on each of the three retention levels of the new seed,
+and nine on the grant-size seed including the 500-id grant.
+
+The cost is index size and it is stated rather than waved at. Migration 101's
+`code_reachability_entity_repository_scope_generation_idx` is 79 MB against
+migration 100's 7,520 kB and a 161 MB table on the retention-representative
+seed, and 16 MB against 17 MB on the single-generation one, because btree
+deduplication collapses a suffix that never varies. Migration 102 drops
+migration 100's index: its key is a strict prefix of 101's, so no read needs it
+and keeping it would make every reachability write maintain a second btree. The
+reducer therefore maintains one index either way.
 
 The evidence page is unchanged and still reads that group: it has to rank a
 producer entity's consumers by confidence to return the strongest, so its cost
@@ -596,7 +697,7 @@ more than "is it above zero", the number was never a total (the read it came
 from stopped at 1,001 rows across the whole page and marked the rest truncated),
 and `hidden_consumer_evidence_count` is in no OpenAPI schema or public reference.
 
-On an existing deployment the index builds `CONCURRENTLY`, on the dedicated
+On an existing deployment both index migrations run `CONCURRENTLY`, on the dedicated
 bootstrap connection the schema apply path runs each definition on, so it does
 not block the reducer's reachability writes while it builds. The usual
 objection to `CONCURRENTLY` -- that a failed build leaves an `INVALID` index
@@ -605,8 +706,11 @@ path drops invalid concurrent indexes by name before executing each definition
 (`SQLDB.dropInvalidConcurrentIndexes`). That is also why the index cannot join
 `027_code_reachability.sql`: that definition is multi-statement, and a
 multi-statement `Exec` is sent as an implicit transaction, which
-`CONCURRENTLY` refuses. Migration 100 is registered in the ordered bootstrap
-list (`schema_order_test.go`) like every other definition.
+`CONCURRENTLY` refuses, and it is why migrations 101 and 102 are two files
+rather than one. All three are registered in the ordered bootstrap list
+(`schema_order_test.go`) like every other definition, and the live proof applies
+them in that order before it runs, then asserts the state they leave: 101's
+index built, 100's gone.
 
 The full rationale lives in the migration file itself, which is where this
 repository puts it -- migrations 082, 084 and 099 do the same. It is not in
