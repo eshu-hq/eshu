@@ -220,9 +220,12 @@ edge endpoints, and call-chain constrains every returned and intermediate node.
 
 An earlier version of this page said the relationship story filtered scoped
 results by joining both endpoints to repositories. It rendered that condition
-but attached it after the optional repository joins, where it decided nothing;
-the same was true of call-chain's path bound and of the `repo_id` filter on the
-story route. All three apply now. Direct rows label code relationships as
+but attached it after the optional repository joins, where it decided nothing —
+as did the story route's own `repo_id` filter and call-chain's per-hop bound.
+Call-chain's whole-path bound had a different gap: it was attached correctly but
+only written when a request named a repository, so a scoped token that named
+none had nothing constraining the hops between its two endpoints. All four
+apply now. Direct rows label code relationships as
 `edge_origin=direct_code_edge`; package/module/service inference must use its own
 relationship type and provenance instead of masquerading as a direct code edge.
 
