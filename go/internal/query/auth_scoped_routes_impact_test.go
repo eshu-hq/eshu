@@ -11,6 +11,8 @@ import (
 	"net/http/httptest"
 	"strings"
 	"testing"
+
+	"github.com/eshu-hq/eshu/go/internal/query/querytestutil"
 )
 
 // impactCompareTwoTenantRoutes is the #5167 W3 inventory: every impact/* and
@@ -72,9 +74,9 @@ func scopedTestAuthContext(tenant string, allowedRepositoryIDs []string) AuthCon
 
 // --- investigate_contract_impact (mutation-checked) ---
 
-func contractImpactTestGraph(t *testing.T) fakeGraphReaderWithSingle {
-	return fakeGraphReaderWithSingle{
-		run: func(_ context.Context, cypher string, params map[string]any) ([]map[string]any, error) {
+func contractImpactTestGraph(t *testing.T) querytestutil.FakeGraphReaderWithSingle {
+	return querytestutil.FakeGraphReaderWithSingle{
+		RunFn: func(_ context.Context, cypher string, params map[string]any) ([]map[string]any, error) {
 			if !strings.Contains(cypher, "EXPOSES_ENDPOINT") {
 				t.Fatalf("unexpected contract-impact query: %s", cypher)
 			}
@@ -240,9 +242,9 @@ func TestAuthMiddlewareWithScopedTokensAllowsCompareEnvironments(t *testing.T) {
 
 // --- find_blast_radius (mutation-checked) ---
 
-func blastRadiusTestGraph(t *testing.T) fakeGraphReaderWithSingle {
-	return fakeGraphReaderWithSingle{
-		run: func(_ context.Context, cypher string, _ map[string]any) ([]map[string]any, error) {
+func blastRadiusTestGraph(t *testing.T) querytestutil.FakeGraphReaderWithSingle {
+	return querytestutil.FakeGraphReaderWithSingle{
+		RunFn: func(_ context.Context, cypher string, _ map[string]any) ([]map[string]any, error) {
 			switch {
 			case strings.Contains(cypher, "DEPENDS_ON"):
 				return []map[string]any{
@@ -293,7 +295,7 @@ func TestFindBlastRadiusScopedGrantAndDenyMutationCheck(t *testing.T) {
 
 	t.Run("empty grant returns zero affected repos without querying", func(t *testing.T) {
 		t.Parallel()
-		graph := fakeGraphReaderWithSingle{run: func(context.Context, string, map[string]any) ([]map[string]any, error) {
+		graph := querytestutil.FakeGraphReaderWithSingle{RunFn: func(context.Context, string, map[string]any) ([]map[string]any, error) {
 			t.Fatal("blast-radius must not query the graph for an empty grant")
 			return nil, nil
 		}}
@@ -342,9 +344,9 @@ func TestAuthMiddlewareWithScopedTokensAllowsFindBlastRadius(t *testing.T) {
 func TestInvestigateResourceScopedGrantAndDeny(t *testing.T) {
 	t.Parallel()
 
-	newGraph := func() *recordingResourceInvestigationGraph {
-		return &recordingResourceInvestigationGraph{
-			runRows: [][]map[string]any{{
+	newGraph := func() *querytestutil.RecordingResourceInvestigationGraph {
+		return &querytestutil.RecordingResourceInvestigationGraph{
+			RunRows: [][]map[string]any{{
 				{
 					"id": "cloud:rds:orders", "name": "orders-db", "labels": []any{"CloudResource"},
 					"resource_type": "aws_db_instance", "provider": "aws", "environment": "prod",
@@ -395,7 +397,7 @@ func TestInvestigateResourceScopedGrantAndDeny(t *testing.T) {
 func TestAuthMiddlewareWithScopedTokensAllowsInvestigateResource(t *testing.T) {
 	t.Parallel()
 
-	graph := &recordingResourceInvestigationGraph{runRows: [][]map[string]any{{
+	graph := &querytestutil.RecordingResourceInvestigationGraph{RunRows: [][]map[string]any{{
 		{"id": "cloud:rds:orders", "name": "orders-db", "labels": []any{"CloudResource"}, "repo_id": "repo-a"},
 	}}}
 	handler := &ImpactHandler{Neo4j: graph, Profile: ProfileLocalAuthoritative}

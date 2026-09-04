@@ -10,83 +10,15 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"strings"
-	"sync"
 	"testing"
+
+	"github.com/eshu-hq/eshu/go/internal/query/querytestutil"
 )
-
-type recordingResourceInvestigationGraph struct {
-	mu                   sync.Mutex
-	runCalls             []resourceInvestigationRunCall
-	runRows              [][]map[string]any
-	workloadRows         []map[string]any
-	instanceWorkloadRows []map[string]any
-	incomingRows         []map[string]any
-	outgoingRows         []map[string]any
-	workloadErr          error
-	instanceWorkloadErr  error
-	incomingErr          error
-	outgoingErr          error
-	selectorLabel        string
-}
-
-type resourceInvestigationRunCall struct {
-	cypher string
-	params map[string]any
-}
-
-func (g *recordingResourceInvestigationGraph) Run(
-	_ context.Context,
-	cypher string,
-	params map[string]any,
-) ([]map[string]any, error) {
-	g.mu.Lock()
-	defer g.mu.Unlock()
-	g.runCalls = append(g.runCalls, resourceInvestigationRunCall{cypher: cypher, params: params})
-	switch {
-	case strings.Contains(cypher, "-[:INSTANCE_OF]->(workload:Workload)"):
-		if g.instanceWorkloadErr != nil {
-			return nil, g.instanceWorkloadErr
-		}
-		return g.instanceWorkloadRows, nil
-	case strings.Contains(cypher, "MATCH (instance:WorkloadInstance)"):
-		if g.workloadErr != nil {
-			return nil, g.workloadErr
-		}
-		return g.workloadRows, nil
-	case strings.Contains(cypher, "<-[rels"):
-		if g.incomingErr != nil {
-			return nil, g.incomingErr
-		}
-		return g.incomingRows, nil
-	case strings.Contains(cypher, "-[rels"):
-		if g.outgoingErr != nil {
-			return nil, g.outgoingErr
-		}
-		return g.outgoingRows, nil
-	}
-	if g.selectorLabel != "" && !strings.Contains(cypher, "MATCH (n:"+g.selectorLabel+")") {
-		return nil, nil
-	}
-	if len(g.runRows) == 0 {
-		return nil, nil
-	}
-	rows := g.runRows[0]
-	g.runRows = g.runRows[1:]
-	return rows, nil
-}
-
-func (g *recordingResourceInvestigationGraph) RunSingle(
-	context.Context,
-	string,
-	map[string]any,
-) (map[string]any, error) {
-	return nil, nil
-}
 
 func TestInvestigateResourceReturnsAmbiguityWithoutTraversal(t *testing.T) {
 	t.Parallel()
 
-	graph := &recordingResourceInvestigationGraph{runRows: [][]map[string]any{{
+	graph := &querytestutil.RecordingResourceInvestigationGraph{RunRows: [][]map[string]any{{
 		{"id": "cloud:queue:orders", "name": "orders", "labels": []any{"CloudResource"}, "environment": "prod"},
 		{"id": "k8s:queue:orders", "name": "orders", "labels": []any{"K8sResource"}, "environment": "prod"},
 	}}}
@@ -106,12 +38,12 @@ func TestInvestigateResourceReturnsAmbiguityWithoutTraversal(t *testing.T) {
 	if got, want := w.Code, http.StatusOK; got != want {
 		t.Fatalf("status = %d, want %d body=%s", got, want, w.Body.String())
 	}
-	if got, want := len(graph.runCalls), len(resourceInvestigationDefaultLabels); got != want {
+	if got, want := len(graph.RunCalls), len(resourceInvestigationDefaultLabels); got != want {
 		t.Fatalf("graph Run calls = %d, want only %d exact selector reads", got, want)
 	}
-	for _, call := range graph.runCalls {
-		if !strings.HasPrefix(strings.TrimSpace(call.cypher), "MATCH (n:") {
-			t.Fatalf("ambiguous resolution unexpectedly traversed graph: %s", call.cypher)
+	for _, call := range graph.RunCalls {
+		if !strings.HasPrefix(strings.TrimSpace(call.Cypher), "MATCH (n:") {
+			t.Fatalf("ambiguous resolution unexpectedly traversed graph: %s", call.Cypher)
 		}
 	}
 	data := decodeImpactEnvelopeData(t, w)
@@ -131,15 +63,15 @@ func TestInvestigateResourceReturnsAmbiguityWithoutTraversal(t *testing.T) {
 func TestInvestigateResourceReturnsBoundedResourcePacket(t *testing.T) {
 	t.Parallel()
 
-	graph := &recordingResourceInvestigationGraph{
-		runRows: [][]map[string]any{{
+	graph := &querytestutil.RecordingResourceInvestigationGraph{
+		RunRows: [][]map[string]any{{
 			{
 				"id": "cloud:rds:orders", "name": "orders-db", "labels": []any{"CloudResource"},
 				"resource_type": "aws_db_instance", "provider": "aws", "environment": "prod",
 				"repo_id": "repo-infra", "config_path": "terraform/orders/main.tf",
 			},
 		}},
-		workloadRows: []map[string]any{
+		WorkloadRows: []map[string]any{
 			{
 				"instance_id": "instance:orders-api:prod", "environment": "prod",
 				"workload_id_raw": "workload:orders-api", "instance_name": "orders-api",
@@ -152,7 +84,7 @@ func TestInvestigateResourceReturnsBoundedResourcePacket(t *testing.T) {
 				"relationship_type": "USES", "relationship_reason": "queue consumer",
 			},
 		},
-		instanceWorkloadRows: []map[string]any{
+		InstanceWorkloadRows: []map[string]any{
 			{
 				"instance_id": "instance:orders-api:prod",
 				"workload_id": "workload:orders-api", "workload_name": "orders-api",
@@ -162,13 +94,13 @@ func TestInvestigateResourceReturnsBoundedResourcePacket(t *testing.T) {
 				"workload_id": "workload:orders-worker", "workload_name": "orders-worker",
 			},
 		},
-		incomingRows: []map[string]any{
+		IncomingRows: []map[string]any{
 			{
 				"repo_id": "repo-infra", "repo_name": "infra", "direction": "incoming", "depth": int64(2),
 				"hops": []any{map[string]any{"type": "PROVISIONS", "reason": "terraform"}},
 			},
 		},
-		outgoingRows: []map[string]any{
+		OutgoingRows: []map[string]any{
 			{
 				"repo_id": "repo-app", "repo_name": "orders-api", "direction": "outgoing", "depth": int64(3),
 				"hops": []any{map[string]any{"type": "DEFINED_IN", "reason": "manifest"}},
@@ -191,23 +123,23 @@ func TestInvestigateResourceReturnsBoundedResourcePacket(t *testing.T) {
 	if got, want := w.Code, http.StatusOK; got != want {
 		t.Fatalf("status = %d, want %d body=%s", got, want, w.Body.String())
 	}
-	if got, want := len(graph.runCalls), len(resourceInvestigationDefaultLabels)+4; got != want {
+	if got, want := len(graph.RunCalls), len(resourceInvestigationDefaultLabels)+4; got != want {
 		t.Fatalf("graph Run calls = %d, want exact selector fanout plus workload instances, instance-of resolve, and both path reads", got)
 	}
 	var depthQueries int
-	for i, call := range graph.runCalls {
+	for i, call := range graph.RunCalls {
 		// The INSTANCE_OF workload-resolve read is bounded by the (already
 		// limited) instance-id set, not a LIMIT clause.
-		if strings.Contains(call.cypher, "-[:INSTANCE_OF]->(workload:Workload)") {
+		if strings.Contains(call.Cypher, "-[:INSTANCE_OF]->(workload:Workload)") {
 			continue
 		}
-		if !strings.Contains(call.cypher, "LIMIT $limit") {
-			t.Fatalf("call %d cypher missing LIMIT $limit: %s", i+1, call.cypher)
+		if !strings.Contains(call.Cypher, "LIMIT $limit") {
+			t.Fatalf("call %d cypher missing LIMIT $limit: %s", i+1, call.Cypher)
 		}
-		if got, want := call.params["limit"], 2; got != want {
+		if got, want := call.Params["limit"], 2; got != want {
 			t.Fatalf("call %d params[limit] = %#v, want %#v", i+1, got, want)
 		}
-		if strings.Contains(call.cypher, "*1..3") {
+		if strings.Contains(call.Cypher, "*1..3") {
 			depthQueries++
 		}
 	}
@@ -245,8 +177,8 @@ func TestInvestigateResourceResolvesExactCloudARN(t *testing.T) {
 	t.Parallel()
 
 	arn := "arn:aws:ssm:us-east-1:123456789012:parameter/configd/sample-service/client/port"
-	graph := &recordingResourceInvestigationGraph{
-		runRows: [][]map[string]any{{
+	graph := &querytestutil.RecordingResourceInvestigationGraph{
+		RunRows: [][]map[string]any{{
 			{
 				"id": "cloud:ssm:sample-service-client-port", "name": "/configd/sample-service/client/port",
 				"labels": []any{"CloudResource"}, "resource_type": "ssm_parameter",
@@ -271,13 +203,13 @@ func TestInvestigateResourceResolvesExactCloudARN(t *testing.T) {
 	if got, want := w.Code, http.StatusOK; got != want {
 		t.Fatalf("status = %d, want %d body=%s", got, want, w.Body.String())
 	}
-	if got, want := len(graph.runCalls), len(resourceInvestigationSelectorLabels("cloud"))+3; got != want {
+	if got, want := len(graph.RunCalls), len(resourceInvestigationSelectorLabels("cloud"))+3; got != want {
 		t.Fatalf("graph Run calls = %d, want exact selector fanout plus workloads and both path reads", got)
 	}
-	var resolverCall *resourceInvestigationRunCall
-	for i := range graph.runCalls {
-		call := &graph.runCalls[i]
-		if strings.Contains(call.cypher, "coalesce(n.arn, '') = $selector") {
+	var resolverCall *querytestutil.ResourceInvestigationRunCall
+	for i := range graph.RunCalls {
+		call := &graph.RunCalls[i]
+		if strings.Contains(call.Cypher, "coalesce(n.arn, '') = $selector") {
 			resolverCall = call
 			break
 		}
@@ -285,17 +217,17 @@ func TestInvestigateResourceResolvesExactCloudARN(t *testing.T) {
 	if resolverCall == nil {
 		t.Fatal("exact selector fanout does not include the ARN property")
 	}
-	if got, want := resolverCall.params["selector"], arn; got != want {
+	if got, want := resolverCall.Params["selector"], arn; got != want {
 		t.Fatalf("resolver selector = %#v, want %#v", got, want)
 	}
-	for i, call := range graph.runCalls {
-		if strings.HasPrefix(strings.TrimSpace(call.cypher), "MATCH (n:") {
+	for i, call := range graph.RunCalls {
+		if strings.HasPrefix(strings.TrimSpace(call.Cypher), "MATCH (n:") {
 			continue
 		}
-		if !strings.Contains(call.cypher, "resource.arn = $resource_arn") {
-			t.Fatalf("section call %d cypher does not carry selected ARN: %s", i+1, call.cypher)
+		if !strings.Contains(call.Cypher, "resource.arn = $resource_arn") {
+			t.Fatalf("section call %d cypher does not carry selected ARN: %s", i+1, call.Cypher)
 		}
-		if got, want := call.params["resource_arn"], arn; got != want {
+		if got, want := call.Params["resource_arn"], arn; got != want {
 			t.Fatalf("section call %d resource_arn = %#v, want %#v", i+1, got, want)
 		}
 	}
@@ -347,9 +279,9 @@ func TestLoadResourceInvestigationSectionsJoinsParallelErrors(t *testing.T) {
 
 	workloadErr := errors.New("workload query failed")
 	incomingErr := errors.New("incoming query failed")
-	handler := &ImpactHandler{Neo4j: &recordingResourceInvestigationGraph{
-		workloadErr: workloadErr,
-		incomingErr: incomingErr,
+	handler := &ImpactHandler{Neo4j: &querytestutil.RecordingResourceInvestigationGraph{
+		WorkloadErr: workloadErr,
+		IncomingErr: incomingErr,
 	}}
 
 	_, _, _, _, _, _, err := handler.loadResourceInvestigationSections(
@@ -369,7 +301,7 @@ func TestLoadResourceInvestigationSectionsJoinsParallelErrors(t *testing.T) {
 func TestLoadResourceInvestigationSectionsRejectsUnknownAnchorLabel(t *testing.T) {
 	t.Parallel()
 
-	graph := &recordingResourceInvestigationGraph{}
+	graph := &querytestutil.RecordingResourceInvestigationGraph{}
 	handler := &ImpactHandler{Neo4j: graph}
 	_, _, _, _, _, _, err := handler.loadResourceInvestigationSections(
 		context.Background(),
@@ -380,8 +312,8 @@ func TestLoadResourceInvestigationSectionsRejectsUnknownAnchorLabel(t *testing.T
 	if err == nil || !strings.Contains(err.Error(), "supported infrastructure label") {
 		t.Fatalf("loadResourceInvestigationSections() error = %v, want fail-closed label error", err)
 	}
-	if len(graph.runCalls) != 0 {
-		t.Fatalf("graph calls = %d, want 0", len(graph.runCalls))
+	if len(graph.RunCalls) != 0 {
+		t.Fatalf("graph calls = %d, want 0", len(graph.RunCalls))
 	}
 }
 
@@ -396,13 +328,13 @@ func TestLoadResourceInvestigationSectionsRejectsUnknownAnchorLabel(t *testing.T
 func TestResourceInvestigationWorkloadsGrantFiltersBeforeTruncation(t *testing.T) {
 	t.Parallel()
 
-	graph := &recordingResourceInvestigationGraph{
-		workloadRows: []map[string]any{
+	graph := &querytestutil.RecordingResourceInvestigationGraph{
+		WorkloadRows: []map[string]any{
 			{"instance_id": "inst-b", "workload_id_raw": "wl-b", "instance_name": "svc-b", "relationship_type": "USES"},
 			{"instance_id": "inst-a1", "workload_id_raw": "wl-a1", "instance_name": "svc-a1", "relationship_type": "USES"},
 			{"instance_id": "inst-a2", "workload_id_raw": "wl-a2", "instance_name": "svc-a2", "relationship_type": "USES"},
 		},
-		instanceWorkloadRows: []map[string]any{
+		InstanceWorkloadRows: []map[string]any{
 			{"instance_id": "inst-b", "workload_id": "wl-b", "workload_name": "svc-b", "workload_repo_id": "repo-b"},
 			{"instance_id": "inst-a1", "workload_id": "wl-a1", "workload_name": "svc-a1", "workload_repo_id": "repo-a"},
 			{"instance_id": "inst-a2", "workload_id": "wl-a2", "workload_name": "svc-a2", "workload_repo_id": "repo-a"},
@@ -436,8 +368,8 @@ func TestResourceInvestigationWorkloadsGrantFiltersBeforeTruncation(t *testing.T
 func TestResourceInvestigationRepoPathsGrantFiltersBeforeTruncation(t *testing.T) {
 	t.Parallel()
 
-	graph := &recordingResourceInvestigationGraph{
-		outgoingRows: []map[string]any{
+	graph := &querytestutil.RecordingResourceInvestigationGraph{
+		OutgoingRows: []map[string]any{
 			{"repo_id": "repo-b", "repo_name": "svc-b", "depth": int64(1)},
 			{"repo_id": "repo-a", "repo_name": "svc-a1", "depth": int64(1)},
 			{"repo_id": "repo-a", "repo_name": "svc-a2", "depth": int64(2)},

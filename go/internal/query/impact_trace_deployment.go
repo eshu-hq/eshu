@@ -84,7 +84,7 @@ func traceEnrichmentOptions(req traceDeploymentChainRequest) traceEnrichmentConf
 // traceDeploymentChain returns a story-first deployment trace for a service.
 // POST /api/v0/impact/trace-deployment-chain
 func (h *ImpactHandler) traceDeploymentChain(w http.ResponseWriter, r *http.Request) {
-	if capabilityUnsupported(h.profile(), "platform_impact.deployment_chain") {
+	if capabilityUnsupported(h.ResolvedProfile(), "platform_impact.deployment_chain") {
 		WriteContractError(
 			w,
 			r,
@@ -92,7 +92,7 @@ func (h *ImpactHandler) traceDeploymentChain(w http.ResponseWriter, r *http.Requ
 			"deployment-chain tracing requires authoritative platform truth",
 			"unsupported_capability",
 			"platform_impact.deployment_chain",
-			h.profile(),
+			h.ResolvedProfile(),
 			requiredProfile("platform_impact.deployment_chain"),
 		)
 		return
@@ -130,7 +130,7 @@ func (h *ImpactHandler) traceDeploymentChain(w http.ResponseWriter, r *http.Requ
 		return
 	}
 	if workloadID := safeStr(ctx, "id"); workloadID != "" {
-		deploymentSourceResult, err := h.fetchDeploymentSourceResult(r.Context(), workloadID, safeStr(ctx, "repo_id"))
+		deploymentSourceResult, err := h.FetchDeploymentSourceResult(r.Context(), workloadID, safeStr(ctx, "repo_id"))
 		if err != nil {
 			if WriteGraphReadError(w, r, err, "platform_impact.deployment_chain") {
 				return
@@ -203,7 +203,7 @@ func (h *ImpactHandler) traceDeploymentChain(w http.ResponseWriter, r *http.Requ
 				}
 			}
 		}
-		k8sResourceResult, err := h.fetchK8sResourceResult(r.Context(), safeStr(ctx, "repo_id"), safeStr(ctx, "name"))
+		k8sResourceResult, err := h.FetchK8sResourceResult(r.Context(), safeStr(ctx, "repo_id"), safeStr(ctx, "name"))
 		if err != nil {
 			WriteError(w, http.StatusInternalServerError, fmt.Sprintf("query k8s resources: %v", err))
 			return
@@ -323,7 +323,7 @@ func (h *ImpactHandler) traceDeploymentChain(w http.ResponseWriter, r *http.Requ
 
 	response := buildDeploymentTraceResponse(req.ServiceName, ctx)
 	attachEvidenceBoundaries(response, "trace_deployment_chain")
-	WriteSuccess(w, r, http.StatusOK, response, BuildTruthEnvelope(h.profile(), "platform_impact.deployment_chain", TruthBasisHybrid, "resolved from deployment topology and service evidence"))
+	WriteSuccess(w, r, http.StatusOK, response, BuildTruthEnvelope(h.ResolvedProfile(), "platform_impact.deployment_chain", TruthBasisHybrid, "resolved from deployment topology and service evidence"))
 }
 
 func fetchServiceTraceContext(

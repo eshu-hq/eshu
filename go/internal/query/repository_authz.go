@@ -16,6 +16,12 @@ import (
 // method name directly (e.g. f.Scoped(), f.GraphParams(...)).
 type repositoryAccessFilter = querycontract.RepositoryAccessFilter
 
+// RepositoryAccessFilter is the exported spelling of repositoryAccessFilter
+// (the same querycontract type). Exported impact-seam forwarders name it in
+// their signatures so the impact family can move without touching callers.
+// See #6060.
+type RepositoryAccessFilter = querycontract.RepositoryAccessFilter
+
 // repositoryAccessFilterFromContext resolves the request's AuthContext into a
 // repositoryAccessFilter.
 //

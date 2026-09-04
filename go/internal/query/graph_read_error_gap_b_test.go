@@ -148,7 +148,7 @@ func TestInvestigateResourceSectionsMapsGraphReadAvailabilityErrors(t *testing.T
 
 // TestDeveloperChangePlanMapsGraphReadAvailabilityErrors proves
 // developerChangePlan's guard (developer_change_plan.go) maps the shared
-// Neo4jReader sentinels to 503/504 when the shared preChangeImpactResponse
+// Neo4jReader sentinels to 503/504 when the shared PreChangeImpactResponse
 // path (impact_change_surface_investigation.go's resolveChangeSurfaceTarget)
 // hits a graph-read failure, instead of falling through
 // preChangeImpactErrorStatus's generic-500 default.
@@ -175,7 +175,7 @@ func TestDeveloperChangePlanMapsGraphReadAvailabilityErrors(t *testing.T) {
 
 // TestPreChangeImpactMapsGraphReadAvailabilityErrors proves preChangeImpact's
 // guard (prechange_impact.go) maps the shared Neo4jReader sentinels to
-// 503/504 when the shared preChangeImpactResponse path
+// 503/504 when the shared PreChangeImpactResponse path
 // (impact_change_surface_investigation.go's resolveChangeSurfaceTarget) hits a
 // graph-read failure, instead of falling through preChangeImpactErrorStatus's
 // generic-500 default.

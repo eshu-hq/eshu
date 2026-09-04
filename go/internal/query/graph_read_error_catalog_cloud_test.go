@@ -9,13 +9,15 @@ import (
 	"net/http/httptest"
 	"strings"
 	"testing"
+
+	"github.com/eshu-hq/eshu/go/internal/query/querytestutil"
 )
 
 func TestCompareEnvironmentsMapsGraphReadAvailabilityErrors(t *testing.T) {
 	t.Parallel()
 	for _, test := range graphReadSweepCases() {
 		t.Run(test.name, func(t *testing.T) {
-			handler := &CompareHandler{Neo4j: fakeGraphReaderWithSingle{runSingle: func(context.Context, string, map[string]any) (map[string]any, error) {
+			handler := &CompareHandler{Neo4j: querytestutil.FakeGraphReaderWithSingle{RunSingleFn: func(context.Context, string, map[string]any) (map[string]any, error) {
 				return nil, test.err
 			}}}
 			req := httptest.NewRequest(http.MethodPost, "/api/v0/compare/environments", strings.NewReader(
@@ -96,7 +98,7 @@ func TestGetRepositoryStatsMapsGraphReadAvailabilityErrors(t *testing.T) {
 	t.Parallel()
 	for _, test := range graphReadSweepCases() {
 		t.Run(test.name, func(t *testing.T) {
-			handler := &RepositoryHandler{Neo4j: fakeGraphReaderWithSingle{runSingle: func(context.Context, string, map[string]any) (map[string]any, error) {
+			handler := &RepositoryHandler{Neo4j: querytestutil.FakeGraphReaderWithSingle{RunSingleFn: func(context.Context, string, map[string]any) (map[string]any, error) {
 				return nil, test.err
 			}}}
 			mux := http.NewServeMux()
@@ -125,11 +127,11 @@ func TestGetRepositoryStatsSelectorMapsGraphReadAvailabilityErrors(t *testing.T)
 		test := test
 		t.Run(test.name, func(t *testing.T) {
 			t.Parallel()
-			handler := &RepositoryHandler{Neo4j: fakeGraphReaderWithSingle{
-				run: func(context.Context, string, map[string]any) ([]map[string]any, error) {
+			handler := &RepositoryHandler{Neo4j: querytestutil.FakeGraphReaderWithSingle{
+				RunFn: func(context.Context, string, map[string]any) ([]map[string]any, error) {
 					return nil, test.err
 				},
-				runSingle: func(context.Context, string, map[string]any) (map[string]any, error) {
+				RunSingleFn: func(context.Context, string, map[string]any) (map[string]any, error) {
 					return nil, test.err
 				},
 			}}
@@ -150,7 +152,7 @@ func TestGetRepositoryContextMapsGraphReadAvailabilityErrors(t *testing.T) {
 	t.Parallel()
 	for _, test := range graphReadSweepCases() {
 		t.Run(test.name, func(t *testing.T) {
-			handler := &RepositoryHandler{Neo4j: fakeGraphReaderWithSingle{runSingle: func(context.Context, string, map[string]any) (map[string]any, error) {
+			handler := &RepositoryHandler{Neo4j: querytestutil.FakeGraphReaderWithSingle{RunSingleFn: func(context.Context, string, map[string]any) (map[string]any, error) {
 				return nil, test.err
 			}}}
 			mux := http.NewServeMux()
@@ -170,7 +172,7 @@ func TestGetRepositoryCoverageMapsGraphReadAvailabilityErrors(t *testing.T) {
 	t.Parallel()
 	for _, test := range graphReadSweepCases() {
 		t.Run(test.name, func(t *testing.T) {
-			handler := &RepositoryHandler{Neo4j: fakeGraphReaderWithSingle{runSingle: func(context.Context, string, map[string]any) (map[string]any, error) {
+			handler := &RepositoryHandler{Neo4j: querytestutil.FakeGraphReaderWithSingle{RunSingleFn: func(context.Context, string, map[string]any) (map[string]any, error) {
 				return nil, test.err
 			}}}
 			mux := http.NewServeMux()

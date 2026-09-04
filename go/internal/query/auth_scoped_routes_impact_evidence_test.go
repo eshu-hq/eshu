@@ -11,6 +11,8 @@ import (
 	"net/http/httptest"
 	"strings"
 	"testing"
+
+	"github.com/eshu-hq/eshu/go/internal/query/querytestutil"
 )
 
 // crossTenantEvidenceGraph resolves the orders-api workload (anchored on the
@@ -28,9 +30,9 @@ import (
 // (role configuration_artifact) and read_first_files (a
 // get_file_lines(repo_id, path) suggestion naming repo-b + the file), and
 // trace_deployment_chain's serialized deployment_evidence / artifact_lineage.
-func crossTenantEvidenceGraph() fakeGraphReaderWithSingle {
-	return fakeGraphReaderWithSingle{
-		runSingle: func(_ context.Context, cypher string, _ map[string]any) (map[string]any, error) {
+func crossTenantEvidenceGraph() querytestutil.FakeGraphReaderWithSingle {
+	return querytestutil.FakeGraphReaderWithSingle{
+		RunSingleFn: func(_ context.Context, cypher string, _ map[string]any) (map[string]any, error) {
 			switch {
 			case strings.Contains(cypher, "MATCH (w:Workload) WHERE"):
 				return map[string]any{"id": "workload:orders-api", "name": "orders-api", "kind": "service", "repo_id": "repo-a"}, nil
@@ -40,7 +42,7 @@ func crossTenantEvidenceGraph() fakeGraphReaderWithSingle {
 				return nil, nil
 			}
 		},
-		run: func(_ context.Context, cypher string, _ map[string]any) ([]map[string]any, error) {
+		RunFn: func(_ context.Context, cypher string, _ map[string]any) ([]map[string]any, error) {
 			if rows, ok := impactEvidenceWorkloadRepositoryRows(cypher); ok {
 				return rows, nil
 			}
@@ -185,9 +187,9 @@ func TestServiceContextScopedFiltersCrossTenantDeploymentEvidence(t *testing.T) 
 // loadUncorrelatedCloudResourceCandidates fallback (`MATCH
 // (n:CloudResource)`). This scan has no repo_id, so a scoped caller must skip
 // it entirely (#5167 W3 P2). candidateMatch selects the fallback query.
-func cloudFallbackGraph(candidateMatch, candidateName string) fakeGraphReaderWithSingle {
-	return fakeGraphReaderWithSingle{
-		runSingle: func(_ context.Context, cypher string, _ map[string]any) (map[string]any, error) {
+func cloudFallbackGraph(candidateMatch, candidateName string) querytestutil.FakeGraphReaderWithSingle {
+	return querytestutil.FakeGraphReaderWithSingle{
+		RunSingleFn: func(_ context.Context, cypher string, _ map[string]any) (map[string]any, error) {
 			switch {
 			case strings.Contains(cypher, "MATCH (w:Workload) WHERE"):
 				return map[string]any{"id": "workload:orders-api", "name": "orders-api", "kind": "service", "repo_id": "repo-a"}, nil
@@ -197,7 +199,7 @@ func cloudFallbackGraph(candidateMatch, candidateName string) fakeGraphReaderWit
 				return nil, nil
 			}
 		},
-		run: func(_ context.Context, cypher string, _ map[string]any) ([]map[string]any, error) {
+		RunFn: func(_ context.Context, cypher string, _ map[string]any) ([]map[string]any, error) {
 			if rows, ok := impactEvidenceWorkloadRepositoryRows(cypher); ok {
 				return rows, nil
 			}

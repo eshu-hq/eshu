@@ -23,20 +23,20 @@ func TestFetchDeploymentSourceGitOpsCapsControllersAndDisclosesLowerBound(t *tes
 	store := &recordingDeploymentSourceGitOpsContentStore{rows: rows}
 	handler := &ImpactHandler{Content: store}
 
-	controllers, _, _, lowerBound, err := handler.fetchDeploymentSourceGitOps(
+	controllers, _, _, lowerBound, err := handler.FetchDeploymentSourceGitOps(
 		t.Context(),
 		"payments-api",
 		"",
 		[]map[string]any{{"repo_id": "repository:deploy"}},
 	)
 	if err != nil {
-		t.Fatalf("fetchDeploymentSourceGitOps() error = %v", err)
+		t.Fatalf("FetchDeploymentSourceGitOps() error = %v", err)
 	}
 	if got, want := len(controllers), serviceStoryItemLimit; got != want {
 		t.Fatalf("controller count = %d, want bounded count %d", got, want)
 	}
 	if !lowerBound {
-		t.Fatal("fetchDeploymentSourceGitOps() lowerBound = false, want controller-cap disclosure")
+		t.Fatal("FetchDeploymentSourceGitOps() lowerBound = false, want controller-cap disclosure")
 	}
 }
 

@@ -10,6 +10,8 @@ import (
 	"net/http/httptest"
 	"strings"
 	"testing"
+
+	"github.com/eshu-hq/eshu/go/internal/query/querytestutil"
 )
 
 // crossTenantProvisioningGraph resolves the orders-api workload anchored on the
@@ -22,9 +24,9 @@ import (
 // ["consumer_repositories"], and ["provisioning_source_chains"] unfiltered
 // (service_query_enrichment.go, #5167 W3 P0 fifth vector). Every other
 // enrichment query returns no rows.
-func crossTenantProvisioningGraph() fakeGraphReaderWithSingle {
-	return fakeGraphReaderWithSingle{
-		runSingle: func(_ context.Context, cypher string, _ map[string]any) (map[string]any, error) {
+func crossTenantProvisioningGraph() querytestutil.FakeGraphReaderWithSingle {
+	return querytestutil.FakeGraphReaderWithSingle{
+		RunSingleFn: func(_ context.Context, cypher string, _ map[string]any) (map[string]any, error) {
 			switch {
 			case strings.Contains(cypher, "MATCH (w:Workload) WHERE"):
 				return map[string]any{"id": "workload:orders-api", "name": "orders-api", "kind": "service", "repo_id": "repo-a"}, nil
@@ -34,7 +36,7 @@ func crossTenantProvisioningGraph() fakeGraphReaderWithSingle {
 				return nil, nil
 			}
 		},
-		run: func(_ context.Context, cypher string, _ map[string]any) ([]map[string]any, error) {
+		RunFn: func(_ context.Context, cypher string, _ map[string]any) ([]map[string]any, error) {
 			if rows, ok := impactEvidenceWorkloadRepositoryRows(cypher); ok {
 				return rows, nil
 			}

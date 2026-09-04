@@ -20,7 +20,7 @@ func (h *ImpactHandler) developerChangePlan(w http.ResponseWriter, r *http.Reque
 	)
 	defer span.End()
 
-	if capabilityUnsupported(h.profile(), developerChangePlanCapability) {
+	if capabilityUnsupported(h.ResolvedProfile(), developerChangePlanCapability) {
 		WriteContractError(
 			w,
 			r,
@@ -28,7 +28,7 @@ func (h *ImpactHandler) developerChangePlan(w http.ResponseWriter, r *http.Reque
 			"developer change plan requires authoritative platform truth",
 			ErrorCodeUnsupportedCapability,
 			developerChangePlanCapability,
-			h.profile(),
+			h.ResolvedProfile(),
 			requiredProfile(developerChangePlanCapability),
 		)
 		return
@@ -44,7 +44,7 @@ func (h *ImpactHandler) developerChangePlan(w http.ResponseWriter, r *http.Reque
 		WriteError(w, http.StatusBadRequest, err.Error())
 		return
 	}
-	impactData, err := h.preChangeImpactResponse(r, normalized)
+	impactData, err := h.PreChangeImpactResponse(r, normalized)
 	if err != nil {
 		if WriteGraphReadError(w, r, err, developerChangePlanCapability) {
 			return
@@ -53,7 +53,7 @@ func (h *ImpactHandler) developerChangePlan(w http.ResponseWriter, r *http.Reque
 		return
 	}
 	truth := BuildTruthEnvelope(
-		h.profile(),
+		h.ResolvedProfile(),
 		developerChangePlanCapability,
 		TruthBasisHybrid,
 		"planned from normalized changed-file input and bounded pre-change impact evidence",

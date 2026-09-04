@@ -57,7 +57,7 @@ func (h *ImpactHandler) preChangeImpact(w http.ResponseWriter, r *http.Request) 
 	)
 	defer span.End()
 
-	if capabilityUnsupported(h.profile(), preChangeImpactCapability) {
+	if capabilityUnsupported(h.ResolvedProfile(), preChangeImpactCapability) {
 		WriteContractError(
 			w,
 			r,
@@ -65,7 +65,7 @@ func (h *ImpactHandler) preChangeImpact(w http.ResponseWriter, r *http.Request) 
 			"pre-change impact requires authoritative platform truth",
 			ErrorCodeUnsupportedCapability,
 			preChangeImpactCapability,
-			h.profile(),
+			h.ResolvedProfile(),
 			requiredProfile(preChangeImpactCapability),
 		)
 		return
@@ -81,7 +81,7 @@ func (h *ImpactHandler) preChangeImpact(w http.ResponseWriter, r *http.Request) 
 		WriteError(w, http.StatusBadRequest, err.Error())
 		return
 	}
-	resp, err := h.preChangeImpactResponse(r, normalized)
+	resp, err := h.PreChangeImpactResponse(r, normalized)
 	if err != nil {
 		if WriteGraphReadError(w, r, err, preChangeImpactCapability) {
 			return
@@ -90,7 +90,7 @@ func (h *ImpactHandler) preChangeImpact(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 	truth := BuildTruthEnvelope(
-		h.profile(),
+		h.ResolvedProfile(),
 		preChangeImpactCapability,
 		TruthBasisHybrid,
 		"resolved from normalized changed-file input and bounded change-surface evidence",
@@ -282,7 +282,10 @@ func preChangeGraphTarget(req preChangeImpactRequest) string {
 	}
 }
 
-func (h *ImpactHandler) preChangeImpactResponse(
+// PreChangeImpactResponse is the exported rename of preChangeImpactResponse,
+// which the developer-change-plan family calls from outside the impact move
+// set. See #6060.
+func (h *ImpactHandler) PreChangeImpactResponse(
 	r *http.Request,
 	req preChangeImpactRequest,
 ) (map[string]any, error) {

@@ -63,7 +63,7 @@ func (h *ImpactHandler) investigateChangeSurface(w http.ResponseWriter, r *http.
 	)
 	defer span.End()
 
-	if capabilityUnsupported(h.profile(), changeSurfaceInvestigationCapability) {
+	if capabilityUnsupported(h.ResolvedProfile(), changeSurfaceInvestigationCapability) {
 		WriteContractError(
 			w,
 			r,
@@ -71,7 +71,7 @@ func (h *ImpactHandler) investigateChangeSurface(w http.ResponseWriter, r *http.
 			"change surface investigation requires authoritative platform truth",
 			ErrorCodeUnsupportedCapability,
 			changeSurfaceInvestigationCapability,
-			h.profile(),
+			h.ResolvedProfile(),
 			requiredProfile(changeSurfaceInvestigationCapability),
 		)
 		return
@@ -111,7 +111,7 @@ func (h *ImpactHandler) investigateChangeSurface(w http.ResponseWriter, r *http.
 		if selected == nil {
 			resp := h.changeSurfaceResponse(req, resolution, codeSurface, nil, false)
 			WriteSuccess(w, r, http.StatusOK, resp, BuildTruthEnvelope(
-				h.profile(),
+				h.ResolvedProfile(),
 				changeSurfaceInvestigationCapability,
 				TruthBasisHybrid,
 				"resolved target ambiguity before graph traversal",
@@ -134,7 +134,7 @@ func (h *ImpactHandler) investigateChangeSurface(w http.ResponseWriter, r *http.
 	}
 	resp := h.changeSurfaceResponse(req, resolution, codeSurface, impactRows, graphTruncated)
 	WriteSuccess(w, r, http.StatusOK, resp, BuildTruthEnvelope(
-		h.profile(),
+		h.ResolvedProfile(),
 		changeSurfaceInvestigationCapability,
 		TruthBasisHybrid,
 		"resolved from bounded target resolution, content handles, and graph impact traversal",

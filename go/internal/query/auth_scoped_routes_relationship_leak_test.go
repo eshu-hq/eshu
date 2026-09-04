@@ -9,6 +9,8 @@ import (
 	"net/http/httptest"
 	"strings"
 	"testing"
+
+	"github.com/eshu-hq/eshu/go/internal/query/querytestutil"
 )
 
 // crossTenantDependencyGraph resolves the orders-api workload anchored on the
@@ -22,9 +24,9 @@ import (
 // queryRepoDependencies), which feeds dependencies[] on both
 // GET /services/{name}/context and GET /workloads/{id}/context. Every other
 // enrichment query returns no rows.
-func crossTenantDependencyGraph() fakeGraphReaderWithSingle {
-	return fakeGraphReaderWithSingle{
-		runSingle: func(_ context.Context, cypher string, _ map[string]any) (map[string]any, error) {
+func crossTenantDependencyGraph() querytestutil.FakeGraphReaderWithSingle {
+	return querytestutil.FakeGraphReaderWithSingle{
+		RunSingleFn: func(_ context.Context, cypher string, _ map[string]any) (map[string]any, error) {
 			switch {
 			case strings.Contains(cypher, "MATCH (w:Workload) WHERE"):
 				return map[string]any{"id": "workload:orders-api", "name": "orders-api", "kind": "service", "repo_id": "repo-a"}, nil
@@ -34,7 +36,7 @@ func crossTenantDependencyGraph() fakeGraphReaderWithSingle {
 				return nil, nil
 			}
 		},
-		run: func(_ context.Context, cypher string, _ map[string]any) ([]map[string]any, error) {
+		RunFn: func(_ context.Context, cypher string, _ map[string]any) ([]map[string]any, error) {
 			if rows, ok := impactEvidenceWorkloadRepositoryRows(cypher); ok {
 				return rows, nil
 			}

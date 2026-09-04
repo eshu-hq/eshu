@@ -57,7 +57,7 @@ func (h *ImpactHandler) entityMap(w http.ResponseWriter, r *http.Request) {
 	)
 	defer span.End()
 
-	if capabilityUnsupported(h.profile(), entityMapCapability) {
+	if capabilityUnsupported(h.ResolvedProfile(), entityMapCapability) {
 		WriteContractError(
 			w,
 			r,
@@ -65,7 +65,7 @@ func (h *ImpactHandler) entityMap(w http.ResponseWriter, r *http.Request) {
 			"entity map requires authoritative platform graph truth",
 			ErrorCodeUnsupportedCapability,
 			entityMapCapability,
-			h.profile(),
+			h.ResolvedProfile(),
 			requiredProfile(entityMapCapability),
 		)
 		return
@@ -92,7 +92,7 @@ func (h *ImpactHandler) entityMap(w http.ResponseWriter, r *http.Request) {
 	if selected == nil {
 		resp := entityMapResponse(req, resolution, nil, false)
 		WriteSuccess(w, r, http.StatusOK, resp, BuildTruthEnvelope(
-			h.profile(),
+			h.ResolvedProfile(),
 			entityMapCapability,
 			TruthBasisHybrid,
 			"resolved entity map ambiguity before graph traversal",
@@ -123,7 +123,7 @@ func (h *ImpactHandler) entityMap(w http.ResponseWriter, r *http.Request) {
 	)
 	resp := entityMapResponse(req, resolution, rows, truncated)
 	WriteSuccess(w, r, http.StatusOK, resp, BuildTruthEnvelope(
-		h.profile(),
+		h.ResolvedProfile(),
 		entityMapCapability,
 		TruthBasisHybrid,
 		"resolved from typed entity resolution and bounded graph neighborhood traversal",

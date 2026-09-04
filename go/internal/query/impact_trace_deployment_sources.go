@@ -14,7 +14,10 @@ type deploymentSourceResult struct {
 	limits map[string]any
 }
 
-func (h *ImpactHandler) fetchDeploymentSourceResult(
+// FetchDeploymentSourceResult is the exported rename of
+// fetchDeploymentSourceResult, which the deployment-config-influence family
+// calls from outside the impact move set. See #6060.
+func (h *ImpactHandler) FetchDeploymentSourceResult(
 	ctx context.Context,
 	workloadID string,
 	repoID string,
