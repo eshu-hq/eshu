@@ -7,6 +7,7 @@ import (
 	"bytes"
 	"context"
 	"database/sql/driver"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"slices"
@@ -20,84 +21,51 @@ import (
 // POST /api/v0/code/dead-code/cross-repo bounds its consumer reads by what the
 // request asked for, and that is what this file pins.
 //
-// A scoped caller that names no consumers gets two reads. The evidence page
-// carries the grant, so the row cap falls on consumers the caller may see. The
-// signal read carries nothing and answers the other half: is there a consumer
-// this caller cannot see? Both stop at the same 1001-row sentinel, so neither
-// is an unbounded scan, and the second one's text is the statement this route
-// shipped before the grant landed.
+// A scoped caller that names no consumers gets two statements. The evidence
+// page carries the grant, so its 1001-row cap falls on consumers the caller may
+// see. The ungranted-consumer probe answers the other half -- is there a
+// consumer this caller cannot see? -- and answers it per producer entity,
+// bounded by that entity's own index seeks rather than by a shared row budget.
 //
-// A request that names consumers in consumer_repo_ids gets one read, bound to
-// those consumers. The row cap then falls where the question is: bound to the
+// A request that names consumers in consumer_repo_ids gets one statement, bound
+// to those consumers. The row cap then falls where the question is: bound to the
 // whole grant instead, a thousand rows from a repository the caller did not ask
 // about filled the page and pushed the requested consumer off it, and the
 // candidate came back unknown_needs_evidence for a symbol that consumer proves
-// live. The signal read is skipped for the same request, because the selector
-// is applied to its rows before anything is counted and every selector entry
-// the grant admits is inside the grant -- there is nothing left for it to say.
+// live. The probe is skipped for the same request, because every selector entry
+// the grant admits is inside the grant -- there is nothing left for it to say,
+// and not running it is what makes that structural.
 //
-// The count taken from the signal read is never a raw row count. The request's
-// own selector is applied to those rows first, because a consumer the caller
-// excluded must not override the evidence of one it asked about.
+// The count the probe contributes is one per producer entity that has an
+// out-of-grant consumer, not one per such consumer. The classification only
+// depends on whether there is one, and stopping at the first is what keeps the
+// probe from reading a producer entity's whole fan-in group.
 
-// crossRepoDeadCodeUngrantedConsumerStatement is the signal read's text for a
-// two-entity page, pinned as a literal rather than rebuilt from the builder, so
-// this test fails if the statement drifts rather than drifting with it. It is
-// byte for byte the statement `buildCrossRepoDeadCodeConsumerEvidenceQuery`
-// emitted before the grant clause existed.
-const crossRepoDeadCodeUngrantedConsumerStatement = `
-SELECT row.entity_id,
-       row.repository_id,
-       '' AS consumer_repo_name,
-       row.root_entity_id,
-       row.depth,
-       row.state,
-       row.confidence,
-       row.min_resolution_method,
-       row.evidence,
-       row.root_kinds,
-       row.generation_id,
-       generation.status AS generation_status,
-       row.observed_at,
-       row.updated_at
-FROM code_reachability_rows AS row
-JOIN ingestion_scopes AS scope
-  ON scope.scope_id = row.scope_id
- AND scope.active_generation_id = row.generation_id
-JOIN scope_generations AS generation
-  ON generation.generation_id = row.generation_id
- AND generation.status = 'active'
-WHERE row.repository_id <> $1
-  AND row.entity_id IN ($2, $3)
-  AND row.depth > 0
-ORDER BY row.entity_id ASC, row.confidence DESC, row.depth ASC,
-         row.repository_id ASC, row.root_entity_id ASC
-LIMIT 1001
-`
-
-// TestCrossRepoDeadCodeSignalReadRepeatsTheUngrantedStatement pins both
+// TestCrossRepoDeadCodeSignalReadIsTheBoundedUngrantedProbe pins both
 // statements a scoped request sends. The page must carry the grant ahead of its
-// LIMIT; the signal read must carry no grant at all and be the statement this
-// route already shipped, whose plan and 1001-row bound are what let it run on
-// every scoped request.
-func TestCrossRepoDeadCodeSignalReadRepeatsTheUngrantedStatement(t *testing.T) {
+// LIMIT; the second must be the ungranted-consumer probe, with the grant bound
+// as its own argument rather than left off the statement entirely.
+func TestCrossRepoDeadCodeSignalReadIsTheBoundedUngrantedProbe(t *testing.T) {
 	t.Parallel()
 
 	db, recorder := openRecordingContentReaderDB(t, []recordingContentReaderQueryResult{
 		{columns: crossRepoDeadCodeEvidenceColumns()},
-		{columns: crossRepoDeadCodeEvidenceColumns()},
+		{columns: []string{"entity_id"}},
 	})
 	reader := NewContentReader(db)
 	if _, _, err := reader.CrossRepoDeadCodeConsumerEvidence(
 		context.Background(),
 		codeGrantGrantedRepo,
 		[]string{"entity-1", "entity-2"},
-		crossRepoDeadCodeConsumerReads{PageRepositoryIDs: []string{codeGrantConsumerRepo}, Signal: true},
+		crossRepoDeadCodeConsumerReads{
+			PageRepositoryIDs: []string{codeGrantConsumerRepo},
+			SignalGrant:       []string{codeGrantConsumerRepo, codeGrantGrantedRepo},
+		},
 	); err != nil {
 		t.Fatalf("CrossRepoDeadCodeConsumerEvidence() error = %v, want nil", err)
 	}
 	if len(recorder.queries) != 2 {
-		t.Fatalf("query count = %d, want 2 (grant-bound evidence page plus ungranted signal read)", len(recorder.queries))
+		t.Fatalf("query count = %d, want 2 (grant-bound evidence page plus ungranted-consumer probe)", len(recorder.queries))
 	}
 
 	page := recorder.queries[0]
@@ -109,12 +77,108 @@ func TestCrossRepoDeadCodeSignalReadRepeatsTheUngrantedStatement(t *testing.T) {
 		t.Fatalf("the grant sits after the LIMIT, so the page is still cut from a mixed set:\n%s", page)
 	}
 
-	signal := recorder.queries[1]
-	if signal != crossRepoDeadCodeUngrantedConsumerStatement {
-		t.Fatalf("signal read drifted from the statement this route already shipped:\ngot:\n%s\nwant:\n%s", signal, crossRepoDeadCodeUngrantedConsumerStatement)
+	probe := recorder.queries[1]
+	if probe != crossRepoDeadCodeUngrantedConsumerProbeQuery {
+		t.Fatalf("second statement is not the ungranted-consumer probe:\n%s", probe)
 	}
-	if got, want := len(recorder.args[1]), 3; got != want {
-		t.Fatalf("len(args) = %d, want %d (producer repo plus one per producer entity, no grant array)", got, want)
+	// The whole point of the probe is that it stops early, so the shapes that
+	// let it stop early are what this pins: the ordering of the grant happens
+	// in SQL (Go's byte order is not the database's collation), the interior
+	// ranges go through a LATERAL with its own LIMIT (without it the range
+	// leaves the Index Cond under a generic plan), and nothing orders or ranks.
+	for _, want := range []string{
+		"lag(repository_id) OVER (ORDER BY repository_id)",
+		"CROSS JOIN LATERAL",
+		"AND row.repository_id > gap.lo",
+		"AND row.repository_id < gap.hi",
+		"AND row.repository_id < grant_bounds.lowest",
+		"AND row.repository_id > grant_bounds.highest",
+	} {
+		if !strings.Contains(probe, want) {
+			t.Fatalf("probe is missing %q, so it can no longer stop at the first ungranted row:\n%s", want, probe)
+		}
+	}
+	if got, want := strings.Count(probe, "CROSS JOIN LATERAL"), 3; got != want {
+		t.Fatalf("probe has %d lateral range probes, want %d; a plain correlated EXISTS is hashed on a short page and reads the whole table", got, want)
+	}
+	if got, want := strings.Count(probe, "LIMIT 1)"), 3; got != want {
+		t.Fatalf("probe has %d one-row range limits, want %d", got, want)
+	}
+	if strings.Contains(probe, "ORDER BY row.") {
+		t.Fatalf("probe ranks rows; ranking is what made the read it replaced consume a whole fan-in group:\n%s", probe)
+	}
+	if strings.Contains(probe, "row.confidence") || strings.Contains(probe, "row.evidence") {
+		t.Fatalf("probe selects consumer evidence columns; it must answer whether, never which:\n%s", probe)
+	}
+	if got, want := len(recorder.args[1]), 4; got != want {
+		t.Fatalf("len(args) = %d, want %d (producer repo, entity array, grant array, page size)", got, want)
+	}
+	if got, want := fmt.Sprintf("%v", recorder.args[1][3]), "2"; got != want {
+		t.Fatalf("probe LIMIT argument = %v, want %v (one row per producer entity at most)", got, want)
+	}
+}
+
+// TestCrossRepoDeadCodeProbeStatementIsSizeIndependent is why the probe binds
+// arrays instead of rendering one placeholder per entity: the statement text is
+// the same for every page and every grant, so a page of 250 candidates and a
+// page of 2 plan as one statement rather than two.
+func TestCrossRepoDeadCodeProbeStatementIsSizeIndependent(t *testing.T) {
+	t.Parallel()
+
+	db, recorder := openRecordingContentReaderDB(t, []recordingContentReaderQueryResult{
+		{columns: crossRepoDeadCodeEvidenceColumns()},
+		{columns: []string{"entity_id"}},
+		{columns: crossRepoDeadCodeEvidenceColumns()},
+		{columns: []string{"entity_id"}},
+	})
+	reader := NewContentReader(db)
+	read := func(entityIDs []string, grant []string) {
+		t.Helper()
+		if _, _, err := reader.CrossRepoDeadCodeConsumerEvidence(
+			context.Background(),
+			codeGrantGrantedRepo,
+			entityIDs,
+			crossRepoDeadCodeConsumerReads{PageRepositoryIDs: grant, SignalGrant: grant},
+		); err != nil {
+			t.Fatalf("CrossRepoDeadCodeConsumerEvidence() error = %v, want nil", err)
+		}
+	}
+	read([]string{"entity-1"}, []string{codeGrantConsumerRepo})
+	read(
+		[]string{"entity-1", "entity-2", "entity-3"},
+		[]string{codeGrantConsumerRepo, codeGrantGrantedRepo, codeGrantOtherRepo},
+	)
+	if recorder.queries[1] != recorder.queries[3] {
+		t.Fatalf("probe text changed with the page and grant size:\nfirst:\n%s\nsecond:\n%s", recorder.queries[1], recorder.queries[3])
+	}
+}
+
+// TestCrossRepoDeadCodeProbeRefusesAnEmptyGrant is the one input that would
+// make the probe lie. Its ranges are the complement of the grant, so an empty
+// grant makes every range empty and the answer "nothing is hidden" -- for a
+// caller who may see nothing, where everything is. crossRepoDeadCodeConsumerReadPlan
+// refuses that caller first; this is the second refusal, at the read itself.
+func TestCrossRepoDeadCodeProbeRefusesAnEmptyGrant(t *testing.T) {
+	t.Parallel()
+
+	db, recorder := openRecordingContentReaderDB(t, []recordingContentReaderQueryResult{
+		{columns: crossRepoDeadCodeEvidenceColumns()},
+	})
+	reader := NewContentReader(db)
+	_, hidden, err := reader.CrossRepoDeadCodeConsumerEvidence(
+		context.Background(),
+		codeGrantGrantedRepo,
+		[]string{"entity-1"},
+		crossRepoDeadCodeConsumerReads{PageRepositoryIDs: []string{codeGrantConsumerRepo}},
+	)
+	if err != nil {
+		t.Fatalf("CrossRepoDeadCodeConsumerEvidence() error = %v, want nil", err)
+	}
+	if len(hidden) != 0 {
+		t.Fatalf("hidden = %#v, want empty", hidden)
+	}
+	if len(recorder.queries) != 1 {
+		t.Fatalf("query count = %d, want 1; an empty grant must not reach the probe", len(recorder.queries))
 	}
 }
 
@@ -170,61 +234,15 @@ func TestCrossRepoDeadCodeHiddenCountHonoursTheConsumerSelector(t *testing.T) {
 	}
 }
 
-// TestCrossRepoDeadCodeSignalTruncationKeepsCandidatesUnknown covers the case
-// the second read adds to the truncation fail-safe. The signal read can reach
-// the 1001-row sentinel on its own -- it sees every tenant's consumers, so it
-// reaches it sooner than the page does -- and an entity whose evidence stops
-// there must stay unknown, never fall through to dead.
-func TestCrossRepoDeadCodeSignalTruncationKeepsCandidatesUnknown(t *testing.T) {
-	t.Parallel()
-
-	observedAt := time.Date(2026, 6, 29, 13, 0, 0, 0, time.UTC)
-	signalRows := make([][]driver.Value, 0, maxCrossRepoDeadCodeConsumerEvidenceRows+1)
-	for i := 0; i < maxCrossRepoDeadCodeConsumerEvidenceRows+1; i++ {
-		signalRows = append(signalRows, []driver.Value{
-			"producer-live", codeGrantOtherRepo, "checkout-api", "checkout-root",
-			int64(2), "reachable", 0.9, codeprovenance.MethodImportBinding,
-			[]byte(`["CALLS:checkout-root->producer-live"]`), []byte(`["go.main_function"]`),
-			"gen-a", "active", observedAt, observedAt,
-		})
-	}
-	db, _ := openRecordingContentReaderDB(t, []recordingContentReaderQueryResult{
-		{columns: crossRepoDeadCodeEvidenceColumns()},
-		{columns: crossRepoDeadCodeEvidenceColumns(), rows: signalRows},
-	})
-	reader := NewContentReader(db)
-
-	evidence, signal, err := reader.CrossRepoDeadCodeConsumerEvidence(
-		context.Background(),
-		codeGrantGrantedRepo,
-		[]string{"producer-live", "producer-missing"},
-		crossRepoDeadCodeConsumerReads{PageRepositoryIDs: []string{codeGrantConsumerRepo}, Signal: true},
-	)
-	if err != nil {
-		t.Fatalf("CrossRepoDeadCodeConsumerEvidence() error = %v, want nil", err)
-	}
-	if got, want := len(signal["producer-live"]), maxCrossRepoDeadCodeConsumerEvidenceRows; got != want {
-		t.Fatalf("len(signal[producer-live]) = %d, want the read to stop at the sentinel (%d)", got, want)
-	}
-	for _, entityID := range []string{"producer-live", "producer-missing"} {
-		rows := evidence[entityID]
-		if len(rows) != 1 || rows[0].Reason != "consumer_evidence_truncated" || !rows[0].NeedsEvidence {
-			t.Fatalf("evidence[%s] = %#v, want the consumer_evidence_truncated marker so the candidate cannot fall through to dead", entityID, rows)
-		}
-	}
-}
-
-// TestCrossRepoDeadCodeSignalTruncationMarksEntitiesTheSignalNeverReached is
-// the half of the fail-safe a per-entity view is needed for.
+// TestCrossRepoDeadCodeProbeLeavesNoEntityUnproven is what the probe bought.
 //
-// Both reads stop at the same 1001-row sentinel, and the signal read sees every
-// tenant's consumers, so one busy entity early in the page can spend the whole
-// signal budget. A later entity is then never reached by the signal read, and
-// its own granted page rows say nothing about the consumers the caller cannot
-// see. Reading those page rows as proof would answer live_by_consumer for a
-// symbol whose hidden consumer was never read, and the route's contract is that
-// a hidden consumer leaves the answer unknown_needs_evidence.
-func TestCrossRepoDeadCodeSignalTruncationMarksEntitiesTheSignalNeverReached(t *testing.T) {
+// The read it replaced returned rows and stopped at a shared 1001-row sentinel,
+// so one producer entity with a large fan-in spent the whole budget and every
+// later entity on the page came back consumer_evidence_truncated -- unknown, for
+// symbols whose own evidence was complete. The probe answers per entity and
+// returns at most one row each, so the busy entity costs the others nothing:
+// only the evidence page can still leave an entity unproven.
+func TestCrossRepoDeadCodeProbeLeavesNoEntityUnproven(t *testing.T) {
 	t.Parallel()
 
 	observedAt := time.Date(2026, 6, 29, 13, 0, 0, 0, time.UTC)
@@ -234,42 +252,98 @@ func TestCrossRepoDeadCodeSignalTruncationMarksEntitiesTheSignalNeverReached(t *
 		[]byte(`["CALLS:checkout-root->producer-late"]`), []byte(`["go.main_function"]`),
 		"gen-a", "active", observedAt, observedAt,
 	}}
-	signalRows := make([][]driver.Value, 0, maxCrossRepoDeadCodeConsumerEvidenceRows+1)
-	for i := 0; i < maxCrossRepoDeadCodeConsumerEvidenceRows+1; i++ {
-		signalRows = append(signalRows, []driver.Value{
-			"producer-early", codeGrantOtherRepo, "checkout-api", "checkout-root",
-			int64(2), "reachable", 0.9, codeprovenance.MethodImportBinding,
-			[]byte(`["CALLS:checkout-root->producer-early"]`), []byte(`["go.main_function"]`),
-			"gen-a", "active", observedAt, observedAt,
-		})
-	}
 	db, _ := openRecordingContentReaderDB(t, []recordingContentReaderQueryResult{
 		{columns: crossRepoDeadCodeEvidenceColumns(), rows: pageRows},
-		{columns: crossRepoDeadCodeEvidenceColumns(), rows: signalRows},
+		{columns: []string{"entity_id"}, rows: [][]driver.Value{{"producer-early"}}},
 	})
 	reader := NewContentReader(db)
 
-	evidence, _, err := reader.CrossRepoDeadCodeConsumerEvidence(
+	evidence, hidden, err := reader.CrossRepoDeadCodeConsumerEvidence(
 		context.Background(),
 		codeGrantGrantedRepo,
 		[]string{"producer-early", "producer-late"},
-		crossRepoDeadCodeConsumerReads{PageRepositoryIDs: []string{codeGrantConsumerRepo}, Signal: true},
+		crossRepoDeadCodeConsumerReads{
+			PageRepositoryIDs: []string{codeGrantConsumerRepo},
+			SignalGrant:       []string{codeGrantConsumerRepo},
+		},
 	)
 	if err != nil {
 		t.Fatalf("CrossRepoDeadCodeConsumerEvidence() error = %v, want nil", err)
 	}
-	late := evidence["producer-late"]
-	if !crossRepoDeadCodeTruncationMarked(late) {
-		t.Fatalf("evidence[producer-late] = %#v, want the consumer_evidence_truncated marker: the signal read stopped before this entity", late)
+	for _, entityID := range []string{"producer-early", "producer-late"} {
+		if crossRepoDeadCodeTruncationMarked(evidence[entityID]) {
+			t.Fatalf("evidence[%s] = %#v, want no truncation marker: the page was complete and the probe covers every entity", entityID, evidence[entityID])
+		}
 	}
-	if got, want := len(late), 2; got != want {
-		t.Fatalf("len(evidence[producer-late]) = %d, want %d (the granted page row kept, the marker added)", got, want)
+	if got, want := len(evidence["producer-late"]), 1; got != want {
+		t.Fatalf("len(evidence[producer-late]) = %d, want %d (the granted page row, nothing added)", got, want)
 	}
-	if got, want := late[0].ConsumerRepoID, codeGrantConsumerRepo; got != want {
-		t.Fatalf("evidence[producer-late][0].ConsumerRepoID = %q, want %q; the marker must not replace the granted row", got, want)
+	if !hidden.has("producer-early") {
+		t.Fatalf("hidden = %#v, want producer-early flagged", hidden)
 	}
-	if !crossRepoDeadCodeTruncationMarked(evidence["producer-early"]) {
-		t.Fatalf("evidence[producer-early] = %#v, want the marker: the read stopped inside this entity's rows", evidence["producer-early"])
+	if hidden.has("producer-late") {
+		t.Fatalf("hidden = %#v, want producer-late unflagged; the probe reported only producer-early", hidden)
+	}
+}
+
+// TestCrossRepoDeadCodeHiddenConsumerOutranksStrongGrantedEvidence is the
+// route-level contract the probe has to keep: a producer entity with a strong
+// granted consumer AND a consumer outside the grant answers
+// unknown_needs_evidence with permission_hidden_consumer, never
+// live_by_consumer and never dead. The granted evidence is real, but it is not
+// the whole answer, and the caller is told so rather than shown a conclusion
+// drawn from half the rows.
+func TestCrossRepoDeadCodeHiddenConsumerOutranksStrongGrantedEvidence(t *testing.T) {
+	t.Parallel()
+
+	content := &crossRepoDeadCodeContentStore{
+		fakeDeadCodeContentStore: fakeDeadCodeContentStore{
+			fakePortContentStore: fakePortContentStore{
+				repositories: []RepositoryCatalogEntry{{ID: "repo-producer", Name: "payments-lib"}},
+			},
+			entities: map[string]EntityContent{
+				"producer-mixed": {
+					EntityID:     "producer-mixed",
+					RepoID:       "repo-producer",
+					RelativePath: "pkg/payments/mixed.go",
+					EntityType:   "Function",
+					EntityName:   "maybeLive",
+					Language:     "go",
+					SourceCache:  "func maybeLive() {}",
+				},
+			},
+		},
+		rows: []map[string]any{
+			deadCodeInvestigationRow("producer-mixed", "maybeLive", "go", "pkg/payments/mixed.go", 8, 12),
+		},
+		evidenceByEntity: map[string][]crossRepoDeadCodeEvidence{
+			"producer-mixed": {crossRepoDeadCodeGrantConsumerRow(codeGrantConsumerRepo, "producer-mixed")},
+		},
+		hiddenConsumers: []string{"producer-mixed"},
+	}
+	handler := &CodeHandler{Profile: ProfileLocalAuthoritative, Content: content, Neo4j: fakeGraphReader{}}
+	mux := http.NewServeMux()
+	handler.Mount(mux)
+
+	req := httptest.NewRequest(
+		http.MethodPost,
+		"/api/v0/code/dead-code/cross-repo",
+		bytes.NewBufferString(`{"repo_id":"repo-producer","limit":10}`),
+	)
+	req.Header.Set("Accept", EnvelopeMIMEType)
+	rec := httptest.NewRecorder()
+	mux.ServeHTTP(rec, req)
+
+	if got, want := rec.Code, http.StatusOK; got != want {
+		t.Fatalf("status = %d, want %d body=%s", got, want, rec.Body.String())
+	}
+	buckets := decodeEnvelopeData(t, rec.Body.Bytes())["candidate_buckets"].(map[string]any)
+	unknown := assertCrossRepoDeadCodeBucketEntity(t, buckets, "unknown", "producer-mixed")
+	assertCrossRepoDeadCodeReason(t, unknown, "permission_hidden_consumer")
+	assertCrossRepoDeadCodeBucketMissing(t, buckets, "live_by_consumer", "producer-mixed")
+	assertCrossRepoDeadCodeBucketMissing(t, buckets, "dead", "producer-mixed")
+	if got, want := unknown["hidden_consumer_evidence_count"], float64(1); got != want {
+		t.Fatalf("hidden_consumer_evidence_count = %#v, want %#v (one per producer entity, not one per hidden consumer)", got, want)
 	}
 }
 

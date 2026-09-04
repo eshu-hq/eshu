@@ -106,7 +106,7 @@ func TestCrossRepoDeadCodeConsumerReadPlan(t *testing.T) {
 		access    repositoryAccessFilter
 		consumers []string
 		wantPage  []string
-		wantSig   bool
+		wantSig   []string
 		wantOK    bool
 	}{
 		{
@@ -117,10 +117,10 @@ func TestCrossRepoDeadCodeConsumerReadPlan(t *testing.T) {
 			wantOK:    true,
 		},
 		{
-			name:     "scoped request naming none binds the grant and reads the signal",
+			name:     "scoped request naming none binds the grant and probes its complement",
 			access:   scoped,
 			wantPage: []string{codeGrantConsumerRepo, codeGrantGrantedRepo},
-			wantSig:  true,
+			wantSig:  []string{codeGrantConsumerRepo, codeGrantGrantedRepo},
 			wantOK:   true,
 		},
 		{
@@ -156,7 +156,7 @@ func TestCrossRepoDeadCodeConsumerReadPlan(t *testing.T) {
 				t.Fatalf("ok = %v, want %v", ok, testCase.wantOK)
 			}
 			if !ok {
-				if len(reads.PageRepositoryIDs) != 0 || reads.Signal {
+				if len(reads.PageRepositoryIDs) != 0 || len(reads.SignalGrant) != 0 {
 					t.Fatalf("reads = %#v, want the zero plan; an unbounded read is not the fallback", reads)
 				}
 				return
@@ -164,8 +164,13 @@ func TestCrossRepoDeadCodeConsumerReadPlan(t *testing.T) {
 			if !slices.Equal(reads.PageRepositoryIDs, testCase.wantPage) {
 				t.Fatalf("PageRepositoryIDs = %#v, want %#v", reads.PageRepositoryIDs, testCase.wantPage)
 			}
-			if reads.Signal != testCase.wantSig {
-				t.Fatalf("Signal = %v, want %v", reads.Signal, testCase.wantSig)
+			// An empty SignalGrant is the whole guard for a request that named
+			// consumers: the probe answers over the complement of this list, so
+			// running it with anything bound would report a repository the
+			// request excluded. It is also what keeps a grantless caller from
+			// a probe whose every range is empty.
+			if !slices.Equal(reads.SignalGrant, testCase.wantSig) {
+				t.Fatalf("SignalGrant = %#v, want %#v", reads.SignalGrant, testCase.wantSig)
 			}
 		})
 	}
@@ -208,7 +213,7 @@ func (s *crossRepoDeadCodeSelectorStore) CrossRepoDeadCodeConsumerEvidence(
 	producerRepoID string,
 	entityIDs []string,
 	reads crossRepoDeadCodeConsumerReads,
-) (map[string][]crossRepoDeadCodeEvidence, map[string][]crossRepoDeadCodeEvidence, error) {
+) (map[string][]crossRepoDeadCodeEvidence, crossRepoDeadCodeHiddenConsumers, error) {
 	return s.reader.CrossRepoDeadCodeConsumerEvidence(ctx, producerRepoID, entityIDs, reads)
 }
 

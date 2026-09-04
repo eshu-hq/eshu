@@ -47,17 +47,18 @@ type crossRepoDeadCodeEvidence struct {
 
 // crossRepoDeadCodeEvidenceStore reads active consumer evidence for producer
 // candidates. reads names the consumer repositories the evidence page is bound
-// to in SQL -- the row cap falls on those, not on a mixed set -- and says
-// whether the ungranted signal read runs beside it. The second return value is
-// that signal read's rows, which is how the handler can still answer "there is
-// a consumer you cannot see" instead of "dead" (#5167).
+// to in SQL -- the row cap falls on those, not on a mixed set -- and the grant
+// the ungranted-consumer probe runs against. The second return value is that
+// probe's answer: the producer entities with a consumer outside the grant,
+// which is how the handler can still answer "there is a consumer you cannot
+// see" instead of "dead" (#5167).
 type crossRepoDeadCodeEvidenceStore interface {
 	CrossRepoDeadCodeConsumerEvidence(
 		ctx context.Context,
 		producerRepoID string,
 		entityIDs []string,
 		reads crossRepoDeadCodeConsumerReads,
-	) (map[string][]crossRepoDeadCodeEvidence, map[string][]crossRepoDeadCodeEvidence, error)
+	) (map[string][]crossRepoDeadCodeEvidence, crossRepoDeadCodeHiddenConsumers, error)
 }
 
 type crossRepoDeadCodeScan struct {
@@ -119,7 +120,7 @@ func (h *CodeHandler) handleCrossRepoDeadCode(w http.ResponseWriter, r *http.Req
 		WriteError(w, http.StatusInternalServerError, err.Error())
 		return
 	}
-	evidence, consumerSignal, evidenceAvailable, err := h.crossRepoDeadCodeConsumerEvidence(
+	evidence, hiddenConsumers, evidenceAvailable, err := h.crossRepoDeadCodeConsumerEvidence(
 		r.Context(),
 		req.RepoID,
 		deadCodeResultEntityIDs(scan.Active),
@@ -132,10 +133,10 @@ func (h *CodeHandler) handleCrossRepoDeadCode(w http.ResponseWriter, r *http.Req
 
 	boundaryEvidence := h.crossRepoDeadCodeRepositoryBoundaryEvidence(r.Context(), req.RepoID)
 	buckets := h.bucketCrossRepoDeadCodeResults(r.Context(), req, scan, crossRepoDeadCodeConsumerEvidenceSet{
-		Evidence:  evidence,
-		Signal:    consumerSignal,
-		Boundary:  boundaryEvidence,
-		Available: evidenceAvailable,
+		Evidence:        evidence,
+		HiddenConsumers: hiddenConsumers,
+		Boundary:        boundaryEvidence,
+		Available:       evidenceAvailable,
 	})
 	WriteSuccess(w, r, http.StatusOK, map[string]any{
 		"repo_id":                        req.RepoID,
@@ -253,21 +254,25 @@ func (h *CodeHandler) scanCrossRepoDeadCodeCandidates(
 
 // crossRepoDeadCodeConsumerEvidenceSet is everything the bucketing pass needs
 // about consumers: the grant-bound evidence page per producer entity, the
-// ungranted signal read the hidden-consumer count is taken from, the
+// producer entities the ungranted-consumer probe flagged, the
 // repository-boundary fallback, and whether the content store answered at all.
 //
-// Signal carries every cross-repo consumer the producer's entities have,
-// granted or not, and it is only ever counted -- the request's own consumer
-// selector is applied to those rows first, then the ones outside the grant are
-// counted. Counting before the selector would let a consumer the caller did not
-// ask about override the evidence of one it did. A request that named a
-// selector gets an empty Signal, because that same filter would have emptied it
-// anyway and the read is skipped instead of paid for.
+// HiddenConsumers carries no consumer identity and no consumer count -- only
+// which producer entities have a consumer outside the caller's grant. A
+// flagged entity adds one to that entity's hidden count, which is what turns
+// its answer into unknown_needs_evidence with permission_hidden_consumer
+// instead of dead. The count is deliberately not a total: the route needs the
+// yes/no, and a total would cost the enumeration this probe exists to avoid.
+//
+// A request that named a consumer selector gets an empty set, because the probe
+// is not run for it. That is the structural half of the rule the selector needs:
+// a consumer the caller did not ask about must not override the evidence of one
+// it did, and the probe cannot report one if it never runs.
 type crossRepoDeadCodeConsumerEvidenceSet struct {
-	Evidence  map[string][]crossRepoDeadCodeEvidence
-	Signal    map[string][]crossRepoDeadCodeEvidence
-	Boundary  []crossRepoDeadCodeEvidence
-	Available bool
+	Evidence        map[string][]crossRepoDeadCodeEvidence
+	HiddenConsumers crossRepoDeadCodeHiddenConsumers
+	Boundary        []crossRepoDeadCodeEvidence
+	Available       bool
 }
 
 func (h *CodeHandler) crossRepoDeadCodeConsumerEvidence(
@@ -275,10 +280,10 @@ func (h *CodeHandler) crossRepoDeadCodeConsumerEvidence(
 	producerRepoID string,
 	entityIDs []string,
 	consumerRepoIDs []string,
-) (map[string][]crossRepoDeadCodeEvidence, map[string][]crossRepoDeadCodeEvidence, bool, error) {
+) (map[string][]crossRepoDeadCodeEvidence, crossRepoDeadCodeHiddenConsumers, bool, error) {
 	store, ok := h.Content.(crossRepoDeadCodeEvidenceStore)
 	if !ok {
-		return map[string][]crossRepoDeadCodeEvidence{}, map[string][]crossRepoDeadCodeEvidence{}, false, nil
+		return map[string][]crossRepoDeadCodeEvidence{}, crossRepoDeadCodeHiddenConsumers{}, false, nil
 	}
 	// The consumer side takes the caller's own grant, not the producer anchor:
 	// producerRepoID is already grant-resolved by the selector, but the
@@ -289,9 +294,9 @@ func (h *CodeHandler) crossRepoDeadCodeConsumerEvidence(
 		// an unbounded read is not the fallback. Reporting the evidence as
 		// unavailable keeps every candidate at unknown_needs_evidence instead
 		// of letting an unread consumer become "dead".
-		return map[string][]crossRepoDeadCodeEvidence{}, map[string][]crossRepoDeadCodeEvidence{}, false, nil
+		return map[string][]crossRepoDeadCodeEvidence{}, crossRepoDeadCodeHiddenConsumers{}, false, nil
 	}
-	evidence, signal, err := store.CrossRepoDeadCodeConsumerEvidence(
+	evidence, hidden, err := store.CrossRepoDeadCodeConsumerEvidence(
 		ctx,
 		producerRepoID,
 		entityIDs,
@@ -300,7 +305,7 @@ func (h *CodeHandler) crossRepoDeadCodeConsumerEvidence(
 	if err != nil {
 		return nil, nil, true, err
 	}
-	return evidence, signal, true, nil
+	return evidence, hidden, true, nil
 }
 
 func (h *CodeHandler) bucketCrossRepoDeadCodeResults(
@@ -321,14 +326,16 @@ func (h *CodeHandler) bucketCrossRepoDeadCodeResults(
 		entityID := StringVal(result, "entity_id")
 		row := cloneCrossRepoDeadCodeResult(result)
 		visible, hidden := filterCrossRepoDeadCodeEvidence(consumers.Evidence[entityID], allowedConsumers, access)
-		// The signal read is not grant-bound, so the same filter runs over it:
-		// the request's consumer selector drops the consumers this answer was
-		// never asked about, and only what is left outside the grant counts as
-		// hidden. Counting the raw signal rows instead would let an unrelated
-		// consumer the caller excluded turn a symbol that a requested consumer
-		// proves live into unknown_needs_evidence.
-		_, unseen := filterCrossRepoDeadCodeEvidence(consumers.Signal[entityID], allowedConsumers, access)
-		hiddenCount := len(hidden) + len(unseen)
+		// The probe already applied the grant in SQL and reports no consumer
+		// identity, so an entity it flagged adds exactly one to the hidden
+		// count. It runs only for a request that named no consumer selector, so
+		// a consumer the caller excluded can never be what raises this count
+		// and turn a symbol a requested consumer proves live into
+		// unknown_needs_evidence.
+		hiddenCount := len(hidden)
+		if consumers.HiddenConsumers.has(entityID) {
+			hiddenCount++
+		}
 		if len(visible) == 0 && hiddenCount == 0 {
 			boundaryVisible, boundaryHidden := filterCrossRepoDeadCodeEvidence(consumers.Boundary, allowedConsumers, access)
 			visible = append(visible, boundaryVisible...)

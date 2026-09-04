@@ -402,6 +402,9 @@ type crossRepoDeadCodeContentStore struct {
 	fakeDeadCodeContentStore
 	rows             []map[string]any
 	evidenceByEntity map[string][]crossRepoDeadCodeEvidence
+	// hiddenConsumers stands in for the ungranted-consumer probe's answer: the
+	// producer entities that have a consumer outside the caller's grant.
+	hiddenConsumers []string
 }
 
 func (s *crossRepoDeadCodeContentStore) DeadCodeCandidateRows(
@@ -427,12 +430,16 @@ func (s *crossRepoDeadCodeContentStore) CrossRepoDeadCodeConsumerEvidence(
 	_ string,
 	entityIDs []string,
 	_ crossRepoDeadCodeConsumerReads,
-) (map[string][]crossRepoDeadCodeEvidence, map[string][]crossRepoDeadCodeEvidence, error) {
+) (map[string][]crossRepoDeadCodeEvidence, crossRepoDeadCodeHiddenConsumers, error) {
 	result := make(map[string][]crossRepoDeadCodeEvidence)
 	for _, entityID := range entityIDs {
 		result[entityID] = append([]crossRepoDeadCodeEvidence(nil), s.evidenceByEntity[entityID]...)
 	}
-	return result, map[string][]crossRepoDeadCodeEvidence{}, nil
+	hidden := crossRepoDeadCodeHiddenConsumers{}
+	for _, entityID := range s.hiddenConsumers {
+		hidden[entityID] = struct{}{}
+	}
+	return result, hidden, nil
 }
 
 func assertCrossRepoDeadCodeBucketEntity(

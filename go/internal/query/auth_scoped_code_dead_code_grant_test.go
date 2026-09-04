@@ -340,9 +340,9 @@ const codeGrantConsumerRepo = "repo://tenant-a/consumer-service"
 // /api/v0/code/dead-code/cross-repo makes: the producer candidate scan and the
 // consumer-evidence lookup. The evidence half mirrors both statements the
 // shipped reader runs -- the grant-bound page, which excludes the consumers the
-// caller may not see, and the ungranted signal read, which returns every
-// cross-repo consumer -- so a handler that stops passing the grant gets the
-// other tenant's consumer back in the page.
+// caller may not see, and the ungranted-consumer probe, which reports the
+// producer entities that have one -- so a handler that stops passing the grant
+// gets the other tenant's consumer back in the page.
 type crossRepoDeadCodeGrantStore struct {
 	deadCodeGrantContentStore
 	boundConsumerGrant []string
@@ -354,19 +354,21 @@ func (s *crossRepoDeadCodeGrantStore) CrossRepoDeadCodeConsumerEvidence(
 	producerRepoID string,
 	entityIDs []string,
 	reads crossRepoDeadCodeConsumerReads,
-) (map[string][]crossRepoDeadCodeEvidence, map[string][]crossRepoDeadCodeEvidence, error) {
+) (map[string][]crossRepoDeadCodeEvidence, crossRepoDeadCodeHiddenConsumers, error) {
 	s.boundConsumerGrant = append([]string(nil), reads.PageRepositoryIDs...)
-	s.signalRead = reads.Signal
+	s.signalRead = len(reads.SignalGrant) > 0
 	evidence := make(map[string][]crossRepoDeadCodeEvidence, len(entityIDs))
-	signal := make(map[string][]crossRepoDeadCodeEvidence, len(entityIDs))
+	hidden := crossRepoDeadCodeHiddenConsumers{}
 	for _, entityID := range entityIDs {
 		for _, consumerRepoID := range []string{codeGrantConsumerRepo, codeGrantOtherRepo} {
 			if consumerRepoID == producerRepoID {
 				continue
 			}
 			row := crossRepoDeadCodeGrantConsumerRow(consumerRepoID, entityID)
-			if reads.Signal {
-				signal[entityID] = append(signal[entityID], row)
+			// The probe answers over the complement of reads.SignalGrant, so a
+			// consumer inside it is not hidden however the page was bound.
+			if len(reads.SignalGrant) > 0 && !slices.Contains(reads.SignalGrant, consumerRepoID) {
+				hidden[entityID] = struct{}{}
 			}
 			if len(reads.PageRepositoryIDs) > 0 && !slices.Contains(reads.PageRepositoryIDs, consumerRepoID) {
 				continue
@@ -374,7 +376,7 @@ func (s *crossRepoDeadCodeGrantStore) CrossRepoDeadCodeConsumerEvidence(
 			evidence[entityID] = append(evidence[entityID], row)
 		}
 	}
-	return evidence, signal, nil
+	return evidence, hidden, nil
 }
 
 func crossRepoDeadCodeGrantConsumerRow(consumerRepoID string, entityID string) crossRepoDeadCodeEvidence {
@@ -440,8 +442,14 @@ func TestCrossRepoDeadCodeConsumerEvidenceIsGrantBound(t *testing.T) {
 
 // TestCrossRepoDeadCodeKeepsTheHiddenConsumerSignal is the other half. Filtering
 // the ungranted consumers out in SQL must not turn a symbol that has one into
-// dead code: the reader reports how many it excluded, and the handler still
+// dead code: the probe reports that the entity has one, and the handler still
 // answers unknown_needs_evidence with permission_hidden_consumer.
+//
+// The count is one per producer entity, not one per hidden consumer row. The
+// probe stops at the first ungranted consumer rather than enumerating them, and
+// the classification only ever depended on whether there was one. The number it
+// replaced was never a total either: the read it came from was capped at 1,001
+// rows across the whole page.
 func TestCrossRepoDeadCodeKeepsTheHiddenConsumerSignal(t *testing.T) {
 	t.Parallel()
 
@@ -459,8 +467,8 @@ func TestCrossRepoDeadCodeKeepsTheHiddenConsumerSignal(t *testing.T) {
 	if !strings.Contains(body, "permission_hidden_consumer") {
 		t.Fatalf("a candidate whose only consumer is out of grant must stay unknown_needs_evidence: %s", body)
 	}
-	if !strings.Contains(body, `"hidden_consumer_evidence_count":2`) {
-		t.Fatalf("hidden consumer count is missing from the answer; both consumers are outside this grant: %s", body)
+	if !strings.Contains(body, `"hidden_consumer_evidence_count":1`) {
+		t.Fatalf("hidden consumer count is missing from the answer; this entity's consumers are outside this grant: %s", body)
 	}
 	if strings.Contains(body, `"classification":"dead"`) {
 		t.Fatalf("a symbol with an out-of-grant consumer was marked dead: %s", body)
@@ -485,19 +493,22 @@ func TestCrossRepoDeadCodeConsumerEvidenceBindsTheGrantInTheShippedSQL(t *testin
 			context.Background(),
 			codeGrantGrantedRepo,
 			[]string{"entity-1"},
-			crossRepoDeadCodeConsumerReads{PageRepositoryIDs: []string{codeGrantConsumerRepo}, Signal: true},
+			crossRepoDeadCodeConsumerReads{
+				PageRepositoryIDs: []string{codeGrantConsumerRepo},
+				SignalGrant:       []string{codeGrantConsumerRepo},
+			},
 		); err != nil {
 			t.Fatalf("CrossRepoDeadCodeConsumerEvidence() error = %v, want nil", err)
 		}
 		if len(recorder.queries) != 2 {
-			t.Fatalf("query count = %d, want 2 (grant-bound evidence page plus ungranted signal read)", len(recorder.queries))
+			t.Fatalf("query count = %d, want 2 (grant-bound evidence page plus ungranted-consumer probe)", len(recorder.queries))
 		}
 		want := "AND row.repository_id = ANY($3)"
 		if !strings.Contains(recorder.queries[0], want) {
 			t.Fatalf("consumer-evidence SQL is missing %q, so the LIMIT is still drawn from every tenant's rows:\n%s", want, recorder.queries[0])
 		}
-		if strings.Contains(recorder.queries[1], "ANY(") {
-			t.Fatalf("the signal read must carry no grant clause; it is what reports a consumer the caller cannot see:\n%s", recorder.queries[1])
+		if recorder.queries[1] != crossRepoDeadCodeUngrantedConsumerProbeQuery {
+			t.Fatalf("second statement is not the ungranted-consumer probe:\n%s", recorder.queries[1])
 		}
 		bound := fmt.Sprintf("%s", recorder.args[0][2])
 		if !strings.Contains(bound, codeGrantConsumerRepo) {
@@ -521,7 +532,7 @@ func TestCrossRepoDeadCodeConsumerEvidenceBindsTheGrantInTheShippedSQL(t *testin
 			t.Fatalf("CrossRepoDeadCodeConsumerEvidence() error = %v, want nil", err)
 		}
 		if len(recorder.queries) != 1 {
-			t.Fatalf("query count = %d, want 1 -- an unscoped caller must not pay for the signal read", len(recorder.queries))
+			t.Fatalf("query count = %d, want 1 -- an unscoped caller must not pay for the probe", len(recorder.queries))
 		}
 		if strings.Contains(recorder.queries[0], "ANY(") {
 			t.Fatalf("unscoped consumer-evidence SQL gained a grant clause:\n%s", recorder.queries[0])

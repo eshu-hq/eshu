@@ -1,0 +1,64 @@
+-- Let the cross-repo dead-code route ask "does this producer entity have an
+-- active consumer outside the caller's grant?" as a seek instead of a group
+-- scan (#5167).
+--
+-- POST /api/v0/code/dead-code/cross-repo runs two consumer reads for a scoped
+-- caller that names no consumers. The evidence page is bound to the grant and
+-- has to rank a producer entity's consumers by confidence, so it reads the
+-- group; that cost is inherent to what the page returns. The second read is
+-- not: it only has to answer whether ONE out-of-grant consumer exists, and it
+-- used to answer that by re-running the page statement with no grant bound.
+-- Ordering by (entity_id, confidence DESC, ...) makes an Incremental Sort
+-- consume a producer entity's whole fan-in group before it can emit a row, so
+-- an entity with a million consumer rows cost a million-row scan per request.
+--
+-- code_reachability_entity_lookup_idx leads with entity_id but carries state
+-- and confidence next, not repository_id, so a consumer-repository predicate
+-- can only be a heap filter under it. With this index the probe expresses the
+-- out-of-grant test as repository_id ranges around the sorted grant -- below
+-- the first granted id, between consecutive ones, above the last -- and each
+-- range is an Index Cond that stops at its first row.
+--
+-- Measured in a throwaway PostgreSQL 16.15 container, data-plane schema
+-- applied from schema/data-plane/postgres (001, 002, 027), synthetic rows
+-- only, VACUUM ANALYZE after seeding, SET jit = off, warm run reported.
+-- 2,201,196 code_reachability_rows; one active scope and generation; a
+-- 250-entity producer page whose middle entity carries 1,000,000
+-- active-generation consumer rows across five consumer repositories:
+--
+--   shipped unrestricted signal read     757.6 / 756.9 / 779.5 ms
+--     (generic plan)                     950.2 / 951.3 / 1021.2 ms
+--     1,000,497 rows under the driving Index Scan, 27,575 buffers
+--   bounded probe, every consumer granted   6.45 / 6.45 / 6.48 ms
+--     (generic plan)                         6.32 / 6.42 / 6.81 ms
+--     0 rows from the hot group, 7,628 buffers
+--   bounded probe, an out-of-grant consumer 4.57 / 4.63 ms
+--
+-- The index alone is not the fix. With this index in place but the predicate
+-- left as NOT (repository_id = ANY(grant)), the planner takes a Parallel Seq
+-- Scan and removes 733,732 rows by filter in 105 ms; the range shape is what
+-- turns it into a seek. The lateral form matters for the same reason: written
+-- as a plain correlated EXISTS over the gap list, the range drops out of the
+-- Index Cond under a generic plan and the probe costs 1,399 ms -- worse than
+-- the read it replaces. Both shapes are recorded in
+-- docs/internal/evidence/5167-code-family-batch-1.md.
+--
+-- 16 MB against a 139 MB code_reachability_entity_lookup_idx and a 1,154 MB
+-- table on that seed: both key columns repeat heavily within an entity, so
+-- btree deduplication compresses this index far better than the existing ones.
+-- depth is deliberately absent. It is a range predicate, so nothing after it
+-- in the key could be used as an Index Cond anyway, and depth = 0 rows are the
+-- root's own row -- at most one per consumer repository per entity, which the
+-- filter discards without a measurable scan.
+--
+-- CONCURRENTLY, so building it does not block the reducer's reachability
+-- writes. The usual objection -- that a failed concurrent build leaves an
+-- INVALID index that IF NOT EXISTS then skips forever -- does not apply: the
+-- schema apply path drops invalid concurrent indexes by name before executing
+-- each definition (SQLDB.dropInvalidConcurrentIndexes, db.go) and runs each
+-- statement outside any transaction on a dedicated bootstrap connection, which
+-- CONCURRENTLY requires. That is also why it cannot join
+-- 027_code_reachability.sql: that definition is multi-statement, and a
+-- multi-statement Exec is sent as an implicit transaction.
+CREATE INDEX CONCURRENTLY IF NOT EXISTS code_reachability_entity_repository_idx
+    ON code_reachability_rows (entity_id, repository_id);
