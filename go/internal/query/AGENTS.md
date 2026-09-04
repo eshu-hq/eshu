@@ -233,11 +233,11 @@
   candidates `ambiguous` until #336 records corpus precision evidence; a missing incoming graph edge alone never promotes them to `cleanup_ready`.
 
 - **The cross-repo hidden-consumer read is a bounded walk** —
-  `crossRepoDeadCodeUngrantedConsumerProbeQuery` walks a producer entity's
-  distinct (repository, scope) pairs on migration 101's index, seeks each pair's
-  active row by full key equality, stops at the first hidden one, and returns
-  producer entity ids only. Fan-in, grant size and retained generations are all
-  off its cost; the reasons sit at the constant, measured in [#5167 batch 1](../../../docs/internal/evidence/5167-code-family-batch-1.md).
+  `crossRepoDeadCodeUngrantedConsumerProbeQuery` steps to the next REPOSITORY
+  from a granted one and to the next (repository, scope) PAIR from an ungranted
+  one, on migration 101's index, seeks each pair's active row by full key
+  equality, stops at the first hidden one, and returns producer entity ids only.
+  Fan-in, grant size, retained generations and scopes per granted repository are all off its cost; measured in [#5167 batch 1](../../../docs/internal/evidence/5167-code-family-batch-1.md).
 
 - **A granted consumer outranks a hidden one on every dead-code route** — a
   strong granted edge or consumer settles a candidate reachable/live; a hidden

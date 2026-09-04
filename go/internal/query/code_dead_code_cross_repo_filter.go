@@ -168,36 +168,50 @@ func crossRepoDeadCodeUnknownReasons(
 //
 // The shape is a loose index scan -- a skip scan -- over
 // code_reachability_entity_repository_scope_generation_idx (migration 101), one
-// walk per producer entity. Each step seeks the entity's next distinct
-// (repository_id, scope_id) PAIR and stops as soon as one of them is both
-// outside the grant and live. So a walk visits each pair at most once and never
-// looks at a second row of any pair, however many rows that pair has.
+// walk per producer entity, and it steps on two different keys depending on
+// what it just found. From a GRANTED repository it seeks the entity's next
+// repository outright (repository_id > the current one), because no scope of a
+// granted repository can ever be hidden and reading them would be work spent on
+// an answer already known. From an UNGRANTED one it seeks the next
+// (repository_id, scope_id) PAIR, because that repository's remaining scopes
+// are exactly where a hidden consumer could still be. Either way it stops as
+// soon as a pair is both outside the grant and live.
 //
-// Pairs, not repositories, because "is this consumer live" means "does a row
-// exist under the active generation of the scope that wrote it", and only the
-// scope carries which generation that is. A repository ingested by two scopes
-// has two, and a walk keyed on the repository alone would test one and miss the
-// other.
+// Pairs at all, rather than repositories throughout, because "is this consumer
+// live" means "does a row exist under the active generation of the scope that
+// wrote it", and only the scope carries which generation that is. A repository
+// ingested by two scopes has two active generations, and a walk keyed on the
+// repository alone would test one and miss the other.
 //
-// Cost per entity is two index seeks per distinct pair the grant contains, plus
-// one -- at most min(d, N) + 1 steps, where d is the entity's distinct consumer
-// pairs and N the grant size, because the walk cannot pass more granted
-// repositories than either number allows. It does not grow with the entity's
-// row fan-in, it does not grow with N alone, and -- this is what migration 101
-// bought over migration 100 -- it does not grow with how many superseded
-// generations the retention runner is still keeping. Measured in
-// [#5167 batch 1]: 5.13/8.14/9.78 ms and 3,270/3,268/3,263 buffers at 0, 20 and
-// 200 retained generations, against 22.3/89.2/630.4 ms and
-// 39,403/154,603/1,150,489 buffers for the shape that scanned the group.
+// Cost per entity: at most min(d, N) + 1 steps over distinct consumer
+// REPOSITORIES, where d is the entity's distinct consumer repositories and N
+// the grant size, because the walk cannot pass more granted repositories than
+// either number allows -- plus one further step per additional scope of an
+// ungranted repository it reaches before it stops. A repository the caller can
+// see costs one step however many ingestion scopes cover it, which is the
+// difference from the pair-stepping shape this replaces: there, fifty scopes on
+// one granted repository cost fifty steps and put the walk outside its own
+// bound. Nothing in the cost grows with the entity's row fan-in, with N alone,
+// or -- this is what migration 101 bought over the two-column index it
+// supersedes -- with how many superseded generations the retention runner is
+// still keeping. Measured in [#5167 batch 1]: 5.13/8.14/9.78 ms and
+// 3,270/3,268/3,263 buffers at 0, 20 and 200 retained generations, against
+// 22.3/89.2/630.4 ms and 39,403/154,603/1,150,489 buffers for the shape that
+// scanned the group.
 //
 // [#5167 batch 1]: ../../../docs/internal/evidence/5167-code-family-batch-1.md
 //
-// Four details are load-bearing:
+// Five details are load-bearing:
 //
-//   - the pair lookup is ORDER BY row.repository_id, row.scope_id LIMIT 1
+//   - each step's lookup is ORDER BY row.repository_id, row.scope_id LIMIT 1
 //     against an index that already returns that order under an entity_id
 //     equality, so the ordering is free and the LIMIT stops the scan at its
 //     first row. It is not a rank: nothing sorts a group.
+//   - the two seeks are separate UNION ALL branches gated on walk.is_granted,
+//     not one seek with a CASE bound. A CASE cannot become an index condition,
+//     so a bound built that way would leave each step scanning; two branches
+//     each keep a plain index condition, and the branch whose gate is false
+//     returns nothing, so a step still performs one seek.
 //   - the liveness test is a full equality -- entity, repository, scope, and
 //     the generation ingestion_scopes says is active for that scope -- so it
 //     seeks the active row instead of scanning the pair's rows for it. Written
@@ -226,11 +240,11 @@ WITH RECURSIVE page AS (
 ), granted AS (
   SELECT DISTINCT id AS repository_id FROM unnest($3::text[]) AS id
 ), walk AS (
-  SELECT page.entity_id, seed.repository_id, seed.scope_id, seed.hidden
+  SELECT page.entity_id, seed.repository_id, seed.scope_id, seed.is_granted, seed.hidden
   FROM page
   CROSS JOIN LATERAL (
-    SELECT pair.repository_id, pair.scope_id,
-           NOT EXISTS (SELECT 1 FROM granted WHERE granted.repository_id = pair.repository_id)
+    SELECT pair.repository_id, pair.scope_id, pair.is_granted,
+           NOT pair.is_granted
            AND EXISTS (
              SELECT 1
              FROM ingestion_scopes AS scope
@@ -245,18 +259,23 @@ WITH RECURSIVE page AS (
               AND live_row.depth > 0
              WHERE scope.scope_id = pair.scope_id) AS hidden
     FROM (
-      SELECT row.repository_id, row.scope_id
-      FROM code_reachability_rows AS row
-      WHERE row.entity_id = page.entity_id
-        AND row.repository_id <> $1
-      ORDER BY row.repository_id, row.scope_id
-      LIMIT 1) AS pair) AS seed
+      SELECT first_pair.repository_id, first_pair.scope_id,
+             EXISTS (
+               SELECT 1 FROM granted
+               WHERE granted.repository_id = first_pair.repository_id) AS is_granted
+      FROM (
+        SELECT row.repository_id, row.scope_id
+        FROM code_reachability_rows AS row
+        WHERE row.entity_id = page.entity_id
+          AND row.repository_id <> $1
+        ORDER BY row.repository_id, row.scope_id
+        LIMIT 1) AS first_pair) AS pair) AS seed
   UNION ALL
-  SELECT walk.entity_id, step.repository_id, step.scope_id, step.hidden
+  SELECT walk.entity_id, step.repository_id, step.scope_id, step.is_granted, step.hidden
   FROM walk
   CROSS JOIN LATERAL (
-    SELECT pair.repository_id, pair.scope_id,
-           NOT EXISTS (SELECT 1 FROM granted WHERE granted.repository_id = pair.repository_id)
+    SELECT pair.repository_id, pair.scope_id, pair.is_granted,
+           NOT pair.is_granted
            AND EXISTS (
              SELECT 1
              FROM ingestion_scopes AS scope
@@ -271,13 +290,29 @@ WITH RECURSIVE page AS (
               AND live_row.depth > 0
              WHERE scope.scope_id = pair.scope_id) AS hidden
     FROM (
-      SELECT row.repository_id, row.scope_id
-      FROM code_reachability_rows AS row
-      WHERE row.entity_id = walk.entity_id
-        AND row.repository_id <> $1
-        AND (row.repository_id, row.scope_id) > (walk.repository_id, walk.scope_id)
-      ORDER BY row.repository_id, row.scope_id
-      LIMIT 1) AS pair) AS step
+      SELECT next_pair.repository_id, next_pair.scope_id,
+             EXISTS (
+               SELECT 1 FROM granted
+               WHERE granted.repository_id = next_pair.repository_id) AS is_granted
+      FROM (
+        (SELECT row.repository_id, row.scope_id
+         FROM code_reachability_rows AS row
+         WHERE row.entity_id = walk.entity_id
+           AND row.repository_id <> $1
+           AND walk.is_granted
+           AND row.repository_id > walk.repository_id
+         ORDER BY row.repository_id, row.scope_id
+         LIMIT 1)
+        UNION ALL
+        (SELECT row.repository_id, row.scope_id
+         FROM code_reachability_rows AS row
+         WHERE row.entity_id = walk.entity_id
+           AND row.repository_id <> $1
+           AND NOT walk.is_granted
+           AND (row.repository_id, row.scope_id) > (walk.repository_id, walk.scope_id)
+         ORDER BY row.repository_id, row.scope_id
+         LIMIT 1)
+        LIMIT 1) AS next_pair) AS pair) AS step
   WHERE NOT walk.hidden
 )
 SELECT DISTINCT walk.entity_id

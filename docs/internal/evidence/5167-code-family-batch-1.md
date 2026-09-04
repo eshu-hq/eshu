@@ -452,7 +452,7 @@ repository outside the grant? It expressed "outside the grant" as
 `repository_id` ranges around the sorted grant — below the smallest granted id,
 between two consecutive ones, above the largest — so
 `code_reachability_entity_repository_idx` (migration
-`100_code_reachability_entity_repository_idx.sql`) could seek to each range and
+the two-column `code_reachability_entity_repository_idx`) could seek to each range and
 stop at its first row. That is a seek per range instead of a scan of the group,
 and against a five-repository grant it measured two orders of magnitude better
 than the read it replaced. It is also where the grant became the cost: one seek
@@ -623,7 +623,7 @@ retention. 883,750 rows, 1,316 generations, 516 scopes, table 161 MB.
 
 | Retained generations | 0 | 20 | 200 |
 | --- | ---: | ---: | ---: |
-| Migration 100's walk, every consumer granted | 22.3 / 20.0 / 20.3 ms | 89.2 / 86.9 / 87.7 ms | 630.4 / 630.9 / 629.0 ms |
+| The two-column index's walk, every consumer granted | 22.3 / 20.0 / 20.3 ms | 89.2 / 86.9 / 87.7 ms | 630.4 / 630.9 / 629.0 ms |
 | — shared buffers | hit=39,403 | hit=154,603 | hit=1,150,489 |
 | Shipped walk, every consumer granted | 5.13 / 4.72 / 4.70 ms | 8.14 / 7.90 / 7.34 ms | 9.78 / 8.98 / 8.87 ms |
 | — shared buffers | hit=3,270 | hit=3,268 | hit=3,263 |
@@ -649,7 +649,7 @@ is free to reorder them, and on this seed it did: it drove the whole walk from
 `ingestion_scopes`/`scope_generations` and probed
 `code_reachability_rows_pkey` once per scope — 64,500 probes for the seed term
 alone, 266.5 / 263.9 / 264.9 ms and `hit=292,615` at 0 retained generations,
-where migration 100's own seed reported 4.9 ms. The documented loose index scan
+where the two-column index's own seed reported 4.9 ms. The documented loose index scan
 was not the plan Postgres chose as soon as the seed had more than one scope.
 
 The liveness seek sits behind the grant test rather than beside it
@@ -675,12 +675,153 @@ grant. The shipped differential still runs its ten named shapes, now with
 
 The cost is index size and it is stated rather than waved at. Migration 101's
 `code_reachability_entity_repository_scope_generation_idx` is 79 MB against
-migration 100's 7,520 kB and a 161 MB table on the retention-representative
+the two-column index's 7,520 kB and a 161 MB table on the retention-representative
 seed, and 16 MB against 17 MB on the single-generation one, because btree
 deduplication collapses a suffix that never varies. Migration 102 drops
-migration 100's index: its key is a strict prefix of 101's, so no read needs it
+the two-column index: its key is a strict prefix of 101's, so no read needs it
 and keeping it would make every reachability write maintain a second btree. The
 reducer therefore maintains one index either way.
+
+#### Scopes Per Granted Repository Are An Axis Too
+
+The pair walk fixed the retention axis and opened a new one, which Codex found
+by reading the statement rather than a plan. It steps over
+`(repository_id, scope_id)` PAIRS but tests membership with
+`granted.repository_id = pair.repository_id`, so a granted repository covered by
+many ingestion scopes costs one step per scope. The walk then passes more
+granted PAIRS than the grant has repositories, and the `min(d, N) + 1` bound in
+its own contract is not a bound on it. The seeds above could not show it: every
+one of them gives a repository exactly one scope.
+
+Every skipped pair is granted, and `hidden` requires ungranted, so no answer
+changes either way. Only a work measurement can see this, which is why the guard
+that ships counts rows rather than checking verdicts.
+
+The step now depends on what it just found. The recursive term carries
+`is_granted`, and picks between two `UNION ALL` seek branches gated on it:
+`repository_id >` the current one from a granted pair, the
+`(repository_id, scope_id)` row comparison from an ungranted one, because an
+ungranted repository's remaining scopes are exactly where a hidden consumer
+could still be. Two branches rather than one seek with a `CASE` bound, because a
+`CASE` cannot become an index condition and a bound built that way would leave
+every step scanning. Postgres gates each branch with
+`Result (One-Time Filter: walk.is_granted)` and reports the other `never
+executed`, so a step still performs ONE seek, and both branches keep their
+`Index Cond` on `code_reachability_entity_repository_scope_generation_idx` with
+`Heap Fetches: 0`.
+
+Performance Evidence: throwaway PostgreSQL 16.15 container, data-plane schema
+from migrations 001/002/027 plus 101, `SET jit = off`, `VACUUM ANALYZE`,
+`PREPARE`/`EXECUTE`, warm, three samples. The seed is the retention seed above
+extended with a scopes axis: two 125-entity pages differing ONLY in how many
+ingestion scopes cover their single granted consumer repository — one scope for
+`ent-sfo1-*`, fifty for `ent-sfo50-*` — each with the same ungranted live
+consumer sorting after it, so both pages return the same answer and only the
+step count differs. 815,625 rows, 1,168 generations, 68 scopes, heap 148 MB,
+walk index 110 MB.
+
+| Scopes on the granted repository | 1 | 50 |
+| --- | ---: | ---: |
+| Pair-stepping walk, recursive rows | 250 | 6,375 |
+| — shared buffers | hit=2,255 | hit=26,788 |
+| — custom plan | 2.61 / 3.31 / 4.10 ms | 60.98 / 184.60 / 59.69 ms |
+| — forced generic | 29.53 / 1.92 / 1.96 ms | 60.70 / 332.75 / 430.40 ms |
+| Shipped walk, recursive rows | 250 | 250 |
+| — shared buffers | hit=2,255 | hit=2,255 |
+| — custom plan | 2.66 / 2.18 / 2.17 ms | 2.46 / 2.21 / 2.18 ms |
+| — forced generic | 2.19 / 3.00 / 2.04 ms | 6.07 / 2.16 / 2.37 ms |
+
+The row counts are the claim and they are exact rather than approximate: 6,375
+is 125 entities times 51 steps — the granted repository's fifty scopes plus the
+hidden consumer — and 250 is 125 times 2. Buffers follow them, 26,788 against
+2,255. At one scope the two shapes are indistinguishable, which is the point:
+this removes a cost that only appears when a repository has more than one scope,
+and adds none where it does not. The 29.53 ms and the 184.60 / 332.75 / 430.40
+ms samples are first-run and cold; the later samples in each row are the warm
+ones, and both are reported rather than the flattering one.
+
+No-Regression Evidence: on the retention seed, 125-entity page, custom plan,
+grants `{a,c,e,g,i}` and `{a,c,g,i}` — the pair-stepping shape and this one
+produce identical recursive-row counts (625 all-granted, 375 with a hidden
+consumer) and identical buffers at every point measured: `hit=3,002` and
+`hit=2,752` at 0 retained generations, `hit=3,064` and `hit=2,783` at 200. Warm
+times agree within noise (200 retained, all granted: 8.75 / 8.96 ms against
+8.59 / 8.92 ms). One earlier sample read `hit=2,487` for the pair-stepping shape
+on that page and did not reproduce on a repeat run of the same pair; the
+repeated measurement is the one reported.
+
+Exactness: symmetric difference `0/0` against the
+`NOT (repository_id = ANY($grant))` reference across thirteen shapes on this
+container — both scope-axis pages against five grants each (both granted, all
+three granted, either one alone, and a grant naming none of them), and the three
+retention pages against their own grant. The shipped differential adds three
+fixtures of its own: `ent-scopes-granted`, whose granted consumer repository
+carries fifty scopes and whose hidden consumer sits past it, under a walk-row
+budget; `ent-scopes-ungranted`, whose ungranted repository has fifty scopes with
+only superseded rows and a fifty-first that is live, so the walk must reach the
+last scope of a repository it cannot see; and `ent-scopes-ungranted-stale`, with
+nothing live in any scope. A plan assertion requires the granted skip to reach
+an index condition rather than a filter, in both plan modes.
+
+#### The Migrations Replay On Every Bootstrap
+
+Codex raised a P1 on the shape the two index migrations shipped in, and it is
+right. `migrations/` has no applied-migration ledger. `BootstrapDefinitions`
+reads `//go:embed migrations/*.sql`, builds one definition per file and sorts
+them by path; `ApplyDefinitions` Execs every one of them, unconditionally, and
+consults no database (`go/internal/storage/postgres/schema.go`).
+`TestApplyBootstrapExecutesDefinitionsInOrder` already pins exactly that. Every
+start of `bootstrap-data-plane`, `bootstrap-index` or the local supervisor
+therefore replays the entire directory.
+
+So a create paired with a later drop is not a one-time upgrade cost. Migration
+102 clears `code_reachability_entity_repository_idx`, which means the next
+bootstrap's `CREATE INDEX CONCURRENTLY IF NOT EXISTS` no longer skips: it builds
+the index again, concurrently, over a populated `code_reachability_rows`, and
+102 drops it again. Every startup, forever.
+
+The fix is to delete the create rather than reorder it: there is no migration
+100 any more, migration 101 builds the four-column index and migration 102 drops
+the two-column one. A fresh install builds one index and drops nothing; an
+install that already applied the released migration 100 builds the four-column
+index once and drops the two-column one once; every bootstrap after that issues
+neither. That is the shape this directory already uses —
+`059_relationship_family_candidate_index.sql` creates the replacement under a
+new name and `068_drop_relationship_family_candidate_index_legacy.sql` drops the
+legacy one, and 068's own comment states the rule ("on every subsequent boot
+... `DROP INDEX CONCURRENTLY IF EXISTS` is a no-op, so this adds no per-boot
+churn"). Editing migration 100 in place was rejected: its filename and its
+derived definition name would then name an index the file does not create, and
+the drop would have to run ahead of the create, leaving a window with neither
+index while the concurrent build runs.
+
+Proof is two tests rather than an argument.
+`TestCodeReachabilityIndexMigrationsReapplyWithoutRebuildLive`
+(`go/internal/storage/postgres/code_reachability_index_replay_live_test.go`,
+`integration` tag) seeds a populated store, builds the released two-column index
+on it so the fixture stands where those installs stand, runs the shipped index
+definitions once to converge it, and then runs them again through a recorder
+that reads every index on `code_reachability_rows` and its `relfilenode` before
+and after each statement. The second pass must build nothing, drop nothing and
+change no `relfilenode` — asserted per statement, so a definition whose effect
+the next definition undoes fails even though the state either side of the whole
+pass is identical.
+`TestBootstrapDefinitionsDoNotRebuildIndexesOnEveryReplay`
+(`go/internal/storage/postgres/schema_index_replay_test.go`) is the hermetic
+half and generalises it: no bootstrap definition may create an index name any
+definition drops.
+
+That second test found one more, outside this change and pre-existing on `main`.
+Migrations 069 and 077 both `CREATE INDEX CONCURRENTLY IF NOT EXISTS
+fact_records_identity_epoch_idx` — the same name, different predicates — and 076
+drops that name between them, so every bootstrap of every install drops and
+rebuilds a `fact_records` index. Deleting a file cannot fix it, because the
+replacement reuses the name and an install holding 069's definition is
+indistinguishable from one holding 077's; converging them needs the replacement
+renamed, which changes an index the container-image identity path is measured
+against. It is recorded as the single explicit exception in that test rather
+than silently allowed, so a second offender still fails and removing this one
+fails until the exception goes with it.
 
 The evidence page is unchanged and still reads that group: it has to rank a
 producer entity's consumers by confidence to return the strongest, so its cost

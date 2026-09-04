@@ -84,22 +84,37 @@ func TestCrossRepoDeadCodeSignalReadIsTheBoundedUngrantedProbe(t *testing.T) {
 	// The whole point of the probe is that it stops early, and it stops early
 	// because it walks one producer entity's DISTINCT consumer repositories in
 	// index order and quits at the first one the grant does not contain. Each
-	// piece of that is pinned: the recursive walk, the per-step seek strictly
-	// past the last repository, the one-row limits that keep each seek a seek,
-	// and the continue-condition that ends the walk.
+	// piece of that is pinned: the recursive walk, the two per-step seeks and
+	// the gate that picks between them, the one-row limits that keep each seek
+	// a seek, and the continue-condition that ends the walk.
 	for _, want := range []string{
 		"WITH RECURSIVE page AS (",
 		"AND (row.repository_id, row.scope_id) > (walk.repository_id, walk.scope_id)",
-		"ORDER BY row.repository_id, row.scope_id\n      LIMIT 1) AS pair) AS seed",
-		"NOT EXISTS (SELECT 1 FROM granted WHERE granted.repository_id = pair.repository_id)",
+		"ORDER BY row.repository_id, row.scope_id\n        LIMIT 1) AS first_pair) AS pair) AS seed",
+		"WHERE granted.repository_id = first_pair.repository_id) AS is_granted",
+		"WHERE granted.repository_id = next_pair.repository_id) AS is_granted",
+		"NOT pair.is_granted",
 		"WHERE NOT walk.hidden",
 	} {
 		if !strings.Contains(probe, want) {
 			t.Fatalf("probe is missing %q, so it can no longer stop at the first ungranted row:\n%s", want, probe)
 		}
 	}
-	if got, want := strings.Count(probe, "ORDER BY row.repository_id, row.scope_id"), 2; got != want {
-		t.Fatalf("probe has %d ordered seeks, want %d (the walk's seed and its step)", got, want)
+	// A granted repository costs ONE step however many ingestion scopes cover
+	// it, and that is only true while the step from a granted pair seeks the
+	// next REPOSITORY rather than the next pair. Both gated branches are
+	// pinned: without them a repository with fifty scopes costs fifty steps and
+	// the walk leaves its own min(d, N) + 1 bound, with every answer unchanged.
+	for _, want := range []string{
+		"AND walk.is_granted\n           AND row.repository_id > walk.repository_id",
+		"AND NOT walk.is_granted\n           AND (row.repository_id, row.scope_id) > (walk.repository_id, walk.scope_id)",
+	} {
+		if !strings.Contains(probe, want) {
+			t.Fatalf("probe is missing %q, so a granted repository costs one step per ingestion scope instead of one:\n%s", want, probe)
+		}
+	}
+	if got, want := strings.Count(probe, "ORDER BY row.repository_id, row.scope_id"), 3; got != want {
+		t.Fatalf("probe has %d ordered seeks, want %d (the walk's seed and its two gated steps)", got, want)
 	}
 	// The liveness test is what makes a step independent of how many
 	// superseded generations the retention runner still keeps, and it only is

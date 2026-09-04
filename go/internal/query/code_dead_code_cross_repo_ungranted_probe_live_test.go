@@ -137,6 +137,32 @@ func TestCrossRepoDeadCodeUngrantedConsumerProbeLive(t *testing.T) {
 		crossRepoDeadCodeProbeRetainedGenerations,
 	)
 
+	// The scope axis. A repository is not one ingestion scope: a repository
+	// ingested by several has one active generation per scope, so the walk
+	// steps over (repository, scope) PAIRS. That makes a GRANTED repository
+	// covered by many scopes a cost the grant cannot see -- ent-scopes-granted
+	// carries one granted repository under 50 scopes and one hidden consumer
+	// past it, so a walk that steps to the next repository takes two steps
+	// where one stepping pair by pair takes 51.
+	//
+	// The other two are the ungranted side, where the scopes DO have to be
+	// walked because any one of them could hold the live row:
+	// ent-scopes-ungranted's ungranted repository has 50 scopes whose only rows
+	// are superseded and one whose row is live, and ent-scopes-ungranted-stale's
+	// has 50 stale scopes and nothing live at all.
+	seedCrossRepoDeadCodeProbeGrantedScopeFanOut(
+		ctx, t, db, "ent-scopes-granted", "repo-a", "repo-z",
+		crossRepoDeadCodeProbeScopesPerRepository,
+	)
+	seedCrossRepoDeadCodeProbeUngrantedScopeFanOut(
+		ctx, t, db, "ent-scopes-ungranted", "repo-y", "y",
+		crossRepoDeadCodeProbeScopesPerRepository, true,
+	)
+	seedCrossRepoDeadCodeProbeUngrantedScopeFanOut(
+		ctx, t, db, "ent-scopes-ungranted-stale", "repo-w", "w",
+		crossRepoDeadCodeProbeScopesPerRepository, false,
+	)
+
 	page := []string{
 		"ent-spread", "ent-middle", "ent-self", "ent-depth-zero",
 		"ent-stale", "ent-absent", "ent-busy", "ent-retained",
@@ -265,6 +291,15 @@ func TestCrossRepoDeadCodeUngrantedConsumerProbeLive(t *testing.T) {
 				if !crossRepoDeadCodeProbeHasLivenessSeek(plan) {
 					t.Fatalf("no index condition carries the full (entity_id, repository_id, scope_id, generation_id) liveness seek; a step is scanning the pair's generations:\n%s", plan)
 				}
+				// The step from a GRANTED pair skips to the entity's next
+				// repository, and that skip is a bare repository_id range
+				// rather than the pair's row comparison. It has to reach the
+				// index too: left as a filter, a granted repository costs one
+				// read per scope covering it, which is the whole reason the
+				// branch exists.
+				if !crossRepoDeadCodeProbeHasRepositorySkipSeek(plan) {
+					t.Fatalf("no index condition carries the granted repository skip; a granted repository is walked scope by scope:\n%s", plan)
+				}
 			})
 		}
 	})
@@ -329,6 +364,76 @@ func TestCrossRepoDeadCodeUngrantedConsumerProbeLive(t *testing.T) {
 						buffers, crossRepoDeadCodeProbeRetainedBufferBudget, plan)
 				}
 			})
+		}
+	})
+
+	t.Run("a granted repository costs one step however many scopes cover it", func(t *testing.T) {
+		// The bound this shape restored. A walk stepping over
+		// (repository, scope) pairs tests the grant by repository, so a granted
+		// repository covered by 50 ingestion scopes cost 50 steps -- the walk
+		// then passed more granted PAIRS than the grant has repositories, and
+		// min(d, N) + 1 was not a bound on it at all. Stepping to the next
+		// REPOSITORY from a granted pair restores it.
+		//
+		// No answer assertion can see this: every one of those 50 pairs is
+		// granted, so it is never hidden and the verdict is identical either
+		// way. The guard counts the rows the recursive term produced, the way
+		// the stop-condition guard above does.
+		//
+		// Both plan modes, because a generic plan is what pgx's statement cache
+		// runs in production.
+		for _, mode := range crossRepoDeadCodeProbePlanModes {
+			t.Run(mode.name, func(t *testing.T) {
+				plan := crossRepoDeadCodeProbePlan(
+					ctx, t, db, mode, "EXPLAIN (ANALYZE) ",
+					"repo-producer",
+					[]string{"ent-scopes-granted"},
+					crossRepoDeadCodeProbeFanInRepositories,
+				)
+				walkRows := crossRepoDeadCodeProbeWalkRows(t, plan)
+				if walkRows > crossRepoDeadCodeProbeScopeFanOutWalkRowBudget {
+					t.Fatalf("the walk produced %d rows for one entity, want at most %d; a granted repository is being walked scope by scope:\n%s",
+						walkRows, crossRepoDeadCodeProbeScopeFanOutWalkRowBudget, plan)
+				}
+			})
+		}
+	})
+
+	t.Run("an ungranted repository's scopes are walked until one is live", func(t *testing.T) {
+		// The other half of the same rule, and the reason the skip is
+		// conditional rather than unconditional. A repository the caller cannot
+		// see hides a consumer if ANY of its scopes has a live row, so its
+		// scopes have to be walked -- skipping to the next repository from an
+		// ungranted pair would answer "nothing hidden" for
+		// ent-scopes-ungranted, whose live row sits in the 51st scope of its
+		// only consumer repository, behind 50 whose rows are all superseded.
+		// ent-scopes-ungranted-stale is the same shape with nothing live in any
+		// scope, so the walk exhausts the repository and correctly finds
+		// nothing.
+		hidden, err := reader.crossRepoDeadCodeUngrantedConsumers(
+			ctx, "repo-producer",
+			[]string{"ent-scopes-granted", "ent-scopes-ungranted", "ent-scopes-ungranted-stale"},
+			crossRepoDeadCodeProbeFanInRepositories,
+		)
+		if err != nil {
+			t.Fatalf("crossRepoDeadCodeUngrantedConsumers() error = %v, want nil", err)
+		}
+		got := make([]string, 0, len(hidden))
+		for entityID := range hidden {
+			got = append(got, entityID)
+		}
+		sort.Strings(got)
+		want := []string{"ent-scopes-granted", "ent-scopes-ungranted"}
+		if !slices.Equal(got, want) {
+			t.Fatalf("hidden = %#v, want %#v", got, want)
+		}
+		reference := crossRepoDeadCodeProbeReference(
+			ctx, t, db, "repo-producer",
+			[]string{"ent-scopes-granted", "ent-scopes-ungranted", "ent-scopes-ungranted-stale"},
+			crossRepoDeadCodeProbeFanInRepositories,
+		)
+		if !slices.Equal(got, reference) {
+			t.Fatalf("probe = %#v, NOT IN reference = %#v; the scope walk is not the complement of the grant", got, reference)
 		}
 	})
 
@@ -472,6 +577,194 @@ func crossRepoDeadCodeProbeHasLivenessSeek(plan string) bool {
 		}
 	}
 	return false
+}
+
+// crossRepoDeadCodeProbeHasRepositorySkipSeek reports whether the plan applies
+// the granted-repository skip as an index condition rather than a filter.
+//
+// That step's bound is a bare repository_id range under the entity equality,
+// not the pair's row comparison, so it is the index condition that carries
+// `repository_id >` without a ROW(). Left as a filter it would read the granted
+// repository's rows one scope at a time, which is the cost the branch exists to
+// remove and which no answer assertion can see.
+func crossRepoDeadCodeProbeHasRepositorySkipSeek(plan string) bool {
+	for _, line := range strings.Split(plan, "\n") {
+		if !strings.Contains(line, "Index Cond:") && !strings.Contains(line, "Recheck Cond:") {
+			continue
+		}
+		if strings.Contains(line, "ROW(") {
+			continue
+		}
+		if strings.Contains(line, "repository_id >") {
+			return true
+		}
+	}
+	return false
+}
+
+// crossRepoDeadCodeProbeScopesPerRepository is how many ingestion scopes cover
+// one repository in the scope fan-out fixtures. A repository ingested by more
+// than one scope is ordinary -- a monorepo path scope beside a whole-repository
+// scope, or a re-onboard that left the old scope in place -- and 50 is a
+// deliberately unremarkable point on that range, chosen to be far enough above
+// the walk's real step count that a shape which pays per scope cannot hide
+// inside the noise.
+const crossRepoDeadCodeProbeScopesPerRepository = 50
+
+// crossRepoDeadCodeProbeScopeFanOutWalkRowBudget is the most rows the recursive
+// term may produce for a single entity whose one granted consumer repository is
+// covered by crossRepoDeadCodeProbeScopesPerRepository scopes and which has one
+// hidden consumer past it.
+//
+// Measured, not guessed, the way proof row 38 requires: the shipped walk
+// produces 2 -- the granted repository's first pair, then the hidden one --
+// and a walk that steps pair by pair produces 51. 8 sits far enough above the
+// real count to survive fixture edits and far enough below the broken one to
+// fail on it.
+const crossRepoDeadCodeProbeScopeFanOutWalkRowBudget = 8
+
+// seedCrossRepoDeadCodeProbeGrantedScopeFanOut gives one producer entity a
+// consumer in a GRANTED repository covered by many ingestion scopes -- each
+// with its own active generation and its own live row -- and one live consumer
+// in an ungranted repository sorting after it.
+//
+// Every pair in the granted repository is granted, so none of them can ever be
+// hidden and the entity's verdict does not depend on how many there are. What
+// depends on it is the number of steps: a walk that leaves a granted repository
+// by seeking the next repository takes one step for it, and one that seeks the
+// next pair takes one per scope.
+func seedCrossRepoDeadCodeProbeGrantedScopeFanOut(
+	ctx context.Context,
+	t *testing.T,
+	db *sql.DB,
+	entityID string,
+	grantedRepositoryID string,
+	hiddenRepositoryID string,
+	scopes int,
+) {
+	t.Helper()
+
+	if _, err := db.ExecContext(ctx, `
+INSERT INTO ingestion_scopes (scope_id, active_generation_id)
+SELECT 'scope-fanout-g-' || lpad(i::text, 4, '0'), 'gen-fanout-g-' || lpad(i::text, 4, '0')
+FROM generate_series(1, $1) AS i
+ON CONFLICT (scope_id) DO NOTHING`, scopes); err != nil {
+		t.Fatalf("seed granted fan-out scopes: %v", err)
+	}
+	if _, err := db.ExecContext(ctx, `
+INSERT INTO scope_generations (generation_id, scope_id, status)
+SELECT 'gen-fanout-g-' || lpad(i::text, 4, '0'), 'scope-fanout-g-' || lpad(i::text, 4, '0'), 'active'
+FROM generate_series(1, $1) AS i
+ON CONFLICT (generation_id) DO NOTHING`, scopes); err != nil {
+		t.Fatalf("seed granted fan-out generations: %v", err)
+	}
+	if _, err := db.ExecContext(ctx, `
+INSERT INTO code_reachability_rows
+  (scope_id, generation_id, repository_id, root_entity_id, entity_id, depth, state,
+   confidence, min_resolution_method, evidence, root_kinds, observed_at, updated_at)
+SELECT 'scope-fanout-g-' || lpad(i::text, 4, '0'), 'gen-fanout-g-' || lpad(i::text, 4, '0'),
+       $1, $1 || '#caller', $2, 1, 'reachable', 0.95, 'symbol_exact',
+       '["CALLS"]'::jsonb, '["Function"]'::jsonb, now(), now()
+FROM generate_series(1, $3) AS i`, grantedRepositoryID, entityID, scopes); err != nil {
+		t.Fatalf("seed granted fan-out rows for %s in %s: %v", entityID, grantedRepositoryID, err)
+	}
+	if _, err := db.ExecContext(ctx, `
+INSERT INTO code_reachability_rows
+  (scope_id, generation_id, repository_id, root_entity_id, entity_id, depth, state,
+   confidence, min_resolution_method, evidence, root_kinds, observed_at, updated_at)
+VALUES ('scope-1', 'gen-active', $1, $1 || '#caller', $2, 1, 'reachable', 0.95, 'symbol_exact',
+        '["CALLS"]'::jsonb, '["Function"]'::jsonb, now(), now())`,
+		hiddenRepositoryID, entityID); err != nil {
+		t.Fatalf("seed hidden consumer for %s in %s: %v", entityID, hiddenRepositoryID, err)
+	}
+	if _, err := db.ExecContext(ctx, "ANALYZE code_reachability_rows"); err != nil {
+		t.Fatalf("analyze granted fan-out rows: %v", err)
+	}
+}
+
+// seedCrossRepoDeadCodeProbeUngrantedScopeFanOut gives one producer entity a
+// consumer in a single repository covered by many ingestion scopes whose rows
+// are all superseded, optionally followed by one scope whose row is live.
+//
+// This is the case the granted skip must NOT be applied to. Any one of an
+// ungranted repository's scopes can hold the live row, and here the live one is
+// last, so a walk that left the repository after its first pair would answer
+// "nothing hidden" for an entity that has a hidden consumer.
+func seedCrossRepoDeadCodeProbeUngrantedScopeFanOut(
+	ctx context.Context,
+	t *testing.T,
+	db *sql.DB,
+	entityID string,
+	repositoryID string,
+	scopePrefix string,
+	staleScopes int,
+	live bool,
+) {
+	t.Helper()
+
+	scopeName := "scope-fanout-" + scopePrefix + "-"
+	activeGeneration := "gen-fanout-" + scopePrefix + "-active-"
+	staleGeneration := "gen-fanout-" + scopePrefix + "-stale-"
+	if _, err := db.ExecContext(ctx, `
+INSERT INTO ingestion_scopes (scope_id, active_generation_id)
+SELECT $1 || lpad(i::text, 4, '0'), $2 || lpad(i::text, 4, '0')
+FROM generate_series(1, $3) AS i
+ON CONFLICT (scope_id) DO NOTHING`, scopeName, activeGeneration, staleScopes); err != nil {
+		t.Fatalf("seed ungranted fan-out scopes: %v", err)
+	}
+	if _, err := db.ExecContext(ctx, `
+INSERT INTO scope_generations (generation_id, scope_id, status)
+SELECT $2 || lpad(i::text, 4, '0'), $1 || lpad(i::text, 4, '0'), 'active'
+FROM generate_series(1, $3) AS i
+ON CONFLICT (generation_id) DO NOTHING`, scopeName, activeGeneration, staleScopes); err != nil {
+		t.Fatalf("seed ungranted fan-out active generations: %v", err)
+	}
+	if _, err := db.ExecContext(ctx, `
+INSERT INTO scope_generations (generation_id, scope_id, status)
+SELECT $2 || lpad(i::text, 4, '0'), $1 || lpad(i::text, 4, '0'), 'superseded'
+FROM generate_series(1, $3) AS i
+ON CONFLICT (generation_id) DO NOTHING`, scopeName, staleGeneration, staleScopes); err != nil {
+		t.Fatalf("seed ungranted fan-out superseded generations: %v", err)
+	}
+	if _, err := db.ExecContext(ctx, `
+INSERT INTO code_reachability_rows
+  (scope_id, generation_id, repository_id, root_entity_id, entity_id, depth, state,
+   confidence, min_resolution_method, evidence, root_kinds, observed_at, updated_at)
+SELECT $1 || lpad(i::text, 4, '0'), $2 || lpad(i::text, 4, '0'),
+       $3, $3 || '#caller', $4, 1, 'reachable', 0.95, 'symbol_exact',
+       '["CALLS"]'::jsonb, '["Function"]'::jsonb, now(), now()
+FROM generate_series(1, $5) AS i`,
+		scopeName, staleGeneration, repositoryID, entityID, staleScopes); err != nil {
+		t.Fatalf("seed ungranted fan-out superseded rows for %s in %s: %v", entityID, repositoryID, err)
+	}
+	if live {
+		// 9999 so this scope sorts after every stale one: the walk has to reach
+		// the LAST scope of the repository to find the live row.
+		if _, err := db.ExecContext(ctx, `
+INSERT INTO ingestion_scopes (scope_id, active_generation_id)
+VALUES ($1 || '9999', $2 || '9999')
+ON CONFLICT (scope_id) DO NOTHING`, scopeName, activeGeneration); err != nil {
+			t.Fatalf("seed ungranted fan-out live scope: %v", err)
+		}
+		if _, err := db.ExecContext(ctx, `
+INSERT INTO scope_generations (generation_id, scope_id, status)
+VALUES ($2 || '9999', $1 || '9999', 'active')
+ON CONFLICT (generation_id) DO NOTHING`, scopeName, activeGeneration); err != nil {
+			t.Fatalf("seed ungranted fan-out live generation: %v", err)
+		}
+		if _, err := db.ExecContext(ctx, `
+INSERT INTO code_reachability_rows
+  (scope_id, generation_id, repository_id, root_entity_id, entity_id, depth, state,
+   confidence, min_resolution_method, evidence, root_kinds, observed_at, updated_at)
+VALUES ($1 || '9999', $2 || '9999', $3, $3 || '#caller', $4, 1, 'reachable', 0.95,
+        'symbol_exact', '["CALLS"]'::jsonb, '["Function"]'::jsonb, now(), now())`,
+			scopeName, activeGeneration, repositoryID, entityID); err != nil {
+			t.Fatalf("seed ungranted fan-out live row for %s in %s: %v", entityID, repositoryID, err)
+		}
+	}
+	if _, err := db.ExecContext(ctx, "ANALYZE code_reachability_rows"); err != nil {
+		t.Fatalf("analyze ungranted fan-out rows: %v", err)
+	}
 }
 
 // crossRepoDeadCodeProbeRetainedGenerations is how many superseded generations
@@ -621,11 +914,11 @@ INSERT INTO scope_generations VALUES ('gen-active', 'scope-1', 'active'), ('gen-
 		t.Fatalf("create proof tables: %v", err)
 	}
 
-	// All three index migrations, in the order a deployment applies them, so
-	// the fixture ends where a real install ends: migration 100's two-column
-	// index built, 101's four-column key built beside it, and 102 dropping
-	// 100's again. Reading the DDL from the shipped files is what stops a
-	// proof passing against an index no deployment builds.
+	// Both index migrations, in the order a deployment applies them, so the
+	// fixture ends where a real install ends: 101's four-column key built, and
+	// 102 dropping the two-column index an earlier release built. Reading the
+	// DDL from the shipped files is what stops a proof passing against an index
+	// no deployment builds.
 	for _, name := range crossRepoDeadCodeProbeIndexMigrations {
 		migration, err := os.ReadFile("../storage/postgres/migrations/" + name)
 		if err != nil {
@@ -640,7 +933,6 @@ INSERT INTO scope_generations VALUES ('gen-active', 'scope-1', 'active'), ('gen-
 // crossRepoDeadCodeProbeIndexMigrations are the index migrations the probe
 // depends on, in migration order.
 var crossRepoDeadCodeProbeIndexMigrations = []string{
-	"100_code_reachability_entity_repository_idx.sql",
 	"101_code_reachability_entity_repository_scope_generation_idx.sql",
 	"102_drop_code_reachability_entity_repository_idx.sql",
 }
