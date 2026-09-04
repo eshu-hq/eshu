@@ -71,9 +71,13 @@ func BuildSharedProjectionIntent(input SharedProjectionIntentInput) SharedProjec
 	return sharedintent.Build(input)
 }
 
-// isRepoRefreshRow reports whether a row is a per-repo refresh intent.
+// isRepoRefreshRow reports whether a row is a per-repo refresh intent. It
+// forwards to [payloadcore.PayloadStr] so the classification matches the
+// reducer root's shared_projection_worker_refresh_fence.go byte for byte: a
+// raw map index plus AnyToString would skip the trim and the "<nil>" mapping,
+// so a padded intent_type would classify differently here than in production.
 func isRepoRefreshRow(row SharedProjectionIntentRow) bool {
-	return payloadcore.AnyToString(row.Payload["intent_type"]) == sharedintent.RepoRefreshIntentType
+	return payloadcore.PayloadStr(row.Payload, "intent_type") == sharedintent.RepoRefreshIntentType
 }
 
 // RepoRefreshIntentType, repoRefreshAction, and retractViaRefreshKey forward
