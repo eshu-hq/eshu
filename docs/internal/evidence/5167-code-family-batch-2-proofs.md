@@ -94,6 +94,17 @@ script, not committed; the working tree was verified clean afterwards.
 | 10 | `importDependencyParams` stops merging `GraphParams` | `-run 'TestImportDependencyParamsBindTheGrantArrays\|TestImportDependenciesFilterByRepositoryGrant'` | `1` |
 | 11 | `codeGrantAccessFilter` drops `WithCanonicalScopeRepositories` | `-run 'TestLanguageQueryResolvesAScopeOnlyGrantToItsRepository\|TestImportDependenciesResolveAScopeOnlyGrantToItsRepository'` | `1` |
 | 12 | `sourceModuleFilesCypher` and `targetModuleFilesCypher` compute the grant and discard it | `-run TestImportDependencyBuildersBindTheGrantInTheShippedCypher` | `1` |
+| 13 | `acceptLanguageQueryEntityType` admits every entity type | `-run TestLanguageQueryRejectsUnsupportedEntityTypeForEveryCaller` | `1` |
+| 14 | `languageResultRepositoryMatchKey` drops its `repoID` component | `-run 'TestLanguageQueryMetadata\|TestLanguageResultRepositoryMatchKey'` | `1` |
+| 15 | the four language-query builders emit `""` instead of `access.GraphPredicate("r")`, against the live backend | `-tags live_nornicdb_language_imports_grant -run TestLiveNornicDBLanguageQueryGrantBindsEveryBuilder` | `1` |
+| 16 | `importDependencyGrantPredicates` returns nil for every caller, against the live backend | `-tags live_nornicdb_language_imports_grant -run TestLiveNornicDBImportDependencyGrantBindsEveryBuilder` | `1` |
+
+Row 13 reds only its `scoped caller with no repository grants` sub-case, and
+that is the correct shape: neutering the request-time gate leaves the dispatch
+tail's backstop answering the other two callers exactly as before. The sub-case
+that reds is the one the fix exists for. Rows 15 and 16 red every sub-case they
+cover — four language shapes and ten import shapes — so no live shape rests on
+a statement the grant is absent from.
 
 Rows 4 and 11 are the two worth reading the output of. Breaking the selector
 (row 4) does not produce a leak — `codeContentGrantScope`'s defense-in-depth
@@ -139,6 +150,68 @@ both are forced by production Go passes that run after the read:
 - The cross-module case anchors on `src/api.py`, the path its seeded rows carry,
   because `crossModuleCallRowMatches` drops any row whose `source_file` differs
   from the request's.
+
+## Live NornicDB Run
+
+| Field | Value |
+| --- | --- |
+| Image | `timothyswt/nornicdb-cpu-bge` |
+| Digest | `sha256:4dfa887d990bf0b536693830830e34351c036716b0fe6dc957e1a3680e9f3c74` |
+| Self-reported version | `1.2.2` (the digest `deploy/helm/eshu/values.yaml` pins as `v1.2.3`) |
+| Environment | `NORNICDB_EMBEDDING_ENABLED=false`, `NORNICDB_NO_AUTH=true` |
+| Bolt | a non-default host port, so no shared local stack is touched |
+| Store | a container started clean for the run and removed after it |
+| Build tag | `live_nornicdb_language_imports_grant` |
+| Shapes proved | 14 (4 language-query, 10 import-dependency) |
+| Statements executed | 30 shipped runs (14 shapes scoped and unscoped, plus the directory builder both ways) and 6 backend probes |
+| Wall time | every statement under 4ms; the whole tagged package run 1.4s |
+
+The seed is two repositories: `repo://live-zeta/granted-service`, the one the
+caller is granted, with a single file, and `repo://live-alpha/other-service`,
+which the caller is not granted, with six. Every out-of-grant node carries
+`live-alpha` in its id, name, path, relative path, entity name and module name,
+so a leak is visible in any column any builder happens to project. Repository
+ids and directory prefixes are chosen so the out-of-grant rows sort FIRST under
+every builder's `ORDER BY`, and each shape runs with its page or scan bound set
+to 2 — below the six rows the out-of-grant repository can supply.
+
+`assertLiveGrantSqueezed` is the assertion the argument rests on: EVERY row of
+the unscoped control must be out-of-grant. A page holding one row of each would
+survive a filter applied after the bound, and the scoped result would then prove
+nothing about when the predicate ran. It held for all fourteen shapes.
+
+| Shape | Query type | Scoped rows | Unscoped rows |
+| --- | --- | ---: | ---: |
+| `buildRepositoryCypher` | `repository` | 1 | 1 |
+| `buildFileCypher` | `file` | 1 | 2 |
+| `buildEntityCypherWithSemanticFilter` | `function` | 2 | 2 |
+| `buildEntityCypherWithSemanticFilter` + `semantic_kind` | `guard` | 2 | 2 |
+| `directImportRowsCypher` | `imports_by_file` | 2 | 2 |
+| `directImportRowsCypher` | `importers` | 1 | 2 |
+| `packageImportRowsCypher` (`DISTINCT`) | `package_imports` | 2 | 2 |
+| `packageImportRowsCypher` (scan-bounded) | `package_imports` | 2 | 2 |
+| `sourceModuleFilesCypher` | `module_dependencies` | 1 | 2 |
+| `targetModuleFilesCypher` | `cross_module_calls` | 1 | 2 |
+| `sourceModuleImportRowsCypher` | `module_dependencies` | 2 | 2 |
+| `fileImportCycleEdgeRowsCypher` | `file_import_cycles` | 2 | 2 |
+| `crossModuleCallRowsCypher` | `cross_module_calls` | 1 | 2 |
+| `crossModuleCallRowsCypher` + module scopes | `cross_module_calls` | 1 | 2 |
+
+Every scoped row above named only the granted repository. Every unscoped row
+named only the out-of-grant one.
+
+The builders that take `$source_paths` and `$target_paths` were given BOTH
+repositories' file paths, so the path predicate cannot be what drops the
+out-of-grant rows — only the grant can.
+
+Two results are about the backend rather than the grant, and both are recorded
+in the change note. `EXPLAIN` and `PROFILE` are accepted, return zero rows, and
+leave the driver summary without `Plan()` or `Profile()`, so plan shape is not
+reportable on this build and the squeeze control above stands in for it.
+`buildDirectoryCypher` returns nothing with or without a grant, because a
+statement with two `MATCH` clauses, a `WITH` aggregation and any `labels()` call
+answers no rows on this build; the bisection is committed as four probes inside
+`TestLiveNornicDBLanguageQueryDirectoryBuilderReturnsNothing`.
 
 ## Verification
 

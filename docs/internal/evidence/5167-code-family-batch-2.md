@@ -87,8 +87,10 @@ Clause attachment is settled by construction here, not by argument. The
 Repository binding is required in all four patterns, so an entity the graph
 cannot attribute to a repository is already dropped today and the grant
 condition decides row membership rather than nulling a projection. That is the
-opposite of the `complexityListAnchor` defect batch 1 measured, and it is why
-this route needs no live NornicDB run — see "Why No Live Run" below.
+opposite of the `complexityListAnchor` defect batch 1 measured. Construction is
+not the whole answer, though — it says nothing about what the pinned backend
+does with the statement — so the argument is now backed by a measurement: see
+"The Live NornicDB Run" below.
 
 ### The Selector Question, Settled By Extraction
 
@@ -202,30 +204,88 @@ that is itself a check: it says every one of the seven builders renders the
 grant for a scoped caller, and that none of them collapse the two caller classes
 into one statement.
 
-## Why No Live Run
+## The Live NornicDB Run
 
 Batch 1 ran a live NornicDB proof for `complexityListAnchor` because its
 Repository binding sat on an `OPTIONAL MATCH`, where a `WHERE` constrains the
-optional pattern rather than the driving row set, and no amount of reading the
-statement settles that. Neither route here has that shape:
+optional pattern rather than the driving row set. Neither route here has that
+shape: language-query's four builders each bind Repository in a required
+`MATCH`, and imports/investigate's seven route every predicate through
+`writeCypherPredicates`, which can only attach a `WHERE` to the single anchoring
+`MATCH`.
 
-- language-query's four builders each bind Repository in a required `MATCH` and
-  carry one `WHERE` on the block that binds it — the second of two required
-  `MATCH` clauses in `buildDirectoryCypher`, the single one in the other three.
-- imports/investigate's seven builders each emit a single anchoring `MATCH` and
-  route every predicate through `writeCypherPredicates`, which can only produce
-  a `WHERE` attached to that `MATCH`. There is no `OPTIONAL MATCH` and no `WITH`
-  anywhere in the file.
+That settles clause attachment by construction, and this batch first shipped
+with it as the whole argument. It is not enough. Clause attachment says nothing
+about whether the pinned executor parses the statement the builders now emit,
+applies the added predicate at all, or applies it before the row bound rather
+than after. Those are backend questions, and only the backend answers them.
 
-Clause attachment is therefore decided by construction rather than by
-measurement, and `TestLanguageQueryBuildersBindTheGrantInTheShippedCypher` and
-`TestImportDependencyBuildersBindTheGrantInTheShippedCypher` assert the grant is
-inside the anchoring binding's own predicate list, not merely present in the
-text. `evaluatingRepositoryGraph`
-(`go/internal/query/code_graph_grant_evaluating_fake_test.go`) applies Cypher's
-clause semantics to the emitted statement for the language-query route tests, so
-moving the grant onto an optional pattern would still be caught. What a live run
-would add here is plan-operator evidence, and no plan claim changed.
+`TestLiveNornicDBLanguageQueryGrantBindsEveryBuilder` and
+`TestLiveNornicDBImportDependencyGrantBindsEveryBuilder` (build tag
+`live_nornicdb_language_imports_grant`) run all fourteen shipped statement
+shapes against the pinned image, scoped and unscoped, on a two-repository graph
+seeded through the labels, relationship types and properties the canonical
+projector writes. The out-of-grant repository gets six rows to the granted
+repository's one, sorts first under every builder's `ORDER BY`, and every page
+bound is set below six. The unscoped control comes back entirely out-of-grant;
+the scoped run returns the granted rows and nothing else. A predicate applied to
+the statement's output, after the bound, would have left the scoped run empty.
+The run record and per-shape row counts are in the proof ledger.
+
+That ordering control stands in for a plan read because the pinned build cannot
+give one. `TestLiveNornicDBGrantPlanShapeIsNotReportable` measures it: `EXPLAIN`
+and `PROFILE` are both accepted, both return zero rows, and the driver summary
+carries neither `Plan()` nor `Profile()`. A `PROFILE` prefix therefore turns a
+row-returning statement into an empty one silently, which is its own reason
+never to leave one in shipped Cypher.
+
+### The Directory Builder Answers Nothing On This Backend
+
+`buildDirectoryCypher` returns zero rows on the pinned build — scoped and
+unscoped alike, on a graph seeded the way the projector writes directories. So
+`entity_type: "directory"` on this route answers an empty results list on the
+default graph backend for every caller. That is pre-existing and has nothing to
+do with the grant: the same statement without it is equally empty.
+
+The cause is a backend defect, bisected in
+`TestLiveNornicDBLanguageQueryDirectoryBuilderReturnsNothing` and recorded in
+[NornicDB Query-Shape Pitfalls](../../public/reference/nornicdb-query-pitfalls.md):
+two `MATCH` clauses followed by a `WITH` aggregation return nothing as soon as
+any `labels()` call appears, in the `RETURN` or in the `WITH` itself. Writing
+the same traversal as one linear `MATCH` answers; dropping `labels()` answers.
+Fixing it means changing shipped Cypher and moving a `cypher_sha256` on this
+route, which is a different change from the grant binding under review here, so
+it is left for its own work with the reproduction committed as a test that fails
+the day the behaviour changes.
+
+## Two Answers The Grant Made Wrong
+
+Review found two places where adding the grant changed an answer it had no
+business changing. Both are fixed here.
+
+The empty-grant short-circuit sat ahead of the route's only entity-type check,
+which was the tail of the dispatch chain. So a scoped caller with no repository
+grants got the route's empty `200` for an `entity_type` no branch serves, while
+every other caller got the documented `400`. Two callers disagreeing about
+whether a request is well-formed is a contract bug on its own, and the
+difference also signals the caller's grant state through a response the empty
+page exists to keep uninformative. `acceptLanguageQueryEntityType` now answers
+it with the rest of the request validation, ahead of the selector's own graph
+read. The dispatch tail keeps the same call as a backstop for the day the gate
+and the three dispatch maps drift.
+
+`enrichLanguageResultsWithContentMetadata` keyed its merge map on file path,
+label, entity name and start line. Those four are not unique across
+repositories — a fork, a vendored copy, or a generated file two services both
+carry gives two repositories the same values — so rows collided, the last
+content row written won, and both graph rows were enriched from it. The grant
+does not cover this: it is reachable with BOTH repositories inside one caller's
+own grant. `languageResultRepositoryMatchKey` puts the repository on both sides
+of the key, reading it from `repo_id` on a graph row (falling back to `id`,
+which is where `buildRepositoryCypher` projects it) and from `RepoID` on a
+content row. An empty repository is a key of its own rather than a wildcard, so
+a row the graph could not attribute can only match a content row that carries
+none either.
 
 ## A Batch-1 Fake Was Hiding Predicates
 

@@ -391,6 +391,11 @@ whole index, on both the graph and the content-store side, and one with no
 repository grants at all gets an empty `results` list without either backend
 being read.
 
+That empty page is for a well-formed request only. An `entity_type` this route
+does not support returns `400` for every caller, including a scoped token with
+no repository grants, and including a request whose `repo_id` would not have
+resolved — the entity type is checked before either.
+
 Use focused routes first when they answer the question; use language-query for
 language/entity-type contracts that do not fit symbol, relationship,
 inventory, dependency, or dead-code routes.

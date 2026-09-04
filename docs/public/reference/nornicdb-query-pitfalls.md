@@ -793,3 +793,65 @@ pinned image** and does not change Eshu correctness on its own (reads are being
 rewritten single-clause-safe regardless — #5279, #5287); do not image-pin that
 branch before the Eshu sweep completes. Pinned to that PR/branch until it lands
 in NornicDB `main`.
+
+## Pitfall: `labels()` After A Two-Clause Aggregation Returns Zero Rows
+
+### Observed shape
+
+Measured on the currently pinned `timothyswt/nornicdb-cpu-bge`
+`sha256:4dfa887d…` (self-reports `1.2.2`), against a graph seeded the way the
+canonical projector writes repositories, directories and files. A read with
+**two `MATCH` clauses** followed by a `WITH … count(…)` aggregation returns
+**nothing** as soon as any `labels()` call appears — in the `RETURN` or
+computed in the `WITH` itself:
+
+```cypher
+-- zero rows:
+MATCH (d:Directory)<-[:CONTAINS]-(r:Repository)
+MATCH (d)-[:CONTAINS]->(f:File)
+WITH d, r, count(f) AS c
+RETURN d.name AS name, labels(d) AS labels, c
+
+-- zero rows (computing labels() in the WITH does not rescue it):
+MATCH (d:Directory)<-[:CONTAINS]-(r:Repository)
+MATCH (d)-[:CONTAINS]->(f:File)
+WITH d, r, labels(d) AS ls, count(f) AS c
+RETURN d.name AS name, ls AS labels, c
+
+-- 4 rows (same traversal, no labels()):
+MATCH (d:Directory)<-[:CONTAINS]-(r:Repository)
+MATCH (d)-[:CONTAINS]->(f:File)
+WITH d, r, count(f) AS c
+RETURN d.name AS name, r.id AS rid, c
+
+-- 4 rows (same projection, ONE linear MATCH):
+MATCH (r:Repository)-[:CONTAINS]->(d:Directory)-[:CONTAINS]->(f:File)
+WITH d, r, count(f) AS c
+RETURN d.name AS name, labels(d) AS labels, c
+```
+
+It happens for `labels(d)` and `labels(r)` alike, so it is not about which
+variable is projected. It is a row-drop, not an error: the statement succeeds
+and the caller sees an empty result. This is the same family as the
+multi-clause-projection pitfall above; `labels()` is a new trigger for it, and
+the aggregating `WITH` plus a second `MATCH` is what arms it.
+
+### Eshu implications
+
+`buildLanguageCypherWithSemanticFilter`'s `Directory` branch
+(`go/internal/query/language_query_cypher.go`) emits exactly this shape, so
+`entity_type: "directory"` on `POST /api/v0/code/language-query` answers an
+empty `results` list on NornicDB for every caller. It is a row-drop, so nothing
+in the response says the backend could not answer.
+
+Rewriting the two clauses as one linear path restores the rows. Do not "fix" it
+by dropping `labels()` from the projection: the response contract carries it.
+
+### Validation
+
+`TestLiveNornicDBLanguageQueryDirectoryBuilderReturnsNothing`
+(`go/internal/query/language_query_grant_nornicdb_live_backend_test.go`, build
+tag `live_nornicdb_language_imports_grant`) pins both the shipped builder's
+zero-row result and the four-probe bisection above. It fails the day either the
+backend or the builder changes. Run it against the pinned digest before
+trusting any of the four results here.
