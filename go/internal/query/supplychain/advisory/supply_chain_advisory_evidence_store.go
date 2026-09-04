@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package query
+package advisory
 
 import (
 	"context"
@@ -14,11 +14,18 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/pgarray"
 )
 
-type advisoryEvidenceQueryer interface {
+// AdvisoryEvidenceQueryer is the Postgres connection contract the advisory
+// catalog and evidence read models share. Exported so the staying root
+// evidence/catalog tests and the root compatibility forwarders can name the
+// constructor parameter.
+type AdvisoryEvidenceQueryer interface {
 	QueryContext(context.Context, string, ...any) (*sql.Rows, error)
 }
 
-type advisoryEvidenceFactRow struct {
+// AdvisoryEvidenceFactRow is one scanned source-fact row before grouping.
+// Exported for the staying root evidence tests, which build fact rows
+// directly.
+type AdvisoryEvidenceFactRow struct {
 	FactID           string
 	FactKind         string
 	SourceConfidence string
@@ -35,12 +42,12 @@ type advisoryEvidenceFactRow struct {
 // PostgresAdvisoryEvidenceStore reads active vulnerability source facts and
 // groups them into canonical advisory evidence rows.
 type PostgresAdvisoryEvidenceStore struct {
-	DB advisoryEvidenceQueryer
+	DB AdvisoryEvidenceQueryer
 }
 
 // NewPostgresAdvisoryEvidenceStore creates the Postgres-backed advisory
 // evidence read model.
-func NewPostgresAdvisoryEvidenceStore(db advisoryEvidenceQueryer) PostgresAdvisoryEvidenceStore {
+func NewPostgresAdvisoryEvidenceStore(db AdvisoryEvidenceQueryer) PostgresAdvisoryEvidenceStore {
 	return PostgresAdvisoryEvidenceStore{DB: db}
 }
 
@@ -50,24 +57,24 @@ func (s PostgresAdvisoryEvidenceStore) ListAdvisoryEvidence(
 	ctx context.Context,
 	filter AdvisoryEvidenceFilter,
 ) ([]AdvisoryEvidenceRow, error) {
-	filter = normalizeAdvisoryEvidenceFilter(filter)
+	filter = NormalizeAdvisoryEvidenceFilter(filter)
 	if s.DB == nil {
 		return nil, fmt.Errorf("advisory evidence database is required")
 	}
-	if !filter.hasScope() {
+	if !filter.HasScope() {
 		return nil, fmt.Errorf("cve_id, advisory_id, package_id, repository_id, service_id, or workload_id is required")
 	}
-	if filter.Limit <= 0 || filter.Limit > advisoryEvidenceMaxLimit+1 {
-		return nil, fmt.Errorf("limit must be between 1 and %d for internal pagination", advisoryEvidenceMaxLimit+1)
+	if filter.Limit <= 0 || filter.Limit > AdvisoryEvidenceMaxLimit+1 {
+		return nil, fmt.Errorf("limit must be between 1 and %d for internal pagination", AdvisoryEvidenceMaxLimit+1)
 	}
 	rows, err := s.DB.QueryContext(
 		ctx,
-		listAdvisoryEvidenceQuery,
+		ListAdvisoryEvidenceQuery,
 		pgarray.Array(advisoryEvidenceFactKinds),
-		pgarray.Array(advisoryEvidenceLookupIDs(filter)),
+		pgarray.Array(AdvisoryEvidenceLookupIDs(filter)),
 		pgarray.Array(advisoryEvidencePackageIDs(filter)),
 		filter.Source,
-		advisoryEvidenceMaxFactRows,
+		AdvisoryEvidenceMaxFactRows,
 		filter.RepositoryID,
 		filter.ServiceID,
 		filter.WorkloadID,
@@ -78,7 +85,7 @@ func (s PostgresAdvisoryEvidenceStore) ListAdvisoryEvidence(
 	}
 	defer func() { _ = rows.Close() }()
 
-	facts := make([]advisoryEvidenceFactRow, 0, advisoryEvidenceFactCapacity())
+	facts := make([]AdvisoryEvidenceFactRow, 0, AdvisoryEvidenceFactCapacity())
 	for rows.Next() {
 		var factID string
 		var factKind string
@@ -93,11 +100,11 @@ func (s PostgresAdvisoryEvidenceStore) ListAdvisoryEvidence(
 		if err := json.Unmarshal(payloadBytes, &payload); err != nil {
 			return nil, fmt.Errorf("decode advisory evidence payload: %w", err)
 		}
-		facts = append(facts, advisoryEvidenceFactRow{
+		facts = append(facts, AdvisoryEvidenceFactRow{
 			FactID:           factID,
 			FactKind:         factKind,
 			SourceConfidence: sourceConfidence,
-			ObservedAt:       formatNullTime(observedAt),
+			ObservedAt:       FormatNullTime(observedAt),
 			SchemaVersion:    schemaVersion,
 			Payload:          payload,
 		})
@@ -105,10 +112,13 @@ func (s PostgresAdvisoryEvidenceStore) ListAdvisoryEvidence(
 	if err := rows.Err(); err != nil {
 		return nil, fmt.Errorf("list advisory evidence: %w", err)
 	}
-	return pageAdvisoryEvidenceRows(buildAdvisoryEvidenceRows(facts), filter), nil
+	return PageAdvisoryEvidenceRows(BuildAdvisoryEvidenceRows(facts), filter), nil
 }
 
-func (f AdvisoryEvidenceFilter) hasScope() bool {
+// HasScope reports whether the filter carries any anchor the read model can
+// scope to. Exported for the staying root evidence handler, which rejects
+// anchorless reads before touching the store.
+func (f AdvisoryEvidenceFilter) HasScope() bool {
 	return f.CVEID != "" || f.AdvisoryID != "" || f.PackageID != "" ||
 		f.RepositoryID != "" || f.ServiceID != "" || f.WorkloadID != ""
 }
@@ -117,7 +127,10 @@ func (f AdvisoryEvidenceFilter) hasImpactScope() bool {
 	return f.RepositoryID != "" || f.ServiceID != "" || f.WorkloadID != ""
 }
 
-func normalizeAdvisoryEvidenceFilter(filter AdvisoryEvidenceFilter) AdvisoryEvidenceFilter {
+// NormalizeAdvisoryEvidenceFilter trims and canonicalizes evidence filter
+// inputs. Exported for the staying root evidence and vulnerability-detail
+// handlers and the root evidence tests.
+func NormalizeAdvisoryEvidenceFilter(filter AdvisoryEvidenceFilter) AdvisoryEvidenceFilter {
 	filter.CVEID = normalizeAdvisoryLookupID(filter.CVEID)
 	filter.AdvisoryID = normalizeAdvisoryLookupID(filter.AdvisoryID)
 	filter.PackageID = strings.TrimSpace(filter.PackageID)
@@ -133,34 +146,43 @@ func normalizeAdvisoryLookupID(value string) string {
 	return normalizeAdvisoryDisplayID(strings.TrimSpace(value))
 }
 
-func advisoryEvidenceLookupIDs(filter AdvisoryEvidenceFilter) []string {
-	filter = normalizeAdvisoryEvidenceFilter(filter)
+// AdvisoryEvidenceLookupIDs returns the normalized advisory lookup ids for
+// one filter. Exported for the root evidence SQL tests.
+func AdvisoryEvidenceLookupIDs(filter AdvisoryEvidenceFilter) []string {
+	filter = NormalizeAdvisoryEvidenceFilter(filter)
 	seen := map[string]struct{}{}
 	for _, value := range []string{filter.CVEID, filter.AdvisoryID} {
 		addSet(seen, value)
 	}
-	return setToSortedSlice(seen)
+	return SetToSortedSlice(seen)
 }
 
 func advisoryEvidencePackageIDs(filter AdvisoryEvidenceFilter) []string {
-	filter = normalizeAdvisoryEvidenceFilter(filter)
+	filter = NormalizeAdvisoryEvidenceFilter(filter)
 	seen := map[string]struct{}{}
 	addSet(seen, filter.PackageID)
-	return setToSortedSlice(seen)
+	return SetToSortedSlice(seen)
 }
 
-func advisoryEvidenceFactCapacity() int {
-	return advisoryEvidenceMaxFactRows
+// AdvisoryEvidenceFactCapacity bounds the scanned fact rows behind one
+// evidence page. Exported for the root evidence tests.
+func AdvisoryEvidenceFactCapacity() int {
+	return AdvisoryEvidenceMaxFactRows
 }
 
-func formatNullTime(value sql.NullTime) string {
+// FormatNullTime renders a nullable Postgres timestamp as RFC3339, or "".
+// Exported for the staying root work-item evidence store, which shares the
+// rendering.
+func FormatNullTime(value sql.NullTime) string {
 	if !value.Valid {
 		return ""
 	}
 	return value.Time.UTC().Format(time.RFC3339)
 }
 
-func pageAdvisoryEvidenceRows(rows []AdvisoryEvidenceRow, filter AdvisoryEvidenceFilter) []AdvisoryEvidenceRow {
+// PageAdvisoryEvidenceRows filters and keyset-pages grouped evidence rows.
+// Exported for the staying root evidence tests, which pin paging semantics.
+func PageAdvisoryEvidenceRows(rows []AdvisoryEvidenceRow, filter AdvisoryEvidenceFilter) []AdvisoryEvidenceRow {
 	rows = filterAdvisoryEvidenceRows(rows, filter)
 	start := 0
 	if after := normalizeAdvisoryLookupID(filter.AfterAdvisoryKey); after != "" {
@@ -185,7 +207,7 @@ func filterAdvisoryEvidenceRows(rows []AdvisoryEvidenceRow, filter AdvisoryEvide
 	if filter.CVEID == "" && filter.AdvisoryID == "" && filter.PackageID == "" {
 		return rows
 	}
-	filter = normalizeAdvisoryEvidenceFilter(filter)
+	filter = NormalizeAdvisoryEvidenceFilter(filter)
 	if filter.hasImpactScope() {
 		filter.CVEID = ""
 		filter.AdvisoryID = ""

@@ -1,11 +1,13 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package query
+package advisory
 
-// listAdvisoryCatalogQuery lists a bounded, browsable page of canonical
-// vulnerability advisories from active vulnerability source facts.
+// ListAdvisoryCatalogQuery lists a bounded, browsable page of canonical
+// vulnerability advisories from active vulnerability source facts. Exported
+// for the root catalog tests, which pin its bounded-scan shape.
 //
+
 // Parameters:
 //
 //	$1 severity label filter, '' for any (compared case-insensitively)
@@ -40,7 +42,7 @@ package query
 // stay eligible) and the legs feed one GROUP BY, leaving a single
 // O(active vulnerability facts) aggregate pass with no nested-loop blowup.
 // Output is byte-identical to the previous shape.
-const listAdvisoryCatalogQuery = `
+const ListAdvisoryCatalogQuery = `
 WITH vuln_facts AS (
     SELECT
         UPPER(TRIM(COALESCE(

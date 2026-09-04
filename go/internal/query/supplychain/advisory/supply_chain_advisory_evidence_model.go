@@ -1,13 +1,15 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package query
+package advisory
 
 import (
 	"encoding/json"
 	"fmt"
 	"sort"
 	"strings"
+
+	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
 )
 
 type advisoryEvidenceAccumulator struct {
@@ -24,10 +26,13 @@ type advisoryEvidenceAccumulator struct {
 	rangeValues     map[string]string
 }
 
-func buildAdvisoryEvidenceRows(facts []advisoryEvidenceFactRow) []AdvisoryEvidenceRow {
+// BuildAdvisoryEvidenceRows groups scanned source-fact rows into canonical
+// advisory evidence rows. Exported for the staying root evidence tests and
+// the Postgres evidence store in this package.
+func BuildAdvisoryEvidenceRows(facts []AdvisoryEvidenceFactRow) []AdvisoryEvidenceRow {
 	groups := map[string]*advisoryEvidenceAccumulator{}
 	for _, fact := range facts {
-		key := canonicalAdvisoryKey(fact.Payload)
+		key := CanonicalAdvisoryKey(fact.Payload)
 		if key == "" {
 			continue
 		}
@@ -68,12 +73,12 @@ func newAdvisoryEvidenceAccumulator(key string) *advisoryEvidenceAccumulator {
 	}
 }
 
-func (a *advisoryEvidenceAccumulator) addFact(fact advisoryEvidenceFactRow) {
+func (a *advisoryEvidenceAccumulator) addFact(fact AdvisoryEvidenceFactRow) {
 	payload := fact.Payload
-	source := StringVal(payload, "source")
-	advisoryID := StringVal(payload, "advisory_id")
-	cveID := StringVal(payload, "cve_id")
-	ghsaID := StringVal(payload, "ghsa_id")
+	source := querycontract.StringVal(payload, "source")
+	advisoryID := querycontract.StringVal(payload, "advisory_id")
+	cveID := querycontract.StringVal(payload, "cve_id")
+	ghsaID := querycontract.StringVal(payload, "ghsa_id")
 	a.addIDs(payload)
 	addSet(a.evidenceFactIDs, fact.FactID)
 	addSet(a.confidences, fact.SourceConfidence)
@@ -108,9 +113,9 @@ func (a *advisoryEvidenceAccumulator) addFact(fact advisoryEvidenceFactRow) {
 		a.row.EPSS = append(a.row.EPSS, AdvisoryEPSSObservation{
 			Source:      source,
 			CVEID:       score.CVEID,
-			Probability: workItemDerefString(score.Probability),
-			Percentile:  workItemDerefString(score.Percentile),
-			ScoreDate:   workItemDerefString(score.ScoreDate),
+			Probability: derefString(score.Probability),
+			Percentile:  derefString(score.Percentile),
+			ScoreDate:   derefString(score.ScoreDate),
 			FactID:      fact.FactID,
 		})
 	case "vulnerability.known_exploited":
@@ -123,10 +128,10 @@ func (a *advisoryEvidenceAccumulator) addFact(fact advisoryEvidenceFactRow) {
 		a.row.KEV = append(a.row.KEV, AdvisoryKEVObservation{
 			Source:                     source,
 			CVEID:                      kev.CVEID,
-			DateAdded:                  workItemDerefString(kev.DateAdded),
-			RequiredAction:             workItemDerefString(kev.RequiredAction),
-			DueDate:                    workItemDerefString(kev.DueDate),
-			KnownRansomwareCampaignUse: workItemDerefString(kev.KnownRansomwareCampaignUse),
+			DateAdded:                  derefString(kev.DateAdded),
+			RequiredAction:             derefString(kev.RequiredAction),
+			DueDate:                    derefString(kev.DueDate),
+			KnownRansomwareCampaignUse: derefString(kev.KnownRansomwareCampaignUse),
 			CWEs:                       sortedStrings(kev.CWEs),
 			FactID:                     fact.FactID,
 		})
@@ -138,8 +143,8 @@ func (a *advisoryEvidenceAccumulator) addFact(fact advisoryEvidenceFactRow) {
 			Source:        source,
 			AdvisoryID:    advisoryID,
 			CVEID:         cveID,
-			ReferenceType: StringVal(payload, "reference_type"),
-			URL:           StringVal(payload, "url"),
+			ReferenceType: querycontract.StringVal(payload, "reference_type"),
+			URL:           querycontract.StringVal(payload, "url"),
 			FactID:        fact.FactID,
 		})
 	}
@@ -147,16 +152,16 @@ func (a *advisoryEvidenceAccumulator) addFact(fact advisoryEvidenceFactRow) {
 
 func (a *advisoryEvidenceAccumulator) addIDs(payload map[string]any) {
 	for _, value := range []string{
-		StringVal(payload, "cve_id"),
-		StringVal(payload, "advisory_id"),
-		StringVal(payload, "ghsa_id"),
+		querycontract.StringVal(payload, "cve_id"),
+		querycontract.StringVal(payload, "advisory_id"),
+		querycontract.StringVal(payload, "ghsa_id"),
 	} {
 		a.addID(value)
 	}
-	for _, value := range StringSliceVal(payload, "aliases") {
+	for _, value := range querycontract.StringSliceVal(payload, "aliases") {
 		a.addID(value)
 	}
-	for _, value := range StringSliceVal(payload, "related") {
+	for _, value := range querycontract.StringSliceVal(payload, "related") {
 		a.addID(value)
 	}
 }
@@ -174,7 +179,7 @@ func (a *advisoryEvidenceAccumulator) addID(value string) {
 }
 
 func (a *advisoryEvidenceAccumulator) addSourceEvidence(
-	fact advisoryEvidenceFactRow,
+	fact AdvisoryEvidenceFactRow,
 	source string,
 	advisoryID string,
 	cveID string,
@@ -197,23 +202,23 @@ func (a *advisoryEvidenceAccumulator) addSourceEvidence(
 		// a real "aliases" list
 		// (go/internal/collector/vulnerabilityintelligence/envelope.go). Read
 		// raw until a W1 change extends the struct.
-		Aliases:       sortedStrings(StringSliceVal(payload, "aliases")),
-		PublishedAt:   workItemDerefString(cve.PublishedAt),
-		ModifiedAt:    workItemDerefString(cve.ModifiedAt),
-		WithdrawnAt:   workItemDerefString(cve.WithdrawnAt),
-		SeverityLabel: workItemDerefString(cve.SeverityLabel),
-		CVSSScore:     supplyChainDerefFloat64(cve.CVSSScore),
-		CVSSVector:    workItemDerefString(cve.CVSSVector),
+		Aliases:       sortedStrings(querycontract.StringSliceVal(payload, "aliases")),
+		PublishedAt:   derefString(cve.PublishedAt),
+		ModifiedAt:    derefString(cve.ModifiedAt),
+		WithdrawnAt:   derefString(cve.WithdrawnAt),
+		SeverityLabel: derefString(cve.SeverityLabel),
+		CVSSScore:     derefFloat64(cve.CVSSScore),
+		CVSSVector:    derefString(cve.CVSSVector),
 		// TODO(#4795 struct gap): CVE has no CVSSVectorV2/V3/V4, CVSSMetrics,
 		// Severity, or CWEs fields yet; NVD-sourced facts carry cvss_metrics
 		// and OSV-sourced facts carry severity. Read raw until a W1 change
 		// extends the struct.
-		CVSSVectorV2:  StringVal(payload, "cvss_v2"),
-		CVSSVectorV3:  StringVal(payload, "cvss_v3"),
-		CVSSVectorV4:  StringVal(payload, "cvss_v4"),
+		CVSSVectorV2:  querycontract.StringVal(payload, "cvss_v2"),
+		CVSSVectorV3:  querycontract.StringVal(payload, "cvss_v3"),
+		CVSSVectorV4:  querycontract.StringVal(payload, "cvss_v4"),
 		CVSSMetrics:   mapVal(payload, "cvss_metrics"),
 		Severity:      stringMapSliceVal(payload, "severity"),
-		CWEs:          sortedStrings(StringSliceVal(payload, "cwes")),
+		CWEs:          sortedStrings(querycontract.StringSliceVal(payload, "cwes")),
 		SourceFactIDs: []string{fact.FactID},
 	}
 	a.row.Sources = append(a.row.Sources, evidence)
@@ -228,7 +233,7 @@ func (a *advisoryEvidenceAccumulator) addSourceEvidence(
 }
 
 func (a *advisoryEvidenceAccumulator) addAffectedPackage(
-	fact advisoryEvidenceFactRow,
+	fact AdvisoryEvidenceFactRow,
 	source string,
 	advisoryID string,
 	cveID string,
@@ -246,10 +251,10 @@ func (a *advisoryEvidenceAccumulator) addAffectedPackage(
 		AdvisoryID:    advisoryID,
 		CVEID:         cveID,
 		GHSAID:        ghsaID,
-		Ecosystem:     workItemDerefString(typedPackage.Ecosystem),
-		PackageID:     workItemDerefString(typedPackage.PackageID),
-		PURL:          workItemDerefString(typedPackage.PURL),
-		AffectedRange: workItemDerefString(typedPackage.AffectedRangeRaw),
+		Ecosystem:     derefString(typedPackage.Ecosystem),
+		PackageID:     derefString(typedPackage.PackageID),
+		PURL:          derefString(typedPackage.PURL),
+		AffectedRange: derefString(typedPackage.AffectedRangeRaw),
 		// TODO(#4795 struct gap): vulnerability/v1.AffectedPackage (sdk/go/factschema)
 		// has no ParsedAffectedRange field yet (GitLab Gemnasium-sourced facts
 		// carry a real "parsed_affected_range" object,
@@ -272,32 +277,32 @@ func (a *advisoryEvidenceAccumulator) addAffectedPackage(
 	}
 }
 
-func (a *advisoryEvidenceAccumulator) addAffectedProduct(fact advisoryEvidenceFactRow, source string, cveID string) {
+func (a *advisoryEvidenceAccumulator) addAffectedProduct(fact AdvisoryEvidenceFactRow, source string, cveID string) {
 	payload := fact.Payload
 	a.row.AffectedProducts = append(a.row.AffectedProducts, AdvisoryAffectedProduct{
 		Source:                      source,
 		CVEID:                       cveID,
-		Criteria:                    StringVal(payload, "criteria"),
-		MatchCriteriaID:             StringVal(payload, "match_criteria_id"),
-		Vulnerable:                  BoolVal(payload, "vulnerable"),
-		VersionStartIncluding:       StringVal(payload, "version_start_including"),
-		VersionStartExcluding:       StringVal(payload, "version_start_excluding"),
-		VersionEndIncluding:         StringVal(payload, "version_end_including"),
-		VersionEndExcluding:         StringVal(payload, "version_end_excluding"),
-		SourceConfigurationOperator: StringVal(payload, "source_configuration_operator"),
-		SourceConfigurationNegate:   BoolVal(payload, "source_configuration_negate"),
-		SourceNodeOperator:          StringVal(payload, "source_node_operator"),
-		SourceNodeNegate:            BoolVal(payload, "source_node_negate"),
+		Criteria:                    querycontract.StringVal(payload, "criteria"),
+		MatchCriteriaID:             querycontract.StringVal(payload, "match_criteria_id"),
+		Vulnerable:                  querycontract.BoolVal(payload, "vulnerable"),
+		VersionStartIncluding:       querycontract.StringVal(payload, "version_start_including"),
+		VersionStartExcluding:       querycontract.StringVal(payload, "version_start_excluding"),
+		VersionEndIncluding:         querycontract.StringVal(payload, "version_end_including"),
+		VersionEndExcluding:         querycontract.StringVal(payload, "version_end_excluding"),
+		SourceConfigurationOperator: querycontract.StringVal(payload, "source_configuration_operator"),
+		SourceConfigurationNegate:   querycontract.BoolVal(payload, "source_configuration_negate"),
+		SourceNodeOperator:          querycontract.StringVal(payload, "source_node_operator"),
+		SourceNodeNegate:            querycontract.BoolVal(payload, "source_node_negate"),
 		SourceFactID:                fact.FactID,
 	})
 }
 
 func (a *advisoryEvidenceAccumulator) finish() AdvisoryEvidenceRow {
-	a.row.CVEIDs = setToSortedSlice(a.cveIDs)
-	a.row.GHSAIDs = setToSortedSlice(a.ghsaIDs)
-	a.row.OSVIDs = setToSortedSlice(a.osvIDs)
-	a.row.SourceIDs = setToSortedSlice(a.sourceIDs)
-	a.row.EvidenceFactIDs = setToSortedSlice(a.evidenceFactIDs)
+	a.row.CVEIDs = SetToSortedSlice(a.cveIDs)
+	a.row.GHSAIDs = SetToSortedSlice(a.ghsaIDs)
+	a.row.OSVIDs = SetToSortedSlice(a.osvIDs)
+	a.row.SourceIDs = SetToSortedSlice(a.sourceIDs)
+	a.row.EvidenceFactIDs = SetToSortedSlice(a.evidenceFactIDs)
 	a.row.SourceConfidence = sourceConfidenceLabel(a.confidences)
 	sortAdvisoryEvidence(&a.row)
 	a.row.SourceDisagreements = []AdvisorySourceDisagreement{
@@ -310,7 +315,10 @@ func (a *advisoryEvidenceAccumulator) finish() AdvisoryEvidenceRow {
 	return a.row
 }
 
-func canonicalAdvisoryKey(payload map[string]any) string {
+// CanonicalAdvisoryKey returns the canonical grouping key for one source
+// payload. Exported for the staying root evidence tests, which pin key
+// normalization.
+func CanonicalAdvisoryKey(payload map[string]any) string {
 	if cve := firstCVEID(payload); cve != "" {
 		return cve
 	}
@@ -318,7 +326,7 @@ func canonicalAdvisoryKey(payload map[string]any) string {
 		return ghsa
 	}
 	for _, key := range []string{"advisory_id", "ghsa_id"} {
-		if value := normalizeAdvisoryDisplayID(StringVal(payload, key)); value != "" {
+		if value := normalizeAdvisoryDisplayID(querycontract.StringVal(payload, key)); value != "" {
 			return value
 		}
 	}
@@ -345,12 +353,12 @@ func firstGHSAID(payload map[string]any) string {
 
 func advisoryIdentityCandidates(payload map[string]any) []string {
 	values := []string{
-		StringVal(payload, "cve_id"),
-		StringVal(payload, "ghsa_id"),
-		StringVal(payload, "advisory_id"),
+		querycontract.StringVal(payload, "cve_id"),
+		querycontract.StringVal(payload, "ghsa_id"),
+		querycontract.StringVal(payload, "advisory_id"),
 	}
-	values = append(values, StringSliceVal(payload, "aliases")...)
-	values = append(values, StringSliceVal(payload, "correlation_anchors")...)
+	values = append(values, querycontract.StringSliceVal(payload, "aliases")...)
+	values = append(values, querycontract.StringSliceVal(payload, "correlation_anchors")...)
 	return values
 }
 

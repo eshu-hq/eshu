@@ -1,17 +1,22 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package query
+package advisory
 
 import "context"
 
 const (
-	// advisoryCatalogCapability gates the browsable CVE-intelligence catalog
-	// list over the Postgres vulnerability source fact read model.
-	advisoryCatalogCapability = "supply_chain.advisory_catalog.list"
-	// advisoryCatalogMaxLimit bounds one catalog page so an unscoped browse of
-	// the whole intelligence catalog stays cheap and cancellable.
-	advisoryCatalogMaxLimit = 200
+	// AdvisoryCatalogCapability gates the browsable CVE-intelligence catalog
+	// list over the Postgres vulnerability source fact read model. Exported
+	// so root package query registers it in contract_supply_chain.go and
+	// gates the catalog handler on it (#6060 lane A keeps registration and
+	// routing in root).
+	AdvisoryCatalogCapability = "supply_chain.advisory_catalog.list"
+	// AdvisoryCatalogMaxLimit bounds one catalog page so an unscoped browse
+	// of the whole intelligence catalog stays cheap and cancellable.
+	// Exported for the staying root catalog handler's limit check and the
+	// root catalog tests.
+	AdvisoryCatalogMaxLimit = 200
 )
 
 // AdvisoryCatalogStore reads a browsable, summary-only page of canonical
