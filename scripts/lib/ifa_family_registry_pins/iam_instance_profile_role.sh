@@ -28,8 +28,7 @@ IFA_FAMILY_PIN_WAIT_KEY="iam_instance_profile_role_materialization"
 # iamInstanceProfileRoleRelationshipVocabulary, a closed single-member set
 # screened per row, so HAS_ROLE is the only value it takes. A literal `%s` here
 # would match no executed statement, the scripted graph-write fault would never
-# fire, and the cell would report green having tested nothing. That cell is not
-# written yet (#6309); the pin is hand-derived ahead of it, not evidence of it.
+# fire, and the cell would report green having tested nothing.
 #
 # NOT IAM_INSTANCE_PROFILE_HAS_ROLE -- that is iamInstanceProfileRoleEdgeLabel,
 # statement metadata beside the query, never a graph relationship type.
@@ -37,8 +36,8 @@ IFA_FAMILY_PIN_ANCHOR="MERGE (profile)-[rel:HAS_ROLE]->(role)"
 # shared_cell: a plain reducer family needing no maintenance pass, so it is
 # driven in the determinism gate's shared N={1,2,4} cell.
 IFA_FAMILY_PIN_SHARED_CELL=1
-# cell_kind: derived from the gate's call sites, and this family has none --
-# `none`, for the reason recorded in the sibling kubernetes_namespace_environment
-# pin, which also records why the cells will be custom rather than generic when
-# they are written.
-IFA_FAMILY_PIN_CELL_KIND="none"
+# cell_kind: derived from the gate's call sites -- the custom trio in
+# scripts/lib/ifa_fault_injection_iam_instance_profile_role_cells.sh,
+# dispatched by name (#6309). Custom rather than generic for the reason
+# recorded in the sibling kubernetes_namespace_environment pin.
+IFA_FAMILY_PIN_CELL_KIND="custom"

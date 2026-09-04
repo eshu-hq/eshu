@@ -429,17 +429,14 @@ on:
       - 'go/internal/ifa/testdata/shellexec/**'
       # kubernetes_namespace_environment / iam_instance_profile_role (#6228),
       # the first DIRECT-materialization families in these matrices. Mirrors
-      # the paths specs/ci-gates.v1.yaml lists for the ifa-determinism gate
-      # ONLY: the ifa-fault-injection registry has no triggers for either
-      # family, because neither has a fault cell (see that block's "ON THIS
-      # GATE ONLY" comment). The registry-subset-of-workflow check fails if the
-      # two drift, because a gate selected as blocking from a trigger this
-      # filter omits is selected and then never starts.
+      # the paths specs/ci-gates.v1.yaml lists for BOTH the ifa-determinism
+      # and ifa-fault-injection gates since #6309 landed the fault cells. The
+      # registry-subset-of-workflow check fails if the two drift, because a
+      # gate selected as blocking from a trigger this filter omits is selected
+      # and then never starts.
       #
-      # This single shared on.pull_request.paths filter still ARMS the
-      # fault-injection job on these paths, since there is no per-job
-      # condition -- that is the CI-level caveat specs/ci-gates.v1.yaml
-      # records, not a per-gate registry trigger.
+      # This single shared on.pull_request.paths filter ARMS all four jobs on
+      # these paths, since there is no per-job condition.
       - 'go/internal/ifa/kubernetes_namespace_environment_family_odu.go'
       - 'go/internal/ifa/iam_instance_profile_role_family_odu.go'
       - 'go/internal/ifa/direct_family_cassette.go'
@@ -453,6 +450,14 @@ on:
       - 'go/internal/ifa/testdata/kubernetesnamespaceenvironment/**'
       - 'go/internal/ifa/testdata/iaminstanceprofilerole/**'
       - 'scripts/lib/ifa_direct_family_live.sh'
+      - 'scripts/lib/ifa_fault_injection_kubernetes_namespace_environment_cells.sh'
+      - 'scripts/lib/ifa_fault_injection_iam_instance_profile_role_cells.sh'
+      - 'scripts/lib/test-ifa-fault-injection-kubernetes-namespace-environment-cases.sh'
+      - 'scripts/lib/test-ifa-fault-injection-iam-instance-profile-role-cases.sh'
+      # Mirrors specs/ci-gates.v1.yaml's fault-block literals so the
+      # registry-subset-of-workflow lockstep holds for the per-family
+      # reach-ins (same treatment as the inheritance/shell_exec/
+      # repo_dependency cells literals above).
       # handles_route/runs_in/invokes_cloud_action trio (#5995/#6000/#5997):
       # one shared cassette and Odù (symbolRuntimeFamilyOdu() is registered
       # in catalog_seed.go's catalogSeed, so it is live-binary-consumed, not

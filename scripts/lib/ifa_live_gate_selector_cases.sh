@@ -398,6 +398,16 @@ ifa_live_gate_common_seams=(
 	'scripts/lib/test-ifa-fault-injection-repo-dependency-cases.sh|scripts/lib/test-ifa-fault-injection-repo-dependency-cases.sh'
 	'testdata/cassettes/repodependency/**|testdata/cassettes/repodependency/ifa-repo-dependency-family.json'
 	'go/internal/ifa/testdata/repodependency/**|go/internal/ifa/testdata/repodependency/ifa-repo-dependency-family-expected-edges.json'
+	# kubernetes_namespace_environment + iam_instance_profile_role (#6228, #6309):
+	# moved here from the determinism-only table when the fault cells landed.
+	'go/internal/storage/cypher/kubernetes_namespace_node_writer.go|go/internal/storage/cypher/kubernetes_namespace_node_writer.go'
+	'go/internal/storage/cypher/iam_instance_profile_role_edge_writer.go|go/internal/storage/cypher/iam_instance_profile_role_edge_writer.go'
+	'testdata/cassettes/kubernetesnamespaceenvironment/**|testdata/cassettes/kubernetesnamespaceenvironment/ifa-kubernetes-namespace-environment-family.json'
+	'testdata/cassettes/iaminstanceprofilerole/**|testdata/cassettes/iaminstanceprofilerole/ifa-iam-instance-profile-role-family.json'
+	'go/internal/ifa/testdata/kubernetesnamespaceenvironment/**|go/internal/ifa/testdata/kubernetesnamespaceenvironment/ifa-kubernetes-namespace-environment-family-expected-edges.json'
+	'go/internal/ifa/testdata/iaminstanceprofilerole/**|go/internal/ifa/testdata/iaminstanceprofilerole/ifa-iam-instance-profile-role-family-expected-edges.json'
+	'scripts/lib/ifa_fault_injection_kubernetes_namespace_environment_cells.sh|scripts/lib/ifa_fault_injection_kubernetes_namespace_environment_cells.sh'
+	'scripts/lib/ifa_fault_injection_iam_instance_profile_role_cells.sh|scripts/lib/ifa_fault_injection_iam_instance_profile_role_cells.sh'
 	'go/internal/collector/gitrepo/git_fact_builder*.go|go/internal/collector/gitrepo/git_fact_builder.go'
 	'go/internal/collector/gitrepo/git_fact_builder*.go|go/internal/collector/gitrepo/git_fact_builder_delta.go'
 	'go/internal/collector/gitrepo/git_followup_facts.go|go/internal/collector/gitrepo/git_followup_facts.go'

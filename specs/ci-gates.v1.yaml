@@ -2765,18 +2765,15 @@ gates:
       # gone stale. ifa_direct_family_live.sh supplies both families'
       # drive/assert callbacks, so it is listed once for both.
       #
-      # ON THIS GATE ONLY, deliberately (#6309). Neither family has a
-      # fault-injection cell: no cell function, no IFA_FAULT_ALL_CELLS entry,
-      # no dispatch in scripts/verify-ifa-fault-injection.sh, and
-      # ifa_direct_family_live.sh is absent from ifa_fault_injection_sources.sh.
-      # Mirroring these triggers onto ifa-fault-injection would re-run a
-      # four-shard Docker matrix on edits it cannot observe, and would make the
-      # rows read as fault-covered while nothing drives them. The mirrored
-      # block lands with the cells, not before. The six of these thirteen that
-      # are not already matched by a broader trigger are pinned as
-      # determinism-only seams in scripts/lib/ifa_live_gate_determinism_only_cases.sh,
-      # so the real matcher proves the split rather than this comment asserting
-      # it.
+      # Mirrored onto ifa-fault-injection since #6309 landed the cells: the
+      # fault block carries the cassette/testdata/writer/cells literals, while
+      # the Go production paths need no mirror (covered by broader globs on
+      # both gates). Before the cells existed this block deliberately stayed
+      # determinism-only so the rows would not read as fault-covered while
+      # nothing drove them. The six of these thirteen that are not already
+      # matched by a broader trigger are pinned as determinism-only seams in
+      # scripts/lib/ifa_live_gate_determinism_only_cases.sh, so the real
+      # matcher proves the split rather than this comment asserting it.
       #
       # SCOPE CAVEAT: the split above is REGISTRY-level. It holds for
       # `ci-gates select` and `make pre-pr`, which consult these per-gate
@@ -2871,6 +2868,11 @@ gates:
       - "scripts/test-verify-ifa-determinism.sh"
       - "scripts/lib/ifa_fault_injection_inheritance_cells.sh"
       - "scripts/lib/ifa_fault_injection_shell_exec_cells.sh"
+      # kubernetes_namespace_environment + iam_instance_profile_role (#6309):
+      # same deliberate reach into the fault surface as the inheritance/
+      # shell_exec literals above.
+      - "scripts/lib/ifa_fault_injection_kubernetes_namespace_environment_cells.sh"
+      - "scripts/lib/ifa_fault_injection_iam_instance_profile_role_cells.sh"
       # #6147 PR-0 family-registry extraction: shared with ifa-fault-injection
       # below (sourced directly by verify-ifa-determinism.sh, transitively by
       # verify-ifa-fault-injection.sh), plus this mirror's own sourced case
@@ -3320,6 +3322,18 @@ gates:
       - "testdata/cassettes/shellexec/**"
       - "go/internal/ifa/testdata/inheritance/**"
       - "go/internal/ifa/testdata/shellexec/**"
+      # kubernetes_namespace_environment + iam_instance_profile_role (#6309):
+      # mirror of the determinism block's family entries. The Go production
+      # paths need no mirror: go/internal/ifa/*.go, go/internal/reducer/**,
+      # and go/cmd/ifa/** above already cover the Odù builders, handlers, and
+      # drive verbs. The writers are per-file literals on this gate (like the
+      # canonical_* entries above), so they are named, not globbed.
+      - "testdata/cassettes/kubernetesnamespaceenvironment/**"
+      - "testdata/cassettes/iaminstanceprofilerole/**"
+      - "go/internal/ifa/testdata/kubernetesnamespaceenvironment/**"
+      - "go/internal/ifa/testdata/iaminstanceprofilerole/**"
+      - "go/internal/storage/cypher/kubernetes_namespace_node_writer.go"
+      - "go/internal/storage/cypher/iam_instance_profile_role_edge_writer.go"
       # handles_route/runs_in/invokes_cloud_action trio (#5995/#6000/#5997):
       # same cassette/Odù/expected-edges wiring as the determinism block
       # above -- see that block's comment for why the Go-test-only carve-out
@@ -3384,6 +3398,14 @@ gates:
       - "scripts/lib/ifa_fault_injection_shell_exec_cells.sh"
       - "scripts/lib/ifa_fault_injection_repo_dependency_cells.sh"
       - "scripts/lib/test-ifa-fault-injection-repo-dependency-cases.sh"
+      # kubernetes_namespace_environment + iam_instance_profile_role (#6309):
+      # the first direct-materialization families with fault cells. Same
+      # per-family literal treatment as the inheritance/shell_exec/
+      # repo_dependency reach-ins above.
+      - "scripts/lib/ifa_fault_injection_kubernetes_namespace_environment_cells.sh"
+      - "scripts/lib/ifa_fault_injection_iam_instance_profile_role_cells.sh"
+      - "scripts/lib/test-ifa-fault-injection-kubernetes-namespace-environment-cases.sh"
+      - "scripts/lib/test-ifa-fault-injection-iam-instance-profile-role-cases.sh"
       # Every per-family live module this gate sources, plus the
       # deployable_unit diagnostics/converge pair that split off one of them.
       # Shared with ifa-determinism, which spells the same glob: ifa_sql_delta

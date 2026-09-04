@@ -101,6 +101,7 @@ run_ifa_fault_injection_shard_cases() {
 		cell_baseline_submodule_pin
 		cell_killworker_submodule_pin
 		cell_failgraphwrite_submodule_pin
+		cell_baseline_kubernetes_namespace_environment cell_killworker_kubernetes_namespace_environment cell_failgraphwrite_kubernetes_namespace_environment cell_baseline_iam_instance_profile_role cell_killworker_iam_instance_profile_role cell_failgraphwrite_iam_instance_profile_role
 		cell_baseline_inheritance
 		cell_killworker_inheritance
 		cell_failgraphwrite_inheritance
@@ -181,9 +182,9 @@ $(comm -13 <(printf '%s\n' "${dispatched_cells}") <(printf '%s\n' "${listed_cell
 	# family-scoped baseline plus two recovery cells each for
 	# deployable_unit_edges (#5993), codeowners_ownership_edges (#6160),
 	# repo_dependency (#5999), submodule_pin_edges (#6002), inheritance_edges
-	# (#5996), shell_exec (#6001), and workload_dependency (#6003), and ONE
-	# shared baseline plus six family-targeted recovery cells for the
-	# handles_route/runs_in/invokes_cloud_action trio (#5995/#6000/#5997).
+	# (#5996), shell_exec (#6001), workload_dependency (#6003), kubernetes_namespace_environment
+	# + iam_instance_profile_role (#6309), and ONE shared baseline plus six family-targeted
+	# recovery cells for the handles_route/runs_in/invokes_cloud_action trio (#5995/#6000/#5997).
 	# All cells in the literal roster run by default.
 	# Every cell is anchored to its own invocation line, never matched by bare name.
 	# A bare-name needle is satisfied by prose and by longer siblings: "cell_baseline"
@@ -219,7 +220,7 @@ $(comm -13 <(printf '%s\n' "${dispatched_cells}") <(printf '%s\n' "${listed_cell
 		cell_failgraphwrite_deployable_unit \
 		cell_baseline_codeowners cell_killworker_codeowners cell_failgraphwrite_codeowners \
 		cell_baseline_repo_dependency cell_killworker_repo_dependency cell_failgraphwrite_repo_dependency \
-		cell_baseline_submodule_pin cell_killworker_submodule_pin cell_failgraphwrite_submodule_pin \
+		cell_baseline_submodule_pin cell_killworker_submodule_pin cell_failgraphwrite_submodule_pin cell_baseline_kubernetes_namespace_environment cell_killworker_kubernetes_namespace_environment cell_failgraphwrite_kubernetes_namespace_environment cell_baseline_iam_instance_profile_role cell_killworker_iam_instance_profile_role cell_failgraphwrite_iam_instance_profile_role \
 		cell_baseline_inheritance cell_killworker_inheritance cell_failgraphwrite_inheritance \
 		cell_baseline_shell_exec cell_killworker_shell_exec cell_failgraphwrite_shell_exec \
 		cell_baseline_workload_dependency cell_killworker_workload_dependency cell_failgraphwrite_workload_dependency \

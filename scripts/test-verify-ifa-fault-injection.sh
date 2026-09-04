@@ -8,7 +8,7 @@
 # reducer), so this mirror validates the contract that cannot silently
 # drift: strict mode and the bash>=4.4 guard, an isolated Compose project and
 # port triple distinct from every sibling verify-ifa-*.sh script, the
-# 43-cell shape (baseline + 42 live cells; fail-terminal
+# 49-cell shape (baseline + 48 live cells; fail-terminal
 # deliberately absent with its rationale documented), each cell's own
 # recovery mechanism, the digest/dead_letter/non-vacuity assertions, the
 # tagged-reducer + fault-script wiring this gate is the first thing to
@@ -51,6 +51,7 @@ deployable_unit_converge_lib="${repo_root}/scripts/lib/ifa_deployable_unit_live_
 deployable_unit_lock_lib="${repo_root}/scripts/lib/ifa_fault_injection_deployable_unit_lock.sh"
 deployable_unit_cells_lib="${repo_root}/scripts/lib/ifa_fault_injection_deployable_unit_cells.sh"
 review_cases_lib="${repo_root}/scripts/lib/test-ifa-fault-injection-review-cases.sh"; codeowners_cases_lib="${repo_root}/scripts/lib/test-ifa-fault-injection-codeowners-cases.sh"  # packed for the 500-line cap
+kubernetes_namespace_environment_cells_lib="${repo_root}/scripts/lib/ifa_fault_injection_kubernetes_namespace_environment_cells.sh"; iam_instance_profile_role_cells_lib="${repo_root}/scripts/lib/ifa_fault_injection_iam_instance_profile_role_cells.sh"; kubernetes_namespace_environment_cases_lib="${repo_root}/scripts/lib/test-ifa-fault-injection-kubernetes-namespace-environment-cases.sh"; iam_instance_profile_role_cases_lib="${repo_root}/scripts/lib/test-ifa-fault-injection-iam-instance-profile-role-cases.sh"  # direct families (#6309), packed for the 500-line cap
 deployable_unit_cases_lib="${repo_root}/scripts/lib/test-ifa-fault-injection-deployable-unit-cases.sh"
 documentation_barrier_cases_lib="${repo_root}/scripts/lib/test-ifa-fault-injection-documentation-ack-barrier-cases.sh"
 documentation_barrier_cleanup_cases_lib="${repo_root}/scripts/lib/test-ifa-fault-injection-documentation-ack-cleanup-cases.sh"
@@ -83,7 +84,7 @@ generic_runner_wait_lib="${repo_root}/scripts/lib/ifa_fault_generic_runner_wait.
 private_data_pattern_lib="${repo_root}/scripts/lib/ifa_private_data_pattern.sh"
 dead_command_lib="${repo_root}/scripts/lib/ifa_dead_command_line.sh"
 fail() { printf 'test-verify-ifa-fault-injection: %s\n' "$*" >&2; exit 1; }
-for f in "${script}" "${fault_lib}" "${det_lib}" "${driver_lib}" "${sources_lib}" "${delta_lib}" "${cells_lib}" "${sql_cells_lib}" "${delivery_cells_lib}" "${collateral_nodes_lib}" "${code_call_lib}" "${code_call_cells_lib}" "${code_call_cases_lib}" "${documentation_lib}" "${documentation_cells_lib}" "${documentation_barrier_lib}" "${documentation_barrier_setup_lib}" "${documentation_cases_lib}" "${documentation_barrier_cases_lib}" "${documentation_barrier_cleanup_cases_lib}" "${rationale_lib}" "${rationale_cells_lib}" "${rationale_cases_lib}" "${review_cases_lib}" "${entrypoint_cases_lib}" "${deployable_unit_cases_lib}" "${assertions_lib}" "${pin_probe_lib}" "${deployable_unit_live_lib}" "${deployable_unit_diagnostics_lib}" "${deployable_unit_converge_lib}" "${deployable_unit_lock_lib}" "${deployable_unit_cells_lib}" "${shard_lib}" "${shard_cases_lib}" "${repo_dependency_lease_cases_lib}" "${repo_dependency_cases_lib}" "${workload_dependency_cases_lib}" "${codeowners_cases_lib}" "${submodule_pin_cases_lib}" "${marker_cases_lib}" "${deployable_unit_ordering_cases_lib}" "${generic_cells_lib}" "${table_lock_lib}" "${table_lock_cases_lib}" "${shared_intent_lock_cases_lib}" "${family_drive_cases_lib}" "${runner_lease_hold_cases_lib}" "${runner_lease_audit_cases_lib}" "${generic_modules_lib}" "${generic_shared_intent_lock_lib}" "${generic_runner_wait_lib}" "${private_data_pattern_lib}"; do
+for f in "${script}" "${fault_lib}" "${det_lib}" "${driver_lib}" "${sources_lib}" "${delta_lib}" "${cells_lib}" "${sql_cells_lib}" "${delivery_cells_lib}" "${collateral_nodes_lib}" "${code_call_lib}" "${code_call_cells_lib}" "${code_call_cases_lib}" "${documentation_lib}" "${documentation_cells_lib}" "${documentation_barrier_lib}" "${documentation_barrier_setup_lib}" "${documentation_cases_lib}" "${documentation_barrier_cases_lib}" "${documentation_barrier_cleanup_cases_lib}" "${rationale_lib}" "${rationale_cells_lib}" "${rationale_cases_lib}" "${review_cases_lib}" "${entrypoint_cases_lib}" "${deployable_unit_cases_lib}" "${assertions_lib}" "${pin_probe_lib}" "${deployable_unit_live_lib}" "${deployable_unit_diagnostics_lib}" "${deployable_unit_converge_lib}" "${deployable_unit_lock_lib}" "${deployable_unit_cells_lib}" "${shard_lib}" "${shard_cases_lib}" "${repo_dependency_lease_cases_lib}" "${repo_dependency_cases_lib}" "${workload_dependency_cases_lib}" "${codeowners_cases_lib}" "${kubernetes_namespace_environment_cells_lib}" "${iam_instance_profile_role_cells_lib}" "${kubernetes_namespace_environment_cases_lib}" "${iam_instance_profile_role_cases_lib}" "${submodule_pin_cases_lib}" "${marker_cases_lib}" "${deployable_unit_ordering_cases_lib}" "${generic_cells_lib}" "${table_lock_lib}" "${table_lock_cases_lib}" "${shared_intent_lock_cases_lib}" "${family_drive_cases_lib}" "${runner_lease_hold_cases_lib}" "${runner_lease_audit_cases_lib}" "${generic_modules_lib}" "${generic_shared_intent_lock_lib}" "${generic_runner_wait_lib}" "${private_data_pattern_lib}"; do
 	[[ -f "${f}" ]] || fail "missing ${f}"
 done
 [[ -x "${script}" ]] || fail "verify-ifa-fault-injection.sh must be executable"
@@ -292,6 +293,13 @@ source "${code_call_cases_lib}"
 # their own existence/syntax checks for the cells library they exercise.
 # shellcheck source=scripts/lib/test-ifa-fault-injection-codeowners-cases.sh
 source "${codeowners_cases_lib}"
+# kubernetes_namespace_environment + iam_instance_profile_role (#6309) hermetic
+# cases, same split; each module owns its cells library's existence/syntax
+# checks (vars declared with the other lib paths above).
+# shellcheck source=scripts/lib/test-ifa-fault-injection-kubernetes-namespace-environment-cases.sh
+source "${kubernetes_namespace_environment_cases_lib}"
+# shellcheck source=scripts/lib/test-ifa-fault-injection-iam-instance-profile-role-cases.sh
+source "${iam_instance_profile_role_cases_lib}"
 source "${repo_dependency_cases_lib}"; source "${repo_dependency_lease_cases_lib}"; source "${workload_dependency_cases_lib}"  # family case modules packed for the 500-line cap
 # shellcheck source=scripts/lib/test-ifa-fault-injection-documentation-ack-barrier-cases.sh
 source "${documentation_barrier_cases_lib}"
@@ -300,6 +308,7 @@ source "${documentation_barrier_cleanup_cases_lib}"
 run_ifa_documentation_live_static_cases
 run_ifa_fault_injection_review_cases
 run_ifa_fault_injection_codeowners_cases
+run_ifa_fault_injection_kubernetes_namespace_environment_cases; run_ifa_fault_injection_iam_instance_profile_role_cases  # direct families (#6309), packed for the 500-line cap
 run_ifa_fault_injection_repo_dependency_cases; run_ifa_fault_injection_workload_dependency_cases  # family case modules packed for the 500-line cap
 source "${submodule_pin_cases_lib}"; run_ifa_fault_injection_submodule_pin_cases  # submodule_pin_edges (#6002) hermetic cases, same split; packed for the 500-line cap
 

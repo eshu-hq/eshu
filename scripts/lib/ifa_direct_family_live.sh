@@ -3,16 +3,12 @@
 # Live-gate drive/assert callbacks for the two DIRECT-materialization families
 # (#6228): kubernetes_namespace_environment and iam_instance_profile_role.
 #
-# SOURCED BY scripts/verify-ifa-determinism.sh ONLY. The fault gate does not
-# source it: scripts/verify-ifa-fault-injection.sh loads its libs through
-# scripts/lib/ifa_fault_injection_sources.sh, which does not list this file.
-# Neither family has a fault cell of any kind (#6309) -- nothing here is
-# reachable from the fault gate, and nothing below should be read as evidence
-# that a fault cell exists. The families are registered through
-# scripts/lib/ifa_family_registry/rows/12_kubernetes_namespace_environment.sh
-# and rows/13_iam_instance_profile_role.sh, which say the same thing in
-# cell_kind=none; this file only supplies the drive/assert callbacks the
-# determinism gate's N-loop names. Callers own strict mode and cleanup.
+# SOURCED BY scripts/verify-ifa-determinism.sh AND, since #6309, the fault
+# gate through scripts/lib/ifa_fault_injection_sources.sh. The fault cells
+# (scripts/lib/ifa_fault_injection_kubernetes_namespace_environment_cells.sh
+# and scripts/lib/ifa_fault_injection_iam_instance_profile_role_cells.sh)
+# call the drive/assert callbacks below; the families' registry rows carry
+# cell_kind=custom. Callers own strict mode and cleanup.
 #
 # ONE FILE FOR TWO FAMILIES, unlike the shared-projection families' one file
 # each. Their drive and assert bodies differ only in a cassette path, a domain

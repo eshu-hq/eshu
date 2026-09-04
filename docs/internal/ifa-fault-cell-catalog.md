@@ -130,3 +130,9 @@ than there are entries here.
 41. kill-worker-after-runner-lease-wait-handles-route (#6208) -- exact-key reclaim proof.
 42. kill-worker-after-runner-lease-wait-runs-in (#6208) -- exact-key reclaim proof.
 43. kill-worker-after-runner-lease-wait-invokes-cloud-action (#6208) -- exact-key reclaim proof.
+44. baseline-kubernetes-namespace-environment (#6309) -- family-scoped fault-free baseline; first direct-materialization family in this gate.
+45. kill-worker-after-claim-kubernetes-namespace-environment (#6309) -- lease reclaim proof.
+46. fail-graph-write-once-then-succeed-kubernetes-namespace-environment (#6309) -- TARGETS_ENVIRONMENT retry proof.
+47. baseline-iam-instance-profile-role (#6309) -- family-scoped fault-free baseline.
+48. kill-worker-after-claim-iam-instance-profile-role (#6309) -- lease reclaim proof.
+49. fail-graph-write-once-then-succeed-iam-instance-profile-role (#6309) -- HAS_ROLE retry proof.
