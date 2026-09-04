@@ -57,7 +57,6 @@ live in the repository today.
 | `go/internal/mcp/investigation/` | investigation workflow and evidence-packet MCP tool registration definitions |
 | `go/internal/mcp/kubernetes/` | Kubernetes-correlation MCP family membership and dependency-neutral route selection |
 | `go/internal/mcp/observabilitycoverage/` | observability-coverage MCP family membership and dependency-neutral route selection |
-| `go/internal/projector/observabilitycoveragematerialization/` | Observability-coverage materialization intent: the closed observability resource-type set, the AWS resource decode, and the COVERS-edge reducer intent |
 | `go/internal/mcp/packageregistry/` | package-registry MCP family membership and dependency-neutral route selection |
 | `go/internal/mcp/playbooks/` | query-playbook MCP tool registration definitions |
 | `go/internal/mcp/relationships/` | code-relationship and relationship-edge MCP registrations plus pure family membership and dependency-neutral route selection |
@@ -88,6 +87,7 @@ live in the repository today.
 | `go/internal/projector/intent/` | dependency-neutral reducer-intent values, source labels, and immutable fact index for extracted projector families |
 | `go/internal/projector/kubernetes/` | Kubernetes live-workload and namespace reducer-intent family builders |
 | `go/internal/projector/observabilitycoverage/` | observability-coverage-correlation reducer-intent family builder and its aws_resource decode wrapper |
+| `go/internal/projector/observabilitycoveragematerialization/` | Observability-coverage materialization intent: the closed observability resource-type set, the AWS resource decode, and the COVERS-edge reducer intent |
 | `go/internal/projector/packagesource/` | package-source-correlation reducer-intent family builder |
 | `go/internal/projector/rds/` | RDS posture-materialization reducer-intent family builder |
 | `go/internal/projector/s3/` | S3 LOGS_TO, external-principal-grant, and internet-exposure reducer-intent family builders |

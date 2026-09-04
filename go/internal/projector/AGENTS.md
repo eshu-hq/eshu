@@ -165,7 +165,7 @@
   `factschema_decode_aws.go` against `sdk/go/factschema` (the `ec2` pattern).
   Its `observabilityResourceTypes` set is a three-way mirror with root's
   materialization trigger
-  (`observability_coverage_materialization_intents.go`) and the reducer's
+  (`observabilitycoveragematerialization/materialization_intents.go`) and the reducer's
   `observabilityResourceSignals`
   (`go/internal/reducer/observability_coverage_correlation_index.go`); a
   resource type added to one copy must be added to all three. The root
@@ -180,8 +180,9 @@
   a decode-seam-bearing family: its trigger predicate decodes
   `aws_resource.resource_type` through its own `factschema_decode_aws.go`
   against `sdk/go/factschema` (the `ec2` pattern) and matches
-  `aws_iam_instance_profile`, so root's classified `decodeAWSResource` wrapper
-  keeps observability-coverage materialization as its remaining root caller.
+  `aws_iam_instance_profile`, Root no longer has a `decodeAWSResource` wrapper:
+  materialization was its last caller and both moved into
+    `observabilitycoveragematerialization/`, which carries its own decode.
   A no-role instance profile still triggers — the reducer's retract pass must
   run in a generation whose profile dropped its roles — and the intent shares
   the `aws_resource_materialization:<scope>` entity key with the AWS node
@@ -263,7 +264,7 @@
   `projectorintent.SourceSystem`, but unlike the CI/CD and container-image
   precedents it could not simply be dropped: two OTHER root builders
   (`aws_resource_materialization_intents.go`, itself since extracted into
-  `awsresource/`, and `observability_coverage_materialization_intents.go`)
+  `awsresource/`, and `observabilitycoveragematerialization/`)
   still called it, so
   both call sites were repointed to `projectorintent.SourceSystem` directly in
   this same change before the helper's definition moved out. This family IS

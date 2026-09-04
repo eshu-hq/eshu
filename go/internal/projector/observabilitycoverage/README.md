@@ -59,7 +59,7 @@ metric, or log boundary.
 
 - `observabilityResourceTypes` is a three-way mirror: this package's copy,
   root's materialization-trigger copy
-  (`../observability_coverage_materialization_intents.go`), and the
+  (`../observabilitycoveragematerialization/materialization_intents.go`), and the
   reducer's `observabilityResourceSignals`
   (`go/internal/reducer/observability_coverage_correlation_index.go`) must
   agree on what counts as an observability object. Add a resource type to

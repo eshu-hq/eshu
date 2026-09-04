@@ -15,7 +15,7 @@ import (
 // set: without an observability object there is no coverage signal to
 // correlate. It is this package's copy of the same closed set root's
 // observability-coverage materialization trigger keeps
-// (go/internal/projector/observability_coverage_materialization_intents.go),
+// (go/internal/projector/observabilitycoveragematerialization/materialization_intents.go),
 // and both mirror the reducer's observabilityResourceSignals map
 // (go/internal/reducer/observability_coverage_correlation_index.go) so the
 // triggers and the classifier agree on what counts as an observability
