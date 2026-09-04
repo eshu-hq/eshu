@@ -162,6 +162,16 @@ is ambiguous, it returns bounded candidates instead of guessing. It supports
 direct relationships, bounded transitive `CALLS`, class hierarchy prompts, and
 override prompts.
 
+A scoped token gets only granted repositories, and that now covers every part of
+the answer: the relationship rows, the class-hierarchy methods and inheritance
+depths, the override rows, and the ambiguity candidate list. The candidate list
+is the observable change for a client — a target name that exists in more than
+one tenant used to list every match with its entity id, file path and repository
+id, and now lists only the ones the token may read, so a request that used to
+answer `ambiguous` may now resolve. An ungranted `repo_id` returns `400`, and a
+token with no repository grants gets `"status": "not_found"` without either
+backend being read.
+
 Two optional, additive parameters help agents stay within a prompt budget:
 
 - `relationship_types` (array): a multi-type filter that supersedes the singular
@@ -196,11 +206,16 @@ and the requested symbol under `target_*`.
 
 Cross-repository relationship story and call-chain reads are explicit opt-in
 only. `cross_repo=true` requires repository selectors before traversal; scoped
-tokens resolve those selectors against their grant before graph reads. The
-relationship-story graph shape joins both edge endpoints to repositories and
-filters scoped results through the granted repository set, while call-chain
-paths constrain every returned/intermediate node to the selected endpoint
-repositories. Direct rows label code relationships as
+tokens resolve those selectors against their grant before graph reads. Both
+reads bind the repository condition on the entity nodes themselves, in the
+clause that decides which rows come back: the relationship story filters both
+edge endpoints, and call-chain constrains every returned and intermediate node.
+
+An earlier version of this page said the relationship story filtered scoped
+results by joining both endpoints to repositories. It rendered that condition
+but attached it after the optional repository joins, where it decided nothing;
+the same was true of call-chain's path bound and of the `repo_id` filter on the
+story route. All three apply now. Direct rows label code relationships as
 `edge_origin=direct_code_edge`; package/module/service inference must use its own
 relationship type and provenance instead of masquerading as a direct code edge.
 
@@ -309,6 +324,15 @@ request metrics.
 or between `start_entity_id` and `end_entity_id`. `repo_id` scopes both
 endpoints when provided. Lightweight profiles that cannot answer authoritative
 graph traversal return `unsupported_capability` rather than fallback prose.
+
+A scoped token gets only chains whose every hop is in a granted repository. The
+bound applies per hop as the traversal expands, so a chain that exists only by
+passing through an ungranted repository is not returned at all rather than
+returned with that hop hidden. A hop the graph cannot attribute to any
+repository is dropped for a scoped caller. Naming an ungranted repository in
+`repo_id`, `start_repo_id`, or `end_repo_id` returns `400`; a token with no
+repository grants gets `"chains": []` without the graph being read, which is the
+same answer as "no chain found".
 
 ## Dead Code
 
