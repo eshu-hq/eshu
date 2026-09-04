@@ -126,6 +126,22 @@ func TestImpactSeamExportsForward(t *testing.T) {
 	if !reflect.DeepEqual(gotChains, wantChains) || !reflect.DeepEqual(gotErr, wantErr) {
 		t.Fatal("LoadProvisioningSourceChainsFromCandidates != loadProvisioningSourceChainsFromCandidates")
 	}
+	instances := []map[string]any{{"k": "b"}, {"k": ""}, {"other": "x"}, {"k": "a"}}
+	if got, want := DistinctSortedInstanceField(instances, "k"), distinctSortedInstanceField(instances, "k"); !reflect.DeepEqual(got, want) || !reflect.DeepEqual(got, []string{"a", "b"}) {
+		t.Fatal("DistinctSortedInstanceField != distinctSortedInstanceField")
+	}
+	gotBounded, wantBounded := BoundedK8sResourceResult(nil, false, nil, false, false), boundedK8sResourceResult(nil, false, nil, false, false)
+	if !reflect.DeepEqual(gotBounded, wantBounded) {
+		t.Fatal("BoundedK8sResourceResult != boundedK8sResourceResult")
+	}
+	// Nil graph and nil content take the early empty paths on both sides:
+	// the selector resolves to nothing without a reader, and the service
+	// read model returns nil without content.
+	gotTrace, gotTraceErr := FetchServiceTraceContext(ctx, nil, nil, nil, "", TraceEnrichmentConfig{})
+	wantTrace, wantTraceErr := fetchServiceTraceContext(ctx, nil, nil, nil, "", traceEnrichmentConfig{})
+	if !reflect.DeepEqual(gotTrace, wantTrace) || !reflect.DeepEqual(gotTraceErr, wantTraceErr) {
+		t.Fatal("FetchServiceTraceContext != fetchServiceTraceContext")
+	}
 	gotConsumers, gotTrunc, gotErr := LoadConsumerRepositoryEnrichmentFromCandidates(
 		ctx, nil, nil, "", "", nil, 0, nil, false, false)
 	wantConsumers, wantTrunc, wantErr := loadConsumerRepositoryEnrichmentFromCandidates(
