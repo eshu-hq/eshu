@@ -160,15 +160,24 @@ func cloneCallChainNodeSlice(nodes []map[string]any) []map[string]any {
 // "shortestPath: could not resolve start variable" -- so the pre-bound-endpoint
 // shape docs/public/reference/nornicdb-query-pitfalls.md records as safe was
 // measured on an older build and is not safe on the current pin. It carries the
-// grant like every other builder in the family so a future caller cannot reach
-// it unbound, and the parse failure is tracked in
-// docs/internal/evidence/5167-code-family-batch-2b.md.
+// grant on both endpoints like every other builder in the family, and the parse
+// failure is tracked in docs/internal/evidence/5167-code-family-batch-2b.md.
+//
+// It does NOT carry the path-wide grant conjunct its Neo4j sibling gained
+// (callChainPathHopPredicates), because a list-membership test inside
+// all(node IN nodes(path) ...) is not evaluated on the pinned build -- writing
+// it here would be grant text that grants nothing. So a scoped caller reaching
+// this builder would get bounded endpoints and unbounded interior hops. Nothing
+// can: handleCallChain routes a NornicDB backend to nornicDBCallChainRows, whose
+// per-hop bound is the shape that works on this backend, and the statement below
+// does not parse there in any case. If this builder is ever made reachable, the
+// interior has to be bounded in Go from the raw nodes(path) projection.
 func buildNornicDBCallChainCypher(
 	req callChainRequest,
 	access repositoryAccessFilter,
 ) (string, map[string]any) {
 	params := map[string]any{}
-	predicates := make([]string, 0, 2)
+	predicates := make([]string, 0, 4)
 
 	startPattern := "(start"
 	if strings.TrimSpace(req.StartEntityID) != "" {

@@ -51,9 +51,12 @@ out-of-grant repository id reached the response body in full, alongside the
 entity id, name, file path and language. Second, the compat builder put its
 ANCHOR predicate in the same inert position, so that statement had no working
 anchor at all: it returned every `CALLS` edge in the graph, bounded only by
-`LIMIT`. That is a correctness and cost defect for every caller class, not a
-tenancy one, and it does not depend on NornicDB — `OPTIONAL MATCH … WHERE` has
-the same semantics on Neo4j, which is the lane that builder ships to.
+`LIMIT`. That is a correctness and cost defect for every caller class, and
+for a scoped caller a tenancy leak as well: with the anchor predicate and the
+grant predicate both inert in the same clause, a scoped caller of that builder
+received every `CALLS` edge in the graph. It does not depend on NornicDB —
+`OPTIONAL MATCH … WHERE` has the same semantics on Neo4j, which is the lane that
+builder ships to.
 
 Root-Cause Evidence: the cause is clause position, and the observation that
 establishes it is the row-level difference above — the same predicate text
@@ -81,7 +84,8 @@ join `scopedCodeGraphGrantRoute`
 | story target resolution | granted repositories queried one at a time instead of the corpus-wide search | `relationshipStoryGrantedCandidates` (`code_relationship_story_resolution.go`) |
 | call-chain one hop, NornicDB | anchoring `MATCH`, on `target.repo_id` | `nornicDBCallChainOneHopRows` (`code_call_chain_nornicdb.go`) |
 | call-chain candidate probe, compat | the `MATCH`-attached `WHERE` it already had | `callChainCandidateOneHopRows` (`code_call_chain_resolution.go`) |
-| call-chain shortestPath, both builders | anchoring `WHERE`, on `start.repo_id` and `end.repo_id` | `buildCallChainCypher`, `buildNornicDBCallChainCypher` |
+| call-chain shortestPath endpoints, both builders | anchoring `WHERE`, on `start.repo_id` and `end.repo_id` | `buildCallChainCypher`, `buildNornicDBCallChainCypher` |
+| call-chain shortestPath interior hops, Neo4j compat | inside the `all(node IN nodes(path) …)` predicate | `callChainPathHopPredicates` (`code_call_chain.go`) |
 | shared metadata anchor (routes 2, 4, 5) | the Repository alias, in its required `MATCH` pair | `nornicDBRelationshipMetadataPredicate` (`code_relationships_nornicdb_identity.go`) |
 | call-chain name resolution (SQL) | defense-in-depth grant check before the read | `resolveExactGraphEntityCandidates` (`entity_resolution.go`) |
 
@@ -106,25 +110,55 @@ for `complexityListAnchor`, and it is why the seeded fixture carries an
 unattributed callee: it is exactly the row an `OPTIONAL MATCH`-attached
 predicate keeps.
 
-## The Path-Wide Bound That Cannot Be Written
+## Interior Hops, And The Two Different Shapes That Bound Them
 
-Bounding only the two endpoints of the inheritance walk leaves a gap in
-principle: an intermediate ancestor in another repository could still join two
-in-grant classes. The obvious closure is
-`all(node IN nodes(path) WHERE node.repo_id IN $ids)`, and it does not filter on
-the pinned build. Neither does `none(...)/NOT IN`, nor a `size([...]) = 0`
-comprehension, nor an inline literal list; and one scalar equality per allowed
-value, OR-ed, fails the other way and drops rows that should be admitted. Only a
-single scalar equality inside `all(...)` is evaluated. The full table is in
+Binding the two endpoints of a variable-length read is not enough when the
+projection returns the nodes in between. Call-chain returns every node on the
+path, with id, name, labels, language, docstring and method kind, so a chain
+whose endpoints are both in grant can still carry an interior hop from a
+repository the caller was never granted. Each backend needs a different shape,
+and the difference is measured, not stylistic.
+
+**NornicDB.** The response path is a Go-side breadth-first search over
+`nornicDBCallChainOneHopRows`, so bounding each hop as the traversal expands
+bounds the whole chain. `TestCallChainBoundsEveryFrontierHop` proves an
+out-of-grant intermediate cannot join two granted endpoints. This lane cannot
+use a path predicate: `all(node IN nodes(path) WHERE node.repo_id IN $ids)` does
+not filter on the pinned build, and neither does `none(...)/NOT IN`, a
+`size([...]) = 0` comprehension, or an inline literal list; one scalar equality
+per allowed value, OR-ed, fails the other way and drops rows that should be
+admitted. Only a single scalar equality inside `all(...)` is evaluated. The full
+table is in
 [NornicDB Query-Shape Pitfalls](../../public/reference/nornicdb-query-pitfalls.md)
 under the list-membership entry this batch added, pinned as measured values by
 `TestLiveNornicDBPathListPredicateBehaviour`.
 
-Call-chain does not need it: its NornicDB response path is a Go-side
-breadth-first search over the one-hop read, so bounding each hop bounds the
-whole chain, and `TestCallChainBoundsEveryFrontierHop` proves an out-of-grant
-intermediate cannot join two granted endpoints. The inheritance walk keeps the
-endpoint bound and says why at the call site.
+**Neo4j compat.** `buildCallChainCypher` issues one `shortestPath` read, so
+there is no per-hop moment to bound; the grant goes into the
+`all(node IN nodes(path) …)` predicate, which is the only clause that reaches
+the interior. That form is a defect on the pinned NornicDB build and works
+correctly on Neo4j, which is the lane this builder ships to, and the repo
+already emitted exactly that shape there for `$repo_id` and
+`$traversal_repo_ids`. `callChainPathHopPredicates` composes the grant as a
+conjunct beside the request's own bound rather than replacing it.
+`TestCallChainNeo4jLaneBoundsInteriorHops` proves it on both anchoring shapes (a
+request with `repo_id` and one without), and
+`TestCallChainNeo4jLaneKeepsAnInGrantChain` proves it narrows rather than
+empties.
+
+Round-1 review caught that this lane had been left unbounded and untested while
+the route was promoted and documented as bounded. The NornicDB measurement is
+what led there: "a list predicate does not filter" is a fact about one build,
+and it was carried into a lane where the opposite is true. That is recorded
+because the reasoning error is more reusable than the fix.
+
+`buildNornicDBCallChainCypher` deliberately gets the endpoint grant and no path
+conjunct, since the list form would grant nothing there. It is unreachable from
+`handleCallChain` and does not parse on the pin; the comment at that builder
+says what would have to happen if it ever became reachable.
+
+The inheritance walk keeps its endpoint bound for the same NornicDB reason and
+says so at the call site.
 
 ## Two Pitfalls-Page Corrections
 
@@ -158,16 +192,39 @@ accurate for both caller classes.
 
 ## What A Client Can Observe
 
+Scoped callers:
+
 - A story ambiguity list that used to name every tenant's match now names only
   readable ones, so a request that answered `ambiguous` may now resolve.
 - A call chain that exists only by passing through an ungranted repository is
-  absent, not returned with the hop hidden.
+  absent, not returned with the hop hidden. That holds on both lanes: NornicDB
+  bounds each hop as its Go-side traversal expands, and the Neo4j-compat
+  `shortestPath` read carries the grant inside its `all(node IN nodes(path) …)`
+  predicate, which is the only clause that reaches the hops between the two
+  endpoints.
 - An ungranted repository selector on either route returns `400`.
 - A token with no repository grants gets `"status": "not_found"` (story) or
   `"chains": []` (call-chain), with no backend read — the same answer as a
   target that does not exist.
+
+Every caller class, scoped or not:
+
 - `repo_id` on the story route now filters. It was inert in the same clause
-  position for every caller class, scoped or not.
+  position for every caller class.
+- The call-chain traversal bound now filters. It was inert too — 3 rows with
+  `$traversal_repo_ids` naming one repository, and the identical 3 rows with it
+  nil — so a shared-key caller that passes `repo_id` or `cross_repo` gets a
+  correctly narrower hop set than before.
+- `coalesce(target.repo_id, targetRepo.id, '')` became
+  `coalesce(target.repo_id, '')` in the call-chain one-hop read. `targetRepo` is
+  not bound at the anchoring `MATCH`, so the fallback could not move with the
+  predicate; a target the graph can attribute only through its `REPO_CONTAINS`
+  edge, with no `repo_id` of its own, is now dropped.
+- On a Neo4j deployment, `POST /api/v0/code/relationships/story` returns a
+  different result set. Its anchor predicate sat in the same inert clause, so
+  the route returned every `CALLS` edge in the graph up to `limit`; it returns
+  the anchor's edges now. Measured 5 rows to 1 on the seeded graph. This is the
+  largest observable change in the batch for a shared-key or admin caller.
 
 ## Capability Matrix
 
@@ -212,21 +269,49 @@ docker run -d --name nornic-5167-e2 -e NORNICDB_EMBEDDING_ENABLED=false \
 
 No-Regression Evidence: a correctness change with no latency claim attached; no
 benchmark was run and no speedup is asserted. Every predicate added is an
-`IN`/`=` membership test against the caller's grant, on a node the query already
-matched, and every one of them moves EARLIER in the statement — from a trailing
-`WHERE` into the anchoring `MATCH`'s own — so it is applied before `SKIP`/`LIMIT`
-rather than after the traversal. A scoped caller reads no more rows than before
-and on these routes strictly fewer: both were corpus-wide for a caller who named
-no repository. The one shape that gets faster rather than merely narrower is the
-Neo4j-compat story builder, which was scanning every `CALLS` edge in the graph
-because its anchor predicate was in the inert position; no number is claimed for
-that, only the row-set difference measured live (5 rows to 1 on the seeded
-graph). No statement gains a clause, a hop, or a second round trip, and no
-builder's row count for an unscoped caller changes — pinned by
-`TestRelationshipStorySharedKeyReadIsUnchanged`,
-`TestCallChainSharedKeyReadIsUnchanged`,
-`TestRelationshipStoryBuildersCarryNoGrantForAnUnscopedCaller` and
-`TestLiveNornicDBRelationshipStoryFullProjectionUnscopedIsUnchanged`.
+`IN`/`=` membership test on a node the query already matched, and every one of
+them moves EARLIER in its statement — from a trailing `WHERE` into the anchoring
+`MATCH`'s own, or into the `all(node IN nodes(path) …)` clause that runs with the
+traversal — so filtering happens before `SKIP`/`LIMIT` rather than after. No
+statement gains a clause, a hop, or a second round trip.
+
+Row counts do change, and not only for scoped callers. Three shapes are
+affected, each measured rather than reasoned about:
+
+1. `relationshipStoryGraphCypher` (Neo4j-compat story) returned every `CALLS`
+   edge in the graph, because its ANCHOR predicate sat in the inert clause
+   alongside the grant. It returns the anchor's edges now: 5 rows to 1 on the
+   seeded graph, pinned by
+   `TestLiveNornicDBRelationshipStoryCompatBuilderMustNotLeakUngrantedRows`.
+   That applies to every caller class, and makes the route strictly cheaper as
+   well as correct.
+2. `nornicDBCallChainOneHopRows`' traversal bound was inert — 3 rows with
+   `$traversal_repo_ids` naming one repository, 3 rows with it nil — and now
+   filters, so an unscoped caller passing `repo_id` or `cross_repo` gets a
+   narrower hop set. Its `coalesce` fallback narrowed with it, dropping a target
+   attributable only through `REPO_CONTAINS`. Pinned by
+   `TestLiveNornicDBCallChainOneHopMustNotLeakUngrantedTargets` and
+   `TestLiveNornicDBCallChainOneHopUnscopedIsUnchanged`, which together show the
+   bound applying and an unbounded call still returning all three rows.
+3. `buildCallChainCypher` gains a grant conjunct inside its path predicate, for
+   a scoped caller only. An unscoped caller's statement is unchanged, pinned by
+   `TestShortestPathCallChainBuildersBindTheGrant/unscoped_carries_no_grant` and
+   `TestCallChainNeo4jLaneSharedKeyReadIsUnchanged`.
+
+What does not change for an unscoped caller is the statement text of every
+NornicDB story builder and of both call-chain builders — no grant array renders
+— pinned by `TestRelationshipStoryBuildersCarryNoGrantForAnUnscopedCaller`,
+`TestShortestPathCallChainBuildersBindTheGrant/unscoped_carries_no_grant`, and
+the live `TestLiveNornicDBRelationshipStoryFullProjectionUnscopedIsUnchanged`,
+which runs the shipped unscoped statement against the backend and gets all three
+seeded rows back.
+
+An earlier draft of this paragraph said no builder's row count for an unscoped
+caller changes. That was false in two places — items 1 and 2 above — and none of
+the tests it cited could have detected either. It is recorded here rather than
+quietly corrected, because the reason it was wrong is the reason this batch
+exists: a predicate whose text is present can still decide nothing, and a test
+that never exercises the predicate cannot tell you which.
 
 No-Observability-Change: no metric instrument, metric label, span, log event,
 queue stage, worker knob, or schema phase changes. The existing query-route

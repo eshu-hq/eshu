@@ -85,6 +85,10 @@ the driving row's own `repo_id`.
 | `TestCallChainSharedKeyReadIsUnchanged` | unscoped row set and statement text unchanged |
 | `TestCallChainResolvesAScopeOnlyGrantToItsRepository` | scope-only grant |
 | `TestCallChainOneHopBindsTheGrantInTheAnchoringMatch` | clause position for both predicates |
+| `TestCallChainNeo4jLaneBoundsInteriorHops` (2 anchoring shapes) | the Neo4j-compat `shortestPath` read drops a chain routed through an out-of-grant interior hop |
+| `TestCallChainNeo4jLaneKeepsAnInGrantChain` | the same read still returns a chain whose every hop is in grant |
+| `TestCallChainNeo4jLaneSharedKeyReadIsUnchanged` | that lane's unscoped row set and statement text |
+| `TestShortestPathCallChainBuildersBindTheGrant` (3) | both `shortestPath` builders with a SCOPED filter: endpoints on both, the path conjunct on the Neo4j one and deliberately not on the NornicDB one, and no grant at all when unscoped |
 | `TestRelationshipMetadataAnchorBindsTheGrant` | the shared anchor's grant and its absence for an unscoped caller |
 | `TestExactGraphEntityCandidatesRefuseAnUngrantedRepository` | the defense-in-depth SQL check |
 
@@ -115,6 +119,9 @@ is a scratch script, not committed.
 | 8 | `handleCallChain` drops the empty-grant gate | `-run TestCallChainEmptyGrantReachesNoBackend` | `1` |
 | 9 | `resolveExactGraphEntityCandidates` drops its grant check | `-run TestExactGraphEntityCandidatesRefuseAnUngrantedRepository` | `1` |
 | 10 | `codeGrantAccessFilter` drops `WithCanonicalScopeRepositories` | `-run 'TestRelationshipStoryResolvesAScopeOnlyGrantToItsRepository\|TestCallChainResolvesAScopeOnlyGrantToItsRepository'` | `1` |
+| 11 | `buildCallChainCypher` drops its endpoint grant block | `-run 'TestShortestPathCallChainBuildersBindTheGrant\|TestCallChainNeo4jLaneBoundsInteriorHops'` | `1` |
+| 12 | `callChainPathHopPredicates` drops its grant conjunct — the round-1 F1 defect exactly | `-run 'TestCallChainNeo4jLaneBoundsInteriorHops\|TestShortestPathCallChainBuildersBindTheGrant'` | `1` |
+| 13 | `buildNornicDBCallChainCypher` drops its endpoint grant block | `-run TestShortestPathCallChainBuildersBindTheGrant` | `1` |
 
 Rows 4 and 7 are the two worth reading the history of, because both passed at
 `0` on the first attempt and that was a finding about the tests, not a pass.
@@ -136,6 +143,25 @@ the mutation now fails at `1`.
 Neither was papered over by widening a `-run` pattern until something red. Both
 were treated as missing coverage, which is what a BITES row passing at `0`
 means.
+
+Rows 11 to 13 exist because round-1 review found the same class of gap by
+reading rather than by mutating: every call site of the two `shortestPath`
+builders passed `repositoryAccessFilter{AllScopes: true}`, and every route-level
+call-chain test constructed its handler on NornicDB, so deleting the Neo4j
+lane's grant block left the suite green. Row 12 is the sharper of the three — it
+removes the interior bound that round 1 found missing, and it reds only because
+`callChainGrantGraph` now answers the compat `shortestPath` statement and
+applies its two `WHERE` clauses separately, the endpoints from the one before
+`MATCH path`, the hops from the `all(...)` after it. A fake that applied both
+clauses to the endpoints would have passed while the interior leaked, which is
+the same shape of false green as the substring assertions this batch replaced.
+
+One operational lesson worth recording: the first attempt at rows 11 to 13 ran
+against an UNCOMMITTED fix, and the driver's `git checkout HEAD --` restore
+reverted the fix along with the mutation. The exit codes it printed were real
+failures for the wrong reason. The fix was committed first and the rows re-run;
+the codes above are from that second run. A BITES driver that restores from
+`HEAD` requires the subject to be at `HEAD`.
 
 ## Verification
 

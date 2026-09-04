@@ -56,6 +56,8 @@ func (g *callChainGrantGraph) Run(
 	switch {
 	case strings.Contains(cypher, "CALL {"):
 		return g.labelRows(params), nil
+	case strings.Contains(cypher, "shortestPath("):
+		return g.shortestPathRows(cypher, params), nil
 	case strings.Contains(cypher, "<-[:CONTAINS]-(f:File)"):
 		return g.metadataRows(cypher, params), nil
 	case strings.Contains(cypher, "-[:CALLS]->(target)"):
@@ -147,6 +149,146 @@ func (g *callChainGrantGraph) oneHopRows(cypher string, params map[string]any) [
 	return rows
 }
 
+// shortestPathRows answers the Neo4j-compat statement. It walks the seeded
+// calls breadth-first for the shortest start-to-end path, then applies the two
+// clauses separately, because they reach different things: the WHERE before
+// `MATCH path = shortestPath` constrains the endpoints, and the WHERE after it
+// -- the all(node IN nodes(path) ...) predicate -- is the only one that reaches
+// the hops in between. A statement that binds only the endpoints returns the
+// interior hop, which is what this fake exists to catch.
+func (g *callChainGrantGraph) shortestPathRows(cypher string, params map[string]any) []map[string]any {
+	endpointPredicates, hopPredicates := callChainClausePredicates(cypher)
+	start, ok := g.endpoint(params, "start")
+	if !ok {
+		return nil
+	}
+	end, ok := g.endpoint(params, "end")
+	if !ok {
+		return nil
+	}
+	seed := storyGrantSeed{repoByAlias: map[string]string{"start": start.repoID, "end": end.repoID}}
+	if !storySeedAdmits(seed, endpointPredicates, params) {
+		return nil
+	}
+	path := g.shortestPath(start.uid, end.uid)
+	if len(path) == 0 {
+		return nil
+	}
+	for _, node := range path {
+		for _, predicate := range hopPredicates {
+			if !callChainHopAdmits(predicate, node.repoID, params) {
+				return nil
+			}
+		}
+	}
+	chain := make([]any, 0, len(path))
+	for _, node := range path {
+		chain = append(chain, map[string]any{
+			"id": node.uid, "name": node.name, "labels": []string{"Function"},
+			"language": "go", "docstring": "", "method_kind": "",
+		})
+	}
+	return []map[string]any{{"chain": chain, "depth": len(path) - 1}}
+}
+
+func (g *callChainGrantGraph) endpoint(params map[string]any, prefix string) (callChainGrantEntity, bool) {
+	if uid, _ := params[prefix+"_entity_id"].(string); uid != "" {
+		return g.entity(uid)
+	}
+	name, _ := params[prefix].(string)
+	for _, entity := range g.entities {
+		if entity.name == name {
+			return entity, true
+		}
+	}
+	return callChainGrantEntity{}, false
+}
+
+// shortestPath returns the node sequence of the shortest CALLS path, endpoints
+// included, or nil when there is none.
+func (g *callChainGrantGraph) shortestPath(startUID, endUID string) []callChainGrantEntity {
+	type step struct {
+		uid  string
+		path []callChainGrantEntity
+	}
+	start, ok := g.entity(startUID)
+	if !ok {
+		return nil
+	}
+	frontier := []step{{uid: startUID, path: []callChainGrantEntity{start}}}
+	seen := map[string]struct{}{startUID: {}}
+	for depth := 0; depth < 10 && len(frontier) > 0; depth++ {
+		next := make([]step, 0)
+		for _, current := range frontier {
+			entity, ok := g.entity(current.uid)
+			if !ok {
+				continue
+			}
+			for _, calleeUID := range entity.calls {
+				callee, ok := g.entity(calleeUID)
+				if !ok {
+					continue
+				}
+				path := append(append([]callChainGrantEntity{}, current.path...), callee)
+				if calleeUID == endUID {
+					return path
+				}
+				if _, visited := seen[calleeUID]; visited {
+					continue
+				}
+				seen[calleeUID] = struct{}{}
+				next = append(next, step{uid: calleeUID, path: path})
+			}
+		}
+		frontier = next
+	}
+	return nil
+}
+
+// callChainClausePredicates splits the compat statement at its shortestPath
+// clause: endpoint predicates before, hop predicates after (unwrapped from the
+// all(...) they are written inside).
+func callChainClausePredicates(cypher string) (endpoints []string, hops []string) {
+	normalized := normalizeCypherWhitespace(cypher)
+	split := strings.Index(normalized, "MATCH path = shortestPath")
+	if split < 0 {
+		return nil, nil
+	}
+	head, tail := normalized[:split], normalized[split:]
+	if at := strings.Index(head, "WHERE "); at >= 0 {
+		endpoints = storySplitPredicates(strings.TrimSpace(head[at+len("WHERE "):]))
+	}
+	marker := "WHERE all(node IN nodes(path) WHERE "
+	at := strings.Index(tail, marker)
+	if at < 0 {
+		return endpoints, nil
+	}
+	block := tail[at+len(marker):]
+	end := strings.Index(block, ") RETURN ")
+	if end < 0 {
+		return endpoints, nil
+	}
+	return endpoints, storySplitPredicates(strings.TrimSpace(block[:end]))
+}
+
+// callChainHopAdmits evaluates one hop predicate. The hop conditions are written
+// on coalesce(node.repo_id, ”) rather than a bare property, so they need their
+// own matcher rather than storyPredicateAdmits.
+func callChainHopAdmits(predicate, repoID string, params map[string]any) bool {
+	switch {
+	case strings.Contains(predicate, "IN $allowed_repository_ids"):
+		return graphParamContains(params, "allowed_repository_ids", repoID) ||
+			graphParamContains(params, "allowed_scope_ids", repoID)
+	case strings.Contains(predicate, "IN $traversal_repo_ids"):
+		return graphParamContains(params, "traversal_repo_ids", repoID)
+	case strings.Contains(predicate, "= $repo_id"):
+		bound, _ := params["repo_id"].(string)
+		return repoID == bound && repoID != ""
+	default:
+		return true
+	}
+}
+
 func (g *callChainGrantGraph) entity(uid string) (callChainGrantEntity, bool) {
 	for _, entity := range g.entities {
 		if entity.uid == uid {
@@ -194,9 +336,20 @@ func runCallChainRequest(
 	auth *AuthContext,
 ) *httptest.ResponseRecorder {
 	t.Helper()
+	return runCallChainRequestOn(t, GraphBackendNornicDB, graph, body, auth)
+}
+
+func runCallChainRequestOn(
+	t *testing.T,
+	backend GraphBackend,
+	graph GraphQuery,
+	body map[string]any,
+	auth *AuthContext,
+) *httptest.ResponseRecorder {
+	t.Helper()
 	handler := &CodeHandler{
 		Profile:      ProfileLocalAuthoritative,
-		GraphBackend: GraphBackendNornicDB,
+		GraphBackend: backend,
 		Neo4j:        graph,
 		Content:      &storyGrantContentStore{entities: map[string]EntityContent{}},
 	}
@@ -432,4 +585,187 @@ func TestRelationshipMetadataAnchorBindsTheGrant(t *testing.T) {
 	if _, ok := unscopedParams["allowed_repository_ids"]; ok {
 		t.Fatalf("an unscoped caller bound a grant array: %#v", unscopedParams)
 	}
+}
+
+// callChainBridgedEntities is the graph the interior-hop proofs need: two
+// in-repository endpoints whose only route crosses the other repository.
+func callChainBridgedEntities() []callChainGrantEntity {
+	return []callChainGrantEntity{
+		{
+			uid: callChainGrantedStart, name: "CallChainGrantedStart", repoID: codeGrantGrantedRepo,
+			calls: []string{callChainUngrantedHop},
+		},
+		{
+			uid: callChainUngrantedHop, name: callChainUngrantedNam, repoID: codeGrantOtherRepo,
+			calls: []string{callChainGrantedEnd},
+		},
+		{uid: callChainGrantedEnd, name: callChainGrantedName, repoID: codeGrantGrantedRepo},
+	}
+}
+
+// TestCallChainNeo4jLaneBoundsInteriorHops is the Neo4j-compat counterpart of
+// TestCallChainBoundsEveryFrontierHop.
+//
+// The two lanes reach the same guarantee by different shapes, and the compat one
+// is the one that had no coverage: its statement binds the two endpoints in the
+// anchoring WHERE and returns EVERY node on the path, so a chain whose endpoints
+// are both in grant could still ship an interior hop's id, name, language and
+// docstring from a repository the token was never granted.
+func TestCallChainNeo4jLaneBoundsInteriorHops(t *testing.T) {
+	t.Parallel()
+
+	for _, tc := range []struct {
+		name string
+		body map[string]any
+	}{
+		{
+			name: "no_repository_anchor",
+			body: map[string]any{
+				"start_entity_id": callChainGrantedStart,
+				"end_entity_id":   callChainGrantedEnd,
+				"max_depth":       3,
+			},
+		},
+		{
+			name: "repo_id_anchor",
+			body: map[string]any{
+				"start_entity_id": callChainGrantedStart,
+				"end_entity_id":   callChainGrantedEnd,
+				"repo_id":         codeGrantGrantedRepo,
+				"max_depth":       3,
+			},
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			graph := &callChainGrantGraph{entities: callChainBridgedEntities()}
+			auth := codeGrantScopedAuthContext([]string{codeGrantGrantedRepo})
+			rec := runCallChainRequestOn(t, GraphBackendNeo4j, graph, tc.body, &auth)
+			if got, want := rec.Code, http.StatusOK; got != want {
+				t.Fatalf("status = %d, want %d; body = %s", got, want, rec.Body.String())
+			}
+			body := rec.Body.String()
+			if strings.Contains(body, callChainUngrantedNam) || strings.Contains(body, callChainUngrantedHop) {
+				t.Fatalf("the compat chain shipped an out-of-grant interior hop: %s", body)
+			}
+			if !strings.Contains(body, `"chains":[]`) {
+				t.Fatalf("a chain that only exists through an out-of-grant hop was still reported: %s", body)
+			}
+		})
+	}
+}
+
+// TestCallChainNeo4jLaneKeepsAnInGrantChain is the other direction: the same
+// statement must still return a chain whose every hop is in grant, so the fix
+// narrows rather than empties.
+func TestCallChainNeo4jLaneKeepsAnInGrantChain(t *testing.T) {
+	t.Parallel()
+
+	graph := &callChainGrantGraph{entities: []callChainGrantEntity{
+		{
+			uid: callChainGrantedStart, name: "CallChainGrantedStart", repoID: codeGrantGrantedRepo,
+			calls: []string{callChainGrantedEnd},
+		},
+		{uid: callChainGrantedEnd, name: callChainGrantedName, repoID: codeGrantGrantedRepo},
+	}}
+	auth := codeGrantScopedAuthContext([]string{codeGrantGrantedRepo})
+	rec := runCallChainRequestOn(t, GraphBackendNeo4j, graph, map[string]any{
+		"start_entity_id": callChainGrantedStart,
+		"end_entity_id":   callChainGrantedEnd,
+		"max_depth":       3,
+	}, &auth)
+	if !strings.Contains(rec.Body.String(), callChainGrantedName) {
+		t.Fatalf("the compat chain lost an in-grant hop: %s", rec.Body.String())
+	}
+}
+
+// TestCallChainNeo4jLaneSharedKeyReadIsUnchanged pins that the compat statement
+// renders no grant for an unscoped caller and still returns the chain.
+func TestCallChainNeo4jLaneSharedKeyReadIsUnchanged(t *testing.T) {
+	t.Parallel()
+
+	graph := &callChainGrantGraph{entities: callChainBridgedEntities()}
+	rec := runCallChainRequestOn(t, GraphBackendNeo4j, graph, map[string]any{
+		"start_entity_id": callChainGrantedStart,
+		"end_entity_id":   callChainGrantedEnd,
+		"max_depth":       3,
+	}, nil)
+	if !strings.Contains(rec.Body.String(), callChainUngrantedNam) {
+		t.Fatalf("the shared-key compat chain lost its cross-repository hop: %s", rec.Body.String())
+	}
+	for _, statement := range graph.statements {
+		if strings.Contains(statement, "$allowed_repository_ids") {
+			t.Fatalf("an unscoped caller rendered a grant array:\n%s", statement)
+		}
+	}
+}
+
+// TestShortestPathCallChainBuildersBindTheGrant is the shipped-text pin for both
+// shortestPath builders, with a SCOPED filter -- the caller class every other
+// call site of these two builders omits.
+func TestShortestPathCallChainBuildersBindTheGrant(t *testing.T) {
+	t.Parallel()
+
+	access := repositoryAccessFilter{AllowedRepositoryIDs: []string{codeGrantGrantedRepo}}
+	req := callChainRequest{
+		StartEntityID: callChainGrantedStart,
+		EndEntityID:   callChainGrantedEnd,
+		MaxDepth:      3,
+	}
+
+	t.Run("neo4j_compat_binds_endpoints_and_every_hop", func(t *testing.T) {
+		t.Parallel()
+		cypher, params := buildCallChainCypher(req, GraphBackendNeo4j, access)
+		endpoints, hops := callChainClausePredicates(cypher)
+		for _, want := range []string{
+			access.GraphConditionOnProperty("start", "repo_id"),
+			access.GraphConditionOnProperty("end", "repo_id"),
+		} {
+			if !containsPredicate(endpoints, want) {
+				t.Fatalf("the anchoring WHERE does not carry %q:\n%s", want, cypher)
+			}
+		}
+		if !containsPredicate(hops, "IN $allowed_repository_ids") {
+			t.Fatalf("no hop predicate binds the grant, so an interior hop is unbounded:\n%s", cypher)
+		}
+		if !graphParamContains(params, "allowed_repository_ids", codeGrantGrantedRepo) {
+			t.Fatalf("params do not bind the grant array: %#v", params)
+		}
+	})
+
+	t.Run("nornicdb_binds_endpoints", func(t *testing.T) {
+		t.Parallel()
+		cypher, params := buildNornicDBCallChainCypher(req, access)
+		endpoints, hops := callChainClausePredicates(cypher)
+		for _, want := range []string{
+			access.GraphConditionOnProperty("start", "repo_id"),
+			access.GraphConditionOnProperty("end", "repo_id"),
+		} {
+			if !containsPredicate(endpoints, want) {
+				t.Fatalf("the anchoring WHERE does not carry %q:\n%s", want, cypher)
+			}
+		}
+		// Deliberately no hop predicate: a list-membership test inside
+		// all(node IN nodes(path) ...) is not evaluated on the pinned NornicDB
+		// build, so writing one here would be grant text that grants nothing.
+		// The live NornicDB path bounds each hop as its traversal expands.
+		if containsPredicate(hops, "IN $allowed_repository_ids") {
+			t.Fatalf("the NornicDB builder gained a hop predicate the backend does not evaluate:\n%s", cypher)
+		}
+		if !graphParamContains(params, "allowed_repository_ids", codeGrantGrantedRepo) {
+			t.Fatalf("params do not bind the grant array: %#v", params)
+		}
+	})
+
+	t.Run("unscoped_carries_no_grant", func(t *testing.T) {
+		t.Parallel()
+		for name, cypher := range map[string]string{
+			"neo4j_compat": firstOf(buildCallChainCypher(req, GraphBackendNeo4j, repositoryAccessFilter{AllScopes: true})),
+			"nornicdb":     firstOf(buildNornicDBCallChainCypher(req, repositoryAccessFilter{AllScopes: true})),
+		} {
+			if strings.Contains(cypher, "$allowed_repository_ids") || strings.Contains(cypher, "$allowed_scope_ids") {
+				t.Fatalf("%s rendered a grant for an unscoped caller:\n%s", name, cypher)
+			}
+		}
+	})
 }
