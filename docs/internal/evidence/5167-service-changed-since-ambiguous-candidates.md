@@ -44,13 +44,13 @@ This is a shape the tables really produce, not a hypothetical:
 
 - The reducer's ambiguous branches (`classifyServiceCatalogEntity` and
   `classifyRepoLocalServiceCatalogEntity`,
-  `go/internal/reducer/service_catalog_correlation_classify.go`) never set
+  `go/internal/reducer/servicecatalog/service_catalog_correlation_classify.go`) never set
   `decision.RepositoryID`. They put every matched repository in
   `decision.CandidateRepositoryIDs` and leave the repository id empty.
 - `serviceCatalogBaseDecision` in the same file still fills `ServiceID` and
   `OwnerRef` on that decision.
 - `buildServiceOwnershipMaterializations`
-  (`go/internal/reducer/service_materialization.go`) needs only a service id
+  (`go/internal/reducer/servicecatalog/service_materialization.go`) needs only a service id
   and an owner ref, so an ambiguous decision is written as a generation exactly
   like an exact one and reaches the same globally keyed lineage.
 
@@ -275,14 +275,14 @@ generation stays the globally active one for the id. That remains tracked as
 
 Binding admission to the lineage rows themselves was investigated as a way to
 close it here, and it does not work on committed state. `ownershipEvidencePayload`
-(`go/internal/reducer/service_materialization.go`) builds each
+(`go/internal/reducer/servicecatalog/service_materialization.go`) builds each
 `service_evidence_snapshots` ownership row from five fields -- `owner_ref`,
 `provider`, `entity_ref`, `lifecycle`, `tier` -- and reads neither
 `decision.RepositoryID` nor any scope id, so the repository is dropped one call
 before the write. `buildServiceOwnershipMaterializations` is the only
 production producer of a `ServiceMaterializationWrite`, and
 `commitServiceGenerations`
-(`go/internal/reducer/service_catalog_correlation.go`) its only caller, so no
+(`go/internal/reducer/servicecatalog/service_catalog_correlation.go`) its only caller, so no
 second path fills ownership differently. Every generation does carry at least
 one ownership row, because that builder emits a write only for a decision that
 has both a service id and an owner ref. It is the row contents, not their
@@ -290,7 +290,7 @@ presence, that fails.
 
 The one family whose payload does carry a repository is deployment:
 `serviceDeploymentEvidencePayload`
-(`go/internal/reducer/service_materialization_deployment.go`) writes
+(`go/internal/reducer/servicecatalog/service_materialization_deployment.go`) writes
 `source_repo_id` and `target_repo_id`. It is not a usable fence. Those rows
 exist only when a deployment relationship loader is wired and the service's
 repository has resolved relationships, so an ownership-only generation has

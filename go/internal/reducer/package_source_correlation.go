@@ -4,7 +4,6 @@
 package reducer
 
 import (
-	"net/url"
 	"sort"
 	"strings"
 
@@ -164,24 +163,12 @@ func packageSourceRepositoryIDs(repositories []packageSourceRepository) []string
 	return ids
 }
 
+// exactPackageSourceURLMatch forwards to [packagesourcecore.ExactURLMatch].
+// The [servicecatalog] family's ServiceCatalogCorrelationHandler classifier
+// calls the same comparison directly as packagesourcecore.ExactURLMatch;
+// this root spelling stays only for this file's own caller (issue #6061).
 func exactPackageSourceURLMatch(left string, right string) bool {
-	return normalizePackageSourceExactURL(left) == normalizePackageSourceExactURL(right)
-}
-
-func normalizePackageSourceExactURL(raw string) string {
-	trimmed := strings.TrimSpace(raw)
-	if trimmed == "" {
-		return ""
-	}
-	parsed, err := url.Parse(trimmed)
-	if err != nil || parsed.Host == "" {
-		return strings.TrimRight(trimmed, "/")
-	}
-	parsed.Scheme = strings.ToLower(parsed.Scheme)
-	parsed.Host = strings.ToLower(parsed.Host)
-	parsed.User = nil
-	parsed.Fragment = ""
-	return strings.TrimRight(parsed.String(), "/")
+	return packagesourcecore.ExactURLMatch(left, right)
 }
 
 // compactStringSlice forwards to [payloadcore.CompactStringSlice].

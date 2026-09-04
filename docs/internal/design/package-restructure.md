@@ -376,8 +376,8 @@ internal call sites, newly visible because the whole-tree scope now compiles
 the leaf itself. `packagesourcecore.CanonicalURLKey` (+4) is a nested inline
 one level up: at every site where the `canonicalPackageSourceURLKey` forwarder
 itself gets inlined (`container_image_identity_provenance.go:88`,
-`service_catalog_correlation_lookup.go:24`,
-`service_catalog_correlation_classify.go:222`, plus the forwarder's own
+`internal/reducer/servicecatalog/service_catalog_correlation_lookup.go`,
+`internal/reducer/servicecatalog/service_catalog_correlation_classify.go`, plus the forwarder's own
 definition in `package_source_correlation.go`), the call it makes to
 `packagesourcecore.CanonicalURLKey` inlines a second level into the same site.
 `canonicalPackageSourceURLKey` itself drops from 5 to 3 call sites: the 2 it

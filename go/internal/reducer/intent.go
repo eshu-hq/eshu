@@ -394,6 +394,13 @@ const (
 	// writer that publishes the kind moved to internal/reducer/platformfam
 	// (#6061) and names the contract constant directly.
 	platformMaterializationFactKind = reducercontract.PlatformMaterializationFactKind
+	// serviceCatalogCorrelationFactKind aliases the exported contract constant
+	// so the supply-chain-impact index, its active-fact-kind filter, and its
+	// missing-evidence/runtime/security-alert-scope walks keep their
+	// unqualified spelling. The service-catalog-correlation writer that
+	// publishes the kind moved to internal/reducer/servicecatalog (#6061) and
+	// names the contract constant directly.
+	serviceCatalogCorrelationFactKind = reducercontract.ServiceCatalogCorrelationFactKind
 )
 
 const (

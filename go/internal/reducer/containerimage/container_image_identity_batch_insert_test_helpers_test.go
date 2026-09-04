@@ -17,11 +17,11 @@ import (
 // package's tests use. Go test files cannot share unexported symbols across a
 // package boundary, and fakeWorkloadIdentityExecer plus the batched-call
 // decoders are unexported test doubles several still-in-root families
-// (cloud_inventory_admission, security_alert_reconciliation,
-// service_catalog_correlation) also depend on from their own root copy, so
-// root keeps its original and this package needs its own (issue #6061,
-// mirrors internal/reducer/secretsiam's writer test gaining a local exec
-// double for the same reason).
+// (cloud_inventory_admission, security_alert_reconciliation) also depend on
+// from their own root copy, and [servicecatalog] keeps another, so root keeps
+// its original and this package needs its own (issue #6061, mirrors
+// internal/reducer/secretsiam's writer test gaining a local exec double for
+// the same reason).
 
 // fakeWorkloadIdentityExecer records every ExecContext call so a batched
 // writer test can decode and assert on the rows it issued.

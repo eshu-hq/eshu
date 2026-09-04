@@ -124,7 +124,7 @@ unchanged when scorecards are added.
 
 ## Payload-key fidelity (the contract)
 
-The shipped reducer index (`reducer/service_catalog_correlation_index.go`) reads
+The shipped reducer index (`reducer/servicecatalog/service_catalog_correlation_index.go`) reads
 specific payload keys. Emitting a different key silently collapses correlation
 to `unresolved`/`rejected`. The producer honors these keys:
 

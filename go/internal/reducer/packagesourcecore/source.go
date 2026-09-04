@@ -4,6 +4,7 @@
 package packagesourcecore
 
 import (
+	"net/url"
 	"sort"
 	"strings"
 
@@ -108,4 +109,34 @@ func MatchRepositories(
 // git collector share one normalization path.
 func CanonicalURLKey(raw string) string {
 	return repositoryidentity.NormalizedRemoteKey(raw)
+}
+
+// ExactURLMatch reports whether two source URLs are exactly the same
+// repository remote after normalization -- scheme/host lowercased, trailing
+// slash trimmed, userinfo and fragment dropped. This is a narrower,
+// order-preserving check than CanonicalURLKey: it distinguishes "matched
+// exactly" from "matched only after git URL canonicalization" for the
+// package-source-correlation exact/derived outcome split (issue #6061).
+func ExactURLMatch(left string, right string) bool {
+	return NormalizeExactURL(left) == NormalizeExactURL(right)
+}
+
+// NormalizeExactURL lowercases the scheme and host of a source URL and
+// drops userinfo, fragment, and trailing slash, without the further
+// host/path canonicalization CanonicalURLKey applies. A URL that fails to
+// parse, or has no host, is returned trimmed of its trailing slash only.
+func NormalizeExactURL(raw string) string {
+	trimmed := strings.TrimSpace(raw)
+	if trimmed == "" {
+		return ""
+	}
+	parsed, err := url.Parse(trimmed)
+	if err != nil || parsed.Host == "" {
+		return strings.TrimRight(trimmed, "/")
+	}
+	parsed.Scheme = strings.ToLower(parsed.Scheme)
+	parsed.Host = strings.ToLower(parsed.Host)
+	parsed.User = nil
+	parsed.Fragment = ""
+	return strings.TrimRight(parsed.String(), "/")
 }

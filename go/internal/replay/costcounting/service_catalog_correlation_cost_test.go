@@ -29,11 +29,12 @@ const serviceCatalogCorrelationCostIntentID = "intent-service-catalog-correlatio
 // serviceCatalogCorrelationFixtureDecisions is the deterministic input for
 // this scenario: two correlated decisions for distinct provider entity
 // references in one scope. WriteServiceCatalogCorrelations
-// (go/internal/reducer/service_catalog_correlation_writer.go) now calls the
-// shared reducerBatchInsertFacts bounded chunked bulk insert (issue #5317),
-// the same batching container_image_identity/ci_cd_run_correlation/
-// sbom_attestation_attachment already use, so two decisions fit in one 1000-row
-// chunk and cost exactly one ExecContext round-trip.
+// (go/internal/reducer/servicecatalog/service_catalog_correlation_writer.go)
+// now calls the shared factwrite.BatchInsertFacts bounded chunked bulk insert
+// (issue #5317), the same batching container_image_identity/
+// ci_cd_run_correlation/sbom_attestation_attachment already use, so two
+// decisions fit in one 1000-row chunk and cost exactly one ExecContext
+// round-trip.
 func serviceCatalogCorrelationFixtureDecisions() []reducer.ServiceCatalogCorrelationDecision {
 	row := func(id string) reducer.ServiceCatalogCorrelationDecision {
 		return reducer.ServiceCatalogCorrelationDecision{

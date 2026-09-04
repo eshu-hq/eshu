@@ -18,12 +18,12 @@ func TestGoldenServiceChangedSinceOwnerChangeCreatesDistinctIdempotentGeneration
 
 	baselineWrite := goldenServiceChangedSinceWrite(goldenServiceChangedSinceBaselineOwner)
 	currentWrite := goldenServiceChangedSinceWrite(goldenServiceChangedSinceCurrentOwner)
-	baseline := serviceMaterializationGenerationID(baselineWrite)
-	current := serviceMaterializationGenerationID(currentWrite)
+	baseline := ServiceMaterializationGenerationID(baselineWrite)
+	current := ServiceMaterializationGenerationID(currentWrite)
 	if baseline == current {
 		t.Fatal("baseline and current generation IDs are equal despite an owner change")
 	}
-	if repeated := serviceMaterializationGenerationID(goldenServiceChangedSinceWrite(goldenServiceChangedSinceCurrentOwner)); repeated != current {
+	if repeated := ServiceMaterializationGenerationID(goldenServiceChangedSinceWrite(goldenServiceChangedSinceCurrentOwner)); repeated != current {
 		t.Errorf("identical current write generation = %q, want idempotent %q", repeated, current)
 	}
 

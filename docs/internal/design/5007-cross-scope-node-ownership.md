@@ -138,7 +138,7 @@ Nothing on this node is a cross-scope union today.
 How the rest of Eshu models multi-source evidence: reducer-side sorted-set
 unions written as whole values —
 `evidence_fact_ids: uniqueSortedStrings(...)`
-(`go/internal/reducer/service_catalog_correlation_writer.go:134`,
+(`go/internal/reducer/servicecatalog/service_catalog_correlation_writer.go`,
 `go/internal/reducer/secrets_iam_trust_chain_writer.go:168-220`,
 `go/internal/reducer/incident/incident_repository_correlation_writer.go:150`,
 `go/internal/reducer/ci_cd_run_correlation_writer.go:123`) and

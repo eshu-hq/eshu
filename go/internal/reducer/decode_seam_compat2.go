@@ -25,9 +25,6 @@ var (
 	decodeS3ExternalPrincipalGrant             = schemadecode.DecodeS3ExternalPrincipalGrant
 	decodeScannerWorkerAnalysis                = schemadecode.DecodeScannerWorkerAnalysis
 	decodeSecurityAlertRepositoryAlert         = schemadecode.DecodeSecurityAlertRepositoryAlert
-	decodeServiceCatalogEntity                 = schemadecode.DecodeServiceCatalogEntity
-	decodeServiceCatalogOwnership              = schemadecode.DecodeServiceCatalogOwnership
-	decodeServiceCatalogRepositoryLink         = schemadecode.DecodeServiceCatalogRepositoryLink
 	decodeSubmodulePin                         = schemadecode.DecodeSubmodulePin
 	decodeVulnerabilityAffectedPackage         = schemadecode.DecodeVulnerabilityAffectedPackage
 	decodeVulnerabilityAffectedProduct         = schemadecode.DecodeVulnerabilityAffectedProduct

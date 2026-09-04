@@ -28,7 +28,7 @@ that, so it does not clear the bar for promotion.
 Three findings settle that the lineage rows cannot be attributed to a tenant
 without a schema change, so no in-handler rework closes this:
 
-- `ownershipEvidencePayload` (`go/internal/reducer/service_materialization.go`)
+- `ownershipEvidencePayload` (`go/internal/reducer/servicecatalog/service_materialization.go`)
   writes `owner_ref`, `provider`, `entity_ref`, `lifecycle`, and `tier` only.
   The evidence snapshots carry no repository, scope, or tenant.
 - `service_materialization_generations` has no scope column at all
@@ -54,7 +54,7 @@ Admission was existential. `serviceChangedSinceGrantAdmits`
 soon as one came back.
 
 Catalog service ids are not tenant-qualified. `serviceCatalogAdmittedServiceID`
-(`go/internal/reducer/service_catalog_correlation_classify.go`) returns the
+(`go/internal/reducer/servicecatalog/service_catalog_correlation_classify.go`) returns the
 catalog entity ref verbatim, so a component named `api` in the `default`
 namespace is `component:default/api` in every tenant that declares one.
 
@@ -64,7 +64,7 @@ Nothing downstream re-qualifies it:
   `026_service_evidence_snapshots.sql` carry `service_id` and generation
   columns only -- no repository, no scope, no tenant.
 - `serviceMaterializationWriter`
-  (`go/internal/reducer/service_materialization_writer.go`) conflicts on
+  (`go/internal/reducer/servicecatalog/service_materialization_writer.go`) conflicts on
   `service_id` alone, so two tenants materializing the same id overwrite one
   lineage rather than keeping two.
 - `ComputeServiceChangedSinceDelta`
@@ -172,7 +172,7 @@ pass:
 
 - **Nullable, and no foreign key.** The column is `TEXT NULL` (schema 025), and
   `PostgresServiceMaterializationWriter.insertGeneration`
-  (`go/internal/reducer/service_materialization_writer.go`) binds it through
+  (`go/internal/reducer/servicecatalog/service_materialization_writer.go`) binds it through
   `nullableString(write.IntentID)`, so an empty intent id is stored as NULL.
   Nothing constrains it to resolve.
 - **The intent is deleted first.** `deleteSharedProjectionIntentsForGenerationsQuery`

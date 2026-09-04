@@ -49,9 +49,9 @@ import (
 // domain's FactKinds() load-list function references every kind it fetches
 // whether or not the handler goes on to do anything with a given kind — the
 // #5474 P0 concrete counter-example is serviceCatalogCorrelationFactKinds()
-// in go/internal/reducer/service_catalog_correlation.go, which loads
-// service_catalog.api_link/dependency/scorecard_definition/scorecard_result/
-// warning into the envelope batch, but
+// in go/internal/reducer/servicecatalog/service_catalog_correlation.go, which
+// loads service_catalog.api_link/dependency/scorecard_definition/
+// scorecard_result/warning into the envelope batch, but
 // buildServiceCatalogCorrelationIndexWithQuarantine's switch
 // (service_catalog_correlation_index.go) only cases on entity/ownership/
 // repository_link — those five loaded-but-never-cased kinds are genuinely

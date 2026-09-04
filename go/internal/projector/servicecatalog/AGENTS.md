@@ -11,8 +11,8 @@
    chain.
 5. `../schema_version_admission.go` for the root gate that rejects an
    unsupported service-catalog schema version before this builder runs.
-6. `go/internal/reducer/service_catalog_correlation.go` for what the reducer
-   does with the intent this package enqueues.
+6. `go/internal/reducer/servicecatalog/service_catalog_correlation.go` for
+   what the reducer does with the intent this package enqueues.
 
 ## Invariants
 

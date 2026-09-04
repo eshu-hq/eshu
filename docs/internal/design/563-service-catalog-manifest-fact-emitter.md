@@ -23,7 +23,7 @@ shipped:
   (`BuildServiceCatalogCorrelationReducerIntent`); root
   `go/internal/projector/schema_version_admission.go` rejects unsupported
   service-catalog schema versions before the builder runs.
-- Reducer handler and writer: `go/internal/reducer/service_catalog_correlation.go`,
+- Reducer handler and writer: `go/internal/reducer/servicecatalog/service_catalog_correlation.go`,
   `service_catalog_correlation_index.go`, `service_catalog_correlation_writer.go`
   (#561), writing the provenance-only `reducer_service_catalog_correlation`
   fact with six outcomes.
