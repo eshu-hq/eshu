@@ -63,10 +63,10 @@ func classifyWorkloadImages(
 			decisions = append(decisions, rejectedImageDecision(workload, raw, index, "live image reference could not be parsed into a repository"))
 			continue
 		}
-		if _, dup := seen[parsed.raw]; dup {
+		if _, dup := seen[parsed.Raw]; dup {
 			continue
 		}
-		seen[parsed.raw] = struct{}{}
+		seen[parsed.Raw] = struct{}{}
 		decisions = append(decisions, classifyImageRef(workload, parsed, index))
 	}
 	return decisions
@@ -80,12 +80,12 @@ func classifyImageRef(
 	parsed parsedContainerImageRef,
 	index kubernetesCorrelationIndex,
 ) KubernetesCorrelationDecision {
-	base := baseImageDecision(workload, parsed.raw, index)
-	if parsed.repositoryKey == "" {
+	base := baseImageDecision(workload, parsed.Raw, index)
+	if parsed.RepositoryKey == "" {
 		return rejectImage(base, "live image reference has no repository")
 	}
 
-	if parsed.digest != "" {
+	if parsed.Digest != "" {
 		return classifyImageByDigest(base, parsed, index)
 	}
 
@@ -95,7 +95,7 @@ func classifyImageRef(
 	// what is running; it promotes a tag-referenced deployment to exact when the
 	// source index matches, and classifies as unresolved when it does not —
 	// without falling through to the weaker tag classification.
-	if resolved, hasCRI := workload.resolvedImageDigests[parsed.raw]; hasCRI {
+	if resolved, hasCRI := workload.resolvedImageDigests[parsed.Raw]; hasCRI {
 		if resolved.conflicting() {
 			return classifyConflictingCRIDigests(base, resolved.candidates)
 		}
@@ -124,10 +124,10 @@ func promotableCRIRef(candidates []string, index kubernetesCorrelationIndex) str
 	}
 	for _, candidate := range candidates {
 		parsed, ok := parseContainerImageRef(candidate)
-		if !ok || parsed.digest == "" || parsed.repositoryKey == "" {
+		if !ok || parsed.Digest == "" || parsed.RepositoryKey == "" {
 			continue
 		}
-		if _, resolved := index.resolveDigest(parsed.repositoryKey, parsed.digest); resolved {
+		if _, resolved := index.resolveDigest(parsed.RepositoryKey, parsed.Digest); resolved {
 			return candidate
 		}
 	}
@@ -161,8 +161,8 @@ func classifyConflictingCRIDigests(
 func criCandidateDigests(candidates []string) []string {
 	out := make([]string, 0, len(candidates))
 	for _, candidate := range candidates {
-		if parsed, ok := parseContainerImageRef(candidate); ok && parsed.digest != "" {
-			out = append(out, parsed.digest)
+		if parsed, ok := parseContainerImageRef(candidate); ok && parsed.Digest != "" {
+			out = append(out, parsed.Digest)
 			continue
 		}
 		out = append(out, candidate)
@@ -181,7 +181,7 @@ func classifyImageByCRIDigest(
 	index kubernetesCorrelationIndex,
 ) KubernetesCorrelationDecision {
 	parsed, ok := parseContainerImageRef(resolvedDigest)
-	if !ok || parsed.digest == "" {
+	if !ok || parsed.Digest == "" {
 		// The resolved digest could not be parsed (e.g. it lost its repository
 		// through normalization). Classify as unresolved — do NOT fall through
 		// to the weaker tag classification; the CRI digest is ground truth.
@@ -192,14 +192,14 @@ func classifyImageByCRIDigest(
 		base.Reason = "CRI-resolved digest could not be parsed to a repository@sha256 reference"
 		return base
 	}
-	if parsed.repositoryKey == "" {
+	if parsed.RepositoryKey == "" {
 		base.Outcome = KubernetesCorrelationUnresolved
 		base.DriftKind = driftMissingSource
 		base.ProvenanceOnly = true
 		base.Reason = "CRI-resolved digest has no repository; not joinable"
 		return base
 	}
-	source, ok := index.resolveDigest(parsed.repositoryKey, parsed.digest)
+	source, ok := index.resolveDigest(parsed.RepositoryKey, parsed.Digest)
 	if !ok {
 		base.Outcome = KubernetesCorrelationUnresolved
 		base.DriftKind = driftMissingSource
@@ -207,7 +207,7 @@ func classifyImageByCRIDigest(
 		base.Reason = "CRI-resolved digest has no deployment-source observation in this generation"
 		return base
 	}
-	base.SourceDigest = parsed.digest
+	base.SourceDigest = parsed.Digest
 	base.EvidenceFactIDs = appendEvidence(base.EvidenceFactIDs, source.factIDs...)
 	if source.tombstone {
 		base.Outcome = KubernetesCorrelationStale
@@ -231,7 +231,7 @@ func classifyImageByDigest(
 	parsed parsedContainerImageRef,
 	index kubernetesCorrelationIndex,
 ) KubernetesCorrelationDecision {
-	source, ok := index.resolveDigest(parsed.repositoryKey, parsed.digest)
+	source, ok := index.resolveDigest(parsed.RepositoryKey, parsed.Digest)
 	if !ok {
 		base.Outcome = KubernetesCorrelationUnresolved
 		base.DriftKind = driftMissingSource
@@ -239,7 +239,7 @@ func classifyImageByDigest(
 		base.Reason = "live image digest has no deployment-source observation in this generation"
 		return base
 	}
-	base.SourceDigest = parsed.digest
+	base.SourceDigest = parsed.Digest
 	base.EvidenceFactIDs = appendEvidence(base.EvidenceFactIDs, source.factIDs...)
 	if source.tombstone {
 		base.Outcome = KubernetesCorrelationStale
@@ -264,7 +264,7 @@ func classifyImageByTag(
 	parsed parsedContainerImageRef,
 	index kubernetesCorrelationIndex,
 ) KubernetesCorrelationDecision {
-	distinct := index.resolveTag(parsed.repositoryKey, parsed.tag)
+	distinct := index.resolveTag(parsed.RepositoryKey, parsed.Tag)
 	switch len(distinct) {
 	case 0:
 		base.Outcome = KubernetesCorrelationUnresolved

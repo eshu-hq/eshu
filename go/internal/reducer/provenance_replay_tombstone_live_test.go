@@ -15,6 +15,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/facts"
 	"github.com/eshu-hq/eshu/go/internal/graph"
 	"github.com/eshu-hq/eshu/go/internal/reducer"
+	"github.com/eshu-hq/eshu/go/internal/reducer/containerimage"
 	"github.com/eshu-hq/eshu/go/internal/replay/cassette"
 	runtimecfg "github.com/eshu-hq/eshu/go/internal/runtime"
 	"github.com/eshu-hq/eshu/go/internal/scope"
@@ -79,7 +80,7 @@ func TestProvenanceReplayTombstoneCassetteDecisions(t *testing.T) {
 		t.Fatalf("generation 1 publication PUBLISHES rows = %#v, want one package-version row", got)
 	}
 	containerGen1 := reducer.BuildContainerImageIdentityDecisions(gen1.facts)
-	builtFromRows, derivedFromRows, err := reducer.ContainerImageEffectiveRowsForReplayTest(
+	builtFromRows, derivedFromRows, err := containerimage.ContainerImageEffectiveRowsForReplayTest(
 		containerGen1, provenanceReplayBuildRepoID,
 	)
 	if err != nil {
@@ -103,7 +104,7 @@ func TestProvenanceReplayTombstoneCassetteDecisions(t *testing.T) {
 		t.Fatalf("generation 2 publication decisions = %#v, want none", got)
 	}
 	containerGen2 := reducer.BuildContainerImageIdentityDecisions(gen2.facts)
-	builtFromRows, derivedFromRows, err = reducer.ContainerImageEffectiveRowsForReplayTest(
+	builtFromRows, derivedFromRows, err = containerimage.ContainerImageEffectiveRowsForReplayTest(
 		containerGen2, provenanceReplayBuildRepoID,
 	)
 	if err != nil {
@@ -305,7 +306,7 @@ func projectProvenanceReplayGeneration(
 		t.Fatalf("project %s package provenance: %v", generation.generation.GenerationID, err)
 	}
 	containerDecisions := reducer.BuildContainerImageIdentityDecisions(generation.facts)
-	if err := reducer.ProjectEffectiveContainerImageIdentityEdgesForReplayTest(
+	if err := containerimage.ProjectEffectiveContainerImageIdentityEdgesForReplayTest(
 		ctx, writer, writer, generation.scope.ScopeID, generation.generation.GenerationID, containerDecisions,
 	); err != nil {
 		t.Fatalf("project %s effective container provenance: %v", generation.generation.GenerationID, err)

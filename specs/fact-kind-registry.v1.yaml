@@ -368,7 +368,7 @@ families:
     # digest-to-commit anchor derived from config_source also feeds a new
     # reducer_container_image_identity provenance tier
     # (slsa_provenance_commit) that outranks oci_config_source_label and
-    # ci_run_commit (go/internal/reducer/container_image_identity.go).
+    # ci_run_commit (go/internal/reducer/containerimage/container_image_identity.go).
     truth_profile: provider_gated
     provider_key_independent: false
     payload_schema_overrides:

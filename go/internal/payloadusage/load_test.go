@@ -363,7 +363,7 @@ func TestLoadCoversWiredAzureKinds(t *testing.T) {
 	}{
 		"FactKindAzureCloudResource":     {"decodeAzureCloudResource", "azurev1.CloudResource", "azure_resource_materialization.go"},
 		"FactKindAzureCloudRelationship": {"decodeAzureCloudRelationship", "azurev1.CloudRelationship", "azure_relationship_join.go"},
-		"FactKindAzureImageReference":    {"decodeAzureImageReference", "azurev1.ImageReference", "container_image_identity_typed_evidence.go"},
+		"FactKindAzureImageReference":    {"DecodeAzureImageReference", "azurev1.ImageReference", "containerimage/container_image_identity_typed_evidence.go"},
 		"FactKindAzureTagObservation":    {"decodeAzureTagObservation", "azurev1.TagObservation", "cloud_tag_evidence.go"},
 	}
 	for kind, want := range wired {

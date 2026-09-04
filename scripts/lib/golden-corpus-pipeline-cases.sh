@@ -38,10 +38,10 @@ require "demotion proof lib source" "golden-corpus-container-image-demotion.sh"
 require_invocation "demotion proof invocation" "run_container_image_identity_demotion_proof"
 require_in "exact demotion test name" "${demotion_lib}" \
 	'test_name="TestContainerImageIdentitySupportWriterRetiresPromotedDecisionOnDemotionLive"'
-demotion_command_pattern='^\t\tESHU_POSTGRES_TEST_DSN="\$\{ESHU_POSTGRES_DSN\}" go test \./internal/reducer -run "\^\$\{test_name\}\$" -count=1 -timeout=60s -json$'
+demotion_command_pattern='^\t\tESHU_POSTGRES_TEST_DSN="\$\{ESHU_POSTGRES_DSN\}" go test \./internal/reducer/\.\.\. -run "\^\$\{test_name\}\$" -count=1 -timeout=60s -json$'
 require_matches "container image identity demotion command must be exact and fail closed" \
 	"${demotion_lib}" "${demotion_command_pattern}"
-demotion_block_pattern='^\tif ! \(\n\t\tcd "\$\{repo_root\}/go"\n\t\tESHU_POSTGRES_TEST_DSN="\$\{ESHU_POSTGRES_DSN\}" go test \./internal/reducer -run "\^\$\{test_name\}\$" -count=1 -timeout=60s -json\n\t\) >"\$\{proof_json\}" 2>"\$\{proof_stderr\}"; then\n\t\tcat "\$\{proof_stderr\}"\n\t\tgolden_corpus_render_test_output "\$\{proof_json\}"\n\t\tdie "container image identity canonical-to-demoted lifecycle proof failed"\n\tfi$'
+demotion_block_pattern='^\tif ! \(\n\t\tcd "\$\{repo_root\}/go"\n\t\tESHU_POSTGRES_TEST_DSN="\$\{ESHU_POSTGRES_DSN\}" go test \./internal/reducer/\.\.\. -run "\^\$\{test_name\}\$" -count=1 -timeout=60s -json\n\t\) >"\$\{proof_json\}" 2>"\$\{proof_stderr\}"; then\n\t\tcat "\$\{proof_stderr\}"\n\t\tgolden_corpus_render_test_output "\$\{proof_json\}"\n\t\tdie "container image identity canonical-to-demoted lifecycle proof failed"\n\tfi$'
 require_matches "container image identity demotion block must propagate failure" \
 	"${demotion_lib}" "${demotion_block_pattern}"
 demotion_event_count_pattern='^\tgolden_corpus_exact_test_passed "\$\{proof_json\}" "\$\{test_name\}" \|\|\n\t\tdie "container image identity demotion proof must report exactly one run, one pass, and zero skips"$'
@@ -49,7 +49,7 @@ require_matches "demotion proof event-count validation" \
 	"${demotion_lib}" "${demotion_event_count_pattern}"
 
 demotion_command_fixture="$(mktemp -t golden-corpus-demotion-command.XXXXXX)"
-demotion_command='ESHU_POSTGRES_TEST_DSN="${ESHU_POSTGRES_DSN}" go test ./internal/reducer -run "^${test_name}$" -count=1 -timeout=60s -json'
+demotion_command='ESHU_POSTGRES_TEST_DSN="${ESHU_POSTGRES_DSN}" go test ./internal/reducer/... -run "^${test_name}$" -count=1 -timeout=60s -json'
 expect_demotion_command_rejected() {
 	local label="$1" command="$2"
 	printf '\t\t%s\n' "${command}" >"${demotion_command_fixture}"
@@ -62,7 +62,7 @@ expect_demotion_command_rejected "a changed package" "${demotion_command/\.\/int
 expect_demotion_command_rejected "a missing timeout" "${demotion_command/ -timeout=60s/}"
 expect_demotion_command_rejected \
 	"a weakened test regex" \
-	'ESHU_POSTGRES_TEST_DSN="${ESHU_POSTGRES_DSN}" go test ./internal/reducer -run "${test_name}" -count=1 -timeout=60s -json'
+	'ESHU_POSTGRES_TEST_DSN="${ESHU_POSTGRES_DSN}" go test ./internal/reducer/... -run "${test_name}" -count=1 -timeout=60s -json'
 rm -f "${demotion_command_fixture}"
 
 # Exercise the event validator, not just its source. Go deliberately exits zero

@@ -54,16 +54,6 @@ func reducerBatchInsertVersionedFacts(
 	return factwrite.BatchInsertVersionedFacts(ctx, db, rows)
 }
 
-// execReducerFactChunk forwards to [factwrite.ExecChunk].
-func execReducerFactChunk(ctx context.Context, db workloadIdentityExecer, chunk []reducerFactRow) error {
-	return factwrite.ExecChunk(ctx, db, chunk)
-}
-
-// reducerFactChunkArgs forwards to [factwrite.ChunkArgs].
-func reducerFactChunkArgs(chunk []reducerFactRow) []any {
-	return factwrite.ChunkArgs(chunk)
-}
-
 // dedupeReducerFactRowsByFactID forwards to [factwrite.DedupeRowsByFactID]. It
 // stays generic: a function-valued variable cannot carry a type parameter, and
 // a func statement keeps the call inlinable.

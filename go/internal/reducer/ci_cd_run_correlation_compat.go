@@ -58,13 +58,3 @@ const cicdWorkflowImageBuiltFromEvidenceSource = cicdrun.CICDWorkflowImageBuiltF
 func BuildCICDRunCorrelationDecisions(envelopes []facts.Envelope) []CICDRunCorrelationDecision {
 	return cicdrun.BuildCICDRunCorrelationDecisions(envelopes)
 }
-
-// cicdRunKeyFromParts forwards to [cicdrun.CICDRunKeyFromParts].
-func cicdRunKeyFromParts(provider, runID string, runAttempt *string) string {
-	return cicdrun.CICDRunKeyFromParts(provider, runID, runAttempt)
-}
-
-// trimmedCICDPtr forwards to [cicdrun.TrimmedCICDPtr].
-func trimmedCICDPtr(value *string) string {
-	return cicdrun.TrimmedCICDPtr(value)
-}
