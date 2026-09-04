@@ -287,6 +287,21 @@ content row. An empty repository is a key of its own rather than a wildcard, so
 a row the graph could not attribute can only match a content row that carries
 none either.
 
+It is a wrapper around the existing `languageResultMatchKey` rather than a
+change to it, because that helper is shared with the entity and code-search
+enrichments (`entity_metadata.go`, `code_search_metadata.go`) and those two
+cannot reach this defect. Both read through `ContentReader.SearchEntityContent`,
+whose `WHERE repo_id = $1` is unconditional, and all six of their call sites
+pass a single non-empty repository: `searchGraphEntitiesWithExact` refuses an
+empty `repo_id` outright with `errGlobalGraphEntitySearchUnsupported`, the
+entity route returns through `resolveGlobalContentEntities` before its graph
+path when `repo_id` is empty, and the remaining four enrich exactly one row
+using that row's own `repo_id`. One repository in the content read means no
+second repository to collide with. Language-query is the only one of the three
+whose content read deliberately spans a SET of repositories -- that is what
+`searchLanguageEntities` binding the grant does -- which is why the key needed
+the repository here and nowhere else.
+
 ## A Batch-1 Fake Was Hiding Predicates
 
 `evaluatingRepositoryGraph` reads the `WHERE` attached to the Repository binding
