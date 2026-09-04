@@ -17,7 +17,7 @@ reducer-intent value. The root `internal/projector` package validates
 scope-generation boundaries, constructs and owns the immutable fact lookup,
 preserves family order, and owns projection lifecycle, queue writes, retries,
 and telemetry. The reducer's `DomainAWSCloudRuntimeDrift` handler
-(`go/internal/reducer/aws_cloud_runtime_drift.go`) owns the bounded ARN join
+(`go/internal/reducer/awscloud/aws_cloud_runtime_drift.go`) owns the bounded ARN join
 against `AWSCloudRuntimeDriftEvidenceLoader`, drift classification through the
 `aws_cloud_runtime_drift` correlation rule pack, and durable publication of
 admitted candidates through `AWSCloudRuntimeDriftFindingWriter`.

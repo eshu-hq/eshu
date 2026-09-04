@@ -22,7 +22,7 @@ import (
 // shape the real encode path can never produce, since
 // reducerderivedv1.AWSCloudRuntimeDriftFinding has no fields for them and
 // factschema.EncodeReducerAWSCloudRuntimeDriftFinding (the SAME function
-// go/internal/reducer/aws_cloud_runtime_drift_writer.go calls) cannot emit
+// go/internal/reducer/awscloud/aws_cloud_runtime_drift_writer.go calls) cannot emit
 // what was never in the typed struct. That test was a false green: it
 // proved struct-copy correctness for a feature that can never fire.
 //

@@ -170,7 +170,7 @@
   statement that resets `attempt_count = 0`, so a reopened row's
   `CycleStartedAt` (`COALESCE(reopened_at, created_at)`, computed by the claim
   query) gets a genuinely fresh window; see
-  `go/internal/reducer/aws_cloud_runtime_drift_readiness.go`'s
+  `go/internal/reducer/awscloud/aws_cloud_runtime_drift_readiness.go`'s
   `awsCloudRuntimeDriftStatePendingMaxWait` doc comment,
   `TestAWSCloudRuntimeDriftHandlerConvergesAfterElapsedBoundOverRealQueueLive`
   for the attempt_count-freeze mechanism and real-queue proof, and

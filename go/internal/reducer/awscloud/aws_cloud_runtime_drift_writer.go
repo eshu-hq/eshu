@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package reducer
+package awscloud
 
 import (
 	"context"
@@ -16,6 +16,9 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/correlation/drift/cloudruntime"
 	"github.com/eshu-hq/eshu/go/internal/correlation/model"
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
+	"github.com/eshu-hq/eshu/go/internal/reducer/factwrite"
+	"github.com/eshu-hq/eshu/go/internal/reducer/payloadcore"
 	"github.com/eshu-hq/eshu/sdk/go/factschema"
 	reducerderivedv1 "github.com/eshu-hq/eshu/sdk/go/factschema/reducerderived/v1"
 )
@@ -68,7 +71,7 @@ func (w PostgresAWSCloudRuntimeDriftWriter) WriteAWSCloudRuntimeDriftFindings(
 		return AWSCloudRuntimeDriftWriteResult{}, err
 	}
 
-	now := reducerWriterNow(w.Now)
+	now := factwrite.Now(w.Now)
 	// FencingToken is issued by AWSCloudRuntimeDriftHandler.Handle (#5875 P1),
 	// not derived here: it must be a database-issued value captured at
 	// evidence-read time, not anything this writer could compute from
@@ -118,7 +121,7 @@ func (w PostgresAWSCloudRuntimeDriftWriter) commit(
 
 	canonicalIDs := make([]string, 0, len(write.Candidates))
 	keepFactIDs := make([]string, 0, len(write.Candidates))
-	rows := make([]reducerFactVersionedRow, 0, len(write.Candidates))
+	rows := make([]factwrite.VersionedRow, 0, len(write.Candidates))
 	for _, candidate := range write.Candidates {
 		canonicalID := canonicalAWSCloudRuntimeDriftID(write, candidate)
 		payload, err := factschema.EncodeReducerAWSCloudRuntimeDriftFinding(
@@ -133,14 +136,14 @@ func (w PostgresAWSCloudRuntimeDriftWriter) commit(
 		}
 
 		factID := awsCloudRuntimeDriftFactID(write, candidate)
-		rows = append(rows, reducerFactVersionedRow{
+		rows = append(rows, factwrite.VersionedRow{
 			FactID:           factID,
 			ScopeID:          write.ScopeID,
 			GenerationID:     write.GenerationID,
 			FactKind:         awsCloudRuntimeDriftFactKind,
 			StableFactKey:    awsCloudRuntimeDriftStableFactKey(write, candidate),
 			SchemaVersion:    facts.ReducerDerivedSchemaVersionV1,
-			CollectorKind:    reducerFactCollectorKind(write.SourceSystem),
+			CollectorKind:    factwrite.CollectorKind(write.SourceSystem),
 			SourceConfidence: facts.SourceConfidenceInferred,
 			SourceSystem:     write.SourceSystem,
 			SourceFactKey:    write.IntentID,
@@ -154,7 +157,7 @@ func (w PostgresAWSCloudRuntimeDriftWriter) commit(
 	}
 	// Bounded chunked bulk insert: candidates are upserted in O(N/batchSize)
 	// round-trips rather than one ExecContext per candidate.
-	if err := reducerBatchInsertVersionedFacts(ctx, tx, rows); err != nil {
+	if err := factwrite.BatchInsertVersionedFacts(ctx, tx, rows); err != nil {
 		return AWSCloudRuntimeDriftWriteResult{}, fmt.Errorf("write aws cloud runtime drift fact: %w", err)
 	}
 
@@ -216,7 +219,7 @@ func awsCloudRuntimeDriftTypedPayload(
 ) reducerderivedv1.AWSCloudRuntimeDriftFinding {
 	status := awsCloudRuntimeManagementStatus(candidate)
 	return reducerderivedv1.AWSCloudRuntimeDriftFinding{
-		ReducerDomain:    string(DomainAWSCloudRuntimeDrift),
+		ReducerDomain:    string(reducercontract.DomainAWSCloudRuntimeDrift),
 		IntentID:         write.IntentID,
 		ScopeID:          write.ScopeID,
 		GenerationID:     write.GenerationID,
@@ -235,10 +238,10 @@ func awsCloudRuntimeDriftTypedPayload(
 			cloudruntime.EvidenceTypeStateResource,
 			"resource_address",
 		),
-		MissingEvidence:     nonNilStrings(awsCloudRuntimeMissingEvidence(candidate, status)),
-		WarningFlags:        nonNilStrings(awsCloudRuntimeWarningFlags(candidate, status)),
+		MissingEvidence:     payloadcore.NonNilStrings(awsCloudRuntimeMissingEvidence(candidate, status)),
+		WarningFlags:        payloadcore.NonNilStrings(awsCloudRuntimeWarningFlags(candidate, status)),
 		RecommendedAction:   awsCloudRuntimeRecommendedAction(status),
-		Evidence:            nonNilMapSlice(awsCloudRuntimeDriftEvidencePayload(candidate.Evidence)),
+		Evidence:            payloadcore.NonNilMapSlice(awsCloudRuntimeDriftEvidencePayload(candidate.Evidence)),
 		OrphanedResources:   write.Summary.OrphanedResources,
 		UnmanagedResources:  write.Summary.UnmanagedResources,
 		AmbiguousResources:  write.Summary.AmbiguousResources,

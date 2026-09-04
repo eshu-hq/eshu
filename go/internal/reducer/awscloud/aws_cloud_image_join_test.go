@@ -1,12 +1,13 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package reducer
+package awscloud
 
 import (
 	"testing"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/reducer/payloadcore"
 )
 
 // TestExtractAWSCloudImageEdgeRowsResolvesLambdaDigest is the positive case:
@@ -53,10 +54,10 @@ func TestExtractAWSCloudImageEdgeRowsResolvesLambdaDigest(t *testing.T) {
 	if !ok {
 		t.Fatalf("containerImageNodeUIDFromDigestRef() ok = false")
 	}
-	if got := anyToString(row["target_uid"]); got != wantUID {
+	if got := payloadcore.AnyToString(row["target_uid"]); got != wantUID {
 		t.Fatalf("target_uid = %q, want %q", got, wantUID)
 	}
-	if got := anyToString(row["resolution_mode"]); got != awsCloudImageResolutionMode {
+	if got := payloadcore.AnyToString(row["resolution_mode"]); got != awsCloudImageResolutionMode {
 		t.Fatalf("resolution_mode = %q, want %q", got, awsCloudImageResolutionMode)
 	}
 	if tally.resolved != 1 {

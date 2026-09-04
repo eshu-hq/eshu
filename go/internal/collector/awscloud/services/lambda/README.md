@@ -74,7 +74,7 @@ API call counters, throttle counters, and pagination spans.
     `(:CloudResource)-[:AWS_lambda_function_uses_image]->(:ContainerImage)`
     graph edge — since a Lambda function is single-image by AWS's own model,
     there is no multi-container-style ambiguity to resolve
-    (`go/internal/reducer/aws_cloud_image_join.go`'s
+    (`go/internal/reducer/awscloud/aws_cloud_image_join.go`'s
     `containerImageNodeUIDFromDigestRef`). That function lowercases the
     registry, repository, and digest before computing the target uid, matching
     the OCI registry collector's own normalization

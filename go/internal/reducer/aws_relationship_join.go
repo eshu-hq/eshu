@@ -8,6 +8,7 @@ import (
 	"strings"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/reducer/cloudjoin"
 	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
 	"github.com/eshu-hq/eshu/go/internal/reducer/payloadcore"
 )
@@ -35,24 +36,13 @@ const (
 	joinModeUnresolved = "unresolved"
 )
 
-// resolveSource resolves the relationship source endpoint to a uid. The scanner
-// sets source_resource_id to the ARN or the bare id consistently, so source
-// resolution tries the ARN index first, then the resource-id index.
+// resolveCloudResourceSource forwards to [cloudjoin.ResolveSource]. That
+// logic moved to [cloudjoin] (issue #6061) because both this root call site
+// and the [awscloud] cloud-image edge projection resolve their source
+// endpoint through the identical index and logic, and a family package may
+// never import the reducer root.
 func resolveCloudResourceSource(i cloudResourceJoinIndex, sourceARN, sourceResourceID string) (string, bool) {
-	if sourceARN != "" {
-		if uid, ok := i.ByARN[sourceARN]; ok {
-			return uid, true
-		}
-	}
-	if sourceResourceID != "" {
-		if uid, ok := i.ByARN[sourceResourceID]; ok {
-			return uid, true
-		}
-		if uid, ok := i.ByResourceID[sourceResourceID]; ok {
-			return uid, true
-		}
-	}
-	return "", false
+	return cloudjoin.ResolveSource(i, sourceARN, sourceResourceID)
 }
 
 // resolveTarget resolves the relationship target endpoint to a uid and reports

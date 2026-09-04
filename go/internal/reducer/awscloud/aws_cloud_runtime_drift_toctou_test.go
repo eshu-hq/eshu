@@ -1,13 +1,14 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package reducer
+package awscloud
 
 import (
 	"context"
 	"testing"
 
 	"github.com/eshu-hq/eshu/go/internal/correlation/drift/cloudruntime"
+	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
 )
 
 // transitioningAWSCloudRuntimeDriftEvidenceLoader deterministically forces the
@@ -105,12 +106,12 @@ func TestAWSCloudRuntimeDriftHandlerDefersDespiteStateActivatingDuringEvidenceLo
 		ReadinessChecker:   readiness,
 	}
 
-	_, err := handler.Handle(context.Background(), Intent{
+	_, err := handler.Handle(context.Background(), reducercontract.Intent{
 		IntentID:     "intent-toctou",
 		ScopeID:      "aws:123456789012:us-east-1",
 		GenerationID: "gen-1",
 		SourceSystem: "aws",
-		Domain:       DomainAWSCloudRuntimeDrift,
+		Domain:       reducercontract.DomainAWSCloudRuntimeDrift,
 		Cause:        "aws runtime resource facts observed",
 	})
 	if err == nil {
@@ -186,12 +187,12 @@ func TestAWSCloudRuntimeDriftHandlerWritesFresherEvidenceWhenStateActivatesBefor
 		ReadinessChecker:   readiness,
 	}
 
-	_, err := handler.Handle(context.Background(), Intent{
+	_, err := handler.Handle(context.Background(), reducercontract.Intent{
 		IntentID:     "intent-reverse-race",
 		ScopeID:      "aws:123456789012:us-east-1",
 		GenerationID: "gen-1",
 		SourceSystem: "aws",
-		Domain:       DomainAWSCloudRuntimeDrift,
+		Domain:       reducercontract.DomainAWSCloudRuntimeDrift,
 		Cause:        "aws runtime resource facts observed",
 	})
 	if err != nil {

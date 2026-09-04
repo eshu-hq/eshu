@@ -24,7 +24,7 @@ const cloudResourceContainerImageEdgeLabel = "AWS_LAMBDA_FUNCTION_USES_IMAGE"
 // Only lambda_function_uses_image resolves to an exact
 // registry+repository@digest reference; ecs_task_definition_uses_image is
 // tag-only and stays Postgres-only (never reaches this writer, see
-// go/internal/reducer/aws_cloud_image_join.go). This is the value the row's
+// go/internal/reducer/awscloud/aws_cloud_image_join.go). This is the value the row's
 // "relationship_type" field carries (informative/human-readable, matching
 // CloudResourceEdgeWriter's rel.relationship_type convention) — distinct from
 // the Cypher relationship-type TOKEN interpolated into the MERGE, which is the

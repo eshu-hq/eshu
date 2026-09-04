@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package reducer
+package awscloud
 
 import (
 	"context"
@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/correlation/drift/cloudruntime"
+	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
 )
 
 type stubAWSCloudRuntimeDriftReadinessChecker struct {
@@ -61,12 +62,12 @@ func TestAWSCloudRuntimeDriftHandlerDefersOrphanedFindingWhenStatePending(t *tes
 		ReadinessChecker:   readiness,
 	}
 
-	_, err := handler.Handle(context.Background(), Intent{
+	_, err := handler.Handle(context.Background(), reducercontract.Intent{
 		IntentID:     "intent-defer",
 		ScopeID:      "aws:123456789012:us-east-1",
 		GenerationID: "gen-1",
 		SourceSystem: "aws",
-		Domain:       DomainAWSCloudRuntimeDrift,
+		Domain:       reducercontract.DomainAWSCloudRuntimeDrift,
 		Cause:        "aws runtime resource facts observed",
 		AttemptCount: 0,
 	})
@@ -117,12 +118,12 @@ func TestAWSCloudRuntimeDriftHandlerCommitsAfterElapsedBoundReached(t *testing.T
 		Now:                func() time.Time { return now },
 	}
 
-	_, err := handler.Handle(context.Background(), Intent{
+	_, err := handler.Handle(context.Background(), reducercontract.Intent{
 		IntentID:     "intent-terminal",
 		ScopeID:      "aws:123456789012:us-east-1",
 		GenerationID: "gen-1",
 		SourceSystem: "aws",
-		Domain:       DomainAWSCloudRuntimeDrift,
+		Domain:       reducercontract.DomainAWSCloudRuntimeDrift,
 		Cause:        "aws runtime resource facts observed",
 		// Far past the bound. AttemptCount is deliberately left at its zero
 		// value: the fix under test must not consult it at all.
@@ -160,12 +161,12 @@ func TestAWSCloudRuntimeDriftHandlerKeepsDeferringBeforeElapsedBoundReached(t *t
 		Now:                func() time.Time { return now },
 	}
 
-	_, err := handler.Handle(context.Background(), Intent{
+	_, err := handler.Handle(context.Background(), reducercontract.Intent{
 		IntentID:     "intent-still-waiting",
 		ScopeID:      "aws:123456789012:us-east-1",
 		GenerationID: "gen-1",
 		SourceSystem: "aws",
-		Domain:       DomainAWSCloudRuntimeDrift,
+		Domain:       reducercontract.DomainAWSCloudRuntimeDrift,
 		Cause:        "aws runtime resource facts observed",
 		EnqueuedAt:   now.Add(-awsCloudRuntimeDriftStatePendingMaxWait / 2),
 	})
@@ -195,12 +196,12 @@ func TestAWSCloudRuntimeDriftHandlerDoesNotDeferWhenStateNotPending(t *testing.T
 		ReadinessChecker:   readiness,
 	}
 
-	_, err := handler.Handle(context.Background(), Intent{
+	_, err := handler.Handle(context.Background(), reducercontract.Intent{
 		IntentID:     "intent-not-pending",
 		ScopeID:      "aws:123456789012:us-east-1",
 		GenerationID: "gen-1",
 		SourceSystem: "aws",
-		Domain:       DomainAWSCloudRuntimeDrift,
+		Domain:       reducercontract.DomainAWSCloudRuntimeDrift,
 		Cause:        "aws runtime resource facts observed",
 	})
 	if err != nil {
@@ -227,12 +228,12 @@ func TestAWSCloudRuntimeDriftHandlerNilReadinessCheckerNeverDefers(t *testing.T)
 		FencingTokenIssuer: &stubAWSCloudRuntimeDriftFencingTokenIssuer{tokens: []int64{1}},
 	}
 
-	_, err := handler.Handle(context.Background(), Intent{
+	_, err := handler.Handle(context.Background(), reducercontract.Intent{
 		IntentID:     "intent-no-gate",
 		ScopeID:      "aws:123456789012:us-east-1",
 		GenerationID: "gen-1",
 		SourceSystem: "aws",
-		Domain:       DomainAWSCloudRuntimeDrift,
+		Domain:       reducercontract.DomainAWSCloudRuntimeDrift,
 		Cause:        "aws runtime resource facts observed",
 	})
 	if err != nil {
@@ -283,12 +284,12 @@ func TestAWSCloudRuntimeDriftHandlerDoesNotDeferWithoutOrphanedCandidate(t *test
 		ReadinessChecker:   readiness,
 	}
 
-	_, err := handler.Handle(context.Background(), Intent{
+	_, err := handler.Handle(context.Background(), reducercontract.Intent{
 		IntentID:     "intent-unmanaged",
 		ScopeID:      "aws:123456789012:us-east-1",
 		GenerationID: "gen-1",
 		SourceSystem: "aws",
-		Domain:       DomainAWSCloudRuntimeDrift,
+		Domain:       reducercontract.DomainAWSCloudRuntimeDrift,
 		Cause:        "aws runtime resource facts observed",
 	})
 	if err != nil {
@@ -322,12 +323,12 @@ func TestAWSCloudRuntimeDriftCycleAnchorPrefersCycleStartedAt(t *testing.T) {
 
 	tests := []struct {
 		name   string
-		intent Intent
+		intent reducercontract.Intent
 		want   time.Time
 	}{
 		{
 			name: "CycleStartedAt set wins over a different EnqueuedAt",
-			intent: Intent{
+			intent: reducercontract.Intent{
 				EnqueuedAt:     enqueuedAt,
 				CycleStartedAt: cycleStartedAt,
 			},
@@ -335,14 +336,14 @@ func TestAWSCloudRuntimeDriftCycleAnchorPrefersCycleStartedAt(t *testing.T) {
 		},
 		{
 			name: "CycleStartedAt zero falls back to EnqueuedAt",
-			intent: Intent{
+			intent: reducercontract.Intent{
 				EnqueuedAt: enqueuedAt,
 			},
 			want: enqueuedAt,
 		},
 		{
 			name:   "both zero returns zero",
-			intent: Intent{},
+			intent: reducercontract.Intent{},
 			want:   time.Time{},
 		},
 	}
@@ -386,12 +387,12 @@ func TestAWSCloudRuntimeDriftHandlerDefersOnFreshCycleStartedAtDespiteStaleEnque
 		Now:                func() time.Time { return now },
 	}
 
-	_, err := handler.Handle(context.Background(), Intent{
+	_, err := handler.Handle(context.Background(), reducercontract.Intent{
 		IntentID:     "intent-reopened",
 		ScopeID:      "aws:123456789012:us-east-1",
 		GenerationID: "gen-1",
 		SourceSystem: "aws",
-		Domain:       DomainAWSCloudRuntimeDrift,
+		Domain:       reducercontract.DomainAWSCloudRuntimeDrift,
 		Cause:        "aws runtime resource facts observed",
 		// Far past the bound on its own -- the exact shape a maintenance
 		// reopen produces if the anchor reads EnqueuedAt instead of
@@ -412,7 +413,7 @@ func TestAWSCloudRuntimeDriftHandlerDefersOnFreshCycleStartedAtDespiteStaleEnque
 }
 
 func reducerErrorIsRetryable(err error) bool {
-	var retryable RetryableError
+	var retryable reducercontract.RetryableError
 	return errors.As(err, &retryable) && retryable.Retryable()
 }
 

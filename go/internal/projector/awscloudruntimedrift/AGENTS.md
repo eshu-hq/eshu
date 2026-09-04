@@ -8,7 +8,7 @@
 4. `../scope_generation_intents.go` for root-owned assembly order; this probe
    runs first, immediately after the package-source-correlation probe and
    before the multi-cloud-runtime-drift probe.
-5. `go/internal/reducer/aws_cloud_runtime_drift.go` and
+5. `go/internal/reducer/awscloud/aws_cloud_runtime_drift.go` and
    `aws_cloud_runtime_drift_writer.go` for what the reducer does with the
    intent this package enqueues: the bounded ARN join, correlation-rule
    classification, and the durable candidate write.

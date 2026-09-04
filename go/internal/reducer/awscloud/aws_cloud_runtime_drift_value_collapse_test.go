@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package reducer
+package awscloud
 
 import (
 	"context"
@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/correlation/drift/cloudruntime"
+	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
 )
 
 // The #5837 value-axis acceptance probe, run through the real handler.
@@ -49,7 +50,7 @@ var driftValueCollapseEvidenceAsOf = time.Date(2026, time.July, 29, 12, 0, 0, 0,
 // with. Matching on the query text rather than a fixed index keeps the probe
 // working if the writer's statement order changes: the admission check and the
 // versioned upsert run through the same captured exec slice.
-func driftValueCollapseRetireArgs(t *testing.T, execs []fakeWorkloadIdentityExecCall) []any {
+func driftValueCollapseRetireArgs(t *testing.T, execs []fakeAWSCloudRuntimeDriftExecCall) []any {
 	t.Helper()
 
 	for _, call := range execs {
@@ -140,7 +141,7 @@ func runDriftValueCollapsePass(
 ) driftValueCollapsePass {
 	t.Helper()
 
-	execer := &fakeWorkloadIdentityExecer{}
+	execer := &fakeAWSCloudRuntimeDriftExecer{}
 	writer := &recordingDriftWriter{
 		inner: PostgresAWSCloudRuntimeDriftWriter{DB: execer, Now: func() time.Time { return evidenceAsOf }},
 	}
@@ -151,9 +152,9 @@ func runDriftValueCollapsePass(
 		Now:                func() time.Time { return evidenceAsOf },
 	}
 
-	result, err := handler.Handle(context.Background(), Intent{
+	result, err := handler.Handle(context.Background(), reducercontract.Intent{
 		IntentID:     "intent-" + generationID,
-		Domain:       DomainAWSCloudRuntimeDrift,
+		Domain:       reducercontract.DomainAWSCloudRuntimeDrift,
 		ScopeID:      scopeID,
 		GenerationID: generationID,
 		SourceSystem: "aws",

@@ -14,6 +14,7 @@ import (
 	"go.opentelemetry.io/otel/trace"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/reducer/cloudjoin"
 	"github.com/eshu-hq/eshu/go/internal/reducer/payloadcore"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
 	"github.com/eshu-hq/eshu/go/internal/truth"
@@ -343,19 +344,13 @@ func (t awsRelationshipEdgeTally) totalUnresolved() int {
 	return total
 }
 
-// splitAWSFactEnvelopes partitions a mixed envelope slice into resource and
-// relationship facts in one pass so the join index and edge facts are built
-// from a single bounded load.
+// splitAWSFactEnvelopes forwards to [cloudjoin.SplitAWSFactEnvelopes]. That
+// logic moved to [cloudjoin] (issue #6061) because both this root call site
+// and the [awscloud] cloud-image materialization split the same envelope
+// shape before building a CloudResourceJoinIndex from it, and a family
+// package may never import the reducer root.
 func splitAWSFactEnvelopes(envelopes []facts.Envelope) (resources, relationships []facts.Envelope) {
-	for _, env := range envelopes {
-		switch env.FactKind {
-		case facts.AWSResourceFactKind:
-			resources = append(resources, env)
-		case facts.AWSRelationshipFactKind:
-			relationships = append(relationships, env)
-		}
-	}
-	return resources, relationships
+	return cloudjoin.SplitAWSFactEnvelopes(envelopes)
 }
 
 // awsRelationshipNodesNotReadyError marks the readiness-gate miss as retryable

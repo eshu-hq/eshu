@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package reducer
+package awscloud
 
 import (
 	"context"
@@ -14,6 +14,13 @@ import (
 	"go.opentelemetry.io/otel/trace"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/reducer/cloudjoin"
+	"github.com/eshu-hq/eshu/go/internal/reducer/containerimage"
+	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
+	"github.com/eshu-hq/eshu/go/internal/reducer/factdecode"
+	"github.com/eshu-hq/eshu/go/internal/reducer/factload"
+	"github.com/eshu-hq/eshu/go/internal/reducer/gpphase"
+	"github.com/eshu-hq/eshu/go/internal/reducer/payloadcore"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
 	"github.com/eshu-hq/eshu/go/internal/truth"
 	log "github.com/eshu-hq/eshu/go/pkg/log"
@@ -29,11 +36,16 @@ import (
 // comment in intent.go for why this is a distinct domain rather than an
 // extension of DomainAWSRelationshipMaterialization). See issue #5450 and
 // docs/internal/aws-relationship-edge-materialization-design.md.
-func awsCloudImageMaterializationDomainDefinition() DomainDefinition {
-	return DomainDefinition{
-		Domain:  DomainAWSCloudImageMaterialization,
+// ImageMaterializationDomainDefinition returns the additive definition for
+// the AWS cloud-image edge projection. Exported (issue #6061) so the reducer
+// root's defaults_additive_domains_cloud_relationships.go can register it from
+// outside this package; the family used to be root-owned and called this
+// unexported.
+func ImageMaterializationDomainDefinition() reducercontract.DomainDefinition {
+	return reducercontract.DomainDefinition{
+		Domain:  reducercontract.DomainAWSCloudImageMaterialization,
 		Summary: "project lambda_function_uses_image aws_relationship facts into canonical CloudResource -> ContainerImage graph edges",
-		Ownership: OwnershipShape{
+		Ownership: reducercontract.OwnershipShape{
 			CrossSource:    true,
 			CrossScope:     true,
 			CanonicalWrite: true,
@@ -85,15 +97,15 @@ type CloudResourceContainerImageEdgeWriter interface {
 // writer. Every non-materializing relationship fact is counted and logged,
 // never dropped silently.
 type AWSCloudImageMaterializationHandler struct {
-	FactLoader FactLoader
+	FactLoader factload.FactLoader
 	EdgeWriter CloudResourceContainerImageEdgeWriter
 	// ReadinessLookup reports whether the canonical-nodes-committed phase has
 	// been published for the intent's scope generation. A nil lookup keeps the
 	// gate open (test wiring); production wires the durable Postgres lookup.
-	ReadinessLookup GraphProjectionReadinessLookup
+	ReadinessLookup gpphase.ReadinessLookup
 	// PriorGenerationCheck reports whether the scope has any prior generation.
 	// Nil keeps retract behavior conservative (always retract before write).
-	PriorGenerationCheck PriorGenerationCheck
+	PriorGenerationCheck reducercontract.PriorGenerationCheck
 	// ContainerImageExistence reports which candidate target ContainerImage
 	// uids already exist in the canonical graph. Extraction alone cannot know
 	// this (it has no graph access), so Handle uses it to reclassify a
@@ -102,7 +114,7 @@ type AWSCloudImageMaterializationHandler struct {
 	// row/tally — otherwise those would over-report an edge the graph does not
 	// actually have (issue #5450 P1 follow-up). A nil lookup skips the filter
 	// (test wiring); production wires the durable graph-backed lookup.
-	ContainerImageExistence ContainerImageExistenceLookup
+	ContainerImageExistence containerimage.ContainerImageExistenceLookup
 	Tracer                  trace.Tracer
 	Instruments             *telemetry.Instruments
 }
@@ -110,20 +122,20 @@ type AWSCloudImageMaterializationHandler struct {
 // Handle executes one AWS cloud-image materialization intent.
 func (h AWSCloudImageMaterializationHandler) Handle(
 	ctx context.Context,
-	intent Intent,
-) (Result, error) {
+	intent reducercontract.Intent,
+) (reducercontract.Result, error) {
 	totalStart := time.Now()
-	if intent.Domain != DomainAWSCloudImageMaterialization {
-		return Result{}, fmt.Errorf(
+	if intent.Domain != reducercontract.DomainAWSCloudImageMaterialization {
+		return reducercontract.Result{}, fmt.Errorf(
 			"aws cloud image materialization handler does not accept domain %q",
 			intent.Domain,
 		)
 	}
 	if h.FactLoader == nil {
-		return Result{}, fmt.Errorf("aws cloud image materialization fact loader is required")
+		return reducercontract.Result{}, fmt.Errorf("aws cloud image materialization fact loader is required")
 	}
 	if h.EdgeWriter == nil {
-		return Result{}, fmt.Errorf("aws cloud image materialization edge writer is required")
+		return reducercontract.Result{}, fmt.Errorf("aws cloud image materialization edge writer is required")
 	}
 
 	if h.Tracer != nil {
@@ -141,14 +153,14 @@ func (h AWSCloudImageMaterializationHandler) Handle(
 	// Readiness gate: edges may only resolve their SOURCE against nodes the
 	// same generation already committed.
 	if !h.sourceNodesReady(intent) {
-		return Result{}, awsCloudImageNodesNotReadyError{
+		return reducercontract.Result{}, awsCloudImageNodesNotReadyError{
 			scopeID:      intent.ScopeID,
 			generationID: intent.GenerationID,
 		}
 	}
 
 	loadStart := time.Now()
-	envelopes, err := loadFactsForKinds(
+	envelopes, err := factload.LoadFactsForKinds(
 		ctx,
 		h.FactLoader,
 		intent.ScopeID,
@@ -156,11 +168,11 @@ func (h AWSCloudImageMaterializationHandler) Handle(
 		[]string{facts.AWSResourceFactKind, facts.AWSRelationshipFactKind},
 	)
 	if err != nil {
-		return Result{}, fmt.Errorf("load facts for aws cloud image materialization: %w", err)
+		return reducercontract.Result{}, fmt.Errorf("load facts for aws cloud image materialization: %w", err)
 	}
 	loadDuration := time.Since(loadStart)
 
-	resourceEnvelopes, relationshipEnvelopes := splitAWSFactEnvelopes(envelopes)
+	resourceEnvelopes, relationshipEnvelopes := cloudjoin.SplitAWSFactEnvelopes(envelopes)
 
 	extractStart := time.Now()
 	rows, tally, quarantined, err := ExtractAWSCloudImageEdgeRows(resourceEnvelopes, relationshipEnvelopes)
@@ -168,9 +180,9 @@ func (h AWSCloudImageMaterializationHandler) Handle(
 		// A non-decode error (transient fact-load or other fatal condition
 		// partitionDecodeFailures did NOT quarantine) fails the whole intent so
 		// the durable queue triages it correctly.
-		return Result{}, err
+		return reducercontract.Result{}, err
 	}
-	inputInvalidCount := recordQuarantinedFacts(ctx, h.Instruments, DomainAWSCloudImageMaterialization, intent.ScopeID, intent.GenerationID, quarantined)
+	inputInvalidCount := factdecode.RecordQuarantinedFacts(ctx, h.Instruments, reducercontract.DomainAWSCloudImageMaterialization, intent.ScopeID, intent.GenerationID, quarantined)
 	// ExtractAWSCloudImageEdgeRows counts a row "resolved" purely from
 	// ref-parseability -- it has no graph access and cannot know whether the
 	// two-MATCH-MERGE write below will actually find the target ContainerImage
@@ -182,13 +194,13 @@ func (h AWSCloudImageMaterializationHandler) Handle(
 	// follow-up).
 	rows, tally, err = h.filterRowsToExistingContainerImageTargets(ctx, rows, tally)
 	if err != nil {
-		return Result{}, err
+		return reducercontract.Result{}, err
 	}
 	extractDuration := time.Since(extractStart)
 
 	skipRetract, err := h.shouldSkipRetract(ctx, intent)
 	if err != nil {
-		return Result{}, err
+		return reducercontract.Result{}, err
 	}
 	var retractDuration time.Duration
 	if !skipRetract {
@@ -199,7 +211,7 @@ func (h AWSCloudImageMaterializationHandler) Handle(
 			intent.GenerationID,
 			awsCloudImageEvidenceSource,
 		); err != nil {
-			return Result{}, fmt.Errorf("retract canonical aws cloud image edges: %w", err)
+			return reducercontract.Result{}, fmt.Errorf("retract canonical aws cloud image edges: %w", err)
 		}
 		retractDuration = time.Since(retractStart)
 	}
@@ -210,7 +222,7 @@ func (h AWSCloudImageMaterializationHandler) Handle(
 		if err := h.EdgeWriter.WriteCloudResourceContainerImageEdges(
 			ctx, rows, intent.ScopeID, intent.GenerationID, awsCloudImageEvidenceSource,
 		); err != nil {
-			return Result{}, fmt.Errorf("write canonical aws cloud image edges: %w", err)
+			return reducercontract.Result{}, fmt.Errorf("write canonical aws cloud image edges: %w", err)
 		}
 		writeDuration = time.Since(writeStart)
 	}
@@ -230,10 +242,10 @@ func (h AWSCloudImageMaterializationHandler) Handle(
 		totalDuration:     time.Since(totalStart),
 	})
 
-	return Result{
+	return reducercontract.Result{
 		IntentID: intent.IntentID,
-		Domain:   DomainAWSCloudImageMaterialization,
-		Status:   ResultStatusSucceeded,
+		Domain:   reducercontract.DomainAWSCloudImageMaterialization,
+		Status:   reducercontract.ResultStatusSucceeded,
 		EvidenceSummary: fmt.Sprintf(
 			"materialized %d aws cloud image edge(s) from %d relationship fact(s); %d skipped (policy/unresolved); %d input_invalid fact(s) quarantined",
 			len(rows),
@@ -242,7 +254,7 @@ func (h AWSCloudImageMaterializationHandler) Handle(
 			inputInvalidCount,
 		),
 		CanonicalWrites: len(rows),
-		SubSignals:      inputInvalidSubSignals(inputInvalidCount),
+		SubSignals:      factdecode.InputInvalidSubSignals(inputInvalidCount),
 	}, nil
 }
 
@@ -290,20 +302,15 @@ func (h AWSCloudImageMaterializationHandler) filterRowsToExistingContainerImageT
 // (the source endpoint). The phase key is derived the same way
 // DomainAWSResourceMaterialization publishes it, so the lookup matches the
 // published row. A nil lookup keeps the gate open for test wiring.
-func (h AWSCloudImageMaterializationHandler) sourceNodesReady(intent Intent) bool {
+func (h AWSCloudImageMaterializationHandler) sourceNodesReady(intent reducercontract.Intent) bool {
 	if h.ReadinessLookup == nil {
 		return true
 	}
-	state, ok := graphProjectionPhaseStateForIntent(
-		intent,
-		GraphProjectionKeyspaceCloudResourceUID,
-		GraphProjectionPhaseCanonicalNodesCommitted,
-		time.Now().UTC(),
-	)
+	key, ok := gpphase.KeyFromScope(intent.ScopeID, intent.GenerationID, intent.EntityKeys, gpphase.KeyspaceCloudResourceUID)
 	if !ok {
 		return false
 	}
-	ready, found := h.ReadinessLookup(state.Key, GraphProjectionPhaseCanonicalNodesCommitted)
+	ready, found := h.ReadinessLookup(key, gpphase.PhaseCanonicalNodesCommitted)
 	return found && ready
 }
 
@@ -311,7 +318,7 @@ func (h AWSCloudImageMaterializationHandler) sourceNodesReady(intent Intent) boo
 // prior-edge retract on the very first generation for a scope (no prior edges
 // to remove) and only on the first attempt, so a retried attempt still cleans
 // up a partial prior write.
-func (h AWSCloudImageMaterializationHandler) shouldSkipRetract(ctx context.Context, intent Intent) (bool, error) {
+func (h AWSCloudImageMaterializationHandler) shouldSkipRetract(ctx context.Context, intent reducercontract.Intent) (bool, error) {
 	if h.PriorGenerationCheck == nil || intent.AttemptCount > 1 {
 		return false, nil
 	}
@@ -382,7 +389,7 @@ func (awsCloudImageNodesNotReadyError) FailureClass() string {
 // graph-write time, plus which policy/resolution disposition kept a
 // relationship fact from materializing an edge.
 type awsCloudImageMaterializationTiming struct {
-	intent            Intent
+	intent            reducercontract.Intent
 	resourceFactCount int
 	relationshipCount int
 	edgeCount         int
@@ -426,5 +433,5 @@ func formatAWSCloudImageSkipTally(counts map[awsCloudImageEdgeSkipReason]int) st
 	for reason, count := range counts {
 		generic[string(reason)] = count
 	}
-	return formatTally(generic)
+	return payloadcore.FormatTally(generic)
 }

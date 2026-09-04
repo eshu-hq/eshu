@@ -44,7 +44,7 @@ var nonCountingReducerRetryFailureClasses = []string{
 	reducer.CrossScopeProducerNotReadyFailureClass,
 	// #5848: aws_cloud_runtime_drift's own readiness-defer and insert-admission
 	// classes. Both MUST be enrolled here, not just declared as constants next
-	// to the error types that return them (go/internal/reducer/aws_cloud_runtime_drift_readiness.go,
+	// to the error types that return them (go/internal/reducer/awscloud/aws_cloud_runtime_drift_readiness.go,
 	// aws_cloud_runtime_drift_admission.go) -- a declared-but-unregistered class
 	// is invisible to retryable()/reducerClaimAttemptCountCaseSQL and counts
 	// toward maxAttempts exactly like an ordinary failure, which silently

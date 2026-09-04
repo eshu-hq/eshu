@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package reducer
+package awscloud
 
 import (
 	"context"
@@ -28,7 +28,7 @@ import (
 func TestPostgresAWSCloudRuntimeDriftWriterPersistsBatchedFacts(t *testing.T) {
 	t.Parallel()
 
-	db := &fakeWorkloadIdentityExecer{}
+	db := &fakeAWSCloudRuntimeDriftExecer{}
 	writer := PostgresAWSCloudRuntimeDriftWriter{DB: db}
 
 	write := AWSCloudRuntimeDriftWrite{
@@ -136,7 +136,7 @@ func TestWriteAWSCloudRuntimeDriftFindingsBoundedExecCount(t *testing.T) {
 		}
 	}
 
-	db := &fakeWorkloadIdentityExecer{}
+	db := &fakeAWSCloudRuntimeDriftExecer{}
 	writer := PostgresAWSCloudRuntimeDriftWriter{DB: db}
 
 	result, err := writer.WriteAWSCloudRuntimeDriftFindings(context.Background(), AWSCloudRuntimeDriftWrite{
