@@ -164,6 +164,8 @@ func structuralInventoryWhere(req structuralInventoryRequest) ([]string, []any) 
 	}
 	if repoID := strings.TrimSpace(req.RepoID); repoID != "" {
 		where = append(where, "repo_id = "+addArg(repoID))
+	} else {
+		where, args, _ = appendRepositoryGrantFilter(where, args, len(args)+1, req.AllowedRepositoryIDs)
 	}
 	if entityType := req.entityType(); entityType != "" {
 		where = append(where, "entity_type = "+addArg(entityType))

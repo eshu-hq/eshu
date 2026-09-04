@@ -6,7 +6,7 @@ package mcp
 func securityInvestigationTool() ToolDefinition {
 	return ToolDefinition{
 		Name:        "investigate_hardcoded_secrets",
-		Description: "Investigate potential hardcoded passwords, API keys, tokens, private keys, and risky literals from indexed content with redacted findings, suppression metadata, paging, and coverage.",
+		Description: "Investigate potential hardcoded passwords, API keys, tokens, private keys, and risky literals from indexed content with redacted findings, suppression metadata, paging, and coverage. Scoped tokens receive only granted repositories; an ungranted repository selector is rejected.",
 		InputSchema: map[string]any{
 			"type": "object",
 			"properties": map[string]any{

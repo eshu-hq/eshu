@@ -10,6 +10,7 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/eshu-hq/eshu/go/internal/query/supplychain/advisory"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/pgarray"
 )
 
@@ -101,7 +102,7 @@ func (s PostgresWorkItemEvidenceStore) ListWorkItemEvidence(
 			ScopeID:          scopeID,
 			GenerationID:     generationID,
 			SourceConfidence: sourceConfidence,
-			ObservedAt:       formatNullTime(observedAt),
+			ObservedAt:       advisory.FormatNullTime(observedAt),
 			SchemaVersion:    schemaVersion,
 			Payload:          payload,
 		})

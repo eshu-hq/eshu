@@ -3,6 +3,8 @@
 
 package query
 
+import "context"
+
 // deadCodeCandidatePage is one label-scoped page in the shared candidate scan.
 type deadCodeCandidatePage struct {
 	Label  string
@@ -81,4 +83,52 @@ func (s *deadCodeCandidateSchedule) record(page deadCodeCandidatePage, rowCount 
 
 func (s *deadCodeCandidateSchedule) candidateScanTruncated() bool {
 	return s != nil && s.truncated
+}
+
+// deadCodeCandidateQuery is one bounded candidate page for a single label,
+// shared by the content read model and the graph fallback so both backends
+// take the same scope, paging, and grant inputs.
+type deadCodeCandidateQuery struct {
+	// RepoID anchors the scan to one repository when the caller named one.
+	RepoID string
+	// Label is the candidate node label / content entity type to scan.
+	Label string
+	// Language, when set, narrows the scan to one source language.
+	Language string
+	// Limit and Offset page the scan.
+	Limit  int
+	Offset int
+	// AllowedRepositoryIDs restricts a corpus-wide (RepoID == "") scan to the
+	// caller's granted repositories inside the query itself, so the page is
+	// taken from the granted set rather than from a cross-tenant-polluted one.
+	// It is never populated from a request body: deadCodeCandidateRows fills it
+	// from the caller's AuthContext grant. Empty leaves the scan unrestricted,
+	// which is what an unscoped caller wants; a grantless scoped caller never
+	// reaches either backend.
+	AllowedRepositoryIDs []string
+}
+
+type deadCodeCandidateContentStore interface {
+	DeadCodeCandidateRows(ctx context.Context, query deadCodeCandidateQuery) ([]map[string]any, error)
+}
+
+func deadCodeCandidateQueryLimit(displayLimit int) int {
+	if displayLimit <= 0 {
+		displayLimit = deadCodeDefaultLimit
+	}
+	candidateLimit := displayLimit*deadCodeCandidateQueryMultiplier + 1
+	if candidateLimit < displayLimit+1 {
+		return displayLimit + 1
+	}
+	if candidateLimit < deadCodeCandidateQueryMin {
+		return deadCodeCandidateQueryMin
+	}
+	if candidateLimit > deadCodeCandidateQueryMax {
+		return deadCodeCandidateQueryMax
+	}
+	return candidateLimit
+}
+
+func deadCodeCandidateScanLimit(displayLimit int) int {
+	return deadCodeCandidateQueryLimit(displayLimit) * deadCodeCandidateScanMaxPages
 }

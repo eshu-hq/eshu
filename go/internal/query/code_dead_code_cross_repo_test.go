@@ -224,10 +224,11 @@ func TestContentReaderCrossRepoDeadCodeEvidenceUsesBoundedEntityLookup(t *testin
 	}})
 	reader := NewContentReader(db)
 
-	evidence, err := reader.CrossRepoDeadCodeConsumerEvidence(
+	evidence, _, err := reader.CrossRepoDeadCodeConsumerEvidence(
 		context.Background(),
 		"repo-producer",
 		[]string{"producer-live", "producer-dead"},
+		crossRepoDeadCodeConsumerReads{},
 	)
 	if err != nil {
 		t.Fatalf("CrossRepoDeadCodeConsumerEvidence() error = %v, want nil", err)
@@ -401,16 +402,16 @@ type crossRepoDeadCodeContentStore struct {
 	fakeDeadCodeContentStore
 	rows             []map[string]any
 	evidenceByEntity map[string][]crossRepoDeadCodeEvidence
+	// hiddenConsumers stands in for the ungranted-consumer probe's answer: the
+	// producer entities that have a consumer outside the caller's grant.
+	hiddenConsumers []string
 }
 
 func (s *crossRepoDeadCodeContentStore) DeadCodeCandidateRows(
 	_ context.Context,
-	repoID string,
-	label string,
-	language string,
-	limit int,
-	offset int,
+	query deadCodeCandidateQuery,
 ) ([]map[string]any, error) {
+	repoID, label, language, limit, offset := query.RepoID, query.Label, query.Language, query.Limit, query.Offset
 	if repoID != "repo-producer" || label != "Function" || language != "go" && language != "" {
 		return nil, nil
 	}
@@ -428,12 +429,17 @@ func (s *crossRepoDeadCodeContentStore) CrossRepoDeadCodeConsumerEvidence(
 	_ context.Context,
 	_ string,
 	entityIDs []string,
-) (map[string][]crossRepoDeadCodeEvidence, error) {
+	_ crossRepoDeadCodeConsumerReads,
+) (map[string][]crossRepoDeadCodeEvidence, crossRepoDeadCodeHiddenConsumers, error) {
 	result := make(map[string][]crossRepoDeadCodeEvidence)
 	for _, entityID := range entityIDs {
 		result[entityID] = append([]crossRepoDeadCodeEvidence(nil), s.evidenceByEntity[entityID]...)
 	}
-	return result, nil
+	hidden := crossRepoDeadCodeHiddenConsumers{}
+	for _, entityID := range s.hiddenConsumers {
+		hidden[entityID] = struct{}{}
+	}
+	return result, hidden, nil
 }
 
 func assertCrossRepoDeadCodeBucketEntity(

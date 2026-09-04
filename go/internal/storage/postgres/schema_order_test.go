@@ -193,4 +193,7 @@ var orderedBootstrapDefinitionNames = []string{
 	"shared_projection_unroutable_intents",
 	// migration 099 (#6154 keyset index so paging a generation seeks, not rescans).
 	"fact_records_keyset_index",
+	// migration 100 (#5167 consumer-repository index so the cross-repo dead-code
+	// ungranted-consumer probe seeks instead of reading a fan-in group).
+	"code_reachability_entity_repository_idx",
 }

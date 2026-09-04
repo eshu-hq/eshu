@@ -8,12 +8,13 @@ import (
 	packageregistryv1 "github.com/eshu-hq/eshu/sdk/go/factschema/packageregistry/v1"
 	sbomv1 "github.com/eshu-hq/eshu/sdk/go/factschema/sbom/v1"
 	servicecatalogv1 "github.com/eshu-hq/eshu/sdk/go/factschema/servicecatalog/v1"
-	vulnerabilityv1 "github.com/eshu-hq/eshu/sdk/go/factschema/vulnerability/v1"
 )
 
 // This file holds query-side decode wrappers for the source-fact kinds that
-// feed the supply-chain advisory-evidence, impact-explanation, and
-// impact-path read models (#4795 W2b). Each wraps the matching
+// feed the supply-chain impact-explanation and impact-path read models
+// (#4795 W2b). The vulnerability wrappers that fed the advisory-evidence
+// read model moved with it to internal/query/supplychain/advisory (#6060
+// lane A). Each wraps the matching
 // sdk/go/factschema Decode* seam and, on a classified *factschema.DecodeError
 // (a missing/null required identity field), returns a *queryDecodeError
 // (defined in factschema_decode_workitem.go, reused here rather than
@@ -37,24 +38,6 @@ import (
 // (package_registry_correlations.go) now decodes them through the typed seam
 // in factschema_decode_package_correlations.go.
 //
-// Struct-completeness note: two of the wrappers below (CVE, AffectedPackage)
-// are deliberately partial. vulnerability/v1.CVE and
-// vulnerability/v1.AffectedPackage do not yet declare every field the
-// query-side AdvisorySourceEvidence/AdvisoryAffectedPackage response models
-// read from real collector payloads (for example CVE has no Aliases,
-// Severity, CVSSVectorV2/V3/V4, or CVSSMetrics field; AffectedPackage has no
-// ParsedAffectedRange field, and its typed AffectedRanges field is a
-// different Go shape than the response's []map[string]any). Reading those
-// specific keys through the typed seam would silently drop real evidence
-// data emitted by OSV/NVD/GitLab Gemnasium collectors, so those specific
-// fields keep their pre-existing raw payload read (each marked with a
-// struct-gap comment) alongside the fields that do decode losslessly.
-// vulnerability.affected_product's typed struct is missing six of the nine
-// fields the response model reads (VersionStart/EndIncluding/Excluding,
-// SourceConfigurationOperator/Negate, SourceNodeOperator/Negate), so that
-// read site is left entirely on the raw path rather than adding a wrapper
-// this package would never call losslessly.
-
 // supplyChainFactDecodeInput carries one scanned evidence-fact row into a
 // decode wrapper. Bundling FactID, SchemaVersion, and Payload into a single
 // parameter keeps each wrapper's one-argument shape, matching the
@@ -86,59 +69,6 @@ func supplyChainSchemaEnvelope(factKind, schemaVersion string, payload map[strin
 		SchemaVersion: schemaVersion,
 		Payload:       payload,
 	}
-}
-
-// decodeVulnerabilityCVE decodes one vulnerability.cve fact row into the
-// typed struct. A missing required field (advisory_id) yields a
-// self-classifying *queryDecodeError. See this file's struct-completeness
-// note: callers must still read aliases/severity/cvss_v2/cvss_v3/cvss_v4/
-// cvss_metrics/cwes from the raw payload — the typed struct does not
-// declare them yet.
-func decodeVulnerabilityCVE(in supplyChainFactDecodeInput) (vulnerabilityv1.CVE, error) {
-	cve, err := factschema.DecodeVulnerabilityCVE(supplyChainSchemaEnvelope(factschema.FactKindVulnerabilityCVE, in.SchemaVersion, in.Payload))
-	if err != nil {
-		return vulnerabilityv1.CVE{}, newQueryDecodeError(factschema.FactKindVulnerabilityCVE, in.FactID, err)
-	}
-	return cve, nil
-}
-
-// decodeVulnerabilityAffectedPackage decodes one vulnerability.affected_package
-// fact row into the typed struct. A missing required field (advisory_id)
-// yields a self-classifying *queryDecodeError. See this file's
-// struct-completeness note: callers must still read
-// parsed_affected_range/affected_ranges from the raw payload.
-func decodeVulnerabilityAffectedPackage(in supplyChainFactDecodeInput) (vulnerabilityv1.AffectedPackage, error) {
-	affected, err := factschema.DecodeVulnerabilityAffectedPackage(supplyChainSchemaEnvelope(factschema.FactKindVulnerabilityAffectedPackage, in.SchemaVersion, in.Payload))
-	if err != nil {
-		return vulnerabilityv1.AffectedPackage{}, newQueryDecodeError(factschema.FactKindVulnerabilityAffectedPackage, in.FactID, err)
-	}
-	return affected, nil
-}
-
-// decodeVulnerabilityEPSSScore decodes one vulnerability.epss_score fact row
-// into the typed struct. A missing required field (cve_id) yields a
-// self-classifying *queryDecodeError. This kind decodes losslessly: every
-// field the query-side AdvisoryEPSSObservation reads (probability,
-// percentile, score_date) is declared on vulnerabilityv1.EPSSScore.
-func decodeVulnerabilityEPSSScore(in supplyChainFactDecodeInput) (vulnerabilityv1.EPSSScore, error) {
-	score, err := factschema.DecodeVulnerabilityEPSSScore(supplyChainSchemaEnvelope(factschema.FactKindVulnerabilityEPSSScore, in.SchemaVersion, in.Payload))
-	if err != nil {
-		return vulnerabilityv1.EPSSScore{}, newQueryDecodeError(factschema.FactKindVulnerabilityEPSSScore, in.FactID, err)
-	}
-	return score, nil
-}
-
-// decodeVulnerabilityKnownExploited decodes one vulnerability.known_exploited
-// fact row into the typed struct. A missing required field (cve_id) yields a
-// self-classifying *queryDecodeError. This kind decodes losslessly: every
-// field the query-side AdvisoryKEVObservation reads is declared on
-// vulnerabilityv1.KnownExploited.
-func decodeVulnerabilityKnownExploited(in supplyChainFactDecodeInput) (vulnerabilityv1.KnownExploited, error) {
-	kev, err := factschema.DecodeVulnerabilityKnownExploited(supplyChainSchemaEnvelope(factschema.FactKindVulnerabilityKnownExploited, in.SchemaVersion, in.Payload))
-	if err != nil {
-		return vulnerabilityv1.KnownExploited{}, newQueryDecodeError(factschema.FactKindVulnerabilityKnownExploited, in.FactID, err)
-	}
-	return kev, nil
 }
 
 // decodeSBOMDocument decodes one sbom.document fact row into the typed
@@ -206,16 +136,6 @@ func decodeServiceCatalogRepositoryLink(in supplyChainFactDecodeInput) (servicec
 		return servicecatalogv1.RepositoryLink{}, newQueryDecodeError(factschema.FactKindServiceCatalogRepositoryLink, in.FactID, err)
 	}
 	return link, nil
-}
-
-// supplyChainDerefFloat64 returns the value a *float64 points at, or 0 when
-// it is nil, matching the pre-typing floatVal(0) behavior for a field this
-// migration converts from a raw payload lookup to a typed pointer.
-func supplyChainDerefFloat64(value *float64) float64 {
-	if value == nil {
-		return 0
-	}
-	return *value
 }
 
 // supplyChainComponentEvidence bundles the subset of anchor/component fields

@@ -201,6 +201,10 @@ func (h *InfraHandler) graphSummaryRepoPacket(ctx context.Context, req graphSumm
 // Go. The shared edge shape avoids NornicDB's chained OPTIONAL MATCH aggregate
 // corruption while retaining exact incoming, outgoing, and total degree.
 func (h *InfraHandler) graphSummaryHotEntities(ctx context.Context, repoID string, limit int) ([]map[string]any, bool, error) {
+	// The repo-scoped branch already answers not-found for a scoped caller whose
+	// repo_id is outside its grant (getGraphSummaryPacket above), so this route's
+	// binding is that check, not a predicate in the shared edge pass; the pass
+	// runs the same text for every caller (#5167).
 	cypher, params := callGraphMetricsEdgesCypher(repoID)
 	edges, err := h.Neo4j.Run(ctx, cypher, params)
 	if err != nil {

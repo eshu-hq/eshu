@@ -36,7 +36,7 @@ source_coverage:
   - file: code.go
     calls:
       - {symbol: "(*CodeHandler).runComplexityQuery", count: 1, non_hot_reason: "unlabeled complexity-by-id branch is inventoried but cannot be admitted until its production anchor is typed"}
-      - {symbol: "(*CodeHandler).searchGraphEntitiesWithExact", count: 1, source_sha256: 781e1c9e0c7e7cfbf134bc4de5bd4eb9ec8bc79eb6de9113c45fd9ab4340d88a, entry_ids: [QP-CODE-SEARCH-REPOSITORY]}
+      - {symbol: "(*CodeHandler).searchGraphEntitiesWithExact", count: 1, source_sha256: 0a12ee3ebe25198e00eb38f37b151e0ef1863d576e0a6ef90ea61d6de5f67bbf, entry_ids: [QP-CODE-SEARCH-REPOSITORY]}
   - file: code_call_chain.go
     calls:
       - {symbol: "(*CodeHandler).handleCallChain", count: 1, non_hot_reason: "inventory-only support or bounded read; promote to entry_ids when designated hot"}
@@ -48,19 +48,46 @@ source_coverage:
       - {symbol: "(*CodeHandler).callChainCandidateOneHopRows", count: 1, non_hot_reason: "inventory-only support or bounded read; promote to entry_ids when designated hot"}
   - file: code_call_graph_metrics.go
     calls:
-      - {symbol: "(*CodeHandler).callGraphMetricsData", count: 1, source_sha256: 1467bd505ff449c1e3427f8913d312e707f598d79a3dfc142beb6a48c0e54d6c, entry_ids: [QP-CALL-GRAPH-HUBS, QP-CALL-GRAPH-RECURSIVE]}
+      - {symbol: "(*CodeHandler).callGraphMetricsData", count: 1, source_sha256: b7dd5b91ebffa286a36d53e74eea639d9549b03e86caa6bca6e66617d367e0cf, entry_ids: [QP-CALL-GRAPH-HUBS, QP-CALL-GRAPH-RECURSIVE]}
   - file: code_complexity_queries.go
     calls:
-      - {symbol: "(*CodeHandler).listMostComplexFunctions", count: 1, non_hot_reason: "label-bounded complexity support read has no accepted standalone PROFILE registration"}
-      - {symbol: "(*CodeHandler).lookupComplexityRowByName", count: 1, non_hot_reason: "unlabeled complexity-name lookup is inventoried but cannot be admitted until its production anchor is typed"}
+      - symbol: "(*CodeHandler).listMostComplexFunctions"
+        count: 1
+        non_hot:
+          class: label_inventory
+          source_sha256: 101fa27eb251b754ef54539e8ff93b3f43745389f17fcbccf07cedbd604d2eb5
+          label: Function
+          max_results: 101
+      - symbol: "(*CodeHandler).lookupComplexityRowByName"
+        count: 1
+        non_hot:
+          class: keyed_support
+          source_sha256: 195dcc16a13cab61180d41591938cef0a43fbf6802556cf6b9b97ef217d6eea5
+          key_bound: single_key
+          max_results: 3
   - file: code_cypher.go
     calls:
       - {symbol: "(*CodeHandler).handleCypherQuery", count: 1, non_hot_reason: "inventory-only support or bounded read; promote to entry_ids when designated hot"}
       - {symbol: "(*CodeHandler).handleVisualizeQuery", count: 1, non_hot_reason: "inventory-only support or bounded read; promote to entry_ids when designated hot"}
+  - file: code_dead_code_candidate_entity.go
+    calls:
+      - symbol: "(*CodeHandler).deadCodeResultsWithGraphIncomingEdges"
+        count: 1
+        non_hot:
+          class: keyed_support
+          source_sha256: 119f62659bd12e2544a50b7e9a87f5762685badad593f5bb151bbc208dcb3931
+          key_bound: bounded_key_batch
+          max_keys: 250
+          max_results: 5000
   - file: code_dead_code_scan.go
     calls:
-      - {symbol: "(*CodeHandler).deadCodeCandidateRows", count: 1, non_hot_reason: "inventory-only support or bounded read; promote to entry_ids when designated hot"}
-      - {symbol: "(*CodeHandler).deadCodeResultsWithGraphIncomingEdges", count: 1, non_hot_reason: "inventory-only support or bounded read; promote to entry_ids when designated hot"}
+      - symbol: "(*CodeHandler).deadCodeCandidateRows"
+        count: 1
+        non_hot:
+          class: label_inventory
+          source_sha256: c4ae4b4344097d1a8820941285a91750f5ef0bf90e5692b4ef4144b858238878
+          label: "Function|Class|Struct|Interface|Trait|SqlFunction"
+          max_results: 250
   - file: code_import_dependencies_execution.go
     calls:
       - {symbol: "(*CodeHandler).crossModuleCallRows", count: 1, source_sha256: 0425f0698fd7db7d6f6da1260caf04083bf3df43ed8c26a48752b48ef7cceb04, entry_ids: [QP-CODE-IMPORT-CROSS-MODULE-CALLS]}
@@ -69,7 +96,13 @@ source_coverage:
       - {symbol: "(*CodeHandler).importRows", count: 1, source_sha256: 117fd5958f5bcabc16209e6773ed105c44d9567ee9de794d03d395f66791a11a, entry_ids: [QP-CODE-IMPORT-ROWS-REPOSITORY, QP-CODE-IMPORT-PACKAGES, QP-CODE-IMPORT-SOURCE-MODULE-ROWS]}
   - file: code_quality.go
     calls:
-      - {symbol: "(*CodeHandler).inspectCodeQuality", count: 1, non_hot_reason: "inventory-only support or bounded read; promote to entry_ids when designated hot"}
+      - symbol: "(*CodeHandler).inspectCodeQuality"
+        count: 1
+        non_hot:
+          class: label_inventory
+          source_sha256: 211ea6e1c06daa2cdb5d01128e4bf5bb01364b9b38995efbd25b3bf82d6fa48d
+          label: Function
+          max_results: 101
   - file: code_registry_bundles.go
     calls:
       - {symbol: "(*CodeHandler).handleSearchBundles", count: 1, non_hot_reason: "inventory-only support or bounded read; promote to entry_ids when designated hot"}
@@ -303,7 +336,13 @@ source_coverage:
           max_results: 1
   - file: infra_graph_summary_packet.go
     calls:
-      - {symbol: "(*InfraHandler).graphSummaryHotEntities", count: 1, non_hot_reason: "inventory-only support or bounded read; promote to entry_ids when designated hot"}
+      - symbol: "(*InfraHandler).graphSummaryHotEntities"
+        count: 1
+        non_hot:
+          class: keyed_support
+          source_sha256: a8d1a33bb7b4894075e92a59be97133165a836fd3a6d5cb62aa7786e0c6943f9
+          key_bound: single_key
+          max_results: 50001
       - {symbol: "(*InfraHandler).graphSummaryRelationshipCounts", count: 1, non_hot_reason: "inventory-only support or bounded read; promote to entry_ids when designated hot"}
       - {symbol: "(*InfraHandler).graphSummaryRepoEcosystemMap", count: 1, non_hot_reason: "inventory-only support or bounded read; promote to entry_ids when designated hot"}
       - {symbol: "(*InfraHandler).graphSummaryRepoLanguages", count: 1, non_hot_reason: "inventory-only support or bounded read; promote to entry_ids when designated hot"}

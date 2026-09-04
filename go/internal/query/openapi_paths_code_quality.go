@@ -8,8 +8,9 @@ const openAPIPathsCodeQuality = `
       "post": {
         "tags": ["code"],
         "summary": "Inspect code quality metrics",
-        "description": "Returns bounded function quality metrics for complexity, function length, argument count, or combined refactoring candidates.",
+        "description": "Returns bounded function quality metrics for complexity, function length, argument count, or combined refactoring candidates. Scoped tokens receive only granted repositories; an ungranted repository selector is rejected with HTTP 400.",
         "operationId": "inspectCodeQuality",
+        "x-scoped-token-support": true,
         "requestBody": {
           "required": true,
           "content": {
@@ -33,6 +34,7 @@ const openAPIPathsCodeQuality = `
           }
         },
         "responses": {
+          "403": {"$ref": "#/components/responses/Forbidden"},
           "503": {"$ref": "#/components/responses/ServiceUnavailable"},
           "504": {"$ref": "#/components/responses/GatewayTimeout"},
           "200": {

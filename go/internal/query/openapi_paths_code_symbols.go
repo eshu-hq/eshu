@@ -8,8 +8,9 @@ const openAPIPathsCodeSymbols = `
       "post": {
         "tags": ["code"],
         "summary": "Find symbol definitions",
-        "description": "Finds exact or fuzzy symbol definitions using bounded, paged content-index lookups.",
+        "description": "Finds exact or fuzzy symbol definitions using bounded, paged content-index lookups. Scoped tokens receive only granted repositories; an ungranted repository selector is rejected with HTTP 400.",
         "operationId": "findSymbolDefinitions",
+        "x-scoped-token-support": true,
         "requestBody": {
           "required": true,
           "content": {
@@ -36,6 +37,7 @@ const openAPIPathsCodeSymbols = `
           }
         },
         "responses": {
+          "403": {"$ref": "#/components/responses/Forbidden"},
           "504": {"$ref": "#/components/responses/GatewayTimeout"},
           "200": {
             "description": "Symbol definition results",
@@ -55,8 +57,9 @@ const openAPIPathsCodeSymbols = `
       "post": {
         "tags": ["code"],
         "summary": "Inspect structural code inventory",
-        "description": "Returns bounded content-index structural inventory for functions, classes, top-level file elements, dataclasses, documented functions, decorated methods, classes with a method, super calls, and function counts per file. Requests must include at least one scope filter: repo_id, file_path, language, entity_kind, or symbol.",
+        "description": "Returns bounded content-index structural inventory for functions, classes, top-level file elements, dataclasses, documented functions, decorated methods, classes with a method, super calls, and function counts per file. Requests must include at least one scope filter: repo_id, file_path, language, entity_kind, or symbol. Scoped tokens receive only granted repositories; an ungranted repository selector is rejected with HTTP 400.",
         "operationId": "inspectCodeInventory",
+        "x-scoped-token-support": true,
         "requestBody": {
           "required": true,
           "content": {
@@ -85,6 +88,7 @@ const openAPIPathsCodeSymbols = `
           }
         },
         "responses": {
+          "403": {"$ref": "#/components/responses/Forbidden"},
           "200": {
             "description": "Structural inventory results",
             "content": {
@@ -226,8 +230,9 @@ const openAPIPathsCodeSymbols = `
       "post": {
         "tags": ["code"],
         "summary": "Inspect call graph metrics",
-        "description": "Returns exact graph-backed call graph metrics for recursive functions and highly connected hub functions when the repository has at most 50,000 physical CALLS edges. Requests require repo_id and use deterministic ordering, paging, truncation metadata, source handles, and one canonical functions row key. Larger scopes fail closed with HTTP 422 and no partial metric rows.",
+        "description": "Returns exact graph-backed call graph metrics for recursive functions and highly connected hub functions when the repository has at most 50,000 physical CALLS edges. Requests require repo_id and use deterministic ordering, paging, truncation metadata, source handles, and one canonical functions row key. Larger scopes fail closed with HTTP 422 and no partial metric rows. Scoped tokens receive only granted repositories; an ungranted repository selector is rejected with HTTP 400.",
         "operationId": "inspectCallGraphMetrics",
+        "x-scoped-token-support": true,
         "requestBody": {
           "required": true,
           "content": {
@@ -251,6 +256,7 @@ const openAPIPathsCodeSymbols = `
           }
         },
         "responses": {
+          "403": {"$ref": "#/components/responses/Forbidden"},
           "504": {"$ref": "#/components/responses/GatewayTimeout"},
           "200": {
             "description": "Call graph metric rows",
@@ -292,8 +298,9 @@ const openAPIPathsCodeSymbols = `
       "post": {
         "tags": ["code"],
         "summary": "Investigate a code topic",
-        "description": "Finds ranked files and symbols for a broad natural-language code topic using one bounded content-index query. Returns coverage, truncation, source handles, and exact next-call handles for source reads and relationship stories.",
+        "description": "Finds ranked files and symbols for a broad natural-language code topic using one bounded content-index query. Returns coverage, truncation, source handles, and exact next-call handles for source reads and relationship stories. Scoped tokens receive only granted repositories; an ungranted repository selector is rejected with HTTP 400.",
         "operationId": "investigateCodeTopic",
+        "x-scoped-token-support": true,
         "requestBody": {
           "required": true,
           "content": {
@@ -318,6 +325,7 @@ const openAPIPathsCodeSymbols = `
           }
         },
         "responses": {
+          "403": {"$ref": "#/components/responses/Forbidden"},
           "504": {"$ref": "#/components/responses/GatewayTimeout"},
           "200": {
             "description": "Ranked topic evidence and follow-up handles",

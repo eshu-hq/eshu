@@ -222,6 +222,7 @@ step_docs() {
 	fi
 }
 
+
 step_exactness() {
 	local exactness_args=(
 		--base "${base}" --tier pre-pr --category exactness,telemetry,hygiene,docs
@@ -431,6 +432,12 @@ fi
 run_step "go test (changed packages)" step_test
 run_step "500-line file cap" step_filecap
 run_step "package docs" step_docs
+# The build-tag compile sweep (scripts/verify-tagged-builds.sh) reaches this
+# gate through step_exactness, not a step of its own: it is registered as
+# `tagged-builds` in specs/ci-gates.v1.yaml at tier pre-pr, category exactness,
+# so run-selected-gates.sh picks it for any go/** diff. It had a hardcoded step
+# here first, and keeping both ran it twice -- 58 `go vet` invocations where 29
+# would do, and two places to keep in sync.
 run_step "selected exactness + telemetry gates" step_exactness
 if [[ "${PRE_PR_FASTPATH_LANE}" != "fast" ]]; then
 	run_step "race lane (Go changes)" step_race

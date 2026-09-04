@@ -48,6 +48,13 @@ type hardcodedSecretInvestigationRequest struct {
 	IncludeSuppressed bool     `json:"include_suppressed"`
 	Limit             int      `json:"limit"`
 	Offset            int      `json:"offset"`
+	// AllowedRepositoryIDs, when set, restricts a corpus-wide (RepoID == "")
+	// read to the caller's granted repositories at the SQL WHERE, before the
+	// LIMIT/OFFSET page boundary (#5167 filter-before-limit). It is never
+	// populated from the request body: the handler fills it from the caller's
+	// AuthContext grant through codeContentGrantScope. Empty leaves the read
+	// unrestricted, which is what an unscoped caller wants.
+	AllowedRepositoryIDs []string `json:"-"`
 }
 
 type hardcodedSecretFindingRow struct {
@@ -145,8 +152,16 @@ func (h *CodeHandler) hardcodedSecretRows(ctx context.Context, req hardcodedSecr
 	if !ok {
 		return nil, errHardcodedSecretBackendUnavailable
 	}
+	// #5167 code family: without this the else branch of hardcodedSecretFilters
+	// was empty, so a scoped caller who omitted repo_id read every tenant's
+	// redacted secret line text.
+	allowedRepositoryIDs, blocked := codeContentGrantScope(ctx, req.RepoID)
+	if blocked {
+		return nil, nil
+	}
 	probeReq := req
 	probeReq.Limit = req.Limit + 1
+	probeReq.AllowedRepositoryIDs = allowedRepositoryIDs
 	rows, err := investigator.InvestigateHardcodedSecrets(ctx, probeReq)
 	if err != nil {
 		return nil, fmt.Errorf("investigate hardcoded secrets: %w", err)

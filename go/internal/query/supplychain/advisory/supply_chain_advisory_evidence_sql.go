@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package query
+package advisory
 
 var advisoryEvidenceFactKinds = []string{
 	"vulnerability.cve",
@@ -12,7 +12,11 @@ var advisoryEvidenceFactKinds = []string{
 	"vulnerability.reference",
 }
 
-const listAdvisoryEvidenceQuery = `
+// ListAdvisoryEvidenceQuery returns one bounded page of source-only advisory
+// evidence facts. Exported for the staying root evidence tests and the
+// vulnerability snapshot lockstep test, which pin its CTE shape and grant
+// predicate placement.
+const ListAdvisoryEvidenceQuery = `
 WITH explicit_lookup_ids AS MATERIALIZED (
     SELECT DISTINCT TRIM(value) AS value
     FROM unnest($2::text[]) AS input(value)

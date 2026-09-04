@@ -219,34 +219,40 @@
   answer is never silently treated as `ready_zero_findings`.
 
 - **Dead-code scans de-duplicate entity IDs across candidate labels** —
-  `scanDeadCodeCandidates` applies `filterDuplicateDeadCodeRows`
-  (`code_dead_code_scan.go:107`) before hydration. Keep this when adding a
-  candidate label such as SQL functions, or multi-label graph rows can inflate
-  results, content reads, and candidate row counts.
+  `scanDeadCodeCandidates` applies `filterDuplicateDeadCodeRows` (`code_dead_code_scan.go:107`) before
+  hydration; keep it when adding a candidate label such as SQL functions, or multi-label rows inflate results, content reads and candidate row counts.
 
 - **Use the dead-code `language` filter for language maturity proof** —
   `deadCodeCandidateLabelsForLanguage` narrows SQL scans to `SqlFunction`
   (`code_dead_code_scan.go:72`) so mixed repositories cannot fill the page
-  before SQL routine evidence is evaluated. Perl and other source-language
-  slices also rely on the filter during dogfood so earlier candidate labels do
-  not hide language-specific evidence. Keep this path when adding or dogfooding
-  a language-specific dead-code slice.
+  before SQL routine evidence is evaluated; Perl and other slices rely on it the
+  same way. Keep the path when adding or dogfooding a language-specific slice.
 
 - **Keep dead-code investigation conservative for JavaScript/TypeScript** —
-  `handleDeadCodeInvestigation` buckets JavaScript, JSX, TypeScript, and TSX
-  active candidates as `ambiguous` until issue #336 records corpus precision
-  evidence. Do not move those candidates into `cleanup_ready` based only on a
-  missing incoming graph edge.
+  `handleDeadCodeInvestigation` buckets JavaScript, JSX, TypeScript and TSX active
+  candidates `ambiguous` until #336 records corpus precision evidence; a missing incoming graph edge alone never promotes them to `cleanup_ready`.
+
+- **The cross-repo hidden-consumer read is a bounded walk** —
+  `crossRepoDeadCodeUngrantedConsumerProbeQuery` walks a producer entity's
+  distinct consumer repositories in index order, stops at the first outside the
+  grant, and returns producer entity ids only. Consumer rows would cost a fan-in
+  group per request, a per-repository bound a probe per granted repository; the
+  constraints sit at the constant, measured in [#5167 batch 1](../../../docs/internal/evidence/5167-code-family-batch-1.md).
+
+- **A granted consumer outranks a hidden one on every dead-code route** — a
+  strong granted edge or consumer settles a candidate reachable/live; a hidden
+  consumer forces `ambiguous`/`unknown` with `permission_hidden_consumer` only
+  when nothing granted proves use, and `consumer_evidence_truncated` is never
+  outranked. `applyDeadCodeIncomingEdges` and `bucketCrossRepoDeadCodeResults`
+  both apply it and drifted apart once: change one, change the other.
 
 - **SQL routine reachability uses graph `EXECUTES` probes** —
   `CodeHandler.filterDeadCodeResultsWithoutIncomingEdges` falls through to
   `deadCodeResultsWithGraphIncomingEdges` for `SqlFunction` candidates
   (`code_dead_code_scan.go:128`, `code_dead_code_scan.go:240`) because SQL
-  relationship materialization graph-writes `EXECUTES` edges directly instead
-  of storing completed shared-projection intent rows. Keep the probe batched;
-  reverting to one graph call per SQL routine can make large dead-code pages
-  too expensive, while removing the fallback can report trigger-bound SQL
-  routines as cleanup candidates.
+  materialization graph-writes `EXECUTES` edges directly, not as completed
+  shared-projection intent rows. Keep the probe batched: one call per routine is
+  too expensive at page scale, and no fallback calls trigger-bound routines dead.
 
 - **`neo4j_read_policy.go` owns the read session lifecycle** — `Run` and
   `RunSingle` delegate to `runReadAttempts`, which opens and closes a session

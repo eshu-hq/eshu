@@ -23,6 +23,11 @@ import (
 type capabilitySweep struct {
 	constStrings map[string]map[string]string
 	funcDecls    map[string]map[string]*ast.FuncDecl
+	// packageNames maps a swept directory to the package clause declared by
+	// the files in it, so a package-qualified constant (leaf.Capability from
+	// a #6060 family leaf) resolves against the declaring package's own
+	// directory rather than by bare identifier.
+	packageNames map[string]string
 	// callSites maps a called function/method name (Ident/Selector name only)
 	// to every call site of it across the package, so a capability parameter
 	// threaded through a helper can be resolved back to what each caller
@@ -30,7 +35,15 @@ type capabilitySweep struct {
 	// called from another directory, and resolveParam resolves each caller's
 	// argument against that caller's own directory, not the callee's.
 	callSites map[string][]capabilityCallSite
-	fset      *token.FileSet
+	// fileImports maps a parsed filename to the packages it imports, keyed
+	// by the local name the importing file uses (the explicit rename, or
+	// the import path's final element). resolveQualifiedConst consults it
+	// so pkg.Name resolves only when the consuming file actually imports
+	// a package under that name -- a same-spelled local variable or struct
+	// field selector otherwise fails closed instead of resolving to the
+	// swept package's literal.
+	fileImports map[string]map[string]string
+	fset        *token.FileSet
 }
 
 // capabilityCallSite is one call expression together with the *ast.FuncDecl it
@@ -45,7 +58,9 @@ func newCapabilitySweep(fset *token.FileSet) *capabilitySweep {
 	return &capabilitySweep{
 		constStrings: map[string]map[string]string{},
 		funcDecls:    map[string]map[string]*ast.FuncDecl{},
+		packageNames: map[string]string{},
 		callSites:    map[string][]capabilityCallSite{},
+		fileImports:  map[string]map[string]string{},
 		fset:         fset,
 	}
 }
@@ -123,17 +138,6 @@ func paramIndex(fn *ast.FuncDecl, name string) (int, bool) {
 	return 0, false
 }
 
-// capabilitySweepDocumentedExceptions lists capability strings that are
-// deliberately absent from capabilityMatrix, with the reason, so the sweep
-// does not misreport a documented design choice as a gap. Adding an entry here
-// requires the same justification a reviewer would want in the source: why the
-// route bypasses the matrix's BuildTruthEnvelope panic-guard.
-var capabilitySweepDocumentedExceptions = map[string]string{
-	"repository_freshness.status": "repository_freshness.go's repositoryFreshnessTruth builds its " +
-		"TruthEnvelope directly from Postgres runtime state rather than through " +
-		"capabilityMatrix/BuildTruthEnvelope, and says so in its doc comment; not a gap.",
-}
-
 // collectDecls records every single-value string const and every function
 // declaration in file, keyed by file's own directory so later resolution can
 // look identifiers and calls up scoped to the declaring package (see the
@@ -141,6 +145,10 @@ var capabilitySweepDocumentedExceptions = map[string]string{
 // sweep walks recursively).
 func (s *capabilitySweep) collectDecls(file *ast.File) {
 	dir := s.dirOf(file.Package)
+	if file.Name != nil {
+		s.packageNames[dir] = file.Name.Name
+	}
+	s.collectFileImports(file)
 	for _, decl := range file.Decls {
 		switch d := decl.(type) {
 		case *ast.GenDecl:
@@ -279,6 +287,13 @@ func (s *capabilitySweep) resolveCapabilityArg(expr ast.Expr, enclosing *ast.Fun
 		// site itself, so the callee's directory is the call expression's own
 		// directory.
 		return s.resolveFuncReturns(callee.Name, s.dirOf(e.Pos()), visitedFuncs)
+	case *ast.SelectorExpr:
+		// A package-qualified constant (advisory.AdvisoryEvidenceCapability
+		// from a #6060 family leaf, passed by a root handler that can no
+		// longer name the bare identifier). Resolved against the declaring
+		// package's own directory, same scoping discipline as the Ident
+		// case above.
+		return s.resolveQualifiedConst(e)
 	default:
 		return nil, false
 	}

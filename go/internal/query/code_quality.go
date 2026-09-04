@@ -146,11 +146,25 @@ func (h *CodeHandler) inspectCodeQuality(ctx context.Context, req codeQualityIns
 	if h == nil || h.Neo4j == nil {
 		return nil, fmt.Errorf("graph backend is required for code quality inspection")
 	}
-	cypher, params := buildCodeQualityCypher(req)
+	// #5167 code family: the only repository predicate here was the caller's
+	// own optional repo_id, so a scoped caller who omitted it inspected every
+	// tenant's functions.
+	access := codeGrantAccessFilter(ctx)
+	if access.Empty() {
+		return nil, nil
+	}
+	cypher, params := buildCodeQualityCypher(req, access)
 	return h.Neo4j.Run(ctx, cypher, params)
 }
 
-func buildCodeQualityCypher(req codeQualityInspectionRequest) (string, map[string]any) {
+// buildCodeQualityCypher builds the bounded refactoring-candidate scan. access
+// appends the caller's grant to the same MATCH-attached WHERE the optional
+// repo_id/language/entity filters use, so the grant lands before the
+// SKIP/LIMIT and the page is taken from the granted set.
+func buildCodeQualityCypher(
+	req codeQualityInspectionRequest,
+	access repositoryAccessFilter,
+) (string, map[string]any) {
 	params := map[string]any{
 		"limit":          req.Limit + 1,
 		"offset":         req.Offset,
@@ -158,7 +172,7 @@ func buildCodeQualityCypher(req codeQualityInspectionRequest) (string, map[strin
 		"min_lines":      req.MinLines,
 		"min_arguments":  req.MinArguments,
 	}
-	where := make([]string, 0, 4)
+	where := make([]string, 0, 5)
 	if req.RepoID != "" {
 		where = append(where, "repo.id = $repo_id")
 		params["repo_id"] = req.RepoID
@@ -174,6 +188,10 @@ func buildCodeQualityCypher(req codeQualityInspectionRequest) (string, map[strin
 	if req.FunctionName != "" {
 		where = append(where, "e.name = $function_name")
 		params["function_name"] = req.FunctionName
+	}
+	if access.Scoped() {
+		where = append(where, access.GraphCondition("repo"))
+		params = access.GraphParams(params)
 	}
 
 	var builder strings.Builder

@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/pgarray"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/trace"
 )
@@ -16,14 +17,12 @@ import (
 // content read model, preserving the graph candidate response shape.
 func (cr *ContentReader) DeadCodeCandidateRows(
 	ctx context.Context,
-	repoID string,
-	label string,
-	language string,
-	limit int,
-	offset int,
+	query deadCodeCandidateQuery,
 ) ([]map[string]any, error) {
-	repoID = strings.TrimSpace(repoID)
-	language = strings.ToLower(strings.TrimSpace(language))
+	repoID := strings.TrimSpace(query.RepoID)
+	language := strings.ToLower(strings.TrimSpace(query.Language))
+	label := query.Label
+	limit, offset := query.Limit, query.Offset
 	if cr == nil || cr.db == nil {
 		return nil, nil
 	}
@@ -48,16 +47,28 @@ func (cr *ContentReader) DeadCodeCandidateRows(
 	)
 	defer span.End()
 
-	rows, err := cr.db.QueryContext(ctx, `
+	// #5167: a corpus-wide scan (repoID == "") carries the caller's granted
+	// repository ids into the WHERE, so LIMIT/OFFSET pages the granted set.
+	args := []any{repoID, entityType, language}
+	grant := ""
+	if len(query.AllowedRepositoryIDs) > 0 {
+		args = append(args, pgarray.Array(query.AllowedRepositoryIDs))
+		grant = fmt.Sprintf("\n\t\t  AND repo_id = ANY($%d)", len(args))
+	}
+	args = append(args, limit, offset)
+	// #nosec G201 -- interpolates only integer argument indices and the fixed
+	// grant clause above; no caller-supplied text is concatenated into the SQL.
+	statement := fmt.Sprintf(`
 		SELECT entity_id, entity_name, entity_type, repo_id, relative_path,
 		       coalesce(language, ''), start_line, end_line, metadata
 		FROM content_entities
 		WHERE ($1 = '' OR repo_id = $1)
 		  AND entity_type = $2
-		  AND ($3 = '' OR lower(coalesce(language, '')) = $3)
+		  AND ($3 = '' OR lower(coalesce(language, '')) = $3)%s
 		ORDER BY repo_id, relative_path, entity_name, entity_id
-		LIMIT $4 OFFSET $5
-	`, repoID, entityType, language, limit, offset)
+		LIMIT $%d OFFSET $%d
+	`, grant, len(args)-1, len(args))
+	rows, err := cr.db.QueryContext(ctx, statement, args...)
 	if err != nil {
 		span.RecordError(err)
 		return nil, fmt.Errorf("dead code candidate rows: %w", err)

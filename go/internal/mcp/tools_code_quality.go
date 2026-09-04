@@ -6,7 +6,7 @@ package mcp
 func codeQualityInspectionTool() ToolDefinition {
 	return ToolDefinition{
 		Name:        "inspect_code_quality",
-		Description: "Inspect bounded code-quality and refactoring metrics for functions: complexity, function length, argument count, or combined refactoring candidates.",
+		Description: "Inspect bounded code-quality and refactoring metrics for functions: complexity, function length, argument count, or combined refactoring candidates. Scoped tokens receive only granted repositories; an ungranted repository selector is rejected.",
 		InputSchema: map[string]any{
 			"type": "object",
 			"properties": map[string]any{

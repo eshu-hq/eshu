@@ -8,8 +8,9 @@ const openAPIPathsCodeDeadCodeInvestigation = `
       "post": {
         "tags": ["code"],
         "summary": "Investigate dead-code candidates",
-        "description": "Returns a bounded dead-code investigation packet with repository coverage, language maturity, exactness blockers, cleanup-ready and ambiguous candidate buckets, suppressed modeled roots, source handles, and recommended drill-down calls. JavaScript and TypeScript candidates remain ambiguous until corpus precision evidence proves cleanup safety.",
+        "description": "Returns a bounded dead-code investigation packet with repository coverage, language maturity, exactness blockers, cleanup-ready and ambiguous candidate buckets, suppressed modeled roots, source handles, and recommended drill-down calls. JavaScript and TypeScript candidates remain ambiguous until corpus precision evidence proves cleanup safety. Scoped tokens receive only granted repositories; an ungranted repository selector is rejected with HTTP 400. A candidate whose only incoming edges come from repositories outside a scoped token's grant is kept and marked ambiguous with the permission_hidden_consumer reason, never reported as unused and never silently dropped.",
         "operationId": "investigateDeadCode",
+        "x-scoped-token-support": true,
         "requestBody": {
           "required": true,
           "content": {
@@ -32,6 +33,7 @@ const openAPIPathsCodeDeadCodeInvestigation = `
           }
         },
         "responses": {
+          "403": {"$ref": "#/components/responses/Forbidden"},
           "503": {"$ref": "#/components/responses/ServiceUnavailable"},
           "504": {"$ref": "#/components/responses/GatewayTimeout"},
           "200": {
@@ -80,8 +82,9 @@ const openAPIPathsCodeCrossRepoDeadCode = `
       "post": {
         "tags": ["code"],
         "summary": "Find cross-repo dead-code candidates",
-        "description": "Classifies producer repository dead-code candidates against deterministic consumer evidence. Symbols or routes kept live by another repository are returned as live_by_consumer. Ambiguous ownership, stale generations, missing read-model coverage, and scoped-token-hidden consumers are returned as unknown_needs_evidence rather than dead.",
+        "description": "Classifies producer repository dead-code candidates against deterministic consumer evidence. Symbols or routes kept live by another repository are returned as live_by_consumer. Ambiguous ownership, stale generations, missing read-model coverage, and scoped-token-hidden consumers are returned as unknown_needs_evidence rather than dead. Scoped tokens receive only granted repositories; an ungranted repository selector is rejected with HTTP 400.",
         "operationId": "findCrossRepoDeadCode",
+        "x-scoped-token-support": true,
         "requestBody": {
           "required": true,
           "content": {
@@ -109,6 +112,7 @@ const openAPIPathsCodeCrossRepoDeadCode = `
           }
         },
         "responses": {
+          "403": {"$ref": "#/components/responses/Forbidden"},
           "503": {"$ref": "#/components/responses/ServiceUnavailable"},
           "504": {"$ref": "#/components/responses/GatewayTimeout"},
           "200": {

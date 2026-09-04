@@ -139,8 +139,17 @@ func (h *CodeHandler) codeTopicRows(ctx context.Context, req codeTopicInvestigat
 	if !ok {
 		return nil, errCodeTopicBackendUnavailable
 	}
+	// #5167 code family: bind the caller's repository grant into the topic SQL.
+	// The predicate already existed (codeTopicFilters' repo_id = ANY branch);
+	// only POST /api/v0/impact/change-surface ever populated it, so a scoped
+	// caller who omitted repo_id searched the whole content-entity corpus.
+	allowedRepositoryIDs, blocked := codeContentGrantScope(ctx, req.RepoID)
+	if blocked {
+		return nil, nil
+	}
 	probeReq := req
 	probeReq.Limit = req.Limit + 1
+	probeReq.AllowedRepositoryIDs = allowedRepositoryIDs
 	rows, err := investigator.InvestigateCodeTopic(ctx, probeReq)
 	if err != nil {
 		return nil, fmt.Errorf("investigate code topic: %w", err)

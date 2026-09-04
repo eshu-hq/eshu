@@ -326,6 +326,38 @@ description, not in this route map.
 single function. Without a single selector, it returns a bounded deterministic
 `results` list with `limit` and `truncated`.
 
+A `repo_id` sent alongside `entity_id` now anchors that lookup. Before this
+change the entity-id branch carried no repository predicate, so an entity id
+alone returned that entity from whichever repository held it and a supplied
+`repo_id` was ignored. Asking for an entity id that lives in a different
+repository than the `repo_id` you named returns `404 entity not found`. Drop
+`repo_id` to look the entity up wherever it lives.
+
+A `function_name` sent alongside `entity_id` is not a fallback for that 404.
+The name answers a stale entity id only when the id lookup was bound to no
+repository — no `repo_id`, and an unscoped token — because only then does an
+empty result prove the id is gone rather than held somewhere the lookup could
+not see.
+
+A `repo_id` sent without `entity_id` or `function_name` now restricts the ranked
+list to that repository. Before this change the list branch bound the repository
+side of its scan optionally, so a supplied `repo_id` did not filter: the answer
+ranked every function in the index and only blanked the repository columns on
+rows from elsewhere. Omit `repo_id` for a corpus-wide ranking, which also
+includes functions the graph attributes to no repository.
+
+`POST /api/v0/code/dead-code` and `POST /api/v0/code/dead-code/investigate`
+decide whether a candidate is still called by probing its incoming edges, and
+that probe reaches across repositories on purpose — a library symbol is kept
+alive by the services that call it. For a scoped token, only edges from
+repositories in its grant count as evidence. An edge from anywhere else neither
+removes the candidate nor lets it be reported as unused: the candidate comes
+back with `permission_hidden_consumer` set, classified `ambiguous`, and
+`ambiguity_reasons` naming the same reason on the investigation route. Nothing
+identifying the hidden side — repository, entity, or citation — appears in the
+answer. A shared-key caller sees the unchanged behaviour, where a strong
+incoming edge from any repository removes the candidate.
+
 `POST /api/v0/code/quality/inspect` supports `complexity`, `function_length`,
 `argument_count`, and `refactoring_candidates`, with threshold fields and
 recommended next calls in the response.

@@ -102,6 +102,7 @@ func TestContentReaderCodeReachabilityIncomingEntityIDsUsesCrossRepoRows(t *test
 		context.Background(),
 		"repository:library",
 		[]string{"content-entity:library-symbol"},
+		nil,
 	)
 	if err != nil {
 		t.Fatalf("CodeReachabilityIncomingEntityIDs() error = %v, want nil", err)

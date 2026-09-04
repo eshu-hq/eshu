@@ -8,7 +8,7 @@ of truth mapping a changed path to the local and CI checks it requires. See
 and `make prove` select from this table, and
 [Local Testing](local-testing.md) for the full verification map.
 
-The registry currently defines 107 gates. Local execution runs the primary
+The registry currently defines 108 gates. Local execution runs the primary
 command first, then a distinct self-test when one is registered; byte-identical
 pairs run once. A row with no primary local command is
 CI-only (it needs a credential, a service container, or hosted infrastructure
@@ -122,6 +122,7 @@ Advisory rows remain visible but do not block merge.
 | `docker-publish` | Docker image and Helm publication | release | manual | false | — (CI-only: post-merge publication requires registry push credentials and cannot block its own merge) | docker-publish.yml / build-and-push-image | 3 path(s): go/**, Dockerfile, deploy/helm/** |
 | `macos-build` | macOS build verification | build | ci-heavy | true | — (CI-only: requires macOS hosted runner) | macos.yml / macos | 1 path(s): go/** |
 | `root-cause-evidence` | Root-cause claims carry observed evidence | exactness | pre-pr | false | `bash scripts/verify-root-cause-evidence.sh`<br>then self-test: `bash scripts/test-verify-root-cause-evidence.sh` | static-contract-gates.yml / Verify root-cause-evidence gate | 4 path(s): docs/internal/evidence/**, scripts/verify-root-cause-evidence.sh, scripts/test-verify-root-cause-evidence.sh, … |
+| `tagged-builds` | Build-tag compile sweep | exactness | pre-pr | true | `bash scripts/verify-tagged-builds.sh --all`<br>then self-test: `bash scripts/test-verify-tagged-builds.sh` | static-contract-gates.yml / Verify tagged-builds gate | 6 path(s): go/**, scripts/verify-tagged-builds.sh, scripts/test-verify-tagged-builds.sh, … |
 | `perf-evidence` | Hot-path performance evidence | telemetry | pre-push | true | `bash scripts/dev/precommit-go.sh perf-evidence`<br>then self-test: `bash scripts/test-verify-performance-evidence.sh` | test.yml / verify-contracts | 14 path(s): go/internal/storage/**, go/internal/reducer/**, go/internal/collector/**, … |
 | `product-claim-ledger` | Product Claim Ledger (deterministic verify) | exactness | pre-pr | true | `cd go && go run ./cmd/capability-inventory -mode product-claims` | product-claim-ledger.yml / Verify product claim ledger | 4 path(s): specs/product-claims.v1.yaml, specs/capability-catalog.v1.yaml, specs/capability-matrix.v1.yaml, … |
 | `replay-tier` | Replay tier (offline cassette replay) | exactness | ci-heavy | true | `bash scripts/verify-replay-tier.sh`<br>then self-test: `bash scripts/test-verify-replay-tier.sh` | verify-replay-tier.yml / Offline replay tier vs real NornicDB | 17 path(s): go/cmd/ingester/**, go/cmd/projector/**, go/internal/query/**, … |

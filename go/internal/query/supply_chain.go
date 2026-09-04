@@ -3,7 +3,11 @@
 
 package query
 
-import "net/http"
+import (
+	"net/http"
+
+	"github.com/eshu-hq/eshu/go/internal/query/supplychain/advisory"
+)
 
 const (
 	sbomAttestationAttachmentsCapability       = "supply_chain.sbom_attestation_attachments.list"
@@ -33,8 +37,8 @@ type SupplyChainHandler struct {
 	Content                  ContentStore
 	SBOMAttachments          SBOMAttestationAttachmentStore
 	SBOMAttachmentAggregates SBOMAttestationAttachmentAggregateStore
-	AdvisoryEvidence         AdvisoryEvidenceStore
-	AdvisoryCatalog          AdvisoryCatalogStore
+	AdvisoryEvidence         advisory.AdvisoryEvidenceStore
+	AdvisoryCatalog          advisory.AdvisoryCatalogStore
 	ImpactFindings           SupplyChainImpactFindingStore
 	ImpactAggregates         SupplyChainImpactAggregateStore
 	ImpactExplanations       SupplyChainImpactExplanationStore

@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"strconv"
 
+	"github.com/eshu-hq/eshu/go/internal/query/supplychain/advisory"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
 )
 
@@ -27,20 +28,20 @@ func (h *SupplyChainHandler) listAdvisoryCatalog(w http.ResponseWriter, r *http.
 		r,
 		telemetry.SpanQueryAdvisoryCatalog,
 		"GET /api/v0/supply-chain/advisories",
-		advisoryCatalogCapability,
+		advisory.AdvisoryCatalogCapability,
 	)
 	defer span.End()
 
-	if capabilityUnsupported(h.profile(), advisoryCatalogCapability) {
+	if capabilityUnsupported(h.profile(), advisory.AdvisoryCatalogCapability) {
 		WriteContractError(
 			w,
 			r,
 			http.StatusNotImplemented,
 			"advisory catalog requires the Postgres vulnerability source fact read model",
 			ErrorCodeUnsupportedCapability,
-			advisoryCatalogCapability,
+			advisory.AdvisoryCatalogCapability,
 			h.profile(),
-			requiredProfile(advisoryCatalogCapability),
+			requiredProfile(advisory.AdvisoryCatalogCapability),
 		)
 		return
 	}
@@ -63,13 +64,13 @@ func (h *SupplyChainHandler) listAdvisoryCatalog(w http.ResponseWriter, r *http.
 			http.StatusServiceUnavailable,
 			"advisory catalog requires the Postgres vulnerability source fact read model",
 			ErrorCodeBackendUnavailable,
-			advisoryCatalogCapability,
+			advisory.AdvisoryCatalogCapability,
 			h.profile(),
-			requiredProfile(advisoryCatalogCapability),
+			requiredProfile(advisory.AdvisoryCatalogCapability),
 		)
 		return
 	}
-	filter := AdvisoryCatalogFilter{
+	filter := advisory.AdvisoryCatalogFilter{
 		Severity:         QueryParam(r, "severity"),
 		Ecosystem:        QueryParam(r, "ecosystem"),
 		Query:            QueryParam(r, "q"),
@@ -104,7 +105,7 @@ func (h *SupplyChainHandler) listAdvisoryCatalog(w http.ResponseWriter, r *http.
 	}
 	WriteSuccess(w, r, http.StatusOK, body, BuildTruthEnvelope(
 		h.profile(),
-		advisoryCatalogCapability,
+		advisory.AdvisoryCatalogCapability,
 		TruthBasisSemanticFacts,
 		"resolved from active vulnerability source facts; rows are known CVE intelligence and do not imply repository, image, workload, or deployment impact, which remains the separate supply-chain impact findings surface",
 	))
@@ -112,7 +113,7 @@ func (h *SupplyChainHandler) listAdvisoryCatalog(w http.ResponseWriter, r *http.
 
 // advisoryCatalogResponseScope echoes the applied catalog filters so callers can
 // confirm the browse scope and detect dropped filters.
-func advisoryCatalogResponseScope(filter AdvisoryCatalogFilter) map[string]any {
+func advisoryCatalogResponseScope(filter advisory.AdvisoryCatalogFilter) map[string]any {
 	scope := map[string]any{}
 	if filter.Severity != "" {
 		scope["severity"] = filter.Severity
@@ -138,8 +139,8 @@ func requiredAdvisoryCatalogLimit(w http.ResponseWriter, r *http.Request) (int, 
 		return 0, false
 	}
 	limit, err := strconv.Atoi(raw)
-	if err != nil || limit <= 0 || limit > advisoryCatalogMaxLimit {
-		WriteError(w, http.StatusBadRequest, fmt.Sprintf("limit must be between 1 and %d", advisoryCatalogMaxLimit))
+	if err != nil || limit <= 0 || limit > advisory.AdvisoryCatalogMaxLimit {
+		WriteError(w, http.StatusBadRequest, fmt.Sprintf("limit must be between 1 and %d", advisory.AdvisoryCatalogMaxLimit))
 		return 0, false
 	}
 	return limit, true

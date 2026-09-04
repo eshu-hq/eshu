@@ -9,6 +9,8 @@ import (
 	"net/http/httptest"
 	"strings"
 	"testing"
+
+	"github.com/eshu-hq/eshu/go/internal/query/supplychain/advisory"
 )
 
 func TestSupplyChainListAdvisoryEvidenceResolvesRepositoryScopedFindings(t *testing.T) {
@@ -25,12 +27,12 @@ func TestSupplyChainListAdvisoryEvidenceResolvesRepositoryScopedFindings(t *test
 		},
 	}
 	advisoryStore := &recordingAdvisoryEvidenceStore{
-		rows: []AdvisoryEvidenceRow{{
+		rows: []advisory.AdvisoryEvidenceRow{{
 			AdvisoryKey: "CVE-2026-0001",
 			CanonicalID: "CVE-2026-0001",
 			CVEIDs:      []string{"CVE-2026-0001"},
 			GHSAIDs:     []string{"GHSA-aaaa-bbbb-cccc"},
-			AffectedPackages: []AdvisoryAffectedPackage{{
+			AffectedPackages: []advisory.AdvisoryAffectedPackage{{
 				PackageID: "pkg:npm/example",
 			}},
 		}},
@@ -64,8 +66,8 @@ func TestSupplyChainListAdvisoryEvidenceResolvesRepositoryScopedFindings(t *test
 	}
 
 	var resp struct {
-		Advisories []AdvisoryEvidenceRow `json:"advisories"`
-		Scope      map[string]string     `json:"scope"`
+		Advisories []advisory.AdvisoryEvidenceRow `json:"advisories"`
+		Scope      map[string]string              `json:"scope"`
 	}
 	if err := json.Unmarshal(w.Body.Bytes(), &resp); err != nil {
 		t.Fatalf("json.Unmarshal: %v", err)
@@ -120,12 +122,12 @@ func TestSupplyChainListAdvisoryEvidenceRejectsUnknownRepositorySelectorBeforeRe
 func TestPageAdvisoryEvidenceRowsTrustsImpactScopeForAdvisoryAliases(t *testing.T) {
 	t.Parallel()
 
-	rows := []AdvisoryEvidenceRow{{
+	rows := []advisory.AdvisoryEvidenceRow{{
 		AdvisoryKey: "CVE-2026-0001",
 		CanonicalID: "CVE-2026-0001",
 		CVEIDs:      []string{"CVE-2026-0001"},
 	}}
-	got := pageAdvisoryEvidenceRows(rows, AdvisoryEvidenceFilter{
+	got := advisory.PageAdvisoryEvidenceRows(rows, advisory.AdvisoryEvidenceFilter{
 		AdvisoryID:   "GHSA-aaaa-bbbb-cccc",
 		RepositoryID: "repo://example/api",
 		Limit:        10,

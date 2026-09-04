@@ -60,6 +60,12 @@ func scopedHTTPRouteSupportsTenantFilter(r *http.Request) bool {
 	if scopedCodeFlowRoute(r) {
 		return true
 	}
+	if scopedCodeContentGrantRoute(r) {
+		return true
+	}
+	if scopedCodeGraphGrantRoute(r) {
+		return true
+	}
 	if r.Method == http.MethodPost && r.URL.Path == "/api/v0/code/routes/callers" {
 		return true
 	}

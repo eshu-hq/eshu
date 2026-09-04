@@ -3,7 +3,21 @@
 
 package query
 
-import "strings"
+import (
+	"strings"
+
+	"github.com/eshu-hq/eshu/go/internal/codeprovenance"
+)
+
+// deadCodeHiddenConsumerResultKey marks a kept candidate whose only incoming
+// edges came from repositories outside the caller's grant, and
+// deadCodeHiddenConsumerReason is the investigation reason it reports. The
+// value is the same permission_hidden_consumer the cross-repo route already
+// answers with, so one vocabulary covers both dead-code shapes.
+const (
+	deadCodeHiddenConsumerResultKey = "permission_hidden_consumer"
+	deadCodeHiddenConsumerReason    = "permission_hidden_consumer"
+)
 
 const (
 	deadCodeClassificationUnused               = "unused"
@@ -29,7 +43,7 @@ func deadCodeResultClassification(result map[string]any, entity *EntityContent) 
 	if deadCodeResultHasExactnessBlockers(result, entity) {
 		return deadCodeClassificationAmbiguous
 	}
-	if deadCodeResultHasWeakIncomingEdge(result) {
+	if deadCodeResultHasWeakIncomingEdge(result) || deadCodeResultHasHiddenConsumer(result) {
 		return deadCodeClassificationAmbiguous
 	}
 	maturity := deadCodeLanguageMaturity[language]
@@ -64,4 +78,26 @@ func deadCodeResultHasWeakIncomingEdge(result map[string]any) bool {
 func deadCodeLanguageSupported(language string) bool {
 	_, ok := deadCodeLanguageMaturity[strings.ToLower(strings.TrimSpace(language))]
 	return ok
+}
+
+// deadCodeResultHasHiddenConsumer reports whether the incoming-edge probe found
+// a consumer in a repository the caller was not granted, which makes the
+// candidate unknown rather than either reachable or unused.
+func deadCodeResultHasHiddenConsumer(result map[string]any) bool {
+	hidden, _ := result[deadCodeHiddenConsumerResultKey].(bool)
+	return hidden
+}
+
+// deadCodeWeakIncomingAmbiguityReason returns the investigation reason string
+// for a candidate that is ambiguous because its only incoming edges were weak
+// (repo_unique_name tier), naming the resolution method that triggered it.
+func deadCodeWeakIncomingAmbiguityReason(result map[string]any) (string, bool) {
+	if !deadCodeResultHasWeakIncomingEdge(result) {
+		return "", false
+	}
+	method := strings.TrimSpace(StringVal(result, deadCodeWeakIncomingMethodKey))
+	if method == "" {
+		method = codeprovenance.MethodRepoUniqueName
+	}
+	return deadCodeWeakIncomingReasonScope + method, true
 }

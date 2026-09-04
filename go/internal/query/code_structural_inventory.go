@@ -34,6 +34,13 @@ type structuralInventoryRequest struct {
 	ClassName     string `json:"class_name"`
 	Limit         int    `json:"limit"`
 	Offset        int    `json:"offset"`
+	// AllowedRepositoryIDs, when set, restricts a corpus-wide (RepoID == "")
+	// read to the caller's granted repositories at the SQL WHERE, before the
+	// LIMIT/OFFSET page boundary (#5167 filter-before-limit). It is never
+	// populated from the request body: the handler fills it from the caller's
+	// AuthContext grant through codeContentGrantScope. Empty leaves the read
+	// unrestricted, which is what an unscoped caller wants.
+	AllowedRepositoryIDs []string `json:"-"`
 }
 
 type structuralInventoryContentStore interface {
@@ -144,9 +151,23 @@ func (h *CodeHandler) structuralInventoryData(
 	if !ok {
 		return structuralInventoryData{}, errStructuralInventoryUnavailable
 	}
+	// #5167 code family: structuralInventoryWhere only anchored an explicit
+	// repo_id, so a scoped caller who omitted one inventoried every tenant's
+	// entities.
+	//
+	// The empty page is built, not zero-valued: the handler writes this slice
+	// straight into `results` and `matches`, both declared as arrays in the
+	// OpenAPI response, and a nil slice encodes as `null`. Every other branch
+	// here returns an allocated slice, so a grantless token was the one caller
+	// whose body a generated client could fail to decode.
+	allowedRepositoryIDs, blocked := codeContentGrantScope(ctx, req.RepoID)
+	if blocked {
+		return structuralInventoryData{results: []map[string]any{}}, nil
+	}
 	displayLimit := req.normalizedLimit()
 	queryReq := req
 	queryReq.Limit = displayLimit + 1
+	queryReq.AllowedRepositoryIDs = allowedRepositoryIDs
 	if req.kind() == "function_count_by_file" {
 		rows, err := reader.CountStructuralInventoryByFile(ctx, queryReq)
 		if err != nil {

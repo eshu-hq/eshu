@@ -7,6 +7,7 @@ import (
 	"slices"
 	"strings"
 
+	"github.com/eshu-hq/eshu/go/internal/query/supplychain/advisory"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
 	"go.opentelemetry.io/otel/attribute"
 )
@@ -85,7 +86,7 @@ func summarizeWorkItemEvidenceStates(rows []WorkItemEvidenceRow) []string {
 		}
 		seen[state] = struct{}{}
 	}
-	return setToSortedSlice(seen)
+	return advisory.SetToSortedSlice(seen)
 }
 
 // workItemEvidenceSpanAttributes shapes the bounded per-state counters an
