@@ -288,7 +288,7 @@ would.
 The known cost, measured rather than assumed: Eshu's API does echo request
 parameters back into `data`. `GET /api/v0/supply-chain/impact/explain` returns
 the caller's filter at `data.input`
-(`go/internal/query/supply_chain_impact_explain.go:80`), and about a dozen
+(`go/internal/query/supplychain/impact/supply_chain_impact_explain.go:78`), and about a dozen
 routes echo `query`, `question`, `subject`, `environment`, or `intent`. So a
 credential a reporter typed into `--endpoint` is dropped from `query.params`
 and can still return through the server's echo. Closing that means treating

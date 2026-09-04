@@ -191,7 +191,7 @@ No-Regression Evidence: this section is documentation-only. It catalogs
 existing list-shaped surfaces against the current `ReadOnlyTools` surface and
 backing reducer tables. The classification was cross-checked by reading
 `go/internal/storage/postgres/schema_fact_records.go`,
-`go/internal/query/supply_chain_impact_findings.go`,
+`go/internal/query/supplychain/impact/supply_chain_impact_findings.go`,
 `go/internal/query/package_registry.go`, and
 `go/internal/query/infra.go`. Strict docs proof:
 `uv run --with mkdocs --with mkdocs-material --with pymdown-extensions mkdocs build --strict --clean --config-file docs/mkdocs.yml`.
