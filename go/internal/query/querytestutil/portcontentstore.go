@@ -24,7 +24,7 @@ import (
 //
 // The fields are exported because an unexported field is unreachable from
 // another package -- a caller could name the type but never fill it in.
-// Package query keeps an unexported adapter with the field names its ~126
+// Package query keeps an unexported adapter with the field names its 124
 // existing test files already use, and that adapter delegates here rather
 // than reimplementing anything.
 //

@@ -25,7 +25,7 @@ func (fakePortGraphQuery) RunSingle(context.Context, string, map[string]any) (ma
 // querytestutil.FakePortContentStore. The behavior lives there so handler families
 // moving out of package query (#6060, epic #6053) can reach it -- a _test.go
 // symbol is not importable across a package boundary. The field names stay
-// lowercase and unchanged so the ~126 test files that build this double with
+// lowercase and unchanged so the 93 root files that build this double with
 // keyed literals did not have to be rewritten.
 //
 // Every method below forwards. None of them reimplement anything: a second
