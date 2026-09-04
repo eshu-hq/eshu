@@ -184,4 +184,11 @@ func TestImpactSeamExportsForward(t *testing.T) {
 	_ = (*ImpactHandler).FetchDeploymentSourceResult
 	_ = (*ImpactHandler).PreChangeImpactResponse
 	_ = (*ImpactHandler).ResolvedProfile
+
+	// The cross-package constructor must thread maxDepth: the external
+	// proof can only observe it through a nil-graph early exit where a
+	// dropped field is invisible, so pin the value here. See #6060.
+	if NewTraceEnrichmentConfig(4) != (traceEnrichmentConfig{maxDepth: 4}) {
+		t.Fatal("NewTraceEnrichmentConfig(4) != traceEnrichmentConfig{maxDepth: 4}")
+	}
 }

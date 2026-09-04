@@ -11,8 +11,6 @@ import (
 	"net/http/httptest"
 	"strings"
 	"testing"
-
-	"github.com/eshu-hq/eshu/go/internal/query/querytestutil"
 )
 
 func TestFindBlastRadiusUsesRequestedLimitAndReportsTruncation(t *testing.T) {
@@ -80,11 +78,11 @@ func TestTraceResourceToCodeUsesRequestedLimitAndReportsTruncation(t *testing.T)
 
 	handler := &ImpactHandler{
 		Profile: ProfileLocalAuthoritative,
-		Neo4j: querytestutil.FakeGraphReaderWithSingle{
-			RunSingleFn: func(_ context.Context, _ string, _ map[string]any) (map[string]any, error) {
+		Neo4j: fakeGraphReaderWithSingle{
+			runSingle: func(_ context.Context, _ string, _ map[string]any) (map[string]any, error) {
 				return map[string]any{"label": "CloudResource", "id": "resource:queue", "name": "queue", "labels": []any{"CloudResource"}}, nil
 			},
-			RunFn: func(_ context.Context, cypher string, params map[string]any) ([]map[string]any, error) {
+			run: func(_ context.Context, cypher string, params map[string]any) ([]map[string]any, error) {
 				if !strings.Contains(cypher, "LIMIT $limit") {
 					t.Fatalf("cypher = %q, want server-side LIMIT parameter", cypher)
 				}

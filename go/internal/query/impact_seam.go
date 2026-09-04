@@ -301,3 +301,78 @@ func JoinOrNone(values []string) string {
 func (h *ImpactHandler) ResolvedProfile() QueryProfile {
 	return h.profile()
 }
+
+// NewTraceEnrichmentConfig is the exported constructor for
+// traceEnrichmentConfig. The deployment-config-influence family is the only
+// caller outside the impact move set and it only sets maxDepth (to 4), so
+// the remaining fields stay unexported at their zero values rather than
+// exporting every field. See #6060.
+func NewTraceEnrichmentConfig(maxDepth int) TraceEnrichmentConfig {
+	return traceEnrichmentConfig{maxDepth: maxDepth}
+}
+
+// Rows is the exported read accessor for deploymentSourceResult.rows, which
+// the deployment-config-influence family reads from outside the impact move
+// set. See #6060.
+func (r DeploymentSourceResult) Rows() []map[string]any {
+	return r.rows
+}
+
+// Limits is the exported read accessor for deploymentSourceResult.limits,
+// which the deployment-config-influence family reads from outside the impact
+// move set. See #6060.
+func (r DeploymentSourceResult) Limits() map[string]any {
+	return r.limits
+}
+
+// SetRows is the exported write accessor for deploymentSourceResult.rows,
+// which the deployment-config-influence family rebinds to the caller's grant
+// (filterRowsByRepoIDForAccess) from outside the impact move set. See #6060.
+func (r *DeploymentSourceResult) SetRows(rows []map[string]any) {
+	r.rows = rows
+}
+
+// Rows is the exported read accessor for k8sResourceResult.rows, which the
+// deployment-config-influence family reads from outside the impact move set.
+// See #6060.
+func (r K8sResourceResult) Rows() []map[string]any {
+	return r.rows
+}
+
+// Limits is the exported read accessor for k8sResourceResult.limits, which
+// the deployment-config-influence family reads from outside the impact move
+// set. See #6060.
+func (r K8sResourceResult) Limits() map[string]any {
+	return r.limits
+}
+
+// ImageRefs is the exported read accessor for k8sResourceResult.imageRefs,
+// which the deployment-config-influence family reads from outside the impact
+// move set. See #6060.
+func (r K8sResourceResult) ImageRefs() []string {
+	return r.imageRefs
+}
+
+// Candidates is the exported read accessor for
+// k8sResourceResult.candidates, which the deployment-config-influence family
+// threads back through boundedK8sResourceResult from outside the impact move
+// set. See #6060.
+func (r K8sResourceResult) Candidates() []map[string]any {
+	return r.candidates
+}
+
+// ContentLowerBound is the exported read accessor for
+// k8sResourceResult.contentLowerBound, which the
+// deployment-config-influence family threads back through
+// boundedK8sResourceResult from outside the impact move set. See #6060.
+func (r K8sResourceResult) ContentLowerBound() bool {
+	return r.contentLowerBound
+}
+
+// SelectCandidatePoolTruncated is the exported read accessor for
+// k8sResourceResult.selectCandidatePoolTruncated, which the
+// deployment-config-influence family threads back through
+// boundedK8sResourceResult from outside the impact move set. See #6060.
+func (r K8sResourceResult) SelectCandidatePoolTruncated() bool {
+	return r.selectCandidatePoolTruncated
+}

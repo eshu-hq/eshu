@@ -72,8 +72,8 @@ func TestExplainDependencyPathNullPathRecordOmitsPath(t *testing.T) {
 
 	handler := &ImpactHandler{
 		Profile: ProfileLocalAuthoritative,
-		Neo4j: querytestutil.FakeGraphReaderWithSingle{
-			RunSingleFn: func(_ context.Context, cypher string, params map[string]any) (map[string]any, error) {
+		Neo4j: fakeGraphReaderWithSingle{
+			runSingle: func(_ context.Context, cypher string, params map[string]any) (map[string]any, error) {
 				if strings.Contains(cypher, "shortestPath") {
 					// A non-nil record with null path columns (no path found).
 					return map[string]any{"depth": nil, "ns": nil, "rels": nil}, nil
@@ -159,12 +159,12 @@ func TestTraceResourceToCodeAnchorsResolvedLabel(t *testing.T) {
 	var resolveCypher, traversalCypher string
 	handler := &ImpactHandler{
 		Profile: ProfileLocalAuthoritative,
-		Neo4j: querytestutil.FakeGraphReaderWithSingle{
-			RunSingleFn: func(_ context.Context, cypher string, _ map[string]any) (map[string]any, error) {
+		Neo4j: fakeGraphReaderWithSingle{
+			runSingle: func(_ context.Context, cypher string, _ map[string]any) (map[string]any, error) {
 				resolveCypher = cypher
 				return map[string]any{"label": "CloudResource", "id": "resource:queue", "name": "queue", "labels": []any{"CloudResource"}}, nil
 			},
-			RunFn: func(_ context.Context, cypher string, _ map[string]any) ([]map[string]any, error) {
+			run: func(_ context.Context, cypher string, _ map[string]any) ([]map[string]any, error) {
 				traversalCypher = cypher
 				return []map[string]any{
 					{"repo_id": "repo-a", "repo_name": "api", "depth": int64(1), "rels": []any{
@@ -223,11 +223,11 @@ func TestTraceResourceToCodeReturnsStartWithoutPaths(t *testing.T) {
 
 	handler := &ImpactHandler{
 		Profile: ProfileLocalAuthoritative,
-		Neo4j: querytestutil.FakeGraphReaderWithSingle{
-			RunSingleFn: func(_ context.Context, _ string, _ map[string]any) (map[string]any, error) {
+		Neo4j: fakeGraphReaderWithSingle{
+			runSingle: func(_ context.Context, _ string, _ map[string]any) (map[string]any, error) {
 				return map[string]any{"label": "CloudResource", "id": "resource:queue", "name": "queue", "labels": []any{"CloudResource"}}, nil
 			},
-			RunFn: func(_ context.Context, _ string, _ map[string]any) ([]map[string]any, error) {
+			run: func(_ context.Context, _ string, _ map[string]any) ([]map[string]any, error) {
 				return nil, nil // no Repository paths
 			},
 		},
@@ -258,8 +258,8 @@ func TestExplainDependencyPathAnchorsResolvedEndpoints(t *testing.T) {
 	var pathCypher string
 	handler := &ImpactHandler{
 		Profile: ProfileLocalAuthoritative,
-		Neo4j: querytestutil.FakeGraphReaderWithSingle{
-			RunSingleFn: func(_ context.Context, cypher string, params map[string]any) (map[string]any, error) {
+		Neo4j: fakeGraphReaderWithSingle{
+			runSingle: func(_ context.Context, cypher string, params map[string]any) (map[string]any, error) {
 				if strings.Contains(cypher, "shortestPath") {
 					pathCypher = cypher
 					return nil, nil // no path found in this shape assertion
@@ -340,4 +340,27 @@ func TestImpactAnchorLabelDisjunctionIncludesKubernetesWorkload(t *testing.T) {
 	if !strings.Contains(impactAnchorLabelDisjunction, "KubernetesWorkload") {
 		t.Fatalf("impactAnchorLabelDisjunction must include KubernetesWorkload (its .id is set to row.uid by kubernetes_workload_node_writer); got: %s", impactAnchorLabelDisjunction)
 	}
+}
+
+// fakeGraphReaderWithSingle is a GraphQuery test double that scripts both Run
+// and RunSingle so the dependency-path and resource-to-code fallback paths can
+// be exercised independently. It keeps the original lowercase field names and
+// delegates every call to querytestutil.FakeGraphReaderWithSingle through
+// promoted(), so the dispatch lives in exactly one place (see the adapter
+// rule in querytestutil/AGENTS.md).
+type fakeGraphReaderWithSingle struct {
+	run       func(context.Context, string, map[string]any) ([]map[string]any, error)
+	runSingle func(context.Context, string, map[string]any) (map[string]any, error)
+}
+
+func (f fakeGraphReaderWithSingle) promoted() querytestutil.FakeGraphReaderWithSingle {
+	return querytestutil.FakeGraphReaderWithSingle{RunFn: f.run, RunSingleFn: f.runSingle}
+}
+
+func (f fakeGraphReaderWithSingle) Run(ctx context.Context, cypher string, params map[string]any) ([]map[string]any, error) {
+	return f.promoted().Run(ctx, cypher, params)
+}
+
+func (f fakeGraphReaderWithSingle) RunSingle(ctx context.Context, cypher string, params map[string]any) (map[string]any, error) {
+	return f.promoted().RunSingle(ctx, cypher, params)
 }

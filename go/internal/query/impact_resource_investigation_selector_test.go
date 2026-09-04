@@ -11,7 +11,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/eshu-hq/eshu/go/internal/query/querytestutil"
 	"go.opentelemetry.io/otel/attribute"
 	sdktrace "go.opentelemetry.io/otel/sdk/trace"
 	"go.opentelemetry.io/otel/sdk/trace/tracetest"
@@ -19,7 +18,7 @@ import (
 
 type resourceInvestigationSelectorGraph struct {
 	mu        sync.Mutex
-	calls     []querytestutil.ResourceInvestigationRunCall
+	calls     []resourceInvestigationRunCall
 	active    int
 	maxActive int
 	fuzzyOnly bool
@@ -33,7 +32,7 @@ func (g *resourceInvestigationSelectorGraph) Run(
 	params map[string]any,
 ) ([]map[string]any, error) {
 	g.mu.Lock()
-	g.calls = append(g.calls, querytestutil.ResourceInvestigationRunCall{Cypher: cypher, Params: params})
+	g.calls = append(g.calls, resourceInvestigationRunCall{cypher: cypher, params: params})
 	g.active++
 	if g.active > g.maxActive {
 		g.maxActive = g.active
@@ -174,17 +173,17 @@ func assertResourceSelectorFanout(
 	defer graph.mu.Unlock()
 	var exact, fuzzy int
 	for _, call := range graph.calls {
-		if strings.Contains(call.Cypher, "MATCH (n)\n") {
-			t.Fatalf("selector query regressed to global MATCH (n):\n%s", call.Cypher)
+		if strings.Contains(call.cypher, "MATCH (n)\n") {
+			t.Fatalf("selector query regressed to global MATCH (n):\n%s", call.cypher)
 		}
-		if !strings.HasPrefix(strings.TrimSpace(call.Cypher), "MATCH (n:") {
-			t.Fatalf("selector query is not directly label-anchored:\n%s", call.Cypher)
+		if !strings.HasPrefix(strings.TrimSpace(call.cypher), "MATCH (n:") {
+			t.Fatalf("selector query is not directly label-anchored:\n%s", call.cypher)
 		}
-		limitAt := strings.LastIndex(call.Cypher, "LIMIT $limit")
+		limitAt := strings.LastIndex(call.cypher, "LIMIT $limit")
 		if limitAt < 0 {
-			t.Fatalf("selector query missing LIMIT $limit:\n%s", call.Cypher)
+			t.Fatalf("selector query missing LIMIT $limit:\n%s", call.cypher)
 		}
-		if strings.Contains(call.Cypher, "CONTAINS $selector") {
+		if strings.Contains(call.cypher, "CONTAINS $selector") {
 			fuzzy++
 		} else {
 			exact++
@@ -312,7 +311,7 @@ func TestResourceInvestigationScopedSelectorAuthorizesBeforeEveryLimit(t *testin
 	graph.mu.Lock()
 	defer graph.mu.Unlock()
 	for _, call := range graph.calls {
-		cypher := call.Cypher
+		cypher := call.cypher
 		grantAt := strings.Index(cypher, "n.repo_id IN $allowed_repository_ids")
 		limitAt := strings.LastIndex(cypher, "LIMIT $limit")
 		if grantAt < 0 || limitAt < 0 || grantAt > limitAt {
