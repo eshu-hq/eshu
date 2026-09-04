@@ -3751,7 +3751,7 @@ the current token) succeeds. Marker present as `completed` -> every further
 
 Behavior proof (`crossplane_satisfied_by_redrive_behavior_live_test.go`,
 `TestCrossplaneSatisfiedByRedriveClosesXRDLagWindowLive`, failing-then-green):
-a Claim scope is seeded and its own `CrossplaneSatisfiedByMaterializationHandler.Handle`
+a Claim scope is seeded and its own `crossplane.CrossplaneSatisfiedByMaterializationHandler.Handle`
 pass runs FIRST, with no XRD anywhere — zero rows written (the false negative,
 red). The XRD scope is then seeded and activated; `Sweep` runs for it and
 re-enqueues the Claim scope's intent (`TargetsEnqueued == 1`,
