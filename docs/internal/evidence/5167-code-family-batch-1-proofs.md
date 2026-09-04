@@ -243,15 +243,15 @@ constraint, so the sweep's own output is unchanged at 29 vetted / 16 skipped /
 exit 0, which is the behaviour-preservation check for a change that only
 narrows what the gate will accept.
 
-Rows 32 through 37 are the round-9 pass, the one that replaced the unrestricted
-signal read with the bounded ungranted-consumer probe. Rows 32 and 33 are the
+Rows 34 through 39 are the round-9 pass, the one that replaced the unrestricted
+signal read with the bounded ungranted-consumer probe. Rows 34 and 35 are the
 two ways the grant-complement ranges can stop being the complement — an
 inverted interior range and a mis-ordered bound list — and both are judged
-against real Postgres, because a fake driver cannot evaluate a range. Row 34 is
+against real Postgres, because a fake driver cannot evaluate a range. Row 36 is
 the plan property the whole rewrite rests on, and it is the only row here whose
 behavioural answer stays correct: the mutated probe returns the right entities
 and reads the whole table to do it, which is why the live guard asserts the plan
-and not only the result. Rows 35 through 37 are the three Go-side bindings: the
+and not only the result. Rows 37 through 39 are the three Go-side bindings: the
 handler consuming the answer, the read refusing an empty grant, and the read
 plan keeping the probe away from a request that named consumers. Row 36 was
 rewritten before it bit — the first version drove the refusal through
