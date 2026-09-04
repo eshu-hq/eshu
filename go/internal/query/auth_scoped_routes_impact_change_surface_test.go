@@ -10,8 +10,6 @@ import (
 	"net/http/httptest"
 	"strings"
 	"testing"
-
-	"github.com/eshu-hq/eshu/go/internal/query/querytestutil"
 )
 
 // auth_scoped_routes_impact_change_surface_test.go continues the #5167 W3
@@ -20,9 +18,9 @@ import (
 // developer-change-plan family, and the deployment-trace family.
 // --- find_change_surface / investigate_change_surface (legacy + investigate) ---
 
-func changeSurfaceRepositoryTargetGraph(t *testing.T) querytestutil.FakeGraphReaderWithSingle {
-	return querytestutil.FakeGraphReaderWithSingle{
-		RunFn: func(_ context.Context, cypher string, _ map[string]any) ([]map[string]any, error) {
+func changeSurfaceRepositoryTargetGraph(t *testing.T) fakeGraphReaderWithSingle {
+	return fakeGraphReaderWithSingle{
+		run: func(_ context.Context, cypher string, _ map[string]any) ([]map[string]any, error) {
 			switch {
 			case strings.Contains(cypher, "MATCH (n:Repository {id: $target})"):
 				return []map[string]any{{"id": "repo-a", "name": "repo-a", "labels": []any{"Repository"}, "repo_id": "repo-a"}}, nil
@@ -195,7 +193,7 @@ func TestInvestigateChangeSurfaceScopedFiltersCrossTenantTopicEvidence(t *testin
 		{SourceKind: "entity", RepoID: "repo-a", RelativePath: "handlers/auth.go", EntityID: "entity-a", EntityName: "Authenticate"},
 		{SourceKind: "entity", RepoID: "repo-b", RelativePath: "handlers/auth.go", EntityID: "entity-b", EntityName: "AuthenticateOther"},
 	}}
-	handler := &ImpactHandler{Neo4j: querytestutil.FakeGraphReaderWithSingle{}, Content: content, Profile: ProfileLocalAuthoritative}
+	handler := &ImpactHandler{Neo4j: fakeGraphReaderWithSingle{}, Content: content, Profile: ProfileLocalAuthoritative}
 	mux := http.NewServeMux()
 	handler.Mount(mux)
 
@@ -229,7 +227,7 @@ func TestAnalyzePreChangeImpactScopedRepoGrantAndDeny(t *testing.T) {
 
 	t.Run("granted repo_id succeeds", func(t *testing.T) {
 		t.Parallel()
-		handler := &ImpactHandler{Neo4j: querytestutil.FakeGraphReaderWithSingle{}, Profile: ProfileLocalAuthoritative}
+		handler := &ImpactHandler{Neo4j: fakeGraphReaderWithSingle{}, Profile: ProfileLocalAuthoritative}
 		mux := http.NewServeMux()
 		handler.Mount(mux)
 		req := httptest.NewRequest(http.MethodPost, "/api/v0/impact/pre-change", bytes.NewBufferString(body))
@@ -244,7 +242,7 @@ func TestAnalyzePreChangeImpactScopedRepoGrantAndDeny(t *testing.T) {
 
 	t.Run("denied repo_id renders not found", func(t *testing.T) {
 		t.Parallel()
-		handler := &ImpactHandler{Neo4j: querytestutil.FakeGraphReaderWithSingle{}, Profile: ProfileLocalAuthoritative}
+		handler := &ImpactHandler{Neo4j: fakeGraphReaderWithSingle{}, Profile: ProfileLocalAuthoritative}
 		mux := http.NewServeMux()
 		handler.Mount(mux)
 		req := httptest.NewRequest(http.MethodPost, "/api/v0/impact/pre-change", bytes.NewBufferString(body))
@@ -267,7 +265,7 @@ func TestPlanDeveloperChangeScopedRepoGrantAndDeny(t *testing.T) {
 
 	t.Run("granted repo_id succeeds", func(t *testing.T) {
 		t.Parallel()
-		handler := &ImpactHandler{Neo4j: querytestutil.FakeGraphReaderWithSingle{}, Profile: ProfileLocalAuthoritative}
+		handler := &ImpactHandler{Neo4j: fakeGraphReaderWithSingle{}, Profile: ProfileLocalAuthoritative}
 		mux := http.NewServeMux()
 		handler.Mount(mux)
 		req := httptest.NewRequest(http.MethodPost, "/api/v0/impact/developer-change-plan", bytes.NewBufferString(body))
@@ -282,7 +280,7 @@ func TestPlanDeveloperChangeScopedRepoGrantAndDeny(t *testing.T) {
 
 	t.Run("denied repo_id renders not found", func(t *testing.T) {
 		t.Parallel()
-		handler := &ImpactHandler{Neo4j: querytestutil.FakeGraphReaderWithSingle{}, Profile: ProfileLocalAuthoritative}
+		handler := &ImpactHandler{Neo4j: fakeGraphReaderWithSingle{}, Profile: ProfileLocalAuthoritative}
 		mux := http.NewServeMux()
 		handler.Mount(mux)
 		req := httptest.NewRequest(http.MethodPost, "/api/v0/impact/developer-change-plan", bytes.NewBufferString(body))
@@ -305,7 +303,7 @@ func TestAuthMiddlewareWithScopedTokensAllowsPreChangeFamily(t *testing.T) {
 	for _, path := range []string{"/api/v0/impact/pre-change", "/api/v0/impact/developer-change-plan"} {
 		t.Run(path, func(t *testing.T) {
 			t.Parallel()
-			handler := &ImpactHandler{Neo4j: querytestutil.FakeGraphReaderWithSingle{}, Profile: ProfileLocalAuthoritative}
+			handler := &ImpactHandler{Neo4j: fakeGraphReaderWithSingle{}, Profile: ProfileLocalAuthoritative}
 			mux := http.NewServeMux()
 			handler.Mount(mux)
 			resolver := &fakeScopedTokenResolver{context: scopedTestAuthContext("tenant-a", []string{"repo-a"}), ok: true}
@@ -331,9 +329,9 @@ func TestAuthMiddlewareWithScopedTokensAllowsPreChangeFamily(t *testing.T) {
 // #5167 W3 filters that row out for a scoped caller. Every other query used
 // by the enrichment pipeline (instances, dependencies, infrastructure, cloud
 // resources) safely returns no rows.
-func deploymentTraceTestGraph() querytestutil.FakeGraphReaderWithSingle {
-	return querytestutil.FakeGraphReaderWithSingle{
-		RunSingleFn: func(_ context.Context, cypher string, _ map[string]any) (map[string]any, error) {
+func deploymentTraceTestGraph() fakeGraphReaderWithSingle {
+	return fakeGraphReaderWithSingle{
+		runSingle: func(_ context.Context, cypher string, _ map[string]any) (map[string]any, error) {
 			switch {
 			case strings.Contains(cypher, "MATCH (w:Workload) WHERE"):
 				return map[string]any{"id": "workload:orders-api", "name": "orders-api", "kind": "service", "repo_id": "repo-a"}, nil
@@ -343,7 +341,7 @@ func deploymentTraceTestGraph() querytestutil.FakeGraphReaderWithSingle {
 				return nil, nil
 			}
 		},
-		RunFn: func(_ context.Context, cypher string, _ map[string]any) ([]map[string]any, error) {
+		run: func(_ context.Context, cypher string, _ map[string]any) ([]map[string]any, error) {
 			if strings.Contains(cypher, "DEPLOYMENT_SOURCE") {
 				return []map[string]any{
 					{"repo_id": "repo-a", "repo_name": "orders-api-repo", "confidence": 1.0, "reason": "canonical"},
