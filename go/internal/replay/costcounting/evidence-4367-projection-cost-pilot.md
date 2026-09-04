@@ -21,7 +21,7 @@ deterministic cost-counting scenarios, one per reducer projection domain:
 - `projection:semantic_entity_materialization` — new scenario
   (`semantic_entity_cost_test.go`) driving
   `storage/cypher.SemanticEntityWriter.WriteSemanticEntities` (the writer
-  `reducer.SemanticEntityMaterializationHandler.Handle` calls,
+  `reducer/semanticentity.SemanticEntityMaterializationHandler.Handle` calls,
   `go/internal/reducer/semanticentity/materialization.go`).
 - `projection:documentation_materialization` — new scenario
   (`documentation_edges_cost_test.go`) driving
