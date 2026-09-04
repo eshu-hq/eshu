@@ -36,11 +36,18 @@ type GraphProjectionPhaseRepair struct {
 // must be retried later after a publish failure.
 //
 // Declared locally for the same reason as GraphProjectionPhaseRepair above,
-// and narrowed to the one method this package calls: Go interfaces are
-// satisfied structurally, so the same concrete repair queue cmd/reducer wires
-// into the root's wider GraphProjectionPhaseRepairQueue (which also needs
-// ListDue/Delete/MarkFailed for the root's repair runner) also satisfies this
-// narrower local declaration without any code duplication.
+// and narrowed to the one method this package calls: Enqueue. But because
+// Enqueue's parameter names GraphProjectionPhaseRepair — a struct, not an
+// interface — Go requires exact type identity between this package's
+// GraphProjectionPhaseRepair and the root's, even though every field
+// matches. So the root's concrete repair queue cannot satisfy this
+// declaration directly; cmd/reducer wires it in through
+// semanticEntityRepairQueueAdapter
+// (internal/reducer/semantic_entity_repair_queue_adapter.go), a narrow
+// translation between the two named types. This declaration still earns its
+// place: the package must not import the reducer root (issue #6061), so it
+// cannot reference the root's wider GraphProjectionPhaseRepairQueue (which
+// also needs ListDue/Delete/MarkFailed for the root's repair runner) at all.
 type GraphProjectionPhaseRepairQueue interface {
 	Enqueue(context.Context, []GraphProjectionPhaseRepair) error
 }
