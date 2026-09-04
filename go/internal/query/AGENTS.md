@@ -237,7 +237,7 @@
   from a granted one and to the next (repository, scope) PAIR from an ungranted
   one, on migration 101's index, seeks each pair's active row by full key
   equality, stops at the first hidden one, and returns producer entity ids only.
-  Fan-in, grant size, retained generations and scopes per granted repository are all off its cost; measured in [#5167 batch 1](../../../docs/internal/evidence/5167-code-family-batch-1.md).
+  Fan-in, grant size, retained generations and scopes per granted repository are all off its cost; measured in [#5167 hidden-consumer walk](../../../docs/internal/evidence/5167-cross-repo-hidden-consumer-walk.md).
 
 - **A granted consumer outranks a hidden one on every dead-code route** — a
   strong granted edge or consumer settles a candidate reachable/live; a hidden

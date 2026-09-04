@@ -247,7 +247,7 @@ func TestCrossRepoDeadCodeUngrantedConsumerProbeLive(t *testing.T) {
 		// Which index the planner picks is left alone deliberately; the index
 		// the migrations must leave behind is asserted separately, and the plan
 		// it produces at corpus scale is measured in
-		// docs/internal/evidence/5167-code-family-batch-1.md.
+		// docs/internal/evidence/5167-cross-repo-hidden-consumer-walk.md.
 		assertCrossRepoDeadCodeProbeIndexExists(ctx, t, db)
 		// Both plan modes, because they are not the same question. pgx caches
 		// server-side prepared statements, so these reads run on a GENERIC

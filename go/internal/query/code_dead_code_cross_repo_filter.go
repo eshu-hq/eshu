@@ -194,12 +194,12 @@ func crossRepoDeadCodeUnknownReasons(
 // bound. Nothing in the cost grows with the entity's row fan-in, with N alone,
 // or -- this is what migration 101 bought over the two-column index it
 // supersedes -- with how many superseded generations the retention runner is
-// still keeping. Measured in [#5167 batch 1]: 5.13/8.14/9.78 ms and
+// still keeping. Measured in [#5167 hidden-consumer walk]: 5.13/8.14/9.78 ms and
 // 3,270/3,268/3,263 buffers at 0, 20 and 200 retained generations, against
 // 22.3/89.2/630.4 ms and 39,403/154,603/1,150,489 buffers for the shape that
 // scanned the group.
 //
-// [#5167 batch 1]: ../../../docs/internal/evidence/5167-code-family-batch-1.md
+// [#5167 hidden-consumer walk]: ../../../docs/internal/evidence/5167-cross-repo-hidden-consumer-walk.md
 //
 // Five details are load-bearing:
 //
