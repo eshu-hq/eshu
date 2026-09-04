@@ -162,6 +162,13 @@ is ambiguous, it returns bounded candidates instead of guessing. It supports
 direct relationships, bounded transitive `CALLS`, class hierarchy prompts, and
 override prompts.
 
+On a Neo4j deployment this route's result set changes for every caller,
+including shared-key and admin ones. Its statement anchored the requested symbol
+in a clause that did not constrain the driving rows, so it returned every
+`CALLS` edge in the graph up to `limit` rather than the anchor's own edges. It
+returns the anchor's edges now. A client that was reading whatever that page
+happened to contain will see a different — and correct — answer.
+
 A scoped token gets only granted repositories, and that now covers every part of
 the answer: the relationship rows, the class-hierarchy methods and inheritance
 depths, the override rows, and the ambiguity candidate list. The candidate list
@@ -325,14 +332,21 @@ or between `start_entity_id` and `end_entity_id`. `repo_id` scopes both
 endpoints when provided. Lightweight profiles that cannot answer authoritative
 graph traversal return `unsupported_capability` rather than fallback prose.
 
-A scoped token gets only chains whose every hop is in a granted repository. The
-bound applies per hop as the traversal expands, so a chain that exists only by
-passing through an ungranted repository is not returned at all rather than
-returned with that hop hidden. A hop the graph cannot attribute to any
-repository is dropped for a scoped caller. Naming an ungranted repository in
-`repo_id`, `start_repo_id`, or `end_repo_id` returns `400`; a token with no
-repository grants gets `"chains": []` without the graph being read, which is the
-same answer as "no chain found".
+A scoped token gets only chains whose every hop is in a granted repository —
+the two endpoints and every node between them. A chain that exists only by
+passing through an ungranted repository is not returned at all, rather than
+returned with that hop hidden, and a hop the graph cannot attribute to any
+repository is dropped. Naming an ungranted repository in `repo_id`,
+`start_repo_id`, or `end_repo_id` returns `400`; a token with no repository
+grants gets `"chains": []` without the graph being read, which is the same
+answer as "no chain found".
+
+Two things changed for callers of every class, scoped or not. The `repo_id` and
+`cross_repo` traversal bound used to be written where it decided nothing and now
+applies, so a request that passes either gets a correctly narrower hop set than
+before. And a hop whose repository the graph knows only through a
+`REPO_CONTAINS` edge, with no `repo_id` of its own, is now dropped rather than
+admitted by a fallback the bound could not evaluate in its new position.
 
 ## Dead Code
 

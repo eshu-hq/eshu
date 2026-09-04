@@ -143,7 +143,7 @@ func buildCallChainCypher(
 	access repositoryAccessFilter,
 ) (string, map[string]any) {
 	params := map[string]any{}
-	predicates := make([]string, 0, 2)
+	predicates := make([]string, 0, 6)
 
 	if backend == GraphBackendNornicDB {
 		return buildNornicDBCallChainCypher(req, access)
@@ -194,10 +194,8 @@ func buildCallChainCypher(
 	fmt.Fprint(&cypher, req.MaxDepth)
 	cypher.WriteString("]->(end)\n")
 	cypher.WriteString("\t\t)\n")
-	if req.CrossRepo {
-		cypher.WriteString("\t\tWHERE all(node IN nodes(path) WHERE coalesce(node.repo_id, '') IN $traversal_repo_ids)\n")
-	} else if strings.TrimSpace(req.RepoID) != "" {
-		cypher.WriteString("\t\tWHERE all(node IN nodes(path) WHERE coalesce(node.repo_id, '') = $repo_id)\n")
+	if hops := callChainPathHopPredicates(req, access); len(hops) > 0 {
+		cypher.WriteString("\t\tWHERE all(node IN nodes(path) WHERE " + strings.Join(hops, " AND ") + ")\n")
 	}
 	if backend == GraphBackendNornicDB {
 		// NornicDB resolves this path correctly with raw nodes(path) results,
@@ -209,6 +207,46 @@ func buildCallChainCypher(
 	cypher.WriteString("\t\t       length(path) as depth\n")
 	cypher.WriteString("\t\tLIMIT 5\n\t")
 	return cypher.String(), params
+}
+
+// callChainPathHopPredicates returns the conditions every node on a returned
+// call chain must satisfy, for the Neo4j-compat shortestPath read.
+//
+// Binding the two endpoints is not enough here. The projection returns EVERY
+// node on the path -- id, name, labels, language, docstring, method_kind -- so a
+// chain whose endpoints are both in grant can still carry an interior hop from a
+// repository the caller was never granted. The endpoint predicates live in the
+// anchoring WHERE; this is the only clause that reaches the hops between them.
+//
+// The caller's grant is a conjunct beside the request's own traversal bound
+// rather than a replacement for it: cross_repo and repo_id already narrow the
+// path to the selectors the caller named, and the grant narrows it to what the
+// caller may read at all. A scoped caller who names neither -- which the route
+// permits -- gets the grant conjunct alone, which is the case that was
+// previously unbounded.
+//
+// This shape is deliberately NOT mirrored into buildNornicDBCallChainCypher.
+// A list-membership test inside all(node IN nodes(path) ...) is not evaluated on
+// the pinned NornicDB build (see the path-predicate table in
+// docs/public/reference/nornicdb-query-pitfalls.md), so writing it there would
+// be grant text that grants nothing -- the exact defect this batch fixed. That
+// lane bounds each hop as its Go-side traversal expands instead
+// (nornicDBCallChainOneHopRows), and its shortestPath builder is unreachable
+// from handleCallChain.
+func callChainPathHopPredicates(req callChainRequest, access repositoryAccessFilter) []string {
+	predicates := make([]string, 0, 2)
+	switch {
+	case req.CrossRepo:
+		predicates = append(predicates, "coalesce(node.repo_id, '') IN $traversal_repo_ids")
+	case strings.TrimSpace(req.RepoID) != "":
+		predicates = append(predicates, "coalesce(node.repo_id, '') = $repo_id")
+	}
+	if access.Scoped() {
+		predicates = append(predicates,
+			"(coalesce(node.repo_id, '') IN $allowed_repository_ids"+
+				" OR coalesce(node.repo_id, '') IN $allowed_scope_ids)")
+	}
+	return predicates
 }
 
 func normalizeCallChainNodes(raw any) []any {

@@ -516,8 +516,9 @@ MATCH path = (handler:Function)-[:CALLS*1..5]->(callee) WHERE handler.id = $hid
 RETURN nodes(path) AS chain
 ```
 
-A path whose BOTH endpoints are pre-bound in their own `MATCH` clauses works
-without a label on the path pattern (e.g. `buildNornicDBCallChainCypher`'s
+**Superseded on the current pin — read the correction below before relying on
+this paragraph.** A path whose BOTH endpoints are pre-bound in their own `MATCH`
+clauses works without a label on the path pattern (e.g. `buildNornicDBCallChainCypher`'s
 `MATCH (start {uid:$s}) MATCH (end {uid:$e}) MATCH path=shortestPath((start)-[:CALLS*1..N]->(end))`),
 because the endpoints are already bound nodes. Only a fresh-variable far end
 needs the anchored end labelled.
