@@ -30,7 +30,7 @@
   (`../observabilitycoveragematerialization/materialization_intents.go`) keeps
   the same set
   and both mirror the reducer's `observabilityResourceSignals`
-  (`go/internal/reducer/observability_coverage_correlation_index.go`). A
+  (`go/internal/reducer/obscoverage/observability_coverage_correlation_index.go`). A
   resource type added to one copy must be added to all three.
 - `observabilitySourceSystem` keeps the family's literal third-tier
   `"observability"` fallback. It is NOT body-identical to the two-tier

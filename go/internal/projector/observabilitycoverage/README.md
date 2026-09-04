@@ -61,7 +61,7 @@ metric, or log boundary.
   root's materialization-trigger copy
   (`../observabilitycoveragematerialization/materialization_intents.go`), and the
   reducer's `observabilityResourceSignals`
-  (`go/internal/reducer/observability_coverage_correlation_index.go`) must
+  (`go/internal/reducer/obscoverage/observability_coverage_correlation_index.go`) must
   agree on what counts as an observability object. Add a resource type to
   all three or the triggers and the classifier diverge.
 - The candidate-kind predicate mirrors the trigger's kind-level branches so

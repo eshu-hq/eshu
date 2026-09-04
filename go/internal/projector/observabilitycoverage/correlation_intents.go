@@ -17,7 +17,7 @@ import (
 // observability-coverage materialization trigger keeps
 // (go/internal/projector/observabilitycoveragematerialization/materialization_intents.go),
 // and both mirror the reducer's observabilityResourceSignals map
-// (go/internal/reducer/observability_coverage_correlation_index.go) so the
+// (go/internal/reducer/obscoverage/observability_coverage_correlation_index.go) so the
 // triggers and the classifier agree on what counts as an observability
 // object. A resource type added to one copy must be added to all three.
 var observabilityResourceTypes = map[string]struct{}{

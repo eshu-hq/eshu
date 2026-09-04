@@ -167,7 +167,7 @@
   materialization trigger
   (`observabilitycoveragematerialization/materialization_intents.go`) and the reducer's
   `observabilityResourceSignals`
-  (`go/internal/reducer/observability_coverage_correlation_index.go`); a
+  (`go/internal/reducer/obscoverage/observability_coverage_correlation_index.go`); a
   resource type added to one copy must be added to all three. The root
   `firstMatchingKindPredicate` forwarder was removed with this extraction —
   this family was its last root caller; remaining root builders use
