@@ -70,8 +70,8 @@ call sites **outside `internal/parser`** route through
 | 8 | `internal/storage/postgres/ingestion_backfill_pool.go` | `deferredBackfillWorkerCount` |
 | 9 | `internal/reducer/shared_projection_config.go` | `defaultSharedProjectionWorkers` |
 | 10 | `internal/reducer/code_reachability_projection_runner.go` | `(*CodeReachabilityProjectionRunner).concurrency` |
-| 11 | `internal/reducer/value_flow_fixpoint_cache.go` | inline semaphore size (value-flow fixpoint cache worker pool) |
-| 12 | `internal/reducer/value_flow_fixpoint_snapshot.go` | inline semaphore size (value-flow fixpoint snapshot worker pool) |
+| 11 | `internal/reducer/valueflow/value_flow_fixpoint_cache.go` | inline semaphore size (value-flow fixpoint cache worker pool) |
+| 12 | `internal/reducer/valueflow/value_flow_fixpoint_snapshot.go` | inline semaphore size (value-flow fixpoint snapshot worker pool) |
 | 13 | `internal/collector/git_selection_config.go` (2 sites) | `snapshotWorkerCount`, `parseWorkerCount` |
 | 14 | `cmd/eshu/local_host.go` | `localHostNumCPU` var (was `runtime.NumCPU`, a bare function value with no parens — missed by the original `runtime\.NumCPU\(\)` grep because it has no parens) |
 
