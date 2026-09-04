@@ -20,16 +20,16 @@ func buildLanguageCypher(language, label, query, repoID string, limit int) (stri
 
 // buildLanguageCypherWithSemanticFilter dispatches the route's four graph
 // builders. access is the caller's repository grant: each builder appends it to
-// the WHERE of the required MATCH block that binds Repository -- the same WHERE
-// that already carries the optional `r.id = $repo_id` anchor -- so it lands
-// ahead of every WITH, ORDER BY and LIMIT, and merges the grant arrays into the
-// params through GraphParams.
+// the WHERE of the required MATCH that binds Repository -- the same WHERE that
+// already carries the optional `r.id = $repo_id` anchor -- so it lands ahead of
+// every WITH, ORDER BY and LIMIT, and merges the grant arrays into the params
+// through GraphParams.
 //
-// "MATCH block" rather than "the anchoring MATCH" because buildDirectoryCypher
-// is written as two MATCH clauses and hangs its WHERE on the second, while `r`
-// is bound in the first. Both are required, so the predicate constrains the
-// joined row set and `r` is genuinely filtered; the wording just has to survive
-// a reader checking it against that builder.
+// All four builders now emit a single MATCH clause, so the grant lands in the
+// anchoring MATCH's own WHERE in every one of them. buildDirectoryCypher used
+// to be the exception -- two MATCH clauses with the WHERE on the second while
+// `r` was bound in the first -- and it was rewritten to one clause for a
+// backend reason of its own, described on that function.
 //
 // The Repository binding is non-optional in all four patterns, so the condition
 // decides row membership rather than nulling a projection (the OPTIONAL MATCH
@@ -115,12 +115,33 @@ func buildRepositoryCypher(language, query, repoID string, limit int, access rep
 
 // buildDirectoryCypher returns a query for directories containing files in the
 // given language.
+//
+// The three-node join is written as ONE linear pattern rather than the two
+// MATCH clauses it used to be, and that is a correctness fix, not style. On the
+// pinned NornicDB build a read with two MATCH clauses followed by a
+// `WITH ... count(...)` aggregation returns ZERO rows as soon as the RETURN
+// projects anything richer than a plain property or a literal -- `labels(d)`
+// here, but `coalesce(...)` and a list construction do it too. It is a row
+// drop, not an error, so this route answered `entity_type: "directory"` with an
+// empty list on the default backend for every caller and said nothing about it.
+// One MATCH clause evaluates the identical join correctly. The reproduction and
+// the four-probe bisection are in
+// TestLiveNornicDBLanguageQueryDirectoryBuilderReturnsNothing and in
+// docs/public/reference/nornicdb-query-pitfalls.md.
+//
+// The direction is anchored at File deliberately. Writing the same single
+// clause forward from Repository --
+// `(r:Repository)-[:REPO_CONTAINS|CONTAINS*]->(d:Directory)-[:CONTAINS]->(f:File)`
+// -- was measured on the same build and returns WRONG counts: a nested
+// directory's file is folded into its parent's `file_count` and the nested
+// directory disappears from the answer. Anchoring at File keeps the last
+// CONTAINS hop out of the variable-length chain, so `d` binds to the directory
+// that directly holds each file, which is what `count(f)` has to mean.
 func buildDirectoryCypher(language, extFilter, query, repoID string, params map[string]any, access repositoryAccessFilter) (string, map[string]any) {
 	params["language_title"] = strings.Title(language) //nolint:staticcheck
 
 	cypher := `
-		MATCH (d:Directory)<-[:REPO_CONTAINS|CONTAINS*]-(r:Repository)
-		MATCH (d)-[:CONTAINS]->(f:File)
+		MATCH (f:File)<-[:CONTAINS]-(d:Directory)<-[:REPO_CONTAINS|CONTAINS*]-(r:Repository)
 		WHERE (f.language = $language OR f.language = $language_title` + extFilter + `)
 	`
 

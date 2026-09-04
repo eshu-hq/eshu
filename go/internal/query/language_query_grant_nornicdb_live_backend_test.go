@@ -19,27 +19,28 @@ import (
 	neo4jdriver "github.com/neo4j/neo4j-go-driver/v5/neo4j"
 )
 
-// TestLiveNornicDBLanguageQueryDirectoryBuilderReturnsNothing is the fourth
-// language builder's result, and it is not a grant result.
+// TestLiveNornicDBLanguageQueryDirectoryBuilderReturnsNothing is the negative
+// control for the backend defect buildDirectoryCypher was rewritten around.
 //
-// buildDirectoryCypher returns ZERO rows on the pinned build, scoped and
-// unscoped alike, against a graph seeded exactly the way the canonical
-// projector writes directories. So `entity_type: "directory"` on
-// POST /api/v0/code/language-query answers an empty results list on the default
-// graph backend for every caller. That is pre-existing and independent of this
-// branch: the same statement minus the grant is equally empty.
+// The name is kept from when the shipped builder was the thing returning
+// nothing. It no longer is: the builder emits one MATCH clause now and
+// TestLiveNornicDBLanguageQueryGrantBindsEveryBuilder proves it answers, with
+// the grant bound, alongside the other three. What still returns nothing is the
+// SHAPE it used to have, and that is what this pins.
 //
-// The cause is a pinned-backend defect, bisected below and recorded in
-// docs/public/reference/nornicdb-query-pitfalls.md: a statement with TWO MATCH
-// clauses followed by a `WITH <node>, <node>, count(...)` aggregation returns
-// nothing as soon as any labels() call appears, in the RETURN or in the WITH.
-// It is not the grant, not the variable-length REPO_CONTAINS|CONTAINS pattern,
-// and not the language OR-chain.
+// On the pinned build a read with two MATCH clauses followed by a
+// `WITH <node>, <node>, count(...)` aggregation drops every row as soon as the
+// RETURN projects anything richer than a plain property reference or a literal.
+// A function call does it -- `labels()` and `coalesce()` alike -- and so does a
+// list construction, whether the list is a literal or built from a property. A
+// plain property, a null property and a string literal are all fine. Collapsing
+// the two clauses into one linear pattern fixes every case.
 //
-// This test therefore pins the defect rather than the grant. It fails the day
-// the backend starts answering, which is the day this builder's grant becomes
-// provable the way the other three already are -- swap it back into
-// TestLiveNornicDBLanguageQueryGrantBindsEveryBuilder then.
+// No CI job builds this tag, so this control only fires when someone runs it.
+// Run it against the pin before reshaping any aggregating read in this package,
+// and again after moving the pin: a failure here means the backend behaviour
+// the Directory rewrite was built around has changed, and the shape should be
+// re-measured rather than quietly reverted.
 func TestLiveNornicDBLanguageQueryDirectoryBuilderReturnsNothing(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), time.Minute)
 	defer cancel()
@@ -47,46 +48,63 @@ func TestLiveNornicDBLanguageQueryDirectoryBuilderReturnsNothing(t *testing.T) {
 	defer func() { _ = driver.Close(context.Background()) }()
 	seedLiveGrantGraph(ctx, t, driver)
 
-	for _, access := range []struct {
-		name   string
-		filter repositoryAccessFilter
-	}{
-		{name: "scoped", filter: liveGrantAccess()},
-		{name: "unscoped", filter: liveGrantUnscopedAccess()},
-	} {
-		cypher, params := buildLanguageCypherWithSemanticFilter(
-			liveGrantLanguage, "Directory", "", "", 3, "", "", access.filter,
-		)
-		rows := runLiveGrantStatement(ctx, t, driver, "buildDirectoryCypher "+access.name, cypher, params)
-		if len(rows) != 0 {
-			t.Fatalf("buildDirectoryCypher %s returned %d row(s); the pinned build used to answer none, so the directory entity type may now work -- prove its grant alongside the other three builders and update the evidence doc: %#v",
-				access.name, len(rows), rows)
+	// The shipped builder, which must now answer. If this ever returns nothing
+	// again, the rewrite has been undone or the backend has changed under it.
+	cypher, params := buildLanguageCypherWithSemanticFilter(
+		liveGrantLanguage, "Directory", "", "", 3, "", "", liveGrantAccess(),
+	)
+	rows := runLiveGrantStatement(ctx, t, driver, "buildDirectoryCypher shipped", cypher, params)
+	if len(rows) == 0 {
+		t.Fatal("buildDirectoryCypher returned nothing; the single-clause rewrite is the whole reason this route answers on NornicDB")
+	}
+	// Presence is not enough. The forward single-clause rewrite
+	// `(r:Repository)-[:REPO_CONTAINS|CONTAINS*]->(d:Directory)-[:CONTAINS]->(f:File)`
+	// also returns rows on this build, but WRONG ones: it folds the nested
+	// directory's file into the parent's file_count and drops the nested
+	// directory from the answer entirely. Only the counts catch that, so the
+	// granted repository's two directories are named and counted here.
+	counts := make(map[string]int, len(rows))
+	for _, row := range rows {
+		counts[StringVal(row, "name")] = IntVal(row, "file_count")
+	}
+	for name, want := range map[string]int{"z-src-0": 1, "nested": 1} {
+		got, ok := counts[name]
+		if !ok {
+			t.Fatalf("buildDirectoryCypher lost directory %q: %#v; a rewrite that stops walking the depth-N CONTAINS chain looks like this", name, counts)
+		}
+		if got != want {
+			t.Fatalf("buildDirectoryCypher counted %d file(s) in %q, want %d: %#v; a rewrite that folds a nested directory's file into its parent looks like this", got, name, want, counts)
 		}
 	}
 
-	// The bisection, so the cause is recorded as a measurement rather than a
-	// sentence. Only the labels() variants are empty.
 	twoClause := `MATCH (d:Directory)<-[:CONTAINS]-(r:Repository)
 MATCH (d)-[:CONTAINS]->(f:File)
+WITH d, r, count(f) as c
 `
-	oneClause := `MATCH (r:Repository)-[:CONTAINS]->(d:Directory)-[:CONTAINS]->(f:File)
+	oneClause := `MATCH (f:File)<-[:CONTAINS]-(d:Directory)<-[:CONTAINS]-(r:Repository)
+WITH d, r, count(f) as c
 `
 	for _, probe := range []struct {
 		name     string
 		cypher   string
 		wantRows bool
 	}{
-		{name: "two MATCH, aggregation, labels() in RETURN", cypher: twoClause + `WITH d, r, count(f) as c RETURN d.name as name, labels(d) as labels, c`},
-		{name: "two MATCH, aggregation, labels() computed in the WITH", cypher: twoClause + `WITH d, r, labels(d) as ls, count(f) as c RETURN d.name as name, ls as labels, c`},
-		{name: "two MATCH, aggregation, no labels()", cypher: twoClause + `WITH d, r, count(f) as c RETURN d.name as name, r.id as rid, c`, wantRows: true},
-		{name: "one MATCH, aggregation, labels() in RETURN", cypher: oneClause + `WITH d, r, count(f) as c RETURN d.name as name, labels(d) as labels, c`, wantRows: true},
+		{name: "two clauses, plain properties", cypher: twoClause + `RETURN d.name as name, r.id as rid, c`, wantRows: true},
+		{name: "two clauses, a property that is null", cypher: twoClause + `RETURN d.name as name, d.id as entity_id, c`, wantRows: true},
+		{name: "two clauses, a string literal", cypher: twoClause + `RETURN d.name as name, 'Directory' as labels, c`, wantRows: true},
+		{name: "two clauses, labels()", cypher: twoClause + `RETURN d.name as name, labels(d) as labels, c`},
+		{name: "two clauses, coalesce()", cypher: twoClause + `RETURN d.name as name, coalesce(d.id, d.path) as x, c`},
+		{name: "two clauses, a list literal", cypher: twoClause + `RETURN d.name as name, ['Directory'] as labels, c`},
+		{name: "two clauses, a list built from a property", cypher: twoClause + `RETURN d.name as name, [d.name] as labels, c`},
+		{name: "one clause, labels()", cypher: oneClause + `RETURN d.name as name, labels(d) as labels, c`, wantRows: true},
+		{name: "one clause, a list literal", cypher: oneClause + `RETURN d.name as name, ['Directory'] as labels, c`, wantRows: true},
 	} {
 		rows := runLiveGrantStatement(ctx, t, driver, "directory bisection: "+probe.name, probe.cypher, nil)
 		if probe.wantRows && len(rows) == 0 {
 			t.Fatalf("directory bisection %q returned nothing, so the cause recorded in the pitfalls doc is wrong; re-measure before trusting it", probe.name)
 		}
 		if !probe.wantRows && len(rows) != 0 {
-			t.Fatalf("directory bisection %q returned %d row(s); the pinned build's labels()-after-aggregation defect has changed, so re-measure it", probe.name, len(rows))
+			t.Fatalf("directory bisection %q returned %d row(s); the pinned build's two-clause projection defect has changed, so re-measure it before relying on either shape", probe.name, len(rows))
 		}
 	}
 }

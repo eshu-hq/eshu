@@ -250,6 +250,11 @@ func TestLiveNornicDBLanguageQueryGrantBindsEveryBuilder(t *testing.T) {
 		{name: "buildRepositoryCypher", build: build("Repository", 1)},
 		// File and entity: ORDER BY relative_path, and the out-of-grant paths
 		// sort first.
+		// Directory: ORDER BY file_count DESC. Each out-of-grant directory holds
+		// two files; the granted repository's two hold one each, and the second
+		// of them is nested a level down, so this also proves the rewritten
+		// builder still walks the depth-N CONTAINS chain the projector writes.
+		{name: "buildDirectoryCypher", build: build("Directory", 3)},
 		{name: "buildFileCypher", build: build("File", 2)},
 		{name: "buildEntityCypherWithSemanticFilter", build: build("Function", 2)},
 		{
@@ -287,6 +292,7 @@ func seedLiveGrantGraph(ctx context.Context, t *testing.T, driver neo4jdriver.Dr
 		`MERGE (m:Module {name:"` + liveGrantImportedModue + `", lang:"` + liveGrantLanguage + `"})`,
 	}
 	statements = append(statements, liveGrantRepositoryStatements(liveGrantRepo, "z-src", liveGrantGrantedMarker, 1)...)
+	statements = append(statements, liveGrantNestedDirectoryStatements()...)
 	statements = append(statements, liveGrantRepositoryStatements(liveGrantOtherRepo, "a-src", liveGrantOtherMarker, liveGrantOutOfGrantRows)...)
 	for _, stmt := range statements {
 		if _, err := session.Run(ctx, stmt, nil); err != nil {
@@ -361,6 +367,29 @@ func liveGrantFileStatements(repoID, dirPath, filePath, relativePath, marker str
 		fmt.Sprintf(`MERGE (m:Module {name:%q, lang:%q})`, liveGrantOwnModule(marker, index), liveGrantLanguage),
 		fmt.Sprintf(`MATCH (f:File {path:%q}),(m:Module {name:%q, lang:%q}) MERGE (f)-[r:IMPORTS]->(m) SET r.imported_name=%q, r.alias=%q, r.line_number=%d`,
 			filePath, liveGrantOwnModule(marker, index), liveGrantLanguage, liveGrantOwnModule(marker, index), marker, index+2),
+	}
+}
+
+// liveGrantNestedDirectoryStatements adds one directory a level below the
+// granted repository's own, holding one file.
+//
+// The projector reaches a depth-0 directory by Repository-[:CONTAINS]-> and a
+// depth-N one by Directory-[:CONTAINS]->, which is why buildDirectoryCypher
+// walks a variable-length REPO_CONTAINS|CONTAINS chain. Seeding only depth-0
+// directories would let a rewrite that quietly stops walking that chain, or one
+// that folds the file into the parent's count, pass anyway.
+func liveGrantNestedDirectoryStatements() []string {
+	repoPath := "/live/" + liveGrantGrantedMarker
+	parent := repoPath + "/z-src-0"
+	nested := parent + "/nested"
+	filePath := nested + "/deep.py"
+	return []string{
+		fmt.Sprintf(`MERGE (d:Directory {path:%q}) SET d.name="nested", d.repo_id=%q`, nested, liveGrantRepo),
+		fmt.Sprintf(`MATCH (p:Directory {path:%q}),(d:Directory {path:%q}) MERGE (p)-[:CONTAINS]->(d)`, parent, nested),
+		fmt.Sprintf(`MERGE (f:File {path:%q}) SET f.name="deep.py", f.relative_path="z-src-0/nested/deep.py", f.language=%q, f.lang=%q, f.repo_id=%q`,
+			filePath, liveGrantLanguage, liveGrantLanguage, liveGrantRepo),
+		fmt.Sprintf(`MATCH (r:Repository {id:%q}),(f:File {path:%q}) MERGE (r)-[:REPO_CONTAINS]->(f)`, liveGrantRepo, filePath),
+		fmt.Sprintf(`MATCH (d:Directory {path:%q}),(f:File {path:%q}) MERGE (d)-[:CONTAINS]->(f)`, nested, filePath),
 	}
 }
 
