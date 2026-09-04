@@ -6,11 +6,11 @@
 // Full-projection fix-shape probes for #5167 batch 2b, question 3.
 //
 // The reduced-projection candidate in the sibling file proves the predicate
-// position. This file proves the shape the fix would actually ship: the
-// complete nornicDBRelationshipStoryGraphCypher projection, ORDER BY, SKIP and
-// LIMIT, with the grant moved off the trailing OPTIONAL MATCH-attached WHERE
-// and onto the anchoring MATCH's own WHERE against the entity nodes' repo_id --
-// the property the canonical node writer already persists.
+// position. This file proves the shape the fix actually shipped: the complete
+// nornicDBRelationshipStoryGraphCypher projection, ORDER BY, SKIP and LIMIT,
+// with the grant moved off the trailing OPTIONAL MATCH-attached WHERE and onto
+// the anchoring MATCH's own WHERE against the entity nodes' repo_id -- the
+// property the canonical node writer already persists.
 //
 // It matters that the full projection is measured and not only the predicate:
 // the pinned build corrupts projections in some multi-clause shapes, so a

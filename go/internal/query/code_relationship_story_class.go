@@ -20,6 +20,13 @@ func (h *CodeHandler) handleRepoScopedOverrideStory(
 		WriteError(w, http.StatusBadRequest, "repo_id is required for repo-scoped overrides")
 		return
 	}
+	if relationshipStoryGrantBlocked(r.Context(), req) {
+		h.writeRelationshipStory(w, r, req, relationshipStoryResolution{
+			Status: "not_found",
+			RepoID: strings.TrimSpace(req.RepoID),
+		}, nil, TruthBasisContentIndex)
+		return
+	}
 	rows, sourceBackend, basis, err := h.relationshipStoryOverrideRows(r.Context(), req)
 	if err != nil {
 		if err == errSymbolBackendUnavailable {
@@ -140,7 +147,7 @@ func (h *CodeHandler) relationshipStoryClassMethods(
 	if h.graphBackend() == GraphBackendNornicDB {
 		return h.nornicDBRelationshipStoryClassMethods(ctx, req, entityID)
 	}
-	cypher, params := relationshipStoryClassMethodsCypher(req, entityID, graphEntityIDPredicate)
+	cypher, params := relationshipStoryClassMethodsCypher(req, entityID, graphEntityIDPredicate, codeGrantAccessFilter(ctx))
 	return h.Neo4j.Run(ctx, cypher, params)
 }
 
@@ -148,15 +155,23 @@ func relationshipStoryClassMethodsCypher(
 	req relationshipStoryRequest,
 	entityID string,
 	predicate func(string, string) string,
+	access repositoryAccessFilter,
 ) (string, map[string]any) {
 	params := map[string]any{
 		"entity_id": strings.TrimSpace(entityID),
 		"limit":     req.normalizedLimit() + 1,
 		"offset":    req.Offset,
 	}
+	if access.Scoped() {
+		params = access.GraphParams(params)
+	}
+	// Both endpoints bind: a class in grant can contain a method the projector
+	// attributed to another repository, and the method row is what ships.
+	predicates := append([]string{predicate("class", "$entity_id")},
+		relationshipStoryGrantPredicates(access, "class", "method")...)
 	return `
 		MATCH (class)-[:CONTAINS]->(method:Function)
-		WHERE ` + predicate("class", "$entity_id") + `
+		WHERE ` + strings.Join(predicates, " AND ") + `
 		RETURN coalesce(method.id, method.uid) as method_id,
 		       method.name as method_name,
 		       method.path as file_path,
@@ -184,7 +199,7 @@ func (h *CodeHandler) relationshipStoryInheritanceDepthRows(
 	if h.graphBackend() == GraphBackendNornicDB {
 		return h.nornicDBRelationshipStoryInheritanceDepthRows(ctx, req, entityID, direction)
 	}
-	cypher, params := relationshipStoryInheritanceDepthCypher(req, entityID, direction, graphEntityIDPredicate)
+	cypher, params := relationshipStoryInheritanceDepthCypher(req, entityID, direction, graphEntityIDPredicate, codeGrantAccessFilter(ctx))
 	return h.Neo4j.Run(ctx, cypher, params)
 }
 
@@ -193,11 +208,23 @@ func relationshipStoryInheritanceDepthCypher(
 	entityID string,
 	direction string,
 	predicate func(string, string) string,
+	access repositoryAccessFilter,
 ) (string, map[string]any) {
 	maxDepth := normalizedRelationshipStoryMaxDepth(req.MaxDepth)
 	params := map[string]any{
 		"entity_id": strings.TrimSpace(entityID),
 		"limit":     req.normalizedLimit() + 1,
+	}
+	if access.Scoped() {
+		params = access.GraphParams(params)
+	}
+	// Only the two endpoints bind. Bounding every hop would need
+	// all(node IN nodes(path) WHERE node.repo_id IN $ids), and that list form is
+	// inert on the pinned backend -- see the path-predicate table in
+	// docs/internal/evidence/5167-code-family-batch-2b.md.
+	inheritancePredicates := func(anchor string) string {
+		return strings.Join(append([]string{predicate(anchor, "$entity_id")},
+			relationshipStoryGrantPredicates(access, "source", "target")...), " AND ")
 	}
 	if direction == "incoming" {
 		return fmt.Sprintf(`
@@ -211,7 +238,7 @@ func relationshipStoryInheritanceDepthCypher(
 		       length(path) as depth
 		ORDER BY depth DESC, source.name, source_id
 		LIMIT $limit
-	`, maxDepth, predicate("target", "$entity_id")), params
+	`, maxDepth, inheritancePredicates("target")), params
 	}
 	return fmt.Sprintf(`
 		MATCH path = (source:Class)-[:INHERITS*1..%d]->(target:Class)
@@ -224,7 +251,7 @@ func relationshipStoryInheritanceDepthCypher(
 		       length(path) as depth
 		ORDER BY depth DESC, target.name, target_id
 		LIMIT $limit
-	`, maxDepth, predicate("source", "$entity_id")), params
+	`, maxDepth, inheritancePredicates("source")), params
 }
 
 func relationshipStoryEntityID(req relationshipStoryRequest, entity *EntityContent) string {
@@ -301,7 +328,7 @@ func (h *CodeHandler) relationshipStoryOverrideRows(
 	if h == nil || h.Neo4j == nil {
 		return nil, "", "", errSymbolBackendUnavailable
 	}
-	cypher, params := relationshipStoryOverrideRowsCypher(req)
+	cypher, params := relationshipStoryOverrideRowsCypher(req, codeGrantAccessFilter(ctx))
 	rows, err := h.Neo4j.Run(ctx, cypher, params)
 	if err != nil {
 		return nil, "", "", err
@@ -309,12 +336,18 @@ func (h *CodeHandler) relationshipStoryOverrideRows(
 	return rows, "graph", TruthBasisAuthoritativeGraph, nil
 }
 
-func relationshipStoryOverrideRowsCypher(req relationshipStoryRequest) (string, map[string]any) {
+func relationshipStoryOverrideRowsCypher(
+	req relationshipStoryRequest,
+	access repositoryAccessFilter,
+) (string, map[string]any) {
 	params := map[string]any{
 		"repo_id":         strings.TrimSpace(req.RepoID),
 		"limit":           req.normalizedLimit() + 1,
 		"offset":          req.Offset,
 		"override_labels": relationshipStoryOverrideNodeLabels(),
+	}
+	if access.Scoped() {
+		params = access.GraphParams(params)
 	}
 	languagePredicate := ""
 	if language := strings.TrimSpace(req.Language); language != "" {
@@ -323,10 +356,20 @@ func relationshipStoryOverrideRowsCypher(req relationshipStoryRequest) (string, 
 		  AND source.language = $language
 		  AND target.language = $language`
 	}
+	// source is already anchored through the granted repository's own File, so
+	// the grant on it is defense in depth. target is the one that was open: an
+	// OVERRIDES edge can leave the repository, and the row names the target's
+	// id, name and labels.
+	grantPredicate := ""
+	if predicates := relationshipStoryGrantPredicates(access, "source", "target"); len(predicates) > 0 {
+		grantPredicate = `
+		  AND ` + strings.Join(predicates, `
+		  AND `)
+	}
 	return `
 		MATCH (repo:Repository {id: $repo_id})-[:REPO_CONTAINS]->(file:File)-[:CONTAINS]->(source)-[rel:OVERRIDES]->(target)
 		WHERE any(label IN labels(source) WHERE label IN $override_labels)
-		  AND any(label IN labels(target) WHERE label IN $override_labels)` + languagePredicate + `
+		  AND any(label IN labels(target) WHERE label IN $override_labels)` + languagePredicate + grantPredicate + `
 		RETURN 'outgoing' as direction,
 		       type(rel) as type,
 		       rel.reason as reason,

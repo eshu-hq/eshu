@@ -23,7 +23,7 @@ func (h *CodeHandler) nornicDBRelationshipStoryGraphRows(
 	if entity != nil {
 		entityLabel = nornicDBGraphLabelForContentEntityType(entity.EntityType)
 	}
-	access := repositoryAccessFilterFromContext(ctx)
+	access := codeGrantAccessFilter(ctx)
 	properties := []string{"uid", "id"}
 	if req.graphAnchorPropertyResolved {
 		if req.graphAnchorProperty == "" {
@@ -151,14 +151,14 @@ func nornicDBRelationshipStoryGraphCypher(
 	relPattern := ":" + relationshipType
 	entityPattern := nornicDBNodePatternWithProperty("anchor", entityLabel, property, "$entity_id")
 	if direction == "incoming" {
-		predicates := relationshipStoryRepoPredicates(req, access, "targetRepo")
+		predicates := relationshipStoryRepoPredicates(req, access, "source", "anchor", "anchor")
 		return `
 		MATCH ` + entityPattern + `<-[rel` + relPattern + `]-(source)
+		` + nornicDBRelationshipStoryWhere(predicates) + `
 		OPTIONAL MATCH (source)<-[:CONTAINS]-(sourceFile:File)
 		OPTIONAL MATCH (sourceRepo:Repository)-[:REPO_CONTAINS]->(sourceFile)
 		OPTIONAL MATCH (anchor)<-[:CONTAINS]-(targetFile:File)
 		OPTIONAL MATCH (targetRepo:Repository)-[:REPO_CONTAINS]->(targetFile)
-		` + nornicDBRelationshipStoryWhere(predicates) + `
 		RETURN 'incoming' as direction,
 		       '` + relationshipType + `' as type,
 		       'direct_code_edge' as edge_origin,
@@ -194,14 +194,14 @@ func nornicDBRelationshipStoryGraphCypher(
 		LIMIT $limit
 	`, params
 	}
-	predicates := relationshipStoryRepoPredicates(req, access, "sourceRepo")
+	predicates := relationshipStoryRepoPredicates(req, access, "anchor", "target", "anchor")
 	return `
 		MATCH ` + entityPattern + `-[rel` + relPattern + `]->(target)
+		` + nornicDBRelationshipStoryWhere(predicates) + `
 		OPTIONAL MATCH (anchor)<-[:CONTAINS]-(sourceFile:File)
 		OPTIONAL MATCH (sourceRepo:Repository)-[:REPO_CONTAINS]->(sourceFile)
 		OPTIONAL MATCH (target)<-[:CONTAINS]-(targetFile:File)
 		OPTIONAL MATCH (targetRepo:Repository)-[:REPO_CONTAINS]->(targetFile)
-		` + nornicDBRelationshipStoryWhere(predicates) + `
 		RETURN 'outgoing' as direction,
 		       '` + relationshipType + `' as type,
 		       'direct_code_edge' as edge_origin,
@@ -334,8 +334,9 @@ func (h *CodeHandler) nornicDBRelationshipStoryClassMethods(
 	req relationshipStoryRequest,
 	entityID string,
 ) ([]map[string]any, error) {
+	access := codeGrantAccessFilter(ctx)
 	for _, property := range []string{"uid", "id"} {
-		cypher, params := nornicDBRelationshipStoryClassMethodsCypher(req, entityID, property)
+		cypher, params := nornicDBRelationshipStoryClassMethodsCypher(req, entityID, property, access)
 		rows, err := h.Neo4j.Run(ctx, cypher, params)
 		if err != nil {
 			return nil, err
@@ -351,15 +352,23 @@ func nornicDBRelationshipStoryClassMethodsCypher(
 	req relationshipStoryRequest,
 	entityID string,
 	property string,
+	access repositoryAccessFilter,
 ) (string, map[string]any) {
 	params := map[string]any{
 		"entity_id": strings.TrimSpace(entityID),
 		"limit":     req.normalizedLimit() + 1,
 		"offset":    req.Offset,
 	}
+	if access.Scoped() {
+		params = access.GraphParams(params)
+	}
 	classPattern := nornicDBNodePatternWithProperty("class", "Class", property, "$entity_id")
+	// Both endpoints bind: a class in grant can contain a method the projector
+	// attributed to another repository, and the method row is what ships.
+	predicates := relationshipStoryGrantPredicates(access, "class", "method")
 	return `
 		MATCH ` + classPattern + `-[:CONTAINS]->(method:Function)
+		` + nornicDBRelationshipStoryWhere(predicates) + `
 		RETURN method.id as method_legacy_id,
 		       method.uid as method_uid,
 		       method.name as method_name,
@@ -378,8 +387,9 @@ func (h *CodeHandler) nornicDBRelationshipStoryInheritanceDepthRows(
 	entityID string,
 	direction string,
 ) ([]map[string]any, error) {
+	access := codeGrantAccessFilter(ctx)
 	for _, property := range []string{"uid", "id"} {
-		cypher, params := nornicDBRelationshipStoryInheritanceDepthCypher(req, entityID, direction, property)
+		cypher, params := nornicDBRelationshipStoryInheritanceDepthCypher(req, entityID, direction, property, access)
 		rows, err := h.Neo4j.Run(ctx, cypher, params)
 		if err != nil {
 			return nil, err
@@ -396,16 +406,25 @@ func nornicDBRelationshipStoryInheritanceDepthCypher(
 	entityID string,
 	direction string,
 	property string,
+	access repositoryAccessFilter,
 ) (string, map[string]any) {
 	maxDepth := normalizedRelationshipStoryMaxDepth(req.MaxDepth)
 	params := map[string]any{
 		"entity_id": strings.TrimSpace(entityID),
 		"limit":     req.normalizedLimit() + 1,
 	}
+	if access.Scoped() {
+		params = access.GraphParams(params)
+	}
 	anchorPattern := nornicDBNodePatternWithProperty("anchor", "Class", property, "$entity_id")
+	// Only the two endpoints bind. Bounding every hop would need
+	// all(node IN nodes(path) WHERE node.repo_id IN $ids), and that list form is
+	// inert on the pinned backend -- see the path-predicate table in
+	// docs/internal/evidence/5167-code-family-batch-2b.md.
 	if direction == "incoming" {
 		return fmt.Sprintf(`
 		MATCH path = (source:Class)-[:INHERITS*1..%d]->%s
+		`+nornicDBRelationshipStoryWhere(relationshipStoryGrantPredicates(access, "source", "anchor"))+`
 		RETURN 'incoming' as direction,
 		       source.id as source_legacy_id,
 		       source.uid as source_uid,
@@ -420,6 +439,7 @@ func nornicDBRelationshipStoryInheritanceDepthCypher(
 	}
 	return fmt.Sprintf(`
 		MATCH path = %s-[:INHERITS*1..%d]->(target:Class)
+		`+nornicDBRelationshipStoryWhere(relationshipStoryGrantPredicates(access, "anchor", "target"))+`
 		RETURN 'outgoing' as direction,
 		       anchor.id as source_legacy_id,
 		       anchor.uid as source_uid,

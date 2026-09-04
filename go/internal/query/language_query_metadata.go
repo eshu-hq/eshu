@@ -205,14 +205,29 @@ func (h *LanguageQueryHandler) searchLanguageEntities(
 	ctx context.Context,
 	search languageEntitySearch,
 ) ([]EntityContent, error) {
-	if h == nil || h.Content == nil {
+	if h == nil {
 		return nil, fmt.Errorf("content reader is required for %s queries", search.EntityType)
 	}
-	if searcher, ok := h.Content.(languageEntityContentSearcher); ok {
+	return searchEntitiesForGrant(ctx, h.Content, search)
+}
+
+// searchEntitiesForGrant is the handler-independent body of the read above.
+// relationshipStoryGrantedCandidates (code_relationship_story_resolution.go)
+// needs the same grant-bound entity search from CodeHandler, so the dispatch
+// lives here once rather than once per handler.
+func searchEntitiesForGrant(
+	ctx context.Context,
+	content ContentStore,
+	search languageEntitySearch,
+) ([]EntityContent, error) {
+	if content == nil {
+		return nil, fmt.Errorf("content reader is required for %s queries", search.EntityType)
+	}
+	if searcher, ok := content.(languageEntityContentSearcher); ok {
 		return searcher.SearchEntitiesByLanguageAndTypeForAccess(ctx, search)
 	}
 	if search.RepoID != "" || len(search.AllowedRepositoryIDs) == 0 {
-		return h.Content.SearchEntitiesByLanguageAndType(
+		return content.SearchEntitiesByLanguageAndType(
 			ctx, search.RepoID, search.Language, search.EntityType, search.Query, search.Limit,
 		)
 	}
@@ -221,7 +236,7 @@ func (h *LanguageQueryHandler) searchLanguageEntities(
 		if len(entities) >= search.Limit {
 			break
 		}
-		rows, err := h.Content.SearchEntitiesByLanguageAndType(
+		rows, err := content.SearchEntitiesByLanguageAndType(
 			ctx, repoID, search.Language, search.EntityType, search.Query, search.Limit-len(entities),
 		)
 		if err != nil {

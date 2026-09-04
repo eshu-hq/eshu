@@ -116,6 +116,7 @@ func legacyQueryplanProductionCypher(t *testing.T) map[string]string {
 		"entity:proof",
 		"outgoing",
 		"uid",
+		repositoryAccessFilter{AllScopes: true},
 	)
 	hostedRepositoryCount := captureLegacyQueryplanCypher(t, func(graphQuery *legacyQueryplanCaptureGraph) error {
 		handler := &StatusHandler{Neo4j: graphQuery}
