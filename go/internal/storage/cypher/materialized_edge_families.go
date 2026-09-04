@@ -123,15 +123,15 @@ var singleTypeMaterializedEdgeFamilies = map[string]materializedEdgeFamily{
 		RetractCypher:  retractRationaleEdgesCypher,
 		IdentityCypher: batchCanonicalRationaleExplainsEdgeCypher,
 	},
-	// The first two DIRECT-materialization families registered here (#6228).
+	// The first three DIRECT-materialization families registered here (#6228).
 	// Unlike every entry above them, these reach the graph straight from their
 	// own reducer port with no shared-projection intent row in between, so
 	// reducer.DirectMaterializedEdgeFamilies() enumerates them rather than
 	// reducer.MaterializedEdgeFamilies().
 	//
-	// Both types below are read off the Cypher the port executes, never off
+	// All three types below are read off the Cypher the port executes, never off
 	// the port's name and never off its statement-metadata label. That is the
-	// #6181 rule, and both families are cases where the shortcut would have
+	// #6181 rule, and all three families are cases where the shortcut would have
 	// produced the wrong answer:
 	//
 	//   - kubernetes_namespace_environment's port is named
@@ -140,11 +140,15 @@ var singleTypeMaterializedEdgeFamilies = map[string]materializedEdgeFamily{
 	//     iamInstanceProfileRoleEdgeLabel ("IAM_INSTANCE_PROFILE_HAS_ROLE"),
 	//     which is NOT a graph relationship type; the type its template MERGEs
 	//     is HAS_ROLE.
+	//   - workload_cloud_relationship's statement-metadata label is
+	//     workloadCloudRelationshipEdgeLabel ("WORKLOAD_USES_CLOUD_RESOURCE"),
+	//     which is NOT a graph relationship type; the type its template MERGEs
+	//     is USES.
 	//
-	// Neither carries a coverage row yet. Registering a family here makes
+	// None carries a coverage row yet. Registering a family here makes
 	// `eshu-ifa assert-edges -domain <family>` addressable and lets its vacuity
-	// guard resolve; it does not assert that any live matrix drives it. Both
-	// still carry their two waiver rows in
+	// guard resolve; it does not assert that any live matrix drives it. All
+	// three still carry their two waiver rows in
 	// specs/ifa-materialized-edge-coverage-direct.v1.yaml for that reason.
 	//
 	// kubernetes_namespace_environment's write template MERGEs the Environment
@@ -168,6 +172,23 @@ var singleTypeMaterializedEdgeFamilies = map[string]materializedEdgeFamily{
 		EdgeTypes:      map[string]string{"HAS_ROLE": "IAM instance-profile to role attachment (canonicalIAMInstanceProfileRoleEdgeUpsertCypherFormat)"},
 		RetractCypher:  retractIAMInstanceProfileRoleEdgesCypher,
 		IdentityCypher: canonicalIAMInstanceProfileRoleEdgeUpsertCypherFormat,
+	},
+	// workload_cloud_relationship follows the same single-vocabulary shape:
+	// IdentityCypher holds the %s FORMAT const unformatted, and the token
+	// substituted into it comes from workloadCloudRelationshipVocabulary, a
+	// closed single-member set screened per row by
+	// validateWorkloadCloudRelationshipType, so USES is the only type this
+	// writer can emit. The template MERGEs on its two endpoint nodes alone
+	// (the WorkloadInstance is matched, not merged), so the identity scan
+	// yields nothing whether or not the %s has been substituted.
+	// workloadCloudRelationshipEdgeLabel ("WORKLOAD_USES_CLOUD_RESOURCE") is
+	// statement metadata carried beside the query, not a graph relationship
+	// type -- the same #6181-shaped trap iam_instance_profile_role documents
+	// one level below the port name.
+	"workload_cloud_relationship": {
+		EdgeTypes:      map[string]string{"USES": "workload-instance to cloud-resource attachment (workloadCloudRelationshipUpsertCypherFormat)"},
+		RetractCypher:  retractWorkloadCloudRelationshipEdgesCypher,
+		IdentityCypher: workloadCloudRelationshipUpsertCypherFormat,
 	},
 }
 
