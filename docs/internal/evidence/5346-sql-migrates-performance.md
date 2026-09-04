@@ -75,7 +75,7 @@ resolved/unresolved/ambiguous target fixtures.
 Reproduce:
 
 ```bash
-cd go && go test ./internal/parser/sql ./internal/parser ./internal/reducer \
+cd go && go test ./internal/parser/sql ./internal/parser ./internal/reducer/... \
   ./internal/storage/cypher ./internal/query ./internal/content/shape \
   ./internal/collector ./internal/graph ./internal/projector -count=1
 bash scripts/verify-golden-corpus-gate.sh
