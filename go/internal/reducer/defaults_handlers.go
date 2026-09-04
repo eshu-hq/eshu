@@ -7,6 +7,7 @@ import (
 	"log/slog"
 
 	"github.com/eshu-hq/eshu/go/internal/reducer/codetaint"
+	"github.com/eshu-hq/eshu/go/internal/reducer/crossplane"
 	"github.com/eshu-hq/eshu/go/internal/reducer/eshusearch"
 	"github.com/eshu-hq/eshu/go/internal/reducer/incident"
 	"github.com/eshu-hq/eshu/go/internal/reducer/kubernetescorrelation"
@@ -158,7 +159,7 @@ type CrossplaneHandlers struct {
 	// against. It must be non-nil alongside FactLoader for the registry to
 	// register DomainCrossplaneSatisfiedByMaterialization; missing either one
 	// would drop every classification intent before it reaches the graph.
-	CrossplaneSatisfiedByEdgeWriter CrossplaneSatisfiedByEdgeWriter
+	CrossplaneSatisfiedByEdgeWriter crossplane.CrossplaneSatisfiedByEdgeWriter
 	// CrossplaneRedriveTargetLedger records a target Claim scope as durably
 	// satisfied for one XRD (group, claim_kind) identity, once the handler
 	// has actually committed a SATISFIED_BY edge for a claim matching that
@@ -168,7 +169,7 @@ type CrossplaneHandlers struct {
 	// future redrive for that identity, since auto-retry-on-dead-letter is
 	// disabled by default). Optional: nil is safe (no-op), matching
 	// PriorGenerationCheck.
-	CrossplaneRedriveTargetLedger CrossplaneRedriveTargetLedgerWriter
+	CrossplaneRedriveTargetLedger crossplane.CrossplaneRedriveTargetLedgerWriter
 	// CrossplaneSatisfiedByEdgeExistenceReader confirms which resolved rows
 	// actually have a committed SATISFIED_BY edge after a write, gating
 	// CrossplaneRedriveTargetLedger to only the confirmed subset (issue
@@ -176,7 +177,7 @@ type CrossplaneHandlers struct {
 	// risk fencing an unconfirmed target (see
 	// CrossplaneSatisfiedByMaterializationHandler.EdgeExistenceReader's doc
 	// comment).
-	CrossplaneSatisfiedByEdgeExistenceReader GraphQueryRunner
+	CrossplaneSatisfiedByEdgeExistenceReader crossplane.GraphQueryRunner
 }
 
 // SupplyChainSecurityHandlers groups the supply-chain, secrets/IAM, and

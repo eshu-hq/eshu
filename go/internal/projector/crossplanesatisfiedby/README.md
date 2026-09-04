@@ -7,7 +7,7 @@ generation and builds the reducer intent that asks the reducer to run its
 `crossplane_satisfied_by_materialization` join. The trigger fires on the
 earliest `content_entity` fact whose `entity_kind` (falling back to
 `entity_type`) is `K8sResource` or `CrossplaneXRD` — the only two entity
-types `reducer.ExtractCrossplaneSatisfiedByEdgeRows` classifies (issue
+types `crossplane.ExtractCrossplaneSatisfiedByEdgeRows` classifies (issue
 #5347). A Crossplane Claim candidate is never parser-labeled: it is an
 ordinary `K8sResource` row, so the trigger reads the entity type directly
 rather than firing on any `content_entity` presence, which would enqueue a
@@ -21,7 +21,7 @@ root `internal/projector` package validates scope-generation boundaries,
 constructs and owns the immutable fact lookup, preserves family order, and
 owns projection lifecycle, queue writes, retries, and telemetry. The
 reducer's `DomainCrossplaneSatisfiedByMaterialization` handler
-(`go/internal/reducer/crossplane_satisfied_by_materialization.go` and its
+(`go/internal/reducer/crossplane/crossplane_satisfied_by_materialization.go` and its
 sibling files) owns the cross-scope join against active CrossplaneXRD facts,
 `ExtractCrossplaneSatisfiedByEdgeRows`, and the `SATISFIED_BY` graph write;
 none of that happens here.

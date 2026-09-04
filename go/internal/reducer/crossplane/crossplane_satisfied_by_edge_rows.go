@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package reducer
+package crossplane
 
 import (
 	"sort"
@@ -9,6 +9,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
 	"github.com/eshu-hq/eshu/go/internal/graph/edgetype"
+	"github.com/eshu-hq/eshu/go/internal/reducer/factload"
 	"github.com/eshu-hq/eshu/go/internal/reducer/payloadcore"
 )
 
@@ -130,7 +131,7 @@ func ExtractCrossplaneSatisfiedByEdgeRows(
 	xrdUIDsSeenByKey := make(map[crossplaneXRDJoinKey]map[string]struct{})
 
 	for _, envelope := range envelopes {
-		if envelope.FactKind != factKindContentEntity || envelope.IsTombstone {
+		if envelope.FactKind != factload.FactKindContentEntity || envelope.IsTombstone {
 			continue
 		}
 		entityType := crossplaneContentEntityType(envelope.Payload)
@@ -199,8 +200,8 @@ func ExtractCrossplaneSatisfiedByEdgeRows(
 	}
 
 	sort.Slice(rows, func(a, b int) bool {
-		left := anyToString(rows[a]["claim_uid"]) + "->" + anyToString(rows[a]["xrd_uid"])
-		right := anyToString(rows[b]["claim_uid"]) + "->" + anyToString(rows[b]["xrd_uid"])
+		left := payloadcore.AnyToString(rows[a]["claim_uid"]) + "->" + payloadcore.AnyToString(rows[a]["xrd_uid"])
+		right := payloadcore.AnyToString(rows[b]["claim_uid"]) + "->" + payloadcore.AnyToString(rows[b]["xrd_uid"])
 		return left < right
 	})
 	return rows, tally, nil
@@ -219,10 +220,10 @@ type crossplaneXRDJoinKey struct {
 // Neo4j label string ("K8sResource" or "CrossplaneXRD") materializeEntities
 // stamps for these rows, not the lowercase entityTypeLabelMap key.
 func crossplaneContentEntityType(payload map[string]any) string {
-	if value := payloadStr(payload, "entity_kind"); value != "" {
+	if value := payloadcore.PayloadStr(payload, "entity_kind"); value != "" {
 		return value
 	}
-	return payloadStr(payload, "entity_type")
+	return payloadcore.PayloadStr(payload, "entity_type")
 }
 
 // crossplaneEntityMetadataString reads one field from the content_entity
@@ -250,7 +251,7 @@ func crossplaneEntityMetadataString(payload map[string]any, key string) string {
 // group and is excluded from matching by the caller's key construction (an
 // empty group can never equal a non-empty XRD group).
 func crossplaneClaimCandidateFromPayload(payload map[string]any) (crossplaneClaimCandidate, bool) {
-	uid := payloadStr(payload, "entity_id")
+	uid := payloadcore.PayloadStr(payload, "entity_id")
 	if uid == "" {
 		return crossplaneClaimCandidate{}, false
 	}
@@ -272,7 +273,7 @@ func crossplaneClaimCandidateFromPayload(payload map[string]any) (crossplaneClai
 // respectively); either being empty excludes the XRD from matching (a
 // cluster-scoped-only or malformed XRD carries no safe join identity).
 func crossplaneXRDCandidateFromPayload(payload map[string]any) (crossplaneXRDCandidate, bool) {
-	uid := payloadStr(payload, "entity_id")
+	uid := payloadcore.PayloadStr(payload, "entity_id")
 	if uid == "" {
 		return crossplaneXRDCandidate{}, false
 	}

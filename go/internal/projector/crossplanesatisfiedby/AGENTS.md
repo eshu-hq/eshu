@@ -9,10 +9,12 @@
 4. `../scope_generation_intents.go` for root-owned assembly order; this probe
    runs after `projectorkubernetes.BuildCorrelationMaterializationReducerIntent`
    and before `projectorsecurity.BuildSecurityGroupEndpointMaterializationReducerIntent`.
-5. `go/internal/reducer` for `ExtractCrossplaneSatisfiedByEdgeRows` and the
-   `DomainCrossplaneSatisfiedByMaterialization` handler: what the reducer does
-   with the intent this package enqueues, including the cross-scope join
-   against active CrossplaneXRD facts and the SATISFIED_BY graph write.
+5. `go/internal/reducer/crossplane` for `ExtractCrossplaneSatisfiedByEdgeRows`
+   and the `CrossplaneSatisfiedByMaterializationHandler` (registered under the
+   reducer root's `DomainCrossplaneSatisfiedByMaterialization` domain): what
+   the reducer does with the intent this package enqueues, including the
+   cross-scope join against active CrossplaneXRD facts and the SATISFIED_BY
+   graph write.
 
 ## Invariants
 

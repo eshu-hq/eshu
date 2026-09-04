@@ -6,7 +6,7 @@
 // scope generation. The trigger fires on the earliest content_entity fact
 // whose entity_kind (falling back to entity_type) is K8sResource or
 // CrossplaneXRD — the two candidate types
-// reducer.ExtractCrossplaneSatisfiedByEdgeRows classifies (issue #5347). A
+// crossplane.ExtractCrossplaneSatisfiedByEdgeRows classifies (issue #5347). A
 // Crossplane Claim candidate is never parser-labeled: it is an ordinary
 // K8sResource row, so the trigger reads the entity type directly rather than
 // firing on any content_entity presence. Only envelope-level fields and the

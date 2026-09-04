@@ -1,11 +1,13 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package reducer
+package crossplane
 
 import (
 	"context"
 	"fmt"
+
+	"github.com/eshu-hq/eshu/go/internal/reducer/payloadcore"
 )
 
 // crossplaneSatisfiedByEdgeExistsCypher confirms, per (claim_uid, xrd_uid)
@@ -70,8 +72,8 @@ func (h CrossplaneSatisfiedByMaterializationHandler) confirmWrittenCrossplaneSat
 
 	confirmedPairs := make(map[string]struct{}, len(confirmed))
 	for _, record := range confirmed {
-		claimUID := anyToString(record["confirmed_claim_uid"])
-		xrdUID := anyToString(record["confirmed_xrd_uid"])
+		claimUID := payloadcore.AnyToString(record["confirmed_claim_uid"])
+		xrdUID := payloadcore.AnyToString(record["confirmed_xrd_uid"])
 		if claimUID == "" || xrdUID == "" {
 			continue
 		}
@@ -80,7 +82,7 @@ func (h CrossplaneSatisfiedByMaterializationHandler) confirmWrittenCrossplaneSat
 
 	filtered := make([]map[string]any, 0, len(rows))
 	for _, row := range rows {
-		key := anyToString(row["claim_uid"]) + "->" + anyToString(row["xrd_uid"])
+		key := payloadcore.AnyToString(row["claim_uid"]) + "->" + payloadcore.AnyToString(row["xrd_uid"])
 		if _, ok := confirmedPairs[key]; ok {
 			filtered = append(filtered, row)
 		}

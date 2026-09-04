@@ -59,7 +59,7 @@ func BuildCrossplaneSatisfiedByMaterializationReducerIntent(
 // entity_kind (falling back to entity_type, mirroring
 // projector.buildContentEntityRecord's dual-path read) is K8sResource or
 // CrossplaneXRD — the two candidate types
-// reducer.ExtractCrossplaneSatisfiedByEdgeRows classifies. These are the
+// crossplane.ExtractCrossplaneSatisfiedByEdgeRows classifies. These are the
 // canonical Neo4j label strings internal/content/shape/materialize.go's
 // materializeEntities stamps onto entity_type (PascalCase, matching the
 // label a content_entity fact ultimately projects to), not the lowercase
