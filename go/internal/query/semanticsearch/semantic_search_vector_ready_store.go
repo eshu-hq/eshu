@@ -70,8 +70,9 @@ LIMIT 1`
 // search_vector_ready probe is scoped to: the same
 // (provider profile, source class, embedding model, vector index version)
 // tuple the reducer's SearchVectorBuildRunner and its ListPendingSearchVectorScopes
-// port key their work by. It mirrors reducer.SearchVectorBuildIdentity; the
-// query package cannot import the reducer package for this small struct (see
+// port key their work by. It mirrors
+// searchvector.SearchVectorBuildIdentity (go/internal/reducer/searchvector);
+// the query package cannot import the reducer package for this small struct (see
 // package ownership boundaries), so the tuple shape is duplicated
 // deliberately, the same way other reducer/query port pairs mirror their
 // request shapes across the package boundary.
