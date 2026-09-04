@@ -239,24 +239,46 @@ carries neither `Plan()` nor `Profile()`. A `PROFILE` prefix therefore turns a
 row-returning statement into an empty one silently, which is its own reason
 never to leave one in shipped Cypher.
 
-### The Directory Builder Answers Nothing On This Backend
+### The Directory Builder Answered Nothing On This Backend
 
-`buildDirectoryCypher` returns zero rows on the pinned build — scoped and
-unscoped alike, on a graph seeded the way the projector writes directories. So
-`entity_type: "directory"` on this route answers an empty results list on the
-default graph backend for every caller. That is pre-existing and has nothing to
-do with the grant: the same statement without it is equally empty.
+The live run turned up a defect the grant work did not cause.
+`buildDirectoryCypher` returned zero rows on the pinned build — scoped and
+unscoped alike, on a graph seeded the way the projector writes directories — so
+`entity_type: "directory"` on this route answered an empty `results` list on the
+default graph backend for every caller, and said nothing about why.
 
-The cause is a backend defect, bisected in
+The cause is a backend row drop, bisected in
 `TestLiveNornicDBLanguageQueryDirectoryBuilderReturnsNothing` and recorded in
 [NornicDB Query-Shape Pitfalls](../../public/reference/nornicdb-query-pitfalls.md):
-two `MATCH` clauses followed by a `WITH` aggregation return nothing as soon as
-any `labels()` call appears, in the `RETURN` or in the `WITH` itself. Writing
-the same traversal as one linear `MATCH` answers; dropping `labels()` answers.
-Fixing it means changing shipped Cypher and moving a `cypher_sha256` on this
-route, which is a different change from the grant binding under review here, so
-it is left for its own work with the reproduction committed as a test that fails
-the day the behaviour changes.
+a read with two `MATCH` clauses followed by a `WITH … count(…)` aggregation
+drops every row as soon as the `RETURN` projects anything richer than a plain
+property or a literal. `labels(d)` triggers it, and so do `coalesce(…)` and a
+list construction; a plain property, a null property and a string literal are
+all fine. One `MATCH` clause evaluates the same join correctly.
+
+It is fixed here rather than deferred. The builder now emits a single linear
+pattern, and the direction is load-bearing: the forward form
+`(r:Repository)-[:REPO_CONTAINS|CONTAINS*]->(d:Directory)-[:CONTAINS]->(f:File)`
+was measured on the same build and returns rows that are *wrong* — a nested
+directory's file is folded into its parent's `file_count` and the nested
+directory disappears. Anchoring at `File` keeps the last `CONTAINS` hop out of
+the variable-length chain, so `d` binds to the directory that directly holds
+each file. A comma-separated pattern behaves like two clauses and is not a fix.
+
+Two consequences worth stating plainly. This is a **behaviour change for every
+caller**, not only a scoped one: a request that returned `results: []` on
+NornicDB now returns directories. And it is the one place on this route where
+the unscoped query text deliberately changes — every other builder's unscoped
+text is byte-identical to before, and the tests pin that. No queryplan digest
+moves with it: the manifest's only language-query entry records a
+`source_sha256` of `(*LanguageQueryHandler).queryByLanguageWithSemanticFilter`
+in `language_queries.go`, a function this change does not touch, and this route
+has no `cypher_sha256` anywhere.
+
+The live seed grew a directory one level below the granted repository's own so
+the rewrite is judged on the depth-N `CONTAINS` chain the projector actually
+writes, and the proof asserts each directory's `file_count`, not merely that
+rows came back — presence alone would have passed the wrong rewrite.
 
 ## Two Answers The Grant Made Wrong
 

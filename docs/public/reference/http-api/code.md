@@ -391,6 +391,11 @@ whole index, on both the graph and the content-store side, and one with no
 repository grants at all gets an empty `results` list without either backend
 being read.
 
+`entity_type: "directory"` is a behaviour change for every caller on a NornicDB
+backend. It used to answer `200` with an empty `results` list whatever the
+repository held, because the query the route sent hit a backend row-drop; it now
+returns the directories. Nothing about the request changes.
+
 That empty page is for a well-formed request only. An `entity_type` this route
 does not support returns `400` for every caller, including a scoped token with
 no repository grants, and including a request whose `repo_id` would not have

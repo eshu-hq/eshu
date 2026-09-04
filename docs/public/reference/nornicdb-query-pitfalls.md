@@ -794,7 +794,7 @@ rewritten single-clause-safe regardless — #5279, #5287); do not image-pin that
 branch before the Eshu sweep completes. Pinned to that PR/branch until it lands
 in NornicDB `main`.
 
-## Pitfall: `labels()` After A Two-Clause Aggregation Returns Zero Rows
+## Pitfall: A Two-Clause Aggregation Drops Every Row On A Computed Projection
 
 ### Observed shape
 
@@ -802,56 +802,80 @@ Measured on the currently pinned `timothyswt/nornicdb-cpu-bge`
 `sha256:4dfa887d…` (self-reports `1.2.2`), against a graph seeded the way the
 canonical projector writes repositories, directories and files. A read with
 **two `MATCH` clauses** followed by a `WITH … count(…)` aggregation returns
-**nothing** as soon as any `labels()` call appears — in the `RETURN` or
-computed in the `WITH` itself:
+**zero rows** as soon as the `RETURN` projects anything richer than a plain
+property reference or a literal. A function call does it and so does a list
+construction:
 
 ```cypher
--- zero rows:
+-- the two-clause prefix under test:
 MATCH (d:Directory)<-[:CONTAINS]-(r:Repository)
 MATCH (d)-[:CONTAINS]->(f:File)
 WITH d, r, count(f) AS c
-RETURN d.name AS name, labels(d) AS labels, c
+RETURN <projection>
 
--- zero rows (computing labels() in the WITH does not rescue it):
-MATCH (d:Directory)<-[:CONTAINS]-(r:Repository)
-MATCH (d)-[:CONTAINS]->(f:File)
-WITH d, r, labels(d) AS ls, count(f) AS c
-RETURN d.name AS name, ls AS labels, c
-
--- 4 rows (same traversal, no labels()):
-MATCH (d:Directory)<-[:CONTAINS]-(r:Repository)
-MATCH (d)-[:CONTAINS]->(f:File)
-WITH d, r, count(f) AS c
-RETURN d.name AS name, r.id AS rid, c
-
--- 4 rows (same projection, ONE linear MATCH):
-MATCH (r:Repository)-[:CONTAINS]->(d:Directory)-[:CONTAINS]->(f:File)
-WITH d, r, count(f) AS c
-RETURN d.name AS name, labels(d) AS labels, c
+RETURN d.name AS name, r.id AS rid, c                    -- 4 rows  (plain properties)
+RETURN d.name AS name, d.id AS entity_id, c              -- 4 rows  (property that is null)
+RETURN d.name AS name, 'Directory' AS labels, c          -- 4 rows  (string literal)
+RETURN d.name AS name, labels(d) AS labels, c            -- 0 rows  (function call)
+RETURN d.name AS name, coalesce(d.id, d.path) AS x, c    -- 0 rows  (function call)
+RETURN d.name AS name, ['Directory'] AS labels, c        -- 0 rows  (list literal)
+RETURN d.name AS name, [d.name] AS labels, c             -- 0 rows  (list from a property)
 ```
 
-It happens for `labels(d)` and `labels(r)` alike, so it is not about which
-variable is projected. It is a row-drop, not an error: the statement succeeds
-and the caller sees an empty result. This is the same family as the
-multi-clause-projection pitfall above; `labels()` is a new trigger for it, and
-the aggregating `WITH` plus a second `MATCH` is what arms it.
+Collapse the two clauses into one linear pattern and every one of them
+answers:
+
+```cypher
+MATCH (f:File)<-[:CONTAINS]-(d:Directory)<-[:CONTAINS]-(r:Repository)
+WITH d, r, count(f) AS c
+RETURN d.name AS name, labels(d) AS labels, c            -- 4 rows
+```
+
+It is a row drop, not an error: the statement succeeds and the caller sees an
+empty result. This is the aggregating member of the multi-clause-projection
+family above — there the projection comes back corrupted, here every row
+disappears.
+
+### The rewrite has a direction, and only one of them is correct
+
+Collapsing to one clause is necessary but not sufficient. Running the same join
+forward from `Repository` returns rows and **miscounts them**:
+
+```cypher
+-- WRONG on the pinned build: a nested directory's file is folded into its
+-- parent's count and the nested directory vanishes from the answer.
+MATCH (r:Repository)-[:REPO_CONTAINS|CONTAINS*]->(d:Directory)-[:CONTAINS]->(f:File)
+```
+
+Anchor at `File` instead, so the final `CONTAINS` hop stays outside the
+variable-length chain and `d` binds to the directory that directly holds each
+file:
+
+```cypher
+MATCH (f:File)<-[:CONTAINS]-(d:Directory)<-[:REPO_CONTAINS|CONTAINS*]-(r:Repository)
+```
+
+A comma-separated pattern (`MATCH a, b`) behaves like two clauses here and is
+**not** a fix.
 
 ### Eshu implications
 
 `buildLanguageCypherWithSemanticFilter`'s `Directory` branch
-(`go/internal/query/language_query_cypher.go`) emits exactly this shape, so
-`entity_type: "directory"` on `POST /api/v0/code/language-query` answers an
-empty `results` list on NornicDB for every caller. It is a row-drop, so nothing
-in the response says the backend could not answer.
+(`go/internal/query/language_query_cypher.go`) emitted the broken shape, so
+`entity_type: "directory"` on `POST /api/v0/code/language-query` answered an
+empty `results` list on NornicDB for every caller, silently. **Fixed** in the
+#5167 batch 2a change: `buildDirectoryCypher` is now the single File-anchored
+clause above.
 
-Rewriting the two clauses as one linear path restores the rows. Do not "fix" it
-by dropping `labels()` from the projection: the response contract carries it.
+Do not "fix" a future instance by dropping the computed projection: the
+response contract carries `labels`, and a string literal that happens to work
+today would hard-code a label the pattern is supposed to read.
 
 ### Validation
 
 `TestLiveNornicDBLanguageQueryDirectoryBuilderReturnsNothing`
 (`go/internal/query/language_query_grant_nornicdb_live_backend_test.go`, build
-tag `live_nornicdb_language_imports_grant`) pins both the shipped builder's
-zero-row result and the four-probe bisection above. It fails the day either the
-backend or the builder changes. Run it against the pinned digest before
-trusting any of the four results here.
+tag `live_nornicdb_language_imports_grant`) pins the shipped builder answering,
+the per-directory counts that catch the wrong rewrite direction, and all nine
+probes above. It fails the day either the backend or the builder changes. Run
+it against the pinned digest before trusting any of these results.

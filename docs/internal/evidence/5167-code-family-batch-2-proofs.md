@@ -98,6 +98,16 @@ script, not committed; the working tree was verified clean afterwards.
 | 14 | `languageResultRepositoryMatchKey` drops its `repoID` component | `-run 'TestLanguageQueryMetadata\|TestLanguageResultRepositoryMatchKey'` | `1` |
 | 15 | the four language-query builders emit `""` instead of `access.GraphPredicate("r")`, against the live backend | `-tags live_nornicdb_language_imports_grant -run TestLiveNornicDBLanguageQueryGrantBindsEveryBuilder` | `1` |
 | 16 | `importDependencyGrantPredicates` returns nil for every caller, against the live backend | `-tags live_nornicdb_language_imports_grant -run TestLiveNornicDBImportDependencyGrantBindsEveryBuilder` | `1` |
+| 17 | `buildDirectoryCypher` reverted to its two-MATCH shape, against the live backend | `-tags live_nornicdb_language_imports_grant -run 'TestLiveNornicDBLanguageQueryGrantBindsEveryBuilder\|TestLiveNornicDBLanguageQueryDirectoryBuilderReturnsNothing'` | `1` |
+| 18 | `buildDirectoryCypher` rewritten forward from Repository instead of anchored at File | `-tags live_nornicdb_language_imports_grant -run TestLiveNornicDBLanguageQueryDirectoryBuilderReturnsNothing` | `1` |
+
+Rows 17 and 18 are the two ways the directory rewrite can be got wrong, and
+they fail differently on purpose. Row 17 reverts it and the statement returns
+nothing at all. Row 18 keeps one clause but runs the join forward from
+`Repository`, which returns rows — so a presence-only assertion would have
+passed it — and the guard catches it on the counts instead:
+`counted 2 file(s) in "z-src-0", want 1`, with the nested directory missing from
+the answer entirely.
 
 Row 13 reds only its `scoped caller with no repository grants` sub-case, and
 that is the correct shape: neutering the request-time gate leaves the dispatch
@@ -162,13 +172,17 @@ both are forced by production Go passes that run after the read:
 | Bolt | a non-default host port, so no shared local stack is touched |
 | Store | a container started clean for the run and removed after it |
 | Build tag | `live_nornicdb_language_imports_grant` |
-| Shapes proved | 14 (4 language-query, 10 import-dependency) |
-| Statements executed | 30 shipped runs (14 shapes scoped and unscoped, plus the directory builder both ways) and 6 backend probes |
+| Shapes proved | 15 (5 language-query, 10 import-dependency) |
+| Statements executed | 30 shipped runs (15 shapes scoped and unscoped) and 12 backend probes (9 directory bisection, 3 plan) |
 | Wall time | every statement under 4ms; the whole tagged package run 1.4s |
 
 The seed is two repositories: `repo://live-zeta/granted-service`, the one the
-caller is granted, with a single file, and `repo://live-alpha/other-service`,
-which the caller is not granted, with six. Every out-of-grant node carries
+caller is granted, with a single file plus one more in a directory a level
+further down, and `repo://live-alpha/other-service`, which the caller is not
+granted, with six. The nested directory is there so the rewritten
+`buildDirectoryCypher` is judged on the depth-N `CONTAINS` chain the projector
+actually writes, and its case asserts each directory's `file_count` rather than
+mere presence. Every out-of-grant node carries
 `live-alpha` in its id, name, path, relative path, entity name and module name,
 so a leak is visible in any column any builder happens to project. Repository
 ids and directory prefixes are chosen so the out-of-grant rows sort FIRST under
@@ -183,6 +197,7 @@ nothing about when the predicate ran. It held for all fourteen shapes.
 | Shape | Query type | Scoped rows | Unscoped rows |
 | --- | --- | ---: | ---: |
 | `buildRepositoryCypher` | `repository` | 1 | 1 |
+| `buildDirectoryCypher` | `directory` | 2 | 3 |
 | `buildFileCypher` | `file` | 1 | 2 |
 | `buildEntityCypherWithSemanticFilter` | `function` | 2 | 2 |
 | `buildEntityCypherWithSemanticFilter` + `semantic_kind` | `guard` | 2 | 2 |
@@ -208,10 +223,13 @@ Two results are about the backend rather than the grant, and both are recorded
 in the change note. `EXPLAIN` and `PROFILE` are accepted, return zero rows, and
 leave the driver summary without `Plan()` or `Profile()`, so plan shape is not
 reportable on this build and the squeeze control above stands in for it.
-`buildDirectoryCypher` returns nothing with or without a grant, because a
-statement with two `MATCH` clauses, a `WITH` aggregation and any `labels()` call
-answers no rows on this build; the bisection is committed as four probes inside
-`TestLiveNornicDBLanguageQueryDirectoryBuilderReturnsNothing`.
+`buildDirectoryCypher` returned nothing with or without a grant, because a
+statement with two `MATCH` clauses and a `WITH` aggregation answers no rows on
+this build once the `RETURN` carries a function call or a list construction.
+That one is fixed in this change rather than recorded and left; the nine-probe
+bisection stays committed inside
+`TestLiveNornicDBLanguageQueryDirectoryBuilderReturnsNothing` as the control
+that fails when the backend behaviour moves.
 
 ## Verification
 
