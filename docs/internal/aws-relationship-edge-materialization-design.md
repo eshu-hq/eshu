@@ -184,7 +184,7 @@ Resolution is then O(1) map lookups in Go. The graph write is a single batched
 per-edge MATCH-scan and no N+1 Cypher.** This is the same architecture the SQL
 relationship materialization uses (`ExtractSQLRelationshipRows` builds an
 entity-by-name index, then resolves in memory; see
-`go/internal/reducer/sql_relationship_materialization.go`).
+`go/internal/reducer/sqlrelationship/sql_relationship_materialization.go`).
 
 ### 5.2 The three documented join modes
 
