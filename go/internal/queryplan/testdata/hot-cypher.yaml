@@ -338,7 +338,7 @@ entries:
     source:
       file: go/internal/query/code_relationship_story_nornicdb.go
       symbol: nornicDBRelationshipStoryGraphCypher
-      source_sha256: d330e4456083939d04671eebe17376779e9a527f9f5ede83513cd1279a4cde52
+      source_sha256: d7912c31eb9c9edb763bde993fc954a45d70c33355119835db013c109e8c87c5
       line_hint: 36
     required_anchors:
       - label: Function
@@ -360,7 +360,7 @@ entries:
       forbidden_operators:
         - AllNodesScan
         - CartesianProduct
-    cypher_sha256: "f409312eb3069367a63cff54ec713212956ccf79f54519936463555d78181b7a"
+    cypher_sha256: "e718ef5300c3c98731953daaf0bcaa5126a08c3ef60176955dcb46529388938b"
   - id: QP-CODE-REL-TRANSITIVE
     domain: code_relationship
     backend: nornicdb
@@ -368,7 +368,7 @@ entries:
     source:
       file: go/internal/query/code_relationship_story_nornicdb.go
       symbol: nornicDBRelationshipStoryInheritanceDepthCypher
-      source_sha256: ab9f498ab7ac91bd94a8e076af79c3f3b3f5436828ab51546ef1410a99968377
+      source_sha256: d20e7c0dc0af67fc3d67049468b693e125af2398c8a517d44965e8200b3aaa4b
       line_hint: 116
     required_anchors:
       - label: Class
@@ -388,7 +388,7 @@ entries:
         - AllNodesScan
         - CartesianProduct
         - UnboundedExpand
-    cypher_sha256: "8f475705f5185443065dbd6ed874ca7fd6bdd38ae2ff3279b7c17bf1e25d4c87"
+    cypher_sha256: "5900cdd68cc579fd2756b7135995db270e982bbdd10d74ebcb2a0f29e9dd008a"
   - id: QP-CODE-REL-STORY-INCOMING
     domain: code_relationship
     backend: nornicdb
@@ -396,7 +396,7 @@ entries:
     source:
       file: go/internal/query/code_relationship_story_nornicdb.go
       symbol: nornicDBRelationshipStoryGraphCypher
-      source_sha256: d330e4456083939d04671eebe17376779e9a527f9f5ede83513cd1279a4cde52
+      source_sha256: d7912c31eb9c9edb763bde993fc954a45d70c33355119835db013c109e8c87c5
       line_hint: 36
     required_anchors:
       - label: Function
@@ -420,7 +420,7 @@ entries:
       forbidden_operators:
         - AllNodesScan
         - CartesianProduct
-    cypher_sha256: "bf6d526cacc25c5058e24d28c3a45cb1ff04c486abe07649bb3b9df1e14381bf"
+    cypher_sha256: "476319fb180812ca03bfac95ac567708be05f47e535ce6f0ef84fdb865dfcfff"
   - id: QP-CODE-REL-STORY-ANCHOR-COLLISION
     domain: code_relationship
     backend: nornicdb
