@@ -540,6 +540,18 @@ stays inside a budget. The second exists because the walk's stop condition is a
 bound on work and not on the answer — remove it and every verdict is identical
 while each walk enumerates every consumer repository its entity has.
 
+Both plan assertions run twice, once with the values in hand and once under
+`plan_cache_mode = force_generic_plan` through `PREPARE`/`EXECUTE`. That is not
+belt and braces: pgx caches server-side prepared statements, so these reads run
+on a generic plan in production, and the range shape withdrawn above planned
+identically to the walk under a custom plan and then lost its bounds from the
+`Index Cond` under a generic one. A guard that only asks the planner with the
+values in hand cannot see that class of regression at all. Each pass also
+checks it got the plan it asked for — a generic plan leaves the producer
+repository a parameter marker where a custom plan inlines it — so a refactor
+that stopped forcing the mode fails instead of quietly asking the same question
+twice.
+
 The evidence page is unchanged and still reads that group: it has to rank a
 producer entity's consumers by confidence to return the strongest, so its cost
 is what the page returns rather than an artefact. On the same seed it takes

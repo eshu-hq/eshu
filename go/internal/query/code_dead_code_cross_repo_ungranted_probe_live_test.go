@@ -197,24 +197,39 @@ func TestCrossRepoDeadCodeUngrantedConsumerProbeLive(t *testing.T) {
 		// the plan it produces at corpus scale is measured in
 		// docs/internal/evidence/5167-code-family-batch-1.md.
 		assertCrossRepoDeadCodeProbeIndexExists(ctx, t, db)
-		plan := crossRepoDeadCodeProbeExplain(ctx, t, db, "repo-producer", page, crossRepoDeadCodeProbeFanInRepositories)
-		if strings.Contains(plan, "Seq Scan on code_reachability_rows") {
-			t.Fatalf("probe fell back to a sequential scan over code_reachability_rows:\n%s", plan)
-		}
-		stepped := false
-		for _, line := range strings.Split(plan, "\n") {
-			if !strings.Contains(line, "repository_id > walk") {
-				continue
-			}
-			// A bitmap path splits the same qual across Index Cond and Recheck
-			// Cond; both mean the bound reached the index. A Filter does not.
-			if !strings.Contains(line, "Index Cond:") && !strings.Contains(line, "Recheck Cond:") {
-				t.Fatalf("the walk's step is applied as %q rather than an index condition:\n%s", strings.TrimSpace(line), plan)
-			}
-			stepped = true
-		}
-		if !stepped {
-			t.Fatalf("no plan node carries the walk's per-step seek; the probe shape has drifted:\n%s", plan)
+		// Both plan modes, because they are not the same question. pgx caches
+		// server-side prepared statements, so these reads run on a GENERIC
+		// plan in production -- built once with no parameter values -- and the
+		// shape this walk replaced planned identically to it under a custom
+		// plan and then lost its bounds from the Index Cond under a generic
+		// one. A guard that only ever asks the planner with the values in hand
+		// cannot see that class of regression at all.
+		for _, mode := range crossRepoDeadCodeProbePlanModes {
+			t.Run(mode.name, func(t *testing.T) {
+				plan := crossRepoDeadCodeProbePlan(
+					ctx, t, db, mode, "EXPLAIN ",
+					"repo-producer", page, crossRepoDeadCodeProbeFanInRepositories,
+				)
+				if strings.Contains(plan, "Seq Scan on code_reachability_rows") {
+					t.Fatalf("probe fell back to a sequential scan over code_reachability_rows:\n%s", plan)
+				}
+				stepped := false
+				for _, line := range strings.Split(plan, "\n") {
+					if !strings.Contains(line, "repository_id > walk") {
+						continue
+					}
+					// A bitmap path splits the same qual across Index Cond and
+					// Recheck Cond; both mean the bound reached the index. A
+					// Filter does not.
+					if !strings.Contains(line, "Index Cond:") && !strings.Contains(line, "Recheck Cond:") {
+						t.Fatalf("the walk's step is applied as %q rather than an index condition:\n%s", strings.TrimSpace(line), plan)
+					}
+					stepped = true
+				}
+				if !stepped {
+					t.Fatalf("no plan node carries the walk's per-step seek; the probe shape has drifted:\n%s", plan)
+				}
+			})
 		}
 	})
 
@@ -230,16 +245,22 @@ func TestCrossRepoDeadCodeUngrantedConsumerProbeLive(t *testing.T) {
 		// walks are a handful of steps each, the recursive CTE stays in the low
 		// hundreds of rows; without the stop condition ent-fanout alone adds
 		// about 200.
-		plan := crossRepoDeadCodeProbeExplainAnalyze(
-			ctx, t, db,
-			"repo-producer",
-			append(append([]string(nil), page...), "ent-fanout"),
-			crossRepoDeadCodeProbeFanInRepositories,
-		)
-		walkRows := crossRepoDeadCodeProbeWalkRows(t, plan)
-		if walkRows > crossRepoDeadCodeProbeWalkRowBudget {
-			t.Fatalf("the recursive walk produced %d rows, want at most %d; it is no longer stopping at the first ungranted repository:\n%s",
-				walkRows, crossRepoDeadCodeProbeWalkRowBudget, plan)
+		// Both plan modes again, for the same reason: the work a generic plan
+		// does is the work production does.
+		for _, mode := range crossRepoDeadCodeProbePlanModes {
+			t.Run(mode.name, func(t *testing.T) {
+				plan := crossRepoDeadCodeProbePlan(
+					ctx, t, db, mode, "EXPLAIN (ANALYZE) ",
+					"repo-producer",
+					append(append([]string(nil), page...), "ent-fanout"),
+					crossRepoDeadCodeProbeFanInRepositories,
+				)
+				walkRows := crossRepoDeadCodeProbeWalkRows(t, plan)
+				if walkRows > crossRepoDeadCodeProbeWalkRowBudget {
+					t.Fatalf("the recursive walk produced %d rows, want at most %d; it is no longer stopping at the first ungranted repository:\n%s",
+						walkRows, crossRepoDeadCodeProbeWalkRowBudget, plan)
+				}
+			})
 		}
 	})
 
@@ -523,41 +544,32 @@ func crossRepoDeadCodeProbeWalkRows(t *testing.T, plan string) int {
 
 var crossRepoDeadCodeProbeActualRows = regexp.MustCompile(`actual time=[0-9.]+\.\.[0-9.]+ rows=(\d+) loops=`)
 
-// crossRepoDeadCodeProbeExplainAnalyze returns the probe's plan with measured
-// row counts, which is what the work budget above is read from.
-func crossRepoDeadCodeProbeExplainAnalyze(
-	ctx context.Context,
-	t *testing.T,
-	db *sql.DB,
-	producerRepoID string,
-	entityIDs []string,
-	grantRepositoryIDs []string,
-) string {
-	t.Helper()
-
-	return crossRepoDeadCodeProbePlan(ctx, t, db, "EXPLAIN (ANALYZE) ", producerRepoID, entityIDs, grantRepositoryIDs)
+// crossRepoDeadCodeProbePlanMode is one of the two ways the planner can be
+// asked about the probe.
+//
+// custom passes the values with the statement, which is what a one-shot
+// EXPLAIN does. generic prepares the statement and forces a plan built without
+// them, which is where pgx's statement cache puts these reads in production.
+// The two disagree: the shape this walk replaced planned identically under
+// custom and lost its Index Cond under generic, so a plan assertion that only
+// runs the first mode proves nothing about what production executes.
+type crossRepoDeadCodeProbePlanMode struct {
+	name    string
+	generic bool
 }
 
-// crossRepoDeadCodeProbeExplain returns the probe's plan text.
-func crossRepoDeadCodeProbeExplain(
-	ctx context.Context,
-	t *testing.T,
-	db *sql.DB,
-	producerRepoID string,
-	entityIDs []string,
-	grantRepositoryIDs []string,
-) string {
-	t.Helper()
-
-	return crossRepoDeadCodeProbePlan(ctx, t, db, "EXPLAIN ", producerRepoID, entityIDs, grantRepositoryIDs)
+var crossRepoDeadCodeProbePlanModes = []crossRepoDeadCodeProbePlanMode{
+	{name: "custom plan"},
+	{name: "generic plan", generic: true},
 }
 
 // crossRepoDeadCodeProbePlan runs the shipped probe under the given EXPLAIN
-// prefix and returns the plan as text.
+// prefix and plan mode, and returns the plan as text.
 func crossRepoDeadCodeProbePlan(
 	ctx context.Context,
 	t *testing.T,
 	db *sql.DB,
+	mode crossRepoDeadCodeProbePlanMode,
 	prefix string,
 	producerRepoID string,
 	entityIDs []string,
@@ -565,16 +577,22 @@ func crossRepoDeadCodeProbePlan(
 ) string {
 	t.Helper()
 
-	rows, err := db.QueryContext(
-		ctx,
-		prefix+crossRepoDeadCodeUngrantedConsumerProbeQuery,
+	statement := prefix + crossRepoDeadCodeUngrantedConsumerProbeQuery
+	args := []any{
 		producerRepoID,
 		crossRepoDeadCodeProbeTextArray(entityIDs),
 		crossRepoDeadCodeProbeTextArray(grantRepositoryIDs),
 		len(entityIDs),
-	)
+	}
+	if mode.generic {
+		statement, args = crossRepoDeadCodeProbeGenericStatement(
+			ctx, t, db, prefix, producerRepoID, entityIDs, grantRepositoryIDs,
+		)
+	}
+
+	rows, err := db.QueryContext(ctx, statement, args...)
 	if err != nil {
-		t.Fatalf("explain probe: %v", err)
+		t.Fatalf("explain probe (%s): %v", mode.name, err)
 	}
 	defer func() { _ = rows.Close() }()
 
@@ -590,7 +608,74 @@ func crossRepoDeadCodeProbePlan(
 	if err := rows.Err(); err != nil {
 		t.Fatalf("plan rows: %v", err)
 	}
+	// A generic plan is built without the parameter values, so the producer
+	// repository stays a parameter marker in the plan where a custom plan
+	// inlines it as a literal. Checking that is what keeps this mode honest: a
+	// refactor that quietly stopped forcing the mode would otherwise leave two
+	// subtests asking the planner the same question twice.
+	if mode.generic && !strings.Contains(plan.String(), "repository_id <> $1") {
+		t.Fatalf("plan was not built generically -- the producer repository is not a parameter in it:\n%s", plan.String())
+	}
+	if !mode.generic && !strings.Contains(plan.String(), "repository_id <> 'repo-producer'::text") {
+		t.Fatalf("plan was not built with the values in hand:\n%s", plan.String())
+	}
 	return plan.String()
+}
+
+// crossRepoDeadCodeProbeGenericStatement prepares the probe on the connection
+// and forces a generic plan for it, returning an EXPLAIN of the EXECUTE with no
+// bind parameters left.
+//
+// The values are rendered into the EXECUTE rather than bound, because under
+// force_generic_plan the plan is already built without them -- which is the
+// point. The test pool is pinned to one connection, so the SET, the PREPARE and
+// the EXPLAIN all land on the same session; the cleanup puts both back.
+func crossRepoDeadCodeProbeGenericStatement(
+	ctx context.Context,
+	t *testing.T,
+	db *sql.DB,
+	prefix string,
+	producerRepoID string,
+	entityIDs []string,
+	grantRepositoryIDs []string,
+) (string, []any) {
+	t.Helper()
+
+	name := fmt.Sprintf("cross_repo_dead_code_probe_%d", time.Now().UnixNano())
+	if _, err := db.ExecContext(ctx, "SET plan_cache_mode = force_generic_plan"); err != nil {
+		t.Fatalf("force a generic plan: %v", err)
+	}
+	if _, err := db.ExecContext(
+		ctx,
+		"PREPARE "+name+"(text, text[], text[], int) AS "+crossRepoDeadCodeUngrantedConsumerProbeQuery,
+	); err != nil {
+		t.Fatalf("prepare the probe: %v", err)
+	}
+	t.Cleanup(func() {
+		cleanupCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+		defer cancel()
+		if _, err := db.ExecContext(cleanupCtx, "DEALLOCATE "+name); err != nil {
+			t.Errorf("deallocate the probe: %v", err)
+		}
+		if _, err := db.ExecContext(cleanupCtx, "RESET plan_cache_mode"); err != nil {
+			t.Errorf("reset plan_cache_mode: %v", err)
+		}
+	})
+	return fmt.Sprintf(
+		"%sEXECUTE %s(%s, %s, %s, %d)",
+		prefix,
+		name,
+		quoteLiteral(producerRepoID),
+		quoteLiteral(crossRepoDeadCodeProbeTextArray(entityIDs)),
+		quoteLiteral(crossRepoDeadCodeProbeTextArray(grantRepositoryIDs)),
+		len(entityIDs),
+	), nil
+}
+
+// quoteLiteral renders a SQL string literal for the EXECUTE above. The values
+// are test-owned entity and repository ids, never caller input.
+func quoteLiteral(value string) string {
+	return "'" + strings.ReplaceAll(value, "'", "''") + "'"
 }
 
 // crossRepoDeadCodeProbeTextArray renders a Postgres text[] literal for the
