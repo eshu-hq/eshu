@@ -8,16 +8,18 @@ import (
 	"strings"
 
 	"github.com/eshu-hq/eshu/go/internal/codeprovenance"
+	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
 )
 
 // deadCodeIncomingEdge is the strongest incoming reachability edge observed for
-// a dead-code candidate. MaxConfidence is the maximum codeprovenance.Confidence
-// across the candidate's incoming CALLS/REFERENCES/INHERITS/USES_METACLASS
-// edges; Method names the resolution method behind that strongest edge.
-type deadCodeIncomingEdge struct {
-	MaxConfidence float64
-	Method        string
-}
+// a dead-code candidate.
+//
+// It is an alias onto querycontract rather than a declaration: the type appears
+// in a ContentStore read's signature, and a shared double promoted to
+// querytestutil for #6060 cannot name an unexported root type. An alias
+// preserves type identity, so every existing caller and every composite literal
+// is unchanged.
+type deadCodeIncomingEdge = querycontract.DeadCodeIncomingEdge
 
 // deadCodeWeakIncomingResultKey marks a kept candidate whose only incoming
 // edges were weak (repo_unique_name tier). It drives the ambiguous
