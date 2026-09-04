@@ -858,7 +858,7 @@ measures the in-memory hash join alone (no graph I/O) over a synthetic
 5,100-candidate corpus — 5,000 generic K8sResource rows (never a Claim, the
 noise a real k8s-heavy scope carries) plus 50 distinct Claim/XRD pairs, wider
 than RUNS_IMAGE's pod-template-only candidate set. `go test
-./internal/reducer/ -run '^$' -bench
+./internal/reducer/crossplane -run '^$' -bench
 '^BenchmarkExtractCrossplaneSatisfiedByEdgeRows$' -benchmem -count=3` on an
 Apple M4 Pro: 988µs–2.4ms/op, ~1.0 MB/op, 20,887 allocs/op — sub-3ms for the
 whole corpus, confirming the pass is not a per-generation bottleneck relative
