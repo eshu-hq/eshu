@@ -19,6 +19,7 @@ live in the repository today.
 | `go/internal/content/` | content shaping and content-store persistence |
 | `go/internal/coordinator/` | workflow coordinator service ordering, planner interfaces, durable admission, retry, and telemetry ownership |
 | `go/internal/coordinator/awsfreshnessplanner/` | AWS freshness scheduler target-scope parsing, target authorization shared with root, trigger coalescing, and deterministic workflow planning |
+| `go/internal/coordinator/awsscheduledplanner/` | Scheduled AWS collector work planning from instance configuration: the `scheduled_scan_enabled` decode, target planning over scopes parsed by `awsfreshnessplanner`, and deterministic workflow run and work-item construction |
 | `go/internal/coordinator/cicdrun/` | CI/CD run scheduler request validation and deterministic workflow planning |
 | `go/internal/coordinator/componentactivation/` | dependency-neutral generic component-activation configuration parsing and validation shared by the component-extension planner and unrelated root scheduling/audit files |
 | `go/internal/coordinator/componentextensionplanner/` | generic component-extension scheduler activation-scoped workflow planning |

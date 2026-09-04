@@ -86,13 +86,14 @@
 // package's private configuration types. The root ScannerWorkerPlanner interface accepts the child
 // scannerworker.PlanRequest; the child plans explicit scanner-worker source
 // evidence targets so a healthy worker must still have claimable work before a
-// proof can count source evidence. AWSScheduledWorkPlanner plans ordinary AWS
-// collector work from configured schedules. The root AWSFreshnessPlanner
+// proof can count source evidence. The root AWSScheduledPlanner interface accepts the
+// child awsscheduledplanner.PlanRequest; the child plans ordinary AWS collector
+// work from configured schedules. The root AWSFreshnessPlanner
 // interface accepts the child awsfreshnessplanner.PlanRequest; the child
 // coalesces claimed webhook freshness triggers into one claimable work item
 // per unique (account_id, region, service_kind) target and exposes
 // ParseTargetScopes and TargetAuthorized so the root trigger-routing filter
-// and the unextracted scheduled AWS planner share one definition of which
+// and the scheduled AWS planner share one definition of which
 // configured targets a collector instance may collect. The root ComponentExtensionPlanner
 // interface accepts the child componentextensionplanner.PlanRequest; the child
 // plans source-evidence-only work for verified claim-capable component

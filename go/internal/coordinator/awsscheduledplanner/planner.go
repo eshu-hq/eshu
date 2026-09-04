@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package coordinator
+package awsscheduledplanner
 
 import (
 	"context"
@@ -26,25 +26,25 @@ const (
 	awsScheduledSkipReasonGlobalRegionalRegion = "global_service_regional_region"
 )
 
-// AWSScheduledPlanRequest carries one scheduled AWS collector planning request.
-type AWSScheduledPlanRequest struct {
+// PlanRequest carries one scheduled AWS collector planning request.
+type PlanRequest struct {
 	Instance   workflow.CollectorInstance
 	ObservedAt time.Time
 	PlanKey    string
 }
 
-// AWSScheduledWorkPlanner plans bounded AWS work from configured target scopes.
-type AWSScheduledWorkPlanner struct{}
+// WorkPlanner plans bounded AWS work from configured target scopes.
+type WorkPlanner struct{}
 
 // PlanAWSScheduledWork returns one scheduled run and one work item per valid
 // configured AWS account, region, and service tuple. When every configured
 // tuple is skipped as invalid, it returns a completed audit-only run with the
 // skipped targets recorded in requested_scope_set and no work items.
-func (p AWSScheduledWorkPlanner) PlanAWSScheduledWork(
+func (p WorkPlanner) PlanAWSScheduledWork(
 	_ context.Context,
-	request AWSScheduledPlanRequest,
+	request PlanRequest,
 ) (workflow.Run, []workflow.WorkItem, error) {
-	if err := validateAWSScheduledPlanRequest(request); err != nil {
+	if err := validatePlanRequest(request); err != nil {
 		return workflow.Run{}, nil, err
 	}
 	scopes, err := awsfreshnessplanner.ParseTargetScopes(request.Instance.Configuration)
@@ -80,7 +80,7 @@ func (p AWSScheduledWorkPlanner) PlanAWSScheduledWork(
 	return run, items, nil
 }
 
-func validateAWSScheduledPlanRequest(request AWSScheduledPlanRequest) error {
+func validatePlanRequest(request PlanRequest) error {
 	if err := request.Instance.Validate(); err != nil {
 		return fmt.Errorf("AWS scheduled plan request: %w", err)
 	}
@@ -114,7 +114,7 @@ type awsScheduledSkippedTarget struct {
 	Reason      string
 }
 
-func awsScheduledScanEnabled(raw string) (bool, error) {
+func ScanEnabled(raw string) (bool, error) {
 	// Decode the same AWS collector configuration document that
 	// awsfreshnessplanner owns, target_scopes included, so a type-malformed
 	// target_scopes array still fails here exactly as it did before that

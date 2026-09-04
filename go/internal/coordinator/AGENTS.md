@@ -80,10 +80,10 @@
      than copied: `ParseTargetScopes` and `TargetAuthorized` are ~80 lines of
      decoding plus the authorization predicate, and root's
      `findAWSFreshnessInstance` filter and the planner's rejection are two
-     halves of one decision. `aws_scheduled_scheduler.go` — a different,
-     unextracted AWS family — calls the same `ParseTargetScopes` and plans
+     halves of one decision. `awsscheduledplanner/planner.go` — the extracted
+     scheduled AWS family — calls the same `ParseTargetScopes` and plans
      from `[]awsfreshnessplanner.TargetScope`, while keeping its own
-     `awsScheduledScanEnabled` decode for the sibling `scheduled_scan_enabled`
+     exported `ScanEnabled` decode for the sibling `scheduled_scan_enabled`
      flag. The package is not named `awsfreshness` because that name is
      already the repo-wide import alias for
      `internal/collector/awscloud/freshness`
@@ -140,7 +140,7 @@
   keeps its own identical copy rather than importing root. AWS target-scope
   parsing goes the other way: `awsfreshnessplanner.ParseTargetScopes` and
   `TargetAuthorized` are the single definition, and `service_aws_freshness.go`
-  and `aws_scheduled_scheduler.go` both call them rather than keeping a root
+  and `awsscheduledplanner/planner.go` both call them rather than keeping a root
   copy that could drift from the planner's own authorization decision.
 
 ## Common changes and how to scope them

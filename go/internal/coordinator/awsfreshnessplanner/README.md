@@ -47,7 +47,7 @@ Two root files depend on this parsing for reasons of their own:
 - `service_aws_freshness.go` calls `ParseTargetScopes` and `TargetAuthorized`
   in `findAWSFreshnessInstance` to route a claimed trigger to the collector
   instance allowed to collect it.
-- `aws_scheduled_scheduler.go` — a different, unextracted family — calls
+- `awsscheduledplanner/planner.go` — a different, extracted family — calls
   `ParseTargetScopes` and plans from `[]TargetScope`.
 
 `ociregistry` (#6491) kept its own copy of the five-line pure `firstNonBlank`
@@ -60,7 +60,7 @@ collect. So this follows the `gcpplanner` precedent instead — one definition,
 exported — and keeps `firstNonBlank`-style duplication for genuinely tiny pure
 helpers.
 
-`aws_scheduled_scheduler.go`'s own `awsScheduledScanEnabled` still decodes the
+`awsscheduledplanner`'s own exported `ScanEnabled` still decodes the
 configuration document itself, because it reads the sibling
 `scheduled_scan_enabled` flag with different blank-input and validation
 semantics. Its inline struct keeps the `target_scopes` field so a

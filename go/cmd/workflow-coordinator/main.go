@@ -20,6 +20,7 @@ import (
 	_ "github.com/eshu-hq/eshu/go/internal/collector/awscloud/awsruntime/bindings"
 	"github.com/eshu-hq/eshu/go/internal/coordinator"
 	"github.com/eshu-hq/eshu/go/internal/coordinator/awsfreshnessplanner"
+	"github.com/eshu-hq/eshu/go/internal/coordinator/awsscheduledplanner"
 	"github.com/eshu-hq/eshu/go/internal/coordinator/cicdrun"
 	"github.com/eshu-hq/eshu/go/internal/coordinator/componentextensionplanner"
 	"github.com/eshu-hq/eshu/go/internal/coordinator/gcpplanner"
@@ -203,7 +204,7 @@ func run(parent context.Context) error {
 		TenantGrantReader:                 tenantGrantReader{store: tenantGrantStore},
 		OSPackageAdvisoryTargetReader:     factStore,
 		SBOMComponentAdvisoryTargetReader: factStore,
-		AWSScheduledPlanner:               coordinator.AWSScheduledWorkPlanner{},
+		AWSScheduledPlanner:               awsscheduledplanner.WorkPlanner{},
 		AWSFreshnessTriggers:              awsFreshnessStore,
 		AWSFreshnessPlanner:               awsfreshnessplanner.WorkPlanner{},
 		AWSFreshnessEvents:                instruments.AWSFreshnessEvents,

@@ -201,7 +201,7 @@ one enabled bounded scope; invalid configurations fail validation.
   `vulnerability.os_package` facts; SBOM component reads come from active
   attached `sbom.component` facts whose attachment evidence is active for the
   same scope.
-- `AWSScheduledWorkPlanner` — plans scheduled AWS collection runs from the
+- `AWSScheduledPlanner` — root interface implemented by `awsscheduledplanner.WorkPlanner`; plans scheduled AWS collection runs from the
   configured target scopes without requiring a separate provider webhook when
   the AWS collector configuration sets `scheduled_scan_enabled=true`. Each
   valid `(account_id, region, service_kind)` tuple becomes one claimable work
@@ -233,7 +233,7 @@ one enabled bounded scope; invalid configurations fail validation.
 - `internal/coordinator/jiraplanner` — Jira membership, privacy, and planning.
 - `internal/coordinator/vaultlive` — Vault metadata plan request and
   deterministic planner implementation.
-- `internal/coordinator/tempoplanner`, `lokiplanner`, `prometheusmimir`, `grafanaplanner`, `gcpplanner`, `ociregistry`, `tfstateplanner`, `componentextensionplanner` — planners; `awsfreshnessplanner` — AWS freshness planner that also owns the `target_scopes` parsing and `TargetAuthorized` decision root shares with the unextracted scheduled AWS planner;
+- `internal/coordinator/tempoplanner`, `lokiplanner`, `prometheusmimir`, `grafanaplanner`, `gcpplanner`, `ociregistry`, `tfstateplanner`, `componentextensionplanner` — planners; `awsfreshnessplanner` — AWS freshness planner that also owns the `target_scopes` parsing and `TargetAuthorized` decision root shares with `awsscheduledplanner`;
   `componentactivation` — dependency-neutral activation config.
 - `internal/workflow` — `DesiredCollectorInstance`, `CollectorInstance`,
   `Claim`, and default accessors; used throughout `Store` and `Config`.
@@ -497,7 +497,7 @@ advisory payloads.
 
 ## Evidence
 
-No-Regression Evidence: `go test ./internal/coordinator -run 'TestAWSScheduledWorkPlanner|TestServiceRunActiveModePersistsAuditOnlyAWSScheduledRun' -count=1`
+No-Regression Evidence: `go test ./internal/coordinator/awsscheduledplanner ./internal/coordinator -run 'TestAWSScheduledWorkPlanner|TestServiceRunActiveModePersistsAuditOnlyAWSScheduledRun' -count=1`
 covers scheduled AWS target planning, invalid `aws-global` pair filtering, and
 the audit-only run recorded when all configured tuples are invalid.
 
