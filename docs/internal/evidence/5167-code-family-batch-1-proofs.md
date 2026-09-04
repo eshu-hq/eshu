@@ -242,7 +242,7 @@ different defects: 31 is the sed behaviour that was actually there, and 30 is
 the broader "the splitter is broken" case, which reddens one constraint more.
 Rows 32 and 33 are round-8k, and they are the reverse shape: not a mutation of
 the gate but two constraints the shipped gate answered green without compiling
-anything. Row 34 is not a mutation either: it is the gate finding a real break
+anything. Row 43 is not a mutation either: it is the gate finding a real break
 on the branch that introduced it, which is the strongest evidence in this table
 that it earns its place. Both are now `ERROR`. The module has no parenthesised and no mixed
 constraint, so the sweep's own output is unchanged at 29 vetted / 16 skipped /
