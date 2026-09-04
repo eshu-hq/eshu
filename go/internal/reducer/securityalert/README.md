@@ -179,9 +179,16 @@ used to supply as one-line forwarders or aliases (`Intent`, `Result`,
 `reducerFact*`/`reducerBatchInsert*` batch-insert family,
 `loadFactsForKinds`, `recordQuarantinedFacts`, `payloadStr`/`payloadBool`/
 `payloadOrderedStrings`/`payloadStrings`/`uniqueSortedStrings`/
-`compactStringSlice`, `decodeSecurityAlertRepositoryAlert`, and
-`partitionDecodeFailures`) are now imported from the leaf package that
-already owned them. `activeRepositoryFactLoader`/
+`compactStringSlice`, and `partitionDecodeFailures`) are now imported from
+the leaf package that already owned them.
+
+The decode seam is the one exception in that list and did not survive as an
+import. The root's unexported `decodeSecurityAlertRepositoryAlert` was
+deleted outright rather than requalified; call sites now use the exported
+[`schemadecode.DecodeSecurityAlertRepositoryAlert`]. Grouping it with the
+unchanged imports above would suggest a forwarder that no longer exists.
+
+`activeRepositoryFactLoader`/
 `activePackageManifestDependencyFactLoader` are locally redeclared, not
 imported, for the reason above; `packageNameFromPURL`/
 `packageNameFromPackageID`/`securityAlertDependencyScope`/
