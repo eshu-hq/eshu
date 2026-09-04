@@ -203,12 +203,13 @@ func scanPackageGroup(files []parsedGoFile, decodeFuncs map[string]struct{}, for
 			if !ok || fn.Body == nil {
 				continue
 			}
-			boundTo := boundIdentifiers(fn, localDecodeFuncs, forwarders, qualifiers, structToFunc)
+			outer := outerDecodeBindings(fn, localDecodeFuncs, forwarders, qualifiers, structToFunc)
+			regions := caseDecodeBindings(fn, localDecodeFuncs, forwarders, qualifiers)
 			wrapperBound := wrapperBoundIdentifiers(fn, wrappers)
-			if len(boundTo) == 0 && len(wrapperBound) == 0 {
+			if len(outer) == 0 && len(wrapperBound) == 0 && len(regions) == 0 {
 				continue
 			}
-			recordFieldReads(fn.Body, pf.name, boundTo, wrapperBound, wrappers, usage)
+			recordScopedFieldReads(fn.Body, pf.name, outer, regions, wrapperBound, wrappers, usage)
 		}
 	}
 }
@@ -311,25 +312,6 @@ func parseReducerDir(dir string) ([]parsedGoFile, error) {
 	return parsed, nil
 }
 
-// boundIdentifiers finds every local identifier inside fn that is bound to a
-// decoded typed struct: either a direct decodeFuncs() call-result assignment
-// (recordDecodeBindings), or a function parameter whose type is one of
-// structToFunc's qualified struct names (the cross-function helper-parameter
-// case). It returns identifier name -> decode func name.
-func boundIdentifiers(fn *ast.FuncDecl, decodeFuncs map[string]struct{}, forwarders RootForwarders, qualifiers DecodeQualifiers, structToFunc map[string]string) map[string]string {
-	boundTo := map[string]string{}
-	ast.Inspect(fn.Body, func(n ast.Node) bool {
-		assign, ok := n.(*ast.AssignStmt)
-		if !ok {
-			return true
-		}
-		recordDecodeBindings(assign, decodeFuncs, forwarders, qualifiers, boundTo)
-		return true
-	})
-	recordParameterBindings(fn, structToFunc, boundTo)
-	return boundTo
-}
-
 // recordParameterBindings inspects fn's parameter list and records any
 // parameter whose declared type is a package-qualified struct name present in
 // structToFunc — the `func helper(posture awsv1.S3BucketPosture)` shape a
@@ -372,54 +354,6 @@ func qualifiedTypeName(expr ast.Expr) (string, bool) {
 		return "", false
 	}
 	return pkgIdent.Name + "." + sel.Sel.Name, true
-}
-
-// recordFieldReads walks body and records a FieldUsage in two shapes:
-//
-//  1. `ident.Field` where ident is a key of boundTo (a seam-bound value from a
-//     decode call or a seam-typed parameter) — attributed to boundTo[ident].
-//  2. `wrapper.<seamField>.<StructField>` where wrapper is a key of
-//     wrapperBound (a value of a wrapper struct type) and <seamField> is a
-//     field of that wrapper whose type is a seam struct — the read of
-//     <StructField> is attributed to the decode func that seam field came
-//     from. This follows the one wrapper-mediated hop the migrated
-//     IAM/secrets_iam handlers use (statement.permission.Actions,
-//     principal.decoded.AccountID); deeper nesting (`a.b.c.d`) is not followed.
-//
-// A read that matches no declared field of the attributed struct is dropped
-// later by BuildManifest (it joins against the struct's declared fields), so a
-// wrapper read of a non-schema field never becomes a false violation.
-func recordFieldReads(body *ast.BlockStmt, fileName string, boundTo, wrapperBound map[string]string, wrappers map[string]map[string]string, usage map[string][]FieldUsage) {
-	ast.Inspect(body, func(n ast.Node) bool {
-		sel, ok := n.(*ast.SelectorExpr)
-		if !ok {
-			return true
-		}
-		if ident, isIdent := sel.X.(*ast.Ident); isIdent {
-			if funcName, isBound := boundTo[ident.Name]; isBound {
-				usage[funcName] = append(usage[funcName], FieldUsage{File: fileName, GoFieldName: sel.Sel.Name})
-			}
-			return true
-		}
-		inner, isSel := sel.X.(*ast.SelectorExpr)
-		if !isSel {
-			return true
-		}
-		base, isIdent := inner.X.(*ast.Ident)
-		if !isIdent {
-			return true
-		}
-		wrapperType, isWrapperBound := wrapperBound[base.Name]
-		if !isWrapperBound {
-			return true
-		}
-		funcName, isSeamField := wrappers[wrapperType][inner.Sel.Name]
-		if !isSeamField {
-			return true
-		}
-		usage[funcName] = append(usage[funcName], FieldUsage{File: fileName, GoFieldName: sel.Sel.Name})
-		return true
-	})
 }
 
 // recordDecodeBindings inspects one assignment statement and, when its RHS is
