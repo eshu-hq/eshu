@@ -90,6 +90,10 @@ See `doc.go` for the godoc contract.
   and grant-filtering helpers `FakePortContentStore` shares across its reads,
   exported because a family's own double needs the same ordering and the same
   grant predicate to stay consistent with production.
+- `FakeDeadCodeContentStore` — the dead-code content-read double. Embeds
+  `FakePortContentStore` and overrides `GetEntityContent` and
+  `DeadCodeIncomingEntityIDs`. An absent key in the incoming-edge answer means
+  unreachable, so omission is the contract, not a zero value. Zero value usable.
 
 `FakePortContentStore`'s entity reads filter before they limit, matching the
 production SQL's predicate order. A double that limited first would hand a test
@@ -182,13 +186,9 @@ up in this file at once.
 `FakePortContentStore` was proven the same way. Zeroing `RepositoryCoverage`
 fails **12** root tests, and zeroing `DocumentationFindings` fails **4**.
 
-An earlier draft of this paragraph named a single test for the coverage
-mutation, `TestQueryContentStoreCoverageUsesContentStorePort`. That was measured
-before the fake reached its current consumer set; re-measured here it is 12, and
-the named test is one of them. The failures spread across repository stats,
-story, context, branches and dead-code investigation rather than clustering on
-the coverage route, which is what makes them evidence of delegation rather than
-of one handler.
+The 12 spread across repository stats, story, context, branches and dead-code
+investigation rather than clustering on the coverage route, which is what makes
+them evidence of delegation rather than of one handler.
 
 The `DocumentationFindings` mutation is the one worth keeping even though it is
 the smaller number: those four reach the double through a type assertion onto an
@@ -229,10 +229,6 @@ the input slice before filtering.
 `RepositoryEntryPoints` has exactly one consuming test,
 `TestQueryRepoEntryPointsUsesContentRowsBeforeGraph` — `entryPoints:` is set in
 exactly one root file, `repository_entry_points_test.go`.
-
-An earlier draft followed that with a per-port spread introduced as "the
-mutation counts above". Only two are recorded above, so five of its six numbers
-cited evidence this file does not contain, and were removed.
 
 This is not a gap in the sense the `entity_type` one was — that predicate had no
 coverage through this double at all, and this has a real test that genuinely
