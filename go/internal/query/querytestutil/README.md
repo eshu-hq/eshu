@@ -34,6 +34,11 @@ See `doc.go` for the godoc contract.
   handlers depend on. Dispatches on query text: incoming-edge traversals go to
   `RunIncomingFn`, the dead-code scanner's paged candidate probe is answered
   with no rows, everything else goes to `RunFn`. The zero value is usable.
+- `FakeGraphReaderWithSingle` — the same port with plain dispatch (`RunFn` /
+  `RunSingleFn`, no query-text routing). Do not repoint its users at
+  `FakeGraphReader`; the routing would silently change what they assert.
+- `RecordingResourceInvestigationGraph` — answers the four directed reads from
+  installed row sets and records every `Run` query in `RunCalls`.
 - `FakeRepoGraphReader` — a graph-read double for `getRepositoryContext`
   tests. Dispatches on the longest matching Cypher fragment in `RunByMatch` /
   `RunSingleByMatch`; `RunFn` / `RunSingleFn` override that entirely.

@@ -48,9 +48,9 @@ func TestImpactTraceK8sSelectWideningTruncationDisclosure(t *testing.T) {
 		Content:     newK8sSelectWideningStore(entities),
 		Instruments: instruments,
 	}
-	result, err := handler.fetchK8sResourceResult(context.Background(), "repo-1", "web")
+	result, err := handler.FetchK8sResourceResult(context.Background(), "repo-1", "web")
 	if err != nil {
-		t.Fatalf("fetchK8sResourceResult() error = %v", err)
+		t.Fatalf("FetchK8sResourceResult() error = %v", err)
 	}
 
 	if !result.selectCandidatePoolTruncated {

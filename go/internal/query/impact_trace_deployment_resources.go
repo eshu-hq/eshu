@@ -281,11 +281,14 @@ func (h *ImpactHandler) fetchK8sResources(
 	repoID string,
 	workloadName string,
 ) ([]map[string]any, []string, error) {
-	result, err := h.fetchK8sResourceResult(ctx, repoID, workloadName)
+	result, err := h.FetchK8sResourceResult(ctx, repoID, workloadName)
 	return result.rows, result.imageRefs, err
 }
 
-func (h *ImpactHandler) fetchK8sResourceResult(
+// FetchK8sResourceResult is the exported rename of fetchK8sResourceResult,
+// which the deployment-config-influence family calls from outside the impact
+// move set. See #6060.
+func (h *ImpactHandler) FetchK8sResourceResult(
 	ctx context.Context,
 	repoID string,
 	workloadName string,

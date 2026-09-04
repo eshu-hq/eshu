@@ -186,7 +186,7 @@ func scalarStringProps(props map[string]any) map[string]string {
 // a derived truth envelope.
 func (h *ImpactHandler) writeExposureFinding(w http.ResponseWriter, r *http.Request, finding exposure.ExposureFinding) {
 	WriteSuccess(w, r, http.StatusOK, exposureFindingPayload(finding),
-		BuildTruthEnvelope(h.profile(), exposurePathCapability, TruthBasisHybrid,
+		BuildTruthEnvelope(h.ResolvedProfile(), exposurePathCapability, TruthBasisHybrid,
 			"derived from bounded symbol-level reachability over the call graph and the cloud-sink catalog; not value-flow"))
 }
 

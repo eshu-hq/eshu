@@ -7,6 +7,8 @@ import (
 	"context"
 	"strings"
 	"testing"
+
+	"github.com/eshu-hq/eshu/go/internal/query/querytestutil"
 )
 
 // TestResourceInvestigationDefaultLabelPredicateUsesFluxHelmReleaseNotDeadHelmReleaseLabel
@@ -50,9 +52,9 @@ func TestResourceInvestigationDefaultLabelPredicateUsesFluxHelmReleaseNotDeadHel
 func TestInvestigateResourceDefaultPredicateReachesProjectedFluxHelmReleaseNode(t *testing.T) {
 	t.Parallel()
 
-	graph := &recordingResourceInvestigationGraph{
-		selectorLabel: "FluxHelmRelease",
-		runRows: [][]map[string]any{{
+	graph := &querytestutil.RecordingResourceInvestigationGraph{
+		SelectorLabel: "FluxHelmRelease",
+		RunRows: [][]map[string]any{{
 			{
 				"id": "flux:helmrelease:podinfo", "name": "podinfo", "labels": []any{"FluxHelmRelease"},
 				"resource_type": "", "provider": "", "environment": "",
@@ -72,9 +74,9 @@ func TestInvestigateResourceDefaultPredicateReachesProjectedFluxHelmReleaseNode(
 		t.Fatalf("resolveResourceInvestigationTarget() error = %v, want nil", err)
 	}
 	var fluxQuery string
-	for _, call := range graph.runCalls {
-		if strings.Contains(call.cypher, "MATCH (n:FluxHelmRelease)") {
-			fluxQuery = call.cypher
+	for _, call := range graph.RunCalls {
+		if strings.Contains(call.Cypher, "MATCH (n:FluxHelmRelease)") {
+			fluxQuery = call.Cypher
 			break
 		}
 	}
