@@ -683,7 +683,6 @@ LINE docs/public/observability/telemetry-coverage.md go/internal/reducer/package
 LINE docs/public/observability/telemetry-coverage.md go/internal/reducer/package_source_correlation_handler.go:289
 LINE docs/public/observability/telemetry-coverage.md go/internal/reducer/poison_liveness_runner.go:165
 LINE docs/public/observability/telemetry-coverage.md go/internal/reducer/repo_dependency_projection_runner.go:149
-LINE docs/public/observability/telemetry-coverage.md go/internal/reducer/search_vector_build_runner.go:235
 LINE docs/public/observability/telemetry-coverage.md go/internal/reducer/service.go:189
 LINE docs/public/observability/telemetry-coverage.md go/internal/reducer/service.go:358
 LINE docs/public/observability/telemetry-coverage.md go/internal/reducer/service_heartbeat.go:114

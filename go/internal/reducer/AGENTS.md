@@ -2237,10 +2237,10 @@ top-level Unique/Sort over the metadata table). Before: the sweep never drained
 and hot-looped (~2 Postgres cores, 24/7); after: an all-built scope leaves the
 pending set so the sweep reaches zero pending and rests on the 30s poll.
 No-Regression Evidence: `TestSearchVectorBuildRunnerBacksOffOnNoProgressSweep`
-(`go test ./internal/reducer -run SearchVector -count=1`) FAILS before the
-backoff (0 Wait calls, hot-loops the full 2s ctx) and PASSES after (exactly 1
-Wait call, exactly 1 build before backoff). The shape guard
-`TestEshuSearchVectorPendingStoreListsScopes` locks the SQL to
+(`go test ./internal/reducer/searchvector -run SearchVector -count=1`, moved
+from `./internal/reducer` in #6061) FAILS before the backoff (0 Wait calls,
+hot-loops the full 2s ctx) and PASSES after (1 Wait call, 1 build). The shape
+guard `TestEshuSearchVectorPendingStoreListsScopes` locks the SQL to
 `payload->>'document_id'` and rejects the NULL-yielding nested key in CI.
 
 Observability Evidence: no new metric instrument. The stall is diagnosable via
