@@ -170,7 +170,33 @@ alternative_run() {
 	printf 'TAGS:%s\n' "${list}"
 }
 
-# constraint_runs prints one line per vet run a constraint needs.
+# constraint_runs prints one line per vet run a constraint needs, or a single
+# ERROR when the constraint is outside the shape this expander can represent
+# exactly.
+#
+# The shape it accepts, and nothing wider:
+#
+#   * one term, optionally negated  -- live_nornicdb_dead_code_incoming, !windows
+#   * terms joined only by &&       -- perf5854_ack && perf5740_completion
+#   * terms joined only by ||       -- perf5854_head || perf5854_main
+#
+# with no parentheses anywhere. Every `//go:build` line in this module is one of
+# those. Anything else is an ERROR that fails the run: not a SKIP, and never a
+# PASS. An unreadable constraint means the file behind it was not compiled, and
+# a gate that answers PASS for a file it never compiled is the failure class it
+# exists to remove.
+#
+# Two shapes taught that the hard way, both reported as false greens against a
+# fixture whose tagged file did not compile:
+#
+#   - `!(tag_a || tag_b)`. The parentheses used to be flattened to spaces before
+#     anything looked at them, which turns the constraint into `! tag_a ||
+#     tag_b`: the `!` binds to the first term only, so the gate dropped `!tag_a`
+#     as a negation, ran `-tags tag_b`, and reported SKIP plus PASS. Neither
+#     touched the file, which is built when BOTH tags are off.
+#   - `tag_a && (tag_b || tag_c)`. This was a SKIP with the honest reason that
+#     flattening loses the `tag_a` from one branch -- but a SKIP on a blocking
+#     gate is still a green run over an uncompiled file.
 #
 # An `||` alternation gets one run per alternative, not one run with every
 # alternative enabled. Enabling them together is not what the constraint means
@@ -186,20 +212,25 @@ alternative_run() {
 # there is no such sed to depend on, and the count check below turns any future
 # collapse into a FAIL rather than a silent green.
 constraint_runs() {
-	local flat
-	flat="$(printf '%s' "$1" | tr '()' '  ')"
-	if [[ "${flat}" == *"&&"* && "${flat}" == *"||"* ]]; then
-		# Refusing beats guessing. Flattening the parentheses of `a && (b || c)`
-		# loses the `a` from one branch, which would vet a shape the file never
-		# builds under. No such constraint exists in this module today.
-		printf 'SKIP:mixed && and || is not expanded; vet this constraint by hand\n'
+	local constraint="$1"
+	# Parentheses are refused whole. Representing them exactly needs a real
+	# boolean expander, and every partial attempt at one here has produced a
+	# green run over a file it never built. No constraint in this module uses
+	# them; a change that adds one should extend this function deliberately and
+	# bring its own test, not inherit a guess.
+	if [[ "${constraint}" == *"("* || "${constraint}" == *")"* ]]; then
+		printf 'ERROR:uses a parenthesised group, which this gate does not expand; the file behind it was NOT compiled\n'
 		return
 	fi
-	if [[ "${flat}" == *"||"* ]]; then
+	if [[ "${constraint}" == *"&&"* && "${constraint}" == *"||"* ]]; then
+		printf 'ERROR:mixes && and ||, which this gate does not expand; the file behind it was NOT compiled\n'
+		return
+	fi
+	if [[ "${constraint}" == *"||"* ]]; then
 		local alternatives=() alternative
 		while IFS= read -r alternative; do
 			[[ -n "${alternative}" ]] && alternatives+=("${alternative}")
-		done < <(split_on "${flat}" "||")
+		done < <(split_on "${constraint}" "||")
 		if [[ ${#alternatives[@]} -lt 2 ]]; then
 			printf 'ERROR:alternation split produced %d alternative(s); the constraint was not parsed\n' \
 				"${#alternatives[@]}"
@@ -210,7 +241,7 @@ constraint_runs() {
 		done
 		return
 	fi
-	alternative_run "${flat}"
+	alternative_run "${constraint}"
 }
 
 # package_dir prints the directory one package argument names, and refuses a

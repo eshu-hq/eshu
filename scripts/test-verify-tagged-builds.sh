@@ -203,6 +203,32 @@ if ! rg -q 'SKIP.*\[windows\].*platform-gated' "${tmp_root}/gate.out"; then
 	sed -n '1,40p' "${tmp_root}/gate.out" >&2
 fi
 
+# A negated GROUP is not a negated tag. `!(tag_a || tag_b)` builds the file when
+# BOTH tags are off, and the gate used to flatten the parentheses to spaces
+# first, turning it into `! tag_a || tag_b`: the `!` bound to the first term
+# only, so it dropped `!tag_a` as a negation, ran `-tags tag_b`, and answered
+# SKIP plus PASS. Neither run compiled the file. The break in the fixture is
+# what makes the assertion honest -- a gate that reported PASS here would be
+# reporting it over a package that does not build.
+negated_group="$(init_module negated_group \
+	"neg_group_test.go@@!(tag_a || tag_b)@@func Broken() int { return MissingHelper() }")"
+expect_fail "${negated_group}" "a negated parenthesised group" 'parenthesised group'
+if rg -q '^PASS' "${tmp_root}/gate.out"; then
+	fail "a negated group produced a PASS; nothing compiled that file"
+	sed -n '1,40p' "${tmp_root}/gate.out" >&2
+fi
+
+# A mixed constraint used to be a SKIP with an honest reason. On a blocking gate
+# a SKIP is still a green run over a file nothing compiled, so it is an ERROR.
+mixed_group="$(init_module mixed_group \
+	"mixed_test.go@@tag_a && (tag_b || tag_c)@@func Broken() int { return MissingHelper() }")"
+expect_fail "${mixed_group}" "a mixed && / || constraint with a group" 'parenthesised group'
+
+# The same mixture without parentheses takes the other arm.
+mixed_flat="$(init_module mixed_flat \
+	"mixed_flat_test.go@@tag_a && tag_b || tag_c@@func Broken() int { return MissingHelper() }")"
+expect_fail "${mixed_flat}" "a mixed && / || constraint without a group" 'mixes && and ||'
+
 # A bare GOARCH is platform-gated too, and `386` is the one that is not a legal
 # Go identifier -- so it only reaches the platform arm if that arm is consulted
 # first. It used to be reported as an unrecognized term and fail the run.

@@ -205,6 +205,8 @@ mutation was restored and its guard rerun at exit `0`.
 | 29 | a helper call that does not exist added to `code_dead_code_incoming_probe_nornicdb_live_test.go`, the exact shape `53239cb5e` left behind | `bash scripts/verify-tagged-builds.sh --all` | `1` (`FAIL ./internal/query [live_nornicdb_dead_code_incoming]`) — and `go test ./internal/query -count=1` on the same tree still exits `0`, which is the false green the gate exists for |
 | 30 | `split_on` returns its input unsplit for every separator | `bash scripts/verify-tagged-builds.sh --all` and `bash scripts/test-verify-tagged-builds.sh` | `1` both. Three `ERROR`s: the module's two `\|\|` constraints report `alternation split produced 1 alternative(s)`, and `perf5854_ack && perf5740_completion` reports `unrecognized term` because a collapsed conjunction hits the identifier check instead of the alternation count. 26 vetted, 8 skipped. Five self-test cases fail |
 | 31 | only the `\|\|` split collapses, which is exactly what a sed that writes a literal `n` would do | the same two commands | `1` both. Two `ERROR`s, both `alternation split produced 1 alternative(s)`, on `perf5854_head \|\| perf5854_main` and `aix \|\| … \|\| solaris` — the module has exactly two `\|\|` constraints. 27 vetted, 8 skipped. The self-test's two alternation cases fail |
+| 32 | restore the pre-8k parenthesis flattening, then point the gate at a fixture whose only tagged file is `!(tag_a \|\| tag_b)` and does not compile | `TAGGED_BUILDS_REPO_ROOT=<fixture> bash scripts/verify-tagged-builds.sh` | `0` — `SKIP … no selectable tags` plus `PASS … tags=tag_b`, neither of which compiled the file. With the fail-closed check: `1`, one `ERROR … uses a parenthesised group` |
+| 33 | the same, with `tag_a && (tag_b \|\| tag_c)` | the same command | `0` — a lone `SKIP … mixed && and \|\| is not expanded`, a green run over an uncompiled file on a blocking gate. With the check: `1`, one `ERROR`. The no-parentheses spelling `tag_a && tag_b \|\| tag_c` takes the other arm and reports `mixes && and \|\|` |
 
 An earlier attempt at #1 deleted the whole helper body and failed as an unused
 import rather than an assertion, which proves nothing; the mutations above keep
@@ -228,6 +230,12 @@ cannot see at all — which is the whole argument for the gate beside it. Rows 3
 and 31 are the round-8d parser guard, run as two mutations because they are two
 different defects: 31 is the sed behaviour that was actually there, and 30 is
 the broader "the splitter is broken" case, which reddens one constraint more.
+Rows 32 and 33 are round-8k, and they are the reverse shape: not a mutation of
+the gate but two constraints the shipped gate answered green without compiling
+anything. Both are now `ERROR`. The module has no parenthesised and no mixed
+constraint, so the sweep's own output is unchanged at 29 vetted / 16 skipped /
+exit 0, which is the behaviour-preservation check for a change that only
+narrows what the gate will accept.
 
 Rows 6 and 12 are one mutation judged by two guards: row 6 is the call-graph
 route's text guard, row 12 the graph-summary route that shares the builder. The

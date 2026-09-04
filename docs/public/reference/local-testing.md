@@ -439,10 +439,17 @@ a narrower trigger would reproduce the defect. The sweep is compile-only and
 needs no backend, which is what separates it from the tagged suites themselves
 — running those usually needs a pinned container, so they stay manual.
 
-A constraint the gate cannot parse — an unreadable term, or an alternation that
-splits into fewer alternatives than its `||` promises — is an `ERROR` that fails
-the run, never a skip and never a pass. Two other shapes are reported as `SKIP`
-rather than vetted, and the
+The gate accepts one term (optionally negated), terms joined only by `&&`, or
+terms joined only by `||`, with no parentheses. Anything outside that — a
+parenthesised group, a mix of `&&` and `||`, an unreadable term, or an
+alternation that splits into fewer alternatives than its `||` promises — is an
+`ERROR` that fails the run, never a skip and never a pass. A `SKIP` there would
+be a green run over a file nothing compiled, which is the failure class this
+gate exists to remove: `!(tag_a || tag_b)` used to have its parentheses
+flattened to spaces, binding the `!` to the first term only, and answered `SKIP`
+plus `PASS` without compiling the file either time.
+
+Two shapes are legitimately reported as `SKIP` rather than vetted, and the
 summary line prints the skip count so a sweep that is covering less than it
 looks like is visible:
 
