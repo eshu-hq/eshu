@@ -78,9 +78,13 @@ func (h crossRepoDeadCodeHiddenConsumers) has(entityID string) bool {
 //     SQL alone would lose, and losing it would mark a live symbol dead. It
 //     returns producer entity ids and nothing else --
 //     crossRepoDeadCodeUngrantedConsumerProbeQuery walks each producer entity's
-//     distinct consumer repositories in index order and stops at the first one
-//     the grant does not contain, a loose index scan rather than the page
-//     statement re-run with no grant bound.
+//     distinct (repository_id, scope_id) pairs in index order and stops as soon
+//     as one of them is both outside the grant and live, a loose index scan
+//     rather than the page statement re-run with no grant bound. Pairs rather
+//     than repositories, and live rather than merely present, because only the
+//     scope carries which generation is active: a stale-only row in an
+//     ungranted repository is not a consumer the caller cannot see, and does
+//     not stop the walk.
 //
 // The second return value is that probe's answer. A caller that asked for no
 // probe gets an empty set, and the page statement is the only one sent.
