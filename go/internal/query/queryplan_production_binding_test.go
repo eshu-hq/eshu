@@ -68,26 +68,40 @@ func handlerQueryplanProductionCypher() map[string]string {
 	return map[string]string{
 		"QP-ENTITY-RESOLVE-REPOSITORY": entityCypher,
 		"QP-CODE-SEARCH-REPOSITORY":    codeCypher,
+		// access is set explicitly on every import-dependency request below.
+		// Since #5167 batch 2a these builders render the caller's repository
+		// grant, and repositoryAccessFilter's zero value is a SCOPED filter with
+		// no grants -- so an unset access would silently repin these entries to
+		// the scoped shape, while the plan operators each entry commits to
+		// describe the repository-anchored shape a shared-key caller runs. The
+		// scoped shapes are covered by the import-dependency variant family
+		// (queryplan_import_dependencies_variants_test.go), which enumerates
+		// both caller classes.
 		"QP-CODE-IMPORT-ROWS-REPOSITORY": directImportRowsCypher(importDependencyRequest{
 			RepoID:     "proof-repository",
 			SourceFile: "proof.go",
+			access:     allAccess,
 		}),
 		"QP-CODE-IMPORT-PACKAGES": packageImportRowsCypher(importDependencyRequest{
 			QueryType:    "package_imports",
 			RepoID:       "proof-repository",
 			SourceModule: "proof.source",
+			access:       allAccess,
 		}, []map[string]any{{"repo_id": "proof-repository", "path": "/proof/src/proof.py"}}),
 		"QP-CODE-IMPORT-SOURCE-MODULE-FILES": sourceModuleFilesCypher(importDependencyRequest{
 			RepoID:       "proof-repository",
 			SourceModule: "proof.source",
+			access:       allAccess,
 		}),
 		"QP-CODE-IMPORT-TARGET-MODULE-FILES": targetModuleFilesCypher(importDependencyRequest{
 			RepoID:       "proof-repository",
 			TargetModule: "proof.target",
+			access:       allAccess,
 		}),
 		"QP-CODE-IMPORT-SOURCE-MODULE-ROWS": sourceModuleImportRowsCypher(importDependencyRequest{
 			RepoID:       "proof-repository",
 			SourceModule: "proof.source",
+			access:       allAccess,
 		}, []map[string]any{{"repo_id": "proof-repository", "path": "/proof/src/proof.py"}}),
 		"QP-CODE-IMPORT-CROSS-MODULE-CALLS": crossModuleCallRowsCypher(
 			importDependencyRequest{
@@ -95,6 +109,7 @@ func handlerQueryplanProductionCypher() map[string]string {
 				RepoID:       "proof-repository",
 				SourceModule: "proof.source",
 				TargetModule: "proof.target",
+				access:       allAccess,
 			},
 			[]map[string]any{{"repo_id": "proof-repository", "path": "/proof/src/proof.py"}},
 			[]map[string]any{{"repo_id": "proof-repository", "path": "/proof/src/target.py"}},
