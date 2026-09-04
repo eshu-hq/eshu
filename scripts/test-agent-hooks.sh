@@ -42,8 +42,78 @@ cleanup() {
   rm -f "/tmp/claude-skill-loaded-${run_tag}"* \
         "/tmp/claude-skill-override-${run_tag}"* \
         "/tmp/claude-skill-payload-${run_tag}"* 2>/dev/null
+  # The port listener is reaped here as well as at each case's end. It holds
+  # its socket for an hour, so a run that dies between start_port_listener and
+  # stop_port_listener -- a signal, an external kill, a harness timeout --
+  # leaves 15432 or 7687 bound. The next run would then take the skip branch,
+  # print "a gate or 15432 is already in use", assert nothing, and still report
+  # success: the same silent-skip shape the listener rewrite exists to remove.
+  # A stray hold on 7687 is worse than cosmetic, since that is the Bolt port
+  # the live gate contends on.
+  stop_port_listener
 }
 trap cleanup EXIT
+
+# --- binding a port for the contention cases ---------------------------------
+#
+# These two cases need a port to be LISTENING; they do not need it to speak
+# HTTP. They used `python3 -m http.server <port> --bind 127.0.0.1`, which stops
+# working the moment the interpreter on PATH does not reach its own bind. On
+# this repo's macOS toolchain (Homebrew CPython 3.14.7) it never binds: no
+# listener appears within a 5s lsof poll and nothing is written to stderr.
+# /usr/bin/python3 (3.9.6) binds the same port in ~300ms and a raw
+# socket.bind under 3.14 binds in ~200ms, so it is http.server specifically.
+#
+# The consequence was the worst shape a mirror can have. The port stayed free,
+# guard-live-gate correctly found nothing to contend with and exited 0, and the
+# mirror reported "bound 15432 should block(2)" — blaming the hook for the
+# listener's failure. A raw socket removes the dependency, and the wait loop
+# below removes the fixed sleep that hid it.
+#
+# start_port_listener <port> — binds 127.0.0.1:<port>, holds it until killed,
+# and sets port_listener_pid. Backgrounded from THIS shell, not a command
+# substitution, so the pid stays a child this script can `wait` on.
+port_listener_pid=""
+start_port_listener() {
+  python3 -c 'import socket, sys, time
+sock = socket.socket()
+sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+sock.bind(("127.0.0.1", int(sys.argv[1])))
+sock.listen(1)
+while True:
+    time.sleep(3600)
+' "$1" >/dev/null 2>&1 &
+  port_listener_pid=$!
+}
+
+# wait_for_bind <port> — 0 once the port is listening, 2 when lsof is missing,
+# 1 after ~3s of it never arriving. A bounded poll rather than a fixed sleep, so
+# a listener that is merely slow does not fail the case and one that never
+# arrives is reported as itself.
+#
+# The lsof arm is separate on purpose. Without it this function fails
+# identically whether the bind failed or the tool that observes binds is absent,
+# and the caller's message asserts the first -- misattributing a tooling gap as
+# a bind failure, which is one level up from the misdiagnosis this whole
+# rewrite removes. lsof is /usr/sbin/lsof on macOS, which is not on every
+# harness's PATH.
+wait_for_bind() {
+  local port="$1" i
+  command -v lsof >/dev/null 2>&1 || return 2
+  for ((i = 0; i < 30; i++)); do
+    lsof -nP -iTCP:"$port" -sTCP:LISTEN >/dev/null 2>&1 && return 0
+    sleep 0.1
+  done
+  return 1
+}
+
+# stop_port_listener — kill and reap whatever start_port_listener left running.
+stop_port_listener() {
+  [ -n "$port_listener_pid" ] || return 0
+  kill "$port_listener_pid" 2>/dev/null
+  wait "$port_listener_pid" 2>/dev/null
+  port_listener_pid=""
+}
 
 payload() { printf '{"session_id":"%s","tool_input":{"file_path":"%s"}}' "$1" "$2"; }
 
@@ -358,58 +428,6 @@ else
   failed=$((failed + 1))
 fi
 
-# --- binding a port for the contention cases ---------------------------------
-#
-# These two cases need a port to be LISTENING; they do not need it to speak
-# HTTP. They used `python3 -m http.server <port> --bind 127.0.0.1`, which stops
-# working the moment the interpreter on PATH does not reach its own bind. On
-# this repo's macOS toolchain (Homebrew CPython 3.14.7) it never binds: no
-# listener appears within a 5s lsof poll and nothing is written to stderr.
-# /usr/bin/python3 (3.9.6) binds the same port in ~300ms and a raw
-# socket.bind under 3.14 binds in ~200ms, so it is http.server specifically.
-#
-# The consequence was the worst shape a mirror can have. The port stayed free,
-# guard-live-gate correctly found nothing to contend with and exited 0, and the
-# mirror reported "bound 15432 should block(2)" — blaming the hook for the
-# listener's failure. A raw socket removes the dependency, and the wait loop
-# below removes the fixed sleep that hid it.
-#
-# start_port_listener <port> — binds 127.0.0.1:<port>, holds it until killed,
-# and sets port_listener_pid. Backgrounded from THIS shell, not a command
-# substitution, so the pid stays a child this script can `wait` on.
-port_listener_pid=""
-start_port_listener() {
-  python3 -c 'import socket, sys, time
-sock = socket.socket()
-sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-sock.bind(("127.0.0.1", int(sys.argv[1])))
-sock.listen(1)
-while True:
-    time.sleep(3600)
-' "$1" >/dev/null 2>&1 &
-  port_listener_pid=$!
-}
-
-# wait_for_bind <port> — true once the port is listening, false after ~3s. A
-# bounded poll rather than a fixed sleep, so a listener that is merely slow does
-# not fail the case and one that never arrives is reported as itself.
-wait_for_bind() {
-  local port="$1" i
-  for ((i = 0; i < 30; i++)); do
-    lsof -nP -iTCP:"$port" -sTCP:LISTEN >/dev/null 2>&1 && return 0
-    sleep 0.1
-  done
-  return 1
-}
-
-# stop_port_listener — kill and reap whatever start_port_listener left running.
-stop_port_listener() {
-  [ -n "$port_listener_pid" ] || return 0
-  kill "$port_listener_pid" 2>/dev/null
-  wait "$port_listener_pid" 2>/dev/null
-  port_listener_pid=""
-}
-
 # The residual collision. A Postgres-only override waives the 15432 probe, but
 # the live lane also binds Bolt, HTTP, API and MCP, and `pgrep -x ci-gates`
 # matches nothing while that lane runs (it is driven straight from pre-pr.sh and
@@ -421,9 +439,15 @@ if pgrep -x ci-gates >/dev/null 2>&1 || lsof -nP -iTCP:7687 -sTCP:LISTEN >/dev/n
   skipped=$((skipped + 1))
 else
   start_port_listener 7687
-  if ! wait_for_bind 7687; then
+  wait_for_bind 7687
+  bind_rc=$?
+  if [ "$bind_rc" -ne 0 ]; then
     stop_port_listener
-    printf 'FAIL - the listener never bound 7687, so this case never ran; the mirror could not set it up (not a guard-live-gate defect)\n' >&2
+    if [ "$bind_rc" -eq 2 ]; then
+      printf 'FAIL - lsof is not on PATH, so this case could not observe port 7687 at all; install it or add /usr/sbin (not a guard-live-gate defect)\n' >&2
+    else
+      printf 'FAIL - the listener never bound 7687, so this case never ran; the mirror could not set it up (not a guard-live-gate defect)\n' >&2
+    fi
     failed=$((failed + 1))
   else
     out=$(printf '{"cwd":"%s","tool_input":{"command":"ESHU_POSTGRES_PORT=15532 make pre-pr"}}' "$repo_root" \
@@ -449,9 +473,15 @@ if pgrep -x ci-gates >/dev/null 2>&1 || lsof -nP -iTCP:15432 -sTCP:LISTEN >/dev/
   skipped=$((skipped + 1))
 else
   start_port_listener 15432
-  if ! wait_for_bind 15432; then
+  wait_for_bind 15432
+  bind_rc=$?
+  if [ "$bind_rc" -ne 0 ]; then
     stop_port_listener
-    printf 'FAIL - the listener never bound 15432, so this case never ran; the mirror could not set it up (not a guard-live-gate defect)\n' >&2
+    if [ "$bind_rc" -eq 2 ]; then
+      printf 'FAIL - lsof is not on PATH, so this case could not observe port 15432 at all; install it or add /usr/sbin (not a guard-live-gate defect)\n' >&2
+    else
+      printf 'FAIL - the listener never bound 15432, so this case never ran; the mirror could not set it up (not a guard-live-gate defect)\n' >&2
+    fi
     failed=$((failed + 1))
   else
     out=$(printf '{"cwd":"%s","tool_input":{"command":"make pre-pr"}}' "$repo_root" \
