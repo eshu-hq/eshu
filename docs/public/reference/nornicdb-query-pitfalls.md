@@ -873,7 +873,7 @@ today would hard-code a label the pattern is supposed to read.
 
 ### Validation
 
-`TestLiveNornicDBLanguageQueryDirectoryBuilderReturnsNothing`
+`TestLiveNornicDBLanguageQueryDirectoryTwoClauseShapeReturnsNothing`
 (`go/internal/query/language_query_grant_nornicdb_live_backend_test.go`, build
 tag `live_nornicdb_language_imports_grant`) pins the shipped builder answering,
 the per-directory counts that catch the wrong rewrite direction, and all nine

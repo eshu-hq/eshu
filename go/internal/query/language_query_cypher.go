@@ -125,8 +125,8 @@ func buildRepositoryCypher(language, query, repoID string, limit int, access rep
 // drop, not an error, so this route answered `entity_type: "directory"` with an
 // empty list on the default backend for every caller and said nothing about it.
 // One MATCH clause evaluates the identical join correctly. The reproduction and
-// the four-probe bisection are in
-// TestLiveNornicDBLanguageQueryDirectoryBuilderReturnsNothing and in
+// the nine-probe bisection are in
+// TestLiveNornicDBLanguageQueryDirectoryTwoClauseShapeReturnsNothing and in
 // docs/public/reference/nornicdb-query-pitfalls.md.
 //
 // The direction is anchored at File deliberately. Writing the same single

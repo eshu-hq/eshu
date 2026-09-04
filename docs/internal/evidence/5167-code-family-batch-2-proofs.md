@@ -98,8 +98,12 @@ script, not committed; the working tree was verified clean afterwards.
 | 14 | `languageResultRepositoryMatchKey` drops its `repoID` component | `-run 'TestLanguageQueryMetadata\|TestLanguageResultRepositoryMatchKey'` | `1` |
 | 15 | the four language-query builders emit `""` instead of `access.GraphPredicate("r")`, against the live backend | `-tags live_nornicdb_language_imports_grant -run TestLiveNornicDBLanguageQueryGrantBindsEveryBuilder` | `1` |
 | 16 | `importDependencyGrantPredicates` returns nil for every caller, against the live backend | `-tags live_nornicdb_language_imports_grant -run TestLiveNornicDBImportDependencyGrantBindsEveryBuilder` | `1` |
-| 17 | `buildDirectoryCypher` reverted to its two-MATCH shape, against the live backend | `-tags live_nornicdb_language_imports_grant -run 'TestLiveNornicDBLanguageQueryGrantBindsEveryBuilder\|TestLiveNornicDBLanguageQueryDirectoryBuilderReturnsNothing'` | `1` |
-| 18 | `buildDirectoryCypher` rewritten forward from Repository instead of anchored at File | `-tags live_nornicdb_language_imports_grant -run TestLiveNornicDBLanguageQueryDirectoryBuilderReturnsNothing` | `1` |
+| 17 | `buildDirectoryCypher` reverted to its two-MATCH shape, against the live backend | `-tags live_nornicdb_language_imports_grant -run 'TestLiveNornicDBLanguageQueryGrantBindsEveryBuilder\|TestLiveNornicDBLanguageQueryDirectoryTwoClauseShapeReturnsNothing'` | `1` |
+| 18 | `buildDirectoryCypher` rewritten forward from Repository instead of anchored at File | `-tags live_nornicdb_language_imports_grant -run TestLiveNornicDBLanguageQueryDirectoryTwoClauseShapeReturnsNothing` | `1` |
+| 19 | `buildRepositoryCypher` reorders its tail to `ORDER BY r.name` | `-run TestLanguageQueryUnscopedCypherTextIsFrozen` | `1` |
+| 20 | `buildDirectoryCypher` reverted to its two-MATCH shape | `-run TestLanguageQueryUnscopedCypherTextIsFrozen` | `1` |
+| 21 | `buildFileCypher` reorders its tail to `ORDER BY f.name` | `-run TestLanguageQueryUnscopedCypherTextIsFrozen` | `1` |
+| 22 | `buildEntityCypherWithSemanticFilter` drops `labels(e)` from its RETURN | `-run TestLanguageQueryUnscopedCypherTextIsFrozen` | `1` |
 
 Rows 17 and 18 are the two ways the directory rewrite can be got wrong, and
 they fail differently on purpose. Row 17 reverts it and the statement returns
@@ -108,6 +112,22 @@ nothing at all. Row 18 keeps one clause but runs the join forward from
 passed it — and the guard catches it on the counts instead:
 `counted 2 file(s) in "z-src-0", want 1`, with the nested directory missing from
 the answer entirely.
+
+Rows 19 through 22 are the frozen-text guard, one mutation per builder. Each
+rewrites the unscoped statement in a way the grant guard next door cannot see —
+it looks only for grant artifacts, and none of these four add any — and
+`TestLanguageQueryUnscopedCypherTextIsFrozen` reds on all four at exit `1`,
+restoring to `0`. Row 20 is the one that matters most: it is the accidental
+revert of the directory fix, and before this guard existed nothing on the route
+caught it. The driver is a scratch script like the rows above.
+
+The live-backend rows above name
+`TestLiveNornicDBLanguageQueryDirectoryTwoClauseShapeReturnsNothing`, which was
+called `TestLiveNornicDBLanguageQueryDirectoryBuilderReturnsNothing` when rows
+17, 18 and the control below were run. Only the name changed — it had come to
+say the opposite of what the test asserts, since the shipped builder answers
+now and it is the two-clause shape that returns nothing. The commands are
+written with the current name so they can be rerun.
 
 Row 13 reds only its `scoped caller with no repository grants` sub-case, and
 that is the correct shape: neutering the request-time gate leaves the dispatch
@@ -228,7 +248,7 @@ statement with two `MATCH` clauses and a `WITH` aggregation answers no rows on
 this build once the `RETURN` carries a function call or a list construction.
 That one is fixed in this change rather than recorded and left; the nine-probe
 bisection stays committed inside
-`TestLiveNornicDBLanguageQueryDirectoryBuilderReturnsNothing` as the control
+`TestLiveNornicDBLanguageQueryDirectoryTwoClauseShapeReturnsNothing` as the control
 that fails when the backend behaviour moves.
 
 ## Verification

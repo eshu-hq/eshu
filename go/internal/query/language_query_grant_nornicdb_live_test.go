@@ -224,12 +224,12 @@ func runLiveGrantCases(ctx context.Context, t *testing.T, driver neo4jdriver.Dri
 	t.Logf("proved %d statement shape(s) against the pinned backend", len(cases))
 }
 
-// TestLiveNornicDBLanguageQueryGrantBindsEveryBuilder covers every dispatch
-// branch of buildLanguageCypherWithSemanticFilter that reaches the graph and
-// that the pinned backend can answer at all. The fourth branch, Directory, is
-// in TestLiveNornicDBLanguageQueryDirectoryBuilderReturnsNothing below: it
-// returns no rows on this build with or without a grant, for a backend reason
-// unrelated to the grant.
+// TestLiveNornicDBLanguageQueryGrantBindsEveryBuilder covers all four dispatch
+// branches of buildLanguageCypherWithSemanticFilter that reach the graph,
+// Directory included -- the single-clause rewrite is what lets that branch
+// answer on this build at all. The shape it replaced, which still answers
+// nothing here, is pinned in
+// TestLiveNornicDBLanguageQueryDirectoryTwoClauseShapeReturnsNothing.
 func TestLiveNornicDBLanguageQueryGrantBindsEveryBuilder(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
 	defer cancel()

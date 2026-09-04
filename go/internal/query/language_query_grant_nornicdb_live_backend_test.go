@@ -19,14 +19,13 @@ import (
 	neo4jdriver "github.com/neo4j/neo4j-go-driver/v5/neo4j"
 )
 
-// TestLiveNornicDBLanguageQueryDirectoryBuilderReturnsNothing is the negative
-// control for the backend defect buildDirectoryCypher was rewritten around.
-//
-// The name is kept from when the shipped builder was the thing returning
-// nothing. It no longer is: the builder emits one MATCH clause now and
-// TestLiveNornicDBLanguageQueryGrantBindsEveryBuilder proves it answers, with
-// the grant bound, alongside the other three. What still returns nothing is the
-// SHAPE it used to have, and that is what this pins.
+// TestLiveNornicDBLanguageQueryDirectoryTwoClauseShapeReturnsNothing is the
+// negative control for the backend defect buildDirectoryCypher was rewritten
+// around. What returns nothing here is the two-MATCH SHAPE the builder used to
+// have, not the shipped builder: that emits one MATCH clause now, answers on
+// this build, and is asserted first below and again in
+// TestLiveNornicDBLanguageQueryGrantBindsEveryBuilder alongside the other
+// three.
 //
 // On the pinned build a read with two MATCH clauses followed by a
 // `WITH <node>, <node>, count(...)` aggregation drops every row as soon as the
@@ -41,7 +40,7 @@ import (
 // and again after moving the pin: a failure here means the backend behaviour
 // the Directory rewrite was built around has changed, and the shape should be
 // re-measured rather than quietly reverted.
-func TestLiveNornicDBLanguageQueryDirectoryBuilderReturnsNothing(t *testing.T) {
+func TestLiveNornicDBLanguageQueryDirectoryTwoClauseShapeReturnsNothing(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), time.Minute)
 	defer cancel()
 	driver := openLiveGrantDriver(ctx, t)

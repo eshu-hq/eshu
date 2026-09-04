@@ -14,9 +14,10 @@ import (
 // #5167 code-family batch 2a: the shipped-text guards for
 // POST /api/v0/code/language-query. The route tests in
 // auth_scoped_language_query_grant_test.go drive fake stores and a statement
-// interpreter, so they can prove behaviour; these prove the text the two
-// builders actually emit, which is what a rewrite would silently drop. Split
-// from that file only to stay under the repository's 500-line cap.
+// interpreter, so they can prove behaviour; these prove the text the builders
+// actually emit -- that the grant reaches it, and that an unscoped caller's
+// statement has not otherwise moved -- which is what a rewrite would silently
+// drop. Split from that file only to stay under the repository's 500-line cap.
 
 // languageQueryGrantContentStore is the production shape: a store that takes
 // the grant into its own statement, so one read serves the whole granted set.
@@ -147,3 +148,136 @@ func TestLanguageQueryBuildersBindTheGrantInTheShippedCypher(t *testing.T) {
 		})
 	}
 }
+
+// TestLanguageQueryUnscopedCypherTextIsFrozen is the byte-identity guard for
+// the unscoped text of the four builders behind
+// buildLanguageCypherWithSemanticFilter. TestLanguageQueryBuildersBindTheGrantInTheShippedCypher
+// above pins the ABSENCE of grant artifacts from an unscoped statement, which a
+// wholesale rewrite would pass; this one compares the entire statement,
+// whitespace included.
+//
+// Three of the baselines are the text as it stands on origin/main
+// (`git show origin/main:go/internal/query/language_query_cypher.go`). The
+// grant work appended access.GraphPredicate("r") and access.GraphParams(params)
+// to each builder and changed nothing else, and both are empty for an unscoped
+// caller, so an unscoped request must still get byte-for-byte what it got
+// before the grant landed.
+//
+// buildDirectoryCypher is the declared exception. Its unscoped text changed in
+// this same commit -- two MATCH clauses collapsed into one, because the
+// two-clause shape drops every row on the pinned NornicDB build (the reasoning
+// is on buildDirectoryCypher, the measurement in
+// TestLiveNornicDBLanguageQueryDirectoryTwoClauseShapeReturnsNothing). It is
+// frozen to its NEW text, so an accidental revert fails here too.
+//
+// The shared semantic-metadata projection is spliced from
+// graphSemanticMetadataProjection() rather than copied into the baseline: eight
+// statements in this package share that helper, so a frozen copy would fail on
+// every unrelated addition to the list while proving nothing about this route.
+// Everything around it -- the MATCH, the WHERE, the RETURN's own columns, the
+// ORDER BY and the LIMIT -- is frozen.
+func TestLanguageQueryUnscopedCypherTextIsFrozen(t *testing.T) {
+	t.Parallel()
+
+	for _, tc := range []struct {
+		label string
+		want  string
+	}{
+		{label: "Repository", want: frozenUnscopedRepositoryCypher},
+		{label: "Directory", want: frozenUnscopedDirectoryCypher},
+		{label: "File", want: frozenUnscopedFileCypher},
+		{
+			label: "Function",
+			want: frozenUnscopedEntityCypherHead +
+				graphSemanticMetadataProjection() +
+				frozenUnscopedEntityCypherTail,
+		},
+	} {
+		t.Run(tc.label, func(t *testing.T) {
+			t.Parallel()
+
+			got, _ := buildLanguageCypher("go", tc.label, "", "", 50)
+			if got != tc.want {
+				t.Fatalf("%s builder's unscoped text moved off its frozen baseline.\n got: %q\nwant: %q\n"+
+					"An unscoped caller's statement is not supposed to change. If it must, "+
+					"re-measure the route and update this baseline and the claim in "+
+					"docs/internal/evidence/5167-code-family-batch-2.md together.", tc.label, got, tc.want)
+			}
+		})
+	}
+}
+
+// frozenCypherLines joins a frozen baseline's lines with "\n". The baselines
+// are written one quoted line at a time rather than as a single raw literal
+// because these statements carry lines holding nothing but a tab -- the seam
+// where the builder concatenates two raw literals -- and a raw literal
+// reproducing them byte for byte is trailing whitespace that
+// `git diff --check` rejects.
+func frozenCypherLines(lines ...string) string {
+	return strings.Join(lines, "\n")
+}
+
+var frozenUnscopedRepositoryCypher = frozenCypherLines(
+	"",
+	"\t\tMATCH (r:Repository)-[:REPO_CONTAINS]->(f:File)",
+	"\t\tWHERE (f.language = $language OR f.language = $language_title)",
+	"\t",
+	"\t\tWITH r, count(f) as file_count",
+	"\t\tRETURN r.id as id, r.name as name,",
+	"\t\t       coalesce(r.local_path, r.path) as local_path,",
+	"\t\t       r.remote_url as remote_url,",
+	"\t\t       file_count",
+	"\t\tORDER BY file_count DESC",
+	"\t\tLIMIT $limit",
+	"\t",
+)
+
+var frozenUnscopedDirectoryCypher = frozenCypherLines(
+	"",
+	"\t\tMATCH (f:File)<-[:CONTAINS]-(d:Directory)<-[:REPO_CONTAINS|CONTAINS*]-(r:Repository)",
+	"\t\tWHERE (f.language = $language OR f.language = $language_title OR f.name ENDS WITH '.go')",
+	"\t",
+	"\t\tWITH d, r, count(f) as file_count",
+	"\t\tRETURN d.id as entity_id, d.name as name, labels(d) as labels,",
+	"\t\t       d.relative_path as file_path,",
+	"\t\t       r.id as repo_id, r.name as repo_name,",
+	"\t\t       file_count",
+	"\t\tORDER BY file_count DESC",
+	"\t\tLIMIT $limit",
+	"\t",
+)
+
+var frozenUnscopedFileCypher = frozenCypherLines(
+	"",
+	"\t\tMATCH (f:File)<-[:REPO_CONTAINS]-(r:Repository)",
+	"\t\tWHERE (f.language = $language OR f.language = $language_title OR f.name ENDS WITH '.go')",
+	"\t",
+	"\t\tRETURN f.id as entity_id, f.name as name, labels(f) as labels,",
+	"\t\t       f.relative_path as file_path,",
+	"\t\t       r.id as repo_id, r.name as repo_name,",
+	"\t\t       f.language as language",
+	"\t\tORDER BY f.relative_path",
+	"\t\tLIMIT $limit",
+	"\t",
+)
+
+var frozenUnscopedEntityCypherHead = frozenCypherLines(
+	"",
+	"\t\tMATCH (e:Function)<-[:CONTAINS]-(f:File)<-[:REPO_CONTAINS]-(r:Repository)",
+	"\t\tWHERE (e.language = $language OR e.language = $language_title",
+	"\t\t       OR f.language = $language OR f.language = $language_title OR f.name ENDS WITH '.go')",
+	"\t",
+	"\t\tRETURN e.id as entity_id, e.name as name, labels(e) as labels,",
+	"\t\t       f.relative_path as file_path,",
+	"\t\t       r.id as repo_id, r.name as repo_name,",
+	"\t\t       coalesce(e.language, f.language) as language,",
+	"\t\t       e.start_line as start_line, e.end_line as end_line,",
+	"",
+)
+
+var frozenUnscopedEntityCypherTail = frozenCypherLines(
+	"",
+	"\t\tORDER BY f.relative_path, e.name",
+	"\t\tLIMIT $limit",
+	"\t",
+)

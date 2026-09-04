@@ -248,7 +248,7 @@ unscoped alike, on a graph seeded the way the projector writes directories — s
 default graph backend for every caller, and said nothing about why.
 
 The cause is a backend row drop, bisected in
-`TestLiveNornicDBLanguageQueryDirectoryBuilderReturnsNothing` and recorded in
+`TestLiveNornicDBLanguageQueryDirectoryTwoClauseShapeReturnsNothing` and recorded in
 [NornicDB Query-Shape Pitfalls](../../public/reference/nornicdb-query-pitfalls.md):
 a read with two `MATCH` clauses followed by a `WITH … count(…)` aggregation
 drops every row as soon as the `RETURN` projects anything richer than a plain
@@ -269,8 +269,16 @@ Two consequences worth stating plainly. This is a **behaviour change for every
 caller**, not only a scoped one: a request that returned `results: []` on
 NornicDB now returns directories. And it is the one place on this route where
 the unscoped query text deliberately changes — every other builder's unscoped
-text is byte-identical to before, and the tests pin that. No queryplan digest
-moves with it: the manifest's only language-query entry records a
+text is byte-identical to before.
+`TestLanguageQueryUnscopedCypherTextIsFrozen` is what pins that: it compares
+each builder's unscoped statement against a frozen baseline character for
+character, with `buildRepositoryCypher`, `buildFileCypher` and
+`buildEntityCypherWithSemanticFilter` frozen to their `origin/main` text and
+`buildDirectoryCypher` frozen to its new text, so a rewrite of any of the four
+fails it. The grant guard next to it,
+`TestLanguageQueryBuildersBindTheGrantInTheShippedCypher`, pins the narrower
+claim that no grant condition or grant parameter reaches an unscoped caller.
+No queryplan digest moves with it: the manifest's only language-query entry records a
 `source_sha256` of `(*LanguageQueryHandler).queryByLanguageWithSemanticFilter`
 in `language_queries.go`, a function this change does not touch, and this route
 has no `cypher_sha256` anywhere.
@@ -407,11 +415,16 @@ this change.
 
 For an unscoped shared, admin, or local caller every grant predicate renders
 empty and every grant parameter is unbound, so the query text those callers
-execute is byte-identical to before. That is pinned two ways: by
+execute is byte-identical to before — with `buildDirectoryCypher` the one
+declared exception above, rewritten for a backend reason that has nothing to do
+with the grant. That is pinned three ways: by
 `TestLanguageQuerySharedKeyReadIsUnchanged`,
 `TestImportDependenciesSharedKeyReadIsUnchanged` and the builders' own
-`…CarryNoGrantForAnUnscopedCaller` assertions, and by the queryplan manifests,
-whose `cypher_sha256` values and plan blocks are unchanged for all seven
+`…CarryNoGrantForAnUnscopedCaller` assertions; by
+`TestLanguageQueryUnscopedCypherTextIsFrozen`, which compares all four
+language-query builders' unscoped text against a frozen baseline rather than
+only looking for grant artifacts; and by the queryplan manifests, whose
+`cypher_sha256` values and plan blocks are unchanged for all seven
 import-dependency entries.
 
 Observability Evidence: no metric instrument, metric label, span, log event,
