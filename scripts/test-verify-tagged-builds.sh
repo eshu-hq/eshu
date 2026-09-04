@@ -159,6 +159,39 @@ if rg -q 'tags=variant_head,variant_main' "${tmp_root}/gate.out"; then
 	sed -n '1,40p' "${tmp_root}/gate.out" >&2
 fi
 
+# Three alternatives, so a split that collapses cannot hide behind "two happens
+# to be right". This is the F8d-3 guard: the split was `sed 's/||/\n/g'`, whose
+# `\n` is a GNU extension -- on a sed that inserts a literal `n`, the whole
+# alternation becomes one token that still passes the identifier check, vets
+# trivially, and reports PASS having compiled nothing.
+triple="$(init_module triple \
+	"one_test.go@@variant_one@@func Pick() int { return 1 }" \
+	"two_test.go@@variant_two@@func Pick() int { return 2 }" \
+	"three_test.go@@variant_three@@func Pick() int { return 3 }" \
+	"any_test.go@@variant_one || variant_two || variant_three@@func UsesPick() int { return Pick() }")"
+expect_pass "${triple}" "a three-way alternation vetted once per alternative"
+for want in variant_one variant_two variant_three; do
+	if ! rg -q "tags=${want}\$" "${tmp_root}/gate.out"; then
+		fail "expected the three-way alternation to be vetted with tags=${want}"
+		sed -n '1,40p' "${tmp_root}/gate.out" >&2
+	fi
+done
+if rg -q 'tags=variant_onenvariant_two' "${tmp_root}/gate.out"; then
+	fail "the alternation collapsed into one token -- the split is not splitting"
+	sed -n '1,40p' "${tmp_root}/gate.out" >&2
+fi
+
+# A constraint the gate cannot parse is a FAIL, never a SKIP and never a PASS.
+# `tag_one ||` has a dangling alternative: the split yields one non-empty
+# alternative where the `||` promises at least two.
+malformed="$(init_module malformed \
+	"dangling_test.go@@tag_one ||@@func Dangling() int { return Helper() }")"
+expect_fail "${malformed}" "a constraint that does not parse" 'ERROR'
+if ! rg -q 'alternation split produced 1 alternative' "${tmp_root}/gate.out"; then
+	fail "expected the dangling alternation to be named as a parse failure"
+	sed -n '1,40p' "${tmp_root}/gate.out" >&2
+fi
+
 # A GOOS term cannot be selected with -tags: forcing one pulls two copies of the
 # standard library's platform files into the same build and fails inside
 # internal/goos, which would read as a break in the package under test.

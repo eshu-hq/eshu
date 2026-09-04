@@ -90,6 +90,26 @@ else
 	[[ ${#packages[@]} -gt 0 ]] || packages=("./internal/query")
 fi
 
+# split_on prints the fields of "$1" separated by the literal operator "$2", one
+# per line, with surrounding whitespace trimmed. Pure bash: no sed, no locale,
+# and no replacement escape whose portability has to be argued about.
+split_on() {
+	local rest="$1" separator="$2" field
+	while :; do
+		if [[ "${rest}" == *"${separator}"* ]]; then
+			field="${rest%%"${separator}"*}"
+			rest="${rest#*"${separator}"}"
+		else
+			field="${rest}"
+			rest=""
+		fi
+		field="${field#"${field%%[![:space:]]*}"}"
+		field="${field%"${field##*[![:space:]]}"}"
+		printf '%s\n' "${field}"
+		[[ -n "${rest}" ]] || break
+	done
+}
+
 # platform_term reports whether a term names a GOOS, GOARCH, or one of the
 # toolchain's own meta-tags. These are NOT selectable with -tags: the go command
 # matches them against the build environment, and forcing one on a host that is
@@ -105,28 +125,33 @@ platform_term() {
 	esac
 }
 
-# alternative_run prints what one conjunction of terms needs, as either
-# `TAGS:<comma list>` or `SKIP:<reason>`.
+# alternative_run prints what one conjunction of terms needs, as `TAGS:<comma
+# list>`, `SKIP:<reason>`, or `ERROR:<reason>`.
 #
 # Negated terms are dropped: the file is built when that tag is OFF, so passing
 # it would exclude the very file this gate exists to compile. `ignore` is
 # dropped for the same reason it always is -- it names "never build this".
-# What is left decides the run.
+# Anything else that is not a legal tag identifier is an ERROR, not a silent
+# drop: a term this function does not understand means the constraint was not
+# parsed, and a gate that reports PASS on a constraint it could not read is the
+# failure class it exists to remove.
 alternative_run() {
 	local terms=() term
 	while IFS= read -r term; do
 		[[ -n "${term}" ]] || continue
+		if [[ "${term}" == "!"* || "${term}" == "ignore" ]]; then
+			continue
+		fi
+		if [[ ! "${term}" =~ ^[A-Za-z_][A-Za-z0-9_.]*$ ]]; then
+			printf 'ERROR:unrecognized term %s\n' "${term}"
+			return
+		fi
 		if platform_term "${term}"; then
 			printf 'SKIP:platform-gated (%s); -tags cannot select a GOOS/GOARCH\n' "${term}"
 			return
 		fi
 		terms+=("${term}")
-	done < <(
-		printf '%s\n' "$1" |
-			sed -e 's/&&/ /g' |
-			tr ' \t' '\n\n' |
-			awk 'NF && $0 !~ /^!/ && $0 != "ignore" && $0 ~ /^[A-Za-z_][A-Za-z0-9_.]*$/'
-	)
+	done < <(split_on "$1" "&&")
 	if [[ ${#terms[@]} -eq 0 ]]; then
 		printf 'SKIP:no selectable tags; the default build already compiles this file\n'
 		return
@@ -146,6 +171,14 @@ alternative_run() {
 # and it does not even compile: cmd/reducer's `perf5854_head || perf5854_main`
 # files each declare the same symbol, so turning both on redeclares it and the
 # gate reports a break that is its own.
+#
+# The split counts its own output. This used to be `sed 's/||/\n/g'`, whose
+# `\n` is a GNU extension: on a sed that inserts a literal `n` instead,
+# `perf5854_head || perf5854_main` collapses to the single token
+# `perf5854_headnperf5854_main`, which passes the identifier check, vets
+# trivially, and reports PASS having compiled nothing. split_on is pure bash so
+# there is no such sed to depend on, and the count check below turns any future
+# collapse into a FAIL rather than a silent green.
 constraint_runs() {
 	local flat
 	flat="$(printf '%s' "$1" | tr '()' '  ')"
@@ -157,15 +190,18 @@ constraint_runs() {
 		return
 	fi
 	if [[ "${flat}" == *"||"* ]]; then
-		local alternative
+		local alternatives=() alternative
 		while IFS= read -r alternative; do
-			# Trim, so the constraint prints and compares cleanly either side
-			# of the split.
-			alternative="${alternative#"${alternative%%[![:space:]]*}"}"
-			alternative="${alternative%"${alternative##*[![:space:]]}"}"
-			[[ -n "${alternative}" ]] || continue
+			[[ -n "${alternative}" ]] && alternatives+=("${alternative}")
+		done < <(split_on "${flat}" "||")
+		if [[ ${#alternatives[@]} -lt 2 ]]; then
+			printf 'ERROR:alternation split produced %d alternative(s); the constraint was not parsed\n' \
+				"${#alternatives[@]}"
+			return
+		fi
+		for alternative in "${alternatives[@]}"; do
 			alternative_run "${alternative}"
-		done < <(printf '%s\n' "${flat}" | sed 's/||/\n/g')
+		done
 		return
 	fi
 	alternative_run "${flat}"
@@ -248,6 +284,13 @@ for index in "${!packages[@]}"; do
 			SKIP:*)
 				skipped=$((skipped + 1))
 				printf 'SKIP  %s  [%s]  %s\n' "${pattern}" "${constraint}" "${run#SKIP:}"
+				;;
+			ERROR:*)
+				# A constraint this gate could not read is a failure, never a
+				# skip. Reporting PASS on one is the exact shape the gate exists
+				# to remove.
+				printf 'ERROR %s  [%s]  %s\n' "${pattern}" "${constraint}" "${run#ERROR:}"
+				exit_status=1
 				;;
 			TAGS:*)
 				tag_list="${run#TAGS:}"

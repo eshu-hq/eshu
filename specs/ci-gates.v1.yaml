@@ -3871,6 +3871,36 @@ gates:
     ci_only_reason: ""
     hook_id: ""
 
+  - id: tagged-builds
+    name: Build-tag compile sweep
+    category: exactness
+    tier: pre-pr
+    blocking: true
+    triggers:
+      - "go/**"
+      - "scripts/verify-tagged-builds.sh"
+      - "scripts/test-verify-tagged-builds.sh"
+      - "scripts/dev/pre-pr.sh"
+      - "specs/ci-gates.v1.yaml"
+      - ".github/workflows/static-contract-gates.yml"
+    local:
+      command: "bash scripts/verify-tagged-builds.sh --all"
+      test_command: "bash scripts/test-verify-tagged-builds.sh"
+    ci:
+      workflow: static-contract-gates.yml
+      job: "Verify tagged-builds gate"
+    requirements: []
+    ci_only_reason: ""
+    hook_id: ""
+    # go/** is deliberately the broad trigger. A file behind a //go:build
+    # constraint is excluded from the default tag set, so go build, go vet and
+    # go test all walk past it: the change that breaks one is almost never a
+    # change to the tagged file itself, it is a helper deleted somewhere else in
+    # its package. That is exactly how #5167's live NornicDB complexity proof
+    # sat uncompilable through a make pre-pr run, a push, a full CI run and
+    # eight review rounds. Narrowing this trigger to the tagged files would
+    # reproduce the defect.
+
   - id: perf-evidence
     name: Hot-path performance evidence
     category: telemetry

@@ -95,9 +95,14 @@ PASS a package whose tagged files all compile
 PASS a break behind a single-tag constraint
 PASS a break behind a compound && constraint
 PASS an || alternation vetted one alternative at a time
+PASS a three-way alternation vetted once per alternative
+PASS a constraint that does not parse
 PASS a GOOS-gated constraint is skipped, not forced
 PASS a package with no build constraints
 PASS a nonexistent package path is refused
+
+$ bash scripts/verify-ci-gates-registry.sh                      exit 0
+PASS: ci-gates registry integrity + drift check
 ```
 
 Writing the gate found two defects in the loop the paragraph had published, and
@@ -122,12 +127,27 @@ the ordinary build on their own platform. Six are negated constraints
 (`!ifafaultinjection`), which reduce to no selectable tag because the default
 build already compiles them.
 
-CI wiring is deliberately not in this PR. Adding a matrix row to
-`static-contract-gates.yml` has to go through the ci-gates registry and its
-workflow-parity drift check, which is a contract change that deserves its own
-review rather than riding along with a query-layer diff. The local gate is what
-this branch adds, and `make pre-pr` is where a tagged compile break now fails
-before a push.
+The gate runs in two places. `make pre-pr`'s "tagged build sweep" step runs it
+with `--all` whenever the diff touches Go, so a tagged compile break fails
+before a push. In CI it is the `tagged-builds` entry in `specs/ci-gates.v1.yaml`
+and the `Verify tagged-builds gate` row of `static-contract-gates.yml`, wired
+the way every other `test-verify-*.sh` mirror is: the matrix job runs the test
+mirror and then the gate. Its trigger is `go/**`, deliberately broad — the
+change that breaks a tagged file is almost never a change to that file, it is a
+helper deleted elsewhere in its package, so narrowing the trigger to the tagged
+files would reproduce the defect.
+
+One more silent-PASS path came out of review. The alternation split was
+`sed 's/||/\n/g'`, and `\n` in a sed replacement is a GNU extension: on a sed
+that inserts a literal `n`, `perf5854_head || perf5854_main` collapses to the
+single token `perf5854_headnperf5854_main`, which satisfies the identifier
+check, vets trivially, and reports PASS having compiled anything at all. Both
+platforms this runs on happen to emit a real newline, so it was latent — but a
+latent false green in the gate written to remove false greens is worth
+removing. The split is pure bash now, and the count is checked: an alternation
+that yields fewer alternatives than its `||` promises is an `ERROR`, which
+fails the run. Simulating the collapse turns four real constraints from PASS
+into `alternation split produced 1 alternative(s)`.
 
 Unscoped counterparts pin the other direction — a shared-key caller that names
 no repository keeps its query text and row set:
@@ -178,6 +198,7 @@ mutation was restored and its guard rerun at exit `0`.
 | 27 | `crossRepoDeadCodeConsumerReadPlan` binds the grant for a request that named consumers, the shape before this pass | `go test ./internal/query -run TestCrossRepoDeadCodeConsumerSelectorSurvivesABusyGrantedRepository -count=1` | `1` (the requested consumer answered `unknown_needs_evidence` with `consumer_evidence_truncated`) |
 | 28 | `deadCodeIncomingProbeMaxResults` keeps the carried-forward 2,500 instead of the re-derived 5,000 | `go test ./internal/query -run TestDeadCodeIncomingProbeMaxResultsMatchesTheManifest -count=1` | `1` (`derived row bound = 5000, want 2500`) |
 | 29 | a helper call that does not exist added to `code_dead_code_incoming_probe_nornicdb_live_test.go`, the exact shape `53239cb5e` left behind | `bash scripts/verify-tagged-builds.sh --all` | `1` (`FAIL ./internal/query [live_nornicdb_dead_code_incoming]`) — and `go test ./internal/query -count=1` on the same tree still exits `0`, which is the false green the gate exists for |
+| 30 | `split_on` returns the whole constraint instead of splitting it, the collapse a non-GNU `sed` would have produced | `bash scripts/verify-tagged-builds.sh --all` and `bash scripts/test-verify-tagged-builds.sh` | `1` both (four constraints report `alternation split produced 1 alternative(s)`; the self-test's two alternation cases fail) |
 
 An earlier attempt at #1 deleted the whole helper body and failed as an unused
 import rather than an assertion, which proves nothing; the mutations above keep

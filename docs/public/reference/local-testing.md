@@ -429,11 +429,17 @@ bash scripts/verify-tagged-builds.sh ./internal/query ./cmd/reducer
 ```
 
 `make pre-pr` runs `--all` whenever the diff touches Go, as the "tagged build
-sweep" step. It is compile-only and needs no backend, which is what separates
-it from the tagged suites themselves — running those usually needs a pinned
-container, so they stay manual.
+sweep" step, and CI runs the same pair — mirror then gate — as the
+`Verify tagged-builds gate` row of `static-contract-gates.yml`, registered as
+`tagged-builds` in `specs/ci-gates.v1.yaml`. Its trigger is `go/**` on purpose:
+the change that breaks a tagged file is almost never a change to that file, so
+a narrower trigger would reproduce the defect. The sweep is compile-only and
+needs no backend, which is what separates it from the tagged suites themselves
+— running those usually needs a pinned container, so they stay manual.
 
-Two constraint shapes are reported as `SKIP` rather than vetted, and the
+A constraint the gate cannot parse is an `ERROR` that fails the run, never a
+skip and never a pass. Two other shapes are reported as `SKIP` rather than
+vetted, and the
 summary line prints the skip count so a sweep that is covering less than it
 looks like is visible:
 
