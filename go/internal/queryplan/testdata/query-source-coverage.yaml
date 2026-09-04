@@ -72,10 +72,10 @@ source_coverage:
   - file: code_dead_code_candidate_entity.go
     calls:
       - symbol: "(*CodeHandler).deadCodeResultsWithGraphIncomingEdges"
-        count: 2
+        count: 1
         non_hot:
           class: keyed_support
-          source_sha256: 57ad4ebc38e39ed709c530507ccac1d589b40b613f4a0487316ff06e84ce6431
+          source_sha256: 119f62659bd12e2544a50b7e9a87f5762685badad593f5bb151bbc208dcb3931
           key_bound: bounded_key_batch
           max_keys: 250
           max_results: 2500

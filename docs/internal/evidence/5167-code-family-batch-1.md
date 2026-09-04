@@ -226,12 +226,9 @@ Both reads now take the caller's grant, and neither drops a row for it. The SQL
 projects `(row.repository_id = ANY($n)) AS consumer_in_grant` rather than
 filtering in the `WHERE`: filtering would leave the symbol looking
 unreferenced, which is a wrong answer rather than a safe one. The graph half
-splits in two the way the cross-repo route already does —
-`buildDeadCodeGrantedIncomingBatchProbeCypher` admits a source only when the
-repository containing it is inside the grant, on a required `MATCH` so the
-predicate filters rather than nulling columns, and the unrestricted probe runs
-after it, byte for byte the statement this route already shipped, purely to say
-whether an unseen edge exists.
+does the same thing in Cypher. `buildDeadCodeScopedIncomingBatchProbeCypher`
+expands the candidate's incoming edges once, optionally matches the source's
+repository, and projects the grant per row as `in_grant`.
 
 An edge from outside the grant reaches the answer as
 `deadCodeIncomingEdge.HiddenConsumer` with no confidence, no repository, and no
@@ -240,6 +237,85 @@ the candidate is kept, classified `ambiguous`, and carries
 `permission_hidden_consumer` — the same reason the cross-repo route already
 answers with. Never live, never dead. An unscoped caller runs one statement, the
 unchanged one, and gets the unchanged answer.
+
+### One Probe, Because Two Could Not See A Same-Method Source
+
+The graph half first shipped as a pair: a grant-bound probe whose rows were
+evidence, and the unrestricted probe run after it, with the rows only the second
+returned taken as hidden consumers. Both `RETURN DISTINCT`ed the
+`(entity, resolution_method)` pair, and that is where it failed. When an
+out-of-grant source calls the candidate with a resolution method a granted
+source also carries, its row is byte for byte the granted row: the difference
+between the two probes is empty, `HiddenConsumer` is never set, and the caller
+is told the symbol is plainly reachable. The SQL half never had this hole,
+because `consumer_in_grant` decides the grant per row. The two backends
+disagreed on the same candidate.
+
+Measured on the pinned NornicDB v1.2.3 replay image against a graph seeded with
+one target and three sources sharing one resolution method — one inside the
+grant, one outside it, one attached to no repository — the withdrawn pair
+returned one identical row each, so the diff was empty. The shipped probe
+returns two groups on the same graph: `in_grant=true` with one edge, and
+`in_grant=false` with two, the out-of-grant source and the unattributed one
+together. `TestLiveNornicDBDeadCodeIncomingWithdrawnPairCollapses` keeps the
+old behaviour on record beside the new one.
+
+Two clauses of the shipped statement are load-bearing on that backend, and both
+were chosen by measurement rather than taste:
+
+- It groups with `count(*)`, not `RETURN DISTINCT`. On the pinned backend,
+  `DISTINCT` after a trailing `OPTIONAL MATCH` on the relationship-seeded
+  traversal branch is absorbed into the first projection's source text:
+  `incoming_entity_id` came back as the literal string
+  `"DISTINCT coalesce(e.uid, e.id)"` and nothing was deduplicated. Moving the
+  projections behind a `WITH` is worse — every other column came back null. The
+  variant table and the executor boundary are in
+  [NornicDB Pitfalls](../../public/reference/nornicdb-pitfalls.md);
+  `TestLiveNornicDBDeadCodeIncomingRejectsReturnDistinct` is the negative
+  control that goes red when the pin stops corrupting it.
+- The source repository is an `OPTIONAL MATCH` here, which is the opposite of
+  the complexity list's fix above and for the opposite reason. There the grant
+  was a filter, so an optional binding filtered nothing. Here the grant is a
+  projection, so a required binding would drop the two row classes this probe
+  exists to report: a source in an ungranted repository, and a source the graph
+  cannot attribute to any repository. Both project `in_grant=false` and become
+  the hidden marker.
+
+Performance Evidence: expanding once is also the cheaper shape, which is the
+half the pair shipped without a number. Worst case for this probe is a
+high-fan-in symbol, because each statement expands every incoming edge before
+its own grouping reduces anything. Seeded on the pinned NornicDB v1.2.3 image
+(`timothyswt/nornicdb-cpu-bge@sha256:4dfa887d990bf0b536693830830e34351c036716b0fe6dc957e1a3680e9f3c74`,
+self-reporting 1.2.2, `NORNICDB_EMBEDDING_ENABLED=false`, bolt via
+`neo4j-go-driver/v5`, host MacBook Pro arm64 macOS): one `Function` with 5,000
+incoming `CALLS` edges, 2,500 sourced from a granted repository and 2,500 from
+an ungranted one, five resolution methods spread across them; the caller is
+granted one of the two. Four runs of 15 iterations, one discarded warm-up round
+per run, candidates measured in alternating order within each iteration so drift
+cannot favour whichever went first. Medians:
+
+| Run | Withdrawn pair | Shipped merged probe | One unrestricted probe |
+| ---: | ---: | ---: | ---: |
+| 1 | 529.3 µs | 279.7 µs | 247.5 µs |
+| 2 | 547.4 µs | 273.8 µs | 258.5 µs |
+| 3 | 497.3 µs | 278.9 µs | 244.1 µs |
+| 4 | 583.1 µs | 303.0 µs | 297.2 µs |
+
+The merged probe costs about what a single probe costs, and 44–49% less than the
+pair — which is what one expansion instead of two should look like.
+
+A first pass at this measurement said the opposite, and is recorded because the
+mistake is easy to repeat: measuring each candidate as a block of nine
+consecutive runs, immediately after the 5,000-edge write, put the merged probe
+at a 3.07 ms median against 1.75 ms for the pair. The blocks were not comparable
+— the store was still settling under the first one — and the interleaved,
+warmed-up runs above reverse it four times out of four.
+
+No-Observability-Change: the probe keeps the span and statement attributes every
+graph read in this package carries through `Neo4jReader.Run`
+(`eshu_dp_neo4j_query_duration_seconds`, labelled by statement), and there is now
+one statement per candidate page where there were two, so the same signal is
+what shows the change in production.
 
 ## Cross-Repo Consumer Evidence
 

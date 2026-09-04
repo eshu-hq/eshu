@@ -262,52 +262,57 @@ func TestCodeReachabilityIncomingEntityIDsBindsTheConsumerGrant(t *testing.T) {
 	})
 }
 
-// TestDeadCodeGraphIncomingProbeIsGrantBound pins the graph half. A scoped
-// caller runs two statements: one that admits only sources inside the grant,
-// whose rows are evidence, and the unrestricted probe, whose extra entities are
-// the hidden ones. An unscoped caller runs the unrestricted probe alone, and
-// its text is unchanged.
+// TestDeadCodeGraphIncomingProbeIsGrantBound pins the graph half's statement.
+// A scoped caller runs one probe that expands the candidate's incoming edges
+// once and projects the grant per row, so an ungranted source is its own row
+// rather than a row missing from a second read. An unscoped caller runs the
+// unrestricted probe, and its text is unchanged.
 func TestDeadCodeGraphIncomingProbeIsGrantBound(t *testing.T) {
 	t.Parallel()
 
 	access := repositoryAccessFilter{AllowedRepositoryIDs: []string{codeGrantGrantedRepo}}
-	granted := buildDeadCodeGrantedIncomingBatchProbeCypher("Function", access)
+	scoped := buildDeadCodeScopedIncomingBatchProbeCypher("Function", access)
 	for _, want := range []string{
-		"<-[:CONTAINS]-",
-		"<-[:REPO_CONTAINS]-(source_repo:Repository)",
-		access.GraphCondition("source_repo"),
+		"OPTIONAL MATCH (source)<-[:CONTAINS]-(:File)<-[:REPO_CONTAINS]-(source_repo:Repository)",
+		"(source_repo IS NOT NULL AND " + access.GraphCondition("source_repo") + ") as in_grant",
+		"count(*) as edge_count",
 	} {
-		if !strings.Contains(granted, want) {
-			t.Fatalf("granted incoming probe is missing %q:\n%s", want, granted)
+		if !strings.Contains(scoped, want) {
+			t.Fatalf("scoped incoming probe is missing %q:\n%s", want, scoped)
 		}
 	}
-	if strings.Contains(granted, "OPTIONAL MATCH") {
-		t.Fatalf("the source repository must be a required match; an optional one filters nothing:\n%s", granted)
+	// RETURN DISTINCT after this OPTIONAL MATCH is not parsed by the pinned
+	// NornicDB: the keyword is absorbed into the first projection's source text
+	// and nothing is deduplicated. count(*) is what groups the rows instead.
+	if strings.Contains(scoped, "RETURN DISTINCT") {
+		t.Fatalf("the scoped probe must group with count(*), not RETURN DISTINCT:\n%s", scoped)
 	}
-	if unscoped := buildDeadCodeGrantedIncomingBatchProbeCypher("Function", repositoryAccessFilter{AllScopes: true}); unscoped != buildDeadCodeIncomingBatchProbeCypher("Function") {
+	if strings.Count(scoped, "MATCH") != 2 {
+		t.Fatalf("the scoped probe must expand incoming edges exactly once:\n%s", scoped)
+	}
+	if unscoped := buildDeadCodeScopedIncomingBatchProbeCypher("Function", repositoryAccessFilter{AllScopes: true}); unscoped != buildDeadCodeIncomingBatchProbeCypher("Function") {
 		t.Fatalf("an unscoped caller must run the unchanged probe text:\n%s", unscoped)
 	}
 }
 
-// TestDeadCodeGraphProbeTreatsAnUngrantedSourceAsUnknown runs the two probes
-// against a graph that answers them as the backend would: the granted probe
-// finds nothing, the unrestricted one finds the edge, and the difference is the
-// hidden consumer.
+// TestDeadCodeGraphProbeTreatsAnUngrantedSourceAsUnknown runs the probe against
+// a graph that answers it as the backend would: the candidate's one incoming
+// edge comes from a repository outside the grant, so its row projects
+// in_grant=false and becomes the hidden-consumer marker rather than evidence.
 func TestDeadCodeGraphProbeTreatsAnUngrantedSourceAsUnknown(t *testing.T) {
 	t.Parallel()
 
 	var statements []string
-	// Both probes traverse incoming edges, which the shared fake routes to
+	// The probe traverses incoming edges, which the shared fake routes to
 	// runIncoming; run is set to the same answer so a probe that stopped
 	// traversing incoming edges would still be seen here.
 	probe := func(_ context.Context, cypher string, _ map[string]any) ([]map[string]any, error) {
 		statements = append(statements, cypher)
-		if strings.Contains(cypher, "source_repo:Repository") {
-			return nil, nil
-		}
 		return []map[string]any{{
 			"incoming_entity_id": deadCodeHiddenConsumerEntityID,
 			"resolution_method":  codeprovenance.MethodImportBinding,
+			"in_grant":           false,
+			"edge_count":         1,
 		}}, nil
 	}
 	handler := &CodeHandler{
@@ -327,8 +332,8 @@ func TestDeadCodeGraphProbeTreatsAnUngrantedSourceAsUnknown(t *testing.T) {
 	if err != nil {
 		t.Fatalf("deadCodeResultsWithGraphIncomingEdges() error = %v, want nil", err)
 	}
-	if len(statements) != 2 {
-		t.Fatalf("statement count = %d, want 2 (grant-bound probe plus the unrestricted signal probe)", len(statements))
+	if len(statements) != 1 {
+		t.Fatalf("statement count = %d, want 1 (one expansion with the grant projected per row)", len(statements))
 	}
 	edge := incoming[deadCodeHiddenConsumerEntityID]
 	if !edge.HiddenConsumer {
@@ -406,23 +411,23 @@ func deadCodeWeakGrantedPlusUngrantedFromSQL(t *testing.T) (map[string]deadCodeI
 	return incoming, nil
 }
 
-// deadCodeWeakGrantedPlusUngrantedFromGraph runs the shipped pair of graph
-// probes over the same shape: the grant-bound probe sees only the weak edge,
-// and the unrestricted signal probe sees that edge plus the ungranted one.
+// deadCodeWeakGrantedPlusUngrantedFromGraph runs the shipped graph probe over
+// the same shape: one weak edge from inside the grant and one stronger edge
+// from outside it, each its own row with its own in_grant answer.
 func deadCodeWeakGrantedPlusUngrantedFromGraph(t *testing.T) (map[string]deadCodeIncomingEdge, map[string]deadCodeIncomingEdge) {
 	t.Helper()
 
-	weakRow := map[string]any{
-		"incoming_entity_id": deadCodeHiddenConsumerEntityID,
-		"resolution_method":  codeprovenance.MethodRepoUniqueName,
-	}
-	probe := func(_ context.Context, cypher string, _ map[string]any) ([]map[string]any, error) {
-		if strings.Contains(cypher, "source_repo:Repository") {
-			return []map[string]any{weakRow}, nil
-		}
-		return []map[string]any{weakRow, {
+	probe := func(_ context.Context, _ string, _ map[string]any) ([]map[string]any, error) {
+		return []map[string]any{{
+			"incoming_entity_id": deadCodeHiddenConsumerEntityID,
+			"resolution_method":  codeprovenance.MethodRepoUniqueName,
+			"in_grant":           true,
+			"edge_count":         1,
+		}, {
 			"incoming_entity_id": deadCodeHiddenConsumerEntityID,
 			"resolution_method":  codeprovenance.MethodImportBinding,
+			"in_grant":           false,
+			"edge_count":         1,
 		}}, nil
 	}
 	handler := &CodeHandler{

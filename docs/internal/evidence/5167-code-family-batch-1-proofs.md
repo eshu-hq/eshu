@@ -53,6 +53,13 @@ on that: this route's binding is its selector, not its query text.
 | `TestComplexityListDoesNotLeakUngrantedFunctions` | `scoped complexity list leaked "UngrantedComplexityProbe"` and `"OrphanComplexityProbe"`, both with `"repo_id":""` | `ok internal/query 1.295s` |
 | `TestComplexityListUnscopedRepoIDSelectorFiltersToThatRepository` | `a supplied repo_id sits on an optional Repository binding, so it filters nothing`, exit `1` | `ok internal/query 1.163s`, exit `0` |
 | `TestLiveNornicDBComplexityListFiltersUngrantedFunctions` (live) | `scoped complexity list leaked "LiveUngrantedComplexityProbe"`, exit `1` | `ok internal/query 1.112s`, exit `0` |
+| `TestDeadCodeGraphProbeKeepsASameMethodUngrantedSource` | `HiddenConsumer:false` for a candidate whose out-of-grant source shares its resolution method with a granted one, exit `1` | `ok internal/query 4.192s`, exit `0` |
+| `TestDeadCodeGraphProbeRunsOneTraversalPerPage` | `statement count = 2, want 1`, exit `1` | `ok internal/query 4.192s`, exit `0` |
+| `TestDeadCodeGraphProbeReadsEachSourceClass` (4) | new coverage of the four source classes, green on the old shape too and kept as the no-regression guard | `ok internal/query 4.192s`, exit `0` |
+| `TestLiveNornicDBDeadCodeIncoming*` (3, live) | new coverage on the replaced statement, no prior red; the withdrawn pair's collapse and the `RETURN DISTINCT` corruption are recorded as assertions rather than prose | `ok internal/query 1.150s`, exit `0` |
+| `TestCrossRepoDeadCodeConsumerSelectorSurvivesABusyGrantedRepository` | `consumer_evidence_truncated` in the `unknown` bucket for a symbol the requested consumer proves live, exit `1` | `ok internal/query 4.270s`, exit `0` |
+| `TestCrossRepoDeadCodeConsumerReadPlan` (6) | new coverage of the six read shapes, no prior red | `ok internal/query 4.270s`, exit `0` |
+| `TestDeadCodeIncomingEntityIDsHiddenOnlyEntryStillRunsTheLegacyProbe` | `legacy incoming calls = 0, want 1`, exit `1` | `ok internal/query 1.316s`, exit `0` |
 
 Unscoped counterparts pin the other direction — a shared-key caller that names
 no repository keeps its query text and row set:
@@ -97,6 +104,10 @@ mutation was restored and its guard rerun at exit `0`.
 | 21 | `applyDeadCodeIncomingEdges` skips the hidden-consumer branch (`if false &&`) | `go test ./internal/query -run 'TestDeadCodeKeepsACandidateWhoseOnlyConsumerIsOutsideTheGrant\|TestDeadCodeInvestigateReportsThePermissionHiddenConsumerReason' -count=1` | `1` (2 failures; the investigation reason fell back to `weak_incoming_edge:repo_unique_name`) |
 | 22 | `crossRepoDeadCodeConsumerRows` ignores the sentinel's entity id at the boundary | `go test ./internal/query -run TestCrossRepoDeadCodeCompletesTheEntityTheSentinelMovedPast -count=1` | `1` (a full 1,000-row page marked `consumer_evidence_truncated`) |
 | 23 | `deadCodeResultsWithGraphIncomingEdges` diffs the signal probe against the grant-bound one entity by entity instead of row by row, the shape before this pass | `go test ./internal/query -run TestDeadCodeWeakGrantedEdgeBesideAnUngrantedOneReadsHiddenOnBothBackends -count=1` | `1` (graph sub-test only; the granted weak edge hid the ungranted one and the reason fell back to `weak_incoming_edge:repo_unique_name`) |
+| 24 | `deadCodeResultsWithGraphIncomingEdges` ignores the projected grant (`if false && access.Scoped() && !BoolVal(row, "in_grant")`), so an out-of-grant source reads as evidence | `go test ./internal/query -run 'TestDeadCodeGraphProbe\|TestDeadCodeKeepsACandidate\|TestDeadCodeInvestigateReports\|TestDeadCodeWeakGranted' -count=1` | `1` (8 failures) |
+| 25 | the scoped incoming probe groups with `RETURN DISTINCT` instead of `count(*)`, run against the live backend | `ESHU_NEO4J_URI=bolt://localhost:17987 go test ./internal/query -tags live_nornicdb_dead_code_incoming -run TestLiveNornicDBDeadCodeIncomingProbeSeparatesSameMethodSources -count=1` | `1` (3 ungrouped rows, `incoming_entity_id` came back as the literal `"DISTINCT coalesce(e.uid, e.id)"`) |
+| 26 | `missingDeadCodeIncomingEntityIDs` counts a hidden-only entry as coverage, the shape before this pass | `go test ./internal/query -run TestDeadCodeIncomingEntityIDsHiddenOnlyEntryStillRunsTheLegacyProbe -count=1` | `1` (`legacy incoming calls = 0, want 1`) |
+| 27 | `crossRepoDeadCodeConsumerReadPlan` binds the grant for a request that named consumers, the shape before this pass | `go test ./internal/query -run TestCrossRepoDeadCodeConsumerSelectorSurvivesABusyGrantedRepository -count=1` | `1` (the requested consumer answered `unknown_needs_evidence` with `consumer_evidence_truncated`) |
 
 An earlier attempt at #1 deleted the whole helper body and failed as an unused
 import rather than an assertion, which proves nothing; the mutations above keep
@@ -106,6 +117,14 @@ Rows 18 through 22 are the round-7 pass. Row 18 is the scope-versus-canonical
 identity, rows 19 through 21 the three places an out-of-grant incoming edge has
 to stop being evidence, and row 22 the sentinel boundary. Each was restored and
 its guard rerun at exit `0`.
+
+Rows 24 through 27 are the round-8 pass, and rows 24 and 25 are one change
+judged from both sides. Row 24 neuters the projected grant and is judged by the
+credential-free guards CI runs; row 25 neuters the grouping clause instead and
+is judged against the pinned backend, which is the only place the
+`RETURN DISTINCT` corruption is visible at all. Row 26 is the hidden-only
+reachability entry and row 27 the consumer selector's place in the page read.
+Each was restored and its guard rerun at exit `0`.
 
 Rows 6 and 12 are one mutation judged by two guards: row 6 is the call-graph
 route's text guard, row 12 the graph-summary route that shares the builder. The

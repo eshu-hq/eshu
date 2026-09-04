@@ -247,65 +247,32 @@ func (h *CodeHandler) deadCodeResultsWithGraphIncomingEdges(
 	access := codeGrantAccessFilter(ctx)
 	rows, err := h.Neo4j.Run(
 		ctx,
-		buildDeadCodeGrantedIncomingBatchProbeCypher(label, access),
+		buildDeadCodeScopedIncomingBatchProbeCypher(label, access),
 		access.GraphParams(map[string]any{"entity_ids": entityIDs}),
 	)
 	if err != nil {
 		return nil, err
 	}
-	grantedEdges := make(map[string]struct{}, len(rows))
 	for _, row := range rows {
 		entityID := strings.TrimSpace(StringVal(row, "incoming_entity_id"))
 		if entityID == "" {
 			continue
 		}
+		// in_grant is projected only by the scoped statement. BoolVal reads an
+		// absent column as false, so the unscoped caller -- whose statement has
+		// no such column and whose every row is evidence -- must be answered
+		// before the column is consulted at all.
+		if access.Scoped() && !BoolVal(row, "in_grant") {
+			mergeStrongestDeadCodeIncomingEdge(incoming, entityID, deadCodeIncomingEdge{HiddenConsumer: true})
+			continue
+		}
 		method := strings.TrimSpace(StringVal(row, "resolution_method"))
-		grantedEdges[deadCodeIncomingEdgeKey(entityID, method)] = struct{}{}
 		mergeStrongestDeadCodeIncomingEdge(incoming, entityID, deadCodeIncomingEdge{
 			MaxConfidence: codeprovenance.Confidence(method),
 			Method:        method,
 		})
 	}
-	if !access.Scoped() {
-		return incoming, nil
-	}
-	// The signal probe is the statement an unscoped caller runs, byte for byte.
-	// It answers the one question the grant-bound probe cannot: is there an
-	// incoming edge the caller may not see. Its rows never become evidence --
-	// only the rows the grant-bound probe did not return, and only as the
-	// hidden marker.
-	signalRows, err := h.Neo4j.Run(ctx, buildDeadCodeIncomingBatchProbeCypher(label), map[string]any{
-		"entity_ids": entityIDs,
-	})
-	if err != nil {
-		return nil, err
-	}
-	for _, row := range signalRows {
-		entityID := strings.TrimSpace(StringVal(row, "incoming_entity_id"))
-		if entityID == "" {
-			continue
-		}
-		method := strings.TrimSpace(StringVal(row, "resolution_method"))
-		if _, granted := grantedEdges[deadCodeIncomingEdgeKey(entityID, method)]; granted {
-			continue
-		}
-		mergeStrongestDeadCodeIncomingEdge(incoming, entityID, deadCodeIncomingEdge{HiddenConsumer: true})
-	}
 	return incoming, nil
-}
-
-// deadCodeIncomingEdgeKey names one probe row by the pair both probes return,
-// so the signal probe's rows are diffed against the grant-bound probe's edge by
-// edge rather than entity by entity. Diffing entities lets a granted edge hide
-// an ungranted one beside it, which is the case the SQL half already answers
-// permission_hidden_consumer; diffing rows makes both backends answer it the
-// same way. Two edges into the same entity that share a resolution method
-// collapse under the probes' own RETURN DISTINCT, so an ungranted edge whose
-// method a granted edge also carries is still missed; that is a narrower gap
-// than the entity-level one, in the same conservative direction (the candidate
-// is kept and reported ambiguous either way).
-func deadCodeIncomingEdgeKey(entityID, method string) string {
-	return entityID + "\x00" + method
 }
 
 func deadCodeResultEntityIDs(results []map[string]any) []string {
@@ -325,25 +292,45 @@ func deadCodeResultEntityIDs(results []map[string]any) []string {
 	return entityIDs
 }
 
-// buildDeadCodeGrantedIncomingBatchProbeCypher builds the incoming-edge probe
-// whose rows are evidence: it admits a source only when the repository that
-// contains it is inside the caller's grant.
+// buildDeadCodeScopedIncomingBatchProbeCypher builds the one incoming-edge
+// probe a scoped caller runs. It expands the candidate's incoming edges once
+// and projects the grant per row as in_grant, rather than running a grant-bound
+// probe and an unrestricted one and diffing their rows.
 //
-// The source repository is a required MATCH, not an OPTIONAL one. An OPTIONAL
-// MATCH's WHERE constrains the optional pattern rather than the driving rows,
-// so the ungranted source would come back with the repository columns null and
-// the probe would filter nothing -- the same clause-attachment defect the
-// complexity list carried (#5167 W3). The predicate stays on the MATCH for the
-// same reason a WITH-attached one cannot be used on NornicDB
-// (docs/public/reference/nornicdb-query-pitfalls.md).
+// Projecting the grant is what keeps the answer honest. Both earlier probes
+// RETURN DISTINCTed the (entity, resolution_method) pair, so an ungranted edge
+// whose method a granted edge also carried was byte for byte the granted row:
+// the diff came back empty and the caller was never told a consumer was hidden
+// from them. Grouping on (entity, method, in_grant) keeps it as its own row,
+// which is the per-row decision the SQL half already makes with
+// consumer_in_grant.
 //
-// A source the graph cannot attribute to any repository fails this pattern and
-// is therefore not counted as evidence. It still reaches the caller as a hidden
-// consumer through the unrestricted probe, so the answer is unknown rather than
-// a symbol wrongly reported unused.
+// Expanding once is also the cheaper shape. Measured against the pinned
+// NornicDB v1.2.3 on one entity with 5,000 incoming edges split across two
+// repositories, four interleaved runs of 15 iterations each: this probe's
+// median was 274-303us against 497-583us for the pair, and within noise of a
+// single probe (244-297us). See
+// docs/internal/evidence/5167-code-family-batch-1.md.
+//
+// Two clauses of it are load-bearing on NornicDB and must not be "tidied":
+//
+//   - count(*) is never read. It is what makes the RETURN an aggregation, and
+//     therefore what groups the rows. RETURN DISTINCT cannot be used here: on
+//     the pinned backend, DISTINCT after a trailing OPTIONAL MATCH on the
+//     relationship-seeded traversal branch is absorbed into the first
+//     projection's source text, so incoming_entity_id comes back as the literal
+//     string "DISTINCT coalesce(e.uid, e.id)" and nothing is deduplicated.
+//     A WITH between the OPTIONAL MATCH and the RETURN is worse: every column
+//     comes back null. See docs/public/reference/nornicdb-pitfalls.md.
+//   - the source repository is an OPTIONAL MATCH here precisely because the
+//     grant is no longer a filter. A required MATCH would drop the rows this
+//     probe exists to report -- a source in a repository the caller was not
+//     granted, and a source the graph cannot attribute to any repository. Both
+//     project in_grant=false and become the hidden-consumer marker, so the
+//     answer is unknown rather than a symbol wrongly reported unused.
 //
 // An unscoped caller gets the unrestricted probe text unchanged.
-func buildDeadCodeGrantedIncomingBatchProbeCypher(label string, access repositoryAccessFilter) string {
+func buildDeadCodeScopedIncomingBatchProbeCypher(label string, access repositoryAccessFilter) string {
 	if !access.Scoped() {
 		return buildDeadCodeIncomingBatchProbeCypher(label)
 	}
@@ -352,17 +339,19 @@ func buildDeadCodeGrantedIncomingBatchProbeCypher(label string, access repositor
 	}
 	return `
 		UNWIND $entity_ids AS entity_id
-		MATCH (e:` + label + ` {uid: entity_id})<-[rel:CALLS|IMPORTS|REFERENCES|INHERITS|EXECUTES]-(source)<-[:CONTAINS]-(source_file:File)<-[:REPO_CONTAINS]-(source_repo:Repository)
-		WHERE ` + access.GraphCondition("source_repo") + `
-		RETURN DISTINCT coalesce(e.uid, e.id) as incoming_entity_id,
-		       rel.resolution_method as resolution_method
+		MATCH (e:` + label + ` {uid: entity_id})<-[rel:CALLS|IMPORTS|REFERENCES|INHERITS|EXECUTES]-(source)
+		OPTIONAL MATCH (source)<-[:CONTAINS]-(:File)<-[:REPO_CONTAINS]-(source_repo:Repository)
+		RETURN coalesce(e.uid, e.id) as incoming_entity_id,
+		       rel.resolution_method as resolution_method,
+		       (source_repo IS NOT NULL AND ` + access.GraphCondition("source_repo") + `) as in_grant,
+		       count(*) as edge_count
 	`
 }
 
 // buildDeadCodeIncomingBatchProbeCypher builds the unrestricted incoming-edge
-// probe. For an unscoped caller it is the only probe and its rows are evidence;
-// for a scoped one it is the signal read, and the rows it returns that the
-// grant-bound probe did not are the hidden consumers.
+// probe, which is the whole read for an unscoped caller: every row is evidence,
+// and its RETURN DISTINCT is safe because nothing follows the anchoring MATCH.
+// A scoped caller runs buildDeadCodeScopedIncomingBatchProbeCypher instead.
 func buildDeadCodeIncomingBatchProbeCypher(label string) string {
 	if !isDeadCodeCandidateLabel(label) {
 		label = "Function"
