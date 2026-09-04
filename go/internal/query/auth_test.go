@@ -4,13 +4,11 @@
 package query
 
 import (
-	"context"
 	"encoding/json"
 	"errors"
 	"net/http"
 	"net/http/httptest"
 	"strings"
-	"sync"
 	"testing"
 
 	"github.com/eshu-hq/eshu/go/internal/governanceaudit"
@@ -256,15 +254,6 @@ func TestAuthMiddleware_DevMode_EmptyToken(t *testing.T) {
 	}
 }
 
-type fakeGovernanceAuditAppender struct {
-	events []governanceaudit.Event
-}
-
-func (f *fakeGovernanceAuditAppender) Append(_ context.Context, events []governanceaudit.Event) error {
-	f.events = append(f.events, events...)
-	return nil
-}
-
 func TestAuthMiddleware_UnauthorizedResponse(t *testing.T) {
 	token := "valid-secret-token"
 	handler := AuthMiddleware(token, mockHandler())
@@ -394,8 +383,8 @@ func TestAuthMiddlewareWithScopedTokensAttachesAuthContext(t *testing.T) {
 	if rec.Code != http.StatusOK {
 		t.Fatalf("status = %d, want 200; body = %s", rec.Code, rec.Body.String())
 	}
-	if resolver.token != "scoped-token" {
-		t.Fatalf("resolver token = %q, want scoped-token", resolver.token)
+	if resolver.token() != "scoped-token" {
+		t.Fatalf("resolver token = %q, want scoped-token", resolver.token())
 	}
 }
 
@@ -469,32 +458,7 @@ func TestAuthMiddlewareWithScopedTokensPublicPathSkipsResolver(t *testing.T) {
 	if rec.Code != http.StatusOK {
 		t.Fatalf("status = %d, want 200", rec.Code)
 	}
-	if resolver.called {
+	if resolver.called() {
 		t.Fatal("resolver called for public path")
 	}
-}
-
-type fakeScopedTokenResolver struct {
-	context AuthContext
-	ok      bool
-	err     error
-
-	// mu guards the capture fields because a single resolver instance is
-	// shared across parallel subtests (e.g. the package-registry adjacent-route
-	// table), which call ResolveScopedToken concurrently. Without it the shared
-	// fake data-races under -race and aborts unrelated tests in the package.
-	mu     sync.Mutex
-	token  string
-	called bool
-}
-
-func (f *fakeScopedTokenResolver) ResolveScopedToken(
-	_ context.Context,
-	token string,
-) (AuthContext, bool, error) {
-	f.mu.Lock()
-	f.called = true
-	f.token = token
-	f.mu.Unlock()
-	return f.context, f.ok, f.err
 }

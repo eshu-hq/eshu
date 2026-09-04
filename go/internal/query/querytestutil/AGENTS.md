@@ -65,7 +65,8 @@
    `internal/query`, so such a call is an unregistered production query callsite
    and fails `TestHotCypherManifestCoversEveryProductionQueryCall`. The rule is
    the absence of that call expression, not any particular shape, and the three
-   fakes here satisfy it two different ways: `FakeGraphReader` routes both
+   graph-read fakes here (the only ones with those two methods) satisfy it two
+   different ways: `FakeGraphReader` routes both
    methods through an unexported `rows` helper, while `FakeRepoGraphReader` and
    `FakeWorkloadGraphReader` inline their dispatch in each method. Either is
    fine. What a new fake must not do is have one of the two methods call the
@@ -83,7 +84,8 @@ needs `internal/status`, `fakeGovernanceAuditAppender` needs
 `internal/governanceaudit`, `fakeScopedTokenResolver` needs `queryauth` — while
 the whitelist it came bundled with let a genuine graph read pass the gate in
 silence, so long as it wore the self-delegation shape. Dropping the skip
-retired both. Do not reintroduce either.
+retired both. Do not reintroduce either. The latter two fakes landed here as
+soon as it did, and their imports are the proof the rule was the blocker.
 
 ## Two consumers, as designed
 
@@ -92,9 +94,10 @@ package. The first family move (#6060) landed, so the earlier
 "one consumer, on purpose" exception is spent — apply the two-consumer rule
 below as written.
 
-`MustMapField` and `FakeGraphReader` still have only root as a consumer. That
-is fine: they were landed as precursors to the split, not as precedent for
-moving a single-consumer helper here for tidiness.
+`MustMapField` now has both consumers -- `semanticsearch`'s
+`semantic_search_language_test.go` calls it. `FakeGraphReader` still has only
+root. That is fine: it was landed as a precursor to the split, not as precedent
+for moving a single-consumer helper here for tidiness.
 
 ## A fixture that names a family type cannot live here
 
@@ -123,16 +126,57 @@ you would like to remove.
 
 ## Adapting a fake without churning its callers
 
-`FakeGraphReader` arrived with 155 root test files already constructing the
-helper it replaced, using keyed literals over unexported fields. Exporting those
-fields would have meant renaming every one of them.
+`FakeGraphReader` arrived with 155 root files already constructing the helper it
+replaced, using keyed literals over unexported fields; one of the 155 declares
+the adapter, so 154 are callers. Exporting those fields would have meant
+renaming every one of them.
 
 It did not. Root keeps an unexported adapter with the original field names and
 delegates its methods here, so the callers are untouched and the dispatch rules
 exist once. Use that shape for the remaining shared fakes, and note the size of
-what is waiting: `fakePortContentStore` has 125 consuming test files,
-`openContentReaderTestDB` 85, `contentReaderQueryResult` 81,
-`fakeScopedTokenResolver` 50.
+what is waiting: 126 root files name `fakePortContentStore` and one of them
+declares it, so 125 consume it -- the same "declarer excluded" convention
+README.md uses for its 84 and 80. Only 93 build one with a composite literal;
+count constructions, not mentions. It is blocked on the `ContentStore` read
+models moving to `querycontract` first, which is a structural change rather
+than a fake promotion.
+
+`fakeGovernanceAuditAppender` (19 root files build it) and
+`fakeScopedTokenResolver` (52) followed the same shape, with one wrinkle each.
+Both counts include `auth_test.go`, which declares the two adapters. Both hold state between
+calls, where `FakeGraphReader` holds none, so neither adapter can be rebuilt
+from its fields on every call the way `fakeGraphReader` is. The appender copies
+its slice into the delegate and takes back what was recorded. The resolver
+cannot copy at all — a mutex guards the call it records — so it holds a
+`FakeScopedTokenResolver` and passes its answer to `ResolveAnswering` per call.
+That entry point exists for exactly this: an adapter that assigned the answer
+into the delegate would introduce the concurrent write the mutex prevents.
+
+Reading state through a lock is the one thing an adapter cannot hand back as a
+field. Three root files now say `resolver.called()` where they said
+`resolver.called`. That is the whole consumer cost of both promotions.
+
+The content-reader SQL driver (`OpenContentReaderTestDB`,
+`ContentReaderQueryResult`, and the column helpers) came across the same way,
+with one wrinkle worth copying. Its entry point takes a **slice** of the result
+struct, and 80 root test files build those elements with keyed literals over
+lowercase field names. So root keeps its own unexported struct with the original
+names and converts the slice element by element before delegating. Nothing else
+moved into root: the queue, the default answers, and the assertions live only
+here, because two copies of a fake's dispatch drift and the drifted one keeps
+passing.
+
+If you find yourself editing consuming test files while moving a fake, the shape
+is wrong. Go back to the adapter.
+
+One narrow exception, and only this one: state the adapter cannot hand back as a
+plain field. `fakeScopedTokenResolver.called` became `resolver.called()` in three
+files because reading the recorded call has to take the lock that guards the
+recording, and a method is the only way to do that. The test for whether an edit
+qualifies is that no adapter shape could avoid it -- not that it was
+inconvenient. Renaming a field, changing a keyed literal, or touching a call
+site to fit a signature you chose does not qualify, and that is the churn the
+rule above exists to stop.
 
 An adapter is only worth having if it actually delegates. Prove it by breaking
 the rule here and confirming a consuming test in the OTHER package fails. The
@@ -146,7 +190,7 @@ you expect to break. Two ways that goes wrong, both hit here:
 - `-run` with real names measures your filter rather than the dependency. The
   first attempt at this proof named four tests, saw four failures, and wrote
   "four root tests" into the commit and these docs. The real number is 10
-  (6539 tests run, 0 failing at baseline).
+  (8324 tests run, 0 failing at baseline).
 
 `fakePortContentStore` needs more than an adapter. Its fields are typed with
 unexported root read models (`repositoryEntryPointReadModel`,
@@ -183,9 +227,10 @@ again.
 - Deleting the `RunSingleByMatch` dispatch from `FakeWorkloadGraphReader`'s
   `RunSingle` (short-circuiting to `nil, nil`) fails **40** root tests.
 
-Both measured at this branch's HEAD: 7792 tests run, 0 failing. That is not the
-6539 of `FakeGraphReader`'s earlier proof -- the rebase moved it, and neither
-number is portable. Restore the file and re-run the baseline before trusting
+Both measured on this branch rebased onto `origin/main` 94197f893: 8324 tests
+run, 0 failing, the same baseline every other proof in this package's docs cites. That total is not
+portable -- it moves in both directions as tests are added and as families move
+out of root. Restore the file and re-run the baseline before trusting
 either number — a proof that leaves the break in place is not a proof of
 anything else in the suite.
 
