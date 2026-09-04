@@ -23,6 +23,11 @@ import (
 type capabilitySweep struct {
 	constStrings map[string]map[string]string
 	funcDecls    map[string]map[string]*ast.FuncDecl
+	// packageNames maps a swept directory to the package clause declared by
+	// the files in it, so a package-qualified constant (leaf.Capability from
+	// a #6060 family leaf) resolves against the declaring package's own
+	// directory rather than by bare identifier.
+	packageNames map[string]string
 	// callSites maps a called function/method name (Ident/Selector name only)
 	// to every call site of it across the package, so a capability parameter
 	// threaded through a helper can be resolved back to what each caller
@@ -45,6 +50,7 @@ func newCapabilitySweep(fset *token.FileSet) *capabilitySweep {
 	return &capabilitySweep{
 		constStrings: map[string]map[string]string{},
 		funcDecls:    map[string]map[string]*ast.FuncDecl{},
+		packageNames: map[string]string{},
 		callSites:    map[string][]capabilityCallSite{},
 		fset:         fset,
 	}
@@ -141,6 +147,9 @@ var capabilitySweepDocumentedExceptions = map[string]string{
 // sweep walks recursively).
 func (s *capabilitySweep) collectDecls(file *ast.File) {
 	dir := s.dirOf(file.Package)
+	if file.Name != nil {
+		s.packageNames[dir] = file.Name.Name
+	}
 	for _, decl := range file.Decls {
 		switch d := decl.(type) {
 		case *ast.GenDecl:
@@ -279,9 +288,49 @@ func (s *capabilitySweep) resolveCapabilityArg(expr ast.Expr, enclosing *ast.Fun
 		// site itself, so the callee's directory is the call expression's own
 		// directory.
 		return s.resolveFuncReturns(callee.Name, s.dirOf(e.Pos()), visitedFuncs)
+	case *ast.SelectorExpr:
+		// A package-qualified constant (advisory.AdvisoryEvidenceCapability
+		// from a #6060 family leaf, passed by a root handler that can no
+		// longer name the bare identifier). Resolved against the declaring
+		// package's own directory, same scoping discipline as the Ident
+		// case above.
+		return s.resolveQualifiedConst(e)
 	default:
 		return nil, false
 	}
+}
+
+// resolveQualifiedConst resolves pkg.Name to the string literal the named
+// constant declares in the swept package named pkg. Every swept directory
+// declaring that package name must agree on the value: unanimity keeps the
+// directory-scoping guarantee (two same-named packages declaring different
+// values fail closed as unresolvable, exactly like an unknown name, instead
+// of resolving to whichever parsed last).
+func (s *capabilitySweep) resolveQualifiedConst(e *ast.SelectorExpr) ([]string, bool) {
+	pkgIdent, ok := e.X.(*ast.Ident)
+	if !ok || e.Sel == nil {
+		return nil, false
+	}
+	var values []string
+	for dir, pkgName := range s.packageNames {
+		if pkgName != pkgIdent.Name {
+			continue
+		}
+		lit, ok := s.constStrings[dir][e.Sel.Name]
+		if !ok {
+			continue
+		}
+		values = append(values, lit)
+	}
+	if len(values) == 0 {
+		return nil, false
+	}
+	for _, v := range values[1:] {
+		if v != values[0] {
+			return nil, false
+		}
+	}
+	return []string{values[0]}, true
 }
 
 // resolveLocalIdent collects every literal (or further-resolvable) value
