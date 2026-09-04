@@ -253,7 +253,7 @@ behavioural answer stays correct: the mutated probe returns the right entities
 and reads the whole table to do it, which is why the live guard asserts the plan
 and not only the result. Rows 37 through 39 are the three Go-side bindings: the
 handler consuming the answer, the read refusing an empty grant, and the read
-plan keeping the probe away from a request that named consumers. Row 36 was
+plan keeping the probe away from a request that named consumers. Row 38 was
 rewritten before it bit — the first version drove the refusal through
 `CrossRepoDeadCodeConsumerEvidence`, whose own guard shadows it, and passed
 against the mutation; the guard now calls the read directly. Each was restored
