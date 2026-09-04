@@ -153,15 +153,27 @@ func TestCrossRepoDeadCodeProbeStatementIsSizeIndependent(t *testing.T) {
 	}
 }
 
-// TestCrossRepoDeadCodeProbeRefusesAnEmptyGrant is the one input that would
+// TestCrossRepoDeadCodeProbeRefusesAnEmptyGrant covers the one input that would
 // make the probe lie. Its ranges are the complement of the grant, so an empty
 // grant makes every range empty and the answer "nothing is hidden" -- for a
-// caller who may see nothing, where everything is. crossRepoDeadCodeConsumerReadPlan
-// refuses that caller first; this is the second refusal, at the read itself.
+// caller who may see nothing, where everything is.
+//
+// The refusals that keep such a caller away from the probe are
+// crossRepoDeadCodeConsumerReadPlan's, and they are pinned where that function
+// is exercised: TestCrossRepoDeadCodeConsumerReadPlan's "scoped caller with no
+// grant at all reads nothing" and "scoped request naming only ungranted
+// consumers reads nothing" (code_dead_code_cross_repo_selector_test.go).
+// Neither subtest here calls the plan. The second one below is the read's own
+// refusal, one call further down, for a future caller that reaches it directly.
 func TestCrossRepoDeadCodeProbeRefusesAnEmptyGrant(t *testing.T) {
 	t.Parallel()
 
-	t.Run("through the read plan", func(t *testing.T) {
+	// A request that named its consumers gets no signal read at all: the
+	// handler's plan leaves SignalGrant empty, and the reader takes that as
+	// "do not run it" rather than as "run it unbounded". One statement, no
+	// hidden rows. This is the reader's half of the contract; the plan's half
+	// -- deciding when SignalGrant is empty -- is TestCrossRepoDeadCodeConsumerReadPlan's.
+	t.Run("named consumers skip the signal read", func(t *testing.T) {
 		t.Parallel()
 
 		db, recorder := openRecordingContentReaderDB(t, []recordingContentReaderQueryResult{
@@ -181,13 +193,13 @@ func TestCrossRepoDeadCodeProbeRefusesAnEmptyGrant(t *testing.T) {
 			t.Fatalf("hidden = %#v, want empty", hidden)
 		}
 		if len(recorder.queries) != 1 {
-			t.Fatalf("query count = %d, want 1; an empty grant must not reach the probe", len(recorder.queries))
+			t.Fatalf("query count = %d, want 1; an empty SignalGrant must not reach the probe", len(recorder.queries))
 		}
 	})
 
-	// The read the plan guards is one call away, so the probe refuses an empty
-	// grant itself as well. A future caller that reaches it directly gets the
-	// same refusal rather than a statement whose every range is empty.
+	// The probe refuses an empty grant itself as well, so a caller that reaches
+	// it directly gets the same refusal rather than a statement whose every
+	// range is empty.
 	t.Run("at the read itself", func(t *testing.T) {
 		t.Parallel()
 

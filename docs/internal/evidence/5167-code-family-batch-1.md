@@ -653,24 +653,33 @@ measured rather than asserted — see "Two Bounded Reads, Not An Unbounded
 Complement" for its plan, its numbers, and the two shapes withdrawn on
 measurements.
 
-The round-7 incoming-edge probe adds a third such shape, declared without a
-measurement. A scoped caller now runs two graph statements where it ran one:
-the grant-bound probe, which adds a `CONTAINS`/`REPO_CONTAINS` hop from the
-source to its repository, and the unrestricted probe unchanged. Both are the
-same bounded `UNWIND $entity_ids` shape over one candidate page. The SQL half
-adds no predicate and no scan: the grant is a projected boolean over
+The incoming-edge probe is the third shape, and it is measured. A scoped caller
+runs one graph statement, as before:
+`buildDeadCodeScopedIncomingBatchProbeCypher` expands the candidate's incoming
+edges once, optionally matches the source's repository, and projects the grant
+per row as `in_grant`, grouping on `(entity, method, in_grant)` with `count(*)`
+rather than `RETURN DISTINCT`. It replaced a pair — a grant-bound probe plus the
+unrestricted one, diffed row by row — which both cost more and could not see an
+out-of-grant source whose resolution method a granted source also carried. On
+one entity with 5,000 incoming edges split across two repositories, four
+interleaved runs of 15 iterations against the pinned NornicDB v1.2.3: median
+274–303 µs against 497–583 µs for the withdrawn pair, and 2–14% above what a
+single probe costs alone. The full table and the mistake in the first
+measurement are in "One Probe, Because Two Could Not See A Same-Method Source".
+
+The grouping key does widen. It carries `in_grant` as a third column, so an
+entity and method reachable from both a granted and an ungranted consumer
+returns two rows where it returned one — at most 2x over one candidate page, and
+the bound that follows from it is re-derived in
+`go/internal/queryplan/testdata/query-source-coverage.yaml`. The SQL half adds
+no predicate and no scan: the grant is a projected boolean over
 `code_reachability_rows.repository_id`, a column of the table the read already
-scans, not one the statement returned before. It widens the `SELECT DISTINCT`
-key from two columns to three, so an entity and method reachable from both a
-granted and an ungranted consumer returns two rows where it returned one — at
-most 2x over one candidate page. Every one of these costs falls only on scoped
-callers, who could not reach these routes before this PR. Nothing here
-puts a filter in a `WITH`-attached `WHERE` (not evaluated as a filter on
+scans, not one the statement returned before. Every one of these costs falls
+only on scoped callers, who could not reach these routes before this PR. Nothing
+here puts a filter in a `WITH`-attached `WHERE` (not evaluated as a filter on
 NornicDB) or guards a disjunct with `$param <> ''` (poisons the enclosing `OR`
 on NornicDB) — see
 [NornicDB Query-Shape Pitfalls](../../public/reference/nornicdb-query-pitfalls.md).
-No benchmark was run and no speedup is claimed; this is a correctness change
-with no latency claim attached.
 
 For an unscoped shared, admin, or local caller every grant predicate renders
 empty and every grant parameter is unbound, so the query text those callers
