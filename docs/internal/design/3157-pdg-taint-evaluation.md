@@ -103,7 +103,7 @@ Admit only what strengthens evidence-backed code-to-cloud truth at bounded cost:
   traverse every `exposure` catalog entry. `GraphValueFlowCloudSinkTargetLoader`
   only resolves sinks via the hard-coded
   `Function-[:INVOKES_CLOUD_ACTION]->CloudAction` … `CAN_PERFORM` path
-  (`go/internal/reducer/value_flow_cloud_sink_loader.go:169-184`). Adding new
+  (`go/internal/reducer/valueflow/value_flow_cloud_sink_loader.go`). Adding new
   `SinkKind`s + corpora alone passes catalog tests while producing **zero**
   value-flow findings. MVP-2 therefore MUST either extend the
   loader/materializer graph path so the new sink edges are reachable by the

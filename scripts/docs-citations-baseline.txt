@@ -65,7 +65,6 @@ LINE docs/internal/design/1146-ec2-instance-node.md go/internal/storage/postgres
 LINE docs/internal/design/3155-typed-parser-artifact-contract.md go/internal/content/shape/materialize.go:54
 LINE docs/internal/design/3155-typed-parser-artifact-contract.md go/internal/facts/models.go:34
 LINE docs/internal/design/3155-typed-parser-artifact-contract.md go/internal/parser/shared/shared.go:66
-LINE docs/internal/design/3157-pdg-taint-evaluation.md go/internal/reducer/value_flow_cloud_sink_loader.go:169
 LINE docs/internal/design/4389-ifa-conformance-platform.md go/internal/cigates/registry.go:1
 LINE docs/internal/design/4389-ifa-conformance-platform.md go/internal/collector/service.go:52
 LINE docs/internal/design/4389-ifa-conformance-platform.md go/internal/facts/models.go:28
