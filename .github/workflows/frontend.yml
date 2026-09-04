@@ -130,6 +130,15 @@ concurrency:
 permissions:
   contents: read
 
+# Workflow scope (not per-job): the image-building jobs — auth-sso-e2e
+# (run-auth-e2e.sh), auth-mcp-e2e (run-auth-mcp-e2e.sh), and any future job
+# that ups the pinned NornicDB from source — all inherit this, so a new
+# backend-building job cannot silently re-arm the upstream UI-stage flake
+# (#6505: npm-ci-fallback TS2882; no gate serves the UI). Inert everywhere
+# else (lint/format/audit/marketing never read it).
+env:
+  NORNICDB_HEADLESS: "true"
+
 jobs:
   marketing-site:
     name: Marketing site (root Vite)
@@ -162,11 +171,6 @@ jobs:
     name: Console (apps/console)
     timeout-minutes: 20
     runs-on: ubuntu-latest
-    # Every backend here (auth e2e, MCP e2e, console e2e) builds the pinned
-    # NornicDB from source; its UI stage is skipped headless (#6505 —
-    # upstream npm-ci-fallback flake, no gate serves the UI).
-    env:
-      NORNICDB_HEADLESS: "true"
     steps:
       - name: Checkout repository
         uses: actions/checkout@v5

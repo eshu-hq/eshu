@@ -77,6 +77,10 @@ jobs:
     # pulling a released image, which is the bulk of this budget. The two
     # conformance runs themselves take seconds.
     timeout-minutes: 45
+    # That source build skips its UI stage headless (#6505 — upstream
+    # npm-ci-fallback flake; nothing here serves the UI).
+    env:
+      NORNICDB_HEADLESS: "true"
 
     steps:
       - name: Check out code

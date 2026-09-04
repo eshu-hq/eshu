@@ -25,14 +25,18 @@ registry luck.
 
 The fix threads upstream's own documented `HEADLESS` build arg through
 `docker-compose.yaml` (`args: HEADLESS: ${NORNICDB_HEADLESS:-false}`; local
-default `false` keeps the full UI build) and sets `NORNICDB_HEADLESS=true` on
-every CI job that builds the image: the three image-building jobs in
-`ifa-determinism-gate.yml` (determinism-matrix, dead-letter-matrix,
-fault-injection shards, step-level env), plus job-level env on the e2e `test`
-job, the golden-corpus `corpus-gate` job, and the frontend `console` job
-(which owns the auth, MCP-identity, and console e2e stacks). The backend
+default `false` keeps the full UI build) and sets `NORNICDB_HEADLESS=true`
+everywhere CI builds the image: step-level env on the three image-building
+jobs in `ifa-determinism-gate.yml` (determinism-matrix, dead-letter-matrix,
+fault-injection shards); job-level env on the e2e `test` job, the
+golden-corpus `corpus-gate` job, and the value-flow `expectation` job; and
+workflow-level env in `frontend.yml`, which covers the `auth-sso-e2e`
+(`run-auth-e2e.sh`) and `auth-mcp-e2e` (`run-auth-mcp-e2e.sh`) jobs that do
+fresh `up --build` (the `console` job itself builds nothing — mocked browser
+tests and static harness checks only). The backend
 pin — including the #261/#290 fixes — is untouched. A pinning test asserts
-the per-file linkage counts (3/1/1/1) so a later edit cannot silently re-arm
+the per-file assignment counts (3/1/1/1/1, assignment literals so prose
+mentions cannot inflate them) so a later edit cannot silently re-arm
 the flake. Out of scope (operator-driven, no CI job): the k8s/two-team,
 remote-OCI, console-retained, and demo scripts that also `up --build`; their
 operators inherit the local default unless they export the knob.

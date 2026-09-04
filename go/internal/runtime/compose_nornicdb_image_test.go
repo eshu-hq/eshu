@@ -100,8 +100,11 @@ func TestNornicDBComposeHeadlessBuildArgDefaultsFalse(t *testing.T) {
 // TestNornicDBHeadlessEnvPresentInImageBuildingCIJobs pins the workflow half
 // of the #6505 fix: every CI job that builds the pinned backend from source
 // must set NORNICDB_HEADLESS, or a later edit silently re-arms the upstream
-// UI-stage flake (npm-ci-fallback TS2882). Counts are per-file: the three Ifa
-// jobs carry step-level env, the rest carry one job-level env.
+// UI-stage flake (npm-ci-fallback TS2882). Counts are per-file assignment
+// literals (not the bare knob name, which prose mentions too): the three Ifa
+// jobs carry step-level env, e2e/golden-corpus/value-flow carry one job-level
+// env each, and frontend carries one workflow-level env covering its
+// backend-building jobs.
 func TestNornicDBHeadlessEnvPresentInImageBuildingCIJobs(t *testing.T) {
 	t.Parallel()
 
@@ -113,10 +116,11 @@ func TestNornicDBHeadlessEnvPresentInImageBuildingCIJobs(t *testing.T) {
 		{".github/workflows/e2e-tests.yml", 1},
 		{".github/workflows/golden-corpus-gate.yml", 1},
 		{".github/workflows/frontend.yml", 1},
+		{".github/workflows/value-flow-conformance-expectation.yml", 1},
 	} {
 		content := readRepositoryFile(t, "../../..", want.file)
-		if got := strings.Count(content, "NORNICDB_HEADLESS"); got < want.count {
-			t.Fatalf("%s sets NORNICDB_HEADLESS %d time(s), want at least %d (image-building CI jobs must stay headless, #6505)", want.file, got, want.count)
+		if got := strings.Count(content, "NORNICDB_HEADLESS: \"true\""); got < want.count {
+			t.Fatalf("%s assigns NORNICDB_HEADLESS %d time(s), want at least %d (image-building CI jobs must stay headless, #6505)", want.file, got, want.count)
 		}
 	}
 }
