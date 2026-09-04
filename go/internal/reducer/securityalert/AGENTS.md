@@ -110,6 +110,10 @@ non-versioned pieces this package's writer test uses — the same pattern
   reducer root alongside the extractor's real implementation, not here with a
   hand-rolled stand-in that could silently diverge from production behavior.
 - Do not change `SecurityAlertReconciliationDecision`'s field set casually.
-  `internal/storage/postgres`, `internal/replay/costcounting`, and
-  `internal/query`'s scope test all name it directly; grep the whole module
-  before touching it.
+  Outside this package it is named by the reducer root's
+  `supply_chain_impact_manifest_dependency.go` and lockfile test, and by
+  `internal/replay/costcounting`'s cost test. `internal/storage/postgres`
+  imports this package but names `SecurityAlertReconciliationFactFilter`, a
+  different type, and nothing under `internal/query` imports it at all --
+  check with `rg -l 'reducer/securityalert"' go/ --glob '*.go'` rather than
+  trusting this list, since no gate reads it against the code.

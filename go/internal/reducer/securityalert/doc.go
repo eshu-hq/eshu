@@ -66,10 +66,13 @@
 //
 // The reducer root keeps its own manifest-consumption bridge
 // (security_alert_manifest_dependency_match.go) and re-exports nothing else:
-// every other reducer-root or module caller (cmd/reducer,
-// internal/storage/postgres, internal/replay/costcounting,
-// internal/query's scope test) now names this package's exported symbols
-// directly, so the import direction stays one-way -- root and its remaining
+// every other reducer-root or module caller now names this package's
+// exported symbols directly: cmd/reducer names
+// PostgresSecurityAlertReconciliationWriter, internal/storage/postgres names
+// SecurityAlertReconciliationFactFilter, and internal/replay/costcounting's
+// cost test names SecurityAlertReconciliationDecision along with Matched,
+// Write, and the writer. Nothing under internal/query imports this package.
+// So the import direction stays one-way -- root and its remaining
 // supply_chain_impact family depend on securityalert, never the reverse.
 //
 // Telemetry: the handler records quarantined
