@@ -25,6 +25,14 @@ type guardedDirectFamily struct {
 	// EdgeTypes is what the family's WRITER can emit, hand-read off the Cypher
 	// that writer executes rather than off the port name -- the #6181 rule.
 	EdgeTypes []string
+	// LiveProven records that the live ifa-determinism AND ifa-fault-injection
+	// matrices both drive this family and assert its exact edge set. It is
+	// set by hand when the proof lands, and TestGuardedDirectFamiliesStillCarryTheirWaivers
+	// holds the ledger to it: true requires both coverage rows and no waiver,
+	// false requires both waivers and no coverage row. Marking it true on a
+	// family no matrix drives would green a coverage claim over an unproven
+	// family -- the exact promotion this test exists to forbid.
+	LiveProven bool
 }
 
 // guardedDirectMaterializedEdgeFamilies is the roster of #6228 direct families
@@ -39,19 +47,22 @@ type guardedDirectFamily struct {
 // This roster is NOT the coverage ledger, and being on it does not entitle a
 // family to a coverage row. It records three of the ledger's four conditions.
 // The fourth -- the live ifa-determinism / ifa-fault-injection matrices
-// actually driving the family -- is unmet for every entry here, which is why
-// both of them still carry their waiver rows in
-// specs/ifa-materialized-edge-coverage-direct.v1.yaml.
+// actually driving the family -- is met only where LiveProven is true, and
+// TestGuardedDirectFamiliesStillCarryTheirWaivers holds the ledger to exactly
+// that: a live-proven family must carry both coverage rows and no waiver, an
+// unproven one both waivers and no coverage row.
 var guardedDirectMaterializedEdgeFamilies = []guardedDirectFamily{
 	{
-		Family:    kubernetesNamespaceEnvironmentFamily,
-		OduName:   ifa.KubernetesNamespaceEnvironmentFamilyOduName,
-		EdgeTypes: []string{"TARGETS_ENVIRONMENT"},
+		Family:     kubernetesNamespaceEnvironmentFamily,
+		OduName:    ifa.KubernetesNamespaceEnvironmentFamilyOduName,
+		EdgeTypes:  []string{"TARGETS_ENVIRONMENT"},
+		LiveProven: true,
 	},
 	{
-		Family:    iamInstanceProfileRoleFamily,
-		OduName:   ifa.IAMInstanceProfileRoleFamilyOduName,
-		EdgeTypes: []string{"HAS_ROLE"},
+		Family:     iamInstanceProfileRoleFamily,
+		OduName:    ifa.IAMInstanceProfileRoleFamilyOduName,
+		EdgeTypes:  []string{"HAS_ROLE"},
+		LiveProven: true,
 	},
 	{
 		Family:    workloadCloudRelationshipFamily,
@@ -216,17 +227,20 @@ func TestGuardedDirectFamilyGuardsRejectAFactlessOdu(t *testing.T) {
 }
 
 // TestGuardedDirectFamiliesStillCarryTheirWaivers is the honesty check on this
-// roster.
+// roster, and it is proof-gate-aware: each entry's LiveProven flag states
+// whether the live ifa-determinism AND ifa-fault-injection matrices both drive
+// the family, and the ledger must say exactly the same thing.
 //
-// Three of the ledger's four conditions are met for every family above, and the
-// fourth is not: neither live matrix drives them. A coverage row asserts all
-// four, so promoting one of these families to a coverage row while its live
-// wiring is absent would claim a proof that does not exist -- the nominally
-// covered failure #5589 and #6181 both exist to prevent. This test makes that
-// promotion fail here, in a cheap unit run, rather than being noticed later.
+// A coverage row asserts all four ledger conditions, so promoting a family to
+// one while its live wiring is absent would claim a proof that does not exist
+// -- the nominally covered failure #5589 and #6181 both exist to prevent. The
+// reverse is also dishonest: keeping a waiver row after the matrices prove the
+// family claims an exemption that no longer exists. This test makes either
+// mismatch fail here, in a cheap unit run, rather than being noticed later.
 //
 // Retiring a waiver is therefore a two-sided edit: wire the family into the
-// live matrices, then remove BOTH its waiver row and its entry here.
+// live matrices, convert its waiver rows to coverage rows, and flip its roster
+// flag in the same change.
 func TestGuardedDirectFamiliesStillCarryTheirWaivers(t *testing.T) {
 	t.Parallel()
 
@@ -234,20 +248,36 @@ func TestGuardedDirectFamiliesStillCarryTheirWaivers(t *testing.T) {
 	if err != nil {
 		t.Fatalf("LoadMaterializedEdgeLedger: %v", err)
 	}
-	covered := map[string]struct{}{}
+	coveredGates := map[string]map[string]struct{}{}
 	for _, row := range manifest.Coverage {
-		covered[strings.TrimPrefix(row.Surface, MaterializedEdgeSurfacePrefix)] = struct{}{}
+		family := strings.TrimPrefix(row.Surface, MaterializedEdgeSurfacePrefix)
+		if coveredGates[family] == nil {
+			coveredGates[family] = map[string]struct{}{}
+		}
+		coveredGates[family][row.ProofGate] = struct{}{}
 	}
 	waived := map[string]int{}
 	for _, waiver := range waivers {
 		waived[strings.TrimPrefix(waiver.Surface, MaterializedEdgeSurfacePrefix)]++
 	}
 	for _, entry := range guardedDirectMaterializedEdgeFamilies {
-		if _, isCovered := covered[entry.Family]; isCovered {
-			t.Errorf("family %q claims a coverage row while still on the guarded roster; a coverage row asserts the live matrices proved it, and no live matrix drives this family yet", entry.Family)
+		gates := coveredGates[entry.Family]
+		if !entry.LiveProven {
+			if len(gates) != 0 {
+				t.Errorf("family %q claims coverage row(s) while its roster flag says no live matrix drives it; flip LiveProven in the same change that wires the proof, not before", entry.Family)
+			}
+			if got := waived[entry.Family]; got != 2 {
+				t.Errorf("family %q carries %d waiver row(s), want 2 (one per live gate); its live proof is still outstanding, so both rows must stand", entry.Family, got)
+			}
+			continue
 		}
-		if got := waived[entry.Family]; got != 2 {
-			t.Errorf("family %q carries %d waiver row(s), want 2 (one per live gate); its live proof is still outstanding, so both rows must stand", entry.Family, got)
+		for _, gate := range []string{"ifa-determinism", "ifa-fault-injection"} {
+			if _, ok := gates[gate]; !ok {
+				t.Errorf("family %q is marked live-proven but carries no coverage row for %s; the flag asserts a proof that does not exist", entry.Family, gate)
+			}
+		}
+		if got := waived[entry.Family]; got != 0 {
+			t.Errorf("family %q is marked live-proven but still carries %d waiver row(s); a proven family claims no exemption", entry.Family, got)
 		}
 	}
 }

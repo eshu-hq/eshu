@@ -38,33 +38,34 @@
 # fails in blocking mode. Waivers are per (surface, proof_gate), never per
 # family: waiving the fault gate does not grant credit to the baseline gate.
 #
-# EVERY FAMILY BELOW IS WAIVED, NONE IS COVERED, AND THAT IS THE HONEST STATE.
-# A coverage row here would have to satisfy all four of the sibling manifest's
+# ALL BUT TWO FAMILIES BELOW ARE WAIVED, AND THAT IS THE HONEST STATE. A
+# coverage row here has to satisfy all four of the sibling manifest's
 # conditions: a cataloged Odù, a vacuity guard registered in
 # MaterializedEdgeOduResolver, a hand-derived expected-edge-set fixture naming
 # an edge of every relationship type the family's writer accepts, and the live
 # ifa-determinism / ifa-fault-injection matrices actually running the family.
-# NO family below has the fourth, which is why no family below has a coverage
-# row. Seeding an aspirational coverage row instead of a waiver is the specific
+# Seeding an aspirational coverage row instead of a waiver is the specific
 # mistake commit 42e188ba1 made for documentation_edges and had to withdraw; it
 # is not repeated here.
 #
-# TWO OF THEM NOW HAVE THE FIRST THREE. kubernetes_namespace_environment and
+# TWO OF THEM NOW HAVE ALL FOUR. kubernetes_namespace_environment and
 # iam_instance_profile_role each carry a cataloged Odù, a registered edge-type
-# set, a vacuity guard dispatched from MaterializedEdgeOduResolver, and a
-# hand-derived expected-edge-set fixture their guard reproduces exactly. Their
-# waiver reasons below say so, and say what is still missing. Three of four is
-# not covered: without a live matrix driving the family, a coverage row would
-# assert a proof that has never run, which is the nominally-covered failure
-# both #5589 and #6181 exist to prevent.
+# set, a vacuity guard dispatched from MaterializedEdgeOduResolver, a
+# hand-derived expected-edge-set fixture their guard reproduces exactly, and --
+# since #6309 -- live ifa-determinism AND ifa-fault-injection matrices driving
+# the family and asserting its exact edge set. Their coverage rows below say
+# so. Every other family below still lacks the fourth condition, which is why
+# every other family below still carries waiver rows instead.
 #
 # Which families those are is asserted in code, not only here.
 # guardedDirectMaterializedEdgeFamilies
 # (go/internal/ifa/materializededges/materialized_edges_direct_family_coverage_test.go)
-# is the roster, and TestGuardedDirectFamiliesStillCarryTheirWaivers fails if a
-# family on it gains a coverage row or loses either waiver row. Retiring a
-# waiver here is therefore a two-sided edit: wire the family into the live
-# matrices, then remove its rows here AND its roster entry there.
+# is the roster, and TestGuardedDirectFamiliesStillCarryTheirWaivers holds each
+# entry's LiveProven flag to the ledger: unproven means two waiver rows and no
+# coverage row, live-proven means two coverage rows and no waiver. Retiring a
+# waiver here is therefore a three-sided edit: wire the family into the live
+# matrices, convert its rows here from waivers to coverage, and flip its roster
+# flag there -- all in the same change.
 #
 # The remaining twenty-six do NOT yet resolve through
 # MaterializedEdgeDomainEdgeTypes -- their relationship types are not registered
@@ -98,6 +99,34 @@
 # WriteSemanticEntities merges CONTAINS. Do not re-derive this list by name.
 
 version: "1"
+
+coverage:
+  # kubernetes_namespace_environment: fault-free baseline plus kill-worker and
+  # fail-graph-write recovery, all asserting the two-edge TARGETS_ENVIRONMENT
+  # exact set with identical graph digests (#6309).
+  - surface: "materialized_edges:kubernetes_namespace_environment"
+    scenario: odu
+    scenario_type: baseline
+    ref: "odu:ifa-kubernetes-namespace-environment-family"
+    proof_gate: ifa-determinism
+  - surface: "materialized_edges:kubernetes_namespace_environment"
+    scenario: odu
+    scenario_type: fault
+    ref: "odu:ifa-kubernetes-namespace-environment-family"
+    proof_gate: ifa-fault-injection
+  # iam_instance_profile_role: fault-free baseline plus kill-worker and
+  # fail-graph-write recovery, all asserting the two-edge HAS_ROLE exact set
+  # with identical graph digests (#6309).
+  - surface: "materialized_edges:iam_instance_profile_role"
+    scenario: odu
+    scenario_type: baseline
+    ref: "odu:ifa-iam-instance-profile-role-family"
+    proof_gate: ifa-determinism
+  - surface: "materialized_edges:iam_instance_profile_role"
+    scenario: odu
+    scenario_type: fault
+    ref: "odu:ifa-iam-instance-profile-role-family"
+    proof_gate: ifa-fault-injection
 
 waivers:
   - surface: "materialized_edges:assumes_iam_role"
@@ -240,16 +269,6 @@ waivers:
     issue: "#6228"
     waived: "2026-08-23"
     reason: "WriteIAMEscalationEdges -> cypher/iam_escalation_edge_writer.go merges CAN_ESCALATE_TO; direct materialization, no Odu, expected-edge-set fixture, or registered edge types yet"
-  - surface: "materialized_edges:iam_instance_profile_role"
-    proof_gate: ifa-determinism
-    issue: "#6228"
-    waived: "2026-08-23"
-    reason: "WriteIAMInstanceProfileRoleEdges -> cypher/iam_instance_profile_role_edge_writer.go merges HAS_ROLE; Odu (odu:ifa-iam-instance-profile-role-family), registered edge types, vacuity guard and expected-edge-set fixture all landed under #6228, but neither live matrix drives the family yet, so the fourth condition is unmet and this row stays waived"
-  - surface: "materialized_edges:iam_instance_profile_role"
-    proof_gate: ifa-fault-injection
-    issue: "#6228"
-    waived: "2026-08-23"
-    reason: "WriteIAMInstanceProfileRoleEdges -> cypher/iam_instance_profile_role_edge_writer.go merges HAS_ROLE; Odu (odu:ifa-iam-instance-profile-role-family), registered edge types, vacuity guard and expected-edge-set fixture all landed under #6228, but neither live matrix drives the family yet, so the fourth condition is unmet and this row stays waived"
   - surface: "materialized_edges:incident_routing_evidence"
     proof_gate: ifa-determinism
     issue: "#6228"
@@ -270,16 +289,6 @@ waivers:
     issue: "#6228"
     waived: "2026-08-23"
     reason: "WriteKubernetesCorrelationEdges -> cypher/kubernetes_correlation_edge_writer.go merges RUNS_IMAGE; direct materialization, no Odu, expected-edge-set fixture, or registered edge types yet"
-  - surface: "materialized_edges:kubernetes_namespace_environment"
-    proof_gate: ifa-determinism
-    issue: "#6228"
-    waived: "2026-08-23"
-    reason: "WriteKubernetesNamespaceNodes -> cypher/kubernetes_namespace_node_writer.go merges TARGETS_ENVIRONMENT; Odu (odu:ifa-kubernetes-namespace-environment-family), registered edge types, vacuity guard and expected-edge-set fixture all landed under #6228, but neither live matrix drives the family yet, so the fourth condition is unmet and this row stays waived"
-  - surface: "materialized_edges:kubernetes_namespace_environment"
-    proof_gate: ifa-fault-injection
-    issue: "#6228"
-    waived: "2026-08-23"
-    reason: "WriteKubernetesNamespaceNodes -> cypher/kubernetes_namespace_node_writer.go merges TARGETS_ENVIRONMENT; Odu (odu:ifa-kubernetes-namespace-environment-family), registered edge types, vacuity guard and expected-edge-set fixture all landed under #6228, but neither live matrix drives the family yet, so the fourth condition is unmet and this row stays waived"
   - surface: "materialized_edges:observability_coverage"
     proof_gate: ifa-determinism
     issue: "#6228"
