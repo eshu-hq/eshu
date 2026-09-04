@@ -560,6 +560,10 @@ jobs:
         env:
           ESHU_NEO4J_PASSWORD: change-me
           ESHU_POSTGRES_PASSWORD: change-me
+          # The pinned NornicDB source's UI stage fails tsc (TS2882, #6505)
+          # and no gate serves its UI: build headless (docker-compose.yaml
+          # maps this to the upstream Dockerfile.cpu-bge HEADLESS arg).
+          NORNICDB_HEADLESS: "true"
         run: bash scripts/verify-ifa-determinism.sh
 
       - name: Dump service logs on failure
@@ -588,6 +592,9 @@ jobs:
         env:
           ESHU_NEO4J_PASSWORD: change-me
           ESHU_POSTGRES_PASSWORD: change-me
+          # Same headless rationale as determinism-matrix above (#6505): this
+          # job builds the same image and serves no UI from it.
+          NORNICDB_HEADLESS: "true"
         run: bash scripts/verify-ifa-dead-letter-matrix.sh
 
       - name: Dump service logs on failure
@@ -689,6 +696,9 @@ jobs:
           ESHU_NEO4J_PASSWORD: change-me
           ESHU_POSTGRES_PASSWORD: change-me
           IFA_FAULT_SHARD: ${{ matrix.shard }}
+          # Same headless rationale as determinism-matrix above (#6505): this
+          # job builds the same image and serves no UI from it.
+          NORNICDB_HEADLESS: "true"
         run: bash scripts/verify-ifa-fault-injection.sh --shard "${IFA_FAULT_SHARD}/4"
 
       - name: Dump service logs on failure

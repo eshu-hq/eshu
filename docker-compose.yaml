@@ -12,6 +12,13 @@ services:
     build:
       context: https://github.com/orneryd/NornicDB.git#3722b483c02c38a8e046d198f8768f200f31023c
       dockerfile: docker/Dockerfile.cpu-bge
+      args:
+        # Upstream's documented UI skip for its Dockerfile.cpu-bge HEADLESS
+        # path: the pinned source's UI stage currently fails tsc (TS2882,
+        # #6505) and no Eshu gate serves the NornicDB UI, so CI-only callers
+        # set NORNICDB_HEADLESS=true. The local default stays false to keep
+        # the full UI build for development.
+        HEADLESS: ${NORNICDB_HEADLESS:-false}
       labels:
         org.opencontainers.image.revision: 3722b483c02c38a8e046d198f8768f200f31023c
         org.opencontainers.image.source: https://github.com/orneryd/NornicDB
