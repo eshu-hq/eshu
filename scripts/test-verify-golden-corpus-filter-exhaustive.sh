@@ -124,10 +124,26 @@ check case_real_state_passes
 
 # Case 5: deterministic -- running twice against the same inputs produces
 # byte-identical stdout (the counts and classification cannot flap).
+#
+# Compare stdout only, which is what the sentence above always meant. Capturing
+# stderr made this case assert something about the environment rather than about
+# the script: the gate shells out to `go list`, and on a cold module cache the
+# FIRST invocation writes "go: downloading ..." to stderr while the second, now
+# warm, writes nothing. Two runs agreeing perfectly on every count then "differ".
+#
+# Not hypothetical. It failed a pull request whose diff could not affect this
+# gate at all, and it is invisible locally because a developer's module cache is
+# always warm. Reproduced on Linux at that commit by putting a `go` wrapper on
+# PATH that emits one stderr line on its first call only: both runs exited 0
+# with identical counts, and the case still failed on that single line.
+#
+# stderr is still honoured, just not diffed -- a run that writes to stderr and
+# then fails is caught by the `|| return 1` below, which is the case that
+# actually matters here.
 case_deterministic() {
 	local first second
-	first="$(bash "${script}" 2>&1)" || return 1
-	second="$(bash "${script}" 2>&1)" || return 1
+	first="$(bash "${script}" 2>/dev/null)" || return 1
+	second="$(bash "${script}" 2>/dev/null)" || return 1
 	[[ "${first}" == "${second}" ]]
 }
 check case_deterministic
