@@ -179,10 +179,19 @@ anchored to a moving ref is only true at the moment it is written, and it
 falsifies itself on the next rebase, which is how three different totals ended
 up in this file at once.
 
-`FakePortContentStore` was proven the same way. Zeroing `RepositoryCoverage` fails
-`TestQueryContentStoreCoverageUsesContentStorePort`, and zeroing
-`DocumentationFindings` fails **4** root tests. The second mutation is the one
-worth keeping: those four reach the double through a type assertion onto an
+`FakePortContentStore` was proven the same way. Zeroing `RepositoryCoverage`
+fails **12** root tests, and zeroing `DocumentationFindings` fails **4**.
+
+An earlier draft of this paragraph named a single test for the coverage
+mutation, `TestQueryContentStoreCoverageUsesContentStorePort`. That was measured
+before the fake reached its current consumer set; re-measured here it is 12, and
+the named test is one of them. The failures spread across repository stats,
+story, context, branches and dead-code investigation rather than clustering on
+the coverage route, which is what makes them evidence of delegation rather than
+of one handler.
+
+The `DocumentationFindings` mutation is the one worth keeping even though it is
+the smaller number: those four reach the double through a type assertion onto an
 unexported port declared in package `query`, so had the assertion gone false
 across the new package boundary, the handlers would have taken their fallback
 path and every one of them would still have passed.
