@@ -17,7 +17,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/workflow"
 )
 
-func TestServiceSchedulesTerraformStateSeedWorkItems(t *testing.T) {
+func TestWorkPlannerSchedulesTerraformStateSeedWorkItems(t *testing.T) {
 	t.Parallel()
 
 	observedAt := time.Date(2026, time.May, 10, 11, 0, 0, 0, time.UTC)

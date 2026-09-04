@@ -159,6 +159,8 @@ The direct process contract includes `eshu-workflow-coordinator --version` and
   Prometheus and Grafana Mimir metric-metadata targets
 - `internal/coordinator/tempoplanner` — concrete scheduler wiring for Grafana
   Tempo trace-signal targets
+- `internal/coordinator/tfstateplanner` — concrete scheduler wiring for
+  Terraform-state drift targets
 - `internal/coordinator/vaultlive` — concrete scheduler wiring for Vault
   metadata targets
 - `internal/workflow` — type contracts consumed by `coordinator.Service`
