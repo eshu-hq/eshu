@@ -3,7 +3,11 @@
 
 package reducer
 
-import "testing"
+import (
+	"testing"
+
+	"github.com/eshu-hq/eshu/go/internal/reducer/kubernetescorrelation"
+)
 
 // TestImplementedDefaultDomainDefinitionsOmitsKubernetesCorrelationWithoutAdapters
 // proves the additive kubernetes_correlation domain is not registered when its
@@ -38,9 +42,9 @@ func TestImplementedDefaultDomainDefinitionsIncludesKubernetesCorrelationWhenAda
 	for _, def := range definitions {
 		if def.Domain == DomainKubernetesCorrelation {
 			found = true
-			handler, ok := def.Handler.(KubernetesCorrelationHandler)
+			handler, ok := def.Handler.(kubernetescorrelation.KubernetesCorrelationHandler)
 			if !ok {
-				t.Fatalf("kubernetes_correlation handler type = %T, want KubernetesCorrelationHandler", def.Handler)
+				t.Fatalf("kubernetes_correlation handler type = %T, want kubernetescorrelation.KubernetesCorrelationHandler", def.Handler)
 			}
 			if handler.FactLoader != loader {
 				t.Fatal("kubernetes_correlation handler FactLoader was not wired")

@@ -1,12 +1,13 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package reducer
+package kubernetescorrelation
 
 import (
 	"strings"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/reducer/payloadcore"
 )
 
 // SourceImageDigestJoinIndex resolves a live workload image's SourceDigest to
@@ -80,7 +81,7 @@ func BuildSourceImageDigestJoinIndex(envelopes []facts.Envelope) SourceImageDige
 		if !isOCIDigestSourceFactKind(env.FactKind) {
 			continue
 		}
-		digest := normalizeSourceDigest(payloadString(env.Payload, "digest"))
+		digest := normalizeSourceDigest(payloadcore.PayloadString(env.Payload, "digest"))
 		if digest == "" {
 			continue
 		}
@@ -169,11 +170,11 @@ func normalizeSourceDigest(digest string) string {
 // id. A payload that carries neither a descriptor_id nor a repository_id+digest
 // pair yields "" and is not a join target.
 func ociManifestNodeUID(payload map[string]any) string {
-	if descriptorID := payloadString(payload, "descriptor_id"); descriptorID != "" {
+	if descriptorID := payloadcore.PayloadString(payload, "descriptor_id"); descriptorID != "" {
 		return descriptorID
 	}
-	repositoryID := payloadString(payload, "repository_id")
-	digest := payloadString(payload, "digest")
+	repositoryID := payloadcore.PayloadString(payload, "repository_id")
+	digest := payloadcore.PayloadString(payload, "digest")
 	return deriveOCIDescriptorUID(repositoryID, digest)
 }
 

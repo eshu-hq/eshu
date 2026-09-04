@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package reducer
+package kubernetescorrelation
 
 import (
 	"slices"
@@ -9,7 +9,10 @@ import (
 	"strings"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/reducer/containerimage"
+	"github.com/eshu-hq/eshu/go/internal/reducer/factdecode"
 	"github.com/eshu-hq/eshu/go/internal/reducer/payloadcore"
+	"github.com/eshu-hq/eshu/go/internal/reducer/schemadecode"
 	kuberneteslivev1 "github.com/eshu-hq/eshu/sdk/go/factschema/kuberneteslive/v1"
 )
 
@@ -126,17 +129,18 @@ type kubernetesCorrelationIndex struct {
 // bounded correlation index. Each kubernetes_live.* fact is decoded through the
 // factschema seam, so a payload missing a required identity/edge/reason field
 // is quarantined as a per-fact input_invalid dead-letter (returned in the
-// []quarantinedFact slice) rather than silently contributing a partial
-// workload, edge, or warning — while every valid fact still contributes to the
-// index. A non-decode error (a fatal condition partitionDecodeFailures did not
-// quarantine) is returned so the caller fails the whole intent for durable
-// triage. Mirrors buildGCPCloudResourceJoinIndex (gcp_relationship_join.go).
-func buildKubernetesCorrelationIndex(envelopes []facts.Envelope) (kubernetesCorrelationIndex, []quarantinedFact, error) {
+// []factdecode.QuarantinedFact slice) rather than silently contributing a
+// partial workload, edge, or warning — while every valid fact still
+// contributes to the index. A non-decode error (a fatal condition
+// factdecode.PartitionDecodeFailures did not quarantine) is returned so the
+// caller fails the whole intent for durable triage. Mirrors
+// buildGCPCloudResourceJoinIndex (gcp_relationship_join.go).
+func buildKubernetesCorrelationIndex(envelopes []facts.Envelope) (kubernetesCorrelationIndex, []factdecode.QuarantinedFact, error) {
 	index := kubernetesCorrelationIndex{
 		sourceDigests: make(map[string]kubernetesSourceDigest),
 		sourceTags:    make(map[string][]kubernetesSourceTag),
 	}
-	var quarantined []quarantinedFact
+	var quarantined []factdecode.QuarantinedFact
 	for _, env := range envelopes {
 		var err error
 		switch env.FactKind {
@@ -152,7 +156,7 @@ func buildKubernetesCorrelationIndex(envelopes []facts.Envelope) (kubernetesCorr
 			index.ingestSourceTag(env)
 		}
 		if err != nil {
-			q, isQuarantine, fatal := partitionDecodeFailures(env, err)
+			q, isQuarantine, fatal := factdecode.PartitionDecodeFailures(env, err)
 			if fatal != nil {
 				return kubernetesCorrelationIndex{}, nil, fatal
 			}
@@ -172,7 +176,7 @@ func (index *kubernetesCorrelationIndex) ingestPodTemplate(env facts.Envelope) e
 	if env.IsTombstone {
 		return nil
 	}
-	podTemplate, err := decodeKubernetesLivePodTemplate(env)
+	podTemplate, err := schemadecode.DecodeKubernetesLivePodTemplate(env)
 	if err != nil {
 		return err
 	}
@@ -184,10 +188,10 @@ func (index *kubernetesCorrelationIndex) ingestPodTemplate(env facts.Envelope) e
 	}
 	index.workloads = append(index.workloads, kubernetesWorkload{
 		objectID:             objectID,
-		clusterID:            derefString(podTemplate.ClusterID),
-		namespace:            derefString(podTemplate.Namespace),
-		name:                 derefString(podTemplate.Name),
-		uid:                  derefString(podTemplate.WorkloadUID),
+		clusterID:            payloadcore.DerefString(podTemplate.ClusterID),
+		namespace:            payloadcore.DerefString(podTemplate.Namespace),
+		name:                 payloadcore.DerefString(podTemplate.Name),
+		uid:                  payloadcore.DerefString(podTemplate.WorkloadUID),
 		imageRefs:            workloadImageRefs(podTemplate),
 		factID:               env.FactID,
 		resolvedImageDigests: resolvedImageDigestsFromTemplate(podTemplate),
@@ -200,18 +204,18 @@ func (index *kubernetesCorrelationIndex) ingestPodTemplate(env facts.Envelope) e
 //
 // The image_refs branch is deduplicated and sorted, matching the pre-typing
 // payloadStrings(payload, "", "image_refs") helper (which returns
-// uniqueSortedStrings). The container-fallback branch preserves the pre-typing
+// payloadcore.UniqueSortedStrings). The container-fallback branch preserves the pre-typing
 // order-preserving, duplicate-retaining behavior verbatim (the old code returned
 // the raw per-container slice), so the valid correlation path is byte-identical
 // to before the typed-decode migration — only the input source changed from a
 // raw map lookup to the decoded struct.
 func workloadImageRefs(podTemplate kuberneteslivev1.PodTemplate) []string {
 	if len(podTemplate.ImageRefs) > 0 {
-		return uniqueSortedStrings(podTemplate.ImageRefs)
+		return payloadcore.UniqueSortedStrings(podTemplate.ImageRefs)
 	}
 	var out []string
 	for _, container := range podTemplate.Containers {
-		if image := strings.TrimSpace(derefString(container.Image)); image != "" {
+		if image := strings.TrimSpace(payloadcore.DerefString(container.Image)); image != "" {
 			out = append(out, image)
 		}
 	}
@@ -219,7 +223,7 @@ func workloadImageRefs(podTemplate kuberneteslivev1.PodTemplate) []string {
 }
 
 func (index *kubernetesCorrelationIndex) ingestRelationship(env facts.Envelope) error {
-	relationship, err := decodeKubernetesLiveRelationship(env)
+	relationship, err := schemadecode.DecodeKubernetesLiveRelationship(env)
 	if err != nil {
 		return err
 	}
@@ -233,13 +237,13 @@ func (index *kubernetesCorrelationIndex) ingestRelationship(env facts.Envelope) 
 		relationshipType: relationship.RelationshipType,
 		fromObjectID:     relationship.FromObjectID,
 		toObjectID:       relationship.ToObjectID,
-		clusterID:        derefString(relationship.ClusterID),
+		clusterID:        payloadcore.DerefString(relationship.ClusterID),
 	})
 	return nil
 }
 
 func (index *kubernetesCorrelationIndex) ingestWarning(env facts.Envelope) error {
-	warning, err := decodeKubernetesLiveWarning(env)
+	warning, err := schemadecode.DecodeKubernetesLiveWarning(env)
 	if err != nil {
 		return err
 	}
@@ -253,7 +257,7 @@ func (index *kubernetesCorrelationIndex) ingestWarning(env facts.Envelope) error
 }
 
 func (index *kubernetesCorrelationIndex) ingestSourceManifest(env facts.Envelope) {
-	digest := payloadString(env.Payload, "digest")
+	digest := payloadcore.PayloadString(env.Payload, "digest")
 	repositoryKey := sourceRepositoryKey(env.Payload)
 	if digest == "" || repositoryKey == "" {
 		return
@@ -274,10 +278,10 @@ func (index *kubernetesCorrelationIndex) ingestSourceManifest(env facts.Envelope
 
 func (index *kubernetesCorrelationIndex) ingestSourceTag(env facts.Envelope) {
 	digest := payloadcore.FirstNonBlank(
-		payloadString(env.Payload, "resolved_digest"),
-		payloadString(env.Payload, "digest"),
+		payloadcore.PayloadString(env.Payload, "resolved_digest"),
+		payloadcore.PayloadString(env.Payload, "digest"),
 	)
-	tag := payloadString(env.Payload, "tag")
+	tag := payloadcore.PayloadString(env.Payload, "tag")
 	repositoryKey := sourceRepositoryKey(env.Payload)
 	if digest == "" || tag == "" || repositoryKey == "" {
 		return
@@ -285,8 +289,8 @@ func (index *kubernetesCorrelationIndex) ingestSourceTag(env facts.Envelope) {
 	tagKey := kubernetesSourceTagKey(repositoryKey, tag)
 	index.sourceTags[tagKey] = append(index.sourceTags[tagKey], kubernetesSourceTag{
 		digest:         digest,
-		previousDigest: payloadString(env.Payload, "previous_digest"),
-		mutated:        boolPayload(env.Payload, "mutated"),
+		previousDigest: payloadcore.PayloadString(env.Payload, "previous_digest"),
+		mutated:        payloadcore.BoolPayload(env.Payload, "mutated"),
 		factID:         env.FactID,
 	})
 	// A tag observation also evidences the digest's existence, so a digest-named
@@ -312,7 +316,7 @@ func (index *kubernetesCorrelationIndex) sort() {
 		}
 		return left.relationshipType < right.relationshipType
 	})
-	index.warnings = uniqueSortedStrings(index.warnings)
+	index.warnings = payloadcore.UniqueSortedStrings(index.warnings)
 }
 
 // resolveDigest returns the source digest observation for a repository key and
@@ -343,11 +347,11 @@ func (index kubernetesCorrelationIndex) resolveTag(repositoryKey, tag string) ma
 // identity (repository_id, else registry/repository) so the join matches the
 // shipped image identity domain.
 func sourceRepositoryKey(payload map[string]any) string {
-	repositoryID := ociRepositoryID(payload)
+	repositoryID := payloadcore.OCIRepositoryID(payload)
 	if repositoryID == "" {
 		return ""
 	}
-	return normalizeContainerRepositoryKey(strings.TrimPrefix(repositoryID, "oci-registry://"))
+	return containerimage.NormalizeContainerRepositoryKey(strings.TrimPrefix(repositoryID, "oci-registry://"))
 }
 
 func kubernetesSourceDigestKey(repositoryKey, digest string) string {
@@ -376,11 +380,11 @@ func resolvedImageDigestsFromTemplate(
 ) map[string]resolvedImageDigest {
 	var collected map[string][]string
 	for _, container := range podTemplate.Containers {
-		digest := derefString(container.ResolvedImageDigest)
+		digest := payloadcore.DerefString(container.ResolvedImageDigest)
 		if digest == "" {
 			continue
 		}
-		ref := strings.TrimSpace(derefString(container.Image))
+		ref := strings.TrimSpace(payloadcore.DerefString(container.Image))
 		if ref == "" {
 			continue
 		}
@@ -418,7 +422,7 @@ func countDistinctDigestIdentities(refs []string) int {
 	seen := make(map[string]struct{}, len(refs))
 	for _, ref := range refs {
 		identity := ref
-		if parsed, ok := parseContainerImageRef(ref); ok && parsed.Digest != "" {
+		if parsed, ok := containerimage.ParseContainerImageRef(ref); ok && parsed.Digest != "" {
 			identity = parsed.Digest
 		}
 		seen[identity] = struct{}{}

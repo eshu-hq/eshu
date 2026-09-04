@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package reducer
+package kubernetescorrelation
 
 import (
 	"context"
@@ -9,6 +9,7 @@ import (
 	"testing"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
 )
 
 // TestBuildKubernetesCorrelationDecisionsExactDigest proves a live image
@@ -136,7 +137,7 @@ func TestBuildKubernetesCorrelationDecisionsRejectsUnparseableImage(t *testing.T
 	t.Parallel()
 
 	// A bare repository reference with no tag and no digest carries no resolvable
-	// identity: parseContainerImageRef cannot split it, so it is a weak signal
+	// identity: containerimage.ParseContainerImageRef cannot split it, so it is a weak signal
 	// that is rejected, never promoted.
 	decisions := BuildKubernetesCorrelationDecisions([]facts.Envelope{
 		podTemplateFact("pod-1", "checkout", "uid-1", []string{"barerepo-no-tag"}, map[string]string{"app": "checkout"}, false),
@@ -355,11 +356,11 @@ func TestKubernetesCorrelationHandlerLoadsFactsAndWrites(t *testing.T) {
 	writer := &recordingKubernetesCorrelationWriter{}
 	handler := KubernetesCorrelationHandler{FactLoader: loader, Writer: writer}
 
-	result, err := handler.Handle(context.Background(), Intent{
+	result, err := handler.Handle(context.Background(), reducercontract.Intent{
 		IntentID:     "intent-k8s",
 		ScopeID:      "k8s://" + testK8sCluster,
 		GenerationID: "generation-k8s",
-		Domain:       DomainKubernetesCorrelation,
+		Domain:       reducercontract.DomainKubernetesCorrelation,
 		SourceSystem: "kubernetes_live",
 		Cause:        "kubernetes live facts observed",
 	})
@@ -375,7 +376,7 @@ func TestKubernetesCorrelationHandlerLoadsFactsAndWrites(t *testing.T) {
 	if got, want := loader.kindCalls[0], kubernetesCorrelationFactKinds(); !slices.Equal(got, want) {
 		t.Fatalf("ListFactsByKind() kinds = %q, want %q", got, want)
 	}
-	if got, want := result.Domain, DomainKubernetesCorrelation; got != want {
+	if got, want := result.Domain, reducercontract.DomainKubernetesCorrelation; got != want {
 		t.Fatalf("result.Domain = %q, want %q", got, want)
 	}
 	if result.CanonicalWrites == 0 {
@@ -403,7 +404,7 @@ func TestKubernetesCorrelationHandlerRejectsWrongDomain(t *testing.T) {
 		FactLoader: &stubKubernetesCorrelationFactLoader{},
 		Writer:     &recordingKubernetesCorrelationWriter{},
 	}
-	if _, err := handler.Handle(context.Background(), Intent{Domain: DomainObservabilityCoverageCorrelation}); err == nil {
+	if _, err := handler.Handle(context.Background(), reducercontract.Intent{Domain: reducercontract.DomainObservabilityCoverageCorrelation}); err == nil {
 		t.Fatal("Handle() error = nil, want domain mismatch error")
 	}
 }

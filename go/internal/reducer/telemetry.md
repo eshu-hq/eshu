@@ -127,9 +127,12 @@ Key metrics (all prefixed `eshu_dp_`):
   canonical OCI node (counted in the completion log's
   `skipped_unresolvable_source`) never produce an edge. See issue #388 PR3.
 
-  Benchmark Evidence: `go test ./internal/reducer -run '^$' -bench
+  Benchmark Evidence: `go test ./internal/reducer/... -run '^$' -bench
   'BenchmarkExtractKubernetesWorkloadNodeRows|BenchmarkBuildSourceImageDigestJoinIndex'
-  -benchmem -benchtime=200x` on darwin/arm64 (Apple M3 Pro): node-row extraction
+  -benchmem -benchtime=200x` (issue #6061 moved `BenchmarkBuildSourceImageDigestJoinIndex`
+  into `go/internal/reducer/kubernetescorrelation`, so the bare `./internal/reducer`
+  package no longer selects it; the `...` tree form reaches both packages) on
+  darwin/arm64 (Apple M3 Pro): node-row extraction
   ran `5.13 ms/op`, `9.34 MB/op`, `150,024 allocs/op` for `5,000` pod-template
   facts (bounded O(W)); the source-side digest→uid join index built in
   `0.93 ms/op`, `1.80 MB/op`, `10,065 allocs/op` for `5,000` manifest facts
@@ -138,8 +141,9 @@ Key metrics (all prefixed `eshu_dp_`):
   `BenchmarkKubernetesWorkloadNodeWriter` in `go/internal/storage/cypher`.
   No-Regression Evidence: the node-write path reuses the proven CloudResource
   UNWIND-batched MERGE-on-uid writer and the bounded-join shape from #805 §5.1; it
-  adds no graph round trip per node or per digest. `go test ./internal/reducer
-  -run 'KubernetesWorkload|SourceImageDigestJoinIndex' -count=1` proves the
+  adds no graph round trip per node or per digest. `go test ./internal/reducer/...
+  -run 'KubernetesWorkload|SourceImageDigestJoinIndex' -count=1` (same #6061
+  package-tree caveat as the benchmark above) proves the
   object_id node identity, idempotent dedup, tombstone suppression, empty/no-op
   handling, the readiness-phase-after-write-success invariant (and that a failed
   write publishes no phase), and digest→uid resolution including the unresolvable

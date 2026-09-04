@@ -37,6 +37,4 @@ var (
 	decodeGCPCloudResource           = schemadecode.DecodeGCPCloudResource
 	decodeKubernetesLiveNamespace    = schemadecode.DecodeKubernetesLiveNamespace
 	decodeKubernetesLivePodTemplate  = schemadecode.DecodeKubernetesLivePodTemplate
-	decodeKubernetesLiveRelationship = schemadecode.DecodeKubernetesLiveRelationship
-	decodeKubernetesLiveWarning      = schemadecode.DecodeKubernetesLiveWarning
 )

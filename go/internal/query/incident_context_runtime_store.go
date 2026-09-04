@@ -296,7 +296,7 @@ func decodeIncidentServiceCatalogOperationalLink(
 // decodeIncidentKubernetesCorrelation decodes one reducer_kubernetes_correlation
 // fact row into the read model's incidentKubernetesCorrelation via raw payload
 // lookups. reducer_kubernetes_correlation is a REDUCER-DERIVED fact
-// (go/internal/reducer/kubernetes_correlation_writer.go writes it directly,
+// (go/internal/reducer/kubernetescorrelation/kubernetes_correlation_writer.go writes it directly,
 // not through sdk/go/factschema) — it has no factschema.FactKind* constant and
 // no Decode* seam, so it is out of scope for the #4794 W2a typed-decode
 // conversion for the same reason as decodeIncidentCICDRunCorrelation above.

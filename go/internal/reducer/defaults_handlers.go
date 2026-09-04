@@ -9,6 +9,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/reducer/codetaint"
 	"github.com/eshu-hq/eshu/go/internal/reducer/eshusearch"
 	"github.com/eshu-hq/eshu/go/internal/reducer/incident"
+	"github.com/eshu-hq/eshu/go/internal/reducer/kubernetescorrelation"
 	"github.com/eshu-hq/eshu/go/internal/reducer/tfconfigstate"
 	"github.com/eshu-hq/eshu/go/internal/relationships/tfstatebackend"
 )
@@ -116,7 +117,7 @@ type KubernetesHandlers struct {
 	// KubernetesCorrelationWriter persists live Kubernetes correlation decisions
 	// (exact, derived, ambiguous, unresolved, stale, rejected) plus a drift kind
 	// for kubernetes_live.* facts joined to deployment-source image evidence.
-	KubernetesCorrelationWriter KubernetesCorrelationWriter
+	KubernetesCorrelationWriter kubernetescorrelation.KubernetesCorrelationWriter
 
 	// KubernetesWorkloadNodeWriter materializes kubernetes_live.pod_template facts
 	// into canonical KubernetesWorkload graph nodes (issue #388). It must be
@@ -145,7 +146,7 @@ type KubernetesHandlers struct {
 	// every correlation materialization intent before it reaches the graph. The
 	// handler also gates on ReadinessLookup so edges never resolve against
 	// uncommitted KubernetesWorkload nodes.
-	KubernetesCorrelationEdgeWriter KubernetesCorrelationEdgeWriter
+	KubernetesCorrelationEdgeWriter kubernetescorrelation.KubernetesCorrelationEdgeWriter
 }
 
 // CrossplaneHandlers groups the Crossplane Claim -> XRD SATISFIED_BY edge

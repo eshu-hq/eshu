@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/reducer/kubernetescorrelation"
 )
 
 // readinessLookupFromStates builds a GraphProjectionReadinessLookup over the
@@ -30,14 +31,17 @@ func readinessLookupFromStates(states []GraphProjectionPhaseState) GraphProjecti
 	}
 }
 
-// runKubernetesCorrelationSeam drives the REAL workload-materialization handler to
-// publish its canonical-nodes-committed phase under workloadEntityKey, then drives
-// the REAL edge handler whose readiness gate looks the phase up by the key it
-// derives from the edge intent. Both sides run the production
-// graphProjectionPhaseStateForIntent / gpphase.AcceptanceUnitID derivation; only
-// the published key set is shared, so the seam is exercised end to end with no
-// stubbed readiness lookup. It returns the edge handler's write count and error so
-// the positive and negative cases assert against one code path.
+// runKubernetesCorrelationSeam drives the REAL workload-materialization handler
+// (this package) to publish its canonical-nodes-committed phase under
+// workloadEntityKey, then drives the REAL
+// kubernetescorrelation.KubernetesCorrelationMaterializationHandler (issue
+// #6061) whose readiness gate looks the phase up by the key it derives from
+// the edge intent. Both sides run the production
+// graphProjectionPhaseStateForIntent / gpphase.KeyFromScope /
+// gpphase.AcceptanceUnitID derivation; only the published key set is shared,
+// so the seam is exercised end to end with no stubbed readiness lookup, across
+// the family package boundary. It returns the edge handler's write count and
+// error so the positive and negative cases assert against one code path.
 func runKubernetesCorrelationSeam(t *testing.T, workloadEntityKey string) (int, error) {
 	t.Helper()
 
@@ -66,14 +70,14 @@ func runKubernetesCorrelationSeam(t *testing.T, workloadEntityKey string) (int, 
 		states = append(states, call...)
 	}
 
-	writer := &recordingKubernetesCorrelationEdgeWriter{}
-	edge := KubernetesCorrelationMaterializationHandler{
-		FactLoader:           &stubKubernetesCorrelationFactLoader{scopeFacts: exactDigestEdgeFixture()},
+	writer := &recordingSeamKubernetesCorrelationEdgeWriter{}
+	edge := kubernetescorrelation.KubernetesCorrelationMaterializationHandler{
+		FactLoader:           &stubSeamKubernetesCorrelationFactLoader{scopeFacts: seamExactDigestEdgeFixture()},
 		EdgeWriter:           writer,
 		ReadinessLookup:      readinessLookupFromStates(states),
 		PriorGenerationCheck: func(context.Context, string, string) (bool, error) { return true, nil },
 	}
-	_, err := edge.Handle(context.Background(), kubernetesCorrelationMaterializationIntent())
+	_, err := edge.Handle(context.Background(), seamKubernetesCorrelationMaterializationIntent())
 	return writer.writeCalls, err
 }
 
@@ -127,13 +131,13 @@ func TestKubernetesCorrelationMaterializationSeamMismatchedKeyClosesGate(t *test
 func TestKubernetesCorrelationNodesNotReadyExposesFailureClass(t *testing.T) {
 	t.Parallel()
 
-	writer := &recordingKubernetesCorrelationEdgeWriter{}
-	handler := KubernetesCorrelationMaterializationHandler{
-		FactLoader:      &stubKubernetesCorrelationFactLoader{scopeFacts: exactDigestEdgeFixture()},
+	writer := &recordingSeamKubernetesCorrelationEdgeWriter{}
+	handler := kubernetescorrelation.KubernetesCorrelationMaterializationHandler{
+		FactLoader:      &stubSeamKubernetesCorrelationFactLoader{scopeFacts: seamExactDigestEdgeFixture()},
 		EdgeWriter:      writer,
 		ReadinessLookup: readyLookup(false, false),
 	}
-	_, err := handler.Handle(context.Background(), kubernetesCorrelationMaterializationIntent())
+	_, err := handler.Handle(context.Background(), seamKubernetesCorrelationMaterializationIntent())
 	if err == nil {
 		t.Fatal("expected a not-ready error while the workload phase is unpublished")
 	}

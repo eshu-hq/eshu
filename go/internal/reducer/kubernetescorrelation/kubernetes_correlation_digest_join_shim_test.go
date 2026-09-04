@@ -1,13 +1,14 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package reducer
+package kubernetescorrelation
 
 import (
 	"fmt"
 	"testing"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/reducer/containerimage"
 )
 
 // TestDigestJoinCardinalityShim measures the percentage of live image refs
@@ -152,7 +153,7 @@ func TestDigestJoinCardinalityShim(t *testing.T) {
 		// BEFORE: only digest-pinned refs (parsed.Digest != "") with exact outcome.
 		// POST: all exact outcomes (digest-pinned + CRI-promoted).
 		isDigestPinned := false
-		if parsed, ok := parseContainerImageRef(f.imageRef); ok && parsed.Digest != "" {
+		if parsed, ok := containerimage.ParseContainerImageRef(f.imageRef); ok && parsed.Digest != "" {
 			isDigestPinned = true
 		}
 

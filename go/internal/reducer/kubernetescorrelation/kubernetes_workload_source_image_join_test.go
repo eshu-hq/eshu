@@ -1,18 +1,19 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package reducer
+package kubernetescorrelation
 
 import (
 	"testing"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/reducer/payloadcore"
 )
 
 func ociManifestEnvelope(payload map[string]any, tombstone bool) facts.Envelope {
 	return facts.Envelope{
 		FactKind:    facts.OCIImageManifestFactKind,
-		FactID:      "fact-" + anyToString(payload["digest"]),
+		FactID:      "fact-" + payloadcore.AnyToString(payload["digest"]),
 		IsTombstone: tombstone,
 		Payload:     payload,
 	}
