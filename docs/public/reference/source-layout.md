@@ -57,6 +57,7 @@ live in the repository today.
 | `go/internal/mcp/investigation/` | investigation workflow and evidence-packet MCP tool registration definitions |
 | `go/internal/mcp/kubernetes/` | Kubernetes-correlation MCP family membership and dependency-neutral route selection |
 | `go/internal/mcp/observabilitycoverage/` | observability-coverage MCP family membership and dependency-neutral route selection |
+| `go/internal/projector/observabilitycoveragematerialization/` | Observability-coverage materialization intent: the closed observability resource-type set, the AWS resource decode, and the COVERS-edge reducer intent |
 | `go/internal/mcp/packageregistry/` | package-registry MCP family membership and dependency-neutral route selection |
 | `go/internal/mcp/playbooks/` | query-playbook MCP tool registration definitions |
 | `go/internal/mcp/relationships/` | code-relationship and relationship-edge MCP registrations plus pure family membership and dependency-neutral route selection |
