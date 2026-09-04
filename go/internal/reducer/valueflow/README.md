@@ -104,11 +104,18 @@ assembly completed"` with `input_count`, `summary_count`,
 `skipped_unconfirmed_call_flow`, and `duration_seconds`. Both are logged
 only when a `Logger` is wired and (for the assembly runner) only when at
 least one input was processed. The projector's graph write/retract calls go
-through `codetaint`'s writer, so they carry `codetaint`'s
-`eshu_dp_postgres_query_duration_seconds` instrumentation, not a metric of
-this package's own. Verified against
-`go/internal/telemetry/instruments.go` (no `value_flow`/`fixpoint`/
-`cloud_sink`-named instrument exists there).
+through `codetaint`'s writer (`internal/storage/cypher.CodeInterprocEvidenceWriter`,
+wired by `cmd/reducer`'s `canonical_graph_writers.go`), which dispatches
+through the shared `InstrumentedExecutor` every canonical/reducer-owned
+Neo4j writer uses (`observed_service_wiring.go`). That records
+`eshu_dp_neo4j_query_duration_seconds` (histogram, `operation=write` for
+`Execute` or `write_group` for `ExecuteGroup`), `eshu_dp_neo4j_batch_size`
+and `eshu_dp_neo4j_batches_executed_total` per UNWIND batch, and a
+`neo4j.execute`/`neo4j.execute_group` span — not
+`eshu_dp_postgres_query_duration_seconds`, which is a Postgres-only
+histogram (`internal/telemetry/instruments.go:3930-3937`) unrelated to
+graph writes. Verified against `go/internal/telemetry/instruments.go` (no
+`value_flow`/`fixpoint`/`cloud_sink`-named instrument exists there).
 
 ## Gotchas / invariants
 
