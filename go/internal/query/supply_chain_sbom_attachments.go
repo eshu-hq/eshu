@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"strconv"
 
+	"github.com/eshu-hq/eshu/go/internal/query/supplychain/impact"
 	"github.com/eshu-hq/eshu/go/internal/scope"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
 )
@@ -113,7 +114,7 @@ func (h *SupplyChainHandler) listSBOMAttachments(w http.ResponseWriter, r *http.
 		return
 	}
 	filter := SBOMAttestationAttachmentFilter{
-		SubjectDigest:              firstNonEmptyQueryParam(r, "subject_digest", "digest"),
+		SubjectDigest:              impact.FirstNonEmptyQueryParam(r, "subject_digest", "digest"),
 		DocumentID:                 QueryParam(r, "document_id"),
 		DocumentDigest:             QueryParam(r, "document_digest"),
 		RepositoryID:               repositoryID,

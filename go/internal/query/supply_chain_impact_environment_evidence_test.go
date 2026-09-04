@@ -9,6 +9,8 @@ import (
 	"net/http/httptest"
 	"strings"
 	"testing"
+
+	"github.com/eshu-hq/eshu/go/internal/query/supplychain/impact"
 )
 
 // Test 8: environment_evidence round-trips through the actual HTTP findings
@@ -19,7 +21,7 @@ func TestSupplyChainImpactFindingsExposeEnvironmentEvidenceInResponseBody(t *tes
 	t.Parallel()
 
 	store := &recordingSupplyChainImpactFindingStore{
-		rows: []SupplyChainImpactFindingRow{
+		rows: []impact.SupplyChainImpactFindingRow{
 			{
 				FindingID:    "finding-env-evidence",
 				CVEID:        "CVE-2026-5426",
@@ -77,7 +79,7 @@ func TestSupplyChainImpactFindingsOmitEnvironmentEvidenceWhenAbsent(t *testing.T
 	t.Parallel()
 
 	store := &recordingSupplyChainImpactFindingStore{
-		rows: []SupplyChainImpactFindingRow{
+		rows: []impact.SupplyChainImpactFindingRow{
 			{
 				FindingID:    "finding-no-env-evidence",
 				CVEID:        "CVE-2026-5426",
@@ -134,9 +136,9 @@ func TestDecodeSupplyChainImpactFindingRowDecodesEnvironmentEvidence(t *testing.
 		"environment_evidence": {"prod": "deploy_event", "staging": "declared"}
 	}`)
 
-	row, err := decodeSupplyChainImpactFindingRow("finding-1", "exact", payload)
+	row, err := impact.DecodeSupplyChainImpactFindingRow("finding-1", "exact", payload)
 	if err != nil {
-		t.Fatalf("decodeSupplyChainImpactFindingRow() error = %v", err)
+		t.Fatalf("impact.DecodeSupplyChainImpactFindingRow() error = %v", err)
 	}
 	if got, want := row.EnvironmentEvidence["prod"], "deploy_event"; got != want {
 		t.Fatalf("EnvironmentEvidence[prod] = %q, want %q", got, want)
@@ -158,9 +160,9 @@ func TestDecodeSupplyChainImpactFindingRowToleratesAbsentEnvironmentEvidence(t *
 		"environments": ["prod"]
 	}`)
 
-	row, err := decodeSupplyChainImpactFindingRow("finding-1", "exact", payload)
+	row, err := impact.DecodeSupplyChainImpactFindingRow("finding-1", "exact", payload)
 	if err != nil {
-		t.Fatalf("decodeSupplyChainImpactFindingRow() error = %v", err)
+		t.Fatalf("impact.DecodeSupplyChainImpactFindingRow() error = %v", err)
 	}
 	if row.EnvironmentEvidence != nil {
 		t.Fatalf("EnvironmentEvidence = %#v, want nil for a row predating #5426", row.EnvironmentEvidence)

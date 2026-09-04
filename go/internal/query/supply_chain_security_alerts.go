@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"strconv"
 
+	"github.com/eshu-hq/eshu/go/internal/query/supplychain/impact"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
 )
 
@@ -37,7 +38,7 @@ func (h *SupplyChainHandler) listSecurityAlertReconciliations(w http.ResponseWri
 	if !ok {
 		return
 	}
-	if !rejectUnsupportedVulnerabilityScannerFilters(w, r, securityAlertScannerFilters()) {
+	if !impact.RejectUnsupportedVulnerabilityScannerFilters(w, r, impact.SecurityAlertScannerFilters()) {
 		return
 	}
 	// Empty scoped grants return the zero-row page without resolving a selector

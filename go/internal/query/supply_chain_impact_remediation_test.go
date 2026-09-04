@@ -8,6 +8,8 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"testing"
+
+	"github.com/eshu-hq/eshu/go/internal/query/supplychain/impact"
 )
 
 // TestSupplyChainExplainImpactSurfacesRemediation proves that the impact
@@ -19,10 +21,10 @@ func TestSupplyChainExplainImpactSurfacesRemediation(t *testing.T) {
 	t.Parallel()
 
 	readiness := &recordingSupplyChainImpactReadinessStore{
-		snapshot: SupplyChainImpactReadinessSnapshot{
-			EvidenceSources: []SupplyChainImpactEvidenceFamily{
-				{Family: EvidenceFamilyVulnerabilityAdvisory, FactCount: 1, Freshness: FreshnessLabelFresh},
-				{Family: EvidenceFamilyPackageConsumption, FactCount: 1, Freshness: FreshnessLabelFresh},
+		snapshot: impact.SupplyChainImpactReadinessSnapshot{
+			EvidenceSources: []impact.SupplyChainImpactEvidenceFamily{
+				{Family: impact.EvidenceFamilyVulnerabilityAdvisory, FactCount: 1, Freshness: impact.FreshnessLabelFresh},
+				{Family: impact.EvidenceFamilyPackageConsumption, FactCount: 1, Freshness: impact.FreshnessLabelFresh},
 			},
 		},
 	}
@@ -43,7 +45,7 @@ func TestSupplyChainExplainImpactSurfacesRemediation(t *testing.T) {
 		t.Fatalf("status = %d, want %d; body = %s", got, want, w.Body.String())
 	}
 
-	var resp SupplyChainImpactExplanationResult
+	var resp impact.SupplyChainImpactExplanationResult
 	if err := json.Unmarshal(w.Body.Bytes(), &resp); err != nil {
 		t.Fatalf("json.Unmarshal: %v", err)
 	}
@@ -75,7 +77,7 @@ func TestSupplyChainExplainImpactRemediationEnrichesTransitiveParent(t *testing.
 	t.Parallel()
 
 	row := remediationExplanationRow()
-	row.Finding.Remediation = &SupplyChainImpactRemediation{
+	row.Finding.Remediation = &impact.SupplyChainImpactRemediation{
 		Reason:              "transitive_parent_upgrade_required",
 		Confidence:          "partial",
 		FirstPatchedVersion: "2.3.4",
@@ -90,7 +92,7 @@ func TestSupplyChainExplainImpactRemediationEnrichesTransitiveParent(t *testing.
 	handler := &SupplyChainHandler{
 		ImpactExplanations: store,
 		Readiness: &recordingSupplyChainImpactReadinessStore{
-			snapshot: SupplyChainImpactReadinessSnapshot{},
+			snapshot: impact.SupplyChainImpactReadinessSnapshot{},
 		},
 	}
 	mux := http.NewServeMux()
@@ -107,7 +109,7 @@ func TestSupplyChainExplainImpactRemediationEnrichesTransitiveParent(t *testing.
 		t.Fatalf("status = %d, want %d; body = %s", got, want, w.Body.String())
 	}
 
-	var resp SupplyChainImpactExplanationResult
+	var resp impact.SupplyChainImpactExplanationResult
 	if err := json.Unmarshal(w.Body.Bytes(), &resp); err != nil {
 		t.Fatalf("json.Unmarshal: %v", err)
 	}
@@ -141,9 +143,9 @@ func TestDecodeSupplyChainImpactRemediationPreservesMatchAndSourceTruth(t *testi
 		},
 	}
 
-	remediation := decodeSupplyChainImpactRemediation(payload)
+	remediation := impact.DecodeSupplyChainImpactRemediation(payload)
 	if remediation == nil {
-		t.Fatal("decodeSupplyChainImpactRemediation() = nil, want remediation")
+		t.Fatal("impact.DecodeSupplyChainImpactRemediation() = nil, want remediation")
 	}
 	if remediation.MatchReason != "maven_range_match" {
 		t.Fatalf("MatchReason = %q, want maven_range_match", remediation.MatchReason)
@@ -153,10 +155,10 @@ func TestDecodeSupplyChainImpactRemediationPreservesMatchAndSourceTruth(t *testi
 	}
 }
 
-func remediationExplanationRow() SupplyChainImpactExplanationRow {
+func remediationExplanationRow() impact.SupplyChainImpactExplanationRow {
 	direct := true
-	return SupplyChainImpactExplanationRow{
-		Finding: SupplyChainImpactFindingRow{
+	return impact.SupplyChainImpactExplanationRow{
+		Finding: impact.SupplyChainImpactFindingRow{
 			FindingID:        "finding-remediation",
 			CVEID:            "CVE-2026-90099",
 			AdvisoryID:       "GHSA-rem-1",
@@ -172,7 +174,7 @@ func remediationExplanationRow() SupplyChainImpactExplanationRow {
 			DependencyPath:   []string{"example"},
 			DependencyDepth:  1,
 			DirectDependency: &direct,
-			Remediation: &SupplyChainImpactRemediation{
+			Remediation: &impact.SupplyChainImpactRemediation{
 				Ecosystem:           "npm",
 				CurrentVersion:      "1.2.3",
 				FirstPatchedVersion: "1.3.0",
@@ -181,13 +183,13 @@ func remediationExplanationRow() SupplyChainImpactExplanationRow {
 				Direct:              boolPtr(true),
 				Confidence:          "exact",
 				Reason:              "direct_upgrade_allowed",
-				PatchedVersionBranches: []SupplyChainFixedVersionBranch{
+				PatchedVersionBranches: []impact.SupplyChainFixedVersionBranch{
 					{Version: "1.3.0", Source: "ghsa"},
 				},
 			},
 			EvidenceFactIDs: []string{"affected-rem", "consume-rem"},
 		},
-		EvidenceFacts: []SupplyChainImpactEvidenceFact{
+		EvidenceFacts: []impact.SupplyChainImpactEvidenceFact{
 			explanationFact("affected-rem", "vulnerability.affected_package", map[string]any{
 				"cve_id":         "CVE-2026-90099",
 				"advisory_id":    "GHSA-rem-1",

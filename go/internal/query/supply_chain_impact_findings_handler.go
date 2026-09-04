@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"time"
 
+	"github.com/eshu-hq/eshu/go/internal/query/supplychain/impact"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
 	"go.opentelemetry.io/otel/attribute"
 )
@@ -34,36 +35,36 @@ func (h *SupplyChainHandler) listImpactFindings(w http.ResponseWriter, r *http.R
 		)
 		return
 	}
-	limit, ok := requiredSupplyChainImpactFindingLimit(w, r)
+	limit, ok := impact.RequiredSupplyChainImpactFindingLimit(w, r)
 	if !ok {
 		return
 	}
-	profile, ok := requestedSupplyChainImpactProfile(w, r)
+	profile, ok := impact.RequestedSupplyChainImpactProfile(w, r)
 	if !ok {
 		return
 	}
-	if !rejectUnsupportedVulnerabilityScannerFilters(w, r, impactFindingsScannerFilters()) {
+	if !impact.RejectUnsupportedVulnerabilityScannerFilters(w, r, impact.ImpactFindingsScannerFilters()) {
 		return
 	}
 	advisoryID := QueryParam(r, "advisory_id")
 	if advisoryID == "" {
-		advisoryID = firstNonEmptyQueryParam(r, "ghsa_id", "osv_id")
+		advisoryID = impact.FirstNonEmptyQueryParam(r, "ghsa_id", "osv_id")
 	}
-	severity, ok := parseSupplyChainScannerSeverity(w, r)
+	severity, ok := impact.ParseSupplyChainScannerSeverity(w, r)
 	if !ok {
 		return
 	}
-	priorityBucket, minPriorityScore, sort, err := supplyChainImpactPriorityFilter(r)
+	priorityBucket, minPriorityScore, sort, err := impact.SupplyChainImpactPriorityFilter(r)
 	if err != nil {
 		WriteError(w, http.StatusBadRequest, err.Error())
 		return
 	}
 	suppressionState := QueryParam(r, "suppression_state")
-	if suppressionState != "" && !isSupportedSupplyChainSuppressionState(suppressionState) {
+	if suppressionState != "" && !impact.IsSupportedSupplyChainSuppressionState(suppressionState) {
 		WriteError(w, http.StatusBadRequest, "suppression_state must be one of active, not_affected, accepted_risk, false_positive, ignored, expired, provider_dismissed, scope_mismatch")
 		return
 	}
-	includeSuppressed, ok := parseSupplyChainImpactIncludeSuppressed(w, r)
+	includeSuppressed, ok := impact.ParseSupplyChainImpactIncludeSuppressed(w, r)
 	if !ok {
 		return
 	}
@@ -80,7 +81,7 @@ func (h *SupplyChainHandler) listImpactFindings(w http.ResponseWriter, r *http.R
 	if !ok {
 		return
 	}
-	filter := SupplyChainImpactFindingFilter{
+	filter := impact.SupplyChainImpactFindingFilter{
 		CVEID:             QueryParam(r, "cve_id"),
 		AdvisoryID:        advisoryID,
 		PackageID:         QueryParam(r, "package_id"),
@@ -93,7 +94,7 @@ func (h *SupplyChainHandler) listImpactFindings(w http.ResponseWriter, r *http.R
 		ServiceID:         QueryParam(r, "service_id"),
 		Environment:       QueryParam(r, "environment"),
 		Severity:          severity,
-		DetectionProfile:  filterProfile(profile),
+		DetectionProfile:  impact.FilterProfile(profile),
 		PriorityBucket:    priorityBucket,
 		MinPriorityScore:  minPriorityScore,
 		Sort:              sort,
@@ -106,7 +107,7 @@ func (h *SupplyChainHandler) listImpactFindings(w http.ResponseWriter, r *http.R
 		filter.AllowedRepositoryIDs = append([]string(nil), access.AllowedRepositoryIDs...)
 		filter.AllowedScopeIDs = append([]string(nil), access.AllowedScopeIDs...)
 	}
-	if !filter.hasScope() {
+	if !filter.HasScope() {
 		WriteError(w, http.StatusBadRequest, "cve_id, advisory_id, package_id, repository_id, subject_digest, image_ref, impact_status, ecosystem, workload_id, service_id, environment, severity, priority_bucket, or min_priority_score > 0 is required")
 		return
 	}
@@ -184,11 +185,11 @@ func (h *SupplyChainHandler) listImpactFindings(w http.ResponseWriter, r *http.R
 		attribute.Int("eshu.query.runtime_context_findings", resolvedContextCount),
 		attribute.Int("eshu.query.runtime_context_workloads", resolvedWorkloadCount),
 	)
-	results := make([]SupplyChainImpactFindingResult, 0, len(rows))
+	results := make([]impact.SupplyChainImpactFindingResult, 0, len(rows))
 	for i := range rows {
-		results = append(results, buildSupplyChainImpactFindingResult(&rows[i]))
+		results = append(results, impact.BuildSupplyChainImpactFindingResult(&rows[i]))
 	}
-	scope := SupplyChainImpactTargetScope{
+	scope := impact.SupplyChainImpactTargetScope{
 		CVEID:         filter.CVEID,
 		AdvisoryID:    filter.AdvisoryID,
 		PackageID:     filter.PackageID,
@@ -203,16 +204,16 @@ func (h *SupplyChainHandler) listImpactFindings(w http.ResponseWriter, r *http.R
 		ImpactStatus:  filter.ImpactStatus,
 	}
 	snapshot, readinessErr := h.readSupplyChainImpactReadinessSnapshot(r, scope)
-	var readiness SupplyChainImpactReadinessEnvelope
+	var readiness impact.SupplyChainImpactReadinessEnvelope
 	if readinessErr != nil {
 		// Readiness lookup failed (transient Postgres error, statement
 		// timeout, etc.). Do not drop the already-fetched findings page:
 		// return the findings with a `readiness_unavailable` envelope so
 		// callers cannot misread zero findings as safe and can retry the
 		// readiness lookup separately.
-		readiness = BuildSupplyChainImpactReadinessUnavailable(scope, results, truncated)
+		readiness = impact.BuildSupplyChainImpactReadinessUnavailable(scope, results, truncated)
 	} else {
-		readiness = BuildSupplyChainImpactReadiness(scope, results, truncated, snapshot)
+		readiness = impact.BuildSupplyChainImpactReadiness(scope, results, truncated, snapshot)
 	}
 	body := map[string]any{
 		"findings":          results,
@@ -257,7 +258,7 @@ func (h *SupplyChainHandler) listImpactFindings(w http.ResponseWriter, r *http.R
 // read-model watermark. The handler type-asserts it so the legacy store (or a
 // test double) that does not implement it simply keeps the fresh envelope.
 type supplyChainImpactWinnersFreshnessReader interface {
-	SupplyChainImpactWinnersWatermark(context.Context) (SupplyChainImpactWinnersFreshness, error)
+	SupplyChainImpactWinnersWatermark(context.Context) (impact.SupplyChainImpactWinnersFreshness, error)
 }
 
 // supplyChainImpactWinnersFreshnessWindow bounds how long after the last winners
@@ -275,7 +276,7 @@ const supplyChainImpactWinnersFreshnessWindow = 2 * time.Minute
 // unpopulated, or could not be probed. It is a no-op on the legacy live read
 // (always current) and when the model is fresh. now is injected for deterministic
 // tests.
-func applyWinnersFreshness(truth *TruthEnvelope, fr SupplyChainImpactWinnersFreshness, probeErr error, now time.Time) {
+func applyWinnersFreshness(truth *TruthEnvelope, fr impact.SupplyChainImpactWinnersFreshness, probeErr error, now time.Time) {
 	if truth == nil || !fr.ServingFromWinners {
 		return
 	}
@@ -315,10 +316,10 @@ func applyWinnersFreshness(truth *TruthEnvelope, fr SupplyChainImpactWinnersFres
 
 func (h *SupplyChainHandler) readSupplyChainImpactReadinessSnapshot(
 	r *http.Request,
-	scope SupplyChainImpactTargetScope,
-) (SupplyChainImpactReadinessSnapshot, error) {
+	scope impact.SupplyChainImpactTargetScope,
+) (impact.SupplyChainImpactReadinessSnapshot, error) {
 	if h.Readiness == nil {
-		return SupplyChainImpactReadinessSnapshot{}, nil
+		return impact.SupplyChainImpactReadinessSnapshot{}, nil
 	}
-	return h.Readiness.ReadSupplyChainImpactReadiness(r.Context(), SupplyChainImpactReadinessQuery(scope))
+	return h.Readiness.ReadSupplyChainImpactReadiness(r.Context(), impact.SupplyChainImpactReadinessQuery(scope))
 }

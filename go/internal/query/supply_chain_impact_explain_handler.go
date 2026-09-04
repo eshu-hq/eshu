@@ -7,6 +7,7 @@ import (
 	"errors"
 	"net/http"
 
+	"github.com/eshu-hq/eshu/go/internal/query/supplychain/impact"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
 )
 
@@ -32,7 +33,7 @@ func (h *SupplyChainHandler) explainImpact(w http.ResponseWriter, r *http.Reques
 		)
 		return
 	}
-	if !rejectUnsupportedVulnerabilityScannerFilters(w, r, impactExplanationScannerFilters()) {
+	if !impact.RejectUnsupportedVulnerabilityScannerFilters(w, r, impact.ImpactExplanationScannerFilters()) {
 		return
 	}
 	// Resolve scoped-token grants before any repository-selector, reducer, or
@@ -49,7 +50,7 @@ func (h *SupplyChainHandler) explainImpact(w http.ResponseWriter, r *http.Reques
 	if !ok {
 		return
 	}
-	filter := trimSupplyChainImpactExplanationFilter(SupplyChainImpactExplanationFilter{
+	filter := impact.TrimSupplyChainImpactExplanationFilter(impact.SupplyChainImpactExplanationFilter{
 		FindingID:     QueryParam(r, "finding_id"),
 		AdvisoryID:    QueryParam(r, "advisory_id"),
 		CVEID:         QueryParam(r, "cve_id"),
@@ -64,7 +65,7 @@ func (h *SupplyChainHandler) explainImpact(w http.ResponseWriter, r *http.Reques
 		filter.AllowedRepositoryIDs = append([]string(nil), access.AllowedRepositoryIDs...)
 		filter.AllowedScopeIDs = append([]string(nil), access.AllowedScopeIDs...)
 	}
-	if !filter.hasBoundedScope() {
+	if !filter.HasBoundedScope() {
 		WriteError(w, http.StatusBadRequest, "finding_id, or advisory_id/cve_id plus package_id, repository_id, subject_digest, image_ref, workload_id, or service_id is required")
 		return
 	}
@@ -83,9 +84,9 @@ func (h *SupplyChainHandler) explainImpact(w http.ResponseWriter, r *http.Reques
 	}
 
 	row, err := h.ImpactExplanations.ExplainSupplyChainImpact(r.Context(), filter)
-	if errors.Is(err, ErrSupplyChainImpactExplanationNotFound) {
-		readiness := h.readSupplyChainImpactReadinessForScope(r, filter.readinessScope(), nil, false)
-		body := BuildSupplyChainImpactNoEvidenceExplanation(filter, readiness)
+	if errors.Is(err, impact.ErrSupplyChainImpactExplanationNotFound) {
+		readiness := h.readSupplyChainImpactReadinessForScope(r, filter.ReadinessScope(), nil, false)
+		body := impact.BuildSupplyChainImpactNoEvidenceExplanation(filter, readiness)
 		WriteSuccess(w, r, http.StatusOK, body, BuildTruthEnvelope(
 			h.profile(),
 			supplyChainImpactExplanationCapability,
@@ -94,12 +95,12 @@ func (h *SupplyChainHandler) explainImpact(w http.ResponseWriter, r *http.Reques
 		))
 		return
 	}
-	if errors.Is(err, ErrSupplyChainImpactExplanationAmbiguous) {
-		readiness := h.readSupplyChainImpactReadinessForScope(r, filter.readinessScope(), nil, false)
-		body := BuildSupplyChainImpactAmbiguousExplanation(
+	if errors.Is(err, impact.ErrSupplyChainImpactExplanationAmbiguous) {
+		readiness := h.readSupplyChainImpactReadinessForScope(r, filter.ReadinessScope(), nil, false)
+		body := impact.BuildSupplyChainImpactAmbiguousExplanation(
 			filter,
 			readiness,
-			supplyChainImpactExplanationAmbiguousCandidateCount(err),
+			impact.SupplyChainImpactExplanationAmbiguousCandidateCount(err),
 		)
 		WriteSuccess(w, r, http.StatusOK, body, BuildTruthEnvelope(
 			h.profile(),
@@ -117,7 +118,7 @@ func (h *SupplyChainHandler) explainImpact(w http.ResponseWriter, r *http.Reques
 	// Resolve current, authorized runtime image evidence through the indexed
 	// owner ledger before assembling the finding, so explain and list select the
 	// same deployment and version-resolution tiers.
-	rows := []SupplyChainImpactFindingRow{row.Finding}
+	rows := []impact.SupplyChainImpactFindingRow{row.Finding}
 	if err := h.applySupplyChainCloudRuntimeEvidence(r.Context(), access, rows); err != nil {
 		WriteError(w, http.StatusInternalServerError, "supply-chain impact runtime evidence probe failed")
 		return
@@ -149,10 +150,10 @@ func (h *SupplyChainHandler) explainImpact(w http.ResponseWriter, r *http.Reques
 	}
 	row.Finding = rows[0]
 
-	scope := findingReadinessScope(row.Finding, filter)
-	findingResult := SupplyChainImpactFindingResult(row.Finding)
-	readiness := h.readSupplyChainImpactReadinessForScope(r, scope, []SupplyChainImpactFindingResult{findingResult}, false)
-	body := BuildSupplyChainImpactExplanation(filter, row, readiness)
+	scope := impact.FindingReadinessScope(row.Finding, filter)
+	findingResult := impact.SupplyChainImpactFindingResult(row.Finding)
+	readiness := h.readSupplyChainImpactReadinessForScope(r, scope, []impact.SupplyChainImpactFindingResult{findingResult}, false)
+	body := impact.BuildSupplyChainImpactExplanation(filter, row, readiness)
 	WriteSuccess(w, r, http.StatusOK, body, BuildTruthEnvelope(
 		h.profile(),
 		supplyChainImpactExplanationCapability,
@@ -163,13 +164,13 @@ func (h *SupplyChainHandler) explainImpact(w http.ResponseWriter, r *http.Reques
 
 func (h *SupplyChainHandler) readSupplyChainImpactReadinessForScope(
 	r *http.Request,
-	scope SupplyChainImpactTargetScope,
-	findings []SupplyChainImpactFindingResult,
+	scope impact.SupplyChainImpactTargetScope,
+	findings []impact.SupplyChainImpactFindingResult,
 	truncated bool,
-) SupplyChainImpactReadinessEnvelope {
+) impact.SupplyChainImpactReadinessEnvelope {
 	snapshot, err := h.readSupplyChainImpactReadinessSnapshot(r, scope)
 	if err != nil {
-		return BuildSupplyChainImpactReadinessUnavailable(scope, findings, truncated)
+		return impact.BuildSupplyChainImpactReadinessUnavailable(scope, findings, truncated)
 	}
-	return BuildSupplyChainImpactReadiness(scope, findings, truncated, snapshot)
+	return impact.BuildSupplyChainImpactReadiness(scope, findings, truncated, snapshot)
 }

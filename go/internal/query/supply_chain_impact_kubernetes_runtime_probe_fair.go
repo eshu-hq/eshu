@@ -10,6 +10,8 @@ import (
 	"strings"
 	"sync"
 	"sync/atomic"
+
+	"github.com/eshu-hq/eshu/go/internal/query/supplychain/impact"
 )
 
 const (
@@ -17,14 +19,9 @@ const (
 	supplyChainKubernetesRuntimeProbeMaxAllScopesCandidates = 400
 )
 
-// KubernetesRuntimeProbeMetadata describes the bounded, page-weighted
-// digest-local candidate budget. A nil WorkloadRefsTruncated means
-// authorization prevents the caller from learning whether hidden candidates
-// exist.
-type KubernetesRuntimeProbeMetadata struct {
-	CandidateLimit        int   `json:"candidate_limit"`
-	WorkloadRefsTruncated *bool `json:"workload_refs_truncated"`
-}
+// KubernetesRuntimeProbeMetadata moved to internal/query/supplychain/impact
+// with the other runtime-evidence read-model types (#6060 lane A); see
+// supply_chain_impact_alias.go.
 
 type kubernetesRuntimeProbePlan struct {
 	Digest      string
@@ -58,7 +55,7 @@ func planKubernetesRuntimeProbeQueries(digests []string, allScopes bool) []kuber
 	return planKubernetesRuntimeProbeQueriesByOccurrence(occurrences, allScopes)
 }
 
-func planKubernetesRuntimeProbeQueriesForRows(rows []SupplyChainImpactFindingRow, allScopes bool) []kubernetesRuntimeProbePlan {
+func planKubernetesRuntimeProbeQueriesForRows(rows []impact.SupplyChainImpactFindingRow, allScopes bool) []kubernetesRuntimeProbePlan {
 	occurrences := make(map[string]int, min(len(rows), supplyChainKubernetesRuntimeProbeMaxResults))
 	plannedRows := 0
 	for _, row := range rows {

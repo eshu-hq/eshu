@@ -14,6 +14,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/eshu-hq/eshu/go/internal/query/supplychain/impact"
+
 	_ "github.com/jackc/pgx/v5/stdlib"
 )
 
@@ -50,7 +52,7 @@ func TestKubernetesRuntimeWorkloadGateIndependentTruthSeamsLive(t *testing.T) {
 	}
 	want := []KubernetesRuntimeWorkloadMatch{{
 		Digest: digest,
-		WorkloadRef: KubernetesRuntimeWorkloadRef{
+		WorkloadRef: impact.KubernetesRuntimeWorkloadRef{
 			UID: "accepted", ClusterID: "cluster-from-owner", Namespace: "payments", Name: "api",
 		},
 	}}

@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"strconv"
 
+	"github.com/eshu-hq/eshu/go/internal/query/supplychain/impact"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
 )
 
@@ -55,7 +56,7 @@ func (h *SupplyChainHandler) countSecurityAlertReconciliations(w http.ResponseWr
 		)
 		return
 	}
-	if !rejectUnsupportedVulnerabilityScannerFilters(w, r, securityAlertScannerFilters()) {
+	if !impact.RejectUnsupportedVulnerabilityScannerFilters(w, r, impact.SecurityAlertScannerFilters()) {
 		return
 	}
 
@@ -127,7 +128,7 @@ func (h *SupplyChainHandler) securityAlertReconciliationInventory(w http.Respons
 		)
 		return
 	}
-	if !rejectUnsupportedVulnerabilityScannerFilters(w, r, securityAlertScannerFilters()) {
+	if !impact.RejectUnsupportedVulnerabilityScannerFilters(w, r, impact.SecurityAlertScannerFilters()) {
 		return
 	}
 

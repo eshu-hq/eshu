@@ -7,6 +7,7 @@ import (
 	"net/http"
 
 	"github.com/eshu-hq/eshu/go/internal/query/supplychain/advisory"
+	"github.com/eshu-hq/eshu/go/internal/query/supplychain/impact"
 )
 
 const (
@@ -21,14 +22,9 @@ const (
 	containerImageIdentityMaxLimit             = 200
 	securityAlertReconciliationMaxLimit        = 200
 
-	// SupplyChainImpactProfilePrecise selects exact installed-version
-	// anchored findings only.
-	SupplyChainImpactProfilePrecise = "precise"
-	// SupplyChainImpactProfileComprehensive selects every owned-anchor
-	// finding including range-only manifest, SBOM/CPE-derived,
-	// malformed range, and missing-version rows. Unsupported matcher
-	// ecosystems are surfaced by readiness, not as finding rows.
-	SupplyChainImpactProfileComprehensive = "comprehensive"
+	// SupplyChainImpactProfilePrecise and SupplyChainImpactProfileComprehensive
+	// moved to internal/query/supplychain/impact with the impact read models
+	// (#6060 lane A); see supply_chain_impact_alias.go.
 )
 
 // SupplyChainHandler exposes reducer-owned supply-chain read models.
@@ -39,14 +35,14 @@ type SupplyChainHandler struct {
 	SBOMAttachmentAggregates SBOMAttestationAttachmentAggregateStore
 	AdvisoryEvidence         advisory.AdvisoryEvidenceStore
 	AdvisoryCatalog          advisory.AdvisoryCatalogStore
-	ImpactFindings           SupplyChainImpactFindingStore
-	ImpactAggregates         SupplyChainImpactAggregateStore
-	ImpactExplanations       SupplyChainImpactExplanationStore
+	ImpactFindings           impact.SupplyChainImpactFindingStore
+	ImpactAggregates         impact.SupplyChainImpactAggregateStore
+	ImpactExplanations       impact.SupplyChainImpactExplanationStore
 	ContainerImageIdentities ContainerImageIdentityStore
 	ContainerImageAggregates ContainerImageIdentityAggregateStore
 	SecurityAlerts           SecurityAlertReconciliationStore
 	SecurityAlertAggregates  SecurityAlertReconciliationAggregateStore
-	Readiness                SupplyChainImpactReadinessStore
+	Readiness                impact.SupplyChainImpactReadinessStore
 	SuppressionMutations     VulnerabilitySuppressionMutationStore
 	// CloudResourceInventory gates the #5452 runtime-observed cloud evidence
 	// probe: it filters the probe's digest-matched CloudResource graph nodes to

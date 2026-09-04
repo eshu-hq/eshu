@@ -8,6 +8,8 @@ import (
 	"errors"
 	"testing"
 
+	"github.com/eshu-hq/eshu/go/internal/query/supplychain/impact"
+
 	sdktrace "go.opentelemetry.io/otel/sdk/trace"
 	"go.opentelemetry.io/otel/sdk/trace/tracetest"
 )
@@ -207,7 +209,7 @@ func TestApplySupplyChainCloudRuntimeEvidencePromotesRunningDigest(t *testing.T)
 	}
 	handler := &SupplyChainHandler{Neo4j: graph, CloudResourceInventory: inventory}
 
-	rows := []SupplyChainImpactFindingRow{
+	rows := []impact.SupplyChainImpactFindingRow{
 		{FindingID: "f-running", SubjectDigest: runningDigest, EvidencePath: []string{cicdRunCorrelationFactKind}},
 		{FindingID: "f-notrunning", SubjectDigest: "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb", EvidencePath: []string{cicdRunCorrelationFactKind}},
 	}
@@ -218,13 +220,13 @@ func TestApplySupplyChainCloudRuntimeEvidencePromotesRunningDigest(t *testing.T)
 	if got := rows[0].CloudRuntimeResourceRefs; len(got) != 1 || got[0] != ecsARN {
 		t.Fatalf("running finding CloudRuntimeResourceRefs = %#v, want [%q]", got, ecsARN)
 	}
-	if tier := buildSupplyChainImpactFindingResult(&rows[0]).DeploymentTruthTier; tier != "runtime_confirmed" {
+	if tier := impact.BuildSupplyChainImpactFindingResult(&rows[0]).DeploymentTruthTier; tier != "runtime_confirmed" {
 		t.Fatalf("running finding tier = %q, want runtime_confirmed", tier)
 	}
 	if got := rows[1].CloudRuntimeResourceRefs; len(got) != 0 {
 		t.Fatalf("non-running finding CloudRuntimeResourceRefs = %#v, want none", got)
 	}
-	if tier := buildSupplyChainImpactFindingResult(&rows[1]).DeploymentTruthTier; tier != "provenance_ci_declared" {
+	if tier := impact.BuildSupplyChainImpactFindingResult(&rows[1]).DeploymentTruthTier; tier != "provenance_ci_declared" {
 		t.Fatalf("non-running finding tier = %q, want provenance_ci_declared", tier)
 	}
 }
@@ -251,14 +253,14 @@ func TestApplySupplyChainCloudRuntimeEvidenceExcludesStaleOrUnauthorized(t *test
 	}
 	handler := &SupplyChainHandler{Neo4j: graph, CloudResourceInventory: inventory}
 
-	rows := []SupplyChainImpactFindingRow{{FindingID: "f", SubjectDigest: runningDigest, EvidencePath: []string{cicdRunCorrelationFactKind}}}
+	rows := []impact.SupplyChainImpactFindingRow{{FindingID: "f", SubjectDigest: runningDigest, EvidencePath: []string{cicdRunCorrelationFactKind}}}
 	if err := handler.applySupplyChainCloudRuntimeEvidence(context.Background(), repositoryAccessFilter{AllScopes: true}, rows); err != nil {
 		t.Fatalf("applySupplyChainCloudRuntimeEvidence() error = %v, want nil", err)
 	}
 	if len(rows[0].CloudRuntimeResourceRefs) != 0 {
 		t.Fatalf("CloudRuntimeResourceRefs = %#v, want none for a stale/unauthorized node", rows[0].CloudRuntimeResourceRefs)
 	}
-	if tier := buildSupplyChainImpactFindingResult(&rows[0]).DeploymentTruthTier; tier != "provenance_ci_declared" {
+	if tier := impact.BuildSupplyChainImpactFindingResult(&rows[0]).DeploymentTruthTier; tier != "provenance_ci_declared" {
 		t.Fatalf("tier = %q, want provenance_ci_declared (no runtime evidence from a stale node)", tier)
 	}
 	if len(inventory.gotCandidates) != 1 || inventory.gotCandidates[0] != staleUID {
@@ -286,7 +288,7 @@ func TestApplySupplyChainCloudRuntimeEvidenceScopedCallerGetsAuthorized(t *testi
 	handler := &SupplyChainHandler{Neo4j: graph, CloudResourceInventory: inventory}
 
 	scoped := repositoryAccessFilter{AllowedRepositoryIDs: []string{"repository:r_granted"}}
-	rows := []SupplyChainImpactFindingRow{{FindingID: "f", SubjectDigest: runningDigest}}
+	rows := []impact.SupplyChainImpactFindingRow{{FindingID: "f", SubjectDigest: runningDigest}}
 	if err := handler.applySupplyChainCloudRuntimeEvidence(context.Background(), scoped, rows); err != nil {
 		t.Fatalf("applySupplyChainCloudRuntimeEvidence(scoped) error = %v, want nil", err)
 	}
@@ -311,7 +313,7 @@ func TestApplySupplyChainCloudRuntimeEvidenceDoesNotReadGraph(t *testing.T) {
 		},
 	}
 	handler := &SupplyChainHandler{Neo4j: graph, CloudResourceInventory: inventory}
-	rows := []SupplyChainImpactFindingRow{{FindingID: "f", SubjectDigest: digest}}
+	rows := []impact.SupplyChainImpactFindingRow{{FindingID: "f", SubjectDigest: digest}}
 
 	if err := handler.applySupplyChainCloudRuntimeEvidence(context.Background(), repositoryAccessFilter{AllScopes: true}, rows); err != nil {
 		t.Fatalf("applySupplyChainCloudRuntimeEvidence() error = %v, want graph-free owner-ledger read", err)
@@ -331,7 +333,7 @@ func TestApplySupplyChainCloudRuntimeEvidencePropagatesLedgerError(t *testing.T)
 		rowsByDigest: graph.rowsByDigest,
 	}
 	handler := &SupplyChainHandler{Neo4j: graph, CloudResourceInventory: inventory}
-	rows := []SupplyChainImpactFindingRow{{FindingID: "f", SubjectDigest: digest}}
+	rows := []impact.SupplyChainImpactFindingRow{{FindingID: "f", SubjectDigest: digest}}
 
 	if err := handler.applySupplyChainCloudRuntimeEvidence(context.Background(), repositoryAccessFilter{AllScopes: true}, rows); err == nil {
 		t.Fatal("applySupplyChainCloudRuntimeEvidence() error = nil, want the owner-ledger error propagated")
@@ -341,7 +343,7 @@ func TestApplySupplyChainCloudRuntimeEvidencePropagatesLedgerError(t *testing.T)
 func TestApplySupplyChainCloudRuntimeEvidenceNilStoresAreNoOp(t *testing.T) {
 	t.Parallel()
 
-	rows := []SupplyChainImpactFindingRow{{FindingID: "f", SubjectDigest: "sha256:cc"}}
+	rows := []impact.SupplyChainImpactFindingRow{{FindingID: "f", SubjectDigest: "sha256:cc"}}
 	// Nil graph remains safe because runtime evidence resolves from Postgres.
 	if err := (&SupplyChainHandler{CloudResourceInventory: &stubCloudInventory{}}).
 		applySupplyChainCloudRuntimeEvidence(context.Background(), repositoryAccessFilter{AllScopes: true}, rows); err != nil {

@@ -9,6 +9,8 @@ import (
 	"errors"
 	"strings"
 	"testing"
+
+	"github.com/eshu-hq/eshu/go/internal/query/supplychain/impact"
 )
 
 // recordingImpactQueryer captures the SQL the store issues so the read-gate
@@ -26,21 +28,21 @@ func (q *recordingImpactQueryer) QueryContext(_ context.Context, query string, _
 func TestSupplyChainImpactReadGateSelectsQuery(t *testing.T) {
 	t.Parallel()
 
-	filter := SupplyChainImpactFindingFilter{ImpactStatus: "affected_exact", Limit: 51}
+	filter := impact.SupplyChainImpactFindingFilter{ImpactStatus: "affected_exact", Limit: 51}
 
 	for _, tc := range []struct {
 		name        string
 		fromWinners bool
 		wantQuery   string
 	}{
-		{"legacy", false, listSupplyChainImpactFindingsQuery},
-		{"winners", true, listSupplyChainImpactFindingsFromWinnersQuery},
+		{"legacy", false, impact.ListSupplyChainImpactFindingsQuery},
+		{"winners", true, impact.ListSupplyChainImpactFindingsFromWinnersQuery},
 	} {
 		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 			rec := &recordingImpactQueryer{}
-			store := NewPostgresSupplyChainImpactFindingStoreWithReadModel(rec, tc.fromWinners)
+			store := impact.NewPostgresSupplyChainImpactFindingStoreWithReadModel(rec, tc.fromWinners)
 			_, _ = store.ListSupplyChainImpactFindings(context.Background(), filter)
 			if rec.lastQuery != tc.wantQuery {
 				t.Fatalf("%s gate issued the wrong query", tc.name)
@@ -60,8 +62,8 @@ func TestSupplyChainImpactWinnersReadEnabled(t *testing.T) {
 		"1": true, "t": true, "T": true,
 		"": false, "false": false, "0": false, "f": false, "yes": false, "on": false,
 	} {
-		if got := SupplyChainImpactWinnersReadEnabled(value); got != want {
-			t.Fatalf("SupplyChainImpactWinnersReadEnabled(%q) = %v, want %v", value, got, want)
+		if got := impact.SupplyChainImpactWinnersReadEnabled(value); got != want {
+			t.Fatalf("impact.SupplyChainImpactWinnersReadEnabled(%q) = %v, want %v", value, got, want)
 		}
 	}
 }
@@ -74,7 +76,7 @@ func TestSupplyChainImpactWinnersReadEnabled(t *testing.T) {
 func TestSupplyChainImpactWinnersReadQueryShape(t *testing.T) {
 	t.Parallel()
 
-	q := listSupplyChainImpactFindingsFromWinnersQuery
+	q := impact.ListSupplyChainImpactFindingsFromWinnersQuery
 	for _, want := range []string{
 		"FROM supply_chain_impact_canonical_winners AS w",
 		"JOIN fact_records AS refetch",

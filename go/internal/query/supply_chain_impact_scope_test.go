@@ -11,6 +11,8 @@ import (
 	"net/http/httptest"
 	"strings"
 	"testing"
+
+	"github.com/eshu-hq/eshu/go/internal/query/supplychain/impact"
 )
 
 // failingSupplyChainImpactFindingStore records whether the reducer impact
@@ -22,8 +24,8 @@ type failingSupplyChainImpactFindingStore struct {
 
 func (s *failingSupplyChainImpactFindingStore) ListSupplyChainImpactFindings(
 	context.Context,
-	SupplyChainImpactFindingFilter,
-) ([]SupplyChainImpactFindingRow, error) {
+	impact.SupplyChainImpactFindingFilter,
+) ([]impact.SupplyChainImpactFindingRow, error) {
 	s.called = true
 	return nil, errors.New("broad supply-chain impact finding read")
 }
@@ -37,19 +39,19 @@ type failingSupplyChainImpactAggregateStore struct {
 
 func (s *failingSupplyChainImpactAggregateStore) CountSupplyChainImpactFindings(
 	context.Context,
-	SupplyChainImpactAggregateFilter,
-) (SupplyChainImpactAggregateCount, error) {
+	impact.SupplyChainImpactAggregateFilter,
+) (impact.SupplyChainImpactAggregateCount, error) {
 	s.countCalled = true
-	return SupplyChainImpactAggregateCount{}, errors.New("broad supply-chain impact count read")
+	return impact.SupplyChainImpactAggregateCount{}, errors.New("broad supply-chain impact count read")
 }
 
 func (s *failingSupplyChainImpactAggregateStore) SupplyChainImpactInventory(
 	context.Context,
-	SupplyChainImpactAggregateFilter,
-	SupplyChainImpactInventoryDimension,
+	impact.SupplyChainImpactAggregateFilter,
+	impact.SupplyChainImpactInventoryDimension,
 	int,
 	int,
-) ([]SupplyChainImpactInventoryRow, error) {
+) ([]impact.SupplyChainImpactInventoryRow, error) {
 	s.inventoryCalled = true
 	return nil, errors.New("broad supply-chain impact inventory read")
 }
@@ -67,10 +69,10 @@ type failingSupplyChainImpactReadinessStore struct {
 
 func (s *failingSupplyChainImpactReadinessStore) ReadSupplyChainImpactReadiness(
 	context.Context,
-	SupplyChainImpactReadinessQuery,
-) (SupplyChainImpactReadinessSnapshot, error) {
+	impact.SupplyChainImpactReadinessQuery,
+) (impact.SupplyChainImpactReadinessSnapshot, error) {
 	s.called = true
-	return SupplyChainImpactReadinessSnapshot{}, errors.New("broad supply-chain impact readiness read")
+	return impact.SupplyChainImpactReadinessSnapshot{}, errors.New("broad supply-chain impact readiness read")
 }
 
 func TestAuthMiddlewareWithScopedTokensAllowsSupplyChainImpactRoutes(t *testing.T) {
@@ -292,7 +294,7 @@ func TestSupplyChainImpactHandlerPassesScopedGrants(t *testing.T) {
 
 	findings := &recordingSupplyChainImpactFindingStore{}
 	aggregates := &stubSupplyChainImpactAggregateStore{
-		count: SupplyChainImpactAggregateCount{
+		count: impact.SupplyChainImpactAggregateCount{
 			ByPriorityBucket: map[string]int{},
 			BySeverity:       map[string]int{},
 		},
@@ -391,28 +393,28 @@ func TestSupplyChainImpactSQLAppliesScopedAuthorizationBeforeOrderingAndGrouping
 	}{
 		{
 			name:       "list",
-			query:      listSupplyChainImpactFindingsQuery,
+			query:      impact.ListSupplyChainImpactFindingsQuery,
 			beforeText: "source_winners AS",
 			repoParam:  "fact.payload->>'repository_id' = ANY($22::text[])",
 			scopeParam: "fact.scope_id = ANY($23::text[])",
 		},
 		{
 			name:       "aggregate_cte",
-			query:      supplyChainImpactAggregateCanonicalFactsCTE,
+			query:      impact.SupplyChainImpactAggregateCanonicalFactsCTE,
 			beforeText: "source_winners AS",
 			repoParam:  "fact.payload->>'repository_id' = ANY($18::text[])",
 			scopeParam: "fact.scope_id = ANY($19::text[])",
 		},
 		{
 			name:       "inventory",
-			query:      supplyChainImpactInventoryQueryTemplate,
+			query:      impact.SupplyChainImpactInventoryQueryTemplate,
 			beforeText: "GROUP BY",
 			repoParam:  "fact.payload->>'repository_id' = ANY($18::text[])",
 			scopeParam: "fact.scope_id = ANY($19::text[])",
 		},
 		{
 			name:       "explain",
-			query:      explainSupplyChainImpactFindingQuery,
+			query:      impact.ExplainSupplyChainImpactFindingQuery,
 			beforeText: "source_winners AS",
 			repoParam:  "fact.payload->>'repository_id' = ANY($11::text[])",
 			scopeParam: "fact.scope_id = ANY($12::text[])",
@@ -450,8 +452,8 @@ func assertZeroImpactFindingsResponse(t *testing.T, body []byte) {
 	if resp.Count != 0 || len(resp.Findings) != 0 || resp.Truncated {
 		t.Fatalf("empty scoped findings page = %#v, want zero findings", resp)
 	}
-	if resp.Readiness.State != string(ReadinessStateReadinessUnavailable) {
-		t.Fatalf("empty scoped readiness state = %q, want %q", resp.Readiness.State, ReadinessStateReadinessUnavailable)
+	if resp.Readiness.State != string(impact.ReadinessStateReadinessUnavailable) {
+		t.Fatalf("empty scoped readiness state = %q, want %q", resp.Readiness.State, impact.ReadinessStateReadinessUnavailable)
 	}
 }
 

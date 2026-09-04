@@ -8,6 +8,8 @@ import (
 	"database/sql"
 	"errors"
 	"testing"
+
+	"github.com/eshu-hq/eshu/go/internal/query/supplychain/impact"
 )
 
 const (
@@ -33,8 +35,8 @@ type runtimeRepositoryPrecedenceCase struct {
 func assertSupplyChainRuntimeRepositoryPrecedenceLive(
 	t *testing.T,
 	ctx context.Context,
-	findingStore PostgresSupplyChainImpactFindingStore,
-	aggregateStore PostgresSupplyChainImpactAggregateStore,
+	findingStore impact.PostgresSupplyChainImpactFindingStore,
+	aggregateStore impact.PostgresSupplyChainImpactAggregateStore,
 ) {
 	t.Helper()
 	for _, tc := range []runtimeRepositoryPrecedenceCase{
@@ -125,14 +127,14 @@ func assertSupplyChainRuntimeRepositoryPrecedenceLive(
 func assertRuntimeRepositoryPrecedenceHydration(
 	t *testing.T,
 	ctx context.Context,
-	store PostgresSupplyChainImpactFindingStore,
+	store impact.PostgresSupplyChainImpactFindingStore,
 	tc runtimeRepositoryPrecedenceCase,
 	repositoryID string,
 	wantSelector bool,
 ) {
 	t.Helper()
 	handler := &SupplyChainHandler{ImpactFindings: store}
-	rows := []SupplyChainImpactFindingRow{{RepositoryID: repositoryID}}
+	rows := []impact.SupplyChainImpactFindingRow{{RepositoryID: repositoryID}}
 	access := repositoryAccessFilter{AllowedRepositoryIDs: []string{repositoryID}}
 	if err := handler.applySupplyChainRuntimeContext(ctx, rows, access); err != nil {
 		t.Fatalf("hydrate %s for %s: %v", tc.name, repositoryID, err)
@@ -159,15 +161,15 @@ func assertRuntimeRepositoryPrecedenceHydration(
 func assertRuntimeRepositoryPrecedenceFilter(
 	t *testing.T,
 	ctx context.Context,
-	findingStore PostgresSupplyChainImpactFindingStore,
-	aggregateStore PostgresSupplyChainImpactAggregateStore,
+	findingStore impact.PostgresSupplyChainImpactFindingStore,
+	aggregateStore impact.PostgresSupplyChainImpactAggregateStore,
 	tc runtimeRepositoryPrecedenceCase,
 	repositoryID string,
 	packageID string,
 	want int,
 ) {
 	t.Helper()
-	listFilter := SupplyChainImpactFindingFilter{
+	listFilter := impact.SupplyChainImpactFindingFilter{
 		CVEID:                runtimeFilterLiveCVE,
 		PackageID:            packageID,
 		WorkloadID:           tc.workloadID,
@@ -180,7 +182,7 @@ func assertRuntimeRepositoryPrecedenceFilter(
 	assertSupplyChainRuntimeFilterListCount(t, ctx, findingStore, listFilter, false, want)
 	assertSupplyChainRuntimeFilterListCount(t, ctx, findingStore, listFilter, true, want)
 
-	aggregateFilter := SupplyChainImpactAggregateFilter{
+	aggregateFilter := impact.SupplyChainImpactAggregateFilter{
 		CVEID:                runtimeFilterLiveCVE,
 		PackageID:            packageID,
 		WorkloadID:           tc.workloadID,
@@ -199,7 +201,7 @@ func assertRuntimeRepositoryPrecedenceFilter(
 	inventory, err := aggregateStore.SupplyChainImpactInventory(
 		ctx,
 		aggregateFilter,
-		SupplyChainImpactInventoryByImpactStatus,
+		impact.SupplyChainImpactInventoryByImpactStatus,
 		10,
 		0,
 	)
@@ -215,14 +217,14 @@ func assertRuntimeRepositoryPrecedenceFilter(
 	if tc.environment != "" {
 		return
 	}
-	_, err = findingStore.ExplainSupplyChainImpact(ctx, SupplyChainImpactExplanationFilter{
+	_, err = findingStore.ExplainSupplyChainImpact(ctx, impact.SupplyChainImpactExplanationFilter{
 		CVEID:                runtimeFilterLiveCVE,
 		PackageID:            packageID,
 		WorkloadID:           tc.workloadID,
 		ServiceID:            tc.serviceID,
 		AllowedRepositoryIDs: []string{repositoryID},
 	})
-	if want == 0 && !errors.Is(err, ErrSupplyChainImpactExplanationNotFound) {
+	if want == 0 && !errors.Is(err, impact.ErrSupplyChainImpactExplanationNotFound) {
 		t.Fatalf("explain %s for %s error = %v, want not found", tc.name, repositoryID, err)
 	}
 	if want == 1 && err != nil {
@@ -300,7 +302,7 @@ func seedSupplyChainRuntimeRepositoryPrecedenceLiveFacts(
 		"fact:5747:workload:raw-payload",
 		runtimeFilterLiveDecoyRepo,
 		runtimeFilterLiveGenDecoy,
-		workloadIdentityFactKindQuery,
+		impact.WorkloadIdentityFactKindQuery,
 		false,
 		map[string]any{
 			"scope_id":    runtimePrecedenceRawRepository,
@@ -344,7 +346,7 @@ func seedSupplyChainRuntimeRepositoryPrecedenceLiveFacts(
 		"fact:5747:workload:whitespace-related",
 		runtimeFilterLiveDecoyRepo,
 		runtimeFilterLiveGenDecoy,
-		workloadIdentityFactKindQuery,
+		impact.WorkloadIdentityFactKindQuery,
 		false,
 		map[string]any{
 			"scope_id":          runtimePrecedenceRawRepository,
@@ -375,7 +377,7 @@ func seedSupplyChainRuntimeRepositoryPrecedenceLiveFacts(
 		"fact:5747:workload:later-related",
 		runtimeFilterLiveDecoyRepo,
 		runtimeFilterLiveGenDecoy,
-		workloadIdentityFactKindQuery,
+		impact.WorkloadIdentityFactKindQuery,
 		false,
 		map[string]any{
 			"scope_id": runtimePrecedenceRawRepository,
@@ -406,7 +408,7 @@ func insertRuntimePrecedenceFinding(
 		factID,
 		runtimeFilterLiveScopeA,
 		runtimeFilterLiveGenA,
-		supplyChainImpactFindingFactKind,
+		impact.SupplyChainImpactFindingFactKind,
 		false,
 		map[string]any{
 			"finding_id":        findingID,

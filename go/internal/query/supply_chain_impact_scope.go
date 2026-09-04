@@ -3,7 +3,11 @@
 
 package query
 
-import "net/http"
+import (
+	"net/http"
+
+	"github.com/eshu-hq/eshu/go/internal/query/supplychain/impact"
+)
 
 // Scoped-token authorization helpers for the reducer-owned vulnerability impact
 // read routes (findings list, count, and inventory). These keep the empty-grant
@@ -35,12 +39,12 @@ func (h *SupplyChainHandler) writeEmptyImpactFindingsPage(
 	profile string,
 ) {
 	body := map[string]any{
-		"findings":          []SupplyChainImpactFindingResult{},
+		"findings":          []impact.SupplyChainImpactFindingResult{},
 		"count":             0,
 		"limit":             limit,
 		"truncated":         false,
 		"detection_profile": profile,
-		"readiness":         BuildSupplyChainImpactReadinessUnavailable(SupplyChainImpactTargetScope{}, nil, false),
+		"readiness":         impact.BuildSupplyChainImpactReadinessUnavailable(impact.SupplyChainImpactTargetScope{}, nil, false),
 	}
 	WriteSuccess(w, r, http.StatusOK, body, BuildTruthEnvelope(
 		h.profile(),
@@ -58,9 +62,9 @@ func (h *SupplyChainHandler) writeEmptyImpactFindingsPage(
 // scope that legitimately has no findings, and readiness is reported
 // unavailable rather than falsely clean.
 func (h *SupplyChainHandler) writeEmptyImpactExplanation(w http.ResponseWriter, r *http.Request) {
-	filter := SupplyChainImpactExplanationFilter{}
-	readiness := BuildSupplyChainImpactReadinessUnavailable(SupplyChainImpactTargetScope{}, nil, false)
-	body := BuildSupplyChainImpactNoEvidenceExplanation(filter, readiness)
+	filter := impact.SupplyChainImpactExplanationFilter{}
+	readiness := impact.BuildSupplyChainImpactReadinessUnavailable(impact.SupplyChainImpactTargetScope{}, nil, false)
+	body := impact.BuildSupplyChainImpactNoEvidenceExplanation(filter, readiness)
 	WriteSuccess(w, r, http.StatusOK, body, BuildTruthEnvelope(
 		h.profile(),
 		supplyChainImpactExplanationCapability,
@@ -96,12 +100,12 @@ func (h *SupplyChainHandler) writeEmptyImpactCount(w http.ResponseWriter, r *htt
 func (h *SupplyChainHandler) writeEmptyImpactInventory(
 	w http.ResponseWriter,
 	r *http.Request,
-	dimension SupplyChainImpactInventoryDimension,
+	dimension impact.SupplyChainImpactInventoryDimension,
 	limit int,
 	offset int,
 ) {
 	WriteSuccess(w, r, http.StatusOK, map[string]any{
-		"buckets":           []SupplyChainImpactInventoryRow{},
+		"buckets":           []impact.SupplyChainImpactInventoryRow{},
 		"count":             0,
 		"limit":             limit,
 		"offset":            offset,

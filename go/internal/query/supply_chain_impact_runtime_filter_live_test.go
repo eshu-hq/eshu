@@ -10,6 +10,8 @@ import (
 	"os"
 	"testing"
 	"time"
+
+	"github.com/eshu-hq/eshu/go/internal/query/supplychain/impact"
 	// Registers the "pgx" driver this test opens by name. Other files in this
 	// package also blank-import it, so the driver would resolve without this
 	// line today -- but only by accident of what else compiles into the test
@@ -62,8 +64,8 @@ func TestSupplyChainImpactRuntimeFiltersEnforceScopedTruthLive(t *testing.T) {
 
 	seedSupplyChainRuntimeFilterLiveFacts(t, ctx, tx)
 
-	findingStore := NewPostgresSupplyChainImpactFindingStore(tx)
-	aggregateStore := NewPostgresSupplyChainImpactAggregateStore(tx)
+	findingStore := impact.NewPostgresSupplyChainImpactFindingStore(tx)
+	aggregateStore := impact.NewPostgresSupplyChainImpactAggregateStore(tx)
 	allowedScopes := []string{runtimeFilterLiveScopeA}
 
 	for _, tc := range []struct {
@@ -79,7 +81,7 @@ func TestSupplyChainImpactRuntimeFiltersEnforceScopedTruthLive(t *testing.T) {
 	} {
 		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
-			filter := SupplyChainImpactFindingFilter{
+			filter := impact.SupplyChainImpactFindingFilter{
 				CVEID:             runtimeFilterLiveCVE,
 				WorkloadID:        tc.workloadID,
 				ServiceID:         tc.serviceID,
@@ -92,7 +94,7 @@ func TestSupplyChainImpactRuntimeFiltersEnforceScopedTruthLive(t *testing.T) {
 			assertSupplyChainRuntimeFilterListCount(t, ctx, findingStore, filter, false, 1)
 			assertSupplyChainRuntimeFilterListCount(t, ctx, findingStore, filter, true, 1)
 
-			aggregateFilter := SupplyChainImpactAggregateFilter{
+			aggregateFilter := impact.SupplyChainImpactAggregateFilter{
 				CVEID:             runtimeFilterLiveCVE,
 				WorkloadID:        tc.workloadID,
 				ServiceID:         tc.serviceID,
@@ -111,7 +113,7 @@ func TestSupplyChainImpactRuntimeFiltersEnforceScopedTruthLive(t *testing.T) {
 			inventory, err := aggregateStore.SupplyChainImpactInventory(
 				ctx,
 				aggregateFilter,
-				SupplyChainImpactInventoryByImpactStatus,
+				impact.SupplyChainImpactInventoryByImpactStatus,
 				10,
 				0,
 			)
@@ -140,7 +142,7 @@ func TestSupplyChainImpactRuntimeFiltersEnforceScopedTruthLive(t *testing.T) {
 	} {
 		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
-			filter := SupplyChainImpactFindingFilter{
+			filter := impact.SupplyChainImpactFindingFilter{
 				CVEID:            runtimeFilterLiveCVE,
 				WorkloadID:       tc.workloadID,
 				ServiceID:        tc.serviceID,
@@ -152,7 +154,7 @@ func TestSupplyChainImpactRuntimeFiltersEnforceScopedTruthLive(t *testing.T) {
 			assertSupplyChainRuntimeFilterListCount(t, ctx, findingStore, filter, false, 0)
 			assertSupplyChainRuntimeFilterListCount(t, ctx, findingStore, filter, true, 0)
 
-			count, err := aggregateStore.CountSupplyChainImpactFindings(ctx, SupplyChainImpactAggregateFilter{
+			count, err := aggregateStore.CountSupplyChainImpactFindings(ctx, impact.SupplyChainImpactAggregateFilter{
 				CVEID:            runtimeFilterLiveCVE,
 				WorkloadID:       tc.workloadID,
 				ServiceID:        tc.serviceID,
@@ -169,7 +171,7 @@ func TestSupplyChainImpactRuntimeFiltersEnforceScopedTruthLive(t *testing.T) {
 		})
 	}
 
-	explanation, err := findingStore.ExplainSupplyChainImpact(ctx, SupplyChainImpactExplanationFilter{
+	explanation, err := findingStore.ExplainSupplyChainImpact(ctx, impact.SupplyChainImpactExplanationFilter{
 		CVEID:           runtimeFilterLiveCVE,
 		PackageID:       runtimeFilterLivePackage,
 		ServiceID:       "service:5747:allowed",
@@ -192,8 +194,8 @@ func TestSupplyChainImpactRuntimeFiltersEnforceScopedTruthLive(t *testing.T) {
 func assertSupplyChainRuntimeFilterListCount(
 	t *testing.T,
 	ctx context.Context,
-	store PostgresSupplyChainImpactFindingStore,
-	filter SupplyChainImpactFindingFilter,
+	store impact.PostgresSupplyChainImpactFindingStore,
+	filter impact.SupplyChainImpactFindingFilter,
 	readFromWinners bool,
 	want int,
 ) {
@@ -264,7 +266,7 @@ INSERT INTO scope_generations (
 	}
 
 	insertSupplyChainRuntimeFilterFact(t, ctx, tx, runtimeFilterLiveFactID, runtimeFilterLiveScopeA, runtimeFilterLiveGenA,
-		supplyChainImpactFindingFactKind, false, map[string]any{
+		impact.SupplyChainImpactFindingFactKind, false, map[string]any{
 			"finding_id":        runtimeFilterLiveFindingID,
 			"cve_id":            runtimeFilterLiveCVE,
 			"package_id":        runtimeFilterLivePackage,
@@ -280,7 +282,7 @@ INSERT INTO scope_generations (
 			"evidence_fact_ids": []string{},
 		})
 	insertSupplyChainRuntimeFilterFact(t, ctx, tx, runtimeFilterLiveBakedFact, runtimeFilterLiveScopeA, runtimeFilterLiveGenA,
-		supplyChainImpactFindingFactKind, false, map[string]any{
+		impact.SupplyChainImpactFindingFactKind, false, map[string]any{
 			"finding_id":        runtimeFilterLiveBakedID,
 			"cve_id":            runtimeFilterLiveCVE,
 			"package_id":        runtimeFilterLiveBakedPkg,
@@ -296,12 +298,12 @@ INSERT INTO scope_generations (
 			"evidence_fact_ids": []string{},
 		})
 	insertSupplyChainRuntimeFilterFact(t, ctx, tx, "fact:5747:workload:scalar", runtimeFilterLiveScopeA, runtimeFilterLiveGenA,
-		workloadIdentityFactKindQuery, false, map[string]any{
+		impact.WorkloadIdentityFactKindQuery, false, map[string]any{
 			"repository_id": runtimeFilterLiveRepository,
 			"workload_id":   "workload:5747:scalar",
 		})
 	insertSupplyChainRuntimeFilterFact(t, ctx, tx, "fact:5747:workload:entity", runtimeFilterLiveScopeA, runtimeFilterLiveGenA,
-		workloadIdentityFactKindQuery, false, map[string]any{
+		impact.WorkloadIdentityFactKindQuery, false, map[string]any{
 			"repository_id": runtimeFilterLiveRepository,
 			"entity_keys":   []string{"workload:5747:entity-key", "repository:5747:not-a-workload"},
 		})
@@ -324,7 +326,7 @@ INSERT INTO scope_generations (
 			"outcome":       "exact",
 		})
 	insertSupplyChainRuntimeFilterFact(t, ctx, tx, "fact:5747:workload:tenant-b", runtimeFilterLiveScopeB, runtimeFilterLiveGenB,
-		workloadIdentityFactKindQuery, false, map[string]any{
+		impact.WorkloadIdentityFactKindQuery, false, map[string]any{
 			"repository_id": runtimeFilterLiveRepository,
 			"workload_id":   "workload:5747:tenant-b",
 		})
@@ -335,7 +337,7 @@ INSERT INTO scope_generations (
 			"outcome":       "exact",
 		})
 	insertSupplyChainRuntimeFilterFact(t, ctx, tx, "fact:5747:workload:conflicting-payload-scope", runtimeFilterLiveScopeC, runtimeFilterLiveGenC,
-		workloadIdentityFactKindQuery, false, map[string]any{
+		impact.WorkloadIdentityFactKindQuery, false, map[string]any{
 			"repository_id": runtimeFilterLiveRepository,
 			"scope_id":      runtimeFilterLiveDecoyRepo,
 			"workload_id":   "workload:5747:conflicting-payload-scope",

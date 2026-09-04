@@ -6,15 +6,17 @@ package query
 import (
 	"encoding/json"
 	"testing"
+
+	"github.com/eshu-hq/eshu/go/internal/query/supplychain/impact"
 )
 
 func TestBuildSupplyChainImpactExplanationMapsDeploymentOnlyCatalogAnchorGap(t *testing.T) {
 	t.Parallel()
 
-	got := BuildSupplyChainImpactExplanation(
-		SupplyChainImpactExplanationFilter{FindingID: "finding-repository-catalog-only"},
-		SupplyChainImpactExplanationRow{
-			Finding: SupplyChainImpactFindingRow{
+	got := impact.BuildSupplyChainImpactExplanation(
+		impact.SupplyChainImpactExplanationFilter{FindingID: "finding-repository-catalog-only"},
+		impact.SupplyChainImpactExplanationRow{
+			Finding: impact.SupplyChainImpactFindingRow{
 				FindingID:           "finding-repository-catalog-only",
 				CVEID:               "CVE-2026-1548",
 				PackageID:           "pkg:npm/example",
@@ -29,18 +31,18 @@ func TestBuildSupplyChainImpactExplanationMapsDeploymentOnlyCatalogAnchorGap(t *
 				},
 				MissingEvidence: []string{
 					"environment evidence missing",
-					serviceCatalogAnchorMissingReason,
+					impact.ServiceCatalogAnchorMissingReason,
 				},
 				EvidenceFactIDs: []string{"catalog-1"},
 			},
-			EvidenceFacts: []SupplyChainImpactEvidenceFact{
+			EvidenceFacts: []impact.SupplyChainImpactEvidenceFact{
 				explanationFact("catalog-1", serviceCatalogCorrelationFactKind, map[string]any{
 					"repository_id": "repo://example/api",
 					"outcome":       "exact",
 				}),
 			},
 		},
-		SupplyChainImpactReadinessEnvelope{State: ReadinessStateReadyWithFindings},
+		impact.SupplyChainImpactReadinessEnvelope{State: impact.ReadinessStateReadyWithFindings},
 	)
 
 	raw, err := json.Marshal(got)
@@ -58,6 +60,6 @@ func TestBuildSupplyChainImpactExplanationMapsDeploymentOnlyCatalogAnchorGap(t *
 	assertImpactPathContainsHop(t, impactPath, "deployment", "present")
 	assertImpactPathContainsHop(t, impactPath, "environment", "missing_evidence")
 	assertImpactPathContainsHop(t, impactPath, "service", "missing_evidence")
-	assertImpactPathContainsMissingEvidence(t, impactPath, "service", serviceCatalogAnchorMissingReason)
-	assertJSONListContains(t, payload["missing_evidence"], serviceCatalogAnchorMissingReason)
+	assertImpactPathContainsMissingEvidence(t, impactPath, "service", impact.ServiceCatalogAnchorMissingReason)
+	assertJSONListContains(t, payload["missing_evidence"], impact.ServiceCatalogAnchorMissingReason)
 }

@@ -7,6 +7,8 @@ import (
 	"fmt"
 	"sort"
 	"strings"
+
+	"github.com/eshu-hq/eshu/go/internal/query/supplychain/impact"
 )
 
 // BuildSupplyChainImpactPacket maps a reducer-owned supply-chain impact
@@ -23,7 +25,7 @@ import (
 //
 // A nil bounds override uses the contract defaults; a non-nil override (for
 // example the CLI --max-source-facts flag) lowers a per-layer cap.
-func BuildSupplyChainImpactPacket(result SupplyChainImpactExplanationResult, truth *TruthEnvelope, bounds *PacketBounds) (InvestigationEvidencePacket, error) {
+func BuildSupplyChainImpactPacket(result impact.SupplyChainImpactExplanationResult, truth *TruthEnvelope, bounds *PacketBounds) (InvestigationEvidencePacket, error) {
 	in := InvestigationPacketInput{
 		Family:     InvestigationFamilySupplyChainImpact,
 		Subject:    supplyChainPacketSubject(result.Input),
@@ -46,7 +48,7 @@ func BuildSupplyChainImpactPacket(result SupplyChainImpactExplanationResult, tru
 
 // supplyChainPacketSubject collects the canonical, non-empty scope keys that name
 // the investigation.
-func supplyChainPacketSubject(filter SupplyChainImpactExplanationFilter) map[string]string {
+func supplyChainPacketSubject(filter impact.SupplyChainImpactExplanationFilter) map[string]string {
 	subject := map[string]string{}
 	addSubjectKey(subject, "finding_id", filter.FindingID)
 	addSubjectKey(subject, "advisory_id", filter.AdvisoryID)
@@ -66,7 +68,7 @@ func addSubjectKey(subject map[string]string, key, value string) {
 // supplyChainPacketQuestion derives the canonical question. When the filter named
 // only a finding id, it prefers the resolved finding's advisory so a
 // finding-scoped lookup still produces the more useful advisory-reach question.
-func supplyChainPacketQuestion(filter SupplyChainImpactExplanationFilter, finding *SupplyChainImpactFindingResult) string {
+func supplyChainPacketQuestion(filter impact.SupplyChainImpactExplanationFilter, finding *impact.SupplyChainImpactFindingResult) string {
 	advisory := strings.TrimSpace(filter.AdvisoryID)
 	cve := strings.TrimSpace(filter.CVEID)
 	if advisory == "" && cve == "" && finding != nil {
@@ -91,7 +93,7 @@ func supplyChainPacketQuestion(filter SupplyChainImpactExplanationFilter, findin
 // canonical truth so the packet's freshness reflects the evidence snapshot
 // without mutating the caller's envelope. A nil truth yields an unsupported
 // packet downstream.
-func supplyChainPacketTruth(truth *TruthEnvelope, freshness SupplyChainImpactExplanationFreshness) *TruthEnvelope {
+func supplyChainPacketTruth(truth *TruthEnvelope, freshness impact.SupplyChainImpactExplanationFreshness) *TruthEnvelope {
 	if truth == nil {
 		return nil
 	}
@@ -119,7 +121,7 @@ func freshnessStateFromString(raw string) FreshnessState {
 
 // supplyChainPacketSourceFacts maps evidence-fact summaries into the raw-evidence
 // layer and returns the set of known fact ids for referential-integrity checks.
-func supplyChainPacketSourceFacts(evidence []SupplyChainImpactEvidenceFactSummary) ([]PacketSourceFact, map[string]struct{}) {
+func supplyChainPacketSourceFacts(evidence []impact.SupplyChainImpactEvidenceFactSummary) ([]PacketSourceFact, map[string]struct{}) {
 	facts := make([]PacketSourceFact, 0, len(evidence))
 	known := make(map[string]struct{}, len(evidence))
 	for _, fact := range evidence {
@@ -138,7 +140,7 @@ func supplyChainPacketSourceFacts(evidence []SupplyChainImpactEvidenceFactSummar
 	return facts, known
 }
 
-func supplyChainFactSummary(fact SupplyChainImpactEvidenceFactSummary) string {
+func supplyChainFactSummary(fact impact.SupplyChainImpactEvidenceFactSummary) string {
 	parts := []string{}
 	if kind := strings.TrimSpace(fact.FactKind); kind != "" {
 		parts = append(parts, kind)
@@ -155,7 +157,7 @@ func supplyChainFactSummary(fact SupplyChainImpactEvidenceFactSummary) string {
 // supplyChainPacketDecisions maps the reducer-owned finding into a single
 // reducer-decision entry. Source-fact references are filtered to those present
 // in the source layer so the decision is always traceable.
-func supplyChainPacketDecisions(finding *SupplyChainImpactFindingResult, knownFactIDs map[string]struct{}) []PacketReducerDecision {
+func supplyChainPacketDecisions(finding *impact.SupplyChainImpactFindingResult, knownFactIDs map[string]struct{}) []PacketReducerDecision {
 	if finding == nil {
 		return nil
 	}
@@ -195,7 +197,7 @@ func impactStatusToDecisionState(impactStatus string) string {
 	}
 }
 
-func supplyChainDecisionReason(finding *SupplyChainImpactFindingResult) string {
+func supplyChainDecisionReason(finding *impact.SupplyChainImpactFindingResult) string {
 	status := strings.TrimSpace(finding.ImpactStatus)
 	if status == "" {
 		status = "unknown"
@@ -228,7 +230,7 @@ func filterKnownFactIDs(ids []string, known map[string]struct{}) []string {
 // layer, preserving each present hop's backing source-fact ids (filtered to the
 // facts actually present in the source layer) so the graph answer is traceable.
 // Missing hops are carried by supplyChainPacketMissingHops instead.
-func supplyChainPacketGraphAnswers(path []SupplyChainImpactPathHop, knownFactIDs map[string]struct{}) []PacketGraphAnswer {
+func supplyChainPacketGraphAnswers(path []impact.SupplyChainImpactPathHop, knownFactIDs map[string]struct{}) []PacketGraphAnswer {
 	answers := make([]PacketGraphAnswer, 0, len(path))
 	for _, hop := range path {
 		present := strings.EqualFold(strings.TrimSpace(hop.Status), "present")
@@ -248,7 +250,7 @@ func supplyChainPacketGraphAnswers(path []SupplyChainImpactPathHop, knownFactIDs
 // supplyChainPacketMissingHops names every unresolved hop with a reason so a gap
 // is explicit rather than hidden. It folds per-hop missing evidence and the
 // top-level missing-evidence reasons, deduplicated.
-func supplyChainPacketMissingHops(result SupplyChainImpactExplanationResult) []PacketMissingHop {
+func supplyChainPacketMissingHops(result impact.SupplyChainImpactExplanationResult) []PacketMissingHop {
 	seen := map[string]struct{}{}
 	hops := []PacketMissingHop{}
 	add := func(hop, reason string) {
@@ -280,7 +282,7 @@ func supplyChainPacketMissingHops(result SupplyChainImpactExplanationResult) []P
 	return hops
 }
 
-func supplyChainPacketSummary(result SupplyChainImpactExplanationResult) string {
+func supplyChainPacketSummary(result impact.SupplyChainImpactExplanationResult) string {
 	if result.Finding == nil {
 		return ""
 	}
@@ -296,7 +298,7 @@ func supplyChainPacketSummary(result SupplyChainImpactExplanationResult) string 
 // limitations. The upstream readiness envelope only populates IncompleteReasons
 // for the target-incomplete state, so a non-ready state is also recorded by name
 // to ensure the packet always explains why the investigation is constrained.
-func supplyChainPacketLimitations(readiness SupplyChainImpactReadinessEnvelope) []string {
+func supplyChainPacketLimitations(readiness impact.SupplyChainImpactReadinessEnvelope) []string {
 	limitations := []string{}
 	for _, reason := range readiness.IncompleteReasons {
 		if r := strings.TrimSpace(reason); r != "" {
@@ -312,9 +314,9 @@ func supplyChainPacketLimitations(readiness SupplyChainImpactReadinessEnvelope) 
 
 // supplyChainReadinessIsReady reports whether a readiness state means evidence is
 // fully collected (no constraint to surface).
-func supplyChainReadinessIsReady(state SupplyChainImpactReadinessState) bool {
+func supplyChainReadinessIsReady(state impact.SupplyChainImpactReadinessState) bool {
 	switch state {
-	case ReadinessStateReadyWithFindings, ReadinessStateReadyZeroFindings:
+	case impact.ReadinessStateReadyWithFindings, impact.ReadinessStateReadyZeroFindings:
 		return true
 	default:
 		return false

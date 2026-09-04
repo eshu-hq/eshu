@@ -6,19 +6,21 @@ package query
 import (
 	"context"
 	"testing"
+
+	"github.com/eshu-hq/eshu/go/internal/query/supplychain/impact"
 )
 
 func assertSuppressionAuthorityFilter(
 	t *testing.T,
 	ctx context.Context,
-	store PostgresSupplyChainImpactFindingStore,
-	aggregates PostgresSupplyChainImpactAggregateStore,
+	store impact.PostgresSupplyChainImpactFindingStore,
+	aggregates impact.PostgresSupplyChainImpactAggregateStore,
 	suppressionState string,
 	includeSuppressed bool,
 	wantCount int,
 ) {
 	t.Helper()
-	rows, err := store.ListSupplyChainImpactFindings(ctx, SupplyChainImpactFindingFilter{
+	rows, err := store.ListSupplyChainImpactFindings(ctx, impact.SupplyChainImpactFindingFilter{
 		CVEID:             suppressionAuthorityLiveCVE,
 		DetectionProfile:  "comprehensive",
 		SuppressionState:  suppressionState,
@@ -32,7 +34,7 @@ func assertSuppressionAuthorityFilter(
 		t.Fatalf("list suppression_state=%q count = %d, want %d", suppressionState, len(rows), wantCount)
 	}
 
-	count, err := aggregates.CountSupplyChainImpactFindings(ctx, SupplyChainImpactAggregateFilter{
+	count, err := aggregates.CountSupplyChainImpactFindings(ctx, impact.SupplyChainImpactAggregateFilter{
 		CVEID:             suppressionAuthorityLiveCVE,
 		DetectionProfile:  "comprehensive",
 		SuppressionState:  suppressionState,
@@ -54,14 +56,14 @@ func assertSuppressionAuthorityFilter(
 func assertSuppressionAuthorityState(
 	t *testing.T,
 	ctx context.Context,
-	store PostgresSupplyChainImpactFindingStore,
-	aggregates PostgresSupplyChainImpactAggregateStore,
+	store impact.PostgresSupplyChainImpactFindingStore,
+	aggregates impact.PostgresSupplyChainImpactAggregateStore,
 	includeSuppressed bool,
 	wantCount int,
 	wantState string,
 ) {
 	t.Helper()
-	filter := SupplyChainImpactFindingFilter{
+	filter := impact.SupplyChainImpactFindingFilter{
 		CVEID:             suppressionAuthorityLiveCVE,
 		DetectionProfile:  "comprehensive",
 		IncludeSuppressed: includeSuppressed,
@@ -86,7 +88,7 @@ func assertSuppressionAuthorityState(
 		}
 	}
 
-	count, err := aggregates.CountSupplyChainImpactFindings(ctx, SupplyChainImpactAggregateFilter{
+	count, err := aggregates.CountSupplyChainImpactFindings(ctx, impact.SupplyChainImpactAggregateFilter{
 		CVEID:             suppressionAuthorityLiveCVE,
 		DetectionProfile:  "comprehensive",
 		IncludeSuppressed: includeSuppressed,
@@ -99,13 +101,13 @@ func assertSuppressionAuthorityState(
 	}
 	assertSuppressionAuthorityBucketMap(t, "priority", count.ByPriorityBucket, wantCount)
 	assertSuppressionAuthorityBucketMap(t, "severity", count.BySeverity, wantCount)
-	for _, dimension := range []SupplyChainImpactInventoryDimension{
-		SupplyChainImpactInventoryByPriorityBucket,
-		SupplyChainImpactInventoryBySeverity,
+	for _, dimension := range []impact.SupplyChainImpactInventoryDimension{
+		impact.SupplyChainImpactInventoryByPriorityBucket,
+		impact.SupplyChainImpactInventoryBySeverity,
 	} {
 		inventory, err := aggregates.SupplyChainImpactInventory(
 			ctx,
-			SupplyChainImpactAggregateFilter{
+			impact.SupplyChainImpactAggregateFilter{
 				CVEID:             suppressionAuthorityLiveCVE,
 				DetectionProfile:  "comprehensive",
 				IncludeSuppressed: includeSuppressed,
@@ -153,10 +155,10 @@ func assertSuppressionAuthorityBucketMap(
 func assertSuppressionAuthorityCursor(
 	t *testing.T,
 	ctx context.Context,
-	store PostgresSupplyChainImpactFindingStore,
+	store impact.PostgresSupplyChainImpactFindingStore,
 ) {
 	t.Helper()
-	first, err := store.ListSupplyChainImpactFindings(ctx, SupplyChainImpactFindingFilter{
+	first, err := store.ListSupplyChainImpactFindings(ctx, impact.SupplyChainImpactFindingFilter{
 		CVEID:            suppressionAuthorityLiveCVE,
 		DetectionProfile: "comprehensive",
 		Limit:            1,
@@ -167,7 +169,7 @@ func assertSuppressionAuthorityCursor(
 	if len(first) != 1 || first[0].FindingID != suppressionAuthorityLiveFinding {
 		t.Fatalf("expired first cursor page = %#v, want retained finding identity", first)
 	}
-	next, err := store.ListSupplyChainImpactFindings(ctx, SupplyChainImpactFindingFilter{
+	next, err := store.ListSupplyChainImpactFindings(ctx, impact.SupplyChainImpactFindingFilter{
 		CVEID:            suppressionAuthorityLiveCVE,
 		DetectionProfile: "comprehensive",
 		AfterFindingID:   first[0].FindingID,
@@ -184,7 +186,7 @@ func assertSuppressionAuthorityCursor(
 func assertSuppressionExpiryEdgeCases(
 	t *testing.T,
 	ctx context.Context,
-	store PostgresSupplyChainImpactFindingStore,
+	store impact.PostgresSupplyChainImpactFindingStore,
 ) {
 	t.Helper()
 	for _, tc := range []struct {
@@ -219,7 +221,7 @@ func assertSuppressionExpiryEdgeCases(
 			wantEffectiveState: "expired",
 		},
 	} {
-		rows, err := store.ListSupplyChainImpactFindings(ctx, SupplyChainImpactFindingFilter{
+		rows, err := store.ListSupplyChainImpactFindings(ctx, impact.SupplyChainImpactFindingFilter{
 			CVEID:             tc.cveID,
 			DetectionProfile:  "comprehensive",
 			IncludeSuppressed: tc.includeSuppressed,

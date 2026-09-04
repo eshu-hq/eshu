@@ -8,6 +8,8 @@ import (
 	"net/http/httptest"
 	"reflect"
 	"testing"
+
+	"github.com/eshu-hq/eshu/go/internal/query/supplychain/impact"
 )
 
 func TestSupplyChainExplainImpactAcceptsAdvisoryOperationalAnchors(t *testing.T) {
@@ -16,12 +18,12 @@ func TestSupplyChainExplainImpactAcceptsAdvisoryOperationalAnchors(t *testing.T)
 	for _, tc := range []struct {
 		name       string
 		target     string
-		wantFilter SupplyChainImpactExplanationFilter
+		wantFilter impact.SupplyChainImpactExplanationFilter
 	}{
 		{
 			name:   "workload",
 			target: "/api/v0/supply-chain/impact/explain?advisory_id=GHSA-test&workload_id=workload:api",
-			wantFilter: SupplyChainImpactExplanationFilter{
+			wantFilter: impact.SupplyChainImpactExplanationFilter{
 				AdvisoryID: "GHSA-test",
 				WorkloadID: "workload:api",
 			},
@@ -29,7 +31,7 @@ func TestSupplyChainExplainImpactAcceptsAdvisoryOperationalAnchors(t *testing.T)
 		{
 			name:   "service",
 			target: "/api/v0/supply-chain/impact/explain?advisory_id=GHSA-test&service_id=service:payments",
-			wantFilter: SupplyChainImpactExplanationFilter{
+			wantFilter: impact.SupplyChainImpactExplanationFilter{
 				AdvisoryID: "GHSA-test",
 				ServiceID:  "service:payments",
 			},
@@ -40,7 +42,7 @@ func TestSupplyChainExplainImpactAcceptsAdvisoryOperationalAnchors(t *testing.T)
 			t.Parallel()
 
 			store := &recordingSupplyChainImpactExplanationStore{
-				err: ErrSupplyChainImpactExplanationNotFound,
+				err: impact.ErrSupplyChainImpactExplanationNotFound,
 			}
 			handler := &SupplyChainHandler{ImpactExplanations: store}
 			mux := http.NewServeMux()

@@ -9,13 +9,15 @@ import (
 	"net/http/httptest"
 	"strings"
 	"testing"
+
+	"github.com/eshu-hq/eshu/go/internal/query/supplychain/impact"
 )
 
 func TestSupplyChainListImpactFindingsFiltersAndSortsByPriority(t *testing.T) {
 	t.Parallel()
 
 	store := &recordingSupplyChainImpactFindingStore{
-		rows: []SupplyChainImpactFindingRow{
+		rows: []impact.SupplyChainImpactFindingRow{
 			{
 				FindingID:           "finding-critical",
 				CVEID:               "CVE-2026-3001",
@@ -23,7 +25,7 @@ func TestSupplyChainListImpactFindingsFiltersAndSortsByPriority(t *testing.T) {
 				PriorityScore:       87,
 				PriorityBucket:      "critical",
 				PriorityReasonCodes: []string{"cisa_kev", "runtime_reachable"},
-				PriorityContributions: []SupplyChainImpactPriorityContribution{
+				PriorityContributions: []impact.SupplyChainImpactPriorityContribution{
 					{ReasonCode: "cisa_kev", Input: "kev", Value: "true", Contribution: 25},
 				},
 			},
@@ -54,7 +56,7 @@ func TestSupplyChainListImpactFindingsFiltersAndSortsByPriority(t *testing.T) {
 	}
 
 	var resp struct {
-		Findings []SupplyChainImpactFindingResult `json:"findings"`
+		Findings []impact.SupplyChainImpactFindingResult `json:"findings"`
 	}
 	if err := json.Unmarshal(w.Body.Bytes(), &resp); err != nil {
 		t.Fatalf("json.Unmarshal: %v", err)
@@ -134,9 +136,9 @@ func TestDecodeSupplyChainImpactFindingRowPreservesPriority(t *testing.T) {
 		]
 	}`)
 
-	row, err := decodeSupplyChainImpactFindingRow("finding-priority", "inferred", payload)
+	row, err := impact.DecodeSupplyChainImpactFindingRow("finding-priority", "inferred", payload)
 	if err != nil {
-		t.Fatalf("decodeSupplyChainImpactFindingRow() error = %v", err)
+		t.Fatalf("impact.DecodeSupplyChainImpactFindingRow() error = %v", err)
 	}
 	if got, want := row.PriorityScore, 72; got != want {
 		t.Fatalf("PriorityScore = %d, want %d", got, want)
@@ -162,8 +164,8 @@ func TestSupplyChainImpactFindingQuerySupportsPriorityFiltersAndSort(t *testing.
 		"$18 = 'priority_score_asc'",
 		"fact_id ASC",
 	} {
-		if !strings.Contains(listSupplyChainImpactFindingsQuery, want) {
-			t.Fatalf("listSupplyChainImpactFindingsQuery missing %q:\n%s", want, listSupplyChainImpactFindingsQuery)
+		if !strings.Contains(impact.ListSupplyChainImpactFindingsQuery, want) {
+			t.Fatalf("impact.ListSupplyChainImpactFindingsQuery missing %q:\n%s", want, impact.ListSupplyChainImpactFindingsQuery)
 		}
 	}
 }

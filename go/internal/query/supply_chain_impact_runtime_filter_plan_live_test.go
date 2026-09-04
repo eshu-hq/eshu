@@ -19,6 +19,7 @@ import (
 	// visible only when ESHU_POSTGRES_TEST_DSN is set, so CI would skip green.
 	_ "github.com/jackc/pgx/v5/stdlib"
 
+	"github.com/eshu-hq/eshu/go/internal/query/supplychain/impact"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/pgarray"
 )
 
@@ -52,7 +53,7 @@ func TestSupplyChainImpactRuntimeFilterPlansLive(t *testing.T) {
 		payloadSQL string
 	}{
 		{
-			kind:       workloadIdentityFactKindQuery,
+			kind:       impact.WorkloadIdentityFactKindQuery,
 			factPrefix: "workload",
 			payloadSQL: `jsonb_build_object(
 			  'repository_id', 'repository:5747:perf:' || sample,
@@ -119,7 +120,7 @@ FROM generate_series(1, 100000) AS sample`,
 	for sample := 1; sample <= 200; sample++ {
 		contextCandidates = append(contextCandidates, fmt.Sprintf("repository:5747:perf:%d", sample))
 	}
-	contextStore := NewPostgresSupplyChainImpactFindingStore(tx)
+	contextStore := impact.NewPostgresSupplyChainImpactFindingStore(tx)
 	contexts, err := contextStore.ListSupplyChainImpactRuntimeContext(
 		ctx,
 		contextCandidates,
@@ -137,14 +138,14 @@ FROM generate_series(1, 100000) AS sample`,
 		ctx,
 		tx,
 		"runtime_context_200_candidates",
-		selectSupplyChainImpactRuntimeContextQuery,
-		pgarray.Array(supplyChainImpactRuntimeContextFactKinds),
+		impact.SelectSupplyChainImpactRuntimeContextQuery,
+		pgarray.Array(impact.SupplyChainImpactRuntimeContextFactKinds),
 		pgarray.Array(contextCandidates),
 		pgarray.Array(contextCandidates),
 		pgarray.Array([]string{}),
 	)
 
-	baseFilter := SupplyChainImpactFindingFilter{
+	baseFilter := impact.SupplyChainImpactFindingFilter{
 		CVEID:                runtimeFilterLiveCVE,
 		WorkloadID:           "workload:5747:scalar",
 		ServiceID:            "service:5747:allowed",
@@ -156,12 +157,12 @@ FROM generate_series(1, 100000) AS sample`,
 	for _, tc := range []struct {
 		name        string
 		query       string
-		filter      SupplyChainImpactFindingFilter
+		filter      impact.SupplyChainImpactFindingFilter
 		wantIndexes []string
 	}{
 		{
 			name:  "legacy_workload_scalar",
-			query: listSupplyChainImpactFindingsQuery,
+			query: impact.ListSupplyChainImpactFindingsQuery,
 			filter: withSupplyChainRuntimeFilterDimensions(
 				baseFilter,
 				"workload:5747:scalar",
@@ -172,7 +173,7 @@ FROM generate_series(1, 100000) AS sample`,
 		},
 		{
 			name:  "legacy_workload_entity_key",
-			query: listSupplyChainImpactFindingsQuery,
+			query: impact.ListSupplyChainImpactFindingsQuery,
 			filter: withSupplyChainRuntimeFilterDimensions(
 				baseFilter,
 				"workload:5747:entity-key",
@@ -183,7 +184,7 @@ FROM generate_series(1, 100000) AS sample`,
 		},
 		{
 			name:  "legacy_service",
-			query: listSupplyChainImpactFindingsQuery,
+			query: impact.ListSupplyChainImpactFindingsQuery,
 			filter: withSupplyChainRuntimeFilterDimensions(
 				baseFilter,
 				"",
@@ -194,7 +195,7 @@ FROM generate_series(1, 100000) AS sample`,
 		},
 		{
 			name:  "legacy_environment",
-			query: listSupplyChainImpactFindingsQuery,
+			query: impact.ListSupplyChainImpactFindingsQuery,
 			filter: withSupplyChainRuntimeFilterDimensions(
 				baseFilter,
 				"",
@@ -205,7 +206,7 @@ FROM generate_series(1, 100000) AS sample`,
 		},
 		{
 			name:  "legacy_environment_high_cardinality",
-			query: listSupplyChainImpactFindingsQuery,
+			query: impact.ListSupplyChainImpactFindingsQuery,
 			filter: withSupplyChainRuntimeFilterDimensions(
 				baseFilter,
 				"",
@@ -216,7 +217,7 @@ FROM generate_series(1, 100000) AS sample`,
 		},
 		{
 			name:   "legacy_combined",
-			query:  listSupplyChainImpactFindingsQuery,
+			query:  impact.ListSupplyChainImpactFindingsQuery,
 			filter: baseFilter,
 			wantIndexes: []string{
 				"fact_records_workload_identity_workload_idx",
@@ -226,7 +227,7 @@ FROM generate_series(1, 100000) AS sample`,
 		},
 		{
 			name:   "winners_combined",
-			query:  listSupplyChainImpactFindingsFromWinnersQuery,
+			query:  impact.ListSupplyChainImpactFindingsFromWinnersQuery,
 			filter: baseFilter,
 			wantIndexes: []string{
 				"fact_records_workload_identity_workload_idx",
@@ -236,7 +237,7 @@ FROM generate_series(1, 100000) AS sample`,
 		},
 		{
 			name:  "winners_environment_high_cardinality",
-			query: listSupplyChainImpactFindingsFromWinnersQuery,
+			query: impact.ListSupplyChainImpactFindingsFromWinnersQuery,
 			filter: withSupplyChainRuntimeFilterDimensions(
 				baseFilter,
 				"",
@@ -270,7 +271,7 @@ FROM generate_series(1, 100000) AS sample`,
 		}
 	}
 
-	combinedAggregate := SupplyChainImpactAggregateFilter{
+	combinedAggregate := impact.SupplyChainImpactAggregateFilter{
 		CVEID:                runtimeFilterLiveCVE,
 		WorkloadID:           "workload:5747:scalar",
 		ServiceID:            "service:5747:allowed",
@@ -283,7 +284,7 @@ FROM generate_series(1, 100000) AS sample`,
 		ctx,
 		tx,
 		"aggregate_combined",
-		supplyChainImpactAggregateCountQuery,
+		impact.SupplyChainImpactAggregateCountQuery,
 		supplyChainRuntimeFilterAggregateArgs(combinedAggregate)...,
 	)
 	for _, wantIndex := range []string{
@@ -296,13 +297,13 @@ FROM generate_series(1, 100000) AS sample`,
 		}
 	}
 
-	highCardinalityAggregate := SupplyChainImpactAggregateFilter{
+	highCardinalityAggregate := impact.SupplyChainImpactAggregateFilter{
 		CVEID:                runtimeFilterLiveCVE,
 		Environment:          runtimeFilterHighCardinalityEnvironment,
 		DetectionProfile:     "comprehensive",
 		AllowedRepositoryIDs: []string{runtimeFilterLiveRepository},
 	}
-	highCardinalityCount, err := NewPostgresSupplyChainImpactAggregateStore(tx).
+	highCardinalityCount, err := impact.NewPostgresSupplyChainImpactAggregateStore(tx).
 		CountSupplyChainImpactFindings(ctx, highCardinalityAggregate)
 	if err != nil {
 		t.Fatalf("count high-cardinality environment findings: %v", err)
@@ -315,7 +316,7 @@ FROM generate_series(1, 100000) AS sample`,
 		ctx,
 		tx,
 		"aggregate_environment_high_cardinality",
-		supplyChainImpactAggregateCountQuery,
+		impact.SupplyChainImpactAggregateCountQuery,
 		supplyChainRuntimeFilterAggregateArgs(highCardinalityAggregate)...,
 	)
 	if !strings.Contains(
@@ -341,7 +342,7 @@ FROM generate_series(1, 100000) AS sample`,
 		ctx,
 		tx,
 		"inventory_environment_high_cardinality",
-		supplyChainImpactInventoryQuery("COALESCE(fact.payload->>'impact_status', 'unknown')"),
+		impact.SupplyChainImpactInventoryQuery("COALESCE(fact.payload->>'impact_status', 'unknown')"),
 		highCardinalityInventoryArgs...,
 	)
 	if !strings.Contains(
@@ -363,8 +364,8 @@ FROM generate_series(1, 100000) AS sample`,
 		ctx,
 		tx,
 		"aggregate_no_runtime_filter",
-		supplyChainImpactAggregateCountQuery,
-		supplyChainRuntimeFilterAggregateArgs(SupplyChainImpactAggregateFilter{})...,
+		impact.SupplyChainImpactAggregateCountQuery,
+		supplyChainRuntimeFilterAggregateArgs(impact.SupplyChainImpactAggregateFilter{})...,
 	)
 	for _, unexpectedIndex := range []string{
 		"fact_records_workload_identity_workload_idx",
@@ -382,8 +383,8 @@ FROM generate_series(1, 100000) AS sample`,
 		ctx,
 		tx,
 		"explain_workload_service",
-		explainSupplyChainImpactFindingQuery,
-		supplyChainRuntimeFilterExplainArgs(SupplyChainImpactExplanationFilter{
+		impact.ExplainSupplyChainImpactFindingQuery,
+		supplyChainRuntimeFilterExplainArgs(impact.SupplyChainImpactExplanationFilter{
 			CVEID:                runtimeFilterLiveCVE,
 			PackageID:            runtimeFilterLivePackage,
 			WorkloadID:           "workload:5747:scalar",
@@ -402,20 +403,20 @@ FROM generate_series(1, 100000) AS sample`,
 }
 
 func withSupplyChainRuntimeFilterDimensions(
-	filter SupplyChainImpactFindingFilter,
+	filter impact.SupplyChainImpactFindingFilter,
 	workloadID string,
 	serviceID string,
 	environment string,
-) SupplyChainImpactFindingFilter {
+) impact.SupplyChainImpactFindingFilter {
 	filter.WorkloadID = workloadID
 	filter.ServiceID = serviceID
 	filter.Environment = environment
 	return filter
 }
 
-func supplyChainRuntimeFilterListArgs(filter SupplyChainImpactFindingFilter) []any {
+func supplyChainRuntimeFilterListArgs(filter impact.SupplyChainImpactFindingFilter) []any {
 	return []any{
-		supplyChainImpactFindingFactKind,
+		impact.SupplyChainImpactFindingFactKind,
 		filter.CVEID,
 		filter.PackageID,
 		filter.RepositoryID,
@@ -432,7 +433,7 @@ func supplyChainRuntimeFilterListArgs(filter SupplyChainImpactFindingFilter) []a
 		filter.MinPriorityScore,
 		filter.ImageRef,
 		filter.AfterFindingID,
-		normalizeSupplyChainImpactSort(filter.Sort),
+		impact.NormalizeSupplyChainImpactSort(filter.Sort),
 		filter.Limit,
 		filter.SuppressionState,
 		filter.IncludeSuppressed,
@@ -444,11 +445,11 @@ func supplyChainRuntimeFilterListArgs(filter SupplyChainImpactFindingFilter) []a
 		// query, so a placeholder added there must be added here too. Omitting it
 		// fails at bind time with "expected 24 arguments, got 23", before any plan
 		// is produced, so every plan assertion below is skipped rather than run.
-		supplyChainImpactSuppressionReadAt(nil),
+		impact.SupplyChainImpactSuppressionReadAt(nil),
 	}
 }
 
-func supplyChainRuntimeFilterAggregateArgs(filter SupplyChainImpactAggregateFilter) []any {
+func supplyChainRuntimeFilterAggregateArgs(filter impact.SupplyChainImpactAggregateFilter) []any {
 	return []any{
 		filter.CVEID,
 		filter.PackageID,
@@ -472,9 +473,9 @@ func supplyChainRuntimeFilterAggregateArgs(filter SupplyChainImpactAggregateFilt
 	}
 }
 
-func supplyChainRuntimeFilterExplainArgs(filter SupplyChainImpactExplanationFilter) []any {
+func supplyChainRuntimeFilterExplainArgs(filter impact.SupplyChainImpactExplanationFilter) []any {
 	return []any{
-		supplyChainImpactFindingFactKind,
+		impact.SupplyChainImpactFindingFactKind,
 		filter.FindingID,
 		filter.AdvisoryID,
 		filter.CVEID,

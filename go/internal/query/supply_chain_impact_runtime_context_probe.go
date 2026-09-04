@@ -7,56 +7,14 @@ import (
 	"context"
 	"sort"
 	"strings"
+
+	"github.com/eshu-hq/eshu/go/internal/query/supplychain/impact"
 )
 
-// SupplyChainRuntimeContext is one repository's read-time-resolved runtime
-// context: the workloads, services, deployments, environments, and catalog
-// refs that repository currently maps to, resolved from active
-// workload_identity, service_catalog_correlation, platform_materialization,
-// and deployment-correlation facts at query time (issue #5746).
-//
-// Read-time resolution is deliberate: a finding's baked payload fields are
-// stamped at reduce time and go stale the moment runtime reality changes
-// (redeploy, delete, promote), while this join reads the CURRENT facts on
-// every request. Absence of a workload here is an honest "current state of
-// knowledge" that self-heals on the next read — no readiness gate, no
-// re-enqueue, no fan-out.
-type SupplyChainRuntimeContext struct {
-	WorkloadIDs       []string
-	ServiceIDs        []string
-	DeploymentIDs     []string
-	Environments      []string
-	CatalogEntityRefs []string
-	CatalogOwnerRefs  []string
-}
-
-// SupplyChainRuntimeContextResult is the response-side envelope attached to
-// one impact finding as `runtime_context` (#5746). TruthBasis labels the
-// resolution path so a caller cannot mistake these IDs for baked payload
-// fields. The workload_id/service_id/environment filters resolve the same
-// current repository mappings independently (#5747).
-type SupplyChainRuntimeContextResult struct {
-	// TruthBasis is always "read_time_resolved": the context was resolved
-	// from the repository's active runtime facts at query time, not baked
-	// into the finding at reduce time. Empty lists are an honest "no runtime
-	// facts landed yet" (fresh ingest) that self-heals on the next read.
-	TruthBasis    string   `json:"truth_basis"`
-	WorkloadIDs   []string `json:"workload_ids,omitempty"`
-	ServiceIDs    []string `json:"service_ids,omitempty"`
-	DeploymentIDs []string `json:"deployment_ids,omitempty"`
-	Environments  []string `json:"environments,omitempty"`
-	// EnvironmentEvidence records the strongest current corroboration state for
-	// each admitted exact (subject_digest, environment) lookup. Repository
-	// context contributes candidate names only; it cannot supply or default an
-	// evidence value. Values use the existing deploy_event/declared vocabulary.
-	EnvironmentEvidence map[string]string `json:"environment_evidence,omitempty"`
-	// EnvironmentEvidenceProbe reports this finding's page-weighted current
-	// confirmation budget. CandidatesTruncated means visible candidate names
-	// exceeded that budget; it never reflects hidden or unauthorized facts.
-	EnvironmentEvidenceProbe *SupplyChainRuntimeEnvironmentEvidenceProbe `json:"environment_evidence_probe,omitempty"`
-	CatalogEntityRefs        []string                                    `json:"catalog_entity_refs,omitempty"`
-	CatalogOwnerRefs         []string                                    `json:"catalog_owner_refs,omitempty"`
-}
+// Runtime-evidence read-model types live in
+// internal/query/supplychain/impact (#6060 lane A); the aliases in
+// supply_chain_impact_alias.go keep this probe compiling unchanged until
+// the hub PR3 moves the probes.
 
 const supplyChainRuntimeContextTruthBasis = "read_time_resolved"
 
@@ -76,20 +34,13 @@ type supplyChainImpactRuntimeContextReader interface {
 	) (map[string]SupplyChainRuntimeContext, error)
 }
 
-// SupplyChainRuntimeEnvironmentCandidate identifies one finding-bound
-// digest/environment pair that must be revalidated against current accepted
-// CI/CD correlation facts before it can enter read-time runtime_context.
-type SupplyChainRuntimeEnvironmentCandidate struct {
-	SubjectDigest string
-	Environment   string
-}
+// SupplyChainRuntimeEnvironmentCandidate moved to
+// internal/query/supplychain/impact with the other runtime-evidence
+// read-model types (#6060 lane A); see supply_chain_impact_alias.go.
 
-// SupplyChainRuntimeEnvironmentEvidenceProbe describes the bounded current
-// confirmation work performed for one finding's environment candidates.
-type SupplyChainRuntimeEnvironmentEvidenceProbe struct {
-	CandidateLimit      int  `json:"candidate_limit"`
-	CandidatesTruncated bool `json:"candidates_truncated"`
-}
+// SupplyChainRuntimeEnvironmentEvidenceProbe moved to
+// internal/query/supplychain/impact with the other runtime-evidence
+// read-model types (#6060 lane A); see supply_chain_impact_alias.go.
 
 type supplyChainImpactRuntimeEnvironmentReader interface {
 	ListSupplyChainImpactRuntimeEnvironmentEvidence(
@@ -129,7 +80,7 @@ type supplyChainRuntimeEnvironmentPlan struct {
 // disagree about which current facts the caller may observe.
 func (h *SupplyChainHandler) applySupplyChainRuntimeContext(
 	ctx context.Context,
-	rows []SupplyChainImpactFindingRow,
+	rows []impact.SupplyChainImpactFindingRow,
 	access repositoryAccessFilter,
 ) error {
 	if h == nil || len(rows) == 0 {
@@ -227,13 +178,13 @@ func supplyChainRuntimeEnvironmentEvidenceForPlan(
 		if !ok {
 			continue
 		}
-		out = recordSupplyChainRuntimeEnvironmentEvidence(out, environment, evidence)
+		out = impact.RecordSupplyChainRuntimeEnvironmentEvidence(out, environment, evidence)
 	}
 	return out
 }
 
 func planSupplyChainRuntimeEnvironmentCandidates(
-	rows []SupplyChainImpactFindingRow,
+	rows []impact.SupplyChainImpactFindingRow,
 	byRepo map[string]SupplyChainRuntimeContext,
 ) ([]SupplyChainRuntimeEnvironmentCandidate, []supplyChainRuntimeEnvironmentPlan) {
 	plans := make([]supplyChainRuntimeEnvironmentPlan, len(rows))

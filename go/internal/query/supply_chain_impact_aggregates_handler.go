@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"strconv"
 
+	"github.com/eshu-hq/eshu/go/internal/query/supplychain/impact"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
 )
 
@@ -55,7 +56,7 @@ func (h *SupplyChainHandler) countImpactFindings(w http.ResponseWriter, r *http.
 		)
 		return
 	}
-	if !rejectUnsupportedVulnerabilityScannerFilters(w, r, impactFindingsScannerFilters()) {
+	if !impact.RejectUnsupportedVulnerabilityScannerFilters(w, r, impact.ImpactFindingsScannerFilters()) {
 		return
 	}
 
@@ -131,13 +132,13 @@ func (h *SupplyChainHandler) impactInventory(w http.ResponseWriter, r *http.Requ
 		)
 		return
 	}
-	if !rejectUnsupportedVulnerabilityScannerFilters(w, r, impactFindingsScannerFilters()) {
+	if !impact.RejectUnsupportedVulnerabilityScannerFilters(w, r, impact.ImpactFindingsScannerFilters()) {
 		return
 	}
 
-	dimension := SupplyChainImpactInventoryDimension(QueryParam(r, "group_by"))
+	dimension := impact.SupplyChainImpactInventoryDimension(QueryParam(r, "group_by"))
 	if dimension == "" {
-		dimension = SupplyChainImpactInventoryByImpactStatus
+		dimension = impact.SupplyChainImpactInventoryByImpactStatus
 	}
 	if !isSupportedSupplyChainImpactDimension(dimension) {
 		WriteError(w, http.StatusBadRequest, "group_by must be one of impact_status, priority_bucket, severity, repository_id, ecosystem")
@@ -196,43 +197,43 @@ func (h *SupplyChainHandler) supplyChainImpactAggregateFilterFromRequest(
 	w http.ResponseWriter,
 	r *http.Request,
 	access repositoryAccessFilter,
-) (SupplyChainImpactAggregateFilter, bool) {
+) (impact.SupplyChainImpactAggregateFilter, bool) {
 	repositoryID, ok := h.resolveSupplyChainImpactRepositorySelector(w, r, QueryParam(r, "repository_id"), access, supplyChainImpactAggregateCapability)
 	if !ok {
-		return SupplyChainImpactAggregateFilter{}, false
+		return impact.SupplyChainImpactAggregateFilter{}, false
 	}
-	profile, ok := requestedSupplyChainImpactProfile(w, r)
+	profile, ok := impact.RequestedSupplyChainImpactProfile(w, r)
 	if !ok {
-		return SupplyChainImpactAggregateFilter{}, false
+		return impact.SupplyChainImpactAggregateFilter{}, false
 	}
 	advisoryID := QueryParam(r, "advisory_id")
 	if advisoryID == "" {
-		advisoryID = firstNonEmptyQueryParam(r, "ghsa_id", "osv_id")
+		advisoryID = impact.FirstNonEmptyQueryParam(r, "ghsa_id", "osv_id")
 	}
-	severity, ok := parseSupplyChainScannerSeverity(w, r)
+	severity, ok := impact.ParseSupplyChainScannerSeverity(w, r)
 	if !ok {
-		return SupplyChainImpactAggregateFilter{}, false
+		return impact.SupplyChainImpactAggregateFilter{}, false
 	}
 	priorityBucket := QueryParam(r, "priority_bucket")
-	if priorityBucket != "" && !validSupplyChainImpactPriorityBucket(priorityBucket) {
+	if priorityBucket != "" && !impact.ValidSupplyChainImpactPriorityBucket(priorityBucket) {
 		WriteError(w, http.StatusBadRequest, "priority_bucket must be critical, high, medium, low, or informational")
-		return SupplyChainImpactAggregateFilter{}, false
+		return impact.SupplyChainImpactAggregateFilter{}, false
 	}
-	minPriorityScore, err := optionalSupplyChainImpactMinPriorityScore(r)
+	minPriorityScore, err := impact.OptionalSupplyChainImpactMinPriorityScore(r)
 	if err != nil {
 		WriteError(w, http.StatusBadRequest, err.Error())
-		return SupplyChainImpactAggregateFilter{}, false
+		return impact.SupplyChainImpactAggregateFilter{}, false
 	}
 	suppressionState := QueryParam(r, "suppression_state")
-	if suppressionState != "" && !isSupportedSupplyChainSuppressionState(suppressionState) {
+	if suppressionState != "" && !impact.IsSupportedSupplyChainSuppressionState(suppressionState) {
 		WriteError(w, http.StatusBadRequest, "suppression_state must be one of active, not_affected, accepted_risk, false_positive, ignored, expired, provider_dismissed, scope_mismatch")
-		return SupplyChainImpactAggregateFilter{}, false
+		return impact.SupplyChainImpactAggregateFilter{}, false
 	}
-	includeSuppressed, ok := parseSupplyChainImpactIncludeSuppressed(w, r)
+	includeSuppressed, ok := impact.ParseSupplyChainImpactIncludeSuppressed(w, r)
 	if !ok {
-		return SupplyChainImpactAggregateFilter{}, false
+		return impact.SupplyChainImpactAggregateFilter{}, false
 	}
-	filter := SupplyChainImpactAggregateFilter{
+	filter := impact.SupplyChainImpactAggregateFilter{
 		CVEID:             QueryParam(r, "cve_id"),
 		AdvisoryID:        advisoryID,
 		PackageID:         QueryParam(r, "package_id"),
@@ -245,7 +246,7 @@ func (h *SupplyChainHandler) supplyChainImpactAggregateFilterFromRequest(
 		ServiceID:         QueryParam(r, "service_id"),
 		Environment:       QueryParam(r, "environment"),
 		Severity:          severity,
-		DetectionProfile:  filterProfile(profile),
+		DetectionProfile:  impact.FilterProfile(profile),
 		PriorityBucket:    priorityBucket,
 		MinPriorityScore:  minPriorityScore,
 		SuppressionState:  suppressionState,
@@ -258,14 +259,14 @@ func (h *SupplyChainHandler) supplyChainImpactAggregateFilterFromRequest(
 	return filter, true
 }
 
-func requestedSupplyChainImpactAggregateProfile(filter SupplyChainImpactAggregateFilter) string {
+func requestedSupplyChainImpactAggregateProfile(filter impact.SupplyChainImpactAggregateFilter) string {
 	if filter.DetectionProfile == SupplyChainImpactProfilePrecise {
 		return SupplyChainImpactProfilePrecise
 	}
 	return SupplyChainImpactProfileComprehensive
 }
 
-func supplyChainImpactAggregateScope(filter SupplyChainImpactAggregateFilter) map[string]string {
+func supplyChainImpactAggregateScope(filter impact.SupplyChainImpactAggregateFilter) map[string]string {
 	out := map[string]string{}
 	if filter.CVEID != "" {
 		out["cve_id"] = filter.CVEID
@@ -319,13 +320,13 @@ func supplyChainImpactAggregateScope(filter SupplyChainImpactAggregateFilter) ma
 	return out
 }
 
-func isSupportedSupplyChainImpactDimension(d SupplyChainImpactInventoryDimension) bool {
+func isSupportedSupplyChainImpactDimension(d impact.SupplyChainImpactInventoryDimension) bool {
 	switch d {
-	case SupplyChainImpactInventoryByImpactStatus,
-		SupplyChainImpactInventoryByPriorityBucket,
-		SupplyChainImpactInventoryBySeverity,
-		SupplyChainImpactInventoryByRepository,
-		SupplyChainImpactInventoryByEcosystem:
+	case impact.SupplyChainImpactInventoryByImpactStatus,
+		impact.SupplyChainImpactInventoryByPriorityBucket,
+		impact.SupplyChainImpactInventoryBySeverity,
+		impact.SupplyChainImpactInventoryByRepository,
+		impact.SupplyChainImpactInventoryByEcosystem:
 		return true
 	default:
 		return false
@@ -356,7 +357,7 @@ func parseSupplyChainImpactAggregateLimit(w http.ResponseWriter, r *http.Request
 		WriteError(w, http.StatusBadRequest, "limit must be a positive integer")
 		return 0, false
 	}
-	if parsed > SupplyChainImpactAggregateMaxLimit {
+	if parsed > impact.SupplyChainImpactAggregateMaxLimit {
 		WriteError(w, http.StatusBadRequest, "limit exceeds maximum")
 		return 0, false
 	}

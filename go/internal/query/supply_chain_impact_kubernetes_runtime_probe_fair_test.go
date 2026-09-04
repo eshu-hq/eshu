@@ -12,6 +12,8 @@ import (
 	"sync"
 	"sync/atomic"
 	"testing"
+
+	"github.com/eshu-hq/eshu/go/internal/query/supplychain/impact"
 )
 
 type fairKubernetesRuntimeGraph struct {
@@ -114,13 +116,13 @@ func TestApplyKubernetesRuntimeEvidenceHotDigestCannotStarveColdDigests(t *testi
 	t.Parallel()
 
 	digests := make([]string, supplyChainKubernetesRuntimeProbeMaxResults)
-	rows := make([]SupplyChainImpactFindingRow, len(digests))
+	rows := make([]impact.SupplyChainImpactFindingRow, len(digests))
 	graphRows := make(map[string][]map[string]any, len(digests))
 	matches := make([]KubernetesRuntimeWorkloadMatch, 0, len(digests)+1)
 	for i := range digests {
 		digest := fmt.Sprintf("sha256:%064x", i)
 		digests[i] = digest
-		rows[i] = SupplyChainImpactFindingRow{FindingID: fmt.Sprintf("finding-%03d", i), SubjectDigest: digest}
+		rows[i] = impact.SupplyChainImpactFindingRow{FindingID: fmt.Sprintf("finding-%03d", i), SubjectDigest: digest}
 		count := 1
 		if i == 0 {
 			count = supplyChainKubernetesRuntimeProbeMaxResults + 1
@@ -128,7 +130,7 @@ func TestApplyKubernetesRuntimeEvidenceHotDigestCannotStarveColdDigests(t *testi
 		for j := 0; j < count; j++ {
 			uid := fmt.Sprintf("workload-%03d-%03d", i, j)
 			graphRows[digest] = append(graphRows[digest], kubernetesRuntimeGraphRow(digest, uid))
-			matches = append(matches, KubernetesRuntimeWorkloadMatch{Digest: digest, WorkloadRef: KubernetesRuntimeWorkloadRef{UID: uid}})
+			matches = append(matches, KubernetesRuntimeWorkloadMatch{Digest: digest, WorkloadRef: impact.KubernetesRuntimeWorkloadRef{UID: uid}})
 		}
 	}
 	graph := &fairKubernetesRuntimeGraph{rows: graphRows, barrier: make(chan struct{})}
@@ -170,16 +172,16 @@ func TestApplyKubernetesRuntimeEvidenceBoundsRepeatedDigestRefsAcrossPage(t *tes
 
 	const findingCount = 50
 	digest := "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
-	rows := make([]SupplyChainImpactFindingRow, findingCount)
+	rows := make([]impact.SupplyChainImpactFindingRow, findingCount)
 	for i := range rows {
-		rows[i] = SupplyChainImpactFindingRow{FindingID: fmt.Sprintf("finding-%02d", i), SubjectDigest: digest}
+		rows[i] = impact.SupplyChainImpactFindingRow{FindingID: fmt.Sprintf("finding-%02d", i), SubjectDigest: digest}
 	}
 	graphRows := make([]map[string]any, supplyChainKubernetesRuntimeProbeMaxResults+1)
 	matches := make([]KubernetesRuntimeWorkloadMatch, len(graphRows))
 	for i := range graphRows {
 		uid := fmt.Sprintf("workload-%03d", i)
 		graphRows[i] = kubernetesRuntimeGraphRow(digest, uid)
-		matches[i] = KubernetesRuntimeWorkloadMatch{Digest: digest, WorkloadRef: KubernetesRuntimeWorkloadRef{UID: uid}}
+		matches[i] = KubernetesRuntimeWorkloadMatch{Digest: digest, WorkloadRef: impact.KubernetesRuntimeWorkloadRef{UID: uid}}
 	}
 	graph := &fairKubernetesRuntimeGraph{rows: map[string][]map[string]any{digest: graphRows}}
 	inventory := &stubKubernetesWorkloadInventory{rows: matches}
@@ -215,17 +217,17 @@ func TestApplyKubernetesRuntimeEvidenceMaxPageRetainsOneRefPerFinding(t *testing
 	t.Parallel()
 
 	digest := "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
-	rows := make([]SupplyChainImpactFindingRow, supplyChainKubernetesRuntimeProbeMaxResults)
+	rows := make([]impact.SupplyChainImpactFindingRow, supplyChainKubernetesRuntimeProbeMaxResults)
 	for i := range rows {
-		rows[i] = SupplyChainImpactFindingRow{FindingID: fmt.Sprintf("finding-%03d", i), SubjectDigest: digest}
+		rows[i] = impact.SupplyChainImpactFindingRow{FindingID: fmt.Sprintf("finding-%03d", i), SubjectDigest: digest}
 	}
 	graphRows := []map[string]any{
 		kubernetesRuntimeGraphRow(digest, "workload-000"),
 		kubernetesRuntimeGraphRow(digest, "workload-001"),
 	}
 	matches := []KubernetesRuntimeWorkloadMatch{
-		{Digest: digest, WorkloadRef: KubernetesRuntimeWorkloadRef{UID: "workload-000"}},
-		{Digest: digest, WorkloadRef: KubernetesRuntimeWorkloadRef{UID: "workload-001"}},
+		{Digest: digest, WorkloadRef: impact.KubernetesRuntimeWorkloadRef{UID: "workload-000"}},
+		{Digest: digest, WorkloadRef: impact.KubernetesRuntimeWorkloadRef{UID: "workload-001"}},
 	}
 	graph := &fairKubernetesRuntimeGraph{rows: map[string][]map[string]any{digest: graphRows}}
 	inventory := &stubKubernetesWorkloadInventory{rows: matches}
@@ -257,10 +259,10 @@ func TestApplyKubernetesRuntimeEvidenceScopedMetadataDoesNotDiscloseTruncation(t
 		"sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
 		"sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
 	}
-	rows := make([]SupplyChainImpactFindingRow, len(digests))
+	rows := make([]impact.SupplyChainImpactFindingRow, len(digests))
 	graphRows := make(map[string][]map[string]any, len(digests))
 	for i, digest := range digests {
-		rows[i] = SupplyChainImpactFindingRow{FindingID: digest, SubjectDigest: digest}
+		rows[i] = impact.SupplyChainImpactFindingRow{FindingID: digest, SubjectDigest: digest}
 		for j := 0; j < 100; j++ {
 			graphRows[digest] = append(graphRows[digest], kubernetesRuntimeGraphRow(digest, fmt.Sprintf("w-%d-%03d", i, j)))
 		}
@@ -307,11 +309,11 @@ func TestApplyKubernetesRuntimeEvidenceSingleDigestKeepsAllScopesSentinel(t *tes
 	for i := range graphRows {
 		uid := fmt.Sprintf("workload-%03d", i)
 		graphRows[i] = kubernetesRuntimeGraphRow(digest, uid)
-		matches[i] = KubernetesRuntimeWorkloadMatch{Digest: digest, WorkloadRef: KubernetesRuntimeWorkloadRef{UID: uid}}
+		matches[i] = KubernetesRuntimeWorkloadMatch{Digest: digest, WorkloadRef: impact.KubernetesRuntimeWorkloadRef{UID: uid}}
 	}
 	graph := &fairKubernetesRuntimeGraph{rows: map[string][]map[string]any{digest: graphRows}}
 	inventory := &stubKubernetesWorkloadInventory{rows: matches}
-	rows := []SupplyChainImpactFindingRow{{FindingID: "finding", SubjectDigest: digest}}
+	rows := []impact.SupplyChainImpactFindingRow{{FindingID: "finding", SubjectDigest: digest}}
 	if err := (&SupplyChainHandler{Neo4j: graph, KubernetesWorkloadInventory: inventory}).applySupplyChainKubernetesRuntimeEvidence(context.Background(), repositoryAccessFilter{AllScopes: true}, rows); err != nil {
 		t.Fatalf("apply error = %v", err)
 	}
@@ -331,12 +333,12 @@ func TestApplyKubernetesRuntimeEvidenceFirstErrorCancelsWithoutPartialAttachment
 	t.Parallel()
 
 	digests := make([]string, 40)
-	rows := make([]SupplyChainImpactFindingRow, len(digests))
+	rows := make([]impact.SupplyChainImpactFindingRow, len(digests))
 	graphRows := make(map[string][]map[string]any, len(digests))
 	for i := range digests {
 		digest := fmt.Sprintf("sha256:%064x", i)
 		digests[i] = digest
-		rows[i] = SupplyChainImpactFindingRow{FindingID: digest, SubjectDigest: digest}
+		rows[i] = impact.SupplyChainImpactFindingRow{FindingID: digest, SubjectDigest: digest}
 		graphRows[digest] = []map[string]any{kubernetesRuntimeGraphRow(digest, fmt.Sprintf("w-%03d", i))}
 	}
 	wantErr := errors.New("graph unavailable")
@@ -367,7 +369,7 @@ func TestApplyKubernetesRuntimeEvidenceCanceledParentAttachesNothing(t *testing.
 		digest: {kubernetesRuntimeGraphRow(digest, "workload-1")},
 	}}
 	inventory := &stubKubernetesWorkloadInventory{}
-	rows := []SupplyChainImpactFindingRow{{FindingID: "finding", SubjectDigest: digest}}
+	rows := []impact.SupplyChainImpactFindingRow{{FindingID: "finding", SubjectDigest: digest}}
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
 	err := (&SupplyChainHandler{Neo4j: graph, KubernetesWorkloadInventory: inventory}).applySupplyChainKubernetesRuntimeEvidence(ctx, repositoryAccessFilter{AllScopes: true}, rows)
@@ -387,15 +389,15 @@ func TestApplyKubernetesRuntimeEvidenceDeterministicAuthorizedTrim(t *testing.T)
 		"sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
 		"sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
 	}
-	rows := make([]SupplyChainImpactFindingRow, len(digests))
+	rows := make([]impact.SupplyChainImpactFindingRow, len(digests))
 	graphRows := make(map[string][]map[string]any, len(digests))
 	matches := make([]KubernetesRuntimeWorkloadMatch, 0, 204)
 	for i, digest := range digests {
-		rows[i] = SupplyChainImpactFindingRow{FindingID: digest, SubjectDigest: digest}
+		rows[i] = impact.SupplyChainImpactFindingRow{FindingID: digest, SubjectDigest: digest}
 		for j := 67; j >= 0; j-- {
 			uid := fmt.Sprintf("workload-%03d", j)
 			graphRows[digest] = append(graphRows[digest], kubernetesRuntimeGraphRow(digest, uid))
-			matches = append(matches, KubernetesRuntimeWorkloadMatch{Digest: digest, WorkloadRef: KubernetesRuntimeWorkloadRef{UID: uid}})
+			matches = append(matches, KubernetesRuntimeWorkloadMatch{Digest: digest, WorkloadRef: impact.KubernetesRuntimeWorkloadRef{UID: uid}})
 		}
 	}
 	graph := &fairKubernetesRuntimeGraph{rows: graphRows}

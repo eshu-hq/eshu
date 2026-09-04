@@ -9,6 +9,8 @@ import (
 	"errors"
 	"slices"
 	"testing"
+
+	"github.com/eshu-hq/eshu/go/internal/query/supplychain/impact"
 )
 
 const (
@@ -32,8 +34,8 @@ const (
 func assertSupplyChainRuntimeNormalizationLive(
 	t *testing.T,
 	ctx context.Context,
-	findingStore PostgresSupplyChainImpactFindingStore,
-	aggregateStore PostgresSupplyChainImpactAggregateStore,
+	findingStore impact.PostgresSupplyChainImpactFindingStore,
+	aggregateStore impact.PostgresSupplyChainImpactAggregateStore,
 ) {
 	t.Helper()
 
@@ -142,7 +144,7 @@ func assertSupplyChainRuntimeNormalizationLive(
 		})
 	}
 
-	contextStore := NewPostgresSupplyChainImpactFindingStore(findingStore.DB)
+	contextStore := impact.NewPostgresSupplyChainImpactFindingStore(findingStore.DB)
 	contexts, err := contextStore.ListSupplyChainImpactRuntimeContext(
 		ctx,
 		[]string{runtimeFilterLiveRepository},
@@ -216,15 +218,15 @@ func assertSupplyChainRuntimeNormalizationLive(
 func assertSupplyChainRuntimeNormalizationFilterLive(
 	t *testing.T,
 	ctx context.Context,
-	findingStore PostgresSupplyChainImpactFindingStore,
-	aggregateStore PostgresSupplyChainImpactAggregateStore,
+	findingStore impact.PostgresSupplyChainImpactFindingStore,
+	aggregateStore impact.PostgresSupplyChainImpactAggregateStore,
 	workloadID string,
 	serviceID string,
 	environment string,
 	want int,
 ) {
 	t.Helper()
-	filter := SupplyChainImpactFindingFilter{
+	filter := impact.SupplyChainImpactFindingFilter{
 		CVEID:            runtimeFilterLiveCVE,
 		WorkloadID:       workloadID,
 		ServiceID:        serviceID,
@@ -236,7 +238,7 @@ func assertSupplyChainRuntimeNormalizationFilterLive(
 	assertSupplyChainRuntimeFilterListCount(t, ctx, findingStore, filter, false, want)
 	assertSupplyChainRuntimeFilterListCount(t, ctx, findingStore, filter, true, want)
 
-	aggregateFilter := SupplyChainImpactAggregateFilter{
+	aggregateFilter := impact.SupplyChainImpactAggregateFilter{
 		CVEID:            runtimeFilterLiveCVE,
 		WorkloadID:       workloadID,
 		ServiceID:        serviceID,
@@ -254,7 +256,7 @@ func assertSupplyChainRuntimeNormalizationFilterLive(
 	inventory, err := aggregateStore.SupplyChainImpactInventory(
 		ctx,
 		aggregateFilter,
-		SupplyChainImpactInventoryByImpactStatus,
+		impact.SupplyChainImpactInventoryByImpactStatus,
 		10,
 		0,
 	)
@@ -270,14 +272,14 @@ func assertSupplyChainRuntimeNormalizationFilterLive(
 	if environment != "" {
 		return
 	}
-	_, err = findingStore.ExplainSupplyChainImpact(ctx, SupplyChainImpactExplanationFilter{
+	_, err = findingStore.ExplainSupplyChainImpact(ctx, impact.SupplyChainImpactExplanationFilter{
 		CVEID:           runtimeFilterLiveCVE,
 		PackageID:       runtimeFilterLivePackage,
 		WorkloadID:      workloadID,
 		ServiceID:       serviceID,
 		AllowedScopeIDs: []string{runtimeFilterLiveScopeA},
 	})
-	if want == 0 && !errors.Is(err, ErrSupplyChainImpactExplanationNotFound) {
+	if want == 0 && !errors.Is(err, impact.ErrSupplyChainImpactExplanationNotFound) {
 		t.Fatalf("explain normalized runtime filter error = %v, want not found", err)
 	}
 	if want == 1 && err != nil {
@@ -298,7 +300,7 @@ func seedSupplyChainRuntimeNormalizationLiveFacts(
 	}{
 		{
 			factID: "fact:5747:normalized:padded-workload",
-			kind:   workloadIdentityFactKindQuery,
+			kind:   impact.WorkloadIdentityFactKindQuery,
 			payload: map[string]any{
 				"repository_id": runtimeFilterLiveRepository,
 				"workload_id":   "  " + runtimeNormalizedPaddedWorkload + "  ",
@@ -306,7 +308,7 @@ func seedSupplyChainRuntimeNormalizationLiveFacts(
 		},
 		{
 			factID: "fact:5747:normalized:padded-array",
-			kind:   workloadIdentityFactKindQuery,
+			kind:   impact.WorkloadIdentityFactKindQuery,
 			payload: map[string]any{
 				"repository_id": runtimeFilterLiveRepository,
 				"entity_keys":   []string{"  " + runtimeNormalizedArrayWorkload + "  "},
@@ -314,7 +316,7 @@ func seedSupplyChainRuntimeNormalizationLiveFacts(
 		},
 		{
 			factID: "fact:5747:normalized:scalar-entity",
-			kind:   workloadIdentityFactKindQuery,
+			kind:   impact.WorkloadIdentityFactKindQuery,
 			payload: map[string]any{
 				"repository_id": runtimeFilterLiveRepository,
 				"entity_keys":   "  " + runtimeNormalizedScalarWorkload + "  ",
@@ -322,7 +324,7 @@ func seedSupplyChainRuntimeNormalizationLiveFacts(
 		},
 		{
 			factID: "fact:5747:normalized:object-entity",
-			kind:   workloadIdentityFactKindQuery,
+			kind:   impact.WorkloadIdentityFactKindQuery,
 			payload: map[string]any{
 				"repository_id": runtimeFilterLiveRepository,
 				"entity_keys": map[string]any{
@@ -380,7 +382,7 @@ func seedSupplyChainRuntimeNormalizationLiveFacts(
 		},
 		{
 			factID: "fact:5747:malformed:object-workload",
-			kind:   workloadIdentityFactKindQuery,
+			kind:   impact.WorkloadIdentityFactKindQuery,
 			payload: map[string]any{
 				"repository_id": runtimeFilterLiveRepository,
 				"workload_id": map[string]any{
@@ -410,7 +412,7 @@ func seedSupplyChainRuntimeNormalizationLiveFacts(
 		},
 		{
 			factID: "fact:5747:malformed:numeric-workload",
-			kind:   workloadIdentityFactKindQuery,
+			kind:   impact.WorkloadIdentityFactKindQuery,
 			payload: map[string]any{
 				"repository_id": runtimeFilterLiveRepository,
 				"workload_id":   5747,
@@ -436,7 +438,7 @@ func seedSupplyChainRuntimeNormalizationLiveFacts(
 		},
 		{
 			factID: "fact:5747:malformed:repository-object",
-			kind:   workloadIdentityFactKindQuery,
+			kind:   impact.WorkloadIdentityFactKindQuery,
 			payload: map[string]any{
 				"repository_id":     map[string]any{"repository:decoy": true},
 				"related_scope_ids": []string{runtimeFilterLiveRepository},

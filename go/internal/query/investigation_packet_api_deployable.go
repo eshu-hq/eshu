@@ -6,6 +6,7 @@ package query
 import (
 	"net/http"
 
+	"github.com/eshu-hq/eshu/go/internal/query/supplychain/impact"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
 )
 
@@ -97,7 +98,7 @@ func deployableUnitPacketFilterFromRequest(
 		GenerationID: generationID,
 		Limit:        admissionDecisionMaxLimit,
 	}
-	repositoryID := firstNonEmptyQueryParam(r, "repository_id", "repo_id")
+	repositoryID := impact.FirstNonEmptyQueryParam(r, "repository_id", "repo_id")
 	if repositoryID != "" {
 		filter.AnchorKind = "repository"
 		filter.AnchorID = repositoryID

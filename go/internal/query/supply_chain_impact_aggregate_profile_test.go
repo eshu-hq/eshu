@@ -10,6 +10,8 @@ import (
 	"net/url"
 	"reflect"
 	"testing"
+
+	"github.com/eshu-hq/eshu/go/internal/query/supplychain/impact"
 )
 
 func TestSupplyChainImpactAggregateRoutesUseListProfileDefaults(t *testing.T) {
@@ -17,23 +19,23 @@ func TestSupplyChainImpactAggregateRoutesUseListProfileDefaults(t *testing.T) {
 
 	content := selectorAggregateContentStore()
 	findings := &recordingSupplyChainImpactFindingStore{
-		rows: []SupplyChainImpactFindingRow{{
+		rows: []impact.SupplyChainImpactFindingRow{{
 			FindingID:        "finding-precise",
 			RepositoryID:     "repo://example/api",
 			ImpactStatus:     "affected_exact",
-			DetectionProfile: SupplyChainImpactProfilePrecise,
+			DetectionProfile: impact.SupplyChainImpactProfilePrecise,
 		}},
 	}
 	aggregates := &stubSupplyChainImpactAggregateStore{
-		count: SupplyChainImpactAggregateCount{
+		count: impact.SupplyChainImpactAggregateCount{
 			TotalFindings:    1,
 			AffectedFindings: 1,
 			AffectedExact:    1,
 			ByPriorityBucket: map[string]int{"high": 1},
 			BySeverity:       map[string]int{"high": 1},
 		},
-		inventory: []SupplyChainImpactInventoryRow{{
-			Dimension: SupplyChainImpactInventoryByImpactStatus,
+		inventory: []impact.SupplyChainImpactInventoryRow{{
+			Dimension: impact.SupplyChainImpactInventoryByImpactStatus,
 			Value:     "affected_exact",
 			Count:     1,
 		}},
@@ -71,15 +73,15 @@ func TestSupplyChainImpactAggregateRoutesUseListProfileDefaults(t *testing.T) {
 	if got, want := findings.lastFilter.RepositoryID, "repo://example/api"; got != want {
 		t.Fatalf("list RepositoryID = %q, want %q", got, want)
 	}
-	if got, want := findings.lastFilter.DetectionProfile, SupplyChainImpactProfilePrecise; got != want {
+	if got, want := findings.lastFilter.DetectionProfile, impact.SupplyChainImpactProfilePrecise; got != want {
 		t.Fatalf("list DetectionProfile = %q, want %q", got, want)
 	}
-	for route, filter := range map[string]SupplyChainImpactAggregateFilter{
+	for route, filter := range map[string]impact.SupplyChainImpactAggregateFilter{
 		"count":     aggregates.lastCountFilter,
 		"inventory": aggregates.lastInvFilter,
 	} {
 		requireAggregateFilterString(t, route, filter, "RepositoryID", "repo://example/api")
-		requireAggregateFilterString(t, route, filter, "DetectionProfile", SupplyChainImpactProfilePrecise)
+		requireAggregateFilterString(t, route, filter, "DetectionProfile", impact.SupplyChainImpactProfilePrecise)
 	}
 }
 
@@ -87,24 +89,24 @@ func TestSupplyChainImpactAggregateRoutesComprehensiveProfileIncludesPossiblyAff
 	t.Parallel()
 
 	findings := &recordingSupplyChainImpactFindingStore{
-		rows: []SupplyChainImpactFindingRow{
+		rows: []impact.SupplyChainImpactFindingRow{
 			{
 				FindingID:        "finding-precise",
 				CVEID:            "CVE-2026-9001",
 				ImpactStatus:     "affected_exact",
-				DetectionProfile: SupplyChainImpactProfilePrecise,
+				DetectionProfile: impact.SupplyChainImpactProfilePrecise,
 			},
 			{
 				FindingID:        "finding-comprehensive",
 				CVEID:            "CVE-2026-9001",
 				ImpactStatus:     "possibly_affected",
 				MatchReason:      "range_only_manifest",
-				DetectionProfile: SupplyChainImpactProfileComprehensive,
+				DetectionProfile: impact.SupplyChainImpactProfileComprehensive,
 			},
 		},
 	}
 	aggregates := &stubSupplyChainImpactAggregateStore{
-		count: SupplyChainImpactAggregateCount{
+		count: impact.SupplyChainImpactAggregateCount{
 			TotalFindings:    2,
 			AffectedFindings: 2,
 			AffectedExact:    1,
@@ -112,9 +114,9 @@ func TestSupplyChainImpactAggregateRoutesComprehensiveProfileIncludesPossiblyAff
 			ByPriorityBucket: map[string]int{"high": 1, "medium": 1},
 			BySeverity:       map[string]int{"high": 1, "medium": 1},
 		},
-		inventory: []SupplyChainImpactInventoryRow{
-			{Dimension: SupplyChainImpactInventoryByImpactStatus, Value: "affected_exact", Count: 1},
-			{Dimension: SupplyChainImpactInventoryByImpactStatus, Value: "possibly_affected", Count: 1},
+		inventory: []impact.SupplyChainImpactInventoryRow{
+			{Dimension: impact.SupplyChainImpactInventoryByImpactStatus, Value: "affected_exact", Count: 1},
+			{Dimension: impact.SupplyChainImpactInventoryByImpactStatus, Value: "possibly_affected", Count: 1},
 		},
 	}
 	handler := &SupplyChainHandler{
@@ -155,7 +157,7 @@ func TestSupplyChainImpactAggregateRoutesCanonicalAndNameSelectorsShareProfileSe
 
 			content := selectorAggregateContentStore()
 			aggregates := &stubSupplyChainImpactAggregateStore{
-				count: SupplyChainImpactAggregateCount{
+				count: impact.SupplyChainImpactAggregateCount{
 					TotalFindings:    1,
 					AffectedFindings: 1,
 					AffectedExact:    1,
@@ -179,7 +181,7 @@ func TestSupplyChainImpactAggregateRoutesCanonicalAndNameSelectorsShareProfileSe
 				t.Fatalf("status = %d, want %d; body = %s", got, want, w.Body.String())
 			}
 			requireAggregateFilterString(t, "count", aggregates.lastCountFilter, "RepositoryID", "repo://example/api")
-			requireAggregateFilterString(t, "count", aggregates.lastCountFilter, "DetectionProfile", SupplyChainImpactProfilePrecise)
+			requireAggregateFilterString(t, "count", aggregates.lastCountFilter, "DetectionProfile", impact.SupplyChainImpactProfilePrecise)
 		})
 	}
 }
@@ -188,15 +190,15 @@ func TestSupplyChainImpactAggregateRoutesKeepSuppressionSeparateFromProfile(t *t
 	t.Parallel()
 
 	aggregates := &stubSupplyChainImpactAggregateStore{
-		count: SupplyChainImpactAggregateCount{
+		count: impact.SupplyChainImpactAggregateCount{
 			TotalFindings:    1,
 			AffectedFindings: 1,
 			AffectedExact:    1,
 			ByPriorityBucket: map[string]int{"high": 1},
 			BySeverity:       map[string]int{"high": 1},
 		},
-		inventory: []SupplyChainImpactInventoryRow{{
-			Dimension: SupplyChainImpactInventoryByImpactStatus,
+		inventory: []impact.SupplyChainImpactInventoryRow{{
+			Dimension: impact.SupplyChainImpactInventoryByImpactStatus,
 			Value:     "affected_exact",
 			Count:     1,
 		}},
@@ -272,32 +274,32 @@ func requireInventoryBucket(t *testing.T, body map[string]any, value string, wan
 	t.Fatalf("bucket %q not found in %#v", value, rawBuckets)
 }
 
-func requireAggregateFilterString(t *testing.T, route string, filter SupplyChainImpactAggregateFilter, field string, want string) {
+func requireAggregateFilterString(t *testing.T, route string, filter impact.SupplyChainImpactAggregateFilter, field string, want string) {
 	t.Helper()
 
 	value := reflect.ValueOf(filter).FieldByName(field)
 	if !value.IsValid() {
-		t.Fatalf("SupplyChainImpactAggregateFilter missing %s field", field)
+		t.Fatalf("impact.SupplyChainImpactAggregateFilter missing %s field", field)
 	}
 	if value.Kind() != reflect.String {
-		t.Fatalf("SupplyChainImpactAggregateFilter.%s kind = %s, want string", field, value.Kind())
+		t.Fatalf("impact.SupplyChainImpactAggregateFilter.%s kind = %s, want string", field, value.Kind())
 	}
 	if got := value.String(); got != want {
-		t.Fatalf("%s SupplyChainImpactAggregateFilter.%s = %q, want %q", route, field, got, want)
+		t.Fatalf("%s impact.SupplyChainImpactAggregateFilter.%s = %q, want %q", route, field, got, want)
 	}
 }
 
-func requireAggregateFilterBool(t *testing.T, route string, filter SupplyChainImpactAggregateFilter, field string, want bool) {
+func requireAggregateFilterBool(t *testing.T, route string, filter impact.SupplyChainImpactAggregateFilter, field string, want bool) {
 	t.Helper()
 
 	value := reflect.ValueOf(filter).FieldByName(field)
 	if !value.IsValid() {
-		t.Fatalf("SupplyChainImpactAggregateFilter missing %s field", field)
+		t.Fatalf("impact.SupplyChainImpactAggregateFilter missing %s field", field)
 	}
 	if value.Kind() != reflect.Bool {
-		t.Fatalf("SupplyChainImpactAggregateFilter.%s kind = %s, want bool", field, value.Kind())
+		t.Fatalf("impact.SupplyChainImpactAggregateFilter.%s kind = %s, want bool", field, value.Kind())
 	}
 	if got := value.Bool(); got != want {
-		t.Fatalf("%s SupplyChainImpactAggregateFilter.%s = %t, want %t", route, field, got, want)
+		t.Fatalf("%s impact.SupplyChainImpactAggregateFilter.%s = %t, want %t", route, field, got, want)
 	}
 }

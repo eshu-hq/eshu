@@ -9,6 +9,8 @@ import (
 	"os"
 	"testing"
 	"time"
+
+	"github.com/eshu-hq/eshu/go/internal/query/supplychain/impact"
 	// Registers the "pgx" driver this test opens by name. Other files in this
 	// package also blank-import it, so the driver would resolve without this
 	// line today -- but only by accident of what else compiles into the test
@@ -69,11 +71,11 @@ func TestSupplyChainSuppressionAuthorityDirectAndMaterializedParityLive(t *testi
 	seedSupplyChainSuppressionAuthorityLiveFacts(t, ctx, tx)
 	readAt := time.Date(2026, 7, 27, 12, 0, 10, 0, time.UTC)
 	now := func() time.Time { return readAt }
-	direct := NewPostgresSupplyChainImpactFindingStore(tx)
+	direct := impact.NewPostgresSupplyChainImpactFindingStore(tx)
 	direct.Now = now
-	materialized := NewPostgresSupplyChainImpactFindingStoreWithReadModel(tx, true)
+	materialized := impact.NewPostgresSupplyChainImpactFindingStoreWithReadModel(tx, true)
 	materialized.Now = now
-	aggregates := NewPostgresSupplyChainImpactAggregateStore(tx)
+	aggregates := impact.NewPostgresSupplyChainImpactAggregateStore(tx)
 	aggregates.Now = now
 
 	assertSuppressionAuthorityState(t, ctx, direct, aggregates, false, 0, "")
@@ -81,7 +83,7 @@ func TestSupplyChainSuppressionAuthorityDirectAndMaterializedParityLive(t *testi
 	assertSuppressionAuthorityFilter(t, ctx, direct, aggregates, "ignored", true, 1)
 	assertSuppressionAuthorityFilter(t, ctx, direct, aggregates, "expired", true, 0)
 	assertSuppressionExpiryEdgeCases(t, ctx, direct)
-	explanation, err := direct.ExplainSupplyChainImpact(ctx, SupplyChainImpactExplanationFilter{
+	explanation, err := direct.ExplainSupplyChainImpact(ctx, impact.SupplyChainImpactExplanationFilter{
 		FindingID: suppressionAuthorityLiveFinding,
 	})
 	if err != nil {
@@ -90,7 +92,7 @@ func TestSupplyChainSuppressionAuthorityDirectAndMaterializedParityLive(t *testi
 	if got := explanation.Finding.Suppression.State; got != "ignored" {
 		t.Fatalf("explain suppression state = %q, want ignored", got)
 	}
-	explanation, err = direct.ExplainSupplyChainImpact(ctx, SupplyChainImpactExplanationFilter{
+	explanation, err = direct.ExplainSupplyChainImpact(ctx, impact.SupplyChainImpactExplanationFilter{
 		FindingID: suppressionAuthorityLiveSourceFact,
 	})
 	if err != nil {
@@ -122,7 +124,7 @@ func TestSupplyChainSuppressionAuthorityDirectAndMaterializedParityLive(t *testi
 	assertSuppressionAuthorityCursor(t, ctx, materialized)
 	assertSuppressionExpiryEdgeCases(t, ctx, direct)
 	assertSuppressionExpiryEdgeCases(t, ctx, materialized)
-	explanation, err = direct.ExplainSupplyChainImpact(ctx, SupplyChainImpactExplanationFilter{
+	explanation, err = direct.ExplainSupplyChainImpact(ctx, impact.SupplyChainImpactExplanationFilter{
 		FindingID: suppressionAuthorityLiveFinding,
 	})
 	if err != nil {
@@ -226,7 +228,7 @@ INSERT INTO scope_generations (
 		suppressionAuthorityLiveSourceFact,
 		suppressionAuthorityLiveSource,
 		suppressionAuthorityLiveSourceGen,
-		supplyChainImpactFindingFactKind,
+		impact.SupplyChainImpactFindingFactKind,
 		false,
 		basePayload,
 	)
@@ -244,7 +246,7 @@ INSERT INTO scope_generations (
 		"fact:5465:source:second",
 		suppressionAuthorityLiveSecondSource,
 		suppressionAuthorityLiveSecondGen,
-		supplyChainImpactFindingFactKind,
+		impact.SupplyChainImpactFindingFactKind,
 		false,
 		secondSourcePayload,
 	)
@@ -274,7 +276,7 @@ INSERT INTO scope_generations (
 		suppressionAuthorityLiveOperatorFact,
 		suppressionAuthorityLiveOperator,
 		suppressionAuthorityLiveOperatorGen,
-		supplyChainImpactFindingFactKind,
+		impact.SupplyChainImpactFindingFactKind,
 		false,
 		operatorPayload,
 	)
@@ -302,7 +304,7 @@ INSERT INTO scope_generations (
 		"fact:5465:operator:orphan",
 		suppressionAuthorityLiveOperator,
 		suppressionAuthorityLiveOperatorGen,
-		supplyChainImpactFindingFactKind,
+		impact.SupplyChainImpactFindingFactKind,
 		false,
 		orphanPayload,
 	)
@@ -336,7 +338,7 @@ INSERT INTO scope_generations (
 			edge.factID+":source",
 			suppressionAuthorityLiveSource,
 			suppressionAuthorityLiveSourceGen,
-			supplyChainImpactFindingFactKind,
+			impact.SupplyChainImpactFindingFactKind,
 			false,
 			sourcePayload,
 		)
@@ -366,7 +368,7 @@ INSERT INTO scope_generations (
 			edge.factID,
 			suppressionAuthorityLiveOperator,
 			suppressionAuthorityLiveOperatorGen,
-			supplyChainImpactFindingFactKind,
+			impact.SupplyChainImpactFindingFactKind,
 			false,
 			operatorPayload,
 		)

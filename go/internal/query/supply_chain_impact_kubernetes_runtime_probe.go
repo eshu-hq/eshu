@@ -9,6 +9,7 @@ import (
 	"sort"
 	"strings"
 
+	"github.com/eshu-hq/eshu/go/internal/query/supplychain/impact"
 	"go.opentelemetry.io/otel/attribute"
 )
 
@@ -63,14 +64,9 @@ type KubernetesRuntimeCandidate struct {
 	EdgeGenerationID string
 }
 
-// KubernetesRuntimeWorkloadRef is one current, authorized Kubernetes workload
-// observed running the parent finding's exact subject digest.
-type KubernetesRuntimeWorkloadRef struct {
-	UID       string `json:"workload_uid"`
-	ClusterID string `json:"cluster_id,omitempty"`
-	Namespace string `json:"namespace,omitempty"`
-	Name      string `json:"name,omitempty"`
-}
+// KubernetesRuntimeWorkloadRef moved to internal/query/supplychain/impact
+// with the other runtime-evidence read-model types (#6060 lane A); see
+// supply_chain_impact_alias.go.
 
 // KubernetesRuntimeWorkloadMatch binds an authorized workload reference to the
 // exact candidate digest used to attach it to one parent finding. Digest is an
@@ -102,7 +98,7 @@ type KubernetesWorkloadCurrentInventoryFilter interface {
 func (h *SupplyChainHandler) applySupplyChainKubernetesRuntimeEvidence(
 	ctx context.Context,
 	access repositoryAccessFilter,
-	rows []SupplyChainImpactFindingRow,
+	rows []impact.SupplyChainImpactFindingRow,
 ) error {
 	if h == nil || h.KubernetesWorkloadInventory == nil || len(rows) == 0 {
 		return nil

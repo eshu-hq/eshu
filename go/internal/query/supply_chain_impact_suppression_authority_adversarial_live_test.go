@@ -6,22 +6,24 @@ package query
 import (
 	"context"
 	"testing"
+
+	"github.com/eshu-hq/eshu/go/internal/query/supplychain/impact"
 )
 
 func assertSuppressionAuthorityCloneDriftAndOrphan(
 	t *testing.T,
 	ctx context.Context,
-	direct PostgresSupplyChainImpactFindingStore,
-	materialized PostgresSupplyChainImpactFindingStore,
+	direct impact.PostgresSupplyChainImpactFindingStore,
+	materialized impact.PostgresSupplyChainImpactFindingStore,
 ) {
 	t.Helper()
 
-	for name, store := range map[string]PostgresSupplyChainImpactFindingStore{
+	for name, store := range map[string]impact.PostgresSupplyChainImpactFindingStore{
 		"direct":       direct,
 		"materialized": materialized,
 	} {
 		t.Run(name+" clone drift", func(t *testing.T) {
-			rows, err := store.ListSupplyChainImpactFindings(ctx, SupplyChainImpactFindingFilter{
+			rows, err := store.ListSupplyChainImpactFindings(ctx, impact.SupplyChainImpactFindingFilter{
 				CVEID:             suppressionAuthorityLiveCVE,
 				Severity:          "high",
 				DetectionProfile:  "comprehensive",
@@ -42,7 +44,7 @@ func assertSuppressionAuthorityCloneDriftAndOrphan(
 		})
 
 		t.Run(name+" operator orphan", func(t *testing.T) {
-			rows, err := store.ListSupplyChainImpactFindings(ctx, SupplyChainImpactFindingFilter{
+			rows, err := store.ListSupplyChainImpactFindings(ctx, impact.SupplyChainImpactFindingFilter{
 				CVEID:             suppressionAuthorityOrphanCVE,
 				DetectionProfile:  "comprehensive",
 				IncludeSuppressed: true,
