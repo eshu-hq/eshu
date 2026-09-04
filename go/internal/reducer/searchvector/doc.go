@@ -12,8 +12,11 @@
 // [SearchVectorBatchBuilder] extension when the wired builder implements it),
 // and continues through independent per-scope build failures, returning a
 // joined error for operator visibility. The runner writes no graph truth: it
-// has no canonical writer, ledger, or retraction path, only the derived
-// vector-store side effect its builder port performs.
+// has no canonical writer, ledger, or retraction path. It is not limited to
+// one side effect, though — see [SearchVectorBuildRunner.ScopeState] and
+// [SearchVectorBuildRunner.ReadyPublisher] below for the CAS-fenced scope
+// state and search_vector_ready watermark persistence a wired runner also
+// performs, both wired in production.
 //
 // A sweep that selects pending scopes but produces no durable output (no
 // finalized scopes, documents, vectors, or disabled rows) backs off on the

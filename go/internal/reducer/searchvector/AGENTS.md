@@ -10,6 +10,13 @@ consumer ports, and its request/result/config/identity value types (issue
 goroutine, not an intent-dispatch reducer domain — see the README's
 Ownership boundary section for exactly what it does and does not own.
 
+The runner writes no graph truth, but do not read that as "only the builder
+persists something": when `ScopeState` and `ReadyPublisher` are wired — both
+are wired in production — `RunOnce` also persists build fences, document
+cursors, and readiness through `ScopeState`, and the `search_vector_ready`
+watermark through `ReadyPublisher`. Treat all three ports as real persistence
+paths when reasoning about what a change here can break.
+
 ## Read first
 
 - Repository-root `AGENTS.md`

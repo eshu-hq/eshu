@@ -14,8 +14,11 @@ context is canceled. Each bounded sweep lists pending active scopes, builds
 vectors in bounded per-scope document batches (or one batched call across all
 pending scopes when the wired builder supports it), and continues through
 independent scope failures, returning a joined error. The runner writes no
-graph truth — its only side effect is whatever its `SearchVectorBuilder` port
-implementation persists.
+graph truth, but it is not limited to one side effect: besides whatever its
+`SearchVectorBuilder` port implementation persists, a wired `ScopeState`
+persists build fences, document cursors, and readiness (the #4233 lifecycle),
+and a wired `ReadyPublisher` persists the `search_vector_ready` watermark.
+Both are wired in production — see Ownership boundary and Telemetry below.
 
 ## Ownership boundary
 
@@ -70,7 +73,18 @@ this package's ports.
 - `eshu_dp_search_vector_build_phase_seconds` — histogram, labeled by
   `domain` (always `search_vector_build`) and `write_phase`
   (`scheduling_wait`/`query_load`/`embed_build`/`write_upsert`); emitted by
-  `recordPhaseMetrics` after every `RunOnce` call, success or failure.
+  `recordPhaseMetrics`, called inline (not deferred) at the end of every
+  `RunOnce` code path that reaches per-scope work. Three early returns in
+  `RunOnce` skip it: config validation failure, a
+  `ListPendingSearchVectorScopes` failure, and — when `ScopeState` is wired —
+  a `BeginBuilding` failure. A pending-list or `BeginBuilding` failure inside
+  `Run`'s sweep loop still surfaces as the `"search vector build sweep
+  failed"` error log (`Run` calls `logFailure` on any `RunOnce` error), just
+  with no phase sample for that call. A validation failure is different: it
+  fails `Run` at startup, before the loop and before any log call, so it
+  produces neither a phase sample nor that failure log — only the returned
+  error itself. Either way, an operator diagnosing one of these three
+  failures cannot lean on the histogram.
 - Structured logs at `phase="reduction"`: `"search vector build sweep
   completed"` (per-sweep counts and split-timing seconds), `"search vector
   build sweep failed"` (`failure_class=search_vector_build_error`), `"search
