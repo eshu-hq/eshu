@@ -12,6 +12,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/facts"
 	"github.com/eshu-hq/eshu/go/internal/reducer"
 	"github.com/eshu-hq/eshu/go/internal/reducer/inheritance"
+	"github.com/eshu-hq/eshu/go/internal/reducer/sqlrelationship"
 )
 
 // Fixture identity for the one repository this file describes.
@@ -138,7 +139,7 @@ func unusableDeltaCases() []unusableDeltaCase {
 				writer *capturingIntentWriter,
 				intent reducer.Intent,
 			) error {
-				handler := reducer.SQLRelationshipMaterializationHandler{FactLoader: loader, IntentWriter: writer}
+				handler := sqlrelationship.SQLRelationshipMaterializationHandler{FactLoader: loader, IntentWriter: writer}
 				_, err := handler.Handle(ctx, intent)
 				return err
 			},

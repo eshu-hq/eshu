@@ -9,6 +9,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
 	"github.com/eshu-hq/eshu/go/internal/reducer/inheritance"
+	"github.com/eshu-hq/eshu/go/internal/reducer/sqlrelationship"
 )
 
 // deltaRepositoryFactWithoutCheckoutPath returns the repository fact a delta
@@ -124,9 +125,9 @@ func siblingDeltaGateCases() []siblingDeltaGateCase {
 				contexts map[string]ProjectionContext,
 				createdAt time.Time,
 			) ([]SharedProjectionIntentRow, []string, map[string][]string) {
-				scope := buildSQLRelationshipDeltaScope(envelopes)
-				return buildSQLRelationshipRefreshIntents(scope, repoIDs, contexts, createdAt),
-					scope.repositoryIDs, scope.filePathsByRepoID
+				scope := sqlrelationship.BuildDeltaScope(envelopes)
+				return sqlrelationship.BuildRefreshIntents(scope, repoIDs, contexts, createdAt),
+					scope.RepositoryIDs, scope.FilePathsByRepoID
 			},
 		},
 		{
@@ -139,9 +140,9 @@ func siblingDeltaGateCases() []siblingDeltaGateCase {
 			) ([]SharedProjectionIntentRow, []string, map[string][]string) {
 				// Shell exec reuses the SQL-relationship delta scope
 				// (shell_exec_materialization.go), so it inherits the same gate.
-				scope := buildSQLRelationshipDeltaScope(envelopes)
+				scope := sqlrelationship.BuildDeltaScope(envelopes)
 				return buildShellExecRefreshIntents(scope, repoIDs, contexts, createdAt),
-					scope.repositoryIDs, scope.filePathsByRepoID
+					scope.RepositoryIDs, scope.FilePathsByRepoID
 			},
 		},
 	}

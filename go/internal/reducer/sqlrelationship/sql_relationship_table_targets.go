@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package reducer
+package sqlrelationship
 
 // appendSQLTableTargetRows resolves a bounded entity-metadata target list to
 // canonical SqlTable endpoints, appends exact-label edge rows, and reports

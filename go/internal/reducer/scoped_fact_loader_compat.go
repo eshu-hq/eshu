@@ -19,14 +19,6 @@ import (
 // FactLoader loads fact envelopes for one scope generation.
 type FactLoader = factload.FactLoader
 
-// factKindLoader is the optional kind-filtering extension a FactLoader may
-// implement.
-type factKindLoader = factload.FactKindLoader
-
-// factPayloadValueLoader is the optional payload-value-filtering extension a
-// FactLoader may implement.
-type factPayloadValueLoader = factload.FactPayloadValueLoader
-
 // Fact-kind names the scoped loader filters on.
 const (
 	factKindContentEntity       = factload.FactKindContentEntity

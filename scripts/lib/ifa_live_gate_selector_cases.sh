@@ -146,12 +146,15 @@ ifa_live_gate_common_seams=(
 	'go/internal/reducer/**|go/internal/reducer/graph_projection_phase_repair_runner.go'
 	# The five files that split off sql_relationships, the one reducer family
 	# that had been pinned to two literal filenames. They decide which edges
-	# `ifa assert-edges -domain sql_relationships` sees.
-	'go/internal/reducer/**|go/internal/reducer/sql_relationship_delta_scope.go'
-	'go/internal/reducer/**|go/internal/reducer/sql_relationship_intents.go'
-	'go/internal/reducer/**|go/internal/reducer/sql_relationship_metadata.go'
-	'go/internal/reducer/**|go/internal/reducer/sql_relationship_names.go'
-	'go/internal/reducer/**|go/internal/reducer/sql_relationship_table_targets.go'
+	# `ifa assert-edges -domain sql_relationships` sees. The family itself
+	# later moved to its own internal/reducer/sqlrelationship subpackage
+	# (issue #6061); these paths were updated to match, proving the glob
+	# still reaches them one directory level deeper.
+	'go/internal/reducer/**|go/internal/reducer/sqlrelationship/sql_relationship_delta_scope.go'
+	'go/internal/reducer/**|go/internal/reducer/sqlrelationship/sql_relationship_intents.go'
+	'go/internal/reducer/**|go/internal/reducer/sqlrelationship/sql_relationship_metadata.go'
+	'go/internal/reducer/**|go/internal/reducer/sqlrelationship/sql_relationship_names.go'
+	'go/internal/reducer/**|go/internal/reducer/sqlrelationship/sql_relationship_table_targets.go'
 	# Previously-listed literals, now covered by the glob.
 	'go/internal/reducer/**|go/internal/reducer/intent.go'
 	'go/internal/reducer/**|go/internal/reducer/shared_projection.go'

@@ -6,6 +6,7 @@ package reducer
 import (
 	"github.com/eshu-hq/eshu/go/internal/reducer/inheritance"
 	"github.com/eshu-hq/eshu/go/internal/reducer/semanticentity"
+	"github.com/eshu-hq/eshu/go/internal/reducer/sqlrelationship"
 )
 
 // implementedDefaultDomainDefinitions binds the reducer-owned handlers to the
@@ -104,7 +105,7 @@ func implementedDefaultDomainDefinitions(handlers DefaultHandlers) []DomainDefin
 			}
 			def.Handler = semanticHandler
 		case DomainSQLRelationshipMaterialization:
-			def.Handler = SQLRelationshipMaterializationHandler{
+			def.Handler = sqlrelationship.SQLRelationshipMaterializationHandler{
 				FactLoader:   handlers.FactLoader,
 				IntentWriter: handlers.SQLRelationshipIntentWriter,
 			}

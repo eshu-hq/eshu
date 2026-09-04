@@ -11,6 +11,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/reducer/inheritance"
 	"github.com/eshu-hq/eshu/go/internal/reducer/semanticentity"
+	"github.com/eshu-hq/eshu/go/internal/reducer/sqlrelationship"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
 )
 
@@ -77,7 +78,7 @@ type DefaultHandlers struct {
 	// SQLRelationshipMaterializationHandler emits file-scoped per-edge intents plus
 	// a per-repo refresh intent instead of writing canonical edges directly, so the
 	// partitioned runner and the #2898 refresh fence project them.
-	SQLRelationshipIntentWriter SQLRelationshipIntentWriter
+	SQLRelationshipIntentWriter sqlrelationship.SQLRelationshipIntentWriter
 
 	// ShellExecIntentWriter persists durable shared-intent rows for shell-exec
 	// edge materialization. The handler emits file-scoped per-edge intents plus a

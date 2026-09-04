@@ -9,7 +9,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
 	"github.com/eshu-hq/eshu/go/internal/ifa"
-	"github.com/eshu-hq/eshu/go/internal/reducer"
+	"github.com/eshu-hq/eshu/go/internal/reducer/sqlrelationship"
 )
 
 // TestSQLFamilyCassetteMatchesGoOdu guards against drift between the
@@ -19,7 +19,7 @@ import (
 // (sql_relationship_odu.go, used by the pure vacuity guard): both describe
 // the SAME fixture facts, authored twice for two different consumers. This
 // test proves they actually agree by running the cassette's content_entity
-// and file facts through the SAME pure reducer.ExtractSQLRelationshipRows
+// and file facts through the SAME pure sqlrelationship.ExtractSQLRelationshipRows
 // seam the Go Odù's own lockstep test uses, and asserting the derived edge
 // set is identical.
 func TestSQLFamilyCassetteMatchesGoOdu(t *testing.T) {
@@ -29,8 +29,8 @@ func TestSQLFamilyCassetteMatchesGoOdu(t *testing.T) {
 	cassetteEnvelopes := loadCassetteEnvelopes(t, filepath.Join(repoRoot, "testdata", "cassettes", "sqlrelationships", "ifa-sql-family.json"))
 	oduEnvelopes := ifa.CatalogByName()[sqlFamilyOduName].Facts
 
-	_, cassetteRows, _ := reducer.ExtractSQLRelationshipRows(cassetteEnvelopes)
-	_, oduRows, _ := reducer.ExtractSQLRelationshipRows(oduEnvelopes)
+	_, cassetteRows, _ := sqlrelationship.ExtractSQLRelationshipRows(cassetteEnvelopes)
+	_, oduRows, _ := sqlrelationship.ExtractSQLRelationshipRows(oduEnvelopes)
 
 	cassetteSet := sqlRelationshipEdgeSet(sqlRelationshipRowsToExpectedEdges(cassetteRows))
 	oduSet := sqlRelationshipEdgeSet(sqlRelationshipRowsToExpectedEdges(oduRows))
@@ -58,8 +58,8 @@ func TestSQLFamilyDeltaCassetteMatchesGoOdu(t *testing.T) {
 	cassetteEnvelopes := loadCassetteEnvelopes(t, filepath.Join(repoRoot, "testdata", "cassettes", "sqlrelationships", "ifa-sql-family-delta.json"))
 	oduEnvelopes := ifa.CatalogByName()[sqlFamilyDeltaOduName].Facts
 
-	_, cassetteRows, _ := reducer.ExtractSQLRelationshipRows(cassetteEnvelopes)
-	_, oduRows, _ := reducer.ExtractSQLRelationshipRows(oduEnvelopes)
+	_, cassetteRows, _ := sqlrelationship.ExtractSQLRelationshipRows(cassetteEnvelopes)
+	_, oduRows, _ := sqlrelationship.ExtractSQLRelationshipRows(oduEnvelopes)
 
 	cassetteSet := sqlRelationshipEdgeSet(sqlRelationshipRowsToExpectedEdges(cassetteRows))
 	oduSet := sqlRelationshipEdgeSet(sqlRelationshipRowsToExpectedEdges(oduRows))

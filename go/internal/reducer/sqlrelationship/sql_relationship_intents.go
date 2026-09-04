@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package reducer
+package sqlrelationship
 
 import (
 	"crypto/sha256"
@@ -11,14 +11,17 @@ import (
 	"time"
 )
 
-// sqlRelationshipPartitionKeyVersion namespaces every sql_relationships partition
-// key so a future key-shape change can run alongside the old one without
-// colliding. It mirrors inheritance.PartitionKeyVersion (#2868).
-const sqlRelationshipPartitionKeyVersion = "sql-relationships:v1"
+// PartitionKeyVersion namespaces every sql_relationships partition key so a
+// future key-shape change can run alongside the old one without colliding. It
+// mirrors inheritance.PartitionKeyVersion (#2868). Exported so the reducer
+// root's cross-family partition-convergence proof
+// (sql_relationship_partition_convergence_test.go) can assert on the
+// file-scoped key prefix.
+const PartitionKeyVersion = "sql-relationships:v1"
 
-// sqlRelationshipFilePartitionKey returns the file-scoped partition key for a
-// single SQL relationship edge. It is unique per edge, not merely per file: the
-// generic ProcessPartitionOnce selection deduplicates rows by (acceptance key,
+// FilePartitionKey returns the file-scoped partition key for a single SQL
+// relationship edge. It is unique per edge, not merely per file: the generic
+// ProcessPartitionOnce selection deduplicates rows by (acceptance key,
 // partition key) via LatestIntentsByRepoAndPartition, so two edges that shared
 // one partition key would collapse and one edge would be silently dropped. The
 // key therefore hashes the repo, the edge's source-file path, and the edge
@@ -27,8 +30,11 @@ const sqlRelationshipPartitionKeyVersion = "sql-relationships:v1"
 // the value reads as file-scoped while the edge identity makes it collision-free.
 // Hashing spreads a repo's edges across the partition ring so distinct edges
 // project concurrently, and the repo is mixed in first so two repos never
-// collide (#2868).
-func sqlRelationshipFilePartitionKey(repoID, sourcePath, edgeIdentity string) string {
+// collide (#2868). Exported for the same cross-family reuse reason as
+// DeltaScope: the reducer root's generic refresh-fence redelivery proof
+// (shared_projection_worker_refresh_redelivery_test.go) builds SQL-relationship-
+// shaped fixtures through it.
+func FilePartitionKey(repoID, sourcePath, edgeIdentity string) string {
 	repoID = strings.TrimSpace(repoID)
 	hash := sha256.New()
 	hash.Write([]byte(repoID))
@@ -37,25 +43,26 @@ func sqlRelationshipFilePartitionKey(repoID, sourcePath, edgeIdentity string) st
 	hash.Write([]byte{0})
 	hash.Write([]byte(strings.TrimSpace(edgeIdentity)))
 	digest := hash.Sum(nil)
-	return sqlRelationshipPartitionKeyVersion + ":files:" + repoID + ":" + hex.EncodeToString(digest)
+	return PartitionKeyVersion + ":files:" + repoID + ":" + hex.EncodeToString(digest)
 }
 
-// sqlRelationshipWholeScopePartitionKey returns the whole-scope partition key the
-// per-repo refresh intent is emitted under. It MUST equal the key the #2898
-// refresh fence reconstructs (repoWideRetractRefreshPartitionKey), because the
-// fence reads a per-edge row's repo and rebuilds this exact key to check whether
-// the owning refresh has committed. Emitting the refresh under any other key
-// would make the fence miss it and defer every cross-partition edge forever, so
-// this delegates to the shared helper rather than minting an SQL-only key
-// (#2868/#2898). A whole-scope key hashes to exactly one partition, so the repo's
-// single retract is owned by one partition lease and cannot race itself.
-func sqlRelationshipWholeScopePartitionKey(repoID string) string {
+// WholeScopePartitionKey returns the whole-scope partition key the per-repo
+// refresh intent is emitted under. It MUST equal the key the #2898 refresh
+// fence reconstructs (repoWideRetractRefreshPartitionKey), because the fence
+// reads a per-edge row's repo and rebuilds this exact key to check whether the
+// owning refresh has committed. Emitting the refresh under any other key would
+// make the fence miss it and defer every cross-partition edge forever, so this
+// delegates to the shared helper rather than minting an SQL-only key
+// (#2868/#2898). A whole-scope key hashes to exactly one partition, so the
+// repo's single retract is owned by one partition lease and cannot race
+// itself.
+func WholeScopePartitionKey(repoID string) string {
 	return repoWideRetractRefreshPartitionKey(DomainSQLRelationships, repoID)
 }
 
-// buildSQLRelationshipSharedIntentRows promotes extracted SQL relationship edge
-// rows to durable shared-projection intents with file-scoped partition keys,
-// reusing the #2898 refresh-fence mechanism (#2868).
+// BuildSharedIntentRows promotes extracted SQL relationship edge rows to
+// durable shared-projection intents with file-scoped partition keys, reusing
+// the #2898 refresh-fence mechanism (#2868).
 //
 // For each repository that has a projection context it emits exactly one
 // whole-scope refresh intent. That refresh owns the domain's single retract:
@@ -71,9 +78,9 @@ func sqlRelationshipWholeScopePartitionKey(repoID string) string {
 // distinct and same-file edges (including the EXECUTES trigger->routine edge) do
 // not collapse. Rows whose repo has no projection context are skipped: without an
 // acceptance identity they cannot be fenced or freshness-gated.
-func buildSQLRelationshipSharedIntentRows(
+func BuildSharedIntentRows(
 	edgeRows []map[string]any,
-	deltaScope sqlRelationshipDeltaScope,
+	deltaScope DeltaScope,
 	repoIDs []string,
 	contextByRepoID map[string]ProjectionContext,
 	createdAt time.Time,
@@ -83,7 +90,7 @@ func buildSQLRelationshipSharedIntentRows(
 	}
 
 	intents := make([]SharedProjectionIntentRow, 0, len(repoIDs)+len(edgeRows))
-	intents = append(intents, buildSQLRelationshipRefreshIntents(deltaScope, repoIDs, contextByRepoID, createdAt)...)
+	intents = append(intents, BuildRefreshIntents(deltaScope, repoIDs, contextByRepoID, createdAt)...)
 
 	for _, row := range edgeRows {
 		repoID := anyToString(row["repo_id"])
@@ -99,7 +106,7 @@ func buildSQLRelationshipSharedIntentRows(
 
 		intents = append(intents, BuildSharedProjectionIntent(SharedProjectionIntentInput{
 			ProjectionDomain: DomainSQLRelationships,
-			PartitionKey:     sqlRelationshipFilePartitionKey(repoID, sourcePath, edgeIdentity),
+			PartitionKey:     FilePartitionKey(repoID, sourcePath, edgeIdentity),
 			IdentityKey:      edgeIdentity,
 			ScopeID:          context.ScopeID,
 			AcceptanceUnitID: context.ResolveAcceptanceUnitID(repoID),
@@ -120,13 +127,17 @@ func buildSQLRelationshipSharedIntentRows(
 	return intents
 }
 
-// buildSQLRelationshipRefreshIntents emits one whole-scope refresh intent per
-// repository that has a projection context. A repository on a DELTA generation
-// carries the delta scope so the worker issues the file-scoped retract; one on
-// a full generation carries none, so the worker issues the repo-wide retract. Repos are sorted so
-// emission is deterministic (#2868/#2898).
-func buildSQLRelationshipRefreshIntents(
-	deltaScope sqlRelationshipDeltaScope,
+// BuildRefreshIntents emits one whole-scope refresh intent per repository
+// that has a projection context. A repository on a DELTA generation carries
+// the delta scope so the worker issues the file-scoped retract; one on a full
+// generation carries none, so the worker issues the repo-wide retract. Repos
+// are sorted so emission is deterministic (#2868/#2898). Exported for the
+// same cross-family reuse reason as DeltaScope: the reducer root's sibling
+// refresh-intent delta gate (sibling_edge_intent_delta_gate_test.go) drives
+// both this family's and shell_exec's refresh-intent builders through one
+// table.
+func BuildRefreshIntents(
+	deltaScope DeltaScope,
 	repoIDs []string,
 	contextByRepoID map[string]ProjectionContext,
 	createdAt time.Time,
@@ -134,7 +145,7 @@ func buildSQLRelationshipRefreshIntents(
 	sorted := append([]string(nil), repoIDs...)
 	sort.Strings(sorted)
 
-	deltaRepositoryIDs := deltaScopeRepositorySet(deltaScope.repositoryIDs)
+	deltaRepositoryIDs := deltaScopeRepositorySet(deltaScope.RepositoryIDs)
 	intents := make([]SharedProjectionIntentRow, 0, len(sorted))
 	for _, repoID := range sorted {
 		context, ok := contextByRepoID[repoID]
@@ -145,16 +156,16 @@ func buildSQLRelationshipRefreshIntents(
 			"repo_id":         repoID,
 			"intent_type":     RepoRefreshIntentType,
 			"action":          repoRefreshAction,
-			"evidence_source": sqlRelationshipEvidenceSource,
+			"evidence_source": EvidenceSource,
 		}
 		// Delta scoping is per repository and fails closed on an unusable
 		// delta; applyRepoRefreshDeltaScope (shared_payload_delta_compat.go)
 		// carries the full rule and why the two obvious alternatives lose
 		// edges (#6216).
-		applyRepoRefreshDeltaScope(payload, repoID, deltaRepositoryIDs, deltaScope.filePathsByRepoID)
+		applyRepoRefreshDeltaScope(payload, repoID, deltaRepositoryIDs, deltaScope.FilePathsByRepoID)
 		intents = append(intents, BuildSharedProjectionIntent(SharedProjectionIntentInput{
 			ProjectionDomain: DomainSQLRelationships,
-			PartitionKey:     sqlRelationshipWholeScopePartitionKey(repoID),
+			PartitionKey:     WholeScopePartitionKey(repoID),
 			ScopeID:          context.ScopeID,
 			AcceptanceUnitID: context.ResolveAcceptanceUnitID(repoID),
 			RepositoryID:     repoID,

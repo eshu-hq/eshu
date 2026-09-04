@@ -11,7 +11,20 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/reducer/schemadecode"
+	"github.com/eshu-hq/eshu/go/internal/reducer/sqlrelationship"
 )
+
+// This test proves the promoted, partitioned SQL relationship materialization
+// path converges to the same edge set as the legacy direct-write path. It
+// stays in the reducer root rather than moving into sqlrelationship
+// (issue #6061) because it drives the generic shared-projection worker
+// (ProcessPartitionOnce, PartitionProcessorConfig, and their lease/reader/
+// readiness dependencies), which is genuine root-owned infrastructure shared
+// by every domain family and has not moved out of root yet — mirroring
+// inherits_edge_partition_convergence_test.go's identical reasoning for the
+// inheritance family. The pure extraction/intent-building logic it drives is
+// the sqlrelationship package's own exported surface.
 
 // sqlRelationshipStateModelingEdgeWriter models the canonical SQL relationship
 // edge STATE the way the real edge writer dispatch does (edge_writer_sql.go,
@@ -145,7 +158,7 @@ func sqlRelationshipFenceConfig(partitionID, partitionCount int) PartitionProces
 		LeaseOwner:     "worker-1",
 		LeaseTTL:       30 * time.Second,
 		BatchLimit:     100,
-		EvidenceSource: sqlRelationshipEvidenceSource,
+		EvidenceSource: sqlrelationship.EvidenceSource,
 	}
 }
 
@@ -219,7 +232,7 @@ func sqlRelationshipConvergenceFixture(repoID, repoPath string, delta bool, chan
 // returns the seeded edge writer.
 func seedPriorSQLRelationshipEdges(rows []map[string]any) *sqlRelationshipStateModelingEdgeWriter {
 	edges := newSQLRelationshipStateModelingEdgeWriter()
-	_, _ = edges.WriteEdges(context.Background(), DomainSQLRelationships, sqlRelationshipDirectWriteRows(rows), sqlRelationshipEvidenceSource)
+	_, _ = edges.WriteEdges(context.Background(), DomainSQLRelationships, sqlRelationshipDirectWriteRows(rows), sqlrelationship.EvidenceSource)
 	return edges
 }
 
@@ -252,27 +265,27 @@ func TestSQLRelationshipPartitionConvergesFullReprojection(t *testing.T) {
 	const repoPath = "/repo"
 
 	envelopes := sqlRelationshipConvergenceFixture(repoID, repoPath, false, nil)
-	repoIDs, rows, _ := ExtractSQLRelationshipRows(envelopes)
-	deltaScope := buildSQLRelationshipDeltaScope(envelopes)
-	contextByRepoID := buildCodeCallProjectionContexts(envelopes, "gen-1")
+	repoIDs, rows, _ := sqlrelationship.ExtractSQLRelationshipRows(envelopes)
+	deltaScope := sqlrelationship.BuildDeltaScope(envelopes)
+	contextByRepoID := schemadecode.BuildProjectionContexts(envelopes, "gen-1")
 
 	// DIRECT path: seed prior edges, then retract + write.
 	direct := seedPriorSQLRelationshipEdges(rows)
 	if err := direct.RetractEdges(
 		context.Background(), DomainSQLRelationships,
-		buildSQLRelationshipRetractRows(repoIDs, deltaScope), sqlRelationshipEvidenceSource,
+		sqlrelationship.BuildRetractRows(repoIDs, deltaScope), sqlrelationship.EvidenceSource,
 	); err != nil {
 		t.Fatalf("direct retract: %v", err)
 	}
 	if _, err := direct.WriteEdges(
 		context.Background(), DomainSQLRelationships,
-		sqlRelationshipDirectWriteRows(rows), sqlRelationshipEvidenceSource,
+		sqlRelationshipDirectWriteRows(rows), sqlrelationship.EvidenceSource,
 	); err != nil {
 		t.Fatalf("direct write: %v", err)
 	}
 
 	// PARTITIONED path: seed the SAME prior edges, emit shared intents, drain.
-	intents := buildSQLRelationshipSharedIntentRows(rows, deltaScope, repoIDs, contextByRepoID, now.Add(-time.Minute))
+	intents := sqlrelationship.BuildSharedIntentRows(rows, deltaScope, repoIDs, contextByRepoID, now.Add(-time.Minute))
 	assertSQLRelationshipIntentKeyShapes(t, intents)
 
 	partitioned := seedPriorSQLRelationshipEdges(rows)
@@ -307,10 +320,10 @@ func TestSQLRelationshipPartitionConvergesDelta(t *testing.T) {
 	// TRIGGERS and EXECUTES edges (source = the trigger in triggers.sql) must
 	// survive in both paths.
 	envelopes := sqlRelationshipConvergenceFixture(repoID, repoPath, true, []string{"schema.sql", "views.sql"})
-	repoIDs, rows, _ := ExtractSQLRelationshipRows(envelopes)
-	deltaScope := buildSQLRelationshipDeltaScope(envelopes)
-	contextByRepoID := buildCodeCallProjectionContexts(envelopes, "gen-1")
-	if !deltaScope.hasDelta {
+	repoIDs, rows, _ := sqlrelationship.ExtractSQLRelationshipRows(envelopes)
+	deltaScope := sqlrelationship.BuildDeltaScope(envelopes)
+	contextByRepoID := schemadecode.BuildProjectionContexts(envelopes, "gen-1")
+	if !deltaScope.HasDelta {
 		t.Fatal("fixture must produce a delta scope")
 	}
 
@@ -318,19 +331,19 @@ func TestSQLRelationshipPartitionConvergesDelta(t *testing.T) {
 	direct := seedPriorSQLRelationshipEdges(rows)
 	if err := direct.RetractEdges(
 		context.Background(), DomainSQLRelationships,
-		buildSQLRelationshipRetractRows(repoIDs, deltaScope), sqlRelationshipEvidenceSource,
+		sqlrelationship.BuildRetractRows(repoIDs, deltaScope), sqlrelationship.EvidenceSource,
 	); err != nil {
 		t.Fatalf("direct retract: %v", err)
 	}
 	if _, err := direct.WriteEdges(
 		context.Background(), DomainSQLRelationships,
-		sqlRelationshipDirectWriteRows(rows), sqlRelationshipEvidenceSource,
+		sqlRelationshipDirectWriteRows(rows), sqlrelationship.EvidenceSource,
 	); err != nil {
 		t.Fatalf("direct write: %v", err)
 	}
 
 	// PARTITIONED path.
-	intents := buildSQLRelationshipSharedIntentRows(rows, deltaScope, repoIDs, contextByRepoID, now.Add(-time.Minute))
+	intents := sqlrelationship.BuildSharedIntentRows(rows, deltaScope, repoIDs, contextByRepoID, now.Add(-time.Minute))
 	assertSQLRelationshipIntentKeyShapes(t, intents)
 	partitioned := seedPriorSQLRelationshipEdges(rows)
 	partitioned = drainSQLRelationshipInto(t, partitioned, intents, partitionCount, now)
@@ -401,13 +414,13 @@ func assertSQLRelationshipIntentKeyShapes(t *testing.T, intents []SharedProjecti
 	for _, intent := range intents {
 		if isRepoRefreshRow(intent) {
 			sawRefresh = true
-			if intent.PartitionKey != sqlRelationshipWholeScopePartitionKey(intent.RepositoryID) {
+			if intent.PartitionKey != sqlrelationship.WholeScopePartitionKey(intent.RepositoryID) {
 				t.Fatalf("refresh intent partition key %q is not the whole-scope fence key", intent.PartitionKey)
 			}
 			continue
 		}
 		sawPerEdge = true
-		if !strings.HasPrefix(intent.PartitionKey, sqlRelationshipPartitionKeyVersion+":files:") {
+		if !strings.HasPrefix(intent.PartitionKey, sqlrelationship.PartitionKeyVersion+":files:") {
 			t.Fatalf("per-edge intent partition key %q lacks file-scoped prefix", intent.PartitionKey)
 		}
 		if !rowUsesRefreshFence(intent) {

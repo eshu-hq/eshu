@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package reducer
+package sqlrelationship
 
 import (
 	"bytes"
@@ -225,7 +225,7 @@ func TestSQLRelationshipHandlerEmitsIntents(t *testing.T) {
 	if got := refresh[0].ProjectionDomain; got != DomainSQLRelationships {
 		t.Fatalf("refresh domain = %q, want %q", got, DomainSQLRelationships)
 	}
-	if refresh[0].PartitionKey != sqlRelationshipWholeScopePartitionKey("repo-123") {
+	if refresh[0].PartitionKey != WholeScopePartitionKey("repo-123") {
 		t.Fatalf("refresh partition key = %q, want whole-scope key", refresh[0].PartitionKey)
 	}
 
@@ -241,7 +241,7 @@ func TestSQLRelationshipHandlerEmitsIntents(t *testing.T) {
 		if !rowUsesRefreshFence(edge) {
 			t.Fatalf("edge intent %q not marked retract_via_refresh", edge.IntentID)
 		}
-		if !strings.HasPrefix(edge.PartitionKey, sqlRelationshipPartitionKeyVersion+":files:") {
+		if !strings.HasPrefix(edge.PartitionKey, PartitionKeyVersion+":files:") {
 			t.Fatalf("edge partition key %q lacks file-scoped prefix", edge.PartitionKey)
 		}
 		gotTypes = append(gotTypes, anyToString(edge.Payload["relationship_type"]))

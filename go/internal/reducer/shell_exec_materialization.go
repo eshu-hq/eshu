@@ -14,6 +14,7 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/reducer/sqlrelationship"
 	log "github.com/eshu-hq/eshu/go/pkg/log"
 )
 
@@ -59,9 +60,13 @@ func (h ShellExecMaterializationHandler) Handle(
 		return Result{}, fmt.Errorf("load facts for shell exec materialization: %w", err)
 	}
 
-	deltaScope := buildSQLRelationshipDeltaScope(envelopes)
+	// Shell exec reuses the SQL-relationship family's delta scope and repo-ID
+	// merge rather than duplicating them: both families derive the same
+	// per-repository delta_generation/delta_relative_paths shape from the same
+	// "repository" facts (issue #6061).
+	deltaScope := sqlrelationship.BuildDeltaScope(envelopes)
 	repositoryIDs, edgeRows := ExtractShellExecRows(envelopes)
-	repositoryIDs = mergeSQLRelationshipRepositoryIDs(repositoryIDs, deltaScope.repositoryIDs)
+	repositoryIDs = sqlrelationship.MergeRepositoryIDs(repositoryIDs, deltaScope.RepositoryIDs)
 	contextByRepoID := buildCodeCallProjectionContexts(envelopes, intent.GenerationID)
 	if len(repositoryIDs) == 0 || len(contextByRepoID) == 0 {
 		return Result{
@@ -176,7 +181,7 @@ func ExtractShellExecRows(envelopes []facts.Envelope) ([]string, []map[string]an
 			continue
 		}
 		repoSet[repoID] = struct{}{}
-		functionIDs := embeddedSQLFunctionIDsByNameLine(parsedFileData)
+		functionIDs := sqlrelationship.EmbeddedSQLFunctionIDsByNameLine(parsedFileData)
 		for _, command := range mapSlice(parsedFileData["embedded_shell_commands"]) {
 			functionName := anyToString(command["function_name"])
 			functionLine := codeCallInt(command["function_line_number"])
@@ -185,7 +190,7 @@ func ExtractShellExecRows(envelopes []facts.Envelope) ([]string, []map[string]an
 			if functionName == "" || functionLine <= 0 || lineNumber <= 0 || api == "" {
 				continue
 			}
-			functionEntityID := functionIDs[embeddedSQLFunctionKey(functionName, functionLine)]
+			functionEntityID := functionIDs[sqlrelationship.EmbeddedSQLFunctionKey(functionName, functionLine)]
 			if functionEntityID == "" {
 				continue
 			}

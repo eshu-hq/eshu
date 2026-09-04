@@ -212,9 +212,9 @@ jobs:
               - 'go/internal/reducer/**'
               - 'go/internal/reducer/materialized_edge_families.go'
               - 'go/internal/reducer/shared_projection.go'
-              - 'go/internal/reducer/sql_relationship_materialization.go'
-              - 'go/internal/reducer/sql_relationship_embedded_query.go'
-              - 'go/internal/reducer/sql_relationship_metadata.go'
+              - 'go/internal/reducer/sqlrelationship/sql_relationship_materialization.go'
+              - 'go/internal/reducer/sqlrelationship/sql_relationship_embedded_query.go'
+              - 'go/internal/reducer/sqlrelationship/sql_relationship_metadata.go'
               # The whole cypher package, mirroring the registry trigger
               # (#6181). The direct-family drift guard this gate runs parses
               # every non-test file in that package and follows each reducer

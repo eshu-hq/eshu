@@ -9,6 +9,8 @@ import (
 	"sort"
 	"strings"
 	"time"
+
+	"github.com/eshu-hq/eshu/go/internal/reducer/sqlrelationship"
 )
 
 const shellExecPartitionKeyVersion = "shell-exec:v1"
@@ -30,7 +32,7 @@ func shellExecWholeScopePartitionKey(repoID string) string {
 
 func buildShellExecSharedIntentRows(
 	edgeRows []map[string]any,
-	deltaScope sqlRelationshipDeltaScope,
+	deltaScope sqlrelationship.DeltaScope,
 	repoIDs []string,
 	contextByRepoID map[string]ProjectionContext,
 	createdAt time.Time,
@@ -78,7 +80,7 @@ func buildShellExecSharedIntentRows(
 }
 
 func buildShellExecRefreshIntents(
-	deltaScope sqlRelationshipDeltaScope,
+	deltaScope sqlrelationship.DeltaScope,
 	repoIDs []string,
 	contextByRepoID map[string]ProjectionContext,
 	createdAt time.Time,
@@ -86,7 +88,7 @@ func buildShellExecRefreshIntents(
 	sorted := append([]string(nil), repoIDs...)
 	sort.Strings(sorted)
 
-	deltaRepositoryIDs := deltaScopeRepositorySet(deltaScope.repositoryIDs)
+	deltaRepositoryIDs := deltaScopeRepositorySet(deltaScope.RepositoryIDs)
 	intents := make([]SharedProjectionIntentRow, 0, len(sorted))
 	for _, repoID := range sorted {
 		context, ok := contextByRepoID[repoID]
@@ -103,7 +105,7 @@ func buildShellExecRefreshIntents(
 		// delta; applyRepoRefreshDeltaScope (shared_payload_delta_compat.go)
 		// carries the full rule and why the two obvious alternatives lose
 		// edges (#6216).
-		applyRepoRefreshDeltaScope(payload, repoID, deltaRepositoryIDs, deltaScope.filePathsByRepoID)
+		applyRepoRefreshDeltaScope(payload, repoID, deltaRepositoryIDs, deltaScope.FilePathsByRepoID)
 		intents = append(intents, BuildSharedProjectionIntent(SharedProjectionIntentInput{
 			ProjectionDomain: DomainShellExec,
 			PartitionKey:     shellExecWholeScopePartitionKey(repoID),

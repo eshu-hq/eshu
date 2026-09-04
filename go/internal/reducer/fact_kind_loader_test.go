@@ -14,6 +14,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/facts"
 	"github.com/eshu-hq/eshu/go/internal/reducer/inheritance"
 	"github.com/eshu-hq/eshu/go/internal/reducer/semanticentity"
+	"github.com/eshu-hq/eshu/go/internal/reducer/sqlrelationship"
 )
 
 func TestSQLRelationshipHandlerUsesKindFilteredFactLoader(t *testing.T) {
@@ -36,7 +37,7 @@ func TestSQLRelationshipHandlerUsesKindFilteredFactLoader(t *testing.T) {
 		},
 	}
 	writer := &recordingSQLRelationshipIntentWriter{}
-	handler := SQLRelationshipMaterializationHandler{
+	handler := sqlrelationship.SQLRelationshipMaterializationHandler{
 		FactLoader:   loader,
 		IntentWriter: writer,
 	}

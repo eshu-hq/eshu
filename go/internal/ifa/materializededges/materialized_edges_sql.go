@@ -15,7 +15,7 @@ import (
 	"strings"
 
 	"github.com/eshu-hq/eshu/go/internal/ifa"
-	"github.com/eshu-hq/eshu/go/internal/reducer"
+	"github.com/eshu-hq/eshu/go/internal/reducer/sqlrelationship"
 	"github.com/eshu-hq/eshu/go/internal/storage/cypher"
 )
 
@@ -189,7 +189,7 @@ func sqlRelationshipEdgeSet(edges []sqlRelationshipExpectedEdge) map[string]stru
 	return out
 }
 
-// sqlRelationshipRowsToExpectedEdges adapts reducer.ExtractSQLRelationshipRows's
+// sqlRelationshipRowsToExpectedEdges adapts sqlrelationship.ExtractSQLRelationshipRows's
 // []map[string]any row shape into the same typed identity triple the
 // hand-derived expected set uses, so both sides compare through one shared
 // set-equality helper.
@@ -225,7 +225,7 @@ func anyToStringValue(v any) string {
 //     registry-driven exhaustiveness half: an 8th writer type added later
 //     with no matching expected-set entry flips this red.
 //  3. Running odu's own facts through the pure, backend-free
-//     reducer.ExtractSQLRelationshipRows seam reproduces the expected set
+//     sqlrelationship.ExtractSQLRelationshipRows seam reproduces the expected set
 //     EXACTLY (same count, same identity triples) — the vacuity half: a
 //     fixture that merely LOOKS right (right Odù name bound) but whose facts
 //     don't actually derive the claimed edges cannot pass.
@@ -240,7 +240,7 @@ func resolveSQLRelationshipMaterializedEdges(odu ifa.Odu, expectedEdgesPath stri
 		return false, fmt.Sprintf("odù %q: expected-edge-set %s does not cover every registry edge type, missing: %v", odu.Name, expectedEdgesPath, missingTypes)
 	}
 
-	_, rows, _ := reducer.ExtractSQLRelationshipRows(odu.Facts)
+	_, rows, _ := sqlrelationship.ExtractSQLRelationshipRows(odu.Facts)
 	actual := sqlRelationshipRowsToExpectedEdges(rows)
 	if mismatch := compareSQLRelationshipExpectedSets(odu.Name, expected, actual); mismatch != "" {
 		return false, mismatch
@@ -267,8 +267,8 @@ func resolveSQLRelationshipDeltaMaterializedEdges(
 		return false, fmt.Sprintf("odù %q: delta-live expected-edge-set %s does not cover every registry edge type, missing: %v", delta.Name, expectedEdgesPath, missingTypes)
 	}
 
-	_, baselineRows, _ := reducer.ExtractSQLRelationshipRows(baseline.Facts)
-	_, deltaRows, _ := reducer.ExtractSQLRelationshipRows(delta.Facts)
+	_, baselineRows, _ := sqlrelationship.ExtractSQLRelationshipRows(baseline.Facts)
+	_, deltaRows, _ := sqlrelationship.ExtractSQLRelationshipRows(delta.Facts)
 	changedPaths := sqlRelationshipDeltaRelativePaths(delta)
 	if len(changedPaths) == 0 {
 		return false, fmt.Sprintf("odù %q: repository fact identifies no delta_relative_paths", delta.Name)

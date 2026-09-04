@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package reducer
+package sqlrelationship
 
 import (
 	"sort"
@@ -71,7 +71,7 @@ func embeddedSQLQuerySources(envelopes []facts.Envelope) []sqlEmbeddedQuerySourc
 		if sourcePath == "" {
 			continue
 		}
-		functionIDs := embeddedSQLFunctionIDsByNameLine(parsedFileData)
+		functionIDs := EmbeddedSQLFunctionIDsByNameLine(parsedFileData)
 		for _, query := range mapSlice(parsedFileData["embedded_sql_queries"]) {
 			functionName := anyToString(query["function_name"])
 			functionLine := codeCallInt(query["function_line_number"])
@@ -79,7 +79,7 @@ func embeddedSQLQuerySources(envelopes []facts.Envelope) []sqlEmbeddedQuerySourc
 			if repoID == "" || functionName == "" || functionLine <= 0 || tableName == "" {
 				continue
 			}
-			functionEntityID := functionIDs[embeddedSQLFunctionKey(functionName, functionLine)]
+			functionEntityID := functionIDs[EmbeddedSQLFunctionKey(functionName, functionLine)]
 			if functionEntityID == "" {
 				continue
 			}
@@ -100,7 +100,14 @@ func embeddedSQLQuerySources(envelopes []facts.Envelope) []sqlEmbeddedQuerySourc
 	return sources
 }
 
-func embeddedSQLFunctionIDsByNameLine(parsedFileData map[string]any) map[string]string {
+// EmbeddedSQLFunctionIDsByNameLine indexes parsedFileData's "functions" entries
+// by (name, line) so a per-file embedded-code scanner can resolve the entity ID
+// of the enclosing function for one embedded_line-carrying record. Exported
+// (rather than kept package-private, as most of this file's helpers are)
+// because the shell_exec family, which has not moved out of the reducer root
+// yet, resolves its own embedded_shell_commands records through this exact
+// same name+line index (shell_exec_materialization.go, issue #6061).
+func EmbeddedSQLFunctionIDsByNameLine(parsedFileData map[string]any) map[string]string {
 	out := make(map[string]string)
 	for _, fn := range mapSlice(parsedFileData["functions"]) {
 		name := anyToString(fn["name"])
@@ -109,11 +116,14 @@ func embeddedSQLFunctionIDsByNameLine(parsedFileData map[string]any) map[string]
 		if name == "" || line <= 0 || entityID == "" {
 			continue
 		}
-		out[embeddedSQLFunctionKey(name, line)] = entityID
+		out[EmbeddedSQLFunctionKey(name, line)] = entityID
 	}
 	return out
 }
 
-func embeddedSQLFunctionKey(name string, line int) string {
+// EmbeddedSQLFunctionKey builds the (name, line) index key
+// EmbeddedSQLFunctionIDsByNameLine uses. Exported for the same cross-family
+// reuse reason as EmbeddedSQLFunctionIDsByNameLine.
+func EmbeddedSQLFunctionKey(name string, line int) string {
 	return name + "\x00" + anyToString(line)
 }
