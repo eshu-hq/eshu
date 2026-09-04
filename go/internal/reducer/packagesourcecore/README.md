@@ -74,9 +74,12 @@ The reducer root keeps `type packageSourceHint = packagesourcecore.Hint` and
 at the end of `package_source_correlation.go` (not a separate compat file:
 that file was already at 199 lines pre-extraction, well under the 500-line
 cap, and adding a new root `.go` file would have grown
-`internal/reducer`'s dirgate-pinned non-test file count past its grandfathered
-519 -- the ratchet only allows that row to move down or be removed, never
-up), so the root call sites across `package_consumption_correlation.go`,
+`internal/reducer`'s dirgate-pinned non-test file count past the
+`internal/reducer` row's current grandfathered ceiling in
+`scripts/lib/dirgate-grandfather.tsv` -- the ratchet only allows that row to
+move down or be removed, never up (see `bash scripts/verify-dirgate.sh
+--digest internal/reducer` for the live count/digest)), so the root call
+sites across `package_consumption_correlation.go`,
 `package_publication_correlation.go`, `container_image_identity_provenance.go`,
 `container_image_identity_slsa.go`, and `supply_chain_impact_python_reachability.go`
 are unchanged. Those forwarders are transitional and are deleted as their

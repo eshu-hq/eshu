@@ -89,7 +89,7 @@ from historical telemetry values.
 1. Outcomes include `exact`, `derived`, `ambiguous`, `unresolved`, `stale`, and
    `rejected`. — the six-outcome contract, identical to
    `ServiceCatalogCorrelationOutcome` in
-   `go/internal/reducer/service_catalog_correlation.go`.
+   `go/internal/reducer/servicecatalog/service_catalog_correlation.go`.
 2. Title-only, raw metric-name-only, high-cardinality, stale, or unsafe signals
    are **suppressed** (kept as `rejected`/`unresolved`, never promoted to truth).
 3. API/MCP surfaces can answer whether a service has dashboards, monitors, scrape

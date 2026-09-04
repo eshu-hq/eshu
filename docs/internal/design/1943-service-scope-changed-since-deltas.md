@@ -121,7 +121,7 @@ appears only as:
 
 A service is a **reducer-materialized correlation**: the
 `service_catalog_correlation` reducer
-(`go/internal/reducer/service_catalog_correlation.go`,
+(`go/internal/reducer/servicecatalog/service_catalog_correlation.go`,
 `service_catalog_correlation_writer.go`) and the kubernetes / supply-chain /
 incident / observability correlators read source facts from many scopes and
 project a correlated service identity into the graph and into reducer-owned
@@ -177,7 +177,8 @@ service_catalog_correlation:<scope_id>:<generation_id>:<provider>:<entity_ref>
 ```
 
 (see `serviceCatalogCorrelationStableFactKey` in
-`go/internal/reducer/service_catalog_correlation_writer.go`). Because the key
+`go/internal/reducer/servicecatalog/service_catalog_correlation_writer.go`).
+Because the key
 includes the generation, the *same logical correlation* gets a *new key every
 generation*. A FULL OUTER JOIN on `stable_fact_key` would classify every
 correlation as `added` in the current generation and `superseded` in the prior —

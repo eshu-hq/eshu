@@ -795,8 +795,8 @@ three are the most consequential findings in this document.
 
 | Derived key | Embeds | Consequence of a re-key |
 | --- | --- | --- |
-| `ServiceRuntimeEvidenceKey` — `runtime:<service_id>:<platform_kind>:<environment>:<workload_ref>` (`go/internal/reducer/service_materialization_runtime.go:101-103`, shape in its own doc comment at `:98-99`, built via `ServiceRuntimeEvidenceKeyFromIdentity` `:108-114`) | the WorkloadInstance id, as `WorkloadRef` (declared `:65-69`, set at `go/internal/reducer/service_runtime_instance_lookup.go:124,134`) | **Changes a durable persisted Postgres key**, and nothing retires the old row — see migration item 7. |
-| `serviceRuntimeEvidenceIdentity` (`go/internal/reducer/service_materialization_runtime.go:121-128`, joined at `:127`) | the same `WorkloadRef`, hashed into the payload at `:140` | Flips every existing row to removed-plus-added rather than unchanged. |
+| `ServiceRuntimeEvidenceKey` — `runtime:<service_id>:<platform_kind>:<environment>:<workload_ref>` (`go/internal/reducer/servicecatalog/service_materialization_runtime.go`, shape in its own doc comment, built via `ServiceRuntimeEvidenceKeyFromIdentity`) | the WorkloadInstance id, as `WorkloadRef` (declared in the same file, set at `go/internal/reducer/service_runtime_instance_lookup.go`) | **Changes a durable persisted Postgres key**, and nothing retires the old row — see migration item 7. |
+| `serviceRuntimeEvidenceIdentity` (`go/internal/reducer/servicecatalog/service_materialization_runtime.go`) | the same `WorkloadRef`, hashed into the payload | Flips every existing row to removed-plus-added rather than unchanged. |
 | The retract statement's anchor (`go/internal/reducer/workload_materializer_retract_instances.go:35-38`) | `instance_id` | Retract with the **old** ids before the new ones exist, or the statement matches nothing. Its own comment at `:21` records that instance ids are not repository-namespaced, and `:17-18` already carries a worked re-key example. |
 
 The reducer conflict-domain key at `go/internal/reducer/dependency_domain.go:101,116`
@@ -1263,10 +1263,10 @@ retracted and rebuilt rather than rewritten in place.
    place it appears — it is neither an edge write nor a parse site, so a sweep of
    the graph surfaces will not find it.
 
-   `ServiceRuntimeEvidenceKey` (`go/internal/reducer/service_materialization_runtime.go:101-103`,
-   shape stated in its own doc comment at `:98-99`) builds
+   `ServiceRuntimeEvidenceKey` (`go/internal/reducer/servicecatalog/service_materialization_runtime.go`,
+   shape stated in its own doc comment) builds
    `runtime:<service_id>:<platform_kind>:<environment>:<workload_ref>` via
-   `ServiceRuntimeEvidenceKeyFromIdentity` (`:108-114`), and `WorkloadRef` is the
+   `ServiceRuntimeEvidenceKeyFromIdentity`, and `WorkloadRef` is the
    `WorkloadInstance` id. So a re-key changes a **durable persisted key**, not an
    in-memory identity.
 
@@ -1338,8 +1338,8 @@ appears on **two** facts, both in the service-catalog schema and both consumed:
 
 | Fact | Field | Consumed at |
 | --- | --- | --- |
-| `service_catalog.repository_link` | `sdk/go/factschema/servicecatalog/v1/repository_link.go:72` | `go/internal/reducer/service_catalog_correlation_index.go:306` |
-| `service_catalog.entity` | `sdk/go/factschema/servicecatalog/v1/entity.go:60` | `go/internal/reducer/service_catalog_correlation_index.go:239` |
+| `service_catalog.repository_link` | `sdk/go/factschema/servicecatalog/v1/repository_link.go:72` | `go/internal/reducer/servicecatalog/service_catalog_correlation_index.go` |
+| `service_catalog.entity` | `sdk/go/factschema/servicecatalog/v1/entity.go:60` | `go/internal/reducer/servicecatalog/service_catalog_correlation_index.go` |
 
 Both carry the identical comment, "a provider-asserted Eshu workload id,
 mirroring ServiceID", and both reach the correlation index through
