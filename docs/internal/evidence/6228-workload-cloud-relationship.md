@@ -33,7 +33,7 @@ so a family that started emitting a different token cannot pass by having its
 fixture updated to match. Mutation W3 below proves the registry copy is
 load-bearing; W1 proves the guard literal is.
 
-## No-Regression Evidence
+## No-Regression Evidence:
 
 This change adds no Cypher, alters no query or write shape, and changes no
 runtime code path. The performance-evidence gate flags it because the gate is
@@ -70,7 +70,7 @@ Reported, not compared: the figure is recorded so a later change that makes
 this package slow has a number to regress from. Classification: `Diagnostic
 win` — no wall-clock claim is made or implied.
 
-## No-Observability-Change
+## No-Observability-Change:
 
 No metric, span, log field, or status field is added, removed, or renamed. The
 guard reports through the existing `replaycoverage` resolver return (`bool`,
