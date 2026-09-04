@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package reducer
+package securityalert
 
 import (
 	"context"
@@ -11,6 +11,8 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
+	"github.com/eshu-hq/eshu/go/internal/reducer/factwrite"
 	"github.com/eshu-hq/eshu/go/internal/reducer/payloadcore"
 	"github.com/eshu-hq/eshu/go/internal/truth"
 )
@@ -48,7 +50,7 @@ type SecurityAlertReconciliationWriter interface {
 // PostgresSecurityAlertReconciliationWriter stores provider alert
 // reconciliation decisions in the shared fact store.
 type PostgresSecurityAlertReconciliationWriter struct {
-	DB  workloadIdentityExecer
+	DB  factwrite.Execer
 	Now func() time.Time
 }
 
@@ -61,8 +63,8 @@ func (w PostgresSecurityAlertReconciliationWriter) WriteSecurityAlertReconciliat
 	if w.DB == nil {
 		return SecurityAlertReconciliationWriteResult{}, fmt.Errorf("security alert reconciliation database is required")
 	}
-	now := reducerWriterNow(w.Now)
-	rows := make([]reducerFactRow, 0, len(write.Decisions))
+	now := factwrite.Now(w.Now)
+	rows := make([]factwrite.Row, 0, len(write.Decisions))
 	for _, decision := range write.Decisions {
 		scopeID := securityAlertReconciliationWriteScopeID(write, decision)
 		generationID := securityAlertReconciliationWriteGenerationID(write, decision)
@@ -71,13 +73,13 @@ func (w PostgresSecurityAlertReconciliationWriter) WriteSecurityAlertReconciliat
 		if err != nil {
 			return SecurityAlertReconciliationWriteResult{}, fmt.Errorf("marshal security alert reconciliation payload: %w", err)
 		}
-		rows = append(rows, reducerFactRow{
+		rows = append(rows, factwrite.Row{
 			FactID:           securityAlertReconciliationFactID(write, decision),
 			ScopeID:          scopeID,
 			GenerationID:     generationID,
 			FactKind:         securityAlertReconciliationFactKind,
 			StableFactKey:    securityAlertReconciliationStableFactKey(write, decision),
-			CollectorKind:    reducerFactCollectorKind(write.SourceSystem),
+			CollectorKind:    factwrite.CollectorKind(write.SourceSystem),
 			SourceConfidence: facts.SourceConfidenceInferred,
 			SourceSystem:     write.SourceSystem,
 			SourceFactKey:    write.IntentID,
@@ -88,7 +90,7 @@ func (w PostgresSecurityAlertReconciliationWriter) WriteSecurityAlertReconciliat
 	}
 	// Bounded chunked bulk insert: decisions are upserted in O(N/batchSize)
 	// round-trips rather than one ExecContext per decision.
-	if err := reducerBatchInsertFacts(ctx, w.DB, rows); err != nil {
+	if err := factwrite.BatchInsertFacts(ctx, w.DB, rows); err != nil {
 		return SecurityAlertReconciliationWriteResult{}, fmt.Errorf("write security alert reconciliation fact: %w", err)
 	}
 	return SecurityAlertReconciliationWriteResult{
@@ -137,8 +139,8 @@ func securityAlertReconciliationIdentity(
 		),
 		"scope_id":   scopeID,
 		"package_id": strings.TrimSpace(decision.PackageID),
-		"cve_ids":    uniqueSortedStrings(decision.CVEIDs),
-		"ghsa_ids":   uniqueSortedStrings(decision.GHSAIDs),
+		"cve_ids":    payloadcore.UniqueSortedStrings(decision.CVEIDs),
+		"ghsa_ids":   payloadcore.UniqueSortedStrings(decision.GHSAIDs),
 	}
 }
 
@@ -149,7 +151,7 @@ func securityAlertReconciliationPayload(
 	scopeID := securityAlertReconciliationWriteScopeID(write, decision)
 	generationID := securityAlertReconciliationWriteGenerationID(write, decision)
 	return map[string]any{
-		"reducer_domain":         string(DomainSecurityAlertReconciliation),
+		"reducer_domain":         string(reducercontract.DomainSecurityAlertReconciliation),
 		"intent_id":              write.IntentID,
 		"scope_id":               scopeID,
 		"generation_id":          generationID,
@@ -169,8 +171,8 @@ func securityAlertReconciliationPayload(
 		"manifest_path":          decision.ManifestPath,
 		"dependency_scope":       decision.DependencyScope,
 		"relationship":           decision.Relationship,
-		"ghsa_ids":               uniqueSortedStrings(decision.GHSAIDs),
-		"cve_ids":                uniqueSortedStrings(decision.CVEIDs),
+		"ghsa_ids":               payloadcore.UniqueSortedStrings(decision.GHSAIDs),
+		"cve_ids":                payloadcore.UniqueSortedStrings(decision.CVEIDs),
 		"vulnerable_range":       decision.VulnerableRange,
 		"patched_version":        decision.PatchedVersion,
 		"observed_version":       decision.ObservedVersion,
@@ -194,16 +196,16 @@ func securityAlertReconciliationPayload(
 		"collection_truncated":          decision.CollectionTruncated,
 		"collection_pages_fetched":      decision.CollectionPagesFetched,
 		"collection_state_filter":       decision.CollectionStateFilter,
-		"collection_incomplete_reasons": uniqueSortedStrings(decision.CollectionIncompleteReasons),
+		"collection_incomplete_reasons": payloadcore.UniqueSortedStrings(decision.CollectionIncompleteReasons),
 		"reconciliation_status":         string(decision.Status),
 		"eshu_impact_status":            decision.EshuImpactStatus,
 		"eshu_impact_finding_id":        decision.EshuImpactFindingID,
 		"reason":                        decision.Reason,
 		"reason_code":                   decision.ReasonCode,
 		"missing_evidence":              decision.MissingEvidence,
-		"package_missing_evidence":      uniqueSortedStrings(decision.PackageMissingEvidence),
+		"package_missing_evidence":      payloadcore.UniqueSortedStrings(decision.PackageMissingEvidence),
 		"canonical_writes":              decision.CanonicalWrites,
-		"evidence_fact_ids":             uniqueSortedStrings(decision.EvidenceFactIDs),
+		"evidence_fact_ids":             payloadcore.UniqueSortedStrings(decision.EvidenceFactIDs),
 		"dependency_evidence_id":        decision.DependencyEvidenceID,
 		"dependency_evidence_kind":      decision.DependencyEvidenceKind,
 		"impact_evidence_id":            decision.ImpactEvidenceID,

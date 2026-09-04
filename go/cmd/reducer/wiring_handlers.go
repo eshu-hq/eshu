@@ -12,6 +12,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/reducer"
 	"github.com/eshu-hq/eshu/go/internal/reducer/eshusearch"
 	"github.com/eshu-hq/eshu/go/internal/reducer/kubernetescorrelation"
+	"github.com/eshu-hq/eshu/go/internal/reducer/securityalert"
 	"github.com/eshu-hq/eshu/go/internal/reducer/tfconfigstate"
 	"github.com/eshu-hq/eshu/go/internal/relationships/tfstatebackend"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres"
@@ -185,7 +186,7 @@ func buildReducerSupplyChainSecurityHandlers(
 		SupplyChainImpactWriter: reducer.PostgresSupplyChainImpactWriter{
 			DB: database,
 		},
-		SecurityAlertReconciliationWriter: reducer.PostgresSecurityAlertReconciliationWriter{
+		SecurityAlertReconciliationWriter: securityalert.PostgresSecurityAlertReconciliationWriter{
 			DB: database,
 		},
 		SecretsIAMTrustChainEvidenceLoader: factStore,

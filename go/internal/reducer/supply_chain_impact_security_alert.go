@@ -9,6 +9,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
 	"github.com/eshu-hq/eshu/go/internal/reducer/payloadcore"
+	"github.com/eshu-hq/eshu/go/internal/reducer/securityalert"
 )
 
 // appendSecurityAlertImpactFindings seeds supply-chain-impact findings from
@@ -31,14 +32,14 @@ func appendSecurityAlertImpactFindings(
 	envelopes []facts.Envelope,
 	index supplyChainImpactIndex,
 ) ([]SupplyChainImpactFinding, []quarantinedFact, error) {
-	alerts, quarantined, err := extractProviderSecurityAlertsWithQuarantine(envelopes)
+	alerts, quarantined, err := securityalert.ExtractProviderSecurityAlertsWithQuarantine(envelopes)
 	if err != nil {
 		return nil, nil, err
 	}
 	if len(alerts) == 0 {
 		return findings, quarantined, nil
 	}
-	consumptions := extractSecurityAlertConsumptions(envelopes)
+	consumptions := securityalert.ExtractSecurityAlertConsumptions(envelopes)
 	consumptions = append(consumptions, extractSecurityAlertManifestConsumptions(alerts, envelopes)...)
 	for _, alert := range alerts {
 		finding, ok := buildSecurityAlertImpactFinding(alert, consumptions, findings, index)
@@ -51,34 +52,34 @@ func appendSecurityAlertImpactFindings(
 }
 
 func buildSecurityAlertImpactFinding(
-	alert providerSecurityAlert,
-	consumptions []securityAlertConsumption,
+	alert securityalert.ProviderSecurityAlert,
+	consumptions []securityalert.SecurityAlertConsumption,
 	existing []SupplyChainImpactFinding,
 	index supplyChainImpactIndex,
 ) (SupplyChainImpactFinding, bool) {
 	if !securityAlertCanSeedImpact(alert) {
 		return SupplyChainImpactFinding{}, false
 	}
-	consumption, _, ambiguousConsumption := matchSecurityAlertConsumption(alert, consumptions)
-	if consumption.factID == "" || ambiguousConsumption {
+	consumption, _, ambiguousConsumption := securityalert.MatchSecurityAlertConsumption(alert, consumptions)
+	if consumption.FactID == "" || ambiguousConsumption {
 		return SupplyChainImpactFinding{}, false
 	}
-	if securityAlertImpactAlreadyExists(alert, consumption.repositoryID, existing) {
+	if securityAlertImpactAlreadyExists(alert, consumption.RepositoryID, existing) {
 		return SupplyChainImpactFinding{}, false
 	}
 
-	observedVersion := strings.TrimSpace(consumption.observedVersion)
+	observedVersion := strings.TrimSpace(consumption.ObservedVersion)
 	if observedVersion == "" {
 		if manifestVersion, ok := exactConsumptionDependencyVersion(alert.Ecosystem, supplyChainPackageConsumption{
-			dependencyRange: consumption.dependencyRange,
-			lockfile:        consumption.lockfile,
+			dependencyRange: consumption.DependencyRange,
+			lockfile:        consumption.Lockfile,
 		}); ok {
 			observedVersion = manifestVersion
 		}
 	}
 	requestedRange := payloadcore.FirstNonBlank(
-		strings.TrimSpace(consumption.requestedRange),
-		strings.TrimSpace(consumption.dependencyRange),
+		strings.TrimSpace(consumption.RequestedRange),
+		strings.TrimSpace(consumption.DependencyRange),
 	)
 	pkg := supplyChainAffectedPackageFromSecurityAlert(alert)
 	decision := evaluateSupplyChainVersionMatch(
@@ -105,16 +106,16 @@ func buildSecurityAlertImpactFinding(
 		AdvisoryUpdatedAt:  strings.TrimSpace(alert.UpdatedAt),
 		FixedVersionSource: strings.TrimSpace(alert.Provider),
 		RangeSource:        strings.TrimSpace(alert.Provider),
-		RepositoryID:       consumption.repositoryID,
-		DependencyScope:    payloadcore.FirstNonBlank(strings.TrimSpace(consumption.dependencyScope), strings.TrimSpace(alert.DependencyScope)),
-		DependencyPath:     append([]string(nil), consumption.dependencyPath...),
-		DependencyDepth:    consumption.dependencyDepth,
-		DirectDependency:   cloneBoolPointer(consumption.directDependency),
+		RepositoryID:       consumption.RepositoryID,
+		DependencyScope:    payloadcore.FirstNonBlank(strings.TrimSpace(consumption.DependencyScope), strings.TrimSpace(alert.DependencyScope)),
+		DependencyPath:     append([]string(nil), consumption.DependencyPath...),
+		DependencyDepth:    consumption.DependencyDepth,
+		DirectDependency:   cloneBoolPointer(consumption.DirectDependency),
 		EvidencePath: []string{
 			facts.SecurityAlertRepositoryAlertFactKind,
 			securityAlertConsumptionEvidenceKind(consumption),
 		},
-		EvidenceFactIDs: []string{alert.ProviderAlertFactID, consumption.factID},
+		EvidenceFactIDs: []string{alert.ProviderAlertFactID, consumption.FactID},
 		CanonicalWrites: 1,
 		AdvisorySources: []AdvisorySourceObservation{{
 			Source:          strings.TrimSpace(alert.Provider),
@@ -127,14 +128,14 @@ func buildSecurityAlertImpactFinding(
 	return finding, true
 }
 
-func securityAlertConsumptionEvidenceKind(consumption securityAlertConsumption) string {
-	if strings.TrimSpace(consumption.evidenceKind) != "" {
-		return strings.TrimSpace(consumption.evidenceKind)
+func securityAlertConsumptionEvidenceKind(consumption securityalert.SecurityAlertConsumption) string {
+	if strings.TrimSpace(consumption.EvidenceKind) != "" {
+		return strings.TrimSpace(consumption.EvidenceKind)
 	}
 	return packageConsumptionCorrelationFactKind
 }
 
-func securityAlertCanSeedImpact(alert providerSecurityAlert) bool {
+func securityAlertCanSeedImpact(alert securityalert.ProviderSecurityAlert) bool {
 	switch strings.ToLower(strings.TrimSpace(alert.ProviderState)) {
 	case "dismissed", "auto_dismissed", "fixed":
 		return false
@@ -144,7 +145,7 @@ func securityAlertCanSeedImpact(alert providerSecurityAlert) bool {
 		strings.TrimSpace(securityAlertImpactAdvisoryID(alert)) != ""
 }
 
-func supplyChainAffectedPackageFromSecurityAlert(alert providerSecurityAlert) supplyChainAffectedPackage {
+func supplyChainAffectedPackageFromSecurityAlert(alert securityalert.ProviderSecurityAlert) supplyChainAffectedPackage {
 	return supplyChainAffectedPackage{
 		factID:           alert.ProviderAlertFactID,
 		cveID:            securityAlertImpactCVEID(alert),
@@ -159,7 +160,7 @@ func supplyChainAffectedPackageFromSecurityAlert(alert providerSecurityAlert) su
 }
 
 func securityAlertImpactAlreadyExists(
-	alert providerSecurityAlert,
+	alert securityalert.ProviderSecurityAlert,
 	repositoryID string,
 	findings []SupplyChainImpactFinding,
 ) bool {
@@ -167,19 +168,19 @@ func securityAlertImpactAlreadyExists(
 		if finding.RepositoryID != repositoryID || finding.PackageID != alert.PackageID {
 			continue
 		}
-		if securityAlertIDMatches(alert.CVEIDs, finding.CVEID) ||
-			securityAlertIDMatches(alert.GHSAIDs, finding.AdvisoryID) {
+		if securityalert.SecurityAlertIDMatches(alert.CVEIDs, finding.CVEID) ||
+			securityalert.SecurityAlertIDMatches(alert.GHSAIDs, finding.AdvisoryID) {
 			return true
 		}
 	}
 	return false
 }
 
-func securityAlertImpactCVEID(alert providerSecurityAlert) string {
+func securityAlertImpactCVEID(alert securityalert.ProviderSecurityAlert) string {
 	return payloadcore.FirstNonBlank(firstSecurityAlertID(alert.CVEIDs), firstSecurityAlertID(alert.GHSAIDs))
 }
 
-func securityAlertImpactAdvisoryID(alert providerSecurityAlert) string {
+func securityAlertImpactAdvisoryID(alert securityalert.ProviderSecurityAlert) string {
 	return payloadcore.FirstNonBlank(firstSecurityAlertID(alert.GHSAIDs), firstSecurityAlertID(alert.CVEIDs), alert.ProviderAlertID)
 }
 

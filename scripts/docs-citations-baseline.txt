@@ -121,7 +121,6 @@ LINE docs/internal/design/4784-reducer-derived-fact-governance.md go/internal/qu
 LINE docs/internal/design/4784-reducer-derived-fact-governance.md go/internal/query/secrets_iam_posture_stores.go:14
 LINE docs/internal/design/4784-reducer-derived-fact-governance.md go/internal/query/secrets_iam_posture_stores.go:14
 LINE docs/internal/design/4784-reducer-derived-fact-governance.md go/internal/query/secrets_iam_trust_chain.go:13
-LINE docs/internal/design/4784-reducer-derived-fact-governance.md go/internal/query/security_alert_reconciliation.go:18
 LINE docs/internal/design/4784-reducer-derived-fact-governance.md go/internal/query/supply_chain_impact_explain_runtime_test.go:298
 LINE docs/internal/design/4784-reducer-derived-fact-governance.md go/internal/query/supply_chain_impact_findings_queries.go:6
 LINE docs/internal/design/4784-reducer-derived-fact-governance.md go/internal/reducer/ci_cd_run_correlation_writer.go:17
@@ -144,7 +143,6 @@ LINE docs/internal/design/4784-reducer-derived-fact-governance.md go/internal/re
 LINE docs/internal/design/4784-reducer-derived-fact-governance.md go/internal/reducer/secrets_iam_trust_chain_writer.go:19
 LINE docs/internal/design/4784-reducer-derived-fact-governance.md go/internal/reducer/secrets_iam_trust_chain_writer.go:20
 LINE docs/internal/design/4784-reducer-derived-fact-governance.md go/internal/reducer/secrets_iam_trust_chain_writer.go:21
-LINE docs/internal/design/4784-reducer-derived-fact-governance.md go/internal/reducer/security_alert_reconciliation_writer.go:17
 LINE docs/internal/design/4784-reducer-derived-fact-governance.md go/internal/reducer/supply_chain_impact_writer.go:17
 LINE docs/internal/design/4784-reducer-derived-fact-governance.md go/internal/reducer/supply_chain_impact_writer.go:17
 LINE docs/internal/design/4784-reducer-derived-fact-governance.md go/internal/reducer/workload_identity_writer.go:17
@@ -152,7 +150,6 @@ LINE docs/internal/design/4784-reducer-derived-fact-governance.md go/internal/re
 LINE docs/internal/design/4784-reducer-derived-fact-governance.md go/internal/storage/postgres/eshu_search_document.go:19
 LINE docs/internal/design/4784-reducer-derived-fact-governance.md go/internal/storage/postgres/facts_active_package_ownership.go:41
 LINE docs/internal/design/4784-reducer-derived-fact-governance.md go/internal/storage/postgres/facts_active_package_ownership.go:41
-LINE docs/internal/design/4784-reducer-derived-fact-governance.md go/internal/storage/postgres/facts_active_security_alert_reconciliation.go:21
 LINE docs/internal/design/4784-reducer-derived-fact-governance.md go/internal/storage/postgres/facts_active_supply_chain_impact.go:47
 LINE docs/internal/design/4784-reducer-derived-fact-governance.md go/internal/storage/postgres/schema_fact_records_sbom_test.go:37
 LINE docs/internal/design/4784-reducer-derived-fact-governance.md go/internal/storage/postgres/service_incident_evidence_loader.go:17
@@ -173,7 +170,6 @@ LINE docs/internal/design/4786-contract-integration-matrix.md go/internal/collec
 LINE docs/internal/design/4786-contract-integration-matrix.md go/internal/collector/azurecloud/relationship.go:103
 LINE docs/internal/design/4786-contract-integration-matrix.md go/internal/collector/azurecloud/resource_change.go:105
 LINE docs/internal/design/4786-contract-integration-matrix.md go/internal/collector/cicdrun/envelope.go:1
-LINE docs/internal/design/4786-contract-integration-matrix.md go/internal/collector/cicdrun/envelope.go:1
 LINE docs/internal/design/4786-contract-integration-matrix.md go/internal/collector/gcpcloud/generation.go:95
 LINE docs/internal/design/4786-contract-integration-matrix.md go/internal/collector/gcpcloud/generation.go:95
 LINE docs/internal/design/4786-contract-integration-matrix.md go/internal/collector/gcpcloud/iam_policy_observation.go:98
@@ -184,7 +180,6 @@ LINE docs/internal/design/4786-contract-integration-matrix.md go/internal/collec
 LINE docs/internal/design/4786-contract-integration-matrix.md go/internal/collector/git_documentation_facts.go:412
 LINE docs/internal/design/4786-contract-integration-matrix.md go/internal/collector/git_observability_facts.go:121
 LINE docs/internal/design/4786-contract-integration-matrix.md go/internal/collector/git_observability_facts.go:121
-LINE docs/internal/design/4786-contract-integration-matrix.md go/internal/collector/jira/envelope.go:1
 LINE docs/internal/design/4786-contract-integration-matrix.md go/internal/collector/jira/envelope.go:1
 LINE docs/internal/design/4786-contract-integration-matrix.md go/internal/collector/kuberneteslive/envelope.go:1
 LINE docs/internal/design/4786-contract-integration-matrix.md go/internal/collector/kuberneteslive/envelope.go:1
@@ -200,8 +195,6 @@ LINE docs/internal/design/4786-contract-integration-matrix.md go/internal/collec
 LINE docs/internal/design/4786-contract-integration-matrix.md go/internal/collector/packageregistry/warning.go:1
 LINE docs/internal/design/4786-contract-integration-matrix.md go/internal/collector/pagerduty/config_envelope.go:19
 LINE docs/internal/design/4786-contract-integration-matrix.md go/internal/collector/pagerduty/envelope.go:17
-LINE docs/internal/design/4786-contract-integration-matrix.md go/internal/collector/pagerduty/envelope.go:17
-LINE docs/internal/design/4786-contract-integration-matrix.md go/internal/collector/sbomdocument/cyclonedx_fixture.go:85
 LINE docs/internal/design/4786-contract-integration-matrix.md go/internal/collector/sbomdocument/cyclonedx_fixture.go:85
 LINE docs/internal/design/4786-contract-integration-matrix.md go/internal/collector/scannerworker/imageanalyzer/analyzer.go:190
 LINE docs/internal/design/4786-contract-integration-matrix.md go/internal/collector/scannerworker/imageanalyzer/analyzer.go:190
@@ -211,8 +204,6 @@ LINE docs/internal/design/4786-contract-integration-matrix.md go/internal/collec
 LINE docs/internal/design/4786-contract-integration-matrix.md go/internal/collector/secretsiam/envelope.go:1
 LINE docs/internal/design/4786-contract-integration-matrix.md go/internal/collector/secretsiam/kubernetes_envelope.go:355
 LINE docs/internal/design/4786-contract-integration-matrix.md go/internal/collector/secretsiam/kubernetes_envelope.go:355
-LINE docs/internal/design/4786-contract-integration-matrix.md go/internal/collector/securityalerts/envelope.go:1
-LINE docs/internal/design/4786-contract-integration-matrix.md go/internal/collector/securityalerts/envelope.go:1
 LINE docs/internal/design/4786-contract-integration-matrix.md go/internal/collector/servicecatalog/facts_builder.go:37
 LINE docs/internal/design/4786-contract-integration-matrix.md go/internal/collector/terraformstate/pagerduty_applied.go:181
 LINE docs/internal/design/4786-contract-integration-matrix.md go/internal/collector/terraformstate/parser.go:223
@@ -264,8 +255,6 @@ LINE docs/internal/design/4786-contract-integration-matrix.md go/internal/query/
 LINE docs/internal/design/4786-contract-integration-matrix.md go/internal/query/content_reader_repository_catalog.go:80
 LINE docs/internal/design/4786-contract-integration-matrix.md go/internal/query/content_reader_repository_catalog.go:80
 LINE docs/internal/design/4786-contract-integration-matrix.md go/internal/query/content_reader_repository_catalog.go:80
-LINE docs/internal/design/4786-contract-integration-matrix.md go/internal/query/incident_context_authz_store.go:16
-LINE docs/internal/design/4786-contract-integration-matrix.md go/internal/query/incident_context_authz_store.go:16
 LINE docs/internal/design/4786-contract-integration-matrix.md go/internal/query/incident_context_decode.go:8
 LINE docs/internal/design/4786-contract-integration-matrix.md go/internal/query/incident_context_decode.go:8
 LINE docs/internal/design/4786-contract-integration-matrix.md go/internal/query/incident_context_review_store.go:302
@@ -345,8 +334,6 @@ LINE docs/internal/design/4786-contract-integration-matrix.md go/internal/reduce
 LINE docs/internal/design/4786-contract-integration-matrix.md go/internal/reducer/secrets_iam_trust_chain_writer.go:19
 LINE docs/internal/design/4786-contract-integration-matrix.md go/internal/reducer/secrets_iam_trust_chain_writer.go:20
 LINE docs/internal/design/4786-contract-integration-matrix.md go/internal/reducer/secrets_iam_trust_chain_writer.go:21
-LINE docs/internal/design/4786-contract-integration-matrix.md go/internal/reducer/security_alert_reconciliation.go:1
-LINE docs/internal/design/4786-contract-integration-matrix.md go/internal/reducer/security_alert_reconciliation_writer.go:17
 LINE docs/internal/design/4786-contract-integration-matrix.md go/internal/reducer/semantic_entity_materialization_helpers.go:14
 LINE docs/internal/design/4786-contract-integration-matrix.md go/internal/reducer/semantic_entity_materialization_helpers.go:14
 LINE docs/internal/design/4786-contract-integration-matrix.md go/internal/reducer/semantic_entity_materialization_helpers.go:14

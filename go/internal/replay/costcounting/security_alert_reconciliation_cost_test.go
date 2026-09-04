@@ -11,7 +11,7 @@ import (
 
 	"go.opentelemetry.io/otel/sdk/metric/metricdata"
 
-	"github.com/eshu-hq/eshu/go/internal/reducer"
+	"github.com/eshu-hq/eshu/go/internal/reducer/securityalert"
 )
 
 // securityAlertReconciliationBudgetRelPath is the committed cost budget for
@@ -33,9 +33,9 @@ const securityAlertReconciliationCostIntentID = "intent-security-alert-reconcili
 // reducerBatchInsertFacts bounded chunked bulk insert (issue #5317), so two
 // decisions fit in one 1000-row chunk and cost exactly one ExecContext
 // round-trip.
-func securityAlertReconciliationFixtureDecisions() []reducer.SecurityAlertReconciliationDecision {
-	row := func(id string) reducer.SecurityAlertReconciliationDecision {
-		return reducer.SecurityAlertReconciliationDecision{
+func securityAlertReconciliationFixtureDecisions() []securityalert.SecurityAlertReconciliationDecision {
+	row := func(id string) securityalert.SecurityAlertReconciliationDecision {
+		return securityalert.SecurityAlertReconciliationDecision{
 			Provider:             "github_dependabot",
 			ProviderAlertID:      "alert-" + id,
 			ProviderAlertNumber:  1,
@@ -45,11 +45,11 @@ func securityAlertReconciliationFixtureDecisions() []reducer.SecurityAlertReconc
 			Ecosystem:            "npm",
 			PackageName:          "left-pad",
 			CVEIDs:               []string{"CVE-2026-" + id},
-			Status:               reducer.SecurityAlertReconciliationMatched,
+			Status:               securityalert.SecurityAlertReconciliationMatched,
 			ObservedVersion:      "1.0." + id,
 		}
 	}
-	return []reducer.SecurityAlertReconciliationDecision{row("1"), row("2")}
+	return []securityalert.SecurityAlertReconciliationDecision{row("1"), row("2")}
 }
 
 // TestCostBudget_SecurityAlertReconciliation is the positive cost-counting
@@ -73,12 +73,12 @@ func TestCostBudget_SecurityAlertReconciliation(t *testing.T) {
 	budget := loadBudgetFrom(t, securityAlertReconciliationBudgetRelPath)
 	fake := &countingExecQueryer{}
 	db, reader := newInstrumentedReducerDB(t, fake)
-	writer := reducer.PostgresSecurityAlertReconciliationWriter{
+	writer := securityalert.PostgresSecurityAlertReconciliationWriter{
 		DB:  db,
 		Now: func() time.Time { return time.Date(2026, time.July, 12, 12, 0, 0, 0, time.UTC) },
 	}
 
-	result, err := writer.WriteSecurityAlertReconciliations(context.Background(), reducer.SecurityAlertReconciliationWrite{
+	result, err := writer.WriteSecurityAlertReconciliations(context.Background(), securityalert.SecurityAlertReconciliationWrite{
 		IntentID:     securityAlertReconciliationCostIntentID,
 		ScopeID:      "repo:team-api",
 		GenerationID: "generation-security-alert-reconciliation-cost",
@@ -154,19 +154,19 @@ func TestCostBudget_SecurityAlertReconciliation_N1_ExceedsBudget(t *testing.T) {
 
 	fake := &countingExecQueryer{}
 	db, reader := newInstrumentedReducerDB(t, fake)
-	writer := reducer.PostgresSecurityAlertReconciliationWriter{
+	writer := securityalert.PostgresSecurityAlertReconciliationWriter{
 		DB:  db,
 		Now: func() time.Time { return time.Date(2026, time.July, 12, 12, 0, 0, 0, time.UTC) },
 	}
 
 	for _, decision := range decisions {
-		if _, err := writer.WriteSecurityAlertReconciliations(context.Background(), reducer.SecurityAlertReconciliationWrite{
+		if _, err := writer.WriteSecurityAlertReconciliations(context.Background(), securityalert.SecurityAlertReconciliationWrite{
 			IntentID:     securityAlertReconciliationCostIntentID,
 			ScopeID:      "repo:team-api",
 			GenerationID: "generation-security-alert-reconciliation-cost",
 			SourceSystem: "github_dependabot",
 			Cause:        "reducer/security_alert_reconciliation",
-			Decisions:    []reducer.SecurityAlertReconciliationDecision{decision},
+			Decisions:    []securityalert.SecurityAlertReconciliationDecision{decision},
 		}); err != nil {
 			t.Fatalf("N+1 WriteSecurityAlertReconciliations() error = %v", err)
 		}

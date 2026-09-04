@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package reducer
+package securityalert
 
 import (
 	"strings"
@@ -42,7 +42,7 @@ func securityAlertMissingEvidence(
 }
 
 func securityAlertUnsupportedTriage(
-	alert providerSecurityAlert,
+	alert ProviderSecurityAlert,
 ) (SecurityAlertReconciliationStatus, string, []SecurityAlertReconciliationMissingEvidence, bool) {
 	ecosystem := normalizedSecurityAlertEcosystem(alert.Ecosystem)
 	if ecosystem == "" {

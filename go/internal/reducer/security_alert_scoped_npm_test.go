@@ -9,7 +9,14 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/reducer/securityalert"
 )
+
+// This file stayed in the reducer root for the same reason as
+// security_alert_reconciliation_lockfile_test.go: real manifest/lockfile
+// matching (issue #6061), plus one test here (below) that exercises
+// BuildSupplyChainImpactFindings directly, which is supply_chain's own root
+// entry point.
 
 func TestBuildSecurityAlertReconciliationsUsesScopedNpmLockfileEvidence(t *testing.T) {
 	t.Parallel()
@@ -52,9 +59,11 @@ func TestBuildSecurityAlertReconciliationsUsesScopedNpmLockfileEvidence(t *testi
 		supplyChainImpactFindingEnvelope("impact-scoped-lockfile", repoID, packageID, "CVE-2026-1585", "affected_exact"),
 	}
 
-	decisions := securityAlertDecisionsByFactID(BuildSecurityAlertReconciliations(envelopes))
+	decisions := securityAlertDecisionsByFactID(
+		securityalert.BuildSecurityAlertReconciliations(envelopes, extractSecurityAlertManifestConsumptions),
+	)
 	decision := decisions["alert-scoped-lockfile"]
-	if got, want := decision.Status, SecurityAlertReconciliationMatched; got != want {
+	if got, want := decision.Status, securityalert.SecurityAlertReconciliationMatched; got != want {
 		t.Fatalf("Status = %q, want %q; reason=%q", got, want, decision.Reason)
 	}
 	if got, want := decision.ObservedVersion, "2.4.1"; got != want {
@@ -72,7 +81,7 @@ func TestBuildSecurityAlertReconciliationsKeepsScopedNpmProviderOnlyWithoutOwned
 	t.Parallel()
 
 	repoID := "repo://github/acme/api"
-	decisions := securityAlertDecisionsByFactID(BuildSecurityAlertReconciliations([]facts.Envelope{
+	decisions := securityAlertDecisionsByFactID(securityalert.BuildSecurityAlertReconciliations([]facts.Envelope{
 		securityAlertEnvelope("alert-scoped-provider-only", repoID, map[string]any{
 			"provider":              "github_dependabot",
 			"provider_alert_number": int64(23),
@@ -87,10 +96,10 @@ func TestBuildSecurityAlertReconciliationsKeepsScopedNpmProviderOnlyWithoutOwned
 			"vulnerable_range":      "<2.4.2",
 			"patched_version":       "2.4.2",
 		}),
-	}))
+	}, extractSecurityAlertManifestConsumptions))
 
 	decision := decisions["alert-scoped-provider-only"]
-	if got, want := decision.Status, SecurityAlertReconciliationProviderOnly; got != want {
+	if got, want := decision.Status, securityalert.SecurityAlertReconciliationProviderOnly; got != want {
 		t.Fatalf("Status = %q, want fail-closed %q", got, want)
 	}
 	if got, want := decision.ReasonCode, "owned_dependency_missing"; got != want {

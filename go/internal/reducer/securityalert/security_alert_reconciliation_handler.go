@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package reducer
+package securityalert
 
 import (
 	"context"
@@ -9,6 +9,9 @@ import (
 	"strings"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
+	"github.com/eshu-hq/eshu/go/internal/reducer/factdecode"
+	"github.com/eshu-hq/eshu/go/internal/reducer/factload"
 	"github.com/eshu-hq/eshu/go/internal/reducer/payloadcore"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
 )
@@ -31,30 +34,58 @@ type activeSecurityAlertReconciliationFactLoader interface {
 	) ([]facts.Envelope, error)
 }
 
+// activeRepositoryFactLoader is declared locally rather than imported from the
+// reducer root: the root's own activeRepositoryFactLoader
+// (package_source_correlation_handler.go) is genuine root-owned logic shared
+// by several families that have not moved out of root yet (package source
+// correlation, supply chain impact), so importing it would violate the rule
+// that a family subpackage never imports the reducer root (issue #6061). See
+// internal/reducer/codetaint/graph_ports.go for the established precedent.
+// Go interfaces are satisfied structurally, so the same concrete FactLoader
+// implementation root wires into other families' handlers also satisfies this
+// local declaration without any code duplication.
+type activeRepositoryFactLoader interface {
+	ListActiveRepositoryFacts(ctx context.Context) ([]facts.Envelope, error)
+}
+
+// activePackageManifestDependencyFactLoader is declared locally for the same
+// reason as activeRepositoryFactLoader above.
+type activePackageManifestDependencyFactLoader interface {
+	ListActivePackageManifestDependencyFacts(
+		ctx context.Context,
+		ecosystems []string,
+		packageNames []string,
+	) ([]facts.Envelope, error)
+}
+
 // SecurityAlertReconciliationHandler compares provider alerts with owned Eshu
 // evidence without publishing supply-chain impact truth.
 type SecurityAlertReconciliationHandler struct {
-	FactLoader  FactLoader
+	FactLoader  factload.FactLoader
 	Writer      SecurityAlertReconciliationWriter
 	Instruments *telemetry.Instruments
+	// ExtractManifestConsumptions supplies the manifest/lockfile half of
+	// consumption evidence; see [ManifestConsumptionExtractor]. The reducer
+	// root wires the concrete implementation (issue #6061).
+	ExtractManifestConsumptions ManifestConsumptionExtractor
 }
 
 // Handle executes one provider alert reconciliation reducer intent.
-func (h SecurityAlertReconciliationHandler) Handle(ctx context.Context, intent Intent) (Result, error) {
-	if intent.Domain != DomainSecurityAlertReconciliation {
-		return Result{}, fmt.Errorf(
+func (h SecurityAlertReconciliationHandler) Handle(ctx context.Context, intent reducercontract.Intent) (reducercontract.Result, error) {
+	if intent.Domain != reducercontract.DomainSecurityAlertReconciliation {
+		return reducercontract.Result{}, fmt.Errorf(
 			"security_alert_reconciliation handler does not accept domain %q",
 			intent.Domain,
 		)
 	}
 	if h.FactLoader == nil {
-		return Result{}, fmt.Errorf("security alert reconciliation fact loader is required")
+		return reducercontract.Result{}, fmt.Errorf("security alert reconciliation fact loader is required")
 	}
 	if h.Writer == nil {
-		return Result{}, fmt.Errorf("security alert reconciliation writer is required")
+		return reducercontract.Result{}, fmt.Errorf("security alert reconciliation writer is required")
 	}
 
-	envelopes, err := loadFactsForKinds(
+	envelopes, err := factload.LoadFactsForKinds(
 		ctx,
 		h.FactLoader,
 		intent.ScopeID,
@@ -62,40 +93,40 @@ func (h SecurityAlertReconciliationHandler) Handle(ctx context.Context, intent I
 		securityAlertReconciliationTriggerKinds(),
 	)
 	if err != nil {
-		return Result{}, fmt.Errorf("load security alert facts: %w", err)
+		return reducercontract.Result{}, fmt.Errorf("load security alert facts: %w", err)
 	}
 	active, err := h.loadActiveEvidence(ctx, securityAlertReconciliationFilter(envelopes))
 	if err != nil {
-		return Result{}, fmt.Errorf("load active security alert reconciliation evidence: %w", err)
+		return reducercontract.Result{}, fmt.Errorf("load active security alert reconciliation evidence: %w", err)
 	}
 	envelopes = append(envelopes, active...)
 	repositories, err := h.loadActiveSecurityAlertRepositoryFacts(ctx, envelopes)
 	if err != nil {
-		return Result{}, fmt.Errorf("load active security alert repository facts: %w", err)
+		return reducercontract.Result{}, fmt.Errorf("load active security alert repository facts: %w", err)
 	}
 	envelopes = append(envelopes, repositories...)
 	manifestDependencies, err := h.loadActiveSecurityAlertManifestDependencyFacts(ctx, envelopes)
 	if err != nil {
-		return Result{}, fmt.Errorf("load active security alert manifest dependency facts: %w", err)
+		return reducercontract.Result{}, fmt.Errorf("load active security alert manifest dependency facts: %w", err)
 	}
 	envelopes = append(envelopes, manifestDependencies...)
 	envelopes = dedupeSecurityAlertReconciliationEnvelopes(envelopes)
 
-	decisions, quarantined, err := BuildSecurityAlertReconciliationsWithQuarantine(envelopes)
+	decisions, quarantined, err := BuildSecurityAlertReconciliationsWithQuarantine(envelopes, h.ExtractManifestConsumptions)
 	if err != nil {
 		// A non-decode error (a fatal condition partitionDecodeFailures did NOT
 		// quarantine, such as an unsupported schema major) fails the whole intent
 		// so the durable queue triages it correctly.
-		return Result{}, fmt.Errorf("build security alert reconciliations: %w", err)
+		return reducercontract.Result{}, fmt.Errorf("build security alert reconciliations: %w", err)
 	}
 	// Per-fact isolation: a malformed security_alert.repository_alert fact (one
 	// missing its required repository_id identity anchor) is quarantined as a
 	// visible input_invalid dead-letter — counter + structured error log — while
 	// every valid sibling alert still produces its reconciliation decision.
-	inputInvalidCount := recordQuarantinedFacts(ctx, h.Instruments, DomainSecurityAlertReconciliation, intent.ScopeID, intent.GenerationID, quarantined)
+	inputInvalidCount := factdecode.RecordQuarantinedFacts(ctx, h.Instruments, reducercontract.DomainSecurityAlertReconciliation, intent.ScopeID, intent.GenerationID, quarantined)
 	if shouldDeferSecurityAlertReconciliationForPendingImpact(intent, decisions) {
-		return Result{}, retryableSecurityAlertReconciliationEvidenceError{
-			packageID: firstUnmatchedPackageWithDependency(decisions),
+		return reducercontract.Result{}, retryableSecurityAlertReconciliationEvidenceError{
+			PackageID: firstUnmatchedPackageWithDependency(decisions),
 		}
 	}
 	writeResult, err := h.Writer.WriteSecurityAlertReconciliations(ctx, SecurityAlertReconciliationWrite{
@@ -107,16 +138,16 @@ func (h SecurityAlertReconciliationHandler) Handle(ctx context.Context, intent I
 		Decisions:    decisions,
 	})
 	if err != nil {
-		return Result{}, fmt.Errorf("write security alert reconciliations: %w", err)
+		return reducercontract.Result{}, fmt.Errorf("write security alert reconciliations: %w", err)
 	}
 
-	return Result{
+	return reducercontract.Result{
 		IntentID:        intent.IntentID,
-		Domain:          DomainSecurityAlertReconciliation,
-		Status:          ResultStatusSucceeded,
+		Domain:          reducercontract.DomainSecurityAlertReconciliation,
+		Status:          reducercontract.ResultStatusSucceeded,
 		EvidenceSummary: securityAlertReconciliationSummary(decisions, writeResult.CanonicalWrites),
 		CanonicalWrites: writeResult.CanonicalWrites,
-		SubSignals:      inputInvalidSubSignals(inputInvalidCount),
+		SubSignals:      factdecode.InputInvalidSubSignals(inputInvalidCount),
 	}, nil
 }
 
@@ -137,7 +168,7 @@ func (h SecurityAlertReconciliationHandler) loadActiveEvidence(
 	}
 	envelopes, err := loader.ListActiveSecurityAlertReconciliationFacts(ctx, filter)
 	if err != nil {
-		return nil, classifyFactLoadError(err)
+		return nil, factload.ClassifyFactLoadError(err)
 	}
 	return envelopes, nil
 }
@@ -147,7 +178,7 @@ func (h SecurityAlertReconciliationHandler) loadActiveSecurityAlertRepositoryFac
 	envelopes []facts.Envelope,
 ) ([]facts.Envelope, error) {
 	loader, ok := h.FactLoader.(activeRepositoryFactLoader)
-	if !ok || hasPackageSourceRepositoryFact(envelopes) {
+	if !ok || securityAlertHasPackageSourceRepositoryFact(envelopes) {
 		return nil, nil
 	}
 	if _, ok := h.FactLoader.(activePackageManifestDependencyFactLoader); !ok {
@@ -159,7 +190,7 @@ func (h SecurityAlertReconciliationHandler) loadActiveSecurityAlertRepositoryFac
 	}
 	repositories, err := loader.ListActiveRepositoryFacts(ctx)
 	if err != nil {
-		return nil, classifyFactLoadError(err)
+		return nil, factload.ClassifyFactLoadError(err)
 	}
 	return repositories, nil
 }
@@ -178,7 +209,7 @@ func (h SecurityAlertReconciliationHandler) loadActiveSecurityAlertManifestDepen
 	}
 	dependencies, err := loader.ListActivePackageManifestDependencyFacts(ctx, ecosystems, packageNames)
 	if err != nil {
-		return nil, classifyFactLoadError(err)
+		return nil, factload.ClassifyFactLoadError(err)
 	}
 	return dependencies, nil
 }
@@ -188,27 +219,27 @@ func securityAlertReconciliationFilter(envelopes []facts.Envelope) SecurityAlert
 	for _, envelope := range envelopes {
 		switch envelope.FactKind {
 		case facts.SecurityAlertRepositoryAlertFactKind:
-			repositoryIDs = append(repositoryIDs, payloadStr(envelope.Payload, "repository_id"))
-			packageIDs = append(packageIDs, payloadStr(envelope.Payload, "package_id"))
-			cveIDs = append(cveIDs, payloadStrings(envelope.Payload, "cve_id", "cve_ids")...)
-			ghsaIDs = append(ghsaIDs, payloadStrings(envelope.Payload, "ghsa_id", "ghsa_ids")...)
+			repositoryIDs = append(repositoryIDs, payloadcore.PayloadStr(envelope.Payload, "repository_id"))
+			packageIDs = append(packageIDs, payloadcore.PayloadStr(envelope.Payload, "package_id"))
+			cveIDs = append(cveIDs, payloadcore.PayloadStrings(envelope.Payload, "cve_id", "cve_ids")...)
+			ghsaIDs = append(ghsaIDs, payloadcore.PayloadStrings(envelope.Payload, "ghsa_id", "ghsa_ids")...)
 		case facts.PackageRegistryPackageFactKind:
 			packageIDs = append(packageIDs, payloadcore.FirstNonBlank(
-				payloadStr(envelope.Payload, "package_id"),
+				payloadcore.PayloadStr(envelope.Payload, "package_id"),
 				envelope.ScopeID,
 			))
 		}
 	}
 	return SecurityAlertReconciliationFactFilter{
-		RepositoryIDs: uniqueSortedStrings(repositoryIDs),
-		PackageIDs:    uniqueSortedStrings(packageIDs),
-		CVEIDs:        uniqueSortedStrings(cveIDs),
-		GHSAIDs:       uniqueSortedStrings(ghsaIDs),
+		RepositoryIDs: payloadcore.UniqueSortedStrings(repositoryIDs),
+		PackageIDs:    payloadcore.UniqueSortedStrings(packageIDs),
+		CVEIDs:        payloadcore.UniqueSortedStrings(cveIDs),
+		GHSAIDs:       payloadcore.UniqueSortedStrings(ghsaIDs),
 	}
 }
 
 func securityAlertManifestDependencyFilter(envelopes []facts.Envelope) ([]string, []string) {
-	alerts := extractProviderSecurityAlerts(envelopes)
+	alerts := ExtractProviderSecurityAlerts(envelopes)
 	if len(alerts) == 0 {
 		return nil, nil
 	}
@@ -216,9 +247,9 @@ func securityAlertManifestDependencyFilter(envelopes []facts.Envelope) ([]string
 	var packageNames []string
 	for _, alert := range alerts {
 		ecosystems = append(ecosystems, alert.Ecosystem)
-		packageNames = append(packageNames, securityAlertPackageNameCandidates(alert)...)
+		packageNames = append(packageNames, SecurityAlertPackageNameCandidates(alert)...)
 	}
-	return uniqueSortedStrings(ecosystems), uniqueSortedStrings(packageNames)
+	return payloadcore.UniqueSortedStrings(ecosystems), payloadcore.UniqueSortedStrings(packageNames)
 }
 
 func dedupeSecurityAlertReconciliationEnvelopes(envelopes []facts.Envelope) []facts.Envelope {
@@ -246,7 +277,7 @@ func dedupeSecurityAlertReconciliationEnvelopes(envelopes []facts.Envelope) []fa
 }
 
 func shouldDeferSecurityAlertReconciliationForPendingImpact(
-	intent Intent,
+	intent reducercontract.Intent,
 	decisions []SecurityAlertReconciliationDecision,
 ) bool {
 	if intent.AttemptCount >= pendingImpactSecurityAlertReconciliationMaxAttempts ||
@@ -263,7 +294,7 @@ func shouldDeferSecurityAlertReconciliationForPendingImpact(
 	return false
 }
 
-func impactProducingSecurityAlertReconciliation(intent Intent) bool {
+func impactProducingSecurityAlertReconciliation(intent reducercontract.Intent) bool {
 	return strings.EqualFold(strings.TrimSpace(intent.SourceSystem), "package_registry") ||
 		strings.EqualFold(strings.TrimSpace(intent.Cause), "package registry identity observed") ||
 		strings.EqualFold(strings.TrimSpace(intent.SourceSystem), "security_alert") ||
@@ -281,14 +312,14 @@ func firstUnmatchedPackageWithDependency(decisions []SecurityAlertReconciliation
 }
 
 type retryableSecurityAlertReconciliationEvidenceError struct {
-	packageID string
+	PackageID string
 }
 
 func (e retryableSecurityAlertReconciliationEvidenceError) Error() string {
-	if strings.TrimSpace(e.packageID) == "" {
+	if strings.TrimSpace(e.PackageID) == "" {
 		return "security alert reconciliation waiting for package impact evidence"
 	}
-	return fmt.Sprintf("security alert reconciliation waiting for package impact evidence: %s", e.packageID)
+	return fmt.Sprintf("security alert reconciliation waiting for package impact evidence: %s", e.PackageID)
 }
 
 func (retryableSecurityAlertReconciliationEvidenceError) Retryable() bool {
@@ -323,4 +354,18 @@ func securityAlertReconciliationSummary(
 		counts[SecurityAlertReconciliationProviderOnly],
 		canonicalWrites,
 	)
+}
+
+// securityAlertHasPackageSourceRepositoryFact declares locally rather than
+// importing the reducer root's hasPackageSourceRepositoryFact
+// (package_source_correlation_handler.go): a four-line envelope-kind scan
+// shared with the package-source-correlation family, which has not moved out
+// of root yet (issue #6061).
+func securityAlertHasPackageSourceRepositoryFact(envelopes []facts.Envelope) bool {
+	for _, envelope := range envelopes {
+		if envelope.FactKind == factload.FactKindRepository {
+			return true
+		}
+	}
+	return false
 }

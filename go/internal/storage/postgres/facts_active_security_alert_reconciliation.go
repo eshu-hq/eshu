@@ -8,7 +8,7 @@ import (
 	"fmt"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
-	"github.com/eshu-hq/eshu/go/internal/reducer"
+	"github.com/eshu-hq/eshu/go/internal/reducer/securityalert"
 )
 
 const listActiveSecurityAlertReconciliationFactsQuery = `
@@ -60,7 +60,7 @@ LIMIT $6
 // reducer impact evidence used to compare provider-reported repository alerts.
 func (s FactStore) ListActiveSecurityAlertReconciliationFacts(
 	ctx context.Context,
-	filter reducer.SecurityAlertReconciliationFactFilter,
+	filter securityalert.SecurityAlertReconciliationFactFilter,
 ) ([]facts.Envelope, error) {
 	if s.db == nil {
 		return nil, fmt.Errorf("fact store database is required")
@@ -91,7 +91,7 @@ func (s FactStore) ListActiveSecurityAlertReconciliationFacts(
 
 func (s FactStore) listActiveSecurityAlertReconciliationFactsPage(
 	ctx context.Context,
-	filter reducer.SecurityAlertReconciliationFactFilter,
+	filter securityalert.SecurityAlertReconciliationFactFilter,
 	cursorFactID string,
 ) ([]facts.Envelope, error) {
 	rows, err := s.db.QueryContext(

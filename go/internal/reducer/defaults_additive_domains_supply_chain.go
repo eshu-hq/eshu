@@ -3,7 +3,10 @@
 
 package reducer
 
-import "github.com/eshu-hq/eshu/go/internal/reducer/kubernetescorrelation"
+import (
+	"github.com/eshu-hq/eshu/go/internal/reducer/kubernetescorrelation"
+	"github.com/eshu-hq/eshu/go/internal/reducer/securityalert"
+)
 
 // appendSupplyChainCorrelationAdditiveDomains registers the observability,
 // kubernetes, and supply-chain correlation domains: observability coverage,
@@ -59,11 +62,12 @@ func appendSupplyChainCorrelationAdditiveDomains(definitions []DomainDefinition,
 		definitions = append(definitions, impact)
 	}
 	if handlers.FactLoader != nil && handlers.SecurityAlertReconciliationWriter != nil {
-		securityAlerts := securityAlertReconciliationDomainDefinition()
-		securityAlerts.Handler = SecurityAlertReconciliationHandler{
-			FactLoader:  handlers.FactLoader,
-			Writer:      handlers.SecurityAlertReconciliationWriter,
-			Instruments: handlers.Instruments,
+		securityAlerts := securityalert.SecurityAlertReconciliationDomainDefinition()
+		securityAlerts.Handler = securityalert.SecurityAlertReconciliationHandler{
+			FactLoader:                  handlers.FactLoader,
+			Writer:                      handlers.SecurityAlertReconciliationWriter,
+			Instruments:                 handlers.Instruments,
+			ExtractManifestConsumptions: extractSecurityAlertManifestConsumptions,
 		}
 		definitions = append(definitions, securityAlerts)
 	}

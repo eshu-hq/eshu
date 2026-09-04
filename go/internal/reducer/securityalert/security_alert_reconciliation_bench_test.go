@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package reducer
+package securityalert
 
 import (
 	"fmt"
@@ -80,7 +80,7 @@ func BenchmarkExtractProviderSecurityAlerts(b *testing.B) {
 	b.ReportAllocs()
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		alerts, quarantined, err := extractProviderSecurityAlertsWithQuarantine(envelopes)
+		alerts, quarantined, err := ExtractProviderSecurityAlertsWithQuarantine(envelopes)
 		if err != nil {
 			b.Fatalf("extract error = %v", err)
 		}

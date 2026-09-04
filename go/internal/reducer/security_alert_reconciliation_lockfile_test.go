@@ -10,7 +10,17 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/reducer/securityalert"
 )
+
+// This file stayed in the reducer root rather than moving with the rest of
+// security_alert_reconciliation's tests into securityalert (issue #6061):
+// every test here exercises real manifest/lockfile-dependency matching, which
+// the securityalert package can no longer perform on its own —
+// extractSecurityAlertManifestConsumptions (security_alert_manifest_dependency_match.go)
+// is the root-owned bridge a securityalert package cannot import (it would be
+// a reducer-root import from a family subpackage). These tests wire the same
+// bridge production code uses via securityalert.ManifestConsumptionExtractor.
 
 func TestBuildSecurityAlertReconciliationsUsesSupportedNpmLockfileEvidence(t *testing.T) {
 	t.Parallel()
@@ -96,26 +106,26 @@ func TestBuildSecurityAlertReconciliationsUsesSupportedNpmLockfileEvidence(t *te
 	}
 	envelopes[len(envelopes)-1].ObservedAt = time.Date(2026, 5, 25, 11, 0, 0, 0, time.UTC)
 
-	decisions := BuildSecurityAlertReconciliations(envelopes)
+	decisions := securityalert.BuildSecurityAlertReconciliations(envelopes, extractSecurityAlertManifestConsumptions)
 	got := securityAlertDecisionsByFactID(decisions)
 
-	if got["alert-matched"].Status != SecurityAlertReconciliationMatched {
+	if got["alert-matched"].Status != securityalert.SecurityAlertReconciliationMatched {
 		t.Fatalf("matched status = %q, want matched", got["alert-matched"].Status)
 	}
 	lockfile := got["alert-lockfile"]
-	if lockfile.Status != SecurityAlertReconciliationMatched {
+	if lockfile.Status != securityalert.SecurityAlertReconciliationMatched {
 		t.Fatalf("lockfile status = %q, want matched; reason=%q", lockfile.Status, lockfile.Reason)
 	}
 	if got, want := lockfile.DependencyEvidenceID, "manifest-dep:"+repoID+":lockfile-lib"; got != want {
 		t.Fatalf("lockfile DependencyEvidenceID = %q, want supported lockfile fact %q", got, want)
 	}
-	if got["alert-provider-only"].Status != SecurityAlertReconciliationProviderOnly {
+	if got["alert-provider-only"].Status != securityalert.SecurityAlertReconciliationProviderOnly {
 		t.Fatalf("provider-only status = %q, want provider_only", got["alert-provider-only"].Status)
 	}
 	if !strings.Contains(got["alert-provider-only"].Reason, "no matching owned dependency evidence") {
 		t.Fatalf("provider-only reason = %q, want missing dependency evidence reason", got["alert-provider-only"].Reason)
 	}
-	if got["alert-stale"].Status != SecurityAlertReconciliationStale {
+	if got["alert-stale"].Status != securityalert.SecurityAlertReconciliationStale {
 		t.Fatalf("stale status = %q, want stale", got["alert-stale"].Status)
 	}
 }
@@ -170,7 +180,11 @@ func TestSecurityAlertReconciliationHandlerDefersPackageTriggeredLockfileEvidenc
 		},
 	}
 	writer := &recordingSecurityAlertReconciliationWriter{}
-	handler := SecurityAlertReconciliationHandler{FactLoader: loader, Writer: writer}
+	handler := securityalert.SecurityAlertReconciliationHandler{
+		FactLoader:                  loader,
+		Writer:                      writer,
+		ExtractManifestConsumptions: extractSecurityAlertManifestConsumptions,
+	}
 
 	_, err := handler.Handle(context.Background(), Intent{
 		IntentID:     "intent-package-triggered-reconciliation",
@@ -239,7 +253,11 @@ func TestSecurityAlertReconciliationHandlerDefersProviderTriggeredPendingImpactE
 		},
 	}
 	writer := &recordingSecurityAlertReconciliationWriter{}
-	handler := SecurityAlertReconciliationHandler{FactLoader: loader, Writer: writer}
+	handler := securityalert.SecurityAlertReconciliationHandler{
+		FactLoader:                  loader,
+		Writer:                      writer,
+		ExtractManifestConsumptions: extractSecurityAlertManifestConsumptions,
+	}
 
 	_, err := handler.Handle(context.Background(), Intent{
 		IntentID:     "intent-provider-triggered-pending-impact",
@@ -319,7 +337,11 @@ func TestSecurityAlertReconciliationHandlerUsesRepositoryFactsForLockfileScope(t
 		},
 	}
 	writer := &recordingSecurityAlertReconciliationWriter{}
-	handler := SecurityAlertReconciliationHandler{FactLoader: loader, Writer: writer}
+	handler := securityalert.SecurityAlertReconciliationHandler{
+		FactLoader:                  loader,
+		Writer:                      writer,
+		ExtractManifestConsumptions: extractSecurityAlertManifestConsumptions,
+	}
 
 	result, err := handler.Handle(context.Background(), Intent{
 		IntentID:     "intent-provider-scope-lockfile",
@@ -335,7 +357,7 @@ func TestSecurityAlertReconciliationHandlerUsesRepositoryFactsForLockfileScope(t
 	if result.Status != ResultStatusSucceeded {
 		t.Fatalf("Handle() status = %q, want succeeded", result.Status)
 	}
-	if got, want := writer.write.Decisions[0].Status, SecurityAlertReconciliationMatched; got != want {
+	if got, want := writer.write.Decisions[0].Status, securityalert.SecurityAlertReconciliationMatched; got != want {
 		t.Fatalf("decision status = %q, want %q; reason=%q", got, want, writer.write.Decisions[0].Reason)
 	}
 	if got, want := writer.write.Decisions[0].RepositoryID, canonicalRepoID; got != want {
@@ -347,9 +369,9 @@ func TestSecurityAlertReconciliationHandlerUsesRepositoryFactsForLockfileScope(t
 }
 
 func securityAlertDecisionsByFactID(
-	decisions []SecurityAlertReconciliationDecision,
-) map[string]SecurityAlertReconciliationDecision {
-	out := make(map[string]SecurityAlertReconciliationDecision, len(decisions))
+	decisions []securityalert.SecurityAlertReconciliationDecision,
+) map[string]securityalert.SecurityAlertReconciliationDecision {
+	out := make(map[string]securityalert.SecurityAlertReconciliationDecision, len(decisions))
 	for _, decision := range decisions {
 		out[decision.ProviderAlertFactID] = decision
 	}
@@ -385,7 +407,7 @@ func (l *recordingSecurityAlertReconciliationFactLoader) ListFactsByKind(
 
 func (l *recordingSecurityAlertReconciliationFactLoader) ListActiveSecurityAlertReconciliationFacts(
 	context.Context,
-	SecurityAlertReconciliationFactFilter,
+	securityalert.SecurityAlertReconciliationFactFilter,
 ) ([]facts.Envelope, error) {
 	return append([]facts.Envelope(nil), l.activeFacts...), nil
 }
@@ -409,14 +431,14 @@ func (l *recordingSecurityAlertReconciliationFactLoader) ListActivePackageManife
 
 type recordingSecurityAlertReconciliationWriter struct {
 	calls int
-	write SecurityAlertReconciliationWrite
+	write securityalert.SecurityAlertReconciliationWrite
 }
 
 func (w *recordingSecurityAlertReconciliationWriter) WriteSecurityAlertReconciliations(
 	_ context.Context,
-	write SecurityAlertReconciliationWrite,
-) (SecurityAlertReconciliationWriteResult, error) {
+	write securityalert.SecurityAlertReconciliationWrite,
+) (securityalert.SecurityAlertReconciliationWriteResult, error) {
 	w.calls++
 	w.write = write
-	return SecurityAlertReconciliationWriteResult{CanonicalWrites: len(write.Decisions)}, nil
+	return securityalert.SecurityAlertReconciliationWriteResult{CanonicalWrites: len(write.Decisions)}, nil
 }

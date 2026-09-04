@@ -7,7 +7,7 @@
 3. `github_client.go` — GitHub request guardrails and allowlist behavior.
 4. `docs/public/reference/collector-reducer-readiness.md` — source-truth
    boundary and runtime gate.
-5. `go/internal/reducer/security_alert_reconciliation.go` — reducer consumer
+5. `go/internal/reducer/securityalert/security_alert_reconciliation.go` — reducer consumer
    for emitted provider alert facts.
 
 ## Invariants

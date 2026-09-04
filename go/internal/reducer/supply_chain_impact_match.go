@@ -162,13 +162,6 @@ func supplyChainServiceRepositoryID(envelope facts.Envelope) string {
 	return supplyChainWorkloadRepositoryID(envelope)
 }
 
-func supplyChainDependencyScope(payload map[string]any) string {
-	if scope := payloadStr(payload, "dependency_scope"); scope != "" {
-		return scope
-	}
-	return payloadStr(payload, "manifest_section")
-}
-
 func supplyChainDependencyScopeFromCorrelation(dependencyScope, manifestSection *string) string {
 	if scope := strings.TrimSpace(derefString(dependencyScope)); scope != "" {
 		return scope
@@ -358,14 +351,6 @@ func unusableSupplyChainImageIdentityReason(image supplyChainImageIdentity) stri
 // payloadBool forwards to [payloadcore.PayloadBool].
 func payloadBool(payload map[string]any, key string) bool {
 	return payloadcore.PayloadBool(payload, key)
-}
-
-func payloadBoolPointer(payload map[string]any, key string) *bool {
-	value, ok := payloadcore.PayloadBoolPointerValue(payload, key)
-	if !ok {
-		return nil
-	}
-	return &value
 }
 
 // supplyChainInt forwards to [payloadcore.PayloadInt].
