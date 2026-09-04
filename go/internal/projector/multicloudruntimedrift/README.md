@@ -105,7 +105,7 @@ and generation identifiers changed from struct-field reads to parameters,
 carrying the same values from the call site. The dispatcher's ordered fan-out
 is unchanged at 44 builder probes on both sides, with this probe still
 running immediately after `awscloudruntimedrift.BuildAWSCloudRuntimeDriftReducerIntent` and
-immediately before `buildAWSResourceMaterializationReducerIntent`.
+immediately before `awsresource.BuildAWSResourceMaterializationReducerIntent`.
 
 The family's private `multiCloudRuntimeDriftSourceSystem` helper was compared
 body-for-body against `projectorintent.SourceSystem` and found identical --

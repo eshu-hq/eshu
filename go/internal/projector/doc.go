@@ -25,11 +25,10 @@
 // package-source-correlation, cloud-inventory-admission, code-taint-evidence,
 // code-interproc-evidence, code-function-summary, SBOM-attestation-attachment,
 // service-catalog-correlation, secrets-IAM-trust-chain, CI/CD
-// run-correlation, container-image-identity, supply-chain-impact, and
-// AWS-cloud-runtime-drift builders live in their internal/projector child
-// packages; this root
-// package owns lookup construction and lifetime, family assembly, and
-// enqueue.
+// run-correlation, container-image-identity, supply-chain-impact,
+// AWS-cloud-runtime-drift, and AWS-resource-materialization builders live in
+// their internal/projector child packages; this root package owns lookup
+// construction and lifetime, family assembly, and enqueue.
 // OCI registry projection keeps digest-addressed manifests, indexes, and
 // descriptors as canonical identity while treating tags as mutable weak
 // observations that can enrich queries but do not mint image identity.

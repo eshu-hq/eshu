@@ -8,6 +8,7 @@ import (
 	projectorawscloudimage "github.com/eshu-hq/eshu/go/internal/projector/awscloudimage"
 	projectorawscloudruntimedrift "github.com/eshu-hq/eshu/go/internal/projector/awscloudruntimedrift"
 	projectorawsrelationship "github.com/eshu-hq/eshu/go/internal/projector/awsrelationship"
+	projectorawsresource "github.com/eshu-hq/eshu/go/internal/projector/awsresource"
 	projectorazure "github.com/eshu-hq/eshu/go/internal/projector/azure"
 	projectorcicdruncorrelation "github.com/eshu-hq/eshu/go/internal/projector/cicdruncorrelation"
 	projectorcloudinventory "github.com/eshu-hq/eshu/go/internal/projector/cloudinventory"
@@ -68,7 +69,7 @@ func appendScopeGenerationReducerIntents(
 	if intent, ok := projectormulticloudruntimedrift.BuildMultiCloudRuntimeDriftReducerIntent(scopeValue.ScopeID, generation.GenerationID, index.lookup); ok {
 		intents = append(intents, intent)
 	}
-	if intent, ok := buildAWSResourceMaterializationReducerIntent(scopeValue, generation, index); ok {
+	if intent, ok := projectorawsresource.BuildAWSResourceMaterializationReducerIntent(scopeValue.ScopeID, generation.GenerationID, index.lookup); ok {
 		intents = append(intents, intent)
 	}
 	if intent, ok := projectorgcp.BuildResourceMaterializationReducerIntent(scopeValue.ScopeID, generation.GenerationID, index.lookup); ok {

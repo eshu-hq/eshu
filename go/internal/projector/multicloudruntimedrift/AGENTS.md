@@ -8,7 +8,7 @@
 3. `../intent/AGENTS.md` for the neutral builder contract.
 4. `../scope_generation_intents.go` for root-owned assembly order; this probe
    runs after `awscloudruntimedrift.BuildAWSCloudRuntimeDriftReducerIntent` and before
-   `buildAWSResourceMaterializationReducerIntent`.
+   `awsresource.BuildAWSResourceMaterializationReducerIntent`.
 5. `go/internal/reducer/multi-cloud-runtime-drift.md` and
    `go/internal/reducer/multi_cloud_runtime_drift.go`: what the reducer does
    with the intent this package enqueues, including the bounded
