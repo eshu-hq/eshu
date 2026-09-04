@@ -119,12 +119,14 @@ helpers out of the reducer root into this new package, without changing any
 field, exported behavior, or call order. The one root-owned interface the
 handler needs (`GraphQueryRunner`) is locally redeclared with the identical
 method set rather than imported, so the existing concrete implementation
-still satisfies it with no new indirection. Every outward caller —
-`cmd/reducer` (`wiring_handlers.go`), `internal/reducer` root
-(`defaults_handlers.go`, `defaults_additive_domains_crossplane.go`),
-`internal/storage/postgres` (the redrive live tests), and
-`internal/projector/crossplanesatisfiedby` (doc references) — was updated to
-the qualified `crossplane.` symbol in the same commit. From `go/`, with
+still satisfies it with no new indirection. Every outward caller that names a
+moved symbol — `internal/reducer` root (`defaults_handlers.go`,
+`defaults_additive_domains_crossplane.go`), `internal/storage/postgres` (the
+redrive live tests), and `internal/projector/crossplanesatisfiedby` (doc
+references) — was updated to the qualified `crossplane.` symbol in the same
+commit. `cmd/reducer` (`wiring_handlers.go`) needed no change: it assigns
+concrete implementations into `reducer.CrossplaneHandlers` fields, which still
+typecheck structurally against the moved interfaces. From `go/`, with
 `GOROOT` unset and `GOCACHE` pointed at this worktree: `go build ./...`,
 `go vet ./...`, and `go test ./internal/reducer/... ./cmd/reducer
 ./internal/storage/postgres ./internal/projector/... -count=1` each exited 0
