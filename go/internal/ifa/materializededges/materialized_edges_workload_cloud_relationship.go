@@ -6,6 +6,7 @@ package materializededges
 import (
 	"fmt"
 	"path/filepath"
+	"strings"
 
 	"github.com/eshu-hq/eshu/go/internal/ifa"
 	"github.com/eshu-hq/eshu/go/internal/reducer"
@@ -105,17 +106,30 @@ func resolveWorkloadCloudRelationshipMaterializedEdges(odu ifa.Odu, expectedEdge
 	)
 }
 
+// workloadCloudRelationshipInstanceID derives the edge's source identity
+// from the extractor row: the write template MATCHes
+// `(workload:Workload {id: row.workload_id})<-[:INSTANCE_OF]-(instance)` and
+// MERGEs the edge off the INSTANCE, so the live graph keys the source by the
+// instance id, not the workload id. The instance id format mirrors
+// reducer.projection's `workload-instance:<name>:<environment>` (the
+// workload id is `workload:<name>` by the same construction). Keying the
+// expected source by the workload id would pass offline while describing an
+// edge triple the writer never creates, and no correct live graph could match
+// the fixture.
+func workloadCloudRelationshipInstanceID(workloadID, environment string) string {
+	return "workload-instance:" + strings.TrimPrefix(workloadID, "workload:") + ":" + environment
+}
+
 // workloadCloudRelationshipRowsToExpectedEdges converts the extractor's rows
 // one-for-one into the edge identity the write template MERGEs.
 //
-// workload_id is the edge's source identity: the template MATCHes
-// `(workload:Workload {id: row.workload_id})<-[:INSTANCE_OF]-(instance)` and
-// MERGEs the edge off the instance, so the workload id passed through
-// VERBATIM is what the edge anchors on. environment disambiguates the
+// Source is the derived WorkloadInstance id (see
+// workloadCloudRelationshipInstanceID): environment disambiguates the
 // instance (the extractor dedupes on workload+environment+resource and the
-// template filters `instance.environment = row.environment`), so it is
-// asserted as a property even though the relationship MERGEs on its endpoints
-// alone. cloud_resource_uid is the :CloudResource target uid.
+// template filters `instance.environment = row.environment`), so it is both
+// baked into the source identity and asserted as a property even though the
+// relationship MERGEs on its endpoints alone. cloud_resource_uid is the
+// :CloudResource target uid.
 //
 // resolution_mode, relationship_basis, service_anchor_source and
 // service_anchor_reason are SET after the MERGE -- deliberately outside the
@@ -136,8 +150,10 @@ func workloadCloudRelationshipRowsToExpectedEdges(rows []map[string]any) []Expec
 	for _, row := range rows {
 		edge := ExpectedEdge{
 			RelationshipType: anyToStringValue(row["relationship_type"]),
-			SourceEntityID:   anyToStringValue(row["workload_id"]),
-			TargetEntityID:   anyToStringValue(row["cloud_resource_uid"]),
+			SourceEntityID: workloadCloudRelationshipInstanceID(
+				anyToStringValue(row["workload_id"]), anyToStringValue(row["environment"]),
+			),
+			TargetEntityID: anyToStringValue(row["cloud_resource_uid"]),
 			Properties: map[string]string{
 				"resolution_mode":       anyToStringValue(row["resolution_mode"]),
 				"environment":           anyToStringValue(row["environment"]),

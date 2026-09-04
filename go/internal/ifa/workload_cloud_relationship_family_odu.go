@@ -102,6 +102,12 @@ type workloadCloudRelationshipFixture struct {
 	// WorkloadIDs anchors this resource to workloads. Zero means unanchored,
 	// one means an exact anchor, two means ambiguous (no edge either way).
 	WorkloadIDs []string
+	// PluralSpelling emits workload_ids as a single-element list even for a
+	// single anchor, proving the plural attributeStringUnion spelling on the
+	// edge path. Without it every one-element fixture would exercise only
+	// the scalar spelling and a regression breaking list-form decoding
+	// would stay green.
+	PluralSpelling bool
 	// ServiceNames is the service-name anchor. Present on the first fixture
 	// to prove the workload+service source/reason pair, absent on the second
 	// to prove the workload-only pair, and deliberately alone on the third
@@ -138,12 +144,15 @@ var workloadCloudRelationshipFamilyFixtures = []workloadCloudRelationshipFixture
 	},
 	{
 		// EDGE: workload-only anchor through the plural key spelling, proving
-		// both attributeStringUnion spellings. Source payload.workload_id,
-		// reason explicit_workload_anchor.
+		// both attributeStringUnion spellings. Source payload.workload_ids
+		// (single-element list form), reason explicit_workload_anchor.
 		ResourceType: "aws_sqs_queue",
 		ResourceID:   "https://sqs.us-east-1.amazonaws.com/123456789012/orders-events",
 		WorkloadIDs:  []string{"workload:orders-api"},
-		Environment:  "prod",
+		// PluralSpelling keeps the list form the live scanner would carry
+		// rather than collapsing to the scalar the builder defaults to.
+		PluralSpelling: true,
+		Environment:    "prod",
 	},
 	{
 		// NO EDGE: service-name-only anchor. It stays candidate evidence and
@@ -183,14 +192,14 @@ func WorkloadCloudRelationshipFamilyOdu() CatalogOdu {
 	factsForOdu := make([]facts.Envelope, 0, len(workloadCloudRelationshipFamilyFixtures))
 	for _, fixture := range workloadCloudRelationshipFamilyFixtures {
 		attrs := map[string]any{}
-		if len(fixture.WorkloadIDs) == 1 {
-			attrs["workload_id"] = fixture.WorkloadIDs[0]
-		} else if len(fixture.WorkloadIDs) > 1 {
+		if len(fixture.WorkloadIDs) > 1 || (len(fixture.WorkloadIDs) == 1 && fixture.PluralSpelling) {
 			ids := make([]any, 0, len(fixture.WorkloadIDs))
 			for _, id := range fixture.WorkloadIDs {
 				ids = append(ids, id)
 			}
 			attrs["workload_ids"] = ids
+		} else if len(fixture.WorkloadIDs) == 1 {
+			attrs["workload_id"] = fixture.WorkloadIDs[0]
 		}
 		if len(fixture.ServiceNames) > 0 {
 			attrs["service_name"] = fixture.ServiceNames[0]

@@ -33,6 +33,36 @@ so a family that started emitting a different token cannot pass by having its
 fixture updated to match. Mutation W3 below proves the registry copy is
 load-bearing; W1 proves the guard literal is.
 
+## Review round 2 (PR #6523 threads — all fixed in this branch)
+
+Four inline threads arrived after the preliminary review, all confirmed real
+against production code and fixed here:
+
+- **Owner P1 (evidence-overclaim) + Codex P2 (plural anchor shape)**: the sqs
+  fixture comment claimed the plural key spelling, but the Odù builder
+  collapsed every one-element anchor to scalar `workload_id` — only the
+  ambiguous dynamodb fixture exercised `workload_ids`. Fixed with a
+  `PluralSpelling` flag on the fixture struct: one-element anchors with the
+  flag emit the single-element list form, and the sqs fixture sets it. The
+  decoder unions both spellings
+  (`DecodeResourceAnchorAttributes` via `attributeStringUnion`), so the edge
+  still resolves; mutation W5 proves the list path is load-bearing.
+- **Codex P1 (source keyed by WorkloadInstance ID)**: the edge MERGEs off the
+  `WorkloadInstance`, whose id is `workload-instance:<name>:<environment>`
+  (`reducer/projection.go:327`; workload id is `workload:<name>` by the
+  `:279` construction), but the mapper keyed the expected source by the
+  workload id — an edge triple the writer never creates, which no correct
+  live graph could match in `assert-edges` (its `endpointID` reads the
+  instance's `id`). Fixed with `workloadCloudRelationshipInstanceID`
+  derivation in the mapper plus instance-id sources in the JSON fixture;
+  mutation W4 proves the derivation is load-bearing.
+- **Codex P1 (pinned guard inventory)**: the `Current guards cover ...`
+  sentence enumerates resolver case arms with registered guards, and the
+  scoped `ifa/AGENTS.md` rule requires updating it (and its pinned copy in
+  `code_call_live_documentation_test.go`) with every new arm. The two prior
+  direct families had missed it, so the sentence gains all three direct
+  guards here, fixing that staleness in the same edit.
+
 ## No-Regression Evidence:
 
 This change adds no Cypher, alters no query or write shape, and changes no
@@ -59,13 +89,16 @@ What actually changed, per hot-flagged file:
 
 Input shape for the guard, since it does run in CI: five `aws_resource` fact
 envelopes, fixed and committed — two edge-producing anchors (workload+service
-and workload-only through the plural key spelling) and three deliberate
-non-producers covering the service-only, ambiguous-anchor, and
-missing-environment branches. Whole-package cost including every other
+scalar and workload-only single-element-list, the latter via `PluralSpelling`)
+and three deliberate non-producers covering the service-only,
+ambiguous-anchor, and missing-environment branches. Expected sources are
+`workload-instance:orders-api:prod` — the instance ids the writer's template
+MERGEs off, not the workload id. Whole-package cost including every other
 family's guard: `ok
-github.com/eshu-hq/eshu/go/internal/ifa/materializededges 1.520s` (`cd go &&
-go test ./internal/ifa/materializededges ./internal/ifa
-./internal/storage/cypher -count=1`, darwin/arm64, go1.26.6, base 82e089cff).
+github.com/eshu-hq/eshu/go/internal/ifa/materializededges 1.088s` (`cd go &&
+go test ./internal/ifa/materializededges/ ./internal/ifa/ -count=1` plus
+`./internal/storage/cypher/ ok 1.672s`, darwin/arm64, go1.26.6, base
+82e089cff).
 Reported, not compared: the figure is recorded so a later change that makes
 this package slow has a number to regress from. Classification: `Diagnostic
 win` — no wall-clock claim is made or implied.
@@ -91,10 +124,16 @@ directly, never `$?` after a pipe.
 | W1 | guard literal `workloadCloudRelationshipRelationshipType` returns `"USES_X"` instead of `"USES"` | 1 | 0 | 1 | 0 |
 | W2 | expected-edge fixture truncated to its first edge | 1 | n/a (JSON) | 1 | 0 |
 | W3 | registry `EdgeTypes` key `"USES"` renamed to `"USES_X"` | 1 | 0 | 1 | 0 |
+| W4 | mapper keys source by `workload_id` instead of the derived instance id | 1 | 0 | 1 | 0 |
+| W5 | `attributeStringUnion` drops list-form values (single-element `workload_ids` decodes to nothing) | 1 | 0 | 1 | 0 |
 
 W1 ran against `TestGuardedDirectFamiliesResolveTheirOduCovered`,
 W2 against the same test, W3 against
-`TestGuardedDirectFamiliesResolveToTheirWrittenEdgeTypes`.
+`TestGuardedDirectFamiliesResolveToTheirWrittenEdgeTypes`, W4 against
+`TestGuardedDirectFamiliesResolveTheirOduCovered`, W5 (in the
+`sdk/go/factschema` module, vetted there) against the same guard test —
+the sqs edge vanishes, the extractor reports zero USES rows, and the guard
+reds rather than asserting the surviving edge.
 
 What each red proves:
 

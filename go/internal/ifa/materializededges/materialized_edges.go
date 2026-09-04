@@ -153,7 +153,7 @@ func materializedEdgeScenarioRequirements(families []string) []replaycoverage.Sc
 // materialized_edges:<family> surfaces (#5351). Every entry it resolves must
 // use the odu scenario; resolution then dispatches to the family's own
 // vacuity guard.
-// Current guards cover SQL relationships, documentation edges, code calls, rationale edges, codeowners ownership edges, deployable-unit edges, repository dependencies, submodule pins, inheritance edges, shell-exec edges, workload dependencies, handles_route, runs_in, and invokes_cloud_action.
+// Current guards cover SQL relationships, documentation edges, code calls, rationale edges, codeowners ownership edges, deployable-unit edges, repository dependencies, submodule pins, inheritance edges, shell-exec edges, workload dependencies, handles_route, runs_in, invokes_cloud_action, and the direct-materialization guards kubernetes_namespace_environment, iam_instance_profile_role, and workload_cloud_relationship.
 // A family with no registered vacuity guard cannot resolve covered even if a
 // manifest row names one — this is deliberate: "add a domain = DATA ONLY"
 // (design §3) covers the fixture and manifest rows, but a NEW family's first
