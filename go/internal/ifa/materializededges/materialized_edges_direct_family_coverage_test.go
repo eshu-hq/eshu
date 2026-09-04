@@ -53,6 +53,11 @@ var guardedDirectMaterializedEdgeFamilies = []guardedDirectFamily{
 		OduName:   ifa.IAMInstanceProfileRoleFamilyOduName,
 		EdgeTypes: []string{"HAS_ROLE"},
 	},
+	{
+		Family:    workloadCloudRelationshipFamily,
+		OduName:   ifa.WorkloadCloudRelationshipFamilyOduName,
+		EdgeTypes: []string{"USES"},
+	},
 }
 
 // guardedDirectFamilyCoverageEntry builds the coverage entry a ledger row for

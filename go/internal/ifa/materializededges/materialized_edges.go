@@ -218,19 +218,22 @@ func (r MaterializedEdgeOduResolver) Resolve(entry replaycoverage.CoverageEntry)
 		return resolveInvokesCloudActionMaterializedEdges(odu, invokesCloudActionExpectedEdgesPath(r.RepoRoot))
 	// The DIRECT-materialization families (#6228). Every arm above is a
 	// reducer.MaterializedEdgeFamilies() entry reaching the graph through the
-	// shared-projection intent path; the two below are
+	// shared-projection intent path; the three below are
 	// reducer.DirectMaterializedEdgeFamilies() entries whose reducer port
 	// writes straight to a storage/cypher writer with no intent row between.
 	//
-	// A registered guard is NOT a coverage claim. Both families still carry
-	// their waiver rows in specs/ifa-materialized-edge-coverage-direct.v1.yaml
-	// because neither live matrix drives them. What these arms buy is that a
-	// coverage row COULD resolve, which is one of the three things those
-	// waiver reasons said was missing.
+	// A registered guard is NOT a coverage claim. All three families still
+	// carry their waiver rows in
+	// specs/ifa-materialized-edge-coverage-direct.v1.yaml because neither
+	// live matrix drives them. What these arms buy is that a coverage row
+	// COULD resolve, which is one of the three things those waiver reasons
+	// said was missing.
 	case kubernetesNamespaceEnvironmentFamily:
 		return resolveKubernetesNamespaceEnvironmentMaterializedEdges(odu, kubernetesNamespaceEnvironmentExpectedEdgesPath(r.RepoRoot))
 	case iamInstanceProfileRoleFamily:
 		return resolveIAMInstanceProfileRoleMaterializedEdges(odu, iamInstanceProfileRoleExpectedEdgesPath(r.RepoRoot))
+	case workloadCloudRelationshipFamily:
+		return resolveWorkloadCloudRelationshipMaterializedEdges(odu, workloadCloudRelationshipExpectedEdgesPath(r.RepoRoot))
 	default:
 		return false, fmt.Sprintf("no vacuity guard registered for materialized-edge family %q", family)
 	}

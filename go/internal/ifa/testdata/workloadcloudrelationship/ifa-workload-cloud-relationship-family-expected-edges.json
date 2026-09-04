@@ -1,0 +1,30 @@
+{
+  "odu": "odu:ifa-workload-cloud-relationship-family",
+  "note": "Hand-derived from workloadCloudRelationshipUpsertCypherFormat (go/internal/storage/cypher/workload_cloud_relationship_writer.go), NOT from the port name and NOT from its statement-metadata label. The template is `MATCH (resource:CloudResource {uid: row.cloud_resource_uid}) MATCH (workload:Workload {id: row.workload_id})<-[:INSTANCE_OF]-(instance:WorkloadInstance) WHERE instance.environment = row.environment MERGE (instance)-[rel:%s]->(resource)`, and the %s is filled from workloadCloudRelationshipVocabulary, a closed single-member set screened per row by validateWorkloadCloudRelationshipType -- so the type is USES. workloadCloudRelationshipEdgeLabel is \"WORKLOAD_USES_CLOUD_RESOURCE\" and is statement metadata only; it is not a relationship type and does not appear in the graph. The source below is the Workload id passed through verbatim (the edge anchors off the instance matched from it in the given environment), and each target is a reducer.cloudResourceUIDForResource value = payloadcore.CloudResourceUID(account_id, region, resource_type, resource_id) over the Odu's own facts: account_id 123456789012, region us-east-1, and the (resource_type, resource_id) pairs (aws_ssm_parameter, /config/orders-api/database-url) and (aws_sqs_queue, https://sqs.us-east-1.amazonaws.com/123456789012/orders-events). The relationship MERGEs on its two endpoints alone -- resolution_mode, environment, relationship_basis, service_anchor_source and service_anchor_reason are all SET after the MERGE, deliberately outside the key -- so there is no identity block, and those five are asserted as mutable properties instead. Exactly two edges: the ssm parameter carries workload_id + service_name + environment (anchor source payload.workload_id+service_name, reason explicit_workload_and_service_anchor) and the sqs queue carries workload_ids (plural spelling) + environment with no service name (anchor source payload.workload_id, reason explicit_workload_anchor). The other three resources in the Odu contribute nothing on purpose -- the sns topic is service-name-only and stays candidate evidence, the dynamodb table names two workloads and is ambiguous, and the s3 bucket has an exact workload anchor but no environment so no WorkloadInstance can match.",
+  "edges": [
+    {
+      "relationship_type": "USES",
+      "source_entity_id": "workload:orders-api",
+      "target_entity_id": "3931ececed1285142d58a79d87031cf66387f85479e524ce9c291e77401d2c99",
+      "properties": {
+        "resolution_mode": "explicit_workload_anchor",
+        "environment": "prod",
+        "relationship_basis": "aws_resource_service_anchor",
+        "service_anchor_source": "payload.workload_id+service_name",
+        "service_anchor_reason": "explicit_workload_and_service_anchor"
+      }
+    },
+    {
+      "relationship_type": "USES",
+      "source_entity_id": "workload:orders-api",
+      "target_entity_id": "67167f8d54002df888fa773e06e88f763ee4e54c73e6d77120ac0157e4e3fb5b",
+      "properties": {
+        "resolution_mode": "explicit_workload_anchor",
+        "environment": "prod",
+        "relationship_basis": "aws_resource_service_anchor",
+        "service_anchor_source": "payload.workload_id",
+        "service_anchor_reason": "explicit_workload_anchor"
+      }
+    }
+  ]
+}
