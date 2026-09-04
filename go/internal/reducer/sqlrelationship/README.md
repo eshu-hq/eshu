@@ -85,17 +85,22 @@ root's own worker code, not this package.
 
 The `shell_exec` family (`shell_exec_materialization.go`,
 `shell_exec_intents.go`), which has not moved out of the reducer root yet,
-reuses four pieces of this package's machinery rather than duplicating them:
+reuses three pieces of this package's machinery rather than duplicating them:
 `BuildDeltaScope`/`DeltaScope` and `MergeRepositoryIDs` (both families derive
 the same per-repository `delta_generation`/`delta_relative_paths` shape from
-the same `repository` facts), `BuildRefreshIntents` (driven through one
-table alongside this family and `inheritance` in
-`sibling_edge_intent_delta_gate_test.go`), and
+the same `repository` facts), and
 `EmbeddedSQLFunctionIDsByNameLine`/`EmbeddedSQLFunctionKey` (both families
 resolve an embedded record's enclosing function by name+line against a
 parsed file's `functions` array). This is why those symbols are exported
 even though nothing inside this package's own `Handle` path calls them
 through the exported name.
+
+`BuildRefreshIntents` is exported for a different reason and is not part of
+that reuse. `shell_exec` owns its own `buildShellExecRefreshIntents`
+(`shell_exec_intents.go:82`); the only caller outside this package is the
+shared table in `sibling_edge_intent_delta_gate_test.go`, which drives this
+family and `inheritance` through the same assertions. Counting it as
+production reuse would suggest a dependency `shell_exec` does not have.
 
 ### Root-side test doubles this package's move required
 

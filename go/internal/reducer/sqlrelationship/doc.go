@@ -22,14 +22,19 @@
 // generic partitioned worker (reducer root) can project them concurrently
 // without a cross-partition retract race (#2910).
 //
-// DeltaScope, BuildDeltaScope, MergeRepositoryIDs, BuildRefreshIntents,
-// EvidenceSource, FilePartitionKey, WholeScopePartitionKey,
-// PartitionKeyVersion, EmbeddedSQLFunctionIDsByNameLine, and
-// EmbeddedSQLFunctionKey are exported beyond what this package's own Handle
-// path needs because the shell_exec family, which has not moved out of the
-// reducer root yet, reuses this exact delta-scope, refresh-intent, and
-// embedded-code-index machinery for its own materialization
+// DeltaScope, BuildDeltaScope, MergeRepositoryIDs, EvidenceSource,
+// FilePartitionKey, WholeScopePartitionKey, PartitionKeyVersion,
+// EmbeddedSQLFunctionIDsByNameLine, and EmbeddedSQLFunctionKey are exported
+// beyond what this package's own Handle path needs because the shell_exec
+// family, which has not moved out of the reducer root yet, reuses this exact
+// delta-scope and embedded-code-index machinery for its own materialization
 // (shell_exec_materialization.go, issue #6061) rather than duplicating it.
+//
+// BuildRefreshIntents is exported for a different reason. shell_exec does not
+// reuse it — it owns buildShellExecRefreshIntents in shell_exec_intents.go.
+// The only caller outside this package is the shared table in
+// sibling_edge_intent_delta_gate_test.go, which drives this family and
+// inheritance through the same assertions.
 //
 // This package imports [github.com/eshu-hq/eshu/go/internal/reducer/contract]
 // (the dependency-neutral domain/intent/result vocabulary),
