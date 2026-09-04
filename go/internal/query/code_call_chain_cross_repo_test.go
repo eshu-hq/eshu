@@ -23,7 +23,7 @@ func TestBuildCallChainCypherCrossRepoUsesEndpointRepositorySelectors(t *testing
 		StartRepoID:   "repo:api",
 		EndRepoID:     "repo:billing",
 		MaxDepth:      4,
-	}, GraphBackendNeo4j)
+	}, GraphBackendNeo4j, repositoryAccessFilter{AllScopes: true})
 
 	for _, fragment := range []string{
 		"start.repo_id = $start_repo_id",
@@ -60,7 +60,7 @@ func TestBuildCallChainCypherCrossRepoUsesRepoIDAsMissingEndpointFallback(t *tes
 		StartRepoID:   "repo:api",
 		RepoID:        "repo:billing",
 		MaxDepth:      4,
-	}, GraphBackendNeo4j)
+	}, GraphBackendNeo4j, repositoryAccessFilter{AllScopes: true})
 
 	for _, fragment := range []string{
 		"start.repo_id = $start_repo_id",
@@ -89,7 +89,7 @@ func TestBuildCallChainCypherRepoScopedFiltersEveryPathNode(t *testing.T) {
 		EndEntityID:   "entity:end",
 		RepoID:        "repo:billing",
 		MaxDepth:      4,
-	}, GraphBackendNeo4j)
+	}, GraphBackendNeo4j, repositoryAccessFilter{AllScopes: true})
 
 	for _, fragment := range []string{
 		"start.repo_id = $repo_id",

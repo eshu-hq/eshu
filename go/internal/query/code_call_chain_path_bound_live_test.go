@@ -21,19 +21,26 @@ package query
 
 import (
 	"context"
+	"strings"
 	"testing"
 	"time"
 )
 
-// TestLiveNornicDBCallChainShippedNornicDBBuilderParses runs the exact
-// statement buildNornicDBCallChainCypher ships for a repo-scoped request whose
-// only route between two in-repository endpoints crosses the other repository.
+// TestLiveNornicDBCallChainShippedNornicDBBuilderDoesNotParse pins a measured
+// defect rather than a wanted behaviour.
 //
-// The builder is not on the live NornicDB path -- handleCallChain sends a
-// NornicDB backend to nornicDBCallChainRows and only a non-NornicDB backend
-// reaches buildCallChainCypher -- so this records what the statement does if
-// anything ever routes to it.
-func TestLiveNornicDBCallChainShippedNornicDBBuilderParses(t *testing.T) {
+// buildNornicDBCallChainCypher is not on the live NornicDB path: handleCallChain
+// sends a NornicDB backend to nornicDBCallChainRows and only a non-NornicDB
+// backend reaches buildCallChainCypher. Run against the pinned build anyway, its
+// statement does not parse -- "shortestPath: could not resolve start variable"
+// -- even though docs/public/reference/nornicdb-query-pitfalls.md records this
+// pre-bound-endpoint shape as the safe one. That entry was measured on v1.1.11
+// and the correction is recorded there now.
+//
+// Pinning the failure keeps the finding honest and makes the day NornicDB starts
+// accepting the shape visible, instead of leaving a permanently red test or
+// silently deleting the evidence.
+func TestLiveNornicDBCallChainShippedNornicDBBuilderDoesNotParse(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), time.Minute)
 	defer cancel()
 	handler, closeDriver := newLiveCallChainHandler(ctx, t)
@@ -44,19 +51,16 @@ func TestLiveNornicDBCallChainShippedNornicDBBuilderParses(t *testing.T) {
 		EndEntityID:   liveClauseChainEndUID,
 		RepoID:        codeGrantGrantedRepo,
 		MaxDepth:      5,
-	})
+	}, repositoryAccessFilter{AllScopes: true})
 	t.Logf("shipped call-chain statement:\n%s", cypher)
-	rows, err := handler.Neo4j.Run(ctx, cypher, params)
-	if err != nil {
-		t.Fatalf("the shipped NornicDB call-chain statement did not run: %v", err)
+	_, err := handler.Neo4j.Run(ctx, cypher, params)
+	if err == nil {
+		t.Fatalf("the shipped NornicDB call-chain statement now parses on the pinned build; " +
+			"re-measure whether its path bound filters and update the pitfalls page")
 	}
-	t.Logf("shipped call-chain statement returned %d rows", len(rows))
-	for _, row := range rows {
-		t.Logf("  depth=%v chain=%v", row["depth"], normalizeCallChainNodes(row["chain"]))
-	}
-	if len(rows) != 0 {
-		t.Fatalf("the repo-scoped path bound admitted a chain routed through %q: %v",
-			liveClauseChainBridge, rows)
+	t.Logf("shipped call-chain statement failed to parse, as measured: %v", err)
+	if !strings.Contains(err.Error(), "shortestPath") {
+		t.Fatalf("the parse failure changed shape; re-measure before trusting this pin: %v", err)
 	}
 }
 

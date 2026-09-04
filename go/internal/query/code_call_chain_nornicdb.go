@@ -3,7 +3,11 @@
 
 package query
 
-import "context"
+import (
+	"context"
+	"fmt"
+	"strings"
+)
 
 type nornicDBCallChainPath struct {
 	nodeID string
@@ -79,17 +83,34 @@ func (h *CodeHandler) nornicDBCallChainOneHopRows(
 ) ([]map[string]any, error) {
 	sourcePattern := nornicDBNodePattern("source", sourceLabel, "$source_id")
 	params := map[string]any{"source_id": sourceID}
-	repoPredicate := ""
+	access := codeGrantAccessFilter(ctx)
+	predicates := make([]string, 0, 2)
 	if len(allowedRepoIDs) > 0 {
 		params["traversal_repo_ids"] = allowedRepoIDs
+		predicates = append(predicates, "coalesce(target.repo_id, '') IN $traversal_repo_ids")
+	}
+	if access.Scoped() {
+		params = access.GraphParams(params)
+		predicates = append(predicates, access.GraphConditionOnProperty("target", "repo_id"))
+	}
+	// Both predicates sit in the anchoring MATCH's own WHERE, on the target
+	// node's own repo_id. They used to follow the two OPTIONAL MATCH clauses
+	// below, where a WHERE constrains the optional pattern rather than the
+	// driving row set: #5167 batch 2b measured the shipped statement returning
+	// every callee with its real repository id while $traversal_repo_ids named
+	// one repository. The coalesce(target.repo_id, targetRepo.id, '') fallback
+	// cannot survive the move because targetRepo is not bound yet, and it should
+	// not: a target the graph cannot attribute to a repository now fails the
+	// predicate and is dropped.
+	repoPredicate := ""
+	if len(predicates) > 0 {
 		repoPredicate = `
-		WHERE coalesce(target.repo_id, targetRepo.id, '') IN $traversal_repo_ids`
+		WHERE ` + strings.Join(predicates, " AND ")
 	}
 	rows, err := h.Neo4j.Run(ctx, `
-		MATCH `+sourcePattern+`-[:CALLS]->(target)
+		MATCH `+sourcePattern+`-[:CALLS]->(target)`+repoPredicate+`
 		OPTIONAL MATCH (target)<-[:CONTAINS]-(targetFile:File)
 		OPTIONAL MATCH (targetRepo:Repository)-[:REPO_CONTAINS]->(targetFile)
-		`+repoPredicate+`
 		RETURN coalesce(target.id, target.uid) as id,
 		       target.name as name,
 		       labels(target) as labels,
@@ -127,4 +148,88 @@ func cloneCallChainNodeSlice(nodes []map[string]any) []map[string]any {
 		cloned = append(cloned, cloneQueryAnyMap(node))
 	}
 	return cloned
+}
+
+// buildNornicDBCallChainCypher is the NornicDB dialect of the shortestPath
+// call-chain read.
+//
+// It is not on the live NornicDB path: handleCallChain sends a NornicDB backend
+// to nornicDBCallChainRows above, and only a non-NornicDB backend reaches
+// buildCallChainCypher. That matters, because #5167 batch 2b ran this exact
+// statement against the pinned build and it does not parse there --
+// "shortestPath: could not resolve start variable" -- so the pre-bound-endpoint
+// shape docs/public/reference/nornicdb-query-pitfalls.md records as safe was
+// measured on an older build and is not safe on the current pin. It carries the
+// grant like every other builder in the family so a future caller cannot reach
+// it unbound, and the parse failure is tracked in
+// docs/internal/evidence/5167-code-family-batch-2b.md.
+func buildNornicDBCallChainCypher(
+	req callChainRequest,
+	access repositoryAccessFilter,
+) (string, map[string]any) {
+	params := map[string]any{}
+	predicates := make([]string, 0, 2)
+
+	startPattern := "(start"
+	if strings.TrimSpace(req.StartEntityID) != "" {
+		params["start_entity_id"] = strings.TrimSpace(req.StartEntityID)
+		startPattern += " {uid: $start_entity_id}"
+	} else {
+		params["start"] = strings.TrimSpace(req.Start)
+		startPattern += " {name: $start}"
+	}
+	startPattern += ")"
+
+	endPattern := "(end"
+	if strings.TrimSpace(req.EndEntityID) != "" {
+		params["end_entity_id"] = strings.TrimSpace(req.EndEntityID)
+		endPattern += " {uid: $end_entity_id}"
+	} else {
+		params["end"] = strings.TrimSpace(req.End)
+		endPattern += " {name: $end}"
+	}
+	endPattern += ")"
+
+	if req.CrossRepo {
+		params["start_repo_id"] = strings.TrimSpace(callChainStartRepoID(&req))
+		params["end_repo_id"] = strings.TrimSpace(callChainEndRepoID(&req))
+		params["traversal_repo_ids"] = callChainAllowedTraversalRepoIDs(&req)
+		predicates = append(predicates, "start.repo_id = $start_repo_id", "end.repo_id = $end_repo_id")
+	} else if strings.TrimSpace(req.RepoID) != "" {
+		params["repo_id"] = strings.TrimSpace(req.RepoID)
+		predicates = append(predicates, "start.repo_id = $repo_id", "end.repo_id = $repo_id")
+	}
+	if access.Scoped() {
+		params = access.GraphParams(params)
+		predicates = append(predicates,
+			access.GraphConditionOnProperty("start", "repo_id"),
+			access.GraphConditionOnProperty("end", "repo_id"),
+		)
+	}
+
+	var cypher strings.Builder
+	cypher.WriteString("\n\t\tMATCH ")
+	cypher.WriteString(startPattern)
+	cypher.WriteString("\n\t\tMATCH ")
+	cypher.WriteString(endPattern)
+	if len(predicates) > 0 {
+		cypher.WriteString("\n\t\tWHERE ")
+		cypher.WriteString(strings.Join(predicates, " AND "))
+	}
+	cypher.WriteString("\n\t\tMATCH path = shortestPath(\n")
+	cypher.WriteString("\t\t\t(start)-[:CALLS*1..")
+	fmt.Fprint(&cypher, req.MaxDepth)
+	cypher.WriteString("]->(end)\n")
+	cypher.WriteString("\t\t)\n")
+	if req.CrossRepo {
+		cypher.WriteString("\t\tWHERE all(node IN nodes(path) WHERE coalesce(node.repo_id, '') IN $traversal_repo_ids)\n")
+	} else if strings.TrimSpace(req.RepoID) != "" {
+		cypher.WriteString("\t\tWHERE all(node IN nodes(path) WHERE coalesce(node.repo_id, '') = $repo_id)\n")
+	}
+	// NornicDB returns typed Bolt nodes for raw nodes(path); the handler
+	// normalizes them to Eshu's existing call-chain response shape.
+	cypher.WriteString("\t\tRETURN nodes(path) as chain,\n")
+	cypher.WriteString("\t\t       length(path) as depth\n")
+	cypher.WriteString("\t\tLIMIT 5\n\t")
+	return cypher.String(), params
 }
