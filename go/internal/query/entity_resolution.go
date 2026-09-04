@@ -40,6 +40,14 @@ func resolveExactGraphEntityCandidates(
 	if repoID == "" || name == "" {
 		return nil, nil
 	}
+	// Defense in depth. Every caller reaches this through a repository selector
+	// that already resolved repoID against the grant, so a mismatch here means
+	// the read was reached on a selector-free path; the candidate rows become an
+	// ambiguity error that names entity ids, so it must not be that path's job
+	// alone to keep them in grant.
+	if !codeGrantAccessFilter(ctx).AllowsRepositoryID(repoID) {
+		return nil, nil
+	}
 
 	matches, err := reader.SearchEntitiesByName(ctx, repoID, "", name, graphEntityResolutionLimit)
 	if err != nil {

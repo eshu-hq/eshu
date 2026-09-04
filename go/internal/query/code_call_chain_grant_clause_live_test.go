@@ -183,7 +183,7 @@ func TestLiveNornicDBRelationshipMetadataRowAnchors(t *testing.T) {
 		},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			predicate, params := nornicDBRelationshipMetadataPredicate("", tc.repoID)
+			predicate, params := nornicDBRelationshipMetadataPredicate("", tc.repoID, repositoryAccessFilter{AllScopes: true})
 			params["entity_id"] = tc.entity
 			rows, err := handler.Neo4j.Run(
 				ctx,
