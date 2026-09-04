@@ -9,6 +9,7 @@ import (
 	"log/slog"
 	"time"
 
+	"github.com/eshu-hq/eshu/go/internal/coordinator/awsscheduledplanner"
 	"github.com/eshu-hq/eshu/go/internal/coordinator/ociregistry"
 	"github.com/eshu-hq/eshu/go/internal/coordinator/tfstateplanner"
 	"github.com/eshu-hq/eshu/go/internal/governanceaudit"
@@ -84,7 +85,7 @@ type OwnedPackageTargetReader interface {
 
 // AWSScheduledPlanner plans scheduled AWS collector work from configuration.
 type AWSScheduledPlanner interface {
-	PlanAWSScheduledWork(context.Context, AWSScheduledPlanRequest) (workflow.Run, []workflow.WorkItem, error)
+	PlanAWSScheduledWork(context.Context, awsscheduledplanner.PlanRequest) (workflow.Run, []workflow.WorkItem, error)
 }
 
 // Service is the workflow coordinator runner.

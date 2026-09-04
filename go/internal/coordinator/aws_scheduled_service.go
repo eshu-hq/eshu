@@ -9,6 +9,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/eshu-hq/eshu/go/internal/coordinator/awsscheduledplanner"
 	"github.com/eshu-hq/eshu/go/internal/scope"
 	"github.com/eshu-hq/eshu/go/internal/workflow"
 )
@@ -25,7 +26,7 @@ func (s Service) scheduleAWSScheduledWork(
 		if !shouldScheduleAWS(instance) {
 			continue
 		}
-		enabled, err := awsScheduledScanEnabled(instance.Configuration)
+		enabled, err := awsscheduledplanner.ScanEnabled(instance.Configuration)
 		if err != nil {
 			return fmt.Errorf("read AWS scheduled scan config for %q: %w", instance.InstanceID, err)
 		}
@@ -35,7 +36,7 @@ func (s Service) scheduleAWSScheduledWork(
 		if s.AWSScheduledPlanner == nil {
 			return fmt.Errorf("AWS scheduled planner is required for active aws collectors")
 		}
-		run, items, err := s.AWSScheduledPlanner.PlanAWSScheduledWork(ctx, AWSScheduledPlanRequest{
+		run, items, err := s.AWSScheduledPlanner.PlanAWSScheduledWork(ctx, awsscheduledplanner.PlanRequest{
 			Instance:   instance,
 			ObservedAt: observedAt,
 			PlanKey:    s.awsScheduledPlanKey(instance, observedAt),
