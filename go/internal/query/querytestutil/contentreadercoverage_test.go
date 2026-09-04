@@ -7,16 +7,32 @@ import (
 	"go/ast"
 	"go/parser"
 	"go/token"
+	"strings"
 	"testing"
 )
 
-// answeringBranchCounts reports how many rows-answering branches each
+// groupHelperSuffix is the naming convention every per-group default-answer
+// helper follows. Discovery is by suffix rather than by a list of known names so
+// that a third group helper is FOUND and reported, not silently skipped: a test
+// that hardcodes the two names it expects cannot notice a third.
+const groupHelperSuffix = "DefaultRows"
+
+// dispatcherName is the shared tier, which delegates to the group helpers and is
+// therefore not one of them.
+const dispatcherName = "contentReaderDefaultRows"
+
+// answeringBranchCounts reports how many rows-answering branches each per-group
 // default-answer helper has, read from the source rather than from a constant.
 //
-// A branch is a `return &contentReaderRows{...}` inside one of the two group
-// functions. Counting predicates instead would be wrong: several branches AND
-// two to four strings.Contains calls together, so a predicate count reads high
-// and would make an incomplete table look covered.
+// A branch is a `return &contentReaderRows{...}`. Counting predicates instead
+// would be wrong: several branches AND two to four strings.Contains calls
+// together, so a predicate count reads high and would make an incomplete table
+// look covered.
+//
+// Every other return in a group helper must be a bare `return nil`. Without that
+// rule a branch could answer through a helper call or a local variable and never
+// be counted, which is the same false green as an uncounted literal. The shared
+// tier is excluded because it legitimately returns the delegated result.
 func answeringBranchCounts(t *testing.T) map[string]int {
 	t.Helper()
 
@@ -33,29 +49,47 @@ func answeringBranchCounts(t *testing.T) map[string]int {
 		if !ok || fn.Body == nil {
 			continue
 		}
-		if fn.Name.Name != "contentReaderFactDefaultRows" && fn.Name.Name != "contentReaderReadModelDefaultRows" {
+		name := fn.Name.Name
+		if name == dispatcherName || !strings.HasSuffix(name, groupHelperSuffix) {
 			continue
 		}
+
+		counts[name] = 0
 		ast.Inspect(fn.Body, func(node ast.Node) bool {
 			ret, ok := node.(*ast.ReturnStmt)
 			if !ok || len(ret.Results) != 1 {
 				return true
 			}
-			unary, ok := ret.Results[0].(*ast.UnaryExpr)
-			if !ok || unary.Op != token.AND {
+			if answersWithRowsLiteral(ret.Results[0]) {
+				counts[name]++
 				return true
 			}
-			composite, ok := unary.X.(*ast.CompositeLit)
-			if !ok {
+			if ident, ok := ret.Results[0].(*ast.Ident); ok && ident.Name == "nil" {
 				return true
 			}
-			if ident, ok := composite.Type.(*ast.Ident); ok && ident.Name == "contentReaderRows" {
-				counts[fn.Name.Name]++
-			}
+			t.Errorf(
+				"%s returns something that is neither a &contentReaderRows literal nor nil; "+
+					"an answer in that shape is invisible to this count, so give it the literal shape",
+				name,
+			)
 			return true
 		})
 	}
 	return counts
+}
+
+// answersWithRowsLiteral reports whether expr is `&contentReaderRows{...}`.
+func answersWithRowsLiteral(expr ast.Expr) bool {
+	unary, ok := expr.(*ast.UnaryExpr)
+	if !ok || unary.Op != token.AND {
+		return false
+	}
+	composite, ok := unary.X.(*ast.CompositeLit)
+	if !ok {
+		return false
+	}
+	ident, ok := composite.Type.(*ast.Ident)
+	return ok && ident.Name == "contentReaderRows"
 }
 
 // TestContentReaderDefaultGroupsCoverEveryGroupAnsweringBranch requires
@@ -79,8 +113,24 @@ func TestContentReaderDefaultGroupsCoverEveryGroupAnsweringBranch(t *testing.T) 
 	t.Parallel()
 
 	counts := answeringBranchCounts(t)
-	if len(counts) != 2 {
-		t.Fatalf("found %d default-answer helpers, want 2: %v", len(counts), counts)
+
+	known := map[string]bool{
+		"contentReaderFactDefaultRows":      true,
+		"contentReaderReadModelDefaultRows": true,
+	}
+	for name := range counts {
+		if !known[name] {
+			t.Errorf(
+				"%s looks like a new per-group default-answer helper; give it a defaultRowsGroup "+
+					"and one case per branch in defaultRowsCases, then add it here",
+				name,
+			)
+		}
+	}
+	for name := range known {
+		if _, found := counts[name]; !found {
+			t.Fatalf("%s not found in the source; was it renamed or moved?", name)
+		}
 	}
 
 	covered := map[defaultRowsGroup]int{}
