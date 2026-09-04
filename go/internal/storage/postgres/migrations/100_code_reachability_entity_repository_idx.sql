@@ -14,10 +14,14 @@
 --
 -- code_reachability_entity_lookup_idx leads with entity_id but carries state
 -- and confidence next, not repository_id, so a consumer-repository predicate
--- can only be a heap filter under it. With this index the probe expresses the
--- out-of-grant test as repository_id ranges around the sorted grant -- below
--- the first granted id, between consecutive ones, above the last -- and each
--- range is an Index Cond that stops at its first row.
+-- can only be a heap filter under it, and nothing can walk an entity's
+-- consumer repositories in order. With this index the probe is a loose index
+-- scan: seek to the entity's smallest consumer repository, then to the
+-- smallest one strictly greater, and stop at the first the grant does not
+-- contain. Each step is an Index Cond of the form (entity_id = ?,
+-- repository_id > ?) that returns one row, so a producer entity costs one
+-- probe per distinct consumer repository the grant contains, plus one --
+-- never a second row of any repository, however many rows it has.
 --
 -- Measured in a throwaway PostgreSQL 16.15 container, data-plane schema
 -- applied from schema/data-plane/postgres (001, 002, 027), synthetic rows
@@ -30,29 +34,29 @@
 --     (generic plan)                     950.2 / 951.3 / 1021.2 ms
 --     1,000,497 rows under the driving Index Scan
 --     buffers hit=646 read=26929
---   bounded probe, every consumer granted   6.90 / 6.76 / 6.70 ms
---     (generic plan)                         6.70 / 6.78 / 6.64 ms
---     0 rows from the hot group
---     buffers hit=7618 read=10
---   bounded probe, an out-of-grant consumer 4.87 / 4.75 / 4.69 ms
---     (generic plan)                         5.10 / 4.82 / 4.70 ms
---     buffers hit=5379
+--   bounded walk, every consumer granted    4.95 / 4.62 / 4.65 ms
+--     (generic plan)                         4.72 / 4.58 / 4.78 ms
+--     0 rows from the hot group, buffers hit=4886
+--   bounded walk, an out-of-grant consumer  3.13 / 2.99 / 2.89 ms
+--     (generic plan)                         3.12 / 2.96 / 2.90 ms
+--     buffers hit=3006
 --
--- Those are the shipped statement, the one with every range probed through
--- CROSS JOIN LATERAL ... LIMIT 1. An earlier iteration wrapped only the
--- interior ranges that way and measured slightly faster on this seed
--- (6.45 / 6.45 / 6.48 ms), but it was withdrawn: on a SHORT candidate page
--- Postgres turns its two plain-EXISTS branches into a hashed subplan, which
--- drops row.entity_id = page.entity_id and reads the whole table. Do not
--- reach for those numbers; they belong to a shape that is not here.
+-- The walk's cost does not follow the caller's grant, and that is the reason
+-- it is the shape here. An earlier version of the probe asked the same
+-- question as repository_id ranges around the sorted grant, one range per gap.
+-- It used this index and was correct, but a range per gap is a probe per
+-- granted repository, so on the same page it took 6.8 ms at a 5-repository
+-- grant, 60 ms at 50, 248 ms at 200 and 633 ms at 500, while the walk stays at
+-- 4.6-5.2 ms across all four and reads hit=4886 buffers at every one of them.
+-- The walk's own axis is the entity's DISTINCT consumer repositories: a
+-- producer entity consumed by 300 of them, all granted, costs 7.8 ms, where
+-- the ranges cost 632 ms.
 --
 -- The index alone is not the fix. With this index in place but the predicate
 -- left as NOT (repository_id = ANY(grant)), the planner takes a Parallel Seq
--- Scan and removes 733,732 rows by filter in 105 ms; the range shape is what
--- turns it into a seek. The lateral form matters for the same reason: written
--- as a plain correlated EXISTS over the gap list, the range drops out of the
--- Index Cond under a generic plan and the probe costs 1,399 ms -- worse than
--- the read it replaces. Both shapes are recorded in
+-- Scan and removes 733,732 rows by filter in 105 ms; a shape that seeks is
+-- what turns it into an index read. The withdrawn shapes and the full
+-- grant-size table are in
 -- docs/internal/evidence/5167-code-family-batch-1.md.
 --
 -- 16 MB against a 139 MB code_reachability_entity_lookup_idx and a 1,154 MB
@@ -61,7 +65,9 @@
 -- depth is deliberately absent. It is a range predicate, so nothing after it
 -- in the key could be used as an Index Cond anyway, and depth = 0 rows are the
 -- root's own row -- at most one per consumer repository per entity, which the
--- filter discards without a measurable scan.
+-- filter discards without a measurable scan. The walk needs exactly this key
+-- order: entity_id equality first so one entity's rows are contiguous, then
+-- repository_id so they are ordered by the column the walk steps through.
 --
 -- CONCURRENTLY, so building it does not block the reducer's reachability
 -- writes. The usual objection -- that a failed concurrent build leaves an

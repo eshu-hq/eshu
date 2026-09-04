@@ -486,10 +486,17 @@ ORDER BY row.entity_id`,
 }
 
 // crossRepoDeadCodeProbeWalkRowBudget is the most rows the probe's recursive
-// term may produce for a 251-entity page whose entities have a handful of
-// consumer repositories each and one of which has 200. It is generous on
-// purpose: the failure it has to catch multiplies the count, not nudges it.
-const crossRepoDeadCodeProbeWalkRowBudget = 900
+// term may produce for this fixture's page plus ent-fanout. The shipped walk
+// produces 15; with the stop condition removed it produces 215, because
+// ent-fanout's 200 distinct consumer repositories are then all walked. 60 sits
+// far enough above the real count to survive fixture edits and far enough
+// below the broken one to fail on it.
+//
+// Measured, not guessed: both numbers came from running this guard with the
+// budget temporarily set to 1, once against the shipped statement and once
+// against the mutation, which is also proof row 38 needed -- an earlier budget
+// of 900 sat above BOTH and would have passed the mutation it exists to catch.
+const crossRepoDeadCodeProbeWalkRowBudget = 60
 
 // crossRepoDeadCodeProbeWalkRows reads the row count the recursive walk term
 // actually produced out of an EXPLAIN ANALYZE plan.

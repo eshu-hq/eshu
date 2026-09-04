@@ -213,6 +213,9 @@ mutation was restored and its guard rerun at exit `0`.
 | 37 | `bucketCrossRepoDeadCodeResults` ignores the probe's answer (`if false && consumers.HiddenConsumers.has(entityID)`) | `go test ./internal/query -run 'TestCrossRepoDeadCodeKeepsTheHiddenConsumerSignal\|TestCrossRepoDeadCodeHiddenConsumerOutranksStrongGrantedEvidence' -count=1` | `1` (2 failures: the candidate whose only consumer is out of grant came back `"classification":"dead"`, and the mixed one lost its `unknown` bucket entry) |
 | 38 | `crossRepoDeadCodeUngrantedConsumers` drops its empty-grant refusal | `go test ./internal/query -run TestCrossRepoDeadCodeProbeRefusesAnEmptyGrant -count=1` | `1` (`hidden = …{"entity-1":struct {}{}}, want empty`) |
 | 39 | `crossRepoDeadCodeConsumerReadPlan` sets `SignalGrant` for a request that named consumers | `go test ./internal/query -run 'TestCrossRepoDeadCodeConsumerReadPlan\|TestCrossRepoDeadCodeHiddenCountHonoursTheConsumerSelector\|TestCrossRepoDeadCodeConsumerSelectorSurvivesABusyGrantedRepository' -count=1` | `1` (3 failures; the read plan leaks the grant into the probe and the selector route sends a second statement) |
+| 40 | the walk drops its stop condition (`AND EXISTS (… granted …)` becomes `AND TRUE`), so it enumerates every distinct consumer repository instead of stopping at the first ungranted one | `ESHU_CROSS_REPO_DEAD_CODE_PROBE_LIVE=1 ESHU_POSTGRES_DSN=… go test ./internal/query -run TestCrossRepoDeadCodeUngrantedConsumerProbeLive -count=1` | `1` (2 sub-test failures: `the recursive walk produced 215 rows, want at most 60`, and the plan guard loses the per-step seek). Every entity's verdict is unchanged, which is the point of the row-count guard |
+| 41 | the walk's step seeks `>=` instead of `>`, so it never advances past the repository it just found | the same command | `1` (14 sub-test failures, all `cross-repo dead code ungranted consumer probe: context deadline exceeded`) |
+| 42 | the final filter selects the granted repositories instead of the ungranted ones (`NOT EXISTS` becomes `EXISTS`) | the same command | `1` (12 sub-test failures; e.g. `hidden = []string{"ent-busy", "ent-middle", "ent-spread"}, want []string(nil)` for a grant that hides nothing) |
 
 An earlier attempt at #1 deleted the whole helper body and failed as an unused
 import rather than an assertion, which proves nothing; the mutations above keep
@@ -242,6 +245,18 @@ anything. Both are now `ERROR`. The module has no parenthesised and no mixed
 constraint, so the sweep's own output is unchanged at 29 vetted / 16 skipped /
 exit 0, which is the behaviour-preservation check for a change that only
 narrows what the gate will accept.
+
+Rows 40 through 42 are the round-10 pass, which replaced the grant-complement
+ranges of rows 34 through 36 with a loose index scan over each producer
+entity's distinct consumer repositories. Rows 41 and 42 are ordinary
+correctness mutations. Row 40 is not, and it is the one worth reading: dropping
+the walk's stop condition leaves every entity's verdict identical and turns a
+bounded walk into a full enumeration, so no assertion on the answer can see it.
+The guard that catches it reads the recursive term's measured row count out of
+`EXPLAIN ANALYZE`. Its budget is measured rather than chosen -- 15 rows shipped,
+215 mutated, budget 60 -- and the first budget written for it, 900, sat above
+both and passed the mutation it existed to catch. That guard was a false green
+until row 40 was run against it, which is the argument for running these at all.
 
 Rows 34 through 39 are the round-9 pass, the one that replaced the unrestricted
 signal read with the bounded ungranted-consumer probe. Rows 34 and 35 are the

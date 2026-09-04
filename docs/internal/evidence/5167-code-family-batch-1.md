@@ -403,8 +403,8 @@ row 1,001.
 
 ### Two Bounded Reads, Not An Unbounded Complement
 
-The signal half went through three shapes, and the two that were withdrawn were
-withdrawn on measurements rather than taste.
+The signal half went through four shapes, and the three that were withdrawn
+were withdrawn on measurements rather than taste.
 
 The first counted the *complement* of the page with one `LATERAL` arm per
 producer entity, each capped at 100 rows. That cap bounds rows returned, not
@@ -421,25 +421,24 @@ a million consumer rows therefore costs a million-row scan on every scoped
 request, and spends the shared 1,001-row budget where nothing later on the page
 can be proven.
 
-What ships now asks only the question the count needs. Per producer entity: is
-there one active-generation consumer row in a repository outside the grant?
-`crossRepoDeadCodeUngrantedConsumerProbeQuery` expresses "outside the grant" as
+The third stopped asking for rows at all and asked only the question the count
+needs. Per producer entity: is there one active-generation consumer row in a
+repository outside the grant? It expressed "outside the grant" as
 `repository_id` ranges around the sorted grant — below the smallest granted id,
 between two consecutive ones, above the largest — so
 `code_reachability_entity_repository_idx` (migration
-`100_code_reachability_entity_repository_idx.sql`) can seek to each range and
-stop at its first row. Proving a producer entity has no ungranted consumer
-costs one seek per range instead of a scan of its group.
+`100_code_reachability_entity_repository_idx.sql`) could seek to each range and
+stop at its first row. That is a seek per range instead of a scan of the group,
+and against a five-repository grant it measured two orders of magnitude better
+than the read it replaced. It is also where the grant became the cost: one seek
+per range means one seek per granted repository, and the section below is about
+the size of grant that makes visible.
 
-Two details are load-bearing. The grant is ordered by Postgres, in the
-statement's own `gap` CTE, because the ranges partition the domain only when
-their bounds are sorted in the collation the index and the comparisons use, and
-Go's byte order is not that collation. And every range is probed through
-`CROSS JOIN LATERAL ... LIMIT 1`, because the `LIMIT` is what stops the
-subquery being flattened: without it the interior ranges lose both bounds from
-the `Index Cond` under a generic plan, and the two outer ones are turned into a
-hashed subplan on a short candidate page, which drops the per-entity equality
-and reads the whole table.
+What ships now, `crossRepoDeadCodeUngrantedConsumerProbeQuery`, walks the other
+side of the question — the producer entity's own distinct consumer
+repositories, in index order, stopping at the first one the grant does not
+contain. It uses the same index, and its cost follows the answer rather than
+either the entity's row fan-in or the caller's grant.
 
 Performance Evidence: `EXPLAIN (ANALYZE, BUFFERS)` in a throwaway PostgreSQL
 16.15 container, data-plane schema applied from `schema/data-plane/postgres`
@@ -457,53 +456,97 @@ statement cache puts these reads on a generic plan and a literal `EXPLAIN`
 hides that difference.
 
 The measured envelope on that seed, beside the machine profile: the table is
-1,154 MB, `code_reachability_entity_repository_idx` 16 MB against a 139 MB
+1,154 MB and `code_reachability_entity_repository_idx` 16 MB against a 139 MB
 `code_reachability_entity_lookup_idx` — both of this index's key columns repeat
 heavily within an entity, so btree deduplication compresses it far better than
-the existing ones — and the shared-buffer cost per statement is `hit=646
-read=26929` for the read being replaced, `hit=7618 read=10` for the probe with
-every consumer granted, and `hit=5379` for the probe with one out of grant.
+the existing ones. Per-statement shared buffers are in the tables below.
 
 | Metric | Withdrawn unrestricted signal read | Shipped ungranted-consumer probe |
 | --- | ---: | ---: |
-| Execution time, custom plan | 757.6 / 756.9 / 779.5 ms | 6.90 / 6.76 / 6.70 ms |
-| Execution time, generic plan | 950.2 / 951.3 / 1021.2 ms | 6.70 / 6.78 / 6.64 ms |
+| Execution time, custom plan | 757.6 / 756.9 / 779.5 ms | 4.95 / 4.62 / 4.65 ms |
+| Execution time, generic plan | 950.2 / 951.3 / 1021.2 ms | 4.72 / 4.58 / 4.78 ms |
 | Rows read under the driving scan | 1,000,497 | 0 |
 | Rows returned | 1,001 | 0 |
-| Shared buffers | hit=646 read=26929 | hit=7618 read=10 |
-| Driving access | `Index Scan` on `code_reachability_entity_lookup_idx` under an `Incremental Sort` presorted on `entity_id`, under `Limit` | three `Index Scan`s on `code_reachability_entity_repository_idx`, each `Index Cond` carrying `entity_id` plus its range bounds, `rows=0 loops=250` |
+| Shared buffers | hit=646 read=26929 | hit=4886 |
+| Driving access | `Index Scan` on `code_reachability_entity_lookup_idx` under an `Incremental Sort` presorted on `entity_id`, under `Limit` | `Index Scan`s on `code_reachability_entity_repository_idx`, each `Index Cond` carrying `entity_id` plus the walk's seek |
 
 That is the no-hidden-consumer case, which is the one that has to prove a
 negative. With one consumer repository taken out of the grant the probe answers
-in 4.87 / 4.75 / 4.69 ms on a custom plan and 5.10 / 4.82 / 4.70 ms on a generic
-one, `hit=5379` buffers.
+in 3.13 / 2.99 / 2.89 ms, `hit=3006` buffers.
 
-Two nearby shapes were measured and rejected on the same data. The index alone
-does not fix anything: with `code_reachability_entity_repository_idx` in place
-but the predicate left as `NOT (repository_id = ANY($grant))`, the planner takes
-a `Parallel Seq Scan` and removes 733,732 rows by filter, 105.1 ms. And the
-range shape without the lateral armour plans identically to the shipped one
-under a custom plan, 6.45 ms, then costs 1,399 ms under a generic plan, where
-`Nested Loop Semi Join / Join Filter: (repository_id > w.lo) AND
-(repository_id < w.hi)` replaces the `Index Cond` — worse than the read it
-replaces.
+The index alone fixes nothing: with `code_reachability_entity_repository_idx` in
+place but the predicate left as `NOT (repository_id = ANY($grant))`, the planner
+takes a `Parallel Seq Scan` and removes 733,732 rows by filter, 105.1 ms. What
+the index buys is a seek, and the shape has to ask for one.
 
-Exactness: the probe returns the same producer entities as the
+#### The Grant Is An Axis Too
+
+The first shape to use that index expressed "outside the grant" as
+`repository_id` ranges around the sorted grant, one range per gap. It was
+correct, and its cost was one index probe per granted repository per producer
+entity — so it scaled with the caller's grant rather than with the answer, and
+the five-repository measurement above could not see it. Codex raised it as a P1
+on the shipped statement. It reproduces:
+
+| Grant size | Ranges, every consumer granted | Walk, every consumer granted | Ranges, a hidden consumer | Walk, a hidden consumer |
+| ---: | ---: | ---: | ---: | ---: |
+| 5 | 7.26 / 6.95 / 6.82 ms | 4.95 / 4.62 / 4.65 ms | 6.70 / 6.05 / 6.40 ms | 3.13 / 2.99 / 2.89 ms |
+| 50 | 60.81 / 60.38 / 59.85 ms | 4.92 / 4.72 / 4.57 ms | 20.46 / 20.23 / 20.21 ms | 3.19 / 3.01 / 2.96 ms |
+| 200 | 247.54 / 248.82 / 247.64 ms | 4.93 / 4.73 / 4.66 ms | 79.67 / 79.14 / 80.08 ms | 3.24 / 3.15 / 3.06 ms |
+| 500 | 641.86 / 633.64 / 635.63 ms | 5.16 / 5.01 / 4.96 ms | 209.80 / 209.66 / 210.11 ms | 3.57 / 3.43 / 3.52 ms |
+
+Shared buffers say it more plainly than the timings do. The ranges read
+`hit=7622`, `hit=63877`, `hit=251377`, `hit=626377` as the grant grows; the walk
+reads `hit=4886` at every one of those four sizes — the same number, because it
+does the same work. Generic-plan runs are within noise of the custom-plan ones
+throughout (walk: 4.72 / 4.75 / 4.79 / 5.09 ms at 5 / 50 / 200 / 500).
+
+The shape that replaces the ranges is a loose index scan, one walk per producer
+entity: seed at that entity's smallest consumer repository, step to the smallest
+one strictly greater, and stop at the first repository the grant does not
+contain. A walk therefore visits each of the entity's DISTINCT consumer
+repositories at most once and never looks at a second row of any of them — at
+most `min(d, N) + 1` index probes for `d` distinct consumer repositories and a
+grant of `N`, where the ranges cost `N + 1` regardless of `d`.
+
+The walk has its own axis, `d`, and it was measured rather than assumed. A
+producer entity consumed by 300 distinct repositories, all granted, with a
+500-id grant: the walk takes 8.05 / 7.79 / 7.76 ms (`hit=6081`), the ranges
+631.99 / 629.74 / 628.31 ms (`hit=626377`). There is no crossover in the
+measured space, and the reason is structural rather than lucky: the walk stops
+at the first ungranted repository, so it can pass at most `min(d, N)` granted
+ones, which is never worse than the ranges' `N`.
+
+Grant order stops mattering as a side effect. The ranges were only correct with
+the grant sorted in the database's collation — Go's byte order is not that
+collation, and a mis-sorted bound list puts a granted repository inside a range
+the probe treats as ungranted. The walk tests membership with an equality
+against the `granted` CTE, which Postgres hashes, so no bound is rendered per
+granted repository and nothing depends on sort order.
+
+Exactness: the walk returns the same producer entities as the
 `NOT (repository_id = ANY($grant))` it replaces, symmetric difference `0/0`, for
-eight grant shapes on that data — every consumer granted, a hidden consumer
-below the smallest granted id, between two of them, above the largest, a
-single-element grant, a grant wider than the corpus, a grant disjoint from every
-consumer, and a grant naming only the producer repository.
-`TestCrossRepoDeadCodeUngrantedConsumerProbeLive` runs that same differential in
-the test suite against a disposable Postgres, and adds a plan assertion that
-every range bound reaches an index condition rather than a filter.
+sixteen grant shapes on that data — the eight the ranges were accepted on (every
+consumer granted, a hidden consumer below the smallest granted id, between two
+of them, above the largest, a single-element grant, a grant wider than the
+corpus, a grant disjoint from every consumer, and a grant naming only the
+producer repository), the 50-, 200- and 500-id grants in both the all-granted
+and hidden forms, and the 300-repository fan-out page in both.
+`TestCrossRepoDeadCodeUngrantedConsumerProbeLive` runs that differential in the
+test suite against a disposable Postgres, including at 500 granted repositories,
+and adds two plan assertions: that the walk's per-step seek reaches an index
+condition rather than a filter, and that the recursive term's measured row count
+stays inside a budget. The second exists because the walk's stop condition is a
+bound on work and not on the answer — remove it and every verdict is identical
+while each walk enumerates every consumer repository its entity has.
 
 The evidence page is unchanged and still reads that group: it has to rank a
 producer entity's consumers by confidence to return the strongest, so its cost
 is what the page returns rather than an artefact. On the same seed it takes
 885 ms reading 1,000,497 rows with the whole five-repository grant bound, and
-752 ms reading 800,373 with four of the five. Halving the worst case is what
-this change buys; the page's own bound is a separate question.
+752 ms reading 800,373 with four of the five. Removing the second traversal of
+that group is what this change buys; the page's own bound is a separate
+question, and it is the next thing to look at on this route.
 
 Two consequences are declared rather than incidental. The probe returns
 producer entity ids and nothing else, so no ungranted repository id, consumer
