@@ -456,6 +456,14 @@ rows on entity ids off the page. Both statements were run twice: once as
 statement cache puts these reads on a generic plan and a literal `EXPLAIN`
 hides that difference.
 
+The measured envelope on that seed, beside the machine profile: the table is
+1,154 MB, `code_reachability_entity_repository_idx` 16 MB against a 139 MB
+`code_reachability_entity_lookup_idx` — both of this index's key columns repeat
+heavily within an entity, so btree deduplication compresses it far better than
+the existing ones — and the shared-buffer cost per statement is `hit=646
+read=26929` for the read being replaced, `hit=7618 read=10` for the probe with
+every consumer granted, and `hit=5379` for the probe with one out of grant.
+
 | Metric | Withdrawn unrestricted signal read | Shipped ungranted-consumer probe |
 | --- | ---: | ---: |
 | Execution time, custom plan | 757.6 / 756.9 / 779.5 ms | 6.90 / 6.76 / 6.70 ms |

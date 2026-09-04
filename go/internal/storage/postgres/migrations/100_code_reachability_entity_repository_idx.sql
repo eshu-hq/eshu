@@ -28,11 +28,23 @@
 --
 --   shipped unrestricted signal read     757.6 / 756.9 / 779.5 ms
 --     (generic plan)                     950.2 / 951.3 / 1021.2 ms
---     1,000,497 rows under the driving Index Scan, 27,575 buffers
---   bounded probe, every consumer granted   6.45 / 6.45 / 6.48 ms
---     (generic plan)                         6.32 / 6.42 / 6.81 ms
---     0 rows from the hot group, 7,628 buffers
---   bounded probe, an out-of-grant consumer 4.57 / 4.63 ms
+--     1,000,497 rows under the driving Index Scan
+--     buffers hit=646 read=26929
+--   bounded probe, every consumer granted   6.90 / 6.76 / 6.70 ms
+--     (generic plan)                         6.70 / 6.78 / 6.64 ms
+--     0 rows from the hot group
+--     buffers hit=7618 read=10
+--   bounded probe, an out-of-grant consumer 4.87 / 4.75 / 4.69 ms
+--     (generic plan)                         5.10 / 4.82 / 4.70 ms
+--     buffers hit=5379
+--
+-- Those are the shipped statement, the one with every range probed through
+-- CROSS JOIN LATERAL ... LIMIT 1. An earlier iteration wrapped only the
+-- interior ranges that way and measured slightly faster on this seed
+-- (6.45 / 6.45 / 6.48 ms), but it was withdrawn: on a SHORT candidate page
+-- Postgres turns its two plain-EXISTS branches into a hashed subplan, which
+-- drops row.entity_id = page.entity_id and reads the whole table. Do not
+-- reach for those numbers; they belong to a shape that is not here.
 --
 -- The index alone is not the fix. With this index in place but the predicate
 -- left as NOT (repository_id = ANY(grant)), the planner takes a Parallel Seq
