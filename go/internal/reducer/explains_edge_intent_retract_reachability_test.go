@@ -66,9 +66,9 @@ func roundTripPayloads(t *testing.T, rows []SharedProjectionIntentRow) []SharedP
 // over-delete if a rationale row WITHOUT the refresh intent_type can actually
 // reach retractRows.
 //
-// It cannot, and this pins why: buildRationaleSharedIntentRows stamps
+// It cannot, and this pins why: rationale.BuildSharedIntentRows stamps
 // retract_via_refresh on every per-edge intent it emits
-// (rationale_edge_intents.go), and planRepoWideRetractWork routes a marked
+// (rationale/intents.go), and planRepoWideRetractWork routes a marked
 // per-edge row to writeRows, never to retractRows. Only the refresh rows --
 // which all carry intent_type -- retract. If a future change stops stamping the
 // marker, or the marker stops surviving the durable round trip, this test goes

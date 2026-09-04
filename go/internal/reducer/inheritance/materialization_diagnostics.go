@@ -19,7 +19,7 @@ import (
 // blanked the file-scoped partition-key anchor (inheritanceFilePartitionKey)
 // and the child_path provenance field on every emitted edge row. This is the
 // same class of bug #5998 found and fixed in rationale.ExtractRows
-// (rationale_edge_materialization.go:150-156): every sibling content_entity
+// (rationale/materialization.go): every sibling content_entity
 // reader (semantic_entity_materialization, sql_relationship_embedded_query,
 // sql_relationship_materialization) already reads "relative_path", so this
 // aligns inheritance with the established contract rather than inventing a new

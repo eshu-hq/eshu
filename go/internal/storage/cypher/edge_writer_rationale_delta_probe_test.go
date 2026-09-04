@@ -14,7 +14,7 @@ import (
 )
 
 // rationaleDeltaRows returns a single delta-flagged rationale refresh row, the
-// shape buildRationaleRefreshIntents emits for a repository whose delta touched
+// shape rationale.BuildRefreshIntents emits for a repository whose delta touched
 // a file.
 func rationaleDeltaRows() []reducer.SharedProjectionIntentRow {
 	return []reducer.SharedProjectionIntentRow{

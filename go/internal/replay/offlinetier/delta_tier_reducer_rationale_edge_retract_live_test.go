@@ -80,7 +80,7 @@ func TestReducerRationaleEdgeRetractGraphTruth(t *testing.T) {
 
 	// Production write path: the rationale template MERGEs the Rationale node
 	// inline and MATCHes the target by uid. Payload shapes mirror what the
-	// reducer's rationale edge intents emit (rationale_edge_intents.go).
+	// reducer's rationale edge intents emit (rationale/intents.go).
 	writeRows := []reducer.SharedProjectionIntentRow{
 		{IntentID: "rat-fn", RepositoryID: ratRepoID, Payload: map[string]any{
 			"rationale_uid": ratUIDFn, "target_entity_id": ratFnTarget,
@@ -141,7 +141,7 @@ func TestReducerRationaleEdgeRetractGraphTruth(t *testing.T) {
 
 	// Whole-repo retract (single-label Rationale anchor, probed working):
 	// clears the remaining edge, completing the retractable_edge:EXPLAINS claim.
-	// The payload is the per-repo refresh intent buildRationaleRefreshIntents
+	// The payload is the per-repo refresh intent rationale.BuildRefreshIntents
 	// emits, not a bare row (#6166): rationale_edges binds
 	// collectWholeScopeRefreshRepoIDs on its non-delta branch, so a row without
 	// the refresh intent_type contributes nothing, RetractEdges returns before

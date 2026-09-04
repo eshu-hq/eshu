@@ -49,13 +49,13 @@ _ifa_generic_require_intent_writer() {
 	# these handlers satisfies twice over without having the field: each
 	# declares its writer INTERFACE in the same file as the struct
 	# (CodeCallIntentWriter at code_call_materialization.go:32,
-	# RationaleEdgeIntentWriter at rationale_edge_materialization.go:26). A
+	# IntentWriter at rationale/materialization.go). A
 	# refactor that drops the struct field but keeps the interface -- or that
 	# leaves the word in a comment -- passed. Proven by feeding it a handler
 	# whose only occurrence was in a comment: rc=0, "precondition confirmed".
 	# The declaration form is uniform across every current writer
-	# (`rg -n '^\s+IntentWriter\s' go/internal/reducer/*.go`), so anchoring on
-	# it is not a guess.
+	# (`rg -n '^\s+IntentWriter\s' go/internal/reducer/*.go go/internal/reducer/*/*.go`),
+	# so anchoring on it is not a guess.
 	# rg's exit code is THREE-valued and the difference matters: 0 match, 1 no
 	# match, anything else an error (127 when rg is not installed at all). An
 	# `if ! rg ...` collapses all of those into "no match", which is how #6173's

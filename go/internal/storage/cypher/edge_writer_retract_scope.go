@@ -82,8 +82,8 @@ func collectRepoIDs(rows []reducer.SharedProjectionIntentRow) []string {
 // It was originally written for the rationale EXPLAINS
 // domain's mixed-batch retract (#5998 review F6): one ProcessPartitionOnce
 // batch can legitimately contain some repositories' refresh rows correctly
-// flagged delta_projection:true (buildRationaleRefreshIntents,
-// go/internal/reducer/rationale_edge_intents.go, gates that flag per
+// flagged delta_projection:true (rationale.BuildRefreshIntents,
+// go/internal/reducer/rationale/intents.go, gates that flag per
 // repository) alongside sibling repositories' refresh rows that carry no
 // delta_projection key at all -- a repository on a full generation whose scope
 // happens to share a partition bucket with a delta-generation sibling.

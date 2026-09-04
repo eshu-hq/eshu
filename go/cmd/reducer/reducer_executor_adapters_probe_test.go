@@ -176,7 +176,7 @@ func gateWiredEdgeWriterForProbeTest(t *testing.T, probeFound bool) (*sourcecyph
 
 // wholeScopeRationaleRefreshRow builds the retract row the two gate-wired probe
 // tests below hand RetractEdges: the per-repo refresh intent
-// buildRationaleRefreshIntents emits (go/internal/reducer/rationale_edge_intents.go),
+// rationale.BuildRefreshIntents emits (go/internal/reducer/rationale/intents.go),
 // which stamps intent_type unconditionally.
 //
 // The intent_type is what makes these tests exercise anything. Since #6166 the

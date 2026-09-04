@@ -32,7 +32,7 @@ IFA_FAMILY_EXPECTED_VAR[rationale_edges]="rationale_expected_edges"
 # shared cell_baseline.
 IFA_FAMILY_RETRY_BASELINE_VAR[rationale_edges]="baseline_rationale_retried"
 
-IFA_FAMILY_HANDLER_GO_FILE[rationale_edges]="go/internal/reducer/rationale_edge_materialization.go"
+IFA_FAMILY_HANDLER_GO_FILE[rationale_edges]="go/internal/reducer/rationale/materialization.go"
 
 # driven by drive_all_cassettes via ifa_rationale_drive (ifa_fault_injection_driver.sh:101).
 IFA_FAMILY_FAULT_SHARED_DRIVE[rationale_edges]="1"

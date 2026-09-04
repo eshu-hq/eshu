@@ -189,7 +189,7 @@ func (w *EdgeWriter) executeSQLRelationshipRetractStatements(ctx context.Context
 //
 // What bounds a statement's match set is the repo-qualification of the paths,
 // not a repository predicate: these statements bind target.path IN $file_paths
-// with no repo_id term, and semanticQualifyDeltaPath (rationale_delta_scope.go)
+// with no repo_id term, and semanticQualifyDeltaPath (rationale/delta_scope.go)
 // is what makes those paths repository-specific. The code-call, inheritance,
 // and SQL delta retracts are shaped the same way.
 //

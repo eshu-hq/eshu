@@ -19,7 +19,7 @@ import (
 // the SAME whole-scope partition key
 // ("rationale_edges:refresh:v1:whole:"+repoID -- mirrors the unexported
 // reducer.repoWideRetractRefreshPartitionKey(reducer.DomainRationaleEdges,
-// repoID), see rationale_edge_intents.go), which carries no delta/generation
+// repoID), see rationale/intents.go), which carries no delta/generation
 // component. reducer.LatestIntentsByRepoAndPartition therefore collapses the
 // two candidate rows to exactly one survivor per repository per batch before
 // RetractEdges ever sees them, so only one of the two rows -- never both --

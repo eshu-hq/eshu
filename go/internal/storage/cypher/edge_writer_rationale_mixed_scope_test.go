@@ -18,8 +18,8 @@ import (
 // more repositories than buckets, two different repositories' refresh rows
 // can legitimately hash into the SAME partition and be selected into the SAME
 // ProcessPartitionOnce batch (batchLimit defaults to 100). After
-// buildRationaleRefreshIntents gates delta_projection per repository (review
-// F6, rationale_edge_intents.go), a batch can contain one repo's row correctly
+// rationale.BuildRefreshIntents gates delta_projection per repository (review
+// F6, rationale/intents.go), a batch can contain one repo's row correctly
 // flagged delta_projection:true and a sibling repo's row correctly carrying no
 // delta_projection key at all. RetractEdges' DomainRationaleEdges branch MUST
 // retract BOTH: the delta row via the file-scoped statements, and the
@@ -44,10 +44,10 @@ func TestEdgeWriterRetractEdgesRationaleMixedBatchRetractsBothDeltaAndWholeScope
 		},
 		{
 			// A full-generation sibling in the SAME batch: no delta_projection
-			// key at all, exactly buildRationaleRefreshIntents' post-F6 shape
+			// key at all, exactly rationale.BuildRefreshIntents' post-F6 shape
 			// for a repo with no entry in deltaScope.filePathsByRepoID. It
 			// still carries the refresh intent_type, because every intent that
-			// builder emits does (rationale_edge_intents.go).
+			// builder emits does (rationale/intents.go).
 			IntentID:     "refresh-full",
 			RepositoryID: "repo-full",
 			Payload: map[string]any{

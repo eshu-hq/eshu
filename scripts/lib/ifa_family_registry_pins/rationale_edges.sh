@@ -9,9 +9,10 @@
 # reading the citations inline; it is never sourced, generated, or read back
 # out of the registry.
 
-# go/internal/reducer/rationale_edge_materialization.go:26 declares
-# RationaleEdgeIntentWriter; :39 embeds it as IntentWriter; :98 calls
-# h.IntentWriter.UpsertIntents(...) inside Handle(). Same shape as
+# go/internal/reducer/rationale/materialization.go declares
+# IntentWriter (formerly RationaleEdgeIntentWriter); MaterializationHandler
+# embeds it as IntentWriter; Handle() calls h.IntentWriter.UpsertIntents(...).
+# Same shape as
 # code_calls => blocker_kind=shared_intent_lock. Confirmed live, one hop
 # through the generic dispatcher rather than a direct call:
 # cell_killworker_rationale (scripts/lib/ifa_fault_injection_rationale_cells.sh)
