@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	"github.com/eshu-hq/eshu/go/internal/reducer/inheritance"
+	"github.com/eshu-hq/eshu/go/internal/reducer/rationale"
 )
 
 // TestSharedProjectionDomainEvidenceSource pins that a promoted edge domain keeps
@@ -22,7 +23,7 @@ func TestSharedProjectionDomainEvidenceSource(t *testing.T) {
 		want   string
 	}{
 		{DomainInheritanceEdges, inheritance.EvidenceSource},
-		{DomainRationaleEdges, rationaleEvidenceSource},
+		{DomainRationaleEdges, rationale.EvidenceSource},
 		{DomainHandlesRoute, fallback},
 		{DomainRunsIn, fallback},
 		{DomainWorkloadDependency, fallback},
@@ -36,7 +37,7 @@ func TestSharedProjectionDomainEvidenceSource(t *testing.T) {
 			}
 		})
 	}
-	if inheritance.EvidenceSource == fallback || rationaleEvidenceSource == fallback {
+	if inheritance.EvidenceSource == fallback || rationale.EvidenceSource == fallback {
 		t.Fatal("dedicated evidence sources must differ from the runner global to exercise the fix")
 	}
 }

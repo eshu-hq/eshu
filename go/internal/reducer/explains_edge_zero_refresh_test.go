@@ -9,12 +9,13 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/reducer/rationale"
 )
 
 func TestRationaleHandlerRefreshesValidFullRepositoryWithNoEdges(t *testing.T) {
 	t.Parallel()
 	writer := &recordingRationaleIntentWriter{}
-	handler := RationaleEdgeMaterializationHandler{
+	handler := rationale.MaterializationHandler{
 		FactLoader: &stubFactLoader{envelopes: []facts.Envelope{
 			rationaleRepositoryContextFact("run-full-zero"),
 			{
@@ -57,10 +58,10 @@ func TestRationaleHandlerRefreshesValidFullRepositoryWithNoEdges(t *testing.T) {
 			"target_entity_id": "content-entity:prior", "target_path": "/repo/src/prior.go",
 		},
 	}}
-	if _, err := edges.WriteEdges(context.Background(), DomainRationaleEdges, prior, rationaleEvidenceSource); err != nil {
+	if _, err := edges.WriteEdges(context.Background(), DomainRationaleEdges, prior, rationale.EvidenceSource); err != nil {
 		t.Fatalf("seed prior rationale edge: %v", err)
 	}
-	if err := edges.RetractEdges(context.Background(), DomainRationaleEdges, writer.refreshRows(), rationaleEvidenceSource); err != nil {
+	if err := edges.RetractEdges(context.Background(), DomainRationaleEdges, writer.refreshRows(), rationale.EvidenceSource); err != nil {
 		t.Fatalf("apply zero-edge full refresh: %v", err)
 	}
 	if got := len(edges.edgeKeys("repo-123")); got != 0 {
@@ -72,7 +73,7 @@ func TestRationaleHandlerDoesNotRefreshRepositoryWithoutSourceRun(t *testing.T) 
 	t.Parallel()
 	repository := rationaleRepositoryContextFact("")
 	writer := &recordingRationaleIntentWriter{}
-	handler := RationaleEdgeMaterializationHandler{
+	handler := rationale.MaterializationHandler{
 		FactLoader:   &stubFactLoader{envelopes: []facts.Envelope{repository}},
 		IntentWriter: writer,
 	}
@@ -95,7 +96,7 @@ func TestRationaleHandlerDeletionOnlyDeltaEmitsFileScopedRefresh(t *testing.T) {
 	repository.Payload["delta_generation"] = true
 	repository.Payload["delta_deleted_relative_paths"] = []string{"src/deleted.go"}
 	writer := &recordingRationaleIntentWriter{}
-	handler := RationaleEdgeMaterializationHandler{
+	handler := rationale.MaterializationHandler{
 		FactLoader:   &stubFactLoader{envelopes: []facts.Envelope{repository}},
 		IntentWriter: writer,
 	}
@@ -185,7 +186,7 @@ func TestRationaleHandlerDeltaKeepsUnqualifiedRepositoryFailClosed(t *testing.T)
 	untouched.Payload["delta_generation"] = true
 
 	writer := &recordingRationaleIntentWriter{}
-	handler := RationaleEdgeMaterializationHandler{
+	handler := rationale.MaterializationHandler{
 		FactLoader:   &stubFactLoader{envelopes: []facts.Envelope{changed, untouched}},
 		IntentWriter: writer,
 	}

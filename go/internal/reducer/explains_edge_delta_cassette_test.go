@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/reducer/rationale"
 )
 
 const (
@@ -29,7 +30,7 @@ func TestRationaleDeltaCassetteEmitsRefreshAndConvergesExactThreeToOne(t *testin
 		t.Fatalf("rationale delta facts = %d, want exact 4", len(delta))
 	}
 
-	_, fullRows := ExtractRationaleEdgeRows(full)
+	_, fullRows := rationale.ExtractRows(full)
 	if len(fullRows) != 3 {
 		t.Fatalf("rationale gen-1 edge rows = %d, want exact 3", len(fullRows))
 	}
@@ -38,7 +39,7 @@ func TestRationaleDeltaCassetteEmitsRefreshAndConvergesExactThreeToOne(t *testin
 	})
 
 	writer := &recordingRationaleIntentWriter{}
-	handler := RationaleEdgeMaterializationHandler{
+	handler := rationale.MaterializationHandler{
 		FactLoader:   &stubFactLoader{envelopes: delta},
 		IntentWriter: writer,
 	}
@@ -61,7 +62,7 @@ func TestRationaleDeltaCassetteEmitsRefreshAndConvergesExactThreeToOne(t *testin
 	if got, want := refreshes[0].Payload["delta_file_paths"], []string{"/repo-rationale/services/payments/charge.py"}; !reflect.DeepEqual(got, want) {
 		t.Fatalf("rationale delta refresh paths = %#v, want %#v", got, want)
 	}
-	if err := edges.RetractEdges(context.Background(), DomainRationaleEdges, refreshes, rationaleEvidenceSource); err != nil {
+	if err := edges.RetractEdges(context.Background(), DomainRationaleEdges, refreshes, rationale.EvidenceSource); err != nil {
 		t.Fatalf("apply rationale delta refresh: %v", err)
 	}
 	wantSurvivor := "rationale:content-entity:e_2dc98238d686:HACK:06749b8de60ce629->content-entity:e_2dc98238d686"

@@ -20,7 +20,7 @@ import (
 )
 
 // TestRationaleFamilyOduResolvesItsExpectedEdgeSet proves the EXTRACTOR:
-// ExtractRationaleEdgeRows, over the cataloged Odù, reproduces the hand-derived
+// rationale.ExtractRows, over the cataloged Odù, reproduces the hand-derived
 // edge set exactly.
 //
 // Deliberately not called coverage.

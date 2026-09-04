@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package reducer
+package rationale
 
 import (
 	"context"
@@ -12,6 +12,9 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
+	"github.com/eshu-hq/eshu/go/internal/reducer/factload"
+	"github.com/eshu-hq/eshu/go/internal/reducer/sharedintent"
 )
 
 const rationaleHandlerBenchmarkEntityCount = 5_000
@@ -59,7 +62,7 @@ func BenchmarkRationaleEdgeMaterializationHandlerRepoScale(b *testing.B) {
 			envelopes := rationaleHandlerBenchmarkFacts(test.positiveEvery)
 			loader := &rationaleBenchmarkFactLoader{envelopes: envelopes}
 			writer := &rationaleBenchmarkIntentWriter{}
-			handler := RationaleEdgeMaterializationHandler{
+			handler := MaterializationHandler{
 				FactLoader:   loader,
 				IntentWriter: writer,
 			}
@@ -92,7 +95,7 @@ func BenchmarkRationaleEdgeMaterializationHandlerRepoScale(b *testing.B) {
 func rationaleHandlerBenchmarkFacts(positiveEvery int) []facts.Envelope {
 	envelopes := make([]facts.Envelope, 0, rationaleHandlerBenchmarkEntityCount+1)
 	envelopes = append(envelopes, facts.Envelope{
-		FactKind: factKindRepository,
+		FactKind: factload.FactKindRepository,
 		ScopeID:  "scope-rationale-benchmark",
 		Payload: map[string]any{
 			"repo_id": "repo-123", "local_path": "/repo",
@@ -115,18 +118,18 @@ func rationaleHandlerBenchmarkFacts(positiveEvery int) []facts.Envelope {
 				}},
 			}
 		}
-		envelopes = append(envelopes, facts.Envelope{FactKind: factKindContentEntity, Payload: payload})
+		envelopes = append(envelopes, facts.Envelope{FactKind: factload.FactKindContentEntity, Payload: payload})
 	}
 	return envelopes
 }
 
-func rationaleBenchmarkMaterializationIntent() Intent {
+func rationaleBenchmarkMaterializationIntent() reducercontract.Intent {
 	now := time.Date(2026, time.August, 15, 0, 0, 0, 0, time.UTC)
-	return Intent{
+	return reducercontract.Intent{
 		IntentID: "intent-rationale-benchmark", ScopeID: "scope-rationale-benchmark",
 		GenerationID: "gen-rationale-benchmark", SourceSystem: "git",
-		Domain: DomainRationaleMaterialization, EnqueuedAt: now, AvailableAt: now,
-		Status: IntentStatusPending,
+		Domain: reducercontract.DomainRationaleMaterialization, EnqueuedAt: now, AvailableAt: now,
+		Status: reducercontract.IntentStatusPending,
 	}
 }
 
@@ -134,7 +137,7 @@ type rationaleBenchmarkIntentWriter struct {
 	lastCount int
 }
 
-func (w *rationaleBenchmarkIntentWriter) UpsertIntents(_ context.Context, rows []SharedProjectionIntentRow) error {
+func (w *rationaleBenchmarkIntentWriter) UpsertIntents(_ context.Context, rows []sharedintent.Row) error {
 	w.lastCount = len(rows)
 	return nil
 }
@@ -156,8 +159,8 @@ func (l *rationaleBenchmarkFactLoader) ListFactsByKind(
 	factKinds []string,
 ) ([]facts.Envelope, error) {
 	l.listFactsByKindCalls++
-	if len(factKinds) != 2 || factKinds[0] != factKindRepository || factKinds[1] != factKindContentEntity {
-		return nil, fmt.Errorf("fact kinds = %q, want [%s %s]", factKinds, factKindRepository, factKindContentEntity)
+	if len(factKinds) != 2 || factKinds[0] != factload.FactKindRepository || factKinds[1] != factload.FactKindContentEntity {
+		return nil, fmt.Errorf("fact kinds = %q, want [%s %s]", factKinds, factload.FactKindRepository, factload.FactKindContentEntity)
 	}
 	return l.envelopes, nil
 }

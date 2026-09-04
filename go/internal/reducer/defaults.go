@@ -10,6 +10,7 @@ import (
 	"go.opentelemetry.io/otel/trace"
 
 	"github.com/eshu-hq/eshu/go/internal/reducer/inheritance"
+	"github.com/eshu-hq/eshu/go/internal/reducer/rationale"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
 )
 
@@ -86,10 +87,10 @@ type DefaultHandlers struct {
 
 	// RationaleEdgeIntentWriter persists durable shared-intent rows for rationale
 	// EXPLAINS edge materialization (#2869). The promoted
-	// RationaleEdgeMaterializationHandler emits file-scoped per-edge intents plus a
+	// rationale.MaterializationHandler emits file-scoped per-edge intents plus a
 	// per-repo refresh intent instead of writing canonical edges directly, so the
 	// partitioned runner and the #2898 refresh fence project them.
-	RationaleEdgeIntentWriter RationaleEdgeIntentWriter
+	RationaleEdgeIntentWriter rationale.IntentWriter
 
 	// GraphProjectionPhasePublisher persists durable graph-readiness publications
 	// for canonical and semantic node writers.

@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package reducer
+package rationale
 
 import (
 	"os"
@@ -21,7 +21,7 @@ func TestRationaleEvidenceDocumentsCurrentCollectorAndReducerCost(t *testing.T) 
 			// The rationale follow-up contract moved with the git collector into
 			// collector/gitrepo (#6056); the collector root doc.go now describes
 			// only the seam every collector kind plugs into.
-			path: filepath.Join("..", "collector", "gitrepo", "doc.go"),
+			path: filepath.Join("..", "..", "collector", "gitrepo", "doc.go"),
 			required: []string{
 				"Full and delta Git generations emit one unconditional",
 				"rationale-materialization follow-up after their content-entity facts",
@@ -29,14 +29,14 @@ func TestRationaleEvidenceDocumentsCurrentCollectorAndReducerCost(t *testing.T) 
 			prohibited: []string{"delta snapshots skip those repo-wide follow-ups"},
 		},
 		{
-			path: filepath.Join("..", "collector", "README.md"),
+			path: filepath.Join("..", "..", "collector", "README.md"),
 			required: []string{
 				"rationale_materialization",
 				"one follow-up fact and one reducer work item",
 			},
 		},
 		{
-			path: filepath.Join("..", "..", "..", "docs", "internal", "evidence", "5998-rationale-relative-path.md"),
+			path: filepath.Join("..", "..", "..", "..", "docs", "internal", "evidence", "5998-rationale-relative-path.md"),
 			required: []string{
 				"12-fact rationale cassette",
 				"repo-relative `target_path`",
@@ -124,7 +124,7 @@ func TestRationaleEvidenceDocumentsCurrentCollectorAndReducerCost(t *testing.T) 
 			prohibited: []string{"`reducer/rationale-edge`"},
 		},
 		{
-			path: "rationale_edge_intents.go",
+			path: "intents.go",
 			required: []string{
 				"target entity's repo-relative file path",
 				"Delta retraction",
@@ -133,7 +133,7 @@ func TestRationaleEvidenceDocumentsCurrentCollectorAndReducerCost(t *testing.T) 
 			prohibited: []string{"target entity's repo-qualified file path"},
 		},
 		{
-			path:       "rationale_edge_materialization_test.go",
+			path:       "materialization_test.go",
 			prohibited: []string{`"relative_path": "/repo/src/`},
 		},
 	}

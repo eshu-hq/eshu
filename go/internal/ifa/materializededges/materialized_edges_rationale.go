@@ -15,7 +15,7 @@ import (
 	"strings"
 
 	"github.com/eshu-hq/eshu/go/internal/ifa"
-	"github.com/eshu-hq/eshu/go/internal/reducer"
+	"github.com/eshu-hq/eshu/go/internal/reducer/rationale"
 )
 
 // rationaleExpectedEdgesRelPath is the repo-root-relative path to the
@@ -282,7 +282,7 @@ func resolveRationaleEdgeMaterializedEdges(odu ifa.Odu, expectedEdgesPath string
 		return false, err.Error()
 	}
 
-	repoIDs, rows := reducer.ExtractRationaleEdgeRows(odu.Facts)
+	repoIDs, rows := rationale.ExtractRows(odu.Facts)
 	actual := rationaleRowsToExpectedEdges(rows)
 	if mismatch := compareRationaleExpectedSets(odu.Name, expected, actual); mismatch != "" {
 		return false, mismatch
@@ -314,6 +314,6 @@ func resolveRationaleEdgeMaterializedEdges(odu ifa.Odu, expectedEdgesPath string
 	// len(Facts)-len(rows) would be wrong because comments live inside facts, so
 	// that subtraction would state a number this function never computed.
 	// Parser-source tests pin the production-reachable exclusions; reducer guard tests pin malformed-envelope and precedence cases.
-	return true, fmt.Sprintf("odù %q: ExtractRationaleEdgeRows reproduces the expected %d-edge set exactly across %d repository/ies, from %d fact envelope(s)",
+	return true, fmt.Sprintf("odù %q: rationale.ExtractRows reproduces the expected %d-edge set exactly across %d repository/ies, from %d fact envelope(s)",
 		odu.Name, len(expected), len(wantRepos), len(odu.Facts))
 }

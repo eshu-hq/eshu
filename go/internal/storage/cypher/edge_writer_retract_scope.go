@@ -112,7 +112,7 @@ func collectRepoIDs(rows []reducer.SharedProjectionIntentRow) []string {
 // only because of an UPSTREAM property: reducer.LatestIntentsByRepoAndPartition
 // dedupes intents by (acceptance key, partition key), and every rationale
 // whole-scope refresh -- delta-flagged or not -- is emitted under the same
-// per-repository partition key (rationaleWholeScopePartitionKey, which carries
+// per-repository partition key (rationale.WholeScopePartitionKey, which carries
 // no delta/generation component), so at most one refresh row per repository
 // survives a batch.
 //

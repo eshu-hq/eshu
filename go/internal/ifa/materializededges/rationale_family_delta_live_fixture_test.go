@@ -13,6 +13,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/ifa"
 	"github.com/eshu-hq/eshu/go/internal/projector"
 	"github.com/eshu-hq/eshu/go/internal/reducer"
+	"github.com/eshu-hq/eshu/go/internal/reducer/rationale"
 )
 
 const (
@@ -71,7 +72,7 @@ func TestRationaleDeltaCassettePinsFourFactRefreshAndSurvivors(t *testing.T) {
 			intent.ScopeID, intent.GenerationID, ifa.RationaleFamilyScopeID, ifa.RationaleFamilyDeltaGenerationID)
 	}
 
-	_, rows := reducer.ExtractRationaleEdgeRows(envelopes)
+	_, rows := rationale.ExtractRows(envelopes)
 	if len(rows) != 0 {
 		t.Fatalf("rationale delta extracted edge rows = %d, want 0", len(rows))
 	}

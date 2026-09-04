@@ -1,33 +1,35 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package reducer
+package rationale
 
 import (
 	"bytes"
 	"context"
 	"log/slog"
-	"sort"
 	"strings"
 	"testing"
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
+	"github.com/eshu-hq/eshu/go/internal/reducer/factload"
+	"github.com/eshu-hq/eshu/go/internal/reducer/payloadcore"
 )
 
 func TestRationaleHandlerRejectsMismatchedDomain(t *testing.T) {
 	t.Parallel()
 
-	handler := RationaleEdgeMaterializationHandler{
+	handler := MaterializationHandler{
 		FactLoader:   &stubFactLoader{},
 		IntentWriter: &recordingRationaleIntentWriter{},
 	}
 
-	_, err := handler.Handle(context.Background(), Intent{
+	_, err := handler.Handle(context.Background(), reducercontract.Intent{
 		IntentID:     "intent-1",
 		ScopeID:      "scope-1",
 		GenerationID: "gen-1",
-		Domain:       DomainCodeCallMaterialization,
+		Domain:       reducercontract.DomainCodeCallMaterialization,
 		EnqueuedAt:   time.Now(),
 		AvailableAt:  time.Now(),
 	})
@@ -39,15 +41,15 @@ func TestRationaleHandlerRejectsMismatchedDomain(t *testing.T) {
 func TestRationaleHandlerRequiresFactLoader(t *testing.T) {
 	t.Parallel()
 
-	handler := RationaleEdgeMaterializationHandler{
+	handler := MaterializationHandler{
 		IntentWriter: &recordingRationaleIntentWriter{},
 	}
 
-	_, err := handler.Handle(context.Background(), Intent{
+	_, err := handler.Handle(context.Background(), reducercontract.Intent{
 		IntentID:     "intent-1",
 		ScopeID:      "scope-1",
 		GenerationID: "gen-1",
-		Domain:       DomainRationaleMaterialization,
+		Domain:       reducercontract.DomainRationaleMaterialization,
 		EnqueuedAt:   time.Now(),
 		AvailableAt:  time.Now(),
 	})
@@ -59,15 +61,15 @@ func TestRationaleHandlerRequiresFactLoader(t *testing.T) {
 func TestRationaleHandlerRequiresIntentWriter(t *testing.T) {
 	t.Parallel()
 
-	handler := RationaleEdgeMaterializationHandler{
+	handler := MaterializationHandler{
 		FactLoader: &stubFactLoader{},
 	}
 
-	_, err := handler.Handle(context.Background(), Intent{
+	_, err := handler.Handle(context.Background(), reducercontract.Intent{
 		IntentID:     "intent-1",
 		ScopeID:      "scope-1",
 		GenerationID: "gen-1",
-		Domain:       DomainRationaleMaterialization,
+		Domain:       reducercontract.DomainRationaleMaterialization,
 		EnqueuedAt:   time.Now(),
 		AvailableAt:  time.Now(),
 	})
@@ -83,20 +85,20 @@ func TestRationaleHandlerEmitsIntentsWithDeltaRefresh(t *testing.T) {
 	t.Parallel()
 
 	writer := &recordingRationaleIntentWriter{}
-	handler := RationaleEdgeMaterializationHandler{
+	handler := MaterializationHandler{
 		FactLoader:   &stubFactLoader{envelopes: rationaleDeltaEntityFacts()},
 		IntentWriter: writer,
 	}
 
-	result, err := handler.Handle(context.Background(), Intent{
+	result, err := handler.Handle(context.Background(), reducercontract.Intent{
 		IntentID:     "intent-rationale-delta",
 		ScopeID:      "scope-code",
 		GenerationID: "gen-2",
 		SourceSystem: "git",
-		Domain:       DomainRationaleMaterialization,
+		Domain:       reducercontract.DomainRationaleMaterialization,
 		EnqueuedAt:   time.Date(2026, time.June, 13, 11, 20, 0, 0, time.UTC),
 		AvailableAt:  time.Date(2026, time.June, 13, 11, 20, 0, 0, time.UTC),
-		Status:       IntentStatusPending,
+		Status:       reducercontract.IntentStatusPending,
 	})
 	if err != nil {
 		t.Fatalf("Handle() error = %v, want nil", err)
@@ -110,10 +112,10 @@ func TestRationaleHandlerEmitsIntentsWithDeltaRefresh(t *testing.T) {
 	if len(refresh) != 1 {
 		t.Fatalf("refresh intents = %d, want 1", len(refresh))
 	}
-	if refresh[0].ProjectionDomain != DomainRationaleEdges {
-		t.Fatalf("refresh domain = %q, want %q", refresh[0].ProjectionDomain, DomainRationaleEdges)
+	if refresh[0].ProjectionDomain != reducercontract.DomainRationaleEdges {
+		t.Fatalf("refresh domain = %q, want %q", refresh[0].ProjectionDomain, reducercontract.DomainRationaleEdges)
 	}
-	if refresh[0].PartitionKey != rationaleWholeScopePartitionKey("repo-123") {
+	if refresh[0].PartitionKey != WholeScopePartitionKey("repo-123") {
 		t.Fatalf("refresh partition key = %q, want whole-scope key", refresh[0].PartitionKey)
 	}
 	if got, ok := refresh[0].Payload["delta_projection"].(bool); !ok || !got {
@@ -134,10 +136,10 @@ func TestRationaleHandlerEmitsIntentsWithDeltaRefresh(t *testing.T) {
 	if !rowUsesRefreshFence(edges[0]) {
 		t.Fatalf("edge intent %q not marked retract_via_refresh", edges[0].IntentID)
 	}
-	if !strings.HasPrefix(edges[0].PartitionKey, rationalePartitionKeyVersion+":files:") {
+	if !strings.HasPrefix(edges[0].PartitionKey, PartitionKeyVersion+":files:") {
 		t.Fatalf("edge partition key %q lacks file-scoped prefix", edges[0].PartitionKey)
 	}
-	if got, want := anyToString(edges[0].Payload["target_path"]), "src/handler.go"; got != want {
+	if got, want := payloadcore.AnyToString(edges[0].Payload["target_path"]), "src/handler.go"; got != want {
 		t.Fatalf("edge target_path = %q, want %q", got, want)
 	}
 }
@@ -149,20 +151,20 @@ func TestRationaleHandlerLogsCompletion(t *testing.T) {
 	defer slog.SetDefault(previous)
 
 	now := time.Date(2026, time.June, 13, 11, 20, 0, 0, time.UTC)
-	handler := RationaleEdgeMaterializationHandler{
+	handler := MaterializationHandler{
 		FactLoader:   &stubFactLoader{envelopes: rationaleDeltaEntityFacts()},
 		IntentWriter: &recordingRationaleIntentWriter{},
 	}
 
-	_, err := handler.Handle(context.Background(), Intent{
+	_, err := handler.Handle(context.Background(), reducercontract.Intent{
 		IntentID:     "intent-rationale-1",
 		ScopeID:      "scope-code",
 		GenerationID: "gen-2",
 		SourceSystem: "git",
-		Domain:       DomainRationaleMaterialization,
+		Domain:       reducercontract.DomainRationaleMaterialization,
 		EnqueuedAt:   now,
 		AvailableAt:  now,
-		Status:       IntentStatusPending,
+		Status:       reducercontract.IntentStatusPending,
 	})
 	if err != nil {
 		t.Fatalf("Handle() error = %v, want nil", err)
@@ -188,10 +190,10 @@ func TestRationaleHandlerSkipsWhenNoProjectionContext(t *testing.T) {
 	t.Parallel()
 
 	writer := &recordingRationaleIntentWriter{}
-	handler := RationaleEdgeMaterializationHandler{
+	handler := MaterializationHandler{
 		FactLoader: &stubFactLoader{envelopes: []facts.Envelope{
 			{
-				FactKind: factKindContentEntity,
+				FactKind: factload.FactKindContentEntity,
 				Payload: map[string]any{
 					"repo_id":       "repo-1",
 					"entity_id":     "content-entity:func",
@@ -208,15 +210,15 @@ func TestRationaleHandlerSkipsWhenNoProjectionContext(t *testing.T) {
 		IntentWriter: writer,
 	}
 
-	result, err := handler.Handle(context.Background(), Intent{
+	result, err := handler.Handle(context.Background(), reducercontract.Intent{
 		IntentID:     "intent-rationale-1",
 		ScopeID:      "scope-code",
 		GenerationID: "gen-1",
 		SourceSystem: "git",
-		Domain:       DomainRationaleMaterialization,
+		Domain:       reducercontract.DomainRationaleMaterialization,
 		EnqueuedAt:   time.Date(2026, time.June, 13, 11, 20, 0, 0, time.UTC),
 		AvailableAt:  time.Date(2026, time.June, 13, 11, 20, 0, 0, time.UTC),
-		Status:       IntentStatusPending,
+		Status:       reducercontract.IntentStatusPending,
 	})
 	if err != nil {
 		t.Fatalf("Handle() error = %v, want nil", err)
@@ -232,9 +234,9 @@ func TestRationaleHandlerSkipsWhenNoProjectionContext(t *testing.T) {
 func TestBuildRationaleRetractRowsKeepsMalformedDeltaScoped(t *testing.T) {
 	t.Parallel()
 
-	rows := buildRationaleRetractRows([]string{"repo-123"}, rationaleDeltaScope{
-		repositoryIDs: []string{"repo-123"},
-		hasDelta:      true,
+	rows := BuildRetractRows([]string{"repo-123"}, DeltaScope{
+		RepositoryIDs: []string{"repo-123"},
+		HasDelta:      true,
 	})
 	if len(rows) != 1 {
 		t.Fatalf("retract rows len = %d, want 1", len(rows))
@@ -243,7 +245,7 @@ func TestBuildRationaleRetractRowsKeepsMalformedDeltaScoped(t *testing.T) {
 	if got, ok := payload["delta_projection"].(bool); !ok || !got {
 		t.Fatalf("delta_projection = %#v, want true", payload["delta_projection"])
 	}
-	if gotPaths := semanticPayloadStringSlice(payload, "delta_file_paths"); len(gotPaths) != 0 {
+	if gotPaths := payloadcore.SemanticPayloadStringSlice(payload, "delta_file_paths"); len(gotPaths) != 0 {
 		t.Fatalf("delta_file_paths = %#v, want empty malformed delta scope", gotPaths)
 	}
 }
@@ -253,7 +255,7 @@ func TestExtractRationaleEdgeRowsEmitsExplainsEdge(t *testing.T) {
 
 	envelopes := []facts.Envelope{
 		{
-			FactKind: factKindContentEntity,
+			FactKind: factload.FactKindContentEntity,
 			Payload: map[string]any{
 				"repo_id":       "repo-1",
 				"entity_id":     "content-entity:func",
@@ -268,7 +270,7 @@ func TestExtractRationaleEdgeRowsEmitsExplainsEdge(t *testing.T) {
 		},
 	}
 
-	repoIDs, rows := ExtractRationaleEdgeRows(envelopes)
+	repoIDs, rows := ExtractRows(envelopes)
 	if len(repoIDs) != 1 || repoIDs[0] != "repo-1" {
 		t.Fatalf("repoIDs = %v, want [repo-1]", repoIDs)
 	}
@@ -299,7 +301,7 @@ func TestExtractRationaleEdgeRowsSkipsEntitiesWithoutRationale(t *testing.T) {
 
 	envelopes := []facts.Envelope{
 		{
-			FactKind: factKindContentEntity,
+			FactKind: factload.FactKindContentEntity,
 			Payload: map[string]any{
 				"repo_id":     "repo-1",
 				"entity_id":   "content-entity:plain",
@@ -307,7 +309,7 @@ func TestExtractRationaleEdgeRowsSkipsEntitiesWithoutRationale(t *testing.T) {
 			},
 		},
 	}
-	repoIDs, rows := ExtractRationaleEdgeRows(envelopes)
+	repoIDs, rows := ExtractRows(envelopes)
 	if len(rows) != 0 {
 		t.Fatalf("len(rows) = %d, want 0", len(rows))
 	}
@@ -323,12 +325,12 @@ func TestExtractRationaleEdgeRowsDeduplicatesIdenticalComment(t *testing.T) {
 
 	comment := map[string]any{"kind": "HACK", "text": "same"}
 	envelopes := []facts.Envelope{
-		{FactKind: factKindContentEntity, Payload: map[string]any{
+		{FactKind: factload.FactKindContentEntity, Payload: map[string]any{
 			"repo_id": "repo-1", "entity_id": "e1", "entity_type": "Function",
 			"entity_metadata": map[string]any{"rationale_comments": []any{comment, comment}},
 		}},
 	}
-	_, rows := ExtractRationaleEdgeRows(envelopes)
+	_, rows := ExtractRows(envelopes)
 	if len(rows) != 1 {
 		t.Fatalf("len(rows) = %d, want 1 (dedup)", len(rows))
 	}
@@ -353,7 +355,7 @@ func TestLoadRationaleMaterializationFactsUsesSingleLegacyFallback(t *testing.T)
 func rationaleDeltaEntityFacts() []facts.Envelope {
 	return []facts.Envelope{
 		{
-			FactKind: factKindRepository,
+			FactKind: factload.FactKindRepository,
 			ScopeID:  "scope-code",
 			Payload: map[string]any{
 				"repo_id":                      "repo-123",
@@ -365,7 +367,7 @@ func rationaleDeltaEntityFacts() []facts.Envelope {
 			},
 		},
 		{
-			FactKind: factKindContentEntity,
+			FactKind: factload.FactKindContentEntity,
 			ScopeID:  "scope-code",
 			Payload: map[string]any{
 				"repo_id":       "repo-123",
@@ -381,40 +383,4 @@ func rationaleDeltaEntityFacts() []facts.Envelope {
 			},
 		},
 	}
-}
-
-// recordingRationaleIntentWriter captures the durable shared-projection intents
-// the promoted RationaleEdgeMaterializationHandler emits, so handler tests assert
-// on emitted intents instead of direct edge writes (#2869).
-type recordingRationaleIntentWriter struct {
-	rows []SharedProjectionIntentRow
-}
-
-func (w *recordingRationaleIntentWriter) UpsertIntents(_ context.Context, rows []SharedProjectionIntentRow) error {
-	w.rows = append(w.rows, rows...)
-	return nil
-}
-
-// refreshRows returns the per-repo refresh intents (the rows that own the
-// retract) the writer captured.
-func (w *recordingRationaleIntentWriter) refreshRows() []SharedProjectionIntentRow {
-	var out []SharedProjectionIntentRow
-	for _, row := range w.rows {
-		if isRepoRefreshRow(row) {
-			out = append(out, row)
-		}
-	}
-	return out
-}
-
-// edgeRows returns the write-only per-edge intents the writer captured.
-func (w *recordingRationaleIntentWriter) edgeRows() []SharedProjectionIntentRow {
-	var out []SharedProjectionIntentRow
-	for _, row := range w.rows {
-		if !isRepoRefreshRow(row) {
-			out = append(out, row)
-		}
-	}
-	sort.SliceStable(out, func(i, j int) bool { return out[i].IntentID < out[j].IntentID })
-	return out
 }

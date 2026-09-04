@@ -8,6 +8,8 @@ import (
 	"reflect"
 	"testing"
 	"time"
+
+	"github.com/eshu-hq/eshu/go/internal/reducer/rationale"
 )
 
 type rationaleEvidenceCapturingWriter struct {
@@ -78,7 +80,7 @@ func TestSharedProjectionRunnerPassesRationaleEvidenceSourceToRetractAndWrite(t 
 	if got, want := result.ProcessedIntents, 1; got != want {
 		t.Fatalf("ProcessedIntents = %d, want %d", got, want)
 	}
-	wantSources := []string{rationaleEvidenceSource}
+	wantSources := []string{rationale.EvidenceSource}
 	if !reflect.DeepEqual(edges.retractSources, wantSources) {
 		t.Fatalf("retract evidence sources = %#v, want %#v", edges.retractSources, wantSources)
 	}

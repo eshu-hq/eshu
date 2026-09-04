@@ -9,6 +9,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
 	"github.com/eshu-hq/eshu/go/internal/reducer/inheritance"
+	"github.com/eshu-hq/eshu/go/internal/reducer/rationale"
 )
 
 // deltaRepositoryFactWithoutCheckoutPath returns the repository fact a delta
@@ -111,9 +112,9 @@ func siblingDeltaGateCases() []siblingDeltaGateCase {
 				contexts map[string]ProjectionContext,
 				createdAt time.Time,
 			) ([]SharedProjectionIntentRow, []string, map[string][]string) {
-				scope := buildRationaleDeltaScope(envelopes)
-				return buildRationaleRefreshIntents(scope, repoIDs, contexts, createdAt),
-					scope.repositoryIDs, scope.filePathsByRepoID
+				scope := rationale.BuildDeltaScope(envelopes)
+				return rationale.BuildRefreshIntents(scope, repoIDs, contexts, createdAt),
+					scope.RepositoryIDs, scope.FilePathsByRepoID
 			},
 		},
 		{

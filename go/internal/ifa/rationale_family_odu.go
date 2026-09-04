@@ -15,7 +15,7 @@ import (
 
 // The rationale_edges family Odù (#5998, under the #5543 umbrella).
 //
-// ExtractRationaleEdgeRows projects one Rationale node and one EXPLAINS edge
+// rationale.ExtractRows projects one Rationale node and one EXPLAINS edge
 // per distinct (entity, comment kind, comment text) carried in a content
 // entity's parser-emitted rationale_comments. The fixture below exercises every
 // clause that decides whether an edge exists, because an Odù carrying only

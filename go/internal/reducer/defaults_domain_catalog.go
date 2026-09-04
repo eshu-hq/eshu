@@ -5,6 +5,7 @@ package reducer
 
 import (
 	"github.com/eshu-hq/eshu/go/internal/reducer/inheritance"
+	"github.com/eshu-hq/eshu/go/internal/reducer/rationale"
 )
 
 // implementedDefaultDomainDefinitions binds the reducer-owned handlers to the
@@ -116,7 +117,7 @@ func implementedDefaultDomainDefinitions(handlers DefaultHandlers) []DomainDefin
 				Instruments:          handlers.Instruments,
 			}
 		case DomainRationaleMaterialization:
-			def.Handler = RationaleEdgeMaterializationHandler{
+			def.Handler = rationale.MaterializationHandler{
 				FactLoader:   handlers.FactLoader,
 				IntentWriter: handlers.RationaleEdgeIntentWriter,
 			}

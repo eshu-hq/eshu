@@ -22,8 +22,8 @@ import "testing"
 // still share the stale string, still collapse, and that test would stay green
 // while proving nothing about the real disjointness -- the exact false-green the
 // disjointness test exists to prevent. The existing assertions in
-// rationale_edge_materialization_test.go and
-// rationale_edge_materialization_partition_test.go cannot catch it either; they
+// rationale/materialization_test.go and
+// explains_edge_partition_convergence_test.go cannot catch it either; they
 // compare a generated key against the same generator, so they agree with
 // themselves through any scheme change.
 //

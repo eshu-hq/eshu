@@ -11,6 +11,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
 	"github.com/eshu-hq/eshu/go/internal/reducer/inheritance"
+	"github.com/eshu-hq/eshu/go/internal/reducer/rationale"
 )
 
 // idempotencyReplayFencingToken is the single fencing token stamped on every
@@ -247,7 +248,7 @@ func rationaleReplayCase() idempotencyReplayCase {
 		run: func(t *testing.T) []idempotencyRow {
 			t.Helper()
 			writer := &recordingRationaleIntentWriter{}
-			handler := RationaleEdgeMaterializationHandler{
+			handler := rationale.MaterializationHandler{
 				FactLoader:   &stubFactLoader{envelopes: fencedFacts(rationaleDeltaEntityFacts())},
 				IntentWriter: writer,
 			}

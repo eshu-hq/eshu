@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/reducer/rationale"
 )
 
 // rationaleStateModelingEdgeWriter models the canonical rationale EXPLAINS edge
@@ -154,7 +155,7 @@ func rationaleFenceConfig(partitionID, partitionCount int) PartitionProcessorCon
 		LeaseOwner:     "worker-1",
 		LeaseTTL:       30 * time.Second,
 		BatchLimit:     100,
-		EvidenceSource: rationaleEvidenceSource,
+		EvidenceSource: rationale.EvidenceSource,
 	}
 }
 
@@ -223,7 +224,7 @@ func TestRationaleConvergenceFixtureUsesCollectorAndCanonicalPathShapes(t *testi
 	const repoID = "repo-rationale"
 	const repoPath = "/repo"
 	envelopes := rationaleConvergenceFixture(repoID, repoPath, true, []string{"a.go", "b.go"})
-	_, rows := ExtractRationaleEdgeRows(envelopes)
+	_, rows := rationale.ExtractRows(envelopes)
 	if len(rows) != 4 {
 		t.Fatalf("extracted rationale rows = %d, want 4", len(rows))
 	}
@@ -233,8 +234,8 @@ func TestRationaleConvergenceFixtureUsesCollectorAndCanonicalPathShapes(t *testi
 			t.Errorf("extracted target_path = %q, want repo-relative a.go/b.go/c.go", targetPath)
 		}
 	}
-	deltaScope := buildRationaleDeltaScope(envelopes)
-	if got := strings.Join(deltaScope.filePathsByRepoID[repoID], ","); got != "/repo/a.go,/repo/b.go" {
+	deltaScope := rationale.BuildDeltaScope(envelopes)
+	if got := strings.Join(deltaScope.FilePathsByRepoID[repoID], ","); got != "/repo/a.go,/repo/b.go" {
 		t.Fatalf("qualified delta paths = %q, want /repo/a.go,/repo/b.go", got)
 	}
 	seeded := seedPriorRationaleEdges(rows, map[string]string{repoID: repoPath})
@@ -250,7 +251,7 @@ func TestRationaleConvergenceFixtureUsesCollectorAndCanonicalPathShapes(t *testi
 // returns the seeded edge writer.
 func seedPriorRationaleEdges(rows []map[string]any, repoPaths ...map[string]string) *rationaleStateModelingEdgeWriter {
 	edges := newRationaleStateModelingEdgeWriter(repoPaths...)
-	_, _ = edges.WriteEdges(context.Background(), DomainRationaleEdges, rationaleDirectWriteRows(rows), rationaleEvidenceSource)
+	_, _ = edges.WriteEdges(context.Background(), DomainRationaleEdges, rationaleDirectWriteRows(rows), rationale.EvidenceSource)
 	return edges
 }
 
@@ -282,27 +283,27 @@ func TestRationalePartitionConvergesFullReprojection(t *testing.T) {
 	const repoPath = "/repo"
 
 	envelopes := rationaleConvergenceFixture(repoID, repoPath, false, nil)
-	repoIDs, rows := ExtractRationaleEdgeRows(envelopes)
-	deltaScope := buildRationaleDeltaScope(envelopes)
+	repoIDs, rows := rationale.ExtractRows(envelopes)
+	deltaScope := rationale.BuildDeltaScope(envelopes)
 	contextByRepoID := buildCodeCallProjectionContexts(envelopes, "gen-1")
 
 	// DIRECT path: seed prior edges, then retract + write.
 	direct := seedPriorRationaleEdges(rows, map[string]string{repoID: repoPath})
 	if err := direct.RetractEdges(
 		context.Background(), DomainRationaleEdges,
-		buildRationaleRetractRows(repoIDs, deltaScope), rationaleEvidenceSource,
+		rationale.BuildRetractRows(repoIDs, deltaScope), rationale.EvidenceSource,
 	); err != nil {
 		t.Fatalf("direct retract: %v", err)
 	}
 	if _, err := direct.WriteEdges(
 		context.Background(), DomainRationaleEdges,
-		rationaleDirectWriteRows(rows), rationaleEvidenceSource,
+		rationaleDirectWriteRows(rows), rationale.EvidenceSource,
 	); err != nil {
 		t.Fatalf("direct write: %v", err)
 	}
 
 	// PARTITIONED path: seed the SAME prior edges, emit shared intents, drain.
-	intents := buildRationaleSharedIntentRows(rows, deltaScope, repoIDs, contextByRepoID, now.Add(-time.Minute))
+	intents := rationale.BuildSharedIntentRows(rows, deltaScope, repoIDs, contextByRepoID, now.Add(-time.Minute))
 	assertRationaleIntentKeyShapes(t, intents)
 
 	partitioned := seedPriorRationaleEdges(rows, map[string]string{repoID: repoPath})
@@ -329,10 +330,10 @@ func TestRationalePartitionConvergesDelta(t *testing.T) {
 	// Changed files: a.go and b.go. c.go is unchanged, so Delta's prior edge must
 	// survive in both paths.
 	envelopes := rationaleConvergenceFixture(repoID, repoPath, true, []string{"a.go", "b.go"})
-	repoIDs, rows := ExtractRationaleEdgeRows(envelopes)
-	deltaScope := buildRationaleDeltaScope(envelopes)
+	repoIDs, rows := rationale.ExtractRows(envelopes)
+	deltaScope := rationale.BuildDeltaScope(envelopes)
 	contextByRepoID := buildCodeCallProjectionContexts(envelopes, "gen-1")
-	if !deltaScope.hasDelta {
+	if !deltaScope.HasDelta {
 		t.Fatal("fixture must produce a delta scope")
 	}
 
@@ -341,19 +342,19 @@ func TestRationalePartitionConvergesDelta(t *testing.T) {
 	direct.edgesByRepo[repoID]["rationale:stale->ent:removed"] = "/repo/a.go"
 	if err := direct.RetractEdges(
 		context.Background(), DomainRationaleEdges,
-		buildRationaleRetractRows(repoIDs, deltaScope), rationaleEvidenceSource,
+		rationale.BuildRetractRows(repoIDs, deltaScope), rationale.EvidenceSource,
 	); err != nil {
 		t.Fatalf("direct retract: %v", err)
 	}
 	if _, err := direct.WriteEdges(
 		context.Background(), DomainRationaleEdges,
-		rationaleDirectWriteRows(rows), rationaleEvidenceSource,
+		rationaleDirectWriteRows(rows), rationale.EvidenceSource,
 	); err != nil {
 		t.Fatalf("direct write: %v", err)
 	}
 
 	// PARTITIONED path.
-	intents := buildRationaleSharedIntentRows(rows, deltaScope, repoIDs, contextByRepoID, now.Add(-time.Minute))
+	intents := rationale.BuildSharedIntentRows(rows, deltaScope, repoIDs, contextByRepoID, now.Add(-time.Minute))
 	assertRationaleIntentKeyShapes(t, intents)
 	partitioned := seedPriorRationaleEdges(rows, map[string]string{repoID: repoPath})
 	partitioned.edgesByRepo[repoID]["rationale:stale->ent:removed"] = "/repo/a.go"
@@ -439,13 +440,13 @@ func assertRationaleIntentKeyShapes(t *testing.T, intents []SharedProjectionInte
 	for _, intent := range intents {
 		if isRepoRefreshRow(intent) {
 			sawRefresh = true
-			if intent.PartitionKey != rationaleWholeScopePartitionKey(intent.RepositoryID) {
+			if intent.PartitionKey != rationale.WholeScopePartitionKey(intent.RepositoryID) {
 				t.Fatalf("refresh intent partition key %q is not the whole-scope fence key", intent.PartitionKey)
 			}
 			continue
 		}
 		sawPerEdge = true
-		if !strings.HasPrefix(intent.PartitionKey, rationalePartitionKeyVersion+":files:") {
+		if !strings.HasPrefix(intent.PartitionKey, rationale.PartitionKeyVersion+":files:") {
 			t.Fatalf("per-edge intent partition key %q lacks file-scoped prefix", intent.PartitionKey)
 		}
 		if !rowUsesRefreshFence(intent) {

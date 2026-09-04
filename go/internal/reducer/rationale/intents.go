@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package reducer
+package rationale
 
 import (
 	"crypto/sha256"
@@ -9,13 +9,17 @@ import (
 	"sort"
 	"strings"
 	"time"
+
+	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
+	"github.com/eshu-hq/eshu/go/internal/reducer/payloadcore"
+	"github.com/eshu-hq/eshu/go/internal/reducer/sharedintent"
 )
 
-// rationalePartitionKeyVersion namespaces every rationale_edges partition key so
+// PartitionKeyVersion namespaces every rationale_edges partition key so
 // a future key-shape change can run alongside the old one without colliding. It
-// mirrors inheritance.PartitionKeyVersion and sqlRelationshipPartitionKeyVersion
+// mirrors codeCallPartitionKeyVersion and inheritance.PartitionKeyVersion
 // (#2869).
-const rationalePartitionKeyVersion = "rationale-edges:v1"
+const PartitionKeyVersion = "rationale-edges:v1"
 
 // rationaleFilePartitionKey returns the file-scoped partition key for a single
 // rationale EXPLAINS edge. It is unique per edge, not merely per file: the generic
@@ -40,10 +44,10 @@ func rationaleFilePartitionKey(repoID, targetPath, edgeIdentity string) string {
 	hash.Write([]byte{0})
 	hash.Write([]byte(strings.TrimSpace(edgeIdentity)))
 	digest := hash.Sum(nil)
-	return rationalePartitionKeyVersion + ":files:" + repoID + ":" + hex.EncodeToString(digest)
+	return PartitionKeyVersion + ":files:" + repoID + ":" + hex.EncodeToString(digest)
 }
 
-// rationaleWholeScopePartitionKey returns the whole-scope partition key the
+// WholeScopePartitionKey returns the whole-scope partition key the
 // per-repo refresh intent is emitted under. It MUST equal the key the #2898
 // refresh fence reconstructs (repoWideRetractRefreshPartitionKey), because the
 // fence reads a per-edge row's repo and rebuilds this exact key to check whether
@@ -52,11 +56,11 @@ func rationaleFilePartitionKey(repoID, targetPath, edgeIdentity string) string {
 // delegates to the shared helper rather than minting a rationale-only key
 // (#2869/#2898). A whole-scope key hashes to exactly one partition, so the repo's
 // single retract is owned by one partition lease and cannot race itself.
-func rationaleWholeScopePartitionKey(repoID string) string {
-	return repoWideRetractRefreshPartitionKey(DomainRationaleEdges, repoID)
+func WholeScopePartitionKey(repoID string) string {
+	return sharedintent.RepoWideRetractRefreshPartitionKey(reducercontract.DomainRationaleEdges, repoID)
 }
 
-// buildRationaleSharedIntentRows promotes extracted rationale EXPLAINS edge rows
+// BuildSharedIntentRows promotes extracted rationale EXPLAINS edge rows
 // to durable shared-projection intents with file-scoped partition keys, reusing
 // the #2898 refresh-fence mechanism (#2869).
 //
@@ -74,34 +78,34 @@ func rationaleWholeScopePartitionKey(repoID string) string {
 // deterministic intent-ID construction rather than relying on the encoded
 // partition-key string. Rows whose repo has no projection context are skipped:
 // without an acceptance identity they cannot be fenced or freshness-gated.
-func buildRationaleSharedIntentRows(
+func BuildSharedIntentRows(
 	edgeRows []map[string]any,
-	deltaScope rationaleDeltaScope,
+	deltaScope DeltaScope,
 	repoIDs []string,
-	contextByRepoID map[string]ProjectionContext,
+	contextByRepoID map[string]sharedintent.ProjectionContext,
 	createdAt time.Time,
-) []SharedProjectionIntentRow {
+) []sharedintent.Row {
 	if len(repoIDs) == 0 {
 		return nil
 	}
 
-	intents := make([]SharedProjectionIntentRow, 0, len(repoIDs)+len(edgeRows))
-	intents = append(intents, buildRationaleRefreshIntents(deltaScope, repoIDs, contextByRepoID, createdAt)...)
+	intents := make([]sharedintent.Row, 0, len(repoIDs)+len(edgeRows))
+	intents = append(intents, BuildRefreshIntents(deltaScope, repoIDs, contextByRepoID, createdAt)...)
 
 	for _, row := range edgeRows {
-		repoID := anyToString(row["repo_id"])
+		repoID := payloadcore.AnyToString(row["repo_id"])
 		context, ok := contextByRepoID[repoID]
 		if !ok {
 			continue
 		}
-		targetPath := anyToString(row["target_path"])
+		targetPath := payloadcore.AnyToString(row["target_path"])
 		edgeIdentity := rationaleEdgeIdentityKey(row)
-		payload := copyPayload(row)
+		payload := payloadcore.CopyPayload(row)
 		payload["action"] = "upsert"
-		payload[retractViaRefreshKey] = true
+		payload[sharedintent.RetractViaRefreshKey] = true
 
-		intents = append(intents, BuildSharedProjectionIntent(SharedProjectionIntentInput{
-			ProjectionDomain: DomainRationaleEdges,
+		intents = append(intents, sharedintent.Build(sharedintent.Input{
+			ProjectionDomain: reducercontract.DomainRationaleEdges,
 			PartitionKey:     rationaleFilePartitionKey(repoID, targetPath, edgeIdentity),
 			IdentityKey:      edgeIdentity,
 			ScopeID:          context.ScopeID,
@@ -123,22 +127,22 @@ func buildRationaleSharedIntentRows(
 	return intents
 }
 
-// buildRationaleRefreshIntents emits one whole-scope refresh intent per repository
+// BuildRefreshIntents emits one whole-scope refresh intent per repository
 // that has a projection context. A repository on a DELTA generation carries the
 // delta scope so the worker issues the file-scoped retract; one on a full
 // generation carries none, so the worker issues the repo-wide retract. Repos are
 // sorted so emission is deterministic (#2869/#2898).
-func buildRationaleRefreshIntents(
-	deltaScope rationaleDeltaScope,
+func BuildRefreshIntents(
+	deltaScope DeltaScope,
 	repoIDs []string,
-	contextByRepoID map[string]ProjectionContext,
+	contextByRepoID map[string]sharedintent.ProjectionContext,
 	createdAt time.Time,
-) []SharedProjectionIntentRow {
+) []sharedintent.Row {
 	sorted := append([]string(nil), repoIDs...)
 	sort.Strings(sorted)
 
-	deltaRepositoryIDs := deltaScopeRepositorySet(deltaScope.repositoryIDs)
-	intents := make([]SharedProjectionIntentRow, 0, len(sorted))
+	deltaRepositoryIDs := sharedintent.DeltaScopeRepositorySet(deltaScope.RepositoryIDs)
+	intents := make([]sharedintent.Row, 0, len(sorted))
 	for _, repoID := range sorted {
 		context, ok := contextByRepoID[repoID]
 		if !ok {
@@ -146,18 +150,17 @@ func buildRationaleRefreshIntents(
 		}
 		payload := map[string]any{
 			"repo_id":         repoID,
-			"intent_type":     RepoRefreshIntentType,
-			"action":          repoRefreshAction,
-			"evidence_source": rationaleEvidenceSource,
+			"intent_type":     sharedintent.RepoRefreshIntentType,
+			"action":          sharedintent.RepoRefreshAction,
+			"evidence_source": EvidenceSource,
 		}
 		// Delta scoping is per repository and fails closed on an unusable
-		// delta; applyRepoRefreshDeltaScope (semantic_entity_delta_scope.go)
-		// carries the full rule and why the two obvious alternatives lose
-		// edges (#6216).
-		applyRepoRefreshDeltaScope(payload, repoID, deltaRepositoryIDs, deltaScope.filePathsByRepoID)
-		intents = append(intents, BuildSharedProjectionIntent(SharedProjectionIntentInput{
-			ProjectionDomain: DomainRationaleEdges,
-			PartitionKey:     rationaleWholeScopePartitionKey(repoID),
+		// delta; sharedintent.ApplyRepoRefreshDeltaScope carries the full rule
+		// and why the two obvious alternatives lose edges (#6216).
+		sharedintent.ApplyRepoRefreshDeltaScope(payload, repoID, deltaRepositoryIDs, deltaScope.FilePathsByRepoID)
+		intents = append(intents, sharedintent.Build(sharedintent.Input{
+			ProjectionDomain: reducercontract.DomainRationaleEdges,
+			PartitionKey:     WholeScopePartitionKey(repoID),
 			ScopeID:          context.ScopeID,
 			AcceptanceUnitID: context.ResolveAcceptanceUnitID(repoID),
 			RepositoryID:     repoID,
@@ -177,6 +180,6 @@ func buildRationaleRefreshIntents(
 // (different kind or excerpt) on the same entity carry different rationale_uids,
 // so they stay separate partitions and intents (#2869).
 func rationaleEdgeIdentityKey(row map[string]any) string {
-	return anyToString(row["rationale_uid"]) + "->" +
-		anyToString(row["target_entity_id"])
+	return payloadcore.AnyToString(row["rationale_uid"]) + "->" +
+		payloadcore.AnyToString(row["target_entity_id"])
 }

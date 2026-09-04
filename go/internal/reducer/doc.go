@@ -65,10 +65,6 @@
 // repository and emits exact-label read, foreign-key, routine-write, trigger,
 // index, migration, column, and embedded-query edges; missing or ambiguous
 // targets are counted and skipped rather than guessed.
-// Rationale materialization consumes parser-emitted comment metadata and emits
-// exact EXPLAINS intents plus one repository refresh. Edge intents retain
-// repo-relative target paths for partition identity, while delta refreshes use
-// separately repository-qualified delta paths so canonical stale edges retract.
 //
 // Changes in this package must preserve the evidence path from raw facts to
 // admitted candidate, projected row, graph or fact write, and API/MCP query

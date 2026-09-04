@@ -1,19 +1,21 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package reducer
+package rationale
 
 import (
 	"os"
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/eshu-hq/eshu/go/internal/reducer/sharedintent"
 )
 
 func TestRationaleSameFileEdgesKeepDistinctPartitionAndIntentIDs(t *testing.T) {
 	t.Parallel()
 	const repoID = "repo-rationale-identity"
-	contextByRepoID := map[string]ProjectionContext{
+	contextByRepoID := map[string]sharedintent.ProjectionContext{
 		repoID: {
 			ScopeID: "scope-rationale-identity", SourceRunID: "run-rationale-identity",
 			GenerationID: "gen-rationale-identity",
@@ -29,12 +31,12 @@ func TestRationaleSameFileEdgesKeepDistinctPartitionAndIntentIDs(t *testing.T) {
 			"rationale_uid": "rationale:two", "target_entity_id": "content-entity:two",
 		},
 	}
-	rows := buildRationaleSharedIntentRows(
-		edges, rationaleDeltaScope{}, []string{repoID}, contextByRepoID,
+	rows := BuildSharedIntentRows(
+		edges, DeltaScope{}, []string{repoID}, contextByRepoID,
 		time.Date(2026, time.August, 15, 0, 0, 0, 0, time.UTC),
 	)
 
-	var edgeRows []SharedProjectionIntentRow
+	var edgeRows []sharedintent.Row
 	for _, row := range rows {
 		if !isRepoRefreshRow(row) {
 			edgeRows = append(edgeRows, row)
@@ -53,16 +55,16 @@ func TestRationaleSameFileEdgesKeepDistinctPartitionAndIntentIDs(t *testing.T) {
 
 func TestRationaleIntentCommentsDoNotClaimSameFilePartitionSharing(t *testing.T) {
 	t.Parallel()
-	raw, err := os.ReadFile("rationale_edge_intents.go")
+	raw, err := os.ReadFile("intents.go")
 	if err != nil {
-		t.Fatalf("read rationale_edge_intents.go: %v", err)
+		t.Fatalf("read intents.go: %v", err)
 	}
 	for _, stale := range []string{
 		"many edges in one file share a partition key",
 		"many edges share one file-scoped partition key",
 	} {
 		if strings.Contains(string(raw), stale) {
-			t.Errorf("rationale_edge_intents.go retains false partition-sharing claim %q", stale)
+			t.Errorf("intents.go retains false partition-sharing claim %q", stale)
 		}
 	}
 }

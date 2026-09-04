@@ -8,6 +8,8 @@ import (
 	"encoding/json"
 	"testing"
 	"time"
+
+	"github.com/eshu-hq/eshu/go/internal/reducer/rationale"
 )
 
 // rejectingFenceLookup fails the test if the refresh fence is consulted at all.
@@ -83,8 +85,8 @@ func TestRationaleProductionIntentsNeverReachRetractAsUnmarkedRows(t *testing.T)
 		{"repo_id": repoA, "target_path": "src/a.go", "rationale_uid": "r:a", "target_entity_id": "e:a"},
 		{"repo_id": repoB, "target_path": "src/b.go", "rationale_uid": "r:b", "target_entity_id": "e:b"},
 	}
-	rows := buildRationaleSharedIntentRows(
-		edges, rationaleDeltaScope{}, []string{repoA, repoB}, contextByRepoID,
+	rows := rationale.BuildSharedIntentRows(
+		edges, rationale.DeltaScope{}, []string{repoA, repoB}, contextByRepoID,
 		time.Date(2026, time.August, 15, 0, 0, 0, 0, time.UTC),
 	)
 	if len(rows) != 4 {
@@ -130,11 +132,11 @@ func TestRationalePerEdgeIntentsCarryRefreshFenceMarkerAfterRoundTrip(t *testing
 	t.Parallel()
 
 	const repoID = "repo-marker"
-	rows := buildRationaleSharedIntentRows(
+	rows := rationale.BuildSharedIntentRows(
 		[]map[string]any{
 			{"repo_id": repoID, "target_path": "src/x.go", "rationale_uid": "r:x", "target_entity_id": "e:x"},
 		},
-		rationaleDeltaScope{},
+		rationale.DeltaScope{},
 		[]string{repoID},
 		map[string]ProjectionContext{repoID: {ScopeID: "scope-x", SourceRunID: "run-1", GenerationID: "gen-1"}},
 		time.Date(2026, time.August, 15, 0, 0, 0, 0, time.UTC),

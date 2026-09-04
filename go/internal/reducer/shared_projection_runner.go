@@ -14,6 +14,7 @@ import (
 	"go.opentelemetry.io/otel/trace"
 
 	"github.com/eshu-hq/eshu/go/internal/reducer/inheritance"
+	"github.com/eshu-hq/eshu/go/internal/reducer/rationale"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
 	log "github.com/eshu-hq/eshu/go/pkg/log"
 )
@@ -115,7 +116,7 @@ func sharedProjectionDomainEvidenceSource(domain, fallback string) string {
 	case DomainInheritanceEdges:
 		return inheritance.EvidenceSource
 	case DomainRationaleEdges:
-		return rationaleEvidenceSource
+		return rationale.EvidenceSource
 	default:
 		return fallback
 	}

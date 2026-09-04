@@ -13,7 +13,7 @@ import (
 
 // TestEdgeWriterRetractEdgesRationaleMixedBatchRetractsBothDeltaAndWholeScopeRepos
 // is the #5998 review F6 shim proof at the RetractEdges dispatch layer.
-// rationaleWholeScopePartitionKey hashes each repository's whole-scope
+// rationale.WholeScopePartitionKey hashes each repository's whole-scope
 // refresh to exactly one partition among PartitionCount buckets, but with far
 // more repositories than buckets, two different repositories' refresh rows
 // can legitimately hash into the SAME partition and be selected into the SAME
