@@ -24,7 +24,7 @@ import (
 // awscloudimage.BuildAWSCloudImageMaterializationReducerIntent wired into it.
 // The builder itself lives in internal/projector/awscloudimage; these are the
 // root dispatcher wiring cases, and this file keeps its pre-extraction name
-// because go/internal/reducer/aws_cloud_image_materialization_test.go cites
+// because go/internal/reducer/awscloud/aws_cloud_image_materialization_test.go cites
 // the file and its retraction-safety test by name as the enqueue-side half of
 // the #5450 proof.
 func TestBuildProjectionQueuesAWSCloudImageMaterialization(t *testing.T) {
