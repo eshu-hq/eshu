@@ -11,35 +11,40 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"github.com/eshu-hq/eshu/go/internal/codeprovenance"
+	"github.com/eshu-hq/eshu/go/internal/query/querytestutil"
 )
 
+// fakeDeadCodeContentStore adapts querytestutil.FakeDeadCodeContentStore to the
+// field names this package's tests already use. 35 root files build it with
+// keyed literals over entities/incomingEntityIDs, so those names stay lowercase
+// and none of those literals changed.
+//
+// Neither read is reimplemented here. Both live in querytestutil, which is where
+// a handler family's tests reach them once the family moves out of this package
+// for #6060 -- a symbol declared in a _test.go file is not importable across a
+// package boundary. Two copies of a double's dispatch drift, and the drifted one
+// keeps passing.
 type fakeDeadCodeContentStore struct {
 	fakePortContentStore
 	entities          map[string]EntityContent
 	incomingEntityIDs map[string]bool
 }
 
-func (f fakeDeadCodeContentStore) GetEntityContent(_ context.Context, entityID string) (*EntityContent, error) {
-	entity, ok := f.entities[entityID]
-	if !ok {
-		return nil, nil
+// promoted converts this adapter into the shared double it delegates to.
+func (f fakeDeadCodeContentStore) promotedDeadCode() querytestutil.FakeDeadCodeContentStore {
+	return querytestutil.FakeDeadCodeContentStore{
+		FakePortContentStore: f.promoted(),
+		Entities:             f.entities,
+		IncomingEntityIDs:    f.incomingEntityIDs,
 	}
-	cloned := entity
-	return &cloned, nil
 }
 
-func (f fakeDeadCodeContentStore) DeadCodeIncomingEntityIDs(_ context.Context, _ string, entityIDs []string) (map[string]deadCodeIncomingEdge, error) {
-	incoming := make(map[string]deadCodeIncomingEdge)
-	for _, entityID := range entityIDs {
-		if f.incomingEntityIDs[entityID] {
-			incoming[entityID] = deadCodeIncomingEdge{
-				MaxConfidence: codeprovenance.LegacyConfidence,
-				Method:        codeprovenance.MethodUnspecified,
-			}
-		}
-	}
-	return incoming, nil
+func (f fakeDeadCodeContentStore) GetEntityContent(ctx context.Context, entityID string) (*EntityContent, error) {
+	return f.promotedDeadCode().GetEntityContent(ctx, entityID)
+}
+
+func (f fakeDeadCodeContentStore) DeadCodeIncomingEntityIDs(ctx context.Context, repoID string, entityIDs []string) (map[string]deadCodeIncomingEdge, error) {
+	return f.promotedDeadCode().DeadCodeIncomingEntityIDs(ctx, repoID, entityIDs)
 }
 
 func TestHandleDeadCodeReturnsDerivedTruthAndAnalysisMetadata(t *testing.T) {

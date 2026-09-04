@@ -151,8 +151,13 @@ Its adapter forwards through a single `promoted()` converter rather than
 mapping its 29 fields by hand at each call site. That is the shape to copy
 for any fake wide enough that per-field mapping would be written more than once.
 
-What is left after this: `fakeDeadCodeContentStore`, at 35 root files that build
-one.
+`fakeDeadCodeContentStore` followed, and was the last one. It needed the same
+shape for a smaller reason: only `deadCodeIncomingEdge` was unexported in root,
+in one read's return type, so it moved to `querycontract` behind a root alias
+first. 35 root files build it, and every file that names it also builds one.
+
+No shared double remains in root. A family moving out of `internal/query` can
+now reach every one of them from here.
 
 `fakeGovernanceAuditAppender` (19 root files build it) and
 `fakeScopedTokenResolver` (52) followed the same shape, with one wrinkle each.
