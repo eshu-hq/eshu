@@ -27,9 +27,10 @@
   to change admission.
 - `observabilityResourceTypes` is this package's copy of a three-way mirror:
   root's materialization trigger
-  (`../observability_coverage_materialization_intents.go`) keeps the same set
+  (`../observabilitycoveragematerialization/materialization_intents.go`) keeps
+  the same set
   and both mirror the reducer's `observabilityResourceSignals`
-  (`go/internal/reducer/observability_coverage_correlation_index.go`). A
+  (`go/internal/reducer/obscoverage/observability_coverage_correlation_index.go`). A
   resource type added to one copy must be added to all three.
 - `observabilitySourceSystem` keeps the family's literal third-tier
   `"observability"` fallback. It is NOT body-identical to the two-tier
@@ -84,7 +85,8 @@
 - Do not substitute `projectorintent.SourceSystem` for the local
   three-tier helper; the third tier is load-bearing and pinned.
 - Do not import the root `projector` package, and do not import root's
-  `decodeAWSResource` wrapper — this package keeps its own decode call the
+  `decodeAWSResource` wrapper (deleted once the materialization family took its
+  last caller) — this package keeps its own decode call the
   way `ec2` does.
 - Do not widen the export surface past
   `BuildObservabilityCoverageCorrelationReducerIntent`. Every sibling family

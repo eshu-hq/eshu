@@ -65,7 +65,7 @@ storage, graph, span, metric, or log boundary.
   handlers gate on the `CloudResource` substrate this domain publishes — the
   `awsrelationship`, `awscloudimage`, `iamcanassume`, `iaminstanceprofile`,
   `rds`, `security`, and `workloadcloud` packages, three builders in `s3`, and
-  the root `observability_coverage_materialization_intents.go`. (Twelve
+  `observabilitycoveragematerialization/materialization_intents.go`. (Twelve
   `EntityKey` assignment sites carry the prefix in non-test projector code,
   counting this package's own; `security` reaches it through
   `securityGroupReachabilityAcceptanceUnit`.) On top of that,
