@@ -128,7 +128,6 @@ LINE docs/internal/design/4784-reducer-derived-fact-governance.md go/internal/qu
 LINE docs/internal/design/4784-reducer-derived-fact-governance.md go/internal/query/service_catalog_correlations.go:16
 LINE docs/internal/design/4784-reducer-derived-fact-governance.md go/internal/query/supply_chain_impact_explain_runtime_test.go:298
 LINE docs/internal/design/4784-reducer-derived-fact-governance.md go/internal/query/supply_chain_impact_findings_queries.go:6
-LINE docs/internal/design/4784-reducer-derived-fact-governance.md go/internal/reducer/aws_cloud_runtime_drift_writer.go:19
 LINE docs/internal/design/4784-reducer-derived-fact-governance.md go/internal/reducer/ci_cd_run_correlation_writer.go:17
 LINE docs/internal/design/4784-reducer-derived-fact-governance.md go/internal/reducer/cloud_asset_resolution_writer.go:22
 LINE docs/internal/design/4784-reducer-derived-fact-governance.md go/internal/reducer/cloud_inventory_admission_writer.go:18
@@ -156,7 +155,6 @@ LINE docs/internal/design/4784-reducer-derived-fact-governance.md go/internal/re
 LINE docs/internal/design/4784-reducer-derived-fact-governance.md go/internal/reducer/supply_chain_impact_writer.go:17
 LINE docs/internal/design/4784-reducer-derived-fact-governance.md go/internal/reducer/workload_identity_writer.go:17
 LINE docs/internal/design/4784-reducer-derived-fact-governance.md go/internal/reducer/workload_identity_writer.go:52
-LINE docs/internal/design/4784-reducer-derived-fact-governance.md go/internal/storage/postgres/aws_cloud_runtime_drift_findings.go:16
 LINE docs/internal/design/4784-reducer-derived-fact-governance.md go/internal/storage/postgres/eshu_search_document.go:19
 LINE docs/internal/design/4784-reducer-derived-fact-governance.md go/internal/storage/postgres/facts_active_package_ownership.go:41
 LINE docs/internal/design/4784-reducer-derived-fact-governance.md go/internal/storage/postgres/facts_active_package_ownership.go:41
@@ -246,7 +244,6 @@ LINE docs/internal/design/4786-contract-integration-matrix.md go/internal/mcp/cl
 LINE docs/internal/design/4786-contract-integration-matrix.md go/internal/mcp/cloud/inventory_tools.go:8
 LINE docs/internal/design/4786-contract-integration-matrix.md go/internal/mcp/cloud/runtime_drift_tools.go:19
 LINE docs/internal/design/4786-contract-integration-matrix.md go/internal/mcp/cloud/runtime_drift_tools.go:9
-LINE docs/internal/design/4786-contract-integration-matrix.md go/internal/mcp/cloud/runtime_drift_tools.go:9
 LINE docs/internal/design/4786-contract-integration-matrix.md go/internal/projector/canonical_builder.go:96
 LINE docs/internal/design/4786-contract-integration-matrix.md go/internal/projector/code_function_summary_intents.go:48
 LINE docs/internal/design/4786-contract-integration-matrix.md go/internal/projector/container_image_identity_intents.go:51
@@ -274,7 +271,6 @@ LINE docs/internal/design/4786-contract-integration-matrix.md go/internal/query/
 LINE docs/internal/design/4786-contract-integration-matrix.md go/internal/query/cloud_runtime_drift.go:20
 LINE docs/internal/design/4786-contract-integration-matrix.md go/internal/query/cloud_runtime_drift.go:20
 LINE docs/internal/design/4786-contract-integration-matrix.md go/internal/query/cloud_runtime_drift.go:258
-LINE docs/internal/design/4786-contract-integration-matrix.md go/internal/query/cloud_runtime_drift.go:99
 LINE docs/internal/design/4786-contract-integration-matrix.md go/internal/query/content_reader_repository_catalog.go:80
 LINE docs/internal/design/4786-contract-integration-matrix.md go/internal/query/content_reader_repository_catalog.go:80
 LINE docs/internal/design/4786-contract-integration-matrix.md go/internal/query/content_reader_repository_catalog.go:80
@@ -318,7 +314,6 @@ LINE docs/internal/design/4786-contract-integration-matrix.md go/internal/query/
 LINE docs/internal/design/4786-contract-integration-matrix.md go/internal/query/supply_chain_impact_path.go:122
 LINE docs/internal/design/4786-contract-integration-matrix.md go/internal/query/supply_chain_impact_readiness_postgres_query.go:50
 LINE docs/internal/design/4786-contract-integration-matrix.md go/internal/query/supply_chain_impact_readiness_postgres_query_source.go:139
-LINE docs/internal/design/4786-contract-integration-matrix.md go/internal/reducer/aws_cloud_runtime_drift_writer.go:19
 LINE docs/internal/design/4786-contract-integration-matrix.md go/internal/reducer/candidate_loader.go:42
 LINE docs/internal/design/4786-contract-integration-matrix.md go/internal/reducer/candidate_loader.go:42
 LINE docs/internal/design/4786-contract-integration-matrix.md go/internal/reducer/candidate_loader.go:42
@@ -399,7 +394,6 @@ LINE docs/internal/design/4786-contract-integration-matrix.md go/internal/replay
 LINE docs/internal/design/4786-contract-integration-matrix.md go/internal/semanticdocs/emitter.go:361
 LINE docs/internal/design/4786-contract-integration-matrix.md go/internal/semanticdocs/emitter.go:89
 LINE docs/internal/design/4786-contract-integration-matrix.md go/internal/semanticdocs/emitter.go:89
-LINE docs/internal/design/4786-contract-integration-matrix.md go/internal/storage/postgres/aws_cloud_runtime_drift_findings.go:16
 LINE docs/internal/design/4786-contract-integration-matrix.md go/internal/storage/postgres/aws_cloud_runtime_drift_findings.go:16
 LINE docs/internal/design/4786-contract-integration-matrix.md go/internal/storage/postgres/eshu_search_document.go:19
 LINE docs/internal/design/4786-contract-integration-matrix.md go/internal/storage/postgres/facts_active_package_ownership.go:41
@@ -916,8 +910,6 @@ LINE go/internal/replay/concurrentreplay/factslicesource.go go/internal/ifa/odu.
 LINE go/internal/replay/concurrentreplay/factslicesource.go go/internal/storage/postgres/facts.go:96
 LINE go/internal/replay/costcounting/azure_resource_materialization_cost_test.go go/internal/reducer/azure_resource_materialization.go:196
 LINE go/internal/replay/costcounting/ec2_instance_node_cost_test.go go/internal/graphowner/gated_writer.go:110
-LINE go/internal/replay/costcounting/evidence-4367-cost-cloud-posture.md go/internal/reducer/aws_cloud_runtime_drift.go:106
-LINE go/internal/replay/costcounting/evidence-4367-cost-cloud-posture.md go/internal/reducer/aws_cloud_runtime_drift.go:77
 LINE go/internal/replay/costcounting/evidence-4367-cost-cloud-posture.md go/internal/reducer/secrets_iam_graph_projection.go:28
 LINE go/internal/replay/costcounting/evidence-4367-cost-cloud-posture.md go/internal/telemetry/instruments.go:3464
 LINE go/internal/replay/costcounting/gcp_resource_materialization_cost_test.go go/internal/reducer/gcp_resource_materialization.go:292

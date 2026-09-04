@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package reducer
+package awscloud
 
 import (
 	"context"
@@ -12,6 +12,7 @@ import (
 	"go.opentelemetry.io/otel/sdk/metric/metricdata"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
 )
 
@@ -85,12 +86,12 @@ func (w *recordingCloudResourceContainerImageEdgeWriter) RetractCloudResourceCon
 	return w.retractErr
 }
 
-func awsCloudImageIntent() Intent {
-	return Intent{
+func awsCloudImageIntent() reducercontract.Intent {
+	return reducercontract.Intent{
 		IntentID:     "intent-aws-cloud-image-1",
 		ScopeID:      "scope-1",
 		GenerationID: "gen-1",
-		Domain:       DomainAWSCloudImageMaterialization,
+		Domain:       reducercontract.DomainAWSCloudImageMaterialization,
 		EntityKeys:   []string{"aws_resource_materialization:scope-1"},
 		EnqueuedAt:   time.Now(),
 		AvailableAt:  time.Now(),
@@ -152,7 +153,7 @@ func TestAWSCloudImageMaterializationRejectsMismatchedDomain(t *testing.T) {
 		ReadinessLookup: readyLookup(true, true),
 	}
 	intent := awsCloudImageIntent()
-	intent.Domain = DomainAWSRelationshipMaterialization
+	intent.Domain = reducercontract.DomainAWSRelationshipMaterialization
 	if _, err := handler.Handle(context.Background(), intent); err == nil {
 		t.Fatal("expected error for mismatched domain")
 	}
@@ -196,7 +197,7 @@ func TestAWSCloudImageMaterializationGatesOnCanonicalNodesPhase(t *testing.T) {
 	if err == nil {
 		t.Fatal("expected a retryable error while canonical nodes phase is not ready")
 	}
-	if !IsRetryable(err) {
+	if !reducercontract.IsRetryable(err) {
 		t.Fatalf("error must be retryable so the intent re-enters the queue, got %v", err)
 	}
 	if writer.writeCalls != 0 || writer.retractCalls != 0 {
@@ -231,7 +232,7 @@ func TestAWSCloudImageMaterializationProjectsLambdaImageEdgeAndSkipsECSTagOnly(t
 	if err != nil {
 		t.Fatalf("Handle returned error: %v", err)
 	}
-	if result.Status != ResultStatusSucceeded {
+	if result.Status != reducercontract.ResultStatusSucceeded {
 		t.Fatalf("status = %q, want succeeded", result.Status)
 	}
 	if writer.writeCalls != 1 {

@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package reducer
+package awscloud
 
 import (
 	"context"
@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/correlation/drift/cloudruntime"
+	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
 )
 
 // stubAWSCloudRuntimeDriftFencingTokenIssuer returns caller-controlled
@@ -42,12 +43,12 @@ func (s *stubAWSCloudRuntimeDriftFencingTokenIssuer) NextAWSCloudRuntimeDriftFen
 func TestAWSCloudRuntimeDriftHandlerRequiresFencingTokenIssuer(t *testing.T) {
 	t.Parallel()
 
-	intent := Intent{
+	intent := reducercontract.Intent{
 		IntentID:     "intent-aws-drift-token",
 		ScopeID:      "aws:123456789012:us-east-1",
 		GenerationID: "generation-aws",
 		SourceSystem: "aws",
-		Domain:       DomainAWSCloudRuntimeDrift,
+		Domain:       reducercontract.DomainAWSCloudRuntimeDrift,
 	}
 	handler := AWSCloudRuntimeDriftHandler{
 		EvidenceLoader: &stubAWSCloudRuntimeDriftEvidenceLoader{},
@@ -98,12 +99,12 @@ func TestAWSCloudRuntimeDriftHandlerStampsWriteWithIssuedFencingTokenNotHostCloc
 		Now:                func() time.Time { return fastSkewedNow },
 	}
 
-	_, err := handler.Handle(context.Background(), Intent{
+	_, err := handler.Handle(context.Background(), reducercontract.Intent{
 		IntentID:     "intent-token-source",
 		ScopeID:      "aws:123456789012:us-east-1",
 		GenerationID: "gen-1",
 		SourceSystem: "aws",
-		Domain:       DomainAWSCloudRuntimeDrift,
+		Domain:       reducercontract.DomainAWSCloudRuntimeDrift,
 		Cause:        "aws runtime resource facts observed",
 	})
 	if err != nil {
@@ -147,12 +148,12 @@ func TestAWSCloudRuntimeDriftHandlerPropagatesFencingTokenIssuerError(t *testing
 		FencingTokenIssuer: issuer,
 	}
 
-	_, err := handler.Handle(context.Background(), Intent{
+	_, err := handler.Handle(context.Background(), reducercontract.Intent{
 		IntentID:     "intent-token-error",
 		ScopeID:      "aws:123456789012:us-east-1",
 		GenerationID: "gen-1",
 		SourceSystem: "aws",
-		Domain:       DomainAWSCloudRuntimeDrift,
+		Domain:       reducercontract.DomainAWSCloudRuntimeDrift,
 		Cause:        "aws runtime resource facts observed",
 	})
 	if err == nil {

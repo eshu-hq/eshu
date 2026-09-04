@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package reducer
+package awscloud
 
 import (
 	"context"
@@ -15,6 +15,8 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/correlation/engine"
 	"github.com/eshu-hq/eshu/go/internal/correlation/model"
 	"github.com/eshu-hq/eshu/go/internal/correlation/rules"
+	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
+	"github.com/eshu-hq/eshu/go/internal/reducer/factwrite"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
 	log "github.com/eshu-hq/eshu/go/pkg/log"
 )
@@ -120,28 +122,28 @@ type AWSCloudRuntimeDriftHandler struct {
 }
 
 // Handle executes one AWS runtime drift publication intent.
-func (h AWSCloudRuntimeDriftHandler) Handle(ctx context.Context, intent Intent) (Result, error) {
-	if intent.Domain != DomainAWSCloudRuntimeDrift {
-		return Result{}, fmt.Errorf(
+func (h AWSCloudRuntimeDriftHandler) Handle(ctx context.Context, intent reducercontract.Intent) (reducercontract.Result, error) {
+	if intent.Domain != reducercontract.DomainAWSCloudRuntimeDrift {
+		return reducercontract.Result{}, fmt.Errorf(
 			"aws_cloud_runtime_drift handler does not accept domain %q",
 			intent.Domain,
 		)
 	}
 	if h.EvidenceLoader == nil {
-		return Result{}, fmt.Errorf("aws cloud runtime drift evidence loader is required")
+		return reducercontract.Result{}, fmt.Errorf("aws cloud runtime drift evidence loader is required")
 	}
 	if h.Writer == nil {
-		return Result{}, fmt.Errorf("aws cloud runtime drift writer is required")
+		return reducercontract.Result{}, fmt.Errorf("aws cloud runtime drift writer is required")
 	}
 	if h.FencingTokenIssuer == nil {
-		return Result{}, fmt.Errorf("aws cloud runtime drift fencing token issuer is required")
+		return reducercontract.Result{}, fmt.Errorf("aws cloud runtime drift fencing token issuer is required")
 	}
 
 	// Read the fencing watermark BEFORE the evidence load, not after. It must
 	// express "how fresh is the world this pass looked at", excluding however
 	// long the load, classification, and admission then took (#5848; mirrors
 	// containerImageIdentityEvidenceAsOf, #5847).
-	evidenceAsOf := reducerWriterNow(h.Now)
+	evidenceAsOf := factwrite.Now(h.Now)
 
 	// Issue the cross-worker fencing token at the SAME point evidenceAsOf was
 	// captured -- before the evidence load, not at write-commit time (#5875
@@ -154,7 +156,7 @@ func (h AWSCloudRuntimeDriftHandler) Handle(ctx context.Context, intent Intent) 
 	// original #5848 bug while fixing this one.
 	fencingToken, err := h.FencingTokenIssuer.NextAWSCloudRuntimeDriftFencingToken(ctx)
 	if err != nil {
-		return Result{}, fmt.Errorf("issue aws cloud runtime drift fencing token: %w", err)
+		return reducercontract.Result{}, fmt.Errorf("issue aws cloud runtime drift fencing token: %w", err)
 	}
 
 	// Check readiness BEFORE loading evidence, not after (#5875 P1). See
@@ -167,19 +169,19 @@ func (h AWSCloudRuntimeDriftHandler) Handle(ctx context.Context, intent Intent) 
 	// the freshly loaded evidence actually contains an orphaned candidate.
 	readinessSignal, err := h.checkAWSCloudRuntimeDriftReadinessBeforeLoad(ctx, intent, evidenceAsOf)
 	if err != nil {
-		return Result{}, fmt.Errorf("check aws cloud runtime drift state readiness: %w", err)
+		return reducercontract.Result{}, fmt.Errorf("check aws cloud runtime drift state readiness: %w", err)
 	}
 
 	rows, err := h.EvidenceLoader.LoadAWSCloudRuntimeDriftEvidence(ctx, intent.ScopeID, intent.GenerationID)
 	if err != nil {
-		return Result{}, fmt.Errorf("load aws cloud runtime drift evidence: %w", err)
+		return reducercontract.Result{}, fmt.Errorf("load aws cloud runtime drift evidence: %w", err)
 	}
 
 	candidates := cloudruntime.BuildCandidates(rows, intent.ScopeID)
 	pack := rules.AWSCloudRuntimeDriftRulePack()
 	evaluation, err := engine.Evaluate(pack, candidates)
 	if err != nil {
-		return Result{}, fmt.Errorf("evaluate aws cloud runtime drift rule pack: %w", err)
+		return reducercontract.Result{}, fmt.Errorf("evaluate aws cloud runtime drift rule pack: %w", err)
 	}
 
 	admitted := admittedAWSCloudRuntimeDriftCandidates(evaluation)
@@ -187,7 +189,7 @@ func (h AWSCloudRuntimeDriftHandler) Handle(ctx context.Context, intent Intent) 
 
 	if shouldDeferForLoadedEvidence(readinessSignal, admitted) {
 		h.logStatePendingDefer(ctx, intent, admitted, evidenceAsOf)
-		return Result{}, newAWSCloudRuntimeDriftStatePendingError(intent.ScopeID, intent.GenerationID)
+		return reducercontract.Result{}, newAWSCloudRuntimeDriftStatePendingError(intent.ScopeID, intent.GenerationID)
 	}
 
 	writeResult, err := h.Writer.WriteAWSCloudRuntimeDriftFindings(ctx, AWSCloudRuntimeDriftWrite{
@@ -206,16 +208,16 @@ func (h AWSCloudRuntimeDriftHandler) Handle(ctx context.Context, intent Intent) 
 		if isAWSCloudRuntimeDriftWriteSuperseded(err) {
 			h.logWriteSuperseded(ctx, intent)
 		}
-		return Result{}, fmt.Errorf("write aws cloud runtime drift findings: %w", err)
+		return reducercontract.Result{}, fmt.Errorf("write aws cloud runtime drift findings: %w", err)
 	}
 
 	cloudruntime.RecordEvaluation(ctx, h.Instruments, evaluation)
 	h.logAdmittedFindings(ctx, intent, admitted)
 
-	return Result{
+	return reducercontract.Result{
 		IntentID: intent.IntentID,
 		Domain:   intent.Domain,
-		Status:   ResultStatusSucceeded,
+		Status:   reducercontract.ResultStatusSucceeded,
 		EvidenceSummary: awsCloudRuntimeDriftSummary(
 			len(candidates),
 			summary,
@@ -283,7 +285,7 @@ func summarizeAWSCloudRuntimeDriftCandidates(candidates []model.Candidate) cloud
 
 func (h AWSCloudRuntimeDriftHandler) logAdmittedFindings(
 	ctx context.Context,
-	intent Intent,
+	intent reducercontract.Intent,
 	candidates []model.Candidate,
 ) {
 	if h.Logger == nil {

@@ -11,7 +11,7 @@
 5. `docs/internal/aws-relationship-edge-materialization-design.md` (§12 and
    the retraction-safety fix note) for the node-before-edge readiness design
    and the trigger rationale this intent encodes.
-6. `go/internal/reducer/aws_cloud_image_materialization.go` for what the
+6. `go/internal/reducer/awscloud/aws_cloud_image_materialization.go` for what the
    reducer does with the intent this package enqueues: retract-first edge
    lifecycle, `sourceNodesReady`, `target_not_materialized` reclassification,
    and the `CloudResourceContainerImageEdgeWriter` calls.
@@ -71,7 +71,7 @@
   route-serves-data registry entry cites this family (verified with a
   positive control against the registry's other projector citations).
 - **The root dispatcher test file name is pinned from the reducer side.**
-  `go/internal/reducer/aws_cloud_image_materialization_test.go` cites
+  `go/internal/reducer/awscloud/aws_cloud_image_materialization_test.go` cites
   `internal/projector/aws_cloud_image_materialization_intents_test.go` and
   its retraction-safety test by name as the enqueue-side half of the #5450
   proof, which is why that root file kept its pre-extraction name when the

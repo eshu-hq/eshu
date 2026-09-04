@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package reducer
+package awscloud
 
 import (
 	"bytes"
@@ -21,6 +21,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/correlation/model"
 	"github.com/eshu-hq/eshu/go/internal/correlation/rules"
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
 )
 
@@ -113,20 +114,20 @@ func TestAWSCloudRuntimeDriftHandlerPublishesAdmittedFindings(t *testing.T) {
 		FencingTokenIssuer: &stubAWSCloudRuntimeDriftFencingTokenIssuer{tokens: []int64{1}},
 	}
 
-	result, err := handler.Handle(context.Background(), Intent{
+	result, err := handler.Handle(context.Background(), reducercontract.Intent{
 		IntentID:        "intent-aws-drift",
 		ScopeID:         "aws:123456789012:us-east-1",
 		GenerationID:    "generation-aws",
 		SourceSystem:    "aws",
-		Domain:          DomainAWSCloudRuntimeDrift,
+		Domain:          reducercontract.DomainAWSCloudRuntimeDrift,
 		Cause:           "aws runtime facts observed",
 		RelatedScopeIDs: []string{"aws:123456789012:us-east-1"},
 	})
 	if err != nil {
 		t.Fatalf("Handle() error = %v, want nil", err)
 	}
-	if result.Status != ResultStatusSucceeded {
-		t.Fatalf("Handle().Status = %q, want %q", result.Status, ResultStatusSucceeded)
+	if result.Status != reducercontract.ResultStatusSucceeded {
+		t.Fatalf("Handle().Status = %q, want %q", result.Status, reducercontract.ResultStatusSucceeded)
 	}
 	if got, want := result.CanonicalWrites, 2; got != want {
 		t.Fatalf("Handle().CanonicalWrites = %d, want %d", got, want)
@@ -192,12 +193,12 @@ func TestAWSCloudRuntimeDriftHandlerDoesNotEmitFindingsBeforeDurableWrite(t *tes
 		FencingTokenIssuer: &stubAWSCloudRuntimeDriftFencingTokenIssuer{tokens: []int64{1}},
 	}
 
-	_, err := handler.Handle(context.Background(), Intent{
+	_, err := handler.Handle(context.Background(), reducercontract.Intent{
 		IntentID:        "intent-aws-drift",
 		ScopeID:         "aws:123456789012:us-east-1",
 		GenerationID:    "generation-aws",
 		SourceSystem:    "aws",
-		Domain:          DomainAWSCloudRuntimeDrift,
+		Domain:          reducercontract.DomainAWSCloudRuntimeDrift,
 		Cause:           "aws runtime facts observed",
 		RelatedScopeIDs: []string{"aws:123456789012:us-east-1"},
 	})
@@ -245,12 +246,12 @@ func TestAWSCloudRuntimeDriftHandlerRedactsAdmittedFindingResourceLogs(t *testin
 		FencingTokenIssuer: &stubAWSCloudRuntimeDriftFencingTokenIssuer{tokens: []int64{1}},
 	}
 
-	_, err := handler.Handle(context.Background(), Intent{
+	_, err := handler.Handle(context.Background(), reducercontract.Intent{
 		IntentID:        "intent-aws-drift",
 		ScopeID:         "aws:123456789012:us-east-1",
 		GenerationID:    "generation-aws",
 		SourceSystem:    "aws",
-		Domain:          DomainAWSCloudRuntimeDrift,
+		Domain:          reducercontract.DomainAWSCloudRuntimeDrift,
 		Cause:           "aws runtime facts observed",
 		RelatedScopeIDs: []string{"aws:123456789012:us-east-1"},
 	})
@@ -279,12 +280,12 @@ func TestAWSCloudRuntimeDriftHandlerRedactsAdmittedFindingResourceLogs(t *testin
 func TestAWSCloudRuntimeDriftHandlerRequiresAdapters(t *testing.T) {
 	t.Parallel()
 
-	intent := Intent{
+	intent := reducercontract.Intent{
 		IntentID:     "intent-aws-drift",
 		ScopeID:      "aws:123456789012:us-east-1",
 		GenerationID: "generation-aws",
 		SourceSystem: "aws",
-		Domain:       DomainAWSCloudRuntimeDrift,
+		Domain:       reducercontract.DomainAWSCloudRuntimeDrift,
 	}
 	if _, err := (AWSCloudRuntimeDriftHandler{}).Handle(context.Background(), intent); err == nil {
 		t.Fatal("Handle() error = nil, want missing evidence loader error")
@@ -300,12 +301,12 @@ func TestAWSCloudRuntimeDriftHandlerRequiresAdapters(t *testing.T) {
 func TestAWSCloudRuntimeDriftHandlerRejectsWrongDomain(t *testing.T) {
 	t.Parallel()
 
-	_, err := AWSCloudRuntimeDriftHandler{}.Handle(context.Background(), Intent{
+	_, err := AWSCloudRuntimeDriftHandler{}.Handle(context.Background(), reducercontract.Intent{
 		IntentID:     "intent-aws-drift",
 		ScopeID:      "aws:123456789012:us-east-1",
 		GenerationID: "generation-aws",
 		SourceSystem: "aws",
-		Domain:       DomainWorkloadIdentity,
+		Domain:       reducercontract.DomainWorkloadIdentity,
 	})
 	if err == nil {
 		t.Fatal("Handle() error = nil, want wrong-domain error")
@@ -328,7 +329,7 @@ func TestPostgresAWSCloudRuntimeDriftWriterPersistsOneFactPerFinding(t *testing.
 	t.Parallel()
 
 	now := time.Date(2026, time.May, 14, 12, 0, 0, 0, time.UTC)
-	db := &fakeWorkloadIdentityExecer{}
+	db := &fakeAWSCloudRuntimeDriftExecer{}
 	writer := PostgresAWSCloudRuntimeDriftWriter{
 		DB:  db,
 		Now: func() time.Time { return now },

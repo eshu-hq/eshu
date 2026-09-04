@@ -1,13 +1,17 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package reducer
+package awscloud
 
 import (
 	"sort"
 	"strings"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/reducer/cloudjoin"
+	"github.com/eshu-hq/eshu/go/internal/reducer/factdecode"
+	"github.com/eshu-hq/eshu/go/internal/reducer/payloadcore"
+	"github.com/eshu-hq/eshu/go/internal/reducer/schemadecode"
 	awsv1 "github.com/eshu-hq/eshu/sdk/go/factschema/aws/v1"
 )
 
@@ -131,13 +135,13 @@ func (t *awsCloudImageEdgeTally) totalSkipped() int {
 func ExtractAWSCloudImageEdgeRows(
 	resourceEnvelopes []facts.Envelope,
 	relationshipEnvelopes []facts.Envelope,
-) ([]map[string]any, awsCloudImageEdgeTally, []quarantinedFact, error) {
+) ([]map[string]any, awsCloudImageEdgeTally, []factdecode.QuarantinedFact, error) {
 	tally := newAWSCloudImageEdgeTally()
 	if len(relationshipEnvelopes) == 0 {
 		return nil, tally, nil, nil
 	}
 
-	index, quarantined, err := buildCloudResourceJoinIndex(resourceEnvelopes)
+	index, quarantined, err := cloudjoin.BuildCloudResourceJoinIndex(resourceEnvelopes)
 	if err != nil {
 		return nil, tally, nil, err
 	}
@@ -153,9 +157,9 @@ func ExtractAWSCloudImageEdgeRows(
 		if env.FactKind != facts.AWSRelationshipFactKind {
 			continue
 		}
-		relationship, err := decodeAWSRelationship(env)
+		relationship, err := schemadecode.DecodeAWSRelationship(env)
 		if err != nil {
-			q, ok, fatal := partitionDecodeFailures(env, err)
+			q, ok, fatal := factdecode.PartitionDecodeFailures(env, err)
 			if fatal != nil {
 				return nil, tally, nil, fatal
 			}
@@ -175,9 +179,9 @@ func ExtractAWSCloudImageEdgeRows(
 			continue
 		}
 
-		sourceARN := derefString(relationship.SourceARN)
+		sourceARN := payloadcore.DerefString(relationship.SourceARN)
 		sourceResourceID := relationship.SourceResourceID
-		sourceUID, sourceOK := resolveCloudResourceSource(index, sourceARN, sourceResourceID)
+		sourceUID, sourceOK := cloudjoin.ResolveSource(index, sourceARN, sourceResourceID)
 		if !sourceOK {
 			tally.skipped[awsCloudImageSkipSourceUnresolved]++
 			continue
@@ -185,7 +189,7 @@ func ExtractAWSCloudImageEdgeRows(
 
 		imageAttrs, err := awsv1.DecodeRelationshipLambdaFunctionUsesImageAttributes(relationship)
 		if err != nil {
-			quarantined = append(quarantined, quarantinedAttributeShapeFact(env, err))
+			quarantined = append(quarantined, factdecode.QuarantinedAttributeShapeFact(env, err))
 			continue
 		}
 		if imageAttrs.ResolvedImageURI == "" {
@@ -219,8 +223,8 @@ func ExtractAWSCloudImageEdgeRows(
 	}
 
 	sort.Slice(rows, func(a, b int) bool {
-		left := anyToString(rows[a]["source_uid"]) + "->" + anyToString(rows[a]["target_uid"])
-		right := anyToString(rows[b]["source_uid"]) + "->" + anyToString(rows[b]["target_uid"])
+		left := payloadcore.AnyToString(rows[a]["source_uid"]) + "->" + payloadcore.AnyToString(rows[a]["target_uid"])
+		right := payloadcore.AnyToString(rows[b]["source_uid"]) + "->" + payloadcore.AnyToString(rows[b]["target_uid"])
 		return left < right
 	})
 	return rows, tally, quarantined, nil

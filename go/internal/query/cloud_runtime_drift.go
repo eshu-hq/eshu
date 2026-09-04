@@ -117,7 +117,7 @@ type MultiCloudRuntimeDriftFindingRow struct {
 // MultiCloudRuntimeDriftFindingRow deliberately does NOT project them
 // (#5759 follow-up P1-2, hostile-review finding): traced write to read,
 // reducerderivedv1.AWSCloudRuntimeDriftFinding has no fields for them,
-// awsCloudRuntimeDriftTypedPayload (go/internal/reducer/aws_cloud_runtime_drift_writer.go)
+// awsCloudRuntimeDriftTypedPayload (go/internal/reducer/awscloud/aws_cloud_runtime_drift_writer.go)
 // never sets them, and the evidence-atom shapes
 // iacManagementEvidenceEnrichment.recordEvidence matches are never emitted by
 // cloudruntime.buildOneCandidate -- confirmed by exhaustive repo search, zero

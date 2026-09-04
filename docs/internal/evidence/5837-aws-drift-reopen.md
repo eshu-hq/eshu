@@ -112,7 +112,7 @@ state backends; this branch does not attempt that and cannot regress it.
 
 ## The four pieces, and why each is required
 
-1. **Readiness defer** (`go/internal/reducer/aws_cloud_runtime_drift_readiness.go`).
+1. **Readiness defer** (`go/internal/reducer/awscloud/aws_cloud_runtime_drift_readiness.go`).
    `AWSCloudRuntimeDriftHandler.shouldDeferForLoadedEvidence` (checked BEFORE the
    evidence load — see the round-5 P1 addendum below) holds back an
    `orphaned_cloud_resource` classification when a Terraform `state_snapshot:*`
@@ -135,14 +135,14 @@ state backends; this branch does not attempt that and cannot regress it.
    a pass that lost the readiness race (or ran before this branch existed at all)
    had nothing to replay it.
 3. **Generation-authoritative retire**
-   (`go/internal/reducer/aws_cloud_runtime_drift_writer_queries.go`). The reopen
+   (`go/internal/reducer/awscloud/aws_cloud_runtime_drift_writer_queries.go`). The reopen
    alone would make #5837 WORSE without this: the fact identity embeds
    `finding_kind`, so a corrected replay reclassifying an ARN mints a NEW
    `fact_id` beside the old one. The retire removes a stale finding for any ARN
    the current pass evaluated whose fact_id is not among the rows it just wrote,
    bounded by the same fencing token as the insert so it can never delete a
    fresher row.
-4. **Insert-admission check** (`go/internal/reducer/aws_cloud_runtime_drift_admission.go`).
+4. **Insert-admission check** (`go/internal/reducer/awscloud/aws_cloud_runtime_drift_admission.go`).
    #5848's actual ask: a begin-before-mutate check so a pass whose evidence-read
    watermark is older than one already admitted for the same (scope, generation)
    is rejected BEFORE it inserts or retires anything. Closes the residual the
@@ -230,7 +230,7 @@ The "Dead-letter behavior" bullet above states both new failure classes are in
 first commit that declared the two classes through the rebase-completion
 commit: the classes existed only as `const` declarations next to the error
 types that return them
-(`go/internal/reducer/aws_cloud_runtime_drift_admission.go`,
+(`go/internal/reducer/awscloud/aws_cloud_runtime_drift_admission.go`,
 `aws_cloud_runtime_drift_readiness.go`) — `go/internal/storage/postgres/reducer_queue_readiness_sql.go`,
 the actual registry, was never touched. A declared-but-unregistered class is
 invisible to both `retryable()`'s non-counting check and
@@ -403,7 +403,7 @@ now converges at 36 minutes — past the 30-minute bound — because the
 comparison no longer depends on that frozen value at all.
 
 `awsCloudRuntimeDriftStatePendingMaxWait`'s own doc comment
-(`go/internal/reducer/aws_cloud_runtime_drift_readiness.go`) now states this
+(`go/internal/reducer/awscloud/aws_cloud_runtime_drift_readiness.go`) now states this
 history and the reason directly, so a future reader does not reintroduce an
 `AttemptCount` comparison believing it to be equivalent.
 
@@ -490,7 +490,7 @@ classification, confirming the winner tracks commit order, not evidence
 freshness. This is a characterization test of the intended, correct-by-design
 behavior, not a bug fix — there is no code change backing it, only the test
 and the doc correction. `awsCloudRuntimeDriftAdmissionQuery`'s own doc
-comment (`go/internal/reducer/aws_cloud_runtime_drift_admission.go`) now
+comment (`go/internal/reducer/awscloud/aws_cloud_runtime_drift_admission.go`) now
 states the actual rule explicitly under a `# The actual rule on an exact
 watermark tie is last-committer-wins, not fresher-wins` heading, rather than
 leaving "fresher wins" implied.
@@ -595,7 +595,7 @@ and both-zero branches) and `TestAWSCloudRuntimeDriftHandlerDefersOnFreshCycleSt
 (a fast, in-process Handle()-level companion to the live test above, proving
 `CycleStartedAt` governs the decision even when `EnqueuedAt` alone is already
 past the bound) -- both in
-`go/internal/reducer/aws_cloud_runtime_drift_readiness_test.go`.
+`go/internal/reducer/awscloud/aws_cloud_runtime_drift_readiness_test.go`.
 
 **Convergence in both directions, confirmed:** a genuinely permanent orphan
 (no Terraform state anywhere, ever, and no reopen) still converges through
@@ -1059,7 +1059,7 @@ $ go test ./internal/storage/postgres -run TestPostgresAWSCloudRuntimeDriftReadi
 --- PASS: TestPostgresAWSCloudRuntimeDriftReadinessCheckerLive (0.22s)
 ```
 
-`go/internal/reducer/aws_cloud_runtime_drift_readiness_test.go` covers the
+`go/internal/reducer/awscloud/aws_cloud_runtime_drift_readiness_test.go` covers the
 Handler-level bound logic without a database: a pending state scope defers an
 orphaned classification (writer never called), the bound (30 minutes of
 elapsed wall-clock time since `Intent.CycleStartedAt`, not a retry-count

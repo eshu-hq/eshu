@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package reducer
+package awscloud
 
 import (
 	"context"
@@ -13,6 +13,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/correlation/drift/cloudruntime"
 	"github.com/eshu-hq/eshu/go/internal/correlation/model"
+	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
 	log "github.com/eshu-hq/eshu/go/pkg/log"
 )
 
@@ -235,7 +236,7 @@ type awsCloudRuntimeDriftReadinessSignal struct {
 // cannot itself push the intent past the elapsed bound.
 func (h AWSCloudRuntimeDriftHandler) checkAWSCloudRuntimeDriftReadinessBeforeLoad(
 	ctx context.Context,
-	intent Intent,
+	intent reducercontract.Intent,
 	now time.Time,
 ) (awsCloudRuntimeDriftReadinessSignal, error) {
 	if h.ReadinessChecker == nil {
@@ -276,7 +277,7 @@ func shouldDeferForLoadedEvidence(
 // falling back to intent.EnqueuedAt -- see shouldDeferForStatePending's doc
 // comment for why CycleStartedAt is the correct anchor and EnqueuedAt is only
 // a fallback for callers that do not populate it.
-func awsCloudRuntimeDriftCycleAnchor(intent Intent) time.Time {
+func awsCloudRuntimeDriftCycleAnchor(intent reducercontract.Intent) time.Time {
 	if !intent.CycleStartedAt.IsZero() {
 		return intent.CycleStartedAt
 	}
@@ -334,7 +335,7 @@ func isAWSCloudRuntimeDriftWriteSuperseded(err error) bool {
 // the intent is to its terminal fallback.
 func (h AWSCloudRuntimeDriftHandler) logStatePendingDefer(
 	ctx context.Context,
-	intent Intent,
+	intent reducercontract.Intent,
 	admitted []model.Candidate,
 	now time.Time,
 ) {
@@ -356,7 +357,7 @@ func (h AWSCloudRuntimeDriftHandler) logStatePendingDefer(
 
 // logWriteSuperseded records an insert-admission rejection as its own
 // structured log line, distinct from a readiness defer or a handler error.
-func (h AWSCloudRuntimeDriftHandler) logWriteSuperseded(ctx context.Context, intent Intent) {
+func (h AWSCloudRuntimeDriftHandler) logWriteSuperseded(ctx context.Context, intent reducercontract.Intent) {
 	if h.Logger == nil {
 		return
 	}
