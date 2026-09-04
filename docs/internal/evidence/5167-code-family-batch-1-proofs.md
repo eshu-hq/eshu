@@ -1,10 +1,13 @@
 # #5167 Code Family, Batch 1 — Proof Ledger
 
-The red/green runs and mutation ledger for
-[#5167 Code Family, Batch 1](5167-code-family-batch-1.md). This document holds
-the proofs; that one holds the change and its reasoning. They are split only
-because together they outgrow the repository's 500-line Markdown cap, and
-nothing here stands on its own.
+The red/green runs, the mutation ledger, the query-plan manifest re-audit and
+the read-path cost record for
+[#5167 Code Family, Batch 1](5167-code-family-batch-1.md). That note holds the
+change and its reasoning, and
+[#5167 cross-repo hidden-consumer walk](5167-cross-repo-hidden-consumer-walk.md)
+holds the measurement record for the cross-repo hidden-consumer read. The three
+are split only because together they outgrow the repository's 500-line file cap,
+and nothing here stands on its own.
 
 ## Red Then Green
 
@@ -321,3 +324,155 @@ one, the only row that settles clause attachment against a real backend. A secon
 reran both directions of row 11 on a fresh container from the same pinned digest
 (self-reporting 1.2.2, bolt on port 17787): mutated exit `1` with the leak body
 quoted above, restored exit `0`.
+
+## Query-Plan Source Coverage
+
+`go test ./internal/queryplan` was red on this branch before this pass, and no
+earlier verification list ran that package. Six callsites failed
+`TestHotCypherManifestCoversEveryProductionQueryCall`, because adding a grant
+predicate changes the enclosing symbol's `source_sha256` and the manifest
+freezes it:
+
+```text
+code_call_graph_metrics.go:(*CodeHandler).callGraphMetricsData: hot callsite source_sha256 does not match production symbol
+code_complexity_queries.go:(*CodeHandler).listMostComplexFunctions: grandfathered source_sha256 does not match production symbol
+```
+
+The other four — `lookupComplexityRowByName`, `deadCodeCandidateRows`,
+`inspectCodeQuality`, `graphSummaryHotEntities` — printed the same
+grandfathered-digest line. That is the gate working as designed: a changed
+digest forces the owning callsite through a typed non-hot audit rather than
+letting a prose `non_hot_reason` carry forward. The five grandfathered prose
+entries become typed dispositions carrying the bound each read already enforces,
+and leave `grandfatheredNonHotSourceDigests`. Later passes move three digests
+again — `listMostComplexFunctions` for the anchor fix, `callGraphMetricsData`
+for its grantless-caller refusal, `graphSummaryHotEntities` for a corrected
+comment — each re-recorded against the production symbol with its disposition
+and bound re-audited unchanged. `handler-hot-cypher.yaml` ends this branch
+untouched: `callGraphMetricsEdgesCypher` carries no grant, so its
+`source_sha256` and the `cypher_sha256` for `QP-CALL-GRAPH-HUBS` and
+`QP-CALL-GRAPH-RECURSIVE` are the values already committed:
+
+| Callsite | Class | Bound |
+| --- | --- | --- |
+| `listMostComplexFunctions` | `label_inventory` | `Function`, 101 rows (`complexityMaxListLimit` + 1) |
+| `lookupComplexityRowByName` | `keyed_support` | single key `$entity_name`, 3 rows (`complexityNameCandidateLimit` + 1) |
+| `deadCodeCandidateRows` | `label_inventory` | one candidate label per page from the closed `deadCodeCandidateLabels` set, 250 rows (`deadCodeCandidateQueryMax`) |
+| `inspectCodeQuality` | `label_inventory` | `Function`, 101 rows (`codeQualityMaxLimit` + 1) |
+| `graphSummaryHotEntities` | `keyed_support` | single key `$repo_id`, 50001 rows (`callGraphMetricsEdgeScanLimit` + 1) |
+| `deadCodeResultsWithGraphIncomingEdges` | `keyed_support` | bounded key batch of one candidate page, 250 keys (`deadCodeCandidateQueryMax`), 2500 rows (one per key per resolution method) |
+
+The sixth entry is the incoming-edge probe. It kept its prose disposition until
+this pass; moving it to `code_dead_code_candidate_entity.go` and giving it a
+second statement forced the same audit, and a new callsite may not use
+`non_hot_reason` at all, so it left the grandfather ledger for the typed row
+above.
+
+## Why The internal/query Files Were Split
+
+On origin/main `code_dead_code.go` was 496 lines and `code_dead_code_scan.go`
+was 468; this change pushed both over the 500-line cap, and
+`code_dead_code_cross_repo.go` followed later. The candidate-page request type,
+the scan budget helpers, the candidate-label predicate, the cross-repo
+consumer-evidence filter and, in the round-7 pass, the whole incoming-edge probe
+family moved to sibling files that already own those families rather than to new
+ones, because `internal/query`'s non-test file set is pinned by the dirgate
+grandfather ledger.
+
+## What The Change Costs On The Read Path
+
+No-Regression Evidence: every predicate this change adds is an indexed equality
+or an `ANY()`/`IN` membership test against the caller's grant, on a node or
+column the query already matched, and it lands ahead of the existing
+`SKIP`/`LIMIT` (Cypher) or `LIMIT`/`OFFSET` (SQL), so a scoped page is drawn
+from the granted set instead of a cross-tenant-polluted one. A scoped caller
+reads no more rows than before, save the one widened `DISTINCT` key declared
+below, and on the routes that were corpus-wide it reads fewer. On the SQL side
+the grant column is `content_entities.repo_id` / `content_files.repo_id`, plus
+`code_reachability_rows.repository_id` — the same columns those queries'
+single-repository branches already filter on.
+
+Two shapes do change, and both are declared. `listMostComplexFunctions` swaps
+its `OPTIONAL MATCH` for a required `MATCH` over the same
+`CONTAINS`/`REPO_CONTAINS` path for a scoped caller or a supplied `repo_id`,
+which removes a clause between the anchor and the `RETURN` rather than adding
+one. The cross-repo consumer read runs one extra statement per scoped request,
+on a route that already issues a paged candidate scan plus per-entity probes.
+That statement is a bounded per-entity existence probe backed by a new index,
+measured rather than asserted — see [#5167 cross-repo hidden-consumer
+walk](5167-cross-repo-hidden-consumer-walk.md) for its plan, its numbers, and
+the three shapes withdrawn on measurements.
+
+The incoming-edge probe is the third shape, and it is measured. A scoped caller
+runs one graph statement, as before:
+`buildDeadCodeScopedIncomingBatchProbeCypher` expands the candidate's incoming
+edges once, optionally matches the source's repository, and projects the grant
+per row as `in_grant`, grouping on `(entity, method, in_grant)` with `count(*)`
+rather than `RETURN DISTINCT`. It replaced a pair — a grant-bound probe plus the
+unrestricted one, diffed row by row — which both cost more and could not see an
+out-of-grant source whose resolution method a granted source also carried. On
+one entity with 5,000 incoming edges split across two repositories, four
+interleaved runs of 15 iterations against the pinned NornicDB v1.2.3: median
+274–303 µs against 497–583 µs for the withdrawn pair, and 2–14% above what a
+single probe costs alone. The full table and the mistake in the first
+measurement are under "One Probe, Because Two Could Not See A Same-Method
+Source" in [#5167 code family batch 1](5167-code-family-batch-1.md).
+
+The grouping key does widen. It carries `in_grant` as a third column, so an
+entity and method reachable from both a granted and an ungranted consumer
+returns two rows where it returned one — at most 2x over one candidate page, and
+the bound that follows from it is re-derived in
+`go/internal/queryplan/testdata/query-source-coverage.yaml`. The SQL half adds
+no predicate and no scan: the grant is a projected boolean over
+`code_reachability_rows.repository_id`, a column of the table the read already
+scans, not one the statement returned before. Every one of these costs falls
+only on scoped callers, who could not reach these routes before this PR. Nothing
+here puts a filter in a `WITH`-attached `WHERE` (not evaluated as a filter on
+NornicDB) or guards a disjunct with `$param <> ''` (poisons the enclosing `OR`
+on NornicDB) — see
+[NornicDB Query-Shape Pitfalls](../../public/reference/nornicdb-query-pitfalls.md).
+
+For an unscoped shared, admin, or local caller every grant predicate renders
+empty and every grant parameter is unbound, so the query text those callers
+execute is byte-identical to before — with two deliberate exceptions, both on
+`POST /api/v0/code/complexity`, and both about a `repo_id` the caller supplied
+and the query then ignored. `lookupComplexityRowByID` now emits
+`WHERE repo.id = $repo_id` whenever `repo_id` is supplied, so
+`{"entity_id":"X","repo_id":"A"}` used to return X's row from repository B and
+now returns not-found, and a `function_name` sent with it no longer softens
+that: the name fallback runs only for an id lookup bound to no repository, the
+one case where an empty result proves the id stale rather than held elsewhere
+(`complexityIDLookupIsRepositoryBound`). `listMostComplexFunctions` takes the
+required Repository
+anchor on the same condition, so `{"repo_id":"A"}` ranks A's functions instead
+of the whole corpus with other repositories' rows nulled. Both are user-visible
+row-set fixes, documented in the route's OpenAPI description and in
+[HTTP API — Code](../../public/reference/http-api/code.md), and pinned by
+`TestComplexityByEntityIDHonoursASuppliedRepoID` and
+`TestComplexityListUnscopedRepoIDSelectorFiltersToThatRepository`.
+
+Byte-identity is pinned for the one hot read carrying committed plan evidence.
+`callGraphMetricsEdgesCypher` is untouched, so its whole manifest entry
+(`go/internal/queryplan/testdata/handler-hot-cypher.yaml`) holds the digests it
+already held, and its accepted plan block (`NodeIndexSeek`, `Expand`; forbidden
+`AllNodesScan`, `CartesianProduct`, `UnboundedExpand`) describes what every
+caller emits rather than only an unscoped one.
+`TestCallGraphMetricsCypherIsTheSameForEveryCaller` and
+`TestCallGraphMetricsUnscopedCypherIsUnchanged` keep it that way.
+
+No-Observability-Change: no metric instrument, metric label, span, log event,
+route, worker, queue, lease, or runtime knob is added or renamed. The cross-repo
+consumer read's existing `postgres.query` span gains one attribute,
+`db.rows.consumer_signal_entities`, which counts the producer entities the
+ungranted-consumer probe flagged. Operators keep diagnosing these ten routes
+through the governance-audit read-authorization events in
+`go/internal/query/auth_audit.go` — `DecisionAllowed` / `scoped_read_allowed`
+(`recordScopedReadAuthorized`) and `DecisionDenied` with the route's reason code
+(`recordScopedRouteAuthorizationDeniedWithReason`), both stamped with tenant,
+workspace, actor hash, and correlation id — plus the existing per-capability
+handler spans (`SpanQueryCodeTopicInvestigation`,
+`SpanQueryDeadCodeInvestigation`, `SpanQueryCallGraphMetrics`,
+`SpanQueryCodeStructuralInventory`, `SpanQueryHardcodedSecretInvestigation`) and
+the `eshu_dp_postgres_query_duration_seconds` /
+`eshu_dp_neo4j_query_duration_seconds` histograms. A caller that now reads fewer
+rows shows up as a smaller `count`/`truncated` in the same response envelope.
