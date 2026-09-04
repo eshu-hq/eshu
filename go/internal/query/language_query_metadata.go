@@ -35,8 +35,9 @@ type languageEntityContentSearcher interface {
 }
 
 // enrichLanguageResultsWithContentMetadata merges Postgres content-index
-// metadata into graph-sourced results, keyed by file path/label/name/start
-// line. merged reports true whenever a matched row's content metadata was
+// metadata into graph-sourced results, keyed by repository plus file
+// path/label/name/start line (languageResultRepositoryMatchKey). merged
+// reports true whenever a matched row's content metadata was
 // non-empty and was merged into that row via mergeGraphFirstMetadata -- every
 // no-op path below (nil Content, unmapped label, zero content rows, no key
 // match, or a matched key whose content metadata is empty) reports
@@ -74,8 +75,9 @@ func (h *LanguageQueryHandler) enrichLanguageResultsWithContentMetadata(
 
 	// #5167 batch 2a: this is a SECOND content read, issued after the graph
 	// already answered. Left unbound it reads every tenant's rows to build the
-	// merge-key map below, so a key collision on file path/label/name/start
-	// line would merge another tenant's metadata into a granted row.
+	// merge-key map below, so a key collision would merge another tenant's
+	// metadata into a granted row. The grant closes the cross-tenant half; the
+	// repository in the key closes the within-grant half.
 	rows, err := h.searchLanguageEntities(ctx, languageEntitySearch{
 		RepoID:               repoID,
 		Language:             language,
@@ -93,7 +95,8 @@ func (h *LanguageQueryHandler) enrichLanguageResultsWithContentMetadata(
 
 	metadataByKey := make(map[string]map[string]any, len(rows))
 	for _, row := range rows {
-		metadataByKey[languageResultMatchKey(
+		metadataByKey[languageResultRepositoryMatchKey(
+			row.RepoID,
 			row.RelativePath,
 			row.EntityType,
 			row.EntityName,
@@ -103,7 +106,8 @@ func (h *LanguageQueryHandler) enrichLanguageResultsWithContentMetadata(
 
 	merged := false
 	for i := range results {
-		key := languageResultMatchKey(
+		key := languageResultRepositoryMatchKey(
+			languageResultRepositoryID(results[i]),
 			StringVal(results[i], "file_path"),
 			label,
 			StringVal(results[i], "name"),
@@ -121,8 +125,47 @@ func (h *LanguageQueryHandler) enrichLanguageResultsWithContentMetadata(
 	return results, merged, nil
 }
 
+// languageResultMatchKey identifies one entity by where it sits in a file. It
+// is shared with the entity and code-search enrichments (entity_metadata.go,
+// code_search_metadata.go), which anchor their own reads differently, so this
+// route adds the repository through the wrapper below rather than changing the
+// shared shape.
 func languageResultMatchKey(filePath string, entityType string, name string, startLine int) string {
 	return fmt.Sprintf("%s|%s|%s|%d", filePath, entityType, name, startLine)
+}
+
+// languageResultRepositoryMatchKey is the merge key
+// enrichLanguageResultsWithContentMetadata uses.
+//
+// repoID leads it because the other four components are not unique across
+// repositories: a fork, a vendored copy, or a generated file two services both
+// carry gives two repositories the same relative path, label, entity name and
+// start line. Without the repository in the key those rows collided in
+// metadataByKey, the last content row written won, and both graph rows were
+// enriched from it. That is reachable inside ONE caller's own grant -- both
+// repositories granted, the answer still wrong -- so the grant binding this
+// route added does not cover it.
+//
+// An empty repoID is a key in its own right rather than a wildcard, so a row
+// the graph could not attribute to a repository can only match a content row
+// that carries none either, never borrow an attributed row's metadata.
+func languageResultRepositoryMatchKey(repoID string, filePath string, entityType string, name string, startLine int) string {
+	return repoID + "|" + languageResultMatchKey(filePath, entityType, name, startLine)
+}
+
+// languageResultRepositoryID reads the repository a graph-sourced result row
+// belongs to. Every builder that reaches the enrichment projects `r.id as
+// repo_id`; buildRepositoryCypher instead projects the repository's own id as
+// `id`, so that is the fallback. A Repository-labelled read cannot reach the
+// enrichment today -- graphLabelToContentEntityType maps that label to "" and
+// enrichLanguageResultsWithContentMetadata returns before the merge -- so the
+// fallback is there to keep the key correct if that mapping ever changes,
+// rather than to serve a live path.
+func languageResultRepositoryID(result map[string]any) string {
+	if repoID := StringVal(result, "repo_id"); repoID != "" {
+		return repoID
+	}
+	return StringVal(result, "id")
 }
 
 func mergeGraphFirstMetadata(existing any, fallback map[string]any) map[string]any {
