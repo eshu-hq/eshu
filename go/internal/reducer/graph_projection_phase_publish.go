@@ -11,6 +11,11 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/reducer/gpphase"
 )
 
+// publishIntentGraphPhase publishes the readiness milestone for one intent.
+// It forwards to [gpphase.PublishIntentGraphPhase] (issue #6061, moved from
+// this file's own former body) so every existing call site in this package
+// keeps working unchanged, the same way the type aliases in
+// graph_projection_phase.go do.
 func publishIntentGraphPhase(
 	ctx context.Context,
 	publisher GraphProjectionPhasePublisher,
@@ -19,17 +24,7 @@ func publishIntentGraphPhase(
 	phase GraphProjectionPhase,
 	observedAt time.Time,
 ) error {
-	if publisher == nil {
-		return nil
-	}
-	state, ok := graphProjectionPhaseStateForIntent(intent, keyspace, phase, observedAt)
-	if !ok {
-		return nil
-	}
-	if err := publisher.PublishGraphProjectionPhases(ctx, []GraphProjectionPhaseState{state}); err != nil {
-		return fmt.Errorf("publish %s phase: %w", phase, err)
-	}
-	return nil
+	return gpphase.PublishIntentGraphPhase(ctx, publisher, intent, keyspace, phase, observedAt)
 }
 
 func publishIntentGraphPhaseWithRepair(
@@ -76,29 +71,17 @@ func publishGraphProjectionPhaseStatesWithRepair(
 }
 
 // graphProjectionPhaseStateForIntent builds one durable readiness publication
-// for the given intent, keyspace, and phase. The key is [gpphase.KeyFromScope]
-// (issue #6061); a family that only needs the key to read readiness (not to
-// publish a state) can call that directly instead of importing the root.
+// for the given intent, keyspace, and phase. It forwards to
+// [gpphase.StateForIntentValue] (issue #6061, moved from this file's own
+// former body) so every existing call site in this package keeps working
+// unchanged. A family that only needs the key to read readiness (not to
+// publish a state) can call [gpphase.KeyFromScope] directly instead of
+// importing the root.
 func graphProjectionPhaseStateForIntent(
 	intent Intent,
 	keyspace GraphProjectionKeyspace,
 	phase GraphProjectionPhase,
 	observedAt time.Time,
 ) (GraphProjectionPhaseState, bool) {
-	key, ok := gpphase.KeyFromScope(intent.ScopeID, intent.GenerationID, intent.EntityKeys, keyspace)
-	if !ok {
-		return GraphProjectionPhaseState{}, false
-	}
-
-	if observedAt.IsZero() {
-		observedAt = time.Now().UTC()
-	}
-	observedAt = observedAt.UTC()
-
-	return GraphProjectionPhaseState{
-		Key:         key,
-		Phase:       phase,
-		CommittedAt: observedAt,
-		UpdatedAt:   observedAt,
-	}, true
+	return gpphase.StateForIntentValue(intent, keyspace, phase, observedAt)
 }

@@ -15,9 +15,13 @@ import "context"
 // This is the read half of the endpoint-presence primitive, and it lives here
 // for the same reason [ReadinessLookup] and [ReadinessPrefetch] do: a domain
 // family gates its graph writes on it, and a family may not import the reducer
-// root. The write half — the presence row and the writer that upserts and
-// retracts it — stays at the root, which is where the node materializers that
-// publish presence live.
+// root. The write half — [EndpointPresenceRow], [EndpointPresenceWriter], and
+// [PublishEndpointPresence] — moved here too (issue #6061, see
+// endpoint_presence.go): they were the last root-owned pieces blocking the
+// ec2, s3, iam, and security_group families from splitting out without
+// importing the root. The node materializers that call
+// PublishEndpointPresence (CloudResource, KubernetesWorkload) still live at
+// the root; only the primitive moved.
 //
 // A presence row proves that one specific node uid is committed in the
 // canonical graph. That is a strictly different question from the

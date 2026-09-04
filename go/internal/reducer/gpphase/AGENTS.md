@@ -18,15 +18,30 @@ cycle is exactly what blocked the crossrepo family in issue #6061.
 ## Hard rules
 
 **Never import the reducer root**, directly or transitively. If you find
-yourself wanting a type from `internal/reducer` — `EndpointPresenceRow`/`Writer`/
-`Lookup`, say — the answer is either to move that type here too, or that the code
-you are writing does not belong in this package. `PhaseState` and
-`PhasePublisher` took the first route and now live here; the root aliases them.
+yourself wanting a type from `internal/reducer`, the answer is either to move
+that type here too, or that the code you are writing does not belong in this
+package. `PhaseState`, `PhasePublisher`, `EndpointPresenceRow`,
+`EndpointPresenceWriter`, and `EndpointPresenceLookup` all took the first
+route and now live here; the root aliases them.
 
-**Keep it plain data, constants, and pure validation.** No queue handle, no
-graph handle, no worker, no lease, no I/O. The current dependency set is the
-standard library only. A new dependency is a design change to be justified in
-the PR, not a convenience.
+**Keep it plain data, constants, and pure builders/validation — with two
+named exceptions.** No queue handle, no graph handle, no worker, no lease, no
+I/O of this package's own. `PublishIntentGraphPhase` and
+`PublishEndpointPresence` are the exceptions (issue #6061): they call through
+a caller-supplied `PhasePublisher` / `EndpointPresenceWriter` interface
+rather than performing I/O directly, and they exist here — instead of at the
+root, or as a local per-family wrapper like platformfam's
+`publishIntentPhase` — because they are shared consumers for the ec2, s3,
+iam, and security_group families splitting out of the reducer root. Adding a
+THIRD such function is a design change to be justified in the PR, not a
+default: prefer a local per-family wrapper (platformfam's pattern) unless you
+can name a second consumer today, the way this pair could.
+
+**The dependency set is the standard library plus
+`internal/reducer/contract`** (for `reducercontract.Intent`, which
+`StateForIntentValue` and `PublishIntentGraphPhase` accept). Any dependency
+beyond those two is a design change to be justified in the PR, not a
+convenience.
 
 **Constant string values are a storage/query contract, not just a Go
 identifier.** `Keyspace` and `Phase` constants are persisted in Postgres and

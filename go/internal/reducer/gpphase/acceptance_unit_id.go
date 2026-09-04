@@ -12,9 +12,14 @@ import "strings"
 // acceptance units publishes one readiness row per unit, and collapsing them
 // onto the scope id would let one unit's commit open the gate for another.
 //
-// It takes the two fields rather than a reducer intent so this package stays a
-// standard-library-only leaf that the reducer root and its family packages can
-// both reach.
+// It takes the two fields rather than a reducer intent so this function
+// itself needs no import beyond the standard library, even though the
+// package as a whole no longer is standard-library-only: [StateForIntentValue]
+// (issue #6061) added a dependency on `internal/reducer/contract` for the
+// [reducercontract.Intent] value type. A family that wants the acceptance
+// unit without pulling in that dependency can still call this function
+// directly, the same way [KeyFromScope] and [IntentAnchor.AcceptanceUnitID]
+// do.
 func AcceptanceUnitID(scopeID string, entityKeys []string) string {
 	for _, entityKey := range entityKeys {
 		if trimmed := strings.TrimSpace(entityKey); trimmed != "" {

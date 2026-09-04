@@ -2297,6 +2297,161 @@ updated in this PR to the new `go/internal/reducer/tfconfigstate/` paths (one
 line-number citation shifted from :101 to :102 because the new package's
 `contract` import adds one line).
 
+## gpphase hoist: publish path unblock for ec2, s3, iam, security_group
+
+The gpphase leaf created above (crossrepo family unblock) held only the
+identity vocabulary and the read side of readiness. This hoist moves the
+publish side and the write side of the uid-exact presence primitive out of
+the reducer root and into gpphase too: `graphProjectionPhaseStateForIntent`
+and `publishIntentGraphPhase` (from `graph_projection_phase_publish.go`), and
+`publishEndpointPresence`/`EndpointPresenceWriter`/`EndpointPresenceRow` (from
+`endpoint_presence_publish.go` and `graph_projection_phase.go`). All 36
+existing call sites for these three functions (`rg '\bFUNC\('
+--type go`, minus each function's own definition line: 18 for
+`graphProjectionPhaseStateForIntent`, 11 for `publishIntentGraphPhase`, 7 for
+`publishEndpointPresence`) live inside `internal/reducer` itself, so the root
+keeps thin forwarder functions and type aliases under the original names, the
+same pattern already used for `Keyspace`/`Phase`/`PhaseState`/`PhasePublisher`
+— zero call sites needed editing. Of those 36, 31 are production (non-test)
+call sites and 5 are test call sites; the No-Regression table below measures
+the 31 production sites specifically, because `go build -gcflags=-m` does not
+compile `_test.go` files, so only production call sites can show an inlining
+decision.
+
+This directly supersedes two statements the crossrepo-hoist section above (and
+matching prose in `gpphase/doc.go`) made about this exact code: that the
+publish machinery "stays in `graph_projection_phase.go` at the root...none of
+which need to become a leaf subpackage today", and that
+`EndpointPresenceRow`/`Writer` "stays at the root...no family needs it to
+move." Neither was wrong when written. platformfam's local `publishIntentPhase`
+wrapper (`platform_materialization.go`, issue #6061) is exactly the pattern
+those statements pointed a family toward — build on gpphase's `StateForIntent`
+plus your own `PhasePublisher` field, keep the ~15-line write wrapper beside
+your own caller — and it is still a valid choice for a family with no shared
+consumer. What changed is scope: ec2, s3, iam, and security_group are four
+families about to make the same move platformfam made, and a shared home here
+avoids each re-deriving its own copy of the same wrapper. `secretsiam` (the
+already-split iam family, #6484) turned out not to need any of this — it only
+reads presence via the already-existing `gpphase.EndpointPresenceLookup` and
+never publishes a phase — so the premise that this hoist was the *only*
+blocker for `iam` specifically was not confirmed by a live consumer; it is
+confirmed for `ec2`/`s3`/`security_group`, whose flat root files still call
+`publishIntentGraphPhase`/`graphProjectionPhaseStateForIntent` directly.
+
+The new intent-keyed state builder does not duplicate `StateForIntent`'s
+logic: `graphProjectionPhaseStateForIntent` becomes `gpphase.StateForIntentValue`,
+which adapts `reducercontract.Intent` to an `IntentAnchor` and delegates to the
+existing `StateForIntent` rather than re-deriving the `PhaseKey` a second time
+in the same package.
+
+No-Regression Evidence: measured, not asserted, with `go build -gcflags="-m -m"`
+(double -m: single -m only prints positive "can inline" decisions, not the
+"cannot inline NAME: cost N exceeds budget 80" reasons this comparison needs).
+Baseline `09013e4a6` (the `origin/main` tip immediately before this hoist's
+base, measured in a throwaway worktree removed after use), after this
+branch's hoist commit onward (`feat/6061-gpphase-hoist`), go1.27.1
+darwin/arm64. Per-function cost, baseline (root) -> after (root forwarder /
+gpphase):
+
+| function | baseline cost (root) | after: root forwarder | after: gpphase (real cost) |
+| --- | ---: | --- | ---: |
+| `publishIntentGraphPhase` | 244 (not inlinable) | forwarder cost 66, **can inline**, confirmed inlined at all 11 non-test call sites | `PublishIntentGraphPhase` 244 (not inlinable, unchanged -- verbatim body) |
+| `publishEndpointPresence` | 122 (not inlinable) | forwarder cost 66, **can inline**, confirmed inlined at all 4 non-test call sites | `PublishEndpointPresence` 122 (not inlinable, unchanged -- verbatim body) |
+| `graphProjectionPhaseStateForIntent` | 283 (not inlinable) | forwarder cost 73, **can inline**, confirmed inlined at all 16 non-test call sites | `StateForIntentValue` 82 (not inlinable; lower cost than the 283 it replaces because it delegates to `StateForIntent` instead of re-deriving the key, but 82 > 80 either way so the pass/fail outcome is identical) |
+
+The two functions whose bodies moved verbatim (`PublishIntentGraphPhase`,
+`PublishEndpointPresence`) show byte-for-byte identical costs before and
+after (244->244, 122->122), which is itself evidence the move added no logic,
+not just a description of it. None of the three original root functions were
+ever inlinable (all exceed cost 80), so every one of the 36 call sites (31
+production, 5 test -- the same split the opening paragraph measures) was
+already a real function call before this PR; the root forwarder that
+replaces each of them is inlinable and is confirmed inlined away at every
+one of the 31 production call sites (31 `inlining call to <forwarder>` lines
+total across the three, zero for any of them in a `cannot inline` report --
+test call sites are outside this specific check because `go build
+-gcflags=-m` does not compile `_test.go` files), so the call depth at each
+site is unchanged: one real call into the (relocated) implementation, in
+place of one real call into the (previously root-resident) implementation.
+This is a stricter check than confirming the three forwarders are inlinable
+alone (which the preliminary check for this PR did, and which is also true):
+it additionally proves neither `gpphase.StateForIntentValue` nor either
+verbatim-moved function silently added a call by comparing measured cost
+against the pre-hoist baseline, not merely re-asserting the forwarders'
+own inlinability. Correctness: `go build ./...` and `go vet ./...` both exit
+0 with no output; `go test ./internal/reducer/...` passes all packages
+including `gpphase`, which gained `TestStateForIntentValueMatchesStateForIntent`
+(pins that `StateForIntentValue` and `StateForIntent` can never build a
+different key for the same intent) plus direct tests for
+`PublishIntentGraphPhase` and `PublishEndpointPresence`. The reducer root
+non-test `.go` file count and dirgate digest are unchanged (`count 408 digest
+3a5f84060642b0af8775e5373a2352e6575b948b4285905a13069ee4a422524d`, identical
+before and after this PR) because no root file was added or removed, only
+three edited in place; `gpphase` grew from 12 to 15 files (`count 9` .go
+non-test files per `verify-dirgate.sh --digest`), well under the 40-file cap,
+so no grandfather-TSV entry was needed. No query, Cypher, batch size, worker
+count, lease, or queue behaviour is touched; the moved code is two pure
+builders and two functions that call through a caller-supplied interface with
+no I/O of their own.
+
+No-Observability-Change: `PublishIntentGraphPhase` and `PublishEndpointPresence`
+call through to a caller-supplied `PhasePublisher`/`EndpointPresenceWriter`
+implementation rather than performing I/O themselves, and neither registers a
+metric, span, or log of its own. The concrete implementations that actually
+write are unchanged by this move: `GraphProjectionPhaseStateStore.PublishGraphProjectionPhases`
+(`internal/storage/postgres/graph_projection_phase_state.go`) and
+`GraphEndpointPresenceStore.Upsert` (`internal/storage/postgres/graph_endpoint_presence.go`)
+still emit `eshu_dp_postgres_query_duration_seconds` for their writes, and the
+handlers that call through the (relocated) wrappers stay covered by
+`eshu_dp_reducer_executions_total` and `eshu_dp_reducer_run_duration_seconds` --
+the same trio the crossrepo-hoist section's marker above cites, because the
+publisher and writer instances are wired the same way regardless of which
+package holds the wrapper function that calls them. `docs/public/observability/telemetry-coverage.md`
+gains two new rows (`phase_publish.go`, `endpoint_presence.go`) and five
+existing gpphase rows are corrected in the same PR: several described the
+phase-publish machinery as entirely root-owned, which this hoist made stale.
+
+**Review correction: `StateForIntent` now delegates to `KeyFromScope`.**
+PR review on this hoist (#6519) caught that `StateForIntentValue` (above)
+routes every reducer-root publisher through `StateForIntent`, which
+independently re-derived the same `PhaseKey` construction `KeyFromScope`
+already builds -- `iamcan` and `obscoverage` still read readiness through
+`KeyFromScope` directly, so the write side and the read side were two
+implementations of one derivation. They happened to already agree (verified
+statement-by-statement before this fix, not assumed), but nothing enforced
+that; this hoist is what put the *entire* reducer root's publish traffic
+behind the duplicate for the first time, since before it only platformfam's
+`StateForIntent` caller existed. Fix: `StateForIntent` now calls
+`KeyFromScope(anchor.ScopeID, anchor.GenerationID, anchor.EntityKeys, keyspace)`
+directly instead of trimming fields and building a `PhaseKey` a second time,
+and `IntentAnchor.AcceptanceUnitID` delegates to the package-level
+`AcceptanceUnitID` for the same reason. Both changes are pure
+delegation onto an already-equivalent implementation, not a behavior change:
+`StateForIntent`'s own extra `if acceptanceUnitID == ""` check was dead code
+(unreachable once the earlier `scopeID != ""` check passes, since the
+acceptance-unit derivation's only blank-producing path is
+`strings.TrimSpace` of that same already-non-blank scope id), and every
+existing `StateForIntent`/`StateForIntentValue` test (`TestStateForIntentBuildsKeyedState`,
+`TestStateForIntentZeroObservedAtDefaultsToNow`,
+`TestStateForIntentRejectsBlankScopeOrGeneration`,
+`TestStateForIntentValueMatchesStateForIntent`,
+`TestStateForIntentValueRejectsBlankScopeOrGeneration`) and every
+`KeyFromScope` test (`TestKeyFromScopeBuildsAValidatableKey`,
+`TestKeyFromScopeReportsFalseRatherThanABlankKey`) pass unchanged, asserting
+the exact same output as before. Re-measured with the same
+`go build -gcflags="-m -m"` method after this fix: `StateForIntentValue`
+still costs 82 (unchanged -- its own body did not change), `PublishIntentGraphPhase`
+still costs 244, `PublishEndpointPresence` still costs 122, and all three
+root forwarders are still `can inline` at their previously measured cost (73,
+66, 66) -- none of the No-Regression table's numbers above changed.
+`StateForIntent`'s own cost dropped from 425 to 283 (still not inlinable
+either way) because it no longer duplicates the trim-and-build logic;
+`IntentAnchor.AcceptanceUnitID` became inlinable (cost 64, was 139) as a
+side effect of shrinking to one delegating call, which is inert because
+`StateForIntent` no longer calls it (it calls `KeyFromScope` directly). go1.27.1
+darwin/arm64, same branch. `go build ./...` and `go vet ./...` exit 0; `go
+test ./internal/reducer/...` passes all packages including `gpphase`.
+
 ## Part 5: what this buys the modularization program
 
 Extraction grades from the research become the repo-split roadmap:

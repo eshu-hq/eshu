@@ -5,8 +5,9 @@ package gpphase
 
 import (
 	"context"
-	"strings"
 	"time"
+
+	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
 )
 
 // PhaseState captures one durable readiness publication: the bounded slice the
@@ -37,34 +38,38 @@ type IntentAnchor struct {
 
 // AcceptanceUnitID returns the bounded acceptance unit the anchor publishes
 // for: the first non-blank entity key, falling back to the scope ID when the
-// intent carries no entity keys.
+// intent carries no entity keys. It delegates to the package-level
+// [AcceptanceUnitID] (issue #6061 review) so this method and [KeyFromScope]
+// can never derive a different acceptance unit for the same scope/entity-key
+// pair.
 func (a IntentAnchor) AcceptanceUnitID() string {
-	for _, entityKey := range a.EntityKeys {
-		if trimmed := strings.TrimSpace(entityKey); trimmed != "" {
-			return trimmed
-		}
-	}
-	return strings.TrimSpace(a.ScopeID)
+	return AcceptanceUnitID(a.ScopeID, a.EntityKeys)
 }
 
 // StateForIntent builds the readiness publication for one intent anchor. The
 // second result is false when the anchor cannot name a bounded slice (blank
-// scope, generation, or acceptance unit), in which case the caller must skip
-// publication rather than write a partially-keyed row.
+// scope or generation), in which case the caller must skip publication
+// rather than write a partially-keyed row.
+//
+// It delegates key construction to [KeyFromScope] (issue #6061 review)
+// rather than trimming fields and building a [PhaseKey] a second time: before
+// this, StateForIntent and KeyFromScope independently reimplemented the same
+// derivation, so a family reading readiness through KeyFromScope (iamcan,
+// obscoverage) and a publisher writing it through StateForIntent (every
+// reducer-root publisher, since this hoist routes them all through
+// [StateForIntentValue]) could silently drift onto two different keys for
+// the same intent if either derivation were ever edited without the other.
+// They happened to already agree — verified before this change, not assumed
+// — but agreement by construction is not a guarantee; delegating makes it
+// one.
 func StateForIntent(
 	anchor IntentAnchor,
 	keyspace Keyspace,
 	phase Phase,
 	observedAt time.Time,
 ) (PhaseState, bool) {
-	scopeID := strings.TrimSpace(anchor.ScopeID)
-	generationID := strings.TrimSpace(anchor.GenerationID)
-	if scopeID == "" || generationID == "" {
-		return PhaseState{}, false
-	}
-
-	acceptanceUnitID := anchor.AcceptanceUnitID()
-	if acceptanceUnitID == "" {
+	key, ok := KeyFromScope(anchor.ScopeID, anchor.GenerationID, anchor.EntityKeys, keyspace)
+	if !ok {
 		return PhaseState{}, false
 	}
 
@@ -74,15 +79,38 @@ func StateForIntent(
 	observedAt = observedAt.UTC()
 
 	return PhaseState{
-		Key: PhaseKey{
-			ScopeID:          scopeID,
-			AcceptanceUnitID: acceptanceUnitID,
-			SourceRunID:      generationID,
-			GenerationID:     generationID,
-			Keyspace:         keyspace,
-		},
+		Key:         key,
 		Phase:       phase,
 		CommittedAt: observedAt,
 		UpdatedAt:   observedAt,
 	}, true
+}
+
+// StateForIntentValue builds the readiness publication for one durable
+// reducer.Intent value (issue #6061). It adapts the intent's scope,
+// generation, and entity keys to an [IntentAnchor] and delegates to
+// [StateForIntent] rather than re-deriving the key, so a caller that already
+// holds the durable [reducercontract.Intent] (the reducer root's
+// graphProjectionPhaseStateForIntent, before this move) and a family that
+// only holds an [IntentAnchor] can never drift onto two different
+// derivations of the same key. [IntentAnchor] remains the dependency-free
+// option for a family that wants to publish without depending on
+// reducercontract; this is a convenience for a caller that already has the
+// full intent value.
+func StateForIntentValue(
+	intent reducercontract.Intent,
+	keyspace Keyspace,
+	phase Phase,
+	observedAt time.Time,
+) (PhaseState, bool) {
+	return StateForIntent(
+		IntentAnchor{
+			ScopeID:      intent.ScopeID,
+			GenerationID: intent.GenerationID,
+			EntityKeys:   intent.EntityKeys,
+		},
+		keyspace,
+		phase,
+		observedAt,
+	)
 }
