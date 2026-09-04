@@ -1,14 +1,25 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package query
+package advisory
 
 import "context"
 
+// AdvisoryEvidenceCapability gates the source-only vulnerability advisory
+// evidence list. Exported so root package query registers it in
+// contract_supply_chain.go and gates the evidence and vulnerability-detail
+// handlers on it (#6060 lane A keeps registration and routing in root).
+const AdvisoryEvidenceCapability = "supply_chain.advisory_evidence.list"
+
+// AdvisoryEvidenceMaxLimit bounds one evidence page. Exported for the
+// staying root evidence handler's limit check and the root evidence tests.
+const AdvisoryEvidenceMaxLimit = 200
+
+// AdvisoryEvidenceMaxFactRows bounds the scanned fact rows behind one
+// evidence page. Exported for the root evidence tests.
+const AdvisoryEvidenceMaxFactRows = 5000
+
 const (
-	advisoryEvidenceCapability       = "supply_chain.advisory_evidence.list"
-	advisoryEvidenceMaxLimit         = 200
-	advisoryEvidenceMaxFactRows      = 5000
 	advisoryEvidenceFreshnessCurrent = "active"
 )
 

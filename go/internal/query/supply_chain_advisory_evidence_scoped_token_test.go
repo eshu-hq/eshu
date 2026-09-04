@@ -10,6 +10,8 @@ import (
 	"net/http/httptest"
 	"strings"
 	"testing"
+
+	"github.com/eshu-hq/eshu/go/internal/query/supplychain/advisory"
 )
 
 type failingAdvisoryEvidenceStore struct {
@@ -18,8 +20,8 @@ type failingAdvisoryEvidenceStore struct {
 
 func (s *failingAdvisoryEvidenceStore) ListAdvisoryEvidence(
 	context.Context,
-	AdvisoryEvidenceFilter,
-) ([]AdvisoryEvidenceRow, error) {
+	advisory.AdvisoryEvidenceFilter,
+) ([]advisory.AdvisoryEvidenceRow, error) {
 	s.called = true
 	return nil, errors.New("broad advisory evidence read")
 }
@@ -58,7 +60,7 @@ func TestAdvisoryEvidenceScopedTokenAllowsPublicAdvisoryByID(t *testing.T) {
 	// "Allow public advisory data": a scoped token with no repository grants
 	// may still read global advisory evidence by id; the store IS consulted.
 	store := &recordingAdvisoryEvidenceStore{
-		rows: []AdvisoryEvidenceRow{{AdvisoryKey: "CVE-2026-0001", CanonicalID: "CVE-2026-0001"}},
+		rows: []advisory.AdvisoryEvidenceRow{{AdvisoryKey: "CVE-2026-0001", CanonicalID: "CVE-2026-0001"}},
 	}
 	handler := &SupplyChainHandler{Content: repositorySelectorReadModelContentStore(), AdvisoryEvidence: store, Profile: ProfileProduction}
 	mux := http.NewServeMux()
@@ -115,7 +117,7 @@ func TestAdvisoryEvidenceScopedTokenPropagatesGrantsForRepositoryAnchor(t *testi
 	t.Parallel()
 
 	store := &recordingAdvisoryEvidenceStore{
-		rows: []AdvisoryEvidenceRow{{AdvisoryKey: "CVE-2026-0001", CanonicalID: "CVE-2026-0001"}},
+		rows: []advisory.AdvisoryEvidenceRow{{AdvisoryKey: "CVE-2026-0001", CanonicalID: "CVE-2026-0001"}},
 	}
 	handler := &SupplyChainHandler{Content: repositorySelectorReadModelContentStore(), AdvisoryEvidence: store, Profile: ProfileProduction}
 	mux := http.NewServeMux()

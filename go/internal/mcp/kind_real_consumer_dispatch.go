@@ -149,9 +149,22 @@ func reducerTreeDirs(repoRoot string) ([]string, error) {
 	return append([]string{root}, subs...), nil
 }
 
+// queryTreeDirs returns the query package directory and every package
+// directory beneath it, so #6060 family leaves (supplychain/advisory and
+// later siblings) keep their decode seams discoverable after moving out of
+// root. Same shape as reducerTreeDirs above.
+func queryTreeDirs(repoRoot string) ([]string, error) {
+	root := filepath.Join(repoRoot, realConsumerRawSQLDir)
+	subs, err := packageDirsUnder(root)
+	if err != nil {
+		return nil, err
+	}
+	return append([]string{root}, subs...), nil
+}
+
 // realConsumerScanDirs resolves the seam dirs to absolute paths, expanding the
-// reducer tree into its family subpackages and leaving every other root as
-// itself.
+// reducer tree and the query tree into their family subpackages and leaving
+// every other root as itself.
 func realConsumerScanDirs(repoRoot string) ([]string, error) {
 	dirs := make([]string, 0, len(realConsumerDecodeSeamDirs))
 	for _, dir := range realConsumerDecodeSeamDirs {
@@ -161,6 +174,14 @@ func realConsumerScanDirs(repoRoot string) ([]string, error) {
 				return nil, err
 			}
 			dirs = append(dirs, reducerDirs...)
+			continue
+		}
+		if dir == realConsumerRawSQLDir {
+			queryDirs, err := queryTreeDirs(repoRoot)
+			if err != nil {
+				return nil, err
+			}
+			dirs = append(dirs, queryDirs...)
 			continue
 		}
 		dirs = append(dirs, filepath.Join(repoRoot, dir))

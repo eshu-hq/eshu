@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package query
+package advisory
 
 import (
 	"context"
@@ -17,12 +17,12 @@ import (
 // advisory evidence queryer seam so the catalog and detail read models share one
 // Postgres connection contract.
 type PostgresAdvisoryCatalogStore struct {
-	DB advisoryEvidenceQueryer
+	DB AdvisoryEvidenceQueryer
 }
 
 // NewPostgresAdvisoryCatalogStore creates the Postgres-backed catalog read
 // model.
-func NewPostgresAdvisoryCatalogStore(db advisoryEvidenceQueryer) PostgresAdvisoryCatalogStore {
+func NewPostgresAdvisoryCatalogStore(db AdvisoryEvidenceQueryer) PostgresAdvisoryCatalogStore {
 	return PostgresAdvisoryCatalogStore{DB: db}
 }
 
@@ -33,16 +33,16 @@ func (s PostgresAdvisoryCatalogStore) ListAdvisoryCatalog(
 	ctx context.Context,
 	filter AdvisoryCatalogFilter,
 ) (AdvisoryCatalogPage, error) {
-	filter = normalizeAdvisoryCatalogFilter(filter)
+	filter = NormalizeAdvisoryCatalogFilter(filter)
 	if s.DB == nil {
 		return AdvisoryCatalogPage{}, fmt.Errorf("advisory catalog database is required")
 	}
-	if filter.Limit <= 0 || filter.Limit > advisoryCatalogMaxLimit+1 {
-		return AdvisoryCatalogPage{}, fmt.Errorf("limit must be between 1 and %d for internal pagination", advisoryCatalogMaxLimit+1)
+	if filter.Limit <= 0 || filter.Limit > AdvisoryCatalogMaxLimit+1 {
+		return AdvisoryCatalogPage{}, fmt.Errorf("limit must be between 1 and %d for internal pagination", AdvisoryCatalogMaxLimit+1)
 	}
 	rows, err := s.DB.QueryContext(
 		ctx,
-		listAdvisoryCatalogQuery,
+		ListAdvisoryCatalogQuery,
 		filter.Severity,
 		filter.Ecosystem,
 		filter.Query,
@@ -104,11 +104,12 @@ func (s PostgresAdvisoryCatalogStore) ListAdvisoryCatalog(
 	return page, nil
 }
 
-// normalizeAdvisoryCatalogFilter trims and canonicalizes catalog filter inputs.
-// Severity, ecosystem, and query stay as supplied beyond trimming so the SQL
-// owns case folding; the advisory key cursor is upper-cased to match the
-// canonical key projection.
-func normalizeAdvisoryCatalogFilter(filter AdvisoryCatalogFilter) AdvisoryCatalogFilter {
+// NormalizeAdvisoryCatalogFilter trims and canonicalizes catalog filter
+// inputs. Severity, ecosystem, and query stay as supplied beyond trimming so
+// the SQL owns case folding; the advisory key cursor is upper-cased to match
+// the canonical key projection. Exported for the staying root catalog
+// handler path and the root catalog tests.
+func NormalizeAdvisoryCatalogFilter(filter AdvisoryCatalogFilter) AdvisoryCatalogFilter {
 	filter.Severity = strings.TrimSpace(filter.Severity)
 	filter.Ecosystem = strings.TrimSpace(filter.Ecosystem)
 	filter.Query = strings.TrimSpace(filter.Query)

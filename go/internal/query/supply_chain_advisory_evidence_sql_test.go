@@ -6,6 +6,8 @@ package query
 import (
 	"strings"
 	"testing"
+
+	"github.com/eshu-hq/eshu/go/internal/query/supplychain/advisory"
 )
 
 func TestAdvisoryEvidenceQuerySeedsFromFactRecordsNotBroadActiveSet(t *testing.T) {
@@ -74,7 +76,7 @@ func TestAdvisoryEvidenceQueryUsesIndexableJSONBPredicates(t *testing.T) {
 func TestAdvisoryEvidenceLookupIDsStaySeparateFromPackageScope(t *testing.T) {
 	t.Parallel()
 
-	got := advisoryEvidenceLookupIDs(AdvisoryEvidenceFilter{
+	got := advisory.AdvisoryEvidenceLookupIDs(advisory.AdvisoryEvidenceFilter{
 		CVEID:      " cve-2026-0002 ",
 		AdvisoryID: " GHSA-aaaa-bbbb-cccc ",
 		PackageID:  "pkg:npm/example",

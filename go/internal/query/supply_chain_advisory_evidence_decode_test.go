@@ -3,7 +3,11 @@
 
 package query
 
-import "testing"
+import (
+	"testing"
+
+	"github.com/eshu-hq/eshu/go/internal/query/supplychain/advisory"
+)
 
 // This file holds the advisory-evidence read-model tests that exercise the
 // #4795 W2b typed factschema decode seams: a source fact whose payload fails
@@ -25,7 +29,7 @@ import "testing"
 func TestBuildAdvisoryEvidenceRowsDropsSourceEvidenceMissingRequiredField(t *testing.T) {
 	t.Parallel()
 
-	rows := []advisoryEvidenceFactRow{
+	rows := []advisory.AdvisoryEvidenceFactRow{
 		factRow("cve-missing-advisory-id", "vulnerability.cve", `{
 			"source": "osv",
 			"cve_id": "CVE-2026-9001",
@@ -33,7 +37,7 @@ func TestBuildAdvisoryEvidenceRowsDropsSourceEvidenceMissingRequiredField(t *tes
 		}`),
 	}
 
-	got := buildAdvisoryEvidenceRows(rows)
+	got := advisory.BuildAdvisoryEvidenceRows(rows)
 	if len(got) != 1 {
 		t.Fatalf("len(rows) = %d, want 1 (grouped by cve_id)", len(got))
 	}
@@ -48,7 +52,7 @@ func TestBuildAdvisoryEvidenceRowsDropsSourceEvidenceMissingRequiredField(t *tes
 func TestBuildAdvisoryEvidenceRowsDropsAffectedPackageMissingRequiredField(t *testing.T) {
 	t.Parallel()
 
-	rows := []advisoryEvidenceFactRow{
+	rows := []advisory.AdvisoryEvidenceFactRow{
 		factRow("pkg-missing-advisory-id", "vulnerability.affected_package", `{
 			"source": "osv",
 			"cve_id": "CVE-2026-9002",
@@ -57,7 +61,7 @@ func TestBuildAdvisoryEvidenceRowsDropsAffectedPackageMissingRequiredField(t *te
 		}`),
 	}
 
-	got := buildAdvisoryEvidenceRows(rows)
+	got := advisory.BuildAdvisoryEvidenceRows(rows)
 	if len(got) != 1 {
 		t.Fatalf("len(rows) = %d, want 1 (grouped by cve_id)", len(got))
 	}
@@ -77,7 +81,7 @@ func TestBuildAdvisoryEvidenceRowsDropsAffectedPackageMissingRequiredField(t *te
 func TestBuildAdvisoryEvidenceRowsDropsUnsupportedSchemaMajor(t *testing.T) {
 	t.Parallel()
 
-	rows := []advisoryEvidenceFactRow{
+	rows := []advisory.AdvisoryEvidenceFactRow{
 		factRowWithSchema("cve-future-major", "vulnerability.cve", "2.0.0", `{
 			"source": "osv",
 			"advisory_id": "GHSA-future-major",
@@ -86,7 +90,7 @@ func TestBuildAdvisoryEvidenceRowsDropsUnsupportedSchemaMajor(t *testing.T) {
 		}`),
 	}
 
-	got := buildAdvisoryEvidenceRows(rows)
+	got := advisory.BuildAdvisoryEvidenceRows(rows)
 	if len(got) != 1 {
 		t.Fatalf("len(rows) = %d, want 1 (grouped by cve_id)", len(got))
 	}
@@ -102,7 +106,7 @@ func TestBuildAdvisoryEvidenceRowsDropsUnsupportedSchemaMajor(t *testing.T) {
 func TestBuildAdvisoryEvidenceRowsAbsentSchemaVersionDecodesAsV1(t *testing.T) {
 	t.Parallel()
 
-	rows := []advisoryEvidenceFactRow{
+	rows := []advisory.AdvisoryEvidenceFactRow{
 		factRowWithSchema("cve-no-version", "vulnerability.cve", "", `{
 			"source": "osv",
 			"advisory_id": "GHSA-no-version",
@@ -111,7 +115,7 @@ func TestBuildAdvisoryEvidenceRowsAbsentSchemaVersionDecodesAsV1(t *testing.T) {
 		}`),
 	}
 
-	got := buildAdvisoryEvidenceRows(rows)
+	got := advisory.BuildAdvisoryEvidenceRows(rows)
 	if len(got) != 1 {
 		t.Fatalf("len(rows) = %d, want 1", len(got))
 	}
@@ -122,7 +126,7 @@ func TestBuildAdvisoryEvidenceRowsAbsentSchemaVersionDecodesAsV1(t *testing.T) {
 
 // factRowWithSchema builds an advisoryEvidenceFactRow with an explicit
 // persisted schema_version, for the schema-version dead-letter cases above.
-func factRowWithSchema(factID string, factKind string, schemaVersion string, payload string) advisoryEvidenceFactRow {
+func factRowWithSchema(factID string, factKind string, schemaVersion string, payload string) advisory.AdvisoryEvidenceFactRow {
 	row := factRow(factID, factKind, payload)
 	row.SchemaVersion = schemaVersion
 	return row

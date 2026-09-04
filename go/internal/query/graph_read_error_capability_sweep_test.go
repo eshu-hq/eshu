@@ -305,12 +305,25 @@ func findModuleRoot(t *testing.T, start string) string {
 	}
 }
 
+// capabilitySweepDocumentedExceptions lists capability strings that are
+// deliberately absent from capabilityMatrix, with the reason, so the sweep
+// does not misreport a documented design choice as a gap. Adding an entry here
+// requires the same justification a reviewer would want in the source: why the
+// route bypasses the matrix's BuildTruthEnvelope panic-guard. It lives here,
+// next to its size-guard test, rather than with the AST machinery in
+// graph_read_error_capability_sweep_resolve_test.go.
+var capabilitySweepDocumentedExceptions = map[string]string{
+	"repository_freshness.status": "repository_freshness.go's repositoryFreshnessTruth builds its " +
+		"TruthEnvelope directly from Postgres runtime state rather than through " +
+		"capabilityMatrix/BuildTruthEnvelope, and says so in its doc comment; not a gap.",
+}
+
 // maxCapabilitySweepDocumentedExceptions is the #5761 F6 gate, pinning
-// capabilitySweepDocumentedExceptions (graph_read_error_capability_sweep_
-// resolve_test.go) the same way minWriteGraphReadErrorCallSites above pins the
-// sweep's call-site floor: without a ceiling, a future change could silence
-// any real sweep finding by adding an undiscussed entry. Raising this constant
-// is only legitimate alongside a new, justified exception in the same change.
+// capabilitySweepDocumentedExceptions (defined above) the same way
+// minWriteGraphReadErrorCallSites above pins the sweep's call-site floor:
+// without a ceiling, a future change could silence any real sweep finding
+// by adding an undiscussed entry. Raising this constant is only legitimate
+// alongside a new, justified exception in the same change.
 const maxCapabilitySweepDocumentedExceptions = 1
 
 // TestCapabilitySweepDocumentedExceptionsStayPinnedAndNarrowlyScoped proves
