@@ -379,8 +379,10 @@ A `repo_id` on this route is now a repository selector like every other code
 route's, resolved before the read. It used to go into the query as-is, so only a
 canonical id ever matched anything — a name, slug, path, or remote URL returned
 an empty page even though this operation has always advertised all four. Those
-now resolve. A `repo_id` that resolves to nothing returns `400` where it used to
-return `200` with an empty `results` list, for every caller.
+now resolve. A **non-canonical** `repo_id` that resolves to nothing returns
+`400` where it used to return `200` with an empty `results` list. A canonical id
+is taken as given and never enters resolution, so one the index does not hold
+still answers `200` with an empty `results` list, as it always did.
 
 For a scoped token there is a second change: it could previously name any
 repository in the index, and naming one outside its grant now returns `400`. A

@@ -292,14 +292,15 @@ made is no-regression, not a win. Every predicate it adds is an `IN`/`ANY()`
 membership test against the caller's grant, on a node or column the query
 already matched, and it lands in the `WHERE` of the required `MATCH` block that
 binds Repository (Cypher) or the statement's `WHERE` (SQL) — ahead of
-`SKIP`/`LIMIT`, ahead of `LIMIT $scan_limit`, and ahead of `LIMIT`/`OFFSET`. A scoped caller therefore
-reads no more rows than before and, on these two routes, strictly fewer: both
-were corpus-wide for a caller who named no repository. The SQL grant column is
-`content_entities.repo_id`, the same column that statement's single-repository
-branch already filters on. No query gains a clause, a hop, a `WITH`, or a second
-statement, and no builder's row count for an unscoped caller changes. Nothing
-here puts a filter in a `WITH`-attached `WHERE` or guards a disjunct with
-`$param <> ''`, the two NornicDB shapes recorded in
+`SKIP`/`LIMIT`, ahead of `LIMIT $scan_limit`, and ahead of `LIMIT`/`OFFSET`. A
+scoped caller therefore reads no more rows than before and, on these two
+routes, strictly fewer: both were corpus-wide for a caller who named no
+repository. The SQL grant column is `content_entities.repo_id`, the same column
+that statement's single-repository branch already filters on. No query gains a
+clause, a hop, a `WITH`, or a second statement, and no builder's row count for
+an unscoped caller changes. Nothing here puts a filter in a `WITH`-attached
+`WHERE` or guards a disjunct with `$param <> ''`, the two NornicDB shapes
+recorded in
 [NornicDB Query-Shape Pitfalls](../../public/reference/nornicdb-query-pitfalls.md).
 The one cost that is real and undeclared by a measurement: a scoped caller's
 statement carries two extra bound arrays and one extra disjunct per Repository
