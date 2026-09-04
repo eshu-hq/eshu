@@ -53,6 +53,15 @@ const (
 	liveClauseAnchorClassUID     = "class:live-clause-anchor"
 	liveClauseUngrantedOwnerUID  = "class:live-clause-other-owner"
 	liveClauseUngrantedCalleeUID = "fn:live-clause-other-callee"
+
+	// The three-node chain used by the call-chain path-wide bound probe: two
+	// in-repository endpoints joined only through a bridge in the other
+	// repository, so a path bound that works excludes the whole chain.
+	liveClauseChainStart    = "LiveClauseChainStart"
+	liveClauseChainBridge   = "LiveClauseChainBridge"
+	liveClauseChainEnd      = "LiveClauseChainEnd"
+	liveClauseChainStartUID = "fn:live-clause-chain-start"
+	liveClauseChainEndUID   = "fn:live-clause-chain-end"
 )
 
 // openLiveClauseDriver dials the standalone proof container. ESHU_NEO4J_URI
@@ -134,6 +143,15 @@ func seedLiveClauseGraph(ctx context.Context, t *testing.T, driver neo4jdriver.D
 		liveClauseCalls(liveClauseAnchorUID, "fn:live-clause-orphan"),
 		liveClauseCalls("fn:live-clause-granted-caller", liveClauseAnchorUID),
 		liveClauseCalls("fn:live-clause-other-caller", liveClauseAnchorUID),
+
+		liveClauseFunctionMerge(liveClauseChainStartUID, liveClauseChainStart, granted),
+		liveClauseFunctionMerge("fn:live-clause-chain-bridge", liveClauseChainBridge, other),
+		liveClauseFunctionMerge(liveClauseChainEndUID, liveClauseChainEnd, granted),
+		liveClauseContains("/granted/neighbor.go", liveClauseChainStartUID),
+		liveClauseContains("/other/neighbor.go", "fn:live-clause-chain-bridge"),
+		liveClauseContains("/granted/neighbor.go", liveClauseChainEndUID),
+		liveClauseCalls(liveClauseChainStartUID, "fn:live-clause-chain-bridge"),
+		liveClauseCalls("fn:live-clause-chain-bridge", liveClauseChainEndUID),
 
 		`MATCH (a {uid:"` + liveClauseAnchorClassUID + `"}), (b {uid:"class:live-clause-other-parent"}) MERGE (a)-[:INHERITS]->(b)`,
 		`MATCH (c {uid:"` + liveClauseAnchorClassUID + `"}), (m {uid:"fn:live-clause-granted-method"}) MERGE (c)-[:CONTAINS]->(m)`,
