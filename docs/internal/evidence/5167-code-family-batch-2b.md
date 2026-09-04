@@ -177,8 +177,17 @@ Both are in
 
 ## Query-Plan Manifests
 
-Three cypher digests and eleven source digests move, in two commits separate
-from the semantic ones.
+Three `cypher_sha256` values and fourteen `source_sha256` lines move, across
+`hot-cypher.yaml`, `query-source-coverage.yaml` and the
+`grandfathered_non_hot.go` baselines, in two commits separate from the semantic
+ones. Fourteen lines but thirteen distinct symbols: `QP-CODE-REL-STORY` and
+`QP-CODE-REL-STORY-INCOMING` share one builder, so its digest appears twice.
+
+Counted from the diff rather than from memory. The first of those two commits
+says "seven source digests" in its message, which undercounts by three: it
+missed the `source_sha256` lines in `hot-cypher.yaml` itself, which the same
+commit updated. The message cannot be corrected without rewriting a pushed-ready
+history, so the number is corrected here, where a reviewer checks it.
 
 No `plan` block changes. The statement each manifest entry actually pins is the
 all-scopes, no-`repo_id` shape, which renders no predicate at all — so the
