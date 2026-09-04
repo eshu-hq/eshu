@@ -25,15 +25,27 @@ the full ownership boundary and exported surface.
 - **No import of the reducer root, ever.** This package is a leaf below
   `internal/reducer`: the root imports it for `DefaultHandlers` wiring and
   the handler construction, never the reverse.
-- **`DeltaScope`, `BuildDeltaScope`, `MergeRepositoryIDs`,
-  `BuildRefreshIntents`, `EvidenceSource`, `FilePartitionKey`,
-  `WholeScopePartitionKey`, `PartitionKeyVersion`,
-  `EmbeddedSQLFunctionIDsByNameLine`, and `EmbeddedSQLFunctionKey` are
-  exported ONLY because the reducer root's `shell_exec` family
-  (`shell_exec_materialization.go`, `shell_exec_intents.go`) reuses them.**
-  `shell_exec` has not moved out of root yet. Do not narrow or reshape these
-  signatures without checking both call sites; do not treat them as a public
-  API for unrelated new callers.
+- **These exported symbols each have a specific, narrower reason than "the
+  whole family reuses this package" — do not narrow or reshape any of them
+  without checking every consumer below, and do not treat them as a public
+  API for unrelated new callers:**
+  - `DeltaScope`, `BuildDeltaScope`, `MergeRepositoryIDs`,
+    `EmbeddedSQLFunctionIDsByNameLine`, and `EmbeddedSQLFunctionKey` are used
+    by the reducer root's `shell_exec` family
+    (`shell_exec_materialization.go`, `shell_exec_intents.go`), which has not
+    moved out of root yet.
+  - `BuildRefreshIntents` is used only by the sibling-family test
+    (`sibling_edge_intent_delta_gate_test.go`), which drives it alongside
+    `inheritance` through one shared table — nothing in `shell_exec`'s own
+    production code calls it.
+  - `EvidenceSource`, `FilePartitionKey`, `WholeScopePartitionKey`, and
+    `PartitionKeyVersion` are not consumed by `shell_exec` at all: they
+    support the root's generic shared-projection worker test
+    (`shared_projection_worker_refresh_redelivery_test.go`) and this
+    package's own partition-convergence test
+    (`sql_relationship_partition_convergence_test.go`), both of which need
+    real evidence-source/partition-key values to construct root-owned
+    worker fixtures.
 - **The partition-convergence proof stays in the reducer root**
   (`sql_relationship_partition_convergence_test.go`), not in this package.
   It drives `ProcessPartitionOnce` and other generic shared-projection worker
