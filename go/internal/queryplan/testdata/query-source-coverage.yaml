@@ -360,7 +360,7 @@ source_coverage:
         count: 1
         non_hot:
           class: label_inventory
-          source_sha256: 6cc1d3593a6ab2b49fc4d9d619bb0a225a50859c097a40444401bbe10d4d4ad6
+          source_sha256: 79928e2290f5907da079e35a5e4157697e2f2a8062bdad6ddca3da1a09da6d62
           label: "Repository|Directory|File|Module|Function|Class|Struct|Enum|Union|Macro|TypeAnnotation|Annotation|Component|ImplBlock|Protocol|ProtocolImplementation|Variable|TerraformBackend|TerraformCheck|TerraformImport|TerraformLockProvider|TerraformModule|TerraformMovedBlock|TerraformRemovedBlock|TerragruntConfig|TerragruntDependency|SqlColumn|SqlFunction|SqlIndex|SqlMigration|SqlTable|SqlTrigger|SqlView|TypeAlias|Typedef"
           max_results: 200
   - file: neo4j.go
