@@ -289,7 +289,7 @@ test_update_is_idempotent() {
     record_fail "case10: -update is idempotent across two runs (baseline changed)"
     diff "${snap1}" "${baseline}" >&2 || true
   fi
-  assert_contains "TEST languages/example.md go/internal/gone_test.go::TestSomething" "${baseline}" \
+  assert_contains "TEST public/languages/example.md go/internal/gone_test.go::TestSomething" "${baseline}" \
     "case10: regenerated baseline records the dead test citation"
   assert_contains "FIXTURE tests/fixtures/ecosystems/orphan_comprehensive/" "${baseline}" \
     "case10: regenerated baseline records the unused fixture citation"
@@ -455,6 +455,15 @@ source "${repo_root}/scripts/lib/test-verify-doc-citations-review-cases.sh"
 source "${repo_root}/scripts/lib/test-verify-doc-citations-binary-cases.sh"
 # shellcheck source=scripts/lib/test-verify-doc-citations-preparation-cases.sh
 source "${repo_root}/scripts/lib/test-verify-doc-citations-preparation-cases.sh"
+
+# shellcheck source=scripts/lib/test-verify-doc-citations-scope-cases.sh
+source "${repo_root}/scripts/lib/test-verify-doc-citations-scope-cases.sh"
+run_doc_citation_scope_cases
+if [[ "${1:-}" == "--scope-only" ]]; then
+  printf 'scope tests: %d passed, %d failed\n' "${PASS}" "${FAIL}"
+  [[ "${FAIL}" -eq 0 ]]
+  exit $?
+fi
 
 test_update_is_idempotent
 test_existing_test_citation_passes

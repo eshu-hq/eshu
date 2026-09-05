@@ -199,12 +199,17 @@ gates:
     hook_id: go-dir-gate
 
   - id: markdown-file-cap
-    name: Markdown 500-line file cap (go/)
+    name: Markdown 500-line file cap (go/ and docs/)
     category: hygiene
     tier: pre-commit
     blocking: true
     triggers:
       - "go/**/*.md"
+      - "docs/**/*.md"
+      - ".github/workflows/test.yml"
+      - ".pre-commit-config.yaml"
+      - "scripts/ci/install-apt-packages.sh"
+      - "specs/ci-gates.v1.yaml"
       - "scripts/verify-markdown-line-cap.sh"
       - "scripts/test-verify-markdown-line-cap.sh"
       # Glob, for the reason go-dir-gate globs its own lib files: the core
@@ -215,6 +220,7 @@ gates:
       # glob cannot drift as files are added.
       - "scripts/lib/*markdown-line-cap*"
     self_test_triggers:
+      - ".github/workflows/test.yml"
       - "scripts/verify-markdown-line-cap.sh"
       - "scripts/test-verify-markdown-line-cap.sh"
       - "scripts/lib/*markdown-line-cap*"
@@ -223,7 +229,7 @@ gates:
       test_command: "bash scripts/test-verify-markdown-line-cap.sh"
     ci:
       workflow: test.yml
-      job: "verify-contracts"
+      job: "markdown-file-cap"
     # No `go` requirement, unlike go-file-cap and go-dir-gate: this gate is
     # pure bash plus `git ls-files`. The Go cap needs a toolchain because its
     # CI half is a golangci-lint plugin; Markdown has no such plugin, which is
@@ -1462,6 +1468,7 @@ gates:
       - "scripts/lib/test-verify-doc-citations-review-cases.sh"
       - "scripts/lib/test-verify-doc-citations-binary-cases.sh"
       - "scripts/lib/test-verify-doc-citations-preparation-cases.sh"
+      - "scripts/lib/test-verify-doc-citations-scope-cases.sh"
       - "scripts/lib/gate-diff-base.sh"
       - "scripts/docs-citations-baseline.txt"
       - "specs/ci-gates.v1.yaml"

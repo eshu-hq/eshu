@@ -159,7 +159,7 @@ test_files_mode_catches_an_over_cap_file() {
 	rm -rf "${repo}"
 }
 
-# A commit that touches no Markdown under go/ evaluates nothing. That is
+# A commit that touches no Markdown under go/ or docs/ evaluates nothing. That is
 # legitimate, and indistinguishable from "checked everything, all clean"
 # unless the count is printed -- the same trap verify-dirgate.sh --files
 # closes.
@@ -167,8 +167,8 @@ test_files_mode_reports_zero_evaluated_paths() {
 	local repo tsv
 	repo="$(new_scratch_repo)"
 	tsv="$(write_ledger "${repo}")"
-	run_mdcap "${repo}" "${tsv}" --files docs/public/thing.md README.md
-	assert_exit "${MDCAP_EXIT}" 0 "paths outside go/ are skipped"
+	run_mdcap "${repo}" "${tsv}" --files examples/thing.md README.md
+	assert_exit "${MDCAP_EXIT}" 0 "paths outside go/ and docs/ are skipped"
 	assert_contains "${MDCAP_OUT}" "evaluated 0 Markdown file(s) from 2 path(s)" \
 		"a run that evaluated nothing says so"
 	rm -rf "${repo}"

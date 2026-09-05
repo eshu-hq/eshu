@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Core bash implementation of the Markdown 500-line file cap under go/
+# Core bash implementation of the Markdown 500-line file cap under go/ and docs/
 # (issue #6187). Sibling of scripts/lib/dirgate-core.sh: same ledger shape,
 # same CLI shape, same test-mirror shape. Read that file alongside this one.
 #
@@ -25,7 +25,7 @@ MARKDOWN_LINE_CAP_TSV="${MARKDOWN_LINE_CAP_TSV:-$(cd "$(dirname "${BASH_SOURCE[0
 
 # mdcap_skip_path is the bash analogue of dirgate_skip_dir: true (exit 0) if
 # the repo-relative path is NOT a Markdown file this gate governs. That is
-# anything outside go/, anything that is not *.md, and anything under a
+# anything outside go/ and docs/, anything that is not *.md, and anything under a
 # vendor, testdata, generated, or hidden path segment. go/**/testdata/*.md
 # really exists (go/cmd/audit-preflight/testdata carries fixture Markdown
 # whose length is an input to a test, not a document a human reads), so the
@@ -33,7 +33,7 @@ MARKDOWN_LINE_CAP_TSV="${MARKDOWN_LINE_CAP_TSV:-$(cd "$(dirname "${BASH_SOURCE[0
 mdcap_skip_path() {
 	local path="$1" seg
 	case "${path}" in
-		go/*.md) ;;
+		go/*.md|docs/*.md) ;;
 		*) return 0 ;;
 	esac
 	local oldifs="${IFS}"
@@ -272,8 +272,9 @@ mdcap_resolve_base_sha() {
 # ledger it is judged against was satisfiable by exactly that.
 #
 # The ledger freezes debt that predates the gate. So only two edits are ever
-# legitimate: removing a row, or lowering a pin. Adding a row, or raising one,
-# is new debt authorising itself, and is refused here.
+# legitimate: removing a row, or lowering a pin. Newly governed docs/ debt
+# may be imported only up to its proven immutable-base count. All other new
+# rows and raised pins are refused.
 #
 # The baseline is the ledger as committed at MARKDOWN_LINE_CAP_BASE_REF,
 # defaulting to origin/<the branch the PR targets> and to origin/main outside
@@ -328,6 +329,17 @@ mdcap_verify_ledger_growth() {
 
 		base_pin="$(printf '%s\n' "${baseline}" |
 			awk -F'\t' -v want="${path}" '$1 == want { print $2; exit }')"
+
+		# #6545 expands the governed tree. Import only debt already present
+		# at this immutable base, never a new file or branch-authored growth.
+		if [[ -z "${base_pin}" && "${path}" == docs/*.md ]]; then
+			local base_count
+			if base_count="$(git -C "${repo_root}" show "${base_sha}:${path}" 2>/dev/null | awk 'END { print NR }')"; then
+				if (( base_count > MARKDOWN_LINE_CAP_MAX_LINES && 10#${pinned} <= base_count )); then
+					continue
+				fi
+			fi
+		fi
 
 		if [[ -z "${base_pin}" ]]; then
 			printf '%s: NEW ledger row %s pinned at %s -- the grandfather ledger freezes debt that predates the gate, and a change MUST NOT authorise its own exemption; bring the file under the %d-line cap, or split it by audience\n' \

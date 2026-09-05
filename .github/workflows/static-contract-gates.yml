@@ -332,6 +332,7 @@ jobs:
               - 'scripts/lib/test-verify-doc-citations-review-cases.sh'
               - 'scripts/lib/test-verify-doc-citations-binary-cases.sh'
               - 'scripts/lib/test-verify-doc-citations-preparation-cases.sh'
+              - 'scripts/lib/test-verify-doc-citations-scope-cases.sh'
               - 'scripts/lib/gate-diff-base.sh'
               - 'scripts/docs-citations-baseline.txt'
             taggedbuilds:
