@@ -111,8 +111,9 @@ type ManifestConsumptionExtractor func(alerts []ProviderSecurityAlert, envelopes
 // counterpart BuildSecurityAlertReconciliations delegates to and
 // SecurityAlertReconciliationHandler.Handle calls directly, so the reducer
 // intent path can report each malformed security_alert.repository_alert fact as
-// a visible input_invalid dead-letter via recordQuarantinedFacts. A non-decode
-// error (a fatal condition partitionDecodeFailures did not quarantine) is
+// a visible input_invalid dead-letter via factdecode.RecordQuarantinedFacts.
+// A non-decode error (a fatal condition factdecode.PartitionDecodeFailures did
+// not quarantine) is
 // returned so the caller fails the whole intent for durable triage. The
 // classification logic itself is unchanged from the pre-typing build.
 // extractManifestConsumptions supplies the manifest/lockfile half of

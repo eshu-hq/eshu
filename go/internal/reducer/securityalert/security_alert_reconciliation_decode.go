@@ -260,7 +260,8 @@ func securityAlertDerefBool(value *bool) bool {
 // securityAlertMergeIDs merges a scalar advisory id with its slice form into one
 // trimmed, de-duplicated, sorted set, reproducing exactly the pre-typing
 // payloadcore.PayloadStrings(scalarKey, sliceKey) read: the scalar is appended first (when
-// non-empty), then every non-empty slice entry, then uniqueSortedStrings.
+// non-empty), then every non-empty slice entry, then
+// payloadcore.UniqueSortedStrings.
 func securityAlertMergeIDs(scalar *string, slice []string) []string {
 	var values []string
 	if trimmed := securityAlertDerefTrim(scalar); trimmed != "" {
@@ -277,7 +278,7 @@ func securityAlertMergeIDs(scalar *string, slice []string) []string {
 // securityAlertCleanStrings trims and drops empty entries from a decoded string
 // slice, matching payloadcore.PayloadStrings("", sliceKey)'s handling of
 // collection_incomplete_reasons (a slice-only read whose scalar key is empty):
-// each non-empty trimmed entry, then uniqueSortedStrings.
+// each non-empty trimmed entry, then payloadcore.UniqueSortedStrings.
 func securityAlertCleanStrings(slice []string) []string {
 	var values []string
 	for _, value := range slice {

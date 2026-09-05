@@ -130,7 +130,7 @@ func (h SecurityAlertReconciliationHandler) Handle(ctx context.Context, intent r
 
 	decisions, quarantined, err := BuildSecurityAlertReconciliationsWithQuarantine(envelopes, h.ExtractManifestConsumptions)
 	if err != nil {
-		// A non-decode error (a fatal condition partitionDecodeFailures did NOT
+		// A non-decode error (a fatal condition factdecode.PartitionDecodeFailures did NOT
 		// quarantine, such as an unsupported schema major) fails the whole intent
 		// so the durable queue triages it correctly.
 		return reducercontract.Result{}, fmt.Errorf("build security alert reconciliations: %w", err)

@@ -12,7 +12,7 @@ import (
 
 // TestPostgresSecurityAlertReconciliationWriterPersistsBatchedFacts proves
 // WriteSecurityAlertReconciliations upserts decisions through the shared
-// reducerBatchInsertFacts bulk-insert path (issue #5317) rather than one
+// factwrite.BatchInsertFacts bulk-insert path (issue #5317) rather than one
 // ExecContext per decision, and that the decoded rows carry byte-identical
 // content to what the retired per-row canonicalReducerFactInsertQuery loop
 // produced: the row-building helpers (securityAlertReconciliationFactID/

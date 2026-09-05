@@ -11,7 +11,7 @@ import (
 
 // securityAlertEnvelope and packageConsumptionCorrelationEnvelope are
 // declared locally rather than imported from securityalert's test package:
-// securityalert.security_alert_reconciliation_test.go's identically-named
+// securityalert/security_alert_reconciliation_test.go's identically-named
 // fixture builders are package-private test helpers (issue #6061), and
 // supply_chain_impact's own tests here (provider-alert seeding, manifest
 // dependency scoping, input-invalid quarantine) still need equivalent

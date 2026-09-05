@@ -31,7 +31,7 @@ const securityAlertReconciliationCostIntentID = "intent-security-alert-reconcili
 // one scope. WriteSecurityAlertReconciliations
 // (go/internal/reducer/securityalert/security_alert_reconciliation_writer.go)
 // now calls the shared
-// reducerBatchInsertFacts bounded chunked bulk insert (issue #5317), so two
+// factwrite.BatchInsertFacts bounded chunked bulk insert (issue #5317), so two
 // decisions fit in one 1000-row chunk and cost exactly one ExecContext
 // round-trip.
 func securityAlertReconciliationFixtureDecisions() []securityalert.SecurityAlertReconciliationDecision {
@@ -63,7 +63,7 @@ func securityAlertReconciliationFixtureDecisions() []securityalert.SecurityAlert
 // count is within the committed budget.
 //
 // WriteSecurityAlertReconciliations now calls the shared
-// reducerBatchInsertFacts bounded chunked bulk insert (issue #5317) instead of
+// factwrite.BatchInsertFacts bounded chunked bulk insert (issue #5317) instead of
 // one ExecContext per decision, so two decisions fit one chunk and this
 // scenario asserts exactly one write observation. The companion N+1 negative
 // control below (TestCostBudget_SecurityAlertReconciliation_N1_ExceedsBudget)
