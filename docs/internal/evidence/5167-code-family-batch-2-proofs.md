@@ -323,12 +323,13 @@ already pays 504.20 ms for it. A scoped caller with a WIDE grant pays the same
 (475.99 ms, 239,920 buffers at 500 repositories), because a wide grant filters
 out nothing and the walk still runs to the end. The grant neither causes that
 shape nor fixes it; it is a pre-existing property of this route's paging and
-belongs in its own issue, not in this change.
+belongs in its own issue, not in this change. It is filed as #6540.
 
 Recorded for the next reader rather than as a live risk: under
-`plan_cache_mode = force_generic_plan` the same statements are far worse — 238.73 ms
-at 500 small repositories, 348.59 ms at 500 large, up to 77,424 buffers —
-because a generic plan cannot see the grant array and bitmaps the whole thing.
+`plan_cache_mode = force_generic_plan` the same statements are far worse —
+238.73 ms at 500 small repositories, 348.59 ms at 500 large, up to 77,424
+buffers — because a generic plan cannot see the grant array and bitmaps the
+whole thing.
 PostgreSQL's `auto` chooser rejected the generic plan in all nine
 configurations, so this is what a future planner or statistics change would
 cost, not what production pays today.
@@ -337,8 +338,11 @@ Reproducing it: PostgreSQL 16 container on a free port, every migration in
 `go/internal/storage/postgres/migrations` applied in `BootstrapDefinitions()`
 order, the seed and measurement scripts kept with this note's working files
 (`d3-pg-seed.sql`, `d3-pg-measure.sql`, `d3-pg-auto.sql`, `d3-pg-peak.sql`).
-The statement is regenerated from the Go source on every run rather than stored
-here, so a builder change cannot leave a stale statement being measured.
+The statement is regenerated from the Go source when the measurement is re-run
+rather than stored here, so a builder change cannot leave a stale statement
+being measured the next time these numbers are taken. The extractor is a
+working file, not a committed gate: nothing fails today if the builder changes
+and nobody re-runs it.
 
 ## Verification
 

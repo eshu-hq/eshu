@@ -431,7 +431,7 @@ granted 500 repositories pays 0.11 ms; a caller granted three pays 13.93 ms.
 When the filter matches nothing the grant is what stops the walk — 0.20 ms
 scoped to one repository against 504.20 ms unscoped for the same filter, a
 pre-existing property of this route's paging that this change neither causes
-nor fixes.
+nor fixes, filed as #6540.
 
 For an unscoped shared, admin, or local caller every grant predicate renders
 empty and every grant parameter is unbound, so the query text those callers
