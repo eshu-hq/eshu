@@ -1,0 +1,90 @@
+-- Let the cross-repo dead-code probe reach a producer entity's ACTIVE consumer
+-- row with a seek instead of a scan of every generation still on disk (#5167).
+--
+-- #5167 batch 1 first shipped a two-column
+-- code_reachability_entity_repository_idx, keyed (entity_id, repository_id), so
+-- a step could seek the entity's next consumer repository. That bounded the
+-- walk against row fan-in, which is what it was measured against: a seed with
+-- one ingestion scope and one generation, where every row in an
+-- (entity_id, repository_id) group belongs to the active generation and the
+-- step's LIMIT 1 therefore stops on its first row.
+--
+-- Real installs do not look like that. The reducer's reachability delete is
+-- keyed (scope_id, generation_id, repository_id), so a new generation ADDS a
+-- row set and leaves the old one in place, and the only pruner is the
+-- generation-retention runner, which keeps the 24 most recent superseded
+-- generations per scope and everything superseded inside the last 7 days.
+-- A group therefore holds one row per retained generation per root, and the
+-- active row is the newest of them -- the last one a step ordered by
+-- repository_id reaches. The step then reads the whole group, and the
+-- per-repository bound the two-column index claimed does not exist.
+--
+-- Measured in a throwaway PostgreSQL 16.15 container, data-plane schema applied
+-- from schema/data-plane/postgres (001, 002, 027), synthetic rows only, VACUUM
+-- ANALYZE after seeding, SET jit = off, PREPARE/EXECUTE, warm, three runs. The
+-- seed is retention-representative: one ingestion scope per consumer
+-- repository, three groups of five consumer repositories differing only in how
+-- many superseded generations they retain (0, 20, 200), every generation
+-- carrying the same population, superseded rows written before the active one,
+-- and a 201-row producer-repository run on every page. 883,750 rows, 1,316
+-- generations, 516 scopes, table 161 MB. A 125-entity producer page:
+--
+--   retained generations               0          20         200
+--   the two-column index's walk  22.3 ms     89.2 ms    630.4 ms
+--     buffers                     39,403     154,603   1,150,489
+--   this index's walk             5.13 ms     8.14 ms     9.78 ms
+--     buffers                      3,270       3,268       3,263
+--
+-- The buffer counts are the claim: they do not move with retention, because a
+-- step now seeks the active row by full equality instead of scanning the group
+-- for it. The walk steps over an entity's distinct (repository_id, scope_id)
+-- PAIRS on this index's first three columns -- one Index Only Scan row per step
+-- -- and tests liveness with an (entity_id, repository_id, scope_id,
+-- generation_id) equality whose generation comes from ingestion_scopes. Pairs
+-- rather than repositories because a repository ingested by two scopes has two
+-- active generations, and only a pair carries the scope the equality needs.
+--
+-- Nothing the earlier shape bought is given back. On the two-column index's own
+-- seed (2,201,196 rows, one scope, one generation, a producer entity with
+-- 1,000,000 consumer rows across five repositories, 250-entity page) the walk
+-- reads 4.18/4.01/4.13 ms at a 5-repository grant and 4.51/4.28/4.28 ms at 500,
+-- buffers hit=3,764 at both -- still flat across grant size, and below the
+-- 4.49-5.38 ms and hit=4,863-4,888 the shipped read measured there.
+--
+-- Cost. On the retention-representative seed this index is 79 MB against a
+-- 7,520 kB two-column index and a 161 MB table; on the single-generation seed
+-- it is 16 MB against that index's 17 MB, because btree deduplication collapses
+-- a suffix that never varies. The reducer's write path maintains one index
+-- either way: migration 102 drops code_reachability_entity_repository_idx,
+-- whose key is a strict prefix of this one and which no read needs once this
+-- exists. depth is deliberately absent: it is a range predicate, so nothing
+-- after it in the key could be used as an Index Cond anyway, and depth = 0 rows
+-- are the root's own row -- at most one per consumer repository per entity,
+-- which the filter discards without a measurable scan.
+--
+-- Replay. This directory has no applied-migration ledger: BootstrapDefinitions
+-- enumerates every file under migrations/ and ApplyDefinitions Execs all of
+-- them, in filename order, on EVERY bootstrap (schema.go, pinned by
+-- TestApplyBootstrapExecutesDefinitionsInOrder). A migration is therefore a
+-- desired-state statement that has to be a no-op once the state it wants
+-- already holds, and a superseded index must be REMOVED from the tree rather
+-- than left as a create paired with a later drop: a create the next file drops
+-- rebuilds the index on every startup, forever. So the two-column index has no
+-- create here at all -- migration 102's drop alone converges the installs that
+-- built it from the earlier release, and once it is gone both files are
+-- no-ops. TestCodeReachabilityIndexMigrationsReapplyWithoutRebuildLive proves
+-- that on a populated store.
+--
+-- CONCURRENTLY, so building it does not block the reducer's reachability
+-- writes, and the lone statement in this file because the runner Execs each
+-- file as one simple-query string and Postgres treats a multi-statement string
+-- as an implicit transaction block, which CONCURRENTLY cannot run inside. That
+-- is also why it cannot join 027_code_reachability.sql. The usual objection to
+-- CONCURRENTLY -- that a failed build leaves an INVALID index that IF NOT
+-- EXISTS then skips forever -- does not apply: the schema apply path drops
+-- invalid concurrent indexes by name before executing each definition
+-- (SQLDB.dropInvalidConcurrentIndexes, db.go) and runs each statement outside
+-- any transaction on a dedicated bootstrap connection, which CONCURRENTLY
+-- requires.
+CREATE INDEX CONCURRENTLY IF NOT EXISTS code_reachability_entity_repository_scope_generation_idx
+    ON code_reachability_rows (entity_id, repository_id, scope_id, generation_id);

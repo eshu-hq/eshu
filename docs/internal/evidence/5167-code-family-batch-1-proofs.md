@@ -1,10 +1,13 @@
 # #5167 Code Family, Batch 1 — Proof Ledger
 
-The red/green runs and mutation ledger for
-[#5167 Code Family, Batch 1](5167-code-family-batch-1.md). This document holds
-the proofs; that one holds the change and its reasoning. They are split only
-because together they outgrow the repository's 500-line Markdown cap, and
-nothing here stands on its own.
+The red/green runs, the mutation ledger, the query-plan manifest re-audit and
+the read-path cost record for
+[#5167 Code Family, Batch 1](5167-code-family-batch-1.md). That note holds the
+change and its reasoning, and
+[#5167 cross-repo hidden-consumer walk](5167-cross-repo-hidden-consumer-walk.md)
+holds the measurement record for the cross-repo hidden-consumer read. The three
+are split only because together they outgrow the repository's 500-line file cap,
+and nothing here stands on its own.
 
 ## Red Then Green
 
@@ -214,10 +217,20 @@ mutation was restored and its guard rerun at exit `0`.
 | 38 | the hidden count is not outranked by strong granted evidence (`if false && strongLiveEvidence` around `unknownHiddenCount = 0`), the order this route had before the two dead-code routes were reconciled | `go test ./internal/query -run TestCrossRepoDeadCodeStrongGrantedEvidenceOutranksHiddenConsumer -count=1` | `1` (`candidate_buckets[live_by_consumer] missing entity "producer-strong-plus-hidden"` — a strong granted consumer answered `unknown_needs_evidence`) |
 | 39 | `crossRepoDeadCodeUngrantedConsumers` drops its empty-grant refusal | `go test ./internal/query -run TestCrossRepoDeadCodeProbeRefusesAnEmptyGrant -count=1` | `1` (`hidden = …{"entity-1":struct {}{}}, want empty`) |
 | 40 | `crossRepoDeadCodeConsumerReadPlan` sets `SignalGrant` for a request that named consumers | `go test ./internal/query -run 'TestCrossRepoDeadCodeConsumerReadPlan\|TestCrossRepoDeadCodeHiddenCountHonoursTheConsumerSelector\|TestCrossRepoDeadCodeConsumerSelectorSurvivesABusyGrantedRepository' -count=1` | `1` (3 failures; the read plan leaks the grant into the probe and the selector route sends a second statement) |
-| 41 | the walk drops its stop condition (`AND EXISTS (… granted …)` becomes `AND TRUE`), so it enumerates every distinct consumer repository instead of stopping at the first ungranted one | `ESHU_CROSS_REPO_DEAD_CODE_PROBE_LIVE=1 ESHU_POSTGRES_DSN=… go test ./internal/query -run TestCrossRepoDeadCodeUngrantedConsumerProbeLive -count=1` | `1` (4 sub-test failures: both guards fail under BOTH plan modes -- `the recursive walk produced 215 rows, want at most 60` under a custom plan and again under `plan_cache_mode = force_generic_plan`, and the plan guard loses the per-step seek in both). Every entity's verdict is unchanged, which is the point of the row-count guard |
+| 41 | the walk drops its stop condition (`AND EXISTS (… granted …)` becomes `AND TRUE`), so it enumerates every distinct consumer pair instead of stopping at the first hidden one | `ESHU_CROSS_REPO_DEAD_CODE_PROBE_LIVE=1 ESHU_POSTGRES_DSN=… go test ./internal/query -run TestCrossRepoDeadCodeUngrantedConsumerProbeLive -count=1` | `1` (4 sub-test failures: both guards fail under BOTH plan modes -- `the recursive walk produced 215 rows, want at most 60` under a custom plan and again under `plan_cache_mode = force_generic_plan`, and the plan guard loses the per-step seek in both). Every entity's verdict is unchanged, which is the point of the row-count guard |
 | 42 | the walk's step seeks `>=` instead of `>`, so it never advances past the repository it just found | the same command | `1` (14 sub-test failures, all `cross-repo dead code ungranted consumer probe: context deadline exceeded`) |
 | 43 | the final filter selects the granted repositories instead of the ungranted ones (`NOT EXISTS` becomes `EXISTS`) | the same command | `1` (12 sub-test failures; e.g. `hidden = []string{"ent-busy", "ent-middle", "ent-spread"}, want []string(nil)` for a grant that hides nothing) |
 | 44 | not a mutation — the gate's first catch on the branch that added it. `code_dead_code_cross_repo_ungranted_probe_live_test.go` carries no build tag, so its `quoteLiteral` joined the `integration` build alongside the one in `cloud_resource_runtime_digest_starvation_live_test.go` | `bash scripts/verify-tagged-builds.sh --all`, then `go vet -tags integration ./internal/query` | `1` and `1` (`quoteLiteral redeclared in this block`), while `go build ./...`, `go vet ./...` and `go test ./internal/query` on the same tree all stayed `0`. Renamed to `crossRepoDeadCodeProbeQuoteLiteral`; both back to `0` |
+| 45 | `platform_term`'s GOARCH arm carries the `mips*` prefix it shipped with, against a fixture whose only tagged file is `//go:build mipsmock` and does not compile | `TAGGED_BUILDS_REPO_ROOT=<fixture> bash scripts/verify-tagged-builds.sh` | `0` — `SKIP … platform-gated (mipsmock)`, "vetted 0 build configuration(s)", over a package that does not build. With the six exact `mips` GOARCH names: `1`, `FAIL … tags=mipsmock` naming the undefined helper |
+| 46 | the probe statement reverts to the walk migration 100 shipped -- stop at a consumer repository's first row instead of seeking its active one | `ESHU_CROSS_REPO_DEAD_CODE_PROBE_LIVE=1 ESHU_POSTGRES_DSN=… go test ./internal/query -run TestCrossRepoDeadCodeUngrantedConsumerProbeLive -count=1`, and `go test ./internal/query -run TestCrossRepoDeadCodeSignalReadIsTheBoundedUngrantedProbe -count=1` | `1` both (6 sub-test failures, both guards under both plan modes: `the walk touched 5946 buffers for one entity, want at most 200`, and `no plan node carries the walk's per-step seek`). Every entity's answer is unchanged, including `ent-retained`'s, which is why the guard measures buffers |
+| 47 | the liveness seek drops `AND live_row.scope_id = pair.scope_id`, so its index condition stops at the pair and the generation becomes a filter over the pair's retained rows | the same live command, and `go test ./internal/query -run TestCrossRepoDeadCodeSignalReadIsTheBoundedUngrantedProbe -count=1` | `1` both (2 sub-test failures, both plan modes: `no index condition carries the full (entity_id, repository_id, scope_id, generation_id) liveness seek`; the unit guard reports the missing equality). The answer is unchanged again, and so are the buffers -- the mutated seek filters inside the index rather than fetching heap rows, which is why the plan guard and not the buffer budget is what catches this one |
+| 48 | migration 101 builds `(entity_id, repository_id)` instead of the four-column key | the same live command | `1` (2 sub-test failures, both plan modes, same liveness-seek message: with the last two key columns gone the seek cannot be an index condition at all) |
+| 49 | migration 102 stops dropping migration 100's index (`DROP INDEX …` becomes `SELECT 1`) | `go test ./internal/storage/postgres -run TestCodeReachabilityWalkIndexIsCreatedOnceAndNeverDropped -count=1` | `1` (`code_reachability_entity_repository_idx has 0 creates and 0 drops, want 0 and 1`) -- a build that keeps both indexes answers every question correctly and makes every reachability write maintain a redundant btree. The guard moved: this row was first captured against the live probe at 8667ef394, when the proof schema still applied migration 100 and `assertCrossRepoDeadCodeProbeIndexExists` could see the two-column index survive. Migration 100 was deleted and `crossRepoDeadCodeProbeIndexMigrations` now lists only 101 and 102, so nothing builds that index in the live fixture and its count reads 0 whether or not 102 drops anything -- the old pointer would have passed on this mutation. Re-captured against the hermetic guard, which asserts the drop exists rather than the index's absence |
+| 50 | migration 100 is put back, so a create of the two-column index sits ahead of the drop again | `go test ./internal/storage/postgres -run 'TestBootstrapDefinitionsDoNotRebuildIndexesOnEveryReplay|TestCodeReachabilityWalkIndexIsCreatedOnceAndNeverDropped' -count=1`, and `ESHU_POSTGRES_TEST_DSN=… go test -tags integration ./internal/storage/postgres -run TestCodeReachabilityIndexMigrationsReapplyWithoutRebuildLive -count=1` | `1` both. Hermetic: `index code_reachability_entity_repository_idx is created by [… /100_…sql] and dropped by [… /102_…sql], so every bootstrap rebuilds it`. Live: the second pass reports `"CREATE INDEX CONCURRENTLY IF NOT EXISTS code_reachability_entity_repository_idx" built index …` and `"DROP INDEX CONCURRENTLY IF EXISTS …" dropped index …`. The live half did NOT bite on its first run — the proof selected the definitions it applied from a fixed list of names, so restoring the migration left the applied set unchanged; it now discovers every definition naming the index family, and the row above is the re-run |
+| 51 | the granted skip is removed, so every step seeks the next PAIR again | `ESHU_CROSS_REPO_DEAD_CODE_PROBE_LIVE=1 ESHU_POSTGRES_DSN=… go test ./internal/query -run TestCrossRepoDeadCodeUngrantedConsumerProbeLive -count=1` | `1` (4 sub-test failures, both plan modes: `the walk produced 51 rows for one entity, want at most 8; a granted repository is being walked scope by scope`, and `no index condition carries the granted repository skip`). Every entity's answer is identical, which is why the guard counts rows |
+| 52 | the skip is applied unconditionally, so an ungranted repository's remaining scopes are never walked | the same live command | `1` (3 sub-test failures). The answer guard is the one that matters here: `hidden = []string{"ent-scopes-granted"}, want []string{"ent-scopes-granted", "ent-scopes-ungranted"}` — the live row in the fifty-first scope of an ungranted repository is missed, which is the whole reason the skip is conditional |
+| 53 | `replayRebuiltIndexNames` is emptied, so the known create/drop pair would be silently allowed rather than asserted | `go test ./internal/storage/postgres -run TestBootstrapDefinitionsDoNotRebuildIndexesOnEveryReplay -count=1` | `1` (`index fact_records_identity_epoch_idx is created by [… /069_…sql … /077_…sql] and dropped by [… /076_…sql]`). The list is compared for equality, not membership, so a second offender fails and fixing this pre-existing one fails until the entry goes with it |
+| 54 | the liveness generation arrives as a join to `ingestion_scopes` on the outer row instead of the scalar subquery -- the shape that shipped before 43b44cb96 | `go test ./internal/query -run TestCrossRepoDeadCodeSignalReadIsTheBoundedUngrantedProbe -count=1` | `1` (`probe is missing "AND live_row.generation_id = (", so a step scans a pair's retained generations instead of seeking its active row`). The paired absence assertion needs its own mutation, because the missing-subquery check `t.Fatalf`s first: reintroducing `JOIN code_reachability_rows AS live_row` BESIDE a surviving subquery -- the likelier drift -- gives `1` (`probe joins the liveness row on the outer pair; the planner may then reorder the generation out of the Index Cond`). No answer changes under either mutation, and no plan assertion catches them at unit-test scale, which is why the pin is on statement text |
 
 An earlier attempt at #1 deleted the whole helper body and failed as an unused
 import rather than an assertion, which proves nothing; the mutations above keep
@@ -245,7 +258,12 @@ Rows 32 and 33 are round-8k, and they are the reverse shape: not a mutation of
 the gate but two constraints the shipped gate answered green without compiling
 anything. Row 44 is not a mutation either: it is the gate finding a real break
 on the branch that introduced it, which is the strongest evidence in this table
-that it earns its place. Both are now `ERROR`. The module has no parenthesised and no mixed
+that it earns its place. Row 45 is the third of that shape and the sharpest:
+the platform list matched `mips*` as a prefix, so a project tag named
+`mipsmock` was classified a GOARCH, skipped, and never compiled — the gate
+answering "vetted 0", exit 0, over a package that does not build. Every GOOS,
+GOARCH and meta-tag name is spelled out now, copied from `internal/syslist`,
+and none of those patterns may become a glob again. Both are now `ERROR`. The module has no parenthesised and no mixed
 constraint, so the sweep's own output is unchanged at 29 vetted / 16 skipped /
 exit 0, which is the behaviour-preservation check for a change that only
 narrows what the gate will accept.
@@ -284,6 +302,18 @@ restores the order this route had before that: a hidden consumer outranking a
 strong granted one. Its guard is
 `TestCrossRepoDeadCodeStrongGrantedEvidenceOutranksHiddenConsumer`.
 
+Rows 46 through 49 are the round-11 pass, the one that made a walk step
+independent of how many superseded generations the retention runner still
+keeps. Row 46 is the whole previous shape put back, and it is the row the
+buffer budget exists for: 5,946 buffers against 24 for the shipped walk, with
+every entity's answer identical either way. Rows 46 and 47 take the seek apart
+from the two sides it can break from -- the statement dropping a key column
+from the condition, and the migration dropping it from the index -- and neither
+moves the buffer count, because a mutated seek filters inside the index instead
+of fetching heap rows. That is why the plan guard asserts all four key columns
+rather than trusting the budget to notice. Row 49 is the index the migrations
+must NOT leave behind. Each was restored and its guard rerun at exit `0`.
+
 Rows 6 and 12 are one mutation judged by two guards: row 6 is the call-graph
 route's text guard, row 12 the graph-summary route that shares the builder. The
 same mutation also reddens `go test ./internal/queryplan`, exit `1`, because the
@@ -295,3 +325,155 @@ one, the only row that settles clause attachment against a real backend. A secon
 reran both directions of row 11 on a fresh container from the same pinned digest
 (self-reporting 1.2.2, bolt on port 17787): mutated exit `1` with the leak body
 quoted above, restored exit `0`.
+
+## Query-Plan Source Coverage
+
+`go test ./internal/queryplan` was red on this branch before this pass, and no
+earlier verification list ran that package. Six callsites failed
+`TestHotCypherManifestCoversEveryProductionQueryCall`, because adding a grant
+predicate changes the enclosing symbol's `source_sha256` and the manifest
+freezes it:
+
+```text
+code_call_graph_metrics.go:(*CodeHandler).callGraphMetricsData: hot callsite source_sha256 does not match production symbol
+code_complexity_queries.go:(*CodeHandler).listMostComplexFunctions: grandfathered source_sha256 does not match production symbol
+```
+
+The other four — `lookupComplexityRowByName`, `deadCodeCandidateRows`,
+`inspectCodeQuality`, `graphSummaryHotEntities` — printed the same
+grandfathered-digest line. That is the gate working as designed: a changed
+digest forces the owning callsite through a typed non-hot audit rather than
+letting a prose `non_hot_reason` carry forward. The five grandfathered prose
+entries become typed dispositions carrying the bound each read already enforces,
+and leave `grandfatheredNonHotSourceDigests`. Later passes move three digests
+again — `listMostComplexFunctions` for the anchor fix, `callGraphMetricsData`
+for its grantless-caller refusal, `graphSummaryHotEntities` for a corrected
+comment — each re-recorded against the production symbol with its disposition
+and bound re-audited unchanged. `handler-hot-cypher.yaml` ends this branch
+untouched: `callGraphMetricsEdgesCypher` carries no grant, so its
+`source_sha256` and the `cypher_sha256` for `QP-CALL-GRAPH-HUBS` and
+`QP-CALL-GRAPH-RECURSIVE` are the values already committed:
+
+| Callsite | Class | Bound |
+| --- | --- | --- |
+| `listMostComplexFunctions` | `label_inventory` | `Function`, 101 rows (`complexityMaxListLimit` + 1) |
+| `lookupComplexityRowByName` | `keyed_support` | single key `$entity_name`, 3 rows (`complexityNameCandidateLimit` + 1) |
+| `deadCodeCandidateRows` | `label_inventory` | one candidate label per page from the closed `deadCodeCandidateLabels` set, 250 rows (`deadCodeCandidateQueryMax`) |
+| `inspectCodeQuality` | `label_inventory` | `Function`, 101 rows (`codeQualityMaxLimit` + 1) |
+| `graphSummaryHotEntities` | `keyed_support` | single key `$repo_id`, 50001 rows (`callGraphMetricsEdgeScanLimit` + 1) |
+| `deadCodeResultsWithGraphIncomingEdges` | `keyed_support` | bounded key batch of one candidate page, 250 keys (`deadCodeCandidateQueryMax`), 2500 rows (one per key per resolution method) |
+
+The sixth entry is the incoming-edge probe. It kept its prose disposition until
+this pass; moving it to `code_dead_code_candidate_entity.go` and giving it a
+second statement forced the same audit, and a new callsite may not use
+`non_hot_reason` at all, so it left the grandfather ledger for the typed row
+above.
+
+## Why The internal/query Files Were Split
+
+On origin/main `code_dead_code.go` was 496 lines and `code_dead_code_scan.go`
+was 468; this change pushed both over the 500-line cap, and
+`code_dead_code_cross_repo.go` followed later. The candidate-page request type,
+the scan budget helpers, the candidate-label predicate, the cross-repo
+consumer-evidence filter and, in the round-7 pass, the whole incoming-edge probe
+family moved to sibling files that already own those families rather than to new
+ones, because `internal/query`'s non-test file set is pinned by the dirgate
+grandfather ledger.
+
+## What The Change Costs On The Read Path
+
+No-Regression Evidence: every predicate this change adds is an indexed equality
+or an `ANY()`/`IN` membership test against the caller's grant, on a node or
+column the query already matched, and it lands ahead of the existing
+`SKIP`/`LIMIT` (Cypher) or `LIMIT`/`OFFSET` (SQL), so a scoped page is drawn
+from the granted set instead of a cross-tenant-polluted one. A scoped caller
+reads no more rows than before, save the one widened `DISTINCT` key declared
+below, and on the routes that were corpus-wide it reads fewer. On the SQL side
+the grant column is `content_entities.repo_id` / `content_files.repo_id`, plus
+`code_reachability_rows.repository_id` — the same columns those queries'
+single-repository branches already filter on.
+
+Two shapes do change, and both are declared. `listMostComplexFunctions` swaps
+its `OPTIONAL MATCH` for a required `MATCH` over the same
+`CONTAINS`/`REPO_CONTAINS` path for a scoped caller or a supplied `repo_id`,
+which removes a clause between the anchor and the `RETURN` rather than adding
+one. The cross-repo consumer read runs one extra statement per scoped request,
+on a route that already issues a paged candidate scan plus per-entity probes.
+That statement is a bounded per-entity existence probe backed by a new index,
+measured rather than asserted — see [#5167 cross-repo hidden-consumer
+walk](5167-cross-repo-hidden-consumer-walk.md) for its plan, its numbers, and
+the three shapes withdrawn on measurements.
+
+The incoming-edge probe is the third shape, and it is measured. A scoped caller
+runs one graph statement, as before:
+`buildDeadCodeScopedIncomingBatchProbeCypher` expands the candidate's incoming
+edges once, optionally matches the source's repository, and projects the grant
+per row as `in_grant`, grouping on `(entity, method, in_grant)` with `count(*)`
+rather than `RETURN DISTINCT`. It replaced a pair — a grant-bound probe plus the
+unrestricted one, diffed row by row — which both cost more and could not see an
+out-of-grant source whose resolution method a granted source also carried. On
+one entity with 5,000 incoming edges split across two repositories, four
+interleaved runs of 15 iterations against the pinned NornicDB v1.2.3: median
+274–303 µs against 497–583 µs for the withdrawn pair, and 2–14% above what a
+single probe costs alone. The full table and the mistake in the first
+measurement are under "One Probe, Because Two Could Not See A Same-Method
+Source" in [#5167 code family batch 1](5167-code-family-batch-1.md).
+
+The grouping key does widen. It carries `in_grant` as a third column, so an
+entity and method reachable from both a granted and an ungranted consumer
+returns two rows where it returned one — at most 2x over one candidate page, and
+the bound that follows from it is re-derived in
+`go/internal/queryplan/testdata/query-source-coverage.yaml`. The SQL half adds
+no predicate and no scan: the grant is a projected boolean over
+`code_reachability_rows.repository_id`, a column of the table the read already
+scans, not one the statement returned before. Every one of these costs falls
+only on scoped callers, who could not reach these routes before this PR. Nothing
+here puts a filter in a `WITH`-attached `WHERE` (not evaluated as a filter on
+NornicDB) or guards a disjunct with `$param <> ''` (poisons the enclosing `OR`
+on NornicDB) — see
+[NornicDB Query-Shape Pitfalls](../../public/reference/nornicdb-query-pitfalls.md).
+
+For an unscoped shared, admin, or local caller every grant predicate renders
+empty and every grant parameter is unbound, so the query text those callers
+execute is byte-identical to before — with two deliberate exceptions, both on
+`POST /api/v0/code/complexity`, and both about a `repo_id` the caller supplied
+and the query then ignored. `lookupComplexityRowByID` now emits
+`WHERE repo.id = $repo_id` whenever `repo_id` is supplied, so
+`{"entity_id":"X","repo_id":"A"}` used to return X's row from repository B and
+now returns not-found, and a `function_name` sent with it no longer softens
+that: the name fallback runs only for an id lookup bound to no repository, the
+one case where an empty result proves the id stale rather than held elsewhere
+(`complexityIDLookupIsRepositoryBound`). `listMostComplexFunctions` takes the
+required Repository
+anchor on the same condition, so `{"repo_id":"A"}` ranks A's functions instead
+of the whole corpus with other repositories' rows nulled. Both are user-visible
+row-set fixes, documented in the route's OpenAPI description and in
+[HTTP API — Code](../../public/reference/http-api/code.md), and pinned by
+`TestComplexityByEntityIDHonoursASuppliedRepoID` and
+`TestComplexityListUnscopedRepoIDSelectorFiltersToThatRepository`.
+
+Byte-identity is pinned for the one hot read carrying committed plan evidence.
+`callGraphMetricsEdgesCypher` is untouched, so its whole manifest entry
+(`go/internal/queryplan/testdata/handler-hot-cypher.yaml`) holds the digests it
+already held, and its accepted plan block (`NodeIndexSeek`, `Expand`; forbidden
+`AllNodesScan`, `CartesianProduct`, `UnboundedExpand`) describes what every
+caller emits rather than only an unscoped one.
+`TestCallGraphMetricsCypherIsTheSameForEveryCaller` and
+`TestCallGraphMetricsUnscopedCypherIsUnchanged` keep it that way.
+
+No-Observability-Change: no metric instrument, metric label, span, log event,
+route, worker, queue, lease, or runtime knob is added or renamed. The cross-repo
+consumer read's existing `postgres.query` span gains one attribute,
+`db.rows.consumer_signal_entities`, which counts the producer entities the
+ungranted-consumer probe flagged. Operators keep diagnosing these ten routes
+through the governance-audit read-authorization events in
+`go/internal/query/auth_audit.go` — `DecisionAllowed` / `scoped_read_allowed`
+(`recordScopedReadAuthorized`) and `DecisionDenied` with the route's reason code
+(`recordScopedRouteAuthorizationDeniedWithReason`), both stamped with tenant,
+workspace, actor hash, and correlation id — plus the existing per-capability
+handler spans (`SpanQueryCodeTopicInvestigation`,
+`SpanQueryDeadCodeInvestigation`, `SpanQueryCallGraphMetrics`,
+`SpanQueryCodeStructuralInventory`, `SpanQueryHardcodedSecretInvestigation`) and
+the `eshu_dp_postgres_query_duration_seconds` /
+`eshu_dp_neo4j_query_duration_seconds` histograms. A caller that now reads fewer
+rows shows up as a smaller `count`/`truncated` in the same response envelope.

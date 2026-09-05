@@ -418,205 +418,31 @@ a read that was never short.
 `TestCrossRepoDeadCodeCompletesTheEntityTheSentinelMovedPast` sits on exactly
 row 1,001.
 
-### Two Bounded Reads, Not An Unbounded Complement
+### The Signal Half Is Two Bounded Reads
 
-The signal half went through four shapes, and the three that were withdrawn
-were withdrawn on measurements rather than taste.
+The shipped signal read is the fourth shape of that half. Three were withdrawn
+on measurements: an unbounded complement of the page, the page statement re-run
+with no grant bound, and a probe seeking one `repository_id` range per gap in
+the sorted grant. What ships walks the producer entity's own distinct
+`(repository_id, scope_id)` pairs in index order and stops at the first pair
+that is both outside the grant and live, so its cost follows the answer rather
+than the entity's fan-in, the caller's grant size, the generations retention
+still keeps for one pair, or the number of ingestion scopes covering a granted
+repository.
 
-The first counted the *complement* of the page with one `LATERAL` arm per
-producer entity, each capped at 100 rows. That cap bounds rows returned, not
-rows scanned, and it misses the common case: when the grant covers most
-consumers, every arm inspects all of its entity's reachability rows to prove
-none are outside the grant.
-
-The second was the shipped page statement re-run with no grant bound. Its plan
-is genuinely capped at 1,001 rows, which is what made it acceptable — but the
-cap is on rows *returned*, and its `ORDER BY entity_id, confidence DESC, ...`
-makes the `Incremental Sort` above it consume one producer entity's whole
-fan-in group before it can emit that group's first row. A producer entity with
-a million consumer rows therefore costs a million-row scan on every scoped
-request, and spends the shared 1,001-row budget where nothing later on the page
-can be proven.
-
-That property belongs to the page read too, and it is not fixed here. The
-grant-bound evidence page carries the same `ORDER BY entity_id, confidence
-DESC, ...` ahead of its `LIMIT 1001`, so its scan is bounded by a producer
-entity's fan-in rather than by the limit — the shape this route shipped for
-every caller, unchanged by this PR except that the grant now narrows what it
-scans. It is tracked in #6527, filed with these measurements; the withdrawal
-below is about the signal half only.
-
-The third stopped asking for rows at all and asked only the question the count
-needs. Per producer entity: is there one active-generation consumer row in a
-repository outside the grant? It expressed "outside the grant" as
-`repository_id` ranges around the sorted grant — below the smallest granted id,
-between two consecutive ones, above the largest — so
-`code_reachability_entity_repository_idx` (migration
-`100_code_reachability_entity_repository_idx.sql`) could seek to each range and
-stop at its first row. That is a seek per range instead of a scan of the group,
-and against a five-repository grant it measured two orders of magnitude better
-than the read it replaced. It is also where the grant became the cost: one seek
-per range means one seek per granted repository, and the section below is about
-the size of grant that makes visible.
-
-What ships now, `crossRepoDeadCodeUngrantedConsumerProbeQuery`, walks the other
-side of the question — the producer entity's own distinct consumer
-repositories, in index order, stopping at the first one the grant does not
-contain. It uses the same index, and its cost follows the answer rather than
-either the entity's row fan-in or the caller's grant.
-
-Performance Evidence: `EXPLAIN (ANALYZE, BUFFERS)` in a throwaway PostgreSQL
-16.15 container, data-plane schema applied from `schema/data-plane/postgres`
-(`001_ingestion_scopes.sql`, `002_scope_generations.sql`,
-`027_code_reachability.sql`) in filename order plus the new index migration,
-synthetic rows only, `VACUUM ANALYZE` after seeding, `SET jit = off`
-throughout, warm runs reported, three samples each. Host: MacBook Pro, arm64,
-macOS. 2,201,196 `code_reachability_rows`; one active scope and generation; a
-250-entity producer page whose middle entity carries 1,000,000
-active-generation consumer rows across five consumer repositories, plus 1.2M
-rows on entity ids off the page. Both statements were run twice: once as
-`EXPLAIN` on a literal statement (a custom plan) and once through
-`PREPARE`/`EXECUTE` under `plan_cache_mode = force_generic_plan`, because pgx's
-statement cache puts these reads on a generic plan and a literal `EXPLAIN`
-hides that difference.
-
-The measured envelope on that seed, beside the machine profile: the table is
-1,154 MB and `code_reachability_entity_repository_idx` 16 MB against a 139 MB
-`code_reachability_entity_lookup_idx` — both of this index's key columns repeat
-heavily within an entity, so btree deduplication compresses it far better than
-the existing ones. Per-statement shared buffers are in the tables below.
-
-| Metric | Withdrawn unrestricted signal read | Shipped ungranted-consumer probe |
-| --- | ---: | ---: |
-| Execution time, custom plan | 757.6 / 756.9 / 779.5 ms | 4.95 / 4.62 / 4.65 ms |
-| Execution time, generic plan | 950.2 / 951.3 / 1021.2 ms | 4.72 / 4.58 / 4.78 ms |
-| Rows read under the driving scan | 1,000,497 | 0 |
-| Rows returned | 1,001 | 0 |
-| Shared buffers | hit=646 read=26929 | hit=4886 |
-| Driving access | `Index Scan` on `code_reachability_entity_lookup_idx` under an `Incremental Sort` presorted on `entity_id`, under `Limit` | `Index Scan`s on `code_reachability_entity_repository_idx`, each `Index Cond` carrying `entity_id` plus the walk's seek |
-
-That is the no-hidden-consumer case, which is the one that has to prove a
-negative. With one consumer repository taken out of the grant the probe answers
-in 3.13 / 2.99 / 2.89 ms, `hit=3006` buffers.
-
-The index alone fixes nothing: with `code_reachability_entity_repository_idx` in
-place but the predicate left as `NOT (repository_id = ANY($grant))`, the planner
-takes a `Parallel Seq Scan` and removes 733,732 rows by filter, 105.1 ms. What
-the index buys is a seek, and the shape has to ask for one.
-
-#### The Grant Is An Axis Too
-
-The first shape to use that index expressed "outside the grant" as
-`repository_id` ranges around the sorted grant, one range per gap. It was
-correct, and its cost was one index probe per granted repository per producer
-entity — so it scaled with the caller's grant rather than with the answer, and
-the five-repository measurement above could not see it. Codex raised it as a P1
-on the shipped statement. It reproduces:
-
-| Grant size | Ranges, every consumer granted | Walk, every consumer granted | Ranges, a hidden consumer | Walk, a hidden consumer |
-| ---: | ---: | ---: | ---: | ---: |
-| 5 | 7.26 / 6.95 / 6.82 ms | 4.95 / 4.62 / 4.65 ms | 6.70 / 6.05 / 6.40 ms | 3.13 / 2.99 / 2.89 ms |
-| 50 | 60.81 / 60.38 / 59.85 ms | 4.92 / 4.72 / 4.57 ms | 20.46 / 20.23 / 20.21 ms | 3.19 / 3.01 / 2.96 ms |
-| 200 | 247.54 / 248.82 / 247.64 ms | 4.93 / 4.73 / 4.66 ms | 79.67 / 79.14 / 80.08 ms | 3.24 / 3.15 / 3.06 ms |
-| 500 | 641.86 / 633.64 / 635.63 ms | 5.16 / 5.01 / 4.96 ms | 209.80 / 209.66 / 210.11 ms | 3.57 / 3.43 / 3.52 ms |
-
-Shared buffers say it more plainly than the timings do. The ranges read
-`hit=7622`, `hit=63877`, `hit=251377`, `hit=626377` as the grant grows; the walk
-reads `hit=4886` at every one of those four sizes — the same number, because it
-does the same work. Generic-plan runs are within noise of the custom-plan ones
-throughout (walk: 4.72 / 4.75 / 4.79 / 5.09 ms at 5 / 50 / 200 / 500).
-
-The shape that replaces the ranges is a loose index scan, one walk per producer
-entity: seed at that entity's smallest consumer repository, step to the smallest
-one strictly greater, and stop at the first repository the grant does not
-contain. A walk therefore visits each of the entity's DISTINCT consumer
-repositories at most once and never looks at a second row of any of them — at
-most `min(d, N) + 1` index probes for `d` distinct consumer repositories and a
-grant of `N`, where the ranges cost `N + 1` regardless of `d`.
-
-The walk has its own axis, `d`, and it was measured rather than assumed. A
-producer entity consumed by 300 distinct repositories, all granted, with a
-500-id grant: the walk takes 8.05 / 7.79 / 7.76 ms (`hit=6081`), the ranges
-631.99 / 629.74 / 628.31 ms (`hit=626377`). There is no crossover in the
-measured space, and the reason is structural rather than lucky: the walk stops
-at the first ungranted repository, so it can pass at most `min(d, N)` granted
-ones, which is never worse than the ranges' `N`.
-
-Grant order stops mattering as a side effect. The ranges were only correct with
-the grant sorted in the database's collation — Go's byte order is not that
-collation, and a mis-sorted bound list puts a granted repository inside a range
-the probe treats as ungranted. The walk tests membership with an equality
-against the `granted` CTE, which Postgres hashes, so no bound is rendered per
-granted repository and nothing depends on sort order.
-
-Exactness: the walk returns the same producer entities as the
-`NOT (repository_id = ANY($grant))` it replaces, symmetric difference `0/0`, for
-sixteen grant shapes on that data — the eight the ranges were accepted on (every
-consumer granted, a hidden consumer below the smallest granted id, between two
-of them, above the largest, a single-element grant, a grant wider than the
-corpus, a grant disjoint from every consumer, and a grant naming only the
-producer repository), the 50-, 200- and 500-id grants in both the all-granted
-and hidden forms, and the 300-repository fan-out page in both.
-`TestCrossRepoDeadCodeUngrantedConsumerProbeLive` runs that differential in the
-test suite against a disposable Postgres, including at 500 granted repositories,
-and adds two plan assertions: that the walk's per-step seek reaches an index
-condition rather than a filter, and that the recursive term's measured row count
-stays inside a budget. The second exists because the walk's stop condition is a
-bound on work and not on the answer — remove it and every verdict is identical
-while each walk enumerates every consumer repository its entity has.
-
-Both plan assertions run twice, once with the values in hand and once under
-`plan_cache_mode = force_generic_plan` through `PREPARE`/`EXECUTE`. That is not
-belt and braces: pgx caches server-side prepared statements, so these reads run
-on a generic plan in production, and the range shape withdrawn above planned
-identically to the walk under a custom plan and then lost its bounds from the
-`Index Cond` under a generic one. A guard that only asks the planner with the
-values in hand cannot see that class of regression at all. Each pass also
-checks it got the plan it asked for — a generic plan leaves the producer
-repository a parameter marker where a custom plan inlines it — so a refactor
-that stopped forcing the mode fails instead of quietly asking the same question
-twice.
-
-The evidence page is unchanged and still reads that group: it has to rank a
-producer entity's consumers by confidence to return the strongest, so its cost
-is what the page returns rather than an artefact. On the same seed it takes
-885 ms reading 1,000,497 rows with the whole five-repository grant bound, and
-752 ms reading 800,373 with four of the five. Removing the second traversal of
-that group is what this change buys; the page's own bound is a separate
-question, and it is the next thing to look at on this route.
-
-Two consequences are declared rather than incidental. The probe returns
-producer entity ids and nothing else, so no ungranted repository id, consumer
-entity id, or citation crosses the reader boundary at all — the count is derived
-from the caller's own producer entities. And the count it contributes is one per
-producer entity that has a hidden consumer, not one per hidden consumer:
-`hidden_consumer_evidence_count` reports `1` where it used to report the number
-of ungranted rows the capped read happened to see. Classification never used
-more than "is it above zero", the number was never a total (the read it came
-from stopped at 1,001 rows across the whole page and marked the rest truncated),
-and `hidden_consumer_evidence_count` is in no OpenAPI schema or public reference.
-
-On an existing deployment the index builds `CONCURRENTLY`, on the dedicated
-bootstrap connection the schema apply path runs each definition on, so it does
-not block the reducer's reachability writes while it builds. The usual
-objection to `CONCURRENTLY` -- that a failed build leaves an `INVALID` index
-which `IF NOT EXISTS` then skips forever -- does not apply here, because that
-path drops invalid concurrent indexes by name before executing each definition
-(`SQLDB.dropInvalidConcurrentIndexes`). That is also why the index cannot join
-`027_code_reachability.sql`: that definition is multi-statement, and a
-multi-statement `Exec` is sent as an implicit transaction, which
-`CONCURRENTLY` refuses. Migration 100 is registered in the ordered bootstrap
-list (`schema_order_test.go`) like every other definition.
-
-The full rationale lives in the migration file itself, which is where this
-repository puts it -- migrations 082, 084 and 099 do the same. It is not in
-`go/internal/storage/postgres/README.md` or that package's `AGENTS.md` because
-both are pinned by the Markdown line-cap grandfather ledger
-(`scripts/lib/markdown-line-cap-grandfather.tsv`, 3,766 and 1,172 lines), which
-lets a pinned file shrink but never grow, and refuses a raised pin. There is no
-document that lists migrations; `docs/public/reference/postgres-tuning.md` is
-operator knob guidance, and this index is not a knob. The reader-side invariant
-is in `go/internal/query/AGENTS.md`.
+Performance Evidence: the walk's buffer count does not move along any axis
+measured. It reads `hit=4,886` at every grant size from 5 to 500 repositories,
+where the range shape climbs from `hit=7,622` to `hit=626,377`;
+`hit=3,263`-`3,270` with every consumer granted and `hit=3,138`-`3,142` with
+one hidden, from 0 to 200 retained generations, where the walk on the
+two-column index climbs to `hit=1,150,489`; and `hit=2,255` whether one or
+fifty scopes cover a granted repository, where pair stepping read `hit=26,788`.
+Across every point measured the walk reads between 2,255 and 6,081 buffers, the
+larger figures belonging to the wider fan-out fixtures, never to the axis under
+test. Every `EXPLAIN (ANALYZE, BUFFERS)` table
+behind those numbers, the exactness differentials, and the bootstrap-replay
+proof for migrations 101 and 102 are in
+[#5167 cross-repo hidden-consumer walk](5167-cross-repo-hidden-consumer-walk.md).
 
 The truncation fail-safe gets simpler and stricter at once. Only the evidence
 page can now stop short, so `markCrossRepoDeadCodeConsumerEvidenceTruncated`
@@ -625,56 +451,6 @@ producer entity spending the shared signal budget and leaving every later
 candidate on the page `unknown_needs_evidence` whatever its own evidence said —
 cannot happen, because the probe answers for every entity it is given.
 `TestCrossRepoDeadCodeProbeLeavesNoEntityUnproven` is the guard.
-
-## Query-Plan Source Coverage
-
-`go test ./internal/queryplan` was red on this branch before this pass, and no
-earlier verification list ran that package. Six callsites failed
-`TestHotCypherManifestCoversEveryProductionQueryCall`, because adding a grant
-predicate changes the enclosing symbol's `source_sha256` and the manifest
-freezes it:
-
-```text
-code_call_graph_metrics.go:(*CodeHandler).callGraphMetricsData: hot callsite source_sha256 does not match production symbol
-code_complexity_queries.go:(*CodeHandler).listMostComplexFunctions: grandfathered source_sha256 does not match production symbol
-```
-
-The other four — `lookupComplexityRowByName`, `deadCodeCandidateRows`,
-`inspectCodeQuality`, `graphSummaryHotEntities` — printed the same
-grandfathered-digest line. That is the gate working as designed: a changed
-digest forces the owning callsite through a typed non-hot audit rather than
-letting a prose `non_hot_reason` carry forward. The five grandfathered prose
-entries become typed dispositions carrying the bound each read already enforces,
-and leave `grandfatheredNonHotSourceDigests`. Later passes move three digests
-again — `listMostComplexFunctions` for the anchor fix, `callGraphMetricsData`
-for its grantless-caller refusal, `graphSummaryHotEntities` for a corrected
-comment — each re-recorded against the production symbol with its disposition
-and bound re-audited unchanged. `handler-hot-cypher.yaml` ends this branch
-untouched: `callGraphMetricsEdgesCypher` carries no grant, so its
-`source_sha256` and the `cypher_sha256` for `QP-CALL-GRAPH-HUBS` and
-`QP-CALL-GRAPH-RECURSIVE` are the values already committed:
-
-| Callsite | Class | Bound |
-| --- | --- | --- |
-| `listMostComplexFunctions` | `label_inventory` | `Function`, 101 rows (`complexityMaxListLimit` + 1) |
-| `lookupComplexityRowByName` | `keyed_support` | single key `$entity_name`, 3 rows (`complexityNameCandidateLimit` + 1) |
-| `deadCodeCandidateRows` | `label_inventory` | one candidate label per page from the closed `deadCodeCandidateLabels` set, 250 rows (`deadCodeCandidateQueryMax`) |
-| `inspectCodeQuality` | `label_inventory` | `Function`, 101 rows (`codeQualityMaxLimit` + 1) |
-| `graphSummaryHotEntities` | `keyed_support` | single key `$repo_id`, 50001 rows (`callGraphMetricsEdgeScanLimit` + 1) |
-| `deadCodeResultsWithGraphIncomingEdges` | `keyed_support` | bounded key batch of one candidate page, 250 keys (`deadCodeCandidateQueryMax`), 2500 rows (one per key per resolution method) |
-
-The sixth entry is the incoming-edge probe. It kept its prose disposition until
-this pass; moving it to `code_dead_code_candidate_entity.go` and giving it a
-second statement forced the same audit, and a new callsite may not use
-`non_hot_reason` at all, so it left the grandfather ledger for the typed row
-above.
-
-## Proof Ledger
-
-The route-by-route red/green runs and the BITES mutation ledger — what was
-broken on purpose, which guard judged it, and the exit code — live in [#5167
-code family batch 1 proofs](5167-code-family-batch-1-proofs.md), split out
-because the two together outgrow the repository's 500-line Markdown cap.
 
 ## Verification
 
@@ -702,106 +478,12 @@ git diff --check                                                      # 0
 The lint list is the full three-dot changed `.go` set, so the queryplan
 re-audit this PR leans on is inside the gate it cites.
 
-On origin/main `code_dead_code.go` was 496 lines and `code_dead_code_scan.go`
-was 468; this change pushed both over the 500-line cap, and
-`code_dead_code_cross_repo.go` followed later. The candidate-page request type,
-the scan budget helpers, the candidate-label predicate, the cross-repo
-consumer-evidence filter and, in the round-7 pass, the whole incoming-edge probe
-family moved to sibling files that already own those families rather than to new
-ones, because `internal/query`'s non-test file set is pinned by the dirgate
-grandfather ledger.
+## Proof Ledger
 
-No-Regression Evidence: every predicate this change adds is an indexed equality
-or an `ANY()`/`IN` membership test against the caller's grant, on a node or
-column the query already matched, and it lands ahead of the existing
-`SKIP`/`LIMIT` (Cypher) or `LIMIT`/`OFFSET` (SQL), so a scoped page is drawn
-from the granted set instead of a cross-tenant-polluted one. A scoped caller
-reads no more rows than before, save the one widened `DISTINCT` key declared
-below, and on the routes that were corpus-wide it reads fewer. On the SQL side
-the grant column is `content_entities.repo_id` / `content_files.repo_id`, plus
-`code_reachability_rows.repository_id` — the same columns those queries'
-single-repository branches already filter on.
-
-Two shapes do change, and both are declared. `listMostComplexFunctions` swaps
-its `OPTIONAL MATCH` for a required `MATCH` over the same
-`CONTAINS`/`REPO_CONTAINS` path for a scoped caller or a supplied `repo_id`,
-which removes a clause between the anchor and the `RETURN` rather than adding
-one. The cross-repo consumer read runs one extra statement per scoped request,
-on a route that already issues a paged candidate scan plus per-entity probes.
-That statement is a bounded per-entity existence probe backed by a new index,
-measured rather than asserted — see "Two Bounded Reads, Not An Unbounded
-Complement" for its plan, its numbers, and the two shapes withdrawn on
-measurements.
-
-The incoming-edge probe is the third shape, and it is measured. A scoped caller
-runs one graph statement, as before:
-`buildDeadCodeScopedIncomingBatchProbeCypher` expands the candidate's incoming
-edges once, optionally matches the source's repository, and projects the grant
-per row as `in_grant`, grouping on `(entity, method, in_grant)` with `count(*)`
-rather than `RETURN DISTINCT`. It replaced a pair — a grant-bound probe plus the
-unrestricted one, diffed row by row — which both cost more and could not see an
-out-of-grant source whose resolution method a granted source also carried. On
-one entity with 5,000 incoming edges split across two repositories, four
-interleaved runs of 15 iterations against the pinned NornicDB v1.2.3: median
-274–303 µs against 497–583 µs for the withdrawn pair, and 2–14% above what a
-single probe costs alone. The full table and the mistake in the first
-measurement are in "One Probe, Because Two Could Not See A Same-Method Source".
-
-The grouping key does widen. It carries `in_grant` as a third column, so an
-entity and method reachable from both a granted and an ungranted consumer
-returns two rows where it returned one — at most 2x over one candidate page, and
-the bound that follows from it is re-derived in
-`go/internal/queryplan/testdata/query-source-coverage.yaml`. The SQL half adds
-no predicate and no scan: the grant is a projected boolean over
-`code_reachability_rows.repository_id`, a column of the table the read already
-scans, not one the statement returned before. Every one of these costs falls
-only on scoped callers, who could not reach these routes before this PR. Nothing
-here puts a filter in a `WITH`-attached `WHERE` (not evaluated as a filter on
-NornicDB) or guards a disjunct with `$param <> ''` (poisons the enclosing `OR`
-on NornicDB) — see
-[NornicDB Query-Shape Pitfalls](../../public/reference/nornicdb-query-pitfalls.md).
-
-For an unscoped shared, admin, or local caller every grant predicate renders
-empty and every grant parameter is unbound, so the query text those callers
-execute is byte-identical to before — with two deliberate exceptions, both on
-`POST /api/v0/code/complexity`, and both about a `repo_id` the caller supplied
-and the query then ignored. `lookupComplexityRowByID` now emits
-`WHERE repo.id = $repo_id` whenever `repo_id` is supplied, so
-`{"entity_id":"X","repo_id":"A"}` used to return X's row from repository B and
-now returns not-found, and a `function_name` sent with it no longer softens
-that: the name fallback runs only for an id lookup bound to no repository, the
-one case where an empty result proves the id stale rather than held elsewhere
-(`complexityIDLookupIsRepositoryBound`). `listMostComplexFunctions` takes the
-required Repository
-anchor on the same condition, so `{"repo_id":"A"}` ranks A's functions instead
-of the whole corpus with other repositories' rows nulled. Both are user-visible
-row-set fixes, documented in the route's OpenAPI description and in
-[HTTP API — Code](../../public/reference/http-api/code.md), and pinned by
-`TestComplexityByEntityIDHonoursASuppliedRepoID` and
-`TestComplexityListUnscopedRepoIDSelectorFiltersToThatRepository`.
-
-Byte-identity is pinned for the one hot read carrying committed plan evidence.
-`callGraphMetricsEdgesCypher` is untouched, so its whole manifest entry
-(`go/internal/queryplan/testdata/handler-hot-cypher.yaml`) holds the digests it
-already held, and its accepted plan block (`NodeIndexSeek`, `Expand`; forbidden
-`AllNodesScan`, `CartesianProduct`, `UnboundedExpand`) describes what every
-caller emits rather than only an unscoped one.
-`TestCallGraphMetricsCypherIsTheSameForEveryCaller` and
-`TestCallGraphMetricsUnscopedCypherIsUnchanged` keep it that way.
-
-No-Observability-Change: no metric instrument, metric label, span, log event,
-route, worker, queue, lease, or runtime knob is added or renamed. The cross-repo
-consumer read's existing `postgres.query` span gains one attribute,
-`db.rows.consumer_signal_entities`, which counts the producer entities the
-ungranted-consumer probe flagged. Operators keep diagnosing these ten routes
-through the governance-audit read-authorization events in
-`go/internal/query/auth_audit.go` — `DecisionAllowed` / `scoped_read_allowed`
-(`recordScopedReadAuthorized`) and `DecisionDenied` with the route's reason code
-(`recordScopedRouteAuthorizationDeniedWithReason`), both stamped with tenant,
-workspace, actor hash, and correlation id — plus the existing per-capability
-handler spans (`SpanQueryCodeTopicInvestigation`,
-`SpanQueryDeadCodeInvestigation`, `SpanQueryCallGraphMetrics`,
-`SpanQueryCodeStructuralInventory`, `SpanQueryHardcodedSecretInvestigation`) and
-the `eshu_dp_postgres_query_duration_seconds` /
-`eshu_dp_neo4j_query_duration_seconds` histograms. A caller that now reads fewer
-rows shows up as a smaller `count`/`truncated` in the same response envelope.
+The route-by-route red/green runs, the BITES mutation ledger — what was broken
+on purpose, which guard judged it, and the exit code — the query-plan manifest
+re-audit, and what this change costs on the read path live in [#5167 code family
+batch 1 proofs](5167-code-family-batch-1-proofs.md). The measurement record for
+the cross-repo hidden-consumer read is in [#5167 cross-repo hidden-consumer
+walk](5167-cross-repo-hidden-consumer-walk.md). The three notes are split
+because together they outgrow the repository's 500-line file cap.
