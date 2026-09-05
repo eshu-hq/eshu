@@ -5,8 +5,8 @@
 # every array declaration this file assigns into.
 
 # Non-vacuous: ShellExecIntentWriter is a declared dependency
-# (go/internal/reducer/shell_exec_materialization.go:32) and Handle calls
-# UpsertIntents on it (:82), so a lock on shared_projection_intents blocks a
+# (go/internal/reducer/shell_exec_materialization.go:33) and Handle calls
+# UpsertIntents on it (:87), so a lock on shared_projection_intents blocks a
 # write this family actually performs.
 IFA_FAMILY_BLOCKER_KIND[shell_exec]="shared_intent_lock"
 IFA_FAMILY_WAIT_STAGE[shell_exec]="handler"

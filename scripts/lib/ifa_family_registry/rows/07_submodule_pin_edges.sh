@@ -14,7 +14,7 @@
 # so shared_intent_lock is the one kind this family provably cannot use --
 # the same shape codeowners_ownership_edges' row documents, and
 # checkFamilyBlockerLockstep
-# (go/internal/reducer/materialized_edge_family_blocker_shape_test.go:283)
+# (go/internal/reducer/materialized_edge_family_blocker_shape_test.go:284)
 # rejects shared_intent_lock for exactly this reason, naming ack_barrier or a
 # table_lock:<name> the handler really touches as the alternatives.
 #

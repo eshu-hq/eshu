@@ -26,7 +26,7 @@
 # Which of the two REMAINING kinds is correct (ack_barrier vs a
 # table_lock:<name>) cannot be settled from the handler shape alone -- an
 # EdgeWriter-only handler admits either, per
-# checkFamilyBlockerLockstep (go/internal/reducer/materialized_edge_family_blocker_shape_test.go:283).
+# checkFamilyBlockerLockstep (go/internal/reducer/materialized_edge_family_blocker_shape_test.go:284).
 # RE-DERIVED FROM THE LANDED CELL, not analogy: this pin was originally
 # written before scripts/lib/ifa_fault_injection_submodule_pin_cells.sh
 # existed, reasoning only from handler-shape similarity to

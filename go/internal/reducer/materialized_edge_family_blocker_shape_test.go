@@ -115,7 +115,7 @@ var materializedEdgeFamilyBlockerExpectations = map[string]familyBlockerExpectat
 	// sqlrelationship/sql_relationship_materialization.go:117 writes them via
 	// h.IntentWriter.UpsertIntents.
 	DomainSQLRelationships: {routedDomain: DomainSQLRelationshipMaterialization},
-	// shell_exec_intents.go:58,106 tag rows ProjectionDomain: DomainShellExec;
+	// shell_exec_intents.go:60,110 tag rows ProjectionDomain: DomainShellExec;
 	// shell_exec_materialization.go writes them via h.IntentWriter.UpsertIntents.
 	DomainShellExec: {routedDomain: DomainShellExecMaterialization},
 	// inheritance/intents.go:99,152 tag rows ProjectionDomain: DomainInheritanceEdges;
