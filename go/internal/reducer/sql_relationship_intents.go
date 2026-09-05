@@ -148,7 +148,7 @@ func buildSQLRelationshipRefreshIntents(
 			"evidence_source": sqlRelationshipEvidenceSource,
 		}
 		// Delta scoping is per repository and fails closed on an unusable
-		// delta; applyRepoRefreshDeltaScope (semantic_entity_delta_scope.go)
+		// delta; applyRepoRefreshDeltaScope (shared_payload_delta_compat.go)
 		// carries the full rule and why the two obvious alternatives lose
 		// edges (#6216).
 		applyRepoRefreshDeltaScope(payload, repoID, deltaRepositoryIDs, deltaScope.filePathsByRepoID)
