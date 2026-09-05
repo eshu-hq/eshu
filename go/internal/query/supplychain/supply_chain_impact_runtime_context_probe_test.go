@@ -15,59 +15,9 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/facts"
 	"github.com/eshu-hq/eshu/go/internal/query/queryauth"
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
+	"github.com/eshu-hq/eshu/go/internal/query/querytestutil"
 	"github.com/eshu-hq/eshu/go/internal/query/supplychain/impact"
 )
-
-// runtimeContextFindingStore satisfies BOTH SupplyChainImpactFindingStore and
-// the optional supplyChainImpactRuntimeContextReader capability, so probe
-// tests exercise the handler's type-asserted read path without Postgres.
-type runtimeContextFindingStore struct {
-	rows            []impact.SupplyChainImpactFindingRow
-	byRepo          map[string]impact.SupplyChainRuntimeContext
-	byDigest        map[string]map[string]string
-	called          []string
-	envCandidates   []impact.SupplyChainRuntimeEnvironmentCandidate
-	allowedRepoIDs  []string
-	allowedScopeIDs []string
-	err             error
-}
-
-func (f *runtimeContextFindingStore) ListSupplyChainImpactRuntimeEnvironmentEvidence(
-	_ context.Context,
-	candidates []impact.SupplyChainRuntimeEnvironmentCandidate,
-	allowedRepositoryIDs []string,
-	allowedScopeIDs []string,
-) (map[string]map[string]string, error) {
-	f.envCandidates = append([]impact.SupplyChainRuntimeEnvironmentCandidate(nil), candidates...)
-	f.allowedRepoIDs = append([]string(nil), allowedRepositoryIDs...)
-	f.allowedScopeIDs = append([]string(nil), allowedScopeIDs...)
-	if f.err != nil {
-		return nil, f.err
-	}
-	return f.byDigest, nil
-}
-
-func (f *runtimeContextFindingStore) ListSupplyChainImpactFindings(
-	context.Context,
-	impact.SupplyChainImpactFindingFilter,
-) ([]impact.SupplyChainImpactFindingRow, error) {
-	return append([]impact.SupplyChainImpactFindingRow(nil), f.rows...), nil
-}
-
-func (f *runtimeContextFindingStore) ListSupplyChainImpactRuntimeContext(
-	_ context.Context,
-	repositoryIDs []string,
-	allowedRepositoryIDs []string,
-	allowedScopeIDs []string,
-) (map[string]impact.SupplyChainRuntimeContext, error) {
-	f.called = append([]string(nil), repositoryIDs...)
-	f.allowedRepoIDs = append([]string(nil), allowedRepositoryIDs...)
-	f.allowedScopeIDs = append([]string(nil), allowedScopeIDs...)
-	if f.err != nil {
-		return nil, f.err
-	}
-	return f.byRepo, nil
-}
 
 func osPackageFindingRowForRuntimeContext() impact.SupplyChainImpactFindingRow {
 	return impact.SupplyChainImpactFindingRow{
@@ -86,7 +36,7 @@ func osPackageFindingRowForRuntimeContext() impact.SupplyChainImpactFindingRow {
 func TestApplySupplyChainRuntimeContextThreadsScopedGrants(t *testing.T) {
 	t.Parallel()
 
-	store := &runtimeContextFindingStore{byRepo: map[string]impact.SupplyChainRuntimeContext{}}
+	store := &querytestutil.FakeRuntimeContextFindingStore{ByRepo: map[string]impact.SupplyChainRuntimeContext{}}
 	handler := &SupplyChainHandler{ImpactFindings: store}
 	access := querycontract.RepositoryAccessFilter{
 		AllowedRepositoryIDs: []string{"repository:r_217415d9"},
@@ -97,10 +47,10 @@ func TestApplySupplyChainRuntimeContextThreadsScopedGrants(t *testing.T) {
 	if err := handler.applySupplyChainRuntimeContext(context.Background(), rows, access); err != nil {
 		t.Fatalf("applySupplyChainRuntimeContext() error = %v, want nil", err)
 	}
-	if got, want := store.allowedRepoIDs, access.AllowedRepositoryIDs; !slices.Equal(got, want) {
+	if got, want := store.AllowedRepoIDs, access.AllowedRepositoryIDs; !slices.Equal(got, want) {
 		t.Fatalf("allowed repository ids = %#v, want %#v", got, want)
 	}
-	if got, want := store.allowedScopeIDs, access.AllowedScopeIDs; !slices.Equal(got, want) {
+	if got, want := store.AllowedScopeIDs, access.AllowedScopeIDs; !slices.Equal(got, want) {
 		t.Fatalf("allowed scope ids = %#v, want %#v", got, want)
 	}
 }
@@ -108,9 +58,9 @@ func TestApplySupplyChainRuntimeContextThreadsScopedGrants(t *testing.T) {
 func TestSupplyChainImpactRuntimeContextHandlerThreadsScopeOnlyGrant(t *testing.T) {
 	t.Parallel()
 
-	store := &runtimeContextFindingStore{
-		rows: []impact.SupplyChainImpactFindingRow{osPackageFindingRowForRuntimeContext()},
-		byRepo: map[string]impact.SupplyChainRuntimeContext{
+	store := &querytestutil.FakeRuntimeContextFindingStore{
+		Rows: []impact.SupplyChainImpactFindingRow{osPackageFindingRowForRuntimeContext()},
+		ByRepo: map[string]impact.SupplyChainRuntimeContext{
 			"repository:r_217415d9": {ServiceIDs: []string{"service:5747:allowed"}},
 		},
 	}
@@ -133,18 +83,18 @@ func TestSupplyChainImpactRuntimeContextHandlerThreadsScopeOnlyGrant(t *testing.
 	if rec.Code != http.StatusOK {
 		t.Fatalf("status = %d, want %d; body = %s", rec.Code, http.StatusOK, rec.Body.String())
 	}
-	if got, want := store.allowedScopeIDs, []string{"scope:5747:tenant-a"}; !slices.Equal(got, want) {
+	if got, want := store.AllowedScopeIDs, []string{"scope:5747:tenant-a"}; !slices.Equal(got, want) {
 		t.Fatalf("runtime-context allowed scope ids = %#v, want %#v", got, want)
 	}
-	if len(store.allowedRepoIDs) != 0 {
-		t.Fatalf("runtime-context allowed repository ids = %#v, want empty", store.allowedRepoIDs)
+	if len(store.AllowedRepoIDs) != 0 {
+		t.Fatalf("runtime-context allowed repository ids = %#v, want empty", store.AllowedRepoIDs)
 	}
 }
 
 func TestApplySupplyChainRuntimeContextResolvesWorkloadsServicesEnvironments(t *testing.T) {
 	t.Parallel()
 
-	store := &runtimeContextFindingStore{byRepo: map[string]impact.SupplyChainRuntimeContext{
+	store := &querytestutil.FakeRuntimeContextFindingStore{ByRepo: map[string]impact.SupplyChainRuntimeContext{
 		"repository:r_217415d9": {
 			WorkloadIDs:       []string{"workload:supply-chain-demo-db"},
 			ServiceIDs:        []string{"service:demo-db"},
@@ -179,8 +129,8 @@ func TestApplySupplyChainRuntimeContextResolvesWorkloadsServicesEnvironments(t *
 	if len(ctx.Environments) != 1 || ctx.Environments[0] != "production" {
 		t.Errorf("Environments = %v, want [production]", ctx.Environments)
 	}
-	if len(store.called) != 1 || store.called[0] != "repository:r_217415d9" {
-		t.Errorf("reader repositories = %v, want [repository:r_217415d9]", store.called)
+	if len(store.Called) != 1 || store.Called[0] != "repository:r_217415d9" {
+		t.Errorf("reader repositories = %v, want [repository:r_217415d9]", store.Called)
 	}
 	// The baked filter fields MUST NOT be backfilled from read-time context —
 	// #5747 filters current runtime facts independently, so response enrichment
@@ -200,12 +150,12 @@ func TestApplySupplyChainRuntimeContextKeepsRepeatedDigestEvidenceWithinRowPlan(
 	second.FindingID = "finding-os-2"
 	second.RepositoryID = "repository:r_second"
 	second.Environments = []string{"staging"}
-	store := &runtimeContextFindingStore{
-		byRepo: map[string]impact.SupplyChainRuntimeContext{
+	store := &querytestutil.FakeRuntimeContextFindingStore{
+		ByRepo: map[string]impact.SupplyChainRuntimeContext{
 			first.RepositoryID:  {},
 			second.RepositoryID: {},
 		},
-		byDigest: map[string]map[string]string{
+		ByDigest: map[string]map[string]string{
 			first.SubjectDigest: {
 				"production": impact.SupplyChainRuntimeEnvironmentEvidenceDeployEvent,
 				"staging":    impact.SupplyChainRuntimeEnvironmentEvidenceDeclared,
@@ -256,9 +206,9 @@ func TestApplySupplyChainRuntimeContextCapsRepeatedDigestPageEvidenceAtCandidate
 		rows[index].Environments = []string{environment}
 		confirmed[environment] = impact.SupplyChainRuntimeEnvironmentEvidenceDeployEvent
 	}
-	store := &runtimeContextFindingStore{
-		byRepo: map[string]impact.SupplyChainRuntimeContext{repositoryID: {}},
-		byDigest: map[string]map[string]string{
+	store := &querytestutil.FakeRuntimeContextFindingStore{
+		ByRepo: map[string]impact.SupplyChainRuntimeContext{repositoryID: {}},
+		ByDigest: map[string]map[string]string{
 			rows[0].SubjectDigest: confirmed,
 		},
 	}
@@ -296,7 +246,7 @@ func TestApplySupplyChainRuntimeContextHonestEmptyForRepoWithNoWorkloads(t *test
 	// Repo exists but has no workload/service/env facts yet (fresh ingest):
 	// the context is present and labeled, with empty lists — not an error,
 	// not a silently-missing field a caller could misread as "never scanned".
-	store := &runtimeContextFindingStore{byRepo: map[string]impact.SupplyChainRuntimeContext{}}
+	store := &querytestutil.FakeRuntimeContextFindingStore{ByRepo: map[string]impact.SupplyChainRuntimeContext{}}
 	handler := &SupplyChainHandler{ImpactFindings: store}
 
 	rows := []impact.SupplyChainImpactFindingRow{osPackageFindingRowForRuntimeContext()}
@@ -318,7 +268,7 @@ func TestApplySupplyChainRuntimeContextHonestEmptyForRepoWithNoWorkloads(t *test
 func TestApplySupplyChainRuntimeContextSkipsFindingWithNoRepositoryAnchor(t *testing.T) {
 	t.Parallel()
 
-	store := &runtimeContextFindingStore{byRepo: map[string]impact.SupplyChainRuntimeContext{
+	store := &querytestutil.FakeRuntimeContextFindingStore{ByRepo: map[string]impact.SupplyChainRuntimeContext{
 		"repository:r_217415d9": {WorkloadIDs: []string{"workload:x"}},
 	}}
 	handler := &SupplyChainHandler{ImpactFindings: store}
@@ -332,8 +282,8 @@ func TestApplySupplyChainRuntimeContextSkipsFindingWithNoRepositoryAnchor(t *tes
 	if rows[0].RuntimeContext != nil {
 		t.Errorf("RuntimeContext = %+v, want nil for finding with no repository anchor", rows[0].RuntimeContext)
 	}
-	if len(store.called) != 0 {
-		t.Errorf("reader called with %v, want no call when nothing to resolve", store.called)
+	if len(store.Called) != 0 {
+		t.Errorf("reader called with %v, want no call when nothing to resolve", store.Called)
 	}
 }
 
@@ -341,7 +291,7 @@ func TestApplySupplyChainRuntimeContextPropagatesReaderError(t *testing.T) {
 	t.Parallel()
 
 	wantErr := errors.New("postgres: connection reset")
-	store := &runtimeContextFindingStore{err: wantErr}
+	store := &querytestutil.FakeRuntimeContextFindingStore{Err: wantErr}
 	handler := &SupplyChainHandler{ImpactFindings: store}
 
 	rows := []impact.SupplyChainImpactFindingRow{osPackageFindingRowForRuntimeContext()}
@@ -354,7 +304,7 @@ func TestApplySupplyChainRuntimeContextPropagatesReaderError(t *testing.T) {
 func TestApplySupplyChainRuntimeContextDeterministicOrdering(t *testing.T) {
 	t.Parallel()
 
-	store := &runtimeContextFindingStore{byRepo: map[string]impact.SupplyChainRuntimeContext{
+	store := &querytestutil.FakeRuntimeContextFindingStore{ByRepo: map[string]impact.SupplyChainRuntimeContext{
 		"repository:r_217415d9": {
 			WorkloadIDs:   []string{"workload:b", "workload:a"},
 			ServiceIDs:    []string{"service:b", "service:a"},

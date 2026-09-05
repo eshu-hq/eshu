@@ -8,61 +8,20 @@ import (
 	"errors"
 	"fmt"
 	"strings"
-	"sync"
 	"testing"
 
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
+	"github.com/eshu-hq/eshu/go/internal/query/querytestutil"
 	"github.com/eshu-hq/eshu/go/internal/query/supplychain/impact"
 	"github.com/eshu-hq/eshu/go/internal/truth"
 	sdktrace "go.opentelemetry.io/otel/sdk/trace"
 	"go.opentelemetry.io/otel/sdk/trace/tracetest"
 )
 
-type stubKubernetesRuntimeGraph struct {
-	mu       sync.Mutex
-	rows     []map[string]any
-	err      error
-	cypher   string
-	params   map[string]any
-	runCalls int
-	calls    []fairKubernetesRuntimeCall
-}
-
-func (s *stubKubernetesRuntimeGraph) Run(_ context.Context, cypher string, params map[string]any) ([]map[string]any, error) {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	s.runCalls++
-	s.cypher = cypher
-	s.params = params
-	digests, _ := params["subject_digests"].([]string)
-	if len(digests) == 1 {
-		s.calls = append(s.calls, fairKubernetesRuntimeCall{Digest: digests[0], Limit: querycontract.IntVal(params, "limit")})
-	}
-	if s.err != nil || len(digests) != 1 {
-		return nil, s.err
-	}
-	filtered := make([]map[string]any, 0, len(s.rows))
-	for _, row := range s.rows {
-		if querycontract.StringVal(row, "matched_digest") == digests[0] {
-			filtered = append(filtered, row)
-		}
-	}
-	if limit := querycontract.IntVal(params, "limit"); len(filtered) > limit {
-		filtered = filtered[:limit]
-	}
-	return filtered, nil
-}
-
-func (s *stubKubernetesRuntimeGraph) RunSingle(context.Context, string, map[string]any) (map[string]any, error) {
-	return nil, nil
-}
-
-func (s *stubKubernetesRuntimeGraph) snapshot() (int, []fairKubernetesRuntimeCall) {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	return s.runCalls, append([]fairKubernetesRuntimeCall(nil), s.calls...)
-}
-
+// stubKubernetesWorkloadInventory is a twin of the root parity suite's copy,
+// kept behavior-identical: its signatures name hub family types, which
+// querytestutil cannot import without the cycle its doc forbids, so unlike
+// FakeKubernetesRuntimeGraph it cannot live in the shared file.
 type stubKubernetesWorkloadInventory struct {
 	rows         []KubernetesRuntimeWorkloadMatch
 	err          error
@@ -121,7 +80,7 @@ func TestApplySupplyChainKubernetesRuntimeEvidencePromotesExactDigest(t *testing
 	t.Parallel()
 
 	digest := "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
-	graph := &stubKubernetesRuntimeGraph{rows: []map[string]any{{
+	graph := &querytestutil.FakeKubernetesRuntimeGraph{Rows: []map[string]any{{
 		"matched_digest": digest, "workload_uid": "kw-1", "edge_scope_id": "scope-edge", "edge_generation_id": "gen-edge",
 	}}}
 	inventory := &stubKubernetesWorkloadInventory{rows: []KubernetesRuntimeWorkloadMatch{{
@@ -136,7 +95,7 @@ func TestApplySupplyChainKubernetesRuntimeEvidencePromotesExactDigest(t *testing
 	if err := handler.applySupplyChainKubernetesRuntimeEvidence(context.Background(), querycontract.RepositoryAccessFilter{AllScopes: true}, rows); err != nil {
 		t.Fatalf("applySupplyChainKubernetesRuntimeEvidence() error = %v", err)
 	}
-	if runCalls, _ := graph.snapshot(); runCalls != 2 {
+	if runCalls, _ := graph.Snapshot(); runCalls != 2 {
 		t.Fatalf("graph Run calls = %d, want one per exact digest", runCalls)
 	}
 	if got := rows[0].KubernetesRuntimeWorkloadRefs; len(got) != 1 || got[0].UID != "kw-1" || got[0].Namespace != "payments" {
@@ -157,7 +116,7 @@ func TestApplySupplyChainKubernetesRuntimeEvidenceExcludesDeniedOwnerOrEdge(t *t
 	t.Parallel()
 
 	digest := "sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc"
-	graph := &stubKubernetesRuntimeGraph{rows: []map[string]any{{
+	graph := &querytestutil.FakeKubernetesRuntimeGraph{Rows: []map[string]any{{
 		"matched_digest": digest, "workload_uid": "kw-denied", "edge_scope_id": "scope-denied", "edge_generation_id": "gen-denied",
 	}}}
 	inventory := &stubKubernetesWorkloadInventory{}
@@ -197,14 +156,14 @@ func TestApplySupplyChainKubernetesRuntimeEvidenceBoundsAndDeduplicatesDigests(t
 			"edge_scope_id": "scope-edge", "edge_generation_id": "generation-edge",
 		}
 	}
-	graph := &stubKubernetesRuntimeGraph{rows: graphRows}
+	graph := &querytestutil.FakeKubernetesRuntimeGraph{Rows: graphRows}
 	inventory := &stubKubernetesWorkloadInventory{}
 	handler := &SupplyChainHandler{Neo4j: graph, KubernetesWorkloadInventory: inventory}
 
 	if err := handler.applySupplyChainKubernetesRuntimeEvidence(context.Background(), querycontract.RepositoryAccessFilter{AllScopes: true}, rows); err != nil {
 		t.Fatalf("apply error = %v", err)
 	}
-	runCalls, calls := graph.snapshot()
+	runCalls, calls := graph.Snapshot()
 	if runCalls != SupplyChainCloudRuntimeProbeMaxDigests {
 		t.Fatalf("graph calls = %d, want %d", runCalls, SupplyChainCloudRuntimeProbeMaxDigests)
 	}
@@ -229,12 +188,12 @@ func TestApplySupplyChainKubernetesRuntimeEvidencePropagatesErrorsAndEmptyIsNoOp
 	digest := "sha256:eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee"
 	rows := []impact.SupplyChainImpactFindingRow{{FindingID: "f", SubjectDigest: digest}}
 	graphErr := errors.New("graph unavailable")
-	if err := (&SupplyChainHandler{Neo4j: &stubKubernetesRuntimeGraph{err: graphErr}, KubernetesWorkloadInventory: &stubKubernetesWorkloadInventory{}}).
+	if err := (&SupplyChainHandler{Neo4j: &querytestutil.FakeKubernetesRuntimeGraph{Err: graphErr}, KubernetesWorkloadInventory: &stubKubernetesWorkloadInventory{}}).
 		applySupplyChainKubernetesRuntimeEvidence(context.Background(), querycontract.RepositoryAccessFilter{AllScopes: true}, rows); !errors.Is(err, graphErr) {
 		t.Fatalf("graph error = %v, want %v", err, graphErr)
 	}
 	inventoryErr := errors.New("owner ledger unavailable")
-	graphWithCandidate := &stubKubernetesRuntimeGraph{rows: []map[string]any{{
+	graphWithCandidate := &querytestutil.FakeKubernetesRuntimeGraph{Rows: []map[string]any{{
 		"matched_digest": digest, "workload_uid": "kw-1", "edge_scope_id": "scope-1", "edge_generation_id": "gen-1",
 	}}}
 	if err := (&SupplyChainHandler{Neo4j: graphWithCandidate, KubernetesWorkloadInventory: &stubKubernetesWorkloadInventory{err: inventoryErr}}).
@@ -242,12 +201,12 @@ func TestApplySupplyChainKubernetesRuntimeEvidencePropagatesErrorsAndEmptyIsNoOp
 		t.Fatalf("inventory error = %v, want %v", err, inventoryErr)
 	}
 
-	graph := &stubKubernetesRuntimeGraph{}
+	graph := &querytestutil.FakeKubernetesRuntimeGraph{}
 	if err := (&SupplyChainHandler{Neo4j: graph, KubernetesWorkloadInventory: &stubKubernetesWorkloadInventory{}}).
 		applySupplyChainKubernetesRuntimeEvidence(context.Background(), querycontract.RepositoryAccessFilter{AllScopes: true}, nil); err != nil {
 		t.Fatalf("empty rows error = %v", err)
 	}
-	if runCalls, _ := graph.snapshot(); runCalls != 0 {
+	if runCalls, _ := graph.Snapshot(); runCalls != 0 {
 		t.Fatalf("empty rows graph calls = %d, want 0", runCalls)
 	}
 }
@@ -259,7 +218,7 @@ func TestApplySupplyChainKubernetesRuntimeEvidenceRejectsMalformedAndDeduplicate
 	valid := map[string]any{
 		"matched_digest": digest, "workload_uid": "kw-dual", "edge_scope_id": "scope-edge", "edge_generation_id": "gen-edge",
 	}
-	graph := &stubKubernetesRuntimeGraph{rows: []map[string]any{
+	graph := &querytestutil.FakeKubernetesRuntimeGraph{Rows: []map[string]any{
 		valid,
 		valid,
 		{"matched_digest": digest, "workload_uid": "kw-missing-edge"},
@@ -303,7 +262,7 @@ func TestApplySupplyChainKubernetesRuntimeEvidenceRejectsStoreCrossFindingMismat
 
 	digestA := "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
 	digestB := "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
-	graph := &stubKubernetesRuntimeGraph{rows: []map[string]any{{
+	graph := &querytestutil.FakeKubernetesRuntimeGraph{Rows: []map[string]any{{
 		"matched_digest": digestA, "workload_uid": "kw-a", "edge_scope_id": "scope-a", "edge_generation_id": "gen-a",
 	}}}
 	inventory := &stubKubernetesWorkloadInventory{rows: []KubernetesRuntimeWorkloadMatch{{
@@ -393,7 +352,7 @@ func TestApplySupplyChainKubernetesRuntimeEvidenceRecordsZeroInitializedAndFinal
 				rows[i] = impact.SupplyChainImpactFindingRow{FindingID: fmt.Sprintf("f-%d", i), SubjectDigest: digest}
 			}
 			handler := &SupplyChainHandler{
-				Neo4j:                       &stubKubernetesRuntimeGraph{rows: tt.graphRows},
+				Neo4j:                       &querytestutil.FakeKubernetesRuntimeGraph{Rows: tt.graphRows},
 				KubernetesWorkloadInventory: &stubKubernetesWorkloadInventory{rows: tt.matches},
 			}
 			if err := handler.applySupplyChainKubernetesRuntimeEvidence(context.Background(), querycontract.RepositoryAccessFilter{AllScopes: true}, rows); err != nil {

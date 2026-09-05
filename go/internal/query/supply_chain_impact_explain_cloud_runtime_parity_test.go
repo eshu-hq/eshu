@@ -10,9 +10,9 @@ import (
 	"net/http/httptest"
 	"reflect"
 	"strings"
-	"sync"
 	"testing"
 
+	"github.com/eshu-hq/eshu/go/internal/query/querytestutil"
 	"github.com/eshu-hq/eshu/go/internal/query/supplychain/impact"
 	"github.com/eshu-hq/eshu/go/internal/truth"
 )
@@ -35,14 +35,14 @@ func TestSupplyChainListAndExplainReportSameDeploymentTruthForRuntimeConfirmedFi
 	uid := "CloudResource:aws:ecs:task-parity"
 	ecsARN := "arn:example:compute:::resource/dddddddd"
 
-	graph := &stubCloudRuntimeGraph{
-		rowsByDigest: map[string][]map[string]any{
+	graph := &querytestutil.FakeCloudRuntimeGraph{
+		RowsByDigest: map[string][]map[string]any{
 			runningDigest: {cloudResourceGraphRow(uid, runningDigest, ecsARN)},
 		},
 	}
 	inventory := &stubCloudInventory{
 		currentAuthorized: map[string]struct{}{uid: {}},
-		rowsByDigest:      graph.rowsByDigest,
+		rowsByDigest:      graph.RowsByDigest,
 	}
 
 	finding := impact.SupplyChainImpactFindingRow{
@@ -124,7 +124,7 @@ func TestSupplyChainListAndExplainReportSameKubernetesRuntimeEvidence(t *testing
 	t.Parallel()
 
 	digest := "sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc"
-	graph := &stubKubernetesRuntimeGraph{rows: []map[string]any{{
+	graph := &querytestutil.FakeKubernetesRuntimeGraph{Rows: []map[string]any{{
 		"matched_digest": digest, "workload_uid": "kw-parity", "edge_scope_id": "edge-scope", "edge_generation_id": "edge-generation",
 	}}}
 	inventory := &stubKubernetesWorkloadInventory{rows: []KubernetesRuntimeWorkloadMatch{{
@@ -183,7 +183,7 @@ func TestSupplyChainListAndExplainReportSameKubernetesRuntimeEvidence(t *testing
 	if !reflect.DeepEqual(explainFinding.KubernetesRuntimeProbe, listFinding.KubernetesRuntimeProbe) {
 		t.Fatalf("explain probe metadata = %#v, want list metadata %#v", explainFinding.KubernetesRuntimeProbe, listFinding.KubernetesRuntimeProbe)
 	}
-	if got, _ := graph.snapshot(); got != 2 {
+	if got, _ := graph.Snapshot(); got != 2 {
 		t.Fatalf("graph Run calls = %d, want one per route", got)
 	}
 }
@@ -200,7 +200,7 @@ func TestSupplyChainListAndExplainMapKubernetesGraphUnavailable(t *testing.T) {
 		ImpactFindings:              &recordingSupplyChainImpactFindingStore{rows: []impact.SupplyChainImpactFindingRow{finding}},
 		ImpactExplanations:          &recordingSupplyChainImpactExplanationStore{row: impact.SupplyChainImpactExplanationRow{Finding: finding}},
 		Readiness:                   &recordingSupplyChainImpactReadinessStore{},
-		Neo4j:                       &stubKubernetesRuntimeGraph{err: ErrGraphUnavailable},
+		Neo4j:                       &querytestutil.FakeKubernetesRuntimeGraph{Err: ErrGraphUnavailable},
 		KubernetesWorkloadInventory: &stubKubernetesWorkloadInventory{},
 	}
 	mux := http.NewServeMux()
@@ -276,9 +276,9 @@ func TestSupplyChainListAndExplainReportSameRuntimeContextForFindingThatHasOne(t
 		RepositoryID: repositoryID,
 	}
 
-	contextStore := &runtimeContextFindingStore{
-		rows: []impact.SupplyChainImpactFindingRow{finding},
-		byRepo: map[string]impact.SupplyChainRuntimeContext{
+	contextStore := &querytestutil.FakeRuntimeContextFindingStore{
+		Rows: []impact.SupplyChainImpactFindingRow{finding},
+		ByRepo: map[string]impact.SupplyChainRuntimeContext{
 			repositoryID: {
 				WorkloadIDs: []string{"workload:example-api"},
 				ServiceIDs:  []string{"service:example-api"},
@@ -348,14 +348,14 @@ func TestSupplyChainPacketSkipsEnrichmentThatItsWireShapeCannotExpose(t *testing
 	ecsARN := "arn:example:compute:::resource/eeeeeeee"
 	repositoryID := "repository:r_packet_parity"
 
-	graph := &stubCloudRuntimeGraph{
-		rowsByDigest: map[string][]map[string]any{
+	graph := &querytestutil.FakeCloudRuntimeGraph{
+		RowsByDigest: map[string][]map[string]any{
 			runningDigest: {cloudResourceGraphRow(uid, runningDigest, ecsARN)},
 		},
 	}
 	inventory := &stubCloudInventory{
 		currentAuthorized: map[string]struct{}{uid: {}},
-		rowsByDigest:      graph.rowsByDigest,
+		rowsByDigest:      graph.RowsByDigest,
 	}
 
 	finding := impact.SupplyChainImpactFindingRow{
@@ -366,8 +366,8 @@ func TestSupplyChainPacketSkipsEnrichmentThatItsWireShapeCannotExpose(t *testing
 		SubjectDigest: runningDigest,
 		RepositoryID:  repositoryID,
 	}
-	contextStore := &runtimeContextFindingStore{
-		byRepo: map[string]impact.SupplyChainRuntimeContext{
+	contextStore := &querytestutil.FakeRuntimeContextFindingStore{
+		ByRepo: map[string]impact.SupplyChainRuntimeContext{
 			repositoryID: {WorkloadIDs: []string{"workload:example-api"}},
 		},
 	}
@@ -394,50 +394,22 @@ func TestSupplyChainPacketSkipsEnrichmentThatItsWireShapeCannotExpose(t *testing
 		t.Fatalf("packet status = %d, want %d; body = %s", got, want, w.Body.String())
 	}
 
-	if len(graph.gotDigests) != 0 {
-		t.Fatalf("cloud-runtime probe digests = %#v, want none for a packet shape that omits runtime evidence", graph.gotDigests)
+	if len(graph.GotDigests) != 0 {
+		t.Fatalf("cloud-runtime probe digests = %#v, want none for a packet shape that omits runtime evidence", graph.GotDigests)
 	}
 	if len(inventory.gotCandidates) != 0 {
 		t.Fatalf("cloud-runtime probe candidates = %#v, want none", inventory.gotCandidates)
 	}
-	if len(contextStore.called) != 0 {
-		t.Fatalf("runtime-context probe repository ids = %#v, want none for a packet shape that omits runtime_context", contextStore.called)
+	if len(contextStore.Called) != 0 {
+		t.Fatalf("runtime-context probe repository ids = %#v, want none for a packet shape that omits runtime_context", contextStore.Called)
 	}
 }
 
-// Cloud-runtime probe doubles for the parity tests above. Canonical copies
-// live with the moved cloud probe suite in internal/query/supplychain
-// (supply_chain_impact_cloud_runtime_probe_test.go); this twin exists
-// because the parity suite also drives the explain handler through the same
-// fake inventory and cannot import the hub test package. Keep both copies
-// behavior-identical; the hub copy is authoritative.
-
-// stubCloudRuntimeGraph is a GraphQuery stub for the #5452 runtime-image probe.
-// It returns rowsByDigest for any digest present in the query params and records
-// the digest list the probe passed, so a test can assert both the promotion
-// outcome and that the probe bounded/deduplicated its input.
-type stubCloudRuntimeGraph struct {
-	rowsByDigest map[string][]map[string]any
-	err          error
-	gotDigests   []string
-}
-
-func (s *stubCloudRuntimeGraph) Run(_ context.Context, _ string, params map[string]any) ([]map[string]any, error) {
-	if s.err != nil {
-		return nil, s.err
-	}
-	digests, _ := params["digests"].([]string)
-	s.gotDigests = append([]string(nil), digests...)
-	var rows []map[string]any
-	for _, digest := range digests {
-		rows = append(rows, s.rowsByDigest[digest]...)
-	}
-	return rows, nil
-}
-
-func (s *stubCloudRuntimeGraph) RunSingle(_ context.Context, _ string, _ map[string]any) (map[string]any, error) {
-	return nil, nil
-}
+// The graph double for the parity tests above is querytestutil's shared
+// FakeCloudRuntimeGraph. The inventory twin below stays local: its signatures
+// name hub family types querytestutil cannot import (see its doc). The hub
+// copy in supply_chain_impact_cloud_runtime_probe_test.go is authoritative;
+// keep both behavior-identical.
 
 // stubCloudInventory is a CloudResourceCurrentInventoryFilter stub: it returns
 // only the candidate uids present in `currentAuthorized`, modelling the
@@ -499,68 +471,11 @@ func cloudResourceGraphRow(uid, digest, arn string) map[string]any {
 	return map[string]any{"uid": uid, "digest": digest, "arn": arn}
 }
 
-// Kubernetes-runtime probe doubles for the parity tests above. Canonical
-// copies live with the moved probe suite in internal/query/supplychain
-// (supply_chain_impact_kubernetes_runtime_probe_test.go); this twin exists
-// because the parity suite also drives the findings/explain handlers through
-// the same fake graph and inventory and cannot import the hub test package.
-// The Run filtering logic is identical; only the recorded-call element type
-// differs (the hub records fairKubernetesRuntimeCall, unexported there, so
-// this twin records its own shape — the parity tests only assert the call
-// count). Keep the Run logic behavior-identical; the hub copy is
-// authoritative.
-
-// parityKubernetesRuntimeCall records one per-digest probe query the twin
-// graph served.
-type parityKubernetesRuntimeCall struct {
-	Digest string
-	Limit  int
-}
-
-type stubKubernetesRuntimeGraph struct {
-	mu       sync.Mutex
-	rows     []map[string]any
-	err      error
-	cypher   string
-	params   map[string]any
-	runCalls int
-	calls    []parityKubernetesRuntimeCall
-}
-
-func (s *stubKubernetesRuntimeGraph) Run(_ context.Context, cypher string, params map[string]any) ([]map[string]any, error) {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	s.runCalls++
-	s.cypher = cypher
-	s.params = params
-	digests, _ := params["subject_digests"].([]string)
-	if len(digests) == 1 {
-		s.calls = append(s.calls, parityKubernetesRuntimeCall{Digest: digests[0], Limit: IntVal(params, "limit")})
-	}
-	if s.err != nil || len(digests) != 1 {
-		return nil, s.err
-	}
-	filtered := make([]map[string]any, 0, len(s.rows))
-	for _, row := range s.rows {
-		if StringVal(row, "matched_digest") == digests[0] {
-			filtered = append(filtered, row)
-		}
-	}
-	if limit := IntVal(params, "limit"); len(filtered) > limit {
-		filtered = filtered[:limit]
-	}
-	return filtered, nil
-}
-
-func (s *stubKubernetesRuntimeGraph) RunSingle(context.Context, string, map[string]any) (map[string]any, error) {
-	return nil, nil
-}
-
-func (s *stubKubernetesRuntimeGraph) snapshot() (int, []parityKubernetesRuntimeCall) {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	return s.runCalls, append([]parityKubernetesRuntimeCall(nil), s.calls...)
-}
+// The graph double for the parity tests above is querytestutil's shared
+// FakeKubernetesRuntimeGraph. The workload-inventory twin below stays local:
+// its signatures name hub family types querytestutil cannot import. The hub
+// copy in supply_chain_impact_kubernetes_runtime_probe_test.go is
+// authoritative; keep both behavior-identical.
 
 type stubKubernetesWorkloadInventory struct {
 	rows         []KubernetesRuntimeWorkloadMatch
@@ -583,61 +498,4 @@ func (s *stubKubernetesWorkloadInventory) CurrentAuthorizedKubernetesRuntimeWork
 	s.repositories = append([]string(nil), repositories...)
 	s.scopes = append([]string(nil), scopes...)
 	return append([]KubernetesRuntimeWorkloadMatch(nil), s.rows...), s.err
-}
-
-// runtimeContextFindingStore satisfies BOTH SupplyChainImpactFindingStore and
-// the optional supplyChainImpactRuntimeContextReader capability, so the
-// parity tests exercise the handler's type-asserted read path without
-// Postgres. Canonical copy lives with the moved runtime-context suite in
-// internal/query/supplychain
-// (supply_chain_impact_runtime_context_probe_test.go); this twin exists
-// because the parity suite also drives the findings/explain handlers through
-// the same fake and cannot import the hub test package. Keep both copies
-// behavior-identical; the hub copy is authoritative.
-type runtimeContextFindingStore struct {
-	rows            []impact.SupplyChainImpactFindingRow
-	byRepo          map[string]impact.SupplyChainRuntimeContext
-	byDigest        map[string]map[string]string
-	called          []string
-	envCandidates   []impact.SupplyChainRuntimeEnvironmentCandidate
-	allowedRepoIDs  []string
-	allowedScopeIDs []string
-	err             error
-}
-
-func (f *runtimeContextFindingStore) ListSupplyChainImpactRuntimeEnvironmentEvidence(
-	_ context.Context,
-	candidates []impact.SupplyChainRuntimeEnvironmentCandidate,
-	allowedRepositoryIDs []string,
-	allowedScopeIDs []string,
-) (map[string]map[string]string, error) {
-	f.envCandidates = append([]impact.SupplyChainRuntimeEnvironmentCandidate(nil), candidates...)
-	f.allowedRepoIDs = append([]string(nil), allowedRepositoryIDs...)
-	f.allowedScopeIDs = append([]string(nil), allowedScopeIDs...)
-	if f.err != nil {
-		return nil, f.err
-	}
-	return f.byDigest, nil
-}
-
-func (f *runtimeContextFindingStore) ListSupplyChainImpactFindings(
-	context.Context,
-	impact.SupplyChainImpactFindingFilter,
-) ([]impact.SupplyChainImpactFindingRow, error) {
-	return append([]impact.SupplyChainImpactFindingRow(nil), f.rows...), nil
-}
-
-func (f *runtimeContextFindingStore) ListSupplyChainImpactRuntimeContext(
-	_ context.Context,
-	repositoryIDs []string,
-	allowedRepositoryIDs []string,
-	allowedScopeIDs []string,
-) (map[string]impact.SupplyChainRuntimeContext, error) {
-	f.called = append([]string(nil), repositoryIDs...)
-	f.allowedRepoIDs = append([]string(nil), allowedRepositoryIDs...)
-	f.allowedScopeIDs = append([]string(nil), allowedScopeIDs...)
-	if f.err != nil {
-		return nil, f.err
-	}
-	return f.byRepo, nil
 }

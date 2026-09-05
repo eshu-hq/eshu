@@ -13,6 +13,7 @@ import (
 	"testing"
 
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
+	"github.com/eshu-hq/eshu/go/internal/query/querytestutil"
 	"github.com/eshu-hq/eshu/go/internal/query/supplychain/impact"
 )
 
@@ -49,11 +50,11 @@ func TestApplySupplyChainRuntimeContextUsesRepositoryEnvironmentOnlyAsExactDiges
 		Environments: []string{"production"},
 	}
 	row := osPackageFindingRowForRuntimeContext()
-	store := &runtimeContextFindingStore{
-		byRepo: map[string]impact.SupplyChainRuntimeContext{
+	store := &querytestutil.FakeRuntimeContextFindingStore{
+		ByRepo: map[string]impact.SupplyChainRuntimeContext{
 			"repository:r_217415d9": contextValue,
 		},
-		byDigest: map[string]map[string]string{
+		ByDigest: map[string]map[string]string{
 			row.SubjectDigest: {"production": "deploy_event"},
 		},
 	}
@@ -78,7 +79,7 @@ func TestApplySupplyChainRuntimeContextUsesRepositoryEnvironmentOnlyAsExactDiges
 func TestApplySupplyChainRuntimeContextDoesNotDefaultUnconfirmedRepositoryEnvironment(t *testing.T) {
 	t.Parallel()
 
-	store := &runtimeContextFindingStore{byRepo: map[string]impact.SupplyChainRuntimeContext{
+	store := &querytestutil.FakeRuntimeContextFindingStore{ByRepo: map[string]impact.SupplyChainRuntimeContext{
 		"repository:r_217415d9": {Environments: []string{"production"}},
 	}}
 	rows := []impact.SupplyChainImpactFindingRow{osPackageFindingRowForRuntimeContext()}
@@ -98,9 +99,9 @@ func TestApplySupplyChainRuntimeContextCarriesCurrentDigestBoundEnvironmentEvide
 	t.Parallel()
 
 	row := osPackageFindingRowForRuntimeContext()
-	store := &runtimeContextFindingStore{
-		byRepo: map[string]impact.SupplyChainRuntimeContext{},
-		byDigest: map[string]map[string]string{
+	store := &querytestutil.FakeRuntimeContextFindingStore{
+		ByRepo: map[string]impact.SupplyChainRuntimeContext{},
+		ByDigest: map[string]map[string]string{
 			row.SubjectDigest: {"production": "deploy_event"},
 		},
 	}
@@ -173,11 +174,11 @@ func TestApplySupplyChainRuntimeContextDefensivelyCopiesEnvironmentEvidence(t *t
 
 	sourceEvidence := map[string]string{"production": "deploy_event"}
 	row := osPackageFindingRowForRuntimeContext()
-	store := &runtimeContextFindingStore{
-		byRepo: map[string]impact.SupplyChainRuntimeContext{
+	store := &querytestutil.FakeRuntimeContextFindingStore{
+		ByRepo: map[string]impact.SupplyChainRuntimeContext{
 			row.RepositoryID: {Environments: []string{"production"}},
 		},
-		byDigest: map[string]map[string]string{row.SubjectDigest: sourceEvidence},
+		ByDigest: map[string]map[string]string{row.SubjectDigest: sourceEvidence},
 	}
 	rows := []impact.SupplyChainImpactFindingRow{row}
 	if err := (&SupplyChainHandler{ImpactFindings: store}).applySupplyChainRuntimeContext(
@@ -202,11 +203,11 @@ func TestApplySupplyChainRuntimeContextOmitsOrphanEnvironmentEvidence(t *testing
 	t.Parallel()
 
 	row := osPackageFindingRowForRuntimeContext()
-	store := &runtimeContextFindingStore{
-		byRepo: map[string]impact.SupplyChainRuntimeContext{
+	store := &querytestutil.FakeRuntimeContextFindingStore{
+		ByRepo: map[string]impact.SupplyChainRuntimeContext{
 			row.RepositoryID: {Environments: []string{"production"}},
 		},
-		byDigest: map[string]map[string]string{
+		ByDigest: map[string]map[string]string{
 			row.SubjectDigest: {
 				"production": "deploy_event",
 				"staging":    "deploy_event",
@@ -244,10 +245,10 @@ func TestSupplyChainListAndExplainReportSameRuntimeEnvironmentEvidence(t *testin
 	contextValue := impact.SupplyChainRuntimeContext{
 		Environments: []string{"production"},
 	}
-	contextStore := &runtimeContextFindingStore{
-		rows:   []impact.SupplyChainImpactFindingRow{finding},
-		byRepo: map[string]impact.SupplyChainRuntimeContext{repositoryID: contextValue},
-		byDigest: map[string]map[string]string{
+	contextStore := &querytestutil.FakeRuntimeContextFindingStore{
+		Rows:   []impact.SupplyChainImpactFindingRow{finding},
+		ByRepo: map[string]impact.SupplyChainRuntimeContext{repositoryID: contextValue},
+		ByDigest: map[string]map[string]string{
 			finding.SubjectDigest: {"production": "deploy_event"},
 		},
 	}

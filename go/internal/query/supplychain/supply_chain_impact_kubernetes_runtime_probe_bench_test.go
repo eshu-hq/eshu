@@ -9,6 +9,7 @@ import (
 	"testing"
 
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
+	"github.com/eshu-hq/eshu/go/internal/query/querytestutil"
 	"github.com/eshu-hq/eshu/go/internal/query/supplychain/impact"
 )
 
@@ -32,7 +33,7 @@ func BenchmarkApplySupplyChainKubernetesRuntimeEvidence200Digests(b *testing.B) 
 		}
 	}
 	handler := &SupplyChainHandler{
-		Neo4j:                       &stubKubernetesRuntimeGraph{rows: graphRows},
+		Neo4j:                       &querytestutil.FakeKubernetesRuntimeGraph{Rows: graphRows},
 		KubernetesWorkloadInventory: &stubKubernetesWorkloadInventory{rows: matches},
 	}
 	access := querycontract.RepositoryAccessFilter{AllScopes: true}

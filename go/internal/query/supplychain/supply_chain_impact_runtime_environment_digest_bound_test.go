@@ -9,6 +9,7 @@ import (
 	"testing"
 
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
+	"github.com/eshu-hq/eshu/go/internal/query/querytestutil"
 	"github.com/eshu-hq/eshu/go/internal/query/supplychain/impact"
 )
 
@@ -16,13 +17,13 @@ func TestApplySupplyChainRuntimeContextDoesNotBorrowMismatchedDigestEvidenceForR
 	t.Parallel()
 
 	row := osPackageFindingRowForRuntimeContext()
-	store := &runtimeContextFindingStore{
-		byRepo: map[string]impact.SupplyChainRuntimeContext{
+	store := &querytestutil.FakeRuntimeContextFindingStore{
+		ByRepo: map[string]impact.SupplyChainRuntimeContext{
 			row.RepositoryID: {
 				Environments: []string{"production"},
 			},
 		},
-		byDigest: map[string]map[string]string{
+		ByDigest: map[string]map[string]string{
 			"sha256:other-artifact": {"production": impact.SupplyChainRuntimeEnvironmentEvidenceDeployEvent},
 		},
 	}
@@ -48,7 +49,7 @@ func TestApplySupplyChainRuntimeContextDoesNotBorrowMismatchedDigestEvidenceForR
 			resolved.EnvironmentEvidence,
 		)
 	}
-	if got := store.envCandidates; len(got) != 1 || got[0].SubjectDigest != row.SubjectDigest || got[0].Environment != "production" {
+	if got := store.EnvCandidates; len(got) != 1 || got[0].SubjectDigest != row.SubjectDigest || got[0].Environment != "production" {
 		t.Fatalf("exact-digest candidates = %#v, want finding digest paired with production", got)
 	}
 }
@@ -67,13 +68,13 @@ func TestApplySupplyChainRuntimeContextCapsOneRepositoryEnvironmentEvidenceAtPag
 			confirmed[environment] = impact.SupplyChainRuntimeEnvironmentEvidenceDeployEvent
 		}
 	}
-	store := &runtimeContextFindingStore{
-		byRepo: map[string]impact.SupplyChainRuntimeContext{
+	store := &querytestutil.FakeRuntimeContextFindingStore{
+		ByRepo: map[string]impact.SupplyChainRuntimeContext{
 			row.RepositoryID: {
 				Environments: repositoryEnvironments,
 			},
 		},
-		byDigest: map[string]map[string]string{row.SubjectDigest: confirmed},
+		ByDigest: map[string]map[string]string{row.SubjectDigest: confirmed},
 	}
 	rows := []impact.SupplyChainImpactFindingRow{row}
 	if err := (&SupplyChainHandler{ImpactFindings: store}).applySupplyChainRuntimeContext(
@@ -103,7 +104,7 @@ func TestApplySupplyChainRuntimeContextCapsOneRepositoryEnvironmentEvidenceAtPag
 			MaxSupplyChainRuntimeEnvironmentCandidates,
 		)
 	}
-	if got := len(store.envCandidates); got != MaxSupplyChainRuntimeEnvironmentCandidates {
+	if got := len(store.EnvCandidates); got != MaxSupplyChainRuntimeEnvironmentCandidates {
 		t.Fatalf("set-based lookup candidates = %d, want %d", got, MaxSupplyChainRuntimeEnvironmentCandidates)
 	}
 }
