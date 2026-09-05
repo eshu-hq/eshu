@@ -73,8 +73,9 @@ func (h crossRepoDeadCodeHiddenConsumers) has(entityID string) bool {
 //     honest: the row cap falls on the consumers this answer is about, so
 //     neither another tenant's rows nor a granted repository the request did
 //     not ask about can crowd a wanted consumer off the page. That cap bounds
-//     what is READ as well as what comes back only because migration 103
-//     carries the statement's ORDER BY -- see
+//     what comes back, and -- only because migration 103 carries the
+//     statement's ORDER BY -- how far the scan goes to produce it: up to the
+//     cap times the retained generations per position, not the cap alone; see
 //     buildCrossRepoDeadCodeConsumerEvidenceQuery.
 //   - the ungranted-consumer probe, when reads.SignalGrant is set. It carries
 //     the "this symbol has a consumer you cannot see" answer, which filtering in

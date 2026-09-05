@@ -32,7 +32,7 @@ import (
 // another's:
 //
 //   - the index guard reads the shipped migrations' end state and requires the
-//     ordering index to exist with its five key columns in the statement's own
+//     ordering index to exist with its seven key columns in the statement's own
 //     order. The same columns in another order still answer correctly.
 //   - the answer guard reads the page through the shipped reader and requires
 //     the rows and the per-entity truncation marker the route contracts for.

@@ -20,7 +20,7 @@ import (
 
 // runCrossRepoDeadCodeConsumerPageIndexGuard fails when the shipped migrations
 // did not leave the page's ordering index behind with its key columns in the
-// order the statement asks for. Key order is the whole claim: the same five
+// order the statement asks for. Key order is the whole claim: the same seven
 // columns in any other order still answers correctly and still makes the read
 // rank the group first.
 func runCrossRepoDeadCodeConsumerPageIndexGuard(ctx context.Context, t *testing.T, db *sql.DB) {
