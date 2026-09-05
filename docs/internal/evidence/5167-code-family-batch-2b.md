@@ -166,6 +166,32 @@ rather than introducing a shape. The tests that back it drive
 Cypher defines them; a fake cannot discover a backend quirk. If Neo4j ever
 becomes a gated lane, this is the first assertion to re-measure.
 
+### What The Interior Conjunct Rests On
+
+Stated in one place, because it is the load-bearing assumption of the whole
+compat lane and a reader should not have to assemble it from three paragraphs.
+
+`callChainPathHopPredicates` renders the grant as a conjunct inside
+`all(node IN nodes(path) WHERE …)`, on the bare `node.repo_id` rather than a
+`coalesce`. That is a design choice resting on standard Cypher semantics, not on
+a measurement: membership against a null property is null, `all()` over a null
+is null, and `WHERE null` drops the row — so a hop the graph cannot attribute to
+a repository fails CLOSED. The grant arrays cannot readmit one either, because
+`queryauth.CleanedStrings` drops empty and whitespace-only ids at the context
+boundary, so neither array can carry an empty value for an unattributable hop to
+match.
+
+Nothing in this repository runs that against Neo4j. There is no live Neo4j gate
+here, no cassette for the dialect, and no plan to add one in this batch, so the
+semantics above are asserted from the language definition rather than observed.
+The coverage that does exist is the fake-backed pin:
+`TestCallChainNeo4jLaneBoundsInteriorHops` drives `callChainGrantGraph`, which
+applies the statement's two `WHERE` clauses the way Cypher defines them, and
+`TestShortestPathCallChainBuildersBindTheGrant` pins the rendered conjunct's
+text. Both prove the clause is emitted and that a fake honouring Cypher would
+drop the row. Neither can discover a backend quirk, which is the limit of what a
+fake is for. If Neo4j becomes a gated lane, this is the first thing to measure.
+
 Round-1 review caught that this lane had been left unbounded and untested while
 the route was promoted and documented as bounded. The NornicDB measurement is
 what led there: "a list predicate does not filter" is a fact about one build,
