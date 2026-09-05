@@ -7,6 +7,7 @@ import (
 	"context"
 	"slices"
 	"strings"
+	"sync"
 )
 
 // A graph fake that judges CLAUSE ATTACHMENT for the #5167 batch-2b story and
@@ -50,8 +51,16 @@ type storyClauseGraph struct {
 	// clauses. A predicate stranded on one of those clauses nulls exactly these
 	// and keeps the row.
 	optionalColumns []string
-	statements      []string
-	params          []map[string]any
+
+	// mu guards the recorded statements and params. One story request reaches
+	// this fake from several goroutines at once: relationshipStoryGraphRows
+	// runs the incoming and outgoing reads in parallel when direction is
+	// "both", and relationshipStoryClassHierarchy runs its three enrichment
+	// reads in parallel. seeds and optionalColumns are set at construction and
+	// only read afterwards, so they stay outside the lock.
+	mu         sync.Mutex
+	statements []string
+	params     []map[string]any
 }
 
 func (g *storyClauseGraph) Run(
@@ -59,9 +68,22 @@ func (g *storyClauseGraph) Run(
 	cypher string,
 	params map[string]any,
 ) ([]map[string]any, error) {
+	g.mu.Lock()
 	g.statements = append(g.statements, cypher)
 	g.params = append(g.params, params)
+	g.mu.Unlock()
 	return g.evaluate(cypher, params), nil
+}
+
+// recordedStatements returns the statements the fake has been handed so far.
+// Callers that read the record while any read may still be in flight must go
+// through this rather than the field. The parallel directions finish in
+// whichever order the scheduler picks, so an assertion must not depend on the
+// position of a statement in this slice.
+func (g *storyClauseGraph) recordedStatements() []string {
+	g.mu.Lock()
+	defer g.mu.Unlock()
+	return slices.Clone(g.statements)
 }
 
 func (g *storyClauseGraph) RunSingle(

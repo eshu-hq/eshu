@@ -198,7 +198,7 @@ func TestRelationshipStorySharedKeyReadIsUnchanged(t *testing.T) {
 					t.Fatalf("the shared-key story lost %q: %s", want, body)
 				}
 			}
-			for _, statement := range graph.statements {
+			for _, statement := range graph.recordedStatements() {
 				if strings.Contains(statement, "$allowed_repository_ids") {
 					t.Fatalf("an unscoped caller rendered a grant array:\n%s", statement)
 				}
@@ -220,8 +220,8 @@ func TestRelationshipStoryEmptyGrantReachesNoBackend(t *testing.T) {
 	if got, want := rec.Code, http.StatusOK; got != want {
 		t.Fatalf("status = %d, want %d; body = %s", got, want, rec.Body.String())
 	}
-	if len(graph.statements) != 0 {
-		t.Fatalf("a grantless scoped caller reached the graph: %v", graph.statements)
+	if statements := graph.recordedStatements(); len(statements) != 0 {
+		t.Fatalf("a grantless scoped caller reached the graph: %v", statements)
 	}
 	if content.reachedTheStore() {
 		t.Fatalf("a grantless scoped caller reached the content store: repos=%v entities=%v anyRepo=%v",
