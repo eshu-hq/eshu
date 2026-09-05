@@ -94,10 +94,11 @@ paths when reasoning about what a change here can break.
 ## What not to change without discussion
 
 - The four-phase `SearchVectorBuildPhase*` set is a closed, bounded label
-  set for the `eshu_dp_search_vector_build_phase_seconds` histogram. Adding a
-  fifth phase changes label cardinality on a shared instrument — coordinate
-  with `docs/public/observability/telemetry-coverage.md` and the histogram's
-  other producers before doing so.
+  set for the `eshu_dp_search_vector_build_phase_seconds` histogram. This
+  package's `recordPhaseMetrics` is that histogram's only producer, so a fifth
+  phase widens its label cardinality outright with no second call site to
+  reconcile against. Keep the set bounded, and update
+  `docs/public/observability/telemetry-coverage.md` in the same change.
 - The `SearchVectorBuildIdentity` field set (provider profile, source class,
   embedding model, vector index version) is mirrored in
   `postgres.EshuSearchVectorBuildIdentity` and

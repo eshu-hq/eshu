@@ -2249,8 +2249,8 @@ the existing `eshu_dp_search_vector_build_phase_seconds` histogram, the existing
 with zero `document_count`/`vector_count` is the telltale), and a new WARN
 structured log "search vector build sweep made no progress; backing off"
 (`stall_reason=no_durable_output`). The sweep logging/metric emitters moved to
-`search_vector_build_runner_log.go` for the 500-line cap; that stage file is
-covered in `docs/public/observability/telemetry-coverage.md`.
+`searchvector/search_vector_build_runner_log.go` for the 500-line cap; that
+stage file is covered in `docs/public/observability/telemetry-coverage.md`.
 
 Live-corpus confirmation (drained `e2e3586persist` full-corpus stack, 831 active
 search-document scopes over 2,595,922 facts): the OLD `payload->'document'->>'id'`
