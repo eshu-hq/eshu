@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package reducer
+package valueflow
 
 import (
 	"context"
@@ -11,6 +11,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/exposure"
 	"github.com/eshu-hq/eshu/go/internal/parser/summary"
+	"github.com/eshu-hq/eshu/go/internal/reducer/payloadcore"
 )
 
 // GraphValueFlowCloudSinkTargetLoader reads graph-backed cloud sink edges for
@@ -86,7 +87,7 @@ func valueFlowCloudSinkTargetsFromRows(
 	targets := make([]ValueFlowCloudSinkTarget, 0, len(rows))
 	seen := map[string]struct{}{}
 	for _, row := range rows {
-		functionID := functionByUID[strings.TrimSpace(anyToString(row["function_uid"]))]
+		functionID := functionByUID[strings.TrimSpace(payloadcore.AnyToString(row["function_uid"]))]
 		if functionID == "" {
 			continue
 		}
@@ -118,7 +119,7 @@ func valueFlowCloudSinkTargetsFromRows(
 }
 
 func valueFlowCloudSinkSpecFromRow(row map[string]any) (exposure.SinkSpec, bool) {
-	rel := strings.TrimSpace(anyToString(row["sink_rel"]))
+	rel := strings.TrimSpace(payloadcore.AnyToString(row["sink_rel"]))
 	labels := valueFlowStringSlice(row["sink_labels"])
 	props := map[string]string{}
 	if value, ok := valueFlowScalarString(row["sink_is_internet"]); ok {
@@ -139,13 +140,13 @@ func valueFlowStringSlice(raw any) []string {
 	case []any:
 		out := make([]string, 0, len(values))
 		for _, value := range values {
-			if s := strings.TrimSpace(anyToString(value)); s != "" {
+			if s := strings.TrimSpace(payloadcore.AnyToString(value)); s != "" {
 				out = append(out, s)
 			}
 		}
 		return out
 	default:
-		if s := strings.TrimSpace(anyToString(raw)); s != "" {
+		if s := strings.TrimSpace(payloadcore.AnyToString(raw)); s != "" {
 			return []string{s}
 		}
 		return nil

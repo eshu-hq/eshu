@@ -152,15 +152,15 @@ func TestValueFlowExpectationIsRequiredForItsOwnTriggers(t *testing.T) {
 	// asserting on the glob's own text would prove the string is present, not
 	// that anything selects through it.
 	selecting := map[string]string{
-		"go/internal/backendconformance/**":                         "go/internal/backendconformance/corpus_value_flow.go",
-		"go/internal/reducer/value_flow_cloud_sink_loader.go":       "go/internal/reducer/value_flow_cloud_sink_loader.go",
-		"docker-compose.yaml":                                       "docker-compose.yaml",
-		"docker-compose.neo4j.yml":                                  "docker-compose.neo4j.yml",
-		"scripts/verify_backend_conformance_live.sh":                "scripts/verify_backend_conformance_live.sh",
-		"scripts/verify-value-flow-conformance-expectation.sh":      "scripts/verify-value-flow-conformance-expectation.sh",
-		"scripts/test-verify-value-flow-conformance-expectation.sh": "scripts/test-verify-value-flow-conformance-expectation.sh",
-		"scripts/ci/install-apt-packages.sh":                        "scripts/ci/install-apt-packages.sh",
-		".github/workflows/value-flow-conformance-expectation.yml":  ".github/workflows/value-flow-conformance-expectation.yml",
+		"go/internal/backendconformance/**":                             "go/internal/backendconformance/corpus_value_flow.go",
+		"go/internal/reducer/valueflow/value_flow_cloud_sink_loader.go": "go/internal/reducer/valueflow/value_flow_cloud_sink_loader.go",
+		"docker-compose.yaml":                                           "docker-compose.yaml",
+		"docker-compose.neo4j.yml":                                      "docker-compose.neo4j.yml",
+		"scripts/verify_backend_conformance_live.sh":                    "scripts/verify_backend_conformance_live.sh",
+		"scripts/verify-value-flow-conformance-expectation.sh":          "scripts/verify-value-flow-conformance-expectation.sh",
+		"scripts/test-verify-value-flow-conformance-expectation.sh":     "scripts/test-verify-value-flow-conformance-expectation.sh",
+		"scripts/ci/install-apt-packages.sh":                            "scripts/ci/install-apt-packages.sh",
+		".github/workflows/value-flow-conformance-expectation.yml":      ".github/workflows/value-flow-conformance-expectation.yml",
 	}
 	if len(selecting) != len(gate.Triggers) {
 		t.Fatalf("this test covers %d trigger(s) but the gate declares %d: %q",

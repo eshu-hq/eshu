@@ -152,7 +152,7 @@
 // normalized ARM IDs resolve exactly in the same source generation.
 // Code function summary materialization persists generation-independent
 // value-flow summaries, param sources, and FunctionID-to-graph-uid mappings.
-// ValueFlowProgramAssemblyRunner can assemble bounded Programs from active
+// valueflow.ValueFlowProgramAssemblyRunner can assemble bounded Programs from active
 // CALLS, persisted summaries, and durable param-source rows without solving or
 // writing graph evidence. Shell execution materialization consumes parser
 // command-call facts and projects Function-[:EXECUTES_SHELL]->ShellCommand using
@@ -178,12 +178,12 @@
 // Performance Evidence: synthetic local benchmark on 100 independent value-flow
 // components with 100-hop chains, changing one function summary version after
 // warming the cache:
-// `go test ./internal/reducer -run '^$' -bench 'BenchmarkValueFlowFixpoint(Full|Incremental)' -benchmem -count=3`
+// `go test ./internal/reducer/valueflow -run '^$' -bench 'BenchmarkValueFlowFixpoint(Full|Incremental)' -benchmem -count=3`
 // reported full recompute at 7.67-7.71 ms/op with 15.22 MB/op and about 33.7k
 // allocs/op, while the cached incremental path reported 7.31-7.35 ms/op with
 // 11.36 MB/op and about 5.2k allocs/op. This is a deterministic local corpus,
 // not a full remote corpus proof.
-// No-Regression Evidence: `go test ./internal/reducer -run
+// No-Regression Evidence: `go test ./internal/reducer/valueflow -run
 // 'TestValueFlowFixpoint(Cache|EvidenceLoader|EvidenceProjector)' -count=1`
 // proves component-level cache reuse, full-solve parity, cloud sink behavior,
 // unresolved endpoint behavior, and unchanged global fixpoint write semantics.
@@ -198,7 +198,7 @@
 // snapshots before Program assembly and persists solved weak-component fixpoint
 // results behind the same component-content cache key, so a reducer restart or
 // second replica can reuse unchanged components without reassembling or solving
-// them. `go test ./internal/reducer -run
+// them. `go test ./internal/reducer/valueflow -run
 // 'TestValueFlowFixpoint(Snapshot|Durable|Cache|EvidenceLoader)' -count=1`
 // proves restart reuse, changed-summary-version invalidation, directed
 // edge-shape invalidation, assembly limited to the changed component, full-solve
@@ -211,7 +211,7 @@
 // ./cmd/reducer -run TestNewValueFlowFixpointProjectorWiresCloudSinkGraphLoader
 // -count=1` proves production reducer wiring passes the durable component store
 // into the fixpoint loader.
-// Performance Evidence: `go test ./internal/reducer -run '^$' -bench
+// Performance Evidence: `go test ./internal/reducer/valueflow -run '^$' -bench
 // 'BenchmarkValueFlow(Snapshot|Fixpoint)' -benchmem -count=3` on a synthetic
 // 100-component x 100-hop corpus reported full snapshot assembly+solve at
 // 20.2-24.1 ms/op with about 92.5 MB/op and 91.8k-92.0k allocs/op, while the

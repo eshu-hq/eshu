@@ -63,14 +63,18 @@ the `sampleCode*Input`/`code*EvidenceEnvelope`/`code*EvidenceIntent`
 builders) plus the `fakeBackfillStateMarker`/`splitPipeKey`/
 `stringSlicesEqual` cluster this package's own
 `code_interproc_projected_edge_backfill_test.go` also defines. Go test files
-cannot share unexported symbols across packages, and several root files
-(`defaults_code_taint_evidence_test.go`,
-`value_flow_fixpoint_evidence_loader_test.go`,
-`code_value_flow_stale_cleanup_runner_test.go`, and the sibling
-`projected_source_edge_backfill_test.go` family) still need these shapes. If
+cannot share unexported symbols across packages, and root's
+`defaults_code_taint_evidence_test.go` and the sibling
+`projected_source_edge_backfill_test.go` family still need these shapes. The
+sibling `valueflow` package keeps its OWN third hand-kept-in-sync copy
+(`code_interproc_evidence_test_doubles_test.go`, scoped to just the
+`recordingCodeInterprocEvidenceWriter`/`stubCodeInterprocEvidenceLoader`/
+`sampleCodeInterprocInput` shapes its `value_flow_fixpoint_evidence_loader_test.go`
+needs — it moved out of root in issue #6061 and, being a separate package,
+cannot reach either the root or this package's unexported test doubles). If
 you change a writer/loader interface's method set or a sample builder's
-fields here, update the root copy in the same commit — nothing enforces
-they stay identical.
+fields here, update the root copy AND the `valueflow` copy in the same
+commit — nothing enforces any of them stay identical.
 
 ## Common changes
 

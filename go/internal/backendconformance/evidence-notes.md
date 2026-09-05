@@ -3,7 +3,7 @@
 ## Value-flow cloud sink conformance pair
 
 The production query `valueFlowCloudSinkTargetsCypher`
-(`go/internal/reducer/value_flow_cloud_sink_loader.go`) returns zero rows on
+(`go/internal/reducer/valueflow/value_flow_cloud_sink_loader.go`) returns zero rows on
 NornicDB and the correct row on Neo4j 5.x community. It resolves which cloud
 resources a function's cloud action can reach, and its failure is silent — no
 error, just a graph missing that category of edge. Nothing in the repository

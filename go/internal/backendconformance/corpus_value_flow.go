@@ -55,7 +55,7 @@ func valueFlowCasesEnabled() bool {
 // nothing in the repository detected that.
 //
 // valueFlowCloudSinkTargetsCypher
-// (go/internal/reducer/value_flow_cloud_sink_loader.go) resolves which cloud
+// (go/internal/reducer/valueflow/value_flow_cloud_sink_loader.go) resolves which cloud
 // resources a function's cloud action can reach. Measured against Neo4j 5.x
 // community and NornicDB (pinned build and upstream main), the statement
 // diverges from Neo4j in the following ways:
