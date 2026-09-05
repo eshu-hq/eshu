@@ -1,7 +1,7 @@
 # #6228 — fourth direct-materialization family: iam_can_assume
 
 The Ifá direct-materialization ledger
-(`specs/ifa-materialized-edge-coverage-direct.v1.yaml`) waives 28 families.
+(`specs/ifa-materialized-edge-coverage-direct.v1.yaml`) lists 28 families, 26 of them waived.
 `iam_can_assume` now has three of the four things a `coverage:` row asserts:
 a cataloged Odù (`IAMCanAssumeFamilyOdu`), a registered edge-type set
 (`CAN_ASSUME` in `cypher.singleTypeMaterializedEdgeFamilies`), a vacuity
@@ -96,8 +96,8 @@ No metric, span, log field, or status field is added, removed, or renamed. The
 guard reports through the existing `replaycoverage` resolver return (`bool`,
 `detail string`) every sibling family guard already uses, and the ledger's
 finding rendering (`materializedEdgeFinding`) is untouched. An operator sees
-the same materialized-edge coverage report shape as before, with one more
-family whose waiver reason now says more.
+the same materialized-edge coverage report shape as before; the
+iam_can_assume finding still renders its standing waiver reason.
 
 ## Mutation evidence
 
