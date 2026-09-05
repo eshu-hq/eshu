@@ -197,8 +197,12 @@ func relationshipStoryGrantedCandidates(
 //
 // The other three branches above return substring rows and let the caller
 // filter, which is the same end state: that filter runs on whatever comes back.
-// Only this branch has to apply it early, because only this branch spends a
-// shared budget across several reads.
+// This branch has to apply it early because it spends a shared budget across
+// several reads.
+//
+// It is not the only place in this file that spends one. searchEntitiesForGrant's
+// legacy-store fallback does too, and deliberately keeps its rows unfiltered --
+// see the note on that loop for why the same fix does not belong there.
 func relationshipStoryExactCandidatesPerRepository(
 	ctx context.Context,
 	content ContentStore,
@@ -268,6 +272,29 @@ func searchEntitiesForGrant(
 			ctx, search.RepoID, search.Language, search.EntityType, search.Query, search.Limit,
 		)
 	}
+	// This loop spends a shared budget the way the no-language branch used to,
+	// and appends substring rows unfiltered. So a first granted repository
+	// holding more than Limit near-misses can hide an exact symbol further down
+	// the grant -- for the ONE caller that goes on to filter to exact names,
+	// which is relationshipStoryGrantedCandidates with a language named.
+	//
+	// Mirroring the exact pre-filter here would be wrong, and the twin's callers
+	// are what say so. queryContentByLanguage hands these rows straight to
+	// POST /api/v0/code/language-query as results, where matching a substring is
+	// the feature: filtering to exact names would stop a search for "Handler"
+	// returning "HandlerFactory". enrichLanguageResultsWithContentMetadata keys
+	// them into a merge map by (repository, path, type, name, line) to attach
+	// metadata to rows the GRAPH returned, so narrowing the read would drop
+	// merges for every result whose name is not the query. Both are in
+	// language_query_metadata.go, where this function's byte-identical twin
+	// lives; the parity test pins the two together, and editing that file also
+	// re-trips the parser-relationship-kit lane.
+	//
+	// So the shape is disclosed rather than mirrored, and the fix belongs to the
+	// caller that wants exact names rather than to this shared read: #6555. Its
+	// reach today is nil -- *ContentReader satisfies
+	// languageEntityContentSearcher and takes the branch above, so this loop
+	// runs only for a fake or an older store.
 	entities := make([]EntityContent, 0, search.Limit)
 	for _, repoID := range search.AllowedRepositoryIDs {
 		if len(entities) >= search.Limit {
