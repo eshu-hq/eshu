@@ -7,8 +7,9 @@ package iampolicy
 // statement: everything a grant fold needs to decide whether the statement can
 // be conservatively trusted, with none of the decisions made yet.
 //
-// The two folds that consume it — the reducer root's privilege-escalation
-// builder and the iamcan family's CAN_PERFORM builder — count into different
+// The two folds that consume it — the iamescalation family's
+// privilege-escalation builder and the iamcan family's CAN_PERFORM builder —
+// count into different
 // tallies and check against different catalogs, so the decisions stay at each
 // caller. The extraction is identical in both, so it lives here once.
 type StatementShape struct {

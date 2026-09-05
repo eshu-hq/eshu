@@ -28,9 +28,9 @@ identical uid without a graph round trip.
 
 ## Why this is a shared leaf
 
-The AWS relationship, security-group reachability and IAM privilege-escalation
-slices at the reducer root all resolve endpoints against this index, and so does
-the `reducer/iamcan` family. A family package may never import the reducer root,
+The AWS relationship and security-group reachability slices at the reducer root
+all resolve endpoints against this index, and so do the
+`reducer/iamescalation` and `reducer/iamcan` families. A family package may never import the reducer root,
 so the index has to live below both. The root keeps `cloudResourceJoinIndex`,
 `buildCloudResourceJoinIndex` and `cloudResourceUID` as an alias and two
 forwarders in `cloud_resource_join_index_compat.go`, so its own callers compile

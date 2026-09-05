@@ -13,7 +13,7 @@ import (
 
 // IAM CloudResource resource_type tokens the target resolvers require a matched
 // node to carry. They mirror the awscloud collector's emitted resource types;
-// naming them here keeps both the escalation slice at the reducer root and the
+// naming them here keeps both the `reducer/iamescalation` family and the
 // iamcan family off the collector package for four string constants.
 const (
 	// ResourceTypeRole is the aws_resource resource_type of an IAM role node.
