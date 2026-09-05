@@ -119,10 +119,10 @@ for your changed paths (OpenAPI, route coverage, edge source-tool coverage,
 evidence continuity, fact-kind registry, contract source-of-truth, parser
 relationship kit, query-plan regression, scale corpus/benchmark, capability
 budget, collector entrypoints, skill roundtrip, telemetry coverage, operator
-dashboard, the 500-line Markdown cap on documents under `go/`, and so on).
+dashboard, and the 500-line Markdown cap under `go/` and `docs/`).
 You no longer have to remember which verifier matches your change — the
-changed-path selector picks them. A docs-only or no-op change
-runs none of them. Docker/NornicDB/Postgres/credentialed gates remain CI-only
+changed-path selector picks them. Docs changes select the applicable docs
+gates; a no-op change selects none. Docker/NornicDB/Postgres/credentialed gates remain CI-only
 and are printed (with a reason), never run locally. Integration suites that need
 Postgres or NornicDB are not run here — use the focused Compose gates below for
 those.

@@ -121,7 +121,7 @@ repos:
         types: [go]
         pass_filenames: true
 
-      # Markdown 500-line cap under go/ (issue #6187). A SEPARATE hook from
+      # Markdown 500-line cap under go/ and docs/ (#6187, #6545). Separate from
       # go-file-cap above, not a config widening of it: that hook declares
       # `types: [go]`, and its CI half is the tools/golangci-lint-filelength
       # plugin, which walks the Go AST and cannot see a .md file at all. No

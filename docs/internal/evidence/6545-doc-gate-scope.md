@@ -3,7 +3,7 @@
 The citation checker previously read test and fixture citations only from
 public language pages and the parity matrix. The Markdown cap evaluated only
 `go/`. Both now include Markdown under `docs/`, including internal evidence.
-TEST and FIXTURE scans also traverse hidden directories under `docs/`.
+TEST and FIXTURE scans also traverse hidden and ignored directories under `docs/`.
 The cap still excludes fixture, generated, vendor, and hidden path segments.
 
 ## Regression proof
@@ -57,4 +57,7 @@ registry, which still names that job when this PR first runs. Regression cases
 reject removal or commenting of those invocations even when the dedicated job
 contains identical commands. Hidden-directory citation cases track pages in
 Git, reject missing TEST/FIXTURE targets by name, and verify removal restores
-green and valid citations produce nonzero counts.
+green and valid citations produce nonzero counts. Additional force-tracked
+cases cover directory exclusions in `.gitignore`, `.ignore`, and `.rgignore`
+under ordinary and hidden paths: each missing target failed only after both
+scans disabled ignore filtering. Valid replacements report nonzero counts.
