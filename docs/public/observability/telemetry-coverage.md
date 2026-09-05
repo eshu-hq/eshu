@@ -26,9 +26,6 @@ The public operator contract is `docs/public/reference/telemetry/index.md`.
   sub-package or seam.
 - `file:line` points at the Go file that emits the signal, not the contract.
   When the source spans several call sites, it points at the dispatch chokepoint.
-- The literal string `No-Observability-Change:` in a row's metric column is a
-  documented decision that the stage does not need a new metric because an
-  existing one already diagnoses it.
 - The script (X2) grep-parses this table; do not rename columns or insert
   prose between rows in a section.
 
@@ -1037,8 +1034,6 @@ on phase at 3 AM.
 
 ## Regeneration Note
 
-- This doc is hand-authored. There is no auto-generation from
-  `go/internal/telemetry/instruments.go` or any other source file.
 - Each row is one stage. The table is the source of truth for X2.
 - To add a new stage:
   1. Register the metric in `go/internal/telemetry/instruments.go` (or
