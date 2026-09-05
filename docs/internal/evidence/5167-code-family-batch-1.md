@@ -431,8 +431,9 @@ number of ingestion scopes covering a repository.
 
 Performance Evidence: the walk's buffer count does not move along any axis
 measured. It reads `hit=4,886` at every grant size from 5 to 500 repositories,
-where the range shape climbs from `hit=7,622` to `hit=626,377`; about
-`hit=3,150` from 0 to 200 retained generations, where the walk on the
+where the range shape climbs from `hit=7,622` to `hit=626,377`;
+`hit=3,263`-`3,270` with every consumer granted and `hit=3,138`-`3,142` with
+one hidden, from 0 to 200 retained generations, where the walk on the
 two-column index climbs to `hit=1,150,489`; and `hit=2,255` whether one or
 fifty scopes cover a granted repository, where pair stepping read `hit=26,788`.
 Across every point measured the walk reads between 2,255 and 6,081 buffers, the
