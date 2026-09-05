@@ -29,7 +29,7 @@ func liveGrantImportRequest(queryType string, access repositoryAccessFilter) imp
 		QueryType: queryType,
 		Language:  liveGrantLanguage,
 		Limit:     1,
-		access:    access,
+		Access:    access,
 	}
 }
 

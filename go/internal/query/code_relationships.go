@@ -11,15 +11,10 @@ import (
 	"strings"
 )
 
-type relationshipsRequest struct {
-	EntityID         string `json:"entity_id"`
-	Name             string `json:"name"`
-	RepoID           string `json:"repo_id"`
-	Direction        string `json:"direction"`
-	RelationshipType string `json:"relationship_type"`
-	Transitive       bool   `json:"transitive"`
-	MaxDepth         int    `json:"max_depth"`
-}
+// The relationshipsRequest type split to
+// codemodel/code_relationships_resolution.go (#6060 lane A L1) with the
+// name-target resolver that reads it. Root's family_code_shim.go aliases
+// it back so the staying relationships handler keeps its literal.
 
 // handleRelationships returns incoming and outgoing relationships for an entity.
 func (h *CodeHandler) handleRelationships(w http.ResponseWriter, r *http.Request) {

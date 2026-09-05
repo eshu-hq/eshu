@@ -132,8 +132,8 @@ func resolveNornicDBRelationshipStoryLegacyCollisionCheck(
 		if len(collisionRow) > 0 {
 			return request, nil
 		}
-		request.graphAnchorPropertyResolved = true
-		request.graphAnchorProperty = "uid"
+		request.GraphAnchorPropertyResolved = true
+		request.GraphAnchorProperty = "uid"
 		return request, nil
 	}
 	idRow, err := handler.Neo4j.RunSingle(
@@ -144,9 +144,9 @@ func resolveNornicDBRelationshipStoryLegacyCollisionCheck(
 	if err != nil {
 		return request, err
 	}
-	request.graphAnchorPropertyResolved = true
+	request.GraphAnchorPropertyResolved = true
 	if len(idRow) > 0 {
-		request.graphAnchorProperty = "id"
+		request.GraphAnchorProperty = "id"
 	}
 	return request, nil
 }

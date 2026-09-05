@@ -25,11 +25,11 @@ func (h *CodeHandler) nornicDBRelationshipStoryGraphRows(
 	}
 	access := repositoryAccessFilterFromContext(ctx)
 	properties := []string{"uid", "id"}
-	if req.graphAnchorPropertyResolved {
-		if req.graphAnchorProperty == "" {
+	if req.GraphAnchorPropertyResolved {
+		if req.GraphAnchorProperty == "" {
 			return []map[string]any{}, nil
 		}
-		properties = []string{req.graphAnchorProperty}
+		properties = []string{req.GraphAnchorProperty}
 	}
 	for _, property := range properties {
 		cypher, params := nornicDBRelationshipStoryGraphCypher(req, entityID, entityLabel, property, direction, access)
@@ -100,8 +100,8 @@ func (h *CodeHandler) resolveNornicDBRelationshipStoryAnchorProperty(
 		return req, err
 	}
 	if len(uidRow) > 0 {
-		req.graphAnchorPropertyResolved = true
-		req.graphAnchorProperty = "uid"
+		req.GraphAnchorPropertyResolved = true
+		req.GraphAnchorProperty = "uid"
 		return req, nil
 	}
 	idRow, err := h.Neo4j.RunSingle(
@@ -112,9 +112,9 @@ func (h *CodeHandler) resolveNornicDBRelationshipStoryAnchorProperty(
 	if err != nil {
 		return req, err
 	}
-	req.graphAnchorPropertyResolved = true
+	req.GraphAnchorPropertyResolved = true
 	if len(idRow) > 0 {
-		req.graphAnchorProperty = "id"
+		req.GraphAnchorProperty = "id"
 	}
 	return req, nil
 }
@@ -141,10 +141,10 @@ func nornicDBRelationshipStoryGraphCypher(
 	direction string,
 	access repositoryAccessFilter,
 ) (string, map[string]any) {
-	relationshipType, _ := req.normalizedRelationshipType()
+	relationshipType, _ := req.NormalizedRelationshipType()
 	params := map[string]any{
 		"entity_id": strings.TrimSpace(entityID),
-		"limit":     req.normalizedLimit() + 1,
+		"limit":     req.NormalizedLimit() + 1,
 		"offset":    req.Offset,
 	}
 	params = relationshipStoryAccessParams(req, access, params)
@@ -354,7 +354,7 @@ func nornicDBRelationshipStoryClassMethodsCypher(
 ) (string, map[string]any) {
 	params := map[string]any{
 		"entity_id": strings.TrimSpace(entityID),
-		"limit":     req.normalizedLimit() + 1,
+		"limit":     req.NormalizedLimit() + 1,
 		"offset":    req.Offset,
 	}
 	classPattern := nornicDBNodePatternWithProperty("class", "Class", property, "$entity_id")
@@ -400,7 +400,7 @@ func nornicDBRelationshipStoryInheritanceDepthCypher(
 	maxDepth := normalizedRelationshipStoryMaxDepth(req.MaxDepth)
 	params := map[string]any{
 		"entity_id": strings.TrimSpace(entityID),
-		"limit":     req.normalizedLimit() + 1,
+		"limit":     req.NormalizedLimit() + 1,
 	}
 	anchorPattern := nornicDBNodePatternWithProperty("anchor", "Class", property, "$entity_id")
 	if direction == "incoming" {

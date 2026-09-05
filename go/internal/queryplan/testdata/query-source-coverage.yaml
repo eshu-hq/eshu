@@ -48,7 +48,7 @@ source_coverage:
       - {symbol: "(*CodeHandler).callChainCandidateOneHopRows", count: 1, non_hot_reason: "inventory-only support or bounded read; promote to entry_ids when designated hot"}
   - file: code_call_graph_metrics.go
     calls:
-      - {symbol: "(*CodeHandler).callGraphMetricsData", count: 1, source_sha256: b7dd5b91ebffa286a36d53e74eea639d9549b03e86caa6bca6e66617d367e0cf, entry_ids: [QP-CALL-GRAPH-HUBS, QP-CALL-GRAPH-RECURSIVE]}
+      - {symbol: "(*CodeHandler).callGraphMetricsData", count: 1, source_sha256: 3ca3b110336237f92261ef63a6c219263ed1ac99a489016a9b50727f7521d681, entry_ids: [QP-CALL-GRAPH-HUBS, QP-CALL-GRAPH-RECURSIVE]}
   - file: code_complexity_queries.go
     calls:
       - symbol: "(*CodeHandler).listMostComplexFunctions"
@@ -93,7 +93,7 @@ source_coverage:
       - {symbol: "(*CodeHandler).crossModuleCallRows", count: 1, source_sha256: 0425f0698fd7db7d6f6da1260caf04083bf3df43ed8c26a48752b48ef7cceb04, entry_ids: [QP-CODE-IMPORT-CROSS-MODULE-CALLS]}
       - {symbol: "(*CodeHandler).fileImportCycleRows", count: 1, source_sha256: f52e7d801ee9c1d2b727c9bf5d602ca4f7f363fcafa3c52c1b2122409651180c, entry_ids: [QP-CODE-IMPORT-CYCLES]}
       - {symbol: "(*CodeHandler).importDependencyModuleScopes", count: 1, source_sha256: 707264cae808b130895384e40518e68ac762d3ee5965991f870ce0409caec287, entry_ids: [QP-CODE-IMPORT-SOURCE-MODULE-FILES, QP-CODE-IMPORT-TARGET-MODULE-FILES]}
-      - {symbol: "(*CodeHandler).importRows", count: 1, source_sha256: 117fd5958f5bcabc16209e6773ed105c44d9567ee9de794d03d395f66791a11a, entry_ids: [QP-CODE-IMPORT-ROWS-REPOSITORY, QP-CODE-IMPORT-PACKAGES, QP-CODE-IMPORT-SOURCE-MODULE-ROWS]}
+      - {symbol: "(*CodeHandler).importRows", count: 1, source_sha256: 96f030bb3c3f448a0567c572ac340f6536de527efa9598000f4d6f994f61fe5c, entry_ids: [QP-CODE-IMPORT-ROWS-REPOSITORY, QP-CODE-IMPORT-PACKAGES, QP-CODE-IMPORT-SOURCE-MODULE-ROWS]}
   - file: code_quality.go
     calls:
       - symbol: "(*CodeHandler).inspectCodeQuality"
@@ -117,9 +117,9 @@ source_coverage:
   - file: code_relationship_story_nornicdb.go
     calls:
       - {symbol: "(*CodeHandler).nornicDBRelationshipStoryClassMethods", count: 1, non_hot_reason: "inventory-only support or bounded read; promote to entry_ids when designated hot"}
-      - {symbol: "(*CodeHandler).nornicDBRelationshipStoryGraphRows", count: 1, source_sha256: 4eee27939dd008c5aa1a21012acef45c4890d65b3896f128a5b4d854fcee3df6, entry_ids: [QP-CODE-REL-STORY, QP-CODE-REL-STORY-INCOMING]}
+      - {symbol: "(*CodeHandler).nornicDBRelationshipStoryGraphRows", count: 1, source_sha256: 6f6060c53b1b3981993336adc2d6a817e3522a5cc22eccf21dbaf0ee36187821, entry_ids: [QP-CODE-REL-STORY, QP-CODE-REL-STORY-INCOMING]}
       - {symbol: "(*CodeHandler).nornicDBRelationshipStoryInheritanceDepthRows", count: 1, source_sha256: 3766798eac808f680a6aaa54dc03aa9d54d5576692882dbd86fae5d74f6ace68, entry_ids: [QP-CODE-REL-TRANSITIVE]}
-      - {symbol: "(*CodeHandler).resolveNornicDBRelationshipStoryAnchorProperty", count: 2, source_sha256: 8e5cde039dd4f4a605f8558cb610a4aaf8c6ba81898ae0aff858242ca0761cac, entry_ids: [QP-CODE-REL-STORY-ANCHOR-COLLISION]}
+      - {symbol: "(*CodeHandler).resolveNornicDBRelationshipStoryAnchorProperty", count: 2, source_sha256: 92e00f48c6258d06df21e456d17d13d8be4df2dbb8b664d5e68957e246b962ec, entry_ids: [QP-CODE-REL-STORY-ANCHOR-COLLISION]}
   - file: code_relationships.go
     calls:
       - {symbol: "(*CodeHandler).relationshipsGraphRow", count: 3, non_hot_reason: "inventory-only support or bounded read; promote to entry_ids when designated hot"}

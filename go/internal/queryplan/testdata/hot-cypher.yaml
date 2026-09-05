@@ -338,7 +338,7 @@ entries:
     source:
       file: go/internal/query/code_relationship_story_nornicdb.go
       symbol: nornicDBRelationshipStoryGraphCypher
-      source_sha256: d330e4456083939d04671eebe17376779e9a527f9f5ede83513cd1279a4cde52
+      source_sha256: 3df067cb508c518305e946c7df69da0b60970e2475c98977c8f8989b0714efe2
       line_hint: 36
     required_anchors:
       - label: Function
@@ -368,7 +368,7 @@ entries:
     source:
       file: go/internal/query/code_relationship_story_nornicdb.go
       symbol: nornicDBRelationshipStoryInheritanceDepthCypher
-      source_sha256: ab9f498ab7ac91bd94a8e076af79c3f3b3f5436828ab51546ef1410a99968377
+      source_sha256: 3f7aba18ba74a6bab8e0a1e42f87250248078bd14561784d7550066858375601
       line_hint: 116
     required_anchors:
       - label: Class
@@ -396,7 +396,7 @@ entries:
     source:
       file: go/internal/query/code_relationship_story_nornicdb.go
       symbol: nornicDBRelationshipStoryGraphCypher
-      source_sha256: d330e4456083939d04671eebe17376779e9a527f9f5ede83513cd1279a4cde52
+      source_sha256: 3df067cb508c518305e946c7df69da0b60970e2475c98977c8f8989b0714efe2
       line_hint: 36
     required_anchors:
       - label: Function
@@ -428,7 +428,7 @@ entries:
     source:
       file: go/internal/query/code_relationship_story_nornicdb.go
       symbol: (*CodeHandler).resolveNornicDBRelationshipStoryAnchorProperty
-      source_sha256: 8e5cde039dd4f4a605f8558cb610a4aaf8c6ba81898ae0aff858242ca0761cac
+      source_sha256: 92e00f48c6258d06df21e456d17d13d8be4df2dbb8b664d5e68957e246b962ec
       line_hint: 48
     required_anchors:
       - label: Function
@@ -451,9 +451,9 @@ entries:
     backend: nornicdb
     query_kind: cypher
     source:
-      file: go/internal/query/code_import_dependencies_queries.go
-      symbol: fileImportCycleEdgeRowsCypher
-      source_sha256: ce0ca2510ecc886bd45a64d6844672e95c270890781b942e91ee9c4b56f9a882
+      file: go/internal/query/codemodel/code_import_dependencies_queries.go
+      symbol: FileImportCycleEdgeRowsCypher
+      source_sha256: 9a4cf269231a9297ae8669823b385a995a52f306cde4455c96545da79af08f49
       line_hint: 164
     required_anchors:
       - label: Repository

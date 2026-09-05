@@ -8,26 +8,12 @@ import (
 	"strings"
 )
 
-// rubyRailsControllerActionRootKind is the only guess-based dead-code root kind
-// the #5376 reducer verdict can downgrade today. It mirrors the reducer/parser
-// constant of the same string; the query only needs the literal.
-const rubyRailsControllerActionRootKind = "ruby.rails_controller_action"
-
-// deadCodeDowngradedRoots maps an entity ID to the set of code-root kinds the
-// reducer's repo-wide #5376 verdict positively downgraded. A nil or empty map
-// means the reducer proved nothing (or is absent/lagging/non-active), so every
-// parser-rooted candidate is kept — the lag-safety default. Only a positive,
-// active-generation downgraded row can suppress a root; nothing else can.
-type deadCodeDowngradedRoots map[string]map[string]struct{}
-
-func (d deadCodeDowngradedRoots) isDowngraded(entityID, rootKind string) bool {
-	kinds, ok := d[entityID]
-	if !ok {
-		return false
-	}
-	_, ok = kinds[rootKind]
-	return ok
-}
+// The rubyRailsControllerActionRootKind constant split to
+// codemodel/code_dead_code_ruby_roots.go and the deadCodeDowngradedRoots
+// type with its isDowngraded predicate split to
+// codemodel/code_dead_code_analysis.go (#6060 lane A L1); both run in the
+// leaf now. Root's family_code_shim.go aliases them back so the staying
+// verdict loader, readers, and tests keep their names.
 
 // codeRootVerdictStore reads reducer-materialized downgraded code-root verdicts
 // for the active generation, keyed per repository and candidate entity.

@@ -272,7 +272,7 @@ func TestNornicDBRelationshipStoryResolvedAnchorPropertyControlsGraphReads(t *te
 			relationshipStoryRequest{
 				EntityID:                    "missing",
 				RelationshipType:            "CALLS",
-				graphAnchorPropertyResolved: true,
+				GraphAnchorPropertyResolved: true,
 			},
 			&EntityContent{EntityID: "missing", EntityType: "Function"},
 			"incoming",
@@ -293,8 +293,8 @@ func TestNornicDBRelationshipStoryResolvedAnchorPropertyControlsGraphReads(t *te
 			relationshipStoryRequest{
 				EntityID:                    "function-target",
 				RelationshipType:            "CALLS",
-				graphAnchorProperty:         "uid",
-				graphAnchorPropertyResolved: true,
+				GraphAnchorProperty:         "uid",
+				GraphAnchorPropertyResolved: true,
 			},
 			&EntityContent{EntityID: "function-target", EntityType: "Function"},
 			"incoming",
@@ -413,11 +413,11 @@ func TestResolveNornicDBRelationshipStoryAnchorProperty(t *testing.T) {
 			if err != nil {
 				t.Fatalf("resolve anchor property: %v", err)
 			}
-			if req.graphAnchorPropertyResolved != tt.wantResolved {
-				t.Fatalf("resolved = %t, want %t", req.graphAnchorPropertyResolved, tt.wantResolved)
+			if req.GraphAnchorPropertyResolved != tt.wantResolved {
+				t.Fatalf("resolved = %t, want %t", req.GraphAnchorPropertyResolved, tt.wantResolved)
 			}
-			if req.graphAnchorProperty != tt.wantProperty {
-				t.Fatalf("property = %q, want %q", req.graphAnchorProperty, tt.wantProperty)
+			if req.GraphAnchorProperty != tt.wantProperty {
+				t.Fatalf("property = %q, want %q", req.GraphAnchorProperty, tt.wantProperty)
 			}
 			if strings.Join(tt.graph.calls, ",") != strings.Join(tt.wantCalls, ",") {
 				t.Fatalf("calls = %v, want %v", tt.graph.calls, tt.wantCalls)

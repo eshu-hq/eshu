@@ -79,7 +79,7 @@ func TestImportDependencyBuildersBindTheGrantInTheShippedCypher(t *testing.T) {
 
 	scoped := importDependencyRequest{
 		SourceFile: "src/api.py",
-		access:     repositoryAccessFilter{AllowedRepositoryIDs: []string{codeGrantGrantedRepo}},
+		Access:     repositoryAccessFilter{AllowedRepositoryIDs: []string{codeGrantGrantedRepo}},
 	}
 	for _, builder := range importGrantBuilders() {
 		t.Run(builder.name, func(t *testing.T) {
@@ -108,7 +108,7 @@ func TestImportDependencyBuildersCarryNoGrantForAnUnscopedCaller(t *testing.T) {
 
 	unscoped := importDependencyRequest{
 		SourceFile: "src/api.py",
-		access:     repositoryAccessFilter{AllScopes: true},
+		Access:     repositoryAccessFilter{AllScopes: true},
 	}
 	for _, builder := range importGrantBuilders() {
 		t.Run(builder.name, func(t *testing.T) {
@@ -129,7 +129,7 @@ func TestImportDependencyParamsBindTheGrantArrays(t *testing.T) {
 
 	params := importDependencyParams(importDependencyRequest{
 		SourceFile: "src/api.py",
-		access:     repositoryAccessFilter{AllowedRepositoryIDs: []string{codeGrantGrantedRepo}},
+		Access:     repositoryAccessFilter{AllowedRepositoryIDs: []string{codeGrantGrantedRepo}},
 	})
 	if !graphParamContains(params, "allowed_repository_ids", codeGrantGrantedRepo) {
 		t.Fatalf("params[allowed_repository_ids] = %#v, want the caller's granted ids", params["allowed_repository_ids"])
@@ -140,7 +140,7 @@ func TestImportDependencyParamsBindTheGrantArrays(t *testing.T) {
 
 	unscoped := importDependencyParams(importDependencyRequest{
 		SourceFile: "src/api.py",
-		access:     repositoryAccessFilter{AllScopes: true},
+		Access:     repositoryAccessFilter{AllScopes: true},
 	})
 	if _, ok := unscoped["allowed_repository_ids"]; ok {
 		t.Fatalf("unscoped params carry grant arrays: %#v", unscoped)

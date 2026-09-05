@@ -21,49 +21,49 @@ func TestClassifyRelationshipStoryEvidence(t *testing.T) {
 	}{
 		{
 			name:           "resolved_complete",
-			in:             relationshipStoryEvidenceInputs{resolutionStatus: "resolved", rawCount: 3, afterFloorCount: 3},
+			in:             relationshipStoryEvidenceInputs{ResolutionStatus: "resolved", RawCount: 3, AfterFloorCount: 3},
 			wantReason:     relationshipStoryReasonComplete,
 			wantTruncation: relationshipStoryTruncationNone,
 		},
 		{
 			name:           "repo_scoped_with_rows_is_not_unresolved",
-			in:             relationshipStoryEvidenceInputs{resolutionStatus: "repo_scoped", rawCount: 4, afterFloorCount: 4},
+			in:             relationshipStoryEvidenceInputs{ResolutionStatus: "repo_scoped", RawCount: 4, AfterFloorCount: 4},
 			wantReason:     relationshipStoryReasonComplete,
 			wantTruncation: relationshipStoryTruncationNone,
 		},
 		{
 			name:           "unresolved_status_empty_is_target_unresolved",
-			in:             relationshipStoryEvidenceInputs{resolutionStatus: "ambiguous", rawCount: 0},
+			in:             relationshipStoryEvidenceInputs{ResolutionStatus: "ambiguous", RawCount: 0},
 			wantReason:     relationshipStoryReasonTargetUnresolved,
 			wantTruncation: relationshipStoryTruncationNone,
 		},
 		{
 			name:           "resolved_no_edges",
-			in:             relationshipStoryEvidenceInputs{resolutionStatus: "resolved", rawCount: 0},
+			in:             relationshipStoryEvidenceInputs{ResolutionStatus: "resolved", RawCount: 0},
 			wantReason:     relationshipStoryReasonNoEdges,
 			wantTruncation: relationshipStoryTruncationNone,
 		},
 		{
 			name:           "floor_empties_complete_page_is_exhaustive",
-			in:             relationshipStoryEvidenceInputs{resolutionStatus: "resolved", rawCount: 2, afterFloorCount: 0, floorApplied: true, rawPaged: false},
+			in:             relationshipStoryEvidenceInputs{ResolutionStatus: "resolved", RawCount: 2, AfterFloorCount: 0, FloorApplied: true, RawPaged: false},
 			wantReason:     relationshipStoryReasonFloorFiltered,
 			wantTruncation: relationshipStoryTruncationNone,
 		},
 		{
 			name:           "floor_empties_paged_page_is_truncated_not_exhaustive",
-			in:             relationshipStoryEvidenceInputs{resolutionStatus: "resolved", rawCount: 2, afterFloorCount: 0, floorApplied: true, rawPaged: true},
+			in:             relationshipStoryEvidenceInputs{ResolutionStatus: "resolved", RawCount: 2, AfterFloorCount: 0, FloorApplied: true, RawPaged: true},
 			wantReason:     relationshipStoryReasonTruncatedLimit,
 			wantTruncation: relationshipStoryTruncationCount,
 		},
 		{
 			name:           "paged_fetch_with_rows_is_count_truncated",
-			in:             relationshipStoryEvidenceInputs{resolutionStatus: "resolved", rawCount: 2, afterFloorCount: 2, rawPaged: true},
+			in:             relationshipStoryEvidenceInputs{ResolutionStatus: "resolved", RawCount: 2, AfterFloorCount: 2, RawPaged: true},
 			wantReason:     relationshipStoryReasonTruncatedLimit,
 			wantTruncation: relationshipStoryTruncationCount,
 		},
 		{
 			name:           "token_budget_truncation",
-			in:             relationshipStoryEvidenceInputs{resolutionStatus: "resolved", rawCount: 2, afterFloorCount: 2, budgetTruncated: true},
+			in:             relationshipStoryEvidenceInputs{ResolutionStatus: "resolved", RawCount: 2, AfterFloorCount: 2, BudgetTruncated: true},
 			wantReason:     relationshipStoryReasonTruncatedBudget,
 			wantTruncation: relationshipStoryTruncationBudget,
 		},
@@ -73,11 +73,11 @@ func TestClassifyRelationshipStoryEvidence(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 			got := classifyRelationshipStoryEvidence(tc.in)
-			if got.reason != tc.wantReason {
-				t.Errorf("reason = %q, want %q", got.reason, tc.wantReason)
+			if got.Reason != tc.wantReason {
+				t.Errorf("reason = %q, want %q", got.Reason, tc.wantReason)
 			}
-			if got.truncation != tc.wantTruncation {
-				t.Errorf("truncation = %q, want %q", got.truncation, tc.wantTruncation)
+			if got.Truncation != tc.wantTruncation {
+				t.Errorf("truncation = %q, want %q", got.Truncation, tc.wantTruncation)
 			}
 		})
 	}

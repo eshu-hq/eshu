@@ -16,79 +16,18 @@ const (
 	codeFlowReachingDefCapability = "code_flow.reaching_def"
 	codeFlowCFGSummaryCapability  = "code_flow.cfg_summary"
 	codeFlowPDGSummaryCapability  = "code_flow.pdg_summary"
-
-	codeFlowDefaultLimit = 25
-	codeFlowMaxLimit     = 100
 )
 
-// CodeFlowKind selects one bounded code-flow read surface.
-type CodeFlowKind string
-
-const (
-	CodeFlowKindTaintPath   CodeFlowKind = "taint_path"
-	CodeFlowKindReachingDef CodeFlowKind = "reaching_def"
-	CodeFlowKindCFGSummary  CodeFlowKind = "cfg_summary"
-	CodeFlowKindPDGSummary  CodeFlowKind = "pdg_summary"
-)
+// The CodeFlowKind/Filter/ReadModel/Function/TaintPath contract and the page
+// limit bounds split to codemodel/code_flow_postgres.go (#6060 lane A L1);
+// the Postgres reader implements ListCodeFlow over them. Root's
+// family_code_shim.go aliases them back so the staying handlers, payload
+// builders, and tests keep their names.
 
 // CodeFlowStore loads bounded active-generation parser and reducer evidence for
 // API/MCP code-flow readbacks.
 type CodeFlowStore interface {
 	ListCodeFlow(context.Context, CodeFlowFilter) (CodeFlowReadModel, error)
-}
-
-// CodeFlowFilter is the scoped query contract passed to the code-flow store.
-type CodeFlowFilter struct {
-	Kind     CodeFlowKind
-	RepoID   string
-	Language string
-	Symbol   string
-	FilePath string
-	Line     int
-	Limit    int
-}
-
-// CodeFlowReadModel is the store-neutral active-generation code-flow snapshot.
-type CodeFlowReadModel struct {
-	Functions       []CodeFlowFunction
-	TaintPaths      []CodeFlowTaintPath
-	Freshness       FreshnessState
-	FreshnessDetail string
-}
-
-// CodeFlowFunction is one exact parser dataflow record for a function.
-type CodeFlowFunction struct {
-	RepoID              string
-	RelativePath        string
-	FunctionName        string
-	FunctionUID         string
-	Language            string
-	LineNumber          int
-	CFGBlocks           []any
-	CFGEdges            []any
-	DefUse              []map[string]any
-	ControlDependencies []map[string]any
-	Overflow            bool
-	OverflowReason      string
-	EvidenceHandle      string
-	SourceGenerationID  string
-	SourceObservedAt    time.Time
-}
-
-// CodeFlowTaintPath is one reducer-owned taint evidence path.
-type CodeFlowTaintPath struct {
-	RepoID             string
-	RelativePath       string
-	FunctionName       string
-	Language           string
-	SourceKind         string
-	SinkKind           string
-	SourceLine         int
-	SinkLine           int
-	Confidence         float64
-	EvidenceHandle     string
-	SourceGenerationID string
-	SourceObservedAt   time.Time
 }
 
 type codeFlowRequest struct {

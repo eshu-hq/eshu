@@ -313,6 +313,102 @@ func TestCapabilitySweepFailsClosedOnShadowedPackageName(t *testing.T) {
 	}
 }
 
+// calleeName returns the plain name of a call's callee: the identifier for a
+// free-function call, or the selected method name for a method call. Anything
+// else (a func literal invoked inline, a map/slice index, etc.) reports "".
+// It moved here from graph_read_error_capability_sweep_resolve_test.go to
+// keep that file under the repo's 500-line cap.
+func calleeName(fun ast.Expr) string {
+	switch f := fun.(type) {
+	case *ast.Ident:
+		return f.Name
+	case *ast.SelectorExpr:
+		return f.Sel.Name
+	default:
+		return ""
+	}
+}
+
+// stringLiteral returns the unquoted value of expr when it is a string
+// BasicLit, else ("", false). It moved here from
+// graph_read_error_capability_sweep_resolve_test.go to keep that file under
+// the repo's 500-line cap.
+func stringLiteral(expr ast.Expr) (string, bool) {
+	lit, ok := expr.(*ast.BasicLit)
+	if !ok || lit.Kind != token.STRING {
+		return "", false
+	}
+	unquoted, err := strconv.Unquote(lit.Value)
+	if err != nil {
+		return "", false
+	}
+	return unquoted, true
+}
+
+// TestCapabilitySweepFollowsRootConstForward proves the sweep follows a bare
+// root const-forward (const RootCapability = leaf.LeafCapability, the #6060
+// L1 shim shape) back to the declaring leaf's literal. Without this case the
+// sweep reports the codemodel-moved capability call sites unresolvable. It
+// uses the real capabilitySweep machinery (not a re-implementation).
+func TestCapabilitySweepFollowsRootConstForward(t *testing.T) {
+	root := t.TempDir()
+	leafDir := filepath.Join(root, "leaf")
+	rootDir := filepath.Join(root, "consumer")
+	if err := os.Mkdir(leafDir, 0o755); err != nil {
+		t.Fatalf("mkdir %s: %v", leafDir, err)
+	}
+	if err := os.Mkdir(rootDir, 0o755); err != nil {
+		t.Fatalf("mkdir %s: %v", rootDir, err)
+	}
+
+	const leafSrc = "package leaf\n\nconst LeafCapability = \"leaf.capability.list\"\n"
+	const rootSrc = "package consumer\n\nimport \"example.com/leaf\"\n\nconst RootCapability = leaf.LeafCapability\n\nfunc Use() string {\n\treturn RootCapability\n}\n"
+
+	leafPath := filepath.Join(leafDir, "leaf.go")
+	rootPath := filepath.Join(rootDir, "consumer.go")
+	if err := os.WriteFile(leafPath, []byte(leafSrc), 0o644); err != nil {
+		t.Fatalf("write %s: %v", leafPath, err)
+	}
+	if err := os.WriteFile(rootPath, []byte(rootSrc), 0o644); err != nil {
+		t.Fatalf("write %s: %v", rootPath, err)
+	}
+
+	fset := token.NewFileSet()
+	leafFile, err := parser.ParseFile(fset, leafPath, nil, 0)
+	if err != nil {
+		t.Fatalf("parse %s: %v", leafPath, err)
+	}
+	rootFile, err := parser.ParseFile(fset, rootPath, nil, 0)
+	if err != nil {
+		t.Fatalf("parse %s: %v", rootPath, err)
+	}
+
+	sweep := newCapabilitySweep(fset)
+	sweep.collectDecls(leafFile)
+	sweep.collectDecls(rootFile)
+
+	fn := findFuncDeclByName(t, rootFile, "Use")
+	var ident *ast.Ident
+	ast.Inspect(fn.Body, func(n ast.Node) bool {
+		ret, ok := n.(*ast.ReturnStmt)
+		if !ok || len(ret.Results) != 1 {
+			return true
+		}
+		if id, ok := ret.Results[0].(*ast.Ident); ok {
+			ident = id
+			return false
+		}
+		return true
+	})
+	if ident == nil {
+		t.Fatal("Use() does not return a bare identifier")
+	}
+	values, ok := sweep.resolveCapabilityArg(ident, fn, map[string]bool{})
+	if !ok || len(values) != 1 || values[0] != "leaf.capability.list" {
+		t.Fatalf("resolveCapabilityArg(RootCapability) = %v, %v; want ([leaf.capability.list], true)", values, ok)
+	}
+}
+
 // findReturnedSelector returns the first *ast.SelectorExpr of the shape
 // pkg.Name appearing as a single-value return result inside fn, failing the
 // test if none is found.

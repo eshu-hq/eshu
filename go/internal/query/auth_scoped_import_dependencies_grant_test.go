@@ -11,6 +11,8 @@ import (
 	"net/http/httptest"
 	"strings"
 	"testing"
+
+	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
 )
 
 // #5167 code-family batch 2a: two-tenant proof for
@@ -454,7 +456,7 @@ func TestImportDependencyScanBoundIsSpentOnGrantedRowsOnly(t *testing.T) {
 	t.Parallel()
 
 	seeds := importGrantCycleEdges()
-	for i := 0; i <= importDependencyInternalScanLimit; i++ {
+	for i := 0; i <= querycontract.ImportDependencyInternalScanLimit; i++ {
 		seeds = append(seeds, importGrantImportEdge(
 			codeGrantOtherRepo,
 			fmt.Sprintf("src/other_%d.py", i),

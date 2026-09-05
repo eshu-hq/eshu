@@ -17,8 +17,8 @@ const (
 	// backend-read budget remains authoritative for graph execution.
 	cypherQueryTimeout = 30 * time.Second
 
-	// cypherMaxQueryLength rejects excessively long query strings.
-	cypherMaxQueryLength = 4096
+	// cypherMaxQueryLength split to codemodel/code_cypher_validation.go (#6060
+	// lane A L1) with the read-only validator that enforces it.
 
 	// cypherDefaultResultRows is the default returned row window.
 	cypherDefaultResultRows = 100

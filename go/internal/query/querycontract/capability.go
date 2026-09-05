@@ -112,6 +112,43 @@ func CompatibilityCapabilityMatrix() map[string]CapabilitySupport {
 	return capabilityRegistry
 }
 
+// HardcodedSecretCapability names the hardcoded-secret investigation capability.
+// It lives here so the staying registration in root package query's
+// contract_hardcoded_secret_capability.go keeps resolving after the
+// code-family file that implements the route moves out in a later #6060
+// phase. The family file keeps its own literal until that move: the
+// capability-sweep gate resolves string literals, not cross-package const
+// aliases, so aliasing it now would trade a temporary duplication for an
+// unverifiable capability argument.
+const HardcodedSecretCapability = "security.hardcoded_secrets"
+
+// HardcodedSecretSupport returns this family's capability contract: the
+// per-profile truth ceiling for hardcoded-secret investigation.
+//
+// This is the ONLY declaration of these values. Root package query's staying
+// contract_hardcoded_secret_capability.go registers the result for production.
+// It is a function, not an exported var, and every call allocates its own
+// truth levels rather than pointing at package-level ones. CapabilitySupport
+// carries its ceilings as pointers, so a shared var would hand every caller --
+// including root's production registration -- write access to the same ints
+// (see semanticsearch.Support, the template this copies).
+//
+// The four ceilings get separate variables on purpose. Returning four pointers
+// to one local would leave them aliased inside the returned struct, so writing
+// through any one of them would silently move the other three.
+func HardcodedSecretSupport() CapabilitySupport {
+	localLightweightMax := TruthLevelDerived
+	localAuthoritativeMax := TruthLevelDerived
+	localFullStackMax := TruthLevelDerived
+	productionMax := TruthLevelDerived
+	return CapabilitySupport{
+		LocalLightweightMax:   &localLightweightMax,
+		LocalAuthoritativeMax: &localAuthoritativeMax,
+		LocalFullStackMax:     &localFullStackMax,
+		ProductionMax:         &productionMax,
+	}
+}
+
 func maxTruthLevel(capability string, profile QueryProfile) *TruthLevel {
 	support, ok := capabilityRegistry[capability]
 	if !ok {

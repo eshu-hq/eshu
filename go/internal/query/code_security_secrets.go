@@ -74,15 +74,6 @@ type hardcodedSecretInvestigator interface {
 	InvestigateHardcodedSecrets(context.Context, hardcodedSecretInvestigationRequest) ([]hardcodedSecretFindingRow, error)
 }
 
-func init() {
-	capabilityMatrix[hardcodedSecretCapability] = capabilitySupport{
-		LocalLightweightMax:   &truthDerived,
-		LocalAuthoritativeMax: &truthDerived,
-		LocalFullStackMax:     &truthDerived,
-		ProductionMax:         &truthDerived,
-	}
-}
-
 func (h *CodeHandler) handleHardcodedSecretInvestigation(w http.ResponseWriter, r *http.Request) {
 	r, span := startQueryHandlerSpan(r, telemetry.SpanQueryHardcodedSecretInvestigation, "POST /api/v0/code/security/secrets/investigate", hardcodedSecretCapability)
 	defer span.End()

@@ -418,7 +418,7 @@ linters:
       - path: 'internal/query/auth_scoped_routes\.go'
         linters:
           - funlen
-      - path: 'internal/query/code_dead_code_analysis\.go'
+      - path: 'internal/query/codemodel/code_dead_code_analysis\.go'
         linters:
           - funlen
       - path: 'internal/query/code_relationships\.go'

@@ -44,7 +44,7 @@ entries:
     domain: code
     backend: nornicdb_neo4j
     query_kind: cypher
-    source: {file: go/internal/query/code_graph_search_query.go, symbol: buildSearchGraphEntitiesQuery, source_sha256: ba30c97a3f5fc8eced12b200dacaabd8daff3c70c2c6fa853f4c14d0786d6955}
+    source: {file: go/internal/query/codemodel/code_graph_search_query.go, symbol: BuildSearchGraphEntitiesQuery, source_sha256: af016da90903b148cd7906b8a3e4b77124490d580b4c37cfdb67aff1d46ffeec}
     query_fragment: 'MATCH (r:Repository {id: $repo_id})'
     cypher_sha256: 428464ccf4de18918b814cf137ad4bb330f1bfda643801bf29ffa0ad593e59f3
     required_anchors: [{label: Repository, property: id}]
@@ -57,7 +57,7 @@ entries:
     domain: code
     backend: nornicdb_neo4j
     query_kind: cypher
-    source: {file: go/internal/query/code_import_dependencies_queries.go, symbol: directImportRowsCypher, source_sha256: 8a62161ea585e64d682d9f2f6ccdfef834ca65838b17d13b888a1890a4848885}
+    source: {file: go/internal/query/codemodel/code_import_dependencies_queries.go, symbol: DirectImportRowsCypher, source_sha256: d3d419b0e119a8269ae43660ba1139a2a3626c4f6f5e15d9eec0601d7872b0c1}
     query_fragment: 'ORDER BY repo.id, source_file.relative_path'
     cypher_sha256: 154864500bcd5e87cacbaa355dc0a3f7cd257fffe78431f99570a1ce43927f24
     required_anchors: [{label: Repository, property: id}]
@@ -71,7 +71,7 @@ entries:
     domain: code
     backend: nornicdb_neo4j
     query_kind: cypher
-    source: {file: go/internal/query/code_import_dependencies_queries.go, symbol: packageImportRowsCypher, source_sha256: c70aa980f79865e07e2cfb28a4687c48bc14d91314bc204e771d5fbd051e294d}
+    source: {file: go/internal/query/codemodel/code_import_dependencies_queries.go, symbol: PackageImportRowsCypher, source_sha256: be9ccc2c8e198a38bf32fc9b5ff7e659295e2600f47745b872166ea13dfc7ddd}
     query_fragment: 'source_file.path as source_path'
     cypher_sha256: f3df016eef9ca9595c8bcd9361cc0355d98b817b9a4251091d98038aefb06ce1
     required_anchors: [{label: Repository, property: id}]
@@ -85,7 +85,7 @@ entries:
     domain: code
     backend: nornicdb_neo4j
     query_kind: cypher
-    source: {file: go/internal/query/code_import_dependencies_queries.go, symbol: sourceModuleFilesCypher, source_sha256: bb4639ace75ba13ba3881aacdc88baaf5c588a126e2b52c266048ef3256cae15}
+    source: {file: go/internal/query/codemodel/code_import_dependencies_queries.go, symbol: SourceModuleFilesCypher, source_sha256: deb32b9c7fb37844e79d4ea3362f252a388d6739a862d3d4145a68e6c328acf0}
     query_fragment: 'source_file.path as source_path'
     cypher_sha256: 5014ca18249b1d5ca81bcda31e3be4c01425ba7542a0859a08408acf10c18694
     required_anchors: [{label: Repository, property: id}]
@@ -99,7 +99,7 @@ entries:
     domain: code
     backend: nornicdb_neo4j
     query_kind: cypher
-    source: {file: go/internal/query/code_import_dependencies_queries.go, symbol: targetModuleFilesCypher, source_sha256: ca674bc450e6ae29e139e495919327ad458dd17a0ea212d79e03f3d8df568079}
+    source: {file: go/internal/query/codemodel/code_import_dependencies_queries.go, symbol: TargetModuleFilesCypher, source_sha256: 6a247e9c573bdddde2765ae0c532661612e8f94149d0ecdddd1679d0262e241d}
     query_fragment: 'target_file.path as target_path'
     cypher_sha256: 05521bbbf2c74af41b0f4f9f01399bc8c1715eed15a6c8919baea70368211cc8
     required_anchors: [{label: Repository, property: id}]
@@ -113,7 +113,7 @@ entries:
     domain: code
     backend: nornicdb_neo4j
     query_kind: cypher
-    source: {file: go/internal/query/code_import_dependencies_queries.go, symbol: sourceModuleImportRowsCypher, source_sha256: fa6b12f5d84f0f648bca44bd52bc14d01998f85bc7608fca926a8fcb07350da2}
+    source: {file: go/internal/query/codemodel/code_import_dependencies_queries.go, symbol: SourceModuleImportRowsCypher, source_sha256: a6e31bf054f0df0b59464963edd30b0e318b6d50d905a46744b710caf8060272}
     query_fragment: 'source_file.path IN $source_paths'
     cypher_sha256: fdac99475becb5a6b055e37550081bbdcf6defe576a930325f75bbb3f11268b9
     required_anchors: [{label: Repository, property: id}]
@@ -127,7 +127,7 @@ entries:
     domain: code
     backend: nornicdb_neo4j
     query_kind: cypher
-    source: {file: go/internal/query/code_import_dependencies_queries.go, symbol: crossModuleCallRowsCypher, source_sha256: c2f180e481015920c5d2143894dc7932e5f72da38b4379703330661033149ccc}
+    source: {file: go/internal/query/codemodel/code_import_dependencies_queries.go, symbol: CrossModuleCallRowsCypher, source_sha256: 8caedd7913ff10aa8a372f2f6a9e772b82c7e51cf8c6173b3bffbbeebd511759}
     query_fragment: '(caller:Function)-[rel:CALLS]->(callee:Function)'
     cypher_sha256: 7fc2e1f2b77dd9274ea6c598768be9f1ab069189cf9c74d1994154e1cf62e844
     required_anchors: [{label: Repository, property: id}]

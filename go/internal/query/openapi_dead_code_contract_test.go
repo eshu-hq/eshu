@@ -8,6 +8,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
 	"github.com/eshu-hq/eshu/go/internal/query/querytestutil"
 )
 
@@ -32,8 +33,8 @@ func TestOpenAPIDeadCodeMentionsHaskellRootsAndLanguageFilter(t *testing.T) {
 	requestJSON := querytestutil.MustMapField(t, requestBody, "application/json")
 	schema := querytestutil.MustMapField(t, querytestutil.MustMapField(t, requestJSON, "schema"), "properties")
 	candidateKind := querytestutil.MustMapField(t, schema, "candidate_kind")
-	if got, ok := candidateKind["enum"].([]any); !ok || len(got) != len(deadCodeCandidateLabels) {
-		t.Fatalf("code/dead-code candidate_kind enum = %#v, want %d advertised labels", candidateKind["enum"], len(deadCodeCandidateLabels))
+	if got, ok := candidateKind["enum"].([]any); !ok || len(got) != len(querycontract.DeadCodeCandidateLabels) {
+		t.Fatalf("code/dead-code candidate_kind enum = %#v, want %d advertised labels", candidateKind["enum"], len(querycontract.DeadCodeCandidateLabels))
 	}
 	language := querytestutil.MustMapField(t, schema, "language")
 	languageDescription, ok := language["description"].(string)
