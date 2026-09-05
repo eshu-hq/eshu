@@ -1542,8 +1542,8 @@ to every existing operator-facing signal.
 No-Regression Evidence (Wave 4e, security_alert family typed-payload decode,
 Contract System v1 #4566/#4582): the SINGLE decode site for the
 `security_alert.repository_alert` kind (`ExtractProviderSecurityAlerts`,
-`security_alert_reconciliation.go`) now decodes through the `sdk/go/factschema`
-seam (`schemadecode.DecodeSecurityAlertRepositoryAlert` in
+`securityalert/security_alert_reconciliation_decode.go`) decodes through
+`sdk/go/factschema` (`schemadecode.DecodeSecurityAlertRepositoryAlert` in
 `factschema_decode_securityalert.go`, converting the typed
 `securityalertv1.RepositoryAlert` into `securityalert.ProviderSecurityAlert` via
 `providerSecurityAlertFromDecoded`) instead of raw `payloadStr`/`payloadStrings`/

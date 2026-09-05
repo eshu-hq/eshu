@@ -28,8 +28,9 @@ const securityAlertReconciliationCostIntentID = "intent-security-alert-reconcili
 
 // securityAlertReconciliationFixtureDecisions is the deterministic input for
 // this scenario: two matched-status decisions for distinct provider alerts in
-// one scope. WriteSecurityAlertReconciliations (go/internal/reducer/
-// security_alert_reconciliation_writer.go) now calls the shared
+// one scope. WriteSecurityAlertReconciliations
+// (go/internal/reducer/securityalert/security_alert_reconciliation_writer.go)
+// now calls the shared
 // reducerBatchInsertFacts bounded chunked bulk insert (issue #5317), so two
 // decisions fit in one 1000-row chunk and cost exactly one ExecContext
 // round-trip.

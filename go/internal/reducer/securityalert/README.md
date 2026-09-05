@@ -234,11 +234,13 @@ extractor at the handler's one construction site, so the composed behavior for e
 caller (the reducer handler, `supply_chain_impact`'s finding seeding, and
 every existing test) is unchanged; only the seam between "decide" and
 "look up manifest evidence" became an explicit parameter instead of an
-implicit same-package call. Measured on this branch after the final edit:
-`go build ./...` and `go vet ./...` both exit 0, and
-`go test ./... -count=1` passes, including this package, the reducer root,
+implicit same-package call. Measured on this branch: `go build ./...` and
+`go vet ./...` exit 0 at the branch head, and `go test ./... -count=1` passes
+across the whole module -- including this package, the reducer root,
 `internal/storage/postgres`, `internal/replay/costcounting`, `cmd/reducer`,
-and `internal/query`.
+and `internal/query`. The full-module run is taken at whichever head last
+changed a `.go` file; the PR body's evidence table names that commit and shows
+the command that proves every Go change since it is comment-only.
 
 No-Observability-Change: #6061 adds no queue domain, worker, lease, graph or
 Postgres operation, runtime setting, metric instrument, metric label, span,
