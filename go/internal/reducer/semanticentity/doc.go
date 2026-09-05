@@ -31,7 +31,9 @@
 // pkg/log, and never
 // the parent internal/reducer package. The dependency runs the other way —
 // the root's handler catalog constructs [SemanticEntityMaterializationHandler]
-// and wires its Writer, PhasePublisher and RepairQueue. See AGENTS.md in this
+// and wires its FactLoader, Writer,
+// PriorGenerationCheck and PhasePublisher, and its RepairQueue when the root
+// repair queue is present. See AGENTS.md in this
 // directory before adding an import.
 //
 // [GraphProjectionPhaseRepairQueue] and [GraphProjectionPhaseRepair] are

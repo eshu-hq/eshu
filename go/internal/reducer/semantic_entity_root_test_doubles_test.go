@@ -16,11 +16,11 @@ import (
 // (issue #6061). Go test files cannot share unexported symbols across a
 // package boundary, and several still-in-root cross-family test suites
 // (fact_kind_loader_test.go, idempotency_cases_test.go,
-// defaults_semantic_entity_domain_wiring_test.go,
 // workload_materialization_phase_repair_test.go,
 // workload_materialization_phase_repair_wiring_test.go) still reference
-// these under their original unqualified names, as do the two same-family
-// tests this move adds (defaults_domain_catalog_semantic_repair_queue_test.go,
+// these under their original unqualified names, as do the three same-family
+// tests this move adds (defaults_semantic_entity_domain_wiring_test.go,
+// defaults_domain_catalog_semantic_repair_queue_test.go,
 // semantic_entity_repair_queue_adapter_test.go), so root keeps this trimmed
 // copy rather than requiring every one of those files to import
 // semanticentity and requalify every call site. Mirrors

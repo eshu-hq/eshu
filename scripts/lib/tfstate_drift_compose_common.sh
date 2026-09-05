@@ -134,7 +134,7 @@ tfstate_drift_counter_value() {
 # `drift candidate rejected` for every non-fatal rejection class —
 # scope_not_state_snapshot, resolver_unavailable, no_config_repo_owns_backend,
 # ambiguous_backend_owner, evidence_loader_unavailable). Unrelated reducer
-# errors (e.g. semanticentity materialization Neo4j constraint violations
+# errors (e.g. semantic_entity_materialization Neo4j constraint violations
 # from bootstrap-index processing the ecosystem fixture corpus) do not
 # share these message bodies, so the filter keeps the proof artifact
 # focused on the drift handler's emissions.

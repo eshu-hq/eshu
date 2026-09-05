@@ -20,7 +20,10 @@ import (
 // (workload_materialization_handler.go, graph_projection_phase_repair_runner.go,
 // workload_materialization_repo_phase.go), so importing it would violate the
 // rule that a family subpackage never imports the reducer root (issue #6061).
-// The field set is copied byte-for-byte from root's struct.
+// The field set matches root's struct field for field. The text is not
+// identical: Key and Phase are spelled gpphase.PhaseKey and gpphase.Phase here
+// where root spells them GraphProjectionPhaseKey and GraphProjectionPhase --
+// the same types through root's aliases.
 type GraphProjectionPhaseRepair struct {
 	Key           gpphase.PhaseKey
 	Phase         gpphase.Phase
