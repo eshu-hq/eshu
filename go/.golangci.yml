@@ -595,13 +595,13 @@ linters:
       - path: 'internal/answerquality/score\.go'
         linters:
           - exhaustive
-      # Reducer intent_value, iam_escalation, supply_chain_impact_*
-      # handle a subset of reducer state values; the missing cases
-      # are intentionally deferred.
+      # Reducer intent_value, supply_chain_impact_* handle a subset of
+      # reducer state values; the missing cases are intentionally deferred.
+      # The iam_escalation exclusion that used to live here was dropped when
+      # the family moved to internal/reducer/iamescalation (#6061): the
+      # primitive-arm switch now lists its iamPrimitiveArmed case explicitly
+      # instead of relying on this path-based carve-out.
       - path: 'internal/reducer/intent_value\.go'
-        linters:
-          - exhaustive
-      - path: 'internal/reducer/iam_escalation\.go'
         linters:
           - exhaustive
       - path: 'internal/reducer/supply_chain_impact_'
