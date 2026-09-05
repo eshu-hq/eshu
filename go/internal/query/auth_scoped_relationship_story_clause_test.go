@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"slices"
 	"strings"
+	"sync"
 	"testing"
 )
 
@@ -272,6 +273,38 @@ func TestStoryClauseGraphKeepsOptionalMatchRows(t *testing.T) {
 	}
 	if got, want := StringVal(rows[1], "target_name"), storyUngrantedTarget; got != want {
 		t.Fatalf("out-of-grant row = %q, want %q kept by the optional pattern", got, want)
+	}
+}
+
+// TestStoryClauseGraphRecordsParallelRuns pins the fake against the handler's
+// own fan-out. relationshipStoryGraphRows issues the incoming and outgoing
+// reads from two goroutines when direction is "both", and the class-hierarchy
+// story issues three reads at once, so one request calls Run concurrently.
+// Drop the lock in Run and this test trips the race detector, which fails every
+// other test in the package binary along with it.
+func TestStoryClauseGraphRecordsParallelRuns(t *testing.T) {
+	t.Parallel()
+
+	graph := &storyClauseGraph{
+		seeds:           storyNornicDBSeeds(),
+		optionalColumns: []string{"target_repo_fallback_id"},
+	}
+	ctx := t.Context()
+	params := storyScopedAccess().GraphParams(map[string]any{"entity_id": storyGrantedAnchor})
+	const readers = 8
+	var wg sync.WaitGroup
+	wg.Add(readers)
+	for range readers {
+		go func() {
+			defer wg.Done()
+			if _, err := graph.Run(ctx, "MATCH (anchor)-[rel:CALLS]->(target) RETURN target.name as target_name", params); err != nil {
+				t.Errorf("Run() error = %v", err)
+			}
+		}()
+	}
+	wg.Wait()
+	if got := len(graph.recordedStatements()); got != readers {
+		t.Fatalf("recorded statements = %d, want %d", got, readers)
 	}
 }
 
