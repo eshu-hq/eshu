@@ -109,7 +109,7 @@ source_coverage:
   - file: code_relationship_story_class.go
     calls:
       - {symbol: "(*CodeHandler).relationshipStoryClassMethods", count: 1, non_hot: {class: keyed_support, source_sha256: 5a40eb8aa2825307aa4ee465d8465e17e0974640b53e25904dd89bc412975917, key_bound: single_key, max_results: 201}}
-      - {symbol: "(*CodeHandler).relationshipStoryInheritanceDepthRows", count: 1, non_hot: {class: keyed_support, source_sha256: 344927e7cf4c81a4f11e04bfcb19f6cb6cc671dd16702d7bb997d623565445c0, key_bound: single_key, max_results: 201}}
+      - {symbol: "(*CodeHandler).relationshipStoryInheritanceDepthRows", count: 1, non_hot: {class: keyed_support, source_sha256: a0b4630f6b30f4a58ae9b88e8e5c8c8d88adff6322729f2ca734595340fda135, key_bound: single_key, max_results: 201}}
       - {symbol: "(*CodeHandler).relationshipStoryOverrideRows", count: 1, non_hot: {class: keyed_support, source_sha256: 616cc1d589a3bb4406b1bcb2531d29c58c24af45386b40d0143831906112bd7d, key_bound: single_key, max_results: 201}}
   - file: code_relationship_story_graph.go
     calls:
@@ -117,8 +117,8 @@ source_coverage:
   - file: code_relationship_story_nornicdb.go
     calls:
       - {symbol: "(*CodeHandler).nornicDBRelationshipStoryClassMethods", count: 1, non_hot: {class: keyed_support, source_sha256: f3466ab04c16954898bbba99bffa6a82f522af21e36cce6ed9219225d473f1bc, key_bound: single_key, max_results: 201}}
-      - {symbol: "(*CodeHandler).nornicDBRelationshipStoryGraphRows", count: 1, source_sha256: 6f6060c53b1b3981993336adc2d6a817e3522a5cc22eccf21dbaf0ee36187821, entry_ids: [QP-CODE-REL-STORY, QP-CODE-REL-STORY-INCOMING]}
-      - {symbol: "(*CodeHandler).nornicDBRelationshipStoryInheritanceDepthRows", count: 1, source_sha256: 3766798eac808f680a6aaa54dc03aa9d54d5576692882dbd86fae5d74f6ace68, entry_ids: [QP-CODE-REL-TRANSITIVE]}
+      - {symbol: "(*CodeHandler).nornicDBRelationshipStoryGraphRows", count: 1, source_sha256: c2057e583b024c28c3b8e21deb5f27441a90d640545838ba34373a9bc36170f1, entry_ids: [QP-CODE-REL-STORY, QP-CODE-REL-STORY-INCOMING]}
+      - {symbol: "(*CodeHandler).nornicDBRelationshipStoryInheritanceDepthRows", count: 1, source_sha256: 8525fff5e692e9ab5093b6bd41919f221a70ac0a7dbd0b78f811254769af477e, entry_ids: [QP-CODE-REL-TRANSITIVE]}
       - {symbol: "(*CodeHandler).resolveNornicDBRelationshipStoryAnchorProperty", count: 2, source_sha256: 92e00f48c6258d06df21e456d17d13d8be4df2dbb8b664d5e68957e246b962ec, entry_ids: [QP-CODE-REL-STORY-ANCHOR-COLLISION]}
   - file: code_relationships.go
     calls:
