@@ -220,6 +220,67 @@ func relationshipStoryGrantedCandidates(
 	return candidates, nil
 }
 
+// searchEntitiesForGrant runs one grant-bound content-store entity lookup for
+// the relationship-story target resolution above.
+//
+// It lives here, and not beside the read it mirrors, for a gate reason rather
+// than a design one. Its twin is LanguageQueryHandler.searchLanguageEntities in
+// language_query_metadata.go, and the two dispatch identically.
+// scripts/verify-parser-relationship-kit.sh classifies every
+// go/internal/query/language*.go path as Language Query DSL source and fails
+// any change to one that does not also update
+// docs/public/reference/language-query-dsl.md. That classification is by path,
+// not by content, so even reducing the DSL read to a one-line call into a
+// shared helper would demand a DSL-doc update for a change the DSL contract
+// never saw. Keeping the story route's copy on this side of the line leaves
+// language_query_metadata.go byte-identical to main.
+//
+// The duplication that buys is real and deliberate, so it is pinned rather than
+// trusted: TestSearchEntitiesForGrantMatchesTheLanguageQueryRead drives both
+// functions over one fake store across all three branches below and fails if
+// either side changes alone. A new file would have been the tidier home, but
+// internal/query is grandfathered in the dirgate ledger at exactly 787 non-test
+// .go files, and a 788th fails that gate with no //nolint escape.
+//
+// The three branches are the store's, not this route's. A store that satisfies
+// languageEntityContentSearcher takes the grant into its own statement, so one
+// read serves the whole granted set and the LIMIT page is taken from it. A
+// store that does not -- a test fake, or an older implementation -- can only be
+// asked about one repository at a time, so a corpus-wide scoped search iterates
+// the granted repositories rather than asking for repository "", which the
+// unrestricted statement answers with every tenant's rows.
+func searchEntitiesForGrant(
+	ctx context.Context,
+	content ContentStore,
+	search languageEntitySearch,
+) ([]EntityContent, error) {
+	if content == nil {
+		return nil, fmt.Errorf("content reader is required for %s queries", search.EntityType)
+	}
+	if searcher, ok := content.(languageEntityContentSearcher); ok {
+		return searcher.SearchEntitiesByLanguageAndTypeForAccess(ctx, search)
+	}
+	if search.RepoID != "" || len(search.AllowedRepositoryIDs) == 0 {
+		return content.SearchEntitiesByLanguageAndType(
+			ctx, search.RepoID, search.Language, search.EntityType, search.Query, search.Limit,
+		)
+	}
+	entities := make([]EntityContent, 0, search.Limit)
+	for _, repoID := range search.AllowedRepositoryIDs {
+		if len(entities) >= search.Limit {
+			break
+		}
+		rows, err := content.SearchEntitiesByLanguageAndType(
+			ctx, repoID, search.Language, search.EntityType, search.Query, search.Limit-len(entities),
+		)
+		if err != nil {
+			return nil, err
+		}
+		entities = append(entities, rows...)
+	}
+	return entities, nil
+}
+
 // relationshipStoryGrantBlocked reports whether the caller's grant admits
 // nothing, so the route must answer its own not-found story without reading a
 // backend.
