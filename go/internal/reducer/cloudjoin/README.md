@@ -62,7 +62,8 @@ changing it. The bodies are unchanged; the diff is the package clause, the four
 index fields becoming exported, and root forwarders replacing the original
 declarations. Behavior is covered by the existing root suites that exercise the
 index (`aws_relationship_join_test.go`, `aws_resource_materialization_test.go`,
-the security-group and IAM-escalation suites) plus `internal/reducer/iamcan`.
+the security-group suite) plus `internal/reducer/iamescalation` and
+`internal/reducer/iamcan`.
 Measured on this branch: `go build ./...` exits 0, `go vet
 ./internal/reducer/...` exits 0, and `go test ./internal/reducer/... -count=1`
 passes. Binary output was not compared and no such claim is made here.

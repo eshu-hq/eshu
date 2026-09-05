@@ -81,9 +81,9 @@ equivalent at these three call sites, each of which trims the value and skips
 empties immediately after the call. Measured on this branch: `go build ./...`
 exits 0, `go vet ./...` exits 0, `go test ./internal/reducer/iamescalation
 -count=1` passes, `go test ./internal/reducer/... -count=1` passes, and the
-three repointed convergence tests
-(`go test ./internal/reducer -run
-'PartitionConvergence|RationaleEdgeMaterializationPartition' -count=1`) pass.
+six tests in the three files whose `payloadStringSlice` call was repointed
+(`go test ./internal/reducer -run 'PartitionConverges' -count=1`) pass:
+`Test{Inheritance,Rationale,SQLRelationship}PartitionConverges{FullReprojection,Delta}`.
 
 No-Observability-Change: #6061 adds no queue domain, worker, lease, graph, or
 storage contract. The two counters above and the span/log are the same before

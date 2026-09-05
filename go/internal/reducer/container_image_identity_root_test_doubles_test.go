@@ -286,8 +286,11 @@ func (w *recordingContainerImageDerivedFromEdgeWriter) RetractDerivedFromEdges(
 
 // metricHasAttrs reports whether metricName has a positive int64 sum data
 // point matching every key/value pair in attrs. Used by materialization tests
-// across several root-staying families (AWS, GCP, IAM escalation, security
-// group reachability) that assert on emitted counters.
+// across several root-staying families (AWS, GCP, security group
+// reachability) that assert on emitted counters. The iamescalation family used
+// it too until #6061 moved it out; its tests now use the local copy in
+// iamescalation/iam_escalation_test_helpers_test.go, because Go test files
+// cannot share unexported symbols across a package boundary.
 func metricHasAttrs(rm metricdata.ResourceMetrics, metricName string, attrs map[string]string) bool {
 	for _, scope := range rm.ScopeMetrics {
 		for _, metric := range scope.Metrics {
