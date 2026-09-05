@@ -32,7 +32,8 @@ tree. The one addition specific to this package:
   over an unrelated, unscoped family. `ManifestConsumptionExtractor`
   (`security_alert_reconciliation.go`) is the resulting seam: this package
   defines the function type and calls it if non-nil; the reducer root keeps
-  the real implementation and wires it at every construction site. Do not
+  the real implementation and wires it at the handler's one construction
+  site, `defaults_additive_domains_supply_chain.go`. Do not
   "simplify" this by trying to inline the manifest logic here — read
   `security_alert_manifest_dependency_match.go`'s file-level comment in root
   first if you think you've found a way.
@@ -50,8 +51,9 @@ of that boundary, not because anyone chose to duplicate them for style:
   they call `securityalert.BuildSecurityAlertReconciliations`/
   `WithQuarantine`/`SecurityAlertReconciliationHandler` with the root's own
   `extractSecurityAlertManifestConsumptions` wired in, and keep their own
-  copies of `recordingSecurityAlertReconciliationFactLoader`/`Writer` and
-  `securityAlertDecisionsByFactID`.
+  copies of `recordingSecurityAlertReconciliationFactLoader`/`Writer`.
+  `securityAlertDecisionsByFactID` is root's alone -- it never moved and this
+  package has no copy.
 - `security_alert_test_fixtures_test.go` (root) duplicates
   `securityAlertEnvelope`, `packageConsumptionCorrelationEnvelope`,
   `supplyChainImpactFindingEnvelope`, and

@@ -119,10 +119,12 @@ builders and simply skips the manifest-consumption half of the evidence set.
 `SecurityAlertReconciliationHandler.Handle` rejects `nil` alongside its
 `FactLoader`/`Writer` checks: on the reducer intent path an absent bridge is
 a forgotten registration, and failing open there commits every lockfile-only
-alert as `provider_only` with no error and no counter. The reducer root wires
-its own concrete implementation at every construction site
-(`defaults_additive_domains_supply_chain.go`,
-`supply_chain_impact_security_alert.go`), and keeps its own tests for the
+alert as `provider_only` with no error and no counter. The handler has exactly
+one production construction site,
+`defaults_additive_domains_supply_chain.go:66`, and the reducer root wires its
+own concrete implementation there. `supply_chain_impact_security_alert.go` is
+not a construction site: it calls the same bridge function directly, without
+going through a builder. Root keeps its own tests for the
 real matching behavior
 (`security_alert_reconciliation_lockfile_test.go`,
 `security_alert_scoped_npm_test.go`) because this package cannot build a
@@ -134,11 +136,13 @@ A handful of small, pure functions this package's own logic touches are
 declared here rather than imported, because importing the reducer root from a
 family subpackage is forbidden (issue #6061) and each is either not yet
 extracted into its own shared subpackage or genuinely root-scoped shared
-state. Most are byte-identical to their root originals. Three are not: two
-were renamed, one was re-parameterised, and `securityAlertConsumptionEvidenceKind`
-returns the `factschema` constant directly where root returns its
-`packageConsumptionCorrelationFactKind` alias for the same value. Each bullet
-below says which:
+state. Nine functions are copied in this way. Four are byte-identical to their
+root originals; five are not: three were renamed (`securityAlertDependencyScope`,
+`securityAlertPayloadBoolPointer`, `securityAlertHasPackageSourceRepositoryFact`),
+`exactConsumptionDependencyVersion` was re-parameterised, and
+`securityAlertConsumptionEvidenceKind` returns the `factschema` constant
+directly where root returns its `packageConsumptionCorrelationFactKind` alias
+for the same value. Each bullet below says which:
 
 - `activeRepositoryFactLoader` / `activePackageManifestDependencyFactLoader`
   (`security_alert_reconciliation_handler.go`) mirror the reducer root's
@@ -154,9 +158,14 @@ below says which:
   parsing with no further dependency.
 - `securityAlertDependencyScope` / `securityAlertPayloadBoolPointer`
   (`security_alert_reconciliation.go`) are `supply_chain_impact_match.go`'s
-  former `supplyChainDependencyScope` / `payloadBoolPointer`: four-line payload
+  former `supplyChainDependencyScope` / `payloadBoolPointer`: short payload
   fallbacks this family was the only caller of, so the root copies are deleted
   in the same change rather than left dead.
+- `securityAlertHasPackageSourceRepositoryFact`
+  (`security_alert_reconciliation_handler.go`) is
+  `package_source_correlation_handler.go`'s `hasPackageSourceRepositoryFact`
+  under a family-scoped name: a four-line envelope-kind scan. Root keeps its
+  own copy, because the package-source-correlation family still uses it.
 - `securityAlertConsumptionEvidenceKind`, `exactConsumptionDependencyVersion`,
   `exactManifestDependencyVersion`, and `nonVersionDependencyPrefix`
   (`security_alert_reconciliation_observed_version.go`) mirror
@@ -219,7 +228,7 @@ root's `extractSecurityAlertManifestConsumptions`/
 `securityAlertManifestConsumptionMatches`, which stayed in root with their
 logic unchanged and only their alert/consumption types requalified to this
 package's exported ones — the reducer root wires that same function as the
-extractor at every construction site, so the composed behavior for every
+extractor at the handler's one construction site, so the composed behavior for every
 caller (the reducer handler, `supply_chain_impact`'s finding seeding, and
 every existing test) is unchanged; only the seam between "decide" and
 "look up manifest evidence" became an explicit parameter instead of an

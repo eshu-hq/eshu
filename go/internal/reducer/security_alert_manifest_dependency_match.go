@@ -20,10 +20,10 @@ import (
 // moved out of root yet (supply_chain_impact, package consumption
 // correlation). A family subpackage may never import the reducer root, so
 // this bridge is wired into securityalert.SecurityAlertReconciliationHandler
-// and passed at each securityalert.BuildSecurityAlertReconciliationsWithQuarantine
-// call site instead (defaults_additive_domains_supply_chain.go,
-// supply_chain_impact_security_alert.go); see
-// securityalert.ManifestConsumptionExtractor.
+// at its one construction site instead
+// (defaults_additive_domains_supply_chain.go), and called directly by
+// supply_chain_impact_security_alert.go, which does not go through a builder;
+// see securityalert.ManifestConsumptionExtractor.
 
 // extractSecurityAlertManifestConsumptions matches decoded provider alerts
 // against Eshu-observed manifest/lockfile dependency evidence, admitting one

@@ -101,9 +101,10 @@ func BuildSecurityAlertReconciliations(
 // the reducer root's package-consumption family, which has not moved out of
 // root yet (issue #6061) -- a family subpackage may never import the reducer
 // root, so root wires the concrete implementation into
-// [SecurityAlertReconciliationHandler] and passes it to
-// [BuildSecurityAlertReconciliationsWithQuarantine] at each call site
-// instead.
+// [SecurityAlertReconciliationHandler] at its one construction site instead,
+// and Handle passes it through to
+// [BuildSecurityAlertReconciliationsWithQuarantine]. Tests in this package
+// pass nil directly to the builders, which skips the manifest half.
 type ManifestConsumptionExtractor func(alerts []ProviderSecurityAlert, envelopes []facts.Envelope) []SecurityAlertConsumption
 
 // BuildSecurityAlertReconciliationsWithQuarantine is the quarantine-aware

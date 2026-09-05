@@ -55,10 +55,11 @@
 // exposes ManifestConsumptionExtractor, a function type both
 // BuildSecurityAlertReconciliations/WithQuarantine and
 // SecurityAlertReconciliationHandler (its ExtractManifestConsumptions field)
-// accept as an injected dependency. The reducer root wires its own
-// unexported bridge function into every construction site
-// (defaults_additive_domains_supply_chain.go,
-// supply_chain_impact_security_alert.go), and the reducer root's own test
+// accept as an injected dependency. The handler has exactly one production
+// construction site, defaults_additive_domains_supply_chain.go, where the
+// reducer root wires its own unexported bridge function in;
+// supply_chain_impact_security_alert.go calls that same bridge directly rather
+// than through a builder, so it is not a construction site. The reducer root's own test
 // files exercise the real manifest-matching behavior end to end
 // (security_alert_reconciliation_lockfile_test.go,
 // security_alert_scoped_npm_test.go) because this package cannot build a
@@ -88,7 +89,8 @@
 // internal/reducer/codetaint's graph_ports.go established. A handful of
 // small, pure helpers this package's own logic touches
 // (package-name-from-purl/package-ID parsing, the dependency-scope and
-// exact-version-match fallbacks, the evidence-kind default) are declared
+// exact-version-match fallbacks, the evidence-kind default, the
+// package-source-repository envelope-kind scan) are declared
 // locally rather than imported for the same reason. Some are still shared
 // with a root family and are copies; the two the move left with no other
 // caller (the root's former payloadBoolPointer and supplyChainDependencyScope)
