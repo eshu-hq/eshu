@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package reducer
+package searchvector
 
 import (
 	"context"
@@ -220,46 +220,6 @@ func TestSearchVectorBuildRunnerValidation(t *testing.T) {
 
 	require.ErrorContains(t, err, "search vector pending lister is required")
 	require.ErrorContains(t, err, "search vector builder is required")
-}
-
-func TestServiceStartsSearchVectorBuildRunner(t *testing.T) {
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
-	pending := &fakeSearchVectorPendingLister{scopes: []SearchVectorBuildPendingScope{{ScopeID: "scope-a"}}}
-	builder := &fakeSearchVectorBuilder{results: []SearchVectorBuildResult{{DocumentCount: 1, VectorCount: 1}}}
-	started := make(chan struct{}, 1)
-	runner := &SearchVectorBuildRunner{
-		Pending: pending,
-		Builder: builder,
-		Config: SearchVectorBuildRunnerConfig{
-			ProviderProfileID:  "local",
-			SourceClass:        "search_documents",
-			EmbeddingModelID:   "local-hash-v1",
-			VectorIndexVersion: "vector-v1",
-		},
-		Wait: func(ctx context.Context, _ time.Duration) error {
-			started <- struct{}{}
-			<-ctx.Done()
-			return ctx.Err()
-		},
-	}
-	service := Service{SearchVectorBuildRunner: runner}
-	var wg sync.WaitGroup
-	var gotErr error
-	service.startSideRunners(ctx, &wg, func(err error) {
-		if !errors.Is(err, context.Canceled) {
-			gotErr = err
-		}
-	})
-
-	require.Eventually(t, func() bool {
-		return builder.callCount() == 1
-	}, time.Second, 10*time.Millisecond)
-	<-started
-	cancel()
-	wg.Wait()
-
-	require.NoError(t, gotErr)
 }
 
 type fakeSearchVectorPendingLister struct {

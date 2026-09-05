@@ -31,10 +31,11 @@ DO UPDATE SET materialized_at = EXCLUDED.materialized_at
 
 // EshuSearchVectorBuildIdentity names the vector-identity tuple a
 // search_vector_ready watermark row is scoped to. It mirrors
-// reducer.SearchVectorBuildIdentity; the reducer package cannot import this
-// storage package (it stays free of storage dependencies), so the tuple
-// shape is duplicated deliberately, the same way
-// EshuSearchVectorPendingRequest mirrors reducer.SearchVectorBuildPendingRequest.
+// searchvector.SearchVectorBuildIdentity (go/internal/reducer/searchvector,
+// #6061); that package cannot import this storage package (it stays free of
+// storage dependencies), so the tuple shape is duplicated deliberately, the
+// same way EshuSearchVectorPendingRequest mirrors
+// searchvector.SearchVectorBuildPendingRequest.
 type EshuSearchVectorBuildIdentity struct {
 	ProviderProfileID  string
 	SourceClass        string

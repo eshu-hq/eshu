@@ -240,18 +240,54 @@ the builder. Postgres checks those tokens again when each metadata and value
 batch is written, so a delayed worker cannot overwrite a newer build after
 ownership changes.
 
-SearchVectorBuildRunner Evidence: `go test ./internal/reducer -run
-'TestSearchVectorBuildRunner|TestServiceStartsSearchVectorBuildRunner'
--count=1` proves bounded pending-scope consumption, per-scope build calls,
-failure continuation with joined errors, dependency validation, and side-runner
-startup through `Service.Run`. Cycle logs include scanned scope count,
-attempted scope count, document count, built vector count, policy-disabled
-document count, failed document count, duration, and
-`failure_class=search_vector_build_error` when a pending scan or build fails.
+SearchVectorBuildRunner Evidence: `go test ./internal/reducer/searchvector -run
+TestSearchVectorBuildRunner -count=1` proves bounded pending-scope
+consumption, per-scope build calls, failure continuation with joined errors,
+and dependency validation. `go test ./internal/reducer -run
+TestServiceStartsSearchVectorBuildRunner -count=1` proves side-runner startup
+through `Service.Run`; that wiring proof stayed at root when the runner moved
+to `searchvector` in #6061 because it exercises `Service.startSideRunners`,
+which the leaf package cannot reach without importing the reducer root. Cycle
+logs include scanned scope count, attempted scope count, document count,
+built vector count, policy-disabled document count, failed document count,
+duration, and `failure_class=search_vector_build_error` when a pending scan or
+build fails.
 No-Regression Evidence: `go test ./internal/searchembedruntime
 ./internal/searchvector ./internal/storage/postgres ./internal/reducer
-./cmd/reducer -count=1` covers per-document provider policy admission and
-disabled metadata convergence without reducing runner concurrency.
+./internal/reducer/searchvector ./cmd/reducer -count=1` covers per-document
+provider policy admission and disabled metadata convergence without reducing
+runner concurrency. `./internal/reducer/searchvector` is listed explicitly
+because `./internal/reducer` does not descend into child packages.
+
+### Package relocation (#6061)
+
+`SearchVectorBuildRunner` and its ports/request/result/config/identity types
+moved from the reducer root into `internal/reducer/searchvector`.
+No-Regression Evidence: pure relocation. In seven of the eight moved files the
+package clause is the only line that changed — no import moved and no
+identifier was re-cased. The eighth,
+`searchvector/search_vector_build_runner_test.go`, also had
+`TestServiceStartsSearchVectorBuildRunner` split out of it and left at root as
+`search_vector_build_runner_service_test.go`, because that test exercises
+`Service.startSideRunners`, which the leaf package cannot reach. Every method
+body, struct field, constant value, and interface method set is byte-identical
+to the pre-move root files. The root keeps
+compatibility type aliases (`search_vector_build_compat.go`) for the
+`Service.SearchVectorBuildRunner` field and the
+`TestServiceStartsSearchVectorBuildRunner` wiring proof;
+`go/cmd/reducer` was updated to import `searchvector` directly (aliased as
+`reducersearchvector` in `search_vector_build_wiring.go` to avoid colliding
+with the unrelated top-level `internal/searchvector` package it also
+imports). `go test ./internal/reducer/... ./cmd/reducer -count=1`,
+`go build ./...`, and `go vet ./...` all pass on the moved tree; the full
+`TestSearchVectorBuildRunner*` and `TestServiceStartsSearchVectorBuildRunner`
+selections list the same test counts before and after the move (26 tests in
+`searchvector`, 1 at root — see the Evidence paragraph above for the exact
+selection commands). No-Observability-Change: the sweep's structured logs and
+`eshu_dp_search_vector_build_phase_seconds` histogram emission are unchanged
+code, only relocated; `docs/public/observability/telemetry-coverage.md`'s
+rows for this family were repointed to the new file paths in the same
+change.
 
 ### search_vector_ready completion signal (#4673)
 
@@ -317,11 +353,11 @@ signal an operator could watch. `TestSearchVectorBuildRunnerPublishesReadyWhenNo
 `TestSearchVectorBuildRunnerDoesNotPublishReadyWithPendingScopes`,
 `TestSearchVectorBuildRunnerPublishesReadyAfterDrainingLastPendingScopes`, and
 `TestSearchVectorBuildRunnerDoesNotPublishReadyOnBuildFailure`
-(`search_vector_build_ready_publisher_test.go`) prove the post-build publish
+(`searchvector/search_vector_build_ready_publisher_test.go`) prove the post-build publish
 gating on the serial path;
 `TestSearchVectorBuildRunnerBatchPathPublishesReadyAfterDrainingLastPendingScopes`
 and `TestSearchVectorBuildRunnerBatchPathDoesNotPublishReadyWithPendingScopes`
-(`search_vector_build_runner_batch_test.go`) prove the same gating on the
+(`searchvector/search_vector_build_runner_batch_test.go`) prove the same gating on the
 production batch fast path. `TestSearchVectorReadyWatermarkIsIdentityScopedLive`
 (`go/internal/storage/postgres/eshu_search_vector_build_ready_test.go`, gated
 on `ESHU_SEARCH_VECTOR_READY_LIVE=1` + `ESHU_POSTGRES_DSN`) proves the
@@ -336,9 +372,12 @@ mode gate. No-Regression Evidence: the post-build re-check and publish are a
 single bounded (`Limit: 1`) re-query plus one idempotent identity-keyed
 upsert, gated strictly after the existing `logResult`/`recordPhaseMetrics`
 calls with no change to build behavior, concurrency, or throughput; verified
-by `go test ./internal/reducer ./internal/storage/postgres ./internal/query
-./internal/query/semanticsearch ./cmd/reducer ./internal/mcp -race -count=1`.
+by `go test ./internal/reducer ./internal/reducer/searchvector
+./internal/storage/postgres ./internal/query ./internal/query/semanticsearch
+./cmd/reducer ./internal/mcp -race -count=1`.
 The `semanticsearch` path is listed explicitly because the two mode-gate tests
 cited just above moved there in #6060, and `./internal/query` does not descend
-into child packages -- without it this No-Regression run stops covering the
-tests this section names.
+into child packages; `./internal/reducer/searchvector` is listed explicitly
+for the same reason after the `SearchVectorBuildRunner*` ready-publish tests
+cited above moved there in #6061 -- without either, this No-Regression run
+stops covering the tests this section names.

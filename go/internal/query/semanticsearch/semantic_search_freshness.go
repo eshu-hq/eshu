@@ -14,7 +14,7 @@ import (
 // search-vector build sweep publishes search_vector_ready the read is still
 // considered fresh. SearchVectorBuildRunner polls on a short cadence (~30s
 // default, see defaultSearchVectorBuildPollInterval in
-// go/internal/reducer/search_vector_build_runner.go) and only publishes the
+// go/internal/reducer/searchvector/search_vector_build_runner.go) and only publishes the
 // watermark when a bounded sweep completes with zero pending scopes, so a
 // healthy signal is always within roughly one poll cadence of now. The window
 // allows several cadences of headroom for a transient lease handoff or a slow

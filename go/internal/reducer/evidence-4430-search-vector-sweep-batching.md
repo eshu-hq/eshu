@@ -16,8 +16,9 @@ sequential single-row round trips: `Values.Upsert` then `Metadata.Upsert`
 `eshu_search_vector_metadata.go`). At the issue's reported scale that is
 `2 * 185,361` to `2 * 197,715` sequential `ExecContext` round trips per sweep,
 serialized inside the per-scope loop in
-`reducer.SearchVectorBuildRunner.RunOnce`
-(`go/internal/reducer/search_vector_build_runner.go`). The embedder used in a
+`searchvector.SearchVectorBuildRunner.RunOnce`
+(`go/internal/reducer/searchvector/search_vector_build_runner.go`, moved from
+the reducer root in #6061). The embedder used in a
 real corpus run without hosted provider credentials is the deterministic
 local hash embedder (`go/internal/searchembed/hash.go`), so embedding compute
 is cheap; the dominant cost is Postgres round-trip count, not CPU-bound
@@ -37,7 +38,7 @@ one batched call per page instead of one call per document, collapsing
 `2 * ceil(document_count / req.Limit)`. `Builder.Build` also now returns split
 phase timings (`QueryLoadDuration`, `EmbedBuildDuration`,
 `WriteUpsertDuration`), propagated through
-`reducer.SearchVectorBuildResult` / `SearchVectorBuildRunnerResult`, plus a
+`searchvector.SearchVectorBuildResult` / `SearchVectorBuildRunnerResult`, plus a
 `SchedulingWaitDuration` around the pending-scope list call in `RunOnce`.
 
 ## No-Regression Evidence
@@ -57,7 +58,7 @@ count, not just row content), because the fake stores
 produces five batches of one row each instead of one batch of five.
 
 `TestSearchVectorBuildRunnerSumsPhaseDurationsAcrossScopes`
-(`go/internal/reducer/search_vector_build_runner_test.go`) proves `RunOnce`
+(`go/internal/reducer/searchvector/search_vector_build_runner_test.go`) proves `RunOnce`
 sums each built scope's phase durations into the sweep-level result instead of
 dropping or overwriting them.
 
@@ -119,11 +120,11 @@ Observability Evidence: added `eshu_dp_search_vector_build_phase_seconds`
 (`go/internal/telemetry/instruments.go`), a histogram with `domain` (fixed
 `search_vector_build`) and `write_phase` (`scheduling_wait`, `query_load`,
 `embed_build`, `write_upsert`) attributes, recorded once per `RunOnce` sweep
-in `reducer.SearchVectorBuildRunner.recordPhaseMetrics`. This directly answers
+in `searchvector.SearchVectorBuildRunner.recordPhaseMetrics`. This directly answers
 the issue's "split timing into query/load, embedding/hash/build, write/upsert,
 and scheduling wait" requirement without recomputing it from logs. The
 "search vector build sweep completed" structured log
-(`go/internal/reducer/search_vector_build_runner.go`) was also enriched with
+(`go/internal/reducer/searchvector/search_vector_build_runner.go`) was also enriched with
 the same four fields (`scheduling_wait_seconds`, `query_load_seconds`,
 `embed_build_seconds`, `write_upsert_seconds`) alongside the existing
 `duration_seconds`. `docs/public/observability/telemetry-coverage.md` gained a
