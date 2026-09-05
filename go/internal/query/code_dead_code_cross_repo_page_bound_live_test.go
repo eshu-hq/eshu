@@ -83,28 +83,55 @@ func TestCrossRepoDeadCodeConsumerEvidencePageBoundLive(t *testing.T) {
 	db.SetMaxOpenConns(1)
 	db.SetMaxIdleConns(1)
 
-	schema := fmt.Sprintf("cross_repo_dead_code_page_%d", time.Now().UnixNano())
-	if _, err := db.ExecContext(ctx, "CREATE SCHEMA "+schema); err != nil {
-		t.Fatalf("create proof schema: %v", err)
-	}
-	t.Cleanup(func() {
-		cleanupCtx, cleanupCancel := context.WithTimeout(context.Background(), 30*time.Second)
-		defer cleanupCancel()
-		if _, err := db.ExecContext(cleanupCtx, "DROP SCHEMA "+schema+" CASCADE"); err != nil {
-			t.Errorf("drop proof schema: %v", err)
+	// Two schemas, not one. The retention arm's rows are a large fraction of
+	// the table, and sharing a schema moved the no-retention arm's plan onto a
+	// bitmap scan -- one arm's fixture silently changed the other's statistics.
+	// Each arm gets its own table so each one's plan is its own.
+	stamp := time.Now().UnixNano()
+	plain := fmt.Sprintf("cross_repo_dead_code_page_%d_plain", stamp)
+	retained := fmt.Sprintf("cross_repo_dead_code_page_%d_retained", stamp)
+	for _, schema := range []string{plain, retained} {
+		if _, err := db.ExecContext(ctx, "CREATE SCHEMA "+schema); err != nil {
+			t.Fatalf("create proof schema %s: %v", schema, err)
 		}
-	})
-	if _, err := db.ExecContext(ctx, "SET search_path TO "+schema); err != nil {
-		t.Fatalf("set proof search path: %v", err)
+		t.Cleanup(func() {
+			cleanupCtx, cleanupCancel := context.WithTimeout(context.Background(), 30*time.Second)
+			defer cleanupCancel()
+			if _, err := db.ExecContext(cleanupCtx, "DROP SCHEMA "+schema+" CASCADE"); err != nil {
+				t.Errorf("drop proof schema %s: %v", schema, err)
+			}
+		})
 	}
 
+	useCrossRepoDeadCodeConsumerPageSchema(ctx, t, db, plain)
 	seedCrossRepoDeadCodeConsumerPageSchema(ctx, t, db)
 	seedCrossRepoDeadCodeConsumerPageRows(ctx, t, db)
 
+	useCrossRepoDeadCodeConsumerPageSchema(ctx, t, db, retained)
+	seedCrossRepoDeadCodeConsumerPageSchema(ctx, t, db)
+	seedCrossRepoDeadCodeConsumerPageRows(ctx, t, db)
+	seedCrossRepoDeadCodeConsumerPageRetainedRows(ctx, t, db)
+
+	useCrossRepoDeadCodeConsumerPageSchema(ctx, t, db, plain)
 	page := crossRepoDeadCodeConsumerPageEntities()
 	runCrossRepoDeadCodeConsumerPageIndexGuard(ctx, t, db)
 	runCrossRepoDeadCodeConsumerPageAnswerGuard(ctx, t, db, page)
 	runCrossRepoDeadCodeConsumerPageWorkGuard(ctx, t, db, page)
+
+	useCrossRepoDeadCodeConsumerPageSchema(ctx, t, db, retained)
+	runCrossRepoDeadCodeConsumerPageRetainedWorkGuard(
+		ctx, t, db, crossRepoDeadCodeConsumerPageRetainedEntities())
+}
+
+// useCrossRepoDeadCodeConsumerPageSchema points the pinned connection at one of
+// the proof schemas. The pool is one connection, so this is the schema every
+// following statement runs under, the reader's included.
+func useCrossRepoDeadCodeConsumerPageSchema(ctx context.Context, t *testing.T, db *sql.DB, schema string) {
+	t.Helper()
+
+	if _, err := db.ExecContext(ctx, "SET search_path TO "+schema); err != nil {
+		t.Fatalf("set proof search path to %s: %v", schema, err)
+	}
 }
 
 // crossRepoDeadCodeConsumerPageMigrations are the shipped definitions this
@@ -147,13 +174,38 @@ const crossRepoDeadCodeConsumerPageHotRowsPerRepository = 10000
 // entity and makes the answer guard's counts deterministic.
 const crossRepoDeadCodeConsumerPageOrdinaryEntities = 5
 
+// crossRepoDeadCodeConsumerPageRetainedGenerations is how many superseded
+// generations the retention arm keeps per position. The reducer's reachability
+// delete is keyed (scope_id, generation_id, repository_id), so a new generation
+// ADDS a row set and leaves the previous one for the retention runner, and
+// DefaultGenerationRetentionPolicy keeps at least 24. Three is enough to make
+// the multiplication visible and cheap enough to seed.
+const crossRepoDeadCodeConsumerPageRetainedGenerations = 3
+
 // crossRepoDeadCodeConsumerPageScanRowBudget bounds the rows the plan's
-// reachability scan may read. With migration 103 the scan reads exactly the
-// statement's LIMIT, 1,001; without it the same page reads 30,015. The budget
-// sits just above the LIMIT rather than at it, because rows the grant or the
-// depth filter discards are read before they are discarded and this fixture is
-// free to grow one.
+// reachability scan may read on the arm with NO retained generations. With
+// migration 103 the scan reads exactly the statement's LIMIT, 1,001; without it
+// the same page reads 30,015. The budget sits just above the LIMIT rather than
+// at it, because rows the grant or the depth filter discards are read before
+// they are discarded and this fixture is free to grow one.
 const crossRepoDeadCodeConsumerPageScanRowBudget = maxCrossRepoDeadCodeConsumerEvidenceRows + 200
+
+// crossRepoDeadCodeConsumerPageRetainedScanRowBudget bounds the same scan on
+// the retention arm, and the arithmetic is the point rather than the number.
+//
+// The LIMIT bounds rows RETURNED. The active-generation test is a join above
+// the scan and migration 103's key carries no way to reach the scope's active
+// generation, so the scan emits one entry per RETAINED generation per position
+// and the join discards the superseded ones. For an answer of N rows drawn from
+// positions holding 1 + R generations each, the scan walks up to N x (1 + R).
+// Here N is the sentinel-inclusive cap and R is the constant above, so the
+// budget is that product plus the same slack the arm above uses.
+//
+// A budget of N alone would be the bound this route does NOT have, and it would
+// fail as soon as anything retained a second generation -- which is the state
+// every real install is in.
+const crossRepoDeadCodeConsumerPageRetainedScanRowBudget = (maxCrossRepoDeadCodeConsumerEvidenceRows+1)*
+	(1+crossRepoDeadCodeConsumerPageRetainedGenerations) + 200
 
 // crossRepoDeadCodeConsumerPageEntities is the producer page: the ordinary
 // entities first in entity_id order, then the busy one.
@@ -163,6 +215,17 @@ func crossRepoDeadCodeConsumerPageEntities() []string {
 		entities = append(entities, fmt.Sprintf("ent-%03d", i))
 	}
 	return append(entities, "ent-hot")
+}
+
+// crossRepoDeadCodeConsumerPageRetainedEntities is the retention arm's page: the
+// same ordinary entities, and a busy entity whose every position also exists
+// under each retained superseded generation.
+func crossRepoDeadCodeConsumerPageRetainedEntities() []string {
+	entities := make([]string, 0, crossRepoDeadCodeConsumerPageOrdinaryEntities+1)
+	for i := 1; i <= crossRepoDeadCodeConsumerPageOrdinaryEntities; i++ {
+		entities = append(entities, fmt.Sprintf("ent-%03d", i))
+	}
+	return append(entities, "ent-hot-retained")
 }
 
 // seedCrossRepoDeadCodeConsumerPageSchema applies the shipped table and index
@@ -226,5 +289,42 @@ FROM generate_series(1, $2) AS i`, repositoryID, crossRepoDeadCodeConsumerPageOr
 	}
 	if _, err := db.ExecContext(ctx, "ANALYZE code_reachability_rows; ANALYZE ingestion_scopes; ANALYZE scope_generations"); err != nil {
 		t.Fatalf("analyze the proof fixture: %v", err)
+	}
+}
+
+// seedCrossRepoDeadCodeConsumerPageRetainedRows gives one busy producer entity
+// the same active population as ent-hot AND a copy of every position under each
+// retained superseded generation, which is the state the retention runner
+// leaves behind and the state the one-generation arm cannot show.
+func seedCrossRepoDeadCodeConsumerPageRetainedRows(ctx context.Context, t *testing.T, db *sql.DB) {
+	t.Helper()
+
+	if _, err := db.ExecContext(ctx, `
+INSERT INTO scope_generations
+  (generation_id, scope_id, trigger_kind, observed_at, ingested_at, status, activated_at)
+SELECT 'gen-old-' || lpad(g::text, 3, '0'), 'scope-1', 'sync', now(), now(), 'superseded', now()
+FROM generate_series(1, $1) AS g`, crossRepoDeadCodeConsumerPageRetainedGenerations); err != nil {
+		t.Fatalf("seed retained generations: %v", err)
+	}
+	for _, repositoryID := range crossRepoDeadCodeConsumerPageHotRepositories {
+		if _, err := db.ExecContext(ctx, `
+INSERT INTO code_reachability_rows
+  (scope_id, generation_id, repository_id, root_entity_id, entity_id, depth, state,
+   confidence, min_resolution_method, evidence, root_kinds, observed_at, updated_at)
+SELECT 'scope-1', gen.generation_id, $1, $1 || '#retained-' || lpad(i::text, 6, '0'),
+       'ent-hot-retained', 1 + (i % 3), 'reachable', 0.95, 'symbol_exact',
+       '["CALLS"]'::jsonb, '["Function"]'::jsonb, now(), now()
+FROM generate_series(1, $2) AS i
+CROSS JOIN (
+  SELECT 'gen-active' AS generation_id
+  UNION ALL
+  SELECT 'gen-old-' || lpad(g::text, 3, '0') FROM generate_series(1, $3) AS g
+) AS gen`, repositoryID, crossRepoDeadCodeConsumerPageHotRowsPerRepository,
+			crossRepoDeadCodeConsumerPageRetainedGenerations); err != nil {
+			t.Fatalf("seed retained-entity rows in %s: %v", repositoryID, err)
+		}
+	}
+	if _, err := db.ExecContext(ctx, "ANALYZE code_reachability_rows; ANALYZE scope_generations"); err != nil {
+		t.Fatalf("analyze the retention fixture: %v", err)
 	}
 }

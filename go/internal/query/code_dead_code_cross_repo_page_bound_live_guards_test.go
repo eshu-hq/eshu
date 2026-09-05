@@ -36,9 +36,9 @@ func runCrossRepoDeadCodeConsumerPageIndexGuard(ctx context.Context, t *testing.
 		if err != nil {
 			t.Fatalf("look up %s: %v", crossRepoDeadCodeConsumerPageRankIndex, err)
 		}
-		const wantKey = "(entity_id, confidence DESC, depth, repository_id, root_entity_id)"
+		const wantKey = "(entity_id, confidence DESC, depth, repository_id, root_entity_id, scope_id, generation_id)"
 		if !strings.Contains(definition, wantKey) {
-			t.Fatalf("%s is defined as %q, want its key to be %s -- the page's ORDER BY with entity_id pinned by the IN list",
+			t.Fatalf("%s is defined as %q, want its key to be %s -- the page's ORDER BY with entity_id pinned by the IN list, ending in the scope and generation that make the order total",
 				crossRepoDeadCodeConsumerPageRankIndex, definition, wantKey)
 		}
 	})
@@ -298,4 +298,48 @@ func crossRepoDeadCodeConsumerPageSortNodes(plan string) []string {
 		nodes = append(nodes, match[1])
 	}
 	return nodes
+}
+
+// runCrossRepoDeadCodeConsumerPageRetainedWorkGuard bounds the same scan on a
+// page whose busy entity carries retained superseded generations.
+//
+// This is the arm that measures what the LIMIT actually bounds. The
+// active-generation test is a join above the scan, so the scan walks one entry
+// per retained generation per position and the join discards the superseded
+// ones: the read is bounded by the cap TIMES the retained generations, not by
+// the cap. A guard that asserted the cap alone would pass only on a fixture
+// with one generation, which is a state no install stays in.
+func runCrossRepoDeadCodeConsumerPageRetainedWorkGuard(
+	ctx context.Context,
+	t *testing.T,
+	db *sql.DB,
+	page []string,
+) {
+	t.Helper()
+
+	t.Run("retained generations multiply the scan, and nothing else does", func(t *testing.T) {
+		for _, mode := range crossRepoDeadCodeProbePlanModes {
+			t.Run(mode.name, func(t *testing.T) {
+				plan := crossRepoDeadCodeConsumerPagePlan(ctx, t, db, mode, page)
+				scanned := crossRepoDeadCodeConsumerPageScanRows(t, plan)
+				if scanned > crossRepoDeadCodeConsumerPageRetainedScanRowBudget {
+					t.Errorf("the page read scanned %d code_reachability_rows rows against a budget of %d (the %d-row cap times %d generations per position, plus slack); it is reading more than the retention window explains",
+						scanned, crossRepoDeadCodeConsumerPageRetainedScanRowBudget,
+						maxCrossRepoDeadCodeConsumerEvidenceRows+1,
+						1+crossRepoDeadCodeConsumerPageRetainedGenerations)
+				}
+				// The floor matters as much as the ceiling. If this arm ever
+				// reads no more than the no-retention one, the fixture has
+				// stopped carrying retained generations and the budget above
+				// is bounding nothing.
+				if scanned <= crossRepoDeadCodeConsumerPageScanRowBudget {
+					t.Errorf("the retention arm scanned %d rows, no more than the no-retention budget of %d; the fixture is not carrying retained generations and this guard is vacuous",
+						scanned, crossRepoDeadCodeConsumerPageScanRowBudget)
+				}
+				if !strings.Contains(plan, crossRepoDeadCodeConsumerPageRankIndex) {
+					t.Fatalf("the page read does not use %s:\n%s", crossRepoDeadCodeConsumerPageRankIndex, plan)
+				}
+			})
+		}
+	})
 }
