@@ -76,6 +76,15 @@ func (db *ackScalePlanDB) ExecContext(ctx context.Context, query string, args ..
 			variant = strings.Replace(variant, "work.work_item_id IN (SELECT work_item_id FROM locked_work)", "work.ctid = ANY(ARRAY(SELECT locked_tid FROM locked_work))", 1)
 			variant = strings.Replace(variant, "WHERE work_item_id IN (SELECT work_item_id FROM locked_work)", "WHERE ctid = ANY(ARRAY(SELECT locked_tid FROM locked_work))", 1)
 			db.explain(ctx, name+"_tuple_target_shim", variant, args...)
+			// Compare immutable-ID targeting after the locking SELECT has fully
+			// checked eligibility. The production query still runs unchanged.
+			const barrier = "AND (SELECT count(*) FROM locked_work) > 0"
+			end := strings.Index(query, barrier) + len(barrier)
+			idVariant := query[:end] + "\n"
+			if returning := strings.Index(query[end:], "RETURNING"); returning >= 0 {
+				idVariant += query[end+returning:]
+			}
+			db.explain(ctx, name+"_locked_id_target_shim", idVariant, args...)
 		}
 	}
 	return db.SQLDB.ExecContext(ctx, query, args...)
