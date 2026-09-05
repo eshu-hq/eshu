@@ -124,14 +124,32 @@ func TestCrossRepoDeadCodeSignalReadIsTheBoundedUngrantedProbe(t *testing.T) {
 	// just found. Losing any one of them leaves the generation a filter over
 	// the pair's retained rows and the answer unchanged, so nothing else here
 	// can see it.
+	//
+	// The generation has to arrive as a SCALAR SUBQUERY rather than as a join
+	// to ingestion_scopes on the outer row, and that is the load-bearing half.
+	// Written as a join the planner may reorder it, and on a corpus with one
+	// ingestion scope per consumer repository it does: it drops generation_id
+	// out of the Index Cond, seeks three columns, and probes scope_generations
+	// once per retained row. The plan a small fixture gets is not the plan a
+	// corpus gets -- the liveness lookup took three different shapes across the
+	// corpora measured in the walk note -- so this pin, not a plan assertion,
+	// is what holds the seek.
 	for _, want := range []string{
 		"AND live_row.repository_id = pair.repository_id",
 		"AND live_row.scope_id = pair.scope_id",
-		"AND live_row.generation_id = scope.active_generation_id",
+		"AND live_row.generation_id = (",
+		"SELECT scope.active_generation_id",
+		"WHERE scope.scope_id = pair.scope_id)",
 	} {
 		if !strings.Contains(probe, want) {
 			t.Fatalf("probe is missing %q, so a step scans a pair's retained generations instead of seeking its active row:\n%s", want, probe)
 		}
+	}
+	// The join form is what this replaced. Its absence is the assertion: with
+	// it back, the equality above is satisfied by text the planner is free to
+	// reorder into the scan this seek exists to remove.
+	if strings.Contains(probe, "JOIN code_reachability_rows AS live_row") {
+		t.Fatalf("probe joins the liveness row on the outer pair; the planner may then reorder the generation out of the Index Cond:\n%s", probe)
 	}
 	// A bound rendered per granted repository is what this shape replaced: it
 	// cost one index probe per granted repository per producer entity, so a

@@ -219,11 +219,19 @@ func crossRepoDeadCodeUnknownReasons(
 //     returns nothing, so a step still performs one seek.
 //   - the liveness test is a full equality -- entity, repository, scope, and
 //     the generation ingestion_scopes says is active for that scope -- so it
-//     seeks the active row instead of scanning the pair's rows for it. Written
-//     as joins on the outer row instead, the planner is free to drive the whole
-//     walk from ingestion_scopes and probe the primary key once per scope,
-//     which is what it did before migration 101: 264 ms and 292,615 buffers for
-//     a page this shape answers in 5 ms.
+//     seeks the active row instead of scanning the pair's rows for it, and the
+//     generation arrives as a SCALAR SUBQUERY rather than as a join on the
+//     outer row. That distinction is the whole of it. Joined, the planner may
+//     reorder, and it does: before migration 101 it drove the walk from
+//     ingestion_scopes and probed the primary key once per scope, 264 ms and
+//     292,615 buffers for a page this shape answers in 5 ms; with the index in
+//     place but the join still written, a corpus with one ingestion scope per
+//     consumer repository made it drop generation_id out of the Index Cond,
+//     seek three columns and probe scope_generations once per retained row --
+//     365,181 buffers and 295 ms for ONE entity with 300 stale ungranted
+//     consumer pairs, against 3,897 and 5.3 ms for the subquery form. The
+//     liveness lookup took three different plans across the corpora measured,
+//     so the shape has to remove the planner's choice rather than survive it.
 //   - the liveness test sits behind AND after the grant test, so it runs only
 //     for a repository outside the grant. A granted repository continues the
 //     walk whether it is live or not, so its answer is never needed, and paying
@@ -252,17 +260,18 @@ WITH RECURSIVE page AS (
            NOT pair.is_granted
            AND EXISTS (
              SELECT 1
-             FROM ingestion_scopes AS scope
-             JOIN scope_generations AS generation
-               ON generation.generation_id = scope.active_generation_id
-              AND generation.status = 'active'
-             JOIN code_reachability_rows AS live_row
-               ON live_row.entity_id = page.entity_id
-              AND live_row.repository_id = pair.repository_id
-              AND live_row.scope_id = pair.scope_id
-              AND live_row.generation_id = scope.active_generation_id
-              AND live_row.depth > 0
-             WHERE scope.scope_id = pair.scope_id) AS hidden
+             FROM code_reachability_rows AS live_row
+             WHERE live_row.entity_id = page.entity_id
+               AND live_row.repository_id = pair.repository_id
+               AND live_row.scope_id = pair.scope_id
+               AND live_row.generation_id = (
+                 SELECT scope.active_generation_id
+                 FROM ingestion_scopes AS scope
+                 JOIN scope_generations AS generation
+                   ON generation.generation_id = scope.active_generation_id
+                  AND generation.status = 'active'
+                 WHERE scope.scope_id = pair.scope_id)
+               AND live_row.depth > 0) AS hidden
     FROM (
       SELECT first_pair.repository_id, first_pair.scope_id,
              EXISTS (
@@ -283,17 +292,18 @@ WITH RECURSIVE page AS (
            NOT pair.is_granted
            AND EXISTS (
              SELECT 1
-             FROM ingestion_scopes AS scope
-             JOIN scope_generations AS generation
-               ON generation.generation_id = scope.active_generation_id
-              AND generation.status = 'active'
-             JOIN code_reachability_rows AS live_row
-               ON live_row.entity_id = walk.entity_id
-              AND live_row.repository_id = pair.repository_id
-              AND live_row.scope_id = pair.scope_id
-              AND live_row.generation_id = scope.active_generation_id
-              AND live_row.depth > 0
-             WHERE scope.scope_id = pair.scope_id) AS hidden
+             FROM code_reachability_rows AS live_row
+             WHERE live_row.entity_id = walk.entity_id
+               AND live_row.repository_id = pair.repository_id
+               AND live_row.scope_id = pair.scope_id
+               AND live_row.generation_id = (
+                 SELECT scope.active_generation_id
+                 FROM ingestion_scopes AS scope
+                 JOIN scope_generations AS generation
+                   ON generation.generation_id = scope.active_generation_id
+                  AND generation.status = 'active'
+                 WHERE scope.scope_id = pair.scope_id)
+               AND live_row.depth > 0) AS hidden
     FROM (
       SELECT next_pair.repository_id, next_pair.scope_id,
              EXISTS (

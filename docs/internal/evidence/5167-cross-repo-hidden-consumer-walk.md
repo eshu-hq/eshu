@@ -151,9 +151,10 @@ live. A GRANTED consumer repository costs one step however many scopes cover
 it, so the walk passes at most `min(d, N)` of them for `d` distinct consumer
 repositories and a grant of `N`, where the ranges cost `N + 1` regardless of
 `d`. What an UNGRANTED one costs is a separate question, and
-[Stale Consumers Are An Axis Too](#stale-consumers-are-an-axis-too) is it. What a step costs is a second question, and this seed
-answered it wrongly: it holds one generation, so a step's first row is always
-the active one. The section below is that correction.
+[Stale Consumers Are An Axis Too](#stale-consumers-are-an-axis-too) is it. What
+a single step costs is a third, and this seed answered that one wrongly: it
+holds one generation, so a step's first row is always the active one. The
+section below is that correction.
 
 The walk has its own axis, `d`, and it was measured rather than assumed. A
 producer entity consumed by 300 distinct repositories, all granted, with a
@@ -381,60 +382,15 @@ an index condition rather than a filter, in both plan modes.
 ### Stale Consumers Are An Axis Too
 
 The walk's continue-condition is `NOT walk.hidden`, and `hidden` is
-`NOT is_granted AND EXISTS (a live row)`. Three cases follow and only the third
-stops it: a granted pair continues, an ungranted pair with a live row stops, and
-an ungranted pair WITHOUT one continues. That third case is a consumer
-repository that used to call the symbol and no longer does.
-`ReplaceCodeReachabilityRepositoryRows` leaves the previous generation's rows on
-disk, and `DefaultGenerationRetentionPolicy` keeps the 24 most recent superseded
-generations per scope plus everything superseded inside the last seven days, so
-they are still there to be walked — one pair at a time, because the ungranted
-step seeks the next PAIR and an exhausted repository simply hands it the next
-repository's first one.
-
-So the bound is not `min(d, N) + 1`. It is the granted repositories passed, at
-most `min(d, N)` of them, plus the ungranted `(repository, scope)` pairs passed
-that hold no live consumer row, plus one — and the third term is bounded by the
-retention window rather than by `d` or `N`.
-`TestCrossRepoDeadCodeUngrantedConsumerProbeLive` asserts that count rather than
-describing it: `ent-stale-repos` carries 300 stale ungranted consumer
-repositories and one live hidden consumer after them under a one-repository
-grant, and the recursive term must produce exactly 301 rows in both plan modes.
-Set to the 2 the old contract claimed, both modes fail with `the recursive walk
-produced 301 rows, want exactly 2`.
-
-Performance Evidence: throwaway PostgreSQL 16.15 container, migrations
-001/002/027 plus 101/102, `SET jit = off`, `VACUUM ANALYZE`, warm, three
-samples, both plan modes. The grant-size seed above extended with one ingestion
-scope per stale consumer repository — which is how a git repository scope owns a
-repository — and 20 retained superseded generations each, inside the retention
-policy's 24. 2,447,218 rows, 302 scopes, 6,302 generations. One producer entity,
-one-repository grant.
-
-| One entity, one-repository grant | Walk rows | Buffers | Custom plan | Generic plan |
-| --- | ---: | ---: | ---: | ---: |
-| 300 GRANTED consumer repositories (the control) | 300 | hit=913 | 2.99 / 3.09 / 3.01 ms | 3.27 / 3.32 / 3.54 ms |
-| 300 stale ungranted pairs, 20 rows each | 301 | hit=25,825 | 19.07 / 19.41 / 19.26 ms | 19.28 / 19.46 / 18.92 ms |
-| 300 stale ungranted pairs, 400 rows each | 301 | hit=365,181 | 297.0 / 290.7 / 295.5 ms | 293.7 / 294.8 / 298.0 ms |
-
-The step count is the same 301 in all three stale rows; the buffers are not, and
-that is a second defect rather than this axis being expensive by nature. On this
-corpus the liveness `EXISTS` loses its four-column `Index Cond`: the planner
-takes `(entity_id, repository_id, scope_id)` and then probes
-`scope_generations` once per retained row — 119,601 probes for one entity — so
-every passed stale pair scans the pair's rows instead of seeking past them. The
-axis and the plan are separable: at ONE retained generation per pair the
-`Index Cond` is already three columns, so retention depth multiplies a cost the
-corpus statistics chose.
-
-Restricting the ungranted step's own seek to live pairs was measured and
-rejected. Joined to `ingestion_scopes` on the active generation it walks 2 rows
-rather than 301, and reads `hit=4,304` in 26.6 / 27.5 / 27.3 ms, because the
-restriction never becomes an index condition: one step reads 119,620 index rows
-under a hash join against a 302-row `Seq Scan on ingestion_scopes`. It trades a
-per-pair cost for a cost in the entity's TOTAL retained rows — the fan-in
-sensitivity this walk exists to remove — and would lose on a high-fan-in entity
-such as the seed's 1,000,000-row one.
+`NOT is_granted AND EXISTS (a live row)`, so an ungranted pair with no live row
+is not hidden and the walk steps past it. That is a consumer repository which
+stopped calling the symbol and whose rows retention still keeps. The bound is
+therefore the granted repositories passed, at most `min(d, N)` of them, plus the
+ungranted `(repository, scope)` pairs passed that hold no live consumer row,
+plus one. What those pairs cost, why the liveness lookup had to become a scalar
+subquery to keep the seek, and the restriction that was measured and rejected
+are in
+[#5167 stale consumers, the walk's fourth axis](5167-stale-consumer-walk-axis.md).
 
 ### The Migrations Replay On Every Bootstrap
 
