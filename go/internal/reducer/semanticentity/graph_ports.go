@@ -41,7 +41,7 @@ type GraphProjectionPhaseRepair struct {
 // interface — Go requires exact type identity between this package's
 // GraphProjectionPhaseRepair and the root's, even though every field
 // matches. So the root's concrete repair queue cannot satisfy this
-// declaration directly; cmd/reducer wires it in through
+// declaration directly; defaults_domain_catalog.go wires it in through
 // semanticEntityRepairQueueAdapter
 // (internal/reducer/semantic_entity_repair_queue_adapter.go), a narrow
 // translation between the two named types. This declaration still earns its
