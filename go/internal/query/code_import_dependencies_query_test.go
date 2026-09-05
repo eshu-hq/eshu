@@ -24,7 +24,7 @@ func TestImportDependencyRequestRejectsTargetFileForImportRows(t *testing.T) {
 			err := (importDependencyRequest{
 				QueryType:  queryType,
 				TargetFile: "src/target.py",
-			}).validate()
+			}).Validate()
 			if err == nil || !strings.Contains(err.Error(), "target_file") {
 				t.Fatalf("validate() error = %v, want target_file contract error", err)
 			}

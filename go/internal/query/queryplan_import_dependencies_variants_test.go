@@ -69,7 +69,7 @@ func reachableImportDependencyQueryplanRequests() []importDependencyRequest {
 			for scopeMask := 1; scopeMask < 1<<5; scopeMask++ {
 				for languageMask := 0; languageMask < 2; languageMask++ {
 					request := importDependencyQueryplanRequest(queryType, scopeMask, languageMask != 0, access)
-					if err := request.validate(); err != nil {
+					if err := request.Validate(); err != nil {
 						continue
 					}
 					requests = append(requests, request)
@@ -89,7 +89,7 @@ type importDependencyQueryplanAccess struct {
 // importDependencyQueryplanAccessName reads the caller class back off a request
 // rather than carrying a label on the production struct.
 func importDependencyQueryplanAccessName(request importDependencyRequest) string {
-	if request.access.Scoped() {
+	if request.Access.Scoped() {
 		return "scoped"
 	}
 	return "all"
@@ -104,7 +104,7 @@ func importDependencyQueryplanRequest(
 	request := importDependencyRequest{
 		QueryType: queryType,
 		Limit:     10,
-		access:    access.filter,
+		Access:    access.filter,
 	}
 	if scopeMask&1 != 0 {
 		request.RepoID = "proof-repository"
@@ -133,7 +133,7 @@ type importDependencyQueryplanQuery struct {
 }
 
 func importDependencyQueryplanQueries(request importDependencyRequest) []importDependencyQueryplanQuery {
-	switch request.queryType() {
+	switch request.EffectiveQueryType() {
 	case "file_import_cycles":
 		return []importDependencyQueryplanQuery{{name: "cycle-edges", cypher: fileImportCycleEdgeRowsCypher(request)}}
 	case "cross_module_calls":
@@ -161,7 +161,7 @@ func importDependencyQueryplanQueries(request importDependencyRequest) []importD
 			sourceScopes = []map[string]any{{"repo_id": "proof-repository", "path": "/proof/src/proof.py"}}
 		}
 		switch {
-		case request.queryType() == "package_imports":
+		case request.EffectiveQueryType() == "package_imports":
 			queries = append(queries, importDependencyQueryplanQuery{name: "package-imports", cypher: packageImportRowsCypher(request, sourceScopes)})
 		case len(sourceScopes) > 0:
 			queries = append(queries, importDependencyQueryplanQuery{name: "source-module-imports", cypher: sourceModuleImportRowsCypher(request, sourceScopes)})
@@ -191,7 +191,7 @@ func importDependencyQueryplanVariants() map[string]string {
 }
 
 func importDependencyQueryplanRequestName(request importDependencyRequest) string {
-	parts := []string{importDependencyQueryplanAccessName(request), request.queryType()}
+	parts := []string{importDependencyQueryplanAccessName(request), request.EffectiveQueryType()}
 	for _, filter := range []struct {
 		name  string
 		value string

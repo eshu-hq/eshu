@@ -1,0 +1,397 @@
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2025-2026 eshu-hq
+
+package codemodel
+
+import (
+	"path/filepath"
+	"slices"
+	"strings"
+
+	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
+)
+
+var deadCodeReflectionModeledLanguages = []string{"java"}
+
+// BuildDeadCodeAnalysis summarizes dead-code scan results into the analysis envelope.
+func BuildDeadCodeAnalysis(results []map[string]any, excluded []string, stats DeadCodePolicyStats) map[string]any {
+	return BuildDeadCodeAnalysisForLanguage(results, excluded, stats, "")
+}
+
+// BuildDeadCodeAnalysisForLanguage summarizes dead-code scan results for one language.
+func BuildDeadCodeAnalysisForLanguage(results []map[string]any, excluded []string, stats DeadCodePolicyStats, language string) map[string]any {
+	frameworks := make([]string, 0)
+	seenFrameworks := make(map[string]struct{})
+	for _, result := range results {
+		metadata, _ := result["metadata"].(map[string]any)
+		framework := strings.TrimSpace(querycontract.StringVal(metadata, "framework"))
+		if framework == "" {
+			continue
+		}
+		if _, ok := seenFrameworks[framework]; ok {
+			continue
+		}
+		seenFrameworks[framework] = struct{}{}
+		frameworks = append(frameworks, framework)
+	}
+	slices.Sort(frameworks)
+
+	return map[string]any{
+		"root_categories_used": []string{
+			"language_entrypoints",
+			"generated_and_tool_owned",
+			"library_public_api",
+			"cli_command_roots",
+			"http_and_rpc_roots",
+			"framework_callback_roots",
+		},
+		"frameworks_recognized":                  frameworks,
+		"reflection_modeled":                     deadCodeReflectionModeled(language),
+		"reflection_modeled_languages":           deadCodeReflectionModeledLanguages,
+		"tests_excluded":                         true,
+		"generated_code_excluded":                true,
+		"framework_roots_from_parser_metadata":   stats.ParserMetadataFrameworkRoots,
+		"framework_roots_from_source_fallback":   stats.SourceFallbackFrameworkRoots,
+		"go_semantic_roots_from_parser_metadata": stats.GoSemanticRootsFromMetadata,
+		"roots_skipped_missing_source":           stats.RootsSkippedMissingSource,
+		"user_overrides_applied":                 len(excluded) > 0,
+		"iac_reachability_mode":                  "not_modeled_by_code_dead_code",
+		"iac_deadness_capability":                "iac_usage.reachability",
+		"dead_code_language_maturity":            DeadCodeLanguageMaturityReport(),
+		"dead_code_language_exactness_blockers":  DeadCodeLanguageExactnessBlockerReport(),
+		"dead_code_observed_exactness_blockers":  deadCodeObservedExactnessBlockerReport(results),
+		"modeled_entrypoints": []string{
+			"go.main",
+			"go.init",
+			"python.__main__",
+			"elixir.application_start",
+			"java.main_method",
+			"kotlin.main_function",
+			"scala.main_method",
+			"scala.app_object",
+			"haskell.main_function",
+			"perl.script_entrypoint",
+			"c.main_function",
+			"csharp.main_method",
+			"cpp.main_function",
+			"dart.main_function",
+			"swift.main_function",
+			"swift.main_type",
+		},
+		"modeled_framework_roots": []string{
+			"go.cobra_run_registration",
+			"go.cobra_run_signature",
+			"go.net_http_handler_registration",
+			"go.net_http_handler_signature",
+			"go.controller_runtime_reconcile_signature",
+			"python.fastapi_route_decorator",
+			"python.flask_route_decorator",
+			"python.celery_task_decorator",
+			"python.click_command_decorator",
+			"python.typer_command_decorator",
+			"python.typer_callback_decorator",
+			"python.script_main_guard",
+			"python.aws_lambda_handler",
+			"python.dataclass_model",
+			"python.dataclass_post_init",
+			"python.property_decorator",
+			"python.module_all_export",
+			"python.package_init_export",
+			"python.dunder_method",
+			"python.public_api_member",
+			"python.public_api_base",
+			"c.main_function",
+			"c.public_header_api",
+			"c.signal_handler",
+			"c.callback_argument_target",
+			"c.function_pointer_target",
+			"csharp.main_method",
+			"csharp.constructor",
+			"csharp.override_method",
+			"csharp.interface_method",
+			"csharp.interface_implementation_method",
+			"csharp.aspnet_controller_action",
+			"csharp.hosted_service_entrypoint",
+			"csharp.test_method",
+			"csharp.serialization_callback",
+			"cpp.main_function",
+			"cpp.public_header_api",
+			"cpp.virtual_method",
+			"cpp.override_method",
+			"cpp.callback_argument_target",
+			"cpp.function_pointer_target",
+			"cpp.node_addon_entrypoint",
+			"java.constructor",
+			"java.override_method",
+			"java.ant_task_setter",
+			"java.gradle_plugin_apply",
+			"java.gradle_task_action",
+			"java.gradle_task_property",
+			"java.gradle_task_setter",
+			"java.gradle_task_interface_method",
+			"java.gradle_dsl_public_method",
+			"java.method_reference_target",
+			"java.spring_component_class",
+			"java.spring_configuration_properties_class",
+			"java.spring_request_mapping_method",
+			"java.spring_bean_method",
+			"java.spring_event_listener_method",
+			"java.spring_scheduled_method",
+			"java.lifecycle_callback_method",
+			"java.junit_test_method",
+			"java.junit_lifecycle_method",
+			"java.jenkins_extension_class",
+			"java.jenkins_symbol_class",
+			"java.jenkins_symbol_method",
+			"java.jenkins_initializer_method",
+			"java.jenkins_databound_setter_method",
+			"java.stapler_web_method",
+			"java.serialization_hook_method",
+			"java.externalizable_hook_method",
+			"java.reflection_class_reference",
+			"java.reflection_method_reference",
+			"java.service_loader_provider",
+			"java.spring_autoconfiguration_class",
+			"kotlin.main_function",
+			"kotlin.constructor",
+			"kotlin.interface_type",
+			"kotlin.interface_method",
+			"kotlin.interface_implementation_method",
+			"kotlin.override_method",
+			"kotlin.gradle_plugin_apply",
+			"kotlin.gradle_task_action",
+			"kotlin.gradle_task_property",
+			"kotlin.gradle_task_setter",
+			"kotlin.spring_component_class",
+			"kotlin.spring_configuration_properties_class",
+			"kotlin.spring_request_mapping_method",
+			"kotlin.spring_bean_method",
+			"kotlin.spring_event_listener_method",
+			"kotlin.spring_scheduled_method",
+			"kotlin.lifecycle_callback_method",
+			"kotlin.junit_test_method",
+			"kotlin.junit_lifecycle_method",
+			"scala.main_method",
+			"scala.app_object",
+			"scala.trait_type",
+			"scala.trait_method",
+			"scala.trait_implementation_method",
+			"scala.override_method",
+			"scala.play_controller_action",
+			"scala.akka_actor_receive",
+			"scala.lifecycle_callback_method",
+			"scala.junit_test_method",
+			"scala.scalatest_suite_class",
+			"elixir.application_start",
+			"elixir.public_macro",
+			"elixir.public_guard",
+			"elixir.behaviour_callback",
+			"elixir.genserver_callback",
+			"elixir.supervisor_callback",
+			"elixir.mix_task_run",
+			"elixir.protocol_function",
+			"elixir.protocol_implementation_function",
+			"elixir.phoenix_controller_action",
+			"elixir.phoenix_liveview_callback",
+			"dart.main_function",
+			"dart.constructor",
+			"dart.override_method",
+			"dart.flutter_widget_build",
+			"dart.flutter_create_state",
+			"dart.public_library_api",
+			"javascript.nextjs_route_export",
+			"javascript.nextjs_app_export",
+			"javascript.express_route_registration",
+			"javascript.express_middleware_registration",
+			"javascript.koa_middleware_registration",
+			"javascript.koa_route_registration",
+			"javascript.fastify_hook_registration",
+			"javascript.fastify_route_registration",
+			"javascript.fastify_plugin_registration",
+			"javascript.nestjs_controller_method",
+			"javascript.commonjs_default_export",
+			"javascript.commonjs_mixin_export",
+			"javascript.node_package_export",
+			"javascript.node_seed_execute",
+			"javascript.node_migration_export",
+			"javascript.hapi_amqp_consumer",
+			"javascript.hapi_handler_export",
+			"javascript.hapi_plugin_register",
+			"javascript.hapi_route_config_handler",
+			"javascript.hapi_proxy_callback",
+			"rust.main_function",
+			"rust.test_function",
+			"rust.tokio_main",
+			"rust.tokio_test",
+			"rust.public_api_item",
+			"rust.trait_impl_method",
+			"rust.benchmark_function",
+			"ruby.rails_controller_action",
+			"ruby.rails_callback_method",
+			"ruby.dynamic_dispatch_hook",
+			"ruby.method_reference_target",
+			"ruby.script_entrypoint",
+			"groovy.jenkins_pipeline_entrypoint",
+			"groovy.shared_library_call",
+			"haskell.main_function",
+			"haskell.module_export",
+			"haskell.exported_type",
+			"haskell.typeclass_method",
+			"haskell.instance_method",
+			"perl.script_entrypoint",
+			"perl.package_namespace",
+			"perl.exported_subroutine",
+			"perl.constructor",
+			"perl.special_block",
+			"perl.autoload_subroutine",
+			"perl.destroy_subroutine",
+			"php.script_entrypoint",
+			"php.constructor",
+			"php.magic_method",
+			"php.interface_method",
+			"php.interface_implementation_method",
+			"php.trait_method",
+			"php.framework_controller_action",
+			"php.route_handler",
+			"php.symfony_route_attribute",
+			"php.wordpress_hook_callback",
+			"swift.main_function",
+			"swift.main_type",
+			"swift.swiftui_app_type",
+			"swift.swiftui_body",
+			"swift.protocol_type",
+			"swift.protocol_method",
+			"swift.protocol_implementation_method",
+			"swift.constructor",
+			"swift.override_method",
+			"swift.ui_application_delegate_type",
+			"swift.ui_application_delegate_method",
+			"swift.vapor_route_handler",
+			"swift.xctest_method",
+			"swift.swift_testing_method",
+			"typescript.interface_method_implementation",
+			"typescript.module_contract_export",
+			"typescript.static_registry_member",
+		},
+		"modeled_public_api": []string{
+			"go.exported_non_internal_package_symbol",
+			"python.module_all_export",
+			"python.package_init_export",
+			"python.public_api_member",
+			"python.public_api_base",
+			"c.public_header_api",
+			"cpp.public_header_api",
+			"rust.public_api_item",
+			"haskell.module_export",
+			"haskell.exported_type",
+			"perl.package_namespace",
+			"perl.exported_subroutine",
+			"typescript.public_api_export",
+			"typescript.public_api_reexport",
+			"typescript.public_api_type_reference",
+			"dart.public_library_api",
+		},
+		"modeled_go_semantic_roots": []string{
+			"go.dependency_injection_callback",
+			"go.direct_method_call",
+			"go.fmt_stringer_method",
+			"go.function_literal_reachable_call",
+			"go.function_value_reference",
+			"go.generic_constraint_method",
+			"go.imported_direct_method_call",
+			"go.imported_fmt_stringer_method",
+			"go.interface_implementation_type",
+			"go.interface_method_implementation",
+			"go.interface_type_reference",
+			"go.method_value_reference",
+			"go.type_reference",
+		},
+		"notes": []string{
+			"dead-code remains derived until broader framework, public-API, and reflection root models land",
+			"go CLI registrations/signatures, stdlib HTTP registrations/signatures, controller-runtime reconcile signatures, C c.main_function, c.public_header_api, c.signal_handler, c.callback_argument_target, and c.function_pointer_target roots, C# main/constructor/override/interface/ASP.NET/hosted-service/test/serialization roots, C++ cpp.main_function, cpp.public_header_api, cpp.virtual_method, cpp.override_method, cpp.callback_argument_target, cpp.function_pointer_target, and cpp.node_addon_entrypoint roots, Dart main/constructor/override/Flutter build/createState/public-library roots, Perl script entrypoints, package namespaces, Exporter exports, constructors, special blocks, AUTOLOAD, and DESTROY roots, PHP script entrypoints, constructors, known magic methods, interface/trait methods, route-backed controller actions, route handlers, Symfony route attributes, and WordPress hook callbacks, Python FastAPI/Flask/Celery/Click/Typer decorator roots, Python AWS Lambda handler roots, Python dataclass/property roots, Ruby Rails controller/callback roots, Ruby dynamic dispatch hooks, Ruby literal method-reference targets, Ruby script entrypoints, Groovy Jenkinsfile and vars/call roots, Haskell main/module export/typeclass/instance roots, Java main/constructor/override/Ant task setter/Gradle plugin and DSL roots, Kotlin main/constructor/interface/override/Gradle/Spring/JUnit/lifecycle roots, Scala main/App object/trait/override/Play/Akka/JUnit/ScalaTest/lifecycle roots, Swift main/SwiftUI/protocol/constructor/override/app-delegate/Vapor/XCTest/Swift Testing roots, Elixir Application, macro, guard, behaviour, GenServer, Supervisor, Mix task, protocol, Phoenix controller, and LiveView roots, and JavaScript/TypeScript Next.js, Express, Koa, Fastify, NestJS, Node, Hapi, migration, interface, module-contract, and static-registry roots are modeled as derived roots",
+			"go same-package and imported-package direct method calls, fmt Stringer hooks, generic constraint methods, function-value references, function-literal reachable calls, dependency-injection callbacks, type references, interface type references, interface implementation types, interface method implementations, and method values are honored when parser or reducer metadata marks them explicitly",
+			"analysis reports whether a modeled framework root came from parser metadata or the legacy source fallback path",
+			"go framework-root signature checks require entity source; missing source leaves those roots unevaluated",
+			"go exported symbols outside cmd/, internal/, and vendor/ are treated as public API roots by default; Python public API roots are bounded to __all__ and package __init__.py reexports",
+			"IaC deadness is not inferred by the code dead-code analyzer; use the IaC usage/reachability capability once available",
+		},
+	}
+}
+
+func deadCodeReflectionModeled(language string) bool {
+	language = normalizeDeadCodeLanguage(language)
+	if language == "" {
+		return false
+	}
+	return slices.Contains(deadCodeReflectionModeledLanguages, language)
+}
+
+// DeadCodeDowngradedRoots maps an entity ID to the set of code-root kinds
+// the reducer's repo-wide #5376 verdict positively downgraded. It split
+// here from root code_dead_code_verdicts.go (#6060 lane A L1) with the
+// ruby root reader that consults it. It is exported because staying root
+// readers and tests thread it through via the root alias; IsDowngraded is
+// exported because the staying verdict test and the ruby root reader call
+// it across the boundary.
+type DeadCodeDowngradedRoots map[string]map[string]struct{}
+
+// IsDowngraded reports whether the reducer positively downgraded rootKind
+// for entityID. A nil or empty map proves nothing, so the candidate root
+// is kept — the lag-safety default.
+func (d DeadCodeDowngradedRoots) IsDowngraded(entityID, rootKind string) bool {
+	kinds, ok := d[entityID]
+	if !ok {
+		return false
+	}
+	_, ok = kinds[rootKind]
+	return ok
+}
+
+// deadCodeEntityLanguage is a family-local copy of root's code_dead_code.go
+// helper of the same name. Every language root reader below resolves the
+// entity language the same way, and the staying dead-code scan that shares
+// it cannot cross the package boundary, so the leaf carries this
+// byte-identical copy instead of importing root. Keep it behavior-identical
+// to its root source.
+func deadCodeEntityLanguage(result map[string]any, entity *querycontract.EntityContent) string {
+	if entity != nil && strings.TrimSpace(entity.Language) != "" {
+		return entity.Language
+	}
+	return querycontract.StringVal(result, "language")
+}
+
+// normalizeDeadCodeLanguage is a family-local copy of root's
+// code_dead_code_scan.go helper of the same name, shared with the staying
+// scan for the same reason as deadCodeEntityLanguage above.
+func normalizeDeadCodeLanguage(language string) string {
+	switch normalized := strings.ToLower(strings.TrimSpace(language)); normalized {
+	case "c#", "csharp":
+		return "c_sharp"
+	default:
+		return normalized
+	}
+}
+
+// deadCodeEntityPath is a family-local copy of root's code_dead_code.go
+// helper of the same name, shared with the staying scan for the same
+// reason as deadCodeEntityLanguage above.
+func deadCodeEntityPath(result map[string]any, entity *querycontract.EntityContent) string {
+	if entity != nil && strings.TrimSpace(entity.RelativePath) != "" {
+		return filepath.ToSlash(entity.RelativePath)
+	}
+	return filepath.ToSlash(querycontract.StringVal(result, "file_path"))
+}
+
+// primaryEntityLabel is a family-local copy of root's entity_summary.go
+// helper of the same name. The Go and JavaScript root readers name the
+// entity's first graph label, and the staying entity-summary readers that
+// share it cannot cross the package boundary, so the leaf carries this
+// byte-identical copy instead of importing root. Keep it behavior-identical
+// to its root source.
+func primaryEntityLabel(entity map[string]any) string {
+	labels := querycontract.StringSliceVal(entity, "labels")
+	if len(labels) == 0 {
+		return ""
+	}
+	return labels[0]
+}

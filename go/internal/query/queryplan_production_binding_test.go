@@ -80,28 +80,28 @@ func handlerQueryplanProductionCypher() map[string]string {
 		"QP-CODE-IMPORT-ROWS-REPOSITORY": directImportRowsCypher(importDependencyRequest{
 			RepoID:     "proof-repository",
 			SourceFile: "proof.go",
-			access:     allAccess,
+			Access:     allAccess,
 		}),
 		"QP-CODE-IMPORT-PACKAGES": packageImportRowsCypher(importDependencyRequest{
 			QueryType:    "package_imports",
 			RepoID:       "proof-repository",
 			SourceModule: "proof.source",
-			access:       allAccess,
+			Access:       allAccess,
 		}, []map[string]any{{"repo_id": "proof-repository", "path": "/proof/src/proof.py"}}),
 		"QP-CODE-IMPORT-SOURCE-MODULE-FILES": sourceModuleFilesCypher(importDependencyRequest{
 			RepoID:       "proof-repository",
 			SourceModule: "proof.source",
-			access:       allAccess,
+			Access:       allAccess,
 		}),
 		"QP-CODE-IMPORT-TARGET-MODULE-FILES": targetModuleFilesCypher(importDependencyRequest{
 			RepoID:       "proof-repository",
 			TargetModule: "proof.target",
-			access:       allAccess,
+			Access:       allAccess,
 		}),
 		"QP-CODE-IMPORT-SOURCE-MODULE-ROWS": sourceModuleImportRowsCypher(importDependencyRequest{
 			RepoID:       "proof-repository",
 			SourceModule: "proof.source",
-			access:       allAccess,
+			Access:       allAccess,
 		}, []map[string]any{{"repo_id": "proof-repository", "path": "/proof/src/proof.py"}}),
 		"QP-CODE-IMPORT-CROSS-MODULE-CALLS": crossModuleCallRowsCypher(
 			importDependencyRequest{
@@ -109,7 +109,7 @@ func handlerQueryplanProductionCypher() map[string]string {
 				RepoID:       "proof-repository",
 				SourceModule: "proof.source",
 				TargetModule: "proof.target",
-				access:       allAccess,
+				Access:       allAccess,
 			},
 			[]map[string]any{{"repo_id": "proof-repository", "path": "/proof/src/proof.py"}},
 			[]map[string]any{{"repo_id": "proof-repository", "path": "/proof/src/target.py"}},

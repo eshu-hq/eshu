@@ -100,11 +100,11 @@ func (h *CodeHandler) relationshipStoryClassHierarchy(
 
 	parents, children := splitClassHierarchyRelationships(relationships)
 	return map[string]any{
-		"methods":           relationshipStoryMethodRowsWithHandles(methods, req.normalizedLimit()),
-		"methods_truncated": len(methods) > req.normalizedLimit(),
-		"parents":           relationshipStoryRowsWithHandles(limitRelationshipStoryRows(parents, req.normalizedLimit())),
-		"children":          relationshipStoryRowsWithHandles(limitRelationshipStoryRows(children, req.normalizedLimit())),
-		"depth_summary":     relationshipStoryDepthSummary(ancestorDepthRows, descendantDepthRows, req.normalizedLimit()),
+		"methods":           relationshipStoryMethodRowsWithHandles(methods, req.NormalizedLimit()),
+		"methods_truncated": len(methods) > req.NormalizedLimit(),
+		"parents":           relationshipStoryRowsWithHandles(limitRelationshipStoryRows(parents, req.NormalizedLimit())),
+		"children":          relationshipStoryRowsWithHandles(limitRelationshipStoryRows(children, req.NormalizedLimit())),
+		"depth_summary":     relationshipStoryDepthSummary(ancestorDepthRows, descendantDepthRows, req.NormalizedLimit()),
 	}, nil
 }
 
@@ -151,7 +151,7 @@ func relationshipStoryClassMethodsCypher(
 ) (string, map[string]any) {
 	params := map[string]any{
 		"entity_id": strings.TrimSpace(entityID),
-		"limit":     req.normalizedLimit() + 1,
+		"limit":     req.NormalizedLimit() + 1,
 		"offset":    req.Offset,
 	}
 	return `
@@ -197,7 +197,7 @@ func relationshipStoryInheritanceDepthCypher(
 	maxDepth := normalizedRelationshipStoryMaxDepth(req.MaxDepth)
 	params := map[string]any{
 		"entity_id": strings.TrimSpace(entityID),
-		"limit":     req.normalizedLimit() + 1,
+		"limit":     req.NormalizedLimit() + 1,
 	}
 	if direction == "incoming" {
 		return fmt.Sprintf(`
@@ -271,7 +271,7 @@ func maxRelationshipStoryDepth(rows []map[string]any) int {
 }
 
 func relationshipStoryOverrideData(req relationshipStoryRequest, rows []map[string]any) map[string]any {
-	limit := req.normalizedLimit()
+	limit := req.NormalizedLimit()
 	overrides := make([]map[string]any, 0, len(rows))
 	for _, row := range rows {
 		if strings.EqualFold(StringVal(row, "type"), "OVERRIDES") {
@@ -312,7 +312,7 @@ func (h *CodeHandler) relationshipStoryOverrideRows(
 func relationshipStoryOverrideRowsCypher(req relationshipStoryRequest) (string, map[string]any) {
 	params := map[string]any{
 		"repo_id":         strings.TrimSpace(req.RepoID),
-		"limit":           req.normalizedLimit() + 1,
+		"limit":           req.NormalizedLimit() + 1,
 		"offset":          req.Offset,
 		"override_labels": relationshipStoryOverrideNodeLabels(),
 	}

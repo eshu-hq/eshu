@@ -6,6 +6,8 @@ package query
 import (
 	"context"
 	"strings"
+
+	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
 )
 
 func (h *CodeHandler) searchGlobalEntityNames(ctx context.Context, name, language string, limit int, exact bool) ([]map[string]any, error) {
@@ -26,7 +28,7 @@ func (h *CodeHandler) searchGlobalEntityNames(ctx context.Context, name, languag
 		search.RepositoryIDs = access.RepositorySearchIDs()
 	}
 	if strings.TrimSpace(language) != "" {
-		search.Languages = normalizedLanguageVariants(language)
+		search.Languages = querycontract.NormalizedLanguageVariants(language)
 	}
 	rows, err := searcher.SearchEntityNames(ctx, search)
 	if err != nil {

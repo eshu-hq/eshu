@@ -148,7 +148,7 @@ func TestLoadDeadCodeDowngradedRootsFailOpen(t *testing.T) {
 		}}
 		handler := &CodeHandler{Content: store}
 		got := handler.loadDeadCodeDowngradedRoots(context.Background(), results)
-		if !got.isDowngraded("orders-index", rubyRailsControllerActionRootKind) {
+		if !got.IsDowngraded("orders-index", rubyRailsControllerActionRootKind) {
 			t.Fatalf("expected orders-index downgraded, got %#v", got)
 		}
 	})

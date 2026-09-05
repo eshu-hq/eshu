@@ -6,7 +6,6 @@ package query
 import (
 	"go/ast"
 	"go/token"
-	"strconv"
 )
 
 // capabilitySweep and its resolvers are split out of
@@ -35,6 +34,14 @@ type capabilitySweep struct {
 	// called from another directory, and resolveParam resolves each caller's
 	// argument against that caller's own directory, not the callee's.
 	callSites map[string][]capabilityCallSite
+	// constForwards records single-value consts whose value is a
+	// package-qualified identifier (const X = leaf.Y, the #6060 root
+	// const-forward shape), keyed by declaring directory and bare name.
+	// resolveCapabilityArg follows them via resolveQualifiedConst; see
+	// graph_read_error_capability_sweep_qualified_test.go for the
+	// regression test and the stringLiteral/calleeName helpers that moved
+	// there to keep this file under the repo's 500-line cap.
+	constForwards map[string]map[string]*ast.SelectorExpr
 	// fileImports maps a parsed filename to the packages it imports, keyed
 	// by the local name the importing file uses (the explicit rename, or
 	// the import path's final element). resolveQualifiedConst consults it
@@ -56,12 +63,13 @@ type capabilityCallSite struct {
 
 func newCapabilitySweep(fset *token.FileSet) *capabilitySweep {
 	return &capabilitySweep{
-		constStrings: map[string]map[string]string{},
-		funcDecls:    map[string]map[string]*ast.FuncDecl{},
-		packageNames: map[string]string{},
-		callSites:    map[string][]capabilityCallSite{},
-		fileImports:  map[string]map[string]string{},
-		fset:         fset,
+		constStrings:  map[string]map[string]string{},
+		funcDecls:     map[string]map[string]*ast.FuncDecl{},
+		packageNames:  map[string]string{},
+		callSites:     map[string][]capabilityCallSite{},
+		constForwards: map[string]map[string]*ast.SelectorExpr{},
+		fileImports:   map[string]map[string]string{},
+		fset:          fset,
 	}
 }
 
@@ -102,19 +110,9 @@ func (s *capabilitySweep) collectCallSites(file *ast.File) {
 	}
 }
 
-// calleeName returns the plain name of a call's callee: the identifier for a
-// free-function call, or the selected method name for a method call. Anything
-// else (a func literal invoked inline, a map/slice index, etc.) reports "".
-func calleeName(fun ast.Expr) string {
-	switch f := fun.(type) {
-	case *ast.Ident:
-		return f.Name
-	case *ast.SelectorExpr:
-		return f.Sel.Name
-	default:
-		return ""
-	}
-}
+// calleeName and stringLiteral live in
+// graph_read_error_capability_sweep_qualified_test.go (moved to keep this
+// file under the repo's 500-line cap).
 
 // paramIndex returns the zero-based position of a parameter named name in
 // fn's signature, flattening grouped parameter names (func f(a, b string)).
@@ -165,6 +163,15 @@ func (s *capabilitySweep) collectDecls(file *ast.File) {
 						s.constStrings[dir] = map[string]string{}
 					}
 					s.constStrings[dir][valueSpec.Names[0].Name] = lit
+				} else if sel, ok := valueSpec.Values[0].(*ast.SelectorExpr); ok {
+					// A root const-forward (const X = leaf.Y): the literal
+					// lives in the leaf, resolved lazily by resolveCapabilityArg.
+					if _, ok := sel.X.(*ast.Ident); ok && sel.Sel != nil {
+						if s.constForwards[dir] == nil {
+							s.constForwards[dir] = map[string]*ast.SelectorExpr{}
+						}
+						s.constForwards[dir][valueSpec.Names[0].Name] = sel
+					}
 				}
 			}
 		case *ast.FuncDecl:
@@ -272,6 +279,9 @@ func (s *capabilitySweep) resolveCapabilityArg(expr ast.Expr, enclosing *ast.Fun
 		dir := s.dirOf(e.Pos())
 		if lit, ok := s.constStrings[dir][e.Name]; ok {
 			return []string{lit}, true
+		}
+		if fwd, ok := s.constForwards[dir][e.Name]; ok {
+			return s.resolveQualifiedConst(fwd)
 		}
 		if enclosing == nil {
 			return nil, false
@@ -445,20 +455,6 @@ func (s *capabilitySweep) resolveFuncReturns(name string, dir string, visitedFun
 		return nil, false
 	}
 	return values, allOK
-}
-
-// stringLiteral returns the unquoted value of expr when it is a string
-// BasicLit, else ("", false).
-func stringLiteral(expr ast.Expr) (string, bool) {
-	lit, ok := expr.(*ast.BasicLit)
-	if !ok || lit.Kind != token.STRING {
-		return "", false
-	}
-	unquoted, err := strconv.Unquote(lit.Value)
-	if err != nil {
-		return "", false
-	}
-	return unquoted, true
 }
 
 // sweptCapabilityCallees maps each capability-taking function to the argument

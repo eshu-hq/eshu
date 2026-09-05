@@ -112,8 +112,8 @@ func TestCodeHybridRerankNeverInvokesProviderEmbedder(t *testing.T) {
 	t.Parallel()
 
 	ranker := NewCodeHybridRanker(true)
-	if _, ok := ranker.localEmbedder.(*searchembed.HashEmbedder); !ok {
-		t.Fatalf("ranker.localEmbedder = %T, want *searchembed.HashEmbedder (no provider egress)", ranker.localEmbedder)
+	if _, ok := ranker.LocalEmbedder.(*searchembed.HashEmbedder); !ok {
+		t.Fatalf("ranker.LocalEmbedder = %T, want *searchembed.HashEmbedder (no provider egress)", ranker.LocalEmbedder)
 	}
 
 	results := []map[string]any{

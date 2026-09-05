@@ -7,6 +7,8 @@ import (
 	"regexp"
 	"strings"
 	"testing"
+
+	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
 )
 
 var queryplanCypherParameterPattern = regexp.MustCompile(`\$([A-Za-z_][A-Za-z0-9_]*)`)
@@ -183,7 +185,7 @@ func queryplanProfileParams() map[string]any {
 		"selector":               "proof",
 		"semantic_filter":        "proof",
 		"service_id":             "proof-service",
-		"scan_limit":             importDependencyInternalScanLimit + 1,
+		"scan_limit":             querycontract.ImportDependencyInternalScanLimit + 1,
 		"source_file":            "src/proof.py",
 		"source_limit":           51,
 		"source_module":          "proof.source",

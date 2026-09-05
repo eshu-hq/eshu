@@ -18,11 +18,11 @@ func (h *CodeHandler) relationshipStoryRelationships(
 	req relationshipStoryRequest,
 	entity *EntityContent,
 ) ([]map[string]any, string, TruthBasis, error) {
-	types, err := req.normalizedRelationshipTypes()
+	types, err := req.NormalizedRelationshipTypes()
 	if err != nil {
 		return nil, "", "", err
 	}
-	if len(types) > 1 && !req.graphAnchorPropertyResolved && h != nil && h.Neo4j != nil && h.graphBackend() == GraphBackendNornicDB &&
+	if len(types) > 1 && !req.GraphAnchorPropertyResolved && h != nil && h.Neo4j != nil && h.graphBackend() == GraphBackendNornicDB &&
 		!req.IncludeTransitive && nornicDBRelationshipStoryAnchorPreflightSupported(req, entity) {
 		resolvedReq, err := h.resolveNornicDBRelationshipStoryAnchorProperty(ctx, req, entity)
 		if err != nil {
@@ -83,7 +83,7 @@ func (h *CodeHandler) relationshipStoryGraphRows(
 	if req.IncludeTransitive {
 		return h.relationshipStoryTransitiveGraphRows(ctx, req, entity)
 	}
-	direction, _ := req.normalizedDirection()
+	direction, _ := req.NormalizedDirection()
 	if direction != "both" {
 		return h.relationshipStoryGraphRowsForDirection(ctx, req, entity, direction)
 	}
@@ -129,8 +129,8 @@ func (h *CodeHandler) relationshipStoryTransitiveGraphRows(
 	req relationshipStoryRequest,
 	entity *EntityContent,
 ) ([]map[string]any, error) {
-	direction, _ := req.normalizedDirection()
-	limit := req.normalizedLimit() + 1
+	direction, _ := req.NormalizedDirection()
+	limit := req.NormalizedLimit() + 1
 	rootID := strings.TrimSpace(req.EntityID)
 	if entity != nil && strings.TrimSpace(entity.EntityID) != "" {
 		rootID = strings.TrimSpace(entity.EntityID)
@@ -217,10 +217,10 @@ func relationshipStoryGraphCypher(
 	predicate func(string, string) string,
 	access repositoryAccessFilter,
 ) (string, map[string]any) {
-	relationshipType, _ := req.normalizedRelationshipType()
+	relationshipType, _ := req.NormalizedRelationshipType()
 	params := map[string]any{
 		"entity_id": strings.TrimSpace(req.EntityID),
-		"limit":     req.normalizedLimit() + 1,
+		"limit":     req.NormalizedLimit() + 1,
 		"offset":    req.Offset,
 	}
 	params = relationshipStoryAccessParams(req, access, params)
@@ -334,8 +334,8 @@ func relationshipStoryRepoPredicates(
 }
 
 func relationshipStoryContentRows(row map[string]any, req relationshipStoryRequest) []map[string]any {
-	relationshipType, _ := req.normalizedRelationshipType()
-	direction, _ := req.normalizedDirection()
+	relationshipType, _ := req.NormalizedRelationshipType()
+	direction, _ := req.NormalizedDirection()
 	rows := make([]map[string]any, 0)
 	if direction != "outgoing" {
 		rows = append(rows, filterRelationships(mapRelationships(row["incoming"]), relationshipType)...)
@@ -343,7 +343,7 @@ func relationshipStoryContentRows(row map[string]any, req relationshipStoryReque
 	if direction != "incoming" {
 		rows = append(rows, filterRelationships(mapRelationships(row["outgoing"]), relationshipType)...)
 	}
-	limit := req.normalizedLimit() + 1
+	limit := req.NormalizedLimit() + 1
 	if len(rows) > req.Offset {
 		rows = rows[req.Offset:]
 	} else {

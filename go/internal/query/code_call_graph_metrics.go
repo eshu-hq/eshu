@@ -17,10 +17,7 @@ import (
 
 const (
 	callGraphMetricsCapability    = "call_graph.metrics"
-	callGraphMetricsDefaultLimit  = 25
 	callGraphMetricsEdgeScanLimit = 50000
-	callGraphMetricsMaxLimit      = 200
-	callGraphMetricsMaxOffset     = 10000
 )
 
 var (
@@ -28,13 +25,8 @@ var (
 	errCallGraphMetricsUnavailable   = errors.New("call graph metrics are unavailable")
 )
 
-type callGraphMetricsRequest struct {
-	MetricType string `json:"metric_type"`
-	RepoID     string `json:"repo_id"`
-	Language   string `json:"language"`
-	Limit      *int   `json:"limit"`
-	Offset     int    `json:"offset"`
-}
+// callGraphMetricsRequest aliases the leaf-owned request type so the staying
+// handler and data reader keep their signatures; see family_code_shim.go.
 
 func (h *CodeHandler) handleCallGraphMetrics(w http.ResponseWriter, r *http.Request) {
 	r, span := startQueryHandlerSpan(
@@ -63,7 +55,7 @@ func (h *CodeHandler) handleCallGraphMetrics(w http.ResponseWriter, r *http.Requ
 		)
 		return
 	}
-	if err := req.validate(); err != nil {
+	if err := req.Validate(); err != nil {
 		WriteError(w, http.StatusBadRequest, err.Error())
 		return
 	}
@@ -97,69 +89,9 @@ func (h *CodeHandler) handleCallGraphMetrics(w http.ResponseWriter, r *http.Requ
 	)
 }
 
-func (r callGraphMetricsRequest) validate() error {
-	if strings.TrimSpace(r.RepoID) == "" {
-		return fmt.Errorf("repo_id is required")
-	}
-	if _, ok := callGraphMetricTypes()[r.metricType()]; !ok {
-		return fmt.Errorf("metric_type must be one of: %s", strings.Join(callGraphMetricTypeNames(), ", "))
-	}
-	if r.Offset < 0 {
-		return fmt.Errorf("offset must be >= 0")
-	}
-	if r.Offset > callGraphMetricsMaxOffset {
-		return fmt.Errorf("offset must be <= 10000")
-	}
-	if r.Limit == nil {
-		return nil
-	}
-	if *r.Limit > callGraphMetricsMaxLimit {
-		return fmt.Errorf("limit must be <= 200")
-	}
-	if *r.Limit < 1 {
-		return fmt.Errorf("limit must be >= 1")
-	}
-	return nil
-}
-
-func (r callGraphMetricsRequest) metricType() string {
-	metricType := strings.ToLower(strings.TrimSpace(r.MetricType))
-	if metricType == "" {
-		return "hub_functions"
-	}
-	return metricType
-}
-
-func (r callGraphMetricsRequest) normalizedLanguage() string {
-	return strings.ToLower(strings.TrimSpace(r.Language))
-}
-
-func (r callGraphMetricsRequest) normalizedLimit() int {
-	if r.Limit == nil {
-		return callGraphMetricsDefaultLimit
-	}
-	switch {
-	case *r.Limit > callGraphMetricsMaxLimit:
-		return callGraphMetricsMaxLimit
-	default:
-		return *r.Limit
-	}
-}
-
-func (r callGraphMetricsRequest) queryLimit() int {
-	return r.normalizedLimit() + 1
-}
-
-func callGraphMetricTypes() map[string]struct{} {
-	return map[string]struct{}{
-		"hub_functions":       {},
-		"recursive_functions": {},
-	}
-}
-
-func callGraphMetricTypeNames() []string {
-	return []string{"hub_functions", "recursive_functions"}
-}
+// The callGraphMetricsRequest type, its methods, and the metric-type helpers
+// moved to codemodel/code_call_graph_metrics_aggregation.go (#6060 lane A
+// L1); the request validation and accessors run there now.
 
 func (h *CodeHandler) callGraphMetricsData(ctx context.Context, req callGraphMetricsRequest) (map[string]any, error) {
 	if h == nil || h.Neo4j == nil {
@@ -167,7 +99,7 @@ func (h *CodeHandler) callGraphMetricsData(ctx context.Context, req callGraphMet
 	}
 	span := trace.SpanFromContext(ctx)
 	span.SetAttributes(
-		attribute.String("eshu.query.call_graph.metric_type", req.metricType()),
+		attribute.String("eshu.query.call_graph.metric_type", req.EffectiveMetricType()),
 		attribute.Int("eshu.query.call_graph.edge_scan_limit", callGraphMetricsEdgeScanLimit),
 	)
 	// #5167 code family: this route is grant-bound by its mandatory repo_id.
@@ -200,7 +132,7 @@ func (h *CodeHandler) callGraphMetricsData(ctx context.Context, req callGraphMet
 	rows, stats := callGraphMetricsRowsWithStats(req, edges)
 	data := callGraphMetricsResponse(req, rows)
 	span.SetAttributes(
-		attribute.Int("eshu.query.call_graph.expanded_node_count", stats.expandedNodes),
+		attribute.Int("eshu.query.call_graph.expanded_node_count", stats.ExpandedNodes),
 		attribute.Int("eshu.query.call_graph.result_count", IntVal(data, "count")),
 		attribute.Bool("eshu.query.call_graph.truncated", BoolVal(data, "truncated")),
 	)

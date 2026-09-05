@@ -29,8 +29,6 @@ const (
 	deadCodeCandidateScanMaxPages    = 10
 )
 
-var deadCodeCandidateLabels = []string{"Function", "Class", "Struct", "Interface", "Trait", "SqlFunction"}
-
 // handleDeadCode finds graph-backed dead-code candidates and then applies the
 // current default reachability policy before returning a derived result.
 func (h *CodeHandler) handleDeadCode(w http.ResponseWriter, r *http.Request) {
@@ -309,7 +307,7 @@ func deadCodeResultExcludedByDefault(result map[string]any, entity *EntityConten
 	}
 
 	goPolicy := newDeadCodeGoPolicyContext(result, entity)
-	if goPolicy.language == "go" && goPolicy.normalizedSource == "" && entity != nil && len(goPolicy.rootKinds) == 0 {
+	if goPolicy.Language == "go" && goPolicy.NormalizedSource == "" && entity != nil && len(goPolicy.RootKinds) == 0 {
 		stats.RootsSkippedMissingSource++
 	}
 

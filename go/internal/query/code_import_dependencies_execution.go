@@ -14,7 +14,7 @@ func (h *CodeHandler) importDependencyRows(
 	ctx context.Context,
 	req importDependencyRequest,
 ) ([]map[string]any, error) {
-	switch req.queryType() {
+	switch req.EffectiveQueryType() {
 	case "file_import_cycles":
 		return h.fileImportCycleRows(ctx, req)
 	case "cross_module_calls":
@@ -44,7 +44,7 @@ func (h *CodeHandler) importRows(
 
 	var cypher string
 	switch {
-	case req.queryType() == "package_imports":
+	case req.EffectiveQueryType() == "package_imports":
 		cypher = packageImportRowsCypher(req, sourceScopes)
 	case len(sourceScopes) > 0:
 		cypher = sourceModuleImportRowsCypher(req, sourceScopes)
@@ -67,7 +67,7 @@ func (h *CodeHandler) importRows(
 	for _, row := range rows {
 		row["source_module"] = strings.TrimSpace(req.SourceModule)
 	}
-	if req.queryType() == "package_imports" {
+	if req.EffectiveQueryType() == "package_imports" {
 		rows = uniquePackageImportRows(rows)
 	}
 	stripImportDependencyInternalPaths(rows)

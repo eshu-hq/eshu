@@ -5,67 +5,13 @@ package query
 
 import (
 	"encoding/json"
-	"fmt"
 	"strings"
 )
 
-// relationshipStorySupportedType reports whether t is a relationship type the
-// bounded relationship-story query path can follow.
-func relationshipStorySupportedType(t string) bool {
-	switch t {
-	case "CALLS", "IMPORTS", "REFERENCES", "INHERITS", "OVERRIDES", "TAINT_FLOWS_TO":
-		return true
-	default:
-		return false
-	}
-}
-
-// normalizedRelationshipTypes returns the effective, validated, de-duplicated
-// set of relationship types to follow. When relationship_types is empty it
-// falls back to the single normalizedRelationshipType. Caller order is
-// preserved so multi-type merging is deterministic.
-func (r relationshipStoryRequest) normalizedRelationshipTypes() ([]string, error) {
-	if len(r.RelationshipTypes) == 0 {
-		single, err := r.normalizedRelationshipType()
-		if err != nil {
-			return nil, err
-		}
-		return []string{single}, nil
-	}
-	seen := make(map[string]struct{}, len(r.RelationshipTypes))
-	out := make([]string, 0, len(r.RelationshipTypes))
-	for _, raw := range r.RelationshipTypes {
-		relationshipType := strings.ToUpper(strings.TrimSpace(raw))
-		if relationshipType == "" {
-			continue
-		}
-		if !relationshipStorySupportedType(relationshipType) {
-			return nil, fmt.Errorf("relationship_types entry %q is not supported", strings.TrimSpace(raw))
-		}
-		if _, ok := seen[relationshipType]; ok {
-			continue
-		}
-		seen[relationshipType] = struct{}{}
-		out = append(out, relationshipType)
-	}
-	if len(out) == 0 {
-		single, err := r.normalizedRelationshipType()
-		if err != nil {
-			return nil, err
-		}
-		return []string{single}, nil
-	}
-	return out, nil
-}
-
-// normalizedTokenBudget returns the effective token budget, treating negative or
-// zero values as "no budget".
-func (r relationshipStoryRequest) normalizedTokenBudget() int {
-	if r.TokenBudget < 0 {
-		return 0
-	}
-	return r.TokenBudget
-}
+// relationshipStorySupportedType, normalizedRelationshipTypes, and
+// normalizedTokenBudget moved to
+// codemodel/code_relationship_story_evidence_state.go with the request type
+// (#6060 lane A L1); the budget applier below calls them through the leaf.
 
 // relationshipStoryApplyTokenBudget trims rows in place so their estimated
 // serialized token cost stays within req.token_budget. It returns nil when no
@@ -77,7 +23,7 @@ func (r relationshipStoryRequest) normalizedTokenBudget() int {
 // Rows are kept in their incoming order: callers that want the most useful rows
 // to survive a small budget must order rows by relevance before calling this.
 func relationshipStoryApplyTokenBudget(req relationshipStoryRequest, rows *[]map[string]any) map[string]any {
-	budget := req.normalizedTokenBudget()
+	budget := req.NormalizedTokenBudget()
 	if budget <= 0 {
 		return nil
 	}
@@ -123,7 +69,7 @@ func estimateRowTokens(row map[string]any) int {
 // the agent how to narrow a relationship query that exceeded its token_budget.
 func relationshipStoryBudgetGuidance(req relationshipStoryRequest) string {
 	parts := []string{"request a single relationship_type"}
-	if direction, _ := req.normalizedDirection(); direction == "both" {
+	if direction, _ := req.NormalizedDirection(); direction == "both" {
 		parts = append(parts, "set direction to incoming or outgoing")
 	}
 	parts = append(parts, "lower limit", "scope with repo_id", "then drill into source_handle/target_handle")

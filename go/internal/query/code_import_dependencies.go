@@ -15,32 +15,17 @@ import (
 )
 
 const (
-	importDependencyCapability   = "symbol_graph.import_dependencies"
-	importDependencyDefaultLimit = 25
-	importDependencyMaxLimit     = 200
-	importDependencyMaxOffset    = 10000
+	importDependencyCapability = "symbol_graph.import_dependencies"
 )
 
 var errImportDependencyUnavailable = errors.New("import dependency graph is unavailable")
 
-type importDependencyRequest struct {
-	QueryType    string `json:"query_type"`
-	RepoID       string `json:"repo_id"`
-	Language     string `json:"language"`
-	SourceFile   string `json:"source_file"`
-	TargetFile   string `json:"target_file"`
-	SourceModule string `json:"source_module"`
-	TargetModule string `json:"target_module"`
-	Limit        int    `json:"limit"`
-	Offset       int    `json:"offset"`
-
-	// access is the caller's repository grant, set by the handler from the
-	// request's AuthContext and never decoded from the body (it is unexported,
-	// so encoding/json cannot reach it). It travels on the request because all
-	// seven builders take one, so the grant reaches every one of them without a
-	// seventh parameter on each signature.
-	access repositoryAccessFilter
-}
+// The importDependencyRequest type, its methods, the query-type helpers,
+// and the page limit bounds split to
+// codemodel/code_import_dependencies_queries.go (#6060 lane A L1); all
+// seven builders take the request there. Root's family_code_shim.go
+// aliases the type back so the staying handler, executors, and tests keep
+// their names.
 
 func (h *CodeHandler) handleImportDependencyInvestigation(w http.ResponseWriter, r *http.Request) {
 	r, span := startQueryHandlerSpan(
@@ -69,17 +54,17 @@ func (h *CodeHandler) handleImportDependencyInvestigation(w http.ResponseWriter,
 		)
 		return
 	}
-	if err := req.validate(); err != nil {
+	if err := req.Validate(); err != nil {
 		WriteError(w, http.StatusBadRequest, err.Error())
 		return
 	}
 	if !h.applyRepositorySelectorForCapability(w, r, &req.RepoID, importDependencyCapability) {
 		return
 	}
-	span.SetAttributes(attribute.String("eshu.import_dependencies.query_type", req.queryType()))
+	span.SetAttributes(attribute.String("eshu.import_dependencies.query_type", req.EffectiveQueryType()))
 
 	// repo_id is optional here -- source_file, target_file, source_module or
-	// target_module each satisfy req.validate() on their own -- so a scoped
+	// target_module each satisfy req.Validate() on their own -- so a scoped
 	// caller who omits it reaches every builder corpus-wide. codeContentGrantScope
 	// is the front gate for the grantless case; req.access is what the builders
 	// bind for everyone else.
@@ -115,7 +100,7 @@ func (h *CodeHandler) handleImportDependencyInvestigation(w http.ResponseWriter,
 		)
 		return
 	}
-	req.access = codeGrantAccessFilter(r.Context())
+	req.Access = codeGrantAccessFilter(r.Context())
 
 	data, err := h.importDependencyData(r.Context(), req)
 	if err != nil {
@@ -153,87 +138,9 @@ func (h *CodeHandler) handleImportDependencyInvestigation(w http.ResponseWriter,
 	)
 }
 
-func (r importDependencyRequest) validate() error {
-	if _, ok := importDependencyQueryTypes()[r.queryType()]; !ok {
-		return fmt.Errorf("query_type must be one of: %s", strings.Join(importDependencyQueryTypeNames(), ", "))
-	}
-	if r.Limit > importDependencyMaxLimit {
-		return fmt.Errorf("limit must be <= 200")
-	}
-	if r.Limit < 0 {
-		return fmt.Errorf("limit must be >= 0")
-	}
-	if r.Offset < 0 {
-		return fmt.Errorf("offset must be >= 0")
-	}
-	if r.Offset > importDependencyMaxOffset {
-		return fmt.Errorf("offset must be <= 10000")
-	}
-	if !r.hasScopeFilter() {
-		return fmt.Errorf("one of repo_id, source_file, target_file, source_module, or target_module is required")
-	}
-	if strings.TrimSpace(r.TargetFile) != "" && r.queryType() != "file_import_cycles" && r.queryType() != "cross_module_calls" {
-		return fmt.Errorf("target_file is supported only for file_import_cycles and cross_module_calls")
-	}
-	if r.queryType() == "file_import_cycles" {
-		language := r.normalizedLanguage()
-		if language != "" && language != "python" {
-			return fmt.Errorf("file_import_cycles currently supports python module-name cycle detection")
-		}
-	}
-	return nil
-}
-
-func (r importDependencyRequest) queryType() string {
-	queryType := strings.ToLower(strings.TrimSpace(r.QueryType))
-	if queryType == "" {
-		return "imports_by_file"
-	}
-	return queryType
-}
-
-func (r importDependencyRequest) normalizedLanguage() string {
-	return strings.ToLower(strings.TrimSpace(r.Language))
-}
-
-func (r importDependencyRequest) normalizedLimit() int {
-	switch {
-	case r.Limit <= 0:
-		return importDependencyDefaultLimit
-	case r.Limit > importDependencyMaxLimit:
-		return importDependencyMaxLimit
-	default:
-		return r.Limit
-	}
-}
-
-func (r importDependencyRequest) queryLimit() int {
-	return r.normalizedLimit() + 1
-}
-
-func (r importDependencyRequest) hasScopeFilter() bool {
-	for _, value := range []string{r.RepoID, r.SourceFile, r.TargetFile, r.SourceModule, r.TargetModule} {
-		if strings.TrimSpace(value) != "" {
-			return true
-		}
-	}
-	return false
-}
-
-func importDependencyQueryTypes() map[string]struct{} {
-	return map[string]struct{}{
-		"imports_by_file":     {},
-		"importers":           {},
-		"module_dependencies": {},
-		"package_imports":     {},
-		"file_import_cycles":  {},
-		"cross_module_calls":  {},
-	}
-}
-
-func importDependencyQueryTypeNames() []string {
-	return []string{"imports_by_file", "importers", "module_dependencies", "package_imports", "file_import_cycles", "cross_module_calls"}
-}
+// The request validation and accessors moved to
+// codemodel/code_import_dependencies_queries.go with the request type
+// (#6060 lane A L1).
 
 func (h *CodeHandler) importDependencyData(ctx context.Context, req importDependencyRequest) (map[string]any, error) {
 	if h == nil || h.Neo4j == nil {
@@ -248,16 +155,16 @@ func (h *CodeHandler) importDependencyData(ctx context.Context, req importDepend
 
 func importDependencyParams(req importDependencyRequest) map[string]any {
 	params := map[string]any{
-		"limit":  req.queryLimit(),
+		"limit":  req.QueryLimit(),
 		"offset": req.Offset,
 	}
 	if repoID := strings.TrimSpace(req.RepoID); repoID != "" {
 		params["repo_id"] = repoID
 	}
-	if language := req.normalizedLanguage(); language != "" {
+	if language := req.NormalizedLanguage(); language != "" {
 		params["language"] = language
 	}
-	params = req.access.GraphParams(params)
+	params = req.Access.GraphParams(params)
 	if sourceFile := strings.TrimSpace(req.SourceFile); sourceFile != "" {
 		params["source_file"] = sourceFile
 	}

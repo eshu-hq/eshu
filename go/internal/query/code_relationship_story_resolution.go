@@ -5,8 +5,6 @@ package query
 
 import (
 	"context"
-	"fmt"
-	"slices"
 	"strings"
 )
 
@@ -14,7 +12,7 @@ func (h *CodeHandler) resolveRelationshipStoryTarget(
 	ctx context.Context,
 	req relationshipStoryRequest,
 ) (relationshipStoryResolution, *EntityContent, error) {
-	target := req.target()
+	target := req.EffectiveTarget()
 	if entityID := strings.TrimSpace(req.EntityID); entityID != "" {
 		resolution := relationshipStoryResolution{
 			Status:   "resolved",
@@ -56,14 +54,14 @@ func (h *CodeHandler) resolveRelationshipStoryTarget(
 		return relationshipStoryResolution{Status: "not_found", Target: target}, nil, nil
 	}
 	candidates = exactEntityNameMatches(candidates, target)
-	if req.normalizedQueryType() == "class_hierarchy" {
+	if req.NormalizedQueryType() == "class_hierarchy" {
 		candidates = relationshipStoryClassHierarchyCandidates(candidates)
 	}
 	if len(candidates) == 0 {
 		return relationshipStoryResolution{Status: "not_found", Target: target}, nil, nil
 	}
 	sortRelationshipStoryCandidates(candidates)
-	limit := req.normalizedLimit()
+	limit := req.NormalizedLimit()
 	truncated := len(candidates) > limit
 	if len(candidates) != 1 {
 		return relationshipStoryResolution{
@@ -109,8 +107,8 @@ func (h *CodeHandler) relationshipStoryCandidates(
 	ctx context.Context,
 	req relationshipStoryRequest,
 ) ([]EntityContent, error) {
-	limit := req.normalizedLimit() + 1
-	target := req.target()
+	limit := req.NormalizedLimit() + 1
+	target := req.EffectiveTarget()
 	if strings.TrimSpace(req.Language) != "" {
 		return h.Content.SearchEntitiesByLanguageAndType(
 			ctx,
@@ -127,42 +125,7 @@ func (h *CodeHandler) relationshipStoryCandidates(
 	return h.Content.SearchEntitiesByNameAnyRepo(ctx, "", target, limit)
 }
 
-func sortRelationshipStoryCandidates(candidates []EntityContent) {
-	slices.SortFunc(candidates, func(a, b EntityContent) int {
-		return strings.Compare(relationshipStoryCandidateSortKey(a), relationshipStoryCandidateSortKey(b))
-	})
-}
-
-func relationshipStoryCandidateSortKey(entity EntityContent) string {
-	return strings.Join([]string{
-		entity.RepoID,
-		entity.RelativePath,
-		fmt.Sprintf("%012d", entity.StartLine),
-		entity.EntityID,
-	}, "\x00")
-}
-
-func relationshipStoryCandidateMaps(candidates []EntityContent, limit int) []map[string]any {
-	if len(candidates) > limit {
-		candidates = candidates[:limit]
-	}
-	items := make([]map[string]any, 0, len(candidates))
-	for _, entity := range candidates {
-		items = append(items, relationshipStoryCandidateMap(entity))
-	}
-	return items
-}
-
-func relationshipStoryCandidateMap(entity EntityContent) map[string]any {
-	return map[string]any{
-		"entity_id":   entity.EntityID,
-		"handle":      "entity:" + entity.EntityID,
-		"name":        entity.EntityName,
-		"entity_type": entity.EntityType,
-		"file_path":   entity.RelativePath,
-		"repo_id":     entity.RepoID,
-		"language":    entity.Language,
-		"start_line":  entity.StartLine,
-		"end_line":    entity.EndLine,
-	}
-}
+// The candidate sort/map shapers moved to
+// codemodel/code_relationships_resolution.go (#6060 lane A L1) with the
+// name-target resolver that renders through them; the staying resolver
+// calls them through the family_code_shim.go forwards.
