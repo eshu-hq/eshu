@@ -338,8 +338,15 @@ Recorded for the next reader rather than as a live risk: under
 buffers — because a generic plan cannot see the grant array and bitmaps the
 whole thing.
 PostgreSQL's `auto` chooser rejected the generic plan in all nine
-configurations, so this is what a future planner or statistics change would
-cost, not what production pays today.
+configurations that were probed BOTH ways — the unscoped baseline, and grants
+of 1, 5, 50 and 500 in each of the small- and large-repository selections.
+Every `force_generic_plan` figure quoted above comes from that set, the
+500-large one included. The five remaining rows in the table (2, 3, 10, 20 and
+100 small repositories) and the zero-match probes were run under `auto` only,
+to find where the cost peaks; nothing about them is claimed for the generic
+plan. So the generic-plan numbers are what a future planner or statistics
+change would cost on the shapes it was measured on, not what production pays
+today.
 
 Reproducing it: PostgreSQL 16 container on a free port, every migration in
 `go/internal/storage/postgres/migrations` applied in `BootstrapDefinitions()`
