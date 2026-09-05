@@ -17,7 +17,9 @@ import (
 // and calls querycontract.BuildCollectorListReadiness itself (packagereg
 // precedent). The hub cannot call the root helpers without an import cycle.
 // Both functions MUST stay behavior-identical to their root sources (named
-// above); do not extend them with family-specific semantics.
+// above); do not extend them with family-specific semantics. Drift trips
+// root's TestCollectorListReadinessMatchesHub parity test (#6542 review),
+// which serves both copies over the shared probe matrix.
 
 // attachCollectorListReadiness runs the configured probe for kind and, when a
 // store is wired, sets the "collector_readiness" key on body. A nil store leaves

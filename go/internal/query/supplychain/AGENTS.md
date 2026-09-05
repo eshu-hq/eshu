@@ -22,9 +22,9 @@ Read `doc.go` and `README.md` first.
   `collector_list_readiness.go` prescribes this split). They MUST stay
   behavior-identical to their root sources. Do not extend them with
   family-specific semantics; add a new helper instead.
-- `supplyChainGraphConfigured` is a family-local copy of root's
-  `languageQueryGraphConfigured` (#5761 F1). Same rule: mirror, don't
-  extend.
+- Graph-configured checks go through `querycontract.GraphConfigured`
+  (single home since #6542 review retired the family-local copy). Do not
+  reintroduce a local predicate.
 - `UniqueSortedNonEmpty` and `SecurityAlertRepositoryScopeIDs` are shared
   with staying root files through root's forwards. Changing their output
   contract changes cicd evidence, sbom stores, and security-alert stores

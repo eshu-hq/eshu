@@ -11,6 +11,7 @@ import (
 	"net/http"
 	"strings"
 
+	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
 )
 
@@ -373,7 +374,7 @@ func (h *LanguageQueryHandler) queryByLanguage(
 // queryByLanguageWithSemanticFilter reports the TruthBasis it actually
 // observed serving the result, rather than a caller-assumed constant (#5761
 // P1-1): TruthBasisContentIndex when h.Neo4j is nil OR not
-// languageQueryGraphConfigured (no live graph backend, so the content store
+// querycontract.GraphConfigured (no live graph backend, so the content store
 // served it -- #5761 F1: a non-nil but undriven *Neo4jReader, the shape
 // wiring.go always constructs for a graphless profile, is treated the same
 // as nil here), TruthBasisHybrid when enrichLanguageResultsWithContentMetadata
@@ -387,7 +388,7 @@ func (h *LanguageQueryHandler) queryByLanguageWithSemanticFilter(
 	semanticFilterKey string,
 	semanticFilterValue string,
 ) ([]map[string]any, TruthBasis, error) {
-	if h == nil || !languageQueryGraphConfigured(h.Neo4j) {
+	if h == nil || !querycontract.GraphConfigured(h.Neo4j) {
 		contentLabel := graphLabelToContentEntityType(label)
 		if h == nil || contentLabel == "" {
 			return nil, "", errLanguageQueryGraphOnlyEntityUnavailable
@@ -447,7 +448,7 @@ func (h *LanguageQueryHandler) queryGraphFirstContentByLanguage(
 // queryGraphFirstContentByLanguageWithSemanticFilter reports the same real
 // TruthBasis queryByLanguageWithSemanticFilter observed when the graph served
 // non-empty rows, and TruthBasisContentIndex when it fell through to the
-// content-store fallback (no live graph backend -- languageQueryGraphConfigured
+// content-store fallback (no live graph backend -- querycontract.GraphConfigured
 // is false, #5761 F1 -- or the graph read zero rows) -- see
 // queryByLanguageWithSemanticFilter's doc comment for the full outcome set.
 //
@@ -470,7 +471,7 @@ func (h *LanguageQueryHandler) queryGraphFirstContentByLanguageWithSemanticFilte
 	semanticFilterKey string,
 	semanticFilterValue string,
 ) ([]map[string]any, TruthBasis, error) {
-	if languageQueryGraphConfigured(h.Neo4j) {
+	if querycontract.GraphConfigured(h.Neo4j) {
 		results, basis, err := h.queryByLanguageWithSemanticFilter(
 			ctx,
 			language,

@@ -109,7 +109,7 @@ func (h *SupplyChainHandler) applySupplyChainKubernetesRuntimeEvidence(
 	if len(plans) == 0 {
 		return nil
 	}
-	if !supplyChainGraphConfigured(h.Neo4j) {
+	if !querycontract.GraphConfigured(h.Neo4j) {
 		return querycontract.ErrGraphUnavailable
 	}
 

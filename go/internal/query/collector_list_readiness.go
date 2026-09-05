@@ -71,6 +71,8 @@ func BuildCollectorListReadinessUnavailable(
 // attachCollectorListReadiness runs the configured probe for kind and, when a
 // store is wired, sets the "collector_readiness" key on body. A nil store leaves
 // body untouched so handlers built without the probe keep their existing shape.
+// The supplychain hub owns a behavior-identical copy; drift between the two
+// trips TestCollectorListReadinessMatchesHub (#6542 review).
 func attachCollectorListReadiness(
 	ctx context.Context,
 	body map[string]any,

@@ -39,8 +39,8 @@ import (
 // h.Neo4j is a non-nil *Neo4jReader wrapping a nil driver rather than a nil
 // interface. Before #5761 F1 that meant every graph-backed and graph-first
 // read attempted the doomed graph call, since a plain nil check treated the
-// driverless reader as configured. F1 fixed that: languageQueryGraphConfigured
-// (language_query_graph_configured.go) asks Neo4jReader.GraphConfigured()
+// driverless reader as configured. F1 fixed that: querycontract.GraphConfigured
+// asks Neo4jReader.GraphConfigured()
 // instead of comparing to nil, so a driverless reader is now correctly
 // treated as unconfigured, and the graph-backed branch takes the
 // content-store fallback (TruthBasisContentIndex) instead of calling
