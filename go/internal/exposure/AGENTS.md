@@ -37,7 +37,9 @@ bounded tracer (a later slice, in `internal/query`) consumes these catalogs.
 - **Conservative predicates** — a missing target property fails the predicate
   (`predicatesSatisfied`). Never treat absence as a match.
 - **One Provenance path is knowingly stale — do NOT repoint it on its own.**
-  `sink_catalog.go`'s `SinkCloudResource` spec cites
+  `sink_catalog.go`'s `Kind: SinkIAMPrivilegedAction` /
+  `Relationship: "CAN_ESCALATE_TO"` spec -- three specs share that Kind, so the
+  relationship is what identifies it -- cites
   `reducer/iam_escalation_materialization.go`, which #6061 moved to
   `reducer/iamescalation/`. `hashSinkSpecs` serializes `Provenance` into
   `SinkCatalogVersion`, so correcting the string invalidates every cached
