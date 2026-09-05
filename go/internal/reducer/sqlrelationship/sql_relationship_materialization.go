@@ -16,9 +16,9 @@ import (
 )
 
 // EvidenceSource is the evidence_source string this family stamps on every
-// durable intent and edge it emits. Exported for the same cross-family reuse
-// reason as DeltaScope: the reducer root's generic refresh-fence redelivery
-// proof (shared_projection_worker_refresh_redelivery_test.go) references it
+// durable intent and edge it emits. shell_exec does not consume it; it is
+// exported for the reducer root's generic refresh-fence redelivery
+// proof (shared_projection_worker_refresh_redelivery_test.go), which references it
 // directly.
 const EvidenceSource = "reducer/sql-relationships"
 

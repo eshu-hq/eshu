@@ -46,7 +46,7 @@ AGENTS.md.
 | `DeltaScope` / `BuildDeltaScope()` / `MergeRepositoryIDs()` | the delta-generation scope this family derives from `repository` facts; exported for cross-family reuse by `shell_exec` |
 | `BuildSharedIntentRows()` / `BuildRefreshIntents()` | promote extracted edge rows to durable shared-projection intents (file-scoped per-edge plus one whole-scope per-repo refresh, #2868/#2898) |
 | `BuildRetractRows()` | build the retract rows for a delta scope. Exported for `go/internal/reducer/sql_relationship_partition_convergence_test.go`, which asserts the retract and refresh partition keys converge; in-package it is called only by its own test |
-| `EvidenceSource` / `FilePartitionKey()` / `WholeScopePartitionKey()` / `PartitionKeyVersion` | this family's evidence-source tag and partition-key builders; exported for cross-family reuse and for the reducer root's generic refresh-fence proofs |
+| `EvidenceSource` / `FilePartitionKey()` / `WholeScopePartitionKey()` / `PartitionKeyVersion` | this family's evidence-source tag and partition-key builders. `shell_exec` consumes none of them; they are exported for the reducer root's generic refresh-fence and partition-convergence proofs |
 | `EmbeddedSQLFunctionIDsByNameLine()` / `EmbeddedSQLFunctionKey()` | index a parsed file's functions by (name, line) so an embedded-code scanner can resolve the enclosing function's entity ID; exported for cross-family reuse by `shell_exec` |
 
 The reducer root wires `DefaultHandlers.SQLRelationshipIntentWriter`
