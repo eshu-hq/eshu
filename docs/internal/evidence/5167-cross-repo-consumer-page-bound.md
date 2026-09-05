@@ -223,7 +223,7 @@ span, on the same statement, over the same rows.
 
 ## Guards
 
-Three of the four bite on the fix itself; the fourth is the answer.
+Four of the five bite on the fix itself; the fifth is the answer.
 
 | guard | where | what it fails to |
 | --- | --- | --- |
@@ -231,6 +231,8 @@ Three of the four bite on the fix itself; the fourth is the answer.
 | `TestCodeReachabilityIndexMigrationsReapplyWithoutRebuildLive` | `go/internal/storage/postgres/code_reachability_index_replay_live_test.go` | the same, on a populated store, per definition rather than per pass |
 | `TestCrossRepoDeadCodeConsumerEvidencePageBoundLive` index and work guards | `go/internal/query/code_dead_code_cross_repo_page_bound_live_guards_test.go` | an index whose key columns are in another order, and a page read that scans the entity's group instead of its `LIMIT` |
 | the same test's answer guard | the same file | an ordering change that moves which entity the truncation marker lands on |
+| the same test's work guard, sort assertion | the same file | a plan carrying any sort node at all. The row count says the `LIMIT` held; this says why, and it survives a planner finding some other way to over-read |
+| `TestCrossRepoDeadCodeConsumerPageOrderMatchesItsIndexKey` | `go/internal/query/code_dead_code_cross_repo_bound_test.go` | the statement's `ORDER BY` and migration 103's key drifting apart, from either side. It reads both — the statement from its builder, the key from the shipped migration file — and runs in the unit lane rather than waiting for a Postgres |
 
 The live proof applies the shipped migrations rather than a hand-written fixture
 schema. That is not tidiness: on a hand-written schema with the same rows the
@@ -243,5 +245,5 @@ fixture scale both plan modes take the index; on the 2.2M-row corpus a
 251-entity page keeps the pre-index plan under a forced generic one, which is
 what the `pg_prepared_statements` reading above exists to put in proportion.
 
-The red/green captures for all four guards are in
-[#5167 code family batch 1 proofs](5167-code-family-batch-1-proofs.md).
+The red/green captures for all five guards are in
+[#5167 code family batch 1 proofs](5167-code-family-batch-1-proofs.md), rows 55-60.
