@@ -446,8 +446,9 @@ func TestCrossRepoDeadCodeConsumerEvidenceIsGrantBound(t *testing.T) {
 // answers unknown_needs_evidence with permission_hidden_consumer.
 //
 // The count is one per producer entity, not one per hidden consumer row. The
-// probe stops at the first ungranted consumer rather than enumerating them, and
-// the classification only ever depended on whether there was one. The number it
+// probe stops at the first HIDDEN consumer -- ungranted and live -- rather than
+// enumerating them, and the classification only ever depended on whether there
+// was one. The number it
 // replaced was never a total either: the read it came from was capped at 1,001
 // rows across the whole page.
 func TestCrossRepoDeadCodeKeepsTheHiddenConsumerSignal(t *testing.T) {

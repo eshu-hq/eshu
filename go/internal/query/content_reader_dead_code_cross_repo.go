@@ -49,7 +49,7 @@ type crossRepoDeadCodeConsumerReads struct {
 // already reading -- and carries nothing about the consumer: not its
 // repository, not its entity, not a count. The route only ever needed the
 // yes/no, and answering only the yes/no is what lets the probe stop at the
-// first ungranted row instead of enumerating the group.
+// first HIDDEN row -- ungranted and live -- instead of enumerating the group.
 type crossRepoDeadCodeHiddenConsumers map[string]struct{}
 
 // has reports whether the probe found an out-of-grant consumer for this

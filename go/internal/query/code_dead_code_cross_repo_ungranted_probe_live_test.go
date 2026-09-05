@@ -119,9 +119,10 @@ func TestCrossRepoDeadCodeUngrantedConsumerProbeLive(t *testing.T) {
 	// the plan subtest below checks.
 	seedCrossRepoDeadCodeProbeFanIn(ctx, t, db, "ent-busy", crossRepoDeadCodeProbeFanInRepositories, 40000)
 	// ent-fanout is the axis the walk's stop condition governs: 200 DISTINCT
-	// consumer repositories, one row each. Its smallest is repo-x000, which no
-	// grant below names, so a walk that stops at the first ungranted repository
-	// takes one step for it and a walk that does not takes 200.
+	// consumer repositories, one row each, every one of them live. Its smallest
+	// is repo-x000, which no grant below names, so that first pair is hidden --
+	// ungranted AND live -- and a walk that stops there takes one step for it
+	// where a walk that does not takes 200.
 	seedCrossRepoDeadCodeProbeFanIn(ctx, t, db, "ent-fanout", crossRepoDeadCodeProbeFanOutRepositories, 1)
 	// ent-retained is the axis a single-generation fixture cannot show: the
 	// same five consumer repositories as ent-spread, but every one of them
@@ -159,6 +160,16 @@ func TestCrossRepoDeadCodeUngrantedConsumerProbeLive(t *testing.T) {
 		crossRepoDeadCodeProbeScopesPerRepository, false,
 	)
 
+	// ent-stale-repos is the axis the stop condition does NOT bound: 300
+	// ungranted consumer repositories that used to call the symbol and no longer
+	// do, whose rows the retention runner still keeps, and one live hidden
+	// consumer after them. None of the 300 is hidden, so the walk steps past
+	// every one of them.
+	seedCrossRepoDeadCodeProbeStaleConsumerFanOut(
+		ctx, t, db, "ent-stale-repos", "repo-v",
+		crossRepoDeadCodeProbeStaleConsumerRepositories,
+	)
+
 	page := []string{
 		"ent-spread", "ent-middle", "ent-self", "ent-depth-zero",
 		"ent-stale", "ent-absent", "ent-busy", "ent-retained",
@@ -176,6 +187,7 @@ func TestCrossRepoDeadCodeUngrantedConsumerProbeLive(t *testing.T) {
 	runCrossRepoDeadCodeProbeStopCondition(ctx, t, db, page)
 	runCrossRepoDeadCodeProbeRetainedGenerationCost(ctx, t, db)
 	runCrossRepoDeadCodeProbeGrantedScopeCost(ctx, t, db)
+	runCrossRepoDeadCodeProbeStaleConsumerCost(ctx, t, db, reader)
 	runCrossRepoDeadCodeProbeUngrantedScopeWalk(ctx, t, db, reader)
 	runCrossRepoDeadCodeProbeBroadGrant(ctx, t, db, reader, page)
 }

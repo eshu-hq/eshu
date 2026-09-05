@@ -174,8 +174,9 @@ func crossRepoDeadCodeUnknownReasons(
 // granted repository can ever be hidden and reading them would be work spent on
 // an answer already known. From an UNGRANTED one it seeks the next
 // (repository_id, scope_id) PAIR, because that repository's remaining scopes
-// are exactly where a hidden consumer could still be. Either way it stops as
-// soon as a pair is both outside the grant and live.
+// are exactly where a hidden consumer could still be -- and, once they are
+// exhausted, the next repository's pairs one at a time, for the same reason.
+// Either way it stops as soon as a pair is both outside the grant and live.
 //
 // Pairs at all, rather than repositories throughout, because "is this consumer
 // live" means "does a row exist under the active generation of the scope that
@@ -183,21 +184,25 @@ func crossRepoDeadCodeUnknownReasons(
 // ingested by two scopes has two active generations, and a walk keyed on the
 // repository alone would test one and miss the other.
 //
-// Cost per entity: at most min(d, N) + 1 steps over distinct consumer
-// REPOSITORIES, where d is the entity's distinct consumer repositories and N
-// the grant size, because the walk cannot pass more granted repositories than
-// either number allows -- plus one further step per additional scope of an
-// ungranted repository it reaches before it stops. A repository the caller can
-// see costs one step however many ingestion scopes cover it, which is the
-// difference from the pair-stepping shape this replaces: there, fifty scopes on
-// one granted repository cost fifty steps and put the walk outside its own
-// bound. Nothing in the cost grows with the entity's row fan-in, with N alone,
+// Cost per entity: at most G + S + 1 steps. G is the granted consumer
+// repositories the walk passes, at most min(d, N) for d distinct consumer
+// repositories and a grant of N, because a repository the caller can see costs
+// ONE step however many ingestion scopes cover it -- the difference from the
+// pair-stepping shape this replaces, where fifty scopes on one granted
+// repository cost fifty steps. S is the ungranted (repository, scope) pairs it
+// passes that hold no live consumer row: a repository outside the grant whose
+// active generation no longer names this entity, while the retention runner
+// still keeps the rows that say it once did. Such a pair is not hidden, so the
+// walk steps past it rather than stopping, and S is bounded by the retention
+// window rather than by d or N. It is the axis to watch where consumers churn.
+//
+// Each step is two index seeks, the pair seek and the four-column liveness
+// seek. Nothing in the cost grows with the entity's row fan-in, with N alone,
 // or -- this is what migration 101 bought over the two-column index it
-// supersedes -- with how many superseded generations the retention runner is
-// still keeping. Measured in [#5167 hidden-consumer walk]: 5.13/8.14/9.78 ms and
-// 3,270/3,268/3,263 buffers at 0, 20 and 200 retained generations, against
-// 22.3/89.2/630.4 ms and 39,403/154,603/1,150,489 buffers for the shape that
-// scanned the group.
+// supersedes -- with how many superseded generations ONE pair retains. Measured
+// in [#5167 hidden-consumer walk]: 5.13/8.14/9.78 ms and 3,270/3,268/3,263
+// buffers at 0, 20 and 200 retained generations, against 22.3/89.2/630.4 ms and
+// 39,403/154,603/1,150,489 buffers for the shape that scanned the group.
 //
 // [#5167 hidden-consumer walk]: ../../../docs/internal/evidence/5167-cross-repo-hidden-consumer-walk.md
 //

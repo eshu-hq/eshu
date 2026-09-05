@@ -424,10 +424,11 @@ The shipped signal read is the fourth shape of that half. Three were withdrawn
 on measurements: an unbounded complement of the page, the page statement re-run
 with no grant bound, and a probe seeking one `repository_id` range per gap in
 the sorted grant. What ships walks the producer entity's own distinct
-`(repository_id, scope_id)` pairs in index order and stops at the first pair the
-grant does not contain, so its cost follows the answer rather than the entity's
-fan-in, the caller's grant size, the generations retention still keeps, or the
-number of ingestion scopes covering a repository.
+`(repository_id, scope_id)` pairs in index order and stops at the first pair
+that is both outside the grant and live, so its cost follows the answer rather
+than the entity's fan-in, the caller's grant size, the generations retention
+still keeps for one pair, or the number of ingestion scopes covering a granted
+repository.
 
 Performance Evidence: the walk's buffer count does not move along any axis
 measured. It reads `hit=4,886` at every grant size from 5 to 500 repositories,

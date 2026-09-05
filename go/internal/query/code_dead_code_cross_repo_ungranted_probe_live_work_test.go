@@ -7,6 +7,8 @@ import (
 	"context"
 	"database/sql"
 	"regexp"
+	"slices"
+	"sort"
 	"strconv"
 	"strings"
 	"testing"
@@ -27,7 +29,7 @@ func runCrossRepoDeadCodeProbeStopCondition(
 ) {
 	t.Helper()
 
-	t.Run("the walk stops at the first ungranted repository", func(t *testing.T) {
+	t.Run("the walk stops at the first hidden pair", func(t *testing.T) {
 		// The stop condition is a bound on work, not on the answer: dropping it
 		// leaves every entity's verdict identical and turns each walk into a
 		// full enumeration of that entity's distinct consumer repositories. No
@@ -35,7 +37,7 @@ func runCrossRepoDeadCodeProbeStopCondition(
 		// recursive term actually produced.
 		//
 		// ent-fanout has 200 distinct consumer repositories and its smallest is
-		// ungranted, so its walk must be one step. With 250 page entities whose
+		// both ungranted and live, so its walk must be one step. With 250 page entities whose
 		// walks are a handful of steps each, the recursive CTE stays in the low
 		// hundreds of rows; without the stop condition ent-fanout alone adds
 		// about 200.
@@ -51,7 +53,7 @@ func runCrossRepoDeadCodeProbeStopCondition(
 				)
 				walkRows := crossRepoDeadCodeProbeWalkRows(t, plan)
 				if walkRows > crossRepoDeadCodeProbeWalkRowBudget {
-					t.Fatalf("the recursive walk produced %d rows, want at most %d; it is no longer stopping at the first ungranted repository:\n%s",
+					t.Fatalf("the recursive walk produced %d rows, want at most %d; it is no longer stopping at the first hidden pair:\n%s",
 						walkRows, crossRepoDeadCodeProbeWalkRowBudget, plan)
 				}
 			})
@@ -106,8 +108,8 @@ func runCrossRepoDeadCodeProbeGrantedScopeCost(ctx context.Context, t *testing.T
 		// The bound this shape restored. A walk stepping over
 		// (repository, scope) pairs tests the grant by repository, so a granted
 		// repository covered by 50 ingestion scopes cost 50 steps -- the walk
-		// then passed more granted PAIRS than the grant has repositories, and
-		// min(d, N) + 1 was not a bound on it at all. Stepping to the next
+		// then passed more granted PAIRS than the grant has repositories, and the
+		// min(d, N) half of its bound did not hold. Stepping to the next
 		// REPOSITORY from a granted pair restores it.
 		//
 		// No answer assertion can see this: every one of those 50 pairs is
@@ -223,3 +225,73 @@ func crossRepoDeadCodeProbeWalkRows(t *testing.T, plan string) int {
 }
 
 var crossRepoDeadCodeProbeActualRows = regexp.MustCompile(`actual time=[0-9.]+\.\.[0-9.]+ rows=(\d+) loops=`)
+
+// crossRepoDeadCodeProbeStaleConsumerWalkRows is how many rows the recursive
+// term produces for one entity with
+// crossRepoDeadCodeProbeStaleConsumerRepositories ungranted consumer
+// repositories whose rows are all superseded, followed by one live hidden
+// consumer.
+//
+// It is the real bound rather than a budget with headroom, and it is asserted
+// as an equality: one step per stale pair the walk passes, plus the step that
+// finds the hidden pair and stops. A shape that stopped earlier would miss the
+// hidden consumer; one that produced more would have lost the stop condition.
+const crossRepoDeadCodeProbeStaleConsumerWalkRows = crossRepoDeadCodeProbeStaleConsumerRepositories + 1
+
+// runCrossRepoDeadCodeProbeStaleConsumerCost pins what the walk costs on the
+// axis its own contract used to get wrong.
+//
+// The walk continues past an ungranted pair whose liveness test is false, so a
+// producer entity with retained rows in many ungranted repositories that no
+// longer call it is walked pair by pair through all of them. That is not
+// min(d, N) + 1 in the distinct consumer repositories and the grant size: the
+// bound is the granted repositories passed, plus the ungranted pairs holding no
+// live consumer row, plus one. No verdict can see the difference -- the entity
+// is hidden either way -- so this counts the rows the recursive term produced,
+// the way the stop-condition and granted-scope guards above do, and asserts the
+// seeded count rather than a ceiling above it.
+func runCrossRepoDeadCodeProbeStaleConsumerCost(
+	ctx context.Context,
+	t *testing.T,
+	db *sql.DB,
+	reader *ContentReader,
+) {
+	t.Helper()
+
+	t.Run("a stale ungranted consumer costs one step and does not stop the walk", func(t *testing.T) {
+		grant := []string{"repo-a"}
+		page := []string{"ent-stale-repos"}
+
+		// The fixture has to hide the entity, or the row count below would be
+		// counting a walk that ran off the end rather than one that stopped.
+		hidden, err := reader.crossRepoDeadCodeUngrantedConsumers(ctx, "repo-producer", page, grant)
+		if err != nil {
+			t.Fatalf("crossRepoDeadCodeUngrantedConsumers() error = %v, want nil", err)
+		}
+		got := make([]string, 0, len(hidden))
+		for entityID := range hidden {
+			got = append(got, entityID)
+		}
+		sort.Strings(got)
+		if !slices.Equal(got, page) {
+			t.Fatalf("hidden = %#v, want %#v", got, page)
+		}
+		reference := crossRepoDeadCodeProbeReference(ctx, t, db, "repo-producer", page, grant)
+		if !slices.Equal(got, reference) {
+			t.Fatalf("probe = %#v, NOT IN reference = %#v", got, reference)
+		}
+
+		for _, mode := range crossRepoDeadCodeProbePlanModes {
+			t.Run(mode.name, func(t *testing.T) {
+				plan := crossRepoDeadCodeProbePlan(
+					ctx, t, db, mode, "EXPLAIN (ANALYZE) ", "repo-producer", page, grant,
+				)
+				walkRows := crossRepoDeadCodeProbeWalkRows(t, plan)
+				if walkRows != crossRepoDeadCodeProbeStaleConsumerWalkRows {
+					t.Fatalf("the recursive walk produced %d rows, want exactly %d (one per stale pair passed, plus the hidden one it stops at); the walk's cost on the stale-consumer axis is not the bound its contract states:\n%s",
+						walkRows, crossRepoDeadCodeProbeStaleConsumerWalkRows, plan)
+				}
+			})
+		}
+	})
+}

@@ -38,8 +38,9 @@ import (
 //
 // The count the probe contributes is one per producer entity that has an
 // out-of-grant consumer, not one per such consumer. The classification only
-// depends on whether there is one, and stopping at the first is what keeps the
-// probe from reading a producer entity's whole fan-in group.
+// depends on whether there is one, and stopping at the first HIDDEN pair --
+// ungranted AND live -- is what keeps the probe from reading a producer
+// entity's whole fan-in group.
 
 // TestCrossRepoDeadCodeSignalReadIsTheBoundedUngrantedProbe pins both
 // statements a scoped request sends. The page must carry the grant ahead of its
@@ -97,14 +98,15 @@ func TestCrossRepoDeadCodeSignalReadIsTheBoundedUngrantedProbe(t *testing.T) {
 		"WHERE NOT walk.hidden",
 	} {
 		if !strings.Contains(probe, want) {
-			t.Fatalf("probe is missing %q, so it can no longer stop at the first ungranted row:\n%s", want, probe)
+			t.Fatalf("probe is missing %q, so it can no longer stop at the first hidden pair:\n%s", want, probe)
 		}
 	}
 	// A granted repository costs ONE step however many ingestion scopes cover
 	// it, and that is only true while the step from a granted pair seeks the
 	// next REPOSITORY rather than the next pair. Both gated branches are
-	// pinned: without them a repository with fifty scopes costs fifty steps and
-	// the walk leaves its own min(d, N) + 1 bound, with every answer unchanged.
+	// pinned: without them a repository with fifty scopes costs fifty steps, so
+	// the walk passes more granted PAIRS than the grant has repositories and the
+	// min(d, N) half of its bound stops holding, with every answer unchanged.
 	for _, want := range []string{
 		"AND walk.is_granted\n           AND row.repository_id > walk.repository_id",
 		"AND NOT walk.is_granted\n           AND (row.repository_id, row.scope_id) > (walk.repository_id, walk.scope_id)",

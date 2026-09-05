@@ -371,3 +371,67 @@ VALUES ('scope-1', $1, $2, $3, $4, $5, 'reachable', 0.95, 'symbol_exact',
 		t.Fatalf("analyze proof rows: %v", err)
 	}
 }
+
+// crossRepoDeadCodeProbeStaleConsumerRepositories is how many ungranted
+// consumer repositories the stale-consumer fixture gives one producer entity.
+// Every one of them holds only superseded rows, so none is hidden and the walk
+// passes all of them before it reaches the one that is.
+const crossRepoDeadCodeProbeStaleConsumerRepositories = 300
+
+// seedCrossRepoDeadCodeProbeStaleConsumerFanOut gives one producer entity a
+// consumer row in each of many ungranted repositories under a SUPERSEDED
+// generation, and one live consumer in an ungranted repository sorting after
+// all of them.
+//
+// This is the axis the walk's stop condition does not bound.
+// ReplaceCodeReachabilityRepositoryRows deletes by
+// (scope_id, generation_id, repository_id) before it writes, so a generation
+// that no longer names an entity leaves the previous generation's rows on disk
+// until the retention runner prunes them -- and the default policy keeps the 24
+// most recent superseded generations per scope plus everything superseded
+// inside the last seven days. A repository that stopped calling the symbol is
+// therefore still a (repository, scope) pair the walk visits: ungranted, so the
+// granted skip does not apply, and not live, so it is not hidden and the walk
+// steps past it rather than stopping.
+//
+// No answer depends on how many there are -- the entity is hidden either way,
+// because of the live consumer at the end -- so only a work measurement can see
+// the cost, which is why the guard that ships counts recursive rows.
+func seedCrossRepoDeadCodeProbeStaleConsumerFanOut(
+	ctx context.Context,
+	t *testing.T,
+	db *sql.DB,
+	entityID string,
+	repositoryPrefix string,
+	staleRepositories int,
+) {
+	t.Helper()
+
+	// gen-stale is the superseded generation seedCrossRepoDeadCodeProbeSchema
+	// already declares for scope-1, whose active generation is gen-active.
+	if _, err := db.ExecContext(ctx, `
+INSERT INTO code_reachability_rows
+  (scope_id, generation_id, repository_id, root_entity_id, entity_id, depth, state,
+   confidence, min_resolution_method, evidence, root_kinds, observed_at, updated_at)
+SELECT 'scope-1', 'gen-stale', $1 || lpad(i::text, 3, '0'),
+       $1 || lpad(i::text, 3, '0') || '#caller', $2, 1, 'reachable', 0.95, 'symbol_exact',
+       '["CALLS"]'::jsonb, '["Function"]'::jsonb, now(), now()
+FROM generate_series(0, $3 - 1) AS i`,
+		repositoryPrefix, entityID, staleRepositories); err != nil {
+		t.Fatalf("seed stale consumer rows for %s: %v", entityID, err)
+	}
+	// 'zzz' so this repository sorts after every stale one: the walk has to pass
+	// all of them before it reaches the consumer that hides the entity.
+	if _, err := db.ExecContext(ctx, `
+INSERT INTO code_reachability_rows
+  (scope_id, generation_id, repository_id, root_entity_id, entity_id, depth, state,
+   confidence, min_resolution_method, evidence, root_kinds, observed_at, updated_at)
+VALUES ('scope-1', 'gen-active', $1 || 'zzz', $1 || 'zzz#caller', $2, 1, 'reachable', 0.95,
+        'symbol_exact', '["CALLS"]'::jsonb, '["Function"]'::jsonb, now(), now())`,
+		repositoryPrefix, entityID); err != nil {
+		t.Fatalf("seed live hidden consumer for %s: %v", entityID, err)
+	}
+	if _, err := db.ExecContext(ctx, "ANALYZE code_reachability_rows"); err != nil {
+		t.Fatalf("analyze stale consumer rows: %v", err)
+	}
+}

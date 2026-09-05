@@ -56,13 +56,9 @@ a million consumer rows therefore costs a million-row scan on every scoped
 request, and spends the shared 1,001-row budget where nothing later on the page
 can be proven.
 
-That property belongs to the page read too, and it is not fixed here. The
-grant-bound evidence page carries the same `ORDER BY entity_id, confidence
-DESC, ...` ahead of its `LIMIT 1001`, so its scan is bounded by a producer
-entity's fan-in rather than by the limit — the shape this route shipped for
-every caller, unchanged by this PR except that the grant now narrows what it
-scans. It is tracked in #6527, filed with these measurements; the withdrawal
-below is about the signal half only.
+That property belongs to the grant-bound evidence page too, and this change does
+not fix it; the closing section carries its numbers. The withdrawal below is
+about the signal half only.
 
 The third stopped asking for rows at all and asked only the question the count
 needs. Per producer entity: is there one active-generation consumer row in a
@@ -78,9 +74,9 @@ per range means one seek per granted repository, and the section below is about
 the size of grant that makes visible.
 
 The fourth walks the other side of the question — the producer entity's own
-distinct consumers, in index order, stopping at the first one the grant does
-not contain — so its cost follows the answer rather than the entity's row
-fan-in or the caller's grant. What ships now,
+distinct consumers, in index order, stopping at the first one that is both
+outside the grant and live — so its cost follows the answer rather than the
+entity's row fan-in or the caller's grant. What ships now,
 `crossRepoDeadCodeUngrantedConsumerProbeQuery`, is that walk with one thing
 corrected: it steps over `(repository_id, scope_id)` pairs on migration 101's
 four-column index and seeks each pair's active row by full key equality, rather
@@ -149,12 +145,13 @@ does the same work. Generic-plan runs are within noise of the custom-plan ones
 throughout (walk: 4.72 / 4.75 / 4.79 / 5.09 ms at 5 / 50 / 200 / 500).
 
 The shape that replaces the ranges is a loose index scan, one walk per producer
-entity: seed at that entity's smallest consumer repository, step to the smallest
-one strictly greater, and stop at the first repository the grant does not
-contain. A walk therefore visits each of the entity's DISTINCT consumer
-repositories at most once — at most `min(d, N) + 1` steps for `d` distinct
-consumer repositories and a grant of `N`, where the ranges cost `N + 1`
-regardless of `d`. What a step costs is a second question, and this seed
+entity: seed at that entity's smallest consumer pair, step to the smallest one
+strictly greater, and stop at the first pair that is both outside the grant and
+live. A GRANTED consumer repository costs one step however many scopes cover
+it, so the walk passes at most `min(d, N)` of them for `d` distinct consumer
+repositories and a grant of `N`, where the ranges cost `N + 1` regardless of
+`d`. What an UNGRANTED one costs is a separate question, and
+[Stale Consumers Are An Axis Too](#stale-consumers-are-an-axis-too) is it. What a step costs is a second question, and this seed
 answered it wrongly: it holds one generation, so a step's first row is always
 the active one. The section below is that correction.
 
@@ -162,9 +159,9 @@ The walk has its own axis, `d`, and it was measured rather than assumed. A
 producer entity consumed by 300 distinct repositories, all granted, with a
 500-id grant: the walk takes 8.05 / 7.79 / 7.76 ms (`hit=6081`), the ranges
 631.99 / 629.74 / 628.31 ms (`hit=626377`). There is no crossover in the
-measured space, and the reason is structural rather than lucky: the walk stops
-at the first ungranted repository, so it can pass at most `min(d, N)` granted
-ones, which is never worse than the ranges' `N`.
+measured space, and the reason is structural rather than lucky: the walk passes
+a granted repository in one step, so it can pass at most `min(d, N)` of them,
+which is never worse than the ranges' `N`.
 
 Grant order stops mattering as a side effect. The ranges were only correct with
 the grant sorted in the database's collation — Go's byte order is not that
@@ -307,8 +304,8 @@ by reading the statement rather than a plan. It steps over
 `(repository_id, scope_id)` PAIRS but tests membership with
 `granted.repository_id = pair.repository_id`, so a granted repository covered by
 many ingestion scopes costs one step per scope. The walk then passes more
-granted PAIRS than the grant has repositories, and the `min(d, N) + 1` bound in
-its own contract is not a bound on it. The seeds above could not show it: every
+granted PAIRS than the grant has repositories, so the granted half of the bound
+in its own contract did not hold. The seeds above could not show it: every
 one of them gives a repository exactly one scope.
 
 Every skipped pair is granted, and `hidden` requires ungranted, so no answer
@@ -381,73 +378,83 @@ last scope of a repository it cannot see; and `ent-scopes-ungranted-stale`, with
 nothing live in any scope. A plan assertion requires the granted skip to reach
 an index condition rather than a filter, in both plan modes.
 
+### Stale Consumers Are An Axis Too
+
+The walk's continue-condition is `NOT walk.hidden`, and `hidden` is
+`NOT is_granted AND EXISTS (a live row)`. Three cases follow and only the third
+stops it: a granted pair continues, an ungranted pair with a live row stops, and
+an ungranted pair WITHOUT one continues. That third case is a consumer
+repository that used to call the symbol and no longer does.
+`ReplaceCodeReachabilityRepositoryRows` leaves the previous generation's rows on
+disk, and `DefaultGenerationRetentionPolicy` keeps the 24 most recent superseded
+generations per scope plus everything superseded inside the last seven days, so
+they are still there to be walked — one pair at a time, because the ungranted
+step seeks the next PAIR and an exhausted repository simply hands it the next
+repository's first one.
+
+So the bound is not `min(d, N) + 1`. It is the granted repositories passed, at
+most `min(d, N)` of them, plus the ungranted `(repository, scope)` pairs passed
+that hold no live consumer row, plus one — and the third term is bounded by the
+retention window rather than by `d` or `N`.
+`TestCrossRepoDeadCodeUngrantedConsumerProbeLive` asserts that count rather than
+describing it: `ent-stale-repos` carries 300 stale ungranted consumer
+repositories and one live hidden consumer after them under a one-repository
+grant, and the recursive term must produce exactly 301 rows in both plan modes.
+Set to the 2 the old contract claimed, both modes fail with `the recursive walk
+produced 301 rows, want exactly 2`.
+
+Performance Evidence: throwaway PostgreSQL 16.15 container, migrations
+001/002/027 plus 101/102, `SET jit = off`, `VACUUM ANALYZE`, warm, three
+samples, both plan modes. The grant-size seed above extended with one ingestion
+scope per stale consumer repository — which is how a git repository scope owns a
+repository — and 20 retained superseded generations each, inside the retention
+policy's 24. 2,447,218 rows, 302 scopes, 6,302 generations. One producer entity,
+one-repository grant.
+
+| One entity, one-repository grant | Walk rows | Buffers | Custom plan | Generic plan |
+| --- | ---: | ---: | ---: | ---: |
+| 300 GRANTED consumer repositories (the control) | 300 | hit=913 | 2.99 / 3.09 / 3.01 ms | 3.27 / 3.32 / 3.54 ms |
+| 300 stale ungranted pairs, 20 rows each | 301 | hit=25,825 | 19.07 / 19.41 / 19.26 ms | 19.28 / 19.46 / 18.92 ms |
+| 300 stale ungranted pairs, 400 rows each | 301 | hit=365,181 | 297.0 / 290.7 / 295.5 ms | 293.7 / 294.8 / 298.0 ms |
+
+The step count is the same 301 in all three stale rows; the buffers are not, and
+that is a second defect rather than this axis being expensive by nature. On this
+corpus the liveness `EXISTS` loses its four-column `Index Cond`: the planner
+takes `(entity_id, repository_id, scope_id)` and then probes
+`scope_generations` once per retained row — 119,601 probes for one entity — so
+every passed stale pair scans the pair's rows instead of seeking past them. The
+axis and the plan are separable: at ONE retained generation per pair the
+`Index Cond` is already three columns, so retention depth multiplies a cost the
+corpus statistics chose.
+
+Restricting the ungranted step's own seek to live pairs was measured and
+rejected. Joined to `ingestion_scopes` on the active generation it walks 2 rows
+rather than 301, and reads `hit=4,304` in 26.6 / 27.5 / 27.3 ms, because the
+restriction never becomes an index condition: one step reads 119,620 index rows
+under a hash join against a 302-row `Seq Scan on ingestion_scopes`. It trades a
+per-pair cost for a cost in the entity's TOTAL retained rows — the fan-in
+sensitivity this walk exists to remove — and would lose on a high-fan-in entity
+such as the seed's 1,000,000-row one.
+
 ### The Migrations Replay On Every Bootstrap
 
-Codex raised a P1 on the shape the two index migrations shipped in, and it is
-right. `migrations/` has no applied-migration ledger. `BootstrapDefinitions`
-reads `//go:embed migrations/*.sql`, builds one definition per file and sorts
-them by path; `ApplyDefinitions` Execs every one of them, unconditionally, and
-consults no database (`go/internal/storage/postgres/schema.go`).
-`TestApplyBootstrapExecutesDefinitionsInOrder` already pins exactly that. Every
-start of `bootstrap-data-plane`, `bootstrap-index` or the local supervisor
-therefore replays the entire directory.
+`migrations/` has no applied-migration ledger, so every bootstrap replays the
+whole directory and a create paired with a later drop would rebuild an index on
+every start, forever. Migration 101 builds the four-column index and migration
+102 drops the two-column one it supersedes; there is no migration 100 any more.
+The reasoning, the two tests that prove it, and the pre-existing `fact_records`
+offender the second test found are in
+[#5167 code-reachability index migration replay](5167-code-reachability-index-migration-replay.md).
 
-So a create paired with a later drop is not a one-time upgrade cost. Migration
-102 clears `code_reachability_entity_repository_idx`, which means the next
-bootstrap's `CREATE INDEX CONCURRENTLY IF NOT EXISTS` no longer skips: it builds
-the index again, concurrently, over a populated `code_reachability_rows`, and
-102 drops it again. Every startup, forever.
-
-The fix is to delete the create rather than reorder it: there is no migration
-100 any more, migration 101 builds the four-column index and migration 102 drops
-the two-column one. A fresh install builds one index and drops nothing; an
-install that already applied the released migration 100 builds the four-column
-index once and drops the two-column one once; every bootstrap after that issues
-neither. That is the shape this directory already uses —
-`059_relationship_family_candidate_index.sql` creates the replacement under a
-new name and `068_drop_relationship_family_candidate_index_legacy.sql` drops the
-legacy one, and 068's own comment states the rule ("on every subsequent boot
-... `DROP INDEX CONCURRENTLY IF EXISTS` is a no-op, so this adds no per-boot
-churn"). Editing migration 100 in place was rejected: its filename and its
-derived definition name would then name an index the file does not create, and
-the drop would have to run ahead of the create, leaving a window with neither
-index while the concurrent build runs.
-
-Proof is two tests rather than an argument.
-`TestCodeReachabilityIndexMigrationsReapplyWithoutRebuildLive`
-(`go/internal/storage/postgres/code_reachability_index_replay_live_test.go`,
-`integration` tag) seeds a populated store, builds the released two-column index
-on it so the fixture stands where those installs stand, runs the shipped index
-definitions once to converge it, and then runs them again through a recorder
-that reads every index on `code_reachability_rows` and its `relfilenode` before
-and after each statement. The second pass must build nothing, drop nothing and
-change no `relfilenode` — asserted per statement, so a definition whose effect
-the next definition undoes fails even though the state either side of the whole
-pass is identical.
-`TestBootstrapDefinitionsDoNotRebuildIndexesOnEveryReplay`
-(`go/internal/storage/postgres/schema_index_replay_test.go`) is the hermetic
-half and generalises it: no bootstrap definition may create an index name any
-definition drops.
-
-That second test found one more, outside this change and pre-existing on `main`.
-Migrations 069 and 077 both `CREATE INDEX CONCURRENTLY IF NOT EXISTS
-fact_records_identity_epoch_idx` — the same name, different predicates — and 076
-drops that name between them, so every bootstrap of every install drops and
-rebuilds a `fact_records` index. Deleting a file cannot fix it, because the
-replacement reuses the name and an install holding 069's definition is
-indistinguishable from one holding 077's; converging them needs the replacement
-renamed, which changes an index the container-image identity path is measured
-against. It is recorded as the single explicit exception in that test rather
-than silently allowed, so a second offender still fails and removing this one
-fails until the exception goes with it.
-
-The evidence page is unchanged and still reads that group: it has to rank a
-producer entity's consumers by confidence to return the strongest, so its cost
-is what the page returns rather than an artefact. On the same seed it takes
-885 ms reading 1,000,497 rows with the whole five-repository grant bound, and
-752 ms reading 800,373 with four of the five. Removing the second traversal of
-that group is what this change buys; the page's own bound is a separate
-question, and it is the next thing to look at on this route.
+The evidence page is unchanged and still reads that group. It carries the same
+`ORDER BY entity_id, confidence DESC, ...` ahead of its `LIMIT 1001`, so its
+scan is bounded by a producer entity's fan-in rather than by the limit — it has
+to rank a producer entity's consumers by confidence to return the strongest, so
+that cost is what the page returns rather than an artefact. On the same seed it
+takes 885 ms reading 1,000,497 rows with the whole five-repository grant bound,
+and 752 ms reading 800,373 with four of the five. Removing the second traversal
+of that group is what this change buys; the page's own bound is tracked in
+#6527, filed with these measurements, and is the next thing to look at here.
 
 Two consequences are declared rather than incidental. The probe returns
 producer entity ids and nothing else, so no ungranted repository id, consumer
