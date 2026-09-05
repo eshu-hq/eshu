@@ -11,14 +11,14 @@ import (
 	sdkmetric "go.opentelemetry.io/otel/sdk/metric"
 	"go.opentelemetry.io/otel/sdk/metric/metricdata"
 
-	"github.com/eshu-hq/eshu/go/internal/reducer"
+	"github.com/eshu-hq/eshu/go/internal/reducer/semanticentity"
 	"github.com/eshu-hq/eshu/go/internal/storage/cypher"
 )
 
 // semanticEntityBudgetRelPath is the committed cost budget for the
 // semantic-entity-materialization scenario. Unlike the nested-directory-tree
 // scenario, this projection has no committed cassette: cypher.SemanticEntityWriter
-// operates over flat reducer.SemanticEntityRow values, not a
+// operates over flat semanticentity.SemanticEntityRow values, not a
 // CanonicalMaterialization, so the fixture rows live inline in this file (the
 // same convention semantic_entity_test.go already uses) and the budget records
 // that explicitly instead of pointing at a cassette path.
@@ -36,8 +36,8 @@ var semanticEntityBudgetRelPath = filepath.Join(
 // only diverge on eshu_dp_neo4j_batches_executed_total when both fixture rows
 // share a label — two distinct labels would batch to one statement each either
 // way and the N+1 control would not prove anything.
-func semanticEntityFixtureRows() []reducer.SemanticEntityRow {
-	return []reducer.SemanticEntityRow{
+func semanticEntityFixtureRows() []semanticentity.SemanticEntityRow {
+	return []semanticentity.SemanticEntityRow{
 		{
 			RepoID:       "repo-1",
 			EntityID:     "annotation-1",
@@ -121,7 +121,7 @@ func TestCostBudget_SemanticEntityMaterialization(t *testing.T) {
 	budget := loadBudgetFrom(t, semanticEntityBudgetRelPath)
 	writer, exec, reader := newInstrumentedSemanticEntityWriter(t)
 
-	_, err := writer.WriteSemanticEntities(context.Background(), reducer.SemanticEntityWrite{
+	_, err := writer.WriteSemanticEntities(context.Background(), semanticentity.SemanticEntityWrite{
 		RepoIDs: []string{"repo-1"},
 		Rows:    semanticEntityFixtureRows(),
 	})
@@ -193,9 +193,9 @@ func TestCostBudget_SemanticEntityMaterialization_N1_ExceedsBudget(t *testing.T)
 	writer, _, reader := newInstrumentedSemanticEntityWriter(t)
 
 	for _, row := range rows {
-		if _, err := writer.WriteSemanticEntities(context.Background(), reducer.SemanticEntityWrite{
+		if _, err := writer.WriteSemanticEntities(context.Background(), semanticentity.SemanticEntityWrite{
 			RepoIDs: []string{row.RepoID},
-			Rows:    []reducer.SemanticEntityRow{row},
+			Rows:    []semanticentity.SemanticEntityRow{row},
 		}); err != nil {
 			t.Fatalf("N+1 WriteSemanticEntities() error = %v", err)
 		}

@@ -7,7 +7,7 @@ import (
 	"fmt"
 	"sort"
 
-	"github.com/eshu-hq/eshu/go/internal/reducer"
+	"github.com/eshu-hq/eshu/go/internal/reducer/semanticentity"
 )
 
 func newSemanticRowsByLabel() map[string][]map[string]any {
@@ -48,7 +48,7 @@ func semanticEntityPlans() []struct {
 	}
 }
 
-func buildParameterizedSemanticEntityStatement(row reducer.SemanticEntityRow) (Statement, bool) {
+func buildParameterizedSemanticEntityStatement(row semanticentity.SemanticEntityRow) (Statement, bool) {
 	rowMap, ok := buildSemanticEntityRowMap(row)
 	if !ok {
 		return Statement{}, false
@@ -67,7 +67,7 @@ func buildParameterizedSemanticEntityStatement(row reducer.SemanticEntityRow) (S
 	}, true
 }
 
-func buildSemanticEntityPropertyRowMap(row reducer.SemanticEntityRow) (map[string]any, bool) {
+func buildSemanticEntityPropertyRowMap(row semanticentity.SemanticEntityRow) (map[string]any, bool) {
 	rowMap, ok := buildSemanticEntityRowMap(row)
 	if !ok {
 		return nil, false
@@ -155,7 +155,7 @@ func semanticEntityProperties(rowMap map[string]any) map[string]any {
 	return properties
 }
 
-func buildSemanticEntityRowMap(row reducer.SemanticEntityRow) (map[string]any, bool) {
+func buildSemanticEntityRowMap(row semanticentity.SemanticEntityRow) (map[string]any, bool) {
 	if row.RepoID == "" || row.EntityID == "" || row.EntityName == "" || row.FilePath == "" {
 		return nil, false
 	}
@@ -333,7 +333,7 @@ var semanticEntityNullableRowKeys = []string{
 	"semantic_kind",
 }
 
-func buildRustImplBlockOwnershipRows(rows []reducer.SemanticEntityRow) []map[string]any {
+func buildRustImplBlockOwnershipRows(rows []semanticentity.SemanticEntityRow) []map[string]any {
 	if len(rows) == 0 {
 		return nil
 	}

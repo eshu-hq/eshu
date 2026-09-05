@@ -1,14 +1,14 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package reducer
+package semanticentity
 
 import (
 	"strings"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/reducer/factload"
 	"github.com/eshu-hq/eshu/go/internal/reducer/payloadcore"
-	"github.com/eshu-hq/eshu/go/internal/reducer/sharedintent"
 )
 
 type semanticDeltaProjectionScope struct {
@@ -37,14 +37,14 @@ func extractSemanticDeltaProjectionScope(
 	}
 
 	for _, env := range envelopes {
-		if env.FactKind != factKindRepository {
+		if env.FactKind != factload.FactKindRepository {
 			continue
 		}
-		repoID := semanticPayloadString(env.Payload, "repo_id")
+		repoID := payloadcore.SemanticPayloadString(env.Payload, "repo_id")
 		if targetRepoID != "" && repoID != targetRepoID {
 			continue
 		}
-		if !semanticDeltaPayloadBool(env.Payload, "delta_generation") {
+		if !payloadcore.DeltaPayloadBool(env.Payload, "delta_generation") {
 			continue
 		}
 		scope.Delta = true
@@ -53,10 +53,10 @@ func extractSemanticDeltaProjectionScope(
 			repoPath = semanticDeltaPayloadString(env.Payload, "local_path")
 		}
 		for _, relativePath := range semanticDeltaPayloadStringSlice(env.Payload, "delta_relative_paths") {
-			addFilePath(semanticQualifyDeltaPath(repoPath, relativePath))
+			addFilePath(payloadcore.QualifyDeltaPath(repoPath, relativePath))
 		}
 		for _, relativePath := range semanticDeltaPayloadStringSlice(env.Payload, "delta_deleted_relative_paths") {
-			addFilePath(semanticQualifyDeltaPath(repoPath, relativePath))
+			addFilePath(payloadcore.QualifyDeltaPath(repoPath, relativePath))
 		}
 	}
 	if !scope.Delta {
@@ -70,16 +70,6 @@ func extractSemanticDeltaProjectionScope(
 		addFilePath(row.FilePath)
 	}
 	return scope
-}
-
-// semanticQualifyDeltaPath forwards to [payloadcore.QualifyDeltaPath].
-func semanticQualifyDeltaPath(repoPath string, relativePath string) string {
-	return payloadcore.QualifyDeltaPath(repoPath, relativePath)
-}
-
-// semanticDeltaPayloadBool forwards to [payloadcore.DeltaPayloadBool].
-func semanticDeltaPayloadBool(payload map[string]any, key string) bool {
-	return payloadcore.DeltaPayloadBool(payload, key)
 }
 
 func semanticDeltaPayloadString(payload map[string]any, key string) string {
@@ -126,21 +116,4 @@ func semanticDeltaPayloadStringSlice(payload map[string]any, key string) []strin
 	default:
 		return nil
 	}
-}
-
-// deltaScopeRepositorySet forwards to [sharedintent.DeltaScopeRepositorySet].
-func deltaScopeRepositorySet(repositoryIDs []string) map[string]struct{} {
-	return sharedintent.DeltaScopeRepositorySet(repositoryIDs)
-}
-
-// applyRepoRefreshDeltaScope forwards to
-// [sharedintent.ApplyRepoRefreshDeltaScope], which carries the full rule and
-// why the two obvious alternatives lose edges (#6216).
-func applyRepoRefreshDeltaScope(
-	payload map[string]any,
-	repoID string,
-	deltaRepositoryIDs map[string]struct{},
-	filePathsByRepoID map[string][]string,
-) {
-	sharedintent.ApplyRepoRefreshDeltaScope(payload, repoID, deltaRepositoryIDs, filePathsByRepoID)
 }

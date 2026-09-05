@@ -9,7 +9,7 @@ import (
 	"sync/atomic"
 	"testing"
 
-	"github.com/eshu-hq/eshu/go/internal/reducer"
+	"github.com/eshu-hq/eshu/go/internal/reducer/semanticentity"
 )
 
 type semanticEntityBenchExecutor struct {
@@ -22,13 +22,13 @@ func (e *semanticEntityBenchExecutor) Execute(context.Context, Statement) error 
 }
 
 func BenchmarkSemanticEntityWriterNornicDBConcurrentDistinctRepos(b *testing.B) {
-	writes := make([]reducer.SemanticEntityWrite, 8)
+	writes := make([]semanticentity.SemanticEntityWrite, 8)
 	for i := range writes {
 		repoID := fmt.Sprintf("repo:bench:semantic:%02d", i)
 		filePath := fmt.Sprintf("/tmp/eshu-semantic-bench/%02d/main.go", i)
-		writes[i] = reducer.SemanticEntityWrite{
+		writes[i] = semanticentity.SemanticEntityWrite{
 			RepoIDs: []string{repoID},
-			Rows: []reducer.SemanticEntityRow{
+			Rows: []semanticentity.SemanticEntityRow{
 				{
 					RepoID:       repoID,
 					EntityID:     fmt.Sprintf("function:bench:semantic:%02d", i),

@@ -23,7 +23,7 @@ domain. Root `internal/projector` owns the per-fact loop that calls it,
 scope-generation boundary and schema-version validation, intent ordering,
 queue writes, retries, and telemetry. The reducer's
 `DomainSemanticEntityMaterialization` handler
-(`go/internal/reducer/semantic_entity_materialization*.go`) owns the entity
+(`go/internal/reducer/semanticentity/materialization*.go`) owns the entity
 rows and graph writes; it re-applies its own language predicates, some of
 which share names with the ones here
 (`isElixirModuleAttributeSemanticEntity`,

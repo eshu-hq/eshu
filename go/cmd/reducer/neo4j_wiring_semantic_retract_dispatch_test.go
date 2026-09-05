@@ -8,7 +8,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/eshu-hq/eshu/go/internal/reducer"
+	"github.com/eshu-hq/eshu/go/internal/reducer/semanticentity"
 	runtimecfg "github.com/eshu-hq/eshu/go/internal/runtime"
 	sourcecypher "github.com/eshu-hq/eshu/go/internal/storage/cypher"
 )
@@ -64,9 +64,9 @@ func TestSemanticEntityWriterForGraphBackendNornicDBGroupsRetractWithUpserts(t *
 	if err != nil {
 		t.Fatalf("semanticEntityWriterForGraphBackend() error = %v", err)
 	}
-	if _, err := writer.WriteSemanticEntities(context.Background(), reducer.SemanticEntityWrite{
+	if _, err := writer.WriteSemanticEntities(context.Background(), semanticentity.SemanticEntityWrite{
 		RepoIDs: []string{"repo-1"},
-		Rows:    []reducer.SemanticEntityRow{semanticModuleRow("module-ts-1")},
+		Rows:    []semanticentity.SemanticEntityRow{semanticModuleRow("module-ts-1")},
 	}); err != nil {
 		t.Fatalf("WriteSemanticEntities() error = %v", err)
 	}
@@ -95,9 +95,9 @@ func TestSemanticEntityWriterForGraphBackendNeo4jRoutesRetractGrouped(t *testing
 	if err != nil {
 		t.Fatalf("semanticEntityWriterForGraphBackend() error = %v", err)
 	}
-	if _, err := writer.WriteSemanticEntities(context.Background(), reducer.SemanticEntityWrite{
+	if _, err := writer.WriteSemanticEntities(context.Background(), semanticentity.SemanticEntityWrite{
 		RepoIDs: []string{"repo-1"},
-		Rows:    []reducer.SemanticEntityRow{semanticModuleRow("module-ts-1")},
+		Rows:    []semanticentity.SemanticEntityRow{semanticModuleRow("module-ts-1")},
 	}); err != nil {
 		t.Fatalf("WriteSemanticEntities() error = %v", err)
 	}

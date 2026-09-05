@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package reducer
+package semanticentity
 
 import (
 	"context"
@@ -12,6 +12,10 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
+	"github.com/eshu-hq/eshu/go/internal/reducer/factload"
+	"github.com/eshu-hq/eshu/go/internal/reducer/gpphase"
+	"github.com/eshu-hq/eshu/go/internal/reducer/payloadcore"
 	log "github.com/eshu-hq/eshu/go/pkg/log"
 )
 
@@ -55,42 +59,42 @@ type SemanticEntityWriter interface {
 // into canonical graph writes. It loads parser facts, extracts canonical
 // semantic rows, and writes them through the Neo4j adapter.
 type SemanticEntityMaterializationHandler struct {
-	FactLoader           FactLoader
+	FactLoader           factload.FactLoader
 	Writer               SemanticEntityWriter
-	PriorGenerationCheck PriorGenerationCheck
-	PhasePublisher       GraphProjectionPhasePublisher
+	PriorGenerationCheck reducercontract.PriorGenerationCheck
+	PhasePublisher       gpphase.PhasePublisher
 	RepairQueue          GraphProjectionPhaseRepairQueue
 }
 
 // Handle executes the semantic-entity materialization path.
 func (h SemanticEntityMaterializationHandler) Handle(
 	ctx context.Context,
-	intent Intent,
-) (Result, error) {
-	if intent.Domain != DomainSemanticEntityMaterialization {
-		return Result{}, fmt.Errorf(
+	intent reducercontract.Intent,
+) (reducercontract.Result, error) {
+	if intent.Domain != reducercontract.DomainSemanticEntityMaterialization {
+		return reducercontract.Result{}, fmt.Errorf(
 			"semantic entity materialization handler does not accept domain %q",
 			intent.Domain,
 		)
 	}
 	if h.FactLoader == nil {
-		return Result{}, fmt.Errorf("semantic entity materialization fact loader is required")
+		return reducercontract.Result{}, fmt.Errorf("semantic entity materialization fact loader is required")
 	}
 	if h.Writer == nil {
-		return Result{}, fmt.Errorf("semantic entity materialization writer is required")
+		return reducercontract.Result{}, fmt.Errorf("semantic entity materialization writer is required")
 	}
 
 	totalStart := time.Now()
 	loadStart := time.Now()
-	envelopes, err := loadFactsForKinds(
+	envelopes, err := factload.LoadFactsForKinds(
 		ctx,
 		h.FactLoader,
 		intent.ScopeID,
 		intent.GenerationID,
-		[]string{factKindRepository, factKindContentEntity},
+		[]string{factload.FactKindRepository, factload.FactKindContentEntity},
 	)
 	if err != nil {
-		return Result{}, fmt.Errorf("load facts for semantic entity materialization: %w", err)
+		return reducercontract.Result{}, fmt.Errorf("load facts for semantic entity materialization: %w", err)
 	}
 	loadDuration := time.Since(loadStart)
 
@@ -111,10 +115,10 @@ func (h SemanticEntityMaterializationHandler) Handle(
 			deltaFileCount:  len(deltaScope.FilePaths),
 			totalDuration:   time.Since(totalStart),
 		})
-		return Result{
+		return reducercontract.Result{
 			IntentID:        intent.IntentID,
-			Domain:          DomainSemanticEntityMaterialization,
-			Status:          ResultStatusSucceeded,
+			Domain:          reducercontract.DomainSemanticEntityMaterialization,
+			Status:          reducercontract.ResultStatusSucceeded,
 			EvidenceSummary: "no semantic entities found",
 		}, nil
 	}
@@ -122,7 +126,7 @@ func (h SemanticEntityMaterializationHandler) Handle(
 	retractDecisionStart := time.Now()
 	skipRetract, err := h.shouldSkipSemanticRetract(ctx, intent)
 	if err != nil {
-		return Result{}, err
+		return reducercontract.Result{}, err
 	}
 	retractDecisionDuration := time.Since(retractDecisionStart)
 
@@ -135,12 +139,12 @@ func (h SemanticEntityMaterializationHandler) Handle(
 		DeltaFilePaths:  deltaScope.FilePaths,
 	})
 	if err != nil {
-		return Result{}, fmt.Errorf("write semantic entities: %w", err)
+		return reducercontract.Result{}, fmt.Errorf("write semantic entities: %w", err)
 	}
 	graphWriteDuration := time.Since(graphWriteStart)
 	phasePublishStart := time.Now()
 	if err := h.publishSemanticGraphPhases(ctx, intent.GenerationID, envelopes, repoIDs, len(rows)); err != nil {
-		return Result{}, fmt.Errorf("publish semantic graph phases: %w", err)
+		return reducercontract.Result{}, fmt.Errorf("publish semantic graph phases: %w", err)
 	}
 	phasePublishDuration := time.Since(phasePublishStart)
 
@@ -165,10 +169,10 @@ func (h SemanticEntityMaterializationHandler) Handle(
 		totalDuration:           time.Since(totalStart),
 	})
 
-	return Result{
+	return reducercontract.Result{
 		IntentID:        intent.IntentID,
-		Domain:          DomainSemanticEntityMaterialization,
-		Status:          ResultStatusSucceeded,
+		Domain:          reducercontract.DomainSemanticEntityMaterialization,
+		Status:          reducercontract.ResultStatusSucceeded,
 		EvidenceSummary: summary,
 		CanonicalWrites: writeResult.CanonicalWrites,
 	}, nil
@@ -177,7 +181,7 @@ func (h SemanticEntityMaterializationHandler) Handle(
 // semanticEntityMaterializationTiming keeps stage durations together so the
 // completion log cannot accidentally mix timings from different intents.
 type semanticEntityMaterializationTiming struct {
-	intent                  Intent
+	intent                  reducercontract.Intent
 	factCount               int
 	repoCount               int
 	rowCount                int
@@ -218,7 +222,7 @@ func logSemanticEntityMaterializationCompleted(
 	)
 }
 
-func (h SemanticEntityMaterializationHandler) shouldSkipSemanticRetract(ctx context.Context, intent Intent) (bool, error) {
+func (h SemanticEntityMaterializationHandler) shouldSkipSemanticRetract(ctx context.Context, intent reducercontract.Intent) (bool, error) {
 	if h.PriorGenerationCheck == nil || intent.AttemptCount > 1 {
 		return false, nil
 	}
@@ -246,7 +250,7 @@ func (h SemanticEntityMaterializationHandler) publishSemanticGraphPhases(
 	}
 	if err := h.PhasePublisher.PublishGraphProjectionPhases(ctx, states); err != nil {
 		if h.RepairQueue != nil {
-			repairs := GraphProjectionPhaseRepairsFromStates(states, err.Error(), time.Now().UTC())
+			repairs := graphProjectionPhaseRepairsFromStates(states, err.Error(), time.Now().UTC())
 			if enqueueErr := h.RepairQueue.Enqueue(ctx, repairs); enqueueErr != nil {
 				return fmt.Errorf("publish semantic graph phases: %w (enqueue repairs: %v)", err, enqueueErr)
 			}
@@ -256,7 +260,7 @@ func (h SemanticEntityMaterializationHandler) publishSemanticGraphPhases(
 	return nil
 }
 
-func semanticTargetRepoID(intent Intent, envelopes []facts.Envelope) string {
+func semanticTargetRepoID(intent reducercontract.Intent, envelopes []facts.Envelope) string {
 	if len(intent.EntityKeys) == 0 {
 		return ""
 	}
@@ -272,10 +276,10 @@ func semanticTargetRepoID(intent Intent, envelopes []facts.Envelope) string {
 		if env.FactKind != "content_entity" {
 			continue
 		}
-		if semanticPayloadString(env.Payload, "entity_id") != key {
+		if payloadcore.SemanticPayloadString(env.Payload, "entity_id") != key {
 			continue
 		}
-		if repoID := semanticPayloadString(env.Payload, "repo_id"); repoID != "" {
+		if repoID := payloadcore.SemanticPayloadString(env.Payload, "repo_id"); repoID != "" {
 			return repoID
 		}
 	}
@@ -300,7 +304,7 @@ func semanticGraphPhaseStates(
 	generationID string,
 	envelopes []facts.Envelope,
 	repoIDs []string,
-) []GraphProjectionPhaseState {
+) []gpphase.PhaseState {
 	repoSet := make(map[string]struct{}, len(repoIDs))
 	for _, repoID := range repoIDs {
 		if trimmed := strings.TrimSpace(repoID); trimmed != "" {
@@ -309,16 +313,16 @@ func semanticGraphPhaseStates(
 	}
 
 	seen := make(map[string]struct{}, len(repoSet))
-	states := make([]GraphProjectionPhaseState, 0, len(repoSet))
+	states := make([]gpphase.PhaseState, 0, len(repoSet))
 	for _, env := range envelopes {
 		if env.FactKind != "repository" {
 			continue
 		}
-		repoID := semanticPayloadString(env.Payload, "repo_id")
+		repoID := payloadcore.SemanticPayloadString(env.Payload, "repo_id")
 		if _, ok := repoSet[repoID]; !ok {
 			continue
 		}
-		sourceRunID := semanticPayloadString(env.Payload, "source_run_id")
+		sourceRunID := payloadcore.SemanticPayloadString(env.Payload, "source_run_id")
 		if strings.TrimSpace(env.ScopeID) == "" || sourceRunID == "" || strings.TrimSpace(generationID) == "" {
 			continue
 		}
@@ -328,15 +332,15 @@ func semanticGraphPhaseStates(
 		}
 		seen[composite] = struct{}{}
 		publishedAt := time.Now().UTC()
-		states = append(states, GraphProjectionPhaseState{
-			Key: GraphProjectionPhaseKey{
+		states = append(states, gpphase.PhaseState{
+			Key: gpphase.PhaseKey{
 				ScopeID:          env.ScopeID,
 				AcceptanceUnitID: repoID,
 				SourceRunID:      sourceRunID,
 				GenerationID:     generationID,
-				Keyspace:         GraphProjectionKeyspaceCodeEntitiesUID,
+				Keyspace:         gpphase.KeyspaceCodeEntitiesUID,
 			},
-			Phase:       GraphProjectionPhaseSemanticNodesCommitted,
+			Phase:       gpphase.PhaseSemanticNodesCommitted,
 			CommittedAt: publishedAt,
 			UpdatedAt:   publishedAt,
 		})
@@ -370,8 +374,8 @@ func ExtractSemanticEntityRowsForRepo(envelopes []facts.Envelope, targetRepoID s
 			continue
 		}
 
-		repoID := semanticPayloadString(env.Payload, "repo_id")
-		entityType := semanticPayloadString(env.Payload, "entity_type")
+		repoID := payloadcore.SemanticPayloadString(env.Payload, "repo_id")
+		entityType := payloadcore.SemanticPayloadString(env.Payload, "entity_type")
 		if targetRepoID != "" && repoID != targetRepoID {
 			continue
 		}
@@ -379,8 +383,8 @@ func ExtractSemanticEntityRowsForRepo(envelopes []facts.Envelope, targetRepoID s
 			continue
 		}
 
-		entityID := semanticPayloadString(env.Payload, "entity_id")
-		entityName := semanticPayloadString(env.Payload, "entity_name")
+		entityID := payloadcore.SemanticPayloadString(env.Payload, "entity_id")
+		entityName := payloadcore.SemanticPayloadString(env.Payload, "entity_name")
 		filePath := strings.TrimSpace(env.SourceRef.SourceURI)
 		if entityID == "" || entityName == "" || filePath == "" {
 			continue
@@ -392,8 +396,8 @@ func ExtractSemanticEntityRowsForRepo(envelopes []facts.Envelope, targetRepoID s
 			EntityType:   entityType,
 			EntityName:   entityName,
 			FilePath:     filePath,
-			RelativePath: semanticPayloadString(env.Payload, "relative_path"),
-			Language:     semanticPayloadString(env.Payload, "language"),
+			RelativePath: payloadcore.SemanticPayloadString(env.Payload, "relative_path"),
+			Language:     payloadcore.SemanticPayloadString(env.Payload, "language"),
 			StartLine:    semanticPayloadInt(env.Payload, "start_line"),
 			EndLine:      semanticPayloadInt(env.Payload, "end_line"),
 			Metadata:     collectSemanticMetadata(env.Payload),

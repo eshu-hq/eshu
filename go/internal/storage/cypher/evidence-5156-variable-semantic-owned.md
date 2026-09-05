@@ -61,7 +61,7 @@ evidence_source (see the cross-writer note below).
    include `elixir_comprehensive` or `tsx_comprehensive`, and `Variable` rows
    only ever come from `isElixirModuleAttributeSemanticEntity` /
    `isTypeScriptJSXComponentTypeAssertionSemanticEntity`
-   (`go/internal/reducer/semantic_entity_materialization_helpers.go`). The
+   (`go/internal/reducer/semanticentity/materialization_helpers.go`). The
    golden corpus therefore produces zero `Variable` rows before and after this
    fix; no node/edge count or required-correlation assertion changes.
 4. Confirmed no cross-writer deletion race: the canonical writer's entity

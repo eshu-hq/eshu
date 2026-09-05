@@ -8,7 +8,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/eshu-hq/eshu/go/internal/reducer"
+	"github.com/eshu-hq/eshu/go/internal/reducer/semanticentity"
 )
 
 func TestSemanticEntityWriterConstructorsSetExclusiveWriteModes(t *testing.T) {
@@ -59,10 +59,10 @@ func TestSemanticEntityWriterWithCanonicalNodeRowsSkipsFileContainmentForCanonic
 	executor := &recordingExecutor{}
 	writer := NewSemanticEntityWriterWithCanonicalNodeRows(executor, 100)
 
-	result, err := writer.WriteSemanticEntities(context.Background(), reducer.SemanticEntityWrite{
+	result, err := writer.WriteSemanticEntities(context.Background(), semanticentity.SemanticEntityWrite{
 		RepoIDs:     []string{"repo-1"},
 		SkipRetract: true,
-		Rows: []reducer.SemanticEntityRow{
+		Rows: []semanticentity.SemanticEntityRow{
 			semanticNornicDBFunctionRow("function-go-1"),
 		},
 	})
@@ -146,9 +146,9 @@ func TestSemanticEntityCanonicalNodeRowsClearPropertiesWithoutDeletingCanonicalN
 	executor := &recordingExecutor{}
 	writer := NewSemanticEntityWriterWithCanonicalNodeRows(executor, 100)
 
-	_, err := writer.WriteSemanticEntities(context.Background(), reducer.SemanticEntityWrite{
+	_, err := writer.WriteSemanticEntities(context.Background(), semanticentity.SemanticEntityWrite{
 		RepoIDs: []string{"repo-1"},
-		Rows: []reducer.SemanticEntityRow{
+		Rows: []semanticentity.SemanticEntityRow{
 			semanticNornicDBFunctionRow("function-go-1"),
 		},
 	})
@@ -196,9 +196,9 @@ func TestSemanticEntityWriterWithMergeFirstRowsUsesNornicDBHotPathShape(t *testi
 	executor := &recordingExecutor{}
 	writer := NewSemanticEntityWriterWithMergeFirstRows(executor, 100).WithLabelScopedRetract()
 
-	result, err := writer.WriteSemanticEntities(context.Background(), reducer.SemanticEntityWrite{
+	result, err := writer.WriteSemanticEntities(context.Background(), semanticentity.SemanticEntityWrite{
 		RepoIDs: []string{"repo-1"},
-		Rows: []reducer.SemanticEntityRow{
+		Rows: []semanticentity.SemanticEntityRow{
 			semanticNornicDBFunctionRow("function-go-1"),
 		},
 	})
@@ -262,9 +262,9 @@ func TestSemanticEntityWriterWithParameterizedRowsAvoidsInlineSemanticMetadata(t
 
 	const docstring = "buildCallChainCypher uses shortestPath((start)-[*]->(end)) for graph traversal."
 
-	result, err := writer.WriteSemanticEntities(context.Background(), reducer.SemanticEntityWrite{
+	result, err := writer.WriteSemanticEntities(context.Background(), semanticentity.SemanticEntityWrite{
 		RepoIDs: []string{"repo-1"},
-		Rows: []reducer.SemanticEntityRow{
+		Rows: []semanticentity.SemanticEntityRow{
 			{
 				RepoID:       "repo-1",
 				EntityID:     "function-go-1",
@@ -320,9 +320,9 @@ func TestSemanticEntityWriterWithLabelScopedRetractSplitsBroadRetractByLabel(t *
 	executor := &recordingExecutor{}
 	writer := NewSemanticEntityWriterWithBatchedProperties(executor, 100).WithLabelScopedRetract()
 
-	result, err := writer.WriteSemanticEntities(context.Background(), reducer.SemanticEntityWrite{
+	result, err := writer.WriteSemanticEntities(context.Background(), semanticentity.SemanticEntityWrite{
 		RepoIDs: []string{"repo-1"},
-		Rows: []reducer.SemanticEntityRow{
+		Rows: []semanticentity.SemanticEntityRow{
 			semanticNornicDBFunctionRow("function-go-1"),
 		},
 	})
@@ -368,10 +368,10 @@ func TestSemanticEntityWriterSkipsRetractWhenRequested(t *testing.T) {
 	executor := &recordingExecutor{}
 	writer := NewSemanticEntityWriterWithBatchedProperties(executor, 100).WithLabelScopedRetract()
 
-	result, err := writer.WriteSemanticEntities(context.Background(), reducer.SemanticEntityWrite{
+	result, err := writer.WriteSemanticEntities(context.Background(), semanticentity.SemanticEntityWrite{
 		RepoIDs:     []string{"repo-1"},
 		SkipRetract: true,
-		Rows: []reducer.SemanticEntityRow{
+		Rows: []semanticentity.SemanticEntityRow{
 			semanticNornicDBFunctionRow("function-go-1"),
 		},
 	})
@@ -430,9 +430,9 @@ func TestSemanticEntityCanonicalNodeRowsRetractsVariableByDetachDelete(t *testin
 	executor := &recordingExecutor{}
 	writer := NewSemanticEntityWriterWithCanonicalNodeRows(executor, 100).WithLabelScopedRetract()
 
-	_, err := writer.WriteSemanticEntities(context.Background(), reducer.SemanticEntityWrite{
+	_, err := writer.WriteSemanticEntities(context.Background(), semanticentity.SemanticEntityWrite{
 		RepoIDs: []string{"repo-1"},
-		Rows: []reducer.SemanticEntityRow{
+		Rows: []semanticentity.SemanticEntityRow{
 			{
 				RepoID:       "repo-1",
 				EntityID:     "variable-elixir-1",
@@ -468,8 +468,8 @@ func TestSemanticEntityCanonicalNodeRowsRetractsVariableByDetachDelete(t *testin
 	}
 }
 
-func semanticNornicDBFunctionRow(id string) reducer.SemanticEntityRow {
-	return reducer.SemanticEntityRow{
+func semanticNornicDBFunctionRow(id string) semanticentity.SemanticEntityRow {
+	return semanticentity.SemanticEntityRow{
 		RepoID:       "repo-1",
 		EntityID:     id,
 		EntityType:   "Function",

@@ -9,7 +9,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/eshu-hq/eshu/go/internal/reducer"
+	"github.com/eshu-hq/eshu/go/internal/reducer/semanticentity"
 )
 
 func TestSemanticEntityWriterScopesDeltaRetractToFilePaths(t *testing.T) {
@@ -18,11 +18,11 @@ func TestSemanticEntityWriterScopesDeltaRetractToFilePaths(t *testing.T) {
 	executor := &recordingExecutor{}
 	writer := NewSemanticEntityWriterWithCanonicalNodeRows(executor, 100)
 
-	_, err := writer.WriteSemanticEntities(context.Background(), reducer.SemanticEntityWrite{
+	_, err := writer.WriteSemanticEntities(context.Background(), semanticentity.SemanticEntityWrite{
 		RepoIDs:         []string{"repo-1"},
 		DeltaProjection: true,
 		DeltaFilePaths:  []string{"/repo/src/changed.go", "/repo/src/deleted.go"},
-		Rows: []reducer.SemanticEntityRow{
+		Rows: []semanticentity.SemanticEntityRow{
 			semanticNornicDBFunctionRow("function-go-1"),
 		},
 	})
@@ -61,7 +61,7 @@ func TestSemanticEntityWriterRejectsDeltaRetractWithoutFilePaths(t *testing.T) {
 	executor := &recordingExecutor{}
 	writer := NewSemanticEntityWriter(executor, 100)
 
-	_, err := writer.WriteSemanticEntities(context.Background(), reducer.SemanticEntityWrite{
+	_, err := writer.WriteSemanticEntities(context.Background(), semanticentity.SemanticEntityWrite{
 		RepoIDs:         []string{"repo-1"},
 		DeltaProjection: true,
 	})

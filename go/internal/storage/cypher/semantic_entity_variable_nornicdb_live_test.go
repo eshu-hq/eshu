@@ -10,7 +10,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/eshu-hq/eshu/go/internal/reducer"
+	"github.com/eshu-hq/eshu/go/internal/reducer/semanticentity"
 	runtimecfg "github.com/eshu-hq/eshu/go/internal/runtime"
 	"github.com/eshu-hq/eshu/go/internal/storage/cypher"
 )
@@ -104,9 +104,9 @@ SET f.repo_id = $repo_id`,
 
 	// 1. Write the control repo's Variable row first so a later in-scope
 	// retract has an out-of-scope survivor to prove scoping against.
-	if _, err := writer.WriteSemanticEntities(ctx, reducer.SemanticEntityWrite{
+	if _, err := writer.WriteSemanticEntities(ctx, semanticentity.SemanticEntityWrite{
 		RepoIDs: []string{controlRepo},
-		Rows: []reducer.SemanticEntityRow{
+		Rows: []semanticentity.SemanticEntityRow{
 			{
 				RepoID:       controlRepo,
 				EntityID:     controlVariableID,
@@ -130,9 +130,9 @@ SET f.repo_id = $repo_id`,
 	// 2. Write the in-scope repo's Elixir module-attribute Variable row and
 	// TSX component-type-assertion Variable row in one call, matching the
 	// NornicDB reducer wiring exactly.
-	if _, err := writer.WriteSemanticEntities(ctx, reducer.SemanticEntityWrite{
+	if _, err := writer.WriteSemanticEntities(ctx, semanticentity.SemanticEntityWrite{
 		RepoIDs: []string{inScopeRepo},
-		Rows: []reducer.SemanticEntityRow{
+		Rows: []semanticentity.SemanticEntityRow{
 			{
 				RepoID:       inScopeRepo,
 				EntityID:     elixirVariableID,
@@ -213,7 +213,7 @@ RETURN count(n)`, map[string]any{"uid": controlVariableID, "repo_id": controlRep
 	// Variable node for that repo. This is the exact NornicDB grouped-DELETE
 	// path the #5152 fix targeted for other writers; assert it actually
 	// removes the rows rather than silently under-applying.
-	if _, err := writer.WriteSemanticEntities(ctx, reducer.SemanticEntityWrite{
+	if _, err := writer.WriteSemanticEntities(ctx, semanticentity.SemanticEntityWrite{
 		RepoIDs: []string{inScopeRepo},
 		Rows:    nil,
 	}); err != nil {

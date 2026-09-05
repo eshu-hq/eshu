@@ -8,13 +8,13 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/eshu-hq/eshu/go/internal/reducer"
+	"github.com/eshu-hq/eshu/go/internal/reducer/semanticentity"
 )
 
 // semanticRetractRow is a minimal valid Variable row (Variable is the #4367
 // retractable-node label whose only creator is this semantic path).
-func semanticRetractRow() reducer.SemanticEntityRow {
-	return reducer.SemanticEntityRow{
+func semanticRetractRow() semanticentity.SemanticEntityRow {
+	return semanticentity.SemanticEntityRow{
 		RepoID: "repo-1", EntityID: "var-1", EntityType: "Variable", EntityName: "SETTING",
 		FilePath: "pkg/config.py", RelativePath: "pkg/config.py", Language: "python",
 		StartLine: 1, EndLine: 1,
@@ -58,7 +58,7 @@ func TestSemanticDeltaRetractGroupsWithUpserts(t *testing.T) {
 
 	rec := &dispatchRouteRecorder{}
 	w := NewSemanticEntityWriterWithCanonicalNodeRows(rec, 500).WithLabelScopedRetract()
-	if _, err := w.WriteSemanticEntities(context.Background(), reducer.SemanticEntityWrite{
+	if _, err := w.WriteSemanticEntities(context.Background(), semanticentity.SemanticEntityWrite{
 		RepoIDs: []string{"repo-1"}, DeltaProjection: true, DeltaFilePaths: []string{"pkg/config.py"},
 	}); err != nil {
 		t.Fatalf("delta retract error = %v, want nil", err)
@@ -78,7 +78,7 @@ func TestSemanticFullRetractGroupsWithUpserts(t *testing.T) {
 
 	rec := &dispatchRouteRecorder{}
 	w := NewSemanticEntityWriterWithCanonicalNodeRows(rec, 500).WithLabelScopedRetract()
-	if _, err := w.WriteSemanticEntities(context.Background(), reducer.SemanticEntityWrite{
+	if _, err := w.WriteSemanticEntities(context.Background(), semanticentity.SemanticEntityWrite{
 		RepoIDs: []string{"repo-1"},
 	}); err != nil {
 		t.Fatalf("full retract error = %v, want nil", err)
@@ -101,9 +101,9 @@ func TestSemanticWriteWithRetractGroupsRetractBeforeUpserts(t *testing.T) {
 
 	rec := &dispatchRouteRecorder{}
 	w := NewSemanticEntityWriterWithCanonicalNodeRows(rec, 500).WithLabelScopedRetract()
-	if _, err := w.WriteSemanticEntities(context.Background(), reducer.SemanticEntityWrite{
+	if _, err := w.WriteSemanticEntities(context.Background(), semanticentity.SemanticEntityWrite{
 		RepoIDs:         []string{"repo-1"},
-		Rows:            []reducer.SemanticEntityRow{semanticRetractRow()},
+		Rows:            []semanticentity.SemanticEntityRow{semanticRetractRow()},
 		DeltaProjection: true,
 		DeltaFilePaths:  []string{"pkg/config.py"},
 	}); err != nil {
@@ -146,9 +146,9 @@ func TestSemanticRetractFallsBackToExecuteWithoutGroupExecutor(t *testing.T) {
 		t.Fatal("executeOnlyRouteRecorder implements GroupExecutor; it must not, or this test proves nothing about the fallback")
 	}
 	w := NewSemanticEntityWriterWithCanonicalNodeRows(rec, 500).WithLabelScopedRetract()
-	if _, err := w.WriteSemanticEntities(context.Background(), reducer.SemanticEntityWrite{
+	if _, err := w.WriteSemanticEntities(context.Background(), semanticentity.SemanticEntityWrite{
 		RepoIDs:         []string{"repo-1"},
-		Rows:            []reducer.SemanticEntityRow{semanticRetractRow()},
+		Rows:            []semanticentity.SemanticEntityRow{semanticRetractRow()},
 		DeltaProjection: true,
 		DeltaFilePaths:  []string{"pkg/config.py"},
 	}); err != nil {

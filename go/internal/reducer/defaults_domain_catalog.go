@@ -5,6 +5,7 @@ package reducer
 
 import (
 	"github.com/eshu-hq/eshu/go/internal/reducer/inheritance"
+	"github.com/eshu-hq/eshu/go/internal/reducer/semanticentity"
 )
 
 // implementedDefaultDomainDefinitions binds the reducer-owned handlers to the
@@ -86,13 +87,22 @@ func implementedDefaultDomainDefinitions(handlers DefaultHandlers) []DomainDefin
 				PlatformGraphLocker:        handlers.PlatformGraphLocker,
 			}
 		case DomainSemanticEntityMaterialization:
-			def.Handler = SemanticEntityMaterializationHandler{
+			semanticHandler := semanticentity.SemanticEntityMaterializationHandler{
 				FactLoader:           handlers.FactLoader,
 				Writer:               handlers.SemanticEntityWriter,
 				PriorGenerationCheck: handlers.PriorGenerationCheck,
 				PhasePublisher:       handlers.GraphProjectionPhasePublisher,
-				RepairQueue:          handlers.GraphProjectionRepairQueue,
 			}
+			// RepairQueue is an interface (#6061), so assigning a
+			// semanticEntityRepairQueueAdapter wrapping a nil
+			// handlers.GraphProjectionRepairQueue would produce a non-nil
+			// interface holding a nil queue, and the handler's
+			// "h.RepairQueue != nil" guard would dereference it on publish
+			// failure. Assign only when the root repair queue was wired.
+			if handlers.GraphProjectionRepairQueue != nil {
+				semanticHandler.RepairQueue = semanticEntityRepairQueueAdapter{queue: handlers.GraphProjectionRepairQueue}
+			}
+			def.Handler = semanticHandler
 		case DomainSQLRelationshipMaterialization:
 			def.Handler = SQLRelationshipMaterializationHandler{
 				FactLoader:   handlers.FactLoader,

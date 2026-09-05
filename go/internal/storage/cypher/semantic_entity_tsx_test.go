@@ -8,7 +8,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/eshu-hq/eshu/go/internal/reducer"
+	"github.com/eshu-hq/eshu/go/internal/reducer/semanticentity"
 )
 
 func TestSemanticEntityWriterWritesTSXFunctionFragmentMetadata(t *testing.T) {
@@ -17,9 +17,9 @@ func TestSemanticEntityWriterWritesTSXFunctionFragmentMetadata(t *testing.T) {
 	executor := &recordingExecutor{}
 	writer := NewSemanticEntityWriter(executor, 0)
 
-	result, err := writer.WriteSemanticEntities(context.Background(), reducer.SemanticEntityWrite{
+	result, err := writer.WriteSemanticEntities(context.Background(), semanticentity.SemanticEntityWrite{
 		RepoIDs: []string{"repo-1"},
-		Rows: []reducer.SemanticEntityRow{
+		Rows: []semanticentity.SemanticEntityRow{
 			{
 				RepoID:       "repo-1",
 				EntityID:     "function-tsx-1",
@@ -64,9 +64,9 @@ func TestSemanticEntityWriterWritesTSXVariableComponentTypeAssertionMetadata(t *
 	executor := &recordingExecutor{}
 	writer := NewSemanticEntityWriter(executor, 0)
 
-	result, err := writer.WriteSemanticEntities(context.Background(), reducer.SemanticEntityWrite{
+	result, err := writer.WriteSemanticEntities(context.Background(), semanticentity.SemanticEntityWrite{
 		RepoIDs: []string{"repo-1"},
-		Rows: []reducer.SemanticEntityRow{
+		Rows: []semanticentity.SemanticEntityRow{
 			{
 				RepoID:       "repo-1",
 				EntityID:     "variable-tsx-1",
@@ -111,9 +111,9 @@ func TestSemanticEntityWriterWritesTSXComponentWrapperMetadata(t *testing.T) {
 	executor := &recordingExecutor{}
 	writer := NewSemanticEntityWriter(executor, 0)
 
-	result, err := writer.WriteSemanticEntities(context.Background(), reducer.SemanticEntityWrite{
+	result, err := writer.WriteSemanticEntities(context.Background(), semanticentity.SemanticEntityWrite{
 		RepoIDs: []string{"repo-1"},
-		Rows: []reducer.SemanticEntityRow{
+		Rows: []semanticentity.SemanticEntityRow{
 			{
 				RepoID:       "repo-1",
 				EntityID:     "component-tsx-1",

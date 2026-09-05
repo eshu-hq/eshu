@@ -147,7 +147,7 @@ func buildDocumentationDeltaScopeWithQuarantine(
 		}
 		// Trim document_id exactly where the pre-typing raw path did:
 		// semanticPayloadString returned strings.TrimSpace(str)
-		// (semantic_entity_materialization_helpers.go), so a
+		// (shared_payload_delta_compat.go), so a
 		// surrounding-whitespace document_id was trimmed before the empty
 		// check and before it flowed into the changedDocumentIDs map keys and
 		// the documentationGitDocumentIDPrefix HasPrefix comparisons below.
