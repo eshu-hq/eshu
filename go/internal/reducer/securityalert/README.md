@@ -158,9 +158,11 @@ or genuinely root-scoped shared state:
   (`security_alert_reconciliation_observed_version.go`) mirror
   `supply_chain_impact_security_alert.go` / `supply_chain_impact_ranges.go` /
   `supply_chain_impact_version_match.go`: pure version-string and
-  evidence-kind-fallback logic with no reducer-root state, taking the three
-  `SecurityAlertConsumption` fields the logic actually reads instead of the
-  root's full `supplyChainPackageConsumption` value type.
+  evidence-kind-fallback logic with no reducer-root state. Only
+  `exactConsumptionDependencyVersion` is re-parameterised, to the three
+  `SecurityAlertConsumption` fields the logic reads instead of the root's full
+  `supplyChainPackageConsumption` value type; the Evidence section below has the
+  detail.
 
 ### Tests
 
