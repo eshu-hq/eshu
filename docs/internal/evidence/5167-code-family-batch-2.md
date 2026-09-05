@@ -431,7 +431,9 @@ granted 500 repositories pays 0.11 ms; a caller granted three pays 13.93 ms.
 When the filter matches nothing the grant is what stops the walk — 0.20 ms
 scoped to one repository against 504.20 ms unscoped for the same filter, a
 pre-existing property of this route's paging that this change neither causes
-nor fixes, filed as #6540.
+nor fixes, filed as #6540. The shape those numbers rest on is pinned by
+`TestLivePostgresLanguageQueryGrantPlanShape`, which captures the statement
+from the production path and `EXPLAIN`s it against a live PostgreSQL 16.
 
 For an unscoped shared, admin, or local caller every grant predicate renders
 empty and every grant parameter is unbound, so the query text those callers

@@ -104,6 +104,7 @@ script, not committed; the working tree was verified clean afterwards.
 | 20 | `buildDirectoryCypher` reverted to its two-MATCH shape | `-run TestLanguageQueryUnscopedCypherTextIsFrozen` | `1` |
 | 21 | `buildFileCypher` reorders its tail to `ORDER BY f.name` | `-run TestLanguageQueryUnscopedCypherTextIsFrozen` | `1` |
 | 22 | `buildEntityCypherWithSemanticFilter` drops `labels(e)` from its RETURN | `-run TestLanguageQueryUnscopedCypherTextIsFrozen` | `1` |
+| 23 | `appendRepositoryGrantFilter` stops emitting the grant predicate, against a live PostgreSQL 16 | `-tags live_postgres_language_grant_plan -run TestLivePostgresLanguageQueryGrantPlanShape` | `1` |
 
 Rows 17 and 18 are the two ways the directory rewrite can be got wrong, and
 they fail differently on purpose. Row 17 reverts it and the statement returns
@@ -120,6 +121,12 @@ it looks only for grant artifacts, and none of these four add any — and
 restoring to `0`. Row 20 is the one that matters most: it is the accidental
 revert of the directory fix, and before this guard existed nothing on the route
 caught it. The driver is a scratch script like the rows above.
+
+Row 23 is the Postgres plan-shape guard. Neutering
+`appendRepositoryGrantFilter` so a scoped corpus-wide read carries no grant
+predicate reds it at exit `1` with `captured statement carries no grant
+predicate`, and restoring returns exit `0`. It is the only row here that runs
+against PostgreSQL rather than NornicDB.
 
 The live-backend rows above name
 `TestLiveNornicDBLanguageQueryDirectoryTwoClauseShapeReturnsNothing`, which was
@@ -340,9 +347,22 @@ order, the seed and measurement scripts kept with this note's working files
 (`d3-pg-seed.sql`, `d3-pg-measure.sql`, `d3-pg-auto.sql`, `d3-pg-peak.sql`).
 The statement is regenerated from the Go source when the measurement is re-run
 rather than stored here, so a builder change cannot leave a stale statement
-being measured the next time these numbers are taken. The extractor is a
-working file, not a committed gate: nothing fails today if the builder changes
-and nobody re-runs it.
+being measured the next time these numbers are taken. The extractor itself is a
+working file, not a committed gate.
+
+What IS committed is the shape:
+`TestLivePostgresLanguageQueryGrantPlanShape`
+(`go/internal/query/language_query_grant_plan_shape_live_test.go`, build tag
+`live_postgres_language_grant_plan`) captures the statement from the production
+path — the recording driver records what
+`SearchEntitiesByLanguageAndTypeForAccess` actually sent — and `EXPLAIN`s that
+text against a live PostgreSQL 16. It asserts the two properties the timings
+rest on: a narrow grant reaches an `Index Cond` on `content_entities_repo_idx`,
+and no grant width turns the read into a `Seq Scan`. It seeds its own 300,000-row
+corpus, which is where those shapes already hold; the timings in the table
+above come from the 2,000,000-row corpus and are not what the test pins, since
+they move with the machine. No CI job builds the tag, so this fires when someone
+runs it — the same contract as the NornicDB controls above.
 
 ## Verification
 
