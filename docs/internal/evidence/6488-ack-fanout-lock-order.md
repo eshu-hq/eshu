@@ -201,6 +201,42 @@ Full-module build passed on the earlier candidate. Broader validation and final
 review/preflight receipts remain outstanding; failures require baseline control
 or a fix before promotion. Focused live GREEN does not establish scale readiness.
 
+## Paired scale regression, not promotion evidence
+
+Seven serial baseline/candidate pairs used the unchanged 900-scope,
+25-generation, 67,500-work-row fixture, 57 batches, PostgreSQL 18.6, and the
+same quiet 16-logical-CPU remote host. Each trial used a fresh isolated schema;
+arm order reversed on even pairs. Both arms used the same 4 GiB disposable
+PostgreSQL tmpfs and default buffer/WAL settings. Earlier 1 GiB fixture samples
+are not substituted for this comparison. The baseline production SQL is
+`37e1fb548341bd337f14b591225e6c079f7007af`; diagnostic commit
+`f84496a062c5fc01fff6c48e279ac958d6b9d1f6` only moves complete metric logging
+before unchanged threshold assertions. Candidate production SQL is
+`ad8a41a034020264487f5f5e8dc08d88aa26fcdf`.
+
+| Metric, median of seven trial values | Baseline | Ordered candidate |
+| --- | --- | --- |
+| Identity batch ACK p95 | 1.988 ms | 3.002 ms |
+| CI/CD batch ACK p95 | 4.650 ms | 8.055 ms |
+| Identity fanout | 129.047 ms | 130.569 ms |
+| CI/CD fanout | 63.962 ms | 66.050 ms |
+| Convergence wall | 1.037372481 s | 1.382575575 s |
+| WAL bytes | 15,744,312 | 15,595,168 |
+
+All fourteen gate invocations exited 1. Baseline CI/CD p95 ranged
+4.581–4.810 ms; candidate ranged 7.982–8.126 ms, exceeding the unchanged 5 ms
+bound in every trial. Both arms also exceeded the identity fanout 100 ms and
+one-second convergence limits. Terminal truth assertions passed before metrics
+were reported. The candidate adds a repeatable ACK regression; baseline gate
+failures do not excuse it. No no-regression or merge-ready claim is supported.
+
+Raw per-trial logs are `/tmp/6488-scale-{baseline,candidate}-{1..7}.log`;
+the full runner status is `/tmp/6488-paired-scale-remote.log`, and the extracted
+fourteen vectors and summaries are `/tmp/6488-paired-scale-summary.json`.
+The opt-in `TEST: TestReducerAckFanoutScalePlanProbe` captures rolled-back
+production SQL plans at the same fixture size for diagnosis. Instrumented plan
+runs are distinct from these uninstrumented timings.
+
 ## Operator signals and limits
 
 No-Observability-Change: `eshu_dp_queue_depth` and

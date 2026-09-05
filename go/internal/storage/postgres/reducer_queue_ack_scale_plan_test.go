@@ -67,7 +67,16 @@ func (db *ackScalePlanDB) ExecContext(ctx context.Context, query string, args ..
 	}
 	db.calls[domain]++
 	if db.calls[domain] == 1 || db.calls[domain] == 30 {
-		db.explain(ctx, fmt.Sprintf("%s_ack_%d", domain, db.calls[domain]), query, args...)
+		name := fmt.Sprintf("%s_ack_%d", domain, db.calls[domain])
+		db.explain(ctx, name, query, args...)
+		if strings.Contains(query, "WITH locked_work AS MATERIALIZED") {
+			// Diagnostic-only candidate: reuse the tuple locked by this statement.
+			// This is never substituted into the production execution below.
+			variant := strings.Replace(query, "SELECT work_item_id\n    FROM fact_work_items", "SELECT work_item_id, ctid AS locked_tid\n    FROM fact_work_items", 1)
+			variant = strings.Replace(variant, "work.work_item_id IN (SELECT work_item_id FROM locked_work)", "work.ctid = ANY(ARRAY(SELECT locked_tid FROM locked_work))", 1)
+			variant = strings.Replace(variant, "WHERE work_item_id IN (SELECT work_item_id FROM locked_work)", "WHERE ctid = ANY(ARRAY(SELECT locked_tid FROM locked_work))", 1)
+			db.explain(ctx, name+"_tuple_target_shim", variant, args...)
+		}
 	}
 	return db.SQLDB.ExecContext(ctx, query, args...)
 }
