@@ -519,6 +519,27 @@ would restore the costs and is a hack; repointing the callers at `factload`
 directly would widen this PR past its scope. The four `retryableFactLoadError`
 methods also leave the `-m` output, but only because they changed package.
 
+Measured wall-clock (#6359, closes the argument-from-shape above).
+`BenchmarkLoad{CodeownersOwnership,Documentation,Rationale,ShellExec,SubmodulePin}MaterializationFacts`
+(`go/internal/reducer/factload_materialization_bench_test.go`, shared
+501-envelope in-memory corpus over `stubFactLoader`, `go test
+./internal/reducer/ -run '^$' -bench 'MaterializationFacts' -benchmem`),
+darwin/arm64 Apple M4 Pro, go1.26.6 (the `-m=2` costs above were taken on
+go1.27.0; same tree, toolchain differs, noted so a rerun compares
+like-for-like):
+
+- codeowners 16.60 ns/op, 32 B/op, 1 alloc/op
+- documentation 18.57 ns/op, 48 B/op, 1 alloc/op
+- rationale 16.81 ns/op, 32 B/op, 1 alloc/op
+- shellexec 16.66 ns/op, 32 B/op, 1 alloc/op
+- submodule-pin 16.83 ns/op, 32 B/op, 1 alloc/op
+
+One non-inlined wrapper call is ~17 ns against the millisecond store read it
+immediately issues — almost five orders of magnitude — so the accepted
+inlinability loss is noise on this path. No before/after-hoist delta is recorded because a
+delta on a 17 ns wrapper would itself be noise; the absolute magnitude is the
+evidence the acceptance argument needed.
+
 The probe, so the next reader can reproduce it rather than trust the list. The
 inline LIST (function names) reproduces with plain `-m`, but the COST figures
 above came from `-m=2`: on go1.27.0, plain `-gcflags=-m` prints neither costs
