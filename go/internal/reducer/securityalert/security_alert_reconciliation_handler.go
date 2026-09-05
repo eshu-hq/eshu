@@ -142,7 +142,7 @@ func (h SecurityAlertReconciliationHandler) Handle(ctx context.Context, intent r
 	inputInvalidCount := factdecode.RecordQuarantinedFacts(ctx, h.Instruments, reducercontract.DomainSecurityAlertReconciliation, intent.ScopeID, intent.GenerationID, quarantined)
 	if shouldDeferSecurityAlertReconciliationForPendingImpact(intent, decisions) {
 		return reducercontract.Result{}, retryableSecurityAlertReconciliationEvidenceError{
-			PackageID: firstUnmatchedPackageWithDependency(decisions),
+			packageID: firstUnmatchedPackageWithDependency(decisions),
 		}
 	}
 	writeResult, err := h.Writer.WriteSecurityAlertReconciliations(ctx, SecurityAlertReconciliationWrite{
@@ -328,14 +328,14 @@ func firstUnmatchedPackageWithDependency(decisions []SecurityAlertReconciliation
 }
 
 type retryableSecurityAlertReconciliationEvidenceError struct {
-	PackageID string
+	packageID string
 }
 
 func (e retryableSecurityAlertReconciliationEvidenceError) Error() string {
-	if strings.TrimSpace(e.PackageID) == "" {
+	if strings.TrimSpace(e.packageID) == "" {
 		return "security alert reconciliation waiting for package impact evidence"
 	}
-	return fmt.Sprintf("security alert reconciliation waiting for package impact evidence: %s", e.PackageID)
+	return fmt.Sprintf("security alert reconciliation waiting for package impact evidence: %s", e.packageID)
 }
 
 func (retryableSecurityAlertReconciliationEvidenceError) Retryable() bool {

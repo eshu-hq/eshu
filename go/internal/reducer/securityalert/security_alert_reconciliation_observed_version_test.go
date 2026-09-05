@@ -51,21 +51,21 @@ func TestBuildSecurityAlertReconciliationsReportsMissingAndMalformedObservedVers
 	repoID := "repo://github/eshu-hq/eshu"
 	tests := []struct {
 		name            string
-		PackageID       string
-		DependencyRange string
+		packageID       string
+		dependencyRange string
 		wantObserved    string
 		wantMissing     string
 	}{
 		{
 			name:            "range_only_manifest",
-			PackageID:       "npm://registry.npmjs.org/range-only",
-			DependencyRange: "^1.2.0",
+			packageID:       "npm://registry.npmjs.org/range-only",
+			dependencyRange: "^1.2.0",
 			wantMissing:     "installed package version missing",
 		},
 		{
 			name:            "malformed_version",
-			PackageID:       "npm://registry.npmjs.org/malformed-version",
-			DependencyRange: "not-a-version",
+			packageID:       "npm://registry.npmjs.org/malformed-version",
+			dependencyRange: "not-a-version",
 			wantObserved:    "not-a-version",
 			wantMissing:     "installed package version malformed",
 		},
@@ -79,14 +79,14 @@ func TestBuildSecurityAlertReconciliationsReportsMissingAndMalformedObservedVers
 				"provider":              "github_dependabot",
 				"provider_alert_number": int64(44),
 				"provider_state":        "open",
-				"package_id":            tc.PackageID,
+				"package_id":            tc.packageID,
 				"ecosystem":             "npm",
-				"package_name":          strings.TrimPrefix(tc.PackageID, "npm://registry.npmjs.org/"),
+				"package_name":          strings.TrimPrefix(tc.packageID, "npm://registry.npmjs.org/"),
 				"manifest_path":         "package-lock.json",
 				"cve_ids":               []string{"CVE-2026-0044"},
 			})
-			consumption := packageConsumptionCorrelationEnvelope("consume-"+tc.name, repoID, tc.PackageID, "package-lock.json")
-			consumption.Payload["dependency_range"] = tc.DependencyRange
+			consumption := packageConsumptionCorrelationEnvelope("consume-"+tc.name, repoID, tc.packageID, "package-lock.json")
+			consumption.Payload["dependency_range"] = tc.dependencyRange
 
 			decisions := BuildSecurityAlertReconciliations([]facts.Envelope{alert, consumption}, nil)
 
@@ -100,7 +100,7 @@ func TestBuildSecurityAlertReconciliationsReportsMissingAndMalformedObservedVers
 			if got, want := decision.ObservedVersion, tc.wantObserved; got != want {
 				t.Fatalf("ObservedVersion = %q, want %q", got, want)
 			}
-			if got, want := decision.RequestedRange, tc.DependencyRange; got != want {
+			if got, want := decision.RequestedRange, tc.dependencyRange; got != want {
 				t.Fatalf("RequestedRange = %q, want %q", got, want)
 			}
 			assertContainsString(t, decision.PackageMissingEvidence, tc.wantMissing)

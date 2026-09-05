@@ -14,14 +14,33 @@
 // (SecurityAlertReconciliationHandler), the domain definition
 // (SecurityAlertReconciliationDomainDefinition), and the Postgres writer
 // (PostgresSecurityAlertReconciliationWriter). SecurityAlertReconciliationDecision
-// is the family's canonical output row; the consumption-matching helpers
-// (MatchSecurityAlertConsumption, SecurityAlertRepositoryScopeMatches and
-// SecurityAlertIDMatches) decide which recorded consumption an alert
-// reconciles against, and were promoted from unexported reducer-root
-// helpers by the move because callers now sit outside this package.
-// SecurityAlertReconciliationStatus
+// is the family's canonical output row, and SecurityAlertReconciliationStatus
 // names the possible comparison outcomes (matched, unmatched, stale,
 // dismissed, fixed, provider_only, unsupported, ambiguous).
+//
+// The decoded evidence shapes the matching logic joins are
+// ProviderSecurityAlert, SecurityAlertConsumption and SecurityAlertImpact.
+// ExtractProviderSecurityAlerts and
+// ExtractProviderSecurityAlertsWithQuarantine decode provider alerts off the
+// typed seam, ExtractSecurityAlertConsumptions and
+// SecurityAlertPackageNameCandidates assemble the consumption side, and
+// MatchSecurityAlertConsumption, SecurityAlertRepositoryScopeMatches and
+// SecurityAlertIDMatches decide which recorded consumption an alert
+// reconciles against.
+//
+// Those eleven names -- ProviderSecurityAlert, SecurityAlertConsumption,
+// SecurityAlertImpact, ExtractProviderSecurityAlerts,
+// ExtractProviderSecurityAlertsWithQuarantine,
+// ExtractSecurityAlertConsumptions, SecurityAlertPackageNameCandidates,
+// SecurityAlertReconciliationDomainDefinition, MatchSecurityAlertConsumption,
+// SecurityAlertRepositoryScopeMatches and SecurityAlertIDMatches -- were all
+// unexported inside the reducer root before the #6061 move. Each is exported
+// here because a caller now sits outside this package: the reducer root's
+// remaining supply_chain_impact family, its domain registration, or this
+// package's root-side tests. SecurityAlertImpact is the exception worth
+// naming: it has no consumer outside this package today, and is exported for
+// symmetry with the two evidence shapes beside it rather than out of
+// necessity.
 //
 // # The manifest-consumption injection seam
 //
@@ -67,11 +86,14 @@
 // wires into other families' handlers also satisfies these local
 // declarations without duplicating any logic -- the same pattern
 // internal/reducer/codetaint's graph_ports.go established. A handful of
-// small, pure, reducer-root-owned helpers this package's own logic touches
+// small, pure helpers this package's own logic touches
 // (package-name-from-purl/package-ID parsing, the dependency-scope and
-// exact-version-match fallbacks, the evidence-kind default) are copied
-// locally rather than imported for the same reason; each copy names its root
-// source and the reasoning in a doc comment at its definition.
+// exact-version-match fallbacks, the evidence-kind default) are declared
+// locally rather than imported for the same reason. Some are still shared
+// with a root family and are copies; the two the move left with no other
+// caller (the root's former payloadBoolPointer and supplyChainDependencyScope)
+// are deleted from root in the same change and live only here. Each names its
+// root source and history in a doc comment at its definition.
 //
 // The reducer root keeps its own manifest-consumption bridge
 // (security_alert_manifest_dependency_match.go) and re-exports nothing else:

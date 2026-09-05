@@ -149,9 +149,10 @@ or genuinely root-scoped shared state:
   `supply_chain_impact_manifest_dependency.go`: pure purl/package-ID string
   parsing with no further dependency.
 - `securityAlertDependencyScope` / `securityAlertPayloadBoolPointer`
-  (`security_alert_reconciliation.go`) mirror
-  `supply_chain_impact_match.go`'s `supplyChainDependencyScope` /
-  `payloadBoolPointer`: four-line payload fallbacks.
+  (`security_alert_reconciliation.go`) are `supply_chain_impact_match.go`'s
+  former `supplyChainDependencyScope` / `payloadBoolPointer`: four-line payload
+  fallbacks this family was the only caller of, so the root copies are deleted
+  in the same change rather than left dead.
 - `securityAlertConsumptionEvidenceKind`, `exactConsumptionDependencyVersion`,
   `exactManifestDependencyVersion`, and `nonVersionDependencyPrefix`
   (`security_alert_reconciliation_observed_version.go`) mirror
@@ -199,8 +200,12 @@ imported, for the reason above; `packageNameFromPURL`/
 `packageNameFromPackageID`/`securityAlertDependencyScope`/
 `securityAlertPayloadBoolPointer`/`securityAlertConsumptionEvidenceKind`/
 `exactConsumptionDependencyVersion`/`exactManifestDependencyVersion`/
-`nonVersionDependencyPrefix` are locally copied verbatim from their reducer
-root originals for the same reason. The one real signature change is
+`nonVersionDependencyPrefix` are locally copied from their reducer root
+originals for the same reason. Two of the three version helpers are byte-identical;
+`exactConsumptionDependencyVersion` is re-parameterised to the three
+`SecurityAlertConsumption` fields it reads instead of the root's full
+`supplyChainPackageConsumption` value type, with a behaviour-equivalent body
+(root's one-line `normalizedSupplyChainVersionEcosystem` inlined). The one real signature change is
 `BuildSecurityAlertReconciliations`/`WithQuarantine` and
 `SecurityAlertReconciliationHandler` gaining the injected
 `ManifestConsumptionExtractor` (see above) in place of a direct call to the

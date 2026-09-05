@@ -118,12 +118,15 @@ func securityAlertConsumptionEvidenceKind(consumption SecurityAlertConsumption) 
 // nonVersionDependencyPrefix declare locally rather than importing the
 // reducer root's versions (supply_chain_impact_ranges.go,
 // supply_chain_impact_version_match.go): pure version-string classification
-// with no reducer-root state, shared verbatim (bodies unchanged) with
-// supply_chain's own observed-version resolution, which has not moved out of
-// root yet (issue #6061). This copy takes only the three
-// SecurityAlertConsumption fields the logic actually reads (lockfile,
-// installedVersion, dependencyRange) instead of the root's full
-// supplyChainPackageConsumption value type.
+// with no reducer-root state, shared with supply_chain's own observed-version
+// resolution, which has not moved out of root yet (issue #6061).
+// exactManifestDependencyVersion and nonVersionDependencyPrefix are
+// byte-identical to the root originals. exactConsumptionDependencyVersion is
+// not: it takes only the three SecurityAlertConsumption fields the logic
+// actually reads (lockfile, installedVersion, dependencyRange) instead of the
+// root's full supplyChainPackageConsumption value type, and inlines the root's
+// one-line normalizedSupplyChainVersionEcosystem. The behaviour is equivalent;
+// the body is not the same text.
 func exactConsumptionDependencyVersion(ecosystem string, lockfile bool, installedVersion, dependencyRange string) (string, bool) {
 	switch string(packageidentity.NormalizeEcosystem(packageidentity.Ecosystem(ecosystem))) {
 	case string(packageidentity.EcosystemCargo), string(packageidentity.EcosystemNuGet):

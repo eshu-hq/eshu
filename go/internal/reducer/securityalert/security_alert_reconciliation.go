@@ -317,12 +317,11 @@ func classifyProviderSecurityAlert(
 	return decision
 }
 
-// securityAlertPayloadBoolPointer declares locally rather than importing the
-// reducer root's payloadBoolPointer (supply_chain_impact_match.go): the root
-// helper is itself a thin conversion over
-// [payloadcore.PayloadBoolPointerValue] shared by several families that have
-// not moved out of root yet (issue #6061), so this mirrors it rather than
-// importing root for a four-line nil-guard.
+// securityAlertPayloadBoolPointer is the reducer root's former
+// payloadBoolPointer (supply_chain_impact_match.go), a thin nil-guard over
+// [payloadcore.PayloadBoolPointerValue]. This family was its only caller on
+// main, so the #6061 move left the root copy unused and this PR deletes it
+// there; the body lives here now rather than being imported back from root.
 func securityAlertPayloadBoolPointer(payload map[string]any, key string) *bool {
 	value, ok := payloadcore.PayloadBoolPointerValue(payload, key)
 	if !ok {
@@ -331,10 +330,10 @@ func securityAlertPayloadBoolPointer(payload map[string]any, key string) *bool {
 	return &value
 }
 
-// securityAlertDependencyScope declares locally rather than importing the
-// reducer root's supplyChainDependencyScope (supply_chain_impact_match.go):
-// same root-owned-by-several-families reason as
-// [securityAlertPayloadBoolPointer] above.
+// securityAlertDependencyScope is the reducer root's former
+// supplyChainDependencyScope (supply_chain_impact_match.go). Same history as
+// [securityAlertPayloadBoolPointer] above: this family was its only caller, so
+// this PR deletes the root copy rather than leaving it dead.
 func securityAlertDependencyScope(payload map[string]any) string {
 	if scope := payloadcore.PayloadStr(payload, "dependency_scope"); scope != "" {
 		return scope
