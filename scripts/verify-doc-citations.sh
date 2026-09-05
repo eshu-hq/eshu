@@ -116,7 +116,7 @@ command -v rg >/dev/null 2>&1 || {
 # so classify_test_citations downstream can tell a well-formed citation from
 # a format error.
 scan_test_citations() {
-  (cd "${docs_root}" && rg --no-heading --no-line-number -o \
+  (cd "${docs_root}" && rg --hidden --no-heading --no-line-number -o \
     -g '*.md' \
     '[A-Za-z0-9_./-]+\.go::[A-Za-z0-9_]+(/[A-Za-z0-9_]+)*' . 2>/dev/null || true) \
     | LC_ALL=C awk '{
@@ -137,7 +137,7 @@ scan_test_citations() {
 # as scan_test_citations (placeholder/glob shorthand, parent-escape, absolute
 # path).
 scan_fixture_citations() {
-  (cd "${docs_root}" && rg --no-heading --no-line-number -o \
+  (cd "${docs_root}" && rg --hidden --no-heading --no-line-number -o \
     -g '*.md' \
     '(tests/fixtures|testdata)/[A-Za-z0-9_./-]+' . 2>/dev/null || true) \
     | LC_ALL=C awk '{

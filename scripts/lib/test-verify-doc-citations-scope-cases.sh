@@ -3,7 +3,7 @@
 # Sourced by test-verify-doc-citations.sh, which owns scratch cleanup.
 run_doc_citation_scope_cases() {
   local scope kind root page out status
-  for scope in internal/evidence public/reference; do
+  for scope in internal/evidence public/reference .internal/evidence internal/.evidence; do
     for kind in TEST FIXTURE; do
       root="${tmp_root}/scope-${scope//\//-}-${kind}"
       page="docs/${scope}/scope-proof.md"
@@ -14,6 +14,8 @@ run_doc_citation_scope_cases() {
       else
         printf '%s\n' 'Fixture: `tests/fixtures/scope_missing/`.' >"${root}/${page}"
       fi
+      git -C "${root}" init -q
+      git -C "${root}" add -- "${page}"
       if run_verifier "${root}" "${out}"; then status=0; else status=$?; fi
       printf 'scope CLI: %s %s seeded exit=%d\n' "${scope}" "${kind}" "${status}"
       if [[ "${status}" -eq 1 ]]; then
@@ -28,7 +30,7 @@ run_doc_citation_scope_cases() {
       else
         assert_contains 'missing fixture tests/fixtures/scope_missing/' "${out}" "${scope}: names missing FIXTURE"
       fi
-      rm "${root}/${page}"
+      git -C "${root}" rm -q -f -- "${page}"
       if run_verifier "${root}" "${out}"; then
         record_pass "${scope}: removing ${kind} violation restores green"
       else
@@ -40,8 +42,10 @@ run_doc_citation_scope_cases() {
     write_go_test "${root}" 'go/internal/scope_test.go' 'func TestScopeExists(t *testing.T) {}'
     write_fixture "${root}" 'tests/fixtures/scope_used/'
     write_usage "${root}" 'go/internal/usage_test.go' 'scope_used'
+    mkdir -p "${root}/$(dirname "${page}")"
     printf '%s\n' 'Proof: `go/internal/scope_test.go::TestScopeExists`.' \
       'Fixture: `tests/fixtures/scope_used/`.' >"${root}/${page}"
+    git -C "${root}" add -- "${page}"
     if run_verifier "${root}" "${out}"; then
       record_pass "${scope}: valid citations pass"
     else

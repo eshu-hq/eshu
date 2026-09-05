@@ -3,6 +3,7 @@
 The citation checker previously read test and fixture citations only from
 public language pages and the parity matrix. The Markdown cap evaluated only
 `go/`. Both now include Markdown under `docs/`, including internal evidence.
+TEST and FIXTURE scans also traverse hidden directories under `docs/`.
 The cap still excludes fixture, generated, vendor, and hidden path segments.
 
 ## Regression proof
@@ -49,3 +50,11 @@ previous code-only job placement before the fix, and rejects missing jobs,
 conditional jobs or steps, and missing or commented-out commands. The generated gate reference is refreshed from
 the registry. No reducer, query, saved replay input, or golden snapshot changes
 are part of this fix.
+
+The existing `verify-contracts` job retains the cap and its self-tests during
+rollout: the trusted required-gates publisher reads the default branch's
+registry, which still names that job when this PR first runs. Regression cases
+reject removal or commenting of those invocations even when the dedicated job
+contains identical commands. Hidden-directory citation cases track pages in
+Git, reject missing TEST/FIXTURE targets by name, and verify removal restores
+green and valid citations produce nonzero counts.

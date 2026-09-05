@@ -151,6 +151,13 @@ jobs:
           scripts/test-verify-codeql-setup.sh
           scripts/verify-codeql-setup.sh
 
+      # The trusted required-gates publisher reads main's registry. Retain the
+      # previous owner while this PR introduces the dedicated cap job above.
+      - name: Verify Markdown file cap during registry rollout
+        run: |
+          scripts/test-verify-markdown-line-cap.sh
+          MARKDOWN_LINE_CAP_REQUIRE_BASE=1 scripts/verify-markdown-line-cap.sh --all
+
       - name: Verify security-scan tee-status helper
         run: scripts/test-security-scan-tee-status.sh
 
