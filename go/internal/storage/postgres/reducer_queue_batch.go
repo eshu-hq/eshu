@@ -220,7 +220,17 @@ func ackContainerImageIdentityReducerWorkBatchQuery(
 	}
 
 	return `
-WITH acknowledged AS MATERIALIZED (
+WITH locked_work AS MATERIALIZED (
+    SELECT work_item_id
+    FROM fact_work_items
+    WHERE (` + strings.Join(predicates, " OR ") + `)
+      AND stage = 'reducer'
+      AND domain = 'container_image_identity'
+      AND lease_owner = $2
+      AND status IN ('claimed', 'running')
+    ORDER BY work_item_id COLLATE "C"
+    FOR UPDATE
+), acknowledged AS MATERIALIZED (
 UPDATE fact_work_items AS work
 SET status = 'succeeded',
     provenance_edge_identity_upgrade_required = FALSE,
@@ -242,7 +252,9 @@ SET status = 'succeeded',
     failure_class = NULL,
     failure_message = NULL,
     failure_details = NULL
-WHERE (` + strings.Join(predicates, " OR ") + `)
+WHERE work.work_item_id IN (SELECT work_item_id FROM locked_work)
+  AND (SELECT count(*) FROM locked_work) > 0
+  AND (` + strings.Join(predicates, " OR ") + `)
   AND stage = 'reducer'
   AND domain = 'container_image_identity'
   AND lease_owner = $2
@@ -287,7 +299,17 @@ func ackCICDRunCorrelationReducerWorkBatchQuery(
 	}
 	sort.Strings(ids)
 	return `
-WITH acknowledged AS MATERIALIZED (
+WITH locked_work AS MATERIALIZED (
+    SELECT work_item_id
+    FROM fact_work_items
+    WHERE work_item_id = ANY($3::text[])
+      AND stage = 'reducer'
+      AND domain = 'ci_cd_run_correlation'
+      AND lease_owner = $2
+      AND status IN ('claimed', 'running')
+    ORDER BY work_item_id COLLATE "C"
+    FOR UPDATE
+), acknowledged AS MATERIALIZED (
 UPDATE fact_work_items AS work
 SET status = 'succeeded',
     cross_scope_completion_ack_epoch = cross_scope_completion_ack_epoch + 1,
@@ -298,7 +320,9 @@ SET status = 'succeeded',
     failure_class = NULL,
     failure_message = NULL,
     failure_details = NULL
-WHERE work.work_item_id = ANY($3::text[])
+WHERE work.work_item_id IN (SELECT work_item_id FROM locked_work)
+  AND (SELECT count(*) FROM locked_work) > 0
+  AND work.work_item_id = ANY($3::text[])
   AND stage = 'reducer'
   AND domain = 'ci_cd_run_correlation'
   AND lease_owner = $2
@@ -338,6 +362,16 @@ func ackReducerWorkBatchQuery(itemCount int) string {
 		placeholders[index] = fmt.Sprintf("$%d", index+3)
 	}
 	return fmt.Sprintf(`
+WITH locked_work AS MATERIALIZED (
+    SELECT work_item_id
+    FROM fact_work_items
+    WHERE work_item_id IN (%s)
+      AND stage = 'reducer'
+      AND lease_owner = $2
+      AND status IN ('claimed', 'running')
+    ORDER BY work_item_id COLLATE "C"
+    FOR UPDATE
+)
 UPDATE fact_work_items
 SET status = 'succeeded',
     provenance_edge_identity_upgrade_required = FALSE,
@@ -348,11 +382,13 @@ SET status = 'succeeded',
     failure_class = NULL,
     failure_message = NULL,
     failure_details = NULL
-WHERE work_item_id IN (%s)
+WHERE work_item_id IN (SELECT work_item_id FROM locked_work)
+  AND (SELECT count(*) FROM locked_work) > 0
+  AND work_item_id IN (%s)
   AND stage = 'reducer'
   AND lease_owner = $2
   AND status IN ('claimed', 'running')
-`, strings.Join(placeholders, ", "))
+`, strings.Join(placeholders, ", "), strings.Join(placeholders, ", "))
 }
 
 // FailBatch marks multiple claimed reducer work items as failed in a single
