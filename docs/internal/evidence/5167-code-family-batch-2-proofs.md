@@ -251,6 +251,95 @@ bisection stays committed inside
 `TestLiveNornicDBLanguageQueryDirectoryTwoClauseShapeReturnsNothing` as the control
 that fails when the backend behaviour moves.
 
+## The `content_entities` Grant Predicate, Measured
+
+Performance Evidence: the SQL side of that cost is now measured rather than
+asserted. `repo_id = ANY($n)` on `content_entities` is the one predicate this
+change adds to a paged Postgres read, and the paging is what makes it
+interesting: the statement ends `ORDER BY relative_path, start_line,
+entity_name LIMIT $n`, so PostgreSQL can serve it by walking
+`content_entities_path_idx` in order and stopping at 50 rows. How far it has to
+walk depends on how selective the grant is, which is the opposite of the
+intuition that a narrower grant is cheaper.
+
+Setup: PostgreSQL 16.15 in a throwaway container, all 126 repository migrations
+applied in `BootstrapDefinitions()` order, `content_entities` seeded to
+2,000,000 rows across 600 repositories (166,667 files at ~12 entities each,
+skewed repository sizes from 1,488 to 109,104 rows, language mix go 35 / ts 20
+/ py 15 / yaml 12 / java 10 / hcl 8 percent, `entity_type` correlated with
+language), `VACUUM (ANALYZE)` before measuring. The statement under test is
+extracted from the Go source, not retyped: the `fmt.Sprintf` template from
+`SearchEntitiesByLanguageAndTypeForAccess` plus the predicate fragments from
+`appendRepositoryGrantFilter`, `contentEntityTypeFilter` and
+`buildLanguageTypeEntityFilters`, assembled in that builder's own order.
+Filter under test: `entity_type = 'Function' AND language = 'go'`, `LIMIT 50`.
+Three warm samples per configuration, median reported, buffers read from the
+top node. Machine: Apple M1 Pro, 10 logical CPUs, 16 GiB;
+`shared_buffers=1GB`, `work_mem=64MB`, `random_page_cost=4` (the default —
+Eshu sets no SSD-tuned value).
+
+The plan-cache mode matters and is not a free choice: production opens Postgres
+through pgx v5 (`sql.Open("pgx", …)` in `OpenPostgres`) with no exec-mode
+override, so pgx caches NAMED prepared statements and PostgreSQL's own
+`plan_cache_mode = auto` decides. Every number below is from that mode, after
+five executions, which is the point where PostgreSQL is free to switch to a
+generic plan. It did not switch in any configuration measured.
+
+| Grant | Rows it can match | Median | Buffers | Plan |
+| --- | ---: | ---: | ---: | --- |
+| none (unscoped baseline) | 263,336 | 0.05 ms | 22 | ordered `content_entities_path_idx` walk |
+| 1 small repository | 189 | 0.42 ms | 186 | bitmap on `content_entities_repo_idx`, grant as Index Cond |
+| 2 small | 398 | 13.06 ms | 762 | bitmap, grant as Index Cond |
+| 3 small | 591 | **13.93 ms** | 907 | bitmap, grant as Index Cond |
+| 5 small | 987 | 7.02 ms | 3,795 | ordered path walk, grant as Filter |
+| 10 small | 1,983 | 3.72 ms | 2,606 | ordered path walk, grant as Filter |
+| 20 small | 3,978 | 1.20 ms | 1,034 | ordered path walk, grant as Filter |
+| 50 small | 10,230 | 0.68 ms | 528 | ordered path walk, grant as Filter |
+| 100 small | 20,929 | 0.29 ms | 217 | ordered path walk, grant as Filter |
+| 500 small | 146,698 | 0.11 ms | 41 | ordered path walk, grant as Filter |
+| 1 largest repository | 14,347 | 0.39 ms | 337 | ordered path walk, grant as Filter |
+| 500 largest | 242,421 | 0.08 ms | 22 | ordered path walk, grant as Filter |
+
+Three things this says, none of them guessable from the query text:
+
+1. **The cost is bounded and index-backed.** No configuration produces a
+   sequential scan. The worst measured scoped read is 13.93 ms and 907 buffers
+   against an unscoped baseline of 0.05 ms and 22 buffers — a real cost, on a
+   route whose budget is a user-facing API read, but not a table scan.
+2. **A narrow grant is the worst case, not a wide one.** Cost falls
+   monotonically as the grant widens, because the `LIMIT 50` page fills sooner.
+   A caller granted 500 repositories pays 0.11 ms; a caller granted three pays
+   13.93 ms. Any future tuning should be aimed at the small-grant end.
+3. **The predicate is not only a cost.** When the filter matches nothing —
+   a realistic request, for example Go functions in a repository that has no Go
+   — a narrow grant is what stops the walk: 0.20 ms and 186 buffers with a
+   1-repository grant, against 504.20 ms and 239,920 buffers for the same
+   filter unscoped.
+
+That last figure is worth stating plainly because it is NOT this change's
+doing: `ORDER BY … LIMIT` with a filter matching nothing walks
+`content_entities_path_idx` to the end, and on `main` today an unscoped caller
+already pays 504.20 ms for it. A scoped caller with a WIDE grant pays the same
+(475.99 ms, 239,920 buffers at 500 repositories), because a wide grant filters
+out nothing and the walk still runs to the end. The grant neither causes that
+shape nor fixes it; it is a pre-existing property of this route's paging and
+belongs in its own issue, not in this change.
+
+Recorded for the next reader rather than as a live risk: under
+`plan_cache_mode = force_generic_plan` the same statements are far worse — 238.73 ms
+at 500 small repositories, 348.59 ms at 500 large, up to 77,424 buffers —
+because a generic plan cannot see the grant array and bitmaps the whole thing.
+PostgreSQL's `auto` chooser rejected the generic plan in all nine
+configurations, so this is what a future planner or statistics change would
+cost, not what production pays today.
+
+Reproducing it: PostgreSQL 16 container on a free port, every migration in
+`go/internal/storage/postgres/migrations` applied in `BootstrapDefinitions()`
+order, the seed and measurement scripts kept with this note's working files
+(`d3-pg-seed.sql`, `d3-pg-measure.sql`, `d3-pg-auto.sql`, `d3-pg-peak.sql`).
+The statement is regenerated from the Go source on every run rather than stored
+here, so a builder change cannot leave a stale statement being measured.
+
 ## Verification
 
 Every command below was run after the last edit, from the batch-2 worktree with

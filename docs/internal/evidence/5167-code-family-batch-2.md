@@ -402,20 +402,36 @@ membership test against the caller's grant, on a node or column the query
 already matched, and it lands in the `WHERE` of the required `MATCH` that
 binds Repository (Cypher) or the statement's `WHERE` (SQL) — ahead of
 `SKIP`/`LIMIT`, ahead of `LIMIT $scan_limit`, and ahead of `LIMIT`/`OFFSET`. A
-scoped caller therefore reads no more rows than before and, on these two
+scoped caller therefore MATCHES no more rows than before and, on these two
 routes, strictly fewer: both were corpus-wide for a caller who named no
-repository. The SQL grant column is `content_entities.repo_id`, the same column
+repository. Matching fewer rows is not the same as reading fewer pages, and on
+the SQL side it is measurably not: see the Performance Evidence below, where a
+narrow grant makes the paged read do MORE work, not less. The SQL grant column is `content_entities.repo_id`, the same column
 that statement's single-repository branch already filters on. No query gains a
 clause, a hop, a `WITH`, or a second statement, and no builder's row count for
 an unscoped caller changes. Nothing here puts a filter in a `WITH`-attached
 `WHERE` or guards a disjunct with `$param <> ''`, the two NornicDB shapes
 recorded in
 [NornicDB Query-Shape Pitfalls](../../public/reference/nornicdb-query-pitfalls.md).
-The one cost that is real and undeclared by a measurement: a scoped caller's
-statement carries two extra bound arrays and one extra disjunct per Repository
-alias, on queries whose anchors and limits are otherwise identical. That cost
-falls only on scoped callers, who could not reach either route at all before
-this change.
+A scoped caller's statement also carries two extra bound arrays and one extra
+disjunct per Repository alias on the Cypher side, on queries whose anchors and
+limits are otherwise identical. That cost falls only on scoped callers, who
+could not reach either route at all before this change.
+
+Performance Evidence: the SQL side of that cost is now measured rather than
+asserted, in
+[#5167 code family batch 2a proofs](5167-code-family-batch-2-proofs.md#the-content_entities-grant-predicate-measured).
+`repo_id = ANY($n)` on `content_entities` is index-backed and bounded at every
+grant size — no configuration produces a sequential scan — and the worst
+measured scoped read is 13.93 ms / 907 buffers against an unscoped baseline of
+0.05 ms / 22 buffers, on 2,000,000 rows across 600 repositories. The surprise
+is the direction: a NARROW grant is the expensive one, because the statement's
+`ORDER BY … LIMIT 50` page fills sooner when the grant is wide. A caller
+granted 500 repositories pays 0.11 ms; a caller granted three pays 13.93 ms.
+When the filter matches nothing the grant is what stops the walk — 0.20 ms
+scoped to one repository against 504.20 ms unscoped for the same filter, a
+pre-existing property of this route's paging that this change neither causes
+nor fixes.
 
 For an unscoped shared, admin, or local caller every grant predicate renders
 empty and every grant parameter is unbound, so the query text those callers
