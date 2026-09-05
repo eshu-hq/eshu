@@ -1,0 +1,24 @@
+{
+  "odu": "odu:ifa-iam-can-assume-family",
+  "note": "Hand-derived from canonicalIAMCanAssumeEdgeUpsertCypherFormat (go/internal/storage/cypher/iam_can_assume_edge_writer.go), NOT from the port name and NOT from its statement-metadata label. The template is `MATCH (principal:CloudResource {uid: row.principal_uid}) MATCH (role:CloudResource {uid: row.role_uid}) MERGE (principal)-[rel:%s]->(role)`, and the %s is filled from iamCanAssumeRelationshipVocabulary, a closed single-member set screened per row by validateIAMCanAssumeRelationshipType -- so the type is CAN_ASSUME. iamCanAssumeEdgeLabel is \"IAM_CAN_ASSUME\" and is statement metadata only; it is not a relationship type and does not appear in the graph. The relationship MERGEs on its two endpoint nodes alone -- principal_kind and resolution_mode are SET after the MERGE, deliberately outside the key -- so there is no identity block, and those two are asserted as mutable properties instead. Each endpoint is a reducer.cloudjoin.CloudResourceUID value = sha256 over account_id, region, resource_type, resource_id: account_id 123456789012, region aws-global (IAM is global), and the (resource_type, resource_id) pairs (aws_iam_role, arn:aws:iam::123456789012:role/ci-deployer), (aws_iam_user, arn:aws:iam::123456789012:user/breakglass), (aws_iam_role, arn:aws:iam::123456789012:role/eshu-runtime). Exactly two edges: the runtime role's Allow trust statement names the deployer role and the breakglass user, both scanned in the same scope, so both resolve by ARN equality. The other seven permission facts contribute nothing on purpose -- one Deny grants nothing, one wildcard names no concrete node, one AWS-service principal is not an ARN, one foreign ARN was never scanned in this scope, one ghost role was never scanned so its whole statement cannot anchor, one self-assume carries no trust truth, and one inline-sourced statement is silently skipped. The unattached-observer role scans as a node but carries no trust statement, and the s3 bucket is not a role/user resource so the join index ignores it.",
+  "edges": [
+    {
+      "relationship_type": "CAN_ASSUME",
+      "source_entity_id": "a712550e19eb2304da5eb32c83e0c109f1d557d8afe6fcf6bec517ef36783472",
+      "target_entity_id": "fa6111f09be27dc6a8ae11af568600c22f91d8d89b509fb1c6a7f52c61c34c21",
+      "properties": {
+        "principal_kind": "role",
+        "resolution_mode": "arn"
+      }
+    },
+    {
+      "relationship_type": "CAN_ASSUME",
+      "source_entity_id": "29a37f9c23938075b25d8b1ec90f46e777ec0a2a1c672d42f851793e26996ba9",
+      "target_entity_id": "fa6111f09be27dc6a8ae11af568600c22f91d8d89b509fb1c6a7f52c61c34c21",
+      "properties": {
+        "principal_kind": "user",
+        "resolution_mode": "arn"
+      }
+    }
+  ]
+}
