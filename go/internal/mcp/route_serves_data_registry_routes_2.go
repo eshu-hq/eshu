@@ -125,7 +125,8 @@ var routeServesDataRegistryPart2 = map[string]routeServesDataSource{
 	// SupplyChainHandler.listSBOMAttachments -> h.SBOMAttachments
 	// (PostgresSBOMAttestationAttachmentStore): fact_kind = $1 bound to
 	// "reducer_sbom_attestation_attachment"
-	// (go/internal/query/sbom_attestation_attachments.go:28,72). The
+	// (sbomAttestationAttachmentFactKind in
+	// go/internal/query/sbom_attestation_attachments.go). The
 	// missing-evidence CTE also touches the effective container-image-identity
 	// support view — disclosed, not served.
 	"GET /api/v0/supply-chain/sbom-attestations/attachments": {
