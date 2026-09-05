@@ -128,6 +128,17 @@ func runCrossRepoDeadCodeConsumerPageWorkGuard(
 					t.Errorf("the page read scanned %d code_reachability_rows rows, want at most %d; it is bounded by the entity's fan-in rather than by its LIMIT",
 						scanned, crossRepoDeadCodeConsumerPageScanRowBudget)
 				}
+				// No sort at all, anywhere in the plan. The rows read say
+				// the LIMIT bounded the scan; this says WHY, and it is the
+				// assertion that stays true if a future planner finds some
+				// other way to over-read. An Incremental Sort presorted on
+				// entity_id is exactly the node this change removes, and it
+				// reads a group in full before it can emit that group's first
+				// row.
+				if sorts := crossRepoDeadCodeConsumerPageSortNodes(plan); len(sorts) > 0 {
+					t.Errorf("the page read plans %v under its Limit; the index is meant to supply the order so nothing has to sort",
+						sorts)
+				}
 				if !strings.Contains(plan, crossRepoDeadCodeConsumerPageRankIndex) {
 					t.Fatalf("the page read does not use %s, so it is ranking the group before its LIMIT:\n%s",
 						crossRepoDeadCodeConsumerPageRankIndex, plan)
@@ -272,4 +283,19 @@ func crossRepoDeadCodeConsumerPageScanRows(t *testing.T, plan string) int {
 		total += rows * loops
 	}
 	return total
+}
+
+// crossRepoDeadCodeConsumerPageSortNodePattern matches an EXPLAIN plan node
+// that sorts, in either spelling, whether it is the plan's root or a child.
+var crossRepoDeadCodeConsumerPageSortNodePattern = regexp.MustCompile(
+	`(?m)^\s*(?:->\s+)?(Incremental Sort|Sort)\s+\(cost`)
+
+// crossRepoDeadCodeConsumerPageSortNodes names every sort node in the plan.
+func crossRepoDeadCodeConsumerPageSortNodes(plan string) []string {
+	matches := crossRepoDeadCodeConsumerPageSortNodePattern.FindAllStringSubmatch(plan, -1)
+	nodes := make([]string, 0, len(matches))
+	for _, match := range matches {
+		nodes = append(nodes, match[1])
+	}
+	return nodes
 }
