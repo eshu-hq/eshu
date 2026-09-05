@@ -6,15 +6,17 @@ package query
 import (
 	"encoding/json"
 	"testing"
+
+	"github.com/eshu-hq/eshu/go/internal/query/supplychain/impact"
 )
 
 func TestBuildSupplyChainImpactExplanationReturnsRuntimePathAndMissingHops(t *testing.T) {
 	t.Parallel()
 
-	got := BuildSupplyChainImpactExplanation(
-		SupplyChainImpactExplanationFilter{FindingID: "finding-runtime"},
-		SupplyChainImpactExplanationRow{
-			Finding: SupplyChainImpactFindingRow{
+	got := impact.BuildSupplyChainImpactExplanation(
+		impact.SupplyChainImpactExplanationFilter{FindingID: "finding-runtime"},
+		impact.SupplyChainImpactExplanationRow{
+			Finding: impact.SupplyChainImpactFindingRow{
 				FindingID:           "finding-runtime",
 				CVEID:               "CVE-2026-0598",
 				PackageID:           "pkg:npm/example",
@@ -35,7 +37,7 @@ func TestBuildSupplyChainImpactExplanationReturnsRuntimePathAndMissingHops(t *te
 				MissingEvidence: []string{"fixed_version"},
 				EvidenceFactIDs: []string{"deploy-1", "catalog-1"},
 			},
-			EvidenceFacts: []SupplyChainImpactEvidenceFact{
+			EvidenceFacts: []impact.SupplyChainImpactEvidenceFact{
 				explanationFact("deploy-1", "reducer_ci_cd_run_correlation", map[string]any{
 					"artifact_digest": "sha256:runtime",
 					"image_ref":       "registry.example/api@sha256:runtime",
@@ -50,7 +52,7 @@ func TestBuildSupplyChainImpactExplanationReturnsRuntimePathAndMissingHops(t *te
 				}),
 			},
 		},
-		SupplyChainImpactReadinessEnvelope{State: ReadinessStateReadyWithFindings},
+		impact.SupplyChainImpactReadinessEnvelope{State: impact.ReadinessStateReadyWithFindings},
 	)
 
 	raw, err := json.Marshal(got)
@@ -80,10 +82,10 @@ func TestBuildSupplyChainImpactExplanationReturnsRuntimePathAndMissingHops(t *te
 func TestBuildSupplyChainImpactExplanationReturnsSemanticMissingHops(t *testing.T) {
 	t.Parallel()
 
-	got := BuildSupplyChainImpactExplanation(
-		SupplyChainImpactExplanationFilter{FindingID: "finding-repo-only"},
-		SupplyChainImpactExplanationRow{
-			Finding: SupplyChainImpactFindingRow{
+	got := impact.BuildSupplyChainImpactExplanation(
+		impact.SupplyChainImpactExplanationFilter{FindingID: "finding-repo-only"},
+		impact.SupplyChainImpactExplanationRow{
+			Finding: impact.SupplyChainImpactFindingRow{
 				FindingID:           "finding-repo-only",
 				CVEID:               "CVE-2026-0682",
 				PackageID:           "pkg:npm/example",
@@ -103,14 +105,14 @@ func TestBuildSupplyChainImpactExplanationReturnsSemanticMissingHops(t *testing.
 				},
 				EvidenceFactIDs: []string{"consume-1"},
 			},
-			EvidenceFacts: []SupplyChainImpactEvidenceFact{
+			EvidenceFacts: []impact.SupplyChainImpactEvidenceFact{
 				explanationFact("consume-1", "reducer_package_consumption_correlation", map[string]any{
 					"repository_id": "repo://example/api",
 					"package_id":    "pkg:npm/example",
 				}),
 			},
 		},
-		SupplyChainImpactReadinessEnvelope{State: ReadinessStateReadyWithFindings},
+		impact.SupplyChainImpactReadinessEnvelope{State: impact.ReadinessStateReadyWithFindings},
 	)
 
 	raw, err := json.Marshal(got)
@@ -135,10 +137,10 @@ func TestBuildSupplyChainImpactExplanationReturnsSemanticMissingHops(t *testing.
 func TestBuildSupplyChainImpactExplanationMapsPreciseRuntimeMissingHops(t *testing.T) {
 	t.Parallel()
 
-	got := BuildSupplyChainImpactExplanation(
-		SupplyChainImpactExplanationFilter{FindingID: "finding-workload-only"},
-		SupplyChainImpactExplanationRow{
-			Finding: SupplyChainImpactFindingRow{
+	got := impact.BuildSupplyChainImpactExplanation(
+		impact.SupplyChainImpactExplanationFilter{FindingID: "finding-workload-only"},
+		impact.SupplyChainImpactExplanationRow{
+			Finding: impact.SupplyChainImpactFindingRow{
 				FindingID:           "finding-workload-only",
 				CVEID:               "CVE-2026-1420",
 				PackageID:           "pkg:npm/example",
@@ -152,7 +154,7 @@ func TestBuildSupplyChainImpactExplanationMapsPreciseRuntimeMissingHops(t *testi
 				},
 			},
 		},
-		SupplyChainImpactReadinessEnvelope{State: ReadinessStateReadyWithFindings},
+		impact.SupplyChainImpactReadinessEnvelope{State: impact.ReadinessStateReadyWithFindings},
 	)
 
 	raw, err := json.Marshal(got)
@@ -175,10 +177,10 @@ func TestBuildSupplyChainImpactExplanationMapsPreciseRuntimeMissingHops(t *testi
 func TestBuildSupplyChainImpactExplanationUsesCatalogAnchorMissingReason(t *testing.T) {
 	t.Parallel()
 
-	got := BuildSupplyChainImpactExplanation(
-		SupplyChainImpactExplanationFilter{FindingID: "finding-catalog-anchor"},
-		SupplyChainImpactExplanationRow{
-			Finding: SupplyChainImpactFindingRow{
+	got := impact.BuildSupplyChainImpactExplanation(
+		impact.SupplyChainImpactExplanationFilter{FindingID: "finding-catalog-anchor"},
+		impact.SupplyChainImpactExplanationRow{
+			Finding: impact.SupplyChainImpactFindingRow{
 				FindingID:           "finding-catalog-anchor",
 				CVEID:               "CVE-2026-1548",
 				PackageID:           "pkg:npm/example",
@@ -195,10 +197,10 @@ func TestBuildSupplyChainImpactExplanationUsesCatalogAnchorMissingReason(t *test
 					serviceCatalogCorrelationFactKind + ":catalog-1",
 				},
 				MissingEvidence: []string{
-					serviceCatalogCorrelationMissingReason,
+					impact.ServiceCatalogCorrelationMissingReason,
 				},
 			},
-			EvidenceFacts: []SupplyChainImpactEvidenceFact{
+			EvidenceFacts: []impact.SupplyChainImpactEvidenceFact{
 				explanationFact("consume-1", "reducer_package_consumption_correlation", map[string]any{
 					"repository_id": "repo://example/api",
 					"package_id":    "pkg:npm/example",
@@ -210,28 +212,28 @@ func TestBuildSupplyChainImpactExplanationUsesCatalogAnchorMissingReason(t *test
 				}),
 			},
 		},
-		SupplyChainImpactReadinessEnvelope{State: ReadinessStateReadyWithFindings},
+		impact.SupplyChainImpactReadinessEnvelope{State: impact.ReadinessStateReadyWithFindings},
 	)
 
 	if got.Finding == nil {
 		t.Fatal("Finding = nil, want explained finding")
 	}
-	if containsString(got.Finding.MissingEvidence, serviceCatalogCorrelationMissingReason) {
+	if containsString(got.Finding.MissingEvidence, impact.ServiceCatalogCorrelationMissingReason) {
 		t.Fatalf("Finding.MissingEvidence = %#v, must not claim present catalog correlation is missing", got.Finding.MissingEvidence)
 	}
-	if !containsString(got.Finding.MissingEvidence, serviceCatalogAnchorMissingReason) {
-		t.Fatalf("Finding.MissingEvidence = %#v, want %s", got.Finding.MissingEvidence, serviceCatalogAnchorMissingReason)
+	if !containsString(got.Finding.MissingEvidence, impact.ServiceCatalogAnchorMissingReason) {
+		t.Fatalf("Finding.MissingEvidence = %#v, want %s", got.Finding.MissingEvidence, impact.ServiceCatalogAnchorMissingReason)
 	}
-	assertImpactPathHopMissingReason(t, got.ImpactPath, "service", serviceCatalogAnchorMissingReason)
+	assertImpactPathHopMissingReason(t, got.ImpactPath, "service", impact.ServiceCatalogAnchorMissingReason)
 }
 
 func TestBuildSupplyChainImpactExplanationKeepsRepositoryOnlyCatalogHop(t *testing.T) {
 	t.Parallel()
 
-	got := BuildSupplyChainImpactExplanation(
-		SupplyChainImpactExplanationFilter{FindingID: "finding-catalog-repo-only"},
-		SupplyChainImpactExplanationRow{
-			Finding: SupplyChainImpactFindingRow{
+	got := impact.BuildSupplyChainImpactExplanation(
+		impact.SupplyChainImpactExplanationFilter{FindingID: "finding-catalog-repo-only"},
+		impact.SupplyChainImpactExplanationRow{
+			Finding: impact.SupplyChainImpactFindingRow{
 				FindingID:           "finding-catalog-repo-only",
 				CVEID:               "CVE-2026-1548",
 				PackageID:           "pkg:npm/example",
@@ -247,17 +249,17 @@ func TestBuildSupplyChainImpactExplanationKeepsRepositoryOnlyCatalogHop(t *testi
 				EvidenceFactIDs: []string{"consume-1", "workload-1", "catalog-1"},
 				MissingEvidence: []string{
 					"runtime deployment evidence not linked to vulnerable package",
-					serviceCatalogAnchorMissingReason,
+					impact.ServiceCatalogAnchorMissingReason,
 				},
 			},
-			EvidenceFacts: []SupplyChainImpactEvidenceFact{
+			EvidenceFacts: []impact.SupplyChainImpactEvidenceFact{
 				explanationFact("catalog-1", serviceCatalogCorrelationFactKind, map[string]any{
 					"scope_id": "git-repository-scope:repo://example/api",
 					"outcome":  "exact",
 				}),
 			},
 		},
-		SupplyChainImpactReadinessEnvelope{State: ReadinessStateReadyWithFindings},
+		impact.SupplyChainImpactReadinessEnvelope{State: impact.ReadinessStateReadyWithFindings},
 	)
 
 	raw, err := json.Marshal(got)
@@ -274,17 +276,17 @@ func TestBuildSupplyChainImpactExplanationKeepsRepositoryOnlyCatalogHop(t *testi
 	}
 	assertImpactPathContainsHop(t, impactPath, "workload", "present")
 	assertImpactPathContainsHop(t, impactPath, "service", "missing_evidence")
-	assertImpactPathContainsMissingEvidence(t, impactPath, "service", serviceCatalogAnchorMissingReason)
-	assertJSONListContains(t, payload["missing_evidence"], serviceCatalogAnchorMissingReason)
+	assertImpactPathContainsMissingEvidence(t, impactPath, "service", impact.ServiceCatalogAnchorMissingReason)
+	assertJSONListContains(t, payload["missing_evidence"], impact.ServiceCatalogAnchorMissingReason)
 }
 
 func TestBuildSupplyChainImpactExplanationReturnsDeploymentLaneHopWithoutEnvironment(t *testing.T) {
 	t.Parallel()
 
-	got := BuildSupplyChainImpactExplanation(
-		SupplyChainImpactExplanationFilter{FindingID: "finding-deployment-lane"},
-		SupplyChainImpactExplanationRow{
-			Finding: SupplyChainImpactFindingRow{
+	got := impact.BuildSupplyChainImpactExplanation(
+		impact.SupplyChainImpactExplanationFilter{FindingID: "finding-deployment-lane"},
+		impact.SupplyChainImpactExplanationRow{
+			Finding: impact.SupplyChainImpactFindingRow{
 				FindingID:           "finding-deployment-lane",
 				CVEID:               "CVE-2026-1491",
 				PackageID:           "pkg:npm/example",
@@ -304,7 +306,7 @@ func TestBuildSupplyChainImpactExplanationReturnsDeploymentLaneHopWithoutEnviron
 					"service catalog evidence unresolved",
 				},
 			},
-			EvidenceFacts: []SupplyChainImpactEvidenceFact{
+			EvidenceFacts: []impact.SupplyChainImpactEvidenceFact{
 				explanationFact("consume-1", "reducer_package_consumption_correlation", map[string]any{
 					"repository_id": "repo://example/api",
 					"package_id":    "pkg:npm/example",
@@ -319,7 +321,7 @@ func TestBuildSupplyChainImpactExplanationReturnsDeploymentLaneHopWithoutEnviron
 				}),
 			},
 		},
-		SupplyChainImpactReadinessEnvelope{State: ReadinessStateReadyWithFindings},
+		impact.SupplyChainImpactReadinessEnvelope{State: impact.ReadinessStateReadyWithFindings},
 	)
 
 	raw, err := json.Marshal(got)
@@ -373,7 +375,7 @@ func assertImpactPathContainsHop(t *testing.T, raw []any, wantHop string, wantSt
 
 func assertImpactPathHopMissingReason(
 	t *testing.T,
-	impactPath []SupplyChainImpactPathHop,
+	impactPath []impact.SupplyChainImpactPathHop,
 	wantHop string,
 	wantReason string,
 ) {

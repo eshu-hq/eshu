@@ -12,6 +12,8 @@ import (
 	"net/url"
 	"strings"
 	"testing"
+
+	"github.com/eshu-hq/eshu/go/internal/query/supplychain/impact"
 )
 
 type countingRepositoryContentStore struct {
@@ -28,21 +30,21 @@ func (s *countingRepositoryContentStore) MatchRepositories(
 }
 
 type canonicalRepositoryImpactStore struct {
-	rows       []SupplyChainImpactFindingRow
-	lastFilter SupplyChainImpactFindingFilter
+	rows       []impact.SupplyChainImpactFindingRow
+	lastFilter impact.SupplyChainImpactFindingFilter
 	calls      int
 }
 
 func (s *canonicalRepositoryImpactStore) ListSupplyChainImpactFindings(
 	_ context.Context,
-	filter SupplyChainImpactFindingFilter,
-) ([]SupplyChainImpactFindingRow, error) {
+	filter impact.SupplyChainImpactFindingFilter,
+) ([]impact.SupplyChainImpactFindingRow, error) {
 	s.calls++
 	s.lastFilter = filter
 	if filter.RepositoryID != "repo://example/api" {
 		return nil, fmt.Errorf("repository_id = %q, want repo://example/api", filter.RepositoryID)
 	}
-	return append([]SupplyChainImpactFindingRow(nil), s.rows...), nil
+	return append([]impact.SupplyChainImpactFindingRow(nil), s.rows...), nil
 }
 
 type canonicalRepositorySecurityAlertStore struct {
@@ -105,7 +107,7 @@ func TestSupplyChainListImpactFindingsResolvesRepositorySelectors(t *testing.T) 
 				},
 			}
 			store := &canonicalRepositoryImpactStore{
-				rows: []SupplyChainImpactFindingRow{{
+				rows: []impact.SupplyChainImpactFindingRow{{
 					FindingID:    "finding-1",
 					RepositoryID: "repo://example/api",
 					ImpactStatus: "affected_exact",
@@ -140,7 +142,7 @@ func TestSupplyChainListImpactFindingsResolvesRepositorySelectors(t *testing.T) 
 			}
 
 			var resp struct {
-				Findings []SupplyChainImpactFindingResult `json:"findings"`
+				Findings []impact.SupplyChainImpactFindingResult `json:"findings"`
 			}
 			if err := json.Unmarshal(w.Body.Bytes(), &resp); err != nil {
 				t.Fatalf("json.Unmarshal: %v", err)

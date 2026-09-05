@@ -11,6 +11,8 @@ import (
 	"reflect"
 	"strconv"
 	"testing"
+
+	"github.com/eshu-hq/eshu/go/internal/query/supplychain/impact"
 )
 
 func TestAddSupplyChainRuntimeContextFactCICDRejectedEvidenceDoesNotFold(t *testing.T) {
@@ -31,8 +33,8 @@ func TestAddSupplyChainRuntimeContextFactCICDRejectedEvidenceDoesNotFold(t *test
 			"provenance_only":      true,
 		},
 	} {
-		out := map[string]SupplyChainRuntimeContext{}
-		addSupplyChainRuntimeContextFact(out, cicdRunCorrelationFactKind, "scope", payload)
+		out := map[string]impact.SupplyChainRuntimeContext{}
+		impact.AddSupplyChainRuntimeContextFact(out, cicdRunCorrelationFactKind, "scope", payload)
 		if _, ok := out["repository:r_rejected"]; ok {
 			t.Fatalf("rejected payload folded into runtime context: %#v", payload)
 		}
@@ -42,12 +44,12 @@ func TestAddSupplyChainRuntimeContextFactCICDRejectedEvidenceDoesNotFold(t *test
 func TestApplySupplyChainRuntimeContextUsesRepositoryEnvironmentOnlyAsExactDigestCandidate(t *testing.T) {
 	t.Parallel()
 
-	contextValue := SupplyChainRuntimeContext{
+	contextValue := impact.SupplyChainRuntimeContext{
 		Environments: []string{"production"},
 	}
 	row := osPackageFindingRowForRuntimeContext()
 	store := &runtimeContextFindingStore{
-		byRepo: map[string]SupplyChainRuntimeContext{
+		byRepo: map[string]impact.SupplyChainRuntimeContext{
 			"repository:r_217415d9": contextValue,
 		},
 		byDigest: map[string]map[string]string{
@@ -55,7 +57,7 @@ func TestApplySupplyChainRuntimeContextUsesRepositoryEnvironmentOnlyAsExactDiges
 		},
 	}
 	handler := &SupplyChainHandler{ImpactFindings: store}
-	rows := []SupplyChainImpactFindingRow{row}
+	rows := []impact.SupplyChainImpactFindingRow{row}
 
 	if err := handler.applySupplyChainRuntimeContext(context.Background(), rows, repositoryAccessFilter{AllScopes: true}); err != nil {
 		t.Fatalf("applySupplyChainRuntimeContext() error = %v, want nil", err)
@@ -75,10 +77,10 @@ func TestApplySupplyChainRuntimeContextUsesRepositoryEnvironmentOnlyAsExactDiges
 func TestApplySupplyChainRuntimeContextDoesNotDefaultUnconfirmedRepositoryEnvironment(t *testing.T) {
 	t.Parallel()
 
-	store := &runtimeContextFindingStore{byRepo: map[string]SupplyChainRuntimeContext{
+	store := &runtimeContextFindingStore{byRepo: map[string]impact.SupplyChainRuntimeContext{
 		"repository:r_217415d9": {Environments: []string{"production"}},
 	}}
-	rows := []SupplyChainImpactFindingRow{osPackageFindingRowForRuntimeContext()}
+	rows := []impact.SupplyChainImpactFindingRow{osPackageFindingRowForRuntimeContext()}
 	if err := (&SupplyChainHandler{ImpactFindings: store}).applySupplyChainRuntimeContext(
 		context.Background(),
 		rows,
@@ -96,12 +98,12 @@ func TestApplySupplyChainRuntimeContextCarriesCurrentDigestBoundEnvironmentEvide
 
 	row := osPackageFindingRowForRuntimeContext()
 	store := &runtimeContextFindingStore{
-		byRepo: map[string]SupplyChainRuntimeContext{},
+		byRepo: map[string]impact.SupplyChainRuntimeContext{},
 		byDigest: map[string]map[string]string{
 			row.SubjectDigest: {"production": "deploy_event"},
 		},
 	}
-	rows := []SupplyChainImpactFindingRow{row}
+	rows := []impact.SupplyChainImpactFindingRow{row}
 	rows[0].Environments = []string{"production"}
 
 	if err := (&SupplyChainHandler{ImpactFindings: store}).applySupplyChainRuntimeContext(
@@ -122,9 +124,9 @@ func TestApplySupplyChainRuntimeContextCarriesCurrentDigestBoundEnvironmentEvide
 func TestPlanSupplyChainRuntimeEnvironmentCandidatesSharesPageBudgetFairly(t *testing.T) {
 	t.Parallel()
 
-	rows := make([]SupplyChainImpactFindingRow, supplyChainImpactFindingMaxLimit)
+	rows := make([]impact.SupplyChainImpactFindingRow, supplyChainImpactFindingMaxLimit)
 	for i := range rows {
-		rows[i] = SupplyChainImpactFindingRow{
+		rows[i] = impact.SupplyChainImpactFindingRow{
 			FindingID:     "finding-" + strconv.Itoa(i),
 			SubjectDigest: "sha256:" + strconv.Itoa(i),
 			Environments:  []string{"staging", "production", "production"},
@@ -150,7 +152,7 @@ func TestPlanSupplyChainRuntimeEnvironmentCandidatesSharesPageBudgetFairly(t *te
 func TestPlanSupplyChainRuntimeEnvironmentCandidatesDeduplicatesSQLPairs(t *testing.T) {
 	t.Parallel()
 
-	rows := []SupplyChainImpactFindingRow{
+	rows := []impact.SupplyChainImpactFindingRow{
 		{SubjectDigest: "sha256:shared", Environments: []string{"production"}},
 		{SubjectDigest: "sha256:shared", Environments: []string{"production"}},
 	}
@@ -171,12 +173,12 @@ func TestApplySupplyChainRuntimeContextDefensivelyCopiesEnvironmentEvidence(t *t
 	sourceEvidence := map[string]string{"production": "deploy_event"}
 	row := osPackageFindingRowForRuntimeContext()
 	store := &runtimeContextFindingStore{
-		byRepo: map[string]SupplyChainRuntimeContext{
+		byRepo: map[string]impact.SupplyChainRuntimeContext{
 			row.RepositoryID: {Environments: []string{"production"}},
 		},
 		byDigest: map[string]map[string]string{row.SubjectDigest: sourceEvidence},
 	}
-	rows := []SupplyChainImpactFindingRow{row}
+	rows := []impact.SupplyChainImpactFindingRow{row}
 	if err := (&SupplyChainHandler{ImpactFindings: store}).applySupplyChainRuntimeContext(
 		context.Background(),
 		rows,
@@ -200,7 +202,7 @@ func TestApplySupplyChainRuntimeContextOmitsOrphanEnvironmentEvidence(t *testing
 
 	row := osPackageFindingRowForRuntimeContext()
 	store := &runtimeContextFindingStore{
-		byRepo: map[string]SupplyChainRuntimeContext{
+		byRepo: map[string]impact.SupplyChainRuntimeContext{
 			row.RepositoryID: {Environments: []string{"production"}},
 		},
 		byDigest: map[string]map[string]string{
@@ -210,7 +212,7 @@ func TestApplySupplyChainRuntimeContextOmitsOrphanEnvironmentEvidence(t *testing
 			},
 		},
 	}
-	rows := []SupplyChainImpactFindingRow{row}
+	rows := []impact.SupplyChainImpactFindingRow{row}
 	if err := (&SupplyChainHandler{ImpactFindings: store}).applySupplyChainRuntimeContext(
 		context.Background(),
 		rows,
@@ -229,7 +231,7 @@ func TestSupplyChainListAndExplainReportSameRuntimeEnvironmentEvidence(t *testin
 	t.Parallel()
 
 	const repositoryID = "repository:r_environment_evidence_parity"
-	finding := SupplyChainImpactFindingRow{
+	finding := impact.SupplyChainImpactFindingRow{
 		FindingID:     "finding-environment-evidence-parity",
 		CVEID:         "CVE-2026-5835",
 		PackageID:     "pkg:npm/example",
@@ -238,12 +240,12 @@ func TestSupplyChainListAndExplainReportSameRuntimeEnvironmentEvidence(t *testin
 		SubjectDigest: "sha256:environment-evidence-parity",
 		Environments:  []string{"production"},
 	}
-	contextValue := SupplyChainRuntimeContext{
+	contextValue := impact.SupplyChainRuntimeContext{
 		Environments: []string{"production"},
 	}
 	contextStore := &runtimeContextFindingStore{
-		rows:   []SupplyChainImpactFindingRow{finding},
-		byRepo: map[string]SupplyChainRuntimeContext{repositoryID: contextValue},
+		rows:   []impact.SupplyChainImpactFindingRow{finding},
+		byRepo: map[string]impact.SupplyChainRuntimeContext{repositoryID: contextValue},
 		byDigest: map[string]map[string]string{
 			finding.SubjectDigest: {"production": "deploy_event"},
 		},
@@ -251,7 +253,7 @@ func TestSupplyChainListAndExplainReportSameRuntimeEnvironmentEvidence(t *testin
 	handler := &SupplyChainHandler{
 		ImpactFindings: contextStore,
 		ImpactExplanations: &recordingSupplyChainImpactExplanationStore{
-			row: SupplyChainImpactExplanationRow{Finding: finding},
+			row: impact.SupplyChainImpactExplanationRow{Finding: finding},
 		},
 		Readiness: &recordingSupplyChainImpactReadinessStore{},
 	}
@@ -291,18 +293,18 @@ func BenchmarkFoldSupplyChainRuntimeContext200Repositories(b *testing.B) {
 		repositoryID := "repository:r_benchmark_" + strconv.Itoa(i)
 		facts = append(
 			facts,
-			fact{kind: workloadIdentityFactKindQuery, scopeID: repositoryID, payload: map[string]any{"workload_id": "workload:benchmark"}},
+			fact{kind: impact.WorkloadIdentityFactKindQuery, scopeID: repositoryID, payload: map[string]any{"workload_id": "workload:benchmark"}},
 			fact{kind: serviceCatalogCorrelationFactKind, scopeID: repositoryID, payload: map[string]any{"service_id": "service:benchmark", "outcome": "exact"}},
-			fact{kind: platformMaterializationFactKindQuery, scopeID: repositoryID, payload: map[string]any{"deployment_id": "deployment:benchmark"}},
+			fact{kind: impact.PlatformMaterializationFactKindQuery, scopeID: repositoryID, payload: map[string]any{"deployment_id": "deployment:benchmark"}},
 			fact{kind: cicdRunCorrelationFactKind, scopeID: repositoryID, payload: map[string]any{"environment": "production", "environment_evidence": "deploy_event", "outcome": "exact"}},
 		)
 	}
 	b.ReportAllocs()
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		out := make(map[string]SupplyChainRuntimeContext, repositoryCount)
+		out := make(map[string]impact.SupplyChainRuntimeContext, repositoryCount)
 		for _, item := range facts {
-			addSupplyChainRuntimeContextFact(out, item.kind, item.scopeID, item.payload)
+			impact.AddSupplyChainRuntimeContextFact(out, item.kind, item.scopeID, item.payload)
 		}
 		if len(out) != repositoryCount {
 			b.Fatalf("folded repositories = %d, want %d", len(out), repositoryCount)

@@ -8,6 +8,8 @@ import (
 	"net/http/httptest"
 	"strings"
 	"testing"
+
+	"github.com/eshu-hq/eshu/go/internal/query/supplychain/impact"
 )
 
 func TestSupplyChainImpactAggregateRoutesResolveRepositorySelectors(t *testing.T) {
@@ -51,13 +53,13 @@ func TestSupplyChainImpactAggregateRoutesResolveRepositorySelectors(t *testing.T
 
 			content := selectorAggregateContentStore()
 			store := &stubSupplyChainImpactAggregateStore{
-				count: SupplyChainImpactAggregateCount{
+				count: impact.SupplyChainImpactAggregateCount{
 					TotalFindings:    1,
 					ByPriorityBucket: map[string]int{"high": 1},
 					BySeverity:       map[string]int{"high": 1},
 				},
-				inventory: []SupplyChainImpactInventoryRow{{
-					Dimension: SupplyChainImpactInventoryByRepository,
+				inventory: []impact.SupplyChainImpactInventoryRow{{
+					Dimension: impact.SupplyChainImpactInventoryByRepository,
 					Value:     "repo://example/api",
 					Count:     1,
 				}},

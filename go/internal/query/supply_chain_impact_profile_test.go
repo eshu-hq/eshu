@@ -9,6 +9,8 @@ import (
 	"net/http/httptest"
 	"strings"
 	"testing"
+
+	"github.com/eshu-hq/eshu/go/internal/query/supplychain/impact"
 )
 
 func TestSupplyChainListImpactFindingsDefaultsToPreciseProfile(t *testing.T) {
@@ -29,7 +31,7 @@ func TestSupplyChainListImpactFindingsDefaultsToPreciseProfile(t *testing.T) {
 	if got, want := w.Code, http.StatusOK; got != want {
 		t.Fatalf("status = %d, want %d; body = %s", got, want, w.Body.String())
 	}
-	if got, want := store.lastFilter.DetectionProfile, SupplyChainImpactProfilePrecise; got != want {
+	if got, want := store.lastFilter.DetectionProfile, impact.SupplyChainImpactProfilePrecise; got != want {
 		t.Fatalf("filter.DetectionProfile = %q, want %q", got, want)
 	}
 
@@ -37,7 +39,7 @@ func TestSupplyChainListImpactFindingsDefaultsToPreciseProfile(t *testing.T) {
 	if err := json.Unmarshal(w.Body.Bytes(), &resp); err != nil {
 		t.Fatalf("json.Unmarshal: %v", err)
 	}
-	if got, want := resp["detection_profile"], SupplyChainImpactProfilePrecise; got != want {
+	if got, want := resp["detection_profile"], impact.SupplyChainImpactProfilePrecise; got != want {
 		t.Fatalf("detection_profile = %#v, want %q", got, want)
 	}
 }
@@ -46,19 +48,19 @@ func TestSupplyChainListImpactFindingsComprehensiveDoesNotFilterDownstream(t *te
 	t.Parallel()
 
 	store := &recordingSupplyChainImpactFindingStore{
-		rows: []SupplyChainImpactFindingRow{
+		rows: []impact.SupplyChainImpactFindingRow{
 			{
 				FindingID:        "finding-precise",
 				CVEID:            "CVE-2026-9001",
 				ImpactStatus:     "affected_exact",
-				DetectionProfile: SupplyChainImpactProfilePrecise,
+				DetectionProfile: impact.SupplyChainImpactProfilePrecise,
 			},
 			{
 				FindingID:        "finding-comprehensive",
 				CVEID:            "CVE-2026-9001",
 				ImpactStatus:     "possibly_affected",
 				MatchReason:      "range_only_manifest",
-				DetectionProfile: SupplyChainImpactProfileComprehensive,
+				DetectionProfile: impact.SupplyChainImpactProfileComprehensive,
 			},
 		},
 	}
@@ -81,13 +83,13 @@ func TestSupplyChainListImpactFindingsComprehensiveDoesNotFilterDownstream(t *te
 	}
 
 	var resp struct {
-		Findings         []SupplyChainImpactFindingResult `json:"findings"`
-		DetectionProfile string                           `json:"detection_profile"`
+		Findings         []impact.SupplyChainImpactFindingResult `json:"findings"`
+		DetectionProfile string                                  `json:"detection_profile"`
 	}
 	if err := json.Unmarshal(w.Body.Bytes(), &resp); err != nil {
 		t.Fatalf("json.Unmarshal: %v", err)
 	}
-	if got, want := resp.DetectionProfile, SupplyChainImpactProfileComprehensive; got != want {
+	if got, want := resp.DetectionProfile, impact.SupplyChainImpactProfileComprehensive; got != want {
 		t.Fatalf("detection_profile = %q, want %q", got, want)
 	}
 	if got, want := len(resp.Findings), 2; got != want {
@@ -97,14 +99,14 @@ func TestSupplyChainListImpactFindingsComprehensiveDoesNotFilterDownstream(t *te
 	for _, finding := range resp.Findings {
 		seen[finding.FindingID] = finding.DetectionProfile
 	}
-	if seen["finding-precise"] != SupplyChainImpactProfilePrecise {
-		t.Fatalf("precise row profile = %q, want %q", seen["finding-precise"], SupplyChainImpactProfilePrecise)
+	if seen["finding-precise"] != impact.SupplyChainImpactProfilePrecise {
+		t.Fatalf("precise row profile = %q, want %q", seen["finding-precise"], impact.SupplyChainImpactProfilePrecise)
 	}
-	if seen["finding-comprehensive"] != SupplyChainImpactProfileComprehensive {
-		t.Fatalf("comprehensive row profile = %q, want %q", seen["finding-comprehensive"], SupplyChainImpactProfileComprehensive)
+	if seen["finding-comprehensive"] != impact.SupplyChainImpactProfileComprehensive {
+		t.Fatalf("comprehensive row profile = %q, want %q", seen["finding-comprehensive"], impact.SupplyChainImpactProfileComprehensive)
 	}
 	for _, finding := range resp.Findings {
-		if finding.DetectionProfile == SupplyChainImpactProfileComprehensive && finding.MatchReason == "" {
+		if finding.DetectionProfile == impact.SupplyChainImpactProfileComprehensive && finding.MatchReason == "" {
 			t.Fatalf("comprehensive row %q must keep an explicit match_reason", finding.FindingID)
 		}
 	}
@@ -153,8 +155,8 @@ func TestSupplyChainImpactFindingQueryUsesDetectionProfileFilter(t *testing.T) {
 		"swift_semver_affected_range",
 		"swift_semver_known_fixed",
 	} {
-		if !strings.Contains(listSupplyChainImpactFindingsQuery, want) {
-			t.Fatalf("listSupplyChainImpactFindingsQuery missing %q:\n%s", want, listSupplyChainImpactFindingsQuery)
+		if !strings.Contains(impact.ListSupplyChainImpactFindingsQuery, want) {
+			t.Fatalf("impact.ListSupplyChainImpactFindingsQuery missing %q:\n%s", want, impact.ListSupplyChainImpactFindingsQuery)
 		}
 	}
 }
@@ -216,11 +218,11 @@ func TestDecodeSupplyChainImpactFindingRowBackfillsLegacyPreciseProfile(t *testi
 		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
-			row, err := decodeSupplyChainImpactFindingRow("finding-legacy-precise-"+tc.name, "inferred", tc.payload)
+			row, err := impact.DecodeSupplyChainImpactFindingRow("finding-legacy-precise-"+tc.name, "inferred", tc.payload)
 			if err != nil {
-				t.Fatalf("decodeSupplyChainImpactFindingRow() error = %v", err)
+				t.Fatalf("impact.DecodeSupplyChainImpactFindingRow() error = %v", err)
 			}
-			if got, want := row.DetectionProfile, SupplyChainImpactProfilePrecise; got != want {
+			if got, want := row.DetectionProfile, impact.SupplyChainImpactProfilePrecise; got != want {
 				t.Fatalf("DetectionProfile = %q, want %q for legacy fact qualifying as precise", got, want)
 			}
 		})
@@ -261,11 +263,11 @@ func TestDecodeSupplyChainImpactFindingRowBackfillsLegacyComprehensiveProfile(t 
 		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
-			row, err := decodeSupplyChainImpactFindingRow("finding-legacy-"+tc.name, "inferred", tc.payload)
+			row, err := impact.DecodeSupplyChainImpactFindingRow("finding-legacy-"+tc.name, "inferred", tc.payload)
 			if err != nil {
-				t.Fatalf("decodeSupplyChainImpactFindingRow() error = %v", err)
+				t.Fatalf("impact.DecodeSupplyChainImpactFindingRow() error = %v", err)
 			}
-			if got, want := row.DetectionProfile, SupplyChainImpactProfileComprehensive; got != want {
+			if got, want := row.DetectionProfile, impact.SupplyChainImpactProfileComprehensive; got != want {
 				t.Fatalf("DetectionProfile = %q, want %q", got, want)
 			}
 		})
@@ -282,11 +284,11 @@ func TestDecodeSupplyChainImpactFindingRowPreservesDetectionProfile(t *testing.T
             "detection_profile": "precise"
         }`)
 
-	row, err := decodeSupplyChainImpactFindingRow("finding-1", "inferred", payload)
+	row, err := impact.DecodeSupplyChainImpactFindingRow("finding-1", "inferred", payload)
 	if err != nil {
-		t.Fatalf("decodeSupplyChainImpactFindingRow() error = %v", err)
+		t.Fatalf("impact.DecodeSupplyChainImpactFindingRow() error = %v", err)
 	}
-	if got, want := row.DetectionProfile, SupplyChainImpactProfilePrecise; got != want {
+	if got, want := row.DetectionProfile, impact.SupplyChainImpactProfilePrecise; got != want {
 		t.Fatalf("DetectionProfile = %q, want %q", got, want)
 	}
 }

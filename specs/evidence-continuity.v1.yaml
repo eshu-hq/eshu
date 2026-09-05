@@ -62,7 +62,7 @@ rows:
     capability: supply_chain.impact_findings.list
     api_routes: ["GET /api/v0/supply-chain/impact/findings"]
     mcp_tools: ["list_supply_chain_impact_findings"]
-    source_fact: {ref: "go test ./internal/query -run '^(TestSupplyChainImpactFindingsExposeReachabilityWithoutDowngradingImpact|TestBuildSupplyChainImpactReadinessDistinguishesSourceStates)$' -count=1"}
+    source_fact: {ref: "go test ./internal/query ./internal/query/supplychain/impact -run '^(TestSupplyChainImpactFindingsExposeReachabilityWithoutDowngradingImpact|TestBuildSupplyChainImpactReadinessDistinguishesSourceStates)$' -count=1"}
     continuity:
       projection: {ref: "go test ./internal/query -run '^(TestPostgresSupplyChainImpactReadinessScopesAdvisoryFacts|TestSupplyChainListImpactFindingsDefaultsToPreciseProfile)$' -count=1"}
       api: {ref: "go test ./internal/query -run '^(TestSupplyChainExplainImpactFindingIncludesEvidenceChain|TestSupplyChainListImpactFindingsDefaultsExcludeOperatorSuppressions)$' -count=1"}
@@ -74,7 +74,7 @@ rows:
     negative_cases:
       - {case: empty_evidence, ref: "go test ./internal/query -run '^(TestSupplyChainListImpactFindingsAttachesReadinessForZeroFindings)$' -count=1"}
       - {case: missing_evidence, ref: "go test ./internal/query -run '^(TestBuildSupplyChainImpactReadinessClassifiesMissingSBOMOrImageEvidence)$' -count=1"}
-      - {case: stale_evidence, ref: "go test ./internal/query -run '^(TestBuildSupplyChainImpactReadinessFailsClosedForStalePackageMetadata)$' -count=1"}
+      - {case: stale_evidence, ref: "go test ./internal/query/supplychain/impact -run '^(TestBuildSupplyChainImpactReadinessFailsClosedForStalePackageMetadata)$' -count=1"}
       - {case: truncated_evidence, ref: "go test ./internal/query -run '^(TestSupplyChainImpactAggregateInventoryReportsTruncated)$' -count=1"}
       - {case: inaccessible_evidence, ref: "go test ./internal/query -run '^(TestSupplyChainImpactScopedRepositorySelectorDeniesOutOfGrantWithoutStoreRead)$' -count=1"}
     properties: *required_properties

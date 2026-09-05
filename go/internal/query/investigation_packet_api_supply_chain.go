@@ -7,6 +7,7 @@ import (
 	"errors"
 	"net/http"
 
+	"github.com/eshu-hq/eshu/go/internal/query/supplychain/impact"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
 )
 
@@ -46,7 +47,7 @@ func (h *SupplyChainHandler) getImpactPacket(w http.ResponseWriter, r *http.Requ
 		writeInvestigationPacket(w, r, packet)
 		return
 	}
-	filter := trimSupplyChainImpactExplanationFilter(SupplyChainImpactExplanationFilter{
+	filter := impact.TrimSupplyChainImpactExplanationFilter(impact.SupplyChainImpactExplanationFilter{
 		FindingID:     QueryParam(r, "finding_id"),
 		AdvisoryID:    QueryParam(r, "advisory_id"),
 		CVEID:         QueryParam(r, "cve_id"),
@@ -57,7 +58,7 @@ func (h *SupplyChainHandler) getImpactPacket(w http.ResponseWriter, r *http.Requ
 		WorkloadID:    QueryParam(r, "workload_id"),
 		ServiceID:     QueryParam(r, "service_id"),
 	})
-	if !filter.hasBoundedScope() {
+	if !filter.HasBoundedScope() {
 		WriteError(w, http.StatusBadRequest, "finding_id, or advisory_id/cve_id plus package_id, repository_id, subject_digest, image_ref, workload_id, or service_id is required")
 		return
 	}
@@ -76,9 +77,9 @@ func (h *SupplyChainHandler) getImpactPacket(w http.ResponseWriter, r *http.Requ
 	}
 
 	row, err := h.ImpactExplanations.ExplainSupplyChainImpact(r.Context(), filter)
-	if errors.Is(err, ErrSupplyChainImpactExplanationNotFound) {
-		readiness := h.readSupplyChainImpactReadinessForScope(r, filter.readinessScope(), nil, false)
-		body := BuildSupplyChainImpactNoEvidenceExplanation(filter, readiness)
+	if errors.Is(err, impact.ErrSupplyChainImpactExplanationNotFound) {
+		readiness := h.readSupplyChainImpactReadinessForScope(r, filter.ReadinessScope(), nil, false)
+		body := impact.BuildSupplyChainImpactNoEvidenceExplanation(filter, readiness)
 		truth := BuildTruthEnvelope(
 			h.profile(),
 			supplyChainImpactExplanationCapability,
@@ -93,12 +94,12 @@ func (h *SupplyChainHandler) getImpactPacket(w http.ResponseWriter, r *http.Requ
 		writeInvestigationPacket(w, r, packet)
 		return
 	}
-	if errors.Is(err, ErrSupplyChainImpactExplanationAmbiguous) {
-		readiness := h.readSupplyChainImpactReadinessForScope(r, filter.readinessScope(), nil, false)
-		body := BuildSupplyChainImpactAmbiguousExplanation(
+	if errors.Is(err, impact.ErrSupplyChainImpactExplanationAmbiguous) {
+		readiness := h.readSupplyChainImpactReadinessForScope(r, filter.ReadinessScope(), nil, false)
+		body := impact.BuildSupplyChainImpactAmbiguousExplanation(
 			filter,
 			readiness,
-			supplyChainImpactExplanationAmbiguousCandidateCount(err),
+			impact.SupplyChainImpactExplanationAmbiguousCandidateCount(err),
 		)
 		truth := BuildTruthEnvelope(
 			h.profile(),
@@ -119,10 +120,10 @@ func (h *SupplyChainHandler) getImpactPacket(w http.ResponseWriter, r *http.Requ
 		return
 	}
 
-	scope := findingReadinessScope(row.Finding, filter)
-	findingResult := SupplyChainImpactFindingResult(row.Finding)
-	readiness := h.readSupplyChainImpactReadinessForScope(r, scope, []SupplyChainImpactFindingResult{findingResult}, false)
-	body := BuildSupplyChainImpactExplanation(filter, row, readiness)
+	scope := impact.FindingReadinessScope(row.Finding, filter)
+	findingResult := impact.SupplyChainImpactFindingResult(row.Finding)
+	readiness := h.readSupplyChainImpactReadinessForScope(r, scope, []impact.SupplyChainImpactFindingResult{findingResult}, false)
+	body := impact.BuildSupplyChainImpactExplanation(filter, row, readiness)
 	truth := BuildTruthEnvelope(
 		h.profile(),
 		supplyChainImpactExplanationCapability,

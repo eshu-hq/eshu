@@ -115,7 +115,7 @@ the tier semantics above.
   `config_only` or no tier at all from the service story surface for the
   same workload. Tracked in [#5582](https://github.com/eshu-hq/eshu/issues/5582).
 - **Supply-chain impact** (`findings[].deployment_truth_tier`,
-  `go/internal/query/supply_chain_impact_result.go`): now differentiates all
+  `go/internal/query/supplychain/impact/supply_chain_impact_result.go`): now differentiates all
   three evidence classes (#5452, closing the earlier gap tracked in #5472/#5474,
   both merged). A finding whose subject digest is observed running on a cloud
   resource classifies as `runtime_confirmed` (see the runtime_confirmed
@@ -164,7 +164,7 @@ is recorded in the [confidence calibration reference](confidence-calibration.md)
 ## Version resolution reuse (#5469)
 
 `supply_chain_impact` findings also disclose `version_resolution_tier` and
-`version_resolution_corroboration[]` (`go/internal/query/supply_chain_impact_version_resolution.go`).
+`version_resolution_corroboration[]` (`go/internal/query/supplychain/impact/supply_chain_impact_version_resolution.go`).
 These fields reuse the exact same closed `DeploymentTruthTier` vocabulary
 above — no new tier enum. They answer a narrower question than
 `deployment_truth_tier`: not "what is the strongest evidence that this

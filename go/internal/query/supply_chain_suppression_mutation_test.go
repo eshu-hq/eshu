@@ -11,19 +11,21 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/eshu-hq/eshu/go/internal/query/supplychain/impact"
+
 	vulnerabilitysuppressionv1 "github.com/eshu-hq/eshu/sdk/go/factschema/vulnerabilitysuppression/v1"
 )
 
 type recordingVulnerabilitySuppressionMutationStore struct {
 	value  vulnerabilitysuppressionv1.Suppression
-	result VulnerabilitySuppressionMutationResult
+	result impact.VulnerabilitySuppressionMutationResult
 	calls  int
 }
 
 func (s *recordingVulnerabilitySuppressionMutationStore) UpsertVulnerabilitySuppression(
 	_ context.Context,
 	value vulnerabilitysuppressionv1.Suppression,
-) (VulnerabilitySuppressionMutationResult, error) {
+) (impact.VulnerabilitySuppressionMutationResult, error) {
 	s.calls++
 	s.value = value
 	return s.result, nil
@@ -33,7 +35,7 @@ func TestCreateVulnerabilitySuppressionValidatesAndPersistsOperatorFact(t *testi
 	t.Parallel()
 
 	store := &recordingVulnerabilitySuppressionMutationStore{
-		result: VulnerabilitySuppressionMutationResult{
+		result: impact.VulnerabilitySuppressionMutationResult{
 			SuppressionID: "suppression-CVE-2026-00001",
 			GenerationID:  "suppression-generation-1",
 			Changed:       true,
@@ -105,7 +107,7 @@ func TestCreateVulnerabilitySuppressionReturnsUnchangedOnIdenticalRetry(t *testi
 	t.Parallel()
 
 	store := &recordingVulnerabilitySuppressionMutationStore{
-		result: VulnerabilitySuppressionMutationResult{
+		result: impact.VulnerabilitySuppressionMutationResult{
 			SuppressionID: "suppression-CVE-2026-00001",
 			GenerationID:  "suppression-generation-1",
 			Changed:       false,

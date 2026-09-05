@@ -11,22 +11,24 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"testing"
+
+	"github.com/eshu-hq/eshu/go/internal/query/supplychain/impact"
 )
 
 func TestInvestigationPacketAPISupplyChainMatchesSharedBuilder(t *testing.T) {
 	t.Parallel()
 
 	row := exactManifestAndImageExplanationRow()
-	filter := SupplyChainImpactExplanationFilter{FindingID: row.Finding.FindingID}
-	readinessSnapshot := SupplyChainImpactReadinessSnapshot{
-		EvidenceSources: []SupplyChainImpactEvidenceFamily{
-			{Family: EvidenceFamilyVulnerabilityAdvisory, FactCount: 1, Freshness: FreshnessLabelFresh},
-			{Family: EvidenceFamilyPackageConsumption, FactCount: 1, Freshness: FreshnessLabelFresh},
+	filter := impact.SupplyChainImpactExplanationFilter{FindingID: row.Finding.FindingID}
+	readinessSnapshot := impact.SupplyChainImpactReadinessSnapshot{
+		EvidenceSources: []impact.SupplyChainImpactEvidenceFamily{
+			{Family: impact.EvidenceFamilyVulnerabilityAdvisory, FactCount: 1, Freshness: impact.FreshnessLabelFresh},
+			{Family: impact.EvidenceFamilyPackageConsumption, FactCount: 1, Freshness: impact.FreshnessLabelFresh},
 		},
 	}
-	readiness := BuildSupplyChainImpactReadiness(
-		findingReadinessScope(row.Finding, filter),
-		[]SupplyChainImpactFindingResult{SupplyChainImpactFindingResult(row.Finding)},
+	readiness := impact.BuildSupplyChainImpactReadiness(
+		impact.FindingReadinessScope(row.Finding, filter),
+		[]impact.SupplyChainImpactFindingResult{impact.SupplyChainImpactFindingResult(row.Finding)},
 		false,
 		readinessSnapshot,
 	)
@@ -37,7 +39,7 @@ func TestInvestigationPacketAPISupplyChainMatchesSharedBuilder(t *testing.T) {
 		"resolved from one reducer-owned impact finding and its bounded evidence fact ids; reachability and deployment anchors are reported only when evidence exists",
 	)
 	expected, err := BuildSupplyChainImpactPacket(
-		BuildSupplyChainImpactExplanation(filter, row, readiness),
+		impact.BuildSupplyChainImpactExplanation(filter, row, readiness),
 		truth,
 		nil,
 	)
@@ -179,10 +181,10 @@ type failingSupplyChainImpactExplanationStore struct {
 
 func (s *failingSupplyChainImpactExplanationStore) ExplainSupplyChainImpact(
 	context.Context,
-	SupplyChainImpactExplanationFilter,
-) (SupplyChainImpactExplanationRow, error) {
+	impact.SupplyChainImpactExplanationFilter,
+) (impact.SupplyChainImpactExplanationRow, error) {
 	s.called = true
-	return SupplyChainImpactExplanationRow{}, errors.New("broad supply-chain impact explanation read")
+	return impact.SupplyChainImpactExplanationRow{}, errors.New("broad supply-chain impact explanation read")
 }
 
 func TestInvestigationPacketAPIDriftMatchesSharedBuilder(t *testing.T) {

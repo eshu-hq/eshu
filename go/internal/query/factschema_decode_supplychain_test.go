@@ -7,6 +7,7 @@ import (
 	"errors"
 	"testing"
 
+	"github.com/eshu-hq/eshu/go/internal/query/supplychain/impact"
 	"github.com/eshu-hq/eshu/sdk/go/factschema"
 )
 
@@ -131,7 +132,7 @@ func TestSupplyChainDecodeWrappersClassifyMissingRequiredField(t *testing.T) {
 func TestDecodeSupplyChainComponentEvidenceFallsBackForUnmatchedKind(t *testing.T) {
 	t.Parallel()
 
-	fact := SupplyChainImpactEvidenceFact{
+	fact := impact.SupplyChainImpactEvidenceFact{
 		FactID:   "fact-unmatched",
 		FactKind: "reducer_container_image_identity",
 		Payload:  map[string]any{"digest": "sha256:deadbeef"},
@@ -153,7 +154,7 @@ func TestDecodeSupplyChainComponentEvidenceDecodesKnownKinds(t *testing.T) {
 
 	t.Run("sbom.component", func(t *testing.T) {
 		t.Parallel()
-		fact := SupplyChainImpactEvidenceFact{
+		fact := impact.SupplyChainImpactEvidenceFact{
 			FactID:   "fact-component",
 			FactKind: factschema.FactKindSBOMComponent,
 			Payload: map[string]any{
@@ -174,7 +175,7 @@ func TestDecodeSupplyChainComponentEvidenceDecodesKnownKinds(t *testing.T) {
 
 	t.Run("package_registry.package_dependency", func(t *testing.T) {
 		t.Parallel()
-		fact := SupplyChainImpactEvidenceFact{
+		fact := impact.SupplyChainImpactEvidenceFact{
 			FactID:   "fact-dependency",
 			FactKind: factschema.FactKindPackageRegistryPackageDependency,
 			Payload: map[string]any{
@@ -196,7 +197,7 @@ func TestDecodeSupplyChainComponentEvidenceDecodesKnownKinds(t *testing.T) {
 
 	t.Run("service_catalog.ownership", func(t *testing.T) {
 		t.Parallel()
-		fact := SupplyChainImpactEvidenceFact{
+		fact := impact.SupplyChainImpactEvidenceFact{
 			FactID:   "fact-ownership",
 			FactKind: factschema.FactKindServiceCatalogOwnership,
 			Payload: map[string]any{

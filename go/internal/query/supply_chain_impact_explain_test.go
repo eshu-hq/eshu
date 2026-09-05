@@ -14,21 +14,23 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/eshu-hq/eshu/go/internal/query/supplychain/impact"
 )
 
 type recordingSupplyChainImpactExplanationStore struct {
-	row        SupplyChainImpactExplanationRow
+	row        impact.SupplyChainImpactExplanationRow
 	err        error
-	lastFilter SupplyChainImpactExplanationFilter
+	lastFilter impact.SupplyChainImpactExplanationFilter
 }
 
 func (s *recordingSupplyChainImpactExplanationStore) ExplainSupplyChainImpact(
 	_ context.Context,
-	filter SupplyChainImpactExplanationFilter,
-) (SupplyChainImpactExplanationRow, error) {
+	filter impact.SupplyChainImpactExplanationFilter,
+) (impact.SupplyChainImpactExplanationRow, error) {
 	s.lastFilter = filter
 	if s.err != nil {
-		return SupplyChainImpactExplanationRow{}, s.err
+		return impact.SupplyChainImpactExplanationRow{}, s.err
 	}
 	return s.row, nil
 }
@@ -75,8 +77,8 @@ func TestSupplyChainExplainImpactQueryUsesCanonicalFindingRows(t *testing.T) {
 		"effective_suppression_state",
 		"has_payload_finding_id",
 	} {
-		if !strings.Contains(explainSupplyChainImpactFindingQuery, want) {
-			t.Fatalf("explainSupplyChainImpactFindingQuery missing canonical dedupe marker %q:\n%s", want, explainSupplyChainImpactFindingQuery)
+		if !strings.Contains(impact.ExplainSupplyChainImpactFindingQuery, want) {
+			t.Fatalf("impact.ExplainSupplyChainImpactFindingQuery missing canonical dedupe marker %q:\n%s", want, impact.ExplainSupplyChainImpactFindingQuery)
 		}
 	}
 }
@@ -84,8 +86,8 @@ func TestSupplyChainExplainImpactQueryUsesCanonicalFindingRows(t *testing.T) {
 func TestSupplyChainExplainImpactQueryKeepsRollingUpgradeFindingIDStable(t *testing.T) {
 	t.Parallel()
 
-	if strings.Contains(explainSupplyChainImpactFindingQuery, "COALESCE(NULLIF(fact.payload->>'finding_id', ''), fact.fact_id) AS finding_id") {
-		t.Fatalf("explain query must not expose raw fact_id as legacy finding_id fallback:\n%s", explainSupplyChainImpactFindingQuery)
+	if strings.Contains(impact.ExplainSupplyChainImpactFindingQuery, "COALESCE(NULLIF(fact.payload->>'finding_id', ''), fact.fact_id) AS finding_id") {
+		t.Fatalf("explain query must not expose raw fact_id as legacy finding_id fallback:\n%s", impact.ExplainSupplyChainImpactFindingQuery)
 	}
 	for _, want := range []string{
 		"NULLIF(fact.payload->>'finding_id', '')",
@@ -94,8 +96,8 @@ func TestSupplyChainExplainImpactQueryKeepsRollingUpgradeFindingIDStable(t *test
 		"has_payload_finding_id DESC",
 		"fact_id ASC",
 	} {
-		if !strings.Contains(explainSupplyChainImpactFindingQuery, want) {
-			t.Fatalf("explain query missing rolling-upgrade canonical finding marker %q:\n%s", want, explainSupplyChainImpactFindingQuery)
+		if !strings.Contains(impact.ExplainSupplyChainImpactFindingQuery, want) {
+			t.Fatalf("explain query missing rolling-upgrade canonical finding marker %q:\n%s", want, impact.ExplainSupplyChainImpactFindingQuery)
 		}
 	}
 }
@@ -104,12 +106,12 @@ func TestSupplyChainExplainImpactFindingIncludesEvidenceChain(t *testing.T) {
 	t.Parallel()
 
 	readiness := &recordingSupplyChainImpactReadinessStore{
-		snapshot: SupplyChainImpactReadinessSnapshot{
-			EvidenceSources: []SupplyChainImpactEvidenceFamily{
-				{Family: EvidenceFamilyVulnerabilityAdvisory, FactCount: 2, Freshness: FreshnessLabelFresh},
-				{Family: EvidenceFamilyPackageConsumption, FactCount: 1, Freshness: FreshnessLabelFresh},
-				{Family: EvidenceFamilySBOMComponent, FactCount: 1, Freshness: FreshnessLabelFresh},
-				{Family: EvidenceFamilyContainerImageIdentity, FactCount: 1, Freshness: FreshnessLabelFresh},
+		snapshot: impact.SupplyChainImpactReadinessSnapshot{
+			EvidenceSources: []impact.SupplyChainImpactEvidenceFamily{
+				{Family: impact.EvidenceFamilyVulnerabilityAdvisory, FactCount: 2, Freshness: impact.FreshnessLabelFresh},
+				{Family: impact.EvidenceFamilyPackageConsumption, FactCount: 1, Freshness: impact.FreshnessLabelFresh},
+				{Family: impact.EvidenceFamilySBOMComponent, FactCount: 1, Freshness: impact.FreshnessLabelFresh},
+				{Family: impact.EvidenceFamilyContainerImageIdentity, FactCount: 1, Freshness: impact.FreshnessLabelFresh},
 			},
 		},
 	}
@@ -134,7 +136,7 @@ func TestSupplyChainExplainImpactFindingIncludesEvidenceChain(t *testing.T) {
 		t.Fatalf("FindingID = %q, want %q", got, want)
 	}
 
-	var resp SupplyChainImpactExplanationResult
+	var resp impact.SupplyChainImpactExplanationResult
 	if err := json.Unmarshal(w.Body.Bytes(), &resp); err != nil {
 		t.Fatalf("json.Unmarshal: %v", err)
 	}
@@ -187,7 +189,7 @@ func TestBuildSupplyChainImpactExplanationCoversEvidenceClasses(t *testing.T) {
 
 	cases := []struct {
 		name                string
-		row                 SupplyChainImpactExplanationRow
+		row                 impact.SupplyChainImpactExplanationRow
 		wantOutcome         string
 		wantVersionEvidence string
 		wantMissing         string
@@ -203,8 +205,8 @@ func TestBuildSupplyChainImpactExplanationCoversEvidenceClasses(t *testing.T) {
 		},
 		{
 			name: "range-only finding keeps observed version unknown",
-			row: SupplyChainImpactExplanationRow{
-				Finding: SupplyChainImpactFindingRow{
+			row: impact.SupplyChainImpactExplanationRow{
+				Finding: impact.SupplyChainImpactFindingRow{
 					FindingID:       "finding-range",
 					CVEID:           "CVE-2026-0002",
 					PackageID:       "pkg:npm/range-only",
@@ -218,7 +220,7 @@ func TestBuildSupplyChainImpactExplanationCoversEvidenceClasses(t *testing.T) {
 					MissingEvidence: []string{"observed_version"},
 					EvidenceFactIDs: []string{"affected-range", "consume-range"},
 				},
-				EvidenceFacts: []SupplyChainImpactEvidenceFact{
+				EvidenceFacts: []impact.SupplyChainImpactEvidenceFact{
 					explanationFact("affected-range", "vulnerability.affected_package", map[string]any{
 						"cve_id":         "CVE-2026-0002",
 						"package_id":     "pkg:npm/range-only",
@@ -239,8 +241,8 @@ func TestBuildSupplyChainImpactExplanationCoversEvidenceClasses(t *testing.T) {
 		},
 		{
 			name: "provider-only alert stays missing owned evidence",
-			row: SupplyChainImpactExplanationRow{
-				Finding: SupplyChainImpactFindingRow{
+			row: impact.SupplyChainImpactExplanationRow{
+				Finding: impact.SupplyChainImpactFindingRow{
 					FindingID:       "finding-provider",
 					CVEID:           "CVE-2026-0003",
 					AdvisoryID:      "GHSA-provider",
@@ -251,7 +253,7 @@ func TestBuildSupplyChainImpactExplanationCoversEvidenceClasses(t *testing.T) {
 					MissingEvidence: []string{"owned_packages", "advisory_sources"},
 					EvidenceFactIDs: []string{"provider-alert"},
 				},
-				EvidenceFacts: []SupplyChainImpactEvidenceFact{
+				EvidenceFacts: []impact.SupplyChainImpactEvidenceFact{
 					explanationFact("provider-alert", "provider.security_alert", map[string]any{
 						"provider":      "github",
 						"alert_id":      "alert-7",
@@ -266,8 +268,8 @@ func TestBuildSupplyChainImpactExplanationCoversEvidenceClasses(t *testing.T) {
 		},
 		{
 			name: "sbom image finding exposes image anchor",
-			row: SupplyChainImpactExplanationRow{
-				Finding: SupplyChainImpactFindingRow{
+			row: impact.SupplyChainImpactExplanationRow{
+				Finding: impact.SupplyChainImpactFindingRow{
 					FindingID:           "finding-image",
 					CVEID:               "CVE-2026-0004",
 					PackageID:           "pkg:npm/image-only",
@@ -280,7 +282,7 @@ func TestBuildSupplyChainImpactExplanationCoversEvidenceClasses(t *testing.T) {
 					SubjectDigest:       "sha256:def",
 					EvidenceFactIDs:     []string{"component-image", "attachment-image", "image-identity"},
 				},
-				EvidenceFacts: []SupplyChainImpactEvidenceFact{
+				EvidenceFacts: []impact.SupplyChainImpactEvidenceFact{
 					explanationFact("component-image", "sbom.component", map[string]any{
 						"document_id": "sbom-image",
 						"purl":        "pkg:npm/image-only@4.5.6",
@@ -309,10 +311,10 @@ func TestBuildSupplyChainImpactExplanationCoversEvidenceClasses(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
-			got := BuildSupplyChainImpactExplanation(
-				SupplyChainImpactExplanationFilter{FindingID: tc.row.Finding.FindingID},
+			got := impact.BuildSupplyChainImpactExplanation(
+				impact.SupplyChainImpactExplanationFilter{FindingID: tc.row.Finding.FindingID},
 				tc.row,
-				SupplyChainImpactReadinessEnvelope{State: ReadinessStateReadyWithFindings},
+				impact.SupplyChainImpactReadinessEnvelope{State: impact.ReadinessStateReadyWithFindings},
 			)
 			if got.Outcome != tc.wantOutcome {
 				t.Fatalf("Outcome = %q, want %q", got.Outcome, tc.wantOutcome)
@@ -339,14 +341,14 @@ func TestSupplyChainExplainImpactNoEvidenceResponse(t *testing.T) {
 	t.Parallel()
 
 	readiness := &recordingSupplyChainImpactReadinessStore{
-		snapshot: SupplyChainImpactReadinessSnapshot{
-			EvidenceSources: []SupplyChainImpactEvidenceFamily{
-				{Family: EvidenceFamilyVulnerabilityAdvisory, FactCount: 1, Freshness: FreshnessLabelFresh},
+		snapshot: impact.SupplyChainImpactReadinessSnapshot{
+			EvidenceSources: []impact.SupplyChainImpactEvidenceFamily{
+				{Family: impact.EvidenceFamilyVulnerabilityAdvisory, FactCount: 1, Freshness: impact.FreshnessLabelFresh},
 			},
 		},
 	}
 	store := &recordingSupplyChainImpactExplanationStore{
-		err: ErrSupplyChainImpactExplanationNotFound,
+		err: impact.ErrSupplyChainImpactExplanationNotFound,
 	}
 	handler := &SupplyChainHandler{ImpactExplanations: store, Readiness: readiness}
 	mux := http.NewServeMux()
@@ -363,7 +365,7 @@ func TestSupplyChainExplainImpactNoEvidenceResponse(t *testing.T) {
 		t.Fatalf("status = %d, want %d; body = %s", got, want, w.Body.String())
 	}
 
-	var resp SupplyChainImpactExplanationResult
+	var resp impact.SupplyChainImpactExplanationResult
 	if err := json.Unmarshal(w.Body.Bytes(), &resp); err != nil {
 		t.Fatalf("json.Unmarshal: %v", err)
 	}
@@ -385,14 +387,14 @@ func TestSupplyChainExplainImpactNoEvidenceResponse(t *testing.T) {
 	if !containsString(resp.MissingEvidence, "impact_finding") {
 		t.Fatalf("MissingEvidence = %#v, want impact_finding", resp.MissingEvidence)
 	}
-	if !containsString(resp.MissingEvidence, MissingEvidenceOwnedPackages) {
-		t.Fatalf("MissingEvidence = %#v, want %q", resp.MissingEvidence, MissingEvidenceOwnedPackages)
+	if !containsString(resp.MissingEvidence, impact.MissingEvidenceOwnedPackages) {
+		t.Fatalf("MissingEvidence = %#v, want %q", resp.MissingEvidence, impact.MissingEvidenceOwnedPackages)
 	}
 }
 
-func exactManifestAndImageExplanationRow() SupplyChainImpactExplanationRow {
-	return SupplyChainImpactExplanationRow{
-		Finding: SupplyChainImpactFindingRow{
+func exactManifestAndImageExplanationRow() impact.SupplyChainImpactExplanationRow {
+	return impact.SupplyChainImpactExplanationRow{
+		Finding: impact.SupplyChainImpactFindingRow{
 			FindingID:           "finding-1",
 			CVEID:               "CVE-2026-0001",
 			AdvisoryID:          "GHSA-test-1",
@@ -412,15 +414,15 @@ func exactManifestAndImageExplanationRow() SupplyChainImpactExplanationRow {
 			DirectDependency:    boolPtr(false),
 			EvidencePath:        []string{"vulnerability.affected_package", "reducer_package_consumption_correlation", "sbom.component"},
 			EvidenceFactIDs:     []string{"affected-1", "consume-1", "component-1", "attach-1", "image-1", "workload-1"},
-			Provenance: &SupplyChainImpactProvenance{
+			Provenance: &impact.SupplyChainImpactProvenance{
 				SelectedRangeSource:        "ghsa",
 				SelectedFixedVersionSource: "ghsa",
-				AdvisorySources: []SupplyChainAdvisorySource{
+				AdvisorySources: []impact.SupplyChainAdvisorySource{
 					{Source: "ghsa", AdvisoryID: "GHSA-test-1", SourceUpdatedAt: "2026-05-24T11:00:00Z"},
 				},
 			},
 		},
-		EvidenceFacts: []SupplyChainImpactEvidenceFact{
+		EvidenceFacts: []impact.SupplyChainImpactEvidenceFact{
 			explanationFact("affected-1", "vulnerability.affected_package", map[string]any{
 				"cve_id":         "CVE-2026-0001",
 				"advisory_id":    "GHSA-test-1",
@@ -465,8 +467,8 @@ func exactManifestAndImageExplanationRow() SupplyChainImpactExplanationRow {
 	}
 }
 
-func explanationFact(factID, factKind string, payload map[string]any) SupplyChainImpactEvidenceFact {
-	return SupplyChainImpactEvidenceFact{
+func explanationFact(factID, factKind string, payload map[string]any) impact.SupplyChainImpactEvidenceFact {
+	return impact.SupplyChainImpactEvidenceFact{
 		FactID:           factID,
 		FactKind:         factKind,
 		SourceSystem:     "test",
@@ -479,10 +481,10 @@ func explanationFact(factID, factKind string, payload map[string]any) SupplyChai
 func TestSupplyChainExplainImpactStoreErrorSentinelIdentity(t *testing.T) {
 	t.Parallel()
 
-	if !errors.Is(fmt.Errorf("wrap: %w", ErrSupplyChainImpactExplanationNotFound), ErrSupplyChainImpactExplanationNotFound) {
-		t.Fatal("ErrSupplyChainImpactExplanationNotFound must support errors.Is")
+	if !errors.Is(fmt.Errorf("wrap: %w", impact.ErrSupplyChainImpactExplanationNotFound), impact.ErrSupplyChainImpactExplanationNotFound) {
+		t.Fatal("impact.ErrSupplyChainImpactExplanationNotFound must support errors.Is")
 	}
-	if !errors.Is(fmt.Errorf("wrap: %w", ErrSupplyChainImpactExplanationAmbiguous), ErrSupplyChainImpactExplanationAmbiguous) {
-		t.Fatal("ErrSupplyChainImpactExplanationAmbiguous must support errors.Is")
+	if !errors.Is(fmt.Errorf("wrap: %w", impact.ErrSupplyChainImpactExplanationAmbiguous), impact.ErrSupplyChainImpactExplanationAmbiguous) {
+		t.Fatal("impact.ErrSupplyChainImpactExplanationAmbiguous must support errors.Is")
 	}
 }

@@ -33,13 +33,9 @@ type VulnerabilitySuppressionMutationStore interface {
 	) (VulnerabilitySuppressionMutationResult, error)
 }
 
-// VulnerabilitySuppressionMutationResult identifies the durable generation
-// containing an operator suppression.
-type VulnerabilitySuppressionMutationResult struct {
-	SuppressionID string
-	GenerationID  string
-	Changed       bool
-}
+// VulnerabilitySuppressionMutationResult moved to
+// internal/query/supplychain/impact with the suppression mutation store
+// (#6060 lane A); see supply_chain_impact_alias.go.
 
 // VulnerabilitySuppressionMutationRequest is the operator-facing POST body.
 // Source and author are deliberately absent because the server derives them

@@ -7,6 +7,8 @@ import (
 	"context"
 	"fmt"
 	"testing"
+
+	"github.com/eshu-hq/eshu/go/internal/query/supplychain/impact"
 )
 
 func TestApplySupplyChainRuntimeContextDoesNotBorrowMismatchedDigestEvidenceForRepositoryCandidate(t *testing.T) {
@@ -14,16 +16,16 @@ func TestApplySupplyChainRuntimeContextDoesNotBorrowMismatchedDigestEvidenceForR
 
 	row := osPackageFindingRowForRuntimeContext()
 	store := &runtimeContextFindingStore{
-		byRepo: map[string]SupplyChainRuntimeContext{
+		byRepo: map[string]impact.SupplyChainRuntimeContext{
 			row.RepositoryID: {
 				Environments: []string{"production"},
 			},
 		},
 		byDigest: map[string]map[string]string{
-			"sha256:other-artifact": {"production": supplyChainRuntimeEnvironmentEvidenceDeployEvent},
+			"sha256:other-artifact": {"production": impact.SupplyChainRuntimeEnvironmentEvidenceDeployEvent},
 		},
 	}
-	rows := []SupplyChainImpactFindingRow{row}
+	rows := []impact.SupplyChainImpactFindingRow{row}
 	if err := (&SupplyChainHandler{ImpactFindings: store}).applySupplyChainRuntimeContext(
 		context.Background(),
 		rows,
@@ -61,18 +63,18 @@ func TestApplySupplyChainRuntimeContextCapsOneRepositoryEnvironmentEvidenceAtPag
 		environment := fmt.Sprintf("environment-%03d", index)
 		repositoryEnvironments = append(repositoryEnvironments, environment)
 		if index < maxSupplyChainRuntimeEnvironmentCandidates {
-			confirmed[environment] = supplyChainRuntimeEnvironmentEvidenceDeployEvent
+			confirmed[environment] = impact.SupplyChainRuntimeEnvironmentEvidenceDeployEvent
 		}
 	}
 	store := &runtimeContextFindingStore{
-		byRepo: map[string]SupplyChainRuntimeContext{
+		byRepo: map[string]impact.SupplyChainRuntimeContext{
 			row.RepositoryID: {
 				Environments: repositoryEnvironments,
 			},
 		},
 		byDigest: map[string]map[string]string{row.SubjectDigest: confirmed},
 	}
-	rows := []SupplyChainImpactFindingRow{row}
+	rows := []impact.SupplyChainImpactFindingRow{row}
 	if err := (&SupplyChainHandler{ImpactFindings: store}).applySupplyChainRuntimeContext(
 		context.Background(),
 		rows,

@@ -9,13 +9,15 @@ import (
 	"net/http/httptest"
 	"reflect"
 	"testing"
+
+	"github.com/eshu-hq/eshu/go/internal/query/supplychain/impact"
 )
 
 func TestSupplyChainListImpactFindingsExposesOperationalAnchors(t *testing.T) {
 	t.Parallel()
 
 	store := &recordingSupplyChainImpactFindingStore{
-		rows: []SupplyChainImpactFindingRow{operationalAnchorFindingRow()},
+		rows: []impact.SupplyChainImpactFindingRow{operationalAnchorFindingRow()},
 	}
 	handler := &SupplyChainHandler{ImpactFindings: store}
 	mux := http.NewServeMux()
@@ -33,7 +35,7 @@ func TestSupplyChainListImpactFindingsExposesOperationalAnchors(t *testing.T) {
 	}
 
 	var resp struct {
-		Findings []SupplyChainImpactFindingResult `json:"findings"`
+		Findings []impact.SupplyChainImpactFindingResult `json:"findings"`
 	}
 	if err := json.Unmarshal(w.Body.Bytes(), &resp); err != nil {
 		t.Fatalf("json.Unmarshal() error = %v", err)
@@ -72,7 +74,7 @@ func TestSupplyChainListImpactFindingsSuppressesStaleCatalogAnchorMissing(t *tes
 	t.Parallel()
 
 	store := &recordingSupplyChainImpactFindingStore{
-		rows: []SupplyChainImpactFindingRow{catalogEntityOperationalFindingRow()},
+		rows: []impact.SupplyChainImpactFindingRow{catalogEntityOperationalFindingRow()},
 	}
 	handler := &SupplyChainHandler{ImpactFindings: store}
 	mux := http.NewServeMux()
@@ -90,7 +92,7 @@ func TestSupplyChainListImpactFindingsSuppressesStaleCatalogAnchorMissing(t *tes
 	}
 
 	var resp struct {
-		Findings []SupplyChainImpactFindingResult `json:"findings"`
+		Findings []impact.SupplyChainImpactFindingResult `json:"findings"`
 	}
 	if err := json.Unmarshal(w.Body.Bytes(), &resp); err != nil {
 		t.Fatalf("json.Unmarshal() error = %v", err)
@@ -108,7 +110,7 @@ func TestSupplyChainListImpactFindingsSuppressesStaleCatalogAnchorMissing(t *tes
 	if len(got.ServiceIDs) != 0 {
 		t.Fatalf("ServiceIDs = %#v, want no fabricated service identity", got.ServiceIDs)
 	}
-	if containsString(got.MissingEvidence, serviceCatalogAnchorMissingReason) {
+	if containsString(got.MissingEvidence, impact.ServiceCatalogAnchorMissingReason) {
 		t.Fatalf("MissingEvidence = %#v, must not claim catalog anchor is missing", got.MissingEvidence)
 	}
 	if !containsString(got.MissingEvidence, "environment evidence missing") {
@@ -120,9 +122,9 @@ func TestSupplyChainExplainImpactExposesOperationalAnchors(t *testing.T) {
 	t.Parallel()
 
 	store := &recordingSupplyChainImpactExplanationStore{
-		row: SupplyChainImpactExplanationRow{
+		row: impact.SupplyChainImpactExplanationRow{
 			Finding: operationalAnchorFindingRow(),
-			EvidenceFacts: []SupplyChainImpactEvidenceFact{
+			EvidenceFacts: []impact.SupplyChainImpactEvidenceFact{
 				explanationFact("catalog-1", serviceCatalogCorrelationFactKind, map[string]any{
 					"repository_id": "repo://example/api",
 					"service_id":    "service:example-api",
@@ -154,7 +156,7 @@ func TestSupplyChainExplainImpactExposesOperationalAnchors(t *testing.T) {
 		t.Fatalf("status = %d, want %d; body = %s", got, want, w.Body.String())
 	}
 
-	var resp SupplyChainImpactExplanationResult
+	var resp impact.SupplyChainImpactExplanationResult
 	if err := json.Unmarshal(w.Body.Bytes(), &resp); err != nil {
 		t.Fatalf("json.Unmarshal() error = %v", err)
 	}
@@ -181,9 +183,9 @@ func TestSupplyChainExplainImpactTreatsCatalogEntityAsServiceHop(t *testing.T) {
 	t.Parallel()
 
 	store := &recordingSupplyChainImpactExplanationStore{
-		row: SupplyChainImpactExplanationRow{
+		row: impact.SupplyChainImpactExplanationRow{
 			Finding: catalogEntityOperationalFindingRow(),
-			EvidenceFacts: []SupplyChainImpactEvidenceFact{
+			EvidenceFacts: []impact.SupplyChainImpactEvidenceFact{
 				explanationFact("catalog-1", serviceCatalogCorrelationFactKind, map[string]any{
 					"repository_id": "repo://example/api",
 					"entity_ref":    "api:default/example-api",
@@ -212,14 +214,14 @@ func TestSupplyChainExplainImpactTreatsCatalogEntityAsServiceHop(t *testing.T) {
 		t.Fatalf("status = %d, want %d; body = %s", got, want, w.Body.String())
 	}
 
-	var resp SupplyChainImpactExplanationResult
+	var resp impact.SupplyChainImpactExplanationResult
 	if err := json.Unmarshal(w.Body.Bytes(), &resp); err != nil {
 		t.Fatalf("json.Unmarshal() error = %v", err)
 	}
 	if resp.Finding == nil {
 		t.Fatal("Finding = nil, want catalog-entity finding")
 	}
-	if containsString(resp.Finding.MissingEvidence, serviceCatalogAnchorMissingReason) {
+	if containsString(resp.Finding.MissingEvidence, impact.ServiceCatalogAnchorMissingReason) {
 		t.Fatalf("Finding.MissingEvidence = %#v, must not claim catalog anchor is missing", resp.Finding.MissingEvidence)
 	}
 	if !reflect.DeepEqual(resp.Anchors.CatalogEntities, []string{"api:default/example-api"}) {
@@ -233,8 +235,8 @@ func TestSupplyChainExplainImpactTreatsCatalogEntityAsServiceHop(t *testing.T) {
 	assertImpactPathHopStatus(t, resp.ImpactPath, "environment", "missing_evidence")
 }
 
-func operationalAnchorFindingRow() SupplyChainImpactFindingRow {
-	return SupplyChainImpactFindingRow{
+func operationalAnchorFindingRow() impact.SupplyChainImpactFindingRow {
+	return impact.SupplyChainImpactFindingRow{
 		FindingID:           "finding-operational",
 		CVEID:               "CVE-2026-1668",
 		PackageID:           "pkg:npm/example",
@@ -259,8 +261,8 @@ func operationalAnchorFindingRow() SupplyChainImpactFindingRow {
 	}
 }
 
-func catalogEntityOperationalFindingRow() SupplyChainImpactFindingRow {
-	return SupplyChainImpactFindingRow{
+func catalogEntityOperationalFindingRow() impact.SupplyChainImpactFindingRow {
+	return impact.SupplyChainImpactFindingRow{
 		FindingID:           "finding-catalog-entity",
 		CVEID:               "CVE-2026-1693",
 		PackageID:           "pkg:npm/example",
@@ -280,14 +282,14 @@ func catalogEntityOperationalFindingRow() SupplyChainImpactFindingRow {
 		EvidenceFactIDs: []string{"consume-1", "workload-1", "catalog-1", "deployment-1"},
 		MissingEvidence: []string{
 			"environment evidence missing",
-			serviceCatalogAnchorMissingReason,
+			impact.ServiceCatalogAnchorMissingReason,
 		},
 	}
 }
 
 func assertImpactPathHopStatus(
 	t *testing.T,
-	impactPath []SupplyChainImpactPathHop,
+	impactPath []impact.SupplyChainImpactPathHop,
 	wantHop string,
 	wantStatus string,
 ) {

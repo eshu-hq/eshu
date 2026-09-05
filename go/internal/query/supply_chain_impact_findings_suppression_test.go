@@ -9,13 +9,15 @@ import (
 	"net/http/httptest"
 	"strings"
 	"testing"
+
+	"github.com/eshu-hq/eshu/go/internal/query/supplychain/impact"
 )
 
 func TestSupplyChainListImpactFindingsDefaultsExcludeOperatorSuppressions(t *testing.T) {
 	t.Parallel()
 
 	store := &recordingSupplyChainImpactFindingStore{
-		rows: []SupplyChainImpactFindingRow{
+		rows: []impact.SupplyChainImpactFindingRow{
 			{FindingID: "finding-active", CVEID: "CVE-2026-0001", ImpactStatus: "affected_exact"},
 		},
 	}
@@ -42,12 +44,12 @@ func TestSupplyChainListImpactFindingsHonorsIncludeSuppressedTrue(t *testing.T) 
 	t.Parallel()
 
 	store := &recordingSupplyChainImpactFindingStore{
-		rows: []SupplyChainImpactFindingRow{
+		rows: []impact.SupplyChainImpactFindingRow{
 			{
 				FindingID:    "finding-not-affected",
 				CVEID:        "CVE-2026-0001",
 				ImpactStatus: "affected_exact",
-				Suppression: &SupplyChainSuppressionDecisionRow{
+				Suppression: &impact.SupplyChainSuppressionDecisionRow{
 					State:         "not_affected",
 					SuppressionID: "suppression-1",
 					Source:        "vex_statement",
@@ -72,7 +74,7 @@ func TestSupplyChainListImpactFindingsHonorsIncludeSuppressedTrue(t *testing.T) 
 		t.Fatalf("IncludeSuppressed = false, want true")
 	}
 	var resp struct {
-		Findings []SupplyChainImpactFindingResult `json:"findings"`
+		Findings []impact.SupplyChainImpactFindingResult `json:"findings"`
 	}
 	if err := json.Unmarshal(w.Body.Bytes(), &resp); err != nil {
 		t.Fatalf("json.Unmarshal: %v", err)
@@ -124,12 +126,12 @@ func TestSupplyChainListImpactFindingsFiltersBySuppressionState(t *testing.T) {
 	t.Parallel()
 
 	store := &recordingSupplyChainImpactFindingStore{
-		rows: []SupplyChainImpactFindingRow{
+		rows: []impact.SupplyChainImpactFindingRow{
 			{
 				FindingID:    "finding-provider",
 				CVEID:        "CVE-2026-0040",
 				ImpactStatus: "affected_exact",
-				Suppression: &SupplyChainSuppressionDecisionRow{
+				Suppression: &impact.SupplyChainSuppressionDecisionRow{
 					State:         "provider_dismissed",
 					SuppressionID: "suppression-provider",
 					Source:        "provider_dismissal",
@@ -164,8 +166,8 @@ func TestListSupplyChainImpactFindingsQueryHandlesSuppressionPredicates(t *testi
 		"$21::boolean",
 		"NOT IN ('not_affected','accepted_risk','false_positive','ignored')",
 	} {
-		if !strings.Contains(listSupplyChainImpactFindingsQuery, want) {
-			t.Fatalf("listSupplyChainImpactFindingsQuery missing suppression predicate %q:\n%s", want, listSupplyChainImpactFindingsQuery)
+		if !strings.Contains(impact.ListSupplyChainImpactFindingsQuery, want) {
+			t.Fatalf("impact.ListSupplyChainImpactFindingsQuery missing suppression predicate %q:\n%s", want, impact.ListSupplyChainImpactFindingsQuery)
 		}
 	}
 }
@@ -188,9 +190,9 @@ func TestDecodeSupplyChainImpactFindingRowDecodesSuppressionBlock(t *testing.T) 
         }
     }`)
 
-	row, err := decodeSupplyChainImpactFindingRow("finding-1", "inferred", payload)
+	row, err := impact.DecodeSupplyChainImpactFindingRow("finding-1", "inferred", payload)
 	if err != nil {
-		t.Fatalf("decodeSupplyChainImpactFindingRow() error = %v", err)
+		t.Fatalf("impact.DecodeSupplyChainImpactFindingRow() error = %v", err)
 	}
 	if row.Suppression == nil {
 		t.Fatal("Suppression = nil, want decoded suppression block")
@@ -214,9 +216,9 @@ func TestDecodeSupplyChainImpactFindingRowFallsBackToTopLevelState(t *testing.T)
         "impact_status": "affected_exact",
         "suppression_state": "active"
     }`)
-	row, err := decodeSupplyChainImpactFindingRow("finding-2", "inferred", payload)
+	row, err := impact.DecodeSupplyChainImpactFindingRow("finding-2", "inferred", payload)
 	if err != nil {
-		t.Fatalf("decodeSupplyChainImpactFindingRow() error = %v", err)
+		t.Fatalf("impact.DecodeSupplyChainImpactFindingRow() error = %v", err)
 	}
 	if row.Suppression == nil || row.Suppression.State != "active" {
 		t.Fatalf("Suppression = %#v, want top-level state to populate active row", row.Suppression)

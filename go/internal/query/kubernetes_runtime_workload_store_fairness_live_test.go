@@ -13,6 +13,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/eshu-hq/eshu/go/internal/query/supplychain/impact"
 	storagepostgres "github.com/eshu-hq/eshu/go/internal/storage/postgres"
 	"github.com/eshu-hq/eshu/go/internal/testutil/postgresproof"
 )
@@ -31,13 +32,13 @@ func TestKubernetesRuntimeWorkloadGatePreservesDigestFairnessLive(t *testing.T) 
 	seedKubernetesRuntimeLiveScope(t, ctx, db)
 
 	digests := make([]string, supplyChainKubernetesRuntimeProbeMaxResults)
-	findings := make([]SupplyChainImpactFindingRow, len(digests))
+	findings := make([]impact.SupplyChainImpactFindingRow, len(digests))
 	graphRows := make(map[string][]map[string]any, len(digests))
 	allCandidates := make([]KubernetesRuntimeCandidate, 0, 400)
 	for i := range digests {
 		digest := fmt.Sprintf("sha256:%064x", i)
 		digests[i] = digest
-		findings[i] = SupplyChainImpactFindingRow{
+		findings[i] = impact.SupplyChainImpactFindingRow{
 			FindingID:     fmt.Sprintf("finding-%03d", i),
 			SubjectDigest: digest,
 		}
@@ -114,7 +115,7 @@ func TestKubernetesRuntimeWorkloadGatePreservesSingleDigestSentinelLive(t *testi
 	}
 	seedKubernetesRuntimeLiveCandidates(t, ctx, db, candidates)
 
-	findings := []SupplyChainImpactFindingRow{{
+	findings := []impact.SupplyChainImpactFindingRow{{
 		FindingID:     "finding-single-digest-sentinel",
 		SubjectDigest: digest,
 	}}

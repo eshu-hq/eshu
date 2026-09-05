@@ -19,6 +19,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/eshu-hq/eshu/go/internal/query/supplychain/impact"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
 	neo4jdriver "github.com/neo4j/neo4j-go-driver/v5/neo4j"
 	"go.opentelemetry.io/otel"
@@ -263,9 +264,9 @@ func runBalancedKubernetesRuntimePerformance(
 	digests []string,
 ) kubernetesRuntimePerformanceResult {
 	t.Helper()
-	findings := make([]SupplyChainImpactFindingRow, len(digests))
+	findings := make([]impact.SupplyChainImpactFindingRow, len(digests))
 	for i, digest := range digests {
-		findings[i] = SupplyChainImpactFindingRow{FindingID: fmt.Sprintf("performance-%03d", i), SubjectDigest: digest}
+		findings[i] = impact.SupplyChainImpactFindingRow{FindingID: fmt.Sprintf("performance-%03d", i), SubjectDigest: digest}
 	}
 	started := time.Now()
 	err := (&SupplyChainHandler{Neo4j: reader, KubernetesWorkloadInventory: store}).

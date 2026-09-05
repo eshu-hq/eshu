@@ -7,6 +7,8 @@ import (
 	"encoding/json"
 	"strings"
 	"testing"
+
+	"github.com/eshu-hq/eshu/go/internal/query/supplychain/impact"
 )
 
 func scPacketFreshTruth() *TruthEnvelope {
@@ -21,16 +23,16 @@ func scPacketFreshTruth() *TruthEnvelope {
 }
 
 // completeSupplyChainResult is a fully resolved advisory→service explanation.
-func completeSupplyChainResult() SupplyChainImpactExplanationResult {
+func completeSupplyChainResult() impact.SupplyChainImpactExplanationResult {
 	directDep := true
-	return SupplyChainImpactExplanationResult{
+	return impact.SupplyChainImpactExplanationResult{
 		Outcome: "finding_explained",
-		Input: SupplyChainImpactExplanationFilter{
+		Input: impact.SupplyChainImpactExplanationFilter{
 			AdvisoryID:   "GHSA-aaaa-bbbb-cccc",
 			PackageID:    "pkg:golang/example.com/vuln",
 			RepositoryID: "repo-1",
 		},
-		Finding: &SupplyChainImpactFindingResult{
+		Finding: &impact.SupplyChainImpactFindingResult{
 			FindingID:        "finding-1",
 			AdvisoryID:       "GHSA-aaaa-bbbb-cccc",
 			PackageID:        "pkg:golang/example.com/vuln",
@@ -41,25 +43,25 @@ func completeSupplyChainResult() SupplyChainImpactExplanationResult {
 			EvidenceFactIDs:  []string{"fact-advisory", "fact-sbom", "fact-missing-from-evidence"},
 			DirectDependency: &directDep,
 		},
-		Anchors: SupplyChainImpactExplanationAnchors{
+		Anchors: impact.SupplyChainImpactExplanationAnchors{
 			RepositoryID: "repo-1",
 			ImageDigests: []string{"sha256:abc"},
 			Workloads:    []string{"workload:checkout"},
 			Services:     []string{"service:checkout"},
 		},
-		ImpactPath: []SupplyChainImpactPathHop{
+		ImpactPath: []impact.SupplyChainImpactPathHop{
 			{Hop: "advisory", Status: "present", EvidenceFactIDs: []string{"fact-advisory"}},
 			{Hop: "sbom", Status: "present", EvidenceFactIDs: []string{"fact-sbom"}},
 			{Hop: "image", Status: "present"},
 			{Hop: "workload", Status: "present"},
 			{Hop: "service", Status: "present"},
 		},
-		Evidence: []SupplyChainImpactEvidenceFactSummary{
+		Evidence: []impact.SupplyChainImpactEvidenceFactSummary{
 			{FactID: "fact-advisory", FactKind: "vulnerability_advisory", SourceSystem: "osv", ObservedAt: "2026-06-18T00:00:00Z"},
 			{FactID: "fact-sbom", FactKind: "sbom_component", SourceSystem: "sbom_document", ObservedAt: "2026-06-18T00:00:00Z"},
 		},
-		Readiness: SupplyChainImpactReadinessEnvelope{State: ReadinessStateReadyWithFindings},
-		Freshness: SupplyChainImpactExplanationFreshness{State: "fresh", LatestObservedAt: "2026-06-18T00:00:00Z", EvidenceFactCount: 2},
+		Readiness: impact.SupplyChainImpactReadinessEnvelope{State: impact.ReadinessStateReadyWithFindings},
+		Freshness: impact.SupplyChainImpactExplanationFreshness{State: "fresh", LatestObservedAt: "2026-06-18T00:00:00Z", EvidenceFactCount: 2},
 	}
 }
 
@@ -115,11 +117,11 @@ func graphAnswerForHop(answers []PacketGraphAnswer, hop string) *PacketGraphAnsw
 
 func TestBuildSupplyChainImpactPacketMissingSBOM(t *testing.T) {
 	result := completeSupplyChainResult()
-	result.ImpactPath = []SupplyChainImpactPathHop{
+	result.ImpactPath = []impact.SupplyChainImpactPathHop{
 		{Hop: "advisory", Status: "present", EvidenceFactIDs: []string{"fact-advisory"}},
 		{Hop: "sbom", Status: "missing_evidence", MissingEvidence: []string{"no SBOM document links the advisory to an image"}},
 	}
-	result.Evidence = []SupplyChainImpactEvidenceFactSummary{
+	result.Evidence = []impact.SupplyChainImpactEvidenceFactSummary{
 		{FactID: "fact-advisory", FactKind: "vulnerability_advisory", SourceSystem: "osv"},
 	}
 	packet, err := BuildSupplyChainImpactPacket(result, scPacketFreshTruth(), nil)
@@ -136,7 +138,7 @@ func TestBuildSupplyChainImpactPacketMissingSBOM(t *testing.T) {
 
 func TestBuildSupplyChainImpactPacketMissingWorkload(t *testing.T) {
 	result := completeSupplyChainResult()
-	result.ImpactPath = []SupplyChainImpactPathHop{
+	result.ImpactPath = []impact.SupplyChainImpactPathHop{
 		{Hop: "advisory", Status: "present", EvidenceFactIDs: []string{"fact-advisory"}},
 		{Hop: "sbom", Status: "present", EvidenceFactIDs: []string{"fact-sbom"}},
 		{Hop: "image", Status: "present"},
@@ -144,7 +146,7 @@ func TestBuildSupplyChainImpactPacketMissingWorkload(t *testing.T) {
 	}
 	result.Finding.WorkloadIDs = nil
 	result.Finding.ServiceIDs = nil
-	result.MissingEvidence = []string{serviceCatalogAnchorMissingReason}
+	result.MissingEvidence = []string{impact.ServiceCatalogAnchorMissingReason}
 	packet, err := BuildSupplyChainImpactPacket(result, scPacketFreshTruth(), nil)
 	if err != nil {
 		t.Fatalf("build packet: %v", err)
@@ -176,14 +178,14 @@ func TestBuildSupplyChainImpactPacketStaleGeneration(t *testing.T) {
 }
 
 func TestBuildSupplyChainImpactPacketNoFinding(t *testing.T) {
-	result := SupplyChainImpactExplanationResult{
+	result := impact.SupplyChainImpactExplanationResult{
 		Outcome: "no_finding",
-		Input:   SupplyChainImpactExplanationFilter{AdvisoryID: "GHSA-none"},
-		Readiness: SupplyChainImpactReadinessEnvelope{
-			State:             ReadinessStateEvidenceIncomplete,
+		Input:   impact.SupplyChainImpactExplanationFilter{AdvisoryID: "GHSA-none"},
+		Readiness: impact.SupplyChainImpactReadinessEnvelope{
+			State:             impact.ReadinessStateEvidenceIncomplete,
 			IncompleteReasons: []string{"sbom evidence not yet collected"},
 		},
-		Freshness: SupplyChainImpactExplanationFreshness{State: "fresh"},
+		Freshness: impact.SupplyChainImpactExplanationFreshness{State: "fresh"},
 	}
 	packet, err := BuildSupplyChainImpactPacket(result, scPacketFreshTruth(), nil)
 	if err != nil {

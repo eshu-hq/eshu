@@ -10,6 +10,8 @@ import (
 	"regexp"
 	"strconv"
 	"testing"
+
+	"github.com/eshu-hq/eshu/go/internal/query/supplychain/impact"
 )
 
 var placeholderPattern = regexp.MustCompile(`\$(\d+)`)
@@ -59,11 +61,11 @@ func highestPlaceholder(t *testing.T, query string) int {
 func TestSupplyChainRuntimeFilterListArgsMatchQueryPlaceholders(t *testing.T) {
 	t.Parallel()
 
-	args := supplyChainRuntimeFilterListArgs(SupplyChainImpactFindingFilter{})
+	args := supplyChainRuntimeFilterListArgs(impact.SupplyChainImpactFindingFilter{})
 
 	for name, query := range map[string]string{
-		"list direct":       listSupplyChainImpactFindingsQuery,
-		"list materialized": listSupplyChainImpactFindingsFromWinnersQuery,
+		"list direct":       impact.ListSupplyChainImpactFindingsQuery,
+		"list materialized": impact.ListSupplyChainImpactFindingsFromWinnersQuery,
 	} {
 		t.Run(name, func(t *testing.T) {
 			want := highestPlaceholder(t, query)
@@ -146,11 +148,11 @@ func productionQueryArgCount(t *testing.T, file, fnName string) int {
 func TestListSupplyChainImpactFindingsBindsEveryPlaceholder(t *testing.T) {
 	t.Parallel()
 
-	got := productionQueryArgCount(t, "supply_chain_impact_findings.go", "ListSupplyChainImpactFindings")
+	got := productionQueryArgCount(t, "supplychain/impact/supply_chain_impact_findings.go", "ListSupplyChainImpactFindings")
 
 	for name, query := range map[string]string{
-		"list direct":       listSupplyChainImpactFindingsQuery,
-		"list materialized": listSupplyChainImpactFindingsFromWinnersQuery,
+		"list direct":       impact.ListSupplyChainImpactFindingsQuery,
+		"list materialized": impact.ListSupplyChainImpactFindingsFromWinnersQuery,
 	} {
 		t.Run(name, func(t *testing.T) {
 			want := highestPlaceholder(t, query)

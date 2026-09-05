@@ -8,20 +8,22 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"testing"
+
+	"github.com/eshu-hq/eshu/go/internal/query/supplychain/impact"
 )
 
 func TestSupplyChainExplainImpactAmbiguousScope(t *testing.T) {
 	t.Parallel()
 
 	readiness := &recordingSupplyChainImpactReadinessStore{
-		snapshot: SupplyChainImpactReadinessSnapshot{
-			EvidenceSources: []SupplyChainImpactEvidenceFamily{
-				{Family: EvidenceFamilyPackageConsumption, FactCount: 2, Freshness: FreshnessLabelFresh},
+		snapshot: impact.SupplyChainImpactReadinessSnapshot{
+			EvidenceSources: []impact.SupplyChainImpactEvidenceFamily{
+				{Family: impact.EvidenceFamilyPackageConsumption, FactCount: 2, Freshness: impact.FreshnessLabelFresh},
 			},
 		},
 	}
 	store := &recordingSupplyChainImpactExplanationStore{
-		err: ErrSupplyChainImpactExplanationAmbiguous,
+		err: impact.ErrSupplyChainImpactExplanationAmbiguous,
 	}
 	handler := &SupplyChainHandler{ImpactExplanations: store, Readiness: readiness}
 	mux := http.NewServeMux()
@@ -40,9 +42,9 @@ func TestSupplyChainExplainImpactAmbiguousScope(t *testing.T) {
 	}
 
 	var envelope struct {
-		Data  SupplyChainImpactExplanationResult `json:"data"`
-		Truth *TruthEnvelope                     `json:"truth"`
-		Error *ErrorEnvelope                     `json:"error"`
+		Data  impact.SupplyChainImpactExplanationResult `json:"data"`
+		Truth *TruthEnvelope                            `json:"truth"`
+		Error *ErrorEnvelope                            `json:"error"`
 	}
 	if err := json.Unmarshal(w.Body.Bytes(), &envelope); err != nil {
 		t.Fatalf("json.Unmarshal: %v", err)
@@ -78,7 +80,7 @@ func TestSupplyChainExplainImpactAmbiguousScope(t *testing.T) {
 	if !containsString(resp.MissingEvidence, "ambiguous_scope") {
 		t.Fatalf("MissingEvidence = %#v, want ambiguous_scope", resp.MissingEvidence)
 	}
-	if got, want := resp.Readiness.State, ReadinessStateAmbiguousScope; got != want {
+	if got, want := resp.Readiness.State, impact.ReadinessStateAmbiguousScope; got != want {
 		t.Fatalf("Readiness.State = %q, want %q", got, want)
 	}
 	if got, want := resp.Readiness.Counts.FindingsReturned, 2; got != want {
@@ -95,12 +97,12 @@ func TestSupplyChainExplainImpactAmbiguousScope(t *testing.T) {
 func TestSupplyChainImpactAmbiguousExplanationUsesCandidateCount(t *testing.T) {
 	t.Parallel()
 
-	body := BuildSupplyChainImpactAmbiguousExplanation(
-		SupplyChainImpactExplanationFilter{AdvisoryID: "GHSA-ambiguous", RepositoryID: "repo://example/api"},
-		SupplyChainImpactReadinessEnvelope{State: ReadinessStateReadyZeroFindings},
+	body := impact.BuildSupplyChainImpactAmbiguousExplanation(
+		impact.SupplyChainImpactExplanationFilter{AdvisoryID: "GHSA-ambiguous", RepositoryID: "repo://example/api"},
+		impact.SupplyChainImpactReadinessEnvelope{State: impact.ReadinessStateReadyZeroFindings},
 		4,
 	)
-	if got, want := body.Readiness.State, ReadinessStateAmbiguousScope; got != want {
+	if got, want := body.Readiness.State, impact.ReadinessStateAmbiguousScope; got != want {
 		t.Fatalf("Readiness.State = %q, want %q", got, want)
 	}
 	if got, want := body.Readiness.Counts.FindingsReturned, 4; got != want {

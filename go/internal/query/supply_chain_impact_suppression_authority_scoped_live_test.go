@@ -6,23 +6,25 @@ package query
 import (
 	"context"
 	"testing"
+
+	"github.com/eshu-hq/eshu/go/internal/query/supplychain/impact"
 )
 
 func assertScopedSuppressionAuthority(
 	t *testing.T,
 	ctx context.Context,
-	direct PostgresSupplyChainImpactFindingStore,
-	materialized PostgresSupplyChainImpactFindingStore,
-	aggregates PostgresSupplyChainImpactAggregateStore,
+	direct impact.PostgresSupplyChainImpactFindingStore,
+	materialized impact.PostgresSupplyChainImpactFindingStore,
+	aggregates impact.PostgresSupplyChainImpactAggregateStore,
 ) {
 	t.Helper()
 
-	for name, store := range map[string]PostgresSupplyChainImpactFindingStore{
+	for name, store := range map[string]impact.PostgresSupplyChainImpactFindingStore{
 		"direct":       direct,
 		"materialized": materialized,
 	} {
 		t.Run(name, func(t *testing.T) {
-			defaultRows, err := store.ListSupplyChainImpactFindings(ctx, SupplyChainImpactFindingFilter{
+			defaultRows, err := store.ListSupplyChainImpactFindings(ctx, impact.SupplyChainImpactFindingFilter{
 				CVEID:             suppressionAuthorityLiveCVE,
 				DetectionProfile:  "comprehensive",
 				AllowedScopeIDs:   []string{suppressionAuthorityLiveSource},
@@ -36,7 +38,7 @@ func assertScopedSuppressionAuthority(
 				t.Fatalf("default scoped list = %#v, want suppressed finding hidden", defaultRows)
 			}
 
-			auditRows, err := store.ListSupplyChainImpactFindings(ctx, SupplyChainImpactFindingFilter{
+			auditRows, err := store.ListSupplyChainImpactFindings(ctx, impact.SupplyChainImpactFindingFilter{
 				CVEID:             suppressionAuthorityLiveCVE,
 				DetectionProfile:  "comprehensive",
 				SuppressionState:  "ignored",
@@ -83,7 +85,7 @@ func assertScopedSuppressionAuthority(
 		},
 	} {
 		t.Run("aggregate "+tc.name, func(t *testing.T) {
-			count, err := aggregates.CountSupplyChainImpactFindings(ctx, SupplyChainImpactAggregateFilter{
+			count, err := aggregates.CountSupplyChainImpactFindings(ctx, impact.SupplyChainImpactAggregateFilter{
 				CVEID:             suppressionAuthorityLiveCVE,
 				DetectionProfile:  "comprehensive",
 				SuppressionState:  tc.suppressionState,
@@ -99,7 +101,7 @@ func assertScopedSuppressionAuthority(
 		})
 	}
 
-	explanation, err := direct.ExplainSupplyChainImpact(ctx, SupplyChainImpactExplanationFilter{
+	explanation, err := direct.ExplainSupplyChainImpact(ctx, impact.SupplyChainImpactExplanationFilter{
 		FindingID:       suppressionAuthorityLiveFinding,
 		AllowedScopeIDs: []string{suppressionAuthorityLiveSource},
 	})
@@ -110,7 +112,7 @@ func assertScopedSuppressionAuthority(
 		t.Fatalf("scoped explain suppression = %#v, want ignored", explanation.Finding.Suppression)
 	}
 
-	if _, err := direct.ExplainSupplyChainImpact(ctx, SupplyChainImpactExplanationFilter{
+	if _, err := direct.ExplainSupplyChainImpact(ctx, impact.SupplyChainImpactExplanationFilter{
 		FindingID:       suppressionAuthorityLiveFinding,
 		AllowedScopeIDs: []string{"scope:5465:unrelated"},
 	}); err == nil {

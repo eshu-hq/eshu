@@ -7,23 +7,25 @@ import (
 	"context"
 	"fmt"
 	"testing"
+
+	"github.com/eshu-hq/eshu/go/internal/query/supplychain/impact"
 )
 
 func BenchmarkApplySupplyChainKubernetesRuntimeEvidence200Digests(b *testing.B) {
-	rows := make([]SupplyChainImpactFindingRow, supplyChainCloudRuntimeProbeMaxDigests)
+	rows := make([]impact.SupplyChainImpactFindingRow, supplyChainCloudRuntimeProbeMaxDigests)
 	graphRows := make([]map[string]any, supplyChainKubernetesRuntimeProbeMaxResults)
 	matches := make([]KubernetesRuntimeWorkloadMatch, supplyChainKubernetesRuntimeProbeMaxResults)
 	for i := range rows {
 		digest := fmt.Sprintf("sha256:%064x", i+1)
 		uid := fmt.Sprintf("workload-%03d", i)
-		rows[i] = SupplyChainImpactFindingRow{FindingID: fmt.Sprintf("finding-%03d", i), SubjectDigest: digest}
+		rows[i] = impact.SupplyChainImpactFindingRow{FindingID: fmt.Sprintf("finding-%03d", i), SubjectDigest: digest}
 		graphRows[i] = map[string]any{
 			"matched_digest": digest, "workload_uid": uid,
 			"edge_scope_id": "edge-scope", "edge_generation_id": "edge-generation",
 		}
 		matches[i] = KubernetesRuntimeWorkloadMatch{
 			Digest: digest,
-			WorkloadRef: KubernetesRuntimeWorkloadRef{
+			WorkloadRef: impact.KubernetesRuntimeWorkloadRef{
 				UID: uid, ClusterID: "cluster-a", Namespace: "default", Name: fmt.Sprintf("workload-%03d", i),
 			},
 		}

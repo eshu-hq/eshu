@@ -8,6 +8,8 @@ import (
 	packageregistryv1 "github.com/eshu-hq/eshu/sdk/go/factschema/packageregistry/v1"
 	sbomv1 "github.com/eshu-hq/eshu/sdk/go/factschema/sbom/v1"
 	servicecatalogv1 "github.com/eshu-hq/eshu/sdk/go/factschema/servicecatalog/v1"
+
+	"github.com/eshu-hq/eshu/go/internal/query/supplychain/impact"
 )
 
 // This file holds query-side decode wrappers for the source-fact kinds that
@@ -170,7 +172,7 @@ type supplyChainComponentEvidence struct {
 // fields buildSupplyChainComponentExplanation/buildSupplyChainExplanationAnchors
 // need from that kind. See supplyChainComponentEvidence's doc for the
 // Matched/Err contract.
-func decodeSupplyChainComponentEvidence(fact SupplyChainImpactEvidenceFact) supplyChainComponentEvidence {
+func decodeSupplyChainComponentEvidence(fact impact.SupplyChainImpactEvidenceFact) supplyChainComponentEvidence {
 	in := supplyChainFactDecodeInput{FactID: fact.FactID, SchemaVersion: fact.SchemaVersion, Payload: fact.Payload}
 	switch fact.FactKind {
 	case factschema.FactKindSBOMDocument:

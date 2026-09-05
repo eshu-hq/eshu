@@ -141,7 +141,7 @@ var routeServesDataRegistryPart1 = map[string]routeServesDataSource{
 	// SupplyChainHandler.listImpactFindings -> h.ImpactFindings
 	// (PostgresSupplyChainImpactFindingStore): both the legacy and winners
 	// queries bind fact_kind = $1 to "reducer_supply_chain_impact_finding"
-	// (go/internal/query/supply_chain_impact_findings_queries.go:6,56).
+	// (go/internal/query/supplychain/impact/supply_chain_impact_findings_queries.go::SupplyChainImpactFindingFactKind).
 	// reducer_derived_findings owns the kind
 	// (specs/fact-kind-registry.v1.yaml:131-142); supply_chain_impact is the
 	// producing projection (scanner_worker family, specs:346-356) — both are
@@ -154,8 +154,8 @@ var routeServesDataRegistryPart1 = map[string]routeServesDataSource{
 		MethodFile:       "go/internal/query/supply_chain_impact_findings_handler.go",
 		ScanFiles: []string{
 			"go/internal/query/supply_chain_impact_findings_handler.go",
-			"go/internal/query/supply_chain_impact_findings.go",
-			"go/internal/query/supply_chain_impact_findings_queries.go",
+			"go/internal/query/supplychain/impact/supply_chain_impact_findings.go",
+			"go/internal/query/supplychain/impact/supply_chain_impact_findings_queries.go",
 		},
 		Served: []routeServedDomain{
 			{
@@ -163,7 +163,7 @@ var routeServesDataRegistryPart1 = map[string]routeServesDataSource{
 				StoreField: "ImpactFindings",
 				StoreType:  "SupplyChainImpactFindingStore",
 				Evidence: []routeReadEvidence{
-					{File: "go/internal/query/supply_chain_impact_findings_queries.go", Marker: "reducer_supply_chain_impact_finding"},
+					{File: "go/internal/query/supplychain/impact/supply_chain_impact_findings_queries.go", Marker: "reducer_supply_chain_impact_finding"},
 				},
 			},
 			{
@@ -171,7 +171,7 @@ var routeServesDataRegistryPart1 = map[string]routeServesDataSource{
 				StoreField: "ImpactFindings",
 				StoreType:  "SupplyChainImpactFindingStore",
 				Evidence: []routeReadEvidence{
-					{File: "go/internal/query/supply_chain_impact_findings_queries.go", Marker: "reducer_supply_chain_impact_finding"},
+					{File: "go/internal/query/supplychain/impact/supply_chain_impact_findings_queries.go", Marker: "reducer_supply_chain_impact_finding"},
 					{File: "go/internal/reducer/supply_chain_impact_writer.go", Marker: "ReducerSupplyChainImpactFindingFactKind"},
 				},
 			},

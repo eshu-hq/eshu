@@ -846,7 +846,6 @@ LINE go/internal/ifa/testdata/codecalls/ifa-code-call-family-expected-edges.json
 LINE go/internal/mcp/kind_consumer_existence_test.go go/internal/projector/tfstate_canonical.go:113
 LINE go/internal/mcp/kind_consumer_existence_test.go go/internal/reducer/package_source_correlation.go:98
 LINE go/internal/mcp/kind_disclosure_ledger.go go/internal/projector/tfstate_canonical.go:113
-LINE go/internal/mcp/kind_disclosure_ledger.go go/internal/query/supply_chain_impact_readiness_postgres_query.go:179
 LINE go/internal/mcp/kind_disclosure_ledger.go go/internal/reducer/package_source_correlation.go:98
 LINE go/internal/mcp/kind_disclosure_ledger.go go/internal/storage/postgres/cloud_identity_policy_evidence.go:85
 LINE go/internal/mcp/kind_disclosure_ledger.go go/internal/storage/postgres/cloud_resource_change_evidence.go:90
@@ -859,7 +858,6 @@ LINE go/internal/mcp/route_serves_data_registry_routes.go go/internal/query/imag
 LINE go/internal/mcp/route_serves_data_registry_routes.go go/internal/query/kubernetes_correlations.go:15
 LINE go/internal/mcp/route_serves_data_registry_routes.go go/internal/query/observability_coverage_correlations.go:15
 LINE go/internal/mcp/route_serves_data_registry_routes.go go/internal/query/repository.go:66
-LINE go/internal/mcp/route_serves_data_registry_routes.go go/internal/query/supply_chain_impact_findings_queries.go:6
 LINE go/internal/mcp/route_serves_data_registry_routes_2.go go/internal/query/codeowners_ownership_cypher.go:11
 LINE go/internal/mcp/route_serves_data_registry_routes_2.go go/internal/query/packagereg/package_registry_cypher.go:6
 LINE go/internal/mcp/route_serves_data_registry_routes_2.go go/internal/query/sbom_attestation_attachments.go:28
@@ -893,7 +891,6 @@ LINE go/internal/replay/faultreplay/AGENTS.md go/internal/reducer/service.go:27
 LINE go/internal/replay/faultreplay/README.md go/internal/reducer/service.go:27
 LINE go/internal/replay/faultreplay/README.md go/internal/reducer/service.go:27
 LINE go/internal/replay/faultreplay/doc.go go/internal/reducer/service.go:27
-LINE go/internal/reportbundle/README.md go/internal/query/supply_chain_impact_explain.go:80
 LINE go/internal/reportbundle/redact.go go/internal/query/evidence_citation.go:75
 LINE go/internal/secretcrypto/README.md go/internal/envregistry/entries_collectors.go:119
 LINE go/internal/secretcrypto/README.md go/internal/runtime/api_key.go:66

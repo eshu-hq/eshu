@@ -16,6 +16,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/eshu-hq/eshu/go/internal/query/supplychain/impact"
+
 	_ "github.com/jackc/pgx/v5/stdlib"
 )
 
@@ -51,7 +53,7 @@ WHERE uid BETWEEN 'uid-000001' AND 'uid-001000'
 
 	handler := &SupplyChainHandler{
 		ImpactFindings: &recordingSupplyChainImpactFindingStore{
-			rows: []SupplyChainImpactFindingRow{{
+			rows: []impact.SupplyChainImpactFindingRow{{
 				FindingID:     "finding-runtime-route-proof",
 				CVEID:         "CVE-2026-00069",
 				PackageID:     "pkg:npm/example",
@@ -80,7 +82,7 @@ WHERE uid BETWEEN 'uid-000001' AND 'uid-001000'
 			t.Fatalf("route status = %d, want %d; body = %s", got, want, response.Body.String())
 		}
 		var body struct {
-			Findings []SupplyChainImpactFindingResult `json:"findings"`
+			Findings []impact.SupplyChainImpactFindingResult `json:"findings"`
 		}
 		if err := json.Unmarshal(response.Body.Bytes(), &body); err != nil {
 			t.Fatalf("decode route response: %v", err)

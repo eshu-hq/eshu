@@ -11,6 +11,7 @@ import (
 	"sync"
 	"testing"
 
+	"github.com/eshu-hq/eshu/go/internal/query/supplychain/impact"
 	"github.com/eshu-hq/eshu/go/internal/truth"
 	sdktrace "go.opentelemetry.io/otel/sdk/trace"
 	"go.opentelemetry.io/otel/sdk/trace/tracetest"
@@ -123,10 +124,10 @@ func TestApplySupplyChainKubernetesRuntimeEvidencePromotesExactDigest(t *testing
 		"matched_digest": digest, "workload_uid": "kw-1", "edge_scope_id": "scope-edge", "edge_generation_id": "gen-edge",
 	}}}
 	inventory := &stubKubernetesWorkloadInventory{rows: []KubernetesRuntimeWorkloadMatch{{
-		Digest: digest, WorkloadRef: KubernetesRuntimeWorkloadRef{UID: "kw-1", ClusterID: "cluster-a", Namespace: "payments", Name: "api"},
+		Digest: digest, WorkloadRef: impact.KubernetesRuntimeWorkloadRef{UID: "kw-1", ClusterID: "cluster-a", Namespace: "payments", Name: "api"},
 	}}}
 	handler := &SupplyChainHandler{Neo4j: graph, KubernetesWorkloadInventory: inventory}
-	rows := []SupplyChainImpactFindingRow{
+	rows := []impact.SupplyChainImpactFindingRow{
 		{FindingID: "running", SubjectDigest: digest},
 		{FindingID: "other", SubjectDigest: "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"},
 	}
@@ -140,7 +141,7 @@ func TestApplySupplyChainKubernetesRuntimeEvidencePromotesExactDigest(t *testing
 	if got := rows[0].KubernetesRuntimeWorkloadRefs; len(got) != 1 || got[0].UID != "kw-1" || got[0].Namespace != "payments" {
 		t.Fatalf("runtime workload refs = %#v, want exact authorized kw-1", got)
 	}
-	if got := buildSupplyChainImpactFindingResult(&rows[0]).DeploymentTruthTier; got != string(truth.TierRuntimeConfirmed) {
+	if got := impact.BuildSupplyChainImpactFindingResult(&rows[0]).DeploymentTruthTier; got != string(truth.TierRuntimeConfirmed) {
 		t.Fatalf("deployment truth tier = %q, want %q", got, truth.TierRuntimeConfirmed)
 	}
 	if len(rows[1].KubernetesRuntimeWorkloadRefs) != 0 {
@@ -160,7 +161,7 @@ func TestApplySupplyChainKubernetesRuntimeEvidenceExcludesDeniedOwnerOrEdge(t *t
 	}}}
 	inventory := &stubKubernetesWorkloadInventory{}
 	handler := &SupplyChainHandler{Neo4j: graph, KubernetesWorkloadInventory: inventory}
-	rows := []SupplyChainImpactFindingRow{{FindingID: "f", SubjectDigest: digest, EvidencePath: []string{cicdRunCorrelationFactKind}}}
+	rows := []impact.SupplyChainImpactFindingRow{{FindingID: "f", SubjectDigest: digest, EvidencePath: []string{cicdRunCorrelationFactKind}}}
 
 	access := repositoryAccessFilter{AllowedRepositoryIDs: []string{"repository:r_allowed"}, AllowedScopeIDs: []string{"scope-allowed"}}
 	if err := handler.applySupplyChainKubernetesRuntimeEvidence(context.Background(), access, rows); err != nil {
@@ -172,7 +173,7 @@ func TestApplySupplyChainKubernetesRuntimeEvidenceExcludesDeniedOwnerOrEdge(t *t
 	if inventory.allScopes {
 		t.Fatal("inventory allScopes = true for scoped caller")
 	}
-	if got := buildSupplyChainImpactFindingResult(&rows[0]).DeploymentTruthTier; got != string(truth.TierProvenanceCIDeclared) {
+	if got := impact.BuildSupplyChainImpactFindingResult(&rows[0]).DeploymentTruthTier; got != string(truth.TierProvenanceCIDeclared) {
 		t.Fatalf("tier = %q, want %q without authorized runtime evidence", got, truth.TierProvenanceCIDeclared)
 	}
 }
@@ -181,13 +182,13 @@ func TestApplySupplyChainKubernetesRuntimeEvidenceBoundsAndDeduplicatesDigests(t
 	t.Parallel()
 
 	digests := make([]string, 0, supplyChainCloudRuntimeProbeMaxDigests+2)
-	rows := make([]SupplyChainImpactFindingRow, 0, supplyChainCloudRuntimeProbeMaxDigests+2)
+	rows := make([]impact.SupplyChainImpactFindingRow, 0, supplyChainCloudRuntimeProbeMaxDigests+2)
 	for i := supplyChainCloudRuntimeProbeMaxDigests + 1; i >= 0; i-- {
 		digest := fmt.Sprintf("sha256:%064x", i+1)
 		digests = append(digests, digest)
-		rows = append(rows, SupplyChainImpactFindingRow{FindingID: digest, SubjectDigest: digest})
+		rows = append(rows, impact.SupplyChainImpactFindingRow{FindingID: digest, SubjectDigest: digest})
 	}
-	rows = append(rows, SupplyChainImpactFindingRow{FindingID: "duplicate", SubjectDigest: digests[0]})
+	rows = append(rows, impact.SupplyChainImpactFindingRow{FindingID: "duplicate", SubjectDigest: digests[0]})
 	graphRows := make([]map[string]any, supplyChainKubernetesRuntimeProbeMaxResults+2)
 	for i := range graphRows {
 		graphRows[i] = map[string]any{
@@ -225,7 +226,7 @@ func TestApplySupplyChainKubernetesRuntimeEvidencePropagatesErrorsAndEmptyIsNoOp
 	t.Parallel()
 
 	digest := "sha256:eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee"
-	rows := []SupplyChainImpactFindingRow{{FindingID: "f", SubjectDigest: digest}}
+	rows := []impact.SupplyChainImpactFindingRow{{FindingID: "f", SubjectDigest: digest}}
 	graphErr := errors.New("graph unavailable")
 	if err := (&SupplyChainHandler{Neo4j: &stubKubernetesRuntimeGraph{err: graphErr}, KubernetesWorkloadInventory: &stubKubernetesWorkloadInventory{}}).
 		applySupplyChainKubernetesRuntimeEvidence(context.Background(), repositoryAccessFilter{AllScopes: true}, rows); !errors.Is(err, graphErr) {
@@ -263,9 +264,9 @@ func TestApplySupplyChainKubernetesRuntimeEvidenceRejectsMalformedAndDeduplicate
 		{"matched_digest": digest, "workload_uid": "kw-missing-edge"},
 	}}
 	inventory := &stubKubernetesWorkloadInventory{rows: []KubernetesRuntimeWorkloadMatch{{
-		Digest: digest, WorkloadRef: KubernetesRuntimeWorkloadRef{UID: "kw-dual", ClusterID: "cluster-a", Namespace: "default", Name: "api"},
+		Digest: digest, WorkloadRef: impact.KubernetesRuntimeWorkloadRef{UID: "kw-dual", ClusterID: "cluster-a", Namespace: "default", Name: "api"},
 	}}}
-	rows := []SupplyChainImpactFindingRow{{FindingID: "f", SubjectDigest: digest}}
+	rows := []impact.SupplyChainImpactFindingRow{{FindingID: "f", SubjectDigest: digest}}
 	if err := (&SupplyChainHandler{Neo4j: graph, KubernetesWorkloadInventory: inventory}).
 		applySupplyChainKubernetesRuntimeEvidence(context.Background(), repositoryAccessFilter{AllScopes: true}, rows); err != nil {
 		t.Fatalf("apply error = %v", err)
@@ -283,7 +284,7 @@ func TestApplySupplyChainKubernetesRuntimeEvidenceSkipsUnconfiguredGraphWithoutS
 
 	inventory := &stubKubernetesWorkloadInventory{}
 	handler := &SupplyChainHandler{KubernetesWorkloadInventory: inventory}
-	rows := []SupplyChainImpactFindingRow{
+	rows := []impact.SupplyChainImpactFindingRow{
 		{FindingID: "empty"},
 		{FindingID: "whitespace", SubjectDigest: "  \t"},
 	}
@@ -305,9 +306,9 @@ func TestApplySupplyChainKubernetesRuntimeEvidenceRejectsStoreCrossFindingMismat
 		"matched_digest": digestA, "workload_uid": "kw-a", "edge_scope_id": "scope-a", "edge_generation_id": "gen-a",
 	}}}
 	inventory := &stubKubernetesWorkloadInventory{rows: []KubernetesRuntimeWorkloadMatch{{
-		Digest: digestB, WorkloadRef: KubernetesRuntimeWorkloadRef{UID: "kw-a", ClusterID: "cluster-a", Namespace: "default", Name: "api"},
+		Digest: digestB, WorkloadRef: impact.KubernetesRuntimeWorkloadRef{UID: "kw-a", ClusterID: "cluster-a", Namespace: "default", Name: "api"},
 	}}}
-	rows := []SupplyChainImpactFindingRow{
+	rows := []impact.SupplyChainImpactFindingRow{
 		{FindingID: "a", SubjectDigest: digestA},
 		{FindingID: "b", SubjectDigest: digestB},
 	}
@@ -346,7 +347,7 @@ func TestApplySupplyChainKubernetesRuntimeEvidenceRecordsZeroInitializedAndFinal
 				"matched_digest": digest, "workload_uid": "kw-1", "edge_scope_id": "scope-1", "edge_generation_id": "gen-1",
 			}},
 			matches: []KubernetesRuntimeWorkloadMatch{{
-				Digest: digest, WorkloadRef: KubernetesRuntimeWorkloadRef{UID: "kw-1", ClusterID: "cluster-a", Namespace: "default", Name: "api"},
+				Digest: digest, WorkloadRef: impact.KubernetesRuntimeWorkloadRef{UID: "kw-1", ClusterID: "cluster-a", Namespace: "default", Name: "api"},
 			}},
 			want: map[string]int64{
 				"eshu.subject_digest_count": 1, "eshu.graph_candidate_count": 1,
@@ -364,7 +365,7 @@ func TestApplySupplyChainKubernetesRuntimeEvidenceRecordsZeroInitializedAndFinal
 				"matched_digest": digest, "workload_uid": "kw-1", "edge_scope_id": "scope-1", "edge_generation_id": "gen-1",
 			}},
 			matches: []KubernetesRuntimeWorkloadMatch{{
-				Digest: digest, WorkloadRef: KubernetesRuntimeWorkloadRef{UID: "kw-1"},
+				Digest: digest, WorkloadRef: impact.KubernetesRuntimeWorkloadRef{UID: "kw-1"},
 			}},
 			want: map[string]int64{
 				"eshu.subject_digest_count": 1, "eshu.graph_candidate_count": 1,
@@ -386,9 +387,9 @@ func TestApplySupplyChainKubernetesRuntimeEvidenceRecordsZeroInitializedAndFinal
 			if findingCount == 0 {
 				findingCount = 1
 			}
-			rows := make([]SupplyChainImpactFindingRow, findingCount)
+			rows := make([]impact.SupplyChainImpactFindingRow, findingCount)
 			for i := range rows {
-				rows[i] = SupplyChainImpactFindingRow{FindingID: fmt.Sprintf("f-%d", i), SubjectDigest: digest}
+				rows[i] = impact.SupplyChainImpactFindingRow{FindingID: fmt.Sprintf("f-%d", i), SubjectDigest: digest}
 			}
 			handler := &SupplyChainHandler{
 				Neo4j:                       &stubKubernetesRuntimeGraph{rows: tt.graphRows},
@@ -427,9 +428,9 @@ func TestApplySupplyChainKubernetesRuntimeEvidenceErrorSpanKeepsPlannedBounds(t 
 		"sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
 		"sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
 	}
-	rows := make([]SupplyChainImpactFindingRow, len(digests))
+	rows := make([]impact.SupplyChainImpactFindingRow, len(digests))
 	for i, digest := range digests {
-		rows[i] = SupplyChainImpactFindingRow{FindingID: digest, SubjectDigest: digest}
+		rows[i] = impact.SupplyChainImpactFindingRow{FindingID: digest, SubjectDigest: digest}
 	}
 	wantErr := errors.New("graph unavailable")
 	graph := &fairKubernetesRuntimeGraph{errorDigest: digests[0], err: wantErr}

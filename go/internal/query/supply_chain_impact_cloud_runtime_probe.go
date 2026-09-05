@@ -16,6 +16,7 @@ import (
 	"context"
 	"strings"
 
+	"github.com/eshu-hq/eshu/go/internal/query/supplychain/impact"
 	"go.opentelemetry.io/otel/attribute"
 )
 
@@ -218,7 +219,7 @@ func (h *SupplyChainHandler) probeSupplyChainCloudRuntimeResources(
 func (h *SupplyChainHandler) applySupplyChainCloudRuntimeEvidence(
 	ctx context.Context,
 	access repositoryAccessFilter,
-	rows []SupplyChainImpactFindingRow,
+	rows []impact.SupplyChainImpactFindingRow,
 ) error {
 	if h == nil || h.CloudResourceInventory == nil || len(rows) == 0 {
 		return nil

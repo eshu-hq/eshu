@@ -10,17 +10,19 @@ import (
 	"net/http/httptest"
 	"strings"
 	"testing"
+
+	"github.com/eshu-hq/eshu/go/internal/query/supplychain/impact"
 )
 
 type stubSupplyChainImpactAggregateStore struct {
-	count           SupplyChainImpactAggregateCount
+	count           impact.SupplyChainImpactAggregateCount
 	countErr        error
-	inventory       []SupplyChainImpactInventoryRow
+	inventory       []impact.SupplyChainImpactInventoryRow
 	inventoryErr    error
-	lastFilter      SupplyChainImpactAggregateFilter
-	lastCountFilter SupplyChainImpactAggregateFilter
-	lastInvFilter   SupplyChainImpactAggregateFilter
-	lastDimension   SupplyChainImpactInventoryDimension
+	lastFilter      impact.SupplyChainImpactAggregateFilter
+	lastCountFilter impact.SupplyChainImpactAggregateFilter
+	lastInvFilter   impact.SupplyChainImpactAggregateFilter
+	lastDimension   impact.SupplyChainImpactInventoryDimension
 	lastLimit       int
 	lastOffset      int
 	callCountCount  int
@@ -29,24 +31,24 @@ type stubSupplyChainImpactAggregateStore struct {
 
 func (s *stubSupplyChainImpactAggregateStore) CountSupplyChainImpactFindings(
 	_ context.Context,
-	filter SupplyChainImpactAggregateFilter,
-) (SupplyChainImpactAggregateCount, error) {
+	filter impact.SupplyChainImpactAggregateFilter,
+) (impact.SupplyChainImpactAggregateCount, error) {
 	s.callCountCount++
 	s.lastFilter = filter
 	s.lastCountFilter = filter
 	if s.countErr != nil {
-		return SupplyChainImpactAggregateCount{}, s.countErr
+		return impact.SupplyChainImpactAggregateCount{}, s.countErr
 	}
 	return s.count, nil
 }
 
 func (s *stubSupplyChainImpactAggregateStore) SupplyChainImpactInventory(
 	_ context.Context,
-	filter SupplyChainImpactAggregateFilter,
-	dim SupplyChainImpactInventoryDimension,
+	filter impact.SupplyChainImpactAggregateFilter,
+	dim impact.SupplyChainImpactInventoryDimension,
 	limit int,
 	offset int,
-) ([]SupplyChainImpactInventoryRow, error) {
+) ([]impact.SupplyChainImpactInventoryRow, error) {
 	s.callInvCount++
 	s.lastFilter = filter
 	s.lastInvFilter = filter
@@ -56,7 +58,7 @@ func (s *stubSupplyChainImpactAggregateStore) SupplyChainImpactInventory(
 	if s.inventoryErr != nil {
 		return nil, s.inventoryErr
 	}
-	return append([]SupplyChainImpactInventoryRow(nil), s.inventory...), nil
+	return append([]impact.SupplyChainImpactInventoryRow(nil), s.inventory...), nil
 }
 
 func TestSupplyChainImpactAggregateRoutesReturn503WhenStoreMissing(t *testing.T) {
@@ -86,7 +88,7 @@ func TestSupplyChainImpactAggregateCountReturnsTotals(t *testing.T) {
 	t.Parallel()
 
 	store := &stubSupplyChainImpactAggregateStore{
-		count: SupplyChainImpactAggregateCount{
+		count: impact.SupplyChainImpactAggregateCount{
 			TotalFindings:    7,
 			AffectedFindings: 4,
 			AffectedExact:    3,
@@ -157,11 +159,11 @@ func TestSupplyChainImpactAggregateCountReturnsTotals(t *testing.T) {
 func TestSupplyChainImpactAggregatePriorityQueryQualifiesBucket(t *testing.T) {
 	t.Parallel()
 
-	if strings.Contains(supplyChainImpactAggregatePriorityCountQuery, "NULLIF(priority_bucket") {
-		t.Fatalf("priority aggregate query must qualify bucket references:\n%s", supplyChainImpactAggregatePriorityCountQuery)
+	if strings.Contains(impact.SupplyChainImpactAggregatePriorityCountQuery, "NULLIF(priority_bucket") {
+		t.Fatalf("priority aggregate query must qualify bucket references:\n%s", impact.SupplyChainImpactAggregatePriorityCountQuery)
 	}
-	if !strings.Contains(supplyChainImpactAggregatePriorityCountQuery, "NULLIF(fact.priority_bucket") {
-		t.Fatalf("priority aggregate query missing qualified priority bucket reference:\n%s", supplyChainImpactAggregatePriorityCountQuery)
+	if !strings.Contains(impact.SupplyChainImpactAggregatePriorityCountQuery, "NULLIF(fact.priority_bucket") {
+		t.Fatalf("priority aggregate query missing qualified priority bucket reference:\n%s", impact.SupplyChainImpactAggregatePriorityCountQuery)
 	}
 }
 
@@ -169,10 +171,10 @@ func TestSupplyChainImpactAggregateQueriesCountCanonicalFindings(t *testing.T) {
 	t.Parallel()
 
 	for name, query := range map[string]string{
-		"totals":    supplyChainImpactAggregateCountQuery,
-		"priority":  supplyChainImpactAggregatePriorityCountQuery,
-		"severity":  supplyChainImpactAggregateSeverityCountQuery,
-		"inventory": supplyChainImpactInventoryQueryTemplate,
+		"totals":    impact.SupplyChainImpactAggregateCountQuery,
+		"priority":  impact.SupplyChainImpactAggregatePriorityCountQuery,
+		"severity":  impact.SupplyChainImpactAggregateSeverityCountQuery,
+		"inventory": impact.SupplyChainImpactInventoryQueryTemplate,
 	} {
 		if !strings.Contains(query, "canonical_key") {
 			t.Fatalf("%s aggregate query missing canonical_key dedupe:\n%s", name, query)
@@ -210,10 +212,10 @@ func TestSupplyChainImpactAggregateQueriesKeepActiveScanAnchor(t *testing.T) {
 	t.Parallel()
 
 	for name, query := range map[string]string{
-		"totals":    supplyChainImpactAggregateCountQuery,
-		"priority":  supplyChainImpactAggregatePriorityCountQuery,
-		"severity":  supplyChainImpactAggregateSeverityCountQuery,
-		"inventory": supplyChainImpactInventoryQueryTemplate,
+		"totals":    impact.SupplyChainImpactAggregateCountQuery,
+		"priority":  impact.SupplyChainImpactAggregatePriorityCountQuery,
+		"severity":  impact.SupplyChainImpactAggregateSeverityCountQuery,
+		"inventory": impact.SupplyChainImpactInventoryQueryTemplate,
 	} {
 		for _, want := range []string{
 			"WHERE fact.fact_kind = 'reducer_supply_chain_impact_finding'",
@@ -232,10 +234,10 @@ func TestSupplyChainImpactAggregateQueriesUseListProfileAndSuppressionPredicates
 	t.Parallel()
 
 	for name, query := range map[string]string{
-		"totals":    supplyChainImpactAggregateCountQuery,
-		"priority":  supplyChainImpactAggregatePriorityCountQuery,
-		"severity":  supplyChainImpactAggregateSeverityCountQuery,
-		"inventory": supplyChainImpactInventoryQueryTemplate,
+		"totals":    impact.SupplyChainImpactAggregateCountQuery,
+		"priority":  impact.SupplyChainImpactAggregatePriorityCountQuery,
+		"severity":  impact.SupplyChainImpactAggregateSeverityCountQuery,
+		"inventory": impact.SupplyChainImpactInventoryQueryTemplate,
 	} {
 		for _, want := range []string{
 			"fact.payload->>'detection_profile' = $12",
@@ -263,8 +265,8 @@ func TestSupplyChainImpactAggregateQueriesUseListProfileAndSuppressionPredicates
 	}
 	// Scoped-token grant arrays occupy $18/$19 and the bound suppression
 	// evaluation clock occupies $20, so inventory limit/offset use $21/$22.
-	if !strings.Contains(supplyChainImpactInventoryQueryTemplate, "LIMIT $21 OFFSET $22") {
-		t.Fatalf("inventory query must keep limit/offset after filter parameters:\n%s", supplyChainImpactInventoryQueryTemplate)
+	if !strings.Contains(impact.SupplyChainImpactInventoryQueryTemplate, "LIMIT $21 OFFSET $22") {
+		t.Fatalf("inventory query must keep limit/offset after filter parameters:\n%s", impact.SupplyChainImpactInventoryQueryTemplate)
 	}
 }
 
@@ -272,10 +274,10 @@ func TestSupplyChainImpactAggregateInventoryReturnsBuckets(t *testing.T) {
 	t.Parallel()
 
 	store := &stubSupplyChainImpactAggregateStore{
-		inventory: []SupplyChainImpactInventoryRow{
-			{Dimension: SupplyChainImpactInventoryByImpactStatus, Value: "affected_exact", Count: 12},
-			{Dimension: SupplyChainImpactInventoryByImpactStatus, Value: "affected_derived", Count: 3},
-			{Dimension: SupplyChainImpactInventoryByImpactStatus, Value: "not_affected_known_fixed", Count: 1},
+		inventory: []impact.SupplyChainImpactInventoryRow{
+			{Dimension: impact.SupplyChainImpactInventoryByImpactStatus, Value: "affected_exact", Count: 12},
+			{Dimension: impact.SupplyChainImpactInventoryByImpactStatus, Value: "affected_derived", Count: 3},
+			{Dimension: impact.SupplyChainImpactInventoryByImpactStatus, Value: "not_affected_known_fixed", Count: 1},
 		},
 	}
 	handler := &SupplyChainHandler{ImpactAggregates: store}
@@ -289,7 +291,7 @@ func TestSupplyChainImpactAggregateInventoryReturnsBuckets(t *testing.T) {
 	if got, want := w.Code, http.StatusOK; got != want {
 		t.Fatalf("status = %d, want %d; body = %s", got, want, w.Body.String())
 	}
-	if store.lastDimension != SupplyChainImpactInventoryByImpactStatus {
+	if store.lastDimension != impact.SupplyChainImpactInventoryByImpactStatus {
 		t.Fatalf("dimension = %q, want impact_status", store.lastDimension)
 	}
 	if store.lastLimit != 11 {
@@ -318,10 +320,10 @@ func TestSupplyChainImpactAggregateInventoryReturnsBuckets(t *testing.T) {
 func TestSupplyChainImpactAggregateInventoryReportsTruncated(t *testing.T) {
 	t.Parallel()
 
-	rows := make([]SupplyChainImpactInventoryRow, 6)
+	rows := make([]impact.SupplyChainImpactInventoryRow, 6)
 	for i := range rows {
-		rows[i] = SupplyChainImpactInventoryRow{
-			Dimension: SupplyChainImpactInventoryByRepository,
+		rows[i] = impact.SupplyChainImpactInventoryRow{
+			Dimension: impact.SupplyChainImpactInventoryByRepository,
 			Value:     "repo",
 			Count:     i,
 		}
@@ -425,10 +427,10 @@ func TestSupplyChainImpactAggregateInventoryRejectsOversizedOffset(t *testing.T)
 func TestSupplyChainImpactAggregateInventoryNullsNextOffsetAtOffsetCeiling(t *testing.T) {
 	t.Parallel()
 
-	rows := make([]SupplyChainImpactInventoryRow, 6)
+	rows := make([]impact.SupplyChainImpactInventoryRow, 6)
 	for i := range rows {
-		rows[i] = SupplyChainImpactInventoryRow{
-			Dimension: SupplyChainImpactInventoryByRepository,
+		rows[i] = impact.SupplyChainImpactInventoryRow{
+			Dimension: impact.SupplyChainImpactInventoryByRepository,
 			Value:     "repo",
 			Count:     i,
 		}
