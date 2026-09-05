@@ -51,8 +51,9 @@ family evaluate the same decoded statements. They count into different tallies
 and check against different catalogs, so the folds stay separate — but the
 statement and grant shapes, the matchers, and the resolution outcome are one
 vocabulary. A family package may never import the reducer root, so the shared
-half lives below both. The root keeps its spelling through aliases and
-const aliases in `iam_permission_grant_compat.go`.
+half lives below both. The root keeps four resource-type const aliases in
+`iam_permission_grant_compat.go`; the type aliases and forwarders it once held
+went with the escalation family.
 
 Because `PrincipalGrant` now lives here, the root cannot attach methods to it.
 The escalation-specific `armStatus` became the free function `grantArmStatus` in
