@@ -43,8 +43,8 @@ so requiring any of them would dead-letter half of this kind's real traffic.
 
 ## Accuracy boundary (why this family is delicate)
 
-The single reducer decode site (`extractProviderSecurityAlerts`,
-`go/internal/reducer/security_alert_reconciliation.go`) feeds **two** consumers:
+The single reducer decode site (`ExtractProviderSecurityAlerts`,
+`go/internal/reducer/securityalert/security_alert_reconciliation.go`) feeds **two** consumers:
 the reconciliation read surface and the `supply_chain_impact` seeder
 (`appendSecurityAlertImpactFindings`). The typed struct mirrors the existing
 wire payload EXACTLY — no field is added, renamed, narrowed, or widened — so the

@@ -48,8 +48,8 @@ state flow into `supply_chain_impact` as promoted truth.
   fields), so requiring any of the others would dead-letter half of this kind's
   real traffic.
 - The SINGLE reducer decode site for this kind
-  (`extractProviderSecurityAlerts`,
-  `go/internal/reducer/security_alert_reconciliation.go`) feeds TWO consumers:
+  (`ExtractProviderSecurityAlerts`,
+  `go/internal/reducer/securityalert/security_alert_reconciliation.go`) feeds TWO consumers:
   `BuildSecurityAlertReconciliations` (the reconciliation read surface) and
   `appendSecurityAlertImpactFindings` (the `supply_chain_impact` seeder, a
   CanonicalWrites path). Any change to this struct changes the input to BOTH.

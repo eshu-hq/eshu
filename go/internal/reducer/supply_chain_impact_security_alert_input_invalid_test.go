@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/reducer/securityalert"
 )
 
 // TestSupplyChainImpactSecurityAlertSeededFindingsUnchangedByTypedDecode is the
@@ -199,11 +200,11 @@ func TestSecurityAlertReconciliationQuarantineReplayIsIdempotent(t *testing.T) {
 	})
 	batch := []facts.Envelope{valid, malformed}
 
-	firstDecisions, firstQuarantined, err := BuildSecurityAlertReconciliationsWithQuarantine(batch)
+	firstDecisions, firstQuarantined, err := securityalert.BuildSecurityAlertReconciliationsWithQuarantine(batch, nil)
 	if err != nil {
 		t.Fatalf("first build error = %v, want nil", err)
 	}
-	secondDecisions, secondQuarantined, err := BuildSecurityAlertReconciliationsWithQuarantine(batch)
+	secondDecisions, secondQuarantined, err := securityalert.BuildSecurityAlertReconciliationsWithQuarantine(batch, nil)
 	if err != nil {
 		t.Fatalf("second build error = %v, want nil", err)
 	}

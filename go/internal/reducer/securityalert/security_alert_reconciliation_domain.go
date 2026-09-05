@@ -1,18 +1,23 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package reducer
+package securityalert
 
-import "github.com/eshu-hq/eshu/go/internal/truth"
+import (
+	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
+	"github.com/eshu-hq/eshu/go/internal/truth"
+)
 
-// securityAlertReconciliationDomainDefinition returns the additive definition
+// SecurityAlertReconciliationDomainDefinition returns the additive definition
 // for provider alert reconciliation. The domain writes durable reducer facts
 // for comparison state only; provider alert state is never impact truth.
-func securityAlertReconciliationDomainDefinition() DomainDefinition {
-	return DomainDefinition{
-		Domain:  DomainSecurityAlertReconciliation,
+// Exported so the reducer root's registration forwarder
+// (defaults_additive_domains_supply_chain.go) can call it (issue #6061).
+func SecurityAlertReconciliationDomainDefinition() reducercontract.DomainDefinition {
+	return reducercontract.DomainDefinition{
+		Domain:  reducercontract.DomainSecurityAlertReconciliation,
 		Summary: "compare provider repository security alerts with Eshu-owned dependency and impact evidence",
-		Ownership: OwnershipShape{
+		Ownership: reducercontract.OwnershipShape{
 			CrossSource:    true,
 			CrossScope:     true,
 			CanonicalWrite: true,

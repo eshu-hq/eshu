@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package reducer
+package securityalert
 
 import (
 	"strings"
@@ -28,7 +28,7 @@ func TestBuildSecurityAlertReconciliationsDoesNotCopyProviderVersionIntoObserved
 		"observed_version":      "9.9.9",
 	})
 
-	decisions := BuildSecurityAlertReconciliations([]facts.Envelope{alert})
+	decisions := BuildSecurityAlertReconciliations([]facts.Envelope{alert}, nil)
 
 	if got, want := len(decisions), 1; got != want {
 		t.Fatalf("len(decisions) = %d, want %d", got, want)
@@ -88,7 +88,7 @@ func TestBuildSecurityAlertReconciliationsReportsMissingAndMalformedObservedVers
 			consumption := packageConsumptionCorrelationEnvelope("consume-"+tc.name, repoID, tc.packageID, "package-lock.json")
 			consumption.Payload["dependency_range"] = tc.dependencyRange
 
-			decisions := BuildSecurityAlertReconciliations([]facts.Envelope{alert, consumption})
+			decisions := BuildSecurityAlertReconciliations([]facts.Envelope{alert, consumption}, nil)
 
 			if got, want := len(decisions), 1; got != want {
 				t.Fatalf("len(decisions) = %d, want %d", got, want)
@@ -106,4 +106,19 @@ func TestBuildSecurityAlertReconciliationsReportsMissingAndMalformedObservedVers
 			assertContainsString(t, decision.PackageMissingEvidence, tc.wantMissing)
 		})
 	}
+}
+
+// assertContainsString is declared locally rather than imported from the
+// reducer root's copy (supply_chain_impact_version_match_helpers_test.go): Go
+// test files never export across packages, and this seven-line
+// case-insensitive membership check has no reducer-root dependency (issue
+// #6061).
+func assertContainsString(t *testing.T, values []string, want string) {
+	t.Helper()
+	for _, value := range values {
+		if strings.EqualFold(value, want) {
+			return
+		}
+	}
+	t.Fatalf("%#v does not contain %q", values, want)
 }

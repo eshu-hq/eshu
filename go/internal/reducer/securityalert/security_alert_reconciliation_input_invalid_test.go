@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package reducer
+package securityalert
 
 import (
 	"context"
@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
 )
 
 // securityAlertEnvelopeMissingRepositoryID builds a
@@ -71,6 +72,7 @@ func TestBuildSecurityAlertReconciliationsQuarantinesMissingRepositoryID(t *test
 
 	decisions, quarantined, err := BuildSecurityAlertReconciliationsWithQuarantine(
 		[]facts.Envelope{valid, malformed},
+		nil,
 	)
 	if err != nil {
 		t.Fatalf("BuildSecurityAlertReconciliationsWithQuarantine() error = %v, want nil", err)
@@ -138,20 +140,31 @@ func TestSecurityAlertReconciliationHandlerQuarantinesMissingRepositoryID(t *tes
 		},
 	}
 	writer := &recordingSecurityAlertReconciliationWriter{}
-	handler := SecurityAlertReconciliationHandler{FactLoader: loader, Writer: writer}
+	handler := SecurityAlertReconciliationHandler{
+		FactLoader: loader,
+		Writer:     writer,
+		// This fixture carries no manifest/lockfile dependency evidence, so the
+		// bridge is deliberately a no-op here. Handle requires the field to be
+		// non-nil, which is the point: choosing "no manifest evidence" at a call
+		// site is explicit, while forgetting to wire the reducer root's real
+		// bridge is not.
+		ExtractManifestConsumptions: func([]ProviderSecurityAlert, []facts.Envelope) []SecurityAlertConsumption {
+			return nil
+		},
+	}
 
-	result, err := handler.Handle(context.Background(), Intent{
+	result, err := handler.Handle(context.Background(), reducercontract.Intent{
 		IntentID:     "intent-quarantine",
 		ScopeID:      validRepoID,
 		GenerationID: "generation-1",
 		SourceSystem: "security_alert",
-		Domain:       DomainSecurityAlertReconciliation,
+		Domain:       reducercontract.DomainSecurityAlertReconciliation,
 		Cause:        "provider alert observed",
 	})
 	if err != nil {
 		t.Fatalf("Handle() error = %v, want nil", err)
 	}
-	if result.Status != ResultStatusSucceeded {
+	if result.Status != reducercontract.ResultStatusSucceeded {
 		t.Fatalf("Handle() status = %q, want succeeded", result.Status)
 	}
 	if got, want := result.SubSignals["input_invalid_facts"], float64(1); got != want {
@@ -213,58 +226,54 @@ func TestNormalizeSecurityAlertStringMapInPlace(t *testing.T) {
 	})
 }
 
-// TestSupplyChainImpactSecurityAlertScopingSurvivesAllMalformedAlerts is the
-// codex P1 regression (security_alert_reconciliation_decode.go:74): when every
-// security_alert.repository_alert in a security-alert-triggered
-// supply_chain_impact intent is missing its required repository_id, the lenient
-// pre-filter extractor (extractProviderSecurityAlerts) must still return the
-// alert so supplyChainImpactUsesSecurityAlertScope reports true and the
-// evidence-scoping fence still narrows to the alert's package/ecosystem. The
-// durable Handle path still quarantines the same fact (proven separately); only
-// the non-durable scoping signal is preserved here.
-//
-// Pre-fix, the pure extractor dropped the malformed alert, len(alerts)==0,
-// scoping was skipped, and unrelated active dependency/vulnerability facts could
-// publish unscoped findings.
-func TestSupplyChainImpactSecurityAlertScopingSurvivesAllMalformedAlerts(t *testing.T) {
-	t.Parallel()
+// recordingSecurityAlertReconciliationFactLoader and
+// recordingSecurityAlertReconciliationWriter are declared locally rather than
+// shared with the reducer root's copies (security_alert_reconciliation_lockfile_test.go):
+// the root copies wire securityalert.SecurityAlertReconciliationFactFilter and
+// friends across the package boundary for tests that need real manifest
+// matching, while this file's tests never populate manifestFacts/
+// repositoryFacts, so a same-package minimal double is simpler than importing
+// test-only cross-package fixtures (Go test files never export across
+// packages regardless (issue #6061)).
+type recordingSecurityAlertReconciliationFactLoader struct {
+	scopeFacts  []facts.Envelope
+	activeFacts []facts.Envelope
+}
 
-	malformed := securityAlertEnvelopeMissingRepositoryID("alert-malformed-scope", map[string]any{
-		"provider":       "github_dependabot",
-		"provider_state": "open",
-		"package_id":     "npm://registry.npmjs.org/scoped-pkg",
-		"package_name":   "scoped-pkg",
-		"ecosystem":      "npm",
-		"cve_ids":        []any{"CVE-2026-4242"},
-	})
+func (l *recordingSecurityAlertReconciliationFactLoader) ListFacts(
+	context.Context,
+	string,
+	string,
+) ([]facts.Envelope, error) {
+	return append([]facts.Envelope(nil), l.scopeFacts...), nil
+}
 
-	// The lenient scoping/pre-filter extractor keeps the malformed alert (with an
-	// empty RepositoryID but its package identity intact).
-	lenient := extractProviderSecurityAlerts([]facts.Envelope{malformed})
-	if len(lenient) != 1 {
-		t.Fatalf("lenient extractProviderSecurityAlerts kept %d alerts, want 1 (the malformed alert must still scope)", len(lenient))
-	}
-	if lenient[0].RepositoryID != "" {
-		t.Fatalf("lenient alert RepositoryID = %q, want empty (malformed)", lenient[0].RepositoryID)
-	}
-	if lenient[0].PackageID != "npm://registry.npmjs.org/scoped-pkg" {
-		t.Fatalf("lenient alert PackageID = %q, want the malformed alert's package identity", lenient[0].PackageID)
-	}
+func (l *recordingSecurityAlertReconciliationFactLoader) ListFactsByKind(
+	context.Context,
+	string,
+	string,
+	[]string,
+) ([]facts.Envelope, error) {
+	return append([]facts.Envelope(nil), l.scopeFacts...), nil
+}
 
-	// The scoping gate must fire for a security-alert-triggered intent even when
-	// every alert is malformed.
-	intent := Intent{SourceSystem: "security_alert", ScopeID: "security-alert:github:acme/api"}
-	if !supplyChainImpactUsesSecurityAlertScope(intent, []facts.Envelope{malformed}) {
-		t.Fatal("supplyChainImpactUsesSecurityAlertScope = false for an all-malformed security-alert intent; the scoping fence was dropped")
-	}
+func (l *recordingSecurityAlertReconciliationFactLoader) ListActiveSecurityAlertReconciliationFacts(
+	context.Context,
+	SecurityAlertReconciliationFactFilter,
+) ([]facts.Envelope, error) {
+	return append([]facts.Envelope(nil), l.activeFacts...), nil
+}
 
-	// The strict durable path still quarantines the same fact (no double-count on
-	// the pre-filter path, dead-letter on the durable path).
-	_, quarantined, err := extractProviderSecurityAlertsWithQuarantine([]facts.Envelope{malformed})
-	if err != nil {
-		t.Fatalf("strict extract error = %v, want nil", err)
-	}
-	if len(quarantined) != 1 || quarantined[0].Field != "repository_id" {
-		t.Fatalf("strict path quarantined = %+v, want one repository_id quarantine", quarantined)
-	}
+type recordingSecurityAlertReconciliationWriter struct {
+	calls int
+	write SecurityAlertReconciliationWrite
+}
+
+func (w *recordingSecurityAlertReconciliationWriter) WriteSecurityAlertReconciliations(
+	_ context.Context,
+	write SecurityAlertReconciliationWrite,
+) (SecurityAlertReconciliationWriteResult, error) {
+	w.calls++
+	w.write = write
+	return SecurityAlertReconciliationWriteResult{CanonicalWrites: len(write.Decisions)}, nil
 }

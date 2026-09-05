@@ -242,11 +242,11 @@ node-materialized count (that would corrupt an existing counter's semantics
 by mixing two distinct node kinds under one instrument), and does not add a
 replacement counter in this change -- see `README.md`'s Telemetry section.
 
-No-Regression Evidence: `go test ./internal/reducer -run 'TestSecurityAlertReconciliationFactIdentitySurvivesProviderOnlyToMatched|TestSecurityAlertReconciliationFactIdentitySurvivesMatchedToStale' -count=1` failed before reducer fact identity ignored mutable repository/source-fact fields, then passed. `go test ./internal/query -run 'TestPostgresSecurityAlertReconciliationQueryShape|TestSecurityAlertReconciliationAggregateQueriesUseCurrentProviderAlertRows' -count=1` failed before default list/count/inventory reads ranked one current provider-alert row before status and state filters, then passed.
+No-Regression Evidence: `go test ./internal/reducer/securityalert -run 'TestSecurityAlertReconciliationFactIdentitySurvivesProviderOnlyToMatched|TestSecurityAlertReconciliationFactIdentitySurvivesMatchedToStale' -count=1` failed before reducer fact identity ignored mutable repository/source-fact fields, then passed. `go test ./internal/query -run 'TestPostgresSecurityAlertReconciliationQueryShape|TestSecurityAlertReconciliationAggregateQueriesUseCurrentProviderAlertRows' -count=1` failed before default list/count/inventory reads ranked one current provider-alert row before status and state filters, then passed.
 
 No-Observability-Change: the change only adjusts reducer fact replacement identity and the existing Postgres read-model selection for security-alert reconciliations. It adds no route, graph query, queue, worker, runtime knob, metric instrument, or metric label; operators still diagnose the path through existing reducer run spans, reducer execution counters, durable `reducer_security_alert_reconciliation` payloads, query handler spans, and Postgres query duration metrics.
 
-No-Regression Evidence: `go test ./internal/reducer -run 'TestBuildSecurityAlertReconciliations(ClassifiesProviderAlertStates|DoesNotCopyProviderVersionIntoObservedVersion|ReportsMissingAndMalformedObservedVersions)' -count=1`, `go test ./internal/query -run 'Test(SupplyChainListSecurityAlertReconciliationsSeparatesProviderAndEshuState|DecodeSecurityAlertReconciliationRowPreservesOwnedPackageEvidence|OpenAPISpecIncludesSecurityAlertReconciliations)' -count=1`, `go test ./internal/mcp -run 'Test(SecurityAlertReconciliationToolAdvertisesOwnedObservedVersion|ResolveRouteMapsSecurityAlertReconciliationsToBoundedQuery)' -count=1`, and `scripts/test-verify-remote-e2e-target-story.sh` failed before security-alert reconciliation rows exposed Eshu-owned installed-version evidence and the target-story verifier accepted installed/observed version expectations, then passed after the row contract added `eshu_package.observed_version`.
+No-Regression Evidence: `go test ./internal/reducer/securityalert -run 'TestBuildSecurityAlertReconciliations(ClassifiesProviderAlertStates|DoesNotCopyProviderVersionIntoObservedVersion|ReportsMissingAndMalformedObservedVersions)' -count=1`, `go test ./internal/query -run 'Test(SupplyChainListSecurityAlertReconciliationsSeparatesProviderAndEshuState|DecodeSecurityAlertReconciliationRowPreservesOwnedPackageEvidence|OpenAPISpecIncludesSecurityAlertReconciliations)' -count=1`, `go test ./internal/mcp -run 'Test(SecurityAlertReconciliationToolAdvertisesOwnedObservedVersion|ResolveRouteMapsSecurityAlertReconciliationsToBoundedQuery)' -count=1`, and `scripts/test-verify-remote-e2e-target-story.sh` failed before security-alert reconciliation rows exposed Eshu-owned installed-version evidence and the target-story verifier accepted installed/observed version expectations, then passed after the row contract added `eshu_package.observed_version`.
 
 No-Observability-Change: the observed-version change only extends reducer-owned `reducer_security_alert_reconciliation` payloads and the existing HTTP/MCP read model. It adds no route, graph query, queue domain, worker, lease, runtime knob, metric instrument, or metric label; operators still diagnose the path through existing reducer run spans and execution counters, persisted reconciliation payloads, `query.supply_chain_security_alerts` spans, provider-source coverage, and Postgres query duration metrics.
 
@@ -1541,11 +1541,11 @@ to every existing operator-facing signal.
 
 No-Regression Evidence (Wave 4e, security_alert family typed-payload decode,
 Contract System v1 #4566/#4582): the SINGLE decode site for the
-`security_alert.repository_alert` kind (`extractProviderSecurityAlerts`,
-`security_alert_reconciliation.go`) now decodes through the `sdk/go/factschema`
-seam (`decodeSecurityAlertRepositoryAlert` in
+`security_alert.repository_alert` kind (`ExtractProviderSecurityAlerts`,
+`securityalert/security_alert_reconciliation_decode.go`) decodes through
+`sdk/go/factschema` (`schemadecode.DecodeSecurityAlertRepositoryAlert` in
 `factschema_decode_securityalert.go`, converting the typed
-`securityalertv1.RepositoryAlert` into `providerSecurityAlert` via
+`securityalertv1.RepositoryAlert` into `securityalert.ProviderSecurityAlert` via
 `providerSecurityAlertFromDecoded`) instead of raw `payloadStr`/`payloadStrings`/
 `securityAlertMap`/`securityAlertStringMap`/`securityAlertStringMapSlice`/
 `securityAlertInt64` map lookups (all of which were DELETED). This kind is
@@ -1627,7 +1627,7 @@ in-memory caller's `env.Payload` would have mutated the original payload; the
 JSONB decode path always allocated (that branch is not hit in production), so the
 clone is free in prod and keeps the decode side-effect-free for every input shape
 (`TestDecodeMapInto_TypedMapInputNotMutated` locks non-mutation of an
-already-typed input). (2) `extractProviderSecurityAlerts` — the LENIENT
+already-typed input). (2) `ExtractProviderSecurityAlerts` — the LENIENT
 pre-filter/scoping wrapper — no longer drops a `repository_id`-less alert; it
 reconstructs it best-effort from the raw payload
 (`providerSecurityAlertFromRawPayload`) so the security-alert evidence-scoping
@@ -1638,7 +1638,7 @@ package/ecosystem identity when every alert in a security-alert-triggered
 all-malformed alerts skipped scoping and unrelated active dependency/vulnerability
 facts (loaded earlier from the malformed alert's package/CVE hints) could publish
 unscoped impact findings. The DURABLE reconciliation and impact-seeding paths keep
-using the strict `extractProviderSecurityAlertsWithQuarantine`, so the malformed
+using the strict `ExtractProviderSecurityAlertsWithQuarantine`, so the malformed
 fact still dead-letters as `input_invalid`; only the non-durable scoping signal is
 preserved (`TestSupplyChainImpactSecurityAlertScopingSurvivesAllMalformedAlerts`).
 

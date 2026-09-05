@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package reducer
+package securityalert
 
 // SecurityAlertReconciliationStatus names how one provider alert compares to
 // Eshu-owned dependency and impact evidence.

@@ -10,6 +10,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
 	"github.com/eshu-hq/eshu/go/internal/packageidentity"
+	"github.com/eshu-hq/eshu/go/internal/reducer/securityalert"
 )
 
 func (h SupplyChainImpactHandler) loadActivePackageManifestDependencyFacts(
@@ -80,8 +81,8 @@ func supplyChainImpactManifestDependencyPackage(envelope facts.Envelope) (supply
 		}
 		return pkg, true
 	case facts.SecurityAlertRepositoryAlertFactKind:
-		return supplyChainAffectedPackageFromSecurityAlert(providerSecurityAlert{
-			SecurityAlertReconciliationDecision: SecurityAlertReconciliationDecision{
+		return supplyChainAffectedPackageFromSecurityAlert(securityalert.ProviderSecurityAlert{
+			SecurityAlertReconciliationDecision: securityalert.SecurityAlertReconciliationDecision{
 				ProviderAlertFactID: envelope.FactID,
 				Provider:            payloadStr(envelope.Payload, "provider"),
 				ProviderAlertID:     payloadStr(envelope.Payload, "provider_alert_id"),

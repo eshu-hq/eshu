@@ -1,28 +1,30 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package reducer
+package securityalert
 
 import (
 	"strings"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/reducer/factdecode"
 	"github.com/eshu-hq/eshu/go/internal/reducer/payloadcore"
+	"github.com/eshu-hq/eshu/go/internal/reducer/schemadecode"
 	securityalertv1 "github.com/eshu-hq/eshu/sdk/go/factschema/securityalert/v1"
 )
 
-// extractProviderSecurityAlertsWithQuarantine decodes every
+// ExtractProviderSecurityAlertsWithQuarantine decodes every
 // security_alert.repository_alert envelope in envelopes into a
-// providerSecurityAlert through the typed contracts seam
-// (decodeSecurityAlertRepositoryAlert), returning the decoded alerts alongside
-// the []quarantinedFact for any alert whose payload was missing its required
+// ProviderSecurityAlert through the typed contracts seam
+// (schemadecode.DecodeSecurityAlertRepositoryAlert), returning the decoded alerts alongside
+// the []factdecode.QuarantinedFact for any alert whose payload was missing its required
 // repository_id identity anchor.
 //
 // It is the single decode site for the security_alert.repository_alert kind on
 // the reducer side. BOTH consumers route through it:
 // BuildSecurityAlertReconciliations (the reconciliation read surface) and
 // appendSecurityAlertImpactFindings (the supply-chain-impact seeder). A fact
-// missing repository_id is skipped and returned as a quarantinedFact so the
+// missing repository_id is skipped and returned as a factdecode.QuarantinedFact so the
 // caller records a per-fact input_invalid dead-letter, while every valid
 // sibling alert still decodes — the same per-fact isolation the AWS/GCP/sbom/
 // vulnerability families use. A non-input_invalid error (unsupported schema
@@ -35,18 +37,18 @@ import (
 // the pre-typing raw-map reads applied, so both the reconciliation decision and
 // the supply-chain-impact finding seeded from a security alert are unchanged
 // for every fact that decodes.
-func extractProviderSecurityAlertsWithQuarantine(
+func ExtractProviderSecurityAlertsWithQuarantine(
 	envelopes []facts.Envelope,
-) ([]providerSecurityAlert, []quarantinedFact, error) {
-	alerts := make([]providerSecurityAlert, 0)
-	var quarantined []quarantinedFact
+) ([]ProviderSecurityAlert, []factdecode.QuarantinedFact, error) {
+	alerts := make([]ProviderSecurityAlert, 0)
+	var quarantined []factdecode.QuarantinedFact
 	for _, envelope := range envelopes {
 		if envelope.FactKind != facts.SecurityAlertRepositoryAlertFactKind {
 			continue
 		}
-		decoded, err := decodeSecurityAlertRepositoryAlert(envelope)
+		decoded, err := schemadecode.DecodeSecurityAlertRepositoryAlert(envelope)
 		if err != nil {
-			q, ok, fatal := partitionDecodeFailures(envelope, err)
+			q, ok, fatal := factdecode.PartitionDecodeFailures(envelope, err)
 			if fatal != nil {
 				return nil, nil, fatal
 			}
@@ -60,12 +62,12 @@ func extractProviderSecurityAlertsWithQuarantine(
 	return alerts, quarantined, nil
 }
 
-// extractProviderSecurityAlerts is the LENIENT, error-free counterpart the
+// ExtractProviderSecurityAlerts is the LENIENT, error-free counterpart the
 // pre-scan / evidence-scoping call sites use (securityAlertManifestDependencyFilter,
 // supplyChainImpactUsesSecurityAlertScope, scopeSupplyChainImpactEvidenceToSecurityAlerts).
 //
 // It decodes through the same typed seam as
-// extractProviderSecurityAlertsWithQuarantine, but a fact that would dead-letter
+// ExtractProviderSecurityAlertsWithQuarantine, but a fact that would dead-letter
 // as input_invalid (missing the required repository_id) is NOT dropped here — it
 // is reconstructed best-effort from its raw payload (with an empty RepositoryID)
 // and still returned, exactly as the pre-typing raw-map extraction did. This
@@ -82,15 +84,15 @@ func extractProviderSecurityAlertsWithQuarantine(
 // themselves. A non-input_invalid fatal error (unsupported schema major,
 // undecodable shape) is dropped here, matching the WithQuarantine path's fatal
 // handling that the Handle path surfaces.
-func extractProviderSecurityAlerts(envelopes []facts.Envelope) []providerSecurityAlert {
-	alerts := make([]providerSecurityAlert, 0)
+func ExtractProviderSecurityAlerts(envelopes []facts.Envelope) []ProviderSecurityAlert {
+	alerts := make([]ProviderSecurityAlert, 0)
 	for _, envelope := range envelopes {
 		if envelope.FactKind != facts.SecurityAlertRepositoryAlertFactKind {
 			continue
 		}
-		decoded, err := decodeSecurityAlertRepositoryAlert(envelope)
+		decoded, err := schemadecode.DecodeSecurityAlertRepositoryAlert(envelope)
 		if err != nil {
-			if _, quarantinable, _ := partitionDecodeFailures(envelope, err); !quarantinable {
+			if _, quarantinable, _ := factdecode.PartitionDecodeFailures(envelope, err); !quarantinable {
 				// A non-input_invalid fatal error is not a malformed-required-field
 				// case; the Handle path fails the whole intent on it, so the lenient
 				// pre-filter simply excludes it (it cannot reconstruct a meaningful
@@ -107,7 +109,7 @@ func extractProviderSecurityAlerts(envelopes []facts.Envelope) []providerSecurit
 	return alerts
 }
 
-// providerSecurityAlertFromRawPayload reconstructs a providerSecurityAlert
+// providerSecurityAlertFromRawPayload reconstructs a ProviderSecurityAlert
 // directly from a fact's raw payload for the LENIENT scoping/pre-filter path,
 // used only when the typed decode dead-lettered on a missing required field
 // (repository_id). It reproduces the exact pre-typing raw-map reads for the
@@ -115,49 +117,49 @@ func extractProviderSecurityAlerts(envelopes []facts.Envelope) []providerSecurit
 // package_name, and the advisory ids / repository name), so a malformed alert
 // participates in evidence scoping identically to before the typed migration.
 // It is never used on the durable reconciliation or impact-seeding path, which
-// quarantines the same fact through extractProviderSecurityAlertsWithQuarantine.
-func providerSecurityAlertFromRawPayload(envelope facts.Envelope) providerSecurityAlert {
-	providerRepositoryID := payloadStr(envelope.Payload, "repository_id")
-	updatedAt := payloadStr(envelope.Payload, "updated_at")
-	return providerSecurityAlert{
+// quarantines the same fact through ExtractProviderSecurityAlertsWithQuarantine.
+func providerSecurityAlertFromRawPayload(envelope facts.Envelope) ProviderSecurityAlert {
+	providerRepositoryID := payloadcore.PayloadStr(envelope.Payload, "repository_id")
+	updatedAt := payloadcore.PayloadStr(envelope.Payload, "updated_at")
+	return ProviderSecurityAlert{
 		SecurityAlertReconciliationDecision: SecurityAlertReconciliationDecision{
 			ProviderAlertFactID:       envelope.FactID,
 			ProviderAlertScopeID:      envelope.ScopeID,
 			ProviderAlertGenerationID: envelope.GenerationID,
-			Provider:                  payloadStr(envelope.Payload, "provider"),
-			ProviderAlertID:           payloadStr(envelope.Payload, "provider_alert_id"),
-			ProviderState:             strings.ToLower(payloadStr(envelope.Payload, "provider_state")),
+			Provider:                  payloadcore.PayloadStr(envelope.Payload, "provider"),
+			ProviderAlertID:           payloadcore.PayloadStr(envelope.Payload, "provider_alert_id"),
+			ProviderState:             strings.ToLower(payloadcore.PayloadStr(envelope.Payload, "provider_state")),
 			RepositoryID:              providerRepositoryID,
 			ProviderRepositoryID:      providerRepositoryID,
 			RepositoryName: payloadcore.FirstNonBlank(
-				payloadStr(envelope.Payload, "repository_name"),
+				payloadcore.PayloadStr(envelope.Payload, "repository_name"),
 				securityAlertRepositoryNameFromID(providerRepositoryID),
 			),
-			PackageID:       payloadStr(envelope.Payload, "package_id"),
-			Ecosystem:       payloadStr(envelope.Payload, "ecosystem"),
-			PackageName:     payloadStr(envelope.Payload, "package_name"),
-			ManifestPath:    payloadStr(envelope.Payload, "manifest_path"),
-			DependencyScope: payloadStr(envelope.Payload, "dependency_scope"),
-			Relationship:    payloadStr(envelope.Payload, "relationship"),
-			GHSAIDs:         payloadStrings(envelope.Payload, "ghsa_id", "ghsa_ids"),
-			CVEIDs:          payloadStrings(envelope.Payload, "cve_id", "cve_ids"),
-			EvidenceFactIDs: compactStringSlice(envelope.FactID),
+			PackageID:       payloadcore.PayloadStr(envelope.Payload, "package_id"),
+			Ecosystem:       payloadcore.PayloadStr(envelope.Payload, "ecosystem"),
+			PackageName:     payloadcore.PayloadStr(envelope.Payload, "package_name"),
+			ManifestPath:    payloadcore.PayloadStr(envelope.Payload, "manifest_path"),
+			DependencyScope: payloadcore.PayloadStr(envelope.Payload, "dependency_scope"),
+			Relationship:    payloadcore.PayloadStr(envelope.Payload, "relationship"),
+			GHSAIDs:         payloadcore.PayloadStrings(envelope.Payload, "ghsa_id", "ghsa_ids"),
+			CVEIDs:          payloadcore.PayloadStrings(envelope.Payload, "cve_id", "cve_ids"),
+			EvidenceFactIDs: payloadcore.CompactStringSlice(envelope.FactID),
 		},
 		updatedAtTime: parseSecurityAlertTime(updatedAt),
 	}
 }
 
-// providerSecurityAlertFromDecoded builds a providerSecurityAlert from one
+// providerSecurityAlertFromDecoded builds a ProviderSecurityAlert from one
 // decoded typed payload plus its envelope identity fields, reproducing exactly
 // the field mapping and normalization the pre-typing raw-map extraction applied
 // so the reconciliation and supply-chain-impact outputs stay byte-identical.
 func providerSecurityAlertFromDecoded(
 	envelope facts.Envelope,
 	decoded securityalertv1.RepositoryAlert,
-) providerSecurityAlert {
+) ProviderSecurityAlert {
 	providerRepositoryID := securityAlertTrimString(decoded.RepositoryID)
 	updatedAt := securityAlertDerefTrim(decoded.UpdatedAt)
-	return providerSecurityAlert{
+	return ProviderSecurityAlert{
 		SecurityAlertReconciliationDecision: SecurityAlertReconciliationDecision{
 			ProviderAlertFactID:       envelope.FactID,
 			ProviderAlertScopeID:      envelope.ScopeID,
@@ -201,7 +203,7 @@ func providerSecurityAlertFromDecoded(
 			CollectionStateFilter:       securityAlertDerefTrim(decoded.CollectionStateFilter),
 			CollectionIncompleteReasons: securityAlertCleanStrings(decoded.CollectionIncompleteReasons),
 			CanonicalWrites:             0,
-			EvidenceFactIDs:             compactStringSlice(envelope.FactID),
+			EvidenceFactIDs:             payloadcore.CompactStringSlice(envelope.FactID),
 		},
 		updatedAtTime: parseSecurityAlertTime(updatedAt),
 	}
@@ -257,8 +259,9 @@ func securityAlertDerefBool(value *bool) bool {
 
 // securityAlertMergeIDs merges a scalar advisory id with its slice form into one
 // trimmed, de-duplicated, sorted set, reproducing exactly the pre-typing
-// payloadStrings(scalarKey, sliceKey) read: the scalar is appended first (when
-// non-empty), then every non-empty slice entry, then uniqueSortedStrings.
+// payloadcore.PayloadStrings(scalarKey, sliceKey) read: the scalar is appended first (when
+// non-empty), then every non-empty slice entry, then
+// payloadcore.UniqueSortedStrings.
 func securityAlertMergeIDs(scalar *string, slice []string) []string {
 	var values []string
 	if trimmed := securityAlertDerefTrim(scalar); trimmed != "" {
@@ -269,13 +272,13 @@ func securityAlertMergeIDs(scalar *string, slice []string) []string {
 			values = append(values, trimmed)
 		}
 	}
-	return uniqueSortedStrings(values)
+	return payloadcore.UniqueSortedStrings(values)
 }
 
 // securityAlertCleanStrings trims and drops empty entries from a decoded string
-// slice, matching payloadStrings("", sliceKey)'s handling of
+// slice, matching payloadcore.PayloadStrings("", sliceKey)'s handling of
 // collection_incomplete_reasons (a slice-only read whose scalar key is empty):
-// each non-empty trimmed entry, then uniqueSortedStrings.
+// each non-empty trimmed entry, then payloadcore.UniqueSortedStrings.
 func securityAlertCleanStrings(slice []string) []string {
 	var values []string
 	for _, value := range slice {
@@ -283,7 +286,7 @@ func securityAlertCleanStrings(slice []string) []string {
 			values = append(values, trimmed)
 		}
 	}
-	return uniqueSortedStrings(values)
+	return payloadcore.UniqueSortedStrings(values)
 }
 
 // normalizeSecurityAlertAnyMap reproduces securityAlertMap against a decoded

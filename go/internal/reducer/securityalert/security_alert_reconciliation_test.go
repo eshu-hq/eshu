@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package reducer
+package securityalert
 
 import (
 	"strings"
@@ -9,6 +9,8 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
+	"github.com/eshu-hq/eshu/sdk/go/factschema"
 )
 
 func TestBuildSecurityAlertReconciliationsClassifiesProviderAlertStates(t *testing.T) {
@@ -42,7 +44,7 @@ func TestBuildSecurityAlertReconciliationsClassifiesProviderAlertStates(t *testi
 	consumption.Payload["installed_version"] = "1.2.0"
 	impact := supplyChainImpactFindingEnvelope("impact-1", repoID, packageID, "CVE-2026-0001", "affected_exact")
 
-	decisions := BuildSecurityAlertReconciliations([]facts.Envelope{alert, consumption, impact})
+	decisions := BuildSecurityAlertReconciliations([]facts.Envelope{alert, consumption, impact}, nil)
 	if got, want := len(decisions), 1; got != want {
 		t.Fatalf("len(decisions) = %d, want %d", got, want)
 	}
@@ -59,7 +61,7 @@ func TestBuildSecurityAlertReconciliationsClassifiesProviderAlertStates(t *testi
 	if got, want := decision.ObservedVersion, "1.2.0"; got != want {
 		t.Fatalf("ObservedVersion = %q, want Eshu-owned observed version %q", got, want)
 	}
-	if got, want := decision.DependencyEvidenceKind, packageConsumptionCorrelationFactKind; got != want {
+	if got, want := decision.DependencyEvidenceKind, factschema.FactKindReducerPackageConsumptionCorrelation; got != want {
 		t.Fatalf("DependencyEvidenceKind = %q, want %q", got, want)
 	}
 	if got, want := decision.CanonicalWrites, 0; got != want {
@@ -131,7 +133,7 @@ func TestBuildSecurityAlertReconciliationsCoversUnmatchedProviderOnlyStaleDismis
 	}
 	envelopes[len(envelopes)-1].ObservedAt = staleObserved
 
-	decisions := BuildSecurityAlertReconciliations(envelopes)
+	decisions := BuildSecurityAlertReconciliations(envelopes, nil)
 	got := map[string]SecurityAlertReconciliationStatus{}
 	for _, decision := range decisions {
 		got[decision.ProviderAlertFactID] = decision.Status
@@ -182,7 +184,7 @@ func TestBuildSecurityAlertReconciliationsSelectsNewestStaleConsumption(t *testi
 		alert,
 		newerConsumption,
 		olderConsumption,
-	})
+	}, nil)
 	if got, want := len(decisions), 1; got != want {
 		t.Fatalf("len(decisions) = %d, want %d", got, want)
 	}
@@ -225,7 +227,7 @@ func TestBuildSecurityAlertReconciliationsResolvesProviderAlertRepositoryScope(t
 		"affected_exact",
 	)
 
-	decisions := BuildSecurityAlertReconciliations([]facts.Envelope{alert, consumption, impact})
+	decisions := BuildSecurityAlertReconciliations([]facts.Envelope{alert, consumption, impact}, nil)
 
 	if got, want := len(decisions), 1; got != want {
 		t.Fatalf("len(decisions) = %d, want %d", got, want)
@@ -296,7 +298,7 @@ func TestSecurityAlertReconciliationWriterUsesProviderAlertScopeForPackageTrigge
 func TestSecurityAlertReconciliationDefersPackageTriggeredUnmatchedEvidence(t *testing.T) {
 	t.Parallel()
 
-	intent := Intent{
+	intent := reducercontract.Intent{
 		SourceSystem: "package_registry",
 		Cause:        "package registry identity observed",
 		AttemptCount: 1,
@@ -355,7 +357,7 @@ func TestBuildSecurityAlertReconciliationsFailsClosedForAmbiguousProviderReposit
 	)
 	secondConsumption.Payload["repository_name"] = "api"
 
-	decisions := BuildSecurityAlertReconciliations([]facts.Envelope{alert, firstConsumption, secondConsumption})
+	decisions := BuildSecurityAlertReconciliations([]facts.Envelope{alert, firstConsumption, secondConsumption}, nil)
 
 	if got, want := len(decisions), 1; got != want {
 		t.Fatalf("len(decisions) = %d, want %d", got, want)
@@ -400,7 +402,7 @@ func packageConsumptionCorrelationEnvelope(factID string, repoID string, package
 		FactID:       factID,
 		ScopeID:      repoID,
 		GenerationID: "generation-1",
-		FactKind:     packageConsumptionCorrelationFactKind,
+		FactKind:     factschema.FactKindReducerPackageConsumptionCorrelation,
 		ObservedAt:   time.Date(2026, 5, 23, 11, 0, 0, 0, time.UTC),
 		Payload: map[string]any{
 			"repository_id": repoID,
@@ -422,7 +424,7 @@ func supplyChainImpactFindingEnvelope(
 		FactID:       factID,
 		ScopeID:      repoID,
 		GenerationID: "generation-1",
-		FactKind:     supplyChainImpactFactKind,
+		FactKind:     facts.ReducerSupplyChainImpactFindingFactKind,
 		ObservedAt:   time.Date(2026, 5, 23, 12, 0, 0, 0, time.UTC),
 		Payload: map[string]any{
 			"repository_id": repoID,

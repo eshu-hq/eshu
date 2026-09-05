@@ -11,6 +11,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/reducer/eshusearch"
 	"github.com/eshu-hq/eshu/go/internal/reducer/incident"
 	"github.com/eshu-hq/eshu/go/internal/reducer/kubernetescorrelation"
+	"github.com/eshu-hq/eshu/go/internal/reducer/securityalert"
 	"github.com/eshu-hq/eshu/go/internal/reducer/tfconfigstate"
 	"github.com/eshu-hq/eshu/go/internal/relationships/tfstatebackend"
 )
@@ -194,7 +195,7 @@ type SupplyChainSecurityHandlers struct {
 
 	// SecurityAlertReconciliationWriter persists provider alert comparison
 	// state without promoting provider alerts into impact truth.
-	SecurityAlertReconciliationWriter SecurityAlertReconciliationWriter
+	SecurityAlertReconciliationWriter securityalert.SecurityAlertReconciliationWriter
 
 	// SecretsIAMTrustChainEvidenceLoader loads the bounded AWS IAM,
 	// Kubernetes, and Vault source-fact packet used by the secrets/IAM reducer

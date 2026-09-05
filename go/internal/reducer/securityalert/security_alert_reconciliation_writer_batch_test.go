@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package reducer
+package securityalert
 
 import (
 	"context"
@@ -12,7 +12,7 @@ import (
 
 // TestPostgresSecurityAlertReconciliationWriterPersistsBatchedFacts proves
 // WriteSecurityAlertReconciliations upserts decisions through the shared
-// reducerBatchInsertFacts bulk-insert path (issue #5317) rather than one
+// factwrite.BatchInsertFacts bulk-insert path (issue #5317) rather than one
 // ExecContext per decision, and that the decoded rows carry byte-identical
 // content to what the retired per-row canonicalReducerFactInsertQuery loop
 // produced: the row-building helpers (securityAlertReconciliationFactID/

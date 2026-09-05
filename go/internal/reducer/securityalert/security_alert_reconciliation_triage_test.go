@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package reducer
+package securityalert
 
 import (
 	"reflect"
@@ -64,7 +64,7 @@ func TestBuildSecurityAlertReconciliationsExplainsTriageOutcomes(t *testing.T) {
 	}
 	envelopes[len(envelopes)-2].ObservedAt = staleObserved
 
-	decisions := indexSecurityAlertDecisions(BuildSecurityAlertReconciliations(envelopes))
+	decisions := indexSecurityAlertDecisions(BuildSecurityAlertReconciliations(envelopes, nil))
 
 	assertSecurityAlertTriage(t, decisions["alert-matched"], SecurityAlertReconciliationMatched, "matched_exact_impact", nil)
 	assertSecurityAlertTriage(t, decisions["alert-provider-only"], SecurityAlertReconciliationProviderOnly, "owned_dependency_missing", []SecurityAlertReconciliationMissingEvidence{
@@ -109,7 +109,7 @@ func TestBuildSecurityAlertReconciliationsExplainsAmbiguousOwnedEvidence(t *test
 	)
 	second.Payload["repository_name"] = "payments-api"
 
-	decisions := BuildSecurityAlertReconciliations([]facts.Envelope{alert, first, second})
+	decisions := BuildSecurityAlertReconciliations([]facts.Envelope{alert, first, second}, nil)
 	if got, want := len(decisions), 1; got != want {
 		t.Fatalf("len(decisions) = %d, want %d", got, want)
 	}
@@ -137,7 +137,7 @@ func TestBuildSecurityAlertReconciliationsKeepsOwnedEvidenceForUnsupportedEcosys
 		packageConsumptionCorrelationEnvelope("consume-unsupported-owned", repoID, packageID, "packages.lock"),
 	}
 
-	decisions := indexSecurityAlertDecisions(BuildSecurityAlertReconciliations(envelopes))
+	decisions := indexSecurityAlertDecisions(BuildSecurityAlertReconciliations(envelopes, nil))
 	decision := decisions["alert-unsupported-owned"]
 	assertSecurityAlertTriage(t, decision, SecurityAlertReconciliationUnsupported, "unsupported_ecosystem", []SecurityAlertReconciliationMissingEvidence{
 		{Kind: "ecosystem_matcher", Reason: "unsupported_ecosystem"},
@@ -180,7 +180,7 @@ func TestBuildSecurityAlertReconciliationsTreatsOSAliasesAsSupported(t *testing.
 		packageConsumptionCorrelationEnvelope("consume-os-owned", repoID, packageID, "rootfs/apk/installed"),
 	}
 
-	decisions := indexSecurityAlertDecisions(BuildSecurityAlertReconciliations(envelopes))
+	decisions := indexSecurityAlertDecisions(BuildSecurityAlertReconciliations(envelopes, nil))
 
 	assertSecurityAlertTriage(t, decisions["alert-os-provider-only"], SecurityAlertReconciliationProviderOnly, "owned_dependency_missing", []SecurityAlertReconciliationMissingEvidence{
 		{Kind: "owned_dependency", Reason: "no_owned_dependency_evidence"},
