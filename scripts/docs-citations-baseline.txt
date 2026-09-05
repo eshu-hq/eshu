@@ -30,6 +30,7 @@
 #
 # Regenerate with:
 #   bash scripts/verify-doc-citations.sh -update
+
 # --- TEST records ---
 # --- FIXTURE records ---
 FIXTURE tests/fixtures/ecosystems/argocd_comprehensive/
