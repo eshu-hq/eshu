@@ -65,8 +65,14 @@ The rows under the driving scan are the claim; the times follow them.
 | ordinary, g5, before | 996 | hit=7,026 | 3.18 / 3.16 / 3.13 ms |
 | ordinary, g5, after | 996 | hit=7,333 | 3.00 / 3.07 / 3.20 ms |
 
-The before figures reproduce the ones #6527 was filed with (885 ms over
-1,000,497 rows, and 752 ms over 800,373) on this machine.
+The before figures match the ones #6527 was filed with. At the five-repository
+grant they are the same number: 1,000,497 rows there and 1,000,497 here, at
+885 ms there and 815.3 / 869.2 / 825.5 ms here. At four of five they differ by
+124 rows -- 800,373 there, 800,497 here -- at 752 ms there and 853.3 / 719.6 /
+724.0 ms here. Why those 124 was not chased: the count is rows the scan read
+before the `Limit` stopped it, not a total the seed determines, and the seed was
+rebuilt for this note. The claim it supports needs three orders of magnitude,
+not four significant figures.
 
 The plan changes shape rather than degree. Before:
 
@@ -223,7 +229,7 @@ span, on the same statement, over the same rows.
 
 ## Guards
 
-Four of the five bite on the fix itself; the fifth is the answer.
+Five of the six bite on the fix itself; the sixth is the answer.
 
 | guard | where | what it fails to |
 | --- | --- | --- |
@@ -245,5 +251,5 @@ fixture scale both plan modes take the index; on the 2.2M-row corpus a
 251-entity page keeps the pre-index plan under a forced generic one, which is
 what the `pg_prepared_statements` reading above exists to put in proportion.
 
-The red/green captures for all five guards are in
+The red/green captures for all six guards are in
 [#5167 code family batch 1 proofs](5167-code-family-batch-1-proofs.md), rows 55-60.
