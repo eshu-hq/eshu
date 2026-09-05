@@ -50,6 +50,7 @@ func TestInvestigationPacketAPISupplyChainMatchesSharedBuilder(t *testing.T) {
 	handler := &SupplyChainHandler{
 		ImpactExplanations: &recordingSupplyChainImpactExplanationStore{row: row},
 		Readiness:          &recordingSupplyChainImpactReadinessStore{snapshot: readinessSnapshot},
+		PacketResponder:    NewSupplyChainImpactPacketResponder(),
 		Profile:            ProfileProduction,
 	}
 	mux := http.NewServeMux()
@@ -66,6 +67,7 @@ func TestInvestigationPacketAPISupplyChainScopedRequiresRepositoryBeforeStoreRea
 	store := &failingSupplyChainImpactExplanationStore{}
 	handler := &SupplyChainHandler{
 		ImpactExplanations: store,
+		PacketResponder:    NewSupplyChainImpactPacketResponder(),
 		Profile:            ProfileProduction,
 	}
 	mux := http.NewServeMux()
@@ -106,6 +108,7 @@ func TestInvestigationPacketAPISupplyChainScopedRejectsOutOfGrantRepositoryBefor
 	store := &failingSupplyChainImpactExplanationStore{}
 	handler := &SupplyChainHandler{
 		ImpactExplanations: store,
+		PacketResponder:    NewSupplyChainImpactPacketResponder(),
 		Profile:            ProfileProduction,
 	}
 	mux := http.NewServeMux()

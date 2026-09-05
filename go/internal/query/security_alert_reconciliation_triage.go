@@ -8,15 +8,6 @@ import (
 	"strings"
 )
 
-// SecurityAlertMissingEvidence names a row-level reconciliation gap without
-// embedding raw provider payloads or private source details.
-type SecurityAlertMissingEvidence struct {
-	Kind       string `json:"kind"`
-	Reason     string `json:"reason"`
-	EvidenceID string `json:"evidence_id,omitempty"`
-	Detail     string `json:"detail,omitempty"`
-}
-
 func securityAlertMissingEvidenceVal(payload map[string]any, key string) []SecurityAlertMissingEvidence {
 	items, ok := payload[key].([]any)
 	if !ok || len(items) == 0 {

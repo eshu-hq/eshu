@@ -195,12 +195,12 @@ only their package qualifier changed).
   `SupplyChainImpactWinnersReadEnv`) keeps output byte-identical
   between the legacy dedup and the maintained read model; the
   placeholder-binding test pins the production argument list.
-- Most impact tests stay in root package `query` for this lane (see
-  `AGENTS.md`): handler/probe-driving tests cannot leave root before
-  the handlers do, the live-corpus tests share seeders and corpus
-  consts with staying tests, and several unit tests share doubles
-  with handler tests. Do not "reunite" them here until the hub PR3
-  moves the handlers.
+- The handler-driving tests that share helpers, fakes, or corpus with
+  staying files remain in root package `query` (see `AGENTS.md`): they
+  drive the hub handlers through `Mount` there. Do not "reunite" them
+  here; the probe, scope, and live suites that need no root helpers
+  moved with the handlers to the hub package
+  (`internal/query/supplychain`).
 
 ## Related docs
 

@@ -25,146 +25,12 @@ import (
 // No W1 issue is assigned for either kind yet; this file stays on the
 // pre-existing raw path until that struct work lands.
 const (
-	sbomAttestationAttachmentFactKind            = "reducer_sbom_attestation_attachment"
-	sbomAttestationWarningSummaryPreviewMaxCount = 10
+	sbomAttestationAttachmentFactKind = "reducer_sbom_attestation_attachment"
+	// sbomAttestationWarningSummaryPreviewMaxCount moved to
+	// internal/query/supplychain with BoundedSBOMWarningSummaries (#6060
+	// lane A); root's forward in supply_chain_hub_alias.go keeps this
+	// file's decode path on the same bound.
 )
-
-// SBOMAttestationAttachmentStore reads reducer-owned SBOM and attestation
-// attachment facts.
-type SBOMAttestationAttachmentStore interface {
-	ListSBOMAttestationAttachments(context.Context, SBOMAttestationAttachmentFilter) (SBOMAttestationAttachmentPage, error)
-}
-
-// SBOMAttestationAttachmentFilter bounds attachment reads to a concrete image
-// digest, document identity, or reducer-owned source anchor.
-type SBOMAttestationAttachmentFilter struct {
-	SubjectDigest     string
-	DocumentID        string
-	DocumentDigest    string
-	RepositoryID      string
-	WorkloadID        string
-	ServiceID         string
-	AttachmentStatus  string
-	ArtifactKind      string
-	AfterAttachmentID string
-	Limit             int
-	// AllowedSourceRepositoryIDs carries the scoped-token grant set (the union
-	// of granted repository and ingestion-scope ids). Attachment facts carry
-	// git repository_ids but key on an image subject_digest, so the durable
-	// git attribution is the repository_ids array. When populated, reads keep
-	// only attachments whose repository_ids overlap the grant set, and the
-	// missing-evidence probe is bounded to granted source repositories — an
-	// attachment with no granted-repo correlation stays invisible to scoped
-	// tokens. Empty means unrestricted (shared/admin/local).
-	AllowedSourceRepositoryIDs []string
-}
-
-// SBOMAttestationAttachmentPage carries one bounded attachment page plus
-// scope-level missing-evidence diagnostics for source-anchor reads.
-type SBOMAttestationAttachmentPage struct {
-	Attachments     []SBOMAttestationAttachmentRow
-	MissingEvidence []string
-}
-
-// SLSAMaterialRow is one bounded SLSA provenance material/resolved-dependency
-// row (#5456): a build input artifact's URI plus its reported digests.
-type SLSAMaterialRow struct {
-	URI    string            `json:"uri,omitempty"`
-	Digest map[string]string `json:"digest,omitempty"`
-}
-
-// ComponentEvidenceRow exposes bounded SBOM component evidence attached to a
-// document without implying vulnerability impact.
-type ComponentEvidenceRow struct {
-	ComponentID string `json:"component_id,omitempty"`
-	Name        string `json:"name,omitempty"`
-	Version     string `json:"version,omitempty"`
-	PURL        string `json:"purl,omitempty"`
-	CPE         string `json:"cpe,omitempty"`
-	FactID      string `json:"fact_id,omitempty"`
-}
-
-// SBOMAttestationAttachmentRow is one durable SBOM attachment fact decoded from
-// the reducer-owned read model.
-type SBOMAttestationAttachmentRow struct {
-	AttachmentID       string
-	SubjectDigest      string
-	DocumentID         string
-	DocumentDigest     string
-	AttachmentStatus   string
-	ParseStatus        string
-	VerificationStatus string
-	VerificationPolicy string
-	ArtifactKind       string
-	Format             string
-	SpecVersion        string
-	Reason             string
-	AttachmentScope    string
-	CanonicalWrites    int
-	// ComponentCount, ComponentEvidence, and ComponentEvidenceTruncated are
-	// bounded defensively at READ time (boundedComponentEvidenceRows), not
-	// merely trusted from the persisted payload: a generation indexed before
-	// the reducer's write-time cap existed can carry an unbounded persisted
-	// array, so this decode re-applies the identical dedupe/sort/cap the
-	// reducer uses (shared via the reducer package's exported
-	// ComponentEvidenceLess/ComponentEvidenceTupleEqual and
-	// MaxSBOMAttachmentComponentEvidenceRows) to whatever was actually
-	// persisted. ComponentCount reports the true total (the larger of the
-	// persisted component_count field and the raw persisted array length);
-	// ComponentEvidenceTruncated is true whenever that total exceeds the
-	// returned row count. A fact written after the cap existed passes
-	// through unchanged.
-	ComponentCount             int
-	ComponentEvidence          []ComponentEvidenceRow
-	ComponentEvidenceTruncated bool
-	// DependencyRelationships is the bounded, reducer-capped set of
-	// sbom.dependency_relationship evidence rows for this document.
-	// DependencyRelationshipCount reports the full distinct-tuple count
-	// computed before the reducer's write-time cap;
-	// DependencyRelationshipsTruncated is true when that count exceeds the
-	// number of rows actually persisted.
-	DependencyRelationships          []DependencyRelationshipRow
-	DependencyRelationshipCount      int
-	DependencyRelationshipsTruncated bool
-	// ExternalReferences mirrors DependencyRelationships for
-	// sbom.external_reference evidence.
-	ExternalReferences          []ExternalReferenceRow
-	ExternalReferenceCount      int
-	ExternalReferencesTruncated bool
-	// SLSAProvenancePredicateType and SLSAProvenanceBuilderID surface the
-	// joined attestation.slsa_provenance evidence for this statement's
-	// attachment. Both are empty when no SLSA provenance fact joined this
-	// statement_id — there is no count/truncation pair here because at most
-	// one provenance predicate is expected per statement.
-	SLSAProvenancePredicateType string
-	SLSAProvenanceBuilderID     string
-	// SLSAProvenanceMaterials, SLSAProvenanceMaterialCount, and
-	// SLSAProvenanceMaterialsTruncated (#5456) mirror
-	// DependencyRelationships' bounded-evidence contract for the joined
-	// attestation.slsa_provenance fact's materials: bounded rows plus an
-	// honest full count and a truncation flag computed from
-	// count > len(rows), not trusted from the reducer's own persisted flag.
-	SLSAProvenanceMaterials          []SLSAMaterialRow
-	SLSAProvenanceMaterialCount      int
-	SLSAProvenanceMaterialsTruncated bool
-	// SLSAProvenanceConfigSourceURI, SLSAProvenanceConfigSourceEntryPoint,
-	// and SLSAProvenanceConfigSourceDigest (#5456) surface the joined
-	// attestation.slsa_provenance fact's config_source. No count/truncation
-	// pair: at most one config source is expected per statement.
-	SLSAProvenanceConfigSourceURI        string
-	SLSAProvenanceConfigSourceEntryPoint string
-	SLSAProvenanceConfigSourceDigest     map[string]string
-	RepositoryIDs                        []string
-	WorkloadIDs                          []string
-	ServiceIDs                           []string
-	WarningSummaries                     []string
-	WarningSummaryCount                  int
-	WarningSummariesTruncated            bool
-	EvidenceFactIDs                      []string
-	MissingEvidence                      []string
-	SourceFreshness                      string
-	SourceConfidence                     string
-}
 
 type sbomAttestationAttachmentQueryer interface {
 	QueryContext(context.Context, string, ...any) (*sql.Rows, error)
@@ -193,7 +59,7 @@ func (s PostgresSBOMAttestationAttachmentStore) ListSBOMAttestationAttachments(
 	if s.DB == nil {
 		return SBOMAttestationAttachmentPage{}, fmt.Errorf("sbom attestation attachment database is required")
 	}
-	if !filter.hasScope() {
+	if !filter.HasScope() {
 		return SBOMAttestationAttachmentPage{}, fmt.Errorf("subject_digest, document_id, document_digest, repository_id, workload_id, or service_id is required")
 	}
 	if filter.Limit <= 0 || filter.Limit > sbomAttestationAttachmentMaxLimit+1 {
@@ -321,11 +187,6 @@ SELECT
             ON attachment.digest = image.digest
       ) AS missing_attachment
 `
-
-func (f SBOMAttestationAttachmentFilter) hasScope() bool {
-	return f.SubjectDigest != "" || f.DocumentID != "" || f.DocumentDigest != "" ||
-		f.RepositoryID != "" || f.WorkloadID != "" || f.ServiceID != ""
-}
 
 func (s PostgresSBOMAttestationAttachmentStore) sbomAttestationAttachmentMissingEvidence(
 	ctx context.Context,

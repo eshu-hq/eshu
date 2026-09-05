@@ -457,7 +457,7 @@ linters:
       - path: 'internal/query/service_query_enrichment\.go'
         linters:
           - funlen
-      - path: 'internal/query/supply_chain_impact_findings_handler\.go'
+      - path: 'internal/query/supplychain/supply_chain_impact_findings_handler\.go'
         linters:
           - funlen
       - path: 'internal/reducer/code_call_materialization\.go'

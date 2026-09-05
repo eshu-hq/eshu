@@ -376,22 +376,12 @@ func sharedAuthContext() AuthContext {
 	}
 }
 
+// normalizeAuthContext forwards to queryauth.NormalizeAuthContext. The
+// implementation moved there for #6060 lane A so the supply-chain hub can
+// normalize without importing this package; every existing caller keeps its
+// exact behavior through this wrapper.
 func normalizeAuthContext(auth AuthContext) AuthContext {
-	if auth.Mode == "" {
-		auth.Mode = AuthModeScoped
-	}
-	auth.TenantID = strings.TrimSpace(auth.TenantID)
-	auth.WorkspaceID = strings.TrimSpace(auth.WorkspaceID)
-	auth.SubjectClass = strings.TrimSpace(auth.SubjectClass)
-	auth.SubjectIDHash = strings.TrimSpace(auth.SubjectIDHash)
-	auth.PolicyRevisionHash = strings.TrimSpace(auth.PolicyRevisionHash)
-	auth.RoleIDs = cleanedAuthStrings(auth.RoleIDs)
-	auth.AllowedPermissionFeatures = cleanedAuthStrings(auth.AllowedPermissionFeatures)
-	auth.AllowedPermissionDataClasses = cleanedAuthStrings(auth.AllowedPermissionDataClasses)
-	auth.AllowedScopeIDs = cleanedAuthStrings(auth.AllowedScopeIDs)
-	auth.AllowedRepositoryIDs = cleanedAuthStrings(auth.AllowedRepositoryIDs)
-	auth.ExternalProviderConfigID = strings.TrimSpace(auth.ExternalProviderConfigID)
-	return auth
+	return queryauth.NormalizeAuthContext(auth)
 }
 
 func cleanedAuthStrings(values []string) []string {

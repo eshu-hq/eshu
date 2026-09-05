@@ -64,6 +64,28 @@ func ContextWithAuthContext(ctx context.Context, auth AuthContext) context.Conte
 	return context.WithValue(ctx, authContextKey{}, auth)
 }
 
+// NormalizeAuthContext trims auth bounds and defaults an empty mode to scoped.
+// It lives here (hoisted from root package query for #6060 lane A) so a
+// handler-family subpackage can normalize the context it read without
+// importing root, which it cannot do without an import cycle.
+func NormalizeAuthContext(auth AuthContext) AuthContext {
+	if auth.Mode == "" {
+		auth.Mode = AuthModeScoped
+	}
+	auth.TenantID = strings.TrimSpace(auth.TenantID)
+	auth.WorkspaceID = strings.TrimSpace(auth.WorkspaceID)
+	auth.SubjectClass = strings.TrimSpace(auth.SubjectClass)
+	auth.SubjectIDHash = strings.TrimSpace(auth.SubjectIDHash)
+	auth.PolicyRevisionHash = strings.TrimSpace(auth.PolicyRevisionHash)
+	auth.RoleIDs = CleanedStrings(auth.RoleIDs)
+	auth.AllowedPermissionFeatures = CleanedStrings(auth.AllowedPermissionFeatures)
+	auth.AllowedPermissionDataClasses = CleanedStrings(auth.AllowedPermissionDataClasses)
+	auth.AllowedScopeIDs = CleanedStrings(auth.AllowedScopeIDs)
+	auth.AllowedRepositoryIDs = CleanedStrings(auth.AllowedRepositoryIDs)
+	auth.ExternalProviderConfigID = strings.TrimSpace(auth.ExternalProviderConfigID)
+	return auth
+}
+
 // CleanedStrings trims, drops empty entries, and de-duplicates while preserving
 // order. Auth bounds use it so an allow-list carries no blank or repeated id.
 func CleanedStrings(values []string) []string {

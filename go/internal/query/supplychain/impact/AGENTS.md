@@ -174,29 +174,29 @@ and plan-proof live tests.
 Everything else stays in root package `query` for this lane — do not
 "reunite" it here:
 
-- Handler/probe/scope-driving tests (aggregates, explain, findings,
-  readiness-handler, scope, probes, scanner contract/filters,
-  suppression mutation, remediation, reachability, priority,
-  profile): they drive staying root handlers and reach moved symbols
-  as `impact.X`.
+- Handler-driving tests that share helpers or fakes with staying files
+  (aggregates, explain, findings, readiness-handler, scope, scanner
+  contract/filters, suppression mutation, remediation, reachability,
+  priority, profile): they drive the hub handlers through `Mount` from
+  root and reach moved symbols as `impact.X`.
 - Tests sharing doubles or corpus with staying files
   (`explanationFact` and the path asserts in `explain_test`,
-  `snapshot` in the kubernetes probe test, `recording*` stores in
-  the handler tests, `recordingImpactQueryer` shared by the
-  winners-read/freshness pair, `openScopeQueryerTestDB`,
+  `recording*` stores in the handler tests, `openScopeQueryerTestDB`,
   `explanationFact`-adjacent remediation/operational-anchor/catalog
-  tests): splitting them now would fork the helpers. The hub PR3
-  moves the handlers and re-homes the suite.
+  tests): splitting them would fork the helpers. The probe, scope, and
+  live suites that need no root helpers moved with the handlers to the
+  hub package (`internal/query/supplychain`).
 - The live-filter and live-authority cluster (`runtime_filter_live`,
   `runtime_filter_plan_live`, `runtime_filter_args`,
   `runtime_filter_plan_helpers`, `runtime_normalization_live`,
   `suppression_authority_*_live`, `runtime_context_scope_live`,
-  `runtime_digest_route_live`, `runtime_repository_precedence_live`):
-  bound to the shared live seeders (`seedSupplyChainRuntimeFilterLiveFacts`,
+  `runtime_repository_precedence_live`): bound to the shared live seeders
+  (`seedSupplyChainRuntimeFilterLiveFacts`,
   `insertSupplyChainRuntimeFilterFact`), corpus consts
-  (`runtimeFilterLive*`, `suppressionAuthorityLive*`), and the
-  scope-live assert helper that all live in staying handler-adjacent
-  test files.
+  (`runtimeFilterLive*`, `suppressionAuthorityLive*`), and the scope-live
+  assert helper, so the whole cluster moved together to the hub package.
+  Only `runtime_digest_route_live` stays in root: it drives the hub
+  handler through `Mount` with the staying `recording*` stores.
 - The SQL-shape, decode, and placeholder tests pin moved texts from
   root as `impact.X` (including the placeholder-binding test, which
   parses `supplychain/impact/supply_chain_impact_findings.go` by its

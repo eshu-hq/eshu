@@ -14,6 +14,8 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/eshu-hq/eshu/go/internal/query/supplychain"
 )
 
 // The #5789 starvation regression, at scale, against real rows.
@@ -103,9 +105,9 @@ func TestCloudResourceRuntimeDigestPerDigestBoundPreventsStarvationLive(t *testi
 	// Still bounded: no digest may exceed the per-digest limit, so one hot image
 	// cannot widen the probe's work either.
 	for digest, count := range perDigest {
-		if count > supplyChainCloudRuntimeProbePerDigestMinResults {
+		if count > supplychain.SupplyChainCloudRuntimeProbePerDigestMinResults {
 			t.Fatalf("digest %s returned %d rows, want at most %d: the bound must still hold",
-				digest, count, supplyChainCloudRuntimeProbePerDigestMinResults)
+				digest, count, supplychain.SupplyChainCloudRuntimeProbePerDigestMinResults)
 		}
 	}
 
@@ -224,11 +226,11 @@ func TestCloudResourceRuntimeDigestBoundCountsEligibleRowsOnlyLive(t *testing.T)
 	// exactly the hole it was written to close.
 	perDigestLimit := supplyChainCloudRuntimeProbePerDigestLimit(len(digests))
 	ineligible := perDigestLimit + 5
-	if perDigestLimit != supplyChainCloudRuntimeProbePerDigestMinResults {
+	if perDigestLimit != supplychain.SupplyChainCloudRuntimeProbePerDigestMinResults {
 		t.Fatalf(
 			"per-digest limit for %d digests = %d, want the floor %d: the decoy digest count must drive the "+
 				"bound to its floor, or the fixture cannot overflow it and the test cannot fail",
-			len(digests), perDigestLimit, supplyChainCloudRuntimeProbePerDigestMinResults,
+			len(digests), perDigestLimit, supplychain.SupplyChainCloudRuntimeProbePerDigestMinResults,
 		)
 	}
 

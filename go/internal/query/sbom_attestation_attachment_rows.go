@@ -46,24 +46,9 @@ func boundedSBOMWarningSummariesFromAny(values []any) ([]string, int, bool) {
 	return preview, count, count > len(preview)
 }
 
-func boundedSBOMWarningSummaries(values []string) ([]string, int, bool) {
-	count := len(values)
-	if count == 0 {
-		return nil, 0, false
-	}
-	seen := map[string]struct{}{}
-	preview := make([]string, 0, sbomAttestationWarningSummaryPreviewMaxCount)
-	for _, summary := range values {
-		if _, exists := seen[summary]; exists {
-			continue
-		}
-		seen[summary] = struct{}{}
-		if len(preview) < sbomAttestationWarningSummaryPreviewMaxCount {
-			preview = append(preview, summary)
-		}
-	}
-	return preview, count, count > len(preview)
-}
+// boundedSBOMWarningSummaries moved to internal/query/supplychain with the
+// result builder that shares it (#6060 lane A); the staying decode wrappers
+// above reach it through root's forward. See supply_chain_hub_alias.go.
 
 // slsaMaterialRowsFromPayload decodes the reducer-persisted
 // slsa_provenance_materials array (#5456) into the typed, bounded row set.

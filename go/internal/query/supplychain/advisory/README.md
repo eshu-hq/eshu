@@ -18,17 +18,20 @@ ports, their Postgres implementations, the bounded SQL texts, the
 fact-grouping read model (`BuildAdvisoryEvidenceRows`), the typed
 factschema decode wrappers for the four vulnerability kinds, and the
 capability and limit constants. It does not own auth, the HTTP handlers,
-the response envelope, or capability registration — those stay in root
-package `query` until the hub PR3 (see below).
+the response envelope, or capability registration.
 
-Root package `query` keeps the handlers (`supply_chain_advisory_*_handler.go`,
-`supply_chain_vulnerability_detail_handler.go`), the capability matrix
-rows (`contract_supply_chain.go`), the `SupplyChainHandler` struct, and a
-minimal compatibility alias file (`supply_chain_advisory_alias.go`) with
-the two store types and constructors `cmd/api` and `cmd/mcp-server` still
-call as `query.NewPostgresAdvisory*`. Root performs capability
-registration deliberately: root owns the router and always links into the
-production binary.
+The HTTP handlers live in the supply-chain hub
+(`internal/query/supplychain`: `supply_chain_advisory_*_handler.go`,
+`supply_chain_vulnerability_detail_handler.go`) since hub PR3 (#6060);
+the unit tests that need only hub symbols moved with them, reaching this
+store directly. Root package `query` keeps the capability matrix rows
+(`contract_supply_chain.go`), the `SupplyChainHandler` compatibility alias
+(`supply_chain_hub_alias.go`), and the minimal store alias file
+(`supply_chain_advisory_alias.go`) with the two store types and
+constructors `cmd/api` and `cmd/mcp-server` still call as
+`query.NewPostgresAdvisory*`. Root performs capability registration
+deliberately: root owns the router and always links into the production
+binary.
 
 ## Exported surface
 
@@ -122,10 +125,10 @@ their package qualifier changed).
   catalog tests: per-kind `UNION ALL` legs, one `GROUP BY`, no
   `MATERIALIZED` CTEs, no rollup joins. The per-kind active-scan anchors
   are pinned too (partial-index eligibility).
-- The advisory tests stay in root package `query` for this lane (see
-  `AGENTS.md`): handler-driving tests cannot leave root before the
-  handlers do, and the unit tests share their helpers. Do not "reunite"
-  them here until the hub PR3 moves the handlers.
+- The advisory tests stay in root package `query` (see `AGENTS.md`):
+  the unit tests share helpers and fakes with the handler-driving tests
+  and the cross-cutting sweeps there. Do not "reunite" them here; the hub
+  package carries only the suites that need no root helpers.
 
 ## Related docs
 

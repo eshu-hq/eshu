@@ -19,28 +19,8 @@ import "errors"
 // vocabulary.
 var errLanguageQueryGraphOnlyEntityUnavailable = errors.New("language query entity type requires a graph backend")
 
-// graphConfiguredReader is the optional interface a GraphQuery implementation
-// may satisfy to report whether it actually has a live driver or session
-// factory wired, distinct from being merely non-nil (*Neo4jReader implements
-// this; see neo4j.go). Declared as an optional interface, rather than adding
-// the method to the GraphQuery port itself, so existing GraphQuery test fakes
-// -- which construct a working or explicitly-nil reader and never model
-// "non-nil but undriven" -- do not need to grow the method to keep compiling.
-type graphConfiguredReader interface {
-	GraphConfigured() bool
-}
-
-// languageQueryGraphConfigured reports whether reader is both non-nil and,
-// when it opts into the graphConfiguredReader interface, actually configured
-// with a live driver or session factory. A reader that does not implement
-// the interface is treated as configured whenever it is non-nil, preserving
-// existing test-fake behavior (#5761 F1).
-func languageQueryGraphConfigured(reader GraphQuery) bool {
-	if reader == nil {
-		return false
-	}
-	if configurable, ok := reader.(graphConfiguredReader); ok {
-		return configurable.GraphConfigured()
-	}
-	return true
-}
+// Graph-configured checks live in querycontract.GraphConfigured, the single
+// home for the predicate this file historically spelled
+// languageQueryGraphConfigured (mirrored once more by the supplychain hub;
+// #6542 review). A family-local copy drifted by comment alone, so both
+// callers use the shared leaf; do not reintroduce copies here.

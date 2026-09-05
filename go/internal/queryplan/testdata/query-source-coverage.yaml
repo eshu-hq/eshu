@@ -360,7 +360,7 @@ source_coverage:
         count: 1
         non_hot:
           class: label_inventory
-          source_sha256: 6cc1d3593a6ab2b49fc4d9d619bb0a225a50859c097a40444401bbe10d4d4ad6
+          source_sha256: 79928e2290f5907da079e35a5e4157697e2f2a8062bdad6ddca3da1a09da6d62
           label: "Repository|Directory|File|Module|Function|Class|Struct|Enum|Union|Macro|TypeAnnotation|Annotation|Component|ImplBlock|Protocol|ProtocolImplementation|Variable|TerraformBackend|TerraformCheck|TerraformImport|TerraformLockProvider|TerraformModule|TerraformMovedBlock|TerraformRemovedBlock|TerragruntConfig|TerragruntDependency|SqlColumn|SqlFunction|SqlIndex|SqlMigration|SqlTable|SqlTrigger|SqlView|TypeAlias|Typedef"
           max_results: 200
   - file: neo4j.go
@@ -539,6 +539,6 @@ source_coverage:
   - file: status_hosted_readiness.go
     calls:
       - {symbol: "(*StatusHandler).readHostedRepositoryCount", count: 1, source_sha256: add2e56e1ca154fc60b94390bf6e55b5d9768ea3c895a9502c710be90ad2371e, entry_ids: [QP-READINESS-HOSTED]}
-  - file: supply_chain_impact_kubernetes_runtime_probe_fair.go
+  - file: supplychain/supply_chain_impact_kubernetes_runtime_probe_fair.go
     calls:
-      - {symbol: "queryKubernetesRuntimeCandidates", count: 1, source_sha256: dddb70a5f9f61e1309424d1e57abeb2fdc8f7e0bd505fd277209251d4af7bdb7, entry_ids: [QP-SUPPLY-CHAIN-KUBERNETES-RUNTIME]}
+      - {symbol: "queryKubernetesRuntimeCandidates", count: 1, source_sha256: 063f2427d85291643baeba2bff8e89fba701e7728cedf19b5b904b1cba2e8f84, entry_ids: [QP-SUPPLY-CHAIN-KUBERNETES-RUNTIME]}

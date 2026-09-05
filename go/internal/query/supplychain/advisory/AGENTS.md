@@ -83,13 +83,13 @@ do not "reunite" them here:
   `supply_chain_vulnerability_detail_handler_test.go` and the
   vulnerability snapshot lockstep test.
 
-The handler-driving tests reach the staying root handlers through `Mount`
-and a real mux, so a route or request-shape change fails in root, not
-here. The unit tests share root helpers (`factRow`,
+The handler-driving tests reach the hub handlers through `Mount` and a
+real mux from root package `query`, so a route or request-shape change
+fails in root, not here. The unit tests share root helpers (`factRow`,
 `recordingAdvisoryEvidenceStore`, `unusedAdvisoryEvidenceQueryer`) with
-those handler tests; splitting the helpers now would fork them. The hub
-PR3 moves the handlers and re-homes the suite. Until then, reach moved
-symbols from root tests as `advisory.X`.
+those handler tests; splitting the helpers would fork them, so the
+advisory suite stays whole in root. Reach moved symbols from root tests
+as `advisory.X`.
 
 ## Shared test fixtures
 

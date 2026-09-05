@@ -13,6 +13,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
+	"github.com/eshu-hq/eshu/go/internal/query/supplychain"
 	"github.com/eshu-hq/eshu/go/internal/query/supplychain/impact"
 	storagepostgres "github.com/eshu-hq/eshu/go/internal/storage/postgres"
 	"github.com/eshu-hq/eshu/go/internal/testutil/postgresproof"
@@ -31,7 +33,7 @@ func TestKubernetesRuntimeWorkloadGatePreservesDigestFairnessLive(t *testing.T) 
 	ctx, db := openKubernetesRuntimeFairnessLiveDB(t)
 	seedKubernetesRuntimeLiveScope(t, ctx, db)
 
-	digests := make([]string, supplyChainKubernetesRuntimeProbeMaxResults)
+	digests := make([]string, SupplyChainKubernetesRuntimeProbeMaxResults)
 	findings := make([]impact.SupplyChainImpactFindingRow, len(digests))
 	graphRows := make(map[string][]map[string]any, len(digests))
 	allCandidates := make([]KubernetesRuntimeCandidate, 0, 400)
@@ -44,7 +46,7 @@ func TestKubernetesRuntimeWorkloadGatePreservesDigestFairnessLive(t *testing.T) 
 		}
 		rowCount := 1
 		if i == 0 {
-			rowCount = supplyChainKubernetesRuntimeProbeMaxResults + 1
+			rowCount = SupplyChainKubernetesRuntimeProbeMaxResults + 1
 		}
 		for j := range rowCount {
 			uid := fmt.Sprintf("fair-%03d-%03d", i, j)
@@ -53,27 +55,27 @@ func TestKubernetesRuntimeWorkloadGatePreservesDigestFairnessLive(t *testing.T) 
 			graphRows[digest] = append(graphRows[digest], kubernetesRuntimeLiveGraphRow(candidate))
 		}
 	}
-	if got := len(allCandidates); got != supplyChainKubernetesRuntimeProbeMaxAllScopesCandidates {
-		t.Fatalf("seed candidates = %d, want all-scopes bound %d", got, supplyChainKubernetesRuntimeProbeMaxAllScopesCandidates)
+	if got := len(allCandidates); got != supplychain.SupplyChainKubernetesRuntimeProbeMaxAllScopesCandidates {
+		t.Fatalf("seed candidates = %d, want all-scopes bound %d", got, supplychain.SupplyChainKubernetesRuntimeProbeMaxAllScopesCandidates)
 	}
 	seedKubernetesRuntimeLiveCandidates(t, ctx, db, allCandidates)
 
-	plans := planKubernetesRuntimeProbeQueries(digests, true)
+	plans := supplychain.PlanKubernetesRuntimeProbeQueries(digests, true)
 	plannedCandidates := 0
 	for _, plan := range plans {
 		plannedCandidates += plan.QueryLimit
 	}
-	if plannedCandidates != supplyChainKubernetesRuntimeProbeMaxAllScopesCandidates {
-		t.Fatalf("planned candidates = %d, want bounded %d", plannedCandidates, supplyChainKubernetesRuntimeProbeMaxAllScopesCandidates)
+	if plannedCandidates != supplychain.SupplyChainKubernetesRuntimeProbeMaxAllScopesCandidates {
+		t.Fatalf("planned candidates = %d, want bounded %d", plannedCandidates, supplychain.SupplyChainKubernetesRuntimeProbeMaxAllScopesCandidates)
 	}
 
 	handler := &SupplyChainHandler{
 		Neo4j:                       &kubernetesRuntimeLiveGraph{rows: graphRows},
 		KubernetesWorkloadInventory: NewPostgresKubernetesRuntimeWorkloadStore(db),
 	}
-	if err := handler.applySupplyChainKubernetesRuntimeEvidence(
+	if err := handler.ApplySupplyChainKubernetesRuntimeEvidenceLive(
 		ctx,
-		repositoryAccessFilter{AllScopes: true},
+		querycontract.RepositoryAccessFilter{AllScopes: true},
 		findings,
 	); err != nil {
 		t.Fatalf("apply Kubernetes runtime evidence: %v", err)
@@ -94,8 +96,8 @@ func TestKubernetesRuntimeWorkloadGatePreservesDigestFairnessLive(t *testing.T) 
 			t.Fatalf("digest %d truncated = %t, want %t", i, *metadata.WorkloadRefsTruncated, wantTruncated)
 		}
 	}
-	if publicRefs != supplyChainKubernetesRuntimeProbeMaxResults {
-		t.Fatalf("public workload refs = %d, want bounded %d", publicRefs, supplyChainKubernetesRuntimeProbeMaxResults)
+	if publicRefs != SupplyChainKubernetesRuntimeProbeMaxResults {
+		t.Fatalf("public workload refs = %d, want bounded %d", publicRefs, SupplyChainKubernetesRuntimeProbeMaxResults)
 	}
 }
 
@@ -107,7 +109,7 @@ func TestKubernetesRuntimeWorkloadGatePreservesSingleDigestSentinelLive(t *testi
 	seedKubernetesRuntimeLiveScope(t, ctx, db)
 
 	digest := fmt.Sprintf("sha256:%064x", 999)
-	candidates := make([]KubernetesRuntimeCandidate, supplyChainKubernetesRuntimeProbeMaxResults+1)
+	candidates := make([]KubernetesRuntimeCandidate, SupplyChainKubernetesRuntimeProbeMaxResults+1)
 	graphRows := make([]map[string]any, len(candidates))
 	for i := range candidates {
 		candidates[i] = kubernetesRuntimeLiveCandidate(fmt.Sprintf("sentinel-%03d", i), digest)
@@ -125,19 +127,19 @@ func TestKubernetesRuntimeWorkloadGatePreservesSingleDigestSentinelLive(t *testi
 		}},
 		KubernetesWorkloadInventory: NewPostgresKubernetesRuntimeWorkloadStore(db),
 	}
-	if err := handler.applySupplyChainKubernetesRuntimeEvidence(
+	if err := handler.ApplySupplyChainKubernetesRuntimeEvidenceLive(
 		ctx,
-		repositoryAccessFilter{AllScopes: true},
+		querycontract.RepositoryAccessFilter{AllScopes: true},
 		findings,
 	); err != nil {
 		t.Fatalf("apply Kubernetes runtime evidence: %v", err)
 	}
 
-	if got := len(findings[0].KubernetesRuntimeWorkloadRefs); got != supplyChainKubernetesRuntimeProbeMaxResults {
-		t.Fatalf("public workload refs = %d, want %d", got, supplyChainKubernetesRuntimeProbeMaxResults)
+	if got := len(findings[0].KubernetesRuntimeWorkloadRefs); got != SupplyChainKubernetesRuntimeProbeMaxResults {
+		t.Fatalf("public workload refs = %d, want %d", got, SupplyChainKubernetesRuntimeProbeMaxResults)
 	}
 	metadata := findings[0].KubernetesRuntimeProbe
-	if metadata == nil || metadata.CandidateLimit != supplyChainKubernetesRuntimeProbeMaxResults ||
+	if metadata == nil || metadata.CandidateLimit != SupplyChainKubernetesRuntimeProbeMaxResults ||
 		metadata.WorkloadRefsTruncated == nil || !*metadata.WorkloadRefsTruncated {
 		t.Fatalf("metadata = %#v, want candidate_limit=200 and workload_refs_truncated=true", metadata)
 	}
@@ -147,7 +149,7 @@ func TestKubernetesRuntimeWorkloadGatePreservesSingleDigestSentinelLive(t *testi
 	if err != nil {
 		t.Fatalf("read concrete sentinel candidates: %v", err)
 	}
-	if got := len(storeRows); got != supplyChainKubernetesRuntimeProbeMaxResults+1 {
+	if got := len(storeRows); got != SupplyChainKubernetesRuntimeProbeMaxResults+1 {
 		t.Fatalf("concrete gate rows = %d, want 201 including truncation sentinel", got)
 	}
 }

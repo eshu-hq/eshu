@@ -74,6 +74,8 @@ func TestSupplyChainSecurityAlertSelectorMapsGraphReadErrors(t *testing.T) {
 				Content:        nil,
 				SecurityAlerts: fakeSecurityAlertReconciliationStore{},
 			}
+			mux := http.NewServeMux()
+			h.Mount(mux)
 			req := httptest.NewRequest(
 				http.MethodGet,
 				"/api/v0/supply-chain/security-alerts/reconciliations?limit=10&repository_id=my-repo-name",
@@ -82,7 +84,7 @@ func TestSupplyChainSecurityAlertSelectorMapsGraphReadErrors(t *testing.T) {
 			req.Header.Set("Accept", EnvelopeMIMEType)
 			rec := httptest.NewRecorder()
 
-			h.listSecurityAlertReconciliations(rec, req)
+			mux.ServeHTTP(rec, req)
 
 			assertGraphReadSweepResponse(t, rec, test)
 		})
@@ -102,6 +104,8 @@ func TestSupplyChainSecurityAlertSelectorMapsGraphReadErrors(t *testing.T) {
 				Content:                 nil,
 				SecurityAlertAggregates: fakeSecurityAlertReconciliationAggregateStore{},
 			}
+			mux := http.NewServeMux()
+			h.Mount(mux)
 			req := httptest.NewRequest(
 				http.MethodGet,
 				"/api/v0/supply-chain/security-alerts/reconciliations/count?repository_id=my-repo-name",
@@ -110,7 +114,7 @@ func TestSupplyChainSecurityAlertSelectorMapsGraphReadErrors(t *testing.T) {
 			req.Header.Set("Accept", EnvelopeMIMEType)
 			rec := httptest.NewRecorder()
 
-			h.countSecurityAlertReconciliations(rec, req)
+			mux.ServeHTTP(rec, req)
 
 			assertGraphReadSweepResponse(t, rec, test)
 		})

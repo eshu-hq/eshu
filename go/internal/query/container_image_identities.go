@@ -12,63 +12,6 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/pgarray"
 )
 
-// ContainerImageIdentityStore reads reducer-owned container image identity
-// facts.
-type ContainerImageIdentityStore interface {
-	ListContainerImageIdentities(context.Context, ContainerImageIdentityFilter) ([]ContainerImageIdentityRow, error)
-}
-
-// ContainerImageIdentityFilter bounds identity reads to an image digest, image
-// reference, source repository, OCI repository, or reducer outcome.
-type ContainerImageIdentityFilter struct {
-	Digest             string
-	ImageRef           string
-	SourceRepositoryID string
-	RepositoryID       string
-	Outcome            string
-	AfterIdentityID    string
-	Limit              int
-	// AllowedSourceRepositoryIDs carries the scoped-token grant set (the union
-	// of granted repository and ingestion-scope ids). When empty the read is
-	// unrestricted (shared token, all-scope admin, or local dev mode). When
-	// populated the query keeps only identities whose source_repository_ids
-	// overlap the granted set, so a scoped caller never sees image identities
-	// it cannot attribute to a granted git repository. Identity facts key on
-	// the OCI repository_id and an OCI registry ingestion scope, neither of
-	// which is a durable join to a git-repo grant, so source_repository_ids
-	// overlap is the only correct attribution and uncorrelated images stay
-	// invisible to scoped tokens.
-	AllowedSourceRepositoryIDs []string
-}
-
-// ContainerImageIdentityRow is one durable image identity fact decoded from
-// the reducer-owned read model.
-type ContainerImageIdentityRow struct {
-	IdentityID          string
-	Digest              string
-	ImageRef            string
-	RepositoryID        string
-	SourceRepositoryIDs []string
-	SourceRevision      string
-	// SourceRevisionProvenance names where SourceRevision came from
-	// ("oci_config_source_label" or "ci_run_commit"), letting a consumer keep
-	// the in-image-label tier distinct from the weaker CI-run-commit fallback
-	// (#5423). Empty when no revision was resolved.
-	SourceRevisionProvenance string
-	WorkloadIDs              []string
-	ServiceIDs               []string
-	Outcome                  string
-	Reason                   string
-	IdentityStrength         string
-	CanonicalID              string
-	CanonicalWrites          int
-	SourceLayers             []string
-	EvidenceFactIDs          []string
-	MissingEvidence          []string
-	SourceFreshness          string
-	SourceConfidence         string
-}
-
 type containerImageIdentityQueryer interface {
 	QueryContext(context.Context, string, ...any) (*sql.Rows, error)
 }
@@ -94,7 +37,7 @@ func (s PostgresContainerImageIdentityStore) ListContainerImageIdentities(
 	if s.DB == nil {
 		return nil, fmt.Errorf("container image identity database is required")
 	}
-	if !filter.hasScope() {
+	if !filter.HasScope() {
 		return nil, fmt.Errorf("digest, image_ref, source_repository_id, repository_id, or outcome is required")
 	}
 	if filter.Limit <= 0 || filter.Limit > containerImageIdentityMaxLimit+1 {
@@ -136,11 +79,6 @@ func (s PostgresContainerImageIdentityStore) ListContainerImageIdentities(
 		return nil, fmt.Errorf("list container image identities: %w", err)
 	}
 	return out, nil
-}
-
-func (f ContainerImageIdentityFilter) hasScope() bool {
-	return f.Digest != "" || f.ImageRef != "" || f.SourceRepositoryID != "" ||
-		f.RepositoryID != "" || f.Outcome != ""
 }
 
 func decodeContainerImageIdentityRow(
