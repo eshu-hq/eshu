@@ -30,10 +30,10 @@ const PartitionKeyVersion = "sql-relationships:v1"
 // the value reads as file-scoped while the edge identity makes it collision-free.
 // Hashing spreads a repo's edges across the partition ring so distinct edges
 // project concurrently, and the repo is mixed in first so two repos never
-// collide (#2868). shell_exec does not consume it; it is exported for
-// the reducer root's generic refresh-fence redelivery proof
-// (shared_projection_worker_refresh_redelivery_test.go) builds SQL-relationship-
-// shaped fixtures through it.
+// collide (#2868). shell_exec does not consume it; it is exported because the
+// reducer root's generic refresh-fence redelivery proof
+// (shared_projection_worker_refresh_redelivery_test.go) builds
+// SQL-relationship-shaped fixtures through it.
 func FilePartitionKey(repoID, sourcePath, edgeIdentity string) string {
 	repoID = strings.TrimSpace(repoID)
 	hash := sha256.New()
@@ -133,10 +133,9 @@ func BuildSharedIntentRows(
 // generation carries none, so the worker issues the repo-wide retract. Repos
 // are sorted so emission is deterministic (#2868/#2898). shell_exec owns its
 // own buildShellExecRefreshIntents and does not consume this; it is exported
-// for the reducer root's sibling
-// refresh-intent delta gate (sibling_edge_intent_delta_gate_test.go) drives
-// both this family's and shell_exec's refresh-intent builders through one
-// table.
+// because the reducer root's sibling refresh-intent delta gate
+// (sibling_edge_intent_delta_gate_test.go) drives both this family's and
+// shell_exec's refresh-intent builders through one table.
 func BuildRefreshIntents(
 	deltaScope DeltaScope,
 	repoIDs []string,
