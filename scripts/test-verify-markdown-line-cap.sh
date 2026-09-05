@@ -136,7 +136,18 @@ source "${script_root}/lib/test-verify-markdown-line-cap-ledger-cases.sh"
 # shellcheck source=lib/test-verify-markdown-line-cap-scope-cases.sh
 source "${script_root}/lib/test-verify-markdown-line-cap-scope-cases.sh"
 
+# shellcheck source=lib/test-verify-markdown-line-cap-workflow-cases.sh
+source "${script_root}/lib/test-verify-markdown-line-cap-workflow-cases.sh"
+
 main() {
+	if [[ "${1:-}" != "--scope-only" ]]; then
+		run_markdown_workflow_cases
+	fi
+	if [[ "${1:-}" == "--workflow-only" ]]; then
+		printf 'workflow tests: %d passed, %d failed\n' "${pass_count}" "${fail_count}"
+		[[ "${fail_count}" -eq 0 ]]
+		return $?
+	fi
 	run_markdown_scope_cases
 	if [[ "${1:-}" == "--scope-only" ]]; then
 		printf 'scope tests: %d passed, %d failed\n' "${pass_count}" "${fail_count}"

@@ -42,7 +42,10 @@ and parity-matrix keys remain readable. Raw line-citation authority is unchanged
 
 ## Integration
 
-The pre-commit path filter and gate registry include docs Markdown. CI invokes
-the same scripts and self-tests. The generated gate reference is refreshed from
+The pre-commit path filter and gate registry include docs Markdown. A dedicated
+unconditional CI job invokes the same Markdown cap and self-tests, including
+on docs-only PRs that skip the Go lanes. The workflow regression rejected the
+previous code-only job placement before the fix, and rejects missing jobs,
+conditional jobs or steps, and missing or commented-out commands. The generated gate reference is refreshed from
 the registry. No reducer, query, saved replay input, or golden snapshot changes
 are part of this fix.
