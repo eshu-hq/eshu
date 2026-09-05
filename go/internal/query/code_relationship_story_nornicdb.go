@@ -404,6 +404,19 @@ func (h *CodeHandler) nornicDBRelationshipStoryInheritanceDepthRows(
 			// full page means "there is more"; measuring that after the grant
 			// filter would report a page thinned to exactly `limit` as complete
 			// when granted rows beyond it were never fetched.
+			//
+			// Say the rest of it plainly, because the raw count makes this
+			// honest without removing it: the filter runs AFTER the LIMIT, and
+			// rows past that LIMIT were never read. So a page whose first
+			// limit+1 rows carry out-of-grant interiors comes back with FEWER
+			// than `limit` in-grant ancestors even though the caller is
+			// entitled to more, and the truncated flag is what tells them the
+			// page is incomplete. Filling it would need an over-fetch -- read
+			// more than limit+1 and stop once limit+1 rows survive the filter --
+			// which is a bounded-read change with its own performance
+			// argument, not a change to make while closing #6548.
+			// TestNornicDBInheritanceWalkPageCanBeThinnerThanTheLimit pins the
+			// shape so it is a known cost rather than a surprise.
 			return normalizeNornicDBRelationshipStoryRows(nornicDBInheritanceRowsInGrant(rows, access)), len(rows), nil
 		}
 	}

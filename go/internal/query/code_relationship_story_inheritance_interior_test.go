@@ -255,3 +255,61 @@ func TestNornicDBInheritanceWalkReportsTruncationFromTheRawCount(t *testing.T) {
 		t.Fatalf("parent_truncated = false on a page the backend filled to LIMIT: %#v", summary)
 	}
 }
+
+// TestNornicDBInheritanceWalkPageCanBeThinnerThanTheLimit pins the second
+// consequence of filtering after the read, which the raw-count fix makes
+// honest but does not remove.
+//
+// The statement fetches limit+1 rows and stops. Whatever the grant filter then
+// drops is simply gone: rows past that LIMIT were never read, so a page whose
+// first limit+1 rows carry two out-of-grant interiors comes back with limit-1
+// in-grant ancestors even though the caller is entitled to more. Reporting
+// truncated from the raw count tells the caller the page is incomplete, which
+// is the honest answer; filling it would need an over-fetch this PR does not
+// make.
+func TestNornicDBInheritanceWalkPageCanBeThinnerThanTheLimit(t *testing.T) {
+	t.Parallel()
+
+	const limit = 2
+	crossing := func(name string) map[string]any {
+		return map[string]any{
+			"direction": "outgoing", "source_uid": "class:a", "target_uid": "class:" + name,
+			"target_name": name, "depth": int64(2),
+			"path_nodes": []any{
+				inheritancePathNode(codeGrantGrantedRepo),
+				inheritancePathNode(codeGrantOtherRepo),
+				inheritancePathNode(codeGrantGrantedRepo),
+			},
+		}
+	}
+	graph := &inheritanceInteriorGraph{rows: []map[string]any{
+		{
+			"direction": "outgoing", "source_uid": "class:a", "target_uid": "class:ok",
+			"target_name": "GrantedOnly", "depth": int64(1),
+			"path_nodes": []any{
+				inheritancePathNode(codeGrantGrantedRepo),
+				inheritancePathNode(codeGrantGrantedRepo),
+			},
+		},
+		crossing("CrossingOne"),
+		crossing("CrossingTwo"),
+	}}
+	handler := &CodeHandler{Profile: ProfileLocalAuthoritative, GraphBackend: GraphBackendNornicDB, Neo4j: graph}
+	ctx := ContextWithAuthContext(context.Background(), codeGrantScopedAuthContext([]string{codeGrantGrantedRepo}))
+
+	rows, rawCount, err := handler.nornicDBRelationshipStoryInheritanceDepthRows(
+		ctx, relationshipStoryRequest{Limit: limit}, "class:a", "outgoing")
+	if err != nil {
+		t.Fatalf("inheritance rows: %v", err)
+	}
+	if len(rows) != limit-1 {
+		t.Fatalf("rows = %d, want %d: the page is thinner than the limit because two of the fetched rows left the grant", len(rows), limit-1)
+	}
+	if rawCount != limit+1 {
+		t.Fatalf("raw count = %d, want %d", rawCount, limit+1)
+	}
+	summary := relationshipStoryDepthSummary(rows, nil, rawCount, 0, limit)
+	if truncated, _ := summary["parent_truncated"].(bool); !truncated {
+		t.Fatalf("a thinned page must still report truncated, or the caller reads it as complete: %#v", summary)
+	}
+}

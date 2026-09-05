@@ -221,6 +221,16 @@ the shipped read does not (1 row, `LiveInteriorGrantedD`). If the endpoint-bound
 statement ever stops producing the leak, the test fails rather than passing
 vacuously.
 
+Filtering after the read has a second consequence, disclosed rather than fixed.
+The statement fetches `normalizedLimit()+1` rows and stops, so what the filter
+drops is gone — rows past that `LIMIT` were never read. A page whose first
+`limit+1` rows carry out-of-grant interiors returns FEWER than `limit` in-grant
+ancestors though the caller is entitled to more. The raw-count flag makes that
+honest, telling the caller the page is incomplete, but does not fill it; filling
+it needs an over-fetch owing its own performance argument.
+`TestNornicDBInheritanceWalkPageCanBeThinnerThanTheLimit` pins the shape (raw
+`limit+1`, two crossing, `limit-1` returned, `parent_truncated` true).
+
 The two lanes now differ in mechanism and agree in result: Neo4j-compat bounds
 the interior with an `all(...)` conjunct the backend evaluates, NornicDB bounds
 it in Go off a projected path. Both drop a chain that passes through an
