@@ -403,12 +403,17 @@ jobs:
           matrix_items=""
           any=false
 
+          # $6 is the job timeout in minutes, defaulting to 15. It is per-gate
+          # because every gate in this matrix shares one job definition, so a
+          # blanket raise would also stop a genuine hang in the other 25 from
+          # being cancelled.
           append_gate() {
             local selected="$1"
             local key="$2"
             local display="$3"
             local test="$4"
             local gate="$5"
+            local timeout="${6:-15}"
             local run_gate=true
 
             if [[ "${test}" == "${gate}" ]]; then
@@ -416,7 +421,7 @@ jobs:
             fi
 
             if [[ "${{ github.event_name }}" == "push" || "${selected}" == "true" ]]; then
-              local item="{\"key\":\"${key}\",\"display\":\"${display}\",\"test\":\"${test}\",\"gate\":\"${gate}\",\"run_gate\":${run_gate}}"
+              local item="{\"key\":\"${key}\",\"display\":\"${display}\",\"test\":\"${test}\",\"gate\":\"${gate}\",\"run_gate\":${run_gate},\"timeout\":${timeout}}"
               if [[ -n "${matrix_items}" ]]; then
                 matrix_items="${matrix_items},${item}"
               else
@@ -451,7 +456,10 @@ jobs:
           append_gate "${{ steps.filter.outputs.maturitydrift }}" "maturitydrift" "Verify maturity-drift-guard gate" "bash scripts/test-verify-maturity-drift-guard.sh" "bash scripts/verify-maturity-drift-guard.sh"
           append_gate "${{ steps.filter.outputs.claudrules }}" "claudrules" "Verify Claude path-scoped rules gate" "bash scripts/test-claude-rules-lint.sh" "bash scripts/dev/claude-rules-lint.sh"
           append_gate "${{ steps.filter.outputs.rootcauseevidence }}" "rootcauseevidence" "Verify root-cause-evidence gate" "bash scripts/test-verify-root-cause-evidence.sh" "bash scripts/verify-root-cause-evidence.sh"
-          append_gate "${{ steps.filter.outputs.taggedbuilds }}" "taggedbuilds" "Verify tagged-builds gate" "bash scripts/test-verify-tagged-builds.sh" "bash scripts/verify-tagged-builds.sh --all"
+          # 30, not the default 15: this gate vets every //go:build configuration
+          # in the module serially (37 today) and takes about 14 minutes on main,
+          # so it was being cancelled at the 15-minute mark rather than failing.
+          append_gate "${{ steps.filter.outputs.taggedbuilds }}" "taggedbuilds" "Verify tagged-builds gate" "bash scripts/test-verify-tagged-builds.sh" "bash scripts/verify-tagged-builds.sh --all" 30
 
           printf 'matrix={"include":[%s]}\n' "${matrix_items}" >>"${GITHUB_OUTPUT}"
           printf 'any=%s\n' "${any}" >>"${GITHUB_OUTPUT}"
@@ -460,7 +468,7 @@ jobs:
     name: ${{ matrix.display }}
     needs: changes
     if: ${{ needs.changes.outputs.any == 'true' }}
-    timeout-minutes: 15
+    timeout-minutes: ${{ matrix.timeout }}
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
