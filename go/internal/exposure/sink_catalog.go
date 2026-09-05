@@ -159,7 +159,7 @@ var sinkCatalog = []SinkSpec{
 		TargetLabel:      "SqlTable",
 		BaselineSeverity: SeverityMedium,
 		GraphBacked:      true,
-		Provenance:       "reducer/sqlrelationship/sql_relationship_materialization.go and storage/cypher/edge_writer_sql.go (Function-[:QUERIES_TABLE]->SqlTable)",
+		Provenance:       "reducer/sql_relationship_materialization.go and storage/cypher/edge_writer_sql.go (Function-[:QUERIES_TABLE]->SqlTable)",
 	},
 	// Internet-exposed endpoint sink: a security-group rule that reaches the public
 	// internet (0.0.0.0/0 or ::/0), captured by the is_internet flag on the CIDR
