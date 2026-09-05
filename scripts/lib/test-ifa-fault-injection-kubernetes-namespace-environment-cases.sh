@@ -132,9 +132,9 @@ test_ifa_kubernetes_namespace_environment_overlong_lock_name_is_rejected() (
 	trap 'rm -rf "${log_dir}"' EXIT
 
 	# 17-char ifa_k8s_env_lock_ prefix plus a cell this long exceeds
-	# Postgres's 64-byte application_name cap.
+	# the 63-byte application_name cap.
 	long_cell="killworker_kubernetes_namespace_environment_pad001"
-	((${#long_cell} > 47)) || fail "test cell name too short to exercise the 64-byte application_name guard"
+	((${#long_cell} > 47)) || fail "test cell name too short to exercise the 63-byte application_name guard"
 	bg_pids=()
 	lock_holder_pid=""
 	rc=0
@@ -182,4 +182,67 @@ run_ifa_fault_injection_kubernetes_namespace_environment_cases() {
 	test_ifa_kubernetes_namespace_environment_released_lock_holder_is_not_torn_down_twice
 	test_ifa_kubernetes_namespace_environment_overlong_lock_name_is_rejected
 	test_ifa_kubernetes_namespace_environment_lock_start_and_release_agree_on_name
+	test_ifa_direct_family_retry_attempts_above_counts_attempts_not_rows
+	test_ifa_kubernetes_namespace_environment_kill_cell_proves_attempts_above_baseline
 }
+
+# ifa_fault_assert_retry_attempts_above compares TOTAL excess attempts
+# (sum(attempt_count - 1)), not the COUNT of rows with attempt_count > 1. Each
+# new-family cassette creates exactly one targeted work item, so the count
+# form saturates at 1: a single natural retry in the fault-free baseline makes
+# the baseline 1, the forced kill adds another attempt to the SAME row, the
+# kill-run count stays 1, and 1 > 1 false-fails a correct recovery. The sum
+# form has no ceiling -- the kill always adds attempts the baseline lacked.
+# Hermetic: stubbed ifa_det_pg replays scripted sums, sleep neutered.
+test_ifa_direct_family_retry_attempts_above_counts_attempts_not_rows() (
+	source "${det_lib}"
+	# shellcheck source=scripts/lib/ifa_direct_family_live.sh
+	source "${repo_root}/scripts/lib/ifa_direct_family_live.sh"
+
+	declare -F ifa_fault_assert_retry_attempts_above >/dev/null \
+		|| fail "ifa_fault_assert_retry_attempts_above is not defined; the single-row kill cells saturate the row-count form at 1"
+
+	sleep() { :; }
+	use_compose=0
+	ESHU_POSTGRES_DSN="postgresql://unused"
+	compose_file="docker-compose.yaml"
+	FAULT_COMPOSE_PROJECT="test"
+	# Scripted sums, one per line: the assert helper reads them through a
+	# command substitution (a subshell), so shell-array state would not
+	# survive between polls -- a file does.
+	pg_script_dir="$(mktemp -d -t ifa-retry-attempts-pg.XXXXXX)"
+	trap 'rm -rf "${pg_script_dir}"' EXIT
+	ifa_det_pg() {
+		local line rest
+		line="$(head -n 1 "${pg_script_dir}/sums")"
+		rest="$(tail -n +2 "${pg_script_dir}/sums")"
+		printf '%s\n' "${rest}" >"${pg_script_dir}/sums"
+		printf '%s\n' "${line}"
+	}
+
+	# Saturation recovery: baseline already 1 (one natural retry), kill-run
+	# polls 1 then 2 (the forced kill's extra attempt). Must pass.
+	printf '1\n2\n2\n2\n2\n' >"${pg_script_dir}/sums"
+	ifa_fault_assert_retry_attempts_above "${FAULT_COMPOSE_PROJECT}" "${use_compose}" "${ESHU_POSTGRES_DSN}" "${compose_file}" 1 5 "kubernetes_namespace_materialization" >/dev/null \
+		|| fail "retry-attempts assert failed on 1-then-2 excess attempts above a baseline of 1; the saturated single-row kill cell would false-fail"
+
+	# Stuck: polls never exceed the baseline. Must fail closed.
+	printf '1\n1\n1\n' >"${pg_script_dir}/sums"
+	rc=0
+	ifa_fault_assert_retry_attempts_above "${FAULT_COMPOSE_PROJECT}" "${use_compose}" "${ESHU_POSTGRES_DSN}" "${compose_file}" 1 3 "kubernetes_namespace_materialization" >/dev/null || rc=$?
+	[[ "${rc}" -ne 0 ]] \
+		|| fail "retry-attempts assert passed while excess attempts never exceeded the baseline; an inert fault would green the kill cell"
+)
+
+# The k8s kill cell must prove attempt TOTALS above baseline, scoped to its
+# own domain -- not the saturating row-count form, and not another family's
+# domain. Static pin on the call: the behavior above proves what the helper
+# means, this proves the cell reaches for it.
+test_ifa_kubernetes_namespace_environment_kill_cell_proves_attempts_above_baseline() (
+	rg --quiet -- "ifa_fault_assert_retry_attempts_above" "${kubernetes_namespace_environment_cells_lib}" \
+		|| fail "kill-worker k8s cell does not call ifa_fault_assert_retry_attempts_above; the row-count form saturates at 1 for its single work item"
+	# The call wraps across a backslash-newline, so match multiline: the
+	# domain must reach THIS helper, not merely appear elsewhere in the file.
+	rg -U --quiet -- '(?s)ifa_fault_assert_retry_attempts_above.{0,400}"kubernetes_namespace_materialization"' "${kubernetes_namespace_environment_cells_lib}" \
+		|| fail "k8s kill cell does not pass its own materialization domain to ifa_fault_assert_retry_attempts_above"
+)

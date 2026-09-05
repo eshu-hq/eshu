@@ -127,7 +127,10 @@
   determinism triggers ALREADY exist may declare its stem ahead of its
   coverage row, because the stem is then read off committed triggers rather
   than guessed. kubernetes_namespace_environment and iam_instance_profile_role
-  are that case -- both stay waived, and both carry stems. Do not remove a stem
+  were that case -- both stayed waived while carrying stems ahead of their
+  coverage rows, until #6309 wired both live matrices and converted their
+  waivers to coverage rows. workload_cloud_relationship is the remaining
+  waived direct family. Do not remove a stem
   for being ahead of its coverage row without first checking whether the
   family's determinism triggers exist; see the doc comment on
   directFamilyTriggerStems in

@@ -1,13 +1,14 @@
 {
   "odu": "odu:ifa-iam-instance-profile-role-family",
-  "note": "Hand-derived from canonicalIAMInstanceProfileRoleEdgeUpsertCypherFormat (go/internal/storage/cypher/iam_instance_profile_role_edge_writer.go), NOT from the port name and NOT from its statement-metadata label. The template is `MATCH (profile:CloudResource {uid: row.profile_uid}) MATCH (role:CloudResource {uid: row.role_uid}) MERGE (profile)-[rel:%s]->(role)`, and the %s is filled from iamInstanceProfileRoleRelationshipVocabulary, a closed single-member set screened per row by validateIAMInstanceProfileRoleRelationshipType -- so the type is HAS_ROLE. iamInstanceProfileRoleEdgeLabel is \"IAM_INSTANCE_PROFILE_HAS_ROLE\" and is statement metadata only; it is not a relationship type and does not appear in the graph. Both endpoints are :CloudResource matched by uid, so both entity ids below are reducer.cloudResourceUID values = facts.StableID(\"CloudResource\", {account_id, region, resource_id, resource_type}) over the Odu's own facts: account_id 123456789012, region us-east-1, and the (resource_type, resource_id) pairs (aws_iam_instance_profile, eshu-fixture-app-profile), (aws_iam_role, eshu-fixture-app-role), (aws_iam_role, eshu-fixture-batch-role). The relationship MERGEs on its two endpoints alone -- resolution_mode is SET after the MERGE, deliberately outside the key -- so there is no identity block, and resolution_mode is asserted as a mutable property instead. Exactly two edges: eshu-fixture-app-profile declares both scanned role ARNs and fans out one edge per distinct resolved role. The other two instance profiles in the Odu contribute nothing on purpose -- eshu-fixture-orphan-profile names a role ARN no aws_iam_role fact declares (counted target_unresolved, never fabricated, and the writer's second MATCH would no-op on it regardless), and eshu-fixture-empty-profile declares an empty role_arns list.",
+  "note": "Hand-derived from canonicalIAMInstanceProfileRoleEdgeUpsertCypherFormat (go/internal/storage/cypher/iam_instance_profile_role_edge_writer.go), NOT from the port name and NOT from its statement-metadata label. The template is `MATCH (profile:CloudResource {uid: row.profile_uid}) MATCH (role:CloudResource {uid: row.role_uid}) MERGE (profile)-[rel:%s]->(role)`, and the %s is filled from iamInstanceProfileRoleRelationshipVocabulary, a closed single-member set screened per row by validateIAMInstanceProfileRoleRelationshipType -- so the type is HAS_ROLE. iamInstanceProfileRoleEdgeLabel is \"IAM_INSTANCE_PROFILE_HAS_ROLE\" and is statement metadata only; it is not a relationship type and does not appear in the graph. Both endpoints are :CloudResource matched by uid, so both entity ids below are reducer.cloudResourceUID values = facts.StableID(\"CloudResource\", {account_id, region, resource_id, resource_type}) over the Odu's own facts: account_id 123456789012, region us-east-1, and the (resource_type, resource_id) pairs (aws_iam_instance_profile, eshu-fixture-app-profile), (aws_iam_role, eshu-fixture-app-role), (aws_iam_role, eshu-fixture-batch-role). The relationship MERGEs on its two endpoints alone -- resolution_mode is SET after the MERGE, deliberately outside the key -- so there is no identity block, and resolution_mode is asserted as a mutable property instead. Exactly two edges: eshu-fixture-app-profile declares both scanned role ARNs and fans out one edge per distinct resolved role. The other two instance profiles in the Odu contribute nothing on purpose -- eshu-fixture-orphan-profile names a role ARN no aws_iam_role fact declares (counted target_unresolved, never fabricated, and the writer's second MATCH would no-op on it regardless), and eshu-fixture-empty-profile declares an empty role_arns list. evidence_source is likewise SET on the edge by that template from the writer evidenceSource argument, a compile-time constant (reducer/iam-instance-profile-role), so it is pinned here too: the edge retraction matches on (scope_id, evidence_source), and a writer that stopped stamping it would still match every other asserted key while retraction silently stopped finding prior edges. scope_id and generation_id are per-run intent values, not constants, so no static set can pin them; their stamping is covered by the writer unit test asserting the annotated row contents.",
   "edges": [
     {
       "relationship_type": "HAS_ROLE",
       "source_entity_id": "71768d2b012ec2ecd1ffa506312e02ac38b6e0b57f9776c76666a55c61e28947",
       "target_entity_id": "9bdf26ec1bada7f20a9b637228573ce59024ef0220a5b7652ffbcf04593df7aa",
       "properties": {
-        "resolution_mode": "arn"
+        "resolution_mode": "arn",
+        "evidence_source": "reducer/iam-instance-profile-role"
       }
     },
     {
@@ -15,7 +16,8 @@
       "source_entity_id": "71768d2b012ec2ecd1ffa506312e02ac38b6e0b57f9776c76666a55c61e28947",
       "target_entity_id": "647b2c626910ced818630bb0ceb6dcde30ed18abd711c4e4268a037c17644335",
       "properties": {
-        "resolution_mode": "arn"
+        "resolution_mode": "arn",
+        "evidence_source": "reducer/iam-instance-profile-role"
       }
     }
   ]

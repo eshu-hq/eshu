@@ -64,9 +64,10 @@ var catalogSeed = []CatalogOdu{
 	symbolRuntimeFamilyOdu(),
 	// The first three DIRECT-materialization families (#6228). Every entry
 	// above belongs to reducer.MaterializedEdgeFamilies(); these three belong
-	// to reducer.DirectMaterializedEdgeFamilies(), and all three still carry
-	// their waiver rows in specs/ifa-materialized-edge-coverage-direct.v1.yaml
-	// because no live matrix drives them yet. Being cataloged is one of the
+	// to reducer.DirectMaterializedEdgeFamilies(). Since #6309 two of the three
+	// carry coverage rows in specs/ifa-materialized-edge-coverage-direct.v1.yaml
+	// because both live matrices drive them; workload_cloud_relationship alone
+	// still carries its waiver rows. Being cataloged is one of the
 	// four conditions a coverage row asserts, not the whole of it, so none
 	// gets a coverage row on the strength of appearing here.
 	KubernetesNamespaceEnvironmentFamilyOdu(),

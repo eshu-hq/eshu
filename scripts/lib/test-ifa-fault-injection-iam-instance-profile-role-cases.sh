@@ -132,9 +132,9 @@ test_ifa_iam_instance_profile_role_overlong_lock_name_is_rejected() (
 	trap 'rm -rf "${log_dir}"' EXIT
 
 	# 17-char ifa_iam_role_lock_ prefix plus a cell this long exceeds
-	# Postgres's 64-byte application_name cap.
+	# the 63-byte application_name cap.
 	long_cell="killworker_iam_instance_profile_role_xpad0000123"
-	((${#long_cell} > 47)) || fail "test cell name too short to exercise the 64-byte application_name guard"
+	((${#long_cell} > 47)) || fail "test cell name too short to exercise the 63-byte application_name guard"
 	bg_pids=()
 	lock_holder_pid=""
 	rc=0
@@ -240,4 +240,14 @@ run_ifa_fault_injection_iam_instance_profile_role_cases() {
 	test_ifa_iam_instance_profile_role_overlong_lock_name_is_rejected
 	test_ifa_iam_instance_profile_role_lock_start_and_release_agree_on_name
 	test_ifa_iam_instance_profile_role_wait_for_readiness_cases
+	test_ifa_iam_instance_profile_role_kill_cell_proves_attempts_above_baseline
 }
+
+# Same saturating single-row shape as the k8s kill cell (proved behaviorally
+# in test_ifa_direct_family_retry_attempts_above_counts_attempts_not_rows):
+# one work item means the row-count form caps at 1, so the IAM kill cell must
+# reach for the attempt-totals helper with its own domain.
+test_ifa_iam_instance_profile_role_kill_cell_proves_attempts_above_baseline() (
+	rg -U --quiet -- '(?s)ifa_fault_assert_retry_attempts_above.{0,400}"iam_instance_profile_role_materialization"' "${iam_instance_profile_role_cells_lib}" \
+		|| fail "kill-worker IAM cell does not pass its own materialization domain to ifa_fault_assert_retry_attempts_above; the row-count form saturates at 1 for its single work item"
+)

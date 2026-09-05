@@ -2772,22 +2772,26 @@ gates:
       # the Go production paths need no mirror (covered by broader globs on
       # both gates). Before the cells existed this block deliberately stayed
       # determinism-only so the rows would not read as fault-covered while
-      # nothing drove them. The six of these thirteen that are not already
-      # matched by a broader trigger are pinned as determinism-only seams in
-      # scripts/lib/ifa_live_gate_determinism_only_cases.sh, so the real
-      # matcher proves the split rather than this comment asserting it.
+      # nothing drove them; now that both families have fault cells, the six
+      # seams live in the shared selector table (ifa_live_gate_common_seams),
+      # which the lockstep loop proves trigger-by-trigger: each seam's trigger
+      # appears in BOTH gates' registry blocks and its concrete path selects
+      # BOTH gates through the real `ci-gates select` matcher. The six
+      # of these thirteen that are not already matched by a broader trigger
+      # are pinned there, so the real matcher proves the split rather than
+      # this comment asserting it.
       #
-      # SCOPE CAVEAT: the split above is REGISTRY-level. It holds for
+      # SCOPE CAVEAT: the per-gate split above is REGISTRY-level. It holds for
       # `ci-gates select` and `make pre-pr`, which consult these per-gate
       # trigger lists. It does NOT hold in GitHub Actions, because
       # .github/workflows/ifa-determinism-gate.yml carries one shared
       # `on.pull_request.paths` filter covering the union of all three gates'
-      # triggers, with no per-job `if:`/`paths`. So editing one of these six
-      # determinism-only paths still starts the four-shard fault-injection
-      # matrix in CI, which observes nothing for these families. Narrowing that
-      # needs a per-job condition in the workflow, not a registry change; it is
-      # left out here rather than claimed, so a reader does not conclude the
-      # fault matrix is avoided end to end.
+      # triggers, with no per-job `if:`/`paths`. So editing any path above
+      # still starts the four-shard fault-injection matrix in CI -- which,
+      # since #6309, DOES observe these families through their fault cells.
+      # That over-triggering is deliberate workflow policy (under-triggering
+      # ships a dark gate, #6200), not a gap in the registry split; narrowing
+      # it needs a per-job condition in the workflow, not a registry change.
       - "go/internal/ifa/kubernetes_namespace_environment_family_odu.go"
       - "go/internal/ifa/iam_instance_profile_role_family_odu.go"
       - "go/internal/ifa/direct_family_cassette.go"

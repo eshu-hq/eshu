@@ -271,3 +271,71 @@ func TestAssertMaterializedEdgesMissingDuplicateFails(t *testing.T) {
 		t.Fatalf("error %q does not report the missing multiplicity", err)
 	}
 }
+
+// TestAssertMaterializedEdgesMissingAssertedPropertyFails is the lifecycle
+// half of the direct-family proof (#6309): an edge whose endpoints and MERGE
+// identity all match but that is missing one fixture-asserted property (e.g. a
+// writer that stopped stamping evidence_source) must fail LOUDLY, not pass on
+// identity alone. The two direct-family fixtures pin evidence_source exactly
+// so this path is what holds their retraction predicates to the stamped
+// value; without it a dropped stamp keeps every digest equal and the gate
+// green while retraction silently stops finding prior edges.
+func TestAssertMaterializedEdgesMissingAssertedPropertyFails(t *testing.T) {
+	t.Parallel()
+
+	expected := []materializededges.ExpectedEdge{{
+		RelationshipType: "HAS_ROLE",
+		SourceEntityID:   "profile-a",
+		TargetEntityID:   "role-a",
+		Properties: map[string]string{
+			"resolution_mode": "arn",
+			"evidence_source": "reducer/iam-instance-profile-role",
+		},
+	}}
+	// Same endpoints, same resolution_mode, but no evidence_source: the exact
+	// shape a writer that dropped the stamp would produce.
+	reader := fakeEdgeReader{edges: []graphdump.Edge{{
+		Type:      "HAS_ROLE",
+		FromProps: map[string]any{"uid": "profile-a"},
+		ToProps:   map[string]any{"uid": "role-a"},
+		Props:     map[string]any{"resolution_mode": "arn"},
+	}}}
+
+	types := map[string]struct{}{"HAS_ROLE": {}}
+	err := assertMaterializedEdges(context.Background(), reader, "iam_instance_profile_role", types, nil, nil, expected)
+	if err == nil {
+		t.Fatal("assertMaterializedEdges(edge missing evidence_source) = nil, want an asserted-property failure")
+	}
+	if !strings.Contains(err.Error(), "asserted-property") || !strings.Contains(err.Error(), "evidence_source") {
+		t.Fatalf("error %q does not name the dropped asserted property", err)
+	}
+}
+
+// TestAssertMaterializedEdgesWrongAssertedPropertyValueFails closes the other
+// half: a stamped-but-WRONG value (a writer stamping a different producer's
+// source) must also fail rather than match on identity alone.
+func TestAssertMaterializedEdgesWrongAssertedPropertyValueFails(t *testing.T) {
+	t.Parallel()
+
+	expected := []materializededges.ExpectedEdge{{
+		RelationshipType: "HAS_ROLE",
+		SourceEntityID:   "profile-a",
+		TargetEntityID:   "role-a",
+		Properties: map[string]string{
+			"resolution_mode": "arn",
+			"evidence_source": "reducer/iam-instance-profile-role",
+		},
+	}}
+	reader := fakeEdgeReader{edges: []graphdump.Edge{{
+		Type:      "HAS_ROLE",
+		FromProps: map[string]any{"uid": "profile-a"},
+		ToProps:   map[string]any{"uid": "role-a"},
+		Props:     map[string]any{"resolution_mode": "arn", "evidence_source": "reducer/someone-else"},
+	}}}
+
+	types := map[string]struct{}{"HAS_ROLE": {}}
+	err := assertMaterializedEdges(context.Background(), reader, "iam_instance_profile_role", types, nil, nil, expected)
+	if err == nil {
+		t.Fatal("assertMaterializedEdges(edge with wrong evidence_source) = nil, want a mismatch failure")
+	}
+}

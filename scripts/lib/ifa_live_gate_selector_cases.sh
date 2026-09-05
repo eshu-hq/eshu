@@ -449,6 +449,11 @@ ifa_live_gate_fault_only_seams=(
 	'scripts/lib/test-ifa-fault-injection-*.sh|scripts/lib/test-ifa-fault-injection-codeowners-cases.sh'
 	'scripts/lib/ifa_fault_*.sh|scripts/lib/ifa_fault_injection_submodule_pin_cells.sh'
 	'scripts/lib/test-ifa-fault-injection-*.sh|scripts/lib/test-ifa-fault-injection-submodule-pin-cases.sh'
+	# k8s + IAM (#6309) fault-only cases files, sourced solely by the fault
+	# verifier like the codeowners pair above: pinned here so a matcher
+	# refactor cannot silently drop their gate selection.
+	'scripts/lib/test-ifa-fault-injection-*.sh|scripts/lib/test-ifa-fault-injection-kubernetes-namespace-environment-cases.sh'
+	'scripts/lib/test-ifa-fault-injection-*.sh|scripts/lib/test-ifa-fault-injection-iam-instance-profile-role-cases.sh'
 	# handles_route/runs_in/invokes_cloud_action trio (#5995/#6000/#5997):
 	# fault-only, same shape as submodule_pin's cells file immediately
 	# above -- verify-ifa-determinism.sh never sources a *_cells.sh file for

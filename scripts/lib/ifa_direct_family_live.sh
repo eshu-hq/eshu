@@ -95,6 +95,55 @@ ifa_iam_instance_profile_role_drive() {
 		"${label}" "${bin_dir}" "${cassette}" "${workers}" "${log_dir}"
 }
 
+# ifa_fault_count_retry_attempts totals the EXCESS attempts
+# (sum(attempt_count - 1)) for one materialization domain, and
+# ifa_fault_assert_retry_attempts_above proves the fault ADDED attempts the
+# fault-free baseline lacked by requiring a strict increase over it.
+#
+# Why a second retry signal next to ifa_fault_count_retried's row COUNT in
+# ifa_fault_injection_common.sh: each direct-family cassette creates exactly
+# ONE targeted work item, so the count form saturates at 1. A single natural
+# counting-class retry in the fault-free baseline (a real NornicDB deadlock or
+# a transient EntityNotFound under the concurrent projector+reducer this gate
+# runs -- both documented on the count helper) makes the baseline 1; the
+# forced kill then adds another attempt to the SAME row, the kill-run count
+# stays 1, and 1 > 1 false-fails a correct recovery. The sum form has no
+# ceiling: the kill always adds attempts the baseline lacked. Multi-row
+# domains keep the count form -- saturating every row naturally is
+# implausible there, and the count form's "measured inert" reasoning (a
+# natural retry also appears in the identical baseline drive, so it cannot
+# green the check while the decorator sits inert) carries over unchanged:
+# only attempts the baseline lacked move this sum.
+#
+# Args (count): compose_project use_compose dsn compose_file [domain].
+# Args (assert): compose_project use_compose dsn compose_file baseline [budget_seconds=15] [domain].
+ifa_fault_count_retry_attempts() {
+	local compose_project="$1" use_compose="$2" dsn="$3" compose_file="$4"
+	local domain="${5:-kubernetes_namespace_materialization}"
+	if [[ ! "${domain}" =~ ^[a-z0-9_]+$ ]]; then
+		echo "ifa_fault_count_retry_attempts: domain must match ^[a-z0-9_]+$, got ${domain}" >&2
+		return 1
+	fi
+	ifa_det_pg "${compose_project}" "${use_compose}" "${dsn}" \
+		"SELECT coalesce(sum(attempt_count - 1), 0) FROM fact_work_items WHERE stage = 'reducer' AND status = 'succeeded' AND attempt_count > 1 AND domain = '${domain}';" \
+		"${compose_file}" | tr -d '[:space:]'
+}
+
+ifa_fault_assert_retry_attempts_above() {
+	local compose_project="$1" use_compose="$2" dsn="$3" compose_file="$4"
+	local baseline="$5" budget="${6:-15}" domain="${7:-kubernetes_namespace_materialization}"
+	local i count
+	for i in $(seq 1 "${budget}"); do
+		count="$(ifa_fault_count_retry_attempts "${compose_project}" "${use_compose}" "${dsn}" "${compose_file}" "${domain}")"
+		if [[ -n "${count}" && "${count}" -gt "${baseline}" ]]; then
+			printf '%s' "${count}"
+			return 0
+		fi
+		sleep 1
+	done
+	return 1
+}
+
 # ifa_iam_instance_profile_role_assert pins the two-edge exact set. Called twice
 # per cell for the reason recorded on the namespace assert above: post-delta is
 # the only place an identical-across-N generation-2 mutation shows up.

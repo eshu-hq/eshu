@@ -1,13 +1,14 @@
 {
   "odu": "odu:ifa-kubernetes-namespace-environment-family",
-  "note": "Hand-derived from canonicalKubernetesNamespaceWithEnvironmentUpsertCypher (go/internal/storage/cypher/kubernetes_namespace_node_writer.go), NOT from the port name: the port is WriteKubernetesNamespaceNodes and the Cypher it executes MERGEs a TARGETS_ENVIRONMENT relationship. That template's edge clause is `MERGE (env:Environment {name: row.environment}) MERGE (n)-[env_rel:TARGETS_ENVIRONMENT]->(env)`, so source_entity_id is the KubernetesNamespace node's uid (row.uid, which ExtractKubernetesNamespaceNodeRows sets to the collector-emitted object_id) and target_entity_id is the Environment node's name (row.environment) -- Environment is name-keyed, not uid-keyed. The relationship MERGEs on its two endpoints alone, so no identity block; evidence_class is SET on the edge by the same template and is asserted here as a mutable property so a stale or blank class cannot pass on edge identity alone. Only the TWO alias-bound namespaces appear. WriteKubernetesNamespaceNodes routes a row through this template only when row.environment is non-empty, and ExtractKubernetesNamespaceNodeRows leaves it empty unless namespaceEnvironmentFromLabels found a label whose value is a KNOWN environment token: payments-prod binds through the plain `environment` key with the production->prod alias, payments-staging through the Kubernetes-recommended `app.kubernetes.io/environment` key with the staging->stage alias. platform-team (label present, value not a known token) and kube-system (no environment label) are in the Odu and produce node rows but NO edge, which is what makes this set prove the no-invented-environment rule rather than merely counting two edges.",
+  "note": "Hand-derived from canonicalKubernetesNamespaceWithEnvironmentUpsertCypher (go/internal/storage/cypher/kubernetes_namespace_node_writer.go), NOT from the port name: the port is WriteKubernetesNamespaceNodes and the Cypher it executes MERGEs a TARGETS_ENVIRONMENT relationship. That template's edge clause is `MERGE (env:Environment {name: row.environment}) MERGE (n)-[env_rel:TARGETS_ENVIRONMENT]->(env)`, so source_entity_id is the KubernetesNamespace node's uid (row.uid, which ExtractKubernetesNamespaceNodeRows sets to the collector-emitted object_id) and target_entity_id is the Environment node's name (row.environment) -- Environment is name-keyed, not uid-keyed. The relationship MERGEs on its two endpoints alone, so no identity block; evidence_class is SET on the edge by the same template and is asserted here as a mutable property so a stale or blank class cannot pass on edge identity alone. evidence_source is likewise SET on the edge (not on the namespace node) by that template from the writer evidenceSource argument, a compile-time constant (reducer/kubernetes-namespaces), so it is pinned here too: the stale-binding retraction matches on it, and a writer that stopped stamping it would still match every other asserted key. scope_id is not stamped on this edge at all and generation_id lives on the namespace node with a run-specific value, so neither can appear in this edge set. Only the TWO alias-bound namespaces appear. WriteKubernetesNamespaceNodes routes a row through this template only when row.environment is non-empty, and ExtractKubernetesNamespaceNodeRows leaves it empty unless namespaceEnvironmentFromLabels found a label whose value is a KNOWN environment token: payments-prod binds through the plain `environment` key with the production->prod alias, payments-staging through the Kubernetes-recommended `app.kubernetes.io/environment` key with the staging->stage alias. platform-team (label present, value not a known token) and kube-system (no environment label) are in the Odu and produce node rows but NO edge, which is what makes this set prove the no-invented-environment rule rather than merely counting two edges.",
   "edges": [
     {
       "relationship_type": "TARGETS_ENVIRONMENT",
       "source_entity_id": "k8s-ns:eshu-fixture-cluster:payments-prod",
       "target_entity_id": "prod",
       "properties": {
-        "evidence_class": "namespace_label"
+        "evidence_class": "namespace_label",
+        "evidence_source": "reducer/kubernetes-namespaces"
       }
     },
     {
@@ -15,7 +16,8 @@
       "source_entity_id": "k8s-ns:eshu-fixture-cluster:payments-staging",
       "target_entity_id": "stage",
       "properties": {
-        "evidence_class": "namespace_label"
+        "evidence_class": "namespace_label",
+        "evidence_source": "reducer/kubernetes-namespaces"
       }
     }
   ]

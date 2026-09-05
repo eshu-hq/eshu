@@ -56,15 +56,16 @@
 # fact_work_items, and locking that table would block the poll too.
 ifa_kubernetes_namespace_environment_start_fact_records_lock() {
 	local cell="$1" pid_var="$2"
-	# Short prefix deliberately: Postgres stores at most 64 bytes of
-	# application_name, and the full family-name prefix plus the 41-char
-	# kill cell name reached 83 bytes -- silently truncated, so the grant
-	# poll below (which matches the full name) missed forever while the
-	# holder sat on its granted lock. ifa_k8s_env_lock_ keeps the longest
-	# name this family uses at 58 bytes.
+	# Short prefix deliberately: the repo holds application_name to 63 bytes
+	# (ifa_fault_generic_runner_wait.sh, ifa_fault_injection_documentation_ack_setup.sh),
+	# and the full family-name prefix plus the 40-char kill cell name reached
+	# 82 bytes -- silently truncated to 63, so the grant poll below (which
+	# matches the full name) missed forever while the holder sat on its
+	# granted lock. ifa_k8s_env_lock_ keeps the longest name this family
+	# uses at 57 bytes.
 	local app_name="ifa_k8s_env_lock_${cell}"
-	if ((${#app_name} > 64)); then
-		printf '%s: lock application_name is %s bytes; Postgres truncates past 64 and the grant poll would never match\n' "${cell}" "${#app_name}" >&2
+	if ((${#app_name} > 63)); then
+		printf '%s: lock application_name is %s bytes; past the 63-byte repo cap the name truncates and the grant poll would never match\n' "${cell}" "${#app_name}" >&2
 		return 1
 	fi
 	local lock_sql="SET application_name = '${app_name}'; BEGIN; LOCK TABLE fact_records IN ACCESS EXCLUSIVE MODE; SELECT pg_sleep(180); ROLLBACK;"
@@ -108,7 +109,7 @@ ifa_kubernetes_namespace_environment_start_fact_records_lock() {
 ifa_kubernetes_namespace_environment_release_fact_records_lock() {
 	local cell="$1" holder_pid="$2"
 	# Same short name as the start function: it must terminate the backend
-	# the start function actually created (see its 64-byte-cap comment).
+	# the start function actually created (see its 63-byte-cap comment).
 	local app_name="ifa_k8s_env_lock_${cell}"
 	ifa_det_pg "${FAULT_COMPOSE_PROJECT}" "${use_compose}" "${ESHU_POSTGRES_DSN}" \
 		"SELECT pg_terminate_backend(pid) FROM pg_stat_activity WHERE application_name = '${app_name}';" \
@@ -129,9 +130,11 @@ ifa_kubernetes_namespace_environment_release_fact_records_lock() {
 # baseline_key parameter.
 #
 # It also establishes baseline_kubernetes_namespace_environment_retried: the
-# fault-free attempt_count for domain kubernetes_namespace_materialization,
+# fault-free excess-ATTEMPT total for domain kubernetes_namespace_materialization,
 # which the kill cell must exceed to prove the replacement reducer re-executed
-# THIS domain rather than merely draining another queued row.
+# THIS domain rather than merely draining another queued row. Attempts, not
+# rows: this cassette creates one work item, so the row-count form saturates
+# at 1 (see ifa_fault_count_retry_attempts).
 cell_baseline_kubernetes_namespace_environment() {
 	local cell_start
 	cell_start=$(date +%s)
@@ -147,9 +150,13 @@ cell_baseline_kubernetes_namespace_environment() {
 	assert_no_dead_letters baseline_kubernetes_namespace_environment
 	ifa_kubernetes_namespace_environment_assert "baseline_kubernetes_namespace_environment" "${bin_dir}" "${kubernetes_namespace_environment_expected_edges}" \
 		|| die "baseline-kubernetes-namespace-environment: fault-free graph does not match the two-edge exact set"
-	baseline_kubernetes_namespace_environment_retried="$(ifa_fault_count_retried "${FAULT_COMPOSE_PROJECT}" "${use_compose}" "${ESHU_POSTGRES_DSN}" "${compose_file}" "kubernetes_namespace_materialization")" \
-		|| die "baseline-kubernetes-namespace-environment: could not count the fault-free kubernetes_namespace_materialization retry baseline"
-	printf 'baseline-kubernetes-namespace-environment: fault-free kubernetes_namespace_materialization retry baseline: %s\n' "${baseline_kubernetes_namespace_environment_retried}"
+	# Excess-ATTEMPT baseline, not the row count: this cassette creates exactly
+	# one work item, so the count form saturates at 1 and a single natural
+	# baseline retry would false-fail the kill cell below (see
+	# ifa_fault_count_retry_attempts).
+	baseline_kubernetes_namespace_environment_retried="$(ifa_fault_count_retry_attempts "${FAULT_COMPOSE_PROJECT}" "${use_compose}" "${ESHU_POSTGRES_DSN}" "${compose_file}" "kubernetes_namespace_materialization")" \
+		|| die "baseline-kubernetes-namespace-environment: could not count the fault-free kubernetes_namespace_materialization retry-attempt baseline"
+	printf 'baseline-kubernetes-namespace-environment: fault-free kubernetes_namespace_materialization retry-attempt baseline: %s\n' "${baseline_kubernetes_namespace_environment_retried}"
 	capture_digest baseline_kubernetes_namespace_environment
 	teardown_cell baseline_kubernetes_namespace_environment
 	wall_times[baseline_kubernetes_namespace_environment]=$(( $(date +%s) - cell_start ))
@@ -195,9 +202,9 @@ cell_killworker_kubernetes_namespace_environment() {
 	assert_no_dead_letters killworkerkubernetesnamespaceenvironment
 	ifa_kubernetes_namespace_environment_assert "killworkerkubernetesnamespaceenvironment" "${bin_dir}" "${kubernetes_namespace_environment_expected_edges}" \
 		|| die "kill-worker-after-claim-kubernetes-namespace-environment: recovered graph does not match the two-edge exact set"
-	ifa_fault_assert_retried_above "${FAULT_COMPOSE_PROJECT}" "${use_compose}" "${ESHU_POSTGRES_DSN}" "${compose_file}" \
+	ifa_fault_assert_retry_attempts_above "${FAULT_COMPOSE_PROJECT}" "${use_compose}" "${ESHU_POSTGRES_DSN}" "${compose_file}" \
 		"${baseline_kubernetes_namespace_environment_retried}" 15 "kubernetes_namespace_materialization" \
-		|| die "kill-worker-after-claim-kubernetes-namespace-environment: kubernetes_namespace_materialization did not re-execute above its fault-free retry baseline"
+		|| die "kill-worker-after-claim-kubernetes-namespace-environment: kubernetes_namespace_materialization did not re-execute above its fault-free retry-attempt baseline"
 	capture_digest killworkerkubernetesnamespaceenvironment
 	assert_matches_baseline killworkerkubernetesnamespaceenvironment baseline_kubernetes_namespace_environment
 	teardown_cell killworkerkubernetesnamespaceenvironment
