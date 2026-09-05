@@ -188,13 +188,18 @@ admin replay path updates work before inserting its audit events.
 Only the three ACK work prelocks and fanout's consumer prelock changed to
 `FOR NO KEY UPDATE`. Event locks remain unchanged. The earlier live GREEN and
 single-sample plan costs apply to the initial stronger-lock candidate; the
-corrected lock strength still needs focused live and paired scale validation.
+corrected candidate `ad8a41a034020264487f5f5e8dc08d88aa26fcdf` passed the
+CI-parity recursive listing and live invocation with direct exit 0. All four
+tests executed without skips: 40 contention trials, nine ordering/stale-state
+arms, four producer-capture arms, and four audit-FK compatibility arms. Logs
+are `/tmp/6488-no-key-green-list.log`, `/tmp/6488-no-key-green-run.log`, and
+`/tmp/6488-no-key-green-remote.log`. Paired scale validation remains outstanding.
 The existing scale test now logs its complete metric vector before threshold
 assertions, preserving measurements on failure without changing any limit.
 
 Full-module build passed on the earlier candidate. Broader validation and final
 review/preflight receipts remain outstanding; failures require baseline control
-or a fix before promotion. No earlier result proves this latest edit green.
+or a fix before promotion. Focused live GREEN does not establish scale readiness.
 
 ## Operator signals and limits
 
@@ -206,8 +211,9 @@ logs successful domain, event count, producer item count, consumer count, and
 domain, event, claim epoch, attempt, and wrapped error before retry.
 
 `postgres.InstrumentedDB` is wired with `StoreName: "reducer"` for these stores.
-Its `postgres.exec` and `postgres.query` spans record returned errors and error
-status. `eshu_dp_postgres_query_duration_seconds` records the existing
+Its `postgres.exec` and `postgres.query` spans record errors returned by those
+calls and error status. The query span ends when `QueryContext` returns; it
+does not cover errors discovered later by row iteration or scanning. `eshu_dp_postgres_query_duration_seconds` records the existing
 `store="reducer"` and `operation="write"`/`"read"` dimensions. These aggregate
 storage timings are not a dedicated ACK/fanout lock-wait histogram; fanout uses
 QueryContext and therefore retains the wrapper's `read` operation label despite
