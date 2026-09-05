@@ -74,3 +74,23 @@ Moving a builder also moves its queryplan pin: update the `file:` path
 (and the `source_sha256` when the declaration bytes change) in
 `go/internal/queryplan/testdata/{handler-hot-cypher,hot-cypher}.yaml`
 and re-run `go test ./internal/queryplan/`.
+
+## Performance evidence (code PR1 move)
+
+No-Regression Evidence: this PR moves code-family builders from the query
+root into this leaf via git mv and repoints manifests/shas; it changes no
+Cypher text, thresholds, ranking, pagination, or query-planning logic.
+Baseline is origin/main with green suites; after the move, on this branch,
+`go test ./internal/query/... -count=1` passes 11/11 packages with 0
+failures, and the B-7 golden-corpus gate passes (elapsed 139s of an 1800s
+ceiling) with 594 corpus checks green, which includes the B-12
+e2e-20repo-snapshot byte comparison. Backend/version is unchanged (same
+NornicDB-first contract over the same driver path B-7 exercises live),
+input shape is the full query unit suite plus the 20-repo golden corpus,
+and the terminal counts are 11/11 packages ok plus 594/594 corpus checks.
+The change is safe because behavior is preserved by construction (a
+path-only move) and proven by the unchanged suites and corpus above.
+
+No-Observability-Change: no spans, metrics, structured logs, status
+fields, or pprof surface were added, removed, or renamed; the move adds no
+new query path, so dashboards and 3 AM triage read exactly as before.
