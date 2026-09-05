@@ -66,7 +66,9 @@ type SecurityAlertReconciliationHandler struct {
 	Instruments *telemetry.Instruments
 	// ExtractManifestConsumptions supplies the manifest/lockfile half of
 	// consumption evidence; see [ManifestConsumptionExtractor]. The reducer
-	// root wires the concrete implementation (issue #6061).
+	// root wires the concrete implementation (issue #6061). Handle rejects a
+	// nil value: unlike the exported builder, the intent path may not fall
+	// back to consumption evidence it silently knows is incomplete.
 	ExtractManifestConsumptions ManifestConsumptionExtractor
 }
 
@@ -83,6 +85,20 @@ func (h SecurityAlertReconciliationHandler) Handle(ctx context.Context, intent r
 	}
 	if h.Writer == nil {
 		return reducercontract.Result{}, fmt.Errorf("security alert reconciliation writer is required")
+	}
+	// The manifest/lockfile bridge is REQUIRED on the reducer intent path, even
+	// though BuildSecurityAlertReconciliationsWithQuarantine tolerates a nil
+	// extractor so this family's in-package tests can build without importing
+	// the reducer root. A nil seam here is not "no manifest evidence available",
+	// it is a forgotten wire: every lockfile-only alert silently reconciles as
+	// provider_only, that wrong decision is committed as durable truth, and no
+	// error, counter, or deferral marks it (the pending-impact defer keys on
+	// DependencyEvidenceID, which is exactly what this extractor populates). Fail
+	// closed. The reducer root's
+	// TestSecurityAlertReconciliationRegistrationCarriesTheManifestConsumptionSeam
+	// guards the other side of the same seam.
+	if h.ExtractManifestConsumptions == nil {
+		return reducercontract.Result{}, fmt.Errorf("security alert reconciliation manifest consumption extractor is required")
 	}
 
 	envelopes, err := factload.LoadFactsForKinds(

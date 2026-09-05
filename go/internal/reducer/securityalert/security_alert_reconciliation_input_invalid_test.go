@@ -140,7 +140,18 @@ func TestSecurityAlertReconciliationHandlerQuarantinesMissingRepositoryID(t *tes
 		},
 	}
 	writer := &recordingSecurityAlertReconciliationWriter{}
-	handler := SecurityAlertReconciliationHandler{FactLoader: loader, Writer: writer}
+	handler := SecurityAlertReconciliationHandler{
+		FactLoader: loader,
+		Writer:     writer,
+		// This fixture carries no manifest/lockfile dependency evidence, so the
+		// bridge is deliberately a no-op here. Handle requires the field to be
+		// non-nil, which is the point: choosing "no manifest evidence" at a call
+		// site is explicit, while forgetting to wire the reducer root's real
+		// bridge is not.
+		ExtractManifestConsumptions: func([]ProviderSecurityAlert, []facts.Envelope) []SecurityAlertConsumption {
+			return nil
+		},
+	}
 
 	result, err := handler.Handle(context.Background(), reducercontract.Intent{
 		IntentID:     "intent-quarantine",

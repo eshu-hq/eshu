@@ -114,8 +114,12 @@ This package exposes `ManifestConsumptionExtractor`, a
 `func(alerts []ProviderSecurityAlert, envelopes []facts.Envelope) []SecurityAlertConsumption`
 type. `BuildSecurityAlertReconciliations`, `BuildSecurityAlertReconciliationsWithQuarantine`,
 and `SecurityAlertReconciliationHandler.ExtractManifestConsumptions` all take
-one as an injected dependency; a `nil` extractor is valid and simply skips
-the manifest-consumption half of the evidence set. The reducer root wires
+one as an injected dependency. A `nil` extractor is valid for the two
+builders and simply skips the manifest-consumption half of the evidence set.
+`SecurityAlertReconciliationHandler.Handle` rejects `nil` alongside its
+`FactLoader`/`Writer` checks: on the reducer intent path an absent bridge is
+a forgotten registration, and failing open there commits every lockfile-only
+alert as `provider_only` with no error and no counter. The reducer root wires
 its own concrete implementation at every construction site
 (`defaults_additive_domains_supply_chain.go`,
 `supply_chain_impact_security_alert.go`), and keeps its own tests for the
@@ -159,8 +163,9 @@ or genuinely root-scoped shared state:
 
 ### Tests
 
-Every test in this package that constructs a `ManifestConsumptionExtractor`
-passes `nil` and never exercises manifest-dependency matching -- see "The
+No test in this package exercises manifest-dependency matching: they either
+pass `nil` to a builder or, on the `Handle` path that rejects `nil`, an
+explicit no-op extractor that returns no consumptions -- see "The
 manifest-consumption seam" above for why the tests that DO need real
 manifest matching live in the reducer root instead
 (`security_alert_reconciliation_lockfile_test.go`,

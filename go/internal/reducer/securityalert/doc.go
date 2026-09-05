@@ -38,9 +38,13 @@
 // files exercise the real manifest-matching behavior end to end
 // (security_alert_reconciliation_lockfile_test.go,
 // security_alert_scoped_npm_test.go) because this package cannot build a
-// working extractor on its own. Passing a nil extractor is valid and simply
-// skips the manifest-consumption half of the evidence set -- every other test
-// in this package uses that path.
+// working extractor on its own. Passing a nil extractor to the exported
+// builders is valid and simply skips the manifest-consumption half of the
+// evidence set, which is how this package's own tests build. The handler's
+// Handle is deliberately stricter: it rejects a nil
+// ExtractManifestConsumptions, because on the reducer intent path a missing
+// bridge is a forgotten wire, not an evidence gap, and it would silently
+// commit every lockfile-only alert as provider_only.
 //
 // The package never imports the parent reducer package. Everything else it
 // needs from the reducer's shared vocabulary comes from leaf packages

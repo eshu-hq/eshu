@@ -1545,7 +1545,7 @@ Contract System v1 #4566/#4582): the SINGLE decode site for the
 `security_alert_reconciliation.go`) now decodes through the `sdk/go/factschema`
 seam (`schemadecode.DecodeSecurityAlertRepositoryAlert` in
 `factschema_decode_securityalert.go`, converting the typed
-`securityalertv1.RepositoryAlert` into `providerSecurityAlert` via
+`securityalertv1.RepositoryAlert` into `securityalert.ProviderSecurityAlert` via
 `providerSecurityAlertFromDecoded`) instead of raw `payloadStr`/`payloadStrings`/
 `securityAlertMap`/`securityAlertStringMap`/`securityAlertStringMapSlice`/
 `securityAlertInt64` map lookups (all of which were DELETED). This kind is

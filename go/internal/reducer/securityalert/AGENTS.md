@@ -104,11 +104,12 @@ non-versioned pieces this package's writer test uses — the same pattern
   `security_alert_manifest_dependency_match.go`, not
   `securityalert_compat.go`.
 - Do not suppress `dirgate` with `//nolint`.
-- Do not pass a non-nil `ManifestConsumptionExtractor` from within this
-  package's own tests. Every test here uses `nil` deliberately (see
-  `README.md`); a test that needs real manifest matching belongs in the
+- Do not hand-roll a matching `ManifestConsumptionExtractor` in this
+  package's own tests. Builder tests pass `nil`; a `Handle` test, which
+  rejects `nil`, passes an explicit no-op that returns no consumptions (see
+  `README.md`). A test that needs real manifest matching belongs in the
   reducer root alongside the extractor's real implementation, not here with a
-  hand-rolled stand-in that could silently diverge from production behavior.
+  stand-in that could silently diverge from production behavior.
 - Do not change `SecurityAlertReconciliationDecision`'s field set casually.
   Outside this package it is named by the reducer root's
   `supply_chain_impact_manifest_dependency.go` and lockfile test, and by
