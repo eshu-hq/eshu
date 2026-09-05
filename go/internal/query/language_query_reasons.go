@@ -3,6 +3,8 @@
 
 package query
 
+import "net/http"
+
 // languageQueryGraphBackedReason describes what queryByLanguage (the
 // graphBackedEntityTypes dispatch branch) actually observed serving the
 // result, keyed off the TruthBasis it returned. Before #5761's P1-1 review
@@ -65,5 +67,52 @@ func sourceBackendForTruthBasis(basis TruthBasis) string {
 		return "postgres_content_store"
 	default:
 		return "unavailable"
+	}
+}
+
+// languageQueryNoBackendRead is the source_backend an empty-grant page carries
+// on both routes in this family.
+//
+// It reuses the "unavailable" sentinel OUTSIDE its documented meaning, and that
+// is deliberate rather than accidental. sourceBackendForTruthBasis has no
+// no-read case: "unavailable" is its default arm, for a basis this route does
+// not recognize. Neither does the TruthBasis enum have a member meaning "no
+// read happened", which is why the empty page reports content_index -- the
+// lowest-claim basis available -- rather than a description of what occurred.
+// Given those two gaps, naming a backend that was never read would be worse
+// than reusing the one value on the wire that claims nothing. The public
+// source_backend table in docs/public/reference/language-query-dsl.md carries
+// this second meaning so a caller reading the field is not misled by the
+// original one. A no-read TruthBasis member would let both routes say this
+// properly and is worth its own issue.
+const languageQueryNoBackendRead = "unavailable"
+
+// writeLanguageQueryEmptyGrantResult writes the page a scoped caller with no
+// repository grants gets: the same body every other branch returns, but with
+// source_backend saying that nothing served it. It cannot go through
+// writeLanguageQueryResult, which derives source_backend from the basis and
+// would answer postgres_content_store for a page that read no content store.
+func (h *LanguageQueryHandler) writeLanguageQueryEmptyGrantResult(
+	w http.ResponseWriter,
+	r *http.Request,
+	language, entityType, query string,
+) {
+	body := languageQueryResponseBody(language, entityType, query, []map[string]any{})
+	body["source_backend"] = languageQueryNoBackendRead
+	WriteSuccess(w, r, http.StatusOK, body, BuildTruthEnvelope(
+		h.profile(), languageQueryCapability, TruthBasisContentIndex, reasonLanguageQueryEmptyGrant,
+	))
+}
+
+// languageQueryResponseBody is the response shape every branch of this route
+// returns, without source_backend, which the callers set: derived from the
+// truth basis for a real read, and languageQueryNoBackendRead for a page that
+// took none. Shared so the two writers cannot drift on the other four keys.
+func languageQueryResponseBody(language, entityType, query string, results []map[string]any) map[string]any {
+	return map[string]any{
+		"language":    language,
+		"entity_type": entityType,
+		"query":       query,
+		"results":     results,
 	}
 }

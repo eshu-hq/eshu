@@ -171,7 +171,7 @@ than only in a post-filter. The leak this route did have on that query type was
 a pair with BOTH endpoints in another tenant, which the Go pass admits and the
 grant now removes.
 
-### The Empty-Grant Page Stopped Calling Itself A Graph Read
+### Neither Empty-Grant Page Described Itself Honestly
 
 The empty page this change adds for a grantless scoped caller first shipped
 reporting `TruthBasisAuthoritativeGraph`, and `importDependencyResponse`
@@ -180,10 +180,25 @@ were wrong for this one page, which is produced without reading anything: it
 claimed EXACT truth from an authoritative graph read that never happened. The
 page is new in this change, so its wire shape is this change's to set.
 
-It now reports the same basis the language-query empty page reports,
-`TruthBasisContentIndex`, and overrides `source_backend` to `unavailable` --
-the vocabulary `sourceBackendForTruthBasis` already uses when nothing served a
-read. `TestImportDependenciesEmptyGrantReachesNoBackend` asserts both, with
+Language-query's own empty page was no better. It passes
+`TruthBasisContentIndex` to `writeLanguageQueryResult`, which DERIVES
+`source_backend` from the basis, so a page that read nothing reported
+`postgres_content_store` -- documented as "the Postgres content store served
+the entire answer". It was the model this change first copied, which is how the
+imports fix arrived half-right.
+
+Both pages now report basis `content_index` with `source_backend`
+`unavailable`, and both share the same reason sentence. `unavailable` is reused
+OUTSIDE its documented meaning: `sourceBackendForTruthBasis` has no no-read
+case -- `unavailable` is its default arm for an unrecognized basis -- and no
+`TruthBasis` member means "nothing was read" either. Naming a backend that was
+never read would be worse than reusing the one value that claims nothing, and
+the public `source_backend` table now carries this second meaning so a caller
+is not misled by the original one. Its reason denies every backend rather than only the graph -- it is now the
+same sentence the language-query empty page uses -- because "no graph read was
+issued" beside a `content_index` basis would invite a reader to infer a content
+read that also never happened.
+`TestImportDependenciesEmptyGrantReachesNoBackend` asserts all three, with
 each expectation written out rather than read from the constant that produces
 it, which is how `"graph"` survived unnoticed in the first place.
 

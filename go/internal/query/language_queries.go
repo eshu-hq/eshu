@@ -197,8 +197,7 @@ func (h *LanguageQueryHandler) handleLanguageQuery(w http.ResponseWriter, r *htt
 	}
 	grant, blocked := languageQueryGrantFor(r.Context(), req.RepoID)
 	if blocked {
-		h.writeLanguageQueryResult(w, r, req.Language, req.EntityType, req.Query, []map[string]any{},
-			TruthBasisContentIndex, reasonLanguageQueryEmptyGrant)
+		h.writeLanguageQueryEmptyGrantResult(w, r, req.Language, req.EntityType, req.Query)
 		return
 	}
 
@@ -340,13 +339,9 @@ func (h *LanguageQueryHandler) writeLanguageQueryResult(
 	basis TruthBasis,
 	reason string,
 ) {
-	WriteSuccess(w, r, http.StatusOK, map[string]any{
-		"language":       language,
-		"entity_type":    entityType,
-		"query":          query,
-		"results":        results,
-		"source_backend": sourceBackendForTruthBasis(basis),
-	}, BuildTruthEnvelope(h.profile(), languageQueryCapability, basis, reason))
+	body := languageQueryResponseBody(language, entityType, query, results)
+	body["source_backend"] = sourceBackendForTruthBasis(basis)
+	WriteSuccess(w, r, http.StatusOK, body, BuildTruthEnvelope(h.profile(), languageQueryCapability, basis, reason))
 }
 
 // queryByLanguage builds and executes a language-specific Cypher query.

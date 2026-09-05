@@ -318,7 +318,8 @@ func TestImportDependenciesEmptyGrantReachesNoBackend(t *testing.T) {
 			}
 			var envelope struct {
 				Truth struct {
-					Basis string `json:"basis"`
+					Basis  string `json:"basis"`
+					Reason string `json:"reason"`
 				} `json:"truth"`
 			}
 			if err := json.Unmarshal(rec.Body.Bytes(), &envelope); err != nil {
@@ -326,6 +327,15 @@ func TestImportDependenciesEmptyGrantReachesNoBackend(t *testing.T) {
 			}
 			if got, want := envelope.Truth.Basis, "content_index"; got != want {
 				t.Fatalf("truth.basis = %q, want %q; an unread page must not claim the authoritative graph", got, want)
+			}
+			// Denies every backend, not just the graph: beside a content_index
+			// basis, "no graph read was issued" would invite a reader to infer
+			// a content read that also never happened. Written out for the
+			// same reason as the fields above, and identical to the sentence
+			// the language-query empty page uses.
+			const wantReason = "the caller's grant admits no repository, so no backend was read"
+			if got := envelope.Truth.Reason; got != wantReason {
+				t.Fatalf("truth.reason = %q, want %q", got, wantReason)
 			}
 		})
 	}

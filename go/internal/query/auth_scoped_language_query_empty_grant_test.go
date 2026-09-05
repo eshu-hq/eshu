@@ -68,6 +68,15 @@ func TestLanguageQueryEmptyGrantAnswersWithArraysNotNull(t *testing.T) {
 				t.Fatalf("truth.reason = %q, want %q; the grantless page must name its own case, and "+
 					"docs/public/reference/language-query-dsl.md quotes this sentence to callers", got, wantReason)
 			}
+			// This page reads nothing, so it must not name a backend that
+			// served it. Deriving source_backend from the basis answers
+			// postgres_content_store here, which is why the empty page does not
+			// go through writeLanguageQueryResult. Written out, not read from
+			// languageQueryNoBackendRead: an expectation taken from the value
+			// under test passes whatever that value becomes.
+			if got, want := data["source_backend"], "unavailable"; got != want {
+				t.Fatalf("source_backend = %v, want %q; no backend served this page", got, want)
+			}
 		})
 	}
 }
