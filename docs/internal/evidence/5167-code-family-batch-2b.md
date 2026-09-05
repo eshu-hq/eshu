@@ -223,13 +223,11 @@ vacuously.
 
 Filtering after the read has a second consequence, disclosed rather than fixed.
 The statement fetches `normalizedLimit()+1` rows and stops, so what the filter
-drops is gone — rows past that `LIMIT` were never read. A page whose first
-`limit+1` rows carry out-of-grant interiors returns FEWER than `limit` in-grant
-ancestors though the caller is entitled to more. The raw-count flag makes that
-honest, telling the caller the page is incomplete, but does not fill it; filling
-it needs an over-fetch owing its own performance argument.
-`TestNornicDBInheritanceWalkPageCanBeThinnerThanTheLimit` pins the shape (raw
-`limit+1`, two crossing, `limit-1` returned, `parent_truncated` true).
+drops is gone: a page whose first `limit+1` rows carry out-of-grant interiors
+returns FEWER than `limit` in-grant ancestors though the caller is entitled to
+more. The raw-count flag makes that honest without filling the page; filling it
+needs an over-fetch owing its own performance argument.
+`TestNornicDBInheritanceWalkPageCanBeThinnerThanTheLimit` pins the shape.
 
 The two lanes now differ in mechanism and agree in result: Neo4j-compat bounds
 the interior with an `all(...)` conjunct the backend evaluates, NornicDB bounds
@@ -413,11 +411,14 @@ docker run -d --name nornic-5167-e2 -e NORNICDB_EMBEDDING_ENABLED=false \
 ```
 
 No-Regression Evidence: a correctness change with no latency claim attached; no
-benchmark was run and no speedup is asserted. Every predicate added is an
-`IN`/`=` membership test on a node the query already matched, and every one of
-them moves EARLIER in its statement — from a trailing `WHERE` into the anchoring
-`MATCH`'s own, or into the `all(node IN nodes(path) …)` clause that runs with the
-traversal — so filtering happens before `SKIP`/`LIMIT` rather than after. No
+benchmark was run and no speedup is asserted. Every grant check added TO A
+STATEMENT is an `IN`/`=` membership test on a node the query already matched,
+and each moves EARLIER — from a trailing `WHERE` into the anchoring `MATCH`'s
+own, or into the `all(node IN nodes(path) …)` clause that runs with the
+traversal — so those filter before `SKIP`/`LIMIT` rather than after. One grant
+check is not a statement predicate and this sentence does not cover it: the
+NornicDB inheritance walk's runs in Go, after the statement's `LIMIT`, and the
+`#6548` section above states its cost and its truncation consequence. No
 statement gains a hop or a second round trip.
 
 One statement does gain a clause, and it is the caller the interior fix was
@@ -452,8 +453,9 @@ against are the ones the anchor and the endpoint grants already admit. This is a
 disclosure, not a benchmark; it joins the `shortestPath` clause on the list of
 things to measure first if Neo4j becomes a gated lane.
 
-Row counts do change, and not only for scoped callers. Three shapes are
-affected, each measured rather than reasoned about:
+Row counts do change, and not only for scoped callers. Three shapes change for
+every caller class, each measured — a fourth, the NornicDB inheritance walk's
+Go-side filter, changes them for scoped callers only (`#6548` section above):
 
 1. `relationshipStoryGraphCypher` (Neo4j-compat story) returned every `CALLS`
    edge in the graph, because its ANCHOR predicate sat in the inert clause
