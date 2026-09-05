@@ -151,7 +151,7 @@ func TestFactloadMaterializationWrappersReturnSeededEnvelopes(t *testing.T) {
 // requires next to the committed `-gcflags=-m=2` inlinability cost figures
 // (cost 77-94 against the inline budget of 80). Each measures one hoisted
 // wrapper over the shared in-memory corpus; run with e.g.:
-// go test ./internal/reducer/ -run '^$' -bench 'MaterializationFacts' -benchmem
+// go test ./internal/reducer/ -run '^$' -bench 'MaterializationFacts|WrapperFrameOverhead' -benchmem
 
 // BenchmarkFactloadWrapperFrameOverhead isolates the cost the hoist introduced
 // (issue #6359): a direct factload.LoadFactsForKinds call versus the same call

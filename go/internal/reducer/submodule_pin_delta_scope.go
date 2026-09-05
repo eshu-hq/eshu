@@ -39,11 +39,6 @@ type submodulePinDeltaScope struct {
 // every submodule.pin fact for the generation. submodule.pin is a
 // directly-emitted fact (Contract System v1), so no content_entity/
 // parsed_file_data join is needed.
-// submodulePinMaterializationFactKinds is the single source for the kind set
-// loadSubmodulePinMaterializationFacts requests; the bench corpus guard in
-// factload_materialization_bench_test.go reads the same slice.
-var submodulePinMaterializationFactKinds = []string{factKindRepository, factKindSubmodulePin}
-
 func loadSubmodulePinMaterializationFacts(
 	ctx context.Context,
 	loader FactLoader,
@@ -58,6 +53,11 @@ func loadSubmodulePinMaterializationFacts(
 		submodulePinMaterializationFactKinds,
 	)
 }
+
+// submodulePinMaterializationFactKinds is the single source for the kind set
+// loadSubmodulePinMaterializationFacts requests; the bench corpus guard in
+// factload_materialization_bench_test.go reads the same slice.
+var submodulePinMaterializationFactKinds = []string{factKindRepository, factKindSubmodulePin}
 
 // buildSubmodulePinDeltaScope scans repository facts flagged delta_generation
 // and records, per repository, whether the delta's changed/deleted relative
