@@ -15,10 +15,14 @@ import (
 )
 
 const (
-	importDependencyCapability   = "symbol_graph.import_dependencies"
-	importDependencyDefaultLimit = 25
-	importDependencyMaxLimit     = 200
-	importDependencyMaxOffset    = 10000
+	importDependencyCapability = "symbol_graph.import_dependencies"
+	// importDependencyNoBackendRead is the source_backend an empty-grant page
+	// carries. importDependencyResponse hard-codes "graph" for every other
+	// response on this route, which is true of all of them except this one.
+	importDependencyNoBackendRead = "unavailable"
+	importDependencyDefaultLimit  = 25
+	importDependencyMaxLimit      = 200
+	importDependencyMaxOffset     = 10000
 )
 
 var errImportDependencyUnavailable = errors.New("import dependency graph is unavailable")
@@ -84,12 +88,25 @@ func (h *CodeHandler) handleImportDependencyInvestigation(w http.ResponseWriter,
 	// is the front gate for the grantless case; req.access is what the builders
 	// bind for everyone else.
 	if _, blocked := codeContentGrantScope(r.Context(), req.RepoID); blocked {
+		// This page is produced without reading anything, so it must not
+		// describe itself as an authoritative graph read. It reports the same
+		// basis the language-query empty page reports, and importDependencyResponse's
+		// blanket "graph" source_backend is replaced with the vocabulary
+		// sourceBackendForTruthBasis uses when nothing served a read.
+		//
+		// Neither value is a perfect fit: the TruthBasis enum has no "no read
+		// happened" member, so content_index is the lowest-claim value
+		// available rather than a description of what occurred. The reason
+		// string is what actually says it, and it is the field a caller should
+		// read here.
+		emptyPage := importDependencyResponse(req, nil)
+		emptyPage["source_backend"] = importDependencyNoBackendRead
 		WriteSuccess(
 			w,
 			r,
 			http.StatusOK,
-			importDependencyResponse(req, nil),
-			BuildTruthEnvelope(h.profile(), importDependencyCapability, TruthBasisAuthoritativeGraph, "the caller's grant admits no repository, so no graph read was issued"),
+			emptyPage,
+			BuildTruthEnvelope(h.profile(), importDependencyCapability, TruthBasisContentIndex, "the caller's grant admits no repository, so no graph read was issued"),
 		)
 		return
 	}

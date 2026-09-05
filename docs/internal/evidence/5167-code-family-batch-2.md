@@ -171,6 +171,30 @@ than only in a post-filter. The leak this route did have on that query type was
 a pair with BOTH endpoints in another tenant, which the Go pass admits and the
 grant now removes.
 
+### The Empty-Grant Page Stopped Calling Itself A Graph Read
+
+The empty page this change adds for a grantless scoped caller first shipped
+reporting `TruthBasisAuthoritativeGraph`, and `importDependencyResponse`
+hard-codes `"source_backend": "graph"` for every response on the route. Both
+were wrong for this one page, which is produced without reading anything: it
+claimed EXACT truth from an authoritative graph read that never happened. The
+page is new in this change, so its wire shape is this change's to set.
+
+It now reports the same basis the language-query empty page reports,
+`TruthBasisContentIndex`, and overrides `source_backend` to `unavailable` --
+the vocabulary `sourceBackendForTruthBasis` already uses when nothing served a
+read. `TestImportDependenciesEmptyGrantReachesNoBackend` asserts both, with
+each expectation written out rather than read from the constant that produces
+it, which is how `"graph"` survived unnoticed in the first place.
+
+One thing is worth stating rather than papering over: neither value is a
+perfect description. The `TruthBasis` enum has no "no read happened" member, so
+`content_index` is the lowest-claim value available rather than an account of
+what occurred, and a caller wanting the real story should read the envelope's
+`reason`, which names the grantless case exactly. A basis for the no-read case
+would fix both routes' empty pages and is worth its own issue; it changes the
+envelope contract, so it does not ride along here.
+
 ## The Grant Travels On The Request, And Its Zero Value Is Scoped
 
 Seven builders take an `importDependencyRequest`, so the grant rides there as an

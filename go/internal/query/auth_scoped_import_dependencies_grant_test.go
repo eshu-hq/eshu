@@ -5,6 +5,7 @@ package query
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"net/http"
 	"net/http/httptest"
@@ -304,6 +305,27 @@ func TestImportDependenciesEmptyGrantReachesNoBackend(t *testing.T) {
 			}
 			if len(rows) != 0 {
 				t.Fatalf("%q = %#v, want no rows for a grantless caller", rowKey, rows)
+			}
+
+			// The page is produced without reading anything, so it must not
+			// describe itself as a graph read. Both fields are written out
+			// rather than compared to the constants that produce them: a test
+			// that reads its expectation from the production value passes
+			// whatever that value becomes, which is how "graph" survived here
+			// in the first place.
+			if got, want := data["source_backend"], "unavailable"; got != want {
+				t.Fatalf("source_backend = %v, want %q; no backend served this page", got, want)
+			}
+			var envelope struct {
+				Truth struct {
+					Basis string `json:"basis"`
+				} `json:"truth"`
+			}
+			if err := json.Unmarshal(rec.Body.Bytes(), &envelope); err != nil {
+				t.Fatalf("decode the truth envelope: %v; body = %s", err, rec.Body.String())
+			}
+			if got, want := envelope.Truth.Basis, "content_index"; got != want {
+				t.Fatalf("truth.basis = %q, want %q; an unread page must not claim the authoritative graph", got, want)
 			}
 		})
 	}
