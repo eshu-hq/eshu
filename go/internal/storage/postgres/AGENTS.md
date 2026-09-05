@@ -1124,7 +1124,7 @@ When touching this surface:
   syncs. Do not reintroduce a timestamp-based already-satisfied fence; keep it
   keyed on the stable (target scope, group, claim_kind) identity.
 - **`RecordRedriven` MUST be called ONLY from
-  `reducer.CrossplaneSatisfiedByMaterializationHandler`, strictly after it
+  `crossplane.CrossplaneSatisfiedByMaterializationHandler`, strictly after it
   commits a SATISFIED_BY edge — NEVER from the sweep's enqueue path.** A
   SECOND review round caught the sweep itself calling `RecordRedriven`
   immediately after `ReplayCrossplaneSatisfiedByMaterialization` (which is

@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/reducer"
+	"github.com/eshu-hq/eshu/go/internal/reducer/crossplane"
 )
 
 // TestCrossplaneRedriveDeadLetteredTargetIsNotPermanentlySuppressedLive is the
@@ -122,7 +123,7 @@ func TestCrossplaneRedriveSuccessfulMaterializationWritesLedgerThenSkipsLive(t *
 	// write succeeds.
 	factStore := NewFactStore(SQLDB{DB: db})
 	ledger := NewCrossplaneRedriveTargetLedgerStore(SQLDB{DB: db})
-	handler := reducer.CrossplaneSatisfiedByMaterializationHandler{
+	handler := crossplane.CrossplaneSatisfiedByMaterializationHandler{
 		FactLoader:          factStore,
 		EdgeWriter:          &crossplaneRedriveSpyEdgeWriter{},
 		RedriveTargetLedger: ledger,
@@ -204,7 +205,7 @@ func TestCrossplaneRedriveUnconfirmedEdgeNotLedgeredAndReenqueuedLive(t *testing
 	// graph at write time.
 	factStore := NewFactStore(SQLDB{DB: db})
 	ledger := NewCrossplaneRedriveTargetLedgerStore(SQLDB{DB: db})
-	handler := reducer.CrossplaneSatisfiedByMaterializationHandler{
+	handler := crossplane.CrossplaneSatisfiedByMaterializationHandler{
 		FactLoader:          factStore,
 		EdgeWriter:          &crossplaneRedriveSpyEdgeWriter{},
 		RedriveTargetLedger: ledger,

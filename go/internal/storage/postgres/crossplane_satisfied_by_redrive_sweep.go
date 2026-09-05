@@ -246,7 +246,7 @@ func (s CrossplaneSatisfiedByRedriveSweeper) Sweep(
 // scope, XRD identity) satisfied -- reopening the exact false-negative
 // window #5476 exists to close, silently and irrecoverably. The ledger is
 // instead written by
-// reducer.CrossplaneSatisfiedByMaterializationHandler.recordRedriveLedger,
+// crossplane.CrossplaneSatisfiedByMaterializationHandler.recordRedriveLedger,
 // strictly after the handler commits an edge. The window between enqueue
 // and handler completion where a second sweep might re-enqueue the same
 // target is safe: ReplayCrossplaneSatisfiedByMaterialization's

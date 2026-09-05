@@ -415,7 +415,7 @@ func defaultRawPayloadExemptions() []RawPayloadExemption {
 		// families (AWS, IAM, incident, ...), never parsed code/content
 		// entities, so there is no seam to migrate to. The reducer's own
 		// pre-existing SATISFIED_BY correlation
-		// (internal/reducer/crossplane_satisfied_by_edge_rows.go's
+		// (internal/reducer/crossplane/crossplane_satisfied_by_edge_rows.go's
 		// crossplaneEntityMetadataString) reads this exact field the exact
 		// same raw way; this exemption keeps the sweep's read consistent with
 		// that already-established pattern rather than inventing a one-off

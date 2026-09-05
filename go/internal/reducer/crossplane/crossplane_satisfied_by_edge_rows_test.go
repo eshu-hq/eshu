@@ -1,12 +1,13 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package reducer
+package crossplane
 
 import (
 	"testing"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/reducer/factload"
 )
 
 // crossplaneContentEntityEnvelope builds a minimal content_entity fact
@@ -16,7 +17,7 @@ import (
 func crossplaneContentEntityEnvelope(entityID, entityType string, metadata map[string]any) facts.Envelope {
 	return facts.Envelope{
 		FactID:   entityID,
-		FactKind: factKindContentEntity,
+		FactKind: factload.FactKindContentEntity,
 		Payload: map[string]any{
 			"entity_id":       entityID,
 			"entity_type":     entityType,

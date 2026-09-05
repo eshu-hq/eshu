@@ -3618,7 +3618,7 @@ Files:
 - `crossplane_satisfied_by_redrive_ledger.go` —
   `CrossplaneRedriveTargetLedgerStore.RecordRedriven`: durably marks a target
   scope already re-driven against one (group, claim_kind) identity. Called
-  ONLY from `reducer.CrossplaneSatisfiedByMaterializationHandler`, strictly
+  ONLY from `crossplane.CrossplaneSatisfiedByMaterializationHandler`, strictly
   after it commits a SATISFIED_BY edge — NEVER from the sweep. See the fence
   (3) entry below for why.
 - `crossplane_satisfied_by_redrive_sweep.go` —
@@ -3675,7 +3675,7 @@ Fences (all three required by the design, all enforced in
    original bug because it is silent and permanent.
 
    **The shipped design instead has
-   `reducer.CrossplaneSatisfiedByMaterializationHandler` write the ledger
+   `crossplane.CrossplaneSatisfiedByMaterializationHandler` write the ledger
    entry itself, strictly after `WriteCrossplaneSatisfiedByEdges` succeeds**
    (`recordRedriveLedger`, one entry per distinct `(claim_group, claim_kind)`
    among the rows it actually wrote an edge for). The sweep's `sweepJoinKey`
@@ -3751,7 +3751,7 @@ the current token) succeeds. Marker present as `completed` -> every further
 
 Behavior proof (`crossplane_satisfied_by_redrive_behavior_live_test.go`,
 `TestCrossplaneSatisfiedByRedriveClosesXRDLagWindowLive`, failing-then-green):
-a Claim scope is seeded and its own `CrossplaneSatisfiedByMaterializationHandler.Handle`
+a Claim scope is seeded and its own `crossplane.CrossplaneSatisfiedByMaterializationHandler.Handle`
 pass runs FIRST, with no XRD anywhere — zero rows written (the false negative,
 red). The XRD scope is then seeded and activated; `Sweep` runs for it and
 re-enqueues the Claim scope's intent (`TargetsEnqueued == 1`,

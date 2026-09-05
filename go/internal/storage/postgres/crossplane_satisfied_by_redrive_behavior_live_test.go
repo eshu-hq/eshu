@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/reducer"
+	"github.com/eshu-hq/eshu/go/internal/reducer/crossplane"
 )
 
 // crossplaneRedriveSpyEdgeWriter records every SATISFIED_BY row the
@@ -97,7 +98,7 @@ func TestCrossplaneSatisfiedByRedriveClosesXRDLagWindowLive(t *testing.T) {
 	seedCrossplaneRedriveClaimScope(ctx, t, db, claimScopeID, claimGenerationID, group, claimKind, 1, now)
 
 	factStore := NewFactStore(SQLDB{DB: db})
-	handler := reducer.CrossplaneSatisfiedByMaterializationHandler{
+	handler := crossplane.CrossplaneSatisfiedByMaterializationHandler{
 		FactLoader: factStore,
 		EdgeWriter: &crossplaneRedriveSpyEdgeWriter{},
 	}
@@ -156,7 +157,7 @@ func TestCrossplaneSatisfiedByRedriveClosesXRDLagWindowLive(t *testing.T) {
 	// never re-ingested). The handler now sees the active cross-scope XRD and
 	// resolves the edge.
 	greenSpy := &crossplaneRedriveSpyEdgeWriter{}
-	greenHandler := reducer.CrossplaneSatisfiedByMaterializationHandler{
+	greenHandler := crossplane.CrossplaneSatisfiedByMaterializationHandler{
 		FactLoader: factStore,
 		EdgeWriter: greenSpy,
 	}

@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package reducer
+package crossplane
 
 import (
 	"context"
@@ -14,23 +14,26 @@ import (
 	"go.opentelemetry.io/otel/trace"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
+	"github.com/eshu-hq/eshu/go/internal/reducer/factload"
+	"github.com/eshu-hq/eshu/go/internal/reducer/payloadcore"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
 	"github.com/eshu-hq/eshu/go/internal/truth"
 	log "github.com/eshu-hq/eshu/go/pkg/log"
 )
 
-// crossplaneSatisfiedByMaterializationDomainDefinition returns the additive
+// CrossplaneSatisfiedByMaterializationDomainDefinition returns the additive
 // definition for the Crossplane Claim -> XRD SATISFIED_BY edge projection. It
 // is additive (not part of DefaultDomainDefinitions) because the handler
 // requires an explicitly wired CrossplaneSatisfiedByEdgeWriter and
 // FactLoader; registering it without them would silently drop every intent.
 // Mirrors kubernetesCorrelationMaterializationDomainDefinition. See issue
 // #5347.
-func crossplaneSatisfiedByMaterializationDomainDefinition() DomainDefinition {
-	return DomainDefinition{
-		Domain:  DomainCrossplaneSatisfiedByMaterialization,
+func CrossplaneSatisfiedByMaterializationDomainDefinition() reducercontract.DomainDefinition {
+	return reducercontract.DomainDefinition{
+		Domain:  reducercontract.DomainCrossplaneSatisfiedByMaterialization,
 		Summary: "project Crossplane Claim -> XRD classification decisions into canonical SATISFIED_BY graph edges",
-		Ownership: OwnershipShape{
+		Ownership: reducercontract.OwnershipShape{
 			CrossSource:    true,
 			CrossScope:     true,
 			CanonicalWrite: true,
@@ -139,14 +142,14 @@ type CrossplaneRedriveTargetLedgerWriter interface {
 // unforeseen uncommitted endpoint yields no edge this generation (self-healing
 // on a later retry) rather than a fabricated one.
 type CrossplaneSatisfiedByMaterializationHandler struct {
-	FactLoader  FactLoader
+	FactLoader  factload.FactLoader
 	EdgeWriter  CrossplaneSatisfiedByEdgeWriter
 	Tracer      trace.Tracer
 	Instruments *telemetry.Instruments
 	// PriorGenerationCheck reports whether the scope has any prior
 	// generation. Nil keeps retract behavior conservative (always retract
 	// before write).
-	PriorGenerationCheck PriorGenerationCheck
+	PriorGenerationCheck reducercontract.PriorGenerationCheck
 	// RedriveTargetLedger records intent.ScopeID as confirmed satisfied for
 	// each (group, claim_kind) identity this run actually resolved an edge
 	// for (issue #5476). Nil is safe (no-op): the cross-scope redrive
@@ -169,20 +172,20 @@ type CrossplaneSatisfiedByMaterializationHandler struct {
 // Handle executes one Crossplane SATISFIED_BY materialization intent.
 func (h CrossplaneSatisfiedByMaterializationHandler) Handle(
 	ctx context.Context,
-	intent Intent,
-) (Result, error) {
+	intent reducercontract.Intent,
+) (reducercontract.Result, error) {
 	totalStart := time.Now()
-	if intent.Domain != DomainCrossplaneSatisfiedByMaterialization {
-		return Result{}, fmt.Errorf(
+	if intent.Domain != reducercontract.DomainCrossplaneSatisfiedByMaterialization {
+		return reducercontract.Result{}, fmt.Errorf(
 			"crossplane satisfied-by materialization handler does not accept domain %q",
 			intent.Domain,
 		)
 	}
 	if h.FactLoader == nil {
-		return Result{}, fmt.Errorf("crossplane satisfied-by materialization fact loader is required")
+		return reducercontract.Result{}, fmt.Errorf("crossplane satisfied-by materialization fact loader is required")
 	}
 	if h.EdgeWriter == nil {
-		return Result{}, fmt.Errorf("crossplane satisfied-by materialization edge writer is required")
+		return reducercontract.Result{}, fmt.Errorf("crossplane satisfied-by materialization edge writer is required")
 	}
 
 	if h.Tracer != nil {
@@ -200,20 +203,20 @@ func (h CrossplaneSatisfiedByMaterializationHandler) Handle(
 	loadStart := time.Now()
 	envelopes, err := h.loadEdgeFacts(ctx, intent)
 	if err != nil {
-		return Result{}, err
+		return reducercontract.Result{}, err
 	}
 	loadDuration := time.Since(loadStart)
 
 	extractStart := time.Now()
 	rows, tally, err := ExtractCrossplaneSatisfiedByEdgeRows(envelopes)
 	if err != nil {
-		return Result{}, err
+		return reducercontract.Result{}, err
 	}
 	extractDuration := time.Since(extractStart)
 
 	skipRetract, err := h.shouldSkipRetract(ctx, intent)
 	if err != nil {
-		return Result{}, err
+		return reducercontract.Result{}, err
 	}
 	var retractDuration time.Duration
 	if !skipRetract {
@@ -224,7 +227,7 @@ func (h CrossplaneSatisfiedByMaterializationHandler) Handle(
 			intent.GenerationID,
 			crossplaneSatisfiedByEdgeEvidenceSource,
 		); err != nil {
-			return Result{}, fmt.Errorf("retract canonical crossplane satisfied-by edges: %w", err)
+			return reducercontract.Result{}, fmt.Errorf("retract canonical crossplane satisfied-by edges: %w", err)
 		}
 		retractDuration = time.Since(retractStart)
 	}
@@ -239,7 +242,7 @@ func (h CrossplaneSatisfiedByMaterializationHandler) Handle(
 			intent.GenerationID,
 			crossplaneSatisfiedByEdgeEvidenceSource,
 		); err != nil {
-			return Result{}, fmt.Errorf("write canonical crossplane satisfied-by edges: %w", err)
+			return reducercontract.Result{}, fmt.Errorf("write canonical crossplane satisfied-by edges: %w", err)
 		}
 		writeDuration = time.Since(writeStart)
 		h.recordRedriveLedgerForConfirmedEdges(ctx, intent.ScopeID, rows)
@@ -259,10 +262,10 @@ func (h CrossplaneSatisfiedByMaterializationHandler) Handle(
 		totalDuration:    time.Since(totalStart),
 	})
 
-	return Result{
+	return reducercontract.Result{
 		IntentID: intent.IntentID,
-		Domain:   DomainCrossplaneSatisfiedByMaterialization,
-		Status:   ResultStatusSucceeded,
+		Domain:   reducercontract.DomainCrossplaneSatisfiedByMaterialization,
+		Status:   reducercontract.ResultStatusSucceeded,
 		EvidenceSummary: fmt.Sprintf(
 			"materialized %d SATISFIED_BY edge(s) from %d fact(s); %d candidate(s) matched 2+ XRDs (ambiguous, skipped)",
 			len(rows),
@@ -278,14 +281,14 @@ func (h CrossplaneSatisfiedByMaterializationHandler) Handle(
 // facts, mirroring KubernetesCorrelationMaterializationHandler.loadEdgeFacts.
 func (h CrossplaneSatisfiedByMaterializationHandler) loadEdgeFacts(
 	ctx context.Context,
-	intent Intent,
+	intent reducercontract.Intent,
 ) ([]facts.Envelope, error) {
-	envelopes, err := loadFactsForKinds(
+	envelopes, err := factload.LoadFactsForKinds(
 		ctx,
 		h.FactLoader,
 		intent.ScopeID,
 		intent.GenerationID,
-		[]string{factKindContentEntity},
+		[]string{factload.FactKindContentEntity},
 	)
 	if err != nil {
 		return nil, fmt.Errorf("load facts for crossplane satisfied-by materialization: %w", err)
@@ -307,7 +310,7 @@ func (h CrossplaneSatisfiedByMaterializationHandler) loadActiveXRDFacts(ctx cont
 	}
 	envelopes, err := loader.ListActiveCrossplaneXRDFacts(ctx)
 	if err != nil {
-		return nil, classifyFactLoadError(err)
+		return nil, factload.ClassifyFactLoadError(err)
 	}
 	return envelopes, nil
 }
@@ -315,7 +318,7 @@ func (h CrossplaneSatisfiedByMaterializationHandler) loadActiveXRDFacts(ctx cont
 // shouldSkipRetract mirrors KubernetesCorrelationMaterializationHandler:
 // skip the prior-edge retract on the very first generation for a scope (no
 // prior edges to remove) and only on the first attempt.
-func (h CrossplaneSatisfiedByMaterializationHandler) shouldSkipRetract(ctx context.Context, intent Intent) (bool, error) {
+func (h CrossplaneSatisfiedByMaterializationHandler) shouldSkipRetract(ctx context.Context, intent reducercontract.Intent) (bool, error) {
 	if h.PriorGenerationCheck == nil || intent.AttemptCount > 1 {
 		return false, nil
 	}
@@ -382,8 +385,8 @@ func (h CrossplaneSatisfiedByMaterializationHandler) recordRedriveLedger(
 	type identity struct{ group, kind string }
 	seen := make(map[identity]struct{}, len(rows))
 	for _, row := range rows {
-		group := anyToString(row["claim_group"])
-		kind := anyToString(row["claim_kind"])
+		group := payloadcore.AnyToString(row["claim_group"])
+		kind := payloadcore.AnyToString(row["claim_kind"])
 		if group == "" || kind == "" {
 			continue
 		}
@@ -416,7 +419,7 @@ func (h CrossplaneSatisfiedByMaterializationHandler) recordEdgeCounter(
 	}
 	counts := make(map[string]int, len(rows))
 	for _, row := range rows {
-		counts[anyToString(row["resolution_mode"])]++
+		counts[payloadcore.AnyToString(row["resolution_mode"])]++
 	}
 	for mode, count := range counts {
 		h.Instruments.CrossplaneSatisfiedByEdges.Add(ctx, int64(count), metric.WithAttributes(
@@ -426,7 +429,7 @@ func (h CrossplaneSatisfiedByMaterializationHandler) recordEdgeCounter(
 }
 
 type crossplaneSatisfiedByMaterializationTiming struct {
-	intent           Intent
+	intent           reducercontract.Intent
 	factCount        int
 	edgeCount        int
 	ambiguousSkipped int
