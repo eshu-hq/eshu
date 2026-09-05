@@ -452,6 +452,11 @@ candidate on the page `unknown_needs_evidence` whatever its own evidence said �
 cannot happen, because the probe answers for every entity it is given.
 `TestCrossRepoDeadCodeProbeLeavesNoEntityUnproven` is the guard.
 
+The page half got its own bound in the same PR: #6527, where the `LIMIT` capped
+what came back and not what was read. Migration 103 carries the order the
+statement ranks by, 1,000,497 rows scanned becomes 1,124, and the statement is
+untouched — [#6527 the page's own bound](5167-cross-repo-consumer-page-bound.md).
+
 ## Verification
 
 Run after the last edit, exit codes captured directly:
@@ -485,5 +490,6 @@ on purpose, which guard judged it, and the exit code — the query-plan manifest
 re-audit, and what this change costs on the read path live in [#5167 code family
 batch 1 proofs](5167-code-family-batch-1-proofs.md). The measurement record for
 the cross-repo hidden-consumer read is in [#5167 cross-repo hidden-consumer
-walk](5167-cross-repo-hidden-consumer-walk.md). The three notes are split
-because together they outgrow the repository's 500-line file cap.
+walk](5167-cross-repo-hidden-consumer-walk.md); the page read's own bound is in
+[#6527](5167-cross-repo-consumer-page-bound.md). The notes are split because
+together they outgrow the repository's 500-line file cap.

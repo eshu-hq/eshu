@@ -237,7 +237,7 @@
   from a granted one and to the next (repository, scope) PAIR from an ungranted
   one, on migration 101's index, seeks each pair's active row by full key
   equality, stops at the first hidden one — ungranted AND live — and returns producer entity ids only.
-  Fan-in, grant size, retained generations per pair and scopes per GRANTED repository are all off its cost. An ungranted pair with no live row is not hidden, so the walk steps past it; those pairs are the one axis on its cost, and the bound is granted repositories passed plus stale ungranted pairs passed plus one. Measured in [#5167 hidden-consumer walk](../../../docs/internal/evidence/5167-cross-repo-hidden-consumer-walk.md).
+  Fan-in, grant size, retained generations per pair and scopes per GRANTED repository are all off its cost. An ungranted pair with no live row is not hidden, so the walk steps past it; those pairs are the one axis on its cost, and the bound is granted repositories passed plus stale ungranted pairs passed plus one. Measured in [#5167 hidden-consumer walk](../../../docs/internal/evidence/5167-cross-repo-hidden-consumer-walk.md). The evidence PAGE beside it is bounded by its own `LIMIT` only because migration 103 carries its `ORDER BY` — `(entity_id, confidence DESC, depth, repository_id, root_entity_id)`; without that index the read ranks a producer entity's whole fan-in group first (#6527), so keep the statement's `ORDER BY` and that index key in lockstep.
 
 - **A granted consumer outranks a hidden one on every dead-code route** — a
   strong granted edge or consumer settles a candidate reachable/live; a hidden

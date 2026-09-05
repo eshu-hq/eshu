@@ -72,7 +72,10 @@ func (h crossRepoDeadCodeHiddenConsumers) has(entityID string) bool {
 //     Binding the list in SQL rather than filtering in Go is what keeps the page
 //     honest: the row cap falls on the consumers this answer is about, so
 //     neither another tenant's rows nor a granted repository the request did
-//     not ask about can crowd a wanted consumer off the page.
+//     not ask about can crowd a wanted consumer off the page. That cap bounds
+//     what is READ as well as what comes back only because migration 103
+//     carries the statement's ORDER BY -- see
+//     buildCrossRepoDeadCodeConsumerEvidenceQuery.
 //   - the ungranted-consumer probe, when reads.SignalGrant is set. It carries
 //     the "this symbol has a consumer you cannot see" answer, which filtering in
 //     SQL alone would lose, and losing it would mark a live symbol dead. It
@@ -240,6 +243,22 @@ func crossRepoDeadCodeGrantFilter(args []any, allowedRepositoryIDs []string) ([]
 	return args, fmt.Sprintf("\n  AND row.repository_id = ANY($%d)", len(args))
 }
 
+// buildCrossRepoDeadCodeConsumerEvidenceQuery renders the evidence page: the
+// active-generation consumer rows for these producer entities, ranked strongest
+// first within each entity, capped at the sentinel.
+//
+// The ORDER BY and migration 103's
+// code_reachability_entity_confidence_rank_idx are one thing in two places.
+// With entity_id pinned by the IN list the index's key columns ARE this
+// statement's ordering, so the scan is already in output order and the LIMIT
+// stops it. Change either without the other and the LIMIT goes back to bounding
+// only what comes back: Postgres has to rank a producer entity's whole consumer
+// fan-in before it can emit that entity's first row, which on a page carrying
+// one million-row entity is 1,000,497 rows read for a 1,001-row answer (#6527,
+// measured in docs/internal/evidence/5167-cross-repo-consumer-page-bound.md).
+//
+// depth > 0 stays a plain predicate rather than part of the ranking: depth 0 is
+// the root's own row, not a consumer edge.
 func buildCrossRepoDeadCodeConsumerEvidenceQuery(
 	producerRepoID string,
 	entityIDs []string,
