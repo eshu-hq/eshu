@@ -205,7 +205,7 @@ func (h *CodeHandler) relationshipStoryGraphRowsForDirection(
 		entity,
 		direction,
 		graphEntityIDPredicate,
-		repositoryAccessFilterFromContext(ctx),
+		codeGrantAccessFilter(ctx),
 	)
 	return h.Neo4j.Run(ctx, cypher, params)
 }
@@ -230,12 +230,12 @@ func relationshipStoryGraphCypher(
 	relPattern := ":" + relationshipType
 	if direction == "incoming" {
 		predicates := []string{predicate("target", "$entity_id")}
-		predicates = append(predicates, relationshipStoryRepoPredicates(req, access, "targetRepo")...)
+		predicates = append(predicates, relationshipStoryRepoPredicates(req, access, "source", "target", "target")...)
 		return `
 		MATCH (source)-[rel` + relPattern + `]->(target)
+		WHERE ` + strings.Join(predicates, " AND ") + `
 		OPTIONAL MATCH (source)<-[:CONTAINS]-(sourceFile:File)<-[:REPO_CONTAINS]-(sourceRepo:Repository)
 		OPTIONAL MATCH (target)<-[:CONTAINS]-(targetFile:File)<-[:REPO_CONTAINS]-(targetRepo:Repository)
-		WHERE ` + strings.Join(predicates, " AND ") + `
 		RETURN 'incoming' as direction,
 		       type(rel) as type,
 		       'direct_code_edge' as edge_origin,
@@ -264,12 +264,12 @@ func relationshipStoryGraphCypher(
 	`, params
 	}
 	predicates := []string{predicate("source", "$entity_id")}
-	predicates = append(predicates, relationshipStoryRepoPredicates(req, access, "sourceRepo")...)
+	predicates = append(predicates, relationshipStoryRepoPredicates(req, access, "source", "target", "source")...)
 	return `
 		MATCH (source)-[rel` + relPattern + `]->(target)
+		WHERE ` + strings.Join(predicates, " AND ") + `
 		OPTIONAL MATCH (source)<-[:CONTAINS]-(sourceFile:File)<-[:REPO_CONTAINS]-(sourceRepo:Repository)
 		OPTIONAL MATCH (target)<-[:CONTAINS]-(targetFile:File)<-[:REPO_CONTAINS]-(targetRepo:Repository)
-		WHERE ` + strings.Join(predicates, " AND ") + `
 		RETURN 'outgoing' as direction,
 		       type(rel) as type,
 		       'direct_code_edge' as edge_origin,
@@ -298,6 +298,9 @@ func relationshipStoryGraphCypher(
 	`, params
 }
 
+// relationshipStoryAccessParams binds the parameters the story reads' repository
+// predicates reference: the caller-supplied repo_id, and the grant arrays
+// querycontract.RepositoryAccessFilter renders its condition against.
 func relationshipStoryAccessParams(
 	req relationshipStoryRequest,
 	access repositoryAccessFilter,
@@ -307,28 +310,70 @@ func relationshipStoryAccessParams(
 		params["repo_id"] = strings.TrimSpace(req.RepoID)
 	}
 	if access.Scoped() {
-		params["relationship_repo_ids"] = access.RepositorySearchIDs()
+		params = access.GraphParams(params)
 	}
 	return params
 }
 
+// relationshipStoryRepoPredicates returns the predicates that decide which
+// relationship rows the caller may see, written against the ENTITY nodes' own
+// repo_id rather than against the Repository aliases the projection binds.
+//
+// The alias choice is the whole fix, and it is a measured one (#5167 batch 2b,
+// docs/internal/evidence/5167-code-family-batch-2b.md). Both story builders
+// bind sourceRepo/targetRepo through OPTIONAL MATCH clauses, and a WHERE that
+// follows an OPTIONAL MATCH constrains the optional pattern rather than the
+// driving row set -- so the predicates this function used to emit on those
+// aliases dropped no row at all. They only nulled the last optional pattern's
+// variables, and normalizeNornicDBRelationshipStoryRows then filled the
+// repository column back in from the node property, so the out-of-grant
+// repository id reached the response anyway.
+//
+// repo_id, the property the canonical node writer sets on every entity it
+// projects (canonicalEntityProperties in internal/storage/cypher), is available
+// on the driving row itself, so the predicate can sit in the anchoring MATCH's
+// own WHERE and the OPTIONAL MATCH clauses can stay optional and stay purely
+// projection. An entity the graph cannot attribute to a repository has no
+// repo_id, so it fails the predicate and is dropped -- fail-closed, matching
+// what batch 1 landed for complexityListAnchor.
+//
+// anchorAlias is the endpoint the request itself anchors on. A cross_repo story
+// deliberately reaches out of its repository, so repo_id constrains only that
+// end; the grant still constrains both, because a caller may not read an
+// out-of-grant neighbour's identity even on a cross-repository question.
 func relationshipStoryRepoPredicates(
 	req relationshipStoryRequest,
 	access repositoryAccessFilter,
-	anchorRepoAlias string,
+	sourceAlias string,
+	targetAlias string,
+	anchorAlias string,
 ) []string {
-	predicates := make([]string, 0, 2)
+	predicates := make([]string, 0, 4)
 	if strings.TrimSpace(req.RepoID) != "" {
 		if req.CrossRepo {
-			predicates = append(predicates, anchorRepoAlias+".id = $repo_id")
+			predicates = append(predicates, anchorAlias+".repo_id = $repo_id")
 		} else {
-			predicates = append(predicates, "sourceRepo.id = $repo_id")
-			predicates = append(predicates, "targetRepo.id = $repo_id")
+			predicates = append(predicates, sourceAlias+".repo_id = $repo_id")
+			predicates = append(predicates, targetAlias+".repo_id = $repo_id")
 		}
 	}
-	if access.Scoped() {
-		predicates = append(predicates, "sourceRepo.id IN $relationship_repo_ids")
-		predicates = append(predicates, "targetRepo.id IN $relationship_repo_ids")
+	return append(predicates, relationshipStoryGrantPredicates(access, sourceAlias, targetAlias)...)
+}
+
+// relationshipStoryGrantPredicates returns the caller's grant condition on each
+// alias's repo_id, and nothing at all for an unscoped caller.
+//
+// The class-hierarchy and override reads use this rather than the fuller
+// relationshipStoryRepoPredicates above: they never carried a repo_id predicate,
+// so adding one would change what a shared-key caller reads, while the grant is
+// what those reads are missing.
+func relationshipStoryGrantPredicates(access repositoryAccessFilter, aliases ...string) []string {
+	if !access.Scoped() {
+		return nil
+	}
+	predicates := make([]string, 0, len(aliases))
+	for _, alias := range aliases {
+		predicates = append(predicates, access.GraphConditionOnProperty(alias, "repo_id"))
 	}
 	return predicates
 }

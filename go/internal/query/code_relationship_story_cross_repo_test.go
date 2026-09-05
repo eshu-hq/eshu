@@ -185,10 +185,16 @@ func TestRelationshipStoryGraphCypherCrossRepoScopesAnchorAndRelatedRepositories
 		},
 	)
 
+	// cross_repo deliberately reaches out of the anchor repository, so repo_id
+	// constrains only the anchored end -- but the grant constrains both, because
+	// a caller may not read an out-of-grant neighbour's identity even on a
+	// cross-repository question. Every predicate sits in the anchoring MATCH's
+	// own WHERE; #5167 batch 2b measured that a predicate written after these
+	// OPTIONAL MATCH clauses filtered nothing.
 	for _, fragment := range []string{
-		"targetRepo.id = $repo_id",
-		"sourceRepo.id IN $relationship_repo_ids",
-		"targetRepo.id IN $relationship_repo_ids",
+		"target.repo_id = $repo_id",
+		"(source.repo_id IN $allowed_repository_ids OR source.repo_id IN $allowed_scope_ids)",
+		"(target.repo_id IN $allowed_repository_ids OR target.repo_id IN $allowed_scope_ids)",
 		"sourceRepo.id as source_repo_id",
 		"targetRepo.id as target_repo_id",
 		"'direct_code_edge' as edge_origin",
@@ -197,12 +203,15 @@ func TestRelationshipStoryGraphCypherCrossRepoScopesAnchorAndRelatedRepositories
 			t.Fatalf("cross-repo story cypher missing %q:\n%s", fragment, cypher)
 		}
 	}
+	if strings.Contains(cypher, "sourceRepo.id IN") || strings.Contains(cypher, "targetRepo.id IN") {
+		t.Fatalf("the grant is back on an OPTIONAL MATCH-bound Repository alias, where it filters nothing:\n%s", cypher)
+	}
 	if got, want := params["repo_id"], "repo:billing"; got != want {
 		t.Fatalf("params[repo_id] = %#v, want %#v", got, want)
 	}
-	repos, ok := params["relationship_repo_ids"].([]string)
+	repos, ok := params["allowed_repository_ids"].([]string)
 	if !ok || len(repos) != 2 {
-		t.Fatalf("params[relationship_repo_ids] = %#v, want two scoped repos", params["relationship_repo_ids"])
+		t.Fatalf("params[allowed_repository_ids] = %#v, want two scoped repos", params["allowed_repository_ids"])
 	}
 }
 
@@ -223,12 +232,15 @@ func TestRelationshipStoryGraphCypherRepoScopedKeepsBothEndpointsInRepository(t 
 	)
 
 	for _, fragment := range []string{
-		"sourceRepo.id = $repo_id",
-		"targetRepo.id = $repo_id",
+		"source.repo_id = $repo_id",
+		"target.repo_id = $repo_id",
 	} {
 		if !strings.Contains(cypher, fragment) {
 			t.Fatalf("repo-scoped story cypher missing %q:\n%s", fragment, cypher)
 		}
+	}
+	if strings.Contains(cypher, "$allowed_repository_ids") {
+		t.Fatalf("an unscoped caller rendered a grant array:\n%s", cypher)
 	}
 	if got, want := params["repo_id"], "repo:billing"; got != want {
 		t.Fatalf("params[repo_id] = %#v, want %#v", got, want)

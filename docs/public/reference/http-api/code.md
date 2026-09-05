@@ -162,6 +162,26 @@ is ambiguous, it returns bounded candidates instead of guessing. It supports
 direct relationships, bounded transitive `CALLS`, class hierarchy prompts, and
 override prompts.
 
+On a Neo4j deployment this route's result set changes for every caller,
+including shared-key and admin ones. Its statement anchored the requested symbol
+in a clause that did not constrain the driving rows, so it returned every
+`CALLS` edge in the graph up to `limit` rather than the anchor's own edges. It
+returns the anchor's edges now. A client that was reading whatever that page
+happened to contain will see a different — and correct — answer.
+
+A scoped token gets only granted repositories, and that now covers every part of
+the answer: the relationship rows, the class-hierarchy methods and inheritance
+depths, the override rows, and the ambiguity candidate list. The inheritance
+walk binds both ends of the chain on either graph backend; on Neo4j it also
+binds every class between them, so a chain that passes through an ungranted
+class is not returned at all rather than returned as a depth number. The candidate list
+is the observable change for a client — a target name that exists in more than
+one tenant used to list every match with its entity id, file path and repository
+id, and now lists only the ones the token may read, so a request that used to
+answer `ambiguous` may now resolve. An ungranted `repo_id` returns `400`, and a
+token with no repository grants gets `"status": "not_found"` without either
+backend being read.
+
 Two optional, additive parameters help agents stay within a prompt budget:
 
 - `relationship_types` (array): a multi-type filter that supersedes the singular
@@ -196,11 +216,19 @@ and the requested symbol under `target_*`.
 
 Cross-repository relationship story and call-chain reads are explicit opt-in
 only. `cross_repo=true` requires repository selectors before traversal; scoped
-tokens resolve those selectors against their grant before graph reads. The
-relationship-story graph shape joins both edge endpoints to repositories and
-filters scoped results through the granted repository set, while call-chain
-paths constrain every returned/intermediate node to the selected endpoint
-repositories. Direct rows label code relationships as
+tokens resolve those selectors against their grant before graph reads. Both
+reads bind the repository condition on the entity nodes themselves, in the
+clause that decides which rows come back: the relationship story filters both
+edge endpoints, and call-chain constrains every returned and intermediate node.
+
+An earlier version of this page said the relationship story filtered scoped
+results by joining both endpoints to repositories. It rendered that condition
+but attached it after the optional repository joins, where it decided nothing —
+as did the story route's own `repo_id` filter and call-chain's per-hop bound.
+Call-chain's whole-path bound had a different gap: it was attached correctly but
+only written when a request named a repository, so a scoped token that named
+none had nothing constraining the hops between its two endpoints. All four
+apply now. Direct rows label code relationships as
 `edge_origin=direct_code_edge`; package/module/service inference must use its own
 relationship type and provenance instead of masquerading as a direct code edge.
 
@@ -309,6 +337,22 @@ request metrics.
 or between `start_entity_id` and `end_entity_id`. `repo_id` scopes both
 endpoints when provided. Lightweight profiles that cannot answer authoritative
 graph traversal return `unsupported_capability` rather than fallback prose.
+
+A scoped token gets only chains whose every hop is in a granted repository —
+the two endpoints and every node between them. A chain that exists only by
+passing through an ungranted repository is not returned at all, rather than
+returned with that hop hidden, and a hop the graph cannot attribute to any
+repository is dropped. Naming an ungranted repository in `repo_id`,
+`start_repo_id`, or `end_repo_id` returns `400`; a token with no repository
+grants gets `"chains": []` without the graph being read, which is the same
+answer as "no chain found".
+
+Two things changed for callers of every class, scoped or not. The `repo_id` and
+`cross_repo` traversal bound used to be written where it decided nothing and now
+applies, so a request that passes either gets a correctly narrower hop set than
+before. And a hop whose repository the graph knows only through a
+`REPO_CONTAINS` edge, with no `repo_id` of its own, is now dropped rather than
+admitted by a fallback the bound could not evaluate in its new position.
 
 ## Dead Code
 

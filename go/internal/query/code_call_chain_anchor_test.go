@@ -22,7 +22,7 @@ func TestBuildCallChainCypherNeo4jAnchorsCodeCallLabels(t *testing.T) {
 		StartEntityID: "fn-1",
 		EndEntityID:   "fn-3",
 		MaxDepth:      5,
-	}, GraphBackendNeo4j)
+	}, GraphBackendNeo4j, repositoryAccessFilter{AllScopes: true})
 
 	if strings.Contains(cypher, "MATCH (start)\n") || strings.Contains(cypher, "MATCH (start)\t") {
 		t.Fatalf("start anchor must not be an unlabeled all-node scan: %s", cypher)
@@ -65,7 +65,7 @@ func TestBuildCallChainCypherNeo4jAnchorsNameLookup(t *testing.T) {
 		End:      "writer",
 		RepoID:   "repo-1",
 		MaxDepth: 3,
-	}, GraphBackendNeo4j)
+	}, GraphBackendNeo4j, repositoryAccessFilter{AllScopes: true})
 
 	if !strings.Contains(cypher, "MATCH (start:"+codeCallChainAnchorLabelDisjunction+")") {
 		t.Fatalf("name-lookup start anchor must be label-seeded: %s", cypher)
@@ -87,7 +87,7 @@ func TestBuildCallChainCypherNornicDBUnchanged(t *testing.T) {
 		StartEntityID: "fn-1",
 		EndEntityID:   "fn-3",
 		MaxDepth:      5,
-	}, GraphBackendNornicDB)
+	}, GraphBackendNornicDB, repositoryAccessFilter{AllScopes: true})
 
 	if !strings.Contains(cypher, "(start {uid: $start_entity_id})") {
 		t.Fatalf("NornicDB start anchor must keep its inline-property shape: %s", cypher)

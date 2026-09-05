@@ -132,6 +132,32 @@ func scopedCodeContentGrantRoute(r *http.Request) bool {
 //     independently: the Go pass that drops a mismatched pair runs after the
 //     scan, so binding only the caller side would still spend the 25,000-row
 //     budget on callees the caller may not see.
+//   - POST /api/v0/code/relationships/story -- the grant lands in each
+//     statement's ANCHORING MATCH, on the entity nodes' own repo_id, through
+//     relationshipStoryRepoPredicates and relationshipStoryGrantPredicates
+//     (code_relationship_story_graph.go). That placement is the whole point:
+//     this route already carried grant text before #5167 batch 2b, written on
+//     the sourceRepo/targetRepo aliases its OPTIONAL MATCH clauses bind, and a
+//     live run against the pinned NornicDB measured it dropping no row at all.
+//     Six statements carry it -- the direct read on both backends, class
+//     methods on both, the inheritance walk on both -- plus the repo-scoped
+//     override read, whose OVERRIDES target can leave the anchored repository.
+//     Target resolution is bound too: an ambiguous name used to fall through to
+//     SearchEntitiesByNameAnyRepo and list every tenant's candidate.
+//   - POST /api/v0/code/call-chain -- the grant lands on the target node's own
+//     repo_id in the anchoring MATCH of nornicDBCallChainOneHopRows
+//     (code_call_chain_nornicdb.go) and callChainCandidateOneHopRows
+//     (code_call_chain_resolution.go), and on both endpoints of the two
+//     shortestPath builders. The NornicDB response path is a Go-side
+//     breadth-first search over that one-hop read, so bounding each hop bounds
+//     the whole chain; that is what it takes, because the
+//     all(node IN nodes(path) ...) path-wide form the shortestPath builders use
+//     does not evaluate a list membership test on the pinned build. The shared
+//     metadata anchor (nornicDBRelationshipMetadataCypher) binds on its
+//     Repository alias instead, which is correct there and not here: that
+//     statement reaches Repository through two required MATCH clauses.
+//     resolveExactGraphEntityCandidates carries a defense-in-depth grant check
+//     because its rows become an ambiguity error that names entity ids.
 func scopedCodeGraphGrantRoute(r *http.Request) bool {
 	if r.Method != http.MethodPost {
 		return false
@@ -144,7 +170,9 @@ func scopedCodeGraphGrantRoute(r *http.Request) bool {
 		"/api/v0/code/quality/inspect",
 		"/api/v0/code/complexity",
 		"/api/v0/code/language-query",
-		"/api/v0/code/imports/investigate":
+		"/api/v0/code/imports/investigate",
+		"/api/v0/code/relationships/story",
+		"/api/v0/code/call-chain":
 		return true
 	default:
 		return false

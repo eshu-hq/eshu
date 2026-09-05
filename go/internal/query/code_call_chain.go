@@ -85,6 +85,10 @@ func (h *CodeHandler) handleCallChain(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 	}
+	if _, blocked := codeContentGrantScope(r.Context(), req.RepoID); blocked {
+		writeCallChainResponse(w, r, h, req, nil)
+		return
+	}
 	if err := h.resolveCallChainEntityIDs(r.Context(), &req); err != nil {
 		WriteError(w, http.StatusBadRequest, err.Error())
 		return
@@ -102,7 +106,7 @@ func (h *CodeHandler) handleCallChain(w http.ResponseWriter, r *http.Request) {
 		}
 		rows = nornicRows
 	} else {
-		cypher, params := buildCallChainCypher(req, h.graphBackend())
+		cypher, params := buildCallChainCypher(req, h.graphBackend(), codeGrantAccessFilter(r.Context()))
 		neoRows, err := h.Neo4j.Run(r.Context(), cypher, params)
 		if err != nil {
 			if WriteGraphReadError(w, r, err, "call_graph.call_chain_path") {
@@ -114,26 +118,7 @@ func (h *CodeHandler) handleCallChain(w http.ResponseWriter, r *http.Request) {
 		rows = neoRows
 	}
 
-	chains := make([]map[string]any, 0, len(rows))
-	for _, row := range rows {
-		chain := attachCallChainNodeSemantics(normalizeCallChainNodes(row["chain"]))
-		chains = append(chains, map[string]any{
-			"chain": chain,
-			"depth": IntVal(row, "depth"),
-		})
-	}
-
-	WriteSuccess(w, r, http.StatusOK, map[string]any{
-		"start":           req.Start,
-		"end":             req.End,
-		"start_entity_id": req.StartEntityID,
-		"end_entity_id":   req.EndEntityID,
-		"repo_id":         req.RepoID,
-		"cross_repo":      req.CrossRepo,
-		"start_repo_id":   req.StartRepoID,
-		"end_repo_id":     req.EndRepoID,
-		"chains":          chains,
-	}, BuildTruthEnvelope(h.profile(), "call_graph.call_chain_path", TruthBasisAuthoritativeGraph, "resolved from authoritative call graph traversal"))
+	writeCallChainResponse(w, r, h, req, rows)
 }
 
 func (r callChainRequest) validate() error {
@@ -152,12 +137,16 @@ func (r callChainRequest) validate() error {
 	return nil
 }
 
-func buildCallChainCypher(req callChainRequest, backend GraphBackend) (string, map[string]any) {
+func buildCallChainCypher(
+	req callChainRequest,
+	backend GraphBackend,
+	access repositoryAccessFilter,
+) (string, map[string]any) {
 	params := map[string]any{}
-	predicates := make([]string, 0, 2)
+	predicates := make([]string, 0, 6)
 
 	if backend == GraphBackendNornicDB {
-		return buildNornicDBCallChainCypher(req)
+		return buildNornicDBCallChainCypher(req, access)
 	}
 
 	if strings.TrimSpace(req.StartEntityID) != "" {
@@ -185,6 +174,13 @@ func buildCallChainCypher(req callChainRequest, backend GraphBackend) (string, m
 		params["repo_id"] = strings.TrimSpace(req.RepoID)
 		predicates = append(predicates, "start.repo_id = $repo_id", "end.repo_id = $repo_id")
 	}
+	if access.Scoped() {
+		params = access.GraphParams(params)
+		predicates = append(predicates,
+			access.GraphConditionOnProperty("start", "repo_id"),
+			access.GraphConditionOnProperty("end", "repo_id"),
+		)
+	}
 
 	var cypher strings.Builder
 	cypher.WriteString("\n\t\tMATCH (start:" + codeCallChainAnchorLabelDisjunction + ")\n")
@@ -198,10 +194,8 @@ func buildCallChainCypher(req callChainRequest, backend GraphBackend) (string, m
 	fmt.Fprint(&cypher, req.MaxDepth)
 	cypher.WriteString("]->(end)\n")
 	cypher.WriteString("\t\t)\n")
-	if req.CrossRepo {
-		cypher.WriteString("\t\tWHERE all(node IN nodes(path) WHERE coalesce(node.repo_id, '') IN $traversal_repo_ids)\n")
-	} else if strings.TrimSpace(req.RepoID) != "" {
-		cypher.WriteString("\t\tWHERE all(node IN nodes(path) WHERE coalesce(node.repo_id, '') = $repo_id)\n")
+	if hops := callChainPathHopPredicates(req, access); len(hops) > 0 {
+		cypher.WriteString("\t\tWHERE all(node IN nodes(path) WHERE " + strings.Join(hops, " AND ") + ")\n")
 	}
 	if backend == GraphBackendNornicDB {
 		// NornicDB resolves this path correctly with raw nodes(path) results,
@@ -215,65 +209,50 @@ func buildCallChainCypher(req callChainRequest, backend GraphBackend) (string, m
 	return cypher.String(), params
 }
 
-func buildNornicDBCallChainCypher(req callChainRequest) (string, map[string]any) {
-	params := map[string]any{}
+// callChainPathHopPredicates returns the conditions every node on a returned
+// call chain must satisfy, for the Neo4j-compat shortestPath read.
+//
+// Binding the two endpoints is not enough here. The projection returns EVERY
+// node on the path -- id, name, labels, language, docstring, method_kind -- so a
+// chain whose endpoints are both in grant can still carry an interior hop from a
+// repository the caller was never granted. The endpoint predicates live in the
+// anchoring WHERE; this is the only clause that reaches the hops between them.
+//
+// The caller's grant is a conjunct beside the request's own traversal bound
+// rather than a replacement for it: cross_repo and repo_id already narrow the
+// path to the selectors the caller named, and the grant narrows it to what the
+// caller may read at all. A scoped caller who names neither -- which the route
+// permits -- gets the grant conjunct alone, which is the case that was
+// previously unbounded.
+//
+// This shape is deliberately NOT mirrored into buildNornicDBCallChainCypher.
+// A list-membership test inside all(node IN nodes(path) ...) is not evaluated on
+// the pinned NornicDB build (see the path-predicate table in
+// docs/public/reference/nornicdb-query-pitfalls.md), so writing it there would
+// be grant text that grants nothing -- the exact defect this batch fixed. That
+// lane bounds each hop as its Go-side traversal expands instead
+// (nornicDBCallChainOneHopRows), and its shortestPath builder is unreachable
+// from handleCallChain.
+func callChainPathHopPredicates(req callChainRequest, access repositoryAccessFilter) []string {
 	predicates := make([]string, 0, 2)
-
-	startPattern := "(start"
-	if strings.TrimSpace(req.StartEntityID) != "" {
-		params["start_entity_id"] = strings.TrimSpace(req.StartEntityID)
-		startPattern += " {uid: $start_entity_id}"
-	} else {
-		params["start"] = strings.TrimSpace(req.Start)
-		startPattern += " {name: $start}"
+	switch {
+	case req.CrossRepo:
+		predicates = append(predicates, "coalesce(node.repo_id, '') IN $traversal_repo_ids")
+	case strings.TrimSpace(req.RepoID) != "":
+		predicates = append(predicates, "coalesce(node.repo_id, '') = $repo_id")
 	}
-	startPattern += ")"
-
-	endPattern := "(end"
-	if strings.TrimSpace(req.EndEntityID) != "" {
-		params["end_entity_id"] = strings.TrimSpace(req.EndEntityID)
-		endPattern += " {uid: $end_entity_id}"
-	} else {
-		params["end"] = strings.TrimSpace(req.End)
-		endPattern += " {name: $end}"
+	if access.Scoped() {
+		// Rendered by the grant contract rather than written out here, so a
+		// change to how it renders moves this predicate with the endpoint ones
+		// eight lines up instead of leaving it behind. The bare property is
+		// right: a null repo_id makes the membership test null, all() over a
+		// null yields null, and WHERE null drops the row -- so an unattributable
+		// hop still fails closed without the coalesce the request's own bound
+		// carries. Nor can a "" in the grant admit one: the id lists are cleaned
+		// at the context boundary, so neither array can contain an empty value.
+		predicates = append(predicates, access.GraphConditionOnProperty("node", "repo_id"))
 	}
-	endPattern += ")"
-
-	if req.CrossRepo {
-		params["start_repo_id"] = strings.TrimSpace(callChainStartRepoID(&req))
-		params["end_repo_id"] = strings.TrimSpace(callChainEndRepoID(&req))
-		params["traversal_repo_ids"] = callChainAllowedTraversalRepoIDs(&req)
-		predicates = append(predicates, "start.repo_id = $start_repo_id", "end.repo_id = $end_repo_id")
-	} else if strings.TrimSpace(req.RepoID) != "" {
-		params["repo_id"] = strings.TrimSpace(req.RepoID)
-		predicates = append(predicates, "start.repo_id = $repo_id", "end.repo_id = $repo_id")
-	}
-
-	var cypher strings.Builder
-	cypher.WriteString("\n\t\tMATCH ")
-	cypher.WriteString(startPattern)
-	cypher.WriteString("\n\t\tMATCH ")
-	cypher.WriteString(endPattern)
-	if len(predicates) > 0 {
-		cypher.WriteString("\n\t\tWHERE ")
-		cypher.WriteString(strings.Join(predicates, " AND "))
-	}
-	cypher.WriteString("\n\t\tMATCH path = shortestPath(\n")
-	cypher.WriteString("\t\t\t(start)-[:CALLS*1..")
-	fmt.Fprint(&cypher, req.MaxDepth)
-	cypher.WriteString("]->(end)\n")
-	cypher.WriteString("\t\t)\n")
-	if req.CrossRepo {
-		cypher.WriteString("\t\tWHERE all(node IN nodes(path) WHERE coalesce(node.repo_id, '') IN $traversal_repo_ids)\n")
-	} else if strings.TrimSpace(req.RepoID) != "" {
-		cypher.WriteString("\t\tWHERE all(node IN nodes(path) WHERE coalesce(node.repo_id, '') = $repo_id)\n")
-	}
-	// NornicDB returns typed Bolt nodes for raw nodes(path); the handler
-	// normalizes them to Eshu's existing call-chain response shape.
-	cypher.WriteString("\t\tRETURN nodes(path) as chain,\n")
-	cypher.WriteString("\t\t       length(path) as depth\n")
-	cypher.WriteString("\t\tLIMIT 5\n\t")
-	return cypher.String(), params
+	return predicates
 }
 
 func normalizeCallChainNodes(raw any) []any {
@@ -471,4 +450,37 @@ func attachCallChainNodeSemantics(nodes []any) []any {
 	}
 
 	return attached
+}
+
+// writeCallChainResponse renders the route's one success shape. A grantless
+// scoped caller gets it with an empty chain list, which is the same answer as
+// "no chain found" -- so an empty grant cannot be told apart from an absent
+// route, and the route never reaches a backend to produce it.
+func writeCallChainResponse(
+	w http.ResponseWriter,
+	r *http.Request,
+	h *CodeHandler,
+	req callChainRequest,
+	rows []map[string]any,
+) {
+	chains := make([]map[string]any, 0, len(rows))
+	for _, row := range rows {
+		chain := attachCallChainNodeSemantics(normalizeCallChainNodes(row["chain"]))
+		chains = append(chains, map[string]any{
+			"chain": chain,
+			"depth": IntVal(row, "depth"),
+		})
+	}
+
+	WriteSuccess(w, r, http.StatusOK, map[string]any{
+		"start":           req.Start,
+		"end":             req.End,
+		"start_entity_id": req.StartEntityID,
+		"end_entity_id":   req.EndEntityID,
+		"repo_id":         req.RepoID,
+		"cross_repo":      req.CrossRepo,
+		"start_repo_id":   req.StartRepoID,
+		"end_repo_id":     req.EndRepoID,
+		"chains":          chains,
+	}, BuildTruthEnvelope(h.profile(), "call_graph.call_chain_path", TruthBasisAuthoritativeGraph, "resolved from authoritative call graph traversal"))
 }
