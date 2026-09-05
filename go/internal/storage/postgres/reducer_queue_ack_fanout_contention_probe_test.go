@@ -8,6 +8,7 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+	"os"
 	"testing"
 	"time"
 
@@ -58,6 +59,12 @@ func TestReducerContentionGateAckFanoutProbe(t *testing.T) {
 		}
 		event := insertCrossScopeCompletionEvent(t, ctx, db, reducer.DomainCICDRunCorrelation, "claimed", "fanout-6488", now.Add(time.Hour), 1, now)
 		lease := reducer.CrossScopeCompletionLease{EventID: event, ProducerDomain: reducer.DomainCICDRunCorrelation, LeaseOwner: "fanout-6488", ClaimEpoch: 1}
+		if trial == 0 {
+			explainAckFanoutProbe(t, ctx, db, now, intents, lease)
+			if os.Getenv("ESHU_ACK_FANOUT_PLAN_ONLY") == "1" {
+				return
+			}
+		}
 		// The one-row arm cannot form a two-writer row-lock cycle. The larger arm
 		// tests overlapping batches across scopes, without forcing a planner shape.
 		batch := intents
