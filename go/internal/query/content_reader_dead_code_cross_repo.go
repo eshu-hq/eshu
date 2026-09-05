@@ -72,7 +72,11 @@ func (h crossRepoDeadCodeHiddenConsumers) has(entityID string) bool {
 //     Binding the list in SQL rather than filtering in Go is what keeps the page
 //     honest: the row cap falls on the consumers this answer is about, so
 //     neither another tenant's rows nor a granted repository the request did
-//     not ask about can crowd a wanted consumer off the page.
+//     not ask about can crowd a wanted consumer off the page. That cap bounds
+//     what comes back, and -- only because migration 103 carries the
+//     statement's ORDER BY -- how far the scan goes to produce it: up to the
+//     cap times the retained generations per position, not the cap alone; see
+//     buildCrossRepoDeadCodeConsumerEvidenceQuery.
 //   - the ungranted-consumer probe, when reads.SignalGrant is set. It carries
 //     the "this symbol has a consumer you cannot see" answer, which filtering in
 //     SQL alone would lose, and losing it would mark a live symbol dead. It
@@ -240,6 +244,38 @@ func crossRepoDeadCodeGrantFilter(args []any, allowedRepositoryIDs []string) ([]
 	return args, fmt.Sprintf("\n  AND row.repository_id = ANY($%d)", len(args))
 }
 
+// buildCrossRepoDeadCodeConsumerEvidenceQuery renders the evidence page: the
+// active-generation consumer rows for these producer entities, ranked strongest
+// first within each entity, capped at the sentinel.
+//
+// The ORDER BY and migration 103's
+// code_reachability_entity_confidence_rank_idx are one thing in two places.
+// With entity_id pinned by the IN list the index's key columns ARE this
+// statement's ordering, so the scan can be answered in output order and the
+// LIMIT can stop it. Change either without the other and the read goes back to
+// ranking a producer entity's whole consumer fan-in before it can emit that
+// entity's first row: 1,000,497 rows for a 1,001-row answer on the corpus in
+// docs/internal/evidence/5167-cross-repo-consumer-page-bound.md.
+//
+// The last two columns are a tiebreak, not a ranking. Rows equal on the first
+// five differ only in the scope and generation that wrote them, which happens
+// when two ingestion scopes cover one repository and both generations are
+// active. Without scope_id and generation_id here that pair has no defined
+// order, and an index scan and a top-N heapsort disagree about which one lands
+// at the cap -- measured, and it is the citation the caller gets that changes.
+//
+// What the LIMIT bounds is rows RETURNED, not rows read, and the gap is the
+// retention window: the active-generation test is a join above this scan, so
+// the scan emits one entry per retained generation per position and the join
+// discards the superseded ones. Measured serially
+// (max_parallel_workers_per_gather = 0) at 1,001 entries walked with no retained
+// generations and 11,081 at twenty, for the same 1,001-row answer. On the
+// default two workers the planner parallelises the scan and the count varies
+// with how the workers race to fill the cap -- about 60% higher in the readings
+// in docs/internal/evidence/5167-cross-repo-consumer-page-bound.md.
+//
+// depth > 0 stays a plain predicate rather than part of the ranking: depth 0 is
+// the root's own row, not a consumer edge.
 func buildCrossRepoDeadCodeConsumerEvidenceQuery(
 	producerRepoID string,
 	entityIDs []string,
@@ -279,7 +315,8 @@ WHERE row.repository_id <> $1
   AND row.entity_id IN (`+strings.Join(placeholders, ", ")+`)
   AND row.depth > 0%s
 ORDER BY row.entity_id ASC, row.confidence DESC, row.depth ASC,
-         row.repository_id ASC, row.root_entity_id ASC
+         row.repository_id ASC, row.root_entity_id ASC,
+         row.scope_id ASC, row.generation_id ASC
 LIMIT %d
 `, grant, maxCrossRepoDeadCodeConsumerEvidenceRows+1)
 	return query, args

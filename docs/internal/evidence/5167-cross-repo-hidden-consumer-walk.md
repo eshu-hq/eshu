@@ -402,15 +402,21 @@ The reasoning, the two tests that prove it, and the pre-existing `fact_records`
 offender the second test found are in
 [#5167 code-reachability index migration replay](5167-code-reachability-index-migration-replay.md).
 
-The evidence page is unchanged and still reads that group. It carries the same
-`ORDER BY entity_id, confidence DESC, ...` ahead of its `LIMIT 1001`, so its
-scan is bounded by a producer entity's fan-in rather than by the limit — it has
-to rank a producer entity's consumers by confidence to return the strongest, so
-that cost is what the page returns rather than an artefact. On the same seed it
-takes 885 ms reading 1,000,497 rows with the whole five-repository grant bound,
-and 752 ms reading 800,373 with four of the five. Removing the second traversal
-of that group is what this change buys; the page's own bound is tracked in
-#6527, filed with these measurements, and is the next thing to look at here.
+The evidence page carries the same `ORDER BY entity_id, confidence DESC, ...`
+ahead of its `LIMIT 1001`, and when this was written nothing on the table
+carried that order, so its scan was bounded by a producer entity's fan-in rather
+than by the limit: 885 ms reading 1,000,497 rows on this seed with the whole
+five-repository grant bound, and 752 ms reading 800,373 with four of the five.
+Removing the second traversal of that group is what this change buys. The page's
+own bound was filed as #6527 with those measurements, and the follow-up to this
+change answers it — migration 103 builds the index that order needs, and the
+same page then reads 1,001 rows in 2.03/1.77/1.49 ms. The rows it returns are
+unchanged against what main ships; what the follow-up does change is which of two
+rows tied on the ranking lands at the cap, which the five-column order left to
+whichever plan ran. The measurements are in [#6527 the consumer-evidence page's
+own bound](5167-cross-repo-consumer-page-bound.md).
+
+Root-Cause Evidence: the pre-index plan for that page read is a `Limit` over an `Incremental Sort` whose `Presorted Key` is `entity_id` alone, over an `Index Scan using code_reachability_entity_repository_scope_generation_idx` that reports `rows=1000497` for a page whose answer is 1,001 rows. Every group is therefore read in full before its first row can be ordered by confidence.
 
 Two consequences are declared rather than incidental. The probe returns
 producer entity ids and nothing else, so no ungranted repository id, consumer
