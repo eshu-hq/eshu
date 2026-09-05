@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package reducer
+package sqlrelationship
 
 import (
 	"context"
@@ -11,12 +11,16 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/reducer/schemadecode"
 	log "github.com/eshu-hq/eshu/go/pkg/log"
 )
 
-const (
-	sqlRelationshipEvidenceSource = "reducer/sql-relationships"
-)
+// EvidenceSource is the evidence_source string this family stamps on every
+// durable intent and edge it emits. shell_exec does not consume it; it is
+// exported for the reducer root's generic refresh-fence redelivery
+// proof (shared_projection_worker_refresh_redelivery_test.go), which references it
+// directly.
+const EvidenceSource = "reducer/sql-relationships"
 
 var sqlRelationshipContentEntityTypes = []string{
 	"SqlTable",
@@ -90,10 +94,10 @@ func (h SQLRelationshipMaterializationHandler) Handle(
 		return Result{}, fmt.Errorf("load facts for sql relationship materialization: %w", err)
 	}
 
-	deltaScope := buildSQLRelationshipDeltaScope(envelopes)
+	deltaScope := BuildDeltaScope(envelopes)
 	repositoryIDs, edgeRows, rowStats := ExtractSQLRelationshipRows(envelopes)
-	repositoryIDs = mergeSQLRelationshipRepositoryIDs(repositoryIDs, deltaScope.repositoryIDs)
-	contextByRepoID := buildCodeCallProjectionContexts(envelopes, intent.GenerationID)
+	repositoryIDs = MergeRepositoryIDs(repositoryIDs, deltaScope.RepositoryIDs)
+	contextByRepoID := schemadecode.BuildProjectionContexts(envelopes, intent.GenerationID)
 	if len(repositoryIDs) == 0 || len(contextByRepoID) == 0 {
 		return Result{
 			IntentID:        intent.IntentID,
@@ -108,7 +112,7 @@ func (h SQLRelationshipMaterializationHandler) Handle(
 		createdAt = time.Now().UTC()
 	}
 
-	intentRows := buildSQLRelationshipSharedIntentRows(edgeRows, deltaScope, repositoryIDs, contextByRepoID, createdAt)
+	intentRows := BuildSharedIntentRows(edgeRows, deltaScope, repositoryIDs, contextByRepoID, createdAt)
 	if len(intentRows) > 0 {
 		if err := h.IntentWriter.UpsertIntents(ctx, intentRows); err != nil {
 			return Result{}, fmt.Errorf("write sql relationship intents: %w", err)

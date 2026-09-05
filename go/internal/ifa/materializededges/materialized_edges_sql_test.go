@@ -9,7 +9,7 @@ import (
 	"testing"
 
 	"github.com/eshu-hq/eshu/go/internal/ifa"
-	"github.com/eshu-hq/eshu/go/internal/reducer"
+	"github.com/eshu-hq/eshu/go/internal/reducer/sqlrelationship"
 	"github.com/eshu-hq/eshu/go/internal/storage/cypher"
 )
 
@@ -47,7 +47,7 @@ func TestSQLRelationshipExpectedEdgesCoverEveryRegistryType(t *testing.T) {
 // TestSQLRelationshipPureDerivationMatchesExpectedEdgesExactly is the #5351
 // pure-derivation lockstep (FAILING-FIRST by design before the resolver
 // existed): running odu:ifa-sql-family's own facts through the production
-// reducer.ExtractSQLRelationshipRows seam — no store, no graph backend, no
+// sqlrelationship.ExtractSQLRelationshipRows seam — no store, no graph backend, no
 // Docker — must reproduce the hand-derived expected edge set EXACTLY: same
 // count, same (relationship_type, source_entity_id, target_entity_id)
 // triples, neither more nor fewer. A reducer regression that silently drops
@@ -68,7 +68,7 @@ func TestSQLRelationshipPureDerivationMatchesExpectedEdgesExactly(t *testing.T) 
 	}
 	expectedSet := sqlRelationshipEdgeSet(expected)
 
-	_, rows, stats := reducer.ExtractSQLRelationshipRows(odu.Facts)
+	_, rows, stats := sqlrelationship.ExtractSQLRelationshipRows(odu.Facts)
 	actual := sqlRelationshipRowsToExpectedEdges(rows)
 	actualSet := sqlRelationshipEdgeSet(actual)
 
@@ -119,7 +119,7 @@ func TestSQLRelationshipDeltaPureDerivationMatchesExpectedEdgesExactly(t *testin
 	}
 	expectedSet := sqlRelationshipEdgeSet(expected)
 
-	_, rows, _ := reducer.ExtractSQLRelationshipRows(odu.Facts)
+	_, rows, _ := sqlrelationship.ExtractSQLRelationshipRows(odu.Facts)
 	actual := sqlRelationshipRowsToExpectedEdges(rows)
 	actualSet := sqlRelationshipEdgeSet(actual)
 

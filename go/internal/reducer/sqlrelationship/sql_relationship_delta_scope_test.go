@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package reducer
+package sqlrelationship
 
 import (
 	"context"
@@ -120,9 +120,9 @@ func TestSQLRelationshipMaterializationHandlerDeletedOnlyDeltaRetractsWithoutWri
 func TestBuildSQLRelationshipRetractRowsKeepsMalformedDeltaScoped(t *testing.T) {
 	t.Parallel()
 
-	rows := buildSQLRelationshipRetractRows([]string{"repo-123"}, sqlRelationshipDeltaScope{
-		repositoryIDs: []string{"repo-123"},
-		hasDelta:      true,
+	rows := BuildRetractRows([]string{"repo-123"}, DeltaScope{
+		RepositoryIDs: []string{"repo-123"},
+		HasDelta:      true,
 	})
 	if len(rows) != 1 {
 		t.Fatalf("retract rows len = %d, want 1", len(rows))
@@ -138,7 +138,7 @@ func TestBuildSQLRelationshipRetractRowsKeepsMalformedDeltaScoped(t *testing.T) 
 
 // TestBuildSQLRelationshipDeltaScopeSkipsWhitespaceOnlyRelativePath is the
 // TDD regression for the Wave 4f S2 (issue #4754) typed-decode conversion of
-// buildSQLRelationshipDeltaScope: before this migration, the delta path
+// BuildDeltaScope: before this migration, the delta path
 // collection ran through semanticPayloadStringSlice, which trims each
 // delta_relative_paths entry and drops it if the trimmed result is empty,
 // so a whitespace-only entry never reached qualifySQLRelationshipDeltaFilePath.
@@ -163,9 +163,9 @@ func TestBuildSQLRelationshipDeltaScopeSkipsWhitespaceOnlyRelativePath(t *testin
 		},
 	}
 
-	scope := buildSQLRelationshipDeltaScope([]facts.Envelope{env})
+	scope := BuildDeltaScope([]facts.Envelope{env})
 
-	gotPaths := scope.filePathsByRepoID["repo-whitespace"]
+	gotPaths := scope.FilePathsByRepoID["repo-whitespace"]
 	wantPaths := []string{"/repo/db/real.sql"}
 	if !reflect.DeepEqual(gotPaths, wantPaths) {
 		t.Fatalf("filePathsByRepoID[%q] = %#v, want %#v (whitespace-only entry must be dropped, not qualified into a bogus path)", "repo-whitespace", gotPaths, wantPaths)

@@ -9,9 +9,11 @@
 # reading the citations inline; it is never sourced, generated, or read back
 # out of the registry.
 
-# go/internal/reducer/sql_relationship_materialization.go:48 declares
-# SQLRelationshipIntentWriter; :60 embeds it as the handler's IntentWriter
-# field; :113 calls h.IntentWriter.UpsertIntents(...) inside Handle(). The
+# go/internal/reducer/sqlrelationship/sql_relationship_materialization.go:52
+# declares SQLRelationshipIntentWriter; :64 embeds it as the handler's
+# IntentWriter field; :117 calls h.IntentWriter.UpsertIntents(...) inside
+# Handle() (relocated from the reducer root to this subpackage, issue #6061;
+# line numbers shifted with the move). The
 # handler is architecturally CAPABLE of a shared_intent_lock the same way
 # code_calls/rationale_edges are -- but the family's actual fault-injection
 # kill cell does not use that mechanism. Read directly (not taken from the

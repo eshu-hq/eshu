@@ -133,7 +133,7 @@ const blastRadiusSqlTableBranches = 9
 // #5330: this UNION only claims edge types the graph actually writes.
 // CONTAINS/QUERIES_TABLE always had writers. TRIGGERS replaces the
 // never-written TRIGGERS_ON name (the reducer only ever emits TRIGGERS — see
-// reducer/sql_relationship_materialization.go) with an explicit
+// reducer/sqlrelationship/sql_relationship_materialization.go) with an explicit
 // (:SqlTrigger) endpoint-label constraint so a same-named unrelated label
 // cannot inflate the count. INDEXES is newly wired (SqlIndex.table_name
 // metadata -> reducer -> edge writer, #5330 Task 3), also endpoint-label
@@ -154,7 +154,7 @@ const blastRadiusSqlTableBranches = 9
 // now emits one SqlMigration entity per recognized migration file with its
 // resolved forward targets nested under migration_targets metadata, and the
 // reducer resolves each target directly (see
-// reducer/sql_relationship_materialization.go's SqlMigration case). MAPS_TO_TABLE
+// reducer/sqlrelationship/sql_relationship_materialization.go's SqlMigration case). MAPS_TO_TABLE
 // still has no writer at all (confirmed by auditing every reducer/edge-writer
 // path) and is intentionally NOT UNIONed here — reporting it as a silent zero
 // would be a correctness bug. blastRadiusAffected reports its absence honestly

@@ -230,7 +230,8 @@ exact wording and fails if they drift.
   hand-derived expected-edge-set fixture covers every
   `cypher.SQLRelationshipMaterializedEdgeTypes()` key, then reproduces it
   exactly by running the Odù's facts through the pure
-  `reducer.ExtractSQLRelationshipRows` seam. The SQL-family Odù now proves all
+  `sqlrelationship.ExtractSQLRelationshipRows` seam. The SQL-family Odù now
+  proves all
   nine writer-registry types, including table-to-table `REFERENCES_TABLE` and
   routine-to-table `WRITES_TO`, in both its baseline and accumulated delta set.
   Because the expected type inventory is registry-derived, adding a tenth type

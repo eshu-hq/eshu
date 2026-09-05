@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package reducer
+package sqlrelationship
 
 import (
 	"context"
@@ -12,10 +12,16 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/facts"
 )
 
-type sqlRelationshipDeltaScope struct {
-	repositoryIDs     []string
-	filePathsByRepoID map[string][]string
-	hasDelta          bool
+// DeltaScope is the delta-generation scope this family's materialization
+// derives from a batch's "repository" facts. RepositoryIDs and
+// FilePathsByRepoID are exported (rather than kept package-private, as most of
+// this file's helpers are) because the shell_exec family, which has not moved
+// out of the reducer root yet, reuses this exact delta scope for its own
+// materialization (shell_exec_materialization.go) — see BuildDeltaScope.
+type DeltaScope struct {
+	RepositoryIDs     []string
+	FilePathsByRepoID map[string][]string
+	HasDelta          bool
 }
 
 func loadSQLRelationshipMaterializationFacts(
@@ -128,7 +134,7 @@ func sqlRelationshipEnvelopeKey(envelope facts.Envelope) string {
 	return ""
 }
 
-// buildSQLRelationshipDeltaScope builds the delta-generation scope from the
+// BuildDeltaScope builds the delta-generation scope from the
 // batch's "repository" facts. Repository identity and the delta path slices
 // are decoded through the codegraph contracts seam (decodeCodegraphRepository,
 // Contract System v1 Wave 4f S2, issue #4754) rather than raw
@@ -139,10 +145,10 @@ func sqlRelationshipEnvelopeKey(envelope facts.Envelope) string {
 // delta-generation repository fact whose payload is missing a required
 // identity field is skipped, matching this function's pre-existing "skip and
 // continue" shape for an absent repo_id.
-func buildSQLRelationshipDeltaScope(envelopes []facts.Envelope) sqlRelationshipDeltaScope {
+func BuildDeltaScope(envelopes []facts.Envelope) DeltaScope {
 	seenRepoIDs := make(map[string]struct{})
 	seenPathsByRepoID := make(map[string]map[string]struct{})
-	scope := sqlRelationshipDeltaScope{}
+	scope := DeltaScope{}
 	for _, env := range envelopes {
 		if env.FactKind != factKindRepository || !sqlRelationshipPayloadBool(env.Payload, "delta_generation") {
 			continue
@@ -158,10 +164,10 @@ func buildSQLRelationshipDeltaScope(envelopes []facts.Envelope) sqlRelationshipD
 		if repositoryID == "" {
 			continue
 		}
-		scope.hasDelta = true
+		scope.HasDelta = true
 		if _, ok := seenRepoIDs[repositoryID]; !ok {
 			seenRepoIDs[repositoryID] = struct{}{}
-			scope.repositoryIDs = append(scope.repositoryIDs, repositoryID)
+			scope.RepositoryIDs = append(scope.RepositoryIDs, repositoryID)
 		}
 		// "path" is read raw off the top-level envelope first, then falls
 		// back to the typed LocalPath — preserving the exact
@@ -203,19 +209,19 @@ func buildSQLRelationshipDeltaScope(envelopes []facts.Envelope) sqlRelationshipD
 			seen[filePath] = struct{}{}
 		}
 	}
-	sort.Strings(scope.repositoryIDs)
+	sort.Strings(scope.RepositoryIDs)
 	if len(seenPathsByRepoID) == 0 {
 		return scope
 	}
 
-	scope.filePathsByRepoID = make(map[string][]string, len(seenPathsByRepoID))
+	scope.FilePathsByRepoID = make(map[string][]string, len(seenPathsByRepoID))
 	for repositoryID, seen := range seenPathsByRepoID {
 		filePaths := make([]string, 0, len(seen))
 		for filePath := range seen {
 			filePaths = append(filePaths, filePath)
 		}
 		sort.Strings(filePaths)
-		scope.filePathsByRepoID[repositoryID] = filePaths
+		scope.FilePathsByRepoID[repositoryID] = filePaths
 	}
 	return scope
 }
@@ -232,7 +238,12 @@ func qualifySQLRelationshipDeltaFilePath(repoPath string, relativePath string) s
 	return path.Join(repoPath, cleaned)
 }
 
-func mergeSQLRelationshipRepositoryIDs(repositoryIDs []string, extraRepositoryIDs []string) []string {
+// MergeRepositoryIDs returns the deduplicated, sorted union of repositoryIDs
+// and extraRepositoryIDs. Exported for the same cross-family reuse reason as
+// DeltaScope: shell_exec's materialization merges its own extracted
+// repository IDs with this family's DeltaScope.RepositoryIDs through this
+// function.
+func MergeRepositoryIDs(repositoryIDs []string, extraRepositoryIDs []string) []string {
 	if len(extraRepositoryIDs) == 0 {
 		return repositoryIDs
 	}
@@ -253,15 +264,18 @@ func mergeSQLRelationshipRepositoryIDs(repositoryIDs []string, extraRepositoryID
 	return merged
 }
 
-func buildSQLRelationshipRetractRows(
+// BuildRetractRows builds the retract rows for repositoryIDs under
+// deltaScope: file-scoped when the scope carries a delta, repo-wide
+// otherwise.
+func BuildRetractRows(
 	repositoryIDs []string,
-	deltaScope sqlRelationshipDeltaScope,
+	deltaScope DeltaScope,
 ) []SharedProjectionIntentRow {
 	if len(repositoryIDs) == 0 {
 		return nil
 	}
-	if deltaScope.hasDelta {
-		return buildSQLRelationshipDeltaRetractRows(repositoryIDs, deltaScope.filePathsByRepoID)
+	if deltaScope.HasDelta {
+		return buildSQLRelationshipDeltaRetractRows(repositoryIDs, deltaScope.FilePathsByRepoID)
 	}
 	return buildSQLRelationshipRepoRetractRows(repositoryIDs)
 }

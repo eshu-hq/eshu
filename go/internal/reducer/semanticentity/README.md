@@ -61,7 +61,7 @@ the parent `internal/reducer` package. The dependency runs the other way: the
 root's handler catalog (`defaults_domain_catalog.go`) constructs
 `SemanticEntityMaterializationHandler` and wires its `FactLoader`, `Writer`,
 `PriorGenerationCheck` and `PhasePublisher` fields, plus `RepairQueue` when the
-root repair queue is present (`defaults_domain_catalog.go:90-105`).
+root repair queue is present (`defaults_domain_catalog.go:91-106`).
 
 `GraphProjectionPhaseRepairQueue` and `GraphProjectionPhaseRepair` are
 declared locally in `graph_ports.go` rather than imported from the reducer

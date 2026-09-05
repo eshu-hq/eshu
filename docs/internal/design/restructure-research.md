@@ -69,9 +69,9 @@ A directory-size gate should follow the identical pattern: a Go-plugin analyzer 
 | `go/internal/collector/git_snapshot_entity_buckets.go` | :1928 | `static-contract-gates.yml:159` |
 | `go/internal/reducer/materialized_edge_families.go` | :1957 | `static-contract-gates.yml:190` |
 | `go/internal/reducer/shared_projection.go` | :1958 | `static-contract-gates.yml:191` |
-| `go/internal/reducer/sql_relationship_materialization.go` | :1959, :1997, :2057 | `static-contract-gates.yml:192`, `ifa-determinism-gate.yml:68` |
-| `go/internal/reducer/sql_relationship_embedded_query.go` | :1960, :1998, :2058 | `static-contract-gates.yml:193`, `ifa-determinism-gate.yml:69` |
-| `go/internal/reducer/sql_relationship_metadata.go` | :1961 | `static-contract-gates.yml:194` |
+| `go/internal/reducer/sqlrelationship/sql_relationship_materialization.go` | :1959, :1997, :2057 | `static-contract-gates.yml:192`, `ifa-determinism-gate.yml:68` |
+| `go/internal/reducer/sqlrelationship/sql_relationship_embedded_query.go` | :1960, :1998, :2058 | `static-contract-gates.yml:193`, `ifa-determinism-gate.yml:69` |
+| `go/internal/reducer/sqlrelationship/sql_relationship_metadata.go` | :1961 | `static-contract-gates.yml:194` |
 | `go/internal/reducer/gcp_resource_materialization.go` | :1991 | `ifa-determinism-gate.yml:30` |
 | `go/internal/reducer/gcp_resource_materialization_teeth.go` | :1992 | `ifa-determinism-gate.yml:31` |
 | `go/internal/reducer/gcp_resource_materialization_teeth_off.go` | :1993 | `ifa-determinism-gate.yml:32` |

@@ -6,9 +6,9 @@
 # header before touching this one. Every value is HAND-TYPED, derived from the
 # citations inline, never read back out of the registry row.
 
-# go/internal/reducer/shell_exec_materialization.go:32 embeds
+# go/internal/reducer/shell_exec_materialization.go:33 embeds
 # `IntentWriter ShellExecIntentWriter` as a struct field and Handle calls
-# h.IntentWriter.UpsertIntents(ctx, intentRows) at :82. A lock on
+# h.IntentWriter.UpsertIntents(ctx, intentRows) at :87. A lock on
 # shared_projection_intents therefore blocks a write this handler really
 # performs, which is the non-vacuity condition for this blocker kind.
 IFA_FAMILY_PIN_BLOCKER_KIND="shared_intent_lock"

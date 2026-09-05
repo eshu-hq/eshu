@@ -156,7 +156,7 @@ emitter changes, not a behaviour change today. Pinned by:
 
 **Concurrency.** A whole-scope retract is keyed by
 `repoWideRetractRefreshPartitionKey`
-(`go/internal/reducer/shared_projection_worker_refresh_fence.go:115-117`), and a
+(`go/internal/reducer/shared_projection_worker_refresh_fence.go`), and a
 whole-scope key hashes to exactly one partition. One partition lease owns a
 repository's repo-wide retract, so a repository's retract cannot race itself no
 matter how many workers or replicas are running. This change does not touch

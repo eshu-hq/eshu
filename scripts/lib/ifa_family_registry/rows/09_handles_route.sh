@@ -9,7 +9,7 @@
 # SAME production entry point, buildSymbolRuntimeIntentRows
 # (go/internal/reducer/symbol_runtime_refresh_intents.go:66), called inside
 # CodeCallMaterializationHandler.Handle -- the same handler code_calls
-# already covers (materialized_edge_family_blocker_shape_test.go:151-153's
+# already covers (materialized_edge_family_blocker_shape_test.go:152-154's
 # own exclusion reason).
 
 # runner_lease_hold blocks ClaimPartitionLease on the production advisory

@@ -9,6 +9,8 @@ import (
 	"sort"
 	"testing"
 	"time"
+
+	"github.com/eshu-hq/eshu/go/internal/reducer/sqlrelationship"
 )
 
 var sqlRefreshFenceRelationshipTypes = []string{
@@ -135,7 +137,7 @@ func sqlRefreshFenceDeliveryIntents(
 		edgeIdentity := "sql-source->sql-target:" + relationshipType
 		row := BuildSharedProjectionIntent(SharedProjectionIntentInput{
 			ProjectionDomain: DomainSQLRelationships,
-			PartitionKey: sqlRelationshipFilePartitionKey(
+			PartitionKey: sqlrelationship.FilePartitionKey(
 				repositoryID,
 				"db/schema.sql",
 				edgeIdentity,
@@ -220,7 +222,7 @@ func processSQLRefreshFencePartition(
 			LeaseOwner:     "sql-refresh-proof",
 			LeaseTTL:       30 * time.Second,
 			BatchLimit:     100,
-			EvidenceSource: sqlRelationshipEvidenceSource,
+			EvidenceSource: sqlrelationship.EvidenceSource,
 		},
 		lease,
 		store,

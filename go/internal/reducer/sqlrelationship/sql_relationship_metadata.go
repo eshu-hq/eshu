@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package reducer
+package sqlrelationship
 
 // sqlMetadataString extracts a string value from SQL entity metadata.
 func sqlMetadataString(metadata map[string]any, key string) string {

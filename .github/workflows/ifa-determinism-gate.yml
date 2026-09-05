@@ -508,6 +508,7 @@ on:
       - 'scripts/lib/ifa_fault_injection_symbol_runtime_cells.sh'
       - 'go/internal/ifa/sql_relationship_odu*.go'
       - 'go/internal/reducer/sql_relationship_*.go'
+      - 'go/internal/reducer/sqlrelationship/sql_relationship_*.go'
       #
       # The rest of ifa-dead-letter-matrix's registry triggers, as literals.
       # Globs above already cover these files, so the gate did fire without

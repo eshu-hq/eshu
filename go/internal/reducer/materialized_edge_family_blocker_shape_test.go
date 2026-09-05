@@ -98,7 +98,7 @@ type familyBlockerExpectation struct {
 // materializedEdgeFamilyBlockerExpectations covers the 8 of 14
 // MaterializedEdgeFamilies() families that map 1:1 onto a single routed
 // handler through implementedDefaultDomainDefinitions' switch
-// (defaults_domain_catalog.go:12-129). See
+// (defaults_domain_catalog.go:13-130). See
 // materializedEdgeFamilyBlockerLockstepExclusions for the other 6 and why
 // each is out of scope for a single-handler reflection. A missing row for any
 // covered family is a named test failure, not an implicit pass. The three
@@ -110,11 +110,12 @@ var materializedEdgeFamilyBlockerExpectations = map[string]familyBlockerExpectat
 	// ProjectionDomain: DomainCodeCalls; code_call_materialization.go:224
 	// writes them via h.IntentWriter.UpsertIntents.
 	DomainCodeCalls: {routedDomain: DomainCodeCallMaterialization},
-	// sql_relationship_intents.go:101,154 tag rows
-	// ProjectionDomain: DomainSQLRelationships; sql_relationship_materialization.go:113
-	// writes them via h.IntentWriter.UpsertIntents.
+	// sqlrelationship/sql_relationship_intents.go:108,167 tag rows
+	// ProjectionDomain: DomainSQLRelationships;
+	// sqlrelationship/sql_relationship_materialization.go:117 writes them via
+	// h.IntentWriter.UpsertIntents.
 	DomainSQLRelationships: {routedDomain: DomainSQLRelationshipMaterialization},
-	// shell_exec_intents.go:58,106 tag rows ProjectionDomain: DomainShellExec;
+	// shell_exec_intents.go:60,110 tag rows ProjectionDomain: DomainShellExec;
 	// shell_exec_materialization.go writes them via h.IntentWriter.UpsertIntents.
 	DomainShellExec: {routedDomain: DomainShellExecMaterialization},
 	// inheritance/intents.go:99,152 tag rows ProjectionDomain: DomainInheritanceEdges;
@@ -225,7 +226,7 @@ func (noopSharedProjectionEdgeWriter) WriteEdges(context.Context, string, []Shar
 //
 // Populating every field matters even though none of the 8 covered switch
 // cases in defaults_domain_catalog.go gate their def.Handler assignment on a
-// handlers.X != nil check today (verified by reading defaults_domain_catalog.go:64-124;
+// handlers.X != nil check today (verified by reading defaults_domain_catalog.go:65-125;
 // contrast DomainDeploymentMapping at :26-45, whose CrossRepoResolver sub-field
 // IS conditionally wired, and the DomainConfigStateDrift-shaped additive
 // domains that appendAdditiveDomainDefinitions omits entirely without

@@ -2361,9 +2361,9 @@ gates:
       - "go/internal/ifa/sql_relationship_odu*.go"
       - "go/internal/reducer/materialized_edge_families.go"
       - "go/internal/reducer/shared_projection.go"
-      - "go/internal/reducer/sql_relationship_materialization.go"
-      - "go/internal/reducer/sql_relationship_embedded_query.go"
-      - "go/internal/reducer/sql_relationship_metadata.go"
+      - "go/internal/reducer/sqlrelationship/sql_relationship_materialization.go"
+      - "go/internal/reducer/sqlrelationship/sql_relationship_embedded_query.go"
+      - "go/internal/reducer/sqlrelationship/sql_relationship_metadata.go"
       # The whole cypher package, for the same reason the reducer leg above is
       # a subtree (#6181). This gate's direct-family drift guard parses EVERY
       # non-test file in go/internal/storage/cypher and follows each reducer
@@ -2939,6 +2939,7 @@ gates:
       - "scripts/lib/ifa_symbol_runtime_live.sh"
       - "go/internal/ifa/sql_relationship_odu*.go"
       - "go/internal/reducer/sql_relationship_*.go"
+      - "go/internal/reducer/sqlrelationship/sql_relationship_*.go"
     local:
       command: "bash scripts/test-verify-ifa-determinism.sh"
       test_command: "bash scripts/test-verify-ifa-determinism.sh"
@@ -3485,6 +3486,7 @@ gates:
       - "scripts/lib/ifa_fault_injection_symbol_runtime_cells.sh"
       - "go/internal/ifa/sql_relationship_odu*.go"
       - "go/internal/reducer/sql_relationship_*.go"
+      - "go/internal/reducer/sqlrelationship/sql_relationship_*.go"
     local:
       command: "bash scripts/test-verify-ifa-fault-injection.sh"
       test_command: "bash scripts/test-verify-ifa-fault-injection.sh"

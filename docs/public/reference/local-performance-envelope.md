@@ -290,7 +290,8 @@ no reducer conflict key, intent emit, queue SQL, graph write, Cypher, worker,
 lease, batch, runtime knob, schema DDL, metric, span, log field, status field,
 API/MCP route, collector runtime, or provider call. The classification is backed
 by the existing delta-scope retract proofs (`inheritance/delta_scope_test.go`,
-`sql_relationship_delta_scope_test.go`) and the direct-write handler call sites.
+`sqlrelationship/sql_relationship_delta_scope_test.go`) and the direct-write
+handler call sites.
 
 No-Observability-Change: the audit records which durable anchors and convergence
 proofs a future promotion must carry; it changes no runtime telemetry.
@@ -786,7 +787,7 @@ bug #2867 fixed for inheritance. This is pre-empted here rather than caught in a
 remote run.
 
 No-Regression Evidence: state-modeling convergence tests in
-`go/internal/reducer/sql_relationship_materialization_partition_test.go` prove the
+`go/internal/reducer/sql_relationship_partition_convergence_test.go` prove the
 partitioned path is byte-identical to the direct retract+write path (full + delta,
 multi-edge-per-file, seeded non-empty graph, real `ProcessPartitionOnce` + #2898
 fence, `UnhashedFallbackRows=0`, EXECUTES survival). `go test ./internal/reducer

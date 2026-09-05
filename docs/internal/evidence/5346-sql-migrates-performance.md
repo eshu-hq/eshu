@@ -12,7 +12,7 @@ covers the hot files flagged by `scripts/verify-performance-evidence.sh`:
 `go/internal/storage/cypher/retractable_edge_types.go`,
 `go/internal/storage/cypher/canonical_node_writer_retract_labels.go`,
 `go/internal/graph/schema_tables.go`, `go/internal/graph/schema_application.go`,
-`go/internal/reducer/sql_relationship_materialization.go` (+ the two files
+`go/internal/reducer/sqlrelationship/sql_relationship_materialization.go` (+ the two files
 split out of it, `sql_relationship_metadata.go` and `sql_relationship_names.go`),
 `go/internal/collector/git_snapshot_native.go`, and
 `go/internal/projector/canonical.go`.
@@ -68,14 +68,14 @@ baseline=3.0s, ceiling=8.0s) — no measurable regression on the query phase
 this change touches. The corpus carries no SQL migration fixture files, so the
 new branch matched zero rows in this run (`"affected" has 0 results`); the
 branch shape itself is exercised end to end by the reducer/writer unit and
-offline-tier tests (`go/internal/reducer/sql_relationship_migrates_test.go`,
+offline-tier tests (`go/internal/reducer/sqlrelationship/sql_relationship_migrates_test.go`,
 `go/internal/storage/cypher` per-label retract tests) against realistic
 resolved/unresolved/ambiguous target fixtures.
 
 Reproduce:
 
 ```bash
-cd go && go test ./internal/parser/sql ./internal/parser ./internal/reducer \
+cd go && go test ./internal/parser/sql ./internal/parser ./internal/reducer/... \
   ./internal/storage/cypher ./internal/query ./internal/content/shape \
   ./internal/collector ./internal/graph ./internal/projector -count=1
 bash scripts/verify-golden-corpus-gate.sh

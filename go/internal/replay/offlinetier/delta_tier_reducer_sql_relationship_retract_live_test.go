@@ -76,7 +76,7 @@ func TestReducerSQLRelationshipRetractGraphTruth(t *testing.T) {
 			name:          "repository scope",
 			controlRepoID: sqlRetractOutRepoID,
 			controlPath:   sqlRetractOutPath,
-			// The per-repo refresh payload buildSQLRelationshipRefreshIntents
+			// The per-repo refresh payload sqlrelationship.BuildRefreshIntents
 			// emits on a full generation (#6166). sql_relationships binds
 			// collectWholeScopeRefreshRepoIDs on its non-delta branch, so the
 			// nil payload this case used to carry builds no statement, and the

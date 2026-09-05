@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/reducer/inheritance"
+	"github.com/eshu-hq/eshu/go/internal/reducer/sqlrelationship"
 )
 
 // wholeScopeRetractReachabilityCase describes one FENCED repo-wide-retract
@@ -48,7 +49,7 @@ func wholeScopeRetractReachabilityCases() []wholeScopeRetractReachabilityCase {
 				}
 			},
 			buildRows: func(edges []map[string]any, repoIDs []string, ctxByRepo map[string]ProjectionContext, at time.Time) []SharedProjectionIntentRow {
-				return buildSQLRelationshipSharedIntentRows(edges, sqlRelationshipDeltaScope{}, repoIDs, ctxByRepo, at)
+				return sqlrelationship.BuildSharedIntentRows(edges, sqlrelationship.DeltaScope{}, repoIDs, ctxByRepo, at)
 			},
 		},
 		{
@@ -61,7 +62,7 @@ func wholeScopeRetractReachabilityCases() []wholeScopeRetractReachabilityCase {
 				}
 			},
 			buildRows: func(edges []map[string]any, repoIDs []string, ctxByRepo map[string]ProjectionContext, at time.Time) []SharedProjectionIntentRow {
-				return buildShellExecSharedIntentRows(edges, sqlRelationshipDeltaScope{}, repoIDs, ctxByRepo, at)
+				return buildShellExecSharedIntentRows(edges, sqlrelationship.DeltaScope{}, repoIDs, ctxByRepo, at)
 			},
 		},
 	}

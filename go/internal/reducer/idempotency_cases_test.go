@@ -12,6 +12,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/facts"
 	"github.com/eshu-hq/eshu/go/internal/reducer/inheritance"
 	"github.com/eshu-hq/eshu/go/internal/reducer/semanticentity"
+	"github.com/eshu-hq/eshu/go/internal/reducer/sqlrelationship"
 )
 
 // idempotencyReplayFencingToken is the single fencing token stamped on every
@@ -194,7 +195,7 @@ func sqlRelationshipReplayCase() idempotencyReplayCase {
 		run: func(t *testing.T) []idempotencyRow {
 			t.Helper()
 			writer := &recordingSQLRelationshipIntentWriter{}
-			handler := SQLRelationshipMaterializationHandler{
+			handler := sqlrelationship.SQLRelationshipMaterializationHandler{
 				FactLoader:   &stubFactLoader{envelopes: fencedFacts(sqlRelationshipEntityFacts())},
 				IntentWriter: writer,
 			}
