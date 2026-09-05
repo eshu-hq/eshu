@@ -19,6 +19,15 @@ type documentationDeltaScope struct {
 	hasDelta    bool
 }
 
+// documentationMaterializationFactKinds is the single source for the kind set
+// loadDocumentationMaterializationFacts requests; the bench corpus guard in
+// factload_materialization_bench_test.go reads the same slice.
+var documentationMaterializationFactKinds = []string{
+	factKindRepository,
+	facts.DocumentationDocumentFactKind,
+	facts.DocumentationEntityMentionFactKind,
+}
+
 func loadDocumentationMaterializationFacts(
 	ctx context.Context,
 	loader FactLoader,
@@ -30,11 +39,7 @@ func loadDocumentationMaterializationFacts(
 		loader,
 		scopeID,
 		generationID,
-		[]string{
-			factKindRepository,
-			facts.DocumentationDocumentFactKind,
-			facts.DocumentationEntityMentionFactKind,
-		},
+		documentationMaterializationFactKinds,
 	)
 }
 

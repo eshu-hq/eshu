@@ -111,13 +111,18 @@ func (h ShellExecMaterializationHandler) Handle(
 	}, nil
 }
 
+// shellExecMaterializationFactKinds is the single source for the kind set
+// loadShellExecMaterializationFacts requests; the bench corpus guard in
+// factload_materialization_bench_test.go reads the same slice.
+var shellExecMaterializationFactKinds = []string{factKindRepository, factKindFile}
+
 func loadShellExecMaterializationFacts(
 	ctx context.Context,
 	loader FactLoader,
 	scopeID string,
 	generationID string,
 ) ([]facts.Envelope, error) {
-	return loadFactsForKinds(ctx, loader, scopeID, generationID, []string{factKindRepository, factKindFile})
+	return loadFactsForKinds(ctx, loader, scopeID, generationID, shellExecMaterializationFactKinds)
 }
 
 // ExtractShellExecRows builds canonical shell execution edge rows from file

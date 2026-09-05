@@ -17,6 +17,11 @@ type rationaleDeltaScope struct {
 	hasDelta          bool
 }
 
+// rationaleMaterializationFactKinds is the single source for the kind set
+// loadRationaleMaterializationFacts requests; the bench corpus guard in
+// factload_materialization_bench_test.go reads the same slice.
+var rationaleMaterializationFactKinds = []string{factKindRepository, factKindContentEntity}
+
 func loadRationaleMaterializationFacts(
 	ctx context.Context,
 	loader FactLoader,
@@ -28,7 +33,7 @@ func loadRationaleMaterializationFacts(
 		loader,
 		scopeID,
 		generationID,
-		[]string{factKindRepository, factKindContentEntity},
+		rationaleMaterializationFactKinds,
 	)
 }
 
