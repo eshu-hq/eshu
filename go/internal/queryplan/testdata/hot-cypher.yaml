@@ -368,7 +368,7 @@ entries:
     source:
       file: go/internal/query/code_relationship_story_nornicdb.go
       symbol: nornicDBRelationshipStoryInheritanceDepthCypher
-      source_sha256: 25303426ab56c23e81494fc3b5caf59c8f3f162f9f344f678def3b9b5d2d3018
+      source_sha256: 2caaefe3e2c9a60996b069ea3d55b1215fdefc826a409ed17a47d52cf1d9e6af
       line_hint: 116
     required_anchors:
       - label: Class

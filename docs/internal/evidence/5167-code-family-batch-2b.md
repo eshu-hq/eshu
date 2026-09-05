@@ -134,7 +134,7 @@ not filter on the pinned build, and neither does `none(...)/NOT IN`, a
 per allowed value, OR-ed, fails the other way and drops rows that should be
 admitted. Only a single scalar equality inside `all(...)` is evaluated. The full
 table is in
-[NornicDB Query-Shape Pitfalls](../../public/reference/nornicdb-query-pitfalls.md)
+[NornicDB Path-Predicate Pitfalls](../../public/reference/nornicdb-path-predicate-pitfalls.md)
 under the list-membership entry this batch added, pinned as measured values by
 `TestLiveNornicDBPathListPredicateBehaviour`.
 
@@ -185,7 +185,7 @@ control that a correct predicate MUST admit:
 | raw `nodes(path)` projection | 2 | **works**: real per-hop `repo_id` on every node |
 
 The third row contradicted
-[NornicDB Query-Shape Pitfalls](../../public/reference/nornicdb-query-pitfalls.md),
+[NornicDB Path-Predicate Pitfalls](../../public/reference/nornicdb-path-predicate-pitfalls.md),
 which graded that form "right". Rather than take a result on one pattern as
 proof against a committed measurement on another — the error this batch's round
 1 was about — it was re-measured on the page's own shape, a `CALLS` path
@@ -290,10 +290,10 @@ builders project only `source`/`target` — each grant-bound — and
 `INHERITS` chain between two granted classes disclosed a depth number and no
 identity. The compat lane now drops that path outright.
 
-## Two Pitfalls-Page Corrections
+## Two Path-Predicate Corrections
 
 Both are in
-[NornicDB Query-Shape Pitfalls](../../public/reference/nornicdb-query-pitfalls.md):
+[NornicDB Path-Predicate Pitfalls](../../public/reference/nornicdb-path-predicate-pitfalls.md):
 
 1. The pre-bound-endpoint `shortestPath` shape the page records as safe was
    measured on v1.1.11 and does not parse on the current pin —

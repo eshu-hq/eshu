@@ -158,7 +158,7 @@ func cloneCallChainNodeSlice(nodes []map[string]any) []map[string]any {
 // buildCallChainCypher. That matters, because #5167 batch 2b ran this exact
 // statement against the pinned build and it does not parse there --
 // "shortestPath: could not resolve start variable" -- so the pre-bound-endpoint
-// shape docs/public/reference/nornicdb-query-pitfalls.md records as safe was
+// shape docs/public/reference/nornicdb-path-predicate-pitfalls.md records as safe was
 // measured on an older build and is not safe on the current pin. It carries the
 // grant on both endpoints like every other builder in the family, and the parse
 // failure is tracked in docs/internal/evidence/5167-code-family-batch-2b.md.

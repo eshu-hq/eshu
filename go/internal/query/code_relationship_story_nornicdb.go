@@ -447,7 +447,7 @@ func nornicDBRelationshipStoryInheritanceDepthCypher(
 	// form never filters AND the scalar form filters everything out, including a
 	// chain on which every node is granted. Both directions measured, including
 	// on the shortestPath shape the pitfalls page tabulates -- see the
-	// path-predicate table in docs/public/reference/nornicdb-query-pitfalls.md.
+	// path-predicate table in docs/public/reference/nornicdb-path-predicate-pitfalls.md.
 	// A list comprehension over nodes(path) is no good either: it comes back as
 	// literal expression text. Raw nodes(path) does come back, with real per-hop
 	// properties, so the filter reads that.

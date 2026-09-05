@@ -33,7 +33,7 @@ import (
 // sends a NornicDB backend to nornicDBCallChainRows and only a non-NornicDB
 // backend reaches buildCallChainCypher. Run against the pinned build anyway, its
 // statement does not parse -- "shortestPath: could not resolve start variable"
-// -- even though docs/public/reference/nornicdb-query-pitfalls.md records this
+// -- even though docs/public/reference/nornicdb-path-predicate-pitfalls.md records this
 // pre-bound-endpoint shape as the safe one. That entry was measured on v1.1.11
 // and the correction is recorded there now.
 //

@@ -325,7 +325,7 @@ func storyInheritanceHopClause(access repositoryAccessFilter) string {
 // list-membership test evaluates, so it bounds every hop. Its NornicDB sibling
 // must NOT gain the same clause: that list form is inert on the pinned build
 // (the path-predicate table in
-// docs/public/reference/nornicdb-query-pitfalls.md), so writing it there would
+// docs/public/reference/nornicdb-path-predicate-pitfalls.md), so writing it there would
 // be grant text that grants nothing -- the exact defect this batch fixed.
 func TestRelationshipStoryInheritanceBoundsInteriorHopsOnCompatOnly(t *testing.T) {
 	t.Parallel()

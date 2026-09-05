@@ -15,7 +15,7 @@ import (
 // all(node IN nodes(path) ...) predicate works in either direction: the list
 // form never filters and the scalar form filters everything out, including
 // chains where every node is granted. Measured for #6548; the table is in
-// docs/public/reference/nornicdb-query-pitfalls.md.
+// docs/public/reference/nornicdb-path-predicate-pitfalls.md.
 //
 // So the statement projects nodes(path) and this is the filter. An out-of-grant
 // class between two granted ones must take the whole row with it -- otherwise
@@ -200,7 +200,7 @@ func containsAny(haystack string, needles ...string) bool {
 // parent_truncated false, telling the caller it has seen everything when
 // granted rows beyond the page were never fetched.
 //
-// docs/public/reference/nornicdb-query-pitfalls.md states the rule this batch
+// docs/public/reference/nornicdb-path-predicate-pitfalls.md states the rule this batch
 // has to follow: compute the truncation signal from the RAW row count, before
 // the Go filter.
 

@@ -276,6 +276,7 @@ nav:
       - NornicDB Tuning Evidence: reference/nornicdb-tuning-evidence.md
       - NornicDB Pitfalls: reference/nornicdb-pitfalls.md
       - NornicDB Query-Shape Pitfalls: reference/nornicdb-query-pitfalls.md
+      - NornicDB Path-Predicate Pitfalls: reference/nornicdb-path-predicate-pitfalls.md
       - Cypher Performance: reference/cypher-performance.md
     - Parity Closure Matrix: reference/parity-closure-matrix.md
     - Relationship Mapping: reference/relationship-mapping.md

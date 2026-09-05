@@ -228,7 +228,7 @@ func buildCallChainCypher(
 // This shape is deliberately NOT mirrored into buildNornicDBCallChainCypher.
 // A list-membership test inside all(node IN nodes(path) ...) is not evaluated on
 // the pinned NornicDB build (see the path-predicate table in
-// docs/public/reference/nornicdb-query-pitfalls.md), so writing it there would
+// docs/public/reference/nornicdb-path-predicate-pitfalls.md), so writing it there would
 // be grant text that grants nothing -- the exact defect this batch fixed. That
 // lane bounds each hop as its Go-side traversal expands instead
 // (nornicDBCallChainOneHopRows), and its shortestPath builder is unreachable
