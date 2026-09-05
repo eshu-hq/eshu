@@ -171,7 +171,10 @@ happened to contain will see a different — and correct — answer.
 
 A scoped token gets only granted repositories, and that now covers every part of
 the answer: the relationship rows, the class-hierarchy methods and inheritance
-depths, the override rows, and the ambiguity candidate list. The candidate list
+depths, the override rows, and the ambiguity candidate list. The inheritance
+walk binds both ends of the chain on either graph backend; on Neo4j it also
+binds every class between them, so a chain that passes through an ungranted
+class is not returned at all rather than returned as a depth number. The candidate list
 is the observable change for a client — a target name that exists in more than
 one tenant used to list every match with its entity id, file path and repository
 id, and now lists only the ones the token may read, so a request that used to

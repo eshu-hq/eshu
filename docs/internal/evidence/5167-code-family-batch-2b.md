@@ -79,7 +79,8 @@ join `scopedCodeGraphGrantRoute`
 | --- | --- | --- |
 | story direct rows, both backends | anchoring `MATCH`'s `WHERE`, on each endpoint's `repo_id` | `relationshipStoryRepoPredicates` (`code_relationship_story_graph.go`) |
 | story class methods, both backends | anchoring `MATCH`, on `class.repo_id` and `method.repo_id` | `relationshipStoryGrantPredicates` |
-| story inheritance walk, both backends | anchoring `MATCH`, on both path endpoints | `relationshipStoryGrantPredicates` |
+| story inheritance walk endpoints, both backends | anchoring `MATCH`, on both path endpoints | `relationshipStoryGrantPredicates` |
+| story inheritance walk interior classes, Neo4j compat | inside the `all(node IN nodes(path) …)` predicate | `relationshipStoryInheritanceDepthCypher` (`code_relationship_story_class.go`) |
 | story repo-scoped overrides | anchoring `MATCH`, on `source.repo_id` and `target.repo_id` | `relationshipStoryOverrideRowsCypher` (`code_relationship_story_class.go`) |
 | story target resolution | granted repositories queried one at a time instead of the corpus-wide search | `relationshipStoryGrantedCandidates` (`code_relationship_story_resolution.go`) |
 | call-chain one hop, NornicDB | anchoring `MATCH`, on `target.repo_id` | `nornicDBCallChainOneHopRows` (`code_call_chain_nornicdb.go`) |
@@ -176,8 +177,24 @@ conjunct, since the list form would grant nothing there. It is unreachable from
 `handleCallChain` and does not parse on the pin; the comment at that builder
 says what would have to happen if it ever became reachable.
 
-The inheritance walk keeps its endpoint bound for the same NornicDB reason and
-says so at the call site.
+The inheritance walk splits the same way, and for the same reason. Its NornicDB
+builder (`nornicDBRelationshipStoryInheritanceDepthCypher`) binds the two
+endpoints only, because the list form would grant nothing on the pin; its
+Neo4j-compat builder (`relationshipStoryInheritanceDepthCypher`) also bounds
+every interior class, through the same
+`all(node IN nodes(path) …)` conjunct and the same
+`RepositoryAccessFilter.GraphConditionOnProperty` render as the compat
+call-chain. Both say which lane their reasoning applies to at the call site;
+round 1 of review caught the compat call-chain justifying an endpoint-only bound
+with a NornicDB fact, and the replacement review caught the same sentence copied
+onto this builder. `TestRelationshipStoryInheritanceBoundsInteriorHopsOnCompatOnly`
+pins the asymmetry in both directions.
+
+The residual the interior bound closes was small but real: both inheritance
+builders project only `source`/`target` — each grant-bound — and
+`length(path)`, so before this an out-of-grant intermediate class on an
+`INHERITS` chain between two granted classes disclosed a depth number and no
+identity. The compat lane now drops that path outright.
 
 ## Two Pitfalls-Page Corrections
 
@@ -325,6 +342,19 @@ same reason the correctness half of this lane rests on reasoning rather than a
 measurement. This is a disclosure, not a benchmark. If Neo4j becomes a gated
 lane, this and the `all(...)` correctness assertion are the two things to
 measure first.
+
+The Neo4j-compat inheritance walk gains a clause on the same terms, and it is
+disclosed on the same terms. A scoped caller of `class_hierarchy` now renders an
+`all(node IN nodes(path) …)` conjunct on a variable-length `INHERITS` match that
+previously carried none, so Neo4j must hold each path to test it rather than
+only its endpoints. Nothing here is measured either — same missing gate, same
+reason — but the shape is bounded in a way the `shortestPath` case is not:
+`normalizedRelationshipStoryMaxDepth` caps the walk at 10 hops and defaults it
+to 5, the walk is anchored on one endpoint by `$entity_id`, and both endpoints
+are already grant-bound in the same `WHERE`, so the paths the conjunct is tested
+against are the ones the anchor and the endpoint grants already admit. This is a
+disclosure, not a benchmark; it joins the `shortestPath` clause on the list of
+things to measure first if Neo4j becomes a gated lane.
 
 Row counts do change, and not only for scoped callers. Three shapes are
 affected, each measured rather than reasoned about:
