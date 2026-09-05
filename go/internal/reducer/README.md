@@ -371,11 +371,11 @@ with the family even when several families read it.
 The exception is a symbol with real consumers on BOTH sides of a family
 boundary. A family may never import this root, so a shape the root and a family
 both need has to live below both: `iampolicy` holds the IAM permission-statement
-and grant vocabulary the root's escalation slice shares with the `iamcan`
-family, and `cloudjoin` holds the CloudResource join index and node uid the AWS
-relationship, security-group, escalation and `iamcan` slices all resolve against
-(#6061). Neither is a dumping ground: a helper only one side uses belongs on
-that side.
+and grant vocabulary the `iamescalation` and `iamcan` families share, and
+`cloudjoin` holds the CloudResource join index and node uid the AWS
+relationship, security-group, `iamescalation` and `iamcan` families all resolve
+against (#6061). Neither is a dumping ground: a helper only one side uses
+belongs on that side.
 
 Decode-failure classification and per-fact quarantine belong in `factdecode`.
 The per-fact-kind `decode*` seams belong in `schemadecode`: they import the
@@ -412,6 +412,7 @@ logic stays with the family even when it calls into `factwrite` to publish.
 - `go/internal/reducer/cloudjoin/README.md`
 - `go/internal/reducer/iampolicy/README.md`
 - `go/internal/reducer/iamcan/README.md`
+- `go/internal/reducer/iamescalation/README.md`
 - `go/internal/reducer/codeintel/README.md`
 - `go/internal/reducer/secretsiam/README.md`
 - `go/internal/reducer/dsl/README.md`

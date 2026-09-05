@@ -73,7 +73,7 @@ type SinkPredicate struct {
 // reaching that sink, optional target-property predicates, the baseline severity
 // reaching it contributes, and a provenance citation to where the edge is
 // authored. Specs are closed-vocabulary and declarative, mirroring
-// reducer.iamEscalationCatalog.
+// iamescalation.iamEscalationCatalog.
 type SinkSpec struct {
 	// Kind is the closed-vocabulary sink category.
 	Kind SinkKind

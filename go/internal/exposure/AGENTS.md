@@ -13,8 +13,8 @@
 5. `go/internal/exposure/path_trace.go` — the pure exposure-path assembler:
    truth-state vocabulary, honest severity (`CombinePathSeverity`), and
    `BuildExposureFinding`.
-6. `go/internal/reducer/iam_escalation_catalog.go` — the closed-catalog pattern
-   this package mirrors.
+6. `go/internal/reducer/iamescalation/iam_escalation_catalog.go` — the
+   closed-catalog pattern this package mirrors.
 
 ## What this package is
 
