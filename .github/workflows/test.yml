@@ -109,6 +109,22 @@ jobs:
               - '!.github/**/*.md'
               - '!.agents/**'
 
+  # Docs-only changes skip the Go lanes; their Markdown cap must still run.
+  markdown-file-cap:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v5
+        with:
+          fetch-depth: 2
+      - name: Install ripgrep
+        run: scripts/ci/install-apt-packages.sh ripgrep
+      - name: Verify Markdown file cap (go/ and docs/)
+        run: |
+          scripts/test-verify-markdown-line-cap.sh
+          MARKDOWN_LINE_CAP_REQUIRE_BASE=1 scripts/verify-markdown-line-cap.sh --all
+
   verify-contracts:
     needs: changes
     if: ${{ github.event_name != 'pull_request' || needs.changes.outputs.code == 'true' }}
@@ -134,6 +150,13 @@ jobs:
         run: |
           scripts/test-verify-codeql-setup.sh
           scripts/verify-codeql-setup.sh
+
+      # The trusted required-gates publisher reads main's registry. Retain the
+      # previous owner while this PR introduces the dedicated cap job above.
+      - name: Verify Markdown file cap during registry rollout
+        run: |
+          scripts/test-verify-markdown-line-cap.sh
+          MARKDOWN_LINE_CAP_REQUIRE_BASE=1 scripts/verify-markdown-line-cap.sh --all
 
       - name: Verify security-scan tee-status helper
         run: scripts/test-security-scan-tee-status.sh
@@ -167,27 +190,6 @@ jobs:
         run: |
           scripts/test-verify-package-docs.sh
           scripts/verify-package-docs.sh
-
-      # Markdown 500-line cap under go/ (issue #6187). Sits beside the
-      # package-docs step above because it governs the same three documents
-      # (doc.go / README.md / AGENTS.md), from the other direction: that gate
-      # asserts they EXIST, this one asserts they stayed readable. The Go cap
-      # is enforced in go-core by the golangci-lint filelength plugin, which
-      # walks the Go AST and cannot see Markdown at all -- see
-      # specs/ci-gates.v1.yaml's markdown-file-cap entry, which declares this
-      # job as its `ci.job`.
-      #
-      # MARKDOWN_LINE_CAP_REQUIRE_BASE=1 sits on the gate invocation alone,
-      # never on the step. This job checks out with `fetch-depth: 2`, so the
-      # ledger-growth check has to fetch its own baseline ref; if it cannot,
-      # it must go red rather than print a NOTE and exit 0, because a gate
-      # that could not run is not a gate that passed. The test mirror on the
-      # line above drives scratch repos that have no origin remote at all and
-      # must stay permissive, which is why this is not a step-level `env:`.
-      - name: Verify Markdown file cap (go/)
-        run: |
-          scripts/test-verify-markdown-line-cap.sh
-          MARKDOWN_LINE_CAP_REQUIRE_BASE=1 scripts/verify-markdown-line-cap.sh --all
 
       - name: Verify Go license headers
         run: |

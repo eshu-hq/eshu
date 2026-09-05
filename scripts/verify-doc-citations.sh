@@ -5,13 +5,8 @@
 # spun off from #5339/#5402 as its named second deliverable: #5402 fixed the
 # drifted citations, this gate prevents the class from recurring).
 #
-# Scope: every docs/public/languages/**/*.md page (this glob already covers
-# feature-matrix.md and support-maturity.md, both of which live in that
-# directory, and matches recursively so a future nested
-# languages/<sub>/foo.md page is scanned too — deliberately kept in lockstep
-# with this gate's ci-gates trigger `docs/public/languages/**`, so a page
-# that TRIGGERS the gate is always a page the gate actually SCANS) plus
-# docs/public/reference/parity-closure-matrix.md.
+# Scope: every Markdown page under docs/, including internal evidence notes.
+# Test and fixture scans cover the same docs tree that triggers this gate.
 #
 # Three independent citation kinds are scanned, each with its own resolution
 # rule:
@@ -85,7 +80,7 @@
 set -euo pipefail
 
 repo_root="${ESHU_DOC_CITATIONS_REPO_ROOT:-$(cd "$(dirname "$0")/.." && pwd)}"
-docs_root="${repo_root}/docs/public"
+docs_root="${repo_root}/docs"
 baseline_path="${ESHU_DOC_CITATIONS_BASELINE_PATH:-${repo_root}/scripts/docs-citations-baseline.txt}"
 script_dir="$(cd "$(dirname "$0")" && pwd)"
 tmp_dir="$(mktemp -d)"
@@ -121,8 +116,8 @@ command -v rg >/dev/null 2>&1 || {
 # so classify_test_citations downstream can tell a well-formed citation from
 # a format error.
 scan_test_citations() {
-  (cd "${docs_root}" && rg --no-heading --no-line-number -o \
-    -g 'languages/**/*.md' -g 'reference/parity-closure-matrix.md' \
+  (cd "${docs_root}" && rg --hidden --no-ignore --no-heading --no-line-number -o \
+    -g '*.md' \
     '[A-Za-z0-9_./-]+\.go::[A-Za-z0-9_]+(/[A-Za-z0-9_]+)*' . 2>/dev/null || true) \
     | LC_ALL=C awk '{
         idx = index($0, ":"); if (idx == 0) next
@@ -142,8 +137,8 @@ scan_test_citations() {
 # as scan_test_citations (placeholder/glob shorthand, parent-escape, absolute
 # path).
 scan_fixture_citations() {
-  (cd "${docs_root}" && rg --no-heading --no-line-number -o \
-    -g 'languages/**/*.md' -g 'reference/parity-closure-matrix.md' \
+  (cd "${docs_root}" && rg --hidden --no-ignore --no-heading --no-line-number -o \
+    -g '*.md' \
     '(tests/fixtures|testdata)/[A-Za-z0-9_./-]+' . 2>/dev/null || true) \
     | LC_ALL=C awk '{
         idx = index($0, ":"); if (idx == 0) next
@@ -294,7 +289,7 @@ validate_baseline() {
 baseline_test_pairs() {
   local path="$1"
   [[ -f "${path}" ]] || return 0
-  rg '^TEST ' "${path}" 2>/dev/null | awk '{ $1 = ""; sub(/^ /, ""); print }' | LC_ALL=C sort -u || true
+  rg '^TEST ' "${path}" 2>/dev/null | awk '{ if ($2 ~ /^languages\// || $2 == "reference/parity-closure-matrix.md") $2 = "public/" $2; $1 = ""; sub(/^ /, ""); print }' | LC_ALL=C sort -u || true
 }
 
 # baseline_fixture_values emits the baseline's FIXTURE records as
@@ -310,10 +305,9 @@ baseline_header() {
   printf '%s\n' '# scripts/docs-citations-baseline.txt'
   printf '%s\n' '#'
   printf '%s\n' '# Burn-down baseline for scripts/verify-doc-citations.sh (#5406/#6383).'
-  printf '%s\n' '# Every docs/public/languages/*.md page (which already covers'
-  printf '%s\n' '# feature-matrix.md and support-maturity.md) plus'
-  printf '%s\n' '# docs/public/reference/parity-closure-matrix.md is scanned for'
-  printf '%s\n' '# `<file>.go::TestName` and `tests/fixtures/...`/`testdata/...` citations.'
+  printf '%s\n' '# Every Markdown page under docs/, including docs/internal/evidence/,'
+  printf '%s\n' '# is scanned for test and fixture citations. TEST doc paths are relative'
+  printf '%s\n' '# to docs/; legacy public-relative TEST keys remain readable.'
   printf '%s\n' '# The full go/ and docs/ trees are also scanned for raw'
   printf '%s\n' '# `go/internal/**/*.go:<line>` citations.'
   printf '%s\n' '#'

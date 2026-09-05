@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Markdown 500-line file cap under go/ (issue #6187) -- the Markdown sibling
+# Markdown 500-line file cap under go/ and docs/ (issues #6187/#6545) -- the Markdown sibling
 # of scripts/verify-dirgate.sh. See scripts/lib/markdown-line-cap-core.sh for
 # the shared implementation this script drives and for the ledger's exact
 # pass/fail rule; scripts/test-verify-markdown-line-cap.sh is its test mirror
@@ -61,16 +61,15 @@ case "${mode}" in
 				exit_status=1
 			fi
 		# `go/*.md` IS recursive here. A git pathspec is not a shell glob:
-		# `*` crosses `/`, so this lists every tracked .md file under go/ at
-		# any depth (1812 at this commit, of which exactly one -- go/README.md
-		# -- is at depth 1). See verify-dirgate.sh's identical note; three
+		# `*` crosses `/`, so these list tracked Markdown under go/ and docs/
+		# at any depth. See verify-dirgate.sh's identical note; three
 		# reviewers have read that pathspec as a depth-1 match and filed it as
 		# a bug.
-		done < <(git -C "${repo_root}" ls-files 'go/*.md' | LC_ALL=C sort)
+		done < <(git -C "${repo_root}" ls-files 'go/*.md' 'docs/*.md' | LC_ALL=C sort)
 		# Report the count for the same reason verify-dirgate.sh --files does:
 		# a run that evaluated nothing exits 0 and is indistinguishable from
 		# "checked everything, all clean" unless the number is printed.
-		printf '%s: evaluated %d Markdown file(s) under go/\n' "${MARKDOWN_LINE_CAP_NAME}" "${evaluated}"
+		printf '%s: evaluated %d Markdown file(s) under go/ and docs/\n' "${MARKDOWN_LINE_CAP_NAME}" "${evaluated}"
 		if ! mdcap_verify_ledger "${repo_root}"; then
 			exit_status=1
 		fi
