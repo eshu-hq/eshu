@@ -98,7 +98,7 @@ type familyBlockerExpectation struct {
 // materializedEdgeFamilyBlockerExpectations covers the 8 of 14
 // MaterializedEdgeFamilies() families that map 1:1 onto a single routed
 // handler through implementedDefaultDomainDefinitions' switch
-// (defaults_domain_catalog.go:12-129). See
+// (defaults_domain_catalog.go:13-130). See
 // materializedEdgeFamilyBlockerLockstepExclusions for the other 6 and why
 // each is out of scope for a single-handler reflection. A missing row for any
 // covered family is a named test failure, not an implicit pass. The three
@@ -226,7 +226,7 @@ func (noopSharedProjectionEdgeWriter) WriteEdges(context.Context, string, []Shar
 //
 // Populating every field matters even though none of the 8 covered switch
 // cases in defaults_domain_catalog.go gate their def.Handler assignment on a
-// handlers.X != nil check today (verified by reading defaults_domain_catalog.go:64-124;
+// handlers.X != nil check today (verified by reading defaults_domain_catalog.go:65-125;
 // contrast DomainDeploymentMapping at :26-45, whose CrossRepoResolver sub-field
 // IS conditionally wired, and the DomainConfigStateDrift-shaped additive
 // domains that appendAdditiveDomainDefinitions omits entirely without
