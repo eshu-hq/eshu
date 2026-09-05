@@ -157,3 +157,34 @@ func stripSQLLineComments(sql string) string {
 	}
 	return strings.Join(kept, "\n")
 }
+
+// TestCodeReachabilityPageRankIndexIsCreatedOnceAndNeverDropped pins the same
+// end state for the index the cross-repo consumer-evidence PAGE needs (#6527).
+// That statement orders a producer entity's consumers by confidence ahead of
+// its LIMIT, so without an index in that order Postgres has to read the whole
+// fan-in group before it can emit the group's first row. The index carrying the
+// order is a create with no drop, like the walk index above and unlike
+// fact_records_identity_epoch_idx: an install that already has it does no index
+// work on bootstrap.
+func TestCodeReachabilityPageRankIndexIsCreatedOnceAndNeverDropped(t *testing.T) {
+	t.Parallel()
+
+	const pageRankIndex = "code_reachability_entity_confidence_rank_idx"
+	creates, drops := 0, 0
+	for _, definition := range BootstrapDefinitions() {
+		statements := stripSQLLineComments(definition.SQL)
+		for _, match := range migrationIndexCreatePattern.FindAllStringSubmatch(statements, -1) {
+			if match[1] == pageRankIndex {
+				creates++
+			}
+		}
+		for _, match := range migrationIndexDropPattern.FindAllStringSubmatch(statements, -1) {
+			if match[1] == pageRankIndex {
+				drops++
+			}
+		}
+	}
+	if creates != 1 || drops != 0 {
+		t.Errorf("%s has %d creates and %d drops, want 1 and 0", pageRankIndex, creates, drops)
+	}
+}

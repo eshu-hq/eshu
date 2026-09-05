@@ -6,6 +6,7 @@ package query
 import (
 	"context"
 	"fmt"
+	"os"
 	"strings"
 	"testing"
 )
@@ -201,4 +202,111 @@ func TestCrossRepoDeadCodeProbeStatementIsSizeIndependent(t *testing.T) {
 	if recorder.queries[1] != recorder.queries[3] {
 		t.Fatalf("probe text changed with the page and grant size:\nfirst:\n%s\nsecond:\n%s", recorder.queries[1], recorder.queries[3])
 	}
+}
+
+// crossRepoDeadCodeConsumerPageRankMigration is the shipped migration whose
+// index the evidence page's ORDER BY depends on.
+const crossRepoDeadCodeConsumerPageRankMigration = "../storage/postgres/migrations/103_code_reachability_entity_confidence_rank_idx.sql"
+
+// TestCrossRepoDeadCodeConsumerPageOrderMatchesItsIndexKey pins the evidence
+// page's ORDER BY and migration 103's index key to each other, by reading both
+// (#6527, and the tiebreak from #6535's replacement review).
+//
+// They are one decision written in two places. With entity_id pinned by the
+// statement's IN list the index's key columns ARE the ordering, so the scan can
+// be answered in output order. Edit either alone and it cannot: Postgres goes
+// back to ranking a producer entity's whole consumer fan-in before it can emit
+// that entity's first row, which is 1,000,497 rows read for a 1,001-row answer
+// on the corpus in docs/internal/evidence/5167-cross-repo-consumer-page-bound.md.
+//
+// Answered in output order is not the same as bounded by the cap. The cap bounds
+// rows RETURNED; the scan walks one entry per retained generation per position,
+// because the liveness test is a join above it.
+//
+// Nothing else can catch that drift. The answer is identical either way, so no
+// behavioural assertion moves; the live proof sees it, but only against a real
+// Postgres, and this runs in the unit lane on every change to either file.
+func TestCrossRepoDeadCodeConsumerPageOrderMatchesItsIndexKey(t *testing.T) {
+	t.Parallel()
+
+	query, _ := buildCrossRepoDeadCodeConsumerEvidenceQuery(
+		codeGrantGrantedRepo, []string{"entity-1"}, []string{codeGrantConsumerRepo},
+	)
+	order := crossRepoDeadCodeConsumerPageOrderColumns(t, query)
+	key := crossRepoDeadCodeConsumerPageIndexKeyColumns(t)
+	// Two parsers that both returned nothing would agree, and this test would
+	// pass for the wrong reason. Require the parse to have found the ranking
+	// column, the four that break its ties, and the two that make the order
+	// total -- seven in all.
+	if strings.Count(order, ",") != 6 || !strings.Contains(order, "confidence DESC") {
+		t.Fatalf("read the page's ORDER BY as (%s), want seven columns including confidence DESC; the parse has drifted from the statement", order)
+	}
+	// The last two are the tiebreak, and they are the half a reader is most
+	// likely to drop as noise. Rows equal on the first five differ only in the
+	// scope and generation that wrote them, and without these an index scan and
+	// a top-N heapsort return different rows at the cap.
+	if !strings.HasSuffix(order, "scope_id, generation_id") {
+		t.Fatalf("the page's ORDER BY is (%s); it has to end scope_id, generation_id so rows equal on the ranking have one defined order in every plan", order)
+	}
+	if order != key {
+		t.Fatalf("the evidence page orders by (%s) and migration 103's index key is (%s); they have to be the same columns in the same order, or the page ranks a producer entity's whole fan-in before its LIMIT",
+			order, key)
+	}
+}
+
+// crossRepoDeadCodeConsumerPageOrderColumns renders the page statement's ORDER
+// BY as a comparable column list: the table alias dropped, ASC dropped as the
+// default, DESC kept because it is part of the index key.
+func crossRepoDeadCodeConsumerPageOrderColumns(t *testing.T, query string) string {
+	t.Helper()
+
+	_, after, found := strings.Cut(query, "\nORDER BY ")
+	if !found {
+		t.Fatalf("the evidence page statement has no ORDER BY:\n%s", query)
+	}
+	clause, _, found := strings.Cut(after, "\nLIMIT ")
+	if !found {
+		t.Fatalf("the evidence page statement has no LIMIT after its ORDER BY:\n%s", query)
+	}
+	columns := make([]string, 0, 5)
+	for _, column := range strings.Split(clause, ",") {
+		column = strings.Join(strings.Fields(column), " ")
+		column = strings.TrimPrefix(column, "row.")
+		column = strings.TrimSuffix(column, " ASC")
+		columns = append(columns, column)
+	}
+	return strings.Join(columns, ", ")
+}
+
+// crossRepoDeadCodeConsumerPageIndexKeyColumns reads migration 103's key column
+// list off the shipped file. Reading the file rather than repeating the columns
+// here is the point: a pin that restated them would agree with itself while the
+// deployment built something else.
+func crossRepoDeadCodeConsumerPageIndexKeyColumns(t *testing.T) string {
+	t.Helper()
+
+	migration, err := os.ReadFile(crossRepoDeadCodeConsumerPageRankMigration)
+	if err != nil {
+		t.Fatalf("read the shipped page-rank index migration: %v", err)
+	}
+	statement := ""
+	for _, line := range strings.Split(string(migration), "\n") {
+		if strings.HasPrefix(strings.TrimSpace(line), "--") {
+			continue
+		}
+		statement += " " + line
+	}
+	_, after, found := strings.Cut(statement, "ON code_reachability_rows (")
+	if !found {
+		t.Fatalf("migration 103 does not index code_reachability_rows:\n%s", statement)
+	}
+	key, _, found := strings.Cut(after, ")")
+	if !found {
+		t.Fatalf("migration 103's index key list is unterminated:\n%s", statement)
+	}
+	columns := make([]string, 0, 5)
+	for _, column := range strings.Split(key, ",") {
+		columns = append(columns, strings.Join(strings.Fields(column), " "))
+	}
+	return strings.Join(columns, ", ")
 }

@@ -1,0 +1,133 @@
+-- Let the cross-repo dead-code consumer-evidence PAGE be answered in its own
+-- ORDER BY, instead of ranking a producer entity's whole consumer fan-in first
+-- (#6527), and give rows that tie on the ranking a defined order. This lands
+-- after #6535, which bounded the hidden-consumer probe beside this read and
+-- filed #6527 off its own measurements.
+--
+-- buildCrossRepoDeadCodeConsumerEvidenceQuery selects one page of consumer
+-- evidence for the producer entities on a dead-code page, ordered
+-- (entity_id, confidence DESC, depth, repository_id, root_entity_id, scope_id,
+-- generation_id) and capped at 1,001 rows. No existing index carries that
+-- order. code_reachability_entity_lookup_idx is (entity_id, state,
+-- confidence DESC) and no read in the tree constrains state, so confidence is
+-- unreachable as a sort key behind it; migration 101's index is
+-- (entity_id, repository_id, scope_id, generation_id), which is why the shipped
+-- plan put a sort above it and fed that sort the whole group.
+--
+-- The last two key columns are a TIEBREAK, not a ranking. Two rows can be equal
+-- on the first five and differ only in the scope and generation that wrote
+-- them: one repository covered by two ingestion scopes whose generations are
+-- both active. With five columns that pair has no defined order, and the two
+-- plans disagree -- measured on a fixture with the pair straddling the cap, an
+-- index scan returned one row and a top-N heapsort the other, and they stayed
+-- disagreeing across REINDEX and VACUUM FULL, because a top-N heapsort is not
+-- stable. With seven they agree in every state tested. The verdict never moved;
+-- what moved was which generation the returned row cites.
+--
+-- WHAT THE LIMIT DOES AND DOES NOT BOUND. It bounds rows RETURNED. The
+-- active-generation test is a join ABOVE this scan, and this key carries
+-- neither the scope's active generation nor a way to reach it, so the scan
+-- emits one entry per RETAINED generation per position and the join discards
+-- the superseded ones. The read is therefore bounded by the cap times the
+-- retained generations per position, not by the cap. Measured on a
+-- retention-representative seed (one ingestion scope per consumer repository,
+-- every superseded generation carrying the same population as the active one):
+-- 1,001 entries walked at zero retained generations, 11,081 at twenty, both
+-- serial (max_parallel_workers_per_gather = 0), for the same 1,001-row answer --
+-- 1.43/1.51/1.48 ms against 9.18/9.73/9.16 ms. Both are
+-- three independent runs that agree exactly, measured with
+-- max_parallel_workers_per_gather = 0: with the default two workers the planner
+-- takes a Parallel Index Scan under a Gather Merge and the entries walked depend
+-- on how the workers race to fill the cap, which read 11,780 in one run and
+-- 17,835 in another. The multiplication is real either way; only the serial
+-- number reproduces.
+--
+-- Past some retention depth the planner stops choosing this index at all. At
+-- twenty retained generations it costs the active-generation join at 1,905 rows
+-- where it yields 200,996, so a top-N sort of the whole active group looks
+-- cheap and is chosen: 200,995 rows scanned, hit=23,200. That is the behaviour
+-- this migration exists to remove, and there it does not remove it. It is not a
+-- regression either -- with and without this index, interleaved over two
+-- rounds, the plan and the buffer count are identical (hit=23,200 in all four
+-- arms). Three remedies for the estimate were measured and all three failed:
+-- CREATE STATISTICS (dependencies, ndistinct, mcv) on (scope_id,
+-- generation_id) left it at 1,905, SET STATISTICS 1000 on generation_id and
+-- scope_id moved it to 1,281 -- further from the truth -- and both together
+-- with a deeper target on scope_generations left it at 1,905. None changed the
+-- plan. Nothing is forced here; a planner hint would be a different kind of
+-- change and is not one this repository makes.
+--
+-- Measured in a throwaway PostgreSQL 16.15 container, data-plane schema applied
+-- from schema/data-plane/postgres (001, 002, 027) plus migrations 101 and 102,
+-- synthetic rows only, VACUUM ANALYZE after seeding, SET jit = off, warm, three
+-- samples, both plan modes. The page seed is the one #6527's measurements were
+-- filed from: 2,207,196 rows, one ingestion scope, one generation, a
+-- 251-entity producer page whose middle entity carries 1,000,000
+-- active-generation consumer rows across five consumer repositories. Custom
+-- plan, which is the plan every execution of this statement gets:
+--
+--   consumer-repository grant          five of five      four of five
+--   rows under the driving scan
+--     without this index                  1,000,497           800,497
+--     with this index                         1,001             1,001
+--   shared buffers
+--     without this index                    113,832           113,832
+--     with this index                           930               930
+--
+-- Rows and buffers are the claim; the wall times were taken under concurrent
+-- load and are in the evidence note with that caveat.
+--
+-- The answer does not move. The rows this statement returns were captured
+-- position by position against the five-column statement with no index -- what
+-- shipped before -- on three page and grant shapes: symmetric difference 0/0
+-- and zero position mismatches on all three.
+--
+-- Which plan production gets was measured rather than assumed. pgx runs these
+-- reads as server-side prepared statements, so the question is what Postgres's
+-- plan cache decides. PREPARE plus twelve EXECUTEs under the default
+-- plan_cache_mode = auto leaves pg_prepared_statements at generic_plans = 0 and
+-- custom_plans = 12: the cache never promotes the generic plan, because the
+-- generic estimate is far above the custom average, which is the comparison
+-- choose_custom_plan makes. Under a forced generic plan the planner keeps the
+-- shape it uses today and this index is not read -- no better there, and no
+-- worse.
+--
+-- Cost. On that seed the index is 201 MB built in 10-20 s CONCURRENTLY, against
+-- a 367 MB heap and 808 MB of existing indexes. The reducer's write path
+-- maintains one more btree: EXPLAIN (ANALYZE, BUFFERS, WAL) over a 200,000-row
+-- reachability insert, arms alternated, gives 1,221,760/1,221,774/1,221,777 WAL
+-- records and 16,001/15,934/16,004 buffers dirtied without this index against
+-- 1,424,877/1,424,879/1,424,883 and 19,158/19,099/19,167 with it -- +16.6% WAL
+-- records and +19.8% buffers dirtied, about one extra WAL record per row. WAL
+-- records rather than seconds because the same eight inserts, four per arm, timed
+-- 11.36/16.98/7.58/7.44 s without against 9.66/11.56/18.85/8.19 s with, which
+-- is no signal at all on a shared machine. Nothing is dropped to
+-- pay for it. code_reachability_entity_lookup_idx looks superseded on paper and
+-- is not dropped here: removing it would need its own before/after on the reads
+-- that use it, and this migration's proof does not cover that.
+--
+-- Replay. This directory has no applied-migration ledger: BootstrapDefinitions
+-- enumerates every file under migrations/ and ApplyDefinitions Execs all of
+-- them, in filename order, on EVERY bootstrap (schema.go, pinned by
+-- TestApplyBootstrapExecutesDefinitionsInOrder). A migration is therefore a
+-- desired-state statement that has to be a no-op once the state it wants
+-- already holds. This file only creates, and no file in this directory drops
+-- this name, so a bootstrap over an install that already has the index does no
+-- index work. TestCodeReachabilityPageRankIndexIsCreatedOnceAndNeverDropped
+-- pins that statically and
+-- TestCodeReachabilityIndexMigrationsReapplyWithoutRebuildLive proves it on a
+-- populated store.
+--
+-- CONCURRENTLY, so building it does not block the reducer's reachability
+-- writes, and the lone statement in this file because the runner Execs each
+-- file as one simple-query string and Postgres treats a multi-statement string
+-- as an implicit transaction block, which CONCURRENTLY cannot run inside. That
+-- is also why it cannot join 027_code_reachability.sql. The usual objection to
+-- CONCURRENTLY -- that a failed build leaves an INVALID index that IF NOT
+-- EXISTS then skips forever -- does not apply: the schema apply path drops
+-- invalid concurrent indexes by name before executing each definition
+-- (SQLDB.dropInvalidConcurrentIndexes, db.go) and runs each statement outside
+-- any transaction on a dedicated bootstrap connection, which CONCURRENTLY
+-- requires.
+CREATE INDEX CONCURRENTLY IF NOT EXISTS code_reachability_entity_confidence_rank_idx
+    ON code_reachability_rows (entity_id, confidence DESC, depth, repository_id, root_entity_id, scope_id, generation_id);

@@ -295,17 +295,22 @@ func codeReachabilityReplayDefinitions(t *testing.T) (tables, indexes []Definiti
 	// only the migrations this proof already knows about, so re-adding a create
 	// of the superseded index -- the exact defect this test exists for -- would
 	// leave the applied set unchanged and the proof green. Every definition
-	// naming the walk index family is applied instead, in bootstrap order, so a
-	// new one is picked up whether or not anybody updates this test.
+	// naming one of the reachability index families is applied instead, in
+	// bootstrap order, so a new one is picked up whether or not anybody updates
+	// this test.
 	for _, definition := range BootstrapDefinitions() {
-		if strings.Contains(definition.SQL, codeReachabilityWalkIndexFamily) {
+		if slices.ContainsFunc(codeReachabilityIndexFamilies, func(family string) bool {
+			return strings.Contains(definition.SQL, family)
+		}) {
 			indexes = append(indexes, definition)
 		}
 	}
-	// A rename that emptied the scan would make the whole proof vacuous.
-	if len(indexes) < 2 {
-		t.Fatalf("found %d definition(s) naming %s, want at least the create and the drop",
-			len(indexes), codeReachabilityWalkIndexFamily)
+	// A rename that emptied the scan would make the whole proof vacuous. Three,
+	// because the walk family carries a create and a drop and the page-rank
+	// family carries a create.
+	if len(indexes) < 3 {
+		t.Fatalf("found %d definition(s) naming %v, want at least the walk index's create and drop plus the page-rank index's create",
+			len(indexes), codeReachabilityIndexFamilies)
 	}
 	return tables, indexes
 }
@@ -314,6 +319,21 @@ func codeReachabilityReplayDefinitions(t *testing.T) (tables, indexes []Definiti
 // and the two-column index it supersedes, which is how this proof finds every
 // migration that acts on either without being told their names.
 const codeReachabilityWalkIndexFamily = "code_reachability_entity_repository"
+
+// codeReachabilityPageRankIndexFamily is the name prefix of the index the
+// cross-repo consumer-evidence page reads in ORDER BY order (#6527). It is a
+// second family rather than a widened prefix because
+// code_reachability_entity_lookup_idx lives in the table definition this proof
+// applies as a TABLE, and pulling that definition into the index set would make
+// the replayed set include one the proof already applied.
+const codeReachabilityPageRankIndexFamily = "code_reachability_entity_confidence"
+
+// codeReachabilityIndexFamilies are the index-name prefixes whose migrations
+// this proof replays.
+var codeReachabilityIndexFamilies = []string{
+	codeReachabilityWalkIndexFamily,
+	codeReachabilityPageRankIndexFamily,
+}
 
 // seedCodeReachabilityReplayRows populates the store so a rebuild is real index
 // work rather than a metadata edit on an empty table.
