@@ -210,7 +210,7 @@ const crossRepoDeadCodeConsumerPageRankMigration = "../storage/postgres/migratio
 
 // TestCrossRepoDeadCodeConsumerPageOrderMatchesItsIndexKey pins the evidence
 // page's ORDER BY and migration 103's index key to each other, by reading both
-// (#6527).
+// (#6527, and the tiebreak from #6535's replacement review).
 //
 // They are one decision written in two places. With entity_id pinned by the
 // statement's IN list the index's key columns ARE the ordering, so the scan is
@@ -232,11 +232,18 @@ func TestCrossRepoDeadCodeConsumerPageOrderMatchesItsIndexKey(t *testing.T) {
 	order := crossRepoDeadCodeConsumerPageOrderColumns(t, query)
 	key := crossRepoDeadCodeConsumerPageIndexKeyColumns(t)
 	// Two parsers that both returned nothing would agree, and this test would
-	// pass for the wrong reason. The ranking column is what the whole change is
-	// about, so require the parse to have found it and the four columns that
-	// break its ties.
-	if strings.Count(order, ",") != 4 || !strings.Contains(order, "confidence DESC") {
-		t.Fatalf("read the page's ORDER BY as (%s), want five columns including confidence DESC; the parse has drifted from the statement", order)
+	// pass for the wrong reason. Require the parse to have found the ranking
+	// column, the four that break its ties, and the two that make the order
+	// total -- seven in all.
+	if strings.Count(order, ",") != 6 || !strings.Contains(order, "confidence DESC") {
+		t.Fatalf("read the page's ORDER BY as (%s), want seven columns including confidence DESC; the parse has drifted from the statement", order)
+	}
+	// The last two are the tiebreak, and they are the half a reader is most
+	// likely to drop as noise. Rows equal on the first five differ only in the
+	// scope and generation that wrote them, and without these an index scan and
+	// a top-N heapsort return different rows at the cap.
+	if !strings.HasSuffix(order, "scope_id, generation_id") {
+		t.Fatalf("the page's ORDER BY is (%s); it has to end scope_id, generation_id so rows equal on the ranking have one defined order in every plan", order)
 	}
 	if order != key {
 		t.Fatalf("the evidence page orders by (%s) and migration 103's index key is (%s); they have to be the same columns in the same order, or the page ranks a producer entity's whole fan-in before its LIMIT",

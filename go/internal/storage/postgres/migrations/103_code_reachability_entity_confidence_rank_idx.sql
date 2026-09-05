@@ -1,48 +1,77 @@
--- Let the cross-repo dead-code consumer-evidence PAGE stop at its own LIMIT
--- instead of reading a producer entity's whole consumer fan-in first (#6527).
+-- Let the cross-repo dead-code consumer-evidence PAGE be answered in its own
+-- ORDER BY, instead of ranking a producer entity's whole consumer fan-in first
+-- (#6527), and give rows that tie on the ranking a defined order (#6535 F-2).
 --
 -- buildCrossRepoDeadCodeConsumerEvidenceQuery selects one page of consumer
 -- evidence for the producer entities on a dead-code page, ordered
--- (entity_id, confidence DESC, depth, repository_id, root_entity_id) and capped
--- at 1,001 rows. The LIMIT bounds what comes back, not what is read: to return
--- an entity's strongest consumers Postgres has to rank that entity's whole
--- group, so the read costs the entity's fan-in rather than the page's cap.
+-- (entity_id, confidence DESC, depth, repository_id, root_entity_id, scope_id,
+-- generation_id) and capped at 1,001 rows. No existing index carries that
+-- order. code_reachability_entity_lookup_idx is (entity_id, state,
+-- confidence DESC) and no read in the tree constrains state, so confidence is
+-- unreachable as a sort key behind it; migration 101's index is
+-- (entity_id, repository_id, scope_id, generation_id), which is why the shipped
+-- plan put a sort above it and fed that sort the whole group.
 --
--- No existing index carries that order. code_reachability_entity_lookup_idx is
--- (entity_id, state, confidence DESC) and no read in the tree constrains state,
--- so confidence is unreachable as a sort key behind it; migration 101's index
--- is (entity_id, repository_id, scope_id, generation_id), which is why the
--- shipped plan puts an Incremental Sort presorted on entity_id above it and
--- feeds that sort the whole group. This index's five key columns ARE the
--- statement's ORDER BY with entity_id pinned by the IN list, so the scan is
--- already in output order and the LIMIT stops it. depth sits third because it
--- is an ORDER BY column here, not the range predicate it is in migration 101.
+-- The last two key columns are a TIEBREAK, not a ranking. Two rows can be equal
+-- on the first five and differ only in the scope and generation that wrote
+-- them: one repository covered by two ingestion scopes whose generations are
+-- both active. With five columns that pair has no defined order, and the two
+-- plans disagree -- measured on a fixture with the pair straddling the cap, an
+-- index scan returned one row and a top-N heapsort the other, and they stayed
+-- disagreeing across REINDEX and VACUUM FULL, because a top-N heapsort is not
+-- stable. With seven they agree in every state tested. The verdict never moved;
+-- what moved was which generation the returned row cites.
+--
+-- WHAT THE LIMIT DOES AND DOES NOT BOUND. It bounds rows RETURNED. The
+-- active-generation test is a join ABOVE this scan, and this key carries
+-- neither the scope's active generation nor a way to reach it, so the scan
+-- emits one entry per RETAINED generation per position and the join discards
+-- the superseded ones. The read is therefore bounded by the cap times the
+-- retained generations per position, not by the cap. Measured on a
+-- retention-representative seed (one ingestion scope per consumer repository,
+-- every superseded generation carrying the same population as the active one):
+-- 1,001 entries walked at zero retained generations, 11,780 at twenty, for the
+-- same 1,001-row answer -- 1.43/1.42/1.44 ms against 10.92/10.75/11.08 ms.
+--
+-- Past some retention depth the planner stops choosing this index at all. At
+-- twenty retained generations it costs the active-generation join at 1,905 rows
+-- where it yields 200,996, so a top-N sort of the whole active group looks
+-- cheap and is chosen: 200,995 rows scanned, hit=23,200. That is the behaviour
+-- this migration exists to remove, and there it does not remove it. It is not a
+-- regression either -- with and without this index, interleaved over two
+-- rounds, the plan and the buffer count are identical (hit=23,200 in all four
+-- arms). Three remedies for the estimate were measured and all three failed:
+-- CREATE STATISTICS (dependencies, ndistinct, mcv) on (scope_id,
+-- generation_id) left it at 1,905, SET STATISTICS 1000 on generation_id and
+-- scope_id moved it to 1,281 -- further from the truth -- and both together
+-- with a deeper target on scope_generations left it at 1,905. None changed the
+-- plan. Nothing is forced here; a planner hint would be a different kind of
+-- change and is not one this repository makes.
 --
 -- Measured in a throwaway PostgreSQL 16.15 container, data-plane schema applied
 -- from schema/data-plane/postgres (001, 002, 027) plus migrations 101 and 102,
 -- synthetic rows only, VACUUM ANALYZE after seeding, SET jit = off, warm, three
--- samples, both plan modes. The seed is the one #6527's measurements were filed
--- from: 2,207,196 rows, one ingestion scope, one generation, a 251-entity
--- producer page whose middle entity carries 1,000,000 active-generation
--- consumer rows across five consumer repositories, and 1.2M rows on entity ids
--- off the page. Custom plan, the plan every execution of this statement gets:
+-- samples, both plan modes. The page seed is the one #6527's measurements were
+-- filed from: 2,207,196 rows, one ingestion scope, one generation, a
+-- 251-entity producer page whose middle entity carries 1,000,000
+-- active-generation consumer rows across five consumer repositories. Custom
+-- plan, which is the plan every execution of this statement gets:
 --
 --   consumer-repository grant          five of five      four of five
 --   rows under the driving scan
 --     without this index                  1,000,497           800,497
---     with this index                         1,124             1,124
+--     with this index                         1,001             1,001
 --   shared buffers
 --     without this index                    113,832           113,832
---     with this index                           929               929
---   execution time
---     without this index      815.3/869.2/825.5 ms  853.3/719.6/724.0 ms
---     with this index             1.68/4.56/1.66 ms     1.59/1.59/1.62 ms
+--     with this index                           930               930
 --
--- The answer does not move: the statement is unchanged, and the rows it returns
--- were captured position by position with and without the index on four page and
--- grant shapes -- symmetric difference 0/0 and zero position mismatches on all
--- four. Details and the rejected alternatives are in
--- docs/internal/evidence/5167-cross-repo-consumer-page-bound.md.
+-- Rows and buffers are the claim; the wall times were taken under concurrent
+-- load and are in the evidence note with that caveat.
+--
+-- The answer does not move. The rows this statement returns were captured
+-- position by position against the five-column statement with no index -- what
+-- shipped before -- on three page and grant shapes: symmetric difference 0/0
+-- and zero position mismatches on all three.
 --
 -- Which plan production gets was measured rather than assumed. pgx runs these
 -- reads as server-side prepared statements, so the question is what Postgres's
@@ -54,14 +83,14 @@
 -- shape it uses today and this index is not read -- no better there, and no
 -- worse.
 --
--- Cost. On that seed the index is 163 MB built in 6.4 s CONCURRENTLY, against a
--- 367 MB heap and 808 MB of existing indexes, so the relation's footprint grows
--- about 14%. The reducer's write path maintains one more btree: a 200,000-row
--- reachability insert takes 6.02/6.06 s without it and 7.24/7.47 s with it,
--- about +15-20%, alternated so both arms saw the table grow. Nothing is dropped
--- to pay for it. code_reachability_entity_lookup_idx looks superseded on paper
--- and is not dropped here: removing it would need its own before/after on the
--- reads that use it, and this migration's proof does not cover that.
+-- Cost. On that seed the index is 201 MB built in 10-20 s CONCURRENTLY, against
+-- a 367 MB heap and 808 MB of existing indexes. The reducer's write path
+-- maintains one more btree: a 200,000-row reachability insert took 6.02/6.06 s
+-- without the five-column form of this index and 7.24/7.47 s with it, about
+-- +15-20%, alternated so both arms saw the table grow. Nothing is dropped to
+-- pay for it. code_reachability_entity_lookup_idx looks superseded on paper and
+-- is not dropped here: removing it would need its own before/after on the reads
+-- that use it, and this migration's proof does not cover that.
 --
 -- Replay. This directory has no applied-migration ledger: BootstrapDefinitions
 -- enumerates every file under migrations/ and ApplyDefinitions Execs all of
@@ -87,4 +116,4 @@
 -- any transaction on a dedicated bootstrap connection, which CONCURRENTLY
 -- requires.
 CREATE INDEX CONCURRENTLY IF NOT EXISTS code_reachability_entity_confidence_rank_idx
-    ON code_reachability_rows (entity_id, confidence DESC, depth, repository_id, root_entity_id);
+    ON code_reachability_rows (entity_id, confidence DESC, depth, repository_id, root_entity_id, scope_id, generation_id);

@@ -250,12 +250,24 @@ func crossRepoDeadCodeGrantFilter(args []any, allowedRepositoryIDs []string) ([]
 // The ORDER BY and migration 103's
 // code_reachability_entity_confidence_rank_idx are one thing in two places.
 // With entity_id pinned by the IN list the index's key columns ARE this
-// statement's ordering, so the scan is already in output order and the LIMIT
-// stops it. Change either without the other and the LIMIT goes back to bounding
-// only what comes back: Postgres has to rank a producer entity's whole consumer
-// fan-in before it can emit that entity's first row, which on a page carrying
-// one million-row entity is 1,000,497 rows read for a 1,001-row answer (#6527,
-// measured in docs/internal/evidence/5167-cross-repo-consumer-page-bound.md).
+// statement's ordering, so the scan can be answered in output order and the
+// LIMIT can stop it. Change either without the other and the read goes back to
+// ranking a producer entity's whole consumer fan-in before it can emit that
+// entity's first row: 1,000,497 rows for a 1,001-row answer on the corpus in
+// docs/internal/evidence/5167-cross-repo-consumer-page-bound.md.
+//
+// The last two columns are a tiebreak, not a ranking. Rows equal on the first
+// five differ only in the scope and generation that wrote them, which happens
+// when two ingestion scopes cover one repository and both generations are
+// active. Without scope_id and generation_id here that pair has no defined
+// order, and an index scan and a top-N heapsort disagree about which one lands
+// at the cap -- measured, and it is the citation the caller gets that changes.
+//
+// What the LIMIT bounds is rows RETURNED, not rows read, and the gap is the
+// retention window: the active-generation test is a join above this scan, so
+// the scan emits one entry per retained generation per position and the join
+// discards the superseded ones. Measured at 1,001 entries walked with no
+// retained generations and 11,780 at twenty, for the same 1,001-row answer.
 //
 // depth > 0 stays a plain predicate rather than part of the ranking: depth 0 is
 // the root's own row, not a consumer edge.
@@ -298,7 +310,8 @@ WHERE row.repository_id <> $1
   AND row.entity_id IN (`+strings.Join(placeholders, ", ")+`)
   AND row.depth > 0%s
 ORDER BY row.entity_id ASC, row.confidence DESC, row.depth ASC,
-         row.repository_id ASC, row.root_entity_id ASC
+         row.repository_id ASC, row.root_entity_id ASC,
+         row.scope_id ASC, row.generation_id ASC
 LIMIT %d
 `, grant, maxCrossRepoDeadCodeConsumerEvidenceRows+1)
 	return query, args
