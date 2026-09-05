@@ -14,7 +14,7 @@ import (
 
 // A held first key must stop every writer before it owns any later key. The
 // reverse heap order makes this an ordering assertion, not a probabilistic race.
-func TestReducerAckFanoutCommonLockOrderLive(t *testing.T) {
+func TestReducerContentionGateAckFanoutLockOrderLive(t *testing.T) {
 	for _, variant := range []struct {
 		name   string
 		domain reducer.Domain
@@ -33,7 +33,7 @@ func TestReducerAckFanoutCommonLockOrderLive(t *testing.T) {
 		{"fanout_already_dirty", reducer.DomainSupplyChainImpact, true, false, true},
 	} {
 		t.Run(variant.name, func(t *testing.T) {
-			db := openContainerImageIdentityAckCapabilityProofDB(t)
+			db := openReducerAckFanoutProofDB(t)
 			db.SetMaxOpenConns(6)
 			ctx, cancel := context.WithTimeout(t.Context(), 20*time.Second)
 			defer cancel()
@@ -153,4 +153,16 @@ func waitForReducerRowLockWaiter(t *testing.T, ctx context.Context, db *sql.DB, 
 		time.Sleep(10 * time.Millisecond)
 	}
 	t.Fatalf("backend %d never reached held first row", pid)
+}
+
+// Match the contention job's ESHU_POSTGRES_DSN contract while reusing the
+// existing isolated-schema bootstrap helper, which takes the test DSN name.
+func openReducerAckFanoutProofDB(t *testing.T) *sql.DB {
+	t.Helper()
+	dsn := reducerDomainFairnessDSN()
+	if dsn == "" {
+		t.Skip("set ESHU_POSTGRES_DSN for the ACK/fanout contention proof")
+	}
+	t.Setenv("ESHU_POSTGRES_TEST_DSN", dsn)
+	return openContainerImageIdentityAckCapabilityProofDB(t)
 }

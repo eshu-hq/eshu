@@ -15,11 +15,11 @@ import (
 // Exercise ON CONFLICT against an existing queued event on both sides of its
 // capture. Before capture EPQ must include the increment; after capture the ACK
 // must leave a new durable event when the captured conflict row is deleted.
-func TestCrossScopeCompletionProducerAckCaptureHorizonLive(t *testing.T) {
+func TestReducerContentionGateProducerAckCaptureHorizonLive(t *testing.T) {
 	for _, domain := range []reducer.Domain{reducer.DomainContainerImageIdentity, reducer.DomainCICDRunCorrelation} {
 		for _, afterCapture := range []bool{false, true} {
 			t.Run(fmt.Sprintf("%s/after_capture=%t", domain, afterCapture), func(t *testing.T) {
-				db := openContainerImageIdentityAckCapabilityProofDB(t)
+				db := openReducerAckFanoutProofDB(t)
 				db.SetMaxOpenConns(8)
 				ctx, cancel := context.WithTimeout(t.Context(), 20*time.Second)
 				defer cancel()
