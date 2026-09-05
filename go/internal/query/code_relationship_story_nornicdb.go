@@ -394,8 +394,12 @@ func (h *CodeHandler) nornicDBRelationshipStoryInheritanceDepthRows(
 		if err != nil {
 			return nil, err
 		}
+		// The raw count decides which id property anchors the walk, before the
+		// grant filter runs. Filtering first would let a walk whose every row is
+		// out of grant look like "this property did not match" and fall through
+		// to the next property, which is a different question.
 		if len(rows) > 0 {
-			return normalizeNornicDBRelationshipStoryRows(rows), nil
+			return normalizeNornicDBRelationshipStoryRows(nornicDBInheritanceRowsInGrant(rows, access)), nil
 		}
 	}
 	return []map[string]any{}, nil
@@ -417,10 +421,22 @@ func nornicDBRelationshipStoryInheritanceDepthCypher(
 		params = access.GraphParams(params)
 	}
 	anchorPattern := nornicDBNodePatternWithProperty("anchor", "Class", property, "$entity_id")
-	// Only the two endpoints bind. Bounding every hop would need
-	// all(node IN nodes(path) WHERE node.repo_id IN $ids), and that list form is
-	// inert on the pinned backend -- see the path-predicate table in
-	// docs/internal/evidence/5167-code-family-batch-2b.md.
+	// The two endpoints bind in Cypher; the classes between them are bound in Go
+	// by nornicDBInheritanceRowsInGrant, off this projection.
+	//
+	// No all(node IN nodes(path) ...) predicate can do it on the pinned build,
+	// and the reason is stronger than the one recorded before #6548: the list
+	// form never filters AND the scalar form filters everything out, including a
+	// chain on which every node is granted. Both directions measured, including
+	// on the shortestPath shape the pitfalls page tabulates -- see the
+	// path-predicate table in docs/public/reference/nornicdb-query-pitfalls.md.
+	// A list comprehension over nodes(path) is no good either: it comes back as
+	// literal expression text. Raw nodes(path) does come back, with real per-hop
+	// properties, so the filter reads that.
+	pathProjection := ""
+	if access.Scoped() {
+		pathProjection = ",\n\t\t       nodes(path) as path_nodes"
+	}
 	if direction == "incoming" {
 		return fmt.Sprintf(`
 		MATCH path = (source:Class)-[:INHERITS*1..%d]->%s
@@ -432,7 +448,7 @@ func nornicDBRelationshipStoryInheritanceDepthCypher(
 		       anchor.id as target_legacy_id,
 		       anchor.uid as target_uid,
 		       anchor.name as target_name,
-		       length(path) as depth
+		       length(path) as depth`+pathProjection+`
 		ORDER BY depth DESC, source.name, source.id, source.uid
 		LIMIT $limit
 	`, maxDepth, anchorPattern), params
@@ -447,7 +463,7 @@ func nornicDBRelationshipStoryInheritanceDepthCypher(
 		       target.id as target_legacy_id,
 		       target.uid as target_uid,
 		       target.name as target_name,
-		       length(path) as depth
+		       length(path) as depth`+pathProjection+`
 		ORDER BY depth DESC, target.name, target.id, target.uid
 		LIMIT $limit
 	`, anchorPattern, maxDepth), params

@@ -572,7 +572,9 @@ RETURN nodes(path) AS chain, length(path) AS depth
 | `<predicate>` | rows | correct? |
 | --- | ---: | --- |
 | none (control) | 1 | — |
-| `all(node IN nodes(path) WHERE coalesce(node.repo_id,'') = $repo_id)` | 0 | right |
+| `all(node IN nodes(path) WHERE coalesce(node.repo_id,'') = $repo_id)` | 0 | **wrong, over-filters** |
+| the same, on a chain where every node carries `$repo_id` | **0** | wrong, over-filters |
+| `all(node IN nodes(path) WHERE node.repo_id = $repo_id)`, same chain | **0** | wrong, over-filters |
 | `all(node IN nodes(path) WHERE coalesce(node.repo_id,'') IN $ids)` | **1** | wrong, over-returns |
 | `all(node IN nodes(path) WHERE node.repo_id IN $ids)` | **1** | wrong, over-returns |
 | the same with a satisfied conjunct ahead of it | **1** | wrong, over-returns |
@@ -582,34 +584,46 @@ RETURN nodes(path) AS chain, length(path) AS depth
 | `all(… = $g0 OR … = $g1)`, both values granted | **0** | wrong, over-filters |
 | `coalesce(end.repo_id,'') = $repo_id` (endpoint control) | 0 | right |
 
-Two conclusions follow. The inline literal list fails exactly like the bound
-parameter, so the offender is the `IN` list-membership operator inside the list
-predicate and not parameter binding. And the obvious escape hatch — one scalar
-equality per allowed value, OR-ed — fails in the OTHER direction: it drops the
-chain even when every node on it is allowed, so it is a second defect rather
-than a workaround.
+Three conclusions follow. The inline literal list fails exactly like the bound
+parameter, so parameter binding is not the offender. The obvious escape hatch —
+one scalar equality per allowed value, OR-ed — fails in the OTHER direction: it
+drops the chain even when every node on it is allowed.
+
+And the single scalar equality fails that way too, which this page got wrong
+until #6548. It was graded "right" on two cases whose correct answer was 0
+either way — an unsatisfiable value, and a chain that genuinely crosses an
+out-of-grant hop — so a predicate that returns nothing passed both. Measured
+against a chain on which every node carries the value, it still returns 0, while
+the same comparison on an endpoint returns the row. The offender is therefore
+`all(...)` over `nodes(path)` itself, not the `IN` operator and not the
+comparison: on this build that construct returns everything or nothing,
+depending on the form, and never actually filters. All three rows are pinned by
+`TestLiveNornicDBPathListPredicateBehaviour`, including the wholly-granted
+control chain the earlier table lacked.
 
 ### Eshu implications
 
 A path-wide "every hop is in this set" bound cannot be written in Cypher on this
-build. Only a single scalar equality inside `all(... IN nodes(path) ...)` is
-evaluated, so:
+build, in any form. Do NOT reach for the single scalar equality even when the
+allowed set has exactly one member: it drops every row, including chains it must
+admit. So:
 
-1. When the allowed set has exactly ONE member, render
-   `all(node IN nodes(path) WHERE coalesce(node.prop,'') = $value)`.
-2. Otherwise project the raw `nodes(path)` and filter application-side. Compute
+1. Project the raw `nodes(path)` and filter application-side. Compute
    the truncation signal from the RAW row count, before the Go filter, so a page
    thinned by it reports as truncated rather than complete — the same caveat the
    `WITH`-attached `WHERE` entry carries.
-3. Or avoid the path predicate entirely by bounding each hop as the traversal
+2. Or avoid the path predicate entirely by bounding each hop as the traversal
    expands. `POST /api/v0/code/call-chain` takes this route on NornicDB: its
    response path is a Go-side breadth-first search over
    `nornicDBCallChainOneHopRows`, which carries the bound in its own anchoring
    `MATCH`, so bounding every hop needs no `nodes(path)` predicate at all.
 
-The relationship story's inheritance walk
-(`nornicDBRelationshipStoryInheritanceDepthCypher`) bounds its two endpoints for
-the same reason and says so at the call site.
+The relationship story's inheritance walk takes route 1. Its statement
+(`nornicDBRelationshipStoryInheritanceDepthCypher`) binds the two path endpoints
+and projects `nodes(path)`; `nornicDBInheritanceRowsInGrant` drops any row whose
+path crosses a repository the caller was not granted, and strips the projection
+before the row is returned. That closed #6548, where an out-of-grant class
+between two granted ones still yielded a depth number.
 
 ### Validation
 

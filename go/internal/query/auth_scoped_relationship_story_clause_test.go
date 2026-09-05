@@ -345,13 +345,23 @@ func TestRelationshipStoryInheritanceBoundsInteriorHopsOnCompatOnly(t *testing.T
 		}
 	})
 
-	t.Run("nornicdb_binds_endpoints_only", func(t *testing.T) {
+	t.Run("nornicdb_binds_endpoints_in_cypher_and_the_interior_in_go", func(t *testing.T) {
 		t.Parallel()
+		// nodes(path) as a PROJECTION is required here (#6548): the Go-side
+		// filter nornicDBInheritanceRowsInGrant reads it. What must never
+		// appear is nodes(path) inside an all(...) PREDICATE -- on the pinned
+		// build the list form admits every row and the scalar form drops every
+		// row, so either one is grant text that decides nothing or decides
+		// wrongly.
 		for _, direction := range []string{"outgoing", "incoming"} {
 			cypher := firstOf(nornicDBRelationshipStoryInheritanceDepthCypher(
 				req, storyGrantedAnchor, direction, "uid", access))
-			if strings.Contains(cypher, "nodes(path)") {
-				t.Fatalf("the NornicDB %s inheritance walk gained a path predicate the backend does not evaluate:\n%s",
+			if strings.Contains(cypher, "all(") {
+				t.Fatalf("the NornicDB %s inheritance walk gained an all() path predicate the backend evaluates in neither direction:\n%s",
+					direction, cypher)
+			}
+			if !strings.Contains(cypher, "nodes(path) as path_nodes") {
+				t.Fatalf("the NornicDB %s inheritance walk lost the projection its Go-side interior filter reads:\n%s",
 					direction, cypher)
 			}
 		}

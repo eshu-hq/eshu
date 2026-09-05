@@ -62,6 +62,12 @@ const (
 	liveClauseChainEnd      = "LiveClauseChainEnd"
 	liveClauseChainStartUID = "fn:live-clause-chain-start"
 	liveClauseChainEndUID   = "fn:live-clause-chain-end"
+
+	liveClauseCleanStart    = "LiveClauseCleanStart"
+	liveClauseCleanMid      = "LiveClauseCleanMid"
+	liveClauseCleanEnd      = "LiveClauseCleanEnd"
+	liveClauseCleanStartUID = "fn:live-clause-clean-start"
+	liveClauseCleanEndUID   = "fn:live-clause-clean-end"
 )
 
 // openLiveClauseDriver dials the standalone proof container. ESHU_NEO4J_URI
@@ -152,6 +158,20 @@ func seedLiveClauseGraph(ctx context.Context, t *testing.T, driver neo4jdriver.D
 		liveClauseContains("/granted/neighbor.go", liveClauseChainEndUID),
 		liveClauseCalls(liveClauseChainStartUID, "fn:live-clause-chain-bridge"),
 		liveClauseCalls("fn:live-clause-chain-bridge", liveClauseChainEndUID),
+
+		// A second chain whose every node is granted. It exists so a path
+		// predicate can be measured against a chain it MUST admit: a predicate
+		// that returns nothing passes an out-of-grant fixture by accident,
+		// which is how the single scalar equality was graded "right" before
+		// #6548.
+		liveClauseFunctionMerge(liveClauseCleanStartUID, liveClauseCleanStart, granted),
+		liveClauseFunctionMerge("fn:live-clause-clean-mid", liveClauseCleanMid, granted),
+		liveClauseFunctionMerge(liveClauseCleanEndUID, liveClauseCleanEnd, granted),
+		liveClauseContains("/granted/neighbor.go", liveClauseCleanStartUID),
+		liveClauseContains("/granted/neighbor.go", "fn:live-clause-clean-mid"),
+		liveClauseContains("/granted/neighbor.go", liveClauseCleanEndUID),
+		liveClauseCalls(liveClauseCleanStartUID, "fn:live-clause-clean-mid"),
+		liveClauseCalls("fn:live-clause-clean-mid", liveClauseCleanEndUID),
 
 		`MATCH (a {uid:"` + liveClauseAnchorClassUID + `"}), (b {uid:"class:live-clause-other-parent"}) MERGE (a)-[:INHERITS]->(b)`,
 		`MATCH (c {uid:"` + liveClauseAnchorClassUID + `"}), (m {uid:"fn:live-clause-granted-method"}) MERGE (c)-[:CONTAINS]->(m)`,

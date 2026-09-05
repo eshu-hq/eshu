@@ -85,6 +85,8 @@ func TestLiveNornicDBPathListPredicateBehaviour(t *testing.T) {
 		name      string
 		where     string
 		params    map[string]any
+		startUID  string
+		endUID    string
 		wantRows  int
 		explained string
 	}{
@@ -100,14 +102,14 @@ func TestLiveNornicDBPathListPredicateBehaviour(t *testing.T) {
 			where:     `WHERE all(node IN nodes(path) WHERE coalesce(node.repo_id, '') = $repo_id)`,
 			params:    map[string]any{"repo_id": "repo://nobody/owns-this"},
 			wantRows:  0,
-			explained: "MEASURED, right: a single scalar equality inside all() IS evaluated",
+			explained: "MEASURED, but this zero proves nothing on its own: the predicate is unsatisfiable AND the form drops every row -- see clean_chain_all_over_nodes_scalar_equality",
 		},
 		{
 			name:      "shipped_repo_scoped_all_over_nodes",
 			where:     `WHERE all(node IN nodes(path) WHERE coalesce(node.repo_id, '') = $repo_id)`,
 			params:    map[string]any{"repo_id": codeGrantGrantedRepo},
 			wantRows:  0,
-			explained: "MEASURED, right: the shipped repo-scoped scalar form does bound the path",
+			explained: "MEASURED, right answer for the wrong reason: this chain crosses an out-of-grant bridge so 0 is correct, but the form returns 0 for a wholly granted chain too",
 		},
 		{
 			name:      "shipped_repo_scoped_all_over_nodes_list_form",
@@ -172,11 +174,47 @@ func TestLiveNornicDBPathListPredicateBehaviour(t *testing.T) {
 			wantRows:  0,
 			explained: "MEASURED, right: a plain endpoint predicate in the same clause position is the control",
 		},
+		// The three cases below run against a chain whose every node is
+		// granted, so the correct answer is 1 and a predicate that returns
+		// nothing is caught. Every case above has 0 as its correct answer for
+		// the scalar forms, which is how "a single scalar equality IS
+		// evaluated" survived as a measurement until #6548.
+		{
+			name:      "clean_chain_no_predicate_control",
+			where:     "",
+			params:    map[string]any{},
+			startUID:  liveClauseCleanStartUID,
+			endUID:    liveClauseCleanEndUID,
+			wantRows:  1,
+			explained: "MEASURED, right: the wholly granted chain exists, so the two cases below start from one row",
+		},
+		{
+			name:      "clean_chain_all_over_nodes_scalar_equality",
+			where:     `WHERE all(node IN nodes(path) WHERE coalesce(node.repo_id, '') = $repo_id)`,
+			params:    map[string]any{"repo_id": codeGrantGrantedRepo},
+			startUID:  liveClauseCleanStartUID,
+			endUID:    liveClauseCleanEndUID,
+			wantRows:  0,
+			explained: "MEASURED, WRONG: every node on this chain carries exactly this repo_id and the form still drops it, so the single scalar equality over-filters rather than filtering",
+		},
+		{
+			name:      "clean_chain_endpoint_scalar_equality",
+			where:     `WHERE coalesce(end.repo_id, '') = $repo_id`,
+			params:    map[string]any{"repo_id": codeGrantGrantedRepo},
+			startUID:  liveClauseCleanStartUID,
+			endUID:    liveClauseCleanEndUID,
+			wantRows:  1,
+			explained: "MEASURED, right: the same scalar equality on an endpoint admits it, so the defect is all() over nodes(path) and not the comparison",
+		},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
+			startUID, endUID := liveClauseChainStartUID, liveClauseChainEndUID
+			if tc.startUID != "" {
+				startUID, endUID = tc.startUID, tc.endUID
+			}
 			params := map[string]any{
-				"start_entity_id": liveClauseChainStartUID,
-				"end_entity_id":   liveClauseChainEndUID,
+				"start_entity_id": startUID,
+				"end_entity_id":   endUID,
 			}
 			for key, value := range tc.params {
 				params[key] = value

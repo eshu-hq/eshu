@@ -166,6 +166,66 @@ rather than introducing a shape. The tests that back it drive
 Cypher defines them; a fake cannot discover a backend quirk. If Neo4j ever
 becomes a gated lane, this is the first assertion to re-measure.
 
+### #6548: Closing The NornicDB Inheritance Interior
+
+Review deferred this: on the default backend, an out-of-grant class between two
+granted ones still produced a depth number, because only the two path endpoints
+were bound. It is closed now, and the theory came first.
+
+Four closures were measured against the pin (`v1.2.3@sha256:4dfa887d`) on a seed
+of grantedA → ungrantedC → grantedB, beside a wholly granted grantedA → grantedD
+control that a correct predicate MUST admit:
+
+| shape | rows | verdict |
+| --- | ---: | --- |
+| endpoints only (baseline) | 2 | the leak: `B@2` reached through ungranted `C` |
+| `all(n IN nodes(path) WHERE n.repo_id IN $ids)` | 2 | inert, admits everything |
+| `all(n IN nodes(path) WHERE coalesce(n.repo_id,'') = $g)` | **0** | over-filters: drops the granted `D@1` too |
+| `[n IN nodes(path) \| coalesce(n.repo_id,'')]` projection | — | returns literal expression text, unusable |
+| raw `nodes(path)` projection | 2 | **works**: real per-hop `repo_id` on every node |
+
+The third row contradicted
+[NornicDB Query-Shape Pitfalls](../../public/reference/nornicdb-query-pitfalls.md),
+which graded that form "right". Rather than take a result on one pattern as
+proof against a committed measurement on another — the error this batch's round
+1 was about — it was re-measured on the page's own shape, a `CALLS` path
+anchored at both ends, against a chain where every node is granted so the
+correct answer is 1: the control returned 1, the scalar `all()` returned 0, and
+the same comparison on an endpoint returned 1.
+
+So the page was wrong, and the reason it was wrong is instructive: both cases
+behind its "right" verdict had 0 as the correct answer — an unsatisfiable value,
+and a chain that genuinely crosses an out-of-grant hop — so a predicate that
+returns nothing passed both. No should-admit case had ever been run.
+`TestLiveNornicDBPathListPredicateBehaviour` now carries one, plus its own
+wholly granted control chain, so the false green cannot come back. Nothing in
+production depended on the bad guidance: `buildNornicDBCallChainCypher` renders
+that form but is unreachable from `handleCallChain` and does not parse on the
+pin.
+
+The fix takes the shape that works. `nornicDBRelationshipStoryInheritanceDepthCypher`
+keeps its endpoint predicates and, for a scoped caller only, projects
+`nodes(path)`; `nornicDBInheritanceRowsInGrant` drops any row whose path crosses
+a repository the caller was not granted and strips the projection before the row
+is returned, so it cannot reach the response. It fails closed three ways, each
+pinned: an empty `repo_id`, an absent `repo_id` property, and an element that is
+not a node shape the reader understands. An unscoped caller renders no
+projection and its rows are untouched. The raw row count still decides which id
+property anchors the walk, before the filter runs, so a walk whose every row is
+out of grant is not mistaken for "this property did not match".
+
+`TestLiveNornicDBInheritanceWalkDropsAnOutOfGrantInteriorClass` carries its own
+negative control: it asserts the raw statement STILL returns the interior-crossing
+chain (2 rows, `LiveInteriorGrantedB` and `LiveInteriorGrantedD`) before asserting
+the shipped read does not (1 row, `LiveInteriorGrantedD`). If the endpoint-bound
+statement ever stops producing the leak, the test fails rather than passing
+vacuously.
+
+The two lanes now differ in mechanism and agree in result: Neo4j-compat bounds
+the interior with an `all(...)` conjunct the backend evaluates, NornicDB bounds
+it in Go off a projected path. Both drop a chain that passes through an
+ungranted class.
+
 ### What The Interior Conjunct Rests On
 
 Stated in one place, because it is the load-bearing assumption of the whole
