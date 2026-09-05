@@ -40,7 +40,7 @@ tree. The one addition specific to this package:
 ## `_test.go` exports do not cross package boundaries
 
 A `_test.go` file's exported symbols are visible only to the package's own
-test binary, never to another package importing it normally. Three root test
+test binary, never to another package importing it normally. These root test
 files still need their own copies of this package's fixtures/doubles because
 of that boundary, not because anyone chose to duplicate them for style:
 

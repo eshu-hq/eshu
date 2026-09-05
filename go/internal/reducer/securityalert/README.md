@@ -134,8 +134,11 @@ A handful of small, pure functions this package's own logic touches are
 declared here rather than imported, because importing the reducer root from a
 family subpackage is forbidden (issue #6061) and each is either not yet
 extracted into its own shared subpackage or genuinely root-scoped shared
-state. Most are byte-identical to their root originals; two were renamed and
-one was re-parameterised, and each bullet below says which:
+state. Most are byte-identical to their root originals. Three are not: two
+were renamed, one was re-parameterised, and `securityAlertConsumptionEvidenceKind`
+returns the `factschema` constant directly where root returns its
+`packageConsumptionCorrelationFactKind` alias for the same value. Each bullet
+below says which:
 
 - `activeRepositoryFactLoader` / `activePackageManifestDependencyFactLoader`
   (`security_alert_reconciliation_handler.go`) mirror the reducer root's
@@ -213,8 +216,9 @@ originals for the same reason. Two of the three version helpers are byte-identic
 `SecurityAlertReconciliationHandler` gaining the injected
 `ManifestConsumptionExtractor` (see above) in place of a direct call to the
 root's `extractSecurityAlertManifestConsumptions`/
-`securityAlertManifestConsumptionMatches`, which stayed in root
-unchanged — the reducer root wires the identical function as that
+`securityAlertManifestConsumptionMatches`, which stayed in root with their
+logic unchanged and only their alert/consumption types requalified to this
+package's exported ones — the reducer root wires that same function as the
 extractor at every construction site, so the composed behavior for every
 caller (the reducer handler, `supply_chain_impact`'s finding seeding, and
 every existing test) is unchanged; only the seam between "decide" and
