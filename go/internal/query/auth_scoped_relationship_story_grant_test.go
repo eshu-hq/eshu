@@ -236,6 +236,38 @@ func TestRelationshipStoryEmptyGrantReachesNoBackend(t *testing.T) {
 	}
 }
 
+// TestRelationshipStoryEmptyGrantNamingARepositoryReachesNoBackend is the other
+// caller shape. The test above sends no repo_id, which is the case the empty-
+// grant gate answers; a grantless caller that NAMES one is refused earlier, by
+// the repository selector, and never reaches that gate. Either way no backend
+// is read -- which is the property both halves exist to pin -- but the answer
+// the caller sees differs, and the PR body says so rather than claiming one
+// shape for both.
+func TestRelationshipStoryEmptyGrantNamingARepositoryReachesNoBackend(t *testing.T) {
+	t.Parallel()
+
+	graph := storyGrantGraphFor(GraphBackendNornicDB)
+	content := storyGrantContent()
+	auth := codeGrantScopedAuthContext(nil)
+	body := storyDirectRequestBody()
+	body["repo_id"] = codeGrantGrantedRepo
+	rec := runStoryRequest(t, storyGrantHandler(GraphBackendNornicDB, graph, content), body, &auth)
+	if got, want := rec.Code, http.StatusBadRequest; got != want {
+		t.Fatalf("status = %d, want %d; body = %s", got, want, rec.Body.String())
+	}
+	if statements := graph.recordedStatements(); len(statements) != 0 {
+		t.Fatalf("a grantless scoped caller reached the graph: %v", statements)
+	}
+	if content.reachedTheStore() {
+		t.Fatalf("a grantless scoped caller reached the content store: repos=%v entities=%v anyRepo=%v",
+			content.askedRepo, content.askedEntity, content.anyRepo)
+	}
+	if leaked := rec.Body.String(); strings.Contains(leaked, storyGrantedNeighbour) ||
+		strings.Contains(leaked, storyUngrantedTarget) {
+		t.Fatalf("the refusal named a row: %s", leaked)
+	}
+}
+
 // TestRelationshipStoryResolvesAScopeOnlyGrantToItsRepository covers a grant
 // that names the git ingestion scope rather than the repository it owns.
 func TestRelationshipStoryResolvesAScopeOnlyGrantToItsRepository(t *testing.T) {

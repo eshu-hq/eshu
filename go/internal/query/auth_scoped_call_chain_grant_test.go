@@ -147,6 +147,30 @@ func TestCallChainEmptyGrantReachesNoBackend(t *testing.T) {
 	}
 }
 
+// TestCallChainEmptyGrantNamingARepositoryReachesNoBackend is the other caller
+// shape, the same split the story route has. A grantless caller that names a
+// repository is refused by the repository selector before the empty-grant gate
+// is reached, so it gets a 400 rather than the route's own empty answer. No
+// backend is read either way, which is the property both halves pin.
+func TestCallChainEmptyGrantNamingARepositoryReachesNoBackend(t *testing.T) {
+	t.Parallel()
+
+	graph := &callChainGrantGraph{entities: callChainGrantEntities()}
+	auth := codeGrantScopedAuthContext(nil)
+	body := callChainRequestBody()
+	body["repo_id"] = codeGrantGrantedRepo
+	rec := runCallChainRequest(t, graph, body, &auth)
+	if got, want := rec.Code, http.StatusBadRequest; got != want {
+		t.Fatalf("status = %d, want %d; body = %s", got, want, rec.Body.String())
+	}
+	if len(graph.statements) != 0 {
+		t.Fatalf("a grantless scoped caller reached the graph: %v", graph.statements)
+	}
+	if leaked := rec.Body.String(); strings.Contains(leaked, callChainUngrantedHop) {
+		t.Fatalf("the refusal named an out-of-grant entity: %s", leaked)
+	}
+}
+
 // TestCallChainSharedKeyReadIsUnchanged pins the other direction.
 func TestCallChainSharedKeyReadIsUnchanged(t *testing.T) {
 	t.Parallel()
