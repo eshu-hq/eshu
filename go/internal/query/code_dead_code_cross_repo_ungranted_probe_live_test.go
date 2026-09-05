@@ -27,15 +27,24 @@ import (
 // the eight in the table below plus the two 500-id grants -- and requires the
 // same producer entities back from both statements, every time.
 //
-// Three plan and work guards cover what the answers cannot see, because each of
-// the mutations they exist for leaves every entity's verdict correct:
+// Five plan and work guards cover what the answers cannot see, because each of
+// the mutations they exist for leaves every entity's verdict correct. Three of
+// them read the plan:
 //
 //   - the walk's per-step seek must reach an index condition rather than a
 //     filter, or a step scans the entity's remaining rows;
 //   - the liveness seek's index condition must carry all four key columns, or a
 //     step scans the pair's retained generations for its active row;
-//   - the recursive term's measured row count must stay inside a budget, or the
-//     walk has stopped stopping at the first hidden pair.
+//   - the granted-repository skip must reach an index condition too, or a
+//     granted repository is walked scope by scope.
+//
+// and two measure the work done, because the mutations they catch change no
+// plan node and no verdict: the recursive term's row count for a page carrying
+// a wide fan-out entity, and again for one whose granted consumer repository
+// carries fifty scopes; the buffers one entity costs when every consumer
+// repository also holds each retained generation; and the exact step count on
+// the stale-consumer axis, which is the bound the walk's contract used to state
+// wrongly.
 //
 // The retained-generation axis is the reason the second exists. A group holds
 // one row per generation the retention runner still keeps, the active row is

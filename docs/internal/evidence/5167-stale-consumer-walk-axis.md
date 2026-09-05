@@ -38,8 +38,10 @@ repository's first one.
 
 So the bound is not `min(d, N) + 1`. It is the granted repositories passed, at
 most `min(d, N)` of them, plus the ungranted `(repository, scope)` pairs passed
-that hold no live consumer row, plus one — and the third term is bounded by the
-retention window rather than by `d` or `N`.
+that hold no live consumer row, plus one. The third term is bounded by the
+entity's distinct `(repository, scope)` pairs that held a row inside the
+retention window, not by `d` or `N` — the window sets how far back "used to call
+this" reaches, it is not itself the bound.
 `TestCrossRepoDeadCodeUngrantedConsumerProbeLive` asserts that count rather than
 describing it: `ent-stale-repos` carries 300 stale ungranted consumer
 repositories and one live hidden consumer after them under a one-repository
@@ -113,9 +115,19 @@ driven from `ingestion_scopes` at 50, and the three-column scan on the
 2,447,218-row corpus. A guard sized for a unit-test corpus would pass for
 whichever plan it happened to get.
 
+Both halves of that pin are recorded as mutations rather than described.
+Reverting the generation to a join on the outer row fails it `1` with `probe is
+missing "AND live_row.generation_id = ("`; reintroducing
+`JOIN code_reachability_rows AS live_row` beside a surviving subquery — the
+likelier drift, and the one the first check cannot reach because it `t.Fatalf`s
+first — fails it `1` with `probe joins the liveness row on the outer pair`. Row
+54 of [#5167 code family batch 1 proofs](5167-code-family-batch-1-proofs.md)
+carries both.
+
 Restricting the ungranted step's own seek to live pairs was measured and
 rejected. Joined to `ingestion_scopes` on the active generation it walks 2 rows
-rather than 301, and reads `hit=4,304` in 26.6 / 27.5 / 27.3 ms, because the
+rather than 301, and reads `hit=4,304` in 27.2 / 26.6 / 25.8 ms on a custom plan
+and 26.7 / 27.5 / 27.3 forced generic, because the
 restriction never becomes an index condition: one step reads 119,620 index rows
 under a hash join against a 302-row `Seq Scan on ingestion_scopes`. It trades a
 per-pair cost for a cost in the entity's TOTAL retained rows — the fan-in

@@ -83,11 +83,12 @@ func TestCrossRepoDeadCodeSignalReadIsTheBoundedUngrantedProbe(t *testing.T) {
 		t.Fatalf("second statement is not the ungranted-consumer probe:\n%s", probe)
 	}
 	// The whole point of the probe is that it stops early, and it stops early
-	// because it walks one producer entity's DISTINCT consumer repositories in
-	// index order and quits at the first one the grant does not contain. Each
-	// piece of that is pinned: the recursive walk, the two per-step seeks and
-	// the gate that picks between them, the one-row limits that keep each seek
-	// a seek, and the continue-condition that ends the walk.
+	// because it walks one producer entity's distinct (repository_id, scope_id)
+	// PAIRS in index order and quits at the first pair that is both outside the
+	// grant and live. Each piece of that is pinned: the recursive walk, the two
+	// per-step seeks and the gate that picks between them, the one-row limits
+	// that keep each seek a seek, and the continue-condition that ends the
+	// walk.
 	for _, want := range []string{
 		"WITH RECURSIVE page AS (",
 		"AND (row.repository_id, row.scope_id) > (walk.repository_id, walk.scope_id)",

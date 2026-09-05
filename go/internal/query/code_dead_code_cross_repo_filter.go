@@ -193,8 +193,11 @@ func crossRepoDeadCodeUnknownReasons(
 // passes that hold no live consumer row: a repository outside the grant whose
 // active generation no longer names this entity, while the retention runner
 // still keeps the rows that say it once did. Such a pair is not hidden, so the
-// walk steps past it rather than stopping, and S is bounded by the retention
-// window rather than by d or N. It is the axis to watch where consumers churn.
+// walk steps past it rather than stopping. S is bounded by the entity's
+// distinct (repository, scope) pairs that held a row inside the retention
+// window, not by d or N -- the window sets how far back "used to call this"
+// reaches, it is not itself the bound. It is the axis to watch where consumers
+// churn.
 //
 // Each step is two index seeks, the pair seek and the four-column liveness
 // seek. Nothing in the cost grows with the entity's row fan-in, with N alone,
