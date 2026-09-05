@@ -56,9 +56,8 @@
 # pin. A cap `//nolint:dirgate` is refused here (grandfather_eval.go and
 # dirgate-core.sh both enforce this): the marker sits on the directory's
 # representative file and would suppress the cap for every file in it forever,
-# so one marker on internal/query's doc.go would un-gate 854 files silently --
-# the 853 its row below pins, plus the one whose addition tripped the cap. That
-# is why this number is one more than the row, and it is the only copy of it:
+# so one marker on internal/query's doc.go would un-gate 788 files silently --
+# the 788 its row below pins, and it is the only copy of it:
 # dirgate-core.sh, grandfather_eval.go, its test and the dirgate README used to
 # each carry their own and all four drifted.
 # A bump is one line in this file that a reviewer sees and can argue with.
@@ -85,7 +84,7 @@ internal/parser	47	dc6d2390c51ca20550859d3f746a14ec3899765ea31c9a8707532c6e709d2
 internal/parser/golang	42	a27d65bfc9ffe3085e35e66aab932d0c361bea10ac34e407dd3300205379e039
 internal/parser/javascript	48	b6aaa1628818f74382a4b7eee937f476f991d613f624a325b930fd89aa7e437c
 internal/projector	47	90bc68bb690013862bc225b94c15ff4d758882a9c4cfb57363b8af52c45e123d
-internal/query	787	39e91764858d5145a3821b5c3206d7fc956acb9fb41cf9661838a7593541715d
+internal/query	788	1f66d6e332d0c4798e0cde9876c7bc2fc25058d73e1c9d5ababfb2689b113ae9
 internal/reducer	354	e522a81dfe929e90db19651d328a2b6618198372ff9c4fd7c013bd1e013239b0
 internal/status	45	c7dfe62bb4c04da7f242ba8d2a8fb744865937c103df10c5374f05df25ce9261
 internal/storage/cypher	131	eb310aa90dadf1c8bba189a65bd0c9f529c9c40a59e098789465e073f1996de7
