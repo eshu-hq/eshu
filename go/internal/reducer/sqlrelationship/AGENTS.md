@@ -48,8 +48,8 @@ the full ownership boundary and exported surface.
   - `EvidenceSource`, `FilePartitionKey`, `WholeScopePartitionKey`, and
     `PartitionKeyVersion` are not consumed by `shell_exec` at all: they
     support the root's generic shared-projection worker test
-    (`shared_projection_worker_refresh_redelivery_test.go`) and this
-    package's own partition-convergence test
+    (`shared_projection_worker_refresh_redelivery_test.go`) and the reducer
+    root's partition-convergence test
     (`sql_relationship_partition_convergence_test.go`), both of which need
     real evidence-source/partition-key values to construct root-owned
     worker fixtures.
