@@ -14,7 +14,9 @@ func reachabilityTools() []ToolDefinition {
 				"catalog. Findings are derived (symbol-level reachability, not value-flow) and use the conservative " +
 				"truth-state vocabulary (exact/partial/ambiguous/unresolved). Never fabricates a path: when a " +
 				"code-to-cloud bridge edge is not materialized, the cloud-sink segment is reported unresolved. " +
-				"Provide source (handler name) with repo_id, or source_entity_id.",
+				"Provide source (handler name) with repo_id, or source_entity_id. Scoped (personal-token) callers are " +
+				"refused with a 403: reachable node types mostly carry no repo_id, so the traversal cannot be bound to " +
+				"the caller's repository grant (#5167 Group B). Use the shared ESHU_API_KEY for this tool.",
 			InputSchema: map[string]any{
 				"type": "object",
 				"properties": map[string]any{

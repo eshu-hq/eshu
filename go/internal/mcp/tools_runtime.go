@@ -40,7 +40,7 @@ func runtimeTools() []ToolDefinition {
 		},
 		{
 			Name:        "get_index_status",
-			Description: "Return the latest checkpointed index status.",
+			Description: "Return the latest checkpointed index status. Scoped (personal-token) callers are refused with a 403: this stack-wide summary carries no per-tenant selector (#5167 Group B). Use the shared ESHU_API_KEY for this tool.",
 			InputSchema: map[string]any{
 				"type":       "object",
 				"properties": map[string]any{},
