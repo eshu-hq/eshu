@@ -22,6 +22,12 @@ type codeownersOwnershipDeltaScope struct {
 	hasDelta          bool
 }
 
+// codeownersMaterializationFactKinds is the single source for the kind set
+// loadCodeownersOwnershipMaterializationFacts requests; the bench corpus
+// guard in factload_materialization_bench_test.go reads the same slice so a
+// newly requested kind without seeded coverage fails there, not silently.
+var codeownersMaterializationFactKinds = []string{factKindRepository, factKindCodeownersOwnership}
+
 // loadCodeownersOwnershipMaterializationFacts loads the repository delta facts
 // plus every codeowners.ownership fact for the generation. codeowners.ownership
 // is a directly-emitted fact (Contract System v1), so no content_entity/
@@ -37,7 +43,7 @@ func loadCodeownersOwnershipMaterializationFacts(
 		loader,
 		scopeID,
 		generationID,
-		[]string{factKindRepository, factKindCodeownersOwnership},
+		codeownersMaterializationFactKinds,
 	)
 }
 
