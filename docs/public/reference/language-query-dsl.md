@@ -33,7 +33,7 @@ returns the data object itself.
 | `language` | yes | string | — | Canonical language name. See [Supported languages](#supported-languages). |
 | `entity_type` | yes | string | — | Entity kind to search for. See [Entity types](#entity-types). |
 | `query` | no | string | empty | Optional name-substring filter applied to the entity. Empty = list all matching entities. |
-| `repo_id` | no | string | empty | Optional repository selector narrowing the search to one repository. Resolved before either backend is read, so a name or short form is accepted and a non-canonical one that resolves to nothing is rejected; a canonical id is taken as given. See [Repository scope](#repository-scope). |
+| `repo_id` | no | string | empty | Optional repository selector narrowing the search to one repository. Resolved before either backend is read, so a name or short form is accepted and a non-canonical one that resolves to nothing is rejected; a canonical id is taken as given, and for a scoped token still checked against the grant. See [Repository scope](#repository-scope). |
 | `limit` | no | integer | 50 | Maximum number of results. Values above 200 are silently clamped to 200. |
 
 ## Repository scope
@@ -42,11 +42,21 @@ returns the data object itself.
 repository-selector path the rest of the code family uses, before either backend
 is read, so a repository name resolves as readily as a canonical id -- and a
 NON-CANONICAL selector that resolves to no repository is rejected with `400`
-rather than quietly matching nothing. A canonical id (the `repo://`, `repo-` and
-`repository:` forms) is taken as given and never resolved, so one naming a
-repository that is not indexed still answers `200` with an empty `results` list.
-`TestLanguageQuerySharedKeyRepoIDGoesThroughTheSelector`'s
-`canonical_id_anchors_the_read` sub-case pins the canonical half.
+rather than quietly matching nothing, whoever sends it
+(`TestLanguageQuerySharedKeyRepoIDGoesThroughTheSelector`'s
+`unresolvable_selector_is_rejected` sub-case).
+
+A canonical id -- the `repo://`, `repo-` and `repository:` forms -- is taken as
+given and never resolved, and what that means depends on the caller:
+
+- For an UNSCOPED shared, admin, or local token, an unindexed canonical id is
+  not an error: the read is anchored to it and answers `200` with an empty
+  `results` list (`TestLanguageQueryCanonicalRepoIDIsTakenAsGiven`, with
+  `canonical_id_anchors_the_read` covering the indexed case).
+- For a SCOPED token it is still checked against the grant, so a canonical id
+  outside the grant is a `400` exactly like any other selector outside it
+  (`TestLanguageQueryUngrantedRepositorySelectorIsRejected`, whose ungranted
+  `repo_id` is itself a `repo://` id).
 
 For a scoped token the resolution is bound to the caller's grant, and every read
 this route makes is bound to it as well. Three consequences are worth stating
@@ -70,9 +80,10 @@ plainly:
 
 A shared, admin, or local token is unscoped and searches every indexed
 repository, as before. The selector resolution applies to it too, so a
-non-canonical `repo_id` that resolves to nothing is a `400` for every caller --
-but a canonical id is taken as given for every caller alike, and an unindexed
-one answers `200` with an empty `results` list rather than `400`.
+non-canonical `repo_id` that resolves to nothing is a `400` for every caller.
+The canonical form is where the two caller classes part: an unscoped caller's
+unindexed canonical id answers `200` with an empty `results` list, while a
+scoped token's canonical id outside its grant is a `400`.
 
 ## Supported languages
 
@@ -231,7 +242,7 @@ Direct HTTP response:
 | HTTP 400 `entity_type is required` | `entity_type` missing or empty. |
 | HTTP 400 `unsupported language "<x>"` | `language` not in the canonical set. |
 | HTTP 400 `unsupported entity_type "<x>"` | `entity_type` not in the enum. |
-| HTTP 400 (selector) | A non-canonical `repo_id` resolves to no repository the caller may read -- it names nothing, or names a repository outside a scoped token's grant. The two are not distinguished. A canonical id (`repo://`, `repo-`, `repository:`) is taken as given rather than resolved, so an unindexed one answers `200` with an empty `results` list instead. See [Repository scope](#repository-scope). |
+| HTTP 400 (selector) | A non-canonical `repo_id` resolves to no repository the caller may read -- it names nothing, or names a repository outside a scoped token's grant. The two are not distinguished, for any caller. A canonical id (`repo://`, `repo-`, `repository:`) is taken as given rather than resolved, so for an UNSCOPED caller an unindexed one answers `200` with an empty `results` list instead of `400`; for a SCOPED token a canonical id outside the grant is still `400`. See [Repository scope](#repository-scope). |
 | HTTP 500 `language query failed` | An unrecognized error from the graph or content read path -- one `WriteGraphReadError` does not map to a bounded sentinel (400/501/503/504). This is the route's most likely non-sentinel failure. The response body stays static on purpose; the operator log carries the unmodified cause plus a bounded `failure_class` key for triage. |
 | HTTP 501 `unsupported_capability` | Two distinct causes share this status, distinguished by the response `message`. Reachable today: `entity_type` is one of the graph-only kinds (`repository`, `directory`, `file`) and no live graph backend is configured -- `local_lightweight` and `ESHU_DISABLE_NEO4J=true` both wire a driverless `*Neo4jReader` (`cmd/api/wiring_graph.go`), which this route treats the same as no reader, and those entity types have no content-store equivalent to fall back to. Not reachable today: the running profile's capability-matrix ceiling is unset for `symbol_graph.language_entities`; every profile currently committed in `specs/capability-matrix/language-entities.v1.yaml` has a non-nil ceiling, so the profile-level gate cannot fire under the current matrix, though the handler still checks it first. |
 | HTTP 503 `backend_unavailable` | The graph backend is unavailable for this bounded read. Retry with backoff. |
